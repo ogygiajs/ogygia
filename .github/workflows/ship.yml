@@ -1,13 +1,13 @@
 name: ship
 
-# The `ship` label is the merge button: adding it to a PR into `next` turns on GitHub's auto-merge
-# (squash), so the PR merges by itself once the checks the `next` ruleset requires are green.
+# The `ship` label is the merge button: adding it to a PR into `main` turns on GitHub's auto-merge
+# (squash), so the PR merges by itself once the checks the `main` ruleset requires are green.
 # Removing the label before then cancels it.
 #
 # `pull_request_target` runs this file as it is on the base branch, never the PR's code, and nothing
 # here checks the PR out. SHIP_TOKEN is a fine-grained token (this repo: contents + pull requests,
 # read and write): a merge made with the built-in GITHUB_TOKEN would not trigger the workflows that
-# a push to `next` runs (the release workflow above all).
+# a push to `main` runs (the release workflow above all).
 on:
   pull_request_target:
     types: [labeled, unlabeled]
@@ -16,7 +16,7 @@ permissions: {}
 
 jobs:
   auto-merge:
-    if: github.event.label.name == 'ship' && github.event.pull_request.base.ref == 'next'
+    if: github.event.label.name == 'ship' && github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.SHIP_TOKEN }}
