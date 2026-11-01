@@ -525,3 +525,7 @@ The **passage** release: the runtime and the compiler rebuilt on one identity pr
 
 - Dev: `asset()` no longer rewrites Vite `/@id/…` URLs, and props stay the region's immediate sibling.
 - SSR and the client share one virtual tree, ending hydration mismatches on captured props.
+
+## 0.0.0
+
+Initialize package.
