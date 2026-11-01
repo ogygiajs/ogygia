@@ -129,7 +129,7 @@ The findings it can name:
 
 On the dev server modules load one by one, so load times run higher than in a build. The other findings hold in both.
 
-On a Kit-hydrated (`csr = true`) page ogygia's runtime never boots, so there are no islands, no wire and no byte ledger. The dock says so and still shows the Page tab, with the vitals, the findings about the page, the files, third parties and styles, all taken from the beacon that its boot starts.
+On a Kit-hydrated (`csr = true`) page ogygia's runtime never boots, so there are no islands, no wire and no byte ledger. In dev the dock still opens there (a build gives such a page no dock): it says so and still shows the Page tab, with the vitals, the findings about the page, the files, third parties and styles, all taken from the beacon that its boot starts.
 
 After an in-app navigation (where ogygia's router swaps the page without a reload), the tab reports on the new page, and its findings and island rows count from the navigation. An island that appears on both pages with the same props is kept by the router, still awake, with no code to load and nothing to hydrate. The tab lists such islands as kept, so a page whose islands were all reused does not read as "nothing woke". The Styles section reads the new page's sheets. The vitals stay those of the first page's load, labelled as such, because a navigation paints nothing the browser reports. The load CPU trace also belongs to the first page, so record the main thread again for the new one.
 
@@ -197,5 +197,5 @@ The devtools never mount on [profiler](/docs/profiler/overview) pages, including
 :::
 
 ::: warning `csr = true` pages
-On a Kit-hydrated (`csr = true`) page the ogygia runtime never boots, so there are no islands to inspect. The dock shows a notice that points you to a `csr = false` page.
+On a Kit-hydrated (`csr = true`) page the ogygia runtime never boots, so there are no islands to inspect. In dev the dock shows a notice that points you to a `csr = false` page; in a build such a page has no dock.
 :::
