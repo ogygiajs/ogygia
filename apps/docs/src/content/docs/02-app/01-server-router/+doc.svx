@@ -170,6 +170,21 @@ const docLoad: Load<'/docs/[slug]'> = async (c) => ({ doc: await docs.get(c.para
 page(Doc, { load: docLoad }),
 ```
 
+Written inside the table, a load needs no pattern: **the table key types `c.params`**, as it does for an endpoint's handlers. The same holds for each action, for the `load()` and `action()` wrappers used in those slots, inside `layout(...)` tables, and behind `when()`. A param the key does not have is an error, and the load's return type reaches `App` unchanged:
+
+```ts
+routes({
+  '/posts/[id]': page(Post, {
+    load: async (c) => ({ post: await posts.get(c.params.id) }),   // c.params.id: string
+    actions: { save: (c) => posts.save(c.params.id) },
+  }),
+  '/docs/[...rest]': page(Doc, { load: load((c) => docs.get(c.params.rest)) }),
+  '/[[lang]]/about': page(About, { load: (c) => ({ lang: c.params.lang }) }),   // string | undefined
+});
+```
+
+A page built outside a table has no key to read, so its `c.params` is a loose `Record<string, string | undefined>`, and it still fits any key. A page with a `params` schema reads the schema's output instead (see [Typed input](#typed-input)).
+
 **The cascade is Kit's, unchanged.** A page's `data` is the **merge** of every load on its branch, from the outermost layout to the page, with later loads winning, and a component reads the whole merge:
 
 ```svelte title=Dashboard.svelte
@@ -328,8 +343,8 @@ import * as v from 'valibot';
 }),
 ```
 
-- **`params`** coerces and validates path params. Invalid input gets a **404**, because it names a resource that doesn't exist, and `App['/post/[id]']['params']` becomes the schema's output.
-- **`search`** types the query. Invalid input gets a **400**, or is handled leniently with the schema's defaults, and `App['/post/[id]']['search']` is typed too.
+- **`params`** coerces and validates path params. Invalid input gets a **404**, because it names a resource that doesn't exist. The schema's output types `c.params` in the page's load and actions, in place of the key's strings, and becomes `App['/post/[id]']['params']`.
+- **`search`** types the query. Invalid input gets a **400**, or is handled leniently with the schema's defaults. Its output types `c.search` and `App['/post/[id]']['search']`.
 - **The endpoint body** is validated by `POST(schema, fn)` into `c.input`, and an invalid body gets a **400**, much like the typed argument of a `command` remote function.
 
 ## Typed everything: `$infer`
