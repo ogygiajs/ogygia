@@ -20,15 +20,15 @@ import { fileURLToPath } from 'node:url';
 import type { Page } from '@playwright/test';
 import { test, expect, check, sleep, stamp_document, document_stamp } from '@ogygia/tooling/e2e';
 import { pack_ogygia, use_packed } from '@ogygia/tooling/e2e/packed.ts';
-import { spawn_server, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
+import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
 
 const REPO = fileURLToPath(new URL('../../..', import.meta.url));
 const FIXTURE = join(REPO, 'internal', 'repro-kit3');
 // outside the repo: nothing above the app may resolve a package for it (the repo root holds Kit 2)
 const WORK = join(tmpdir(), 'ogygia-e2e-kit3');
 const APP = join(WORK, 'app');
-const BUILD_PORT = 3091;
-const DEV_PORT = 3092;
+const BUILD_PORT = port(3091);
+const DEV_PORT = port(3092);
 const COPY_SKIP_RE = /node_modules|\.svelte-kit|(^|\/)build($|\/)/;
 // a stable signing key, so the build and the server agree (CI sets its own)
 const SECRET =
