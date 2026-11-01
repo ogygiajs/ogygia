@@ -10,6 +10,13 @@ on:
 # and `e2e`, one runner per slice of the e2e suites. Each suite runs one test at a time on purpose (its
 # fixture app's state is shared, and some specs time things), so a bigger runner would sit idle: the
 # speedup comes from running the slices AT ONCE, not from cores.
+
+# turbo's remote cache (Vercel, the purus-projects team): every runner, slice and machine shares one
+# cache. Without the secret (a fork's PR) turbo falls back to the local cache restored below.
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
 jobs:
   check:
     runs-on: ubuntu-latest
