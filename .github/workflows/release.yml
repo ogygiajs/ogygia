@@ -1,9 +1,11 @@
 name: Changesets
 
 # main is the development line (.changeset/README.md): a merged changeset opens or updates the
-# version PR; merging that PR publishes to npm under `latest`, and only then moves the `latest`
-# branch to the released commit. The production sites (ogygiajs.dev, svelte.dev.ogygiajs.dev)
-# deploy from the `latest` branch, so they change on a release, never on a merge.
+# version PR; merging that PR publishes to npm under `latest`. The production sites (ogygiajs.dev,
+# svelte.dev.ogygiajs.dev) deploy from the `latest` branch, which this workflow moves to main
+# whenever main has nothing waiting to release: right after a publish, and after any merge that
+# leaves no pending changeset (a docs or site change goes live by itself; while a package change
+# waits for its release, so does the site, so it never documents what npm does not have).
 on:
   push:
     branches:
@@ -42,7 +44,8 @@ jobs:
           create-github-releases: true
         env:
           GITHUB_TOKEN: ${{ secrets.SHIP_TOKEN || github.token }}
-      # only once npm accepted the release: the sites deploy what was just published
-      - name: Move the latest branch to the release
-        if: steps.changesets.outputs.published == 'true'
-        run: git push --force origin HEAD:refs/heads/latest
+      # main matches npm: just published, or no changeset is pending. A fast-forward only: latest
+      # is only ever set from main, so a refused push means someone moved it by hand.
+      - name: Move the latest branch to main
+        if: steps.changesets.outputs.published == 'true' || steps.changesets.outputs.hasChangesets == 'false'
+        run: git push origin HEAD:refs/heads/latest
