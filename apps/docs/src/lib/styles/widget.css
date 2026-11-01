@@ -24,10 +24,9 @@
 }
 
 .widget-value {
-	font: 500 1.5rem/1 var(--font-display);
-	font-style: italic;
+	font: 400 1.5rem/1 var(--font-display);
+	font-synthesis: none;
 	color: var(--text);
-	font-variation-settings: 'opsz' 36;
 }
 
 .widget button {
@@ -72,8 +71,8 @@
 
 .widget--greeting strong {
 	display: block;
-	font: 500 1.2rem/1.35 var(--font-display);
-	font-style: italic;
+	font: 400 1.2rem/1.35 var(--font-display);
+	font-synthesis: none;
 	color: var(--text);
 	margin-bottom: 0.45rem;
 }

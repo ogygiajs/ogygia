@@ -96,6 +96,13 @@ catalogs:
 # Not workspace members, so no catalog reaches them; their pins stay inline, on purpose: the adapter
 # fixture (apps/palaestra/e2e/adapters/fixture), the benchmark apps (internal/bench/frameworks/*,
 # exact versions so runs compare) and the Kit 3 app (internal/repro-kit3, installs the packed ogygia).
+# The docs read only geist's font FILES (apps/docs/scripts/subset-fonts.ts); its `next` peer is for
+# the Next.js helpers we never import, so it stays optional instead of auto-installing Next + React.
+packageExtensions:
+  geist:
+    peerDependenciesMeta:
+      next:
+        optional: true
 minimumReleaseAgeExclude:
   - '@rolldown/binding-android-arm64@1.2.2'
   - '@rolldown/binding-linux-arm-gnueabihf@1.2.2'

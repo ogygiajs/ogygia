@@ -42,8 +42,8 @@
 	}
 	.err-code {
 		margin: 0;
-		font: 600 clamp(3rem, 12vw, 5rem) / 1 var(--font-serif, ui-serif, Georgia, serif);
-		font-style: italic;
+		font: 400 clamp(3rem, 12vw, 5rem) / 1 var(--font-display, Georgia, serif);
+		font-synthesis: none;
 		color: var(--accent, #2f7d5b);
 		letter-spacing: -0.02em;
 	}

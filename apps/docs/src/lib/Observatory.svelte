@@ -2611,7 +2611,8 @@ Switch to <b>islands</b> mode to see the server render it.</p>
 		color: var(--accent);
 		font-family: var(--font-display, inherit);
 		font-size: 15px;
-		font-weight: 600;
+		font-weight: 400;
+		font-synthesis: none;
 	}
 	.obs-sub {
 		color: var(--text-faint);

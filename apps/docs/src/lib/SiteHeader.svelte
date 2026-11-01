@@ -91,7 +91,8 @@
 		text-decoration: none;
 	}
 	.site-brand-word {
-		font: 600 1.1rem/1 var(--font-display);
+		font: 400 1.1rem/1 var(--font-display);
+		font-synthesis: none;
 		letter-spacing: -0.02em;
 	}
 	.site-sep {
