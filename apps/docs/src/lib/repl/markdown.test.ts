@@ -5,7 +5,7 @@ import { rolldown } from 'rolldown';
 import { compile } from 'svelte/compiler';
 import { set_host } from 'ogygia/internal/compiler-browser';
 import { make_browser_host } from './browser-host.ts';
-import { md_to_svelte, markdownPlugin } from './markdown-plugin.ts';
+import { configure_content, md_to_svelte, markdownPlugin } from './markdown-plugin.ts';
 import { sveltePlugin } from './svelte-plugin.ts';
 import { cdnPlugin } from './cdn-plugin.ts';
 
@@ -199,6 +199,17 @@ async function main() {
 			'full bundle: island-in-content links the workspace component',
 			code.length > 0 && /button/.test(code)
 		);
+	}
+	// a config naming one theme side: the other falls back to the default (it crashed the highlighter)
+	{
+		configure_content({ themes: { light: 'github-light' } });
+		try {
+			const src = await svelteFor('```ts\nconst a = 1;\n```\n');
+			ok('one-sided theme pair: a fence still highlights', /shiki/.test(src));
+		} catch (e) {
+			ok('one-sided theme pair: a fence still highlights', false, (e as Error).message);
+		}
+		configure_content(null);
 	}
 
 	console.log(`\n${'─'.repeat(44)}`);

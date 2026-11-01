@@ -39,7 +39,8 @@ interface HostCtx {
 	pathModule: typeof NodePath;
 	dev: boolean;
 	virtualPathFor: (hostId: string, iid: string) => string;
-	wrapperPathFor: (hostId: string, iid: string) => string;
+	/** Absent: the island's wrapper virtual id (`wrapperVirtualId`). */
+	wrapperPathFor?: (hostId: string, iid: string) => string;
 	devUrlFor: (virtualPath: string) => string;
 	/**
 	 * The REAL source file a module derives from — the resolution base for its relative specifiers.
@@ -58,9 +59,12 @@ interface HostCtx {
 	visibleMargin: string | undefined;
 	presets: Record<string, unknown>;
 	importKeys: Partial<ImportKeys> | undefined;
-	idSalt: string;
-	linkVirtualIsland: boolean;
-	clientBindingStub: string;
+	/** Absent or empty: no salt. */
+	idSalt?: string;
+	/** Absent: true (a binding links its real wrapper; `false` links the client stub). */
+	linkVirtualIsland?: boolean;
+	/** Absent or empty: the built-in `CLIENT_BINDING_STUB`. */
+	clientBindingStub?: string;
 	routeCsr: boolean | undefined;
 	ssr: boolean;
 }
@@ -77,7 +81,8 @@ interface TsRegionCtx {
 	 *  `asset()` adds `base`/assets at render). */
 	appDir?: string;
 	importKeys: Partial<ImportKeys> | undefined;
-	idSalt: string;
+	/** Absent or empty: no salt. */
+	idSalt?: string;
 	/** Guarded (typeof) — the ts-region leg falls back to `wrapperVirtualId` when absent. */
 	wrapperPathFor?: (hostId: string, iid: string) => string;
 	/** Guarded (`!= null`) — only a `visible` strategy reads it. */

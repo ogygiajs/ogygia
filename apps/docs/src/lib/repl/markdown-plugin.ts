@@ -57,9 +57,16 @@ export function configure_content(md: ReplMarkdownConfig | null): void {
 	const cfg: ReplMarkdownConfig = md ? { ...md } : {};
 	// Default the two diff transformers on when the config didn't set `code.transformers` at all.
 	if (!cfg.code?.transformers?.length) cfg.code = { transformers: default_transformers() };
-	// The sanitized subset, handed over as-is. Its `themes` may name only one side, which the
-	// MarkdownOptions pair type does not allow; the cast keeps that hand-off unchanged.
-	shared = ogygiaPreprocess(cfg as MarkdownOptions);
+	// The sanitized `themes` may name only one side (a theme object from an import is dropped): the
+	// other falls back to content's default, since a one-sided pair crashed the highlighter.
+	const { themes, ...rest } = cfg;
+	const options: MarkdownOptions = themes
+		? {
+				...rest,
+				themes: { light: themes.light ?? 'github-light', dark: themes.dark ?? 'github-dark' }
+			}
+		: rest;
+	shared = ogygiaPreprocess(options);
 }
 
 export function content_preprocessor(): ReturnType<typeof ogygiaPreprocess> {
