@@ -174,6 +174,21 @@ const docLoad: Load<'/docs/[slug]'> = async (c) => ({ doc: await docs.get(c.para
 page(Doc, { load: docLoad }),
 ```
 
+Written inside the table, a load needs no pattern: **the table key types `c.params`**, as it does for an endpoint's handlers. The same holds for each action, for the `load()` and `action()` wrappers used in those slots, inside `layout(...)` tables, and behind `when()`. A param the key does not have is an error, and the load's return type reaches `App` unchanged:
+
+```ts
+routes({
+  '/posts/[id]': page(Post, {
+    load: async (c) => ({ post: await posts.get(c.params.id) }),   // c.params.id: string
+    actions: { save: (c) => posts.save(c.params.id) },
+  }),
+  '/docs/[...rest]': page(Doc, { load: load((c) => docs.get(c.params.rest)) }),
+  '/[[lang]]/about': page(About, { load: (c) => ({ lang: c.params.lang }) }),   // string | undefined
+});
+```
+
+A page built outside a table has no key to read, so its `c.params` is a loose `Record<string, string | undefined>`; it still fits any key. A page with a `params` schema reads the schema's output instead (see [Typed input](#typed-input)).
+
 **The cascade is the one from Kit, verbatim.** The `data` of a page is the **merge** of each load on its branch: each layout, then the page, outermost first, last wins. A component reads the full merge:
 
 ```svelte title=Dashboard.svelte
@@ -321,8 +336,8 @@ import * as v from 'valibot';
 }),
 ```
 
-- **`params`**: coerce/validate path params. Garbage → **404** (it is a nonexistent resource). `App['/post/[id]']['params']` becomes the output of the schema.
-- **`search`**: type the query. Bad input → **400**, or lenient with schema defaults. `App['/post/[id]']['search']` too.
+- **`params`**: coerce/validate path params. Garbage → **404** (it is a nonexistent resource). The output of the schema types `c.params` in the page's load and actions, in place of the key's strings, and becomes `App['/post/[id]']['params']`.
+- **`search`**: type the query. Bad input → **400**, or lenient with schema defaults. Its output types `c.search` and `App['/post/[id]']['search']`.
 - **endpoint body**: `POST(schema, fn)` validates the JSON body into `c.input`. A bad body → **400**. Like the typed argument of a `command` remote function.
 
 ## Typed everything: `$infer`
