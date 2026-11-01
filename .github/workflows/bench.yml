@@ -8,7 +8,7 @@ name: bench
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [lts-0.8]
     paths: ['internal/bench/**', 'packages/ogygia/**']
 
 jobs:
