@@ -6,17 +6,16 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Two kinds of job, side by side on separate runners: `check` (format, lint, every package's check)
+# and `e2e`, one runner per slice of the e2e suites. Each suite runs one test at a time on purpose (its
+# fixture app's state is shared, and some specs time things), so a bigger runner would sit idle: the
+# speedup comes from running the slices AT ONCE, not from cores.
 jobs:
-  e2e:
+  check:
     runs-on: ubuntu-latest
-    # (a cold run builds each suite's fixture app as well as the palaestra)
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with:
-          # a pull request runs only the packages its changes reach (`turbo --affected` diffs against
-          # the base branch, so it needs the history)
-          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
 
@@ -26,29 +25,88 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      # Bun runtime dimension — the adapter e2e suite runs the node-server output under bun too.
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
 
-      # first, and fast: an unformatted file or a lint error fails here, not after the suites
+      # first, and fast: an unformatted file or a lint error fails here, not after the checks
       - name: Format check (oxfmt)
         run: pnpm run format:check
 
       - name: Lint (oxlint)
         run: pnpm run lint
 
-      # turbo's local cache: a package whose inputs did not change replays its build, check and e2e
+      # turbo's local cache: a package whose inputs did not change replays its build and check
       - name: Turbo cache
         uses: actions/cache@v4
         with:
           path: .turbo/cache
-          key: turbo-${{ runner.os }}-${{ github.workflow }}-${{ github.sha }}
+          key: turbo-${{ runner.os }}-check-${{ github.sha }}
           restore-keys: |
-            turbo-${{ runner.os }}-${{ github.workflow }}-
+            turbo-${{ runner.os }}-check-
+            turbo-${{ runner.os }}-
+
+      # core's vitest has a browser project
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Root `check` (build:lib + every package's check, every fixture app's and app's svelte-check
+      # with warnings failing, each package's test and e2e tsc) — the e2e suites alone never run it,
+      # which let type debt rot invisibly until upstream-watch tripped on it. Two tasks at a time:
+      # every package's check runs its own vitest pool (core's with a browser), and turbo's default
+      # ten at once on this 4-core runner starved them into timeouts.
+      - name: Type-check (build:lib, every package's check)
+        run: pnpm run check --concurrency=2
+
+  e2e:
+    name: e2e (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      # one red slice must not cancel the others: the whole picture in one run
+      fail-fast: false
+      matrix:
+        include:
+          # core's suite (apps/palaestra/e2e), the longest, in three Playwright shards (split by spec
+          # file); it holds the adapter suite, so bun and wrangler are its alone
+          - { name: core 1/3, id: core-1, filter: --filter=palaestra, shard: 1/3, adapters: true }
+          - { name: core 2/3, id: core-2, filter: --filter=palaestra, shard: 2/3, adapters: true }
+          - { name: core 3/3, id: core-3, filter: --filter=palaestra, shard: 3/3, adapters: true }
+          - { name: devtools 1/2, id: devtools-1, filter: --filter=@ogygia/devtools, shard: 1/2 }
+          - { name: devtools 2/2, id: devtools-2, filter: --filter=@ogygia/devtools, shard: 2/2 }
+          # every other package's suite, one after another; a new suite lands here by itself
+          - { name: the rest, id: rest, filter: --filter=!palaestra --filter=!@ogygia/devtools }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # a pull request runs only the suites its changes reach (`turbo --affected` diffs against
+          # the base branch, so it needs the history)
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Bun runtime dimension — the adapter e2e suite runs the node-server output under bun too.
+      - if: matrix.adapters
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      # turbo's local cache, one per slice: a slice whose suite, fixture app and dependencies' builds
+      # did not change replays from it
+      - name: Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-e2e-${{ matrix.id }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-e2e-${{ matrix.id }}-
             turbo-${{ runner.os }}-
 
       - name: Install Playwright Chromium
@@ -56,33 +114,23 @@ jobs:
 
       # wrangler (Cloudflare workerd) is fetched on demand by the suite via npx; warm it so the
       # cloudflare adapter boots the real Workers runtime instead of skipping.
-      - name: Warm wrangler
+      - if: matrix.adapters
+        name: Warm wrangler
         run: npx --yes wrangler --version
 
-      # Root `check` (build:lib + every package's check, every fixture app's and app's svelte-check
-      # with warnings failing, each package's test and e2e tsc) — the e2e suites alone never run it, which let type debt
-      # rot invisibly until upstream-watch tripped on it. Two tasks at a time: every package's check runs
-      # its own vitest pool (core's with a browser), and turbo's default ten at once on this 4-core
-      # runner starved them into timeouts.
-      - name: Type-check (build:lib, every package's check)
-        run: pnpm run check --concurrency=2
-
-      # Every package's e2e suite (its specs in packages/<name>/e2e against its own fixture app; core's
-      # in apps/palaestra/e2e), through turbo's `e2e` task: a suite whose package, fixture app and
-      # dependencies' builds did not change replays from the cache. One suite at a time (their ports
-      # differ, the machine is shared). A pull request: only the packages its changes reach
-      # (`--affected`, diffed against the base branch — a core change reaches every package). A push to
-      # main/next, or a manual run: every suite.
-      - name: Run the e2e suites (by package; adapters on node + bun)
+      # This slice's suites through turbo's `e2e` task (libraries built first, `e2e` depends on
+      # `^build`), one suite at a time. A pull request: only if its changes reach them (`--affected`
+      # narrows the filter, diffed against the base branch — a core change reaches every suite). A
+      # push to main/next, or a manual run: always. `E2E_SHARD` reaches Playwright through the
+      # suite config (and turbo hashes it into the `e2e` task, so each shard caches on its own).
+      - name: Run the e2e suites
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            pnpm turbo run e2e --concurrency=1 --affected
-          else
-            pnpm turbo run e2e --concurrency=1
-          fi
+          if [ "${{ github.event_name }}" = "pull_request" ]; then affected=--affected; fi
+          pnpm turbo run e2e --concurrency=1 ${{ matrix.filter }} $affected
         env:
+          E2E_SHARD: ${{ matrix.shard }}
           TURBO_SCM_BASE: origin/${{ github.base_ref || 'main' }}
-          OGYGIA_E2E_WRANGLER: '1'
+          OGYGIA_E2E_WRANGLER: ${{ matrix.adapters && '1' || '' }}
           # Stable CI-only signing key so the warn-path probe's production build is silent (locally
           # this comes from apps/palaestra/.env, which is gitignored). NOT a production secret —
           # the Vercel deploy sets its own OGYGIA_SECRET.
@@ -93,7 +141,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.id }}
           path: |
             **/playwright-report/
             **/test-results/

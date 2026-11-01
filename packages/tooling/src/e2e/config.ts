@@ -35,6 +35,9 @@ export function suite(opts: SuiteOptions): PlaywrightTestConfig {
 		// budgets): serial workers, one at a time.
 		fullyParallel: false,
 		workers: 1,
+		// CI splits a long suite across runners: `E2E_SHARD=2/3` runs the second third, by spec file.
+		// An env var, not `--shard`: turbo would pass a CLI flag to the libraries' builds too.
+		shard: shard_from(process.env.E2E_SHARD),
 		retries: 0,
 		timeout: 180_000,
 		expect: { timeout: 10_000 },
@@ -61,4 +64,12 @@ export function suite(opts: SuiteOptions): PlaywrightTestConfig {
 				}
 			: {})
 	});
+}
+
+function shard_from(value: string | undefined): { current: number; total: number } | null {
+	if (!value) return null;
+	const [current, total] = value.split('/').map(Number);
+	if (!Number.isInteger(current) || !Number.isInteger(total) || current < 1 || current > total)
+		throw new Error(`[e2e] E2E_SHARD must look like 2/3, got "${value}"`);
+	return { current, total };
 }
