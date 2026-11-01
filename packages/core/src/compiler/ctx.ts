@@ -60,9 +60,9 @@ export interface CompileCtxInit {
 	/** The browser halves of the app's plugins (absolute module paths), in app order —
 	 *  imported by the runtime's boot. Optional (default none). */
 	client_plugins?: readonly string[];
-	/** Route options the plugins declare (`compile.routeOptions`) — stripped from route files and
-	 *  baked into `virtual:ogygia/route-options`. Optional (default none). */
-	route_options?: readonly string[];
+	/** The keys the plugins claim inside Kit's `config` page option (`b.routeConfig`) — read from the
+	 *  route files and baked into `virtual:ogygia/route-config`. Optional (default none). */
+	route_config?: readonly string[];
 	/** A plugin asked island entries to keep their foreign-hydrate exports (`b.foreignHydrate()`:
 	 *  another app's runtime wakes this app's islands). Optional (default off). */
 	foreign_hydrate?: boolean;
@@ -132,7 +132,7 @@ export class CompileCtx {
 	readonly measure: boolean;
 	readonly server_plugins: readonly ServerRealm[];
 	readonly client_plugins: readonly string[];
-	readonly route_options: readonly string[];
+	readonly route_config: readonly string[];
 	readonly foreign_hydrate: boolean;
 	readonly is_dev: boolean;
 	readonly id_salt: string;
@@ -178,7 +178,7 @@ export class CompileCtx {
 		this.measure = init.measure;
 		this.server_plugins = init.server_plugins ?? [];
 		this.client_plugins = init.client_plugins ?? [];
-		this.route_options = init.route_options ?? [];
+		this.route_config = init.route_config ?? [];
 		this.foreign_hydrate = init.foreign_hydrate ?? false;
 		this.is_dev = init.is_dev;
 		this.id_salt = init.id_salt;

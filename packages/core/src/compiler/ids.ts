@@ -69,9 +69,9 @@ export const V_TRANSPORTABLES = 'virtual:ogygia/transportables';
  *  region endpoint decodes signed props of any island); empty in the browser, where the runtime
  *  loads an island's classes from `V_TRANSPORTABLES`' lazy map. */
 export const V_TRANSPORTABLES_EAGER = 'virtual:ogygia/transportables-eager';
-/** Every Kit page route id → the plugin route options it declares (`compile.routeOptions`). SERVER
- *  only (empty on the client; the route list never ships to the browser). */
-export const V_ROUTE_OPTIONS = 'virtual:ogygia/route-options';
+/** Every Kit page route id → the keys plugins claim inside Kit's `config` page option, merged
+ *  (`b.routeConfig`). SERVER only (empty on the client; the route list never ships to the browser). */
+export const V_ROUTE_CONFIG = 'virtual:ogygia/route-config';
 
 /** Resolve a virtual id to its `\0`-prefixed resolved form (Vite/rollup convention). */
 export const RESOLVED = (id: string): string => '\0' + id;

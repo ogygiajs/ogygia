@@ -8,7 +8,7 @@
 			"ogygia",
 			"@ogygia/core",
 			"@ogygia/flags",
-			"@ogygia/freeze",
+			"@ogygia/postrender",
 			"@ogygia/federation",
 			"@ogygia/content",
 			"@ogygia/devtools",

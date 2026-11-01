@@ -64,9 +64,10 @@ export interface RequestContext<Options = undefined, State = undefined> {
 	readonly app: ServerApp<Options>;
 	/** The request's shared facts. */
 	readonly facts: RequestFacts;
-	/** This request's value for a route option (`export const <name>` on a Kit page, or a programmatic
-	 *  router's declaration), or `undefined` when nothing declares it. */
-	routeOption(name: string): boolean | undefined;
+	/** This request's value for a key this plugin claimed inside Kit's `config` page option
+	 *  (`b.routeConfig(key)`: `export const config = { <key>: … }` on a Kit page or layout, merged the
+	 *  way Kit merges it, or a programmatic router's `config`), or `undefined` when nothing declares it. */
+	routeConfig(key: string): unknown;
 	/** Render one signed hole in place, with this request's event (its cookies ride in): the hole's
 	 *  HTML, or null when it cannot render now (the stored fallback stays, the browser fetches). */
 	renderHole(endpoint: string): Promise<string | null>;
@@ -126,19 +127,20 @@ export function defineServer<Options = undefined, State = undefined>(
 
 /** Stamped into a document served FROM a store (not the render that just happened): the browser
  *  runtime then treats `render: 'live'` lakes as stale on first mount and revalidates them. */
-export const STORED_DOCUMENT_META = '<meta name="ogygia-freeze" content="hit">';
+export const STORED_DOCUMENT_META = '<meta name="ogygia-stored" content="hit">';
 
 // ── region values a plugin's server code makes
 /** A region value holding finished HTML (rendered as-is, no island); and `region(Component, props)`
  *  itself (the same as `ogygia`'s, without loading the whole front door). */
 export { og_html_region as htmlRegion, region } from '../region.ts';
 
-// ── route options a programmatic router declares
-/** A programmatic router (a `routes()` table answering inside the handle) joins the route-option
- *  lookup: for a pathname it claims, its matcher answers each option (`ctx.routeOption(name)`).
- *  Keyed: registering the same key again REPLACES the stale matcher (dev re-evaluates the table). */
-export { register_route_options as registerRouteOptions } from './routes.ts';
-export type { RouteOptionMatcher, RouteOptionVerdict } from './routes.ts';
+// ── route config a programmatic router declares
+/** A programmatic router (a `routes()` table answering inside the handle) joins the route-config
+ *  lookup: for a pathname it claims, its matcher answers the route's merged `config`
+ *  (`ctx.routeConfig(key)`). Keyed: registering the same key again REPLACES the stale matcher (dev
+ *  re-evaluates the table). */
+export { register_route_config as registerRouteConfig } from './routes.ts';
+export type { RouteConfig, RouteConfigMatcher } from './routes.ts';
 
 // ── late regions: a region that resolves after the document flushed, down the same response
 /** Arm THIS request's late-region capture before a render that will deliver late chunks: a

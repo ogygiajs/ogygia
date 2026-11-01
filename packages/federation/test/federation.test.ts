@@ -332,7 +332,7 @@ describe('remote regions', () => {
 
 describe('cross-app thaw', () => {
 	// (a store plugin announcing its invalidations through the shared `invalidated` hook is tested
-	// with the store: packages/freeze/test/freeze.test.ts)
+	// with the store: packages/postrender/test/plugin.test.ts)
 	it('peer.drop evicts cached documents by their adopted tags', async () => {
 		let calls = 0;
 		vi.stubGlobal('fetch', async () => {

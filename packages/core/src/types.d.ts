@@ -177,10 +177,11 @@ declare module 'virtual:ogygia/profiler-maps' {
 	const maps: string | null;
 	export default maps;
 }
-declare module 'virtual:ogygia/route-options' {
-	/** Every Kit page route id (group-stripped) → the plugin route options it declares (cascaded like
-	 *  csr; an undeclared option is absent). SSR leg only; `{}` on the client. */
-	export const route_options: Record<string, Record<string, boolean>>;
+declare module 'virtual:ogygia/route-config' {
+	/** Every Kit page route id (group-stripped) → the keys plugins claim inside Kit's `config` page
+	 *  option, merged the way Kit merges it (a key no level sets is absent). SSR leg only; `{}` on the
+	 *  client. */
+	export const route_config: Record<string, Record<string, unknown>>;
 }
 declare module 'virtual:ogygia/session-cookie' {
 	/** Cookie name sealed into the region MAC, or '' when unbound. From `ogygia({ sessionCookie })`. */

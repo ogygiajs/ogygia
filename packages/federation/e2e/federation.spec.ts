@@ -36,7 +36,7 @@ test.describe('fragment federation v2', () => {
 		expect(html).toContain('Latest posts');
 	});
 
-	test('a remote widget as a STATIC region is baked into the shell home (freezable)', async ({
+	test('a remote widget as a STATIC region is baked into the shell home (storable)', async ({
 		mfe
 	}) => {
 		const res = await fetch(mfe.origin('shell') + '/');
@@ -45,8 +45,8 @@ test.describe('fragment federation v2', () => {
 			'Dashboard · acme'
 		);
 		expect(html).toContain('data-testid="dash-fragment"');
-		// the anonymous static render is eligible to freeze (dev teaches with the verdict header)
-		expect(res.headers.get('x-ogygia-freeze')).toBe('would-store');
+		// the anonymous static render is eligible for postrender (dev teaches with the verdict header)
+		expect(res.headers.get('x-ogygia-postrender')).toBe('would-store');
 	});
 
 	test('a DEFERRED remote widget is a shell-signed hole the browser fetches', async ({ mfe }) => {

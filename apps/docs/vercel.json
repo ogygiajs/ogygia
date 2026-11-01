@@ -8,5 +8,19 @@
 				{ "key": "Cross-Origin-Resource-Policy", "value": "same-origin" }
 			]
 		}
+	],
+	"redirects": [
+		{
+			"source": "/docs/data-state/freeze",
+			"destination": "/docs/data-state/postrender",
+			"permanent": true
+		},
+		{
+			"source": "/docs/data-state/freeze.md",
+			"destination": "/docs/data-state/postrender.md",
+			"permanent": true
+		},
+		{ "source": "/docs/api/freeze", "destination": "/docs/api/postrender", "permanent": true },
+		{ "source": "/docs/api/freeze.md", "destination": "/docs/api/postrender.md", "permanent": true }
 	]
 }

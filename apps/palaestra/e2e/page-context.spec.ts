@@ -30,7 +30,7 @@ const PAGE = {
 
 test('build output: each hole’s page.data answer is patched in (a hole that reads none never looks its page up)', () => {
 	// REGRESSION: a plain `null` placeholder was inlined by the bundler into every reader, so every
-	// hole of every page ran its page's loads again (the freeze deck's "shell rendered once" caught it)
+	// hole of every page ran its page's loads again (the postrender deck's "shell rendered once" caught it)
 	const server = fileURLToPath(new URL('../.svelte-kit/output/server/', import.meta.url));
 	const files: string[] = [];
 	const walk = (dir: string) => {

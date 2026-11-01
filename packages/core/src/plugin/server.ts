@@ -7,7 +7,7 @@ import type { Handle, RequestEvent } from '@sveltejs/kit';
 import type { RequestContext, ResolveOptions, ServerApp, ServerPlugin } from './index.ts';
 import { current_facts, facts_of, mark_per_visitor, type RequestFacts } from './facts.ts';
 import { ask, notify, register_hooks } from './hooks.ts';
-import { route_option } from './routes.ts';
+import { route_config } from './routes.ts';
 import { record_server_event } from '../events/server-registry.ts';
 
 /** One plugin's server half as the build lists it (`virtual:ogygia/server-plugins`). */
@@ -113,7 +113,7 @@ export function request_contexts(
 	render_hole: (endpoint: string) => Promise<string | null>
 ): RequestContext<unknown, unknown>[] {
 	const route_id = event.route?.id;
-	const route_opt = (name: string) => route_option(name, route_id, path);
+	const route_cfg = (key: string) => route_config(key, route_id, path);
 	const per_visitor = (reason: string) => mark_per_visitor(facts, reason);
 	return plugins.map(({ def, app }) => ({
 		event,
@@ -122,7 +122,7 @@ export function request_contexts(
 		options: app.options,
 		app,
 		facts,
-		routeOption: route_opt,
+		routeConfig: route_cfg,
 		renderHole: render_hole,
 		perVisitor: per_visitor
 	}));

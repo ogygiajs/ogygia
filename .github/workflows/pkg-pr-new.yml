@@ -47,7 +47,7 @@ jobs:
       - env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          for dir in ogygia core flags freeze federation content devtools router testing cli; do
+          for dir in ogygia core flags postrender federation content devtools router testing cli; do
             (cd packages/$dir && node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));const [a,b,c]=p.version.split('-')[0].split('.').map(Number);p.version=a+'.'+b+'.'+(c+1)+'-next.'+process.env.HEAD_SHA.slice(0,7);fs.writeFileSync('package.json',JSON.stringify(p,null,'\t')+'\n');console.log(p.name+' '+p.version)")
           done
 
@@ -60,6 +60,6 @@ jobs:
       # other), with the plugin packages an app lists beside them.
       - run: >-
           npx --yes pkg-pr-new publish --pnpm --packageManager=pnpm
-          './packages/ogygia' './packages/core' './packages/flags' './packages/freeze'
+          './packages/ogygia' './packages/core' './packages/flags' './packages/postrender'
           './packages/federation' './packages/content' './packages/devtools' './packages/router'
           './packages/testing' './packages/cli'

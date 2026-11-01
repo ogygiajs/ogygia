@@ -11,7 +11,8 @@ import type { Component } from 'svelte';
 import { document } from '@ogygia/core/server';
 import {
 	region,
-	registerRouteOptions as register_route_options,
+	registerRouteConfig as register_route_config,
+	type RouteConfig,
 	openLateScope as open_late_scope,
 	takeLateRegions as take_late_regions,
 	lateSlot as slot_html
@@ -84,11 +85,11 @@ export interface RoutesOptions {
 	 *  travel). Any flag a page DOES read auto-carries without being listed here — this is just for
 	 *  the decide-but-don't-render case. `flags: [csr]`. */
 	flags?: ReadonlyArray<(c: Ctx) => unknown>;
-	/** Table-wide FREEZE default for pages that declare nothing themselves (a layout's or a page's
-	 *  own `freeze` wins). Undeclared here too = the vite config's `freeze.default`. The handle
-	 *  consults this table for any request Kit's file router did not claim — keep `ogygiaHandle()`
-	 *  OUTERMOST in the `sequence()` so a hit is served before the table runs. */
-	freeze?: boolean;
+	/** Table-wide Kit `config` page option for every page (a layout's or a page's own key wins):
+	 *  plugins read their keys from it (`{ postrender: false }`). The handle consults this table for
+	 *  any request Kit's file router did not claim — keep `ogygia.handle()` ahead of the table in the
+	 *  `sequence()` so a stored page is served before the table runs. */
+	config?: RouteConfig;
 }
 
 /** The router value. `$infer` is a type-only phantom read as `typeof app.$infer`. */
@@ -179,34 +180,30 @@ export function routes<const T extends KeyedTable<T>>(
 	const compiled: CompiledPattern[] = compile_all(leaves.map((l) => l.pattern));
 	const by_pattern = new Map(leaves.map((l) => [l.pattern, l]));
 
-	// ROUTE OPTIONS (plugin/routes.ts), cascaded like the file world: page > innermost … outermost
-	// layout > table (`layouts` is OUTERMOST-first, so scan from the end). Endpoints are never
-	// pages → null ("mine, undeclared" — the plugin applies its default). The router declares
-	// `freeze` today. Registered under a key so a dev re-evaluation of hooks.server.ts REPLACES this
-	// table's matcher instead of shadowing it.
-	const option_of = (leaf: Leaf, option: string): boolean | null => {
-		if (option !== 'freeze' || !is_page(leaf.def)) return null;
-		if (leaf.def.freeze !== undefined) return leaf.def.freeze;
-		for (let i = leaf.def.layouts.length - 1; i >= 0; i--) {
-			const f = leaf.def.layouts[i].freeze;
-			if (f !== undefined) return f;
+	// ROUTE CONFIG (plugin/routes.ts), merged like Kit's `config`: the table, then each layout
+	// outermost → innermost (`layouts` is OUTERMOST-first), then the page; a later level replaces a
+	// key, top level only. Static, so merged once per leaf. Endpoints are never pages → `{}` ("mine,
+	// nothing set" — the plugin applies its default). Registered under a key so a dev re-evaluation of
+	// hooks.server.ts REPLACES this table's matcher instead of shadowing it.
+	const NO_CONFIG: RouteConfig = {};
+	const config_of = new Map<string, RouteConfig>();
+	for (const leaf of leaves) {
+		if (!is_page(leaf.def)) continue;
+		let merged: Record<string, unknown> = { ...opts.config };
+		for (const l of leaf.def.layouts) merged = { ...merged, ...l.config };
+		config_of.set(leaf.pattern, { ...merged, ...leaf.def.config });
+	}
+	register_route_config(base + '|' + leaves.map((l) => l.pattern).join(','), (pathname) => {
+		let path = pathname;
+		if (base) {
+			if (path === base) path = '/';
+			else if (path.startsWith(base + '/')) path = path.slice(base.length);
+			else return undefined; // not under our base → not ours
 		}
-		return opts.freeze ?? null;
-	};
-	register_route_options(
-		base + '|' + leaves.map((l) => l.pattern).join(','),
-		(pathname, option) => {
-			let path = pathname;
-			if (base) {
-				if (path === base) path = '/';
-				else if (path.startsWith(base + '/')) path = path.slice(base.length);
-				else return undefined; // not under our base → not ours
-			}
-			path = canonical_slash(path, slash) ?? path;
-			const hit = match_path(compiled, path);
-			return hit ? option_of(by_pattern.get(hit.pattern)!, option) : undefined;
-		}
-	);
+		path = canonical_slash(path, slash) ?? path;
+		const hit = match_path(compiled, path);
+		return hit ? (config_of.get(hit.pattern) ?? NO_CONFIG) : undefined;
+	});
 
 	const href_fn = (pattern: string, params?: Record<string, string | number>) =>
 		base + fill(pattern, params ?? {});

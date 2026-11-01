@@ -3,7 +3,7 @@
  *
  * ONE identity per app (`federate()`), a SYMMETRIC peers map (public keys verify inbound, the
  * app's private key signs outbound), remote fragments as REGION VALUES with the region dials, and
- * cross-app THAW notices so a publish or a deploy on one team thaws the frozen pages of every
+ * cross-app THAW notices so a publish or a deploy on one team thaws the stored pages of every
  * team that baked its fragments.
  */
 import type { RegionValue } from '@ogygia/core';
@@ -83,7 +83,7 @@ export interface FederateConfig<P extends Record<string, PeerConfig> = Record<st
 	/** Cap on a forwarded fragment body (bytes, default 1 MiB). */
 	maxBodyBytes?: number;
 	/** Deploy detection: `'auto'` (default) broadcasts a thaw-all to peers on boot with a new
-	 *  build id; `'manual'` leaves it to `freeze.invalidateApp()`. */
+	 *  build id; `'manual'` leaves it to the app (`postrender.invalidateWhere({ prefix: '/' })`). */
 	deploy?: 'auto' | 'manual';
 }
 

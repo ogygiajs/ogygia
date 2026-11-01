@@ -222,12 +222,12 @@ export interface FragmentDocument {
 	 *  the fragment's islands). */
 	runtime?: string;
 	/** The answering app's OWN canonical pathname for this page (`base + path`) — the shell files
-	 *  its frozen page under `p:<peer>:<path>`, so `freeze.invalidate('<path>')` on the peer thaws
+	 *  its stored page under `p:<peer>:<path>`, so `postrender.invalidate('<path>')` on the peer thaws
 	 *  it (see internal/notes/federation.md §3–4). */
 	path?: string;
 	/** PROVENANCE: the receipt tags this render consumed — its own `s:<id>:<fp>` (og.source) plus
 	 *  any `r:…`/`p:…`/`a:…` it adopted from ITS peers (a chain). The consumer prefixes each with
-	 *  this peer's name and files its frozen page under them. */
+	 *  this peer's name and files its stored page under them. */
 	sources?: string[];
 	/** The answering app's build id — changes per deploy. */
 	build?: string;

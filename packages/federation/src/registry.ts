@@ -1,6 +1,6 @@
 /**
  * The process-wide federation slot. `federate()` registers the app's ONE identity here; the handle
- * (`/og/fragment/*`, `/og/thaw`, remote-region capabilities), the freeze registry (thaw notices on
+ * (`/og/fragment/*`, `/og/thaw`, remote-region capabilities), the postrender registry (thaw notices on
  * invalidate) and the peers themselves read it back. `globalThis` + `Symbol.for` — the
  * PAGE-STATE-SINGLETON law (dist entries can double-evaluate a module); a second `federate()` call
  * (dev re-evaluation of the module that owns it) REPLACES the previous one.

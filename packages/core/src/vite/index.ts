@@ -60,8 +60,6 @@ import {
 	inject_keep_client_route,
 	resolve_kit_paths,
 	kit_major,
-	is_route_option_file,
-	strip_route_options,
 	kit_dirs,
 	kit_inline_style_threshold
 } from '../compiler/kit.ts';
@@ -109,7 +107,7 @@ import {
 	V_KIT_WIRE,
 	V_ROUTER_CSS,
 	V_ROUTE_CSR,
-	V_ROUTE_OPTIONS,
+	V_ROUTE_CONFIG,
 	RESOLVED,
 	V_SERVER_MANIFEST,
 	V_SERVER_ISLANDS
@@ -122,7 +120,7 @@ import {
 // thread (see the transform hook).
 const KIT_CLIENT_APP_RE = /\/generated\/(?:build\/|dev\/)?client(-optimized)?\/app\.js$/;
 // A route host (`+page`/`+layout.svelte`) or option file (`.js`/`.ts`, `.server` too): a dev change
-// to any of these can shift the csr topology OR the `export const freeze` opt-in set.
+// to any of these can shift the csr topology OR a plugin's key inside `export const config`.
 const ROUTE_HOST_OR_OPTION_RE = /[\\/]\+(page|layout)(\.server)?\.(svelte|js|ts)$/;
 // Appended INLINE (no extra module): publishes Kit's REAL reactive `page`/`navigating` on the
 // well-known slot the island `$app/*` shims read through (`kit_bridge()` in shims/kit-bridge; the
@@ -211,7 +209,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let app_plugins: PluginDefinition[] = [];
 	let server_plugins: ServerRealm[] = [];
 	let client_plugins: string[] = [];
-	let route_options: string[] = [];
+	let route_config: string[] = [];
 	let foreign_hydrate = false;
 	let macros: ResolvedPlugins['macros'] = [];
 	let markup: ResolvedPlugins['markup'] = [];
@@ -442,7 +440,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					({
 						servers: server_plugins,
 						clients: client_plugins,
-						route_options,
+						route_config,
 						foreign_hydrate,
 						macros,
 						markup
@@ -552,7 +550,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// still pre-bundled, once, shared with the app.
 					return {
 						// ONE KIT: ogygia reads Kit's request store (`@sveltejs/kit/internal/server`) — the
-						// request a render belongs to (its devtools events, the freeze verdict's reads, the
+						// request a render belongs to (its devtools events, the postrender verdict's reads, the
 						// page seed). A second Kit resolved from ogygia's own location has its own, empty store:
 						// a workspace-linked ogygia whose peer resolved another Kit than the app's lost every
 						// one of those, silently. Kit always resolves from the app.
@@ -698,7 +696,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						measure,
 						server_plugins,
 						client_plugins,
-						route_options,
+						route_config,
 						foreign_hydrate,
 						is_dev,
 						id_salt,
@@ -1039,8 +1037,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					clear_route_csr_cache();
 					if (vite_server) {
 						invalidate_module_id(vite_server, RESOLVED(V_ROUTE_CSR));
-						// a plugin route option (`export const freeze`) add/flip changes the baked values too
-						invalidate_module_id(vite_server, RESOLVED(V_ROUTE_OPTIONS));
+						// a plugin's key inside `export const config` add/flip changes the baked values too
+						invalidate_module_id(vite_server, RESOLVED(V_ROUTE_CONFIG));
 					}
 				}
 				// Unlink often skips handleHotUpdate; drop islands that still import the deleted file.
@@ -1278,15 +1276,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// against Kit's real modules already, and this file is client-world by construction.
 				if (!options?.ssr && KIT_CLIENT_APP_RE.test(id)) {
 					source += KIT_PAGE_THREAD;
-				}
-
-				// ROUTE OPTIONS: strip each plugin's `export const <name> = true|false` from a route
-				// option file before Kit imports the module — Kit's export validators reject any non-Kit
-				// page option, in all three legs (server node analysis, client runtime, build analyse).
-				// We run enforce:'pre', so Kit only ever sees the stripped module; the VALUES are read
-				// from disk into `virtual:ogygia/route-options`, independent of this in-memory strip.
-				if (route_options.length && is_route_option_file(id, kit_dirs(root).routes_dir)) {
-					source = strip_route_options(source, route_options);
 				}
 
 				// The whole per-file pass — content-preset tag ▸ macros ▸ host-island transform ▸ ts-region

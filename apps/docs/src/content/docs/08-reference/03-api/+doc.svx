@@ -118,7 +118,7 @@ ogygia({
 })
 ```
 
-Every feature that lives in its own package (content, flags, freeze, federation, the server router, devtools) is a Vite plugin of its own, listed beside `ogygia()` in the `plugins` of your Vite config: `plugins: [ogygia(), flags(), freeze({ ttl: 600 }), sveltekit()]`. `ogygia()` finds them there. Each plugin keeps its own settings, so a region preset can never hold content config, and the reverse. See [Plugins](/docs/reference/plugins).
+Every feature that lives in its own package (content, flags, postrender, federation, the server router, devtools) is a Vite plugin of its own, listed beside `ogygia()` in the `plugins` of your Vite config: `plugins: [ogygia(), flags(), postrender({ ttl: 600 }), sveltekit()]`. `ogygia()` finds them there. Each plugin keeps its own settings, so a region preset can never hold content config, and the reverse. See [Plugins](/docs/reference/plugins).
 
 The old `regions: { … }` wrapper is a build error that names the new spelling. Its keys moved to the root, unchanged.
 
@@ -268,7 +268,7 @@ Name / options for the session cookie that ogygia uses to scope signed capabilit
 
 How long a signed region capability URL stays valid, in seconds (default `3600`, clamped to 60–86400). Keep it short: a harvested URL ages out.
 
-Holes outlive it where they have to. Prerendered and frozen pages sign their holes for the life of the deploy. On a page whose load marks it shared-cacheable, for example `setHeaders({ 'cache-control': 'public, s-maxage=604800' })`, an anonymous hole is signed for the page's cache life. A hole on an older cached copy renews itself when it wakes: the endpoint re-signs a URL it minted, anonymous holes only, up to [`maxPageAge`](#ogygiavite-maxpageage) after it expired. A `cache-control` header a handle sets after the render is invisible to the mint, so set it from a load.
+Holes outlive it where they have to. Prerendered and postrendered pages sign their holes for the life of the deploy. On a page whose load marks it shared-cacheable, for example `setHeaders({ 'cache-control': 'public, s-maxage=604800' })`, an anonymous hole is signed for the page's cache life. A hole on an older cached copy renews itself when it wakes: the endpoint re-signs a URL it minted, anonymous holes only, up to [`maxPageAge`](#ogygiavite-maxpageage) after it expired. A `cache-control` header a handle sets after the render is invisible to the mint, so set it from a load.
 
 ### `maxPageAge`
 
@@ -357,7 +357,7 @@ Each feature below is its own package. Install it, and list its plugin once besi
 | -------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `@ogygia/content`    | `content({ markdown, presets })` | `@ogygia/content`, `/remote`, `/markdown`, `/docs-shell`, `/types`                             |
 | `@ogygia/flags`      | `flags()`                        | `flag`, `decide` from `@ogygia/flags`; `openfeature`, `ofrep` from `@ogygia/flags/openfeature` |
-| `@ogygia/freeze`     | `freeze({ ttl, default })`       | `freeze` and the store and CDN adapters from `@ogygia/freeze`                                  |
+| `@ogygia/postrender` | `postrender({ ttl, default })`   | `postrender` and the store and CDN adapters from `@ogygia/postrender`                          |
 | `@ogygia/federation` | `federation()`                   | `federate`, `mount` from `@ogygia/federation`                                                  |
 | `@ogygia/router`     | `router()`                       | `routes`, `page`, … from `@ogygia/router`; `api` from `@ogygia/router/api`                     |
 | `@ogygia/devtools`   | `devtools({ dock, profiler })`   | `@ogygia/devtools/profiler`, `/profiler/client`, `/profiler/storage/*`                         |

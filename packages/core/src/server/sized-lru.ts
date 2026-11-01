@@ -1,9 +1,9 @@
 /**
  * A byte-bounded LRU with per-entry expiry — THE in-process cache shape ogygia's server-side
- * memos share (the region render cache, the freeze tier-1 store).
+ * memos share (the region render cache, the postrender tier-1 store).
  *
  * Bounded by BYTES first, entry count second. A count-only bound is no bound on memory when an
- * entry can be a whole 2.6 MB page: 500 renders or 1,000 frozen pages of that size would be
+ * entry can be a whole 2.6 MB page: 500 renders or 1,000 stored pages of that size would be
  * gigabytes resident in a long-lived process. Here the caller sizes each entry (`html.length` is
  * exact enough — one UTF-16 unit per char, twice that in memory) and the store evicts the least
  * recently used entries until the new one fits; an entry larger than the whole budget is refused.

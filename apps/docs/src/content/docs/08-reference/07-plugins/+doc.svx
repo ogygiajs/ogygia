@@ -7,7 +7,7 @@ related:
   - reference/packaging
 ---
 
-The core package, `ogygia`, is the region system: islands, lakes, holes, held regions, the client router and the server handle. Every other feature is its own package: content collections, flags, frozen pages, federation, the server router, the devtools dock and the profiler. You install only what you use. An app that never reads a flag carries none of the flag code.
+The core package, `ogygia`, is the region system: islands, lakes, holes, held regions, the client router and the server handle. Every other feature is its own package: content collections, flags, postrender, federation, the server router, the devtools dock and the profiler. You install only what you use. An app that never reads a flag carries none of the flag code.
 
 ## Turn a feature on
 
@@ -16,11 +16,11 @@ Install the package. Then list its plugin once in the `plugins` of your Vite con
 ::: code-group
 
 ```bash [npm]
-npm i @ogygia/flags @ogygia/freeze
+npm i @ogygia/flags @ogygia/postrender
 ```
 
 ```bash [pnpm]
-pnpm add @ogygia/flags @ogygia/freeze
+pnpm add @ogygia/flags @ogygia/postrender
 ```
 
 :::
@@ -29,20 +29,20 @@ pnpm add @ogygia/flags @ogygia/freeze
 import { sveltekit } from '@sveltejs/kit/vite';
 import { ogygia } from 'ogygia/vite';
 import { flags } from '@ogygia/flags/vite';
-import { freeze } from '@ogygia/freeze/vite';
+import { postrender } from '@ogygia/postrender/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [
     ogygia(),
     flags(),
-    freeze({ ttl: 600 }),
+    postrender({ ttl: 600 }),
     sveltekit()
   ]
 });
 ```
 
-`ogygia()` comes first, the feature plugins after it, and `sveltekit()` last. That is the only place a plugin is named. `ogygia.handle()` in `hooks.server.ts` already runs every listed plugin's server half, and the page runtime boots every browser half. Nothing else changes in your app.
+`ogygia()` comes first, the feature plugins after it, and `sveltekit()` last. `ogygia.handle()` in `hooks.server.ts` already runs every listed plugin's server half, and the page runtime boots every browser half. For most plugins, nothing else changes in your app. Postrender is the exception: its live store and CDN edges are the argument of `postrender.handle()`, which goes before ogygia's handle in the `sequence()` (see [Postrender](/docs/data-state/postrender)).
 
 A few rules hold for every plugin:
 
@@ -58,7 +58,7 @@ A few rules hold for every plugin:
 | -------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@ogygia/content`    | `content({ markdown, presets })` | [Content collections](/docs/content/collections), markdown (mdsvex + Shiki), the docs shell and search. Its svelte config helpers `preprocess()` / `extensions()` come from `@ogygia/content/vite` too. |
 | `@ogygia/flags`      | `flags()`                        | [Flags & experiments](/docs/app/experiments): `flag()`, `decide()`. `flag()` decides natively without the plugin. A `decide({ source, exposure })` needs it.                                            |
-| `@ogygia/freeze`     | `freeze({ ttl, default })`       | [Frozen pages](/docs/data-state/freeze): pages stored whole and served as bytes.                                                                                                                        |
+| `@ogygia/postrender` | `postrender({ ttl, default })`   | [Postrender](/docs/data-state/postrender): pages stored whole on their first request and served as bytes.                                                                                               |
 | `@ogygia/federation` | `federation()`                   | [Fragment federation](/docs/app/federation): `federate()`, `mount()`.                                                                                                                                   |
 | `@ogygia/router`     | `router()`                       | The [server router](/docs/app/server-router): routes as values. The plugin links the CSS of the pages it renders.                                                                                       |
 | `@ogygia/devtools`   | `devtools({ dock, profiler })`   | The [devtools dock](/docs/devtools/overview) and the [SSR profiler](/docs/profiler/overview).                                                                                                           |
@@ -88,13 +88,13 @@ The plugin **names its halves**: `server` and `client` hold each module's locati
 ```ts title=src/vite.ts
 import { definePlugin, type OgygiaPlugin } from 'ogygia/vite';
 
-export function freeze(options: { ttl?: number } = {}): OgygiaPlugin<{ ttl: number }> {
+export function postrender(options: { ttl?: number } = {}): OgygiaPlugin<{ ttl: number }> {
   return definePlugin({
-    name: '@ogygia/freeze',            // the package name: its identity
+    name: '@ogygia/postrender',        // the package name: its identity
     server: import.meta.resolve('./server.ts'),
     options: { ttl: options.ttl ?? 86400 },
     build(b) {
-      b.routeOption('freeze');         // pages may say `export const freeze = false`
+      b.routeConfig('postrender');     // pages may say `export const config = { postrender: false }`
     }
   });
 }
@@ -130,16 +130,16 @@ export function yaml() {
 
 `build(b)` runs once, when Vite loads its config. `b.root` is the app's root and `b.dev` is `true` under `vite dev`.
 
-| Member                              | What it asks the build for                                                                                                                                                                                                          |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `routeOption(name)`                 | A per-route boolean, `export const <name> = true` in a page or layout file. It cascades like `csr`, is stripped before Kit sees the file, and is read back on the server with `ctx.routeOption(name)`. Kit's own names are refused. |
-| `foreignHydrate()`                  | Keep the exports that let another app's page wake this app's islands (fragment federation). Off by default: it costs every island a little.                                                                                         |
-| `macro(name, handler)`              | An `import.meta.og.<name>(…)` construct this plugin compiles. The handler gets the module's code and returns the new code. Core's own macros (`wire`, `$`, `source`, `store`, `bake`) cannot be claimed.                            |
-| `markup(source)`                    | A file format that becomes Svelte through a preprocessor (markdown). It hands back the region transform to call on the preprocessed code, so the format's islands are found.                                                        |
-| `events({ lazy })`                  | Compile the framework's events in, browser and server (`ogygia/events`). With no plugin asking, every emit folds away. `lazy`: measure only once someone opens a tool.                                                              |
-| `measure()`                         | Record the build's measurement data (region detail, chunk contents, source maps, the module map): what a profiler reads.                                                                                                            |
-| `files({ root, dirs, files })`      | Compile a package's own files as app source: the regions of a UI the plugin serves.                                                                                                                                                 |
-| `pageModules({ importers, files })` | Modules that render pages outside Kit's routes. Every component they import gets its CSS linked when it renders.                                                                                                                    |
+| Member                              | What it asks the build for                                                                                                                                                                                                         |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `routeConfig(key)`                  | A key this plugin reads inside Kit's own `config` page option (`export const config = { <key>: false }` in a page or layout file). Read at build time, merged the way Kit merges `config`, and answered by `ctx.routeConfig(key)`. |
+| `foreignHydrate()`                  | Keep the exports that let another app's page wake this app's islands (fragment federation). Off by default: it costs every island a little.                                                                                        |
+| `macro(name, handler)`              | An `import.meta.og.<name>(…)` construct this plugin compiles. The handler gets the module's code and returns the new code. Core's own macros (`wire`, `$`, `source`, `store`, `bake`) cannot be claimed.                           |
+| `markup(source)`                    | A file format that becomes Svelte through a preprocessor (markdown). It hands back the region transform to call on the preprocessed code, so the format's islands are found.                                                       |
+| `events({ lazy })`                  | Compile the framework's events in, browser and server (`ogygia/events`). With no plugin asking, every emit folds away. `lazy`: measure only once someone opens a tool.                                                             |
+| `measure()`                         | Record the build's measurement data (region detail, chunk contents, source maps, the module map): what a profiler reads.                                                                                                           |
+| `files({ root, dirs, files })`      | Compile a package's own files as app source: the regions of a UI the plugin serves.                                                                                                                                                |
+| `pageModules({ importers, files })` | Modules that render pages outside Kit's routes. Every component they import gets its CSS linked when it renders.                                                                                                                   |
 
 ### The server half: `defineServer`
 
@@ -197,15 +197,15 @@ declare module 'ogygia/plugin' {
 
 `ctx` is one request, as one plugin sees it. `handle` gets a smaller one: `event`, `options` and `app`.
 
-| Member                      | What it is                                                                         |
-| --------------------------- | ---------------------------------------------------------------------------------- |
-| `event`                     | Kit's own `RequestEvent`, untouched.                                               |
-| `path`                      | The decoded pathname.                                                              |
-| `state` · `options` · `app` | This plugin's per-request state, its options, its app.                             |
-| `facts`                     | The request's shared facts (below).                                                |
-| `routeOption(name)`         | This request's value for a route option, or `undefined` when nothing declares it.  |
-| `renderHole(endpoint)`      | Render one signed hole in place, with this request's cookies. Its HTML, or `null`. |
-| `perVisitor(reason)`        | Say this render belongs to one visitor. The first reason is kept.                  |
+| Member                      | What it is                                                                            |
+| --------------------------- | ------------------------------------------------------------------------------------- |
+| `event`                     | Kit's own `RequestEvent`, untouched.                                                  |
+| `path`                      | The decoded pathname.                                                                 |
+| `state` · `options` · `app` | This plugin's per-request state, its options, its app.                                |
+| `facts`                     | The request's shared facts (below).                                                   |
+| `routeConfig(key)`          | This request's value for a claimed `config` key, or `undefined` when nothing sets it. |
+| `renderHole(endpoint)`      | Render one signed hole in place, with this request's cookies. Its HTML, or `null`.    |
+| `perVisitor(reason)`        | Say this render belongs to one visitor. The first reason is kept.                     |
 
 ### Request facts
 

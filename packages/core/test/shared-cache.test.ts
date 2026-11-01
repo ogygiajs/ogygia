@@ -51,7 +51,7 @@ describe('shared_cache_lifetime: how long shared caches may serve the document',
 
 describe('mint_ttl_sec: the capability lifetime a hole is signed for', () => {
 	const region_ttl = 3600;
-	it('a stored page (prerender / freeze) is prerender-grade, whatever else', () => {
+	it('a stored page (prerender / postrender) is prerender-grade, whatever else', () => {
 		expect(mint_ttl_sec({ stored: true, session: 'abc', shared: 0, region_ttl })).toBe(
 			PRERENDER_REGION_TTL_SEC
 		);

@@ -26,7 +26,7 @@ export type PageSnapshot = {
 /**
  * `seed` — does this record WANT the client seed shipped? Region.svelte passes the build's answer
  * for its island (`islandReadsPage`); the snapshot itself is always recorded (the handle also
- * reads it for the freeze verdict — a load with a streaming promise is per-request by intent — and
+ * reads it for the postrender verdict — a load with a streaming promise is per-request by intent — and
  * for server-side page reads), only the serialized seed is gated on it. Whether the seed ships is
  * read ONCE, by the handle, when the document tail renders — no region asks during the render.
  *

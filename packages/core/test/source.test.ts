@@ -1,5 +1,5 @@
 // og.source() — core's data sources: the macro rewrite (strict position law) and the runtime
-// wrapper (fingerprint, id stamp, receipt tag). What a plugin does with the receipts (freeze's
+// wrapper (fingerprint, id stamp, receipt tag). What a plugin does with the receipts (postrender's
 // reverse index) is tested in that plugin.
 import { describe, it, expect, afterEach } from 'vitest';
 import { rewrite_source } from '../src/compiler/macros/source.ts';

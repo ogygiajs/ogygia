@@ -1,7 +1,7 @@
 /**
  * `capability_expiry` — a hole's capability expires at a WINDOW boundary, not `now + ttl`, so every
  * render of the same hole in the same window mints the same URL (byte-identical HTML across
- * requests: a host's post-render cache, a freeze store, an ETag can all hit). Validity stays
+ * requests: a host's post-render cache, a postrender store, an ETag can all hit). Validity stays
  * bounded: at least ttl/2, at most ttl.
  */
 import { describe, expect, it } from 'vitest';

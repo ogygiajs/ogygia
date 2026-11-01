@@ -1,6 +1,6 @@
 /**
  * The plugin API v2 (internal/notes/packages.md): config-time checks, realms named by the plugin, the
- * generated `virtual:ogygia/server-plugins`, shared hooks, facts, route options, and the test starter.
+ * generated `virtual:ogygia/server-plugins`, shared hooks, facts, route config, and the test starter.
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import path from 'node:path';
@@ -13,17 +13,16 @@ import {
 	resolve_plugins,
 	type PluginDefinition
 } from '../src/vite/plugin-api.ts';
-import { server_plugins_module, route_options_module } from '../src/compiler/link/caps.ts';
+import { server_plugins_module, route_config_module } from '../src/compiler/link/caps.ts';
 import { defineServer } from '../src/plugin/index.ts';
 import { facts_of, mark_per_visitor } from '../src/plugin/facts.ts';
 import { ask, notify, register_hooks } from '../src/plugin/hooks.ts';
 import {
-	clear_route_options,
-	register_route_options,
-	route_option,
-	set_page_route_options
+	clear_route_config,
+	register_route_config,
+	route_config,
+	set_page_route_config
 } from '../src/plugin/routes.ts';
-import { strip_route_options } from '../src/compiler/kit.ts';
 import { startPlugin } from '../src/plugin/testing.ts';
 
 /** An app of the repo's (the federation demo's dash): it depends on `@ogygia/flags`. */
@@ -137,20 +136,28 @@ describe('realms, named by the plugin', () => {
 		resolve_plugins([p('mid'), p('last', 'post'), p('first', 'pre')], APP, true);
 		expect(seen).toEqual(['first', 'mid', 'last']);
 	});
-	it('`b.routeOption` collects names; a Kit option or a second owner is refused', () => {
+	it('`b.routeConfig` collects keys, once each; a key that is not an identifier is refused', () => {
 		const out = resolve_plugins(
-			[def({ name: '@ogygia/flags', build: (b) => b.routeOption('freeze') })],
+			[
+				def({
+					name: '@ogygia/flags',
+					build: (b) => {
+						b.routeConfig('postrender');
+						b.routeConfig('postrender');
+					}
+				})
+			],
 			APP,
 			true
 		);
-		expect(out.route_options).toEqual(['freeze']);
+		expect(out.route_config).toEqual(['postrender']);
 		expect(() =>
 			resolve_plugins(
-				[def({ name: '@ogygia/flags', build: (b) => b.routeOption('csr') })],
+				[def({ name: '@ogygia/flags', build: (b) => b.routeConfig('post-render') })],
 				APP,
 				true
 			)
-		).toThrow(/Kit does not own/);
+		).toThrow(/camelCase identifier/);
 	});
 	it('`b.pageModules` collects importer specifiers and absolute files, once each', () => {
 		const file = path.join(APP, 'src/pages.ts');
@@ -231,28 +238,26 @@ describe('facts', () => {
 	});
 });
 
-describe('route options', () => {
-	afterEach(() => clear_route_options());
+describe('route config', () => {
+	afterEach(() => clear_route_config());
 	it('a programmatic router that claims the path wins; then the Kit page; else undefined', () => {
-		set_page_route_options({ '/docs': { freeze: false }, '/plain': {} });
-		register_route_options('t', (pathname, option) =>
-			pathname === '/app' ? (option === 'freeze' ? true : null) : undefined
+		set_page_route_config({ '/docs': { postrender: false }, '/plain': {} });
+		register_route_config('t', (pathname) =>
+			pathname === '/app' ? { postrender: true } : pathname === '/bare' ? {} : undefined
 		);
-		expect(route_option('freeze', null, '/app')).toBe(true);
-		expect(route_option('freeze', '/(site)/docs', '/docs')).toBe(false);
-		expect(route_option('freeze', '/plain', '/plain')).toBeUndefined();
-		expect(route_option('freeze', null, '/nowhere')).toBeUndefined();
+		expect(route_config('postrender', null, '/app')).toBe(true);
+		expect(route_config('postrender', '/(site)/docs', '/docs')).toBe(false);
+		expect(route_config('postrender', '/plain', '/plain')).toBeUndefined();
+		expect(route_config('postrender', null, '/nowhere')).toBeUndefined();
+		// a claimed path whose config lacks the key never falls through to the file world
+		set_page_route_config({ '/bare': { postrender: true } });
+		expect(route_config('postrender', '/bare', '/bare')).toBeUndefined();
 	});
-	it('the compiler strips each declared option before Kit sees the file (length kept)', () => {
-		const src = `export const freeze = false;\nexport const csr = false;\n`;
-		const out = strip_route_options(src, ['freeze']);
-		expect(out).not.toContain('freeze = false');
-		expect(out).toContain('export const csr = false');
-		expect(out.length).toBe(src.length);
-	});
-	it('the virtual module is server-only and empty without declared options', () => {
-		expect(route_options_module(false, '/r', ['freeze'])).toBe('export const route_options = {};');
-		expect(route_options_module(true, '/r', [])).toBe('export const route_options = {};');
+	it('the virtual module is server-only and empty without claimed keys', () => {
+		expect(route_config_module(false, '/r', ['postrender'])).toBe(
+			'export const route_config = {};'
+		);
+		expect(route_config_module(true, '/r', [])).toBe('export const route_config = {};');
 	});
 });
 

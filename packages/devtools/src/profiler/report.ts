@@ -2844,7 +2844,7 @@ function ogygia_findings(
 				'fp-unstable',
 				`${names(moved.map((x) => name_of(x.entry)))} rendered with a different fingerprint on the profiler's renders of the same page: ${said}${moved.length > 1 ? ` (and ${moved.length - 1} more)` : ''}. If the page's data did not change between them, that value is made fresh on every render.`,
 				{
-					fix: 'The router compares fingerprints to keep a live island across a navigation, and the fingerprint is part of the page’s bytes: an island whose props change on every render is patched on every navigation, and a cache keyed on the HTML (a CDN, a post-render cache, a freeze store, an ETag) misses every time. Make the value the same for the same inputs: take it from load data, compute it in the browser (an effect), or leave it out of the props.'
+					fix: 'The router compares fingerprints to keep a live island across a navigation, and the fingerprint is part of the page’s bytes: an island whose props change on every render is patched on every navigation, and a cache keyed on the HTML (a CDN, a post-render cache, a postrender store, an ETag) misses every time. Make the value the same for the same inputs: take it from load data, compute it in the browser (an effect), or leave it out of the props.'
 				}
 			);
 		}

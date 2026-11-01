@@ -1,5 +1,12 @@
 # freeze — frozen pages (design draft)
 
+> **RENAMED (user, 2026-11-01): `@ogygia/postrender`** (packages/postrender) — prerender is build
+> time, postrender is request time. The per-route switch moved into Kit's own page option
+> (`export const config = { postrender: false }`, read at build via core's `b.routeConfig(key)`;
+> no plugin invents exports in Kit's files), and the live settings moved from `freeze.configure()`
+> to a Kit handle composed BEFORE ogygia's: `sequence(postrender.handle({ store, edge }),
+> ogygia.handle())`. The history below keeps its original names.
+
 > **NAMING: SETTLED — `freeze` (user pick, 2026-09-02, after `artifacts` shipped and was
 > reopened).** A frozen page renders one time, is stored whole, and is served as bytes until a
 > publish thaws it. The word already lived in the docs ("the shell freezes", "a frozen shell")

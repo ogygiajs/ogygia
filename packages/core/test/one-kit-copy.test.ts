@@ -1,6 +1,6 @@
 // ONE KIT: ogygia reads Kit's request store (`@sveltejs/kit/internal/server`), so Kit must resolve
 // from the app, never from ogygia's own location: a workspace-linked ogygia whose peer resolved
-// another Kit than the app's had its own, empty store — the devtools' server events, the freeze
+// another Kit than the app's had its own, empty store — the devtools' server events, the postrender
 // verdict's reads and the page seed's request were all lost, silently (the upstream watcher caught
 // it the day the app's Kit moved to 3.1.0 and ogygia's peer stayed on 3.0.1).
 import { describe, it, expect } from 'vitest';

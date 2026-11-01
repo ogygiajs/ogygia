@@ -59,7 +59,7 @@ export const PRERENDER_REGION_TTL_SEC: number = 10 * 365 * 24 * 3600;
  * Every render of the same hole (same id, props, session) in the same window mints the SAME
  * `exp`, hence the SAME signature and URL: the hole's HTML is byte-identical across requests. That
  * is what lets anything keyed on the page's bytes hit — a host app's post-render component cache,
- * a CDN or freeze store comparing documents, an ETag. With `now + ttl` every request minted a new
+ * a CDN or postrender store comparing documents, an ETag. With `now + ttl` every request minted a new
  * URL and a header block wrapping five holes was re-processed on every request (measured: seconds
  * of server time per page on a Lambda-class host).
  *

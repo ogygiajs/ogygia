@@ -86,7 +86,7 @@ export async function run_module_macros(
 		}
 	}
 
-	// `import.meta.og.source(fn)` — declared data sources for the freeze reverse index:
+	// `import.meta.og.source(fn)` — declared data sources for the postrender reverse index:
 	// stamps `file#export`, rewrites to `__og_source('id', fn)` + injects the runtime wrapper.
 	// AST-precise, strict-position (macros/source.ts); a no-op unless the marker is present.
 	if (out.includes('import.meta.og.source')) {

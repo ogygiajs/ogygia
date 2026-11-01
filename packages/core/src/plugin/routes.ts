@@ -1,32 +1,34 @@
 /**
- * ROUTE OPTIONS — a plugin's per-route boolean (`export const freeze = false` in a `+page.ts`), read
- * the way Kit reads `csr`: the deepest declaration on the page's option-file chain wins. A plugin
- * names its options once (`compile.routeOptions`); the compiler strips them from the route files
- * before Kit sees them (Kit rejects unknown page exports) and bakes each page's declared value.
+ * ROUTE CONFIG — the keys a plugin reads inside Kit's own `config` page option
+ * (`export const config = { postrender: false }` in a `+page.ts`). Kit takes anything inside
+ * `config`, so nothing is stripped and no plugin invents an export in Kit's files. A plugin claims
+ * its keys once (`b.routeConfig(key)`); the compiler reads each page's merged `config` at build time
+ * the way Kit merges it (layouts root → leaf, then the page; at each level the server module, then
+ * the universal one; later wins, top level only) and bakes the claimed keys.
  *
  * Two worlds answer, in the order dispatch itself resolves a request:
  * 1. A mounted programmatic `routes()` table that CLAIMS the pathname (it answers inside the
- *    handle, ahead of any file route): its declared page > layout > table value; claimed but
- *    undeclared = `undefined`.
- * 2. A Kit page route: its compile-time cascaded value (`undefined` when nothing declares it).
+ *    handle, ahead of any file route): its merged page > layout > table `config`.
+ * 2. A Kit page route: its build-time merged value.
  * Anything else (an endpoint, a request no route claimed) answers `undefined`: the plugin's own
  * default applies.
  *
  * One global slot: dist entries and plugin packages must share the registry.
  */
 
-/** Per matcher: `undefined` = not mine (ask the next one, then the file world) · `null` = mine,
- *  but nothing declared this option · `boolean` = mine, declared. */
-export type RouteOptionVerdict = boolean | null | undefined;
-export type RouteOptionMatcher = (pathname: string, option: string) => RouteOptionVerdict;
+/** A route's merged `config`, as far as the claimed keys go. */
+export type RouteConfig = Readonly<Record<string, unknown>>;
+/** Per matcher: `undefined` = not mine (ask the next one, then the file world) · an object = mine,
+ *  with this merged config (a claimed key it lacks answers `undefined`, never the file world). */
+export type RouteConfigMatcher = (pathname: string) => RouteConfig | undefined;
 
 interface RoutesSlot {
-	routers: Map<string, RouteOptionMatcher>;
-	/** route id (group-stripped) → option → declared value, for every Kit page route */
-	pages: Map<string, Record<string, boolean>>;
+	routers: Map<string, RouteConfigMatcher>;
+	/** route id (group-stripped) → the claimed keys of its merged config, for every Kit page route */
+	pages: Map<string, RouteConfig>;
 }
 const slot: RoutesSlot = ((globalThis as Record<symbol, RoutesSlot | undefined>)[
-	Symbol.for('ogygia.route-options.v1')
+	Symbol.for('ogygia.route-config.v1')
 ] ??= {
 	routers: new Map(),
 	pages: new Map()
@@ -34,18 +36,18 @@ const slot: RoutesSlot = ((globalThis as Record<symbol, RoutesSlot | undefined>)
 
 /** A `routes()` table joins (keyed: dev re-evaluates hooks.server.ts and calls `routes()` again; a
  *  matcher with the same key REPLACES its stale twin instead of shadowing it). */
-export function register_route_options(key: string, matcher: RouteOptionMatcher): void {
+export function register_route_config(key: string, matcher: RouteConfigMatcher): void {
 	slot.routers.delete(key);
 	slot.routers.set(key, matcher);
 }
 
-/** Core only (hooks.ts): the Kit pages' declared values, baked by the compiler. */
-export function set_page_route_options(pages: Record<string, Record<string, boolean>>): void {
+/** Core only (hooks.ts): the Kit pages' merged config, baked by the compiler. */
+export function set_page_route_config(pages: Record<string, RouteConfig>): void {
 	slot.pages = new Map(Object.entries(pages));
 }
 
 /** Tests only. */
-export function clear_route_options(): void {
+export function clear_route_config(): void {
 	slot.routers.clear();
 	slot.pages.clear();
 }
@@ -59,17 +61,17 @@ function strip_route_groups(id: string): string {
 	return '/' + segs.join('/');
 }
 
-/** This request's declared value for `option`, or `undefined` (use the plugin's default). A null
- *  `routeId` is never normalized to `/` — that would be a different route. */
-export function route_option(
-	option: string,
+/** This request's value for `key` in its route's merged `config`, or `undefined` (use the plugin's
+ *  default). A null `routeId` is never normalized to `/` — that would be a different route. */
+export function route_config(
+	key: string,
 	route_id: string | null | undefined,
 	pathname: string
-): boolean | undefined {
+): unknown {
 	for (const matcher of slot.routers.values()) {
-		const v = matcher(pathname, option);
-		if (v !== undefined) return v ?? undefined;
+		const config = matcher(pathname);
+		if (config !== undefined) return config[key];
 	}
 	if (route_id == null) return undefined;
-	return slot.pages.get(strip_route_groups(route_id))?.[option];
+	return slot.pages.get(strip_route_groups(route_id))?.[key];
 }

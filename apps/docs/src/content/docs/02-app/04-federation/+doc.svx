@@ -1,10 +1,10 @@
 ---
 title: Fragment federation
-summary: Microfrontends over the wire. Independent SvelteKit + ogygia apps combine into one page. `federate()` is one identity per app; a peer's routes and widgets are region values you render with `<Region>`; a whole app mounts under shell chrome. Hops are Ed25519-signed, identity and experiments carry, and a publish or deploy on one team thaws every frozen page that baked its fragments.
+summary: Microfrontends over the wire. Independent SvelteKit + ogygia apps combine into one page. `federate()` is one identity per app; a peer's routes and widgets are region values you render with `<Region>`; a whole app mounts under shell chrome. Hops are Ed25519-signed, identity and experiments carry, and a publish or deploy on one team clears every stored page that baked its fragments.
 related:
   - app/server-router
   - app/experiments
-  - data-state/freeze
+  - data-state/postrender
   - reference/packaging
 ---
 
@@ -14,7 +14,7 @@ This surface is new, and its shape can change. The mechanics below are e2e-teste
 
 Three teams, three repos, three deploys — one page. Fragment federation combines independent SvelteKit + ogygia apps **over HTTP at render time**. The server of another team answers with a fragment document. The shell bakes its HTML into the first paint. The islands inside wake in the page of the shell, with chunks loaded from the origin of the team that owns them.
 
-There is **one primitive per app**: `federate()`. It declares the app's identity, the peers it talks to, and — if it is an MFE — the routes and widgets it serves. From it you get typed **peer handles**. A remote route or widget is a [region value](/docs/regions/held-regions) you render with `<Region>`. A whole remote app mounts under shell chrome with `mount()`. And because a fragment is a region, it folds into [frozen pages](/docs/data-state/freeze): a publish or a deploy on one team thaws every frozen page of every team that baked its fragments.
+There is **one primitive per app**: `federate()`. It declares the app's identity, the peers it talks to, and — if it is an MFE — the routes and widgets it serves. From it you get typed **peer handles**. A remote route or widget is a [region value](/docs/regions/held-regions) you render with `<Region>`. A whole remote app mounts under shell chrome with `mount()`. And because a fragment is a region, it folds into [postrender](/docs/data-state/postrender): a publish or a deploy on one team clears every stored page of every team that baked its fragments.
 
 ## Not module federation
 
@@ -147,10 +147,10 @@ export const shell_router = routes({
 
 `page()` takes the route path (and an optional `search`); `widget()` takes the widget name and its props. Both take the **region dials** as a trailing argument:
 
-| dial                         | behavior                                                                                                                                      | in a frozen shell                                             |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `render: 'static'` (default) | one buffered signed hop during this render; the fragment HTML is baked into the page                                                          | baked into the frozen bytes; thawed by a notice from the peer |
-| `render: 'deferred'`         | a hole; the browser fetches it from the shell's own signed endpoint, which derives the visitor's claims at hole time and forwards to the peer | per-visitor, stays live over a frozen shell                   |
+| dial                         | behavior                                                                                                                                      | in a stored shell                                              |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `render: 'static'` (default) | one buffered signed hop during this render; the fragment HTML is baked into the page                                                          | baked into the stored bytes; cleared by a notice from the peer |
+| `render: 'deferred'`         | a hole; the browser fetches it from the shell's own signed endpoint, which derives the visitor's claims at hole time and forwards to the peer | per-visitor, stays live over a stored shell                    |
 
 Pass `claims` on the dials to override the visitor identity for that one hop (the default is the federation's `visitor`, plus every experiment bucket the request decided). The fragment's CSS travels with it and is hoisted to `<head>`; the islands inside wake themselves once the HTML lands.
 
@@ -232,15 +232,15 @@ load: async (c) => {
 
 ## Cross-app thaw
 
-This is the reason a fragment is a region. A remote fragment baked into a shell page is stored in the shell's [freeze store](/docs/data-state/freeze) like any other page. The question freezing always asks is _when does this stored page stop being true?_ For a fragment, the answer lives on **another team's server**. Federation answers it with no config on either side.
+This is the reason a fragment is a region. A remote fragment baked into a shell page is stored in the shell's [postrender store](/docs/data-state/postrender) like any other page. The question a store always asks is _when does this stored page stop being true?_ For a fragment, the answer lives on **another team's server**. Federation answers it with no config on either side.
 
-**A publish thaws its consumers.** Every `freeze.invalidate(...)` on any app already computes what it evicts. After the local evict and edge purge, it now also **notifies every peer**. Each peer drops the frozen pages and cached documents that baked the invalidated fragments, purges them at its own edges, and — if it is itself consumed — forwards the notice up the chain. So a publish on the CMS team thaws the shell pages that embedded CMS fragments. Nobody wired it.
+**A publish thaws its consumers.** Every `postrender.invalidate(...)` on any app already computes what it evicts. After the local evict and edge purge, it now also **notifies every peer**. Each peer drops the stored pages and cached documents that baked the invalidated fragments, purges them at its own edges, and — if it is itself consumed — forwards the notice up the chain. So a publish on the CMS team thaws the shell pages that embedded CMS fragments. Nobody wired it.
 
-**A deploy thaws everything it touched.** On boot, an app compares its build id (Kit's `version.name`) with the one it last stored. Different → it broadcasts a thaw-all to its peers. So a new MFE build thaws every shell page that baked its fragments — the fix for a frozen shell stranded on the MFE's old hashed asset URLs. This is `deploy: 'auto'` (the default); `deploy: 'manual'` turns it off, and `freeze.invalidateApp()` does it by hand.
+**A deploy thaws everything it touched.** On boot, an app compares its build id (Kit's `version.name`) with the one it last stored. Different → it broadcasts a thaw-all to its peers. So a new MFE build thaws every shell page that baked its fragments — the fix for a stored shell stranded on the MFE's old hashed asset URLs. This is `deploy: 'auto'` (the default); `deploy: 'manual'` turns it off, and `postrender.invalidateWhere({ prefix: '/' })` does it by hand.
 
-**Provenance rides the wire.** A fragment answer carries two additive fields: `sources` — the [`og.source`](/docs/data-state/freeze) receipts the MFE's render consumed, plus any it adopted from its own peers (a chain) — and `build`, the answering app's build id. The consumer files its frozen page under **peer-prefixed tags**: a blanket `a:<peer>` (so a deploy thaw reaches every page that touched the peer), `p:<peer>:<path>` (so `freeze.invalidate('<path>')` on the peer thaws exactly the pages that baked that route), and `r:<peer>:<receipt>` for each source. A thaw notice carries only tags, so its blast radius is "re-render some pages," never data.
+**Provenance rides the wire.** A fragment answer carries two additive fields: `sources` — the [`og.source`](/docs/data-state/postrender) receipts the MFE's render consumed, plus any it adopted from its own peers (a chain) — and `build`, the answering app's build id. The consumer files its stored page under **peer-prefixed tags**: a blanket `a:<peer>` (so a deploy thaw reaches every page that touched the peer), `p:<peer>:<path>` (so `postrender.invalidate('<path>')` on the peer thaws exactly the pages that baked that route), and `r:<peer>:<receipt>` for each source. A thaw notice carries only tags, so its blast radius is "re-render some pages," never data.
 
-An MFE that declared no `og.source` receipts still gets the blanket `a:<peer>` tag, so deploy-thaw works even for teams that never adopt source tracking. Freeze turned off on a peer answers `/og/thaw` with a 204 and does nothing; notices are still sent (they are cheap), so turning freeze on later needs no re-wiring. A peer that is down never fails a publish — notices retry with backoff, then fall back to the store's TTL backstop.
+An MFE that declared no `og.source` receipts still gets the blanket `a:<peer>` tag, so deploy-thaw works even for teams that never adopt source tracking. A peer without postrender answers `/og/thaw` with a 204 and does nothing; notices are still sent (they are cheap), so turning postrender on later needs no re-wiring. A peer that is down never fails a publish — notices retry with backoff, then fall back to the store's TTL backstop.
 
 ## Security: signed hops, carried identity
 
@@ -256,7 +256,7 @@ The signature buys three things beyond authenticity:
 
 Claims are **signed, not encrypted**. That is integrity, not confidentiality. Run the hops over TLS. Then visitor ids and roles are not readable on the wire.
 
-A deferred region's hole runs `visitor()` at hole time on the shell, with the browser's cookies, so a frozen (anonymous) shell still serves personal holes — the same posture as a local deferred region.
+A deferred region's hole runs `visitor()` at hole time on the shell, with the browser's cookies, so a stored (anonymous) shell still serves personal holes — the same posture as a local deferred region.
 
 ### Key rotation
 

@@ -1,6 +1,6 @@
 /**
  * SEED ONLY WHEN READ — Region.svelte always records the page snapshot (the handle needs it for the
- * freeze verdict and server-side page reads) but ASKS for the client seed (`seed: true`) only for a
+ * postrender verdict and server-side page reads) but ASKS for the client seed (`seed: true`) only for a
  * region whose client code reads `$page` (`islandReadsPage(entry)`, the build's chunk-closure
  * answer; fail-open when unknown). A page whose islands take everything as props asks for nothing,
  * so the handle ships no `application/ogygia-page` seed at all.
@@ -65,7 +65,7 @@ describe('page snapshot recording', () => {
 		set_reads_page(false);
 		void render(region, { props: island() }).body;
 		expect(seeds()).toEqual([false]);
-		expect(records[0].snap).toHaveProperty('data'); // the freeze verdict still sees the load data
+		expect(records[0].snap).toHaveProperty('data'); // the postrender verdict still sees the load data
 	});
 
 	it('the same rule for visible / interaction islands (the wake does not matter)', () => {
