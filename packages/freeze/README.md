@@ -1,6 +1,6 @@
 # @ogygia/freeze
 
-Frozen pages for [ogygia](https://ogygia.puruvj.dev). A page whose render read nothing personal renders one time, is stored whole, and is served as bytes until a publish thaws it. Kit, your loads and Svelte never run on a hit. `render: 'deferred'` holes inside a frozen page stay per visitor.
+Frozen pages for [ogygia](https://ogygiajs.dev). A page whose render read nothing personal renders one time, is stored whole, and is served as bytes until a publish thaws it. Kit, your loads and Svelte never run on a hit. `render: 'deferred'` holes inside a frozen page stay per visitor.
 
 ## Install
 
@@ -34,4 +34,4 @@ await freeze.invalidateWhere({ prefix: '/blog/' }); // a subtree
 
 With no `configure()`, pages are kept in an in-process LRU.
 
-Docs: [Frozen pages](https://ogygia.puruvj.dev/docs/data-state/freeze).
+Docs: [Frozen pages](https://ogygiajs.dev/docs/data-state/freeze).

@@ -1,6 +1,6 @@
 # @ogygia/testing
 
-Testing for [ogygia](https://ogygia.puruvj.dev): the devtools and the profiler as test primitives. Your Playwright tests click through the app as usual; ogygia measures hydration, interactions, server time and weight, and your test fails on a budget.
+Testing for [ogygia](https://ogygiajs.dev): the devtools and the profiler as test primitives. Your Playwright tests click through the app as usual; ogygia measures hydration, interactions, server time and weight, and your test fails on a budget.
 
 ## Install
 
@@ -28,4 +28,4 @@ test('checkout stays fast', async ({ page, ogygia }) => {
 });
 ```
 
-Docs: [Testing](https://ogygia.puruvj.dev/docs/devtools/testing).
+Docs: [Testing](https://ogygiajs.dev/docs/devtools/testing).

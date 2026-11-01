@@ -47,7 +47,7 @@
 			<span class="hero-tag">SSR islands for SvelteKit</span>
 		</div>
 		<div class="foot">
-			<span class="foot-mono">ogygia.puruvj.dev</span>
+			<span class="foot-mono">ogygiajs.dev</span>
 			<span class="foot-mono">oh-jee-jee-ya</span>
 		</div>
 	{:else}
@@ -72,7 +72,7 @@
 		</div>
 
 		<div class="foot">
-			<span class="foot-mono">ogygia.puruvj.dev</span>
+			<span class="foot-mono">ogygiajs.dev</span>
 			<span class="foot-mono">SSR islands for SvelteKit</span>
 		</div>
 	{/if}

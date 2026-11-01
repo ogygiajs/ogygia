@@ -1652,7 +1652,7 @@ async function tool_profile_open(args: Attrs): Promise<ToolResult> {
 
 // ── ogygia_observatory — bundle files into a client-only Observatory link ──────────────────────────
 
-const DEFAULT_OBSERVATORY = 'https://ogygia.puruvj.dev/observatory';
+const DEFAULT_OBSERVATORY = 'https://ogygiajs.dev/observatory';
 
 /** `#<base64url(gzip(json))>` — the EXACT single-string format the Observatory decodes (browser gunzip).
  *  The payload is `{ f: files }` (files only; the app fills in default UI state). */

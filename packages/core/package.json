@@ -2,7 +2,7 @@
 	"name": "@ogygia/core",
 	"version": "0.10.2",
 	"description": "The core of ogygia (SSR islands for SvelteKit): apps install `ogygia`, plugins build on this",
-	"homepage": "https://ogygia.puruvj.dev",
+	"homepage": "https://ogygiajs.dev",
 	"bugs": {
 		"url": "https://github.com/ogygiajs/ogygia/issues"
 	},

@@ -1,6 +1,6 @@
 # @ogygia/flags
 
-Feature flags and A/B tests for [ogygia](https://ogygia.puruvj.dev). A kill switch, a rollout, a targeting rule and an A/B/n test are one primitive, `flag()`. It is decided on the server during SSR, so the chosen variant is simply what renders: no flicker, no client SDK, no JS for the decision.
+Feature flags and A/B tests for [ogygia](https://ogygiajs.dev). A kill switch, a rollout, a targeting rule and an A/B/n test are one primitive, `flag()`. It is decided on the server during SSR, so the chosen variant is simply what renders: no flicker, no client SDK, no JS for the decision.
 
 ## Install
 
@@ -31,4 +31,4 @@ hero(c); // 'control' | 'bold', sticky per visitor
 
 A native `flag()` works without the plugin. The plugin primes a `decide({ source })` (OpenFeature, OFREP, or your own function) one time per request, and drains the `exposure` sink at the end of each request. OpenFeature lives at `@ogygia/flags/openfeature`.
 
-Docs: [Flags & experiments](https://ogygia.puruvj.dev/docs/app/experiments).
+Docs: [Flags & experiments](https://ogygiajs.dev/docs/app/experiments).

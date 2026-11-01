@@ -1,6 +1,6 @@
 # @ogygia/devtools
 
-Devtools for [ogygia](https://ogygia.puruvj.dev): the in-page dock (each region boxed on the page, its real JS cost, what crossed the wire, when each island woke) and the SSR profiler (why a server render is slow, at `/__profiler`).
+Devtools for [ogygia](https://ogygiajs.dev): the in-page dock (each region boxed on the page, its real JS cost, what crossed the wire, when each island woke) and the SSR profiler (why a server render is slow, at `/__profiler`).
 
 ## Install
 
@@ -23,4 +23,4 @@ export default defineConfig(({ mode }) => ({
 
 Code for the profiler: `@ogygia/devtools/profiler` (`span`, `instrument`), `@ogygia/devtools/profiler/client` (`mark`), and stores at `@ogygia/devtools/profiler/storage/sqlite`, `/redis`, `/postgres`.
 
-Docs: [Devtools](https://ogygia.puruvj.dev/docs/devtools/overview) and [the profiler](https://ogygia.puruvj.dev/docs/profiler/overview).
+Docs: [Devtools](https://ogygiajs.dev/docs/devtools/overview) and [the profiler](https://ogygiajs.dev/docs/profiler/overview).
