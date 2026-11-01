@@ -6,7 +6,7 @@ import type { LayoutServerLoad } from './$types';
 // branch URL (or the immutable deploy URL). Falls back to the canonical for local builds. Read from
 // `process.env` directly ($env/dynamic/private is disallowed while prerendering, $env/static/private
 // errors when the var is absent locally).
-const CANONICAL = 'https://ogygia.puruvj.dev';
+const CANONICAL = 'https://ogygiajs.dev';
 
 function og_origin(): string {
 	const env = process.env;

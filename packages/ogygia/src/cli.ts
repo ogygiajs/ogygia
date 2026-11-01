@@ -398,7 +398,7 @@ async function run() {
 			`      ${dim("import Counter from './Counter.svelte' with { wake: 'load' };")}\n` +
 			(markdown ? `  • Markdown is on: author .md / .svx content collections.\n` : '') +
 			`  • Scaffold a docs site: ${accent('npx ogygia site init')}\n` +
-			`  Docs: ${accent('https://ogygia.puruvj.dev')}\n`
+			`  Docs: ${accent('https://ogygiajs.dev')}\n`
 	);
 }
 
@@ -781,7 +781,7 @@ export const load = async ({ url }) => {
 			`  • Start it: ${accent('npm run dev')} ${dim(`(then open ${urlBase || '/'})`)}\n` +
 			`  • Write pages in ${dim('src/content/docs')} — the file path is the URL.\n` +
 			`  • Tune the site (nav, versions, i18n) in ${dim('src/lib/docs.ts')}.\n` +
-			`  Docs: ${accent('https://ogygia.puruvj.dev')}\n`
+			`  Docs: ${accent('https://ogygiajs.dev')}\n`
 	);
 }
 

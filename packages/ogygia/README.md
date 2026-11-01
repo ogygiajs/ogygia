@@ -1,6 +1,6 @@
 <p align="center">
-  <a href="https://ogygia.puruvj.dev">
-    <img src="https://ogygia.puruvj.dev/favicon.svg" alt="ogygia" width="72" height="72" />
+  <a href="https://ogygiajs.dev">
+    <img src="https://ogygiajs.dev/favicon.svg" alt="ogygia" width="72" height="72" />
   </a>
 </p>
 
@@ -8,7 +8,7 @@
 
 <p align="center">
   SSR islands for SvelteKit — no Kit patches.<br />
-  <a href="https://ogygia.puruvj.dev"><strong>Docs → ogygia.puruvj.dev</strong></a>
+  <a href="https://ogygiajs.dev"><strong>Docs → ogygiajs.dev</strong></a>
 </p>
 
 <p align="center">
@@ -63,7 +63,7 @@ export default defineConfig({
 export const csr = false;
 ```
 
-Dev HMR still works with `csr = false` — soft updates for CSS and shared modules, full reload for route shells and island entry components. No extra setup; see the [docs](https://ogygia.puruvj.dev/#hmr).
+Dev HMR still works with `csr = false` — soft updates for CSS and shared modules, full reload for route shells and island entry components. No extra setup; see the [docs](https://ogygiajs.dev/#hmr).
 
 ## Example
 
@@ -87,7 +87,7 @@ Dev HMR still works with `csr = false` — soft updates for CSS and shared modul
 
 That’s an **island** (JS on load), the same island used dynamically, a below-the-fold island, and a **server island** (HTML fetched later). Lakes, presets, the SPA router, remotes, and the rest live in the docs:
 
-**[ogygia.puruvj.dev](https://ogygia.puruvj.dev)**
+**[ogygiajs.dev](https://ogygiajs.dev)**
 
 ### Dynamic `import()` + region attributes
 
@@ -95,7 +95,7 @@ Not supported — ogygia **fails the build** if it sees
 `import('./X.svelte', { with: { hydrate: 'load' } })` (same for `defer` / `preset`). Vite strips those attributes; runtimes reject unknown keys; islands need a static `import … with { … }` so SSR can emit a shell.
 
 For a chunk that downloads only after a click, use a host island and plain
-`await import('./Widget.svelte')` (no region attributes) — that mounts a **regular** component, not a second island. Docs: [pesky patterns](https://ogygia.puruvj.dev/#patterns-dynamic-import) · [playground demo](https://ogygia.puruvj.dev/playground/on-demand).
+`await import('./Widget.svelte')` (no region attributes) — that mounts a **regular** component, not a second island. Docs: [pesky patterns](https://ogygiajs.dev/#patterns-dynamic-import) · [playground demo](https://ogygiajs.dev/playground/on-demand).
 
 Trust boundaries and design constraints: [`INVARIANTS.md`](../../internal/notes/INVARIANTS.md) in the monorepo root.
 
@@ -111,7 +111,7 @@ Trust boundaries and design constraints: [`INVARIANTS.md`](../../internal/notes/
 <p>Bonjour {page.data.user.name} — {page.url.pathname}</p>
 ```
 
-A `load` that returns a **promise** streams into the island: the shell and the island’s `{#await}` pending branch paint immediately (first paint is never blocked on the slowest promise), and each promise resolves live as it settles. Rejections show `{:catch}`; custom `transport` types round-trip. Docs: [page data](https://ogygia.puruvj.dev/docs/data-state/page-data).
+A `load` that returns a **promise** streams into the island: the shell and the island’s `{#await}` pending branch paint immediately (first paint is never blocked on the slowest promise), and each promise resolves live as it settles. Rejections show `{:catch}`; custom `transport` types round-trip. Docs: [page data](https://ogygiajs.dev/docs/data-state/page-data).
 
 ## Shared state & context
 
@@ -130,7 +130,7 @@ Each island is its own hydration root, so a value handed between islands crosses
 <Add {cart} />
 ```
 
-To reach islands scattered down a subtree without prop drilling, provide it once as **context** — or adopt cross-island context in an existing `csr = false` layout by swapping `import { setContext } from 'svelte'` to `from 'ogygia'`. Docs: [state &amp; context](https://ogygia.puruvj.dev/docs/data-state/state-context).
+To reach islands scattered down a subtree without prop drilling, provide it once as **context** — or adopt cross-island context in an existing `csr = false` layout by swapping `import { setContext } from 'svelte'` to `from 'ogygia'`. Docs: [state &amp; context](https://ogygiajs.dev/docs/data-state/state-context).
 
 ## Live regions
 
@@ -163,7 +163,7 @@ that returns a region repaints in a single flight — one round trip that both m
 
 RF-native content collections ship inside ogygia — `content()` mints Kit `prerender` / `query` /
 `query.live` remotes, and `get(id)` hands back `{ id, data, headings, body }` where `body` is a
-[region](https://ogygia.puruvj.dev/docs/regions/held-regions) you render with `<Region>`. Import
+[region](https://ogygiajs.dev/docs/regions/held-regions) you render with `<Region>`. Import
 from `ogygia/content`; configure markdown via `ogygia({ content: { markdown } })`. `mdsvex` / `shiki`
 are optional peers.
 
