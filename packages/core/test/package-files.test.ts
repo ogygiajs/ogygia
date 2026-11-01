@@ -226,7 +226,7 @@ describe('undeclared-marks warning', () => {
 			[
 				"/** A `with { render: 'deferred', stitch: 'serve' }` hole ships as a normal one. */",
 				"export const fix = `import X from './X.svelte' with { wake: 'load' };`;",
-				"export function fail() { throw new Error(\"mark its import (`with { region: 'raw' }`)\"); }"
+				'export function fail() { throw new Error("mark its import (`with { region: \'raw\' }`)"); }'
 			].join('\n'),
 			'/nowhere-app/node_modules/@ogygia/plugin/dist/stitch.js',
 			{ ssr: true, emitFile: noop_emit }
