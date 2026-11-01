@@ -1,15 +1,15 @@
 ---
 title: SPA router
-summary: Global client navigation for islands apps. Intercept links, keep chrome, prefetch and prerender the next page, and serve prerendered shells that fill their holes per visitor.
+summary: Global client navigation for islands apps. It intercepts links, keeps chrome in place, prefetches and prerenders the next page, and serves prerendered shells that fill their holes per visitor.
 related:
   - app/dashboards
   - regions/held-regions
   - regions/server-islands
 ---
 
-The SPA router is **on by default**, for the full app. There is no component to render. Same-origin link clicks become client-side navigations. ogygia fetches the target page, merges `<head>`, swaps `<body>`, and updates history. There is no full reload and no Kit client bootstrap. View transitions are on also. Thus pages cross-fade and do not flash white.
+Without Kit's client, every link on a `csr = false` page would be a full page load, with a white flash in between and every piece of chrome rebuilt from scratch. ogygia's SPA router fills that gap. It is **on by default** for the whole app, and there is no component to render. Same-origin link clicks become client-side navigations: ogygia fetches the target page, merges its `<head>`, swaps the `<body>` and updates history, without a full reload or a Kit client bootstrap. View transitions are on as well, so pages cross-fade instead of flashing white.
 
-You configure it in **one place**, the Vite plugin:
+You configure the router in **one place**, the Vite plugin:
 
 ```ts title=vite.config.ts
 import { ogygia } from 'ogygia/vite';
@@ -24,13 +24,11 @@ export default {
 };
 ```
 
-::: tip When to opt out
-Keep the router for **app-like navigation**: no white flash between pages, chrome that stays, prefetch on hover. Set it off with `router: false` only if a plain MPA is sufficient. Then same-origin links are ordinary full-page loads. On routes that are still `csr = true`, Kit owns navigation, and ogygia does not intercept. The two operate together in each mode.
-:::
+Keep the router when you want app-like navigation, with no flash between pages, chrome that stays put and prefetch on hover. Turn it off with `router: false` when a plain multi-page site is enough, and same-origin links become ordinary full page loads. Either way, Kit still owns navigation on routes that are `csr = true`, and ogygia does not intercept there.
 
 ### Opt one page out of view transitions
 
-View transitions are global. But one page can set them off with a meta tag in its head. Use this for a page whose swap animation you do not want: a checkout step, a full-bleed media page:
+View transitions are global, but a single page can turn them off with a meta tag in its head. This is useful for a page whose swap animation you don't want, such as a checkout step or a full-bleed media page:
 
 ```svelte title=src/routes/checkout/+page.svelte
 <svelte:head>
@@ -38,11 +36,11 @@ View transitions are global. But one page can set them off with a meta tag in it
 </svelte:head>
 ```
 
-The tag of the page wins over the global default. Navigation stays client-side. It only skips the transition.
+The page's tag takes precedence over the global default. Navigation stays client-side and only the transition is skipped.
 
 ## Link prefetch
 
-The router obeys the full preload grammar of Kit. Thus applicable `data-sveltekit-preload-*` attributes operate without changes:
+The router follows Kit's whole preload grammar, so your existing `data-sveltekit-preload-*` attributes work unchanged:
 
 ```svelte
 <div data-sveltekit-preload-data="hover">
@@ -50,31 +48,31 @@ The router obeys the full preload grammar of Kit. Thus applicable `data-svelteki
 </div>
 ```
 
-The values `eager` / `viewport` / `hover` / `tap` warm the page-HTML cache at the applicable moment, with the nearest-ancestor rule of Kit.
+The values `eager`, `viewport`, `hover` and `tap` warm the page-HTML cache at the matching moment, using Kit's nearest-ancestor rule.
 
 ## Single-flight navigation {#single-flight}
 
-Some pages have several [server islands](/docs/regions/server-islands). When you navigate into one, the router prescans the incoming page. It pulls **all** its `render: 'deferred'` load holes down in **one** batch request. There is no fetch per hole and no waterfall. It is automatic. There is no attribute to set.
+When you navigate to a page that has several [server islands](/docs/regions/server-islands), the router prescans the incoming page and pulls down **all** of its `render: 'deferred'` load holes in **one** batch request, instead of one fetch per hole in a waterfall. This happens automatically, with no attribute to set.
 
-The flush is out of order. The HTML of each hole comes back when that region settles. A fast region lands before a slow one, independent of source order. Content appears when it is ready. A [command that returns a region](/docs/regions/held-regions) rides the same one-response path: a single flight that both mutates and repaints.
+The response is flushed out of order: each hole's HTML comes back as soon as that region settles, so a fast region lands before a slow one regardless of source order, and content appears as it becomes ready. A [command that returns a region](/docs/regions/held-regions) uses the same single-response path, so one flight both changes the data and repaints.
 
 ## Skip re-rendering what didn't change {#server-delta}
 
-By default, each SPA navigation renders the full incoming page on the server again. Opt into **server-delta**, and the client tells the server which islands it already holds. The server then renders only the islands whose inputs changed:
+By default, every SPA navigation renders the whole incoming page on the server again. If you opt into **server-delta**, the client tells the server which islands it already holds, and the server renders only the islands whose inputs changed:
 
 ```ts title=vite.config.ts
 ogygia({ router: { serverDelta: true } });
 ```
 
-On a navigation, the client sends the fingerprints of the regions it holds, in an `x-ogygia-known` header. The server renders only the regions whose entry, endpoint, or props changed. It marks the remainder **skipped**. An unchanged island keeps its live DOM and its interaction state. There is nothing to send again and nothing to hydrate again.
+On a navigation, the client sends the fingerprints of the regions it holds in an `x-ogygia-known` header. The server renders only the regions whose entry, endpoint or props changed, and marks the rest as **skipped**. An unchanged island keeps its live DOM and its interaction state, with nothing to resend or rehydrate.
 
-It is safe by construction. Both sides calculate the fingerprint the same way, from compiler-emitted attributes. They never use live-mutated HTML. Thus the server skips exactly the regions that the client says it has. The feature is off by default. When off, the client never sends the header, and the server always does a full render. That is the safe fallback.
+This is safe by construction, because both sides compute the fingerprint the same way from attributes the compiler emits, never from HTML that has been changed at runtime, so the server skips exactly the regions the client says it has. The feature is off by default. When it is off, the client never sends the header and the server always does a full render, which is the safe fallback.
 
 ## Why a page was fetched {#nav-purpose}
 
-Not every page fetch is a real visit. A hover **prefetch** happens before any intent to go there. A **back/forward** restore re-fetches a page the visitor has already seen (the router keeps no DOM snapshot, so it asks the server again). A server that fires side effects on a page render — an analytics beacon, a "last seen" write, a one-time banner — should not fire them for either.
+Not every page fetch is a real visit. A hover **prefetch** happens before the visitor has decided to go anywhere, and a **back/forward** restore fetches a page the visitor has already seen (the router keeps no DOM snapshot, so it asks the server again). A server that fires side effects when it renders a page, such as an analytics beacon, a "last seen" write or a one-time banner, should not fire them in either case.
 
-So the client names the reason in an `x-ogygia-purpose` header:
+To let the server tell these apart, the client names the reason in an `x-ogygia-purpose` header:
 
 | Value      | When                                                 |
 | ---------- | ---------------------------------------------------- |
@@ -82,23 +80,23 @@ So the client names the reason in an `x-ogygia-purpose` header:
 | `prefetch` | Warmed on hover, press, or viewport, before a click. |
 | `history`  | A back/forward restore.                              |
 
-Read it in a server load or hook and skip the speculative work when it is set. It is advisory: a server that ignores it still renders correctly.
+Read it in a server load or hook, and skip the speculative work when it is set. The header is advisory, so a server that ignores it still renders correctly.
 
 ## Server redirects {#redirects}
 
-A `redirect()` in a server load works across a SPA navigation. The router optimistically shows the destination address, then follows the redirect and **corrects the address bar** to where it actually landed. The redirect replaces its own history entry, so the back button skips it, exactly as a full page load would. A cross-origin redirect hands off to a full browser navigation.
+A `redirect()` in a server load works across an SPA navigation. The router shows the destination address optimistically, then follows the redirect and **corrects the address bar** to where it actually landed. The redirect replaces its own history entry, so the back button skips it, exactly as on a full page load. A cross-origin redirect hands off to a full browser navigation.
 
 ## Speculative prerender {#speculate}
 
-Prefetch warms the _HTML cache_. **Speculation goes further: the browser fully prerenders the next page.** It runs its JS, fills its islands, and resolves its server-island holes, in a hidden tab, before you click. On click, the prerendered page activates immediately, already interactive.
+Prefetch only warms the _HTML cache_. With speculation, **the browser fully prerenders the next page** in a hidden tab before you click: it runs the page's JavaScript, fills its islands and resolves its server-island holes. When you click, the prerendered page activates immediately and is already interactive.
 
-It is **automatic, and it belongs to MPA mode**. With `router: false`, the browser owns navigation. Thus the server handle injects one native [Speculation Rules](https://developer.mozilla.org/en-US/docs/Web/API/Speculation_Rules_API) script into each page. There is no config and no client JS. The rules carry both legs. A prerender-capable browser prerenders probable next pages (moderate eagerness, about hover dwell). A prefetch-only browser prefetches them. A browser without support ignores the JSON. There is nothing to feature-detect and nothing to fall back to.
+Speculation is **automatic, and it belongs to MPA mode**. With `router: false` the browser owns navigation, so the server handle injects one native [Speculation Rules](https://developer.mozilla.org/en-US/docs/Web/API/Speculation_Rules_API) script into each page, with no configuration and no client JavaScript. The rules cover both cases: a browser that can prerender prerenders likely next pages (with moderate eagerness, roughly on hover dwell), a browser that can only prefetch prefetches them, and a browser without support ignores the JSON, so there is nothing to feature-detect and no fallback to write.
 
-With the router **on**, ogygia emits no rules, by intent. Speculation caches go only to _real_ navigations. A body-swap router can never read them. A speculated page would download two times, and a prerendered one would render, then be discarded. The router's own [prefetch](#link-prefetch), plus island-module warming, is the same idea, applied to a cache that the swap can use.
+With the router **on**, ogygia deliberately emits no rules. Speculation caches only serve _real_ navigations, which a body-swap router never performs, so a speculated page would be downloaded twice and a prerendered one would render and then be thrown away. The router's own [prefetch](#link-prefetch), together with island-module warming, applies the same idea to a cache the swap can actually use.
 
-`preloadData` / `preloadCode` follow the mode. Router on: `preloadData(url)` warms the swap cache and the island modules of the page. `preloadCode` does nothing, because code arrives with the swap. Router off: `preloadData(url)` hints a native **prerender** for that URL, and `preloadCode(url)` a native **prefetch**. Thus programmatic warming speaks the language of the platform also.
+`preloadData` and `preloadCode` follow the mode. With the router on, `preloadData(url)` warms the swap cache and the page's island modules, and `preloadCode` does nothing because code arrives with the swap. With the router off, `preloadData(url)` hints a native **prerender** for that URL and `preloadCode(url)` a native **prefetch**, so programmatic warming uses the platform's mechanism too.
 
-Two things are never speculated: the signed region endpoint, and `rel="nofollow"` links. Beyond that, `data-ogygia-speculate` gives you a cascade. Set `off` on a subtree. Set `on` back on one link or subtree inside it. `on` wins over `off`.
+Two things are never speculated: the signed region endpoint, and `rel="nofollow"` links. Beyond that, `data-ogygia-speculate` gives you a cascade: set `off` on a subtree, and set `on` on a link or subtree inside it to bring it back. `on` takes precedence over `off`.
 
 ```svelte
 <!-- turn a whole section off, re-enable one link inside it -->
@@ -108,13 +106,13 @@ Two things are never speculated: the signed region endpoint, and `rel="nofollow"
 </nav>
 ```
 
-Use `off` on links with side effects that must not fire early: a logout, a one-time action. Use it also when you debug navigation and want a cold click. Use `on` to permit the safe links inside again.
+Use `off` on links whose side effects must not fire early, such as a logout or a one-time action, and while debugging navigation when you want a cold click. Use `on` to allow the safe links inside such a section again.
 
-**Speculation pays the most on a partially-prerendered page.** Its shell is already a static file on the CDN. To prerender the next page, the browser fetches that shell and fills its holes. There is almost nothing to render. Navigation to a PPR shell has almost no cost. That is the setup for the next section.
+**Speculation pays off most on a partially prerendered page.** That page's shell is already a static file on the CDN, so to prerender it the browser fetches the shell and fills its holes, with almost nothing left to render. Navigating to a PPR shell therefore costs almost nothing, as the next section explains.
 
 ## Partial prerendering (PPR) {#ppr}
 
-A [held region](/docs/regions/held-regions) is exactly the dynamic hole in a static page. Partial prerendering bakes the shell at build, and fills each hole per visitor. Prerender the page. Keep the holes. That is the full recipe:
+A [held region](/docs/regions/held-regions) is exactly the dynamic hole in a static page. Partial prerendering bakes the shell at build time and fills each hole per visitor, and the whole recipe is to prerender the page and keep its holes:
 
 ```ts title=+page.ts
 export const prerender = true;
@@ -128,13 +126,13 @@ export const prerender = true;
 </script>
 ```
 
-At build, Kit emits the page as a **static file**: the shell, plus the fallback of each hole, plus a signed endpoint reference. Your CDN serves it like an asset. There is no server render and no cold start. It is edge-fast in each location. When the page loads, each hole fetches its server-rendered HTML: fresh per visitor, cookie-personal if the island reads cookies. This is the fastest possible TTFB, with zero shell renders. See [held regions](/docs/regions/held-regions) and [server islands](/docs/regions/server-islands) for the holes and the signing.
+At build time, Kit emits the page as a **static file** containing the shell, each hole's fallback and a signed endpoint reference. Your CDN serves it like any other asset, so there is no server render and no cold start, wherever the visitor is. When the page loads, each hole fetches its server-rendered HTML, fresh per visitor and personal to their cookies if the island reads them. This gives the lowest possible TTFB, with no shell render at all. [Held regions](/docs/regions/held-regions) and [server islands](/docs/regions/server-islands) explain the holes and how they are signed.
 
-[Speculation](#speculate) prerenders the shell from the CDN and fills its holes before the click. Thus navigation between PPR pages feels free. In MPA mode (`router: false`), the automatic Speculation Rules move the full app at that speed.
+[Speculation](#speculate) prerenders the shell from the CDN and fills its holes before the click, so navigating between PPR pages feels instant. In MPA mode (`router: false`), the automatic Speculation Rules give the whole app that speed.
 
 ### See it
 
-The frame below is a real prerendered page (`/demo/ppr`). Its **shell** clock is baked into the static file. It never moves. Its **hole** clock is a `render: 'deferred'` server island, rendered on each request. It changes on each reload. Reload, and one page tells two different times.
+The frame below is a real prerendered page (`/demo/ppr`). Its **shell** clock is baked into the static file and never moves, while its **hole** clock is a `render: 'deferred'` server island that renders on every request and changes on each reload. Reload, and the one page shows two different times.
 
 <script>
   import PprFrame from '$lib/PprFrame.svelte' with { wake: 'load' };
@@ -144,36 +142,36 @@ The frame below is a real prerendered page (`/demo/ppr`). Its **shell** clock is
 
 ### The holes never age out
 
-A capability made at prerender is signed for a very long time. The props are already public in the static HTML. Thus a longer signature shows nothing new. The capabilities of a dynamic page keep the short `ttl` window, unless a load marks the page shared-cacheable: then its anonymous holes are signed for the page's cache life (see [`ttl`](/docs/reference/api#ogygiavite-ttl)).
+A capability made at prerender time is signed for a very long time. Its props are already public in the static HTML, so a longer signature reveals nothing new. Capabilities on a dynamic page keep the short `ttl` window, unless a load marks the page as cacheable in a shared cache, in which case its anonymous holes are signed for the page's cache lifetime (see [`ttl`](/docs/reference/api#ogygiavite-ttl)).
 
 ### Set OGYGIA_SECRET
 
-By default, each build signs with a fresh random key. A redeploy would then orphan the holes on static pages from past builds, and on pages that a CDN still holds. A stable `OGYGIA_SECRET` env var keeps the holes of each past build valid. The build warns if you prerender holes without one. See [`OGYGIA_SECRET` in the API reference](/docs/reference/api).
+By default, each build signs with a fresh random key, so a redeploy would orphan the holes on static pages from earlier builds and on pages a CDN still holds. A stable `OGYGIA_SECRET` environment variable keeps the holes from every earlier build valid, and the build warns if you prerender holes without one. See [`OGYGIA_SECRET` in the API reference](/docs/reference/api).
 
 ### Island files after a deploy
 
-The files under `_app/immutable/` are cached for a year and never checked again. So every file ogygia serves there is named by its content: the runtime and each island's code. A deploy that changes an island gives it a new file name, and a browser that visited before fetches the new file. An island whose code did not change keeps its name, and its cached copy stays good.
+Files under `_app/immutable/` are cached for a year and never checked again, so every file ogygia serves there, the runtime and each island's code, is named after its content. A deploy that changes an island gives it a new file name, and a browser that visited earlier fetches the new file, while an island whose code did not change keeps its name and its cached copy stays valid.
 
-Each island still has a stable name, `og-region.<id>.js`. It is the island's identity: the `entry` attribute and every lookup use it. The file the browser loads is in the region's `src` attribute. The stable name is also written as a small file that points at the current build's file. A page cached before this scheme loads its islands through it.
+Each island also has a stable name, `og-region.<id>.js`, which is its identity: the `entry` attribute and every lookup use it, and the file the browser actually loads is in the region's `src` attribute. The stable name is also written out as a small file that points at the current build's file, and a page cached before this scheme existed loads its islands through it.
 
 When a cache serves an older page after a deploy:
 
 - If that build's files are still on your server or CDN, the page runs its own build's code throughout.
-- If they are gone, each island loads its stable name fresh and wakes on the current build's code. The devtools Page tab and the profiler report name each island this happened to. The runtime file itself cannot recover this way, so keep the previous build's `_app/immutable/` files as long as your HTML stays cached. The same holds for SvelteKit's own files.
+- If they are gone, each island loads its stable name fresh and wakes on the current build's code, and the devtools Page tab and the profiler report name each island this happened to. The runtime file itself cannot recover this way, so keep the previous build's `_app/immutable/` files for as long as your HTML stays cached. The same applies to SvelteKit's own files.
 
 Two settings make redeploys cheap:
 
 - A stable `OGYGIA_SECRET` (above) keeps cached pages' holes valid.
-- A fixed `kit.version.name`, such as your commit hash. By default SvelteKit puts the build time into its own client code, so every build renames every island that imports SvelteKit code, even with no change. With a fixed version, the same source builds the same file names.
+- A fixed `kit.version.name`, such as your commit hash. By default SvelteKit puts the build time into its own client code, so every build renames every island that imports SvelteKit code even when nothing changed. With a fixed version, the same source builds the same file names.
 
 ### Constraints
 
-- `sessionCookie` sealing and prerendered holes do not mix. The capability is baked one time for all visitors. Thus it cannot bind to the session of one visitor. Personalize inside the island: read cookies in the component. See [`sessionCookie` in the API reference](/docs/reference/api).
-- Only `render: 'deferred'` holes continue through prerendering. A `render: 'ssr'` region would need a shell render on each request. That defeats the purpose.
+- `sessionCookie` sealing and prerendered holes do not mix. The capability is baked once for every visitor, so it cannot be bound to one visitor's session. Personalize inside the island instead, by reading cookies in the component. See [`sessionCookie` in the API reference](/docs/reference/api).
+- Only `render: 'deferred'` holes survive prerendering. A region rendered inline in the page's server pass would need a shell render on every request, which defeats the purpose.
 
 ## Keep layout chrome {#keep}
 
-Mark a subtree with `data-ogygia-keep`, and it continues through navigations unchanged. Its DOM moves across the body swap. It does not remount. Island state, scroll position, and media that plays inside all continue. This is how a sidebar keeps its scroll position as you move between pages.
+Mark a subtree with `data-ogygia-keep`, and it stays unchanged across navigations. Its DOM moves across the body swap instead of remounting, so island state, scroll position and any media playing inside it all continue. This is how a sidebar keeps its scroll position as you move between pages.
 
 ```svelte
 <div data-ogygia-keep="sidebar">
@@ -181,49 +179,49 @@ Mark a subtree with `data-ogygia-keep`, and it continues through navigations unc
 </div>
 ```
 
-The sidebar on this site uses it. It does not flash or reset as you navigate. To share island state across a kept subtree, see [state context](/docs/data-state/state-context).
+The sidebar on this site uses it, which is why it does not flash or reset as you navigate. To share island state across a kept subtree, see [state context](/docs/data-state/state-context).
 
 ## Lifecycle events {#lifecycle}
 
-A body swap never executes inserted `<script>` tags. That is standard browser behavior. Thus per-navigation code needs a hook. The router dispatches three plain DOM events on `document`. The names follow Astro, with an `og:` prefix:
+A body swap never executes inserted `<script>` tags, which is standard browser behavior, so code that should run on every navigation needs a hook. The router dispatches three plain DOM events on `document`, named after Astro's with an `og:` prefix:
 
-| event            | when                                                                                                                              |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `og:before-swap` | last chance to read the DOM of the OUTGOING page                                                                                  |
-| `og:after-swap`  | the incoming DOM is in place (islands can still wake on their own schedules)                                                      |
-| `og:page-load`   | navigation complete — head merged, scroll settled. Also fired one time on the first load. Thus ONE listener covers each page view |
+| event            | when                                                                                                                        |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `og:before-swap` | last chance to read the DOM of the OUTGOING page                                                                            |
+| `og:after-swap`  | the incoming DOM is in place (islands can still wake on their own schedules)                                                |
+| `og:page-load`   | navigation complete: head merged, scroll settled. Also fired once on the first load, so ONE listener covers every page view |
 
 ```js
 document.addEventListener('og:page-load', () => analytics.pageview(location.pathname));
 ```
 
-For stateful code, an island with `wake: 'load'` stays the first tool. It mounts again on each navigation, with real component semantics. The events are for the global glue: analytics, focus management, restarts of third-party widgets.
+For stateful code, an island with `wake: 'load'` is still the first tool to reach for, because it mounts again on each navigation with real component semantics. The events are for global glue code such as analytics, focus management and restarting third-party widgets.
 
 ## Accessibility {#a11y}
 
-A full page load tells a screen reader the page changed and moves keyboard focus to the top. A body swap does neither on its own, so the router does both for you, on every navigation:
+A full page load tells a screen reader that the page changed and moves keyboard focus to the top. A body swap does neither on its own, so the router does both for you on every navigation:
 
-- **It announces the new page.** A visually-hidden `aria-live` region receives the new `<title>`, so assistive tech speaks the page on arrival.
-- **It resets focus.** Focus moves to the first `[autofocus]` element, else a `#hash` target, else the top of the page. A keyboard or screen-reader user starts at the top of the new content, not stranded on the old link.
+- **It announces the new page.** A visually hidden `aria-live` region receives the new `<title>`, so assistive technology reads out the page on arrival.
+- **It resets focus.** Focus moves to the first `[autofocus]` element, or else to a `#hash` target, or else to the top of the page, so a keyboard or screen-reader user starts at the top of the new content instead of being stranded on the old link.
 
-The one exception: a control inside kept chrome (`data-ogygia-keep` / `data-persist`) that still holds focus is left alone, so a persistent search box or player keeps focus across the navigation.
+The one exception is a control inside kept chrome (`data-ogygia-keep` or `data-persist`) that still holds focus. It is left alone, so a persistent search box or player keeps focus across the navigation.
 
 ## What it is not
 
-The router does no script processing. `<script>` tags that a body swap inserts do not execute. That is standard browser behavior. If code must run on each navigation, use an island. Shallow routing (`pushState` / `replaceState`) is not supported without the Kit client. Use `goto()`.
+The router does no script processing: `<script>` tags inserted by a body swap do not execute, which is standard browser behavior. If code must run on every navigation, put it in an island. Shallow routing (`pushState` and `replaceState`) is not supported without the Kit client; use `goto()` instead.
 
-> `invalidateAll` is a soft seed refresh, not a navigation. It fetches the current page again and refreshes data seeds in place. There is no view transition, no body swap, and no island remount. See [Data & remote functions](/docs/data-state/remote-functions).
+> `invalidateAll` is a soft seed refresh, not a navigation. It fetches the current page again and refreshes data seeds in place, with no view transition, no body swap and no island remount. See [Data & remote functions](/docs/data-state/remote-functions).
 
 ## Do / don't
 
-- **Do** wrap chrome that must stay (sidebar, player, header) in `data-ogygia-keep`. It keeps its state across navigations.
-- **Do** use the `data-sveltekit-preload-*` attributes you know. They operate without changes.
-- **Do** use automatic [speculation](#speculate) in MPA mode (`router: false`) for near-free navigation. With PPR shells, it is almost free. Set risky links off with `data-ogygia-speculate="off"`, and one safe link on again with `="on"`.
-- **Do** set a stable `OGYGIA_SECRET` before you ship prerendered holes. Then redeploys do not orphan them.
+- **Do** wrap chrome that must stay (a sidebar, a player, a header) in `data-ogygia-keep`, so it keeps its state across navigations.
+- **Do** use the `data-sveltekit-preload-*` attributes you already know; they work unchanged.
+- **Do** rely on automatic [speculation](#speculate) in MPA mode (`router: false`) for very cheap navigation, which becomes almost free with PPR shells. Turn risky links off with `data-ogygia-speculate="off"`, and turn a safe link back on with `="on"`.
+- **Do** set a stable `OGYGIA_SECRET` before you ship prerendered holes, so redeploys do not orphan them.
 - **Don't** expect inserted `<script>` tags to run after a body swap. Put per-navigation code in an island.
 - **Don't** bind `sessionCookie` to a prerendered hole. Personalize inside the island.
-- **Don't** keep the router on if a plain MPA is sufficient. `router: false` removes it and its runtime.
+- **Don't** keep the router on if a plain MPA is enough. `router: false` removes it along with its runtime.
 
 ---
 
-_Next chapter: much of what a site does never changes between requests. [The `import.meta.og.*` macros](/docs/macros/overview) settle it at build._
+_Next chapter: much of what a site does never changes between requests, and [the `import.meta.og.*` macros](/docs/macros/overview) settle it at build time._

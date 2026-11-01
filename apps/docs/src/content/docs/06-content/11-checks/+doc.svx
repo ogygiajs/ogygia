@@ -1,38 +1,36 @@
 ---
 title: Checks
-summary: Structural verification that fails the build, not the visitor. The link audit resolves each in-prose link against the address space of the site. A broken one is a named error at prerender, and on page open in dev.
+summary: Structural checks that fail the build instead of the visitor. The link audit resolves every in-prose link against the site's address space, and reports a broken one as a named error at prerender and when you open the page in dev.
 related:
   - content/site
   - content/outline
   - reference/constraints
 ---
 
-A broken internal link is a defect that you want to hear about at build time, from you. Not at runtime, from a visitor. Site checks run over the full corpus as **data**. They surface as named findings, and they can fail the build. The link audit ships built in. You can add your own.
+A broken internal link is a defect you would rather find yourself at build time than have a visitor find at runtime. Site checks run over the whole corpus as **data**, report what they find as named findings, and can fail the build. The link audit is built in, and you can add checks of your own.
 
-::: tip When to use
-Set `links()` on for each site with cross-references, which is each docs site. It is the safety net that lets you rename and reorganize without fear. Move a page, and each stale link to it fails loudly.
-:::
+Any site with cross-references, which means any docs site, should turn on `links()`. It is what lets you rename and reorganize pages without worrying, because when you move a page, every stale link to it fails the build with a clear error.
 
 ## The link audit
 
-Pass `checks` to `site()`. `links()` resolves each markdown link in each body against the address space of the site:
+Pass `checks` to `site()`, and `links()` resolves every markdown link in every body against the site's address space:
 
 ```ts
 export const docs = site({ outline: docs, checks: [links()] });
 ```
 
-A link to a page that does not exist, or an `#anchor` that no heading emits, is a finding. **This site runs it**: the cross-links that you click through this section were verified by exactly this check. When one of these pages linked to a sibling that was not yet written, the build refused until it existed.
+A link to a page that does not exist, or to an `#anchor` that no heading produces, is a finding. This site runs the audit, so every cross-link in this section was verified by it; while one of these pages linked to a sibling that had not been written yet, the build refused to pass until the sibling existed.
 
-Where it fires:
+It reports in two places:
 
-- **At prerender**: a broken link fails the build with the page, the link text, and the target.
-- **In dev**: the same finding surfaces when you open the page. Thus you catch it as you write.
+- **At prerender**, a broken link fails the build with the page, the link text and the target.
+- **In dev**, the same finding appears when you open the page, so you catch it while you write.
 
-The audit knows the _full_ address space, [dimension](/docs/content/dimensions) coordinates and declared redirects included. Thus it can tell a truly dead link from one that resolves through an alias.
+The audit knows the _whole_ address space, including [dimension](/docs/content/dimensions) coordinates and declared redirects, so it can tell a genuinely dead link from one that resolves through an alias.
 
 ## Findings as data
 
-`docs.check()` runs each check over the corpus, and returns the findings as plain data. It never throws. Thus you can assert on them in a test or a CI step, independent of a prerender crawl:
+`docs.check()` runs every check over the corpus and returns the findings as plain data without ever throwing, so you can assert on them in a test or a CI step independently of a prerender crawl:
 
 ```ts
 // a vitest guard: the docs have no broken links
@@ -44,11 +42,11 @@ test('no broken links', async () => {
 });
 ```
 
-This matters for a dynamic site, where the prerender crawler never runs. There, the check is your only structural gate, and it is available as data.
+This matters most on a dynamic site, where the prerender crawler never runs and this check is your only structural safeguard.
 
 ## Custom checks
 
-A check is a named object with a `page` hook, a `site` hook, or both. Each returns findings. `page` runs per slug, in `load`. Thus dev surfaces it on open, and an `error`-severity finding throws. `site` runs one time over the corpus, through `docs.check()`:
+A check is a named object with a `page` hook, a `site` hook or both, each returning findings. `page` runs per slug inside `load`, so dev reports it when you open the page and an `error`-severity finding throws. `site` runs once over the whole corpus, through `docs.check()`:
 
 ```ts title=$lib/checks.ts
 // a house rule: every page fills its summary
@@ -80,19 +78,19 @@ import { requireSummary } from '$lib/checks';
 export const docs = site({ outline: docs, checks: [links(), requireSummary()] });
 ```
 
-Severity is the dial. `'error'` throws from `load`: it fails the build at prerender, and blocks the page in dev. `'warn'` surfaces in the `docs.check()` findings, and never blocks a render.
+Severity decides what happens. `'error'` throws from `load`, which fails the build at prerender and blocks the page in dev, while `'warn'` shows up in the `docs.check()` findings and never blocks a render.
 
 ::: details Checks vs. structural build errors
-Two different layers, by intent. **Structural invariants** (an orphan entry, a slug collision, an inconsistent `NN-` sequence) are always-on [outline](/docs/content/outline) build errors. They cannot be configured off, because a site with them is not well-formed. **Checks** are _content policy_: pluggable, per-site, severity-dialed. `links()` is policy. A deliberately-dead link during a migration is your call: allow it, tolerate it as `warn`, or forbid it.
+These are two deliberately separate layers. **Structural invariants** (an orphan entry, a slug collision, an inconsistent `NN-` sequence) are [outline](/docs/content/outline) build errors that are always on and cannot be configured away, because a site that has them is not well-formed. **Checks** are _content policy_: pluggable, per site and set by severity. `links()` is policy, so whether a deliberately dead link during a migration is allowed, tolerated as `warn` or forbidden is your decision.
 :::
 
 ## Do / don't
 
-- **Do** run `links()` from day one. The cost is zero, and it turns each reorganization into a safe operation.
-- **Do** assert `docs.check()` in CI for a dynamic site. It is the structural gate that the prerender crawler would otherwise be.
-- **Don't** treat a finding as noise. A broken link or a missing anchor is a real defect that the reader would hit. Fix the link or the target.
-- **Don't** wait for production to find a dead cross-reference. The full point is that the build, and your dev server, tell you first.
+- **Do** run `links()` from the start. It costs nothing and makes every reorganization safe.
+- **Do** assert on `docs.check()` in CI for a dynamic site, where it stands in for the structural check the prerender crawler would otherwise give you.
+- **Don't** treat a finding as noise. A broken link or a missing anchor is a real defect that a reader would run into, so fix the link or the target.
+- **Don't** wait for production to find a dead cross-reference, when the build and your dev server can tell you first.
 
 ---
 
-_Next chapter: [the router](/docs/app/spa-router) makes navigation feel like an app: one request, no reload, no waterfall._
+_Next chapter: [the router](/docs/app/spa-router) makes navigation feel like an app, with one request per navigation, no reload and no waterfall._

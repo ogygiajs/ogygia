@@ -1,17 +1,15 @@
 ---
 title: Emissions
-summary: Machine-facing serializations of the site. sitemap.xml for crawlers, llms.txt for models, RSS for readers, raw markdown per page. Each is a one-line GET handler off the same outline.
+summary: Machine-facing outputs of the site, namely sitemap.xml for crawlers, llms.txt for models, RSS for readers and raw markdown per page. Each is a one-line GET handler built from the same outline.
 related:
   - content/site
   - content/search
   - content/outline
 ---
 
-Docs have a second audience in 2026: crawlers, language models, feed readers. The site layer emits the formats that they expect, directly off the outline: no parallel content, no separate build step. Each is a GET handler that you mount in a `+server.ts`.
+Docs now have a second audience made up of crawlers, language models and feed readers, and each of them expects its own format. The site layer produces those formats straight from the outline, with no parallel content and no separate build step, and each one is a GET handler that you mount in a `+server.ts`.
 
-::: tip When to use
-Add the emissions that your audience asks for. A public docs site wants `sitemap.xml` and `llms.txt`. A blog wants RSS. An "open in your editor / copy as markdown" feature wants the raw source. They cost one line each.
-:::
+Add the ones your audience needs. A public docs site usually wants `sitemap.xml` and `llms.txt`, a blog wants RSS, and an "open in your editor" or "copy as markdown" feature wants the raw source. Each takes one line.
 
 ## The catalog
 
@@ -65,9 +63,9 @@ export const GET = docs.emit.search();
 
 ## Sitemap and llms.txt
 
-Both are **views of the nav tree**: each leaf, in reading order. That is the property worth having. A new page joins the sitemap and the model index the moment that the outline sees it. Neither can drift from the site, because neither is a second copy of anything.
+Both are **views of the nav tree**, listing every leaf in reading order. That is what makes them reliable: a new page joins the sitemap and the model index as soon as the outline sees it, and neither can drift away from the site, because neither is a second copy of anything.
 
-`origin` matters when prerendered. At build time, there is no request to read an origin from. Thus absolute URLs come from the option, or from `site({ data: { origin } })`, which each emission defaults to:
+`origin` matters when you prerender, because at build time there is no request to read an origin from. Absolute URLs therefore come from the option or from `site({ data: { origin } })`, which every emission uses as its default:
 
 ```ts
 export const docs = site({
@@ -81,25 +79,25 @@ export const GET = docs.emit.sitemap({ base: '/docs' });
 
 ## Raw markdown
 
-The pre-compile source of each page, for "copy as markdown", or for an LLM that wants the real thing. Mount it at a catch-all `.md` route. It prerenders one file per entry that carries source, and `entries` comes with it:
+This serves each page's source before compilation, for a "copy as markdown" button or for an LLM that wants the original text. Mount it at a catch-all `.md` route. It prerenders one file for each entry that has source, and provides `entries` for you:
 
 ```ts
 export const { GET, entries } = docs.emit.raw();
 // docs.emit.raw({ frontmatter: 'keep' })   // …keep the frontmatter block instead
 ```
 
-Now `/docs/routing.md` serves the source of `/docs/routing`. **This site does exactly that**: append `.md` to a docs URL, this page included.
+With that in place, `/docs/routing.md` serves the source of `/docs/routing`. This site does the same, so you can append `.md` to any docs URL, including this page's.
 
 ::: details Why the source and not the rendered HTML?
-The rendered page already exists at the `.html` address. A second HTML serialization adds nothing. The `.md` emission is the _authored artifact_: stable under restyles, cheap to diff, and the representation that models quote most faithfully. The one applied transformation is frontmatter stripping (by default), because YAML metadata is site plumbing, not prose.
+The rendered page already exists at its `.html` address, so a second HTML serialization would add nothing. The `.md` emission is the _authored artifact_: it stays stable when the site is restyled, it is cheap to diff, and it is the form that models quote most faithfully. The only transformation applied is stripping the frontmatter (by default), because YAML metadata is site plumbing rather than prose.
 :::
 
 ## RSS
 
-A feed over dated items: the emission of the blog genre. `items` maps the refs of a collection (`RssItem` is `{ href, title, description?, date }`). Hrefs are root-relative, and made absolute against the origin at emit time. The emitter sorts again by date, descending. Thus the feed order is always correct.
+RSS is a feed over dated items and is the blog genre's emission. `items` maps a collection's refs (an `RssItem` is `{ href, title, description?, date }`). Hrefs are root-relative and are made absolute against the origin when the feed is emitted. The emitter sorts the items by date again, newest first, so the feed order is always correct.
 
 ## Do / don't
 
-- **Do** emit off the outline, not off a second copy of the content. The sitemap and llms.txt are always in sync, because they are views of the same tree.
-- **Do** put `origin` in `docs.data` one time. Do not repeat it per emission.
-- **Don't** hand-write these files. A new page joins the sitemap, the llms index, and the raw route the moment that it exists. That is the point.
+- **Do** emit from the outline rather than from a second copy of the content. The sitemap and llms.txt then stay in sync, because they are views of the same tree.
+- **Do** set `origin` once in `docs.data` instead of repeating it for every emission.
+- **Don't** write these files by hand. A new page joins the sitemap, the llms index and the raw route as soon as it exists, which is the reason to generate them.

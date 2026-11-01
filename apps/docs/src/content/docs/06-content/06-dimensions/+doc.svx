@@ -1,21 +1,19 @@
 ---
 title: Dimensions
-summary: One site across a matrix of versions or locales. An axis prefixes the slug. The outline is built per coordinate. An untranslated page falls back to the default, and does not 404.
+summary: Run one site across a matrix of versions or locales. Each axis prefixes the slug, the outline is built per coordinate, and an untranslated page falls back to the default instead of answering 404.
 related:
   - content/outline
   - content/site
   - content/collections
 ---
 
-A version is not a second site. A locale is not a second site. They are **coordinates** on the same outline. `dimensions()` wraps N outlines (one per coordinate) into a single `Outline` that `site()` consumes. The coordinate is parsed off the front of the slug.
+Docs for `v1` and `v2`, a site in `en` and `de`, or a stable and a next channel usually share one structure: the same page exists in several editions. Building a second site for each edition duplicates the navigation, the search and every link. `dimensions()` treats a version or a locale as a **coordinate** on the same outline instead. It wraps N outlines (one per coordinate) into a single `Outline` that `site()` consumes, and parses the coordinate off the front of the slug.
 
-::: tip When to use
-Use dimensions when the _same page_ exists in several editions: `v1` / `v2` docs, `en` / `de` locales, a stable/next channel. When your versions are truly different content, they are only different collections. Dimensions is for one structure, read at several coordinates.
-:::
+If your versions are genuinely different content, they belong in different collections, and you don't need this page; dimensions are for one structure read at several coordinates.
 
 ## An axis over collections
 
-You declare the axes, and a `resolve` that sources the outline for a coordinate. Versions are only collections. Give `resolve` the one that sources each:
+You declare the axes, plus a `resolve` function that returns the outline for a coordinate. Versions are ordinary collections, so `resolve` returns whichever collection holds each one:
 
 ::: code-group
 
@@ -52,13 +50,13 @@ export const docs = site({
 
 :::
 
-The **default** coordinate serves at the bare URL. The others are prefixed. `resolve` is called one time per distinct coordinate, and memoized. Thus the outline of a version is built lazily, on the first visit.
+The **default** coordinate is served at the bare URL and the others are prefixed. `resolve` is called once per distinct coordinate and the result is memoized, so a version's outline is built lazily on its first visit.
 
 ## Fallback, not 404
 
-A missing translation is the common failure mode for versioned-docs sites. Dimensions handles it: an untranslated page **renders the content of the default coordinate at its URL**, and does not 404. The switcher can always link the same slug across coordinates, because the address is sure to resolve.
+Missing translations are the most common failure on versioned docs sites. With dimensions, an untranslated page **renders the default coordinate's content at its own URL** instead of answering 404. Because every address is guaranteed to resolve, the switcher can always link the same slug across coordinates.
 
-`docs.page()` reports what occurred on its `fallback` field. Thus the page can show a "not yet translated" note:
+`docs.page()` reports what happened in its `fallback` field, so the page can show a "not yet translated" note:
 
 ```svelte
 <script>
@@ -72,27 +70,27 @@ A missing translation is the common failure mode for versioned-docs sites. Dimen
 {/if}
 ```
 
-Fallback is **per axis, opt-in** (`fallback: true` on the axis). A locale usually wants it. A version usually does not: missing in `v1` most frequently means _did not exist yet_, and that should 404.
+Fallback is **opt-in per axis** (`fallback: true` on the axis). A locale usually wants it, but a version usually does not, because a page missing from `v1` most often means it _did not exist yet_, and that should be a 404.
 
 ## The switcher
 
-`docs.switcher(slug)` returns the version/locale picker for the coordinate in `slug`, with hrefs baked. It is a serializable value (one `SwitcherAxis` per axis) that the `<Switcher>` component renders as a dropdown. It stays on the _same page_ across a switch. It lands on the equivalent of that page in the chosen coordinate (or the default, by the fallback rule).
+`docs.switcher(slug)` returns the version/locale picker for the coordinate in `slug`, with its hrefs already filled in. It is a serializable value (one `SwitcherAxis` per axis) that the `<Switcher>` component renders as a dropdown. Switching keeps you on the _same page_, landing on its equivalent in the chosen coordinate (or in the default, by the fallback rule).
 
-You rarely call it directly. `docs.meta(slug)` bundles `{ nav, switcher, data }` in one call, and `<DocsShell {meta}>` renders the switcher automatically when it is non-null.
+You will rarely call it directly, because `docs.meta(slug)` bundles `{ nav, switcher, data }` in one call and `<DocsShell {meta}>` renders the switcher whenever it is non-null.
 
 ## Nav and search across the matrix
 
-- **`nav(slug)`**: pass the slug, so that the tree reflects that coordinate. The [remote](/docs/content/remotes) threads it through. A bare coordinate prefix like `'v1/'` operates too.
-- **`docs.entries()`**: bakes the **union** across the matrix. Thus a page that exists in only one coordinate still prerenders there.
-- **search**: indexes only the canonical addresses of the _default_ coordinate. Thus fallback pages under other coordinates do not show as duplicate hits.
+- **`nav(slug)`**: pass the slug so that the tree reflects that coordinate; the [remote](/docs/content/remotes) passes it through for you. A bare coordinate prefix such as `'v1/'` works too.
+- **`docs.entries()`**: includes the **union** of addresses across the matrix, so a page that exists in only one coordinate still prerenders there.
+- **search**: indexes only the canonical addresses of the _default_ coordinate, so fallback pages under other coordinates don't show up as duplicate hits.
 
 ## Coordinate as data
 
-The coordinate is threaded as data (`slug` → coordinate), never as module-global state. Thus it is SSR-safe under concurrent requests. You never reach for it directly. `nav`, `page`, `switcher`, and `entries` all take the slug and derive it.
+The coordinate is derived from the slug and passed along as data, never kept in module-level state, which makes it safe under concurrent SSR requests. You never need to reach for it yourself: `nav`, `page`, `switcher` and `entries` all take the slug and derive it.
 
 ## Do / don't
 
-- **Do** model versions and locales as axes on one outline. One structure, read at coordinates, beats N parallel sites.
-- **Do** rely on the fallback for locales. A missing translation should degrade to the default, never break the URL.
-- **Don't** encode the coordinate in module state. Pass the slug. The derivation is pure and request-safe.
-- **Don't** index each coordinate for search. The canonical set of the default is the honest result. Fallbacks are the same page.
+- **Do** model versions and locales as axes on one outline, which keeps one structure instead of N parallel sites.
+- **Do** rely on the fallback for locales, so that a missing translation degrades to the default rather than breaking the URL.
+- **Don't** keep the coordinate in module state. Pass the slug, from which the coordinate is derived purely and safely per request.
+- **Don't** index every coordinate for search. The default's canonical set is the accurate result, since fallbacks are the same page.

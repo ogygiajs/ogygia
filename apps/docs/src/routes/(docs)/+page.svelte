@@ -463,7 +463,7 @@
 				<p>
 					Partial prerendering serves a static file from the CDN, with server islands fetched live
 					per visitor. A reload demo shows one page telling two times.
-					<a href="/docs/app/router">Partial prerendering →</a>
+					<a href="/docs/app/spa-router#ppr">Partial prerendering →</a>
 				</p>
 			</div>
 		</div>
@@ -474,7 +474,7 @@
 				<h3>One request per navigation</h3>
 				<p>
 					The SPA router pulls a whole page's server-island holes down one batch, out of order, with
-					no waterfall. <a href="/docs/app/router#single-flight">Single-flight navigation →</a>
+					no waterfall. <a href="/docs/app/spa-router#single-flight">Single-flight navigation →</a>
 				</p>
 			</div>
 		</div>
@@ -496,7 +496,7 @@
 				<h3>Prerender the next page on hover</h3>
 				<p>
 					Native Speculation Rules run the next page's JS and holes in a hidden tab, so the click is
-					instant. <a href="/docs/app/router#speculate">Speculation →</a>
+					instant. <a href="/docs/app/spa-router#speculate">Speculation →</a>
 				</p>
 			</div>
 		</div>

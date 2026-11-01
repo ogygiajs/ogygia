@@ -1,6 +1,6 @@
 ---
 title: Performance
-summary: Client JS, Lighthouse, CLS/LCP, and JS eval measured against SvelteKit, Astro and Mochi on identical pages.
+summary: Client JS, Lighthouse, CLS/LCP and JS evaluation measured against SvelteKit, Astro and Mochi on identical pages.
 related:
   - reference/api
   - start/overview
@@ -11,41 +11,41 @@ related:
 	import BenchCharts from '$lib/BenchCharts.svelte';
 </script>
 
-ogygia is an islands library for SvelteKit. Here are the measurements, reproducible in-repo under
+This page compares ogygia, an islands library for SvelteKit, with other frameworks on the same pages. You can reproduce every measurement from the repository under
 [`bench/`](https://github.com/ogygiajs/ogygia/tree/main/bench).
 
 ## The benchmark
 
-The same blog post (the same prose, the same five interactive widgets, the same CSS) is built four
-ways. We measure how much client JavaScript each ships as the post gets longer. Islands ship JS only
-for the widgets. Thus their payload is **flat**. Whole-page hydration ships JS for the full
-document. Thus it **grows with the content**.
+The same blog post (the same prose, the same five interactive widgets and the same CSS) is built four
+ways, and we measure how much client JavaScript each version ships as the post gets longer. Islands ship JS only
+for the widgets, so their payload stays **flat**, while whole-page hydration ships JS for the entire
+document, so its payload **grows with the content**.
 
 The method is a port of the
 [interactive-blogs-benchmark](https://github.com/khromov/interactive-blogs-benchmark) by Stanislav
-Khromov, with full credit to [@khromov](https://github.com/khromov). We run it on the latest tools,
+Khromov, with full credit to [@khromov](https://github.com/khromov). We run it on the latest version of each tool,
 with ogygia added.
 
 <BenchCharts />
 
 ## Reading it
 
-- **Islands stay flat.** ogygia, Astro and Mochi ship the same JS, whether the post is 9k or 71k
-  words. The whole-page hydration of SvelteKit climbs with the prose.
-- **ogygia vs the other islands.** All four now ship **Svelte 5** islands. Thus this is a pure
-  architecture comparison, with no framework handicap. The island runtime of Astro is the smallest,
-  then Mochi, then ogygia. ogygia trades a little more baseline runtime for a much larger feature
-  surface: server islands, held/live/frozen regions, and full SvelteKit integration (see the matrix
+- **Islands stay flat.** ogygia, Astro and Mochi ship the same amount of JS whether the post is 9k or 71k
+  words, while SvelteKit's whole-page hydration climbs with the prose.
+- **ogygia compared with the other island frameworks.** All of them ship **Svelte 5** islands, so this compares
+  architecture alone, with no framework handicap. Astro's island runtime is the smallest,
+  followed by Mochi and then ogygia. ogygia carries a somewhat larger baseline runtime in exchange for a much larger feature
+  set: server islands, held, live and frozen regions, and full SvelteKit integration (see the matrix
   below).
-- **The runtime is feature-selected.** ogygia ships only the features that your app uses. A
-  load-only page never pays for the router, lakes, or persistence. We track the per-profile runtime
-  size in
-  [`apps/palaestra/e2e/bundle-size.snapshot.json`](https://github.com/ogygiajs/ogygia/tree/main/apps/palaestra/e2e/bundle-size.snapshot.json).
-  Thus it can only shrink over time.
+- **The runtime is feature-selected.** ogygia ships only the features your app uses, so a
+  load-only page never pays for the router, lakes or persistence. The runtime size for each profile is tracked
+  in
+  [`apps/palaestra/e2e/bundle-size.snapshot.json`](https://github.com/ogygiajs/ogygia/tree/main/apps/palaestra/e2e/bundle-size.snapshot.json),
+  so it can only shrink over time.
 
 ## What you can build
 
-Speed is easy to match with islands. The difference is surface area. Here are the four benchmarked frameworks, by what they let you build:
+On payload alone, the island frameworks end up close to each other, so the bigger difference between them is what each lets you build:
 
 | Capability                                                        |   SvelteKit   |            Astro            |      Mochi       | ogygia |
 | ----------------------------------------------------------------- | :-----------: | :-------------------------: | :--------------: | :----: |
@@ -63,7 +63,7 @@ Speed is easy to match with islands. The difference is surface area. Here are th
 | Markdown content collections built in                             | ➖ add mdsvex |             ✅              |        ✅        |   ✅   |
 | Feature-selected runtime (ship only what the app uses)            |       —       |              —              |        ❌        |   ✅   |
 
-`?` = not verified for the benchmarked version. The trade-off: ogygia carries a little more baseline runtime (the size table above) for the bottom third of this matrix: the region primitives and the Kit-native integration that nothing else here has.
+`?` means not verified for the benchmarked version. The trade-off is that ogygia carries a somewhat larger baseline runtime (see the size figures above) in return for the bottom third of this matrix, the region primitives and the Kit-native integration that none of the other frameworks here offer.
 
 ## Reproduce it
 
@@ -75,5 +75,5 @@ docker compose -f bench/docker-compose.yml up --build
 pnpm run bundle-size
 ```
 
-Numbers on this page are regenerated from `bench/results/latest.json`: the exact JSON that the
+The numbers on this page are regenerated from `bench/results/latest.json`, the exact JSON the
 benchmark emits.

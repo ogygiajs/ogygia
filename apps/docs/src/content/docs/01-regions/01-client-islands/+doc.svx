@@ -1,17 +1,13 @@
 ---
 title: Client islands
-summary: Mark an import with `wake`, and that component ships JS on a schedule. The binding becomes a portable island that you can pass around.
+summary: Mark an import with `wake`, and that component ships JavaScript on a schedule. The marked binding is a portable island you can pass around like any component.
 related:
   - regions/timing-nesting
   - regions/server-islands
   - reference/constraints
 ---
 
-A **client island** is a component that becomes interactive. You mark its import with `wake`. ogygia then ships JS for that component on a schedule. The remainder of the page stays server HTML with zero client JS.
-
-::: tip When to use
-Use a client island when a part of the page must react to the user: a counter, a menu, a form widget, a chart. If the part never needs JS, do not mark it (it stays HTML), or make it a [lake](/docs/regions/lakes).
-:::
+On a `csr = false` page nothing runs in the browser, which is what you want for most of the page but not for the parts that have to react to the visitor, such as a counter, a menu, a form widget or a chart. A **client island** is how you bring those parts back to life. You mark the component's import with `wake`, and ogygia ships JavaScript for that component alone, on the schedule you chose, while the rest of the page stays server HTML with no client code.
 
 ```svelte
 <script>
@@ -21,21 +17,13 @@ Use a client island when a part of the page must react to the user: a counter, a
 <Counter start={3} />
 ```
 
-The remainder of the page does not change. Only `Counter` gets JS, and only on the schedule you set.
+Nothing else on the page changes. If a part never needs JavaScript, leave it unmarked so it stays HTML, or make it a [lake](/docs/regions/lakes) when it sits inside an island.
 
 ## The schedules
 
-`wake` takes a timing word. The word says _when_ the JS of the island runs:
+The word you give `wake` decides when the island's JavaScript runs: `load` runs it immediately, `visible` when the island scrolls into view, and `interaction` on the first pointer, key or focus inside it (the click that woke it is replayed, and typed text stays). There are also `idle` and CSS media queries, and [Timing & nesting](/docs/regions/timing-nesting) is the full reference for all of them, including `visible` margins and nested regions.
 
-| Value         | JS runs                                                                                           |
-| ------------- | ------------------------------------------------------------------------------------------------- |
-| `load`        | immediately                                                                                       |
-| `visible`     | when scrolled into view                                                                           |
-| `interaction` | on the first pointer, key, or focus inside it. The click that wakes it replays. Typed text stays. |
-
-There are two more values (`idle` and CSS media queries). There is also margin tuning for `visible`, and there are rules for nested regions. The full schedule reference is in [Timing & nesting](/docs/regions/timing-nesting).
-
-Each demo below is a real island on this page, with a different schedule. Reload with JS off, and the markup remains. The widgets stay static.
+Each demo below is a real island on this page with a different schedule. If you reload with JavaScript off, the markup is still there and the widgets stay static.
 
 <script>
   import LoadLive from './LoadLive.svelte' with { wake: 'load' };
@@ -58,11 +46,11 @@ Each demo below is a real island on this page, with a different schedule. Reload
   </figure>
 </div>
 
-The `$effect` of each island writes the `Live since …` / `Idle after …` / `In view …` stamps after it wakes. The stamps show that the component hydrated. They are not baked values. The `idle` and `visible` islands wake later than `load`.
+Each island's `$effect` writes its `Live since …`, `Idle after …` or `In view …` stamp after it wakes, so the stamps are evidence that the component hydrated rather than baked values. You can see the `idle` and `visible` islands wake later than the `load` one.
 
 ## The binding is the island
 
-When you mark an import, ogygia rewrites the **binding itself** into a virtual island wrapper. The template still says `<Counter />`. But `Counter` is now a portable component. You can use it in each place a Svelte component goes: assign it, pass it, render it in a list.
+When you mark an import, ogygia rewrites the **binding itself** into a virtual island wrapper. The template still says `<Counter />`, but `Counter` is now a portable component that you can use anywhere a Svelte component goes: assign it, pass it, or render it in a list.
 
 ```svelte
 <script>
@@ -81,15 +69,13 @@ When you mark an import, ogygia rewrites the **binding itself** into a virtual i
 {/each}
 ```
 
-`<svelte:component>` is not necessary. This is Svelte 5. The marked import is a normal component value. Thus islands combine the same way that Svelte components combine. There is no special island slot or registry.
+You don't need `<svelte:component>`, because in Svelte 5 the marked import is an ordinary component value. Islands therefore compose the same way Svelte components do, without a special island slot or registry.
 
 ### Dedupe by identity
 
-Wrappers dedupe by **component path plus strategy and options**. They do not dedupe by tag site or host. One marked import, used one thousand times across a page, makes **one** wrapper module and **one** client entry chunk. Each instance shares that entry URL. Each instance still gets its own region and its own props payload at SSR. The signature of a deferred island stays per-instance.
+Wrappers are deduplicated by **component path plus strategy and options**, not by where the tag appears or which component hosts it. A marked import used a thousand times across a page produces **one** wrapper module and **one** client entry chunk, and every instance shares that entry URL. Each instance still gets its own region and its own props payload during SSR, and a deferred island's signature stays per instance.
 
-Thus `<A />` × 1000 ships one module, not one thousand.
-
-Here is one marked import, rendered three times on this page. The three share one client entry chunk. Each hydrates into its own independent state:
+Here is one marked import rendered three times on this page. The three share one client entry chunk, and each hydrates into its own independent state:
 
 <div class="doc-demo-row">
   <div class="doc-demo"><LoadLive /></div>
@@ -99,17 +85,17 @@ Here is one marked import, rendered three times on this page. The three share on
 
 ## Props, not children
 
-Props are real Svelte props into the wrapper. devalue serializes them for the island payload. Thus they must be serializable: numbers, strings, plain objects, arrays. These **cannot** cross the boundary:
+Props are real Svelte props passed into the wrapper, and devalue serializes them into the island's payload, so they have to be serializable: numbers, strings, plain objects and arrays. These **cannot** cross the boundary:
 
-- **Functions** (an `onSave` callback): devalue cannot carry a closure. Do the work inside the island, or call a [remote function](/docs/data-state/remote-functions).
-- **Host children and snippets**: put the UI of the island, and its [lakes](/docs/regions/lakes), inside the `.svelte` file of the island. The one exception is the reserved `ogygiaFallback` snippet on a [server island](/docs/regions/server-islands).
-- **Live class instances**: unless the class opts in as [shared state](/docs/data-state/state-context#sharing-state).
+- **Functions**, such as an `onSave` callback, because devalue cannot carry a closure. Do the work inside the island, or call a [remote function](/docs/data-state/remote-functions).
+- **Host children and snippets.** Put the island's UI, and its [lakes](/docs/regions/lakes), inside the island's own `.svelte` file. The one exception is the reserved `ogygiaFallback` snippet on a [server island](/docs/regions/server-islands).
+- **Live class instances**, unless the class opts in as [shared state](/docs/data-state/state-context#sharing-state).
 
-See [Constraints](/docs/reference/constraints) for the full list of what crosses the boundary.
+[Constraints](/docs/reference/constraints) has the full list of what crosses the boundary.
 
 ## A worked example: a cart badge
 
-A header badge that shows a cart. It hydrates on `load`, so it is live immediately:
+Here is a header badge that shows the cart. It hydrates on `load`, so it is live as soon as the page starts:
 
 ```svelte title=CartBadge.svelte
 <script>
@@ -127,11 +113,11 @@ A header badge that shows a cart. It hydrates on `load`, so it is live immediate
 <CartBadge count={items.length} />
 ```
 
-A _different_ "Add to cart" island can update this badge. The two share one live object. See [Shared state](/docs/data-state/state-context#sharing-state).
+A _different_ island, such as an "Add to cart" button, can update this badge when the two share one live object, which [Shared state](/docs/data-state/state-context#sharing-state) describes.
 
 ## The boot island: run code, not UI
 
-On a `csr = false` page, the script of `+page.svelte` / `+layout.svelte` never runs in the browser. Top-level `onMount`, `$effect`, listeners, telemetry, and store hydration are all inert. See [Constraints](/docs/reference/constraints). An island is the _only_ place where client code runs. Thus, when you must _run code_ and not render UI, make an island that renders nothing. That is a **boot island**: a component with no markup, whose only job is its `$effect`.
+On a `csr = false` page, the script of `+page.svelte` or `+layout.svelte` never runs in the browser, so top-level `onMount`, `$effect`, listeners, telemetry and store hydration are all inert ([Constraints](/docs/reference/constraints) lists the rest). An island is the _only_ place where client code runs. When you need to run code without rendering any UI, you make an island that renders nothing. That is a **boot island**: a component with no markup whose only job is its `$effect`.
 
 ```svelte title=Telemetry.svelte
 <script>
@@ -154,29 +140,29 @@ On a `csr = false` page, the script of `+page.svelte` / `+layout.svelte` never r
 {@render children()}
 ```
 
-- **Values are props.** The page script is inert. Thus, give the island what it needs as serializable props (`dsn={data.dsn}`). This is the same boundary rule as for each island.
-- **Lifecycle follows the schedule.** A page-level boot island runs its `$effect` again on each navigation, because the page remounts. A layout-level boot island usually must _continue_ across navigation. It must not restart a socket on each route. Add `keep`, and its live self moves onto the new page. It does not remount:
+- **Values are props.** Because the page script is inert, you give the island what it needs as serializable props (`dsn={data.dsn}`), under the same boundary rule as any island.
+- **Lifecycle follows the page.** A page-level boot island runs its `$effect` again on each navigation, because the page remounts. A layout-level boot island usually has to _continue_ across navigations instead of reopening a socket on every route. Add `keep`, and its live instance moves onto the new page without remounting:
 
 ```svelte
 import Telemetry from '$lib/Telemetry.svelte' with { wake: 'load', keep: 'telemetry' };
 ```
 
 ::: tip A module store often needs no boot at all
-Top-level code in a `.svelte.ts` module runs when the first island imports it. If an island reads your store, the store initializes itself. You need a boot island only for effects that must run on pages with **no** islands. Examples: site-wide analytics, a global keydown listener.
+Top-level code in a `.svelte.ts` module runs when the first island imports it, so if an island reads your store, the store initializes itself. You need a boot island only for effects that must run on pages with **no** islands, such as site-wide analytics or a global keydown listener.
 :::
 
 ## When another script edits a sleeping island
 
-An island can sleep for a long time. Other scripts run meanwhile: a design-system runtime, an A/B tool, a translator. Some of them edit the DOM inside the island, a removed whitespace node, an added comment. Svelte hydrates by walking the nodes it finds, so an edited island would be thrown away and rendered again in the browser, and the click that woke it would land on a dead node.
+An island can sleep for a long time while other scripts run, such as a design-system runtime, an A/B tool or a translator. Some of them edit the DOM inside the island, removing a whitespace node or adding a comment. Svelte hydrates by walking the nodes it finds, so an edited island would normally be thrown away and rendered again in the browser, and the click that woke it would land on a dead node.
 
-ogygia keeps each island's server markup from the moment it connects. On wake it hydrates with recovery off. If the walk fails and the live DOM differs from that markup, it puts the server markup back and hydrates that, which matches by construction. The island gets `data-og-healed` and, in dev, one warning naming it. Only if that fails too does Svelte render it client-side, as before (`data-og-recovered`). A heal discards whatever the other script added, so scripts should still leave `<ogygia-region>` subtrees alone.
+To prevent that, ogygia keeps each island's server markup from the moment the island connects, and hydrates on wake with recovery off. If the walk fails and the live DOM differs from that markup, ogygia puts the server markup back and hydrates that instead, which matches by construction. The island gets `data-og-healed` and, in dev, one warning that names it. Only if that also fails does Svelte render the island client-side, as before (`data-og-recovered`). A heal discards whatever the other script added, so scripts should still leave `<ogygia-region>` subtrees alone; [Who owns the DOM](/docs/regions/dom-ownership) shows where a third-party widget can sit safely.
 
 ## Do / don't
 
-| Do                                                                                     | Don't                                                                                                                                   |
-| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Set `wake: 'visible'` on all islands below the fold. This performance gain has no cost | Do not pass callbacks or class instances as props. They do not operate. Move the logic inside, or use a remote function or shared state |
-| Keep islands small, with one purpose. A smaller island ships less JS                   | Do not wrap the full page in one island. That is `csr = true` with more steps                                                           |
+| Do                                                                                       | Don't                                                                                                                                         |
+| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Set `wake: 'visible'` on islands below the fold. It costs nothing and saves work.        | Don't pass callbacks or class instances as props, because they cannot cross. Move the logic inside, or use a remote function or shared state. |
+| Keep islands small and focused on one job, since a smaller island ships less JavaScript. | Don't wrap the whole page in one island. That is `csr = true` with extra steps.                                                               |
 
 <style>
   .doc-demo-row {

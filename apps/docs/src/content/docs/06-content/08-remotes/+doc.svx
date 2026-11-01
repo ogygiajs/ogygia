@@ -1,19 +1,17 @@
 ---
 title: Remotes
-summary: remotes(site) mints nav, meta, page, and search as Kit remotes: prerendered by default, live when you ask. The doc body bakes into a region ticket. Thus the corpus stays server-side.
+summary: remotes(site) creates nav, meta, page and search as Kit remotes, prerendered by default and live when you ask. The doc body is baked into a region ticket, so the corpus stays on the server.
 related:
   - content/site
   - content/search
   - content/collections
 ---
 
-The site value (`docs` here) is server-only: it holds the corpus. The page needs data. `remotes()` mints the crossing: the sidebar tree, the shell bundle, the view of one page, and search, as Kit remotes in a `.remote.ts`. The browser imports only these. The collection never follows.
+The site value (`docs` on this page) holds the corpus, so it is server-only, yet the page still needs its data. `remotes()` creates the crossing: the sidebar tree, the shell bundle, the view of one page, and search, as Kit remotes in a `.remote.ts`. The browser imports only these remotes, and the collection never comes along with them.
 
-::: tip When to use
-Always, for a site() site. The remotes are the one sanctioned path from the server-side `site` to a page. To render the nav or a body without them means to import the collection into a client module: the exact leak that the [server-module rule](/docs/content/collections) exists to prevent.
-:::
+Every `site()` site needs them, because they are the one supported path from the server-side `site` to a page. Rendering the nav or a body without them would mean importing the collection into a client module, which is exactly the leak the [server-module rule](/docs/content/collections) exists to prevent.
 
-## Mint them
+## Create them
 
 ```ts title=src/lib/site.remote.ts
 import { remotes } from '@ogygia/content/server';
@@ -22,20 +20,20 @@ import { docs } from './site.server';
 export const { nav, meta, page, search } = remotes(docs, { base: '/docs' });
 ```
 
-Four remotes. Each is a plain async function that the page awaits:
+This gives you four remotes, each a plain async function that the page awaits:
 
-- **`nav(slug?)`**: the sidebar tree, hrefs baked for `base`. On a [dimensioned](/docs/content/dimensions) site, pass the current slug (or a bare coordinate prefix like `'v1/'`), so that the tree reflects that coordinate.
-- **`meta(slug?)`**: the full shell bundle `{ nav, switcher, data }` in **one** prerendered call. Feed it directly to `<DocsShell {meta}>`. Then the layout never imports the corpus.
+- **`nav(slug?)`** returns the sidebar tree with hrefs resolved for `base`. On a [dimensioned](/docs/content/dimensions) site, pass the current slug (or a bare coordinate prefix such as `'v1/'`) so that the tree reflects that coordinate.
+- **`meta(slug?)`** returns the full shell bundle `{ nav, switcher, data }` in **one** prerendered call. Pass it straight to `<DocsShell {meta}>`, and the layout never imports the corpus.
 - **`page(slug)`** returns the view of one page: `data`, `meta`, `headings`, prev/next, and the **baked body**.
-- **`search(q)`**: ranked hits from [search](/docs/content/search).
+- **`search(q)`** returns ranked hits from [search](/docs/content/search).
 
 ::: tip Prefer `meta` over `nav` for shells
-`nav` exists for custom chrome that wants only the tree. A shell wants the tree _and_ the switcher _and_ the site facts. `meta` is those three in one prerendered payload: one await, one cache entry.
+`nav` exists for custom chrome that needs only the tree. A shell needs the tree, the switcher and the site facts, and `meta` delivers all three in one prerendered payload, which means one await and one cache entry.
 :::
 
 ## The body crosses as a ticket
 
-A body is a live [region](/docs/regions/held-regions): a same-pass SSR render. It cannot serialize as-is. `page` **awaits** it. That bakes its SSR HTML into the region ticket: HTML only, no source, no corpus. The page renders that with `<Region>` (through `<Doc>`). Each island that the source imported wakes from the baked markup:
+A body is a live [region](/docs/regions/held-regions) rendered in the same SSR pass, so it cannot be serialized as it is. `page` awaits it, which bakes its SSR HTML into the region ticket (HTML only, with no source and no corpus), and the page renders the ticket with `<Region>` through `<Doc>`. [Content collections](/docs/content/collections) explains the baking in more detail.
 
 ```svelte
 <script>
@@ -48,11 +46,11 @@ A body is a live [region](/docs/regions/held-regions): a same-pass SSR render. I
 <Doc {view} />
 ```
 
-That is why the docs corpus can be megabytes, while a page ships only its own baked HTML.
+This is why the docs corpus can be megabytes while each page ships only its own baked HTML.
 
 ## Prerender or live
 
-By default, `nav`, `meta`, and `page` **prerender**: static payloads, computed at build. Some sites want them dynamic (an authenticated preview, per-request content). The `modes` option picks per remote:
+By default `nav`, `meta` and `page` **prerender**, meaning they are static payloads computed at build time. Some sites need them to be dynamic, for an authenticated preview or content that varies per request, and the `modes` option sets this per remote:
 
 ::: code-group
 
@@ -70,14 +68,14 @@ export const { nav, meta, page, search } = remotes(docs, {
 
 :::
 
-- **`'prerender'`** (default for `nav` / `meta` / `page`): baked at build, served static. Required when the awaiting pages prerender.
-- **`'query'`**: runs on the server per request. It pairs with `site({ context })` for previews and roles.
+- **`'prerender'`** (the default for `nav` / `meta` / `page`) bakes the payload at build time and serves it statically. It is required when the pages that await it are prerendered.
+- **`'query'`** runs on the server for each request, and pairs with `site({ context })` for previews and roles.
 
-`search` is always a `query`: a search is dynamic by nature. (For a fully static search box, ship the [index](/docs/content/search) in its place, and query it in a client worker. Then you do not mint `search` at all.)
+`search` is always a `query`, since a search is dynamic by nature. For a fully static search box, ship the [index](/docs/content/search) instead and query it in a client worker, in which case you don't create `search` at all.
 
 ## Prerender entries
 
-The route still must know which slugs to bake. `docs.entries()` is each leaf in the outline, declared old addresses included. Thus redirect stubs bake too:
+The route still needs to know which slugs to bake. `docs.entries()` returns every leaf in the outline, including declared old addresses, so redirect stubs are baked too:
 
 ```ts title=src/routes/docs/[...slug]/+page.server.ts
 import { docs } from '$lib/site.server';
@@ -87,11 +85,11 @@ export const entries = docs.entries;
 export const load = docs.load;   // the 404 guard + alias redirects + per-page checks
 ```
 
-`docs.load` is the piece that people forget. It maps an unknown slug to a real 404 (not an empty page). It serves a **baked 308** for each address that an entry declares in `redirect_from`. And it runs the per-page [checks](/docs/content/checks) in dev.
+`docs.load` is the piece people tend to forget. It turns an unknown slug into a real 404 rather than an empty page, serves a **baked 308** for every address an entry declares in `redirect_from`, and runs the per-page [checks](/docs/content/checks) in dev.
 
 ## Do / don't
 
-- **Do** mint remotes in a `.remote.ts`, and import only those from pages. That is the full corpus safety.
-- **Do** let `page` bake the body. The `await` is what turns a live region into something that can cross the wire.
-- **Don't** return a raw `entry.body` from a remote or a server load. It is a same-pass render. ogygia stops you, with an error that says exactly that.
-- **Don't** use `query` mode by default. Prerendered pages are faster and cheaper. Switch a remote to `query` only when the content truly varies per request.
+- **Do** create remotes in a `.remote.ts` and import only those from pages, which is all it takes to keep the corpus safe.
+- **Do** let `page` bake the body, because the `await` is what turns a live region into something that can cross the wire.
+- **Don't** return a raw `entry.body` from a remote or a server load. It is a same-pass render, and ogygia stops you with an error that says so.
+- **Don't** use `query` mode by default. Prerendered pages are faster and cheaper, so switch a remote to `query` only when its content really varies per request.
