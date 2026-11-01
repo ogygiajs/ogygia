@@ -13,12 +13,12 @@ import fs from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, check, sleep, REPO as repo } from '@ogygia/tooling/e2e';
-import { spawn_server, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
+import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
 
 const palaestra = fileURLToPath(new URL('..', import.meta.url));
 // The lake-kit chrome: a HOST that places the `Greeting` deferred hole (and the Kept hole).
 const host = join(palaestra, 'src', 'lib', 'lakes', 'LakeChrome.svelte');
-const PORT = 3081;
+const PORT = port(3081);
 const base = `http://127.0.0.1:${PORT}`;
 // Visible text (an HTML comment would be dropped from the SSR output).
 const MARK = 'DEV_HOLE_HMR_MARK';

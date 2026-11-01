@@ -75,8 +75,10 @@ catalogs:
     shiki: ^3.0.0 || ^4.0.0
     svelte: ^5.56.8
     vite: ^8.2.4
-  # TypeScript 7 (the native compiler): the root's fast type-check, and `@typescript/native` beside
-  # TypeScript 6 in the apps (svelte-check and the libraries' d.ts emit still run on 6).
+  # TypeScript 7 (the native compiler): the root's, and `@typescript/native` beside TypeScript 6 in
+  # every package and app that runs `tsc` (its `tsc` bin wins the name, so `tsc -p …` is 7), while
+  # svelte-check and the libraries' d.ts emit load the `typescript` module, 6 (svelte-check's peer
+  # range stops at 6).
   tsgo:
     typescript: ^7.0.2
     '@typescript/native': npm:typescript@^7.0.2
