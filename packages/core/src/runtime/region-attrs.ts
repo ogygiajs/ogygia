@@ -94,11 +94,11 @@ export function region_is_vacant(el: ParentNode): boolean {
 	return true;
 }
 
-/** True when this document was SERVED FROM the freeze store (the handle stamps hit/join
- *  copies with a head meta). A stored copy is a cached render by definition — swr lakes read
- *  this to revalidate on FIRST mount, not only on remounts. */
-export function document_is_freeze(): boolean {
-	return typeof document !== 'undefined' && !!document.querySelector('meta[name="ogygia-freeze"]');
+/** True when this document was SERVED FROM a page store (a plugin stamps the hit/join copies with
+ *  `STORED_DOCUMENT_META`). A stored copy is a cached render by definition — swr lakes read this to
+ *  revalidate on FIRST mount, not only on remounts. */
+export function document_is_stored(): boolean {
+	return typeof document !== 'undefined' && !!document.querySelector('meta[name="ogygia-stored"]');
 }
 
 /**

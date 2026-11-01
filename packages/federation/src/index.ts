@@ -3,7 +3,7 @@
  * plugins turns it on; one `federate()` per app declares its identity + peers; the handle serves
  * `/og/fragment/*` and `/og/thaw`. Remote
  * fragments are region values (`peer.page()` / `peer.widget()`), and a publish or deploy on one
- * team thaws the frozen pages of every team that baked its fragments. Design:
+ * team thaws the stored pages of every team that baked its fragments. Design:
  * internal/notes/federation.md.
  */
 export { federate } from './federate.ts';

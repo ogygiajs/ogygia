@@ -35,7 +35,7 @@ const DOCUMENTED_PACKAGES = [
 	'@ogygia/router',
 	'@ogygia/flags',
 	'@ogygia/federation',
-	'@ogygia/freeze',
+	'@ogygia/postrender',
 	'@ogygia/devtools',
 	'@ogygia/testing'
 ];

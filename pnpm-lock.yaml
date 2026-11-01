@@ -320,9 +320,9 @@ importers:
       '@ogygia/flags':
         specifier: workspace:*
         version: link:../../packages/flags
-      '@ogygia/freeze':
+      '@ogygia/postrender':
         specifier: workspace:*
-        version: link:../../packages/freeze
+        version: link:../../packages/postrender
       '@ogygia/router':
         specifier: workspace:*
         version: link:../../packages/router
@@ -658,9 +658,9 @@ importers:
       '@ogygia/flags':
         specifier: workspace:*
         version: link:../../../packages/flags
-      '@ogygia/freeze':
+      '@ogygia/postrender':
         specifier: workspace:*
-        version: link:../../../packages/freeze
+        version: link:../../../packages/postrender
       '@ogygia/router':
         specifier: workspace:*
         version: link:../../../packages/router
@@ -1085,9 +1085,9 @@ importers:
       '@ogygia/flags':
         specifier: workspace:*
         version: link:../flags
-      '@ogygia/freeze':
+      '@ogygia/postrender':
         specifier: workspace:*
-        version: link:../freeze
+        version: link:../postrender
       '@ogygia/router':
         specifier: workspace:*
         version: link:../router
@@ -1138,7 +1138,38 @@ importers:
         specifier: 'catalog:'
         version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
-  packages/freeze:
+  packages/ogygia:
+    dependencies:
+      '@ogygia/core':
+        specifier: workspace:*
+        version: link:../core
+      rolldown:
+        specifier: catalog:peers
+        version: 1.2.16
+      svelte:
+        specifier: catalog:peers
+        version: 5.57.2
+      vite:
+        specifier: catalog:peers
+        version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
+    devDependencies:
+      '@ogygia/tooling':
+        specifier: workspace:*
+        version: link:../tooling
+      '@sveltejs/kit':
+        specifier: 'catalog:'
+        version: 2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.57.2)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.57.2)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.2
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/postrender:
     devDependencies:
       '@ogygia/core':
         specifier: workspace:*
@@ -1171,12 +1202,12 @@ importers:
         specifier: 'catalog:'
         version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
-  packages/freeze/e2e/app:
+  packages/postrender/e2e/app:
     dependencies:
       '@ogygia/flags':
         specifier: workspace:*
         version: link:../../../flags
-      '@ogygia/freeze':
+      '@ogygia/postrender':
         specifier: workspace:*
         version: link:../..
       '@ogygia/router':
@@ -1207,37 +1238,6 @@ importers:
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
-
-  packages/ogygia:
-    dependencies:
-      '@ogygia/core':
-        specifier: workspace:*
-        version: link:../core
-      rolldown:
-        specifier: catalog:peers
-        version: 1.2.16
-      svelte:
-        specifier: catalog:peers
-        version: 5.57.2
-      vite:
-        specifier: catalog:peers
-        version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
-    devDependencies:
-      '@ogygia/tooling':
-        specifier: workspace:*
-        version: link:../tooling
-      '@sveltejs/kit':
-        specifier: 'catalog:'
-        version: 2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.57.2)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.57.2)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.1.2
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
 
   packages/router:
     devDependencies:

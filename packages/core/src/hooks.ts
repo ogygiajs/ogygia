@@ -43,8 +43,8 @@ import {
 	viewTransitions as router_view_transitions
 } from 'virtual:ogygia/router-config';
 import { mpaSpeculationRules } from './compiler/link/speculation.ts';
-import { route_options } from 'virtual:ogygia/route-options';
-import { set_page_route_options } from './plugin/routes.ts';
+import { route_config } from 'virtual:ogygia/route-config';
+import { set_page_route_config } from './plugin/routes.ts';
 import {
 	set_kit_page_reader,
 	set_kit_event_reader,
@@ -430,8 +430,8 @@ set_current_request(
 set_source_recorder((tag) => {
 	current_facts()?.sources?.push(tag);
 });
-// ROUTE OPTIONS: each Kit page's declared plugin options, baked by the compiler
-set_page_route_options(route_options);
+// ROUTE CONFIG: each Kit page's merged `config`, the keys plugins claim, baked by the compiler
+set_page_route_config(route_config);
 // PLUGINS (listed beside `ogygia()`): each one's server half, live — its app made, its shared hooks
 // registered, its `setup` run — once, when this module loads.
 // Their `app.sign` / `app.verify` use the region key, read at first use (an env the host fills after
@@ -795,7 +795,7 @@ class OgygiaHandle {
 		// arrives at `<base>/__ogygia__`, and the endpoint is a leading-slash, clash-safe path.
 		if (!path.endsWith(this.#endpoint)) {
 			// PAGE FACTS (server/page-facts.ts): a render outside its page looks the page up through
-			// Kit's own data request. Nothing renders here: no bag, no freeze. The answer names the
+			// Kit's own data request. Nothing renders here: no bag, no store. The answer names the
 			// route and params Kit matched, which the data alone does not carry.
 			if (event.isDataRequest && event.request.headers.has(PAGE_FACTS_HEADER)) {
 				const res = await resolve(event);
@@ -1244,7 +1244,7 @@ class OgygiaHandle {
 		// SEED SHAPING: the slice of `page.data` the page's islands read (server/seed-shape.ts) — every
 		// step below (streaming, settling, the payload) sees the shaped tree. A key no island's code
 		// reads but whose node an island's props point into ships too: a reference must have something
-		// to point at. The freeze verdict above read the whole snapshot (a streamed promise anywhere
+		// to point at. The postrender verdict above read the whole snapshot (a streamed promise anywhere
 		// keeps the page per-request).
 		let seed_keys = bag!.seed_keys;
 		if (seed_wanted && seed_keys !== 'all' && seed_keys !== null) {
@@ -1278,7 +1278,7 @@ class OgygiaHandle {
 		// settle forever while browser loads stream live).
 		if (has_pending) mark_per_visitor(bag!.facts, 'streamed load (promise in page data)');
 		const can_stream = event?.request.headers.get('sec-fetch-mode') === 'navigate';
-		// No reader → no seed → nothing to stage or settle (the freeze verdict above still saw the
+		// No reader → no seed → nothing to stage or settle (the postrender verdict above still saw the
 		// promise: that page stays per-request).
 		if (has_pending && can_stream && seed_wanted) {
 			const staged_data = stage_deferred(shaped_data, 0);
@@ -1855,7 +1855,7 @@ class OgygiaHandle {
 		endpoint: string,
 		event: RequestEvent,
 		/** A BATCH parcel is the hole's answer: through the app's transform like its own request, and
-		 *  logged for the profiler as a hole request. A freeze stitch splices into a stored document
+		 *  logged for the profiler as a hole request. A postrender stitch splices into a stored document
 		 *  and stays as it was. */
 		batch = false
 	): Promise<{ slot: string; html: string } | null> {

@@ -1,7 +1,7 @@
 /**
  * ISLANDS WHOSE FINGERPRINT MOVES BETWEEN TWO LOADS OF THE SAME PAGE. An island's `data-og-fp` is
  * the hash of its props: what the router compares to keep a live island across a navigation, and
- * part of the page's bytes (a host's post-render cache, a freeze store, an ETag key on them). A prop
+ * part of the page's bytes (a host's post-render cache, a postrender store, an ETag key on them). A prop
  * made fresh on every render — a time, a random id — moves it every time, so the island is patched on
  * every navigation and every such cache misses. ogygia's own ids are stable now; this finds the
  * app's.

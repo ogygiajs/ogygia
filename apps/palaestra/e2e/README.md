@@ -27,7 +27,7 @@ config — is `@ogygia/tooling/e2e`.
 
 The other suites: `packages/devtools/e2e` (the dock, the profiler, an installed ogygia + devtools in
 dev — against the devtools lab), `packages/testing/e2e` (`@ogygia/testing` against the devtools
-lab's dev server), `packages/federation/e2e` (examples/mfe), `packages/freeze/e2e` (the freeze
+lab's dev server), `packages/federation/e2e` (examples/mfe), `packages/postrender/e2e` (the postrender
 fixture behind the edge emulators), `packages/content/e2e`, `packages/router/e2e`, and
 `apps/docs/e2e` (dev HMR under `csr=false`, on the docs app).
 

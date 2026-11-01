@@ -1,7 +1,7 @@
 import { relocate_trailing_empty_comments } from './lake-anchors.ts';
 import {
 	FROZEN_SELECTOR,
-	document_is_freeze,
+	document_is_stored,
 	is_awake,
 	is_frozen,
 	region_is_vacant,
@@ -137,11 +137,11 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 	const id = el.getAttribute('entry') || '';
 	if (!runtime_session.initialized_lakes.has(id)) {
 		// FIRST mount. On a normal document the SSR DOM is fresh — nothing to do. On a document
-		// SERVED FROM THE FREEZE STORE it is a cached render by definition, so an swr lake
+		// SERVED FROM A PAGE STORE (postrender) it is a cached render by definition, so an swr lake
 		// treats this exactly like a stale remount: paint what's there, then revalidate on its
 		// schedule — a fresh SERVER render carrying the visitor's cookies. This is how a stored
 		// page's `render: 'live'` regions self-freshen (internal/notes/freeze.md).
-		if (region_remount(el) === 'swr' && el.getAttribute('endpoint') && document_is_freeze()) {
+		if (region_remount(el) === 'swr' && el.getAttribute('endpoint') && document_is_stored()) {
 			const when = el.getAttribute('when') || 'load';
 			const fire = () => arm.fetch_revalidate();
 			if (when === 'idle') arm.idle(fire);
@@ -154,11 +154,11 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 			!el.parentElement?.closest('ogygia-region')
 		) {
 			// A live region with NO island host: nothing ever drives its remount revalidation on a
-			// regular page (it works on freeze-served documents via the doc marker, and inside an
+			// regular page (it works on store-served documents via the doc marker, and inside an
 			// island host via lift/restore + remount). Say so instead of silently baking forever.
 			console.warn(
 				`[ogygia] render:'live' region "${id}" has no island host — on regular pages it will ` +
-					`never revalidate (only on freeze-served documents). Wrap it in a wake:'load' ` +
+					`never revalidate (only on documents served from a page store). Wrap it in a wake:'load' ` +
 					`island to drive remount revalidation.`
 			);
 		}

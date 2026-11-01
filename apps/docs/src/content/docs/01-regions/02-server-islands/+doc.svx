@@ -166,7 +166,7 @@ Often the `ogygiaFallback` _is_ the common case. An actions slot shows the login
 <UserMenu {account} />
 ```
 
-Call it as soon as you know, before any work the hole would otherwise do. It throws a signal the server handle recognises, so nothing after it runs. In a batch, the hole's parcel carries a marker instead of HTML; a page served from the freeze store keeps its stored fallback the same way.
+Call it as soon as you know, before any work the hole would otherwise do. It throws a signal the server handle recognises, so nothing after it runs. In a batch, the hole's parcel carries a marker instead of HTML; a page served from the [postrender](/docs/data-state/postrender) store keeps its stored fallback the same way.
 
 ## Do / don't
 

@@ -1,7 +1,7 @@
 /**
  * `federate()` — ONE identity per app. Builds the typed peer handles, registers the app's
  * federation (peers, exposed table, widgets) for the handle to serve, and wires cross-app thaw:
- * every `freeze.invalidate()` notifies the peers that baked this app's fragments. Design:
+ * every `postrender.invalidate()` notifies the peers that baked this app's fragments. Design:
  * internal/notes/federation.md.
  *
  * Called at server module-eval (in or under hooks.server.ts). The handle reads the registration

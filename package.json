@@ -18,7 +18,7 @@
 		"test:e2e:fast": "E2E_NO_BUILD=1 turbo run e2e --concurrency=1",
 		"check": "turbo run check --filter=./packages/* --filter=./packages/*/e2e/* --filter=./apps/*",
 		"test:adapters": "pnpm --filter palaestra e2e adapters",
-		"demo:esi": "node packages/freeze/e2e/demo-esi.ts",
+		"demo:esi": "node packages/postrender/e2e/demo-esi.ts",
 		"bundle-size": "node apps/palaestra/e2e/bundle-size.ts",
 		"bench": "node internal/bench/build-all.ts && node internal/bench/benchmark.ts --config frameworks.config.json --out results/latest.md --json",
 		"bench:build": "node internal/bench/build-all.ts",
