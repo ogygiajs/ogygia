@@ -1,17 +1,17 @@
 ---
 title: Timing & nesting
-summary: The schedules that decide when JS runs or HTML arrives, and the one rule for islands inside islands.
+summary: The schedules that decide when an island's JavaScript runs or a hole's HTML arrives, and the one rule for regions inside regions.
 related:
   - regions/client-islands
   - regions/server-islands
   - regions/lakes
 ---
 
-Two small systems cover much ground: **when** a region wakes, and **what occurs** when regions nest. Both are small by intent.
+This page is the reference for two things every region depends on: **when** it wakes, and **what happens** when regions are nested inside each other.
 
 ## The schedules
 
-Two keys share one set of schedule words. `wake` carries the schedule for islands. `fetch` carries it for server islands (`render: 'deferred'`). Thus you learn the words one time:
+Two keys share one set of schedule words, so you only learn them once. `wake` carries the schedule for islands, and `fetch` carries it for server islands (`render: 'deferred'`):
 
 | Value             | When it fires                                 | Good for                                       |
 | ----------------- | --------------------------------------------- | ---------------------------------------------- |
@@ -21,7 +21,7 @@ Two keys share one set of schedule words. `wake` carries the schedule for island
 | `interaction`     | On the first pointer, key, or focus inside it | UI that most visitors never touch              |
 | `'(media query)'` | When the CSS media query matches              | UI for mobile only or desktop only             |
 
-On an **island** (`render` defaults to `static`), `wake` says _when the JS runs_. On a **server island** (`render: 'deferred'`), `fetch` says _when the HTML is fetched_. The words are the same for both. On a server island, `interaction` makes an on-demand hole: the first hover or focus inside its fallback fetches it. A server island never takes `wake`, since it has no JS of its own.
+On an **island** (where `render` defaults to `static`), `wake` says _when the JavaScript runs_. On a **server island** (`render: 'deferred'`), `fetch` says _when the HTML is fetched_. On a server island, `interaction` makes an on-demand hole that fetches on the first hover or focus inside its fallback. A server island never takes `wake`, because it has no JavaScript of its own.
 
 ```svelte
 <script>
@@ -50,15 +50,15 @@ Each of the four demos below is a real island with that schedule:
 
 ### `interaction`: JS only for what people use
 
-`wake: 'interaction'` is the laziest schedule. The island ships **zero JS until a person uses it**. A pointer press, a keystroke, or focus inside the region wakes it. The interaction that woke it is not lost:
+`wake: 'interaction'` is the laziest schedule: the island ships **no JavaScript until someone uses it**. A pointer press, a keystroke or focus inside the region wakes it, and the interaction that woke it is not lost:
 
-- **The first click counts.** ogygia captures it while the island wakes, and replays it when the island is live. A button, a checkbox, or a link activates exactly one time.
-- **Typed text stays.** Characters land in the field natively, because it is real HTML. After hydration, the typed value, the selection, and the focus are restored, and `bind:` syncs.
-- **Hover warms it.** When the pointer enters the region, the chunk prefetches. Thus, when the press lands, the wake is usually immediate. For an on-demand _hole_ (`render: 'deferred', fetch: 'interaction'`) the hover fetches and swaps in one go; add `prefetch: 'idle'` to warm its HTML at page idle instead, so the first hover finds it already there (see [`prefetch` in `presets`](/docs/reference/api#ogygiavite-presets)).
+- **The first click counts.** ogygia captures it while the island wakes and replays it once the island is live, so a button, a checkbox or a link activates exactly once.
+- **Typed text stays.** Characters land in the field natively, because it is real HTML. After hydration, the typed value, the selection and the focus are restored, and `bind:` syncs.
+- **Hover warms it.** When the pointer enters the region, the chunk is prefetched, so the wake is usually immediate by the time the press lands. For an on-demand _hole_ (`render: 'deferred', fetch: 'interaction'`), the hover fetches and swaps in one go. Add `prefetch: 'idle'` to warm its HTML at page idle instead, so the first hover finds it already there (see [`prefetch` in `presets`](/docs/reference/api#ogygiavite-presets)).
 
-The same holds for every other schedule until the island is live. A `load`, `idle`, `visible` or media island is server markup with no handlers until it wakes, so a press on it before then wakes it at once, and the click is replayed when it is live. A Ctrl/Cmd/Shift- or middle-click on a link opens it as the browser would, since a replay could not.
+The same applies to every other schedule until the island is live. A `load`, `idle`, `visible` or media island is server markup with no handlers until it wakes, so a press on it before then wakes it at once, and the click is replayed when it is live. A Ctrl, Cmd, Shift or middle click on a link opens it the way the browser normally would, since a replay could not.
 
-One caution: the replayed first event is not a _trusted_ browser gesture. Gesture-gated APIs (`window.open`, clipboard, fullscreen) are blocked if called from it. A component that ignores untrusted clicks (`if (!event.isTrusted) return`, often written to skip its own synthetic clicks) ignores the replay too, so narrow such a guard. A component can find this condition and adapt:
+One caution: the replayed first event is not a _trusted_ browser gesture, so gesture-gated APIs (`window.open`, the clipboard, fullscreen) are blocked when called from it. A component that ignores untrusted clicks (`if (!event.isTrusted) return`, often written to skip its own synthetic clicks) ignores the replay too, so narrow such a guard. A component can detect this case and adapt:
 
 ```svelte
 <script>
@@ -75,11 +75,11 @@ One caution: the replayed first event is not a _trusted_ browser gesture. Gestur
 {/if}
 ```
 
-Do not put gesture-gated actions behind `interaction`. All other UI (counters, carts, menus, forms, editors) operates correctly, and costs nothing until a person touches it.
+Keep gesture-gated actions away from `interaction`. Other UI, such as counters, carts, menus, forms and editors, works correctly and costs nothing until someone touches it.
 
 ### Tuning `visible`
 
-`visible` uses an IntersectionObserver. Make its trigger margin wider per import, or set a default for the full app:
+`visible` uses an IntersectionObserver. You can widen its trigger margin per import, or set a default for the whole app:
 
 ```svelte
 import Chart from '$lib/Chart.svelte' with { wake: 'visible', margin: '200px' };
@@ -92,9 +92,9 @@ ogygia({ visible: { margin: '0px' } });
 
 ### How the bytes arrive
 
-The wake decides when an island's code _downloads_ as well as when it runs. Nothing to configure:
+The wake decides when an island's code _downloads_, not only when it runs. None of this needs configuration:
 
-- **No island code moves before your hero has arrived.** Every wake except `interaction` waits until the page has painted _and_ every image or preload you marked `fetchpriority="high"` has loaded (that is your LCP resource: ogygia does not guess it). The visitor's first click or key ends the wait at once (the browser stops measuring LCP there), and so does a 2.5 s cap. A page with no marked image waits only for the paint. Mark your hero:
+- **No island code moves before your hero has arrived.** Every wake except `interaction` waits until the page has painted _and_ every image or preload you marked `fetchpriority="high"` has loaded. That is your LCP resource, and ogygia does not guess it. The visitor's first click or key ends the wait at once (the browser stops measuring LCP there), and so does a 2.5 s cap. A page with no marked image waits only for the paint. Mark your hero like this:
 
   ```html
   <img src="/hero.jpg" fetchpriority="high" alt="…" />
@@ -102,31 +102,31 @@ The wake decides when an island's code _downloads_ as well as when it runs. Noth
   <link rel="preload" as="image" href="/hero.jpg" fetchpriority="high" />
   ```
 
-- **Downloads are queued by who is waiting for them.** An island or hole on screen downloads at normal priority. One that is not on screen yet (an `idle` island, one screen ahead of a `visible` one, a hole's `prefetch`) and the router's page prefetch download at low priority, a few at a time, so they never crowd out what the visitor sees. Something that scrolls into view moves up the queue. A click never waits. A hole's HTML on screen never waits either: it is the content itself.
-- **When an island wakes, its whole graph downloads at once.** The page carries each island's chunk list as data (one small JSON script, every chunk named once). At the wake the runtime adds a `<link rel="modulepreload">` for each chunk the island needs, beside the island's own `import()`. The browser fetches them in parallel, instead of finding each import only after the last file parsed.
-- **An island that never wakes downloads nothing.** A `visible` island fetches when it intersects (`visible.margin` in `ogygia()` is the lead time), an `idle` one in idle time, a media-query one when the query matches, an `interaction` one on the first pointer-over, focus or touch inside it (the hover warm-up, with the waking click replayed). The router's hover prefetch warms the next page's islands the same way.
+- **Downloads are queued by who is waiting for them.** An island or hole on screen downloads at normal priority. One that is not on screen yet (an `idle` island, one a screen ahead of a `visible` one, a hole's `prefetch`) and the router's page prefetch download at low priority, a few at a time, so they never crowd out what the visitor sees. Something that scrolls into view moves up the queue. A click never waits, and neither does a hole's HTML on screen, since it is the content itself.
+- **When an island wakes, its whole graph downloads at once.** The page carries each island's chunk list as data, in one small JSON script that names every chunk once. At the wake, the runtime adds a `<link rel="modulepreload">` for each chunk the island needs beside the island's own `import()`, so the browser fetches them in parallel instead of discovering each import only after the previous file has parsed.
+- **An island that never wakes downloads nothing.** A `visible` island fetches when it intersects (`visible.margin` in `ogygia()` sets the lead time), an `idle` one in idle time, a media-query one when the query matches, and an `interaction` one on the first pointer-over, focus or touch inside it (the hover warm-up, with the waking click replayed). The router's hover prefetch warms the next page's islands the same way.
 
-On a `csr = true` page Kit wakes the islands, not the runtime, so there a `load` island keeps a `fetchpriority="low"` modulepreload hint at the end of the body.
+On a `csr = true` page, Kit wakes the islands instead of the runtime, so there a `load` island keeps a `fetchpriority="low"` modulepreload hint at the end of the body.
 
-**Props and the page seed come after the content.** Each island's serialized props sit at the end of the body in one `<script type="application/ogygia-props">` per distinct island, keyed by the region's fingerprint, never next to the island. The page seed (`page.data` for islands that read `$page`) comes last, and only when an island on the page actually reads it. A deferred hole's `<link rel="preload" as="fetch">` stays in the head: it fetches content, not code.
+**Props and the page seed come after the content.** Each island's serialized props sit at the end of the body, in one `<script type="application/ogygia-props">` per distinct island keyed by the region's fingerprint, and never next to the island. The page seed (`page.data` for islands that read `$page`) comes last, and only when an island on the page actually reads it. A deferred hole's `<link rel="preload" as="fetch">` stays in the head, because it fetches content rather than code.
 
-**Props do not copy what the seed already carries.** When the seed ships, an island's props are written relative to it: a plain object or array that is also a node of `page.data`, whether the page passed the very same object or a clone of it, becomes a short path into the seed instead of a second copy. The island still receives its own copy of the data when it wakes; nothing it does to its props reaches the seed or another island. A CMS page that hands twelve blocks their slices of one content tree ships the tree once and twelve paths.
+**Props do not copy what the seed already carries.** When the seed ships, an island's props are written relative to it. A plain object or array that is also a node of `page.data`, whether the page passed that very object or a clone of it, becomes a short path into the seed instead of a second copy. The island still receives its own copy of the data when it wakes, so nothing it does to its props reaches the seed or another island. A CMS page that hands twelve blocks their slices of one content tree ships the tree once plus twelve paths.
 
-**CSS follows the same rule: the render decides.** On a csr=false page the server pass links a stylesheet for each island that actually renders (`<link rel="stylesheet" data-ogygia-region-css>`, one per sheet per request) and nothing for the rest. A marked import the page never places, or the other blocks of a registry that rendered one, cost no stylesheet and no chunk hint. Kit's own links cover the page's static CSS (the page and layout components' styles); island CSS is not in that graph on purpose, so a 300-block registry does not become 300 render-blocking sheets. Kit's `inlineStyleThreshold` governs both channels: a region sheet under it ships as `<style data-ogygia-region-css>` in the head instead of a blocking `<link>` (a hole answer's inlined sheet is hoisted and deduped the same way), so twenty small island sheets cost no requests before first paint.
+**CSS follows the same rule: the render decides.** On a `csr = false` page, the server pass links a stylesheet for each island that actually renders (`<link rel="stylesheet" data-ogygia-region-css>`, one per sheet per request) and nothing for the rest. A marked import the page never places, or the other blocks of a registry that rendered one of them, cost no stylesheet and no chunk hint. Kit's own links cover the page's static CSS (the styles of the page and layout components). Island CSS is deliberately left out of that graph, so a 300-block registry does not turn into 300 render-blocking sheets. Kit's `inlineStyleThreshold` governs both channels: a region sheet under the threshold ships as `<style data-ogygia-region-css>` in the head instead of a blocking `<link>` (a hole answer's inlined sheet is hoisted and deduplicated the same way), so twenty small island sheets cost no requests before first paint.
 
 ## Deferred content that is also interactive
 
-A `render: 'deferred'` region is content only. It never ships JS. On it, `fetch` is the schedule. In the example below, the hole waits until it scrolls into view. Before that, it does not cost a request:
+A `render: 'deferred'` region is content only and never ships JavaScript, so its schedule is `fetch`. In this example the hole waits until it scrolls into view and costs no request before then:
 
 ```svelte
 import Panel from '$lib/Panel.svelte' with { render: 'deferred', fetch: 'visible' };
 ```
 
-Sometimes a fetched hole _also_ needs interactivity. Do not stack two schedules on one import. Nest a normal `wake` island inside the component of the server island. `fetch` decides when the HTML arrives. `wake` on the inner island decides when its JS runs. See [Server islands → nesting an island](/docs/regions/server-islands).
+When a fetched hole _also_ needs interactivity, don't stack two schedules on one import. Nest an ordinary `wake` island inside the server island's component instead, as [Server islands](/docs/regions/server-islands#adding-interactivity-nest-an-island) describes.
 
 ## Nesting: one rule
 
-Walk up the tree. The **closest marked parent decides**.
+To find out what a nested region does, walk up the tree: the **closest marked parent decides**.
 
 | Nesting                             | What happens                                                                                                                           |
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -141,13 +141,13 @@ Walk up the tree. The **closest marked parent decides**.
 page → island → lake → island → …
 ```
 
-An island in an island shares one tree. Thus the schedule of the child is ignored. It hydrates with its parent. Dev warns when it drops an unnecessary strategy.
+Because an island inside an island shares one tree, the child's schedule is ignored and it hydrates with its parent. Dev warns when it drops a schedule that has no effect.
 
 ## Do / don't
 
-- **Do** set islands below the fold to `visible`. This performance gain has no cost.
-- **Do** use `idle` for UI that the user does not touch immediately.
-- **Don't** try to make a `render: 'deferred'` region interactive alone. It ships no JS. Nest a `wake` island inside it.
+- **Do** set islands below the fold to `visible`. It costs nothing and saves work.
+- **Do** use `idle` for UI that people don't touch right away.
+- **Don't** try to make a `render: 'deferred'` region interactive on its own, because it ships no JavaScript. Nest a `wake` island inside it.
 
 <style>
   .doc-demo-grid {

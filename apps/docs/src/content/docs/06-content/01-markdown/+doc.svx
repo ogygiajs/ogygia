@@ -1,21 +1,19 @@
 ---
 title: Markdown authoring
-summary: The prose dialect that markdown() understands: containers, tab groups, fence meta, and diff markers. Zero imports in your content. The compiler injects what a page uses.
+summary: The prose dialect that markdown() understands, covering containers, tab groups, fence meta and diff markers. Content files need no imports, because the compiler injects whatever a page uses.
 related:
   - content/collections
   - content/shell
   - macros/code
 ---
 
-`markdown()` compiles `.svx` / `.md` with an opinionated dialect on top of CommonMark: admonition containers, markdown-native tabs, a fence pipeline with pluggable stages. Authors write **zero imports**. When a page uses a tab group, the compiler injects the components into the module scope of that page. All content on this page is rendered by the dialect that it documents.
+`markdown()` compiles `.svx` / `.md` files with an opinionated dialect on top of CommonMark: admonition containers, markdown-native tabs, and a fence pipeline with pluggable stages. Authors write **no imports**; when a page uses a tab group, for example, the compiler injects the components into that page's module scope. Everything on this page is rendered by the dialect it documents.
 
-::: tip When to use
-This page is for people who _write_ content. To wire `markdown()` into your app, see [Content collections](/docs/content/collections). For the `code()` macro, which renders snippets from components, see [code](/docs/macros/code).
-:::
+This page is for people who _write_ content. To wire `markdown()` into your app, see [Content collections](/docs/content/collections), and for the `code()` macro, which renders snippets from components, see [code](/docs/macros/code).
 
 ## Containers
 
-VitePress-compatible admonitions: `tip`, `warning`, `danger`, `info`, `note`, `caution`, `important`, and the collapsible `details`. Each takes an optional title on the opening line:
+The dialect supports VitePress-compatible admonitions (`tip`, `warning`, `danger`, `info`, `note`, `caution` and `important`) as well as the collapsible `details`. Each takes an optional title on the opening line:
 
 ```md
 ::: warning Heads up
@@ -27,17 +25,17 @@ Props must be serializable.
 Props must be serializable. (This box is the example above, rendered.)
 :::
 
-Blank lines inside are optional. VitePress-style tight blocks operate. A literal `:::` inside a fenced code block stays untouched. `details` renders as a native `<details>` disclosure:
+Blank lines inside are optional, so VitePress-style tight blocks work, and a literal `:::` inside a fenced code block is left alone. `details` renders as a native `<details>` disclosure:
 
 ::: details What it expands into
-An `.og-admonition` wrapper that the theme styles. Markdown continues to render inside: code, links, lists, everything.
+An `.og-admonition` wrapper that the theme styles. Markdown keeps rendering inside it, including code, links and lists.
 :::
 
 ## Tab groups
 
-There are two authoring syntaxes. Both are rewritten to `<TabGroup>` / `<Tab>`, with the components auto-injected.
+There are two syntaxes for tabs. Both are rewritten to `<TabGroup>` / `<Tab>`, and the components are injected for you.
 
-**`::: code-group`**: one fence per tab, with the label in `[brackets]` after the language:
+**`::: code-group`** takes one fence per tab, with the label in `[brackets]` after the language:
 
 ````md
 ::: code-group
@@ -65,7 +63,7 @@ pnpm add ogygia
 
 :::
 
-**`::: tabs`**: any markdown per tab, one tab per `== Label` line:
+**`::: tabs`** takes any markdown per tab, with one tab per `== Label` line:
 
 ```md
 ::: tabs
@@ -76,20 +74,20 @@ Ship the static index; the worker filters by scope.
 :::
 ```
 
-Groups with the same labels **sync**: pick pnpm one time, and each install block follows. The choice persists across pages (localStorage). Try it on the group above.
+Groups with the same labels stay **in sync**: pick pnpm once and every install block follows, and the choice persists across pages (in localStorage). You can try it on the group above.
 
 ## Fence meta
 
-The infostring after the language flows through the fence pipeline (line highlighting, filenames, [twoslash](/docs/macros/code)). It is the same for a markdown fence and a `code()` call:
+The infostring after the language goes through the fence pipeline (line highlighting, filenames, [twoslash](/docs/macros/code)), and it works the same way for a markdown fence and a `code()` call:
 
-- ` ```ts title=src/lib/site.server.ts `: a **filename** in the code-block header, to the left of the copy / permalink actions. This is the common case, and it fills the header so that the header is never empty. When a fence gives no filename, the header falls back to the language name. `title=` reads to the end of the token. Thus paths with `/`, `.`, and `+page`-style route files operate as-is.
-- ` ```ts {2-4} `: highlight lines 2–4, with `transformerMetaHighlight` from `@shikijs/transformers` wired.
-- ` ```ts twoslash `: type-aware hovers, with the twoslash transformer wired.
-- `/// file: app.ts` on the first line: the same filename, but as a magic comment that is stripped from the rendered code (through the `slash_meta()` parser). Prefer `title=`, unless you port content that already uses the comment form.
+- ` ```ts title=src/lib/site.server.ts ` puts a **filename** in the code block's header, to the left of the copy and permalink actions. This is the common case. When a fence gives no filename, the header falls back to the language name, so it is never empty. `title=` reads to the end of the token, so paths containing `/`, `.` and `+page`-style route files work as written.
+- ` ```ts {2-4} ` highlights lines 2–4, using `transformerMetaHighlight` from `@shikijs/transformers`.
+- ` ```ts twoslash ` adds type-aware hovers through the twoslash transformer.
+- `/// file: app.ts` on the first line gives the same filename as a special comment that is stripped from the rendered code (by the `slash_meta()` parser). Prefer `title=` unless you are porting content that already uses the comment form.
 
 ## Diff markers
 
-There are two dialects for "change this code" prose, shipped as fence-pipeline transformers. **Line-level**: a `+++ ` / `--- ` prefix marks the full line, and the marker never reaches the reader:
+Two dialects for "change this code" prose ship as fence-pipeline transformers. The **line-level** dialect marks a whole line with a `+++ ` / `--- ` prefix, and the marker never reaches the reader:
 
 ````md
 ```js
@@ -103,7 +101,7 @@ There are two dialects for "change this code" prose, shipped as fence-pipeline t
 +++ let { count } = $props();
 ```
 
-**Inline**: `+++added+++` / `---removed---` wraps a span _inside_ a line. This is the dialect of svelte.dev, and it composes with twoslash:
+The **inline** dialect wraps a span _inside_ a line in `+++added+++` / `---removed---`. It is the dialect svelte.dev uses, and it works together with twoslash:
 
 ````md
 ```js
@@ -115,7 +113,7 @@ let +++doubled = $derived(count * 2)+++;
 let +++doubled = $derived(count * 2)+++;
 ```
 
-Wire them one time in your app config. They are inert on fences that carry no marker:
+Wire them once in your app config. They have no effect on fences that carry no marker:
 
 ```ts
 import { content } from '@ogygia/content/vite';
@@ -125,16 +123,16 @@ plugins: [ogygia(), content({ markdown: { code: { transformers: [diff_markers(),
 ```
 
 ::: note Where each dialect is off
-Line markers skip languages where a leading `---` is real syntax (`yaml`, `md`, `diff`). Inline markers never treat a `---` alone on its line as a delimiter. Thus frontmatter shown inside a fence renders untouched. For those cases, use `// [!code ++]` comments from `@shikijs/transformers`.
+Line markers skip languages in which a leading `---` is real syntax (`yaml`, `md`, `diff`). Inline markers never treat a `---` alone on its line as a delimiter, so frontmatter shown inside a fence renders untouched. For those cases, use `// [!code ++]` comments from `@shikijs/transformers`.
 :::
 
 ## Extending the pipeline
 
-Each stage above is a **value that you pass**, not a flag that you set. `transformers` speak the ecosystem contract of Shiki (`@shikijs/transformers`, twoslash, the diff markers, your own). `meta` parsers extend the infostring. `variants` turn one authored fence into switchable versions (a JS↔TS converter, package-manager tabs). The defaults are on for the prose features (`containers`, `tabs`, heading ids + anchors, code ids). Each is one key to set off. The full option list lives in the [API reference](/docs/reference/api).
+Each stage above is a **value you pass** rather than a flag you set. `transformers` follow Shiki's ecosystem contract (`@shikijs/transformers`, twoslash, the diff markers, or your own), `meta` parsers extend the infostring, and `variants` turn one authored fence into switchable versions (such as a JS↔TS converter or package-manager tabs). The prose features (`containers`, `tabs`, heading ids and anchors, code ids) are on by default, and each can be turned off with one key. The full option list is in the [API reference](/docs/reference/api).
 
 ## Do / don't
 
-- **Do** author with the dialect. Tabs and admonitions carry structure that plain prose paragraphs lose.
-- **Do** keep install commands in a `code-group`. Readers pick their package manager one time. Each block on the page follows.
-- **Don't** hand-import `TabGroup` in a content page. The compiler injects it exactly when the syntax appears. An import of your own only duplicates it.
-- **Don't** fake diffs with `diff` fences when you mean "edit this code". The diff language loses real syntax highlighting. The markers keep the Shiki colors and strip themselves.
+- **Do** write with the dialect, because tabs and admonitions carry structure that plain paragraphs lose.
+- **Do** keep install commands in a `code-group`, so readers pick their package manager once and every block on the page follows.
+- **Don't** import `TabGroup` by hand in a content page. The compiler injects it exactly when the syntax appears, and your own import only duplicates it.
+- **Don't** fake diffs with `diff` fences when you mean "edit this code". The diff language loses real syntax highlighting, while the markers keep the Shiki colours and strip themselves out.

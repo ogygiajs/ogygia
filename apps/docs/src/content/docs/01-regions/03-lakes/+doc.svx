@@ -1,16 +1,12 @@
 ---
 title: Lakes
-summary: Static HTML inside an island. A frozen region that ships zero client JS, although it lives in an interactive tree.
+summary: Static HTML inside an island. A lake is a frozen region that ships no client JavaScript even though it sits in an interactive tree.
 related:
   - regions/timing-nesting
   - regions/client-islands
 ---
 
-A **lake** is static HTML _inside_ an island. The island around it is interactive. The lake itself never ships JS. You mark it with `wake: 'none'`, inside the `.svelte` file of an island.
-
-::: tip When to use
-Use a lake for a **large static subtree inside an interactive component**: prose, a prerendered chart, a highlighted code block, an image gallery. The lake keeps that subtree out of the client bundle of the island. If the static content is _not_ inside an island, it costs nothing already. Unmarked markup on a Page ships no JS. Lakes matter only inside a tree that hydrates.
-:::
+Static markup on a `csr = false` page already costs nothing, because unmarked markup ships no JavaScript. The cost appears once that markup sits _inside_ an island: everything in a hydrating component compiles into the island's client bundle, including long prose, a prerendered chart, a highlighted code block or an image gallery that will never change. A **lake** is static HTML inside an island that stays out of that bundle. The island around it is interactive, but the lake itself never ships JavaScript. You mark it with `wake: 'none'` inside the island's `.svelte` file.
 
 ```svelte
 <!-- inside an island -->
@@ -24,13 +20,13 @@ Use a lake for a **large static subtree inside an interactive component**: prose
 </section>
 ```
 
-The lake renders on the server. When the island around it hydrates, ogygia lifts the DOM of the lake out, keeps it safe, and puts it back in place. Thus a costly static subtree stays free of JS inside a live component.
+The lake renders on the server. When the island around it hydrates, ogygia lifts the lake's DOM out, keeps it aside and puts it back in place afterwards, so an expensive static subtree adds no JavaScript to a live component.
 
 ## Why not render it inline?
 
-Inside an island that hydrates, ordinary markup compiles into the client bundle of the island. A lake removes a subtree from that bundle. Use it for content that is costly to ship but static: prose, a large prerendered chart, a code block with syntax colors.
+Inside a hydrating island, ordinary markup compiles into the island's client bundle, and a lake is how you take a subtree back out of it. That matters most for content that is expensive to ship but never changes, such as prose, a large prerendered chart or a syntax-highlighted code block.
 
-The island below is interactive: the counter counts. The snapshot inside it is a lake: server HTML, lifted out and restored around the hydration of the island. It ships no JS of its own.
+The island below is interactive, and its counter counts. The snapshot inside it is a lake: server HTML that is lifted out and restored around the island's hydration, with no JavaScript of its own.
 
 <script>
   import LakeDemo from '$lib/demos/LakeDemo.svelte' with { wake: 'load' };
@@ -42,7 +38,7 @@ The island below is interactive: the counter counts. The snapshot inside it is a
 
 ## Keeping a lake fresh: render: live
 
-By default, a lake is baked one time and restored unchanged. When its content must refresh in the background, make it `render: 'live'`. A live lake serves baked static content, then revalidates:
+By default, a lake is baked once and restored unchanged. When its content has to refresh in the background, make it `render: 'live'`. A live lake serves its baked static content first and then revalidates:
 
 ```svelte
 <script>
@@ -52,13 +48,13 @@ By default, a lake is baked one time and restored unchanged. When its content mu
 <HeavyChart data={rows} />
 ```
 
-`wake` is the revalidate schedule (`load` / `idle` / `visible` / media). `maxAge` and `onExpire`, set in a preset, control staleness. `render: 'live'` serves the baked content immediately. It refreshes the content in the background through the signed island endpoint.
+On a live lake, `wake` is the revalidation schedule (`load`, `idle`, `visible` or a media query), and `maxAge` and `onExpire`, set in a preset, control how stale it may get. The baked content shows immediately, and the refresh happens in the background through the signed island endpoint.
 
-> After an SPA navigation, a lake restored inside kept layout chrome is marked as settled again. Thus an island nested in that lake can wake. See [SPA router](/docs/app/spa-router).
+> After an SPA navigation, a lake restored inside kept layout chrome is marked as settled again, so an island nested in that lake can wake. See [SPA router](/docs/app/spa-router).
 
 ## A lake on a Kit page (csr = true)
 
-A lake also works at the top of a page, as site chrome, and it survives a page that Kit hydrates. Mark the header import in a layout with `wake: 'none'`. On a `csr = false` page the header is plain server HTML. On a `csr = true` page Kit hydrates the document, but it **adopts** the lake: the server element stays as it is, byte for byte, and the code of the header ships in no bundle, not even the bundle of Kit.
+A lake also works at the top of a page as site chrome, and it survives on a page that Kit hydrates. Mark the header import in a layout with `wake: 'none'`. On a `csr = false` page the header is plain server HTML. On a `csr = true` page Kit hydrates the document but **adopts** the lake, so the server element stays exactly as it was, byte for byte, and the header's code ships in no bundle, not even Kit's.
 
 ```svelte title=+layout.svelte
 <script>
@@ -70,16 +66,16 @@ A lake also works at the top of a page, as site chrome, and it survives a page t
 {@render children()}
 ```
 
-Everything _inside_ the lake stays in the world of ogygia on both kinds of page. A [server island](/docs/regions/server-islands) inside the header (the account menu, the cart count) still fetches. A `wake: 'interaction'` search box inside it still wakes on the first click. Kit never hydrates the inside of a lake, so the runtime of ogygia does.
+Everything _inside_ the lake stays in ogygia's world on both kinds of page. A [server island](/docs/regions/server-islands) inside the header, such as the account menu or the cart count, still fetches, and a `wake: 'interaction'` search box inside it still wakes on the first click. Kit never hydrates the inside of a lake, so ogygia's runtime does.
 
-That is the shape of a static site header: static markup for the menu, holes for the personal parts, one small island for the search. Anonymous visitors download none of the header JS, and the same header keeps working on the few pages that need `csr = true`.
+This gives you the usual shape of a static site header: static markup for the menu, holes for the personal parts and one small island for the search. Anonymous visitors download none of the header's JavaScript, and the same header keeps working on the few pages that need `csr = true`.
 
 ::: warning A lake needs server HTML
-A lake that Kit mounts fresh during a client-side navigation has no server HTML to adopt. It renders empty, and dev mode warns. Keep chrome lakes in a layout that persists across navigations, or serve that route with `csr = false`.
+A lake that Kit mounts fresh during a client-side navigation has no server HTML to adopt, so it renders empty and dev mode warns. Keep chrome lakes in a layout that persists across navigations, or serve that route with `csr = false`.
 :::
 
 ## Do / don't
 
-- **Do** put your heaviest static content (long prose, large charts, code) in a lake when it is inside an island.
-- **Do** use `render: 'live'` when the server HTML of a lake must refresh in the background.
-- **Don't** put interactive UI in a lake. A lake ships no JS. Buttons and inputs in it are inert. Use a nested [client island](/docs/regions/client-islands) instead.
+- **Do** put your heaviest static content (long prose, large charts, code) in a lake when it sits inside an island.
+- **Do** use `render: 'live'` when a lake's server HTML has to refresh in the background.
+- **Don't** put interactive UI in a lake. A lake ships no JavaScript, so buttons and inputs in it are inert; use a nested [client island](/docs/regions/client-islands) instead.
