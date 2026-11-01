@@ -9,8 +9,14 @@ export default defineConfig({
 	// The e2e suite builds this app (adapter-vercel writes `.vercel/output`, a copy of the server's whole
 	// dependency tree), then starts dev servers in the same folder. Vite's watcher skips only
 	// `node_modules` / `.git`: on Linux (one inotify watcher per directory) it crawled 126k directories of
-	// that output, grew to 3.4 GB and never became ready on CI. The build output is not source.
-	server: { watch: { ignored: ['**/.vercel/**'] } },
+	// that output, grew to 3.4 GB and never became ready on CI. The build output is not source. Nor is
+	// the suite's own folder: specs run beside a dev server here (`pnpm test:e2e`), and the adapter spec
+	// copies, installs and builds a whole app under e2e/ — a dev server watching it reloaded mid-test.
+	server: {
+		watch: {
+			ignored: ['**/.vercel/**', '**/e2e/**', '**/test-results/**', '**/playwright-report/**']
+		}
+	},
 	// ogygia MUST run before sveltekit() (enforce:'pre' also guarantees ordering)
 	plugins: [
 		ogygia({
