@@ -57,6 +57,10 @@ export default defineConfig({
 });
 ```
 
+If the profiler is mounted somewhere other than `/__profiler` (its `path` option), give the same path as `profilerBase`, so that `profile()` and `record(…, { server: true })` find it.
+
+`page()`, `hydration()` and `record()` each wait for the page to settle before they measure: no island hydrating, nothing woken for 300 ms, and the document fully loaded, for at most 10 seconds. When your own steps need the same wait, for example before a screenshot, call `ogygia.settled()`. It takes `{ quiet, timeout }` in ms and resolves to `true` once the page settled, or `false` if the timeout passed first.
+
 A recording can span pages. Actions that cause a full page load (`page.goto`, a form post, a plain link) keep recording on the next page, and the report covers all of them (`session.counts.pages`). If the actions leave for a document that has no testing API (another site, or a page without devtools), the recording is lost, and `record()` says so with your actions' own error as its `cause`.
 
 To stay on the page instead, record with `blockNavigation`. Every document load the actions cause (a reload in a handler, a stray link) is answered with `204`, so the browser stays where it is, and each one is listed:
@@ -117,7 +121,7 @@ expect(session).toMeetBudget({ serverBusyMs: 300 });
 
 Under the hood this uses the profiler's window: `POST /__profiler/window/start` opens it, and `POST /__profiler/window/stop` answers with the report. Only one window runs at a time. It waits a few seconds for a background sample to finish, and stops itself after a minute.
 
-On a serverless deployment, the start, the session's requests and the stop can each land on a different instance. If you give the profiler a store (redis, postgres or SQLite; see [the storage interface](/docs/api/devtools-profiler-storage)), it works anyway:
+On a serverless deployment, the start, the session's requests and the stop can each land on a different instance. If you give the profiler a [shared store](/docs/profiler/recording#shared-report-storage) (Redis or Postgres, or a custom one; see [the storage interface](/docs/api/devtools-profiler-storage)), it works anyway:
 
 - Start answers with a signed window id, and the driver adds it to each of the session's requests to the site (`x-og-window`).
 - Every instance writes such a request, with its own `cpu_ms`, to the store before it answers.
@@ -158,7 +162,7 @@ The budget lines available for each report:
 
 ## Reports in CI
 
-Every report a test takes is attached to its result as `ogygia.json`, which Playwright's HTML reporter shows and its JSON reporter carries. Two helpers turn two runs (a base branch and a head branch) into a PR comment:
+Every report a test takes is attached to its result as `ogygia.json`, which Playwright's HTML reporter shows and its JSON reporter carries. A full profile is hundreds of KB, so the attachment keeps a slim copy of each one (its score, forecast, findings, asset totals, links and top ten hot functions), and the other reports whole. `forAttachment(report)` returns that same form, for a harness that writes its own attachments (set `attach: false` in `ogygiaOptions` to turn the fixture's off). Two helpers turn two runs (a base branch and a head branch) into a PR comment:
 
 ```ts title=scripts/ogygia-comment.ts
 import { compare, toMarkdown } from '@ogygia/testing';
@@ -196,6 +200,19 @@ import { createOgygia, ogygiaMatchers } from '@ogygia/testing';
 expect.extend(ogygiaMatchers);
 const ogygia = createOgygia({ evaluate: (fn, arg) => page.evaluate(fn, arg) });
 ```
+
+The driver is an `OgygiaDriver`, and only `evaluate` is required. The other members let a driver do what the defaults cannot:
+
+| Member                       | What it does                                                                                                                                                                           | Without it                                    |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `evaluate(fn, arg)`          | Runs `fn(arg)` in the page and returns its JSON result.                                                                                                                                | required                                      |
+| `get(url, headers)`          | Makes a GET request relative to the app, for `profile()`. Returns `{ status, body }`.                                                                                                  | `fetch` inside the page                       |
+| `post(url, headers)`         | Makes a POST request relative to the app, for the server window of `record(…, { server: true })`.                                                                                      | `fetch` inside the page                       |
+| `wait(ms)`                   | Waits.                                                                                                                                                                                 | a timer                                       |
+| `blockNavigation()`          | Starts holding back the page's document loads, for `record(…, { blockNavigation: true })`. Returns `{ stop() }`, which lists them.                                                     | `record(…, { blockNavigation: true })` throws |
+| `tagRequests(header, value)` | Adds a header to every request the page makes to its own origin until the returned function is called, so a serverless deployment can tie the session's requests to its server window. | requests go untagged                          |
+
+`createOgygia(driver, options)` takes the same options as the fixture's `ogygiaOptions`, apart from `attach` and `lean`, which belong to the fixture.
 
 If you manage Playwright pages yourself without the fixture (for example two browser contexts in one test, one for a preview and one for a baseline), `playwrightDriver(page)` gives you the driver the fixture builds, `blockNavigation` included, and `turnOnDevtools(page, baseURL)` sets the cookie. `onNavigationHeld` is called each time a load is held back, so you can note which step of your script was running:
 

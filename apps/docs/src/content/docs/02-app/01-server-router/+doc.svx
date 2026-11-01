@@ -86,13 +86,13 @@ A page is a Svelte component plus a server object shaped like `+page.server.ts`:
 '/edit/[id]':   page(Editor, { load, actions, params, search }),   // all of it
 ```
 
-The second argument mirrors `+page.server.ts` exactly: `load` and `actions`, plus the input schemas `params` and `search` (see [Typed input](#typed-input)). It is always an object, and you write a bare `page(Home)` when there is nothing to declare.
+The second argument mirrors `+page.server.ts` exactly: `load` and `actions`, plus the input schemas `params` and `search` (see [Typed input](#typed-input)), the prerender list `entries` (see [Pages carry region dials](#pages-carry-region-dials)) and Kit's `config` page option (see [Mounting](#mounting)). It is always an object, and you write a bare `page(Home)` when there is nothing to declare.
 
 A routed page is **inert**: it renders as `csr = false` server HTML with no JavaScript. Interactivity comes from marked island imports _inside_ the component (`with { wake }`), the same as everywhere else in ogygia. To wake or defer the page itself, see [Pages carry region dials](#pages-carry-region-dials).
 
 ## Layouts
 
-`layout(name, Component, { load?, error? })` returns a **table→table wrapper**. When you apply it to a sub-table, every page inside renders within that layout:
+`layout(name, Component, { load?, error?, config? })` returns a **table→table wrapper**. When you apply it to a sub-table, every page inside renders within that layout:
 
 ```ts
 const app = layout('app', AppShell, { load: async (c) => ({ user: await user(c) }) });
@@ -236,6 +236,8 @@ page(Login, {
 });
 ```
 
+An action can also be pulled out of the table. Type a bare function with `Action<'/login'>`, the counterpart of `Load`, or wrap it with `action(fn)`, or `action('/login', fn)` to type `c.params` from the pattern. Unlike `load()`, an action wrapper is not memoized, since an action runs once per POST.
+
 Named actions use Kit's `?/name` URL convention (`default` is the unnamed one), and the `form` prop is typed from what the actions return:
 
 ```svelte
@@ -273,7 +275,7 @@ const readPost = ((c) => read(c.params.id)) satisfies Handler<'/posts/[id]'>;
 
 Write `satisfies` rather than a type annotation (`const readPost: Handler<…>`). An annotation replaces the handler's own return type with the annotation's, and the typed client would then read `unknown`.
 
-`GET` and `DELETE` take no body schema, since their input is the path params and query, which are already typed. `HEAD` and `OPTIONS` are handled automatically from the set of verbs, and a wrong method gets a 405 with an `Allow` header.
+`GET` and `DELETE` take no body schema, since their input is the path params and query, which are already typed. Their wrappers, `GET(fn)` and `DELETE(fn)`, are therefore the same as a bare handler (`{ GET: GET(fn) }` and `{ GET: fn }` behave alike), and they exist so that every verb can be written in the same form. `HEAD` and `OPTIONS` are handled automatically from the set of verbs, and a wrong method gets a 405 with an `Allow` header.
 
 ## The context `c`
 
@@ -300,6 +302,15 @@ You declare who the request is **once**, on the table, and read it everywhere:
 routes(table, {
   visitor: (c) => session_from(c.cookies),   // → { sub: 'u123', roles: [...] } or undefined
 });
+```
+
+For logged-out traffic, `anonymousVisitor()` is a ready-made resolver. On a visitor's first request it sets a random id in a first-party, HTTP-only cookie, and from then on it returns `{ sub: id, anonymous: true }`, so a percentage rollout holds for visitors who never sign in. It takes `cookie`, the cookie's name (default `og-vid`, the cookie [experiments](/docs/app/experiments) fall back to), and `days`, its lifetime (default 365):
+
+```ts
+import { anonymousVisitor } from '@ogygia/router';
+
+const anon = anonymousVisitor({ cookie: 'og-vid', days: 365 });
+routes(table, { visitor: (c) => session_from(c.cookies) ?? anon(c) });   // a session first, else the cookie
 ```
 
 `c.visitor` is lazy and memoized, so the resolver runs at most once per request and only when something reads it. [Experiments](/docs/app/experiments) stick to it, [mounts](/docs/app/federation) sign it onward to other teams, and loads personalize with it. When the request arrived through a signed federation hop, the upstream's signature-bound claims **take precedence** over the local resolver, because a proven identity outranks configuration.
@@ -485,14 +496,25 @@ routes(table, {
   base: '/app',                 // mount prefix, stripped before matching
   slash: 'never',               // trailing-slash policy — 'ignore' | 'never' | 'always' (308s)
   error: ErrorPage,             // root error boundary
-  miss: (c) => c.error(404),    // response for an unmatched path under `base`
+  miss: () => error(404, 'Not found'),   // response for an unmatched path under `base`
   load: authGuard,              // a table-wide load before EVERY route — a guard with no chrome
   visitor: session,             // THE identity → c.visitor (see above)
   flags: [csrMode],             // decided up front, carried into federation hops — see Flags & experiments
+  config: { postrender: false }, // Kit's `config` page option for every page in the table
 });
 ```
 
+`miss` applies only under a `base`. It answers the way an endpoint does: a returned `Response` is sent as it is, another value is sent as JSON, a thrown `redirect()` redirects, and a thrown `error()` becomes a JSON error with its status. Without `miss`, a browser that asks for an unmatched page under `base` gets the root `error` component (when you set one) with a 404, and every other request gets a plain-text 404.
+
 The table-wide `load` is Kit's root `+layout.server.ts` load without a component. It runs before every route, pages _and_ endpoints, can throw `redirect` or `error` to act as a gate, and merges its data into every page. That makes it the place for auth when there is no shared shell to attach it to.
+
+`config` is Kit's `config` page option, the counterpart of `export const config = { … }` in a `+page.server.ts`. Plugins read their own keys from it, for example `{ postrender: false }` to keep a route out of [postrender](/docs/data-state/postrender). You can set it at three levels, `routes(table, { config })`, `layout(name, C, { config })` and `page(C, { config })`, and they merge as in Kit: the table first, then each layout from the outermost in, then the page, with a later level replacing a key of the same name (top-level keys only). Endpoints have no `config`.
+
+The router value also has `router.href(pattern, params)`, the same rename-safe URL builder as `c.href`, for code that runs outside a load or handler:
+
+```ts
+router.href('/docs/[slug]', { slug: 'intro' });   // '/docs/intro', with `base` in front
+```
 
 ## Kit ↔ @ogygia/router
 

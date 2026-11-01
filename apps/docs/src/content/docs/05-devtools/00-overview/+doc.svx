@@ -192,6 +192,53 @@ Click a roster row, or use "pick on page" and click a region, to open its detail
 
 The dock is a heading with a tab list. Screen readers announce the tabs as tabs with the open one selected, and the panel below them is a region you can focus and scroll with the keyboard. Its text meets 4.5:1 contrast. Tab reaches everything you can click, and a row's name is a button, so Enter opens the row the same way a click does. `internal/bench/devtools-a11y-check.ts` checks every tab with axe, measures the contrast of each piece of text against the background under it, and fails on any control that only a mouse can press.
 
+## Writing a sink
+
+The dock is one reader of the runtime's event stream, and you can add your own, for example to forward island wakes to your logging during a QA run or to attach a trace to a bug report. The stream exists where the devtools are compiled in, which means the dev server, and a build with the plugin listed in a browser that has turned the devtools on. Each event is plain JSON with a `domain` (`compile`, `server`, `wire`, `runtime`, `hub` or `nav`), a dotted `name` such as `wake.fired` or `region.hydrate.done`, and the fields the bus stamps on it: `seq`, `t` (ms on the page's clock), `realm` (`client` or `server`) and the schema version `v`.
+
+A sink is a function that receives each event. The functions below come from `@ogygia/devtools`, which re-exports them unchanged from `ogygia/events`. Register a sink from code that runs in the page, such as an island that wakes on load:
+
+```ts
+import { add_sink, snapshot, to_trace } from '@ogygia/devtools';
+
+for (const event of snapshot()) forward(event);   // what is already buffered
+const stop = add_sink((event) => {                 // and each event from now on
+  if (event.name === 'region.hydrate.failed') forward(event);
+});
+
+const trace = to_trace();   // { kind: 'ogygia-devtools-trace', version, events }
+```
+
+- **`add_sink(fn)`** registers a sink and returns a function that removes it. A sink sees events from the moment it is added, so read `snapshot()` first if you also want the earlier ones. A sink that throws is skipped and never breaks the page.
+- **`snapshot()`** returns a copy of the buffered events, oldest first. The buffer keeps the newest 4,096, and `clear()` empties it.
+- **`to_trace()`** wraps the buffer as a portable trace, with a `kind` and a `version` so a reader can check what it holds.
+- **`ingest(events)`** adds events that were already stamped, such as those of a saved trace or another realm, to the buffer and the sinks without stamping them again. The runtime uses it to fold the server's events for the page into the same stream.
+- **`configure({ active, cap, sample })`** pauses the stream, resizes the buffer, or keeps one in N events of a noisy name.
+
+Three sinks come ready-made. `install_window_sink()` publishes `window.__ogygia_devtools` (`events()`, `on(fn)`, `clear()`, `trace()`), so a test runner or another tool can read the stream without importing anything; the runtime installs it on its own wherever the stream exists. `install_postmessage_sink(target)` posts each event to a worker, a `MessagePort` or a window as `{ __ogygia_devtools: event }`. `install_console_sink(filter?)` logs each event, or each one `filter` accepts, with `console.debug`. Each returns its remover, apart from the window sink, which returns the hook it published.
+
+## Reading profiler reports in code
+
+`@ogygia/devtools/report` reads a [profiler](/docs/profiler/overview) report outside the profiler, on Node. It is what `ogygia mcp` loads from your app to open a downloaded report, and you can use it for your own tooling, for example a CI step that checks an exported report:
+
+```ts
+import { readFile } from 'node:fs/promises';
+import { is_ogp, ogp_decode, is_dump, report_json } from '@ogygia/devtools/report';
+
+const bytes = await readFile('slow-page.ogp');
+const dump = is_ogp(bytes) ? await ogp_decode(bytes, process.env.EXPORT_KEY) : JSON.parse(bytes.toString());
+if (is_dump(dump)) {
+  const report = report_json(dump.analysis, dump.meta, '/__profiler', dump.extras);
+  console.log(report.findings);
+}
+```
+
+- **`is_ogp(bytes)`** says whether a file is an exported `.ogp` rather than a plain JSON dump.
+- **`ogp_decode(bytes, key)`** decrypts and unpacks an `.ogp` with the key it was exported with, and throws on a wrong key or a changed file.
+- **`is_dump(value)`** checks that a value is a report dump (the JSON behind `/report/<id>/dump`), with its `meta`, `analysis` and `extras`.
+- **`report_json(analysis, meta, base, extras)`** builds the same JSON that `/__profiler/report/<id>.json` answers, described under [For agents and scripts](/docs/profiler/recording#for-agents-and-scripts). `base` is the profiler's path, used in the report's links.
+- **`fix_impact(patterns, renderMs, renders?, waitMs?)`** adds up what fixing a report's patterns would take off the render, capped at 90 percent. It is the sum behind "about 326 ms off the 741 ms render".
+
 ::: tip
 The devtools never mount on [profiler](/docs/profiler/overview) pages, including the embedded frame in the Profiler tab, so the tools never inspect themselves.
 :::
