@@ -420,9 +420,9 @@ export function server_wrapper_source(
 	const deferred_hydrate = !!options?.hydrate;
 	const fetch_when = options?.when || 'load';
 	let server_attrs = `__defer={${JSON.stringify(fetch_when)}}`;
-	// Stitching mark — the emitted hole carries `stitch="serve"` (the freeze serve path fills it at
-	// origin on every serve) or `stitch="edge"` (the freeze capture rewrites it into an ESI include
-	// the CDN fills; the shell stays edge-cached). See freeze/stitch.ts.
+	// Stitching mark — the emitted hole carries `stitch="serve"` (postrender's serve path fills it at
+	// origin on every serve) or `stitch="edge"` (postrender's capture rewrites it into an ESI include
+	// the CDN fills; the shell stays edge-cached). See packages/postrender/src/stitch.ts.
 	if (options?.stitch) server_attrs += ` __stitch={${JSON.stringify(options.stitch)}}`;
 	// The warm schedule — the emitted hole carries `prefetch="idle"` etc.; the runtime arms it next
 	// to `when` and fills the frame store early, the swap still waits for `when`.

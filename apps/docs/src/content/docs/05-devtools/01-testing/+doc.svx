@@ -1,27 +1,27 @@
 ---
 title: Testing
-summary: The devtools and the profiler as test primitives. Your Playwright tests measure hydration, interactions, server time and weight, and fail on a budget.
+summary: Use the devtools and the profiler from your own tests, so Playwright can measure hydration, interactions, server time and page weight and fail when a budget is missed.
 related:
   - devtools/overview
   - profiler/overview
 ---
 
-`@ogygia/testing` turns the devtools and the profiler into primitives for your own tests. Your tests click through the app as they always do. ogygia measures what happened, and your test asserts on it.
+A performance problem that you find by hand in the devtools tends to come back a few releases later, because nothing checks for it. `@ogygia/testing` lets your own tests use what the devtools and the profiler measure. Your tests click through the app as they already do, ogygia measures what happened, and the test asserts on the result. It gives you four primitives:
 
-- `page()`: the page load as the browser measured it. Vitals, each island's wake, and the findings of the [Page tab](/docs/devtools/overview#the-page-tab).
-- `hydration()`: each island's hydration status, with the difference for a changed one (the [Hydration tab](/docs/devtools/overview#the-hydration-tab)).
-- `record(actions)`: what your actions did. Slow interactions and the function behind each, dead and repeated clicks, requests with the server's own split, long tasks, shifts, errors (the [Record tab](/docs/devtools/overview#recording-a-session)).
-- `profile(path)`: the [SSR profiler](/docs/profiler/overview)'s report of a path. Score, forecast, findings, and weight.
+- `page()`: the page load as the browser measured it, including vitals, each island's wake, and the findings of the [Page tab](/docs/devtools/overview#the-page-tab).
+- `hydration()`: each island's hydration status, with the difference for one that changed (the [Hydration tab](/docs/devtools/overview#the-hydration-tab)).
+- `record(actions)`: what your actions did, including slow interactions and the function behind each, dead and repeated clicks, requests with the server's own breakdown, long tasks, shifts and errors (the [Record tab](/docs/devtools/overview#recording-a-session)).
+- `profile(path)`: the [SSR profiler](/docs/profiler/overview)'s report for a path, with score, forecast, findings and weight.
 
 ## With Playwright
 
-Install the package beside Playwright. It is a test helper, not a plugin: nothing goes in `vite.config.ts` for it.
+Install the package next to Playwright. It is a test helper rather than a plugin, so nothing goes into `vite.config.ts` for it.
 
 ```bash
 pnpm add -D @ogygia/testing @playwright/test
 ```
 
-ogygia does not import Playwright. You hand it your own `test` and `expect`:
+ogygia does not import Playwright itself, so you hand it your own `test` and `expect`:
 
 ```ts title=tests/fixtures.ts
 import { test as base, expect as baseExpect } from '@playwright/test';
@@ -49,7 +49,7 @@ test('checkout stays fast', async ({ page, ogygia }) => {
 });
 ```
 
-The server under test needs the [`devtools()` plugin](/docs/devtools/overview#enabling) listed: the dev server, or a preview build with devtools on (see [Devtools in a build](/docs/devtools/overview#enabling-in-a-build-a-preview-deploy)). The fixture turns devtools on for your `baseURL` (the `og_devtools` cookie), or with no `baseURL` for the origin of the first page the test opens, so each page is measured from its first load. `profile()` needs `devtools({ profiler: true })`. On a build, give it the profiler's key:
+The server under test needs the [`devtools()` plugin](/docs/devtools/overview#enabling) listed, which means either the dev server or a preview build with devtools on (see [Devtools in a build](/docs/devtools/overview#enabling-in-a-build-a-preview-deploy)). The fixture turns devtools on (with the `og_devtools` cookie) for your `baseURL`, or, if there is no `baseURL`, for the origin of the first page the test opens, so each page is measured from its first load. `profile()` also needs `devtools({ profiler: true })`, and on a build you give it the profiler's key:
 
 ```ts title=playwright.config.ts
 export default defineConfig({
@@ -57,22 +57,26 @@ export default defineConfig({
 });
 ```
 
-A recording can span pages: actions that do a full page load (`page.goto`, a form post, a plain link) keep recording on the next page, and the report covers all of them (`session.counts.pages`). If the actions leave for a document with no testing API (another site, a page without devtools), the recording is lost and `record()` says so, with your actions' own error as its `cause`.
+If the profiler is mounted somewhere other than `/__profiler` (its `path` option), give the same path as `profilerBase`, so that `profile()` and `record(…, { server: true })` find it.
 
-To keep the page instead, record with `blockNavigation`. Every document load the actions cause (a reload in a handler, a stray link) is answered `204`, so the browser stays where it is, and each one is listed:
+`page()`, `hydration()` and `record()` each wait for the page to settle before they measure: no island hydrating, nothing woken for 300 ms, and the document fully loaded, for at most 10 seconds. When your own steps need the same wait, for example before a screenshot, call `ogygia.settled()`. It takes `{ quiet, timeout }` in ms and resolves to `true` once the page settled, or `false` if the timeout passed first.
+
+A recording can span pages. Actions that cause a full page load (`page.goto`, a form post, a plain link) keep recording on the next page, and the report covers all of them (`session.counts.pages`). If the actions leave for a document that has no testing API (another site, or a page without devtools), the recording is lost, and `record()` says so with your actions' own error as its `cause`.
+
+To stay on the page instead, record with `blockNavigation`. Every document load the actions cause (a reload in a handler, a stray link) is answered with `204`, so the browser stays where it is, and each one is listed:
 
 ```ts
 const session = await ogygia.record(() => page.getByRole('button', { name: 'Filter' }).click(), { blockNavigation: true });
 session.navigations; // [{ url: 'https://…/products', after: 'button.filter "Filter"', island: 'ProductFilter', t: 4120, approx: false }]
 ```
 
-`after` is what started the navigation, seen as it began: the link or form, or the input being handled then (a reload inside a click handler names that button). Where the browser cannot say (no Navigation API, which is Chromium-only) or the site runs an older engine, `approx` is `true` and `after` is only the last input before it. `navigations` is the list to count and compare. Each entry is also a `navigation-blocked` finding, for reading, which `compare` leaves out.
+`after` is what started the navigation, as seen when it began: the link or form, or the input being handled at the time (a reload inside a click handler names that button). Where the browser cannot tell (it has no Navigation API, which is Chromium-only) or the site runs an older engine, `approx` is `true` and `after` is only the last input before the navigation. `navigations` is the list to count and compare. Each entry also appears as a `navigation-blocked` finding for reading, which `compare` leaves out.
 
-Each island in `hydration()` has a `key` for its instance, so a diff can say which carousel broke: `Carousel#2`, the second island of that name in page order. That number moves when an island is added earlier on the page. For a key that survives that, give the fixture `ogygiaOptions: { islandKey: 'data-block-id' }`: each island is keyed by that attribute on itself or its nearest ancestor that has it, across shadow roots (an island inside a web component finds the block around the component). Two islands under the same keyed element are `id` and `id#2`. Each island also carries `t0` and `done`, when it began to wake and when it could answer, in ms on the page's clock, so one report tells which step of a session woke it. Session findings carry `names`, the islands they point at, like page findings.
+Each island in `hydration()` has a `key` for its instance, so a diff can say which carousel broke: `Carousel#2` is the second island of that name in page order. That number shifts when an island is added earlier on the page. For a key that survives such changes, give the fixture `ogygiaOptions: { islandKey: 'data-block-id' }`, and each island is keyed by that attribute on itself or on its nearest ancestor that has it, across shadow roots (so an island inside a web component finds the block around the component). Two islands under the same keyed element become `id` and `id#2`. Each island also carries `t0` and `done`, the times when it began to wake and when it could respond, in ms on the page's clock, so a single report tells you which step of a session woke it. Session findings carry `names`, the islands they point at, as page findings do.
 
 ### Changed, but how?
 
-A `changed` island says what kind of change it was. `attributesOnly: true` means the same elements and text, with only attributes different, listed in `attributes` as `{ tag, name, from, to }`. That is often not the app rendering differently: a web component setting its own `tabindex` or `aria-*` as it upgrades, or an inline style set and cleared. `inputDuringHydration: true` means a pointer, a key press or focus landed on the island while it hydrated, so its DOM may have answered that input. Let either through in a matcher, or leave chosen attribute changes out of the report altogether:
+A `changed` island says what kind of change it was. `attributesOnly: true` means the elements and text are the same and only attributes differ; they are listed in `attributes` as `{ tag, name, from, to }`. Often that is not the app rendering differently, but a web component setting its own `tabindex` or `aria-*` as it upgrades, or an inline style being set and cleared. `inputDuringHydration: true` means a pointer, a key press or focus landed on the island while it hydrated, so its DOM may have responded to that input. You can let either case through in a matcher, or leave chosen attribute changes out of the report altogether:
 
 ```ts
 expect(await ogygia.hydration()).toHydrateCleanly({ allowAttributeChanges: true, allowInput: true });
@@ -81,17 +85,17 @@ expect(await ogygia.hydration()).toHydrateCleanly({ allowAttributeChanges: true,
 use: { ogygiaOptions: { ignoreAttributes: [{ tag: /^qds-/, name: /^(tabindex|aria-)/ }, { name: 'style', value: '' }] } }
 ```
 
-A rule matches the element's tag, the attribute's name and its new value (its old one when it was removed). A string matches exactly, and a RegExp by test.
+A rule matches the element's tag, the attribute's name and its new value (or its old value when the attribute was removed). A string matches exactly, and a RegExp matches by `test`.
 
 ### What measuring costs, and lean testing
 
-Measuring isn't free. Devtools checks each island's markup as it hydrates, builds its report, and loads the testing engine. A visitor with devtools off pays none of that. `page().self` says what it cost: `script_ms` is the main-thread time of ogygia's own measuring so far (by `phases`), and `bytes` is the decoded size of the testing engine's files. Subtract both from a CPU or JS-weight measurement.
+Measuring has a cost. The devtools check each island's markup as it hydrates, build their report and load the testing engine, none of which a visitor with devtools off pays for. `page().self` tells you what it cost: `script_ms` is the main-thread time spent on ogygia's own measuring so far (broken down by `phases`), and `bytes` is the decoded size of the testing engine's files. Subtract both from any CPU or JS-weight measurement.
 
-Lean testing goes further. With `ogygiaOptions: { lean: true }` (the `og_testing=lean` cookie beside `og_devtools=on`, or `?og-testing=lean`), the page runs the testing API and nothing else of devtools: no launcher, no dock, no watcher of its timers, no event side-channel in its HTML. It loads what it loads with devtools off, plus the testing engine when a test first asks. Findings that need the server's events are not there in that mode. Every report says which mode ran (`engine.lean`), and an engine before version 3 ignores the cookie and runs full devtools.
+Lean testing reduces the cost further. With `ogygiaOptions: { lean: true }` (which sets the `og_testing=lean` cookie next to `og_devtools=on`, or use `?og-testing=lean`), the page runs the testing API and nothing else from the devtools: no launcher, no dock, no watcher of its timers and no event side channel in its HTML. It loads what it would load with devtools off, plus the testing engine when a test first asks for it. Findings that need the server's events are not available in this mode. Every report says which mode ran (`engine.lean`), and an engine older than version 3 ignores the cookie and runs the full devtools.
 
 ### When the site runs an older ogygia
 
-The reports are built by the page's testing engine, which ships with the site's build, not with your test's `ogygia` package. A check that measures an older deploy (a baseline) next to a new preview gets older reports from it. Every report says which engine answered (`report.engine.version`; 3 is current), and the first older one logs one warning per site for the whole run. What the test side knows is filled in: `navigations` from the loads it held back (with `approx: true`), `names: []` on findings. Instance keys and `counts.cls` are absent there, and `compare` then tallies hydration by name and skips the session's CLS rather than report a false move.
+The reports are built by the page's testing engine, which ships with the site's build rather than with your test's `ogygia` package. A check that measures an older deploy (a baseline) next to a new preview therefore gets older reports from the baseline. Every report says which engine answered (`report.engine.version`, where 3 is current), and the first older report logs one warning per site for the whole run. Whatever the test side knows is filled in: `navigations` from the loads it held back (with `approx: true`), and `names: []` on findings. Instance keys and `counts.cls` are missing from older reports, so `compare` then counts hydration by island name and skips the session's CLS rather than report a change that did not happen.
 
 What each engine version detects:
 
@@ -101,11 +105,11 @@ What each engine version detects:
 | 2         | instance `key`, `t0` / `done`, `navigations`, finding `names`, `counts.cls`                      | A router navigation that never swapped the page no longer starts a new page for `page()`. Hydration status as in 1. |
 | 3         | `attributesOnly`, `attributes`, `inputDuringHydration`, `ignoreAttributes`, `self`, lean testing | Hydration status as in 1 and 2. The new fields only say what kind of change it was.                                 |
 
-So an island that reads `clean` on one engine and `changed` on another differed in that run. Input landing while it hydrated is the usual cause, and version 3 flags it.
+Since hydration status is detected the same way in every version, an island that reads `clean` on one engine and `changed` on another really did differ in that run. Input landing while it hydrated is the usual cause, and version 3 flags it.
 
 ## The server, over the same actions
 
-`record(actions, { server: true })` also records the server while your actions run: the profiler's CPU across every request they made, their outbound calls, and the requests themselves. It lands on the session as `server`:
+`record(actions, { server: true })` also records the server while your actions run, capturing the profiler's CPU across every request they made, their outbound calls, and the requests themselves. The result lands on the session as `server`:
 
 ```ts
 const session = await ogygia.record(() => page.getByRole('button', { name: 'Buy' }).click(), { server: true });
@@ -115,26 +119,26 @@ expect(session.server).toHaveNoFindings({ severity: 'warn' });
 expect(session).toMeetBudget({ serverBusyMs: 300 });
 ```
 
-Under the hood this is the profiler's window: `POST /__profiler/window/start`, then `POST /__profiler/window/stop` answers the report. One window runs at a time. It waits a few seconds for a background sample to finish, and stops itself after a minute.
+Under the hood this uses the profiler's window: `POST /__profiler/window/start` opens it, and `POST /__profiler/window/stop` answers with the report. Only one window runs at a time. It waits a few seconds for a background sample to finish, and stops itself after a minute.
 
-On a serverless deployment, start, the session's requests and stop can each land on another instance. Give the profiler a store (redis, postgres or SQLite, see the profiler's storage docs) and it works anyway:
+On a serverless deployment, the start, the session's requests and the stop can each land on a different instance. If you give the profiler a [shared store](/docs/profiler/recording#shared-report-storage) (Redis or Postgres, or a custom one; see [the storage interface](/docs/api/devtools-profiler-storage)), it works anyway:
 
-- Start answers a signed window id, and the driver adds it to each of the session's requests to the site (`x-og-window`).
+- Start answers with a signed window id, and the driver adds it to each of the session's requests to the site (`x-og-window`).
 - Every instance writes such a request, with its own `cpu_ms`, to the store before it answers.
-- Stop, on any instance, gathers them. `window.instances` says how many served the session.
-- The CPU profile is the starting instance's, since sampling is per process. A stop that lands elsewhere returns the requests without it.
+- Stop, on any instance, gathers them, and `window.instances` says how many instances served the session.
+- The CPU profile comes from the instance that started the window, since sampling is per process, so a stop that lands elsewhere returns the requests without it.
 
-A window that cannot run never costs you the session: `session.server` is then `{ error }`.
+A window that cannot run never costs you the session; `session.server` is then `{ error }`.
 
 ## Profiles for a CI check
 
-- **`engine.version`:** a profile names the ogygia that produced it, the same number as the page reports. Its detectors come and go with it, so compare profiles only across one version. One from 0.8.2 has no `engine`.
+- **`engine.version`:** a profile names the ogygia version that produced it, the same number the page reports use. Its detectors change with that version, so compare profiles only within one version. A profile from 0.8.2 has no `engine`.
 - **`profile(path, { fields: ['requests', 'network', 'findings', 'assets', 'summary'] })`:** returns only those sections. A full report is hundreds of KB, mostly `stacks`, `hot_functions` and `drill`.
-- **`?weigh=full`:** weighs every file the page loads with no time budget (on a serverless host, what the request has left), so `assets.totals` holds run to run. Each file it could not weigh says why in `assets.missed_why`: `budget`, `timeout`, `status 404`, `file cap` or `error`.
-- **`Document-Policy: js-profiling`:** a page with devtools switched on is sent it, so the browser's CPU sampler runs without the app sending it.
+- **`?weigh=full`:** weighs every file the page loads without a time budget (on a serverless host, within whatever time the request has left), so `assets.totals` stays stable from run to run. Each file it could not weigh says why in `assets.missed_why`: `budget`, `timeout`, `status 404`, `file cap` or `error`.
+- **`Document-Policy: js-profiling`:** a page with devtools switched on is sent this header, so the browser's CPU sampler runs without the app having to send it.
 - **`page().route`:** the SvelteKit route id the server rendered, on a build with devtools on.
-- **More CPU functions:** `ogygiaOptions: { cpuFunctions: 50 }` keeps more than 15 of `page().cpu.fns`.
-- **Session lists:** `session.failed` lists every request that answered an error status. `session.by_element` gives the slowest interaction on each element the session touched, at 0 for a click too quick for the browser to time.
+- **More CPU functions:** `ogygiaOptions: { cpuFunctions: 50 }` keeps more than the default 15 entries in `page().cpu.fns`.
+- **Session lists:** `session.failed` lists every request that answered with an error status. `session.by_element` gives the slowest interaction on each element the session touched, with 0 for a click too quick for the browser to time.
 
 ## The matchers
 
@@ -146,7 +150,7 @@ A window that cannot run never costs you the session: `session.server` is then `
 
 A failing matcher says what missed and where: `Clock: changed — −rendered on the server +rendered on the browser`.
 
-Budget lines, by report:
+The budget lines available for each report:
 
 | Report      | Lines                                                                                                                                                |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -158,7 +162,7 @@ Budget lines, by report:
 
 ## Reports in CI
 
-Every report a test takes is attached to its result as `ogygia.json`. Playwright's HTML reporter shows it, and the JSON reporter carries it. Two helpers turn two runs (a base branch and a head branch) into a PR comment:
+Every report a test takes is attached to its result as `ogygia.json`, which Playwright's HTML reporter shows and its JSON reporter carries. A full profile is hundreds of KB, so the attachment keeps a slim copy of each one (its score, forecast, findings, asset totals, links and top ten hot functions), and the other reports whole. `forAttachment(report)` returns that same form, for a harness that writes its own attachments (set `attach: false` in `ogygiaOptions` to turn the fixture's off). Two helpers turn two runs (a base branch and a head branch) into a PR comment:
 
 ```ts title=scripts/ogygia-comment.ts
 import { compare, toMarkdown } from '@ogygia/testing';
@@ -168,26 +172,26 @@ const diff = compare(baseRun, headRun);
 console.log(toMarkdown(diff)); // what moved, per test
 ```
 
-Per test, the diff carries:
+For each test, the diff carries:
 
 - **Findings:** new and fixed, by code.
-- **Profiles:** score, server render and JS at start, with the files behind a JS move.
+- **Profiles:** score, server render and JS at start, with the files behind any change in JS.
 - **Hydration:** each island instance that stopped or started hydrating cleanly (`Carousel#2: clean → failed`).
 - **Sessions:** the counts that moved (errors, unexpected shifts, slow interactions, blocked navigations, the session's CLS).
-- **Vitals:** only those that moved past a run's noise. Defaults: LCP and FCP 150 ms, TTFB 100 ms, INP 50 ms (each also 10 % of the base), CLS 0.02. Set your own with `compare(baseRun, headRun, { noise: { lcp: 300 } })`.
+- **Vitals:** only those that moved by more than a run's noise. The defaults are 150 ms for LCP and FCP, 100 ms for TTFB and 50 ms for INP (each also at least 10 % of the base value), and 0.02 for CLS. Set your own with `compare(baseRun, headRun, { noise: { lcp: 300 } })`.
 
 ### Several runs a side
 
-Real pages are noisy, and one run against one run turns that noise into false regressions: a scripted session's errors, failed requests and interaction shifts depend on the path it happened to take. Give a test several runs a side, `{ test, runs: [reports, reports, reports] }`, and `compare` splits the signals:
+Real pages are noisy, and comparing one run against one run turns that noise into false regressions, because a scripted session's errors, failed requests and interaction shifts depend on the path it happened to take. Give a test several runs per side, `{ test, runs: [reports, reports, reports] }`, and `compare` treats the signals differently:
 
-- **Load signals** (page vitals and findings, hydration, the profile's score, render time and JS) are compared on the runs' median. A finding or a broken island counts when most runs have it.
-- **Session signals** (its findings, errors, shifts, slow interactions, blocked navigations) count only when every head run has them and no base run does. A count moves only when every head run is above every base run, or below.
+- **Load signals** (page vitals and findings, hydration, and the profile's score, render time and JS) are compared on the median of the runs. A finding or a broken island counts when most runs have it.
+- **Session signals** (the session's findings, errors, shifts, slow interactions and blocked navigations) count only when every head run has them and no base run does. A count moves only when every head run is above every base run, or every head run is below.
 
-Three runs a side is a good start, for the pages whose first pass shows a candidate.
+Three runs per side is a good starting point for the pages whose first pass shows a possible regression.
 
 ## Other runners and drivers
 
-`createOgygia(driver)` gives the same four primitives over any driver that can run a function in the page (`evaluate`) and, for `profile()`, make a request (`get`). Puppeteer's `Page` fits. The matchers are plain `expect.extend` matchers:
+`createOgygia(driver)` gives the same four primitives over any driver that can run a function in the page (`evaluate`) and, for `profile()`, make a request (`get`). Puppeteer's `Page` works, for example. The matchers are plain `expect.extend` matchers:
 
 ```ts
 import { expect } from 'vitest';
@@ -197,7 +201,20 @@ expect.extend(ogygiaMatchers);
 const ogygia = createOgygia({ evaluate: (fn, arg) => page.evaluate(fn, arg) });
 ```
 
-Holding Playwright pages yourself (two browser contexts in one test, say a preview and a baseline) without the fixture? `playwrightDriver(page)` is the driver the fixture builds, `blockNavigation` included, and `turnOnDevtools(page, baseURL)` sets the cookie. `onNavigationHeld` is called as each load is held back, so you can note which step of your script was running:
+The driver is an `OgygiaDriver`, and only `evaluate` is required. The other members let a driver do what the defaults cannot:
+
+| Member                       | What it does                                                                                                                                                                           | Without it                                    |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `evaluate(fn, arg)`          | Runs `fn(arg)` in the page and returns its JSON result.                                                                                                                                | required                                      |
+| `get(url, headers)`          | Makes a GET request relative to the app, for `profile()`. Returns `{ status, body }`.                                                                                                  | `fetch` inside the page                       |
+| `post(url, headers)`         | Makes a POST request relative to the app, for the server window of `record(…, { server: true })`.                                                                                      | `fetch` inside the page                       |
+| `wait(ms)`                   | Waits.                                                                                                                                                                                 | a timer                                       |
+| `blockNavigation()`          | Starts holding back the page's document loads, for `record(…, { blockNavigation: true })`. Returns `{ stop() }`, which lists them.                                                     | `record(…, { blockNavigation: true })` throws |
+| `tagRequests(header, value)` | Adds a header to every request the page makes to its own origin until the returned function is called, so a serverless deployment can tie the session's requests to its server window. | requests go untagged                          |
+
+`createOgygia(driver, options)` takes the same options as the fixture's `ogygiaOptions`, apart from `attach` and `lean`, which belong to the fixture.
+
+If you manage Playwright pages yourself without the fixture (for example two browser contexts in one test, one for a preview and one for a baseline), `playwrightDriver(page)` gives you the driver the fixture builds, `blockNavigation` included, and `turnOnDevtools(page, baseURL)` sets the cookie. `onNavigationHeld` is called each time a load is held back, so you can note which step of your script was running:
 
 ```ts
 import { createOgygia, playwrightDriver, turnOnDevtools } from '@ogygia/testing';

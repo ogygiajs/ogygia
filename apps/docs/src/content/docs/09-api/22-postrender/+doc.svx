@@ -1,0 +1,8 @@
+---
+title: '@ogygia/postrender'
+summary: Postrender's handle, invalidation, stores and edge adapters.
+---
+
+This page is generated from the package's own `.d.ts` files on every build, so the signatures, descriptions and examples below always match the source.
+
+> MODULE: @ogygia/postrender

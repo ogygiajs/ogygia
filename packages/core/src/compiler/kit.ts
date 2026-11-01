@@ -1,6 +1,7 @@
 import { fs, path, dir_entries } from './host.ts';
 import { createRequire } from 'node:module';
 import { ISLAND_DIR } from './region/transform.ts';
+import { parse_module, type AstNode } from './parse/oxc.ts';
 
 /** The Kit-internal + app paths ogygia deep-imports (resolved off the APP root, not this package). */
 export interface KitPaths {
@@ -150,9 +151,8 @@ export function kit_inline_style_threshold(root: string): number {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CSR_EXPORT = /export\s+const\s+csr(?:\s*:\s*boolean)?\s*=\s*(true|false)/;
-const OPTION_FILE_RE = /(?:^|[/\\])\+(?:page|layout)(?:\.server)?\.(?:js|ts)$/;
-// Comment strippers shared by the option-file readers: a COMMENTED-OUT `export const csr|freeze`
-// must never win the first-match read. Block comments, plus WHOLE-LINE `//` only (a partial-line
+// Comment strippers for the csr reader: a COMMENTED-OUT `export const csr` must never win the
+// first-match read. Block comments, plus WHOLE-LINE `//` only (a partial-line
 // `//` is left so it can't eat a `://` inside a string; a trailing comment can't flip the reading).
 const BLOCK_COMMENT_G = /\/\*[\s\S]*?\*\//g;
 const LINE_COMMENT_G = /^[ \t]*\/\/.*$/gm;
@@ -186,68 +186,100 @@ function read_csr_uncached(file: string): boolean | undefined {
 	}
 }
 
-// ── ROUTE OPTIONS (a plugin's per-route boolean: plugin/routes.ts) ─────────────────────────
-// `export const <name> = true|false` in a page/layout option file, for each name a plugin declares
-// (`compile.routeOptions`). Read with Kit's own cascade (option-file chain, deepest declaration
-// wins, layouts included — the walk `csr` uses), and STRIPPED before Kit sees the module: Kit's
-// export validators reject any non-Kit page export. Names are validated identifiers (options.ts),
-// so the patterns built from them are safe; built once per name, used at build/dev time only.
-const option_read_re = new Map<string, RegExp>();
-const option_strip_re = new Map<string, RegExp>();
-function read_re(name: string): RegExp {
-	let re = option_read_re.get(name);
-	if (!re)
-		option_read_re.set(
-			name,
-			(re = new RegExp(`export\\s+const\\s+${name}(?:\\s*:\\s*boolean)?\\s*=\\s*(true|false)`))
-		);
-	return re;
-}
-function strip_re(name: string): RegExp {
-	let re = option_strip_re.get(name);
-	if (!re)
-		option_strip_re.set(
-			name,
-			(re = new RegExp(
-				`export\\s+const\\s+${name}(?:\\s*:\\s*boolean)?\\s*=\\s*(?:true|false)\\s*;?`,
-				'g'
-			))
-		);
-	return re;
+// ── ROUTE CONFIG (the keys plugins claim inside Kit's `config` page option: plugin/routes.ts) ──
+// `export const config = { <key>: <literal> }` in a page/layout module, for each key a plugin claims
+// (`b.routeConfig(key)`). Kit accepts any key inside `config` and merges it itself at run time; ogygia
+// reads the claimed keys at BUILD time, merged the same way, so the server knows a page's value
+// before Kit runs. Nothing is stripped. Read with the compiler's parser, not a pattern: `config` is
+// an object, and a type annotation, `satisfies` or `as const` around it must not hide a key.
+
+/** Each module's claimed `config` keys, read once until a route file changes (`clear_route_csr_cache`). */
+const _config_of_file = new Map<string, Record<string, unknown>>();
+
+/** `x as T` · `x satisfies T` · `<T>x` · `x!` · `(x)` → `x`. */
+function unwrap_expression(node: AstNode | null | undefined): AstNode | null {
+	let n = node ?? null;
+	while (
+		n &&
+		(n.type === 'TSAsExpression' ||
+			n.type === 'TSSatisfiesExpression' ||
+			n.type === 'TSTypeAssertion' ||
+			n.type === 'TSNonNullExpression' ||
+			n.type === 'ParenthesizedExpression')
+	)
+		n = n.expression;
+	return n;
 }
 
-/** Read `export const <name> = true|false` from a route options file; `undefined` if unset/absent.
- *  Same comment-stripping as {@link read_csr} so a commented-out declaration never wins. */
-export function read_route_option(file: string, name: string): boolean | undefined {
+/** The object literal `export const config = {…}` declares in `program`, or null. */
+function config_object(program: AstNode): AstNode | null {
+	for (const statement of program.body ?? []) {
+		if (statement.type !== 'ExportNamedDeclaration') continue;
+		const declaration = statement.declaration;
+		if (declaration?.type !== 'VariableDeclaration') continue;
+		for (const d of declaration.declarations ?? []) {
+			if (d.id?.type !== 'Identifier' || d.id.name !== 'config') continue;
+			const init = unwrap_expression(d.init);
+			return init?.type === 'ObjectExpression' ? init : null;
+		}
+	}
+	return null;
+}
+
+/** A plain literal value (boolean, number, string, null), or `NOT_LITERAL`. */
+const NOT_LITERAL: unique symbol = Symbol('not-literal');
+function literal_value(node: AstNode | null): unknown {
+	const n = unwrap_expression(node);
+	if (n?.type !== 'Literal' || n.regex || n.bigint !== undefined) return NOT_LITERAL;
+	return n.value;
+}
+
+/**
+ * The claimed keys `export const config = {…}` sets in one route module: its literal-valued top-level
+ * properties named in `keys`. `{}` when the file, the export or the keys are absent (a spread or a
+ * `config` that is not an object literal is Kit's to read, not ours). A claimed key with a computed
+ * value is a build error: it is read at build time, so ogygia could not honour it.
+ */
+export function read_route_config(file: string, keys: readonly string[]): Record<string, unknown> {
+	const memo = file + '\0' + keys.join(',');
+	let out = _config_of_file.get(memo);
+	if (!out) _config_of_file.set(memo, (out = read_route_config_uncached(file, keys)));
+	return out;
+}
+
+function read_route_config_uncached(
+	file: string,
+	keys: readonly string[]
+): Record<string, unknown> {
+	const out: Record<string, unknown> = {};
+	let src: string;
 	try {
-		let src = fs.readFileSync(file, 'utf-8');
-		src = src.replace(BLOCK_COMMENT_G, '').replace(LINE_COMMENT_G, '');
-		const m = read_re(name).exec(src);
-		return m ? m[1] === 'true' : undefined;
+		src = fs.readFileSync(file, 'utf-8');
 	} catch {
-		return undefined;
+		return out; // no such module on this level
 	}
+	// cheap out — the common module mentions neither `config` nor a claimed key
+	if (!src.includes('config') || !keys.some((k) => src.includes(k))) return out;
+	const { program } = parse_module(src, file);
+	const object = program && config_object(program);
+	if (!object) return out;
+	for (const property of object.properties ?? []) {
+		if (property.type !== 'Property' || property.computed) continue;
+		const key: unknown =
+			property.key?.type === 'Identifier' ? property.key.name : property.key?.value;
+		if (typeof key !== 'string' || !keys.includes(key)) continue;
+		const value = literal_value(property.value);
+		if (value === NOT_LITERAL)
+			throw new Error(
+				`[ogygia] ${file}: \`config.${key}\` must be a literal (true, false, a number, a string or null) — ogygia reads it at build time.`
+			);
+		out[key] = value;
+	}
+	return out;
 }
 
-/** True for a route option file (`+page(.server).{js,ts}` / `+layout(.server).{js,ts}`) under
- *  `routesDir` — where a route option may live and must be stripped before Kit. */
-export function is_route_option_file(id: string, routesDir: string): boolean {
-	const clean = id.split('?')[0];
-	return clean.startsWith(routesDir) && OPTION_FILE_RE.test(clean);
-}
-
-/** Remove each declared `export const <name> = true|false` from a route option file's source
- *  (length-preserving: blanked to a same-length comment, so offsets and source maps hold). The
- *  VALUES are read from disk separately ({@link page_route_options}); this keeps Kit from choking. */
-export function strip_route_options(code: string, names: readonly string[]): string {
-	for (const name of names) {
-		if (!code.includes(name)) continue; // cheap out — the common file has none
-		code = code.replace(strip_re(name), (m) =>
-			m.length >= 4 ? '/*' + ' '.repeat(m.length - 4) + '*/' : ' '.repeat(m.length)
-		);
-	}
-	return code;
-}
+const CONFIG_FILES_PAGE = ['+page.server.js', '+page.server.ts', '+page.js', '+page.ts'];
+const CONFIG_FILES_LAYOUT = ['+layout.server.js', '+layout.server.ts', '+layout.js', '+layout.ts'];
 
 const OPTION_FILES_PAGE = ['+page.js', '+page.ts', '+page.server.js', '+page.server.ts'];
 const OPTION_FILES_LAYOUT = ['+layout.js', '+layout.ts', '+layout.server.js', '+layout.server.ts'];
@@ -452,21 +484,21 @@ export function csrTrueRouteIds(routesDir: string): string[] {
 	return [...ids];
 }
 
-// ── ROUTE OPTIONS, per page ───────────────────────────────────────────────────────────────
-// Each page's declared value for every plugin route option, by Kit's cascade (see
-// read_route_option above). The plugin applies its own default to an undeclared page. Memoized per
-// routesDir + names; cleared on a dev route-topology change alongside the csr maps.
-const _page_options = new Map<string, Record<string, Record<string, boolean>>>();
+// ── ROUTE CONFIG, per page ────────────────────────────────────────────────────────────────
+// Each page's merged value for every claimed `config` key (see read_route_config above). The plugin
+// applies its own default to a key no level sets. Memoized per routesDir + keys; cleared on a dev
+// route-topology change alongside the csr maps.
+const _page_config = new Map<string, Record<string, Record<string, unknown>>>();
 
 // A `+page.*` file: svelte host, universal, OR server — a route dir with ANY of these produces a
-// page RESPONSE. Unlike csr (which is about hydrating a rendered `+page.svelte`), a route option
+// page RESPONSE. Unlike csr (which is about hydrating a rendered `+page.svelte`), route config
 // can concern a redirect-only route (a `+page.server.ts` that throws `redirect()`, no
 // `+page.svelte`: a stored redirect), so the enumeration includes those too.
 const PAGE_FILE_RE = /^\+page(\.server)?\.(svelte|js|ts)$/;
 
 /** Every route dir with a `+page.*` file — a route that produces a page response (rendered HTML or
  *  a stored redirect). Broader than {@link pageLeaves} (svelte-only) on purpose. */
-function option_page_dirs(routesDir: string): string[] {
+function config_page_dirs(routesDir: string): string[] {
 	const dirs = new Set<string>();
 	const walk = (dir: string) => {
 		for (const e of route_entries(dir)) {
@@ -479,11 +511,14 @@ function option_page_dirs(routesDir: string): string[] {
 	return [...dirs];
 }
 
-/** Own-chain declared value of one option for one page DIR — deepest-wins over the layout chain
- *  (root → the dir, its own `+layout` included) then the page's own option files. `undefined` = no
- *  declaration anywhere (the plugin's default applies). */
-function own_chain_option(pageDir: string, routesDir: string, name: string): boolean | undefined {
-	let val: boolean | undefined;
+/** One page DIR's merged config, claimed keys only — Kit's own merge (`get_config`): the layout chain
+ *  root → the dir (its own `+layout` included), then the page; at each level the server module, then
+ *  the universal one; a later level replaces a key, top level only. A key no level sets is absent. */
+function own_chain_config(
+	pageDir: string,
+	routesDir: string,
+	keys: readonly string[]
+): Record<string, unknown> {
 	const rel = path.relative(routesDir, pageDir);
 	const parts = rel ? rel.split(path.sep) : [];
 	let cur = routesDir;
@@ -492,17 +527,13 @@ function own_chain_option(pageDir: string, routesDir: string, name: string): boo
 		cur = path.join(cur, p);
 		chain.push(cur);
 	}
-	for (const d of chain) {
-		for (const f of OPTION_FILES_LAYOUT) {
-			const v = read_route_option(path.join(d, f), name);
-			if (v !== undefined) val = v;
-		}
-	}
-	for (const f of OPTION_FILES_PAGE) {
-		const v = read_route_option(path.join(pageDir, f), name);
-		if (v !== undefined) val = v;
-	}
-	return val;
+	let merged: Record<string, unknown> = {};
+	for (const d of chain)
+		for (const f of CONFIG_FILES_LAYOUT)
+			merged = { ...merged, ...read_route_config(path.join(d, f), keys) };
+	for (const f of CONFIG_FILES_PAGE)
+		merged = { ...merged, ...read_route_config(path.join(pageDir, f), keys) };
+	return merged;
 }
 
 /** A page directory's Kit `route.id`, group-stripped (`normalize_route_id`). */
@@ -511,25 +542,19 @@ function page_route_id(dir: string, routesDir: string): string {
 	return normalize_route_id('/' + (rel ? rel.split(path.sep).join('/') : ''));
 }
 
-/** Every page route id (group-stripped) → each declared option's value. Undeclared options are
- *  absent, so the plugin applies its default; a page with none declared maps to `{}`. */
-export function page_route_options(
+/** Every page route id (group-stripped) → its merged config, claimed keys only. A key no level sets
+ *  is absent, so the plugin applies its default; a page that sets none maps to `{}`. */
+export function page_route_config(
 	routesDir: string,
-	names: readonly string[]
-): Record<string, Record<string, boolean>> {
-	const key = routesDir + '\0' + names.join(',');
-	let m = _page_options.get(key);
+	keys: readonly string[]
+): Record<string, Record<string, unknown>> {
+	const memo = routesDir + '\0' + keys.join(',');
+	let m = _page_config.get(memo);
 	if (!m) {
 		m = {};
-		for (const dir of option_page_dirs(routesDir)) {
-			const values: Record<string, boolean> = {};
-			for (const name of names) {
-				const v = own_chain_option(dir, routesDir, name);
-				if (v !== undefined) values[name] = v;
-			}
-			m[page_route_id(dir, routesDir)] = values;
-		}
-		_page_options.set(key, m);
+		for (const dir of config_page_dirs(routesDir))
+			m[page_route_id(dir, routesDir)] = own_chain_config(dir, routesDir, keys);
+		_page_config.set(memo, m);
 	}
 	return m;
 }
@@ -559,7 +584,8 @@ export function clear_route_csr_cache(): void {
 	_csr_of_file.clear();
 	_has_csr_true.clear();
 	_page_worlds.clear();
-	_page_options.clear();
+	_page_config.clear();
+	_config_of_file.clear();
 }
 
 // The build-time keepalive route ogygia injects to defeat Kit's skip (see index.ts). It must be

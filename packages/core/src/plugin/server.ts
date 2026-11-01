@@ -7,7 +7,8 @@ import type { Handle, RequestEvent } from '@sveltejs/kit';
 import type { RequestContext, ResolveOptions, ServerApp, ServerPlugin } from './index.ts';
 import { current_facts, facts_of, mark_per_visitor, type RequestFacts } from './facts.ts';
 import { ask, notify, register_hooks } from './hooks.ts';
-import { route_option } from './routes.ts';
+import { route_config } from './routes.ts';
+import { plugin_capabilities, type CapabilitySigner } from './capability.ts';
 import { record_server_event } from '../events/server-registry.ts';
 
 /** One plugin's server half as the build lists it (`virtual:ogygia/server-plugins`). */
@@ -23,11 +24,9 @@ export interface LivePlugin {
 	app: ServerApp<unknown>;
 }
 
-/** The app's signer, handed in by the handle (it holds the region key). */
-export interface AppSigner {
-	sign(message: string): string;
-	verify(message: string, signature: string): boolean;
-}
+/** The app's signer, handed in by the handle (it holds the region key, and answers a refused
+ *  capability the way it answers a refused region request). */
+export type AppSigner = CapabilitySigner;
 
 /** Make each plugin live, in order: app, shared hooks, `setup`. */
 export function start_plugins(
@@ -45,6 +44,7 @@ export function start_plugins(
 			current: current_facts,
 			sign: signer.sign,
 			verify: signer.verify,
+			capability: plugin_capabilities(name, signer),
 			devtools: record_server_event,
 			warn(message) {
 				if (warned.has(message)) return;
@@ -113,7 +113,7 @@ export function request_contexts(
 	render_hole: (endpoint: string) => Promise<string | null>
 ): RequestContext<unknown, unknown>[] {
 	const route_id = event.route?.id;
-	const route_opt = (name: string) => route_option(name, route_id, path);
+	const route_cfg = (key: string) => route_config(key, route_id, path);
 	const per_visitor = (reason: string) => mark_per_visitor(facts, reason);
 	return plugins.map(({ def, app }) => ({
 		event,
@@ -122,7 +122,7 @@ export function request_contexts(
 		options: app.options,
 		app,
 		facts,
-		routeOption: route_opt,
+		routeConfig: route_cfg,
 		renderHole: render_hole,
 		perVisitor: per_visitor
 	}));

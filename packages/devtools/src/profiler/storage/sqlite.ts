@@ -5,8 +5,10 @@
  * insert, a get one indexed lookup, off the request's hot path (a report is written once, after
  * the recording).
  *
- *   import { sqliteStore } from '@ogygia/devtools/profiler/storage';
- *   ogygia.profiler({ store: sqliteStore('.ogygia/profiles.db') });
+ *   // src/hooks.server.ts
+ *   import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
+ *   import { sqliteStore } from '@ogygia/devtools/profiler/storage/sqlite';
+ *   setProfilerStore(sqliteStore('.ogygia/profiles.db'));
  */
 import { createRequire } from 'node:module';
 import type {
@@ -15,9 +17,7 @@ import type {
 	ProfilerSummary,
 	ProfilerVisitRecord
 } from './index.ts';
-
-/** browser visits kept per page (the profiler reads the latest ten) */
-const MAX_VISITS_PER_PAGE = 20;
+import { MAX_VISITS_PER_KEY } from './visits.ts';
 
 const require = createRequire(import.meta.url);
 
@@ -121,12 +121,12 @@ export function sqliteStore(filename = '.ogygia/profiles.db'): ProfilerStore {
 					'INSERT INTO visits (key,page,at,visit) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET at=excluded.at,visit=excluded.visit'
 				)
 				.run(rec.key, rec.page, rec.at, rec.visit);
-			// the newest MAX_VISITS_PER_PAGE per page (the profiler reads the latest ten)
+			// the newest MAX_VISITS_PER_KEY per key (what a server window reads back)
 			need()
 				.prepare(
 					'DELETE FROM visits WHERE page = ? AND key NOT IN (SELECT key FROM visits WHERE page = ? ORDER BY at DESC LIMIT ?)'
 				)
-				.run(rec.page, rec.page, MAX_VISITS_PER_PAGE);
+				.run(rec.page, rec.page, MAX_VISITS_PER_KEY);
 		},
 		listVisits(page: string, limit = 10): ProfilerVisitRecord[] {
 			return need()

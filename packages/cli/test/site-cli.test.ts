@@ -142,6 +142,30 @@ describe('site init — svelte.config project', () => {
 		// hooks wired
 		expect(read(dir, 'src/hooks.server.ts')).toContain('ogygia.handle()');
 	});
+
+	it('every generated file that reads the site names it by what it imports', () => {
+		const dir = svelteConfigProject();
+		expect(run(dir, ['init', '-y', '--no-install']).status).toBe(0);
+		// the no-JS search page queries the site it imports (`docs`), never an unbound `site`
+		expect(read(dir, 'src/routes/search/+page.server.ts')).toMatch(
+			/import \{ docs \} from '\$lib\/docs';[\s\S]*await docs\.search\(q\)/
+		);
+		for (const f of [
+			'src/routes/+layout.svelte',
+			'src/routes/+page.svelte',
+			'src/routes/[...slug]/+page.ts',
+			'src/routes/[...slug]/+page.svelte',
+			'src/routes/[...slug].md/+server.ts',
+			'src/routes/search.json/+server.ts',
+			'src/routes/sitemap.xml/+server.ts',
+			'src/routes/llms.txt/+server.ts',
+			'src/routes/search/+page.server.ts'
+		]) {
+			const src = read(dir, f);
+			expect(src, f).toContain("import { docs } from '$lib/docs';");
+			expect(src, f).not.toMatch(/\bsite\.\w/);
+		}
+	});
 });
 
 // ── the vite.config (sveltekit({...})) shape ────────────────────────────────
@@ -217,6 +241,9 @@ describe('site init — --layout', () => {
 		// the emit endpoints carry the base too
 		expect(read(dir, 'src/routes/docs/search.json/+server.ts')).toMatch(
 			/docs\.emit\.search\(\{ base: "\/docs" \}\)/
+		);
+		expect(read(dir, 'src/routes/docs/search/+page.server.ts')).toMatch(
+			/docs\.search\(q, \{ base: "\/docs" \}\)/
 		);
 	});
 

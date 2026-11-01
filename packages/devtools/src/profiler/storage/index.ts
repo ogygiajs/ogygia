@@ -6,12 +6,15 @@
  * recordings in one place. A `ProfilerStore` is the seam for that: point the profiler at one and
  * every report is written there and read back from there, across instances and across a restart.
  *
- * The contract is deliberately tiny — put, get, list, delete a report, and (optionally) the same
- * for the browser visits a page collected — so a backend is a few dozen lines. Adapters ship for
+ * The contract is deliberately tiny — put, get, list, delete a report, and (optionally) put and list
+ * visit rows, which carry a server window's requests across instances — so a backend is a few
+ * dozen lines. Adapters ship for
  * SQLite (a file, or `:memory:`), Redis and Postgres; a custom one is any object of this shape.
  *
- *   import { sqliteStore } from '@ogygia/devtools/profiler/storage';
- *   ogygia.profiler({ store: sqliteStore('.ogygia/profiles.db') });
+ *   // src/hooks.server.ts
+ *   import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
+ *   import { sqliteStore } from '@ogygia/devtools/profiler/storage/sqlite';
+ *   setProfilerStore(sqliteStore('.ogygia/profiles.db'));
  *
  * A report is stored as its portable dump (the same JSON the `.ogp` export and the agent view are
  * built from): `meta` + `analysis` + `extras`, plus a few summary columns for the list. Nothing
@@ -39,9 +42,10 @@ export interface ProfilerRecord {
 /** What the list needs — every column of a record except the (large) dump. */
 export type ProfilerSummary = Omit<ProfilerRecord, 'dump'>;
 
-/** One browser visit a page collected (the beacon), as a store holds it. Optional to support. */
+/** One visit row, as a store holds it: today, one request of a server window, written by whichever
+ *  instance served it and listed together under the window's `page` key. Optional to support. */
 export interface ProfilerVisitRecord {
-	/** `${page}\0${epoch_ms}` — unique per visit */
+	/** unique per row (it starts with `page`) */
 	key: string;
 	page: string;
 	/** epoch ms */
@@ -51,8 +55,9 @@ export interface ProfilerVisitRecord {
 }
 
 /**
- * The storage contract. Report methods are required; visit methods are optional (a store that omits
- * them keeps visits in memory as before). All async so a network backend fits; a memory or SQLite
+ * The storage contract. Report methods are required; visit methods are optional (with a store that
+ * omits them, a server window sees only its own instance's requests). All async so a network
+ * backend fits; a memory or SQLite
  * store just resolves immediately.
  */
 export interface ProfilerStore {
@@ -80,8 +85,9 @@ export interface ProfilerStore {
 
 // ── the default: in memory ─────────────────────────────────────────────────────────────────────
 
-/** The default store — a Map with an LRU cap. Exactly what the profiler did before stores existed;
- *  made explicit so the host has one code path. Nothing survives a restart. */
+/** An in-memory store — a Map with an LRU cap. The profiler without a store keeps reports in its own
+ *  memory already, so this adds nothing there; it is for tests and a model for a custom store.
+ *  Nothing survives a restart. */
 export function memoryStore(cap = 50): ProfilerStore {
 	const reports = new Map<string, ProfilerRecord>();
 	const visits: ProfilerVisitRecord[] = [];

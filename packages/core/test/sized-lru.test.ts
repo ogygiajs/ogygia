@@ -1,6 +1,6 @@
 /**
  * SizedLru (server/sized-lru.ts) — the byte-bounded LRU behind the region render cache and the
- * freeze memory store: bytes first, entries second, per-entry expiry, LRU touch on read, and the
+ * postrender memory store: bytes first, entries second, per-entry expiry, LRU touch on read, and the
  * two stores' behaviour on top of it (a multi-MB entry can never blow the budget).
  */
 import { describe, expect, it, beforeEach } from 'vitest';

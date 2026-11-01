@@ -2687,7 +2687,8 @@ export function render_per_item_pattern(
  * THE SAME DOCUMENT EVERY REQUEST: every profiled render returned the same bytes, and nothing it
  * reads is the visitor's (no load takes cookies, locals or the raw request; no outbound call carried
  * a cookie or an authorization header). The whole render can be skipped: a CDN keeps the document
- * (`Cache-Control: s-maxage`, keyed by its URL), or ogygia freezes it. Saving: the render itself.
+ * (`Cache-Control: s-maxage`, keyed by its URL), or ogygia's postrender stores it. Saving: the
+ * render itself.
  */
 export function same_document_pattern(input: {
 	file: string;
@@ -2709,7 +2710,7 @@ export function same_document_pattern(input: {
 	return {
 		kind: 'same-document',
 		title: 'Every request renders the same page again',
-		fix: `Every profiled render returned the same document byte for byte, and nothing it reads belongs to the visitor. Let a cache serve it instead of rendering it.${first} ${first ? 'set' : 'Set'} Cache-Control with s-maxage (a CDN keeps it per URL; stale-while-revalidate refreshes it in the background), or freeze the page with ogygia. Only a change in its data needs a new render. (A \`handle\` hook that reads cookies and changes the page would make it per visitor: the loads cannot show that, so check yours first.)`,
+		fix: `Every profiled render returned the same document byte for byte, and nothing it reads belongs to the visitor. Let a cache serve it instead of rendering it.${first} ${first ? 'set' : 'Set'} Cache-Control with s-maxage (a CDN keeps it per URL; stale-while-revalidate refreshes it in the background), or store the page with ogygia's postrender. Only a change in its data needs a new render. (A \`handle\` hook that reads cookies and changes the page would make it per visitor: the loads cannot show that, so check yours first.)`,
 		example: {
 			before: 'export const load = async ({ fetch }) => { … }',
 			after:

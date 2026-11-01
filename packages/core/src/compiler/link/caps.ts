@@ -8,7 +8,7 @@
 import {
 	csrTrueRouteIds,
 	errorCsrTrueRouteIds,
-	page_route_options,
+	page_route_config,
 	rootLayoutCsrTrue
 } from '../kit.ts';
 
@@ -76,16 +76,16 @@ export function server_plugins_module(ssr: boolean, realms: readonly ServerRealm
 	return `${imports}\nexport const plugins = [\n\t${list}\n];`;
 }
 
-/** `virtual:ogygia/route-options` — SERVER only: every Kit page route id → the plugin route options
- *  it declares (`export const <name>`, cascaded like csr; undeclared options absent). Empty on the
- *  client, and when no plugin declares an option: the route list never ships to the browser. */
-export function route_options_module(
+/** `virtual:ogygia/route-config` — SERVER only: every Kit page route id → the keys the plugins claim
+ *  inside Kit's `config` page option, merged the way Kit merges it (a key no level sets is absent).
+ *  Empty on the client, and when no plugin claims a key: the route list never ships to the browser. */
+export function route_config_module(
 	ssr: boolean,
 	routesDir: string,
-	names: readonly string[]
+	keys: readonly string[]
 ): string {
-	if (!ssr || names.length === 0) return `export const route_options = {};`;
-	return `export const route_options = ${JSON.stringify(page_route_options(routesDir, names))};`;
+	if (!ssr || keys.length === 0) return `export const route_config = {};`;
+	return `export const route_config = ${JSON.stringify(page_route_config(routesDir, keys))};`;
 }
 
 /** `virtual:ogygia/rate-limit` — SERVER only; the region handle is the only consumer. */

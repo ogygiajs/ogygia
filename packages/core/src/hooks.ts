@@ -43,8 +43,8 @@ import {
 	viewTransitions as router_view_transitions
 } from 'virtual:ogygia/router-config';
 import { mpaSpeculationRules } from './compiler/link/speculation.ts';
-import { route_options } from 'virtual:ogygia/route-options';
-import { set_page_route_options } from './plugin/routes.ts';
+import { route_config } from 'virtual:ogygia/route-config';
+import { set_page_route_config } from './plugin/routes.ts';
 import {
 	set_kit_page_reader,
 	set_kit_event_reader,
@@ -73,8 +73,8 @@ import dev_hmr_url from 'virtual:ogygia/dev-hmr-url';
 import { kit_asset as asset } from './kit-paths.ts';
 import devtools_boot_url from 'virtual:ogygia/devtools-boot-url';
 import { sign, verify, region_mac_message } from './server/hmac.ts';
-import { note_cache_control, renewable_expiry } from './server/shared-cache.ts';
-import { regionTtl, renewWindow } from 'virtual:ogygia/region-ttl';
+import { expiry_refusal, note_cache_control } from './server/shared-cache.ts';
+import { app_lifetime } from './server/region-endpoint.ts';
 import { render_cache_key, cached_render } from './server/render-cache.ts';
 import { B64Url } from './server/payload.ts';
 import { REF_WIRE_KEY, ref_reviver } from './ref.ts';
@@ -98,8 +98,7 @@ import {
 	islands_endpoint,
 	MAX_REGION_PROPS_LEN,
 	is_region_id,
-	is_region_ttl,
-	capability_expiry
+	is_region_ttl
 } from './server/endpoint.ts';
 import { build_parcel, done_parcel } from './server/stream-regions.ts';
 import {
@@ -430,15 +429,18 @@ set_current_request(
 set_source_recorder((tag) => {
 	current_facts()?.sources?.push(tag);
 });
-// ROUTE OPTIONS: each Kit page's declared plugin options, baked by the compiler
-set_page_route_options(route_options);
+// ROUTE CONFIG: each Kit page's merged `config`, the keys plugins claim, baked by the compiler
+set_page_route_config(route_config);
 // PLUGINS (listed beside `ogygia()`): each one's server half, live — its app made, its shared hooks
 // registered, its `setup` run — once, when this module loads.
 // Their `app.sign` / `app.verify` use the region key, read at first use (an env the host fills after
-// module eval still counts).
+// module eval still counts). Their `app.capability` lives and renews by the app's own hole lifetime,
+// and a refused one is answered like a refused region request.
 const plugins = start_plugins(plugin_entries, {
 	sign: (message) => sign(signing_key().secret, message),
-	verify: (message, signature) => verify(signing_key().secret, message, signature)
+	verify: (message, signature) => verify(signing_key().secret, message, signature),
+	lifetime: app_lifetime,
+	deny: region_denied
 });
 // DEVTOOLS: per-request event buffers, keyed off the request bag by a side WeakMap so RequestBag stays
 // pristine (and free) when devtools is off. GC'd with the bag; never a global ring (which would mix
@@ -795,7 +797,7 @@ class OgygiaHandle {
 		// arrives at `<base>/__ogygia__`, and the endpoint is a leading-slash, clash-safe path.
 		if (!path.endsWith(this.#endpoint)) {
 			// PAGE FACTS (server/page-facts.ts): a render outside its page looks the page up through
-			// Kit's own data request. Nothing renders here: no bag, no freeze. The answer names the
+			// Kit's own data request. Nothing renders here: no bag, no store. The answer names the
 			// route and params Kit matched, which the data alone does not carry.
 			if (event.isDataRequest && event.request.headers.has(PAGE_FACTS_HEADER)) {
 				const res = await resolve(event);
@@ -1244,7 +1246,7 @@ class OgygiaHandle {
 		// SEED SHAPING: the slice of `page.data` the page's islands read (server/seed-shape.ts) — every
 		// step below (streaming, settling, the payload) sees the shaped tree. A key no island's code
 		// reads but whose node an island's props point into ships too: a reference must have something
-		// to point at. The freeze verdict above read the whole snapshot (a streamed promise anywhere
+		// to point at. The postrender verdict above read the whole snapshot (a streamed promise anywhere
 		// keeps the page per-request).
 		let seed_keys = bag!.seed_keys;
 		if (seed_wanted && seed_keys !== 'all' && seed_keys !== null) {
@@ -1278,7 +1280,7 @@ class OgygiaHandle {
 		// settle forever while browser loads stream live).
 		if (has_pending) mark_per_visitor(bag!.facts, 'streamed load (promise in page data)');
 		const can_stream = event?.request.headers.get('sec-fetch-mode') === 'navigate';
-		// No reader → no seed → nothing to stage or settle (the freeze verdict above still saw the
+		// No reader → no seed → nothing to stage or settle (the postrender verdict above still saw the
 		// promise: that page stays per-request).
 		if (has_pending && can_stream && seed_wanted) {
 			const staged_data = stage_deferred(shaped_data, 0);
@@ -1768,13 +1770,13 @@ class OgygiaHandle {
 			!is_region_ttl(cap.ttl)
 		)
 			return 'shape';
-		const now = Math.floor(Date.now() / 1000);
-		if (renewal) {
-			if (!renewable_expiry(cap.exp, now, renewWindow)) return 'renew-window';
-		} else {
-			const exp = Number(cap.exp);
-			if (!Number.isFinite(exp) || exp < now) return 'expired';
-		}
+		const expiry = expiry_refusal(
+			cap.exp,
+			Math.floor(Date.now() / 1000),
+			renewal,
+			app_lifetime.renew_window
+		);
+		if (expiry) return expiry;
 		if (foreign_key(cap.k)) return 'foreign-key';
 		return null;
 	}
@@ -1798,7 +1800,7 @@ class OgygiaHandle {
 			)
 		)
 			return null;
-		const exp = String(capability_expiry(Math.floor(Date.now() / 1000), regionTtl));
+		const exp = String(app_lifetime.renewed_expiry());
 		return {
 			...cap,
 			exp,
@@ -1855,7 +1857,7 @@ class OgygiaHandle {
 		endpoint: string,
 		event: RequestEvent,
 		/** A BATCH parcel is the hole's answer: through the app's transform like its own request, and
-		 *  logged for the profiler as a hole request. A freeze stitch splices into a stored document
+		 *  logged for the profiler as a hole request. A postrender stitch splices into a stored document
 		 *  and stays as it was. */
 		batch = false
 	): Promise<{ slot: string; html: string } | null> {

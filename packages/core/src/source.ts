@@ -49,10 +49,10 @@ export function record_source_read(tag: string): void {
 	}
 }
 
-/** The identity stamp — read by `freeze.invalidate(fn, args)`. */
-export const SOURCE_ID: unique symbol = Symbol.for('ogygia.freeze.source-id');
+/** The identity stamp — read by `postrender.invalidate(fn, args)`. */
+export const SOURCE_ID: unique symbol = Symbol.for('ogygia.source.id');
 /** The optional `{ key }` canonicalizer stamp (exotic signatures). */
-export const SOURCE_KEY: unique symbol = Symbol.for('ogygia.freeze.source-key');
+export const SOURCE_KEY: unique symbol = Symbol.for('ogygia.source.key');
 
 export interface SourceOptions<A extends unknown[]> {
 	/** Canonicalize exotic args to a stable string yourself; default = structural fingerprint. */

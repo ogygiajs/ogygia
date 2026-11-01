@@ -47,8 +47,8 @@ export const KIT_BOOT_RE = /__sveltekit_\w+\s*=/;
 export const KIT_MARKER_RE = /__sveltekit/;
 /** A server-island prefetch hint. */
 export const PRELOAD_FETCH_RE = /rel="preload" as="fetch"/;
-/** The freeze-store stamp the handle puts on a served copy. */
-export const FREEZE_META_RE = /<meta name="ogygia-freeze"[^>]*>/;
+/** The stamp a page store (postrender) puts on a copy it serves. */
+export const STORED_META_RE = /<meta name="ogygia-stored"[^>]*>/;
 
 // ── Vite dev URL shapes ──────────────────────────────────────────────────────────────────
 export const VITE_ID_RE = /\/@id\//;

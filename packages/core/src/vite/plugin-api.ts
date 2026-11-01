@@ -2,15 +2,15 @@
  * The BUILD side of a plugin (design: internal/notes/packages.md, plugin API v2): `definePlugin` and
  * the build context. Loads in plain node — vite.config imports it before any bundler runs.
  *
- *   export const freeze = (options: FreezeOptions = {}) =>
+ *   export const postrender = (options: PostrenderOptions = {}) =>
  *     definePlugin({
- *       name: '@ogygia/freeze',                        // the package name: the plugin's identity
+ *       name: '@ogygia/postrender',                    // the package name: the plugin's identity
  *       options,                                        // JSON; reaches the server realm as `app.options`
  *       server: import.meta.resolve('./server.ts'),     // the server realm (`defineServer`)
- *       build(b) { b.routeOption('freeze'); }
+ *       build(b) { b.routeConfig('postrender'); }
  *     });
  *
- * A plugin IS a Vite plugin: the app lists it beside `ogygia()` (`plugins: [ogygia(), freeze(),
+ * A plugin IS a Vite plugin: the app lists it beside `ogygia()` (`plugins: [ogygia(), postrender(),
  * sveltekit()]`), and `ogygia()` finds it there by the definition it carries under {@link PLUGIN} —
  * never by its name. A factory that needs Vite hooks of its own returns them beside it, as an array.
  *
@@ -36,7 +36,7 @@ export interface OgygiaPlugin<Options = unknown> extends VitePlugin {
 
 /** What a plugin is: the argument to `definePlugin`. */
 export interface PluginDefinition<Options = unknown> {
-	/** The plugin's package name (`'@ogygia/freeze'`): its identity. */
+	/** The plugin's package name (`'@ogygia/postrender'`): its identity. */
 	name: string;
 	/** The SERVER realm: a module whose default export is `defineServer({…})` (`ogygia/plugin`), as a
 	 *  `file:` URL or an absolute path — `import.meta.resolve('./server.ts')`. */
@@ -96,10 +96,12 @@ export interface BuildContext {
 	readonly root: string;
 	/** `vite dev` (true) or `vite build` (false). */
 	readonly dev: boolean;
-	/** A per-route boolean this plugin reads (`export const <name> = true|false` in a page or layout
-	 *  option file, cascaded like `csr`): stripped before Kit sees the file, read back on the server
-	 *  with `ctx.routeOption(name)`. */
-	routeOption(name: string): void;
+	/** A key this plugin reads inside Kit's own `config` page option (`export const config = { <key>:
+	 *  false }` in a `+page` / `+layout` module, `.server` included). Read at build time, merged the
+	 *  way Kit merges `config` (layouts, then the page; later wins), and answered on the server by
+	 *  `ctx.routeConfig(key)`. Literal values only (a boolean, number, string or null); nothing is
+	 *  stripped, because Kit accepts any key inside `config`. */
+	routeConfig(key: string): void;
 	/** Keep the foreign-hydrate exports on this app's island entries: another app's page may host
 	 *  them and wake them through its own runtime (fragment federation). Off by default — they cost
 	 *  every island ~185 B gz and a preload. */
@@ -188,8 +190,8 @@ export interface ResolvedPlugins {
 	servers: ServerRealm[];
 	/** each browser realm (an absolute path), in plugin order */
 	clients: string[];
-	/** every route option any plugin reads */
-	route_options: string[];
+	/** every key any plugin claims inside Kit's `config` page option */
+	route_config: string[];
 	/** a plugin asked for island entries' foreign-hydrate exports */
 	foreign_hydrate: boolean;
 	/** plugin macros, in plugin order */
@@ -219,16 +221,7 @@ function order(plugins: readonly PluginDefinition[]): PluginDefinition[] {
 	];
 }
 
-const ROUTE_OPTION_NAME_RE = /^[a-z][A-Za-z0-9]*$/;
-/** Kit's own page options: a plugin may never claim one. */
-const KIT_ROUTE_OPTIONS = new Set([
-	'csr',
-	'ssr',
-	'prerender',
-	'trailingSlash',
-	'config',
-	'entries'
-]);
+const ROUTE_CONFIG_KEY_RE = /^[a-z][A-Za-z0-9]*$/;
 
 /**
  * Config-time shape check of the definitions found: each named once, its realms locations, its
@@ -305,7 +298,7 @@ export function resolve_plugins(
 	const out: ResolvedPlugins = {
 		servers: [],
 		clients: [],
-		route_options: [],
+		route_config: [],
 		foreign_hydrate: false,
 		macros: [],
 		markup: [],
@@ -314,7 +307,7 @@ export function resolve_plugins(
 		files: [],
 		page_modules: { importers: [], files: [] }
 	};
-	const option_owner = new Map<string, string>();
+	const config_owner = new Map<string, string>();
 	const macro_owner = new Map<string, string>();
 	for (const plugin of ordered) {
 		if (!package_resolves(req, plugin.name))
@@ -329,19 +322,19 @@ export function resolve_plugins(
 		plugin.build?.({
 			root,
 			dev,
-			routeOption(name) {
-				if (!ROUTE_OPTION_NAME_RE.test(name) || KIT_ROUTE_OPTIONS.has(name))
+			routeConfig(key) {
+				if (!ROUTE_CONFIG_KEY_RE.test(key))
 					throw new Error(
-						`[ogygia] plugin \`${plugin.name}\`: route option \`${name}\` must be a camelCase identifier Kit does not own.`
+						`[ogygia] plugin \`${plugin.name}\`: route config key \`${key}\` must be a camelCase identifier.`
 					);
-				const owner = option_owner.get(name);
+				const owner = config_owner.get(key);
 				if (owner && owner !== plugin.name)
 					throw new Error(
-						`[ogygia] route option \`${name}\` is claimed by both \`${owner}\` and \`${plugin.name}\`.`
+						`[ogygia] route config key \`${key}\` is claimed by both \`${owner}\` and \`${plugin.name}\`.`
 					);
 				if (!owner) {
-					option_owner.set(name, plugin.name);
-					out.route_options.push(name);
+					config_owner.set(key, plugin.name);
+					out.route_config.push(key);
 				}
 			},
 			foreignHydrate() {

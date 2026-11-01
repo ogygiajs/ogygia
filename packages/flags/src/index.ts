@@ -36,12 +36,22 @@ const RESOLVED = Symbol.for('ogygia.flags.resolved.v1');
  *  the shared pure hash keeps this module safe in ANY bundle (runtime + every island entry). */
 const pct = (s: string) => fnv1a32(s) % 10000;
 
-/** Who is this? The router identity (folds in carried claims) when present; raw claims / `og-vid`
- *  cookie otherwise. Anonymous → '' (weights degrade to the first variant there). */
+type Visitor = NonNullable<CtxLike['visitor']>;
+
+/** Who is this? The router identity (folds in carried claims) when present; raw claims / the
+ *  `og-vid` cookie (the router's `anonymousVisitor()` shape) otherwise; undefined = anonymous.
+ *  The ONE rule: a flag read hashes on its `sub`, and the source is primed with it as `c.visitor`. */
+function visitor_of(c: CtxLike): Visitor | undefined {
+	if (c.visitor?.sub) return c.visitor;
+	const claims = (c.request as unknown as Record<symbol, Visitor | undefined>)[CLAIMS];
+	if (claims?.sub) return claims;
+	const vid = c.cookies?.get('og-vid');
+	return vid ? { sub: vid, anonymous: true } : c.visitor;
+}
+
+/** The sticky hash key. Anonymous → '' (weights degrade to the first variant there). */
 function visitor_id(c: CtxLike): string {
-	if (c.visitor?.sub) return c.visitor.sub;
-	const claims = (c.request as unknown as Record<symbol, { sub?: string } | undefined>)[CLAIMS];
-	return claims?.sub ?? c.cookies?.get('og-vid') ?? '';
+	return visitor_of(c)?.sub ?? '';
 }
 
 function carried(c: CtxLike, name: string): string | undefined {
@@ -156,7 +166,9 @@ export async function prime_flags(c: CtxLike): Promise<void> {
 	req[RESOLVED] = {}; // claim the slot up front (idempotent across concurrent primes)
 	if (_registry.size === 0) return;
 	try {
-		const out = await _source([..._registry.values()], c);
+		// the source sees the identity a read hashes on: it primes above the router, where no
+		// `c.visitor` exists yet, so a vendor's per-user targeting would otherwise have no key
+		const out = await _source([..._registry.values()], { ...c, visitor: visitor_of(c) });
 		const map: Record<string, { variant: string; value?: unknown }> = {};
 		for (const q of _registry.values()) {
 			const raw = out?.[q.name];

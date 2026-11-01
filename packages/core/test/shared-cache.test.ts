@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	RENEW_WINDOW_SEC,
 	document_shared_lifetime,
+	expiry_refusal,
 	mint_ttl_sec,
 	note_cache_control,
 	renewable_expiry,
@@ -51,7 +52,7 @@ describe('shared_cache_lifetime: how long shared caches may serve the document',
 
 describe('mint_ttl_sec: the capability lifetime a hole is signed for', () => {
 	const region_ttl = 3600;
-	it('a stored page (prerender / freeze) is prerender-grade, whatever else', () => {
+	it('a stored page (prerender / postrender) is prerender-grade, whatever else', () => {
 		expect(mint_ttl_sec({ stored: true, session: 'abc', shared: 0, region_ttl })).toBe(
 			PRERENDER_REGION_TTL_SEC
 		);
@@ -105,6 +106,20 @@ describe('renewable_expiry: the renewal gate’s time rule', () => {
 	});
 	it('a window of 0 renews nothing', () => {
 		expect(renewable_expiry(String(now - 1), now, 0)).toBe(false);
+	});
+});
+
+describe('expiry_refusal: the one expiry check (region holes and plugin capabilities)', () => {
+	const now = 1_789_000_000;
+	it('a request: refused once `exp` has passed, or when it is not a number', () => {
+		expect(expiry_refusal(String(now), now, false, RENEW_WINDOW_SEC)).toBeNull();
+		expect(expiry_refusal(String(now - 1), now, false, RENEW_WINDOW_SEC)).toBe('expired');
+		expect(expiry_refusal('soon', now, false, RENEW_WINDOW_SEC)).toBe('expired');
+	});
+	it('a renewal: only an expired capability inside the window', () => {
+		expect(expiry_refusal(String(now - 1), now, true, RENEW_WINDOW_SEC)).toBeNull();
+		expect(expiry_refusal(String(now + 60), now, true, RENEW_WINDOW_SEC)).toBe('renew-window');
+		expect(expiry_refusal(String(now - 1), now, true, 0)).toBe('renew-window');
 	});
 });
 

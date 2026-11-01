@@ -45,12 +45,35 @@ export interface ServerApp<Options = undefined> {
 	sign(message: string): string;
 	/** Check a signature `sign` made (constant-time). */
 	verify(message: string, signature: string): boolean;
+	/** Signed capabilities for an endpoint the plugin serves, held to the rules of region holes. */
+	readonly capability: PluginCapabilities;
 	/** Record a server-realm event into the current request's devtools stream (a no-op unless
 	 *  devtools is on for that browser). */
 	devtools(event: DevtoolsEventInput): void;
 	/** Warn once per message, prefixed with the plugin's name. */
 	warn(message: string): void;
 }
+
+/**
+ * A capability URL for an endpoint the plugin serves (a hole the browser fetches later), held to the
+ * rules of the app's own region holes: the same lifetime, expiry in unix seconds, and the same answer
+ * once one has expired, so the runtime renews it the way it renews a region hole. The URL carries the
+ * plugin's own fields first, then `exp` and `sig`.
+ */
+export interface PluginCapabilities {
+	/** Sign a capability minted now: its `exp` (long on a page a plugin may store or a shared cache
+	 *  keeps, else the app's `ttl`) and the `sig` over `message(exp)`. */
+	mint(message: (exp: string) => string): { exp: string; sig: string };
+	/** Check a request for a capability `mint` made, by its URL's `exp` and `sig` (with `renew=1`, the
+	 *  runtime's one retry of an expired one). Refused: the response to answer with, the 403 a region
+	 *  request gets. Accepted: headers to send with the answer (a renewal's carry the fresh URL). */
+	open(url: URL, message: (exp: string) => string): CapabilityOpened;
+}
+
+/** What `capability.open` decided. */
+export type CapabilityOpened =
+	| { ok: true; headers: Record<string, string> }
+	| { ok: false; response: Response };
 
 /** One request, as one plugin sees it. */
 export interface RequestContext<Options = undefined, State = undefined> {
@@ -64,9 +87,10 @@ export interface RequestContext<Options = undefined, State = undefined> {
 	readonly app: ServerApp<Options>;
 	/** The request's shared facts. */
 	readonly facts: RequestFacts;
-	/** This request's value for a route option (`export const <name>` on a Kit page, or a programmatic
-	 *  router's declaration), or `undefined` when nothing declares it. */
-	routeOption(name: string): boolean | undefined;
+	/** This request's value for a key this plugin claimed inside Kit's `config` page option
+	 *  (`b.routeConfig(key)`: `export const config = { <key>: … }` on a Kit page or layout, merged the
+	 *  way Kit merges it, or a programmatic router's `config`), or `undefined` when nothing declares it. */
+	routeConfig(key: string): unknown;
 	/** Render one signed hole in place, with this request's event (its cookies ride in): the hole's
 	 *  HTML, or null when it cannot render now (the stored fallback stays, the browser fetches). */
 	renderHole(endpoint: string): Promise<string | null>;
@@ -126,19 +150,20 @@ export function defineServer<Options = undefined, State = undefined>(
 
 /** Stamped into a document served FROM a store (not the render that just happened): the browser
  *  runtime then treats `render: 'live'` lakes as stale on first mount and revalidates them. */
-export const STORED_DOCUMENT_META = '<meta name="ogygia-freeze" content="hit">';
+export const STORED_DOCUMENT_META = '<meta name="ogygia-stored" content="hit">';
 
 // ── region values a plugin's server code makes
 /** A region value holding finished HTML (rendered as-is, no island); and `region(Component, props)`
  *  itself (the same as `ogygia`'s, without loading the whole front door). */
 export { og_html_region as htmlRegion, region } from '../region.ts';
 
-// ── route options a programmatic router declares
-/** A programmatic router (a `routes()` table answering inside the handle) joins the route-option
- *  lookup: for a pathname it claims, its matcher answers each option (`ctx.routeOption(name)`).
- *  Keyed: registering the same key again REPLACES the stale matcher (dev re-evaluates the table). */
-export { register_route_options as registerRouteOptions } from './routes.ts';
-export type { RouteOptionMatcher, RouteOptionVerdict } from './routes.ts';
+// ── route config a programmatic router declares
+/** A programmatic router (a `routes()` table answering inside the handle) joins the route-config
+ *  lookup: for a pathname it claims, its matcher answers the route's merged `config`
+ *  (`ctx.routeConfig(key)`). Keyed: registering the same key again REPLACES the stale matcher (dev
+ *  re-evaluates the table). */
+export { register_route_config as registerRouteConfig } from './routes.ts';
+export type { RouteConfig, RouteConfigMatcher } from './routes.ts';
 
 // ── late regions: a region that resolves after the document flushed, down the same response
 /** Arm THIS request's late-region capture before a render that will deliver late chunks: a

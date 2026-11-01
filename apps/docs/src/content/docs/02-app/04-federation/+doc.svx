@@ -1,28 +1,28 @@
 ---
 title: Fragment federation
-summary: Microfrontends over the wire. Independent SvelteKit + ogygia apps combine into one page. `federate()` is one identity per app; a peer's routes and widgets are region values you render with `<Region>`; a whole app mounts under shell chrome. Hops are Ed25519-signed, identity and experiments carry, and a publish or deploy on one team thaws every frozen page that baked its fragments.
+summary: Microfrontends over the wire. Independent SvelteKit + ogygia apps combine into one page. Each app declares one identity with `federate()`, a peer's routes and widgets are region values you render with `<Region>`, and a whole app can mount under shell chrome. Hops are Ed25519-signed, identity and experiments carry across them, and a publish or deploy on one team clears every stored page that baked its fragments.
 related:
   - app/server-router
   - app/experiments
-  - data-state/freeze
+  - data-state/postrender
   - reference/packaging
 ---
 
 ::: warning Experimental
-This surface is new, and its shape can change. The mechanics below are e2e-tested. See `examples/mfe` in the repo for a three-team demo that runs. But treat the API as pre-1.0.
+This surface is new, and its shape can change. The mechanics below are covered by end-to-end tests, and `examples/mfe` in the repo is a working three-team demo, but treat the API as pre-1.0.
 :::
 
-Three teams, three repos, three deploys — one page. Fragment federation combines independent SvelteKit + ogygia apps **over HTTP at render time**. The server of another team answers with a fragment document. The shell bakes its HTML into the first paint. The islands inside wake in the page of the shell, with chunks loaded from the origin of the team that owns them.
+When three teams with three repositories and three deploy pipelines all contribute to one page, something has to combine their work. Fragment federation does it **over HTTP at render time**, joining independent SvelteKit + ogygia apps. Another team's server answers with a fragment document, the shell bakes its HTML into the first paint, and the islands inside wake in the shell's page, with their chunks loaded from the origin of the team that owns them.
 
-There is **one primitive per app**: `federate()`. It declares the app's identity, the peers it talks to, and — if it is an MFE — the routes and widgets it serves. From it you get typed **peer handles**. A remote route or widget is a [region value](/docs/regions/held-regions) you render with `<Region>`. A whole remote app mounts under shell chrome with `mount()`. And because a fragment is a region, it folds into [frozen pages](/docs/data-state/freeze): a publish or a deploy on one team thaws every frozen page of every team that baked its fragments.
+Each app has **one primitive**, `federate()`, which declares the app's identity, the peers it talks to and, if the app is a microfrontend (MFE), the routes and widgets it serves. From it you get typed **peer handles**. A remote route or widget is a [region value](/docs/regions/held-regions) you render with `<Region>`, and a whole remote app mounts under shell chrome with `mount()`. Because a fragment is a region, it also fits into [postrender](/docs/data-state/postrender): a publish or a deploy on one team clears every stored page, on every team, that baked its fragments.
 
 ## Not module federation
 
-Module federation shares **JS modules** between builds at runtime. That couples bundlers, versions, and upgrade schedules. Fragment federation shares **complete HTML plus self-contained islands**. Each team ships its own complete build, with its own Svelte copy (about 12 kB gz per extra build on a page). A foreign island hydrates through a function that the _producing_ build exports, closed over its own Svelte. Thus version skew between teams is not a problem, and the broken dependency of one team cannot take down the code of another. The price of independence is a few kB. The gain is that "independent" is real.
+Module federation shares **JavaScript modules** between builds at runtime, which couples bundlers, versions and upgrade schedules. Fragment federation shares **complete HTML plus self-contained islands** instead. Each team ships its own complete build with its own copy of Svelte (about 12 kB gzipped for each extra build on a page), and a foreign island hydrates through a function that the _producing_ build exports, closed over its own Svelte. Version skew between teams is therefore not a problem, and one team's broken dependency cannot take down another team's code. Independence costs a few kilobytes, and in return the teams really are independent.
 
 ## Installing
 
-Federation is its own package, built on the [server router](/docs/app/server-router). Install it in every app that federates, shell and MFE alike, and list its plugin beside `ogygia()`:
+Federation is its own package, built on the [server router](/docs/app/server-router). Install it in every app that federates, shells and MFEs alike, and list its plugin beside `ogygia()`:
 
 ```bash
 pnpm add @ogygia/federation @ogygia/router
@@ -35,13 +35,13 @@ import { federation } from '@ogygia/federation/vite';
 plugins: [ogygia(), federation(), sveltekit()]
 ```
 
-The plugin serves the federation endpoints from the handle, and keeps the exports that let another app's page wake this app's islands. See [Plugins](/docs/reference/plugins).
+The plugin serves the federation endpoints from the handle and keeps the exports that let another app's page wake this app's islands. See [Plugins](/docs/reference/plugins).
 
 ## One identity per app: `federate()`
 
-Every app calls `federate()` once, at server module-eval. It is the whole federation config: who I am, who I trust, and what I serve. It returns the **peer handles**, typed and keyed by their names.
+Every app calls `federate()` once, when its server modules evaluate. That call is the entire federation config, covering who the app is, whom it trusts and what it serves, and it returns the **peer handles**, typed and keyed by name.
 
-The **shell** — an app that consumes fragments:
+A **shell** is an app that consumes fragments:
 
 ```ts title="src/lib/federation.server.ts (the shell)"
 import { federate } from '@ogygia/federation';
@@ -59,7 +59,7 @@ export const { cms, dash } = federate({
 });
 ```
 
-The **cms** — an app that serves fragments (an MFE):
+The **cms** app below serves fragments, which makes it an MFE:
 
 ```ts title="src/lib/federation.server.ts (the cms app)"
 import { federate } from '@ogygia/federation';
@@ -80,25 +80,32 @@ export const { shell } = federate({
 });
 ```
 
-**The peers map is symmetric and bidirectional.** Every app lists every app it talks to, in either direction. `peers.X.key` — the peer's **public** key(s) — verifies inbound calls _from_ X. The top-level `key` — this app's **private** key — signs outbound calls _to_ anyone. That one map is the whole trust config. A list of keys is rotation overlap. Extra origins on a peer are same-build **replicas**, tried in order for reads (a retried mutation risks a double write, so POSTs stay on the first). Audience defaults to the peer's origin host; set `audience` per peer only when a reverse proxy rewrites `Host` between the hops.
+**The peers map is symmetric.** Every app lists every app it talks to, in either direction. `peers.X.key`, the peer's **public** key or keys, verifies inbound calls _from_ X, and the top-level `key`, this app's **private** key, signs outbound calls _to_ anyone. That one map is the whole trust configuration. A list of keys gives you overlap during rotation. Extra origins on a peer are **replicas** of the same build, tried in order for reads; POSTs stay on the first origin, because retrying a mutation risks writing twice. The audience defaults to the peer's origin host, and you set `audience` per peer only when a reverse proxy rewrites `Host` between the hops.
 
-**`visitor` is declared once.** It reads the live event (cookies, locals) and becomes the on-behalf-of identity signed into every hop, including the hole-time fetch of a deferred region. There is no second place to wire identity.
+**`visitor` is the identity for deferred regions.** It reads the live event (cookies, locals), and the shell runs it at hole time, when the browser fetches a deferred remote region, so those claims always come from the shell's own session. The other kinds of hop take their identity from where they run:
 
-**No route files.** `federate()` registers the app with the ogygia handle. The handle (from `ogygia/server`, already in your `hooks.server.ts`) runs the `federation()` plugin, which serves everything under `/og/`:
+| Hop                                      | Visitor claims signed into it                                                    |
+| ---------------------------------------- | -------------------------------------------------------------------------------- |
+| a `render: 'deferred'` region            | `federate({ visitor })`, run at hole time                                        |
+| `mount(peer)` in a route table           | the router's `c.visitor` plus the request's flag decisions, or the `user` option |
+| `mount.kit(peer)`                        | whatever its `user` option returns                                               |
+| a static `peer.page()` / `peer.widget()` | only the `claims` you pass in its dials; without them the hop is anonymous       |
 
-- `/og/fragment/page` — the exposed route table
-- `/og/fragment/<name>` — a named widget
-- `/og/fragment/__catalog` — the manifest (unsigned by intent; it is inventory, not data)
-- `/og/thaw` — cross-app thaw notices (see [Cross-app thaw](#cross-app-thaw))
-- `/og/frag` — the deferred-region hole endpoint
+**You write no route files.** `federate()` registers the app with the ogygia handle. The handle (from `ogygia/server`, already in your `hooks.server.ts`) runs the `federation()` plugin, which serves everything under `/og/`:
 
-Kit shells and router shells get the same endpoints, because the handle is the one thing every ogygia app has. Put the `federate()` in a `.server.ts` and make sure `hooks.server.ts` imports it — directly, or transitively through your router (which uses the peer handles). It evaluates on boot; the handle reads the registration back.
+- `/og/fragment/page`: the exposed route table
+- `/og/fragment/<name>`: a named widget
+- `/og/fragment/__catalog`: the manifest (deliberately unsigned, since it is an inventory rather than data)
+- `/og/thaw`: cross-app thaw notices (see [Cross-app thaw](#cross-app-thaw))
+- `/og/frag`: the deferred-region hole endpoint
 
-`expose`/`widgets` absent = a pure shell. `peers` empty = a pure MFE. Both may be set: that is a chain (a shell that is itself mounted by another shell).
+Kit shells and router shells get the same endpoints, because the handle is the one thing every ogygia app has. Put the `federate()` call in a `.server.ts` file and make sure `hooks.server.ts` imports it, either directly or through your router (which uses the peer handles). It evaluates on boot, and the handle reads the registration back.
 
-**Fail-closed.** A `federate()` that exposes a table or widgets but lists **no peer with a key** means nobody is allowed to call — a config bug, not a choice. It warns loudly. If you mean it — behind mTLS or a service mesh — pass `open: true` to acknowledge an intentionally unauthenticated endpoint. It never serves unauthenticated silently.
+An app without `expose` or `widgets` is a pure shell, and an app with no `peers` is a pure MFE. Setting both makes a chain: a shell that is itself mounted by another shell.
 
-Make a key pair with:
+**It fails closed.** A `federate()` that exposes a table or widgets but lists **no peer with a key** would let nobody call it, which is a configuration bug rather than a choice, so it warns loudly. If you really mean it, for example behind mTLS or a service mesh, pass `open: true` to acknowledge an intentionally unauthenticated endpoint. It never serves unauthenticated requests silently.
+
+To make a key pair, run:
 
 ```sh
 npx ogygia keys shell   # prints SHELL_SIGNING_KEY (private, stays here) / SHELL_PUBLIC_KEY (goes to callers)
@@ -106,7 +113,7 @@ npx ogygia keys shell   # prints SHELL_SIGNING_KEY (private, stays here) / SHELL
 
 ## A remote fragment is a region
 
-Both `peer.page(path)` (a remote **route**) and `peer.widget(name, props)` (a remote **component**) return a `Promise<RegionValue>` — the same [held region](/docs/regions/held-regions) value a local `region()` returns. So the wire law, `<Region of>`, `placeholder`, CSS-travels, and nested-island wake all apply unchanged:
+Both `peer.page(path)` (a remote **route**) and `peer.widget(name, props)` (a remote **component**) return a `Promise<RegionValue>`, the same [held region](/docs/regions/held-regions) value a local `region()` returns. The wire law, `<Region of>`, `placeholder`, travelling CSS and nested-island wake therefore all apply unchanged:
 
 ```svelte
 <Region of={cms.page('/solar')} />                                  <!-- a remote ROUTE -->
@@ -115,7 +122,7 @@ Both `peer.page(path)` (a remote **route**) and `peer.widget(name, props)` (a re
 </Region>
 ```
 
-The peer handles are **server values** (they hold the signing key, so they live in a `.server.ts`). In practice you build the region in a `load` and render it from `data`:
+The peer handles are **server values**, because they hold the signing key, so they live in a `.server.ts`. In practice you build the region in a `load` and render it from `data`:
 
 ```ts title=src/lib/shell-router.ts
 import { routes, page } from '@ogygia/router';
@@ -145,22 +152,28 @@ export const shell_router = routes({
 </Region>
 ```
 
-`page()` takes the route path (and an optional `search`); `widget()` takes the widget name and its props. Both take the **region dials** as a trailing argument:
+`page()` takes the route path (and an optional `search`), and `widget()` takes the widget name and its props. Both take the **region dials** as a trailing argument:
 
-| dial                         | behavior                                                                                                                                      | in a frozen shell                                             |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `render: 'static'` (default) | one buffered signed hop during this render; the fragment HTML is baked into the page                                                          | baked into the frozen bytes; thawed by a notice from the peer |
-| `render: 'deferred'`         | a hole; the browser fetches it from the shell's own signed endpoint, which derives the visitor's claims at hole time and forwards to the peer | per-visitor, stays live over a frozen shell                   |
+| dial                         | behavior                                                                                                                                      | in a stored shell                                                                                                                          |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `render: 'static'` (default) | one buffered signed hop during this render; the fragment HTML is baked into the page                                                          | baked into the stored bytes; cleared by a notice from the peer                                                                             |
+| `render: 'deferred'`         | a hole; the browser fetches it from the shell's own signed endpoint, which derives the visitor's claims at hole time and forwards to the peer | per-visitor; its URL lives as long as a local hole's ([see below](#a-remote-fragment-is-a-region-deferred-remote-regions-on-stored-pages)) |
 
-Pass `claims` on the dials to override the visitor identity for that one hop (the default is the federation's `visitor`, plus every experiment bucket the request decided). The fragment's CSS travels with it and is hoisted to `<head>`; the islands inside wake themselves once the HTML lands.
+For a static region, `claims` in the dials are the visitor claims signed into that one hop, and without them the hop carries no visitor. A deferred region ignores `claims` and always derives them from `federate({ visitor })` at hole time. The fragment's CSS travels with it and is hoisted to `<head>`, and the islands inside wake by themselves once the HTML lands.
 
-**Static bakes; deferred stays live.** A `static` remote region is one buffered, signed hop folded into the shell's own server render — a bare `await` on the region value, so it is SSR-stitched with no client fetch for the pixels. A `deferred` remote region is a hole below the fold: the browser fetches **the shell**, never an MFE origin, so there is one cookie domain and no exposed internal host. Inside a [streamed page](/docs/app/server-router), a deferred region arrives down the stream as a late region.
+**Static regions are baked, and deferred ones stay live.** A `static` remote region is one buffered, signed hop folded into the shell's own server render. It amounts to a bare `await` on the region value, so it is stitched in during SSR with no client fetch for the pixels. A `deferred` remote region is a hole, typically below the fold, and the browser fetches it from **the shell**, never from an MFE origin, so there is one cookie domain and no internal host is exposed. Inside a [streamed page](/docs/app/server-router), a deferred region arrives down the stream as a late region.
 
-**No allowlist. No open proxy.** A deferred region's hole URL is a **shell-signed capability** minted at render time: it names the peer, the route or widget, and the props, and the browser can choose none of them. There is no endpoint that turns browser input into a signed call, so there is nothing to allowlist. Widgets still authorize what they return against `user` (the signed claims), never against a prop — props are caller-chosen, claims are not.
+**There is no allowlist and no open proxy.** A deferred region's hole URL is a **capability signed by the shell** at render time. It names the peer, the route or widget and the props, and the browser can choose none of them. Since no endpoint turns browser input into a signed call, there is nothing to allowlist. Widgets should still authorize what they return against `user` (the signed claims) and never against a prop, because props are chosen by the caller and claims are not.
+
+### Deferred remote regions on stored pages
+
+A deferred remote region's hole URL is one of the shell's own signed capabilities, so it lives exactly as long as a local deferred hole on the same page would. On a page that [postrender](/docs/data-state/postrender) stores, it is signed for the life of the deploy. On a page whose load marks it as shared-cacheable, it is signed for the page's cache lifetime, and anywhere else for the app's [`ttl`](/docs/reference/api#ogygiavite-ttl), an hour by default. A copy that outlived its hole anyway, such as an old tab or a page a cache kept past that, renews the hole when it wakes: the shell's endpoint answers the expired URL the way it answers an expired local hole, and re-signs it for up to [`maxPageAge`](/docs/reference/api#ogygiavite-maxpageage) after it expired.
+
+Routes with deferred remote regions can therefore be stored like any other page. The shell is kept once, and each visitor's hole still fetches fresh, with claims from that visitor's own session. A static remote region is the other choice on a stored page: it is baked into the stored bytes and cleared by the peer's [thaw notices](#cross-app-thaw).
 
 ## Mount a whole app: `mount(peer)`
 
-Where a region is a **slot** the shell owns, a mount is a **route** the MFE owns. One table entry renders a whole remote app under shell chrome:
+A region is a **slot** the shell owns, whereas a mount is a **route** the MFE owns. One table entry renders a whole remote app under shell chrome:
 
 ```ts
 import { mount } from '@ogygia/federation';
@@ -170,28 +183,28 @@ import { cms } from '$lib/federation.server';
 '/cms/[...rest]': mount(cms),
 ```
 
-GET loads the document. The redirects of the MFE re-throw as shell redirects. POSTs forward the form body and follow the PRG redirect of the MFE. Two channels ride the document beyond the body. **Status**: the MFE's own 404/500 page renders under shell chrome, and the shell _answers with that status_ — a 200 around an error page poisons caches and SEO. **Head**: the SEO and social meta of the MFE page (`description`, `og:*`, canonical) joins the head of the shell; `charset`, `viewport`, and `http-equiv` stay the shell's own. A dead or slow MFE renders the shell's error boundary card. The page of the shell is never blocked by another team.
+A GET loads the document, and the MFE's redirects are re-thrown as shell redirects. POSTs forward the form body and follow the MFE's post-redirect-get redirect. Two more channels ride along with the document besides the body. The first is the **status**: the MFE's own 404 or 500 page renders under shell chrome, and the shell _answers with that status_, because a 200 around an error page poisons caches and search results. The second is the **head**: the MFE page's SEO and social meta (`description`, `og:*`, canonical) join the shell's head, while `charset`, `viewport` and `http-equiv` stay the shell's own. A dead or slow MFE renders the shell's error boundary card, so another team can never block the shell's page.
 
-**Canary / blue-green** is a per-request resolver in place of a fixed peer. It is [A/B testing](/docs/app/experiments) of infrastructure itself, with the same `pick` verb that selects components:
+**Canary and blue-green deploys** use a per-request resolver in place of a fixed peer. This is [A/B testing](/docs/app/experiments) applied to infrastructure, with the same `pick` verb that chooses components:
 
 ```ts
 const v2 = flag('cms-v2', 10);
 '/cms/[...rest]': mount(v2.pick({ off: cmsV1, on: cmsV2 })),   // a flag pick of peers
 ```
 
-A **per-cohort rollout** is `when()`. Off means the route does not exist for that visitor:
+A **per-cohort rollout** uses `when()`, and when it is off, the route does not exist for that visitor:
 
 ```ts
 '/cms/[...rest]': when(cmsRollout, mount(cms)),
 ```
 
-You can also pass a plain resolver — `mount((c) => peer)`. Stickiness comes from the flag; each peer keeps its own cache and coalescing, and the resolver only selects between prebuilt handles.
+You can also pass a plain resolver, `mount((c) => peer)`. Stickiness comes from the flag, each peer keeps its own cache and request coalescing, and the resolver only chooses between handles that already exist.
 
-**Streamed mounts**: `mount(cms, { stream: true })` flushes the shell chrome immediately with a skeleton in the slot; the fragment swaps in down the same response when the MFE answers. Pass `stream: { fallback }` for an html string or a component (a component bakes as an inline region). A slow team does not delay the first byte of the shell. The trades (GET only): the status and title flush before the document arrives, and a late redirect degrades to a link card.
+**Streamed mounts** (`mount(cms, { stream: true })`) flush the shell chrome immediately with a skeleton in the slot, and the fragment swaps in down the same response when the MFE answers. Pass `stream: { fallback }` with an HTML string or a component (a component bakes as an inline region). A slow team then cannot delay the shell's first byte. The trade-offs, which apply to GET only, are that the status and title flush before the document arrives, and a late redirect degrades to a link card.
 
 ### Mount from plain SvelteKit: `mount.kit`
 
-The shell does not have to use the ogygia router. From an ordinary Kit catchall (`src/routes/cms/[...rest]/`):
+The shell does not have to use the ogygia router. From an ordinary Kit catch-all route (`src/routes/cms/[...rest]/`):
 
 ```ts title=+page.server.ts
 import { mount } from '@ogygia/federation';
@@ -213,11 +226,11 @@ export const actions = m.actions;
 {@html data.doc.body}
 ```
 
-Same peer, same signing, same reliability dials. Two honest differences: identity is read off the event (there is no `c.visitor` outside the router), and a Kit load cannot set a response status — an upstream 4xx becomes `error(status)` in Kit, so the status is correct but the _shell's_ error page renders. The router's `mount()` keeps the MFE's own error body under shell chrome with the real status.
+This uses the same peer, the same signing and the same reliability dials, with two differences. Identity is read from the event, since there is no `c.visitor` outside the router. And a Kit load cannot set a response status, so an upstream 4xx becomes `error(status)` in Kit: the status is correct, but the _shell's_ error page renders. The router's `mount()` keeps the MFE's own error body under shell chrome along with the real status.
 
 ## Reading the visitor: `user(c)`
 
-Inside an exposed router's loads, actions, and endpoints — and in a widget's `make(props, { user })` — read the verified, signature-bound visitor claims with `user`:
+Inside an exposed router's loads, actions and endpoints, and in a widget's `make(props, { user })`, you read the verified, signature-bound visitor claims with `user`:
 
 ```ts
 import { user } from '@ogygia/federation';
@@ -228,59 +241,183 @@ load: async (c) => {
 }
 ```
 
-`user(c)` is `undefined` on the standalone front door and for anonymous calls. It is the verified claims, not a header an HTTP caller can set — see [Security](#security-signed-hops-carried-identity).
+`user(c)` is `undefined` on the app's own standalone front door and for anonymous calls. It returns the verified claims, not a header an HTTP caller could set; see [Security](#security-signed-hops-carried-identity).
+
+## Widgets and the catalog
+
+A route is a whole page of the MFE, and a widget is one piece of it that other teams place on their own pages, such as a KPI panel or a price box. You declare widgets in `federate({ widgets })`, each under the name callers use, in one of two forms:
+
+```ts
+widgets: {
+  // a bare function: served, but listed in the catalog without props
+  clock: (props) => region(Clock, { zone: props.zone ?? 'UTC' }),
+
+  // { props, make }: the same, with its prop names listed in the catalog
+  kpis: { props: ['org'], make: (props, { user }) => region(Kpis, { org: props.org, viewer: user ?? null }) },
+}
+```
+
+A widget receives `props` and `{ user, request, url }`, and returns anything with an `html` field, which `region(Comp, props)` on a `region: 'raw'` import already is. A caller's `dash.widget('kpis', { org: 'acme' })` becomes `GET /og/fragment/kpis?org=acme`, and **every query parameter arrives in `props` as a string**. Parse numbers and booleans yourself, and treat every value as chosen by the caller.
+
+The `props` list doesn't filter or validate anything; a widget receives every parameter whatever the list says. It only names the props in the **catalog**, the unsigned manifest the app serves at `/og/fragment/__catalog`:
+
+```json
+{ "names": ["clock", "kpis"], "widgets": { "clock": { "props": [] }, "kpis": { "props": ["org"] } } }
+```
+
+### Typed stubs and drift checks
+
+The catalog is what the [CLI](/docs/reference/cli) turns into types for a consuming app. Point it at the MFE's origin:
+
+```sh
+npx ogygia fragments https://dash.internal --out src/lib/dash-widgets.ts
+```
+
+```ts title=src/lib/dash-widgets.ts
+// generated by `npx ogygia fragments https://dash.internal` — do not edit
+export type WidgetName = "clock" | "kpis";
+export const WIDGET_NAMES = ["clock","kpis"] as const;
+export interface WidgetProps {
+	"clock": Record<string, string>;
+	"kpis": { "org"?: string };
+}
+```
+
+A widget declared without `props` gets `Record<string, string>`. Without `--out`, the stub prints to the terminal. In CI, `--check` compares the live catalog with the file you committed and exits with code 1 when they differ, so a renamed widget or a changed prop list fails the consuming team's build instead of its pages:
+
+```sh
+npx ogygia fragments https://dash.internal --check src/lib/dash-widgets.ts
+```
 
 ## Cross-app thaw
 
-This is the reason a fragment is a region. A remote fragment baked into a shell page is stored in the shell's [freeze store](/docs/data-state/freeze) like any other page. The question freezing always asks is _when does this stored page stop being true?_ For a fragment, the answer lives on **another team's server**. Federation answers it with no config on either side.
+This is why a fragment is a region. A remote fragment baked into a shell page is stored in the shell's [postrender store](/docs/data-state/postrender) like any other page, and the question a store always asks is _when does this stored page stop being true?_ For a fragment, the answer lives on **another team's server**, and federation answers it without configuration on either side.
 
-**A publish thaws its consumers.** Every `freeze.invalidate(...)` on any app already computes what it evicts. After the local evict and edge purge, it now also **notifies every peer**. Each peer drops the frozen pages and cached documents that baked the invalidated fragments, purges them at its own edges, and — if it is itself consumed — forwards the notice up the chain. So a publish on the CMS team thaws the shell pages that embedded CMS fragments. Nobody wired it.
+**A publish thaws its consumers.** Every `postrender.invalidate(...)` on any app already works out what it evicts. After the local eviction and edge purge, it also **notifies every peer**. Each peer drops the stored pages and cached documents that baked the invalidated fragments, purges them at its own edges and, if it is itself consumed by another app, forwards the notice up the chain. A publish on the CMS team therefore thaws the shell pages that embedded CMS fragments, without anyone wiring it up.
 
-**A deploy thaws everything it touched.** On boot, an app compares its build id (Kit's `version.name`) with the one it last stored. Different → it broadcasts a thaw-all to its peers. So a new MFE build thaws every shell page that baked its fragments — the fix for a frozen shell stranded on the MFE's old hashed asset URLs. This is `deploy: 'auto'` (the default); `deploy: 'manual'` turns it off, and `freeze.invalidateApp()` does it by hand.
+**A deploy thaws everything it touched.** A new MFE build should thaw every shell page that baked its fragments, because a stored shell would otherwise stay stranded on the MFE's old hashed asset URLs. With `deploy: 'auto'`, the default, a **producer** (an app with `expose` or `widgets`) checks this on the first federation request it answers after it boots: it asks its store plugin which build id (Kit's `version.name`) it saw last, and if that differs from its own, it broadcasts a thaw-all to its peers. Three conditions follow from this:
 
-**Provenance rides the wire.** A fragment answer carries two additive fields: `sources` — the [`og.source`](/docs/data-state/freeze) receipts the MFE's render consumed, plus any it adopted from its own peers (a chain) — and `build`, the answering app's build id. The consumer files its frozen page under **peer-prefixed tags**: a blanket `a:<peer>` (so a deploy thaw reaches every page that touched the peer), `p:<peer>:<path>` (so `freeze.invalidate('<path>')` on the peer thaws exactly the pages that baked that route), and `r:<peer>:<receipt>` for each source. A thaw notice carries only tags, so its blast radius is "re-render some pages," never data.
+- A pure shell never sends a deploy thaw, because only producers check.
+- The check needs a store plugin that answers it. [Postrender](/docs/data-state/postrender) does, keeping the last build id in its store, and without postrender nothing remembers a build and nothing is sent.
+- The store has to outlive the process. Postrender's default memory store starts empty on every boot, so it never sees an earlier build; use a shared store (`valkey`, `upstash` or `cloudflareKv`). There, postrender keeps the build id apart from the pages' TTL and writes it again on every boot, so a deploy is detected however long after the last one it comes.
 
-An MFE that declared no `og.source` receipts still gets the blanket `a:<peer>` tag, so deploy-thaw works even for teams that never adopt source tracking. Freeze turned off on a peer answers `/og/thaw` with a 204 and does nothing; notices are still sent (they are cheap), so turning freeze on later needs no re-wiring. A peer that is down never fails a publish — notices retry with backoff, then fall back to the store's TTL backstop.
+`deploy: 'manual'` turns the check off. To thaw by hand after a deploy, call `postrender.invalidateWhere({ prefix: '/' })` on the producer, which sends every peer a thaw-all.
+
+**Provenance travels with the answer.** A fragment answer carries two additional fields. `sources` lists the [`og.source`](/docs/data-state/postrender) receipts the MFE's render consumed, plus any it adopted from its own peers in a chain, and `build` is the answering app's build id. The consumer files its stored page under **peer-prefixed tags**: a blanket `a:<peer>`, so a deploy thaw reaches every page that touched the peer; `p:<peer>:<path>`, so `postrender.invalidate('<path>')` on the peer thaws exactly the pages that baked that route; and `r:<peer>:<receipt>` for each source. A thaw notice carries only tags, so the worst it can cause is that some pages re-render; it never carries data.
+
+An MFE that declared no `og.source` receipts still gets the blanket `a:<peer>` tag, so deploy thaws work even for teams that never adopt source tracking. A peer accepts a notice only from a peer whose public `key` it lists, so a consumer must list the key of every producer it wants to hear from. A peer without postrender still accepts the notice, drops its cached documents from the sender and has no stored pages to clear. Notices are sent either way, since they are cheap, so turning postrender on later needs no rewiring. A peer that is down never fails a publish: notices retry with backoff and then fall back to the store's TTL as a backstop.
 
 ## Security: signed hops, carried identity
 
-Each server-to-server hop is **Ed25519-signed by the caller**. Peers hold only public keys. There is no shared secret to distribute, rotate, or leak. The signature covers the timestamp, the method, the path and query, the body hash, the **audience** (the target host), the claims, and a random **nonce**. Ed25519 is deterministic: without the nonce, two identical concurrent requests would make byte-identical signatures, and the replay guard would reject the second. An unsigned or invalid call is a 401, **before any routing runs**.
+Every server-to-server hop is **Ed25519-signed by the caller**, and peers hold only public keys, so there is no shared secret to distribute, rotate or leak. The signature covers the timestamp, the method, the path and query, the body hash, the **audience** (the target host), the claims and a random **nonce**. The nonce is there because Ed25519 is deterministic: without it, two identical concurrent requests would produce byte-identical signatures, and the replay guard would reject the second. An unsigned or invalid call gets a 401 **before any routing runs**.
 
-The signature buys three things beyond authenticity:
+Beyond authenticity, the signature gives you three properties:
 
-- **Audience binding.** The target host is signed in. A hop signed for `cms.internal` is rejected at `dash.internal`, although both trust the same shell key. This stops the confused-deputy that a shared key plus a fixed fragment path would permit. The audience defaults to the destination host; set the same `audience` on both ends only when a reverse proxy rewrites `Host` between the hops.
-- **Replay rejection.** A byte-identical redelivery of a captured signed hop is refused inside its freshness window (±120 s, `skewMs` to change it). A mutating POST cannot replay. Protection is per-process; audience binding is the cross-instance guarantee.
-- **Fail-closed.** Exposing a table or widgets with no peer keys warns loudly and takes `open: true` to acknowledge an intentionally open endpoint (behind mTLS or a mesh). It never serves unauthenticated silently.
+- **Audience binding.** The target host is part of the signature, so a hop signed for `cms.internal` is rejected at `dash.internal` even though both trust the same shell key. This blocks the confused-deputy attack that a shared key plus a fixed fragment path would otherwise allow. The audience defaults to the destination host; set the same `audience` on both ends only when a reverse proxy rewrites `Host` between the hops.
+- **Replay rejection.** A byte-identical redelivery of a captured signed hop is refused within its freshness window (±120 s, adjustable with `skewMs`), so a mutating POST cannot be replayed. This protection is per process, and audience binding is the guarantee that holds across instances.
+- **Failing closed.** Exposing a table or widgets with no peer keys warns loudly and needs `open: true` to acknowledge an intentionally open endpoint (behind mTLS or a mesh), so it never serves unauthenticated requests silently.
 
-**Visitor identity rides inside the signature** (on-behalf-of). The shell declares it once as `federate({ visitor })`; each hop signs `c.visitor` plus the request's [experiment buckets](/docs/app/experiments) into the payload. Claims never transit the browser. On the MFE, verified claims surface as `user(c)`. They attach in-process through a `Symbol` — an HTTP caller cannot set a JS symbol, so the public front door of the MFE can never smuggle identity through a header. To forge identity, you must forge the signature. Teams chain: an MFE that stitches a third team signs again with its **own** key and forwards the same claims; the third team's key list simply trusts both callers.
+**Visitor identity rides inside the signature**, on the visitor's behalf. Each hop signs its visitor claims into the payload (a mount's include the request's [experiment buckets](/docs/app/experiments); the table under [One identity per app](#one-identity-per-app-federate) lists where each kind of hop gets them), so claims never pass through the browser. On the MFE, verified claims surface as `user(c)`. They are attached in-process through a `Symbol`, and since an HTTP caller cannot set a JavaScript symbol, the MFE's public front door can never smuggle identity in through a header. Forging identity would require forging the signature. Teams can chain: an MFE that stitches in a third team signs again with its **own** key and forwards the same claims, and the third team's key list trusts both callers.
 
-Claims are **signed, not encrypted**. That is integrity, not confidentiality. Run the hops over TLS. Then visitor ids and roles are not readable on the wire.
+Claims are **signed, not encrypted**, which gives you integrity but not confidentiality. Run the hops over TLS so that visitor ids and roles cannot be read on the wire.
 
-A deferred region's hole runs `visitor()` at hole time on the shell, with the browser's cookies, so a frozen (anonymous) shell still serves personal holes — the same posture as a local deferred region.
+A deferred region's hole runs `visitor()` on the shell at hole time, with the browser's cookies, so an anonymous shell can still serve personal holes, even from a stored copy (see [Deferred remote regions on stored pages](#a-remote-fragment-is-a-region-deferred-remote-regions-on-stored-pages)).
 
 ### Key rotation
 
-`peers.X.key` is a **list**, exactly so that rotation is overlap, not downtime:
+`peers.X.key` is a **list** precisely so that rotating a key means overlap rather than downtime:
 
 1. Make the new pair: `npx ogygia keys shell-2026q4`.
-2. **Add** the new public key to the `key` list of each app that hears from the shell (the old key stays). Deploy them.
-3. Switch the shell's `key` to the new private key. Deploy the shell.
-4. **Remove** the old public key from the peers. Deploy them.
+2. **Add** the new public key to the `key` list of each app that hears from the shell, keeping the old key, and deploy those apps.
+3. Switch the shell's `key` to the new private key and deploy the shell.
+4. **Remove** the old public key from the peers and deploy them.
 
-Each step is safe to pause on. At no point does a valid caller get a 401. The same list is how a second authorized caller (the re-signing stitch of a sibling team) exists at the same time.
+You can safely pause after any step, and a valid caller never gets a 401 along the way. The same list is also how a second authorized caller, such as a sibling team's re-signing stitch, can coexist with the first.
 
 ## Observability
 
-The W3C `traceparent` continues through each hop: one trace-id from the browser through shell → cms → dash. Each mounted response carries per-team `Server-Timing`: `<label>;dur=` for the hop and `<label>-render;dur=` for the MFE's own render (the label defaults to the peer name). Thus "which team made the page slow" is a DevTools look, not a three-team argument.
+The W3C `traceparent` continues through every hop, giving one trace id from the browser through shell, cms and dash. Each mounted response carries per-team `Server-Timing` entries: `<label>;dur=` for the hop and `<label>-render;dur=` for the MFE's own render, where the label defaults to the peer name. Finding out which team made the page slow is then a matter of looking in DevTools rather than arguing across three teams.
 
 ## Serving the chunks: CORS
 
-The JS of a foreign island is loaded by **the page of another origin**, through a dynamic `import()`. That is a CORS request. The immutable assets of the MFE (`/_app/immutable/*`) must answer with `Access-Control-Allow-Origin` (usually `*` — they are content-hashed public files). Without it, each foreign island degrades silently with "Failed to fetch dynamically imported module." In production, this header belongs on the CDN or the reverse proxy of the MFE. A bare adapter-node server does **not** set it. HTML checks cannot catch this failure class — keep a real-browser check in your test set.
+A foreign island's JavaScript is loaded by **a page on another origin**, through a dynamic `import()`, which makes it a CORS request. The MFE's immutable assets (`/_app/immutable/*`) must answer with `Access-Control-Allow-Origin`, usually `*`, since they are content-hashed public files. Without it, every foreign island fails silently with "Failed to fetch dynamically imported module." In production, this header belongs on the MFE's CDN or reverse proxy, because a bare adapter-node server does **not** set it. Checks that only look at HTML cannot catch this kind of failure, so keep a real-browser check in your test suite.
 
 ## What crosses, what doesn't
 
-Fragment props are **plain data**. Snippets and children do not cross the boundary. A wired class that arrives from another _build_ throws loudly; it does not half-revive into a foreign Svelte instance. For state shared between the islands of two teams on one page, a small contracts package that exports a `SharedState` operates across builds: values cross as devalue snapshots, live references never do, and any server that can print a JSON script tag can seed it.
+Fragment props are **plain data**, and snippets and children do not cross the boundary. A wired class that arrives from another _build_ throws loudly instead of half-reviving into a foreign Svelte instance. For state shared between two teams' islands on one page, a small contracts package that exports a `SharedState` works across builds: values cross as devalue snapshots, live references never do, and any server that can print a JSON script tag can seed it.
 
-**`page` does not cross either.** On the MFE server, `$app/state` is the page of the MFE. In the browser, a mounted island hydrates inside the document of the shell, and the same read is the page of the **shell**: the same URL, but the route, the params, and `page.data` of the shell. The MFE's own page seed stops at the fragment boundary. So an island that reads `page.data` paints the MFE value on the server and repaints with the shell value after hydrate. In dev, ogygia warns once per island, with the entry and the MFE origin. Pass the value as a prop, or read it with a remote function.
+**`page` does not cross either.** On the MFE's server, `$app/state` is the MFE's page. In the browser, though, a mounted island hydrates inside the shell's document, and the same read returns the **shell's** page, with the same URL but the shell's route, params and `page.data`. The MFE's own page seed stops at the fragment boundary. An island that reads `page.data` therefore paints the MFE's value on the server and repaints with the shell's value after hydration. In dev, ogygia warns once per island, naming the entry and the MFE origin. Pass the value as a prop instead, or read it with a remote function.
 
-One more result of self-contained fragments: the document advertises the MFE's own runtime URL. So a **non-ogygia host** — a PHP page, a bare `node:http` server, anything that can print HTML — can mount the fragment of an ogygia app, and its islands still wake, hydrated end-to-end by the build that produced them.
+Self-contained fragments have one more consequence: the document advertises the MFE's own runtime URL. That means a **non-ogygia host**, whether a PHP page, a bare `node:http` server or anything else that can print HTML, can mount an ogygia app's fragment, and its islands still wake, hydrated end to end by the build that produced them. The next section shows how.
+
+## Calling from a non-ogygia service
+
+A host that is not an ogygia app calls the producer's endpoints directly. It needs two things: a request the producer accepts, and the producer's runtime script on the page.
+
+**The request.** A route of the exposed table is `GET /og/fragment/page?path=<route>&search=<query>`, where `path` is the route without the producer's `base`, and a form post is the same URL with `POST` and the form body. The answer is the fragment document as JSON: `status`, `title`, `css` (an array of tags), an optional `head`, `body`, `runtime` (the absolute URL of the producer's runtime) and, for a redirect, `location`. To render it, print the `css` and `head` tags and a `<script type="module" src="…">` for `runtime` in your `<head>`, and `body` where the fragment goes. The producer's chunks must be served with CORS, as described in [Serving the chunks](#serving-the-chunks-cors).
+
+**Signing.** The producer verifies every call against the public keys in its `peers`, so the host signs as a peer. Make a key pair with `npx ogygia keys legacy`, list the public key on the producer (`peers: { legacy: { origin: 'https://legacy.example.com', key: env.LEGACY_PUBLIC_KEY } }`), and sign each request with the private key. The signature is Ed25519 over one string:
+
+```
+<ts>.<METHOD>.<path and query>.<body hash>.<claims>.<audience>.<nonce>
+```
+
+| Part             | Value                                                                                  |
+| ---------------- | -------------------------------------------------------------------------------------- |
+| `ts`             | the current time in milliseconds; the producer accepts ±120 s by default (`skewMs`)    |
+| `METHOD`         | the HTTP method, upper case                                                            |
+| `path and query` | the pathname and search of the URL you call, such as `/og/fragment/page?path=%2Fsolar` |
+| `body hash`      | the base64 SHA-256 of the body bytes, or of zero bytes for a `GET`                     |
+| `claims`         | base64 of the visitor claims as JSON, or empty for an anonymous call                   |
+| `audience`       | the producer's host as it sees the request, or the `audience` it is configured with    |
+| `nonce`          | a random hex string, new for every request                                             |
+
+The request carries `x-og-ts` (the `ts`), `x-og-n` (the nonce), `x-og-sig` (the base64 signature) and, when there are claims, `x-og-user` (the same base64 claims). The private key is base64 PKCS#8 DER and the public key is base64 SPKI DER, which is what `npx ogygia keys` prints. In Node, with no ogygia dependency:
+
+```ts
+import { createPrivateKey, createHash, randomBytes, sign } from 'node:crypto';
+
+function signHeaders(privateKey: string, method: string, url: URL, body?: Uint8Array) {
+  const key = createPrivateKey({ key: Buffer.from(privateKey, 'base64'), format: 'der', type: 'pkcs8' });
+  const ts = String(Date.now());
+  const nonce = randomBytes(8).toString('hex');
+  const bodyHash = createHash('sha256').update(body ?? new Uint8Array(0)).digest('base64');
+  const payload = `${ts}.${method.toUpperCase()}.${url.pathname + url.search}.${bodyHash}..${url.host}.${nonce}`;
+  return { 'x-og-ts': ts, 'x-og-n': nonce, 'x-og-sig': sign(null, Buffer.from(payload), key).toString('base64') };
+}
+
+const url = new URL('/og/fragment/page', 'https://cms.internal');
+url.searchParams.set('path', '/solar');
+const doc = await (await fetch(url, { headers: signHeaders(process.env.LEGACY_SIGNING_KEY!, 'GET', url) })).json();
+```
+
+`examples/mfe/foreign-hosts` in the repository has complete hosts in plain Node and in PHP, including form posts and redirects.
+
+**Inside an ogygia app**, the same two halves are exported from `@ogygia/federation`. `sign_headers(privateKey, method, url, body?, claims?, audience?)` returns the headers above, and `verify_signed_request({ publicKeys, audience?, skewMs? }, request, url, body?)` checks a signed call in your own endpoint and returns `{ user? }` for a fresh, valid, not replayed signature from one of `publicKeys`, or `null`. The package imports ogygia's build-time modules, so these work only in an app built with Vite and ogygia; a plain server signs with code like the example above.
+
+**Without signing.** Behind mTLS or a service mesh, the producer can set `open: true` and accept unsigned calls. Nothing then proves who is calling, so the producer ignores any claims a caller sends, and `user(c)` is always `undefined`.
+
+## Peer options
+
+Each entry of `federate({ peers })` takes these options:
+
+| Option     | Default           | What it does                                                                                                                                           |
+| ---------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `origin`   | required          | The peer's origin, or a list. Extra entries are replicas of the same build, tried in order for reads; a `POST` goes only to the first.                 |
+| `key`      | none              | The peer's public key, or a list during rotation. Verifies calls and thaw notices from it. Omit it for a peer you only call.                           |
+| `timeout`  | `5000`            | Milliseconds for each attempt of an uncached hop. Each replica is a new attempt with its own timeout.                                                  |
+| `cache`    | off               | `{ ttl, max }`: a stale-while-revalidate cache of this peer's page documents (below).                                                                  |
+| `audience` | the origin's host | The audience signed into hops to this peer. It must equal what the peer verifies as its own, so set it on both ends only when a proxy rewrites `Host`. |
+| `label`    | the peer's name   | The `Server-Timing` label on a mount's hop (`<label>;dur=` and `<label>-render;dur=`).                                                                 |
+
+`cache` covers the page documents behind `peer.page()` and `mount()`; widget calls are not cached. `ttl` is in milliseconds, and `max` (default 500) caps the number of entries, dropping the least recently used. Entries are keyed by path, query and the visitor claims, so each distinct set of claims, including flag decisions, gets its own entry, and the cache helps most with anonymous or shared claims. Only successful answers that are not redirects are cached. An entry older than `ttl` is still served, and the read that finds it starts one refresh in the background, so a slow peer never delays a cached read. Entries don't expire on their own: they leave when the cache is full, when a [thaw notice](#cross-app-thaw) names them, or when a `POST` through the peer clears the whole cache. Concurrent requests for the same document share one hop whether or not `cache` is set.
+
+The rest of `federate()` takes these options besides `name`, `key`, `peers`, `visitor`, `expose`, `base` and `widgets`:
+
+| Option         | Default            | What it does                                                                                                 |
+| -------------- | ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `audience`     | the request's host | The audience, or list of audiences, this app verifies inbound calls against.                                 |
+| `skewMs`       | `120000`           | The clock skew and replay window for inbound signatures, in milliseconds.                                    |
+| `open`         | `false`            | Accept unsigned calls to `expose` and `widgets`, for an endpoint behind mTLS or a mesh.                      |
+| `maxBodyBytes` | `1048576` (1 MiB)  | The largest request body this app accepts on `/og/fragment/page` and `/og/thaw`; a larger one gets a 413.    |
+| `deploy`       | `'auto'`           | `'auto'` sends a thaw-all after a deploy ([Cross-app thaw](#cross-app-thaw)); `'manual'` leaves that to you. |

@@ -1,17 +1,17 @@
 ---
 title: Install & adopt
-summary: Add the package. Register the Vite plugin before sveltekit(). Add the server handle. Then convert routes one at a time. The other Kit pages continue to operate.
+summary: Add the package, register the Vite plugin before sveltekit(), and add the server handle. Then convert routes one at a time while the rest of your Kit pages keep working as they are.
 related:
   - start/quickstart
   - start/overview
   - app/spa-router
 ---
 
-ogygia installs into an applicable SvelteKit app. First, add the parts: the package, the Vite plugin, and the server handle. Then adopt it one route at a time. All other routes stay normal Kit pages.
+ogygia installs into an existing SvelteKit app. You add three parts once (the package, the Vite plugin and the server handle) and then adopt ogygia one route at a time, so every route you have not converted stays a normal Kit page.
 
 ## Setup
 
-The CLI is the fastest procedure. It installs the package. It registers the Vite plugin before `sveltekit()`. It adds the server handle and the transport. One command does all of this.
+The CLI does the whole setup in one command: it installs the package, registers the Vite plugin before `sveltekit()`, and adds the server handle and the transport.
 
 ::: code-group
 
@@ -25,11 +25,13 @@ pnpm dlx ogygia init
 
 :::
 
-To add markdown content collections at the same time, use `npx ogygia init --markdown`. If your project already exports a `handle` or a `transport`, the CLI merges into them. It puts your `handle` in a sequence and spreads into your `transport`. It does not overwrite them.
+To add markdown content collections at the same time, run `npx ogygia init --markdown`. If your project already exports a `handle` or a `transport`, the CLI merges into them instead of overwriting them: it puts your `handle` in a sequence and spreads into your `transport`.
+
+The command adds `ogygia` to your dependencies, plus `@ogygia/content` with `--markdown`, and adds `@ogygia/cli` to your devDependencies so that later `npx ogygia` commands run your local copy. It installs none of the other feature packages; you add those yourself, as described in [Other features](#transport-held-regions-over-the-wire-other-features-optional). The [CLI reference](/docs/reference/cli) lists every command.
 
 ### Manual setup
 
-You can add the parts yourself. Install the package. Register the Vite plugin **before** `sveltekit()`. Add the server handle.
+If you prefer to add the parts yourself, install the package, register the Vite plugin **before** `sveltekit()`, and add the server handle.
 
 ::: code-group
 
@@ -45,7 +47,7 @@ pnpm add ogygia
 
 #### vite.config.ts
 
-`ogygia()` must run before `sveltekit()`. The plugin also sets `enforce: 'pre'`. In monorepos, the plugin adds its package root to `server.fs.allow` in Vite. Thus Vite does not block shim and runtime resolves outside the app directory. For each option, see [the API reference](/docs/reference/api).
+`ogygia()` must run before `sveltekit()`, and the plugin also sets `enforce: 'pre'`. In a monorepo, the plugin adds its package root to Vite's `server.fs.allow`, so Vite does not block the shims and runtime it resolves from outside the app directory. The [API reference](/docs/reference/api) covers each option.
 
 ```ts
 import { sveltekit } from '@sveltejs/kit/vite';
@@ -59,9 +61,9 @@ export default defineConfig({
 
 #### hooks.server.ts
 
-`ogygia.handle()` serves the signed island endpoint. `render: 'deferred'` and `render: 'live'` use this endpoint. If you have other handles, put them together with `sequence()`. The default path is `/__ogygia__`.
+`ogygia.handle()` serves the signed island endpoint that `render: 'deferred'` and `render: 'live'` regions fetch from. Its default path is `/__ogygia__`. If you have other handles, combine them with `sequence()`.
 
-To change the path, use `ogygia.handle({ endpoint: '/my-islands' })`. The handle then answers there, and every hole on your pages asks there. Pick a path your deployment sends to the app: behind a proxy that only forwards some prefixes, put it under one of them (for example `/_server/api/__ogygia__`). Don't put it under Kit's `appDir` (`/_app/…`): Kit answers those paths itself, before any handle runs.
+To change the path, pass `ogygia.handle({ endpoint: '/my-islands' })`. The handle then answers there, and every hole on your pages asks there. Pick a path your deployment actually sends to the app: behind a proxy that only forwards some prefixes, put it under one of them (for example `/_server/api/__ogygia__`). Don't put it under Kit's `appDir` (`/_app/…`), because Kit answers those paths itself before any handle runs.
 
 ```ts
 import * as ogygia from 'ogygia/server';
@@ -70,22 +72,22 @@ export const handle = ogygia.handle();
 ```
 
 ::: warning In production
-Server islands and command / form POSTs go through the CSRF protection of Kit. Thus, set `ORIGIN` on your deployment. Without it, Kit rejects those POSTs. This is one env var. You set it one time.
+Server islands and command or form POSTs go through Kit's CSRF protection, so set `ORIGIN` on your deployment. Without it, Kit rejects those POSTs.
 :::
 
 #### TypeScript types
 
-ogygia resolves some build-time virtual modules (`virtual:ogygia/*`). Your editor and `svelte-check` need one reference line to see their types. Add a `src/ogygia.d.ts`:
+ogygia resolves some build-time virtual modules (`virtual:ogygia/*`), and your editor and `svelte-check` need one reference line to see their types. Add a `src/ogygia.d.ts` that contains only this:
 
 ```ts
 /// <reference types="ogygia/types" />
 ```
 
-That is the full file. Without it, `svelte-check` shows the virtual imports as unresolved. The build operates correctly in each case. `npx ogygia init` writes this file for you.
+Without it, `svelte-check` reports the virtual imports as unresolved, although the build works either way. `npx ogygia init` writes this file for you.
 
 ## Transport (held regions over the wire)
 
-Held regions render inline with no setup. But some held regions **cross the wire**. Examples: a search remote, or a live content source. Those need the `transport` hook. Install it one time in your universal hooks:
+Held regions that render inline need no setup. Some held regions **cross the wire**, though, such as one returned from a search remote or a live content source, and those need the `transport` hook. Install it once in your universal hooks:
 
 ```ts title=src/hooks.ts
 import * as ogygia from 'ogygia';
@@ -94,7 +96,7 @@ export const transport = { ...ogygia.transport };
 
 ### Markdown, Shiki & mdsvex (optional)
 
-For `.svx` / `.md` [content collections](/docs/content/collections), add the content package. It brings mdsvex and Shiki. Then list its `content()` plugin beside `ogygia()`:
+For `.svx` and `.md` [content collections](/docs/content/collections), add the content package, which brings mdsvex and Shiki, and list its `content()` plugin beside `ogygia()`:
 
 ```bash
 pnpm add @ogygia/content
@@ -115,7 +117,7 @@ export default defineConfig({
 });
 ```
 
-Put `extensions` and `preprocess` in **`svelte.config.js`**. Do not put them inline on `sveltekit()`. Kit v2, `svelte-check`, and the Svelte language server read `svelte.config.js`. If you pass them inline, Kit ignores `svelte.config.js`, and `svelte-check` does not see them:
+Put `extensions` and `preprocess` in **`svelte.config.js`**, not inline on `sveltekit()`. Kit v2, `svelte-check` and the Svelte language server all read `svelte.config.js`, and if you pass the options inline, Kit ignores `svelte.config.js` and `svelte-check` never sees them:
 
 ```js title=svelte.config.js
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
@@ -127,9 +129,9 @@ export default {
 };
 ```
 
-`preprocess()` is synchronous. When markdown is off, it does not load mdsvex. mdsvex loads at first use. `extensions()` adds `.svx` / `.md` only when markdown is on. Set themes and headings under `content({ markdown })`. See [content collections](/docs/content/collections).
+`preprocess()` is synchronous and does not load mdsvex while markdown is off; mdsvex loads on first use. `extensions()` adds `.svx` and `.md` only when markdown is on. Themes and headings are set under `content({ markdown })`, which [content collections](/docs/content/collections) describes.
 
-The content macros (`import.meta.og.loader`, `og.code`, `og.md`) bring their own types. Add a second line to `src/ogygia.d.ts`:
+The content macros (`import.meta.og.loader`, `og.code`, `og.md`) bring their own types, so add a second line to `src/ogygia.d.ts`:
 
 ```ts
 /// <reference types="ogygia/types" />
@@ -138,19 +140,24 @@ The content macros (`import.meta.og.loader`, `og.code`, `og.md`) bring their own
 
 ### Other features (optional)
 
-Flags, frozen pages, federation, the server router, the devtools dock and the profiler work the same way. Each is a package you install, with a plugin you list once beside `ogygia()`: `plugins: [ogygia(), flags(), sveltekit()]`. See [Plugins](/docs/reference/plugins) for the list.
+The other features are set up the same way as markdown. Each is a package you install, with a plugin you list once beside `ogygia()` and before `sveltekit()`, for example `plugins: [ogygia(), flags(), sveltekit()]`:
+
+- **`@ogygia/flags`** (`flags()`): kill switches, rollouts and A/B tests, decided on the server. See [Flags & experiments](/docs/app/experiments).
+- **`@ogygia/postrender`** (`postrender()`): pages stored whole on their first request and served as bytes. See [Postrender](/docs/data-state/postrender).
+- **`@ogygia/federation`** (`federation()`): other teams' apps rendered into your pages. See [Fragment federation](/docs/app/federation).
+- **`@ogygia/router`** (`router()`): routes declared as values in code. See [Server router](/docs/app/server-router).
+- **`@ogygia/devtools`** (`devtools()`): the in-page devtools dock and the SSR profiler. See [Devtools](/docs/devtools/overview) and [Profiler](/docs/profiler/overview).
+- **`@ogygia/testing`** (no plugin): Playwright helpers. See [Testing](/docs/devtools/testing).
+
+Some of these also need a line in `hooks.server.ts`, such as postrender's handle or the router's. [Plugins](/docs/reference/plugins) gives each package's install command, Vite line and server wiring.
 
 ## Adopt one route at a time
 
-ogygia is incremental. Do not convert the full app. Set islands on one route at a time. All other routes stay normal SvelteKit pages.
-
-::: tip When to use which mode
-A route that is almost static: use `csr = false` plus islands. This gives the largest gain. A route that is a full interactive app: keep it `csr = true`. You can still put an island in it. A full site of static-first pages: use all-islands mode. You do not select one mode for the full app.
-:::
+You don't need to convert the whole app. ogygia is incremental, so you can put islands on one route and leave every other route a normal SvelteKit page. A route that is almost static gains the most from `csr = false` plus islands. A route that is a full interactive app can stay `csr = true` and still use an island where it helps. A site made entirely of static-first pages can go all-islands. You choose per route, not once for the whole app.
 
 ### One route
 
-Remove the Kit client from a single route and mark its islands. The other routes do not change. For the effect of `csr = false`, and why islands operate without the Kit client, see the [Overview](/docs/start/overview).
+To convert a route, remove the Kit client from it and mark its islands. The other routes do not change. The [Overview](/docs/start/overview) explains what `csr = false` does and why islands work without the Kit client.
 
 ```ts title=src/routes/marketing/+page.ts
 export const csr = false;
@@ -158,22 +165,22 @@ export const csr = false;
 
 ### The router is global
 
-The SPA router is on by default, for the full app. There is no component to render. On routes with `csr = true`, the Kit client owns navigation. ogygia does not intercept clicks there. Thus the two operate together. To remove the router, use `ogygia({ router: false })`. See [Router](/docs/app/spa-router).
+The SPA router is on by default for the whole app, and there is no component to render. On routes with `csr = true`, the Kit client owns navigation and ogygia does not intercept clicks there, so the two coexist. To turn the router off, use `ogygia({ router: false })`. See [SPA router](/docs/app/spa-router).
 
 ### Islands on a normal Kit page
 
-An island does not need `csr = false`. Marked imports operate on a `csr = true` Kit page also. The component becomes an island. The remainder of the page hydrates the Kit way. What such a page ships is decided by what it rendered, not by what it imports: a marked component's client wrapper loads its component only when the server rendered that island (a stamp in the head says so), so a registry of many marked blocks imported by a `csr = true` route links the stylesheet and chunk of the blocks on the page, not of every block in the registry. A block that first appears after a client-side navigation loads on demand.
+An island does not need `csr = false`. Marked imports work on a `csr = true` Kit page as well: the component becomes an island and the rest of the page hydrates the Kit way. What such a page ships depends on what it rendered, not on what it imports. A marked component's client wrapper loads its component only when the server rendered that island (a stamp in the head records this), so a `csr = true` route that imports a registry of many marked blocks links the stylesheet and chunk of the blocks on the page, not of every block in the registry. A block that first appears after a client-side navigation loads on demand.
 
 ### All-islands apps
 
-You can also remove the Kit client from the full app. If **each** route has `csr = false`, Kit usually skips the client build. ogygia finds this condition and runs a standalone islands build. Thus your island chunks continue to ship.
+You can also remove the Kit client from the whole app. When **every** route has `csr = false`, Kit usually skips its client build, so ogygia detects this and runs a standalone islands build to keep your island chunks shipping.
 
-You do **not** need a keepalive route. When Kit would skip its client build, the Vite plugin injects a hidden route with no URL. The route exists only during the build. The plugin then removes it. Islands operate with zero placeholder files in your project.
+You do **not** need a keepalive route for this. When Kit would skip its client build, the Vite plugin injects a hidden route with no URL that exists only during the build and is removed afterwards, so islands work without any placeholder files in your project.
 
 ## Do / don't
 
-| Do                                                                                                                        | Don't                                                                                               |
-| ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Start with your most static route that has the most traffic. There, the removal of the Kit client gives the largest gain. | Do not set the full app to `csr = false` on day one. Convert route by route and measure.            |
-| Register `ogygia()` **before** `sveltekit()`. Order matters, and the plugin sets `enforce: 'pre'`.                        | Do not add a placeholder `csr = true` page to keep an all-islands build alive. It is not necessary. |
-| Keep true app-like routes on `csr = true`. ogygia operates together with them.                                            | Do not forget `ORIGIN` in production. Server-island and form POSTs need it.                         |
+| Do                                                                                                 | Don't                                                                                           |
+| -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Start with your most static, highest-traffic route, where removing the Kit client gains the most.  | Don't set the whole app to `csr = false` on day one. Convert route by route and measure.        |
+| Register `ogygia()` **before** `sveltekit()`. Order matters, and the plugin sets `enforce: 'pre'`. | Don't add a placeholder `csr = true` page to keep an all-islands build alive. It is not needed. |
+| Keep truly app-like routes on `csr = true`. ogygia works alongside them.                           | Don't forget `ORIGIN` in production. Server-island and form POSTs need it.                      |

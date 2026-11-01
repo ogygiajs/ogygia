@@ -44,9 +44,10 @@ shell's frozen page), the deferred card is a per-visitor hole fetched through th
   (`shell/src/lib/shell-router.ts` home load): `render: 'static'` bakes it into the shell's SSR
   (freezable); `render: 'deferred'` is a per-visitor hole the browser fetches through the shell.
   Rendered `<Region of={data.kpis} />`.
-- **Cross-app thaw** — the shell's home is a FROZEN page that bakes a dash fragment. A publish or
-  deploy on dash sends a signed `/og/thaw` notice to the shell, which drops the frozen pages that
-  embedded dash. `shell/vite.config.ts` turns freeze on; see the `data-state/freeze` doc.
+- **Cross-app thaw** — the shell's home is a STORED page (postrender) that bakes a dash fragment. A
+  publish or deploy on dash sends a signed `/og/thaw` notice to the shell, which drops the stored
+  pages that embedded dash. `shell/vite.config.ts` turns postrender on and `shell/src/hooks.server.ts`
+  adds its handle; see the `data-state/postrender` doc.
 - **`user(c)`** — verified signature-bound claims inside the cms's exposed loads
   (`cms/src/lib/router.ts` layout load reads `c.visitor`), unforgeable via HTTP.
 - **`csr_flag`** — picks the cms `/lab` page's csr=true|false as two bindings of ONE file

@@ -1,25 +1,21 @@
 ---
 title: Server router
-summary: The routing model of SvelteKit as a typed, programmatic table. Pages, layouts, loads, actions, endpoints in one file. App['/path'] gives each component its data, typed, with no codegen.
+summary: SvelteKit's routing model as a typed, programmatic table. Pages, layouts, loads, actions and endpoints live in one file, and App['/path'] gives each component its typed data without codegen.
 related:
   - app/spa-router
   - app/dashboards
   - regions/held-regions
 ---
 
-`@ogygia/router` is **the routing model of SvelteKit, expressed as values** instead of a file tree. One ordinary module declares the full route table: pages, layouts, loads, actions, endpoints. The types thread through it. Thus each component reads its `data`, `params`, and `form` fully typed, with **no codegen and no `$types` import**.
+Kit's file-based routes work well until your routes stop being files. A CMS whose paths come from a database, a tool that generates its pages, or a package that ships its own routes all need a route table they can compute, and even in an ordinary app you may want the routes, their loaders and their components in one place instead of spread across `+page.svelte`, `+page.server.ts` and `+server.ts`. `@ogygia/router` is **SvelteKit's routing model expressed as values** instead of a file tree. One ordinary module declares the whole route table (pages, layouts, loads, actions and endpoints), and the types flow through it, so each component reads its `data`, `params` and `form` fully typed with **no codegen and no `$types` import**.
 
-It runs on the **server**: it matches the request, runs the load cascade, and renders the page through its layout chain. It is the counterpart to the [SPA router](/docs/app/spa-router), which navigates between those pages on the client. Use either alone. Together, the server router defines routes, and the SPA router moves between them.
+The router runs on the **server**: it matches the request, runs the load cascade and renders the page through its layout chain. It is the counterpart to the [SPA router](/docs/app/spa-router), which navigates between those pages on the client. Each works without the other, and together the server router defines the routes while the SPA router moves between them.
 
-All that a Kit user knows carries over: `+layout.svelte` loads, the data cascade, `page.data`, `+error.svelte`, form actions, `redirect`/`error`, `$app/state`, `$app/navigation`. The one difference: each concept is an **imported function**, not a magic filename.
-
-::: tip When to use
-Use it when your routes are _computed_: a CMS whose paths come from a database, a tool whose pages are generated, a package that ships its own routes. Or when you want the full route table, its loaders, and its components in one place, not scattered across `+page.svelte` / `+page.server.ts` / `+server.ts`. For a few ordinary pages, the file routes of Kit are simpler. This is not a replacement that you must adopt.
-:::
+Everything a Kit user knows carries over: `+layout.svelte` loads, the data cascade, `page.data`, `+error.svelte`, form actions, `redirect` and `error`, `$app/state` and `$app/navigation`. The one difference is that each concept is an **imported function** rather than a special filename. For a handful of ordinary pages, Kit's file routes remain simpler, and nothing requires you to adopt this router.
 
 ## Installing
 
-The server router is its own package. Install it, and list its plugin beside `ogygia()`:
+The server router is its own package. Install it and list its plugin beside `ogygia()`:
 
 ```bash
 pnpm add @ogygia/router
@@ -32,7 +28,7 @@ import { router } from '@ogygia/router/vite';
 plugins: [ogygia(), router(), sveltekit()]
 ```
 
-The plugin tells the build that every module importing `@ogygia/router` renders pages. Thus each component those pages reach gets its CSS linked when it renders. See [Plugins](/docs/reference/plugins).
+The plugin tells the build that every module importing `@ogygia/router` renders pages, so each component those pages reach gets its CSS linked when it renders. See [Plugins](/docs/reference/plugins).
 
 ## The whole thing in one file
 
@@ -77,11 +73,11 @@ export const router = routes(
 export type App = typeof router.$infer;   // the ONE type map components index
 ```
 
-That is the full surface. The rest of this page is each piece in detail.
+That is the whole surface, and the sections below cover each piece.
 
 ## Pages
 
-A page is a Svelte component plus its `+page.server.ts`-shaped server object:
+A page is a Svelte component plus a server object shaped like `+page.server.ts`:
 
 ```ts
 '/':            page(Home),                              // no server logic
@@ -90,13 +86,13 @@ A page is a Svelte component plus its `+page.server.ts`-shaped server object:
 '/edit/[id]':   page(Editor, { load, actions, params, search }),   // all of it
 ```
 
-The second argument mirrors `+page.server.ts` exactly: `load`, `actions`, plus the input schemas `params` and `search` (see [Typed input](#typed-input)). It is always an object. Write a bare `page(Home)` when there is nothing to declare.
+The second argument mirrors `+page.server.ts` exactly: `load` and `actions`, plus the input schemas `params` and `search` (see [Typed input](#typed-input)), the prerender list `entries` (see [Pages carry region dials](#pages-carry-region-dials)) and Kit's `config` page option (see [Mounting](#mounting)). It is always an object, and you write a bare `page(Home)` when there is nothing to declare.
 
-A routed page is **inert**: it renders as `csr = false` server HTML, with zero JavaScript. Interactivity comes from marked island imports _inside_ the component (`with { wake }`), exactly as in all other parts of ogygia. See [Pages carry region dials](#pages-carry-region-dials) to wake or defer the page itself.
+A routed page is **inert**: it renders as `csr = false` server HTML with no JavaScript. Interactivity comes from marked island imports _inside_ the component (`with { wake }`), the same as everywhere else in ogygia. To wake or defer the page itself, see [Pages carry region dials](#pages-carry-region-dials).
 
 ## Layouts
 
-`layout(name, Component, { load?, error? })` returns a **table→table wrapper**. Apply it to a sub-table, and each page inside renders within that layout:
+`layout(name, Component, { load?, error?, config? })` returns a **table→table wrapper**. When you apply it to a sub-table, every page inside renders within that layout:
 
 ```ts
 const app = layout('app', AppShell, { load: async (c) => ({ user: await user(c) }) });
@@ -109,7 +105,7 @@ routes(
 );
 ```
 
-The layout component is a Kit layout: `{ data, children }`, `{@render children()}`:
+The layout component is a Kit layout, with `{ data, children }` props and `{@render children()}`:
 
 ```svelte title=AppShell.svelte
 <script lang="ts">
@@ -122,7 +118,7 @@ The layout component is a Kit layout: `{ data, children }`, `{@render children()
 
 ### Nesting
 
-A nested layout is a wrapped sub-table spread into another. A page inside both wraps renders inside both, and its `data` merges both loads:
+A nested layout is a wrapped sub-table spread into another. A page inside both wrappers renders inside both layouts, and its `data` merges both loads:
 
 ```ts
 const app  = layout('app',  AppShell,  { load: loadUser });
@@ -140,7 +136,7 @@ routes(
 
 ### Breaking out of a layout
 
-Kit resets a page to a named ancestor with `+page@name.svelte` (or `+page@.svelte` for the root). Here it is **placement**: you put the route in the table, wrapped by exactly the layouts that you want. More explicit: the reset point _is_ the structure, not a filename annotation.
+Kit resets a page to a named ancestor with `+page@name.svelte` (or `+page@.svelte` for the root). Here the reset is a matter of **placement**: you put the route in the table wrapped by exactly the layouts you want, so the reset point is the structure itself rather than an annotation in a filename.
 
 ```ts
 routes(
@@ -162,7 +158,7 @@ routes(
 
 ## Loads and the data cascade
 
-A load is a function of `c` that returns the data of the page. Declare it inline, pull it out with the `Load<'/pattern'>` type helper, or wrap it with `load()` when it must be **shared** across loads:
+A load is a function of `c` that returns the page's data. You can declare it inline, pull it out with the `Load<'/pattern'>` type helper, or wrap it with `load()` when it has to be **shared** across loads:
 
 ```ts
 // inline
@@ -174,7 +170,22 @@ const docLoad: Load<'/docs/[slug]'> = async (c) => ({ doc: await docs.get(c.para
 page(Doc, { load: docLoad }),
 ```
 
-**The cascade is the one from Kit, verbatim.** The `data` of a page is the **merge** of each load on its branch: each layout, then the page, outermost first, last wins. A component reads the full merge:
+Written inside the table, a load needs no pattern: **the table key types `c.params`**, as it does for an endpoint's handlers. The same holds for each action, for the `load()` and `action()` wrappers used in those slots, inside `layout(...)` tables, and behind `when()`. A param the key does not have is an error, and the load's return type reaches `App` unchanged:
+
+```ts
+routes({
+  '/posts/[id]': page(Post, {
+    load: async (c) => ({ post: await posts.get(c.params.id) }),   // c.params.id: string
+    actions: { save: (c) => posts.save(c.params.id) },
+  }),
+  '/docs/[...rest]': page(Doc, { load: load((c) => docs.get(c.params.rest)) }),
+  '/[[lang]]/about': page(About, { load: (c) => ({ lang: c.params.lang }) }),   // string | undefined
+});
+```
+
+A page built outside a table has no key to read, so its `c.params` is a loose `Record<string, string | undefined>`, and it still fits any key. A page with a `params` schema reads the schema's output instead (see [Typed input](#typed-input)).
+
+**The cascade is Kit's, unchanged.** A page's `data` is the **merge** of every load on its branch, from the outermost layout to the page, with later loads winning, and a component reads the whole merge:
 
 ```svelte title=Dashboard.svelte
 <script lang="ts">
@@ -186,11 +197,11 @@ page(Doc, { load: docLoad }),
 </script>
 ```
 
-`page.data` (through `$app/state`) is that same merged object. Thus a component in any location reads `page.data.user`: exactly where a Kit user looks for it.
+`page.data` (through `$app/state`) is that same merged object, so a component anywhere can read `page.data.user`, exactly where a Kit user would look for it.
 
 ### Sharing without waterfalls
 
-Loads on one branch run **concurrently** by default (the behavior of Kit). When one load truly needs the value of another, wrap the shared one with `load()`, and `await` it. It runs **one time per request** (memoized). Thus there is no double fetch:
+Loads on one branch run **concurrently** by default, as in Kit. When one load really needs another's value, wrap the shared one with `load()` and `await` it. It runs **once per request** (it is memoized), so nothing is fetched twice:
 
 ```ts
 const session = load(async (c) => ({ user: await auth.user(c.cookies) }));
@@ -205,11 +216,11 @@ const admin = layout('admin', AdminShell, {
 });
 ```
 
-This is the `await parent()` of Kit, generalized and typed. Sequencing exists exactly where a real data dependency exists, and in no other place. Waterfall _and_ waste are both structurally impossible.
+This is Kit's `await parent()`, generalized and typed. Loads run in sequence only where a real data dependency exists, which rules out both waterfalls and duplicate work by construction.
 
 ## Form actions
 
-Actions are the form actions of Kit: a POST handler that reads `FormData` itself. `fail(status, data)` returns validation data to the typed `form` prop. `redirect()` throws on success:
+Actions are Kit's form actions: POST handlers that read the `FormData` themselves. `fail(status, data)` returns validation data to the typed `form` prop, and `redirect()` throws on success:
 
 ```ts
 page(Login, {
@@ -225,7 +236,9 @@ page(Login, {
 });
 ```
 
-Named actions use the `?/name` URL convention of Kit (`default` is the unnamed one). The `form` prop is typed from the returns of the actions:
+An action can also be pulled out of the table. Type a bare function with `Action<'/login'>`, the counterpart of `Load`, or wrap it with `action(fn)`, or `action('/login', fn)` to type `c.params` from the pattern. Unlike `load()`, an action wrapper is not memoized, since an action runs once per POST.
+
+Named actions use Kit's `?/name` URL convention (`default` is the unnamed one), and the `form` prop is typed from what the actions return:
 
 ```svelte
 <script lang="ts">
@@ -234,11 +247,11 @@ Named actions use the `?/name` URL convention of Kit (`default` is the unnamed o
 {#if form?.incorrect}<p>Wrong email or password.</p>{/if}
 ```
 
-Progressive enhancement rides the [form continuity](/docs/app/spa-router) of ogygia. No `use:enhance` import is needed on a `csr = false` page.
+Progressive enhancement relies on ogygia's [form continuity](/docs/data-state/state-context#continuity-surviving-navigation), so you don't need to import `use:enhance` on a `csr = false` page.
 
 ## Endpoints
 
-An endpoint is the `+server.ts` shape, written as an object of **uppercase verb handlers**:
+An endpoint has the `+server.ts` shape, written as an object of **uppercase verb handlers**:
 
 ```ts
 '/api/[id]': {
@@ -247,7 +260,7 @@ An endpoint is the `+server.ts` shape, written as an object of **uppercase verb 
 },
 ```
 
-The **table key types each handler**. `c.params.id` is a `string`, and `c.params.slug` on that route is an error. The handler's return type is kept, so the [typed API client](#typed-api-client) knows what it answers. This holds at the top of the table, inside `layout(...)` tables, and behind `when()`. A **body schema** takes the verb wrappers `POST` / `PUT` / `PATCH`, and the key still types `c.params`:
+The **table key types each handler**, so `c.params.id` is a `string` and `c.params.slug` on that route is a type error. The handler's return type is preserved, so the [typed API client](#typed-api-client) knows what the endpoint answers. This holds at the top of the table, inside `layout(...)` tables and behind `when()`. A **body schema** uses the verb wrappers `POST`, `PUT` and `PATCH`, and the key still types `c.params`:
 
 ```ts
 import { POST, type Handler } from '@ogygia/router';
@@ -260,13 +273,13 @@ const readPost = ((c) => read(c.params.id)) satisfies Handler<'/posts/[id]'>;
 '/posts/[id]': { GET: readPost },
 ```
 
-Write `satisfies`, not a type annotation (`const readPost: Handler<…>`). An annotation replaces the handler's own return type with the annotation's, so the typed client would read `unknown`.
+Write `satisfies` rather than a type annotation (`const readPost: Handler<…>`). An annotation replaces the handler's own return type with the annotation's, and the typed client would then read `unknown`.
 
-`GET`/`DELETE` take no body schema (their input is path params + query, already typed). `HEAD` and `OPTIONS` are handled automatically from the verb set. A wrong method 405s, with an `Allow` header.
+`GET` and `DELETE` take no body schema, since their input is the path params and query, which are already typed. Their wrappers, `GET(fn)` and `DELETE(fn)`, are therefore the same as a bare handler (`{ GET: GET(fn) }` and `{ GET: fn }` behave alike), and they exist so that every verb can be written in the same form. `HEAD` and `OPTIONS` are handled automatically from the set of verbs, and a wrong method gets a 405 with an `Allow` header.
 
 ## The context `c`
 
-Each load, action, and handler receives `c`: the request surface of Kit:
+Every load, action and handler receives `c`, which is Kit's request surface:
 
 | `c` member                                                                      | what                                                                               |
 | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -279,11 +292,11 @@ Each load, action, and handler receives `c`: the request surface of Kit:
 | `c.json()` / `c.redirect()` / `c.text()`                                        | Response shortcuts                                                                 |
 | `c.href('/docs/[slug]', { slug })`                                              | a rename-safe URL to a route in this table                                         |
 | `c.state`                                                                       | a per-request scratch bag (a guard writes, a handler reads)                        |
-| `c.visitor`                                                                     | THE identity, resolved one time, lazily (below)                                    |
+| `c.visitor`                                                                     | THE identity, resolved once, lazily (below)                                        |
 
 ### One identity: `c.visitor`
 
-Declare who the request is **one time**, on the table, and read it in all locations:
+You declare who the request is **once**, on the table, and read it everywhere:
 
 ```ts
 routes(table, {
@@ -291,11 +304,20 @@ routes(table, {
 });
 ```
 
-`c.visitor` is lazy and memoized. The resolver runs at most one time per request, and only when something reads it. [Experiments](/docs/app/experiments) stick on it. [Mounts](/docs/app/federation) sign it onward to other teams. Loads personalize with it. When the request arrived through a signed federation hop, the signature-bound claims of the upstream **win** over the local resolver. Proof beats config.
+For logged-out traffic, `anonymousVisitor()` is a ready-made resolver. On a visitor's first request it sets a random id in a first-party, HTTP-only cookie, and from then on it returns `{ sub: id, anonymous: true }`, so a percentage rollout holds for visitors who never sign in. It takes `cookie`, the cookie's name (default `og-vid`, the cookie [experiments](/docs/app/experiments) fall back to), and `days`, its lifetime (default 365):
+
+```ts
+import { anonymousVisitor } from '@ogygia/router';
+
+const anon = anonymousVisitor({ cookie: 'og-vid', days: 365 });
+routes(table, { visitor: (c) => session_from(c.cookies) ?? anon(c) });   // a session first, else the cookie
+```
+
+`c.visitor` is lazy and memoized, so the resolver runs at most once per request and only when something reads it. [Experiments](/docs/app/experiments) stick to it, [mounts](/docs/app/federation) sign it onward to other teams, and loads personalize with it. When the request arrived through a signed federation hop, the upstream's signature-bound claims **take precedence** over the local resolver, because a proven identity outranks configuration.
 
 ## Control flow: redirect, error, fail
 
-Thrown from a load, action, or handler. The exact names of Kit, imported from `@ogygia/router`:
+These are thrown from a load, action or handler, and they use Kit's exact names, imported from `@ogygia/router`:
 
 ```ts
 import { redirect, error, fail } from '@ogygia/router';
@@ -305,11 +327,11 @@ error(404, 'Not found');            // → the nearest error boundary (page) / J
 return fail(400, { invalid: true }); // action only — re-render with `form` = data, given status
 ```
 
-A thrown `error()` on a page branch renders the **nearest** layout `error` component, inside the chrome that survived (the `+error.svelte` semantics of Kit). Set the root boundary with `routes(table, { error: ErrorPage })`. Scope one to a subtree with `layout('name', C, { error })`. On an endpoint, `error()` becomes a JSON response.
+A thrown `error()` on a page branch renders the **nearest** layout `error` component inside whatever chrome survived, which matches Kit's `+error.svelte` semantics. You set the root boundary with `routes(table, { error: ErrorPage })` and scope one to a subtree with `layout('name', C, { error })`. On an endpoint, `error()` becomes a JSON response.
 
 ## Typed input
 
-Path params are strings. A [Standard Schema](https://standardschema.dev) (Valibot, Zod, ArkType, …) coerces and validates them. The coerced type flows into `App`. This is truly **beyond Kit**, and fully opt-in. With no schema, `params` is pattern-typed exactly as in Kit.
+Path params are strings. A [Standard Schema](https://standardschema.dev) (Valibot, Zod, ArkType, …) can coerce and validate them, and the coerced type flows into `App`. This goes **beyond what Kit offers**, and it is entirely opt-in: with no schema, `params` is typed from the pattern exactly as in Kit.
 
 ```ts
 import * as v from 'valibot';
@@ -321,13 +343,13 @@ import * as v from 'valibot';
 }),
 ```
 
-- **`params`**: coerce/validate path params. Garbage → **404** (it is a nonexistent resource). `App['/post/[id]']['params']` becomes the output of the schema.
-- **`search`**: type the query. Bad input → **400**, or lenient with schema defaults. `App['/post/[id]']['search']` too.
-- **endpoint body**: `POST(schema, fn)` validates the JSON body into `c.input`. A bad body → **400**. Like the typed argument of a `command` remote function.
+- **`params`** coerces and validates path params. Invalid input gets a **404**, because it names a resource that doesn't exist. The schema's output types `c.params` in the page's load and actions, in place of the key's strings, and becomes `App['/post/[id]']['params']`.
+- **`search`** types the query. Invalid input gets a **400**, or is handled leniently with the schema's defaults. Its output types `c.search` and `App['/post/[id]']['search']`.
+- **The endpoint body** is validated by `POST(schema, fn)` into `c.input`, and an invalid body gets a **400**, much like the typed argument of a `command` remote function.
 
 ## Typed everything: `$infer`
 
-`typeof router.$infer` is a phantom-typed map. It exists only at the type level (a runtime read throws; always write `typeof router.$infer`). Export it one time. Components index it:
+`typeof router.$infer` is a phantom-typed map that exists only at the type level (reading it at runtime throws, so always write `typeof router.$infer`). You export it once, and components index it:
 
 ```ts
 export type App = typeof router.$infer;
@@ -343,15 +365,15 @@ export type App = typeof router.$infer;
 </script>
 ```
 
-It is computed from the **loads and schemas**, never from component types. Thus there is no cycle and no codegen. Layout keys use the group spelling of Kit (`(app)`). Path keys always start with `/`. Thus the two never collide. Duplicate layout names are a build error.
+The map is computed from the **loads and schemas**, never from component types, so there is no cycle and no codegen. Layout keys use Kit's group spelling (`(app)`) and path keys always start with `/`, so the two never collide. Duplicate layout names are a build error.
 
 ::: tip No `$types`, no cast
-This replaces the generated `./$types` of Kit. The component declaration `App['/path']` _is_ the check: props are defined as the type of the route. Change the return of a load, and the component squiggles: exactly the flow of Kit, with zero generated files.
+This replaces Kit's generated `./$types`. Declaring the props as `App['/path']` _is_ the check, because the props are defined as the route's type. If you change what a load returns, the component shows a type error, which is the same flow as in Kit without any generated files.
 :::
 
 ## Typed API client
 
-The table already knows the path grammar, body schema, and payload of each endpoint. `api()` gives that to a consumer, as a typed fetch client:
+The table already knows each endpoint's path grammar, body schema and payload, and `api()` hands that knowledge to a consumer as a typed fetch client:
 
 ```ts
 export type App = typeof app.$infer;                 // the map the app already exports
@@ -363,14 +385,14 @@ const post = await svc.get('/posts/[id]', { params: { id: '1' } });   // payload
 await svc.post('/posts', { body: { title } });                        // body: schema-typed
 ```
 
-- **Plain returns are the payload.** `GET: (c) => ({ id: c.params.id })` serializes to JSON (`finalize()`). Thus its type flows to the caller. A handler that returns a raw `Response` types as `unknown`: its payload is sealed inside.
-- Paths are constrained to keys that carry the verb (page paths never do), `params` is required exactly when the pattern has some, and a `POST(schema, fn)` body types from the schema.
-- Non-2xx throws `ApiError` with the status and the parsed error body (a schema 400 carries its issues).
-- Pass `{ headers }` for auth on each call, and `{ fetch }` for the cookie-forwarding fetch of a Kit event, or a test stub.
+- **Plain return values are the payload.** `GET: (c) => ({ id: c.params.id })` serializes to JSON (`finalize()`), so its type flows to the caller. A handler that returns a raw `Response` is typed as `unknown`, because its payload is sealed inside.
+- Paths are limited to keys that carry the verb (page paths never do), `params` is required exactly when the pattern has some, and the body of a `POST(schema, fn)` is typed from the schema.
+- A non-2xx response throws `ApiError` with the status and the parsed error body (a schema 400 carries its issues).
+- Pass `{ headers }` on each call for auth, and `{ fetch }` for a Kit event's cookie-forwarding fetch or a test stub.
 
 ## Pages carry region dials
 
-A routed page is only a component. Thus its **wake / render** schedule rides as an import attribute on the component that you pass to `page()`: the same dials as a marked island import:
+A routed page is an ordinary component, so its **wake** and **render** settings ride as import attributes on the component you pass to `page()`, using the same dials as a marked island import:
 
 ```ts
 import Chart from '$lib/views/Chart.svelte' with { wake: 'visible' };
@@ -380,9 +402,9 @@ import Greeting from '$lib/views/Greeting.svelte' with { render: 'deferred' };
 '/':          page(Greeting, { fallback: Skeleton }),   // deferred page + its loading slot
 ```
 
-`render: 'deferred'` gives a **partially-prerendered page from the route table**: a static shell, with a per-visitor hole, and the `fallback` snippet as its loading UI. See [held regions](/docs/regions/held-regions) and [server islands](/docs/regions/server-islands).
+`render: 'deferred'` gives you a **partially prerendered page straight from the route table**: a static shell with a per-visitor hole, and the `fallback` snippet as its loading UI. See [held regions](/docs/regions/held-regions) and [server islands](/docs/regions/server-islands).
 
-A **dynamic** pattern prerenders when it declares its param sets: the per-route `entries` export of Kit, as a page option:
+A **dynamic** pattern prerenders when it declares its param sets through Kit's per-route `entries` export, given here as a page option:
 
 ```ts
 '/posts/[id]': page(Post, {
@@ -391,11 +413,11 @@ A **dynamic** pattern prerenders when it declares its param sets: the per-route 
 }),
 ```
 
-Each set fills the pattern into the `entries()` crawl list of the router. A dynamic page without them is crawled, or SSR'd live, as before.
+Each set is filled into the pattern and added to the router's `entries()` crawl list. A dynamic page without them is crawled, or rendered live on the server, as before.
 
 ## Streamed pages: yield regions
 
-"The next state of a slot is a region" already powers [live regions](/docs/regions/held-regions). The same vocabulary operates on the **initial response**. A page slot can be an async generator. The first yield renders, and the page **flushes immediately**. Each later yield rides down the _same_ response, and swaps into place as it arrives. One connection, closed when the generator ends.
+The idea that a slot's next state is a region already powers [live regions](/docs/regions/held-regions), and it works for the **initial response** too. A page slot can be an async generator. The first yield renders and the page **flushes immediately**, then each later yield travels down the _same_ response and swaps into place as it arrives, over one connection that closes when the generator ends.
 
 ```ts
 '/report': page(async function* (c, data) {
@@ -404,14 +426,14 @@ Each set fills the pattern into the `entries()` crawl list of the router. A dyna
 }),
 ```
 
-- Yield regions, or raw html strings. A component region bakes with its islands inside. Islands are self-waking custom elements. Thus they connect and hydrate the moment that the late chunk lands. No orchestration layer.
-- Several late yields apply in order. Progressive states are free.
-- A throw after the flush becomes an inline error card in the slot. The page always closes cleanly.
-- The honest trades: status, title, and headers go out with the first yield. A late failure cannot change an already-sent 200, and `setHeaders` after the flush is lost. Non-GET requests buffer to the final yield (actions need a full answer).
-- Streamed responses carry `Cache-Control: no-transform`. A compressing intermediary buffers while it gzips, which would collapse the early flush into one late paint. When your CDN compresses regardless, exempt these routes (or accept buffered delivery there).
-- A component that you yield from a server-only module needs a mark (`with { region: 'raw' }`, or a wake). A plain import has no client leg. Thus its region cannot bake. A mistake here fails loudly, into the error card of the slot.
+- You can yield regions or raw HTML strings. A component region bakes with its islands inside, and because islands are self-waking custom elements, they connect and hydrate the moment the late chunk lands, with no orchestration layer.
+- Several late yields are applied in order, so progressive states come at no extra cost.
+- A throw after the flush becomes an inline error card in the slot, and the page always closes cleanly.
+- There are trade-offs to accept. Status, title and headers go out with the first yield, so a late failure cannot change a 200 that has already been sent, and `setHeaders` after the flush is lost. Non-GET requests are buffered until the final yield, because actions need a complete answer.
+- Streamed responses carry `Cache-Control: no-transform`, because a compressing intermediary buffers while it gzips, which would collapse the early flush into one late paint. If your CDN compresses anyway, exempt these routes from compression or accept buffered delivery on them.
+- A component you yield from a server-only module needs a mark (`with { region: 'raw' }` or a wake). A plain import has no client side, so its region cannot bake. This mistake fails loudly, in the slot's error card.
 
-**Streamed load data** needs no generator at all. Give a _promise of a region_ from the load to a `<Region of={…}>`, and the region resolves down the initial response: a placeholder in the flushed document, the baked region as a completion-order chunk, and the islands inside wake on adoption. Put as many such holes on one page as you want. Each fails into its own error card.
+**Streamed load data** needs no generator at all. Pass a _promise of a region_ from the load to a `<Region of={…}>`, and the region resolves down the initial response: a placeholder goes out in the flushed document, the baked region follows as a chunk in completion order, and the islands inside wake when they are adopted. You can put as many of these holes on one page as you like, and each fails into its own error card.
 
 ```ts
 '/report': page(Report, {
@@ -425,11 +447,11 @@ Each set fills the pattern into the `entries()` crawl list of the router. A dyna
 </Region>
 ```
 
-(This rides the request scope of the ogygia handle: standard wiring. A rejection becomes the error card of that slot, and never touches its neighbors.)
+(This relies on the ogygia handle's request scope, which the standard setup already provides. A rejection becomes that slot's error card and never affects its neighbors.)
 
 ## Flag-gated routes: `when()`
 
-Wrap a table entry (a page, an endpoint object, a [`mount()`](/docs/app/federation)), and it exists only when the gate says so:
+Wrap a table entry (a page, an endpoint object or a [`mount()`](/docs/app/federation)) in `when()`, and it exists only when the gate allows it:
 
 ```ts
 import { when } from '@ogygia/router';
@@ -442,13 +464,13 @@ routes({
 });
 ```
 
-**Off means that the route does not exist** for that request. Under an owned `base`, the 404/error page of the app answers. Without one, the router falls through to the rest of the app. Thus a gated-off ogygia route can be served by a plain Kit route at the same path, during a migration.
+**When the gate is off, the route does not exist** for that request. Under an owned `base`, the app's 404 or error page answers. Without one, the router falls through to the rest of the app, so during a migration a gated-off ogygia route can be served by a plain Kit route at the same path.
 
-The gate is any `(c) => boolean`, which is exactly what a boolean [`flag()`](/docs/app/experiments) is. Thus a [vendor-decided](/docs/app/experiments#openfeature-decide-source) kill switch gates full routes (the gate runs after the source primes). The decision is sticky per visitor. And it [carries across federation](/docs/app/federation), like each flag read. `$infer` sees the entry exactly as if unwrapped.
+The gate is any `(c) => boolean`, which is exactly what a boolean [`flag()`](/docs/app/experiments) is, so a [vendor-decided](/docs/app/experiments#openfeature-decide-source) kill switch can gate whole routes (the gate runs after the source has primed). The decision is sticky per visitor and [carries across federation](/docs/app/federation) like every flag read, and `$infer` sees the entry exactly as if it were not wrapped.
 
 ## Mounting
 
-Export the router. Serve it at either seam.
+Export the router and serve it at either of two seams. The first is the server hook:
 
 ```ts title=src/hooks.server.ts
 import { sequence } from '@sveltejs/kit/hooks';
@@ -458,7 +480,7 @@ import { router } from '$lib/router';
 export const handle = sequence(ogygiaHandle(), router.handle);
 ```
 
-`router.handle` dispatches a match, or falls through to the rest of the app (a good citizen for URLs that it does not own). Or own a subtree from a Kit catch-all:
+`router.handle` dispatches a match, or falls through to the rest of the app for URLs it does not own. The second seam is a Kit catch-all route that owns a subtree:
 
 ```ts title="src/routes/[...path]/+server.ts"
 import { router } from '$lib/router';
@@ -467,21 +489,32 @@ export const entries = router.entries;      // static routes + declared dynamic 
 export const prerender = 'auto';
 ```
 
-`router.fetch(request, event?)` returns the `Response`, or `null` on no-match. Table options:
+`router.fetch(request, event?)` returns the `Response`, or `null` when nothing matches. These are the table options:
 
 ```ts
 routes(table, {
   base: '/app',                 // mount prefix, stripped before matching
   slash: 'never',               // trailing-slash policy — 'ignore' | 'never' | 'always' (308s)
   error: ErrorPage,             // root error boundary
-  miss: (c) => c.error(404),    // response for an unmatched path under `base`
+  miss: () => error(404, 'Not found'),   // response for an unmatched path under `base`
   load: authGuard,              // a table-wide load before EVERY route — a guard with no chrome
   visitor: session,             // THE identity → c.visitor (see above)
   flags: [csrMode],             // decided up front, carried into federation hops — see Flags & experiments
+  config: { postrender: false }, // Kit's `config` page option for every page in the table
 });
 ```
 
-The table-wide `load` is the root `+layout.server.ts` load of Kit, without a component. It runs before each route (pages _and_ endpoints). It throws `redirect`/`error` to gate. Its data merges into each page. It is the place for auth, when there is no shared shell to hang it on.
+`miss` applies only under a `base`. It answers the way an endpoint does: a returned `Response` is sent as it is, another value is sent as JSON, a thrown `redirect()` redirects, and a thrown `error()` becomes a JSON error with its status. Without `miss`, a browser that asks for an unmatched page under `base` gets the root `error` component (when you set one) with a 404, and every other request gets a plain-text 404.
+
+The table-wide `load` is Kit's root `+layout.server.ts` load without a component. It runs before every route, pages _and_ endpoints, can throw `redirect` or `error` to act as a gate, and merges its data into every page. That makes it the place for auth when there is no shared shell to attach it to.
+
+`config` is Kit's `config` page option, the counterpart of `export const config = { … }` in a `+page.server.ts`. Plugins read their own keys from it, for example `{ postrender: false }` to keep a route out of [postrender](/docs/data-state/postrender). You can set it at three levels, `routes(table, { config })`, `layout(name, C, { config })` and `page(C, { config })`, and they merge as in Kit: the table first, then each layout from the outermost in, then the page, with a later level replacing a key of the same name (top-level keys only). Endpoints have no `config`.
+
+The router value also has `router.href(pattern, params)`, the same rename-safe URL builder as `c.href`, for code that runs outside a load or handler:
+
+```ts
+router.href('/docs/[slug]', { slug: 'intro' });   // '/docs/intro', with `base` in front
+```
 
 ## Kit ↔ @ogygia/router
 
@@ -499,9 +532,9 @@ The table-wide `load` is the root `+layout.server.ts` load of Kit, without a com
 | `page.data`                                | the leaf page's merged `data`                            |
 | `depends` + `invalidate` / `invalidateAll` | `invalidateAll()` (re-runs the branch's loads)           |
 | `throw redirect()` / `error()`             | same names, from `@ogygia/router`                        |
-| `./$types` (`PageData`, …)                 | `App['/path']` — no codegen                              |
+| `./$types` (`PageData`, …)                 | `App['/path']`, no codegen                               |
 | `$app/state`, `$app/navigation`            | work unchanged on router pages                           |
 
 ::: warning Two routers, one app
-This page is the **server** router: the route table. The [SPA router](/docs/app/spa-router) is separate: it intercepts link clicks, and navigates on the client. They compose, and each operates without the other.
+This page describes the **server** router, which is the route table. The [SPA router](/docs/app/spa-router) is separate: it intercepts link clicks and navigates on the client. The two compose, and each works without the other.
 :::

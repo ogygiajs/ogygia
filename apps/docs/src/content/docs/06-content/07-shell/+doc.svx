@@ -1,21 +1,19 @@
 ---
 title: Shells & components
-summary: The chrome around a page. Frame is the headless composition. DocsShell and BlogShell are ready-made forms, built on the same bricks (Doc, Sidebar, Pager, Search), plus an opt-in theme.
+summary: The chrome around a page. Frame is the headless composition, and DocsShell and BlogShell are ready-made layouts built from the same pieces (Doc, Sidebar, Pager, Search), with an optional theme.
 related:
   - content/site
   - content/search
   - regions/client-islands
 ---
 
-The site layer ships the structure of the site as data. The components render it. One headless frame, two ready-made shells, and a few bricks turn a `Site` into a page that looks like docs. Each piece is overridable or ejectable.
+The site layer delivers the structure of your site as data, and these components render it. One headless frame, two ready-made shells and a handful of smaller components turn a `Site` into a page that looks like documentation, and you can override or replace each piece.
 
-::: tip When to use
-Use `DocsShell` when you want a docs layout that operates in one import, and `BlogShell` for the blog form. Drop to `Frame` when you want the composition, but your own header and sidebar. Use the bricks (`Doc`, `Sidebar`, `Pager`) directly when you compose the page yourself.
-:::
+Which one to start from depends on how much of the layout you want to own. `DocsShell` gives you a working docs layout in one import, and `BlogShell` does the same for a blog. `Frame` keeps the composition but lets you bring your own header and sidebar, and the individual components (`Doc`, `Sidebar`, `Pager`) are there when you compose the page entirely yourself.
 
 ## One frame, two shells
 
-**`Frame`** is the headless composition: a sidebar and main, with each region overridable. Pass a component to _replace_ a region, `false`/`null` to _remove_ it, nothing for the default. It imports no CSS, and makes no design decisions:
+**`Frame`** is the headless composition of a sidebar and a main area, with every region overridable: pass a component to _replace_ a region, `false`/`null` to _remove_ it, or nothing to keep the default. It imports no CSS and makes no design decisions:
 
 ```svelte
 <script>
@@ -29,7 +27,7 @@ Use `DocsShell` when you want a docs layout that operates in one import, and `Bl
 </Frame>
 ```
 
-The shells are **compositions of Frame and the public bricks**, not privileged code. `DocsShell` is the VitePress form: a top header (brand, links, search, theme toggle), a left sidebar, a content column, a mobile bottom bar with a slide-up sheet. `BlogShell` is the blog form: the same header and mobile chrome, no sidebar, an article-width column. All that they do, your own composition can do. They exist so that you do not have to.
+The shells are **compositions of Frame and the public components**, with no privileged code. `DocsShell` follows the VitePress layout: a top header (brand, links, search, theme toggle), a left sidebar, a content column, and a mobile bottom bar with a slide-up sheet. `BlogShell` is the blog layout, with the same header and mobile chrome but no sidebar and an article-width column. Anything they do, your own composition can do too; they exist so that you don't have to build it.
 
 ::: code-group
 
@@ -64,23 +62,23 @@ The shells are **compositions of Frame and the public bricks**, not privileged c
 
 :::
 
-Both accept `{site}` directly (the simple path, csr=false layouts), or `{meta}` from the [meta remote](/docs/content/remotes) (the corpus-stays-server-side path). Each region that a shell renders is a **conditional snippet prop**: pass a snippet to replace it, `null` to remove it, nothing for the built-in. This site removes the stock header (`header={null}`), and brings its own.
+Both shells accept either `{site}` directly (the simple path, for csr=false layouts) or `{meta}` from the [meta remote](/docs/content/remotes) (the path that keeps the corpus on the server). Each region a shell renders is a **conditional snippet prop**: pass a snippet to replace it, `null` to remove it, or nothing to keep the built-in one. This site removes the stock header (`header={null}`) and brings its own.
 
 ## Styling is opt-in
 
-The shells ship **structure + `.og-*` hooks, and import no CSS**. For the stock look, import the two stylesheets one time, in your root layout. For your own look, do not, and style the `.og-*` classes yourself. You pay only for the CSS that you ask for.
+The shells ship **structure and `.og-*` class hooks, and import no CSS**. For the stock look, import the two stylesheets once in your root layout; for your own look, leave them out and style the `.og-*` classes yourself. Either way, you only load the CSS you ask for.
 
-- **`theme.css`** is the _design language_: the token palette (`--og-*`) and element styles shared by each shell.
-- **`shell.css`** is the _layout_ of the shells: header, sidebar, grid, mobile chrome.
+- **`theme.css`** is the _design language_: the token palette (`--og-*`) and the element styles shared by every shell.
+- **`shell.css`** is the shells' _layout_: header, sidebar, grid and mobile chrome.
 
-They are separate imports. Thus you can keep the tokens and swap the layout, or keep the layout and repaint with your own tokens. Each rule lives in `@layer ogygia`. Thus **each unlayered rule that you write wins**. No specificity fights, no `!important`:
+Because they are separate imports, you can keep the tokens and swap the layout, or keep the layout and repaint it with your own tokens. Every rule lives in `@layer ogygia`, so **any unlayered rule you write takes precedence** without specificity battles or `!important`:
 
 ```css
 /* your skin: unlayered → beats every @layer ogygia rule with plain selectors */
 .og-sidebar { border-right: 1px dashed var(--og-line); }
 ```
 
-Alternate token themes live under `@ogygia/content/themes/*`. Swap the import. Keep all else:
+Alternative token themes live under `@ogygia/content/themes/*`; swap the import and keep everything else:
 
 ```svelte
 <script>
@@ -89,22 +87,22 @@ Alternate token themes live under `@ogygia/content/themes/*`. Swap the import. K
 </script>
 ```
 
-## The bricks
+## The components
 
-Each is a plain component that you can use without a shell:
+Each of these is a plain component that you can use without a shell:
 
-- **`<Doc {view} />`** lays out one page from a [`docs.page()`](/docs/content/remotes) view: eyebrow, title, the rendered body, the **On this page** rail from `view.headings`, and prev/next. Props set the crumbs, the pager, and the keep-reading list on or off.
-- **`<Sidebar />`**: the nav tree, with the active row tracked. It is a [client island](/docs/regions/client-islands). Thus its marker glides across SPA navigations.
-- **`<Pager />`**: the prev/next footer, from the `prevNext` of the outline.
-- **`<OnThisPage headings={…} />`**: the scroll-spy rail. `<Doc>` mounts it. Use it standalone when you compose your own article.
-- **`<Switcher />`**: the version/locale picker on a [dimensioned](/docs/content/dimensions) site. A Bits UI dropdown. Thus it is an island.
-- **`<Search />` / `<SearchPage />`**: the ⌘K palette and the no-JS results page. See [Search](/docs/content/search).
-- **`<BlogList {posts} />` / `<BlogPost {view} />`** are the blog bricks: a dated index and the article form. Both read the same `PageView` shape that `<Doc>` does.
-- **`<TabGroup>` / `<Tab>`**: tabbed panels, also minted from `::: code-group` markdown with zero imports (the tabs above are exactly that).
+- **`<Doc {view} />`** lays out one page from a [`docs.page()`](/docs/content/remotes) view: eyebrow, title, the rendered body, the **On this page** rail from `view.headings`, and prev/next. Props turn the breadcrumbs, the pager and the keep-reading list on or off.
+- **`<Sidebar />`** renders the nav tree and tracks the active row. It is a [client island](/docs/regions/client-islands), so its marker moves smoothly across SPA navigations.
+- **`<Pager />`** renders the prev/next footer from the outline's `prevNext`.
+- **`<OnThisPage headings={…} />`** is the scroll-spy rail. `<Doc>` mounts it, and you can use it on its own when you compose your own article.
+- **`<Switcher />`** is the version/locale picker on a [dimensioned](/docs/content/dimensions) site. It is a Bits UI dropdown, and therefore an island.
+- **`<Search />` / `<SearchPage />`** are the ⌘K palette and the no-JS results page; see [Search](/docs/content/search).
+- **`<BlogList {posts} />` / `<BlogPost {view} />`** are the blog components, a dated index and the article layout. Both read the same `PageView` shape as `<Doc>`.
+- **`<TabGroup>` / `<Tab>`** are tabbed panels, which `::: code-group` markdown also produces without any imports (the tabs above are made that way).
 
 ## Doc, on its own
 
-The article layout operates with only a view. No shell is required:
+The article layout needs nothing but a view, and no shell is required:
 
 ```svelte
 <script>
@@ -117,11 +115,11 @@ The article layout operates with only a view. No shell is required:
 <Doc {view} keepReading={view.trail?.related} />
 ```
 
-The body inside `view` is a baked [region](/docs/regions/held-regions) ticket. Thus each island that the source `.svx` imported wakes on the page, exactly as an in-pass render would. **These docs are `<Doc>`**: the article that you read, its on-this-page rail, and the pager below are this brick.
+The body inside `view` is a baked [region](/docs/regions/held-regions) ticket, so every island the source `.svx` imported wakes on the page exactly as it would in an in-pass render. These docs use `<Doc>`: the article you are reading, its on-this-page rail and the pager below it are all this component.
 
 ## Overriding markdown elements
 
-The `components` map on `site()` replaces how markdown elements render, with **real component values in app code**, not import-path config. The compiled markup routes overridable tags through one slot. At render, it looks the tag up in the map:
+The `components` map on `site()` replaces how markdown elements render, using **real component values in app code** rather than import paths in config. The compiled markup routes overridable tags through one slot, which looks the tag up in the map at render time:
 
 ```ts
 export const docs = site({
@@ -130,11 +128,11 @@ export const docs = site({
 });
 ```
 
-The built-in default is `a → Link`: id-form links (`[Guide](routing)`) resolve against the address space of the site, and stay correct under each mount. A shell provides the map through context. Tier-2 renders can provide it themselves.
+The built-in default maps `a` to `Link`, so id-form links (`[Guide](routing)`) resolve against the site's address space and stay correct under any mount prefix. A shell provides the map through context, and tier-2 renders can provide it themselves. The slot itself is `SiteSlot`, which compiled markdown imports from `@ogygia/content/slot`. You never import it yourself, and with no map in context it renders each element as the plain tag (or `a` as `Link`).
 
 ## Do / don't
 
-- **Do** use `DocsShell` first. It is a docs site that operates, in one import. Drop to `Frame` or the bricks only when you must.
-- **Do** import the CSS in your root layout, one time. The shells import none themselves. That is what lets you bring your own.
-- **Don't** thread `site` through each component. A shell sets it on context. The bricks inside read it without props.
-- **Don't** re-implement the on-this-page rail or the pager. `view.headings` and `view.trail` already carry the data. `<Doc>` renders both.
+- **Do** start with `DocsShell`, which gives you a working docs site in one import, and move to `Frame` or the individual components only when you need to.
+- **Do** import the CSS once in your root layout. The shells import none themselves, which is what lets you bring your own.
+- **Don't** pass `site` through every component. A shell sets it on context, and the components inside read it without props.
+- **Don't** reimplement the on-this-page rail or the pager. `view.headings` and `view.trail` already carry the data, and `<Doc>` renders both.

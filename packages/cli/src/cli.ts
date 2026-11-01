@@ -486,9 +486,11 @@ async function ai_install(): Promise<void> {
 	stdout.write(
 		`\n${ok('✓')} done — any agent on this repo now has:\n` +
 			`  • the ${accent('ogygia')} skill — the mental model, read before inventing a workaround.\n` +
-			`  • live tools ${accent('ogygia_check / compile / islands / explain')} via the MCP server.\n\n` +
+			`  • live tools via the MCP server ${dim('(the compiler, the checker, the profiler, the devtools and more)')}.\n\n` +
 			`  In Claude Code the ${accent('.mcp.json')} server loads on next start ${dim('(approve it when prompted)')}.\n` +
-			`  Sanity-check the server: ${accent('npx ogygia mcp')} ${dim('→ should log “ready — 4 tools”, then Ctrl-C.')}\n`
+			// no count here: the tool list lives in mcp.js, which this file loads only by URL (it pulls in
+			// the compiler), so the server's own ready line is where the count and the names are
+			`  Sanity-check the server: ${accent('npx ogygia mcp')} ${dim('→ should log “ready — N tools (…)”, then Ctrl-C.')}\n`
 	);
 }
 
@@ -751,12 +753,13 @@ export const entries = raw.entries;
 	place(
 		rd('search/+page.server.ts'),
 		`import { docs } from '$lib/docs';
+import type { PageServerLoad } from './$types';
 
 // No-JS search: the /search page renders results server-side. With JS, the ⌘K palette takes over.
 export const prerender = false;
-export const load = async ({ url }) => {
+export const load: PageServerLoad = async ({ url }) => {
 	const q = (url.searchParams.get('q') ?? '').trim();
-	return { q, hits: q ? await site.search(q${searchBase}) : [] };
+	return { q, hits: q ? await docs.search(q${searchBase}) : [] };
 };
 `,
 		force

@@ -1,6 +1,6 @@
 ---
 title: Building dashboards
-summary: The dashboard recipe. A static shell, tiles as islands, one shared filter object, and server data that stays in sync, with no store library.
+summary: A recipe for dashboards with a static shell, tiles as islands, one shared filter object and server data that stays in sync, without a store library.
 related:
   - data-state/state-context
   - data-state/remote-functions
@@ -8,11 +8,7 @@ related:
   - app/spa-router
 ---
 
-A dashboard is the worst case for the classic choice. Render it static, and it is dead weight. Ship it as a SPA, and you hydrate a full app to show twelve tiles that are almost read-only. It is also the best case for ogygia. A dashboard divides _exactly_ along island lines. You only must know which primitive owns which job.
-
-::: tip When to use
-This page is a recipe, not a new API. Each piece has its own page with full depth. This is the map of how they combine into filters, cross-filter tiles, live data, and drill-down. The framework does the wiring, not you.
-:::
+Dashboards are the worst case for the usual choice between a static page and an SPA. Rendered statically, a dashboard is dead weight, but shipped as an SPA it hydrates a whole application to show a dozen tiles that are mostly read-only. They are also the best case for ogygia, because a dashboard divides _exactly_ along island lines, and the only real work is knowing which primitive owns which job. This page introduces no new API. It is a map of how the existing pieces, each documented on its own page, combine into filters, cross-filtering tiles, live data and drill-down.
 
 ## The anatomy
 
@@ -27,11 +23,11 @@ This page is a recipe, not a new API. Each piece has its own page with full dept
 | Ticking tile: live numbers, feeds                     | `query.live` that yields [held regions](/docs/regions/held-regions)          |
 | Tile that the _server_ selects                        | [Held region](/docs/regions/held-regions) from a registry                    |
 
-The remainder of this page builds a dashboard through that table, from the top down.
+The sections below build a dashboard from this table, from the top down.
 
 ## One filter object, everywhere
 
-Each dashboard has one core gesture: change the date range, and all tiles update. Model the filters as one wire class. Put **all** shared UI state on it, including cross-filter selections:
+Every dashboard has one core gesture: you change the date range, and all the tiles update. Model the filters as one wire class, and put **all** shared UI state on it, including cross-filter selections:
 
 ```ts title=filters.svelte.ts
 import * as ogygia from 'ogygia';
@@ -49,7 +45,7 @@ export class Filters {
 export const filtersCtx = ogygia.createContext<Filters>('filters');
 ```
 
-Provide it one time, above the tiles:
+Provide it once, above the tiles:
 
 ```svelte title=+page.svelte
 <!-- this page ships no JS of its own -->
@@ -72,11 +68,11 @@ Provide it one time, above the tiles:
 </Provide>
 ```
 
-Each tile is a separate bundle. But all tiles hold **one live object**. The picker writes `filters.range`. Each tile that read the context sees the change. There is no store library, no event bus, and no prop threading. That is the wire contract at work. A `visible` tile that hydrates later joins the _current_ instance, with its selections.
+Each tile is a separate bundle, but all of them hold **one live object**. When the picker writes `filters.range`, every tile that read the context sees the change, without a store library, an event bus or props threaded through the tree. A `visible` tile that hydrates later joins the _current_ instance, selections included. [State & context](/docs/data-state/state-context) explains how the wire contract makes this work.
 
 ## Tiles fetch their own data
 
-A tile owns its query. Derive the call from the shared filters. Then the tile fetches itself again when the filters change:
+Each tile owns its query. If you derive the call from the shared filters, the tile fetches again by itself whenever the filters change:
 
 ```svelte title=Revenue.svelte
 <script>
@@ -99,24 +95,24 @@ A tile owns its query. Derive the call from the shared filters. Then the tile fe
 </style>
 ```
 
-Three things you did **not** have to build:
+Several things here come without any work on your part:
 
-- **No refetch wiring.** `$derived` runs the query again when `filters.range` changes. That is Svelte, not a dashboard framework.
-- **No hydration flash.** The SSR pass awaited the query on the server. The result is seeded into the client cache. Thus the tile hydrates onto correct HTML and does not fetch again. This applies to production. Dev degrades to a refetch.
-- **No loading-state plumbing.** The query keeps `.current` (the last settled value) while a new call is in flight. The old number stays up, and the tile only dims. Skeletons are for first paint, not for each filter change.
+- **No refetch wiring.** `$derived` runs the query again when `filters.range` changes, which is plain Svelte rather than a dashboard framework.
+- **No hydration flash.** The SSR pass awaited the query on the server, and the result is seeded into the client cache, so the tile hydrates onto correct HTML without fetching again. This holds in production; in dev it degrades to a refetch.
+- **No loading-state plumbing.** The query keeps `.current` (the last settled value) while a new call is in flight, so the old number stays on screen and the tile only dims. Skeletons are for the first paint, not for every filter change.
 
-**Cross-filter is a field write.** The bar chart sets `filters.segment` in its click handler. `TopProducts` includes `filters.segment` in its query args. The two tiles do not know each other. The shared object _is_ the coordination:
+**Cross-filtering is a field write.** The bar chart sets `filters.segment` in its click handler, and `TopProducts` includes `filters.segment` in its query arguments. The two tiles know nothing about each other, because the shared object does the coordinating:
 
 ```svelte
 <!-- inside BarChart.svelte -->
 <rect onclick={() => (filters.segment = bucket.name)} … />
 ```
 
-**Shared data dedupes for you.** Two tiles that call `getStats(filters.range)` with the same args share one cache entry and one flight. The query cache of Kit is app-wide, and islands share the one client runtime. Put the costly aggregate in one query. Let the KPI tile, the chart, and the table read it. Do not build a distribution layer.
+**Shared data is deduplicated for you.** Two tiles that call `getStats(filters.range)` with the same arguments share one cache entry and one request, because Kit's query cache is app-wide and all islands share the one client runtime. Put the expensive aggregate in one query and let the KPI tile, the chart and the table all read it, instead of building a distribution layer.
 
 ## Tiles that ship zero JS
 
-Not each tile earns hydration. A "recent orders" list that no person touches is a **server island**: per-request HTML, no client bundle:
+Not every tile needs hydration. A "recent orders" list that nobody interacts with can be a [server island](/docs/regions/server-islands), which is per-request HTML with no client bundle:
 
 ```svelte
 <script>
@@ -125,18 +121,18 @@ Not each tile earns hydration. A "recent orders" list that no person touches is 
 </script>
 ```
 
-Each `render: 'deferred'` hole fetches its own HTML on load. On a SPA navigation, [single-flight navigation](/docs/app/spa-router#single-flight) pulls all holes down in one batch request, with no waterfall. Tiles below the fold with `render: 'deferred', fetch: 'visible'` do not cost the server a render until you scroll to them.
+Each `render: 'deferred'` hole fetches its own HTML on load, and on an SPA navigation [single-flight navigation](/docs/app/spa-router#single-flight) pulls all of them down in one batch request. Tiles below the fold with `render: 'deferred', fetch: 'visible'` cost the server no render until you scroll to them.
 
-Two refinements for the tiles that you _do_ hydrate:
+For the tiles you _do_ hydrate, two refinements help:
 
-- **Lakes for heavy content inside.** An interactive tile can hold a large server-rendered SVG chart. Mark the chart `wake: 'none'` inside the island. The controls hydrate. The markup of the chart never enters the client bundle. `render: 'live'` serves the cached chart immediately and refreshes it in the background through the signed endpoint.
-- **Held regions when the server selects the tile.** For user-configurable dashboards, the backend knows the layout. The client holds no widget registry. A remote returns `region(…)` per slot from a server-side registry. The page renders `<Region of={…}>` for the value that arrives. The client never imports widgets that the user did not place. See [Held regions](/docs/regions/held-regions).
+- **Lakes for heavy content inside.** An interactive tile can hold a large server-rendered SVG chart. If you mark the chart `wake: 'none'` inside the island, the controls hydrate while the chart's markup never enters the client bundle, and `render: 'live'` can refresh it in the background. See [Lakes](/docs/regions/lakes).
+- **Held regions when the server chooses the tile.** On a dashboard users can configure, the backend knows the layout, so the client needs no widget registry. A remote returns `region(…)` for each slot from a server-side registry, the page renders `<Region of={…}>` for whatever arrives, and the client never imports widgets the user did not place. See [Held regions](/docs/regions/held-regions).
 
-Know the trade: the props of a server island are captured at signing time. It renders again per _request_, not per filter change. If a tile must react to filters, it is a client island with a query (above). That island can still keep its heavy static parts in a lake.
+Keep the trade-off in mind: a server island's props are captured when it is signed, and it renders again per _request_, not per filter change. A tile that has to react to filters is a client island with a query (as above), which can still keep its heavy static parts in a lake.
 
 ## Live tiles
 
-For data that ticks (active users, a status feed), `query.live` pushes, and the tile subscribes. Yield a held region on each tick, and the _server_ renders the update:
+For data that ticks, such as active users or a status feed, `query.live` pushes updates and the tile subscribes. If you yield a held region on each tick, the _server_ renders the update:
 
 ```ts title=dashboard.remote.ts
 export const activeUsers = query.live(v.string(), async function* (range) {
@@ -148,19 +144,19 @@ export const activeUsers = query.live(v.string(), async function* (range) {
 <Region of={activeUsers(filters.range).current} />
 ```
 
-A `'static'` held region **morphs** in. Focus, typed text, and open popovers stay. An interactive one is **kept alive**: the new props push into the mounted island. Thus its local state (a hovered point, an expanded row) continues through the tick. Dashboard frameworks usually get this morph behavior wrong. Here it is the default.
+A raw (HTML-only) held region **morphs** in, so focus, typed text and open popovers stay. An interactive one is **kept alive** and receives the new props in the mounted island, so its local state, such as a hovered point or an expanded row, survives the tick. [Held regions](/docs/regions/held-regions#live-regions) covers this in detail.
 
 ## Drill-down and navigation
 
-Dashboards navigate: overview → orders → order detail. With the [SPA router](/docs/app/spa-router), those are real routes: URLs, the back button, `load` functions. They are not modal state.
+Dashboards navigate, for example from an overview to orders to an order's detail. With the [SPA router](/docs/app/spa-router), those are real routes with URLs, a working back button and `load` functions, rather than modal state.
 
-- **Filters can follow.** Give the codec an `id`, and the same live `Filters` instance continues through navigation (session lifetime). The detail page opens already set to the range that the user selected. Without the `id`, filters reset per page. Both are one line. Decide which one your users expect. For dashboards that people share, mirror the filters into the URL and merge them in `load`.
-- **Costly tiles can continue.** `keep: 'chart'` moves the live island across a navigation. It does not remount. A rendered chart, its zoom level, and its fetched data all carry over. The props of the new page push in.
-- **Half-filled forms already continue.** A settings form left in mid-edit restores on back. Continuity is ambient and on by default.
+- **Filters can follow you.** Give the codec an `id`, and the same live `Filters` instance survives navigation for the length of the session, so the detail page opens already set to the range the user chose. Without the `id`, filters reset on each page. Either is one line, so choose the behaviour your users expect. For dashboards people share, mirror the filters into the URL and merge them in `load`. [State & context](/docs/data-state/state-context#continuity-surviving-navigation) explains the `id`.
+- **Expensive tiles can carry over.** `keep: 'chart'` moves the live island across a navigation instead of remounting it, so a rendered chart keeps its zoom level and fetched data, and the new page's props are pushed in.
+- **Half-filled forms already carry over.** A settings form left mid-edit is restored when you come back, because continuity is on by default.
 
-## Don't do the computer's job
+## What you don't need to build
 
-The checklist, inverted. If you build one of these by hand, a primitive already owns it:
+If you find yourself building one of these by hand, a primitive already covers it:
 
 | If you're writing…                                | Use instead                                                |
 | ------------------------------------------------- | ---------------------------------------------------------- |
@@ -175,9 +171,9 @@ The checklist, inverted. If you build one of these by hand, a primitive already 
 
 ## Do / don't
 
-- **Do** put each piece of shared UI state (range, segment, selection) on the one wire class. Two sources of truth make tiles drift.
-- **Do** set tiles to `wake: 'visible'`, and below-fold server islands to `render: 'deferred', fetch: 'visible'`. The fold hides most of the cost of a dashboard.
-- **Do** dim on `.loading`. Do not unmount to a spinner. The visible last value is what makes filter changes feel immediate.
-- **Don't** make a tile a server island because it "feels server-like". If it must react to filters, it is a client island with a query. The server-island trade is per-request HTML for zero JS.
-- **Don't** use `query.live` for data that changes only when the user acts. A plain query that refetches through `$derived` costs less and is simpler.
-- **Don't** check data flows only in dev. SSR query seeding degrades to a refetch there. Check a production build before you judge flash. See [Constraints & patterns](/docs/reference/constraints).
+- **Do** put every piece of shared UI state (range, segment, selection) on the one wire class, because two sources of truth make tiles drift apart.
+- **Do** set tiles to `wake: 'visible'` and below-the-fold server islands to `render: 'deferred', fetch: 'visible'`. Most of a dashboard's cost is below the fold.
+- **Do** dim on `.loading` instead of unmounting to a spinner. Keeping the last value visible is what makes filter changes feel immediate.
+- **Don't** make a tile a server island because it "feels server-like". If it has to react to filters, it is a client island with a query, since a server island trades reactivity for per-request HTML with no JavaScript.
+- **Don't** use `query.live` for data that only changes when the user acts. A plain query that refetches through `$derived` is cheaper and simpler.
+- **Don't** judge data flows only in dev, where SSR query seeding degrades to a refetch. Check a production build before you judge any flash. See [Constraints & patterns](/docs/reference/constraints).

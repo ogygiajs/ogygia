@@ -11,15 +11,17 @@ import type { RequestContext, ServerApp, ServerPlugin } from './index.ts';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { facts_of } from './facts.ts';
 import { request_contexts, start_plugins, type AppSigner } from './server.ts';
+import { capability_lifetime } from '../server/capability-lifetime.ts';
+import { RENEW_WINDOW_SEC } from '../server/shared-cache.ts';
 
-// ── route options: read the lookup a plugin's `ctx.routeOption()` reads, and set its two worlds up
-/** This request's declared value for `option` (a registered router's verdict, else the Kit page's
- *  baked value), or `undefined`. */
-export { route_option as routeOption } from './routes.ts';
-/** Forget every registered router and every page's declared values. */
-export { clear_route_options as clearRouteOptions } from './routes.ts';
-/** Stand in for the compiler: the Kit pages' declared values (route id → option → value). */
-export { set_page_route_options as setPageRouteOptions } from './routes.ts';
+// ── route config: read the lookup a plugin's `ctx.routeConfig()` reads, and set its two worlds up
+/** This request's value for `key` (a registered router's merged config, else the Kit page's baked
+ *  value), or `undefined`. */
+export { route_config as routeConfig } from './routes.ts';
+/** Forget every registered router and every page's merged config. */
+export { clear_route_config as clearRouteConfig } from './routes.ts';
+/** Stand in for the compiler: the Kit pages' merged config (route id → key → value). */
+export { set_page_route_config as setPageRouteConfig } from './routes.ts';
 
 /** A real HMAC under a key made for this test process. */
 const TEST_KEY = randomBytes(32);
@@ -29,7 +31,16 @@ const TEST_SIGNER: AppSigner = {
 		const want = Buffer.from(createHmac('sha256', TEST_KEY).update(message).digest('base64url'));
 		const got = Buffer.from(signature);
 		return want.length === got.length && timingSafeEqual(want, got);
-	}
+	},
+	// the app's hole lifetime with ogygia's defaults (`ttl` an hour, `maxPageAge` eight days)
+	lifetime: capability_lifetime({
+		building: false,
+		region_ttl: 3600,
+		renew_window: RENEW_WINDOW_SEC,
+		request: () => null
+	}),
+	// the handle's refusal, without its framing headers
+	deny: (why) => new Response('Forbidden', { status: 403, headers: { 'x-ogygia-deny': why } })
 };
 
 export interface StartedPlugin<Options, State> {

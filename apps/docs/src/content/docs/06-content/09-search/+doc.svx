@@ -1,17 +1,15 @@
 ---
 title: Search
-summary: One search engine, two ways to run it. Ship a static index to an on-device worker, or query it on the server. A no-JS fallback page comes for free.
+summary: One search engine that runs in two places. Ship a static index to an on-device worker, or query it on the server, with a no-JS fallback page in both cases.
 related:
   - content/remotes
   - content/emit
   - content/shell
 ---
 
-The site layer builds a search index from the **section documents** of your collections: the prose split by heading. Thus a hit lands on the exact section, not only the page. You pick where the query runs: on the server, or on the device of the visitor, against a static index. **The search on this site is the second kind**: a worker over a prerendered file. Thus a query costs no server round-trip.
+The site layer builds a search index from the **section documents** of your collections, meaning the prose split at each heading, so a hit lands on the exact section rather than only the page. You choose where the query runs: on the server, or on the visitor's device against a static index. The search on this site works the second way, with a worker over a prerendered file, so a query costs no server round trip.
 
-::: tip When to use
-Each docs site gets value from search. Prefer the static-index path for a prerendered site: it is free to serve, and operates offline. Use the server query when the corpus is private, very large, or changes per request.
-:::
+The static index is usually the better choice for a prerendered site, because it costs nothing to serve and works offline. Query on the server instead when the corpus is private, very large, or changes per request.
 
 ## Two paths, one engine
 
@@ -33,11 +31,11 @@ export const { search } = remotes(docs, { base: '/docs' });
 
 :::
 
-The same engine (`docs.search`), the same section documents, the same ranking. Only the location differs.
+Both paths use the same engine (`docs.search`), the same section documents and the same ranking; only the place where the query runs differs.
 
 ## The palette
 
-`<Search>` is the ⌘K palette. It is an [island](/docs/regions/client-islands) that loads on demand:
+`<Search>` is the ⌘K palette, an [island](/docs/regions/client-islands) that loads on demand:
 
 ```svelte
 <script>
@@ -47,9 +45,9 @@ The same engine (`docs.search`), the same section documents, the same ranking. O
 <Search base="/docs" placeholder="Search the docs" />
 ```
 
-The server renders only the trigger: a real link to the fallback page. On the first _intent_ (⌘K, `/`, or a click), it loads the palette, and starts an [Orama](https://orama.com) worker that fetches and indexes the static file **off the main thread**. Ranking marks matched terms, and boosts title matches. No server touches a query. Nothing heavy loads for a visitor who never searches.
+The server renders only the trigger, which is a real link to the fallback page. On the first sign of _intent_ (⌘K, `/` or a click) it loads the palette and starts an [Orama](https://orama.com) worker that fetches and indexes the static file **off the main thread**. Ranking highlights matched terms and boosts title matches. No server ever sees a query, and nothing heavy loads for a visitor who never searches.
 
-Orama is an **optional peer**: installed by the scaffold, and loaded only on the search path:
+Orama is an **optional peer dependency** that the scaffold installs and that loads only on the search path:
 
 ::: code-group
 
@@ -65,7 +63,7 @@ pnpm add @orama/orama
 
 ## The server path, rendered
 
-When you query over the wire in its place, the page is a few lines. The same hits, the same shape:
+If you query over the wire instead, the page takes a few lines and returns the same hits in the same shape:
 
 ```svelte
 <script>
@@ -81,7 +79,7 @@ When you query over the wire in its place, the page is a few lines. The same hit
 
 ## The no-JS fallback
 
-Search must operate without JavaScript. The `<Search>` trigger is a real `<a href="/docs/search">`. With JS, it opens the palette. Without JS, it follows the link to a plain results page that you render from a server load:
+Search should work without JavaScript. The `<Search>` trigger is a real `<a href="/docs/search">`, which opens the palette when JS is available and otherwise follows the link to a plain results page that you render from a server load:
 
 ```ts title=src/routes/docs/search/+page.server.ts
 import { docs } from '$lib/site.server';
@@ -100,13 +98,13 @@ export const load = async ({ url }) => ({
 <SearchPage q={data.q} hits={data.hits} />
 ```
 
-The same index, the same ranking, zero client JS: the fallback below the palette. **This site has one**: open `/docs/search` directly.
+The fallback uses the same index and ranking with no client JS at all. This site has one, which you can see by opening `/docs/search` directly.
 
 ## Scoping and swapping
 
-`docs.search(q, { in: [collection] })` narrows the query to one collection. That is applicable when a site carries several (docs + blog), and a box must search only one. The static index carries each collection. The worker filters by scope.
+`docs.search(q, { in: [collection] })` narrows the query to one collection, which is useful when a site carries several (docs and a blog, say) and a search box should cover only one. The static index includes every collection, and the worker filters by scope.
 
-The engine itself is a **contract, not a dependency**. The default is Orama. `site({ search: { engine } })` swaps it for anything that can build and query the section documents: a hosted service, a different library, a test double.
+The engine itself is a **contract rather than a fixed dependency**. Orama is the default, and `site({ search: { engine } })` replaces it with anything that can build and query the section documents, such as a hosted service, a different library or a test double.
 
 ::: details What a hit looks like
 `SearchHit` is plain data, ready to render:
@@ -123,7 +121,7 @@ The engine itself is a **contract, not a dependency**. The default is Orama. `si
 
 ## Do / don't
 
-- **Do** ship the static index for a prerendered site. An on-device worker is faster to serve, and operates offline. The server never sees a keystroke.
-- **Do** keep the fallback page. It is one server load. With it, search survives when JS is off, or not yet loaded.
-- **Don't** mint a `search` remote _and_ ship the index for the same box. Pick one path. The index is for the worker. The remote is for server queries.
-- **Don't** build your own index off the raw bodies. `docs.emit.search()` splits by section. Thus a hit deep-links to the correct heading.
+- **Do** ship the static index for a prerendered site. An on-device worker is faster to serve, works offline, and the server never sees a keystroke.
+- **Do** keep the fallback page. It is one server load, and it keeps search working when JS is off or has not loaded yet.
+- **Don't** create a `search` remote _and_ ship the index for the same search box. Pick one path: the index is for the worker, and the remote is for server queries.
+- **Don't** build your own index from the raw bodies. `docs.emit.search()` splits by section, which is what lets a hit link straight to the right heading.

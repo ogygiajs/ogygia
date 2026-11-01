@@ -1,5 +1,5 @@
 /**
- * `import.meta.og.source(fn)` — declared data sources, as a compile construct (the freeze
+ * `import.meta.og.source(fn)` — declared data sources, as a compile construct (the postrender
  * reverse index; internal/notes/freeze.md §L2):
  *
  *   export const loadBuilderContent = import.meta.og.source(async (event, category) => { … });
@@ -7,7 +7,7 @@
  * The macro stamps the id from THIS definition's `file#export` (root-relative; the ogygia.files
  * identity rail applies to package paths upstream) and rewrites to
  * `__og_source('<id>', fn, opts?)` with the runtime-wrapper import injected. Loads stay
- * untouched plain TS forever; `freeze.invalidate(loadBuilderContent, [args])` reads the stamp
+ * untouched plain TS forever; `postrender.invalidate(loadBuilderContent, [args])` reads the stamp
  * off the function — no strings anywhere.
  *
  * STRICT BY CONSTRUCTION — legal in exactly ONE position:

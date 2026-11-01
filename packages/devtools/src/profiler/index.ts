@@ -87,6 +87,7 @@ import {
 } from './report.ts';
 import { load_lane_of } from './timeline.ts';
 import { parse_visit, merge_visits, type Visit } from './visit.ts';
+import { MAX_VISITS_PER_KEY } from './storage/visits.ts';
 import { hole_slots } from './hole-slots.ts';
 import {
 	client_windows,
@@ -340,11 +341,14 @@ export interface ProfilerOptions {
 	sample?: { every?: number; window?: number; interval?: number };
 	/**
 	 * WHERE REPORTS LIVE. Default: this instance's memory (lost on restart; each browser keeps its
-	 * own copies). Point this at a `ProfilerStore` — `sqliteStore(...)`, `redisStore(...)`,
-	 * `postgresStore(...)` from `@ogygia/devtools/profiler/storage`, or your own — and every finished report is
-	 * written there and read back from there, so it survives the instance that made it and a whole
-	 * team shares one list. The store is dual-written: memory stays the hot cache, the store the
-	 * source of truth.
+	 * own copies). Not a `devtools({ profiler })` option: a store is a live object the build-time
+	 * options cannot carry, so the app sets it at runtime with `setProfilerStore(store)` from
+	 * `@ogygia/devtools/profiler/storage`, in hooks.server.ts, and the server half passes it in here
+	 * when the profiler mounts. A store is `sqliteStore(...)`, `redisStore(...)` or `postgresStore(...)`
+	 * from `@ogygia/devtools/profiler/storage/{sqlite,redis,postgres}`, or your own; every finished
+	 * report is written there and read back from there, so it survives the instance that made it and
+	 * a whole team shares one list. The store is dual-written: memory stays the hot cache, the store
+	 * the source of truth.
 	 */
 	store?: import('./storage/index.ts').ProfilerStore;
 }
@@ -4323,7 +4327,7 @@ class Profiler {
 	> {
 		if (!this.#store?.listVisits) return [];
 		try {
-			const rows = await this.#store.listVisits(WINDOW_PAGE_PREFIX + id, 2000);
+			const rows = await this.#store.listVisits(WINDOW_PAGE_PREFIX + id, MAX_VISITS_PER_KEY);
 			return rows.map((r) => JSON.parse(r.visit)).sort((a, b) => a.at - b.at);
 		} catch {
 			return [];
