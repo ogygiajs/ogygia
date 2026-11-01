@@ -1,0 +1,1 @@
+import"../chunks/6zCZ8NgT.js";import{A as e,G as t,H as n,M as r,O as i,at as a,dt as o,it as s}from"../chunks/C3DqmHOU.js";var c=r(`<h1 data-testid="quiet"> </h1>`);function l(r,l){a(l,!0);var u=c(),d=t(u);o(u),n(()=>i(d,`quiet (inherits config.postrender = false), render ${l.data.render??``}`)),e(r,u),s()}export{l as component};

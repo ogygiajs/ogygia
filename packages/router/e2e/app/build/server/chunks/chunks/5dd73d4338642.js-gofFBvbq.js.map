@@ -1,0 +1,1 @@
+{"version":3,"file":"5dd73d4338642.js-gofFBvbq.js","sources":["../../../../.svelte-kit/output/server/chunks/5dd73d4338642.js"],"sourcesContent":["import { t as Board } from \"./Board.js\";\n// virtual:ogygia/island/5dd73d433864.js\nvar _5dd73d433864_default = Board;\nexport { _5dd73d433864_default as t };\n"],"names":[],"mappings":";;AACA;AACG,IAAC,qBAAqB,GAAG;;;;"}

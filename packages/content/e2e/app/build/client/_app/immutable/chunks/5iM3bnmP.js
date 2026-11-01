@@ -1,0 +1,1 @@
+import{Mt as e}from"./CQFN0avQ.js";import"./UUMwhdnX.js";var t=Symbol.for(`ogygia.content.shell`);function n(){return e(t)}export{n as t};

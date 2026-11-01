@@ -1,0 +1,1 @@
+export{t as render}from"./DqoMOBQD.js";

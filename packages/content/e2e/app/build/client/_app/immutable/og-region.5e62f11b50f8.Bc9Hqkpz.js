@@ -1,0 +1,1 @@
+import{B as e,L as t,Xt as n}from"./chunks/CQFN0avQ.js";import"./chunks/U7RmwNP4.js";import{D as r,i,j as a,k as o}from"./chunks/UUMwhdnX.js";var s=a(`<div class="blk-unused svelte-1w17il8"> </div>`);function c(a,c){let l=i(c,`label`,3,`unused`);var u=s(),d=e(u,!0);n(u),t(()=>r(d,l())),o(a,u)}var l=c;export{l as default};

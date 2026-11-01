@@ -1,0 +1,1 @@
+{"version":3,"file":"_layout.ts.js-BkhQW26z.js","sources":["../../../../../.svelte-kit/output/server/entries/pages/_layout.ts.js"],"sourcesContent":["// src/routes/+layout.ts\nvar csr = false;\nexport { csr };\n"],"names":[],"mappings":"AAAA;AACA,IAAI,GAAG,GAAG,KAAK;;;;;;;;;"}

@@ -1,0 +1,42 @@
+export { _ as universal } from '../entries/pages/blocks/_page.ts.js-DZVsnCwz.js';
+import '../chunks/blocks.js-Cfocf_v9.js';
+import '../chunks/Region.js-DspBOxVI.js';
+import '../chunks/async.js-CdyA1ipx.js';
+import '../chunks/server.js-Cx6qdlSj.js';
+import '../chunks/uneval.js-CHOeF-6t.js';
+import '../chunks/index-server2.js-Dp0Lnfg2.js';
+import '../chunks/rolldown-runtime.js-CTrrmpyn.js';
+import '../chunks/late-region-registry.js-DFACBCYi.js';
+import '../chunks/shared.js-B7aDE0fO.js';
+import '../chunks/utils.js-DOLeCbnX.js';
+import '../chunks/paths.js-DBACMOFs.js';
+import '../chunks/internal.js-NlsCutcl.js';
+import '../chunks/routing.js-BCO6GjuO.js';
+import '../chunks/internal2.js-CT1i7Aye.js';
+import '../chunks/legacy-client.js-DQU-0Hpk.js';
+import 'node:fs';
+import 'node:path';
+import 'node:url';
+import 'node:crypto';
+import '../chunks/live-transport.js-DcfVhxYl.js';
+import '../chunks/state.js-PRJNi6S7.js';
+import '../chunks/exports.js-C-11U8cd.js';
+import '../chunks/src.js-CioERKRa.js';
+import '../chunks/payload.js-BFR-R8Ce.js';
+import '../chunks/53eeafeb0f8c.js-B1WfgCrT.js';
+import '../chunks/Hero.js-DYyJmJoQ.js';
+import '../chunks/Grid.js-B1zm1sNf.js';
+import '../chunks/Feature.js-Cd89R5GK.js';
+import '../chunks/53eeafeb0f8c2.js-ku69fXC2.js';
+import '../chunks/Unused.js-BUmq-veZ.js';
+
+const index = 3;
+let component_cache;
+const component = async () => component_cache ??= (await import('../entries/pages/blocks/_page.svelte.js-CsMk-SWL.js')).default;
+const universal_id = "src/routes/blocks/+page.ts";
+const imports = ["_app/immutable/nodes/3.CPWUHlHV.js","_app/immutable/chunks/XKyaHtl9.js","_app/immutable/chunks/CQFN0avQ.js","_app/immutable/chunks/1HWtiz6L.js","_app/immutable/chunks/BHjNp32S.js","_app/immutable/chunks/JzChstqB.js","_app/immutable/chunks/U7RmwNP4.js","_app/immutable/chunks/UUMwhdnX.js","_app/immutable/chunks/BCLW5U-U.js","_app/immutable/chunks/CH-p_bub.js","_app/immutable/chunks/RNeBOKcO.js","_app/immutable/chunks/BdNcBqPr.js","_app/immutable/chunks/KyuKv9Uk.js","_app/immutable/chunks/BtWC0fJw.js","_app/immutable/chunks/CRzLMJPS.js","_app/immutable/chunks/5iM3bnmP.js","_app/immutable/chunks/ASLOChaH.js","_app/immutable/chunks/6IirJqU9.js","_app/immutable/chunks/B13kiswO.js","_app/immutable/chunks/Z1KjxHnB.js","_app/immutable/chunks/BYr7PsQQ.js","_app/immutable/chunks/ue7BstV_.js","_app/immutable/chunks/7HtxRRb5.js","_app/immutable/chunks/BqAbA1dh.js","_app/immutable/chunks/tJOR4TLW.js"];
+const stylesheets = [];
+const fonts = [];
+
+export { component, fonts, imports, index, stylesheets, universal_id };
+//# sourceMappingURL=3.js-C1WpWU2X.js.map

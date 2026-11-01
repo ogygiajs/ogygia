@@ -1,0 +1,1 @@
+import"../chunks/6zCZ8NgT.js";import{A as e,K as t,_t as n,b as r,j as i}from"../chunks/C3DqmHOU.js";var a=n({config:()=>o}),o={postrender:!1};function s(n,a){var o=i(),s=t(o);r(s,()=>a.children),e(n,o)}export{s as component,a as universal};

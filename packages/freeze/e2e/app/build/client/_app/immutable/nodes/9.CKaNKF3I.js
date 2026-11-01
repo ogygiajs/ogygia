@@ -1,0 +1,1 @@
+import"../chunks/6zCZ8NgT.js";import{A as e,G as t,H as n,M as r,O as i,at as a,dt as o,it as s}from"../chunks/C3DqmHOU.js";var c=r(`<h1 data-testid="optout"> </h1>`);function l(r,l){a(l,!0);var u=c(),d=t(u,!0);o(u),n(()=>i(d,l.data.note)),e(r,u),s()}export{l as component};

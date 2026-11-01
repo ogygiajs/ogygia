@@ -1,0 +1,1 @@
+import"../chunks/6zCZ8NgT.js";import{A as e,G as t,H as n,K as r,M as i,O as a,at as o,dt as s,it as c,q as l}from"../chunks/C3DqmHOU.js";var u=i(`<h1 data-freeze-page="">setcookie</h1> <p>render <span data-render=""> </span></p>`,1);function d(i,d){o(d,!0);var f=u(),p=l(r(f),2),m=l(t(p)),h=t(m,!0);s(m),s(p),n(()=>a(h,d.data.render)),e(i,f),c()}export{d as component};

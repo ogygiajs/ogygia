@@ -1,0 +1,1 @@
+{"version":3,"file":"2b59bdc83cb82.js-CHOCHdIz.js","sources":["../../../../.svelte-kit/output/server/chunks/2b59bdc83cb82.js"],"sourcesContent":["import { t as BigHeader } from \"./BigHeader.js\";\n// virtual:ogygia/island/2b59bdc83cb8.js\nvar _2b59bdc83cb8_default = BigHeader;\nexport { _2b59bdc83cb8_default as t };\n"],"names":[],"mappings":";;AACA;AACG,IAAC,qBAAqB,GAAG;;;;"}

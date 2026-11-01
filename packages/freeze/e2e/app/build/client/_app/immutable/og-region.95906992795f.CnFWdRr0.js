@@ -1,0 +1,1 @@
+import"./chunks/6zCZ8NgT.js";import{A as e,F as t,G as n,H as r,L as i,M as a,O as o,P as s,X as c,Y as l,dt as u}from"./chunks/C3DqmHOU.js";var d=a(`<button data-tick=""> </button>`);function f(a){let s=l(0);var f=d(),p=n(f);u(f),r(()=>o(p,`tick ${i(s)??``}`)),t(`click`,f,()=>c(s)),e(a,f)}s([`click`]);var p=f;export{p as default};

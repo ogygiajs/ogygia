@@ -1,0 +1,1 @@
+import"./chunks/Cqi6syEB.js";import"./chunks/Ble1mpBQ.js";import{C as e,T as t}from"./chunks/DH5JoSNV.js";var n=t(`<div data-region-skeleton="">crunching the slow part…</div>`);function r(t){var r=n();e(t,r)}export{r as default};

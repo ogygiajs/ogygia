@@ -1,0 +1,22 @@
+import '../../chunks/async.js-CdyA1ipx.js';
+import { a1 as escape_html } from '../../chunks/server.js-Cx6qdlSj.js';
+import { p as page } from '../../chunks/state.js-PRJNi6S7.js';
+import '../../chunks/uneval.js-CHOeF-6t.js';
+import '../../chunks/index-server2.js-Dp0Lnfg2.js';
+import '../../chunks/rolldown-runtime.js-CTrrmpyn.js';
+import '../../chunks/routing.js-BCO6GjuO.js';
+import '../../chunks/internal2.js-CT1i7Aye.js';
+import '../../chunks/legacy-client.js-DQU-0Hpk.js';
+import '../../chunks/utils.js-DOLeCbnX.js';
+import '../../chunks/shared.js-B7aDE0fO.js';
+import '../../chunks/exports.js-C-11U8cd.js';
+
+// ../../../../node_modules/.pnpm/@sveltejs+kit@2.70.2_@opentelemetry+api@1.9.1_@sveltejs+vite-plugin-svelte@7.2.0_svelte_2ce614995eed84b42ffc972a2513643c/node_modules/@sveltejs/kit/src/runtime/components/svelte-5/error.svelte
+function Error($$renderer, $$props) {
+	$$renderer.component(($$renderer) => {
+		$$renderer.push(`<h1>${escape_html(page.status)}</h1> <p>${escape_html(page.error?.message)}</p>`);
+	});
+}
+
+export { Error as default };
+//# sourceMappingURL=error.svelte.js-BvNndFlB.js.map

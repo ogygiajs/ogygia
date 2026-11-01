@@ -1,0 +1,5 @@
+allowBuilds:
+  esbuild: set this to true or false
+  workerd: set this to true or false
+overrides:
+  '@ogygia/core': 'file:/Users/puruvj/Projects/sk-islands/apps/palaestra/e2e/adapters/.work/ogygia-core-0.10.2.tgz'

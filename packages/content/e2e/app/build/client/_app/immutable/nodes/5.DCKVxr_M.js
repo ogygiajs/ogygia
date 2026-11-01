@@ -1,0 +1,1 @@
+import{Ft as e,It as t,W as n,Z as r}from"../chunks/CQFN0avQ.js";import"../chunks/U7RmwNP4.js";import{C as i,j as a,k as o}from"../chunks/UUMwhdnX.js";import{t as s}from"../chunks/JzChstqB.js";var c=a(`<h1>content css</h1> <!>`,1);function l(a,l){t(l,!0);var u=c(),d=r(n(u),2),f=e=>{s(e,{get of(){return l.data.body}})};i(d,e=>{l.data.body&&e(f)}),o(a,u),e()}export{l as component};

@@ -1,0 +1,1 @@
+{"version":3,"file":"7f826617dad4.js-63KDcOkA.js","sources":["../../../../.svelte-kit/output/server/chunks/7f826617dad4.js"],"sourcesContent":["import { t as Feature } from \"./Feature.js\";\n// virtual:ogygia/island/7f826617dad4.js\nvar _7f826617dad4_default = Feature;\nexport { _7f826617dad4_default as default };\n"],"names":[],"mappings":";;;;;AACA;AACG,IAAC,qBAAqB,GAAG;;;;"}

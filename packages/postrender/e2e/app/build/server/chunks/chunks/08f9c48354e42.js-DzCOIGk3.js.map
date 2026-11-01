@@ -1,0 +1,1 @@
+{"version":3,"file":"08f9c48354e42.js-DzCOIGk3.js","sources":["../../../../.svelte-kit/output/server/chunks/08f9c48354e42.js"],"sourcesContent":["import { t as BigHeader } from \"./BigHeader.js\";\n// virtual:ogygia/island/08f9c48354e4.js\nvar _08f9c48354e4_default = BigHeader;\nexport { _08f9c48354e4_default as t };\n"],"names":[],"mappings":";;AACA;AACG,IAAC,qBAAqB,GAAG;;;;"}

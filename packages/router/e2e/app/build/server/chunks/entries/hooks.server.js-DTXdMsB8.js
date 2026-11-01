@@ -1,0 +1,3420 @@
+import { m as render } from '../chunks/server.js-B9P4ExQ-.js';
+import { c as configure_islands_endpoint, a as islands_endpoint, f as facts_of$1, D as DocumentTail, n as note_cache_control, r as runtime_bootstrap, b as index_seed, d as analyze, m as mark_per_visitor, W as WIRE_FORMAT_ATTR, g as WIRE_FORMAT_JSON, h as fnManifest, R as REGION_BRAND, k as kit_page_ready, C as ConcurrencyGate, j as is_region_id, l as is_region_ttl, o as renewable_expiry, s as signing_key, p as register_wire_kind, q as register_store_kind, t as register_snippet_kind, u as register_fn_kind, v as register_derived_kind, B as B64Url, w as REF_WIRE_KEY, x as ref_reviver, y as load_islands, z as hole_copy_key, A as kit_render_context, E as kit_page_facts_tail, F as capability_expiry, G as error_route_is_csr_true, H as route_is_csr_true, I as html_has_kit_bootstrap, J as island_url, K as render_island, L as island_reads_page_data, M as islandCss, N as region_css_tag, O as kit_asset, P as current_facts, Q as escape_amp_quot, e as escape_script_text, S as is_lower_hex, T as ISLAND_GRAPH_ATTR, U as decode_island_graph, V as decode_island_locations, X as island_graph_script, Y as escape_amp, Z as ref_reducer, _ as set_kit_event_reader, $ as set_render_page_port, a0 as set_kit_page_reader, a1 as set_current_request, a2 as regionTtl, a3 as island_name, a4 as set_ask_scope_opener, a5 as set_seed_ask_reader, a6 as set_page_recorder, a7 as set_tail_reader, a8 as set_measure_memo_reader, a9 as set_late_scope_opener, aa as set_late_recorder, ab as set_late_taker } from '../chunks/late-region-registry.js-DXI715J1.js';
+import { h as stringify$1, p as parse, e as create_remote_key, u as unflatten } from '../chunks/shared.js-B7aDE0fO.js';
+import { r as runtime_first, d as dedupe_head_links, p as page_declares_runtime_script, s as shape_page_data, a as stage_deferred, P as PAGE_DEFER_BOOTSTRAP, b as settle_deferred, c as PageSeed, e as page_declares_router_meta, f as page_seed_reducers, g as resolve_script, h as PAGE_DEFER_GLOBAL, i as route_option, j as set_page_route_options, m as merge_seed_ask } from '../chunks/page-stream.js-B3RTH9ol.js';
+import { y as try_get_request_store } from '../chunks/utils.js-BpLbUY9P.js';
+import { createHmac, timingSafeEqual, hkdfSync } from 'node:crypto';
+import '../chunks/uneval.js-CHOeF-6t.js';
+import '../chunks/index-server2.js-uORi_mEb.js';
+import '../chunks/rolldown-runtime.js-CTrrmpyn.js';
+import '../chunks/paths.js-DHXamknv.js';
+import '../chunks/internal.js-NlsCutcl.js';
+import '../chunks/routing.js-BCO6GjuO.js';
+import '../chunks/internal2.js-Cq2bWI41.js';
+import '../chunks/async.js-FhULVWAw.js';
+import 'node:fs';
+import 'node:path';
+import 'node:url';
+
+// \0virtual:ogygia/rate-limit
+var rateLimit = {
+	"max": 60,
+	"windowMs": 6e4
+};
+// \0virtual:ogygia/route-options
+var route_options = {};
+// ../../../core/src/server/page-facts.ts
+/**
+* PAGE FACTS — the page a render outside its page belongs to (internal/notes/region-page-context.md).
+*
+* A hole renders in the islands endpoint's request, a region refreshed by a remote `query` /
+* `command` in the remote call's: no page render around them, so no `page.data`. Their page is the
+* same-origin `Referer`, and its data is looked up through Kit itself — the data request Kit's own
+* client makes on a navigation (`<page>/__data.json`). The app's handle chain and the page's server
+* loads run with the visitor's cookies: the facts are the server's, for this visitor, now; nothing
+* the browser could forge or that a cache could have kept from someone else.
+*
+* Cheap by construction: the caller looks up only when a render reads `page.data`, once per request;
+* only the answer's FIRST line is waited for (a streamed promise in the data resolves later, in the
+* background, without holding the render); no regex.
+*/
+/** Marks ogygia's own lookup: the handle answers it without setting up a page render. */
+var PAGE_FACTS_HEADER = "x-ogygia-page-facts";
+/** The route id and params Kit matched for the looked-up page (the data alone carries neither). */
+var PAGE_FACTS_ROUTE_HEADER = "x-ogygia-page-route";
+/** Kit's data URL for a page, as its client builds it: the data suffix on the path, the page's
+*  search kept, the trailing-slash marker when the path ends in `/`. */
+function data_url_of(page) {
+	const u = new URL(page.href);
+	u.hash = "";
+	const p = page.pathname;
+	u.pathname = p.endsWith(".html") ? p.slice(0, -5) + ".html__data.json" : (p.endsWith("/") ? p.slice(0, -1) : p) + "/__data.json";
+	if (p.endsWith("/")) u.searchParams.append("x-sveltekit-trailing-slash", "1");
+	return u.href;
+}
+/**
+* The page's facts, or a reason they are not available (a redirect, an error, a load that threw,
+* not a Kit data answer). `decoders`: the app's `transport` decoders, as Kit's client uses them.
+*/
+async function look_up_page(page, fetch, decoders) {
+	let res;
+	try {
+		res = await fetch(data_url_of(page), { headers: { [PAGE_FACTS_HEADER]: "1" } });
+	} catch (e) {
+		return { miss: `the data request failed (${String(e?.message ?? e)})` };
+	}
+	if (!res.ok || !res.body) {
+		res.body?.cancel().catch(() => {});
+		return { miss: `the data request answered ${res.status}` };
+	}
+	const reader = res.body.getReader();
+	const text = new TextDecoder();
+	let buf = "";
+	let nl = -1;
+	while ((nl = buf.indexOf("\n")) === -1) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		buf += text.decode(value, { stream: true });
+	}
+	const first = nl === -1 ? buf : buf.slice(0, nl);
+	const rest = nl === -1 ? "" : buf.slice(nl + 1);
+	const stop = (miss) => {
+		reader.cancel().catch(() => {});
+		return { miss };
+	};
+	let head;
+	try {
+		head = JSON.parse(first);
+	} catch {
+		return stop("the answer is not Kit data");
+	}
+	if (head?.type === "redirect") return stop(`a load redirected to ${head.location}`);
+	if (head?.type !== "data" || !Array.isArray(head.nodes)) return stop("the answer is not Kit data");
+	const deferreds = /* @__PURE__ */ new Map();
+	const revive = (flat) => unflatten(flat, {
+		...decoders,
+		Promise: (id) => {
+			const p = new Promise((fulfil, reject) => deferreds.set(id, {
+				fulfil,
+				reject
+			}));
+			p.catch(() => {});
+			return p;
+		}
+	});
+	const data = {};
+	try {
+		for (const node of head.nodes) {
+			if (node?.type === "error") return stop("a load threw");
+			if (node?.type === "data") Object.assign(data, revive(node.data));
+		}
+	} catch (e) {
+		return stop(`its data did not decode (${String(e?.message ?? e)})`);
+	}
+	if (deferreds.size) settle_streamed(reader, text, rest, deferreds, revive);
+	else reader.cancel().catch(() => {});
+	let route = { id: null };
+	let params = {};
+	const named = res.headers.get(PAGE_FACTS_ROUTE_HEADER);
+	if (named) try {
+		const r = JSON.parse(decodeURIComponent(named));
+		route = { id: r.id ?? null };
+		params = r.params ?? {};
+	} catch {}
+	return {
+		url: page,
+		params,
+		route,
+		data
+	};
+}
+/** The streamed promises in the page's data, fulfilled as their lines arrive (Kit's `chunk` lines). */
+async function settle_streamed(reader, text, buf, deferreds, revive) {
+	const line = (raw) => {
+		if (!raw) return;
+		try {
+			const chunk = JSON.parse(raw);
+			if (chunk.type !== "chunk" || chunk.id === void 0) return;
+			const d = deferreds.get(chunk.id);
+			if (!d) return;
+			deferreds.delete(chunk.id);
+			if (chunk.error !== void 0) d.reject(revive(chunk.error));
+			else d.fulfil(revive(chunk.data));
+		} catch {}
+	};
+	try {
+		for (;;) {
+			let nl;
+			while ((nl = buf.indexOf("\n")) !== -1) {
+				line(buf.slice(0, nl));
+				buf = buf.slice(nl + 1);
+			}
+			if (!deferreds.size) break;
+			const { done, value } = await reader.read();
+			if (done) break;
+			buf += text.decode(value, { stream: true });
+		}
+		line(buf);
+	} catch {} finally {
+		reader.cancel().catch(() => {});
+	}
+}
+// ../../../core/src/page-facts-script.ts
+/**
+* The script an answer carries with the page facts it rendered with (server/render-page.ts writes it,
+* the runtime's answer seam `region_fragment` takes it out, seeds.ts merges it). Isomorphic: both
+* halves name it from here.
+*/
+var PAGE_FACTS_SCRIPT_TYPE = "application/ogygia-page-facts";
+// ../../../core/src/server/render-page.ts
+var warn = null;
+/** Where a dev warning goes (the handle's setting). */
+function configure_render_page(o) {
+	warn = o.warn;
+}
+/** A request rendering on behalf of a page it is not: the islands endpoint or a remote call. */
+function renders_for_a_page(event) {
+	return event.url.pathname.endsWith(islands_endpoint()) || event.isRemoteRequest === true;
+}
+/** The page a request renders for: the same-origin Referer of a request rendering for a page, else
+*  the request's own url. */
+function page_url_of(event) {
+	if (!renders_for_a_page(event)) return event.url;
+	const referer = event.request.headers.get("referer");
+	if (!referer) return event.url;
+	try {
+		const page = new URL(referer);
+		if (page.origin === event.url.origin) return page;
+	} catch {}
+	return event.url;
+}
+var looked_up = /* @__PURE__ */ new WeakMap();
+var facts_of = /* @__PURE__ */ new WeakMap();
+/**
+* Before an async render root starts: in a request rendering FOR a page, that page's facts, looked
+* up once. `reads_data`: does this render read `page.data` (`null`: unknown here — a remote call
+* looks up, a hole relies on its tree's build answer). The venue is the request's kind, as Kit and
+* the islands endpoint name it — never whether some per-request state happens to exist.
+*/
+function prepare_render_page(event, transport, reads_data) {
+	if (!event || !renders_for_a_page(event)) return;
+	if (!(reads_data ?? event.isRemoteRequest === true)) return;
+	const request = event.request;
+	const known = looked_up.get(request);
+	if (known) return known;
+	const page = page_url_of(event);
+	if (page === event.url) return;
+	const decoders = {};
+	for (const name in transport ?? {}) decoders[name] = transport[name].decode;
+	const p = look_up_page(page, event.fetch, decoders).then((facts) => {
+		if ("miss" in facts) warn?.(`[ogygia] ${page.pathname}: the page's data for a render outside it is unavailable: ${facts.miss}. The render sees an empty page.data.`);
+		else facts_of.set(request, facts);
+	});
+	looked_up.set(request, p);
+	return p;
+}
+/**
+* The page a render sees. `snapshot`: what this request's page render recorded, if anything. `null`
+* when there is neither a snapshot nor a request (a render off-request: the caller's empty page).
+*/
+function render_page(snapshot, event) {
+	if (!snapshot && !event) return null;
+	if (event && renders_for_a_page(event)) {
+		const facts = facts_of.get(event.request);
+		return {
+			url: facts?.url ?? page_url_of(event),
+			params: facts?.params ?? {},
+			route: facts?.route ?? { id: null },
+			status: 200,
+			data: facts && warn ? watched_data(facts, warn) : facts?.data ?? {},
+			form: null,
+			error: null,
+			state: {}
+		};
+	}
+	const snap = snapshot ?? {};
+	return {
+		url: snap.url?.href ? new URL(snap.url.href) : event?.url,
+		params: snap.params ?? event?.params ?? {},
+		route: snap.route ?? { id: event?.route.id ?? null },
+		status: snap.status ?? 200,
+		data: snap.data ?? {},
+		form: snap.form ?? null,
+		error: snap.error ?? null,
+		state: {}
+	};
+}
+/** Reads a component makes without meaning a page key (Svelte, devalue, a thenable check). */
+var NOT_A_KEY = /* @__PURE__ */ new Set([
+	"then",
+	"toJSON",
+	"constructor",
+	"valueOf",
+	"toString",
+	"$$typeof",
+	"nodeType"
+]);
+var warned_keys = /* @__PURE__ */ new WeakMap();
+/**
+* DEV: a render for a page reading a `page.data` key the page's server loads did not produce — most
+* often one a UNIVERSAL load (`+page.ts` / `+layout.ts`) makes, which exists only inside a full page
+* render. Said once per key, naming it, instead of rendering `undefined` silently (a header that
+* comes out "signed out" with no error anywhere).
+*/
+function watched_data(facts, say) {
+	return new Proxy(facts.data, { get(target, key, receiver) {
+		if (typeof key === "string" && !NOT_A_KEY.has(key) && !(key in target)) {
+			let seen = warned_keys.get(facts);
+			if (!seen) warned_keys.set(facts, seen = /* @__PURE__ */ new Set());
+			if (!seen.has(key)) {
+				seen.add(key);
+				say(`[ogygia] ${facts.url.pathname}: a region rendered outside its page read page.data.${key}, which this page's server loads do not produce. A key a universal load (+page.ts / +layout.ts) returns exists only inside a full page render: return it from a server load, or pass it as a prop.`);
+			}
+		}
+		return Reflect.get(target, key, receiver);
+	} });
+}
+var versions = /* @__PURE__ */ new WeakMap();
+/**
+* A HOLE'S ADDRESS NAMES ITS PAGE: the call (id + props) and the page facts its tree renders from.
+* A region refreshed after the page's data changed (a locale saved) re-mints its holes with a new
+* version, so each fetches its new answer; a refresh that changed nothing keeps the address and the
+* answer it has. The version of this request's page: its looked-up facts (a render for a page) or
+* its recorded snapshot (in the page) — hashed once per request; `''` when there is no data.
+*/
+function render_page_version(event, snapshot) {
+	if (!event) return "";
+	const known = versions.get(event.request);
+	if (known !== void 0) return known;
+	const data = renders_for_a_page(event) ? facts_of.get(event.request)?.data : snapshot?.data;
+	let v = "";
+	if (data && typeof data === "object") try {
+		v = fnv1a(JSON.stringify(data));
+	} catch {}
+	if (v) versions.set(event.request, v);
+	return v;
+}
+/** 32-bit FNV-1a, base36: a version tag, not a security boundary. */
+function fnv1a(text) {
+	let h = 2166136261;
+	for (let i = 0; i < text.length; i++) {
+		h ^= text.charCodeAt(i);
+		h = Math.imul(h, 16777619);
+	}
+	return (h >>> 0).toString(36);
+}
+var asks_of = /* @__PURE__ */ new WeakMap();
+/**
+* An island rendering FOR a page asks for the `page.data` keys its client reads (Region.svelte's
+* record, the build's answer): kept for the answer's facts. `true` when the request renders for a
+* page — the ask is this model's, never a page render's snapshot.
+*/
+function note_render_page_ask(event, seed) {
+	if (!renders_for_a_page(event)) return false;
+	if (seed !== false) {
+		const merged = merge_seed_ask(asks_of.get(event.request) ?? null, seed);
+		if (merged) asks_of.set(event.request, merged);
+	}
+	return true;
+}
+/**
+* ONE PAGE, NOT TWO: what an answer rendered FOR a page carries — the looked-up `page.data` keys its
+* islands read, so they hydrate against the values their HTML was rendered from (the runtime merges
+* them into the page store: seeds.ts). `''` when no island in it reads the page, the page was not
+* looked up, or a value does not serialize (a still-streaming promise).
+*/
+function render_page_facts_script(event, transport) {
+	if (!event || !renders_for_a_page(event)) return "";
+	const facts = facts_of.get(event.request);
+	const keys = asks_of.get(event.request);
+	if (!facts || !keys) return "";
+	const encoders = {};
+	for (const name in transport ?? {}) encoders[name] = transport[name].encode;
+	try {
+		return `<script type="${PAGE_FACTS_SCRIPT_TYPE}">${stringify$1(shape_page_data(facts.data, keys), encoders)}<\/script>`;
+	} catch {
+		return "";
+	}
+}
+// ../../../core/src/server/hole-urls.ts
+/**
+* Absolute URLs inside a hole's HTML.
+*
+* A server island renders in its OWN request — `/__ogygia__?…` — and Kit's `asset()` (with the
+* default `paths.relative`) emits every URL relative to THAT request: `./_app/immutable/x.js`,
+* `./__ogygia__?…`. The HTML then lands in a page at any depth (`/docs/guides/`), and a
+* region entry / nested-hole endpoint / region-css link inside it would resolve against the page:
+* `/docs/guides/_app/…` → 404, a dead island in a live hole. The batch parcel and an
+* ESI-stitched hole (the CDN splices the bytes straight into the page) have the same problem, so
+* the fix is on the server, once, at the point the response is assembled: resolve every relative
+* ogygia URL against the endpoint request URL and emit it root-absolute (Kit `base` included).
+* Absolute (`/…`) and scheme'd (foreign federation entries) values are left alone.
+*/
+var REGION_CSS_ATTR$1 = "data-ogygia-region-css";
+function is_word(c) {
+	return c >= 48 && c <= 57 || c >= 65 && c <= 90 || c >= 97 && c <= 122 || c === 95;
+}
+function resolve_attr(value, base) {
+	if (!value || !(value.startsWith("./") || value.startsWith("../"))) return value;
+	let resolved;
+	try {
+		resolved = new URL(value.indexOf("&amp;") === -1 ? value : value.replaceAll("&amp;", "&"), base);
+	} catch {
+		return value;
+	}
+	if (resolved.origin !== base.origin) return value;
+	return escape_amp(resolved.pathname + resolved.search + resolved.hash);
+}
+/** Rewrite `name="…"` in `tag` (a word boundary before `name`; every occurrence, or the first). */
+function rewrite_attr(tag, name, base, all) {
+	const needle = name + "=\"";
+	let out = "";
+	let pos = 0;
+	for (let at = tag.indexOf(needle); at !== -1; at = tag.indexOf(needle, at + needle.length)) {
+		if (at > 0 && is_word(tag.charCodeAt(at - 1))) continue;
+		const start = at + needle.length;
+		const end = tag.indexOf("\"", start);
+		if (end === -1) break;
+		out += tag.slice(pos, start) + resolve_attr(tag.slice(start, end), base);
+		pos = end;
+		if (!all) break;
+	}
+	return pos === 0 ? tag : out + tag.slice(pos);
+}
+/** Does a tag named `name` open at `lt` (`<name` then a non-word character)? */
+function opens(html, lt, name) {
+	return html.startsWith(name, lt + 1) && !is_word(html.charCodeAt(lt + 1 + name.length));
+}
+/** Rewrite the relative `entry` / `src` / `endpoint` / region-css `href` values in `html` to root-absolute
+*  paths resolved against `base` (the endpoint request URL). */
+function absolutize_hole_html(html, base) {
+	if (!html.includes("<ogygia-region") && !html.includes(REGION_CSS_ATTR$1)) return html;
+	let out = "";
+	let pos = 0;
+	for (let lt = html.indexOf("<"); lt !== -1; lt = html.indexOf("<", lt + 1)) {
+		const region = opens(html, lt, "ogygia-region");
+		const link = !region && opens(html, lt, "link");
+		const style = !region && !link && opens(html, lt, "style");
+		if (!region && !link && !style) continue;
+		const gt = html.indexOf(">", lt);
+		if (gt === -1) break;
+		const tag = html.slice(lt, gt + 1);
+		let next = tag;
+		if (region) next = rewrite_attr(rewrite_attr(rewrite_attr(tag, "entry", base, true), "src", base, true), "endpoint", base, true);
+		else if (tag.indexOf(REGION_CSS_ATTR$1) !== -1) next = link ? rewrite_attr(tag, "href", base, false) : tag.indexOf(REGION_CSS_ATTR$1 + "=\"") !== -1 ? rewrite_attr(tag, REGION_CSS_ATTR$1, base, false) : tag;
+		if (next !== tag) {
+			out += html.slice(pos, lt) + next;
+			pos = gt + 1;
+		}
+		lt = gt;
+	}
+	return pos === 0 ? html : out + html.slice(pos);
+}
+// ../../../core/src/keep-fallback-marker.ts
+/**
+* The parcel/store stand-in for "keep the fallback" (see ./keep-fallback.ts) — never applied to the
+* DOM. A dependency-free leaf: the browser runtime's boot compares a hole's answer against it, and
+* `keep-fallback.ts` itself imports the server-side context module (which reaches Svelte), which must
+* never enter the boot's static graph.
+*/
+var KEEP_FALLBACK_HTML = "<!--ogygia:keep-fallback-->";
+// ../../../core/src/keep-fallback.ts
+var KEEP = Symbol.for("ogygia.keep-fallback");
+/** Did a hole render end with {@link keepFallback}? (the handle's catch reads this) */
+function is_keep_fallback(e) {
+	return !!e && typeof e === "object" && e[KEEP] === true;
+}
+// ../../../core/src/source.ts
+var slots = globalThis[Symbol.for("ogygia.sources")] ??= {
+	recorder: null,
+	observer: null
+};
+/** hooks.ts installs this once — files a receipt with the current request's facts. */
+function set_source_recorder(fn) {
+	slots.recorder = fn;
+}
+// ../../../core/src/server/hmac.ts
+/**
+* HMAC-SHA256 for region capability URLs — Node `createHmac` (sync).
+*
+* Used by `ogygiaHandle` and by SSR `virtual:ogygia/sign`. The client never imports this
+* module: ServerIsland goes through `virtual:ogygia/sign`, which is a no-op on the client
+* (secret is already empty there). Web Crypto is not used — browsers must not mint with a
+* real secret.
+*
+* MAC format is versioned (`v1|…`) with UTF-8 length-prefixed fields so `\0` inside a
+* field cannot shift boundaries. Signing keys are HKDF-derived (`ogygia-mac-v1`) from the
+* raw secret so the id-salt domain stays separate.
+*/
+var MAC_INFO = Buffer.from("ogygia-mac-v1");
+Buffer.from("ogygia-id-salt-v1");
+var utf8 = new TextEncoder();
+var mac_keys = /* @__PURE__ */ new Map();
+/** HKDF-SHA256 → 32-byte MAC key (hex for stable logging / tests; Buffer used internally). */
+function derive_mac_key(secret) {
+	let key = mac_keys.get(secret);
+	if (key === void 0) {
+		key = Buffer.from(hkdfSync("sha256", Buffer.from(secret, "utf8"), Buffer.alloc(0), MAC_INFO, 32));
+		if (mac_keys.size >= 16) mac_keys.clear();
+		mac_keys.set(secret, key);
+	}
+	return key;
+}
+/** UTF-8 length-prefix so field contents cannot forge delimiters. */
+function lp(s) {
+	return `${utf8.encode(s).byteLength}:${s}`;
+}
+var Hmac = class Hmac {
+	static sha256(key, message) {
+		return createHmac("sha256", key).update(message, "utf8").digest("hex");
+	}
+	static sign(secret, message) {
+		return Hmac.sha256(derive_mac_key(secret), message);
+	}
+	static verify(secret, message, sig) {
+		if (typeof sig !== "string" || !is_lower_hex(sig, 64)) return false;
+		const expected = Hmac.sha256(derive_mac_key(secret), message);
+		try {
+			return timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(sig, "hex"));
+		} catch {
+			return false;
+		}
+	}
+	/**
+	* MAC message for a signed region capability. Every field is length-prefixed (`<utf8 bytes>:<value>`),
+	* so a field's content can never forge a `|` boundary. Two versions:
+	*
+	* - `v1|id|exp|props|session|ttl` — the capability names only its region `id` (the wrapper that
+	*   minted it: component ⊕ page-side schedule ⊕ the build's salt). Only a build that has that
+	*   exact id can answer it. Minted before render identities (ogygia ≤ 0.8.6); still verified, so
+	*   pages cached before an upgrade keep their holes.
+	* - `v2|id|exp|props|session|ttl|render` — the same five, plus the region's render identity (the
+	*   URL's `r`: the component the endpoint renders, compiler/region/identity.ts `renderId`). Signing
+	*   it lets a build that no longer has `id` (another schedule, preset or salt) answer the
+	*   capability with its own entry for that component, and only for that component. Every current
+	*   mint is `v2`.
+	*
+	* The version follows from the URL: a capability with `r` is checked as `v2`, one without as `v1`.
+	* A `v2` MAC never verifies as `v1` (the prefix and the field count differ), so stripping `r` or
+	* swapping it for another component breaks the signature. Empty `session`/`ttl` are still fields
+	* (prerender / unbound / no-store) — never optional concat. `ttl` is the response cache max-age in
+	* seconds (`''` = no-store); signing it keeps a harvested URL from being re-pointed at a longer
+	* browser cache.
+	*/
+	static region_message(id, exp, props, session = "", ttl = "", render = "") {
+		const v1 = `${lp(String(id))}|${lp(String(exp))}|${lp(String(props))}|${lp(String(session))}|${lp(String(ttl))}`;
+		return render === "" ? `v1|${v1}` : `v2|${v1}|${lp(String(render))}`;
+	}
+};
+var sign = Hmac.sign.bind(Hmac);
+var verify = Hmac.verify.bind(Hmac);
+var region_mac_message = Hmac.region_message.bind(Hmac);
+// ../../../core/src/server/sized-lru.ts
+var SizedLru = class {
+	#entries = /* @__PURE__ */ new Map();
+	#bytes = 0;
+	max_bytes;
+	max_entries;
+	constructor(max_bytes, max_entries) {
+		this.max_bytes = max_bytes;
+		this.max_entries = max_entries;
+	}
+	/** The live value for `key` (an LRU touch), or `null` on a miss or past `expires`. */
+	get(key, now) {
+		const e = this.#entries.get(key);
+		if (e === void 0) return null;
+		if (now >= e.expires) {
+			this.delete(key);
+			return null;
+		}
+		this.#entries.delete(key);
+		this.#entries.set(key, e);
+		return e.value;
+	}
+	has(key) {
+		return this.#entries.has(key);
+	}
+	/** Store `value` (`bytes` big, live until `expires`), evicting the least recently used entries
+	*  to make room. A value larger than the whole budget is not stored. */
+	set(key, value, bytes, expires) {
+		this.delete(key);
+		if (bytes > this.max_bytes) return;
+		while (this.#entries.size > 0 && (this.#bytes + bytes > this.max_bytes || this.#entries.size >= this.max_entries)) {
+			const oldest = this.#entries.keys().next().value;
+			this.delete(oldest);
+		}
+		this.#entries.set(key, {
+			value,
+			bytes,
+			expires
+		});
+		this.#bytes += bytes;
+	}
+	delete(key) {
+		const e = this.#entries.get(key);
+		if (e === void 0) return false;
+		this.#entries.delete(key);
+		this.#bytes -= e.bytes;
+		return true;
+	}
+	/** Every live key (insertion order — least recently used first). */
+	keys() {
+		return this.#entries.keys();
+	}
+	/** Drop everything past `expires` (harness counts want live entries only). */
+	sweep(now) {
+		for (const [key, e] of this.#entries) if (now >= e.expires) this.delete(key);
+	}
+	clear() {
+		this.#entries.clear();
+		this.#bytes = 0;
+	}
+	get size() {
+		return this.#entries.size;
+	}
+	get bytes() {
+		return this.#bytes;
+	}
+};
+// ../../../core/src/server/render-cache.ts
+/**
+* Server-side per-region HTML render cache (reconciler R6 — the SSR-compute lever).
+*
+* The deferred/held-region endpoint (`#render_component` in hooks.ts) is the ONE place ogygia
+* renders a region out-of-band as (id + props) → HTML. Today it re-renders fresh every request.
+* When a region opts into a positive `maxAge` (a signed `ttl` on its capability URL), the author
+* has DECLARED its output stable for that window — so memoizing the render for `ttl` seconds turns
+* an expensive region into a one-render-then-serve-cached region across ALL requests. That is the
+* only server-compute win reachable without making the monolithic page render region-granular
+* (which would need the off-limits compiler); a plain inline island never reaches this seam.
+*
+* CORRECTNESS: the cache key includes the SESSION seal, so a per-user (`private, max-age`) render
+* is never served to another user — exactly matching the browser Cache-Control the same `ttl`
+* produces. `ttl <= 0` (the default `no-store` hole) is never cached. Bounded in BYTES (a region
+* render can be up to `MAX_REGION_BODY`, 2 MB) and in entries, TTL-expiring, so it can't grow
+* unbounded across a long-lived server process (server/sized-lru.ts).
+*/
+var store = new SizedLru(67108864, 500);
+/** Cache key for a region render — id + props payload + session seal. `exp`/`sig` (which rotate per
+*  mint) and `ttl` (a cache-window declaration, not a render input) are DELIBERATELY excluded so
+*  two renders of the same region+props+user hit; session is INCLUDED so users never cross. */
+function render_cache_key(id, props_payload, session) {
+	return id + " " + props_payload + " " + session;
+}
+/** Cached HTML for `key`, or null on miss/expiry. A live hit is an LRU touch. */
+function render_cache_get(key, now) {
+	return store.get(key, now);
+}
+/** Cache `html` for `ttl_sec` seconds. No-op for `ttl_sec <= 0` (dynamic holes are never cached). */
+function render_cache_set(key, html, ttl_sec, now) {
+	if (ttl_sec <= 0) return;
+	store.set(key, html, html.length, now + ttl_sec * 1e3);
+}
+/**
+* THE shared cache-fronted render (G2) — the ONE seam both the deferred-region endpoint
+* (#render_component) and the inline-island page render (Region.svelte) call. A hit returns the
+* memo; a miss renders via `render_body()` (the caller supplies it — the endpoint wraps its render
+* in a concurrency gate + timeout, the inline path renders directly), then caches. `cache` is
+* `undefined`/`ttl<=0` for a dynamic hole → always renders, never stores. `now` injected for tests.
+*/
+async function cached_render(render_body, cache, now, report) {
+	if (cache !== void 0 && cache.ttl > 0) {
+		const hit = render_cache_get(cache.key, now);
+		if (hit !== null) {
+			report?.("hit");
+			return hit;
+		}
+	}
+	const body = await render_body();
+	if (cache !== void 0 && cache.ttl > 0 && body !== null) {
+		render_cache_set(cache.key, body, cache.ttl, now);
+		report?.("miss");
+	} else report?.("none");
+	return body;
+}
+// \0virtual:ogygia/server-plugins
+var plugins$1 = [];
+// ../../../core/src/plugin/hooks.ts
+var implementations = globalThis[Symbol.for("ogygia.server-hooks.v1")] ??= [];
+/** Core only: a set of hook implementations joins (a plugin's server half, or core's own). Keyed by
+*  identity; returns the leave. */
+function register_hooks(impl) {
+	const entry = impl;
+	if (!implementations.includes(entry)) implementations.push(entry);
+	return () => {
+		const at = implementations.indexOf(entry);
+		if (at !== -1) implementations.splice(at, 1);
+	};
+}
+/** Every implementation of the named hook runs; a failing one is logged, never thrown. */
+var notify = new Proxy({}, { get: (_, name) => async (...args) => {
+	for (const impl of implementations.slice()) {
+		const fn = impl[name];
+		if (typeof fn !== "function") continue;
+		try {
+			await fn.apply(impl, args);
+		} catch (e) {
+			console.warn(`[ogygia] a \`${name}\` hook failed —`, e);
+		}
+	}
+} });
+/** The first implementation that answers something other than `undefined`. */
+var ask = new Proxy({}, { get: (_, name) => async (...args) => {
+	for (const impl of implementations.slice()) {
+		const fn = impl[name];
+		if (typeof fn !== "function") continue;
+		try {
+			const answer = await fn.apply(impl, args);
+			if (answer !== void 0) return answer;
+		} catch (e) {
+			console.warn(`[ogygia] a \`${name}\` hook failed —`, e);
+		}
+	}
+} });
+// ../../../core/src/events/server-registry.ts
+/** SSR render seams call this; the client (recorder unset) is a no-op, and the whole call DCEs off. */
+function record_server_event(input) {}
+// ../../../core/src/plugin/server.ts
+/** Make each plugin live, in order: app, shared hooks, `setup`. */
+function start_plugins(entries, signer) {
+	return entries.map(({ name, options, server }) => {
+		const warned = /* @__PURE__ */ new Set();
+		const app = {
+			name,
+			options,
+			notify,
+			ask,
+			facts: facts_of$1,
+			current: current_facts,
+			sign: signer.sign,
+			verify: signer.verify,
+			devtools: record_server_event,
+			warn(message) {
+				if (warned.has(message)) return;
+				warned.add(message);
+				console.warn(`[${name}] ${message}`);
+			}
+		};
+		register_hooks(server);
+		server.setup?.(app);
+		return {
+			def: server,
+			app
+		};
+	});
+}
+/** Two `resolve()` option sets as one: the inner transform (ogygia's document injection) runs first,
+*  the outer (a plugin's `handle`) sees the finished chunk; the other options merge, outer last. */
+function compose_resolve_options(inner, outer) {
+	if (!inner) return outer;
+	if (!outer) return inner;
+	const a = inner.transformPageChunk;
+	const b = outer.transformPageChunk;
+	return {
+		...inner,
+		...outer,
+		transformPageChunk: !a ? b : !b ? a : async (input) => {
+			const first = await a(input);
+			if (first === void 0) return first;
+			return b({
+				...input,
+				html: first
+			});
+		}
+	};
+}
+/** The plugins' `handle` hooks nested around `core`, first plugin outermost. No hook: `core` itself. */
+function around(plugins, core) {
+	let inner = core;
+	for (let i = plugins.length - 1; i >= 0; i--) {
+		const { def, app } = plugins[i];
+		const handle = def.handle;
+		if (!handle) continue;
+		const next_handle = inner;
+		inner = async ({ event, resolve }) => handle({
+			event,
+			options: app.options,
+			app
+		}, (outer) => Promise.resolve(next_handle({
+			event,
+			resolve: (ev, opts) => resolve(ev, compose_resolve_options(opts, outer))
+		})));
+	}
+	return inner;
+}
+/** The per-plugin contexts of one request. */
+function request_contexts(plugins, event, path, facts, render_hole) {
+	const route_id = event.route?.id;
+	const route_opt = (name) => route_option(name, route_id, path);
+	const per_visitor = (reason) => mark_per_visitor(facts, reason);
+	return plugins.map(({ def, app }) => ({
+		event,
+		path,
+		state: def.state?.(),
+		options: app.options,
+		app,
+		facts,
+		routeOption: route_opt,
+		renderHole: render_hole,
+		perVisitor: per_visitor
+	}));
+}
+// ../../../core/src/server/stream-regions.ts
+/**
+* Region parcels for the batch endpoint (single-flight navigation, a page's first-load holes, OOO).
+* Each rendered region call is boxed as a `<template data-ogygia-slot>` parcel keyed by its capability
+* signature; the client frame stream reads them out of order and drops each into the matching region.
+* A done-sentinel ends the batch.
+*
+* The client reads a parcel as TEXT (runtime/frame-nav.ts), never as DOM. A plain parcel ends at the
+* first `</template>`; an answer that itself carries `</template` (a web component's declarative
+* shadow root) is LENGTH-FRAMED instead — `data-og-len` is its UTF-16 length, the unit the client's
+* decoded string counts in — so its content can never close the box or forge a parcel for another
+* slot, and it no longer falls back to a second request.
+*
+* Pure (no I/O, no Kit) so it stays unit-testable.
+*/
+/** Sentinel slot appended once a batch finishes, so waiting regions know it is complete. */
+var STREAM_DONE_SLOT = "__ogygia_done__";
+/** Does `html` carry a `</template` (any case) — one that would close a plain parcel early? */
+function has_template_close(html) {
+	for (let i = html.indexOf("</"); i !== -1; i = html.indexOf("</", i + 2)) {
+		if (html.length - i < 10) return false;
+		if (html.slice(i + 2, i + 10).toLowerCase() === "template") return true;
+	}
+	return false;
+}
+/** Build a parcel `<template data-ogygia-slot="…">…rendered html…</template>` (length-framed when
+*  the html carries a `</template` of its own). */
+function build_parcel(slot, html) {
+	if (has_template_close(html)) return `<template data-ogygia-slot="${slot}" data-og-len="${html.length}">${html}</template>`;
+	return `<template data-ogygia-slot="${slot}">${html}</template>`;
+}
+/** The done-sentinel parcel (empty template) the client watches to end the batch. */
+function done_parcel() {
+	return `<template data-ogygia-slot="${STREAM_DONE_SLOT}"></template>`;
+}
+// ../../../core/src/server/document-assembly.ts
+var HEAD_CLOSE = "</head>";
+var BODY_CLOSE = "</body>";
+/** The two injection points, each found with one bounded scan. */
+function locate(html) {
+	return {
+		head_end: html.indexOf(HEAD_CLOSE),
+		body_end: html.lastIndexOf(BODY_CLOSE)
+	};
+}
+/**
+* Put `head_inject` before `</head>` and `body_inject` before `</body>`, replacing the head slice
+* with `head` when the caller rewrote it (the deduped head; `null` = unchanged). A missing
+* injection point drops that injection (a streamed chunk without `</body>` gets no body work).
+* Returns `html` itself when there is nothing to do.
+*/
+function assemble(html, { head_end, body_end }, head, head_inject, body_inject) {
+	const has_head = head_end !== -1 && (head !== null || head_inject !== "");
+	const has_body = body_end !== -1 && body_inject !== "";
+	if (!has_head && !has_body) return html;
+	if (!has_head) return html.slice(0, body_end) + body_inject + html.slice(body_end);
+	const front = (head ?? html.slice(0, head_end)) + head_inject;
+	if (!has_body) return front + html.slice(head_end);
+	return front + html.slice(head_end, body_end) + body_inject + html.slice(body_end);
+}
+// ../../../core/src/server/reversible.ts
+/**
+* REVERSIBLE TRANSFORMS — an app's server transform (a web-component server render, say) may reshape
+* the markup ogygia hands it, Svelte-owned markup included, and ogygia puts back what hydration needs.
+*
+* The one rule this rests on, vendor-neutral: **a custom element's server render may move its light
+* DOM children** (a scoped render emulates slots by moving them into its rendered tree). So:
+*
+*   1. MARK, before the transform: every custom element gets an id (`og-h="K"` when ogygia will restore
+*      it — in Svelte-owned markup, above Svelte-owned markup, or anywhere in a hole / lake answer;
+*      `og-u="K"` otherwise), and each of its children a tag (`og-c="K.i"` on an element, a
+*      `<!--og-c K.i t|c-->` comment before a text or comment node). Text a trimmer could change,
+*      deeper inside a restored host's children, gets `<!--og-t K.n-->`.
+*   2. The app's transform runs. On an `og-h` host it renders the plan: its slot positions as real
+*      `<slot>` wrappers, `og-shadow="key …"` (the sheets for the host's shadow root), `og-keep="attr …"`.
+*   3. SETTLE, after it: hosts without a plan (no `og-shadow`) lose every mark and are left as the
+*      transform wrote them; a planned host keeps its marks plus what the restorer needs to put the
+*      children back exactly (`og-r`: the attributes to reset; the original text of a trimmed or
+*      dropped text node). Start tags the HTML parser would restructure (an `<a>` in an `<a>`, a block
+*      in a `<p>`, …) where the render introduced the tag or the element it would close become
+*      `<og-as tag="…">` stand-ins. `data-og-head` assets move into `<head>` (a document), deduped.
+*
+* The browser half (runtime/restore.ts) attaches each planned host's shadow root, moves the rendered
+* tree into it, and puts Svelte's children back — before anything snapshots or hydrates.
+*
+* Pure string work over one tokenizer pass each (indexOf-driven, no regex, no DOM): it runs on every
+* response of an app that configures a transform.
+*/
+var RAW = /* @__PURE__ */ new Set([
+	"script",
+	"style",
+	"textarea",
+	"title",
+	"xmp",
+	"iframe",
+	"noembed",
+	"noframes"
+]);
+var VOID = /* @__PURE__ */ new Set([
+	"area",
+	"base",
+	"br",
+	"col",
+	"embed",
+	"hr",
+	"img",
+	"input",
+	"link",
+	"meta",
+	"source",
+	"track",
+	"wbr",
+	"param",
+	"keygen",
+	"frame"
+]);
+function is_space(c) {
+	return c === 32 || c === 9 || c === 10 || c === 12 || c === 13;
+}
+function is_alpha(c) {
+	return c >= 65 && c <= 90 || c >= 97 && c <= 122;
+}
+/** Index of the `>` ending the tag at `open`, respecting quoted values; `html.length` if none. */
+function tag_end(html, open) {
+	let quote = 0;
+	for (let i = open + 1; i < html.length; i++) {
+		const c = html.charCodeAt(i);
+		if (quote) {
+			if (c === quote) quote = 0;
+		} else if (c === 34 || c === 39) quote = c;
+		else if (c === 62) return i;
+	}
+	return html.length;
+}
+function read_name(html, from) {
+	let i = from;
+	while (i < html.length) {
+		const c = html.charCodeAt(i);
+		if (is_space(c) || c === 62 || c === 47) break;
+		i++;
+	}
+	return i;
+}
+/** The raw-text body end (`<` of the matching `</name`), or `html.length`. */
+function raw_end(html, from, name) {
+	let at = from;
+	for (;;) {
+		const lt = html.indexOf("</", at);
+		if (lt === -1) return html.length;
+		let ok = true;
+		for (let k = 0; k < name.length; k++) {
+			const c = html.charCodeAt(lt + 2 + k);
+			if ((c >= 65 && c <= 90 ? c + 32 : c) !== name.charCodeAt(k)) {
+				ok = false;
+				break;
+			}
+		}
+		const after = html.charCodeAt(lt + 2 + name.length);
+		if (ok && (Number.isNaN(after) || is_space(after) || after === 62 || after === 47)) return lt;
+		at = lt + 2;
+	}
+}
+/** A tag name, lower-cased only when it has an upper-case letter (the common case allocates nothing
+*  beyond the slice). */
+function tag_name(html, from, to) {
+	const name = html.slice(from, to);
+	for (let k = from; k < to; k++) {
+		const c = html.charCodeAt(k);
+		if (c >= 65 && c <= 90) return name.toLowerCase();
+	}
+	return name;
+}
+/**
+* The tokenizer: ONE token object, rewritten in place by each `next()` (a document is tens of
+* thousands of tokens; an object per token, or a generator, is garbage the collector pays for on
+* every request). Read a token's fields before the next `next()`.
+*/
+var Lexer = class {
+	t = "text";
+	name = "";
+	start = 0;
+	end = 0;
+	name_end = 0;
+	self = false;
+	#html;
+	#i = 0;
+	/** the raw-text element just opened: its body is the next token */
+	#raw = "";
+	constructor(html) {
+		this.#html = html;
+	}
+	#set(t, start, end) {
+		this.t = t;
+		this.start = start;
+		this.end = end;
+		this.#i = end;
+		return true;
+	}
+	next() {
+		const html = this.#html;
+		const n = html.length;
+		let i = this.#i;
+		if (this.#raw) {
+			const name = this.#raw;
+			this.#raw = "";
+			const re = raw_end(html, i, name);
+			if (re > i) return this.#set("raw", i, re);
+			i = this.#i = re;
+		}
+		if (i >= n) return false;
+		const lt = html.indexOf("<", i);
+		if (lt === -1) return this.#set("text", i, n);
+		const c1 = html.charCodeAt(lt + 1);
+		if (!(is_alpha(c1) || c1 === 47 && is_alpha(html.charCodeAt(lt + 2)) || c1 === 33 || c1 === 63)) {
+			let j = lt + 1;
+			for (;;) {
+				const nx = html.indexOf("<", j);
+				if (nx === -1) {
+					j = n;
+					break;
+				}
+				const d = html.charCodeAt(nx + 1);
+				if (is_alpha(d) || d === 47 && is_alpha(html.charCodeAt(nx + 2)) || d === 33 || d === 63) {
+					j = nx;
+					break;
+				}
+				j = nx + 1;
+			}
+			return this.#set("text", i, j);
+		}
+		if (lt > i) return this.#set("text", i, lt);
+		if (html.startsWith("<!--", lt)) {
+			const close = html.indexOf("-->", lt + 4);
+			return this.#set("comment", lt, close === -1 ? n : close + 3);
+		}
+		if (c1 === 33 || c1 === 63) return this.#set("other", lt, tag_end(html, lt) + 1);
+		if (c1 === 47) {
+			const ne = read_name(html, lt + 2);
+			this.name = tag_name(html, lt + 2, ne);
+			return this.#set("end", lt, tag_end(html, lt) + 1);
+		}
+		const ne = read_name(html, lt + 1);
+		const name = tag_name(html, lt + 1, ne);
+		const gt = tag_end(html, lt);
+		this.name = name;
+		this.name_end = ne;
+		this.self = html.charCodeAt(gt - 1) === 47;
+		if (RAW.has(name) && !this.self) this.#raw = name;
+		return this.#set("start", lt, gt + 1);
+	}
+};
+/** (the attributes of a tag nobody asked about: one shared empty list, never an allocation per tag) */
+var NO_ATTRS = Object.freeze([]);
+/** (nothing to remove from a tag without ogygia's marks; only a tag with marks ever adds to its set) */
+var NO_REMOVE = /* @__PURE__ */ new Set();
+function parse_attrs(html, from, to) {
+	const out = [];
+	let i = from;
+	while (i < to) {
+		let c = html.charCodeAt(i);
+		if (is_space(c) || c === 47) {
+			i++;
+			continue;
+		}
+		const ns = i;
+		while (i < to) {
+			c = html.charCodeAt(i);
+			if (is_space(c) || c === 61 || c === 62 || c === 47) break;
+			i++;
+		}
+		const name = html.slice(ns, i).toLowerCase();
+		let j = i;
+		while (j < to && is_space(html.charCodeAt(j))) j++;
+		if (html.charCodeAt(j) === 61) {
+			j++;
+			while (j < to && is_space(html.charCodeAt(j))) j++;
+			const q = html.charCodeAt(j);
+			let value;
+			if (q === 34 || q === 39) {
+				const close = html.indexOf(q === 34 ? "\"" : "'", j + 1);
+				const e = close === -1 || close > to ? to : close;
+				value = html.slice(j + 1, e);
+				j = e + 1;
+			} else {
+				const vs = j;
+				while (j < to && !is_space(html.charCodeAt(j)) && html.charCodeAt(j) !== 62) j++;
+				value = html.slice(vs, j);
+			}
+			if (name) out.push({
+				name,
+				value: decode(value),
+				start: ns,
+				end: j
+			});
+			i = j;
+		} else {
+			if (name) out.push({
+				name,
+				value: "",
+				start: ns,
+				end: i
+			});
+			if (i === ns) i++;
+		}
+	}
+	return out;
+}
+var NAMED = {
+	amp: "&",
+	lt: "<",
+	gt: ">",
+	quot: "\"",
+	apos: "'",
+	nbsp: "\xA0",
+	"#39": "'"
+};
+/** Decode character references (the common named ones and every numeric one): enough to compare two
+*  serializations of the same text or attribute value. */
+function decode(s) {
+	if (s.indexOf("&") === -1) return s;
+	let out = "";
+	let i = 0;
+	for (;;) {
+		const amp = s.indexOf("&", i);
+		if (amp === -1) return out + s.slice(i);
+		out += s.slice(i, amp);
+		const semi = s.indexOf(";", amp);
+		if (semi === -1 || semi - amp > 10) {
+			out += "&";
+			i = amp + 1;
+			continue;
+		}
+		const ref = s.slice(amp + 1, semi);
+		let ch;
+		if (ref.charCodeAt(0) === 35) {
+			const code = ref[1] === "x" || ref[1] === "X" ? parseInt(ref.slice(2), 16) : parseInt(ref.slice(1), 10);
+			if (Number.isFinite(code) && code > 0 && code <= 1114111) ch = String.fromCodePoint(code);
+		} else ch = NAMED[ref];
+		if (ch === void 0) {
+			out += "&";
+			i = amp + 1;
+		} else {
+			out += ch;
+			i = semi + 1;
+		}
+	}
+}
+var esc_attr = escape_amp_quot;
+/** JSON safe inside an HTML comment: no `--`, no `>`. */
+function comment_json(v) {
+	return replace_all(replace_all(JSON.stringify(v), "-", "\\u002d"), ">", "\\u003e");
+}
+function script_json(v) {
+	return replace_all(JSON.stringify(v), "<", "\\u003c");
+}
+/** `replaceAll` behind a native search: no copy when there is nothing to replace. */
+function replace_all(s, from, to) {
+	return s.indexOf(from) === -1 ? s : s.replaceAll(from, to);
+}
+var P_CLOSERS = /* @__PURE__ */ new Set([
+	"address",
+	"article",
+	"aside",
+	"blockquote",
+	"center",
+	"details",
+	"dialog",
+	"dir",
+	"div",
+	"dl",
+	"fieldset",
+	"figcaption",
+	"figure",
+	"footer",
+	"form",
+	"header",
+	"hgroup",
+	"main",
+	"menu",
+	"nav",
+	"ol",
+	"p",
+	"search",
+	"section",
+	"summary",
+	"ul",
+	"h1",
+	"h2",
+	"h3",
+	"h4",
+	"h5",
+	"h6",
+	"pre",
+	"listing",
+	"table",
+	"hr",
+	"xmp",
+	"li",
+	"dd",
+	"dt",
+	"plaintext"
+]);
+var HEADINGS = /* @__PURE__ */ new Set([
+	"h1",
+	"h2",
+	"h3",
+	"h4",
+	"h5",
+	"h6"
+]);
+var SCOPE = /* @__PURE__ */ new Set([
+	"applet",
+	"caption",
+	"html",
+	"table",
+	"td",
+	"th",
+	"marquee",
+	"object",
+	"template",
+	"foreignobject",
+	"desc"
+]);
+var TRACKED = new Map([
+	"a",
+	"nobr",
+	"button",
+	"form",
+	"li",
+	"dd",
+	"dt",
+	"p",
+	"td",
+	"th",
+	"tr"
+].map((n, i) => [n, i]));
+function push(stack, f) {
+	const slot = TRACKED.get(f.name) ?? -1;
+	(stack.slots ??= []).push(slot);
+	if (slot !== -1) (stack.open ??= Array.from({ length: TRACKED.size }, () => 0))[slot]++;
+	stack.push(f);
+}
+/** Close the elements from `k` up. */
+function cut(stack, k) {
+	const slots = stack.slots;
+	if (slots) {
+		const open = stack.open;
+		if (open) {
+			for (let j = slots.length - 1; j >= k; j--) if (slots[j] !== -1) open[slots[j]]--;
+		}
+		slots.length = k;
+	}
+	stack.length = k;
+}
+/** The index of the open `name` in scope, or -1. (A stand-in `<og-as tag="a">` is not an `<a>` to
+*  the parser: the element's own name is what counts.) */
+function in_scope(stack, name, extra) {
+	const slot = TRACKED.get(name);
+	if (slot === void 0 || !stack.open?.[slot]) return -1;
+	for (let k = stack.length - 1; k >= 0; k--) {
+		const f = stack[k];
+		if (f.name === name) return k;
+		if (SCOPE.has(f.name) || extra?.has(f.name)) return -1;
+	}
+	return -1;
+}
+var BUTTON_SCOPE = /* @__PURE__ */ new Set(["button"]);
+var LIST_SCOPE = /* @__PURE__ */ new Set(["ol", "ul"]);
+/** `implied_close`: the parser ignores this start tag (a form in a form) */
+var DROP = -2;
+/** What the parser does to the stack BEFORE inserting start tag `name`: the index of the element it
+*  would close (and everything above it), -1 for nothing, or `DROP` (it ignores the tag). A number,
+*  never an object: this runs on every start tag. */
+function implied_close(stack, name) {
+	if (name === "a" || name === "nobr" || name === "button") return in_scope(stack, name);
+	if (name === "form") return in_scope(stack, "form") === -1 ? -1 : DROP;
+	if (name === "li") {
+		const li = in_scope(stack, "li", LIST_SCOPE);
+		if (li !== -1) return li;
+	}
+	if (name === "dd" || name === "dt") {
+		const k = Math.max(in_scope(stack, "dd"), in_scope(stack, "dt"));
+		if (k !== -1) return k;
+	}
+	if (P_CLOSERS.has(name)) {
+		const p = in_scope(stack, "p", BUTTON_SCOPE);
+		if (p !== -1) return p;
+		if (HEADINGS.has(name)) {
+			const top = stack[stack.length - 1];
+			if (top && HEADINGS.has(top.name)) return stack.length - 1;
+		}
+	}
+	if (name === "option" || name === "optgroup") {
+		const top = stack[stack.length - 1];
+		if (top && top.name === "option") return stack.length - 1;
+	}
+	if (name === "td" || name === "th") {
+		const k = Math.max(in_scope(stack, "td"), in_scope(stack, "th"));
+		if (k !== -1) return k;
+	}
+	if (name === "tr") {
+		const k = in_scope(stack, "tr");
+		if (k !== -1) return k;
+	}
+	return -1;
+}
+/** An end tag: close up to the innermost element of that name (a stand-in answers to its real tag,
+*  whose end tag the settle pass rewrites). */
+function pop_to(stack, name) {
+	for (let k = stack.length - 1; k >= 0; k--) if ((stack[k].as ?? stack[k].name) === name) {
+		cut(stack, k);
+		return;
+	}
+}
+function is_custom(name, foreign) {
+	if (foreign || name.indexOf("-") === -1 || !is_alpha(name.charCodeAt(0))) return false;
+	return !name.startsWith("ogygia-") && !name.startsWith("og-");
+}
+/** Who renders a region's inside, for Svelte ownership: a hole's and a lake's are opaque to any
+*  hydration — and so is a BAKED live region's (its first HTML is one `{@html}` string to Svelte), the
+*  same set the client calls opaque (region-attrs.ts `OPAQUE_SELECTOR`). Restoring a host in there to
+*  Svelte's render undid what the server's transform wrote for no hydration to follow (a closed
+*  dropdown lost `hidden` and pushed the page down until its own runtime set it again). */
+function region_kind(attrs) {
+	if (attrs.some((a) => a.name === "endpoint")) return "hole";
+	if (attrs.some((a) => a.name === "wake" && a.value === "none" || a.name === "data-og-baked")) return "lake";
+	return "island";
+}
+/** Text the serializer could change: whitespace-only, or with leading / trailing whitespace. */
+function trimmable(s) {
+	if (!s.length) return false;
+	const a = s.charCodeAt(0);
+	const b = s.charCodeAt(s.length - 1);
+	return is_space(a) || is_space(b) || a === 160 || b === 160 || s.indexOf("&nbsp;") !== -1 || s.indexOf("&#160;") !== -1;
+}
+/** (the record of a host ogygia won't restore: shared, never written) */
+var NO_RECORD = Object.freeze({});
+var NO_CHILDREN = /* @__PURE__ */ new Map();
+var NO_TEXTS = /* @__PURE__ */ new Map();
+var attr_map = (attrs) => {
+	const m = {};
+	for (const a of attrs) m[a.name] = a.value;
+	return m;
+};
+/**
+* Which custom elements (in document order) get a plan: every one in an ANSWER — markup the runtime
+* morphs into a live page (a hole / lake answer, or a document the router fetched: `answer`) — whose
+* hosts meet live ones its own runtime already rendered, so they must arrive in the form the restorer
+* gives (Svelte's children in the light DOM), never in the transform's server form only the
+* component's first hydrate reads (that form, morphed into a live host, left the transform's tree in
+* its light DOM: a site nav collapsed to one unstyled item after an in-place navigation). In a
+* document loaded as one, every one in Svelte-owned markup, and every one with Svelte-owned markup
+* below it (a server-owned host around an island: adopting it would reach into the island). A first
+* pass, so the marking pass knows a host's plan before it reaches the host's children.
+*/
+function plan_hosts(html, kind, csr, answer) {
+	const planned = [];
+	const stack = [];
+	let in_body = kind !== "document";
+	for (const tok = new Lexer(html); tok.next();) if (tok.t === "start") {
+		const name = tok.name;
+		if (name === "body") in_body = true;
+		const close = implied_close(stack, name);
+		if (close === DROP) continue;
+		if (close !== -1) cut(stack, close);
+		const parent = stack[stack.length - 1];
+		const foreign = name === "svg" || name === "math" || !!parent?.foreign;
+		let owned = name === "body" && kind === "document" && csr || (parent ? parent.owned : false);
+		if (name === "ogygia-region") owned = region_kind(parse_attrs(html, tok.name_end, tok.end - 1)) === "island";
+		let host = -1;
+		if (in_body && is_custom(name, foreign)) {
+			host = planned.length;
+			planned.push(answer || kind !== "document" || owned);
+		}
+		if (owned && !(parent ? parent.owned : false)) {
+			for (const f of stack) if (f.host !== -1) planned[f.host] = true;
+		}
+		if (!(VOID.has(name) || tok.self && foreign)) push(stack, {
+			name,
+			host,
+			owned,
+			foreign
+		});
+	} else if (tok.t === "end") pop_to(stack, tok.name);
+	return planned;
+}
+/** Is there any custom element (in a document: after `<body`) — a hop from `<` to `<` reading only
+*  tag names, no tokenization. Most pages of most apps have none, and then there is nothing to mark. */
+function has_custom_element(html, document) {
+	let at = document ? html.indexOf("<body") : 0;
+	if (at === -1) return false;
+	for (at = html.indexOf("<", at); at !== -1; at = html.indexOf("<", at + 1)) {
+		if (!is_alpha(html.charCodeAt(at + 1))) continue;
+		const ne = read_name(html, at + 1);
+		const dash = html.indexOf("-", at + 1);
+		if (dash !== -1 && dash < ne && is_custom(tag_name(html, at + 1, ne), false)) return true;
+	}
+	return false;
+}
+/**
+* Tag `html` for the transform. `csr`: a Kit-hydrated document (its whole body is Svelte's, except
+* lakes and holes). `answer`: a document the router fetched, morphed into the live page (every host
+* planned, as in a region answer — see `plan_hosts`). Returns the tagged HTML, or `null` when there is
+* no custom element to tag (the transform then gets the HTML as is, and settle has nothing to do).
+*/
+function mark(html, kind, csr, answer = false) {
+	if (!has_custom_element(html, kind === "document")) return null;
+	const planned = plan_hosts(html, kind, csr, answer);
+	if (!planned.length) return null;
+	const out = [];
+	let pos = 0;
+	const hosts = /* @__PURE__ */ new Map();
+	let next_k = 0;
+	const stack = [];
+	let in_body = kind !== "document";
+	let last_was_pre_start = false;
+	const top = () => stack[stack.length - 1];
+	const under_now = () => top() ? top().under : -1;
+	for (const tok = new Lexer(html); tok.next();) {
+		if (tok.t === "start") {
+			const name = tok.name;
+			if (name === "body") in_body = true;
+			const close = implied_close(stack, name);
+			if (close === DROP) continue;
+			if (close !== -1) cut(stack, close);
+			const parent = top();
+			const foreign = name === "svg" || name === "math" || !!parent?.foreign;
+			const custom = in_body && is_custom(name, foreign);
+			const child_of_host = !!parent && parent.host !== -1 && in_body;
+			const recorded = custom && planned[next_k] === true || child_of_host && planned[parent.host] === true;
+			const attrs = name === "ogygia-region" || name === "template" || recorded ? parse_attrs(html, tok.name_end, tok.end - 1) : NO_ATTRS;
+			let owned = name === "body" && kind === "document" && csr || (parent ? parent.owned : false);
+			if (name === "ogygia-region") owned = region_kind(attrs) === "island";
+			let insert = "";
+			const shadow_tpl = name === "template" && attrs.some((a) => a.name === "shadowrootmode");
+			if (child_of_host && !shadow_tpl) {
+				const i = parent.next++;
+				insert += ` og-c="${parent.host}.${i}"`;
+				if (planned[parent.host]) hosts.get(parent.host).children.set(i, { attrs: attr_map(attrs) });
+			}
+			let host = -1;
+			if (custom) {
+				host = next_k++;
+				const is_planned = planned[host] ?? false;
+				hosts.set(host, {
+					planned: is_planned,
+					owned,
+					attrs: is_planned ? attr_map(attrs) : NO_RECORD,
+					children: is_planned ? /* @__PURE__ */ new Map() : NO_CHILDREN,
+					texts: is_planned ? /* @__PURE__ */ new Map() : NO_TEXTS,
+					text_next: 0,
+					inner_start: tok.end,
+					inner_end: tok.end
+				});
+				insert += is_planned ? ` og-h="${host}"` : ` og-u="${host}"`;
+			}
+			if (insert) {
+				out.push(html.slice(pos, tok.name_end), insert);
+				pos = tok.name_end;
+			}
+			if (!(VOID.has(name) || tok.self && foreign)) push(stack, {
+				name,
+				host,
+				next: 0,
+				owned,
+				under: host !== -1 && planned[host] ? host : under_now(),
+				introduced: false,
+				foreign
+			});
+			last_was_pre_start = name === "pre" || name === "listing";
+			continue;
+		}
+		if (tok.t === "end") {
+			const name = tok.name;
+			for (let k = stack.length - 1; k >= 0; k--) if (stack[k].name === name) {
+				for (let j = stack.length - 1; j >= k; j--) {
+					const f = stack[j];
+					if (f.host !== -1) hosts.get(f.host).inner_end = tok.start;
+				}
+				cut(stack, k);
+				break;
+			}
+			last_was_pre_start = false;
+			continue;
+		}
+		if (tok.t === "text" || tok.t === "comment") {
+			const parent = top();
+			if (parent && parent.host !== -1 && in_body && !hosts.get(parent.host).planned) parent.next++;
+			else if (parent && parent.host !== -1 && in_body) {
+				const i = parent.next++;
+				const rec = hosts.get(parent.host);
+				if (tok.t === "text") {
+					const raw = html.slice(tok.start, tok.end);
+					rec.children.set(i, { text: raw });
+					out.push(html.slice(pos, tok.start), `<!--og-c ${parent.host}.${i} t-->`);
+				} else {
+					rec.children.set(i, {});
+					out.push(html.slice(pos, tok.start), `<!--og-c ${parent.host}.${i} c-->`);
+				}
+				pos = tok.start;
+			} else if (tok.t === "text" && parent && under_now() !== -1 && !last_was_pre_start) {
+				const raw = html.slice(tok.start, tok.end);
+				if (trimmable(raw)) {
+					const k = under_now();
+					const rec = hosts.get(k);
+					const n = rec.text_next++;
+					rec.texts.set(n, raw);
+					out.push(html.slice(pos, tok.start), `<!--og-t ${k}.${n}-->`);
+					pos = tok.start;
+				}
+			}
+			last_was_pre_start = false;
+			continue;
+		}
+		last_was_pre_start = false;
+	}
+	if (!hosts.size) return null;
+	out.push(html.slice(pos));
+	return {
+		html: out.join(""),
+		record: {
+			kind,
+			source: html,
+			hosts
+		}
+	};
+}
+/** How the stand-ins keep their element's box before the restore swaps them back (zero specificity:
+*  the component's own class rules still win). */
+var STAND_IN_CSS = ":where(og-as){display:inline}:where(og-as[tag=address],og-as[tag=article],og-as[tag=aside],og-as[tag=blockquote],og-as[tag=center],og-as[tag=details],og-as[tag=dialog],og-as[tag=dir],og-as[tag=div],og-as[tag=dl],og-as[tag=dd],og-as[tag=dt],og-as[tag=fieldset],og-as[tag=figcaption],og-as[tag=figure],og-as[tag=footer],og-as[tag=form],og-as[tag=header],og-as[tag=hgroup],og-as[tag=main],og-as[tag=menu],og-as[tag=nav],og-as[tag=ol],og-as[tag=p],og-as[tag=search],og-as[tag=section],og-as[tag=summary],og-as[tag=ul],og-as[tag=h1],og-as[tag=h2],og-as[tag=h3],og-as[tag=h4],og-as[tag=h5],og-as[tag=h6],og-as[tag=pre],og-as[tag=listing],og-as[tag=hr],og-as[tag=xmp]){display:block}:where(og-as[tag=li]){display:list-item}:where(og-as[tag=table]){display:table}:where(og-as[tag=button]){display:inline-block}";
+/** The attributes a restore resets: `name → Svelte's value`, or `null` to remove. */
+function attr_diff(now, was, keep) {
+	let diff = null;
+	const seen = /* @__PURE__ */ new Set();
+	for (const a of now) {
+		if (a.name.startsWith("og-")) continue;
+		seen.add(a.name);
+		if (a.name in was) {
+			if (was[a.name] !== a.value) (diff ??= {})[a.name] = was[a.name];
+		} else if (!keep.has(a.name)) (diff ??= {})[a.name] = null;
+	}
+	for (const name in was) if (!seen.has(name) && !name.startsWith("og-")) (diff ??= {})[name] = was[name];
+	return diff;
+}
+/** Rewrite a start tag: drop the attributes named in `drop`, append `add`, rename to `rename`. */
+function rewrite_start(html, tok, attrs, drop, add, rename) {
+	let s = "<" + (rename ?? html.slice(tok.start + 1, tok.name_end));
+	let at = tok.name_end;
+	for (const a of attrs) {
+		if (!drop.has(a.name)) continue;
+		let from = a.start;
+		while (from > at && is_space(html.charCodeAt(from - 1))) from--;
+		s += html.slice(at, from);
+		at = a.end;
+	}
+	const close = html.charCodeAt(tok.end - 2) === 47 ? tok.end - 2 : tok.end - 1;
+	return s + html.slice(at, close) + add + html.slice(close, tok.end);
+}
+function settle(html, record, opts = {}) {
+	const plan = /* @__PURE__ */ new Set();
+	for (let at = html.indexOf(" og-shadow="); at !== -1; at = html.indexOf(" og-shadow=", at + 11)) {
+		const lt = html.lastIndexOf("<", at);
+		if (lt === -1) continue;
+		const gt = tag_end(html, lt);
+		if (gt < at) continue;
+		const h = parse_attrs(html, read_name(html, lt + 1), gt).find((a) => a.name === "og-h");
+		if (h) plan.add(Number(h.value));
+	}
+	/** Does the tag at `[from, to)` hold `needle`? A forward-only cursor: tags come in document order,
+	*  so each occurrence is searched for once (a search from every tag is quadratic in the gaps). */
+	const within = (needle) => {
+		let at = html.indexOf(needle);
+		return (from, to) => {
+			if (at !== -1 && at < from) at = html.indexOf(needle, from);
+			return at !== -1 && at < to;
+		};
+	};
+	const og_in = within(" og-");
+	const head_in = within("data-og-head");
+	const out = [];
+	let pos = 0;
+	const stack = [];
+	const head = [];
+	const head_keys = /* @__PURE__ */ new Set();
+	let head_cut = null;
+	let stand_ins = 0;
+	let pending_text = null;
+	const doc = record.kind === "document";
+	/** Close a pending text mark: `text` is the text that follows it in the output (or null: none). */
+	const finish_text = (text) => {
+		const p = pending_text;
+		pending_text = null;
+		const rec = record.hosts.get(p.k);
+		const was = p.og === "c" ? rec?.children.get(p.i)?.text : rec?.texts.get(p.i);
+		if (was === void 0) {
+			out[p.comment_at] = "";
+			return;
+		}
+		if (!plan.has(p.k)) {
+			out[p.comment_at] = "";
+			if (text === null || decode(text) !== decode(was)) for (let s = stack.length - 1; s >= 0; s--) {
+				const a = stack[s].host;
+				if (a === -1 || !plan.has(a)) continue;
+				const ra = record.hosts.get(a);
+				if (ra) out[p.comment_at] = `<!--og-t ${a}.${ra.text_next++} ${comment_json(decode(was))}-->`;
+				break;
+			}
+			return;
+		}
+		if (p.og === "t") {
+			out[p.comment_at] = text !== null && decode(text) === decode(was) ? "" : `<!--og-t ${p.k}.${p.i} ${comment_json(decode(was))}-->`;
+			return;
+		}
+		out[p.comment_at] = text !== null && decode(text) === decode(was) ? `<!--og-c ${p.k}.${p.i} t-->` : `<!--og-c ${p.k}.${p.i} t ${comment_json(decode(was))}-->`;
+	};
+	for (const tok = new Lexer(html); tok.next();) {
+		if (head_cut) {
+			if (tok.t === "end" && tok.name === head_cut.name && --head_cut.depth === 0) {
+				const asset = html.slice(head_cut.start, tok.end);
+				pos = tok.end;
+				if (!head_keys.has(head_cut.key)) {
+					head_keys.add(head_cut.key);
+					head.push(asset);
+				}
+				head_cut = null;
+			} else if (tok.t === "start" && tok.name === head_cut.name) head_cut.depth++;
+			continue;
+		}
+		if (pending_text && tok.t !== "text") finish_text(null);
+		if (tok.t === "text") {
+			if (pending_text) {
+				out.push(html.slice(pos, tok.start));
+				pos = tok.start;
+				finish_text(html.slice(tok.start, tok.end));
+			}
+			continue;
+		}
+		if (tok.t === "comment") {
+			const body = html.slice(tok.start + 4, tok.end - 3);
+			const is_c = body.startsWith("og-c ");
+			const is_t = body.startsWith("og-t ");
+			if (!is_c && !is_t) continue;
+			const sp = body.indexOf(" ", 5);
+			const id = body.slice(5, sp === -1 ? body.length : sp);
+			const dot = id.indexOf(".");
+			const k = Number(id.slice(0, dot));
+			const i = Number(id.slice(dot + 1));
+			out.push(html.slice(pos, tok.start));
+			pos = tok.end;
+			if (is_c && body.endsWith(" c")) {
+				out.push(plan.has(k) ? html.slice(tok.start, tok.end) : "");
+				continue;
+			}
+			out.push("");
+			pending_text = {
+				k,
+				i,
+				comment_at: out.length - 1,
+				og: is_c ? "c" : "t"
+			};
+			continue;
+		}
+		if (tok.t === "start") {
+			const name = tok.name;
+			const implied = implied_close(stack, name);
+			const drop = implied === DROP;
+			const close = drop ? -1 : implied;
+			const parent = stack[stack.length - 1];
+			const has_og = og_in(tok.start, tok.end);
+			const head_attr = head_in(tok.start, tok.end);
+			const attrs = has_og || head_attr || close !== -1 ? parse_attrs(html, tok.name_end, tok.end - 1) : NO_ATTRS;
+			if (doc && head_attr && !has_og) {
+				const key = attrs.find((a) => a.name === "data-og-head")?.value;
+				if (key !== void 0 && (name === "style" || name === "link" || name === "template")) {
+					out.push(html.slice(pos, tok.start));
+					pos = tok.start;
+					if (name === "link" || tok.self) {
+						pos = tok.end;
+						if (!head_keys.has(key)) {
+							head_keys.add(key);
+							head.push(html.slice(tok.start, tok.end));
+						}
+					} else head_cut = {
+						start: tok.start,
+						name,
+						depth: 1,
+						key
+					};
+					continue;
+				}
+			}
+			const og_c = has_og ? attrs.find((a) => a.name === "og-c") : void 0;
+			const og_h = has_og ? attrs.find((a) => a.name === "og-h" || a.name === "og-u") : void 0;
+			const foreign = name === "svg" || name === "math" || !!parent?.foreign;
+			const is_host = !!og_h;
+			const introduced = og_c ? false : parent ? parent.host !== -1 ? true : parent.introduced : false;
+			let stand_in = false;
+			if ((close !== -1 || drop) && !foreign) {
+				const trigger = close !== -1 ? stack[close] : void 0;
+				if (introduced || trigger?.introduced || drop && introduced) stand_in = true;
+			}
+			if (!stand_in) {
+				if (close !== -1) cut(stack, close);
+				if (drop) continue;
+			}
+			const remove = has_og ? /* @__PURE__ */ new Set() : NO_REMOVE;
+			let add = "";
+			let reset = null;
+			let planned_host = false;
+			if (og_h) {
+				const k = Number(og_h.value);
+				if (og_h.name === "og-u" || !plan.has(k)) {
+					remove.add(og_h.name);
+					remove.add("og-shadow");
+					remove.add("og-keep");
+				} else {
+					planned_host = true;
+					const keep = new Set((attrs.find((a) => a.name === "og-keep")?.value ?? "").split(" ").filter(Boolean));
+					reset = attr_diff(attrs, record.hosts.get(k)?.attrs ?? {}, keep);
+				}
+			}
+			if (og_c) {
+				const dot = og_c.value.indexOf(".");
+				const k = Number(og_c.value.slice(0, dot));
+				if (!plan.has(k)) remove.add("og-c");
+				else if (!planned_host && og_h?.name !== "og-u") reset = attr_diff(attrs, record.hosts.get(k)?.children.get(Number(og_c.value.slice(dot + 1)))?.attrs ?? {}, /* @__PURE__ */ new Set());
+			}
+			if (reset) add += ` og-r="${esc_attr(JSON.stringify(reset))}"`;
+			if (stand_in) {
+				add += ` tag="${name}"`;
+				stand_ins++;
+			}
+			if (remove.size || add || stand_in) {
+				out.push(html.slice(pos, tok.start), rewrite_start(html, tok, attrs, remove, add, stand_in ? "og-as" : void 0));
+				pos = tok.end;
+			}
+			if (!(VOID.has(name) || tok.self && foreign)) push(stack, {
+				name: stand_in ? "og-as" : name,
+				as: stand_in ? name : void 0,
+				host: is_host ? Number(og_h.value) : -1,
+				next: 0,
+				owned: false,
+				under: -1,
+				introduced,
+				foreign
+			});
+			continue;
+		}
+		if (tok.t === "end") {
+			const name = tok.name;
+			for (let k = stack.length - 1; k >= 0; k--) {
+				const f = stack[k];
+				if ((f.as ?? f.name) === name) {
+					if (f.as) {
+						out.push(html.slice(pos, tok.start), "</og-as>");
+						pos = tok.end;
+					}
+					cut(stack, k);
+					break;
+				}
+			}
+			continue;
+		}
+	}
+	if (pending_text) finish_text(null);
+	out.push(html.slice(pos));
+	let check;
+	if (opts.dev) for (const k of plan) {
+		const rec = record.hosts.get(k);
+		if (rec && rec.planned) (check ??= {})[k] = record.source.slice(rec.inner_start, rec.inner_end);
+	}
+	return {
+		html: out.join(""),
+		planned: plan.size,
+		stand_ins,
+		head,
+		...check ? { check } : {}
+	};
+}
+/** The dev check's payload: each planned Svelte-owned host's original children, by its id. */
+function check_script(check) {
+	return `<script type="application/ogygia-restore-check">${script_json(check)}<\/script>`;
+}
+// ../../../core/src/server/hole-graph.ts
+/**
+* WHAT A HOLE'S HEAD CARRIES INTO ITS ANSWER. A hole renders on its own, and the endpoint ships only
+* the body — but the islands inside it write into the render's head what the page needs of them:
+*
+* - their GRAPH (the chunks their code needs — island-graph.ts). Without it the islands a hole brings
+*   loaded in a waterfall: each chunk discovered only after the last one parsed (+1.1 s at a 150 ms
+*   round trip, measured). Carried as one script; the runtime reads any graph script in the document
+*   (runtime/island-graph-preload.ts), so a nested island's wake preloads its whole graph at once.
+* - their CSS (the `data-ogygia-region-css` tags Region.svelte writes for each island it renders: the
+*   island's own chunk CSS, exact — the bundler's, over what the island really imports). Without it
+*   an island in a hole had only the hole's own sheet, and whatever it rendered after the server
+*   render (a dropdown's contents, a branch behind a click) arrived unstyled. Carried as written; the
+*   runtime hoists these tags from an answer into `<head>` before the swap, deduped by href.
+*
+* URLs are made root-absolute (the graph here, the CSS tags by the answer's own absolutizing pass):
+* the answer lands in a page at any depth, and a `./_app/…` resolved there would 404. indexOf only.
+*/
+function root_absolute(value, base) {
+	if (!value.startsWith("./") && !value.startsWith("../")) return value;
+	try {
+		const u = new URL(value, base);
+		return u.origin === base.origin ? u.pathname + u.search + u.hash : value;
+	} catch {
+		return value;
+	}
+}
+/** What the answer carries of the render's head: its islands' graph and their CSS ('' for none). */
+function hole_head(head, base) {
+	return (base ? hole_graph_script(head, base) : "") + head_region_css(head);
+}
+var REGION_CSS_ATTR = "data-ogygia-region-css";
+/** Every region-CSS tag in the head, as written (`<link … data-ogygia-region-css>` or
+*  `<style data-ogygia-region-css="…">…</style>`). */
+function head_region_css(head) {
+	let out = "";
+	for (let at = head.indexOf(REGION_CSS_ATTR); at !== -1; at = head.indexOf(REGION_CSS_ATTR, at + 1)) {
+		const start = head.lastIndexOf("<", at);
+		if (start === -1) continue;
+		const is_style = head.startsWith("<style", start);
+		const end = is_style ? head.indexOf("</style>", at) : head.indexOf(">", at);
+		if (end === -1) break;
+		const stop = is_style ? end + 8 : end + 1;
+		out += head.slice(start, stop);
+		at = stop - 1;
+	}
+	return out;
+}
+/** One graph script for the answer (or '' when the render's head carries none). */
+function hole_graph_script(head, base) {
+	let at = head.indexOf(ISLAND_GRAPH_ATTR);
+	if (at === -1) return "";
+	const graph = /* @__PURE__ */ new Map();
+	const locations = /* @__PURE__ */ new Map();
+	for (; at !== -1; at = head.indexOf(ISLAND_GRAPH_ATTR, at + ISLAND_GRAPH_ATTR.length)) {
+		const open = head.indexOf(">", at);
+		const close = open === -1 ? -1 : head.indexOf("<\/script", open);
+		if (close === -1) break;
+		const text = head.slice(open + 1, close);
+		for (const [entry, hrefs] of decode_island_graph(text)) {
+			const key = root_absolute(entry, base);
+			if (!graph.has(key)) graph.set(key, hrefs.map((h) => root_absolute(h, base)));
+		}
+		for (const [entry, src] of decode_island_locations(text)) locations.set(root_absolute(entry, base), root_absolute(src, base));
+		at = close;
+	}
+	return island_graph_script(graph, locations);
+}
+// ../../../core/src/runtime/restore.ts
+/**
+* THE RESTORER — the browser half of reversible transforms (server/reversible.ts). An app's server
+* transform rendered each planned custom element (`og-h`) in scoped form: its rendered tree in the
+* host's light DOM, Svelte's children moved into `<slot>` wrappers inside it. This puts it back into
+* the form hydration and the component's runtime both expect:
+*
+*   1. stand-ins (`<og-as tag="a">`: tags the HTML parser would have restructured) become their real
+*      element, in place — a DOM operation, which no content-model rule applies to;
+*   2. for each planned host, innermost first: an open shadow root with the host's keyed sheets, the
+*      rendered tree moved into it (its `<slot>` wrappers become real slots), Svelte's children back
+*      in the light DOM in their original order and exactly as Svelte rendered them (attributes reset,
+*      trimmed or dropped text put back), the host's attributes back to Svelte's (except `og-keep`).
+*
+* The page stays painted the same throughout: the scoped form and the shadow form render alike, and
+* each host is restored in one task. It must run before anything reads the markup — before an island
+* snapshots or hydrates, before Kit starts, before a web-component runtime upgrades a host. So the
+* handle inlines it at the end of the document's body (`restore.toString()`: this function is
+* self-contained, no imports, no outer names), and the runtime calls it on a hole / lake answer before
+* insertion and on an incoming page before a router swap.
+*
+* A host that already has a shadow root when it is reached was upgraded first — the restore came
+* too late. It is left as served and reported (`ogygia:restore-late` on the host), never restored into
+* a root the component's own constructor made (that tree would render twice).
+*/
+function restore(root) {
+	const doc = root.ownerDocument ?? root;
+	const head = document.head;
+	const W = window;
+	const sheets = W.__og_sheets ??= /* @__PURE__ */ new Map();
+	const esc = (s) => typeof CSS !== "undefined" && CSS.escape ? CSS.escape(s) : s.split("\\").join("\\\\").split("\"").join("\\\"");
+	const live = doc === document;
+	let restored = 0;
+	/**
+	* A KIT-HYDRATED page (csr=true) is hydrated by Kit's own start, which ogygia does not run — so
+	* the island hydrate's put-back of a component's class tokens (runtime/host-classes.ts) never
+	* runs there. Instead each restored custom element is watched once: Kit's hydrate writes its
+	* `class` whole, to exactly Svelte's tokens; the first write that leaves exactly those gets back
+	* every token it dropped (the component's, the render's `sc-*`), read from the value just before
+	* that write. A component only ever adds and removes its own tokens, so no later state of the
+	* host equals Svelte's alone. One observer for all of them; a host leaves the watch at that
+	* write, and the observer goes when the last one has.
+	*/
+	const watch_classes = live && document.querySelector("meta[name=\"ogygia-csr\"][content=\"true\"]") !== null;
+	const watch = (el) => {
+		let w = W.__og_class_watch;
+		if (!w) {
+			const hosts = /* @__PURE__ */ new Set();
+			const mo = new MutationObserver((records) => {
+				for (let i = 0; i < records.length; i++) {
+					const host = records[i].target;
+					if (!hosts.has(host)) continue;
+					let now;
+					for (let j = i + 1; j < records.length && now === void 0; j++) if (records[j].target === host) now = records[j].oldValue;
+					if (now === void 0) now = host.getAttribute("class");
+					if ((now ?? "") !== host.__og_svelte_class) continue;
+					hosts.delete(host);
+					const own = new Set((now ?? "").split(" "));
+					for (const t of (records[i].oldValue ?? "").split(" ")) if (t && !own.has(t)) host.classList.add(t);
+				}
+				if (hosts.size === 0) {
+					mo.disconnect();
+					W.__og_class_watch = void 0;
+				}
+			});
+			w = W.__og_class_watch = {
+				mo,
+				hosts
+			};
+		}
+		w.hosts.add(el);
+		w.mo.observe(el, {
+			attributes: true,
+			attributeFilter: ["class"],
+			attributeOldValue: true
+		});
+	};
+	if (root !== document && root.querySelectorAll) for (const el of Array.from(root.querySelectorAll("[data-og-head]"))) {
+		const key = el.getAttribute("data-og-head");
+		if (head.querySelector(`[data-og-head="${esc(key)}"]`)) el.remove();
+		else head.appendChild(el);
+	}
+	const sheet_for = (key) => {
+		const have = sheets.get(key);
+		if (have) return have;
+		const sel = `template[data-og-head="${esc(key)}"]`;
+		const tpl = doc !== document && doc.head?.querySelector(sel) || head.querySelector(sel);
+		if (!tpl) return null;
+		const css = tpl.content.textContent ?? "";
+		let sheet = null;
+		try {
+			sheet = new CSSStyleSheet();
+			sheet.replaceSync(css);
+		} catch {
+			sheet = null;
+		}
+		const made = {
+			sheet,
+			css
+		};
+		sheets.set(key, made);
+		return made;
+	};
+	/** Attributes back to Svelte's. A custom element's `class` has two owners — Svelte, and the
+	*  component, which may put state on its own host — so there it becomes Svelte's tokens PLUS the
+	*  ones the render added, and Svelte's are recorded on the element (`__og_svelte_class`): the
+	*  island's hydrate puts the component's back after Svelte writes `class` whole
+	*  (runtime/host-classes.ts). Unless the render kept `class` as its own (`og-keep`). */
+	const reset = (el) => {
+		const r = el.getAttribute("og-r");
+		const custom = el.localName.indexOf("-") !== -1 && (" " + (el.getAttribute("og-keep") ?? "") + " ").indexOf(" class ") === -1;
+		let svelte_class;
+		if (r) try {
+			const diff = JSON.parse(r);
+			for (const name in diff) {
+				const v = diff[name];
+				if (custom && name === "class") {
+					svelte_class = v;
+					const own = new Set((v ?? "").split(" "));
+					let theirs = "";
+					for (const t of Array.from(el.classList)) if (!own.has(t)) theirs += " " + t;
+					const merged = ((v ?? "") + theirs).trim();
+					if (merged) el.setAttribute("class", merged);
+					else el.removeAttribute("class");
+				} else if (v === null) el.removeAttribute(name);
+				else el.setAttribute(name, v);
+			}
+		} catch {}
+		if (custom) {
+			el.__og_svelte_class = svelte_class === void 0 ? el.getAttribute("class") ?? "" : svelte_class ?? "";
+			if (watch_classes) watch(el);
+		}
+		el.removeAttribute("og-r");
+	};
+	/** A mark's original text (`<!--og-c K.i t "…"-->`, `<!--og-t K.n "…"-->`), or undefined. */
+	const original = (data) => {
+		const q = data.indexOf(" \"");
+		if (q === -1) return void 0;
+		try {
+			return JSON.parse(data.slice(q + 1));
+		} catch {
+			return;
+		}
+	};
+	/** Put back the text after a text mark (trimmed, or dropped: then a new node), then drop the mark. */
+	const fix_text = (mark) => {
+		const was = original(mark.data);
+		if (was !== void 0) {
+			const next = mark.nextSibling;
+			if (next && next.nodeType === 3) next.data = was;
+			else mark.parentNode.insertBefore(doc.createTextNode(was), next);
+		}
+		const node = mark.nextSibling;
+		mark.remove();
+		return node;
+	};
+	const comments = (under, prefix) => {
+		const out = [];
+		const walk = doc.createTreeWalker(under, 128);
+		for (let n = walk.nextNode(); n; n = walk.nextNode()) if (n.data.startsWith(prefix)) out.push(n);
+		return out;
+	};
+	const swap_stand_ins = (under) => {
+		const list = Array.from(under.querySelectorAll("og-as"));
+		for (let x = list.length - 1; x >= 0; x--) {
+			const as = list[x];
+			const real = doc.createElement(as.getAttribute("tag") || "span");
+			for (const a of Array.from(as.attributes)) if (a.name !== "tag") real.setAttribute(a.name, a.value);
+			while (as.firstChild) real.appendChild(as.firstChild);
+			as.replaceWith(real);
+		}
+	};
+	let check = null;
+	const check_el = root.querySelector("script[type=\"application/ogygia-restore-check\"]");
+	if (check_el) {
+		try {
+			check = JSON.parse(check_el.textContent || "{}");
+		} catch {
+			check = null;
+		}
+		check_el.remove();
+	}
+	/** The first difference between Svelte's children and the restored ones (node types, tags, text,
+	*  comments, attributes — a web-component host may carry more than Svelte's: `og-keep`), or null. */
+	const differ = (want, got, path) => {
+		const a = want.childNodes;
+		const b = got.childNodes;
+		for (let i = 0; i < Math.max(a.length, b.length); i++) {
+			const x = a[i];
+			const y = b[i];
+			const here = `${path} > [${i}]`;
+			if (!x || !y) return `${here}: Svelte has ${x ? describe(x) : "nothing"}, the restored markup has ${y ? describe(y) : "nothing"}`;
+			if (x.nodeType !== y.nodeType || x.nodeName !== y.nodeName) return `${here}: Svelte has ${describe(x)}, the restored markup has ${describe(y)}`;
+			if (x.nodeType === 3 || x.nodeType === 8) {
+				if (x.data !== y.data) return `${here}: Svelte has ${describe(x)}, the restored markup has ${describe(y)}`;
+				continue;
+			}
+			if (x.nodeType !== 1) continue;
+			const ex = x;
+			const ey = y;
+			const custom = ex.localName.indexOf("-") !== -1;
+			for (const attr of Array.from(ex.attributes)) {
+				if (custom && attr.name === "class" ? within(attr.value, ey.getAttribute("class")) : norm(attr.name, attr.value) === norm(attr.name, ey.getAttribute(attr.name))) continue;
+				return `${here} <${ex.localName}>: Svelte has ${attr.name}="${attr.value}", the restored markup has ${ey.hasAttribute(attr.name) ? `"${ey.getAttribute(attr.name)}"` : "none"}`;
+			}
+			if (!custom) {
+				for (const attr of Array.from(ey.attributes)) if (!ex.hasAttribute(attr.name) && norm(attr.name, attr.value) !== null) return `${here} <${ex.localName}>: the restored markup adds ${attr.name}="${attr.value}"`;
+			}
+			const deeper = differ(x, y, `${here} <${ex.localName}>`);
+			if (deeper) return deeper;
+		}
+		return null;
+	};
+	/** An attribute as it matters, not as a serializer wrote it: `class` as its set of tokens, `style`
+	*  as its declarations, an empty value as absent (Svelte's hydration reads neither; a render's
+	*  serializer rewrites both). */
+	const norm = (name, value) => {
+		if (value === null || value.trim() === "") return name === "class" || name === "style" ? null : value;
+		if (name === "class") return value.split(/\s+/).filter(Boolean).sort().join(" ");
+		if (name === "style") return value.split(";").map((d) => {
+			const c = d.indexOf(":");
+			return c === -1 ? d.trim() : `${d.slice(0, c).trim().toLowerCase()}:${d.slice(c + 1).trim().replace(/\s+/g, " ")}`;
+		}).filter(Boolean).join(";");
+		return value;
+	};
+	/** Every class token of `want` is in `got`. */
+	const within = (want, got) => {
+		const have = new Set((got ?? "").split(/\s+/));
+		for (const t of want.split(/\s+/)) if (t && !have.has(t)) return false;
+		return true;
+	};
+	const describe = (n) => n.nodeType === 3 ? `the text ${JSON.stringify(n.data)}` : n.nodeType === 8 ? `the comment <!--${n.data}-->` : `<${n.localName}>`;
+	const verify = (host, k) => {
+		const want = check?.[k];
+		if (want === void 0) return;
+		const tpl = doc.createElement("template");
+		tpl.innerHTML = want;
+		const diff = differ(tpl.content, host, `<${host.localName}>`);
+		if (!diff) return;
+		console.error(`[ogygia] the transform broke hydration markup: ${diff}`);
+		host.dispatchEvent(new CustomEvent("ogygia:restore-mismatch", {
+			bubbles: true,
+			detail: {
+				host: host.localName,
+				diff
+			}
+		}));
+		log("mismatch", host, diff);
+	};
+	/** What went wrong, kept for whoever reads it later (the devtools, the profiler's beacon): the
+	*  restorer runs while the page parses — before any listener of theirs exists. */
+	const log = (kind, host, diff) => {
+		const list = W.__og_restore_log ??= [];
+		if (list.length >= 50) return;
+		const island = host.closest("ogygia-region")?.getAttribute("data-og-fp") ?? void 0;
+		list.push({
+			kind,
+			host: host.localName,
+			t: Math.round(performance.now()),
+			...diff ? { diff: diff.slice(0, 300) } : {},
+			...island ? { island } : {}
+		});
+	};
+	const scopes = [root];
+	for (let q = 0; q < scopes.length; q++) {
+		const walk = doc.createTreeWalker(scopes[q], 1);
+		for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+			const sr = n.shadowRoot;
+			if (sr && sr.mode === "open") scopes.push(sr);
+		}
+	}
+	for (const scope of scopes) swap_stand_ins(scope);
+	const hosts = [];
+	for (const scope of scopes) hosts.push(...Array.from(scope.querySelectorAll("[og-h]")));
+	for (let x = hosts.length - 1; x >= 0; x--) {
+		const host = hosts[x];
+		const k = host.getAttribute("og-h");
+		const keys = (host.getAttribute("og-shadow") ?? "").split(" ").filter(Boolean);
+		if (host.shadowRoot) {
+			host.dispatchEvent(new CustomEvent("ogygia:restore-late", {
+				bubbles: true,
+				detail: { host: k }
+			}));
+			log("late", host);
+			continue;
+		}
+		const shadow = host.attachShadow({ mode: "open" });
+		if (!live) (W.__og_init ??= []).push(shadow);
+		const own = [];
+		const adoptable = Array.isArray(shadow.adoptedStyleSheets);
+		for (const key of keys) {
+			const s = sheet_for(key);
+			if (!s) continue;
+			if (s.sheet && adoptable) own.push(s.sheet);
+			else {
+				const style = doc.createElement("style");
+				style.textContent = s.css;
+				shadow.appendChild(style);
+			}
+		}
+		if (own.length) {
+			if (live) shadow.adoptedStyleSheets = [...shadow.adoptedStyleSheets, ...own];
+			else {
+				shadow.__og_pending = own;
+				(W.__og_adopt ??= []).push({
+					shadow,
+					sheets: own
+				});
+			}
+		}
+		const children = [];
+		const tag = `${k}.`;
+		for (const el of Array.from(host.querySelectorAll("[og-c]"))) {
+			const v = el.getAttribute("og-c");
+			if (v.startsWith(tag)) children.push({
+				i: Number(v.slice(tag.length)),
+				node: el
+			});
+		}
+		for (const mark of comments(host, `og-c ${tag}`)) {
+			const rest = mark.data.slice(5 + tag.length);
+			const i = Number(rest.slice(0, rest.indexOf(" ") === -1 ? rest.length : rest.indexOf(" ")));
+			const is_text = rest.indexOf(" t") !== -1;
+			const node = is_text ? fix_text(mark) : mark.nextSibling;
+			if (!is_text) mark.remove();
+			if (node) children.push({
+				i,
+				node
+			});
+		}
+		children.sort((a, b) => a.i - b.i);
+		const mine = new Set(children.map((c) => c.node));
+		for (const n of Array.from(host.childNodes)) if (!mine.has(n)) shadow.appendChild(n);
+		const made = W.__og_rendered ??= /* @__PURE__ */ new WeakSet();
+		for (const c of children) {
+			host.appendChild(c.node);
+			made.add(c.node);
+		}
+		for (const c of children) if (c.node.nodeType === 1) {
+			const el = c.node;
+			reset(el);
+			el.removeAttribute("og-c");
+		}
+		for (const mark of comments(host, `og-t ${tag}`)) fix_text(mark);
+		reset(host);
+		host.removeAttribute("og-h");
+		host.removeAttribute("og-shadow");
+		host.removeAttribute("og-keep");
+		verify(host, k);
+		restored++;
+	}
+	return restored;
+}
+/** Adopt the sheets of roots restored outside the page, now that their hosts are in it (after a hole
+*  answer's insertion or a router swap, in the same task: no paint in between). Each root is one of
+*  three: IN THE PAGE (adopted now); in a fragment not inserted yet (another hole's answer still
+*  waiting for its stylesheet: kept for the call after its insertion); or in ANOTHER DOCUMENT — the
+*  incoming page's parsed copy, where the swap left what it did not take (a morph kept the live
+*  host): dropped. That last one counts as connected (its document is its root), and adopting a page
+*  sheet into it throws — which stopped every root after it from getting its sheets. A fragment root
+*  still out after 30 s never goes in (a morph took a copy of it, the hole left): dropped. */
+function restore_adopt() {
+	const W = window;
+	const now = performance.now();
+	const waiting = (root) => now - (root.__og_out ??= now) < 3e4;
+	const where = (root) => root.host.isConnected ? root.host.ownerDocument === document ? "page" : "gone" : waiting(root) ? "later" : "gone";
+	const bare = W.__og_init;
+	if (bare?.length) {
+		const left = [];
+		const ce = customElements;
+		for (const root of bare) {
+			const at = where(root);
+			if (at === "later") left.push(root);
+			else if (at === "page" && root.customElementRegistry === null) ce.initialize?.(root);
+		}
+		W.__og_init = left;
+	}
+	const list = W.__og_adopt;
+	if (!list?.length) return;
+	const left = [];
+	for (const item of list) {
+		const at = where(item.shadow);
+		if (at === "later") left.push(item);
+		else if (at === "page") try {
+			item.shadow.adoptedStyleSheets = [...item.shadow.adoptedStyleSheets, ...item.sheets];
+		} catch {}
+	}
+	W.__og_adopt = left;
+}
+// ../../../core/src/server/rate-limit.ts
+var DEFAULT_CAP = 4096;
+var RateLimiter = class {
+	#buckets = /* @__PURE__ */ new Map();
+	#cap;
+	#max;
+	#windowMs;
+	#since_prune = 0;
+	constructor(opts) {
+		this.#max = opts.max;
+		this.#windowMs = opts.windowMs;
+		this.#cap = Math.max(1, opts.cap ?? DEFAULT_CAP);
+	}
+	/** Mark `ip` as most-recently used (Map: delete + set → end of iteration order). */
+	#touch(ip, b) {
+		this.#buckets.delete(ip);
+		this.#buckets.set(ip, b);
+	}
+	#evict_lru() {
+		while (this.#buckets.size > this.#cap) {
+			const oldest = this.#buckets.keys().next().value;
+			if (oldest === void 0) return;
+			this.#buckets.delete(oldest);
+		}
+	}
+	#maybe_prune(now) {
+		this.#since_prune++;
+		if (this.#since_prune >= 64) {
+			this.#since_prune = 0;
+			for (const [k, v] of this.#buckets) if (now - v.t >= this.#windowMs) this.#buckets.delete(k);
+		}
+		this.#evict_lru();
+	}
+	/** @returns true if this IP is over budget (request should 429). */
+	limited(ip) {
+		if (this.#max <= 0) return false;
+		const now = Date.now();
+		const b = this.#buckets.get(ip);
+		if (!b || now - b.t >= this.#windowMs) {
+			this.#buckets.set(ip, {
+				n: 1,
+				t: now
+			});
+			this.#maybe_prune(now);
+			return false;
+		}
+		if (b.n >= this.#max) {
+			this.#touch(ip, b);
+			return true;
+		}
+		b.n++;
+		this.#touch(ip, b);
+		return false;
+	}
+	get size() {
+		return this.#buckets.size;
+	}
+	clear() {
+		this.#buckets.clear();
+		this.#since_prune = 0;
+	}
+};
+/** DOM marker the server emits (before `</body>`) and `collect_provided_context` reads. */
+var PAGE_CTX_MARKER = "data-ogygia-provide-page";
+// ../../../core/src/context-bridge.ts
+function ensure_ctx_kinds() {
+	register_wire_kind();
+	register_store_kind();
+	register_snippet_kind();
+	register_fn_kind();
+	register_derived_kind();
+}
+/** The drop-in page-marker seam deliberately EXCLUDES snippets: there, a bare function must
+*  THROW (and be dropped with a dev explanation) rather than be silently frozen as one. */
+var BRIDGE_FAMILIES = /* @__PURE__ */ new Set([
+	"wire",
+	"store",
+	"fn",
+	"derived"
+]);
+/**
+* Serialize for the drop-in `setContext` page marker WITHOUT the region-snippet reducer. That reducer
+* treats every function as a snippet (snippets are unbranded functions), which would silently turn a
+* `setContext('trackPageView', fn)` — or a class method — into a bogus snippet instead of failing.
+* Here a function must THROW so the offending value gets dropped (see below). Transportables
+* (`[ogygia.wire]`) and stores (auto-wired: value crosses, islands reunite to one live instance)
+* cross. A snippet in context is a `<Provide>` concern, not this drop-in path.
+*/
+function stringify_bridgeable(value) {
+	ensure_ctx_kinds();
+	return escape_script_text(stringify$1(value, { [REF_WIRE_KEY]: ref_reducer(BRIDGE_FAMILIES) }));
+}
+function serialize_provided_context(map) {
+	const obj = {};
+	for (const [k, v] of map) obj[k] = v;
+	try {
+		return stringify_bridgeable(obj);
+	} catch {
+		const safe = {};
+		for (const k in obj) try {
+			stringify_bridgeable({ [k]: obj[k] });
+			safe[k] = obj[k];
+		} catch {}
+		return Object.keys(safe).length ? stringify_bridgeable(safe) : null;
+	}
+}
+// ../../../core/src/server/remote-seed-gate.ts
+/**
+* REMOTE SEED ONLY WHEN REACHABLE — the handle's per-remote decision when it builds the
+* `application/ogygia-remote` seed: does any region rendered on this page have client code that
+* can call this remote? The seed exists so a hydrating island that re-runs the same query resolves
+* it from the document (zero-flash, no re-fetch). A remote no island on the page imports — a lake
+* or a page script awaiting a query for its own server render — has no such reader, and its
+* result is pure download weight (a CMS footer entry: 12.5 KB, measured).
+*
+* `wanted` is the union of every rendered region's `islandRemotes(entry)` (Region.svelte →
+* page-seed-registry → the request bag): Kit id-hashes, the prefix of a remote's `internals.id`
+* (`${hash}/${name}`). `null` = some region answered fail-open ("may call anything": a promise `of`,
+* an entry the build handoff does not know, dev) → every remote seeds, exactly as before the gate.
+* Pure, so it is unit-tested on its own.
+*/
+function remote_seed_wanted(remote_id, wanted) {
+	if (wanted === null) return true;
+	const slash = remote_id.indexOf("/");
+	if (slash === -1) return true;
+	return wanted.has(remote_id.slice(0, slash));
+}
+/**
+* Mirror Kit's OWN seed bucketing (server/remote.js) over the side-channel — Kit only serializes
+* remote data inline when csr===true, so on csr=false pages the handle does it here. Buckets every
+* implicit remote by type: q(query) / p(prerender) / l(query.live) / f(form). Seeding PRERENDER
+* remotes (not only queries) is the fix for the async-island FOUC: a prerender remote awaited inside
+* an island otherwise re-fetches on hydrate, so the component re-renders and Svelte RE-MOUNTS the
+* subtree — a frame of unstyled DOM. With the seed in `prerender_responses`, the client resolves it
+* synchronously and never re-fetches. Keys use `create_remote_key`, exactly like Kit's client.
+*
+* Skips, in order: a PRIVATE remote (no id — must never be serialized), a remote NO REGION'S
+* CLIENT CAN CALL (`wanted`, above), an ERRORED or still-PENDING result (the client fetches it
+* itself; an entry without `v` would hydrate as `undefined`), and a value carrying a BAKED region
+* (`skip_value`: SSR HTML in the ticket — a page body from a `doc`-style remote is a page-sized
+* RENDER the page already rendered; seeding it ships the body twice, ~130 KB/page measured).
+*
+* Pure over what it is handed (the implicit map, the request's memo of results, the two
+* predicates); the handle serializes what comes back. Unit-tested across every permutation.
+*/
+async function collect_remote_seed(implicit, wanted, opts) {
+	const data = {
+		q: {},
+		p: {},
+		l: {},
+		f: {}
+	};
+	for (const [internals, record] of implicit) {
+		if (!internals.id) continue;
+		if (!remote_seed_wanted(internals.id, wanted)) continue;
+		const type = internals.type;
+		const bucket = type === "query_live" ? "l" : type[0];
+		if (bucket !== "q" && bucket !== "p" && bucket !== "l" && bucket !== "f") continue;
+		for (const payload in record) {
+			const remote_key = type === "form" ? payload : opts.key(internals.id, payload);
+			const promise = opts.memo?.(internals)?.[payload] ?? record[payload]();
+			let resolved = true;
+			await Promise.race([Promise.resolve(promise).then((v) => {
+				if (resolved && !opts.skip_value?.(v)) data[bucket][remote_key] = { v };
+			}, () => {}), Promise.resolve().then(() => {
+				resolved = false;
+			})]);
+		}
+	}
+	return data;
+}
+var hole_stats = /* @__PURE__ */ new WeakMap();
+var detailed = false;
+function record_hole_stats(request, s) {
+	hole_stats.set(request, s);
+}
+function request_stats_detailed() {
+	return detailed;
+}
+// ../../../core/src/server/dead-kit-resolves.ts
+/**
+* Drop Kit's streamed resolve scripts from a document with no Kit client (csr=false). A load that
+* returns promises makes Kit stream `<script>__sveltekit_x.resolve(…)<\/script>` chunks after the
+* document; they call a global only Kit's client bootstrap defines, so on a csr=false page each one
+* throws. (When an island reads the page, `stream_page_deferred` replaces the whole tail instead.)
+*
+* Only a chunk that STARTS with `<script` is decoded and looked at — the document and every other
+* chunk (late regions included) pass untouched: no copy, no scan of a big page.
+*/
+var SCRIPT_BYTES = [
+	60,
+	115,
+	99,
+	114,
+	105,
+	112,
+	116
+];
+function drop_dead_kit_resolves(response) {
+	const body = response.body;
+	if (!body) return response;
+	const decoder = new TextDecoder();
+	const out = body.pipeThrough(new TransformStream({ transform(chunk, controller) {
+		let starts = chunk.length >= SCRIPT_BYTES.length;
+		for (let i = 0; starts && i < SCRIPT_BYTES.length; i++) if (chunk[i] !== SCRIPT_BYTES[i]) starts = false;
+		if (starts && chunk.length < 1 << 20) {
+			const text = decoder.decode(chunk);
+			if (text.includes("__sveltekit_") && text.includes(".resolve(")) return;
+		}
+		controller.enqueue(chunk);
+	} }));
+	return new Response(out, {
+		status: response.status,
+		statusText: response.statusText,
+		headers: new Headers(response.headers)
+	});
+}
+// ../../../core/src/hooks.ts
+/**
+* SvelteKit server `handle` for signed region holes (`defer` / remount:`swr`).
+*
+* Serves `GET <base>/__ogygia__?id=…&props=…&exp=…&sig=…` by verifying the region MAC,
+* rendering the region component server-side (cookies, remote functions, and `await` work),
+* and returning HTML for the client runtime to swap in.
+*
+* Composable with `sequence()` — intercepts only the region endpoint path; otherwise
+* calls `resolve(event)`. Also injects the document-level page seed used by islands.
+*
+* @example
+* ```ts
+* // src/hooks.server.ts
+* import { ogygiaHandle } from 'ogygia/hooks';
+* import { sequence } from '@sveltejs/kit/hooks';
+* export const handle = sequence(ogygiaHandle(), myOtherHandle);
+* ```
+*
+* @packageDocumentation
+*/
+/** Hard cap on rendered region HTML (bytes). */
+var MAX_REGION_BODY = 2e6;
+var DEVTOOLS_LAZY = false;
+var bags = /* @__PURE__ */ new WeakMap();
+/** This request's bag, or `undefined` outside a Kit page request (a hole endpoint, a remote-function
+*  call, a render with no Kit store around it). */
+function bag_of() {
+	const request = try_get_request_store()?.event?.request;
+	return request ? bags.get(request) : void 0;
+}
+var doc_asks = /* @__PURE__ */ new WeakMap();
+var request_of = () => try_get_request_store()?.event?.request;
+set_ask_scope_opener(() => {
+	const request = request_of();
+	if (request && !bags.has(request) && !doc_asks.has(request)) doc_asks.set(request, {
+		wanted: false,
+		keys: null
+	});
+});
+set_seed_ask_reader(() => {
+	const bag = bag_of();
+	if (bag) return {
+		wanted: bag.seed_wanted,
+		keys: bag.seed_keys
+	};
+	const request = request_of();
+	const d = request ? doc_asks.get(request) : void 0;
+	return d ? {
+		wanted: d.wanted,
+		keys: d.keys
+	} : void 0;
+});
+set_page_recorder((snapshot, seed, remotes, entry) => {
+	const event = try_get_request_store()?.event;
+	if (event && note_render_page_ask(event, seed)) return;
+	const bag = bag_of();
+	if (!bag) {
+		const request = request_of();
+		const d = request ? doc_asks.get(request) : void 0;
+		if (d && seed !== false) {
+			d.wanted = true;
+			d.keys = merge_seed_ask(d.keys, seed);
+		}
+		return;
+	}
+	bag.page = {
+		...bag.page,
+		...snapshot
+	};
+	if (seed !== false) {
+		bag.seed_wanted = true;
+		bag.seed_keys = merge_seed_ask(bag.seed_keys, seed);
+	}
+	if (bag.seed_asks && entry && seed !== false) bag.seed_asks.set(entry, seed);
+	if (remotes === null) bag.remotes_wanted = null;
+	else if (bag.remotes_wanted) for (const h of remotes) bag.remotes_wanted.add(h);
+});
+set_tail_reader(() => bag_of()?.tail ?? null);
+set_measure_memo_reader(() => bag_of()?.measure_memo ?? null);
+configure_render_page({ warn: null });
+set_kit_event_reader(() => try_get_request_store()?.event ?? null);
+/** Does this hole's server tree read `page.data` (the build's answer; unknown in dev → yes). */
+var hole_reads_page_data = (id) => island_reads_page_data === null || island_reads_page_data[id] !== false;
+set_render_page_port({
+	ready(reads_data) {
+		const store = try_get_request_store();
+		return prepare_render_page(store?.event, store?.state?.transport, reads_data);
+	},
+	tail() {
+		const store = try_get_request_store();
+		return render_page_facts_script(store?.event, store?.state?.transport);
+	},
+	version(hole_id) {
+		if (!hole_reads_page_data(hole_id)) return "";
+		const v = render_page_version(try_get_request_store()?.event, bag_of()?.page ?? void 0);
+		return v ? "&pv=" + v : "";
+	}
+});
+set_kit_page_reader(() => {
+	const bag = bag_of();
+	return render_page(bag ? bag.page ?? {} : void 0, try_get_request_store()?.event);
+});
+set_late_scope_opener(() => {
+	const bag = bag_of();
+	if (bag) bag.late_open = true;
+});
+set_late_recorder((promise) => {
+	const bag = bag_of();
+	if (!bag?.late_open) return null;
+	const id = `r${bag.late_next++}`;
+	(bag.late ??= []).push({
+		id,
+		promise
+	});
+	return id;
+});
+set_late_taker(() => {
+	const bag = bag_of();
+	if (!bag?.late?.length) return null;
+	const list = bag.late;
+	bag.late = null;
+	return list;
+});
+set_current_request(() => try_get_request_store()?.event?.request);
+set_source_recorder((tag) => {
+	current_facts()?.sources?.push(tag);
+});
+set_page_route_options(route_options);
+var plugins = start_plugins(plugins$1, {
+	sign: (message) => sign(signing_key().secret, message),
+	verify: (message, signature) => verify(signing_key().secret, message, signature)
+});
+/** Cap on a batch POST body before `request.json()` buffers it. 32 endpoints × ~8.5kB (props cap
+*  8192 + URL overhead) ≈ 270kB; 512kB leaves margin. Rejected up front via `content-length`. */
+var MAX_BATCH_BODY = 524288;
+/** Abort waiting on slow region SSR (work may continue — see INVARIANTS · RENDER-TIMEOUT). */
+var RENDER_TIMEOUT_MS = 1e4;
+/** Process-local cap on concurrent region SSR (M1 CPU amp under valid MAC). */
+var render_gate = new ConcurrencyGate(4);
+/** The per-plugin contexts of an app with no plugins (shared: never written to). */
+var NO_CTXS = [];
+/**
+* Anti-framing + MIME + Referrer on every region response.
+* Referrer-Policy strips capability query strings from third-party asset requests (H6).
+*/
+var REGION_FRAME_HEADERS = {
+	"X-Frame-Options": "DENY",
+	"Content-Security-Policy": "frame-ancestors 'none'",
+	"X-Content-Type-Options": "nosniff",
+	"Referrer-Policy": "no-referrer"
+};
+function region_response(body, init) {
+	return new Response(body, {
+		status: init.status,
+		headers: {
+			...REGION_FRAME_HEADERS,
+			...init.headers
+		}
+	});
+}
+/**
+* Every refused region request: a 403 that says why (`x-ogygia-deny`) and which key answered
+* (`x-ogygia-key`, the fingerprint a capability carries as `&k=`). Neither is an oracle: every
+* reason past `sig` is reached only with a capability this key signed (an unknown id still never
+* tells from a bad MAC, SEC-01), and the fingerprint is an HMAC of a constant.
+*/
+function region_denied(why) {
+	return region_response("Forbidden", {
+		status: 403,
+		headers: {
+			"x-ogygia-deny": why,
+			"x-ogygia-key": signing_key().fp
+		}
+	});
+}
+/** A capability minted under another key than this deployment's (its `&k=` fingerprint). One
+*  without `k` (minted before capabilities named their key) is left to the MAC. */
+function foreign_key(k) {
+	return k !== null && k !== signing_key().fp;
+}
+function capability_of(params) {
+	return {
+		id: params.get("id") ?? "",
+		render: params.get("r") ?? "",
+		payload: params.get("props") ?? "",
+		exp: params.get("exp") ?? "",
+		ttl: params.get("ttl") ?? "",
+		sig: params.get("sig") ?? "",
+		k: params.get("k")
+	};
+}
+/**
+* The server entry that answers a verified capability: its own id when this build has it, else an
+* entry of this build rendering the same component (its signed render identity) — the capability
+* came from another build: an older cached page, another deployment, a changed schedule or salt.
+* Null when this build renders neither: the component is gone, moved or renamed.
+*/
+function capability_target(cap) {
+	if (Object.hasOwn(island_url, cap.id)) return cap.id;
+	if (cap.render !== "" && Object.hasOwn(render_island, cap.render)) return render_island[cap.render];
+	return null;
+}
+/**
+* Decode a request pathname without throwing on malformed percent-encoding (SEC-05).
+* @returns decoded path, or null if the encoding is invalid
+*/
+function decode_pathname(pathname) {
+	try {
+		return decodeURIComponent(pathname);
+	} catch {
+		return null;
+	}
+}
+/** Resolve a rate-limit key; fail closed (null) when the adapter cannot identify the client.
+* Never trust X-Forwarded-For / spoofable proxy headers — adapters must provide getClientAddress(). */
+function client_ip(event) {
+	try {
+		return event.getClientAddress();
+	} catch {
+		return null;
+	}
+}
+/**
+* Stylesheet `<link>`s a server-picked region needs so a page that never imported the component
+* still styles the fetched HTML (the whole point of a held region — the page can't know which
+* component the server will choose). Tagged `data-ogygia-region-css` so the client runtime HOISTS
+* them into `<head>`: a body `<link>` wouldn't load inside a `<template>` batch parcel, and a head
+* link loads once and is deduped across regions. Empty for a plain island (its CSS is already in the
+* page's own stylesheet) or before a build (`islandCss` reads the build-time handoff).
+*/
+function region_css_links(id) {
+	const url = island_url[id];
+	if (!url) return "";
+	let out = "";
+	for (const href of islandCss(url)) out += region_css_tag(href, kit_asset(href));
+	return out;
+}
+/**
+* Wrap a payload as an `application/ogygia-*` side-channel `<script>` the runtime reads. The
+* `payload` MUST be `<`-safe already: devalue output is by construction (it writes `<`), a
+* JSON payload goes through `escape_script_text` first — so this only builds the tag. One spot for
+* the side-channel shape (page / remote / ctx / devtools).
+*/
+function emit_ogygia_script(subtype, escaped_payload, marker = "") {
+	return `<script type="application/ogygia-${subtype}"${marker ? " " + marker : ""}>${escaped_payload}<\/script>`;
+}
+/** Stamped into the head of a csr=true document: the runtime reads it (`kit_hydrates_page`)
+*  instead of scanning the page's inline scripts for Kit's bootstrap. */
+var CSR_META = "<meta name=\"ogygia-csr\" content=\"true\">";
+var CSR_FALSE_META = "<meta name=\"ogygia-csr\" content=\"false\">";
+/** the og.$ factory script, per manifest object (the build's, the same every request) */
+var fnm_script_cache = /* @__PURE__ */ new WeakMap();
+/** A document fetched by ogygia's router (runtime/router-nav.ts `nav_headers`: a navigation or a
+*  prefetch) — morphed into the live page rather than loaded as one. */
+function router_fetched(event) {
+	return event.request.headers.get("x-ogygia-spa") !== null;
+}
+var NO_TRANSPORT = {};
+var seed_codec_cache = /* @__PURE__ */ new WeakMap();
+/** The seed's devalue reducers — the app's transport encoders merged with the defer markers — and a
+*  stringify bound to them, made once per transport object (Kit hands the same one every request). */
+function seed_codecs(transport) {
+	const key = transport ?? NO_TRANSPORT;
+	let hit = seed_codec_cache.get(key);
+	if (!hit) {
+		const seed_reducers = {
+			...Object.fromEntries(Object.entries(transport ?? {}).map(([name, codec]) => [name, codec.encode])),
+			...page_seed_reducers
+		};
+		hit = {
+			seed_reducers,
+			seed_stringify: ((v) => stringify$1(v, seed_reducers))
+		};
+		seed_codec_cache.set(key, hit);
+	}
+	return hit;
+}
+/** `</body>` as bytes (ASCII: the same in every UTF-8 document). */
+var BODY_CLOSE_BYTES = [
+	60,
+	47,
+	98,
+	111,
+	100,
+	121,
+	62
+];
+/** Does `</body>` end in `chunk` — searched backwards from its end, where it sits — or straddle the
+*  boundary with the previous chunk's last bytes (`carry`, at most 6)? No decode. */
+function has_body_close(carry, chunk) {
+	const at_bytes = (buf, i) => {
+		for (let k = 0; k < 7; k++) if (buf[i + k] !== BODY_CLOSE_BYTES[k]) return false;
+		return true;
+	};
+	for (let i = chunk.lastIndexOf(60); i !== -1; i = i === 0 ? -1 : chunk.lastIndexOf(60, i - 1)) if (at_bytes(chunk, i)) return true;
+	if (!carry.length) return false;
+	const seam = new Uint8Array(carry.length + Math.min(6, chunk.length));
+	seam.set(carry);
+	seam.set(chunk.subarray(0, seam.length - carry.length), carry.length);
+	for (let i = 0; i + 7 <= seam.length; i++) if (at_bytes(seam, i)) return true;
+	return false;
+}
+function csr_page_of(html, body_end, event, bag) {
+	return event?.route?.id != null ? bag?.page?.error != null ? error_route_is_csr_true(event.route.id) : route_is_csr_true(event.route.id) : body_end !== -1 && html_has_kit_bootstrap(html, body_end);
+}
+/** The restorer, inline (runtime/restore.ts — self-contained, so its source runs as is): restores the
+*  document now, and stays as `__og_restore` / `__og_restore_adopt` for hole answers and router swaps. */
+var RESTORER_SCRIPT = `<script data-og-restore>(function(){var r=${restore.toString()};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()<\/script>`;
+var OgygiaHandle = class {
+	#endpoint;
+	#speculation_rules;
+	/** The app's server transform (documents and region answers) — see OgygiaHandleOptions. */
+	#transform;
+	render_rate;
+	probe_rate;
+	constructor(options = {}) {
+		this.#transform = options.transform;
+		configure_islands_endpoint(options.endpoint);
+		this.#endpoint = islands_endpoint();
+		this.#speculation_rules = "";
+		this.render_rate = new RateLimiter({
+			max: rateLimit.max,
+			windowMs: rateLimit.windowMs
+		});
+		/** Cheap pre-HMAC probe budget — forged traffic pays this, not full render quota (HMAC-CPU-DOS). */
+		this.probe_rate = new RateLimiter({
+			max: Math.max(rateLimit.max * 5, 120),
+			windowMs: rateLimit.windowMs
+		});
+	}
+	handle = around(plugins, (input) => this.#core(input));
+	#core = async ({ event, resolve }) => {
+		const path = decode_pathname(event.url.pathname);
+		if (path === null) return new Response("Bad Request", { status: 400 });
+		const facts = facts_of$1(event.request);
+		if (plugins.length === 0) return this.#route(event, resolve, path, NO_CTXS, facts);
+		const ctxs = request_contexts(plugins, event, path, facts, (endpoint) => this.#render_hole(endpoint, event));
+		try {
+			for (let i = 0; i < plugins.length; i++) {
+				const answer = await plugins[i].def.request?.(ctxs[i]);
+				if (answer) return answer;
+			}
+			return await this.#route(event, resolve, path, ctxs, facts);
+		} finally {
+			for (let i = 0; i < plugins.length; i++) try {
+				plugins[i].def.done?.(ctxs[i]);
+			} catch {}
+		}
+	};
+	/** One signed hole rendered in place with THIS request's event (a plugin's `ctx.renderHole`:
+	*  the stored-page stitch). Null keeps the fallback: a refused capability, a failed render, or
+	*  an answer that asks to keep it. */
+	async #render_hole(endpoint, event) {
+		const out = await this.#render_capability(endpoint, event);
+		return out && out.html !== "<!--ogygia:keep-fallback-->" ? out.html : null;
+	}
+	async #route(event, resolve, path, ctxs, facts) {
+		if (!path.endsWith(this.#endpoint)) {
+			if (event.isDataRequest && event.request.headers.has("x-ogygia-page-facts")) {
+				const res = await resolve(event);
+				try {
+					res.headers.set(PAGE_FACTS_ROUTE_HEADER, encodeURIComponent(JSON.stringify({
+						id: event.route.id,
+						params: event.params
+					})));
+				} catch {}
+				return res;
+			}
+			facts.private = DEVTOOLS_LAZY;
+			facts.answerForm = !!this.#transform && router_fetched(event);
+			const store = try_get_request_store();
+			const bag = {
+				ctx: /* @__PURE__ */ new Map(),
+				page: null,
+				seed_wanted: false,
+				seed_keys: null,
+				seed_asks: null,
+				remotes_wanted: /* @__PURE__ */ new Set(),
+				tail: new DocumentTail(),
+				measure_memo: /* @__PURE__ */ new Map(),
+				deferred: null,
+				defer_next_id: 0,
+				late: null,
+				late_next: 0,
+				late_open: false,
+				seed_reducers: null,
+				facts
+			};
+			bags.set(event.request, bag);
+			for (let i = 0; i < ctxs.length; i++) {
+				const answer = await plugins[i].def.page?.(ctxs[i]);
+				if (answer) return answer;
+			}
+			const set_headers = event.setHeaders;
+			event.setHeaders = (headers) => {
+				set_headers(headers);
+				for (const key in headers) if (key.toLowerCase() === "cache-control") note_cache_control(event.request, headers[key]);
+			};
+			const response = await resolve(event, { transformPageChunk: async ({ html }) => this.inject_client_seeds(this.#transform ? await this.#transform_document(html, event, bag) : html, store?.state, event, bag) });
+			if (this.#transform && (response.headers.get("content-type") ?? "").includes("text/html")) try {
+				response.headers.append("vary", "x-ogygia-spa");
+			} catch {}
+			if (bag.deferred && bag.deferred.length) facts.streamed = true;
+			let out = response;
+			for (let i = 0; i < ctxs.length; i++) out = await plugins[i].def.response?.(ctxs[i], out) ?? out;
+			if (out !== response) return out;
+			if (bag.deferred && bag.deferred.length) return this.stream_page_deferred(response, bag.deferred, bag.defer_next_id, bag.seed_reducers ?? void 0);
+			if (!bag.kit_client && !response.headers.has("content-length") && (response.headers.get("content-type") ?? "").includes("text/html")) return drop_dead_kit_resolves(response);
+			return response;
+		}
+		if (event.request.method.toUpperCase() === "POST") return this.render_batch(event);
+		return this.render_region(event);
+	}
+	/**
+	* Batch frame stream (client navigation, single-flight). POST body: a JSON `string[]` of signed
+	* region endpoints — the calls the client needs. Renders them in parallel and flushes each as a
+	* `<template data-ogygia-slot="sig">…</template>` frame the moment IT settles (out of order); a
+	* done sentinel ends it. One response, many frames. Every call carries its own MAC so there's no
+	* extra auth; same-origin + per-IP budget mirror the single-region path.
+	*/
+	async render_batch(event) {
+		const MAX_BATCH = 32;
+		if (event.request.headers.get("sec-fetch-site") === "cross-site") return region_denied("cross-site");
+		const ip = client_ip(event);
+		if (!ip) return region_response("Too Many Requests", { status: 429 });
+		if (this.probe_rate.limited(ip) || this.render_rate.limited(ip)) return region_response("Too Many Requests", { status: 429 });
+		const content_length = Number(event.request.headers.get("content-length"));
+		if (Number.isFinite(content_length) && content_length > MAX_BATCH_BODY) return region_response("Payload Too Large", { status: 413 });
+		let parsed;
+		try {
+			parsed = await event.request.json();
+		} catch {
+			return region_response("Bad Request", { status: 400 });
+		}
+		if (!Array.isArray(parsed) || parsed.length === 0) return region_response("Bad Request", { status: 400 });
+		const calls = parsed.filter((e) => typeof e === "string").slice(0, MAX_BATCH);
+		const render = (endpoint) => this.#render_capability(endpoint, event, true);
+		const encoder = new TextEncoder();
+		return region_response(new ReadableStream({ async start(controller) {
+			await Promise.all(calls.map(async (endpoint) => {
+				const out = await render(endpoint).catch(() => null);
+				const parcel = out ? build_parcel(out.slot, out.html) : null;
+				if (parcel) controller.enqueue(encoder.encode(parcel));
+			}));
+			controller.enqueue(encoder.encode(done_parcel()));
+			controller.close();
+		} }), {
+			status: 200,
+			headers: {
+				"content-type": "text/html; charset=utf-8",
+				"cache-control": "no-store",
+				"x-accel-buffering": "no"
+			}
+		});
+	}
+	/**
+	* THE APP'S TRANSFORM ON A DOCUMENT (server/reversible.ts): the chunk carrying `</head>` (the
+	* document; a streamed tail chunk passes untouched) is marked, handed to the transform, settled.
+	* Then the head gets the transform's `data-og-head` assets (deduped) and, when the parser would have
+	* restructured a tag, the stand-ins' sheet; the body gets the restorer — inline, before `</body>`,
+	* so it runs before any island wakes, before Kit starts, and before a deferred module upgrades a
+	* host. It also stays on the page as a global for the runtime's hole answers and router swaps.
+	*/
+	async #transform_document(html, event, bag) {
+		if (html.indexOf("</head>") === -1) return html;
+		const csr = csr_page_of(html, html.lastIndexOf("</body>"), event, bag);
+		const answer = router_fetched(event);
+		const marked = mark(html, "document", csr, answer);
+		const out = await this.#transform(marked ? marked.html : html, {
+			kind: "document",
+			csr,
+			event
+		});
+		const s = marked ? settle(out, marked.record, { dev: false }) : null;
+		let first_load = false;
+		if (marked && !answer) {
+			for (const h of marked.record.hosts.values()) if (!h.planned) first_load = true;
+		}
+		bag.transform_head = (s?.head.join("") ?? "") + (s?.stand_ins ? `<style data-og-stand-ins>${STAND_IN_CSS}</style>` : "") + (first_load ? "<meta name=\"ogygia-first-load\">" : "");
+		bag.transform_body = (s?.check ? check_script(s.check) : "") + RESTORER_SCRIPT;
+		return s ? s.html : out;
+	}
+	/** THE APP'S TRANSFORM ON A REGION ANSWER: marked, transformed, settled. The runtime restores it
+	*  before insertion (and hoists its `data-og-head` assets), so no stand-in sheet is needed. */
+	async #transform_region(html, event) {
+		const marked = mark(html, "region", false);
+		const out = await this.#transform(marked ? marked.html : html, {
+			kind: "region",
+			csr: false,
+			event
+		});
+		if (!marked) return out;
+		const s = settle(out, marked.record, { dev: false });
+		return s.check ? s.html + check_script(s.check) : s.html;
+	}
+	/**
+	* Document-level side-channels: one page snapshot + optional remote query seed.
+	* Skips Kit-booted (csr=true) pages which serialize remotes themselves.
+	*/
+	async inject_client_seeds(html, state, event, bag) {
+		performance.now();
+		const spans = locate(html);
+		const head = spans.head_end === -1 ? null : html.slice(0, spans.head_end);
+		const csr_page = csr_page_of(html, spans.body_end, event, bag);
+		if (csr_page && bag) bag.kit_client = true;
+		if (csr_page) {
+			let head_inject = "";
+			if (head !== null) head_inject = CSR_META;
+			if (head !== null && bag?.transform_head) head_inject = bag.transform_head + head_inject;
+			const tail = spans.body_end !== -1 && bag ? (bag.transform_body ?? "") + bag.tail.render(null) : "";
+			if (head === null && !tail) return html;
+			const ordered = head === null ? null : runtime_first(head, null);
+			return assemble(html, spans, ordered === head ? null : ordered, head_inject, tail);
+		}
+		let head_out = null;
+		let head_inject = head !== null ? CSR_FALSE_META : "";
+		if (head !== null) {
+			const deduped = dedupe_head_links(head);
+			if (deduped !== head) head_out = deduped;
+			const probe = head_out ?? head;
+			if (!page_declares_router_meta(probe)) head_inject += `<meta name="ogygia-router" content="vt">`;
+			const runtime_tag = !page_declares_runtime_script(probe) ? runtime_bootstrap(kit_asset) : null;
+			const ordered = runtime_first(probe, runtime_tag);
+			if (ordered !== probe) head_out = ordered;
+		}
+		if (head !== null && bag?.transform_head) head_inject = bag.transform_head + head_inject;
+		if (spans.body_end === -1) return assemble(html, spans, head_out, head_inject, "");
+		const rendered = !!bag && bag.page !== null;
+		const scripts = bag?.transform_body ? [bag.transform_body] : [];
+		if (!rendered) {
+			this.append_devtools_seed(scripts, bag);
+			return assemble(html, spans, head_out, head_inject, scripts.join(""));
+		}
+		const page_snap = bag.page;
+		const seed_wanted = bag.seed_wanted;
+		const detail = request_stats_detailed();
+		const tail_html = bag.tail.render(seed_wanted ? index_seed(page_snap.data) : null, detail);
+		let seed_keys = bag.seed_keys;
+		if (seed_wanted && seed_keys !== "all" && seed_keys !== null) for (const k of index_seed(page_snap.data).touched) seed_keys.add(k);
+		const shaped_data = shape_page_data(page_snap.data, seed_keys);
+		let seed_data = shaped_data;
+		let seed_form = page_snap.form;
+		const { seed_reducers, seed_stringify } = seed_codecs(state?.transport);
+		const data_shape = analyze(shaped_data);
+		const form_shape = analyze(page_snap.form ?? null);
+		const has_pending = data_shape.thenable || form_shape.thenable;
+		if (has_pending) mark_per_visitor(bag.facts, "streamed load (promise in page data)");
+		const can_stream = event?.request.headers.get("sec-fetch-mode") === "navigate";
+		if (has_pending && can_stream && seed_wanted) {
+			const staged_data = stage_deferred(shaped_data, 0);
+			const staged_form = stage_deferred(page_snap.form, staged_data.next_id);
+			seed_data = staged_data.staged;
+			seed_form = staged_form.staged;
+			bag.deferred = [...staged_data.deferred, ...staged_form.deferred];
+			bag.defer_next_id = staged_form.next_id;
+			bag.seed_reducers = seed_reducers;
+			scripts.push(`<script>${PAGE_DEFER_BOOTSTRAP}<\/script>`);
+		} else if (has_pending && seed_wanted) {
+			seed_data = await settle_deferred(shaped_data);
+			seed_form = await settle_deferred(page_snap.form);
+		}
+		if (tail_html) scripts.push(tail_html);
+		const page_payload = event && seed_wanted ? PageSeed.serialize({
+			url: event.url,
+			params: event.params,
+			route: event.route,
+			status: page_snap.status ?? 200,
+			data: seed_data,
+			form: seed_form,
+			error: page_snap.error
+		}, seed_stringify, !has_pending && data_shape.json && form_shape.json && analyze(page_snap.error ?? null).json) : null;
+		if (page_payload) scripts.push(emit_ogygia_script("page", page_payload.text, "data-ogygia-page" + (page_payload.json ? ` ${WIRE_FORMAT_ATTR}="${WIRE_FORMAT_JSON}"` : "")));
+		if (state?.remote?.implicit) {
+			const remote_script = await this.build_remote_seed_script(state, bag.remotes_wanted);
+			if (remote_script) {
+				scripts.push(remote_script);
+				remote_script.length;
+			}
+		}
+		const fnm = fnManifest();
+		if (fnm) {
+			let fnm_script = fnm_script_cache.get(fnm);
+			if (fnm_script === void 0) {
+				fnm_script = `<script data-ogygia-fnm>globalThis.__OG_FNM=Object.assign(globalThis.__OG_FNM||{},{${Object.entries(fnm).map(([tag, src]) => `${JSON.stringify(tag)}:(${src})`).join(",")}});<\/script>`;
+				fnm_script_cache.set(fnm, fnm_script);
+			}
+			scripts.push(fnm_script);
+			fnm_script.length;
+		}
+		const provided = bag?.ctx;
+		if (provided?.size) {
+			const payload = serialize_provided_context(provided);
+			if (payload) {
+				scripts.push(emit_ogygia_script("ctx", payload, PAGE_CTX_MARKER));
+				payload.length;
+			}
+		}
+		this.append_devtools_seed(scripts, bag);
+		const out = assemble(html, spans, head_out, head_inject, scripts.join(""));
+		return out;
+	}
+	/**
+	* THE SEED EXPLAINER: per top-level `page.data` key, its size and why it ships — an island's
+	* client code reads it (the build's per-entry keys), a sidecar points into it (seed refs), or
+	* some island reads the page whole and everything ships. Profiler detail only.
+	*/
+	explain_seed(data, seed_keys, bag) {
+		const rows = bag.tail.island_rows() ?? [];
+		const names = /* @__PURE__ */ new Map();
+		for (const row of rows) if (row.name && !names.has(row.entry)) names.set(row.entry, row.name);
+		const name_of = (entry) => names.get(entry) ?? entry;
+		const add = (m, k, v) => (m.get(k) ?? m.set(k, /* @__PURE__ */ new Set()).get(k)).add(v);
+		const whole = /* @__PURE__ */ new Set();
+		const readers = /* @__PURE__ */ new Map();
+		for (const [entry, ask] of bag.seed_asks ?? []) if (ask === "all") whole.add(name_of(entry));
+		else if (ask !== false) for (const k of ask) add(readers, k, name_of(entry));
+		const referenced = /* @__PURE__ */ new Map();
+		for (const row of rows) for (const k of row.ref_keys) add(referenced, k, name_of(row.entry));
+		const whole_by = [...whole];
+		const keys = [];
+		if (data && typeof data === "object" && !Array.isArray(data)) for (const key of Object.keys(data)) {
+			const shipped = seed_keys === "all" || seed_keys !== null && seed_keys.has(key);
+			const read = [...readers.get(key) ?? []];
+			const refd = [...referenced.get(key) ?? []];
+			keys.push({
+				key,
+				bytes: analyze(data[key]).bytes,
+				readers: read,
+				referenced_by: refd,
+				shipped,
+				reason: !shipped ? null : read.length ? "read" : refd.length ? "referenced" : whole_by.length ? "whole" : "read"
+			});
+		}
+		keys.sort((a, b) => b.bytes - a.bytes);
+		return {
+			keys,
+			whole_by
+		};
+	}
+	/** DEVTOOLS: drain this request's server-realm events (region renders, capability mints, seeds)
+	*  into an `application/ogygia-devtools` side-channel the client bus ingests — one stream, both
+	*  realms, correlated by fingerprint. Appended LAST so the seed.injected events are included. */
+	append_devtools_seed(scripts, bag) {}
+	/**
+	* Stream the captured `$page.data` promises into islands (csr=false, real browser load). The
+	* document — carrying the pending seed + resolve-global bootstrap — is already built by `resolve`;
+	* here we (1) forward it, (2) DRAIN Kit's own dead csr=false resolve tail so its
+	* `__sveltekit_<hash> is not defined` never reaches the browser, and (3) emit one
+	* `<script>__ogygia_page_resolve(id, ok, value)<\/script>` per promise AS IT SETTLES — completion
+	* order, non-blocking. Each island's `{#await page.data.x}` flips pending → resolved live.
+	*/
+	stream_page_deferred(response, deferred, initial_next_id, reducers) {
+		const source = response.body;
+		if (!source) return response;
+		const reader = source.getReader();
+		const encoder = new TextEncoder();
+		const stream = new ReadableStream({
+			async start(controller) {
+				let carry = /* @__PURE__ */ new Uint8Array(0);
+				try {
+					for (;;) {
+						const { value, done } = await reader.read();
+						if (done) break;
+						controller.enqueue(value);
+						if (has_body_close(carry, value)) break;
+						carry = value.length >= 6 ? value.subarray(value.length - 6) : value;
+					}
+				} catch {}
+				(async () => {
+					try {
+						for (;;) {
+							const { done } = await reader.read();
+							if (done) break;
+						}
+					} catch {}
+				})();
+				let pending = deferred.length;
+				let next_id = initial_next_id;
+				let closed = false;
+				const maybe_close = () => {
+					if (pending === 0 && !closed) {
+						closed = true;
+						try {
+							controller.close();
+						} catch {}
+					}
+				};
+				const push = (id, ok, value) => {
+					try {
+						controller.enqueue(encoder.encode(resolve_script(PAGE_DEFER_GLOBAL, id, {
+							ok,
+							value
+						}, reducers)));
+					} catch {}
+				};
+				const stream_one = (id, promise) => {
+					Promise.resolve(promise).then((value) => {
+						const { staged, deferred: nested, next_id: after } = stage_deferred(value, next_id);
+						next_id = after;
+						push(id, true, staged);
+						pending += nested.length;
+						for (const n of nested) stream_one(n.id, n.promise);
+						pending -= 1;
+						maybe_close();
+					}, (error) => {
+						push(id, false, error);
+						pending -= 1;
+						maybe_close();
+					});
+				};
+				for (const { id, promise } of deferred) stream_one(id, promise);
+				maybe_close();
+			},
+			cancel() {
+				reader.cancel().catch(() => {});
+			}
+		});
+		const headers = new Headers(response.headers);
+		headers.delete("content-length");
+		return new Response(stream, {
+			status: response.status,
+			statusText: response.statusText,
+			headers
+		});
+	}
+	/**
+	* True when a remote's resolved value (deep) contains a region carrying baked SSR HTML — a
+	* page-sized render, not seed data (see the skip in {@link build_remote_seed_script}). Depth-capped:
+	* a region ticket sits shallow in any sane payload (a DocView's `entry.body` is 2 levels deep).
+	*/
+	has_baked_region(value, depth = 0) {
+		if (depth > 6 || value === null || typeof value !== "object") return false;
+		const r = value;
+		if (r[REGION_BRAND] === true && typeof r.html === "string") return true;
+		if (Array.isArray(value)) return value.some((x) => this.has_baked_region(x, depth + 1));
+		for (const k in r) if (this.has_baked_region(r[k], depth + 1)) return true;
+		return false;
+	}
+	async build_remote_seed_script(state, wanted = null) {
+		const implicit = state.remote?.implicit;
+		if (!implicit) return null;
+		const data = await collect_remote_seed(implicit, wanted, {
+			memo: (internals) => state.remote.data?.get(internals),
+			skip_value: (v) => this.has_baked_region(v),
+			key: create_remote_key
+		});
+		if (!Object.values(data).some((b) => Object.keys(b).length > 0)) return null;
+		const transport = state.transport || {};
+		const reducers = Object.fromEntries(Object.entries(transport).map(([name, codec]) => [name, codec.encode]));
+		return emit_ogygia_script("remote", stringify$1(data, reducers));
+	}
+	/**
+	* `render()` the island under the concurrency gate + timeout. Returns the HTML body, or `null`
+	* if the render threw or timed out. Shared by the endpoint ({@link render_region}) and the
+	* batch path ({@link #render_capability}).
+	*/
+	async #render_component(load, props, cache, report, timing, base, reads_page_data = false) {
+		const render_body = async () => {
+			const mod = await load();
+			const rendered = render(mod.default, {
+				props,
+				context: kit_render_context()
+			});
+			return await Promise.race([Promise.resolve(rendered).then((out) => {
+				const body = out.body;
+				if (body === "<!--ogygia:keep-fallback-->") return body;
+				return hole_head(out.head, base) + body + kit_page_facts_tail();
+			}), new Promise((_, rej) => setTimeout(() => rej(/* @__PURE__ */ new Error("region render timeout")), RENDER_TIMEOUT_MS))]);
+		};
+		try {
+			return await cached_render(async () => {
+				await kit_page_ready(reads_page_data);
+				if (!timing) return render_gate.run(render_body);
+				const asked = performance.now();
+				return render_gate.run(async () => {
+					const entered = performance.now();
+					timing.queue_ms = entered - asked;
+					try {
+						return await render_body();
+					} finally {
+						timing.render_ms = performance.now() - entered;
+					}
+				});
+			}, cache, Date.now(), report);
+		} catch (e) {
+			if (is_keep_fallback(e)) return KEEP_FALLBACK_HTML;
+			return null;
+		}
+	}
+	/** A cached hole's memo key: the call and the visitor's session, and — when its tree reads
+	*  `page.data` — the page it renders for (one page's facts never answer another page's hole). */
+	#hole_cache_key(id, payload, event, reads_page_data) {
+		const session = this.#region_session(event);
+		return render_cache_key(id, payload, reads_page_data ? session + "\n" + page_url_of(event).href : session);
+	}
+	/** The session cookie value sealed into a region capability (empty when no `sessionCookie` is
+	*  configured) — the same read the MAC verify uses, and the per-user part of the render-cache key. */
+	#region_session(event) {
+		return "";
+	}
+	/**
+	* Every check a capability passes BEFORE any HMAC (P5-HMAC-CPU), in order: charset/length (ids
+	* are 12-hex from the transform; `ttl` is signed, but charset-gated here so a forged value never
+	* reaches a response header), expiry (a renewal instead needs one inside the renew window: a URL
+	* that has not expired never renews), and the signing key it names. Null when it passes, else why
+	* it is refused.
+	*/
+	#capability_precheck(cap, renewal = false) {
+		if (!is_region_id(cap.id) || cap.render !== "" && !is_region_id(cap.render) || cap.payload.length > 8192 || !is_region_ttl(cap.ttl)) return "shape";
+		const now = Math.floor(Date.now() / 1e3);
+		if (renewal) {
+			if (!renewable_expiry(cap.exp, now, 691200)) return "renew-window";
+		} else {
+			const exp = Number(cap.exp);
+			if (!Number.isFinite(exp) || exp < now) return "expired";
+		}
+		if (foreign_key(cap.k)) return "foreign-key";
+		return null;
+	}
+	/**
+	* RENEWAL (server/shared-cache.ts): re-sign an EXPIRED capability this app minted for an
+	* anonymous hole — the rescue for a hole on a document a cache kept longer than the hole's
+	* capability. Refused (null) unless the visitor carries no session and the MAC over the ORIGINAL
+	* tuple verifies with an empty session: nothing session-bound is ever renewed, and only a URL the
+	* app itself put in public HTML can be. The caller has already gated shape + the renew window
+	* and charged the probe budget. Returns the fresh `exp` + `sig`.
+	*/
+	#renew_capability(cap, event) {
+		if (this.#region_session(event) !== "") return null;
+		const { secret } = signing_key();
+		if (!verify(secret, region_mac_message(cap.id, cap.exp, cap.payload, "", cap.ttl, cap.render), cap.sig)) return null;
+		const exp = String(capability_expiry(Math.floor(Date.now() / 1e3), regionTtl));
+		return {
+			...cap,
+			exp,
+			sig: sign(secret, region_mac_message(cap.id, exp, cap.payload, "", cap.ttl, cap.render)),
+			k: signing_key().fp
+		};
+	}
+	/** THE auth check: session-bound region MAC verify (its render identity inside, when it has one). */
+	#verify_region_mac(cap, event) {
+		return verify(signing_key().secret, region_mac_message(cap.id, cap.exp, cap.payload, "", cap.ttl, cap.render), cap.sig);
+	}
+	/** Eval the island module (registers transportable codecs the reviver needs on a cold-start defer),
+	*  then decode + revive the props payload. Null on parse failure or a non-object/array result. */
+	async #decode_region_props(payload, load) {
+		let props;
+		try {
+			await load();
+			register_wire_kind();
+			register_store_kind();
+			register_snippet_kind();
+			register_fn_kind();
+			register_derived_kind();
+			props = parse(B64Url.decode(payload), { [REF_WIRE_KEY]: ref_reviver(false) });
+		} catch (e) {
+			return null;
+		}
+		if (props === null || typeof props !== "object" || Array.isArray(props)) return null;
+		return props;
+	}
+	/**
+	* Batch (single-flight navigation): verify a hole's OWN signed capability URL and render it in-process. Same
+	* trust boundary as the endpoint (verify the MAC before touching the manifest), but every failure —
+	* bad/expired MAC, unknown id, non-serializable props, render error, oversize — resolves to
+	* `null` so the hole silently falls back to a client fetch. Never throws.
+	*/
+	async #render_capability(endpoint, event, batch = false) {
+		const q = endpoint.indexOf("?");
+		if (q === -1) return null;
+		const cap = capability_of(new URLSearchParams(endpoint.slice(q + 1)));
+		const { id, payload, sig } = cap;
+		if (this.#capability_precheck(cap)) return null;
+		if (!this.#verify_region_mac(cap, event)) return null;
+		const target = capability_target(cap);
+		if (target === null) return null;
+		const load = (await load_islands()).islands[target];
+		if (typeof load !== "function") return null;
+		const props = await this.#decode_region_props(payload, load);
+		if (!props) return null;
+		const ttl = Number(cap.ttl) || 0;
+		const reads_page_data = hole_reads_page_data(target);
+		const cache = ttl > 0 ? {
+			key: this.#hole_cache_key(target, payload, event, reads_page_data),
+			ttl
+		} : void 0;
+		const body = await this.#render_component(load, props, cache, void 0, void 0, event.url, reads_page_data);
+		if (body === null || body.length > MAX_REGION_BODY) return null;
+		if (body === "<!--ogygia:keep-fallback-->") return {
+			slot: sig,
+			html: KEEP_FALLBACK_HTML
+		};
+		let html = absolutize_hole_html(region_css_links(target) + body, event.url);
+		if (batch && this.#transform) html = await this.#transform_region(html, event);
+		return {
+			slot: sig,
+			html
+		};
+	}
+	/**
+	* Verify the region MAC, then render. Unknown ids and bad MACs both return 403 so the
+	* existence of a region id is not an oracle (SEC-01). Expiry is part of the MAC message.
+	*
+	* Ordering: length/exp → probe rate (pre-HMAC) → verify → render rate → render.
+	* Probe stops forged CPU amplification; render budget is only charged after a valid MAC.
+	* A renewal (`&renew=1`) swaps the first three for its own: shape + renew window → probe →
+	* anonymous-only re-verify of the original tuple + re-sign; then the same render rate + render.
+	*/
+	async render_region(event) {
+		const method = event.request.method.toUpperCase();
+		if (method !== "GET" && method !== "HEAD") return region_response("Method Not Allowed", {
+			status: 405,
+			headers: { allow: "GET, HEAD" }
+		});
+		if (event.request.headers.get("sec-fetch-site") === "cross-site") return region_denied("cross-site");
+		const url = event.url;
+		const ip = client_ip(event);
+		if (!ip) return region_response("Too Many Requests", { status: 429 });
+		let cap = capability_of(url.searchParams);
+		const { id, payload } = cap;
+		const ttl_raw = cap.ttl;
+		let renewed = null;
+		const renewal = url.searchParams.get("renew") === "1";
+		const refused = this.#capability_precheck(cap, renewal);
+		if (refused) return region_denied(refused);
+		if (this.probe_rate.limited(ip)) return region_response("Too Many Requests", { status: 429 });
+		if (renewal) {
+			const fresh = this.#renew_capability(cap, event);
+			if (!fresh) return region_denied(this.#region_session(event) !== "" ? "renew-session" : "sig");
+			cap = fresh;
+			renewed = `${url.pathname}?id=${encodeURIComponent(id)}${cap.render ? `&r=${cap.render}` : ""}&props=${payload}&exp=${cap.exp}${ttl_raw ? `&ttl=${ttl_raw}` : ""}&sig=${cap.sig}&k=${cap.k}`;
+		} else if (!this.#verify_region_mac(cap, event)) return region_denied("sig");
+		const cache_control = ttl_raw && !renewed ? `private, max-age=${Number(ttl_raw)}` : "no-store";
+		/** The fresh capability rides every successful answer to a renewal (the 204 too). */
+		const renew_headers = renewed ? { "x-ogygia-capability": renewed } : {};
+		if (this.render_rate.limited(ip)) return region_response("Too Many Requests", { status: 429 });
+		const target = capability_target(cap);
+		if (target === null) return region_denied("unknown-id");
+		const load = (await load_islands()).islands[target];
+		if (typeof load !== "function") return region_denied("unknown-id");
+		const props = await this.#decode_region_props(payload, load);
+		if (!props) return region_denied("props");
+		const ttl = Number(ttl_raw) || 0;
+		const reads_page_data = hole_reads_page_data(target);
+		const cache = ttl > 0 ? {
+			key: this.#hole_cache_key(target, payload, event, reads_page_data),
+			ttl
+		} : void 0;
+		const timing = {};
+		let outcome = "none";
+		const body = await this.#render_component(load, props, cache, (o) => outcome = o, timing, event.url, reads_page_data);
+		record_hole_stats(event.request, {
+			kind: "hole",
+			id,
+			cache: outcome,
+			ttl,
+			...timing.queue_ms !== void 0 ? { queue_ms: Math.round(timing.queue_ms * 10) / 10 } : {},
+			...island_name?.[target] ? { name: island_name[target] } : {},
+			p: hole_copy_key(payload)
+		});
+		const server_timing = timing.queue_ms !== void 0 && event.cookies.get("og_profiler_beacon") === "1" ? { "server-timing": `og-queue;dur=${timing.queue_ms.toFixed(1)}, og-render;dur=${(timing.render_ms ?? 0).toFixed(1)}` } : {};
+		if (body === null) return region_response("Region render failed", { status: 500 });
+		if (body === "<!--ogygia:keep-fallback-->") return region_response(null, {
+			status: 204,
+			headers: renewed ? {
+				"cache-control": "no-store",
+				...renew_headers
+			} : void 0
+		});
+		if (body.length > MAX_REGION_BODY) return region_denied("oversize");
+		let html = absolutize_hole_html(region_css_links(target) + body, event.url);
+		if (this.#transform) html = await this.#transform_region(html, event);
+		if (method === "HEAD") return region_response(null, {
+			status: 200,
+			headers: {
+				"content-type": "text/html; charset=utf-8",
+				"content-length": String(new TextEncoder().encode(html).byteLength),
+				"cache-control": cache_control,
+				...renew_headers
+			}
+		});
+		return region_response(html, {
+			status: 200,
+			headers: {
+				"content-type": "text/html; charset=utf-8",
+				"cache-control": cache_control,
+				...renew_headers,
+				...server_timing
+			}
+		});
+	}
+};
+function handle$1(options = {}) {
+	const instance = new OgygiaHandle(options);
+	return (args) => instance.handle(args);
+}
+// src/hooks.server.ts
+var handle = handle$1();
+
+export { handle };
+//# sourceMappingURL=hooks.server.js-DTXdMsB8.js.map

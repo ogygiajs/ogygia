@@ -1,0 +1,1 @@
+{"version":3,"file":"_page.ts.js-6iYV34HQ.js","sources":["../../../../../../.svelte-kit/output/server/entries/pages/spa/_page.ts.js"],"sourcesContent":["// src/routes/spa/+page.ts\nvar csr = true;\nexport { csr };\n"],"names":[],"mappings":"AAAA;AACA,IAAI,GAAG,GAAG,IAAI;;;;;;;;;"}

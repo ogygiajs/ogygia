@@ -1,0 +1,1 @@
+{"version":3,"file":"_layout.ts.js-C_FJQt7H.js","sources":["../../../../../.svelte-kit/output/server/entries/pages/_layout.ts.js"],"sourcesContent":["// src/routes/+layout.ts\nvar csr = false;\nvar prerender = false;\nexport { csr, prerender };\n"],"names":[],"mappings":"AAAA;AACA,IAAI,GAAG,GAAG,KAAK;AACf,IAAI,SAAS,GAAG,KAAK;;;;;;;;;;"}
