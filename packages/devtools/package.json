@@ -111,11 +111,11 @@
 	},
 	"dependencies": {
 		"@neodrag/svelte": "catalog:",
+		"@ogygia/router": "workspace:^",
 		"devalue": "catalog:"
 	},
 	"devDependencies": {
 		"@ogygia/core": "workspace:*",
-		"@ogygia/router": "workspace:*",
 		"@ogygia/tooling": "workspace:*",
 		"@ogygia/tsdown-plugin-svelte": "workspace:*",
 		"@playwright/test": "catalog:",
@@ -132,14 +132,8 @@
 	},
 	"peerDependencies": {
 		"@ogygia/core": "workspace:^",
-		"@ogygia/router": "workspace:^",
 		"@sveltejs/kit": "catalog:peers",
 		"svelte": "catalog:peers",
 		"vite": "catalog:peers"
-	},
-	"peerDependenciesMeta": {
-		"@ogygia/router": {
-			"optional": true
-		}
 	}
 }

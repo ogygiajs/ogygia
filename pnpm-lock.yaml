@@ -977,6 +977,9 @@ importers:
       '@neodrag/svelte':
         specifier: 'catalog:'
         version: 3.0.0-next.12(@neodrag/core@3.0.0-next.12)(svelte@5.56.8)
+      '@ogygia/router':
+        specifier: workspace:^
+        version: link:../router
       devalue:
         specifier: 'catalog:'
         version: 5.9.4
@@ -984,9 +987,6 @@ importers:
       '@ogygia/core':
         specifier: workspace:*
         version: link:../core
-      '@ogygia/router':
-        specifier: workspace:*
-        version: link:../router
       '@ogygia/tooling':
         specifier: workspace:*
         version: link:../tooling
