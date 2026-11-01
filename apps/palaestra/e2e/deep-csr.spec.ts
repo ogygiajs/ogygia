@@ -12,11 +12,11 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { test, expect, check } from '@ogygia/tooling/e2e';
 import { REGION_OPEN_G_RE } from '@ogygia/tooling/e2e/re.ts';
-import { spawn_server, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
+import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
 
 const repo = fileURLToPath(new URL('../../..', import.meta.url));
 const dir = join(repo, 'internal', 'repro-deep-csr');
-const PORT = 3071;
+const PORT = port(3071);
 const base = `http://localhost:${PORT}`;
 
 const CONTENT_PAGE_RE = /data-page="content"/;

@@ -43,6 +43,7 @@
 		"@ogygia/tooling": "workspace:*",
 		"@sveltejs/sv-utils": "^0.3.3",
 		"@types/node": "catalog:",
+		"@typescript/native": "catalog:tsgo",
 		"svelte": "catalog:",
 		"tsdown": "catalog:",
 		"typescript": "catalog:",

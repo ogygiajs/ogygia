@@ -8,9 +8,9 @@ import { fileURLToPath } from 'node:url';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawn_server, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
+import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
 
-const PORT = 3101;
+const PORT = port(3101);
 const ORIGIN = `http://localhost:${PORT}`;
 const KEY = 'e2e-serverless';
 // (the devtools lab, built by this suite's globalSetup)
