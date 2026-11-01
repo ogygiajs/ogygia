@@ -45,12 +45,35 @@ export interface ServerApp<Options = undefined> {
 	sign(message: string): string;
 	/** Check a signature `sign` made (constant-time). */
 	verify(message: string, signature: string): boolean;
+	/** Signed capabilities for an endpoint the plugin serves, held to the rules of region holes. */
+	readonly capability: PluginCapabilities;
 	/** Record a server-realm event into the current request's devtools stream (a no-op unless
 	 *  devtools is on for that browser). */
 	devtools(event: DevtoolsEventInput): void;
 	/** Warn once per message, prefixed with the plugin's name. */
 	warn(message: string): void;
 }
+
+/**
+ * A capability URL for an endpoint the plugin serves (a hole the browser fetches later), held to the
+ * rules of the app's own region holes: the same lifetime, expiry in unix seconds, and the same answer
+ * once one has expired, so the runtime renews it the way it renews a region hole. The URL carries the
+ * plugin's own fields first, then `exp` and `sig`.
+ */
+export interface PluginCapabilities {
+	/** Sign a capability minted now: its `exp` (long on a page a plugin may store or a shared cache
+	 *  keeps, else the app's `ttl`) and the `sig` over `message(exp)`. */
+	mint(message: (exp: string) => string): { exp: string; sig: string };
+	/** Check a request for a capability `mint` made, by its URL's `exp` and `sig` (with `renew=1`, the
+	 *  runtime's one retry of an expired one). Refused: the response to answer with, the 403 a region
+	 *  request gets. Accepted: headers to send with the answer (a renewal's carry the fresh URL). */
+	open(url: URL, message: (exp: string) => string): CapabilityOpened;
+}
+
+/** What `capability.open` decided. */
+export type CapabilityOpened =
+	| { ok: true; headers: Record<string, string> }
+	| { ok: false; response: Response };
 
 /** One request, as one plugin sees it. */
 export interface RequestContext<Options = undefined, State = undefined> {

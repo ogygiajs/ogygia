@@ -99,6 +99,19 @@ export function renewable_expiry(
 	return exp < now_sec && now_sec - exp <= window;
 }
 
+/** Why a capability's `exp` refuses it, or null: past it (`expired`); for a renewal, not inside
+ *  the renew window (`renew-window`), so a URL that has not expired never renews. */
+export function expiry_refusal(
+	exp_raw: string,
+	now_sec: number,
+	renewal: boolean,
+	window: number
+): 'expired' | 'renew-window' | null {
+	if (renewal) return renewable_expiry(exp_raw, now_sec, window) ? null : 'renew-window';
+	const exp = Number(exp_raw);
+	return !Number.isFinite(exp) || exp < now_sec ? 'expired' : null;
+}
+
 // ── the per-request seam ─────────────────────────────────────────────────────────────────────────
 interface Slot {
 	by_request: WeakMap<Request, number>;

@@ -99,7 +99,7 @@ Postrender watches each eligible render, and a page **stays per-request** when i
 - writes a cookie, sets `set-cookie`, answers with a status other than 200, or streams load promises,
 - or was requested with a query string.
 
-Each refusal is **named in a dev note** (`cookie:session`, `locals.user`, `flag:hero`), so an almost-pure page tells you exactly which read keeps it per-request. Reads that return the default value still allow storing. The render an anonymous visitor gets (where `cookies.get('consent')` returns `undefined` and `locals.user` is empty) **is** the canonical copy, which formalizes the familiar cookie-less CDN cache key. Once it is stored, every visitor receives the canonical copy. Content that really has to differ per visitor belongs in a `render: 'deferred'` hole: the shell is stored, and the hole fetches fresh for each visitor. The hole's signed URL is minted with the long lifetime used for prerendering, so a warm stored page never carries expired holes (set a stable `OGYGIA_SECRET`). Deferred regions from another team's app are the exception, because their hole URLs expire after five minutes; see [Fragment federation](/docs/app/federation#a-remote-fragment-is-a-region-deferred-remote-regions-on-stored-pages).
+Each refusal is **named in a dev note** (`cookie:session`, `locals.user`, `flag:hero`), so an almost-pure page tells you exactly which read keeps it per-request. Reads that return the default value still allow storing. The render an anonymous visitor gets (where `cookies.get('consent')` returns `undefined` and `locals.user` is empty) **is** the canonical copy, which formalizes the familiar cookie-less CDN cache key. Once it is stored, every visitor receives the canonical copy. Content that really has to differ per visitor belongs in a `render: 'deferred'` hole: the shell is stored, and the hole fetches fresh for each visitor. The hole's signed URL is minted with the long lifetime used for prerendering, so a warm stored page never carries expired holes (set a stable `OGYGIA_SECRET`). Deferred regions from another team's app get the same lifetime; see [Fragment federation](/docs/app/federation#a-remote-fragment-is-a-region-deferred-remote-regions-on-stored-pages).
 
 ## Invalidation: three grammars
 
@@ -178,12 +178,12 @@ interface PostrenderStore {
 }
 ```
 
-- **`put` must expire the entry after `ttl` seconds itself.** Postrender doesn't check an entry's age when it reads it, so a store without expiry keeps pages until they are invalidated.
+- **`put` should expire the entry after `ttl` seconds**, so that old pages don't take up room. Postrender also checks a page's age when it reads it, against the `created` time in the entry, and treats a page older than the TTL as a miss, so a store without expiry still never serves a stale page.
 - **`evictWhere` gets a normalized prefix**, with a leading slash and no trailing slash (except `/` itself). It must remove the key equal to the prefix and every key under `prefix + '/'`, and never a sibling: `/fr/fr` removes `/fr/fr` and `/fr/fr/solar`, but not `/fr/fright`.
 - **`evictByTag` removes every key whose `put` carried the tag, and returns those keys**, which postrender then purges at every edge. Without it, `postrender.invalidate(fn, args)` and the thaw notices of [federation](/docs/app/federation#cross-app-thaw) log a warning and evict nothing, while exact URLs and prefixes still work.
-- **Not every key is a page path.** Postrender stores one entry of its own under a key that starts with a NUL character (the last build id, for federation's deploy thaw), so don't assume every key starts with `/`.
+- **Not every key is a page path.** Postrender stores one entry of its own under a key that starts with a NUL character (the last build id, for federation's deploy thaw), so don't assume every key starts with `/`. That entry is put with a `ttl` of ten years, because it has to outlive any page, so a store must not cap `ttl` at a day.
 
-A store that throws never fails a request: a failed `get` is treated as a miss and a failed `put` is skipped.
+A store that throws never fails a request: a failed `get` is treated as a miss and a failed `put` is skipped. It never fails an invalidation either. A failed eviction is logged as a warning that names the store, the edges are still purged, and when `evictByTag` fails for one tag, the other tags are still evicted.
 
 An edge is an object with a name and three methods:
 

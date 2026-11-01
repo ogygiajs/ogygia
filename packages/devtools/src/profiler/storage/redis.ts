@@ -4,11 +4,13 @@
  * `<prefix>reports` (score = created ms) drives the list and the LRU prune, and visits mirror that.
  * The prefix defaults to `og:`.
  *
- *   import { redisStore } from '@ogygia/devtools/profiler/storage';
+ *   // src/hooks.server.ts
+ *   import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
+ *   import { redisStore } from '@ogygia/devtools/profiler/storage/redis';
  *   // pass a connection string (node-redis / ioredis is imported on demand)…
- *   ogygia.profiler({ store: redisStore('redis://localhost:6379') });
+ *   setProfilerStore(redisStore('redis://localhost:6379'));
  *   // …or an already-connected client (node-redis or ioredis both work)
- *   ogygia.profiler({ store: redisStore(myClient) });
+ *   setProfilerStore(redisStore(myClient));
  *
  * A TTL (seconds) expires reports on their own — handy on a shared instance where you only want the
  * last day of recordings. The index sets drop an expired report's id the next time they are read or
@@ -20,6 +22,7 @@ import type {
 	ProfilerSummary,
 	ProfilerVisitRecord
 } from './index.ts';
+import { MAX_VISITS_PER_KEY } from './visits.ts';
 
 /** The subset of a Redis client this store uses — node-redis and ioredis both satisfy it (their
  *  method names differ in case, and a few calls take options objects on one and arguments on the
@@ -46,8 +49,6 @@ interface NodeRedis {
 
 /** reports kept at most, whatever the host prunes to (a store used on its own still has a cap) */
 const MAX_REPORTS = 1000;
-/** browser visits kept per page (the profiler reads the latest ten) */
-const MAX_VISITS_PER_PAGE = 20;
 
 async function resolve(client: RedisLike | string): Promise<RedisLike> {
 	if (typeof client !== 'string') return client;
@@ -183,8 +184,8 @@ export function redisStore(
 			const r = await need();
 			await setStr(r, V + rec.key, JSON.stringify(rec));
 			await zadd(r, VZ(rec.page), rec.at, rec.key);
-			if ((await zcard(r, VZ(rec.page))) > MAX_VISITS_PER_PAGE)
-				await trim(r, VZ(rec.page), V, MAX_VISITS_PER_PAGE);
+			if ((await zcard(r, VZ(rec.page))) > MAX_VISITS_PER_KEY)
+				await trim(r, VZ(rec.page), V, MAX_VISITS_PER_KEY);
 		},
 		async listVisits(page: string, limit = 10): Promise<ProfilerVisitRecord[]> {
 			const r = await need();
