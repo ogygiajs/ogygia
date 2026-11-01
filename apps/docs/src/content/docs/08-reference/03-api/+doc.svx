@@ -226,32 +226,6 @@ That hole's endpoint is then served with `Cache-Control: private, max-age=3600`.
 On a **deferred hole**, `maxAge: 60` means 60 **seconds**, because it becomes an HTTP `max-age`, which is measured in seconds. On a **live / remount lake**, `maxAge: 60` means 60 **milliseconds**, because it is client-side staleness and is measured in ms like every JS timer. The same key therefore uses two different clocks. Duration strings (`'30s'`, `'5m'`, `'1h'`) mean the same thing everywhere, so prefer them and the problem goes away.
 :::
 
-### `content()`
-
-Turns on the markdown pipeline (mdsvex, Shiki and heading collection) for `.svx` / `.md` content collections. It is the plugin of the `@ogygia/content` package (`pnpm add @ogygia/content`), imported from `@ogygia/content/vite`. See [Content collections](/docs/content/collections).
-
-```ts
-import { content } from '@ogygia/content/vite';
-
-plugins: [ogygia(), content({ markdown: {} }), sveltekit()]
-```
-
-**`presets`** are named markdown variants, using the same grammar as the presets of every other subsystem. A [loader macro](/docs/macros/loaders) opts a whole collection in with `{ preset: 'name' }`, and that collection's files then compile through the preset's config, merged over `markdown` key by key. Each opted-in file becomes its own module _variant_, so the same file used by another collection (under another preset, or none) renders independently and nothing conflicts.
-
-```ts
-content({
-  markdown: { overrides: true },                      // the defaults
-  presets: { plain: { markdown: { overrides: false } } }  // a named variant
-})
-```
-
-```ts
-// blog.server.ts — the blog corpus compiles through the `plain` preset
-loader: import.meta.og.loader.folder('../content/blog', { preset: 'plain' })
-```
-
-`presets` requires `markdown` to be set, since that is the base each preset merges over. The name must be a literal string, and an unknown name is a build error that lists the configured names.
-
 ### `importKeys`
 
 Extra import-attribute keys to treat as ogygia directives, for interoperability with other tooling that reads import attributes.
@@ -345,6 +319,52 @@ import { content, markdown, json, blocks, glob, mapRaw } from '@ogygia/content';
 
 An entry is `{ id, data, meta, body, rel, backlinks }`, where `data` is the schema output, `meta` is derived from the source (for example `{ headings }`), and `body` is a held region. Types: `Entry`, `ContentEntry`, `ContentHandle`, `Source`, `Heading`, `SchemaLike`.
 
+The package's other entry points:
+
+| Entry point                                | What it is                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@ogygia/content/server`                   | The Kit remotes: `withRemotes(collection)` for a collection's `list` and `live` remotes (see [Data for the wire](/docs/content/collections#define-the-collection-once-in-a-server-module-data-for-the-wire-list)), and `remotes(site)` for a site's (see [Remotes](/docs/content/remotes)). It imports `$app/server`, so use it from a `.remote.ts`. |
+| `@ogygia/content/vite`                     | The `content()` plugin (below), and `preprocess()` / `extensions()` for the svelte config.                                                                                                                                                                                                                                                           |
+| `@ogygia/content/markdown`                 | The markdown pipeline's own helpers, such as `parseFrontmatter`.                                                                                                                                                                                                                                                                                     |
+| `@ogygia/content/docs-shell`               | The `DocsShell` component. See [Shells & components](/docs/content/shell).                                                                                                                                                                                                                                                                           |
+| `@ogygia/content/slot`                     | `SiteSlot`, the component that compiled markdown routes [overridable elements](/docs/content/shell#overriding-markdown-elements) through. Compiled code imports it; you do not.                                                                                                                                                                      |
+| `@ogygia/content/theme.css` · `/shell.css` | The stock theme tokens and the shell's styles, both opt-in imports. Other token themes are under `@ogygia/content/themes/*`. See [Shells & components](/docs/content/shell#styling-is-opt-in).                                                                                                                                                       |
+| `@ogygia/content/types`                    | The macro types (`import.meta.og.*`), referenced from `src/ogygia.d.ts`.                                                                                                                                                                                                                                                                             |
+
+## `@ogygia/content/vite` {#ogygiavite-content}
+
+```ts
+import { content } from '@ogygia/content/vite';
+
+plugins: [ogygia(), content({ markdown: {} }), sveltekit()]
+```
+
+`content(options)` is the Vite plugin of the `@ogygia/content` package (`pnpm add @ogygia/content`), listed beside `ogygia()`. It brings the content macros (`import.meta.og.loader`, `og.code`, `og.md`, `og.regions`), and the `markdown` option turns on the markdown pipeline (mdsvex, Shiki and heading collection) for `.svx` / `.md` files. See [Content collections](/docs/content/collections).
+
+**`markdown`** is the pipeline's configuration and the defaults for every markdown file. Setting it, even to an empty `{}`, turns markdown on.
+
+**`presets`** are named markdown variants, using the same grammar as the presets of every other subsystem. A [loader macro](/docs/macros/loaders) opts a whole collection in with `{ preset: 'name' }`, and that collection's files then compile through the preset's config, merged over `markdown` key by key. Each opted-in file becomes its own module _variant_, so the same file used by another collection (under another preset, or none) renders independently and nothing conflicts.
+
+```ts
+content({
+  markdown: { overrides: true },                      // the defaults
+  presets: { plain: { markdown: { overrides: false } } }  // a named variant
+})
+```
+
+```ts
+// blog.server.ts — the blog corpus compiles through the `plain` preset
+loader: import.meta.og.loader.folder('../content/blog', { preset: 'plain' })
+```
+
+`presets` requires `markdown` to be set, since that is the base each preset merges over. The name must be a literal string, and an unknown name is a build error that lists the configured names.
+
+**`watchDirs`** and **`hmrDebounceMs`** tune the dev server's content reload. When a file under `src/content` changes, the plugin invalidates the modules that read it and every loaded `.remote.ts`, then reloads the page. `watchDirs` adds more folders to watch (resolved against the working directory), for content kept outside `src/content`. Vite already follows `import.meta.glob` dependencies, so you rarely need it. `hmrDebounceMs` is how long, in ms, the plugin waits for more changes before it reloads (default `50`).
+
+```ts
+content({ markdown: {}, watchDirs: ['../shared-content'], hmrDebounceMs: 200 })
+```
+
 ## `ogygia/events` · `ogygia/insights`
 
 `ogygia/events` is the event layer: the typed stream of what the framework did (island wakes, server renders, navigations), plus the bus and sink helpers (`add_sink`, `snapshot`, `clear`). It is compiled in only when a plugin asks for it, as the devtools plugin does. `ogygia/insights` is the analysis engine shared by the dock, the profiler and the test helpers.
@@ -353,13 +373,13 @@ An entry is `{ id, data, meta, body, rel, backlinks }`, where `data` is the sche
 
 Each feature below is a separate package that you install and list once beside `ogygia()` in your Vite config, as described in [Plugins](/docs/reference/plugins).
 
-| Package              | Plugin                           | Imports in app code                                                                            |
-| -------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `@ogygia/content`    | `content({ markdown, presets })` | `@ogygia/content`, `/remote`, `/markdown`, `/docs-shell`, `/types`                             |
-| `@ogygia/flags`      | `flags()`                        | `flag`, `decide` from `@ogygia/flags`; `openfeature`, `ofrep` from `@ogygia/flags/openfeature` |
-| `@ogygia/postrender` | `postrender({ ttl, default })`   | `postrender` and the store and CDN adapters from `@ogygia/postrender`                          |
-| `@ogygia/federation` | `federation()`                   | `federate`, `mount` from `@ogygia/federation`                                                  |
-| `@ogygia/router`     | `router()`                       | `routes`, `page`, … from `@ogygia/router`; `api` from `@ogygia/router/api`                     |
-| `@ogygia/devtools`   | `devtools({ dock, profiler })`   | `@ogygia/devtools/profiler`, `/profiler/client`, `/profiler/storage/*`                         |
-| `@ogygia/testing`    | none (a test helper)             | `@ogygia/testing`                                                                              |
-| `@ogygia/cli`        | none (the command)               | `npx ogygia …`                                                                                 |
+| Package              | Plugin                           | Imports in app code                                                                                     |
+| -------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `@ogygia/content`    | `content({ markdown, presets })` | `@ogygia/content`, `/server`, `/markdown`, `/docs-shell`, `/slot`, `/theme.css`, `/shell.css`, `/types` |
+| `@ogygia/flags`      | `flags()`                        | `flag`, `decide` from `@ogygia/flags`; `openfeature`, `ofrep` from `@ogygia/flags/openfeature`          |
+| `@ogygia/postrender` | `postrender({ ttl, default })`   | `postrender` and the store and CDN adapters from `@ogygia/postrender`                                   |
+| `@ogygia/federation` | `federation()`                   | `federate`, `mount` from `@ogygia/federation`                                                           |
+| `@ogygia/router`     | `router()`                       | `routes`, `page`, … from `@ogygia/router`; `api` from `@ogygia/router/api`                              |
+| `@ogygia/devtools`   | `devtools({ dock, profiler })`   | `@ogygia/devtools` (event sinks), `/report`, `/profiler`, `/profiler/client`, `/profiler/storage/*`     |
+| `@ogygia/testing`    | none (a test helper)             | `@ogygia/testing`                                                                                       |
+| `@ogygia/cli`        | none (the command)               | `npx ogygia …`; see [CLI](/docs/reference/cli)                                                          |

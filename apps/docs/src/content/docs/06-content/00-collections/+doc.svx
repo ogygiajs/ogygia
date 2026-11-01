@@ -40,7 +40,7 @@ import { content } from '@ogygia/content/vite';
 plugins: [ogygia(), content({ markdown: {} }), sveltekit()]
 ```
 
-The `markdown` option turns the markdown pipeline on; a collection over JSON, a CMS or an API needs only `content()`. For markdown, `svelte.config.js` also takes `preprocess()` and `extensions()` from `@ogygia/content/vite` (see [Install](/docs/start/install)). To get the macro types (`import.meta.og.loader`, `og.code`, `og.md`), add one line to `src/ogygia.d.ts`:
+The `markdown` option turns the markdown pipeline on; a collection over JSON, a CMS or an API needs only `content()`. On the dev server, the plugin reloads the page when a file under `src/content` changes; content kept elsewhere can be watched too, with the `watchDirs` option described in the [API reference](/docs/reference/api#ogygiavite-content). For markdown, `svelte.config.js` also takes `preprocess()` and `extensions()` from `@ogygia/content/vite` (see [Install](/docs/start/install)). To get the macro types (`import.meta.og.loader`, `og.code`, `og.md`), add one line to `src/ogygia.d.ts`:
 
 ```ts
 /// <reference types="@ogygia/content/types" />

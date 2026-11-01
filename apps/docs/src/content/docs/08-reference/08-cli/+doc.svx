@@ -1,0 +1,190 @@
+---
+title: CLI
+summary: Every command of `npx ogygia` with its flags (init, site init, keys, fragments, ai, mcp, perf and bisect) and the tools of its MCP server.
+related:
+  - start/install
+  - profiler/recording
+  - app/federation
+---
+
+The `ogygia` command wires ogygia into a SvelteKit app, scaffolds a docs site, mints federation keys, turns a widget catalog into types, measures pages under the profiler in CI, and gives an AI agent ogygia's compiler over MCP. This page lists every command and flag.
+
+## Running it
+
+You run every command through `npx`, or your package manager's equivalent:
+
+```bash
+npx ogygia init
+pnpm dlx ogygia init
+```
+
+The commands live in the `@ogygia/cli` package, and the `ogygia` package's own `ogygia` bin only passes them on. It runs the `@ogygia/cli` installed in your app (looked up from the current directory), or one installed beside `ogygia`. When it finds neither, it runs `@ogygia/cli` at the same version as `ogygia` through the package manager that started it (`pnpm dlx`, `yarn dlx`, `bunx` or `npx -y`). `ogygia init` adds `@ogygia/cli` to your `devDependencies`, so later commands use that local copy. Installed directly, `@ogygia/cli` names its bin `ogygia-cli`.
+
+`npx ogygia` with no command, or `npx ogygia help`, prints the usage. An unknown command prints it too and exits with status 1.
+
+## `init`
+
+```bash
+npx ogygia init [--markdown | --no-markdown] [--no-install] [-y]
+```
+
+Wires ogygia into the SvelteKit app in the current directory. It needs a `package.json` that lists `@sveltejs/kit` and a `vite.config.ts` or `vite.config.js`, and it stops with a message when either is missing. Each step merges into what is already there rather than overwriting it:
+
+- **`package.json`:** adds `ogygia` (and `@ogygia/content` with markdown) to `dependencies` at the CLI's own version, and `@ogygia/cli` to `devDependencies`.
+- **The Vite config:** puts `ogygia()` first in `plugins`, followed by `content({ markdown: {} })` with markdown.
+- **The svelte config** (markdown only): adds `extensions()` and `preprocess()` from `@ogygia/content/vite` to the existing `extensions` and `preprocess`.
+- **`src/hooks.ts`:** exports `transport = ogygia.transport`, or spreads it into the `transport` you already export.
+- **`src/hooks.server.ts`:** adds `ogygia.handle()`, in a `sequence()` with the `handle` you already export.
+- **`.gitignore`:** ignores `**/.ogygia-keep-client/`, a folder the build creates and removes, which only survives a build that was killed.
+- **`src/ogygia.d.ts`** (TypeScript projects): adds `/// <reference types="ogygia/types" />`, and the `@ogygia/content/types` reference with markdown.
+
+It then installs with the package manager whose lockfile it finds (pnpm, yarn or bun, and npm otherwise). [Install](/docs/start/install#setup) shows the files it produces.
+
+| Flag                           | What it does                                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `--markdown` / `--no-markdown` | Turns markdown content collections on or off. Without either, `init` asks, and the default is no. |
+| `--no-install`                 | Edits `package.json` but skips the install.                                                       |
+| `-y`, `--yes`                  | Asks nothing. Markdown stays off unless you also pass `--markdown`.                               |
+
+## `site init`
+
+```bash
+npx ogygia site init [--layout <path>] [--force] [--no-install] [-y]
+```
+
+Scaffolds a docs site on the [content site layer](/docs/content/site#from-zero) as ordinary files you own. It first runs the same wiring as `init` with markdown on, and it also turns on Svelte's async compiler (`compilerOptions.experimental.async`), because the site's components use top-level `await`. Then it writes these files, with the routes placed in the layout's folder:
+
+- `src/lib/docs.ts`, the collection and its `site()`.
+- Two starter pages in `src/content/docs/`, only when that folder has no `.svx` page yet.
+- The doc route, `[...slug]/+page.ts` and `[...slug]/+page.svelte`.
+- `+layout.ts` (`csr = false`, `prerender = true`), a home `+page.svelte`, and the layout itself, which mounts `DocsShell` and imports `theme.css` and `shell.css`.
+- The `search.json`, `sitemap.xml`, `llms.txt` and `[...slug].md` endpoints, a search page that works without JavaScript, and `+error.svelte`.
+
+A file that already exists is kept unless you pass `--force`. The layout gets more care, since it is the file you are most likely to have written yourself: a layout that already mounts the ogygia shell is kept, and any other layout is replaced only with `--force` or a "yes" at the prompt.
+
+| Flag              | What it does                                                                                                                                                                                        |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--layout <path>` | The layout to write, a `+layout.svelte` under `src/routes` (default `src/routes/+layout.svelte`). Its folder is where the site mounts, so `src/routes/docs/+layout.svelte` serves it under `/docs`. |
+| `--force`         | Overwrites existing files, the layout included.                                                                                                                                                     |
+| `--no-install`    | Skips the install.                                                                                                                                                                                  |
+| `-y`, `--yes`     | Asks nothing. A layout you wrote is then never overwritten, and the command stops and tells you how to proceed.                                                                                     |
+
+## `keys`
+
+```bash
+npx ogygia keys [name]
+```
+
+Mints an Ed25519 key pair for signing [federation](/docs/app/federation#one-identity-per-app-federate) hops, in the format `federate()` reads. It prints two lines to standard output:
+
+```bash
+export SHELL_SIGNING_KEY=MC4CAQAwBQYDK2Vw…   # private: stays with this app, as federate({ key })
+export SHELL_PUBLIC_KEY=MCowBQYDK2VwAyEA…    # public: goes to the apps it calls, as peers.<name>.key
+```
+
+The variable names come from `name`, upper-cased with every other character turned into `_` (default `OGYGIA`). The private key is base64 PKCS#8 DER and the public key base64 SPKI DER. The guidance goes to standard error, so a redirect such as `npx ogygia keys shell >> keys.env` captures only the keys. The command never writes a file; keep the private key in your secret store.
+
+## `fragments`
+
+```bash
+npx ogygia fragments <origin> [--out <file>] [--check <file>]
+```
+
+Reads a federated app's [widget catalog](/docs/app/federation#widgets-and-the-catalog) from `<origin>/og/fragment/__catalog` and turns it into a TypeScript stub: a `WidgetName` union, a `WIDGET_NAMES` array, and a `WidgetProps` interface with each widget's declared props. It gives up after 10 seconds without an answer.
+
+| Flag             | What it does                                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| (neither)        | Prints the stub to standard output.                                                                                                                          |
+| `--out <file>`   | Writes the stub to `file`.                                                                                                                                   |
+| `--check <file>` | Compares the live catalog with a stub you committed, and exits with status 1 when they differ. Use it in CI, so a renamed or removed widget fails the build. |
+
+## `ai`
+
+```bash
+npx ogygia ai
+```
+
+Sets up the current repository for AI agents. It writes the ogygia skill to `.claude/skills/ogygia/SKILL.md`, replacing an older copy, and registers the MCP server below in `.mcp.json` as `{ "command": "npx", "args": ["ogygia", "mcp"] }`. Other servers in `.mcp.json` are kept. Claude Code picks the server up the next time it starts and asks you to approve it.
+
+## `mcp`
+
+```bash
+npx ogygia mcp
+```
+
+Runs a [Model Context Protocol](https://modelcontextprotocol.io) server on standard input and output, which gives an AI agent ogygia's real compiler and profiler as tools. It logs to standard error, and it runs until the client disconnects.
+
+To add it to an editor or agent, register this command with the client. `npx ogygia ai` does it for Claude Code. Most other clients take the same shape in their own MCP configuration file:
+
+```json
+{
+  "mcpServers": {
+    "ogygia": { "command": "npx", "args": ["ogygia", "mcp"] }
+  }
+}
+```
+
+Start it from your app's root folder. The tools that take a path resolve it against the server's working directory, and the profiler tools load `@ogygia/devtools/report` from the app's own install.
+
+| Tool                  | What it does                                                                                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ogygia_compile`      | Compiles a component's source through the real transform and returns its island map and the rewritten host module.                                                                         |
+| `ogygia_islands`      | Returns only the island map: each marked import, what it became, its `render` and `wake` settings, and its build id.                                                                       |
+| `ogygia_check`        | Runs the transform on a component and reports any build error it would raise.                                                                                                              |
+| `ogygia_explain`      | Explains in prose where each marked component's HTML comes from, when its JavaScript runs, and how its props cross the boundary.                                                           |
+| `ogygia_debug`        | Loads a page of your running app in a headless browser and returns each island's story from the event stream, with anomalies. Needs Playwright and a page served with the devtools plugin. |
+| `ogygia_profile`      | Profiles the server render of a URL on your running app through the [profiler](/docs/profiler/recording) and returns a digest of the report.                                               |
+| `ogygia_profile_open` | Opens a downloaded `.ogp` report with its export key and returns the same digest, with no server involved.                                                                                 |
+| `ogygia_scan`         | Runs the transform on every `.svelte` file under a folder (default `src`) and returns the app's whole island layout, with a lint pass.                                                     |
+| `ogygia_observatory`  | Packs one or more files into an Observatory link, so you can see them compiled and running in the browser. The files travel in the URL's fragment, which is never sent to a server.        |
+| `ogygia_flags`        | Lists every `flag()` call site in the project and compares them with the last build's flag manifest.                                                                                       |
+| `ogygia_fragment`     | Checks a federated app's origin: whether its fragment endpoint refuses unsigned requests, and what its widget catalog lists.                                                               |
+
+## `perf`
+
+```bash
+npx ogygia perf --url <origin> --pages /a,/b [options]
+```
+
+Renders each page under the profiler on a running server, writes a snapshot, and judges it against a baseline under a budget. [In CI: budgets and the first bad commit](/docs/profiler/recording#in-ci-budgets-and-the-first-bad-commit) describes the snapshot, the budget file and the PR comment.
+
+| Flag                  | Default                     | What it does                                                                                                  |
+| --------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `--url <origin>`      | required                    | The running server.                                                                                           |
+| `--pages <list>`      | required, or `--pages-file` | The pages to measure, comma-separated.                                                                        |
+| `--pages-file <file>` |                             | A JSON array of pages, or `{ "pages": […] }`, added to `--pages`.                                             |
+| `--runs <n>`          | `5`                         | Renders per page.                                                                                             |
+| `--key <secret>`      | `$OGYGIA_PROFILER_SECRET`   | The profiler's secret, sent as `x-profiler-key`. A dev server needs none.                                     |
+| `--base <path>`       | `/__profiler`               | Where the profiler is mounted.                                                                                |
+| `--baseline <file>`   |                             | The snapshot to compare with. Without it, or when the file does not exist, only the absolute caps are judged. |
+| `--budget <file>`     |                             | The budget JSON.                                                                                              |
+| `--out <file>`        |                             | Writes the snapshot.                                                                                          |
+| `--md <file>`         |                             | Writes the PR comment as markdown.                                                                            |
+| `--label <text>`      |                             | A label stored in the snapshot and shown in the comment's title, such as the commit.                          |
+| `--no-fail`           |                             | Exits with 0 even when the budget fails.                                                                      |
+
+It exits with 0 when the budget passes, 1 when it fails, and 2 when the arguments are incomplete or a page could not be measured.
+
+## `bisect`
+
+```bash
+npx ogygia bisect --good <ref> --page /x --build "<cmd>" --start "<cmd>" --url <origin> [options]
+```
+
+Finds the first commit that made a page slower. Run it in your repository: it checks out commits between `--good` and `--bad` in temporary git worktrees, builds each one, starts it, profiles the page, and binary-searches for the culprit. It measures both ends first and counts a commit as bad when its median render is past the bar between them. A commit that fails to build or measure is skipped. [The first bad commit](/docs/profiler/recording#in-ci-budgets-and-the-first-bad-commit) has a worked example.
+
+| Flag                   | Default                   | What it does                                                                   |
+| ---------------------- | ------------------------- | ------------------------------------------------------------------------------ |
+| `--good <ref>`         | required                  | A commit, tag or branch where the page was fast.                               |
+| `--bad <ref>`          | `HEAD`                    | Where it is slow.                                                              |
+| `--page <path>`        | required                  | The page to profile.                                                           |
+| `--build "<cmd>"`      | required                  | Builds a checkout. It runs in each worktree, with `CI=1` set.                  |
+| `--start "<cmd>"`      | required                  | Starts the built app in each worktree.                                         |
+| `--url <origin>`       | required                  | Where the started app answers.                                                 |
+| `--key <secret>`       | `$OGYGIA_PROFILER_SECRET` | The profiler's secret.                                                         |
+| `--runs <n>`           | `3`                       | Renders per commit.                                                            |
+| `--margin <share>`     | `0.5`                     | Where the bar sits between the good and the bad median, as a share of the gap. |
+| `--ready <ms>`         | `60000`                   | How long to wait for the started app to answer.                                |
+| `--build-timeout <ms>` | `900000`                  | How long one build may take (15 minutes).                                      |
+
+It exits with 0 when it names a commit, 1 when no commit in the range crossed the bar, and 2 when the arguments are incomplete or one of the two ends could not be measured.

@@ -32,7 +32,7 @@ import { postrender } from '@ogygia/postrender';
 export const handle = sequence(postrender.handle(), ogygia.handle());
 ```
 
-That is the whole setup. Pages are kept in an in-process memory store with a 24-hour TTL as a backstop, which you can shorten with `postrender({ ttl })` in seconds. Concurrent cold requests are collapsed into one flight, so fifty of them produce exactly one render. See [Plugins](/docs/reference/plugins).
+That is the whole setup. Pages are kept in an in-process memory store with a 24-hour TTL as a backstop, which you can shorten with `postrender({ ttl })` in seconds. The value is rounded down to whole seconds and clamped between 1 and 86 400, so no stored page outlives a day, whatever you pass. Concurrent cold requests are collapsed into one flight, so fifty of them produce exactly one render. See [Plugins](/docs/reference/plugins).
 
 `postrender.handle()` must come **before** `ogygia.handle()` in the `sequence()`, because the stored page is served before anything renders, so the store has to be known by then.
 
@@ -99,7 +99,7 @@ Postrender watches each eligible render, and a page **stays per-request** when i
 - writes a cookie, sets `set-cookie`, answers with a status other than 200, or streams load promises,
 - or was requested with a query string.
 
-Each refusal is **named in a dev note** (`cookie:session`, `locals.user`, `flag:hero`), so an almost-pure page tells you exactly which read keeps it per-request. Reads that return the default value still allow storing. The render an anonymous visitor gets (where `cookies.get('consent')` returns `undefined` and `locals.user` is empty) **is** the canonical copy, which formalizes the familiar cookie-less CDN cache key. Once it is stored, every visitor receives the canonical copy. Content that really has to differ per visitor belongs in a `render: 'deferred'` hole: the shell is stored, and the hole fetches fresh for each visitor. The hole's signed URL is minted with the long lifetime used for prerendering, so a warm stored page never carries expired holes (set a stable `OGYGIA_SECRET`).
+Each refusal is **named in a dev note** (`cookie:session`, `locals.user`, `flag:hero`), so an almost-pure page tells you exactly which read keeps it per-request. Reads that return the default value still allow storing. The render an anonymous visitor gets (where `cookies.get('consent')` returns `undefined` and `locals.user` is empty) **is** the canonical copy, which formalizes the familiar cookie-less CDN cache key. Once it is stored, every visitor receives the canonical copy. Content that really has to differ per visitor belongs in a `render: 'deferred'` hole: the shell is stored, and the hole fetches fresh for each visitor. The hole's signed URL is minted with the long lifetime used for prerendering, so a warm stored page never carries expired holes (set a stable `OGYGIA_SECRET`). Deferred regions from another team's app are the exception, because their hole URLs expire after five minutes; see [Fragment federation](/docs/app/federation#a-remote-fragment-is-a-region-deferred-remote-regions-on-stored-pages).
 
 ## Invalidation: three grammars
 
@@ -140,6 +140,76 @@ export const handle = sequence(
 ```
 
 The available stores are `memoryStore` (the default), `valkey(client)` (ioredis or node-redis), `upstash({ url, token })` (REST, built for serverless) and `cloudflareKv(binding)` (Workers KV, with the binding coming from `import { env } from 'cloudflare:workers'`). The available edges are `akamai` (EdgeGrid-signed Fast Purge), `cloudfront` (SigV4 invalidations) and `cloudflare` (zone purge). Eligible responses are stamped `cache-control: public, s-maxage=<ttl>` plus each edge's tags, so your CDN follows headers proven per page instead of a blanket rule. An invalidation fans out to the store and every edge at the same time, and one edge being down never fails a publish or a request.
+
+### Adapter config
+
+Each adapter is a function you call in `hooks.server.ts`. The stores:
+
+| Store                                 | Config                                                                                                                                                                                                                                                  |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `memoryStore(maxEntries?, maxBytes?)` | Up to 1000 entries and 64 MiB of HTML by default, least recently used dropped first. It lives in one process, so replicas don't share it; when you configure edges without a store, the server warns that invalidations can't reach the other replicas. |
+| `valkey(client)`                      | A connected ioredis or node-redis v4 client. Pages are kept under `og:a:<path>` with the TTL as their expiry, and source receipts in sets under `og:t:<tag>`.                                                                                           |
+| `upstash({ url, token })`             | The REST URL and token of an Upstash Redis database. Same keys as `valkey`, one HTTPS call per command, no client library.                                                                                                                              |
+| `cloudflareKv(binding)`               | A Workers KV binding. KV is eventually consistent, so a far location can serve the old copy for up to about a minute after an invalidation, and KV's 60-second minimum raises any shorter TTL to 60 seconds.                                            |
+
+The edges:
+
+| Edge                                                                                | Config                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `akamai({ host, clientToken, clientSecret, accessToken, site, network?, maxAge? })` | EdgeGrid credentials for Fast Purge, and `site`, the public origin that purged paths are made absolute against. `network` is `'production'` (default) or `'staging'`. Each stored page gets an `edge-cache-tag` header with its first three path prefixes (`p:/fr`, `p:/fr/fr`, `p:/fr/fr/x`), and `invalidateWhere` purges by that tag, so a prefix deeper than three segments is not purged at the edge and expires with its `s-maxage`. |
+| `cloudflare({ zoneId, apiToken, site, maxAge? })`                                   | The zone, an API token with the `Zone.Cache Purge` permission, and the public origin. A URL is purged by file on every plan; `invalidateWhere` purges by prefix, which Cloudflare offers on Enterprise plans. Stored pages get the same prefix tags under `cache-tag`.                                                                                                                                                                     |
+| `cloudfront({ distributionId, accessKeyId, secretAccessKey })`                      | The distribution and AWS credentials allowed to create invalidations. It adds no headers, because CloudFront follows the page's `cache-control`, and `invalidateWhere({ prefix })` invalidates `<prefix>` and `<prefix>/*`. It is also exported as `awsCloudfront`.                                                                                                                                                                        |
+
+`maxAge` sets the `s-maxage` that edge is granted, and defaults to the `ttl`. Every edge also takes `baseUrl`, which sends its API calls to another address, such as an emulator in your tests.
+
+### Writing a store or edge adapter
+
+A store is an object with four required methods. Keys are URL pathnames, and an entry is a plain JSON-serializable object, so most stores keep `JSON.stringify(entry)` under the key:
+
+```ts
+// the PostrenderStore type, exported from '@ogygia/postrender' with PostrenderEntry
+interface PostrenderStore {
+  get(key: string): Promise<PostrenderEntry | null>;
+  put(key: string, entry: PostrenderEntry, options: { ttl: number; tags?: string[] }): Promise<void>;
+  evict(key: string): Promise<void>;
+  evictWhere(filter: { prefix: string }): Promise<void>;
+  evictByTag?(tag: string): Promise<string[]>;   // optional, but tag invalidation needs it
+  size?(): Promise<number>;                      // optional, for tests and tooling
+}
+```
+
+- **`put` must expire the entry after `ttl` seconds itself.** Postrender doesn't check an entry's age when it reads it, so a store without expiry keeps pages until they are invalidated.
+- **`evictWhere` gets a normalized prefix**, with a leading slash and no trailing slash (except `/` itself). It must remove the key equal to the prefix and every key under `prefix + '/'`, and never a sibling: `/fr/fr` removes `/fr/fr` and `/fr/fr/solar`, but not `/fr/fright`.
+- **`evictByTag` removes every key whose `put` carried the tag, and returns those keys**, which postrender then purges at every edge. Without it, `postrender.invalidate(fn, args)` and the thaw notices of [federation](/docs/app/federation#cross-app-thaw) log a warning and evict nothing, while exact URLs and prefixes still work.
+- **Not every key is a page path.** Postrender stores one entry of its own under a key that starts with a NUL character (the last build id, for federation's deploy thaw), so don't assume every key starts with `/`.
+
+A store that throws never fails a request: a failed `get` is treated as a miss and a failed `put` is skipped.
+
+An edge is an object with a name and three methods:
+
+```ts
+import type { EdgeAdapter } from '@ogygia/postrender';
+
+export function myCdn(opts: { site: string; token: string }): EdgeAdapter {
+  const purge = (body: unknown) =>
+    fetch('https://api.my-cdn.example/purge', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${opts.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((res) => {
+      if (!res.ok) throw new Error(`purge failed: ${res.status}`);
+    });
+
+  return {
+    name: 'my-cdn',
+    headers: ({ ttl }) => ({ 'cache-control': `public, s-maxage=${ttl}` }),
+    purgeUrl: (url) => purge({ urls: [opts.site + url] }),
+    purgeWhere: ({ prefix }) => purge({ prefix: opts.site + prefix }),
+  };
+}
+```
+
+`headers({ url, ttl })` returns extra headers for a page as it is stored. They are added after postrender's own `cache-control` and validators, so an edge can replace them, and a `headers` that throws is ignored. A page with `stitch: 'serve'` holes never gets them, because it is never cached at the edge. `purgeUrl` receives a pathname, so make it absolute for your CDN, and `purgeWhere` receives the same normalized prefix as a store. Postrender calls every edge in parallel and waits for all of them, and a purge that rejects is logged as a warning and never fails the invalidation. Edges are not purged when a form action evicts its own page; the edge copy then expires with its `s-maxage`.
 
 ## Serve-time stitching
 

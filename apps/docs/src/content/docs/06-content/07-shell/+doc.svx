@@ -128,7 +128,7 @@ export const docs = site({
 });
 ```
 
-The built-in default maps `a` to `Link`, so id-form links (`[Guide](routing)`) resolve against the site's address space and stay correct under any mount prefix. A shell provides the map through context, and tier-2 renders can provide it themselves.
+The built-in default maps `a` to `Link`, so id-form links (`[Guide](routing)`) resolve against the site's address space and stay correct under any mount prefix. A shell provides the map through context, and tier-2 renders can provide it themselves. The slot itself is `SiteSlot`, which compiled markdown imports from `@ogygia/content/slot`. You never import it yourself, and with no map in context it renders each element as the plain tag (or `a` as `Link`).
 
 ## Do / don't
 

@@ -42,7 +42,7 @@ export default defineConfig({
 });
 ```
 
-`ogygia()` comes first, the feature plugins follow it, and `sveltekit()` goes last. `ogygia.handle()` in `hooks.server.ts` already runs the server half of every listed plugin, and the page runtime boots every browser half, so for most plugins nothing else in your app changes. Postrender is the exception, because its live store and CDN edges are passed to `postrender.handle()`, which goes before ogygia's handle in the `sequence()` (see [Postrender](/docs/data-state/postrender)).
+`ogygia()` comes first, the feature plugins follow it, and `sveltekit()` goes last. `ogygia.handle()` in `hooks.server.ts` already runs the server half of every listed plugin, and the page runtime boots every browser half. What the Vite config can't carry is anything live or app-specific: a flag vendor, your federation identity, your route table, a store client. Most packages therefore also ask for a line or two in `hooks.server.ts`, and [each entry below](#the-packages) says which.
 
 These rules hold for every plugin:
 
@@ -54,18 +54,149 @@ These rules hold for every plugin:
 
 ## The packages
 
-| Package              | Plugin                           | What it does                                                                                                                                                                                            |
-| -------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@ogygia/content`    | `content({ markdown, presets })` | [Content collections](/docs/content/collections), markdown (mdsvex + Shiki), the docs shell and search. Its svelte config helpers `preprocess()` / `extensions()` come from `@ogygia/content/vite` too. |
-| `@ogygia/flags`      | `flags()`                        | [Flags & experiments](/docs/app/experiments): `flag()`, `decide()`. `flag()` decides natively without the plugin. A `decide({ source, exposure })` needs it.                                            |
-| `@ogygia/postrender` | `postrender({ ttl, default })`   | [Postrender](/docs/data-state/postrender): pages stored whole on their first request and served as bytes.                                                                                               |
-| `@ogygia/federation` | `federation()`                   | [Fragment federation](/docs/app/federation): `federate()`, `mount()`.                                                                                                                                   |
-| `@ogygia/router`     | `router()`                       | The [server router](/docs/app/server-router): routes as values. The plugin links the CSS of the pages it renders.                                                                                       |
-| `@ogygia/devtools`   | `devtools({ dock, profiler })`   | The [devtools dock](/docs/devtools/overview) and the [SSR profiler](/docs/profiler/overview).                                                                                                           |
-| `@ogygia/testing`    | none                             | [Test helpers](/docs/devtools/testing) for Playwright. Import it in tests.                                                                                                                              |
-| `@ogygia/cli`        | none                             | The command: `npx ogygia init`, `ogygia mcp`, the AI skill. `npx ogygia …` runs it for you.                                                                                                             |
+| Package              | Plugin                           | What it does                                                                                                                                                                                                      |
+| -------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@ogygia/content`    | `content({ markdown, presets })` | [Content collections](/docs/content/collections), markdown (mdsvex + Shiki), the docs shell and search. Its svelte config helpers `preprocess()` / `extensions()` come from `@ogygia/content/vite` too.           |
+| `@ogygia/flags`      | `flags()`                        | [Flags & experiments](/docs/app/experiments): `flag()`, `decide()`. List the plugin wherever flags are read: it reports each read so a stored page never keeps one variant, and it runs the source and exposures. |
+| `@ogygia/postrender` | `postrender({ ttl, default })`   | [Postrender](/docs/data-state/postrender): pages stored whole on their first request and served as bytes.                                                                                                         |
+| `@ogygia/federation` | `federation()`                   | [Fragment federation](/docs/app/federation): `federate()`, `mount()`.                                                                                                                                             |
+| `@ogygia/router`     | `router()`                       | The [server router](/docs/app/server-router): routes as values. The plugin links the CSS of the pages it renders.                                                                                                 |
+| `@ogygia/devtools`   | `devtools({ dock, profiler })`   | The [devtools dock](/docs/devtools/overview) and the [SSR profiler](/docs/profiler/overview).                                                                                                                     |
+| `@ogygia/testing`    | none                             | [Test helpers](/docs/devtools/testing) for Playwright. Import it in tests.                                                                                                                                        |
+| `@ogygia/cli`        | none                             | The command: `npx ogygia init`, `ogygia mcp`, the AI skill. `npx ogygia …` runs it for you.                                                                                                                       |
 
 Every package takes `ogygia` as a peer dependency, and they all release together under one version number, so keep them on the same version as `ogygia`.
+
+When several packages need a handle, the order in the `sequence()` is postrender first, then ogygia, then the router:
+
+```ts title=src/hooks.server.ts
+export const handle = sequence(postrender.handle(), ogygia.handle(), router.handle);
+```
+
+### Content: `@ogygia/content`
+
+```bash
+pnpm add @ogygia/content
+```
+
+```ts title=vite.config.ts
+plugins: [ogygia(), content({ markdown: {} }), sveltekit()]
+```
+
+Nothing goes in `hooks.server.ts`. Markdown also needs `extensions()` and `preprocess()` in `svelte.config.js`, and a second `/// <reference types="@ogygia/content/types" />` line in `src/ogygia.d.ts`; [Install](/docs/start/install#transport-held-regions-over-the-wire-markdown-shiki-mdsvex-optional) shows both. Guide: [Content collections](/docs/content/collections).
+
+### Flags: `@ogygia/flags`
+
+```bash
+pnpm add @ogygia/flags
+```
+
+```ts title=vite.config.ts
+plugins: [ogygia(), flags(), sveltekit()]
+```
+
+Native flags need nothing in `hooks.server.ts`. Call `decide()` there when you connect a vendor source, an exposure sink or a QA override gate. On plain SvelteKit, also import your flags module there, so every flag is registered before the first request:
+
+```ts title=src/hooks.server.ts
+import { decide } from '@ogygia/flags';
+import { openfeature } from '@ogygia/flags/openfeature';
+import '$lib/flags';
+
+decide({ source: openfeature(OpenFeature.getClient()), exposure: (events) => analytics.track(events) });
+```
+
+Guide: [Flags & experiments](/docs/app/experiments).
+
+### Postrender: `@ogygia/postrender`
+
+```bash
+pnpm add @ogygia/postrender
+```
+
+```ts title=vite.config.ts
+plugins: [ogygia(), postrender({ ttl: 600 }), sveltekit()]
+```
+
+`postrender.handle()` holds the live store and CDN edges, and it must come **before** `ogygia.handle()`, because a stored page is served before anything renders:
+
+```ts title=src/hooks.server.ts
+import { sequence } from '@sveltejs/kit/hooks';
+import * as ogygia from 'ogygia/server';
+import { postrender, valkey } from '@ogygia/postrender';
+
+export const handle = sequence(postrender.handle({ store: valkey(client) }), ogygia.handle());
+```
+
+Guide: [Postrender](/docs/data-state/postrender).
+
+### Federation: `@ogygia/federation`
+
+```bash
+pnpm add @ogygia/federation @ogygia/router
+```
+
+```ts title=vite.config.ts
+plugins: [ogygia(), federation(), sveltekit()]
+```
+
+The app's one `federate()` call lives in a `.server.ts` module, and `hooks.server.ts` must import that module, directly or through a router that uses its peers, so it runs on boot. The plugin then serves every `/og/` endpoint from ogygia's handle, with no route files:
+
+```ts title=src/hooks.server.ts
+import * as ogygia from 'ogygia/server';
+import '$lib/federation.server';   // runs federate() on boot
+
+export const handle = ogygia.handle();
+```
+
+Guide: [Fragment federation](/docs/app/federation).
+
+### Server router: `@ogygia/router`
+
+```bash
+pnpm add @ogygia/router
+```
+
+```ts title=vite.config.ts
+plugins: [ogygia(), router(), sveltekit()]
+```
+
+Your route table serves requests through its own handle, placed after ogygia's (or from a Kit catch-all route; see [Mounting](/docs/app/server-router#mounting)):
+
+```ts title=src/hooks.server.ts
+import { sequence } from '@sveltejs/kit/hooks';
+import * as ogygia from 'ogygia/server';
+import { router } from '$lib/router';   // your routes({ … }) table
+
+export const handle = sequence(ogygia.handle(), router.handle);
+```
+
+Guide: [Server router](/docs/app/server-router).
+
+### Devtools and profiler: `@ogygia/devtools`
+
+```bash
+pnpm add @ogygia/devtools
+```
+
+```ts title=vite.config.ts
+plugins: [ogygia(), devtools({ profiler: true }), sveltekit()]
+```
+
+`ogygia.handle()` mounts the dock and the profiler, so nothing is required in `hooks.server.ts`. In production the profiler UI needs `OGYGIA_PROFILER_SECRET` in the environment. To keep profiler reports in a database instead of process memory, set a store once in `hooks.server.ts`, before the first request:
+
+```ts title=src/hooks.server.ts
+import { env } from '$env/dynamic/private';
+import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
+import { postgresStore } from '@ogygia/devtools/profiler/storage/postgres';
+
+setProfilerStore(postgresStore(env.DATABASE_URL!));
+```
+
+`sqliteStore` and `redisStore` come from `@ogygia/devtools/profiler/storage/sqlite` and `…/redis`. Guides: [Devtools](/docs/devtools/overview) and [Profiler](/docs/profiler/overview).
+
+### Testing and the CLI
+
+`@ogygia/testing` and `@ogygia/cli` have no plugin. Import `@ogygia/testing` in your Playwright tests ([Testing](/docs/devtools/testing)). `@ogygia/cli` is the `ogygia` command, which `npx ogygia init` adds to your devDependencies ([CLI](/docs/reference/cli)).
 
 ## The plugin API
 

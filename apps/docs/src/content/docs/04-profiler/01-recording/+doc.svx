@@ -1,6 +1,6 @@
 ---
 title: Recording
-summary: How to capture a profile, either by profiling a page by URL or by profiling a single request with a header. Also covers the JSON output for agents, viewing reports from serverless hosts, the production secret, source maps, CI budgets and every option.
+summary: How to capture a profile, either by profiling a page by URL or by profiling a single request with a header. Also covers the JSON output for agents, viewing reports from serverless hosts, shared report storage, the production secret, source maps, CI budgets and every option.
 related:
   - profiler/overview
   - profiler/reading-reports
@@ -73,6 +73,8 @@ GET /__profiler/report/<id>/dump
 
 Then open **`/__profiler/view`** anywhere, whether on your production route or on the same app running on `localhost`, and upload the file. The full HTML report renders from the dump alone, because the renderer is a pure function of it.
 
+If you would rather not carry files around, give the profiler a [shared store](#shared-report-storage). Every instance then writes its reports to the same database, and any instance can show them. On such a host, also set [`onDemand: true`](#options), so that a cold start does not pay for the profiler until someone opens it.
+
 ## In production
 
 In production the UI stays off and answers 404 until you set a secret:
@@ -116,7 +118,7 @@ Which `page.data` keys each island reads is normally answered by the build, sinc
 - **Idle cost is almost nothing.** The CPU is sampled only during a recording, at about 1–3% while it runs. Between recordings nothing is sampled unless you turn on the trap or always-on sampling described below. Per request the profiler reads two CPU counters and a clock and pushes one entry into a ring buffer, which takes microseconds. A cold start pays for one import of the profiler's chunk (about 30 ms).
 - **Always-on work** per request consists of wall timing, a capped in-memory request log and, unless you turn network capture off, one `AsyncLocalStorage` wrap plus a `fetch`/`http` patch to attribute outbound calls. Pass `{ network: false }` for the leanest path.
 - **`Server-Timing` headers** expose internal timings to every client, so by default they are **on in dev and off in production**. Pass `{ serverTiming: true }` to force them on.
-- Recorded profiles stay in memory only (the last few, gzipped) and are never written to disk.
+- Recorded profiles stay in memory (the last few, gzipped). They are written somewhere else only when you give the profiler a [store](#shared-report-storage).
 
 ## Options
 
@@ -133,10 +135,12 @@ devtools({
     path: '/__profiler',                        // UI base path
     sampleInterval: 500,                        // µs between CPU samples
     maxReports: 6,                              // profiles kept in memory (gzipped)
+    recentRequests: 500,                        // requests the always-on request log keeps
     network: true,                              // patch fetch/http to attribute calls
     serverTiming: undefined,                    // default: on in dev, off in production
     heap: true,                                 // sample heap allocations while recording
     enabled: true,                              // master switch
+    onDemand: false,                            // load the profiler only once /__profiler is opened (see below)
     trap: { over: 800 },                        // catch the slow one (off by default; see below)
     sample: { every: 60, window: 2000 },        // always-on sampling (off by default; see below)
     clientCpu: true,                            // the beacon records the browser's main-thread CPU (Chromium)
@@ -145,6 +149,8 @@ devtools({
 ```
 
 `trap.replay` names the request headers the trap keeps with a caught request, so that a replay carries the same inputs (for example `['accept-language', 'x-tenant']`). It keeps none by default, and never keeps cookies unless you name them.
+
+`onDemand: true` keeps the profiler out of the process until a request for its path arrives. Until then the profiler's module is not even imported, so the app pays what an app without a profiler pays: no import on a cold start, no request log and no per-request timing. After the first request to `/__profiler`, that instance runs the profiler as usual. The cost is history: the request log, the trap and the sampler start from that first visit rather than from boot, and a request sent with the `x-profile` header is profiled only by an instance that has already loaded the profiler. Use it on serverless hosts such as Lambda and Amplify, where every cold start would otherwise pay for the profiler's import on its response time. It is off by default.
 
 ## Catch the slow one
 
@@ -207,7 +213,59 @@ A serverless instance lives for seconds and forgets everything it measured. The 
 - **The beacon** writes each visit (navigation timing, resources, paints, islands, shifts, and the islands' markup before and after hydration) into the same store, so the one-clock timeline, the heatmap and DOM time travel all work whether or not the instance that rendered the report still exists.
 - **Every report page** stores itself when the browser is idle if you opened it some other way (from a header profile's link or a trap catch), so restarting a long-lived server loses nothing you have looked at.
 
-Nothing is shared between browsers, because a report is kept by the browser that recorded or opened it. To move one, export the `.ogp` or a share link.
+Nothing is shared between browsers, because a report is kept by the browser that recorded or opened it. To move one, export the `.ogp` or a share link, or give the profiler a shared store, described next.
+
+## Shared report storage
+
+A finished report lives in the memory of the instance that recorded it. On one long-lived server that is all you need, but it falls short in two common setups. On a serverless host, the instance that recorded a report is often gone before you open it. Behind a load balancer, the request for the report page can land on an instance that never saw the recording. In both cases each instance's dashboard lists only its own reports, so teammates never see each other's work.
+
+A store solves this. You give the profiler one in `src/hooks.server.ts`, and from then on every finished report is written to it and read back from it. A report then outlives the instance that recorded it, survives a restart, and shows up in the dashboard of every instance:
+
+```ts title=src/hooks.server.ts
+import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
+import { postgresStore } from '@ogygia/devtools/profiler/storage/postgres';
+
+setProfilerStore(postgresStore(process.env.DATABASE_URL!));
+
+// your handle stays as it was
+```
+
+The store goes in the hooks file rather than in the `profiler` options because it is a live object holding a database connection, while the options in `vite.config.ts` are build-time values. Call `setProfilerStore()` at the top level of the module. The profiler reads the store once, when it loads on the first request it handles (with `onDemand`, the first request to `/__profiler`), and it ignores a call made after that.
+
+Memory stays the fast path. A report is still kept in memory and is also written to the store, and a report that is not in memory is read from the store and cached. A store that fails never breaks a recording: a failed write leaves the report in memory only, and if the store cannot be set up when the profiler loads, the profiler logs the error and runs without it. The store also keeps the requests of a test's server window, which is how [a session recorded across several instances](/docs/devtools/testing#the-server-over-the-same-actions) comes back whole.
+
+### The bundled stores
+
+Each store is a factory in its own entry point, so the database client you do not use is never loaded:
+
+| Entry point                                  | Factory                                               | What it is                                                                                                                                                                                                                                            |
+| -------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@ogygia/devtools/profiler/storage`          | `memoryStore(cap = 50)`                               | An in-process map that keeps the newest `cap` reports. Nothing survives a restart, so it adds nothing to the default; it is there for tests and as a model for your own store.                                                                        |
+| `@ogygia/devtools/profiler/storage/sqlite`   | `sqliteStore(filename = '.ogygia/profiles.db')`       | One SQLite file (relative to the working directory, its folder created for you), or `':memory:'`. Needs Node 22.5 or later, which has `node:sqlite` built in, or the `better-sqlite3` package. It survives a restart, but it is local to one machine. |
+| `@ogygia/devtools/profiler/storage/redis`    | `redisStore(client, { ttlSeconds, prefix = 'og:' })`  | A Redis URL (it imports `redis`, or else `ioredis`) or a client you already connected (either library). `ttlSeconds` expires reports on their own, and keys start with `prefix`. It keeps at most 1,000 reports.                                      |
+| `@ogygia/devtools/profiler/storage/postgres` | `postgresStore(client, { schema, table = 'ogygia' })` | A connection string (it imports `pg`) or a `pg` pool you already have. It creates the `<table>_reports` and `<table>_visits` tables on first use, inside `schema` when you name one. The report is stored as `jsonb`, so you can query inside it.     |
+
+The database client packages (`better-sqlite3`, `redis` or `ioredis`, `pg`) are not dependencies of `@ogygia/devtools`, so install the one your store needs. For a serverless host, pick Redis or Postgres, since every instance has to reach the same store; SQLite suits a single long-lived server.
+
+After each write, the profiler trims the store to its newest `maxReports × 8` reports, and never to fewer than 200.
+
+### Writing your own store
+
+A store is any object that satisfies the `ProfilerStore` interface from `@ogygia/devtools/profiler/storage`. Every method may return a value or a promise, so a network backend fits as well as a local one:
+
+| Member                                         | Required | What it does                                                                                                  |
+| ---------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------- |
+| `kind`                                         | yes      | A name for the store, such as `'kv'`.                                                                         |
+| `putReport(record)`                            | yes      | Writes a report, or overwrites the one with the same `id`.                                                    |
+| `getReport(id)`                                | yes      | Returns the report's `dump` string, or `null` when there is none.                                             |
+| `listReports(limit?)`                          | yes      | Returns the newest reports first, as records without their `dump`.                                            |
+| `deleteReport(id)`                             | yes      | Removes a report.                                                                                             |
+| `init()`                                       | no       | Runs once when the profiler loads: connect, create tables.                                                    |
+| `prune(keep)`                                  | no       | Keeps the newest `keep` reports and drops the rest. Called after each write.                                  |
+| `putVisit(visit)` · `listVisits(page, limit?)` | no       | Write and read the requests of a server window. Without them, a window sees only its own instance's requests. |
+| `close()`                                      | no       | Releases connections.                                                                                         |
+
+A record (`ProfilerRecord`) has a few summary fields for the list, `id`, `created` (epoch ms), `page`, `trigger`, `label` and `median`, plus `dump`: the report's portable JSON as a string, the same data the `.ogp` export and the dump download carry. A visit row (`ProfilerVisitRecord`) is `{ key, page, at, visit }`, where `page` groups the rows that `listVisits` returns together and `visit` is also a JSON string. Nothing in a record is encrypted, because a store is infrastructure you run yourself, so treat its contents like the profiler's own pages.
 
 ## The sink: the whole site from ephemeral instances
 

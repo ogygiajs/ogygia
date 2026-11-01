@@ -27,6 +27,8 @@ pnpm dlx ogygia init
 
 To add markdown content collections at the same time, run `npx ogygia init --markdown`. If your project already exports a `handle` or a `transport`, the CLI merges into them instead of overwriting them: it puts your `handle` in a sequence and spreads into your `transport`.
 
+The command adds `ogygia` to your dependencies, plus `@ogygia/content` with `--markdown`, and adds `@ogygia/cli` to your devDependencies so that later `npx ogygia` commands run your local copy. It installs none of the other feature packages; you add those yourself, as described in [Other features](#transport-held-regions-over-the-wire-other-features-optional). The [CLI reference](/docs/reference/cli) lists every command.
+
 ### Manual setup
 
 If you prefer to add the parts yourself, install the package, register the Vite plugin **before** `sveltekit()`, and add the server handle.
@@ -138,7 +140,16 @@ The content macros (`import.meta.og.loader`, `og.code`, `og.md`) bring their own
 
 ### Other features (optional)
 
-Flags, postrender, federation, the server router, the devtools dock and the profiler are set up the same way. Each is a package you install with a plugin you list once beside `ogygia()`, for example `plugins: [ogygia(), flags(), sveltekit()]`. [Plugins](/docs/reference/plugins) lists them all.
+The other features are set up the same way as markdown. Each is a package you install, with a plugin you list once beside `ogygia()` and before `sveltekit()`, for example `plugins: [ogygia(), flags(), sveltekit()]`:
+
+- **`@ogygia/flags`** (`flags()`): kill switches, rollouts and A/B tests, decided on the server. See [Flags & experiments](/docs/app/experiments).
+- **`@ogygia/postrender`** (`postrender()`): pages stored whole on their first request and served as bytes. See [Postrender](/docs/data-state/postrender).
+- **`@ogygia/federation`** (`federation()`): other teams' apps rendered into your pages. See [Fragment federation](/docs/app/federation).
+- **`@ogygia/router`** (`router()`): routes declared as values in code. See [Server router](/docs/app/server-router).
+- **`@ogygia/devtools`** (`devtools()`): the in-page devtools dock and the SSR profiler. See [Devtools](/docs/devtools/overview) and [Profiler](/docs/profiler/overview).
+- **`@ogygia/testing`** (no plugin): Playwright helpers. See [Testing](/docs/devtools/testing).
+
+Some of these also need a line in `hooks.server.ts`, such as postrender's handle or the router's. [Plugins](/docs/reference/plugins) gives each package's install command, Vite line and server wiring.
 
 ## Adopt one route at a time
 
