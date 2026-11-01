@@ -2,7 +2,7 @@
 	"name": "ogygia",
 	"version": "0.10.2",
 	"description": "Astro-style SSR islands for SvelteKit (no Kit patches)",
-	"homepage": "https://ogygia.puruvj.dev",
+	"homepage": "https://ogygiajs.dev",
 	"bugs": {
 		"url": "https://github.com/ogygiajs/ogygia/issues"
 	},
