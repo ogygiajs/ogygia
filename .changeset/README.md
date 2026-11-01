@@ -18,7 +18,7 @@ Releases are automated (`.github/workflows/release.yml`, the Changesets GitHub A
   (ogygiajs.dev and svelte.dev.ogygiajs.dev) deploy from the `latest` branch, so they show what is
   on npm, and change on a release.
 - `latest` is moved only by the release workflow, after a publish succeeds. Nobody pushes to it.
-- `0.8` keeps the 0.8.x line for patches. It releases from its own branch under the npm tag
+- `lts-0.8` keeps the 0.8.x line for patches. It releases from its own branch under the npm tag
   `lts-0.8` (`pnpm add ogygia@lts-0.8`), so a patch never takes `latest` from the current line.
   (npm refuses a tag that reads as a version range, like `0.8`.)
 
