@@ -47,5 +47,5 @@ jobs:
       # main matches npm: just published, or no changeset is pending. A fast-forward only: latest
       # is only ever set from main, so a refused push means someone moved it by hand.
       - name: Move the latest branch to main
-        if: steps.changesets.outputs.published == 'true' || steps.changesets.outputs.hasChangesets == 'false'
+        if: steps.changesets.outputs.published == 'true' || steps.changesets.outputs.has-changesets == 'false'
         run: git push origin HEAD:refs/heads/latest
