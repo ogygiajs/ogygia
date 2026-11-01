@@ -2,7 +2,7 @@ name: e2e
 
 on:
   push:
-    branches: [main]
+    branches: [lts-0.8]
   pull_request:
   workflow_dispatch:
 

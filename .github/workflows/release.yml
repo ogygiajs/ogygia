@@ -3,7 +3,7 @@ name: Changesets
 on:
   push:
     branches:
-      - main
+      - lts-0.8
 
 jobs:
   version:
@@ -28,8 +28,9 @@ jobs:
         uses: changesets/action@v2
         with:
           version-script: pnpm ci:version
-          # main is the 0.8.x line: `latest` belongs to `next` (0.9), so main publishes under `0.8`
-          publish-script: pnpm ci:release --tag 0.8
-          commit-message: 'chore: update versions (main)'
-          pr-title: 'chore: update versions (main)'
+          # lts-0.8 is the 0.8.x line: `latest` belongs to main (0.11+), so a patch here publishes
+          # under the npm tag `lts-0.8` (npm refuses a tag that reads as a version range, like `0.8`)
+          publish-script: pnpm ci:release --tag lts-0.8
+          commit-message: 'chore: update versions (lts-0.8)'
+          pr-title: 'chore: update versions (lts-0.8)'
           create-github-releases: true
