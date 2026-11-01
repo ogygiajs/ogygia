@@ -4,7 +4,7 @@
  * List `router()` from `@ogygia/router/vite` beside `ogygia()` in vite.config: the build then links the CSS of
  * every component a module importing this package can reach.
  *
- *     import { routes, layout, page, load, action, get, redirect, error, fail } from '@ogygia/router';
+ *     import { routes, layout, page, load, action, GET, POST, redirect, error, fail } from '@ogygia/router';
  *
  *     const shell = layout('app', AppShell, { load: async (c) => ({ user: c.locals?.user }) });
  *
@@ -13,7 +13,7 @@
  *         '/':            page(Home),
  *         '/docs/[slug]': page(Doc, { load: async (c) => ({ doc: await docs.get(c.params.slug) }) }),
  *         '/login':       page(Login, { actions: { default: login } }),
- *         '/api/[id]':    get((c) => c.json(read(c.params.id))).post(update),
+ *         '/api/[id]':    { GET: GET((c) => c.json(read(c.params.id))), POST: POST(update) },
  *       }),
  *       { base: '', error: ErrorPage }
  *     );

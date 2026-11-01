@@ -3,10 +3,12 @@
  * table (a `jsonb` dump plus summary columns), visits in `ogygia_visits`. Pass a connection string
  * (the `pg` package is imported on demand) or an already-made `pg` Pool.
  *
- *   import { postgresStore } from '@ogygia/devtools/profiler/storage';
- *   ogygia.profiler({ store: postgresStore(process.env.DATABASE_URL) });
+ *   // src/hooks.server.ts
+ *   import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
+ *   import { postgresStore } from '@ogygia/devtools/profiler/storage/postgres';
+ *   setProfilerStore(postgresStore(process.env.DATABASE_URL!));
  *   // or reuse your pool:
- *   ogygia.profiler({ store: postgresStore(myPool) });
+ *   setProfilerStore(postgresStore(myPool));
  *
  * `schema` puts the tables in a named schema; `table` overrides the base name. The dump is stored
  * as `jsonb`, so a hosted dashboard can query inside it (`dump->'meta'->>'page'`) without shipping
@@ -18,9 +20,7 @@ import type {
 	ProfilerSummary,
 	ProfilerVisitRecord
 } from './index.ts';
-
-/** browser visits kept per page (the profiler reads the latest ten) */
-const MAX_VISITS_PER_PAGE = 20;
+import { MAX_VISITS_PER_KEY } from './visits.ts';
 
 interface PgLike {
 	query(text: string, params?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>;
@@ -118,10 +118,10 @@ export function postgresStore(
 				`INSERT INTO ${V} (key,page,at,visit) VALUES ($1,$2,$3,$4::jsonb) ON CONFLICT (key) DO UPDATE SET at=EXCLUDED.at,visit=EXCLUDED.visit`,
 				[rec.key, rec.page, rec.at, rec.visit]
 			);
-			// the newest MAX_VISITS_PER_PAGE per page (the profiler reads the latest ten)
+			// the newest MAX_VISITS_PER_KEY per key (what a server window reads back)
 			await db.query(
 				`DELETE FROM ${V} WHERE page = $1 AND key NOT IN (SELECT key FROM ${V} WHERE page = $1 ORDER BY at DESC LIMIT $2)`,
-				[rec.page, MAX_VISITS_PER_PAGE]
+				[rec.page, MAX_VISITS_PER_KEY]
 			);
 		},
 		async listVisits(page: string, limit = 10): Promise<ProfilerVisitRecord[]> {

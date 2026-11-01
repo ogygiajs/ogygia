@@ -124,10 +124,23 @@ export async function invalidate_tags(
 		);
 		return [];
 	}
+	// A tag the store fails to evict is reported and skipped: the other tags still evict, and every
+	// page they named is still purged at the edges.
 	const keys = new Set<string>();
-	for (const tag of tags) for (const key of await evict_by_tag(tag)) keys.add(key);
-	const jobs: Promise<unknown>[] = [];
-	for (const key of keys) for (const edge of edges) jobs.push(edge.purgeUrl(key));
+	for (const tag of tags) {
+		try {
+			for (const key of await evict_by_tag(tag)) keys.add(key);
+		} catch (e) {
+			console.warn(
+				`[ogygia] postrender.invalidate(tags): the store failed to evict tag ${tag} (evictByTag); ` +
+					'its pages stay stored until they expire —',
+				e
+			);
+		}
+	}
+	const jobs: Job[] = [];
+	for (const key of keys)
+		for (const edge of edges) jobs.push(edge_job(edge, (e) => e.purgeUrl(key)));
 	await settle_all('invalidate(tags)', jobs);
 	return [...keys];
 }
@@ -182,15 +195,34 @@ export function begin_flight(key: string): (outcome: FlightOutcome) => void {
 
 // ── invalidation fan-out ───────────────────────────────────────────────────────────────────────
 // Fan-out lives HERE, not in adapters: store evict + allSettled purge across every edge.
-// One edge being down never fails the publish — failures surface as warnings, not throws.
+// Neither the store nor an edge being down fails the publish: each failure surfaces as a warning
+// naming what failed, never a throw.
 
-async function settle_all(label: string, jobs: Promise<unknown>[]): Promise<void> {
-	const results = await Promise.allSettled(jobs);
-	for (const r of results) {
-		if (r.status === 'rejected') {
-			console.warn(`[ogygia] postrender.${label}: an edge purge failed —`, r.reason);
-		}
-	}
+/** One fan-out call and what it reached (named in the warning when it fails). */
+interface Job {
+	what: string;
+	run: Promise<unknown>;
+}
+
+/** A call as a promise, a synchronous throw included. */
+const attempt = (call: () => Promise<unknown>): Promise<unknown> => Promise.resolve().then(call);
+
+const store_job = (op: string, call: () => Promise<unknown>): Job => ({
+	what: `the store failed to ${op}`,
+	run: attempt(call)
+});
+
+const edge_job = (edge: EdgeAdapter, call: (edge: EdgeAdapter) => Promise<unknown>): Job => ({
+	what: `the purge at edge "${edge.name}" failed`,
+	run: attempt(() => call(edge))
+});
+
+async function settle_all(label: string, jobs: readonly Job[]): Promise<void> {
+	const results = await Promise.allSettled(jobs.map((job) => job.run));
+	results.forEach((r, i) => {
+		if (r.status === 'rejected')
+			console.warn(`[ogygia] postrender.${label}: ${jobs[i].what} —`, r.reason);
+	});
 }
 
 /** A function stamped by the `import.meta.og.source` macro (core's data sources). */
@@ -208,8 +240,8 @@ export async function invalidate(target: string | SourceFn, args?: unknown[]): P
 	if (typeof target === 'string') {
 		record({ domain: 'server', name: 'server.postrender', op: 'invalidate', url: target });
 		const { store, edges } = current_runtime();
-		const jobs: Promise<unknown>[] = [store.evict(target)];
-		for (const edge of edges) jobs.push(edge.purgeUrl(target));
+		const jobs = [store_job(`evict ${target}`, () => store.evict(target))];
+		for (const edge of edges) jobs.push(edge_job(edge, (e) => e.purgeUrl(target)));
 		await settle_all('invalidate', jobs);
 		// peers file the pages that baked THIS route under `p:<me>:<path>` — tell them
 		notify_thaw([`p:${target}`]);
@@ -234,8 +266,8 @@ export async function invalidateWhere(filter: { prefix: string }): Promise<void>
 	const prefix = normalize_prefix(filter.prefix);
 	record({ domain: 'server', name: 'server.postrender', op: 'invalidate-where', url: prefix });
 	const { store, edges } = current_runtime();
-	const jobs: Promise<unknown>[] = [store.evictWhere({ prefix })];
-	for (const edge of edges) jobs.push(edge.purgeWhere({ prefix }));
+	const jobs = [store_job(`evict prefix ${prefix}`, () => store.evictWhere({ prefix }))];
+	for (const edge of edges) jobs.push(edge_job(edge, (e) => e.purgeWhere({ prefix })));
 	await settle_all('invalidateWhere', jobs);
 	// a subtree nuke has no per-page receipts to name — peers thaw EVERYTHING they baked from
 	// this app (the safe over-approximation; `{ prefix: '/' }` is also the manual deploy thaw)

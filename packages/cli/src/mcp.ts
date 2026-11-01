@@ -275,8 +275,10 @@ const TOOLS = [
 			'`interaction` one), then returns the ACTUAL runtime story per island from the devtools event bus: ' +
 			'SSR → wire → connected → woke → hydrated (with timings), plus anomalies (SSR’d-but-never-connected, ' +
 			'hydration failures), and for an app with a server transform any host the restore reached too late or ' +
-			'could not put back exactly. Requires the app to be a devtools build (OGYGIA_DEVTOOLS=1) and Playwright ' +
-			'installed. Use this to see what really happened instead of reasoning from source.',
+			'could not put back exactly. Requires `devtools()` from `@ogygia/devtools/vite` listed beside `ogygia()` ' +
+			'in the app’s vite.config (its dock on, the default) and Playwright installed. On the dev server the ' +
+			'stream is always on; on a build, add `?og-devtools=on` to the URL so the server’s half of the story ' +
+			'is in it too. Use this to see what really happened instead of reasoning from source.',
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -309,8 +311,9 @@ const TOOLS = [
 			'A bare path is accepted too, but then the tool just asks you for the URL (and lists any local ' +
 			'server it can see). Records N renders and returns a digest: verdict (compute- vs io-bound), render ' +
 			'p50, CPU findings, time-by-category, hottest functions + components (Svelte names each after its ' +
-			'file), network, heap. Self-heals a stuck session (auto /reset + retry). Requires the app to mount ' +
-			'profiler() in hooks.server.ts (the tool tells you how if missing). Prod build = real numbers; dev ' +
+			'file), network, heap. Self-heals a stuck session (auto /reset + retry). Requires the profiler ' +
+			'turned on: `devtools({ profiler: true })` from `@ogygia/devtools/vite` in the app’s vite.config ' +
+			'(the tool tells you how if missing). Prod build = real numbers; dev ' +
 			'is indicative (the digest says which). For a report you already downloaded, use ogygia_profile_open.',
 		inputSchema: {
 			type: 'object',
@@ -706,7 +709,9 @@ function restore_section(
 async function tool_debug(args: Attrs): Promise<ToolResult> {
 	const url = String(args.url ?? '');
 	if (!url)
-		return fail('`url` is required — a page of a running ogygia app built with OGYGIA_DEVTOOLS=1.');
+		return fail(
+			'`url` is required — a page of a running ogygia app with `devtools()` (from `@ogygia/devtools/vite`) in its vite.config.'
+		);
 	const wait = typeof args.wait === 'number' ? Math.min(Math.max(args.wait, 200), 8000) : 2500;
 	const do_scroll = args.scroll !== false;
 	const click_sel = typeof args.click === 'string' ? args.click : '';
@@ -757,8 +762,9 @@ async function tool_debug(args: Attrs): Promise<ToolResult> {
 		);
 		if (!has_hook)
 			return fail(
-				`${url} loaded, but window.__ogygia_devtools is absent — the app is not a devtools build. Run its dev/build with ` +
-					`OGYGIA_DEVTOOLS=1 (or list the devtools plugin beside ogygia() in vite.config: \`plugins: [ogygia(), devtools(), sveltekit()]\`), then retry.`
+				`${url} loaded, but window.__ogygia_devtools is absent — the app runs without the devtools. List them beside ` +
+					`ogygia() in vite.config (\`import { devtools } from '@ogygia/devtools/vite'\`, then ` +
+					`\`plugins: [ogygia(), devtools(), sveltekit()]\`, the dock left on), restart the dev server or rebuild, then retry.`
 			);
 		await page.waitForTimeout(wait);
 		if (do_scroll) {

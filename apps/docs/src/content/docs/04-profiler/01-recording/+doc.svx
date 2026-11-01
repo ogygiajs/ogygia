@@ -247,7 +247,7 @@ Each store is a factory in its own entry point, so the database client you do no
 
 The database client packages (`better-sqlite3`, `redis` or `ioredis`, `pg`) are not dependencies of `@ogygia/devtools`, so install the one your store needs. For a serverless host, pick Redis or Postgres, since every instance has to reach the same store; SQLite suits a single long-lived server.
 
-After each write, the profiler trims the store to its newest `maxReports × 8` reports, and never to fewer than 200.
+After each write, the profiler trims the store to its newest `maxReports × 8` reports, and never to fewer than 200. A window's requests are trimmed by the store itself: SQLite, Redis and Postgres each keep the newest 2,000 per window, which is as many as the window reads back when it stops.
 
 ### Writing your own store
 
@@ -265,7 +265,7 @@ A store is any object that satisfies the `ProfilerStore` interface from `@ogygia
 | `putVisit(visit)` · `listVisits(page, limit?)` | no       | Write and read the requests of a server window. Without them, a window sees only its own instance's requests. |
 | `close()`                                      | no       | Releases connections.                                                                                         |
 
-A record (`ProfilerRecord`) has a few summary fields for the list, `id`, `created` (epoch ms), `page`, `trigger`, `label` and `median`, plus `dump`: the report's portable JSON as a string, the same data the `.ogp` export and the dump download carry. A visit row (`ProfilerVisitRecord`) is `{ key, page, at, visit }`, where `page` groups the rows that `listVisits` returns together and `visit` is also a JSON string. Nothing in a record is encrypted, because a store is infrastructure you run yourself, so treat its contents like the profiler's own pages.
+A record (`ProfilerRecord`) has a few summary fields for the list, `id`, `created` (epoch ms), `page`, `trigger`, `label` and `median`, plus `dump`: the report's portable JSON as a string, the same data the `.ogp` export and the dump download carry. A visit row (`ProfilerVisitRecord`) is `{ key, page, at, visit }`, where `page` groups the rows that `listVisits` returns together and `visit` is also a JSON string. A window writes all its requests under one `page` and asks for up to 2,000 of them, so keep at least that many rows per `page`. Nothing in a record is encrypted, because a store is infrastructure you run yourself, so treat its contents like the profiler's own pages.
 
 ## The sink: the whole site from ephemeral instances
 

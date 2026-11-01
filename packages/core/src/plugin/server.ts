@@ -8,6 +8,7 @@ import type { RequestContext, ResolveOptions, ServerApp, ServerPlugin } from './
 import { current_facts, facts_of, mark_per_visitor, type RequestFacts } from './facts.ts';
 import { ask, notify, register_hooks } from './hooks.ts';
 import { route_config } from './routes.ts';
+import { plugin_capabilities, type CapabilitySigner } from './capability.ts';
 import { record_server_event } from '../events/server-registry.ts';
 
 /** One plugin's server half as the build lists it (`virtual:ogygia/server-plugins`). */
@@ -23,11 +24,9 @@ export interface LivePlugin {
 	app: ServerApp<unknown>;
 }
 
-/** The app's signer, handed in by the handle (it holds the region key). */
-export interface AppSigner {
-	sign(message: string): string;
-	verify(message: string, signature: string): boolean;
-}
+/** The app's signer, handed in by the handle (it holds the region key, and answers a refused
+ *  capability the way it answers a refused region request). */
+export type AppSigner = CapabilitySigner;
 
 /** Make each plugin live, in order: app, shared hooks, `setup`. */
 export function start_plugins(
@@ -45,6 +44,7 @@ export function start_plugins(
 			current: current_facts,
 			sign: signer.sign,
 			verify: signer.verify,
+			capability: plugin_capabilities(name, signer),
 			devtools: record_server_event,
 			warn(message) {
 				if (warned.has(message)) return;

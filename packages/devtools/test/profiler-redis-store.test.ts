@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { redisStore } from '../src/profiler/storage/redis.ts';
+import { MAX_VISITS_PER_KEY } from '../src/profiler/storage/visits.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The Redis store against two in-memory clients shaped like node-redis (camelCase, options objects)
@@ -126,10 +127,11 @@ describe('redis store', () => {
 			await s.prune!(2);
 			expect((await s.listReports()).map((r) => r.id)).toEqual(['r4', 'r3']);
 			expect(f.kv.has('og:report:r0')).toBe(false);
-			for (let i = 0; i < 30; i++)
+			const n = MAX_VISITS_PER_KEY + 10;
+			for (let i = 0; i < n; i++)
 				await s.putVisit!({ key: `/p\0${i}`, page: '/p', at: i, visit: '{}' });
-			expect(f.z.get('og:visit:z:/p')!.size).toBe(20);
-			expect((await s.listVisits!('/p', 3)).map((v) => v.at)).toEqual([29, 28, 27]);
+			expect(f.z.get('og:visit:z:/p')!.size).toBe(MAX_VISITS_PER_KEY);
+			expect((await s.listVisits!('/p', 3)).map((v) => v.at)).toEqual([n - 1, n - 2, n - 3]);
 			expect(f.kv.has('og:visit:/p\u00000')).toBe(false);
 		});
 	}

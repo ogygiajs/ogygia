@@ -10,7 +10,8 @@ import type { PluginDefinition } from '@ogygia/core/vite';
 import { postrender as postrenderPlugin } from '../src/vite.ts';
 import server, { type PostrenderServerOptions } from '../src/server.ts';
 import { postrender } from '../src/index.ts';
-import { reset_for_tests } from '../src/registry.ts';
+import { install, reset_for_tests } from '../src/registry.ts';
+import { memory_store } from '../src/memory-store.ts';
 
 /** the definition `definePlugin` put on the Vite plugin */
 const definition = (plugin: ReturnType<typeof postrenderPlugin>) =>
@@ -75,5 +76,31 @@ describe('the server realm, started', () => {
 	it('answers `lastBuild`: nothing the first time, the previous build after that', async () => {
 		expect(await ask.lastBuild('v1')).toBeUndefined();
 		expect(await ask.lastBuild('v2')).toBe('v1');
+	});
+
+	it('remembers the build past the pages’ TTL: a deploy a month later still finds it', async () => {
+		const puts: { key: string; ttl: number }[] = [];
+		const store = memory_store();
+		const put = store.put.bind(store);
+		store.put = (key, entry, options) => {
+			puts.push({ key, ttl: options.ttl });
+			return put(key, entry, options);
+		};
+		install({ store });
+		const now = vi.spyOn(Date, 'now');
+		const t0 = Date.now();
+		now.mockReturnValue(t0);
+		try {
+			expect(await ask.lastBuild('v1')).toBeUndefined();
+			now.mockReturnValue(t0 + 30 * 86_400_000);
+			expect(await ask.lastBuild('v1')).toBe('v1'); // the same build booting again
+			now.mockReturnValue(t0 + 60 * 86_400_000);
+			expect(await ask.lastBuild('v2')).toBe('v1');
+			// written on every ask, never under the pages' one-day cap
+			expect(puts).toHaveLength(3);
+			for (const p of puts) expect(p.ttl).toBeGreaterThan(365 * 86_400);
+		} finally {
+			now.mockRestore();
+		}
 	});
 });

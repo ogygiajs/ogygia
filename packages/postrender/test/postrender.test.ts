@@ -16,8 +16,10 @@ import {
 	join_flight,
 	begin_flight,
 	invalidate,
-	invalidateWhere
+	invalidateWhere,
+	invalidate_tags
 } from '../src/registry.ts';
+import server from '../src/server.ts';
 import { observe_event } from '../src/observe.ts';
 import { find_stitch_holes, stitch_html } from '../src/stitch.ts';
 import type { PostrenderEntry, PostrenderStore, EdgeAdapter } from '../src/types.ts';
@@ -330,6 +332,48 @@ describe('postrender/registry', () => {
 		expect(calls).toContain('b:url:/gone/');
 		await invalidateWhere({ prefix: '/fr/fr/' });
 		expect(calls).toContain('a:prefix:/fr/fr');
+		warn.mockRestore();
+	});
+
+	it('a store that throws is reported as the store, and the rest of the invalidation still runs', async () => {
+		const purged: string[] = [];
+		const edge: EdgeAdapter = {
+			name: 'cdn',
+			headers: () => ({}),
+			purgeUrl: async (url) => void purged.push(url),
+			purgeWhere: async ({ prefix }) => void purged.push(`prefix:${prefix}`)
+		};
+		const broken: PostrenderStore = {
+			get: async () => null,
+			put: async () => {},
+			evict: () => Promise.reject(new Error('store down')),
+			evictWhere: () => {
+				throw new Error('store down'); // even a synchronous throw
+			},
+			evictByTag: async (tag) => {
+				if (tag === 's:bad:1') throw new Error('store down');
+				return ['/good/'];
+			}
+		};
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const said = () => warn.mock.calls.map((c) => String(c[0]));
+		const runtime = install({ store: broken, edge: [edge] });
+
+		// tags: the failing one is named, the other still evicts and its page is purged at the edge
+		expect(await invalidate_tags(['s:bad:1', 's:good:1'], runtime)).toEqual(['/good/']);
+		expect(purged).toEqual(['/good/']);
+		expect(said()).toContainEqual(expect.stringContaining('the store failed to evict tag s:bad:1'));
+		// the shared `invalidate` hook (a peer's thaw notice) never throws either
+		await expect(server.invalidate!(['s:bad:1'])).resolves.toBeUndefined();
+
+		// a url and a prefix: the edge still purges, and the warning blames the store, not an edge
+		await invalidate('/x/');
+		await invalidateWhere({ prefix: '/fr/' });
+		expect(purged).toContain('/x/');
+		expect(purged).toContain('prefix:/fr');
+		expect(said()).toContainEqual(expect.stringContaining('the store failed to evict /x/'));
+		expect(said()).toContainEqual(expect.stringContaining('the store failed to evict prefix /fr'));
+		expect(said().some((s) => s.includes('edge'))).toBe(false);
 		warn.mockRestore();
 	});
 });

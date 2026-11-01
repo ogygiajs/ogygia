@@ -12,7 +12,10 @@ import { mount } from '../src/mount.ts';
 import { mint_hole, set_hole_signer } from '../src/hole.ts';
 import { sign_headers, verify_signed_request, lift_document } from '../src/wire.ts';
 import { set_federation } from '../src/registry.ts';
+import { install_federation, serve_federation } from '../src/serve.ts';
+import { fed_app } from '../src/app.ts';
 import fed_server from '../src/server.ts';
+import type { RequestEvent } from '@sveltejs/kit';
 import { routes } from '@ogygia/router';
 import { startPlugin } from '@ogygia/core/plugin/testing';
 // (core internals a test drives: the running code's request)
@@ -31,6 +34,7 @@ const doc_json = (extra: Record<string, unknown> = {}, status = 200) =>
 
 afterEach(() => {
 	vi.unstubAllGlobals();
+	vi.restoreAllMocks(); // a clock a failed test left mocked
 	set_federation(null);
 	set_current_request(null);
 	set_hole_signer(null);
@@ -68,6 +72,28 @@ describe('peer transport — one per remote app', () => {
 		await new Promise((r) => setTimeout(r, 0));
 		expect((await cms.doc('/p', '')).body).toBe('v2'); // refreshed
 		expect(calls).toBe(2);
+		now.mockRestore();
+	});
+
+	it('a stale refresh that answers an error document never replaces the good copy', async () => {
+		let calls = 0;
+		vi.stubGlobal('fetch', async () =>
+			++calls === 1
+				? new Response(doc_json({ body: 'good' }))
+				: new Response(doc_json({ body: 'oops' }, 500))
+		);
+		const now = vi.spyOn(Date, 'now');
+		const t0 = 1_000_000;
+		now.mockReturnValue(t0);
+		const cms = make_peer('cms', { origin: 'http://mfe.test', cache: { ttl: 1000 } }, 'shell');
+		expect((await cms.doc('/p', '')).body).toBe('good');
+
+		now.mockReturnValue(t0 + 5000); // past ttl: this read starts a refresh, which answers a 500
+		expect((await cms.doc('/p', '')).body).toBe('good');
+		await new Promise((r) => setTimeout(r, 0));
+		expect(calls).toBe(2);
+		// the same rule as the first fill: the error is not kept, the good copy still answers
+		expect((await cms.doc('/p', '')).body).toBe('good');
 		now.mockRestore();
 	});
 
@@ -327,6 +353,86 @@ describe('remote regions', () => {
 		const hole = mint_hole('cms', 'page', '/p', '');
 		expect(hole.kind).toBe('deferred');
 		expect((hole as { url: string }).url).toBe('');
+	});
+});
+
+describe('deferred remote holes — the lifetime and renewal of a local hole', () => {
+	const now_sec = () => Math.floor(Date.now() / 1000);
+	/** Mint a deferred remote hole the way a render does (the handle's signer installed). */
+	async function mint(storable = false): Promise<URL> {
+		install_federation(fed_app()!);
+		const request = new Request('http://shell/x');
+		set_current_request(() => request);
+		if (storable) facts_of(request).storable = true;
+		const { cms } = federate({ name: 'shell', peers: { cms: { origin: 'http://cms.test' } } });
+		const hole = await cms.page('/p', { render: 'deferred' });
+		set_current_request(null);
+		return new URL((hole as { url: string }).url, 'http://shell');
+	}
+	/** The runtime's one retry of an expired capability (runtime/region-endpoint-url.ts). */
+	const renewal = (url: URL) => `${url.pathname}${url.search}&renew=1`;
+	/** Ask the shell's hole endpoint for `url`, as the browser does. */
+	const ask_hole = (url: URL | string) => {
+		const u = new URL(url, 'http://shell');
+		return serve_federation({
+			url: u,
+			request: new Request(u),
+			cookies: { get: () => undefined },
+			locals: {}
+		} as unknown as RequestEvent);
+	};
+
+	beforeEach(() =>
+		vi.stubGlobal('fetch', async () => new Response(doc_json({ body: '<p>remote</p>' })))
+	);
+
+	it('expires in SECONDS, by the app’s rule: the `ttl` window, or the life of the deploy on a stored page', async () => {
+		const plain = Number((await mint()).searchParams.get('exp'));
+		expect(plain).toBeGreaterThan(now_sec());
+		expect(plain).toBeLessThanOrEqual(now_sec() + 3600); // the app's `ttl` (an hour by default)
+		const stored = Number((await mint(true)).searchParams.get('exp'));
+		expect(stored).toBeGreaterThan(now_sec() + 365 * 24 * 3600); // what a local hole gets
+		// the url keeps exp + sig as its tail, which a region's identity cuts off
+		expect([...(await mint()).searchParams.keys()].slice(-2)).toEqual(['exp', 'sig']);
+	});
+
+	it('answers a live hole with the fragment', async () => {
+		const res = await ask_hole(await mint());
+		expect(res!.status).toBe(200);
+		expect(await res!.text()).toContain('<p>remote</p>');
+	});
+
+	it('an expired hole is answered as an expired local one, and the runtime’s renewal re-signs it', async () => {
+		const now = vi.spyOn(Date, 'now');
+		const t0 = Date.now();
+		now.mockReturnValue(t0);
+		const url = await mint();
+		now.mockReturnValue(t0 + 2 * 3600_000); // two hours later: past the window
+		// the runtime tells an expired capability from its url's `exp`, in seconds …
+		expect(Number(url.searchParams.get('exp'))).toBeLessThan(now_sec());
+		// … sees the region endpoint's refusal …
+		const expired = await ask_hole(url);
+		expect(expired!.status).toBe(403);
+		expect(expired!.headers.get('x-ogygia-deny')).toBe('expired');
+		// … and retries once with `&renew=1`: the hole AND its fresh capability
+		const renewed = await ask_hole(renewal(url));
+		expect(renewed!.status).toBe(200);
+		expect(await renewed!.text()).toContain('<p>remote</p>');
+		const fresh = new URL(renewed!.headers.get('x-ogygia-capability')!, 'http://shell');
+		expect(fresh.pathname).toBe('/og/frag');
+		expect(fresh.searchParams.has('renew')).toBe(false);
+		expect(Number(fresh.searchParams.get('exp'))).toBeGreaterThan(now_sec());
+		expect((await ask_hole(fresh))!.status).toBe(200);
+		now.mockRestore();
+	});
+
+	it('refuses a forged hole and a renewal of one that has not expired', async () => {
+		const url = await mint();
+		const forged = new URL(url);
+		forged.searchParams.set('target', '/admin');
+		expect((await ask_hole(forged))!.headers.get('x-ogygia-deny')).toBe('sig');
+		const early = await ask_hole(renewal(url));
+		expect(early!.headers.get('x-ogygia-deny')).toBe('renew-window');
 	});
 });
 

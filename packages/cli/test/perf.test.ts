@@ -8,6 +8,7 @@ import { measure, snapshot_page, type PerfSnapshot, type ReportLike } from '../s
 import { verdict, DEFAULT_BUDGET } from '../src/perf/compare.ts';
 import { markdown, summary } from '../src/perf/report.ts';
 import { bisect } from '../src/perf/bisect.ts';
+import { number_arg } from '../src/perf/cli.ts';
 
 const report = (over: Partial<ReportLike> = {}): ReportLike => ({
 	node: 'v26',
@@ -291,5 +292,18 @@ describe('bisect', () => {
 		});
 		expect(r.skipped).toEqual(['a']);
 		expect(r.culprit).toBe('b');
+	});
+});
+
+describe('number flags', () => {
+	it('`--margin 0` is a margin of 0, not the default', () => {
+		expect(number_arg(['--margin', '0'], '--margin', 0.5)).toBe(0);
+		expect(number_arg(['--margin', '0.25'], '--margin', 0.5)).toBe(0.25);
+	});
+	it('absent, empty or not a number → the default', () => {
+		expect(number_arg([], '--margin', 0.5)).toBe(0.5);
+		expect(number_arg(['--margin'], '--margin', 0.5)).toBe(0.5);
+		expect(number_arg(['--margin', '--ready', '9'], '--margin', 0.5)).toBe(0.5);
+		expect(number_arg(['--margin', 'half'], '--margin', 0.5)).toBe(0.5);
 	});
 });

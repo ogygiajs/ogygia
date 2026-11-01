@@ -13,6 +13,7 @@ import {
 	type CtxLike,
 	type FlagSource
 } from '../src/index.ts';
+import { openfeature } from '../src/openfeature.ts';
 import type { StandardSchemaV1 } from '@ogygia/core/plugin/utils';
 import { startPlugin } from '@ogygia/core/plugin/testing';
 import server from '../src/server.ts';
@@ -227,6 +228,51 @@ describe('decide + source — the OpenFeature seam (any resolver)', () => {
 		await prime_flags(c);
 		expect(a(c)).toBe(true);
 		expect(b(c)).toBe('bold');
+	});
+});
+
+describe('decide + source — the source sees the visitor a read hashes on', () => {
+	const seen_by_source = async (c: CtxLike) => {
+		const seen: Array<CtxLike['visitor']> = [];
+		decide({ source: (_q, sc) => (seen.push(sc.visitor), {}) });
+		flag('sees-visitor');
+		await prime_flags(c);
+		return seen;
+	};
+
+	it('the og-vid cookie (no router identity above the router) → `{ sub, anonymous }`', async () => {
+		expect(await seen_by_source(ctx('http://s/x', { vid: 'v-42' }))).toEqual([
+			{ sub: 'v-42', anonymous: true }
+		]);
+	});
+
+	it('carried claims win over the cookie; a router visitor wins over both', async () => {
+		const claims = { sub: 'u-1', experiments: {} };
+		expect(await seen_by_source(ctx('http://s/x', { vid: 'v', claims }))).toEqual([claims]);
+		expect(await seen_by_source(ctx('http://s/x', { vid: 'v', claims, sub: 'r-1' }))).toEqual([
+			{ sub: 'r-1' }
+		]);
+	});
+
+	it('anonymous → no visitor', async () => {
+		expect(await seen_by_source(ctx())).toEqual([undefined]);
+	});
+
+	it("openfeature()'s default context gets the visitor as its targetingKey", async () => {
+		const contexts: unknown[] = [];
+		const client = {
+			async getBooleanValue(_k: string, d: boolean, context?: unknown) {
+				contexts.push(context);
+				return d;
+			},
+			getStringValue: async (_k: string, d: string) => d
+		};
+		decide({ source: openfeature(client) });
+		flag('of-targeting');
+		await prime_flags(ctx('http://s/x', { vid: 'v-7' }));
+		expect(contexts.length).toBeGreaterThan(0);
+		for (const context of contexts)
+			expect(context).toEqual({ sub: 'v-7', anonymous: true, targetingKey: 'v-7' });
 	});
 });
 

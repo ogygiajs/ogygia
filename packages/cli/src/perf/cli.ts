@@ -7,7 +7,7 @@
  *               [--md perf-comment.md] [--label "$GITHUB_SHA"] [--no-fail]
  *
  *   ogygia bisect --good <sha> --bad <sha> --page /slow --build "pnpm build" --start "node build"
- *                 --url http://127.0.0.1:3000 [--key $SECRET] [--runs 3] [--margin 0.5] [--ready 30000]
+ *                 --url http://127.0.0.1:3000 [--key $SECRET] [--runs 3] [--margin 0.5] [--ready 60000]
  */
 import { spawn, execSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -25,6 +25,15 @@ function arg(argv: string[], name: string): string | undefined {
 	return v && !v.startsWith('--') ? v : '';
 }
 const has = (argv: string[], name: string) => argv.includes(name);
+
+/** A number flag: its value whenever it parses, `0` included (`Number(v) || d` turns a real 0 into
+ *  the default); `fallback` when the flag is absent, empty or not a number. */
+export function number_arg(argv: string[], name: string, fallback: number): number {
+	const raw = arg(argv, name);
+	if (raw === undefined || raw.trim() === '') return fallback;
+	const n = Number(raw);
+	return Number.isFinite(n) ? n : fallback;
+}
 
 function read_json<T>(file: string | undefined): T | null {
 	if (!file || !existsSync(file)) return null;
@@ -133,7 +142,7 @@ export async function runBisect(argv: string[]): Promise<number> {
 	}
 	const runs = Number(arg(argv, '--runs')) || 3;
 	const key = arg(argv, '--key') ?? process.env.OGYGIA_PROFILER_SECRET;
-	const margin = Number(arg(argv, '--margin')) || 0.5;
+	const margin = number_arg(argv, '--margin', 0.5);
 	const ready_ms = Number(arg(argv, '--ready')) || 60_000;
 	const build_ms = Number(arg(argv, '--build-timeout')) || 15 * 60_000;
 	const repo = process.cwd();

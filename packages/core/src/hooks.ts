@@ -73,8 +73,8 @@ import dev_hmr_url from 'virtual:ogygia/dev-hmr-url';
 import { kit_asset as asset } from './kit-paths.ts';
 import devtools_boot_url from 'virtual:ogygia/devtools-boot-url';
 import { sign, verify, region_mac_message } from './server/hmac.ts';
-import { note_cache_control, renewable_expiry } from './server/shared-cache.ts';
-import { regionTtl, renewWindow } from 'virtual:ogygia/region-ttl';
+import { expiry_refusal, note_cache_control } from './server/shared-cache.ts';
+import { app_lifetime } from './server/region-endpoint.ts';
 import { render_cache_key, cached_render } from './server/render-cache.ts';
 import { B64Url } from './server/payload.ts';
 import { REF_WIRE_KEY, ref_reviver } from './ref.ts';
@@ -98,8 +98,7 @@ import {
 	islands_endpoint,
 	MAX_REGION_PROPS_LEN,
 	is_region_id,
-	is_region_ttl,
-	capability_expiry
+	is_region_ttl
 } from './server/endpoint.ts';
 import { build_parcel, done_parcel } from './server/stream-regions.ts';
 import {
@@ -435,10 +434,13 @@ set_page_route_config(route_config);
 // PLUGINS (listed beside `ogygia()`): each one's server half, live — its app made, its shared hooks
 // registered, its `setup` run — once, when this module loads.
 // Their `app.sign` / `app.verify` use the region key, read at first use (an env the host fills after
-// module eval still counts).
+// module eval still counts). Their `app.capability` lives and renews by the app's own hole lifetime,
+// and a refused one is answered like a refused region request.
 const plugins = start_plugins(plugin_entries, {
 	sign: (message) => sign(signing_key().secret, message),
-	verify: (message, signature) => verify(signing_key().secret, message, signature)
+	verify: (message, signature) => verify(signing_key().secret, message, signature),
+	lifetime: app_lifetime,
+	deny: region_denied
 });
 // DEVTOOLS: per-request event buffers, keyed off the request bag by a side WeakMap so RequestBag stays
 // pristine (and free) when devtools is off. GC'd with the bag; never a global ring (which would mix
@@ -1768,13 +1770,13 @@ class OgygiaHandle {
 			!is_region_ttl(cap.ttl)
 		)
 			return 'shape';
-		const now = Math.floor(Date.now() / 1000);
-		if (renewal) {
-			if (!renewable_expiry(cap.exp, now, renewWindow)) return 'renew-window';
-		} else {
-			const exp = Number(cap.exp);
-			if (!Number.isFinite(exp) || exp < now) return 'expired';
-		}
+		const expiry = expiry_refusal(
+			cap.exp,
+			Math.floor(Date.now() / 1000),
+			renewal,
+			app_lifetime.renew_window
+		);
+		if (expiry) return expiry;
 		if (foreign_key(cap.k)) return 'foreign-key';
 		return null;
 	}
@@ -1798,7 +1800,7 @@ class OgygiaHandle {
 			)
 		)
 			return null;
-		const exp = String(capability_expiry(Math.floor(Date.now() / 1000), regionTtl));
+		const exp = String(app_lifetime.renewed_expiry());
 		return {
 			...cap,
 			exp,

@@ -73,6 +73,17 @@ const KIT_DEFERRED_BOOT_RE = /const deferred = new Map\(\);/;
 
 /** The build marker key in the store (NUL-prefixed: no page path can collide with it). */
 const BUILD_MARKER_KEY = '\0og:build';
+/** How long the store keeps the build marker: ten years. It records a fact (the last build this
+ *  store saw), not a page, so the pages' TTL backstop must not apply to it: a deploy a month after
+ *  the last one still has to find it. */
+const BUILD_MARKER_TTL_SEC = 10 * 365 * 24 * 3600;
+
+/** The TTL backstop on read: a stored entry older than `ttl` seconds is a miss. A store with native
+ *  expiry has dropped it already; one without (a custom store) still lets its pages expire. An
+ *  entry with no usable creation time cannot be aged, and is a miss too. */
+function within_ttl(entry: PostrenderEntry, ttl: number, now: number = Date.now()): boolean {
+	return Number.isFinite(entry.created) && now - entry.created < ttl * 1000;
+}
 
 /** The two setup mistakes the read path can see, with the line that fixes each. */
 const SEQUENCE_LINE = 'export const handle = sequence(postrender.handle(), ogygia.handle());';
@@ -352,7 +363,8 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			return;
 		}
 		const hit = await store_get(runtime, path);
-		if (hit) {
+		// (an entry past its TTL is a miss: the render below stores a fresh one over it)
+		if (hit && within_ttl(hit, ctx.options.ttl)) {
 			ctx.app.devtools({ domain: 'server', name: 'server.postrender', op: 'hit', url: path });
 			return serve(hit, 'hit', ctx);
 		}
@@ -428,17 +440,18 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 		await invalidate_tags(tags);
 	},
 
-	// SHARED HOOK — deploy thaw: remember this build, answer the one the store saw before.
+	// SHARED HOOK — deploy thaw: remember this build, answer the one the store saw before. Written on
+	// every ask (once per boot), not only on a change: a store that dropped the marker anyway (memory
+	// pressure, a custom store that caps the TTL) has it again from the next boot on.
 	async lastBuild(version) {
 		const { store } = current_runtime();
 		const marker = await store.get(BUILD_MARKER_KEY);
 		const seen = marker?.kind === 'page' ? marker.html : undefined;
-		if (seen !== version)
-			await store.put(
-				BUILD_MARKER_KEY,
-				{ kind: 'page', html: version, headers: {}, created: Date.now() },
-				{ ttl: 86_400, tags: [] }
-			);
+		await store.put(
+			BUILD_MARKER_KEY,
+			{ kind: 'page', html: version, headers: {}, created: Date.now() },
+			{ ttl: BUILD_MARKER_TTL_SEC, tags: [] }
+		);
 		return seen;
 	}
 });

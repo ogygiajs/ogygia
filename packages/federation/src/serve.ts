@@ -32,7 +32,6 @@ import {
 import type { Federation, Peer } from './types.ts';
 
 const HOLE_PATH = '/og/frag';
-const HOLE_TTL_MS = 5 * 60_000; // a signed hole URL is good for 5 min (re-minted every render)
 
 /** Every configured peer's public keys — the authorized-caller set for an inbound request. */
 function inbound_verify(fed: Federation): VerifyConfig {
@@ -42,22 +41,20 @@ function inbound_verify(fed: Federation): VerifyConfig {
 }
 
 /** The HMAC-signed message for a deferred hole capability (peer + kind + target + search + exp). */
-const hole_message = (peer: string, kind: string, target: string, search: string, exp: number) =>
+const hole_message = (peer: string, kind: string, target: string, search: string, exp: string) =>
 	`frag.${peer}.${kind}.${target}.${search}.${exp}`;
 
-/** Install the hole signer: the app's own region key signs it (`app.sign`). Idempotent. */
+/**
+ * Install the hole signer: a deferred hole is one of the app's own capabilities (`app.capability`),
+ * so it lives as long as a local hole would on the same page (for the life of the deploy on a page
+ * postrender stores or a shared cache keeps), and once expired the runtime renews it the same way.
+ * Idempotent.
+ */
 export function install_federation(app: ServerApp): void {
-	set_hole_signer(({ peer, kind, target, search }) => {
-		const exp = Date.now() + HOLE_TTL_MS;
-		const sig = app.sign(hole_message(peer, kind, target, search ?? '', exp));
-		const q = new URLSearchParams({
-			peer,
-			kind,
-			target,
-			search: search ?? '',
-			exp: String(exp),
-			sig
-		});
+	set_hole_signer(({ peer, kind, target, search = '' }) => {
+		const { exp, sig } = app.capability.mint((e) => hole_message(peer, kind, target, search, e));
+		// `exp` + `sig` last: the volatile tail a region's identity cuts off
+		const q = new URLSearchParams({ peer, kind, target, search, exp, sig });
 		return `${HOLE_PATH}?${q}`;
 	});
 }
@@ -227,11 +224,12 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 	const kind = p.get('kind') ?? '';
 	const target = p.get('target') ?? '';
 	const search = p.get('search') ?? '';
-	const exp = Number(p.get('exp') ?? '0');
-	const sig = p.get('sig') ?? '';
-	if (!Number.isFinite(exp) || exp < Date.now()) return new Response('gone', { status: 410 });
-	if (!fed_app()?.verify(hole_message(peer_name, kind, target, search, exp), sig))
-		return new Response('forbidden', { status: 403 });
+	// expired, renewal, bad signature: answered as a region hole is (a 403 the runtime renews once)
+	const opened = fed_app()?.capability.open(url, (e) =>
+		hole_message(peer_name, kind, target, search, e)
+	);
+	if (!opened) return new Response('forbidden', { status: 403 });
+	if (!opened.ok) return opened.response;
 	const peer = fed.peers.get(peer_name);
 	if (!peer) return new Response('unknown peer', { status: 404 });
 
@@ -243,29 +241,35 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 		locals: event.locals
 	});
 	const traceparent = child_traceparent(event.request.headers.get('traceparent')).traceparent;
+	// (a renewal's answer carries the fresh capability, which the runtime adopts for later fetches)
+	const answer = (html: string) => hole_html(html, opened.headers);
 	try {
 		if (kind === 'widget') {
 			const props: Record<string, string> = {};
 			for (const [k, v] of new URLSearchParams(search)) props[k] = v;
 			const wdoc = await peer.widgetDoc(target, props, { claims, traceparent });
-			return hole_html(wdoc.html);
+			return answer(wdoc.html);
 		}
 		const doc = await peer.doc(target, search, claims, traceparent);
 		if (doc.location)
-			return hole_html(
+			return answer(
 				`<p data-og-moved>This section moved. <a href="${doc.location}">Continue</a></p>`
 			);
-		return hole_html((doc.css?.join('') ?? '') + (doc.head ?? '') + doc.body);
+		return answer((doc.css?.join('') ?? '') + (doc.head ?? '') + doc.body);
 	} catch {
-		return hole_html('', 200);
+		return answer('');
 	}
 }
 
 /** A hole response: the runtime swaps this HTML into the region element and its islands wake. */
-function hole_html(html: string, status = 200): Response {
+function hole_html(html: string, headers: Record<string, string>): Response {
 	return new Response(html, {
-		status,
-		headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }
+		status: 200,
+		headers: {
+			'content-type': 'text/html; charset=utf-8',
+			'cache-control': 'no-store',
+			...headers
+		}
 	});
 }
 
