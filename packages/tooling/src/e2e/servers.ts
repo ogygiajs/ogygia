@@ -6,6 +6,13 @@
 // - stdout/stderr are captured, and a boot timeout throws WITH the log tail.
 import { spawn, type ChildProcess } from 'node:child_process';
 
+/** A port a suite owns, moved up by `E2E_PORT_OFFSET`: when one machine runs a suite as several
+ *  groups at once (`pnpm test:e2e`), each group's servers sit in their own range. Every fixed port
+ *  a spec or suite config uses goes through this. */
+export function port(base: number): number {
+	return base + Number(process.env.E2E_PORT_OFFSET || 0);
+}
+
 export interface SpawnServerOptions {
 	cmd: string;
 	args: string[];

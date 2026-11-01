@@ -11,8 +11,9 @@ core); unchanged suites replay from the cache.
 ## Run
 
 ```bash
-pnpm test:e2e                                   # every package's suite, through turbo (one at a time)
+pnpm test:e2e                                   # every package's suite, side by side in lanes (this one split by file)
 pnpm test:e2e:fast                              # the same, reusing each fixture app's existing build
+pnpm test:e2e:serial                            # every suite through turbo, one at a time (cached)
 pnpm turbo run e2e --filter=palaestra           # this suite only (its libraries built first)
 pnpm --filter palaestra e2e split-brain         # one spec (libraries already built)
 E2E_NO_BUILD=1 pnpm --filter palaestra e2e      # reuse the existing palaestra build

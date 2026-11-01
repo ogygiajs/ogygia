@@ -31,7 +31,7 @@ import { fileURLToPath } from 'node:url';
 import type { Browser, Page } from '@playwright/test';
 import { test, expect, check, sleep, REPO } from '@ogygia/tooling/e2e';
 import { pack_ogygia, use_packed } from '@ogygia/tooling/e2e/packed.ts';
-import { spawn_server } from '@ogygia/tooling/e2e/servers.ts';
+import { spawn_server, port } from '@ogygia/tooling/e2e/servers.ts';
 
 /** Thrown by a boot when the emulator's tool isn't installed — reported as SKIP, not FAIL. */
 class SkipError extends Error {}
@@ -60,8 +60,9 @@ const FIXTURE = join(HERE, 'fixture');
 const WORK = join(HERE, '.work');
 const APP = join(WORK, 'app');
 // A fresh port per adapter (PORT_BASE + its index in ADAPTERS) so a server that's slow to release
-// never blocks the next adapter from binding.
-const PORT_BASE = 3097;
+// never blocks the next adapter from binding. (3120–3126: clear of every other suite's ports, which
+// run side by side under `pnpm test:e2e`.)
+const PORT_BASE = port(3120);
 
 const only_list = (process.env.E2E_ADAPTERS ?? '')
 	.split(',')
