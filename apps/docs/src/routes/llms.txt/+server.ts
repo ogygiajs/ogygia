@@ -6,7 +6,7 @@ export const prerender = true;
 
 export const GET = docs.emit.llms({
 	base: '/docs',
-	origin: 'https://ogygia.puruvj.dev',
+	origin: 'https://ogygiajs.dev',
 	title: 'Ogygia',
 	description: 'Astro-style SSR islands for SvelteKit — no Kit patches.'
 });
