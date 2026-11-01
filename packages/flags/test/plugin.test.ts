@@ -44,6 +44,25 @@ describe('the server realm', () => {
 	});
 });
 
+describe('the server realm primes the source with the visitor', () => {
+	it("the event's og-vid cookie reaches the source as `c.visitor`", async () => {
+		const seen: unknown[] = [];
+		flag('plugin-test-visitor');
+		decide({ source: (_q, c) => (seen.push(c.visitor), {}) });
+		try {
+			const request = new Request('http://x/');
+			const cookies = {
+				get: (n: string) => (n === 'og-vid' ? 'v-9' : undefined),
+				getAll: () => []
+			};
+			await server.request!(ctx(request, { cookies } as never));
+			expect(seen).toEqual([{ sub: 'v-9', anonymous: true }]);
+		} finally {
+			decide({ source: undefined });
+		}
+	});
+});
+
 describe('facts a read reports', () => {
 	it('a read is a per-visitor read (a stored page never keeps one variant) and an assignment', () => {
 		const hero = flag('plugin-test-hero', { a: 1, b: 1 });

@@ -22,7 +22,7 @@ export type PostrenderEntry =
 			head_end?: number;
 			/** Headers to replay on a hit (content-type + the verdict's cache-control + edge extras). */
 			headers: Record<string, string>;
-			/** Epoch ms at store time — TTL backstop math on the read side for stores without EX. */
+			/** Epoch ms at store time — the read side's TTL backstop (a page older than the TTL is a miss). */
 			created: number;
 			/** The shell contains serve-time STITCH holes: every serve re-renders them with the
 			 *  visitor's request and splices — per-visitor responses, `private, no-store`, no
@@ -38,8 +38,10 @@ export type PostrenderEntry =
 
 /** Options `put` receives beyond the entry. */
 export interface PostrenderPutOptions {
-	/** TTL backstop in seconds (≤ 86400). Stores with native expiry (valkey EX) use it directly;
-	 *  others compare against `entry.created` on read. */
+	/** How long to keep the entry, in seconds: for a page, the TTL backstop (≤ 86400); for the build
+	 *  marker the deploy thaw keeps (a NUL-prefixed key), years. A store with native expiry (valkey
+	 *  EX) uses it directly. Either way postrender also ages a page on read against `entry.created`,
+	 *  so a page from a store without expiry is a miss once it is older than the TTL. */
 	ttl: number;
 	/** Source receipts recorded during the render (`s:<id>:<fp>` from `import.meta.og.source`
 	 *  wrappers) — the REVERSE INDEX feeding `evictByTag`. Empty/omitted = no receipts. */

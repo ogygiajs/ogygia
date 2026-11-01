@@ -87,6 +87,7 @@ import {
 } from './report.ts';
 import { load_lane_of } from './timeline.ts';
 import { parse_visit, merge_visits, type Visit } from './visit.ts';
+import { MAX_VISITS_PER_KEY } from './storage/visits.ts';
 import { hole_slots } from './hole-slots.ts';
 import {
 	client_windows,
@@ -4326,7 +4327,7 @@ class Profiler {
 	> {
 		if (!this.#store?.listVisits) return [];
 		try {
-			const rows = await this.#store.listVisits(WINDOW_PAGE_PREFIX + id, 2000);
+			const rows = await this.#store.listVisits(WINDOW_PAGE_PREFIX + id, MAX_VISITS_PER_KEY);
 			return rows.map((r) => JSON.parse(r.visit)).sort((a, b) => a.at - b.at);
 		} catch {
 			return [];

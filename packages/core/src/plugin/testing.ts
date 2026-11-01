@@ -11,6 +11,8 @@ import type { RequestContext, ServerApp, ServerPlugin } from './index.ts';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { facts_of } from './facts.ts';
 import { request_contexts, start_plugins, type AppSigner } from './server.ts';
+import { capability_lifetime } from '../server/capability-lifetime.ts';
+import { RENEW_WINDOW_SEC } from '../server/shared-cache.ts';
 
 // ── route config: read the lookup a plugin's `ctx.routeConfig()` reads, and set its two worlds up
 /** This request's value for `key` (a registered router's merged config, else the Kit page's baked
@@ -29,7 +31,16 @@ const TEST_SIGNER: AppSigner = {
 		const want = Buffer.from(createHmac('sha256', TEST_KEY).update(message).digest('base64url'));
 		const got = Buffer.from(signature);
 		return want.length === got.length && timingSafeEqual(want, got);
-	}
+	},
+	// the app's hole lifetime with ogygia's defaults (`ttl` an hour, `maxPageAge` eight days)
+	lifetime: capability_lifetime({
+		building: false,
+		region_ttl: 3600,
+		renew_window: RENEW_WINDOW_SEC,
+		request: () => null
+	}),
+	// the handle's refusal, without its framing headers
+	deny: (why) => new Response('Forbidden', { status: 403, headers: { 'x-ogygia-deny': why } })
 };
 
 export interface StartedPlugin<Options, State> {

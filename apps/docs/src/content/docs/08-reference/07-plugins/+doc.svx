@@ -323,6 +323,7 @@ declare module 'ogygia/plugin' {
 | `notify` · `ask`                               | Call the shared hooks (above).                                                                              |
 | `facts(request)` · `current()`                 | A request's facts. `current()` finds the request the running code belongs to (a load, a render), or `null`. |
 | `sign(message)` · `verify(message, signature)` | The app's region key, as HMAC. The key itself is never handed out.                                          |
+| `capability`                                   | `mint` and `open` a signed URL for an endpoint the plugin serves, with the lifetime and renewal of a hole.  |
 | `devtools(event)`                              | Record an event into the current request's devtools stream. A no-op unless devtools is on for that browser. |
 | `warn(message)`                                | Warn once per message, prefixed with the plugin's name.                                                     |
 

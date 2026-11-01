@@ -151,6 +151,33 @@ describe('postrender.handle() after ogygia.handle()', () => {
 	});
 });
 
+describe('the TTL backstop on read', () => {
+	/** A store with no expiry of its own: it keeps whatever it is given until it is evicted. */
+	function keeping_store(): PostrenderStore {
+		const map = new Map<string, PostrenderEntry>();
+		return {
+			get: async (key) => map.get(key) ?? null,
+			put: async (key, entry) => void map.set(key, entry),
+			evict: async (key) => void map.delete(key),
+			evictWhere: async () => {}
+		};
+	}
+
+	it('a page older than the ttl is a miss, even from a store that never expires it', async () => {
+		const ctx = start({ ttl: 60, default: true });
+		const store = keeping_store();
+		await store.put('/fresh', page_entry(), { ttl: 60 });
+		await store.put('/stale', { ...page_entry(), created: Date.now() - 61_000 }, { ttl: 60 });
+		const handle = postrender.handle({ store });
+		const fresh = ctx('/fresh');
+		await run(handle, fresh.event);
+		expect(via(await server.page!(fresh))).toBe('hit');
+		const stale = ctx('/stale');
+		await run(handle, stale.event);
+		expect(await server.page!(stale)).toBeUndefined(); // rendered again (and stored over it)
+	});
+});
+
 describe('Kit’s `config` decides eligibility', () => {
 	it('`config.postrender: false` on the route turns the read path off (default on)', async () => {
 		setPageRouteConfig({ '/p': { postrender: false } });

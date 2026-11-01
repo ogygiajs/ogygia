@@ -154,10 +154,10 @@ export const shell_router = routes({
 
 `page()` takes the route path (and an optional `search`), and `widget()` takes the widget name and its props. Both take the **region dials** as a trailing argument:
 
-| dial                         | behavior                                                                                                                                      | in a stored shell                                                                                                                                 |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `render: 'static'` (default) | one buffered signed hop during this render; the fragment HTML is baked into the page                                                          | baked into the stored bytes; cleared by a notice from the peer                                                                                    |
-| `render: 'deferred'`         | a hole; the browser fetches it from the shell's own signed endpoint, which derives the visitor's claims at hole time and forwards to the peer | per-visitor, but its URL expires 5 minutes after the render ([see below](#a-remote-fragment-is-a-region-deferred-remote-regions-on-stored-pages)) |
+| dial                         | behavior                                                                                                                                      | in a stored shell                                                                                                                          |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `render: 'static'` (default) | one buffered signed hop during this render; the fragment HTML is baked into the page                                                          | baked into the stored bytes; cleared by a notice from the peer                                                                             |
+| `render: 'deferred'`         | a hole; the browser fetches it from the shell's own signed endpoint, which derives the visitor's claims at hole time and forwards to the peer | per-visitor; its URL lives as long as a local hole's ([see below](#a-remote-fragment-is-a-region-deferred-remote-regions-on-stored-pages)) |
 
 For a static region, `claims` in the dials are the visitor claims signed into that one hop, and without them the hop carries no visitor. A deferred region ignores `claims` and always derives them from `federate({ visitor })` at hole time. The fragment's CSS travels with it and is hoisted to `<head>`, and the islands inside wake by themselves once the HTML lands.
 
@@ -167,9 +167,9 @@ For a static region, `claims` in the dials are the visitor claims signed into th
 
 ### Deferred remote regions on stored pages
 
-A deferred remote region's hole URL is signed with a **fixed five-minute expiry** when the shell renders. When the browser asks for it later than that, the shell's endpoint answers `410 Gone` and the region keeps its placeholder. Unlike a local deferred hole, which is signed for the life of the deploy on a stored page and can be renewed once it expires, a remote hole is never re-signed.
+A deferred remote region's hole URL is one of the shell's own signed capabilities, so it lives exactly as long as a local deferred hole on the same page would. On a page that [postrender](/docs/data-state/postrender) stores, it is signed for the life of the deploy. On a page whose load marks it as shared-cacheable, it is signed for the page's cache lifetime, and anywhere else for the app's [`ttl`](/docs/reference/api#ogygiavite-ttl), an hour by default. A copy that outlived its hole anyway, such as an old tab or a page a cache kept past that, renews the hole when it wakes: the shell's endpoint answers the expired URL the way it answers an expired local hole, and re-signs it for up to [`maxPageAge`](/docs/reference/api#ogygiavite-maxpageage) after it expired.
 
-In practice this affects any copy of the shell that is served more than five minutes after it rendered: a page kept by [postrender](/docs/data-state/postrender), a page a CDN caches for longer than that, and a tab that only fetches the hole after five minutes. Until remote holes get the same lifetime as local ones, keep routes with deferred remote regions out of postrender (`export const config = { postrender: false }`), don't let a shared cache keep them longer than five minutes, and use static remote regions on pages you store. A static region is baked into the stored bytes and cleared by the peer's [thaw notices](#cross-app-thaw).
+Routes with deferred remote regions can therefore be stored like any other page. The shell is kept once, and each visitor's hole still fetches fresh, with claims from that visitor's own session. A static remote region is the other choice on a stored page: it is baked into the stored bytes and cleared by the peer's [thaw notices](#cross-app-thaw).
 
 ## Mount a whole app: `mount(peer)`
 
@@ -299,7 +299,7 @@ This is why a fragment is a region. A remote fragment baked into a shell page is
 
 - A pure shell never sends a deploy thaw, because only producers check.
 - The check needs a store plugin that answers it. [Postrender](/docs/data-state/postrender) does, keeping the last build id in its store, and without postrender nothing remembers a build and nothing is sent.
-- The store has to outlive the process. Postrender's default memory store starts empty on every boot, so it never sees an earlier build; use a shared store (`valkey`, `upstash` or `cloudflareKv`). Postrender also keeps the build id for at most 24 hours, so a deploy that comes more than a day after the last one is not detected.
+- The store has to outlive the process. Postrender's default memory store starts empty on every boot, so it never sees an earlier build; use a shared store (`valkey`, `upstash` or `cloudflareKv`). There, postrender keeps the build id apart from the pages' TTL and writes it again on every boot, so a deploy is detected however long after the last one it comes.
 
 `deploy: 'manual'` turns the check off. To thaw by hand after a deploy, call `postrender.invalidateWhere({ prefix: '/' })` on the producer, which sends every peer a thaw-all.
 
@@ -321,7 +321,7 @@ Beyond authenticity, the signature gives you three properties:
 
 Claims are **signed, not encrypted**, which gives you integrity but not confidentiality. Run the hops over TLS so that visitor ids and roles cannot be read on the wire.
 
-A deferred region's hole runs `visitor()` on the shell at hole time, with the browser's cookies, so an anonymous shell can still serve personal holes, as long as the browser fetches the hole within five minutes of the render (see [Deferred remote regions on stored pages](#a-remote-fragment-is-a-region-deferred-remote-regions-on-stored-pages)).
+A deferred region's hole runs `visitor()` on the shell at hole time, with the browser's cookies, so an anonymous shell can still serve personal holes, even from a stored copy (see [Deferred remote regions on stored pages](#a-remote-fragment-is-a-region-deferred-remote-regions-on-stored-pages)).
 
 ### Key rotation
 

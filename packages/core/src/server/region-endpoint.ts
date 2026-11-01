@@ -4,16 +4,15 @@
  */
 import { signing_key } from './signing-key.ts';
 import { sessionCookie } from 'virtual:ogygia/session-cookie';
-import { regionTtl } from 'virtual:ogygia/region-ttl';
+import { regionTtl, renewWindow } from 'virtual:ogygia/region-ttl';
 import { sign, region_mac_message } from 'virtual:ogygia/sign';
 // (`resolve('/__ogygia__')` reads the same on Kit 2, which wants the leading slash, and Kit 3, which
 // takes it as a route ID with no params — the same pathname)
 import { resolve } from '$app/paths';
 import { building } from '$app/env';
 import { getRequestEvent } from 'virtual:ogygia/request-event';
-import { islands_endpoint, MAX_REGION_PROPS_LEN, capability_expiry } from './endpoint.ts';
-import { current_facts } from '../plugin/facts.ts';
-import { document_shared_lifetime, mint_ttl_sec } from './shared-cache.ts';
+import { islands_endpoint, MAX_REGION_PROPS_LEN } from './endpoint.ts';
+import { capability_lifetime, type CapabilityLifetime } from './capability-lifetime.ts';
 import { encode_region_props } from './region-props.ts';
 import { stringify } from 'devalue';
 import { record_server_event } from '../events/server-registry.ts';
@@ -44,6 +43,15 @@ function current_request(): Request | null {
 		return null;
 	}
 }
+
+/** The app's capability lifetime, bound to its settings: every hole it signs (these, and the
+ *  plugins' `app.capability`, which the handle hands it) expires and renews by this one rule. */
+export const app_lifetime: CapabilityLifetime = capability_lifetime({
+	building,
+	region_ttl: regionTtl,
+	renew_window: renewWindow,
+	request: current_request
+});
 
 /** Session sealed into the MAC when `ogygia({ sessionCookie })` is set; empty at prerender. */
 function region_session(): string {
@@ -100,24 +108,10 @@ export function known_region_fps(): ReadonlySet<string> {
  */
 export function mint_region_capability(entry: string, payload: string, ttl = 0): string {
 	const session = region_session();
-	// Prerendered (real PPR): the capability lives in a static file that outlives any TTL — mint it
-	// effectively-forever (props are public in the HTML; session sealed empty). A render a plugin may
-	// store (`facts.storable`) is the prerender case at request time — the stored HTML outlives
-	// `ttl`, so its holes mint prerender-grade too (a stored page must never carry expired
-	// hole URLs). An anonymous
-	// hole on a document the app marked shared-cacheable (a load's `cache-control`) outlives that
-	// cache life (server/shared-cache.ts). Everything else keeps the short `ttl` window so
-	// harvested URLs age out.
-	const stored = building || current_facts()?.storable === true;
-	const exp = capability_expiry(
-		Math.floor(Date.now() / 1000),
-		mint_ttl_sec({
-			stored,
-			session,
-			shared: stored || session !== '' ? 0 : document_shared_lifetime(current_request()),
-			region_ttl: regionTtl
-		})
-	);
+	// The app's one lifetime rule (server/capability-lifetime.ts): prerender-grade on a stored or
+	// prerendered page (props are public in the HTML; session sealed empty there), past the shared
+	// cache's life for an anonymous hole on a cacheable document, else the short `ttl` window.
+	const exp = app_lifetime.mint_expiry(session);
 	const key = signing_key();
 	// A hole is dynamic by default (`ttl` 0 → the handle answers `no-store`); a positive `ttl` opts
 	// into a `private, max-age=ttl` browser cache. Empty string when 0 keeps the MAC field stable.

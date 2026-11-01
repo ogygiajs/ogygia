@@ -82,7 +82,8 @@ over guessing** what the transform (or the running app) does:
   lets islands hydrate (scrolls for `visible`; pass `click` to wake an `interaction` one), and returns the
   ACTUAL per-island story from the devtools bus: SSR → wire → connected → woke → hydrated (with ms), plus
   anomalies (SSR'd-but-never-connected, hydration failures). Use it to see what really happened when an
-  island misbehaves. Requires the app to run with `OGYGIA_DEVTOOLS=1` and Playwright installed.
+  island misbehaves. Requires `devtools()` (from `'@ogygia/devtools/vite'`, dock on) beside `ogygia()` in
+  vite.config and Playwright installed; on a build, pass the URL with `?og-devtools=on` for the server half.
 - `ogygia_profile({ url })` — **SSR cost.** Runs the ogygia SSR profiler on a route (N renders) and digests
   its report: verdict (compute/io-bound), render p50, CPU findings, where the time went by category, the
   hottest functions + components, network calls, heap growth (+ links to the full report/.cpuprofile). Use
@@ -299,7 +300,7 @@ A dependency ships islands, marked components, or whole route tables by declarin
 - `importKeys` — rename the `with { }` attribute keys the transform claims
 - `barrels: true | { packages?, force?, keep?, importers?, followPackages?, report?, debug? }` — barrel imports → leaf imports at transform time (dev graph + build chunk graph hold only used leaves). `true` = every PURE project barrel (only imports/re-exports/types); dependencies opt-in via `packages` (dev pre-bundling would double a bypassed dep leaf); `force` rewrites an impure barrel and keeps `import 'barrel'`; marked imports (`with { wake }` …) are NEVER rewritten (use `asRegion` for a barrel binding). Same pass standalone: `debarrel()` from `'ogygia/vite'`. Build prints a report: 8 biggest barrels + count (`report: 'all'` = every barrel, `false` = silent)
 
-Env: `OGYGIA_SECRET` (stable MACs + island-id salt across deploys; required for PPR; prod rejects short secrets) · `ORIGIN` (Kit CSRF — POSTs 403 without it) · `OGYGIA_PROFILER_SECRET` (profiler UI auth in prod) · `OGYGIA_DEVTOOLS=1` (devtools-enabled run, needed by `ogygia_debug`) · federation keys are app-chosen names from `npx ogygia keys` (passed explicitly, never auto-read).
+Env: `OGYGIA_SECRET` (stable MACs + island-id salt across deploys; required for PPR; prod rejects short secrets) · `ORIGIN` (Kit CSRF — POSTs 403 without it) · `OGYGIA_PROFILER_SECRET` (profiler UI auth in prod) · federation keys are app-chosen names from `npx ogygia keys` (passed explicitly, never auto-read).
 
 Event layer: `ogygia/events` (`add_sink`, `snapshot`), compiled in only when a plugin asks (devtools does). Tests: `@ogygia/testing` (`withOgygia(test, expect)`; the server under test lists `devtools()`).
 
