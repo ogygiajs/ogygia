@@ -1,5 +1,11 @@
 # @ogygia/core
 
+## 0.11.1
+
+### Patch Changes
+
+- [#95](https://github.com/ogygiajs/ogygia/pull/95) [`aab90f7`](https://github.com/ogygiajs/ogygia/commit/aab90f7c2cf6bd15d17bdf9e293646cd9a8cc3ff) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The "uses ogygia marks, but its package declares no ogygia.files" warning fires only for a real marked import, not for a dependency whose comments, strings or error messages merely mention `with { wake }` (the plugin packages tripped it).
+
 ## 0.11.0
 
 ### Patch Changes

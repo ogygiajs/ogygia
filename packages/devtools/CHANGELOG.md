@@ -1,5 +1,13 @@
 # @ogygia/devtools
 
+## 0.11.1
+
+### Patch Changes
+
+- [#92](https://github.com/ogygiajs/ogygia/pull/92) [`2f00bdb`](https://github.com/ogygiajs/ogygia/commit/2f00bdb6749e13ccecefcf907bda50f9b46cc811) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `@ogygia/router` is a dependency of `@ogygia/devtools`, not an optional peer: the profiler's UI is rendered through it, so turning the profiler on no longer needs it installed by hand.
+- Updated dependencies [[`aab90f7`](https://github.com/ogygiajs/ogygia/commit/aab90f7c2cf6bd15d17bdf9e293646cd9a8cc3ff)]:
+  - @ogygia/core@0.11.1
+
 ## 0.11.0
 
 ### Patch Changes
