@@ -106,6 +106,98 @@ client.get('/posts/[id]');
 // @ts-expect-error — the body must match the schema output
 client.post('/posts', { body: { wrong: true } });
 
+// THE KEY TYPES A PAGE'S LOAD AND ACTIONS the same way: strict `c.params`, bare or wrapped, top
+// level, under nested layouts, behind `when()`; the load's return still reaches `$infer` as is.
+import { load, action, type Load } from '../src/index.ts';
+const pick = { __ogpick: () => C };
+const keyedPages = routes({
+	'/kp/[id]': page(C, {
+		load: (c) => {
+			expect_type<Equal<typeof c.params, { id: string }>>(true);
+			return { post: c.params.id };
+		},
+		actions: { save: (c) => ({ saved: c.params.id }) }
+	}),
+	'/kw/[id]': page(C, {
+		load: load((c) => ({ wrapped: c.params.id })),
+		actions: { save: action((c) => ({ saved: c.params.id })) }
+	}),
+	'/kd/[...rest]': page(C, { load: (c) => ({ rest: c.params.rest }) }),
+	'/[[lang]]/kl': page(C, { load: (c) => ({ lang: c.params.lang }) }),
+	...admin({
+		...deep({
+			'/ka/[a]/[b]': page(C, { load: load((c) => ({ a: c.params.a, b: c.params.b })) })
+		})
+	}),
+	'/kg/[id]': when(
+		() => true,
+		page(C, { load: (c) => ({ gated: c.params.id }), actions: { go: (c) => c.params.id } })
+	),
+	// the other component slots: a pick, a streamed page
+	'/kpick/[id]': page(pick, { load: (c) => ({ picked: c.params.id }) }),
+	'/kstream/[id]': page(
+		async function* () {
+			yield 'x';
+		},
+		{ load: (c) => ({ streamed: c.params.id }) }
+	),
+	// a `params` schema wins over the key; a `search` schema types `c.search`
+	'/ks/[id]': page(C, {
+		params: NumId,
+		search: NumId as unknown as StandardSchemaV1<{ q: number }>,
+		load: (c) => {
+			expect_type<Equal<typeof c.params, { id: number }>>(true);
+			expect_type<Equal<typeof c.search, { q: number }>>(true);
+			return { n: c.params.id };
+		}
+	}),
+	'/ksw/[id]': page(C, { params: NumId, load: load((c) => ({ n: c.params.id })) })
+});
+type KApp = typeof keyedPages.$infer;
+expect_type<Equal<KApp['/kp/[id]']['data'], { post: string }>>(true);
+expect_type<Equal<KApp['/kp/[id]']['form'], { saved: string } | null>>(true);
+expect_type<Equal<KApp['/kw/[id]']['data'], { wrapped: string }>>(true);
+expect_type<Equal<KApp['/kw/[id]']['form'], { saved: string } | null>>(true);
+expect_type<Equal<KApp['/kd/[...rest]']['data'], { rest: string }>>(true);
+expect_type<Equal<KApp['/[[lang]]/kl']['data'], { lang: string | undefined }>>(true);
+expect_type<Equal<KApp['/ka/[a]/[b]']['data'], { a: string; b: string }>>(true);
+expect_type<Equal<KApp['/kg/[id]']['data'], { gated: string }>>(true);
+expect_type<Equal<KApp['/kg/[id]']['form'], string | null>>(true);
+expect_type<Equal<KApp['/kpick/[id]']['data'], { picked: string }>>(true);
+expect_type<Equal<KApp['/kstream/[id]']['data'], { streamed: string }>>(true);
+expect_type<Equal<KApp['/ks/[id]']['data'], { n: number }>>(true);
+expect_type<Equal<KApp['/ks/[id]']['params'], { id: number }>>(true);
+expect_type<Equal<KApp['/ksw/[id]']['data'], { n: number }>>(true);
+expect_type<Equal<KApp['/kp/[id]']['params'], { id: string }>>(true);
+
+// A page built OUTSIDE a table stays loose (indexable params), and still fits any key.
+const loosePage = page(C, {
+	load: (c) => {
+		expect_type<Equal<typeof c.params, { [x: string]: string | undefined }>>(true);
+		return { any: c.params.whatever };
+	}
+});
+const otherLoad: Load<'/other/[slug]'> = (c) => c.params.slug;
+routes({
+	'/loose/[id]': loosePage,
+	// @ts-expect-error — the key has no `slug`: a page's load reads strict params too
+	'/kbad1/[id]': page(C, { load: (c) => c.params.slug }),
+	// @ts-expect-error — and its actions
+	'/kbad2/[id]': page(C, { actions: { x: (c) => c.params.slug } }),
+	// @ts-expect-error — the `load()` wrapper is strict the same way
+	'/kbad3/[id]': page(C, { load: load((c) => c.params.slug) }),
+	// @ts-expect-error — the `action()` wrapper too
+	'/kbad4/[id]': page(C, { actions: { x: action((c) => c.params.slug) } }),
+	// @ts-expect-error — behind `when()`
+	'/kbad5/[id]': when(() => true, page(C, { load: (c) => c.params.slug })),
+	...admin({
+		// @ts-expect-error — inside a layout's table
+		'/kbad6/[id]': page(C, { load: (c) => c.params.slug })
+	}),
+	// @ts-expect-error — a load typed for another route does not fit this key
+	'/kbad7/[id]': page(C, { load: otherLoad })
+});
+
 // Merged cascade: shell load ∧ page load.
 const _home: App['/']['data'] = { user: 'x', featured: ['a'] };
 // Schema-coerced params (number, not string).

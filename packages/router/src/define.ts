@@ -45,9 +45,18 @@ export type AnyComponent = Component<never>;
 /** A load is a CALLABLE, memoized per request: `await session_load(c)` runs `.run(c)` once per
  *  request (the memo lives on `c`), so a layout and its child sharing a load never double-fetch —
  *  Kit's `parent()`, generalized. `pattern` (optional) binds `c.params` AND is checked against the
- *  table key at assembly. `$infer` reads `Data`. */
-export interface LoadDef<Data = unknown, P extends string = string> {
-	(c: Ctx): Promise<Data>;
+ *  table key at assembly. `$infer` reads `Data`. `Prm`/`Srch` are the params and search its `c` was
+ *  typed with: the page's (its key's params or its schemas' output) when written in a page's `load`
+ *  slot, loose elsewhere. They type the call, so a loose load (a shared one) fits any page, and its
+ *  call signature matches a bare load's — which is what lets a bare `(c) => …` in the same slot keep
+ *  its contextual type. */
+export interface LoadDef<
+	Data = unknown,
+	P extends string = string,
+	Prm = LooseParams,
+	Srch = Record<string, string>
+> {
+	(c: Ctx<Prm, Srch>): Promise<Data>;
 	readonly __ogload: true;
 	readonly pattern: P | undefined;
 	readonly run: (c: Ctx) => Data | Promise<Data>;
@@ -61,12 +70,16 @@ function memo_of(c: Ctx): LoadMemo {
 }
 
 /** `load(fn)` / `load(pattern, fn)`. The returned function memoizes on `c` (run once per request);
- *  the dispatcher's concurrent branch-load pass and any `await other_load(c)` share the same promise. */
-export function load<Data>(run: (c: Ctx) => Data | Promise<Data>): LoadDef<Awaited<Data>, string>;
-export function load<Data, P extends string>(
+ *  the dispatcher's concurrent branch-load pass and any `await other_load(c)` share the same promise.
+ *  In a page's `load` slot, `load(fn)` takes the page's params through its contextual return type
+ *  (like a verb wrapper); anywhere else they are loose. */
+export function load<Data, Prm = LooseParams, Srch = Record<string, string>>(
+	run: (c: Ctx<Prm, Srch>) => Data | Promise<Data>
+): LoadDef<Awaited<Data>, string, Prm, Srch>;
+export function load<Data, P extends string, Srch = Record<string, string>>(
 	pattern: P,
-	run: (c: Ctx<Params<P>>) => Data | Promise<Data>
-): LoadDef<Awaited<Data>, P>;
+	run: (c: Ctx<Params<P>, Srch>) => Data | Promise<Data>
+): LoadDef<Awaited<Data>, P, Params<P>, Srch>;
 export function load(
 	a: string | ((c: Ctx) => unknown),
 	b?: (c: Ctx) => unknown
@@ -90,19 +103,28 @@ export function load(
 
 /** A form action def (symmetric with `load`): `action(fn)` / `action(pattern, fn)`. Returns
  *  `fail(...)` for validation, throws `redirect()` on success, or returns data for the `form` prop —
- *  Kit's action contract. `pattern` types `c.params`; `$infer` reads `Ret` into the `form` prop. */
-export interface ActionDef<Ret = unknown, P extends string = string> {
-	(c: Ctx): Ret | Promise<Ret>;
+ *  Kit's action contract. `pattern` types `c.params`; `$infer` reads `Ret` into the `form` prop.
+ *  `Prm`/`Srch` are the params and search its `c` was typed with (see {@link LoadDef}). */
+export interface ActionDef<
+	Ret = unknown,
+	P extends string = string,
+	Prm = LooseParams,
+	Srch = Record<string, string>
+> {
+	(c: Ctx<Prm, Srch>): Ret | Promise<Ret>;
 	readonly __ogaction: true;
 	readonly pattern: P | undefined;
 }
 
-/** `action(fn)` / `action(pattern, fn)` — one form action. Called once on POST (no memoization). */
-export function action<Ret>(run: (c: Ctx) => Ret | Promise<Ret>): ActionDef<Awaited<Ret>, string>;
-export function action<Ret, P extends string>(
+/** `action(fn)` / `action(pattern, fn)` — one form action. Called once on POST (no memoization).
+ *  In a page's `actions`, `action(fn)` takes the page's params like `load(fn)` does. */
+export function action<Ret, Prm = LooseParams, Srch = Record<string, string>>(
+	run: (c: Ctx<Prm, Srch>) => Ret | Promise<Ret>
+): ActionDef<Awaited<Ret>, string, Prm, Srch>;
+export function action<Ret, P extends string, Srch = Record<string, string>>(
 	pattern: P,
-	run: (c: Ctx<Params<P>>) => Ret | Promise<Ret>
-): ActionDef<Awaited<Ret>, P>;
+	run: (c: Ctx<Params<P>, Srch>) => Ret | Promise<Ret>
+): ActionDef<Awaited<Ret>, P, Params<P>, Srch>;
 export function action(
 	a: string | ((c: Ctx) => unknown),
 	b?: (c: Ctx) => unknown
@@ -118,18 +140,33 @@ export function action(
 /** Either load form `page()` / `layout()` accept: the `load()` value wrapper OR a bare typed fn. */
 export type LoadInput = LoadDef | ((c: Ctx) => unknown);
 export type ActionInput = ActionDef | ((c: Ctx) => unknown);
+/** A page's `load` slot, given the params and search its `c` reads: a `load()` wrapper (which takes
+ *  `P` from this) or a bare fn. */
+type PageLoad<P, S> = LoadDef<unknown, string, P, S> | ((c: Ctx<P, S>) => unknown);
+/** One of a page's `actions` (mirrors {@link PageLoad}). */
+type PageAction<P, S> = ActionDef<unknown, string, P, S> | ((c: Ctx<P, S>) => unknown);
+/** A page's `c.params`: its `params` schema's output, else the key's (`P`). */
+type PageParams<P, PS> = [PS] extends [StandardSchemaV1] ? InferOutput<PS> : P;
+/** A page's `c.search`: its `search` schema's output, else the raw query. */
+type PageSearch<SS> = [SS] extends [StandardSchemaV1] ? InferOutput<SS> : Record<string, string>;
 
 /** The `+page.server.ts`-shaped second argument to `page()`. Always an object (ruled). Route input is
  *  declared here (`params`/`search` schemas — coerced, typed into `c`, shown in `$infer`); `load` and
  *  `actions` are the behaviors (each a wrapper or a bare typed fn). Actions read `FormData` themselves
- *  (Kit-identical) — no action schema; typed mutation input is a `command` RF, not a form action. */
-export interface PageServer {
+ *  (Kit-identical) — no action schema; typed mutation input is a `command` RF, not a form action.
+ *  `page()` instantiates it with what it infers; the bare `PageServer` is the loose shape. */
+export interface PageServer<
+	PS = StandardSchemaV1,
+	SS = StandardSchemaV1,
+	Ld = LoadInput,
+	A = Record<string, ActionInput>
+> {
 	/** Coerce + validate path params (garbage → 404); `c.params` and `App['/p']['params']` = its output. */
-	params?: StandardSchemaV1;
+	params?: PS;
 	/** Coerce + validate query (bad → 400, or lenient via `.default()`); `c.search` + `App['/p']['search']`. */
-	search?: StandardSchemaV1;
-	load?: LoadInput;
-	actions?: Record<string, ActionInput>;
+	search?: SS;
+	load?: Ld;
+	actions?: A;
 	/** PRERENDER param sets for a DYNAMIC pattern — Kit's per-route `entries` export. Each item
 	 *  fills the pattern (`/posts/[id]` + `{ id: '1' }` → `/posts/1`) and joins the router's
 	 *  `entries()` crawl list; a dynamic page without this is skipped (crawled or SSR'd live). */
@@ -143,13 +180,15 @@ export interface PageServer {
 
 /** A page route def, generic over its layout chain / load / actions so `$infer` reads them. `L` is
  *  the OUTERMOST-first layout chain (empty = no chrome); the runtime prepends to it as `layout(...)()`
- *  wraps this entry's table. `Load`/`Actions` keep the AUTHORED form (wrapper or bare fn) for infer. */
+ *  wraps this entry's table. `Load`/`Actions` keep the AUTHORED form (wrapper or bare fn) for infer.
+ *  `KeyParams` is what `page()` took from its table key (loose outside a table) — see {@link PageFor}. */
 export interface PageDef<
 	L extends readonly LayoutDef[] = readonly LayoutDef[],
 	Load = unknown,
 	Actions = unknown,
 	ParamsSchema = undefined,
-	SearchSchema = undefined
+	SearchSchema = undefined,
+	KeyParams = LooseParams
 > {
 	readonly __ogkind: 'page';
 	/** The page component, a per-request `ComponentPick` (`page(flag.pick({...}))`), or a
@@ -167,18 +206,27 @@ export interface PageDef<
 	/** the page's own `config` — see {@link PageServer.config} */
 	readonly config?: RouteConfig;
 	readonly layouts: L;
-	/** phantom — carries the authored load/actions/schema types to `$infer`; never read at runtime */
-	readonly __types?: { load: Load; actions: Actions; params: ParamsSchema; search: SearchSchema };
+	/** phantom — carries the authored load/actions/schema types to `$infer`, and the key's params to
+	 *  `page()`; never read at runtime. `key` is a METHOD, so bivariant: a page built with loose params
+	 *  (outside a table, or by a plugin) fits any key. */
+	readonly __types?: {
+		load: Load;
+		actions: Actions;
+		params: ParamsSchema;
+		search: SearchSchema;
+		key(params: KeyParams): void;
+	};
 }
 
 /** Normalize a bare function to a memoized LoadDef; a `load()` wrapper passes through. */
-export function to_load(input: LoadInput | undefined): LoadDef | undefined {
+export function to_load(input: PageLoad<never, never> | undefined): LoadDef | undefined {
 	if (!input) return undefined;
 	if ((input as LoadDef).__ogload) return input as LoadDef;
 	return load(input as (c: Ctx) => unknown);
 }
-/** Normalize a bare function to an ActionDef; an `action()` wrapper passes through. */
-function to_action(input: ActionInput): ActionDef {
+/** Normalize a bare function to an ActionDef; an `action()` wrapper passes through. Both take the
+ *  widest input (`never` params/search: a load typed for any page fits). */
+function to_action(input: PageAction<never, never>): ActionDef {
 	if ((input as ActionDef).__ogaction) return input as ActionDef;
 	return action(input as (c: Ctx) => unknown);
 }
@@ -218,11 +266,24 @@ export type StreamSlot = (c: never, data: never) => AsyncGenerator<unknown, unkn
  *  +page.server.ts; `params`/`search` are input schemas (typed into `c` + `$infer`), `load`/`actions`
  *  are behaviors (wrappers or bare typed functions — see {@link Load} / {@link Action}). The
  *  component slot also takes a `flag.pick()`, a {@link PageSlotResolver}, or a streamed-page
- *  generator ({@link StreamSlot}). */
-export function page<S extends PageServer>(
+ *  generator ({@link StreamSlot}).
+ *
+ *  Inside a table, `c.params` in `load` and `actions` is the KEY's: `P` comes from the contextual
+ *  return type ({@link PageFor}), like a verb wrapper's. A `params` schema wins over the key, and a
+ *  `search` schema types `c.search`. Outside a table `P` stays loose. `Ld`/`A` lead with NO default:
+ *  a slot's contextual type is then its constraint (the typed `c`) — a default would win outside a
+ *  table and leave `c` untyped. An unwritten slot infers its constraint, which keeps the `| undefined`
+ *  `$infer` reads as "no load" / "no actions". */
+export function page<
+	Ld extends PageLoad<PageParams<P, PS>, PageSearch<SS>> | undefined,
+	A extends Record<string, PageAction<PageParams<P, PS>, PageSearch<SS>>> | undefined,
+	P = LooseParams,
+	PS extends StandardSchemaV1 | undefined = undefined,
+	SS extends StandardSchemaV1 | undefined = undefined
+>(
 	component: AnyComponent | ComponentPick | PageSlotResolver | StreamSlot,
-	server?: S
-): PageDef<readonly [], S['load'], S['actions'], S['params'], S['search']> {
+	server?: PageServer<PS, SS, Ld, A>
+): PageDef<readonly [], Ld, A, PS, SS, P> {
 	const actions = server?.actions
 		? Object.fromEntries(Object.entries(server.actions).map(([k, v]) => [k, to_action(v)]))
 		: undefined;
@@ -245,8 +306,9 @@ export function page<S extends PageServer>(
  *  `page(...)` value; an endpoint is a plain `{ GET, POST, … }` object (the `+server.ts` shape). */
 export type RouteDef = AnyPageDef | Endpoint;
 /** Any page def. Every PageDef parameter sits in a read-only (covariant) slot — `layouts`, and
- *  the phantom `__types` — so the widest of each is the type every page def is assignable to. */
-export type AnyPageDef = PageDef<readonly LayoutDef[], unknown, unknown, unknown, unknown>;
+ *  the phantom `__types` — so the widest of each is the type every page def is assignable to (the
+ *  key params sit in a bivariant method, so any of them fits). */
+export type AnyPageDef = PageDef<readonly LayoutDef[], unknown, unknown, unknown, unknown, unknown>;
 export type RouteTable = Record<string, RouteDef>;
 /** A table as `routes()` / `layout()` take it: any entries, checked by {@link KeyedTable} — which
  *  is what types each entry by its key. (The constraint itself stays shapeless: a handler signature
@@ -269,8 +331,8 @@ export interface LayoutDef<Name extends string = string, Load = unknown> {
 
 /** Prepend a layout to one entry's chain, preserving all generics (endpoints pass through). */
 type WithLayout<D, Def extends LayoutDef> =
-	D extends PageDef<infer L, infer Load, infer A, infer PS, infer SS>
-		? PageDef<readonly [Def, ...L], Load, A, PS, SS>
+	D extends PageDef<infer L, infer Load, infer A, infer PS, infer SS, infer KP>
+		? PageDef<readonly [Def, ...L], Load, A, PS, SS, KP>
 		: D;
 
 export interface LayoutFn<Def extends LayoutDef> {
@@ -350,17 +412,28 @@ export type EndpointFor<K extends string> = {
 	[V in (typeof VERBS)[number]]?: Handler<K> | VerbEntry<unknown, unknown, Params<K>>;
 };
 
-/** What `routes()` and `layout()` check a table against: each endpoint entry typed by its own key, so
- *  `'/posts/[id]': { GET: (c) => c.params.id }` reads a STRICT `id` and keeps its return type — no
- *  pattern restated. A page is the other member (its params come from its `params` schema).
+/** The page a table KEY types: `page()` takes `Params<K>` from it through its contextual return type,
+ *  so its `load` and `actions` read the key's params. Any page def fits (the slot is bivariant). */
+export type PageFor<K extends string> = PageDef<
+	readonly LayoutDef[],
+	unknown,
+	unknown,
+	unknown,
+	unknown,
+	Params<K>
+>;
+
+/** What `routes()` and `layout()` check a table against: each entry typed by its own key, so
+ *  `'/posts/[id]': { GET: (c) => c.params.id }` and `'/posts/[id]': page(Post, { load: (c) =>
+ *  c.params.id })` read a STRICT `id` and keep their return types — no pattern restated.
  *
  *  It is the table's own CONSTRAINT (`<const T extends KeyedTable<T>>(table: T)`), never intersected
  *  with the table: the constraint depends on the keys alone, so it is a complete contextual type even
- *  while the entries are being inferred — a wrapper (`GET(fn)`, `when(gate, entry)`, a spread
- *  `layout()`) reads its key's params through it. No condition on an ENTRY here for the same reason:
+ *  while the entries are being inferred — a wrapper (`GET(fn)`, `page(C, { load })`, `when(gate,
+ *  entry)`, a spread `layout()`) reads its key's params through it. No condition on an ENTRY here for the same reason:
  *  a type that waits on the entry gives its handlers no contextual type at all. */
 export type KeyedTable<T> = {
-	[K in keyof T]: EndpointFor<K & string> | AnyPageDef;
+	[K in keyof T]: EndpointFor<K & string> | PageFor<K & string>;
 };
 
 const VERBS = ['GET', 'DELETE', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH'] as const;

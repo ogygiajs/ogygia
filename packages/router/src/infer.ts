@@ -26,7 +26,7 @@ type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) exten
 type Obj<D> = D extends object ? D : {};
 type Data_<D> = Obj<Exclude<D, Response>>;
 type DataOf<L> =
-	L extends LoadDef<infer D, string>
+	L extends LoadDef<infer D, string, never, never>
 		? Data_<D>
 		: L extends (c: never) => infer R
 			? Data_<Awaited<R>>
