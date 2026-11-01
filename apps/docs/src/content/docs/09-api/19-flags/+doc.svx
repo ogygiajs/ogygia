@@ -1,8 +1,8 @@
 ---
 title: '@ogygia/flags'
-summary: Feature flags and A/B tests — flag(), decide(), and the exposure stream.
+summary: Feature flags and A/B tests, with flag(), decide() and the exposure stream.
 ---
 
-Auto-generated from the package's own `.d.ts` on every build — signatures, JSDoc, and examples straight from the source.
+This page is generated from the package's own `.d.ts` files on every build, so the signatures, descriptions and examples below always match the source.
 
 > MODULE: @ogygia/flags
