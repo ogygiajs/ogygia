@@ -17,7 +17,6 @@ on:
   push:
     branches:
       - main
-      - next
     paths:
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
