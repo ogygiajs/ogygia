@@ -1,57 +1,57 @@
 ---
 title: Glossary
-summary: A one-line definition for each ogygia term, each linked to the page that goes deep.
+summary: A one-line definition of each ogygia term, linked to the page that covers it in depth.
 related:
   - reference/api
   - reference/constraints
 ---
 
-The full vocabulary in one place. When a word in the docs is unfamiliar, it is defined here.
+This page collects the vocabulary used across the docs, so if a word is unfamiliar, you can look it up here.
 
 ## The five words
 
-- **Page**: a route that ships as server HTML with no Kit client (`csr = false`). Only islands hydrate. See [How it works](/docs/start/overview).
-- **Island**: a component that becomes interactive when it gets JS on a schedule. See [Client islands](/docs/regions/client-islands).
-- **Lake**: static HTML _inside_ an island that ships zero client JS. See [Lakes](/docs/regions/lakes).
-- **Server island**: HTML fetched from the server after load. Placeholder first, no JS. See [Server islands](/docs/regions/server-islands).
-- **Held region**: a server-_chosen_ renderable that you place like data (`<Region of={x} />`). See [Held regions](/docs/regions/held-regions).
+- **Page**: a route that ships as server HTML without the Kit client (`csr = false`), so only its islands hydrate. See [How it works](/docs/start/overview).
+- **Island**: a component that becomes interactive when it receives its JS on a schedule. See [Client islands](/docs/regions/client-islands).
+- **Lake**: static HTML _inside_ an island that ships no client JS. See [Lakes](/docs/regions/lakes).
+- **Server island**: HTML fetched from the server after load, showing a placeholder first and shipping no JS. See [Server islands](/docs/regions/server-islands).
+- **Held region**: a renderable _chosen_ on the server that you place like data (`<Region of={x} />`). See [Held regions](/docs/regions/held-regions).
 
 ## Attributes & schedules
 
-- **`wake`**: the import attribute that schedules an island: when its JS runs. On a `live` region, when it revalidates. `'none'` makes a lake.
-- **`fetch`**: the schedule of a `render: 'deferred'` hole: when its HTML arrives. `with { render: 'deferred', fetch: 'visible' }`. A hole never takes `wake`.
-- **`render`**: the delivery mode: `static` (inline HTML, the default), `deferred` (a server-island hole, fetched), `live` (a hole that revalidates).
-- **`region: 'raw'`**: marks a held, server-chosen region (given to `region()` where the transform cannot see the call).
-- **`keep`**: keep the node + state of a live island across SPA navigation (was `persist`).
-- **`preset`**: a named bundle of attributes defined in plugin config, applied with `with { preset: 'name' }`.
-- **`load` / `idle` / `visible` / `interaction` / `(media)`**: the schedules. `interaction` wakes an island on the first pointer/key/focus, and replays the click that woke it. On a hole, it fetches on the first hover or focus. On an island (`wake`), they say when JS runs. On a `deferred` hole (`fetch`), when the HTML arrives. See [Timing & nesting](/docs/regions/timing-nesting).
+- **`wake`**: the import attribute that schedules an island, meaning when its JS runs. On a `live` region it sets when the region revalidates, and `'none'` makes a lake.
+- **`fetch`**: the schedule of a `render: 'deferred'` hole, meaning when its HTML arrives, as in `with { render: 'deferred', fetch: 'visible' }`. A hole never takes `wake`.
+- **`render`**: the delivery mode: `static` (inline HTML, the default), `deferred` (a server-island hole that is fetched) or `live` (a hole that revalidates).
+- **`region: 'raw'`**: marks a held region chosen on the server (passed to `region()` where the transform cannot see the call).
+- **`keep`**: keeps a live island's node and state across SPA navigation (formerly `persist`).
+- **`preset`**: a named bundle of attributes defined in the plugin config and applied with `with { preset: 'name' }`.
+- **`load` / `idle` / `visible` / `interaction` / `(media)`**: the schedules. On an island (`wake`) they say when its JS runs, and on a `deferred` hole (`fetch`) they say when its HTML arrives. `interaction` wakes an island on the first pointer, key or focus event and replays the click that woke it; on a hole, it fetches on the first hover or focus. See [Timing & nesting](/docs/regions/timing-nesting).
 
 ## Mechanics
 
-- **Region**: the DOM element (`<ogygia-region>`) that the runtime manages for each island, lake, or server island.
+- **Region**: the DOM element (`<ogygia-region>`) that the runtime manages for each island, lake or server island.
 - **Runtime**: the ~7.6 KB runtime (~11.7 KB with the SPA router) that boots on a Page and wakes regions on schedule.
-- **Portable binding**: a marked import whose _binding_ is the island. Thus you can pass it around like a component. See [Client islands](/docs/regions/client-islands).
+- **Portable binding**: a marked import whose _binding_ is the island, so you can pass it around like a component. See [Client islands](/docs/regions/client-islands).
 - **Nearest-boundary rule**: nesting is decided by the closest marked parent. See [Timing & nesting](/docs/regions/timing-nesting).
-- **Dedupe**: the same component + strategy makes one client chunk, however many times it is used.
+- **Dedupe**: the same component with the same strategy produces one client chunk, however many times it is used.
 
 ## Data & state
 
-- **Remote function**: a Kit `query` / `command` / `form` etc., callable from inside islands. See [Remote functions](/docs/data-state/remote-functions).
-- **Live region**: a held region emitted again over time by `query.live`, morphed or kept alive in place. See [Held regions](/docs/regions/held-regions).
-- **Transportable**: a class that can cross an island boundary as a prop, when it declares `static wire = import.meta.og.wire({ encode, decode })`. See [Shared state](/docs/data-state/state-context#sharing-state).
+- **Remote function**: a Kit `query`, `command`, `form` or similar that you can call from inside islands. See [Remote functions](/docs/data-state/remote-functions).
+- **Live region**: a held region that `query.live` emits again over time, morphed or kept alive in place. See [Held regions](/docs/regions/held-regions).
+- **Transportable**: a class that can cross an island boundary as a prop because it declares `static wire = import.meta.og.wire({ encode, decode })`. See [Shared state](/docs/data-state/state-context#sharing-state).
 - **Codec**: the `{ encode, decode }` pair on a transportable class that says how its instances travel.
-- **Wire tag**: the stable identity (`module#Class`) that a transportable is registered under, on both sides.
+- **Wire tag**: the stable identity (`module#Class`) under which a transportable is registered on both sides.
 
 ## Content
 
 - **Collection**: a set of content entries defined with `content()`. See [Content collections](/docs/content/collections).
-- **Entry**: a single item: `{ id, data, meta, body }`, where `body` is a held region and `meta` is source-derived (for example `{ headings }`).
-- **Source / loader**: where the entries of a collection come from: a `{ refs, get }` object (plus optional `init` / `live` / `groups`). `markdown()`, `json()`, `blocks()` build one from a glob. Write your own to fetch a CMS. See [Content collections](/docs/content/collections).
+- **Entry**: a single item, `{ id, data, meta, body }`, where `body` is a held region and `meta` is derived from the source (for example `{ headings }`).
+- **Source / loader**: where a collection's entries come from, which is a `{ refs, get }` object (plus optional `init` / `live` / `groups`). `markdown()`, `json()` and `blocks()` build one from a glob, and you can write your own to fetch from a CMS. See [Content collections](/docs/content/collections).
 
 ## PPR & single-flight
 
-- **PPR (partial prerendering)**: a static shell baked at build, with dynamic held regions filled per visitor at request time. `export const prerender = true` + `render: 'deferred'` holes. See [Partial prerendering](/docs/app/spa-router).
-- **Single-flight navigation**: on a SPA navigation, the router pulls all load holes of the incoming page down **one** batch request, not a fetch per hole. See [SPA router](/docs/app/spa-router#single-flight).
+- **PPR (partial prerendering)**: a static shell baked at build time, with dynamic held regions filled in per visitor at request time, using `export const prerender = true` plus `render: 'deferred'` holes. See [Partial prerendering](/docs/app/spa-router).
+- **Single-flight navigation**: on a SPA navigation, the router pulls all of the incoming page's load holes down in **one** batch request instead of one fetch per hole. See [SPA router](/docs/app/spa-router#single-flight).
 - **Parcel**: the rendered HTML of one hole in a batch response, delivered as a `<template data-ogygia-slot>`.
-- **Out-of-order flush**: batched holes stream back in settle order. Thus a fast region lands before a slow one, whatever the source order.
-- **Single-flight mutation**: a command that returns a region sends the re-rendered HTML back in its own response. Thus the mounted region repaints, with no follow-up fetch.
+- **Out-of-order flush**: batched holes stream back in the order they settle, so a fast region lands before a slow one regardless of their order in the source.
+- **Single-flight mutation**: a command that returns a region sends the re-rendered HTML back in its own response, so the mounted region repaints without a follow-up fetch.

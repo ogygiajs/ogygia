@@ -1,8 +1,8 @@
 ---
 title: '@ogygia/content/server'
-summary: The wire layer — remotes over collections and sites.
+summary: The wire layer, which provides remotes over collections and sites.
 ---
 
-Auto-generated from the package's own `.d.ts` on every build — signatures, JSDoc, and examples straight from the source.
+This page is generated from the package's own `.d.ts` files on every build, so the signatures, descriptions and examples below always match the source.
 
 > MODULE: @ogygia/content/server

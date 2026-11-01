@@ -1,26 +1,22 @@
 ---
 title: The Boundary
-summary: Every island is a serialization boundary. import.meta.og.$ is the one mark that carries anything across it, functions included, into context or props. Stores cross automatically. Refusals fail at your line, not in a serializer.
+summary: Every island is a serialization boundary. import.meta.og.$ is the one mark that carries anything across it, functions included, into context or props. Stores cross automatically, and refusals fail at your line rather than inside a serializer.
 related:
   - data-state/state-context
   - macros/wire
   - regions/client-islands
 ---
 
-Each island is its own hydration root. Thus each value that travels from a server-rendered host
-into an island — a prop, a context value — crosses a **serialization boundary**. Plain data
-crosses with no work. All other values need a way to travel. The rule of ogygia for this is one
-sentence:
+Each island is its own hydration root, so every value that travels from a server-rendered host into an island, whether a prop or a context value, crosses a **serialization boundary**. Plain data crosses without any work on your part, but every other value needs a way to travel. ogygia's rule for this fits in one sentence:
 
 > **Mark the boundary with `import.meta.og.$()`. Everything that crosses is either data, or
 > something that knows how to rebuild itself on the other side.**
 
-## `import.meta.og.$` — the one mark
+## `import.meta.og.$`: the one mark
 
-`og.$` wraps a value at the exact place where it goes to a boundary. What it does depends on
-what you give it:
+You wrap a value in `og.$` at the exact place where it goes to a boundary, and what the mark does depends on what you give it.
 
-### A function — it crosses _alive_
+### A function: it crosses _alive_
 
 ```svelte
 <script>
@@ -41,19 +37,16 @@ what you give it:
 <p>{fmt(100)}</p> <!-- €119.00 — synchronous, no eval in production -->
 ```
 
-The compiler hoists the function. It changes each captured local into a bound value that
-crosses as data. The island binds it again. The function itself is **never serialized**. Its
-code ships as a build artifact. Its captures ship like any prop. Captures follow prop law:
-they must serialize. A captured store crosses live and stays shared — see below.
+The compiler hoists the function and turns each captured local into a bound value that crosses as data, and the island binds it again on the other side. The function itself is **never serialized**: its code ships as a build artifact, and its captures ship like any prop. Because captures follow the same rules as props, they have to be serializable. A captured store crosses live and stays shared, as described [below](#stores-automatic-shared-live).
 
-Two things are build errors, at your file and line:
+Two mistakes are build errors, reported at your file and line:
 
 - a capture from a **server-only module** (`$env/static/private`, `$app/server`,
-  `*.server.ts`) — the value would ship into client HTML;
-- a mark on something that can never cross (a DOM node, a bare function inside an object) —
-  the error fires at the mark, not later inside a serializer.
+  `*.server.ts`), because the value would ship into client HTML;
+- a mark on something that can never cross (a DOM node, a bare function inside an object), so the
+  error fires at the mark instead of later inside a serializer.
 
-### Anything else — an explicit, checked crossing
+### Anything else: an explicit, checked crossing
 
 ```svelte
 <Cart
@@ -62,27 +55,22 @@ Two things are build errors, at your file and line:
 />
 ```
 
-For a non-function value, `og.$` is a **boundary assertion**. The value is classified at that
-line. A store passes, and will auto-wire. Plain data passes. A live DOM node or a class
-instance without a codec **throws at that line**, with the path inside the value that caused
-it. The value itself returns untouched. There is no wrapper to unlearn.
+For a value that is not a function, `og.$` is a **boundary assertion**: the value is classified on that line. A store passes and will be wired automatically, and plain data passes too. A live DOM node, or a class instance without a codec, **throws on that line**, with the path inside the value that caused it. The value itself is returned untouched, so there is no wrapper to unlearn.
 
-You never _need_ `og.$` for values that cross on their own (see the table below). But the mark
-is the recommended style. The next reader sees exactly where the page splits, and mistakes
-surface at the mark, not at serialize time.
+You never _need_ `og.$` for values that cross on their own (see the table below), but the mark is the recommended style, because the next reader can see exactly where the page splits and mistakes surface at the mark instead of at serialization time.
 
 ## What crosses, and how
 
-| You pass                                           | How it travels                                                                             | Needs a mark?                                                                             |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| plain data, `Map`/`Set`/`Date`                     | serialized (devalue)                                                                       | no                                                                                        |
-| a **store** (`subscribe`-shaped)                   | value crosses; islands **join to ONE live instance** — `set` in island A repaints island B | no — automatic                                                                            |
-| a **factory store** (custom methods)               | value crosses; methods **rebuilt from the factory** on the other side                      | usually no — provable factories auto-brand; assert with `og.store` (below) in other cases |
-| a **class instance**                               | through its own codec: [`import.meta.og.wire`](/docs/macros/wire)                          | one time, on the class                                                                    |
-| a **function**                                     | hoisted code plus bound captures (`og.$`)                                                  | yes — `og.$`                                                                              |
-| a **snippet**                                      | freezes to HTML, or crosses live (`{#snippet}`)                                            | no                                                                                        |
-| a component / UI                                   | it is a [region](/docs/regions/held-regions) — a different noun by intent                  | `region()` / `<Region>`                                                                   |
-| a DOM node, a bare callback in an object, a secret | **refused**, with the path and a fix                                                       | —                                                                                         |
+| You pass                                           | How it travels                                                                            | Needs a mark?                                                                            |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| plain data, `Map`/`Set`/`Date`                     | serialized (devalue)                                                                      | no                                                                                       |
+| a **store** (`subscribe`-shaped)                   | value crosses; islands **join to ONE live instance**: `set` in island A repaints island B | no, automatic                                                                            |
+| a **factory store** (custom methods)               | value crosses; methods **rebuilt from the factory** on the other side                     | usually no: provable factories auto-brand; assert with `og.store` (below) in other cases |
+| a **class instance**                               | through its own codec: [`import.meta.og.wire`](/docs/macros/wire)                         | once, on the class                                                                       |
+| a **function**                                     | hoisted code plus bound captures (`og.$`)                                                 | yes, `og.$`                                                                              |
+| a **snippet**                                      | freezes to HTML, or crosses live (`{#snippet}`)                                           | no                                                                                       |
+| a component / UI                                   | it is a [region](/docs/regions/held-regions), deliberately a different noun               | `region()` / `<Region>`                                                                  |
+| a DOM node, a bare callback in an object, a secret | **refused**, with the path and a fix                                                      | —                                                                                        |
 
 ## Stores: automatic, shared, live
 
@@ -94,15 +82,11 @@ surface at the mark, not at serialize time.
 </script>
 ```
 
-Each island that reads `getContext('theme')` gets **the same live store**, not a copy. The
-current value crosses at render time. Identity is joined again client-side. Thus writes move
-between islands through plain Svelte reactivity. The same store provided under two keys stays
-one instance.
+Every island that reads `getContext('theme')` gets **the same live store**, not a copy. The current value crosses at render time and the identity is joined again on the client, so writes move between islands through ordinary Svelte reactivity. The same store provided under two keys stays one instance.
 
 ### Factory stores
 
-A store with custom methods needs its **factory** on the other side. Methods are code. They
-never serialize. Factories that the compiler can prove are branded automatically:
+A store with custom methods needs its **factory** on the other side, because methods are code and are never serialized. Factories that the compiler can prove are branded automatically:
 
 ```ts
 // auto-branded: the body provably returns a store
@@ -112,39 +96,29 @@ export const createCart = (seed = []) => {
 };
 ```
 
-For a factory it cannot prove (it returns the result of a helper), assert it:
+For a factory it cannot prove, such as one that returns a helper's result, assert it yourself:
 
 ```ts
 export const createCart = import.meta.og.store((seed = []) => makeStore(seed));
 ```
 
-The **first parameter of the factory is the seed** — the value that crosses. Sometimes a
-branded store reaches an island whose bundle never loaded the factory. It then degrades to a
-plain writable: the value stays, the methods are absent. A console warning names the
-one-import fix. It never crashes.
+The **factory's first parameter is the seed**, which is the value that crosses. If a branded store reaches an island whose bundle never loaded the factory, it degrades to a plain writable that keeps the value but lacks the methods, and a console warning names the one import that fixes it. It never crashes.
 
-Two store shapes need care. A **`derived`** crosses as a frozen seed. The derivation cannot
-travel. Derive again client-side, or share the sources. Store **values** follow prop law: a
-callback inside the value of a store is still a bare function.
+Two store shapes need care. A **`derived`** store crosses as a frozen seed, because the derivation itself cannot travel, so derive it again on the client or share its sources. Store **values** follow the same rules as props, so a callback inside a store's value is still a bare function.
 
 ## Keeping things home: `{ islands: false }`
 
-Not everything must cross. Some context is read only by the server-rendered host: a bag of
-element refs, a host-only callback, a very large config object. Keep it native with one
-option:
+Not everything has to cross. Some context is only read by the server-rendered host, such as a bag of element refs, a host-only callback or a very large config object, and one option keeps it native:
 
 ```js
 setContext('scrollRefs', refs, { islands: false });
 ```
 
-Same-tree `getContext` operates as always. Nothing is serialized. In dev, ogygia warns when
-the island context payload grows past 32kB, and names the heaviest keys. This option is
-usually the fix.
+Same-tree `getContext` works as always, and nothing is serialized. In dev, ogygia warns when the island context payload grows past 32kB and names the heaviest keys, and this option is usually the fix.
 
 ## Policy and errors
 
-The boundary refuses keys that look like secrets (`token`, `apiKey`, …). Thus credentials do
-not ride into client HTML. Adjust it one time, server-side:
+The boundary refuses keys that look like secrets (`token`, `apiKey`, …), so credentials don't end up in client HTML. You can adjust this once, on the server:
 
 ```ts
 // hooks.server.ts
@@ -156,6 +130,4 @@ configure_boundary({
 });
 ```
 
-Everything that the boundary declines is **explained**. A dropped context key logs the key,
-the dot-path to the leaf that caused it, and what to do instead. The design goal: nothing
-crosses, or fails to cross, silently.
+Everything the boundary declines comes with an **explanation**: a dropped context key logs the key, the dot-path to the leaf that caused it and what to do instead. The aim is that nothing crosses, or fails to cross, silently.
