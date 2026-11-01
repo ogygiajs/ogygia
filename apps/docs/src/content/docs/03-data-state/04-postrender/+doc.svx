@@ -1,0 +1,248 @@
+---
+title: Postrender
+summary: Kit's prerender, at request time. A page whose render read nothing personal is stored whole on its first request, and later visitors get the stored bytes until an invalidation clears them.
+related:
+  - regions/server-islands
+  - data-state/page-data
+  - app/experiments
+---
+
+Prerender renders a page at build time. **Postrender** renders it at request time: the first
+request renders the page as usual, and if that render read nothing personal, the whole response is
+stored (HTML, headers, permanent redirects). Every later request for that URL gets the stored bytes.
+Kit, your loads and Svelte never run on a hit. An invalidation clears the page, and the next request
+renders it again, one time.
+
+So the cost of a page moves from one render per request to one render per change. Prerendering is the
+special case where the only change is a deploy.
+
+Postrender is its own package. Install it, list its plugin beside `ogygia()`, and put its handle
+before ogygia's:
+
+```bash
+pnpm add @ogygia/postrender
+```
+
+```ts title=vite.config.ts
+import { ogygia } from 'ogygia/vite';
+import { postrender } from '@ogygia/postrender/vite';
+
+plugins: [ogygia(), postrender(), sveltekit()]
+```
+
+```ts title=src/hooks.server.ts
+import { sequence } from '@sveltejs/kit/hooks';
+import * as ogygia from 'ogygia/server';
+import { postrender } from '@ogygia/postrender';
+
+export const handle = sequence(postrender.handle(), ogygia.handle());
+```
+
+That is the full setup. Pages are kept in an in-process memory store, with a 24-hour TTL backstop
+(`postrender({ ttl })` in seconds, to shorten it). Stampedes single-flight: fifty concurrent cold
+requests make exactly one render. See [Plugins](/docs/reference/plugins).
+
+`postrender.handle()` must come **before** `ogygia.handle()` in the `sequence()`. The stored page is
+served before anything renders, so the store has to be known by then.
+
+- In the wrong order, dev answers every page with an error that names the fix, and production warns
+  once (it still serves from your store).
+- Without `postrender.handle()` at all, pages go to the memory store and the server warns once, with
+  the line to paste.
+
+## Whole app, or opt in
+
+By default (`postrender()`) the whole app is on. Each eligible page is stored, and the purity check
+below refuses the rest, so a personalized page opts itself out. One route opts out in Kit's own
+`config` page option:
+
+```ts title=src/routes/account/+page.ts
+export const config = { postrender: false };
+```
+
+To flip the whole app to **opt in**, so that nothing is stored unless a route asks, set the default
+off:
+
+```ts title=vite.config.ts
+plugins: [ogygia(), postrender({ default: false }), sveltekit()]
+```
+
+Then a page or a layout opts in with `config = { postrender: true }`. Kit merges `config` from each
+layout into the pages below it, and the page's own key wins. So a layout opts in its whole subtree,
+and a page below can override in either direction:
+
+```ts title=src/routes/(marketing)/+layout.server.ts
+// this whole marketing subtree is stored
+export const config = { postrender: true };
+```
+
+```ts title=src/routes/(marketing)/preview/+page.server.ts
+// …except this one preview page, which stays per-request
+export const config = { postrender: false };
+```
+
+`config` works in `+page.ts`, `+page.server.ts`, `+layout.ts` and `+layout.server.ts`, the same files
+Kit reads it from. Other keys in the object (an adapter's `runtime`, for example) stay Kit's. The
+value is read at build time, so write `true` or `false` directly: a computed value is a build error.
+Opting a route in only makes it **eligible**. An impure render is still refused by the purity check
+below.
+
+### Programmatic routes
+
+A table from the [server router](/docs/app/server-router) takes the same `config`, in its own
+grammar, and merges it the same way: the table, then each layout, then the page.
+
+```ts title=src/hooks.server.ts
+const marketing = layout('marketing', Shell, { config: { postrender: true } });
+
+export const app = routes(
+  {
+    ...marketing({
+      '/':        page(Home),                                        // stored, from the layout
+      '/preview': page(Preview, { config: { postrender: false } })   // per-request again
+    }),
+    '/account': page(Account)                                        // follows the vite-config default
+  },
+  { config: { postrender: false } }                                  // optional table-wide config
+);
+
+export const handle = sequence(postrender.handle(), ogygia.handle(), app.handle);
+```
+
+The router answers inside ogygia's handle, so a stored page is served before the table ever runs. The
+router normally stamps its documents `cache-control: no-store`. On an eligible request it leaves that
+to the verdict instead: a stored page gets `public, s-maxage`, a refused one gets `private, no-store`,
+and a header your page sets itself always wins.
+
+## What gets stored: observed purity, not annotations
+
+Postrender watches each eligible render. A page **stays per-request** when the render:
+
+- reads a cookie, personal header, or `locals` value that returned a **non-default** value,
+- reads a [feature flag](/docs/app/experiments) (an A/B'd page must never store one variant),
+- writes a cookie, sets `set-cookie`, answers non-200, or streams load promises,
+- or was requested with a query string.
+
+Each refusal is **named in a dev note** (`cookie:session`, `locals.user`, `flag:hero`). So an
+almost-pure page tells you exactly which read keeps it per-request. Default-valued reads still store.
+The render of an anonymous visitor (`cookies.get('consent')` returns `undefined`, an empty
+`locals.user`) **is** the canonical copy. That is the cookie-less CDN cache key, formalized. Once
+stored, all visitors receive the canonical. Content that must truly differ per visitor belongs in a
+`render: 'deferred'` hole. The shell is stored. The hole fetches fresh per visitor. Its signed URL is
+minted prerender-grade, so a warm stored page never carries expired holes (set a stable
+`OGYGIA_SECRET`).
+
+## Invalidation: three grammars
+
+```ts title=src/routes/api/publish/+server.ts (or any server module)
+import { postrender } from '@ogygia/postrender';
+
+await postrender.invalidate('/fr/fr/solar/');             // exact URL — the CMS-webhook case
+await postrender.invalidateWhere({ prefix: '/fr/fr/' });  // subtree — a locale or section nuke
+await postrender.invalidate(loadDoc, ['promo']);          // declared source — see below
+```
+
+These reach the store and edges you gave `postrender.handle()`, with nothing else to set up. A
+successful form action also evicts its own page automatically. This mirrors the
+actions-invalidate-loads semantics of Kit.
+
+**Declared sources** solve one-document-on-many-pages. Wrap the definition. Loads stay plain:
+
+```ts title=src/lib/server/cms.ts
+export const loadDoc = import.meta.og.source(async (slug: string) => fetchDoc(slug));
+```
+
+Each stored page whose render called `loadDoc('promo')` files a receipt.
+`postrender.invalidate(loadDoc, ['promo'])` evicts exactly those pages, at the origin **and** at each
+edge, however many there are, in whatever locale they live. The macro follows the
+[macro laws](/docs/macros/overview): top-level `export const` only, AST-verified, loud build errors.
+Pass `{ key: (…args) => string }` to canonicalize exotic argument shapes.
+
+## Stores and edges
+
+Live objects cannot ride vite config. They are the argument of `postrender.handle()`:
+
+```ts title=src/hooks.server.ts
+import { sequence } from '@sveltejs/kit/hooks';
+import * as ogygia from 'ogygia/server';
+import { postrender, valkey, akamai, cloudfront } from '@ogygia/postrender';
+
+export const handle = sequence(
+  postrender.handle({
+    store: valkey(client),                       // or upstash({ url, token }),
+    edge: [akamai(creds), cloudfront(cfg)]       //    cloudflareKv(env.PAGES)
+  }),
+  ogygia.handle()
+);
+```
+
+Stores: `memoryStore` (default) · `valkey(client)` (ioredis or node-redis) ·
+`upstash({ url, token })` (REST, serverless-native) · `cloudflareKv(binding)` (Workers KV; the binding
+comes from `import { env } from 'cloudflare:workers'`). Edges: `akamai` (EdgeGrid-signed Fast Purge) ·
+`cloudfront` (SigV4 invalidations) · `cloudflare` (zone purge). Eligible responses are stamped
+`cache-control: public, s-maxage=<ttl>`, plus the tags of each edge. So your CDN follows proven
+per-page headers, not a blanket rule. An invalidation fans out to the store and each edge at the same
+time. One edge that is down never fails a publish, or a request.
+
+## Serve-time stitching
+
+Sometimes even a one-beat canonical paint is too much: the first response itself must be personal.
+Then mark the hole with `stitch`:
+
+```svelte
+<script>
+  import Header from '$lib/Header.svelte' with { render: 'deferred', stitch: 'serve' };
+</script>
+```
+
+The shell still stores one time, and serves as bytes. But on **each** serve, the server renders the
+hole at that moment, with your cookies in hand, and splices it into the stored HTML before it
+responds. One response, personalized in view-source, no JavaScript required. The trade is honest.
+Stitched pages are per-visitor. So they are stamped `private, no-store` (no CDN copy, no 304s), and
+a hit costs one region render, not zero. Failure is open: when the render of the hole fails or times
+out, the fallback ships, and the browser fetches it exactly like a normal deferred hole.
+
+### Edge stitching
+
+`stitch: 'serve'` buys a personal first paint at the price of the edge copy. On a CDN that speaks
+**ESI** (edge side includes: Akamai, Fastly, Varnish) you can keep both:
+
+```svelte
+<script>
+  import Header from '$lib/Header.svelte' with { render: 'deferred', stitch: 'edge' };
+</script>
+```
+
+The shell still stores one time, and it stays a normal edge-cached page: `public, s-maxage`,
+validators and all. What changes is the hole. In the stored bytes it becomes an ESI include that
+points at the hole's own signed capability, and the response carries
+`Surrogate-Control: content="ESI/1.0"`. On each request the CDN serves the shell from its cache,
+fetches only the include from your server with the visitor's cookies, and splices it at the edge.
+The first response is personal, the shell never leaves the edge, and your server renders one region,
+not a page. Enable ESI processing on the property for this to happen.
+
+It degrades on its own. Anywhere ESI is not processed, direct to origin, in dev, or on a CDN without
+it, the include is inert and the hole ships its fallback, then the browser fetches it exactly like a
+normal deferred hole. One `stitch: 'serve'` hole on a page makes the whole page origin-stitched,
+`edge` holes on it included.
+
+Rule of thumb: `render: 'live'` when canonical-first is satisfactory. `stitch: 'edge'` when the first
+paint must be personal and your CDN speaks ESI. `stitch: 'serve'` when it must be personal and it
+does not.
+
+## Notes
+
+- **In dev, the store never serves or fills.** Your edits always render again. The verdict still
+  teaches: an eligible page answers `x-ogygia-postrender: would-store` (check the network panel). A
+  refused one prints a single console note that names the read that refused it.
+- **Revalidations are free.** Stored entries carry an `etag` and `last-modified`. Postrender answers
+  `If-None-Match` / `If-Modified-Since` with a bodiless 304. So a CDN prefresh, or a browser reload of
+  a stored page, costs zero body bytes.
+- **Refused pages get `private, no-store`** when your app set no cache-control of its own. The
+  headers of the verdict replace blanket CDN rules, in both directions.
+- **csr-agnostic**: a `csr = true` page stores the same way. Kit hydrates the stored copy.
+- **The store holds the render**, not data. A hit skips the data fetch _and_ the component execution.
+  Your data caches stay useful underneath, for the misses.
+- Store failures never fail a request. A broken store means renders, not errors.
+- Blind spot, the same contract as prerender: `Date.now()`/randomness inside a load is "true at
+  render time".

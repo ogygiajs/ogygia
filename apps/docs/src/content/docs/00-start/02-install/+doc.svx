@@ -138,7 +138,7 @@ The content macros (`import.meta.og.loader`, `og.code`, `og.md`) bring their own
 
 ### Other features (optional)
 
-Flags, frozen pages, federation, the server router, the devtools dock and the profiler work the same way. Each is a package you install, with a plugin you list once beside `ogygia()`: `plugins: [ogygia(), flags(), sveltekit()]`. See [Plugins](/docs/reference/plugins) for the list.
+Flags, postrender, federation, the server router, the devtools dock and the profiler work the same way. Each is a package you install, with a plugin you list once beside `ogygia()`: `plugins: [ogygia(), flags(), sveltekit()]`. See [Plugins](/docs/reference/plugins) for the list.
 
 ## Adopt one route at a time
 

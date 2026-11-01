@@ -55,7 +55,7 @@
 	"devDependencies": {
 		"@ogygia/core": "workspace:*",
 		"@ogygia/flags": "workspace:*",
-		"@ogygia/freeze": "workspace:*",
+		"@ogygia/postrender": "workspace:*",
 		"@ogygia/router": "workspace:*",
 		"@ogygia/tooling": "workspace:*",
 		"@playwright/test": "catalog:",

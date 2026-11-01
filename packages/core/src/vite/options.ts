@@ -109,7 +109,7 @@ export interface OgygiaOptions {
 	/**
 	 * How long a deferred/live hole's signed capability URL stays valid, in seconds (default `3600`).
 	 * Clamped to `[60, 86400]`. Keep short for harvested-URL risk. Holes outlive this automatically
-	 * where they must: on prerendered and frozen pages, and on a page a load marks shared-cacheable
+	 * where they must: on prerendered and postrendered pages, and on a page a load marks shared-cacheable
 	 * (`setHeaders({ 'cache-control': 'public, s-maxage=…' })`), where an anonymous hole is signed for
 	 * the page's cache life; a hole on an older cached copy renews itself when it wakes.
 	 */
@@ -206,7 +206,7 @@ const LEGACY_OPTION_RENAMES: Record<string, string> = {
 	plugins:
 		'`plugins` is gone — ogygia plugins are Vite plugins: list them beside `ogygia()` in vite.config, `plugins: [ogygia(), flags(), sveltekit()]`.',
 	freeze:
-		'`freeze` is a plugin now — install `@ogygia/freeze` and list `freeze({ ttl, default })` (from `@ogygia/freeze/vite`) beside `ogygia()` in vite.config `plugins`.',
+		'`freeze` is a plugin now, named postrender — install `@ogygia/postrender` and list `postrender({ ttl, default })` (from `@ogygia/postrender/vite`) beside `ogygia()` in vite.config `plugins`.',
 	content:
 		'`content` is a plugin now — install `@ogygia/content` and list `content({ markdown, presets })` (from `@ogygia/content/vite`) beside `ogygia()` in vite.config `plugins`; the svelte config takes `preprocess()` / `extensions()` from there too.',
 	devtools:

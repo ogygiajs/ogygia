@@ -2061,7 +2061,7 @@ export function analyze_page(
 			code: 'fp-unstable',
 			severity: 'info',
 			message: `${list(drift.map((d) => d.name))} got a new fingerprint since your last load of this page: ${said(first)}${drift.length > 1 ? ` (and ${drift.length - 1} more)` : ''}. If the page's data did not change, that value is made fresh on every render.`,
-			fix: 'The router compares fingerprints to keep a live island across a navigation, and the fingerprint is part of the page’s bytes: an island whose props change on every render is patched on every navigation, and a cache keyed on the HTML (a CDN, a post-render cache, a freeze store, an ETag) misses every time. Make the value the same for the same inputs: take it from load data, compute it in the browser (an effect), or leave it out of the props.',
+			fix: 'The router compares fingerprints to keep a live island across a navigation, and the fingerprint is part of the page’s bytes: an island whose props change on every render is patched on every navigation, and a cache keyed on the HTML (a CDN, a post-render cache, a postrender store, an ETag) misses every time. Make the value the same for the same inputs: take it from load data, compute it in the browser (an effect), or leave it out of the props.',
 			fps: drift.map((d) => d.fp).filter((x): x is string => !!x)
 		});
 	}

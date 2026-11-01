@@ -67,7 +67,7 @@ function seconds(raw: string): number | null {
 }
 
 /**
- * The capability lifetime to mint with: prerender-grade for a stored page (prerender / freeze);
+ * The capability lifetime to mint with: prerender-grade for a stored page (prerender / postrender);
  * for an anonymous hole on a document shared caches keep for `shared` seconds, twice that (so the
  * window-aligned expiry still covers the whole cache life), capped at prerender-grade; else
  * `ttl`. A session-bound hole is never extended — its document is the visitor's own.

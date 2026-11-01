@@ -66,7 +66,7 @@ import {
 	session_cookie_module,
 	region_ttl_module,
 	route_csr_module,
-	route_options_module
+	route_config_module
 } from './link/caps.ts';
 import { router_config_module } from './link/router-config.ts';
 import {
@@ -117,7 +117,7 @@ import {
 	V_MANIFEST,
 	V_TRANSPORTABLES,
 	V_TRANSPORTABLES_EAGER,
-	V_ROUTE_OPTIONS
+	V_ROUTE_CONFIG
 } from './ids.ts';
 import { strip_id, host_key } from './program.ts';
 import { mentions_page_store, page_data_keys_answer } from './link/page-keys.ts';
@@ -1303,8 +1303,8 @@ export class Compiler {
 		if (id === RESOLVED(V_ROUTE_CSR)) {
 			return route_csr_module(ssr, kit_dirs(ctx.root).routes_dir);
 		}
-		if (id === RESOLVED(V_ROUTE_OPTIONS)) {
-			return route_options_module(ssr, kit_dirs(ctx.root).routes_dir, ctx.route_options);
+		if (id === RESOLVED(V_ROUTE_CONFIG)) {
+			return route_config_module(ssr, kit_dirs(ctx.root).routes_dir, ctx.route_config);
 		}
 		if (id === RESOLVED(V_SERVER_MANIFEST)) {
 			// Populated in BOTH dev and build (unlike the client manifest, which dev fills from URLs).
@@ -1426,7 +1426,7 @@ export class Compiler {
 		if (source === V_SESSION_COOKIE) return RESOLVED(V_SESSION_COOKIE);
 		if (source === V_REGION_TTL) return RESOLVED(V_REGION_TTL);
 		if (source === V_ROUTE_CSR) return RESOLVED(V_ROUTE_CSR);
-		if (source === V_ROUTE_OPTIONS) return RESOLVED(V_ROUTE_OPTIONS);
+		if (source === V_ROUTE_CONFIG) return RESOLVED(V_ROUTE_CONFIG);
 		if (source === V_SERVER_MANIFEST) return RESOLVED(V_SERVER_MANIFEST);
 		if (source === V_SERVER_ISLANDS) return RESOLVED(V_SERVER_ISLANDS);
 		if (source === V_REQUEST_EVENT) return RESOLVED(V_REQUEST_EVENT);
