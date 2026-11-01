@@ -42,8 +42,8 @@ jobs:
           commit-message: 'chore: update versions (${{ github.ref_name }})'
           pr-title: 'chore: update versions (${{ github.ref_name }})'
           create-github-releases: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.SHIP_TOKEN || github.token }}
+          # the action refuses a GITHUB_TOKEN env that differs from this input
+          github-token: ${{ secrets.SHIP_TOKEN || github.token }}
       # main matches npm: just published, or no changeset is pending. A fast-forward only: latest
       # is only ever set from main, so a refused push means someone moved it by hand.
       - name: Move the latest branch to main
