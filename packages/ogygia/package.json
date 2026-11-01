@@ -258,6 +258,7 @@
 		"@ogygia/tooling": "workspace:*",
 		"@sveltejs/kit": "catalog:",
 		"@types/node": "catalog:",
+		"@typescript/native": "catalog:tsgo",
 		"tsdown": "catalog:",
 		"typescript": "catalog:"
 	},

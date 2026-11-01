@@ -20,7 +20,7 @@
 			"dependsOn": ["^build"],
 			"outputs": [],
 			"cache": true,
-			"env": ["E2E_NO_BUILD"],
+			"env": ["E2E_NO_BUILD", "E2E_SHARD"],
 			"passThroughEnv": [
 				"OGYGIA_*",
 				"CI",

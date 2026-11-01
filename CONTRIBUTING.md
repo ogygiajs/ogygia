@@ -38,7 +38,8 @@ no-explicit-any`, error) for `.ts`; the `scripts/no-any.mjs` script still covers
 
 ```bash
 pnpm run check          # build lib + every package's check ([tsc + vitest + oxlint], its e2e tsc) + svelte-check (palaestra, fixture apps, docs) — must be 0/0
-pnpm test:e2e           # every package's e2e suite through turbo; unchanged suites replay from the cache
+pnpm test:e2e           # every package's e2e suite side by side (about 2.5 min); `pnpm test:e2e palaestra devtools` for some
+pnpm test:e2e:serial    # every suite through turbo, one at a time; unchanged suites replay from the cache
 pnpm turbo run e2e --filter=@ogygia/devtools   # one package's suite (its libraries built first)
 pnpm --filter palaestra e2e split-brain         # one spec of core's suite (libraries already built)
 ```
