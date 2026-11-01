@@ -118,6 +118,7 @@
 		"@sveltejs/kit": "catalog:",
 		"@sveltejs/vite-plugin-svelte": "catalog:",
 		"@types/node": "catalog:",
+		"@typescript/native": "catalog:tsgo",
 		"shiki": "catalog:",
 		"svelte": "catalog:",
 		"svelte-check": "catalog:",

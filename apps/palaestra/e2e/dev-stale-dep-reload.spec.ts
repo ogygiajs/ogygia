@@ -12,10 +12,10 @@
 //   pnpm exec playwright test dev-stale-dep-reload
 import { fileURLToPath } from 'node:url';
 import { test, check, sleep, REPO as repo } from '@ogygia/tooling/e2e';
-import { spawn_server, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
+import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
 
 const palaestra = fileURLToPath(new URL('..', import.meta.url));
-const PORT = 3089;
+const PORT = port(3089);
 const base = `http://127.0.0.1:${PORT}`;
 
 let srv: SpawnedServer | null = null;

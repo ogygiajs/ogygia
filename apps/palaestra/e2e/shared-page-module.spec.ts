@@ -15,11 +15,11 @@
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, check } from '@ogygia/tooling/e2e';
-import { spawn_server, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
+import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
 
 const repo = fileURLToPath(new URL('../../..', import.meta.url));
 const palaestra = join(repo, 'apps', 'palaestra');
-const PORT = 3083;
+const PORT = port(3083);
 const dev_base = `http://127.0.0.1:${PORT}`;
 
 test.describe('a page-reading module shared by a csr=true page and an island', () => {
