@@ -10,11 +10,11 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, expect, check, sleep } from '@ogygia/tooling/e2e';
 import { KIT_BOOT_RE, REGION_TAG_RE, RUNTIME_SCRIPT_RE } from '@ogygia/tooling/e2e/re.ts';
-import { spawn_server, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
+import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
 
 const palaestra = fileURLToPath(new URL('..', import.meta.url));
 const page_ts = join(palaestra, 'src', 'routes', 'csr-chrome', 'kit', '+page.ts');
-const PORT = 3079;
+const PORT = port(3079);
 const base = `http://127.0.0.1:${PORT}`;
 const URL_PATH = '/csr-chrome/kit/';
 

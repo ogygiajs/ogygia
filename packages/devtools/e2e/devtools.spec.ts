@@ -12,10 +12,10 @@
 import { fileURLToPath } from 'node:url';
 import { expect, type Page } from '@playwright/test';
 import { test, check, REPO as repo } from '@ogygia/tooling/e2e';
-import { spawn_server, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
+import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
 
 const lab = fileURLToPath(new URL('./app', import.meta.url));
-const PORT = 3084;
+const PORT = port(3084);
 const base = `http://127.0.0.1:${PORT}`;
 let srv: SpawnedServer | null = null;
 

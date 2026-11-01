@@ -7,14 +7,14 @@ import { fileURLToPath } from 'node:url';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawn_server, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
+import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
 
 const KEY = 'e2e-window';
 // (the devtools lab, built by this suite's globalSetup)
 const app = fileURLToPath(new URL('./app', import.meta.url));
 const dir = mkdtempSync(join(tmpdir(), 'og-window-'));
 const db = join(dir, 'shared.db');
-const PORTS = [3102, 3103];
+const PORTS = [port(3102), port(3103)];
 const servers: SpawnedServer[] = [];
 const api: APIRequestContext[] = [];
 

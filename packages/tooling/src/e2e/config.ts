@@ -3,9 +3,11 @@
 // it, and turbo's `e2e` task (turbo.json) decides which packages' suites rerun.
 //
 // Ports: every suite owns its own (`port`, and any server a spec boots), so no two suites ever
-// collide. The libraries are built by turbo before the suite starts (`e2e` depends on `^build`).
+// collide; one suite split into groups on one machine moves each group by `E2E_PORT_OFFSET`
+// (`port()` in servers.ts). The libraries are built by turbo before the suite starts (`e2e` depends on `^build`).
 import { defineConfig, type PlaywrightTestConfig } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
+import { port } from './servers.ts';
 
 const BUILD = fileURLToPath(new URL('./build.ts', import.meta.url));
 
@@ -25,7 +27,8 @@ export interface SuiteOptions {
 }
 
 export function suite(opts: SuiteOptions): PlaywrightTestConfig {
-	const base = `http://localhost:${opts.port}`;
+	const served_port = port(opts.port);
+	const base = `http://localhost:${served_port}`;
 	return defineConfig({
 		testDir: 'e2e',
 		testMatch: /.*\.spec\.ts$/,
@@ -38,6 +41,9 @@ export function suite(opts: SuiteOptions): PlaywrightTestConfig {
 		// CI splits a long suite across runners: `E2E_SHARD=2/3` runs the second third, by spec file.
 		// An env var, not `--shard`: turbo would pass a CLI flag to the libraries' builds too.
 		shard: shard_from(process.env.E2E_SHARD),
+		// Playwright empties its output folder when a run starts: lanes of one suite running side by
+		// side (`pnpm test:e2e` sets `E2E_LANE`) each get their own, or one wipes another's traces.
+		outputDir: process.env.E2E_LANE ? `test-results/lane-${process.env.E2E_LANE}` : 'test-results',
 		retries: 0,
 		timeout: 180_000,
 		expect: { timeout: 10_000 },
@@ -52,7 +58,7 @@ export function suite(opts: SuiteOptions): PlaywrightTestConfig {
 						// (Not globalSetup: Playwright starts the webServer BEFORE globalSetup.)
 						command:
 							opts.command ??
-							`node ${BUILD} && node node_modules/vite/bin/vite.js preview --port ${opts.port} --strictPort`,
+							`node ${BUILD} && node node_modules/vite/bin/vite.js preview --port ${served_port} --strictPort`,
 						cwd: opts.serve,
 						url: base + (opts.ready ?? '/'),
 						// ORIGIN: remote commands (POST) + form CSRF

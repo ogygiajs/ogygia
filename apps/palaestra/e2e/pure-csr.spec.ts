@@ -14,12 +14,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, check, sleep } from '@ogygia/tooling/e2e';
-import { spawn_server, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
+import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
 
 const repo = fileURLToPath(new URL('../../..', import.meta.url));
 const app = path.join(repo, 'apps/pure-csr');
 const vite = path.join(app, 'node_modules/.bin/vite');
-const PORT = 3061;
+const PORT = port(3061);
 const BASE = `http://localhost:${PORT}`;
 
 // any runtime file: its stable name (`og-runtime.<hash>[-<features>].js`) or its content-hashed

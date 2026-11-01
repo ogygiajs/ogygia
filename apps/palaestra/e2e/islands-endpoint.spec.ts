@@ -5,9 +5,9 @@
 // still minted `/__ogygia__?…` and every hole was empty.
 import { expect, test } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
-import { spawn_server, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
+import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
 
-const PORT = 4187;
+const PORT = port(4187);
 const base = `http://127.0.0.1:${PORT}`;
 const ENDPOINT = '/_server/api/__ogygia__';
 const palaestra = fileURLToPath(new URL('..', import.meta.url));

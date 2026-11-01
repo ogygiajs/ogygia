@@ -15,12 +15,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { test, check, REPO as repo } from '@ogygia/tooling/e2e';
-import { spawn_server, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
+import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
 
 // `ogygia` (what apps install) is a thin package over `@ogygia/core`: both are unpacked
 const pkg = path.join(repo, 'packages', 'ogygia');
 const core = path.join(repo, 'packages', 'core');
-const PORT = 3094;
+const PORT = port(3094);
 const base = `http://127.0.0.1:${PORT}`;
 
 let app = '';

@@ -9,6 +9,7 @@
 // see e2e/e2e-build.ts). Specs drive it through the `page` fixture; specs that boot their OWN servers
 // (dev servers, fixture apps, adapter emulators) do so in `beforeAll`/`afterAll`.
 import { suite } from '@ogygia/tooling/e2e/config.ts';
+import { port } from '@ogygia/tooling/e2e/servers.ts';
 import { fileURLToPath } from 'node:url';
 
 const PORT = Number(process.env.PORT || 3051);
@@ -16,5 +17,5 @@ const PORT = Number(process.env.PORT || 3051);
 export default suite({
 	port: PORT,
 	serve: fileURLToPath(new URL('.', import.meta.url)),
-	command: `node e2e/e2e-build.ts && node node_modules/vite/bin/vite.js preview --port ${PORT} --strictPort`
+	command: `node e2e/e2e-build.ts && node node_modules/vite/bin/vite.js preview --port ${port(PORT)} --strictPort`
 });
