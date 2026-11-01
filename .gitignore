@@ -80,3 +80,6 @@ internal/repro-header-lab/
 internal/repro-catalog/
 # footer lab (the main ogygia PR's footer → remote functions + lake) — same rule, never committed
 internal/repro-ogygia-footer/
+
+# Turborepo
+.turbo
