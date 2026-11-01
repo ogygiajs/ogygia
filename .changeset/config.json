@@ -3,7 +3,8 @@
 	"baseBranch": "main",
 	"access": "public",
 	"ignore": [],
-	"fixed": [
+	"fixed": [],
+	"linked": [
 		[
 			"ogygia",
 			"@ogygia/core",
@@ -17,7 +18,6 @@
 			"@ogygia/router"
 		]
 	],
-	"linked": [],
 	"format": "auto",
 	"updateInternalDependencies": "patch",
 	"commit": false,
