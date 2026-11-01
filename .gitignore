@@ -80,3 +80,6 @@ internal/repro-bcms-header/
 internal/repro-pes/
 # footer lab (the main ogygia PR's footer → remote functions + lake) — same rule, never committed
 internal/repro-ogygia-footer/
+
+# Turborepo
+.turbo
