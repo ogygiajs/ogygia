@@ -3,5 +3,10 @@
 	"framework": "sveltekit",
 	"buildCommand": "pnpm -w exec turbo run build --filter=svelte-dev^... && pnpm --filter svelte-dev build",
 	"installCommand": "pnpm install --frozen-lockfile",
-	"ignoreCommand": "[ \"$VERCEL_ENV\" != production ]"
+	"git": {
+		"deploymentEnabled": {
+			"**": false,
+			"latest": true
+		}
+	}
 }
