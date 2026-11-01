@@ -1,6 +1,6 @@
 # @ogygia/cli
 
-The [ogygia](https://ogygia.puruvj.dev) command line: project and docs-site setup, the AI skill and MCP server, perf budgets, and federation keys and catalogs.
+The [ogygia](https://ogygiajs.dev) command line: project and docs-site setup, the AI skill and MCP server, perf budgets, and federation keys and catalogs.
 
 ## Install
 
@@ -25,4 +25,4 @@ It is not a plugin: nothing goes in vite.config for it.
 - `ogygia perf`: render pages under the profiler and judge them against a budget in CI.
 - `ogygia keys <name>`: make an Ed25519 key pair for federation. `ogygia fragments <origin>`: typed stubs for a peer's widgets.
 
-Docs: [ogygia.puruvj.dev](https://ogygia.puruvj.dev).
+Docs: [ogygiajs.dev](https://ogygiajs.dev).

@@ -1,6 +1,6 @@
 # @ogygia/federation
 
-Fragment federation for [ogygia](https://ogygia.puruvj.dev). Independent SvelteKit + ogygia apps combine into one page over HTTP, at render time. A peer's routes and widgets are region values you render with `<Region>`, and a whole app mounts under shell chrome. Every hop is Ed25519-signed, and a publish on one team thaws the frozen pages of every team that baked its fragments.
+Fragment federation for [ogygia](https://ogygiajs.dev). Independent SvelteKit + ogygia apps combine into one page over HTTP, at render time. A peer's routes and widgets are region values you render with `<Region>`, and a whole app mounts under shell chrome. Every hop is Ed25519-signed, and a publish on one team thaws the frozen pages of every team that baked its fragments.
 
 Experimental: the API can still change.
 
@@ -37,4 +37,4 @@ export const { cms } = federate({
 
 Then `cms.page(path)` and `cms.widget(name, props)` are regions, and `mount(cms)` mounts the whole app in a route table. Make a key pair with `npx ogygia keys shell`.
 
-Docs: [Fragment federation](https://ogygia.puruvj.dev/docs/app/federation).
+Docs: [Fragment federation](https://ogygiajs.dev/docs/app/federation).

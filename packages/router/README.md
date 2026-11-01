@@ -1,6 +1,6 @@
 # @ogygia/router
 
-The server router for [ogygia](https://ogygia.puruvj.dev): SvelteKit's routing model as values. Pages, layouts, loads, actions, endpoints and streamed pages in one typed table, with `App['/path']` types and no codegen. It also ships a typed fetch client for your endpoints.
+The server router for [ogygia](https://ogygiajs.dev): SvelteKit's routing model as values. Pages, layouts, loads, actions, endpoints and streamed pages in one typed table, with `App['/path']` types and no codegen. It also ships a typed fetch client for your endpoints.
 
 ## Install
 
@@ -40,4 +40,4 @@ export const handle = sequence(ogygia.handle(), router.handle);
 
 The typed client is `api<App>()` from `@ogygia/router/api` (browser-safe).
 
-Docs: [Server router](https://ogygia.puruvj.dev/docs/app/server-router).
+Docs: [Server router](https://ogygiajs.dev/docs/app/server-router).

@@ -1,6 +1,6 @@
 # @ogygia/content
 
-Content for [ogygia](https://ogygia.puruvj.dev): typed content collections, markdown with mdsvex and Shiki, the docs and blog shells, search, and the content macros (`import.meta.og.loader`, `og.code`, `og.md`). Collections live on the server; only plain data crosses the wire, and bodies render as regions.
+Content for [ogygia](https://ogygiajs.dev): typed content collections, markdown with mdsvex and Shiki, the docs and blog shells, search, and the content macros (`import.meta.og.loader`, `og.code`, `og.md`). Collections live on the server; only plain data crosses the wire, and bodies render as regions.
 
 ## Install
 
@@ -46,4 +46,4 @@ export const docs = content({ loader: import.meta.og.loader.markdown('../content
 
 `get(id)` gives the entry with its body as a region. The wire layer (`remotes`, `withRemotes`) is `@ogygia/content/server`; markdown helpers are `@ogygia/content/markdown`; the shell is `@ogygia/content/docs-shell`.
 
-Docs: [Content collections](https://ogygia.puruvj.dev/docs/content/collections).
+Docs: [Content collections](https://ogygiajs.dev/docs/content/collections).
