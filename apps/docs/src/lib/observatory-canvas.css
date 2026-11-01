@@ -12,6 +12,8 @@
 .og-canvas :where(h1, h2, h3, h4, h5, h6) {
 	font-family: inherit;
 	font-weight: 600;
+	/* the docs' h1/h2 turn synthesis off for the one-weight serif; a previewed font gets it back */
+	font-synthesis: initial;
 }
 .og-canvas :where(h1) {
 	font-size: 20px;

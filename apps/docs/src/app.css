@@ -25,7 +25,8 @@
 	--r-sm: 6px;
 	--r-md: 10px;
 
-	--font-display: 'Newsreader Variable', Georgia, serif;
+	/* ONE weight (400), no italic: every rule that sets it pairs it with `font-synthesis: none` */
+	--font-display: 'Geist Serif', Georgia, serif;
 	--font-body: 'Instrument Sans Variable', system-ui, -apple-system, sans-serif;
 	--font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, monospace;
 
@@ -112,12 +113,11 @@ body {
 h1 {
 	margin: 0;
 	font-family: var(--font-display);
-	font-style: italic;
-	font-weight: 500;
+	font-weight: 400;
+	font-synthesis: none;
 	font-size: clamp(3rem, 6vw, 5rem);
 	line-height: 1.05;
 	letter-spacing: -0.02em;
-	font-variation-settings: 'opsz' 72;
 	color: var(--text);
 	padding-bottom: 0.08em;
 }
@@ -125,7 +125,8 @@ h1 {
 h2 {
 	margin: 0 0 1rem;
 	font-family: var(--font-display);
-	font-weight: 500;
+	font-weight: 400;
+	font-synthesis: none;
 	font-size: clamp(1.75rem, 3vw, 2.5rem);
 	line-height: 1.15;
 	letter-spacing: -0.01em;
@@ -133,7 +134,7 @@ h2 {
 }
 
 h2 em {
-	font-style: italic;
+	font-style: normal;
 	color: var(--accent);
 }
 
