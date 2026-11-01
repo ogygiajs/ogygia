@@ -11,6 +11,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# turbo's remote cache (Vercel, the purus-projects team), shared with the e2e workflow
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
 jobs:
   publish:
     runs-on: ubuntu-latest
