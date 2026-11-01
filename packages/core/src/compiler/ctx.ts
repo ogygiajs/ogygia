@@ -9,6 +9,7 @@
 import { fs } from './host.ts';
 import { strip_bom } from './bom.ts';
 import { islandVirtualId } from './ids.ts';
+import { parse_module, type AstNode } from './parse/oxc.ts';
 import type { ServerRealm } from './link/caps.ts';
 import type { PluginMacro } from './macros/pipeline.ts';
 import {
@@ -161,6 +162,8 @@ export class CompileCtx {
 	/** `with { … }` hint matcher — a node_modules `.svelte` is only transformed when it carries one
 	 *  (so a library can declare its own islands). Built once from the resolved import keys. */
 	readonly #island_hint_re: RegExp;
+	/** The resolved import-attribute keys that make a mark (`wake`, `render`, …). */
+	readonly #mark_keys: ReadonlySet<string>;
 	/** Declared package files (exact) + dirs (prefix) — the transform-gate membership index. */
 	readonly #pkg_files: Set<string>;
 	readonly #pkg_dirs: string[];
@@ -210,6 +213,7 @@ export class CompileCtx {
 		this.#island_hint_re = hint_keys.length
 			? new RegExp(`\\bwith\\s*\\{[^}]*\\b(?:${hint_keys.join('|')})\\b`)
 			: NEVER_MATCH_RE;
+		this.#mark_keys = new Set(hint_keys);
 		this.#pkg_files = new Set(this.pkg_scan.flatMap((p) => p.files));
 		this.#pkg_dirs = this.pkg_scan.flatMap((p) => p.dirs);
 		this.#pkg_roots = this.pkg_scan
@@ -220,6 +224,23 @@ export class CompileCtx {
 	/** True when `code` carries an ogygia `with { … }` island hint (gates node_modules `.svelte`). */
 	has_island_hint(code: string): boolean {
 		return this.#island_hint_re.test(code);
+	}
+
+	/** True when a JS module has a real `import … with { <mark key>: … }` declaration. The hint
+	 *  above is a text sniff, so it also matches a comment, a string or generated code that merely
+	 *  mentions `with { wake }`; this parses. A module that does not parse counts as marked, so a
+	 *  warning that depends on it errs toward speaking. */
+	has_marked_import(code: string, id: string): boolean {
+		const { program, ok } = parse_module(code, id);
+		if (!ok || !program) return true;
+		for (const node of program.body as AstNode[]) {
+			if (node.type !== 'ImportDeclaration') continue;
+			for (const attr of (node.attributes ?? []) as AstNode[]) {
+				const key = attr.key?.type === 'Identifier' ? attr.key.name : attr.key?.value;
+				if (typeof key === 'string' && this.#mark_keys.has(key)) return true;
+			}
+		}
+		return false;
 	}
 
 	/** True when `id` is inside a dependency's DECLARED `ogygia.files` surface — those files are

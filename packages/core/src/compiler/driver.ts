@@ -1860,12 +1860,15 @@ export class Compiler {
 		// SILENTLY (the import attribute is valid syntax, it just never rewrites) — say so.
 		// (ogygia's OWN modules are exempt: in an installed consumer they live in node_modules and
 		// flow through the SSR pipeline (noExternal), and compiler/emit sources legitimately CONTAIN
-		// `with { wake` as strings — the hint sniff would warn-spam on every build.)
+		// `with { wake` as strings — the hint sniff would warn-spam on every build.) The sniff is only
+		// the cheap filter: a plugin package's docs comment, generated-code string or error message
+		// that mentions `with { wake }` is no mark, so the parse decides.
 		if (
 			nm_ts === true &&
 			!id_n.startsWith(ctx.pkg_root) &&
 			!ctx.in_declared_pkg(id_n) &&
-			ctx.has_island_hint(out)
+			ctx.has_island_hint(out) &&
+			ctx.has_marked_import(out, id_n)
 		) {
 			warn_undeclared_pkg_marks(id_n);
 		}

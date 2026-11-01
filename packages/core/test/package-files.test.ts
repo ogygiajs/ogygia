@@ -220,6 +220,21 @@ describe('undeclared-marks warning', () => {
 		warn.mockRestore();
 	});
 
+	it('a dependency that only MENTIONS a mark (comment, string, error text) does not warn', async () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		await make('/nowhere/ogygia').transform_module(
+			[
+				"/** A `with { render: 'deferred', stitch: 'serve' }` hole ships as a normal one. */",
+				"export const fix = `import X from './X.svelte' with { wake: 'load' };`;",
+				'export function fail() { throw new Error("mark its import (`with { region: \'raw\' }`)"); }'
+			].join('\n'),
+			'/nowhere-app/node_modules/@ogygia/plugin/dist/stitch.js',
+			{ ssr: true, emitFile: noop_emit }
+		);
+		expect(warn.mock.calls.flat().join('\n')).not.toMatch(/declares no/);
+		warn.mockRestore();
+	});
+
 	it("ogygia's OWN modules are exempt (compiler sources CONTAIN `with { wake` as strings)", async () => {
 		const og_root = '/consumer/node_modules/ogygia';
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
