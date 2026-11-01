@@ -11,6 +11,11 @@ on:
     branches:
       - main
 
+# turbo's remote cache (see e2e.yml): build:lib replays what CI already built for this commit
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
 jobs:
   version:
     runs-on: ubuntu-latest
