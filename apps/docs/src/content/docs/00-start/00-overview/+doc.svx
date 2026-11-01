@@ -70,7 +70,15 @@ Each section builds on the one before, so this is a good order to read them in:
    server islands in one request, and prerenders the page you are about to click.
 5. **[Macros](/docs/macros/overview).** `import.meta.og.*` computes at build time any value that
    does not change between requests.
-6. **[Constraints](/docs/reference/constraints).** The rules that keep all of this correct.
+6. **[Profiler](/docs/profiler/overview).** The SSR profiler times every request and records CPU
+   profiles on demand, so you can see where a server render spends its time.
+7. **[Devtools](/docs/devtools/overview).** The in-page dock shows each region, its hydration and
+   its timing, and [`@ogygia/testing`](/docs/devtools/testing) turns the same data into test checks.
+8. **[Plugins](/docs/reference/plugins).** The core `ogygia` package is the region system. Content,
+   the server router, flags, postrender, federation, devtools and the profiler are separate
+   packages: you install the ones you use and list each plugin beside `ogygia()` and before
+   `sveltekit()`, as in `plugins: [ogygia(), flags(), sveltekit()]`.
+9. **[Constraints](/docs/reference/constraints).** The rules that keep all of this correct.
 
 ## Start here
 

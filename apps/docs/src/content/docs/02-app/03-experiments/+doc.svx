@@ -26,7 +26,13 @@ import { flags } from '@ogygia/flags/vite';
 plugins: [ogygia(), flags(), sveltekit()]
 ```
 
-A native `flag()` can decide without the plugin. The plugin primes a `decide({ source })` once per request and drains the `exposure` sink at the end of each request. See [Plugins](/docs/reference/plugins).
+Keep the plugin listed in every app that reads flags. Without it a flag still decides from its native rule, but the request never learns that a flag was read, and that matters in three places:
+
+- **Stored pages.** Each read marks the render as per-visitor, so [postrender](/docs/data-state/postrender) never stores one variant of an A/B test and serves it to everyone. Without the plugin nothing marks the render, and a stored page can keep the variant of whoever requested it first.
+- **Federation.** Each decision is recorded on the request, which is how a [mount carries it](#one-world-across-teams) to other teams.
+- **Sources and exposures.** The plugin primes a `decide({ source })` once at the start of each request and drains the `exposure` sink at the end. Without it, the source is ignored and exposures are only sent when a batch fills up or its timer fires.
+
+The server warns once the first time it sees a flag read without the plugin. See [Plugins](/docs/reference/plugins).
 
 ## Declare: the second argument is the shape
 
@@ -104,7 +110,7 @@ export const app = routes(table, {
 });
 ```
 
-That becomes [`c.visitor`](/docs/app/server-router) everywhere. Flags stick to `c.visitor.sub`, and the same identity is what [mounts sign onward](/docs/app/federation) to other teams. Outside the router, or for anonymous traffic, the fallback is an `og-vid` cookie, and after that the visitor is anonymous. **Anonymous visitors always see the control**, so a split never changes for a visitor you can't recognize.
+That becomes [`c.visitor`](/docs/app/server-router) everywhere. Flags stick to `c.visitor.sub`, and the same identity is what [mounts sign onward](/docs/app/federation) to other teams. Outside the router, or for anonymous traffic, the fallback is an `og-vid` cookie, and after that the visitor is anonymous. **Anonymous visitors always see the control**, so a split never changes for a visitor you can't recognize. Without the router, you provide the identity yourself, as described in [Plain SvelteKit](#plain-sveltekit).
 
 For sticky rollouts on **logged-out traffic**, create the cookie:
 
@@ -114,6 +120,65 @@ import { anonymousVisitor } from '@ogygia/router';
 const anon = anonymousVisitor();                       // { cookie?, days? }
 routes(table, { visitor: (c) => session(c) ?? anon(c) });
 ```
+
+## Plain SvelteKit
+
+Flags don't need the server router. A flag reads a request context with `request`, `url` and `cookies`, and a Kit `RequestEvent` already has all three, so you can pass the event straight to a flag in any server load, form action or endpoint:
+
+```ts title=src/routes/+page.server.ts
+import { hero } from '$lib/flags';
+
+export const load = (event) => ({ variant: hero(event) });
+```
+
+Two things work differently without the router. The first is registration. A source is asked about the flags that have been registered, and a flag registers when its module is first imported, so import your flags module in `hooks.server.ts`. Then every flag is known before the first request primes the source. Router apps import all their route modules at startup, so their list is always complete.
+
+The second is identity. The router gives every flag `c.visitor`, but a Kit event has no `visitor`, so a read falls back to the `og-vid` cookie, and with no cookie the visitor is anonymous. Anonymous visitors get the control, which means that until you provide an identity, **every weighted flag and every rollout answers control for everyone**. Targeting functions still run, because they read the event themselves.
+
+For signed-in visitors, pass a `visitor` on the context you give the flag. A small helper keeps that in one place:
+
+```ts title=src/lib/server/flag-context.ts
+import type { RequestEvent } from '@sveltejs/kit';
+
+export function flagContext(event: RequestEvent) {
+  const user = event.locals.user;            // whatever your auth sets
+  return {
+    request: event.request,
+    url: event.url,
+    cookies: event.cookies,
+    visitor: user ? { sub: user.id } : undefined,
+  };
+}
+```
+
+```ts title=src/routes/+page.server.ts
+import { hero } from '$lib/flags';
+import { flagContext } from '$lib/server/flag-context';
+
+export const load = (event) => ({ variant: hero(flagContext(event)) });
+```
+
+For logged-out visitors, set the `og-vid` cookie yourself in a handle, which is what `anonymousVisitor()` does on the router. Kit's `cookies.get` returns a cookie set earlier in the same request, so the very first request already sticks:
+
+```ts title=src/hooks.server.ts
+import type { Handle } from '@sveltejs/kit';
+import { sequence } from '@sveltejs/kit/hooks';
+import * as ogygia from 'ogygia/server';
+import '$lib/flags';   // register every flag before the first request
+
+const visitorCookie: Handle = ({ event, resolve }) => {
+  if (!event.cookies.get('og-vid')) {
+    event.cookies.set('og-vid', crypto.randomUUID(), {
+      path: '/', maxAge: 365 * 86_400, httpOnly: true, sameSite: 'lax',
+    });
+  }
+  return resolve(event);
+};
+
+export const handle = sequence(visitorCookie, ogygia.handle());
+```
+
+Exposure events take their `sub` from `c.visitor`, so with the cookie alone the decision is sticky but the events arrive without a `sub`. Pass a `visitor` as well if your analytics needs one.
 
 ## Vendor values: `.value()`
 
@@ -130,6 +195,10 @@ export const banner = flag('promo-banner', 0, {
 banner.value(c);   // typed payload — never undefined
 ```
 
+The payload comes from the source, so `.value()` only ever returns something when a source sends values: `ofrep()` does whenever the service answers with one, while `openfeature()` needs `values: true` (see [Sources reference](#sources-reference)). Without a source, `.value()` returns the `fallback`.
+
+Without a `value` schema, `.value()` hands back whatever the source sent, unchecked and typed `unknown`, and the `fallback` (or `undefined`) when the source sent nothing. Declare a schema for anything you render.
+
 ## OpenFeature: `decide({ source })`
 
 Native flags need no setup. To have a vendor decide flags, you connect it **once**. ogygia depends on no vendor SDK; you give `decide` your own OpenFeature client:
@@ -144,7 +213,9 @@ OpenFeature.setProvider(new LaunchDarklyProvider(env.LD_KEY));
 decide({ source: openfeature(OpenFeature.getClient()) });
 ```
 
-The source resolves **once per request**, over exactly the flags your app declares, and every read after that stays synchronous. From then on a vendor-decided flag and a native one look the same, with the same calls, the same `pick` and the same [federation carry](#one-world-across-teams). Decisions are validated against your declared variants, so a typo at the vendor cannot invent a bucket. If the vendor is slow or down, each flag falls back to its native rule, so the vendor never holds up the first byte.
+The source resolves **once per request**, over exactly the flags your app declares, and every read after that stays synchronous. From then on a vendor-decided flag and a native one look the same, with the same calls, the same `pick` and the same [federation carry](#one-world-across-teams). Decisions are validated against your declared variants, so a typo at the vendor cannot invent a bucket. If the vendor answers with an error or a variant you did not declare, that flag falls back to its native rule.
+
+A slow vendor is a different matter. The request waits for the source before anything renders, so the source's speed becomes part of your time to first byte, on every request the handle sees, whether or not the page reads a flag. `ofrep()` gives up after 800 ms by default and leaves every flag on its native rule. `openfeature()` and a custom source have no timeout of their own: the request waits for the slowest evaluation. If your provider can stall, give it a deadline, as shown under [A custom source](#sources-reference-a-custom-source).
 
 Without a vendor SDK, you can speak the OpenFeature remote protocol directly:
 
@@ -162,7 +233,101 @@ decide({ source: async (queries, c) => {
 }});
 ```
 
-> On plain SvelteKit (without the ogygia router), `import` your flags module in `hooks.server.ts`, so every flag is registered before the first request primes the source. Router apps import all route modules at startup, so their registry is always complete.
+> On plain SvelteKit (without the ogygia router), `import` your flags module in `hooks.server.ts`, so every flag is registered before the first request primes the source. Router apps import all route modules at startup, so their registry is always complete. [Plain SvelteKit](#plain-sveltekit) covers the rest.
+
+`decide()` can be called more than once, from different modules. Each call changes only the options it names, so `decide({ source })` in one file and `decide({ exposure })` in another add up. Passing `source: undefined` or `exposure: undefined` removes that one, and a `batch` you pass resets any field you leave out to its default.
+
+## Sources reference
+
+A source is set once with `decide({ source })` and runs once per request, at the start, before the page or hole renders. It runs before the router or your load has resolved a visitor, so the context it receives has `request`, `url` and `cookies` but **no `visitor`**. Build anything the vendor needs from what the request carries.
+
+### `openfeature(client, options?)`
+
+Bridges an OpenFeature server client that you created. Any object with `getBooleanValue` and `getStringValue` fits, so any SDK version works.
+
+```ts
+import { decide } from '@ogygia/flags';
+import { openfeature } from '@ogygia/flags/openfeature';
+
+decide({
+  source: openfeature(OpenFeature.getClient(), {
+    context: (c) => ({ targetingKey: c.cookies?.get('og-vid') }),
+    values: true,
+  }),
+});
+```
+
+| Option    | Default                                          | What it does                                                                                                                                           |
+| --------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `context` | `c.visitor`'s keys, with `sub` as `targetingKey` | Builds the evaluation context from the request. The default reads `c.visitor`, which a source never sees, so it sends an empty context; pass your own. |
+| `values`  | `false`                                          | Also asks for each flag's object value (`getObjectValue`) and passes it to `.value(c)`. Without it, vendor payloads never arrive.                      |
+
+Each request evaluates every registered flag in parallel. A boolean flag asks `getBooleanValue(name, false)`, so a flag the vendor doesn't know stays off, and a variant flag asks `getStringValue(name, control)`, whose answer is the variant name. `values: true` adds one more call per flag. A flag whose evaluation throws falls back to its native rule. There is no timeout.
+
+### `ofrep(options)`
+
+Speaks the OpenFeature Remote Evaluation Protocol directly, with no SDK, to any OFREP service (flagd, the OpenFeature operator, a gateway). It sends one bulk `POST` to `<url>/ofrep/v1/evaluate/flags/bulk` per request.
+
+```ts
+import { ofrep } from '@ogygia/flags/openfeature';
+
+decide({
+  source: ofrep({
+    url: 'http://flagd:8016',
+    headers: { authorization: `Bearer ${env.FLAGS_TOKEN}` },
+    timeout: 300,
+  }),
+});
+```
+
+| Option    | Default                                          | What it does                                                                                     |
+| --------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `url`     | required                                         | The service's base URL.                                                                          |
+| `headers` | none                                             | Headers sent with every evaluation, such as an auth token or a tenant.                           |
+| `context` | `c.visitor`'s keys, with `sub` as `targetingKey` | Builds the evaluation context. As with `openfeature()`, the default comes out empty in practice. |
+| `fetch`   | the global `fetch`                               | The fetch to use.                                                                                |
+| `timeout` | `800`                                            | Milliseconds before the evaluation is aborted.                                                   |
+
+A non-2xx answer, a network error or the timeout leaves every flag on its native rule. Flags the service answers with an `errorCode`, flags you did not declare and variants you did not declare are skipped. A boolean flag takes the answer's `variant`, or `on`/`off` from a boolean `value`. A value that is not a boolean becomes the flag's `.value(c)` payload.
+
+### A custom source
+
+A source is a function from the registered flags and the request to a record of decisions. It may be async.
+
+```ts
+import type { FlagSource, FlagQuery, Resolved } from '@ogygia/flags';
+
+// type FlagSource = (queries: FlagQuery[], c: CtxLike) => Record<string, Resolved> | Promise<…>
+// interface FlagQuery { name: string; variants: readonly string[]; kind: 'boolean' | 'variant' }
+```
+
+Each `FlagQuery` describes one flag your app declared. `kind` is `'boolean'` for a kill switch, rollout or targeting flag (its variants are `off` and `on`) and `'variant'` for a weighted set. The record you return is keyed by flag name, and each value can take one of three forms:
+
+| You return            | It means                                  |
+| --------------------- | ----------------------------------------- |
+| `'bold'`              | the variant name                          |
+| `true` / `false`      | `'on'` / `'off'`, for a boolean flag      |
+| `{ variant, value? }` | a variant, plus a payload for `.value(c)` |
+
+A flag you leave out uses its native rule, a variant that isn't declared is ignored, and if the function throws or rejects, every flag uses its native rule for that request. The source runs once per request over every registered flag, so keep it cheap or cache inside it.
+
+Nothing puts a deadline on a source, so wrap one that can stall. Returning an empty record when time runs out leaves every flag on its native rule:
+
+```ts
+import type { FlagSource } from '@ogygia/flags';
+
+const within = (ms: number, source: FlagSource): FlagSource => (queries, c) =>
+  Promise.race([
+    source(queries, c),
+    new Promise<Record<string, never>>((resolve) => setTimeout(() => resolve({}), ms)),
+  ]);
+
+decide({ source: within(300, openfeature(OpenFeature.getClient())) });
+```
+
+### `prime_flags()` and `flush_exposures()`
+
+The flags plugin calls these for you: `prime_flags(c)` at the start of each request and `flush_exposures()` at its end. They are exported for code that runs outside a request. Call `flush_exposures()` to send queued exposures before a process exits or at the end of a test, and `prime_flags(c)` to run the source for a request the plugin never saw, such as one built in a unit test. Priming a request twice does nothing the second time.
 
 ## The precedence chain
 
