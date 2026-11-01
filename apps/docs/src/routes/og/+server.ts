@@ -9,8 +9,9 @@ import { html as toSatori } from 'satori-html';
 import { Resvg } from '@resvg/resvg-js';
 import OgCard from '$lib/og/OgCard.svelte';
 
-import NewsreaderNormal from '@fontsource/newsreader/files/newsreader-latin-600-normal.woff';
-import NewsreaderItalic from '@fontsource/newsreader/files/newsreader-latin-600-italic.woff';
+// The site's display face, subset by scripts/subset-fonts.ts (woff: satori reads no woff2). ONE
+// weight (400), upright only, so the card's serif rules use exactly that.
+import Serif from '$lib/fonts/geist-serif-latin.woff';
 import Mono from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff';
 
 import type { RequestHandler } from './$types';
@@ -19,19 +20,16 @@ import type { RequestHandler } from './$types';
 export const prerender = false;
 
 let fonts_promise: Promise<
-	{ name: string; data: ArrayBuffer; weight: 500 | 600; style: 'normal' | 'italic' }[]
+	{ name: string; data: ArrayBuffer; weight: 400 | 500; style: 'normal' }[]
 > | null = null;
 
 function load_fonts() {
-	fonts_promise ??= Promise.all([
-		read(NewsreaderNormal).arrayBuffer(),
-		read(NewsreaderItalic).arrayBuffer(),
-		read(Mono).arrayBuffer()
-	]).then(([normal, italic, mono]) => [
-		{ name: 'Newsreader', data: normal, weight: 600 as const, style: 'normal' as const },
-		{ name: 'Newsreader', data: italic, weight: 600 as const, style: 'italic' as const },
-		{ name: 'JetBrains Mono', data: mono, weight: 500 as const, style: 'normal' as const }
-	]);
+	fonts_promise ??= Promise.all([read(Serif).arrayBuffer(), read(Mono).arrayBuffer()]).then(
+		([serif, mono]) => [
+			{ name: 'Geist Serif', data: serif, weight: 400 as const, style: 'normal' as const },
+			{ name: 'JetBrains Mono', data: mono, weight: 500 as const, style: 'normal' as const }
+		]
+	);
 	return fonts_promise;
 }
 
@@ -44,9 +42,10 @@ export const GET: RequestHandler = async ({ url }) => {
 	// "SPA router & PPR" would render the literal `&amp;`. Decode the safe text entities here. `&lt;`/
 	// `&gt;` are left escaped so a stray `<` in a title can't reopen the markup satori-html re-parses.
 	// `css="injected"` puts scoped CSS in `head` as a <style> block; markup is in `body`. satori
-	// resolves the scoped class selectors when handed both together.
+	// resolves the scoped class selectors when handed both together. The CSS is collapsed onto one
+	// line first: satori's gradient parser throws on a value the formatter wrapped across lines.
 	const rendered = render(OgCard, { props: { title, category, home } });
-	const decoded = (rendered.head + rendered.body)
+	const decoded = (rendered.head.replace(/\s+/g, ' ') + rendered.body)
 		.replace(/&#0?39;/g, "'")
 		.replace(/&#x27;/gi, "'")
 		.replace(/&quot;/g, '"')

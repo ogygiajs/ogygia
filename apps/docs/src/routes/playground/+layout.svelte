@@ -30,10 +30,8 @@
 		kalliope,
 		nephele
 	};
-	// Self-hosted variable fonts — the theme references Inter / JetBrains Mono; point its tokens at the
-	// `@fontsource-variable` family names below.
-	import '@fontsource-variable/inter';
-	import '@fontsource-variable/jetbrains-mono';
+	// No font files: the themes name 'Inter' / 'JetBrains Mono' and fall back to the system stacks
+	// when the visitor has neither installed.
 	// LEAK-FREE: the corpus lives in `docs.server.ts`; we pull only the shell bundle over the wire via
 	// the `meta` remote and hand it to `<DocsShell {meta}>`. Nothing here imports the collections.
 	import { page } from '$app/state';

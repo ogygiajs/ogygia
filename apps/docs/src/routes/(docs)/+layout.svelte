@@ -1,9 +1,8 @@
 <script lang="ts">
-	import newsreaderItalicUrl from '@fontsource-variable/newsreader/files/newsreader-latin-opsz-italic.woff2?url';
-	// The roman display face (the `ogygia` wordmark uses it) is `font-display: optional`, so on a cold
-	// first load it fell back to thick Georgia on some pages and thin Newsreader on others. Preload it
-	// too, so the wordmark is the SAME thin serif everywhere.
-	import newsreaderRomanUrl from '@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2?url';
+	// The ONE display face: the LCP brand h1 and the `ogygia` wordmark. It is `font-display: swap` and
+	// preloaded, so the wordmark is the SAME serif on every page (an `optional` display face fell back
+	// to Georgia on some cold loads and not others) and the brand h1 swaps in early.
+	import geistSerifUrl from '$lib/fonts/geist-serif-latin.woff2?url';
 	import fontsMonoUrl from '../../fonts-mono.css?url';
 	import '../../fonts.css';
 	import '../../app.css';
@@ -67,20 +66,7 @@
 </script>
 
 <svelte:head>
-	<link
-		rel="preload"
-		href={newsreaderItalicUrl}
-		as="font"
-		type="font/woff2"
-		crossorigin="anonymous"
-	/>
-	<link
-		rel="preload"
-		href={newsreaderRomanUrl}
-		as="font"
-		type="font/woff2"
-		crossorigin="anonymous"
-	/>
+	<link rel="preload" href={geistSerifUrl} as="font" type="font/woff2" crossorigin="anonymous" />
 	{@html themeTag}
 	{@html monoTag}
 </svelte:head>

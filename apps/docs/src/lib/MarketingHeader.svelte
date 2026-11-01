@@ -88,7 +88,8 @@
 		text-decoration: none;
 	}
 	.mkt-brand-word {
-		font: 600 1.15rem/1 var(--font-display);
+		font: 400 1.15rem/1 var(--font-display);
+		font-synthesis: none;
 		letter-spacing: -0.02em;
 	}
 	.mkt-links {

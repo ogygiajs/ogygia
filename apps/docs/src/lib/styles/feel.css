@@ -28,10 +28,9 @@
 
 .feel-clock {
 	margin: 0;
-	font: 500 1.25rem/1 var(--font-display);
-	font-style: italic;
+	font: 400 1.25rem/1 var(--font-display);
+	font-synthesis: none;
 	color: var(--text);
-	font-variation-settings: 'opsz' 36;
 	max-width: none;
 }
 

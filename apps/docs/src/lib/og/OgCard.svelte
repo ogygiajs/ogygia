@@ -94,7 +94,8 @@
 			rgba(6, 9, 7, 0) 60%
 		);
 		overflow: hidden;
-		font-family: 'Newsreader';
+		/* the one serif face the endpoint loads: weight 400, upright */
+		font-family: 'Geist Serif';
 	}
 	.rule {
 		position: absolute;
@@ -127,9 +128,8 @@
 		gap: 28px;
 	}
 	.hero-word {
-		font-family: 'Newsreader';
-		font-style: italic;
-		font-weight: 600;
+		font-family: 'Geist Serif';
+		font-weight: 400;
 		font-size: 150px;
 		line-height: 1;
 		letter-spacing: -0.02em;
@@ -152,9 +152,8 @@
 		gap: 15px;
 	}
 	.brand-word {
-		font-family: 'Newsreader';
-		font-style: italic;
-		font-weight: 600;
+		font-family: 'Geist Serif';
+		font-weight: 400;
 		font-size: 40px;
 		color: #e9f1ec;
 		letter-spacing: -0.01em;
@@ -183,8 +182,8 @@
 	}
 	.title {
 		display: flex;
-		font-family: 'Newsreader';
-		font-weight: 600;
+		font-family: 'Geist Serif';
+		font-weight: 400;
 		font-size: 76px;
 		line-height: 1.04;
 		letter-spacing: -0.025em;

@@ -562,7 +562,8 @@
 
 	.story-intro h2 {
 		margin: 0 0 0.6rem;
-		font: 600 clamp(1.75rem, 3.5vw, 2.5rem)/1.1 var(--font-display);
+		font: 400 clamp(1.75rem, 3.5vw, 2.5rem)/1.1 var(--font-display);
+		font-synthesis: none;
 		letter-spacing: -0.03em;
 		color: var(--text);
 	}
@@ -617,7 +618,8 @@
 
 	.beat-head h3 {
 		margin: 0 0 0.4rem;
-		font: 600 1.3rem/1.2 var(--font-display);
+		font: 400 1.3rem/1.2 var(--font-display);
+		font-synthesis: none;
 		letter-spacing: -0.02em;
 		color: var(--text);
 	}
@@ -689,7 +691,8 @@
 	.story-turn {
 		margin: 0.25rem auto 2.75rem;
 		padding-left: 3.5rem;
-		font: 500 1.2rem/1.45 var(--font-display);
+		font: 400 1.2rem/1.45 var(--font-display);
+		font-synthesis: none;
 		letter-spacing: -0.01em;
 		color: var(--text);
 	}
@@ -743,7 +746,8 @@
 	}
 	.content-head h2 {
 		margin: 0.5rem 0;
-		font: 600 1.75rem/1.15 var(--font-display);
+		font: 400 1.75rem/1.15 var(--font-display);
+		font-synthesis: none;
 		letter-spacing: -0.03em;
 		color: var(--text);
 	}
@@ -817,7 +821,8 @@
 
 	.home-docs-head h2 {
 		margin: 0 0 0.5rem;
-		font: 600 1.75rem/1.15 var(--font-display);
+		font: 400 1.75rem/1.15 var(--font-display);
+		font-synthesis: none;
 		letter-spacing: -0.03em;
 		color: var(--text);
 	}

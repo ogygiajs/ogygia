@@ -29,7 +29,8 @@
 
 	.features-lede {
 		margin: 0.35rem 0 1.5rem;
-		font: italic 500 1.125rem/1.3 var(--font-display);
+		font: 400 1.125rem/1.3 var(--font-display);
+		font-synthesis: none;
 		color: var(--text-dim);
 	}
 
