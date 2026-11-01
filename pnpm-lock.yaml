@@ -798,6 +798,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.2
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
       svelte:
         specifier: 'catalog:'
         version: 5.56.8
@@ -841,6 +844,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.2
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
       shiki:
         specifier: 'catalog:'
         version: 4.4.3
@@ -927,6 +933,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.2
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
       '@vitest/browser':
         specifier: 4.1.12
         version: 4.1.12(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
@@ -997,6 +1006,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.2
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
       svelte:
         specifier: 'catalog:'
         version: 5.56.8
@@ -1103,6 +1115,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.2
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
@@ -1128,6 +1143,9 @@ importers:
       '@ogygia/tooling':
         specifier: workspace:*
         version: link:../tooling
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
@@ -1161,6 +1179,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.2
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
@@ -1232,6 +1253,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.2
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
@@ -1259,6 +1283,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.2
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
       svelte:
         specifier: 'catalog:'
         version: 5.56.8
@@ -1338,6 +1365,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.2
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
@@ -1369,6 +1399,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.2
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -1385,6 +1418,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.2
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
       svelte:
         specifier: 'catalog:'
         version: 5.56.8

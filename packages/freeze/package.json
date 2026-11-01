@@ -61,6 +61,7 @@
 		"@playwright/test": "catalog:",
 		"@sveltejs/kit": "catalog:",
 		"@types/node": "catalog:",
+		"@typescript/native": "catalog:tsgo",
 		"tsdown": "catalog:",
 		"typescript": "catalog:",
 		"vitest": "catalog:"
