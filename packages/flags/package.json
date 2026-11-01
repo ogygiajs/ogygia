@@ -64,6 +64,7 @@
 	"devDependencies": {
 		"@ogygia/core": "workspace:*",
 		"@ogygia/tooling": "workspace:*",
+		"@typescript/native": "catalog:tsgo",
 		"tsdown": "catalog:",
 		"typescript": "catalog:",
 		"vitest": "catalog:"
