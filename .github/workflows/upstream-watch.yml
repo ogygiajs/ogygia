@@ -186,3 +186,20 @@ jobs:
             fi
             gh issue create --title "${TITLE}" --body-file /tmp/upstream-issue.md --label "${LABEL}"
           fi
+
+      # A green line closes its open tracking issues (either verdict): the thread ends where it was
+      # proven fixed, instead of staying open until someone remembers it.
+      - name: Close this line's issues when it is green
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          LINE: SvelteKit ${{ matrix.kit }} on ${{ matrix.ref }}
+        run: |
+          set -euo pipefail
+          for LABEL in upstream-break suite-red; do
+            for N in $(gh issue list --state open --label "${LABEL}" --json number,title \
+              --jq ".[] | select(.title | startswith(\"[${LINE}]\")) | .number"); do
+              gh issue close "${N}" --comment "Green on svelte \`${SVELTE_VERSION:-?}\` / @sveltejs/kit \`${KIT_VERSION:-?}\` in ${RUN_URL}."
+            done
+          done
