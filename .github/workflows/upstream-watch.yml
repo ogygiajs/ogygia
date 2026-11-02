@@ -21,15 +21,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
-      # one red line must not cancel the other: both verdicts in one run
+      # one red line must not cancel another: every verdict in one run
       fail-fast: false
       matrix:
         include:
-          # main supports SvelteKit 2 AND 3: both. `^2` takes the newest 2.x, never a 3.
-          - { kit: 2, ref: main, kit_spec: '^2' }
+          # main supports SvelteKit 3 only (lts-0.8 is the SvelteKit 2 line)
           - { kit: 3, ref: main, kit_spec: 'latest' }
-          # kit3 is the SvelteKit-3-only line (#133)
-          - { kit: 3, ref: kit3, kit_spec: 'latest' }
     steps:
       - uses: actions/checkout@v4
         with:
