@@ -74,9 +74,22 @@ export type WireOps = {
 };
 
 export type RemoteSeedOps = {
+	/** this document's remote seed into the query cache, once per document */
+	seed_once(): void;
 	seed_query_responses(text: string): void;
 	clear_remote_seeds(): void;
 	clear_remote_instances(): void;
+};
+
+/** The page as island code sees it, filled by the `page` feature (./seeds.ts). Null when no island
+ *  code can read its page: the server ships no seed then, so there is nothing to parse or wait for. */
+export type PageOps = {
+	/** the document's page seed into the page store (once), then any page facts answers brought */
+	seed_page_once(): void;
+	/** the `page.data` a seed reference in island props resolves against */
+	seed_data_of(doc: Document): unknown;
+	/** on a Kit-hydrated document: the wait for Kit to apply its page (`null` once applied) */
+	kit_page_thread(): Promise<void> | null;
 };
 
 /**
@@ -173,6 +186,7 @@ export type Slots = {
 	 *  decodes (./wire-classes.ts). Null in an app without transportable classes: nothing to load. */
 	wire_classes: ((region: Element) => Promise<unknown> | null) | null;
 	remoteSeeds: RemoteSeedOps | null;
+	page: PageOps | null;
 	frames: FrameOps | null;
 	nav: NavOps | null;
 	/**
@@ -216,6 +230,7 @@ export const slots: Slots = {
 	wire: null,
 	wire_classes: null,
 	remoteSeeds: null,
+	page: null,
 	frames: null,
 	nav: null,
 	context: null,

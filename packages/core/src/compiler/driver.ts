@@ -188,6 +188,18 @@ const SERVER_DIR_RE = /\/(src\/lib\/server|server)\//;
  *  regex — `walk_dep` resets `lastIndex` before each scan). */
 const IMPORT_SPEC_G =
 	/\bfrom\s*['"]([^'"\n]+)['"]|\bimport\s*['"]([^'"\n]+)['"]|\bimport\s*\(\s*['"]([^'"\n]+)['"]/g;
+// THE PAGE MARK (link/runtime-entry.ts `page`), from the island-closure walk: which imports island
+// code can make without reaching Kit's page world. Everything else under `$app/`, any package but
+// Svelte, and anything the walk cannot resolve or read counts as a reader: over-inclusion ships the
+// page seed's runtime for nothing, a miss would leave an island's `page.data` empty.
+const PAGE_FREE_APP_MODULES = new Set(['$app/environment', '$app/paths']);
+const ASSET_EXTS =
+	'css|scss|sass|less|styl|pcss|postcss|json|svg|png|jpe?g|gif|webp|avif|ico|bmp|woff2?|ttf|otf|eot|txt|wasm|mp4|webm|mp3|wav';
+const ASSET_EXT_RE = new RegExp(`\\.(?:${ASSET_EXTS})$`, 'i');
+const PAGE_FREE_UNRESOLVED_RE = new RegExp(
+	`^svelte(?:\\/[\\w/-]+)?$|\\.(?:${ASSET_EXTS})(?:\\?[^/]*)?$`,
+	'i'
+);
 /** The extensions an extension-less island import may resolve to (bare, then index files). */
 const ISLAND_DEP_EXTS = ['', '.svelte', '.ts', '.js', '.svelte.ts', '.svelte.js', '.mjs'];
 
@@ -718,6 +730,11 @@ export class Compiler {
 		// A transportable class (`static wire = import.meta.og.wire(…)`) means island props can carry a
 		// live wired object, revived through the wire codec — so this app needs the wire runtime.
 		if (transportable_modules.size > 0) runtime_marks.wire = true;
+		// The page seed and the MPA navigation handle are for island code that reaches Kit's page world
+		// (the closure walk above). Islands the walk never saw count as readers: a federated peer's,
+		// hydrated by this app's runtime against this page, and whatever a plugin's browser half wakes.
+		runtime_marks.page =
+			program.island_reads_page || ctx.foreign_hydrate || ctx.client_plugins.length > 0;
 		// prescan walked every host — the capability marks are now COMPLETE, so the generated sticky
 		// runtime entry can bundle only the features this app uses (else it stays kitchen-sink).
 		runtime_marks.complete = true;
@@ -805,23 +822,27 @@ export class Compiler {
 				island_graph.add(norm);
 				added.push(norm);
 			}
-			if (!SOURCE_EXT_RE.test(norm)) return;
+			if (!SOURCE_EXT_RE.test(norm)) {
+				// a module this walk does not read (markdown, a JSX file): it may read the page
+				if (!ASSET_EXT_RE.test(norm)) this.program.island_reads_page = true;
+				return;
+			}
 			const src = ctx.read_file(norm);
 			if (src == null) return;
 			IMPORT_SPEC_G.lastIndex = 0;
 			let m: RegExpExecArray | null;
 			while ((m = IMPORT_SPEC_G.exec(src))) {
 				const spec = m[1] || m[2] || m[3];
-				if (
-					!spec ||
-					spec[0] === '\0' ||
-					spec.startsWith('$app/') ||
-					spec.startsWith('$env/') ||
-					spec.startsWith('virtual:')
-				)
+				if (!spec || spec[0] === '\0') continue;
+				if (spec.startsWith('$app/')) {
+					if (!PAGE_FREE_APP_MODULES.has(spec)) this.program.island_reads_page = true;
 					continue;
+				}
+				if (spec.startsWith('$env/') || spec.startsWith('virtual:')) continue;
 				const dep = resolve_dep(spec, norm);
 				if (dep) walk(dep);
+				// A package or an import this walk cannot resolve may read the page; Svelte and assets cannot.
+				else if (!PAGE_FREE_UNRESOLVED_RE.test(spec)) this.program.island_reads_page = true;
 			}
 		};
 		walk(componentAbs);

@@ -11,11 +11,13 @@
  * from the global realm (the same pattern as the Kit page bridge, `Symbol.for('ogygia.kit-page')`),
  * and `test/runtime-boot-svelte-free.test.ts` pins that no island-side module imports a boot module.
  *
- * Who publishes it, always, on a document ogygia boots:
+ * Who publishes it, on a document ogygia boots:
  * - the ROUTER feature (./router.ts `install`) — the SPA router's API;
- * - otherwise core (`boot`) publishes {@link mpa_nav}: the browser navigates, preloads become
- *   Speculation Rules hints, and `invalidateAll` is still the soft seed refresh (./router-nav.ts,
- *   loaded on first use) — exactly what `router: false` apps got before.
+ * - otherwise the `mpa-nav` feature ({@link install}) publishes {@link mpa_nav}: the browser
+ *   navigates, preloads become Speculation Rules hints, and `invalidateAll` is still the soft seed
+ *   refresh (./router-nav.ts, loaded on first use) — exactly what `router: false` apps got before.
+ *   Installed only when island code can reach the handle (the `page` mark: `$app/navigation`,
+ *   `ogygia/app`, or anything the build could not follow): with none of those, nothing reads it.
  *
  * Island code reads it as `globalThis[Symbol.for('ogygia.nav')]` (the key is repeated there on
  * purpose: importing {@link NAV_HANDLE_KEY} would be the very edge this module exists to avoid).
@@ -38,6 +40,12 @@ export type NavHandle = {
 	afterNavigate(fn: AfterNavigateCallback): () => void;
 	bust_page_cache(): void;
 };
+
+/** Feature entry (`mpa-nav`, boot phase): the MPA handle, first — the router's install, later in
+ *  the feature order, replaces it. */
+export function install(): void {
+	if (typeof document !== 'undefined' && !(NAV_HANDLE_KEY in globalThis)) publish_nav(mpa_nav());
+}
 
 /** Publish the document's navigation handle (the router's replaces the MPA one). */
 export function publish_nav(handle: NavHandle): void {

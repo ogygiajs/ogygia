@@ -42,7 +42,6 @@ import {
 import { slots } from './slots.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
 import { PAGE_FACTS_SELECTOR } from '../page-facts-script.ts';
-import { NAV_HANDLE_KEY, mpa_nav, publish_nav } from './nav-handle.ts';
 import { link_boot } from './boot-link.ts';
 import {
 	background_start,
@@ -1640,9 +1639,8 @@ export function boot(
 	installers: Array<() => void> = [],
 	client_plugins: readonly ClientPlugin[] = []
 ): void {
-	// The navigation handle island code reaches the runtime through (./nav-handle.ts): the MPA one
-	// first, which the router feature's install replaces with the SPA router's when it is present.
-	if (typeof document !== 'undefined' && !(NAV_HANDLE_KEY in globalThis)) publish_nav(mpa_nav());
+	// (The navigation handle island code reaches the runtime through is a feature now: `mpa-nav`
+	// publishes the MPA one, the router's install replaces it — ./nav-handle.ts.)
 	// The head the server sent is the page's (session.ts: who owns each node in <head>). No island
 	// has woken yet — the runtime boots before any wake — so nothing here is an island's.
 	runtime_session.adopt_document_head();

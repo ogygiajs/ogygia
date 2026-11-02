@@ -144,6 +144,11 @@ export class Program {
 	 *  (the generated `virtual:ogygia/kit-transport`) carries the codec cluster or is an empty map. */
 	crosses_wire = false;
 
+	/** Island code can reach Kit's page world (`$app/state` and kin, or something the island-closure
+	 *  walk could not follow — driver.ts `mark_island_closure`). Folded into `runtime_marks.page` at
+	 *  the end of the prescan, with the other ways islands the walk never saw reach the runtime. */
+	island_reads_page = false;
+
 	/** Build-time capability marks for the sticky runtime entry. Incomplete → kitchen-sink. */
 	readonly runtime_marks: RuntimeMarks;
 

@@ -24,10 +24,16 @@ export type RuntimeMarks = {
 	 *  driver's import scan; gates the cross-island context bridge (~4.7 kB) out of apps that never
 	 *  provide context. Read-only providers (`getContext`) don't set it — there's nothing to bridge. */
 	context?: boolean;
+	/** Island code can reach Kit's page world: `$app/state` / `$app/stores` / `$app/navigation`
+	 *  (anything under `$app/` but `environment` and `paths`), or code the driver's island-closure walk
+	 *  cannot follow (a package, an unresolvable import), or a client plugin / federation that hands
+	 *  the runtime islands the walk never saw. Gates the page seed and the MPA navigation handle. */
+	page?: boolean;
 };
 
 export type FeatureId =
 	| 'remote-seeds'
+	| 'page'
 	| 'wire'
 	| 'wire-classes'
 	| 'frames'
@@ -36,6 +42,7 @@ export type FeatureId =
 	| 'live'
 	| 'interaction'
 	| 'forms'
+	| 'mpa-nav'
 	| 'router'
 	| 'context';
 
@@ -76,6 +83,13 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 		module: 'form-continuity.js',
 		deps: [],
 		detect: (m) => m.forms === true || (m.forms !== false && m.router === true)
+	},
+	'mpa-nav': {
+		module: 'nav-handle.js',
+		deps: [],
+		// The MPA navigation handle island code navigates through (`$app/navigation`, `ogygia/app`);
+		// the router's install, later in the order, replaces it with the SPA one.
+		detect: (m) => m.page !== false
 	},
 	router: {
 		module: 'router.js',
@@ -130,6 +144,15 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 		phase: 'hydrate',
 		detect: (m) => m.remoteSeeds !== false
 	},
+	page: {
+		module: 'seeds.js',
+		deps: [],
+		// Hydrate phase: the page store is a Svelte `$state`, and only the hydrate core reads the seed
+		// (the navigation imports seeds.ts on its own). Without it no seed ships: the server sends one
+		// only for islands that read their page, and seed references only where a seed ships.
+		phase: 'hydrate',
+		detect: (m) => m.page !== false
+	},
 	frames: {
 		module: 'frames.js',
 		deps: [],
@@ -153,6 +176,7 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 
 export const FEATURE_ORDER: FeatureId[] = [
 	'remote-seeds',
+	'page',
 	'wire',
 	'wire-classes',
 	'frames',
@@ -161,6 +185,7 @@ export const FEATURE_ORDER: FeatureId[] = [
 	'live',
 	'interaction',
 	'forms',
+	'mpa-nav',
 	'router',
 	'context'
 ];
