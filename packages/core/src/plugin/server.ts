@@ -3,7 +3,8 @@
  * `setup` called once, shared hooks registered) and makes each request's per-plugin contexts. Used
  * by hooks.ts only.
  */
-import type { Handle, RequestEvent } from '@sveltejs/kit';
+import type { RequestEvent } from '@sveltejs/kit';
+import type { Handle } from '../kit-handle.ts';
 import type { RequestContext, ResolveOptions, ServerApp, ServerPlugin } from './index.ts';
 import { current_facts, facts_of, mark_per_visitor, type RequestFacts } from './facts.ts';
 import { ask, notify, register_hooks } from './hooks.ts';

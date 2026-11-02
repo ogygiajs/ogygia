@@ -18,11 +18,14 @@
  * First-party only until the ports settle (user ruling, 2026-10-31). Pure helpers that need no
  * context live in `ogygia/plugin/utils`.
  */
-import type { Handle, RequestEvent } from '@sveltejs/kit';
+import type { RequestEvent } from '@sveltejs/kit';
+import type { ResolveOptions } from '../kit-handle.ts';
 import type { RequestFacts } from './facts.ts';
 import type { Ask, Notify, ServerHooks } from './hooks.ts';
 import type { DevtoolsEventInput } from '../events/schema.ts';
 
+// Kit's handle types, the same on SvelteKit 2 and 3 (kit-handle.ts)
+export type { Handle, ResolveOptions } from '../kit-handle.ts';
 export type { RequestFacts } from './facts.ts';
 export type { ServerHooks } from './hooks.ts';
 export type { DevtoolsEventInput } from '../events/schema.ts';
@@ -99,9 +102,6 @@ export interface RequestContext<Options = undefined, State = undefined> {
 }
 
 type MaybePromise<T> = T | Promise<T>;
-
-/** Kit's `resolve()` options (a `transformPageChunk`, `filterSerializedResponseHeaders`, …). */
-export type ResolveOptions = NonNullable<Parameters<Parameters<Handle>[0]['resolve']>[1]>;
 
 /** A request as an AROUND hook sees it: before anything is decided about it. */
 export interface HandleContext<Options = undefined> {

@@ -13,7 +13,7 @@
  * anything renders — and finds a request NOT marked when this handle sits after ogygia's (or outside
  * the sequence): a clear error in dev, one warning in production.
  */
-import type { Handle } from '@sveltejs/kit';
+import type { Handle } from '@ogygia/core/plugin';
 import type { PostrenderHandleOptions } from './types.ts';
 import { install, mark_handled } from './registry.ts';
 import { postrender_app } from './app.ts';
