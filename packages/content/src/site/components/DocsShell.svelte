@@ -70,7 +70,8 @@
 		/** The tools cluster (search, switchers, theme, `actions`) — wherever it lives: the built-in
 		 *  header in header mode, the sidebar panel when the header is replaced. */
 		tools?: Snippet | null;
-		/** Rendered at the TOP of the sidebar, above tools + nav — the panel's brand row. */
+		/** Rendered at the TOP of the sidebar, above tools + nav — the panel's brand row. On mobile it
+		 *  renders at the top of the bottom bar's nav sheet (the sidebar there), pinned above the tree. */
 		side?: Snippet;
 		/** The sidebar NAV. Default: the built-in `<Sidebar>` (kept island — roving focus, gliding
 		 *  marker). The snippet gets the computed `NavTree` + mount base, so a bespoke sidenav needs
@@ -207,6 +208,6 @@
 	{#if bar}
 		{@render bar(tree, the_base)}
 	{:else if bar !== null}
-		<ShellBar nav={tree} base={the_base} home={the_home} brand={title} {actions} />
+		<ShellBar nav={tree} base={the_base} home={the_home} brand={title} {actions} top={side} />
 	{/if}
 </div>
