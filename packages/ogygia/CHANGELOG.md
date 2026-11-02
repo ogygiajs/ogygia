@@ -8,6 +8,12 @@ changeset, written by the release: do not edit by hand.
 
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.8.10
+
+### Patch Changes
+
+- [#106](https://github.com/ogygiajs/ogygia/pull/106) [`a2300a0`](https://github.com/ogygiajs/ogygia/commit/a2300a0611ce97e58225757665c31e5e29cb1e12) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The drop-in `setContext` now reaches islands inside a lake on a csr=true page; a csr=true page with no island ogygia wakes still ships no context.
+
 ## 0.8.9
 
 ### Patch Changes
