@@ -31,7 +31,7 @@
 		"devalue": "catalog:",
 		"ogygia": "workspace:*",
 		"path-browserify": "catalog:",
-		"satori": "^0.29.0",
+		"satori": "^0.33.5",
 		"satori-html": "^0.3.2",
 		"shiki": "catalog:",
 		"valibot": "catalog:"
