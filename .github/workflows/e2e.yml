@@ -16,6 +16,9 @@ on:
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  # Playwright and Vitest's browser project run the Google Chrome the runner image ships (with its
+  # system libraries), so no job downloads a browser: `playwright install --with-deps` stalled jobs.
+  E2E_BROWSER_CHANNEL: chrome
 
 jobs:
   check:
@@ -51,10 +54,6 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-check-
             turbo-${{ runner.os }}-
-
-      # core's vitest has a browser project
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
 
       # Root `check` (build:lib + every package's check, every fixture app's and app's svelte-check
       # with warnings failing, each package's test and e2e tsc) — the e2e suites alone never run it,
@@ -115,9 +114,6 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-e2e-${{ matrix.id }}-
             turbo-${{ runner.os }}-
-
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
 
       # wrangler (Cloudflare workerd) is fetched on demand by the suite via npx; warm it so the
       # cloudflare adapter boots the real Workers runtime instead of skipping.

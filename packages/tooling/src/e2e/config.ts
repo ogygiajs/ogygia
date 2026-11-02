@@ -48,7 +48,12 @@ export function suite(opts: SuiteOptions): PlaywrightTestConfig {
 		timeout: 180_000,
 		expect: { timeout: 10_000 },
 		reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
-		use: { baseURL: base, trace: 'retain-on-failure' },
+		// CI runs the Chrome the runner ships (`E2E_BROWSER_CHANNEL=chrome`), so it downloads no browser
+		use: {
+			baseURL: base,
+			trace: 'retain-on-failure',
+			channel: process.env.E2E_BROWSER_CHANNEL || undefined
+		},
 		...(opts.build ? { globalSetup: BUILD, metadata: { build: opts.build } } : {}),
 		...(opts.serve
 			? {
