@@ -117,8 +117,13 @@ jobs:
       - name: Warm wrangler
         run: npx --yes wrangler --version
 
+      # Two tasks at a time, as in e2e.yml: turbo's default ten at once on this 4-core runner starves
+      # every package's vitest pool, and the slow first tests (shiki's highlighter warm-up) time out
+      # as a false "upstream break" (#127). Only where `check` is turbo (main): kit3-compat's runs
+      # its steps one after another, and the flag would land on its last command, `tsc`.
       - name: Type-check + unit tests (build:lib, every package's check)
-        run: pnpm run check
+        run: |
+          if grep -q '"check": "turbo' package.json; then pnpm run check --concurrency=2; else pnpm run check; fi
 
       # every suite, none replayed from the cache: the point is the new upstream
       - name: Full e2e suite (every package's; adapters on node + bun)
