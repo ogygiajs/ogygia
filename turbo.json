@@ -9,14 +9,12 @@
 		"check": {
 			"dependsOn": ["^build"],
 			"inputs": ["$TURBO_DEFAULT$", "!e2e/app/**"],
-			"outputs": [],
-			"passThroughEnv": ["E2E_BROWSER_CHANNEL"]
+			"outputs": []
 		},
 		"test": {
 			"dependsOn": ["^build"],
 			"inputs": ["$TURBO_DEFAULT$", "!e2e/**", "!playwright.config.ts"],
-			"outputs": [],
-			"passThroughEnv": ["E2E_BROWSER_CHANNEL"]
+			"outputs": []
 		},
 		"e2e": {
 			"dependsOn": ["^build"],
@@ -31,8 +29,7 @@
 				"DEBUG",
 				"HOME",
 				"TMPDIR",
-				"BUN_INSTALL",
-				"E2E_BROWSER_CHANNEL"
+				"BUN_INSTALL"
 			]
 		},
 		"fixture": {

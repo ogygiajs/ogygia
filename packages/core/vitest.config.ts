@@ -112,10 +112,7 @@ export default defineConfig({
 					browser: {
 						enabled: true,
 						headless: true,
-						// CI runs the Chrome the runner ships (`E2E_BROWSER_CHANNEL=chrome`), so it downloads no browser
-						provider: playwright({
-							launchOptions: { channel: process.env.E2E_BROWSER_CHANNEL || undefined }
-						}),
+						provider: playwright(),
 						instances: [{ browser: 'chromium' }]
 					}
 				}
