@@ -20,7 +20,8 @@
  */
 import { render } from 'svelte/server';
 import type { Component } from 'svelte';
-import type { Handle, RequestEvent } from '@sveltejs/kit';
+import type { RequestEvent } from '@sveltejs/kit';
+import type { Handle } from './kit-handle.ts';
 import { try_get_request_store } from '@sveltejs/kit/internal/server';
 import type { RequestState } from '@sveltejs/kit/internal/server';
 import * as devalue from 'devalue';
@@ -888,8 +889,10 @@ class OgygiaHandle {
 			// (server/shared-cache.ts). Loads receive `setHeaders` from THIS event (Kit spreads it into
 			// each load's event) and finish before the render mints. A header a handle sets on the
 			// Response after `resolve` is invisible here — the runtime's renewal covers that case.
+			// (SvelteKit 3 types `setHeaders` as readonly; at runtime it is a plain property Kit
+			// reassigns itself after the response, so this wrapper works on 2 and 3 alike)
 			const set_headers = event.setHeaders;
-			event.setHeaders = (headers) => {
+			(event as { setHeaders: RequestEvent['setHeaders'] }).setHeaders = (headers) => {
 				set_headers(headers);
 				for (const key in headers)
 					if (key.toLowerCase() === 'cache-control')
