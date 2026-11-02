@@ -37,6 +37,8 @@ permissions:
 
 jobs:
   audit:
+    # a version PR (changeset-release/*) changes only version fields, never a dependency
+    if: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
