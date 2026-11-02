@@ -133,8 +133,8 @@ catalogs:
       specifier: 5.56.8
       version: 5.56.8
     vite:
-      specifier: 6.4.4
-      version: 6.4.4
+      specifier: 6.4.5
+      version: 6.4.5
   tsgo:
     '@typescript/native':
       specifier: npm:typescript@^7.0.2
@@ -721,13 +721,13 @@ importers:
     devDependencies:
       '@sveltejs/vite-plugin-svelte':
         specifier: catalog:repro-control
-        version: 5.1.1(supports-color@8.1.1)(svelte@5.56.8)(vite@6.4.4(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 5.1.1(supports-color@8.1.1)(svelte@5.56.8)(vite@6.4.5(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
       svelte:
         specifier: catalog:repro-control
         version: 5.56.8
       vite:
         specifier: catalog:repro-control
-        version: 6.4.4(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
+        version: 6.4.5(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
 
   internal/repro-deep-csr:
     dependencies:
@@ -5483,8 +5483,8 @@ packages:
     peerDependencies:
       vite: ^2 || ^3 || ^4 || ^5 || ^6 || ^7 || ^8
 
-  vite@6.4.4:
-    resolution: {integrity: sha512-xGjU/SyjeNyb0E4KxXBvYz/1C+3JXuujvf2hXNOtnlcE+58o5ajd9N2/n2VhkiJvpCP2qQasnUpx5PXNeI+p1Q==}
+  vite@6.4.5:
+    resolution: {integrity: sha512-4enwjFfi4IwtEh0w+jPzpLVOFQiPHmmzPxcHXQOyEur47o6u0jE573DmGpjA+7irXoMLYRZD5ZaFUEneS3abPg==}
     engines: {node: ^18.0.0 || ^20.0.0 || >=22.0.0}
     hasBin: true
     peerDependencies:
@@ -7159,25 +7159,25 @@ snapshots:
 
   '@sveltejs/sv-utils@0.3.3': {}
 
-  '@sveltejs/vite-plugin-svelte-inspector@4.0.1(@sveltejs/vite-plugin-svelte@5.1.1(supports-color@8.1.1)(svelte@5.56.8)(vite@6.4.4(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(supports-color@8.1.1)(svelte@5.56.8)(vite@6.4.4(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))':
+  '@sveltejs/vite-plugin-svelte-inspector@4.0.1(@sveltejs/vite-plugin-svelte@5.1.1(supports-color@8.1.1)(svelte@5.56.8)(vite@6.4.5(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(supports-color@8.1.1)(svelte@5.56.8)(vite@6.4.5(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))':
     dependencies:
-      '@sveltejs/vite-plugin-svelte': 5.1.1(supports-color@8.1.1)(svelte@5.56.8)(vite@6.4.4(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      '@sveltejs/vite-plugin-svelte': 5.1.1(supports-color@8.1.1)(svelte@5.56.8)(vite@6.4.5(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
       debug: 4.4.3(supports-color@8.1.1)
       svelte: 5.56.8
-      vite: 6.4.4(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
+      vite: 6.4.5(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
     transitivePeerDependencies:
       - supports-color
 
-  '@sveltejs/vite-plugin-svelte@5.1.1(supports-color@8.1.1)(svelte@5.56.8)(vite@6.4.4(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))':
+  '@sveltejs/vite-plugin-svelte@5.1.1(supports-color@8.1.1)(svelte@5.56.8)(vite@6.4.5(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))':
     dependencies:
-      '@sveltejs/vite-plugin-svelte-inspector': 4.0.1(@sveltejs/vite-plugin-svelte@5.1.1(supports-color@8.1.1)(svelte@5.56.8)(vite@6.4.4(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(supports-color@8.1.1)(svelte@5.56.8)(vite@6.4.4(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      '@sveltejs/vite-plugin-svelte-inspector': 4.0.1(@sveltejs/vite-plugin-svelte@5.1.1(supports-color@8.1.1)(svelte@5.56.8)(vite@6.4.5(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(supports-color@8.1.1)(svelte@5.56.8)(vite@6.4.5(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
       debug: 4.4.3(supports-color@8.1.1)
       deepmerge: 4.3.1
       kleur: 4.1.5
       magic-string: 0.30.21
       svelte: 5.56.8
-      vite: 6.4.4(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
-      vitefu: 1.1.3(vite@6.4.4(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      vite: 6.4.5(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
+      vitefu: 1.1.3(vite@6.4.5(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
     transitivePeerDependencies:
       - supports-color
 
@@ -9572,7 +9572,7 @@ snapshots:
     dependencies:
       vite: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
 
-  vite@6.4.4(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0):
+  vite@6.4.5(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0):
     dependencies:
       esbuild: 0.25.12
       fdir: 6.5.0(picomatch@4.0.7)
@@ -9605,9 +9605,9 @@ snapshots:
       sass-embedded: 1.104.1
       yaml: 2.9.0
 
-  vitefu@1.1.3(vite@6.4.4(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)):
+  vitefu@1.1.3(vite@6.4.5(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)):
     optionalDependencies:
-      vite: 6.4.4(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
+      vite: 6.4.5(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.33.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
 
   vitefu@1.1.3(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)):
     optionalDependencies:
