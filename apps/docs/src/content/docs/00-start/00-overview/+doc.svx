@@ -57,28 +57,33 @@ You configure a marked import with two attributes. `wake` says whether the compo
 
 ## How the docs are organized
 
-Each section builds on the one before, so this is a good order to read them in:
+The docs have one section per package. The package switcher at the top of the page moves between them.
+
+This section covers `ogygia`, the package every app installs. Each part builds on the one before, so this is a good order to read them in:
 
 1. **[Regions](/docs/regions/regions).** Marking a component makes part of the page interactive.
    Islands, server islands, lakes and held regions are four settings of one primitive.
-2. **[Data and state](/docs/data-state/remote-functions).** Remote functions give islands a server,
-   and [shared state](/docs/data-state/state-context) lets one live object span many islands.
-3. **[Content](/docs/content/collections).** A collection turns markdown, JSON or a CMS into typed
-   entries. [`site()`](/docs/content/site) arranges collections into a nav tree, search, emitted
-   files and a shell. These docs are built with it.
-4. **[The app layer](/docs/app/spa-router).** The router swaps pages without a reload, sends all
+2. **[The app layer](/docs/app/spa-router).** The SPA router swaps pages without a reload, sends all
    server islands in one request, and prerenders the page you are about to click.
-5. **[Macros](/docs/macros/overview).** `import.meta.og.*` computes at build time any value that
+3. **[Data and state](/docs/data-state/remote-functions).** Remote functions give islands a server,
+   and [shared state](/docs/data-state/state-context) lets one live object span many islands.
+4. **[Macros](/docs/macros/overview).** `import.meta.og.*` computes at build time any value that
    does not change between requests.
-6. **[Profiler](/docs/profiler/overview).** The SSR profiler times every request and records CPU
-   profiles on demand, so you can see where a server render spends its time.
-7. **[Devtools](/docs/devtools/overview).** The in-page dock shows each region, its hydration and
-   its timing, and [`@ogygia/testing`](/docs/devtools/testing) turns the same data into test checks.
-8. **[Plugins](/docs/reference/plugins).** The core `ogygia` package is the region system. Content,
-   the server router, flags, postrender, federation, devtools and the profiler are separate
-   packages: you install the ones you use and list each plugin beside `ogygia()` and before
-   `sveltekit()`, as in `plugins: [ogygia(), flags(), sveltekit()]`.
-9. **[Constraints](/docs/reference/constraints).** The rules that keep all of this correct.
+5. **[Constraints](/docs/reference/constraints).** The rules that keep all of this correct.
+
+Everything else is a separate package with a section of its own. You install the ones you use and
+list each plugin beside `ogygia()`, as in `plugins: [ogygia(), flags(), sveltekit()]`;
+[Packages](/docs/start/packages) has the list:
+
+- **[Content](/docs/content/overview)** turns markdown, JSON or a CMS into typed collections, and
+  arranges them into a docs site with a nav tree and search. These docs are built with it.
+- **[Server router](/docs/router/overview)**, **[Postrender](/docs/postrender/overview)**,
+  **[Flags](/docs/flags/overview)** and **[Federation](/docs/federation/overview)** add routes as
+  values, pages stored on their first request, server-side experiments and pages shared between apps.
+- **[Devtools](/docs/devtools/overview)** shows each region on the page and profiles server
+  renders, and **[Testing](/docs/testing/overview)** turns the same data into test checks.
+- **[CLI](/docs/cli/overview)** is the `ogygia` command, and **[Core](/docs/core/overview)** is
+  the shared base that plugin authors build on.
 
 ## Start here
 

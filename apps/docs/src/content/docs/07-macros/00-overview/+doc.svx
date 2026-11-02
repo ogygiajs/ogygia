@@ -2,7 +2,7 @@
 title: The import.meta.og surface
 summary: One compile-time namespace for the things ogygia can settle at build time. Each call looks like runtime code, but it runs during the build, can see the module graph, and inlines its result. This page covers the rules they share, and each macro has its own page.
 related:
-  - macros/loaders
+  - content/macros/loaders
   - macros/wire
   - macros/bake
 ---
@@ -13,15 +13,24 @@ Everything under `import.meta.og` is a **compile-time construct**. It reads like
 
 ## The family
 
-| Construct                                                 | Turns into                                                  |
-| --------------------------------------------------------- | ----------------------------------------------------------- |
-| [`loader.markdown/folder/json/git`](/docs/macros/loaders) | a content **source** for `content({ loader })`              |
-| [`code(source, lang, meta?)`](/docs/macros/code)          | a highlighted snippet, baked to a static **region**         |
-| [`md(text)`](/docs/macros/md)                             | a Markdown string, rendered to a static **region**          |
-| [`regions(glob)`](/docs/macros/regions)                   | a block **registry** from a folder                          |
-| [`asRegion(Comp, options)`](/docs/macros/asregion)        | any imported component (named / barrel) marked a **region** |
-| [`wire({ encode, decode })`](/docs/macros/wire)           | the transportable-codec key on a class                      |
-| [`bake(fn)`](/docs/macros/bake)                           | the **result** of running `fn` at build, inlined            |
+`ogygia` compiles these three in every app:
+
+| Construct                                          | Turns into                                                  |
+| -------------------------------------------------- | ----------------------------------------------------------- |
+| [`asRegion(Comp, options)`](/docs/macros/asregion) | any imported component (named / barrel) marked a **region** |
+| [`wire({ encode, decode })`](/docs/macros/wire)    | the transportable-codec key on a class                      |
+| [`bake(fn)`](/docs/macros/bake)                    | the **result** of running `fn` at build, inlined            |
+
+[`@ogygia/content`](/docs/content/overview) adds four more when its `content()` plugin is listed. They follow the same rules, and their pages live in the content section:
+
+| Construct                                                         | Turns into                                          |
+| ----------------------------------------------------------------- | --------------------------------------------------- |
+| [`loader.markdown/folder/json/git`](/docs/content/macros/loaders) | a content **source** for `content({ loader })`      |
+| [`code(source, lang, meta?)`](/docs/content/macros/code)          | a highlighted snippet, baked to a static **region** |
+| [`md(text)`](/docs/content/macros/md)                             | a Markdown string, rendered to a static **region**  |
+| [`regions(glob)`](/docs/content/macros/regions)                   | a block **registry** from a folder                  |
+
+A plugin can claim a name of its own under `import.meta.og` with `b.macro()`; [Writing a plugin](/docs/core/plugins#the-build-context-b) describes it.
 
 ## Why it looks like `import.meta.glob`
 
@@ -36,7 +45,7 @@ The test for whether something belongs here is **literal inputs and a result the
 - **Errors at build time.** Misuse fails the build with an `[ogygia]` message that names the file, the line and the fix, rather than silently doing nothing or surprising you at runtime.
 - **No runtime cost.** The rewrite happens once, at build time, and what ships is only the result: a source, a region, a registry, a codec key or a constant.
 
-Each construct has its own page with its full contract. If you have content, start with [loaders](/docs/macros/loaders); if you share state across islands, start with [`wire`](/docs/macros/wire); and for running something at build and shipping only the answer, see [`bake`](/docs/macros/bake).
+Each construct has its own page with its full contract. If you have content, start with [loaders](/docs/content/macros/loaders); if you share state across islands, start with [`wire`](/docs/macros/wire); and for running something at build and shipping only the answer, see [`bake`](/docs/macros/bake).
 
 ---
 

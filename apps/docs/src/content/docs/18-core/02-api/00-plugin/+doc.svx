@@ -1,8 +1,8 @@
 ---
-title: ogygia/plugin
+title: '@ogygia/core/plugin'
 summary: The API for writing a plugin's server realm, covering its hooks and what it can learn about a request.
 ---
 
-This page is generated from the package's own `.d.ts` files on every build, so the signatures, descriptions and examples below always match the source.
+This page is generated from the package's own `.d.ts` files on every build, so the signatures, descriptions and examples below always match the source. `ogygia/plugin` re-exports the same module.
 
-> MODULE: ogygia/plugin
+> MODULE: @ogygia/core/plugin

@@ -1,0 +1,98 @@
+---
+title: Overview
+summary: Fragment federation for ogygia. Independent SvelteKit + ogygia apps combine into one page over HTTP, at render time. A peer's routes and widgets are region values you render with <Region>, a whole app mounts under shell chrome, and every hop is Ed25519-signed.
+related:
+  - federation/guide
+  - router/overview
+  - regions/held-regions
+---
+
+::: warning Experimental
+The API can still change. The mechanics are covered by end-to-end tests, and `examples/mfe` in the repo is a working three-team demo.
+:::
+
+`@ogygia/federation` is for one page that several teams build, each with its own repository and deploy pipeline. It joins their apps **over HTTP at render time**: another team's server answers with a fragment, the shell bakes its HTML into the first paint, and the islands inside wake in the shell's page with their code loaded from the team that owns them. Teams share HTML and self-contained islands rather than JavaScript modules, so their Svelte versions and dependencies stay independent.
+
+Each app declares one identity with `federate()`, and gets back typed handles for the peers it talks to.
+
+## Install
+
+Install it in every app that federates, shells and fragment servers alike. It is built on the [server router](/docs/router/overview):
+
+```bash
+pnpm add @ogygia/federation @ogygia/router
+```
+
+```ts title=vite.config.ts
+import { sveltekit } from '@sveltejs/kit/vite';
+import { ogygia } from 'ogygia/vite';
+import { federation } from '@ogygia/federation/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [ogygia(), federation(), sveltekit()]
+});
+```
+
+Make a key pair for each app with the [CLI](/docs/cli/commands#keys):
+
+```sh
+npx ogygia keys shell   # SHELL_SIGNING_KEY stays here, SHELL_PUBLIC_KEY goes to the apps that call you
+```
+
+## A first shell
+
+```ts title=src/lib/federation.server.ts
+import { federate } from '@ogygia/federation';
+import { env } from '$env/dynamic/private';
+
+export const { cms } = federate({
+  name: 'shell',
+  key: env.SHELL_SIGNING_KEY,
+  peers: { cms: { origin: 'https://cms.internal', key: env.CMS_PUBLIC_KEY } }
+});
+```
+
+`hooks.server.ts` imports that module (directly, or through a router that uses the peers), so it runs on boot. The plugin then serves every `/og/` endpoint from ogygia's handle, with no route files:
+
+```ts title=src/hooks.server.ts
+import * as ogygia from 'ogygia/server';
+import '$lib/federation.server';
+
+export const handle = ogygia.handle();
+```
+
+## With ogygia's regions
+
+A remote route (`peer.page(path)`) or a remote widget (`peer.widget(name, props)`) is a [held region](/docs/regions/held-regions), the same value a local `region()` returns. You build it in a `load`, on the server, and render it with `<Region>`, deferred like any other region when you want:
+
+```svelte
+<Region of={data.solar} />                                    <!-- cms.page('/solar'), baked into first paint -->
+<Region of={data.kpis}>                                       <!-- dash.widget('kpis', { org }, { render: 'deferred' }) -->
+  {#snippet placeholder()}<KpiSkeleton />{/snippet}
+</Region>
+```
+
+## With other packages
+
+**[@ogygia/router](/docs/router/overview)** mounts a whole remote app as one table entry, under your chrome, and its visitor is the identity signed into each hop:
+
+```ts title=src/lib/router.ts
+import { routes, page } from '@ogygia/router';
+import { mount } from '@ogygia/federation';
+import { cms } from '$lib/federation.server';
+
+export const router = routes(
+  { '/': page(Home), '/cms/[...rest]': mount(cms) },
+  { visitor: (c) => session_from(c.cookies) }
+);
+```
+
+- **[@ogygia/postrender](/docs/postrender/overview).** A publish or a deploy on one team clears every stored page, on every team, that baked its fragments ([cross-app thaw](/docs/federation/guide#cross-app-thaw)).
+- **[@ogygia/flags](/docs/flags/overview).** A mount carries the request's flag decisions, so the visitor gets the same variant in every team's part of the page.
+- **[@ogygia/cli](/docs/cli/overview).** `ogygia keys` makes key pairs, and `ogygia fragments <origin>` writes typed stubs for a peer's widgets.
+
+## Where to go next
+
+- [Fragment federation](/docs/federation/guide): `federate()` in full, mounts, the visitor, widgets and the catalog, cross-app thaw, security and key rotation, CORS.
+- API: [`@ogygia/federation`](/docs/federation/api/federation).

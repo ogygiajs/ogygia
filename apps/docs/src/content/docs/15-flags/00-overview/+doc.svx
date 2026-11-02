@@ -1,0 +1,84 @@
+---
+title: Overview
+summary: Feature flags and A/B tests for ogygia. A kill switch, a rollout, a targeting rule and an A/B/n test are one primitive, flag(), decided on the server during SSR, so the chosen variant is what renders, with no client SDK and no JS for the decision.
+related:
+  - flags/guide
+  - router/overview
+  - postrender/overview
+---
+
+`@ogygia/flags` gives a kill switch, a staged rollout, a targeting rule and an A/B/n test one primitive: `flag()`, a name with variants, decided per visitor. The decision happens on the server during SSR, so the chosen variant is what renders. There is no flicker and no client SDK, and a `csr = false` page can run an A/B test without shipping any JavaScript for it.
+
+## Install
+
+```bash
+pnpm add @ogygia/flags
+```
+
+```ts title=vite.config.ts
+import { sveltekit } from '@sveltejs/kit/vite';
+import { ogygia } from 'ogygia/vite';
+import { flags } from '@ogygia/flags/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [ogygia(), flags(), sveltekit()]
+});
+```
+
+A flag decides from its own rule even without the plugin, but keep it listed in every app that reads flags: it is how the request learns that a flag was read (for stored pages and federation), and it runs a vendor source and the exposure sink once per request.
+
+## A first flag
+
+The second argument is the flag's shape:
+
+```ts title=src/lib/flags.ts
+import { flag } from '@ogygia/flags';
+
+export const checkout = flag('new-checkout');                    // kill switch, off until decided on
+export const promo = flag('summer-promo', 10);                   // sticky rollout to 10%
+export const hero = flag('hero', { control: 80, bold: 20 });     // weighted variants
+```
+
+You read a flag by calling it with the request. On plain SvelteKit, the Kit event is that context:
+
+```ts title=src/routes/+page.server.ts
+import { hero } from '$lib/flags';
+
+export const load = (event) => ({ variant: hero(event) });   // 'control' | 'bold', sticky per visitor
+```
+
+On plain SvelteKit, also import the flags module in `hooks.server.ts`, so every flag is registered before the first request, and give signed-in visitors an identity ([Plain SvelteKit](/docs/flags/guide#plain-sveltekit)). To connect a vendor, call `decide()` there once:
+
+```ts title=src/hooks.server.ts
+import { decide } from '@ogygia/flags';
+import { openfeature } from '@ogygia/flags/openfeature';
+import '$lib/flags';
+
+decide({ source: openfeature(OpenFeature.getClient()), exposure: (events) => analytics.track(events) });
+```
+
+## With ogygia's regions
+
+A component's schedule rides on its import attribute, so two imports of one file are two different things to test. This experiment asks whether an interactive version of a section is worth its JavaScript:
+
+```svelte title=src/routes/+page.svelte
+<script>
+  import Pricing from '$lib/Pricing.svelte';                                  // server HTML, zero JS
+  import PricingLive from '$lib/Pricing.svelte' with { wake: 'visible' };    // the same file, as an island
+  let { data } = $props();
+</script>
+
+{#if data.variant === 'bold'}<PricingLive />{:else}<Pricing />{/if}
+```
+
+## With other packages
+
+- **[@ogygia/router](/docs/router/overview)** gives every flag the visitor declared once on the table (`routes(table, { visitor })`), picks a page per variant with `hero.pick({ control: Hero, bold: HeroBold })`, and gates a whole route with `when(checkout, page(NewCheckout))`.
+- **[@ogygia/postrender](/docs/postrender/overview)** never stores a page whose render read a flag, so one visitor's variant is never served to everyone. This is one reason to keep the plugin listed.
+- **[@ogygia/federation](/docs/federation/overview)** carries every decision across a mount, so a visitor sees the same variant in each team's part of the page ([One world across teams](/docs/flags/guide#one-world-across-teams)).
+
+## Where to go next
+
+- [Flags & experiments](/docs/flags/guide): `pick`, the visitor, vendor values, OpenFeature and OFREP sources, precedence, QA overrides, layers, exposures and the flag manifest.
+- API: [`@ogygia/flags`](/docs/flags/api/flags) and [`@ogygia/flags/openfeature`](/docs/flags/api/openfeature).

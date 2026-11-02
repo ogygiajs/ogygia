@@ -1,0 +1,87 @@
+---
+title: Overview
+summary: Devtools for ogygia. The dock shows each region on the page, its real JS cost, what crossed the wire and when it woke. The SSR profiler at /__profiler shows why a server render is slow. One Vite plugin turns on either.
+related:
+  - devtools/dock
+  - devtools/profiler/overview
+  - testing/overview
+---
+
+`@ogygia/devtools` has two tools in one package:
+
+- **The [dock](/docs/devtools/dock)** mounts on each `csr = false` page and shows the island graph: every region outlined in place, the JS it costs over the wire, the values that crossed the boundary, and a timeline of when each island woke. It reads the same events the runtime emits, so what it shows is what happened.
+- **The [SSR profiler](/docs/devtools/profiler/overview)** at `/__profiler` answers "why is this server render slow?" by naming the components, functions, network calls and allocations responsible, without timing code of your own.
+
+Wherever the plugin is not listed, all of it tree-shakes away.
+
+## Install
+
+```bash
+pnpm add @ogygia/devtools
+```
+
+```ts title=vite.config.ts
+import { sveltekit } from '@sveltejs/kit/vite';
+import { ogygia } from 'ogygia/vite';
+import { devtools } from '@ogygia/devtools/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig(({ mode }) => ({
+  plugins: [
+    ogygia(),
+    ...(mode !== 'production' ? [devtools({ profiler: true })] : []),
+    sveltekit()
+  ]
+}));
+```
+
+`ogygia.handle()` mounts both tools, so nothing goes in `hooks.server.ts`.
+
+## The plugin options
+
+| Option     | Default | What it does                                                                                                                                                                        |
+| ---------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dock`     | `true`  | The dock. On the dev server a launcher shows on every `csr = false` page. In a build it stays hidden until a browser turns it on with `?og-devtools=on`.                            |
+| `profiler` | off     | `true`, or the profiler's options (`{ secret, path, sampleInterval, … }`, listed under [Options](/docs/devtools/profiler/recording#options)). In production, set `OGYGIA_PROFILER_SECRET`. |
+
+The list is code, so the example above keeps devtools out of production builds; a preview or QA build can keep them and stay invisible to visitors ([In a build](/docs/devtools/dock#enabling-in-a-build-a-preview-deploy)).
+
+## A first look
+
+Start the dev server and open any `csr = false` page. Press **Alt+O** (or click the launcher at the bottom edge) to open the dock, and turn on **Lens** to see every region outlined on the page, with a roster of each one's kind, wake schedule, JS cost and hydration state. Then open **`/__profiler`** and profile the same page by URL to see where its server render spent its time.
+
+To keep profiler reports somewhere other than process memory, give it a store once in `hooks.server.ts`:
+
+```ts title=src/hooks.server.ts
+import { env } from '$env/dynamic/private';
+import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
+import { postgresStore } from '@ogygia/devtools/profiler/storage/postgres';
+
+setProfilerStore(postgresStore(env.DATABASE_URL!));
+```
+
+`sqliteStore` and `redisStore` come from `@ogygia/devtools/profiler/storage/sqlite` and `…/redis` ([Shared report storage](/docs/devtools/profiler/recording#shared-report-storage)). Your own code can name what the profiler cannot see with `span` and `instrument` from `@ogygia/devtools/profiler`, and `mark` from `@ogygia/devtools/profiler/client` in the browser.
+
+## With other packages
+
+**[@ogygia/testing](/docs/testing/overview)** turns what the dock and the profiler measure into test checks. The server under test lists this plugin, and the tests use the fixture:
+
+```ts title=tests/home.spec.ts
+import { test, expect } from './fixtures';   // withOgygia(base, baseExpect)
+
+test('home stays light', async ({ page, ogygia }) => {
+  await page.goto('/');
+  expect(await ogygia.hydration()).toHydrateCleanly();        // the dock's Hydration tab
+  expect(await ogygia.profile('/')).toMeetBudget({ score: 80 }); // the profiler's report
+});
+```
+
+**[@ogygia/cli](/docs/cli/overview)** runs the profiler in CI: `npx ogygia perf --url <origin> --pages /,/docs` renders each page under the profiler and fails when a budget is missed, and `ogygia bisect` finds the commit that made a page slower ([In CI](/docs/devtools/profiler/recording#in-ci-budgets-and-the-first-bad-commit)).
+
+**`ogygia`'s regions** are what the dock is about: each [kind of region](/docs/regions/regions) shows with its schedule, and an island that changed its markup while hydrating is flagged in the Hydration tab.
+
+## Where to go next
+
+- [The dock](/docs/devtools/dock): enabling it in a build, the tabs, recording a session, sinks.
+- [The SSR profiler](/docs/devtools/profiler/overview), then [Recording](/docs/devtools/profiler/recording) and [Reading a report](/docs/devtools/profiler/reading-reports).
+- API: [`@ogygia/devtools`](/docs/devtools/api/devtools), [`/report`](/docs/devtools/api/report), [`/profiler`](/docs/devtools/api/profiler), [`/profiler/client`](/docs/devtools/api/profiler-client), [`/profiler/storage`](/docs/devtools/api/profiler-storage).

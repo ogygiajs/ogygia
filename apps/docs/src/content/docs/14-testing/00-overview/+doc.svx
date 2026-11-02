@@ -1,0 +1,81 @@
+---
+title: Overview
+summary: Testing for ogygia. The devtools and the SSR profiler as test primitives, so your Playwright tests can measure hydration, interactions, server time and page weight, and fail when a budget is missed.
+related:
+  - testing/guide
+  - devtools/overview
+  - devtools/profiler/overview
+---
+
+A performance problem that you find by hand in the devtools tends to come back a few releases later, because nothing checks for it. `@ogygia/testing` lets your tests use what the [devtools](/docs/devtools/overview) and the profiler measure. Your tests click through the app as they already do, ogygia measures what happened, and the test asserts on the result.
+
+It is a test helper, not a plugin: nothing goes in `vite.config.ts` for it. It gives you four primitives on an `ogygia` fixture:
+
+| Primitive         | What it measures                                                                                         |
+| ----------------- | -------------------------------------------------------------------------------------------------------- |
+| `page()`          | The page load as the browser measured it: vitals, each island's wake, and the dock's Page tab findings.  |
+| `hydration()`     | Each island's hydration status, with the difference for one whose markup changed.                         |
+| `record(actions)` | What your actions did: slow interactions, dead clicks, requests, long tasks, shifts and errors.           |
+| `profile(path)`   | The SSR profiler's report for a path: score, forecast, findings and weight.                               |
+
+## Install
+
+```bash
+pnpm add -D @ogygia/testing @playwright/test
+```
+
+The server under test lists the `devtools()` plugin from [`@ogygia/devtools`](/docs/devtools/overview), with `devtools({ profiler: true })` when you use `profile()`. That is the dev server, or a preview build with devtools listed.
+
+## A first test
+
+ogygia does not import Playwright itself, so you hand it your own `test` and `expect`:
+
+```ts title=tests/fixtures.ts
+import { test as base, expect as baseExpect } from '@playwright/test';
+import { withOgygia } from '@ogygia/testing';
+
+export const { test, expect } = withOgygia(base, baseExpect);
+```
+
+```ts title=tests/checkout.spec.ts
+import { test, expect } from './fixtures';
+
+test('checkout stays fast', async ({ page, ogygia }) => {
+  await page.goto('/cart');
+  expect(await ogygia.page()).toMeetBudget({ lcp: 2500, cls: 0.1 });
+  expect(await ogygia.hydration()).toHydrateCleanly();
+
+  const session = await ogygia.record(() => page.getByRole('button', { name: 'Buy' }).click());
+  expect(session).toMeetBudget({ maxInteractionMs: 200, errors: 0 });
+});
+```
+
+## With other packages
+
+**[@ogygia/devtools](/docs/devtools/overview)** is the source of every number here. Turn it on for the server under test in the same mode switch you already use, and give the fixture the profiler's key on a build:
+
+```ts title=vite.config.ts
+plugins: [
+  ogygia(),
+  ...(process.env.E2E ? [devtools({ profiler: true })] : []),
+  sveltekit()
+]
+```
+
+```ts title=playwright.config.ts
+export default defineConfig({
+  use: {
+    baseURL: 'http://127.0.0.1:4173',
+    ogygiaOptions: { profilerKey: process.env.OGYGIA_PROFILER_SECRET }
+  }
+});
+```
+
+**`ogygia`'s regions** are what `hydration()` and `record()` report on: each island by name and instance (`Carousel#2`), with `t0` and `done`, the times it began to wake and could respond. A single report therefore tells you which step of a session woke an `interaction` island.
+
+**[@ogygia/cli](/docs/cli/overview)** covers the same ground without a test suite: `npx ogygia perf` judges a list of pages against a budget file in CI.
+
+## Where to go next
+
+- [Testing](/docs/testing/guide): Playwright in depth, the server side of a recording, profiles in CI, every matcher and budget line, other runners and drivers.
+- API: [`@ogygia/testing`](/docs/testing/api/testing).
