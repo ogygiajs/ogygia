@@ -1,5 +1,11 @@
 # @ogygia/core
 
+## 0.11.3
+
+### Patch Changes
+
+- [#118](https://github.com/ogygiajs/ogygia/pull/118) [`e845da3`](https://github.com/ogygiajs/ogygia/commit/e845da3e6c334a169ad0e228ffc2946ee60c90f9) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A web component around a hole is restored like one around an island, so its own runtime no longer adopts it and moves the hole it holds.
+
 ## 0.11.2
 
 ### Patch Changes
