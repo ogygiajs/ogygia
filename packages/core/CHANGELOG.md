@@ -1,5 +1,11 @@
 # @ogygia/core
 
+## 0.11.2
+
+### Patch Changes
+
+- [#107](https://github.com/ogygiajs/ogygia/pull/107) [`edd9613`](https://github.com/ogygiajs/ogygia/commit/edd9613a9a9afd0295eec1a98e20403e83b114d1) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The drop-in `setContext` now reaches islands inside a lake on a csr=true page; a csr=true page with no island ogygia wakes still ships no context.
+
 ## 0.11.1
 
 ### Patch Changes
