@@ -18,6 +18,8 @@ env:
 
 jobs:
   publish:
+    # a version PR (changeset-release/*) publishes for real once merged: no preview to try first
+    if: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
