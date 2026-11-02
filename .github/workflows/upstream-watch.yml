@@ -28,8 +28,8 @@ jobs:
           # main supports SvelteKit 2 AND 3: both. `^2` takes the newest 2.x, never a 3.
           - { kit: 2, ref: main, kit_spec: '^2' }
           - { kit: 3, ref: main, kit_spec: 'latest' }
-          # kit3-compat is the SvelteKit-3-only line
-          - { kit: 3, ref: kit3-compat, kit_spec: 'latest' }
+          # kit3 is the SvelteKit-3-only line (#133)
+          - { kit: 3, ref: kit3, kit_spec: 'latest' }
     steps:
       - uses: actions/checkout@v4
         with:
@@ -84,14 +84,13 @@ jobs:
       # pointer resting over the fixture on the runner.) `continue-on-error` keeps the upstream
       # leg running; the verdict rides in BASELINE for the report step.
       # The libraries are built first: the unit suites import `dist/` (without it 21 files failed to
-      # load, and every run was filed as "suite red"). The core package is packages/core since the
-      # package split, packages/ogygia before it (the Kit 3 branch).
+      # load, and every run was filed as "suite red").
       - name: Baseline — unit + browser suites on the PINNED lockfile
         id: baseline
         continue-on-error: true
         run: |
           pnpm run build:lib
-          pnpm -C "$([ -d packages/core ] && echo packages/core || echo packages/ogygia)" test
+          pnpm -C packages/core test
 
       - name: Record the baseline verdict
         run: echo "BASELINE=${{ steps.baseline.outcome }}" >> "$GITHUB_ENV"
@@ -119,11 +118,9 @@ jobs:
 
       # Two tasks at a time, as in e2e.yml: turbo's default ten at once on this 4-core runner starves
       # every package's vitest pool, and the slow first tests (shiki's highlighter warm-up) time out
-      # as a false "upstream break" (#127). Only where `check` is turbo (main): kit3-compat's runs
-      # its steps one after another, and the flag would land on its last command, `tsc`.
+      # as a false "upstream break" (#127).
       - name: Type-check + unit tests (build:lib, every package's check)
-        run: |
-          if grep -q '"check": "turbo' package.json; then pnpm run check --concurrency=2; else pnpm run check; fi
+        run: pnpm run check --concurrency=2
 
       # every suite, none replayed from the cache: the point is the new upstream
       - name: Full e2e suite (every package's; adapters on node + bun)
