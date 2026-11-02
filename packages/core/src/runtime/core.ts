@@ -6,7 +6,6 @@ import {
 	restore_adopt_sheets,
 	restore_markup
 } from './parse-html.ts';
-import { wire_classes_for } from './wire-classes.ts';
 import {
 	mark_region_changed,
 	region_changed,
@@ -1304,12 +1303,13 @@ class OgygiaRegion extends HTMLElement {
 			try {
 				if (!this.isConnected) return;
 				hydrate_started(this); // a viewport island in flight holds ready islands below the fold
-				// (with the module: the transportable classes its props and context carry — runtime/wire-classes.ts)
+				// (with the module: the transportable classes its props and context carry — runtime/wire-classes.ts,
+				// a feature only an app with transportable classes installs)
 				// The island's module first: its graph links go in before the lazy runtime chunks' own preloads.
 				[mod, core] = await Promise.all([
 					load_island(entry, cls()),
 					hydrate_core(),
-					wire_classes_for(this)
+					slots.wire_classes?.(this)
 				]);
 			} finally {
 				release();

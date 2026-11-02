@@ -92,6 +92,7 @@ interface HubRegistry {
 
 import { emit as dt_emit } from './events/bus.ts';
 import { batch, notify, watchers } from './ref-watch.ts';
+import { resolve_sink } from './ref-sink.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
@@ -157,17 +158,8 @@ export function mint(value: unknown, only?: ReadonlySet<string>): Ref | undefine
 	return undefined;
 }
 
-/**
- * RESOLVE SINK (reconciler R3) — a hook the runtime installs during an island's hydration to learn
- * which page-scoped ids that island resolves, WITHOUT the hub knowing anything about the DOM.
- * `resolve()` calls the current sink with each id it freshly remembers in the page scope; the
- * runtime's sink attributes it to the island currently hydrating (region → id-set), so a reconcile
- * nav can dispose exactly the ids owned by REMOVED regions. Null when no island is hydrating.
- */
-let resolve_sink: ((id: string) => void) | null = null;
-export function set_resolve_sink(fn: ((id: string) => void) | null): void {
-	resolve_sink = fn;
-}
+// The RESOLVE SINK (reconciler R3) lives in a leaf: ref-sink.ts says what it is and why.
+export { set_resolve_sink } from './ref-sink.ts';
 
 /** The live bucket for a scope (never 'request' — that scope is never stored). */
 function bucket(reg: HubRegistry, scope: Scope): Map<string, object> {

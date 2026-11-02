@@ -29,6 +29,7 @@ export type RuntimeMarks = {
 export type FeatureId =
 	| 'remote-seeds'
 	| 'wire'
+	| 'wire-classes'
 	| 'frames'
 	| 'lakes'
 	| 'morph'
@@ -113,6 +114,14 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 		// build sets `wire: true` on detecting either). A plain-props app never bundles the ~8kB codec.
 		detect: (m) => m.wire === true
 	},
+	'wire-classes': {
+		module: 'wire-classes.js',
+		deps: [],
+		// Boot phase: an island's transportable classes load in parallel with its module and the
+		// hydrate core, not after them. A transportable class sets the `wire` mark (driver prescan),
+		// so an app without one has no class to load and drops the loader.
+		detect: (m) => m.wire === true
+	},
 	'remote-seeds': {
 		module: 'remote-seeds.js',
 		deps: [],
@@ -145,6 +154,7 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 export const FEATURE_ORDER: FeatureId[] = [
 	'remote-seeds',
 	'wire',
+	'wire-classes',
 	'frames',
 	'lakes',
 	'morph',

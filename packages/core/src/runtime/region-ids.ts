@@ -1,12 +1,12 @@
 /**
  * R3 OWNERSHIP: which page-scoped hub ids each region's island resolved during hydration. The
- * hydrate core installs a resolve-sink (ref.set_resolve_sink) around each island's sync prop +
+ * hydrate core installs a resolve-sink (ref-sink.ts `set_resolve_sink`) around each island's sync prop +
  * context decode that funnels ids here, keyed by the region element; the reconciler (a navigation)
  * disposes exactly the ids of REMOVED regions. WeakMap → a removed element's set is GC'd with it.
  * Its own module so the boot-time reconciler and the lazily loaded hydrate core share one map
  * without either importing the other.
  */
-import { set_resolve_sink } from '../ref.ts';
+import { set_resolve_sink } from '../ref-sink.ts';
 
 const owned_ids = new WeakMap<Element, Set<string>>();
 

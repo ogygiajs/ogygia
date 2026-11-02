@@ -15,7 +15,7 @@ import { set_current_region, set_foreign_hydrate } from '../current-region.ts';
 import { capture_region_ids } from './region-ids.ts';
 import NestedProvider from '../NestedProvider.svelte';
 import { foreign_region_prop_revivers } from './foreign-props.ts';
-import { SEED_REF_KEY, seed_ref_reviver } from '../seed-refs.ts';
+import { SEED_REF_KEY, seed_ref_reviver } from '../seed-ref-reviver.ts';
 import { parse_sidecar_text, seed_data_of, seed_page_once, seed_remote_once } from './seeds.ts';
 // (for core.ts: an answer's page facts join the page store at once once islands are awake)
 export { seed_page_once, seed_remote_once };

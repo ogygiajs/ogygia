@@ -162,7 +162,9 @@ export class Program {
 			// actually ships a transportable class or a portable snippet — so a plain-props app never
 			// pays for a decoder it can't use. Turned on below via note_runtime_mark / the finalize check.
 			wire: false,
-			remoteSeeds: true,
+			// Seeding Kit's remote query cache: off until the prescan sees a `.remote.*` module — an app
+			// without remote functions has no query to seed.
+			remoteSeeds: false,
 			hydrate: [],
 			defer: [],
 			persistKeys: [],

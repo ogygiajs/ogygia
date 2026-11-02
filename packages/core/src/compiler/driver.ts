@@ -586,10 +586,10 @@ export class Compiler {
 				const src = ctx.read_file(full);
 				if (src == null) return;
 				if (!runtime_marks.context && source_uses_ogygia_context(src)) runtime_marks.context = true;
-				if (
-					!program.crosses_wire &&
-					(name.endsWith('.remote.ts') || name.endsWith('.remote.js') || source_crosses_wire(src))
-				)
+				const remote = name.endsWith('.remote.ts') || name.endsWith('.remote.js');
+				// A remote query's SSR result can only be seeded where the app HAS a remote function.
+				if (remote) runtime_marks.remoteSeeds = true;
+				if (!program.crosses_wire && (remote || source_crosses_wire(src)))
 					program.crosses_wire = true;
 				{
 					// Router-css closure data: this module's import specs + whether it is a page module.
@@ -1157,9 +1157,14 @@ export class Compiler {
 			// og.$ factories register before any island's props are revived (sync fn-ref resolution),
 			// i.e. with the hydrate core — not in the boot: the manifest reaches `ogygia/internal`, which
 			// island code imports too, and a module the boot shares with island code splits the boot.
+			// A factory is only ever looked up by a decoder that revives a fn ref: the wire hub (props),
+			// the context bridge, or the app's Kit transport. With none of them in this build no ref can
+			// arrive, and the manifest would only ship the fn kind and the hub (~2 kB) to every page.
+			const marks = program.runtime_marks;
+			const fn_refs_decode = marks.wire === true || marks.context === true || program.crosses_wire;
 			return (
-				`import ${JSON.stringify(V_FN_MANIFEST)};\n` +
-				generateHydrateFeaturesSource(program.runtime_marks, ctx.runtime_dir).code
+				(fn_refs_decode ? `import ${JSON.stringify(V_FN_MANIFEST)};\n` : '') +
+				generateHydrateFeaturesSource(marks, ctx.runtime_dir).code
 			);
 		}
 		if (id === RESOLVED(V_RUNTIME)) {

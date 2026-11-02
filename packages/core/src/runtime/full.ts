@@ -16,6 +16,7 @@ import * as morph from './morph.ts';
 import * as interaction from './interaction.ts';
 import * as forms from './form-continuity.ts';
 import * as router from './router.ts';
+import * as wire_classes from './wire-classes.ts';
 import type { ClientPlugin } from '../plugin/client.ts';
 
 /** Boot the kitchen-sink runtime (all boot-phase features) with the plugins' browser halves.
@@ -23,6 +24,7 @@ import type { ClientPlugin } from '../plugin/client.ts';
 export function bootDev(client_plugins: readonly ClientPlugin[] = []): void {
 	boot(
 		[
+			wire_classes.install,
 			frames.install,
 			lakes.install,
 			morph.install,

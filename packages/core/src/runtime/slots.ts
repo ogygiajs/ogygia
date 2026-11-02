@@ -169,6 +169,9 @@ export type Slots = {
 	/** a kept island's host (the live feature fills it beside `live`) */
 	keep: Component<Record<string, unknown>> | null;
 	wire: WireOps | null;
+	/** The transportable classes an island's props, context and seeds need, loaded before it
+	 *  decodes (./wire-classes.ts). Null in an app without transportable classes: nothing to load. */
+	wire_classes: ((region: Element) => Promise<unknown> | null) | null;
 	remoteSeeds: RemoteSeedOps | null;
 	frames: FrameOps | null;
 	nav: NavOps | null;
@@ -211,6 +214,7 @@ export const slots: Slots = {
 	live: null,
 	keep: null,
 	wire: null,
+	wire_classes: null,
 	remoteSeeds: null,
 	frames: null,
 	nav: null,
