@@ -3,7 +3,7 @@ packages:
   # each package's e2e fixture app (packages/<name>/e2e/app) and the packages a fixture app installs
   - 'packages/*/e2e/*'
   - 'apps/*'
-  # Non-library projects (talk deck, benchmark harness, repros) — workspace members so they share
+  # Non-library projects (talk deck, internal checks, repros) — workspace members so they share
   # the root install instead of each spawning its own node_modules.
   - 'internal/*'
   # the app header lab is NOT a workspace member: gitignored, installs standalone (no lockfile importer)
@@ -94,8 +94,8 @@ catalogs:
     '@sveltejs/vite-plugin-svelte': 5.1.1
     svelte: 5.56.8
 # Not workspace members, so no catalog reaches them; their pins stay inline, on purpose: the adapter
-# fixture (apps/palaestra/e2e/adapters/fixture), the benchmark apps (internal/bench/frameworks/*,
-# exact versions so runs compare) and the Kit 3 app (internal/repro-kit3, installs the packed ogygia).
+# fixture (apps/palaestra/e2e/adapters/fixture) and the Kit 3 app (internal/repro-kit3, installs the
+# packed ogygia).
 # The docs read only geist's font FILES (apps/docs/scripts/subset-fonts.ts); its `next` peer is for
 # the Next.js helpers we never import, so it stays optional instead of auto-installing Next + React.
 packageExtensions:

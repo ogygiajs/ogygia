@@ -32,7 +32,7 @@ const config = {
 		inlineStyleThreshold: 400,
 		// Kit bakes its version (default: the build's time) into its own client chunk, so without a
 		// fixed one every build renames every island that imports Kit code. The cache check
-		// (internal/bench/cache-bust-check.ts) pins it, the way a deploy keyed to a commit would.
+		// (internal/checks/cache-bust-check.ts) pins it, the way a deploy keyed to a commit would.
 		...(process.env.LAB_KIT_VERSION ? { version: { name: process.env.LAB_KIT_VERSION } } : {})
 	}
 };

@@ -61,7 +61,7 @@ With a browser visit, JS at start also counts scripts the HTML never names but t
 - **Islands that wake when visible and were on your first screen.** On that screen they wake at load, so they count at start. An island you scrolled to later does not.
 
 ::: tip Checked against a twin
-The playground's `/score-lab` and `/score-lab-kit` carry the same article and the same code editor, but one ships the editor as a lazy island and the other hydrates it the usual way. `internal/bench/profiler-score-key.ts` checks that the second page's editor code is counted and that it scores well below the first, both with and without a browser visit.
+The playground's `/score-lab` and `/score-lab-kit` carry the same article and the same code editor, but one ships the editor as a lazy island and the other hydrates it the usual way. `internal/checks/profiler-score-key.ts` checks that the second page's editor code is counted and that it scores well below the first, both with and without a browser visit.
 :::
 
 The agent JSON carries the score and the weighed files (`assets`: the totals, the 40 largest files, and what could not be weighed).
@@ -362,7 +362,7 @@ Production client chunks are minified, so a browser frame reads as `Y` in `chunk
 
 ## With the keyboard
 
-Everything on a report that takes a click can also be done with the keyboard. Tab reaches each table row, sort header, timeline block and seed row, and Enter or Space activates it. A focused timeline block shows the same detail a hover would, and a sort header tells a screen reader its sort order. The CPU treemap and the flame graph are pictures of data that the tables also list, and the flame graph's search box zooms to the heaviest match when you press Enter. `internal/bench/profiler-click-check.ts` fails on any control that only a mouse can press.
+Everything on a report that takes a click can also be done with the keyboard. Tab reaches each table row, sort header, timeline block and seed row, and Enter or Space activates it. A focused timeline block shows the same detail a hover would, and a sort header tells a screen reader its sort order. The CPU treemap and the flame graph are pictures of data that the tables also list, and the flame graph's search box zooms to the heaviest match when you press Enter. `internal/checks/profiler-click-check.ts` fails on any control that only a mouse can press.
 
 ## Take the report with you: the standalone HTML
 
