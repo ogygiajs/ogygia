@@ -383,8 +383,12 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 	beforeAll(() => {
 		root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-entry-emit-'));
 		const files: Record<string, string> = {
+			'package.json': JSON.stringify({
+				name: 'app',
+				imports: { '#lib': './src/lib', '#lib/*': './src/lib/*' }
+			}),
 			'src/routes/+layout.ts': 'export const csr = false;\n',
-			'src/routes/+page.svelte': `<script>\n\timport Widget from '$lib/Widget.svelte' with { wake: 'visible' };\n\timport Chart from '$lib/Chart.svelte' with { wake: 'idle' };\n</script>\n<Widget /><Chart />\n`,
+			'src/routes/+page.svelte': `<script>\n\timport Widget from '#lib/Widget.svelte' with { wake: 'visible' };\n\timport Chart from '#lib/Chart.svelte' with { wake: 'idle' };\n</script>\n<Widget /><Chart />\n`,
 			'src/lib/Widget.svelte': `<p>w</p>\n`,
 			'src/lib/Chart.svelte': `<p>c</p>\n`
 		};
@@ -418,7 +422,6 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 					base: '/',
 					app_dir: '_app',
 					runtime_hash: '0123456789ab',
-					libDir: path.join(root, 'src/lib'),
 					is_dev: false,
 					id_salt: '',
 					visibleMargin: '0px',

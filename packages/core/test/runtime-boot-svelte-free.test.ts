@@ -202,7 +202,6 @@ describe('island-side modules reach the runtime only through its handles', () =>
 	const ISLAND_SIDE = [
 		'shims/app-navigation.ts',
 		'shims/app-state.svelte.ts',
-		'shims/app-stores.ts',
 		'shims/kit-remote/client-stub.ts',
 		'app.ts'
 	];

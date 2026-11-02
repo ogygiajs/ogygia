@@ -27,7 +27,7 @@ test('on a Kit-booted document, goto / invalidate / preload / the hooks go to Ki
 		afterNavigate: vi.fn(),
 		onNavigate: vi.fn()
 	};
-	scope[KEY] = { page: {}, navigating: { current: null }, navigation };
+	scope[KEY] = { page: {}, navigating: { to: null }, navigation };
 
 	await shim.goto('/somewhere', { replaceState: true });
 	expect(navigation.goto).toHaveBeenCalledWith('/somewhere', { replaceState: true });
@@ -94,7 +94,7 @@ test('without the Kit thread, calls go to the runtime’s navigation handle', as
 	}
 });
 
-// `refreshAll` (Kit 3's remote `form()` calls it through the client stub after a successful submit):
+// `refreshAll` (Kit's remote `form()` calls it through the client stub after a successful submit):
 // the island's queries live in ogygia's remote cache, not Kit's, so they refresh on every document;
 // the page's data then refreshes through whoever owns the document — never a reload.
 function plant_query() {
@@ -108,7 +108,7 @@ function plant_query() {
 test('refreshAll on a Kit-booted document: island queries refresh, then Kit’s own refreshAll', async () => {
 	const q = plant_query();
 	const navigation = { refreshAll: vi.fn(async () => {}), invalidateAll: vi.fn(async () => {}) };
-	scope[KEY] = { page: {}, navigating: { current: null }, navigation };
+	scope[KEY] = { page: {}, navigating: { to: null }, navigation };
 	try {
 		await shim.refreshAll();
 		expect(q.refresh).toHaveBeenCalledOnce();

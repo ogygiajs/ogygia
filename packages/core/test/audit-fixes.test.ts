@@ -15,7 +15,6 @@ function makeCtx(overrides: Partial<HostCtx> = {}): HostCtx {
 	return {
 		...HOST_CTX_DEFAULTS,
 		root: ROOT,
-		libDir: '/app/src/lib',
 		readFile: () => null,
 		pathModule: path,
 		dev: false,

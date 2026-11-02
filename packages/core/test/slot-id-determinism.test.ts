@@ -11,9 +11,9 @@ import { set_kit_event_reader } from '../src/server/kit-context.ts';
 const set_request_event_stub = (fn: (() => unknown) | null) => set_kit_event_reader(fn);
 afterEach(() => set_request_event_stub(null));
 
-const page_event = () => ({ url: new URL('http://s/us/en/brands/') });
+const page_event = () => ({ request: new Request('http://s/us/en/brands/') });
 const hole_event = () => ({
-	url: new URL('http://s/__ogygia__?id=a77ff8566c02&props=e30&exp=1&sig=s')
+	request: new Request('http://s/__ogygia__?id=a77ff8566c02&props=e30&exp=1&sig=s')
 });
 
 describe('next_slot_id', () => {

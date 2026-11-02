@@ -22,13 +22,17 @@ let root = '';
 const CRAWL_FINDINGS_RE = /analytics-sdk|chart-lib|lake-only-dep|server-only-db/;
 
 const files: Record<string, string> = {
+	'package.json': JSON.stringify({
+		name: 'app',
+		imports: { '#lib': './src/lib', '#lib/*': './src/lib/*' }
+	}),
 	'src/routes/+layout.ts': 'export const csr = false;\n',
 	// A hydrate island, a lake, and a server (defer) island — only the FIRST is client code.
 	'src/routes/+page.svelte':
 		`<script>\n` +
-		`\timport Widget from '$lib/Widget.svelte' with { wake: 'visible' };\n` +
-		`\timport Frozen from '$lib/Frozen.svelte' with { wake: 'none' };\n` +
-		`\timport Greeting from '$lib/Greeting.svelte' with { render: 'deferred' };\n` +
+		`\timport Widget from '#lib/Widget.svelte' with { wake: 'visible' };\n` +
+		`\timport Frozen from '#lib/Frozen.svelte' with { wake: 'none' };\n` +
+		`\timport Greeting from '#lib/Greeting.svelte' with { render: 'deferred' };\n` +
 		`</script>\n<Widget /><Frozen /><Greeting />\n`,
 	'src/lib/Widget.svelte': `<script>\n\timport { track } from 'analytics-sdk';\n</script>\n<p>{track()}</p>\n`,
 	'src/lib/Frozen.svelte': `<script>\n\timport { heavy } from 'lake-only-dep';\n</script>\n<p>{heavy()}</p>\n`,
@@ -62,7 +66,6 @@ function make_compiler() {
 			partial_ctx_init({
 				root,
 				base: '/',
-				libDir: path.join(root, 'src/lib'),
 				is_dev: true,
 				id_salt: '',
 				visibleMargin: '0px',
@@ -72,7 +75,6 @@ function make_compiler() {
 				pkg_root: '/nowhere/ogygia',
 				app_shims: {
 					'$app/state': '/nowhere/ogygia/shims/app-state.svelte.js',
-					'$app/stores': '/nowhere/ogygia/shims/app-stores.js',
 					'$app/navigation': '/nowhere/ogygia/shims/app-navigation.js'
 				}
 			})

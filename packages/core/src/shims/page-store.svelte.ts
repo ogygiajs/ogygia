@@ -1,4 +1,4 @@
-// Shared page store for `$app/state` + `$app/stores` island shims.
+// The island page the `$app/state` shim reads (the runtime seeds it).
 //
 // Module singleton (runtime + shims share one client chunk). Fields are `$state.raw` like Kit —
 // deep `$state` breaks `URL` (and Date/Map in `data`). Runtime converts the devalue href string
@@ -13,6 +13,8 @@ export interface PageSnapshot {
 	form: unknown;
 	error: { message: string } | null;
 	state: Record<string, unknown>;
+	/** a shallow navigation's target page — Kit's page only (the island page has no shallow routing) */
+	shallow?: unknown;
 }
 
 const FALLBACK: PageSnapshot = {
@@ -36,8 +38,6 @@ export class PageState {
 	error: { message: string } | null = $state.raw<{ message: string } | null>(FALLBACK.error);
 	state: Record<string, unknown> = $state.raw<Record<string, unknown>>(FALLBACK.state);
 
-	#subscribers = new Set<() => void>();
-
 	set(snap: Partial<PageSnapshot> | undefined | null): void {
 		const s = snap || FALLBACK;
 		this.url = s.url instanceof URL ? s.url : FALLBACK.url;
@@ -48,13 +48,6 @@ export class PageState {
 		this.form = s.form ?? null;
 		this.error = s.error ?? null;
 		this.state = s.state ?? {};
-		for (const fn of this.#subscribers) {
-			try {
-				fn();
-			} catch {
-				/* ignore */
-			}
-		}
 	}
 
 	reset(): void {
@@ -68,11 +61,6 @@ export class PageState {
 			error: null,
 			state: {}
 		});
-	}
-
-	subscribe(fn: () => void): () => void {
-		this.#subscribers.add(fn);
-		return () => this.#subscribers.delete(fn);
 	}
 }
 
@@ -97,10 +85,6 @@ export function set_page(snap: Partial<PageSnapshot> | undefined | null): void {
 /** Reset to location-based fallback between SPA body swaps (clears stale route data). */
 export function reset_page(): void {
 	page_state.reset();
-}
-
-export function subscribe_page(fn: () => void): () => void {
-	return page_state.subscribe(fn);
 }
 
 // FOREIGN PAGE READ (dev warning, fragment federation). Inside a mounted MFE island this store is

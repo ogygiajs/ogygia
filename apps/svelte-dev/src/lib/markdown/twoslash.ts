@@ -46,7 +46,7 @@ function banner_for(lang: string, source: string): string {
 	}
 	// `#lib/*` imports have no real module in the VFS — shim each as `any` so the snippet resolves
 	// (svelte.dev does the same). Covers `import … from '#lib/foo'`.
-	for (const m of source.matchAll(/from\s+['"](\#lib\/[^'"]+)['"]/g)) {
+	for (const m of source.matchAll(/from\s+['"](#lib\/[^'"]+)['"]/g)) {
 		lines.push(`declare module '${m[1]}' { const x: any; export = x; export default x; }`);
 	}
 	if (source.includes('$env/')) {

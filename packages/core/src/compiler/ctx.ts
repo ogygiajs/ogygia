@@ -43,7 +43,7 @@ const NEVER_MATCH_RE = /$^/;
 export interface CompileCtxInit {
 	root: string;
 	base: string;
-	/** SvelteKit `config.kit.appDir` (default `_app`) — the dir Kit emits AND serves its immutable
+	/** SvelteKit's `appDir` (default `_app`) — the dir Kit emits AND serves its immutable
 	 *  assets under. ogygia's runtime + island chunks MUST land here too: a custom appDir otherwise
 	 *  404s them (Kit's adapter only maps `<appDir>/immutable/*` to the immutable-cache route). Read
 	 *  from Kit's `__SVELTEKIT_APP_DIR__` build define; `_app` when Kit isn't present (standalone).
@@ -51,7 +51,6 @@ export interface CompileCtxInit {
 	 *  `asset()`'s job — `Region.svelte` runs every baked entry / runtime URL through it at SSR — so
 	 *  ogygia never bakes a base into these URLs (doing so double-applies it). */
 	app_dir: string;
-	libDir: string;
 	/** A plugin asked for the build's measurement data (`b.measure()`: the profiler) — embedded maps,
 	 *  per-island detail. */
 	measure: boolean;
@@ -126,7 +125,6 @@ export class CompileCtx {
 	readonly root: string;
 	readonly base: string;
 	readonly app_dir: string;
-	readonly libDir: string;
 	readonly pkg_scan: PackageScan[];
 	readonly page_importers: readonly string[];
 	readonly page_files: readonly string[];
@@ -174,7 +172,6 @@ export class CompileCtx {
 		this.root = init.root;
 		this.base = init.base;
 		this.app_dir = init.app_dir;
-		this.libDir = init.libDir;
 		this.pkg_scan = init.pkg_scan ?? [];
 		this.page_importers = init.page_importers ?? [];
 		this.page_files = init.page_files ?? [];

@@ -33,7 +33,6 @@ function make_compiler() {
 			partial_ctx_init({
 				root: ROOT,
 				base: '/',
-				libDir: `${ROOT}/src/lib`,
 				is_dev: false,
 				id_salt: '',
 				visibleMargin: '0px',

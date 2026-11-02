@@ -99,8 +99,8 @@ declare module 'virtual:ogygia/island-deps' {
 	 *  the build kept under Kit's `inlineStyleThreshold`, so the render emits it as a `<style>`
 	 *  instead of a blocking `<link>`. `null` = link it (over the threshold, no threshold, dev). */
 	export function islandCssInline(href: string): string | null;
-	/** Does this island entry's client code read `$page` (the `$app/state` / `$app/stores` shim is
-	 *  in its chunk closure)? Decides whether the page seed ships. Fail-open: true in dev and for an
+	/** Does this island entry's client code read Kit's page (the `$app/state` shim is in its chunk
+	 *  closure)? Decides whether the page seed ships. Fail-open: true in dev and for an
 	 *  entry the build handoff does not know. */
 	export function islandReadsPage(entry: string): boolean;
 	/** SEED SHAPING: the top-level `page.data` keys this island entry's client code reads (the
@@ -224,8 +224,6 @@ declare const __OGYGIA_DEVTOOLS_LAZY__: boolean;
 declare const __OGYGIA_BEACON__: boolean;
 /** a plugin's browser half (`<plugin>/client`) is in the boot: the runtime calls its hooks */
 declare const __OGYGIA_CLIENT_PLUGINS__: boolean;
-/** The app's Kit major version (2, 3), or null when the plugin found none (kit-paths.ts). */
-declare const __OGYGIA_KIT_MAJOR__: number | null;
 
 declare module 'virtual:ogygia/router-css' {
 	// Generated component→CSS registrations for the server router — side-effect only.
@@ -260,18 +258,14 @@ declare module 'virtual:ogygia/transportables' {
 	export const wire_all: boolean;
 }
 declare module 'virtual:ogygia/kit-wire' {
-	export function stringify_remote_arg(value: unknown, transport: unknown): string;
-	export function stringify_command_arg(value: unknown, transport: unknown): Promise<string>;
 	export function create_remote_key(id: string, payload: string): string;
 }
 
 declare module '$app/paths' {
-	export const base: string;
-	export const assets: string;
 	export function resolve(id: string, params?: Record<string, string>): string;
 	export function asset(file: string): string;
 }
-// `$app/env` (Kit ≥ 2.70 and Kit 3; Kit 3 deprecates `$app/environment`)
+// `$app/env` (Kit's replacement for `$app/environment`)
 declare module '$app/env' {
 	export const building: boolean;
 	export const browser: boolean;
@@ -286,21 +280,11 @@ declare module '$app/server' {
 	};
 }
 
-// Minimal ambient for the Kit type the library imports (`RequestEvent`). The lib does not depend on
-// @sveltejs/kit; the CONSUMER's real Kit types back the shipped `dist/hooks.d.ts` (`@sveltejs/kit`
-// is externalised by tsdown). `Handle` is the library's own (kit-handle.ts: Kit 3 moved Kit's). Not
-// shipped (types.d.ts is excluded from tsdown).
-declare module '@sveltejs/kit' {
-	export interface RequestEvent {
-		url: URL;
-		[key: string]: unknown;
-	}
-}
-
-// Kit's INTERNAL server request store (deep import, same posture as the vite deep-imports).
-// `get_request_store()` returns the live per-request state; `state.remote` is the map Kit
-// populates during a csr=false render but only serializes when csr===true (see hooks.ts). Only
-// the fields the flicker-seeding path reads are declared. Not shipped (types.d.ts excluded).
+// Kit's INTERNAL server request store (deep import, same posture as the vite deep-imports; Kit
+// publishes no types for it). `get_request_store()` returns the live per-request state;
+// `state.remote` is the map Kit populates during a csr=false render but only serializes when
+// csr===true (see hooks.ts). Only the fields the flicker-seeding path reads are declared. Not
+// shipped (types.d.ts excluded).
 declare module '@sveltejs/kit/internal/server' {
 	export interface RemoteInternals {
 		id: string;
@@ -311,11 +295,9 @@ declare module '@sveltejs/kit/internal/server' {
 		data: Map<RemoteInternals, Record<string, Promise<unknown>>> | null;
 	}
 	export interface RequestState {
-		transport?: Record<
-			string,
-			{ encode: (v: unknown) => unknown; decode: (v: unknown) => unknown }
-		>;
 		remote: RequestRemoteState;
+		/** inside a remote query, where Kit refuses `event.url` / `params` / `route` */
+		is_in_remote_query?: boolean;
 	}
 	export interface RequestStore {
 		event: unknown;

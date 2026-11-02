@@ -49,7 +49,6 @@ const ms = (t: number) => `${t.toFixed(0)}ms`;
 const ctx = {
 	...CTX_EXTRA,
 	root: '/app',
-	libDir: '/app/src/lib',
 	readFile: () => null,
 	pathModule: path,
 	dev: false,

@@ -1600,7 +1600,7 @@
 			<h2>ogygia's own cost</h2>
 			<p class="hint">
 				What the handle added to this page — the transform's own time and every byte it put in the
-				document. The seed ships only when an island reads <code>$page</code>; props cross once per
+				document. The seed ships only when an island reads <code>page</code>; props cross once per
 				island.
 			</p>
 			<div class="summary">

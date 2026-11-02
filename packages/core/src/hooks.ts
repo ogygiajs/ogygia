@@ -21,7 +21,7 @@
 import { render } from 'svelte/server';
 import type { Component } from 'svelte';
 import type { RequestEvent } from '@sveltejs/kit';
-import type { Handle } from './kit-handle.ts';
+import type { Handle } from '@sveltejs/kit/hooks';
 import { try_get_request_store } from '@sveltejs/kit/internal/server';
 import type { RequestState } from '@sveltejs/kit/internal/server';
 import * as devalue from 'devalue';
@@ -49,6 +49,7 @@ import { set_page_route_config } from './plugin/routes.ts';
 import {
 	set_kit_page_reader,
 	set_kit_event_reader,
+	set_remote_query_reader,
 	set_render_page_port,
 	kit_page_ready,
 	kit_page_facts_tail,
@@ -70,7 +71,7 @@ import { set_source_recorder } from './source.ts';
 import { building, dev } from '$app/env';
 import runtime_url from 'virtual:ogygia/runtime-url';
 import dev_hmr_url from 'virtual:ogygia/dev-hmr-url';
-// Kit's `asset()`, taking ogygia's base-less `/…` URLs on Kit 2 and Kit 3 alike
+// Kit's `asset()`, taking ogygia's base-less `/…` URLs
 import { kit_asset as asset } from './kit-paths.ts';
 import devtools_boot_url from 'virtual:ogygia/devtools-boot-url';
 import { sign, verify, region_mac_message } from './server/hmac.ts';
@@ -137,6 +138,9 @@ import {
 import { PAGE_DEFER_BOOTSTRAP, PAGE_DEFER_GLOBAL } from './page-defer.ts';
 import { ConcurrencyGate, REGION_RENDER_CONCURRENCY } from './runtime/concurrency.ts';
 import { stringify } from 'devalue';
+// the app's universal `transport` encoders (the plugin builds them from the app's hooks): what the
+// page seed and the remote seed write the app's custom types with
+import { encoders as transport_encoders } from 'virtual:ogygia/transport';
 import { serialize_provided_context } from './context-bridge.ts';
 import { escape_script_text } from './escape.ts';
 import { hole_copy_key } from './runtime/hash.ts';
@@ -364,33 +368,22 @@ configure_render_page({ warn: dev ? (m) => console.warn(m) : null });
 set_kit_event_reader(
 	() => (try_get_request_store() as { event?: RequestEvent } | undefined)?.event ?? null
 );
+// Inside a remote query (Kit's request state): where Kit refuses `event.url` and its relative paths
+set_remote_query_reader(() => try_get_request_store()?.state.is_in_remote_query === true);
 /** Does this hole's server tree read `page.data` (the build's answer; unknown in dev → yes). */
 const hole_reads_page_data = (id: string): boolean =>
 	island_reads_page_data === null || island_reads_page_data[id] !== false;
-type TransportStore = {
-	event?: RequestEvent;
-	state?: {
-		transport?: Record<
-			string,
-			{ decode: (v: unknown) => unknown; encode: (v: unknown) => unknown }
-		>;
-	};
-};
+const store_event = () => (try_get_request_store() as { event?: RequestEvent } | undefined)?.event;
 set_render_page_port({
 	ready(reads_data) {
-		const store = try_get_request_store() as TransportStore | undefined;
-		return prepare_render_page(store?.event, store?.state?.transport, reads_data);
+		return prepare_render_page(store_event(), reads_data);
 	},
 	tail() {
-		const store = try_get_request_store() as TransportStore | undefined;
-		return render_page_facts_script(store?.event, store?.state?.transport);
+		return render_page_facts_script(store_event());
 	},
 	version(hole_id) {
 		if (!hole_reads_page_data(hole_id)) return '';
-		const v = render_page_version(
-			(try_get_request_store() as TransportStore | undefined)?.event,
-			bag_of()?.page ?? undefined
-		);
+		const v = render_page_version(store_event(), bag_of()?.page ?? undefined);
 		return v ? '&pv=' + v : '';
 	}
 });
@@ -646,33 +639,15 @@ function router_fetched(event: RequestEvent): boolean {
  * `csr = false` is dropped), and the regions recorded Kit's `page.error` into the bag as they rendered
  * — the same fact Region.svelte decided its own inline/island form on, so the two cannot disagree.
  */
-type SeedCodecs = {
-	seed_reducers: Record<string, (v: unknown) => unknown>;
-	seed_stringify: typeof stringify;
-};
-const NO_TRANSPORT = {};
-const seed_codec_cache = new WeakMap<object, SeedCodecs>();
-
 /** The seed's devalue reducers — the app's transport encoders merged with the defer markers — and a
- *  stringify bound to them, made once per transport object (Kit hands the same one every request). */
-function seed_codecs(
-	transport: Record<string, { encode: (v: unknown) => unknown }> | undefined
-): SeedCodecs {
-	const key = transport ?? NO_TRANSPORT;
-	let hit = seed_codec_cache.get(key);
-	if (!hit) {
-		const encoders = Object.fromEntries(
-			Object.entries(transport ?? {}).map(([name, codec]) => [name, codec.encode])
-		);
-		const seed_reducers = { ...encoders, ...page_seed_reducers };
-		hit = {
-			seed_reducers,
-			seed_stringify: ((v: unknown) => stringify(v, seed_reducers)) as typeof stringify
-		};
-		seed_codec_cache.set(key, hit);
-	}
-	return hit;
-}
+ *  stringify bound to them, made once for the app. (Read from the app's hooks through the plugin,
+ *  not off Kit's request state: Kit 3 keeps no `transport` there, and a seed read from it silently
+ *  lost every custom type.) */
+const seed_reducers: Record<string, (v: unknown) => unknown> = {
+	...transport_encoders,
+	...page_seed_reducers
+};
+const seed_stringify = ((v: unknown) => stringify(v, seed_reducers)) as typeof stringify;
 
 /** `</body>` as bytes (ASCII: the same in every UTF-8 document). */
 const BODY_CLOSE_BYTES = [60, 47, 98, 111, 100, 121, 62];
@@ -732,10 +707,9 @@ class OgygiaHandle {
 	constructor(options: OgygiaHandleOptions = {}) {
 		this.#transform = options.transform;
 		// Stored WITHOUT a base prefix. Getting the app's absolute base path inside a hook has no
-		// public, forward-compatible API — `base` from `$app/paths` is deprecated (removed in Kit 3)
-		// and `resolve()` is page-relative here — so instead of prefixing the base we match the request
-		// pathname by SUFFIX (see `handle`). The endpoint is a clash-safe path, so a suffix match is
-		// unambiguous regardless of `paths.base`.
+		// public API — `$app/paths` has no `base` export, and `resolve()` is page-relative here — so
+		// instead of prefixing the base we match the request pathname by SUFFIX (see `handle`). The
+		// endpoint is a clash-safe path, so a suffix match is unambiguous under any base.
 		// ONE path for the handler and every capability minted (server/endpoint.ts): the option moved
 		// only the handler once, and every hole on the page asked the old path
 		configure_islands_endpoint(options.endpoint);
@@ -806,7 +780,7 @@ class OgygiaHandle {
 	): Promise<Response> {
 		// Compare against the DECODED request pathname so the percent-encoded UTF-8 the browser
 		// sends matches our raw-emoji literal regardless of how Kit hands us the URL. Suffix match
-		// (not `===`) so it works under any `paths.base` without needing the base at all: the request
+		// (not `===`) so it works under any base without needing the base at all: the request
 		// arrives at `<base>/__ogygia__`, and the endpoint is a leading-slash, clash-safe path.
 		if (!path.endsWith(this.#endpoint)) {
 			// PAGE FACTS (server/page-facts.ts): a render outside its page looks the page up through
@@ -889,8 +863,8 @@ class OgygiaHandle {
 			// (server/shared-cache.ts). Loads receive `setHeaders` from THIS event (Kit spreads it into
 			// each load's event) and finish before the render mints. A header a handle sets on the
 			// Response after `resolve` is invisible here — the runtime's renewal covers that case.
-			// (SvelteKit 3 types `setHeaders` as readonly; at runtime it is a plain property Kit
-			// reassigns itself after the response, so this wrapper works on 2 and 3 alike)
+			// (Kit types `setHeaders` as readonly; at runtime it is a plain property Kit reassigns
+			// itself after the response, so this wrapper holds)
 			const set_headers = event.setHeaders;
 			(event as { setHeaders: RequestEvent['setHeaders'] }).setHeaders = (headers) => {
 				set_headers(headers);
@@ -1278,11 +1252,9 @@ class OgygiaHandle {
 		const shaped_data = shape_page_data(page_snap.data, seed_keys);
 		let seed_data = shaped_data;
 		let seed_form = page_snap.form;
-		// Merge the app's universal `transport` ENCODERS (custom types the app teaches Kit) with the
-		// DeferRef/SettledRef marker reducers, so a load's custom types round-trip into islands — not
-		// just built-in devalue types. A no-op for the common promise-free / transport-free seed.
-		// (built once per app transport — the same object on every request — not per request)
-		const { seed_reducers, seed_stringify } = seed_codecs(state?.transport);
+		// `seed_reducers` / `seed_stringify` (module scope): the app's universal `transport` ENCODERS
+		// (custom types the app teaches Kit) with the DeferRef/SettledRef marker reducers, so a load's
+		// custom types round-trip into islands — not just built-in devalue types.
 		// ONE walk of the seed tree (seed-refs.ts `analyze`, against the request's shared memo — the
 		// tail's index above already measured every node; a shaped root is a few lookups) answers
 		// every question below: a streamed promise inside (stage or settle), JSON-exact (the native
@@ -1322,9 +1294,8 @@ class OgygiaHandle {
 		// The tail (rendered above, before shaping) goes out after the defer bootstrap, before the seeds.
 		if (tail_html) scripts.push(tail_html);
 
-		// SEED ONLY WHEN READ: the seed exists so islands can read `$page` through the shim. A region
-		// asks for it (`seed_wanted`) only when its client code reaches the `$app/state` / `$app/stores`
-		// shim (`islandReadsPage`, from the build's chunk closure; fail-open for an entry the handoff
+		// SEED ONLY WHEN READ: the seed exists so islands can read `page` through the shim. A region
+		// asks for it (`seed_wanted`) only when its client code reaches the `$app/state` shim (`islandReadsPage`, from the build's chunk closure; fail-open for an entry the handoff
 		// does not know, e.g. a foreign fragment's island). No reader → no seed: a CMS page whose 20
 		// islands take everything as props stops shipping its whole `page.data` again (674 KB on one
 		// measured page) and stops serializing it on the server.
@@ -1659,12 +1630,8 @@ class OgygiaHandle {
 
 		if (!Object.values(data).some((b) => Object.keys(b).length > 0)) return null;
 
-		const transport = state.transport || {};
-		const reducers = Object.fromEntries(
-			Object.entries(transport).map(([name, codec]) => [name, codec.encode])
-		);
 		// devalue output is `<`-safe by itself (it writes `<`), so no second pass over the payload.
-		return emit_ogygia_script('remote', devalue.stringify(data, reducers));
+		return emit_ogygia_script('remote', devalue.stringify(data, transport_encoders));
 	}
 
 	/**

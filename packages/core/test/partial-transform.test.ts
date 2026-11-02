@@ -7,7 +7,7 @@
 //     keeps the `held:*` identity — distinct from a `.svelte` PLACED island (`hydrate:*`, no endpoint).
 // Both rewrite the host import to the leg-split binding module. Runs against built `../dist`.
 
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
 import {
 	transformHost,
@@ -16,9 +16,16 @@ import {
 	regionId,
 	regionBindingVirtualId
 } from '../dist/compiler/region/transform.js';
+import * as host from '../dist/compiler/host.js';
+import * as app_resolve from '../dist/compiler/app-resolve.js';
+import { with_app_package } from './_helpers/app-package.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 const ROOT = '/app';
+
+let restore = () => {};
+beforeAll(() => (restore = with_app_package(host, app_resolve)));
+afterAll(() => restore());
 
 type HostCtx = Parameters<typeof transformHost>[2];
 
@@ -26,7 +33,6 @@ function makeCtx(overrides: Partial<HostCtx> = {}): HostCtx {
 	return {
 		...HOST_CTX_DEFAULTS,
 		root: ROOT,
-		libDir: '/app/src/lib',
 		readFile: () => null,
 		pathModule: path,
 		dev: false,
@@ -53,7 +59,7 @@ function heldId(compRel: string, hydrate?: string) {
 
 describe('transformHost — held region in .svelte (region: raw)', () => {
 	const src = `<script>
-		import Card from '$lib/Card.svelte' with { region: 'raw' };
+		import Card from '#lib/Card.svelte' with { region: 'raw' };
 		import { region } from 'ogygia';
 		export const f = region(Card, { id: 1 });
 	</script>`;
@@ -81,7 +87,7 @@ describe('transformHost — held region in .svelte (region: raw)', () => {
 
 	test('rejects region combined with another import attribute', () => {
 		const bad = `<script>
-			import Card from '$lib/Card.svelte' with { region: 'raw', wake: 'load' };
+			import Card from '#lib/Card.svelte' with { region: 'raw', wake: 'load' };
 		</script>`;
 		expect(() => transformHost(bad, '/app/src/routes/+page.svelte', makeCtx())).toThrow(
 			/must be the only import attribute/
@@ -90,7 +96,7 @@ describe('transformHost — held region in .svelte (region: raw)', () => {
 
 	test("rejects a region value other than 'raw'", () => {
 		const bad = `<script>
-			import Card from '$lib/Card.svelte' with { region: 'load' };
+			import Card from '#lib/Card.svelte' with { region: 'load' };
 		</script>`;
 		expect(() => transformHost(bad, '/app/src/routes/+page.svelte', makeCtx())).toThrow(
 			/only takes the value 'raw'/
@@ -101,8 +107,8 @@ describe('transformHost — held region in .svelte (region: raw)', () => {
 	// carries a live region key (the cheap source-scan skips a file whose ONLY marker is retired).
 	test('the retired `partial:` key throws when alongside a live region import', () => {
 		const bad = `<script>
-			import Card from '$lib/Card.svelte' with { partial: 'load' };
-			import Live from '$lib/Live.svelte' with { region: 'raw' };
+			import Card from '#lib/Card.svelte' with { partial: 'load' };
+			import Live from '#lib/Live.svelte' with { region: 'raw' };
 		</script>`;
 		expect(() => transformHost(bad, '/app/src/routes/+page.svelte', makeCtx())).toThrow(
 			/`partial` import attribute was retired/
@@ -154,7 +160,7 @@ export const f = region(Card, {});`;
 	test('a held-region import inside a JSDoc @example COMMENT is left alone (regression: ogygia src/index.ts)', () => {
 		const src = `/**
  * @example
- *   import Chart from '$lib/Chart.svelte' with { wake: 'visible' };
+ *   import Chart from '#lib/Chart.svelte' with { wake: 'visible' };
  */
 export const y = 1;`;
 		const r = transformTsRegions(src, id, makeCtx());
@@ -210,7 +216,7 @@ export const f = region(C, {});`;
 
 	test('a .svelte region:raw and a .ts region:raw of the same component share one id', () => {
 		const svelteId = heldId('src/lib/Card.svelte');
-		const src = `import Card from '$lib/Card.svelte' with { region: 'raw' };
+		const src = `import Card from '#lib/Card.svelte' with { region: 'raw' };
 export const loadCard = region(Card, {});`;
 		const r = transformTsRegions(src, id, makeCtx());
 		expect(r!.islands[0].id).toBe(svelteId);

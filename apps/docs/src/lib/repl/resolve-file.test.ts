@@ -1,5 +1,5 @@
 // Unit tests for the Observatory's import → workspace-key resolver (src/lib/repl/resolve-file.ts).
-// Covers the Kit alias forms (#lib AND #lib for Kit 3), the exact-path preference, the move-tolerant
+// Covers Kit's `#lib` subpath import, the exact-path preference, the move-tolerant
 // basename fallback, and the duplicate-basename disambiguation (the hazard the resolver must not
 // resolve arbitrarily). Node strips the .ts types natively.
 import { resolve_file } from './resolve-file.ts';
@@ -40,19 +40,12 @@ eq(
 	'src/lib/Counter.svelte'
 );
 
-// ── #lib alias (Kit <=2) ──
+// ── #lib alias ──
 eq('#lib/ maps to src/lib/', resolve_file('#lib/Counter.svelte', demo), 'src/lib/Counter.svelte');
 eq('#lib/ nested', resolve_file('#lib/Header.svelte', demo), 'src/lib/Header.svelte');
-
-// ── #lib alias (Kit 3) ──
 eq(
-	'#lib/ maps to src/lib/ (Kit 3)',
-	resolve_file('#lib/Counter.svelte', demo),
-	'src/lib/Counter.svelte'
-);
-eq(
-	'$libfoo is NOT the alias',
-	resolve_file('$libfoo/Counter.svelte', demo),
+	'#libfoo is NOT the alias',
+	resolve_file('#libfoo/Counter.svelte', demo),
 	'src/lib/Counter.svelte'
 ); // still found by basename fallback
 

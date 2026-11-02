@@ -157,7 +157,7 @@ describe('slow-regex', () => {
 		const lib = '/app/src/lib/names.ts';
 		const files: Record<string, string[]> = {
 			[page]: [
-				"import { initials } from '$lib/names';",
+				"import { initials } from '#lib/names';",
 				'export async function load() {',
 				'\tconst inits = sorted.map((p) => initials(p.name));',
 				'}'

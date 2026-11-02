@@ -20,7 +20,6 @@ const root = '/app';
 const baseCtx = {
 	...CTX_EXTRA,
 	root,
-	libDir: '/app/src/lib',
 	readFile: () => null,
 	pathModule: path,
 	dev: false,

@@ -100,7 +100,7 @@ async function main() {
 			/virtual:ogygia/.test(x.textContent || '')
 		);
 		const add = [...el.querySelectorAll('.dl.add .dc')].some((x) =>
-			/\#lib\//.test(x.textContent || '')
+			/#lib\//.test(x.textContent || '')
 		);
 		return del && add ? true : null;
 	});

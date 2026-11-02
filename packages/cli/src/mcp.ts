@@ -100,7 +100,6 @@ type HostResult = { code?: string; islands?: HostIsland[] } | null;
 function build_ctx(ssr: boolean, route_csr = false) {
 	return {
 		root: '/repl',
-		libDir: '/repl/src/lib',
 		readFile: () => null,
 		pathModule: path as never,
 		dev: true,

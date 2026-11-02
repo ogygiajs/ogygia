@@ -356,13 +356,13 @@
 	// Capture the page snapshot for the island seed. On SSR this reads Kit's REAL `$app/state` page —
 	// the only place the resolved load `data` is reachable (Kit merges it locally in render.js, never
 	// on RequestState, and reading page in a hook throws). The handle records it into the
-	// `application/ogygia-page` seed, so a hydrated island's `$page.data` / `.form` / `.error` /
+	// `application/ogygia-page` seed, so a hydrated island's `page.data` / `.form` / `.error` /
 	// `.status` are populated (boundary law: page.data crosses). No-op on the client (recorder unset;
 	// the client `page` is already the shim seed), and a harmless no-op in an isolated server-island
 	// endpoint render (no recorder installed there either). `untrack` — one snapshot read, no dep.
 	//
 	// THE SEED SHIPS ONLY FOR A REGION WHOSE CLIENT CODE READS IT: `islandReadsPage(entry)` is the
-	// build's answer (the `$app/state` / `$app/stores` shim in the entry's chunk closure; fail-open for
+	// build's answer (the `$app/state` shim in the entry's chunk closure; fail-open for
 	// an entry the handoff does not know, and in dev). The snapshot is recorded either way — the
 	// handle also reads it for the freeze verdict and for server-side page reads — with `seed:false`
 	// when this region has no reader. A page whose islands take everything as props asks for no

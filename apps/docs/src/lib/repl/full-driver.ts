@@ -43,7 +43,6 @@ function repl_ctx(macros: ReplMacros): CompileCtx {
 		root: '/repl',
 		base: '/',
 		app_dir: '_app',
-		libDir: '/repl/src/lib',
 		is_dev: true,
 		id_salt: 'repl',
 		visibleMargin: undefined,

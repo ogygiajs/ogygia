@@ -263,7 +263,6 @@ async function ensure_oxc(): Promise<OxcMod> {
 function build_ctx(ssr: boolean, routeCsr: boolean = false) {
 	return {
 		root: '/repl',
-		libDir: '/repl/src/lib',
 		readFile: () => null,
 		pathModule: path as never,
 		dev: true,

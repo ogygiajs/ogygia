@@ -50,7 +50,6 @@ const ROOT = '/app';
 const make_ctx = () => ({
 	...CTX_EXTRA,
 	root: ROOT,
-	libDir: '/app/src/lib',
 	readFile: () => null,
 	pathModule: path,
 	dev: false,

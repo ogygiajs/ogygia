@@ -1,12 +1,15 @@
 /**
  * `content()` — content collections, markdown and the content macros, listed beside `ogygia()` in
- * vite.config `plugins` (`content({ markdown, presets })`). The svelte config takes the value-free
- * halves from here too:
+ * vite.config `plugins` (`content({ markdown, presets })`). Kit's config takes the value-free halves
+ * from here too — called AFTER `content()`, which registers the markdown config they read:
  *
  * ```js
- * // svelte.config.js
- * import { preprocess, extensions } from '@ogygia/content/vite';
- * export default { extensions: extensions(), preprocess: [vitePreprocess(), ...preprocess()] };
+ * // vite.config.js
+ * import { content, preprocess, extensions } from '@ogygia/content/vite';
+ * plugins: [
+ *   content({ markdown: {} }),
+ *   sveltekit({ extensions: extensions(), preprocess: [vitePreprocess(), ...preprocess()] })
+ * ]
  * ```
  *
  * The plugin brings `import.meta.og.code` / `.md` (a snippet baked through the app's own fence
@@ -62,8 +65,8 @@ export interface ContentOptions extends ContentHmrOptions {
 export function content(options: ContentOptions = {}): [OgygiaPlugin, ...VitePlugin[]] {
 	const { markdown, presets, ...hmr } = options;
 	if (presets) validate_presets(presets, !!markdown);
-	// The svelte config's `preprocess()` / `extensions()` read this; vite.config evaluates the plugin
-	// list before `sveltekit()` loads the svelte config, so it is set by then.
+	// Kit's config's `preprocess()` / `extensions()` read this; listed after `content()` in the
+	// plugins array (or built by a function called after it), they run once it is set.
 	bridge.markdownConfig = (markdown as Record<string, unknown> | undefined) ?? null;
 	bridge.contentPresets = (presets as ContentBridgePresets | undefined) ?? null;
 	const exts = markdown_extensions();
@@ -196,7 +199,7 @@ function markdown_extensions(): string[] {
 }
 
 /**
- * The svelte config's markdown preprocessor. Spread into `preprocess`:
+ * Kit's config's markdown preprocessor. Spread into `preprocess`:
  * `preprocess: [vitePreprocess(), ...preprocess()]`. The markdown preprocessor when
  * `content({ markdown })` is set, otherwise nothing. mdsvex loads lazily on first use.
  */
@@ -208,7 +211,7 @@ export function preprocess(): PreprocessorGroup[] {
 	return bridge.markdownConfig ? [ogygiaPresetPreprocess()] : [];
 }
 
-/** The svelte config's full `extensions` list: `.svelte`, plus markdown's when `content({ markdown })`
+/** Kit's config's full `extensions` list: `.svelte`, plus markdown's when `content({ markdown })`
  *  is set. Pass it straight through: `extensions: extensions()`. */
 export function extensions(): string[] {
 	return bridge.markdownConfig ? ['.svelte', ...markdown_extensions()] : ['.svelte'];

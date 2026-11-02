@@ -134,6 +134,11 @@ describe('site init — svelte.config project', () => {
 		expect(vc).toMatch(/sveltekit\(\)/);
 		// the content package is a dependency next to ogygia
 		expect(JSON.parse(read(dir, 'package.json')).dependencies).toHaveProperty('@ogygia/content');
+		// …and Kit's `#lib` subpath imports, which the generated files import from
+		expect(JSON.parse(read(dir, 'package.json')).imports).toMatchObject({
+			'#lib': './src/lib',
+			'#lib/*': './src/lib/*'
+		});
 
 		// the layout mounts the docs shell at the root base
 		expect(read(dir, 'src/routes/+layout.svelte')).toMatch(
@@ -148,7 +153,7 @@ describe('site init — svelte.config project', () => {
 		expect(run(dir, ['init', '-y', '--no-install']).status).toBe(0);
 		// the no-JS search page queries the site it imports (`docs`), never an unbound `site`
 		expect(read(dir, 'src/routes/search/+page.server.ts')).toMatch(
-			/import \{ docs \} from '\$lib\/docs';[\s\S]*await docs\.search\(q\)/
+			/import \{ docs \} from '#lib\/docs';[\s\S]*await docs\.search\(q\)/
 		);
 		for (const f of [
 			'src/routes/+layout.svelte',
@@ -162,7 +167,7 @@ describe('site init — svelte.config project', () => {
 			'src/routes/search/+page.server.ts'
 		]) {
 			const src = read(dir, f);
-			expect(src, f).toContain("import { docs } from '$lib/docs';");
+			expect(src, f).toContain("import { docs } from '#lib/docs';");
 			expect(src, f).not.toMatch(/\bsite\.\w/);
 		}
 	});
@@ -207,7 +212,7 @@ describe('site init — existing layout', () => {
 		const shell = [
 			'<script lang="ts">',
 			"\timport DocsShell from '@ogygia/content/docs-shell';",
-			"\timport { site } from '$lib/docs';",
+			"\timport { site } from '#lib/docs';",
 			'\tlet { children } = $props();',
 			'</script>',
 			'',

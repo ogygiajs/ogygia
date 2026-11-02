@@ -20,8 +20,8 @@ export function current_region(): Element | null {
 
 /**
  * Fragment federation: the FOREIGN island (another build's entry, delegated to its own
- * `__og_hydrate`) the runtime is hydrating right now — or null. The `$app/state` / `$app/stores`
- * shims read this (dev) to warn on a page read: inside a mounted MFE island the page store is the
+ * `__og_hydrate`) the runtime is hydrating right now — or null. The `$app/state`
+ * shim reads this (dev) to warn on a page read: inside a mounted MFE island the page store is the
  * SHELL's document singleton, never the MFE's (its own seed stops at the fragment boundary), so
  * `page.data` there is a repaint mismatch waiting to happen. Same slot discipline as the cursor
  * above — the shell runtime SETS it, the foreign build's shim READS it, one `Symbol.for` slot.

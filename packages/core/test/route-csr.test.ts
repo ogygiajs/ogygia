@@ -366,7 +366,7 @@ describe('route components in any extension', () => {
 // ── transform seam — what each world does to a layout's chrome islands ───────────────────────
 
 const LAYOUT_HOST = `<script>
-	import Header from '$lib/Header.svelte' with { wake: 'load' };
+	import Header from '#lib/Header.svelte' with { wake: 'load' };
 	let { children } = $props();
 </script>
 
@@ -377,7 +377,6 @@ const LAYOUT_HOST = `<script>
 function compile_layout(routeCsr: boolean | undefined) {
 	return transformHost(LAYOUT_HOST, '/app/src/routes/+layout.svelte', {
 		root: '/app',
-		libDir: '/app/src/lib',
 		readFile: () => null,
 		pathModule: path,
 		dev: false,

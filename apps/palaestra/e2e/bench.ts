@@ -30,7 +30,6 @@ const doBuild = process.argv.includes('--build');
 const ctx = {
 	...CTX_EXTRA,
 	root: '/app',
-	libDir: '/app/src/lib',
 	readFile: () => null,
 	pathModule: path,
 	dev: false,
