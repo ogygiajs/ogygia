@@ -57,7 +57,7 @@ You configure a marked import with two attributes. `wake` says whether the compo
 
 ## How the docs are organized
 
-The docs have one section per package. The package switcher at the top of the page moves between them.
+The docs have one section per package. The switcher at the top of the sidebar (on a phone, at the top of the menu) moves between them.
 
 This section covers `ogygia`, the package every app installs. Each part builds on the one before, so this is a good order to read them in:
 
