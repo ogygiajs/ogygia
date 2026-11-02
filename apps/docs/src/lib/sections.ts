@@ -10,7 +10,8 @@ import type { NavItem, NavRef, NavTree } from '@ogygia/content';
 export type Section = {
 	/** The address prefix (`''` for the main section). */
 	key: string;
-	/** The npm package name, as the switcher shows it. */
+	/** The section's plain name, as the switcher shows it (`Flags`, not `@ogygia/flags`: the
+	 *  package name stays on the pages, where it is installed and imported). */
 	name: string;
 	/** One line on what the package is for. */
 	blurb: string;
@@ -27,55 +28,55 @@ export const SECTIONS: Section[] = [
 	},
 	{
 		key: 'content',
-		name: '@ogygia/content',
+		name: 'Content',
 		blurb: 'Collections, markdown, docs sites and search',
 		home: '/docs/content/overview'
 	},
 	{
 		key: 'router',
-		name: '@ogygia/router',
+		name: 'Router',
 		blurb: 'The server router: routes as values, typed',
 		home: '/docs/router/overview'
 	},
 	{
 		key: 'postrender',
-		name: '@ogygia/postrender',
+		name: 'Postrender',
 		blurb: 'Prerender at request time, served as bytes',
 		home: '/docs/postrender/overview'
 	},
 	{
 		key: 'devtools',
-		name: '@ogygia/devtools',
+		name: 'Devtools',
 		blurb: 'The in-page dock and the SSR profiler',
 		home: '/docs/devtools/overview'
 	},
 	{
 		key: 'testing',
-		name: '@ogygia/testing',
+		name: 'Testing',
 		blurb: 'Performance and hydration checks in your tests',
 		home: '/docs/testing/overview'
 	},
 	{
 		key: 'flags',
-		name: '@ogygia/flags',
+		name: 'Flags',
 		blurb: 'Feature flags and A/B tests, decided on the server',
 		home: '/docs/flags/overview'
 	},
 	{
 		key: 'federation',
-		name: '@ogygia/federation',
+		name: 'Federation',
 		blurb: 'Pages and widgets shared between apps',
 		home: '/docs/federation/overview'
 	},
 	{
 		key: 'cli',
-		name: '@ogygia/cli',
+		name: 'CLI',
 		blurb: 'Setup, the AI skill, perf budgets, keys',
 		home: '/docs/cli/overview'
 	},
 	{
 		key: 'core',
-		name: '@ogygia/core',
+		name: 'Core',
 		blurb: 'The shared core, for plugin authors',
 		home: '/docs/core/overview'
 	}

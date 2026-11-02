@@ -19,6 +19,8 @@
 	import { page } from '$app/state';
 	import { meta } from '$lib/docs.remote';
 	import { sectionNav, sectionOf } from '$lib/sections';
+	// The package switcher: a disclosure of links (works before it wakes); waking adds the keys.
+	import SectionSwitcher from '$lib/SectionSwitcher.svelte' with { wake: 'idle' };
 
 	let { children } = $props();
 
@@ -37,7 +39,7 @@
 	// a fresh SSR pass, so a top-level await is current per page.
 	const fullMeta = bare || isHome || isObservatory ? null : await meta(page.params.slug ?? '');
 	// One section per package: the sidebar (and the mobile sheet) show the current section's part
-	// of the one nav tree; the header's switcher moves between sections.
+	// of the one nav tree; the switcher at the top of the sidebar moves between sections.
 	const docSection = sectionOf(page.params.slug ?? '');
 	const shellMeta = fullMeta && { ...fullMeta, nav: sectionNav(fullMeta.nav, docSection) };
 
@@ -97,7 +99,11 @@
 	<div data-sveltekit-preload-data="hover">
 		<DocsShell meta={shellMeta!} base="/docs" home="/" title="ogygia" tools={null}>
 			{#snippet header()}
-				<SiteHeader section="Docs" docs={docSection} />
+				<SiteHeader section="Docs" />
+			{/snippet}
+			<!-- The section switcher heads the sidebar (desktop) and the bottom bar's nav sheet (phone). -->
+			{#snippet side()}
+				<SectionSwitcher current={docSection} />
 			{/snippet}
 			{@render children()}
 		</DocsShell>

@@ -44,10 +44,26 @@
 	outline: none;
 }
 
-/* ── the panel's brand row (headerless form) — the old `.side-brand` recipe ── */
-.og-cside-brand {
-	padding: 0.2rem 0.4rem 0.75rem;
-	border-bottom: 1px solid color-mix(in srgb, var(--accent-line) 40%, var(--line));
+/* ── the sidebar's top row (the Shell's `side` snippet): the package switcher. It sticks to the top
+      while the tree scrolls under it, on the sidebar's own background, edge to edge over the
+      sidebar's padding, with the section divider below it. ── */
+.og-cside > .og-cside-brand {
+	position: sticky;
+	top: -0.6rem;
+	z-index: 3;
+	margin: -1.2rem -0.8rem 1.15rem -1.1rem;
+	padding: 1.2rem 0.8rem 0.85rem 1.1rem;
+	border-bottom: 1px solid color-mix(in srgb, var(--accent-line) 35%, var(--line));
+	background: color-mix(in srgb, var(--bg-raised) 45%, var(--bg));
+}
+/* The same switcher at the top of the phone's nav sheet: pinned above the scrolling tree. */
+.og-sheet-top {
+	margin-bottom: 0.75rem;
+	padding: 0.35rem 0 0.85rem;
+	border-bottom: 1px solid color-mix(in srgb, var(--accent-line) 35%, var(--line));
+}
+.og-sheet-top .sec-sw .sec-sw-menu {
+	max-height: 38dvh;
 }
 
 /* ── header (unused in the headerless form; kept for pages that opt back in) ── */

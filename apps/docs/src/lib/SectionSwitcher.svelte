@@ -1,8 +1,9 @@
 <script lang="ts">
-	// The docs section switcher: which package's docs you are reading, and a menu of the others.
-	// A disclosure (`<details>`) of plain links, so it opens and navigates before (or without) JS;
-	// as an island it adds the keyboard and pointer details: Escape closes and returns focus to the
-	// button, the arrow keys (and Home/End) move between the links, a click outside or a pick closes.
+	// The docs section switcher, at the top of the sidebar (and of the phone's nav sheet): which
+	// package's docs you are reading, and the list of the others. A disclosure (`<details>`) of plain
+	// links that opens in place, so it opens and navigates before (or without) JS. As an island it
+	// adds the keyboard and pointer details: Escape closes and returns focus to the button, the arrow
+	// keys (and Home/End) move between the links, a click outside or a pick closes.
 	import { SECTIONS } from '$lib/sections';
 
 	let { current = '' }: { current?: string } = $props();
@@ -30,7 +31,7 @@
 
 	function onkeydown(e: KeyboardEvent) {
 		if (!root?.open) {
-			// From the closed button, ArrowDown opens the menu on its current item.
+			// From the closed button, ArrowDown opens the list on its current item.
 			if (
 				e.key === 'ArrowDown' &&
 				e.target instanceof HTMLElement &&
@@ -49,6 +50,7 @@
 		let next = -1;
 		if (e.key === 'Escape') {
 			e.preventDefault();
+			e.stopPropagation(); // in the phone's sheet, Escape closes the list, not the sheet
 			close(true);
 			return;
 		}
@@ -78,19 +80,22 @@
 </script>
 
 <details class="sec-sw" bind:this={root} bind:open {@attach keys}>
-	<summary class="sec-sw-trigger" aria-label="Docs section: {here.name}. Switch package">
-		<span class="sec-sw-name">{here.name}</span>
+	<summary class="sec-sw-trigger" aria-label="Docs section: {here.name}. Switch section">
+		<span class="sec-sw-text">
+			<span class="sec-sw-name">{here.name}</span>
+			<span class="sec-sw-blurb">{here.blurb}</span>
+		</span>
 		<svg
 			class="sec-sw-caret"
-			width="12"
-			height="12"
+			width="14"
+			height="14"
 			viewBox="0 0 24 24"
 			fill="none"
 			stroke="currentColor"
-			stroke-width="2.4"
+			stroke-width="2.2"
 			stroke-linecap="round"
 			stroke-linejoin="round"
-			aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg
+			aria-hidden="true"><path d="m7 15 5 5 5-5" /><path d="m7 9 5-5 5 5" /></svg
 		>
 	</summary>
 	<nav class="sec-sw-menu" aria-label="Docs sections">
@@ -115,124 +120,122 @@
 
 <style>
 	.sec-sw {
-		position: relative;
+		flex: 1;
+		min-width: 0;
 	}
+	/* The closed row: the sidebar's active-row material (the accent-deep chip with its inset
+	   hairline), so it reads as part of the nav, and a two-line label like the menu's items. */
 	.sec-sw-trigger {
-		display: inline-flex;
+		display: flex;
 		align-items: center;
-		gap: 0.4rem;
-		height: 1.9rem;
-		padding: 0 0.6rem 0 0.65rem;
-		border: 1px solid color-mix(in srgb, var(--accent-line) 55%, var(--line));
-		border-radius: var(--r-sm);
-		background: color-mix(in srgb, var(--bg-raised) 70%, transparent);
+		gap: 0.5rem;
+		padding: 0.5rem 0.55rem 0.5rem 0.7rem;
+		border-radius: 8px;
+		background: color-mix(in srgb, var(--accent-deep) 55%, transparent);
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-line) 55%, transparent);
 		color: var(--text);
-		font: 500 0.8125rem/1 var(--font-mono);
-		letter-spacing: -0.01em;
 		cursor: pointer;
 		list-style: none;
 		user-select: none;
-		white-space: nowrap;
-		transition:
-			border-color 120ms ease,
-			background 120ms ease;
+		transition: background 140ms ease;
 	}
 	.sec-sw-trigger::-webkit-details-marker {
 		display: none;
 	}
 	.sec-sw-trigger:hover,
 	.sec-sw[open] .sec-sw-trigger {
-		border-color: var(--accent-line);
-		background: color-mix(in srgb, var(--accent-deep) 45%, var(--bg-raised));
+		background: color-mix(in srgb, var(--accent-deep) 80%, transparent);
 	}
 	.sec-sw-trigger:focus-visible {
 		outline: 2px solid var(--accent);
-		outline-offset: 2px;
+		outline-offset: -2px;
+	}
+	.sec-sw-text {
+		display: grid;
+		gap: 0.15rem;
+		flex: 1;
+		min-width: 0;
+	}
+	.sec-sw-name {
+		font: 600 0.875rem/1.2 var(--font-body);
+		letter-spacing: -0.014em;
+	}
+	.sec-sw-blurb {
+		overflow: hidden;
+		color: var(--text-dim);
+		font: 400 0.75rem/1.3 var(--font-body);
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 	.sec-sw-caret {
+		flex-shrink: 0;
 		color: var(--text-dim);
-		transition: transform 140ms ease;
 	}
-	.sec-sw[open] .sec-sw-caret {
-		transform: rotate(180deg);
-	}
+	/* The list opens in place, under the row, and scrolls on its own when the space is short. */
 	.sec-sw-menu {
-		position: absolute;
-		top: calc(100% + 0.45rem);
-		left: 0;
-		z-index: 70;
-		width: min(22rem, calc(100vw - 2rem));
-		max-height: calc(100dvh - 5rem);
+		max-height: min(34rem, calc(100dvh - 12rem));
 		overflow-y: auto;
-		padding: 0.35rem;
-		border: 1px solid var(--line-strong);
-		border-radius: var(--r-md);
+		margin-top: 0.4rem;
+		padding: 0.3rem;
+		border: 1px solid color-mix(in srgb, var(--accent-line) 45%, var(--line));
+		border-radius: 10px;
 		background: var(--bg-raised);
-		box-shadow: var(--shadow-panel);
 	}
 	.sec-sw-menu ul {
 		list-style: none;
 		margin: 0;
 		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
 	}
 	.sec-sw-sep {
-		margin: 0.35rem 0.25rem 0.2rem;
-		padding: 0.55rem 0.4rem 0.2rem;
-		border-top: 1px solid var(--line);
-		color: var(--text-faint);
+		margin: 0.3rem 0.2rem 0.1rem;
+		padding: 0.55rem 0.45rem 0.25rem;
+		border-top: 1px solid color-mix(in srgb, var(--accent-line) 35%, var(--line));
+		color: var(--text-dim);
 		font: 600 0.6875rem/1 var(--font-mono);
-		letter-spacing: 0.08em;
+		letter-spacing: 0.12em;
 		text-transform: uppercase;
 	}
+	/* Each item is a nav row: the same radius, padding, hover and active chip as the tree below. */
 	.sec-sw-item {
 		display: grid;
-		gap: 0.2rem;
-		padding: 0.5rem 0.65rem;
-		border-radius: var(--r-sm);
+		gap: 0.12rem;
+		min-width: 0;
+		padding: 0.4rem 0.55rem 0.4rem 0.6rem;
+		border-radius: 8px;
 		color: var(--text-dim);
 		text-decoration: none;
+		transition:
+			color 140ms ease,
+			background 140ms ease;
 	}
-	.sec-sw-item:hover,
-	.sec-sw-item:focus-visible {
+	.sec-sw-item:hover {
 		background: color-mix(in srgb, var(--accent-deep) 42%, transparent);
 		color: var(--text);
-		outline: none;
 	}
 	.sec-sw-item:focus-visible {
-		box-shadow: inset 0 0 0 2px var(--accent);
+		outline: 2px solid var(--accent);
+		outline-offset: -2px;
 	}
 	.sec-sw-item[aria-current='true'] {
 		background: color-mix(in srgb, var(--accent-deep) 78%, transparent);
 		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-line) 45%, transparent);
 		color: var(--text);
 	}
-	.sec-sw-item[aria-current='true']:focus-visible {
-		box-shadow: inset 0 0 0 2px var(--accent);
-	}
 	.sec-sw-item-name {
-		font: 500 0.8125rem/1.2 var(--font-mono);
+		font: 500 0.84375rem/1.25 var(--font-body);
+		letter-spacing: -0.014em;
 		color: var(--text);
 	}
 	.sec-sw-item[aria-current='true'] .sec-sw-item-name {
-		color: var(--accent);
+		font-weight: 600;
 	}
 	.sec-sw-item-blurb {
-		font: 400 0.8125rem/1.35 var(--font-body);
-	}
-	@media (max-width: 720px) {
-		.sec-sw-trigger {
-			font-size: 0.75rem;
-			padding: 0 0.5rem 0 0.55rem;
-		}
-		/* On a phone the menu spans the screen under the header, with the page's 1rem gutters (the
-		   header is the containing block: it spans the viewport). */
-		.sec-sw-menu {
-			position: fixed;
-			top: 3.85rem;
-			left: 1rem;
-			right: 1rem;
-			width: auto;
-			max-height: calc(100dvh - 9rem);
-		}
+		overflow: hidden;
+		font: 400 0.75rem/1.3 var(--font-body);
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 </style>
