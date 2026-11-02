@@ -2,8 +2,8 @@
 title: Recording
 summary: How to capture a profile, either by profiling a page by URL or by profiling a single request with a header. Also covers the JSON output for agents, viewing reports from serverless hosts, shared report storage, the production secret, source maps, CI budgets and every option.
 related:
-  - profiler/overview
-  - profiler/reading-reports
+  - devtools/profiler/overview
+  - devtools/profiler/reading-reports
   - start/install
 ---
 
@@ -232,7 +232,7 @@ setProfilerStore(postgresStore(process.env.DATABASE_URL!));
 
 The store goes in the hooks file rather than in the `profiler` options because it is a live object holding a database connection, while the options in `vite.config.ts` are build-time values. Call `setProfilerStore()` at the top level of the module. The profiler reads the store once, when it loads on the first request it handles (with `onDemand`, the first request to `/__profiler`), and it ignores a call made after that.
 
-Memory stays the fast path. A report is still kept in memory and is also written to the store, and a report that is not in memory is read from the store and cached. A store that fails never breaks a recording: a failed write leaves the report in memory only, and if the store cannot be set up when the profiler loads, the profiler logs the error and runs without it. The store also keeps the requests of a test's server window, which is how [a session recorded across several instances](/docs/devtools/testing#the-server-over-the-same-actions) comes back whole.
+Memory stays the fast path. A report is still kept in memory and is also written to the store, and a report that is not in memory is read from the store and cached. A store that fails never breaks a recording: a failed write leaves the report in memory only, and if the store cannot be set up when the profiler loads, the profiler logs the error and runs without it. The store also keeps the requests of a test's server window, which is how [a session recorded across several instances](/docs/testing/guide#the-server-over-the-same-actions) comes back whole.
 
 ### The bundled stores
 

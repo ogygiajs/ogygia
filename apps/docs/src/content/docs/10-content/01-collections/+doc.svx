@@ -4,7 +4,7 @@ summary: Define a collection once, then load markdown, read a CMS or stream a li
 related:
   - content/blocks
   - regions/held-regions
-  - reference/api
+  - content/api/config
 ---
 
 ::: tip See it all live
@@ -63,7 +63,7 @@ export const docs = content({
 });
 ```
 
-> `import.meta.og.loader.*` is the standard way to point a collection at static files. It takes care of the `import.meta.glob` plumbing, so you only write a literal path. It comes in four kinds (`markdown`, `folder`, `json` and `git`), all described on the **[loader macro](/docs/macros/loaders)** page along with its rules. The runtime builders it rewrites to (`markdown()`, `folder()`, `json()`) remain exported for the rare source you build by hand.
+> `import.meta.og.loader.*` is the standard way to point a collection at static files. It takes care of the `import.meta.glob` plumbing, so you only write a literal path. It comes in four kinds (`markdown`, `folder`, `json` and `git`), all described on the **[loader macro](/docs/content/macros/loaders)** page along with its rules. The runtime builders it rewrites to (`markdown()`, `folder()`, `json()`) remain exported for the rare source you build by hand.
 
 ::: warning ogygia warns you
 If you define a collection outside a server module, the build prints a warning that names the file. A client component that imported it would silently pull the whole corpus into its bundle, which is frequently megabytes. Keep the definition on the server and create the wire crossing in a `.remote.ts`; that split is the whole defence.
@@ -209,8 +209,8 @@ A `loader` does not have to be a glob. Any object with `refs` / `get` is a sourc
 
 | Source                    | Write                                                                                                       |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Static files in repo      | the [`loader` macro](/docs/macros/loaders): `import.meta.og.loader.markdown` · `.folder` · `.json` · `.git` |
-| Blocks (CMS tree)         | [`blocks(source, registry)`](/docs/content/blocks) with a [`regions()`](/docs/macros/regions) registry      |
+| Static files in repo      | the [`loader` macro](/docs/content/macros/loaders): `import.meta.og.loader.markdown` · `.folder` · `.json` · `.git` |
+| Blocks (CMS tree)         | [`blocks(source, registry)`](/docs/content/blocks) with a [`regions()`](/docs/content/macros/regions) registry      |
 | A REST API                | a `{ refs, get }` source that fetches                                                                       |
 | Something that **pushes** | add `live()` (a change signal) plus `live.list` / `live.get`                                                |
 
@@ -321,4 +321,4 @@ In the demo below, a `query.live` yields a rendered [held region](/docs/regions/
 
 ---
 
-_A collection knows what exists, and [`site()`](/docs/content/site) decides how it reads: navigation, search, the shell and more._
+_A collection knows what exists, and [`site()`](/docs/content/sites/site) decides how it reads: navigation, search, the shell and more._

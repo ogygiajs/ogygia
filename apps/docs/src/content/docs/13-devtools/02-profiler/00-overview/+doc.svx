@@ -1,9 +1,9 @@
 ---
-title: Overview
+title: The SSR profiler
 summary: An SSR profiler for SvelteKit that you turn on with one line in vite.config.ts. Open /__profiler to see which components, functions and network calls make a server render slow, without instrumenting any component by hand.
 related:
-  - profiler/recording
-  - profiler/reading-reports
+  - devtools/profiler/recording
+  - devtools/profiler/reading-reports
   - reference/performance
 ---
 
@@ -41,7 +41,7 @@ export default defineConfig({
 });
 ```
 
-This also turns on the [devtools dock](/docs/devtools/overview). If you want the profiler without the dock, write `devtools({ dock: false, profiler: true })`, and if you want to adjust it, pass options in place of `true`: `devtools({ profiler: { secret, path, sampleInterval } })`. The full list is under [Options](/docs/profiler/recording#options).
+This also turns on the [devtools dock](/docs/devtools/dock). If you want the profiler without the dock, write `devtools({ dock: false, profiler: true })`, and if you want to adjust it, pass options in place of `true`: `devtools({ profiler: { secret, path, sampleInterval } })`. The full list is under [Options](/docs/devtools/profiler/recording#options).
 
 Then open **`/__profiler`**. In development the UI is open, while in production it answers 404 until you set a secret and log in with it:
 
@@ -49,17 +49,17 @@ Then open **`/__profiler`**. In development the UI is open, while in production 
 OGYGIA_PROFILER_SECRET=some-long-random-string
 ```
 
-[In production](/docs/profiler/recording#in-production) covers the login in more detail. The profiler is also reachable over MCP: `ogygia mcp` / `ogygia ai` give it to an AI agent, which can run a profile or read a downloaded report without a live server.
+[In production](/docs/devtools/profiler/recording#in-production) covers the login in more detail. The profiler is also reachable over MCP: `ogygia mcp` / `ogygia ai` give it to an AI agent, which can run a profile or read a downloaded report without a live server.
 
 ## What you get
 
 - **Request timing that is always on and costs almost nothing.** Each request is wall-timed and logged with per-route p50/p95, and the CPU is sampled only while you record.
-- **Profiles on demand.** You can profile a page by URL or profile a single request with a header, as described in [Recording](/docs/profiler/recording).
-- **A report you can read.** It has a wall-clock budget bar that separates compute from waits, an interactive treemap of where the CPU went, sortable component and function tables with per-call cost and `×N` repeat counts, and a network waterfall in which each request expands to its formatted JSON payload with its wire and decoded sizes. There is also a waiting-by-function breakdown for non-HTTP I/O, a memory and GC section, and a flame graph. [Reading a report](/docs/profiler/reading-reports) walks through each part.
-- **Reports you can share or open in the devtools.** A report exports as an encrypted `.ogp` file that you open again through Import, which is how you keep a report on a serverless host where it cannot stay in memory. With [devtools](/docs/devtools/overview) on, its Profiler tab runs the same page profiles inline.
+- **Profiles on demand.** You can profile a page by URL or profile a single request with a header, as described in [Recording](/docs/devtools/profiler/recording).
+- **A report you can read.** It has a wall-clock budget bar that separates compute from waits, an interactive treemap of where the CPU went, sortable component and function tables with per-call cost and `×N` repeat counts, and a network waterfall in which each request expands to its formatted JSON payload with its wire and decoded sizes. There is also a waiting-by-function breakdown for non-HTTP I/O, a memory and GC section, and a flame graph. [Reading a report](/docs/devtools/profiler/reading-reports) walks through each part.
+- **Reports you can share or open in the devtools.** A report exports as an encrypted `.ogp` file that you open again through Import, which is how you keep a report on a serverless host where it cannot stay in memory. With [devtools](/docs/devtools/dock) on, its Profiler tab runs the same page profiles inline.
 
 ## What it needs
 
-The profiler needs a **Node.js server** (`adapter-node`, `vite preview`, or most Node hosts) because it uses the built-in V8 inspector. On edge runtimes that have no inspector, such as Cloudflare Workers and Deno Deploy, the always-on request log still works but CPU and heap recording do not, and the UI tells you so. On serverless Node hosts such as Lambda and Amplify, recording works but the instance is short-lived, so you either download the report as a dump and view it elsewhere, or give every instance a [shared store](/docs/profiler/recording#shared-report-storage); see [Serverless and edge](/docs/profiler/recording#serverless-and-edge).
+The profiler needs a **Node.js server** (`adapter-node`, `vite preview`, or most Node hosts) because it uses the built-in V8 inspector. On edge runtimes that have no inspector, such as Cloudflare Workers and Deno Deploy, the always-on request log still works but CPU and heap recording do not, and the UI tells you so. On serverless Node hosts such as Lambda and Amplify, recording works but the instance is short-lived, so you either download the report as a dump and view it elsewhere, or give every instance a [shared store](/docs/devtools/profiler/recording#shared-report-storage); see [Serverless and edge](/docs/devtools/profiler/recording#serverless-and-edge).
 
-It is safe to leave on in production: the UI answers 404 without the secret, and the secret is compared in constant time. Recorded profiles stay in the server's memory unless you give the profiler a [store](/docs/profiler/recording#shared-report-storage) yourself, such as a SQLite file (`.ogygia/profiles.db` by default), Redis or Postgres.
+It is safe to leave on in production: the UI answers 404 without the secret, and the secret is compared in constant time. Recorded profiles stay in the server's memory unless you give the profiler a [store](/docs/devtools/profiler/recording#shared-report-storage) yourself, such as a SQLite file (`.ogygia/profiles.db` by default), Redis or Postgres.

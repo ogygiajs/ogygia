@@ -28,7 +28,7 @@ import { router } from '@ogygia/router/vite';
 plugins: [ogygia(), router(), sveltekit()]
 ```
 
-The plugin tells the build that every module importing `@ogygia/router` renders pages, so each component those pages reach gets its CSS linked when it renders. See [Plugins](/docs/reference/plugins).
+The plugin tells the build that every module importing `@ogygia/router` renders pages, so each component those pages reach gets its CSS linked when it renders. See [Plugins](/docs/start/packages).
 
 ## The whole thing in one file
 
@@ -304,7 +304,7 @@ routes(table, {
 });
 ```
 
-For logged-out traffic, `anonymousVisitor()` is a ready-made resolver. On a visitor's first request it sets a random id in a first-party, HTTP-only cookie, and from then on it returns `{ sub: id, anonymous: true }`, so a percentage rollout holds for visitors who never sign in. It takes `cookie`, the cookie's name (default `og-vid`, the cookie [experiments](/docs/app/experiments) fall back to), and `days`, its lifetime (default 365):
+For logged-out traffic, `anonymousVisitor()` is a ready-made resolver. On a visitor's first request it sets a random id in a first-party, HTTP-only cookie, and from then on it returns `{ sub: id, anonymous: true }`, so a percentage rollout holds for visitors who never sign in. It takes `cookie`, the cookie's name (default `og-vid`, the cookie [experiments](/docs/flags/guide) fall back to), and `days`, its lifetime (default 365):
 
 ```ts
 import { anonymousVisitor } from '@ogygia/router';
@@ -313,7 +313,7 @@ const anon = anonymousVisitor({ cookie: 'og-vid', days: 365 });
 routes(table, { visitor: (c) => session_from(c.cookies) ?? anon(c) });   // a session first, else the cookie
 ```
 
-`c.visitor` is lazy and memoized, so the resolver runs at most once per request and only when something reads it. [Experiments](/docs/app/experiments) stick to it, [mounts](/docs/app/federation) sign it onward to other teams, and loads personalize with it. When the request arrived through a signed federation hop, the upstream's signature-bound claims **take precedence** over the local resolver, because a proven identity outranks configuration.
+`c.visitor` is lazy and memoized, so the resolver runs at most once per request and only when something reads it. [Experiments](/docs/flags/guide) stick to it, [mounts](/docs/federation/guide) sign it onward to other teams, and loads personalize with it. When the request arrived through a signed federation hop, the upstream's signature-bound claims **take precedence** over the local resolver, because a proven identity outranks configuration.
 
 ## Control flow: redirect, error, fail
 
@@ -451,7 +451,7 @@ The idea that a slot's next state is a region already powers [live regions](/doc
 
 ## Flag-gated routes: `when()`
 
-Wrap a table entry (a page, an endpoint object or a [`mount()`](/docs/app/federation)) in `when()`, and it exists only when the gate allows it:
+Wrap a table entry (a page, an endpoint object or a [`mount()`](/docs/federation/guide)) in `when()`, and it exists only when the gate allows it:
 
 ```ts
 import { when } from '@ogygia/router';
@@ -466,7 +466,7 @@ routes({
 
 **When the gate is off, the route does not exist** for that request. Under an owned `base`, the app's 404 or error page answers. Without one, the router falls through to the rest of the app, so during a migration a gated-off ogygia route can be served by a plain Kit route at the same path.
 
-The gate is any `(c) => boolean`, which is exactly what a boolean [`flag()`](/docs/app/experiments) is, so a [vendor-decided](/docs/app/experiments#openfeature-decide-source) kill switch can gate whole routes (the gate runs after the source has primed). The decision is sticky per visitor and [carries across federation](/docs/app/federation) like every flag read, and `$infer` sees the entry exactly as if it were not wrapped.
+The gate is any `(c) => boolean`, which is exactly what a boolean [`flag()`](/docs/flags/guide) is, so a [vendor-decided](/docs/flags/guide#openfeature-decide-source) kill switch can gate whole routes (the gate runs after the source has primed). The decision is sticky per visitor and [carries across federation](/docs/federation/guide) like every flag read, and `$infer` sees the entry exactly as if it were not wrapped.
 
 ## Mounting
 
@@ -508,7 +508,7 @@ routes(table, {
 
 The table-wide `load` is Kit's root `+layout.server.ts` load without a component. It runs before every route, pages _and_ endpoints, can throw `redirect` or `error` to act as a gate, and merges its data into every page. That makes it the place for auth when there is no shared shell to attach it to.
 
-`config` is Kit's `config` page option, the counterpart of `export const config = { … }` in a `+page.server.ts`. Plugins read their own keys from it, for example `{ postrender: false }` to keep a route out of [postrender](/docs/data-state/postrender). You can set it at three levels, `routes(table, { config })`, `layout(name, C, { config })` and `page(C, { config })`, and they merge as in Kit: the table first, then each layout from the outermost in, then the page, with a later level replacing a key of the same name (top-level keys only). Endpoints have no `config`.
+`config` is Kit's `config` page option, the counterpart of `export const config = { … }` in a `+page.server.ts`. Plugins read their own keys from it, for example `{ postrender: false }` to keep a route out of [postrender](/docs/postrender/guide). You can set it at three levels, `routes(table, { config })`, `layout(name, C, { config })` and `page(C, { config })`, and they merge as in Kit: the table first, then each layout from the outermost in, then the page, with a later level replacing a key of the same name (top-level keys only). Endpoints have no `config`.
 
 The router value also has `router.href(pattern, params)`, the same rename-safe URL builder as `c.href`, for code that runs outside a load or handler:
 

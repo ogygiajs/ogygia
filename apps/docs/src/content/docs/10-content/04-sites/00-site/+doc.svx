@@ -2,8 +2,8 @@
 title: Site
 summary: A documentation-site layer on top of collections that arranges them into a navigable site with a nav tree, prev/next, search, a sitemap and a shell. Its read functions are safe to call from the browser while the corpus stays on the server.
 related:
-  - content/outline
-  - content/shell
+  - content/sites/outline
+  - content/sites/shell
   - content/collections
 ---
 
@@ -50,7 +50,7 @@ export const docs = site({
 });
 ```
 
-That is the complete configuration for this site. `docs` is a `folder()` collection, so its `NN-` filename prefixes already encode the order and its `+meta.json` sidecars name the sections. The outline reads that structure as **data** and builds the tree without any further configuration. When you want to arrange things by hand, you can point it at several collections, a `pick()` selection or explicit groups, as described under [outline](/docs/content/outline).
+That is the complete configuration for this site. `docs` is a `folder()` collection, so its `NN-` filename prefixes already encode the order and its `+meta.json` sidecars name the sections. The outline reads that structure as **data** and builds the tree without any further configuration. When you want to arrange things by hand, you can point it at several collections, a `pick()` selection or explicit groups, as described under [outline](/docs/content/sites/outline).
 
 ::: warning Collections belong in a server module
 A collection's loader is an eager glob of the whole compiled corpus, so define it in a `.server.ts` / `.remote.ts` file (or under `src/lib/server/`), where Kit keeps it out of client bundles. ogygia **warns** you at build time if you don't; [Content collections](/docs/content/collections) explains why.
@@ -72,11 +72,11 @@ The site you create (name it after what it is, such as `docs` or `blog`) is a se
 | `docs.entries()`      | each leaf slug + declared old addresses                          | prerender `entries`          |
 | `docs.load`           | the 404 guard + alias 308s + per-page checks                     | the route's `load`           |
 
-Because they return data, **where** they run is up to you. You can prerender the nav or fetch it per request, and query search on the server or ship the static index to a client worker. The [remotes](/docs/content/remotes) helper creates the common wire surface for you.
+Because they return data, **where** they run is up to you. You can prerender the nav or fetch it per request, and query search on the server or ship the static index to a client worker. The [remotes](/docs/content/sites/remotes) helper creates the common wire surface for you.
 
 ## The wire layer
 
-The collection holds the compiled corpus, which may be megabytes of markdown, and the site layer never serializes it. A page's **body** crosses the wire as a [held region](/docs/regions/held-regions) ticket (baked HTML rather than source), and everything else is metadata. [`remotes()`](/docs/content/remotes) creates the crossing from `site` in a server-only `.remote.ts`, so the corpus stays on the server and the browser receives only the ticketed data:
+The collection holds the compiled corpus, which may be megabytes of markdown, and the site layer never serializes it. A page's **body** crosses the wire as a [held region](/docs/regions/held-regions) ticket (baked HTML rather than source), and everything else is metadata. [`remotes()`](/docs/content/sites/remotes) creates the crossing from `site` in a server-only `.remote.ts`, so the corpus stays on the server and the browser receives only the ticketed data:
 
 ```ts title=src/lib/site.remote.ts
 // the wire layer
@@ -88,7 +88,7 @@ export const { nav, meta, page, search } = remotes(docs, { base: '/docs' });
 
 ## Render it
 
-The page component calls one function and renders the resulting view. The [`<Doc>`](/docs/content/shell) component lays out the article, the on-this-page rail and prev/next from a `docs.page()` view, and the [shell](/docs/content/shell) wraps it with the sidebar, the header and search:
+The page component calls one function and renders the resulting view. The [`<Doc>`](/docs/content/sites/shell) component lays out the article, the on-this-page rail and prev/next from a `docs.page()` view, and the [shell](/docs/content/sites/shell) wraps it with the sidebar, the header and search:
 
 ```svelte title=src/routes/docs/[...slug]/+page.svelte
 <script>
@@ -135,7 +135,7 @@ const publicView = await docs.page('roadmap');                        // null â€
 const draftView = await docs.page('roadmap', { context: { preview: true } });
 ```
 
-The empty context `{}` is the public, prerendered view. A site gated by context usually switches its [remotes](/docs/content/remotes) to `query` mode, so that each request derives its own context.
+The empty context `{}` is the public, prerendered view. A site gated by context usually switches its [remotes](/docs/content/sites/remotes) to `query` mode, so that each request derives its own context.
 
 ::: details The full options bag
 Every `site()` key at a glance; `outline` is the only required one.
@@ -147,10 +147,10 @@ Every `site()` key at a glance; `outline` is the only required one.
 | `base`       | default mount prefix for each read; a per-call `{ base }` overrides                    |
 | `prevNext`   | `'order'` (default) or `'graph'`: how "keep reading" is chosen                         |
 | `trail`      | `'site'` (default) or `'group'`: whether prev/next crosses section boundaries          |
-| `checks`     | `[links(), ...yours]`: corpus invariants; see [Checks](/docs/content/checks)           |
-| `components` | markdown element overrides, as real component values; see [Shell](/docs/content/shell) |
+| `checks`     | `[links(), ...yours]`: corpus invariants; see [Checks](/docs/content/sites/checks)           |
+| `components` | markdown element overrides, as real component values; see [Shell](/docs/content/sites/shell) |
 | `context`    | derive `{ preview, roles, â€¦ }` from the request; threads into collection filters       |
-| `search`     | `{ engine }`: swap the search engine; see [Search](/docs/content/search)               |
+| `search`     | `{ engine }`: swap the search engine; see [Search](/docs/content/sites/search)               |
 | `redirects`  | old addresses per entry (the default reads `data.redirect_from`): baked 308 stubs      |
 :::
 
@@ -158,13 +158,13 @@ Every `site()` key at a glance; `outline` is the only required one.
 
 Each part of the site layer has its own page:
 
-- **[Outline](/docs/content/outline)** arranges collections into a tree, and covers the spec grammar, filename conventions, the address map and prev/next.
-- **[Dimensions](/docs/content/dimensions)** runs one site across a matrix of versions or locales, with a switcher and graceful fallback.
-- **[Shell & components](/docs/content/shell)** covers `Frame` (headless), `DocsShell` and `BlogShell` (complete shells), plus `Doc`, `Sidebar`, `Pager` and the theme.
-- **[Remotes](/docs/content/remotes)** is the wire layer: `nav`, `meta`, `page` and `search`, prerendered or live.
-- **[Search](/docs/content/search)** covers the search function, the static index, the on-device worker and the no-JS fallback.
-- **[Emissions](/docs/content/emit)** are the machine-facing outputs: sitemap, `llms.txt`, RSS and raw markdown.
-- **[Checks](/docs/content/checks)** are the link audit and custom checks that fail the build instead of the visitor.
+- **[Outline](/docs/content/sites/outline)** arranges collections into a tree, and covers the spec grammar, filename conventions, the address map and prev/next.
+- **[Dimensions](/docs/content/sites/dimensions)** runs one site across a matrix of versions or locales, with a switcher and graceful fallback.
+- **[Shell & components](/docs/content/sites/shell)** covers `Frame` (headless), `DocsShell` and `BlogShell` (complete shells), plus `Doc`, `Sidebar`, `Pager` and the theme.
+- **[Remotes](/docs/content/sites/remotes)** is the wire layer: `nav`, `meta`, `page` and `search`, prerendered or live.
+- **[Search](/docs/content/sites/search)** covers the search function, the static index, the on-device worker and the no-JS fallback.
+- **[Emissions](/docs/content/sites/emit)** are the machine-facing outputs: sitemap, `llms.txt`, RSS and raw markdown.
+- **[Checks](/docs/content/sites/checks)** are the link audit and custom checks that fail the build instead of the visitor.
 
 ## Do / don't
 

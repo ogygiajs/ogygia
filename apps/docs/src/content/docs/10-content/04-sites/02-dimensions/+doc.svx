@@ -2,8 +2,8 @@
 title: Dimensions
 summary: Run one site across a matrix of versions or locales. Each axis prefixes the slug, the outline is built per coordinate, and an untranslated page falls back to the default instead of answering 404.
 related:
-  - content/outline
-  - content/site
+  - content/sites/outline
+  - content/sites/site
   - content/collections
 ---
 
@@ -80,7 +80,7 @@ You will rarely call it directly, because `docs.meta(slug)` bundles `{ nav, swit
 
 ## Nav and search across the matrix
 
-- **`nav(slug)`**: pass the slug so that the tree reflects that coordinate; the [remote](/docs/content/remotes) passes it through for you. A bare coordinate prefix such as `'v1/'` works too.
+- **`nav(slug)`**: pass the slug so that the tree reflects that coordinate; the [remote](/docs/content/sites/remotes) passes it through for you. A bare coordinate prefix such as `'v1/'` works too.
 - **`docs.entries()`**: includes the **union** of addresses across the matrix, so a page that exists in only one coordinate still prerenders there.
 - **search**: indexes only the canonical addresses of the _default_ coordinate, so fallback pages under other coordinates don't show up as duplicate hits.
 

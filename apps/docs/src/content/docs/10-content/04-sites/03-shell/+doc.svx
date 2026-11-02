@@ -2,8 +2,8 @@
 title: Shells & components
 summary: The chrome around a page. Frame is the headless composition, and DocsShell and BlogShell are ready-made layouts built from the same pieces (Doc, Sidebar, Pager, Search), with an optional theme.
 related:
-  - content/site
-  - content/search
+  - content/sites/site
+  - content/sites/search
   - regions/client-islands
 ---
 
@@ -62,7 +62,7 @@ The shells are **compositions of Frame and the public components**, with no priv
 
 :::
 
-Both shells accept either `{site}` directly (the simple path, for csr=false layouts) or `{meta}` from the [meta remote](/docs/content/remotes) (the path that keeps the corpus on the server). Each region a shell renders is a **conditional snippet prop**: pass a snippet to replace it, `null` to remove it, or nothing to keep the built-in one. This site removes the stock header (`header={null}`) and brings its own.
+Both shells accept either `{site}` directly (the simple path, for csr=false layouts) or `{meta}` from the [meta remote](/docs/content/sites/remotes) (the path that keeps the corpus on the server). Each region a shell renders is a **conditional snippet prop**: pass a snippet to replace it, `null` to remove it, or nothing to keep the built-in one. This site removes the stock header (`header={null}`) and brings its own.
 
 ## Styling is opt-in
 
@@ -91,12 +91,12 @@ Alternative token themes live under `@ogygia/content/themes/*`; swap the import 
 
 Each of these is a plain component that you can use without a shell:
 
-- **`<Doc {view} />`** lays out one page from a [`docs.page()`](/docs/content/remotes) view: eyebrow, title, the rendered body, the **On this page** rail from `view.headings`, and prev/next. Props turn the breadcrumbs, the pager and the keep-reading list on or off.
+- **`<Doc {view} />`** lays out one page from a [`docs.page()`](/docs/content/sites/remotes) view: eyebrow, title, the rendered body, the **On this page** rail from `view.headings`, and prev/next. Props turn the breadcrumbs, the pager and the keep-reading list on or off.
 - **`<Sidebar />`** renders the nav tree and tracks the active row. It is a [client island](/docs/regions/client-islands), so its marker moves smoothly across SPA navigations.
 - **`<Pager />`** renders the prev/next footer from the outline's `prevNext`.
 - **`<OnThisPage headings={…} />`** is the scroll-spy rail. `<Doc>` mounts it, and you can use it on its own when you compose your own article.
-- **`<Switcher />`** is the version/locale picker on a [dimensioned](/docs/content/dimensions) site. It is a Bits UI dropdown, and therefore an island.
-- **`<Search />` / `<SearchPage />`** are the ⌘K palette and the no-JS results page; see [Search](/docs/content/search).
+- **`<Switcher />`** is the version/locale picker on a [dimensioned](/docs/content/sites/dimensions) site. It is a Bits UI dropdown, and therefore an island.
+- **`<Search />` / `<SearchPage />`** are the ⌘K palette and the no-JS results page; see [Search](/docs/content/sites/search).
 - **`<BlogList {posts} />` / `<BlogPost {view} />`** are the blog components, a dated index and the article layout. Both read the same `PageView` shape as `<Doc>`.
 - **`<TabGroup>` / `<Tab>`** are tabbed panels, which `::: code-group` markdown also produces without any imports (the tabs above are made that way).
 

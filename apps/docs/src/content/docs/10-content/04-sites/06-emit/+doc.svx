@@ -2,9 +2,9 @@
 title: Emissions
 summary: Machine-facing outputs of the site, namely sitemap.xml for crawlers, llms.txt for models, RSS for readers and raw markdown per page. Each is a one-line GET handler built from the same outline.
 related:
-  - content/site
-  - content/search
-  - content/outline
+  - content/sites/site
+  - content/sites/search
+  - content/sites/outline
 ---
 
 Docs now have a second audience made up of crawlers, language models and feed readers, and each of them expects its own format. The site layer produces those formats straight from the outline, with no parallel content and no separate build step, and each one is a GET handler that you mount in a `+server.ts`.

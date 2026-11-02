@@ -4,7 +4,7 @@ summary: Kit's prerender, at request time. A page whose render read nothing pers
 related:
   - regions/server-islands
   - data-state/page-data
-  - app/experiments
+  - flags/guide
 ---
 
 Many pages could be prerendered except that their content changes after the build, for example when an editor publishes in a CMS, so they end up rendering on every request even though most of those renders produce identical HTML. Prerender renders a page at build time, and **postrender** renders it at request time instead. The first request renders the page as usual, and if that render read nothing personal, the whole response (HTML, headers and permanent redirects) is stored, so every later request for that URL gets the stored bytes, and Kit, your loads and Svelte never run on a hit. An invalidation clears the page, and the next request renders it again, once.
@@ -32,7 +32,7 @@ import { postrender } from '@ogygia/postrender';
 export const handle = sequence(postrender.handle(), ogygia.handle());
 ```
 
-That is the whole setup. Pages are kept in an in-process memory store with a 24-hour TTL as a backstop, which you can shorten with `postrender({ ttl })` in seconds. The value is rounded down to whole seconds and clamped between 1 and 86 400, so no stored page outlives a day, whatever you pass. Concurrent cold requests are collapsed into one flight, so fifty of them produce exactly one render. See [Plugins](/docs/reference/plugins).
+That is the whole setup. Pages are kept in an in-process memory store with a 24-hour TTL as a backstop, which you can shorten with `postrender({ ttl })` in seconds. The value is rounded down to whole seconds and clamped between 1 and 86 400, so no stored page outlives a day, whatever you pass. Concurrent cold requests are collapsed into one flight, so fifty of them produce exactly one render. See [Plugins](/docs/start/packages).
 
 `postrender.handle()` must come **before** `ogygia.handle()` in the `sequence()`, because the stored page is served before anything renders, so the store has to be known by then.
 
@@ -69,7 +69,7 @@ export const config = { postrender: false };
 
 ### Programmatic routes
 
-A table from the [server router](/docs/app/server-router) takes the same `config` in its own syntax and merges it the same way: first the table, then each layout, then the page.
+A table from the [server router](/docs/router/guide) takes the same `config` in its own syntax and merges it the same way: first the table, then each layout, then the page.
 
 ```ts title=src/hooks.server.ts
 const marketing = layout('marketing', Shell, { config: { postrender: true } });
@@ -95,11 +95,11 @@ The router answers inside ogygia's handle, so a stored page is served before the
 Postrender watches each eligible render, and a page **stays per-request** when its render:
 
 - reads a cookie, a personal header or a `locals` value that returned a **non-default** value,
-- reads a [feature flag](/docs/app/experiments), because a page under an A/B test must never store one variant,
+- reads a [feature flag](/docs/flags/guide), because a page under an A/B test must never store one variant,
 - writes a cookie, sets `set-cookie`, answers with a status other than 200, or streams load promises,
 - or was requested with a query string.
 
-Each refusal is **named in a dev note** (`cookie:session`, `locals.user`, `flag:hero`), so an almost-pure page tells you exactly which read keeps it per-request. Reads that return the default value still allow storing. The render an anonymous visitor gets (where `cookies.get('consent')` returns `undefined` and `locals.user` is empty) **is** the canonical copy, which formalizes the familiar cookie-less CDN cache key. Once it is stored, every visitor receives the canonical copy. Content that really has to differ per visitor belongs in a `render: 'deferred'` hole: the shell is stored, and the hole fetches fresh for each visitor. The hole's signed URL is minted with the long lifetime used for prerendering, so a warm stored page never carries expired holes (set a stable `OGYGIA_SECRET`). Deferred regions from another team's app get the same lifetime; see [Fragment federation](/docs/app/federation#a-remote-fragment-is-a-region-deferred-remote-regions-on-stored-pages).
+Each refusal is **named in a dev note** (`cookie:session`, `locals.user`, `flag:hero`), so an almost-pure page tells you exactly which read keeps it per-request. Reads that return the default value still allow storing. The render an anonymous visitor gets (where `cookies.get('consent')` returns `undefined` and `locals.user` is empty) **is** the canonical copy, which formalizes the familiar cookie-less CDN cache key. Once it is stored, every visitor receives the canonical copy. Content that really has to differ per visitor belongs in a `render: 'deferred'` hole: the shell is stored, and the hole fetches fresh for each visitor. The hole's signed URL is minted with the long lifetime used for prerendering, so a warm stored page never carries expired holes (set a stable `OGYGIA_SECRET`). Deferred regions from another team's app get the same lifetime; see [Fragment federation](/docs/federation/guide#a-remote-fragment-is-a-region-deferred-remote-regions-on-stored-pages).
 
 ## Invalidation: three grammars
 
@@ -180,7 +180,7 @@ interface PostrenderStore {
 
 - **`put` should expire the entry after `ttl` seconds**, so that old pages don't take up room. Postrender also checks a page's age when it reads it, against the `created` time in the entry, and treats a page older than the TTL as a miss, so a store without expiry still never serves a stale page.
 - **`evictWhere` gets a normalized prefix**, with a leading slash and no trailing slash (except `/` itself). It must remove the key equal to the prefix and every key under `prefix + '/'`, and never a sibling: `/fr/fr` removes `/fr/fr` and `/fr/fr/solar`, but not `/fr/fright`.
-- **`evictByTag` removes every key whose `put` carried the tag, and returns those keys**, which postrender then purges at every edge. Without it, `postrender.invalidate(fn, args)` and the thaw notices of [federation](/docs/app/federation#cross-app-thaw) log a warning and evict nothing, while exact URLs and prefixes still work.
+- **`evictByTag` removes every key whose `put` carried the tag, and returns those keys**, which postrender then purges at every edge. Without it, `postrender.invalidate(fn, args)` and the thaw notices of [federation](/docs/federation/guide#cross-app-thaw) log a warning and evict nothing, while exact URLs and prefixes still work.
 - **Not every key is a page path.** Postrender stores one entry of its own under a key that starts with a NUL character (the last build id, for federation's deploy thaw), so don't assume every key starts with `/`. That entry is put with a `ttl` of ten years, because it has to outlive any page, so a store must not cap `ttl` at a day.
 
 A store that throws never fails a request: a failed `get` is treated as a miss and a failed `put` is skipped. It never fails an invalidation either. A failed eviction is logged as a warning that names the store, the edges are still purged, and when `evictByTag` fails for one tag, the other tags are still evicted.

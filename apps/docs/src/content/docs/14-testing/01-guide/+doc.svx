@@ -2,16 +2,16 @@
 title: Testing
 summary: Use the devtools and the profiler from your own tests, so Playwright can measure hydration, interactions, server time and page weight and fail when a budget is missed.
 related:
-  - devtools/overview
-  - profiler/overview
+  - devtools/dock
+  - devtools/profiler/overview
 ---
 
 A performance problem that you find by hand in the devtools tends to come back a few releases later, because nothing checks for it. `@ogygia/testing` lets your own tests use what the devtools and the profiler measure. Your tests click through the app as they already do, ogygia measures what happened, and the test asserts on the result. It gives you four primitives:
 
-- `page()`: the page load as the browser measured it, including vitals, each island's wake, and the findings of the [Page tab](/docs/devtools/overview#the-page-tab).
-- `hydration()`: each island's hydration status, with the difference for one that changed (the [Hydration tab](/docs/devtools/overview#the-hydration-tab)).
-- `record(actions)`: what your actions did, including slow interactions and the function behind each, dead and repeated clicks, requests with the server's own breakdown, long tasks, shifts and errors (the [Record tab](/docs/devtools/overview#recording-a-session)).
-- `profile(path)`: the [SSR profiler](/docs/profiler/overview)'s report for a path, with score, forecast, findings and weight.
+- `page()`: the page load as the browser measured it, including vitals, each island's wake, and the findings of the [Page tab](/docs/devtools/dock#the-page-tab).
+- `hydration()`: each island's hydration status, with the difference for one that changed (the [Hydration tab](/docs/devtools/dock#the-hydration-tab)).
+- `record(actions)`: what your actions did, including slow interactions and the function behind each, dead and repeated clicks, requests with the server's own breakdown, long tasks, shifts and errors (the [Record tab](/docs/devtools/dock#recording-a-session)).
+- `profile(path)`: the [SSR profiler](/docs/devtools/profiler/overview)'s report for a path, with score, forecast, findings and weight.
 
 ## With Playwright
 
@@ -49,7 +49,7 @@ test('checkout stays fast', async ({ page, ogygia }) => {
 });
 ```
 
-The server under test needs the [`devtools()` plugin](/docs/devtools/overview#enabling) listed, which means either the dev server or a preview build with devtools on (see [Devtools in a build](/docs/devtools/overview#enabling-in-a-build-a-preview-deploy)). The fixture turns devtools on (with the `og_devtools` cookie) for your `baseURL`, or, if there is no `baseURL`, for the origin of the first page the test opens, so each page is measured from its first load. `profile()` also needs `devtools({ profiler: true })`, and on a build you give it the profiler's key:
+The server under test needs the [`devtools()` plugin](/docs/devtools/dock#enabling) listed, which means either the dev server or a preview build with devtools on (see [Devtools in a build](/docs/devtools/dock#enabling-in-a-build-a-preview-deploy)). The fixture turns devtools on (with the `og_devtools` cookie) for your `baseURL`, or, if there is no `baseURL`, for the origin of the first page the test opens, so each page is measured from its first load. `profile()` also needs `devtools({ profiler: true })`, and on a build you give it the profiler's key:
 
 ```ts title=playwright.config.ts
 export default defineConfig({
@@ -121,7 +121,7 @@ expect(session).toMeetBudget({ serverBusyMs: 300 });
 
 Under the hood this uses the profiler's window: `POST /__profiler/window/start` opens it, and `POST /__profiler/window/stop` answers with the report. Only one window runs at a time. It waits a few seconds for a background sample to finish, and stops itself after a minute.
 
-On a serverless deployment, the start, the session's requests and the stop can each land on a different instance. If you give the profiler a [shared store](/docs/profiler/recording#shared-report-storage) (Redis or Postgres, or a custom one; see [the storage interface](/docs/api/devtools-profiler-storage)), it works anyway:
+On a serverless deployment, the start, the session's requests and the stop can each land on a different instance. If you give the profiler a [shared store](/docs/devtools/profiler/recording#shared-report-storage) (Redis or Postgres, or a custom one; see [the storage interface](/docs/devtools/api/profiler-storage)), it works anyway:
 
 - Start answers with a signed window id, and the driver adds it to each of the session's requests to the site (`x-og-window`).
 - Every instance writes such a request, with its own `cpu_ms`, to the store before it answers.

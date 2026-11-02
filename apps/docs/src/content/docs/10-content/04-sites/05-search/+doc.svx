@@ -2,9 +2,9 @@
 title: Search
 summary: One search engine that runs in two places. Ship a static index to an on-device worker, or query it on the server, with a no-JS fallback page in both cases.
 related:
-  - content/remotes
-  - content/emit
-  - content/shell
+  - content/sites/remotes
+  - content/sites/emit
+  - content/sites/shell
 ---
 
 The site layer builds a search index from the **section documents** of your collections, meaning the prose split at each heading, so a hit lands on the exact section rather than only the page. You choose where the query runs: on the server, or on the visitor's device against a static index. The search on this site works the second way, with a worker over a prerendered file, so a query costs no server round trip.

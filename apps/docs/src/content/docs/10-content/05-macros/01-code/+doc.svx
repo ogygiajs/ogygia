@@ -2,7 +2,7 @@
 title: code
 summary: A highlighted code snippet, rendered at build time through your app's own Shiki pipeline and inlined as a static region. It gets the same themes, transformers and meta infostring as a markdown fence, for a snippet that lives in a component.
 related:
-  - macros/md
+  - content/macros/md
   - content/collections
   - macros/overview
 ---
@@ -40,4 +40,4 @@ Rendering goes through the same content-addressed fence cache that markdown fenc
 
 ## Where it fits
 
-`code()` is for a snippet that lives in a **component**, such as a feature on a landing page, a UI that shows an example, or a documentation kit. For code inside prose, write a fenced block in your markdown, and for a whole Markdown string, use [`md`](/docs/macros/md). All three produce a region, so they all render through `<Region>`.
+`code()` is for a snippet that lives in a **component**, such as a feature on a landing page, a UI that shows an example, or a documentation kit. For code inside prose, write a fenced block in your markdown, and for a whole Markdown string, use [`md`](/docs/content/macros/md). All three produce a region, so they all render through `<Region>`.

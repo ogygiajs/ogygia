@@ -2,8 +2,8 @@
 title: Checks
 summary: Structural checks that fail the build instead of the visitor. The link audit resolves every in-prose link against the site's address space, and reports a broken one as a named error at prerender and when you open the page in dev.
 related:
-  - content/site
-  - content/outline
+  - content/sites/site
+  - content/sites/outline
   - reference/constraints
 ---
 
@@ -26,7 +26,7 @@ It reports in two places:
 - **At prerender**, a broken link fails the build with the page, the link text and the target.
 - **In dev**, the same finding appears when you open the page, so you catch it while you write.
 
-The audit knows the _whole_ address space, including [dimension](/docs/content/dimensions) coordinates and declared redirects, so it can tell a genuinely dead link from one that resolves through an alias.
+The audit knows the _whole_ address space, including [dimension](/docs/content/sites/dimensions) coordinates and declared redirects, so it can tell a genuinely dead link from one that resolves through an alias.
 
 ## Findings as data
 
@@ -81,7 +81,7 @@ export const docs = site({ outline: docs, checks: [links(), requireSummary()] })
 Severity decides what happens. `'error'` throws from `load`, which fails the build at prerender and blocks the page in dev, while `'warn'` shows up in the `docs.check()` findings and never blocks a render.
 
 ::: details Checks vs. structural build errors
-These are two deliberately separate layers. **Structural invariants** (an orphan entry, a slug collision, an inconsistent `NN-` sequence) are [outline](/docs/content/outline) build errors that are always on and cannot be configured away, because a site that has them is not well-formed. **Checks** are _content policy_: pluggable, per site and set by severity. `links()` is policy, so whether a deliberately dead link during a migration is allowed, tolerated as `warn` or forbidden is your decision.
+These are two deliberately separate layers. **Structural invariants** (an orphan entry, a slug collision, an inconsistent `NN-` sequence) are [outline](/docs/content/sites/outline) build errors that are always on and cannot be configured away, because a site that has them is not well-formed. **Checks** are _content policy_: pluggable, per site and set by severity. `links()` is policy, so whether a deliberately dead link during a migration is allowed, tolerated as `warn` or forbidden is your decision.
 :::
 
 ## Do / don't

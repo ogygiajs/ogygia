@@ -36,7 +36,7 @@ export const registry = { Hero, Grid, Feature, Counter };
 
 Both marks make the component a [held region](/docs/regions/held-regions), code-split and resolved to a region by the registry; `region: 'raw'` bakes in no schedule (static, HTML only) and `wake:` bakes one in (interactive). A plain import would also work, but its CSS would be folded into the page stylesheet, so a large registry would cost every page the styles of every block. The marks are what keep a page's cost limited to the blocks it renders.
 
-> Writing one `with { region: 'raw' }` line per block means N imports that quietly drift out of sync with the folder. The **[`regions()` macro](/docs/macros/regions)** collapses them into one line, `import.meta.og.regions('./blocks/*.svelte')`, which globs the folder and emits a raw-region import for each match, keyed by basename. Blocks that need a `wake:` schedule stay as manual imports spread on top.
+> Writing one `with { region: 'raw' }` line per block means N imports that quietly drift out of sync with the folder. The **[`regions()` macro](/docs/content/macros/regions)** collapses them into one line, `import.meta.og.regions('./blocks/*.svelte')`, which globs the folder and emits a raw-region import for each match, keyed by basename. Blocks that need a `wake:` schedule stay as manual imports spread on top.
 
 You decide which component each `type` means; there is no guessing and no auto-discovery. An unregistered `type` is skipped with a dev warning and is never rendered as something it is not.
 

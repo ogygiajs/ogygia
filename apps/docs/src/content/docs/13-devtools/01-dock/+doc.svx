@@ -1,9 +1,9 @@
 ---
-title: Devtools
+title: The dock
 summary: A dock on the page that shows the island graph, with each region outlined in place, its real JS cost, what crossed the wire, and when each island woke.
 related:
   - regions/regions
-  - profiler/overview
+  - devtools/profiler/overview
   - reference/performance
 ---
 
@@ -32,7 +32,7 @@ export default defineConfig(({ mode }) => ({
 }));
 ```
 
-`devtools()` takes two switches: `dock` (the dock, on by default) and `profiler` (the [SSR profiler](/docs/profiler/overview), off by default). Both are listed under [Plugins](/docs/reference/plugins).
+`devtools()` takes two switches: `dock` (the dock, on by default) and `profiler` (the [SSR profiler](/docs/devtools/profiler/overview), off by default). Both are listed under [Plugins](/docs/devtools/overview#the-plugin-options).
 
 On the dev server, a launcher appears at the bottom of each `csr = false` page. In a build it stays hidden until you turn it on in your own browser, as described below.
 
@@ -70,11 +70,11 @@ The launcher peeks up from the bottom edge and shows itself when you hover over 
 - **Hub** shows the identity spine. For each `Ref` id it gives the kind, resolve count, reunion (memo-hit) count and disposal.
 - **Nav** shows the SPA navigation decision for each region (keep, patch, mount or remove) with timing, so you can watch the reconciler at work.
 - **Timeline** shows client-realm events on a time axis, one lane per region, with hydrate bars.
-- **Profiler** runs the [SSR profiler](/docs/profiler/overview) on this page inside the dock (it needs `devtools({ profiler: true })`). It shows the score, the server render time and what it would be after the fixes, the findings, the heaviest components and the outbound calls. Each island's server row is linked to the island on the page: hover to highlight it and click to open it, and the island's detail card then shows the same numbers under "on the server". The full report is one click away.
+- **Profiler** runs the [SSR profiler](/docs/devtools/profiler/overview) on this page inside the dock (it needs `devtools({ profiler: true })`). It shows the score, the server render time and what it would be after the fixes, the findings, the heaviest components and the outbound calls. Each island's server row is linked to the island on the page: hover to highlight it and click to open it, and the island's detail card then shows the same numbers under "on the server". The full report is one click away.
 
 ## The Page tab
 
-The Page tab reads the same browser data that the [profiler's beacon](/docs/profiler/reading-reports) sends, but live and on your own page, and nothing leaves the page. It shows:
+The Page tab reads the same browser data that the [profiler's beacon](/docs/devtools/profiler/reading-reports) sends, but live and on your own page, and nothing leaves the page. It shows:
 
 - **Vitals**: TTFB, FCP, LCP, CLS and INP, rated good, needs work or poor by the web-vitals thresholds, along with long tasks.
 - **Findings**: what the browser measured going wrong. Each finding names its islands; hover over it to highlight them on the page, or click an island chip to open its detail card.
@@ -219,7 +219,7 @@ Three sinks come ready-made. `install_window_sink()` publishes `window.__ogygia_
 
 ## Reading profiler reports in code
 
-`@ogygia/devtools/report` reads a [profiler](/docs/profiler/overview) report outside the profiler, on Node. It is what `ogygia mcp` loads from your app to open a downloaded report, and you can use it for your own tooling, for example a CI step that checks an exported report:
+`@ogygia/devtools/report` reads a [profiler](/docs/devtools/profiler/overview) report outside the profiler, on Node. It is what `ogygia mcp` loads from your app to open a downloaded report, and you can use it for your own tooling, for example a CI step that checks an exported report:
 
 ```ts
 import { readFile } from 'node:fs/promises';
@@ -236,11 +236,11 @@ if (is_dump(dump)) {
 - **`is_ogp(bytes)`** says whether a file is an exported `.ogp` rather than a plain JSON dump.
 - **`ogp_decode(bytes, key)`** decrypts and unpacks an `.ogp` with the key it was exported with, and throws on a wrong key or a changed file.
 - **`is_dump(value)`** checks that a value is a report dump (the JSON behind `/report/<id>/dump`), with its `meta`, `analysis` and `extras`.
-- **`report_json(analysis, meta, base, extras)`** builds the same JSON that `/__profiler/report/<id>.json` answers, described under [For agents and scripts](/docs/profiler/recording#for-agents-and-scripts). `base` is the profiler's path, used in the report's links.
+- **`report_json(analysis, meta, base, extras)`** builds the same JSON that `/__profiler/report/<id>.json` answers, described under [For agents and scripts](/docs/devtools/profiler/recording#for-agents-and-scripts). `base` is the profiler's path, used in the report's links.
 - **`fix_impact(patterns, renderMs, renders?, waitMs?)`** adds up what fixing a report's patterns would take off the render, capped at 90 percent. It is the sum behind "about 326 ms off the 741 ms render".
 
 ::: tip
-The devtools never mount on [profiler](/docs/profiler/overview) pages, including the embedded frame in the Profiler tab, so the tools never inspect themselves.
+The devtools never mount on [profiler](/docs/devtools/profiler/overview) pages, including the embedded frame in the Profiler tab, so the tools never inspect themselves.
 :::
 
 ::: warning `csr = true` pages

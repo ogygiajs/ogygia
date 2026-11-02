@@ -2,8 +2,8 @@
 title: Outline
 summary: Turn collections and an arrangement into one normalized nav tree plus an address map. A bare collection arranges itself by convention, and pick, groups and links let you arrange by hand.
 related:
-  - content/site
-  - content/dimensions
+  - content/sites/site
+  - content/sites/dimensions
   - content/collections
 ---
 
@@ -68,7 +68,7 @@ Each entry is placed **exactly once**, and a bare collection takes whatever has 
 Each one fails the build with the id and the reason.
 
 ::: tip Reorganizing safely
-Because placement is verified, reorganizing is safe: when you move a file, either the tree updates (for convention placement) or the build names the `pick` id that no longer matches. Together with the [link audit](/docs/content/checks), that covers inbound links too.
+Because placement is verified, reorganizing is safe: when you move a file, either the tree updates (for convention placement) or the build names the `pick` id that no longer matches. Together with the [link audit](/docs/content/sites/checks), that covers inbound links too.
 :::
 
 ## Conventions: order and dates
@@ -105,7 +105,7 @@ export const posts = folder(
 
 ## The address map
 
-Beyond the tree, the outline knows how to **resolve** a slug to its entry and how to list every address. Downstream read functions use this directly: `docs.entries()` for prerender inputs, `docs.page(slug)` to resolve one page, and `switcher()` on a [dimensioned](/docs/content/dimensions) site. When you build custom chrome, use `hrefOf(base, slug)` to turn an address into a link, because it is what keeps a site correct under any mount prefix:
+Beyond the tree, the outline knows how to **resolve** a slug to its entry and how to list every address. Downstream read functions use this directly: `docs.entries()` for prerender inputs, `docs.page(slug)` to resolve one page, and `switcher()` on a [dimensioned](/docs/content/sites/dimensions) site. When you build custom chrome, use `hrefOf(base, slug)` to turn an address into a link, because it is what keeps a site correct under any mount prefix:
 
 ```ts
 import { hrefOf } from '@ogygia/content';

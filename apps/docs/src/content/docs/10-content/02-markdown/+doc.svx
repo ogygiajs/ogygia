@@ -3,13 +3,13 @@ title: Markdown authoring
 summary: The prose dialect that markdown() understands, covering containers, tab groups, fence meta and diff markers. Content files need no imports, because the compiler injects whatever a page uses.
 related:
   - content/collections
-  - content/shell
-  - macros/code
+  - content/sites/shell
+  - content/macros/code
 ---
 
 `markdown()` compiles `.svx` / `.md` files with an opinionated dialect on top of CommonMark: admonition containers, markdown-native tabs, and a fence pipeline with pluggable stages. Authors write **no imports**; when a page uses a tab group, for example, the compiler injects the components into that page's module scope. Everything on this page is rendered by the dialect it documents.
 
-This page is for people who _write_ content. To wire `markdown()` into your app, see [Content collections](/docs/content/collections), and for the `code()` macro, which renders snippets from components, see [code](/docs/macros/code).
+This page is for people who _write_ content. To wire `markdown()` into your app, see [Content collections](/docs/content/collections), and for the `code()` macro, which renders snippets from components, see [code](/docs/content/macros/code).
 
 ## Containers
 
@@ -78,7 +78,7 @@ Groups with the same labels stay **in sync**: pick pnpm once and every install b
 
 ## Fence meta
 
-The infostring after the language goes through the fence pipeline (line highlighting, filenames, [twoslash](/docs/macros/code)), and it works the same way for a markdown fence and a `code()` call:
+The infostring after the language goes through the fence pipeline (line highlighting, filenames, [twoslash](/docs/content/macros/code)), and it works the same way for a markdown fence and a `code()` call:
 
 - ` ```ts title=src/lib/site.server.ts ` puts a **filename** in the code block's header, to the left of the copy and permalink actions. This is the common case. When a fence gives no filename, the header falls back to the language name, so it is never empty. `title=` reads to the end of the token, so paths containing `/`, `.` and `+page`-style route files work as written.
 - ` ```ts {2-4} ` highlights lines 2–4, using `transformerMetaHighlight` from `@shikijs/transformers`.

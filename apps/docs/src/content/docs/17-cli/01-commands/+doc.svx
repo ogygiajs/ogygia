@@ -1,10 +1,10 @@
 ---
-title: CLI
+title: Commands
 summary: Every command of `npx ogygia` with its flags (init, site init, keys, fragments, ai, mcp, perf and bisect) and the tools of its MCP server.
 related:
   - start/install
-  - profiler/recording
-  - app/federation
+  - devtools/profiler/recording
+  - federation/guide
 ---
 
 The `ogygia` command wires ogygia into a SvelteKit app, scaffolds a docs site, mints federation keys, turns a widget catalog into types, measures pages under the profiler in CI, and gives an AI agent ogygia's compiler over MCP. This page lists every command and flag.
@@ -52,7 +52,7 @@ It then installs with the package manager whose lockfile it finds (pnpm, yarn or
 npx ogygia site init [--layout <path>] [--force] [--no-install] [-y]
 ```
 
-Scaffolds a docs site on the [content site layer](/docs/content/site#from-zero) as ordinary files you own. It first runs the same wiring as `init` with markdown on, and it also turns on Svelte's async compiler (`compilerOptions.experimental.async`), because the site's components use top-level `await`. Then it writes these files, with the routes placed in the layout's folder:
+Scaffolds a docs site on the [content site layer](/docs/content/sites/site#from-zero) as ordinary files you own. It first runs the same wiring as `init` with markdown on, and it also turns on Svelte's async compiler (`compilerOptions.experimental.async`), because the site's components use top-level `await`. Then it writes these files, with the routes placed in the layout's folder:
 
 - `src/lib/docs.ts`, the collection and its `site()`.
 - Two starter pages in `src/content/docs/`, only when that folder has no `.svx` page yet.
@@ -75,7 +75,7 @@ A file that already exists is kept unless you pass `--force`. The layout gets mo
 npx ogygia keys [name]
 ```
 
-Mints an Ed25519 key pair for signing [federation](/docs/app/federation#one-identity-per-app-federate) hops, in the format `federate()` reads. It prints two lines to standard output:
+Mints an Ed25519 key pair for signing [federation](/docs/federation/guide#one-identity-per-app-federate) hops, in the format `federate()` reads. It prints two lines to standard output:
 
 ```bash
 export SHELL_SIGNING_KEY=MC4CAQAwBQYDK2Vw…   # private: stays with this app, as federate({ key })
@@ -90,7 +90,7 @@ The variable names come from `name`, upper-cased with every other character turn
 npx ogygia fragments <origin> [--out <file>] [--check <file>]
 ```
 
-Reads a federated app's [widget catalog](/docs/app/federation#widgets-and-the-catalog) from `<origin>/og/fragment/__catalog` and turns it into a TypeScript stub: a `WidgetName` union, a `WIDGET_NAMES` array, and a `WidgetProps` interface with each widget's declared props. It gives up after 10 seconds without an answer.
+Reads a federated app's [widget catalog](/docs/federation/guide#widgets-and-the-catalog) from `<origin>/og/fragment/__catalog` and turns it into a TypeScript stub: a `WidgetName` union, a `WIDGET_NAMES` array, and a `WidgetProps` interface with each widget's declared props. It gives up after 10 seconds without an answer.
 
 | Flag             | What it does                                                                                                                                                 |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -133,7 +133,7 @@ Start it from your app's root folder. The tools that take a path resolve it agai
 | `ogygia_check`        | Runs the transform on a component and reports any build error it would raise.                                                                                                              |
 | `ogygia_explain`      | Explains in prose where each marked component's HTML comes from, when its JavaScript runs, and how its props cross the boundary.                                                           |
 | `ogygia_debug`        | Loads a page of your running app in a headless browser and returns each island's story from the event stream, with anomalies. Needs Playwright and a page served with the devtools plugin. |
-| `ogygia_profile`      | Profiles the server render of a URL on your running app through the [profiler](/docs/profiler/recording) and returns a digest of the report.                                               |
+| `ogygia_profile`      | Profiles the server render of a URL on your running app through the [profiler](/docs/devtools/profiler/recording) and returns a digest of the report.                                               |
 | `ogygia_profile_open` | Opens a downloaded `.ogp` report with its export key and returns the same digest, with no server involved.                                                                                 |
 | `ogygia_scan`         | Runs the transform on every `.svelte` file under a folder (default `src`) and returns the app's whole island layout, with a lint pass.                                                     |
 | `ogygia_observatory`  | Packs one or more files into an Observatory link, so you can see them compiled and running in the browser. The files travel in the URL's fragment, which is never sent to a server.        |
@@ -146,7 +146,7 @@ Start it from your app's root folder. The tools that take a path resolve it agai
 npx ogygia perf --url <origin> --pages /a,/b [options]
 ```
 
-Renders each page under the profiler on a running server, writes a snapshot, and judges it against a baseline under a budget. [In CI: budgets and the first bad commit](/docs/profiler/recording#in-ci-budgets-and-the-first-bad-commit) describes the snapshot, the budget file and the PR comment.
+Renders each page under the profiler on a running server, writes a snapshot, and judges it against a baseline under a budget. [In CI: budgets and the first bad commit](/docs/devtools/profiler/recording#in-ci-budgets-and-the-first-bad-commit) describes the snapshot, the budget file and the PR comment.
 
 | Flag                  | Default                     | What it does                                                                                                  |
 | --------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -171,7 +171,7 @@ It exits with 0 when the budget passes, 1 when it fails, and 2 when the argument
 npx ogygia bisect --good <ref> --page /x --build "<cmd>" --start "<cmd>" --url <origin> [options]
 ```
 
-Finds the first commit that made a page slower. Run it in your repository: it checks out commits between `--good` and `--bad` in temporary git worktrees, builds each one, starts it, profiles the page, and binary-searches for the culprit. It measures both ends first and counts a commit as bad when its median render is past the bar between them. A commit that fails to build or measure is skipped. [The first bad commit](/docs/profiler/recording#in-ci-budgets-and-the-first-bad-commit) has a worked example.
+Finds the first commit that made a page slower. Run it in your repository: it checks out commits between `--good` and `--bad` in temporary git worktrees, builds each one, starts it, profiles the page, and binary-searches for the culprit. It measures both ends first and counts a commit as bad when its median render is past the bar between them. A commit that fails to build or measure is skipped. [The first bad commit](/docs/devtools/profiler/recording#in-ci-budgets-and-the-first-bad-commit) has a worked example.
 
 | Flag                   | Default                   | What it does                                                                   |
 | ---------------------- | ------------------------- | ------------------------------------------------------------------------------ |

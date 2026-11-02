@@ -2,8 +2,8 @@
 title: Flags & experiments
 summary: Kill switches, rollouts, targeting and A/B tests share one primitive, flag(). Flags are decided per visitor on the server during SSR, so the decision costs no JavaScript, OpenFeature connects through one decide() call, and csr=false pages can run A/B tests at no extra cost.
 related:
-  - app/server-router
-  - app/federation
+  - router/guide
+  - federation/guide
   - regions/timing-nesting
 ---
 
@@ -28,11 +28,11 @@ plugins: [ogygia(), flags(), sveltekit()]
 
 Keep the plugin listed in every app that reads flags. Without it a flag still decides from its native rule, but the request never learns that a flag was read, and that matters in three places:
 
-- **Stored pages.** Each read marks the render as per-visitor, so [postrender](/docs/data-state/postrender) never stores one variant of an A/B test and serves it to everyone. Without the plugin nothing marks the render, and a stored page can keep the variant of whoever requested it first.
+- **Stored pages.** Each read marks the render as per-visitor, so [postrender](/docs/postrender/guide) never stores one variant of an A/B test and serves it to everyone. Without the plugin nothing marks the render, and a stored page can keep the variant of whoever requested it first.
 - **Federation.** Each decision is recorded on the request, which is how a [mount carries it](#one-world-across-teams) to other teams.
 - **Sources and exposures.** The plugin primes a `decide({ source })` once at the start of each request and drains the `exposure` sink at the end. Without it, the source is ignored and exposures are only sent when a batch fills up or its timer fires.
 
-The server warns once the first time it sees a flag read without the plugin. See [Plugins](/docs/reference/plugins).
+The server warns once the first time it sees a flag read without the plugin. See [Plugins](/docs/start/packages).
 
 ## Declare: the second argument is the shape
 
@@ -110,7 +110,7 @@ export const app = routes(table, {
 });
 ```
 
-That becomes [`c.visitor`](/docs/app/server-router) everywhere. Flags stick to `c.visitor.sub`, and the same identity is what [mounts sign onward](/docs/app/federation) to other teams. Outside the router, or for anonymous traffic, the fallback is an `og-vid` cookie, and after that the visitor is anonymous. **Anonymous visitors always see the control**, so a split never changes for a visitor you can't recognize. Without the router, you provide the identity yourself, as described in [Plain SvelteKit](#plain-sveltekit).
+That becomes [`c.visitor`](/docs/router/guide) everywhere. Flags stick to `c.visitor.sub`, and the same identity is what [mounts sign onward](/docs/federation/guide) to other teams. Outside the router, or for anonymous traffic, the fallback is an `og-vid` cookie, and after that the visitor is anonymous. **Anonymous visitors always see the control**, so a split never changes for a visitor you can't recognize. Without the router, you provide the identity yourself, as described in [Plain SvelteKit](#plain-sveltekit).
 
 For sticky rollouts on **logged-out traffic**, create the cookie:
 
@@ -404,7 +404,7 @@ A sink that throws never breaks a request, and the remaining events drain at the
 
 ## One world across teams
 
-"Carried" in the precedence chain is the federation tier. Every flag a request **decides** registers its bucket automatically, and when a shell [mounts other teams' apps](/docs/app/federation), the visitor's whole set of decisions travels in the signed claims. Nobody lists anything by hand, so a forgotten entry can't silently split a visitor between teams, and since a carried decision beats the local native rule, one visitor never ends up in two worlds.
+"Carried" in the precedence chain is the federation tier. Every flag a request **decides** registers its bucket automatically, and when a shell [mounts other teams' apps](/docs/federation/guide), the visitor's whole set of decisions travels in the signed claims. Nobody lists anything by hand, so a forgotten entry can't silently split a visitor between teams, and since a carried decision beats the local native rule, one visitor never ends up in two worlds.
 
 A shell that only **routes** to teams, and never reads the flag itself, decides it in advance on the table so the bucket still travels:
 

@@ -3,7 +3,7 @@ title: asRegion
 summary: Mark any imported component as a region, whether it is a named import, a default import or a barrel re-export. It covers the imports the `with { … }` attribute form cannot reach, and works the same in .svelte, .ts and .js.
 related:
   - regions/held-regions
-  - macros/regions
+  - content/macros/regions
   - macros/overview
 ---
 

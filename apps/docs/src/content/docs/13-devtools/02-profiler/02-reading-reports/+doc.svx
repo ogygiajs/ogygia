@@ -2,8 +2,8 @@
 title: Reading a report
 summary: What each part of a profile report tells you, from the suggested fixes and the slow patterns found on your lines down to memory, the wall-clock budget, the CPU treemap, the network waterfall and comparing two reports line by line.
 related:
-  - profiler/overview
-  - profiler/recording
+  - devtools/profiler/overview
+  - devtools/profiler/recording
   - reference/performance
 ---
 
@@ -317,7 +317,7 @@ For the report's own visit the TTFB gap is split further, because the browser ti
 
 ### What went wrong in the browser
 
-The visit the beacon sends is read with the same analysis as the devtools [Page tab](/docs/devtools/overview#the-page-tab), so the report and the tab name the same problems on the same islands. These findings start with "In the browser:":
+The visit the beacon sends is read with the same analysis as the devtools [Page tab](/docs/devtools/dock#the-page-tab), so the report and the tab name the same problems on the same islands. These findings start with "In the browser:":
 
 - an island that failed to hydrate, with its error
 - markup that changed as an island woke
@@ -358,7 +358,7 @@ The devtools Page tab shows the same table, produced by the same code.
 
 When the browser supports JS Self-Profiling (Chromium), the beacon also records the first 8 seconds of the page's main-thread CPU and sends it in. The report then gets a **browser CPU** section built the same way as the server's: components by self time (each island's component name, taken from the chunk it hydrated from), hot functions, and a flame graph. It answers a question the server profile cannot, namely which island's hydration ate the main thread and whether that was your code or a dependency (the rows are categorised as svelte, dependency or app). The profiler sends the `Document-Policy: js-profiling` header only on responses that carry the beacon, so a visitor without the profiler cookie is never sampled. Turn it off with `clientCpu: false`.
 
-Production client chunks are minified, so a browser frame reads as `Y` in `chunks/DvQX.js` until a source map says otherwise. With the profiler on, the build keeps the client chunks' maps for you (see [Sharper names with source maps](/docs/profiler/recording#sharper-names-with-source-maps)), so the profiler finds each chunk's map, recovers the real function name and source file, and files the frame where it belongs: `create_effect` in Svelte's runtime, `ProductCard` in your own component. When the map carries no name at the start of the function, the name is read from the original source line itself. Scripts from another origin (a CDN's web components, a tag manager) have no local map, so they keep their minified names and are filed under the package that the CDN path names.
+Production client chunks are minified, so a browser frame reads as `Y` in `chunks/DvQX.js` until a source map says otherwise. With the profiler on, the build keeps the client chunks' maps for you (see [Sharper names with source maps](/docs/devtools/profiler/recording#sharper-names-with-source-maps)), so the profiler finds each chunk's map, recovers the real function name and source file, and files the frame where it belongs: `create_effect` in Svelte's runtime, `ProductCard` in your own component. When the map carries no name at the start of the function, the name is read from the original source line itself. Scripts from another origin (a CDN's web components, a tag manager) have no local map, so they keep their minified names and are filed under the package that the CDN path names.
 
 ## With the keyboard
 
@@ -558,7 +558,7 @@ Every number in a report is what the app would have paid without the profiler. T
 
 ## A build without sourcemaps
 
-With the profiler on, the server build writes hidden source maps on its own (see [Sharper names with source maps](/docs/profiler/recording#sharper-names-with-source-maps)), so this section is about a build that turned them off (`build.sourcemap: false`) or one made without the profiler. In such a build a frame names only its bundled chunk (`chunks/frames.js:12`). With the profiler on, the build also writes `ogygia-modules.json` beside the server chunks, recording which source module sits at which lines of each chunk. It travels with the build to whatever host runs it, and the profiler reads it to file each frame by what it is: the profiler's own code (taken out, as described above), ogygia's runtime and bundled packages (libraries), or your app.
+With the profiler on, the server build writes hidden source maps on its own (see [Sharper names with source maps](/docs/devtools/profiler/recording#sharper-names-with-source-maps)), so this section is about a build that turned them off (`build.sourcemap: false`) or one made without the profiler. In such a build a frame names only its bundled chunk (`chunks/frames.js:12`). With the profiler on, the build also writes `ogygia-modules.json` beside the server chunks, recording which source module sits at which lines of each chunk. It travels with the build to whatever host runs it, and the profiler reads it to file each frame by what it is: the profiler's own code (taken out, as described above), ogygia's runtime and bundled packages (libraries), or your app.
 
 A script module's chunk lines are also matched to its source lines by their text. The build carries your `src/` files and the chunks they sit in inside the same server module as the maps, so this works on a host that ships neither `src/` nor the chunks as built (adapter-node re-bundles them). A line in Kit's runtime, a package or ogygia's own chunk is filed as what it is, so Kit's `fetch` wrapper is never named as your caller. That covers loads, helpers and endpoints, but not components, whose compiled markup is not their source. The match survives what a build does to lines: stripped types, dropped comments, one statement wrapped over several lines, or two lines folded into one. A line the build changed beyond matching is placed by its distance from the nearest line that did match. Components keep the chunk's line numbers (their `{#each}` is still read from the `.svelte` file), so build with sourcemaps if you need those.
 
@@ -610,7 +610,7 @@ While a recording runs, every outbound call carries a small request header. An u
 
 ## The whole site: the request cloud and the layer cake
 
-`/__profiler/site` draws every request as a dot, with time across and duration up on a log scale, coloured by route, and with caught requests marked. Drag across a range and the hot functions from the always-on sampler windows inside it appear, which turns "why are 3 percent of product pages slow?" into a selection. Below it is the layer cake: for each route, the sum of its requests split into CPU, waiting on calls and everything else, sorted by total, with the count, p50 and p95. On a long-lived host these figures come from the instance's own memory. On an ephemeral host they come from the [sink](/docs/profiler/recording#the-sink-the-whole-site-from-ephemeral-instances), where every instance posts its rows to a URL you own, and the page reads them back over days from any URL you serve them from.
+`/__profiler/site` draws every request as a dot, with time across and duration up on a log scale, coloured by route, and with caught requests marked. Drag across a range and the hot functions from the always-on sampler windows inside it appear, which turns "why are 3 percent of product pages slow?" into a selection. Below it is the layer cake: for each route, the sum of its requests split into CPU, waiting on calls and everything else, sorted by total, with the count, p50 and p95. On a long-lived host these figures come from the instance's own memory. On an ephemeral host they come from the [sink](/docs/devtools/profiler/recording#the-sink-the-whole-site-from-ephemeral-instances), where every instance posts its rows to a URL you own, and the page reads them back over days from any URL you serve them from.
 
 ## What the common slow patterns look like
 

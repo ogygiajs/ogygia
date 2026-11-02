@@ -2,7 +2,7 @@
 title: md
 summary: A Markdown string, rendered at build time through your app's own markdown pipeline (the same remark/rehype plugins and highlighted fences) and inlined as a static region, for prose that lives in a component.
 related:
-  - macros/code
+  - content/macros/code
   - content/collections
   - macros/overview
 ---
@@ -31,9 +31,9 @@ Because `md()` runs your document pipeline, it handles everything that pipeline 
 
 ## The rules
 
-- **`text` is a static string or template literal.** A `${…}` interpolation is a build error, because it is a runtime value the build cannot resolve. Dedent is automatic, as it is in [`code`](/docs/macros/code).
+- **`text` is a static string or template literal.** A `${…}` interpolation is a build error, because it is a runtime value the build cannot resolve. Dedent is automatic, as it is in [`code`](/docs/content/macros/code).
 - **Static prose only.** `md()` is for prose and fenced code. If the Markdown compiles to something dynamic (an island import, a `<script>`, a component tag, a Svelte expression), the build fails, because a region made this way is static. For live, interactive content, use a real component, or a `.svx` collection, where islands are allowed.
 
 ## code vs md
 
-The two are closely related. [`code`](/docs/macros/code) renders one highlighted snippet with a language and fence meta, while `md` renders a whole Markdown document with headings, lists, prose and fences inside it. Use `code` when you have exactly one block to show and `md` when you have a passage. Both return a region, so they render the same way.
+The two are closely related. [`code`](/docs/content/macros/code) renders one highlighted snippet with a language and fence meta, while `md` renders a whole Markdown document with headings, lists, prose and fences inside it. Use `code` when you have exactly one block to show and `md` when you have a passage. Both return a region, so they render the same way.
