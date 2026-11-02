@@ -1,0 +1,65 @@
+name: Security sweep
+
+# Weekly, Claude audits the whole repository (not just a diff): the code paths that sign, escape,
+# fetch and cache, and the dependencies against known advisories. Findings go into ONE open issue
+# labelled `security-sweep` (updated each week, never a new one per run). Runs on the maintainer's
+# Claude subscription (CLAUDE_CODE_OAUTH_TOKEN) and files through the Claude GitHub App.
+on:
+  schedule:
+    # Wednesdays 06:00 UTC, away from upstream-watch's Monday run.
+    - cron: '0 6 * * 3'
+  workflow_dispatch:
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      # the dependency advisories, for Claude to weigh against how the code uses each package
+      - name: Dependency audit
+        run: pnpm audit --json > /tmp/pnpm-audit.json || true
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+
+            Weekly security sweep of ogygia: a library that server-renders SvelteKit pages, signs
+            capability URLs for server-rendered regions (HMAC), serializes data into inline <script>
+            tags, morphs fetched HTML into live pages, and federates regions across origins.
+
+            1. Audit the published packages' source (packages/*/src) for exploitable bugs: HTML or
+               script injection, forgeable or leaked signatures and keys, non-constant-time MAC
+               checks, open redirects, SSRF, shared caches holding a visitor's response, federation
+               trusting unverified peer HTML or claims.
+            2. Read /tmp/pnpm-audit.json. For each advisory, check whether ogygia's code actually
+               reaches the vulnerable path; report only those that it does, or that ship to users.
+
+            Report only findings you are confident are real, each with the file, the attacker's path
+            and a suggested fix. Then update the tracking issue:
+            - If an open issue labelled `security-sweep` exists, comment on it with this week's
+              findings (or "Nothing new this week." if there are none).
+            - If none exists and you have findings, create it titled "Security sweep findings" with
+              the label `security-sweep` (create the label first if it is missing).
+            - If none exists and there are no findings, do nothing.
+          claude_args: |
+            --allowedTools "Read,Grep,Glob,Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh issue create:*),Bash(gh label create:*)"
