@@ -19,6 +19,8 @@ env:
 
 jobs:
   check:
+    # A version PR (changeset-release/*) only bumps versions and changelogs: nothing to check
+    if: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -96,32 +98,42 @@ jobs:
           - { name: devtools 2/2, id: devtools-2, filter: --filter=@ogygia/devtools, shard: 2/2 }
           # every other package's suite, one after another; a new suite lands here by itself
           - { name: the rest, id: rest, filter: --filter=!palaestra --filter=!@ogygia/devtools }
+    env:
+      # A version PR (changeset-release/*) only bumps versions and changelogs: every step skips. (A
+      # matrix job skipped as a whole reports one unexpanded name, and the required `e2e (core 1/3)`…
+      # checks would wait forever, so the job runs and its steps don't.)
+      TEST: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
     steps:
-      - uses: actions/checkout@v4
+      - if: env.TEST == 'true'
+        uses: actions/checkout@v4
         with:
           # a pull request runs only the suites its changes reach (`turbo --affected` diffs against
           # the base branch, so it needs the history)
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v4
+      - if: env.TEST == 'true'
+        uses: pnpm/action-setup@v4
 
-      - uses: actions/setup-node@v4
+      - if: env.TEST == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
 
       # Bun runtime dimension — the adapter e2e suite runs the node-server output under bun too.
-      - if: matrix.adapters
+      - if: env.TEST == 'true' && matrix.adapters
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      - name: Install workspace deps
+      - if: env.TEST == 'true'
+        name: Install workspace deps
         run: pnpm install --frozen-lockfile
 
       # turbo's local cache, one per slice: a slice whose suite, fixture app and dependencies' builds
       # did not change replays from it
-      - name: Turbo cache
+      - if: env.TEST == 'true'
+        name: Turbo cache
         uses: actions/cache@v4
         with:
           path: .turbo/cache
@@ -134,22 +146,25 @@ jobs:
       # the runner image already has the browser's system libraries (it ships Google Chrome), and that
       # apt step is what stalled jobs. (Not the runner's Chrome itself: it fetches /favicon.ico on every
       # page, and the 404 trips the suites' "no console errors" checks.)
-      - name: Playwright version
+      - if: env.TEST == 'true'
+        name: Playwright version
         id: playwright
         run: echo "version=$(pnpm exec playwright --version | sed 's/Version //')" >> "$GITHUB_OUTPUT"
 
-      - name: Playwright browser cache
+      - if: env.TEST == 'true'
+        name: Playwright browser cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
-      - name: Install Playwright Chromium
+      - if: env.TEST == 'true'
+        name: Install Playwright Chromium
         run: pnpm exec playwright install chromium
 
       # wrangler (Cloudflare workerd) is fetched on demand by the suite via npx; warm it so the
       # cloudflare adapter boots the real Workers runtime instead of skipping.
-      - if: matrix.adapters
+      - if: env.TEST == 'true' && matrix.adapters
         name: Warm wrangler
         run: npx --yes wrangler --version
 
@@ -158,7 +173,8 @@ jobs:
       # narrows the filter, diffed against the base branch — a core change reaches every suite). A
       # push to main/next, or a manual run: always. `E2E_SHARD` reaches Playwright through the
       # suite config (and turbo hashes it into the `e2e` task, so each shard caches on its own).
-      - name: Run the e2e suites
+      - if: env.TEST == 'true'
+        name: Run the e2e suites
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then affected=--affected; fi
           pnpm turbo run e2e --concurrency=1 ${{ matrix.filter }} $affected
@@ -172,8 +188,8 @@ jobs:
           OGYGIA_SECRET: 3f9a2b7c1e5d8046af62c93b1d7e4058a6c2f19b3e8d70425c9a1f6b8d3e07c4
 
       # Traces (retained on failure) + the html report, for a red run.
-      - name: Upload Playwright report
-        if: failure()
+      - if: env.TEST == 'true' && failure()
+        name: Upload Playwright report
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-${{ matrix.id }}
