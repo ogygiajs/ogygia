@@ -46,4 +46,4 @@ await postrender.invalidate('/blog/hello/');            // one URL
 await postrender.invalidateWhere({ prefix: '/blog/' }); // a subtree
 ```
 
-Docs: [Postrender](https://ogygiajs.dev/docs/data-state/postrender).
+Docs: [@ogygia/postrender](https://ogygiajs.dev/docs/postrender/overview), with the full [Postrender](https://ogygiajs.dev/docs/postrender/guide) guide.
