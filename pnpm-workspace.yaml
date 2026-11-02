@@ -88,9 +88,9 @@ catalogs:
     '@sveltejs/kit3': npm:@sveltejs/kit@3.0.1
     svelte: 5.57.2
   # internal/repro: the CONTROL repro (plain Svelte on Vite 6, no ogygia), frozen at the versions its
-  # measurements were taken on.
+  # measurements were taken on (vite on the 6.4 patch line for its security fixes).
   repro-control:
-    vite: 6.3.6
+    vite: 6.4.4
     '@sveltejs/vite-plugin-svelte': 5.1.1
     svelte: 5.56.8
 # Not workspace members, so no catalog reaches them; their pins stay inline, on purpose: the adapter
@@ -103,6 +103,11 @@ packageExtensions:
     peerDependenciesMeta:
       next:
         optional: true
+# Security fixes a dependency's own range would not take (same API, checked): satori pins
+# fflate 0.7.3 exactly (the fix is the 0.7.5 patch), vite-plugin-top-level-await pins uuid 10.
+overrides:
+  'satori>fflate': ^0.7.5
+  'vite-plugin-top-level-await>uuid': ^11.1.1
 minimumReleaseAgeExclude:
   - '@rolldown/binding-android-arm64@1.2.2'
   - '@rolldown/binding-linux-arm-gnueabihf@1.2.2'
