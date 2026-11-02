@@ -25,12 +25,13 @@ allowBuilds:
 # ONE version per dependency that more than one workspace package uses: `"x": "catalog:"`.
 # `pnpm publish` writes the real range into the published package.json.
 catalog:
-  # svelte + kit
-  svelte: 5.56.8
-  '@sveltejs/kit': ^2.70.2
-  '@sveltejs/vite-plugin-svelte': ^7.2.0
-  '@sveltejs/adapter-node': ^5.5.7
-  '@sveltejs/adapter-vercel': ^6.3.4
+  # svelte + kit (SvelteKit 3 only). Svelte stays on 5.57.2: 5.57.3's branded `Snippet` rejects
+  # svelte-check's type for a snippet declared inside `{#each}` (upstream; #126).
+  svelte: 5.57.2
+  '@sveltejs/kit': ^3.1.1
+  '@sveltejs/vite-plugin-svelte': ^7.3.1
+  '@sveltejs/adapter-node': ^6.0.1
+  '@sveltejs/adapter-vercel': ^7.0.2
   svelte-check: ^4.7.4
   svelte2tsx: ^0.7.60
   # build
@@ -69,11 +70,11 @@ catalogs:
   # Wider than what we test with (the default catalog), on purpose.
   peers:
     '@playwright/test': ^1.62.0
-    '@sveltejs/kit': '>=2.70.2 <4'
+    '@sveltejs/kit': ^3.0.0
     playwright: ^1.62.0
     rolldown: '>=1.0.0'
     shiki: ^3.0.0 || ^4.0.0
-    svelte: ^5.56.8
+    svelte: ^5.57.1
     vite: ^8.2.4
   # TypeScript 7 (the native compiler): the root's, and `@typescript/native` beside TypeScript 6 in
   # every package and app that runs `tsc` (its `tsc` bin wins the name, so `tsc -p …` is 7), while
