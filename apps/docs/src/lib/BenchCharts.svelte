@@ -1,26 +1,19 @@
 <script lang="ts">
-	// Renders the committed ogygiaBench results (bench/results/latest.json, copied here) as charts.
+	// Renders the framework benchmark's newest `main` run (ogygiajs/benchmarks, read at build time,
+	// the committed copy when that fails) as charts.
 	// Headline: client JS vs post length — islands stay flat, whole-page hydration climbs.
-	import data from '$lib/bench/results.json';
+	import { bench_results, type BenchFramework as Fw } from '$lib/bench/results.remote';
 
-	type Row = {
-		post: string;
-		words: number;
-		jsRaw: number;
-		jsBr: number;
-		htmlRaw: number;
-		htmlBr: number;
-		score: number;
-		lcp: number;
-		cls: number;
-		tbt: number;
-		evalMs: number;
-		dom: number;
-	};
-	type Fw = { id: string; approach: string; rows: Row[]; avg: Row };
-
-	const frameworks = data.frameworks as unknown as Fw[];
-	const posts = data.posts as { id: string; words: number }[];
+	const data = await bench_results();
+	const { frameworks, posts, meta } = data;
+	const run_date = meta?.runAt ? new Date(meta.runAt) : null;
+	const measured = [
+		meta?.ogygia && `ogygia ${meta.ogygia}`,
+		run_date &&
+			!Number.isNaN(run_date.getTime()) &&
+			`run on ${run_date.toISOString().slice(0, 10)}`,
+		meta?.passes && `median of ${meta.passes} passes`
+	].filter(Boolean);
 
 	const COLOR: Record<string, string> = {
 		ogygia: '#2563eb',
@@ -140,11 +133,15 @@
 		{/each}
 	</div>
 	<p class="src">
-		Mobile Lighthouse, simulated throttling. Sizes are brotli/raw of all JS the page loads. Method
-		ported from
+		{#if measured.length}Measured: {measured.join(', ')}.{/if}
+		Mobile Lighthouse, simulated throttling. Sizes are brotli/raw of all JS the page loads. Method ported
+		from
 		<a href="https://github.com/khromov/interactive-blogs-benchmark"
 			>khromov/interactive-blogs-benchmark</a
-		>. Reproduce: <code>pnpm run e2e</code> is separate; see <code>bench/</code>.
+		>. Run and published by
+		<a href="https://github.com/ogygiajs/benchmarks">ogygiajs/benchmarks</a>{#if data.fallback}
+			(these are the last numbers copied into the docs: the newest run could not be read when this
+			page was built){/if}.
 	</p>
 </div>
 

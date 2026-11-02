@@ -38,7 +38,7 @@ On the dev server, a launcher appears at the bottom of each `csr = false` page. 
 
 ### What measuring costs the page
 
-The devtools measure the page they show, so they must not change what they measure. Loaded one after the other with measuring on and off, a heavy page (17,000 elements, 30 islands) takes about 15 ms more main-thread time and 1.6 KB more HTML (the server's events), with no measurable change in server time. With the dock open, each tab does at most a few ms of its own work every 3 seconds and never causes a long task. `internal/bench/devtools-build-check.ts` checks the first two numbers on every run.
+The devtools measure the page they show, so they must not change what they measure. Loaded one after the other with measuring on and off, a heavy page (17,000 elements, 30 islands) takes about 15 ms more main-thread time and 1.6 KB more HTML (the server's events), with no measurable change in server time. With the dock open, each tab does at most a few ms of its own work every 3 seconds and never causes a long task. `internal/checks/devtools-build-check.ts` checks the first two numbers on every run.
 
 ### In a build (a preview deploy)
 
@@ -134,7 +134,7 @@ On a Kit-hydrated (`csr = true`) page ogygia's runtime never boots, so there are
 After an in-app navigation (where ogygia's router swaps the page without a reload), the tab reports on the new page, and its findings and island rows count from the navigation. An island that appears on both pages with the same props is kept by the router, still awake, with no code to load and nothing to hydrate. The tab lists such islands as kept, so a page whose islands were all reused does not read as "nothing woke". The Styles section reads the new page's sheets. The vitals stay those of the first page's load, labelled as such, because a navigation paints nothing the browser reports. The load CPU trace also belongs to the first page, so record the main thread again for the new one.
 
 ::: tip Checked against planted problems
-The playground's `/dt-lab` page plants one problem per island next to healthy decoys. `internal/bench/devtools-answer-key.ts` loads it like a hurried visitor and checks that each problem is found on its island and that no decoy is named. `/dt-third` plants other origins (a blocking script that edits an island, and a script that loads three more). `/dt-styles` plants an unscoped component and a sheet of 600 rules for markup the page does not have. On `/dt-many` (320 islands, scrolled) the key checks the runtime itself: no island may wait with nothing ahead of it. `internal/bench/devtools-click-check.ts` presses every button, link, row and chip in every tab on each lab page, and each press must change something, throw nothing and stay on the page. `internal/bench/profiler-click-check.ts` does the same on a profiler report, the dashboard and the compare page. The same key also checks the profiler's report of the same visits, and `internal/bench/all-keys.ts` runs every key, each against the server it needs.
+The playground's `/dt-lab` page plants one problem per island next to healthy decoys. `internal/checks/devtools-answer-key.ts` loads it like a hurried visitor and checks that each problem is found on its island and that no decoy is named. `/dt-third` plants other origins (a blocking script that edits an island, and a script that loads three more). `/dt-styles` plants an unscoped component and a sheet of 600 rules for markup the page does not have. On `/dt-many` (320 islands, scrolled) the key checks the runtime itself: no island may wait with nothing ahead of it. `internal/checks/devtools-click-check.ts` presses every button, link, row and chip in every tab on each lab page, and each press must change something, throw nothing and stay on the page. `internal/checks/profiler-click-check.ts` does the same on a profiler report, the dashboard and the compare page. The same key also checks the profiler's report of the same visits, and `internal/checks/all-keys.ts` runs every key, each against the server it needs.
 :::
 
 ## Recording a session
@@ -161,7 +161,7 @@ With the profiler on, **and the server** (on by default) records the server over
 | slow navigation        | An in-app navigation took half a second or more.                                                                                                                                                                                          |
 
 ::: tip Checked against planted problems
-The playground's `/dt-session` page plants one problem per island (a slow handler, a late answer, a late banner, repeated and failed requests, an error, DOM churn), along with a dead button and a healthy decoy. `internal/bench/devtools-session-key.ts` records a session there the way a visitor would and checks that each problem is found and named and that the decoy is never named.
+The playground's `/dt-session` page plants one problem per island (a slow handler, a late answer, a late banner, repeated and failed requests, an error, DOM churn), along with a dead button and a healthy decoy. `internal/checks/devtools-session-key.ts` records a session there the way a visitor would and checks that each problem is found and named and that the decoy is never named.
 :::
 
 ## The Hydration tab
@@ -190,7 +190,7 @@ Click a roster row, or use "pick on page" and click a region, to open its detail
 
 ## Keyboard and screen readers
 
-The dock is a heading with a tab list. Screen readers announce the tabs as tabs with the open one selected, and the panel below them is a region you can focus and scroll with the keyboard. Its text meets 4.5:1 contrast. Tab reaches everything you can click, and a row's name is a button, so Enter opens the row the same way a click does. `internal/bench/devtools-a11y-check.ts` checks every tab with axe, measures the contrast of each piece of text against the background under it, and fails on any control that only a mouse can press.
+The dock is a heading with a tab list. Screen readers announce the tabs as tabs with the open one selected, and the panel below them is a region you can focus and scroll with the keyboard. Its text meets 4.5:1 contrast. Tab reaches everything you can click, and a row's name is a button, so Enter opens the row the same way a click does. `internal/checks/devtools-a11y-check.ts` checks every tab with axe, measures the contrast of each piece of text against the background under it, and fails on any control that only a mouse can press.
 
 ## Writing a sink
 

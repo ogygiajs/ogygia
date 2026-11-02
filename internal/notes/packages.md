@@ -462,7 +462,7 @@ Core rename goes LAST: many build paths key off the package name `ogygia`.
     other core packaging specs stay here); devtools 17 (devtools, profiler-serverless,
     profiler-window-instances, dev-installed — against the DEVTOOLS LAB: every dt-* lab, the profiler's
     answer-key pages hell / inferno / purgatory / limbo / latecomer (+ -fixed twins), score-lab, slow-io,
-    nettest moved here; copies of the palaestra pages the specs and the internal/bench answer keys
+    nettest moved here; copies of the palaestra pages the specs and the internal/checks answer keys
     visit — /, /interaction, /kit, /portable-snippet, /props-tail, /transportable, /wake-gate,
     /head-budget-kit, /detector, /plain, /restore-lab, /nested-hole, /heavy, /api; the build is a
     globalSetup); testing 10 (against the devtools lab's dev server); federation 9 (examples/mfe stays

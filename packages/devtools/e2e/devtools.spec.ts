@@ -642,7 +642,7 @@ test.describe('devtools (dev server, OGYGIA_DEVTOOLS=1): events, panel tabs, pag
 	});
 
 	// ── Page tab: the browser's view of the visit (the beacon, read live) on the planted lab ──
-	// (the full grading, with repeats, is internal/bench/devtools-answer-key.ts)
+	// (the full grading, with repeats, is internal/checks/devtools-answer-key.ts)
 	test("page: the lab page's planted problems are found, pinned on their islands, and shown", async ({
 		page
 	}) => {

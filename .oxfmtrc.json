@@ -21,7 +21,7 @@
 		"kit/**",
 		"pnpm-lock.yaml",
 		"**/CHANGELOG.md",
-		"internal/bench/results/**",
+		"internal/checks/results/**",
 		"apps/docs/src/lib/bench/results.json",
 		"apps/palaestra/e2e/bundle-size.snapshot.json"
 	]

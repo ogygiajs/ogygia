@@ -5,7 +5,7 @@ import { defineConfig } from 'vite';
 
 // THE DEVTOOLS LAB: @ogygia/devtools' e2e fixture app. Its pages plant known problems (the dt-* labs,
 // the profiler's hell / inferno / purgatory / limbo / latecomer answer-key pages, the score lab) for
-// the dock, the profiler and @ogygia/testing to find; the answer keys in internal/bench drive it too.
+// the dock, the profiler and @ogygia/testing to find; the answer keys in internal/checks drive it too.
 export default defineConfig({
 	// (the profiler's server build writes hidden maps by itself; PROFILER_NO_SOURCEMAPS=1 builds without
 	// any, the way an app that turned them off does — what the answer key's `--no-maps` measures)
