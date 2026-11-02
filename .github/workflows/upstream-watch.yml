@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   upstream:
-    name: upstream (SvelteKit ${{ matrix.kit }})
+    name: upstream (SvelteKit ${{ matrix.kit }} on ${{ matrix.ref }})
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
@@ -25,10 +25,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # SvelteKit 2: main. `^2` takes the newest 2.x, never a 3.
+          # main supports SvelteKit 2 AND 3: both. `^2` takes the newest 2.x, never a 3.
           - { kit: 2, ref: main, kit_spec: '^2' }
-          # SvelteKit 3: the branch that supports it (main refuses Kit 3: it still has a
-          # `svelte.config.js`). Flip to main when kit3-compat merges.
+          - { kit: 3, ref: main, kit_spec: 'latest' }
+          # kit3-compat is the SvelteKit-3-only line
           - { kit: 3, ref: kit3-compat, kit_spec: 'latest' }
     steps:
       - uses: actions/checkout@v4
@@ -57,9 +57,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .turbo/cache
-          key: turbo-${{ runner.os }}-${{ github.workflow }}-kit${{ matrix.kit }}-${{ github.sha }}
+          key: turbo-${{ runner.os }}-${{ github.workflow }}-kit${{ matrix.kit }}-${{ matrix.ref }}-${{ github.sha }}
           restore-keys: |
-            turbo-${{ runner.os }}-${{ github.workflow }}-kit${{ matrix.kit }}-
+            turbo-${{ runner.os }}-${{ github.workflow }}-kit${{ matrix.kit }}-${{ matrix.ref }}-
             turbo-${{ runner.os }}-
 
       # Playwright before the baseline: the baseline runs the browser project too. Cached per
@@ -136,7 +136,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          LINE: SvelteKit ${{ matrix.kit }}
+          LINE: SvelteKit ${{ matrix.kit }} on ${{ matrix.ref }}
           REF: ${{ matrix.ref }}
           KIT_SPEC: ${{ matrix.kit_spec }}
         run: |
