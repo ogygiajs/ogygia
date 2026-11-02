@@ -1,6 +1,6 @@
 /**
  * The framework benchmark's numbers for the performance page. The benchmark lives in its own repo
- * (ogygiajs/benchmarks) and publishes each run on `main` to a `results` branch; this reads the newest
+ * (ogygiajs/bench) and publishes each run on `main` to a `results` branch; this reads the newest
  * one once, at build time (a prerender remote: the page is static, so nothing fetches at runtime).
  * A docs build must never fail on the network, so any miss (offline, a 404, a timeout, a file the
  * chart could not draw) falls back to the committed copy next to this file.
@@ -8,7 +8,7 @@
 import { prerender } from '$app/server';
 import committed from './results.json';
 
-const LIVE = 'https://raw.githubusercontent.com/ogygiajs/benchmarks/results/main/latest.json';
+const LIVE = 'https://raw.githubusercontent.com/ogygiajs/bench/results/main/latest.json';
 
 export type BenchRow = {
 	post: string;

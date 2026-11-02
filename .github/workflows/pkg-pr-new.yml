@@ -3,7 +3,7 @@ name: pkg.pr.new
 # Publishes a continuous PREVIEW build of `ogygia` for every push / PR, so a branch can be tested
 # with `npm i https://pkg.pr.new/ogygiajs/ogygia@<sha-or-branch>` before anything hits npm.
 # Requires the pkg.pr.new GitHub App installed on the repo: https://github.com/apps/pkg-pr-new
-# Once published, it asks ogygiajs/benchmarks to measure the build (the last step).
+# Once published, it asks ogygiajs/bench to measure the build (the last step).
 
 on:
   push:
@@ -74,7 +74,7 @@ jobs:
           './packages/federation' './packages/content' './packages/devtools' './packages/router'
           './packages/testing' './packages/cli'
 
-      # Ask ogygiajs/benchmarks to measure what was just published (it installs this commit's build
+      # Ask ogygiajs/bench to measure what was just published (it installs this commit's build
       # from pkg.pr.new). A PR commit is requested by the pull_request run only (the push run of the
       # same commit stays quiet, so nothing runs twice), and a push to main becomes the new baseline.
       # Forks and drafts are skipped, version PRs never get here (the job's `if`). This never fails
@@ -103,5 +103,5 @@ jobs:
           else
             set -- -f event_type=ogygia-main -f "client_payload[sha]=$HEAD_SHA"
           fi
-          gh api repos/ogygiajs/benchmarks/dispatches "$@" ||
-            echo "::warning::ogygiajs/benchmarks refused the benchmark request (check BENCH_TOKEN)"
+          gh api repos/ogygiajs/bench/dispatches "$@" ||
+            echo "::warning::ogygiajs/bench refused the benchmark request (check BENCH_TOKEN)"

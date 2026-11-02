@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Renders the framework benchmark's newest `main` run (ogygiajs/benchmarks, read at build time,
+	// Renders the framework benchmark's newest `main` run (ogygiajs/bench, read at build time,
 	// the committed copy when that fails) as charts.
 	// Headline: client JS vs post length — islands stay flat, whole-page hydration climbs.
 	import { bench_results, type BenchFramework as Fw } from '$lib/bench/results.remote';
@@ -139,7 +139,7 @@
 		<a href="https://github.com/khromov/interactive-blogs-benchmark"
 			>khromov/interactive-blogs-benchmark</a
 		>. Run and published by
-		<a href="https://github.com/ogygiajs/benchmarks">ogygiajs/benchmarks</a>{#if data.fallback}
+		<a href="https://github.com/ogygiajs/bench">ogygiajs/bench</a>{#if data.fallback}
 			(these are the last numbers copied into the docs: the newest run could not be read when this
 			page was built){/if}.
 	</p>
