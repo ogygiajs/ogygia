@@ -51,6 +51,13 @@ jobs:
           github-token: ${{ secrets.SHIP_TOKEN || github.token }}
       # main matches npm: just published, or no changeset is pending. A fast-forward only: latest
       # is only ever set from main, so a refused push means someone moved it by hand.
+      # Pushed with the workflow's own GITHUB_TOKEN, not SHIP_TOKEN (checkout's credentials): the
+      # "latest: only the release workflow" ruleset lets GitHub Actions update latest and nobody else.
       - name: Move the latest branch to main
         if: steps.changesets.outputs.published == 'true' || steps.changesets.outputs.has-changesets == 'false'
-        run: git push origin HEAD:refs/heads/latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.https://github.com/.extraheader= -c "http.https://github.com/.extraheader=$auth" \
+            push origin HEAD:refs/heads/latest
