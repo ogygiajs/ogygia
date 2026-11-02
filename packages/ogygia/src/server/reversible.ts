@@ -481,9 +481,11 @@ const attr_map = (attrs: Attr[]): Record<string, string> => {
  * gives (Svelte's children in the light DOM), never in the transform's server form only the
  * component's first hydrate reads (that form, morphed into a live host, left the transform's tree in
  * its light DOM: a site nav collapsed to one unstyled item after an in-place navigation). In a
- * document loaded as one, every one in Svelte-owned markup, and every one with Svelte-owned markup
- * below it (a server-owned host around an island: adopting it would reach into the island). A first
- * pass, so the marking pass knows a host's plan before it reaches the host's children.
+ * document loaded as one, every one in Svelte-owned markup, and every one with Svelte-owned markup or
+ * a hole below it (a server-owned host around an island or a hole: adopting it would reach into a
+ * region ogygia hydrates or swaps — a web component relocating its slotted children moved a hole's
+ * fallback twice, and its tabs kept a second copy of a document listener). A first pass, so the
+ * marking pass knows a host's plan before it reaches the host's children.
  */
 function plan_hosts(html: string, kind: TransformKind, csr: boolean, answer: boolean): boolean[] {
 	const planned: boolean[] = [];
@@ -499,14 +501,21 @@ function plan_hosts(html: string, kind: TransformKind, csr: boolean, answer: boo
 			const parent = stack[stack.length - 1];
 			const foreign = name === 'svg' || name === 'math' || !!parent?.foreign;
 			let owned = (name === 'body' && kind === 'document' && csr) || (parent ? parent.owned : false);
-			if (name === 'ogygia-region') owned = region_kind(parse_attrs(html, tok.name_end, tok.end - 1)) === 'island';
+			// a hole: ogygia swaps its inside rather than hydrating it — not Svelte-owned, but reached into
+			let swapped = false;
+			if (name === 'ogygia-region') {
+				const region = region_kind(parse_attrs(html, tok.name_end, tok.end - 1));
+				owned = region === 'island';
+				swapped = region === 'hole';
+			}
 			let host = -1;
 			if (in_body && is_custom(name, foreign)) {
 				host = planned.length;
 				planned.push(answer || kind !== 'document' || owned);
 			}
-			// Svelte-owned markup starts here: every host above it gets the plan
-			if (owned && !(parent ? parent.owned : false)) for (const f of stack) if (f.host !== -1) planned[f.host] = true;
+			// markup ogygia hydrates (Svelte-owned) or swaps (a hole) starts here: every host above it gets the plan
+			if ((owned || swapped) && !(parent ? parent.owned : false))
+				for (const f of stack) if (f.host !== -1) planned[f.host] = true;
 			if (!(VOID.has(name) || (tok.self && foreign))) push(stack, { name, host, owned, foreign });
 		} else if (tok.t === 'end') {
 			pop_to(stack, tok.name);
