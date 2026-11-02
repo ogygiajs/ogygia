@@ -140,18 +140,18 @@ The empty context `{}` is the public, prerendered view. A site gated by context 
 ::: details The full options bag
 Every `site()` key at a glance; `outline` is the only required one.
 
-| key          | what it does                                                                           |
-| ------------ | -------------------------------------------------------------------------------------- |
-| `outline`    | a collection, an `outline([...])` spec, or `dimensions()`: the arrangement             |
-| `data`       | `{ title, description, origin }`: site facts; emissions default from here              |
-| `base`       | default mount prefix for each read; a per-call `{ base }` overrides                    |
-| `prevNext`   | `'order'` (default) or `'graph'`: how "keep reading" is chosen                         |
-| `trail`      | `'site'` (default) or `'group'`: whether prev/next crosses section boundaries          |
+| key          | what it does                                                                                 |
+| ------------ | -------------------------------------------------------------------------------------------- |
+| `outline`    | a collection, an `outline([...])` spec, or `dimensions()`: the arrangement                   |
+| `data`       | `{ title, description, origin }`: site facts; emissions default from here                    |
+| `base`       | default mount prefix for each read; a per-call `{ base }` overrides                          |
+| `prevNext`   | `'order'` (default) or `'graph'`: how "keep reading" is chosen                               |
+| `trail`      | `'site'` (default) or `'group'`: whether prev/next crosses section boundaries                |
 | `checks`     | `[links(), ...yours]`: corpus invariants; see [Checks](/docs/content/sites/checks)           |
 | `components` | markdown element overrides, as real component values; see [Shell](/docs/content/sites/shell) |
-| `context`    | derive `{ preview, roles, … }` from the request; threads into collection filters       |
+| `context`    | derive `{ preview, roles, … }` from the request; threads into collection filters             |
 | `search`     | `{ engine }`: swap the search engine; see [Search](/docs/content/sites/search)               |
-| `redirects`  | old addresses per entry (the default reads `data.redirect_from`): baked 308 stubs      |
+| `redirects`  | old addresses per entry (the default reads `data.redirect_from`): baked 308 stubs            |
 :::
 
 ## The map

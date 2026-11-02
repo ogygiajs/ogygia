@@ -33,15 +33,15 @@ pnpm add -D @ogygia/cli
 
 ## The commands
 
-| Command                       | What it does                                                                                        | Goes with                                      |
-| ----------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `ogygia init [--markdown]`    | Wires ogygia into an app; `--markdown` adds content collections.                                    | [`ogygia`](/docs/start/install)                |
-| `ogygia site init`            | Scaffolds a docs site: a collection, its `site()`, routes and a `DocsShell` layout.                 | [`@ogygia/content`](/docs/content/overview)    |
-| `ogygia ai` · `ogygia mcp`    | Installs the ogygia skill for AI agents and registers the MCP server; `mcp` runs the server.        | `ogygia`, `@ogygia/devtools`                   |
-| `ogygia perf`                 | Renders pages under the profiler on a running server and judges them against a budget.              | [`@ogygia/devtools`](/docs/devtools/overview)  |
-| `ogygia bisect`               | Finds the first commit that made a page slower.                                                     | [`@ogygia/devtools`](/docs/devtools/overview)  |
-| `ogygia keys <name>`          | Makes an Ed25519 key pair for an app.                                                               | [`@ogygia/federation`](/docs/federation/overview) |
-| `ogygia fragments <origin>`   | Writes typed stubs for a peer's widgets, from its catalog.                                          | [`@ogygia/federation`](/docs/federation/overview) |
+| Command                     | What it does                                                                                 | Goes with                                         |
+| --------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `ogygia init [--markdown]`  | Wires ogygia into an app; `--markdown` adds content collections.                             | [`ogygia`](/docs/start/install)                   |
+| `ogygia site init`          | Scaffolds a docs site: a collection, its `site()`, routes and a `DocsShell` layout.          | [`@ogygia/content`](/docs/content/overview)       |
+| `ogygia ai` · `ogygia mcp`  | Installs the ogygia skill for AI agents and registers the MCP server; `mcp` runs the server. | `ogygia`, `@ogygia/devtools`                      |
+| `ogygia perf`               | Renders pages under the profiler on a running server and judges them against a budget.       | [`@ogygia/devtools`](/docs/devtools/overview)     |
+| `ogygia bisect`             | Finds the first commit that made a page slower.                                              | [`@ogygia/devtools`](/docs/devtools/overview)     |
+| `ogygia keys <name>`        | Makes an Ed25519 key pair for an app.                                                        | [`@ogygia/federation`](/docs/federation/overview) |
+| `ogygia fragments <origin>` | Writes typed stubs for a peer's widgets, from its catalog.                                   | [`@ogygia/federation`](/docs/federation/overview) |
 
 ## With other packages
 

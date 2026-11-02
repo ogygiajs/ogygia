@@ -77,7 +77,7 @@ A stored page can still carry per-visitor parts. A [server island](/docs/regions
 
 ## With other packages
 
-- **[@ogygia/router](/docs/router/overview).** A route table sets the same `config` key at table, layout and page level: `page(Account, { config: { postrender: false } })`. [Programmatic routes](/docs/postrender/guide#programmatic-routes) has the full example.
+- **[@ogygia/router](/docs/router/overview).** A route table sets the same `config` key at table, layout and page level: `page(Account, { config: { postrender: false } })`. [Programmatic routes](/docs/postrender/guide#whole-app-or-opt-in-programmatic-routes) has the full example.
 - **[@ogygia/flags](/docs/flags/overview).** Each flag read marks the render as per-visitor, so a page that runs an A/B test is never stored with one visitor's variant. List the `flags()` plugin for this to work.
 - **[@ogygia/federation](/docs/federation/overview).** A remote fragment is a region, so a publish or a deploy on another team clears every stored page that baked its fragments ([cross-app thaw](/docs/federation/guide#cross-app-thaw)).
 - **[@ogygia/devtools](/docs/devtools/overview).** The SSR profiler notices a page that renders the same bytes on every request, with no personal reads, and names it as one a cache or postrender could answer ([Reading a report](/docs/devtools/profiler/reading-reports)).

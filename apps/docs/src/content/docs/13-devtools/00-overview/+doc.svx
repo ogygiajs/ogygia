@@ -39,9 +39,9 @@ export default defineConfig(({ mode }) => ({
 
 ## The plugin options
 
-| Option     | Default | What it does                                                                                                                                                                        |
-| ---------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dock`     | `true`  | The dock. On the dev server a launcher shows on every `csr = false` page. In a build it stays hidden until a browser turns it on with `?og-devtools=on`.                            |
+| Option     | Default | What it does                                                                                                                                                                               |
+| ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `dock`     | `true`  | The dock. On the dev server a launcher shows on every `csr = false` page. In a build it stays hidden until a browser turns it on with `?og-devtools=on`.                                   |
 | `profiler` | off     | `true`, or the profiler's options (`{ secret, path, sampleInterval, … }`, listed under [Options](/docs/devtools/profiler/recording#options)). In production, set `OGYGIA_PROFILER_SECRET`. |
 
 The list is code, so the example above keeps devtools out of production builds; a preview or QA build can keep them and stay invisible to visitors ([In a build](/docs/devtools/dock#enabling-in-a-build-a-preview-deploy)).

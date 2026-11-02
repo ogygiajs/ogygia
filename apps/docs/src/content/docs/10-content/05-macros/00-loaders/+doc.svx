@@ -47,7 +47,7 @@ An argument that contains glob syntax (`*`, `{}`, `?`), or names a single file, 
 
 Each loader accepts the same second `opts` argument as its underlying builder. `folder` and `git` pass folder options (`page`, `meta`, `convention`) through, so you control ordering and labels.
 
-One option belongs to the macro itself and is consumed at compile time rather than passed on: **`preset`**, a literal name from [`content({ presets })`](/docs/reference/api#ogygiavite-content). It opts the whole collection into a markdown variant (different `overrides`, themes or transformers) without changing the app's default:
+One option belongs to the macro itself and is consumed at compile time rather than passed on: **`preset`**, a literal name from [`content({ presets })`](/docs/content/api/config#the-content-plugin). It opts the whole collection into a markdown variant (different `overrides`, themes or transformers) without changing the app's default:
 
 ```ts
 loader: import.meta.og.loader.folder('../content/blog', { preset: 'plain' })

@@ -11,12 +11,12 @@ A performance problem that you find by hand in the devtools tends to come back a
 
 It is a test helper, not a plugin: nothing goes in `vite.config.ts` for it. It gives you four primitives on an `ogygia` fixture:
 
-| Primitive         | What it measures                                                                                         |
-| ----------------- | -------------------------------------------------------------------------------------------------------- |
-| `page()`          | The page load as the browser measured it: vitals, each island's wake, and the dock's Page tab findings.  |
-| `hydration()`     | Each island's hydration status, with the difference for one whose markup changed.                         |
-| `record(actions)` | What your actions did: slow interactions, dead clicks, requests, long tasks, shifts and errors.           |
-| `profile(path)`   | The SSR profiler's report for a path: score, forecast, findings and weight.                               |
+| Primitive         | What it measures                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------------- |
+| `page()`          | The page load as the browser measured it: vitals, each island's wake, and the dock's Page tab findings. |
+| `hydration()`     | Each island's hydration status, with the difference for one whose markup changed.                       |
+| `record(actions)` | What your actions did: slow interactions, dead clicks, requests, long tasks, shifts and errors.         |
+| `profile(path)`   | The SSR profiler's report for a path: score, forecast, findings and weight.                             |
 
 ## Install
 

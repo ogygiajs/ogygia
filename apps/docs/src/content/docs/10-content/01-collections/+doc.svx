@@ -40,7 +40,7 @@ import { content } from '@ogygia/content/vite';
 plugins: [ogygia(), content({ markdown: {} }), sveltekit()]
 ```
 
-The `markdown` option turns the markdown pipeline on; a collection over JSON, a CMS or an API needs only `content()`. On the dev server, the plugin reloads the page when a file under `src/content` changes; content kept elsewhere can be watched too, with the `watchDirs` option described in the [API reference](/docs/reference/api#ogygiavite-content). For markdown, `svelte.config.js` also takes `preprocess()` and `extensions()` from `@ogygia/content/vite` (see [Install](/docs/start/install)). To get the macro types (`import.meta.og.loader`, `og.code`, `og.md`), add one line to `src/ogygia.d.ts`:
+The `markdown` option turns the markdown pipeline on; a collection over JSON, a CMS or an API needs only `content()`. On the dev server, the plugin reloads the page when a file under `src/content` changes; content kept elsewhere can be watched too, with the `watchDirs` option described in the [API reference](/docs/content/api/config#the-content-plugin). For markdown, `svelte.config.js` also takes `preprocess()` and `extensions()` from `@ogygia/content/vite` (see [Install](/docs/start/install)). To get the macro types (`import.meta.og.loader`, `og.code`, `og.md`), add one line to `src/ogygia.d.ts`:
 
 ```ts
 /// <reference types="@ogygia/content/types" />
@@ -207,12 +207,12 @@ That is how the live demos in these docs run inside the prose.
 
 A `loader` does not have to be a glob. Any object with `refs` / `get` is a source, so the same collection API covers a REST API or a CMS, and everything else (the schema, `filter`, the wire remotes) works exactly as it does for a file-backed collection.
 
-| Source                    | Write                                                                                                       |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Source                    | Write                                                                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | Static files in repo      | the [`loader` macro](/docs/content/macros/loaders): `import.meta.og.loader.markdown` · `.folder` · `.json` · `.git` |
 | Blocks (CMS tree)         | [`blocks(source, registry)`](/docs/content/blocks) with a [`regions()`](/docs/content/macros/regions) registry      |
-| A REST API                | a `{ refs, get }` source that fetches                                                                       |
-| Something that **pushes** | add `live()` (a change signal) plus `live.list` / `live.get`                                                |
+| A REST API                | a `{ refs, get }` source that fetches                                                                               |
+| Something that **pushes** | add `live()` (a change signal) plus `live.list` / `live.get`                                                        |
 
 A source is two async methods: `refs()` lists the corpus as light metadata, and `get(id)` fetches one full entry.
 

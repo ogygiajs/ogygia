@@ -31,10 +31,16 @@
 	function onkeydown(e: KeyboardEvent) {
 		if (!root?.open) {
 			// From the closed button, ArrowDown opens the menu on its current item.
-			if (e.key === 'ArrowDown' && e.target instanceof HTMLElement && e.target.tagName === 'SUMMARY') {
+			if (
+				e.key === 'ArrowDown' &&
+				e.target instanceof HTMLElement &&
+				e.target.tagName === 'SUMMARY'
+			) {
 				e.preventDefault();
 				root!.open = true;
-				requestAnimationFrame(() => (links().find((a) => a.hasAttribute('aria-current')) ?? links()[0])?.focus());
+				requestAnimationFrame(() =>
+					(links().find((a) => a.hasAttribute('aria-current')) ?? links()[0])?.focus()
+				);
 			}
 			return;
 		}
@@ -47,7 +53,8 @@
 			return;
 		}
 		if (e.key === 'ArrowDown') next = at < 0 ? 0 : (at + 1) % list.length;
-		else if (e.key === 'ArrowUp') next = at < 0 ? list.length - 1 : (at - 1 + list.length) % list.length;
+		else if (e.key === 'ArrowUp')
+			next = at < 0 ? list.length - 1 : (at - 1 + list.length) % list.length;
 		else if (e.key === 'Home') next = 0;
 		else if (e.key === 'End') next = list.length - 1;
 		if (next >= 0) {
