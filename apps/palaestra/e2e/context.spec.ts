@@ -13,6 +13,7 @@ const PLAIN_COUNT_RE = /data-plain-count="5"/;
 const SSR_LAKE_COUNT_RE = /data-ctx-reader="in-lake"[^>]*>[\s\S]*?data-ctx-count[^>]*>(-?\d+)</;
 const PROVIDE_PAGE_RE = /data-ogygia-provide-page/;
 const SSR_SETCTX_THEME_RE = /data-setctx-reader="load"[^>]*data-setctx-theme="([^"]*)"/;
+const SSR_SETCTX_LAKE_THEME_RE = /data-setctx-reader="lake"[^>]*data-setctx-theme="([^"]*)"/;
 
 test.describe('Provide + drop-in setContext + createContext: DOM-bridged, live across roots', () => {
 	test('SSR of the matrix page + hydrated matrix + liveness', async ({ page, baseURL }) => {
@@ -264,5 +265,52 @@ test.describe('Provide + drop-in setContext + createContext: DOM-bridged, live a
 			.getAttribute('data-setctx-count');
 		check('setContext visible: reads context + late-joins (9)', svis === '9', `count=${svis}`);
 		check('setContext: no page errors', serrs.length === 0, serrs.join(' | '));
+	});
+
+	// ---------- Drop-in setContext on a csr=true page ----------
+	// Kit hydrates the page, but an island inside a lake is ogygia's: a separate hydration root whose
+	// only way to the page's context is the page marker. A host-only key stays out of it.
+	test('Drop-in setContext reaches an island in a lake on a csr=true page', async ({
+		page,
+		baseURL
+	}) => {
+		const kraw = await (await fetch(baseURL + '/ctx-setcontext-kit')).text();
+		check('csr=true SSR: page-level marker emitted', PROVIDE_PAGE_RE.test(kraw));
+		check(
+			'csr=true SSR: host-only key not in the marker',
+			!kraw.includes('never shipped to islands')
+		);
+		const ssrTheme = kraw.match(SSR_SETCTX_LAKE_THEME_RE)?.[1];
+		check('csr=true SSR: island reads context (harbour)', ssrTheme === 'harbour', ssrTheme);
+
+		const kerrs: string[] = [];
+		page.on('pageerror', (e) => kerrs.push(e.message));
+		await page.goto('/ctx-setcontext-kit', { waitUntil: 'networkidle' });
+		await page.locator('[data-kit-btn]').click();
+		check(
+			'csr=true: Kit hydrated the page',
+			(await page.locator('[data-kit-btn]').textContent()) === 'kit:1'
+		);
+		const reader = page.locator('[data-setctx-reader="lake"]');
+		await reader.scrollIntoViewIfNeeded();
+		await page.waitForFunction(
+			() =>
+				document.querySelector('[data-setctx-reader="lake"]')?.closest('[data-hydrated]') !== null,
+			null,
+			{ timeout: 5000 }
+		);
+		check(
+			'csr=true client: theme = harbour',
+			(await reader.getAttribute('data-setctx-theme')) === 'harbour'
+		);
+		check(
+			'csr=true client: appName = playground-kit',
+			(await reader.getAttribute('data-setctx-app')) === 'playground-kit'
+		);
+		check('csr=true: no page errors', kerrs.length === 0, kerrs.join(' | '));
+
+		// No island ogygia wakes on the page: Kit hydrates everything, no marker ships.
+		const plain = await (await fetch(baseURL + '/ctx-setcontext-kit/plain')).text();
+		check('csr=true, Kit-only page: no marker', !PROVIDE_PAGE_RE.test(plain));
 	});
 });
