@@ -11,7 +11,7 @@ related:
 	import BenchCharts from '$lib/BenchCharts.svelte';
 </script>
 
-This page compares ogygia, an islands library for SvelteKit, with other frameworks on the same pages. The benchmark has its own public repository, [ogygiajs/benchmarks](https://github.com/ogygiajs/benchmarks), where you can read the code and reproduce every measurement.
+This page compares ogygia, an islands library for SvelteKit, with other frameworks on the same pages. The benchmark has its own public repository, [ogygiajs/bench](https://github.com/ogygiajs/bench), where you can read the code and reproduce every measurement.
 
 ## The benchmark
 
@@ -66,11 +66,11 @@ On payload alone, the island frameworks end up close to each other, so the bigge
 
 ## Where the numbers come from
 
-[ogygiajs/benchmarks](https://github.com/ogygiajs/benchmarks) runs the full benchmark on every change to ogygia's `main` branch and publishes the results. This page reads the newest of those results when the docs are built, so the charts show the latest `main` and name the ogygia version that was measured. If that read fails, the page falls back to the last copy of the results kept in the docs.
+[ogygiajs/bench](https://github.com/ogygiajs/bench) runs the full benchmark on every change to ogygia's `main` branch and publishes the results. This page reads the newest of those results when the docs are built, so the charts show the latest `main` and name the ogygia version that was measured. If that read fails, the page falls back to the last copy of the results kept in the docs.
 
 The same repository also benchmarks every ogygia pull request against `main` and posts the difference on the pull request, so a change that makes pages slower or heavier shows up before it merges.
 
-To reproduce a run yourself, follow the README in [ogygiajs/benchmarks](https://github.com/ogygiajs/benchmarks). The runtime size for each feature profile is measured in this repository:
+To reproduce a run yourself, follow the README in [ogygiajs/bench](https://github.com/ogygiajs/bench). The runtime size for each feature profile is measured in this repository:
 
 ```bash
 # isolated runtime size per feature profile (rolldown, brotli)

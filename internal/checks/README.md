@@ -6,7 +6,7 @@ them from the repository root, for example `node internal/checks/all-keys.ts`.
 
 The framework benchmark (ogygia against SvelteKit, Astro and Mochi, Lighthouse and bytes) no longer
 lives here. It moved to its own public repository,
-[ogygiajs/benchmarks](https://github.com/ogygiajs/benchmarks), which benchmarks every ogygia pull
+[ogygiajs/bench](https://github.com/ogygiajs/bench), which benchmarks every ogygia pull
 request and every push to `main`.
 
 ## Answer keys
