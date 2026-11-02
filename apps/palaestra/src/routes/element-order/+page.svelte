@@ -1,8 +1,8 @@
 <script lang="ts">
 	// THE ELEMENT-ORDER LAB (e2e/element-order.spec.ts): a hole's answer morphed into a custom element
 	// that rearranged its own light DOM at upgrade — one panel after the answer, never two.
-	import Panel from '$lib/elementorder/Panel.svelte' with { render: 'deferred' };
-	import PanelFallback from '$lib/elementorder/Panel.svelte';
+	import Panel from '#lib/elementorder/Panel.svelte' with { render: 'deferred' };
+	import PanelFallback from '#lib/elementorder/Panel.svelte';
 
 	// (it re-appends once its children are parsed, like a runtime that mounts after the document;
 	// the closing tag is split so it does not end this component's own <script> block)

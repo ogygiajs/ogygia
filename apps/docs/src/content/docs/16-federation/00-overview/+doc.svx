@@ -57,7 +57,7 @@ export const { cms } = federate({
 
 ```ts title=src/hooks.server.ts
 import * as ogygia from 'ogygia/server';
-import '$lib/federation.server';
+import '#lib/federation.server';
 
 export const handle = ogygia.handle();
 ```
@@ -80,7 +80,7 @@ A remote route (`peer.page(path)`) or a remote widget (`peer.widget(name, props)
 ```ts title=src/lib/router.ts
 import { routes, page } from '@ogygia/router';
 import { mount } from '@ogygia/federation';
-import { cms } from '$lib/federation.server';
+import { cms } from '#lib/federation.server';
 
 export const router = routes(
   { '/': page(Home), '/cms/[...rest]': mount(cms) },

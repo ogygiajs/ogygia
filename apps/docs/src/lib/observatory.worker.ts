@@ -1485,7 +1485,7 @@ async function bundle_preview(
 		name: 'workspace',
 		resolveId(id: string) {
 			if (files[id] != null) return id; // the entry / an exact workspace key
-			return resolve_file(id, files); // relative / $lib / basename → a workspace key, or null
+			return resolve_file(id, files); // relative / #lib / basename → a workspace key, or null
 		},
 		load(id: string) {
 			if (files[id] == null) return null;

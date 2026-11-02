@@ -8,7 +8,7 @@ related:
 ---
 
 <script>
-	import BenchCharts from '$lib/BenchCharts.svelte';
+	import BenchCharts from '#lib/BenchCharts.svelte';
 </script>
 
 This page compares ogygia, an islands library for SvelteKit, with other frameworks on the same pages. The benchmark has its own public repository, [ogygiajs/bench](https://github.com/ogygiajs/bench), where you can read the code and reproduce every measurement.

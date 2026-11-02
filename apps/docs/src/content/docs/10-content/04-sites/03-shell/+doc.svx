@@ -18,8 +18,8 @@ Which one to start from depends on how much of the layout you want to own. `Docs
 ```svelte
 <script>
 	import { Frame } from '@ogygia/content';
-	import { docs } from '$lib/site.server';   // in a csr=false layout, server-only is fine
-	import MyHeader from '$lib/MyHeader.svelte';
+	import { docs } from '#lib/site.server';   // in a csr=false layout, server-only is fine
+	import MyHeader from '#lib/MyHeader.svelte';
 </script>
 
 <Frame site={docs} header={MyHeader} footer={null}>
@@ -36,7 +36,7 @@ The shells are **compositions of Frame and the public components**, with no priv
 	import DocsShell from '@ogygia/content/docs-shell';
 	import '@ogygia/content/theme.css';   // the design language (tokens + element styles)
 	import '@ogygia/content/shell.css';   // shell layout (header + sidebar + grid + mobile chrome)
-	import { meta } from '$lib/site.remote';
+	import { meta } from '#lib/site.remote';
 	let { children } = $props();
 
 	const shellMeta = await meta();
@@ -107,7 +107,7 @@ The article layout needs nothing but a view, and no shell is required:
 ```svelte
 <script>
 	import { Doc } from '@ogygia/content';
-	import * as docs from '$lib/site.remote';
+	import * as docs from '#lib/site.remote';
 
 	const view = await docs.page(slug);
 </script>

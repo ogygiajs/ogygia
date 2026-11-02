@@ -35,7 +35,7 @@ The import attribute is the whole opt-in. Everything else on the page stays stat
 
 ```svelte title=src/routes/+page.svelte
 <script>
-  import Counter from '$lib/Counter.svelte' with { wake: 'load' };
+  import Counter from '#lib/Counter.svelte' with { wake: 'load' };
 </script>
 
 <h1>A static page</h1>
@@ -51,7 +51,7 @@ You now have a working islands page. The heading and the paragraph are always se
 The counter below is a real island on this page, and it hydrates on `load` in the same way as the code above:
 
 <script>
-  import LoadLive from '$lib/demos/LoadLive.svelte' with { wake: 'load' };
+  import LoadLive from '#lib/demos/LoadLive.svelte' with { wake: 'load' };
 </script>
 
 <div class="doc-demo-row">
@@ -74,9 +74,9 @@ The counter below is a real island on this page, and it hydrates on `load` in th
 If you change the timing word, the island hydrates at a different moment, and nothing else about the page changes:
 
 ```svelte
-import Counter from '$lib/Counter.svelte' with { wake: 'idle' };     // when the browser is idle
-import Counter from '$lib/Counter.svelte' with { wake: 'visible' };  // when scrolled into view
-import Counter from '$lib/Counter.svelte' with { wake: '(max-width: 600px)' }; // on small screens
+import Counter from '#lib/Counter.svelte' with { wake: 'idle' };     // when the browser is idle
+import Counter from '#lib/Counter.svelte' with { wake: 'visible' };  // when scrolled into view
+import Counter from '#lib/Counter.svelte' with { wake: '(max-width: 600px)' }; // on small screens
 ```
 
 ## Where to go next

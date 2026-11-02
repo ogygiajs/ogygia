@@ -6,7 +6,7 @@
 	// so a pick is a link navigation: middle-click, prefetch and the SPA router all work as links.
 	// Interactive, so the layout imports it as an island (`wake: 'load'`); it re-hydrates per nav.
 	import { DropdownMenu } from 'bits-ui';
-	import { SECTIONS } from '$lib/sections';
+	import { SECTIONS } from '#lib/sections.ts';
 
 	let { current = '' }: { current?: string } = $props();
 

@@ -82,7 +82,7 @@ The body is a held region, so the page renders it with `ogygia`'s `<Region>`. A 
 <script lang="ts">
   import { page } from '$app/state';
   import { Region } from 'ogygia';
-  import { post } from '$lib/posts.remote';
+  import { post } from '#lib/posts.remote';
 
   const view = (await post(page.params.slug))!;
 </script>
@@ -98,7 +98,7 @@ date: 2026-01-01
 ---
 
 <script>
-  import Like from '$lib/Like.svelte' with { wake: 'visible' };
+  import Like from '#lib/Like.svelte' with { wake: 'visible' };
 </script>
 
 Everything here is static HTML, except this button: <Like />

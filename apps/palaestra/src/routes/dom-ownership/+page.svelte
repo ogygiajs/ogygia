@@ -2,7 +2,7 @@
 	// DOM OWNERSHIP (e2e/dom-ownership.spec.ts): a widget's definition arrives after the runtime booted
 	// (so the island's server copy is pristine) and before the island wakes (interaction). On upgrade it
 	// prepends a backdrop and appends a pane to its own light DOM. The wake must keep all of it.
-	import Search from '$lib/ownership/Search.svelte' with { wake: 'interaction' };
+	import Search from '#lib/ownership/Search.svelte' with { wake: 'interaction' };
 
 	// (the closing tag is split so it does not end this component's own <script> block)
 	const define_widget =

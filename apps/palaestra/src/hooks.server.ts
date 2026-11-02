@@ -2,8 +2,8 @@ import { sequence } from '@sveltejs/kit/hooks';
 import { redirect, type Handle } from '@sveltejs/kit';
 import { handle as ogygiaHandle, document } from 'ogygia/server';
 import { region } from 'ogygia';
-import DocTest from '$lib/doctest/DocTest.svelte';
-import { scoped_render } from '$lib/restorelab/scoped-render';
+import DocTest from '#lib/doctest/DocTest.svelte';
+import { scoped_render } from '#lib/restorelab/scoped-render.ts';
 
 // A trivial second handle to prove `ogygia.handle()` composes with `sequence()`.
 const passthrough: Handle = async ({ event, resolve }) => resolve(event);

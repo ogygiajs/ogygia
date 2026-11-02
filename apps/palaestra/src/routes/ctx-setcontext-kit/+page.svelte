@@ -2,7 +2,7 @@
 	// The drop-in setContext on a csr=true page: Kit hydrates the page, but the island inside the
 	// lake is ogygia's, a separate hydration root that reads this context through the page marker.
 	import { setContext } from 'ogygia';
-	import SetCtxLakeHost from '$lib/lakes/SetCtxLakeHost.svelte';
+	import SetCtxLakeHost from '#lib/lakes/SetCtxLakeHost.svelte';
 
 	setContext('boot', { theme: 'harbour', user: 'grace' });
 	setContext('appName', 'playground-kit');

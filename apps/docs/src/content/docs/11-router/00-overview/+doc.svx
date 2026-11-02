@@ -34,9 +34,9 @@ The plugin tells the build that the modules importing `@ogygia/router` render pa
 
 ```ts title=src/lib/router.ts
 import { routes, page } from '@ogygia/router';
-import Home from '$lib/views/Home.svelte';
-import Doc from '$lib/views/Doc.svelte';
-import { docs } from '$lib/docs.server';
+import Home from '#lib/views/Home.svelte';
+import Doc from '#lib/views/Doc.svelte';
+import { docs } from '#lib/docs.server';
 
 export const router = routes({
   '/': page(Home),
@@ -51,7 +51,7 @@ The table serves requests through its own handle, after ogygia's:
 ```ts title=src/hooks.server.ts
 import { sequence } from '@sveltejs/kit/hooks';
 import * as ogygia from 'ogygia/server';
-import { router } from '$lib/router';
+import { router } from '#lib/router';
 
 export const handle = sequence(ogygia.handle(), router.handle);
 ```
@@ -60,7 +60,7 @@ A component reads its typed data from `App`:
 
 ```svelte title=src/lib/views/Doc.svelte
 <script lang="ts">
-  import type { App } from '$lib/router';
+  import type { App } from '#lib/router';
   let { data }: App['/docs/[slug]'] = $props();
 </script>
 
@@ -90,7 +90,7 @@ export const router = routes({
 
 ```ts
 import { when } from '@ogygia/router';
-import { checkoutV2, hero } from '$lib/flags';
+import { checkoutV2, hero } from '#lib/flags';
 
 routes({
   '/checkout-v2': when(checkoutV2, page(NewCheckout, { load })),

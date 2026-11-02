@@ -51,7 +51,7 @@ export default defineConfig({
 					// Transformer ORDER matters (Shiki runs preprocess in array order, postprocess too):
 					//  1. inline_markers: `+++/---` delimiters → space runs (twoslash-safe), wrapped back
 					//     into highlight spans in its postprocess — composes with twoslash's rewriting.
-					//  2. twoslash_banner: prepend ambient svelte/kit/$lib/$types globals + `---cut---`
+					//  2. twoslash_banner: prepend ambient svelte/kit/#lib/$types globals + `---cut---`
 					//  3/4. twoslash (js/ts) + twoslash-svelte — lang-filtered, re-entrancy-guarded
 					//  5. twoslash_popup_markdown (postprocess LAST): render hover JSDoc as markdown
 					// No twoslash_strip: twoslash CONSUMES `@errors`/`@filename`/`@noErrors`/`---cut---`.

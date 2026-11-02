@@ -22,7 +22,7 @@ export default defineConfig({
 		ogygia({
 			// The debarrel pass, ON for the whole palaestra: every e2e run builds and serves the app the
 			// way a customer with `barrels: true` does. REGRESSION (customer build, 2026-09-15): the pass
-			// rewrote `import { Ticker } from '$lib/barrel'` fed to `asRegion(Ticker)` into a leaf import,
+			// rewrote `import { Ticker } from '#lib/barrel/index.ts'` fed to `asRegion(Ticker)` into a leaf import,
 			// the transform minted a different island id from the one the prescan derived from the raw
 			// file, and the server manifest imported a virtual entry nobody registered ("Rolldown failed
 			// to resolve import virtual:ogygia/island/<id>.js from virtual:ogygia/server-manifest"). The

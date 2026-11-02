@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { cms } from '$lib/cms';
+	import { cms } from '#lib/cms.ts';
 	// Home: the nav as plain data, straight off the CMS-backed weave.
 	const tree = await cms.nav();
 	const first = tree

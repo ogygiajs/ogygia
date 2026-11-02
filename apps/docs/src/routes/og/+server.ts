@@ -7,11 +7,11 @@ import { render } from 'svelte/server';
 import satori from 'satori';
 import { html as toSatori } from 'satori-html';
 import { Resvg } from '@resvg/resvg-js';
-import OgCard from '$lib/og/OgCard.svelte';
+import OgCard from '#lib/og/OgCard.svelte';
 
 // The site's display face, subset by scripts/subset-fonts.ts (woff: satori reads no woff2). ONE
 // weight (400), upright only, so the card's serif rules use exactly that.
-import Serif from '$lib/fonts/geist-serif-latin.woff';
+import Serif from '#lib/fonts/geist-serif-latin.woff';
 import Mono from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff';
 
 import type { RequestHandler } from './$types';

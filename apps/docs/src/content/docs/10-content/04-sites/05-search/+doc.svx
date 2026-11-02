@@ -17,7 +17,7 @@ The static index is usually the better choice for a prerendered site, because it
 
 ```ts [static index (recommended)]
 // src/routes/docs/search.json/+server.ts — the prerendered index
-import { docs } from '$lib/site.server';
+import { docs } from '#lib/site.server';
 export const prerender = true;
 export const GET = docs.emit.search();
 ```
@@ -67,7 +67,7 @@ If you query over the wire instead, the page takes a few lines and returns the s
 
 ```svelte
 <script>
-	import { search } from '$lib/site.remote';
+	import { search } from '#lib/site.remote';
 	let q = $state('');
 </script>
 
@@ -82,7 +82,7 @@ If you query over the wire instead, the page takes a few lines and returns the s
 Search should work without JavaScript. The `<Search>` trigger is a real `<a href="/docs/search">`, which opens the palette when JS is available and otherwise follows the link to a plain results page that you render from a server load:
 
 ```ts title=src/routes/docs/search/+page.server.ts
-import { docs } from '$lib/site.server';
+import { docs } from '#lib/site.server';
 export const load = async ({ url }) => ({
 	q: url.searchParams.get('q') ?? '',
 	hits: await docs.search(url.searchParams.get('q') ?? '', { base: '/docs' })

@@ -107,7 +107,7 @@ Here is a header badge that shows the cart. It hydrates on `load`, so it is live
 
 ```svelte title=+page.svelte
 <script>
-  import CartBadge from '$lib/CartBadge.svelte' with { wake: 'load' };
+  import CartBadge from '#lib/CartBadge.svelte' with { wake: 'load' };
 </script>
 
 <CartBadge count={items.length} />
@@ -133,7 +133,7 @@ On a `csr = false` page, the script of `+page.svelte` or `+layout.svelte` never 
 
 ```svelte title=+layout.svelte
 <script>
-  import Telemetry from '$lib/Telemetry.svelte' with { wake: 'load' };
+  import Telemetry from '#lib/Telemetry.svelte' with { wake: 'load' };
 </script>
 
 <Telemetry dsn={data.dsn} />
@@ -144,7 +144,7 @@ On a `csr = false` page, the script of `+page.svelte` or `+layout.svelte` never 
 - **Lifecycle follows the page.** A page-level boot island runs its `$effect` again on each navigation, because the page remounts. A layout-level boot island usually has to _continue_ across navigations instead of reopening a socket on every route. Add `keep`, and its live instance moves onto the new page without remounting:
 
 ```svelte
-import Telemetry from '$lib/Telemetry.svelte' with { wake: 'load', keep: 'telemetry' };
+import Telemetry from '#lib/Telemetry.svelte' with { wake: 'load', keep: 'telemetry' };
 ```
 
 ::: tip A module store often needs no boot at all

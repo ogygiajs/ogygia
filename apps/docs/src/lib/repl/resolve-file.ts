@@ -3,7 +3,7 @@
 // prefers an exact path but falls back to matching by filename, which is what lets you drag a file to a
 // new folder without rewriting every import of it (the name is the anchor, not the path).
 //
-// Kit aliases are a DIRECT, exact mapping, not a search: `$lib/x` (Kit ≤2) and `#lib/x` (Kit 3 moves to
+// Kit aliases are a DIRECT, exact mapping, not a search: `#lib/x` (Kit ≤2) and `#lib/x` (Kit 3 moves to
 // Node subpath imports) both mean `src/lib/x`. So an aliased import resolves to exactly that path — it
 // never wanders into `src/elsewhere/x` because some other file shares the basename.
 //
@@ -15,7 +15,7 @@
 
 export function resolve_file(spec: string, files: Record<string, string>): string | null {
 	const clean = spec.split('?')[0];
-	// $lib and #lib → src/lib (only as a leading segment: `$libfoo` is not the alias).
+	// #lib and #lib → src/lib (only as a leading segment: `$libfoo` is not the alias).
 	const aliased = clean.replace(/^[$#]lib(?=\/|$)/, 'src/lib');
 	const bare = aliased.replace(/^\.\//, '').replace(/^\//, '');
 
