@@ -262,6 +262,9 @@ type RequestBag = {
 	/** the document carries Kit's client bootstrap (`__sveltekit_*` defined): Kit's streamed resolve
 	 *  scripts are live then. Without it (csr=false) they are dead, and throw — the handle drops them. */
 	kit_client?: boolean;
+	/** a Kit-hydrated document that still carries ogygia's runtime: some region on it is ogygia's to
+	 *  wake (inside a lake, a hole) — the only islands on such a page the context marker can feed. */
+	kit_with_runtime?: boolean;
 	/** the app's transform (#transform_document): what goes before `</head>` (its head assets, the
 	 *  stand-ins' sheet) and first before `</body>` (the dev check, the restorer) — in the one assembly */
 	transform_head?: string;
@@ -704,6 +707,15 @@ function csr_page_of(
 		: body_end !== -1 && html_has_kit_bootstrap(html, body_end);
 }
 
+/** The drop-in `setContext` page root (`<script data-ogygia-provide-page>`), or '' when the request
+ *  set nothing an island can read. Drops any non-serializable value (function / store / class
+ *  instance) instead of crashing. */
+function page_ctx_script(bag: RequestBag | undefined): string {
+	if (!bag?.ctx?.size) return '';
+	const payload = serialize_provided_context(bag.ctx);
+	return payload ? emit_ogygia_script('ctx', payload, PAGE_CTX_MARKER) : '';
+}
+
 /** The restorer, inline (runtime/restore.ts — self-contained, so its source runs as is): restores the
  *  document now, and stays as `__og_restore` / `__og_restore_adopt` for hole answers and router swaps. */
 const RESTORER_SCRIPT = `<script data-og-restore>(function(){var r=${restore.toString()};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()</script>`;
@@ -1116,6 +1128,7 @@ class OgygiaHandle {
 				if (devtools_boot_url && !head.includes('data-ogygia-devtools-boot')) {
 					head_inject += `<script type="module" data-ogygia-devtools-boot src="${devtools_boot_url}"></script>`;
 				}
+				if (bag) bag.kit_with_runtime = page_declares_runtime_script(head);
 			}
 			// THE TAIL STILL SHIPS. The regions INSIDE A LAKE are ogygia's on this page too (their real
 			// `<ogygia-region>` is emitted, the runtime boots for them), and like on any page their props
@@ -1124,10 +1137,17 @@ class OgygiaHandle {
 			// props and dies (a footer's subscription form did). Rendered against NO seed: the page /
 			// remote / context seeds stay off a csr=true page — Kit hydrates the tree and serializes
 			// its own remotes — and a sidecar written without a seed carries its values whole.
+			// THE CONTEXT MARKER is the exception: those islands are separate hydration roots Kit never
+			// enters, so the drop-in `setContext` reaches them only through it. It ships when the page
+			// has such an island (the runtime is on it); a Kit-only page pays nothing.
 			// (the app's transform: its head assets before `</head>`, the restorer first before `</body>`)
 			if (head !== null && bag?.transform_head) head_inject = bag.transform_head + head_inject;
 			const tail =
-				spans.body_end !== -1 && bag ? (bag.transform_body ?? '') + bag.tail.render(null) : '';
+				spans.body_end !== -1 && bag
+					? (bag.transform_body ?? '') +
+						bag.tail.render(null) +
+						(bag.kit_with_runtime ? page_ctx_script(bag) : '')
+					: '';
 			if (head === null && !tail) return html;
 			// The runtime an island inside a lake emitted goes before the head's JavaScript here too
 			// (see the csr=false path below): its regions keep their server markup from the first connect.
@@ -1382,14 +1402,10 @@ class OgygiaHandle {
 		}
 
 		// Drop-in `setContext` page root — emitted here (final chunk) so every `setContext` has run.
-		const provided = bag?.ctx;
-		if (provided?.size) {
-			// Drops any non-serializable value (function / store / class instance) instead of crashing.
-			const payload = serialize_provided_context(provided);
-			if (payload) {
-				scripts.push(emit_ogygia_script('ctx', payload, PAGE_CTX_MARKER));
-				ctx_bytes = payload.length;
-			}
+		const ctx_script = page_ctx_script(bag);
+		if (ctx_script) {
+			scripts.push(ctx_script);
+			ctx_bytes = ctx_script.length;
 		}
 
 		this.append_devtools_seed(scripts, bag);
