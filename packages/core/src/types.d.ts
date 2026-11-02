@@ -281,24 +281,15 @@ declare module '$app/server' {
 	};
 }
 
-// Minimal ambient for the one Kit type the library imports (`Handle` in hooks.ts). The lib does
-// not depend on @sveltejs/kit; the CONSUMER's real Kit types back the shipped `dist/hooks.d.ts`
-// (`@sveltejs/kit` is externalised by tsdown). Not shipped (types.d.ts is excluded from tsdown).
+// Minimal ambient for the Kit type the library imports (`RequestEvent`). The lib does not depend on
+// @sveltejs/kit; the CONSUMER's real Kit types back the shipped `dist/hooks.d.ts` (`@sveltejs/kit`
+// is externalised by tsdown). `Handle` is the library's own (kit-handle.ts: Kit 3 moved Kit's). Not
+// shipped (types.d.ts is excluded from tsdown).
 declare module '@sveltejs/kit' {
 	export interface RequestEvent {
 		url: URL;
 		[key: string]: unknown;
 	}
-	export interface ResolveOptions {
-		transformPageChunk?: (input: {
-			html: string;
-			done: boolean;
-		}) => string | undefined | Promise<string | undefined>;
-	}
-	export type Handle = (input: {
-		event: RequestEvent;
-		resolve: (event: RequestEvent, opts?: ResolveOptions) => Response | Promise<Response>;
-	}) => Response | Promise<Response>;
 }
 
 // Kit's INTERNAL server request store (deep import, same posture as the vite deep-imports).
