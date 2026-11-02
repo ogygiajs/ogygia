@@ -32,7 +32,7 @@ describe('bake — byte-offset integrity under multi-byte unicode', () => {
 
 	it('TWO bake() calls interleaved with unicode both inline at the right spots', async () => {
 		const src = `const a = "café";\nconst m = import.meta.og.bake(() => 1);\nconst b = "naïve 🔥";\nconst n = import.meta.og.bake(() => 2);\nexport { m, n };`;
-		const out = await rewrite_bake(src, '/app/x.ts', { alias: [], root: '/app' });
+		const out = await rewrite_bake(src, '/app/x.ts', { alias: [] });
 		expect(out).toContain(`const a = "café";`);
 		expect(out).toContain(`const b = "naïve 🔥";`);
 		expect(out).toContain('const m = (1)');
@@ -90,15 +90,12 @@ describe('misuse-error QUALITY — build-voice, file:line, explains the fix', ()
 	// bake: non-function + arity
 	it('bake with a non-function arg → must be a function + line', async () => {
 		await expect(
-			rewrite_bake('\nconst v = import.meta.og.bake({});', '/b.ts', { alias: [], root: '/app' })
+			rewrite_bake('\nconst v = import.meta.og.bake({});', '/b.ts', { alias: [] })
 		).rejects.toThrow(/b\.ts:2.*must be a function/);
 	});
 	it('bake with wrong arity → takes exactly one argument', async () => {
 		await expect(
-			rewrite_bake('const v = import.meta.og.bake(() => 1, 2);', '/b.ts', {
-				alias: [],
-				root: '/app'
-			})
+			rewrite_bake('const v = import.meta.og.bake(() => 1, 2);', '/b.ts', { alias: [] })
 		).rejects.toThrow(/takes exactly one argument/);
 	});
 });
@@ -135,7 +132,7 @@ describe('bake in .svelte — component import excluded from the eval bundle', (
 			`</script>`,
 			`<Widget n={total} />`
 		].join('\n');
-		const out = await rewrite_bake(src, path.join(dir, 'C.svelte'), { alias: [], root: dir });
+		const out = await rewrite_bake(src, path.join(dir, 'C.svelte'), { alias: [] });
 		expect(out).toContain('const total = (6)'); // 1+2+3, bake resolved through the data import
 		expect(out).toContain(`import Widget from './Widget.svelte';`); // component import kept (used in markup)
 		expect(out).not.toContain('import.meta.og.bake');
@@ -229,7 +226,7 @@ describe('bake — devalue serialization torture (real execution)', () => {
 	it('an async fn using await Promise.all([...]) resolves', async () => {
 		// `await` needs an async fn — a sync `() => await …` is a syntax error (caught upstream).
 		const src = `const v = import.meta.og.bake(async () => await Promise.all([Promise.resolve(1), Promise.resolve(2)]));\nexport { v };`;
-		const out = await rewrite_bake(src, '/app/x.ts', { alias: [], root: '/app' });
+		const out = await rewrite_bake(src, '/app/x.ts', { alias: [] });
 		expect(out).toContain('const v = ([1,2])');
 	});
 });

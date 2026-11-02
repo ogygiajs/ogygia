@@ -3,7 +3,7 @@
  * and a `transformPageChunk` it passes to `next()` sees the document after ogygia's own.
  */
 import { describe, expect, it } from 'vitest';
-import type { Handle } from '@sveltejs/kit';
+import type { Handle } from '@sveltejs/kit/hooks';
 import { around, type LivePlugin } from '../src/plugin/server.ts';
 import type { ServerApp, ServerPlugin } from '../src/plugin/index.ts';
 
