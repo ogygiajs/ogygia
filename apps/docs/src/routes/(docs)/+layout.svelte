@@ -18,6 +18,7 @@
 	import * as ogygia from 'ogygia';
 	import { page } from '$app/state';
 	import { meta } from '$lib/docs.remote';
+	import { sectionNav, sectionOf } from '$lib/sections';
 
 	let { children } = $props();
 
@@ -34,7 +35,11 @@
 	// The leak-free shell bundle (nav + switcher) — docs pages only. Skipped on the homepage (no
 	// sidebar) and bare canvases, which also saves the nav-tree fetch there. csr=false → every nav is
 	// a fresh SSR pass, so a top-level await is current per page.
-	const shellMeta = bare || isHome || isObservatory ? null : await meta(page.params.slug ?? '');
+	const fullMeta = bare || isHome || isObservatory ? null : await meta(page.params.slug ?? '');
+	// One section per package: the sidebar (and the mobile sheet) show the current section's part
+	// of the one nav tree; the header's switcher moves between sections.
+	const docSection = sectionOf(page.params.slug ?? '');
+	const shellMeta = fullMeta && { ...fullMeta, nav: sectionNav(fullMeta.nav, docSection) };
 
 	// No-flash theme: apply a saved forced theme before first paint. `ogygia.script` serializes
 	// the self-contained function into a safe inline <script> (no `String.fromCharCode` gymnastics).
@@ -92,7 +97,7 @@
 	<div data-sveltekit-preload-data="hover">
 		<DocsShell meta={shellMeta!} base="/docs" home="/" title="ogygia" tools={null}>
 			{#snippet header()}
-				<SiteHeader section="Docs" />
+				<SiteHeader section="Docs" docs={docSection} />
 			{/snippet}
 			{@render children()}
 		</DocsShell>

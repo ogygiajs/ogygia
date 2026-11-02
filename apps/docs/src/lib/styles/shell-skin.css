@@ -126,6 +126,15 @@
 	padding-top: 0.85rem;
 	border-top: 1px solid color-mix(in srgb, var(--accent-line) 35%, var(--line));
 }
+/* A package section opens with loose pages (Overview, the main guide) before its groups: they stack
+   as tightly as a group's own links, and the first group after them gets the usual divider. */
+.og-sidebar > .og-nav-list > li:not(.og-nav-group) + li:not(.og-nav-group) {
+	margin-top: calc(0.1rem - 1.15rem);
+}
+.og-sidebar > .og-nav-list > li:not(.og-nav-group) + .og-nav-group {
+	padding-top: 0.85rem;
+	border-top: 1px solid color-mix(in srgb, var(--accent-line) 35%, var(--line));
+}
 /* Roving focus: draw the ring INSIDE the row so the panel's scroll clipping can't cut it off. */
 .og-shell .og-nav-link:focus-visible {
 	outline: 2px solid var(--accent);

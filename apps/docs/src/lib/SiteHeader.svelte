@@ -10,11 +10,21 @@
 	// first intent; ThemeToggle writes data-theme + the og-theme key).
 	const SearchBox = import.meta.og.asRegion(Search, { wake: 'idle' });
 	const Theme = import.meta.og.asRegion(ThemeToggle, { wake: 'load' });
+	// Docs only: the package switcher after the crumb. A disclosure of links, so it works before it
+	// wakes; waking adds Escape, arrow keys and outside-click.
+	import SectionSwitcher from '$lib/SectionSwitcher.svelte' with { wake: 'idle' };
 
-	let { section = null }: { section?: string | null } = $props();
+	let {
+		section = null,
+		docs
+	}: {
+		section?: string | null;
+		/** On a docs page: the current section's key (`''` = the main `ogygia` section). */
+		docs?: string;
+	} = $props();
 </script>
 
-<header class="site-nav">
+<header class="site-nav" class:site-nav-docs={docs !== undefined}>
 	<div class="site-nav-inner">
 		<a class="site-brand" href="/" aria-label="ogygia home">
 			<Logo size={22} decorative />
@@ -23,6 +33,9 @@
 		{#if section}
 			<span class="site-sep" aria-hidden="true">│</span>
 			<span class="site-crumb">{section}</span>
+		{/if}
+		{#if docs !== undefined}
+			<div class="site-switch"><SectionSwitcher current={docs} /></div>
 		{/if}
 
 		<div class="site-actions">
@@ -133,6 +146,10 @@
 	.site-gh:hover {
 		color: var(--text);
 	}
+	.site-switch {
+		margin-left: 0.35rem;
+		min-width: 0;
+	}
 	@media (max-width: 720px) {
 		.site-nav-inner {
 			padding: 0 1rem;
@@ -140,6 +157,16 @@
 		}
 		.site-links {
 			display: none;
+		}
+		/* Docs on a phone: the bottom bar already carries search, the theme and the menu, so the top
+		   bar keeps the brand and the package switcher, with room for the longest package name. */
+		.site-nav-docs .site-crumb,
+		.site-nav-docs .site-sep,
+		.site-nav-docs .site-actions {
+			display: none;
+		}
+		.site-nav-docs .site-switch {
+			margin-left: 0.15rem;
 		}
 	}
 </style>
