@@ -33,6 +33,28 @@ describe('mark', () => {
 		expect(m.record.hosts.get(2)!.children.get(1)!.text).toBe(' Sign in ');
 	});
 
+	it('a server-owned host around a hole is planned: ogygia swaps the hole, its runtime must not adopt it', () => {
+		const hole = (inner: string) =>
+			`<ogygia-region endpoint="/_og/r" render="defer">${inner}</ogygia-region>`;
+		const m = mark(
+			doc(
+				`<demo-nav class="menu"><ul>${hole('<demo-tab>a</demo-tab>')}</ul></demo-nav>` +
+					`<ogygia-region wake="none"><demo-bar>${hole('<i>b</i>')}</demo-bar></ogygia-region>` +
+					`<ogygia-region wake="none"><demo-card><p>lake only</p></demo-card></ogygia-region>`
+			),
+			'document',
+			false
+		)!;
+		// a host with a hole below: planned (adopting it would move the hole the runtime swaps)
+		expect(m.html).toContain('<demo-nav og-h="0" class="menu">');
+		// the hole's fallback is not Svelte's: its own hosts get no plan
+		expect(m.html).toContain('<demo-tab og-u="1"');
+		// inside a lake too — the hole is still swapped
+		expect(m.html).toContain('<demo-bar og-h="2"');
+		// a host with only a lake's opaque markup below: no plan, as before
+		expect(m.html).toContain('<demo-card og-u="3">');
+	});
+
 	it('a document the router fetched is an answer: every host planned, as in a region answer', () => {
 		const html = doc(
 			`<demo-card class="shell"><p>server</p></demo-card>` +
