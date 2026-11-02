@@ -51,13 +51,19 @@ jobs:
           github-token: ${{ secrets.SHIP_TOKEN || github.token }}
       # main matches npm: just published, or no changeset is pending. A fast-forward only: latest
       # is only ever set from main, so a refused push means someone moved it by hand.
-      # Pushed with the workflow's own GITHUB_TOKEN, not SHIP_TOKEN (checkout's credentials): the
-      # "latest: only the release workflow" ruleset lets GitHub Actions update latest and nobody else.
+      # Pushed over SSH with the LATEST_DEPLOY_KEY deploy key: the "latest: only the release workflow"
+      # ruleset lets deploy keys update latest and nobody else, admins included. (GitHub accepts no
+      # GitHub Actions bypass on a repository ruleset, and a token push is a person or the bot.)
+      # GitHub's published ed25519 host key is pinned, so the push trusts nothing it is handed.
       - name: Move the latest branch to main
         if: steps.changesets.outputs.published == 'true' || steps.changesets.outputs.has-changesets == 'false'
         env:
-          GH_TOKEN: ${{ github.token }}
+          LATEST_DEPLOY_KEY: ${{ secrets.LATEST_DEPLOY_KEY }}
         run: |
-          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
-          git -c http.https://github.com/.extraheader= -c "http.https://github.com/.extraheader=$auth" \
-            push origin HEAD:refs/heads/latest
+          dir="$(mktemp -d)"
+          trap 'rm -rf "$dir"' EXIT
+          printf '%s\n' "$LATEST_DEPLOY_KEY" > "$dir/key"
+          chmod 600 "$dir/key"
+          echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' > "$dir/known_hosts"
+          GIT_SSH_COMMAND="ssh -i $dir/key -o IdentitiesOnly=yes -o UserKnownHostsFile=$dir/known_hosts -o StrictHostKeyChecking=yes" \
+            git push "git@github.com:${{ github.repository }}.git" HEAD:refs/heads/latest
