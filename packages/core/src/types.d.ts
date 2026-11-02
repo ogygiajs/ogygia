@@ -248,6 +248,11 @@ declare module 'virtual:ogygia/transport' {
 declare module 'virtual:ogygia/hydrate-features' {
 	export function install(): void;
 }
+/** Build-time constants the always-on core gates in place (compiler/link/runtime-entry.ts). */
+declare module 'virtual:ogygia/runtime-flags' {
+	/** the `frames` feature is in the build: some region streams HTML */
+	export const FRAMES: boolean;
+}
 declare module 'virtual:ogygia/transportables' {
 	/** client: a transportable class module's tag path → its lazy import (server: empty, eager) */
 	export const wire_loaders: Record<string, () => Promise<unknown>>;

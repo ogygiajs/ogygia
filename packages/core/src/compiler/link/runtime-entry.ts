@@ -287,3 +287,19 @@ export function generateHydrateFeaturesSource(
 	lines.push('}');
 	return { code: lines.join('\n') + '\n', features };
 }
+
+/**
+ * Emit `virtual:ogygia/runtime-flags`: build-time constants for code that lives INSIDE the always-on
+ * region element rather than in a feature module, because it works on the element's own state. The
+ * bundler inlines an imported `const` and drops the branches it switches off, so the code a flag
+ * guards ships exactly when the feature it serves does. Same marks as the entries; `all` (dev / no
+ * marks): every flag on.
+ *
+ * - `FRAMES`: the `frames` feature is in the build — some region streams HTML (a deferred hole, a
+ *   live region, a lake). Without the frame store a region's fetch has nowhere to land, so the
+ *   element's fetch / apply / morph / renew path is dead code then.
+ */
+export function generateRuntimeFlagsSource(marks: RuntimeMarks, all = false): string {
+	const frames = all || resolveFeatures(marks).includes('frames');
+	return `export const FRAMES = ${frames};\n`;
+}

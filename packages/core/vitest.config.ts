@@ -54,6 +54,9 @@ export default defineConfig({
 			'virtual:ogygia/hydrate-features': fileURLToPath(
 				new URL('./test/_stubs/virtual-hydrate-features.ts', import.meta.url)
 			),
+			'virtual:ogygia/runtime-flags': fileURLToPath(
+				new URL('./test/_stubs/virtual-runtime-flags.ts', import.meta.url)
+			),
 			'virtual:ogygia/transportables': fileURLToPath(
 				new URL('./test/_stubs/virtual-transportables.ts', import.meta.url)
 			),

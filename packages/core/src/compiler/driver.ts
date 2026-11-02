@@ -35,6 +35,7 @@ import { is_script_request } from './script-request.ts';
 import {
 	generateHydrateFeaturesSource,
 	generateRuntimeEntrySource,
+	generateRuntimeFlagsSource,
 	resolveFeatures
 } from './link/runtime-entry.ts';
 import {
@@ -92,6 +93,7 @@ import {
 	V_FN_MANIFEST,
 	V_RUNTIME_ENTRY,
 	V_HYDRATE_FEATURES,
+	V_RUNTIME_FLAGS,
 	V_DEV_HMR,
 	V_DEV_HMR_URL,
 	V_DEVTOOLS_BOOT,
@@ -1170,6 +1172,12 @@ export class Compiler {
 			const ch = client_hooks_boot(ctx);
 			return ch.imports + code + ch.call;
 		}
+		if (id === RESOLVED(V_RUNTIME_FLAGS)) {
+			// Dev runs the kitchen-sink boot: every flag on, like every feature.
+			if (!ctx.is_build) return generateRuntimeFlagsSource({}, true);
+			this.prescan();
+			return generateRuntimeFlagsSource(program.runtime_marks);
+		}
 		if (id === RESOLVED(V_HYDRATE_FEATURES)) {
 			// The hydrate core's feature phase, from the same marks as the boot entry. Dev runs the
 			// kitchen-sink boot (`bootDev`), so it gets every hydrate-phase feature to match.
@@ -1441,6 +1449,7 @@ export class Compiler {
 		if (source === V_RUNTIME) return RESOLVED(V_RUNTIME);
 		if (source === V_RUNTIME_ENTRY) return RESOLVED(V_RUNTIME_ENTRY);
 		if (source === V_HYDRATE_FEATURES) return RESOLVED(V_HYDRATE_FEATURES);
+		if (source === V_RUNTIME_FLAGS) return RESOLVED(V_RUNTIME_FLAGS);
 		if (source === V_DEV_HMR) return RESOLVED(V_DEV_HMR);
 		if (source === V_DEV_HMR_URL) return RESOLVED(V_DEV_HMR_URL);
 		if (source === V_DEVTOOLS_BOOT) return RESOLVED(V_DEVTOOLS_BOOT);
