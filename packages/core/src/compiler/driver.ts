@@ -27,6 +27,7 @@ import {
 	routeCsrIsTrue,
 	hasAnyCsrTrueRoute,
 	clean_stale_ogygia_dirs,
+	is_route_component,
 	kit_dirs
 } from './kit.ts';
 import { run_module_macros } from './macros/pipeline.ts';
@@ -167,8 +168,13 @@ export interface Profiler {
 const LEADING_SLASH = /^\//;
 const BACKSLASH_G = /\\/g;
 const COMPONENT_EXT_RE = /\.(svelte|js|ts)$/;
-/** A Kit route host file (`+page.svelte`, `+layout.ts`, …) — the page node's own client modules. */
-const ROUTE_HOST_FILE_RE = /^\+(page|layout)\.(svelte|ts|js|mjs)$/;
+/** A Kit route option module (`+page.ts`, `+layout.js`, …) — the page node's own client modules
+ *  beside its component (kit.ts `is_route_component`). */
+const ROUTE_HOST_FILE_RE = /^\+(page|layout)\.(ts|js|mjs)$/;
+/** The real binding modules a host imports for a marked region (ids.ts `regionBindingVirtualId`,
+ *  transform.ts `wrapperVirtualId`). */
+const REGION_BINDING_PREFIX = 'virtual:ogygia/region/';
+const WRAPPER_PREFIX = 'virtual:ogygia/wrapper/';
 /** A `.ts`/`.js` module that can be a region registry (a minted `.ts` region host). */
 const TS_REGISTRY_EXT_RE = /\.(ts|js|mjs)$/;
 /** A Svelte rune module (`.svelte.ts` / `.svelte.js`). */
@@ -462,7 +468,7 @@ export class Compiler {
 		// chrome islands must be REAL wrappers on the client (Region degrades them inline via
 		// `documentIsCsrTrue`), NOT the thin stub. Only when the app actually has a csr=true route,
 		// and only for `+layout.svelte` hosts (bounded chrome, unlike N page islands).
-		const is_layout_host = path.basename(id) === '+layout.svelte';
+		const is_layout_host = is_route_component(path.basename(id), 'layout');
 		const link_virtual =
 			opts.linkVirtual !== undefined
 				? opts.linkVirtual
@@ -1459,6 +1465,21 @@ export class Compiler {
 		if (source === V_REGION_ENDPOINT) return RESOLVED(V_REGION_ENDPOINT);
 		// csr=false client hosts rewrite marked bindings here — not a hydrate entry.
 		if (source === CLIENT_BINDING_STUB) return ctx.client_binding_stub_file;
+		// …and so does a csr=false route host that could not pick its leg itself: a markup source
+		// (content's markdown) runs the region transform in the preprocessor, before the compile knows
+		// which leg it is on, so it always links the real binding. On the CLIENT leg of a build that
+		// binding pulled Region and every island wrapper into Kit's client graph of a page Kit never
+		// boots, and the modules that graph shares with the islands (Svelte's above all) shipped to
+		// every island page with all of Region's uses in them. It resolves to the stub a `.svelte` host
+		// links there.
+		if (
+			!ssr &&
+			ctx.is_build &&
+			importer &&
+			(source.startsWith(REGION_BINDING_PREFIX) || source.startsWith(WRAPPER_PREFIX)) &&
+			this.#links_client_stub(importer)
+		)
+			return ctx.client_binding_stub_file;
 		// CSS-only FOUC graph (no component JS) for csr=false client stubs.
 		if (source.startsWith(FOUC_CSS_PREFIX) || source.startsWith(FOUC_SCOPED_PREFIX)) {
 			return RESOLVED(source);
@@ -1584,11 +1605,28 @@ export class Compiler {
 
 	/** True for a csr=false route host file (`+page`/`+layout` `.svelte`/`.ts`/`.js`). A `+page.ts`
 	 *  shares its route's world with the sibling `.svelte` host. */
+	/** A route COMPONENT whose client leg links the binding stub — `transform`'s `link_virtual` rule,
+	 *  for a host that could not apply it itself: csr=false, and not a layout of an app with a
+	 *  csr=true route (Kit can hydrate that layout: a csr=true child page, or an error render). */
+	#links_client_stub(importer: string): boolean {
+		const importer_abs = strip_id(importer);
+		const routes_dir = kit_dirs(this.#ctx!.root).routes_dir;
+		if (!importer_abs.startsWith(routes_dir + path.sep)) return false;
+		const base = path.basename(importer_abs);
+		if (is_route_component(base, 'layout'))
+			return routeCsrIsFalse(importer_abs, routes_dir) && !hasAnyCsrTrueRoute(routes_dir);
+		return is_route_component(base, 'page') && routeCsrIsFalse(importer_abs, routes_dir);
+	}
+
 	#is_csr_false_route_host(importer: string): boolean {
 		const importer_abs = strip_id(importer);
 		const routes_dir = kit_dirs(this.#ctx!.root).routes_dir;
 		if (!importer_abs.startsWith(routes_dir + path.sep)) return false;
-		const m = ROUTE_HOST_FILE_RE.exec(path.basename(importer_abs));
+		const base = path.basename(importer_abs);
+		// a route component (`+page.svelte`, `+page.md`, …) is its own host
+		if (is_route_component(base, 'page') || is_route_component(base, 'layout'))
+			return routeCsrIsFalse(importer_abs, routes_dir);
+		const m = ROUTE_HOST_FILE_RE.exec(base);
 		if (!m) return false;
 		return routeCsrIsFalse(path.join(importer_abs, '..', `+${m[1]}.svelte`), routes_dir);
 	}
