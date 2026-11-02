@@ -38,9 +38,10 @@ jobs:
           echo "CHROME_PATH=$CHROME" >> "$GITHUB_ENV"
 
       # ogygia's build toolchain lives in the workspace (its tsdown Svelte plugin is a workspace
-      # package): install it so build-all builds ogygia through the monorepo, never standalone
+      # package): install it so build-all builds ogygia through the monorepo, never standalone.
+      # build-all builds @ogygia/content too, so its toolchain comes with it.
       - name: Install ogygia's workspace
-        run: pnpm install --frozen-lockfile --filter ogygia...
+        run: pnpm install --frozen-lockfile --filter ogygia... --filter @ogygia/content...
 
       - name: Install bench harness deps
         working-directory: internal/bench
