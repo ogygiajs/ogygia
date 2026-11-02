@@ -83,12 +83,15 @@ jobs:
       # break" twice for a browser test that failed on the pinned versions just the same — a
       # pointer resting over the fixture on the runner.) `continue-on-error` keeps the upstream
       # leg running; the verdict rides in BASELINE for the report step.
-      # (the core package is packages/core since the package split, packages/ogygia before it — the
-      # Kit 3 branch predates the split, and a baseline pointed at a folder it lacks always failed)
+      # The libraries are built first: the unit suites import `dist/` (without it 21 files failed to
+      # load, and every run was filed as "suite red"). The core package is packages/core since the
+      # package split, packages/ogygia before it (the Kit 3 branch).
       - name: Baseline — unit + browser suites on the PINNED lockfile
         id: baseline
         continue-on-error: true
-        run: pnpm -C "$([ -d packages/core ] && echo packages/core || echo packages/ogygia)" test
+        run: |
+          pnpm run build:lib
+          pnpm -C "$([ -d packages/core ] && echo packages/core || echo packages/ogygia)" test
 
       - name: Record the baseline verdict
         run: echo "BASELINE=${{ steps.baseline.outcome }}" >> "$GITHUB_ENV"
@@ -169,7 +172,8 @@ jobs:
           } > /tmp/upstream-issue.md
           # One open tracking issue PER VERDICT AND LINE at a time: comment if it exists, else create
           # it. A flake must not pile onto a real upstream thread, nor Kit 2 onto Kit 3.
-          EXISTING=$(gh issue list --state open --label "${LABEL}" --search "in:title \"[${LINE}]\"" --json number --jq '.[0].number' || echo "")
+          EXISTING=$(gh issue list --state open --label "${LABEL}" --json number,title \
+            --jq "[.[] | select(.title | startswith(\"[${LINE}]\"))][0].number // empty" || echo "")
           if [ -n "${EXISTING}" ]; then
             gh issue comment "${EXISTING}" --body-file /tmp/upstream-issue.md
           else
