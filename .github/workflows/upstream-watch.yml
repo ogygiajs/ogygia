@@ -1,19 +1,15 @@
 name: upstream-watch
 
-# Periodically pull the LATEST svelte + @sveltejs/kit and run the whole suite against them, so an
-# upstream change that breaks ogygia is caught here — with a filed issue — instead of by a user.
-# This never touches main: it bumps versions in a throwaway checkout and reports.
+# Periodically pull the LATEST svelte and the latest @sveltejs/kit of EACH supported major, and run
+# the whole suite against them, so an upstream change that breaks ogygia is caught here — with a
+# filed issue — instead of by a user. This never touches a branch: it bumps versions in a throwaway
+# checkout and reports.
 
 on:
   schedule:
     # Mondays 06:00 UTC. Weekly is enough to catch a regression while it's still fresh upstream.
     - cron: '0 6 * * 1'
   workflow_dispatch:
-    inputs:
-      ref:
-        description: 'Branch/tag to test (default: kit3-compat)'
-        required: false
-        default: 'kit3-compat'
 
 permissions:
   contents: read
@@ -21,15 +17,23 @@ permissions:
 
 jobs:
   upstream:
+    name: upstream (SvelteKit ${{ matrix.kit }})
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    strategy:
+      # one red line must not cancel the other: both verdicts in one run
+      fail-fast: false
+      matrix:
+        include:
+          # SvelteKit 2: main. `^2` takes the newest 2.x, never a 3.
+          - { kit: 2, ref: main, kit_spec: '^2' }
+          # SvelteKit 3: the branch that supports it (main refuses Kit 3: it still has a
+          # `svelte.config.js`). Flip to main when kit3-compat merges.
+          - { kit: 3, ref: kit3-compat, kit_spec: 'latest' }
     steps:
-      # The latest SvelteKit is 3: watch the branch that supports it — main is SvelteKit 2, so
-      # `--latest` there can only fail (Kit 3 refuses `svelte.config.js`), never on upstream news.
-      # Flip to 'main' when kit3-compat merges. (It watched `passage` long after passage merged.)
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.ref || 'kit3-compat' }}
+          ref: ${{ matrix.ref }}
 
       - uses: pnpm/action-setup@v4
 
@@ -53,14 +57,25 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .turbo/cache
-          key: turbo-${{ runner.os }}-${{ github.workflow }}-${{ github.sha }}
+          key: turbo-${{ runner.os }}-${{ github.workflow }}-kit${{ matrix.kit }}-${{ github.sha }}
           restore-keys: |
-            turbo-${{ runner.os }}-${{ github.workflow }}-
+            turbo-${{ runner.os }}-${{ github.workflow }}-kit${{ matrix.kit }}-
             turbo-${{ runner.os }}-
 
-      # Playwright before the baseline: the baseline runs the browser project too.
+      # Playwright before the baseline: the baseline runs the browser project too. Cached per
+      # Playwright version, no `--with-deps` (the runner image has the libraries) — as in e2e.yml.
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(pnpm exec playwright --version | sed 's/Version //')" >> "$GITHUB_OUTPUT"
+
+      - name: Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
       - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install chromium
 
       # BASELINE — the same unit + browser suites the upstream leg runs, on the versions the
       # lockfile PINS. A failure here is suite rot or a flake in this repo, NOT upstream, and the
@@ -68,19 +83,21 @@ jobs:
       # break" twice for a browser test that failed on the pinned versions just the same — a
       # pointer resting over the fixture on the runner.) `continue-on-error` keeps the upstream
       # leg running; the verdict rides in BASELINE for the report step.
+      # (the core package is packages/core since the package split, packages/ogygia before it — the
+      # Kit 3 branch predates the split, and a baseline pointed at a folder it lacks always failed)
       - name: Baseline — unit + browser suites on the PINNED lockfile
         id: baseline
         continue-on-error: true
-        run: pnpm -C packages/core test
+        run: pnpm -C "$([ -d packages/core ] && echo packages/core || echo packages/ogygia)" test
 
       - name: Record the baseline verdict
         run: echo "BASELINE=${{ steps.baseline.outcome }}" >> "$GITHUB_ENV"
 
-      - name: Bump svelte + @sveltejs/kit to latest across the workspace
+      - name: Bump svelte to latest and @sveltejs/kit to the latest ${{ matrix.kit }}.x across the workspace
         run: |
-          # `--latest` ignores the semver ranges and jumps to the newest published versions. Runs in
-          # every workspace package that depends on them (docs, palaestra, fixture apps, lib devDeps).
-          pnpm -r update --latest svelte @sveltejs/kit
+          # Runs in every workspace package that depends on them (docs, the test apps, fixture apps,
+          # lib devDeps); the specs ignore each package's own range.
+          pnpm -r update svelte@latest "@sveltejs/kit@${{ matrix.kit_spec }}"
           # Record the resolved versions the apps actually build against, for the failure report.
           {
             echo "SVELTE_VERSION=$(node -p "require('./apps/docs/node_modules/svelte/package.json').version")"
@@ -112,13 +129,16 @@ jobs:
           OGYGIA_SECRET: 3f9a2b7c1e5d8046af62c93b1d7e4058a6c2f19b3e8d70425c9a1f6b8d3e07c4
 
       # ── Report ─────────────────────────────────────────────────────────────────────────────────
-      # On failure, open (or comment on) a single tracking issue so a green upstream never spams and a
-      # broken one is loud. De-duped per verdict label (`upstream-break` / `suite-red`).
+      # On failure, open (or comment on) a tracking issue so a green upstream never spams and a broken
+      # one is loud. De-duped per verdict label (`upstream-break` / `suite-red`) AND per Kit line.
       - name: File an issue on failure
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          LINE: SvelteKit ${{ matrix.kit }}
+          REF: ${{ matrix.ref }}
+          KIT_SPEC: ${{ matrix.kit_spec }}
         run: |
           set -euo pipefail
           # The baseline leg decides what this failure IS. Red on the pinned lockfile too → the repo's
@@ -126,30 +146,30 @@ jobs:
           # as an upstream break. Green baseline + red upstream leg → a real upstream change.
           if [ "${BASELINE:-}" = "failure" ]; then
             LABEL=suite-red
-            TITLE="suite red on PINNED versions (not upstream) — run of $(date -u +%Y-%m-%d)"
+            TITLE="[${LINE}] suite red on PINNED versions (not upstream) — run of $(date -u +%Y-%m-%d)"
             VERDICT='The **baseline** leg (the same unit + browser suites on the PINNED lockfile) failed in this same run. This is suite rot or a flake in this repo — the latest `svelte` / `@sveltejs/kit` are **not** implicated. Fix the suite.'
           else
             LABEL=upstream-break
-            TITLE="upstream break: svelte ${SVELTE_VERSION:-?} / @sveltejs/kit ${KIT_VERSION:-?}"
+            TITLE="[${LINE}] upstream break: svelte ${SVELTE_VERSION:-?} / @sveltejs/kit ${KIT_VERSION:-?}"
             VERDICT='The baseline leg (same suites on the pinned lockfile) **passed** in this run, so the failure is specific to the bumped versions — something changed upstream.'
           fi
           # Build the body without a heredoc (YAML-safe) and write it to a file for --body-file.
           {
-            printf '%s\n\n' 'The scheduled **upstream-watch** run failed against the latest published upstream:'
+            printf 'The scheduled **upstream-watch** run failed for **%s** (branch `%s`) against the latest published upstream:\n\n' "${LINE}" "${REF}"
             printf -- '- `svelte` = `%s`\n' "${SVELTE_VERSION:-unknown}"
             printf -- '- `@sveltejs/kit` = `%s`\n' "${KIT_VERSION:-unknown}"
             printf -- '- baseline (pinned lockfile) = `%s`\n\n' "${BASELINE:-unknown}"
             printf '%s\n\n' "${VERDICT}"
-            printf '%s\n\n' 'Reproduce locally:'
+            printf 'Reproduce locally, on `%s`:\n\n' "${REF}"
             printf '%s\n' '```sh'
-            printf '%s\n' 'pnpm -r update --latest svelte @sveltejs/kit'
+            printf 'pnpm -r update svelte@latest "@sveltejs/kit@%s"\n' "${KIT_SPEC}"
             printf '%s\n' 'pnpm run check && pnpm turbo run e2e --concurrency=1 --force'
             printf '%s\n\n' '```'
             printf 'Failing run: %s\n' "${RUN_URL}"
           } > /tmp/upstream-issue.md
-          # One open tracking issue PER VERDICT at a time: comment if it exists, else create it. The
-          # two labels never share an issue — a flake must not pile onto a real upstream thread.
-          EXISTING=$(gh issue list --state open --label "${LABEL}" --json number --jq '.[0].number' || echo "")
+          # One open tracking issue PER VERDICT AND LINE at a time: comment if it exists, else create
+          # it. A flake must not pile onto a real upstream thread, nor Kit 2 onto Kit 3.
+          EXISTING=$(gh issue list --state open --label "${LABEL}" --search "in:title \"[${LINE}]\"" --json number --jq '.[0].number' || echo "")
           if [ -n "${EXISTING}" ]; then
             gh issue comment "${EXISTING}" --body-file /tmp/upstream-issue.md
           else
