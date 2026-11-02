@@ -1,5 +1,11 @@
 # @ogygia/core
 
+## 0.11.4
+
+### Patch Changes
+
+- [#130](https://github.com/ogygiajs/ogygia/pull/130) [`92457f4`](https://github.com/ogygiajs/ogygia/commit/92457f4ed7c9ad949b23a2e50c8d5a7e36cbbc60) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The hook types type-check on SvelteKit 3 too: `Handle` is the library's own (Kit 3 moved Kit's to `@sveltejs/kit/hooks`), so a Kit 3 app no longer sees an untyped `handle` from ogygia, devtools or postrender.
+
 ## 0.11.3
 
 ### Patch Changes
