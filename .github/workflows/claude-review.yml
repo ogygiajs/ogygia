@@ -1,0 +1,60 @@
+name: Claude review
+
+# Claude reviews every pull request's diff for bugs and security holes, and comments only on real
+# ones. Runs on the maintainer's Claude subscription (CLAUDE_CODE_OAUTH_TOKEN, from
+# `claude setup-token`) and posts through the Claude GitHub App.
+# Skipped: drafts, a fork's PR (it gets no secrets), and version PRs (changeset-release/*: version
+# fields and changelogs only).
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: >-
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !startsWith(github.head_ref, 'changeset-release/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request in ogygia: a library that server-renders SvelteKit pages, signs
+            capability URLs for server-rendered regions (HMAC), serializes data into inline <script>
+            tags, morphs fetched HTML into live pages, and federates regions across origins.
+
+            Read the diff (`gh pr diff`), and the surrounding code where you need it. Report two
+            kinds of finding:
+
+            1. BUGS: the change does the wrong thing — a broken edge case, a wrong condition, a
+               race, state that leaks between requests or visitors, a missing cleanup, a test that
+               no longer tests what it claims.
+            2. SECURITY: HTML or script injection (unescaped values reaching markup or inline
+               scripts, `</script>` breakouts, unsafe `{@html}`), forgeable or leaked signatures and
+               keys, MAC checks that are not constant-time, open redirects, SSRF through fetched
+               URLs, a visitor's response in a shared cache, federation trusting unverified peer
+               HTML or claims, a committed secret.
+
+            Only report findings you are confident are real, with the concrete input or path that
+            triggers them. No style, naming, formatting or "consider" suggestions. Post each finding
+            as an inline comment on the line it concerns. If you find nothing, post nothing.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob"
