@@ -4,6 +4,10 @@
 	"private": true,
 	"description": "@ogygia/router's e2e fixture app: the server-router table at /rtr (seeds, streamed pages, late regions) and a dependency's distributed routes (repro-island-pkg).",
 	"type": "module",
+	"imports": {
+		"#lib": "./src/lib",
+		"#lib/*": "./src/lib/*"
+	},
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",

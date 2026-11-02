@@ -10,9 +10,6 @@ packages:
   - '!internal/repro-header-lab'
   - '!internal/repro-catalog'
   - '!internal/repro-ogygia-footer'
-  # the SvelteKit 3 app installs the PACKED ogygia standalone (e2e/kit3.spec.ts): a workspace link
-  # would resolve ogygia's own Kit 2 dev install next to the app's Kit 3
-  - '!internal/repro-kit3'
   # Runnable demos (the MFE federation trio + contracts) — consume the live packages/ogygia (over packages/core).
   - 'examples/mfe/*'
 allowBuilds:
@@ -83,20 +80,14 @@ catalogs:
   tsgo:
     typescript: ^7.0.2
     '@typescript/native': npm:typescript@^7.0.2
-  # Kit 3, read by core's kit-shim-surface test (internal/kit-sources), and the svelte its peers ask
-  # for: its own importer, so they never move the versions ogygia and the apps resolve.
-  kit3:
-    '@sveltejs/kit3': npm:@sveltejs/kit@3.0.1
-    svelte: 5.57.2
   # internal/repro: the CONTROL repro (plain Svelte on Vite 6, no ogygia), frozen at the versions its
   # measurements were taken on (vite on the 6.4 patch line for its security fixes).
   repro-control:
     vite: 6.4.5
     '@sveltejs/vite-plugin-svelte': 5.1.1
     svelte: 5.56.8
-# Not workspace members, so no catalog reaches them; their pins stay inline, on purpose: the adapter
-# fixture (apps/palaestra/e2e/adapters/fixture) and the Kit 3 app (internal/repro-kit3, installs the
-# packed ogygia).
+# Not a workspace member, so no catalog reaches it; its pins stay inline, on purpose: the adapter
+# fixture (apps/palaestra/e2e/adapters/fixture).
 # The docs read only geist's font FILES (apps/docs/scripts/subset-fonts.ts); its `next` peer is for
 # the Next.js helpers we never import, so it stays optional instead of auto-installing Next + React.
 packageExtensions:

@@ -1,5 +1,4 @@
-import { sequence } from '@sveltejs/kit/hooks';
-import type { Handle } from '@sveltejs/kit';
+import { sequence, type Handle } from '@sveltejs/kit/hooks';
 import { handle as ogygiaHandle } from 'ogygia/server';
 import { cms_router } from '#lib/router.js';
 // federate() (in peers.server.ts) registers cms's exposed table + peers with the handle, which

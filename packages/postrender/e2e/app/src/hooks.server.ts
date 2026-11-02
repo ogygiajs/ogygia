@@ -1,12 +1,12 @@
 import { sequence } from '@sveltejs/kit/hooks';
 import * as ogygia from 'ogygia/server';
 import { postrender, akamai, cloudfront, type EdgeAdapter } from '@ogygia/postrender';
-import { env } from '$env/dynamic/private';
+import * as env from '$app/env/private';
 import { routes, page, layout } from '@ogygia/router';
-import Shell from '$lib/r/Shell.svelte';
-import Stored from '$lib/r/Stored.svelte';
-import Plain from '$lib/r/Plain.svelte';
-import Off from '$lib/r/Off.svelte';
+import Shell from '#lib/r/Shell.svelte';
+import Stored from '#lib/r/Stored.svelte';
+import Plain from '#lib/r/Plain.svelte';
+import Off from '#lib/r/Off.svelte';
 
 // Edge adapters point at the harness's EMULATORS when their base URLs are set (../postrender.spec.ts
 // boots them) — the REAL adapters run unchanged, signing included; the emulators verify the

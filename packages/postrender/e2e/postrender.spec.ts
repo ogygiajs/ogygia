@@ -41,8 +41,8 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 			args: ['build/index.js'],
 			cwd: dir,
 			env: {
+				// (the origin itself is baked in at build time: adapter-node 6, see playwright.config.ts)
 				PORT: String(ORIGIN_PORT),
-				ORIGIN: origin,
 				EDGE_AKAMAI_URL: akamai.base,
 				EDGE_CF_URL: cf.base,
 				EDGE_SITE_URL: origin

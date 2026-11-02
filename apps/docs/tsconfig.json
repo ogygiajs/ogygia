@@ -1,5 +1,9 @@
 {
-	"extends": "./.svelte-kit/tsconfig.json",
+	"extends": "$app/tsconfig",
+	"include": ["src", "test", "*"],
+	// the plain-node browser script (`node observatory.e2e.ts`) was never type-checked under Kit 2's
+	// generated include list; keep it out now that "*" covers it
+	"exclude": ["src/service-worker", "observatory.e2e.ts"],
 	"compilerOptions": {
 		"allowJs": true,
 		"allowImportingTsExtensions": true,

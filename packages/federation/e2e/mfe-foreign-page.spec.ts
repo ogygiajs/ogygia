@@ -1,7 +1,7 @@
 // FOREIGN PAGE READ (fragment federation, dev warning) — end to end, in a real browser.
 //
-// A mounted MFE island that reads `page.data` (the `$app/state` shim; `$app/stores` rides the same
-// path) hydrates inside the SHELL's document. There the shim answers with the shell's page — one
+// A mounted MFE island that reads `page.data` (the `$app/state` shim) hydrates inside the SHELL's
+// document. There the shim answers with the shell's page — one
 // singleton per document — not the MFE's, whose own page seed sits in its `<head>` and never crosses
 // the fragment boundary. So the island's SSR HTML (rendered by the MFE) and its hydrated self
 // disagree. ogygia warns once per island in dev, naming the field, the island entry, and the MFE

@@ -3,8 +3,9 @@
 import { query, getRequestEvent } from '$app/server';
 
 async function get(name: string, ms: number): Promise<{ name: string; ms: number }> {
-	const { fetch, url } = getRequestEvent();
-	const res = await fetch(`${url.origin}/hell/api/${name}?ms=${ms}`);
+	// (the request's own origin: Kit refuses `event.url` inside a query)
+	const { fetch, request } = getRequestEvent();
+	const res = await fetch(`${new URL(request.url).origin}/hell/api/${name}?ms=${ms}`);
 	return res.json();
 }
 

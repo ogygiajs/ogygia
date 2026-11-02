@@ -17,7 +17,9 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter: adapter(opts)
+			adapter: adapter(opts),
+			// adapter-node 6 reads no runtime ORIGIN: the e2e runner passes the booted server's at build
+			...(process.env.ORIGIN ? { paths: { origin: process.env.ORIGIN } } : {})
 		})
 	]
 });

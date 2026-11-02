@@ -1,5 +1,4 @@
-import { sequence } from '@sveltejs/kit/hooks';
-import type { Handle } from '@sveltejs/kit';
+import { sequence, type Handle } from '@sveltejs/kit/hooks';
 import * as ogygia from 'ogygia/server';
 import { postrender } from '@ogygia/postrender';
 import { shell_router } from '#lib/shell-router.js';

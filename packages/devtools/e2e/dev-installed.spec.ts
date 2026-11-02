@@ -41,8 +41,10 @@ function real(name: string): string {
 }
 
 const FILES: Record<string, string> = {
-	'package.json': '{ "name": "installed-app", "private": true, "type": "module" }\n',
-	'svelte.config.js': 'export default { kit: {} };\n',
+	// (Kit 3: `#lib` is the app's own subpath import, and Kit's config is the `sveltekit()` argument —
+	// none needed here; a `svelte.config.js` is an error)
+	'package.json':
+		'{ "name": "installed-app", "private": true, "type": "module", "imports": { "#lib": "./src/lib", "#lib/*": "./src/lib/*" } }\n',
 	// (devtools on, the way an app turns it on in dev: its dock's packages must be found up front)
 	'vite.config.js':
 		"import { sveltekit } from '@sveltejs/kit/vite';\nimport { ogygia } from 'ogygia/vite';\nimport { devtools } from '@ogygia/devtools/vite';\nexport default { plugins: [ogygia(), devtools(), sveltekit()] };\n",
@@ -65,8 +67,8 @@ const FILES: Record<string, string> = {
 <button data-plain onclick={() => n++}>{label} {n}</button>
 `,
 	'src/routes/+page.svelte': `<script lang="ts">
-	import Card from '$lib/Card.svelte' with { wake: 'load' };
-	import Plain from '$lib/Plain.svelte' with { wake: 'load' };
+	import Card from '#lib/Card.svelte' with { wake: 'load' };
+	import Plain from '#lib/Plain.svelte' with { wake: 'load' };
 </script>
 <Card><p data-kid>a child from the page</p></Card>
 <Plain label="plain" />

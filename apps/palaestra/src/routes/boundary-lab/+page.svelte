@@ -51,7 +51,7 @@
 	setContext('logToServer', () => console.log('host-only fn'));
 
 	// ── the ones that would be BUILD ERRORS (uncomment to see file:line) ──────
-	// import { OGYGIA_SECRET } from '$env/static/private';
+	// import { OGYGIA_SECRET } from '$app/env/private';
 	// setContext('leak', import.meta.og.$(() => OGYGIA_SECRET));      // server-only capture
 	// setContext('el', import.meta.og.$({ node: document.body }));    // caught at SSR: DOM never crosses
 </script>

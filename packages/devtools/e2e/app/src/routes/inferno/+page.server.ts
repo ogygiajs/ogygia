@@ -2,7 +2,7 @@
 // takes in real code, plus DECOYS that look suspicious and are fine. The comment on each says which
 // slow pattern the profiler should name. Profile it: /__profiler → "Profile one page" → /inferno.
 import { existsSync, readFileSync } from 'node:fs';
-import { PRODUCTS } from '$lib/inferno/data';
+import { PRODUCTS } from '#lib/inferno/data.ts';
 import {
 	attachBrands,
 	forView,
@@ -13,9 +13,9 @@ import {
 	totalPrice,
 	validateAll,
 	pages
-} from '$lib/inferno/catalog';
-import { byName, newestReview } from '$lib/inferno/format';
-import { injectBadges, sitemapHtml } from '$lib/inferno/html';
+} from '#lib/inferno/catalog.ts';
+import { byName, newestReview } from '#lib/inferno/format.ts';
+import { injectBadges, sitemapHtml } from '#lib/inferno/html.ts';
 import type { PageServerLoad } from './$types';
 
 export const prerender = false;

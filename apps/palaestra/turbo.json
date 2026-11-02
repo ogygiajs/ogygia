@@ -7,7 +7,6 @@
 				"$TURBO_DEFAULT$",
 				"$TURBO_ROOT$/apps/pure-csr/**",
 				"$TURBO_ROOT$/internal/repro-deep-csr/**",
-				"$TURBO_ROOT$/internal/repro-kit3/**",
 				"$TURBO_ROOT$/internal/repro-subpkg/**",
 				"$TURBO_ROOT$/internal/repro-hole-css-kit/**",
 				"!$TURBO_ROOT$/apps/**/node_modules/**",

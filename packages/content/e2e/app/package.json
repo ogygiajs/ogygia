@@ -4,6 +4,10 @@
 	"private": true,
 	"description": "@ogygia/content's e2e fixture app: a markdown body's scoped CSS (/content-css) and the blocks registry demos (/blocks, /blocks-direct).",
 	"type": "module",
+	"imports": {
+		"#lib": "./src/lib",
+		"#lib/*": "./src/lib/*"
+	},
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",

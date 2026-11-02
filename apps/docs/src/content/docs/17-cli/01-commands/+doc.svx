@@ -32,7 +32,7 @@ Wires ogygia into the SvelteKit app in the current directory. It needs a `packag
 
 - **`package.json`:** adds `ogygia` (and `@ogygia/content` with markdown) to `dependencies` at the CLI's own version, and `@ogygia/cli` to `devDependencies`.
 - **The Vite config:** puts `ogygia()` first in `plugins`, followed by `content({ markdown: {} })` with markdown.
-- **The svelte config** (markdown only): adds `extensions()` and `preprocess()` from `@ogygia/content/vite` to the existing `extensions` and `preprocess`.
+- **Kit's config** (markdown only): adds `extensions()` and `preprocess()` from `@ogygia/content/vite` to the `sveltekit({…})` call in the Vite config, merged into any `extensions` and `preprocess` already there.
 - **`src/hooks.ts`:** exports `transport = ogygia.transport`, or spreads it into the `transport` you already export.
 - **`src/hooks.server.ts`:** adds `ogygia.handle()`, in a `sequence()` with the `handle` you already export.
 - **`.gitignore`:** ignores `**/.ogygia-keep-client/`, a folder the build creates and removes, which only survives a build that was killed.

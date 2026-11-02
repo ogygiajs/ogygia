@@ -41,8 +41,7 @@ my-docs/
 │   │       └── +page.svelte
 │   ├── app.css                    # --ph-* theme tokens
 │   └── app.html
-├── svelte.config.js
-└── vite.config.ts
+└── vite.config.ts                 # ogygia() + sveltekit({ … }): Kit's config lives here
 ```
 
 ## What each folder is for

@@ -17,28 +17,25 @@ On top of collections, `site()` arranges them into a site: a nav tree, prev/next
 pnpm add @ogygia/content
 ```
 
+Markdown files compile through Kit's config, the argument of `sveltekit()`, so `extensions()` and `preprocess()` go there, after `content()`:
+
 ```ts title=vite.config.ts
 import { sveltekit } from '@sveltejs/kit/vite';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { ogygia } from 'ogygia/vite';
-import { content } from '@ogygia/content/vite';
+import { content, preprocess, extensions } from '@ogygia/content/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  plugins: [ogygia(), content({ markdown: {} }), sveltekit()]
+  plugins: [
+    ogygia(),
+    content({ markdown: {} }),
+    sveltekit({ extensions: extensions(), preprocess: [vitePreprocess(), ...preprocess()] })
+  ]
 });
 ```
 
-Markdown files compile through the svelte config, and the content macros bring their own types:
-
-```js title=svelte.config.js
-import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
-import { preprocess, extensions } from '@ogygia/content/vite';
-
-export default {
-  extensions: extensions(),
-  preprocess: [vitePreprocess(), ...preprocess()]
-};
-```
+The content macros bring their own types:
 
 ```ts title=src/ogygia.d.ts
 /// <reference types="ogygia/types" />

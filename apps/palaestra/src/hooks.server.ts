@@ -1,5 +1,5 @@
-import { sequence } from '@sveltejs/kit/hooks';
-import { redirect, type Handle } from '@sveltejs/kit';
+import { sequence, type Handle } from '@sveltejs/kit/hooks';
+import { redirect } from '@sveltejs/kit';
 import { handle as ogygiaHandle, document } from 'ogygia/server';
 import { region } from 'ogygia';
 import DocTest from '#lib/doctest/DocTest.svelte';
@@ -19,7 +19,7 @@ const doc_test: Handle = async ({ event, resolve }) => {
 
 // FOREIGN-MUTATION fixture (e2e/detector.ts): on /detector only, corrupt the FIRST island's
 // region HTML after SSR — strip Svelte's `<!--[-->` hydration anchors inside it, the way a
-// post-SSR HTML middleware (the example.com DSD injector) does. Svelte's hydration must then discard
+// post-SSR HTML middleware (a declarative-shadow-DOM injector) does. Svelte's hydration must then discard
 // that island's server DOM and re-render; the runtime's data-og-recovered detector must flag
 // EXACTLY that island and not its healthy sibling. See internal/notes/foreign-dom.md.
 const corrupt_detector_region: Handle = async ({ event, resolve }) => {
@@ -33,6 +33,23 @@ const corrupt_detector_region: Handle = async ({ event, resolve }) => {
 			if (start === -1 || end === -1) return html;
 			const block = html.slice(start, end);
 			return html.slice(0, start) + block.replaceAll('<!--[-->', '') + html.slice(end);
+		}
+	});
+};
+
+// KIT-REBUILD fixture (e2e/hole-kit-rebuild.spec.ts): on /hole-kit-rebuild only, a foreign post-SSR
+// pass strips the hydration marker of Boom's `{#if}` from Kit's document — so Kit's hydration hits a
+// mismatch Svelte cannot repair in place, and the document is mounted fresh in the browser. (The
+// block's opening marker carries its branch index: `<!--[0-->`, not a bare `<!--[-->`.)
+const BRANCH_OPEN_RE = /<!--\[[^>]*?-->/;
+const corrupt_kit_rebuild: Handle = async ({ event, resolve }) => {
+	if (!event.url.pathname.startsWith('/hole-kit-rebuild')) return resolve(event);
+	return resolve(event, {
+		transformPageChunk: ({ html, done }) => {
+			if (!done) return html;
+			const boom = html.indexOf('data-boom');
+			if (boom === -1) return html;
+			return html.slice(0, boom) + html.slice(boom).replace(BRANCH_OPEN_RE, '');
 		}
 	});
 };
@@ -82,5 +99,6 @@ export const handle = sequence(
 		...(moved_endpoint ? { endpoint: moved_endpoint } : {})
 	}),
 	corrupt_detector_region,
+	corrupt_kit_rebuild,
 	passthrough
 );

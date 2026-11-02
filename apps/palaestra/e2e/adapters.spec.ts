@@ -151,7 +151,8 @@ function boot_server(runtime: 'node' | 'bun'): (bind: Bind) => Promise<Booted> {
 			cmd: runtime,
 			args: ['build/index.js'],
 			cwd: APP,
-			env: { PORT: String(port), HOST: '127.0.0.1', ORIGIN: base },
+			// (no runtime ORIGIN: adapter-node 6 takes it at build time, `paths.origin` in the fixture)
+			env: { PORT: String(port), HOST: '127.0.0.1' },
 			url: base,
 			timeout_ms: 30_000,
 			ready: (res) => res.status < 500
@@ -388,7 +389,8 @@ test.describe('adapters: an all-csr=false islands app works end to end on every 
 
 			const built = run('node', ['node_modules/vite/bin/vite.js', 'build'], {
 				cwd: APP,
-				env: { ...process.env, OGYGIA_E2E_ADAPTER: a.buildAs ?? a.name }
+				// (ORIGIN: the origin the booted server answers on, baked in at build time by adapter-node 6)
+				env: { ...process.env, OGYGIA_E2E_ADAPTER: a.buildAs ?? a.name, ORIGIN: base }
 			});
 			expect(built, 'vite build succeeded').toBe(true);
 

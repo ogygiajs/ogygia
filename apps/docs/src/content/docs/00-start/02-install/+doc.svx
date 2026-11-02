@@ -7,7 +7,7 @@ related:
   - app/spa-router
 ---
 
-ogygia installs into an existing SvelteKit app. You add three parts once (the package, the Vite plugin and the server handle) and then adopt ogygia one route at a time, so every route you have not converted stays a normal Kit page.
+ogygia installs into an existing SvelteKit app: SvelteKit 3, Svelte 5 and Vite 8. You add three parts once (the package, the Vite plugin and the server handle) and then adopt ogygia one route at a time, so every route you have not converted stays a normal Kit page.
 
 ## Setup
 
@@ -96,7 +96,9 @@ export const transport = { ...ogygia.transport };
 
 ### Markdown, Shiki & mdsvex (optional)
 
-For `.svx` and `.md` [content collections](/docs/content/collections), add the content package, which brings mdsvex and Shiki, and list its `content()` plugin beside `ogygia()`. The [`@ogygia/content` section](/docs/content/overview) covers the package itself:
+For `.svx` and `.md` [content collections](/docs/content/collections), add the content package, which brings mdsvex and Shiki, and list its `content()` plugin beside `ogygia()`. The [`@ogygia/content` section](/docs/content/overview) covers the package itself.
+
+Kit takes its config in `vite.config.ts`, as the argument of `sveltekit()`, so `extensions` and `preprocess` go there. Call `content()` first, because `extensions()` and `preprocess()` read its markdown config:
 
 ```bash
 pnpm add @ogygia/content
@@ -104,29 +106,21 @@ pnpm add @ogygia/content
 
 ```ts title=vite.config.ts
 import { sveltekit } from '@sveltejs/kit/vite';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { ogygia } from 'ogygia/vite';
-import { content } from '@ogygia/content/vite';
+import { content, preprocess, extensions } from '@ogygia/content/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [
     ogygia(),
     content({ markdown: {} }), // {} = defaults: Shiki + heading ids + collected headings
-    sveltekit()
+    sveltekit({
+      extensions: extensions(), // includes .svelte, adds .svx / .md
+      preprocess: [vitePreprocess(), ...preprocess()]
+    })
   ]
 });
-```
-
-Put `extensions` and `preprocess` in **`svelte.config.js`**, not inline on `sveltekit()`. Kit v2, `svelte-check` and the Svelte language server all read `svelte.config.js`, and if you pass the options inline, Kit ignores `svelte.config.js` and `svelte-check` never sees them:
-
-```js title=svelte.config.js
-import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
-import { preprocess, extensions } from '@ogygia/content/vite';
-
-export default {
-  extensions: extensions(), // includes .svelte, adds .svx / .md
-  preprocess: [vitePreprocess(), ...preprocess()]
-};
 ```
 
 `preprocess()` is synchronous and does not load mdsvex while markdown is off; mdsvex loads on first use. `extensions()` adds `.svx` and `.md` only when markdown is on. Themes and headings are set under `content({ markdown })`, which [content collections](/docs/content/collections) describes.
