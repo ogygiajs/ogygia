@@ -9,7 +9,7 @@ compiler with phases, an IR, a driver, and a linker — with Vite demoted to **o
 it.
 
 **Hard constraint: zero runtime change.** Every emitted byte stays identical. This is a pure
-re-architecture of correct logic into a compiler shape, guarded by `internal/bench/compiler-stress.ts`
+re-architecture of correct logic into a compiler shape, guarded by `internal/checks/compiler-stress.ts`
 (deterministic digest) + the full unit + e2e suites. Nothing about the output, the runtime, the
 server, or the content-render trees changes.
 
@@ -184,7 +184,7 @@ vite/
 ## Migration — grow the skeleton, relocate byte-for-byte
 
 Build the compiler's spine first, then move the (correct) logic into its phase modules unchanged. After
-**every** stage: `pnpm run check` → `pnpm test` → `pnpm run e2e` → `node internal/bench/compiler-stress.ts`
+**every** stage: `pnpm run check` → `pnpm test` → `pnpm run e2e` → `node internal/checks/compiler-stress.ts`
 (digest **unchanged**). Commit per stage so any regression bisects to one move.
 
 1. **Backbone: `driver.ts` + `program.ts` + `ctx.ts` + `ids.ts`.** Lift the plugin's `registry` +

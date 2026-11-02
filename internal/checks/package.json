@@ -1,0 +1,15 @@
+{
+	"name": "ogygia-internal-checks",
+	"private": true,
+	"description": "ogygia's internal checks: the devtools and profiler answer keys, the compiler stress run, the server-cost and client-boot measurements.",
+	"type": "module",
+	"scripts": {
+		"keys": "node all-keys.ts",
+		"keys:quick": "node all-keys.ts --quick",
+		"cache-bust": "node cache-bust-check.ts",
+		"compiler-stress": "node compiler-stress.ts",
+		"server-cost": "node server-cost.ts",
+		"client-boot": "node client-boot.ts",
+		"prop-contract": "node integration-prop-contract.ts"
+	}
+}

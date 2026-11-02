@@ -11,8 +11,7 @@ related:
 	import BenchCharts from '$lib/BenchCharts.svelte';
 </script>
 
-This page compares ogygia, an islands library for SvelteKit, with other frameworks on the same pages. You can reproduce every measurement from the repository under
-[`bench/`](https://github.com/ogygiajs/ogygia/tree/main/bench).
+This page compares ogygia, an islands library for SvelteKit, with other frameworks on the same pages. The benchmark has its own public repository, [ogygiajs/benchmarks](https://github.com/ogygiajs/benchmarks), where you can read the code and reproduce every measurement.
 
 ## The benchmark
 
@@ -65,15 +64,15 @@ On payload alone, the island frameworks end up close to each other, so the bigge
 
 `?` means not verified for the benchmarked version. The trade-off is that ogygia carries a somewhat larger baseline runtime (see the size figures above) in return for the bottom third of this matrix, the region primitives and the Kit-native integration that none of the other frameworks here offer.
 
-## Reproduce it
+## Where the numbers come from
+
+[ogygiajs/benchmarks](https://github.com/ogygiajs/benchmarks) runs the full benchmark on every change to ogygia's `main` branch and publishes the results. This page reads the newest of those results when the docs are built, so the charts show the latest `main` and name the ogygia version that was measured. If that read fails, the page falls back to the last copy of the results kept in the docs.
+
+The same repository also benchmarks every ogygia pull request against `main` and posts the difference on the pull request, so a change that makes pages slower or heavier shows up before it merges.
+
+To reproduce a run yourself, follow the README in [ogygiajs/benchmarks](https://github.com/ogygiajs/benchmarks). The runtime size for each feature profile is measured in this repository:
 
 ```bash
-# hermetic (Docker): builds every framework + runs Lighthouse
-docker compose -f bench/docker-compose.yml up --build
-
 # isolated runtime size per feature profile (rolldown, brotli)
 pnpm run bundle-size
 ```
-
-The numbers on this page are regenerated from `bench/results/latest.json`, the exact JSON the
-benchmark emits.
