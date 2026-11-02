@@ -8,6 +8,12 @@ changeset, written by the release: do not edit by hand.
 
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.8.11
+
+### Patch Changes
+
+- [#117](https://github.com/ogygiajs/ogygia/pull/117) [`fc1017f`](https://github.com/ogygiajs/ogygia/commit/fc1017f05f74ac6db0c4aa822112ba7a574d1fcf) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A web component around a hole is restored like one around an island, so its own runtime no longer adopts it and moves the hole it holds.
+
 ## 0.8.10
 
 ### Patch Changes
