@@ -154,6 +154,8 @@ const { code } = await preprocess(source, preprocessors, { filename });
 const plain_js = strip_markup_ts(code, filename);
 ```
 
+Docs: [@ogygia/tsdown-plugin-svelte](https://ogygiajs.dev/docs/tsdown-plugin-svelte/overview), with [options](https://ogygiajs.dev/docs/tsdown-plugin-svelte/options), [plain rolldown](https://ogygiajs.dev/docs/tsdown-plugin-svelte/rolldown) and the [API](https://ogygiajs.dev/docs/tsdown-plugin-svelte/api/tsdown-plugin-svelte).
+
 ## License
 
 [MIT](./LICENSE)

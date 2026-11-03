@@ -1,0 +1,21 @@
+---
+title: The markup strip on its own
+summary: strip_markup_ts removes TypeScript from a Svelte component's template, for tools that ship Svelte source another way. Run it on the output of preprocess(), when the script is JS but the template still has types.
+related:
+  - tsdown-plugin-svelte/how-it-works
+  - tsdown-plugin-svelte/overview
+---
+
+`strip_markup_ts` is the second step of the plugin's build, exported for tools that ship Svelte source another way. Run it on the output of Svelte's `preprocess()`, when the script is already JS but the template still has types:
+
+```ts
+import { preprocess } from 'svelte/compiler';
+import { strip_markup_ts } from '@ogygia/tsdown-plugin-svelte';
+
+const { code } = await preprocess(source, preprocessors, { filename });
+const plain_js = strip_markup_ts(code, filename);
+```
+
+It parses the file with Svelte's own parser, as TypeScript, and cuts out every type-only span in the template: `as` and `satisfies` casts, `!` assertions, annotations and generic arguments. It also removes `lang="ts"` from each script. Strings and comments that only look like types are left alone, because nothing is matched by pattern. `filename` is passed to the parser, for its error messages.
+
+The `lang="ts"` attribute is how it knows the template is TypeScript: `preprocess()` leaves it on the script, and a file without it is returned unchanged. Everything that is not a type stays byte for byte as it was.

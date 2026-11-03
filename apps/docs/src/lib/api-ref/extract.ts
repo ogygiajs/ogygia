@@ -37,7 +37,8 @@ const DOCUMENTED_PACKAGES = [
 	'@ogygia/federation',
 	'@ogygia/postrender',
 	'@ogygia/devtools',
-	'@ogygia/testing'
+	'@ogygia/testing',
+	'@ogygia/tsdown-plugin-svelte'
 ];
 /** Packages whose types the documented ones re-export (`ogygia` is a thin shell over core). */
 const TYPE_SOURCES = [...DOCUMENTED_PACKAGES, '@ogygia/core'];
@@ -72,16 +73,25 @@ function packageNameOf(moduleId: string): string {
 	return moduleId.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
 }
 
-/** Module id (`@ogygia/content/server`) → the export map's `types` file, absolute. */
+type ExportMap = Record<string, { types?: string } | string>;
+
+/** Module id (`@ogygia/content/server`) → the export map's `types` file, absolute. A package whose
+ *  in-repo `types` names its source (`./src/index.ts`) names the shipped declarations in
+ *  `publishConfig.exports`, and the reference documents what ships. */
 export function dtsPathFor(moduleId: string): string | null {
 	const name = packageNameOf(moduleId);
 	const root = packageRoot(name);
 	const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as {
-		exports?: Record<string, { types?: string } | string>;
+		exports?: ExportMap;
+		publishConfig?: { exports?: ExportMap };
 	};
 	const sub = moduleId === name ? '.' : './' + moduleId.slice(name.length + 1);
-	const entry = pkg.exports?.[sub];
-	const types = typeof entry === 'object' && entry?.types ? entry.types : null;
+	const types_of = (map: ExportMap | undefined) => {
+		const entry = map?.[sub];
+		return typeof entry === 'object' && entry?.types ? entry.types : null;
+	};
+	let types = types_of(pkg.exports);
+	if (!types || !/\.d\.[cm]?ts$/.test(types)) types = types_of(pkg.publishConfig?.exports) ?? types;
 	if (!types) return null;
 	const abs = path.join(root, types);
 	return fs.existsSync(abs) ? abs : null;

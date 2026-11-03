@@ -1,0 +1,8 @@
+---
+title: '@ogygia/tsdown-plugin-svelte'
+summary: The plugin factory, its options, and the markup TypeScript strip.
+---
+
+This page is generated from the package's own `.d.ts` files on every build, so the signatures, descriptions and examples below always match the source.
+
+> MODULE: @ogygia/tsdown-plugin-svelte
