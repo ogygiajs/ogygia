@@ -260,6 +260,20 @@ It is not the same as a longer `ttl`. A renewed URL still lives only for `ttl`, 
 
 The HMAC secret that signs `render: 'deferred'` capability URLs. Set it in the environment to keep signatures stable across a deployment; otherwise a key is generated per build. Every deployment that serves your pages or your islands endpoint needs the same value at runtime, because a hole signed with one key and checked against another is refused (`x-ogygia-deny: foreign-key`).
 
+If your server process never sees its runtime environment, pass the secret to the server handle instead. A value from `$env/static/private` is read at build time and built into the server:
+
+```ts
+// src/hooks.server.ts
+import { OGYGIA_SECRET } from '$env/static/private';
+import * as ogygia from 'ogygia/server';
+
+export const handle = ogygia.handle({ secret: OGYGIA_SECRET });
+```
+
+`handle({ secret })` takes precedence over the environment variable, and an empty value counts as not given. The same secret signs the same way through either path, so pages signed with one verify with the other. Like the environment variable, it needs at least 16 bytes in production.
+
+The server decides its key the first time it signs or checks a capability, and keeps it for the life of the process. A different secret arriving after that (from a second `handle()`, or after a render) is an error: it throws in dev and is logged in production, and the first key stays.
+
 A hole's URL signs the component it renders, so a page cached across a deploy keeps its holes as long as their components still exist, regardless of a changed preset, `wake` or build-time `OGYGIA_SECRET`. A hole whose component was moved, renamed or removed is refused (`x-ogygia-deny: unknown-id`) and keeps its fallback.
 
 Server islands and `render: 'live'` need the [server handle](/docs/start/install) installed to serve the endpoint.
@@ -276,6 +290,7 @@ export const handle = ogygia.handle();
 | Option                                  | What it does                                                                                                                                                                                                                           |
 | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `endpoint`                              | The region endpoint's path. Default `/__ogygia__`.                                                                                                                                                                                     |
+| `secret`                                | The secret that signs capability URLs. Takes precedence over `OGYGIA_SECRET`; see [`OGYGIA_SECRET`](#ogygiavite-ogygia-secret).                                                                                                        |
 | `transform(html, { kind, csr, event })` | Post-processes every document (`kind: 'document'`) and every region answer (`kind: 'region'`), and may reshape Svelte-owned markup: ogygia restores it before anything hydrates. See [Server transforms](/docs/app/server-transforms). |
 
 ## `ogygia/markup`

@@ -36,7 +36,7 @@ import {
 import { islandCss, fnManifest } from 'virtual:ogygia/island-deps';
 import { create_remote_key } from 'virtual:ogygia/kit-wire';
 import { REGION_BRAND } from './region-brand.ts';
-import { signing_key } from './server/signing-key.ts';
+import { signing_key, configure_signing_secret } from './server/signing-key.ts';
 import { rateLimit as rate_limit_cfg } from 'virtual:ogygia/rate-limit';
 import { sessionCookie as session_cookie } from 'virtual:ogygia/session-cookie';
 import {
@@ -73,7 +73,13 @@ import dev_hmr_url from 'virtual:ogygia/dev-hmr-url';
 // Kit's `asset()`, taking ogygia's base-less `/…` URLs on Kit 2 and Kit 3 alike
 import { kit_asset as asset } from './kit-paths.ts';
 import devtools_boot_url from 'virtual:ogygia/devtools-boot-url';
-import { sign, verify, region_mac_message } from './server/hmac.ts';
+import {
+	sign,
+	verify,
+	region_mac_message,
+	secret_has_min_entropy,
+	MIN_SECRET_BYTES
+} from './server/hmac.ts';
 import { expiry_refusal, note_cache_control } from './server/shared-cache.ts';
 import { app_lifetime } from './server/region-endpoint.ts';
 import { render_cache_key, cached_render } from './server/render-cache.ts';
@@ -740,6 +746,15 @@ class OgygiaHandle {
 		// only the handler once, and every hole on the page asked the old path
 		configure_islands_endpoint(options.endpoint);
 		this.#endpoint = islands_endpoint();
+		// THE SIGNING SECRET, recorded before any render the way the endpoint is: the first mint or
+		// verify decides the key (server/signing-key.ts) and finds it there. Held to the floor a
+		// production build holds OGYGIA_SECRET to; dev may use short keys.
+		if (options.secret?.trim() && !import.meta.env.DEV && !secret_has_min_entropy(options.secret)) {
+			throw new Error(
+				`[ogygia] handle({ secret }) is too short for production (need ≥${MIN_SECRET_BYTES} UTF-8 bytes).`
+			);
+		}
+		configure_signing_secret(options.secret);
 		// MPA mode's Speculation Rules leave this endpoint out (one string, built once)
 		this.#speculation_rules = router_enabled ? '' : mpaSpeculationRules(this.#endpoint);
 		this.render_rate = new RateLimiter({
@@ -2149,6 +2164,22 @@ export interface OgygiaHandleOptions {
 	 * (`/_app/…`): Kit answers those itself, before any handle runs.
 	 */
 	endpoint?: string;
+	/**
+	 * The secret that signs region capabilities (hole and live-region URLs). Takes precedence over
+	 * the `OGYGIA_SECRET` environment variable, for a host whose server process never sees its
+	 * runtime env. Pass a build-time private env value:
+	 *
+	 * ```ts
+	 * import { OGYGIA_SECRET } from '$env/static/private';
+	 * export const handle = ogygia.handle({ secret: OGYGIA_SECRET });
+	 * ```
+	 *
+	 * An empty or blank value counts as not given (`OGYGIA_SECRET`, then a per-build random key, sign
+	 * instead). It signs exactly as the same value in `OGYGIA_SECRET` does, so pages from either
+	 * verify on the other. In production it needs ≥16 UTF-8 bytes. Every deployment that serves your
+	 * pages or your islands endpoint needs the same secret.
+	 */
+	secret?: string;
 	/**
 	 * Post-process the HTML ogygia sends — every document (the chunk carrying `</head>`; a streamed
 	 * tail passes untouched) and every region answer (a hole, a lake remount) — e.g. a web-component

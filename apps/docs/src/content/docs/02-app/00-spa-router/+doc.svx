@@ -146,7 +146,7 @@ A capability made at prerender time is signed for a very long time. Its props ar
 
 ### Set OGYGIA_SECRET
 
-By default, each build signs with a fresh random key, so a redeploy would orphan the holes on static pages from earlier builds and on pages a CDN still holds. A stable `OGYGIA_SECRET` environment variable keeps the holes from every earlier build valid, and the build warns if you prerender holes without one. See [`OGYGIA_SECRET` in the API reference](/docs/reference/api).
+By default, each build signs with a fresh random key, so a redeploy would orphan the holes on static pages from earlier builds and on pages a CDN still holds. A stable `OGYGIA_SECRET` environment variable keeps the holes from every earlier build valid, and the build warns if you prerender holes without one. If your server cannot read its runtime environment, pass the secret to `handle({ secret })` instead. See [`OGYGIA_SECRET` in the API reference](/docs/reference/api#ogygiavite-ogygia-secret).
 
 ### Island files after a deploy
 
