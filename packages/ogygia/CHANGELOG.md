@@ -8,6 +8,13 @@ changeset, written by the release: do not edit by hand.
 
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.11.5
+
+### Patch Changes
+
+- Updated dependencies [[`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3), [`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3), [`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3), [`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3)]:
+  - @ogygia/core@0.11.5
+
 ## 0.11.4
 
 ### Patch Changes

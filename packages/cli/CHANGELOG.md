@@ -1,5 +1,13 @@
 # @ogygia/cli
 
+## 0.11.5
+
+### Patch Changes
+
+- [#146](https://github.com/ogygiajs/ogygia/pull/146) [`8b0e1d7`](https://github.com/ogygiajs/ogygia/commit/8b0e1d763c28740e3e2fc9d00dd7707219833523) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The AI skill links the plugin docs at their new address, `/docs/core/plugins`.
+- Updated dependencies [[`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3), [`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3), [`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3), [`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3)]:
+  - @ogygia/core@0.11.5
+
 ## 0.11.0
 
 ### Patch Changes
