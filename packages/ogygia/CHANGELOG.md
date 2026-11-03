@@ -12,25 +12,25 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Patch Changes
 
-- [#153](https://github.com/ogygiajs/ogygia/pull/153) [`d78bd72`](https://github.com/ogygiajs/ogygia/commit/d78bd72ac08a1694b6e0b1a2baaa9921f128a8dc) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `handle({ secret })` signs region capabilities with a secret the app passes (e.g. from `$env/static/private`), for a server that never sees `OGYGIA_SECRET` at runtime; it signs exactly as the same `OGYGIA_SECRET` does, and every copy of ogygia in the process uses it.
+- [#153](https://github.com/ogygiajs/ogygia/pull/153) [`9261f17`](https://github.com/ogygiajs/ogygia/commit/9261f172f53181ad3f07d75c70b893756f17405e) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `handle({ secret })` signs region capabilities with a secret the app passes (e.g. from `$env/static/private`), for a server that never sees `OGYGIA_SECRET` at runtime; it signs exactly as the same `OGYGIA_SECRET` does, and every copy of ogygia in the process uses it.
 
 ## 0.8.11
 
 ### Patch Changes
 
-- [#117](https://github.com/ogygiajs/ogygia/pull/117) [`fc1017f`](https://github.com/ogygiajs/ogygia/commit/fc1017f05f74ac6db0c4aa822112ba7a574d1fcf) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A web component around a hole is restored like one around an island, so its own runtime no longer adopts it and moves the hole it holds.
+- [#117](https://github.com/ogygiajs/ogygia/pull/117) [`d3fbccd`](https://github.com/ogygiajs/ogygia/commit/d3fbccd22f16f5903c0b926c2b8cfa61d894e87f) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A web component around a hole is restored like one around an island, so its own runtime no longer adopts it and moves the hole it holds.
 
 ## 0.8.10
 
 ### Patch Changes
 
-- [#106](https://github.com/ogygiajs/ogygia/pull/106) [`a2300a0`](https://github.com/ogygiajs/ogygia/commit/a2300a0611ce97e58225757665c31e5e29cb1e12) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The drop-in `setContext` now reaches islands inside a lake on a csr=true page; a csr=true page with no island ogygia wakes still ships no context.
+- [#106](https://github.com/ogygiajs/ogygia/pull/106) [`60450d5`](https://github.com/ogygiajs/ogygia/commit/60450d5807e30adc374ae281659c299eeb356dd8) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The drop-in `setContext` now reaches islands inside a lake on a csr=true page; a csr=true page with no island ogygia wakes still ships no context.
 
 ## 0.8.9
 
 ### Patch Changes
 
-- [#66](https://github.com/ogygiajs/ogygia/pull/66) [`e1d0377`](https://github.com/ogygiajs/ogygia/commit/e1d0377da81098e69bc0537a26b7b33d6ba2af25) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The repository now lives at github.com/ogygiajs/ogygia; package links point there.
+- [#66](https://github.com/ogygiajs/ogygia/pull/66) [`96801f3`](https://github.com/ogygiajs/ogygia/commit/96801f3e223c957ed14f11efc69e3f1bb71c4a3f) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The repository now lives at github.com/ogygiajs/ogygia; package links point there.
 
 ## 0.8.8 - 2026-10-30
 
