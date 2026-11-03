@@ -155,7 +155,8 @@ function is_build_identity(entry: string): boolean {
 	return absolute(entry).includes('/ogygia/og-region.');
 }
 
-async function current_location(entry: string): Promise<string | null> {
+/** The current build's location for `entry`, or null. `failed`: the file that just failed to load. */
+async function current_location(entry: string, failed?: string): Promise<string | null> {
 	const identity = absolute(entry);
 	const dir = identity.lastIndexOf('/ogygia/og-region.');
 	if (dir === -1) return null;
@@ -168,16 +169,25 @@ async function current_location(entry: string): Promise<string | null> {
 		current_maps.set(file, map);
 	}
 	const pairs = await map;
-	if (!pairs) {
-		// a failed read is not kept: a deploy's rollover (a 404, a 5xx, an edge without the new file
-		// yet) is exactly when this is asked, and the next island must be able to recover
+	let found: string | null = null;
+	if (pairs)
+		for (const name in pairs)
+			if (absolute(name, file) === identity) {
+				found = absolute(pairs[name], file);
+				break;
+			}
+	// Neither a failed read nor a map that names the file that just failed is kept: a deploy's
+	// rollover is exactly when this is asked, and for a few seconds an edge can still answer with
+	// the old build's map (or a 404, a 5xx). The next ask reads it again.
+	if (!pairs || (failed !== undefined && found === failed)) {
 		if (current_maps.get(file) === map) current_maps.delete(file);
 		return null;
 	}
-	for (const name in pairs)
-		if (absolute(name, file) === identity) return absolute(pairs[name], file);
-	return null;
+	return found;
 }
+
+/** How long a recovery waits before each ask of the current map: a rollover settles in seconds. */
+const RECOVERY_WAITS = [0, 1000, 3000, 9000];
 
 /**
  * Import an entry: its location when known (else this build's map names it, once read); failing that,
@@ -194,18 +204,26 @@ export function import_entry<T>(
 		const located = entry_location(entry);
 		if (located) return load_entry<T>(entry, located);
 		// no location this page knows: the current build's, else the identity as written (dev)
-		return load_entry<T>(entry, (await current_location(entry)) ?? url, false);
+		return load_entry<T>(entry, (await current_location(entry)) ?? url);
 	});
 }
 
-function load_entry<T>(entry: string, url: string, recover = true): Promise<T> {
+function load_entry<T>(entry: string, url: string): Promise<T> {
 	const loaded = import(/* @vite-ignore */ url) as Promise<T>;
-	if (!recover) return loaded;
 	return loaded.catch(async (error: unknown) => {
-		// a build's identity is a name: the current build's map names its file. Any other identity
-		// (the dev server's module) is a file itself, fetched fresh past the cache that failed.
-		const current = is_build_identity(entry) ? await current_location(entry) : absolute(entry);
-		if (!current || current === absolute(url)) throw error;
+		// a build's identity is a name: the current build's map names its file, asked again while
+		// the rollover settles. Any other identity (the dev server's module) is a file itself, fetched
+		// fresh past the cache that failed.
+		const failed = absolute(url);
+		let current: string | null = null;
+		if (is_build_identity(entry))
+			for (const wait of RECOVERY_WAITS) {
+				if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
+				current = await current_location(entry, failed);
+				if (current) break;
+			}
+		else current = absolute(entry);
+		if (!current || current === failed) throw error;
 		const retry = import(/* @vite-ignore */ current) as Promise<T>;
 		// said out loud: the page's HTML is one build, this island's code the current one (devtools'
 		// timeline, and the beacon — the Page tab and the profiler name it)

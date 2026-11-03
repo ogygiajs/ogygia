@@ -11,7 +11,7 @@ const IDENTITY = '/test/browser/fixtures/ogygia/og-region.000000000aa2.js';
 
 afterEach(() => vi.unstubAllGlobals());
 
-test('one failed read of the current map: the next load asks again, and wakes', async () => {
+test('one failed read of the current map: the load asks again, and wakes', async () => {
 	const real = fetch;
 	let failed = 0;
 	vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
@@ -21,8 +21,8 @@ test('one failed read of the current map: the next load asks again, and wakes', 
 		}
 		return real(input, init);
 	});
-	// (no location anywhere, and the map unreachable: the identity is a name, so the load fails)
-	await expect(import_entry(IDENTITY)).rejects.toThrow();
+	// (no location anywhere, and the map unreachable: the identity is a name, so the first load
+	// fails; the recovery reads the map again)
 	const m = await import_entry<{ default: string }>(IDENTITY);
 	expect(m.default).toBe('current');
 	expect(failed).toBe(1);
