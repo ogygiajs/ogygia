@@ -1,5 +1,21 @@
 # @ogygia/core
 
+## 0.12.0
+
+### Minor Changes
+
+- [#157](https://github.com/ogygiajs/ogygia/pull/157) [`a217b91`](https://github.com/ogygiajs/ogygia/commit/a217b91317cd1958a40c74a6009d2ce0c64226ba) Thanks [@PuruVJ](https://github.com/PuruVJ)! - An island loaded without a `src` (a region the browser renders, a held or live region from a remote function or a stream, a hole rebuilt after a failed hydration, a portable snippet with no island graph) loads its content-hashed file: the build writes its locations into one content-hashed map, which the runtime's script names and the first such load reads.
+
+- [#157](https://github.com/ogygiajs/ogygia/pull/157) [`a217b91`](https://github.com/ogygiajs/ogygia/commit/a217b91317cd1958a40c74a6009d2ce0c64226ba) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A client-side navigation into a page of another build (a deploy since the page was loaded) loads that page as a document instead of swapping it into the running runtime, so two builds' islands, runtimes and Svelte never meet on one page.
+
+- [#157](https://github.com/ogygiajs/ogygia/pull/157) [`a217b91`](https://github.com/ogygiajs/ogygia/commit/a217b91317cd1958a40c74a6009d2ce0c64226ba) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Every file a build writes under `<appDir>/immutable/` is now named by its content, so a host's year-long rule for that directory can never serve another build's code: the stable-name files (`og-region.<id>.js`, `og-runtime.<id>.js`), whose content changed every build, are gone. An island's `entry` is now a name, not a file. The one file at a fixed name is `<appDir>/ogygia.json`, beside Kit's `version.json`: the current build's locations, which a page that outlived its build reads to wake its islands on the current code. Serve it as you serve `version.json` (revalidated); a federated app also needs the same `Access-Control-Allow-Origin` on it as on its `immutable/` files. A page cached from before content hashing, which loaded the runtime by its stable name, no longer recovers.
+
+### Patch Changes
+
+- [#151](https://github.com/ogygiajs/ogygia/pull/151) [`64f6046`](https://github.com/ogygiajs/ogygia/commit/64f6046512f0cea076b2094d16ed75d4e1c726d3) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A client-side navigation no longer removes nodes the page's own code put in `<body>` (a popover portal's anchor, a toast host), so a popover in an island the navigation keeps still opens afterwards; only the server's body children and attributes are replaced.
+
+- [`75a5cdd`](https://github.com/ogygiajs/ogygia/commit/75a5cdd66de1b96f45585119b03f2ba4fc7a03ec) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `handle({ secret })` signs region capabilities with a secret the app passes (e.g. from `$env/static/private`), for a server that never sees `OGYGIA_SECRET` at runtime; it signs exactly as the same `OGYGIA_SECRET` does, and every copy of ogygia in the process uses it.
+
 ## 0.11.5
 
 ### Patch Changes
