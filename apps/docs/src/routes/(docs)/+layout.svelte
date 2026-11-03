@@ -19,8 +19,9 @@
 	import { page } from '$app/state';
 	import { meta } from '$lib/docs.remote';
 	import { sectionNav, sectionOf } from '$lib/sections';
-	// The package switcher: a disclosure of links (works before it wakes); waking adds the keys.
-	import SectionSwitcher from '$lib/SectionSwitcher.svelte' with { wake: 'idle' };
+	// The package switcher: a Bits UI dropdown of links. An island, like the shell's own Bits UI
+	// pieces (the version switcher, the sheet), so it hydrates on load and again after each nav.
+	import SectionSwitcher from '$lib/SectionSwitcher.svelte' with { wake: 'load' };
 
 	let { children } = $props();
 

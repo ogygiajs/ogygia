@@ -56,14 +56,12 @@
 	border-bottom: 1px solid color-mix(in srgb, var(--accent-line) 35%, var(--line));
 	background: color-mix(in srgb, var(--bg-raised) 45%, var(--bg));
 }
-/* The same switcher at the top of the phone's nav sheet: pinned above the scrolling tree. */
+/* The same switcher at the top of the phone's nav sheet: pinned above the scrolling tree. Its
+   menu floats over the sheet (portaled, positioned by Bits UI), so nothing below it moves. */
 .og-sheet-top {
 	margin-bottom: 0.75rem;
 	padding: 0.35rem 0 0.85rem;
 	border-bottom: 1px solid color-mix(in srgb, var(--accent-line) 35%, var(--line));
-}
-.og-sheet-top .sec-sw .sec-sw-menu {
-	max-height: 38dvh;
 }
 
 /* ── header (unused in the headerless form; kept for pages that opt back in) ── */

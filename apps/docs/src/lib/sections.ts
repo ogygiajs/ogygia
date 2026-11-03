@@ -27,6 +27,12 @@ export const SECTIONS: Section[] = [
 		home: '/docs/start/overview'
 	},
 	{
+		key: 'devtools',
+		name: 'Devtools',
+		blurb: 'The in-page dock and the SSR profiler',
+		home: '/docs/devtools/overview'
+	},
+	{
 		key: 'content',
 		name: 'Content',
 		blurb: 'Collections, markdown, docs sites and search',
@@ -43,12 +49,6 @@ export const SECTIONS: Section[] = [
 		name: 'Postrender',
 		blurb: 'Prerender at request time, served as bytes',
 		home: '/docs/postrender/overview'
-	},
-	{
-		key: 'devtools',
-		name: 'Devtools',
-		blurb: 'The in-page dock and the SSR profiler',
-		home: '/docs/devtools/overview'
 	},
 	{
 		key: 'testing',
