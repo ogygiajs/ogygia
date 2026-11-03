@@ -52,11 +52,29 @@ async function opens(page: Page) {
 	await expect(page.getByRole('menu')).toHaveCount(0);
 }
 
-/** A client-side navigation by a sidebar link, settled once the switcher is awake again. */
-async function sidebar_nav(page: Page, text: string, path: string) {
-	await page.locator('.og-cside .og-nav-link', { hasText: text }).first().click();
-	await page.waitForURL('**' + path);
+/**
+ * Run `act` (a click that navigates) and wait until that navigation is done: the router updates the
+ * address before it fetches, so a matched URL can still show the leaving page and its switcher.
+ * `og:page-load` fires once the next page is in. Settled once the switcher is awake again.
+ */
+async function navigates(page: Page, path: string, act: () => Promise<void>) {
+	await page.evaluate(() => {
+		const w = window as unknown as { __e2e_nav?: Promise<void> };
+		w.__e2e_nav = new Promise((done) =>
+			document.addEventListener('og:page-load', () => done(), { once: true })
+		);
+	});
+	await act();
+	await page.evaluate(() => (window as unknown as { __e2e_nav?: Promise<void> }).__e2e_nav);
+	await expect(page).toHaveURL(new RegExp(path + '$'));
 	await expect(page.locator(TRIGGER)).toHaveCount(1);
+}
+
+/** A client-side navigation by a sidebar link. */
+async function sidebar_nav(page: Page, text: string, path: string) {
+	await navigates(page, path, () =>
+		page.locator('.og-cside .og-nav-link', { hasText: text }).first().click()
+	);
 }
 
 test('the section switcher opens after every client-side navigation, inside a section too', async ({
@@ -69,9 +87,9 @@ test('the section switcher opens after every client-side navigation, inside a se
 
 	// to another section through the switcher
 	await page.locator(TRIGGER).click();
-	await page.getByRole('menuitem', { name: /^Core/ }).click();
-	await page.waitForURL('**/docs/core/overview');
-	await expect(page.locator(TRIGGER)).toHaveCount(1);
+	await navigates(page, '/docs/core/overview', () =>
+		page.getByRole('menuitem', { name: /^Core/ }).click()
+	);
 	await opens(page);
 
 	// inside the section: the switcher's island is kept, the same node across the navigation
