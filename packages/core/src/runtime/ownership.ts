@@ -177,3 +177,33 @@ export function render_made(node: Node, render_tags: ReadonlySet<string>): boole
 	const name = (node as Element).localName;
 	return name === REGION || render_tags.has(name);
 }
+
+// ── `<body>`: two owners (internal/notes/dom-ownership.md) ──────────────────────────────────────
+// The server writes `<body>` page by page; the scripts living on the page write it too: an attribute
+// (a scroll lock, a consent banner's state) and children (a component mounted into the body, such as
+// a popover's portal and the anchor it inserts beside; a toast host; a widget's iframe). A navigation
+// moves the server's part to the next page's and leaves the page's part alone: it removes only what
+// the previous page's SERVER sent. The record starts when the router starts, which is before any
+// island wakes (the wake gate waits for DOMContentLoaded and a frame), and each navigation renews it.
+
+const NO_TAGS: ReadonlySet<string> = new Set();
+let server_body_attrs: Set<string> | null = null;
+
+/** Record what the server sent `<body>`: the attribute names on `sent` (the body as the server
+ *  rendered it), and `children` (the live body's nodes that are the server's) as render output. */
+export function record_server_body(sent: Element, children: Iterable<Node>): void {
+	server_body_attrs = new Set(Array.from(sent.attributes, (a) => a.name));
+	for (const n of children) mark_render_made(n);
+}
+
+/** The attribute names the server sent `<body>`, or null while nothing is recorded (a reconcile
+ *  outside a started router: everything on the body is then taken to be the server's). */
+export function server_body_attributes(): ReadonlySet<string> | null {
+	return server_body_attrs;
+}
+
+/** Is `node`, a child of `<body>`, the server's? Recorded, or an `<ogygia-region>`. Anything else
+ *  the page's scripts put there: a navigation neither matches nor removes it. */
+export function server_body_child(node: Node): boolean {
+	return render_made(node, NO_TAGS);
+}

@@ -59,11 +59,12 @@ export type FormOps = {
 export type ArmFn = (el: HTMLElement, fire: () => void) => void | (() => void);
 
 /** `target: 'walk'` = the hydration repair (the server sequence Svelte's walk binds); default = a live
- *  morph toward a new answer. Same ownership rules either way (runtime/ownership.ts). */
+ *  morph toward a new answer. Same ownership rules either way (runtime/ownership.ts). `stays`: a
+ *  child of `parent` the morph steps over (the page's own, beside the render's). */
 export type MorphFn = (
 	parent: Element,
 	nodes: ArrayLike<Node>,
-	options?: { target?: 'live' | 'walk' }
+	options?: { target?: 'live' | 'walk'; stays?: (node: Node) => boolean }
 ) => void;
 
 export type WireOps = {
@@ -162,6 +163,10 @@ export type BootLink = {
 	/** DOM ownership (./ownership.ts): which children Svelte's walk enters, and self-owned elements */
 	walk_enters: typeof import('./ownership.ts').walk_enters;
 	is_self_owned: typeof import('./ownership.ts').is_self_owned;
+	/** `<body>`'s two owners (./ownership.ts): the router's record of what the server sent it */
+	record_server_body: typeof import('./ownership.ts').record_server_body;
+	server_body_attributes: typeof import('./ownership.ts').server_body_attributes;
+	server_body_child: typeof import('./ownership.ts').server_body_child;
 };
 export type RouterLink = {
 	document_key: typeof import('./router.ts').document_key;

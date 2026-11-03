@@ -125,7 +125,7 @@ export function morph_children(
 	}
 	// (the root is ordered like any element: a region's children in the answer's order, a baked live
 	// region's by identity — Svelte's anchors sit among them)
-	reconcile(parent, new_nodes, build_id_sets(parent, new_nodes), walk);
+	reconcile(parent, new_nodes, build_id_sets(parent, new_nodes), walk, options?.stays);
 	clear_aria_hidden_over_focus(parent);
 }
 
@@ -146,6 +146,13 @@ export function morph_children(
  */
 export interface MorphOptions {
 	target?: 'live' | 'walk';
+	/**
+	 * A child of the ROOT that is not the render's (the router's body reconcile: a node a script put
+	 * in `<body>`, such as a portal's mount anchor; ownership.ts `server_body_child`). The morph steps
+	 * over it: never matched, never moved, never removed. The render's children around it reconcile
+	 * as usual. Root level only; below the root the ownership rules decide.
+	 */
+	stays?: (node: Node) => boolean;
 }
 
 /**
@@ -272,24 +279,39 @@ function reserved_for_later(
  * ({@link reconcile_by_identity}). Toward Svelte's walk, positions are always the render's (the walk
  * binds by position).
  */
-function reconcile(parent: Element, new_nodes: ArrayLike<Node>, sets: IdSets, walk: boolean): void {
+function reconcile(
+	parent: Element,
+	new_nodes: ArrayLike<Node>,
+	sets: IdSets,
+	walk: boolean,
+	stays?: (node: Node) => boolean
+): void {
+	// (by identity, a child the render did not make is already never matched nor removed)
 	if (!walk && order_owner(parent) === 'element') reconcile_by_identity(parent, new_nodes, sets);
-	else reconcile_children(parent, new_nodes, sets, walk);
+	else reconcile_children(parent, new_nodes, sets, walk, stays);
 }
 
 /**
  * The render's sequence, by position.
  * @param walk the {@link MorphOptions.target} is Svelte's walk (the repair), threaded unchanged down
  * the recursion — a subtree the walk never enters is skipped.
+ * @param stays the root's children that are not the render's ({@link MorphOptions.stays}): the
+ * cursor steps over them, so they are never matched, moved or removed. Not threaded down.
  */
 function reconcile_children(
 	parent: Element,
 	new_nodes: ArrayLike<Node>,
 	sets: IdSets,
-	walk = false
+	walk = false,
+	stays?: (node: Node) => boolean
 ): void {
 	const count = new_nodes.length;
-	let cursor: ChildNode | null = parent.firstChild;
+	// The cursor only ever rests on a child the morph may touch: `stays` children are stepped over.
+	const step = (n: ChildNode | null): ChildNode | null => {
+		if (stays) while (n && stays(n)) n = n.nextSibling;
+		return n;
+	};
+	let cursor: ChildNode | null = step(parent.firstChild);
 	let idx = 0;
 
 	// ── Phase 1: optimistic lockstep ────────────────────────────────────────────
@@ -308,12 +330,12 @@ function reconcile_children(
 			// builds the sibling indexes needed to tell whether something better exists.
 			if (sets !== null && !id_sets_agree(sets, cursor, next)) break;
 			const here = cursor;
-			cursor = cursor.nextSibling;
+			cursor = step(cursor.nextSibling);
 			morph_same(here, next, sets, walk);
 		} else {
 			// Same non-null key: morph regardless of tag (morph_node replaces on a tag mismatch).
 			const here = cursor;
-			cursor = cursor.nextSibling;
+			cursor = step(cursor.nextSibling);
 			morph_node(here, next, sets, walk);
 		}
 		idx++;
@@ -323,7 +345,7 @@ function reconcile_children(
 	if (idx >= count) {
 		while (cursor) {
 			const gone = cursor;
-			cursor = cursor.nextSibling;
+			cursor = step(cursor.nextSibling);
 			parent.removeChild(gone);
 		}
 		return;
@@ -339,7 +361,7 @@ function reconcile_children(
 	// ones by the keys they hold — first holder wins, like the DOM's own `getElementById`.
 	let old_keys: Map<string, ChildNode> | null = null;
 	let old_inner: Map<string, Element> | null = null;
-	for (let n: ChildNode | null = cursor; n; n = n.nextSibling) {
+	for (let n: ChildNode | null = cursor; n; n = step(n.nextSibling)) {
 		const k = key_of(n);
 		if (k !== null) {
 			(old_keys ??= new Map()).set(k, n);
@@ -372,7 +394,7 @@ function reconcile_children(
 			const next = new_nodes[idx];
 			if (cursor && key_of(next) === null && same_node(cursor, next)) {
 				const here = cursor;
-				cursor = cursor.nextSibling;
+				cursor = step(cursor.nextSibling);
 				morph_same(here, next, sets, walk);
 			} else {
 				parent.insertBefore(clone(next), cursor);
@@ -389,7 +411,7 @@ function reconcile_children(
 				if (matched !== undefined) {
 					old_keys!.delete(next_key);
 					if (matched === cursor) {
-						cursor = cursor.nextSibling;
+						cursor = step(cursor.nextSibling);
 					} else {
 						parent.insertBefore(matched, cursor); // moves `matched` (already lives in `parent`)
 					}
@@ -404,7 +426,7 @@ function reconcile_children(
 				if (holder !== null) {
 					release_holder(old_inner, sets!, holder);
 					if (holder === cursor) {
-						cursor = cursor.nextSibling;
+						cursor = step(cursor.nextSibling);
 					} else {
 						parent.insertBefore(holder, cursor);
 					}
@@ -419,7 +441,7 @@ function reconcile_children(
 			while (cursor) {
 				cur_key = key_of(cursor);
 				if (cur_key === null || old_keys === null || !old_keys.has(cur_key)) break; // not reserved
-				cursor = cursor.nextSibling;
+				cursor = step(cursor.nextSibling);
 			}
 
 			// Positional hit: a key-less, compatible node in this slot morphs in place — unless a LATER
@@ -432,7 +454,7 @@ function reconcile_children(
 				(old_inner === null || !reserved_for_later(sets!, new_inner, cursor, idx))
 			) {
 				const here = cursor;
-				cursor = cursor.nextSibling;
+				cursor = step(cursor.nextSibling);
 				if (old_inner !== null) release_holder(old_inner, sets!, here as Element);
 				morph_same(here, next, sets, walk);
 				continue;
@@ -447,7 +469,7 @@ function reconcile_children(
 	// keyed nodes whose key vanished but that sit BEFORE the cursor (positionally skipped).
 	while (cursor) {
 		const gone = cursor;
-		cursor = cursor.nextSibling;
+		cursor = step(cursor.nextSibling);
 		parent.removeChild(gone);
 	}
 	if (old_keys) {
