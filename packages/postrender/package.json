@@ -1,6 +1,6 @@
 {
 	"name": "@ogygia/postrender",
-	"version": "0.11.4",
+	"version": "0.12.0",
 	"description": "Prerender at request time for ogygia: a page whose render read nothing personal is stored on its first request and served as bytes",
 	"keywords": [
 		"cache",
