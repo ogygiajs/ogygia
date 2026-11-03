@@ -1,0 +1,91 @@
+---
+title: Overview
+summary: A tsdown plugin that ships a library's Svelte components the way svelte-package does, inside the same build as its TypeScript. Components ship uncompiled, with TypeScript stripped from the script and the template, a .svelte.d.ts beside each, and plain CSS copied.
+related:
+  - tsdown-plugin-svelte/options
+  - tsdown-plugin-svelte/rolldown
+  - reference/packaging
+---
+
+`@ogygia/tsdown-plugin-svelte` lets a Svelte component library keep one build. Your `.ts` goes through [tsdown](https://tsdown.dev) as usual, and your `.svelte` components ship next to it, the way `svelte-package` ships them, with no second build step:
+
+| In `src/`       | In `dist/`                             | By          |
+| --------------- | -------------------------------------- | ----------- |
+| `index.ts`      | `index.mjs`, `index.d.mts`             | tsdown      |
+| `Button.svelte` | `Button.svelte` (plain JS, uncompiled) | this plugin |
+|                 | `Button.svelte.d.ts` (typed props)     | this plugin |
+| `theme.css`     | `theme.css` (copied)                   | this plugin |
+
+It works for any Svelte library, not only for packages used in ogygia apps: nothing ogygia-specific ends up in what you ship. ogygia's own packages are built with it.
+
+- **Components ship uncompiled.** Each `.svelte` file lands in `dist` at the same path, as source. Your users' own Svelte compiles it, so your library never pins them to the Svelte version you built with.
+- **TypeScript everywhere, plain JS shipped.** TypeScript is removed from the `<script>` and from the template: `{item as Row}`, `{user!.name}` and `{#snippet row(item: Row)}` are all fine. Your users need no TypeScript setup.
+- **Typed props.** A `.svelte.d.ts` is generated beside every component with svelte2tsx, the engine `svelte-package` uses.
+- **Safe stripping.** Types are found with Svelte's own parser, not with patterns, so a string or a comment that only looks like a type is never touched.
+- **Styles come along.** Plain `.css` files under `src` are copied as they are.
+
+## Install
+
+```bash
+pnpm add -D @ogygia/tsdown-plugin-svelte
+```
+
+It needs `tsdown` 0.15 or newer and `svelte` 5. For the defaults, also install:
+
+```bash
+pnpm add -D svelte2tsx typescript @sveltejs/vite-plugin-svelte
+```
+
+`svelte2tsx` and `typescript` generate the `.svelte.d.ts` types; skip them with `dts: false`. `@sveltejs/vite-plugin-svelte` provides the default preprocessor; skip it by passing your own `preprocess` ([Options](/docs/tsdown-plugin-svelte/options)).
+
+## A first config
+
+```ts title=tsdown.config.ts
+import { defineConfig } from 'tsdown';
+import { svelte } from '@ogygia/tsdown-plugin-svelte';
+
+export default defineConfig({
+  entry: ['src/**/*.ts'],
+  unbundle: true,
+  dts: true,
+  plugins: [svelte()],
+  // the shipped components stay as files: never bundle them, or Svelte, into your JS
+  deps: { neverBundle: ['svelte', /\.svelte$/] }
+});
+```
+
+`unbundle: true` keeps one output file per source file, so `import Button from './Button.svelte'` in your `.ts` still points at the shipped component.
+
+## package.json exports
+
+Expose the components to Svelte-aware tools with the `svelte` export condition:
+
+```jsonc title=package.json
+{
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "svelte": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./Button.svelte": {
+      "types": "./dist/Button.svelte.d.ts",
+      "svelte": "./dist/Button.svelte"
+    }
+  },
+  "files": ["dist"]
+}
+```
+
+## With ogygia
+
+A component library built this way is already in the shape an ogygia app needs. The app imports `my-lib/Button.svelte` with its own `wake` mark, and its build turns the component into a region; your package ships nothing for that. [Packaging](/docs/reference/packaging) covers the rest, including `ogygia.files` for marks that belong on your side.
+
+## Where to go next
+
+- [Options](/docs/tsdown-plugin-svelte/options): every option, and a monorepo setup.
+- [Plain rolldown](/docs/tsdown-plugin-svelte/rolldown): the same plugin without tsdown.
+- [How it works](/docs/tsdown-plugin-svelte/how-it-works): the four steps of a build.
+- [The markup strip on its own](/docs/tsdown-plugin-svelte/strip-markup-ts): `strip_markup_ts` for other tools.
+- API: [`@ogygia/tsdown-plugin-svelte`](/docs/tsdown-plugin-svelte/api/tsdown-plugin-svelte).

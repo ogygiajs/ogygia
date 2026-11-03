@@ -79,6 +79,12 @@ export const SECTIONS: Section[] = [
 		name: 'Core',
 		blurb: 'The shared core, for plugin authors',
 		home: '/docs/core/overview'
+	},
+	{
+		key: 'tsdown-plugin-svelte',
+		name: 'tsdown plugin',
+		blurb: 'Ship Svelte components from a tsdown build',
+		home: '/docs/tsdown-plugin-svelte/overview'
 	}
 ];
 

@@ -26,6 +26,8 @@ Export your `.svelte` files as subpaths, in the same shape that [`@sveltejs/pack
 }
 ```
 
+If your library builds with tsdown, [`@ogygia/tsdown-plugin-svelte`](/docs/tsdown-plugin-svelte/overview) produces this shape in the same build as your `.ts`: the components ship uncompiled, with their TypeScript stripped and a `.svelte.d.ts` beside each. ogygia's own packages are built that way.
+
 The consumer then marks the strategy that fits **their** page:
 
 ```svelte

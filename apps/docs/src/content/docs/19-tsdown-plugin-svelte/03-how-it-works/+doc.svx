@@ -1,0 +1,16 @@
+---
+title: How it works
+summary: The four steps of a build, from preprocessing each component to copying only the component declarations next to the shipped files.
+related:
+  - tsdown-plugin-svelte/strip-markup-ts
+  - tsdown-plugin-svelte/options
+---
+
+The plugin does its work in two build hooks, `buildStart` and `writeBundle`, so tsdown (or rolldown) stays in charge of your `.ts` files and their declarations.
+
+1. **Preprocess.** At the start of the build, every `.svelte` under `src` is run through your preprocessors, which turns its `<script lang="ts">` into JS.
+2. **Strip the markup.** Svelte's parser reads the file once more, still as TypeScript, and every type-only span in the template is cut out: `as` and `satisfies` casts, `!` assertions, annotations and generic arguments. `lang="ts"` is removed from each script. A relative `./x.ts` import in the component becomes `./x.js`, the built module it sits beside, the same way tsdown rewrites your `.ts` sources.
+3. **Emit.** The result is emitted as a build asset at the same path in `out`, and each plain `.css` file under `src` is emitted as it is. Emitting assets, rather than writing files, means tsdown's `clean` never wipes them.
+4. **Types.** After the bundle is written, svelte2tsx generates declarations into a scratch folder, and only the `*.svelte.d.ts` files are copied next to the components (with the same `./x.ts` → `./x.js` rewrite). The scratch folder is removed afterwards.
+
+What ships is a `.svelte` file with plain JS in its script, no TypeScript in its template, and its styles as written. Your users' Svelte compiles it like any component in their own app.

@@ -1,0 +1,35 @@
+---
+title: Plain rolldown
+summary: The plugin uses only standard build hooks, so it also works in a plain rolldown build. Set up one output file per source file and the .ts declarations, which tsdown would otherwise give it.
+related:
+  - tsdown-plugin-svelte/overview
+  - tsdown-plugin-svelte/options
+---
+
+tsdown runs on [rolldown](https://rolldown.rs), and the plugin uses only standard build hooks, so it also works in a plain rolldown build. This setup was tested with rolldown 1.2.16. You set up the two things tsdown would otherwise give it:
+
+- **One output file per source file**, so a component's `./util.ts` import finds `./util.js` beside it: `preserveModules` with `preserveModulesRoot: 'src'`.
+- **Types for your `.ts` files**: [rolldown-plugin-dts](https://github.com/sxzz/rolldown-plugin-dts), the plugin tsdown uses. This plugin only adds the `.svelte.d.ts` files.
+
+```ts title=rolldown.config.ts
+import { defineConfig } from 'rolldown';
+import { dts } from 'rolldown-plugin-dts';
+import { svelte } from '@ogygia/tsdown-plugin-svelte';
+
+export default defineConfig({
+  input: ['src/index.ts', 'src/util.ts'],
+  external: ['svelte', /\.svelte$/],
+  plugins: [dts(), svelte()],
+  output: {
+    dir: 'dist',
+    format: 'esm',
+    preserveModules: true,
+    preserveModulesRoot: 'src',
+    entryFileNames: '[name].js'
+  }
+});
+```
+
+List every `.ts` file a component imports in `input`, so each one is built to its own file. Set the plugin's `out` to `output.dir` if that is not `dist`.
+
+The plugin ships components; it does not compile `.svelte` files into an app. For that, use `@sveltejs/vite-plugin-svelte` or `rollup-plugin-svelte`.
