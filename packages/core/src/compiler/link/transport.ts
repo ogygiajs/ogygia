@@ -1,4 +1,5 @@
 import { OWN_SPECIFIER_SOURCE } from '../../own-package.ts';
+import { dedent } from '../dedent.ts';
 
 /**
  * `virtual:ogygia/transport` emitter — re-exports the app's universal `transport` hook (or an empty
@@ -9,21 +10,33 @@ export function transport_module(
 	universal_hooks: string | null,
 	kit_codec: string | null = null
 ): string {
-	if (!universal_hooks)
-		return `export const transport = {};\nexport const encoders = {};\nexport const decoders = {};`;
+	if (!universal_hooks) {
+		return dedent`
+			export const transport = {};
+			export const encoders = {};
+			export const decoders = {};
+		`;
+	}
 	// THE app codec, built once: every ogygia reader (page seed, remote seed, Kit's remote functions
 	// through the client stub) takes `encoders`/`decoders` from here.
-	const src =
-		`import * as hooks from ${JSON.stringify(universal_hooks)};\n` +
-		`export const transport = hooks.transport || {};\n` +
-		`const codecs = Object.entries(transport);\n` +
-		`export const encoders = Object.fromEntries(codecs.map(([k, v]) => [k, v.encode]));\n` +
-		`export const decoders = Object.fromEntries(codecs.map(([k, v]) => [k, v.decode]));`;
-	// Kit 3 (client leg): Kit's own codec module is a reader too — its remote argument encoding reads
-	// it, and only Kit's client boot fills it otherwise (never on a csr=false page). Kit's boot later
-	// fills it again with the same transport.
+	const src = dedent`
+		import * as hooks from ${JSON.stringify(universal_hooks)};
+
+		export const transport = hooks.transport || {};
+		const codecs = Object.entries(transport);
+		export const encoders = Object.fromEntries(codecs.map(([k, v]) => [k, v.encode]));
+		export const decoders = Object.fromEntries(codecs.map(([k, v]) => [k, v.decode]));
+	`;
 	if (!kit_codec) return src;
-	return `import { init_transport } from ${JSON.stringify(kit_codec)};\n${src}\ninit_transport(transport);`;
+	return dedent`
+		import { init_transport } from ${JSON.stringify(kit_codec)};
+		${src}
+
+		// Kit 3 (client leg): Kit's own codec module is a reader too — its remote argument encoding
+		// reads it, and only Kit's client boot fills it otherwise (never on a csr=false page). Kit's
+		// boot later fills it again with the same transport.
+		init_transport(transport);
+	`;
 }
 
 /**
@@ -37,8 +50,10 @@ export function transport_module(
  * `transport_spec` is the resolvable path to ogygia's own `transport.js` (dist).
  */
 export function kit_transport_module(app_crosses_wire: boolean, transport_spec: string): string {
-	if (!app_crosses_wire) return `export const transport = {};\n`;
-	return `export { ogygiaTransport as transport } from ${JSON.stringify(transport_spec)};\n`;
+	if (!app_crosses_wire) return `export const transport = {};`;
+	return dedent`
+		export { ogygiaTransport as transport } from ${JSON.stringify(transport_spec)};
+	`;
 }
 
 // A held region / transportable value can only reach Kit's `transport` hook through a value the app
@@ -95,12 +110,20 @@ export function transportables_module(
 	if (ssr) {
 		const imports: string[] = [];
 		for (const abs of modules) imports.push(`import ${JSON.stringify(abs)};`);
-		return (
-			imports.join('\n') + '\nexport const wire_loaders = {};\nexport const wire_all = false;\n'
-		);
+		return dedent`
+			${imports.join('\n')}
+
+			export const wire_loaders = {};
+			export const wire_all = false;
+		`;
 	}
 	const entries: string[] = [];
 	for (const abs of modules)
 		entries.push(`${JSON.stringify(rel(abs))}: () => import(${JSON.stringify(abs)})`);
-	return `export const wire_loaders = {${entries.join(', ')}};\nexport const wire_all = ${crosses_wire && entries.length > 0};\n`;
+	return dedent`
+		export const wire_loaders = {
+			${entries.join(',\n\t')}
+		};
+		export const wire_all = ${crosses_wire && entries.length > 0};
+	`;
 }

@@ -11,6 +11,7 @@ import {
 	page_route_config,
 	rootLayoutCsrTrue
 } from '../kit.ts';
+import { dedent } from '../dedent.ts';
 
 /**
  * `virtual:ogygia/secret` — SERVER only: the per-build random key material and whether the BUILD
@@ -24,8 +25,16 @@ export function secret_module(
 	build_secret: string,
 	build_had_secret: boolean
 ): string {
-	if (!ssr) return `export const buildKey = '';\nexport const buildHadSecret = false;`;
-	return `export const buildKey = ${JSON.stringify(build_secret)};\nexport const buildHadSecret = ${build_had_secret};`;
+	if (!ssr) {
+		return dedent`
+			export const buildKey = '';
+			export const buildHadSecret = false;
+		`;
+	}
+	return dedent`
+		export const buildKey = ${JSON.stringify(build_secret)};
+		export const buildHadSecret = ${build_had_secret};
+	`;
 }
 
 /**
@@ -35,18 +44,26 @@ export function secret_module(
  */
 export function sign_module(ssr: boolean, hmac_module: string): string {
 	if (!ssr) {
-		return (
-			`export function sign(_secret, _message) { return ''; }\n` +
-			`export function verify(_secret, _message, _sig) { return false; }\n` +
-			`export function region_mac_message(id, exp, props, session = '', ttl = '', render = '') {\n` +
-			`  const enc = new TextEncoder();\n` +
-			`  const lp = (s) => enc.encode(String(s)).byteLength + ':' + String(s);\n` +
-			`  const v1 = lp(id) + '|' + lp(exp) + '|' + lp(props) + '|' + lp(session) + '|' + lp(ttl);\n` +
-			`  return render === '' ? 'v1|' + v1 : 'v2|' + v1 + '|' + lp(render);\n` +
-			`}\n`
-		);
+		return dedent`
+			export function sign(_secret, _message) {
+				return '';
+			}
+
+			export function verify(_secret, _message, _sig) {
+				return false;
+			}
+
+			export function region_mac_message(id, exp, props, session = '', ttl = '', render = '') {
+				const enc = new TextEncoder();
+				const lp = (s) => enc.encode(String(s)).byteLength + ':' + String(s);
+				const v1 = lp(id) + '|' + lp(exp) + '|' + lp(props) + '|' + lp(session) + '|' + lp(ttl);
+				return render === '' ? 'v1|' + v1 : 'v2|' + v1 + '|' + lp(render);
+			}
+		`;
 	}
-	return `export { sign, verify, region_mac_message } from ${JSON.stringify(hmac_module)};`;
+	return dedent`
+		export { sign, verify, region_mac_message } from ${JSON.stringify(hmac_module)};
+	`;
 }
 
 /**
@@ -73,7 +90,13 @@ export function server_plugins_module(ssr: boolean, realms: readonly ServerRealm
 				`{ name: ${JSON.stringify(r.name)}, options: ${JSON.stringify(r.options)}, server: p${i} }`
 		)
 		.join(',\n\t');
-	return `${imports}\nexport const plugins = [\n\t${list}\n];`;
+	return dedent`
+		${imports}
+
+		export const plugins = [
+			${list}
+		];
+	`;
 }
 
 /** `virtual:ogygia/route-config` — SERVER only: every Kit page route id → the keys the plugins claim
@@ -106,8 +129,16 @@ export function session_cookie_module(ssr: boolean, session_cookie: string): str
 /** `virtual:ogygia/region-ttl` — SERVER only; the capability expiry window for mint, and how long
  *  after expiry an anonymous capability still renews. */
 export function region_ttl_module(ssr: boolean, region_ttl: number, renew_window: number): string {
-	if (!ssr) return `export const regionTtl = 3600;\nexport const renewWindow = 0;`;
-	return `export const regionTtl = ${region_ttl};\nexport const renewWindow = ${renew_window};`;
+	if (!ssr) {
+		return dedent`
+			export const regionTtl = 3600;
+			export const renewWindow = 0;
+		`;
+	}
+	return dedent`
+		export const regionTtl = ${region_ttl};
+		export const renewWindow = ${renew_window};
+	`;
 }
 
 /** `virtual:ogygia/route-csr` — SERVER only: the csr=true route ids, so a csr=false layout's islands
@@ -115,17 +146,20 @@ export function region_ttl_module(ssr: boolean, region_ttl: number, renew_window
  *  is an empty set — the client reads the identical signal from `kit_hydrates_page()`, and the route
  *  list never ships to the browser. */
 export function route_csr_module(ssr: boolean, routesDir: string): string {
-	if (!ssr)
-		return (
-			`export const csr_true_routes = new Set();\n` +
-			`export const error_csr_true_routes = new Set();\n` +
-			`export const root_layout_csr_true = true;`
-		);
-	// The error-render map beside the page map: Kit renders a route's error page with its LAYOUT
-	// branch only, so a 404 under a csr=false page is hydrated whenever the layouts say so.
-	return (
-		`export const csr_true_routes = new Set(${JSON.stringify(csrTrueRouteIds(routesDir))});\n` +
-		`export const error_csr_true_routes = new Set(${JSON.stringify(errorCsrTrueRouteIds(routesDir))});\n` +
-		`export const root_layout_csr_true = ${rootLayoutCsrTrue(routesDir)};`
-	);
+	if (!ssr) {
+		return dedent`
+			export const csr_true_routes = new Set();
+			export const error_csr_true_routes = new Set();
+			export const root_layout_csr_true = true;
+		`;
+	}
+	return dedent`
+		export const csr_true_routes = new Set(${JSON.stringify(csrTrueRouteIds(routesDir))});
+
+		// The error-render map beside the page map: Kit renders a route's error page with its LAYOUT
+		// branch only, so a 404 under a csr=false page is hydrated whenever the layouts say so.
+		export const error_csr_true_routes = new Set(${JSON.stringify(errorCsrTrueRouteIds(routesDir))});
+
+		export const root_layout_csr_true = ${rootLayoutCsrTrue(routesDir)};
+	`;
 }

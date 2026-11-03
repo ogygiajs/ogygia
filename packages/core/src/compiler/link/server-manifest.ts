@@ -15,6 +15,7 @@
  */
 import type { Program } from '../program.ts';
 import { V_SERVER_ISLANDS } from '../ids.ts';
+import { dedent } from '../dedent.ts';
 
 /** The SERVER-island ids the manifest carries right now (deferred / server-picked regions). */
 export function server_island_ids(program: Program): string[] {
@@ -32,8 +33,16 @@ export function server_manifest_module(
 	devUrlFor: (virtualPath: string) => string,
 	publicUrlFor: (iid: string) => string
 ): string {
-	if (!ssr)
-		return `export const load_islands = () => Promise.resolve({ islands: {} });\nexport const island_url = {};\nexport const island_name = {};\nexport const island_render = {};\nexport const render_island = {};\nexport const island_reads_page_data = null;`;
+	if (!ssr) {
+		return dedent`
+			export const load_islands = () => Promise.resolve({ islands: {} });
+			export const island_url = {};
+			export const island_name = {};
+			export const island_render = {};
+			export const render_island = {};
+			export const island_reads_page_data = null;
+		`;
+	}
 	const urls: string[] = [];
 	const names: string[] = [];
 	const renders: string[] = [];
@@ -45,7 +54,7 @@ export function server_manifest_module(
 		// id → its render identity, signed into every capability minted for it; render identity → an
 		// entry rendering it, for a capability minted by another build (compiler/region/identity.ts)
 		if (reg.renderId) {
-			renders.push(`  ${JSON.stringify(iid)}: ${JSON.stringify(reg.renderId)}`);
+			renders.push(`${JSON.stringify(iid)}: ${JSON.stringify(reg.renderId)}`);
 			const seen = by_render.get(reg.renderId);
 			if (seen === undefined || iid < seen) by_render.set(reg.renderId, iid);
 		}
@@ -54,26 +63,40 @@ export function server_manifest_module(
 		const file = reg.componentPath ?? '';
 		const base = file.slice(file.lastIndexOf('/') + 1);
 		if (base.endsWith('.svelte'))
-			names.push(`  ${JSON.stringify(iid)}: ${JSON.stringify(base.slice(0, -7))}`);
+			names.push(`${JSON.stringify(iid)}: ${JSON.stringify(base.slice(0, -7))}`);
 		// id → the URL `islandCss()` is keyed by, so the handle can ship a server-picked hole's
 		// CSS with its response (a page that never imported the component still styles it). In a
 		// build that's the hashed client chunk (→ handoff CSS assets); in dev it's the entry's
 		// dev module URL (→ `islandCss` returns it, the client imports it for CSS). Same channel.
 		urls.push(
-			`  ${JSON.stringify(iid)}: ${JSON.stringify(is_dev ? devUrlFor(virtualPath) : publicUrlFor(iid))}`
+			`${JSON.stringify(iid)}: ${JSON.stringify(is_dev ? devUrlFor(virtualPath) : publicUrlFor(iid))}`
 		);
 	}
-	return (
-		`export const load_islands = () => import(${JSON.stringify(V_SERVER_ISLANDS)});\n` +
-		`export const island_url = {\n${urls.join(',\n')}\n};\n` +
-		`export const island_name = {\n${names.join(',\n')}\n};\n` +
-		`export const island_render = {\n${renders.join(',\n')}\n};\n` +
-		`export const render_island = {\n${[...by_render].map(([r, iid]) => `  ${JSON.stringify(r)}: ${JSON.stringify(iid)}`).join(',\n')}\n};\n` +
-		// id → does the hole's SERVER tree read `page.data` (the page lookup a hole needs: server/
+	const entries = [...by_render].map(([r, iid]) => `${JSON.stringify(r)}: ${JSON.stringify(iid)}`);
+	return dedent`
+		export const load_islands = () => import(${JSON.stringify(V_SERVER_ISLANDS)});
+
+		export const island_url = {
+			${urls.join(',\n\t')}
+		};
+
+		export const island_name = {
+			${names.join(',\n\t')}
+		};
+
+		export const island_render = {
+			${renders.join(',\n\t')}
+		};
+
+		export const render_island = {
+			${entries.join(',\n\t')}
+		};
+
+		// id → does the hole's SERVER tree read \`page.data\` (the page lookup a hole needs: server/
 		// render-page.ts). Known only once every module is transformed: a build patches the
-		// placeholder in renderChunk (driver `patch_page_data_reads`); dev leaves `null` (unknown → look up).
-		`export const island_reads_page_data = ${is_dev ? 'null' : PAGE_DATA_READS_PLACEHOLDER};`
-	);
+		// placeholder in renderChunk (driver \`patch_page_data_reads\`); dev leaves \`null\` (unknown → look up).
+		export const island_reads_page_data = ${is_dev ? 'null' : PAGE_DATA_READS_PLACEHOLDER};
+	`;
 }
 
 /** `virtual:ogygia/server-islands`: each SERVER island's loader, `id → () => import(entry)` (empty on
@@ -83,8 +106,12 @@ export function server_islands_module(ssr: boolean, program: Program): string {
 	if (ssr)
 		for (const [iid, virtualPath] of program.by_id)
 			if (program.registry.get(virtualPath)?.server)
-				entries.push(`  ${JSON.stringify(iid)}: () => import(${JSON.stringify(virtualPath)})`);
-	return `export const islands = {\n${entries.join(',\n')}\n};\n`;
+				entries.push(`${JSON.stringify(iid)}: () => import(${JSON.stringify(virtualPath)})`);
+	return dedent`
+		export const islands = {
+			${entries.join(',\n\t')}
+		};
+	`;
 }
 
 /** The token the build replaces with its answer (driver `patch_page_data_reads`), inside a string
