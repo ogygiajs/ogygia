@@ -246,6 +246,44 @@ describe('lift_document — an app’s full HTML → the wire shape', () => {
 		expect(d.head).not.toContain('viewport');
 		expect(d.body).toContain('entry="http://cms.test/_app/immutable/i.js"');
 	});
+
+	// the island graph is data, not attributes: its chunks, entry keys and snippet locations resolve
+	// against the shell's page unless they are pinned to the remote too
+	it('pins the island graph to the remote: chunks, entry keys, snippet locations', () => {
+		const graph = {
+			h: ['/_app/immutable/chunks/Svelte.js'],
+			e: { '/_app/ogygia/og-region.aaaaaaaaaaaa.js': [0] },
+			s: {
+				'/_app/ogygia/og-region.bbbbbbbbbbbb.js': '/_app/immutable/og-region.bbbbbbbbbbbb.X1.js'
+			}
+		};
+		const body =
+			'<ogygia-region entry="/_app/ogygia/og-region.aaaaaaaaaaaa.js"></ogygia-region>' +
+			`<script type="application/json" data-ogygia-graph>${JSON.stringify(graph)}</script>`;
+		const d = lift_document(`<html><head></head><body>${body}</body></html>`, 'http://cms.test');
+		const json = /data-ogygia-graph>([^<]*)</.exec(d.body)![1];
+		expect(JSON.parse(json)).toEqual({
+			h: ['http://cms.test/_app/immutable/chunks/Svelte.js'],
+			e: { 'http://cms.test/_app/ogygia/og-region.aaaaaaaaaaaa.js': [0] },
+			s: {
+				'http://cms.test/_app/ogygia/og-region.bbbbbbbbbbbb.js':
+					'http://cms.test/_app/immutable/og-region.bbbbbbbbbbbb.X1.js'
+			}
+		});
+		// the key matches the element's (pinned) entry, as the runtime looks it up
+		expect(d.body).toContain('entry="http://cms.test/_app/ogygia/og-region.aaaaaaaaaaaa.js"');
+	});
+
+	// peer HTML is untrusted: a graph body that is not a graph object passes through, never throws
+	it('a graph that is not an object passes through as it came', () => {
+		for (const text of ['null', '7', '"x"', '[1]', '{bad'])
+			expect(
+				lift_document(
+					`<html><head></head><body><script type="application/json" data-ogygia-graph>${text}</script></body></html>`,
+					'http://cms.test'
+				).body
+			).toContain(`data-ogygia-graph>${text}</script>`);
+	});
 });
 
 describe('mount() — claims auto-built from the table identity', () => {

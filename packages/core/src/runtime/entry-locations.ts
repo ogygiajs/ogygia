@@ -5,9 +5,9 @@
  * fingerprint, the devtools' names). The file to import is its LOCATION — content-hashed, so an
  * `immutable` cache never serves a stale one. The server writes it beside the identity: the region
  * element's `src`, and the island graph's `s` map for an entry no element carries (a portable
- * snippet's). Every loader resolves through `island_module_url` (region-endpoint-url.ts), which asks
- * here first: the location once one is known, else the identity (the dev server, or a page from
- * before hashing — whose stable name is a shim that reaches the current build).
+ * snippet's), and the build's location maps for the rest (`import_entry`). Every loader resolves
+ * through `island_module_url` (region-endpoint-url.ts), which asks here first: the location once one
+ * is known, else the identity (on the dev server, the module itself; in a build, a name, no file).
  */
 
 /** absolute identity → absolute location */
@@ -57,6 +57,54 @@ export function entry_location(entry: string, base?: string): string | undefined
 	return locations.size ? locations.get(absolute(entry, base)) : undefined;
 }
 
+/**
+ * THIS BUILD'S LOCATION MAP (compiler/link/location-map.ts, the content-hashed one): every island entry's
+ * location by identity, for a load that arrives with an identity alone — a region the browser
+ * rendered, a held region from the wire, a snippet whose host carried no graph. The runtime's script
+ * names it (`data-og-locations`); it is read once, on the first such load. Content-hashed, so no
+ * cache serves it stale. It only fills gaps: a location a page wrote (a later build's, after a
+ * navigation) always wins over the map of the build the runtime came from. No map, or it failed
+ * (the dev server, a page that outlived its build): the identity is loaded, as before. A failed read
+ * is not kept: the next identity-only load asks again (a blip must not cost the page every later one).
+ */
+const BUILD_MAP_ATTR = 'data-og-locations';
+let build_map: Promise<void> | null = null;
+
+/**
+ * Pin the build map's address to the page that wrote it, as `pin_region_urls` pins a region's: with
+ * Kit's default `paths.relative` it is written relative to that page, and it is read lazily — after a
+ * client navigation to another depth, resolved against the new address, it named a file that is not
+ * there. The runtime calls this at boot, before any navigation.
+ */
+export function pin_build_map(): void {
+	if (typeof document === 'undefined') return;
+	const script = document.querySelector(`script[${BUILD_MAP_ATTR}]`);
+	const href = script?.getAttribute(BUILD_MAP_ATTR);
+	if (script && href) script.setAttribute(BUILD_MAP_ATTR, absolute(href));
+}
+
+function read_build_map(): Promise<void> | null {
+	if (build_map) return build_map;
+	if (typeof document === 'undefined') return null;
+	const href = document.querySelector(`script[${BUILD_MAP_ATTR}]`)?.getAttribute(BUILD_MAP_ATTR);
+	if (!href) return null;
+	const url = absolute(href);
+	const read: Promise<void> = fetch(url)
+		.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
+		.catch(() => null)
+		.then((map) => {
+			if (!map) {
+				if (build_map === read) build_map = null;
+				return;
+			}
+			for (const stable in map) {
+				const identity = absolute(stable, url);
+				if (!locations.has(identity)) locations.set(identity, absolute(map[stable], url));
+			}
+		});
+	return (build_map = read);
+}
+
 /** The region attributes that hold a URL: its identity, its location, its hole's endpoint. */
 const REGION_URL_ATTRS = ['entry', 'src', 'endpoint'] as const;
 
@@ -93,31 +141,113 @@ export function island_entry_of(el: Element): string | null {
 }
 
 /**
- * The identity itself, past every cache: what a load falls back to when its location failed (a page
- * a cache kept outlived the build that made it, and that build's files are gone). The stable name
- * is a shim of the CURRENT build's file; the query makes the browser fetch it fresh rather than the
- * copy an `immutable` cache may hold. Null when no location was known (nothing to fall back to).
+ * THE CURRENT BUILD'S MAP (compiler/link/location-map.ts): the one file at a fixed name, in the app
+ * dir of the identities it maps (`<appDir>/ogygia.json`), so any app's is found from an identity alone.
+ * A page that outlived its build reads it when its own files are gone (or it never named a map) and
+ * wakes on the current code. Revalidated (a host serves it as any changing file; `no-cache` past one
+ * that kept it anyway), read once per document per app. Only an ogygia identity has one: the dev
+ * server's module URLs never ask.
  */
-function fresh_identity_url(entry: string, base?: string): string | null {
-	if (!entry_location(entry, base)) return null;
-	const identity = absolute(entry, base);
-	return identity + (identity.includes('?') ? '&' : '?') + 'og-fresh=' + Date.now().toString(36);
+const current_maps = new Map<string, Promise<Record<string, string> | null>>();
+
+/** A build's island identity (`…/<appDir>/ogygia/og-region.<id>.js`): a name, no file. */
+function is_build_identity(entry: string): boolean {
+	return absolute(entry).includes('/ogygia/og-region.');
+}
+
+/** The current map's file for an identity (`<appDir>/ogygia.json`), or null: not a build's identity. */
+function current_map_file(identity: string): string | null {
+	const dir = identity.lastIndexOf('/ogygia/og-region.');
+	return dir === -1 ? null : identity.slice(0, dir) + '/ogygia.json';
+}
+
+/** The current build's location for `entry`: null when its map has none, undefined when the map
+ *  could not be read (that read is not kept: the next ask reads again). */
+async function current_location(entry: string): Promise<string | null | undefined> {
+	const identity = absolute(entry);
+	const file = current_map_file(identity);
+	if (!file) return null;
+	let map = current_maps.get(file);
+	if (!map) {
+		map = fetch(file, { cache: 'no-cache' })
+			.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
+			.catch(() => null);
+		current_maps.set(file, map);
+	}
+	const pairs = await map;
+	if (!pairs) {
+		forget_current_map(file, map);
+		return undefined;
+	}
+	for (const name in pairs)
+		if (absolute(name, file) === identity) return absolute(pairs[name], file);
+	return null;
+}
+
+function forget_current_map(file: string, map = current_maps.get(file)): void {
+	if (current_maps.get(file) === map) current_maps.delete(file);
+}
+
+/** The host says this file is not there (it does not say so of a file that failed another way). */
+function is_gone(url: string): Promise<boolean> {
+	return fetch(url, { method: 'HEAD', cache: 'no-store' }).then(
+		(res) => res.status === 404 || res.status === 410,
+		() => false
+	);
+}
+
+/** How long a recovery waits before each ask of the current map: a rollover settles in seconds. */
+const RECOVERY_WAITS = [0, 1000, 3000, 9000];
+
+/**
+ * The current build's file for a build's identity whose file just failed to load. A deploy's rollover
+ * is exactly when this is asked, so an answer that cannot be the current one is asked again while it
+ * settles: a map that could not be read (a 404, a 5xx), and a map that names the very file that just
+ * failed when the host says that file is gone — an edge still answering with the old build's map. A
+ * file that failed some other way (the network, a broken module) is not asked about again.
+ */
+async function recover_location(entry: string, failed: string): Promise<string | null> {
+	let current: string | null | undefined;
+	for (const wait of RECOVERY_WAITS) {
+		if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
+		current = await current_location(entry);
+		if (current === undefined) continue;
+		if (current !== failed || !(await is_gone(failed))) break;
+		forget_current_map(current_map_file(absolute(entry))!);
+	}
+	return current ?? null;
 }
 
 /**
- * Import an entry: its location when known, else `url` (what the caller resolved for the identity);
- * the location failing, once, the identity fetched fresh — so an island on a page that outlived its
- * build still wakes, on the current code. No location known → the error stands.
+ * Import an entry: its location when known (else this build's map names it, once read); failing that,
+ * or with none anywhere, the CURRENT build's location — so an island on a page that outlived its build
+ * still wakes, on the current code. `url`: what the caller resolved for the identity.
  */
 export function import_entry<T>(
 	entry: string,
 	url: string = entry_location(entry) ?? entry
 ): Promise<T> {
+	if (entry_location(entry)) return load_entry<T>(entry, url);
+	const map = read_build_map();
+	return (map ?? Promise.resolve()).then(async () => {
+		const located = entry_location(entry);
+		if (located) return load_entry<T>(entry, located);
+		// no location this page knows: the current build's, else the identity as written (dev)
+		return load_entry<T>(entry, (await current_location(entry)) || url);
+	});
+}
+
+function load_entry<T>(entry: string, url: string): Promise<T> {
 	const loaded = import(/* @vite-ignore */ url) as Promise<T>;
-	const fresh = fresh_identity_url(entry);
-	if (!fresh) return loaded;
-	return loaded.catch(() => {
-		const retry = import(/* @vite-ignore */ fresh) as Promise<T>;
+	return loaded.catch(async (error: unknown) => {
+		// a build's identity is a name: the current build's map names its file. Any other identity
+		// (the dev server's module) is a file itself, fetched fresh past the cache that failed.
+		const failed = absolute(url);
+		const current = is_build_identity(entry)
+			? await recover_location(entry, failed)
+			: absolute(entry);
+		if (!current || current === failed) throw error;
+		const retry = import(/* @vite-ignore */ current) as Promise<T>;
 		// said out loud: the page's HTML is one build, this island's code the current one (devtools'
 		// timeline, and the beacon — the Page tab and the profiler name it)
 		const report = (recovered: boolean) => fallback_reporter?.({ entry, src: url, recovered });

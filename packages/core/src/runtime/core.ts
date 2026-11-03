@@ -33,6 +33,7 @@ import {
 	island_entry_of,
 	import_entry,
 	on_entry_fallback,
+	pin_build_map,
 	pin_region_urls
 } from './entry-locations.ts';
 import {
@@ -1658,7 +1659,9 @@ export function boot(
 	// What the lazy chunks use from the boot, handed over through the registry (./boot-link.ts).
 	link_boot();
 	for (const install of installers) install();
-	// An island whose file was gone (this page outlived its build) woke through its stable name:
+	// The build's location map, pinned to this page's address before any navigation moves it
+	pin_build_map();
+	// An island whose file was gone (this page outlived its build) woke on the current build's file:
 	// the devtools timeline and the beacon hear it (entry-locations.ts imports neither)
 	on_entry_fallback((report) => {
 		if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'entry.fallback', ...report });

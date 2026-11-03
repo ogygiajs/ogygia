@@ -1492,7 +1492,7 @@ describe('analyze_page', () => {
 			2000
 		).findings.find((f) => f.code === 'island-file-gone')!;
 		expect(dead.severity).toBe('error');
-		expect(dead.message).toContain('Probe stayed asleep: its stable name failed too');
+		expect(dead.message).toContain("Probe stayed asleep: the current build's file failed too");
 		// unnamed: its file stands in
 		const unnamed = analyze_page(
 			page({ visit: { entry_fallbacks: [fb('x', true)] } }),

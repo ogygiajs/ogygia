@@ -340,7 +340,7 @@ The W3C `traceparent` continues through every hop, giving one trace id from the 
 
 ## Serving the chunks: CORS
 
-A foreign island's JavaScript is loaded by **a page on another origin**, through a dynamic `import()`, which makes it a CORS request. The MFE's immutable assets (`/_app/immutable/*`) must answer with `Access-Control-Allow-Origin`, usually `*`, since they are content-hashed public files. Without it, every foreign island fails silently with "Failed to fetch dynamically imported module." In production, this header belongs on the MFE's CDN or reverse proxy, because a bare adapter-node server does **not** set it. Checks that only look at HTML cannot catch this kind of failure, so keep a real-browser check in your test suite.
+A foreign island's JavaScript is loaded by **a page on another origin**, through a dynamic `import()`, which makes it a CORS request. The MFE's immutable assets (`/_app/immutable/*`) must answer with `Access-Control-Allow-Origin`, usually `*`, since they are content-hashed public files. So must its `/_app/ogygia.json`, the map a shell reads when one of the MFE's islands arrives without its file named. Without it, every foreign island fails silently with "Failed to fetch dynamically imported module." In production, this header belongs on the MFE's CDN or reverse proxy, because a bare adapter-node server does **not** set it. Checks that only look at HTML cannot catch this kind of failure, so keep a real-browser check in your test suite.
 
 ## What crosses, what doesn't
 

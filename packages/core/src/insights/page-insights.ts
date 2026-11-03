@@ -2328,11 +2328,11 @@ export function analyze_page(
 		const parts: string[] = [];
 		if (woke.length)
 			parts.push(
-				`${list(woke.map(name))} woke on the current build's code through ${woke.length === 1 ? 'its' : 'their'} stable name${woke.length === 1 ? '' : 's'}: the page's HTML and ${woke.length === 1 ? 'that island' : 'those islands'} now come from different builds`
+				`${list(woke.map(name))} woke on the current build's code, found in its \`_app/ogygia.json\`: the page's HTML and ${woke.length === 1 ? 'that island' : 'those islands'} now come from different builds`
 			);
 		if (dead.length)
 			parts.push(
-				`${list(dead.map(name))} stayed asleep: ${dead.length === 1 ? 'its' : 'their'} stable name failed too`
+				`${list(dead.map(name))} stayed asleep: the current build's file failed too, or \`_app/ogygia.json\` did not name ${dead.length === 1 ? 'it' : 'them'}`
 			);
 		findings.push({
 			code: 'island-file-gone',

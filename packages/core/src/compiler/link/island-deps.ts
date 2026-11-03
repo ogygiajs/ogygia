@@ -718,7 +718,7 @@ export function island_deps_module(
 	out_dir_rel = '.svelte-kit'
 ): string {
 	if (!ssr)
-		return `export function islandDeps(_entry) { return []; }\nexport function islandCss(_entry) { return []; }\nexport function islandCssInline(_href) { return null; }\nexport function contentCss(_id) { return []; }\nexport function islandReadsPage(_entry) { return false; }\nexport function islandPageKeys(_entry) { return null; }\nexport function islandPageWhy(_entry) { return null; }\nexport function islandRemotes(_entry) { return null; }\nexport function islandInteractivity(_entry) { return null; }\nexport function islandHazards(_entry) { return null; }\nexport function chunkContents(_href) { return null; }\nexport function chunkHeavy(_href) { return null; }\nexport function chunkBarrels(_href) { return null; }\nexport function chunkDuplicates() { return null; }\nexport function fnManifest() { return null; }\nexport function entryLocation(_identity) { return null; }`;
+		return `export function islandDeps(_entry) { return []; }\nexport function islandCss(_entry) { return []; }\nexport function islandCssInline(_href) { return null; }\nexport function contentCss(_id) { return []; }\nexport function islandReadsPage(_entry) { return false; }\nexport function islandPageKeys(_entry) { return null; }\nexport function islandPageWhy(_entry) { return null; }\nexport function islandRemotes(_entry) { return null; }\nexport function islandInteractivity(_entry) { return null; }\nexport function islandHazards(_entry) { return null; }\nexport function chunkContents(_href) { return null; }\nexport function chunkHeavy(_href) { return null; }\nexport function chunkBarrels(_href) { return null; }\nexport function chunkDuplicates() { return null; }\nexport function fnManifest() { return null; }\nexport function entryLocation(_identity) { return null; }\nexport function locationMap() { return null; }`;
 	// DEV: there is no built CSS asset to link (Vite serves component CSS only as importable
 	// modules). The `entry` a region carries IS its dev module URL (moduleUrl / dev island_url),
 	// so returning it lets the client `import()` it for its CSS side-effect — the same region-css
@@ -726,9 +726,10 @@ export function island_deps_module(
 	// Content bodies need no dev entry here: a content module is in the SSR module graph, so
 	// Vite dev already injects its scoped CSS (the leak only bites the PROD client build).
 	// DEV always seeds the page (no chunk closure to consult) — the conservative side. Same for the
-	// remotes: `null` = "may call anything" (fail-open).
+	// remotes: `null` = "may call anything" (fail-open). A dev identity is its own location: the dev
+	// server serves the module at the URL the region names.
 	if (is_dev)
-		return `export function islandDeps(_entry) { return []; }\nexport function islandCss(entry) { return entry ? [entry] : []; }\nexport function islandCssInline(_href) { return null; }\nexport function contentCss(_id) { return []; }\nexport function islandReadsPage(_entry) { return true; }\nexport function islandPageKeys(_entry) { return null; }\nexport function islandPageWhy(_entry) { return null; }\nexport function islandRemotes(_entry) { return null; }\nexport function islandInteractivity(_entry) { return null; }\nexport function islandHazards(_entry) { return null; }\nexport function chunkContents(_href) { return null; }\nexport function chunkHeavy(_href) { return null; }\nexport function chunkBarrels(_href) { return null; }\nexport function chunkDuplicates() { return null; }\nexport function fnManifest() { return null; }\nexport function entryLocation(_identity) { return null; }`;
+		return `export function islandDeps(_entry) { return []; }\nexport function islandCss(entry) { return entry ? [entry] : []; }\nexport function islandCssInline(_href) { return null; }\nexport function contentCss(_id) { return []; }\nexport function islandReadsPage(_entry) { return true; }\nexport function islandPageKeys(_entry) { return null; }\nexport function islandPageWhy(_entry) { return null; }\nexport function islandRemotes(_entry) { return null; }\nexport function islandInteractivity(_entry) { return null; }\nexport function islandHazards(_entry) { return null; }\nexport function chunkContents(_href) { return null; }\nexport function chunkHeavy(_href) { return null; }\nexport function chunkBarrels(_href) { return null; }\nexport function chunkDuplicates() { return null; }\nexport function fnManifest() { return null; }\nexport function entryLocation(identity) { return identity || null; }\nexport function locationMap() { return null; }`;
 	return (
 		`import fs from 'node:fs';\n` +
 		`import path from 'node:path';\n` +
@@ -894,10 +895,16 @@ export function island_deps_module(
 		`}\n` +
 		// IDENTITY → LOCATION: the content-hashed file an entry (an island's stable URL, the runtime's)
 		// is served from. `null` = no location known (a handoff from before hashing, a foreign island):
-		// the identity itself is loaded — its stable-name shim, which reaches the current build.
+		// the identity itself is written, and the browser finds it in the build's location maps.
 		`export function entryLocation(identity) {\n` +
 		`  const m = load().entries;\n` +
 		`  const v = m && typeof m === 'object' && identity ? m[identity] : null;\n` +
+		`  return typeof v === 'string' ? v : null;\n` +
+		`}\n` +
+		// The build's content-hashed location map (link/location-map.ts), the file the browser reads: its served
+		// path, base-less (`asset()` adds it), or null (no island, a handoff from before it).
+		`export function locationMap() {\n` +
+		`  const v = load().locations;\n` +
 		`  return typeof v === 'string' ? v : null;\n` +
 		`}\n`
 	);

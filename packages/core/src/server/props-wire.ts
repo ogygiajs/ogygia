@@ -193,11 +193,12 @@ export function plan_props_wire(value: unknown, entry: string): PropsWire {
 }
 
 // Portable region-snippets riding an island's props come alive via `import(desc.e)` at hydrate;
-// the payload embeds each descriptor's public entry URL (prod-shaped: `/<appDir>/immutable/
-// og-region.<hash>.js`, any appDir). Found with `indexOf` hops — linear, no regex backtracking over
-// a 300 KB payload (the old `[^"\s]+` scan was super-linear on long space-free tokens).
-const LIVE_ENTRY_MARK = '/immutable/og-region.';
-const LIVE_ENTRY_RE = /^\/[^"\s]+\/immutable\/og-region\.[0-9a-f]+\.js$/;
+// the payload embeds each descriptor's public entry URL (prod-shaped: `/<appDir>/ogygia/
+// og-region.<hash>.js`, any appDir: compiler/region/transform.ts `STABLE_NAME_DIR`). Found with
+// `indexOf` hops — linear, no regex backtracking over a 300 KB payload (the old `[^"\s]+` scan was
+// super-linear on long space-free tokens).
+const LIVE_ENTRY_MARK = '/ogygia/og-region.';
+const LIVE_ENTRY_RE = /^\/[^"\s]+\/ogygia\/og-region\.[0-9a-f]+\.js$/;
 function live_entries_in(text: string): string[] {
 	const out: string[] = [];
 	let at = text.indexOf(LIVE_ENTRY_MARK);

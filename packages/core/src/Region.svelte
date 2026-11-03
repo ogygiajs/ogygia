@@ -104,7 +104,7 @@
 	 *   children?: import('svelte').Snippet;
 	 *   __mode?: 'island' | 'server' | 'lake'; __baked?: boolean;
 	 *   visible?: string | boolean; idle?: boolean; media?: string; load?: boolean; interaction?: boolean;
-	 *   __keep?: string; __entry?: string; __src?: string; __component?: import('svelte').Component; __css?: unknown;
+	 *   __keep?: string; __entry?: string; __component?: import('svelte').Component; __css?: unknown;
 	 *   __load?: () => Promise<import('svelte').Component>;
 	 *   __props?: Record<string, unknown>; __defer?: string; __margin?: string; __hydrate?: string;
 	 *   __hydrateMargin?: string; __module?: string; __cacheTtl?: number; __stitch?: string; __prefetch?: string;
@@ -132,11 +132,9 @@
 		load,
 		interaction,
 		__keep,
-		// island + server shared. `__entry` is the island's IDENTITY (its stable URL); `__src` its
-		// LOCATION — the content-hashed file to load — which only the client build knows (its wrapper
-		// passes the bundler's own name for it). The server finds the location in the build handoff.
+		// island + server shared. `__entry` is the island's IDENTITY (its stable URL, a name); its
+		// LOCATION, the content-hashed file to load, the server finds in the build handoff.
 		__entry = '',
-		__src = '',
 		__component,
 		__css,
 		// The client wrapper's on-demand component fetch (its lazy module answered `undefined`: a
@@ -497,13 +495,15 @@
 	const island_module_url = $derived(nested || !island_entry ? '' : asset(island_entry));
 	// IDENTITY vs LOCATION (server/entry-location.ts): `island_module_url` is the island's identity
 	// (the `entry` attribute, the graph key, the fingerprint input); the file the runtime loads is its
-	// location — content-hashed, so an `immutable` cache never serves a stale one. The client build's
-	// wrapper passes it (`__src`); the server reads the build handoff. None → the identity is loaded.
+	// location — content-hashed, so an `immutable` cache never serves a stale one. The server reads it
+	// from the build handoff (in dev the identity is the location); a region the browser renders has
+	// none, and the runtime finds it in the build's location map (runtime/entry-locations.ts). Only a
+	// location is ever written as a URL to fetch: no location, no URL.
 	const location_of = (/** @type {string} */ identity) => {
 		const found = identity ? entryLocation(identity) : null;
 		return found ? asset(found) : '';
 	};
-	const island_src = $derived(nested || !island_entry ? '' : __src || location_of(island_entry));
+	const island_src = $derived(nested || !island_entry ? '' : location_of(island_entry));
 	// (written LAST on the element: every attribute before it keeps the order it had before
 	// locations, so HTML rewriters and scans keyed on `entry="…" wake="…"` still match)
 
@@ -605,7 +605,7 @@
 		for (const dep of deps) add(asset(dep));
 		for (const m of live_entries) {
 			// (the file the snippet's import fetches: its location, when the build named one)
-			add(location_of(m) || asset(m));
+			add(location_of(m));
 			for (const dep of islandDeps(m)) add(asset(dep));
 		}
 		return hrefs;
@@ -637,10 +637,8 @@
 	// island only, at `fetchpriority="low"` (document-tail.ts `modulepreload_tag`): nothing it
 	// downloads is needed for first paint, so it must never outrank the CSS and the LCP image.
 	const island_kit_hint_hrefs = $derived(
-		// (the entry's LOCATION: the file its import fetches, not the stable name)
-		is_csr && hydrate_attr === 'load' && island_module_url
-			? [island_src || island_module_url, ...island_graph_hrefs]
-			: []
+		// (the entry's LOCATION: the file its import fetches; an entry with none gets no hint)
+		is_csr && hydrate_attr === 'load' && island_src ? [island_src, ...island_graph_hrefs] : []
 	);
 	// Both ride the document tail on a Kit page (see `tail` above); the head everywhere else, so a
 	// self-contained render root carries its own.
@@ -688,7 +686,7 @@
 	// nav. The endpoint (which fetches the hole's HTML) is minted from `__entry` above, independently.
 	const server_region_entry = $derived(!nested && __module ? asset(__module) : '');
 	// …and its location, the file that import fetches (as for an island)
-	const server_region_src = $derived(!nested && __module ? __src || location_of(__module) : '');
+	const server_region_src = $derived(!nested && __module ? location_of(__module) : '');
 
 	// A hydrating hole's props: ADJACENT and self-contained (the hole's HTML is spliced by the
 	// runtime), unkeyed, in whichever lane the props qualify for (props-wire.ts).
@@ -966,14 +964,23 @@
 		return html;
 	});
 
+	// THE HEAD IS SERVER OUTPUT. Every piece of it is a fact only the render knows (the build's
+	// handoff, the request's claims), and the browser knows none of them: a URL it built here would
+	// be a guess — an identity, a name with no file. Svelte keeps the server's nodes when it hydrates
+	// the head, but a Kit-hydrated document's head is often mounted afresh (the handle rewrote it),
+	// and a region Kit mounts on a client-side navigation has no server render at all: either way
+	// the client writes nothing. What a client-mounted region loads it loads through its own
+	// `import()`, which the bundler resolves to the file and preloads with its dependencies.
 	const head_html = $derived(
-		(is_island
-			? runtime_script + island_preload_head + island_css_html + kit_island_meta
-			: is_server
-				? runtime_script + server_preload + hole_css_html
-				: runtime_script) +
-			region_css_html +
-			content_css_html
+		typeof window !== 'undefined'
+			? ''
+			: (is_island
+					? runtime_script + island_preload_head + island_css_html + kit_island_meta
+					: is_server
+						? runtime_script + server_preload + hole_css_html
+						: runtime_script) +
+					region_css_html +
+					content_css_html
 	);
 
 	// ────────────────────────────────────────────────────── held: live / deferred ──

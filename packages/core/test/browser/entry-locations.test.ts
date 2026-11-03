@@ -101,7 +101,12 @@ describe('the map', () => {
 	});
 });
 
-describe('import_entry: the location, then the identity fresh, once', () => {
+describe('import_entry: the location, then the current build’s, once', () => {
+	// a build's identities are names, no files (`fixtures/ogygia/` does not exist); the current
+	// build's map sits in their app dir (`fixtures/ogygia.json`)
+	const BUILD = '/test/browser/fixtures/ogygia/og-region.';
+	const CURRENT_MAP = 'fixtures/ogygia.json';
+
 	test('a known location is what gets imported', async () => {
 		const identity = '/test/browser/fixtures/entry-identity.ts?t=1';
 		note_entry_location(identity, LOCATED + '?t=1');
@@ -110,27 +115,42 @@ describe('import_entry: the location, then the identity fresh, once', () => {
 		expect(requested('entry-identity.ts?t=1')).toHaveLength(0);
 	});
 
-	test('the location failing, the identity is fetched fresh (a page that outlived its build)', async () => {
-		const identity = IDENTITY + '?t=2';
+	test('the location failing, the current build’s map names the file to load (a page that outlived its build)', async () => {
+		const identity = BUILD + '000000000aa1.js';
 		note_entry_location(identity, '/test/browser/fixtures/gone-Aa11Bb22.js');
 		const m = await import_entry<{ default: string }>(identity);
+		expect(m.default).toBe('current');
+		expect(requested('gone-Aa11Bb22.js')).toHaveLength(1);
+		expect(requested('og-region.000000000aa1.js')).toHaveLength(0); // a name, never fetched
+	});
+
+	test('no location anywhere on the page: the current build’s, without a failed load first', async () => {
+		const m = await import_entry<{ default: string }>(BUILD + '000000000aa2.js');
+		expect(m.default).toBe('current');
+		expect(requested('og-region.000000000aa2.js')).toHaveLength(0);
+		expect(requested(CURRENT_MAP)).toHaveLength(1); // read once for the document
+	});
+
+	test('not a build’s identity (the dev server’s module), its location failing: the module itself', async () => {
+		const identity = IDENTITY + '?t=3';
+		note_entry_location(identity, '/test/browser/fixtures/gone-Qq11Rr22.js');
+		const m = await import_entry<{ default: string }>(identity);
 		expect(m.default).toBe('identity');
-		// fresh: past any cache, by a query the stable name ignores
-		const fresh = requested('entry-identity.ts?t=2&og-fresh=');
-		expect(fresh.length).toBe(1);
+		expect(requested('gone-Qq11Rr22.js')).toHaveLength(1);
 	});
 
-	test('no location known: the identity itself, and its failure stands (no retry)', async () => {
+	test('not a build’s identity (the dev server’s module): itself, and its failure stands', async () => {
+		const maps = requested(CURRENT_MAP).length;
 		await expect(import_entry('/test/browser/fixtures/gone-Cc33Dd44.js')).rejects.toThrow();
-		expect(requested('gone-Cc33Dd44.js?og-fresh')).toHaveLength(0);
+		expect(requested(CURRENT_MAP)).toHaveLength(maps); // it never asks for a map
 	});
 
-	test('both gone: exactly one retry, then the error stands (never a loop)', async () => {
-		const identity = '/test/browser/fixtures/gone-Ee55Ff66.js';
+	test('both gone: one try at the current build’s file, then the error stands (never a loop)', async () => {
+		const identity = BUILD + '000000000aa3.js';
 		note_entry_location(identity, '/test/browser/fixtures/gone-Gg77Hh88.js');
 		await expect(import_entry(identity)).rejects.toThrow();
-		expect(requested('gone-Ee55Ff66.js?og-fresh=')).toHaveLength(1);
 		expect(requested('gone-Gg77Hh88.js')).toHaveLength(1);
+		expect(requested('chunks/GoneToo99.js')).toHaveLength(1);
 	});
 
 	test('an explicit url wins over the map (the caller already resolved it)', async () => {
@@ -145,10 +165,10 @@ describe('a fallback is reported (the runtime wires devtools and the beacon to i
 	test('recovered, and not: each once, with the identity and the location that failed', async () => {
 		const reports: { entry: string; src: string; recovered: boolean }[] = [];
 		on_entry_fallback((r) => reports.push(r));
-		const ok = IDENTITY + '?t=7';
+		const ok = '/test/browser/fixtures/ogygia/og-region.000000000aa6.js';
 		note_entry_location(ok, '/test/browser/fixtures/gone-Kk11Ll22.js');
 		await import_entry(ok);
-		const bad = '/test/browser/fixtures/gone-Mm33Nn44.js';
+		const bad = '/test/browser/fixtures/ogygia/og-region.000000000aa7.js';
 		note_entry_location(bad, '/test/browser/fixtures/gone-Oo55Pp66.js');
 		await import_entry(bad).catch(() => {});
 		await expect.poll(() => reports.length).toBe(2);

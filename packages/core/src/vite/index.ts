@@ -1280,7 +1280,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 				// The whole per-file pass — content-preset tag ▸ macros ▸ host-island transform ▸ ts-region
 				// mint ▸ $app shim — is the driver's; `this.emitFile` (the one Vite primitive it needs, for
-				// the transform-time island entry and its stable-name shim) is threaded in. The driver's result is
+				// the transform-time island entry) is threaded in. The driver's result is
 				// bundler-neutral (`map: unknown`); cast it to Vite's transform shape at this boundary.
 				const result = await compiler.transform_module(source, id, {
 					ssr: options?.ssr === true,
@@ -1320,10 +1320,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				return page ?? fn;
 			},
 
-			// THE STABLE NAMES (client build): each island entry and the runtime are content-hashed; their
-			// old stable names are written now — the hashed names are final, and files can still join the
-			// output — as plain files re-exporting the hashed ones (link/entry-shim.ts). A page cached
-			// before hashing, or a location that failed, still reaches the current build through them.
+			// THE LOCATION MAPS (client build, generateBundle below): each island entry is content-hashed;
+			// its identity is a name, not a file. Every identity → location pair is written now — the
+			// hashed names are final, and files can still join the output — once named by content and once
+			// at the one fixed name (link/location-map.ts), for a load that arrives without a location.
 			// OUR ENTRIES' FILE NAMES (client build): readable and content-hashed — the driver's pattern for
 			// an island entry or the runtime, the app's own naming for every other chunk. (The bundler
 			// files an emitted chunk under the chunk pattern, which carries no name.)
@@ -1343,8 +1343,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			generateBundle() {
 				if (!is_build || server_leg_of(this)) return;
-				for (const shim of compiler.entry_shims((ref) => this.getFileName(ref)))
-					this.emitFile({ type: 'asset', fileName: shim.fileName, source: shim.source });
+				for (const file of compiler.location_maps((ref) => this.getFileName(ref)))
+					this.emitFile({ type: 'asset', fileName: file.fileName, source: file.source });
 			},
 
 			// THE PROFILER'S MAPS, FILLED: after every plugin's writeBundle (the chunks are final on disk)
@@ -1567,7 +1567,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					css_inline,
 					fn_manifest: Object.fromEntries(compiler.dollar_hoists),
 					// identity (the stable URL SSR bakes) → location (the content-hashed file to load)
-					entries: entries.locations
+					entries: entries.locations,
+					// the same, as one file the browser reads (the runtime's script tag names it)
+					locations: compiler.location_map_url
 				});
 				emit_island_deps_handoff(root, json, kit_dirs(root).out_dir);
 			}

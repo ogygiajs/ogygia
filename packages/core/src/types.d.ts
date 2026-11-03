@@ -122,6 +122,8 @@ declare module 'virtual:ogygia/island-deps' {
 	export function fnManifest(): Record<string, string> | null;
 	/** An entry's identity (its stable URL) → the content-hashed file it is served from; `null`: none known. */
 	export function entryLocation(identity: string): string | null;
+	/** The build's location map file (base-less served path), or `null`: none built. */
+	export function locationMap(): string | null;
 }
 declare module 'virtual:ogygia/dev-hmr' {
 	/* side-effect only — CSS HMR bridge under csr=false */

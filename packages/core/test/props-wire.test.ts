@@ -207,15 +207,17 @@ describe('live snippet entries', () => {
 		// emulated with a Date so the props take the devalue lane and carry the URL strings verbatim
 		const props = {
 			at: new Date(1),
-			a: { m: 'live', e: '/_app/immutable/og-region.abc123.js' },
-			b: { m: 'live', e: '/custom-dir/immutable/og-region.def456.js' },
-			c: { m: 'live', e: '/_app/immutable/og-region.abc123.js' },
-			not: '/_app/immutable/chunks/x.js'
+			a: { m: 'live', e: '/_app/ogygia/og-region.abc123.js' },
+			b: { m: 'live', e: '/custom-dir/ogygia/og-region.def456.js' },
+			c: { m: 'live', e: '/_app/ogygia/og-region.abc123.js' },
+			not: '/_app/immutable/chunks/x.js',
+			// a content-hashed location is not an identity
+			hashed: '/_app/immutable/og-region.abc123.Xy9_ab.js'
 		};
 		const w = plan_props_wire(props, '/islands/x.js');
 		expect(w.live_entries).toEqual([
-			'/_app/immutable/og-region.abc123.js',
-			'/custom-dir/immutable/og-region.def456.js'
+			'/_app/ogygia/og-region.abc123.js',
+			'/custom-dir/ogygia/og-region.def456.js'
 		]);
 	});
 

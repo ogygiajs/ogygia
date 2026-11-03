@@ -56,7 +56,7 @@ import {
 	FOREIGN_HYDRATE_MARK
 } from './region/emit.ts';
 import { island_deps_module } from './link/island-deps.ts';
-import { island_shim_source, runtime_shim_source } from './link/entry-shim.ts';
+import { location_map_files } from './link/location-map.ts';
 import { context_string_keys, source_uses_ogygia_context } from './link/context-detect.ts';
 import { collect_flag_sites, FLAGS_SPEC } from './flags.ts';
 import { router_css_roots, router_css_module } from './link/router-css.ts';
@@ -917,7 +917,7 @@ export class Compiler {
 	 * `emitRuntime`), then one chunk per deduped HYDRATE region id. IDENTITY vs LOCATION: SSR bakes the
 	 * stable name (`island_public_url`) as the region's identity; the file the browser loads is named
 	 * by its content (the bundler hashes it), and the bundle end hands the stable → hashed map to the
-	 * server (the handoff's `entries`). The stable name is emitted too, as a shim of the hashed file.
+	 * server (the handoff's `entries`) and to the browser (the location maps).
 	 * csr=false hosts omit wrapper imports so this emit owns the module. Idempotent per id.
 	 */
 	#router_css_roots_cache: string[] | null = null;
@@ -990,7 +990,7 @@ export class Compiler {
 		if (emitRuntime) {
 			// Unresolved virtual id — resolve_id/emit synthesize the feature-selected entry. Named, not
 			// fixed: the bundler hashes its content into the file name (its imports included), and the
-			// server finds that name in the build handoff. The stable name is a shim (`entry_shims`).
+			// server finds that name in the build handoff (its stable name is an identity, not a file).
 			// (named with its features: `og-runtime-<features>.<hash>.js` says which runtime it is)
 			const feat = this.#ctx!.runtime_features(this.program.runtime_feature_hash);
 			this.runtime_entry_ref = emitFile({
@@ -1019,6 +1019,9 @@ export class Compiler {
 	 *  bundle end turns them into the hashed file names the handoff maps the stable names to. */
 	readonly island_entry_refs: Map<string, string> = new Map();
 	runtime_entry_ref: string | null = null;
+	/** The location map's served path (`/<appDir>/immutable/og-locations.<hash>.json`), once
+	 *  `location_map` wrote it: the handoff carries it to the server (`locations`). */
+	location_map_url: string | null = null;
 
 	/**
 	 * At the bundle's end (the names are final): each entry's IDENTITY → its LOCATION. `islands` maps
@@ -1051,8 +1054,8 @@ export class Compiler {
 		return { islands, runtime, runtime_file, locations };
 	}
 
-	/** One hydrate island's entry, content-hashed by the bundler (its stable-name shim is written at
-	 *  the bundle's end: `entry_shims`). */
+	/** One hydrate island's entry, content-hashed by the bundler (the location maps that name it are
+	 *  written at the bundle's end: `location_maps`). */
 	emit_island_entry(emitFile: EmitChunk, rid: string, virtualPath: string): void {
 		this.program.emitted_island_chunks.add(rid);
 		this.island_entry_refs.set(
@@ -1079,25 +1082,20 @@ export class Compiler {
 	}
 
 	/**
-	 * The stable-name shims (link/entry-shim.ts), for the bundle's end (the names are final): one per
-	 * island entry, plus the runtime's — each a plain file at the old stable name re-exporting the
-	 * hashed file. `get_file_name` is the bundler's `this.getFileName`.
+	 * The build's location maps (link/location-map.ts), for the bundle's end (the names are final):
+	 * every island entry's identity → its hashed file, content-hashed and at the one fixed name.
+	 * `get_file_name` is the bundler's `this.getFileName`. Empty with no island.
 	 */
-	entry_shims(get_file_name: (ref: string) => string): { fileName: string; source: string }[] {
+	location_maps(get_file_name: (ref: string) => string): { fileName: string; source: string }[] {
 		const ctx = this.#ctx!;
-		const out: { fileName: string; source: string }[] = [];
-		for (const [rid, ref] of this.island_entry_refs) {
-			const fileName = ctx.island_chunk_filename(rid);
-			out.push({ fileName, source: island_shim_source(fileName, get_file_name(ref)) });
-		}
-		if (this.runtime_entry_ref) {
-			const fileName = this.runtime_chunk_filename();
-			out.push({
-				fileName,
-				source: runtime_shim_source(fileName, get_file_name(this.runtime_entry_ref))
-			});
-		}
-		return out;
+		const pairs: [string, string][] = [];
+		for (const [rid, ref] of this.island_entry_refs)
+			pairs.push([ctx.island_chunk_filename(rid), get_file_name(ref)]);
+		const files = location_map_files(ctx.app_dir, pairs, (source) =>
+			createHash('sha256').update(source).digest('hex').slice(0, 12)
+		);
+		this.location_map_url = files.length ? '/' + files[0].fileName : null;
+		return files;
 	}
 
 	/**
@@ -1896,7 +1894,7 @@ export class Compiler {
 				map = result.map;
 				touched = true;
 
-				// Emit the island entry (and its stable-name shim) for any hydrate island discovered HERE
+				// Emit the island entry for any hydrate island discovered HERE
 				// that the buildStart prescan couldn't see — i.e. declared inside a library component
 				// (host outside the app's `src`). Without this no entry carries its identity: the handoff
 				// would have no location for the stable name SSR bakes into `<ogygia-region entry>`.

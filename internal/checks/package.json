@@ -1,9 +1,10 @@
 {
 	"name": "ogygia-internal-checks",
 	"private": true,
-	"description": "ogygia's internal checks: the devtools and profiler answer keys, the compiler stress run, the server-cost and client-boot measurements.",
+	"description": "ogygia's internal checks: the devtools and profiler answer keys, the compiler stress run, the server-cost and client-boot measurements, and the cache check (two real builds against a browser that keeps its cache).",
 	"type": "module",
 	"scripts": {
+		"e2e": "node cache-bust-check.ts",
 		"keys": "node all-keys.ts",
 		"keys:quick": "node all-keys.ts --quick",
 		"cache-bust": "node cache-bust-check.ts",
@@ -11,5 +12,11 @@
 		"server-cost": "node server-cost.ts",
 		"client-boot": "node client-boot.ts",
 		"prop-contract": "node integration-prop-contract.ts"
+	},
+	"devDependencies": {
+		"@ogygia/core": "workspace:*",
+		"@ogygia/devtools": "workspace:*",
+		"devtools-e2e-app": "workspace:*",
+		"ogygia": "workspace:*"
 	}
 }

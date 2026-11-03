@@ -167,27 +167,27 @@ describe('portable binding rewrite', () => {
 
 	test('appDir threads into the baked island entry URL (no hardcoded _app, no baked base)', () => {
 		const iid = idFor(C_REL, loadMark);
-		// Default ctx (no appDir): the historic /_app/immutable/… URL.
+		// Default ctx (no appDir): /_app/ogygia/… (the stable names live outside immutable/).
 		const def = run(wrap(LOAD, '<C />'))!;
-		expect(def.islands[0].wrapperSource).toContain(
-			`__entry={"/_app/immutable/og-region.${iid}.js"}`
-		);
+		expect(def.islands[0].wrapperSource).toContain(`__entry={"/_app/ogygia/og-region.${iid}.js"}`);
 		// Custom SvelteKit appDir: it rides the URL, no `_app` leaks. base is NOT baked here — Region's
 		// asset() adds it at SSR — so the URL stays a leading-slash app path.
 		const custom = run(wrap(LOAD, '<C />'), makeCtx({ appDir: 'internal' }))!;
 		expect(custom.islands[0].wrapperSource).toContain(
-			`__entry={"/internal/immutable/og-region.${iid}.js"}`
+			`__entry={"/internal/ogygia/og-region.${iid}.js"}`
 		);
 		expect(custom.islands[0].wrapperSource).not.toContain('/_app/');
 	});
 
 	test('islandChunkFileName / islandPublicUrl honor appDir (base-less)', () => {
 		// Output filename: appDir-prefixed, no leading slash (an on-disk build path).
-		expect(islandChunkFileName('abc')).toBe('_app/immutable/og-region.abc.js');
-		expect(islandChunkFileName('abc', 'internal')).toBe('internal/immutable/og-region.abc.js');
+		// (under `<appDir>/ogygia/`, never `immutable/`: a stable name a host cached for a year would
+		// load another build's code)
+		expect(islandChunkFileName('abc')).toBe('_app/ogygia/og-region.abc.js');
+		expect(islandChunkFileName('abc', 'internal')).toBe('internal/ogygia/og-region.abc.js');
 		// Public URL: leading slash + appDir, NEVER a base (asset() applies base/assets at render).
-		expect(islandPublicUrl('abc')).toBe('/_app/immutable/og-region.abc.js');
-		expect(islandPublicUrl('abc', 'internal')).toBe('/internal/immutable/og-region.abc.js');
+		expect(islandPublicUrl('abc')).toBe('/_app/ogygia/og-region.abc.js');
+		expect(islandPublicUrl('abc', 'internal')).toBe('/internal/ogygia/og-region.abc.js');
 	});
 
 	test('maxAge is DEFERRED-ONLY: an island preset maxAge is ignored (no __cacheTtl on the island)', () => {
@@ -983,7 +983,7 @@ describe('portable snippets — a named snippet handed to a non-island component
 			makeCtx({ ssr: true })
 		)!;
 		expect(r.code).not.toMatch(/<svelte:head><link rel="modulepreload"/);
-		expect(r.code).toMatch(/__og_portable\([^)]*"\/_app\/immutable\/og-region\.[a-f0-9]+\.js"\)/);
+		expect(r.code).toMatch(/__og_portable\([^)]*"\/_app\/ogygia\/og-region\.[a-f0-9]+\.js"\)/);
 	});
 
 	test('a snippet-only file with no islands still transforms (relaxed bailout)', () => {
