@@ -288,6 +288,8 @@ function pin_graph(json: string, origin: string): string {
 	} catch {
 		return json;
 	}
+	// (peer HTML: anything that is not a graph object passes through as it came)
+	if (!wire || typeof wire !== 'object' || Array.isArray(wire)) return json;
 	const pin_keys = (o: unknown) =>
 		o && typeof o === 'object'
 			? Object.fromEntries(Object.entries(o).map(([k, v]) => [pin_asset(k, origin), v]))

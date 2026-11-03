@@ -273,6 +273,17 @@ describe('lift_document — an app’s full HTML → the wire shape', () => {
 		// the key matches the element's (pinned) entry, as the runtime looks it up
 		expect(d.body).toContain('entry="http://cms.test/_app/ogygia/og-region.aaaaaaaaaaaa.js"');
 	});
+
+	// peer HTML is untrusted: a graph body that is not a graph object passes through, never throws
+	it('a graph that is not an object passes through as it came', () => {
+		for (const text of ['null', '7', '"x"', '[1]', '{bad'])
+			expect(
+				lift_document(
+					`<html><head></head><body><script type="application/json" data-ogygia-graph>${text}</script></body></html>`,
+					'http://cms.test'
+				).body
+			).toContain(`data-ogygia-graph>${text}</script>`);
+	});
 });
 
 describe('mount() — claims auto-built from the table identity', () => {
