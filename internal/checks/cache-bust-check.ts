@@ -7,8 +7,11 @@
 //   names      — only what changed gets a new name: the islands that import the changed module, and
 //                only them; an untouched island and the runtime keep theirs (their cache stays good)
 //   deploy     — a browser that loaded build 1 reloads under build 2: every island runs build 2
-//   poisoned   — the browser holds build 1's STABLE-name file in its immutable cache: build 2's page
-//                never asks for it (it loads locations), so it cannot be served stale
+//   poisoned   — the browser holds build 1's STABLE-name file in its cache: build 2's page never asks
+//                for it (it loads locations), so it cannot be served stale
+//   stable     — the stable names live outside `immutable/` (`_app/ogygia/`): the host does not serve
+//                them immutable, and a page asking by them runs build 2 although the browser holds
+//                build 1's copies
 //   stale-kept — a cache serves build 1's HTML while build 2 is live and build 1's files are still
 //                on the origin: build 1's islands run build 1 (consistent), the live hole runs build 2
 //   stale-gone — the same, with build 1's files deleted: each island falls back to its stable name
@@ -220,18 +223,25 @@ try {
 		drift.length === 0,
 		drift.slice(0, 3).join(', ')
 	);
-	// a location: its stable name plus a content hash (`og-region.<iid>.<hash>.js`), never the name itself
-	const readable = ([identity, location]) =>
-		location !== identity &&
-		/\.[\w-]{8}\.js$/.test(location) &&
-		// an island keeps its whole stable name as the prefix; the runtime its `og-runtime.` part
-		(identity.includes('/og-runtime.')
-			? /\/og-runtime[.-]/.test(location)
-			: location.startsWith(identity.slice(0, -'.js'.length) + '.'));
+	// a location: its stable name plus a content hash (`og-region.<iid>.<hash>.js`) under `immutable/`,
+	// never the name itself; the stable name lives outside `immutable/`, where a host revalidates it
+	const readable = ([identity, location]) => {
+		const id_file = identity.split('/').pop();
+		const loc_file = location.split('/').pop();
+		return (
+			location.includes('/immutable/') &&
+			!identity.includes('/immutable/') &&
+			/\.[\w-]{8}\.js$/.test(location) &&
+			// an island keeps its whole stable name as the prefix; the runtime its `og-runtime.` part
+			(id_file.startsWith('og-runtime.')
+				? /^og-runtime[.-]/.test(loc_file)
+				: loc_file.startsWith(id_file.slice(0, -'.js'.length) + '.'))
+		);
+	};
 	check(
-		'every location is its stable name plus a content hash, never the name itself',
+		'every location is its stable name plus a content hash, under immutable/; no stable name is',
 		Object.entries(two.entries).every(readable),
-		`${two.entries[ids.find((k) => k.includes('og-region'))]}`
+		`${ids.find((k) => k.includes('og-region'))} → ${two.entries[ids.find((k) => k.includes('og-region'))]}`
 	);
 	const shim = fs.readFileSync(
 		path.join(
@@ -242,7 +252,7 @@ try {
 		'utf8'
 	);
 	const shim_id = ids.find((k) => k.includes('og-region'));
-	const shim_to = `./${two.entries[shim_id].split('/').pop()}`;
+	const shim_to = path.posix.relative(path.posix.dirname(shim_id), two.entries[shim_id]);
 	check(
 		'a stable name is a plain re-export of its location',
 		shim === `export * from "${shim_to}";\nexport { default } from "${shim_to}";\n`,
@@ -295,12 +305,22 @@ try {
 		stable_hits.length === 0,
 		`${stable_hits.length} requests`
 	);
-	// CONTROL — the cache is real: the same browser, asked by the STABLE names (the scheme before
-	// hashing), gets build 1's copies back from its immutable cache — the reported bug, reproduced.
-	// If this ran build 2, the checks above would prove nothing.
+	// STABLE NAMES REVALIDATE: the same browser, holding build 1's copies of every stable name, asked
+	// by those names (the scheme before hashing; a fallback load). They live outside `immutable/`, so
+	// the host serves them as it serves any changing file and the browser revalidates: build 2 runs.
+	// When they lived under `immutable/`, this page ran build 1 from the year-long cache. (The cache is
+	// real: "served as built (immutable), the same return visit is quiet" below proves it.)
 	// (the page is a static file the server serves, never a routed response: Playwright turns the
 	// HTTP cache off for a page with a route, and this check is about that cache)
 	{
+		const shim_head = await fetch(BASE + ids.find((k) => k.includes('og-region')), {
+			method: 'HEAD'
+		});
+		check(
+			'stable names: the host does not serve them immutable',
+			!/immutable/.test(shim_head.headers.get('cache-control') ?? ''),
+			shim_head.headers.get('cache-control') ?? '(no cache-control)'
+		);
 		const html2_live = await (await fetch(BASE + '/dt-cache')).text();
 		await stop(server);
 		fs.writeFileSync(
@@ -312,8 +332,8 @@ try {
 		await control.goto(BASE + '/og-control.html', { waitUntil: 'load' });
 		const c = await ran(control);
 		check(
-			'control: by stable names, the kept cache serves build 1 (the bug this fixes)',
-			c.probe !== 'v2' && c.twin !== 'v2',
+			'stable names: a browser holding build 1’s copies still runs build 2',
+			c.probe === 'v2' && c.twin === 'v2',
 			JSON.stringify(c)
 		);
 		await control.close();

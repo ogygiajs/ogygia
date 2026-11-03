@@ -1,10 +1,11 @@
 /**
  * ENTRY IDENTITY → LOCATION, on the server. A hydrate island's entry and the runtime each have an
- * IDENTITY — the stable URL the compiler bakes (`/<appDir>/immutable/og-region.<iid>.js`, the
+ * IDENTITY — the stable URL the compiler bakes (`/<appDir>/ogygia/og-region.<iid>.js`, the
  * runtime's stable name) and every map keys by — and a LOCATION: the content-hashed file the build
- * emitted, the one a browser loads. A stable name served `immutable` would be kept for a year after
- * its content changed; a hashed name cannot go stale. The server bundle is built before the client
- * bundle, so the location is looked up at render time through the build handoff (`entryLocation`).
+ * emitted under `immutable/`, the one a browser loads. A hashed name cannot go stale; the stable name
+ * lives outside `immutable/` (compiler/region/transform.ts `STABLE_NAME_DIR`), so a host revalidates
+ * it. The server bundle is built before the client bundle, so the location is looked up at render
+ * time through the build handoff (`entryLocation`).
  *
  * No location (the dev server, a handoff from before hashing, an island from another app): the
  * identity itself is served — in a build, the stable-name shim that re-exports the current file.

@@ -438,7 +438,7 @@ export const registry = [RawX, WakeX, LoadY, WakeX2];
 					css: Record<string, string[]>;
 				};
 				const portableEntry =
-					'/_app/immutable/og-region.' +
+					'/_app/ogygia/og-region.' +
 					(counterFacades[0]?.match(OG_REGION_HASH_RE)?.[1] ?? '') +
 					'.js';
 				// Presence of deps handoff proves generateBundle walked Rolldown OutputChunk.imports.

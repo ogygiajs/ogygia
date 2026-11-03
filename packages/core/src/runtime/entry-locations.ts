@@ -95,8 +95,9 @@ export function island_entry_of(el: Element): string | null {
 /**
  * The identity itself, past every cache: what a load falls back to when its location failed (a page
  * a cache kept outlived the build that made it, and that build's files are gone). The stable name
- * is a shim of the CURRENT build's file; the query makes the browser fetch it fresh rather than the
- * copy an `immutable` cache may hold. Null when no location was known (nothing to fall back to).
+ * is a shim of the CURRENT build's file, outside `immutable/` so a host revalidates it; the query
+ * makes the browser fetch it fresh even past a cache that kept it anyway. Null when no location was
+ * known (nothing to fall back to).
  */
 function fresh_identity_url(entry: string, base?: string): string | null {
 	if (!entry_location(entry, base)) return null;

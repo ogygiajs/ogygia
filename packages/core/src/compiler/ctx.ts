@@ -15,6 +15,7 @@ import type { PluginMacro } from './macros/pipeline.ts';
 import {
 	islandChunkFileName,
 	islandPublicUrl,
+	STABLE_NAME_DIR,
 	wrapperVirtualId,
 	type ImportKeys
 } from './region/transform.ts';
@@ -279,7 +280,7 @@ export class CompileCtx {
 	 *  `Program.runtime_feature_hash`, threaded in by the caller so this stays a pure naming function. */
 	runtime_chunk_filename(program_feature_hash: string): string {
 		const feat = this.runtime_features(program_feature_hash);
-		return `${this.app_dir}/immutable/og-runtime.${this.runtime_hash}${feat ? '-' + feat : ''}.js`;
+		return `${this.app_dir}/${STABLE_NAME_DIR}/og-runtime.${this.runtime_hash}${feat ? '-' + feat : ''}.js`;
 	}
 
 	/** App-internal URL of the runtime chunk (leading slash + appDir; NO base). SSR bakes it as the

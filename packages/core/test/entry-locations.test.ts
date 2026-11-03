@@ -497,9 +497,7 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 		const e = compiler.entry_locations((ref: string) => names[ref]);
 		expect(Object.keys(e.locations).length).toBe(3);
 		for (const [identity, location] of Object.entries(e.locations)) {
-			expect(identity).toMatch(
-				/^\/_app\/immutable\/og-(region\.[0-9a-f]{12}|runtime\.[\w-]+)\.js$/
-			);
+			expect(identity).toMatch(/^\/_app\/ogygia\/og-(region\.[0-9a-f]{12}|runtime\.[\w-]+)\.js$/);
 			expect(location).toMatch(/^\/_app\/immutable\/chunks\/\w+\.js$/);
 		}
 		expect(e.runtime_file).toBe('_app/immutable/chunks/Rt.js');
@@ -516,8 +514,10 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 		const shims = compiler.entry_shims((ref: string) => `_app/immutable/chunks/${ref}.js`);
 		expect(shims.length).toBe(3);
 		for (const s of shims) {
-			expect(s.fileName).toMatch(/^_app\/immutable\/og-(region|runtime)\./);
-			expect(s.source).toMatch(/"\.\/chunks\/ref\d\.js"/);
+			// never under immutable/: a host caches that for a year by name, and a stable name's content
+			// follows each build
+			expect(s.fileName).toMatch(/^_app\/ogygia\/og-(region|runtime)\./);
+			expect(s.source).toMatch(/"\.\.\/immutable\/chunks\/ref\d\.js"/);
 		}
 	});
 	it('no runtime emitted → no runtime location, no runtime shim; a second emit starts clean', () => {

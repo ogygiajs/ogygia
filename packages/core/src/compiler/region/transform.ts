@@ -300,15 +300,25 @@ export function islandId(relHostPath: string, index: string | number, salt = '')
 }
 
 /**
- * Deterministic client chunk path for a hydrate island (mirrors `og-runtime.<hash>.js`).
- * SSR bakes this into `<ogygia-region entry>` so the sticky runtime can `import(entry)` with no
- * app-wide regions map — Kit builds server before client, so content-hashed Vite names can't hand off.
+ * The directory, under the app dir, of the STABLE names (an island's identity, the runtime's): not
+ * `immutable/`. A host serves `immutable/` for a year by name (every adapter, every CDN rule written
+ * for it), and a stable name keeps its name while its content follows each build: a year-old copy
+ * would load another build's code. Here a host's ordinary rule revalidates them. The content-hashed
+ * files they point at stay in `immutable/`.
+ */
+export const STABLE_NAME_DIR = 'ogygia';
+
+/**
+ * Deterministic client path of a hydrate island's stable name (mirrors the runtime's). SSR bakes it
+ * into `<ogygia-region entry>` as the island's identity; the file is a shim of the content-hashed
+ * entry (link/entry-shim.ts) — Kit builds server before client, so hashed names reach the server only
+ * through the handoff.
  */
 export function islandChunkFileName(iid: string, appDir = '_app') {
-	return `${appDir}/immutable/og-region.${iid}.js`;
+	return `${appDir}/${STABLE_NAME_DIR}/og-region.${iid}.js`;
 }
 
-/** App-internal URL for {@link islandChunkFileName}: `/<appDir>/immutable/…` (leading slash, appDir,
+/** App-internal URL for {@link islandChunkFileName}: `/<appDir>/ogygia/…` (leading slash, appDir,
  *  NO base). It is what SSR bakes onto `<ogygia-region entry>`; `Region.svelte` runs it through Kit's
  *  `asset()` at render time, which is the sole authority on `base` / the assets CDN / relative paths —
  *  so a base is never baked here (that would double-apply it). NOT the on-disk output filename. */
