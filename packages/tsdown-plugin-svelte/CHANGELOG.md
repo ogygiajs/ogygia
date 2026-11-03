@@ -1,5 +1,13 @@
 # @ogygia/tsdown-plugin-svelte
 
+## 1.1.1
+
+### Patch Changes
+
+- [#149](https://github.com/ogygiajs/ogygia/pull/149) [`2d232e4`](https://github.com/ogygiajs/ogygia/commit/2d232e449f9190fb422be6f706d605560662283e) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The README links to the package's new section of the docs at ogygiajs.dev.
+
+- [#147](https://github.com/ogygiajs/ogygia/pull/147) [`0636636`](https://github.com/ogygiajs/ogygia/commit/0636636d917383b29abdbbeb755c04d9c60a2504) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The README shows how to use the plugin in a plain rolldown build.
+
 ## 1.1.0
 
 ### Minor Changes
