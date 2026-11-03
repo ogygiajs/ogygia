@@ -726,9 +726,10 @@ export function island_deps_module(
 	// Content bodies need no dev entry here: a content module is in the SSR module graph, so
 	// Vite dev already injects its scoped CSS (the leak only bites the PROD client build).
 	// DEV always seeds the page (no chunk closure to consult) — the conservative side. Same for the
-	// remotes: `null` = "may call anything" (fail-open).
+	// remotes: `null` = "may call anything" (fail-open). A dev identity is its own location: the dev
+	// server serves the module at the URL the region names.
 	if (is_dev)
-		return `export function islandDeps(_entry) { return []; }\nexport function islandCss(entry) { return entry ? [entry] : []; }\nexport function islandCssInline(_href) { return null; }\nexport function contentCss(_id) { return []; }\nexport function islandReadsPage(_entry) { return true; }\nexport function islandPageKeys(_entry) { return null; }\nexport function islandPageWhy(_entry) { return null; }\nexport function islandRemotes(_entry) { return null; }\nexport function islandInteractivity(_entry) { return null; }\nexport function islandHazards(_entry) { return null; }\nexport function chunkContents(_href) { return null; }\nexport function chunkHeavy(_href) { return null; }\nexport function chunkBarrels(_href) { return null; }\nexport function chunkDuplicates() { return null; }\nexport function fnManifest() { return null; }\nexport function entryLocation(_identity) { return null; }\nexport function locationMap() { return null; }`;
+		return `export function islandDeps(_entry) { return []; }\nexport function islandCss(entry) { return entry ? [entry] : []; }\nexport function islandCssInline(_href) { return null; }\nexport function contentCss(_id) { return []; }\nexport function islandReadsPage(_entry) { return true; }\nexport function islandPageKeys(_entry) { return null; }\nexport function islandPageWhy(_entry) { return null; }\nexport function islandRemotes(_entry) { return null; }\nexport function islandInteractivity(_entry) { return null; }\nexport function islandHazards(_entry) { return null; }\nexport function chunkContents(_href) { return null; }\nexport function chunkHeavy(_href) { return null; }\nexport function chunkBarrels(_href) { return null; }\nexport function chunkDuplicates() { return null; }\nexport function fnManifest() { return null; }\nexport function entryLocation(identity) { return identity || null; }\nexport function locationMap() { return null; }`;
 	return (
 		`import fs from 'node:fs';\n` +
 		`import path from 'node:path';\n` +

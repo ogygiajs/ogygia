@@ -234,9 +234,11 @@ describe('entryLocation: the handoff read at render time', () => {
 			(await load_module(with_handoff({ entries: { '/x.js': 42 } }))).entryLocation('/x.js')
 		).toBeNull();
 	});
-	it('the client leg and the dev server know no location', async () => {
+	it('the client leg knows no location; in dev the identity is the location', async () => {
 		expect((await load_module(island_deps_module(false, false))).entryLocation('/x.js')).toBeNull();
-		expect((await load_module(island_deps_module(true, true))).entryLocation('/x.js')).toBeNull();
+		const dev = await load_module(island_deps_module(true, true));
+		expect(dev.entryLocation('/x.js')).toBe('/x.js');
+		expect(dev.entryLocation('')).toBeNull();
 	});
 });
 

@@ -39,12 +39,12 @@ class SkipError extends Error {}
 class WatchdogError extends Error {}
 
 const WORK_COPY_SKIP_RE = /node_modules|\.svelte-kit|(^|\/)build($|\/)|\.work/;
-const RUNTIME_CHUNK_RE = /^og-runtime\..*\.js$/;
 const SSR_TITLE_RE = /data-title/;
 // The runtime script the HTML loads: its LOCATION, the content-hashed file the bundler named (under
-// `immutable/` a stable name would be cached a year past its content) — never the stable-name shim.
-const RUNTIME_SCRIPT_RE = /<script type="module" data-ogygia-runtime src="([^"]+)"/;
+// `immutable/` every file is named by its content).
+const RUNTIME_SCRIPT_RE = /<script type="module" data-ogygia-runtime[^>]*? src="([^"]+)"/;
 const RUNTIME_LOCATION_RE = /\/_app\/immutable\/og-runtime(-[^/.]+)?\.[\w-]{8}\.js$/;
+const RUNTIME_CHUNK_RE = /^og-runtime(-[^/.]+)?\.[\w-]{8}\.js$/;
 const HYDRATION_ERR_RE = /hydrat/i;
 const TRAILING_SLASH_RE = /\/$/;
 
@@ -397,9 +397,9 @@ test.describe('adapters: an all-csr=false islands app works end to end on every 
 			check('keepalive route cleaned up', !leftover);
 			// client build alive: runtime chunk emitted
 			const imm = join(APP, '.svelte-kit', 'output', 'client', '_app', 'immutable');
-			// (its stable name: the shim a page cached before content hashing still loads)
+			// (its location: named by its content, like every file under immutable/)
 			const has_runtime = existsSync(imm) && readdirSync(imm).some((f) => RUNTIME_CHUNK_RE.test(f));
-			check('ogygia runtime stable-name shim emitted', has_runtime);
+			check('ogygia runtime chunk emitted', has_runtime);
 
 			// build-verify only — no server output for this adapter
 			if (!a.boot) return;

@@ -7,9 +7,9 @@
  * it. The server bundle is built before the client bundle, so the location is looked up at render
  * time through the build handoff (`entryLocation`).
  *
- * No location (the dev server, a handoff from before hashing, an island from another app): the
- * identity itself is written — in a build a name, no file: the browser finds the current file through
- * the build's location maps (compiler/link/location-map.ts).
+ * In dev the identity is the location (the dev server serves the module at it). No location in a
+ * build (a handoff from before hashing, an island from another app): a region writes no `src`, and the
+ * browser finds the current file through the build's location maps (compiler/link/location-map.ts).
  */
 import runtime_url from 'virtual:ogygia/runtime-url';
 import { entryLocation, islandDeps, locationMap } from 'virtual:ogygia/island-deps';
