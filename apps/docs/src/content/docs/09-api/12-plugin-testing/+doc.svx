@@ -1,8 +1,0 @@
----
-title: ogygia/plugin/testing
-summary: Run a plugin's server realm in a unit test, without a server.
----
-
-This page is generated from the package's own `.d.ts` files on every build, so the signatures, descriptions and examples below always match the source.
-
-> MODULE: ogygia/plugin/testing

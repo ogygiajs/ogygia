@@ -5,6 +5,7 @@
 	import type { DocData } from '$lib/collections.server';
 	import * as docs from '$lib/docs.remote';
 	import PageHead from '$lib/PageHead.svelte';
+	import { sameSection } from '$lib/sections';
 	// Island (re-hydrates per SPA nav, like CodeChrome) that localizes the changelog's release dates.
 	import LocaleDates from '$lib/LocaleDates.svelte' with { wake: 'load' };
 	// The `.og-*` doc body painted in the SITE's look (the customization-ladder skin — no ogygia
@@ -18,12 +19,24 @@
 	const view = (await docs.page(page.params.slug ?? ''))! as PageView<DocData>;
 	const data = view.entry.data;
 	const isChangelog = view.slug === 'start/releases';
+	// The pager stays inside the page's package section (reading order never runs from one
+	// package's last page into the next package), and the eyebrow names the whole path:
+	// `Regions`, `@ogygia/devtools · Profiler`.
+	const sectioned: PageView<DocData> = {
+		...view,
+		trail: {
+			...view.trail,
+			prev: sameSection(view.slug, view.trail.prev),
+			next: sameSection(view.slug, view.trail.next)
+		}
+	};
+	const eyebrow = view.crumbs.map((c) => c.label).join(' · ') || view.section;
 </script>
 
 <PageHead title={data.title} category={view.section} description={data.summary} />
 
 <div class:changelog={isChangelog}>
-	<Doc {view} crumbs={false} keepReading={view.trail?.related} />
+	<Doc view={sectioned} {eyebrow} crumbs={false} keepReading={view.trail?.related} />
 	{#if isChangelog}<LocaleDates />{/if}
 </div>
 

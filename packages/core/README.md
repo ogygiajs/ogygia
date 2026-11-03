@@ -6,4 +6,4 @@ Apps install [`ogygia`](https://www.npmjs.com/package/ogygia), which re-exports 
 subpath. Plugin packages (`@ogygia/flags`, `@ogygia/devtools`, …) build on `@ogygia/core` and its
 `@ogygia/core/plugin` door.
 
-Docs: [ogygiajs.dev](https://ogygiajs.dev)
+Docs: [@ogygia/core](https://ogygiajs.dev/docs/core/overview), with [Writing a plugin](https://ogygiajs.dev/docs/core/plugins).

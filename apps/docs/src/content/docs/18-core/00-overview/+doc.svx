@@ -1,0 +1,75 @@
+---
+title: Overview
+summary: The core of ogygia, for plugin authors. Apps install ogygia, which re-exports @ogygia/core subpath for subpath; every other ogygia package builds on @ogygia/core and its plugin API.
+related:
+  - core/plugins
+  - start/packages
+  - reference/packaging
+---
+
+`@ogygia/core` is the code behind `ogygia`: the region compiler, the runtime, the server handle and the plugin API. Apps don't install it themselves. They install [`ogygia`](/docs/start/install), which depends on it and re-exports it subpath for subpath, so `ogygia/server` and `@ogygia/core/server` are the same module.
+
+The other packages (content, flags, postrender, federation, the server router, devtools, testing) take `@ogygia/core` as a peer dependency and build on its plugin API. This section is for people who write or read those packages.
+
+## Install
+
+In a plugin package, list it as a peer dependency, so the app's own copy (brought in by `ogygia`) is the one your code runs against:
+
+```json title=package.json
+{
+  "name": "my-ogygia-plugin",
+  "type": "module",
+  "exports": { "./vite": "./src/vite.ts" },
+  "peerDependencies": { "@ogygia/core": "^0.11.0" }
+}
+```
+
+::: warning First-party, not stable
+The plugin API is public so that you can read how the packages work, but it is first-party only for now, and its shape can change in any release.
+:::
+
+## A first plugin
+
+A plugin is a Vite plugin made with `definePlugin`, and the server half it names runs inside the app's `ogygia.handle()`. Its `name` is the package name, and it must resolve from the app:
+
+```ts title=src/vite.ts
+import { definePlugin } from '@ogygia/core/vite';
+
+export function poweredBy() {
+  return definePlugin({
+    name: 'my-ogygia-plugin',
+    server: import.meta.resolve('./server.ts')
+  });
+}
+```
+
+```ts title=src/server.ts
+import { defineServer } from '@ogygia/core/plugin';
+
+export default defineServer({
+  // A returned Response replaces the page's.
+  async response(ctx, res) {
+    const headers = new Headers(res.headers);
+    headers.set('x-powered-by', 'ogygia');
+    return new Response(res.body, { status: res.status, headers });
+  }
+});
+```
+
+The app lists it like any other package, beside `ogygia()`:
+
+```ts title=vite.config.ts
+plugins: [ogygia(), poweredBy(), sveltekit()]
+```
+
+A server half can be run in a unit test without a server, through `startPlugin` from `@ogygia/core/plugin/testing`.
+
+## With ogygia's regions
+
+A plugin can mint regions on the server. `region`, `htmlRegion` and `deferredRegion` from `@ogygia/core/plugin` are the same values an app renders with `<Region>`, which is how [federation](/docs/federation/overview) turns another app's page into a region on yours. Shared hooks (`app.notify.invalidate(tags)`) and request facts (`perVisitor`, `storable`) are how packages cooperate: a flag read sets `perVisitor`, and [postrender](/docs/postrender/overview) reads it before it stores a page.
+
+## Where to go next
+
+- [Writing a plugin](/docs/core/plugins): `definePlugin`, the build context, the server and browser halves, the contexts and the request facts.
+- API: [`@ogygia/core/plugin`](/docs/core/api/plugin), [`/plugin/client`](/docs/core/api/plugin-client), [`/plugin/css`](/docs/core/api/plugin-css), [`/plugin/utils`](/docs/core/api/plugin-utils), [`/plugin/testing`](/docs/core/api/plugin-testing).
+- [Packaging](/docs/reference/packaging): shipping marked components and route tables in an npm package.

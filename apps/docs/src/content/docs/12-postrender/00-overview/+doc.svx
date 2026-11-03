@@ -1,0 +1,88 @@
+---
+title: Overview
+summary: Kit's prerender, at request time. A page whose render read nothing personal is stored whole on its first request, and later visitors get the stored bytes until an invalidation clears them. Holes inside a stored page stay per visitor.
+related:
+  - postrender/guide
+  - regions/server-islands
+  - router/overview
+---
+
+`@ogygia/postrender` moves the cost of a page from one render per request to one render per change. The first request renders the page as usual. If that render read nothing personal (no cookie, no flag, no streamed promise, no query string), the whole response is stored, and every later request for that URL gets the stored bytes: Kit, your loads and Svelte never run on a hit. An invalidation clears the page, and the next request renders it again, once.
+
+It suits pages that would be prerendered except that their content changes after the build, such as CMS pages, docs and product listings.
+
+## Install
+
+```bash
+pnpm add @ogygia/postrender
+```
+
+```ts title=vite.config.ts
+import { sveltekit } from '@sveltejs/kit/vite';
+import { ogygia } from 'ogygia/vite';
+import { postrender } from '@ogygia/postrender/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [ogygia(), postrender({ ttl: 86400 }), sveltekit()]
+});
+```
+
+Its handle holds the live store, and it goes **before** ogygia's, because a stored page is served before anything renders:
+
+```ts title=src/hooks.server.ts
+import { sequence } from '@sveltejs/kit/hooks';
+import * as ogygia from 'ogygia/server';
+import { postrender, valkey } from '@ogygia/postrender';
+
+export const handle = sequence(postrender.handle({ store: valkey(client) }), ogygia.handle());
+```
+
+With no `store`, pages are kept in an in-process memory store.
+
+## A first page
+
+By default every eligible page is stored, and a route opts out in Kit's own `config` page option:
+
+```ts title=src/routes/account/+page.ts
+export const config = { postrender: false };
+```
+
+When the content behind a page changes, clear it, for example from a CMS webhook:
+
+```ts title=src/routes/api/publish/+server.ts
+import { postrender } from '@ogygia/postrender';
+
+export async function POST({ request }) {
+  const { path } = await request.json();
+  await postrender.invalidate(path);                        // one URL
+  await postrender.invalidateWhere({ prefix: '/blog/' });   // a subtree
+  return new Response(null, { status: 204 });
+}
+```
+
+## With ogygia's regions
+
+A stored page can still carry per-visitor parts. A [server island](/docs/regions/server-islands) (`render: 'deferred'`) is a hole in the stored HTML, and its content is fetched per visitor after the page arrives, so a cached product page keeps a live cart count:
+
+```svelte title=src/routes/products/[id]/+page.svelte
+<script>
+  import CartCount from '$lib/CartCount.svelte' with { render: 'deferred' };
+  let { data } = $props();
+</script>
+
+<h1>{data.product.name}</h1>   <!-- stored once, served to everyone -->
+<CartCount />                   <!-- fetched per visitor -->
+```
+
+## With other packages
+
+- **[@ogygia/router](/docs/router/overview).** A route table sets the same `config` key at table, layout and page level: `page(Account, { config: { postrender: false } })`. [Programmatic routes](/docs/postrender/guide#whole-app-or-opt-in-programmatic-routes) has the full example.
+- **[@ogygia/flags](/docs/flags/overview).** Each flag read marks the render as per-visitor, so a page that runs an A/B test is never stored with one visitor's variant. List the `flags()` plugin for this to work.
+- **[@ogygia/federation](/docs/federation/overview).** A remote fragment is a region, so a publish or a deploy on another team clears every stored page that baked its fragments ([cross-app thaw](/docs/federation/guide#cross-app-thaw)).
+- **[@ogygia/devtools](/docs/devtools/overview).** The SSR profiler notices a page that renders the same bytes on every request, with no personal reads, and names it as one a cache or postrender could answer ([Reading a report](/docs/devtools/profiler/reading-reports)).
+
+## Where to go next
+
+- [Postrender](/docs/postrender/guide): what gets stored, the three invalidation grammars, stores and CDN edges, serve-time stitching.
+- API: [`@ogygia/postrender`](/docs/postrender/api/postrender).

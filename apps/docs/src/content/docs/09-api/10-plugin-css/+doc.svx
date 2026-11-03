@@ -1,8 +1,0 @@
----
-title: ogygia/plugin/css
-summary: CSS for pages a plugin renders outside Kit's routes.
----
-
-This page is generated from the package's own `.d.ts` files on every build, so the signatures, descriptions and examples below always match the source.
-
-> MODULE: ogygia/plugin/css

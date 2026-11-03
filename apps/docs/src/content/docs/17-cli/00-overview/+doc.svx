@@ -1,0 +1,59 @@
+---
+title: Overview
+summary: The ogygia command line. It wires ogygia into a SvelteKit app, scaffolds a docs site, installs the AI skill and MCP server, judges pages against perf budgets in CI, and makes federation keys and typed widget stubs.
+related:
+  - cli/commands
+  - start/install
+  - devtools/profiler/recording
+---
+
+`@ogygia/cli` is the `ogygia` command. You rarely install it by hand: the `ogygia` package's own `ogygia` bin passes every command on to it, running the copy installed in your app or the matching version through your package manager. It is not a plugin, so nothing goes in `vite.config.ts` for it.
+
+## Install
+
+The first command adds it for you:
+
+::: code-group
+
+```bash [npm]
+npx ogygia init
+```
+
+```bash [pnpm]
+pnpm dlx ogygia init
+```
+
+:::
+
+`init` wires ogygia into the SvelteKit app in the current directory (the package, the Vite plugin, the server handle, the transport and the types) and adds `@ogygia/cli` to your devDependencies, so later `npx ogygia` commands run that local copy. To pin it yourself:
+
+```bash
+pnpm add -D @ogygia/cli
+```
+
+## The commands
+
+| Command                     | What it does                                                                                 | Goes with                                         |
+| --------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `ogygia init [--markdown]`  | Wires ogygia into an app; `--markdown` adds content collections.                             | [`ogygia`](/docs/start/install)                   |
+| `ogygia site init`          | Scaffolds a docs site: a collection, its `site()`, routes and a `DocsShell` layout.          | [`@ogygia/content`](/docs/content/overview)       |
+| `ogygia ai` · `ogygia mcp`  | Installs the ogygia skill for AI agents and registers the MCP server; `mcp` runs the server. | `ogygia`, `@ogygia/devtools`                      |
+| `ogygia perf`               | Renders pages under the profiler on a running server and judges them against a budget.       | [`@ogygia/devtools`](/docs/devtools/overview)     |
+| `ogygia bisect`             | Finds the first commit that made a page slower.                                              | [`@ogygia/devtools`](/docs/devtools/overview)     |
+| `ogygia keys <name>`        | Makes an Ed25519 key pair for an app.                                                        | [`@ogygia/federation`](/docs/federation/overview) |
+| `ogygia fragments <origin>` | Writes typed stubs for a peer's widgets, from its catalog.                                   | [`@ogygia/federation`](/docs/federation/overview) |
+
+## With other packages
+
+The perf commands read the SSR profiler from [`@ogygia/devtools`](/docs/devtools/overview), so the server they measure lists `devtools({ profiler: true })`. A CI job builds, starts the server and runs:
+
+```bash
+npx ogygia perf --url http://127.0.0.1:4173 --pages /,/pricing \
+  --baseline perf/baseline.json --budget perf/budget.json --md perf/comment.md
+```
+
+It exits with 1 when the budget fails, and the markdown file is ready to post as a PR comment ([In CI](/docs/devtools/profiler/recording#in-ci-budgets-and-the-first-bad-commit)). For the same checks inside a test suite, see [`@ogygia/testing`](/docs/testing/overview).
+
+## Where to go next
+
+- [Commands](/docs/cli/commands): every command and flag, and the tools of the MCP server.

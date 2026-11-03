@@ -46,4 +46,4 @@ export const docs = content({ loader: import.meta.og.loader.markdown('../content
 
 `get(id)` gives the entry with its body as a region. The wire layer (`remotes`, `withRemotes`) is `@ogygia/content/server`; markdown helpers are `@ogygia/content/markdown`; the shell is `@ogygia/content/docs-shell`.
 
-Docs: [Content collections](https://ogygiajs.dev/docs/content/collections).
+Docs: [@ogygia/content](https://ogygiajs.dev/docs/content/overview), starting with [Content collections](https://ogygiajs.dev/docs/content/collections).

@@ -23,4 +23,4 @@ export default defineConfig(({ mode }) => ({
 
 Code for the profiler: `@ogygia/devtools/profiler` (`span`, `instrument`), `@ogygia/devtools/profiler/client` (`mark`), and stores at `@ogygia/devtools/profiler/storage/sqlite`, `/redis`, `/postgres`.
 
-Docs: [Devtools](https://ogygiajs.dev/docs/devtools/overview) and [the profiler](https://ogygiajs.dev/docs/profiler/overview).
+Docs: [@ogygia/devtools](https://ogygiajs.dev/docs/devtools/overview), with [the dock](https://ogygiajs.dev/docs/devtools/dock) and [the profiler](https://ogygiajs.dev/docs/devtools/profiler/overview).

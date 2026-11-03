@@ -1,0 +1,106 @@
+---
+title: Overview
+summary: The server router for ogygia. SvelteKit's routing model (pages, layouts, loads, actions, endpoints and streamed pages) written as one typed table of values, with App['/path'] types and no codegen, plus a typed fetch client.
+related:
+  - router/guide
+  - app/spa-router
+  - postrender/overview
+---
+
+`@ogygia/router` is SvelteKit's routing model expressed as values. One ordinary module declares the route table, with pages, layouts, loads, actions and endpoints, and the types flow through it, so each component reads its `data`, `params` and `form` fully typed without a `$types` import. It is for routes that are not files: paths from a CMS or a database, generated pages, or a route table a package ships for an app to spread in.
+
+It runs on the server. It matches the request, runs the load cascade and renders the page through its layouts. Moving between those pages in the browser is the job of `ogygia`'s [SPA router](/docs/app/spa-router), which needs nothing from this package.
+
+## Install
+
+```bash
+pnpm add @ogygia/router
+```
+
+```ts title=vite.config.ts
+import { sveltekit } from '@sveltejs/kit/vite';
+import { ogygia } from 'ogygia/vite';
+import { router } from '@ogygia/router/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [ogygia(), router(), sveltekit()]
+});
+```
+
+The plugin tells the build that the modules importing `@ogygia/router` render pages, so the CSS of every component those pages reach is linked when they render.
+
+## A first table
+
+```ts title=src/lib/router.ts
+import { routes, page } from '@ogygia/router';
+import Home from '$lib/views/Home.svelte';
+import Doc from '$lib/views/Doc.svelte';
+import { docs } from '$lib/docs.server';
+
+export const router = routes({
+  '/': page(Home),
+  '/docs/[slug]': page(Doc, { load: async (c) => ({ doc: await docs.get(c.params.slug) }) })
+});
+
+export type App = typeof router.$infer;
+```
+
+The table serves requests through its own handle, after ogygia's:
+
+```ts title=src/hooks.server.ts
+import { sequence } from '@sveltejs/kit/hooks';
+import * as ogygia from 'ogygia/server';
+import { router } from '$lib/router';
+
+export const handle = sequence(ogygia.handle(), router.handle);
+```
+
+A component reads its typed data from `App`:
+
+```svelte title=src/lib/views/Doc.svelte
+<script lang="ts">
+  import type { App } from '$lib/router';
+  let { data }: App['/docs/[slug]'] = $props();
+</script>
+
+<h1>{data.doc?.data.title}</h1>
+```
+
+The table can also be mounted from a Kit catch-all route instead of the handle; [Mounting](/docs/router/guide#mounting) shows both.
+
+## With other packages
+
+The marks of `ogygia` work in the components a table renders, exactly as on a Kit page: an import with `wake` is an island, one with `render: 'deferred'` is a server island.
+
+**[@ogygia/postrender](/docs/postrender/overview)** reads its `config` key from the table, at the same three levels as Kit (table, layout, page), so a route table decides which pages are stored:
+
+```ts
+import { routes, layout, page } from '@ogygia/router';
+
+const marketing = layout('marketing', Shell, { config: { postrender: true } });
+
+export const router = routes({
+  ...marketing({ '/': page(Home), '/pricing': page(Pricing) }),
+  '/account': page(Account, { config: { postrender: false } })
+});
+```
+
+**[@ogygia/flags](/docs/flags/overview)** gates a whole route with `when()`, and picks a page component per visitor:
+
+```ts
+import { when } from '@ogygia/router';
+import { checkoutV2, hero } from '$lib/flags';
+
+routes({
+  '/checkout-v2': when(checkoutV2, page(NewCheckout, { load })),
+  '/': page(hero.pick({ control: Hero, bold: HeroBold }))
+});
+```
+
+**[@ogygia/federation](/docs/federation/overview)** is built on this router: `mount(peer)` is a table entry that serves another team's app under your chrome.
+
+## Where to go next
+
+- [Server router](/docs/router/guide): layouts, the data cascade, actions, endpoints, typed input, streamed pages, the API client and mounting.
+- API: [`@ogygia/router`](/docs/router/api/router) and the browser-safe client [`@ogygia/router/api`](/docs/router/api/client).

@@ -28,4 +28,4 @@ test('checkout stays fast', async ({ page, ogygia }) => {
 });
 ```
 
-Docs: [Testing](https://ogygiajs.dev/docs/devtools/testing).
+Docs: [@ogygia/testing](https://ogygiajs.dev/docs/testing/overview), with the full [Testing](https://ogygiajs.dev/docs/testing/guide) guide.

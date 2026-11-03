@@ -399,7 +399,7 @@
 				<p>
 					The V2 and EN switchers you just used? Declare the axes and hand back one outline per
 					coordinate. The URLs, the switchers, and per-locale fallback come with it.
-					<a href="/docs/content/dimensions">Dimensions →</a>
+					<a href="/docs/content/sites/dimensions">Dimensions →</a>
 				</p>
 			</div>
 			<figure class="content-code">
@@ -416,7 +416,7 @@
 					Every region of the shell is a snippet prop: leave it out for the built-in, pass a snippet
 					to replace it, pass <code>null</code> to remove it. Want to start from nothing?
 					<code>Frame</code> is the same shell with none of the decisions made for you.
-					<a href="/docs/content/shell">Shells →</a>
+					<a href="/docs/content/sites/shell">Shells →</a>
 				</p>
 			</div>
 			<figure class="content-code">
@@ -433,7 +433,7 @@
 					<code>Sidebar</code>, <code>OnThisPage</code>, <code>Search</code>, <code>Switcher</code>,
 					<code>Pager</code>, <code>ThemeToggle</code>, <code>Doc</code>, <code>TabGroup</code>.
 					Each one is tree-shakeable, and ships zero CSS until you import it.
-					<a href="/docs/content/shell">Components →</a>
+					<a href="/docs/content/sites/shell">Components →</a>
 				</p>
 			</div>
 		</div>
