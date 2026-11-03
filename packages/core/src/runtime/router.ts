@@ -15,6 +15,7 @@ import { kit_hydrates_page } from './kit-boot.ts';
 import { slots } from './slots.ts';
 import { publish_nav } from './nav-handle.ts';
 import { nearest_attr } from './nearest-attr.ts';
+import { record_server_body } from './ownership.ts';
 
 const WS = /\s+/;
 
@@ -416,6 +417,10 @@ export class SpaRouter {
 		this.#started = true;
 		this.doc_key = document_key(new URL(location.href));
 		this.current_url = new URL(location.href);
+		// What the server sent `<body>`, before any island wakes and mounts something into it (a
+		// popover's portal): a navigation replaces the server's part only (ownership.ts).
+		const body = document.body;
+		if (body) record_server_body(body, body, Array.from(body.childNodes));
 
 		document.addEventListener('click', (event) => {
 			const anchor = anchor_of(event);

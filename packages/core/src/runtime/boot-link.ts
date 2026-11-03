@@ -20,7 +20,13 @@ import { runtime_session } from './session.ts';
 import { regions_in_shadow } from './connected.ts';
 import { yield_task } from './schedule.ts';
 import { beacon_nav } from './beacon.ts';
-import { is_self_owned, walk_enters } from './ownership.ts';
+import {
+	is_self_owned,
+	record_server_body,
+	server_body_attributes,
+	server_body_child,
+	walk_enters
+} from './ownership.ts';
 import { load_slot } from './load-scheduler.ts';
 
 // (the profiler's browser half ships only where something reads it: see `__OGYGIA_BEACON__`; a
@@ -45,6 +51,9 @@ export function link_boot(): void {
 		beacon_nav: BEACON ? beacon_nav : no_beacon_nav,
 		walk_enters,
 		is_self_owned,
+		record_server_body,
+		server_body_attributes,
+		server_body_child,
 		load_slot
 	};
 }

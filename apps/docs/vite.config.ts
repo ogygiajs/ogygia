@@ -107,7 +107,17 @@ export default defineConfig(({ command }) => ({
 			// where `window` is undefined → the worker dies at load. Pre-bundling emits one plain module,
 			// no per-module HMR. (`bake` is now lazy-imported, so its Node-only dynamic imports no longer
 			// enter this graph — which is what used to make pre-bundling double-declare `__vite__injectQuery`.)
-			'ogygia/internal/compiler-browser-full'
+			'ogygia/internal/compiler-browser-full',
+			// Reached only from code-split islands (the search palette, the section switcher, the
+			// Observatory's compiler host), so the cold scan misses them: the first page view
+			// re-optimized and reloaded mid-load, and a test clicking during it lost its menu.
+			'@ogygia/content > @orama/orama',
+			'bits-ui',
+			'ogygia > @ogygia/core > esm-env',
+			'ogygia > @ogygia/core > estree-walker',
+			'ogygia > @ogygia/core > magic-string',
+			'path-browserify',
+			'svelte/compiler'
 		]
 		// NOTE: prettier's prebundle calls `createRequire(import.meta.url)` at init, and the optimizer
 		// (Rolldown) resolves `node:module` to a browser-external stub whose createRequire is undefined,
