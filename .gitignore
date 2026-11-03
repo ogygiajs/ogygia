@@ -51,6 +51,12 @@ dist/
 /internal/repro-deep-csr/build/
 /internal/repro-freeze/build/
 
+# main's build output, left in a checkout that switches between main and this branch
+/packages/*/e2e/app/build/
+/apps/palaestra/e2e/adapters/.work/
+/internal/checks/results/server-cost-prof/
+.turbo
+
 # Playwright runner output (traces on failure, html report) + Vitest browser-mode failure screenshots
 test-results/
 .vitest-attachments/
