@@ -35,7 +35,7 @@ function parsed_body(html: string): HTMLElement {
 /** A page as the server sent it, the router's record taken, then a portal mounted into the body. */
 function boot_page(html: string): { show: () => void } {
 	document.body.innerHTML = html;
-	record_server_body(document.body, Array.from(document.body.childNodes)); // the router's start
+	record_server_body(document.body, document.body, Array.from(document.body.childNodes)); // the router's start
 	const instance = mount(BodyPortal, { target: document.body });
 	app = instance;
 	return instance as unknown as { show: () => void };
@@ -86,13 +86,28 @@ test("only the server's body attributes move; one a script set stays", () => {
 	expect(document.body.hasAttribute('data-scroll-lock')).toBe(true);
 });
 
-test('a reconcile of another subtree (a harness root) is not the body: every child is the render’s', () => {
+test('another root (a harness driving the reconcile on its own) follows the same record', () => {
 	boot_page('<main>page</main>');
 	const root = document.createElement('div');
+	root.setAttribute('class', 'lens'); // the harness's own
 	root.innerHTML = '<p>one</p><p>stale</p>';
 	document.querySelector('main')!.append(root);
+	// its first reconcile: no record yet, so every child is the render's; nothing is taken away
 	reconcile_body(root, parsed_body('<p>two</p>'), morph_children);
 	expect(root.innerHTML).toBe('<p>two</p>');
+	expect(root.getAttribute('class')).toBe('lens');
+
+	// from then on its record decides, as the body's does
+	const own = document.createElement('i');
+	root.append(own);
+	const sent = parsed_body('<p>three</p>');
+	sent.setAttribute('data-page', 'three');
+	reconcile_body(root, sent, morph_children);
+	reconcile_body(root, parsed_body('<p>four</p>'), morph_children);
+	expect(root.querySelector('p')!.textContent).toBe('four');
+	expect(own.isConnected).toBe(true);
+	expect(root.hasAttribute('data-page')).toBe(false); // the render's, gone with its page
+	expect(root.getAttribute('class')).toBe('lens');
 });
 
 test('the fallback body swap keeps the page’s own children too', () => {

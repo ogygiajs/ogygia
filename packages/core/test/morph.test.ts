@@ -1,7 +1,7 @@
 // Morph unit tests. Runs in vitest's `node` env against a tiny DOM shim (`./_stubs/dom.ts`) — the
 // repo ships no jsdom/happy-dom on purpose. The shim import MUST come first: it installs
 // `globalThis.Node` / `globalThis.document`, which `morph.ts` reads at module load.
-import { describe, test, expect, beforeEach } from 'vitest';
+import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { document, el, frag, DomElement, NS_SVG, type DomNode } from './_stubs/dom.ts';
 import {
 	morph_children as dom_morph_children,
@@ -10,6 +10,11 @@ import {
 } from '../src/runtime/morph.ts';
 import { swap_body } from '../src/runtime/reconcile.ts';
 import { slots } from '../src/runtime/slots.ts';
+import {
+	record_server_body,
+	server_body_attributes,
+	server_body_child
+} from '../src/runtime/ownership.ts';
 
 // The shim is a structural subset of the DOM, not lib.dom's `Element` / `Node`. This adapter is the
 // one seam where shim nodes are handed to the real reconciler (the same cast `swap_body` calls use).
@@ -540,6 +545,18 @@ describe('preserved / hydrated island subtrees', () => {
 });
 
 describe('swap_body (outerSync fallback)', () => {
+	// the body record reaches the swap through the boot registry, as the runtime's boot links it
+	beforeEach(() => {
+		slots.boot = {
+			record_server_body,
+			server_body_attributes,
+			server_body_child
+		} as unknown as typeof slots.boot;
+	});
+	afterEach(() => {
+		slots.boot = null;
+	});
+
 	test('keeps the live body node, syncs its attributes, replaces its children', () => {
 		const live = el('<body class="old" data-theme="light"><p>gone</p></body>');
 		const old_child = live.firstElementChild;

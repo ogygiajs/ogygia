@@ -44,29 +44,23 @@ const props_sidecar_of = (region: Element) => boot_link().props_sidecar_of(regio
  *  - CHILDREN: the morph steps over a child the server never sent (a portal's mount anchor: taking
  *    it away leaves the portal inserting its content beside a detached node, so a popover in a kept
  *    island never opens again).
- * The record is the router's, taken when it starts (ownership.ts `record_server_body`), before any
- * island wakes, and renewed by each navigation here; reached through the boot registry, like every
- * boot helper this lazy chunk uses. It is about the document's `<body>` only: a reconcile of another
- * subtree (a harness driving it on its own root), or one with no record, takes every child to be the
- * server's and the attributes the previous call was given (the first: the body's at module load).
+ * ONE record per reconciled root (ownership.ts `record_server_body`), reached through the boot
+ * registry like every boot helper this lazy chunk uses: the router takes the body's when it starts,
+ * before any island wakes; each reconcile renews its root's (a harness driving it on its own root
+ * gets one from its first call). A root with no record yet is all the server's: every child is
+ * matched, and no attribute is taken away.
  */
-const attr_names = (el: Element) => new Set(Array.from(el.attributes, (a) => a.name));
-let unrecorded_attrs: Set<string> | null =
-	typeof document !== 'undefined' && document.body ? attr_names(document.body) : null;
 
-/** The router's record, when `live` is the document's `<body>` and one is taken; else null. */
+/** The record of what the server last sent `live`, or null while there is none. */
 function body_record(live: Element) {
 	const link = slots.boot;
-	if (!link || live !== live.ownerDocument?.body || link.server_body_attributes() === null)
-		return null;
-	return link;
+	return link && link.server_body_attributes(live) !== null ? link : null;
 }
 
 function sync_body_attributes(live: Element, next: Element): void {
 	morph_sync_attributes()(live, next, true); // add + update what the new page sends
-	const sent = body_record(live)?.server_body_attributes() ?? unrecorded_attrs;
+	const sent = body_record(live)?.server_body_attributes(live);
 	if (sent) for (const name of sent) if (!next.hasAttribute(name)) live.removeAttribute(name);
-	unrecorded_attrs = attr_names(next);
 }
 
 /** The live body's children that are the page's own, not the server's (none without a record). */
@@ -81,11 +75,11 @@ function page_own_children(live: Element): Set<Node> {
 /** After a navigation the server's body is the new page's: its attributes, and every live child that
  *  is not the page's own. */
 function renew_server_body(live: Element, next: Element, own: ReadonlySet<Node>): void {
-	const record = body_record(live);
-	if (record === null) return;
+	const link = slots.boot;
+	if (!link) return;
 	const children: Node[] = [];
 	for (let n = live.firstChild; n; n = n.nextSibling) if (!own.has(n)) children.push(n);
-	record.record_server_body(next, children);
+	link.record_server_body(live, next, children);
 }
 
 /** The `<script data-ogygia-props>` seed text of a region — keyed at the end of the body or the

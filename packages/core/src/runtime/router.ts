@@ -419,7 +419,8 @@ export class SpaRouter {
 		this.current_url = new URL(location.href);
 		// What the server sent `<body>`, before any island wakes and mounts something into it (a
 		// popover's portal): a navigation replaces the server's part only (ownership.ts).
-		if (document.body) record_server_body(document.body, Array.from(document.body.childNodes));
+		const body = document.body;
+		if (body) record_server_body(body, body, Array.from(body.childNodes));
 
 		document.addEventListener('click', (event) => {
 			const anchor = anchor_of(event);
