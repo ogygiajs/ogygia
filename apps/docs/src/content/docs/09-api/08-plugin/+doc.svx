@@ -1,8 +1,0 @@
----
-title: ogygia/plugin
-summary: The API for writing a plugin's server realm, covering its hooks and what it can learn about a request.
----
-
-This page is generated from the package's own `.d.ts` files on every build, so the signatures, descriptions and examples below always match the source.
-
-> MODULE: ogygia/plugin

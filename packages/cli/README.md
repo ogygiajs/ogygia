@@ -25,4 +25,4 @@ It is not a plugin: nothing goes in vite.config for it.
 - `ogygia perf`: render pages under the profiler and judge them against a budget in CI.
 - `ogygia keys <name>`: make an Ed25519 key pair for federation. `ogygia fragments <origin>`: typed stubs for a peer's widgets.
 
-Docs: [ogygiajs.dev](https://ogygiajs.dev).
+Docs: [@ogygia/cli](https://ogygiajs.dev/docs/cli/overview), with every [command](https://ogygiajs.dev/docs/cli/commands).

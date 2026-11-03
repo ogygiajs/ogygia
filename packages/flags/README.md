@@ -31,4 +31,4 @@ hero(c); // 'control' | 'bold', sticky per visitor
 
 A native `flag()` works without the plugin. The plugin primes a `decide({ source })` (OpenFeature, OFREP, or your own function) one time per request, and drains the `exposure` sink at the end of each request. OpenFeature lives at `@ogygia/flags/openfeature`.
 
-Docs: [Flags & experiments](https://ogygiajs.dev/docs/app/experiments).
+Docs: [@ogygia/flags](https://ogygiajs.dev/docs/flags/overview), with the full [Flags & experiments](https://ogygiajs.dev/docs/flags/guide) guide.

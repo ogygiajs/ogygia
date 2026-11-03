@@ -2,7 +2,7 @@
 title: bake
 summary: Run a function at build time, serialize its result and inline it as a constant, even in client code. The imports the function used are dropped, so the computation's server-only dependencies never stay behind.
 related:
-  - macros/loaders
+  - content/macros/loaders
   - content/collections
   - macros/overview
 ---
@@ -40,4 +40,4 @@ Each violation is reported at build time with an `[ogygia]` message that names t
 
 ## Where it fits
 
-`bake` works in `.ts`/`.js` modules and inside a `.svelte` `<script>`. It is the general form of what the [loaders](/docs/macros/loaders) do for content and what [`code`](/docs/macros/code)/[`md`](/docs/macros/md) do for snippets: settle at build time whatever cannot change between requests, and ship only the result.
+`bake` works in `.ts`/`.js` modules and inside a `.svelte` `<script>`. It is the general form of what the [loaders](/docs/content/macros/loaders) do for content and what [`code`](/docs/content/macros/code)/[`md`](/docs/content/macros/md) do for snippets (those three come with [`@ogygia/content`](/docs/content/overview)): settle at build time whatever cannot change between requests, and ship only the result.

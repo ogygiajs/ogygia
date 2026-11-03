@@ -6,6 +6,11 @@
  * stay clean (`/docs/start/install`). The sidebar reads the prefixes off `filePath` (see
  * `parseDocPath`). Frontmatter is just `title` / `summary` / `draft`.
  *
+ * One collection, one section per package: `ogygia`'s pages sit in the top-level folders
+ * (`01-regions/…` → `/docs/regions/…`), and every other package owns one top-level folder named
+ * after it (`13-devtools/…` → `/docs/devtools/…`). `$lib/sections` splits the one nav tree by
+ * that first segment, so `related` links and search still span every package.
+ *
  * ONE definition: `content()` is browser-safe (get / ids / entries + relations), so a csr=false
  * route can call `get()` without dragging `$app/server` into the graph. The `docNav` remote is
  * minted by wrapping this same `docs` with `withRemotes()` in `docs.remote.ts` (server-only).
@@ -28,7 +33,7 @@ export type DocData = v.InferOutput<typeof docSchema>;
  * The ONE definition — browser-safe. Import in routes/components; wrap with `withRemotes()` in a
  * `.remote.ts`. The `folder` loader macro takes ONE literal brace-glob of `{+doc.svx,+meta.json}` and
  * derives clean ids, sibling order (NN-), and section labels (+meta.json) — no id function, no second
- * glob, no meta collection. See docs/macros/loaders.
+ * glob, no meta collection. See docs/content/macros/loaders.
  */
 export const guides = content({
 	loader: import.meta.og.loader.folder('../content/docs'),

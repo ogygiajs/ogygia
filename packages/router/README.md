@@ -40,4 +40,4 @@ export const handle = sequence(ogygia.handle(), router.handle);
 
 The typed client is `api<App>()` from `@ogygia/router/api` (browser-safe).
 
-Docs: [Server router](https://ogygiajs.dev/docs/app/server-router).
+Docs: [@ogygia/router](https://ogygiajs.dev/docs/router/overview), with the full [Server router](https://ogygiajs.dev/docs/router/guide) guide.

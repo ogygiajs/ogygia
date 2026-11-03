@@ -23,7 +23,8 @@
 		base = '',
 		home,
 		brand = 'Docs',
-		actions
+		actions,
+		top
 	}: {
 		nav: NavTree;
 		base?: string;
@@ -32,6 +33,9 @@
 		brand?: string;
 		/** Header tools (a PORTABLE snippet) — cross the island boundary and come alive in the footer. */
 		actions?: import('svelte').Snippet;
+		/** The sidebar's top (the Shell's `side` snippet, portable like `actions`): pinned above the
+		 *  nav tree in the NAV view, since on mobile this sheet IS the sidebar. */
+		top?: import('svelte').Snippet;
 	} = $props();
 
 	let open = $state(false);
@@ -143,7 +147,9 @@
 					</div>
 				{:else}
 					<!-- The NAV view is just the contents tree — the page outline lives IN the page
-					     (Doc's mobile inline "On this page"), not buried in the nav sheet. -->
+					     (Doc's mobile inline "On this page"), not buried in the nav sheet. The sidebar's
+					     top (`side`) stays pinned above it while the tree scrolls. -->
+					{#if top}<div class="og-sheet-top">{@render top()}</div>{/if}
 					<div class="og-sheet-scroll">
 						<Sidebar {nav} {base} />
 					</div>

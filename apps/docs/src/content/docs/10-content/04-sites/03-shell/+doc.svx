@@ -1,0 +1,138 @@
+---
+title: Shells & components
+summary: The chrome around a page. Frame is the headless composition, and DocsShell and BlogShell are ready-made layouts built from the same pieces (Doc, Sidebar, Pager, Search), with an optional theme.
+related:
+  - content/sites/site
+  - content/sites/search
+  - regions/client-islands
+---
+
+The site layer delivers the structure of your site as data, and these components render it. One headless frame, two ready-made shells and a handful of smaller components turn a `Site` into a page that looks like documentation, and you can override or replace each piece.
+
+Which one to start from depends on how much of the layout you want to own. `DocsShell` gives you a working docs layout in one import, and `BlogShell` does the same for a blog. `Frame` keeps the composition but lets you bring your own header and sidebar, and the individual components (`Doc`, `Sidebar`, `Pager`) are there when you compose the page entirely yourself.
+
+## One frame, two shells
+
+**`Frame`** is the headless composition of a sidebar and a main area, with every region overridable: pass a component to _replace_ a region, `false`/`null` to _remove_ it, or nothing to keep the default. It imports no CSS and makes no design decisions:
+
+```svelte
+<script>
+	import { Frame } from '@ogygia/content';
+	import { docs } from '$lib/site.server';   // in a csr=false layout, server-only is fine
+	import MyHeader from '$lib/MyHeader.svelte';
+</script>
+
+<Frame site={docs} header={MyHeader} footer={null}>
+	{@render children()}
+</Frame>
+```
+
+The shells are **compositions of Frame and the public components**, with no privileged code. `DocsShell` follows the VitePress layout: a top header (brand, links, search, theme toggle), a left sidebar, a content column, and a mobile bottom bar with a slide-up sheet. `BlogShell` is the blog layout, with the same header and mobile chrome but no sidebar and an article-width column. Anything they do, your own composition can do too; they exist so that you don't have to build it.
+
+::: code-group
+
+```svelte [DocsShell]
+<script>
+	import DocsShell from '@ogygia/content/docs-shell';
+	import '@ogygia/content/theme.css';   // the design language (tokens + element styles)
+	import '@ogygia/content/shell.css';   // shell layout (header + sidebar + grid + mobile chrome)
+	import { meta } from '$lib/site.remote';
+	let { children } = $props();
+
+	const shellMeta = await meta();
+</script>
+
+<DocsShell meta={shellMeta} base="/docs" title="Docs">
+	{@render children()}
+</DocsShell>
+```
+
+```svelte [BlogShell]
+<script>
+	import { BlogShell } from '@ogygia/content';
+	import '@ogygia/content/theme.css';
+	import '@ogygia/content/shell.css';
+	let { children } = $props();
+</script>
+
+<BlogShell base="/blog" title="Example blog" links={[{ text: 'Docs', href: '/docs' }]}>
+	{@render children()}
+</BlogShell>
+```
+
+:::
+
+Both shells accept either `{site}` directly (the simple path, for csr=false layouts) or `{meta}` from the [meta remote](/docs/content/sites/remotes) (the path that keeps the corpus on the server). Each region a shell renders is a **conditional snippet prop**: pass a snippet to replace it, `null` to remove it, or nothing to keep the built-in one. This site removes the stock header (`header={null}`) and brings its own.
+
+## Styling is opt-in
+
+The shells ship **structure and `.og-*` class hooks, and import no CSS**. For the stock look, import the two stylesheets once in your root layout; for your own look, leave them out and style the `.og-*` classes yourself. Either way, you only load the CSS you ask for.
+
+- **`theme.css`** is the _design language_: the token palette (`--og-*`) and the element styles shared by every shell.
+- **`shell.css`** is the shells' _layout_: header, sidebar, grid and mobile chrome.
+
+Because they are separate imports, you can keep the tokens and swap the layout, or keep the layout and repaint it with your own tokens. Every rule lives in `@layer ogygia`, so **any unlayered rule you write takes precedence** without specificity battles or `!important`:
+
+```css
+/* your skin: unlayered → beats every @layer ogygia rule with plain selectors */
+.og-sidebar { border-right: 1px dashed var(--og-line); }
+```
+
+Alternative token themes live under `@ogygia/content/themes/*`; swap the import and keep everything else:
+
+```svelte
+<script>
+	import '@ogygia/content/themes/thalassa.css';   // or alexandria, daidalos, nephele, …
+	import '@ogygia/content/shell.css';
+</script>
+```
+
+## The components
+
+Each of these is a plain component that you can use without a shell:
+
+- **`<Doc {view} />`** lays out one page from a [`docs.page()`](/docs/content/sites/remotes) view: eyebrow, title, the rendered body, the **On this page** rail from `view.headings`, and prev/next. Props turn the breadcrumbs, the pager and the keep-reading list on or off.
+- **`<Sidebar />`** renders the nav tree and tracks the active row. It is a [client island](/docs/regions/client-islands), so its marker moves smoothly across SPA navigations.
+- **`<Pager />`** renders the prev/next footer from the outline's `prevNext`.
+- **`<OnThisPage headings={…} />`** is the scroll-spy rail. `<Doc>` mounts it, and you can use it on its own when you compose your own article.
+- **`<Switcher />`** is the version/locale picker on a [dimensioned](/docs/content/sites/dimensions) site. It is a Bits UI dropdown, and therefore an island.
+- **`<Search />` / `<SearchPage />`** are the ⌘K palette and the no-JS results page; see [Search](/docs/content/sites/search).
+- **`<BlogList {posts} />` / `<BlogPost {view} />`** are the blog components, a dated index and the article layout. Both read the same `PageView` shape as `<Doc>`.
+- **`<TabGroup>` / `<Tab>`** are tabbed panels, which `::: code-group` markdown also produces without any imports (the tabs above are made that way).
+
+## Doc, on its own
+
+The article layout needs nothing but a view, and no shell is required:
+
+```svelte
+<script>
+	import { Doc } from '@ogygia/content';
+	import * as docs from '$lib/site.remote';
+
+	const view = await docs.page(slug);
+</script>
+
+<Doc {view} keepReading={view.trail?.related} />
+```
+
+The body inside `view` is a baked [region](/docs/regions/held-regions) ticket, so every island the source `.svx` imported wakes on the page exactly as it would in an in-pass render. These docs use `<Doc>`: the article you are reading, its on-this-page rail and the pager below it are all this component.
+
+## Overriding markdown elements
+
+The `components` map on `site()` replaces how markdown elements render, using **real component values in app code** rather than import paths in config. The compiled markup routes overridable tags through one slot, which looks the tag up in the map at render time:
+
+```ts
+export const docs = site({
+	outline: guides,
+	components: { img: OptimizedImage, code: FancyCode }
+});
+```
+
+The built-in default maps `a` to `Link`, so id-form links (`[Guide](routing)`) resolve against the site's address space and stay correct under any mount prefix. A shell provides the map through context, and tier-2 renders can provide it themselves. The slot itself is `SiteSlot`, which compiled markdown imports from `@ogygia/content/slot`. You never import it yourself, and with no map in context it renders each element as the plain tag (or `a` as `Link`).
+
+## Do / don't
+
+- **Do** start with `DocsShell`, which gives you a working docs site in one import, and move to `Frame` or the individual components only when you need to.
+- **Do** import the CSS once in your root layout. The shells import none themselves, which is what lets you bring your own.
+- **Don't** pass `site` through every component. A shell sets it on context, and the components inside read it without props.
+- **Don't** reimplement the on-this-page rail or the pager. `view.headings` and `view.trail` already carry the data, and `<Doc>` renders both.

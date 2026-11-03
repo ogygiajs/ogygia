@@ -14,15 +14,23 @@
 	"redirects": [
 		{
 			"source": "/docs/data-state/freeze",
-			"destination": "/docs/data-state/postrender",
+			"destination": "/docs/postrender/guide",
 			"permanent": true
 		},
 		{
 			"source": "/docs/data-state/freeze.md",
-			"destination": "/docs/data-state/postrender.md",
+			"destination": "/docs/postrender/guide.md",
 			"permanent": true
 		},
-		{ "source": "/docs/api/freeze", "destination": "/docs/api/postrender", "permanent": true },
-		{ "source": "/docs/api/freeze.md", "destination": "/docs/api/postrender.md", "permanent": true }
+		{
+			"source": "/docs/api/freeze",
+			"destination": "/docs/postrender/api/postrender",
+			"permanent": true
+		},
+		{
+			"source": "/docs/api/freeze.md",
+			"destination": "/docs/postrender/api/postrender.md",
+			"permanent": true
+		}
 	]
 }

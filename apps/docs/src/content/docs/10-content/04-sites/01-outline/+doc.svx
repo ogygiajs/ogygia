@@ -1,0 +1,137 @@
+---
+title: Outline
+summary: Turn collections and an arrangement into one normalized nav tree plus an address map. A bare collection arranges itself by convention, and pick, groups and links let you arrange by hand.
+related:
+  - content/sites/site
+  - content/sites/dimensions
+  - content/collections
+---
+
+The outline is the one place where a site's structure is decided. It takes your collections and an **arrangement spec** and derives a single normalized tree (the `NavTree`) along with the address map that every other read function uses. The nav, prev/next, section labels, the sitemap and prerender entries are all views of this one tree.
+
+For a single collection ordered by convention, you pass the collection to `site()` as it is and need nothing else on this page. An explicit outline becomes useful once a site is more than one flat list, for example when it combines several collections, has hand-ordered sections, or puts a landing link in the sidebar.
+
+## A bare collection arranges itself
+
+The simplest outline is a collection on its own. When that collection is a [`folder()`](/docs/content/collections), its filenames already carry the structure, and the outline reads it as data:
+
+```ts
+import { site } from '@ogygia/content';
+import { guides } from './collections.server';
+
+export const docs = site({ outline: guides });
+```
+
+`NN-` prefixes order siblings and are stripped from the URL (`03-routing` becomes `/routing`, sorted third), and a `+meta.json` sidecar names a section. The resulting tree is the folder tree.
+
+## The spec grammar
+
+When you want to arrange things by hand, `outline()` takes a list in which every form can be combined with every other:
+
+```ts
+import { outline, pick, site } from '@ogygia/content';
+
+export const docs = site({
+	outline: outline([
+		{ label: 'Start', items: pick(docs, 'overview', 'install', 'quickstart') },
+		docs,                                      // a bare collection: the not-yet-placed remainder
+		{ label: 'API', items: reference },        // a whole collection under an explicit group
+		{ label: 'Changelog', href: '/changelog' } // a plain link — points anywhere
+	])
+});
+```
+
+- **a bare collection** → whatever remains of it, expanded by convention.
+- **`pick(coll, ...patterns)`** → a flat, ordered selection of exact ids and `*` / `**` globs, in the order written.
+- **`{ label, items }`** → an explicit group that holds a collection, a selection or nested items.
+- **`{ label, href }`** → a plain link node that is not backed by any entry.
+- **`() => items`** → a computed subtree, the escape hatch for dynamic cases.
+
+With `pick()`, **the order you write is the order readers get**, and a glob sweeps a subtree in convention order:
+
+```ts
+pick(docs,
+	'quickstart',       // this exact id, first
+	'guides/**',        // then every guide, convention-ordered
+	'*'                 // then whatever else is left at the top level
+)
+```
+
+## Placement is single-assignment
+
+Each entry is placed **exactly once**, and a bare collection takes whatever has not been placed yet. You can therefore `pick()` a few pages into a "Start" group and list the collection afterwards to sweep up the rest. Unlike a sidebar config made of strings, mistakes here are **named build errors** rather than silent gaps:
+
+- an unknown `pick` id, or a glob that matches nothing
+- an entry placed twice, or a slug collision
+- an **orphan**, meaning an entry that no spec placed
+
+Each one fails the build with the id and the reason.
+
+::: tip Reorganizing safely
+Because placement is verified, reorganizing is safe: when you move a file, either the tree updates (for convention placement) or the build names the `pick` id that no longer matches. Together with the [link audit](/docs/content/sites/checks), that covers inbound links too.
+:::
+
+## Conventions: order and dates
+
+Structure comes from filenames through a **convention** passed to `folder()`, and two conventions ship:
+
+::: code-group
+
+```ts [docs — numbered()]
+import { folder, numbered } from '@ogygia/content';
+
+// NN- prefixes order siblings, +meta.json labels the section
+export const docs = folder(
+	import.meta.glob('../content/docs/**/{+doc.svx,+meta.json}', { eager: true }),
+	{ convention: numbered() }
+);
+// 03-routing/+doc.svx  →  /routing, sorted third
+```
+
+```ts [blog — dated()]
+import { folder, dated } from '@ogygia/content';
+
+// YYYY-MM-DD-slug orders chronologically, date stripped from the URL
+export const posts = folder(
+	import.meta.glob('../content/blog/**/*.md', { eager: true }),
+	{ convention: dated() }
+);
+// 2026-08-13-release.md  →  /release   (date recoverable via dateOf())
+```
+
+:::
+
+`numbered()` checks siblings as it reads them. A mix of prefixed and unprefixed files, or inconsistent padding, is an error unless a `+meta.json` opts the directory out with `"ordered": false`. `dated()` keeps the date out of the URL and lets you recover it from the filename for display through `dateOf(filePath)`.
+
+## The address map
+
+Beyond the tree, the outline knows how to **resolve** a slug to its entry and how to list every address. Downstream read functions use this directly: `docs.entries()` for prerender inputs, `docs.page(slug)` to resolve one page, and `switcher()` on a [dimensioned](/docs/content/sites/dimensions) site. When you build custom chrome, use `hrefOf(base, slug)` to turn an address into a link, because it is what keeps a site correct under any mount prefix:
+
+```ts
+import { hrefOf } from '@ogygia/content';
+
+hrefOf('/docs', 'routing');   // '/docs/routing'
+hrefOf('', 'routing');        // '/routing'
+```
+
+## Prev/next
+
+"Keep reading" links are controlled by two settings on `site()`:
+
+```ts
+site({ outline: guides, prevNext: 'graph', trail: 'group' });
+```
+
+- **`prevNext: 'order'`** (default) uses plain document order, the sidebar read from top to bottom.
+- **`prevNext: 'graph'`** follows the content graph (an entry's declared relations) and falls back to order, so a page's next link is the page it points onward to.
+- **`trail: 'site'`** (default) runs the trail through the whole site.
+- **`trail: 'group'`** stops prev/next at the boundary of each top-level section, so a site with several topics never links across them.
+
+The `<Pager>` component and the `trail` field of `docs.page()` both follow these settings.
+
+## Do / don't
+
+- **Do** let a bare collection sweep up the remainder, placing only the few pages that need a specific home and leaving the rest to convention.
+- **Do** trust the build errors. An orphan or a collision is a real structural mistake, reported with its id.
+- **Don't** maintain a separate list of pages by hand. The outline is the list, and a new file appears in the nav as soon as the glob sees it.
+- **Don't** encode order in a `+meta.json`. Order comes only from the `NN-` prefix, and the sidecar is for labels.

@@ -54,7 +54,7 @@ const WidgetIsland = import.meta.og.asRegion(Widget, { wake: 'visible' });
 
 ## Marks inside your package: `ogygia.files`
 
-Everything above assumes the **consumer** marks your components. Sometimes the mark belongs on **your** side instead, such as a `Panel.svelte` whose search box is an island by design in whatever app it lands in, or a whole route table that you ship for the consumer to spread into their [router](/docs/app/server-router). Those marks live in files inside `node_modules`, where the consumer's build does not normally look.
+Everything above assumes the **consumer** marks your components. Sometimes the mark belongs on **your** side instead, such as a `Panel.svelte` whose search box is an island by design in whatever app it lands in, or a whole route table that you ship for the consumer to spread into their [router](/docs/router/guide). Those marks live in files inside `node_modules`, where the consumer's build does not normally look.
 
 Declare the paths that carry them in your own `package.json`:
 
@@ -74,7 +74,7 @@ Only declared packages are scanned, and only their declared paths, so there is n
 Declared paths follow these rules:
 
 - **Ship source.** Ship raw `.svelte`, and `.ts`/`.js` with the `with { … }` attributes intact, for the consumer's pipeline to compile. If you transpile, make sure your tool keeps import attributes.
-- **Depend on ogygia.** A declared surface is real ogygia code, so list `ogygia` as a dependency or peer dependency so that its imports resolve from your package. A route table also lists `@ogygia/router`, and the consumer lists its [`router()` plugin](/docs/reference/plugins).
+- **Depend on ogygia.** A declared surface is real ogygia code, so list `ogygia` as a dependency or peer dependency so that its imports resolve from your package. A route table also lists `@ogygia/router`, and the consumer lists its [`router()` plugin](/docs/router/overview).
 - The placement rules for app code apply unchanged: no content corpora in components, and server-only modules stay server-only.
 
 A shipped route table is then an ordinary export that the consumer spreads:

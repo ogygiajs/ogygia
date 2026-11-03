@@ -338,6 +338,10 @@
 			flex: 1;
 			-webkit-overflow-scrolling: touch;
 		}
+		/* The sidebar's top (`side`) in the nav view: pinned, the tree below it scrolls. */
+		.og-sheet-top {
+			flex-shrink: 0;
+		}
 
 		/* View switching inside the sheet (search ↔ nav): the wrapper's height glides between the
 		 * views (ShellBar pins + animates it) while the views crossfade. The OUTGOING view (any

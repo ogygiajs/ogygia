@@ -1,0 +1,122 @@
+---
+title: Overview
+summary: Typed content collections for ogygia, from markdown files, JSON or a CMS, with markdown compiled through mdsvex and Shiki. On top of them sits a docs-site layer with a nav tree, search, sitemap and llms.txt, and ready-made docs and blog shells.
+related:
+  - content/collections
+  - content/sites/site
+  - regions/held-regions
+---
+
+`@ogygia/content` is where an ogygia app keeps what it publishes. A **collection** turns a folder of markdown, a JSON file or a CMS into typed entries, each with an `id`, its `data` (checked by your schema) and a `body`. The collection lives on the server, only plain data crosses the wire, and a body renders as a [region](/docs/regions/regions), so islands inside a markdown file hydrate like any other island.
+
+On top of collections, `site()` arranges them into a site: a nav tree, prev/next, full-text search, a sitemap, `llms.txt` and a shell around each page. This docs site is built with it.
+
+## Install
+
+```bash
+pnpm add @ogygia/content
+```
+
+```ts title=vite.config.ts
+import { sveltekit } from '@sveltejs/kit/vite';
+import { ogygia } from 'ogygia/vite';
+import { content } from '@ogygia/content/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [ogygia(), content({ markdown: {} }), sveltekit()]
+});
+```
+
+Markdown files compile through the svelte config, and the content macros bring their own types:
+
+```js title=svelte.config.js
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+import { preprocess, extensions } from '@ogygia/content/vite';
+
+export default {
+  extensions: extensions(),
+  preprocess: [vitePreprocess(), ...preprocess()]
+};
+```
+
+```ts title=src/ogygia.d.ts
+/// <reference types="ogygia/types" />
+/// <reference types="@ogygia/content/types" />
+```
+
+Nothing goes in `hooks.server.ts`. `npx ogygia init --markdown` writes all of this for you, and `npx ogygia site init` scaffolds a whole docs site ([CLI](/docs/cli/commands)).
+
+## A first collection
+
+Define the collection once, in a server module:
+
+```ts title=src/lib/posts.server.ts
+import { content } from '@ogygia/content';
+import * as v from 'valibot';
+
+export const posts = content({
+  loader: import.meta.og.loader.markdown('../content/posts'),
+  schema: v.object({ title: v.string(), date: v.string() })
+});
+```
+
+A page reads an entry from a `.remote.ts`, and awaiting the body bakes it into a region ticket, the one form of a body that crosses the wire:
+
+```ts title=src/lib/posts.remote.ts
+import { query } from '$app/server';
+import * as v from 'valibot';
+import { posts } from './posts.server';
+
+export const post = query(v.string(), async (id) => {
+  const e = await posts.get(id);
+  return e ? { data: e.data, body: e.body ? await e.body : undefined } : null;
+});
+```
+
+## With ogygia's regions
+
+The body is a held region, so the page renders it with `ogygia`'s `<Region>`. A component imported with a mark inside the markdown becomes an island on the page, and nothing else in the post ships JavaScript:
+
+```svelte title=src/routes/blog/[slug]/+page.svelte
+<script lang="ts">
+  import { page } from '$app/state';
+  import { Region } from 'ogygia';
+  import { post } from '$lib/posts.remote';
+
+  const view = (await post(page.params.slug))!;
+</script>
+
+<h1>{view.data.title}</h1>
+<Region of={view.body} />
+```
+
+```svelte title=src/content/posts/hello.svx
+---
+title: Hello
+date: 2026-01-01
+---
+
+<script>
+  import Like from '$lib/Like.svelte' with { wake: 'visible' };
+</script>
+
+Everything here is static HTML, except this button: <Like />
+```
+
+[Held regions](/docs/regions/held-regions) explains what crosses and how, and [Timing & nesting](/docs/regions/timing-nesting) covers the `wake` schedules.
+
+## With other packages
+
+- **[@ogygia/postrender](/docs/postrender/overview).** A page built from a collection is usually the same for everyone, so postrender can store it on its first request. A CMS webhook calls `postrender.invalidate(path)` when an entry changes.
+- **[@ogygia/router](/docs/router/overview).** When paths come from the collection rather than from files, a route table can map them, and a page's `entries` lists the slugs to prerender: `'/blog/[slug]': page(Post, { load, entries: async () => (await posts.refs()).map((p) => ({ slug: p.id })) })`.
+- **[@ogygia/devtools](/docs/devtools/overview).** The profiler shows how long the markdown pass and the shell take in a server render.
+
+## Where to go next
+
+- [Content collections](/docs/content/collections): loaders, custom sources, live feeds.
+- [Markdown authoring](/docs/content/markdown): containers, tab groups, fence meta.
+- [Blocks](/docs/content/blocks): a JSON tree of components from a page builder.
+- [Site](/docs/content/sites/site): the docs-site layer, from zero.
+- [Macros](/docs/content/macros/loaders): `loader`, `code`, `md` and `regions`.
+- [Entry points & config](/docs/content/api/config): every import path and every plugin option.

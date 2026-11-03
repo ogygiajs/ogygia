@@ -37,4 +37,4 @@ export const { cms } = federate({
 
 Then `cms.page(path)` and `cms.widget(name, props)` are regions, and `mount(cms)` mounts the whole app in a route table. Make a key pair with `npx ogygia keys shell`.
 
-Docs: [Fragment federation](https://ogygiajs.dev/docs/app/federation).
+Docs: [@ogygia/federation](https://ogygiajs.dev/docs/federation/overview), with the full [Fragment federation](https://ogygiajs.dev/docs/federation/guide) guide.

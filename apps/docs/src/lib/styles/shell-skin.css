@@ -44,10 +44,24 @@
 	outline: none;
 }
 
-/* ── the panel's brand row (headerless form) — the old `.side-brand` recipe ── */
-.og-cside-brand {
-	padding: 0.2rem 0.4rem 0.75rem;
-	border-bottom: 1px solid color-mix(in srgb, var(--accent-line) 40%, var(--line));
+/* ── the sidebar's top row (the Shell's `side` snippet): the package switcher. It sticks to the top
+      while the tree scrolls under it, on the sidebar's own background, edge to edge over the
+      sidebar's padding, with the section divider below it. ── */
+.og-cside > .og-cside-brand {
+	position: sticky;
+	top: -0.6rem;
+	z-index: 3;
+	margin: -1.2rem -0.8rem 1.15rem -1.1rem;
+	padding: 1.2rem 0.8rem 0.85rem 1.1rem;
+	border-bottom: 1px solid color-mix(in srgb, var(--accent-line) 35%, var(--line));
+	background: color-mix(in srgb, var(--bg-raised) 45%, var(--bg));
+}
+/* The same switcher at the top of the phone's nav sheet: pinned above the scrolling tree. Its
+   menu floats over the sheet (portaled, positioned by Bits UI), so nothing below it moves. */
+.og-sheet-top {
+	margin-bottom: 0.75rem;
+	padding: 0.35rem 0 0.85rem;
+	border-bottom: 1px solid color-mix(in srgb, var(--accent-line) 35%, var(--line));
 }
 
 /* ── header (unused in the headerless form; kept for pages that opt back in) ── */
@@ -123,6 +137,15 @@
 	gap: 1.15rem;
 }
 .og-nav-group + .og-nav-group {
+	padding-top: 0.85rem;
+	border-top: 1px solid color-mix(in srgb, var(--accent-line) 35%, var(--line));
+}
+/* A package section opens with loose pages (Overview, the main guide) before its groups: they stack
+   as tightly as a group's own links, and the first group after them gets the usual divider. */
+.og-sidebar > .og-nav-list > li:not(.og-nav-group) + li:not(.og-nav-group) {
+	margin-top: calc(0.1rem - 1.15rem);
+}
+.og-sidebar > .og-nav-list > li:not(.og-nav-group) + .og-nav-group {
 	padding-top: 0.85rem;
 	border-top: 1px solid color-mix(in srgb, var(--accent-line) 35%, var(--line));
 }

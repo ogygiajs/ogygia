@@ -1,0 +1,8 @@
+---
+title: '@ogygia/core/plugin/client'
+summary: A plugin's browser realm.
+---
+
+This page is generated from the package's own `.d.ts` files on every build, so the signatures, descriptions and examples below always match the source. `ogygia/plugin/client` re-exports the same module.
+
+> MODULE: @ogygia/core/plugin/client

@@ -1,0 +1,84 @@
+---
+title: Packages
+summary: ogygia is the region system. Content, the server router, postrender, flags, federation, devtools and testing are separate packages. Install the ones you use and list each plugin once beside ogygia() in your Vite config.
+related:
+  - start/install
+  - reference/api
+  - core/plugins
+---
+
+The `ogygia` package is the region system: islands, lakes, holes, held regions, the SPA router and the server handle. Every other feature is a separate package, with its own section in these docs. You install only what you use, so an app that never reads a flag carries none of the flag code.
+
+| Package                                           | Plugin                           | What it is for                                                                                         |
+| ------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| [`@ogygia/content`](/docs/content/overview)       | `content({ markdown, presets })` | Content collections, markdown with Shiki, the docs and blog shells, search.                            |
+| [`@ogygia/router`](/docs/router/overview)         | `router()`                       | The server router: pages, layouts, loads, actions and endpoints as one typed table.                    |
+| [`@ogygia/postrender`](/docs/postrender/overview) | `postrender({ ttl, default })`   | Pages stored whole on their first request and served as bytes.                                         |
+| [`@ogygia/devtools`](/docs/devtools/overview)     | `devtools({ dock, profiler })`   | The in-page dock and the SSR profiler.                                                                 |
+| [`@ogygia/testing`](/docs/testing/overview)       | none                             | The devtools and the profiler as test primitives, for Playwright or any runner.                        |
+| [`@ogygia/flags`](/docs/flags/overview)           | `flags()`                        | Kill switches, rollouts and A/B tests, decided on the server.                                          |
+| [`@ogygia/federation`](/docs/federation/overview) | `federation()`                   | Other teams' apps rendered into your pages, as signed regions.                                         |
+| [`@ogygia/cli`](/docs/cli/overview)               | none                             | The `ogygia` command: `init`, the AI skill and MCP server, perf budgets, federation keys.              |
+| [`@ogygia/core`](/docs/core/overview)             | none                             | The shared core that `ogygia` re-exports and every plugin builds on. You install it only to write one. |
+
+Every package takes `@ogygia/core` as a peer dependency, which `ogygia` already brings in. They all release together under one version number, so keep them on the same version as `ogygia`.
+
+## Turn a feature on
+
+Install the package, then list its plugin once in the `plugins` array of your Vite config, beside `ogygia()`. Each plugin is a Vite plugin in its own right, and `ogygia()` finds it in that list. Each factory is imported from `<package>/vite`:
+
+::: code-group
+
+```bash [npm]
+npm i @ogygia/flags @ogygia/postrender
+```
+
+```bash [pnpm]
+pnpm add @ogygia/flags @ogygia/postrender
+```
+
+:::
+
+```ts title=vite.config.ts
+import { sveltekit } from '@sveltejs/kit/vite';
+import { ogygia } from 'ogygia/vite';
+import { flags } from '@ogygia/flags/vite';
+import { postrender } from '@ogygia/postrender/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [
+    ogygia(),
+    flags(),
+    postrender({ ttl: 600 }),
+    sveltekit()
+  ]
+});
+```
+
+`ogygia()` comes first, the feature plugins follow it, and `sveltekit()` goes last. `ogygia.handle()` in `hooks.server.ts` already runs the server half of every listed plugin, and the page runtime boots every browser half. What the Vite config can't carry is anything live or app-specific: a flag vendor, your federation identity, your route table, a store client. Most packages therefore also ask for a line or two in `hooks.server.ts`, and each package's overview says which.
+
+These rules hold for every plugin:
+
+- **Call the factory.** Write `flags()`, not `flags`; the build tells you if you forget.
+- **List each plugin once.** A plugin listed twice is a build error.
+- **Only alongside `ogygia()`.** A plugin listed without `ogygia()` fails the build with an explanation. The old `plugins` option of `ogygia()` has been removed, and passing it is a build error that names the new form.
+- **Options are plain JSON.** They reach the plugin's server half at run time. Live objects (a store client, a vendor SDK) are set up in `hooks.server.ts` through the package's own API.
+- **List it only where you want it.** The list is code, so a plugin can depend on the mode: `...(mode !== 'production' ? [devtools()] : [])`.
+
+## Several packages in one app
+
+When several packages need a handle, the order in the `sequence()` is postrender first, then ogygia, then the router. A stored page is served before anything renders, and the route table answers inside the request ogygia has already prepared:
+
+```ts title=src/hooks.server.ts
+import { sequence } from '@sveltejs/kit/hooks';
+import * as ogygia from 'ogygia/server';
+import { postrender } from '@ogygia/postrender';
+import { router } from '$lib/router';
+
+export const handle = sequence(postrender.handle(), ogygia.handle(), router.handle);
+```
+
+The packages also read from each other without any wiring of yours. A flag read marks the render as per-visitor, so postrender never stores one variant of a test. A route table sets postrender's `config` key per page. A federated fragment is a region, so a publish on another team clears the stored pages that baked it. Each package's overview has a "with other packages" part that shows these.
+
+To write a package of your own on the same API, see [Writing a plugin](/docs/core/plugins).

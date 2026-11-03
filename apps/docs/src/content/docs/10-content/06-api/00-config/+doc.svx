@@ -1,0 +1,72 @@
+---
+title: Entry points & config
+summary: What each @ogygia/content import path holds, and every option of its content() Vite plugin.
+related:
+  - content/collections
+  - content/overview
+  - reference/api
+---
+
+This page lists what `@ogygia/content` exposes, by import path, and every option of its `content()` plugin. The pages after it are generated from the package's `.d.ts` files. For `ogygia`'s own entry points and the options of `ogygia()`, see [API & config](/docs/reference/api).
+
+## `@ogygia/content`
+
+```ts
+import { content, markdown, json, blocks, glob, mapRaw } from '@ogygia/content';
+```
+
+| Export                                   | What it is                                                                                                                                                                                                                                   |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `content({ loader, schema, relations })` | Defines a collection. `Data` is inferred from `schema`, `Meta` from the loader, with no annotations. `refs` / `get` / `groups`; wire remotes (`list`, `live`) through `withRemotes()`. See [Content collections](/docs/content/collections). |
+| `markdown` · `json` · `blocks`           | Source builders: `content({ loader: markdown(import.meta.glob(…)) })`. `markdown` provides `meta.headings`.                                                                                                                                  |
+| `blocks.resolve(tree, registry)`         | Server-side helper: turns a block tree that you hold into region nodes, for a no-collection recomposer recipe. See [Blocks](/docs/content/blocks).                                                                                           |
+| `glob` · `mapRaw` · `defineSource`       | Source primitives to build custom loaders (a CMS, an API). See [Content collections](/docs/content/collections).                                                                                                                             |
+| `parseSchema`                            | Lower-level helper. `parseFrontmatter` lives on `@ogygia/content/markdown`.                                                                                                                                                                  |
+
+An entry is `{ id, data, meta, body, rel, backlinks }`, where `data` is the schema output, `meta` is derived from the source (for example `{ headings }`), and `body` is a [held region](/docs/regions/held-regions) that you render with `ogygia`'s `<Region>`. Types: `Entry`, `ContentEntry`, `ContentHandle`, `Source`, `Heading`, `SchemaLike`.
+
+The package's other entry points:
+
+| Entry point                                | What it is                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@ogygia/content/server`                   | The Kit remotes: `withRemotes(collection)` for a collection's `list` and `live` remotes (see [Data for the wire](/docs/content/collections#define-the-collection-once-in-a-server-module-data-for-the-wire-list)), and `remotes(site)` for a site's (see [Remotes](/docs/content/sites/remotes)). It imports `$app/server`, so use it from a `.remote.ts`. |
+| `@ogygia/content/vite`                     | The `content()` plugin (below), and `preprocess()` / `extensions()` for the svelte config.                                                                                                                                                                                                                                                                 |
+| `@ogygia/content/markdown`                 | The markdown pipeline's own helpers, such as `parseFrontmatter`.                                                                                                                                                                                                                                                                                           |
+| `@ogygia/content/docs-shell`               | The `DocsShell` component. See [Shells & components](/docs/content/sites/shell).                                                                                                                                                                                                                                                                           |
+| `@ogygia/content/slot`                     | `SiteSlot`, the component that compiled markdown routes [overridable elements](/docs/content/sites/shell#overriding-markdown-elements) through. Compiled code imports it; you do not.                                                                                                                                                                      |
+| `@ogygia/content/theme.css` · `/shell.css` | The stock theme tokens and the shell's styles, both opt-in imports. Other token themes are under `@ogygia/content/themes/*`. See [Shells & components](/docs/content/sites/shell#styling-is-opt-in).                                                                                                                                                       |
+| `@ogygia/content/types`                    | The macro types (`import.meta.og.*`), referenced from `src/ogygia.d.ts`.                                                                                                                                                                                                                                                                                   |
+
+## The `content()` plugin
+
+```ts
+import { content } from '@ogygia/content/vite';
+
+plugins: [ogygia(), content({ markdown: {} }), sveltekit()]
+```
+
+`content(options)` is the Vite plugin of the `@ogygia/content` package (`pnpm add @ogygia/content`), listed beside `ogygia()`. It brings the content macros (`import.meta.og.loader`, `og.code`, `og.md`, `og.regions`), and the `markdown` option turns on the markdown pipeline (mdsvex, Shiki and heading collection) for `.svx` / `.md` files. See [Content collections](/docs/content/collections).
+
+**`markdown`** is the pipeline's configuration and the defaults for every markdown file. Setting it, even to an empty `{}`, turns markdown on.
+
+**`presets`** are named markdown variants, using the same grammar as the presets of every other subsystem. A [loader macro](/docs/content/macros/loaders) opts a whole collection in with `{ preset: 'name' }`, and that collection's files then compile through the preset's config, merged over `markdown` key by key. Each opted-in file becomes its own module _variant_, so the same file used by another collection (under another preset, or none) renders independently and nothing conflicts.
+
+```ts
+content({
+  markdown: { overrides: true },                      // the defaults
+  presets: { plain: { markdown: { overrides: false } } }  // a named variant
+})
+```
+
+```ts
+// blog.server.ts — the blog corpus compiles through the `plain` preset
+loader: import.meta.og.loader.folder('../content/blog', { preset: 'plain' })
+```
+
+`presets` requires `markdown` to be set, since that is the base each preset merges over. The name must be a literal string, and an unknown name is a build error that lists the configured names.
+
+**`watchDirs`** and **`hmrDebounceMs`** tune the dev server's content reload. When a file under `src/content` changes, the plugin invalidates the modules that read it and every loaded `.remote.ts`, then reloads the page. `watchDirs` adds more folders to watch (resolved against the working directory), for content kept outside `src/content`. Vite already follows `import.meta.glob` dependencies, so you rarely need it. `hmrDebounceMs` is how long, in ms, the plugin waits for more changes before it reloads (default `50`).
+
+```ts
+content({ markdown: {}, watchDirs: ['../shared-content'], hmrDebounceMs: 200 })
+```
