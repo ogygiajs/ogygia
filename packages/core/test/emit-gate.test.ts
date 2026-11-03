@@ -30,7 +30,9 @@ describe('island_host_loaded', () => {
 
 	it('skips an island whose host nothing in the server bundle imports', () => {
 		expect(island_host_loaded(join(root, 'src/routes-v2/+page.svelte'), loaded)).toBe(false);
-		expect(island_host_loaded(join(root, 'src/lib/catalog-v2/ProductBoot.svelte'), loaded)).toBe(false);
+		expect(island_host_loaded(join(root, 'src/lib/catalog-v2/ProductBoot.svelte'), loaded)).toBe(
+			false
+		);
 	});
 
 	it('without a handoff (standalone / client-only build) every prescanned island is emitted', () => {
