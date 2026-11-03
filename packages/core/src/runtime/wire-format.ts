@@ -26,3 +26,12 @@ export function parse_wire_text(
 ): unknown {
 	return json ? JSON.parse(text) : parse(text, revivers as Parameters<typeof parse>[1]);
 }
+
+/** A seed or props script's payload, in its lane: JSON when the server marked it plain, devalue
+ *  with `revivers` otherwise. Every seed / props read goes through here. */
+export function parse_sidecar_text(
+	el: Element,
+	revivers?: Record<string, (d: never) => unknown>
+): unknown {
+	return parse_wire_text(el.textContent ?? '', wire_is_json(el), revivers);
+}

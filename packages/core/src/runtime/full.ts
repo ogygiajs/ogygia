@@ -3,7 +3,7 @@
  * ogygia compiler injects `bootDev()` (see the plugin's `virtual:ogygia-runtime`); a per-app production
  * build instead emits a generated entry (see `vite/runtime-entry.ts`) that boots only the features it
  * uses. Both boot through {@link ./core.js core} in the same {@link ../vite/runtime-entry.js FEATURE_ORDER}.
- * HYDRATE-phase features (context, live, wire, remote-seeds) are never in the boot, dev included: the
+ * HYDRATE-phase features (context, live, wire, remote-seeds, page) are never in the boot, dev included: the
  * hydrate core installs them from `virtual:ogygia/hydrate-features` (every one, in dev).
  *
  * Exposed as an explicit FUNCTION, not a top-level side effect: the compiler always calls it, so the
@@ -16,6 +16,8 @@ import * as morph from './morph.ts';
 import * as interaction from './interaction.ts';
 import * as forms from './form-continuity.ts';
 import * as router from './router.ts';
+import * as wire_classes from './wire-classes.ts';
+import * as mpa_nav from './nav-handle.ts';
 import type { ClientPlugin } from '../plugin/client.ts';
 
 /** Boot the kitchen-sink runtime (all boot-phase features) with the plugins' browser halves.
@@ -23,11 +25,13 @@ import type { ClientPlugin } from '../plugin/client.ts';
 export function bootDev(client_plugins: readonly ClientPlugin[] = []): void {
 	boot(
 		[
+			wire_classes.install,
 			frames.install,
 			lakes.install,
 			morph.install,
 			interaction.install,
 			forms.install,
+			mpa_nav.install,
 			router.install
 		],
 		client_plugins

@@ -10,10 +10,20 @@
  * The small texts are checked for each class's tag path (`"<path>#`). An app that sends wired values
  * through Kit's `transport` (`wire_all`: remote functions, loads) gets every class with every island,
  * as before: those values decode synchronously whenever they arrive. Each module loads once.
+ *
+ * A BOOT-phase feature (link/runtime-entry.ts), installed only when the app has transportable
+ * classes: without one the loader map is empty, but the bundler cannot see that through the virtual
+ * module, so this code shipped to every island page for a lookup that always found nothing.
  */
 import { wire_loaders, wire_all } from 'virtual:ogygia/transportables';
 import { props_sidecar_of } from './sidecar.ts';
 import { yield_task } from './schedule.ts';
+import { slots } from './slots.ts';
+
+/** Feature entry: fill the `wire_classes` slot. */
+export function install(): void {
+	slots.wire_classes = wire_classes_for;
+}
 
 const loaders = wire_loaders as Record<string, () => Promise<unknown>>;
 const paths = Object.keys(loaders);

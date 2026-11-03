@@ -284,6 +284,18 @@ const CONFIG_FILES_LAYOUT = ['+layout.server.js', '+layout.server.ts', '+layout.
 const OPTION_FILES_PAGE = ['+page.js', '+page.ts', '+page.server.js', '+page.server.ts'];
 const OPTION_FILES_LAYOUT = ['+layout.js', '+layout.ts', '+layout.server.js', '+layout.server.ts'];
 
+const SCRIPT_FILE_RE = /\.[cm]?[jt]s$/;
+
+/**
+ * A route COMPONENT of `kind`: `+page.svelte`, or the same file in any other extension the app
+ * compiles to a component (`+page.md`, `+page.svx`): every `+page.*` but the option scripts. Kit
+ * routes all of them alike, so the csr topology does too — a markdown page counted for nothing
+ * here, and its layout's world and its own client leg were decided as if it did not exist.
+ */
+export function is_route_component(name: string, kind: 'page' | 'layout'): boolean {
+	return name.startsWith(`+${kind}.`) && !SCRIPT_FILE_RE.test(name);
+}
+
 /**
  * Own-chain Kit-effective `csr === false` for one route host — Kit's per-PAGE rule verbatim:
  * walk the layout option files root → host dir (then the page's own option files), deepest
@@ -306,7 +318,7 @@ function own_chain_csr_false(hostFile: string, routesDir: string, layouts_only =
 			if (v !== undefined) csr = v;
 		}
 	}
-	if (!layouts_only && path.basename(hostFile) === '+page.svelte') {
+	if (!layouts_only && is_route_component(path.basename(hostFile), 'page')) {
 		for (const f of OPTION_FILES_PAGE) {
 			const v = read_csr(path.join(dir, f));
 			if (v !== undefined) csr = v;
@@ -388,8 +400,8 @@ function layout_page_worlds(layoutDir: string, routesDir: string) {
 export function routeCsrIsFalse(hostFile: string, routesDir: string): boolean {
 	if (!hostFile.startsWith(routesDir)) return false;
 	const base = path.basename(hostFile);
-	if (base === '+page.svelte') return own_chain_csr_false(hostFile, routesDir);
-	if (base !== '+layout.svelte') return false;
+	if (is_route_component(base, 'page')) return own_chain_csr_false(hostFile, routesDir);
+	if (!is_route_component(base, 'layout')) return false;
 	const { any_false, any_true } = layout_page_worlds(path.dirname(hostFile), routesDir);
 	if (any_false && !any_true) return true; // every page it serves is csr=false
 	if (any_false || any_true) return false; // mixed (or pure-true) → not the false world
@@ -406,9 +418,10 @@ export function routeCsrIsFalse(hostFile: string, routesDir: string): boolean {
  */
 export function routeCsrIsTrue(hostFile: string, routesDir: string): boolean {
 	const base = path.basename(hostFile);
-	if (base !== '+page.svelte' && base !== '+layout.svelte') return false;
+	const is_page = is_route_component(base, 'page');
+	if (!is_page && !is_route_component(base, 'layout')) return false;
 	if (!hostFile.startsWith(routesDir)) return false;
-	if (base === '+page.svelte') return !own_chain_csr_false(hostFile, routesDir);
+	if (is_page) return !own_chain_csr_false(hostFile, routesDir);
 	const { any_false, any_true } = layout_page_worlds(path.dirname(hostFile), routesDir);
 	if (any_false) return false; // some page below gets no Kit client — never strip its chrome
 	if (any_true) return true; // every page below is Kit-hydrated
@@ -447,7 +460,7 @@ function pageLeaves(routesDir: string) {
 		for (const e of route_entries(dir)) {
 			const full = path.join(dir, e.name);
 			if (e.is_dir) walk(full);
-			else if (e.name === '+page.svelte') leaves.push(full);
+			else if (is_route_component(e.name, 'page')) leaves.push(full);
 		}
 	};
 	walk(routesDir);
@@ -504,7 +517,7 @@ function config_page_dirs(routesDir: string): string[] {
 		for (const e of route_entries(dir)) {
 			const full = path.join(dir, e.name);
 			if (e.is_dir) walk(full);
-			else if (PAGE_FILE_RE.test(e.name)) dirs.add(dir);
+			else if (PAGE_FILE_RE.test(e.name) || is_route_component(e.name, 'page')) dirs.add(dir);
 		}
 	};
 	walk(routesDir);
@@ -632,19 +645,21 @@ function collectNodeEffectiveCsr(routesDir: string) {
 		const entries = route_entries(dir);
 		const names = new Set(entries.filter((e) => e.is_file).map((e) => e.name));
 		const has = (list: string[]) => list.some((f) => names.has(f));
+		const has_component = (kind: 'page' | 'layout') =>
+			[...names].some((n) => is_route_component(n, kind));
 
 		// This dir's layout value carries down the chain whether or not a layout NODE exists here
 		// (Kit merges parent options first; a dir with only `+layout.ts` still re-scopes children).
 		const layout_own = own_csr(dir, LAYOUT_UNIVERSAL, LAYOUT_SERVER);
 		const chain = layout_own !== undefined ? layout_own : inherited;
 
-		// layout node: +layout.svelte, +layout.js/ts, or +layout.server.js/ts
-		if (names.has('+layout.svelte') || has(LAYOUT_UNIVERSAL) || has(LAYOUT_SERVER)) {
+		// layout node: +layout.svelte (or .md, …), +layout.js/ts, or +layout.server.js/ts
+		if (has_component('layout') || has(LAYOUT_UNIVERSAL) || has(LAYOUT_SERVER)) {
 			if (is_root) saw_root_layout = true;
 			nodes.push(chain);
 		}
-		// page node: +page.svelte, +page.js/ts, or +page.server.js/ts
-		if (names.has('+page.svelte') || has(PAGE_UNIVERSAL) || has(PAGE_SERVER)) {
+		// page node: +page.svelte (or .md, …), +page.js/ts, or +page.server.js/ts
+		if (has_component('page') || has(PAGE_UNIVERSAL) || has(PAGE_SERVER)) {
 			const page_own = own_csr(dir, PAGE_UNIVERSAL, PAGE_SERVER);
 			nodes.push(page_own !== undefined ? page_own : chain);
 		}

@@ -27,6 +27,7 @@ import {
 	routeCsrIsTrue,
 	hasAnyCsrTrueRoute,
 	clean_stale_ogygia_dirs,
+	is_route_component,
 	kit_dirs
 } from './kit.ts';
 import { run_module_macros } from './macros/pipeline.ts';
@@ -34,6 +35,7 @@ import { is_script_request } from './script-request.ts';
 import {
 	generateHydrateFeaturesSource,
 	generateRuntimeEntrySource,
+	generateRuntimeFlagsSource,
 	resolveFeatures
 } from './link/runtime-entry.ts';
 import {
@@ -91,6 +93,7 @@ import {
 	V_FN_MANIFEST,
 	V_RUNTIME_ENTRY,
 	V_HYDRATE_FEATURES,
+	V_RUNTIME_FLAGS,
 	V_DEV_HMR,
 	V_DEV_HMR_URL,
 	V_DEVTOOLS_BOOT,
@@ -167,8 +170,13 @@ export interface Profiler {
 const LEADING_SLASH = /^\//;
 const BACKSLASH_G = /\\/g;
 const COMPONENT_EXT_RE = /\.(svelte|js|ts)$/;
-/** A Kit route host file (`+page.svelte`, `+layout.ts`, …) — the page node's own client modules. */
-const ROUTE_HOST_FILE_RE = /^\+(page|layout)\.(svelte|ts|js|mjs)$/;
+/** A Kit route option module (`+page.ts`, `+layout.js`, …) — the page node's own client modules
+ *  beside its component (kit.ts `is_route_component`). */
+const ROUTE_HOST_FILE_RE = /^\+(page|layout)\.(ts|js|mjs)$/;
+/** The real binding modules a host imports for a marked region (ids.ts `regionBindingVirtualId`,
+ *  transform.ts `wrapperVirtualId`). */
+const REGION_BINDING_PREFIX = 'virtual:ogygia/region/';
+const WRAPPER_PREFIX = 'virtual:ogygia/wrapper/';
 /** A `.ts`/`.js` module that can be a region registry (a minted `.ts` region host). */
 const TS_REGISTRY_EXT_RE = /\.(ts|js|mjs)$/;
 /** A Svelte rune module (`.svelte.ts` / `.svelte.js`). */
@@ -188,6 +196,18 @@ const SERVER_DIR_RE = /\/(src\/lib\/server|server)\//;
  *  regex — `walk_dep` resets `lastIndex` before each scan). */
 const IMPORT_SPEC_G =
 	/\bfrom\s*['"]([^'"\n]+)['"]|\bimport\s*['"]([^'"\n]+)['"]|\bimport\s*\(\s*['"]([^'"\n]+)['"]/g;
+// THE PAGE MARK (link/runtime-entry.ts `page`), from the island-closure walk: which imports island
+// code can make without reaching Kit's page world. Everything else under `$app/`, any package but
+// Svelte, and anything the walk cannot resolve or read counts as a reader: over-inclusion ships the
+// page seed's runtime for nothing, a miss would leave an island's `page.data` empty.
+const PAGE_FREE_APP_MODULES = new Set(['$app/environment', '$app/paths']);
+const ASSET_EXTS =
+	'css|scss|sass|less|styl|pcss|postcss|json|svg|png|jpe?g|gif|webp|avif|ico|bmp|woff2?|ttf|otf|eot|txt|wasm|mp4|webm|mp3|wav';
+const ASSET_EXT_RE = new RegExp(`\\.(?:${ASSET_EXTS})$`, 'i');
+const PAGE_FREE_UNRESOLVED_RE = new RegExp(
+	`^svelte(?:\\/[\\w/-]+)?$|\\.(?:${ASSET_EXTS})(?:\\?[^/]*)?$`,
+	'i'
+);
 /** The extensions an extension-less island import may resolve to (bare, then index files). */
 const ISLAND_DEP_EXTS = ['', '.svelte', '.ts', '.js', '.svelte.ts', '.svelte.js', '.mjs'];
 
@@ -450,7 +470,7 @@ export class Compiler {
 		// chrome islands must be REAL wrappers on the client (Region degrades them inline via
 		// `documentIsCsrTrue`), NOT the thin stub. Only when the app actually has a csr=true route,
 		// and only for `+layout.svelte` hosts (bounded chrome, unlike N page islands).
-		const is_layout_host = path.basename(id) === '+layout.svelte';
+		const is_layout_host = is_route_component(path.basename(id), 'layout');
 		const link_virtual =
 			opts.linkVirtual !== undefined
 				? opts.linkVirtual
@@ -586,10 +606,10 @@ export class Compiler {
 				const src = ctx.read_file(full);
 				if (src == null) return;
 				if (!runtime_marks.context && source_uses_ogygia_context(src)) runtime_marks.context = true;
-				if (
-					!program.crosses_wire &&
-					(name.endsWith('.remote.ts') || name.endsWith('.remote.js') || source_crosses_wire(src))
-				)
+				const remote = name.endsWith('.remote.ts') || name.endsWith('.remote.js');
+				// A remote query's SSR result can only be seeded where the app HAS a remote function.
+				if (remote) runtime_marks.remoteSeeds = true;
+				if (!program.crosses_wire && (remote || source_crosses_wire(src)))
 					program.crosses_wire = true;
 				{
 					// Router-css closure data: this module's import specs + whether it is a page module.
@@ -718,6 +738,11 @@ export class Compiler {
 		// A transportable class (`static wire = import.meta.og.wire(…)`) means island props can carry a
 		// live wired object, revived through the wire codec — so this app needs the wire runtime.
 		if (transportable_modules.size > 0) runtime_marks.wire = true;
+		// The page seed and the MPA navigation handle are for island code that reaches Kit's page world
+		// (the closure walk above). Islands the walk never saw count as readers: a federated peer's,
+		// hydrated by this app's runtime against this page, and whatever a plugin's browser half wakes.
+		runtime_marks.page =
+			program.island_reads_page || ctx.foreign_hydrate || ctx.client_plugins.length > 0;
 		// prescan walked every host — the capability marks are now COMPLETE, so the generated sticky
 		// runtime entry can bundle only the features this app uses (else it stays kitchen-sink).
 		runtime_marks.complete = true;
@@ -805,23 +830,27 @@ export class Compiler {
 				island_graph.add(norm);
 				added.push(norm);
 			}
-			if (!SOURCE_EXT_RE.test(norm)) return;
+			if (!SOURCE_EXT_RE.test(norm)) {
+				// a module this walk does not read (markdown, a JSX file): it may read the page
+				if (!ASSET_EXT_RE.test(norm)) this.program.island_reads_page = true;
+				return;
+			}
 			const src = ctx.read_file(norm);
 			if (src == null) return;
 			IMPORT_SPEC_G.lastIndex = 0;
 			let m: RegExpExecArray | null;
 			while ((m = IMPORT_SPEC_G.exec(src))) {
 				const spec = m[1] || m[2] || m[3];
-				if (
-					!spec ||
-					spec[0] === '\0' ||
-					spec.startsWith('$app/') ||
-					spec.startsWith('$env/') ||
-					spec.startsWith('virtual:')
-				)
+				if (!spec || spec[0] === '\0') continue;
+				if (spec.startsWith('$app/')) {
+					if (!PAGE_FREE_APP_MODULES.has(spec)) this.program.island_reads_page = true;
 					continue;
+				}
+				if (spec.startsWith('$env/') || spec.startsWith('virtual:')) continue;
 				const dep = resolve_dep(spec, norm);
 				if (dep) walk(dep);
+				// A package or an import this walk cannot resolve may read the page; Svelte and assets cannot.
+				else if (!PAGE_FREE_UNRESOLVED_RE.test(spec)) this.program.island_reads_page = true;
 			}
 		};
 		walk(componentAbs);
@@ -1143,6 +1172,12 @@ export class Compiler {
 			const ch = client_hooks_boot(ctx);
 			return ch.imports + code + ch.call;
 		}
+		if (id === RESOLVED(V_RUNTIME_FLAGS)) {
+			// Dev runs the kitchen-sink boot: every flag on, like every feature.
+			if (!ctx.is_build) return generateRuntimeFlagsSource({}, true);
+			this.prescan();
+			return generateRuntimeFlagsSource(program.runtime_marks);
+		}
 		if (id === RESOLVED(V_HYDRATE_FEATURES)) {
 			// The hydrate core's feature phase, from the same marks as the boot entry. Dev runs the
 			// kitchen-sink boot (`bootDev`), so it gets every hydrate-phase feature to match.
@@ -1157,9 +1192,14 @@ export class Compiler {
 			// og.$ factories register before any island's props are revived (sync fn-ref resolution),
 			// i.e. with the hydrate core — not in the boot: the manifest reaches `ogygia/internal`, which
 			// island code imports too, and a module the boot shares with island code splits the boot.
+			// A factory is only ever looked up by a decoder that revives a fn ref: the wire hub (props),
+			// the context bridge, or the app's Kit transport. With none of them in this build no ref can
+			// arrive, and the manifest would only ship the fn kind and the hub (~2 kB) to every page.
+			const marks = program.runtime_marks;
+			const fn_refs_decode = marks.wire === true || marks.context === true || program.crosses_wire;
 			return (
-				`import ${JSON.stringify(V_FN_MANIFEST)};\n` +
-				generateHydrateFeaturesSource(program.runtime_marks, ctx.runtime_dir).code
+				(fn_refs_decode ? `import ${JSON.stringify(V_FN_MANIFEST)};\n` : '') +
+				generateHydrateFeaturesSource(marks, ctx.runtime_dir).code
 			);
 		}
 		if (id === RESOLVED(V_RUNTIME)) {
@@ -1409,6 +1449,7 @@ export class Compiler {
 		if (source === V_RUNTIME) return RESOLVED(V_RUNTIME);
 		if (source === V_RUNTIME_ENTRY) return RESOLVED(V_RUNTIME_ENTRY);
 		if (source === V_HYDRATE_FEATURES) return RESOLVED(V_HYDRATE_FEATURES);
+		if (source === V_RUNTIME_FLAGS) return RESOLVED(V_RUNTIME_FLAGS);
 		if (source === V_DEV_HMR) return RESOLVED(V_DEV_HMR);
 		if (source === V_DEV_HMR_URL) return RESOLVED(V_DEV_HMR_URL);
 		if (source === V_DEVTOOLS_BOOT) return RESOLVED(V_DEVTOOLS_BOOT);
@@ -1433,6 +1474,21 @@ export class Compiler {
 		if (source === V_REGION_ENDPOINT) return RESOLVED(V_REGION_ENDPOINT);
 		// csr=false client hosts rewrite marked bindings here — not a hydrate entry.
 		if (source === CLIENT_BINDING_STUB) return ctx.client_binding_stub_file;
+		// …and so does a csr=false route host that could not pick its leg itself: a markup source
+		// (content's markdown) runs the region transform in the preprocessor, before the compile knows
+		// which leg it is on, so it always links the real binding. On the CLIENT leg of a build that
+		// binding pulled Region and every island wrapper into Kit's client graph of a page Kit never
+		// boots, and the modules that graph shares with the islands (Svelte's above all) shipped to
+		// every island page with all of Region's uses in them. It resolves to the stub a `.svelte` host
+		// links there.
+		if (
+			!ssr &&
+			ctx.is_build &&
+			importer &&
+			(source.startsWith(REGION_BINDING_PREFIX) || source.startsWith(WRAPPER_PREFIX)) &&
+			this.#links_client_stub(importer)
+		)
+			return ctx.client_binding_stub_file;
 		// CSS-only FOUC graph (no component JS) for csr=false client stubs.
 		if (source.startsWith(FOUC_CSS_PREFIX) || source.startsWith(FOUC_SCOPED_PREFIX)) {
 			return RESOLVED(source);
@@ -1558,11 +1614,28 @@ export class Compiler {
 
 	/** True for a csr=false route host file (`+page`/`+layout` `.svelte`/`.ts`/`.js`). A `+page.ts`
 	 *  shares its route's world with the sibling `.svelte` host. */
+	/** A route COMPONENT whose client leg links the binding stub — `transform`'s `link_virtual` rule,
+	 *  for a host that could not apply it itself: csr=false, and not a layout of an app with a
+	 *  csr=true route (Kit can hydrate that layout: a csr=true child page, or an error render). */
+	#links_client_stub(importer: string): boolean {
+		const importer_abs = strip_id(importer);
+		const routes_dir = kit_dirs(this.#ctx!.root).routes_dir;
+		if (!importer_abs.startsWith(routes_dir + path.sep)) return false;
+		const base = path.basename(importer_abs);
+		if (is_route_component(base, 'layout'))
+			return routeCsrIsFalse(importer_abs, routes_dir) && !hasAnyCsrTrueRoute(routes_dir);
+		return is_route_component(base, 'page') && routeCsrIsFalse(importer_abs, routes_dir);
+	}
+
 	#is_csr_false_route_host(importer: string): boolean {
 		const importer_abs = strip_id(importer);
 		const routes_dir = kit_dirs(this.#ctx!.root).routes_dir;
 		if (!importer_abs.startsWith(routes_dir + path.sep)) return false;
-		const m = ROUTE_HOST_FILE_RE.exec(path.basename(importer_abs));
+		const base = path.basename(importer_abs);
+		// a route component (`+page.svelte`, `+page.md`, …) is its own host
+		if (is_route_component(base, 'page') || is_route_component(base, 'layout'))
+			return routeCsrIsFalse(importer_abs, routes_dir);
+		const m = ROUTE_HOST_FILE_RE.exec(base);
 		if (!m) return false;
 		return routeCsrIsFalse(path.join(importer_abs, '..', `+${m[1]}.svelte`), routes_dir);
 	}

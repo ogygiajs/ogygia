@@ -42,11 +42,15 @@
  * client, and the unit tests exercise both ends against a real devalue round trip.
  */
 import { fnv1a } from './runtime/hash.ts';
+import type { SeedPath } from './seed-ref-reviver.ts';
 
-/** The devalue type tag. */
-export const SEED_REF_KEY = 'OgygiaSeedRef';
-
-export type SeedPath = (string | number)[];
+// The client half (tag + reviver) is a leaf of its own: seed-ref-reviver.ts says why.
+export {
+	SEED_REF_KEY,
+	resolve_seed_ref,
+	seed_ref_reviver,
+	type SeedPath
+} from './seed-ref-reviver.ts';
 
 export interface SeedIndex {
 	/** node → its path from `page.data` (identity matches: the app passed the seed's own object).
@@ -587,42 +591,5 @@ export function plan_seed_refs(index: SeedIndex, props: unknown, min_bytes = 96)
 			value === null || typeof value !== 'object' ? undefined : matched.get(value),
 		count,
 		keys
-	};
-}
-
-/** Client: the node a path points at, or `undefined` when the seed does not have it. */
-export function resolve_seed_ref(data: unknown, path: SeedPath): unknown {
-	let cur: unknown = data;
-	for (const key of path) {
-		if (cur === null || typeof cur !== 'object') return undefined;
-		cur = (cur as Record<string | number, unknown>)[key];
-	}
-	return cur;
-}
-
-/**
- * Client reviver for the devalue type: resolve BY REFERENCE. The island receives the seed's own
- * node — the same object its `page.data` read would hand it, shared exactly the way `page.data`
- * already is between islands. A deep copy per reference (129 of them on a measured page) bought
- * nothing: island props are a snapshot either way, and the DEV mutation guard the runtime wraps
- * every island's props in (`PropMutationGuard`) already warns on a write into them. `get_data` is
- * called lazily, once per reviver — the first reference resolves the seed. A dangling path (no seed,
- * or a seed that does not carry the node) revives to `undefined` and, in dev, says why.
- */
-export function seed_ref_reviver(get_data: () => unknown): (path: SeedPath) => unknown {
-	let data: unknown;
-	let resolved = false;
-	return (path) => {
-		if (!resolved) {
-			data = get_data();
-			resolved = true;
-		}
-		const node = resolve_seed_ref(data, path);
-		if (node === undefined && typeof console !== 'undefined' && import.meta.env?.DEV) {
-			console.warn(
-				`[ogygia] island props reference page.data at ${JSON.stringify(path)} but the page seed does not carry it — the island receives undefined there.`
-			);
-		}
-		return node;
 	};
 }

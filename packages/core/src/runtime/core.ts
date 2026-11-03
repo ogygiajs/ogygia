@@ -1,4 +1,9 @@
 import { frameAddress } from '../frame.ts';
+// Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
+// off in a build where no region streams HTML, and the bundler drops the element's fetch / apply /
+// morph / renew path with it — that path works on the element's own state, so it cannot be a
+// feature module of its own, and without the frame store it has nowhere to land anyway.
+import { FRAMES } from 'virtual:ogygia/runtime-flags';
 import { kit_hydrates_page } from './kit-boot.ts';
 import {
 	init_shadow_registries,
@@ -6,7 +11,6 @@ import {
 	restore_adopt_sheets,
 	restore_markup
 } from './parse-html.ts';
-import { wire_classes_for } from './wire-classes.ts';
 import {
 	mark_region_changed,
 	region_changed,
@@ -43,7 +47,6 @@ import {
 import { slots } from './slots.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
 import { PAGE_FACTS_SELECTOR } from '../page-facts-script.ts';
-import { NAV_HANDLE_KEY, mpa_nav, publish_nav } from './nav-handle.ts';
 import { link_boot } from './boot-link.ts';
 import {
 	background_start,
@@ -539,7 +542,7 @@ class OgygiaRegion extends HTMLElement {
 		if (this.hasAttribute('live')) return;
 		// A deferred hole's signed endpoint is only ever minted on the server — keep the copy Kit's
 		// hydration cannot reach (see #minted_endpoint). Parse-time connect runs before Kit's start().
-		if (this.#minted_endpoint === null && is_deferred(this)) {
+		if (FRAMES && this.#minted_endpoint === null && is_deferred(this)) {
 			const minted = this.getAttribute('endpoint');
 			if (minted) this.#minted_endpoint = minted;
 			else {
@@ -675,6 +678,7 @@ class OgygiaRegion extends HTMLElement {
 	 * nothing left to warm.
 	 */
 	#prefetch_html() {
+		if (!FRAMES) return;
 		if (this.#done || this.#fetching || !this.isConnected) return;
 		const endpoint = this.#endpoint();
 		if (!endpoint || !is_allowed_region_endpoint(endpoint)) return;
@@ -886,6 +890,8 @@ class OgygiaRegion extends HTMLElement {
 	 * island), schedule phase-2 hydrate — coalescing matching schedules to immediate load.
 	 */
 	async #server() {
+		// (no region streams HTML in this build: no hole to fetch — runtime-flags `FRAMES`)
+		if (!FRAMES) return;
 		// Bind to the store: this region applies whatever frame lands at its address — from its own
 		// fetch, a navigation batch stream, or (later) a mutation. subscribe() replays current
 		// content immediately, so a late-mounting twin catches up free.
@@ -1060,6 +1066,7 @@ class OgygiaRegion extends HTMLElement {
 	 * not (the endpoint answers `cache-control: private, max-age=30`, and stale is the whole point).
 	 */
 	async #fetch_html(opts: { revalidate?: boolean } = {}) {
+		if (!FRAMES) return;
 		// A revalidate re-fetches even after the first swap; a plain fetch is one-shot.
 		if (this.#fetching || (this.#done && !opts.revalidate)) return;
 		const endpoint = this.#endpoint();
@@ -1304,12 +1311,13 @@ class OgygiaRegion extends HTMLElement {
 			try {
 				if (!this.isConnected) return;
 				hydrate_started(this); // a viewport island in flight holds ready islands below the fold
-				// (with the module: the transportable classes its props and context carry — runtime/wire-classes.ts)
+				// (with the module: the transportable classes its props and context carry — runtime/wire-classes.ts,
+				// a feature only an app with transportable classes installs)
 				// The island's module first: its graph links go in before the lazy runtime chunks' own preloads.
 				[mod, core] = await Promise.all([
 					load_island(entry, cls()),
 					hydrate_core(),
-					wire_classes_for(this)
+					slots.wire_classes?.(this)
 				]);
 			} finally {
 				release();
@@ -1427,6 +1435,8 @@ class OgygiaRegion extends HTMLElement {
 		hydrate?: string;
 		hydrateMargin?: string;
 	}) {
+		// (a live region is a `frames` build: none here — runtime-flags `FRAMES`)
+		if (!FRAMES) return;
 		// Keep the element self-describing so the fallback fetch path still works if ever needed.
 		this.setAttribute('render', 'defer');
 		this.setAttribute('entry', desc.module || desc.id);
@@ -1640,9 +1650,8 @@ export function boot(
 	installers: Array<() => void> = [],
 	client_plugins: readonly ClientPlugin[] = []
 ): void {
-	// The navigation handle island code reaches the runtime through (./nav-handle.ts): the MPA one
-	// first, which the router feature's install replaces with the SPA router's when it is present.
-	if (typeof document !== 'undefined' && !(NAV_HANDLE_KEY in globalThis)) publish_nav(mpa_nav());
+	// (The navigation handle island code reaches the runtime through is a feature now: `mpa-nav`
+	// publishes the MPA one, the router's install replaces it — ./nav-handle.ts.)
 	// The head the server sent is the page's (session.ts: who owns each node in <head>). No island
 	// has woken yet — the runtime boots before any wake — so nothing here is an island's.
 	runtime_session.adopt_document_head();
