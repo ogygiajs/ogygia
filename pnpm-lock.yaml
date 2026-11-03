@@ -487,6 +487,9 @@ importers:
       '@ogygia/tooling':
         specifier: workspace:*
         version: link:../../packages/tooling
+      '@ogygia/tsdown-plugin-svelte':
+        specifier: workspace:*
+        version: link:../../packages/tsdown-plugin-svelte
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.62.1

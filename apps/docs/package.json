@@ -49,6 +49,7 @@
 		"@ogygia/router": "workspace:*",
 		"@ogygia/testing": "workspace:*",
 		"@ogygia/tooling": "workspace:*",
+		"@ogygia/tsdown-plugin-svelte": "workspace:*",
 		"@playwright/test": "catalog:",
 		"@sveltejs/adapter-vercel": "catalog:",
 		"@sveltejs/kit": "catalog:",

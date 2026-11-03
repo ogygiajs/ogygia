@@ -1,0 +1,47 @@
+---
+title: Options
+summary: Every option of svelte(), with its default, and how to set root in a monorepo.
+related:
+  - tsdown-plugin-svelte/overview
+  - tsdown-plugin-svelte/how-it-works
+---
+
+`svelte()` takes one options object, and every key is optional:
+
+```ts
+svelte({
+  root: process.cwd(),
+  src: 'src',
+  out: 'dist',
+  preprocess: vitePreprocess({ script: true }),
+  dts: true,
+  tsconfig: 'tsconfig.json'
+});
+```
+
+| Option       | Default                            | What it does                                                                       |
+| ------------ | ---------------------------------- | ---------------------------------------------------------------------------------- |
+| `root`       | `process.cwd()`                    | The package root that `src`, `out` and `tsconfig` are relative to.                 |
+| `src`        | `'src'`                            | Where your components and `.css` files live.                                       |
+| `out`        | `'dist'`                           | Where they are written. Match tsdown's `outDir`.                                   |
+| `preprocess` | `vitePreprocess({ script: true })` | Svelte preprocessors for the script and styles (one or a list).                    |
+| `dts`        | `true`                             | Write a `.svelte.d.ts` beside each component. Needs `svelte2tsx` and `typescript`. |
+| `tsconfig`   | `'tsconfig.json'`                  | The tsconfig the component types are generated with.                               |
+
+## preprocess
+
+The default is `vitePreprocess({ script: true })` from `@sveltejs/vite-plugin-svelte`, which turns `<script lang="ts">` into JS. Pass your own preprocessors to add others (for example a CSS preprocessor), or to avoid the `@sveltejs/vite-plugin-svelte` dependency. Without it installed and without `preprocess`, the build stops with a message that says so.
+
+## dts and tsconfig
+
+The component types are generated with your `tsconfig.json`, extended with `isolatedDeclarations` turned off: svelte2tsx's generated component code never carries the annotations that option demands, so a library that turns it on for its `.ts` files would otherwise get no component types. Your `.ts` declarations are still tsdown's, built with your config as it is.
+
+## In a monorepo
+
+When tsdown runs from another folder (a workspace root, a shared build script), set `root` to the package's own folder:
+
+```ts title=tsdown.config.ts
+import { fileURLToPath } from 'node:url';
+
+svelte({ root: fileURLToPath(new URL('.', import.meta.url)) });
+```

@@ -322,3 +322,5 @@ Each feature below is a separate package that you install and list once beside `
 | [`@ogygia/testing`](/docs/testing/overview)       | none (a test helper)             | `@ogygia/testing`                                                                                                                                              |
 | [`@ogygia/cli`](/docs/cli/overview)               | none (the command)               | `npx ogygia …`; see [Commands](/docs/cli/commands)                                                                                                             |
 | [`@ogygia/core`](/docs/core/overview)             | none (for plugin authors)        | `@ogygia/core/plugin`, `/plugin/client`, `/plugin/utils`, …; see [Writing a plugin](/docs/core/plugins)                                                        |
+
+`@ogygia/tsdown-plugin-svelte` is not in the table, because nothing in an app imports it: it is a tsdown plugin for building component libraries. Its [section](/docs/tsdown-plugin-svelte/overview) has its options and API.

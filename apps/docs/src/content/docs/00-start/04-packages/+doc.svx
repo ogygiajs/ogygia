@@ -23,6 +23,8 @@ The `ogygia` package is the region system: islands, lakes, holes, held regions, 
 
 Every package takes `@ogygia/core` as a peer dependency, which `ogygia` already brings in. They all release together under one version number, so keep them on the same version as `ogygia`.
 
+One more package is for library authors rather than apps. [`@ogygia/tsdown-plugin-svelte`](/docs/tsdown-plugin-svelte/overview) ships a library's Svelte components from a tsdown build, the way `svelte-package` does. It works for any Svelte library, has no dependency on ogygia and its own version number, and it is what ogygia's own packages are built with.
+
 ## Turn a feature on
 
 Install the package, then list its plugin once in the `plugins` array of your Vite config, beside `ogygia()`. Each plugin is a Vite plugin in its own right, and `ogygia()` finds it in that list. Each factory is imported from `<package>/vite`:
