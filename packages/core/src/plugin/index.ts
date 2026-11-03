@@ -24,7 +24,7 @@ import type { RequestFacts } from './facts.ts';
 import type { Ask, Notify, ServerHooks } from './hooks.ts';
 import type { DevtoolsEventInput } from '../events/schema.ts';
 
-// Kit's handle types, the same on SvelteKit 2 and 3 (kit-handle.ts)
+// Kit's handle types (kit-handle.ts)
 export type { Handle, ResolveOptions } from '../kit-handle.ts';
 export type { RequestFacts } from './facts.ts';
 export type { ServerHooks } from './hooks.ts';

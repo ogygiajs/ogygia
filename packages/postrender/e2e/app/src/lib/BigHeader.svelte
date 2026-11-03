@@ -3,7 +3,7 @@
 	// its HTML is baked into the page (first bytes, no fallback), and on load it revalidates
 	// in the background — a fresh SERVER render with the visitor's cookies, swapped in.
 	import type { Snippet } from 'svelte';
-	import { whoami } from '$lib/session.remote';
+	import { whoami } from '#lib/session.remote.ts';
 	// the deferred call sites pass the reserved fallback (shown until the hole answers)
 	let { ogygiaFallback }: { ogygiaFallback?: Snippet } = $props();
 

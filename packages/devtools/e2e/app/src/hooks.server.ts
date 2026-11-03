@@ -1,10 +1,9 @@
-import { sequence } from '@sveltejs/kit/hooks';
-import type { Handle } from '@sveltejs/kit';
+import { sequence, type Handle } from '@sveltejs/kit/hooks';
 import { handle as ogygiaHandle } from 'ogygia/server';
 import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
 import { sqliteStore } from '@ogygia/devtools/profiler/storage/sqlite';
-import { ds_ssr } from '$lib/hell/ds-ssr';
-import { scoped_render } from '$lib/restorelab/scoped-render';
+import { ds_ssr } from '#lib/hell/ds-ssr.ts';
+import { scoped_render } from '#lib/restorelab/scoped-render.ts';
 
 // DEMO: give the profiler a durable SQLite store so reports survive a restart and the sidebar's
 // shared list fills. Swap for redisStore(...) / postgresStore(process.env.DATABASE_URL) in a real

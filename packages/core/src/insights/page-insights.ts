@@ -1831,7 +1831,7 @@ export function analyze_page(
 				)
 			: null;
 	const tune_text = tune
-		? `With \`kit: { inlineStyleThreshold: ${tune.threshold} }\` in svelte.config.js, ${tune.files} of these stylesheets (${(tune.bytes / 1024).toFixed(1)} KB) arrive inside the HTML: ${blocking.length - tune.files} file${blocking.length - tune.files === 1 ? '' : 's'} left to wait on instead of ${blocking.length}.`
+		? `With \`sveltekit({ inlineStyleThreshold: ${tune.threshold} })\` in the vite config, ${tune.files} of these stylesheets (${(tune.bytes / 1024).toFixed(1)} KB) arrive inside the HTML: ${blocking.length - tune.files} file${blocking.length - tune.files === 1 ? '' : 's'} left to wait on instead of ${blocking.length}.`
 		: '';
 	if (fcp_card) {
 		if (held_ms >= 600) fcp_card.severity = 'warn';

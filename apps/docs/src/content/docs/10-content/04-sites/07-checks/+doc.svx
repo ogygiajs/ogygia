@@ -34,7 +34,7 @@ The audit knows the _whole_ address space, including [dimension](/docs/content/s
 
 ```ts
 // a vitest guard: the docs have no broken links
-import { docs } from '$lib/site.server';
+import { docs } from '#lib/site.server';
 
 test('no broken links', async () => {
 	const findings = await docs.check({ base: '/docs' });
@@ -48,7 +48,7 @@ This matters most on a dynamic site, where the prerender crawler never runs and 
 
 A check is a named object with a `page` hook, a `site` hook or both, each returning findings. `page` runs per slug inside `load`, so dev reports it when you open the page and an `error`-severity finding throws. `site` runs once over the whole corpus, through `docs.check()`:
 
-```ts title=$lib/checks.ts
+```ts title=#lib/checks.ts
 // a house rule: every page fills its summary
 import type { Check, Finding } from '@ogygia/content';
 
@@ -73,7 +73,7 @@ export function requireSummary(): Check {
 
 ```ts
 import { links } from '@ogygia/content';
-import { requireSummary } from '$lib/checks';
+import { requireSummary } from '#lib/checks';
 
 export const docs = site({ outline: docs, checks: [links(), requireSummary()] });
 ```

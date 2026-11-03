@@ -2,26 +2,26 @@
 	// The ONE display face: the LCP brand h1 and the `ogygia` wordmark. It is `font-display: swap` and
 	// preloaded, so the wordmark is the SAME serif on every page (an `optional` display face fell back
 	// to Georgia on some cold loads and not others) and the brand h1 swaps in early.
-	import geistSerifUrl from '$lib/fonts/geist-serif-latin.woff2?url';
+	import geistSerifUrl from '#lib/fonts/geist-serif-latin.woff2?url';
 	import fontsMonoUrl from '../../fonts-mono.css?url';
 	import '../../fonts.css';
 	import '../../app.css';
-	import '$lib/styles/site-chrome.css';
+	import '#lib/styles/site-chrome.css';
 	// The WHOLE site chrome — homepage and docs alike — DOGFOODS the ogygia `Shell`, in the site's
 	// own skin (never ogygia theme.css). An empty `header` snippet removes the top header, so the
 	// floating sidebar panel is the chrome: brand row (`side` snippet), search, theme toggle, and the
 	// docs nav — exactly the shape the bespoke SideNav had, now rendered by the Shell's built-ins.
 	import DocsShell from '@ogygia/content/docs-shell';
 	import '@ogygia/content/shell.css'; // layout FORM only (@layer ogygia — the unlayered skin wins)
-	import '$lib/styles/shell-skin.css'; // the site's LOOK on the .ph-* hooks
-	import SiteHeader from '$lib/SiteHeader.svelte';
+	import '#lib/styles/shell-skin.css'; // the site's LOOK on the .ph-* hooks
+	import SiteHeader from '#lib/SiteHeader.svelte';
 	import * as ogygia from 'ogygia';
 	import { page } from '$app/state';
-	import { meta } from '$lib/docs.remote';
-	import { sectionNav, sectionOf } from '$lib/sections';
+	import { meta } from '#lib/docs.remote.ts';
+	import { sectionNav, sectionOf } from '#lib/sections.ts';
 	// The package switcher: a Bits UI dropdown of links. An island, like the shell's own Bits UI
 	// pieces (the version switcher, the sheet), so it hydrates on load and again after each nav.
-	import SectionSwitcher from '$lib/SectionSwitcher.svelte' with { wake: 'load' };
+	import SectionSwitcher from '#lib/SectionSwitcher.svelte' with { wake: 'load' };
 
 	let { children } = $props();
 

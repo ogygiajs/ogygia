@@ -11,7 +11,6 @@ import { transformHost } from '../src/compiler/region/transform.ts';
 
 const ctx = {
 	root: '/app',
-	libDir: '/app/src/lib',
 	readFile: () => null,
 	pathModule: path,
 	dev: false,

@@ -1,7 +1,8 @@
 /**
  * WHICH `page.data` KEYS does a module read? — the static analysis behind seed shaping.
  *
- * The page seed (`application/ogygia-page`) exists so an island can read `$page` through the shim,
+ * The page seed (`application/ogygia-page`) exists so an island can read Kit's `page` (`$app/state`)
+ * through the shim,
  * and it used to be all-or-nothing: one island reading `page.data._locale` shipped the whole
  * `page.data` (368 KB on a measured CMS home page, 199 KB of it a header entry no island ever
  * touched). This analysis reads a module ONCE, at transform time, on the compiler's own parsers —
@@ -11,8 +12,8 @@
  * closure (island-deps.ts) and the handle ships only those keys.
  *
  * CONSERVATIVE BY CONSTRUCTION. Any read the analysis cannot resolve to a literal key — `page.data`
- * handed to a function, aliased whole, indexed with a variable, spread, `page.subscribe(...)`, a
- * namespace import, the whole page passed on — answers `'all'`, and the seed ships whole as
+ * handed to a function, aliased whole, indexed with a variable, spread, a namespace import, the
+ * whole page passed on — answers `'all'`, and the seed ships whole as
  * before. A wrong `'all'` costs bytes; a wrong key set would cost an island its data, so every
  * doubt goes to `'all'`.
  */
@@ -25,9 +26,9 @@ type Node = AstNode;
 
 export type PageKeys = ReadonlySet<string> | 'all';
 
-/** Kit's page-store specifiers as an author writes them; the driver's shim rewrite runs after
- *  this analysis, so the source still names them. */
-const PAGE_SPECIFIER_RE = /^\$app\/(?:state|stores)$/;
+/** The module Kit's page comes from, as an author writes it (the driver's shim rewrite runs after
+ *  this analysis, so the source still names it). */
+const PAGE_MODULE = '$app/state';
 /** The page fields that are never shaped — reading them commits nothing about `data`. */
 const SAFE_FIELDS = new Set(['url', 'params', 'route', 'status', 'error', 'form', 'state']);
 /** Keys the walker never descends into (positions, back-references). */
@@ -41,8 +42,6 @@ const SKIP_KEYS = new Set([
 	'leadingComments',
 	'trailingComments'
 ]);
-/** Cheap pre-filter for the transform hot path: no page specifier in the text → nothing to parse. */
-const PAGE_SPECIFIER_HINT_RE = /\$app\/st(?:ate|ores)/;
 
 /** The analysis giving up on a module: WHY, and WHERE (a source offset), so the build can name the
  *  line that makes a page ship all of `page.data`. */
@@ -93,7 +92,7 @@ export function page_data_keys_answer(
 	id: string,
 	kind: 'svelte' | 'script'
 ): PageKeysAnswer {
-	if (!PAGE_SPECIFIER_HINT_RE.test(code)) return { keys: null, reason: null, pending: [] };
+	if (!mentions_page_store(code)) return { keys: null, reason: null, pending: [] };
 	const roots = parse_roots(code, id, kind);
 	if (!roots)
 		return {
@@ -248,9 +247,9 @@ export function merge_page_keys(a: PageKeys | null, b: PageKeys | null): PageKey
 	return new Set([...a, ...b]);
 }
 
-/** Does this module even mention a page-store specifier? (the transform's pre-filter) */
+/** Does this module even mention Kit's page module? (the transform's pre-filter — no parse) */
 export function mentions_page_store(code: string): boolean {
-	return PAGE_SPECIFIER_HINT_RE.test(code);
+	return code.includes(PAGE_MODULE);
 }
 
 // ── parsing ────────────────────────────────────────────────────────────────────────────────────
@@ -292,9 +291,10 @@ const SCOPE_TYPES = new Set([
 ]);
 
 class Scan {
-	/** Every name that IS the page: import locals (module-wide), whole-page aliases and
-	 *  derived/subscribe params (each valid inside the function that declares it — an unrelated
-	 *  `value` in another method is not the page just because one method aliased it so). */
+	/** Every name that IS the page: import locals (module-wide), whole-page aliases and the
+	 *  parameters of local helpers handed the page (each valid inside the function that declares it
+	 *  — an unrelated `value` in another method is not the page just because one method aliased it
+	 *  so). */
 	readonly refs = new Set<string>();
 	readonly #scopes = new Map<string, Set<Node | null>>(); // name → declaring scopes (null = module)
 	readonly keys = new Set<string>();
@@ -363,10 +363,10 @@ class Scan {
 				else if (s.type === 'ImportDefaultSpecifier')
 					this.#imports.set(s.local.name, { specifier, imported: 'default' });
 			}
-			if (!PAGE_SPECIFIER_RE.test(specifier)) return;
+			if (specifier !== PAGE_MODULE) return;
 			for (const s of node.specifiers ?? []) {
 				if (s.type === 'ImportNamespaceSpecifier' || s.type === 'ImportDefaultSpecifier')
-					throw new All('the page store is imported as a namespace', s.start ?? null);
+					throw new All('the page module is imported as a namespace', s.start ?? null);
 				if (s.type === 'ImportSpecifier' && spec_name(s.imported) === 'page')
 					this.#add_ref(s.local.name, null);
 			}
@@ -404,63 +404,15 @@ class Scan {
 							}
 						});
 					}
-					// page.subscribe((p) => …): the subscriber's parameter is the page inside it
-					if (
-						callee?.type === 'MemberExpression' &&
-						!callee.computed &&
-						callee.property?.name === 'subscribe' &&
-						this.is_page_value(callee.object)
-					) {
-						const fn = args[0];
-						const p = fn?.params?.[0];
-						if (fn && p?.type === 'Identifier' && this.#add_ref(p.name, fn.body ?? fn)) {
-							this.#scopes.get(p.name)!.add(fn);
-							grew = true;
-						}
-					}
-					// derived(page, ($p) => …) / derived([a, page], ([$a, $p]) => …)
-					if (callee?.type === 'Identifier' && callee.name === 'derived' && args.length >= 2) {
-						const fn = args[1];
-						const param = fn?.params?.[0];
-						if (args[0]?.type === 'Identifier' && this.is_page_value(args[0])) {
-							if (param?.type === 'Identifier') {
-								if (this.#add_ref(param.name, fn)) grew = true;
-							} else if (param)
-								throw new All(
-									'a derived() over the page destructures its parameter',
-									param.start ?? null
-								);
-						} else if (args[0]?.type === 'ArrayExpression') {
-							args[0].elements.forEach((el: Node, i: number) => {
-								if (el?.type !== 'Identifier' || !this.is_page_value(el)) return;
-								const p = param?.type === 'ArrayPattern' ? param.elements[i] : null;
-								if (p?.type === 'Identifier') {
-									if (this.#add_ref(p.name, fn)) grew = true;
-								} else
-									throw new All(
-										'a derived([…, page, …]) does not name the page parameter',
-										(p ?? el).start ?? null
-									);
-							});
-						}
-					}
 				}
 			});
 		}
 	}
 
-	/** Is this expression the page value itself? `page`, `$page`, `get(page)`. */
+	/** Is this expression the page value itself — one of its names, in scope where it is used? */
 	is_page_value(raw: Node): boolean {
 		const n = unwrap_down(raw);
-		if (n.type === 'Identifier') {
-			const bare = n.name.startsWith('$') ? n.name.slice(1) : n.name;
-			return this.#in_scope(n.name, n) || (bare !== n.name && this.#in_scope(bare, n));
-		}
-		if (n.type === 'CallExpression' && n.callee?.type === 'Identifier' && n.callee.name === 'get') {
-			const a = n.arguments?.[0];
-			return !!a && a.type === 'Identifier' && this.#in_scope(a.name, a);
-		}
-		return false;
+		return n.type === 'Identifier' && this.#in_scope(n.name, n);
 	}
 
 	/** Pass 2: every use of a page value, judged by its parent. */
@@ -476,7 +428,6 @@ class Scan {
 			!is_declaration(node, parent, key)
 		) {
 			this.judge(node, parent, key);
-			if (node.type === 'CallExpression') return; // `get(page)` consumed as a unit
 		}
 		// A BRANCH THE BROWSER NEVER TAKES: this answer is about the island's CLIENT code, and a read
 		// under `typeof window === 'undefined'` (or `import.meta.env.SSR`) runs only on the server —
@@ -525,36 +476,20 @@ class Scan {
 				return;
 			}
 			if (field !== null && SAFE_FIELDS.has(field)) return;
-			if (field === 'subscribe') {
-				// `page.subscribe((p) => …)`: the callback parameter is the page, tracked in pass 1
-				const call = parent.__parent as Node | null;
-				const fn =
-					call?.type === 'CallExpression' && (parent.__key as string) === 'callee'
-						? call.arguments?.[0]
-						: null;
-				if (
-					fn &&
-					(fn.type === 'ArrowFunctionExpression' || fn.type === 'FunctionExpression') &&
-					fn.params?.[0]?.type === 'Identifier'
-				)
-					return;
-				throw new All('`page.subscribe(…)` hands a subscriber the whole page', at);
-			}
 			throw new All(
 				field === null ? 'the page is indexed with an expression' : `\`page.${field}\` is read`,
 				at
 			);
 		}
-		// `const p = page` / `const v = get(page)` — an alias, tracked in pass 1
+		// `const p = page` — an alias, tracked in pass 1
 		if (parent.type === 'VariableDeclarator' && key === 'init') return;
-		// `derived(page, …)` / `derived([…, page, …], …)` — the callback param is tracked in pass 1
+		// `helper(page)` — followed into a local helper, or recorded for the build to follow
 		if (
 			parent.type === 'CallExpression' &&
 			key === 'arguments' &&
 			parent.callee?.type === 'Identifier'
 		) {
 			const name = parent.callee.name;
-			if (name === 'derived' || name === 'get') return;
 			const fn = this.#local_fns.get(name);
 			if (fn) {
 				// followed at collect time: the parameter is the page inside the helper
@@ -578,10 +513,6 @@ class Scan {
 			}
 			throw new All(`the whole page is passed to \`${name}(…)\``, at);
 		}
-		if (parent.type === 'ArrayExpression') {
-			// only as a `derived([...])` source list
-			return;
-		}
 		// `Object.keys(page)` reads names, never values: nothing of `data` can leave through it
 		if (
 			parent.type === 'CallExpression' &&
@@ -599,7 +530,7 @@ class Scan {
 		let { parent: owner, key: owner_key } = unwrap_up(data_member);
 		const at = data_member.start ?? null;
 		// `page.data || {}` / `page.data ?? {}`: the fallback is not a read — judge what consumes the
-		// whole expression (`const { a, b } = $page?.data || {}` is the common Svelte 4 guard)
+		// whole expression (`const { a, b } = page?.data || {}` is the common guard)
 		while (
 			owner &&
 			owner.type === 'LogicalExpression' &&

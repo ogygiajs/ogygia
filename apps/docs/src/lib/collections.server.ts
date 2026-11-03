@@ -8,7 +8,7 @@
  *
  * One collection, one section per package: `ogygia`'s pages sit in the top-level folders
  * (`01-regions/…` → `/docs/regions/…`), and every other package owns one top-level folder named
- * after it (`13-devtools/…` → `/docs/devtools/…`). `$lib/sections` splits the one nav tree by
+ * after it (`13-devtools/…` → `/docs/devtools/…`). `#lib/sections.ts` splits the one nav tree by
  * that first segment, so `related` links and search still span every package.
  *
  * ONE definition: `content()` is browser-safe (get / ids / entries + relations), so a csr=false

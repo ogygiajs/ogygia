@@ -7,7 +7,7 @@ related:
 ---
 
 <script>
-  import BlocksDemo from '$lib/demos/BlocksDemo.svelte';
+  import BlocksDemo from '#lib/demos/BlocksDemo.svelte';
 </script>
 
 Some pages are not written by developers at all. A marketing team assembles a landing page in a visual editor, or a CMS decides which components appear on a page and in what order, and your app only has to render what it is given. When a developer writes the layout in a `.svelte` file you don't need any of this, because the components alone are enough.
@@ -61,7 +61,7 @@ Nodes nest through `children`, so a `Grid` can hold `Feature`s and a section can
 
 ```ts
 import { content, blocks } from '@ogygia/content';
-import { registry } from '$lib/blocks';
+import { registry } from '#lib/blocks';
 
 export const pages = content({
   loader: blocks(import.meta.glob('./pages/*.json'), registry)
@@ -72,7 +72,7 @@ You then render it exactly like a markdown body, with the same `get()` and the s
 
 ```ts title=+page.ts
 // universal, NOT +page.server.ts
-import { pages } from '$lib/blocks/pages';
+import { pages } from '#lib/blocks/pages';
 export const load = async () => ({ page: await pages.get('landing') });
 ```
 

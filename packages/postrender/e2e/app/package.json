@@ -4,6 +4,10 @@
 	"private": true,
 	"description": "@ogygia/postrender's e2e fixture app (the scenario deck's origin, behind the edge emulators; also the ESI demo's).",
 	"type": "module",
+	"imports": {
+		"#lib": "./src/lib",
+		"#lib/*": "./src/lib/*"
+	},
 	"scripts": {
 		"dev": "vite dev --port 3073",
 		"build": "vite build",

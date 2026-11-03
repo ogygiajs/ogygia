@@ -96,7 +96,7 @@ describe('transport — HTML rides the wire', () => {
 
 describe('transform — SSR binding renders HTML, client leg stays metadata-only', () => {
 	const src = `<script>
-		import Card from '$lib/Card.svelte' with { region: 'raw' };
+		import Card from '#lib/Card.svelte' with { region: 'raw' };
 		import { region } from 'ogygia';
 		export const f = region(Card, { id: 1 });
 	</script>`;
@@ -105,7 +105,6 @@ describe('transform — SSR binding renders HTML, client leg stays metadata-only
 		return {
 			...HOST_CTX_DEFAULTS,
 			root: '/app',
-			libDir: '/app/src/lib',
 			readFile: () => null,
 			pathModule: path,
 			dev: false,

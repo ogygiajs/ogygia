@@ -1,13 +1,13 @@
 ---
 title: Page data
-summary: $page.data (your load data, plus url, params, route, status, form and error) can be read inside islands, and a load that returns a promise streams into the island live.
+summary: page.data (your load data, plus url, params, route, status, form and error) can be read inside islands, and a load that returns a promise streams into the island live.
 related:
   - data-state/remote-functions
   - data-state/state-context
   - regions/client-islands
 ---
 
-An island often needs the page's own data, such as the current user, the route params or the result of a `form` action, and threading it down as props would be tedious. Instead, an island reads `$page.data` and the rest of Kit's page object exactly as a normal Kit component does. Your `load` runs on the server as always, and its data reaches every island on the page. For data an island fetches _itself_, on demand or after a click, use a [remote function](/docs/data-state/remote-functions) instead.
+An island often needs the page's own data, such as the current user, the route params or the result of a `form` action, and threading it down as props would be tedious. Instead, an island reads `page.data` from `$app/state` and the rest of Kit's page object exactly as a normal Kit component does. Your `load` runs on the server as always, and its data reaches every island on the page. For data an island fetches _itself_, on demand or after a click, use a [remote function](/docs/data-state/remote-functions) instead.
 
 ```svelte title=Greeting.svelte
 <script>
@@ -73,4 +73,4 @@ export const transport = {
 - **Client navigation** with the [SPA router](/docs/app/spa-router) cannot run streamed scripts in the middle of a swap, so on those loads a promise is awaited on the server and handed to the island already settled. `page.data.x` is still a promise you `{#await}`, so your island code is the same in both cases.
 - **Treat load data as visible to the client**, exactly as on a `csr = true` page, because it is serialized into the HTML. Don't put anything in `load` data that you wouldn't send to the browser.
 - A **server island** (`render: 'deferred'`) renders on its own endpoint, yet its components still read the page they are mounted on: ogygia looks that page up through Kit's own data request, and the answer carries the `page.data` keys the hole's islands read (see [A lake that can refresh](/docs/regions/held-regions#a-lake-that-can-refresh)).
-- **The seed is shaped to what is read.** The build reads every module that imports `$app/state` or `$app/stores` and records the top-level `page.data` keys it reaches, whether written as `page.data.x`, `$page?.data?.x`, `page.data['x']` or `const { x } = page.data`, including through aliases like `const v = get(page)` or `derived(page, ($p) => …)`. A page then ships only the keys its islands read, plus any node an island's props point into. A read the build cannot pin to a literal key ships everything, as before; that includes passing `page.data` to a function, aliasing it whole, spreading it, indexing it with a variable, calling `page.subscribe(…)` or passing on the whole `page`. So on a page whose load returns a large tree for the server render, read literal keys in islands to keep the seed small. Whenever a read forces the whole tree to ship, the build names the file and line.
+- **The seed is shaped to what is read.** The build reads every module that imports `$app/state` and records the top-level `page.data` keys it reaches, whether written as `page.data.x`, `page.data?.x`, `page.data['x']` or `const { x } = page.data`, including through aliases like `const p = page`. A page then ships only the keys its islands read, plus any node an island's props point into. A read the build cannot pin to a literal key ships everything, as before; that includes passing `page.data` to a function, aliasing it whole, spreading it, indexing it with a variable or passing on the whole `page`. So on a page whose load returns a large tree for the server render, read literal keys in islands to keep the seed small. Whenever a read forces the whole tree to ship, the build names the file and line.

@@ -46,8 +46,8 @@ describe('---cut---', () => {
 	});
 
 	it('combines with directive stripping (the multi-file preamble shape)', () => {
-		const src = `// @filename: ambient.d.ts\ndeclare module '$lib/user';\n// @filename: index.js\n// ---cut---\nimport user from '$lib/user';`;
-		expect(strip(fence(src)).source).toBe(`import user from '$lib/user';`);
+		const src = `// @filename: ambient.d.ts\ndeclare module '#lib/user';\n// @filename: index.js\n// ---cut---\nimport user from '#lib/user';`;
+		expect(strip(fence(src)).source).toBe(`import user from '#lib/user';`);
 	});
 });
 

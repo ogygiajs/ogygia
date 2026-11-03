@@ -36,10 +36,10 @@ describe('page_data_keys — scripts', () => {
 			)
 		).toEqual(['_locale', 'user', 'userCountry']);
 	});
-	it('get(page).data.key, and the whole page aliased then read (the analytics helper)', () => {
+	it('the whole page aliased then read (the analytics helper)', () => {
 		expect(
 			ts(
-				`import { get } from 'svelte/store'; import { page } from '$app/stores';\nexport function init() { const value = get(page); const lang = value?.data?.langCode; const t = value?.data?.content?.data?.template || ''; return lang + t; }`
+				`import { page } from '$app/state';\nexport function init() { const value = page; const lang = value?.data?.langCode; const t = value?.data?.content?.data?.template || ''; return lang + t; }`
 			)
 		).toEqual(['content', 'langCode']);
 		expect(
@@ -55,17 +55,12 @@ describe('page_data_keys — scripts', () => {
 			)
 		).toEqual(['flags', 'site-config']);
 	});
-	it('derived(page, ($page) => …) and derived([a, page], ([$a, $page]) => …) name the page parameter', () => {
+	it('`$app/stores` is not Kit’s page (Kit 3 removed it): its reads ship nothing', () => {
 		expect(
 			ts(
-				`import { derived } from 'svelte/store'; import { page } from '$app/stores';\nexport const country = derived(page, ($page) => $page.params.country || ''); export const allowed = derived(page, (p) => p.data.PUBLIC_UCE || []);`
+				`import { get } from 'svelte/store'; import { page } from '$app/stores';\nexport const l = get(page).data._locale;`
 			)
-		).toEqual(['PUBLIC_UCE']);
-		expect(
-			ts(
-				`import { derived } from 'svelte/store'; import { page } from '$app/stores';\nexport const x = derived([user, page, country], ([$user, $page, $country], set) => { const a = $page.data.PUBLIC_SESSION_CONFIG_FOR_REGIONS; const h = $page.url.pathname; set(a + h); });`
-			)
-		).toEqual(['PUBLIC_SESSION_CONFIG_FOR_REGIONS']);
+		).toBeNull();
 	});
 	it('only url / params / route / status reads → an empty set (the seed still ships, data empty)', () => {
 		expect(
@@ -83,16 +78,16 @@ describe('page_data_keys — scripts', () => {
 	});
 	it('an aliased import name', () => {
 		expect(
-			ts(`import { page as pg } from '$app/stores';\nexport const l = get(pg).data._locale;`)
+			ts(`import { page as pg } from '$app/state';\nexport const l = pg.data._locale;`)
 		).toEqual(['_locale']);
 	});
 });
 
 describe('page_data_keys — components', () => {
-	it('$page?.data?.key in the script and page.data.key in the template', () => {
+	it('page?.data?.key in the script and page.data.key in the template', () => {
 		expect(
 			svelte(
-				`<script>\n\timport { page } from '$app/stores';\n\tcurrentUrl.set($page.url.href);\n\tconst l = $page?.data?._locale;\n\tconst d = $page?.data?.pageContent?.createdDate;\n</script>\n<p>{$page.data.userCountry.country}</p>`
+				`<script>\n\timport { page } from '$app/state';\n\tcurrentUrl.set(page.url.href);\n\tconst l = page?.data?._locale;\n\tconst d = page?.data?.pageContent?.createdDate;\n</script>\n<p>{page.data.userCountry.country}</p>`
 			)
 		).toEqual(['_locale', 'pageContent', 'userCountry']);
 		expect(
@@ -126,7 +121,7 @@ describe('page_data_keys — components', () => {
 
 describe('page_data_keys — doubt goes to all', () => {
 	it('page.data used whole: passed on, spread, compared, returned', () => {
-		expect(ts(`import { page } from '$app/stores';\nhelper(get(page).data);`)).toBe('all');
+		expect(ts(`import { page } from '$app/state';\nhelper(page.data);`)).toBe('all');
 		expect(ts(`import { page } from '$app/state';\nexport const all = { ...page.data };`)).toBe(
 			'all'
 		);
@@ -143,9 +138,9 @@ describe('page_data_keys — doubt goes to all', () => {
 			ts(`import { page } from '$app/state';\nconst d = page.data; export const x = d.a;`)
 		).toBe('all');
 	});
-	it('dynamic index, subscribe, namespace import, the whole page passed to a function', () => {
+	it('dynamic index, an unknown field, namespace import, the whole page passed to a function', () => {
 		expect(ts(`import { page } from '$app/state';\nexport const v = page.data[key];`)).toBe('all');
-		expect(ts(`import { page } from '$app/stores';\npage.subscribe((v) => track(v));`)).toBe('all');
+		expect(ts(`import { page } from '$app/state';\npage.subscribe((v) => track(v));`)).toBe('all');
 		expect(ts(`import * as app from '$app/state';\nexport const x = app.page.data.a;`)).toBe('all');
 		expect(ts(`import { page } from '$app/state';\nanalytics.init(page);`)).toBe('all');
 	});
@@ -230,7 +225,7 @@ describe('page_data_keys — the demented cases', () => {
 	it('an alias is scoped to its function: an unrelated `value` elsewhere is not the page', () => {
 		expect(
 			ts(
-				`import { get } from 'svelte/store'; import { page } from '$app/stores';\nclass A { private _s = false; public get s() { return this._s; } public set s(value: boolean) { this._s = value; } init() { const value = get(page); this.lang = value?.data?.langCode; } }`
+				`import { page } from '$app/state';\nclass A { private _s = false; public get s() { return this._s; } public set s(value: boolean) { this._s = value; } init() { const value = page; this.lang = value?.data?.langCode; } }`
 			)
 		).toEqual(['langCode']);
 	});
@@ -250,7 +245,7 @@ describe('page_data_keys — the demented cases', () => {
 	it('component: <style lang="scss"> with // comments does not stop the analysis', () => {
 		expect(
 			svelte(
-				`<script lang="ts">\n\timport { page } from '$app/stores';\n\tlet l = $page?.data?._locale;\n</script>\n<p>{l}</p>\n<style lang="scss">\n\t// <!-- a comment the CSS parser hates -->\n\t.a { .b { color: red; } }\n</style>`
+				`<script lang="ts">\n\timport { page } from '$app/state';\n\tlet l = page?.data?._locale;\n</script>\n<p>{l}</p>\n<style lang="scss">\n\t// <!-- a comment the CSS parser hates -->\n\t.a { .b { color: red; } }\n</style>`
 			)
 		).toEqual(['_locale']);
 	});
@@ -515,21 +510,13 @@ describe('page_data_keys — safe built-ins', () => {
 	});
 });
 
-describe('page_data_keys — guards and subscribers', () => {
-	it('`const { a, b } = $page?.data || {}` names its keys; a subscriber parameter is the page', () => {
+describe('page_data_keys — guards', () => {
+	it('`const { a, b } = page?.data || {}` names its keys', () => {
 		expect(
 			svelte(
-				`<script>\n\timport { page } from '$app/stores';\n\tconst { isRangePage = false, isDebugAllowed } = $page?.data || {};\n\tconst c = ($page?.data ?? {}).canonicalUrl;\n</script>\n{isRangePage}{isDebugAllowed}{c}`
+				`<script>\n\timport { page } from '$app/state';\n\tconst { isRangePage = false, isDebugAllowed } = page?.data || {};\n\tconst c = (page?.data ?? {}).canonicalUrl;\n</script>\n{isRangePage}{isDebugAllowed}{c}`
 			)
 		).toEqual(['canonicalUrl', 'isDebugAllowed', 'isRangePage']);
-		expect(
-			ts(
-				`import { page } from '$app/stores';\nexport const off = page.subscribe((pageData) => { if (pageData.data?.showEmbeddedSurveyBtn) go(pageData.url.href); });`
-			)
-		).toEqual(['showEmbeddedSurveyBtn']);
-		expect(
-			ts(`import { page } from '$app/stores';\nexport const off = page.subscribe(callback);`)
-		).toBe('all');
 	});
 });
 

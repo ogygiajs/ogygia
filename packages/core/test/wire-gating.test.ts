@@ -38,7 +38,6 @@ import { resolveFeatures } from '../src/compiler/link/runtime-entry.ts';
 
 const ctx = {
 	root: '/app',
-	libDir: '/app/src/lib',
 	readFile: () => null,
 	pathModule: path,
 	dev: false,

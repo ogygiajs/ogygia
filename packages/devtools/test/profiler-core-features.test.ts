@@ -281,7 +281,7 @@ describe('data lineage from the code', () => {
 	const x = data['legacy'];
 	const meta = response.data.items; // not page data
 	const y = page.data.session;
-	const z = $page.data.locale;
+	const z = page.data.locale;
 </script>
 <title>{data.catalog.title}</title>
 <Child {data} />
@@ -311,7 +311,7 @@ describe('data lineage from the code', () => {
 	it('ignores attributes, import paths, comments and prose', () => {
 		const src = `<script>
 	import type { Product } from './data';
-	import { columns } from '$lib/hell/data';
+	import { columns } from '#lib/hell/data';
 	// the page data comes from the load
 	let { data } = $props();
 	const n = data.items.length; /* data: items */

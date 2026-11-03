@@ -263,7 +263,6 @@ async function ensure_oxc(): Promise<OxcMod> {
 function build_ctx(ssr: boolean, routeCsr: boolean = false) {
 	return {
 		root: '/repl',
-		libDir: '/repl/src/lib',
 		readFile: () => null,
 		pathModule: path as never,
 		dev: true,
@@ -1485,7 +1484,7 @@ async function bundle_preview(
 		name: 'workspace',
 		resolveId(id: string) {
 			if (files[id] != null) return id; // the entry / an exact workspace key
-			return resolve_file(id, files); // relative / $lib / basename → a workspace key, or null
+			return resolve_file(id, files); // relative / #lib / basename → a workspace key, or null
 		},
 		load(id: string) {
 			if (files[id] == null) return null;

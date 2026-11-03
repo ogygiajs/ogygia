@@ -5,14 +5,14 @@
 	 * roots. Every shared thing crosses the serialization boundary exactly once and reunifies.
 	 */
 	import { setContext, og_derived } from 'ogygia';
-	import LabPanel from '$lib/boundary-lab/LabPanel.svelte' with { wake: 'load' };
-	import { LabCart } from '$lib/boundary-lab/cart.svelte';
+	import LabPanel from '#lib/boundary-lab/LabPanel.svelte' with { wake: 'load' };
+	import { LabCart } from '#lib/boundary-lab/cart.svelte.ts';
 	import {
 		createTally,
 		theme as makeTheme,
 		doubledOf,
 		makeUnprovable
-	} from '$lib/boundary-lab/stores';
+	} from '#lib/boundary-lab/stores.ts';
 
 	// ── things that CROSS ──────────────────────────────────────────────────────
 	const cart = new LabCart(); // og.wire class: session continuity ('lab-cart') + merge
@@ -51,7 +51,7 @@
 	setContext('logToServer', () => console.log('host-only fn'));
 
 	// ── the ones that would be BUILD ERRORS (uncomment to see file:line) ──────
-	// import { OGYGIA_SECRET } from '$env/static/private';
+	// import { OGYGIA_SECRET } from '$app/env/private';
 	// setContext('leak', import.meta.og.$(() => OGYGIA_SECRET));      // server-only capture
 	// setContext('el', import.meta.og.$({ node: document.body }));    // caught at SSR: DOM never crosses
 </script>

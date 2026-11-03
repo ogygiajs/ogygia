@@ -68,7 +68,7 @@ type Ctx = RequestContext<PostrenderServerOptions, State>;
 const VIA_HEADER = 'x-ogygia-postrender';
 
 /** Kit's boot declares its deferred map ONLY on pages with pending (streamed) load promises —
- *  verified against @sveltejs/kit 2.70 (render.js: `blocks.push('const deferred = new Map();')`). */
+ *  (Kit's render.js: `blocks.push('const deferred = new Map();')`). */
 const KIT_DEFERRED_BOOT_RE = /const deferred = new Map\(\);/;
 
 /** The build marker key in the store (NUL-prefixed: no page path can collide with it). */

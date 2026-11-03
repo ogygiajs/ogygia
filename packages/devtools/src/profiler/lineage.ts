@@ -6,8 +6,8 @@
  * into HTML, need not ship), read by nobody (fetched for nothing — the load's wait behind it is
  * pure waste), or unknown (a component's reads could not be told).
  *
- * The scanner is a character walk, no regex: `data.key`, `data['key']`, `page.data.key`,
- * `$page.data.key`, and the destructurings `const { a, b: c } = data` / `= page.data`.
+ * The scanner is a character walk, no regex: `data.key`, `data['key']`, `page.data.key`, and the
+ * destructurings `const { a, b: c } = data` / `= page.data`.
  */
 
 const is_ident_start = (c: number) =>
@@ -80,7 +80,7 @@ function pattern_keys(src: string, open: number, out: Set<string>): void {
 /**
  * The `page.data` keys a component source reads, or `null` when it takes the whole object in a
  * way that cannot be named (`...data`, `data` passed on, `Object.keys(data)`). `names` are the
- * identifiers that hold the data (`data` by default; `page.data` / `$page.data` always count).
+ * identifiers that hold the data (`data` by default; `page.data` always counts).
  */
 export function data_reads(source: string, names: readonly string[] = ['data']): string[] | null {
 	const src = blank_comments(source);
@@ -97,7 +97,7 @@ export function data_reads(source: string, names: readonly string[] = ['data']):
 	return [...keys];
 }
 
-/** The 1-based line of the first place the source takes the data WHOLE (`const d = $page.data`,
+/** The 1-based line of the first place the source takes the data WHOLE (`const d = page.data`,
  *  `fn(data)`, `...data`), or null when it only reads named keys. Same scan as `data_reads`. */
 export function whole_read_line(
 	source: string,
@@ -226,11 +226,11 @@ function scan(
 			}
 			continue;
 		}
-		// whose: bare (a data prop name), or `page.data` / `$page.data`
+		// whose: bare (a data prop name), or `page.data`
 		let owner = '';
 		if (j > 0 && src.charCodeAt(j - 1) === 46 /* . */) {
 			owner = ident_before(src, j - 1);
-			if (name !== 'data' || (owner !== 'page' && owner !== '$page')) continue;
+			if (name !== 'data' || owner !== 'page') continue;
 		} else if (!bare_ok) continue;
 		// what follows
 		let k = i;
@@ -297,7 +297,7 @@ function scan(
 		}
 		// everything else is not a read of the data: a pattern member (`let { data } = …`), a
 		// hand-off to a child that is scanned on its own (`<Child {data} />`), an attribute
-		// (`data-x`, `data={…}`), a path (`'$lib/data'`), a word in prose
+		// (`data-x`, `data={…}`), a path (`'#lib/data'`), a word in prose
 	}
 	return whole;
 }

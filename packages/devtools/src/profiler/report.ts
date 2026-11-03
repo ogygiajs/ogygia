@@ -1140,7 +1140,7 @@ function page_weight_findings(
 			`${t.blocking_count} files (${fmt_bytes(t.blocking)}) must arrive before anything paints: ${files.join(', ')}.`,
 			{
 				fix: tune
-					? `Inline the small stylesheets: with \`kit: { inlineStyleThreshold: ${tune.threshold} }\` in svelte.config.js, ${tune.files} of these sheets (${fmt_bytes(tune.bytes)}) arrive inside the HTML, and the first paint waits on ${t.blocking_count - tune.files} file${t.blocking_count - tune.files === 1 ? '' : 's'} instead of ${t.blocking_count}. Merge or trim the rest; load scripts as modules or with defer.`
+					? `Inline the small stylesheets: with \`sveltekit({ inlineStyleThreshold: ${tune.threshold} })\` in the vite config, ${tune.files} of these sheets (${fmt_bytes(tune.bytes)}) arrive inside the HTML, and the first paint waits on ${t.blocking_count - tune.files} file${t.blocking_count - tune.files === 1 ? '' : 's'} instead of ${t.blocking_count}. Merge or trim the rest; load scripts as modules or with defer.`
 					: 'Inline the small stylesheets, merge the rest, load scripts as modules or with defer.'
 			}
 		);
@@ -1534,7 +1534,7 @@ export function derive_findings(a: Analysis, meta: ReportMeta, extras: ReportExt
 			`Serializing data took ${fmt_ms(pr(ser_ms))} ms${per_r} (${fmt_pct(ser_ms, a.busy_ms)} of busy) — the page's load data and island props on their way to the browser.`,
 			{
 				anchor: ser[0] ? `fn:${ser[0].key}` : undefined,
-				fix: 'Ship less: return from load only what the page reads, keep big blobs out of page.data, and let islands take props rather than reading $page whole.'
+				fix: 'Ship less: return from load only what the page reads, keep big blobs out of page.data, and let islands take props rather than reading page.data whole.'
 			}
 		);
 	}
@@ -1660,7 +1660,7 @@ export function derive_findings(a: Analysis, meta: ReportMeta, extras: ReportExt
 		if (og.seed_bytes > 100 * 1024) {
 			warn(
 				'seed-large',
-				`The page seed is ${fmt_kb(og.seed_bytes)}: an island reads $page, so that much of page.data ships to the browser and is serialized on every render.`,
+				`The page seed is ${fmt_kb(og.seed_bytes)}: an island reads the page, so that much of page.data ships to the browser and is serialized on every render.`,
 				{
 					fix: 'Read only the keys the island needs (page.data.x, not page.data) so seed shaping trims it, or pass the values as props.'
 				}

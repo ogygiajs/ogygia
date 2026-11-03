@@ -34,12 +34,12 @@ The plugin tells the build that every module importing `@ogygia/router` renders 
 
 ```ts title=src/lib/router.ts
 import { routes, page, layout, load, redirect, error, fail } from '@ogygia/router';
-import AppShell from '$lib/views/AppShell.svelte';
-import Home from '$lib/views/Home.svelte';
-import Doc from '$lib/views/Doc.svelte';
-import Login from '$lib/views/Login.svelte';
-import ErrorPage from '$lib/views/ErrorPage.svelte';
-import { docs, auth } from '$lib/server';
+import AppShell from '#lib/views/AppShell.svelte';
+import Home from '#lib/views/Home.svelte';
+import Doc from '#lib/views/Doc.svelte';
+import Login from '#lib/views/Login.svelte';
+import ErrorPage from '#lib/views/ErrorPage.svelte';
+import { docs, auth } from '#lib/server';
 
 // A layout is a NAMED table→table wrapper: its component, its load, its error boundary.
 const app = layout('app', AppShell, {
@@ -109,7 +109,7 @@ The layout component is a Kit layout, with `{ data, children }` props and `{@ren
 
 ```svelte title=AppShell.svelte
 <script lang="ts">
-  import type { App } from '$lib/router';
+  import type { App } from '#lib/router';
   let { data, children }: App['(app)'] = $props();
 </script>
 <nav>signed in as {data.user.name}</nav>
@@ -189,7 +189,7 @@ A page built outside a table has no key to read, so its `c.params` is a loose `R
 
 ```svelte title=Dashboard.svelte
 <script lang="ts">
-  import type { App } from '$lib/router';
+  import type { App } from '#lib/router';
   let { data }: App['/dashboard'] = $props();
   //   data.user   — from the app layout's load
   //   data.team   — from the dash layout's load
@@ -360,7 +360,7 @@ export type App = typeof router.$infer;
 
 ```svelte
 <script lang="ts">
-  import type { App } from '$lib/router';
+  import type { App } from '#lib/router';
   let { data, form, params }: App['/docs/[slug]'] = $props();
 </script>
 ```
@@ -395,8 +395,8 @@ await svc.post('/posts', { body: { title } });                        // body: s
 A routed page is an ordinary component, so its **wake** and **render** settings ride as import attributes on the component you pass to `page()`, using the same dials as a marked island import:
 
 ```ts
-import Chart from '$lib/views/Chart.svelte' with { wake: 'visible' };
-import Greeting from '$lib/views/Greeting.svelte' with { render: 'deferred' };
+import Chart from '#lib/views/Chart.svelte' with { wake: 'visible' };
+import Greeting from '#lib/views/Greeting.svelte' with { render: 'deferred' };
 
 '/dashboard': page(Chart),                              // wakes when scrolled into view
 '/':          page(Greeting, { fallback: Skeleton }),   // deferred page + its loading slot
@@ -455,7 +455,7 @@ Wrap a table entry (a page, an endpoint object or a [`mount()`](/docs/federation
 
 ```ts
 import { when } from '@ogygia/router';
-import { checkoutV2, exportsFlag, cmsRollout } from '$lib/flags';
+import { checkoutV2, exportsFlag, cmsRollout } from '#lib/flags';
 
 routes({
   '/checkout-v2': when(checkoutV2, page(NewCheckout, { load })),  // staged rollout of a whole page
@@ -475,7 +475,7 @@ Export the router and serve it at either of two seams. The first is the server h
 ```ts title=src/hooks.server.ts
 import { sequence } from '@sveltejs/kit/hooks';
 import { handle as ogygiaHandle } from 'ogygia/server';
-import { router } from '$lib/router';
+import { router } from '#lib/router';
 
 export const handle = sequence(ogygiaHandle(), router.handle);
 ```
@@ -483,7 +483,7 @@ export const handle = sequence(ogygiaHandle(), router.handle);
 `router.handle` dispatches a match, or falls through to the rest of the app for URLs it does not own. The second seam is a Kit catch-all route that owns a subtree:
 
 ```ts title="src/routes/[...path]/+server.ts"
-import { router } from '$lib/router';
+import { router } from '#lib/router';
 export const GET = (event) => router.fetch(event.request, event);
 export const entries = router.entries;      // static routes + declared dynamic entries → Kit's crawl
 export const prerender = 'auto';

@@ -25,20 +25,20 @@ On an **island** (where `render` defaults to `static`), `wake` says _when the Ja
 
 ```svelte
 <script>
-  import Now from '$lib/Now.svelte' with { wake: 'load' };
-  import Later from '$lib/Later.svelte' with { wake: 'idle' };
-  import Below from '$lib/Below.svelte' with { wake: 'visible' };
-  import Phone from '$lib/Phone.svelte' with { wake: '(max-width: 600px)' };
+  import Now from '#lib/Now.svelte' with { wake: 'load' };
+  import Later from '#lib/Later.svelte' with { wake: 'idle' };
+  import Below from '#lib/Below.svelte' with { wake: 'visible' };
+  import Phone from '#lib/Phone.svelte' with { wake: '(max-width: 600px)' };
 </script>
 ```
 
 Each of the four demos below is a real island with that schedule:
 
 <script>
-  import LoadLive from '$lib/demos/LoadLive.svelte' with { wake: 'load' };
-  import IdleLive from '$lib/demos/IdleLive.svelte' with { wake: 'idle' };
-  import VisibleLive from '$lib/demos/VisibleLive.svelte' with { wake: 'visible' };
-  import MediaLive from '$lib/demos/MediaLive.svelte' with { wake: '(max-width: 600px)' };
+  import LoadLive from '#lib/demos/LoadLive.svelte' with { wake: 'load' };
+  import IdleLive from '#lib/demos/IdleLive.svelte' with { wake: 'idle' };
+  import VisibleLive from '#lib/demos/VisibleLive.svelte' with { wake: 'visible' };
+  import MediaLive from '#lib/demos/MediaLive.svelte' with { wake: '(max-width: 600px)' };
 </script>
 
 <div class="doc-demo-grid">
@@ -82,7 +82,7 @@ Keep gesture-gated actions away from `interaction`. Other UI, such as counters, 
 `visible` uses an IntersectionObserver. You can widen its trigger margin per import, or set a default for the whole app:
 
 ```svelte
-import Chart from '$lib/Chart.svelte' with { wake: 'visible', margin: '200px' };
+import Chart from '#lib/Chart.svelte' with { wake: 'visible', margin: '200px' };
 ```
 
 ```ts title=vite.config.ts
@@ -119,7 +119,7 @@ On a `csr = true` page, Kit wakes the islands instead of the runtime, so there a
 A `render: 'deferred'` region is content only and never ships JavaScript, so its schedule is `fetch`. In this example the hole waits until it scrolls into view and costs no request before then:
 
 ```svelte
-import Panel from '$lib/Panel.svelte' with { render: 'deferred', fetch: 'visible' };
+import Panel from '#lib/Panel.svelte' with { render: 'deferred', fetch: 'visible' };
 ```
 
 When a fetched hole _also_ needs interactivity, don't stack two schedules on one import. Nest an ordinary `wake` island inside the server island's component instead, as [Server islands](/docs/regions/server-islands#adding-interactivity-nest-an-island) describes.

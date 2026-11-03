@@ -49,7 +49,6 @@ const ms = (t: number) => `${t.toFixed(0)}ms`;
 const ctx = {
 	...CTX_EXTRA,
 	root: '/app',
-	libDir: '/app/src/lib',
 	readFile: () => null,
 	pathModule: path,
 	dev: false,
@@ -83,7 +82,7 @@ function makeHost(): string {
 	for (let j = 0; j < n; j++) {
 		const comp = `C${Math.floor(rnd() * DISTINCT)}`;
 		const local = `I${j}`;
-		imports.push(`import ${local} from '$lib/${comp}.svelte' with { ${pick(SCHEDULES)} };`);
+		imports.push(`import ${local} from '#lib/${comp}.svelte' with { ${pick(SCHEDULES)} };`);
 		// mix single usage, repeated usage (dedup), and each-loop usage
 		const kind = Math.floor(rnd() * 3);
 		if (kind === 0) usages.push(`<${local} n={${j}} />`);

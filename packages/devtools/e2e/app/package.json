@@ -4,6 +4,10 @@
 	"private": true,
 	"description": "The devtools lab: @ogygia/devtools' e2e fixture app (the dock's and the profiler's planted-problem pages). Also served to @ogygia/testing's suite.",
 	"type": "module",
+	"imports": {
+		"#lib": "./src/lib",
+		"#lib/*": "./src/lib/*"
+	},
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",

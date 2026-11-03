@@ -43,7 +43,7 @@ export const hero = flag('hero', { control: 80, bold: 20 });     // weighted var
 You read a flag by calling it with the request. On plain SvelteKit, the Kit event is that context:
 
 ```ts title=src/routes/+page.server.ts
-import { hero } from '$lib/flags';
+import { hero } from '#lib/flags';
 
 export const load = (event) => ({ variant: hero(event) });   // 'control' | 'bold', sticky per visitor
 ```
@@ -53,7 +53,7 @@ On plain SvelteKit, also import the flags module in `hooks.server.ts`, so every 
 ```ts title=src/hooks.server.ts
 import { decide } from '@ogygia/flags';
 import { openfeature } from '@ogygia/flags/openfeature';
-import '$lib/flags';
+import '#lib/flags';
 
 decide({ source: openfeature(OpenFeature.getClient()), exposure: (events) => analytics.track(events) });
 ```
@@ -64,8 +64,8 @@ A component's schedule rides on its import attribute, so two imports of one file
 
 ```svelte title=src/routes/+page.svelte
 <script>
-  import Pricing from '$lib/Pricing.svelte';                                  // server HTML, zero JS
-  import PricingLive from '$lib/Pricing.svelte' with { wake: 'visible' };    // the same file, as an island
+  import Pricing from '#lib/Pricing.svelte';                                  // server HTML, zero JS
+  import PricingLive from '#lib/Pricing.svelte' with { wake: 'visible' };    // the same file, as an island
   let { data } = $props();
 </script>
 

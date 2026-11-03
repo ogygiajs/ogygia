@@ -1,12 +1,11 @@
 // FOREIGN PAGE READ (fragment federation, dev warning). A mounted MFE island hydrates inside the
-// SHELL's document, where the `$app/state` / `$app/stores` shims read the shell's page singleton —
-// the MFE's own page seed never crosses the fragment boundary. The shell runtime marks the foreign
-// hydrate (`set_foreign_hydrate`) and the shims warn ONCE per island entry when a per-page field
+// SHELL's document, where the `$app/state` shim reads the shell's page singleton — the MFE's own
+// page seed never crosses the fragment boundary. The shell runtime marks the foreign hydrate
+// (`set_foreign_hydrate`) and the shim warns ONCE per island entry when a per-page field
 // (data / params / route / form / error) is read; `url` / `status` / `state` stay silent.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { set_foreign_hydrate } from '../src/current-region.ts';
 import { page } from '../src/shims/app-state.svelte.ts';
-import { page as page_store } from '../src/shims/app-stores.ts';
 
 const CMS = 'https://cms.internal';
 /** Distinct entries per test: the warning is once-per-entry for the life of the module. */
@@ -53,14 +52,5 @@ describe('page reads inside a mounted MFE island', () => {
 		void page.status;
 		void page.state;
 		expect(warn).not.toHaveBeenCalled();
-	});
-
-	it('covers the `$app/stores` $page subscription too', () => {
-		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		set_foreign_hydrate({ origin: CMS, entry: entry('e') });
-		const off = page_store.subscribe(() => {});
-		off();
-		expect(warn).toHaveBeenCalledTimes(1);
-		expect(String(warn.mock.calls[0][0])).toContain('$page was read inside a mounted MFE island');
 	});
 });

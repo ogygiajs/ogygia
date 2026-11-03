@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { postrender } from '@ogygia/postrender';
-import { cms_publish } from '$lib/server/state.js';
-import { read_doc } from '$lib/server/sources.js';
+import { cms_publish } from '#lib/server/state.js';
+import { read_doc } from '#lib/server/sources.js';
 
 /**
  * The CMS "publish webhook": bump the doc, then invalidate. Body:

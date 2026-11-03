@@ -502,8 +502,18 @@ export function strategy_to_attr(strategy: string, options?: Record<string, unkn
 	return `media=${JSON.stringify(strategy)}`;
 }
 
-/** Rewrite `$app/{state,stores,navigation}` string literals to absolute shim paths. */
-export const APP_SHIM_IMPORT: RegExp = /(['"])\$app\/(state|stores|navigation)\1/g;
+/** `$app/{state,navigation}` string literals — the modules islands get a shim for. */
+const APP_SHIM_IMPORT = /(['"])\$app\/(state|navigation)\1/g;
+
+/** Rewrite each `$app/state` / `$app/navigation` string literal to its island shim's absolute path
+ *  (one the shim map lacks is left as written). The driver's two rewrite sites share it. */
+export function shim_app_imports(code: string, shims: Record<string, string>): string {
+	if (!code.includes('$app/')) return code;
+	return code.replace(APP_SHIM_IMPORT, (m: string, _q: string, name: string) => {
+		const shim = shims['$app/' + name];
+		return shim ? JSON.stringify(shim) : m;
+	});
+}
 
 const REGEXP_META = /[.*+?^${}()|[\]\\]/g;
 const IMPORT_AS_CLAUSE = /^(.+?)(?:\s+as\s+(\w+))?$/;

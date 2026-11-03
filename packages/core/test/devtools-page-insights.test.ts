@@ -2929,7 +2929,7 @@ describe('analyze_page', () => {
 			500
 		).findings.find((x) => x.code === 'render-blocking')!;
 		expect(f.fix).toMatch(
-			/^With `kit: \{ inlineStyleThreshold: 8192 \}` in svelte\.config\.js, 3 of these stylesheets \(12\.0 KB\) arrive inside the HTML: 1 file left to wait on instead of 4\./
+			/^With `sveltekit\(\{ inlineStyleThreshold: 8192 \}\)` in the vite config, 3 of these stylesheets \(12\.0 KB\) arrive inside the HTML: 1 file left to wait on instead of 4\./
 		);
 		// the dev server's files are no build's: the general advice
 		const dev = resources.map((r) => ({

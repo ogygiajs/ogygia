@@ -38,7 +38,6 @@ const PLUGIN_OUTPUT = ROUTE_HOST.replace(
 describe('server-island host legs (the compiler contract the registry depends on)', () => {
 	const ctx = {
 		root: '/app',
-		libDir: '/app/src/lib',
 		readFile: () => null,
 		pathModule: path,
 		dev: false,

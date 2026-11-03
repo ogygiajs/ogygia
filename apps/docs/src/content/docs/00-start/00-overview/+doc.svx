@@ -23,7 +23,7 @@ You turn off Kit's client for the route with `csr = false`, and then you mark th
 The island below is real. It lives on this page with the mark `wake: 'load'`, and the text around it is static HTML:
 
 <script>
-  import Counter from '$lib/demos/Counter.svelte' with { wake: 'load' };
+  import Counter from '#lib/demos/Counter.svelte' with { wake: 'load' };
 </script>
 
 <div class="doc-demo">

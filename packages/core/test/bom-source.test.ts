@@ -22,7 +22,7 @@ const COMPONENT =
 	`<script>\n\tlet { markup } = $props();\n</script>\n\n<x-el>static</x-el>\n<div class="host">{@html markup}</div>\n`;
 const HOST =
 	BOM +
-	`<script>\n\timport Counter from '$lib/Counter.svelte' with { wake: 'load' };\n</script>\n\n<ds-button>go</ds-button>\n<Counter />\n`;
+	`<script>\n\timport Counter from '#lib/Counter.svelte' with { wake: 'load' };\n</script>\n\n<ds-button>go</ds-button>\n<Counter />\n`;
 
 let root = '';
 
@@ -48,7 +48,6 @@ function make_compiler() {
 			partial_ctx_init({
 				root,
 				base: '/',
-				libDir: path.join(root, 'src/lib'),
 				is_dev: false,
 				is_build: true,
 				id_salt: '',
@@ -71,6 +70,7 @@ beforeAll(() => {
 		fs.mkdirSync(path.dirname(abs), { recursive: true });
 		fs.writeFileSync(abs, src);
 	};
+	write('package.json', JSON.stringify({ name: 'app', imports: { '#lib/*': './src/lib/*' } }));
 	write('src/routes/+layout.ts', 'export const csr = false;\n');
 	write('src/lib/Counter.svelte', '<button>0</button>\n');
 	write('src/lib/Widget.svelte', COMPONENT);

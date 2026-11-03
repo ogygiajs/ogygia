@@ -76,7 +76,7 @@ When several packages need a handle, the order in the `sequence()` is postrender
 import { sequence } from '@sveltejs/kit/hooks';
 import * as ogygia from 'ogygia/server';
 import { postrender } from '@ogygia/postrender';
-import { router } from '$lib/router';
+import { router } from '#lib/router';
 
 export const handle = sequence(postrender.handle(), ogygia.handle(), router.handle);
 ```

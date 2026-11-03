@@ -21,7 +21,7 @@ export type ContentBridge = {
 		| ((ctx: { root: string; readFile: (abs: string) => string | null }) => void | Promise<void>)
 		| null;
 	/** The `content({ markdown })` config. The preprocessor reads it when called with no args, so all
-	 *  config lives in the vite config and the svelte config references a value-free `preprocess()`. */
+	 *  config lives in the vite config and Kit's config references a value-free `preprocess()`. */
 	markdownConfig: Record<string, unknown> | null;
 	/**
 	 * Named content presets from `content({ presets })` — each a partial content config

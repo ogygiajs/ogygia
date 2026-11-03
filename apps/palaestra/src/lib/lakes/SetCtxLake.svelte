@@ -2,7 +2,7 @@
 	// A lake holding an island that reads the page's drop-in setContext: on a csr=true page Kit
 	// hydrates everything but this, so the island inside is ogygia's to wake — and its context can
 	// only come from the page marker.
-	import SetCtxReader from '$lib/SetCtxReader.svelte' with { wake: 'visible' };
+	import SetCtxReader from '#lib/SetCtxReader.svelte' with { wake: 'visible' };
 </script>
 
 <section data-setctx-lake>

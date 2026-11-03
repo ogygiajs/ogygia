@@ -1,6 +1,23 @@
 import { sveltekit } from '@sveltejs/kit/vite';
+import vercel from '@sveltejs/adapter-vercel';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { ogygia } from 'ogygia/vite';
 import { defineConfig } from 'vite';
+
+// SvelteKit's config (Kit 3: passed to `sveltekit()`; a `svelte.config.js` is an error)
+const kit = {
+	adapter: vercel({ runtime: 'nodejs22.x' }),
+	preprocess: [vitePreprocess()],
+	compilerOptions: { experimental: { async: true } },
+	experimental: { remoteFunctions: true },
+	// An app alias, the import shape the island-closure walk must follow (e2e/shared-page-module):
+	// a module reached only through it is shared by a csr=true page and an island.
+	alias: { $boot: 'src/lib/boot' },
+	// Kit's own inline-vs-link number, which ogygia's region CSS obeys too: a region sheet under it
+	// ships as `<style data-ogygia-region-css>` instead of a blocking `<link>`. Small on purpose — only
+	// the tiny sheets of e2e/inline-css inline; every other suite keeps its links.
+	inlineStyleThreshold: 400
+};
 
 // THE PALAESTRA: core's e2e fixture app (its suite: e2e/, `pnpm turbo run e2e --filter=palaestra`).
 // It lists NO plugin on purpose — every plugin's pages live in that plugin's own fixture app
@@ -22,7 +39,7 @@ export default defineConfig({
 		ogygia({
 			// The debarrel pass, ON for the whole palaestra: every e2e run builds and serves the app the
 			// way a customer with `barrels: true` does. REGRESSION (customer build, 2026-09-15): the pass
-			// rewrote `import { Ticker } from '$lib/barrel'` fed to `asRegion(Ticker)` into a leaf import,
+			// rewrote `import { Ticker } from '#lib/barrel/index.ts'` fed to `asRegion(Ticker)` into a leaf import,
 			// the transform minted a different island id from the one the prescan derived from the raw
 			// file, and the server manifest imported a virtual entry nobody registered ("Rolldown failed
 			// to resolve import virtual:ogygia/island/<id>.js from virtual:ogygia/server-manifest"). The
@@ -46,6 +63,6 @@ export default defineConfig({
 				cachedGreeting: { render: 'deferred', fetch: 'load', maxAge: '1h' }
 			}
 		}),
-		sveltekit()
+		sveltekit(kit)
 	]
 });

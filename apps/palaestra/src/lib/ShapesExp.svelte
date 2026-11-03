@@ -9,7 +9,7 @@
 		propsLazy,
 		recomposerShape,
 		treeShape
-	} from '$lib/shapes.remote';
+	} from '#lib/shapes.remote.ts';
 
 	let go = $state({ array: false, object: false, pe: false, pl: false, rc: false, tree: false });
 	let err = $state<Record<string, string>>({});

@@ -389,11 +389,12 @@ const slot_seq_by_request = new WeakMap<
 >();
 let _slot_seq = 0;
 export function next_slot_id(key = ''): string {
-	const event = kit_request_event() as { url?: URL } | null;
+	const event = kit_request_event() as { request?: Request } | null;
 	if (event && typeof event === 'object') {
 		let seq = slot_seq_by_request.get(event);
 		if (!seq) {
-			const url = event.url;
+			// (the request's own url — never `event.url`, which Kit refuses inside a remote query)
+			const url = event.request ? new URL(event.request.url) : null;
 			const hole = url?.pathname.endsWith(islands_endpoint())
 				? (url.searchParams.get('id') ?? '').slice(0, 6)
 				: '';

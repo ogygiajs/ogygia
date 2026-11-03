@@ -59,11 +59,10 @@ import {
 	keep_client_dir,
 	inject_keep_client_route,
 	resolve_kit_paths,
-	kit_major,
 	kit_dirs,
 	kit_inline_style_threshold
 } from '../compiler/kit.ts';
-import { load_kit_dirs } from './kit-dirs.ts';
+import { load_kit_dirs, kit_in_plugins } from './kit-dirs.ts';
 import { write_module_map } from './module-map.ts';
 import { fill_profiler_maps } from './profiler-maps.ts';
 import { debarrel } from '../compiler/debarrel/plugin.ts';
@@ -78,6 +77,7 @@ import {
 	isFoucCssId,
 	isFoucScopedId
 } from '../compiler/fouc-css.ts';
+import { clear_app_resolve_cache } from '../compiler/app-resolve.ts';
 
 import { preprocess_component_for_css } from './style-preprocess.ts';
 import {
@@ -113,23 +113,26 @@ import {
 	V_SERVER_ISLANDS
 } from '../compiler/ids.ts';
 
-// Kit's generated CLIENT app entry — Kit 2 dev serves `generated/client/app.js` and the build inputs
-// `generated/client-optimized/app.js`; Kit 3 nests both under `generated/dev/` and `generated/build/`
-// (`kit.outDir` is configurable, so match from `generated/`). The one module that evaluates exactly
-// when Kit's client boots and NEVER on a csr=false page — the append target for the kit-world page
-// thread (see the transform hook).
-const KIT_CLIENT_APP_RE = /\/generated\/(?:build\/|dev\/)?client(-optimized)?\/app\.js$/;
+// Kit's generated CLIENT app entry — `generated/dev/client/app.js` in dev, `generated/build/client-
+// optimized/app.js` in a build (`outDir` is configurable, so match from `generated/`). The one module
+// that evaluates exactly when Kit's client boots and NEVER on a csr=false page — the append target for
+// the kit-world page thread (see the transform hook). Suffix checks: it runs per module.
+const KIT_CLIENT_APP_SUFFIXES = [
+	'/generated/dev/client/app.js',
+	'/generated/build/client-optimized/app.js'
+];
+const is_kit_client_app = (id: string) =>
+	id.endsWith('/app.js') && KIT_CLIENT_APP_SUFFIXES.some((s) => id.endsWith(s));
 // A route host (`+page`/`+layout.svelte`) or option file (`.js`/`.ts`, `.server` too): a dev change
 // to any of these can shift the csr topology OR a plugin's key inside `export const config`.
 const ROUTE_HOST_OR_OPTION_RE = /[\\/]\+(page|layout)(\.server)?\.(svelte|js|ts)$/;
 // Appended INLINE (no extra module): publishes Kit's REAL reactive `page`/`navigating` on the
-// well-known slot the island `$app/*` shims read through (`kit_bridge()` in shims/kit-bridge; the
-// `$page` shim builds its live store from this `page`). Importer is Kit's own entry — never
-// island-graph — so `$app/state` here is KIT'S REAL module, already in Kit's client graph. Never
-// `$app/stores`: Kit 3 removed it (subscribing throws). Runs at module-eval, BEFORE
-// `kit.start()`'s synchronous hydrate flush, so a shared component's first `page.data` read
-// already sees Kit's truth (the app product-list crash read `{}` from the never-seeded island
-// store there).
+// well-known slot the island `$app/*` shims read through (`kit_bridge()` in shims/kit-bridge).
+// Importer is Kit's own entry — never
+// island-graph — so `$app/state` here is KIT'S REAL module, already in Kit's client graph. Runs at
+// module-eval, BEFORE `kit.start()`'s synchronous hydrate flush, so a shared component's first
+// `page.data` read already sees Kit's truth (a product list read `{}` from the never-seeded island
+// store there and crashed).
 // `navigation` is Kit's REAL `$app/navigation` (goto, invalidate, preload, the hooks): an island on
 // this document navigates through Kit's router, never through the ogygia one — which, on a document
 // it does not own, could only fall back to a full load (a customer's green-band chips inside a live
@@ -153,8 +156,6 @@ import {
 	STUB_CLIENT,
 	STUB_STATE,
 	STUB_PATHS,
-	KIT_REMOTE_CLIENT,
-	KIT_REMOTE_STATE,
 	HMAC_MODULE,
 	RUNTIME_DIR,
 	REGION_ENDPOINT_MODULE,
@@ -280,19 +281,18 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 	let root: string;
 	let base = '';
-	/** SvelteKit `config.kit.appDir` (default `_app`) — read from Kit's `__SVELTEKIT_APP_DIR__` define. */
+	/** SvelteKit's `appDir` (default `_app`) — read from Kit's `__SVELTEKIT_APP_DIR__` define. */
 	let app_dir = '_app';
-	let libDir: string;
 	let is_dev = false;
 	/** the app compiles with Svelte's async mode (vite-plugin-svelte's resolved options): Region
 	 *  imports the awaiting LateIsland (late-island.ts) */
 	let svelte_async = false;
-	/** Resolved `resolve.alias` entries — passed to bake()'s rolldown eval so `$lib` etc. resolve. */
+	/** Resolved `resolve.alias` entries — passed to bake()'s rolldown eval so app aliases resolve. */
 	let resolve_alias: { find: string | RegExp; replacement: string }[] = [];
 	let is_build = false;
 	let is_ssr = false;
 	/** The leg a build hook runs in: the hook's ENVIRONMENT — Vite's environment API builds `ssr` and
-	 *  `client` in one app build (Kit 3), where `config.build.ssr` is false for both, so the client's
+	 *  `client` in one app build, where `config.build.ssr` is false for both, so the client's
 	 *  work (the runtime chunk, the islands, their names) ran in the server leg too and landed in the
 	 *  server output — every island 404'd. Else the build's own flag (one build per leg). The last
 	 *  environment `buildStart` saw stands in for a hook the bundler calls without one. */
@@ -309,14 +309,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let vite_server: ViteDevServer | null = null;
 	/** absolute path to Kit's internal wire-protocol module (deep import) */
 	let kit_wire_path: string | null = null;
-	/** absolute path to Kit's client remote-functions entry (Plan A reuse) */
-	let kit_remote_index: string | null = null;
 	/** absolute path to the app's universal hooks (for `transport`), if present */
 	let universal_hooks: string | null = null;
 	/** absolute path to the app's client hooks (src/hooks.client.*), if present — its `init` runs on
 	 *  boot for csr=false pages (Kit never runs it there). */
 	let client_hooks: string | null = null;
-	/** absolute path to Kit 3's client codec module (`#app/internal/transport`); null on Kit 2 */
+	/** absolute path to Kit's client codec module (`#app/internal/transport`); null without Kit */
 	let kit_transport_init: string | null = null;
 	/** true once the process-exit cleanup for the injected keep-client route is registered */
 	let keep_client_cleanup_armed = false;
@@ -423,8 +421,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// Kit's `files.routes` / `outDir` from the app's Kit config — resolved BEFORE anything
 					// below walks the routes tree or picks an output path (compiler/kit.ts `kit_dirs`). An
 					// app building a second route tree from one source configures both. Read off Kit's own
-					// plugin (Kit 3 takes its config in vite.config only), else the svelte.config.js file.
+					// plugin (Kit takes its config in the vite config only).
 					await load_kit_dirs(path.resolve(userConfig.root ?? '.'), userConfig.plugins);
+					const kit_builds = await kit_in_plugins(userConfig.plugins);
 
 					// PLUGINS: the realms they name, and their `build` hooks — here, where the root and
 					// the mode exist and before the defines below, which read what they asked for. (`b.markup()`
@@ -577,23 +576,22 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							__OGYGIA_BEACON__: JSON.stringify(measure || devtools_effective),
 							// a plugin's browser half is in the boot (`<plugin>/client`): the runtime calls its
 							// hooks; none, and every call folds out
-							__OGYGIA_CLIENT_PLUGINS__: JSON.stringify(client_plugins.length > 0),
-							// the app's Kit major: whether Kit's `asset()` takes a path with its leading
-							// slash (2) or without (3) — kit-paths.ts, where a runtime probe guessed wrong in builds
-							__OGYGIA_KIT_MAJOR__: JSON.stringify(kit_major(path.resolve(userConfig.root ?? '.')))
+							__OGYGIA_CLIENT_PLUGINS__: JSON.stringify(client_plugins.length > 0)
 						},
 						server: {
 							fs: {
 								allow: [PKG_ROOT]
 							}
 						},
-						// Island emitFile entries re-export shared components; keep facade exports
-						// under Vite 8 / Rolldown (build.rolldownOptions — not deprecated rollupOptions).
-						build: {
-							rolldownOptions: {
-								preserveEntrySignatures: 'exports-only'
-							}
-						}
+						// Island emitFile entries re-export shared components; their facade exports must
+						// survive. Kit's client build keeps every entry signature itself (`'strict'`, and it
+						// reports an app config that sets it), so only a build without Kit (the standalone
+						// island build) asks for it here (build.rolldownOptions — not rollupOptions).
+						...(kit_builds
+							? {}
+							: {
+									build: { rolldownOptions: { preserveEntrySignatures: 'exports-only' as const } }
+								})
 					};
 				}
 			},
@@ -640,7 +638,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// The shared build cache (fences, git checkouts, shas) persists under THIS app's
 				// node_modules/.ogygia — point it before anything derives.
 				configure_build_cache(root);
-				libDir = path.join(root, 'src', 'lib');
 				is_dev = config.command === 'serve';
 				is_build = config.command === 'build';
 				is_ssr = !!config.build?.ssr;
@@ -676,12 +673,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					id_salt = '';
 				}
 
-				// Kit's internal wire-protocol + client remote-functions modules (deep-imported) and the
-				// app's universal hooks — resolved off the app root (see resolve_kit_paths).
-				({ kit_wire_path, kit_remote_index, universal_hooks, client_hooks, kit_transport_init } =
+				// Kit's internal wire-protocol + client codec modules (deep-imported) and the app's hooks
+				// — resolved off the app root and Kit's config (see resolve_kit_paths).
+				({ kit_wire_path, universal_hooks, client_hooks, kit_transport_init } =
 					resolve_kit_paths(root));
 
-				// Bind the driver's resolved compile context — now that root/base/libDir/dev + id_salt are
+				// Bind the driver's resolved compile context — now that root/base/dev + id_salt are
 				// known. Every run_transform runs after this (buildStart prescan / the transform hook), so
 				// the snapshot is complete before the driver is first called.
 				compiler.configure(
@@ -689,7 +686,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						root,
 						base,
 						app_dir,
-						libDir,
 						pkg_scan,
 						page_importers,
 						page_files,
@@ -851,7 +847,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						const parts: string[] = [];
 						for (const e of await collectFoucCssReachable(abs, {
 							root,
-							libDir,
 							readFile,
 							alias: resolve_alias,
 							resolve: walk_resolve
@@ -898,7 +893,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							const parts: string[] = [];
 							for (const e of await collectFoucCssReachable(abs, {
 								root,
-								libDir,
 								readFile,
 								alias: resolve_alias,
 								resolve: walk_resolve
@@ -1041,6 +1035,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						invalidate_module_id(vite_server, RESOLVED(V_ROUTE_CONFIG));
 					}
 				}
+				// A package.json edit can change its `imports` map: the app resolver's `#…` answers
+				// (compiler/app-resolve.ts) are cached per directory, so forget them
+				if (is_dev && id.endsWith('package.json')) clear_app_resolve_cache();
 				// Unlink often skips handleHotUpdate; drop islands that still import the deleted file.
 				if (!is_dev || change.event !== 'delete' || !vite_server) return;
 				if (!invalidate_islands_for_file(id, { deleted: true, server: vite_server })) return;
@@ -1170,29 +1167,18 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 				const ssr = options?.ssr === true;
 
-				// CLIENT build: Kit's client remote runtime needs `app` (never boots under csr=false).
-				// Plan A: reuse Kit's OWN remote primitives, redirecting `__sveltekit/remote` at Kit's
-				// real remote-functions entry; the router-coupled modules they import are stubbed just
-				// below. Fallback: our hand-rolled shim. enforce:'pre' wins over Kit's resolveId.
-				if (!ssr && source === '__sveltekit/remote') {
-					if (!kit_remote_index) {
-						throw new Error(
-							"[ogygia] could not locate Kit's client remote-functions (src). Use an @sveltejs/kit that publishes its `src/` (2.70.2 or later, or 3.x)."
-						);
-					}
-					return kit_remote_index;
-				}
-				// Scope-alias the two router-coupled modules Kit's remote-functions pull in, ONLY when
-				// imported from within Kit's remote-functions dir (so a csr=true page's real Kit client
-				// still gets the real client.js). Keeps the router graph out of island bundles.
+				// CLIENT build: Kit's own remote primitives (its remote transform imports Kit's
+				// remote-functions entry directly) need `app` and Kit's router, which never boot under
+				// csr=false. Scope-alias the router-coupled modules they pull in, ONLY when imported from
+				// within Kit's remote-functions dir (so a csr=true page's real Kit client still gets the
+				// real client.js). Keeps the router graph out of island bundles. enforce:'pre' wins over
+				// Kit's resolveId.
 				if (!ssr && importer && importer.includes('/remote-functions/')) {
-					if (KIT_REMOTE_CLIENT.test(source)) return STUB_CLIENT;
-					if (KIT_REMOTE_STATE.test(source)) return STUB_STATE;
-					// (Kit 3 imports its paths and page state through its package imports)
+					if (source === '../client.js' || source === '../../client.js') return STUB_CLIENT;
+					// (its paths and page state come through Kit's package imports)
 					if (source === '#app/paths') return STUB_PATHS;
 					if (source === '#app/state/client') return STUB_STATE;
 				}
-				if (!ssr && source === '$app/paths/internal/client') return STUB_PATHS;
 
 				// Everything else — the ogygia virtual-module vocabulary + the island CLIENT graph ($app/*
 				// shims, virtual entry ids, relative-to-host + transitive-dep resolution) — is the driver's,
@@ -1217,7 +1203,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					const abs = path.join(root, rel);
 					const code = await buildFoucCssModuleSource(abs, {
 						root,
-						libDir,
 						readFile: (p) => {
 							try {
 								return fs.readFileSync(p, 'utf8');
@@ -1258,8 +1243,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				}
 
 				// Every other ogygia virtual is a pure `id → source` emit the driver owns. The Vite build
-				// values it can't see are threaded in: the app's universal-hooks path and Kit 3's client
-				// codec module (configResolved).
+				// values it can't see are threaded in: the app's universal-hooks path and Kit's client
+				// codec module (configResolved), and the bundler's resolver for the router-CSS walk.
 				return compiler.emit(id, {
 					ssr,
 					universalHooks: universal_hooks,
@@ -1274,7 +1259,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// KIT-WORLD PAGE THREAD: append the two publish lines to Kit's generated client app
 				// entry (see KIT_PAGE_THREAD above). Client leg only — the SSR graph renders islands
 				// against Kit's real modules already, and this file is client-world by construction.
-				if (!options?.ssr && KIT_CLIENT_APP_RE.test(id)) {
+				if (!options?.ssr && is_kit_client_app(id)) {
 					source += KIT_PAGE_THREAD;
 				}
 
@@ -1412,10 +1397,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					}
 				}
 
-				// `page`: per island entry, whether its chunk closure bundles the `$app/state` /
-				// `$app/stores` shim — the handle seeds `page.data` only for islands that read it.
+				// `page`: per island entry, whether its chunk closure bundles the `$app/state` shim —
+				// the handle seeds `page.data` only for islands that read it.
 				// `remotes`: per island entry, the Kit remote modules in that closure (by the id-hash Kit
-				// mints them with — relative to `process.cwd()`, as Kit's own transform hashes them) —
+				// mints them with — relative to the Vite root, as Kit's own transform hashes them) —
 				// the handle seeds an SSR-resolved remote only for a page with an island that can call it.
 				// SEED SHAPING, the calls to follow: `helper(page)` into an IMPORTED helper. Resolve the
 				// specifier from the calling module, summarize what the helper's export reads of its page
@@ -1423,7 +1408,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// Anything unresolvable answers 'all' with a reason naming the call.
 				await follow_pending_page_calls(program, (s, importer) => this.resolve(s, importer));
 
-				const remote_hash = (id: string) => remote_hash_of(id, process.cwd());
+				const remote_hash = (id: string) => remote_hash_of(id, root);
 				// IDENTITY → LOCATION: the entries' final (content-hashed) names. Every map the collector
 				// builds is keyed by identity; the server resolves a location through `entries`.
 				const entries = compiler.entry_locations((ref) => this.getFileName(ref));
@@ -1439,7 +1424,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							viteMetadata?: { importedCss?: Set<string> | string[] };
 						}
 					>,
-					[APP_SHIMS['$app/state'], APP_SHIMS['$app/stores']],
+					[APP_SHIMS['$app/state']],
 					remote_hash,
 					// SEED SHAPING: the transform recorded, per module, the `page.data` keys it reads
 					// (Program.page_keys); the collector unions them over each island's closure.
@@ -1509,7 +1494,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				}
 
 				// INLINE REGION CSS: the text of every region sheet under Kit's `inlineStyleThreshold`
-				// (the app's svelte.config.js, read next to `kit_dirs`), keyed by href — the render emits
+				// (the app's Kit config, read next to `kit_dirs`), keyed by href — the render emits
 				// those as `<style data-ogygia-region-css>` instead of blocking `<link>`s.
 				const css_inline = collect_inline_css(
 					bundle as Record<
@@ -1577,7 +1562,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	];
 }
 
-// (the svelte config's markdown preprocessor and extensions — formerly `ogygia.preprocess()` /
+// (Kit's config's markdown preprocessor and extensions — formerly `ogygia.preprocess()` /
 // `ogygia.extensions()` — belong to the content plugin: `@ogygia/content/vite`)
 // NOTE(deferred-types, 2026-09-01): a preprocessor that rewrote `render:'deferred'` imports to
 // type the reserved `ogygiaFallback` snippet was built and REVERTED — svelte-check/language-tools

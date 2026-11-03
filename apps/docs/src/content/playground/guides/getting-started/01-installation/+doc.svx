@@ -91,21 +91,28 @@ The order matters. ogygia needs to see the raw module graph before Kit's own tra
 
 ## Enable Markdown
 
-ogygia reads `.svx` files as Svelte-flavored Markdown. Add the content package's preprocessor and file extensions in `svelte.config.js` so Kit knows how to compile them.
+ogygia reads `.svx` files as Svelte-flavored Markdown. Add the content package's preprocessor and file extensions to Kit's config, the argument of `sveltekit()` in `vite.config.ts`, so Kit knows how to compile them.
 
 ```ts
-// svelte.config.js
+// vite.config.ts
 import adapter from '@sveltejs/adapter-auto';
-import { preprocess, extensions } from '@ogygia/content/vite';
+import { sveltekit } from '@sveltejs/kit/vite';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+import { ogygia } from 'ogygia/vite';
+import { content, preprocess, extensions } from '@ogygia/content/vite';
+import { defineConfig } from 'vite';
 
-export default {
-	extensions: extensions(), // .svelte, plus .svx / .md
-	preprocess: [vitePreprocess(), ...preprocess()],
-	kit: {
-		adapter: adapter()
-	}
-};
+export default defineConfig({
+	plugins: [
+		ogygia(),
+		content({ markdown: {} }),
+		sveltekit({
+			adapter: adapter(),
+			extensions: extensions(), // .svelte, plus .svx / .md
+			preprocess: [vitePreprocess(), ...preprocess()]
+		})
+	]
+});
 ```
 
 With this in place, any `.svx` file becomes a normal Svelte component. Frontmatter is parsed into metadata, headings feed the on-this-page rail, and fenced code blocks are highlighted at build time.
@@ -125,7 +132,7 @@ Everything on this page is static HTML until an island wakes up.
 ## A live counter
 
 <script>
-	import Counter from '$lib/playground/demos/Counter.svelte' with { wake: 'visible' };
+	import Counter from '#lib/playground/demos/Counter.svelte' with { wake: 'visible' };
 </script>
 
 <Counter />

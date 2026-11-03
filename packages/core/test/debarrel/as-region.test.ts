@@ -16,7 +16,6 @@ afterEach(() => f?.dispose());
 
 const ctx = (root: string): Parameters<typeof transformTsRegions>[2] => ({
 	root,
-	libDir: root + '/lib',
 	pathModule: path,
 	dev: false,
 	virtualPathFor: (_host: string, iid: string) => `virtual:ogygia/island/${iid}.js`,

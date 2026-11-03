@@ -15,7 +15,6 @@ import {
 	set_kit_event_reader,
 	empty_kit_page,
 	KIT_REQUEST_CONTEXT,
-	KIT_STORES_CONTEXT,
 	type KitPage
 } from '../src/server/kit-context.ts';
 import PageProbe from './_fixtures/PageProbe.svelte';
@@ -68,40 +67,11 @@ describe('kit_render_context', () => {
 	});
 });
 
-describe('kit_render_context — Kit’s `__svelte__` stores context ($app/stores)', () => {
-	// The deprecated-but-everywhere `$page` store: Kit's server `$app/stores` destructures
-	// `getContext('__svelte__')` into `{ page, navigating, updated }`. Found on a real header whose
-	// every component reads `$page`: inside a server island it died with "Region render failed".
-	it('carries page/navigating/updated stores that answer synchronously', () => {
-		const page = page_of({ status: 404, data: { site: 'ACME' } });
-		const stores = kit_render_context(page).get(KIT_STORES_CONTEXT) as {
-			page: { subscribe(fn: (v: KitPage) => void): () => void };
-			navigating: { subscribe(fn: (v: unknown) => void): () => void };
-			updated: { subscribe(fn: (v: boolean) => void): () => void; check(): Promise<boolean> };
-		};
-		let seen: KitPage | undefined;
-		const unsub = stores.page.subscribe((v) => (seen = v));
-		expect(seen?.status).toBe(404);
-		expect(seen?.data).toEqual({ site: 'ACME' });
-		expect(typeof unsub).toBe('function');
-		let nav: unknown = 'unset';
-		stores.navigating.subscribe((v) => (nav = v));
-		expect(nav).toBeNull();
-		let up: boolean | undefined;
-		stores.updated.subscribe((v) => (up = v));
-		expect(up).toBe(false);
-		return expect(stores.updated.check()).resolves.toBe(false);
-	});
-
-	it('the same page object feeds both contexts', () => {
-		const page = page_of({ url: new URL('http://localhost/x/') });
-		const ctx = kit_render_context(page);
-		const via_state = (ctx.get(KIT_REQUEST_CONTEXT) as { page: KitPage }).page;
-		let via_store: KitPage | undefined;
-		(
-			ctx.get(KIT_STORES_CONTEXT) as { page: { subscribe(fn: (v: KitPage) => void): void } }
-		).page.subscribe((v) => (via_store = v));
-		expect(via_store).toBe(via_state);
+describe('kit_render_context — Kit 3’s one context', () => {
+	// Kit 3 removed `$app/stores` and the `__svelte__` stores context its page render set: a render
+	// root carries `__request__` alone, as Kit's own does.
+	it('carries `__request__` only', () => {
+		expect([...kit_render_context(page_of({})).keys()]).toEqual([KIT_REQUEST_CONTEXT]);
 	});
 });
 

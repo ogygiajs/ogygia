@@ -86,8 +86,9 @@ export const docs = content({
 });
 
 /** Preview context from the URL (`?preview=secret`) — universal-load-safe (no cookies API there).
- *  Exported so the page component derives the SAME context it renders under as the load guard used. */
-export const preview_ctx = (url: URL) => ({
+ *  Exported so the page component derives the SAME context it renders under as the load guard used.
+ *  (Only `searchParams.get`: Kit 3's `page.url` is a read-only URL, not a `URL`.) */
+export const preview_ctx = (url: { searchParams: Pick<URLSearchParams, 'get'> }) => ({
 	preview: url.searchParams.get('preview') === 'secret'
 });
 

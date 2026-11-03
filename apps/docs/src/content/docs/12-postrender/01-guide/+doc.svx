@@ -217,7 +217,7 @@ Sometimes even painting the canonical copy first for a moment is too much, becau
 
 ```svelte
 <script>
-  import Header from '$lib/Header.svelte' with { render: 'deferred', stitch: 'serve' };
+  import Header from '#lib/Header.svelte' with { render: 'deferred', stitch: 'serve' };
 </script>
 ```
 
@@ -229,7 +229,7 @@ The shell is still stored once and served as bytes, but on **every** serve the s
 
 ```svelte
 <script>
-  import Header from '$lib/Header.svelte' with { render: 'deferred', stitch: 'edge' };
+  import Header from '#lib/Header.svelte' with { render: 'deferred', stitch: 'edge' };
 </script>
 ```
 

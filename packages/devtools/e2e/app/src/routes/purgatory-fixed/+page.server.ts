@@ -4,7 +4,7 @@
 // forecast does not count them: the random stamps, the request's own sort, the item spreads.
 // (No PATTERN comments: this page measures the forecast.)
 import { randomUUID } from 'node:crypto';
-import { BRANDS, PRODUCTS } from '$lib/inferno/data';
+import { BRANDS, PRODUCTS } from '#lib/inferno/data.ts';
 import {
 	allTags,
 	flatten,
@@ -13,7 +13,7 @@ import {
 	priceCached,
 	sortByName,
 	withDiscount
-} from '$lib/purgatory/helpers';
+} from '#lib/purgatory/helpers.ts';
 import type { PageServerLoad } from './$types';
 
 export const prerender = false;

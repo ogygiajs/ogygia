@@ -630,7 +630,7 @@ describe('build_drill', () => {
 		});
 	});
 
-	it('a $lib helper a load ran sits under that load file (its stack says so), not loose in the phase', () => {
+	it('a #lib helper a load ran sits under that load file (its stack says so), not loose in the phase', () => {
 		const t = {
 			segments: [
 				seg({

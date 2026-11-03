@@ -25,7 +25,8 @@ function serve_build(hooks: string, port: number): Promise<SpawnedServer> {
 		cmd: 'node',
 		args: ['build/index.js'],
 		cwd: dir,
-		env: { PORT: String(port), ORIGIN: origin, POSTRENDER_HOOKS: hooks },
+		// (GETs only: the build's baked-in origin, another port's, never meets a same-origin check)
+		env: { PORT: String(port), POSTRENDER_HOOKS: hooks },
 		url: origin + '/api/state',
 		ready: (res) => res.ok
 	});

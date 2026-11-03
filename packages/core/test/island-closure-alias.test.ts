@@ -1,5 +1,5 @@
 // REGRESSION: the eager island-closure walk (prescan) follows the app's ALIASES. A module reached
-// from an island only through `$lib_x/…` (Kit's `kit.alias` / Vite's `resolve.alias`) used to stop
+// from an island only through `$lib_x/…` (Kit's `alias` / Vite's `resolve.alias`) used to stop
 // the walk, so its `$app/*` shim decision fell back to bundler order: a helper shared with a
 // csr=true page resolved Kit's REAL page store (empty under csr=false) whenever that page was
 // reached first. Seen on a customer's dev server: `page.data.user` empty inside every island on
@@ -14,8 +14,12 @@ import { partial_ctx_init } from './_compile-ctx.ts';
 let root = '';
 
 const files: Record<string, string> = {
+	'package.json': JSON.stringify({
+		name: 'app',
+		imports: { '#lib': './src/lib', '#lib/*': './src/lib/*' }
+	}),
 	'src/routes/+layout.ts': 'export const csr = false;\n',
-	'src/routes/+page.svelte': `<script>\n\timport Reader from '$lib/Reader.svelte' with { wake: 'load' };\n</script>\n<Reader />\n`,
+	'src/routes/+page.svelte': `<script>\n\timport Reader from '#lib/Reader.svelte' with { wake: 'load' };\n</script>\n<Reader />\n`,
 	'src/lib/Reader.svelte': `<script>\n\timport { page_name } from '$boot/read-page';\n\timport { relative_helper } from './relative-helper';\n</script>\n<p>{page_name()} {relative_helper()}</p>\n`,
 	'src/lib/relative-helper.ts': `export const relative_helper = () => 'r';\n`,
 	'src/lib/boot/read-page.ts': `import { page } from '$app/state';\nexport const page_name = () => String(page.data.name ?? '');\n`,
@@ -44,7 +48,6 @@ function make_compiler(resolve_alias: { find: string | RegExp; replacement: stri
 			partial_ctx_init({
 				root,
 				base: '/',
-				libDir: path.join(root, 'src/lib'),
 				is_dev: false,
 				id_salt: '',
 				visibleMargin: '0px',
@@ -54,7 +57,6 @@ function make_compiler(resolve_alias: { find: string | RegExp; replacement: stri
 				pkg_root: '/nowhere/ogygia',
 				app_shims: {
 					'$app/state': '/nowhere/ogygia/shims/app-state.svelte.js',
-					'$app/stores': '/nowhere/ogygia/shims/app-stores.js',
 					'$app/navigation': '/nowhere/ogygia/shims/app-navigation.js'
 				}
 			})
@@ -77,7 +79,7 @@ afterAll(() => {
 });
 
 describe('island closure walk follows app aliases', () => {
-	test('a helper reached through a `kit.alias` import is island code after prescan', () => {
+	test('a helper reached through a Kit `alias` import is island code after prescan', () => {
 		const { compiler, program } = make_compiler([
 			{ find: '$boot', replacement: path.join(root, 'src/lib/boot') }
 		]);

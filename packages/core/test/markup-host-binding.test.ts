@@ -41,7 +41,6 @@ function make_compiler(is_build: boolean) {
 			partial_ctx_init({
 				root,
 				base: '/',
-				libDir: path.join(root, 'src/lib'),
 				is_dev: !is_build,
 				is_build,
 				id_salt: '',

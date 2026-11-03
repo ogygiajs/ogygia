@@ -58,7 +58,6 @@ function make_compiler() {
 		partial_ctx_init({
 			root,
 			base: '/',
-			libDir: path.join(root, 'src/lib'),
 			is_dev: false,
 			is_build: true,
 			id_salt: '',
@@ -93,6 +92,10 @@ async function client_resolve(
 
 beforeAll(() => {
 	root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-registry-reach-'));
+	write(
+		'package.json',
+		JSON.stringify({ name: 'app', imports: { '#lib': './src/lib', '#lib/*': './src/lib/*' } })
+	);
 	write('src/routes/+layout.ts', 'export const csr = false;\n');
 	write('src/lib/Block.svelte', '<p>block</p>\n');
 	write(
@@ -116,7 +119,7 @@ beforeAll(() => {
 	}
 	write(
 		'src/routes/fan/+page.svelte',
-		`<script>\n\timport * as b from '$lib/barrel';\n</script>\n`
+		`<script>\n\timport * as b from '#lib/barrel';\n</script>\n`
 	);
 
 	// (2) a registry behind a plain helper
@@ -126,7 +129,7 @@ beforeAll(() => {
 	);
 	write(
 		'src/routes/helper/+page.svelte',
-		`<script>\n\timport { pick } from '$lib/factory';\n</script>\n`
+		`<script>\n\timport { pick } from '#lib/factory';\n</script>\n`
 	);
 
 	// (3) cycles: a → b → a with b → registry; x → y → x reaching nothing

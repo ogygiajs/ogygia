@@ -80,7 +80,7 @@ async function main() {
 
 	// 1b. the Output tab's "compare csr" diffs the SAME source transformed both ways — the ogygia thesis
 	//     in code: csr=false rewrites a marked import to a `virtual:ogygia/…` lazy island wrapper (removed),
-	//     csr=true leaves it a plain `$lib/…` import Kit hydrates (added). Needs the real (WASM) transform.
+	//     csr=true leaves it a plain `#lib/…` import Kit hydrates (added). Needs the real (WASM) transform.
 	await page.evaluate(() =>
 		[...document.querySelectorAll('[role="tab"]')]
 			.find((x) => x.textContent.trim() === 'Output')
@@ -100,12 +100,12 @@ async function main() {
 			/virtual:ogygia/.test(x.textContent || '')
 		);
 		const add = [...el.querySelectorAll('.dl.add .dc')].some((x) =>
-			/\$lib\//.test(x.textContent || '')
+			/#lib\//.test(x.textContent || '')
 		);
 		return del && add ? true : null;
 	});
 	ok(
-		'Output "compare csr" diffs ogygia (virtual:ogygia wrapper) vs plain Kit ($lib import)',
+		'Output "compare csr" diffs ogygia (virtual:ogygia wrapper) vs plain Kit (#lib import)',
 		!!csrDiff
 	);
 	await page.evaluate(() => document.querySelector('[data-obs-cmp-csr].on')?.click()); // compare off

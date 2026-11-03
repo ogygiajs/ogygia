@@ -126,7 +126,7 @@ routes(table, { visitor: (c) => session(c) ?? anon(c) });
 Flags don't need the server router. A flag reads a request context with `request`, `url` and `cookies`, and a Kit `RequestEvent` already has all three, so you can pass the event straight to a flag in any server load, form action or endpoint:
 
 ```ts title=src/routes/+page.server.ts
-import { hero } from '$lib/flags';
+import { hero } from '#lib/flags';
 
 export const load = (event) => ({ variant: hero(event) });
 ```
@@ -152,8 +152,8 @@ export function flagContext(event: RequestEvent) {
 ```
 
 ```ts title=src/routes/+page.server.ts
-import { hero } from '$lib/flags';
-import { flagContext } from '$lib/server/flag-context';
+import { hero } from '#lib/flags';
+import { flagContext } from '#lib/server/flag-context';
 
 export const load = (event) => ({ variant: hero(flagContext(event)) });
 ```
@@ -164,7 +164,7 @@ For logged-out visitors, set the `og-vid` cookie yourself in a handle, which is 
 import type { Handle } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 import * as ogygia from 'ogygia/server';
-import '$lib/flags';   // register every flag before the first request
+import '#lib/flags';   // register every flag before the first request
 
 const visitorCookie: Handle = ({ event, resolve }) => {
   if (!event.cookies.get('og-vid')) {

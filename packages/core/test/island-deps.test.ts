@@ -334,7 +334,7 @@ describe('collectIslandDepModulepreloads', () => {
 		test('state another island can change: a context read, a rune module import', () => {
 			expect(
 				interactivity_facts(
-					"<script>import { roomCtx } from '$lib/room-context.svelte.js'; const c = roomCtx.get();</script>{c.count}"
+					"<script>import { roomCtx } from '#lib/room-context.svelte.js'; const c = roomCtx.get();</script>{c.count}"
 				).shared
 			).toBe(1);
 			expect(

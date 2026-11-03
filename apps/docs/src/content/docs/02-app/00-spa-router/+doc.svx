@@ -135,7 +135,7 @@ At build time, Kit emits the page as a **static file** containing the shell, eac
 The frame below is a real prerendered page (`/demo/ppr`). Its **shell** clock is baked into the static file and never moves, while its **hole** clock is a `render: 'deferred'` server island that renders on every request and changes on each reload. Reload, and the one page shows two different times.
 
 <script>
-  import PprFrame from '$lib/PprFrame.svelte' with { wake: 'load' };
+  import PprFrame from '#lib/PprFrame.svelte' with { wake: 'load' };
 </script>
 
 <PprFrame />

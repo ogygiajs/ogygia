@@ -67,7 +67,7 @@ A stored page can still carry per-visitor parts. A [server island](/docs/regions
 
 ```svelte title=src/routes/products/[id]/+page.svelte
 <script>
-  import CartCount from '$lib/CartCount.svelte' with { render: 'deferred' };
+  import CartCount from '#lib/CartCount.svelte' with { render: 'deferred' };
   let { data } = $props();
 </script>
 

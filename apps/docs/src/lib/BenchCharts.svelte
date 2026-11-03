@@ -2,7 +2,7 @@
 	// Renders the framework benchmark's newest `main` run (ogygiajs/bench, read at build time,
 	// the committed copy when that fails) as charts.
 	// Headline: client JS vs post length — islands stay flat, whole-page hydration climbs.
-	import { bench_results, type BenchFramework as Fw } from '$lib/bench/results.remote';
+	import { bench_results, type BenchFramework as Fw } from '#lib/bench/results.remote.ts';
 
 	const data = await bench_results();
 	const { frameworks, posts, meta } = data;

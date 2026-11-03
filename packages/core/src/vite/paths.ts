@@ -89,13 +89,12 @@ export const OGYGIA_INJECTED_FILES: Record<string, string> = OG_HAS_SRC
 			'ogygia/internal/server': path.join(PKG_ROOT, 'dist/internal-server.js')
 		};
 
-/** Client-side shims aliased for island modules (Kit's client runtime is absent under csr=false). */
-export const APP_SHIMS: { '$app/state': string; '$app/stores': string; '$app/navigation': string } =
-	{
-		'$app/state': fileURLToPath(new URL('../shims/app-state.svelte.js', import.meta.url)),
-		'$app/stores': fileURLToPath(new URL('../shims/app-stores.js', import.meta.url)),
-		'$app/navigation': fileURLToPath(new URL('../shims/app-navigation.js', import.meta.url))
-	};
+/** Client-side shims aliased for island modules (Kit's client runtime is absent under csr=false):
+ *  Kit's page (`$app/state`) and `$app/navigation`. */
+export const APP_SHIMS: { '$app/state': string; '$app/navigation': string } = {
+	'$app/state': fileURLToPath(new URL('../shims/app-state.svelte.js', import.meta.url)),
+	'$app/navigation': fileURLToPath(new URL('../shims/app-navigation.js', import.meta.url))
+};
 
 // A lake's component code must ship in NO client chunk. In the CLIENT build of an island's virtual
 // module we swap every lake import for a render-nothing stub (the runtime lifts/restores the lake's
@@ -106,10 +105,10 @@ export const CLIENT_BINDING_STUB_FILE: string = fileURLToPath(
 	new URL('../ClientBindingStub.svelte', import.meta.url)
 );
 
-// Reuse Kit's OWN client remote primitives (query/command/form/live). We point
-// `__sveltekit/remote` at Kit's real remote-functions and scope-alias the two router-coupled
-// modules those pull in (`client.js`, `state.svelte.js`) to tiny stubs, so the router graph
-// never loads. The old hand-rolled wire client is gone; these stubs are the only glue.
+// Reuse Kit's OWN client remote primitives (query/command/form/live): Kit's remote transform
+// imports its real remote-functions entry, and we scope-alias the router-coupled modules those pull
+// in (`../client.js`, `#app/state/client`, `#app/paths`) to tiny stubs, so the router graph never
+// loads. The old hand-rolled wire client is gone; these stubs are the only glue.
 export const STUB_CLIENT: string = fileURLToPath(
 	new URL('../shims/kit-remote/client-stub.js', import.meta.url)
 );
@@ -119,8 +118,6 @@ export const STUB_STATE: string = fileURLToPath(
 export const STUB_PATHS: string = fileURLToPath(
 	new URL('../shims/kit-remote/paths-internal-stub.js', import.meta.url)
 );
-export const KIT_REMOTE_CLIENT: RegExp = /(^|\/)client\.js$/;
-export const KIT_REMOTE_STATE: RegExp = /state\.svelte\.js$/;
 
 /** Absolute path to real HMAC (SSR-only via `virtual:ogygia/sign`). */
 export const HMAC_MODULE: string = fileURLToPath(new URL('../server/hmac.js', import.meta.url));

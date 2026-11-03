@@ -8,7 +8,7 @@
  */
 import { federate } from '@ogygia/federation';
 import { cms_router } from './router.ts';
-import { env } from '$env/dynamic/private';
+import * as env from '$app/env/private';
 
 export const { dash } = federate({
 	name: 'cms',
