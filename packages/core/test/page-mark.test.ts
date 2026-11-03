@@ -19,8 +19,9 @@ function marks_for(island: string, extra: Record<string, string> = {}, init: obj
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-page-mark-'));
 	roots.push(root);
 	const files: Record<string, string> = {
+		'package.json': JSON.stringify({ type: 'module', imports: { '#lib/*': './src/lib/*' } }),
 		'src/routes/+layout.ts': 'export const csr = false;\n',
-		'src/routes/+page.svelte': `<script>\n\timport Island from '$lib/Island.svelte' with { wake: 'load' };\n</script>\n<Island />\n`,
+		'src/routes/+page.svelte': `<script>\n\timport Island from '#lib/Island.svelte' with { wake: 'load' };\n</script>\n<Island />\n`,
 		'src/lib/Island.svelte': island,
 		...extra
 	};
@@ -50,7 +51,6 @@ function marks_for(island: string, extra: Record<string, string> = {}, init: obj
 			partial_ctx_init({
 				root,
 				base: '/',
-				libDir: path.join(root, 'src/lib'),
 				is_dev: false,
 				id_salt: '',
 				visibleMargin: '0px',
