@@ -78,6 +78,37 @@ Then expose the components to Svelte-aware tools with the `svelte` export condit
 }
 ```
 
+## Plain rolldown
+
+tsdown runs on [rolldown](https://rolldown.rs), and the plugin uses only standard build hooks, so it also works in a plain rolldown build. Set up the two things tsdown would otherwise give it:
+
+- **One output file per source file**, so a component's `./util.ts` import finds `./util.js` beside it: `preserveModules` with `preserveModulesRoot: 'src'`.
+- **Types for your `.ts` files**: [rolldown-plugin-dts](https://github.com/sxzz/rolldown-plugin-dts), the plugin tsdown uses. This plugin only adds the `.svelte.d.ts` files.
+
+```ts
+// rolldown.config.ts
+import { defineConfig } from 'rolldown';
+import { dts } from 'rolldown-plugin-dts';
+import { svelte } from '@ogygia/tsdown-plugin-svelte';
+
+export default defineConfig({
+	input: ['src/index.ts', 'src/util.ts'],
+	external: ['svelte', /\.svelte$/],
+	plugins: [dts(), svelte()],
+	output: {
+		dir: 'dist',
+		format: 'esm',
+		preserveModules: true,
+		preserveModulesRoot: 'src',
+		entryFileNames: '[name].js'
+	}
+});
+```
+
+List every `.ts` file a component imports in `input`, so each one is built to its own file. Point `out` at `output.dir` if it is not `dist`.
+
+The plugin does not compile `.svelte` files into an app. For that, use `@sveltejs/vite-plugin-svelte` or `rollup-plugin-svelte`.
+
 ## Options
 
 ```ts
