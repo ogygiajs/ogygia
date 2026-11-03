@@ -144,6 +144,11 @@ export class Program {
 	 *  (the generated `virtual:ogygia/kit-transport`) carries the codec cluster or is an empty map. */
 	crosses_wire = false;
 
+	/** Island code can reach Kit's page world (`$app/state` and kin, or something the island-closure
+	 *  walk could not follow — driver.ts `mark_island_closure`). Folded into `runtime_marks.page` at
+	 *  the end of the prescan, with the other ways islands the walk never saw reach the runtime. */
+	island_reads_page = false;
+
 	/** Build-time capability marks for the sticky runtime entry. Incomplete → kitchen-sink. */
 	readonly runtime_marks: RuntimeMarks;
 
@@ -162,7 +167,9 @@ export class Program {
 			// actually ships a transportable class or a portable snippet — so a plain-props app never
 			// pays for a decoder it can't use. Turned on below via note_runtime_mark / the finalize check.
 			wire: false,
-			remoteSeeds: true,
+			// Seeding Kit's remote query cache: off until the prescan sees a `.remote.*` module — an app
+			// without remote functions has no query to seed.
+			remoteSeeds: false,
 			hydrate: [],
 			defer: [],
 			persistKeys: [],

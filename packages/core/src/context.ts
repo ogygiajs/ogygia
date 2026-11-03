@@ -8,40 +8,13 @@ import {
 } from 'virtual:ogygia/route-csr';
 import { kit_hydrates_page } from './runtime/kit-boot.ts';
 
-// Context key marking "this subtree is already inside a hydrated island". Nested island wrappers
-// read it and degrade to a plain inline component so an island-within-an-island hydrates exactly
-// once, together with its parent.
-//
-// KEY IDENTITY (CTX-KEY): must be `Symbol.for` (global registry), NOT `createContext`'s per-call
-// `Symbol()`. The runtime bundle (which mounts NestedProvider → setNested) and each island-entry
-// bundle (which renders a lake region → isNested) are SEPARATE Vite entry graphs; `context.ts` is
-// duplicated across them on the client, so a per-module `Symbol()` mints a different key in each —
-// setNested and isNested then miss each other and a lake renders no `<ogygia-region hydrate="none">`,
-// so the lift/restore drops it. SSR bundles once, so the key matches there — hence it broke ONLY
-// after client hydration. A global `Symbol.for` is one key across every graph.
-const NESTED_KEY = Symbol.for('ogygia.nested-island');
-
-/**
- * Mark the current subtree's hydration state. `true` = inside a hydrated island (nested islands
- * degrade). `false` = a LAKE resets its subtree to "dead", so an island inside the lake self-
- * hydrates again (the nearest-boundary rule — DESIGN.md).
- */
-export function setNested(value = true): void {
-	setContext(NESTED_KEY, value);
-}
-
-/**
- * True when an ancestor island wrapper already marked the subtree. `getContext` returns `undefined`
- * when no ancestor set it (a top-level island) — that absence is exactly "not nested".
- */
-export function isNested(): boolean {
-	return getContext(NESTED_KEY) === true;
-}
+// The nested-island mark (same `Symbol.for` rule as the keys below) is a leaf: nested.ts says why.
+export { setNested, isNested } from './nested.ts';
 
 // Context key marking "this subtree is OPAQUE to Kit" — a lake's inside (a `wake: 'none'` region), or
 // any render whose HTML only ever lands in an opaque region (a held region's: a hole's answer, a baked
 // region's first HTML — region.ts, server/render-region-html.ts set it on their roots by this global
-// name). Same `Symbol.for` rule as NESTED_KEY. Kit's hydration never enters such HTML — on a csr=true
+// name). Same `Symbol.for` rule as NESTED_KEY (nested.ts). Kit's hydration never enters such HTML — on a csr=true
 // page the region ADOPTS its element as opaque DOM (Region.svelte) — so the regions authored in it
 // belong to ogygia's world on EVERY page: the server must emit their real `<ogygia-region>` even when
 // the document is Kit-hydrated. Region reads this to switch its csr=true inline degradation off; the

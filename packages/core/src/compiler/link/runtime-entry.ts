@@ -24,17 +24,25 @@ export type RuntimeMarks = {
 	 *  driver's import scan; gates the cross-island context bridge (~4.7 kB) out of apps that never
 	 *  provide context. Read-only providers (`getContext`) don't set it — there's nothing to bridge. */
 	context?: boolean;
+	/** Island code can reach Kit's page world: `$app/state` / `$app/stores` / `$app/navigation`
+	 *  (anything under `$app/` but `environment` and `paths`), or code the driver's island-closure walk
+	 *  cannot follow (a package, an unresolvable import), or a client plugin / federation that hands
+	 *  the runtime islands the walk never saw. Gates the page seed and the MPA navigation handle. */
+	page?: boolean;
 };
 
 export type FeatureId =
 	| 'remote-seeds'
+	| 'page'
 	| 'wire'
+	| 'wire-classes'
 	| 'frames'
 	| 'lakes'
 	| 'morph'
 	| 'live'
 	| 'interaction'
 	| 'forms'
+	| 'mpa-nav'
 	| 'router'
 	| 'context';
 
@@ -76,6 +84,13 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 		deps: [],
 		detect: (m) => m.forms === true || (m.forms !== false && m.router === true)
 	},
+	'mpa-nav': {
+		module: 'nav-handle.js',
+		deps: [],
+		// The MPA navigation handle island code navigates through (`$app/navigation`, `ogygia/app`);
+		// the router's install, later in the order, replaces it with the SPA one.
+		detect: (m) => m.page !== false
+	},
 	router: {
 		module: 'router.js',
 		deps: [],
@@ -113,6 +128,14 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 		// build sets `wire: true` on detecting either). A plain-props app never bundles the ~8kB codec.
 		detect: (m) => m.wire === true
 	},
+	'wire-classes': {
+		module: 'wire-classes.js',
+		deps: [],
+		// Boot phase: an island's transportable classes load in parallel with its module and the
+		// hydrate core, not after them. A transportable class sets the `wire` mark (driver prescan),
+		// so an app without one has no class to load and drops the loader.
+		detect: (m) => m.wire === true
+	},
 	'remote-seeds': {
 		module: 'remote-seeds.js',
 		deps: [],
@@ -120,6 +143,15 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 		// transport codecs (its own `src/hooks.ts`), which reach Svelte.
 		phase: 'hydrate',
 		detect: (m) => m.remoteSeeds !== false
+	},
+	page: {
+		module: 'seeds.js',
+		deps: [],
+		// Hydrate phase: the page store is a Svelte `$state`, and only the hydrate core reads the seed
+		// (the navigation imports seeds.ts on its own). Without it no seed ships: the server sends one
+		// only for islands that read their page, and seed references only where a seed ships.
+		phase: 'hydrate',
+		detect: (m) => m.page !== false
 	},
 	frames: {
 		module: 'frames.js',
@@ -144,13 +176,16 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 
 export const FEATURE_ORDER: FeatureId[] = [
 	'remote-seeds',
+	'page',
 	'wire',
+	'wire-classes',
 	'frames',
 	'lakes',
 	'morph',
 	'live',
 	'interaction',
 	'forms',
+	'mpa-nav',
 	'router',
 	'context'
 ];
@@ -251,4 +286,20 @@ export function generateHydrateFeaturesSource(
 	for (const id of features) lines.push(`  ${to_alias(id)}.install();`);
 	lines.push('}');
 	return { code: lines.join('\n') + '\n', features };
+}
+
+/**
+ * Emit `virtual:ogygia/runtime-flags`: build-time constants for code that lives INSIDE the always-on
+ * region element rather than in a feature module, because it works on the element's own state. The
+ * bundler inlines an imported `const` and drops the branches it switches off, so the code a flag
+ * guards ships exactly when the feature it serves does. Same marks as the entries; `all` (dev / no
+ * marks): every flag on.
+ *
+ * - `FRAMES`: the `frames` feature is in the build — some region streams HTML (a deferred hole, a
+ *   live region, a lake). Without the frame store a region's fetch has nowhere to land, so the
+ *   element's fetch / apply / morph / renew path is dead code then.
+ */
+export function generateRuntimeFlagsSource(marks: RuntimeMarks, all = false): string {
+	const frames = all || resolveFeatures(marks).includes('frames');
+	return `export const FRAMES = ${frames};\n`;
 }

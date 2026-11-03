@@ -15,18 +15,22 @@ import { set_current_region, set_foreign_hydrate } from '../current-region.ts';
 import { capture_region_ids } from './region-ids.ts';
 import NestedProvider from '../NestedProvider.svelte';
 import { foreign_region_prop_revivers } from './foreign-props.ts';
-import { SEED_REF_KEY, seed_ref_reviver } from '../seed-refs.ts';
-import { parse_sidecar_text, seed_data_of, seed_page_once, seed_remote_once } from './seeds.ts';
-// (for core.ts: an answer's page facts join the page store at once once islands are awake)
-export { seed_page_once, seed_remote_once };
+import { SEED_REF_KEY, seed_ref_reviver } from '../seed-ref-reviver.ts';
+import { parse_sidecar_text } from './wire-format.ts';
 import { is_deferred, ours_on_kit_document, region_ssr_truncated } from './region-attrs.ts';
 import { boot_link, slots, type LiftedLake } from './slots.ts';
 import { keep_host_classes, note_host_classes } from './host-classes.ts';
 import { install as install_hydrate_features } from 'virtual:ogygia/hydrate-features';
 import { emit as dt_emit } from '../events/bus.ts';
-// Re-exported for core's wake paths: observing Kit's reactive page needs Svelte, so it lives in this
-// lazy chunk, never in the boot's static graph (see core.ts `hydrate_core`).
-export { kit_page_thread } from './kit-page-thread.svelte.ts';
+
+// The page's seeds, through their features' slots (`page`, `remote-seeds`: hydrate phase, installed
+// below). Exported for core: an answer's page facts join the page store at once once islands are
+// awake, and every wake seeds before its turn. A no-op in an app whose islands never read their page.
+export const seed_page_once = (): void => slots.page?.seed_page_once();
+export const seed_remote_once = (): void => slots.remoteSeeds?.seed_once();
+// For core's wake paths: observing Kit's reactive page needs Svelte, so the wait lives in this lazy
+// chunk's phase, never in the boot's static graph (see core.ts `hydrate_core`).
+export const kit_page_thread = (): Promise<void> | null => slots.page?.kit_page_thread() ?? null;
 
 // The HYDRATE-phase features (context, live, wire, remote-seeds — as the app's marks select them;
 // link/runtime-entry.ts) install as this chunk evaluates: before any island below can hydrate, and
@@ -453,11 +457,14 @@ export function read_region_props(region: Element, foreign = false): Record<stri
 	// A foreign fragment never carries seed references (its props are self-contained by
 	// construction); a local island's may point into the seed of the document the sidecar came
 	// from — the live page store, or a navigation's incoming document (runtime/seeds.ts). The seed
-	// element is resolved once per read, lazily, by the reviver.
+	// element is resolved once per read, lazily, by the reviver. References only exist where a seed
+	// ships, i.e. where an island reads its page — the `page` feature's build.
 	const doc = sidecar.ownerDocument;
-	const revivers = foreign
-		? base
-		: { ...base, [SEED_REF_KEY]: seed_ref_reviver(() => seed_data_of(doc)) };
+	const page = slots.page;
+	const revivers =
+		foreign || !page
+			? base
+			: { ...base, [SEED_REF_KEY]: seed_ref_reviver(() => page.seed_data_of(doc)) };
 	return parse_sidecar_text(sidecar, revivers) as Record<string, unknown>;
 }
 

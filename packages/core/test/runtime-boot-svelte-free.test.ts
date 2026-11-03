@@ -158,8 +158,8 @@ describe('the compiler splits features into two static phases', () => {
 		.filter(([, d]) => d.phase === 'hydrate')
 		.map(([id]) => id);
 
-	it('hydrate-phase features are exactly context, live, wire, remote-seeds', () => {
-		expect(HYDRATE_PHASE.sort()).toEqual(['context', 'live', 'remote-seeds', 'wire']);
+	it('hydrate-phase features are exactly context, live, page, wire, remote-seeds', () => {
+		expect(HYDRATE_PHASE.sort()).toEqual(['context', 'live', 'page', 'remote-seeds', 'wire']);
 	});
 
 	it('the boot entry never imports a hydrate-phase feature, even when the app uses all of them', () => {
@@ -173,9 +173,9 @@ describe('the compiler splits features into two static phases', () => {
 
 	it('the hydrate-phase module imports exactly the hydrate features the marks select', () => {
 		const used = generateHydrateFeaturesSource(EVERYTHING, '/rt');
-		expect(used.features.sort()).toEqual(['context', 'live', 'remote-seeds', 'wire']);
+		expect(used.features.sort()).toEqual(['context', 'live', 'page', 'remote-seeds', 'wire']);
 		const plain = generateHydrateFeaturesSource(
-			{ complete: true, hydrate: ['load'], remoteSeeds: false },
+			{ complete: true, hydrate: ['load'], remoteSeeds: false, page: false },
 			'/rt'
 		);
 		expect(plain.features).toEqual([]); // a plain app ships none of them

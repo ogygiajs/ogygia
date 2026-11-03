@@ -339,6 +339,30 @@ describe('errorCsrTrueRouteIds / rootLayoutCsrTrue — the layout branch decides
 	});
 });
 
+// ── markdown route components — `+page.md` is a page like `+page.svelte` ──────────────────────
+
+describe('route components in any extension', () => {
+	it('a markdown page has its own world and counts for its layout', () => {
+		const routes = tree({
+			'+layout.ts': 'export const csr = false;\n',
+			'+layout.svelte': '',
+			'posts/a/+page.md': '# a\n',
+			'posts/b/+page.svx': '# b\n',
+			'posts/b/+page.ts': 'export const csr = true;\n'
+		});
+		expect(world(routes, 'posts/a/+page.md')).toBe('island');
+		expect(world(routes, 'posts/b/+page.svx')).toBe('strip');
+		expect(world(routes, '+layout.svelte')).toBe('shared');
+		expect(csrTrueRouteIds(routes)).toEqual(['/posts/b']);
+		expect(hasAnyCsrTrueRoute(routes)).toBe(true);
+	});
+	it('option scripts are not components', () => {
+		const routes = tree({ '+layout.ts': 'export const csr = false;\n', '+page.ts': '' });
+		expect(routeCsrIsFalse(at(routes, '+page.ts'), routes)).toBe(false);
+		expect(routeCsrIsFalse(at(routes, '+page.server.ts'), routes)).toBe(false);
+	});
+});
+
 // ── transform seam — what each world does to a layout's chrome islands ───────────────────────
 
 const LAYOUT_HOST = `<script>

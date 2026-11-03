@@ -27,11 +27,12 @@
  * never blanked: a region can read it again — an island moved by its host's snippet adoption
  * disconnects, reconnects and hydrates anew (the island-children shape).
  */
-import { parse_wire_text, wire_is_json } from './wire-format.ts';
+import { parse_sidecar_text, parse_wire_text } from './wire-format.ts';
 import { page_state, set_page, reset_page, type PageSnapshot } from '../shims/page-store.svelte.ts';
 import { kit_bridge } from '../shims/kit-bridge.ts';
 import { install_page_defer, page_defer_revivers } from './page-defer.ts';
 import { transport_decoders } from './app-transport.ts';
+import { kit_page_thread } from './kit-page-thread.svelte.ts';
 import { boot_link, slots } from './slots.ts';
 
 // The boot's session and hint-set reset, handed over through the registry — this lazy module (the
@@ -44,15 +45,19 @@ const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS_
 export const PAGE_SEED_SELECTOR = 'script[type="application/ogygia-page"]';
 const REMOTE_SEED_SELECTOR = 'script[type="application/ogygia-remote"]';
 
-/** A seed or props script's payload, in its lane (wire-format.ts): JSON when the server marked
- *  it plain, devalue with `revivers` otherwise. Every seed / props read goes through here. */
-export function parse_sidecar_text(
-	el: Element,
-	revivers?: Record<string, (d: never) => unknown>
-): unknown {
-	return parse_wire_text(el.textContent ?? '', wire_is_json(el), revivers);
-}
+// (the props / seed lane reader lives in wire-format.ts; re-exported for this module's old importers)
+export { parse_sidecar_text };
 
+/**
+ * The PAGE feature (link/runtime-entry.ts, hydrate phase): what island code sees of its page — the
+ * page seed behind `$app/state` / `$app/stores`, the seed references in island props, and, on a
+ * Kit-hydrated document, the wait for Kit's own page. Installed only when island code can reach
+ * Kit's world (the driver's island-closure walk, failing open on anything it cannot follow): an app
+ * whose islands never read their page gets no seed from the server and ships none of this.
+ */
+export function install(): void {
+	slots.page = { seed_page_once, seed_data_of, kit_page_thread };
+}
 type PageSeed = Partial<Omit<PageSnapshot, 'url'> & { url: string | URL }>;
 
 let parses = 0;
@@ -126,17 +131,6 @@ export function seed_data_of(doc: Document): unknown {
 function apply_remote_seed_text(text: string | null | undefined): void {
 	if (!text) return;
 	slots.remoteSeeds?.seed_query_responses(text);
-}
-
-// Flicker fix: seed the reused Kit client query cache from the server's side-channel script
-// (emitted by `ogygiaHandle` on csr=false pages) exactly ONCE per document, before any island's
-// reused `Query` constructor reads `query_responses`. Cleared on SPA body swap.
-export function seed_remote_once(): void {
-	if (session().remote_seeded) return;
-	session().mark_remote_seeded();
-	if (typeof document === 'undefined') return;
-	const el = document.querySelector(REMOTE_SEED_SELECTOR);
-	apply_remote_seed_text(el?.textContent);
 }
 
 /** Document-level page seed (one script from ogygiaHandle) — once per document; then any page facts

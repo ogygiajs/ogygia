@@ -6,7 +6,7 @@
 	// `class:`-driven `position: fixed` drops to `static` for a frame). SELF-CLOSING on purpose: any
 	// slot content here would pass an implicit `children` snippet that OVERRIDES the decoded
 	// `props.children` (the revived slot/region snippet) and desyncs hydration with an extra anchor.
-	import { setNested } from './context.ts';
+	import { setNested } from './nested.ts';
 	import type { Component as SvelteComponent } from 'svelte';
 
 	let {
