@@ -104,7 +104,7 @@
 	 *   children?: import('svelte').Snippet;
 	 *   __mode?: 'island' | 'server' | 'lake'; __baked?: boolean;
 	 *   visible?: string | boolean; idle?: boolean; media?: string; load?: boolean; interaction?: boolean;
-	 *   __keep?: string; __entry?: string; __src?: string; __component?: import('svelte').Component; __css?: unknown;
+	 *   __keep?: string; __entry?: string; __component?: import('svelte').Component; __css?: unknown;
 	 *   __load?: () => Promise<import('svelte').Component>;
 	 *   __props?: Record<string, unknown>; __defer?: string; __margin?: string; __hydrate?: string;
 	 *   __hydrateMargin?: string; __module?: string; __cacheTtl?: number; __stitch?: string; __prefetch?: string;
@@ -132,11 +132,9 @@
 		load,
 		interaction,
 		__keep,
-		// island + server shared. `__entry` is the island's IDENTITY (its stable URL); `__src` its
-		// LOCATION — the content-hashed file to load — which only the client build knows (its wrapper
-		// passes the bundler's own name for it). The server finds the location in the build handoff.
+		// island + server shared. `__entry` is the island's IDENTITY (its stable URL, a name); its
+		// LOCATION, the content-hashed file to load, the server finds in the build handoff.
 		__entry = '',
-		__src = '',
 		__component,
 		__css,
 		// The client wrapper's on-demand component fetch (its lazy module answered `undefined`: a
@@ -497,13 +495,14 @@
 	const island_module_url = $derived(nested || !island_entry ? '' : asset(island_entry));
 	// IDENTITY vs LOCATION (server/entry-location.ts): `island_module_url` is the island's identity
 	// (the `entry` attribute, the graph key, the fingerprint input); the file the runtime loads is its
-	// location — content-hashed, so an `immutable` cache never serves a stale one. The client build's
-	// wrapper passes it (`__src`); the server reads the build handoff. None → the identity is loaded.
+	// location — content-hashed, so an `immutable` cache never serves a stale one. The server reads it
+	// from the build handoff; a region the browser renders has none, and the runtime finds it in the
+	// build's location map (runtime/entry-locations.ts).
 	const location_of = (/** @type {string} */ identity) => {
 		const found = identity ? entryLocation(identity) : null;
 		return found ? asset(found) : '';
 	};
-	const island_src = $derived(nested || !island_entry ? '' : __src || location_of(island_entry));
+	const island_src = $derived(nested || !island_entry ? '' : location_of(island_entry));
 	// (written LAST on the element: every attribute before it keeps the order it had before
 	// locations, so HTML rewriters and scans keyed on `entry="…" wake="…"` still match)
 
@@ -688,7 +687,7 @@
 	// nav. The endpoint (which fetches the hole's HTML) is minted from `__entry` above, independently.
 	const server_region_entry = $derived(!nested && __module ? asset(__module) : '');
 	// …and its location, the file that import fetches (as for an island)
-	const server_region_src = $derived(!nested && __module ? __src || location_of(__module) : '');
+	const server_region_src = $derived(!nested && __module ? location_of(__module) : '');
 
 	// A hydrating hole's props: ADJACENT and self-contained (the hole's HTML is spliced by the
 	// runtime), unkeyed, in whichever lane the props qualify for (props-wire.ts).

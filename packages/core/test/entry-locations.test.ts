@@ -354,17 +354,9 @@ describe('Region writes the identity as `entry` and the location as `src`', () =
 		set_entry_locations({ [ENTRY]: '/chunks/Tiny.Zz99.js' });
 		expect(fp(render_island())).toBe(before);
 	});
-	it('the client wrapper’s location (`__src`) wins where the server has none', () => {
-		const out = render(region, {
-			props: {
-				__mode: 'island',
-				__entry: ENTRY,
-				__src: '/from/client.js',
-				__component: Tiny,
-				__props: {}
-			}
-		});
-		expect(attr(out.body, 'src')).toBe('/from/client.js');
+	it('no location in the handoff: no `src` (the browser finds it in the build’s location map)', () => {
+		set_entry_locations({});
+		expect(attr(render_island(), 'src')).toBeUndefined();
 	});
 });
 

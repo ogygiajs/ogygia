@@ -5745,6 +5745,29 @@ describe('standalone HTML export', () => {
 		// the map precedes the first module script
 		expect(out.indexOf('importmap')).toBeLessThan(out.indexOf('data-ogygia-runtime'));
 	});
+
+	it('a build’s island: its `src` is the file inlined (its `entry` is a name, no file); both name the key', async () => {
+		const files: Record<string, string> = {
+			'/_app/immutable/og-runtime.abc.js': 'export {};',
+			'/_app/immutable/og-region.aaaaaaaaaaaa.X1y2.js': 'export default 1;'
+		};
+		const asked: string[] = [];
+		const html =
+			'<html><head><script type="module" data-ogygia-runtime src="/_app/immutable/og-runtime.abc.js"></script></head>' +
+			'<body><ogygia-region entry="/_app/ogygia/og-region.aaaaaaaaaaaa.js" wake="load" src="/_app/immutable/og-region.aaaaaaaaaaaa.X1y2.js">hi</ogygia-region></body></html>';
+		const out = await build_standalone(html, {
+			page_url: 'http://h/__profiler/report/abc',
+			load: async (url) => (asked.push(new URL(url).pathname), files[new URL(url).pathname] ?? null)
+		});
+		const key = 'og://chunks/_app/immutable/og-region.aaaaaaaaaaaa.X1y2.js';
+		expect(out).toContain(`entry="${key}"`);
+		expect(out).toContain(`src="${key}"`);
+		expect(asked).not.toContain('/_app/ogygia/og-region.aaaaaaaaaaaa.js');
+		const map = JSON.parse(/<script type="importmap">([\s\S]*?)<\/script>/.exec(out)![1]) as {
+			imports: Record<string, string>;
+		};
+		expect(Object.keys(map.imports)).toContain(key);
+	});
 });
 
 describe('compare + history', () => {

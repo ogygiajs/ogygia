@@ -1658,7 +1658,7 @@ export function boot(
 	// What the lazy chunks use from the boot, handed over through the registry (./boot-link.ts).
 	link_boot();
 	for (const install of installers) install();
-	// An island whose file was gone (this page outlived its build) woke through its stable name:
+	// An island whose file was gone (this page outlived its build) woke on the current build's file:
 	// the devtools timeline and the beacon hear it (entry-locations.ts imports neither)
 	on_entry_fallback((report) => {
 		if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'entry.fallback', ...report });

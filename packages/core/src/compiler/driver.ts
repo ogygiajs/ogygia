@@ -1894,7 +1894,7 @@ export class Compiler {
 				map = result.map;
 				touched = true;
 
-				// Emit the island entry (and its stable-name shim) for any hydrate island discovered HERE
+				// Emit the island entry for any hydrate island discovered HERE
 				// that the buildStart prescan couldn't see — i.e. declared inside a library component
 				// (host outside the app's `src`). Without this no entry carries its identity: the handoff
 				// would have no location for the stable name SSR bakes into `<ogygia-region entry>`.

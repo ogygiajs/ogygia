@@ -150,14 +150,18 @@ By default, each build signs with a fresh random key, so a redeploy would orphan
 
 ### Island files after a deploy
 
-Files under `_app/immutable/` are cached for a year and never checked again, so every file ogygia serves there, the runtime and each island's code, is named after its content. A deploy that changes an island gives it a new file name, and a browser that visited earlier fetches the new file, while an island whose code did not change keeps its name and its cached copy stays valid.
+Files under `_app/immutable/` are cached for a year and never checked again, so every file ogygia writes there is named after its content: the runtime, each island's code, and the build's map of where each island's code is. A deploy that changes an island gives it a new file name, and a browser that visited earlier fetches the new file, while an island whose code did not change keeps its name and its cached copy stays valid.
 
-Each island also has a stable name, `og-region.<id>.js`, which is its identity: the `entry` attribute and every lookup use it, and the file the browser actually loads is in the region's `src` attribute. The stable name is also written out as a small file that points at the current build's file, and a page cached before this scheme existed loads its islands through it.
+Each island also has a stable name in its `entry` attribute, which every lookup uses. That name stays the same from build to build, and no file is served at it. The file the browser loads is in the region's `src` attribute, and an island that has no `src` (one the browser rendered itself, or one that arrived from a remote function) finds its file in the build's map.
+
+One file has a fixed name: `_app/ogygia.json`, next to SvelteKit's own `_app/version.json`. It holds the current build's map. Serve it the way you serve `version.json`, so that it is revalidated, never cached for long.
 
 When a cache serves an older page after a deploy:
 
 - If that build's files are still on your server or CDN, the page runs its own build's code throughout.
-- If they are gone, each island loads its stable name fresh and wakes on the current build's code, and the devtools Page tab and the profiler report name each island this happened to. The runtime file itself cannot recover this way, so keep the previous build's `_app/immutable/` files for as long as your HTML stays cached. The same applies to SvelteKit's own files.
+- If they are gone, each island reads `_app/ogygia.json` and wakes on the current build's code, and the devtools Page tab and the profiler report name each island this happened to. The runtime file itself cannot recover this way, so keep the previous build's `_app/immutable/` files for as long as your HTML stays cached. The same applies to SvelteKit's own files.
+
+A visitor who keeps a tab open across a deploy and then clicks a link gets the next page as a full page load, not a swap, because it comes from another build. Their islands then run on that build's runtime and code, never mixed with the old ones.
 
 Two settings make redeploys cheap:
 

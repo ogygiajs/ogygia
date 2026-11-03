@@ -31,7 +31,9 @@ const MODULEPRELOAD_RE = /<link\b[^>]*\brel=["']modulepreload["'][^>]*>/gi;
 const HREF_RE = /\bhref=["']([^"']+)["']/i;
 const MODULE_SCRIPT_RE =
 	/<script\b([^>]*\btype=["']module["'][^>]*)\bsrc=["']([^"']+)["']([^>]*)><\/script>/gi;
-const ENTRY_ATTR_RE = /(<ogygia-region\b[^>]*\bentry=["'])([^"']+)(["'])/gi;
+const REGION_TAG_RE = /<ogygia-region\b[^>]*>/gi;
+const REGION_ENTRY_RE = /((?<![\w-])entry=["'])([^"']+)(["'])/i;
+const REGION_SRC_RE = /((?<![\w-])src=["'])([^"']+)(["'])/i;
 /** a static or dynamic import of a RELATIVE specifier inside a built chunk — quoted, or a
  *  template literal with no interpolation (Vite emits `import(\`./chunks/x.js\`)`) */
 const IMPORT_RE = /((?:\bfrom|\bimport)\s*\(?\s*)(["'`])(\.{1,2}\/[^"'`$]+)\2/g;
@@ -126,12 +128,27 @@ export async function build_standalone(html: string, opts: StandaloneOptions): P
 		);
 		chunks.delete(key); // inlined, not in the map
 	}
-	// 4. island entries → og: keys (the runtime `import()`s the attribute)
+	// 4. island files → og: keys. The file is the region's `src` (its content-hashed location; the
+	// `entry` is a name, no file); `entry` and `src` both name its key, so the runtime finds it by
+	// either. A region with no `src` (a dev page) names its file by `entry`.
 	const entries: URL[] = [];
-	html = html.replace(ENTRY_ATTR_RE, (_, open: string, href: string, close: string) => {
-		const u = new URL(href, base);
+	html = html.replace(REGION_TAG_RE, (tag) => {
+		const src = REGION_SRC_RE.exec(tag)?.[2];
+		const file = src ?? REGION_ENTRY_RE.exec(tag)?.[2];
+		if (!file) return tag;
+		const u = new URL(file, base);
 		entries.push(u);
-		return `${open}${key_of(u)}${close}`;
+		const key = key_of(u);
+		let out = tag.replace(
+			REGION_ENTRY_RE,
+			(_m, open: string, _v: string, close: string) => open + key + close
+		);
+		if (src)
+			out = out.replace(
+				REGION_SRC_RE,
+				(_m, open: string, _v: string, close: string) => open + key + close
+			);
+		return out;
 	});
 	for (const u of entries) await add_chunk(u);
 

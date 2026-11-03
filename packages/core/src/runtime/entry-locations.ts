@@ -133,6 +133,11 @@ export function island_entry_of(el: Element): string | null {
  */
 const current_maps = new Map<string, Promise<Record<string, string> | null>>();
 
+/** A build's island identity (`…/<appDir>/ogygia/og-region.<id>.js`): a name, no file. */
+function is_build_identity(entry: string): boolean {
+	return absolute(entry).includes('/ogygia/og-region.');
+}
+
 async function current_location(entry: string): Promise<string | null> {
 	const identity = absolute(entry);
 	const dir = identity.lastIndexOf('/ogygia/og-region.');
@@ -175,8 +180,10 @@ function load_entry<T>(entry: string, url: string, recover = true): Promise<T> {
 	const loaded = import(/* @vite-ignore */ url) as Promise<T>;
 	if (!recover) return loaded;
 	return loaded.catch(async (error: unknown) => {
-		const current = await current_location(entry);
-		if (!current || current === url) throw error;
+		// a build's identity is a name: the current build's map names its file. Any other identity
+		// (the dev server's module) is a file itself, fetched fresh past the cache that failed.
+		const current = is_build_identity(entry) ? await current_location(entry) : absolute(entry);
+		if (!current || current === absolute(url)) throw error;
 		const retry = import(/* @vite-ignore */ current) as Promise<T>;
 		// said out loud: the page's HTML is one build, this island's code the current one (devtools'
 		// timeline, and the beacon — the Page tab and the profiler name it)

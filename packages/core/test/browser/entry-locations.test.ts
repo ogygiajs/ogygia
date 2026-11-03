@@ -131,6 +131,14 @@ describe('import_entry: the location, then the current build’s, once', () => {
 		expect(requested(CURRENT_MAP)).toHaveLength(1); // read once for the document
 	});
 
+	test('not a build’s identity (the dev server’s module), its location failing: the module itself', async () => {
+		const identity = IDENTITY + '?t=3';
+		note_entry_location(identity, '/test/browser/fixtures/gone-Qq11Rr22.js');
+		const m = await import_entry<{ default: string }>(identity);
+		expect(m.default).toBe('identity');
+		expect(requested('gone-Qq11Rr22.js')).toHaveLength(1);
+	});
+
 	test('not a build’s identity (the dev server’s module): itself, and its failure stands', async () => {
 		const maps = requested(CURRENT_MAP).length;
 		await expect(import_entry('/test/browser/fixtures/gone-Cc33Dd44.js')).rejects.toThrow();

@@ -1280,7 +1280,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 				// The whole per-file pass — content-preset tag ▸ macros ▸ host-island transform ▸ ts-region
 				// mint ▸ $app shim — is the driver's; `this.emitFile` (the one Vite primitive it needs, for
-				// the transform-time island entry and its stable-name shim) is threaded in. The driver's result is
+				// the transform-time island entry) is threaded in. The driver's result is
 				// bundler-neutral (`map: unknown`); cast it to Vite's transform shape at this boundary.
 				const result = await compiler.transform_module(source, id, {
 					ssr: options?.ssr === true,

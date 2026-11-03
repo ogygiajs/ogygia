@@ -268,14 +268,56 @@ const ASSET_ATTR_RE = /\b(entry|endpoint|href|src)="([^"]+)"/g;
 const ASSET_PATH_RE = /(?:^|\/)(_app|og)\//;
 const ASSET_EXT_RE = /\.(js|css|woff2?)(\?|$)/;
 
-/** Pin ASSET refs (island entries, stylesheets, chunks) to `origin`; app-local LINKS stay
- *  path-relative — the consuming shell owns the address space they resolve in. */
+/** One asset ref pinned to `origin`; an app-local link (or an absolute URL) as it is. */
+function pin_asset(value: string, origin: string): string {
+	if (ABSOLUTE_RE.test(value)) return value;
+	if (!ASSET_PATH_RE.test(value) && !ASSET_EXT_RE.test(value)) return value;
+	return new URL(value, origin + '/').href;
+}
+
+const GRAPH_SCRIPT_RE =
+	/(<script type="application\/json" data-ogygia-graph>)([\s\S]*?)(<\/script>)/g;
+
+/** An island graph's JSON (core island-graph.ts: `{h, e, s}`), every chunk, entry and location in
+ *  it pinned to `origin`: the shell's runtime resolves them against ITS page otherwise, so a remote
+ *  island's preloads and its portable snippets' locations would name the shell's files. */
+function pin_graph(json: string, origin: string): string {
+	let wire: { h?: unknown; e?: unknown; s?: unknown };
+	try {
+		wire = JSON.parse(json);
+	} catch {
+		return json;
+	}
+	const pin_keys = (o: unknown) =>
+		o && typeof o === 'object'
+			? Object.fromEntries(Object.entries(o).map(([k, v]) => [pin_asset(k, origin), v]))
+			: o;
+	if (Array.isArray(wire.h))
+		wire.h = wire.h.map((h) => (typeof h === 'string' ? pin_asset(h, origin) : h));
+	wire.e = pin_keys(wire.e);
+	if (wire.s && typeof wire.s === 'object')
+		wire.s = Object.fromEntries(
+			Object.entries(wire.s).map(([k, v]) => [
+				pin_asset(k, origin),
+				typeof v === 'string' ? pin_asset(v, origin) : v
+			])
+		);
+	// (as the core writes it: `<` escaped, so the text can never close its script)
+	return JSON.stringify(wire).replaceAll('<', '\\u003C');
+}
+
+/** Pin ASSET refs (island entries, stylesheets, chunks, the island graph) to `origin`; app-local
+ *  LINKS stay path-relative — the consuming shell owns the address space they resolve in. */
 export function absolutize(html: string, origin: string): string {
-	return html.replace(ASSET_ATTR_RE, (_m, attr: string, value: string) => {
-		if (ABSOLUTE_RE.test(value)) return `${attr}="${value}"`;
-		if (!ASSET_PATH_RE.test(value) && !ASSET_EXT_RE.test(value)) return `${attr}="${value}"`;
-		return `${attr}="${new URL(value, origin + '/').href}"`;
-	});
+	return html
+		.replace(
+			ASSET_ATTR_RE,
+			(_m, attr: string, value: string) => `${attr}="${pin_asset(value, origin)}"`
+		)
+		.replace(
+			GRAPH_SCRIPT_RE,
+			(_m, open: string, json: string, close: string) => open + pin_graph(json, origin) + close
+		);
 }
 
 // ── document lifting (an app's full HTML → the wire document) ────────────────────────────────
