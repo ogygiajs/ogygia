@@ -83,9 +83,9 @@ describe('the signing key', () => {
 	});
 });
 
-// `handle({ secret })`: a host whose server never sees its runtime env (the field host read only a
-// deploy-written `.env` with two variables) signed every build with its own random key, so a page a
-// CDN held across a deploy had its holes refused at renewal (foreign-key) until a purge.
+// `handle({ secret })`: a host whose server never sees its runtime env signed every build with its own
+// random key, so a page a CDN held across a deploy had its holes refused at renewal (foreign-key)
+// until a purge.
 describe('handle({ secret })', () => {
 	it('wins over OGYGIA_SECRET and the build key, and is stable', () => {
 		vi.stubEnv('OGYGIA_SECRET', 'the-env-secret');
