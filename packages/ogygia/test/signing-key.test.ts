@@ -11,7 +11,9 @@ vi.mock('virtual:ogygia/sign', () => ({
 	region_mac_message: (...parts: unknown[]) => parts.join('|')
 }));
 
-const { signing_key, key_fingerprint, reset_signing_key } = await import('../src/server/signing-key.js');
+const { signing_key, key_fingerprint, reset_signing_key, configure_signing_secret } = await import(
+	'../src/server/signing-key.js'
+);
 
 const WARNED = Symbol.for('ogygia.build-key-warned');
 const g = globalThis as Record<symbol, unknown>;
@@ -78,5 +80,103 @@ describe('the signing key', () => {
 		signing_key();
 		expect(warn).not.toHaveBeenCalled();
 		expect(error).not.toHaveBeenCalled();
+	});
+});
+
+// `handle({ secret })`: a host whose server never sees its runtime env signed every build with its own
+// random key, so a page a CDN held across a deploy had its holes refused at renewal (foreign-key)
+// until a purge.
+describe('handle({ secret })', () => {
+	it('wins over OGYGIA_SECRET and the build key, and is stable', () => {
+		vi.stubEnv('OGYGIA_SECRET', 'the-env-secret');
+		configure_signing_secret('the-app-secret');
+		const key = signing_key();
+		expect(key.secret).toBe('the-app-secret');
+		expect(key.stable).toBe(true);
+		expect(key.source).toBe('option');
+	});
+
+	it('signs as the same value in OGYGIA_SECRET does: one fingerprint, either path', () => {
+		vi.stubEnv('OGYGIA_SECRET', 'one-shared-secret');
+		const from_env = signing_key().fp;
+		reset_signing_key();
+		vi.stubEnv('OGYGIA_SECRET', '');
+		configure_signing_secret('one-shared-secret');
+		expect(signing_key().fp).toBe(from_env);
+	});
+
+	it('a blank secret counts as none', () => {
+		vi.stubEnv('OGYGIA_SECRET', 'the-env-secret');
+		configure_signing_secret('');
+		configure_signing_secret('   ');
+		configure_signing_secret(undefined);
+		expect(signing_key().source).toBe('env');
+	});
+
+	it('a production server signing with it is silent', () => {
+		vi.stubEnv('DEV', false);
+		vi.stubEnv('OGYGIA_SECRET', '');
+		build.buildHadSecret = true;
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+		configure_signing_secret('the-app-secret');
+		signing_key();
+		expect(warn).not.toHaveBeenCalled();
+		expect(error).not.toHaveBeenCalled();
+	});
+
+	it('reaches every copy of the module in the process', async () => {
+		vi.stubEnv('OGYGIA_SECRET', '');
+		configure_signing_secret('the-app-secret');
+		vi.resetModules();
+		const copy = await import('../src/server/signing-key.js');
+		expect(copy.signing_key).not.toBe(signing_key);
+		expect(copy.signing_key().secret).toBe('the-app-secret');
+		// (and the key a copy decides is the one every copy signs with)
+		expect(signing_key()).toBe(copy.signing_key());
+	});
+
+	it('the same secret again (the hooks re-evaluated) is a no-op', () => {
+		configure_signing_secret('the-app-secret');
+		signing_key();
+		expect(() => configure_signing_secret('the-app-secret')).not.toThrow();
+		expect(signing_key().secret).toBe('the-app-secret');
+	});
+
+	it('another secret after the key is decided throws in dev, naming fingerprints only', () => {
+		vi.stubEnv('OGYGIA_SECRET', 'the-env-secret');
+		signing_key();
+		let thrown = '';
+		try {
+			configure_signing_secret('a-later-secret');
+		} catch (e) {
+			thrown = String(e);
+		}
+		expect(thrown).toContain(`already signs with key ${key_fingerprint('the-env-secret')} (from OGYGIA_SECRET`);
+		expect(thrown).not.toContain('a-later-secret');
+		expect(thrown).not.toContain('the-env-secret');
+		expect(signing_key().secret).toBe('the-env-secret');
+	});
+
+	it('another secret after the key is decided is logged in production, and the key stays', () => {
+		vi.stubEnv('DEV', false);
+		vi.stubEnv('OGYGIA_SECRET', '');
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+		signing_key();
+		configure_signing_secret('a-later-secret');
+		expect(error).toHaveBeenCalledTimes(1);
+		expect(String(error.mock.calls[0][0])).toContain("from this build's random key");
+		expect(signing_key().secret).toBe('build-random-key');
+	});
+
+	it('two handles with different secrets: the first stays', () => {
+		vi.stubEnv('DEV', false);
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+		configure_signing_secret('the-first-secret');
+		configure_signing_secret('the-second-secret');
+		expect(error).toHaveBeenCalledTimes(1);
+		expect(String(error.mock.calls[0][0])).toContain('from another handle({ secret })');
+		expect(signing_key().secret).toBe('the-first-secret');
 	});
 });
