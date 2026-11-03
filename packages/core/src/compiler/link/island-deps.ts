@@ -894,13 +894,13 @@ export function island_deps_module(
 		`}\n` +
 		// IDENTITY → LOCATION: the content-hashed file an entry (an island's stable URL, the runtime's)
 		// is served from. `null` = no location known (a handoff from before hashing, a foreign island):
-		// the identity itself is loaded — its stable-name shim, which reaches the current build.
+		// the identity itself is written, and the browser finds it in the build's location maps.
 		`export function entryLocation(identity) {\n` +
 		`  const m = load().entries;\n` +
 		`  const v = m && typeof m === 'object' && identity ? m[identity] : null;\n` +
 		`  return typeof v === 'string' ? v : null;\n` +
 		`}\n` +
-		// The build's location map (link/entry-shim.ts), as the file the browser reads: its served
+		// The build's content-hashed location map (link/location-map.ts), the file the browser reads: its served
 		// path, base-less (`asset()` adds it), or null (no island, a handoff from before it).
 		`export function locationMap() {\n` +
 		`  const v = load().locations;\n` +

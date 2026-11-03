@@ -1,23 +1,25 @@
-// THE CACHE CHECK — island entries and the runtime are content-hashed, so an `immutable` cache can
-// never serve last build's code after a deploy. Two REAL builds of the devtools lab (adapter-node, the
-// headers a deploy sends: `public,max-age=31536000,immutable`), one change between them
+// THE CACHE CHECK — every file the build writes under `immutable/` is named by its content, so an
+// `immutable` cache can never serve last build's code after a deploy; an island's identity is a name,
+// not a file, and the one file at a fixed name is the current build's location map
+// (`_app/ogygia.json`). Two REAL builds of the devtools lab (adapter-node, the headers a
+// deploy sends: `public,max-age=31536000,immutable`), one change between them
 // (src/lib/dtcache/version.ts, a module two islands and a hole share), and a browser that KEEPS ITS
 // DISK CACHE across both. Every scenario a deploy meets:
 //
 //   names      — only what changed gets a new name: the islands that import the changed module, and
 //                only them; an untouched island and the runtime keep theirs (their cache stays good)
-//   deploy     — a browser that loaded build 1 reloads under build 2: every island runs build 2
-//   poisoned   — the browser holds build 1's STABLE-name file in its cache: build 2's page never asks
-//                for it (it loads locations), so it cannot be served stale
-//   stable     — the stable names live outside `immutable/` (`_app/ogygia/`): the host does not serve
-//                them immutable, and a page asking by them runs build 2 although the browser holds
-//                build 1's copies
+//   deploy     — a browser that loaded build 1 reloads under build 2: every island runs build 2, and
+//                no identity is ever asked for
+//   deploy-nav — build 1's document follows a link into build 2: the router loads it as a document
+//                (its islands on its own build); within one build a link still swaps
+//   current    — the current build's map is not served immutable, and a page that names no location
+//                runs build 2 through it although the browser read build 1's copy
 //   stale-kept — a cache serves build 1's HTML while build 2 is live and build 1's files are still
 //                on the origin: build 1's islands run build 1 (consistent), the live hole runs build 2
-//   stale-gone — the same, with build 1's files deleted: each island falls back to its stable name
-//                fetched fresh and runs build 2 — none is left dead
-//   pre-hash   — a page from before content hashing (no `src`, the runtime by its stable name): the
-//                stable-name shims carry it to build 2's code
+//   stale-gone — the same, with build 1's files deleted: each island finds build 2's file through the
+//                current map and runs it — none is left dead
+//   alone      — regions with an identity alone (no `src`): each loads its file through the build's
+//                content-hashed map, read once
 //   refetched  — a proxy in front rewrites `_app/immutable/` to `no-cache`: a returning visitor's
 //                browser revalidates every file it has, and the profiler's report names them (the
 //                runtime first); the same visit straight to the server is quiet
@@ -73,7 +75,16 @@ function build(version, name = version) {
 	return { dir: out, entries: handoff.entries ?? {} };
 }
 
+/** Every server this run started and has not stopped (killed on the way out, whatever happened). */
+const children = new Set();
 async function serve(dir, port = PORT) {
+	// a server left on the port (a run that died mid-way) would answer for this one, and every check
+	// after would read another build than it names
+	const busy = await fetch(`http://127.0.0.1:${port}/`).then(
+		() => true,
+		() => false
+	);
+	if (busy) throw new Error(`port ${port} already serves something: stop it first`);
 	const child = spawn(process.execPath, [dir], {
 		env: {
 			...process.env,
@@ -84,6 +95,8 @@ async function serve(dir, port = PORT) {
 		},
 		stdio: 'ignore'
 	});
+	children.add(child);
+	child.once('exit', () => children.delete(child));
 	for (let i = 0; i < 60; i++) {
 		try {
 			await fetch(`http://127.0.0.1:${port}/`);
@@ -133,15 +146,11 @@ async function page_with_document(context, html) {
 const identity = (name) => Object.keys(name).sort();
 
 /** A page as it was before content hashing: no region `src`, the runtime by its stable name. */
-function strip_locations(html, runtime_id, runtime_loc) {
-	return (
-		html
-			.replace(/(<ogygia-region[^>]*?) src="[^"]*"/g, '$1')
-			// (a page from before hashing named no location map either)
-			.replace(/ data-og-locations="[^"]*"/g, '')
-			.split(runtime_loc)
-			.join(runtime_id)
-	);
+/** A page that names no island location and no location map of its own (its runtime stays). */
+function strip_locations(html) {
+	return html
+		.replace(/(<ogygia-region[^>]*?) src="[^"]*"/g, '$1')
+		.replace(/ data-og-locations="[^"]*"/g, '');
 }
 try {
 	console.log('building three times…');
@@ -247,21 +256,55 @@ try {
 		Object.entries(two.entries).every(readable),
 		`${ids.find((k) => k.includes('og-region'))} → ${two.entries[ids.find((k) => k.includes('og-region'))]}`
 	);
-	const shim = fs.readFileSync(
-		path.join(
-			two.dir,
-			'client',
-			ids.find((k) => k.includes('og-region'))
-		),
-		'utf8'
-	);
-	const shim_id = ids.find((k) => k.includes('og-region'));
-	const shim_to = path.posix.relative(path.posix.dirname(shim_id), two.entries[shim_id]);
-	check(
-		'a stable name is a plain re-export of its location',
-		shim === `export * from "${shim_to}";\nexport { default } from "${shim_to}";\n`,
-		shim.split('\n')[0]
-	);
+	// THE IMMUTABLE LAW, over the two real builds: no file under `immutable/` keeps its name while its
+	// content changes (a host serves it for a year by that name). Every file, ogygia's or not.
+	{
+		const files = (root) => {
+			const out = new Map();
+			const walk = (d) => {
+				for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+					const p = path.join(d, e.name);
+					if (e.isDirectory()) walk(p);
+					else out.set(path.relative(root, p), p);
+				}
+			};
+			walk(root);
+			return out;
+		};
+		const a = files(path.join(one.dir, 'client/_app/immutable'));
+		const b = files(path.join(two.dir, 'client/_app/immutable'));
+		const broken = [...b.keys()].filter(
+			(f) => a.has(f) && !fs.readFileSync(a.get(f)).equals(fs.readFileSync(b.get(f)))
+		);
+		check(
+			'immutable/: no file keeps its name with new content (across the two builds)',
+			broken.length === 0 && b.size > 0,
+			broken.length ? broken.slice(0, 4).join(', ') : `${b.size} files, ${a.size} before`
+		);
+	}
+	// an identity is a name, never a file: the one file at a fixed name is the current build's map,
+	// beside Kit's own `version.json`; ogygia writes no directory of its own
+	{
+		const client = path.join(two.dir, 'client/_app');
+		const top = fs.readdirSync(client, { withFileTypes: true });
+		const dirs = top.filter((e) => e.isDirectory()).map((e) => e.name);
+		const loose = top.filter((e) => e.isFile()).map((e) => e.name);
+		check(
+			'outside immutable/: only Kit’s version.json and the current build’s map; no ogygia directory',
+			!dirs.includes('ogygia') &&
+				loose.includes('ogygia.json') &&
+				loose.every((f) => /^(version|ogygia)\.json(\.br|\.gz)?$/.test(f)),
+			`dirs: ${dirs.join(', ')} · files: ${loose.join(', ')}`
+		);
+		const current = JSON.parse(fs.readFileSync(path.join(client, 'ogygia.json'), 'utf8'));
+		const island = ids.find((k) => k.includes('og-region'));
+		const key = './ogygia/' + island.split('/').pop();
+		check(
+			'the current build’s map names each island’s file',
+			new URL(current[key], 'http://x/_app/ogygia.json').pathname === two.entries[island],
+			`${island} → ${current[key]}`
+		);
+	}
 
 	const browser_dir = path.join(tmp, 'profile');
 	const context = await chromium.launchPersistentContext(browser_dir, {
@@ -284,14 +327,68 @@ try {
 			before.steady === 'steady',
 		JSON.stringify(before)
 	);
-	// poison: put build 1's STABLE-name file for every island into the immutable cache
-	await page.evaluate(
-		async (urls) => Promise.all(urls.map((u) => fetch(u).then((r) => r.text()))),
-		island_ids.map((i) => BASE + i)
-	);
 	await stop(server);
 
 	server = await serve(two.dir);
+	// DEPLOY-NAV: build 1's document, still open, follows a link once build 2 is live. The next page
+	// names another runtime and location map: the router loads it as a document (its islands on its
+	// own build) instead of swapping it into build 1's runtime.
+	{
+		await page.evaluate(() => {
+			(window as unknown as { __og_doc: number }).__og_doc = 1;
+			const a = document.createElement('a');
+			a.href = '/dt-cache?after-deploy';
+			a.id = 'og-deploy-nav';
+			a.textContent = 'next';
+			document.body.append(a);
+		});
+		// (the router updates the address before it fetches: a matched URL can still be build 1's
+		// document, so wait for the new document itself — or give up, and the check says swapped)
+		const new_document = page
+			.waitForEvent('domcontentloaded', { timeout: 15_000 })
+			.then(() => page.waitForLoadState('load'))
+			.catch(() => {});
+		await page.click('#og-deploy-nav');
+		await new_document;
+		await page.waitForURL('**/dt-cache?after-deploy');
+		const nav = await ran(page);
+		const loaded = await page.evaluate(
+			() => (window as unknown as { __og_doc?: number }).__og_doc === undefined
+		);
+		check(
+			'deploy-nav: a link from a build-1 page into build 2 loads the document, on build 2',
+			loaded && nav.probe === 'v2' && nav.twin === 'v2' && nav.steady === 'steady',
+			`${loaded ? 'loaded' : 'swapped'} · ${JSON.stringify(nav)}`
+		);
+		// …and within one build, a link still swaps (the check is not a reload on every link)
+		await page.evaluate(() => {
+			(window as unknown as { __og_doc: number }).__og_doc = 2;
+			const a = document.createElement('a');
+			a.href = '/dt-cache?same-build';
+			a.id = 'og-same-nav';
+			a.textContent = 'again';
+			document.body.append(a);
+			// the router's own "navigation done" (a document load would replace this listener)
+			const w = window as unknown as { __og_nav?: Promise<void> };
+			w.__og_nav = new Promise((done) =>
+				document.addEventListener('og:page-load', () => done(), { once: true })
+			);
+		});
+		await page.click('#og-same-nav');
+		await page.waitForURL('**/dt-cache?same-build');
+		await page
+			.waitForFunction(() => (window as unknown as { __og_nav?: Promise<void> }).__og_nav, null, {
+				timeout: 15_000
+			})
+			.catch(() => {});
+		await page.evaluate(() => (window as unknown as { __og_nav?: Promise<void> }).__og_nav);
+		await ran(page);
+		const kept = await page.evaluate(
+			() => (window as unknown as { __og_doc?: number }).__og_doc === 2
+		);
+		check('deploy-nav: within one build, a link swaps the page', kept, kept ? 'swapped' : 'loaded');
+		await page.goto(BASE + '/dt-cache', { waitUntil: 'load' });
+	}
 	const stable_hits = [];
 	page.on(
 		'request',
@@ -305,38 +402,31 @@ try {
 		JSON.stringify(after)
 	);
 	check(
-		'poisoned: build 2 never asks for a stable name (the stale copy is never used)',
+		'deploy: no identity is ever asked for (an identity is a name, not a file)',
 		stable_hits.length === 0,
 		`${stable_hits.length} requests`
 	);
-	// STABLE NAMES REVALIDATE: the same browser, holding build 1's copies of every stable name, asked
-	// by those names (the scheme before hashing; a fallback load). They live outside `immutable/`, so
-	// the host serves them as it serves any changing file and the browser revalidates: build 2 runs.
-	// When they lived under `immutable/`, this page ran build 1 from the year-long cache. (The cache is
-	// real: "served as built (immutable), the same return visit is quiet" below proves it.)
+	// THE CURRENT BUILD'S MAP, the one file at a fixed name: outside `immutable/`, so the host serves it
+	// as any changing file. The same browser — which read build 1's copy of it — on a page that names
+	// no location and no map of its own: every island loads build 2's file through it.
 	// (the page is a static file the server serves, never a routed response: Playwright turns the
 	// HTTP cache off for a page with a route, and this check is about that cache)
 	{
-		const shim_head = await fetch(BASE + ids.find((k) => k.includes('og-region')), {
-			method: 'HEAD'
-		});
+		const map_head = await fetch(BASE + '/_app/ogygia.json', { method: 'HEAD' });
 		check(
-			'stable names: the host does not serve them immutable',
-			!/immutable/.test(shim_head.headers.get('cache-control') ?? ''),
-			shim_head.headers.get('cache-control') ?? '(no cache-control)'
+			'current map: the host does not serve it immutable',
+			map_head.ok && !/immutable/.test(map_head.headers.get('cache-control') ?? ''),
+			`${map_head.status} ${map_head.headers.get('cache-control') ?? '(no cache-control)'}`
 		);
 		const html2_live = await (await fetch(BASE + '/dt-cache')).text();
 		await stop(server);
-		fs.writeFileSync(
-			path.join(two.dir, 'client/og-control.html'),
-			strip_locations(html2_live, runtime_id, two.entries[runtime_id])
-		);
+		fs.writeFileSync(path.join(two.dir, 'client/og-control.html'), strip_locations(html2_live));
 		server = await serve(two.dir);
 		const control = await context.newPage();
 		await control.goto(BASE + '/og-control.html', { waitUntil: 'load' });
 		const c = await ran(control);
 		check(
-			'stable names: a browser holding build 1’s copies still runs build 2',
+			'current map: a page that names no location runs build 2 through it',
 			c.probe === 'v2' && c.twin === 'v2',
 			JSON.stringify(c)
 		);
@@ -376,7 +466,7 @@ try {
 	await gone.goto(BASE + '/dt-cache', { waitUntil: 'load' });
 	const g = await ran(gone);
 	check(
-		'stale-gone: each island falls back to its stable name, fresh, and runs build 2 (none left dead)',
+		'stale-gone: each island finds build 2’s file through the current map, and runs it (none left dead)',
 		g.probe === 'v2' && g.twin === 'v2' && g.steady === 'steady' && g.hole === 'v2',
 		JSON.stringify(g)
 	);
@@ -606,41 +696,7 @@ try {
 		);
 	}
 
-	// ── a page from before content hashing ──────────────────────────────────────────────────────
 	const html2 = await (await fetch(BASE + '/dt-cache')).text();
-	const runtime_loc = two.entries[runtime_id];
-	const pre_hash = strip_locations(html2, runtime_id, runtime_loc);
-	check(
-		'pre-hash: the rewritten page carries no location',
-		!/<ogygia-region[^>]* src="/.test(pre_hash) && !pre_hash.includes(runtime_loc)
-	);
-	const old_ctx = await chromium.launchPersistentContext(path.join(tmp, 'profile-old'), {
-		viewport: { width: 1280, height: 900 }
-	});
-	const old_errors = [];
-	const old = await page_with_document(old_ctx, pre_hash);
-	old.on('pageerror', (e) => old_errors.push(e.message));
-	const shim_loads = [];
-	old.on(
-		'response',
-		(r) =>
-			(/og-region\.[0-9a-f]{12}\.js/.test(r.url()) || r.url().includes('og-runtime.')) &&
-			shim_loads.push(r.status())
-	);
-	await old.goto(BASE + '/dt-cache', { waitUntil: 'load' });
-	const o = await ran(old);
-	check(
-		'pre-hash: the stable-name shims carry it to build 2',
-		o.probe === 'v2' && o.twin === 'v2' && o.steady === 'steady',
-		JSON.stringify(o)
-	);
-	check(
-		'pre-hash: its runtime and islands loaded through the shims, all 200',
-		shim_loads.length >= 4 && shim_loads.every((s) => s === 200),
-		shim_loads.join(',')
-	);
-	check('pre-hash: no uncaught error', old_errors.length === 0, old_errors.slice(0, 2).join(' | '));
-	await old_ctx.close();
 
 	// ── regions with an identity alone (the browser rendered them, or they came over the wire) ──
 	// The build's page, every region's `src` dropped and nothing else: the runtime's script still
@@ -684,6 +740,8 @@ try {
 	);
 	await context.close();
 } finally {
+	// (a run that throws mid-way leaves no server behind on the port for the next one)
+	for (const child of children) child.kill();
 	fs.writeFileSync(version_file, original_version);
 	fs.rmSync(tmp, { recursive: true, force: true });
 }

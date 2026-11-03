@@ -532,6 +532,19 @@ function preflight(doc: Document, dest: URL) {
 	page_seed_of(doc);
 }
 
+/**
+ * Which client build a document belongs to: its runtime script's file and its location map's
+ * (server/document-tail.ts `runtime_bootstrap_tags`) — both content-hashed, so a deploy that changed
+ * any island, Svelte or the runtime names another. By file name: a `src` written relative to its
+ * page reads the same from any address. Null: the document names no runtime (no island on it).
+ */
+function build_of(d: Document): string | null {
+	const s = d.querySelector('script[data-ogygia-runtime]');
+	if (!s) return null;
+	const file = (v: string | null) => (v ? v.slice(v.lastIndexOf('/') + 1) : '');
+	return file(s.getAttribute('src')) + ' ' + file(s.getAttribute('data-og-locations'));
+}
+
 // NOTE: the library does NO script processing. Scripts inserted via a client-side body swap do
 // not execute (standard browser behaviour for parsed/adopted <script> nodes) — if you need code
 // to run per navigation, use an island. Our own runtime module script is marked
@@ -655,6 +668,13 @@ export async function navigate(
 	// (and stop SPA behaviour from here on).
 	const marker = doc.querySelector('meta[name="ogygia-router"]');
 	if (!marker) return hand_off();
+	// ANOTHER BUILD: the next page names another runtime or location map than the ones running here
+	// (a deploy since this document loaded). Its islands were built against that build's runtime and
+	// Svelte; woken by this document's runtime, two copies of each would meet on one page. A document
+	// navigation loads it whole, on its own build.
+	const next_build = build_of(doc);
+	const this_build = next_build === null ? null : build_of(document);
+	if (this_build !== null && next_build !== this_build) return hand_off();
 	// A page whose custom elements are in the app transform's FIRST-LOAD form (served from a store,
 	// a prerender, or a cache that held the full-load copy — the server renders a router fetch as an
 	// answer otherwise): only each component's own first hydrate reads that form, and swapped into

@@ -193,6 +193,8 @@ export function warm_island_module(
 ): void {
 	const url = island_module_url(entry, base);
 	if (!url) return;
+	// a build's identity with no known location names no file: the load finds it (import_entry)
+	if (!entry_location(entry, base) && url.includes('/ogygia/og-region.')) return;
 	const key = warm_key(url);
 	if (warmed_modules.has(key)) return;
 	warmed_modules.add(key);

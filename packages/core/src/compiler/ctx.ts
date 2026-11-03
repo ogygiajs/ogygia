@@ -275,7 +275,7 @@ export class CompileCtx {
 	}
 
 	/** The runtime's STABLE name (`RUNTIME_HASH` ⊕ its features): its identity — the key the handoff
-	 *  maps to the content-hashed file the page loads — and the name of that file's shim. Computed here
+	 *  maps to the content-hashed file the page loads (a name, not a file). Computed here
 	 *  (not the caller) so both build legs name it identically. `program_feature_hash` is
 	 *  `Program.runtime_feature_hash`, threaded in by the caller so this stays a pure naming function. */
 	runtime_chunk_filename(program_feature_hash: string): string {

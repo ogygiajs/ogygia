@@ -310,9 +310,9 @@ export const STABLE_NAME_DIR = 'ogygia';
 
 /**
  * Deterministic client path of a hydrate island's stable name (mirrors the runtime's). SSR bakes it
- * into `<ogygia-region entry>` as the island's identity; the file is a shim of the content-hashed
- * entry (link/entry-shim.ts) — Kit builds server before client, so hashed names reach the server only
- * through the handoff.
+ * into `<ogygia-region entry>` as the island's identity — a name, not a file: the content-hashed
+ * entry is found through the handoff (the server) and the location maps (the browser,
+ * link/location-map.ts), since Kit builds server before client.
  */
 export function islandChunkFileName(iid: string, appDir = '_app') {
 	return `${appDir}/${STABLE_NAME_DIR}/og-region.${iid}.js`;

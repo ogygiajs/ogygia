@@ -17,11 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { render } from 'svelte/server';
 import type { Component } from 'svelte';
-import {
-	island_shim_source,
-	location_map_file,
-	runtime_shim_source
-} from '../src/compiler/link/entry-shim.ts';
+import { location_map_files } from '../src/compiler/link/location-map.ts';
 import {
 	collectIslandDepModulepreloads,
 	island_deps_module
@@ -48,55 +44,42 @@ afterEach(() => {
 	set_island_deps({});
 });
 
-// ── the stable-name shims ────────────────────────────────────────────────────────────────────────
-describe('the stable-name shim: a plain static re-export of its location', () => {
-	it('an island shim re-exports every export and the default, by a relative path', () => {
-		expect(
-			island_shim_source('_app/immutable/og-region.abc.js', '_app/immutable/chunks/Ab12.js')
-		).toBe('export * from "./chunks/Ab12.js";\nexport { default } from "./chunks/Ab12.js";\n');
-	});
-	it('wherever the bundler puts the location (an entry dir, a custom appDir, a deeper shim)', () => {
-		expect(
-			island_shim_source(
-				'_app/immutable/og-region.abc.js',
-				'_app/immutable/entry/og-region.abc.X1.js'
-			)
-		).toContain('"./entry/og-region.abc.X1.js"');
-		expect(
-			island_shim_source('my/app/immutable/og-region.abc.js', 'my/app/immutable/chunks/Q.js')
-		).toContain('"./chunks/Q.js"');
-		expect(
-			island_shim_source('_app/immutable/deep/og-region.abc.js', '_app/immutable/chunks/Q.js')
-		).toContain('"../chunks/Q.js"');
-	});
-	it('the runtime shim runs the runtime (it has no exports)', () => {
-		expect(
-			runtime_shim_source('_app/immutable/og-runtime.1234.js', '_app/immutable/chunks/Rt.js')
-		).toBe('import "./chunks/Rt.js";\n');
-	});
-	it('the build’s location map: every stable name → its hashed file, both relative to the map, content-hashed', () => {
-		const hash = (s: string) => String(s.length);
-		const file = location_map_file(
-			'_app/immutable',
-			[['_app/ogygia/og-region.abc.js', '_app/immutable/og-region.abc.X1y2Z3a4.js']],
-			hash
-		)!;
-		const map = JSON.parse(file.source);
-		expect(map).toEqual({ '../ogygia/og-region.abc.js': './og-region.abc.X1y2Z3a4.js' });
+// ── the location maps ────────────────────────────────────────────────────────────────────────────
+describe('the location maps: one map, named by its content and at the one fixed name', () => {
+	const hash = (s: string) => String(s.length);
+	const pairs = [
+		['_app/ogygia/og-region.abc.js', '_app/immutable/og-region.abc.X1y2Z3a4.js']
+	] as const;
+
+	it('the content-hashed map: each identity → its hashed file, both relative to the map', () => {
+		const [hashed] = location_map_files('_app', pairs, hash);
+		expect(JSON.parse(hashed.source)).toEqual({
+			'../ogygia/og-region.abc.js': './og-region.abc.X1y2Z3a4.js'
+		});
 		// named by its content: another build's map is another file (any host's immutable rule fits)
-		expect(file.fileName).toBe(`_app/immutable/og-locations.${hash(file.source)}.json`);
-		// resolved against where it is served, both sides land where the build put them
-		const served = 'https://cdn.test/docs/_app/immutable/og-locations.x.json';
-		expect(new URL('../ogygia/og-region.abc.js', served).href).toBe(
+		expect(hashed.fileName).toBe(`_app/immutable/og-locations.${hash(hashed.source)}.json`);
+	});
+
+	it('the current build’s map: at the one fixed name, beside Kit’s version.json, outside immutable/', () => {
+		const [, current] = location_map_files('_app', pairs, hash);
+		expect(current.fileName).toBe('_app/ogygia.json');
+		expect(JSON.parse(current.source)).toEqual({
+			'./ogygia/og-region.abc.js': './immutable/og-region.abc.X1y2Z3a4.js'
+		});
+	});
+
+	it('resolved against where it is served, both sides land where the build put them', () => {
+		const served = 'https://cdn.test/docs/_app/ogygia.json';
+		expect(new URL('./ogygia/og-region.abc.js', served).href).toBe(
 			'https://cdn.test/docs/_app/ogygia/og-region.abc.js'
 		);
-		expect(location_map_file('_app/immutable', [], hash)).toBeNull();
+		expect(new URL('./immutable/og-region.abc.X1y2Z3a4.js', served).href).toBe(
+			'https://cdn.test/docs/_app/immutable/og-region.abc.X1y2Z3a4.js'
+		);
 	});
-	it('the shim names no bundler magic (no import.meta file URLs, no top-level await)', () => {
-		const src =
-			island_shim_source('_app/immutable/og-region.abc.js', '_app/immutable/chunks/Ab12.js') +
-			runtime_shim_source('a/og-runtime.js', 'a/chunks/R.js');
-		expect(src).not.toMatch(/import\.meta|await /);
+
+	it('nothing to map, no file', () => {
+		expect(location_map_files('_app', [], hash)).toEqual([]);
 	});
 });
 
@@ -529,34 +512,25 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 			'_app/immutable/chunks/W.js'
 		]);
 	});
-	it('a shim per entry at its stable name, re-exporting its location', () => {
+	it('the location maps name every island entry; the handoff learns the hashed one’s path; no other file', () => {
 		const compiler = make();
 		const { emit } = fake_emit();
 		compiler.emit_build_chunks(emit, { emitRuntime: true });
-		const shims = compiler.entry_shims((ref: string) => `_app/immutable/chunks/${ref}.js`);
-		expect(shims.length).toBe(3);
-		for (const s of shims) {
-			// never under immutable/: a host caches that for a year by name, and a stable name's content
-			// follows each build
-			expect(s.fileName).toMatch(/^_app\/ogygia\/og-(region|runtime)\./);
-			expect(s.source).toMatch(/"\.\.\/immutable\/chunks\/ref\d\.js"/);
-		}
-	});
-	it('the location map names every island entry, under immutable/, and the handoff learns its path', () => {
-		const compiler = make();
-		const { emit } = fake_emit();
-		compiler.emit_build_chunks(emit, { emitRuntime: true });
-		const map = compiler.location_map((ref: string) => `_app/immutable/chunks/${ref}.js`)!;
-		expect(map.fileName).toMatch(/^_app\/immutable\/og-locations\.[0-9a-f]{12}\.json$/);
-		expect(compiler.location_map_url).toBe('/' + map.fileName);
-		const pairs = Object.entries(JSON.parse(map.source) as Record<string, string>);
+		const files = compiler.location_maps((ref: string) => `_app/immutable/chunks/${ref}.js`);
+		// the two maps, and only them: an identity is a name, never a file of its own
+		expect(files.map((f) => f.fileName.replace(/[0-9a-f]{12}/, 'H'))).toEqual([
+			'_app/immutable/og-locations.H.json',
+			'_app/ogygia.json'
+		]);
+		expect(compiler.location_map_url).toBe('/' + files[0].fileName);
+		const pairs = Object.entries(JSON.parse(files[0].source) as Record<string, string>);
 		expect(pairs).toHaveLength(2); // the two islands (the runtime loads by its script's own src)
-		for (const [stable, hashed] of pairs) {
-			expect(stable).toMatch(/^\.\.\/ogygia\/og-region\.[0-9a-f]{12}\.js$/);
+		for (const [identity, hashed] of pairs) {
+			expect(identity).toMatch(/^\.\.\/ogygia\/og-region\.[0-9a-f]{12}\.js$/);
 			expect(hashed).toMatch(/^\.\/chunks\/ref\d\.js$/);
 		}
 	});
-	it('no runtime emitted → no runtime location, no runtime shim; a second emit starts clean', () => {
+	it('no runtime emitted → no runtime location; a second emit starts clean', () => {
 		const compiler = make();
 		const first = fake_emit();
 		compiler.emit_build_chunks(first.emit, { emitRuntime: true });
@@ -566,10 +540,6 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 		expect(emitted.length).toBe(2);
 		const e = program_reset.entry_locations((ref: string) => `x/${ref}.js`);
 		expect(e.runtime).toBeNull();
-		expect(
-			program_reset
-				.entry_shims((ref: string) => `x/${ref}.js`)
-				.some((s: { fileName: string }) => s.fileName.includes('og-runtime'))
-		).toBe(false);
+		expect(Object.keys(e.locations).some((k) => k.includes('og-runtime'))).toBe(false);
 	});
 });

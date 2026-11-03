@@ -1320,10 +1320,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				return page ?? fn;
 			},
 
-			// THE STABLE NAMES (client build): each island entry and the runtime are content-hashed; their
-			// old stable names are written now — the hashed names are final, and files can still join the
-			// output — as plain files re-exporting the hashed ones (link/entry-shim.ts). A page cached
-			// before hashing, or a location that failed, still reaches the current build through them.
+			// THE LOCATION MAPS (client build, generateBundle below): each island entry is content-hashed;
+			// its identity is a name, not a file. Every identity → location pair is written now — the
+			// hashed names are final, and files can still join the output — once named by content and once
+			// at the one fixed name (link/location-map.ts), for a load that arrives without a location.
 			// OUR ENTRIES' FILE NAMES (client build): readable and content-hashed — the driver's pattern for
 			// an island entry or the runtime, the app's own naming for every other chunk. (The bundler
 			// files an emitted chunk under the chunk pattern, which carries no name.)
@@ -1343,12 +1343,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			generateBundle() {
 				if (!is_build || server_leg_of(this)) return;
-				const file_of = (ref: string) => this.getFileName(ref);
-				for (const shim of compiler.entry_shims(file_of))
-					this.emitFile({ type: 'asset', fileName: shim.fileName, source: shim.source });
-				// (every identity's location, for a load that arrives without one: link/entry-shim.ts)
-				const map = compiler.location_map(file_of);
-				if (map) this.emitFile({ type: 'asset', fileName: map.fileName, source: map.source });
+				for (const file of compiler.location_maps((ref) => this.getFileName(ref)))
+					this.emitFile({ type: 'asset', fileName: file.fileName, source: file.source });
 			},
 
 			// THE PROFILER'S MAPS, FILLED: after every plugin's writeBundle (the chunks are final on disk)

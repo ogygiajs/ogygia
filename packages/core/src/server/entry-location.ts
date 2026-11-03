@@ -8,7 +8,8 @@
  * time through the build handoff (`entryLocation`).
  *
  * No location (the dev server, a handoff from before hashing, an island from another app): the
- * identity itself is served — in a build, the stable-name shim that re-exports the current file.
+ * identity itself is written — in a build a name, no file: the browser finds the current file through
+ * the build's location maps (compiler/link/location-map.ts).
  */
 import runtime_url from 'virtual:ogygia/runtime-url';
 import { entryLocation, islandDeps, locationMap } from 'virtual:ogygia/island-deps';
