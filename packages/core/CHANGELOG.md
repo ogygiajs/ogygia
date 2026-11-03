@@ -1,5 +1,17 @@
 # @ogygia/core
 
+## 0.11.5
+
+### Patch Changes
+
+- [#144](https://github.com/ogygiajs/ogygia/pull/144) [`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3) Thanks [@PuruVJ](https://github.com/PuruVJ)! - An app with no deferred, live or lake region no longer ships the region element's fetch, apply and morph code.
+
+- [#144](https://github.com/ogygiajs/ogygia/pull/144) [`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3) Thanks [@PuruVJ](https://github.com/PuruVJ)! - An island page no longer downloads runtime code for features its app does not use.
+
+- [#144](https://github.com/ogygiajs/ogygia/pull/144) [`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A `+page.md` route counts as a page like `+page.svelte`, so a csr=false markdown page no longer makes every island page ship extra Svelte and runtime code.
+
+- [#144](https://github.com/ogygiajs/ogygia/pull/144) [`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3) Thanks [@PuruVJ](https://github.com/PuruVJ)! - An app whose islands never read their page no longer ships the page seed runtime or the MPA navigation handle.
+
 ## 0.11.4
 
 ### Patch Changes
