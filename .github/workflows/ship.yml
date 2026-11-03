@@ -39,7 +39,8 @@ jobs:
         run: |
           if out=$(gh pr merge "$PR" --auto --squash --repo "$REPO" 2>&1); then exit 0; fi
           echo "$out"
-          case "$out" in *"part of a stack"*) ;; *) exit 1 ;; esac
+          # (GitHub words it two ways: "part of a stack", "not supported for stacked pull requests")
+          case "$out" in *stack*) ;; *) exit 1 ;; esac
           gh pr checks "$PR" --repo "$REPO" --required --watch --fail-fast --interval 30
           gh api -X PUT "repos/$REPO/pulls/$PR/merge-async" -f merge_method=squash \
             -f sha="$HEAD_SHA" -f commit_title="$TITLE (#$PR)"
