@@ -56,7 +56,7 @@ import {
 	FOREIGN_HYDRATE_MARK
 } from './region/emit.ts';
 import { island_deps_module } from './link/island-deps.ts';
-import { island_shim_source, runtime_shim_source } from './link/entry-shim.ts';
+import { island_shim_source, location_map_file, runtime_shim_source } from './link/entry-shim.ts';
 import { context_string_keys, source_uses_ogygia_context } from './link/context-detect.ts';
 import { collect_flag_sites, FLAGS_SPEC } from './flags.ts';
 import { router_css_roots, router_css_module } from './link/router-css.ts';
@@ -1019,6 +1019,9 @@ export class Compiler {
 	 *  bundle end turns them into the hashed file names the handoff maps the stable names to. */
 	readonly island_entry_refs: Map<string, string> = new Map();
 	runtime_entry_ref: string | null = null;
+	/** The location map's served path (`/<appDir>/immutable/og-locations.<hash>.json`), once
+	 *  `location_map` wrote it: the handoff carries it to the server (`locations`). */
+	location_map_url: string | null = null;
 
 	/**
 	 * At the bundle's end (the names are final): each entry's IDENTITY → its LOCATION. `islands` maps
@@ -1098,6 +1101,24 @@ export class Compiler {
 			});
 		}
 		return out;
+	}
+
+	/**
+	 * The build's location map (link/entry-shim.ts `location_map_file`), for the bundle's end beside
+	 * the shims: every island entry's stable name → its hashed file. Null with no island.
+	 */
+	location_map(
+		get_file_name: (ref: string) => string
+	): { fileName: string; source: string } | null {
+		const ctx = this.#ctx!;
+		const pairs: [string, string][] = [];
+		for (const [rid, ref] of this.island_entry_refs)
+			pairs.push([ctx.island_chunk_filename(rid), get_file_name(ref)]);
+		const file = location_map_file(`${ctx.app_dir}/immutable`, pairs, (source) =>
+			createHash('sha256').update(source).digest('hex').slice(0, 12)
+		);
+		this.location_map_url = file ? '/' + file.fileName : null;
+		return file;
 	}
 
 	/**

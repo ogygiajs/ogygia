@@ -57,6 +57,37 @@ export function entry_location(entry: string, base?: string): string | undefined
 	return locations.size ? locations.get(absolute(entry, base)) : undefined;
 }
 
+/**
+ * THE BUILD'S LOCATION MAP (compiler/link/entry-shim.ts `location_map_file`): every island entry's
+ * location by identity, for a load that arrives with an identity alone — a region the browser
+ * rendered, a held region from the wire, a snippet whose host carried no graph. The runtime's script
+ * names it (`data-og-locations`); it is read once, on the first such load. Content-hashed, so no
+ * cache serves it stale. It only fills gaps: a location a page wrote (a later build's, after a
+ * navigation) always wins over the map of the build the runtime came from. No map, or it failed
+ * (the dev server, a page that outlived its build): the identity is loaded, as before.
+ */
+let build_map: Promise<void> | null = null;
+
+function read_build_map(): Promise<void> | null {
+	if (build_map) return build_map;
+	if (typeof document === 'undefined') return null;
+	const href = document
+		.querySelector('script[data-og-locations]')
+		?.getAttribute('data-og-locations');
+	if (!href) return null;
+	const url = absolute(href);
+	return (build_map = fetch(url)
+		.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
+		.then((map) => {
+			if (!map) return;
+			for (const stable in map) {
+				const identity = absolute(stable, url);
+				if (!locations.has(identity)) locations.set(identity, absolute(map[stable], url));
+			}
+		})
+		.catch(() => {}));
+}
+
 /** The region attributes that hold a URL: its identity, its location, its hole's endpoint. */
 const REGION_URL_ATTRS = ['entry', 'src', 'endpoint'] as const;
 
@@ -114,6 +145,15 @@ export function import_entry<T>(
 	entry: string,
 	url: string = entry_location(entry) ?? entry
 ): Promise<T> {
+	// an identity alone: the build's map names its location (once read), else the identity loads
+	if (!entry_location(entry)) {
+		const map = read_build_map();
+		if (map) return map.then(() => load_entry<T>(entry, entry_location(entry) ?? url));
+	}
+	return load_entry<T>(entry, url);
+}
+
+function load_entry<T>(entry: string, url: string): Promise<T> {
 	const loaded = import(/* @vite-ignore */ url) as Promise<T>;
 	const fresh = fresh_identity_url(entry);
 	if (!fresh) return loaded;

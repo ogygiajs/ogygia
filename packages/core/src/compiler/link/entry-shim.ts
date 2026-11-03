@@ -28,3 +28,26 @@ export function island_shim_source(shim_file: string, entry_file: string): strin
 export function runtime_shim_source(shim_file: string, runtime_file: string): string {
 	return `import ${JSON.stringify(relative_specifier(shim_file, runtime_file))};\n`;
 }
+
+/**
+ * THE BUILD'S LOCATION MAP: every entry's location, by its identity, for a load that arrives with an
+ * identity alone (a region the browser renders, a held region from the wire, a portable snippet).
+ * Content-hashed, so any host's year-long `immutable/` rule serves it right, and found through the
+ * runtime's script tag (server/entry-location.ts). Both sides are written relative to the map file
+ * itself, so the browser resolves them against wherever the build is served from (a base, an assets
+ * CDN); an identity resolving elsewhere (another app's) never matches. `pairs`: stable file → hashed
+ * file, output-relative. Null when there is nothing to map.
+ */
+export function location_map_file(
+	dir: string,
+	pairs: Iterable<readonly [string, string]>,
+	hash: (source: string) => string
+): { fileName: string; source: string } | null {
+	const map: Record<string, string> = {};
+	const from = dir + '/og-locations.json';
+	for (const [stable, hashed] of pairs)
+		map[relative_specifier(from, stable)] = relative_specifier(from, hashed);
+	if (!Object.keys(map).length) return null;
+	const source = JSON.stringify(map);
+	return { fileName: `${dir}/og-locations.${hash(source)}.json`, source };
+}

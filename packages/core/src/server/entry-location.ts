@@ -11,7 +11,7 @@
  * identity itself is served — in a build, the stable-name shim that re-exports the current file.
  */
 import runtime_url from 'virtual:ogygia/runtime-url';
-import { entryLocation, islandDeps } from 'virtual:ogygia/island-deps';
+import { entryLocation, islandDeps, locationMap } from 'virtual:ogygia/island-deps';
 import { runtime_bootstrap_tags } from './document-tail.ts';
 
 /** The file an entry is loaded from: its content-hashed location, else the identity itself. */
@@ -26,8 +26,10 @@ export function entry_src(identity: string): string {
  */
 export function runtime_bootstrap(resolve: (url: string) => string = (url) => url): string {
 	if (!runtime_url) return '';
+	const map = locationMap();
 	return runtime_bootstrap_tags(
 		resolve(entry_src(runtime_url)),
-		islandDeps(runtime_url).map(resolve)
+		islandDeps(runtime_url).map(resolve),
+		map ? resolve(map) : null
 	);
 }

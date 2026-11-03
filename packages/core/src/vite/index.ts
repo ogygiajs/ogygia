@@ -1343,8 +1343,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			generateBundle() {
 				if (!is_build || server_leg_of(this)) return;
-				for (const shim of compiler.entry_shims((ref) => this.getFileName(ref)))
+				const file_of = (ref: string) => this.getFileName(ref);
+				for (const shim of compiler.entry_shims(file_of))
 					this.emitFile({ type: 'asset', fileName: shim.fileName, source: shim.source });
+				// (every identity's location, for a load that arrives without one: link/entry-shim.ts)
+				const map = compiler.location_map(file_of);
+				if (map) this.emitFile({ type: 'asset', fileName: map.fileName, source: map.source });
 			},
 
 			// THE PROFILER'S MAPS, FILLED: after every plugin's writeBundle (the chunks are final on disk)
@@ -1567,7 +1571,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					css_inline,
 					fn_manifest: Object.fromEntries(compiler.dollar_hoists),
 					// identity (the stable URL SSR bakes) → location (the content-hashed file to load)
-					entries: entries.locations
+					entries: entries.locations,
+					// the same, as one file the browser reads (the runtime's script tag names it)
+					locations: compiler.location_map_url
 				});
 				emit_island_deps_handoff(root, json, kit_dirs(root).out_dir);
 			}

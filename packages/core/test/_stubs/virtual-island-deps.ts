@@ -72,6 +72,12 @@ export const entryLocation = (identity: string): string | null => entry_location
 export function set_entry_locations(map: Record<string, string>) {
 	entry_locations = map;
 }
+// `locationMap()` — the build's location map file (base-less served path); null when none.
+let location_map: string | null = null;
+export const locationMap = (): string | null => location_map;
+export function set_location_map(file: string | null) {
+	location_map = file;
+}
 // `chunkHeavy(href)` — a chunk's rendered total and heaviest named modules; null when unknown.
 let chunk_heavy: Record<string, { total: number; top: { name: string; bytes: number }[] }> = {};
 export const chunkHeavy = (

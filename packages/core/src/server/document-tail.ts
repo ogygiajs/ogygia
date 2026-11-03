@@ -90,10 +90,20 @@ export function modulepreload_tag(href: string): string {
  * module's imports after downloading and parsing it; hinted here, they download ALONGSIDE the
  * runtime instead of one round trip after it. Normal priority — the runtime cannot run without
  * them. `data-ogygia-runtime-dep` keeps them attached to the script when the handle moves it
- * (head-presence.ts `runtime_first`).
+ * (head-presence.ts `runtime_first`). `locations`: the build's location map, which the runtime reads
+ * for a load that arrives with an identity alone (runtime/entry-locations.ts).
  */
-export function runtime_bootstrap_tags(src: string, deps: readonly string[]): string {
-	let html = '<script type="module" data-ogygia-runtime src="' + src + '"></script>';
+export function runtime_bootstrap_tags(
+	src: string,
+	deps: readonly string[],
+	locations: string | null = null
+): string {
+	let html =
+		'<script type="module" data-ogygia-runtime' +
+		(locations ? ' data-og-locations="' + locations + '"' : '') +
+		' src="' +
+		src +
+		'"></script>';
 	for (const dep of deps)
 		html += '<link rel="modulepreload" href="' + dep + '" data-ogygia-runtime-dep>';
 	return html;

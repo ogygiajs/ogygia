@@ -134,10 +134,14 @@ const identity = (name) => Object.keys(name).sort();
 
 /** A page as it was before content hashing: no region `src`, the runtime by its stable name. */
 function strip_locations(html, runtime_id, runtime_loc) {
-	return html
-		.replace(/(<ogygia-region[^>]*?) src="[^"]*"/g, '$1')
-		.split(runtime_loc)
-		.join(runtime_id);
+	return (
+		html
+			.replace(/(<ogygia-region[^>]*?) src="[^"]*"/g, '$1')
+			// (a page from before hashing named no location map either)
+			.replace(/ data-og-locations="[^"]*"/g, '')
+			.split(runtime_loc)
+			.join(runtime_id)
+	);
 }
 try {
 	console.log('building three times…');
@@ -637,6 +641,40 @@ try {
 	);
 	check('pre-hash: no uncaught error', old_errors.length === 0, old_errors.slice(0, 2).join(' | '));
 	await old_ctx.close();
+
+	// ── regions with an identity alone (the browser rendered them, or they came over the wire) ──
+	// The build's page, every region's `src` dropped and nothing else: the runtime's script still
+	// names the build's location map, and each island loads its location through it — no stable name
+	// is ever asked for.
+	{
+		const alone = html2.replace(/(<ogygia-region[^>]*?) src="[^"]*"/g, '$1');
+		check(
+			'identity alone: the page names the build’s location map, and no region a location',
+			alone.includes('data-og-locations="') && !/<ogygia-region[^>]* src="/.test(alone)
+		);
+		const ctx = await chromium.launchPersistentContext(path.join(tmp, 'profile-alone'), {
+			viewport: { width: 1280, height: 900 }
+		});
+		const errors = [];
+		const p = await page_with_document(ctx, alone);
+		p.on('pageerror', (e) => errors.push(e.message));
+		const stable = [];
+		const maps = [];
+		p.on('request', (r) => {
+			if (/\/ogygia\/og-(region|runtime)\./.test(r.url())) stable.push(r.url());
+			if (r.url().includes('/og-locations.')) maps.push(r.url());
+		});
+		await p.goto(BASE + '/dt-cache', { waitUntil: 'load' });
+		const a = await ran(p);
+		check(
+			'identity alone: every island runs build 2, loaded by its location',
+			a.probe === 'v2' && a.twin === 'v2' && a.steady === 'steady' && stable.length === 0,
+			`${JSON.stringify(a)} · ${stable.length} stable-name requests`
+		);
+		check('identity alone: the map is read once', maps.length === 1, `${maps.length} reads`);
+		check('identity alone: no uncaught error', errors.length === 0, errors.slice(0, 2).join(' | '));
+		await ctx.close();
+	}
 	await stop(server);
 
 	check(
