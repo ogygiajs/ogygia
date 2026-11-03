@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- Updated dependencies [[`b0a6cd3`](https://github.com/ogygiajs/ogygia/commit/b0a6cd336627a7e34fdef0141131c3905ecfbd38)]:
+- Updated dependencies [[`e229a9a`](https://github.com/ogygiajs/ogygia/commit/e229a9a326d2f7f8cd429ed8841c10d96763b57f)]:
   - @ogygia/core@0.11.0
 
 ## 0.0.0

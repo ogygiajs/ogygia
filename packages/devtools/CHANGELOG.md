@@ -4,26 +4,26 @@
 
 ### Patch Changes
 
-- [#130](https://github.com/ogygiajs/ogygia/pull/130) [`92457f4`](https://github.com/ogygiajs/ogygia/commit/92457f4ed7c9ad949b23a2e50c8d5a7e36cbbc60) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The hook types type-check on SvelteKit 3 too: `Handle` is the library's own (Kit 3 moved Kit's to `@sveltejs/kit/hooks`), so a Kit 3 app no longer sees an untyped `handle` from ogygia, devtools or postrender.
-- Updated dependencies [[`92457f4`](https://github.com/ogygiajs/ogygia/commit/92457f4ed7c9ad949b23a2e50c8d5a7e36cbbc60)]:
+- [#130](https://github.com/ogygiajs/ogygia/pull/130) [`fede66a`](https://github.com/ogygiajs/ogygia/commit/fede66ae685497399a257cb2a498516364e8064b) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The hook types type-check on SvelteKit 3 too: `Handle` is the library's own (Kit 3 moved Kit's to `@sveltejs/kit/hooks`), so a Kit 3 app no longer sees an untyped `handle` from ogygia, devtools or postrender.
+- Updated dependencies [[`fede66a`](https://github.com/ogygiajs/ogygia/commit/fede66ae685497399a257cb2a498516364e8064b)]:
   - @ogygia/core@0.11.4
 
 ## 0.11.1
 
 ### Patch Changes
 
-- [#92](https://github.com/ogygiajs/ogygia/pull/92) [`2f00bdb`](https://github.com/ogygiajs/ogygia/commit/2f00bdb6749e13ccecefcf907bda50f9b46cc811) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `@ogygia/router` is a dependency of `@ogygia/devtools`, not an optional peer: the profiler's UI is rendered through it, so turning the profiler on no longer needs it installed by hand.
-- Updated dependencies [[`aab90f7`](https://github.com/ogygiajs/ogygia/commit/aab90f7c2cf6bd15d17bdf9e293646cd9a8cc3ff)]:
+- [#92](https://github.com/ogygiajs/ogygia/pull/92) [`cd78e78`](https://github.com/ogygiajs/ogygia/commit/cd78e781c0175a119adb84b4cd1ed11da63fec72) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `@ogygia/router` is a dependency of `@ogygia/devtools`, not an optional peer: the profiler's UI is rendered through it, so turning the profiler on no longer needs it installed by hand.
+- Updated dependencies [[`0eced1d`](https://github.com/ogygiajs/ogygia/commit/0eced1d4dc1bd1e5c3507bea40d6aab308099c2a)]:
   - @ogygia/core@0.11.1
 
 ## 0.11.0
 
 ### Patch Changes
 
-- [#88](https://github.com/ogygiajs/ogygia/pull/88) [`7f1abd7`](https://github.com/ogygiajs/ogygia/commit/7f1abd74012a0bac985d93db2ef02e1a810d7a5e) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The profiler UI's display font is named Geist Serif, matching the docs site.
+- [#88](https://github.com/ogygiajs/ogygia/pull/88) [`24c2845`](https://github.com/ogygiajs/ogygia/commit/24c28450809d621d383b908428c2a4ce78f355c4) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The profiler UI's display font is named Geist Serif, matching the docs site.
 
-- [#83](https://github.com/ogygiajs/ogygia/pull/83) [`b0a6cd3`](https://github.com/ogygiajs/ogygia/commit/b0a6cd336627a7e34fdef0141131c3905ecfbd38) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The profiler's sqlite, redis and postgres stores keep a whole recording window (2000 requests per key); they kept the newest 20.
-- Updated dependencies [[`b0a6cd3`](https://github.com/ogygiajs/ogygia/commit/b0a6cd336627a7e34fdef0141131c3905ecfbd38)]:
+- [#83](https://github.com/ogygiajs/ogygia/pull/83) [`e229a9a`](https://github.com/ogygiajs/ogygia/commit/e229a9a326d2f7f8cd429ed8841c10d96763b57f) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The profiler's sqlite, redis and postgres stores keep a whole recording window (2000 requests per key); they kept the newest 20.
+- Updated dependencies [[`e229a9a`](https://github.com/ogygiajs/ogygia/commit/e229a9a326d2f7f8cd429ed8841c10d96763b57f)]:
   - @ogygia/core@0.11.0
   - @ogygia/router@0.11.0
 

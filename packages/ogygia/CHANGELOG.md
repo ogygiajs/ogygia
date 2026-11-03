@@ -12,84 +12,84 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Patch Changes
 
-- Updated dependencies [[`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3), [`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3), [`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3), [`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3)]:
+- Updated dependencies [[`cdd2ec0`](https://github.com/ogygiajs/ogygia/commit/cdd2ec03fe5c1fa0f947c6d8667de21724abaf38), [`cdd2ec0`](https://github.com/ogygiajs/ogygia/commit/cdd2ec03fe5c1fa0f947c6d8667de21724abaf38), [`cdd2ec0`](https://github.com/ogygiajs/ogygia/commit/cdd2ec03fe5c1fa0f947c6d8667de21724abaf38), [`cdd2ec0`](https://github.com/ogygiajs/ogygia/commit/cdd2ec03fe5c1fa0f947c6d8667de21724abaf38)]:
   - @ogygia/core@0.11.5
 
 ## 0.11.4
 
 ### Patch Changes
 
-- Updated dependencies [[`92457f4`](https://github.com/ogygiajs/ogygia/commit/92457f4ed7c9ad949b23a2e50c8d5a7e36cbbc60)]:
+- Updated dependencies [[`fede66a`](https://github.com/ogygiajs/ogygia/commit/fede66ae685497399a257cb2a498516364e8064b)]:
   - @ogygia/core@0.11.4
 
 ## 0.11.3
 
 ### Patch Changes
 
-- Updated dependencies [[`e845da3`](https://github.com/ogygiajs/ogygia/commit/e845da3e6c334a169ad0e228ffc2946ee60c90f9)]:
+- Updated dependencies [[`acce10a`](https://github.com/ogygiajs/ogygia/commit/acce10a8eeebae3abc5289de577a302666bec8a5)]:
   - @ogygia/core@0.11.3
 
 ## 0.11.2
 
 ### Patch Changes
 
-- Updated dependencies [[`edd9613`](https://github.com/ogygiajs/ogygia/commit/edd9613a9a9afd0295eec1a98e20403e83b114d1)]:
+- Updated dependencies [[`a83fe25`](https://github.com/ogygiajs/ogygia/commit/a83fe2574bab6e098d292e4486fc5dea9e32bca5)]:
   - @ogygia/core@0.11.2
 
 ## 0.11.1
 
 ### Patch Changes
 
-- Updated dependencies [[`aab90f7`](https://github.com/ogygiajs/ogygia/commit/aab90f7c2cf6bd15d17bdf9e293646cd9a8cc3ff)]:
+- Updated dependencies [[`0eced1d`](https://github.com/ogygiajs/ogygia/commit/0eced1d4dc1bd1e5c3507bea40d6aab308099c2a)]:
   - @ogygia/core@0.11.1
 
 ## 0.11.0
 
 ### Minor Changes
 
-- [#64](https://github.com/ogygiajs/ogygia/pull/64) [`56bd8e6`](https://github.com/ogygiajs/ogygia/commit/56bd8e62126e417dc7db61551a5b31f9fd389bf9) Thanks [@PuruVJ](https://github.com/PuruVJ)! - **Breaking:** features move into plugin packages, each a Vite plugin listed beside `ogygia()` and before `sveltekit()` (`plugins: [ogygia(), flags(), sveltekit()]`; out of order, or without `ogygia()`, the build says so): flags (`@ogygia/flags`, was `ogygia/flag`), frozen pages (`@ogygia/freeze`, was `ogygia/freeze` and `ogygia({ freeze })`), fragment federation (`@ogygia/federation`, was `ogygia/federation`; `mount` moved from `ogygia/router`) and content (`@ogygia/content`, was `ogygia/content*` and `ogygia({ content })`; `ogygia/content/server` is `@ogygia/content/server`, and the svelte config's `ogygia.preprocess()` / `ogygia.extensions()` are `preprocess()` / `extensions()` from `@ogygia/content/vite`), each with its factory from `<package>/vite`. The devtools dock and the profiler move to `@ogygia/devtools`: `ogygia({ devtools, profiler })` becomes `devtools({ dock, profiler })`, `ogygia/profiler*` imports become `@ogygia/devtools/profiler*` (`@ogygia/devtools/profiler`, `/profiler/client`, `/profiler/storage`, `/profiler/storage/sqlite|redis|postgres`), and the event layer `ogygia/devtools` exported is `ogygia/events` (with `ogygia/insights` beside it). `ogygia/testing` is `@ogygia/testing`. The server router is `@ogygia/router` (was `ogygia/router`; list `router()` from `@ogygia/router/vite` so its pages' CSS links — dev warns when a page renders without it), and its typed fetch client `ogygia/router/client` is `@ogygia/router/api` (`POST(schema, …)` endpoints now type-check, and `$infer` carries their verbs). An endpoint handler's `c.params` is now typed strictly by its table key, at the top level, inside `layout()` tables and behind `when()`, and its return type reaches `api()`; `GET<'/p'>(fn)` is gone (a handler written outside its table checks with `satisfies Handler<'/p'>`). A plugin is made with `definePlugin({ name, server, client, options, build })` from `ogygia/vite`, which returns a Vite plugin; its server and browser halves are named by location (`server: import.meta.resolve('./server.ts')`) instead of found by package export name. The command line lives in `@ogygia/cli` (`npx ogygia …` keeps working: `ogygia`'s bin runs it). `ogygia` is now a thin package over `@ogygia/core`; plugins depend on `@ogygia/core`. `ogygia()`'s region options sit at its root: `regions.visible`, `regions.presets`, `regions.ttl` and `regions.maxPageAge` are `visible`, `presets`, `ttl` and `maxPageAge`. `@ogygia/tsdown-plugin-svelte` turns a component's relative `./x.ts` imports into `./x.js` in the shipped component and its types, so sources can import with real extensions. Fixed: a Kit-hydrated (`csr = true`) page could link the stylesheets of every region in the app, depending on how the bundler grouped the server build (newer rolldown, under vite 8.3, did).
+- [#64](https://github.com/ogygiajs/ogygia/pull/64) [`3bff299`](https://github.com/ogygiajs/ogygia/commit/3bff2999bf36c9fb9ae1cf3b7a9c04613cf0bd78) Thanks [@PuruVJ](https://github.com/PuruVJ)! - **Breaking:** features move into plugin packages, each a Vite plugin listed beside `ogygia()` and before `sveltekit()` (`plugins: [ogygia(), flags(), sveltekit()]`; out of order, or without `ogygia()`, the build says so): flags (`@ogygia/flags`, was `ogygia/flag`), frozen pages (`@ogygia/freeze`, was `ogygia/freeze` and `ogygia({ freeze })`), fragment federation (`@ogygia/federation`, was `ogygia/federation`; `mount` moved from `ogygia/router`) and content (`@ogygia/content`, was `ogygia/content*` and `ogygia({ content })`; `ogygia/content/server` is `@ogygia/content/server`, and the svelte config's `ogygia.preprocess()` / `ogygia.extensions()` are `preprocess()` / `extensions()` from `@ogygia/content/vite`), each with its factory from `<package>/vite`. The devtools dock and the profiler move to `@ogygia/devtools`: `ogygia({ devtools, profiler })` becomes `devtools({ dock, profiler })`, `ogygia/profiler*` imports become `@ogygia/devtools/profiler*` (`@ogygia/devtools/profiler`, `/profiler/client`, `/profiler/storage`, `/profiler/storage/sqlite|redis|postgres`), and the event layer `ogygia/devtools` exported is `ogygia/events` (with `ogygia/insights` beside it). `ogygia/testing` is `@ogygia/testing`. The server router is `@ogygia/router` (was `ogygia/router`; list `router()` from `@ogygia/router/vite` so its pages' CSS links — dev warns when a page renders without it), and its typed fetch client `ogygia/router/client` is `@ogygia/router/api` (`POST(schema, …)` endpoints now type-check, and `$infer` carries their verbs). An endpoint handler's `c.params` is now typed strictly by its table key, at the top level, inside `layout()` tables and behind `when()`, and its return type reaches `api()`; `GET<'/p'>(fn)` is gone (a handler written outside its table checks with `satisfies Handler<'/p'>`). A plugin is made with `definePlugin({ name, server, client, options, build })` from `ogygia/vite`, which returns a Vite plugin; its server and browser halves are named by location (`server: import.meta.resolve('./server.ts')`) instead of found by package export name. The command line lives in `@ogygia/cli` (`npx ogygia …` keeps working: `ogygia`'s bin runs it). `ogygia` is now a thin package over `@ogygia/core`; plugins depend on `@ogygia/core`. `ogygia()`'s region options sit at its root: `regions.visible`, `regions.presets`, `regions.ttl` and `regions.maxPageAge` are `visible`, `presets`, `ttl` and `maxPageAge`. `@ogygia/tsdown-plugin-svelte` turns a component's relative `./x.ts` imports into `./x.js` in the shipped component and its types, so sources can import with real extensions. Fixed: a Kit-hydrated (`csr = true`) page could link the stylesheets of every region in the app, depending on how the bundler grouped the server build (newer rolldown, under vite 8.3, did).
 
 ### Patch Changes
 
-- [#77](https://github.com/ogygiajs/ogygia/pull/77) [`7b78ccc`](https://github.com/ogygiajs/ogygia/commit/7b78ccca6492f101a84fdb38477e22b6db98d57d) Thanks [@PuruVJ](https://github.com/PuruVJ)! - **Breaking (plugin API):** a plugin's per-route setting is now a key inside Kit's own `config` page option — `b.routeConfig(key)` / `ctx.routeConfig(key)` replace `b.routeOption(name)` / `ctx.routeOption(name)`, nothing is stripped from route files any more, and the server router's `page()` / `layout()` / `routes()` take `config` instead of `freeze`.
+- [#77](https://github.com/ogygiajs/ogygia/pull/77) [`fd47ef6`](https://github.com/ogygiajs/ogygia/commit/fd47ef6c05fd8ed458be5948610f3bfcbfaa44d7) Thanks [@PuruVJ](https://github.com/PuruVJ)! - **Breaking (plugin API):** a plugin's per-route setting is now a key inside Kit's own `config` page option — `b.routeConfig(key)` / `ctx.routeConfig(key)` replace `b.routeOption(name)` / `ctx.routeOption(name)`, nothing is stripped from route files any more, and the server router's `page()` / `layout()` / `routes()` take `config` instead of `freeze`.
 
-- [#80](https://github.com/ogygiajs/ogygia/pull/80) [`5728293`](https://github.com/ogygiajs/ogygia/commit/57282937ce64b382eac2ae517ed78301ab1b70ef) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Server router: a page's `load` and `actions` (bare, or through `load()` / `action()`) read `c.params` typed by their table key, as endpoints do, and a `params` or `search` schema now types `c.params` / `c.search` with its output.
+- [#80](https://github.com/ogygiajs/ogygia/pull/80) [`5164260`](https://github.com/ogygiajs/ogygia/commit/51642600be6376f381e68ffcfd175be20a570c80) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Server router: a page's `load` and `actions` (bare, or through `load()` / `action()`) read `c.params` typed by their table key, as endpoints do, and a `params` or `search` schema now types `c.params` / `c.search` with its output.
 
-- [#74](https://github.com/ogygiajs/ogygia/pull/74) [`b4f6b5d`](https://github.com/ogygiajs/ogygia/commit/b4f6b5d69d581d76e16f12fe1c0af63258e11f08) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Types: `import.meta.og.source` is declared, `instrument`'s attrs callback may name fewer arguments than the function takes, and loose `any`s in public types are now `unknown` (`OgygiaDriver.evaluate`, `mount()`'s page data, the router's component type); the profiler timeline's blocks are buttons.
-- Updated dependencies [[`b0a6cd3`](https://github.com/ogygiajs/ogygia/commit/b0a6cd336627a7e34fdef0141131c3905ecfbd38)]:
+- [#74](https://github.com/ogygiajs/ogygia/pull/74) [`1d97ecc`](https://github.com/ogygiajs/ogygia/commit/1d97ecc3cae56770ba0f878b15b5b9f5cfbac89f) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Types: `import.meta.og.source` is declared, `instrument`'s attrs callback may name fewer arguments than the function takes, and loose `any`s in public types are now `unknown` (`OgygiaDriver.evaluate`, `mount()`'s page data, the router's component type); the profiler timeline's blocks are buttons.
+- Updated dependencies [[`e229a9a`](https://github.com/ogygiajs/ogygia/commit/e229a9a326d2f7f8cd429ed8841c10d96763b57f)]:
   - @ogygia/core@0.11.0
 
 ## 0.10.2
 
 ### Patch Changes
 
-- [#65](https://github.com/ogygiajs/ogygia/pull/65) [`87e9b21`](https://github.com/ogygiajs/ogygia/commit/87e9b213f3b63da4898f402a29cbc57af4aaa75d) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The repository now lives at github.com/ogygiajs/ogygia; package links point there.
+- [#65](https://github.com/ogygiajs/ogygia/pull/65) [`83ef60a`](https://github.com/ogygiajs/ogygia/commit/83ef60af76617a7c0ec8e47327cb027d5fea1c6b) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The repository now lives at github.com/ogygiajs/ogygia; package links point there.
 
 ## 0.10.1
 
 ### Patch Changes
 
-- [#62](https://github.com/ogygiajs/ogygia/pull/62) [`79cdb65`](https://github.com/ogygiajs/ogygia/commit/79cdb65579eb53ed142f81d24ba0f787c1fefb72) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A `regions.presets` entry takes `fetch` (a deferred hole's timing): 0.10.0 rejected the key, so no deferred preset with a timing could be written.
+- [#62](https://github.com/ogygiajs/ogygia/pull/62) [`78c63bc`](https://github.com/ogygiajs/ogygia/commit/78c63bc460c37e22cec1c04685a9e13e33453688) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A `regions.presets` entry takes `fetch` (a deferred hole's timing): 0.10.0 rejected the key, so no deferred preset with a timing could be written.
 
 ## 0.10.0
 
 ### Minor Changes
 
-- [#33](https://github.com/ogygiajs/ogygia/pull/33) [`0884b9a`](https://github.com/ogygiajs/ogygia/commit/0884b9a2fab903bec15df9df0e83ead50b7ba0c9) Thanks [@PuruVJ](https://github.com/PuruVJ)! - **Breaking:** a `render: 'deferred'` hole's timing is the new `fetch` key (`with { render: 'deferred', fetch: 'visible' }`); pairing it with `wake` fails the build with the line to write, and `wake` now only means when an island's JS runs.
+- [#33](https://github.com/ogygiajs/ogygia/pull/33) [`6f48146`](https://github.com/ogygiajs/ogygia/commit/6f481468e12cbdacd0e7cda1433334bc00da2dc3) Thanks [@PuruVJ](https://github.com/PuruVJ)! - **Breaking:** a `render: 'deferred'` hole's timing is the new `fetch` key (`with { render: 'deferred', fetch: 'visible' }`); pairing it with `wake` fails the build with the line to write, and `wake` now only means when an island's JS runs.
 
 ## 0.9.0
 
 ### Minor Changes
 
-- [#51](https://github.com/ogygiajs/ogygia/pull/51) [`7efab98`](https://github.com/ogygiajs/ogygia/commit/7efab9801fce299bdba61145517f25ebbd0e6384) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Raised minimums to the versions ogygia is tested on: `svelte` ^5.56.8, `playwright` and `@playwright/test` ^1.62.0 (for `ogygia/testing`), and the `magic-string` dependency ^1.4.5.
+- [#51](https://github.com/ogygiajs/ogygia/pull/51) [`c0a7793`](https://github.com/ogygiajs/ogygia/commit/c0a7793ab4f00a40632ffa57e69a0f9a9d14354b) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Raised minimums to the versions ogygia is tested on: `svelte` ^5.56.8, `playwright` and `@playwright/test` ^1.62.0 (for `ogygia/testing`), and the `magic-string` dependency ^1.4.5.
 
-- [#51](https://github.com/ogygiajs/ogygia/pull/51) [`7efab98`](https://github.com/ogygiajs/ogygia/commit/7efab9801fce299bdba61145517f25ebbd0e6384) Thanks [@PuruVJ](https://github.com/PuruVJ)! - SvelteKit 3 support, alongside SvelteKit 2: builds no longer fail on `refreshAll` ([#37](https://github.com/ogygiajs/ogygia/issues/37)), islands on csr=true pages get Kit's page, the `$page` store no longer uses the removed `$app/stores`, custom-type remote arguments encode on csr=false pages, and a remote form in an island on a csr=true page no longer reloads the page.
+- [#51](https://github.com/ogygiajs/ogygia/pull/51) [`c0a7793`](https://github.com/ogygiajs/ogygia/commit/c0a7793ab4f00a40632ffa57e69a0f9a9d14354b) Thanks [@PuruVJ](https://github.com/PuruVJ)! - SvelteKit 3 support, alongside SvelteKit 2: builds no longer fail on `refreshAll` ([#37](https://github.com/ogygiajs/ogygia/issues/37)), islands on csr=true pages get Kit's page, the `$page` store no longer uses the removed `$app/stores`, custom-type remote arguments encode on csr=false pages, and a remote form in an island on a csr=true page no longer reloads the page.
 
-- [#51](https://github.com/ogygiajs/ogygia/pull/51) [`7efab98`](https://github.com/ogygiajs/ogygia/commit/7efab9801fce299bdba61145517f25ebbd0e6384) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The `vite` peer is `^8.2.4`: Vite 8, from the first version past its published advisories. SvelteKit 2 and SvelteKit 3 both run on it.
+- [#51](https://github.com/ogygiajs/ogygia/pull/51) [`c0a7793`](https://github.com/ogygiajs/ogygia/commit/c0a7793ab4f00a40632ffa57e69a0f9a9d14354b) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The `vite` peer is `^8.2.4`: Vite 8, from the first version past its published advisories. SvelteKit 2 and SvelteKit 3 both run on it.
 
 ### Patch Changes
 
-- [#51](https://github.com/ogygiajs/ogygia/pull/51) [`7efab98`](https://github.com/ogygiajs/ogygia/commit/7efab9801fce299bdba61145517f25ebbd0e6384) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `devalue` is required at `^5.9.3`, the first version with the fixes for its published advisories.
+- [#51](https://github.com/ogygiajs/ogygia/pull/51) [`c0a7793`](https://github.com/ogygiajs/ogygia/commit/c0a7793ab4f00a40632ffa57e69a0f9a9d14354b) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `devalue` is required at `^5.9.3`, the first version with the fixes for its published advisories.
 
 ## 0.8.8 - 2026-10-30
 

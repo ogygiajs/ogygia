@@ -4,15 +4,15 @@
 
 ### Patch Changes
 
-- [#146](https://github.com/ogygiajs/ogygia/pull/146) [`8b0e1d7`](https://github.com/ogygiajs/ogygia/commit/8b0e1d763c28740e3e2fc9d00dd7707219833523) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `DocsShell`'s `side` snippet (the top of the sidebar) now also renders at the top of the mobile nav sheet, pinned above the nav tree, since on a phone that sheet is the sidebar.
-- Updated dependencies [[`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3), [`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3), [`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3), [`93d23c4`](https://github.com/ogygiajs/ogygia/commit/93d23c44c44f3b4c52025e15b3005f5a744a1aa3)]:
+- [#146](https://github.com/ogygiajs/ogygia/pull/146) [`16bb8bb`](https://github.com/ogygiajs/ogygia/commit/16bb8bb3fe6abe191205e038c71dac9203f81fe1) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `DocsShell`'s `side` snippet (the top of the sidebar) now also renders at the top of the mobile nav sheet, pinned above the nav tree, since on a phone that sheet is the sidebar.
+- Updated dependencies [[`cdd2ec0`](https://github.com/ogygiajs/ogygia/commit/cdd2ec03fe5c1fa0f947c6d8667de21724abaf38), [`cdd2ec0`](https://github.com/ogygiajs/ogygia/commit/cdd2ec03fe5c1fa0f947c6d8667de21724abaf38), [`cdd2ec0`](https://github.com/ogygiajs/ogygia/commit/cdd2ec03fe5c1fa0f947c6d8667de21724abaf38), [`cdd2ec0`](https://github.com/ogygiajs/ogygia/commit/cdd2ec03fe5c1fa0f947c6d8667de21724abaf38)]:
   - @ogygia/core@0.11.5
 
 ## 0.11.0
 
 ### Patch Changes
 
-- Updated dependencies [[`b0a6cd3`](https://github.com/ogygiajs/ogygia/commit/b0a6cd336627a7e34fdef0141131c3905ecfbd38)]:
+- Updated dependencies [[`e229a9a`](https://github.com/ogygiajs/ogygia/commit/e229a9a326d2f7f8cd429ed8841c10d96763b57f)]:
   - @ogygia/core@0.11.0
 
 ## 0.0.0
