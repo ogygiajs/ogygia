@@ -64,28 +64,45 @@ export function entry_location(entry: string, base?: string): string | undefined
  * names it (`data-og-locations`); it is read once, on the first such load. Content-hashed, so no
  * cache serves it stale. It only fills gaps: a location a page wrote (a later build's, after a
  * navigation) always wins over the map of the build the runtime came from. No map, or it failed
- * (the dev server, a page that outlived its build): the identity is loaded, as before.
+ * (the dev server, a page that outlived its build): the identity is loaded, as before. A failed read
+ * is not kept: the next identity-only load asks again (a blip must not cost the page every later one).
  */
+const BUILD_MAP_ATTR = 'data-og-locations';
 let build_map: Promise<void> | null = null;
+
+/**
+ * Pin the build map's address to the page that wrote it, as `pin_region_urls` pins a region's: with
+ * Kit's default `paths.relative` it is written relative to that page, and it is read lazily — after a
+ * client navigation to another depth, resolved against the new address, it named a file that is not
+ * there. The runtime calls this at boot, before any navigation.
+ */
+export function pin_build_map(): void {
+	if (typeof document === 'undefined') return;
+	const script = document.querySelector(`script[${BUILD_MAP_ATTR}]`);
+	const href = script?.getAttribute(BUILD_MAP_ATTR);
+	if (script && href) script.setAttribute(BUILD_MAP_ATTR, absolute(href));
+}
 
 function read_build_map(): Promise<void> | null {
 	if (build_map) return build_map;
 	if (typeof document === 'undefined') return null;
-	const href = document
-		.querySelector('script[data-og-locations]')
-		?.getAttribute('data-og-locations');
+	const href = document.querySelector(`script[${BUILD_MAP_ATTR}]`)?.getAttribute(BUILD_MAP_ATTR);
 	if (!href) return null;
 	const url = absolute(href);
-	return (build_map = fetch(url)
+	const read: Promise<void> = fetch(url)
 		.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
+		.catch(() => null)
 		.then((map) => {
-			if (!map) return;
+			if (!map) {
+				if (build_map === read) build_map = null;
+				return;
+			}
 			for (const stable in map) {
 				const identity = absolute(stable, url);
 				if (!locations.has(identity)) locations.set(identity, absolute(map[stable], url));
 			}
-		})
-		.catch(() => {}));
+		});
+	return (build_map = read);
 }
 
 /** The region attributes that hold a URL: its identity, its location, its hole's endpoint. */
@@ -151,7 +168,12 @@ async function current_location(entry: string): Promise<string | null> {
 		current_maps.set(file, map);
 	}
 	const pairs = await map;
-	if (!pairs) return null;
+	if (!pairs) {
+		// a failed read is not kept: a deploy's rollover (a 404, a 5xx, an edge without the new file
+		// yet) is exactly when this is asked, and the next island must be able to recover
+		if (current_maps.get(file) === map) current_maps.delete(file);
+		return null;
+	}
 	for (const name in pairs)
 		if (absolute(name, file) === identity) return absolute(pairs[name], file);
 	return null;
