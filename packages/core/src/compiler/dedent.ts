@@ -12,8 +12,41 @@ const LEADING_INDENT_RE = /^[\t ]*/;
  * their literal column contribution to the prefix (the common prefix is computed on raw characters,
  * so mixed tabs/spaces still de-indent correctly as long as the leading run is consistent — which it
  * is for machine-indented source).
+ *
+ * Also a TAG, for the code the compiler generates (its virtual modules), written as the code itself:
+ *
+ *     dedent`
+ *         export const dev = ${is_dev};
+ *     `
+ *
+ * The template's own text is de-indented first and the values go in after, so a value spanning lines
+ * (a generated block) never decides the indent. Values are interpolated as a template literal would
+ * (cooked strings: `\\n` in the template is a newline).
  */
-export function dedent(text: string): string {
+export function dedent(text: string): string;
+export function dedent(strings: TemplateStringsArray, ...values: unknown[]): string;
+export function dedent(first: string | TemplateStringsArray, ...values: unknown[]): string {
+	if (typeof first === 'string') return dedent_text(first);
+	// a placeholder per value (a character no template text holds), de-indented as plain text
+	let text = first[0];
+	for (let i = 1; i < first.length; i++) text += SLOT + (i - 1) + SLOT + first[i];
+	const flat = dedent_text(text);
+	if (values.length === 0) return flat;
+	let out = '';
+	let at = 0;
+	for (;;) {
+		const open = flat.indexOf(SLOT, at);
+		if (open === -1) return out + flat.slice(at);
+		const close = flat.indexOf(SLOT, open + 1);
+		out += flat.slice(at, open) + String(values[Number(flat.slice(open + 1, close))]);
+		at = close + 1;
+	}
+}
+
+/** The placeholder edge for a tag's value while its template is de-indented. */
+const SLOT = '\u0000';
+
+function dedent_text(text: string): string {
 	// Normalize CRLF so line handling is uniform; the renderer emits LF anyway.
 	const lines = text.replace(CRLF_G, '\n').split('\n');
 

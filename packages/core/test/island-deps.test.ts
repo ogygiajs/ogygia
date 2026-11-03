@@ -13,6 +13,32 @@ import {
 	module_origin,
 	duplicate_modules
 } from '../dist/compiler/link/island-deps.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+/** A generated module, loaded as the server would load it. */
+async function load_module(src: string) {
+	const file = path.join(
+		os.tmpdir(),
+		`og-island-deps-${process.pid}-${Math.random().toString(36).slice(2)}.mjs`
+	);
+	fs.writeFileSync(file, src);
+	try {
+		return await import(file);
+	} finally {
+		fs.rmSync(file, { force: true });
+	}
+}
+
+/** The prod SSR module with `json` as its inlined build handoff. */
+const with_handoff = (json: unknown) =>
+	load_module(
+		island_deps_module(true, false).replace(
+			"'__OGYGIA_ISLAND_DEPS_INLINE__'",
+			JSON.stringify(JSON.stringify(json))
+		)
+	);
 
 describe('one module, two copies', () => {
 	test('a package file by its source and its build, or two installed versions, is one key; the copies say where they came from', () => {
@@ -880,11 +906,12 @@ describe('remotes map', () => {
 			const m = ISLAND_REMOTES_FN_RE.exec(island_deps_module(true, true));
 			expect(m?.[1]).toContain('return null');
 		});
-		test('prod SSR → reads the handoff\u2019s `remotes` map, null for a missing map or unknown entry', () => {
-			const src = island_deps_module(true, false);
-			expect(src).toContain('all.remotes');
-			expect(src).toContain('export function islandRemotes(entry)');
-			expect(src).toContain('return Array.isArray(v) ? v : null');
+		test('prod SSR → reads the handoff\u2019s `remotes` map, null for a missing map or unknown entry', async () => {
+			const m = await with_handoff({ remotes: { '/e/a.js': ['r1'], '/e/b.js': 'nope' } });
+			expect(m.islandRemotes('/e/a.js')).toEqual(['r1']);
+			expect(m.islandRemotes('/e/b.js')).toBeNull();
+			expect(m.islandRemotes('/e/c.js')).toBeNull();
+			expect((await with_handoff({})).islandRemotes('/e/a.js')).toBeNull();
 		});
 	});
 });
@@ -954,15 +981,13 @@ describe('collect_inline_css', () => {
 		expect(collect_inline_css(bundle, hrefs, Number.NaN)).toEqual({});
 	});
 
-	test('the virtual module exposes islandCssInline on every leg (null where nothing is kept)', () => {
-		for (const src of [
-			island_deps_module(false, false),
-			island_deps_module(true, true),
-			island_deps_module(true, false)
-		]) {
-			expect(src).toContain('export function islandCssInline(');
-		}
-		expect(island_deps_module(true, false)).toContain('all.css_inline');
+	test('the virtual module exposes islandCssInline on every leg (null where nothing is kept)', async () => {
+		for (const src of [island_deps_module(false, false), island_deps_module(true, true)])
+			expect((await load_module(src)).islandCssInline('/a.css')).toBeNull();
+		const m = await with_handoff({ css_inline: { '/a.css': 'a{}', '/n.css': 5 } });
+		expect(m.islandCssInline('/a.css')).toBe('a{}');
+		expect(m.islandCssInline('/n.css')).toBeNull();
+		expect(m.islandCssInline('/b.css')).toBeNull();
 	});
 });
 

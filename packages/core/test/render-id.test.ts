@@ -68,7 +68,7 @@ describe('the server manifest maps render identities', () => {
 		expect(src).toContain('"bbbbbbbbbbbb": "r00000000001"');
 		expect(src).toContain('"aaaaaaaaaaaa": "r00000000001"');
 		expect(src).toMatch(
-			/render_island = \{\n {2}"r00000000001": "aaaaaaaaaaaa",\n {2}"r00000000002": "cccccccccccc"\n\}/
+			/render_island = \{\n\t"r00000000001": "aaaaaaaaaaaa",\n\t"r00000000002": "cccccccccccc"\n\}/
 		);
 	});
 
@@ -88,7 +88,7 @@ describe('the server manifest maps render identities', () => {
 		expect(server_islands_module(true, p)).toContain(
 			'"aaaaaaaaaaaa": () => import("virtual:aaaaaaaaaaaa")'
 		);
-		expect(server_islands_module(false, p)).toBe('export const islands = {\n\n};\n');
+		expect(server_islands_module(false, p)).toBe('export const islands = {\n\t\n};');
 	});
 
 	it('the browser leg carries none of it', () => {
