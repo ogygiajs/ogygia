@@ -2,7 +2,7 @@
 // virtual modules, path+strategy dedupe, props/fallback/children rules, defer+hydrate, lakes,
 // presets, and csr-independent emit metadata. Runs against built `../dist/compiler/region/transform.js`.
 
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, vi } from 'vitest';
 import path from 'node:path';
 import {
 	transformHost,
@@ -410,21 +410,52 @@ describe('defer / server islands', () => {
 		);
 	});
 
-	test('the retired render: deferred + wake timing fails, naming the fetch to write', () => {
+	test('the deprecated render: deferred + wake timing is the same hole as fetch, with a warning naming it', () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			const old = run(
+				wrap(`import G from './G.svelte' with { render: 'deferred', wake: 'visible' };`, '<G />')
+			)!;
+			const now = run(
+				wrap(`import G from './G.svelte' with { render: 'deferred', fetch: 'visible' };`, '<G />')
+			)!;
+			expect(old.islands[0].kind).toBe('defer');
+			expect(old.islands[0].id).toBe(now.islands[0].id);
+			expect(old.islands[0].wrapperSource).toBe(now.islands[0].wrapperSource);
+			const said = warn.mock.calls.map((c) => String(c[0]));
+			expect(
+				said.filter((m) =>
+					/deprecated\. Write `render: 'deferred', fetch: 'visible'` instead/.test(m)
+				)
+			).toHaveLength(1);
+			// a preset says it too
+			const preset = run(
+				wrap(`import G from './G.svelte' with { preset: 'later' };`, '<G />'),
+				makeCtx({ presets: { later: { render: 'deferred', wake: 'idle' } } })
+			)!;
+			expect(preset.islands[0].wrapperSource).toMatch(/__defer=\{"idle"\}/);
+			expect(
+				warn.mock.calls.some((c) =>
+					/preset 'later' times .*Write `render: 'deferred', fetch: 'idle'` instead/.test(
+						String(c[0])
+					)
+				)
+			).toBe(true);
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	test('a hole timed with both fetch and wake fails, keeping fetch', () => {
 		expectThrows(
 			() =>
 				run(
-					wrap(`import G from './G.svelte' with { render: 'deferred', wake: 'visible' };`, '<G />')
+					wrap(
+						`import G from './G.svelte' with { render: 'deferred', fetch: 'idle', wake: 'visible' };`,
+						'<G />'
+					)
 				),
-			/that spelling is gone\. Write `render: 'deferred', fetch: 'visible'` instead/
-		);
-		expectThrows(
-			() =>
-				run(
-					wrap(`import G from './G.svelte' with { preset: 'later' };`, '<G />'),
-					makeCtx({ presets: { later: { render: 'deferred', wake: 'idle' } } })
-				),
-			/preset 'later' times .*Write `render: 'deferred', fetch: 'idle'` instead/
+			/twice.*Keep `fetch`/
 		);
 	});
 

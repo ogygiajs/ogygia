@@ -1207,15 +1207,23 @@ class FileCompilation {
 			);
 		}
 		// `render: 'deferred'` says it is a hole; `fetch` says WHEN its HTML arrives. `wake` is when an
-		// island's JS runs — a hole ships no JS — so the old `wake` timing fails the build with its
-		// replacement, never a silent change.
+		// island's JS runs — a hole ships no JS — so the old `wake` timing still times the hole, with a
+		// warning naming its replacement; both at once is a contradiction and fails the build.
 		const said = from_preset ? `preset '${from_preset}'` : 'this import';
 		if (render_mode === 'deferred' && wake_val != null) {
-			throw fail(
-				`${said} times a \`${import_keys.render}: 'deferred'\` hole with \`${import_keys.wake}: '${wake_val}'\` — that spelling is gone. ` +
+			if (fetch_val != null) {
+				throw fail(
+					`${said} times a \`${import_keys.render}: 'deferred'\` hole twice, with \`${import_keys.fetch}: '${fetch_val}'\` and \`${import_keys.wake}: '${wake_val}'\`. ` +
+						`Keep \`${import_keys.fetch}\`: it says when a hole's HTML arrives.`
+				);
+			}
+			warn_once(
+				`deferred-wake:${rel_host}:${said}:${wake_val}`,
+				`[ogygia] ${rel_host}: ${said} times a \`${import_keys.render}: 'deferred'\` hole with \`${import_keys.wake}: '${wake_val}'\`, which is deprecated. ` +
 					`Write \`${import_keys.render}: 'deferred', ${import_keys.fetch}: '${wake_val}'\` instead: \`${import_keys.fetch}\` says when a hole's HTML arrives. ` +
 					`(\`${import_keys.wake}\` is when an island's JS runs; a hole ships no JS.)`
 			);
+			fetch_val = wake_val;
 		}
 		if (fetch_val != null && render_mode !== 'deferred') {
 			throw fail(
@@ -2773,14 +2781,23 @@ class TsRegionCompilation {
 						: `[ogygia] ${this.#rel_host}: unknown \`${renderKey}\` '${marker.render}'. Use 'deferred'.`
 				);
 			}
+			// the old `wake` timing still times the hole, with a warning naming its replacement (as the
+			// `.svelte` path does); both at once is a contradiction
 			if (marker.wake != null) {
-				throw new Error(
-					`[ogygia] ${this.#rel_host}: a \`${renderKey}: 'deferred'\` hole timed with \`${this.#wakeKey}: '${marker.wake}'\` — that spelling is gone. ` +
+				if (marker.fetch != null) {
+					throw new Error(
+						`[ogygia] ${this.#rel_host}: a \`${renderKey}: 'deferred'\` hole timed twice, with \`${fetchKey}: '${marker.fetch}'\` and \`${this.#wakeKey}: '${marker.wake}'\`. ` +
+							`Keep \`${fetchKey}\`: it says when a hole's HTML arrives.`
+					);
+				}
+				warn_once(
+					`deferred-wake:${this.#rel_host}:ts:${marker.wake}`,
+					`[ogygia] ${this.#rel_host}: a \`${renderKey}: 'deferred'\` hole timed with \`${this.#wakeKey}: '${marker.wake}'\`, which is deprecated. ` +
 						`Write \`${renderKey}: 'deferred', ${fetchKey}: '${marker.wake}'\` instead: \`${fetchKey}\` says when a hole's HTML arrives. ` +
 						`(\`${this.#wakeKey}\` is when an island's JS runs; a hole ships no JS.)`
 				);
 			}
-			const dval = marker.fetch ?? 'load';
+			const dval = marker.fetch ?? marker.wake ?? 'load';
 			let when: string;
 			if (DEFER_STRATEGIES.has(dval)) when = dval;
 			else if (is_media_query(dval)) when = dval;

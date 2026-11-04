@@ -7,7 +7,7 @@
 //     keeps the `held:*` identity — distinct from a `.svelte` PLACED island (`hydrate:*`, no endpoint).
 // Both rewrite the host import to the leg-split binding module. Runs against built `../dist`.
 
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, vi } from 'vitest';
 import path from 'node:path';
 import {
 	transformHost,
@@ -253,11 +253,28 @@ export const page = D;`;
 		expect(() => transformTsRegions(bad, id, makeCtx())).toThrow(/a hole must fetch/);
 	});
 
-	test('the retired render: deferred + wake timing fails, naming the fetch to write', () => {
-		const old = `import D from './D.svelte' with { render: 'deferred', wake: 'visible' };`;
-		expect(() => transformTsRegions(old, id, makeCtx())).toThrow(
-			/that spelling is gone\. Write `render: 'deferred', fetch: 'visible'` instead/
-		);
+	test('the deprecated render: deferred + wake timing is the same hole as fetch, with a warning naming it', () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			const old = `import D from './D.svelte' with { render: 'deferred', wake: 'visible' };`;
+			const now = `import D from './D.svelte' with { render: 'deferred', fetch: 'visible' };`;
+			const a = transformTsRegions(old, id, makeCtx())!;
+			const b = transformTsRegions(now, id, makeCtx())!;
+			expect(a.islands[0].fetchWhen).toBe('visible');
+			expect(a.code).toBe(b.code);
+			expect(
+				warn.mock.calls.some((c) =>
+					/deprecated\. Write `render: 'deferred', fetch: 'visible'` instead/.test(String(c[0]))
+				)
+			).toBe(true);
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	test('a hole timed with both fetch and wake fails, keeping fetch', () => {
+		const both = `import D from './D.svelte' with { render: 'deferred', fetch: 'idle', wake: 'visible' };`;
+		expect(() => transformTsRegions(both, id, makeCtx())).toThrow(/twice.*Keep `fetch`/);
 	});
 
 	test('a lone fetch is refused (it is a deferred hole’s timing)', () => {
