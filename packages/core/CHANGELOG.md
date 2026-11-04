@@ -1,5 +1,11 @@
 # @ogygia/core
 
+## 0.12.1
+
+### Patch Changes
+
+- [#162](https://github.com/ogygiajs/ogygia/pull/162) [`0f2f6d6`](https://github.com/ogygiajs/ogygia/commit/0f2f6d679562cfc1774c645a8a31a06e17070b76) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A `render: 'deferred'` hole timed with `wake` builds again: `wake` times it as `fetch` does, and the build warns with the `fetch` to write.
+
 ## 0.12.0
 
 ### Minor Changes
