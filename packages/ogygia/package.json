@@ -1,6 +1,6 @@
 {
 	"name": "ogygia",
-	"version": "0.12.1",
+	"version": "0.12.2",
 	"description": "Astro-style SSR islands for SvelteKit (no Kit patches)",
 	"homepage": "https://ogygiajs.dev",
 	"bugs": {

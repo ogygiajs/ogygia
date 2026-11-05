@@ -1,5 +1,11 @@
 # @ogygia/core
 
+## 0.12.2
+
+### Patch Changes
+
+- [#164](https://github.com/ogygiajs/ogygia/pull/164) [`2a4dc9c`](https://github.com/ogygiajs/ogygia/commit/2a4dc9c9d83adf14c56b1ae714a7044088b7b8ff) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `ogygia.extensions()` and `ogygia.preprocess()` from `ogygia/vite` are callable again and do nothing (`['.svelte']` and `[]`), so a svelte config written for 0.8 loads; the markdown ones come from `@ogygia/content/vite`.
+
 ## 0.12.1
 
 ### Patch Changes
