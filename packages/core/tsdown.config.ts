@@ -42,7 +42,7 @@ export default defineConfig({
 			'magic-string',
 			'estree-walker',
 			'vite',
-			// lazy optional peer of js_to_ts() — bundling would freeze a store path (it once
+			// lazy optional peer of JsToTs — bundling would freeze a store path (it once
 			// resolved to typescript/lib/version.js and shipped a ts with no ScriptTarget)
 			'typescript',
 			// consumer-resolved specifiers
