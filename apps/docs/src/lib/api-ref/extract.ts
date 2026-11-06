@@ -235,7 +235,11 @@ export async function extractModule(moduleId: string): Promise<ApiModule> {
 			text = full.slice(0, full.indexOf('{')).trim() + ' {/*…*/}';
 			const container = decl as import('typescript').InterfaceDeclaration;
 			for (const m of container.members) {
-				if (ts.isConstructorDeclaration(m) && ts.getCombinedModifierFlags(m) & ts.ModifierFlags.Private) continue;
+				if (
+					ts.isConstructorDeclaration(m) &&
+					ts.getCombinedModifierFlags(m) & ts.ModifierFlags.Private
+				)
+					continue;
 				const name = ts.isConstructorDeclaration(m)
 					? 'constructor'
 					: ((m.name && ts.isIdentifier(m.name) ? m.name.text : m.name?.getText()) ?? '');
