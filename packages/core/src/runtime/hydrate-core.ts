@@ -569,12 +569,16 @@ class PropMutationGuard {
 	}
 
 	wrap(props: Record<string, unknown>, entry: string): Record<string, unknown> {
-		if (!(import.meta.env && import.meta.env.DEV)) return props;
 		return this.#guard_value(props, entry, '') as Record<string, unknown>;
 	}
 }
 
-const prop_guard = new PropMutationGuard();
+// Made only in dev: a production build never references the class, so the bundler drops it.
+const dev_guard = import.meta.env?.DEV ? new PropMutationGuard() : null;
+const prop_guard = {
+	wrap: (props: Record<string, unknown>, entry: string): Record<string, unknown> =>
+		dev_guard ? dev_guard.wrap(props, entry) : props
+};
 
 /** Svelte's `unmount`, typed for the opaque app this module hands around. */
 const unmount_app = (app: unknown) => void unmount(app as Record<string, unknown>);
