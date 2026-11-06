@@ -141,8 +141,10 @@ const KIT_PAGE_THREAD =
 	`import * as __og_kit_navigation from '$app/navigation';\n` +
 	`globalThis[Symbol.for('ogygia.kit-page')] = ` +
 	`{ page: __og_kit_page, navigating: __og_kit_nav, navigation: __og_kit_navigation };\n`;
-// Which ogygia a csr=true page runs, on `window.__ogygia.v` — Kit runs that page and the ogygia
-// runtime never boots there (on a csr=false page it discloses it itself: runtime/disclose-version.ts).
+// Which ogygia a csr=true page runs, on `window.__ogygia.v` — Kit runs that page, and the ogygia
+// runtime boots there only for what Kit cannot do (a deferred region, a lake); a page with neither
+// runs no ogygia runtime, so Kit's entry discloses it too. Where the runtime does boot, it adds the
+// same version (runtime/disclose-version.ts): the Set keeps one.
 const KIT_DISCLOSE_VERSION = `((globalThis.__ogygia ??= {}).v ??= new Set()).add(${JSON.stringify(OGYGIA_VERSION)});\n`;
 import { OWN_PACKAGE_NAMES, is_own_specifier } from '../own-package.ts';
 import {

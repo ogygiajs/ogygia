@@ -1,6 +1,7 @@
 // WHICH OGYGIA A PAGE RUNS: `window.__ogygia.v` holds the installed version, as `window.__svelte.v`
 // holds Svelte's — on a csr=false page (the ogygia runtime discloses it at boot) AND on a csr=true page
-// (Kit runs it and the runtime never boots: the plugin's line in Kit's app entry discloses it).
+// (the plugin's line in Kit's app entry discloses it). A csr=true page whose deferred regions boot the
+// runtime too lists the version once: both add it to the same Set.
 //
 // Usage: pnpm exec playwright test disclose-version
 import { readFileSync } from 'node:fs';
@@ -14,7 +15,9 @@ const VERSION = (
 
 for (const [path, csr] of [
 	['/', false],
-	['/kit', true]
+	['/kit', true],
+	// csr=true with deferred regions: the runtime boots here as well
+	['/lake-kit/kit', true]
 ] as const) {
 	test(`a csr=${csr} page discloses the ogygia version (${path})`, async ({ page }) => {
 		await page.goto(path, { waitUntil: 'load' });
