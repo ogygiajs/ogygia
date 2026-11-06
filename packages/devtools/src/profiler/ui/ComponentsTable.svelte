@@ -4,7 +4,7 @@
 	 *  full location and the call stacks that rendered it. */
 	import type { FrameStat } from '../analyze.ts';
 	import { fmt_ms, fmt_dur, fmt_pct, fmt_bytes, CATEGORY_COLOR } from './format.ts';
-	import { sortable } from './sort.svelte.ts';
+	import { Sortable } from './sort.svelte.ts';
 	import { pressable } from './press.ts';
 	import FrameDetails from './FrameDetails.svelte';
 	import { row_id, follow_hash } from './row-anchor.svelte.ts';
@@ -37,7 +37,7 @@
 				(r.path ?? '').toLowerCase().includes(q)
 		);
 	});
-	const s = sortable(() => filtered, 'self_ms');
+	const s = new Sortable(() => filtered, 'self_ms');
 	let open = $state<string | null>(null);
 	const hasSplit = $derived(rows.some((r) => (r.markup_ms ?? 0) + (r.logic_ms ?? 0) > 0));
 	const hasParent = $derived(rows.some((r) => !!r.parent));

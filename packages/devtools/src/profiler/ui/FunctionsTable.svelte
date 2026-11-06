@@ -3,7 +3,7 @@
 	 *  and an expandable row per function (full location + its heaviest call stacks). */
 	import type { FrameStat } from '../analyze.ts';
 	import { fmt_ms, fmt_dur, fmt_bytes, CATEGORY_COLOR, CATEGORY_LABEL, ink_on } from './format.ts';
-	import { sortable } from './sort.svelte.ts';
+	import { Sortable } from './sort.svelte.ts';
 	import { pressable } from './press.ts';
 	import FrameDetails from './FrameDetails.svelte';
 	import { row_id, follow_hash } from './row-anchor.svelte.ts';
@@ -28,7 +28,7 @@
 				(r.pkg ?? '').toLowerCase().includes(q)
 		);
 	});
-	const s = sortable(() => filtered, 'self_ms');
+	const s = new Sortable(() => filtered, 'self_ms');
 	const row_key = (f: Row) => f.key ?? f.name + ' ' + f.url;
 	let open = $state<string | null>(null);
 	const cols = $derived(hasAlloc ? 7 : 6);
