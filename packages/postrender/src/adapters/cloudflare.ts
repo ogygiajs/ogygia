@@ -29,16 +29,43 @@ export interface CloudflareConfig {
 	maxAge?: number;
 }
 
-export function cloudflare(config: CloudflareConfig): EdgeAdapter {
-	const api_base = (config.baseUrl ?? 'https://api.cloudflare.com').replace(
-		TRAILING_SLASHES_RE,
-		''
-	);
-	const site = config.site.replace(TRAILING_SLASHES_RE, '');
-	const site_host = site.replace(HTTP_SCHEME_RE, '');
+export class CloudflareEdge implements EdgeAdapter {
+	readonly name: string = 'cloudflare';
+	#config: CloudflareConfig;
+	#api_base: string;
+	#site: string;
+	#site_host: string;
 
-	const purge = async (body: Record<string, unknown>): Promise<void> => {
-		const res = await fetch(`${api_base}/client/v4/zones/${config.zoneId}/purge_cache`, {
+	constructor(config: CloudflareConfig) {
+		this.#config = config;
+		this.#api_base = (config.baseUrl ?? 'https://api.cloudflare.com').replace(
+			TRAILING_SLASHES_RE,
+			''
+		);
+		this.#site = config.site.replace(TRAILING_SLASHES_RE, '');
+		this.#site_host = this.#site.replace(HTTP_SCHEME_RE, '');
+	}
+
+	headers(meta: PostrenderMeta): Record<string, string> {
+		const tags = prefix_tags(meta.url).map((p) => `p:${p}`);
+		const out: Record<string, string> = {};
+		if (tags.length) out['cache-tag'] = tags.join(',');
+		const max_age = this.#config.maxAge ?? meta.ttl;
+		if (max_age > 0) out['cache-control'] = `public, s-maxage=${max_age}`;
+		return out;
+	}
+
+	async purgeUrl(url: string): Promise<void> {
+		await this.#purge({ files: [this.#site + url] });
+	}
+
+	async purgeWhere({ prefix }: { prefix: string }): Promise<void> {
+		await this.#purge({ prefixes: [this.#site_host + normalize_prefix(prefix)] });
+	}
+
+	async #purge(body: Record<string, unknown>): Promise<void> {
+		const config = this.#config;
+		const res = await fetch(`${this.#api_base}/client/v4/zones/${config.zoneId}/purge_cache`, {
 			method: 'POST',
 			headers: {
 				authorization: `Bearer ${config.apiToken}`,
@@ -53,23 +80,5 @@ export function cloudflare(config: CloudflareConfig): EdgeAdapter {
 				body: await res.text().catch(() => '')
 			});
 		}
-	};
-
-	return {
-		name: 'cloudflare',
-		headers(meta: PostrenderMeta) {
-			const tags = prefix_tags(meta.url).map((p) => `p:${p}`);
-			const out: Record<string, string> = {};
-			if (tags.length) out['cache-tag'] = tags.join(',');
-			const max_age = config.maxAge ?? meta.ttl;
-			if (max_age > 0) out['cache-control'] = `public, s-maxage=${max_age}`;
-			return out;
-		},
-		async purgeUrl(url) {
-			await purge({ files: [site + url] });
-		},
-		async purgeWhere({ prefix }) {
-			await purge({ prefixes: [site_host + normalize_prefix(prefix)] });
-		}
-	};
+	}
 }

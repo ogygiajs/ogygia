@@ -3,11 +3,11 @@
  * a count alone bounds nothing).
  */
 import { describe, it, expect } from 'vitest';
-import { memory_store } from '../src/memory-store.ts';
+import { MemoryStore } from '../src/memory-store.ts';
 
 describe('postrender memory store is byte-bounded', () => {
 	it('a run of multi-MB pages stays under the budget; the newest survive', async () => {
-		const store = memory_store(1000, 5_000_000);
+		const store = new MemoryStore(1000, 5_000_000);
 		const html = '<html>' + 'y'.repeat(2_000_000) + '</html>';
 		for (let i = 0; i < 6; i++) {
 			await store.put(`/p${i}/`, { kind: 'page', html, headers: {}, created: 0 }, { ttl: 60 });
@@ -18,7 +18,7 @@ describe('postrender memory store is byte-bounded', () => {
 	});
 
 	it('redirects are cheap entries: a thousand of them fit', async () => {
-		const store = memory_store(1000, 5_000_000);
+		const store = new MemoryStore(1000, 5_000_000);
 		for (let i = 0; i < 1000; i++) {
 			await store.put(
 				`/r${i}`,

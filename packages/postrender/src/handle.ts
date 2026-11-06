@@ -3,7 +3,7 @@
  * composes with Kit's `sequence()`, BEFORE ogygia's:
  *
  *   export const handle = sequence(
- *     postrender.handle({ store: valkey(client), edge: [cloudflare({ … })] }),
+ *     postrender.handle({ store: new ValkeyStore(client), edge: [new CloudflareEdge({ … })] }),
  *     ogygia.handle()
  *   );
  *

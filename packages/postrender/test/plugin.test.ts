@@ -11,7 +11,7 @@ import { postrender as postrenderPlugin } from '../src/vite.ts';
 import server, { type PostrenderServerOptions } from '../src/server.ts';
 import { postrender } from '../src/index.ts';
 import { install, reset_for_tests } from '../src/registry.ts';
-import { memory_store } from '../src/memory-store.ts';
+import { MemoryStore } from '../src/memory-store.ts';
 
 /** the definition `definePlugin` put on the Vite plugin */
 const definition = (plugin: ReturnType<typeof postrenderPlugin>) =>
@@ -80,7 +80,7 @@ describe('the server realm, started', () => {
 
 	it('remembers the build past the pages’ TTL: a deploy a month later still finds it', async () => {
 		const puts: { key: string; ttl: number }[] = [];
-		const store = memory_store();
+		const store = new MemoryStore();
 		const put = store.put.bind(store);
 		store.put = (key, entry, options) => {
 			puts.push({ key, ttl: options.ttl });

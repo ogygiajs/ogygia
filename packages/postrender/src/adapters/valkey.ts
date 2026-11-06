@@ -7,7 +7,7 @@
  * the longest lifetime among its members; members of expired entries are harmless — deleting a
  * gone key is a no-op).
  */
-import type { PostrenderStore } from '../types.ts';
+import type { PostrenderEntry, PostrenderPutOptions, PostrenderStore } from '../types.ts';
 import { normalize_prefix, subtree_prefix } from '../key.ts';
 import { OgygiaError } from '../messages.ts';
 
@@ -49,17 +49,70 @@ function glob_escape(value: string): string {
 	return value.replace(GLOB_ACTIVE_G, (c) => '\\' + c);
 }
 
-export function valkey(client: ValkeyLike): PostrenderStore {
-	const set_with_ttl = async (key: string, value: string, ttl: number) => {
+export class ValkeyStore implements PostrenderStore {
+	#client: ValkeyLike;
+
+	constructor(client: ValkeyLike) {
+		this.#client = client;
+	}
+
+	async get(key: string): Promise<PostrenderEntry | null> {
+		const raw = await this.#client.get(KEY_NS + key);
+		if (!raw) return null;
+		try {
+			return JSON.parse(raw);
+		} catch {
+			return null;
+		}
+	}
+
+	async put(
+		key: string,
+		entry: PostrenderEntry,
+		{ ttl, tags }: PostrenderPutOptions
+	): Promise<void> {
+		await this.#set_with_ttl(KEY_NS + key, JSON.stringify(entry), ttl);
+		for (const tag of tags ?? []) {
+			await this.#sadd(TAG_NS + tag, key);
+			// A tag set is shared by entries of different lifetimes: only ever EXTEND its expiry,
+			// or a short-lived entry would expire the index of a long-lived page sharing the tag.
+			// (TTL then EXPIRE, not `EXPIRE … GT`: GT treats a fresh set as never-expiring.)
+			const left = await this.#read_ttl(TAG_NS + tag);
+			if (left === null || left < ttl) await this.#client.expire?.(TAG_NS + tag, ttl);
+		}
+	}
+
+	async evict(key: string): Promise<void> {
+		await this.#client.del(KEY_NS + key);
+	}
+
+	async evictWhere({ prefix }: { prefix: string }): Promise<void> {
+		const client = this.#client;
+		const p = normalize_prefix(prefix);
+		// `/fr/fr` must match itself + its subtree, never `/fr/fright`: two exact patterns.
+		await this.#scan_prefix(subtree_prefix(p), async (keys) => void (await client.del(...keys)));
+		await client.del(KEY_NS + p);
+	}
+
+	async evictByTag(tag: string): Promise<string[]> {
+		const client = this.#client;
+		const members = await this.#smembers(TAG_NS + tag);
+		if (members.length) await client.del(...members.map((m) => KEY_NS + m));
+		await client.del(TAG_NS + tag);
+		return members;
+	}
+
+	async #set_with_ttl(key: string, value: string, ttl: number): Promise<void> {
 		try {
 			// ioredis positional form first — node-redis v4 throws on it, then takes the options bag.
-			await client.set(key, value, 'EX', ttl);
+			await this.#client.set(key, value, 'EX', ttl);
 		} catch {
-			await client.set(key, value, { EX: ttl } as unknown as string);
+			await this.#client.set(key, value, { EX: ttl } as unknown as string);
 		}
-	};
+	}
 
-	const sadd = async (key: string, member: string) => {
+	async #sadd(key: string, member: string): Promise<void> {
+		const client = this.#client;
 		if (client.sadd) await client.sadd(key, member);
 		else if (client.sAdd) await client.sAdd(key, member);
 		else
@@ -67,69 +120,34 @@ export function valkey(client: ValkeyLike): PostrenderStore {
 				client: 'valkey',
 				commands: 'sadd/sAdd'
 			});
-	};
-	const smembers = async (key: string): Promise<string[]> => {
+	}
+
+	async #smembers(key: string): Promise<string[]> {
+		const client = this.#client;
 		if (client.smembers) return client.smembers(key);
 		if (client.sMembers) return client.sMembers(key);
 		throw new OgygiaError('postrender_store_client_missing', {
 			client: 'valkey',
 			commands: 'smembers/sMembers'
 		});
-	};
+	}
 
 	/** Seconds left on a key (-1 = no expiry), or null when the client has no TTL command. */
-	const read_ttl = async (key: string): Promise<number | null> => {
+	async #read_ttl(key: string): Promise<number | null> {
+		const client = this.#client;
 		if (client.ttl) return Number(await client.ttl(key));
 		if (client.TTL) return Number(await client.TTL(key));
 		return null;
-	};
+	}
 
-	const scan_prefix = async (prefix: string, on_keys: (keys: string[]) => Promise<void>) => {
+	async #scan_prefix(prefix: string, on_keys: (keys: string[]) => Promise<void>): Promise<void> {
 		const pattern = glob_escape(KEY_NS + prefix) + '*';
 		let cursor = '0';
 		do {
-			const reply = await client.scan(cursor, 'MATCH', pattern, 'COUNT', SCAN_COUNT);
+			const reply = await this.#client.scan(cursor, 'MATCH', pattern, 'COUNT', SCAN_COUNT);
 			const page = read_scan_reply(reply);
 			cursor = page.cursor;
 			if (page.keys.length) await on_keys(page.keys);
 		} while (cursor !== '0');
-	};
-
-	return {
-		async get(key) {
-			const raw = await client.get(KEY_NS + key);
-			if (!raw) return null;
-			try {
-				return JSON.parse(raw);
-			} catch {
-				return null;
-			}
-		},
-		async put(key, entry, { ttl, tags }) {
-			await set_with_ttl(KEY_NS + key, JSON.stringify(entry), ttl);
-			for (const tag of tags ?? []) {
-				await sadd(TAG_NS + tag, key);
-				// A tag set is shared by entries of different lifetimes: only ever EXTEND its expiry,
-				// or a short-lived entry would expire the index of a long-lived page sharing the tag.
-				// (TTL then EXPIRE, not `EXPIRE … GT`: GT treats a fresh set as never-expiring.)
-				const left = await read_ttl(TAG_NS + tag);
-				if (left === null || left < ttl) await client.expire?.(TAG_NS + tag, ttl);
-			}
-		},
-		async evict(key) {
-			await client.del(KEY_NS + key);
-		},
-		async evictWhere({ prefix }) {
-			const p = normalize_prefix(prefix);
-			// `/fr/fr` must match itself + its subtree, never `/fr/fright`: two exact patterns.
-			await scan_prefix(subtree_prefix(p), async (keys) => void (await client.del(...keys)));
-			await client.del(KEY_NS + p);
-		},
-		async evictByTag(tag) {
-			const members = await smembers(TAG_NS + tag);
-			if (members.length) await client.del(...members.map((m) => KEY_NS + m));
-			await client.del(TAG_NS + tag);
-			return members;
-		}
-	};
+	}
 }
