@@ -3,10 +3,10 @@
 // REAL request shapes (signing included) captured through a stubbed fetch.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { store_key, normalize_prefix, prefix_tags, PREFIX_TAG_DEPTH } from '../src/key.ts';
-import { memory_store } from '../src/memory-store.ts';
-import { valkey, type ValkeyLike } from '../src/adapters/valkey.ts';
-import { akamai } from '../src/adapters/akamai.ts';
-import { cloudfront } from '../src/adapters/cloudfront.ts';
+import { MemoryStore } from '../src/memory-store.ts';
+import { ValkeyStore, type ValkeyLike } from '../src/adapters/valkey.ts';
+import { AkamaiEdge } from '../src/adapters/akamai.ts';
+import { CloudFrontEdge } from '../src/adapters/cloudfront.ts';
 import {
 	install,
 	current_runtime,
@@ -121,7 +121,7 @@ function store_contract(name: string, make: () => Promise<PostrenderStore> | Pos
 	});
 }
 
-store_contract('memory (tier 1)', () => memory_store());
+store_contract('memory (tier 1)', () => new MemoryStore());
 
 // A faithful little Valkey fake (get/set EX/del/scan MATCH+COUNT with cursor) so the adapter's
 // command usage is exercised on every PR; the REAL server runs the same contract below.
@@ -199,12 +199,12 @@ function fake_valkey(): ValkeyLike & { data: Map<string, string>; expiry: Map<st
 	};
 }
 
-store_contract('valkey (fake client)', () => valkey(fake_valkey()));
+store_contract('valkey (fake client)', () => new ValkeyStore(fake_valkey()));
 
 describe('valkey tag index lifetime', () => {
 	it('a short-lived entry never shortens the tag set of a long-lived one', async () => {
 		const client = fake_valkey();
-		const store = valkey(client);
+		const store = new ValkeyStore(client);
 		await store.put('/page/', page_entry(), { ttl: 86_400, tags: ['s:cms#nav:x'] });
 		await store.put('/short/', page_entry(), { ttl: 600, tags: ['s:cms#nav:x'] });
 		const left = (client.expiry.get('og:t:s:cms#nav:x')! - Date.now()) / 1000;
@@ -215,7 +215,7 @@ describe('valkey tag index lifetime', () => {
 
 	it('a longer-lived entry extends the tag set', async () => {
 		const client = fake_valkey();
-		const store = valkey(client);
+		const store = new ValkeyStore(client);
 		await store.put('/short/', page_entry(), { ttl: 600, tags: ['t'] });
 		await store.put('/page/', page_entry(), { ttl: 86_400, tags: ['t'] });
 		const left = (client.expiry.get('og:t:t')! - Date.now()) / 1000;
@@ -238,7 +238,7 @@ describe.skipIf(!REDIS_URL)('store contract: valkey (REAL server via REDIS_URL)'
 		const client = createClient({ url: REDIS_URL });
 		await client.connect();
 		try {
-			const store = valkey(client as unknown as ValkeyLike);
+			const store = new ValkeyStore(client as unknown as ValkeyLike);
 			await store.put('/contract/x/', page_entry(), { ttl: 30 });
 			expect((await store.get('/contract/x/'))?.kind).toBe('page');
 			await store.evictWhere({ prefix: '/contract/' });
@@ -283,7 +283,7 @@ describe('postrender/registry', () => {
 		const fallback = current_runtime();
 		expect(fallback.edges).toEqual([]);
 		expect(current_runtime()).toBe(fallback); // one default, kept
-		const store = memory_store();
+		const store = new MemoryStore();
 		const first = install({ store });
 		expect(current_runtime()).toBe(first);
 		expect(first.store).toBe(store);
@@ -527,7 +527,7 @@ describe('edge adapters', () => {
 	afterEach(() => vi.unstubAllGlobals());
 
 	it('akamai: EdgeGrid-signed Fast Purge by url + prefix tag; headers stamp prefix tags', async () => {
-		const edge = akamai({
+		const edge = new AkamaiEdge({
 			host: 'akab-test.purge.akamaiapis.net',
 			clientToken: 'ct',
 			clientSecret: 'cs',
@@ -554,7 +554,7 @@ describe('edge adapters', () => {
 	});
 
 	it('cloudfront: SigV4-signed CreateInvalidation; prefix becomes path + wildcard', async () => {
-		const edge = cloudfront({
+		const edge = new CloudFrontEdge({
 			distributionId: 'E123',
 			accessKeyId: 'AKIA',
 			secretAccessKey: 'shh'

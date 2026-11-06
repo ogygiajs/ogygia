@@ -22,9 +22,12 @@ export default defineConfig({
 // src/hooks.server.ts — postrender's handle goes BEFORE ogygia's
 import { sequence } from '@sveltejs/kit/hooks';
 import * as ogygia from 'ogygia/server';
-import { postrender, valkey } from '@ogygia/postrender';
+import { postrender, ValkeyStore } from '@ogygia/postrender';
 
-export const handle = sequence(postrender.handle({ store: valkey(client) }), ogygia.handle());
+export const handle = sequence(
+	postrender.handle({ store: new ValkeyStore(client) }),
+	ogygia.handle()
+);
 ```
 
 With no `store`, pages are kept in an in-process LRU.

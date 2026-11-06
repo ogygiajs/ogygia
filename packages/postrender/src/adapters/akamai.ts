@@ -46,19 +46,49 @@ const b64_hmac = (key: string | Buffer, data: string) =>
 	createHmac('sha256', key).update(data).digest('base64');
 const b64_sha = (data: string) => createHash('sha256').update(data).digest('base64');
 
-export function akamai(config: AkamaiConfig): EdgeAdapter {
-	const network = config.network ?? 'production';
-	const api_base = (config.baseUrl ?? `https://${config.host}`).replace(TRAILING_SLASHES_RE, '');
+export class AkamaiEdge implements EdgeAdapter {
+	readonly name: string = 'akamai';
+	#config: AkamaiConfig;
+	#network: string;
+	#api_base: string;
+
+	constructor(config: AkamaiConfig) {
+		this.#config = config;
+		this.#network = config.network ?? 'production';
+		this.#api_base = (config.baseUrl ?? `https://${config.host}`).replace(TRAILING_SLASHES_RE, '');
+	}
+
+	headers(meta: PostrenderMeta): Record<string, string> {
+		const tags = prefix_tags(meta.url).map((p) => `p:${p}`);
+		const out: Record<string, string> = {};
+		if (tags.length) out['edge-cache-tag'] = tags.join(', ');
+		const max_age = this.#config.maxAge ?? meta.ttl;
+		if (max_age > 0) out['cache-control'] = `public, s-maxage=${max_age}`;
+		return out;
+	}
+
+	async purgeUrl(url: string): Promise<void> {
+		await this.#signed_post(`/ccu/v3/invalidate/url/${this.#network}`, {
+			objects: [this.#config.site.replace(TRAILING_SLASHES_RE, '') + url]
+		});
+	}
+
+	async purgeWhere({ prefix }: { prefix: string }): Promise<void> {
+		await this.#signed_post(`/ccu/v3/invalidate/tag/${this.#network}`, {
+			objects: [`p:${normalize_prefix(prefix)}`]
+		});
+	}
 
 	/** Real EdgeGrid signing (EG1-HMAC-SHA256) over the canonical request. */
-	const signed_post = async (path: string, body: unknown): Promise<void> => {
+	async #signed_post(path: string, body: unknown): Promise<void> {
+		const config = this.#config;
 		const payload = JSON.stringify(body);
 		const timestamp = edgegrid_timestamp();
 		const nonce = randomUUID();
 		const auth_prefix =
 			`EG1-HMAC-SHA256 client_token=${config.clientToken};` +
 			`access_token=${config.accessToken};timestamp=${timestamp};nonce=${nonce};`;
-		const url = new URL(api_base + path);
+		const url = new URL(this.#api_base + path);
 		// Canonical data: METHOD \t scheme \t host \t path+query \t canonical-headers \t content-hash \t auth
 		const data_to_sign = [
 			'POST',
@@ -86,27 +116,5 @@ export function akamai(config: AkamaiConfig): EdgeAdapter {
 				body: await res.text().catch(() => '')
 			});
 		}
-	};
-
-	return {
-		name: 'akamai',
-		headers(meta: PostrenderMeta) {
-			const tags = prefix_tags(meta.url).map((p) => `p:${p}`);
-			const out: Record<string, string> = {};
-			if (tags.length) out['edge-cache-tag'] = tags.join(', ');
-			const max_age = config.maxAge ?? meta.ttl;
-			if (max_age > 0) out['cache-control'] = `public, s-maxage=${max_age}`;
-			return out;
-		},
-		async purgeUrl(url) {
-			await signed_post(`/ccu/v3/invalidate/url/${network}`, {
-				objects: [config.site.replace(TRAILING_SLASHES_RE, '') + url]
-			});
-		},
-		async purgeWhere({ prefix }) {
-			await signed_post(`/ccu/v3/invalidate/tag/${network}`, {
-				objects: [`p:${normalize_prefix(prefix)}`]
-			});
-		}
-	};
+	}
 }

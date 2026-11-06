@@ -10,10 +10,10 @@ import {
 	set_source_recorder
 } from '../../core/src/source.ts';
 import { install, reset_for_tests, store_put, store_get, invalidate } from '../src/registry.ts';
-import { memory_store } from '../src/memory-store.ts';
-import { upstash } from '../src/adapters/upstash.ts';
-import { cloudflare } from '../src/adapters/cloudflare.ts';
-import { cloudflareKv, type KvNamespaceLike } from '../src/adapters/cloudflare-kv.ts';
+import { MemoryStore } from '../src/memory-store.ts';
+import { UpstashStore } from '../src/adapters/upstash.ts';
+import { CloudflareEdge } from '../src/adapters/cloudflare.ts';
+import { CloudflareKvStore, type KvNamespaceLike } from '../src/adapters/cloudflare-kv.ts';
 import type { PostrenderEntry, EdgeAdapter } from '../src/types.ts';
 
 const page_entry = (): PostrenderEntry => ({
@@ -40,7 +40,7 @@ describe('invalidate(fn, args) — the reverse index', () => {
 			purgeUrl: async (url) => void purged.push(url),
 			purgeWhere: async () => {}
 		};
-		const runtime = install({ store: memory_store(), edge: [edge] });
+		const runtime = install({ store: new MemoryStore(), edge: [edge] });
 		const fn = __og_source('lib/cms.ts#read', (slug: string) => slug);
 		const tag = source_tag('lib/cms.ts#read', fingerprint_args(['promo']));
 		await store_put(runtime, '/fr/fr/a', page_entry(), { ttl: 60, tags: [tag] });
@@ -83,7 +83,7 @@ describe('upstash store (REST command shapes)', () => {
 	afterEach(() => vi.unstubAllGlobals());
 
 	it('speaks the REST protocol: SET EX, SADD/EXPIRE tags, SMEMBERS+DEL on evictByTag', async () => {
-		const store = upstash({ url: 'https://x.upstash.io', token: 't' });
+		const store = new UpstashStore({ url: 'https://x.upstash.io', token: 't' });
 		await store.put('/fr/fr/a', page_entry(), { ttl: 120, tags: ['s:x#f:1'] });
 		expect(calls).toContainEqual(['SET', 'og:a:/fr/fr/a', expect.any(String), 'EX', '120']);
 		expect(calls).toContainEqual(['SADD', 'og:t:s:x#f:1', '/fr/fr/a']);
@@ -95,7 +95,7 @@ describe('upstash store (REST command shapes)', () => {
 	});
 
 	it('only ever extends a tag set’s expiry', async () => {
-		const store = upstash({ url: 'https://x.upstash.io', token: 't' });
+		const store = new UpstashStore({ url: 'https://x.upstash.io', token: 't' });
 		await store.put('/page', page_entry(), { ttl: 86_400, tags: ['t'] });
 		calls.length = 0;
 		await store.put('/short', page_entry(), { ttl: 600, tags: ['t'] });
@@ -104,7 +104,7 @@ describe('upstash store (REST command shapes)', () => {
 	});
 
 	it('a root prefix scans every key', async () => {
-		const store = upstash({ url: 'https://x.upstash.io', token: 't' });
+		const store = new UpstashStore({ url: 'https://x.upstash.io', token: 't' });
 		await store.evictWhere({ prefix: '/' });
 		expect(calls).toContainEqual(['SCAN', '0', 'MATCH', 'og:a:/*', 'COUNT', '250']);
 	});
@@ -122,7 +122,7 @@ describe('cloudflare edge adapter', () => {
 	afterEach(() => vi.unstubAllGlobals());
 
 	it('bearer-authed zone purge: files for urls, prefixes for subtrees; cache-tag stamping', async () => {
-		const edge = cloudflare({
+		const edge = new CloudflareEdge({
 			zoneId: 'z1',
 			apiToken: 'tok',
 			site: 'https://www.example.com'
@@ -168,7 +168,7 @@ describe('cloudflare KV store', () => {
 
 	it('round-trips, prefix-evicts, and runs the sentinel-key tag index', async () => {
 		const kv = fake_kv();
-		const store = cloudflareKv(kv);
+		const store = new CloudflareKvStore(kv);
 		await store.put('/fr/fr/a', page_entry(), { ttl: 60, tags: ['s:x#f:1'] });
 		await store.put('/fr/fr/b', page_entry(), { ttl: 60 });
 		await store.put('/fright', page_entry(), { ttl: 60 });

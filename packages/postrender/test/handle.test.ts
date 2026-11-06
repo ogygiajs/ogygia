@@ -13,7 +13,7 @@ import server, {
 	type PostrenderServerOptions
 } from '../src/server.ts';
 import { postrender } from '../src/index.ts';
-import { memory_store } from '../src/memory-store.ts';
+import { MemoryStore } from '../src/memory-store.ts';
 import { current_runtime, reset_for_tests } from '../src/registry.ts';
 import { set_postrender_app } from '../src/app.ts';
 import type { PostrenderEntry, PostrenderStore } from '../src/types.ts';
@@ -35,7 +35,7 @@ const page_entry = (html = '<html><head></head><body>stored</body></html>'): Pos
 
 /** A store already holding `/a` and `/p`. */
 async function seeded(): Promise<PostrenderStore> {
-	const store = memory_store();
+	const store = new MemoryStore();
 	await store.put('/a', page_entry(), { ttl: 60 });
 	await store.put('/p', page_entry(), { ttl: 60 });
 	return store;

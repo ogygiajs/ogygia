@@ -11,9 +11,9 @@
  * The binding is the Worker's `env`, importable at module scope where `postrender.handle()` is made:
  *
  *   import { env } from 'cloudflare:workers';
- *   postrender.handle({ store: cloudflareKv(env.PAGES) })
+ *   postrender.handle({ store: new CloudflareKvStore(env.PAGES) })
  */
-import type { PostrenderStore } from '../types.ts';
+import type { PostrenderEntry, PostrenderPutOptions, PostrenderStore } from '../types.ts';
 import { normalize_prefix, subtree_prefix } from '../key.ts';
 
 const KEY_NS = 'og:a:';
@@ -31,55 +31,70 @@ export interface KvNamespaceLike {
 	}): Promise<{ keys: { name: string }[]; list_complete: boolean; cursor?: string }>;
 }
 
-export function cloudflareKv(kv: KvNamespaceLike): PostrenderStore {
-	const list_prefix = async (prefix: string): Promise<string[]> => {
+export class CloudflareKvStore implements PostrenderStore {
+	#kv: KvNamespaceLike;
+
+	constructor(kv: KvNamespaceLike) {
+		this.#kv = kv;
+	}
+
+	async get(key: string): Promise<PostrenderEntry | null> {
+		const raw = await this.#kv.get(KEY_NS + key, 'text');
+		if (!raw) return null;
+		try {
+			return JSON.parse(raw);
+		} catch {
+			return null;
+		}
+	}
+
+	async put(
+		key: string,
+		entry: PostrenderEntry,
+		{ ttl, tags }: PostrenderPutOptions
+	): Promise<void> {
+		const kv = this.#kv;
+		const expirationTtl = Math.max(KV_MIN_TTL, ttl);
+		await kv.put(KEY_NS + key, JSON.stringify(entry), { expirationTtl });
+		for (const tag of tags ?? []) {
+			// Sentinel key: the member IS the suffix — one list() recovers the whole tag set.
+			await kv.put(`${TAG_NS}${tag}:${key}`, '1', { expirationTtl });
+		}
+	}
+
+	async evict(key: string): Promise<void> {
+		await this.#kv.delete(KEY_NS + key);
+	}
+
+	async evictWhere({ prefix }: { prefix: string }): Promise<void> {
+		const kv = this.#kv;
+		const p = normalize_prefix(prefix);
+		for (const name of await this.#list_prefix(KEY_NS + subtree_prefix(p))) await kv.delete(name);
+		await kv.delete(KEY_NS + p);
+	}
+
+	async evictByTag(tag: string): Promise<string[]> {
+		const kv = this.#kv;
+		const sentinel_prefix = `${TAG_NS}${tag}:`;
+		const sentinels = await this.#list_prefix(sentinel_prefix);
+		const keys: string[] = [];
+		for (const name of sentinels) {
+			const key = name.slice(sentinel_prefix.length);
+			keys.push(key);
+			await kv.delete(KEY_NS + key);
+			await kv.delete(name);
+		}
+		return keys;
+	}
+
+	async #list_prefix(prefix: string): Promise<string[]> {
 		const names: string[] = [];
 		let cursor: string | undefined;
 		do {
-			const page = await kv.list({ prefix, cursor });
+			const page = await this.#kv.list({ prefix, cursor });
 			for (const k of page.keys) names.push(k.name);
 			cursor = page.list_complete ? undefined : page.cursor;
 		} while (cursor);
 		return names;
-	};
-
-	return {
-		async get(key) {
-			const raw = await kv.get(KEY_NS + key, 'text');
-			if (!raw) return null;
-			try {
-				return JSON.parse(raw);
-			} catch {
-				return null;
-			}
-		},
-		async put(key, entry, { ttl, tags }) {
-			const expirationTtl = Math.max(KV_MIN_TTL, ttl);
-			await kv.put(KEY_NS + key, JSON.stringify(entry), { expirationTtl });
-			for (const tag of tags ?? []) {
-				// Sentinel key: the member IS the suffix — one list() recovers the whole tag set.
-				await kv.put(`${TAG_NS}${tag}:${key}`, '1', { expirationTtl });
-			}
-		},
-		async evict(key) {
-			await kv.delete(KEY_NS + key);
-		},
-		async evictWhere({ prefix }) {
-			const p = normalize_prefix(prefix);
-			for (const name of await list_prefix(KEY_NS + subtree_prefix(p))) await kv.delete(name);
-			await kv.delete(KEY_NS + p);
-		},
-		async evictByTag(tag) {
-			const sentinel_prefix = `${TAG_NS}${tag}:`;
-			const sentinels = await list_prefix(sentinel_prefix);
-			const keys: string[] = [];
-			for (const name of sentinels) {
-				const key = name.slice(sentinel_prefix.length);
-				keys.push(key);
-				await kv.delete(KEY_NS + key);
-				await kv.delete(name);
-			}
-			return keys;
-		}
-	};
+	}
 }

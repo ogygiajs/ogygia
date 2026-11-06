@@ -1,6 +1,6 @@
 import { sequence } from '@sveltejs/kit/hooks';
 import * as ogygia from 'ogygia/server';
-import { postrender, akamai, cloudfront, type EdgeAdapter } from '@ogygia/postrender';
+import { postrender, AkamaiEdge, CloudFrontEdge, type EdgeAdapter } from '@ogygia/postrender';
 import { env } from '$env/dynamic/private';
 import { routes, page, layout } from '@ogygia/router';
 import Shell from '$lib/r/Shell.svelte';
@@ -14,7 +14,7 @@ import Off from '$lib/r/Off.svelte';
 const edge: EdgeAdapter[] = [];
 if (env.EDGE_AKAMAI_URL) {
 	edge.push(
-		akamai({
+		new AkamaiEdge({
 			host: 'akab-emulated.purge.akamaiapis.net',
 			clientToken: 'emu-client-token',
 			clientSecret: 'emu-client-secret',
@@ -26,7 +26,7 @@ if (env.EDGE_AKAMAI_URL) {
 }
 if (env.EDGE_CF_URL) {
 	edge.push(
-		cloudfront({
+		new CloudFrontEdge({
 			distributionId: 'EMULATED123',
 			accessKeyId: 'AKIAEMULATED',
 			secretAccessKey: 'emulated-secret',

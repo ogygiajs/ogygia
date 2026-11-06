@@ -9,7 +9,7 @@
  * this exact signing/requesting code, not a mock of it.
  */
 import { createHmac, createHash } from 'node:crypto';
-import type { EdgeAdapter } from '../types.ts';
+import type { EdgeAdapter, PostrenderMeta } from '../types.ts';
 import { normalize_prefix } from '../key.ts';
 import { OgygiaError } from '../messages.ts';
 
@@ -41,10 +41,31 @@ function amz_dates(): { datetime: string; date: string } {
 	return { datetime: iso, date: iso.slice(0, 8) };
 }
 
-export function cloudfront(config: CloudfrontConfig): EdgeAdapter {
-	const api_base = (config.baseUrl ?? `https://${API_HOST}`).replace(TRAILING_SLASHES_RE, '');
+export class CloudFrontEdge implements EdgeAdapter {
+	readonly name: string = 'cloudfront';
+	#config: CloudfrontConfig;
+	#api_base: string;
 
-	const create_invalidation = async (paths: string[]): Promise<void> => {
+	constructor(config: CloudfrontConfig) {
+		this.#config = config;
+		this.#api_base = (config.baseUrl ?? `https://${API_HOST}`).replace(TRAILING_SLASHES_RE, '');
+	}
+
+	headers(_meta?: PostrenderMeta): Record<string, string> {
+		return {}; // the distribution honors origin cache-control — nothing extra to stamp
+	}
+
+	async purgeUrl(url: string): Promise<void> {
+		await this.#create_invalidation([url]);
+	}
+
+	async purgeWhere({ prefix }: { prefix: string }): Promise<void> {
+		const p = normalize_prefix(prefix);
+		await this.#create_invalidation([p, `${p}/*`]);
+	}
+
+	async #create_invalidation(paths: string[]): Promise<void> {
+		const config = this.#config;
 		const items = paths.map((p) => `<Path>${p}</Path>`).join('');
 		const body =
 			`<?xml version="1.0" encoding="UTF-8"?>` +
@@ -74,7 +95,7 @@ export function cloudfront(config: CloudfrontConfig): EdgeAdapter {
 		const k_service = hmac(k_region, SERVICE);
 		const k_signing = hmac(k_service, 'aws4_request');
 		const signature = createHmac('sha256', k_signing).update(string_to_sign).digest('hex');
-		const res = await fetch(api_base + path, {
+		const res = await fetch(this.#api_base + path, {
 			method: 'POST',
 			headers: {
 				host: API_HOST,
@@ -94,19 +115,5 @@ export function cloudfront(config: CloudfrontConfig): EdgeAdapter {
 				body: await res.text().catch(() => '')
 			});
 		}
-	};
-
-	return {
-		name: 'cloudfront',
-		headers() {
-			return {}; // the distribution honors origin cache-control — nothing extra to stamp
-		},
-		async purgeUrl(url) {
-			await create_invalidation([url]);
-		},
-		async purgeWhere({ prefix }) {
-			const p = normalize_prefix(prefix);
-			await create_invalidation([p, `${p}/*`]);
-		}
-	};
+	}
 }

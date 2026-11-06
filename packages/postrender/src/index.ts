@@ -10,9 +10,9 @@
  * plugins: [ogygia(), postrender(), sveltekit()]
  *
  * // hooks.server.ts: the live store and CDN edges, BEFORE ogygia's handle
- * import { postrender, valkey, akamai } from '@ogygia/postrender';
+ * import { postrender, ValkeyStore, AkamaiEdge } from '@ogygia/postrender';
  * export const handle = sequence(
- *   postrender.handle({ store: valkey(client), edge: [akamai(creds)] }),
+ *   postrender.handle({ store: new ValkeyStore(client), edge: [new AkamaiEdge(creds)] }),
  *   ogygia.handle()
  * );
  *
@@ -33,15 +33,13 @@ export const postrender: {
 	invalidateWhere: typeof invalidateWhere;
 } = { handle, invalidate, invalidateWhere };
 
-export { memory_store as memoryStore } from './memory-store.ts';
-export { valkey } from './adapters/valkey.ts';
-export { upstash } from './adapters/upstash.ts';
-export { cloudflareKv } from './adapters/cloudflare-kv.ts';
-export { akamai } from './adapters/akamai.ts';
-export { cloudfront as awsCloudfront } from './adapters/cloudfront.ts';
-export { cloudflare } from './adapters/cloudflare.ts';
-// The historical name: AWS CloudFront under its own noun, since `cloudflare` exists beside it.
-export { cloudfront } from './adapters/cloudfront.ts';
+export { MemoryStore } from './memory-store.ts';
+export { ValkeyStore } from './adapters/valkey.ts';
+export { UpstashStore } from './adapters/upstash.ts';
+export { CloudflareKvStore } from './adapters/cloudflare-kv.ts';
+export { AkamaiEdge } from './adapters/akamai.ts';
+export { CloudFrontEdge } from './adapters/cloudfront.ts';
+export { CloudflareEdge } from './adapters/cloudflare.ts';
 export type {
 	PostrenderEntry,
 	PostrenderStore,
