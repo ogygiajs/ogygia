@@ -2,9 +2,9 @@
 // discarding it and creating a fresh one. A re-created root is class-less for a tick (a `class:`-managed
 // className is applied one reactive step after creation), so a root whose `position: fixed` comes from
 // that class briefly falls to `static` and lands in-flow, shoving downstream layout (the sidebar-above-
-// a-centered-hero "bounce"). The re-creation was caused by `Region.svelte` wrapping the island in
-// `{#if Component}…{/if}` (an extra SSR fragment layer) while the client `NestedProvider` rendered a
-// bare `<Component/>` — mismatched layers ⇒ discard+recreate. NestedProvider now mirrors the SSR shape.
+// a-centered-hero "bounce"). The re-creation was caused by mismatched marker layers between the
+// island's SSR (`Region.svelte`) and the client hydrate — discard+recreate. Both are one layer now:
+// the server emits the component in one anchor pair, the runtime hydrates the component itself.
 //
 // Also guards the paired router fix: a clean in-place hydration runs the island `<svelte:head>`
 // reconciliation, which removes a TRAILING head-node range — so the router must insert SPA stylesheets

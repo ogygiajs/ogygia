@@ -10,15 +10,14 @@
  * `__og_unmount` (compiler/region/emit.ts); an app that does not federate ships neither. This module
  * sits in the producer's own build, so its `svelte` is the producer's.
  *
- * Hydrate through THIS build's NestedProvider, mirroring the local runtime's call shape: the SSR
- * children were rendered through the provider's dynamic-component branch (the `<!--[0-->` marker), so
- * a bare-component hydrate walks one marker layer short — svelte aborts mid-walk and client-re-renders.
- * `options.recover === false`: the consumer's self-heal (hydrate-core.ts) asks THIS svelte to throw on
- * a mismatch instead of re-rendering; the envelope is re-checked per call because a restore from the
- * server markup drops it.
+ * The component itself is hydrated, as the local runtime does (runtime/hydrate-core.ts), marked
+ * "inside an island" through its context: the SSR children are its nodes in one anchor pair (the
+ * placed island's dynamic-component pair). `options.recover === false`: the consumer's self-heal
+ * asks THIS svelte to throw on a mismatch instead of re-rendering; the envelope is re-checked per
+ * call because a restore from the server markup drops it.
  */
 import { hydrate, unmount, type Component } from 'svelte';
-import NestedProvider from './NestedProvider.svelte';
+import { nested_context } from './nested.ts';
 
 export function og_entry_hydrate(
 	component: Component<Record<string, unknown>>,
@@ -32,9 +31,10 @@ export function og_entry_hydrate(
 		target.appendChild(document.createComment(']'));
 	}
 	const recovery = options && options.recover === false ? { recover: false } : {};
-	return hydrate(NestedProvider as unknown as Component<Record<string, unknown>>, {
+	return hydrate(component, {
 		target,
-		props: { component, props },
+		props,
+		context: nested_context(),
 		...recovery
 	});
 }

@@ -592,7 +592,7 @@ export const WARNINGS = {
 		`
 	},
 	live_feature_missing: {
-		text: (): string => 'live region needs the live feature plugin (LiveHost missing)',
+		text: (): string => 'live region needs the live feature plugin (pushable props missing)',
 		details: (): string => prose`
 			Dev only. A live region woke, but the build has no live feature to hydrate it with. ${BUG}
 		`

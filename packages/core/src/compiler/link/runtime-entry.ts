@@ -114,7 +114,7 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 	live: {
 		module: 'live.js',
 		deps: [],
-		// Hydrate phase: `LiveHost` is a Svelte component, read only by the hydrate core.
+		// Hydrate phase: its pushable props are Svelte state, read only by the hydrate core.
 		phase: 'hydrate',
 		detect: (m) => m.live === true || m.persist === true || (m.persistKeys || []).length > 0
 	},
