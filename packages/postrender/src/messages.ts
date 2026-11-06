@@ -57,8 +57,8 @@ export const POSTRENDER_WARNINGS = {
 	postrender_edges_without_shared_store: {
 		text: (): string => prose`
 			postrender: edge adapters are configured but the store is the per-instance memory default
-			— invalidations cannot reach other replicas. Use a shared store (valkey / upstash /
-			cloudflareKv) in multi-instance deploys.
+			— invalidations cannot reach other replicas. Use a shared store (ValkeyStore / UpstashStore /
+			CloudflareKvStore) in multi-instance deploys.
 		`,
 		details: (): string => prose`
 			\`postrender.handle()\` was given edge adapters but no \`store\`, so each server instance
@@ -73,7 +73,7 @@ export const POSTRENDER_WARNINGS = {
 	postrender_store_no_evict_by_tag: {
 		text: (): string => prose`
 			postrender: the configured store has no evictByTag — tag invalidation needs it
-			(memory/valkey/upstash/cloudflareKv all provide it).
+			(MemoryStore/ValkeyStore/UpstashStore/CloudflareKvStore all provide it).
 		`,
 		details: (): string => prose`
 			An invalidation by source or tag needs the store to evict every page filed under a tag,
