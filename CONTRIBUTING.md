@@ -94,7 +94,8 @@ bench('match_path: a request against 300 routes', ({ table }) => match_path(tabl
   that change for other reasons, like docs content).
 - Code outside Vite works: `virtual:ogygia/*` and `$app/*` resolve to `packages/core/test/_stubs`
   (internal/abax/src/preload.ts). Browser-only code waits for Abax's browser coverage.
-- `pnpm check:bench` writes the types and type-checks every bench directory (CI runs it). It fetches
+- `pnpm check:bench` writes the types and type-checks every bench directory against the built
+  libraries, like the tests (run `pnpm build:lib` first; CI runs it after `pnpm check`). It fetches
   Abax at the ref pinned in `internal/abax/package.json` into `.abax/`; set `ABAX_DIR` to a bench
   checkout's `packages/abax` to use that instead.
 
