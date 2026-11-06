@@ -6,9 +6,9 @@
  * A HYDRATE-phase feature (link/runtime-entry.ts): installed by the hydrate core, never the boot.
  */
 import { slots } from './slots.ts';
-import { pushable_props } from './pushable-props.svelte.ts';
+import { PushableProps } from './pushable-props.svelte.ts';
 
-/** Feature entry: fill the `pushable` slot with {@link pushable_props}. */
+/** Feature entry: fill the `pushable` slot with {@link PushableProps}. */
 export function install(): void {
-	slots.pushable = pushable_props;
+	slots.pushable = PushableProps;
 }

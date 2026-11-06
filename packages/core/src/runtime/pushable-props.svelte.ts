@@ -7,29 +7,30 @@
  *
  * The props are a snapshot of data, as every island's are: held RAW (`$state.raw`), never deep-proxied
  * — the island reads the very values pushed (a large nav tree pays no proxy on each read, identity
- * holds), and mutating one is no more reactive than in any other island. A push replaces the whole
- * snapshot; `props` is a plain reader over the current one, so each prop read tracks it.
+ * holds, `structuredClone` works), and mutating one is no more reactive than in any other island. A
+ * push replaces the whole snapshot; `props` is a plain reader over the current one, so each prop read
+ * tracks it.
  */
-export type PushableProps = {
-	props: Record<string, unknown>;
-	push: (next: Record<string, unknown>) => void;
-};
+export class PushableProps {
+	#current: Record<string, unknown> = $state.raw({});
+	/** What the island is hydrated with: the current snapshot's props, read live. */
+	readonly props: Record<string, unknown>;
 
-export function pushable_props(initial: Record<string, unknown>): PushableProps {
-	let current = $state.raw(initial);
-	const props = new Proxy({} as Record<string, unknown>, {
-		get: (_, key) => (typeof key === 'string' ? current[key] : undefined),
-		has: (_, key) => key in current,
-		ownKeys: () => Reflect.ownKeys(current),
-		getOwnPropertyDescriptor: (_, key) =>
-			key in current
-				? { enumerable: true, configurable: true, value: current[key as string] }
-				: undefined
-	});
-	return {
-		props,
-		push(next) {
-			current = next;
-		}
-	};
+	constructor(initial: Record<string, unknown>) {
+		this.#current = initial;
+		this.props = new Proxy({} as Record<string, unknown>, {
+			get: (_, key) => (typeof key === 'string' ? this.#current[key] : undefined),
+			has: (_, key) => key in this.#current,
+			ownKeys: () => Reflect.ownKeys(this.#current),
+			getOwnPropertyDescriptor: (_, key) =>
+				key in this.#current
+					? { enumerable: true, configurable: true, value: this.#current[key as string] }
+					: undefined
+		});
+	}
+
+	/** The next snapshot (a live tick, the next page's props): replaces the current one whole. */
+	push(next: Record<string, unknown>): void {
+		this.#current = next;
+	}
 }

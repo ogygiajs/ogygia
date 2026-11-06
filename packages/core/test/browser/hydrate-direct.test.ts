@@ -87,9 +87,9 @@ test('a kept island takes the next page’s props in place', async () => {
 });
 
 test('pushable props: the values as pushed (never proxied), a push replaces the whole snapshot', async () => {
-	const { pushable_props } = await import('../../src/runtime/pushable-props.svelte.ts');
+	const { PushableProps } = await import('../../src/runtime/pushable-props.svelte.ts');
 	const tree = { items: [{ href: '/a' }] };
-	const p = pushable_props({ tree, title: 'one' });
+	const p = new PushableProps({ tree, title: 'one' });
 	expect(p.props.tree, 'the very object, not a reactive proxy of it').toBe(tree);
 	expect(Object.keys(p.props)).toEqual(['tree', 'title']);
 	const next = { items: [] };
