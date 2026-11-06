@@ -299,7 +299,7 @@ This is why a fragment is a region. A remote fragment baked into a shell page is
 
 - A pure shell never sends a deploy thaw, because only producers check.
 - The check needs a store plugin that answers it. [Postrender](/docs/postrender/guide) does, keeping the last build id in its store, and without postrender nothing remembers a build and nothing is sent.
-- The store has to outlive the process. Postrender's default memory store starts empty on every boot, so it never sees an earlier build; use a shared store (`valkey`, `upstash` or `cloudflareKv`). There, postrender keeps the build id apart from the pages' TTL and writes it again on every boot, so a deploy is detected however long after the last one it comes.
+- The store has to outlive the process. Postrender's default memory store starts empty on every boot, so it never sees an earlier build; use a shared store (`ValkeyStore`, `UpstashStore` or `CloudflareKvStore`). There, postrender keeps the build id apart from the pages' TTL and writes it again on every boot, so a deploy is detected however long after the last one it comes.
 
 `deploy: 'manual'` turns the check off. To thaw by hand after a deploy, call `postrender.invalidateWhere({ prefix: '/' })` on the producer, which sends every peer a thaw-all.
 
