@@ -24,7 +24,7 @@
  *    DOM is not the island drifting).
  *
  * `data-ogygia-keep` on an `<ogygia-region>` is NOT `foreign`: there it names an island that survives
- * navigation (KeepHost) — Svelte owns that island, and it is repaired and hydrated like any other.
+ * navigation (a kept island) — Svelte owns that island, and it is repaired and hydrated like any other.
  *
  * FACETS (note §11): `owner_of` answers who writes INSIDE an element; the same module answers who
  * writes its ATTRIBUTES (`attributes_writer`, `REGION_RENDER_ATTRS`), who ORDERS its children

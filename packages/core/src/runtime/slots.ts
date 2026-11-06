@@ -9,7 +9,6 @@
  *
  * This is the single wiring mechanism — there is no service locator and no per-feature setter.
  */
-import type { Component } from 'svelte';
 import type { Frame } from '../frame.ts';
 import { is_frozen } from './region-attrs.ts';
 
@@ -188,9 +187,8 @@ export type Slots = {
 	forms: FormOps;
 	interaction: ArmFn | null;
 	morph: MorphFn | null;
-	live: Component<Record<string, unknown>> | null;
-	/** a kept island's host (the live feature fills it beside `live`) */
-	keep: Component<Record<string, unknown>> | null;
+	/** props a live region or a kept island is hydrated with, pushed in place later (./live.ts) */
+	pushable: typeof import('./pushable-props.svelte.ts').pushable_props | null;
 	wire: WireOps | null;
 	/** The transportable classes an island's props, context and seeds need, loaded before it
 	 *  decodes (./wire-classes.ts). Null in an app without transportable classes: nothing to load. */
@@ -235,8 +233,7 @@ export const slots: Slots = {
 	},
 	interaction: null,
 	morph: null,
-	live: null,
-	keep: null,
+	pushable: null,
 	wire: null,
 	wire_classes: null,
 	remoteSeeds: null,
