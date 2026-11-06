@@ -1,4 +1,8 @@
-<span class="sharedprobe" data-content-css-shared>shared</span>
+<script lang="ts">
+	let { label = 'shared' }: { label?: string } = $props();
+</script>
+
+<span class="sharedprobe" data-content-css-shared>{label}</span>
 
 <style>
 	/* The layout renders this component, so its CSS ships with the layout's client chunk; a content
