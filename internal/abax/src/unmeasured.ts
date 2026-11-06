@@ -1,0 +1,190 @@
+/**
+ * The measurement-source gate: `node internal/abax/src/unmeasured.ts [--base <rev>] [--out dir]`
+ * (or `pnpm bench:unmeasured`).
+ *
+ * Every function in packages/<pkg>/src should have something that measures it: a bench file that
+ * runs it (packages/<pkg>/bench), or a unit test that calls it with inputs Abax can replay. This
+ * lists the functions that have neither and, with `--base`, fails on the NEW ones only: functions
+ * the base commit does not have. Functions that were unmeasured before are listed, not failed.
+ *
+ *   1. count every bench file (Abax `run`): the functions a bench runs
+ *   2. list every function of packages/<pkg>/src (Abax `inventory`), and the ones no bench ran
+ *   3. run each package's node tests with the input recorder on (record.ts) for those functions
+ *   4. replay the recorded inputs (Abax `replay`): the output must come back the same
+ *   5. the base commit's functions (its packages/<pkg>/src, from git), and the gate
+ *      (Abax `unmeasured`), with the exemptions in internal/abax/unmeasured.json
+ *
+ * An exemption is `{ "id": "packages/core/src/x.ts > fn", "reason": "why nothing can measure it" }`.
+ * Writes to --out (default .abax/unmeasured): gate.md (also the job summary in CI), gate.json
+ * (every function with its sources), and what each step produced. Exit 1 when the gate fails.
+ */
+import { execFileSync, spawnSync } from 'node:child_process';
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, relative } from 'node:path';
+import { parseArgs } from 'node:util';
+import { fileURLToPath } from 'node:url';
+import { abax_dir, bench_packages, link_abax, REPO_ROOT } from './abax.ts';
+
+const { values } = parseArgs({
+	options: {
+		base: { type: 'string' },
+		out: { type: 'string' },
+		'no-record': { type: 'boolean' }
+	}
+});
+
+const PRELOAD = fileURLToPath(new URL('./preload.ts', import.meta.url));
+const EXEMPT = fileURLToPath(new URL('../unmeasured.json', import.meta.url));
+const SOURCE_EXT = ['.ts', '.js', '.mts', '.mjs'];
+
+const out = join(REPO_ROOT, values.out ?? '.abax/unmeasured');
+rmSync(out, { recursive: true, force: true });
+mkdirSync(out, { recursive: true });
+const log = (line: string) => console.log(`[unmeasured] ${line}`);
+
+const abax = abax_dir();
+link_abax(abax);
+const CLI = join(abax, 'src', 'cli.ts');
+const node_options = `${process.env.NODE_OPTIONS ?? ''} --import=${PRELOAD}`.trim();
+
+function abax_cli(args: string[], o: { preload?: boolean } = {}): number {
+	const r = spawnSync(process.execPath, ['--no-warnings', CLI, ...args], {
+		cwd: REPO_ROOT,
+		stdio: 'inherit',
+		env: o.preload ? { ...process.env, NODE_OPTIONS: node_options } : process.env
+	});
+	return r.status ?? 1;
+}
+
+/** Source files of the packages (packages/<pkg>/src), relative to `root`, from git at `rev`. */
+function source_files(rev: string | null): string[] {
+	const args = rev
+		? ['ls-tree', '-r', '--name-only', rev, '--', 'packages']
+		: ['ls-files', '--', 'packages'];
+	return execFileSync('git', args, { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 1 << 28 })
+		.split('\n')
+		.filter(
+			(f) =>
+				/^packages\/[^/]+\/src\//.test(f) &&
+				SOURCE_EXT.some((e) => f.endsWith(e)) &&
+				!f.endsWith('.d.ts')
+		)
+		.sort();
+}
+
+// 1. what the bench files run
+const reports: string[] = [];
+const benches = bench_packages().flatMap((p) => p.files);
+benches.forEach((file, i) => {
+	const report = join(out, 'bench', `${i}.json`);
+	mkdirSync(join(out, 'bench'), { recursive: true });
+	const rel = relative(REPO_ROOT, file);
+	log(`bench ${rel}`);
+	abax_cli(['run', rel, '--root', '.', '--out', report], { preload: true });
+	if (existsSync(report)) reports.push(report);
+	else log(`  ${rel} produced no report; its functions count as not run by a bench`);
+});
+
+// 2. every function, and the ones no bench ran
+const list = join(out, 'files.txt');
+writeFileSync(list, source_files(null).join('\n') + '\n');
+const targets = join(out, 'targets.json');
+const inventory = join(out, 'inventory.json');
+abax_cli([
+	'inventory',
+	'--list',
+	list,
+	'--root',
+	'.',
+	'--out',
+	inventory,
+	'--reports',
+	reports.join(','),
+	'--targets',
+	targets
+]);
+
+// 3. the tests, recording the inputs of those functions
+const records = join(out, 'records');
+mkdirSync(records, { recursive: true });
+if (!values['no-record']) {
+	for (const pkg of readdirSync(join(REPO_ROOT, 'packages')).sort()) {
+		const dir = join(REPO_ROOT, 'packages', pkg);
+		const config = join(dir, 'vitest.config.ts');
+		if (!existsSync(config)) continue;
+		// node tests only: the browser project's inputs are DOM nodes, not replayable values
+		const project = readFileSync(config, 'utf8').includes("name: 'node'")
+			? ['--project', 'node']
+			: [];
+		log(`tests of ${pkg}, recording`);
+		const r = spawnSync(
+			join(dir, 'node_modules', '.bin', 'vitest'),
+			['run', ...project, '--reporter', 'dot'],
+			{
+				cwd: dir,
+				stdio: 'inherit',
+				env: { ...process.env, ABAX_RECORD: targets, ABAX_RECORD_OUT: records }
+			}
+		);
+		// A failing test still recorded what it ran; the check job is where tests fail a PR.
+		if (r.status !== 0) log(`  tests of ${pkg} exited ${r.status} (recorded what ran)`);
+	}
+}
+
+// 4. replay
+const replay = join(out, 'replay.json');
+abax_cli(['replay', '--records', records, '--root', '.', '--out', replay], { preload: true });
+
+// 5. the base's functions, then the gate
+const gate_args = [
+	'unmeasured',
+	'--inventory',
+	inventory,
+	'--reports',
+	reports.join(','),
+	'--records',
+	records,
+	'--replay',
+	replay,
+	'--exempt',
+	EXEMPT,
+	'--out',
+	join(out, 'gate.json'),
+	'--md',
+	join(out, 'gate.md')
+];
+const skipped = join(records, 'skipped.txt');
+if (existsSync(skipped)) {
+	const ids = [...new Set(readFileSync(skipped, 'utf8').split('\n').filter(Boolean))].sort();
+	writeFileSync(join(out, 'skipped.json'), JSON.stringify(ids) + '\n');
+	gate_args.push('--skipped', join(out, 'skipped.json'));
+}
+if (values.base) {
+	const base_root = mkdtempSync(join(tmpdir(), 'ogygia-base-'));
+	const files = source_files(values.base);
+	const tar = execFileSync('git', ['archive', '--format=tar', values.base, '--', ...files], {
+		cwd: REPO_ROOT,
+		maxBuffer: 1 << 30
+	});
+	execFileSync('tar', ['-x', '-C', base_root], { input: tar });
+	const base_list = join(out, 'base-files.txt');
+	writeFileSync(base_list, files.join('\n') + '\n');
+	const base_inventory = join(out, 'base-inventory.json');
+	abax_cli(['inventory', '--list', base_list, '--root', base_root, '--out', base_inventory]);
+	gate_args.push('--base-inventory', base_inventory);
+	rmSync(base_root, { recursive: true, force: true });
+}
+const status = abax_cli(gate_args);
+if (process.env.GITHUB_STEP_SUMMARY) {
+	writeFileSync(process.env.GITHUB_STEP_SUMMARY, readFileSync(join(out, 'gate.md')), { flag: 'a' });
+}
+process.exitCode = status;

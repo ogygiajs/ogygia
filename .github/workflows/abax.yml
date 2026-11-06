@@ -7,8 +7,11 @@ name: abax
 #
 # A push to main needs nothing here: the `ogygia-main` request pkg-pr-new.yml sends after the
 # publish runs Abax over every bench file too. Forks, drafts and version PRs are skipped, like the
-# app benchmark. This never fails: without BENCH_TOKEN it skips with a notice, and a refused request
-# only warns.
+# app benchmark. The request never fails: without BENCH_TOKEN it skips with a notice, and a refused
+# request only warns.
+#
+# The `unmeasured` job runs here, in this repository: it fails a PR that adds a function nothing
+# measures (see the job).
 
 on:
   pull_request:
@@ -41,3 +44,65 @@ jobs:
             -F "client_payload[pr]=$PR" -f "client_payload[sha]=$HEAD_SHA" \
             -f "client_payload[base_sha]=$BASE_SHA" ||
             echo "::warning::ogygiajs/bench refused the Abax request (check BENCH_TOKEN)"
+
+  # The measurement-source gate (internal/abax/src/unmeasured.ts): every function in
+  # packages/<pkg>/src needs a bench file that runs it or a unit test whose inputs replay. Fails only
+  # on functions this PR adds with neither (and no exemption in internal/abax/unmeasured.json);
+  # what was unmeasured before is listed in the job summary, not failed.
+  unmeasured:
+    if: >-
+      !github.event.pull_request.draft &&
+      !startsWith(github.head_ref, 'changeset-release/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # the base commit's source is read from git
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-unmeasured-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-check-
+            turbo-${{ runner.os }}-
+
+      # some unit tests import the built libraries
+      - name: Build the libraries
+        run: pnpm run build:lib
+
+      - name: Functions with no measurement source
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          node internal/abax/src/unmeasured.ts --base "$base"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: abax-unmeasured
+          path: |
+            .abax/unmeasured/gate.md
+            .abax/unmeasured/gate.json
+            .abax/unmeasured/replay.json
+          if-no-files-found: ignore
