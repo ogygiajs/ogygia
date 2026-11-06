@@ -77,7 +77,8 @@ import {
 	compileFoucScopedCss,
 	foucRelFromId,
 	isFoucCssId,
-	isFoucScopedId
+	isFoucScopedId,
+	svelteHasStyle
 } from '../compiler/fouc-css.ts';
 
 import { preprocess_component_for_css } from './style-preprocess.ts';
@@ -837,126 +838,107 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						console.log(
 							`[ogygia] ${skipped} island chunk(s) not emitted: their host modules are not in the server bundle (unreachable from this build's routes).`
 						);
-					// SERVER-ROUTER CSS (link/router-css.ts): a router page component is a runtime value, not
-					// a Kit route, so nothing links its scoped `<style>`. Compile each router-reachable
-					// component's whole tree CSS (its own scoped styles + every child's + plain style
-					// imports, in cascade order) and emit it as ONE dedicated asset per root — resolved to a
-					// handoff `rcss:<rel>` href in writeBundle, linked at SSR by `virtual:ogygia/router-css`.
-					// A dedicated asset (vs a chunk's importedCss) can't be scattered by rolldown's
-					// shared-chunk CSS hoisting, which breaks any root that shares a child (every profiler
-					// page wraps Shell). Same emit shape as the content-body CSS leg just below.
-					router_css_refs.clear();
-					// (both tree-CSS legs reach what the build resolves: compiler/fouc-css.ts)
+					// THE CSS OF A SUBTREE NO CLIENT CHUNK CARRIES. Three kinds of root render without a client
+					// chunk of their own, so no page stylesheet carries their CSS or their children's: a
+					// router page (a runtime value, not a Kit route), a server-only hole (`render:
+					// 'deferred'` with no client chunk), and a content module (it renders on the server only;
+					// the leak-free corpus never enters the client graph). Each root gets its whole tree CSS
+					// (every scoped `<style>` + plain style imports, in cascade order) as ONE dedicated asset,
+					// which rolldown's shared-chunk CSS hoisting cannot scatter (every profiler page wraps
+					// Shell). The walk reaches what the build resolves (compiler/fouc-css.ts), and a component
+					// compiles once however many roots reach it. Preprocessed, script kept (TS stripped): a raw
+					// `svelte.compile` throws on scss or a script-reading template (`$store`) and falls back to
+					// UNSCOPED bodies, leaking a component's CSS across the document. A plain `.css` import
+					// ships verbatim; a preprocessor dialect file (.scss/…) is skipped.
+					// `own`: the root's source when it is not the file on disk (a content module's
+					// post-mdsvex Svelte); the root's own CSS is then the caller's, and the walk starts there.
 					const walk_resolve = bundler_resolve(this);
-					for (const abs of compiler.router_css_roots()) {
+					const compiled_css = new Map<string, string | null>();
+					const tree_css = async (abs: string, own?: string): Promise<string> => {
 						const parts: string[] = [];
+						const read = own == null ? readFile : (p: string) => (p === abs ? own : readFile(p));
 						for (const e of await collectFoucCssReachable(abs, {
 							root,
 							libDir,
-							readFile,
+							readFile: read,
 							alias: resolve_alias,
 							resolve: walk_resolve
 						})) {
-							if (e.kind === 'scoped') {
+							if (own != null && e.abs === abs) continue;
+							let css = compiled_css.get(e.abs);
+							if (css === undefined) {
 								const src = readFile(e.abs);
-								if (src == null) continue;
-								// Preprocess + keep the script (same as the hole/lake legs): a raw
-								// `svelte.compile` throws on scss / a script-referencing template and falls back
-								// to UNSCOPED bodies, leaking a router page's component CSS across the document.
-								const css = compileFoucScopedCss(
-									e.abs,
-									await preprocess_component_for_css(src, e.abs, root),
-									{ keepScript: true }
-								);
-								if (css) parts.push(css);
-							} else if (CSS_EXT_RE.test(e.abs)) {
-								// Plain `.css` import — ship verbatim. Preprocessor dialects (.scss/…) can't be
-								// compiled here; they're skipped (a router page wanting those is a future case).
-								const css = readFile(e.abs);
-								if (css) parts.push(css);
+								css =
+									src == null
+										? null
+										: e.kind === 'scoped'
+											? compileFoucScopedCss(
+													e.abs,
+													await preprocess_component_for_css(src, e.abs, root),
+													{ keepScript: true }
+												)
+											: CSS_EXT_RE.test(e.abs)
+												? src
+												: null;
+								compiled_css.set(e.abs, css);
 							}
+							if (css) parts.push(css);
 						}
-						if (!parts.length) continue;
-						const ref = this.emitFile({
-							type: 'asset',
-							name: 'og-rcss.css',
-							source: parts.join('\n')
-						});
-						router_css_refs.set(router_css_key(root, abs), ref);
+						return parts.join('\n');
+					};
+					// Router pages: resolved to a handoff `rcss:<rel>` href in writeBundle, linked at SSR by
+					// `virtual:ogygia/router-css` (link/router-css.ts).
+					router_css_refs.clear();
+					for (const abs of compiler.router_css_roots()) {
+						const source = await tree_css(abs);
+						if (source)
+							router_css_refs.set(
+								router_css_key(root, abs),
+								this.emitFile({ type: 'asset', name: 'og-rcss.css', source })
+							);
 					}
-					// SERVER-ISLAND CSS: a `render: 'deferred'` island with no client chunk is a subtree the
-					// client graph never sees, so no page stylesheet carries its (or its children's) scoped
-					// CSS — a hole styled by a sub-component's `<style>` arrived unstyled. Compile each such
-					// component's whole tree CSS into ONE asset (same primitives as the router leg above,
-					// plus `<style lang="scss">` compiled first) and hand it off under the island's public
-					// URL key — the key `region_css_links` already resolves through `islandCss()`, so the
-					// hole response links it and the client hoists it into <head>.
+					// Holes: handed off under the island's public URL key, which `region_css_links` already
+					// resolves through `islandCss()`, so the hole response links it and the client hoists it.
 					hole_css_refs.clear();
 					const hole_css_by_abs = new Map<string, string>();
 					for (const { iid, abs } of compiler.server_island_css_roots()) {
 						let ref = hole_css_by_abs.get(abs);
 						if (ref === undefined) {
-							const parts: string[] = [];
-							for (const e of await collectFoucCssReachable(abs, {
-								root,
-								libDir,
-								readFile,
-								alias: resolve_alias,
-								resolve: walk_resolve
-							})) {
-								if (e.kind === 'scoped') {
-									const src = readFile(e.abs);
-									if (src == null) continue;
-									// Script kept (TS stripped) so a template reading `$store` compiles → scoped.
-									const css = compileFoucScopedCss(
-										e.abs,
-										await preprocess_component_for_css(src, e.abs, root),
-										{ keepScript: true }
-									);
-									if (css) parts.push(css);
-								} else if (CSS_EXT_RE.test(e.abs)) {
-									const css = readFile(e.abs);
-									if (css) parts.push(css);
-								}
-							}
-							ref = parts.length
-								? this.emitFile({ type: 'asset', name: 'og-hole.css', source: parts.join('\n') })
-								: '';
+							const source = await tree_css(abs);
+							ref = source ? this.emitFile({ type: 'asset', name: 'og-hole.css', source }) : '';
 							hole_css_by_abs.set(abs, ref);
 						}
 						if (ref) hole_css_refs.set(iid, ref);
 					}
-					// Content CSS: a content module's OWN scoped `<style>` compiles into the SERVER bundle
-					// only (the leak-free corpus never enters the client graph), so on a csr=false doc page it
-					// ships on no stylesheet. Extract that scoped CSS here and emit it as a client asset.
-					//
-					// Compiled with `svelte.compile` on the post-mdsvex source the scanner captured — so
+					// Content modules: Region.svelte links each one's asset via the handoff (writeBundle maps
+					// content_css_key → the emitted `.css` by referenceId). The module's own `<style>` comes
+					// first, compiled with `svelte.compile` on the post-mdsvex source the scanner captured, so
 					// Svelte resolves `:global` (a raw `:global` would crash the CSS minifier) and mints the
-					// SAME scoped hash the SSR'd HTML carries (default `cssHash` = hash of the CSS; the `.svx`
-					// bodies use plain `<style>`, so vitePreprocess is a no-op and the source matches). No JS,
-					// no chunk, no corpus in the client graph. Region.svelte links it via the handoff
-					// (writeBundle maps content_css_key → the emitted `.css` by referenceId).
+					// SAME scoped hash the SSR'd HTML carries (default `cssHash` = hash of the CSS; `.svx`
+					// bodies use plain `<style>`, so vitePreprocess is a no-op and the source matches).
 					content_css_refs.clear();
-					const styles = markup.flatMap((m) => (m.styles ? [...m.styles] : []));
-					if (styles.length) {
+					const modules = markup.flatMap((m) => (m.modules ? [...m.modules] : []));
+					if (modules.length) {
 						const { compile } = await import('svelte/compiler');
-						for (const [abs, source] of styles) {
+						for (const [abs, source] of modules) {
 							try {
-								const { css } = compile(source, {
-									filename: abs,
-									css: 'external',
-									dev: false,
-									generate: 'client',
-									experimental: { async: true }
-								});
-								if (css?.code) {
-									const ref = this.emitFile({
-										type: 'asset',
-										name: 'og-content.css',
-										source: css.code
+								let own = '';
+								if (svelteHasStyle(source)) {
+									const { css } = compile(source, {
+										filename: abs,
+										css: 'external',
+										dev: false,
+										generate: 'client',
+										experimental: { async: true }
 									});
-									content_css_refs.set(content_css_key(abs), ref);
+									own = css?.code ?? '';
 								}
+								const css = [own, await tree_css(abs, source)].filter(Boolean).join('\n');
+								if (css)
+									content_css_refs.set(
+										content_css_key(abs),
+										this.emitFile({ type: 'asset', name: 'og-content.css', source: css })
+									);
 							} catch {
 								/* a content file whose CSS can't be extracted just goes unstyled — the fix must
 							   never break a build. */

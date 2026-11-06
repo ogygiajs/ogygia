@@ -70,17 +70,18 @@ export interface MacroContext {
 }
 
 /** A source format that becomes Svelte only through a preprocessor (markdown → Svelte): how its
- *  islands and its modules' own scoped CSS reach the build. */
+ *  islands and its modules' CSS reach the build. */
 export interface MarkupSource {
 	/** The format's file extensions (`['.svx', '.md']`). */
 	extensions: readonly string[];
 	/** Discover the format's islands up front (build start, dev included): read each file, turn it
 	 *  into Svelte, and hand that to `transform` so its islands are registered before chunks emit. */
 	scan?(ctx: { root: string; readFile(abs: string): string | null }): void | Promise<void>;
-	/** Modules that carry their OWN scoped `<style>`, absolute path → their post-preprocess Svelte
-	 *  source: the build compiles each one's CSS and ships it as a client asset (the module itself
-	 *  only ever renders on the server). The plugin keeps filling this map; the build reads it late. */
-	styles?: ReadonlyMap<string, string>;
+	/** The format's modules, absolute path → their post-preprocess Svelte source. A module only ever
+	 *  renders on the server, so no client chunk carries its CSS: the build ships, as one client asset
+	 *  per module, the scoped CSS of its own `<style>` and of every component it imports (and plain
+	 *  style imports). The plugin keeps filling this map; the build reads it late. */
+	modules?: ReadonlyMap<string, string>;
 }
 
 /** What the build hands back for a markup source: run the region transform on preprocessed Svelte. */
