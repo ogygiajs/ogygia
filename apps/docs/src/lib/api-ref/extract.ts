@@ -235,7 +235,10 @@ export async function extractModule(moduleId: string): Promise<ApiModule> {
 			text = full.slice(0, full.indexOf('{')).trim() + ' {/*…*/}';
 			const container = decl as import('typescript').InterfaceDeclaration;
 			for (const m of container.members) {
-				const name = (m.name && ts.isIdentifier(m.name) ? m.name.text : m.name?.getText()) ?? '';
+				if (ts.isConstructorDeclaration(m) && ts.getCombinedModifierFlags(m) & ts.ModifierFlags.Private) continue;
+				const name = ts.isConstructorDeclaration(m)
+					? 'constructor'
+					: ((m.name && ts.isIdentifier(m.name) ? m.name.text : m.name?.getText()) ?? '');
 				if (!name || name.startsWith('__') || name.startsWith('#')) continue;
 				const msym = (m as unknown as { symbol?: import('typescript').Symbol }).symbol;
 				const mdoc = msym ? ts.displayPartsToString(msym.getDocumentationComment(checker)) : '';
