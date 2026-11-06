@@ -68,3 +68,40 @@ exception: the devtools fixture app's planted-problem folders, whose code shape 
 listed once in its `svelte.config.js` with the reason.
 
 See `apps/palaestra/e2e/README.md` for core's suite list.
+
+## Bench files
+
+`packages/<name>/bench/*.bench.ts` are function-level benchmarks of the hot paths, counted by
+[Abax](https://github.com/ogygiajs/bench/tree/main/packages/abax) (exact steps, allocations and
+calls per function and line; no timings). Every PR gets them run against its base, and the PR's
+benchmark comment shows what changed, down to the line. Only the bench files whose import graph
+reaches a file the PR changes run.
+
+```ts
+import { bench } from '@bench/abax/bench';
+import { match_path, __abax } from '../src/match.ts';
+
+bench('match_path: a request against 300 routes', ({ table }) => match_path(table, '/a/b'), {
+	setup: () => ({ table: make_table(300) }), // outside the measured window
+	scale: (ctx, k) => ({ table: make_table(300 * k) }) // optional: also measure how it grows
+});
+```
+
+- `__abax` is every top-level binding a module does not export (`__abax.normalize(path)`): the
+  bench run appends it to each module, and `pnpm bench:types` writes its types to the gitignored
+  `bench/__abax.d.ts`.
+- Inputs are built in `setup`, sized like a real page or app, and deterministic (no reading files
+  that change for other reasons, like docs content).
+- Code outside Vite works: `virtual:ogygia/*` and `$app/*` resolve to `packages/core/test/_stubs`
+  (internal/abax/src/preload.ts). Browser-only code waits for Abax's browser coverage.
+- `pnpm check:bench` writes the types and type-checks every bench directory against the built
+  libraries, like the tests (run `pnpm build:lib` first; CI runs it after `pnpm check`). It fetches
+  Abax at the ref pinned in `internal/abax/package.json` into `.abax/`; set `ABAX_DIR` to a bench
+  checkout's `packages/abax` to use that instead.
+
+Count one bench file locally (after `pnpm bench:types`, which also links `@bench/abax`):
+
+```bash
+node --import ./internal/abax/src/preload.ts node_modules/@bench/abax/src/cli.ts \
+  run packages/router/bench/match.bench.ts --root . --out abax-report.json
+```

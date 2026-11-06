@@ -80,6 +80,12 @@ jobs:
       - name: Type-check (build:lib, every package's check)
         run: pnpm run check --concurrency=2
 
+      # the bench files (packages/*/bench, run by Abax in ogygiajs/bench): their private-function
+      # types written from Abax at the ref internal/abax pins, then type-checked like the tests are,
+      # against the libraries the step above built
+      - name: Type-check the bench files
+        run: pnpm run check:bench
+
   e2e:
     name: e2e (${{ matrix.name }})
     runs-on: ubuntu-latest

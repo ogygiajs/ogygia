@@ -11,6 +11,8 @@
 		"**/.svelte-kit/**",
 		"**/.vercel/**",
 		"svelte/**",
-		"kit/**"
+		"kit/**",
+		".abax/**",
+		"packages/*/bench/__abax.d.ts"
 	]
 }

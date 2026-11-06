@@ -66,3 +66,7 @@ internal/repro-ogygia-footer/
 
 # Turborepo
 .turbo
+
+# Abax (the bench files' engine, internal/abax): its checkout, and the bench files' generated types
+/.abax/
+/packages/*/bench/__abax.d.ts
