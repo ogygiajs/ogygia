@@ -105,3 +105,14 @@ Count one bench file locally (after `pnpm bench:types`, which also links `@bench
 node --import ./internal/abax/src/preload.ts node_modules/@bench/abax/src/cli.ts \
   run packages/router/bench/match.bench.ts --root . --out abax-report.json
 ```
+
+Every new function needs a measurement source. The `unmeasured` job (and `pnpm bench:unmeasured`
+locally, after `pnpm build:lib`) fails a PR that adds a function no bench file runs and no unit
+test calls with inputs that replay to the same output. Either add a bench case or a test that
+calls it, or exempt it in `internal/abax/unmeasured.json` with the reason nothing can measure it:
+
+```json
+{ "exempt": [{ "id": "packages/core/src/x.ts > fn", "reason": "runs once at startup" }] }
+```
+
+Functions that were unmeasured before your PR are listed in the job summary, not failed.
