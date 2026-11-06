@@ -1528,7 +1528,7 @@ class Profiler {
 		};
 		set_span_recorder(span_recorder);
 		const iomod = opts.light ? null : await import('./async-io.ts').catch(() => null);
-		let io_rec = iomod ? await iomod.record_async_io() : null;
+		let io_rec = iomod ? await iomod.IoRecorder.start() : null;
 
 		let heap_head: HeapNode | null = null;
 		// DETAIL from ogygia's handle (per-island rows, the seed explainer, hole notes) costs a little
