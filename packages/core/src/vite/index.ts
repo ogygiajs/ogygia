@@ -141,6 +141,9 @@ const KIT_PAGE_THREAD =
 	`import * as __og_kit_navigation from '$app/navigation';\n` +
 	`globalThis[Symbol.for('ogygia.kit-page')] = ` +
 	`{ page: __og_kit_page, navigating: __og_kit_nav, navigation: __og_kit_navigation };\n`;
+// Which ogygia a csr=true page runs, on `window.__ogygia.v` — Kit runs that page and the ogygia
+// runtime never boots there (on a csr=false page it discloses it itself: runtime/disclose-version.ts).
+const KIT_DISCLOSE_VERSION = `((globalThis.__ogygia ??= {}).v ??= new Set()).add(${JSON.stringify(OGYGIA_VERSION)});\n`;
 import { OWN_PACKAGE_NAMES, is_own_specifier } from '../own-package.ts';
 import {
 	PKG_ROOT,
@@ -160,7 +163,8 @@ import {
 	HMAC_MODULE,
 	RUNTIME_DIR,
 	REGION_ENDPOINT_MODULE,
-	RUNTIME_HASH
+	RUNTIME_HASH,
+	OGYGIA_VERSION
 } from './paths.ts';
 
 import type { OgygiaOptions } from './options.ts';
@@ -634,7 +638,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							__OGYGIA_CLIENT_PLUGINS__: JSON.stringify(client_plugins.length > 0),
 							// the app's Kit major: whether Kit's `asset()` takes a path with its leading
 							// slash (2) or without (3) — kit-paths.ts, where a runtime probe guessed wrong in builds
-							__OGYGIA_KIT_MAJOR__: JSON.stringify(kit_major(path.resolve(userConfig.root ?? '.')))
+							__OGYGIA_KIT_MAJOR__: JSON.stringify(kit_major(path.resolve(userConfig.root ?? '.'))),
+							// the installed ogygia's version, which the page's runtime discloses (`window.__ogygia.v`)
+							__OGYGIA_VERSION__: JSON.stringify(OGYGIA_VERSION)
 						},
 						server: {
 							fs: {
@@ -1227,10 +1233,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				let source = code;
 
 				// KIT-WORLD PAGE THREAD: append the two publish lines to Kit's generated client app
-				// entry (see KIT_PAGE_THREAD above). Client leg only — the SSR graph renders islands
-				// against Kit's real modules already, and this file is client-world by construction.
+				// entry (see KIT_PAGE_THREAD above), and the version it discloses. Client leg only — the
+				// SSR graph renders islands against Kit's real modules already, and this file is
+				// client-world by construction.
 				if (!options?.ssr && KIT_CLIENT_APP_RE.test(id)) {
-					source += KIT_PAGE_THREAD;
+					source += KIT_PAGE_THREAD + KIT_DISCLOSE_VERSION;
 				}
 
 				// The whole per-file pass — content-preset tag ▸ macros ▸ host-island transform ▸ ts-region
