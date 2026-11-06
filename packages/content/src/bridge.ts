@@ -32,11 +32,11 @@ export type ContentBridge = {
 	 */
 	contentPresets: Record<string, { markdown?: Record<string, unknown> }> | null;
 	/**
-	 * Content modules (`.svx`/`.md`) that carry their OWN scoped `<style>`, absolute path → their
-	 * post-mdsvex Svelte source. Handed to ogygia as the markup source's `styles`: the build compiles
-	 * each one's CSS and ships it as a client asset (the leak-free corpus never enters the client graph).
+	 * Every content module (`.svx`/`.md`), absolute path → its post-mdsvex Svelte source. Handed to
+	 * ogygia as the markup source's `modules`: the build ships each one's CSS (its own `<style>` and
+	 * its imports') as a client asset, since the leak-free corpus never enters the client graph.
 	 */
-	contentStyleSources: Map<string, string>;
+	contentModules: Map<string, string>;
 };
 
 const KEY = Symbol.for('ogygia.content-bridge.v1');
@@ -46,5 +46,5 @@ export const bridge: ContentBridge = (g[KEY] ??= {
 	scan: null,
 	markdownConfig: null,
 	contentPresets: null,
-	contentStyleSources: new Map<string, string>()
+	contentModules: new Map<string, string>()
 });

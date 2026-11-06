@@ -100,7 +100,7 @@ export function content(options: ContentOptions = {}): [OgygiaPlugin, ...VitePlu
 				const islands = b.markup({
 					extensions: exts,
 					scan: (ctx) => bridge.scan?.(ctx),
-					styles: bridge.contentStyleSources
+					modules: bridge.contentModules
 				});
 				bridge.transform = islands.transform;
 			}

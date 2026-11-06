@@ -77,7 +77,8 @@ import {
 	compileFoucScopedCss,
 	foucRelFromId,
 	isFoucCssId,
-	isFoucScopedId
+	isFoucScopedId,
+	svelteHasStyle
 } from '../compiler/fouc-css.ts';
 
 import { preprocess_component_for_css } from './style-preprocess.ts';
@@ -926,34 +927,69 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						}
 						if (ref) hole_css_refs.set(iid, ref);
 					}
-					// Content CSS: a content module's OWN scoped `<style>` compiles into the SERVER bundle
-					// only (the leak-free corpus never enters the client graph), so on a csr=false doc page it
-					// ships on no stylesheet. Extract that scoped CSS here and emit it as a client asset.
+					// CONTENT CSS: a content module renders on the server only (the leak-free corpus never
+					// enters the client graph), so on a csr=false doc page neither its OWN scoped `<style>`
+					// nor the CSS of the components it imports ships on any stylesheet — the third subtree
+					// no client chunk carries, beside the router pages and the holes above. Each module gets
+					// ONE client asset: its own CSS first, then its imports' tree CSS (the same walk).
 					//
-					// Compiled with `svelte.compile` on the post-mdsvex source the scanner captured — so
-					// Svelte resolves `:global` (a raw `:global` would crash the CSS minifier) and mints the
-					// SAME scoped hash the SSR'd HTML carries (default `cssHash` = hash of the CSS; the `.svx`
-					// bodies use plain `<style>`, so vitePreprocess is a no-op and the source matches). No JS,
-					// no chunk, no corpus in the client graph. Region.svelte links it via the handoff
-					// (writeBundle maps content_css_key → the emitted `.css` by referenceId).
+					// Its own CSS compiles with `svelte.compile` on the post-mdsvex source the scanner
+					// captured — so Svelte resolves `:global` (a raw `:global` would crash the CSS minifier)
+					// and mints the SAME scoped hash the SSR'd HTML carries (default `cssHash` = hash of the
+					// CSS; the `.svx` bodies use plain `<style>`, so vitePreprocess is a no-op and the source
+					// matches). No JS, no chunk, no corpus in the client graph. Region.svelte links it via the
+					// handoff (writeBundle maps content_css_key → the emitted `.css` by referenceId).
 					content_css_refs.clear();
-					const styles = markup.flatMap((m) => (m.styles ? [...m.styles] : []));
-					if (styles.length) {
+					const modules = markup.flatMap((m) => (m.modules ? [...m.modules] : []));
+					if (modules.length) {
 						const { compile } = await import('svelte/compiler');
-						for (const [abs, source] of styles) {
+						/** a component's (or style file's) CSS, compiled once for every module importing it */
+						const tree_css = new Map<string, string | null>();
+						for (const [abs, source] of modules) {
 							try {
-								const { css } = compile(source, {
-									filename: abs,
-									css: 'external',
-									dev: false,
-									generate: 'client',
-									experimental: { async: true }
-								});
-								if (css?.code) {
+								const parts: string[] = [];
+								if (svelteHasStyle(source)) {
+									const { css } = compile(source, {
+										filename: abs,
+										css: 'external',
+										dev: false,
+										generate: 'client',
+										experimental: { async: true }
+									});
+									if (css?.code) parts.push(css.code);
+								}
+								for (const e of await collectFoucCssReachable(abs, {
+									root,
+									libDir,
+									readFile: (p) => (p === abs ? source : readFile(p)),
+									alias: resolve_alias,
+									resolve: walk_resolve
+								})) {
+									if (e.abs === abs) continue; // (its own, above)
+									let css = tree_css.get(e.abs);
+									if (css === undefined) {
+										const src = readFile(e.abs);
+										css =
+											src == null
+												? null
+												: e.kind === 'scoped'
+													? compileFoucScopedCss(
+															e.abs,
+															await preprocess_component_for_css(src, e.abs, root),
+															{ keepScript: true }
+														)
+													: CSS_EXT_RE.test(e.abs)
+														? src
+														: null;
+										tree_css.set(e.abs, css);
+									}
+									if (css) parts.push(css);
+								}
+								if (parts.length) {
 									const ref = this.emitFile({
 										type: 'asset',
 										name: 'og-content.css',
-										source: css.code
+										source: parts.join('\n')
 									});
 									content_css_refs.set(content_css_key(abs), ref);
 								}

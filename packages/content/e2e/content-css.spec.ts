@@ -62,5 +62,16 @@ test.describe('REGRESSION: content body (.svx) ships + applies its own scoped CS
 			outline === 'rgb(11, 197, 141)',
 			outline
 		);
+		// A component the body imports renders on the server only too: its scoped CSS ships in the
+		// body's same asset.
+		const child = await page
+			.locator('[data-content-css-child]')
+			.evaluate((el) => getComputedStyle(el).outlineColor)
+			.catch(() => '');
+		check(
+			"content body: an imported component's scoped <style> loaded and applied",
+			child === 'rgb(201, 27, 142)',
+			child
+		);
 	});
 });
