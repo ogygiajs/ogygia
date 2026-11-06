@@ -2,15 +2,15 @@ import { sequence } from '@sveltejs/kit/hooks';
 import type { Handle } from '@sveltejs/kit';
 import { handle as ogygiaHandle } from 'ogygia/server';
 import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
-import { sqliteStore } from '@ogygia/devtools/profiler/storage/sqlite';
+import { SqliteStore } from '@ogygia/devtools/profiler/storage/sqlite';
 import { ds_ssr } from '$lib/hell/ds-ssr';
 import { scoped_render } from '$lib/restorelab/scoped-render';
 
 // DEMO: give the profiler a durable SQLite store so reports survive a restart and the sidebar's
-// shared list fills. Swap for redisStore(...) / postgresStore(process.env.DATABASE_URL) in a real
-// deployment; this is the one line an app writes to make the profiler DB-backed.
+// shared list fills. Swap for new RedisStore(...) / new PostgresStore(process.env.DATABASE_URL) in a
+// real deployment; this is the one line an app writes to make the profiler DB-backed.
 // (`OGYGIA_PROFILES_DB`: the e2e serverless spec gives each "fresh instance" an empty database)
-setProfilerStore(sqliteStore(process.env.OGYGIA_PROFILES_DB || '.ogygia/profiles.db'));
+setProfilerStore(new SqliteStore(process.env.OGYGIA_PROFILES_DB || '.ogygia/profiles.db'));
 
 // FOREIGN-MUTATION fixture (/detector): corrupt the FIRST island's region HTML after SSR — strip
 // Svelte's `<!--[-->` hydration anchors inside it, the way a post-SSR HTML middleware does. Svelte's

@@ -223,9 +223,9 @@ A store solves this. You give the profiler one in `src/hooks.server.ts`, and fro
 
 ```ts title=src/hooks.server.ts
 import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
-import { postgresStore } from '@ogygia/devtools/profiler/storage/postgres';
+import { PostgresStore } from '@ogygia/devtools/profiler/storage/postgres';
 
-setProfilerStore(postgresStore(process.env.DATABASE_URL!));
+setProfilerStore(new PostgresStore(process.env.DATABASE_URL!));
 
 // your handle stays as it was
 ```
@@ -236,14 +236,14 @@ Memory stays the fast path. A report is still kept in memory and is also written
 
 ### The bundled stores
 
-Each store is a factory in its own entry point, so the database client you do not use is never loaded:
+Each store is a class in its own entry point, so the database client you do not use is never loaded:
 
-| Entry point                                  | Factory                                               | What it is                                                                                                                                                                                                                                            |
-| -------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@ogygia/devtools/profiler/storage`          | `memoryStore(cap = 50)`                               | An in-process map that keeps the newest `cap` reports. Nothing survives a restart, so it adds nothing to the default; it is there for tests and as a model for your own store.                                                                        |
-| `@ogygia/devtools/profiler/storage/sqlite`   | `sqliteStore(filename = '.ogygia/profiles.db')`       | One SQLite file (relative to the working directory, its folder created for you), or `':memory:'`. Needs Node 22.5 or later, which has `node:sqlite` built in, or the `better-sqlite3` package. It survives a restart, but it is local to one machine. |
-| `@ogygia/devtools/profiler/storage/redis`    | `redisStore(client, { ttlSeconds, prefix = 'og:' })`  | A Redis URL (it imports `redis`, or else `ioredis`) or a client you already connected (either library). `ttlSeconds` expires reports on their own, and keys start with `prefix`. It keeps at most 1,000 reports.                                      |
-| `@ogygia/devtools/profiler/storage/postgres` | `postgresStore(client, { schema, table = 'ogygia' })` | A connection string (it imports `pg`) or a `pg` pool you already have. It creates the `<table>_reports` and `<table>_visits` tables on first use, inside `schema` when you name one. The report is stored as `jsonb`, so you can query inside it.     |
+| Entry point                                  | Class                                                     | What it is                                                                                                                                                                                                                                            |
+| -------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@ogygia/devtools/profiler/storage`          | `new MemoryStore(cap = 50)`                               | An in-process map that keeps the newest `cap` reports. Nothing survives a restart, so it adds nothing to the default; it is there for tests and as a model for your own store.                                                                        |
+| `@ogygia/devtools/profiler/storage/sqlite`   | `new SqliteStore(filename = '.ogygia/profiles.db')`       | One SQLite file (relative to the working directory, its folder created for you), or `':memory:'`. Needs Node 22.5 or later, which has `node:sqlite` built in, or the `better-sqlite3` package. It survives a restart, but it is local to one machine. |
+| `@ogygia/devtools/profiler/storage/redis`    | `new RedisStore(client, { ttlSeconds, prefix = 'og:' })`  | A Redis URL (it imports `redis`, or else `ioredis`) or a client you already connected (either library). `ttlSeconds` expires reports on their own, and keys start with `prefix`. It keeps at most 1,000 reports.                                      |
+| `@ogygia/devtools/profiler/storage/postgres` | `new PostgresStore(client, { schema, table = 'ogygia' })` | A connection string (it imports `pg`) or a `pg` pool you already have. It creates the `<table>_reports` and `<table>_visits` tables on first use, inside `schema` when you name one. The report is stored as `jsonb`, so you can query inside it.     |
 
 The database client packages (`better-sqlite3`, `redis` or `ioredis`, `pg`) are not dependencies of `@ogygia/devtools`, so install the one your store needs. For a serverless host, pick Redis or Postgres, since every instance has to reach the same store; SQLite suits a single long-lived server.
 

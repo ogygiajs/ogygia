@@ -55,12 +55,12 @@ To keep profiler reports somewhere other than process memory, give it a store on
 ```ts title=src/hooks.server.ts
 import { env } from '$env/dynamic/private';
 import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
-import { postgresStore } from '@ogygia/devtools/profiler/storage/postgres';
+import { PostgresStore } from '@ogygia/devtools/profiler/storage/postgres';
 
-setProfilerStore(postgresStore(env.DATABASE_URL!));
+setProfilerStore(new PostgresStore(env.DATABASE_URL!));
 ```
 
-`sqliteStore` and `redisStore` come from `@ogygia/devtools/profiler/storage/sqlite` and `…/redis` ([Shared report storage](/docs/devtools/profiler/recording#shared-report-storage)). Your own code can name what the profiler cannot see with `span` and `instrument` from `@ogygia/devtools/profiler`, and `mark` from `@ogygia/devtools/profiler/client` in the browser.
+`SqliteStore` and `RedisStore` come from `@ogygia/devtools/profiler/storage/sqlite` and `…/redis` ([Shared report storage](/docs/devtools/profiler/recording#shared-report-storage)). Your own code can name what the profiler cannot see with `span` and `instrument` from `@ogygia/devtools/profiler`, and `mark` from `@ogygia/devtools/profiler/client` in the browser.
 
 ## With other packages
 

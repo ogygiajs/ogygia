@@ -13,8 +13,8 @@
  *
  *   // src/hooks.server.ts
  *   import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
- *   import { sqliteStore } from '@ogygia/devtools/profiler/storage/sqlite';
- *   setProfilerStore(sqliteStore('.ogygia/profiles.db'));
+ *   import { SqliteStore } from '@ogygia/devtools/profiler/storage/sqlite';
+ *   setProfilerStore(new SqliteStore('.ogygia/profiles.db'));
  *
  * A report is stored as its portable dump (the same JSON the `.ogp` export and the agent view are
  * built from): `meta` + `analysis` + `extras`, plus a few summary columns for the list. Nothing
@@ -88,50 +88,58 @@ export interface ProfilerStore {
 /** An in-memory store — a Map with an LRU cap. The profiler without a store keeps reports in its own
  *  memory already, so this adds nothing there; it is for tests and a model for a custom store.
  *  Nothing survives a restart. */
-export function memoryStore(cap = 50): ProfilerStore {
-	const reports = new Map<string, ProfilerRecord>();
-	const visits: ProfilerVisitRecord[] = [];
-	return {
-		kind: 'memory',
-		putReport(rec) {
-			reports.delete(rec.id); // move to newest
-			reports.set(rec.id, rec);
-			while (reports.size > cap) {
-				const oldest = reports.keys().next().value;
-				if (oldest === undefined) break;
-				reports.delete(oldest);
-			}
-		},
-		getReport(id) {
-			return reports.get(id)?.dump ?? null;
-		},
-		listReports(limit = 30) {
-			return [...reports.values()]
-				.sort((a, b) => b.created - a.created)
-				.slice(0, limit)
-				.map(({ dump: _dump, ...s }) => s);
-		},
-		deleteReport(id) {
-			reports.delete(id);
-		},
-		prune(keep) {
-			while (reports.size > keep) {
-				const oldest = reports.keys().next().value;
-				if (oldest === undefined) break;
-				reports.delete(oldest);
-			}
-		},
-		putVisit(rec) {
-			visits.push(rec);
-			if (visits.length > 2000) visits.shift();
-		},
-		listVisits(page, limit = 10) {
-			return visits
-				.filter((v) => v.page === page)
-				.sort((a, b) => b.at - a.at)
-				.slice(0, limit);
+export class MemoryStore implements ProfilerStore {
+	readonly kind: string = 'memory';
+	#cap: number;
+	#reports = new Map<string, ProfilerRecord>();
+	#visits: ProfilerVisitRecord[] = [];
+
+	constructor(cap = 50) {
+		this.#cap = cap;
+	}
+
+	putReport(rec: ProfilerRecord): void {
+		this.#reports.delete(rec.id); // move to newest
+		this.#reports.set(rec.id, rec);
+		this.prune(this.#cap);
+	}
+
+	getReport(id: string): string | null {
+		return this.#reports.get(id)?.dump ?? null;
+	}
+
+	listReports(limit = 30): ProfilerSummary[] {
+		return [...this.#reports.values()]
+			.sort((a, b) => b.created - a.created)
+			.slice(0, limit)
+			.map(({ dump: _dump, ...s }) => s);
+	}
+
+	deleteReport(id: string): void {
+		this.#reports.delete(id);
+	}
+
+	prune(keep: number): void {
+		const reports = this.#reports;
+		while (reports.size > keep) {
+			const oldest = reports.keys().next().value;
+			if (oldest === undefined) break;
+			reports.delete(oldest);
 		}
-	};
+	}
+
+	putVisit(rec: ProfilerVisitRecord): void {
+		const visits = this.#visits;
+		visits.push(rec);
+		if (visits.length > 2000) visits.shift();
+	}
+
+	listVisits(page: string, limit = 10): ProfilerVisitRecord[] {
+		return this.#visits
+			.filter((v) => v.page === page)
+			.sort((a, b) => b.at - a.at)
+			.slice(0, limit);
+	}
 }
 
 // ── shared summary helper (used by every SQL-ish adapter) ───────────────────────────────────────
@@ -157,8 +165,8 @@ export function recordColumns(rec: ProfilerRecord): ProfilerSummary {
  *
  *   // src/hooks.server.ts
  *   import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
- *   import { postgresStore } from '@ogygia/devtools/profiler/storage/postgres';
- *   setProfilerStore(postgresStore(process.env.DATABASE_URL!));
+ *   import { PostgresStore } from '@ogygia/devtools/profiler/storage/postgres';
+ *   setProfilerStore(new PostgresStore(process.env.DATABASE_URL!));
  *
  * The profiler reads this when it mounts and every finished report is written there. Call it before
  * the profiler handles its first request; a later call is ignored (the instance already mounted).

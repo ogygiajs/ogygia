@@ -7,8 +7,8 @@
  *
  *   // src/hooks.server.ts
  *   import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
- *   import { sqliteStore } from '@ogygia/devtools/profiler/storage/sqlite';
- *   setProfilerStore(sqliteStore('.ogygia/profiles.db'));
+ *   import { SqliteStore } from '@ogygia/devtools/profiler/storage/sqlite';
+ *   setProfilerStore(new SqliteStore('.ogygia/profiles.db'));
  */
 import { createRequire } from 'node:module';
 import type {
@@ -57,16 +57,87 @@ function open(filename: string): SyncDb {
 		return new Database(filename);
 	} catch {
 		throw new Error(
-			"ogygia/profiler: sqliteStore needs Node 22.5+ (built-in node:sqlite) or the 'better-sqlite3' package."
+			"ogygia/profiler: SqliteStore needs Node 22.5+ (built-in node:sqlite) or the 'better-sqlite3' package."
 		);
 	}
 }
 
-export function sqliteStore(filename = '.ogygia/profiles.db'): ProfilerStore {
-	let db: SyncDb | null = null;
-	const need = (): SyncDb => {
-		if (db) return db;
-		db = open(filename);
+export class SqliteStore implements ProfilerStore {
+	readonly kind: string = 'sqlite';
+	#filename: string;
+	#db: SyncDb | null = null;
+
+	constructor(filename = '.ogygia/profiles.db') {
+		this.#filename = filename;
+	}
+
+	init(): void {
+		this.#need();
+	}
+
+	putReport(rec: ProfilerRecord): void {
+		this.#need()
+			.prepare(
+				'INSERT INTO reports (id,created,page,trigger,label,median,dump) VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET created=excluded.created,page=excluded.page,trigger=excluded.trigger,label=excluded.label,median=excluded.median,dump=excluded.dump'
+			)
+			.run(rec.id, rec.created, rec.page, rec.trigger, rec.label, rec.median, rec.dump);
+	}
+
+	getReport(id: string): string | null {
+		const row = this.#need().prepare('SELECT dump FROM reports WHERE id = ?').get(id) as
+			| { dump: string }
+			| undefined;
+		return row?.dump ?? null;
+	}
+
+	listReports(limit = 30): ProfilerSummary[] {
+		return this.#need()
+			.prepare(
+				'SELECT id,created,page,trigger,label,median FROM reports ORDER BY created DESC LIMIT ?'
+			)
+			.all(limit) as ProfilerSummary[];
+	}
+
+	deleteReport(id: string): void {
+		this.#need().prepare('DELETE FROM reports WHERE id = ?').run(id);
+	}
+
+	prune(keep: number): void {
+		this.#need()
+			.prepare(
+				'DELETE FROM reports WHERE id NOT IN (SELECT id FROM reports ORDER BY created DESC LIMIT ?)'
+			)
+			.run(keep);
+	}
+
+	putVisit(rec: ProfilerVisitRecord): void {
+		this.#need()
+			.prepare(
+				'INSERT INTO visits (key,page,at,visit) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET at=excluded.at,visit=excluded.visit'
+			)
+			.run(rec.key, rec.page, rec.at, rec.visit);
+		// the newest MAX_VISITS_PER_KEY per key (what a server window reads back)
+		this.#need()
+			.prepare(
+				'DELETE FROM visits WHERE page = ? AND key NOT IN (SELECT key FROM visits WHERE page = ? ORDER BY at DESC LIMIT ?)'
+			)
+			.run(rec.page, rec.page, MAX_VISITS_PER_KEY);
+	}
+
+	listVisits(page: string, limit = 10): ProfilerVisitRecord[] {
+		return this.#need()
+			.prepare('SELECT key,page,at,visit FROM visits WHERE page = ? ORDER BY at DESC LIMIT ?')
+			.all(page, limit) as ProfilerVisitRecord[];
+	}
+
+	close(): void {
+		this.#db?.close();
+		this.#db = null;
+	}
+
+	#need(): SyncDb {
+		if (this.#db) return this.#db;
+		const db = (this.#db = open(this.#filename));
 		db.exec(`
 			CREATE TABLE IF NOT EXISTS reports (
 				id TEXT PRIMARY KEY, created INTEGER NOT NULL, page TEXT, trigger TEXT,
@@ -79,63 +150,5 @@ export function sqliteStore(filename = '.ogygia/profiles.db'): ProfilerStore {
 			CREATE INDEX IF NOT EXISTS visits_page ON visits (page, at);
 		`);
 		return db;
-	};
-	return {
-		kind: 'sqlite',
-		init() {
-			need();
-		},
-		putReport(rec: ProfilerRecord) {
-			need()
-				.prepare(
-					'INSERT INTO reports (id,created,page,trigger,label,median,dump) VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET created=excluded.created,page=excluded.page,trigger=excluded.trigger,label=excluded.label,median=excluded.median,dump=excluded.dump'
-				)
-				.run(rec.id, rec.created, rec.page, rec.trigger, rec.label, rec.median, rec.dump);
-		},
-		getReport(id: string): string | null {
-			const row = need().prepare('SELECT dump FROM reports WHERE id = ?').get(id) as
-				| { dump: string }
-				| undefined;
-			return row?.dump ?? null;
-		},
-		listReports(limit = 30): ProfilerSummary[] {
-			return need()
-				.prepare(
-					'SELECT id,created,page,trigger,label,median FROM reports ORDER BY created DESC LIMIT ?'
-				)
-				.all(limit) as ProfilerSummary[];
-		},
-		deleteReport(id: string) {
-			need().prepare('DELETE FROM reports WHERE id = ?').run(id);
-		},
-		prune(keep: number) {
-			need()
-				.prepare(
-					'DELETE FROM reports WHERE id NOT IN (SELECT id FROM reports ORDER BY created DESC LIMIT ?)'
-				)
-				.run(keep);
-		},
-		putVisit(rec: ProfilerVisitRecord) {
-			need()
-				.prepare(
-					'INSERT INTO visits (key,page,at,visit) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET at=excluded.at,visit=excluded.visit'
-				)
-				.run(rec.key, rec.page, rec.at, rec.visit);
-			// the newest MAX_VISITS_PER_KEY per key (what a server window reads back)
-			need()
-				.prepare(
-					'DELETE FROM visits WHERE page = ? AND key NOT IN (SELECT key FROM visits WHERE page = ? ORDER BY at DESC LIMIT ?)'
-				)
-				.run(rec.page, rec.page, MAX_VISITS_PER_KEY);
-		},
-		listVisits(page: string, limit = 10): ProfilerVisitRecord[] {
-			return need()
-				.prepare('SELECT key,page,at,visit FROM visits WHERE page = ? ORDER BY at DESC LIMIT ?')
-				.all(page, limit) as ProfilerVisitRecord[];
-		},
-		close() {
-			db?.close();
-			db = null;
-		}
-	};
+	}
 }

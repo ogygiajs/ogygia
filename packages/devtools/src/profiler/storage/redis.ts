@@ -6,11 +6,11 @@
  *
  *   // src/hooks.server.ts
  *   import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
- *   import { redisStore } from '@ogygia/devtools/profiler/storage/redis';
+ *   import { RedisStore } from '@ogygia/devtools/profiler/storage/redis';
  *   // pass a connection string (node-redis / ioredis is imported on demand)…
- *   setProfilerStore(redisStore('redis://localhost:6379'));
+ *   setProfilerStore(new RedisStore('redis://localhost:6379'));
  *   // …or an already-connected client (node-redis or ioredis both work)
- *   setProfilerStore(redisStore(myClient));
+ *   setProfilerStore(new RedisStore(myClient));
  *
  * A TTL (seconds) expires reports on their own — handy on a shared instance where you only want the
  * last day of recordings. The index sets drop an expired report's id the next time they are read or
@@ -70,148 +70,170 @@ async function resolve(client: RedisLike | string): Promise<RedisLike> {
 	return new mod.default(client);
 }
 
-export function redisStore(
-	client: RedisLike | string,
-	opts: { ttlSeconds?: number; prefix?: string } = {}
-): ProfilerStore {
-	const ttl = opts.ttlSeconds;
-	const prefix = opts.prefix ?? 'og:';
-	const R = `${prefix}report:`;
-	const RZ = `${prefix}reports`;
-	const V = `${prefix}visit:`;
-	const VZ = (page: string) => `${V}z:${page}`;
-	let c: RedisLike | null = null;
-	const need = async (): Promise<RedisLike> => (c ??= await resolve(client));
-	// THE FLAVOUR, read once from the client's own methods: node-redis has `zAdd`, ioredis `zadd`.
-	// (Trying one form and falling back on the error cost ioredis a round trip on every write.)
-	const node = (r: RedisLike): NodeRedis | null =>
-		typeof (r as unknown as NodeRedis).zAdd === 'function' ? (r as unknown as NodeRedis) : null;
-	const setStr = async (r: RedisLike, key: string, val: string) => {
+// THE FLAVOUR, read once from the client's own methods: node-redis has `zAdd`, ioredis `zadd`.
+// (Trying one form and falling back on the error cost ioredis a round trip on every write.)
+const node = (r: RedisLike): NodeRedis | null =>
+	typeof (r as unknown as NodeRedis).zAdd === 'function' ? (r as unknown as NodeRedis) : null;
+const zadd = (r: RedisLike, key: string, score: number, member: string) => {
+	const n = node(r);
+	return n ? n.zAdd(key, { score, value: member }) : r.zadd!(key, score, member);
+};
+const zrem = (r: RedisLike, key: string, members: string[]) => {
+	if (!members.length) return Promise.resolve();
+	const n = node(r);
+	return n ? n.zRem(key, members) : r.zrem!(key, ...members);
+};
+const zrange = (
+	r: RedisLike,
+	key: string,
+	a: number,
+	b: number,
+	rev = false
+): Promise<string[]> => {
+	const n = node(r);
+	if (n) return rev ? n.zRange(key, a, b, { REV: true }) : n.zRange(key, a, b);
+	return rev ? r.zrange!(key, a, b, 'REV') : r.zrange!(key, a, b);
+};
+const zcard = (r: RedisLike, key: string): Promise<number> => {
+	const n = node(r);
+	return n ? n.zCard(key) : r.zcard!(key);
+};
+/** drop every member but the newest `keep`, with the keys they name */
+const trim = async (r: RedisLike, key: string, item: string, keep: number) => {
+	const stale = await zrange(r, key, 0, -(keep + 1));
+	if (!stale.length) return;
+	await r.del(stale.map((m) => item + m));
+	await zrem(r, key, stale);
+};
+
+export class RedisStore implements ProfilerStore {
+	readonly kind: string = 'redis';
+	#client: RedisLike | string;
+	#ttl: number | undefined;
+	#R: string;
+	#RZ: string;
+	#V: string;
+	#c: RedisLike | null = null;
+
+	constructor(client: RedisLike | string, opts: { ttlSeconds?: number; prefix?: string } = {}) {
+		const prefix = opts.prefix ?? 'og:';
+		this.#client = client;
+		this.#ttl = opts.ttlSeconds;
+		this.#R = `${prefix}report:`;
+		this.#RZ = `${prefix}reports`;
+		this.#V = `${prefix}visit:`;
+	}
+
+	async init(): Promise<void> {
+		await this.#need();
+	}
+
+	async putReport(rec: ProfilerRecord): Promise<void> {
+		const r = await this.#need();
+		const summary: ProfilerSummary = {
+			id: rec.id,
+			created: rec.created,
+			page: rec.page,
+			trigger: rec.trigger,
+			label: rec.label,
+			median: rec.median
+		};
+		await this.#set_str(r, this.#R + rec.id, JSON.stringify({ summary, dump: rec.dump }));
+		await zadd(r, this.#RZ, rec.created, rec.id);
+		// the store's own cap, whatever the host prunes to: one ZCARD, a trim only past it
+		if ((await zcard(r, this.#RZ)) > MAX_REPORTS) await trim(r, this.#RZ, this.#R, MAX_REPORTS);
+	}
+
+	async getReport(id: string): Promise<string | null> {
+		const raw = await (await this.#need()).get(this.#R + id);
+		if (!raw) return null;
+		try {
+			return (JSON.parse(raw) as { dump: string }).dump;
+		} catch {
+			return null;
+		}
+	}
+
+	async listReports(limit = 30): Promise<ProfilerSummary[]> {
+		const r = await this.#need();
+		const ids = await zrange(r, this.#RZ, 0, limit - 1, true);
+		const out: ProfilerSummary[] = [];
+		const gone: string[] = [];
+		for (const id of ids) {
+			const raw = await r.get(this.#R + id);
+			if (!raw) {
+				gone.push(id); // expired (TTL) or deleted elsewhere: its id leaves the index too
+				continue;
+			}
+			try {
+				out.push((JSON.parse(raw) as { summary: ProfilerSummary }).summary);
+			} catch {
+				/* skip */
+			}
+		}
+		await zrem(r, this.#RZ, gone);
+		return out;
+	}
+
+	async deleteReport(id: string): Promise<void> {
+		const r = await this.#need();
+		await r.del(this.#R + id);
+		await zrem(r, this.#RZ, [id]);
+	}
+
+	async prune(keep: number): Promise<void> {
+		await trim(await this.#need(), this.#RZ, this.#R, keep);
+	}
+
+	async putVisit(rec: ProfilerVisitRecord): Promise<void> {
+		const r = await this.#need();
+		const vz = this.#VZ(rec.page);
+		await this.#set_str(r, this.#V + rec.key, JSON.stringify(rec));
+		await zadd(r, vz, rec.at, rec.key);
+		if ((await zcard(r, vz)) > MAX_VISITS_PER_KEY) await trim(r, vz, this.#V, MAX_VISITS_PER_KEY);
+	}
+
+	async listVisits(page: string, limit = 10): Promise<ProfilerVisitRecord[]> {
+		const r = await this.#need();
+		const keys = await zrange(r, this.#VZ(page), 0, limit - 1, true);
+		const out: ProfilerVisitRecord[] = [];
+		const gone: string[] = [];
+		for (const k of keys) {
+			const raw = await r.get(this.#V + k);
+			if (!raw) {
+				gone.push(k);
+				continue;
+			}
+			try {
+				out.push(JSON.parse(raw) as ProfilerVisitRecord);
+			} catch {
+				/* skip */
+			}
+		}
+		await zrem(r, this.#VZ(page), gone);
+		return out;
+	}
+
+	async close(): Promise<void> {
+		await (this.#c as unknown as { quit?: () => Promise<void>; disconnect?: () => void })
+			?.quit?.()
+			.catch(() => {});
+		this.#c = null;
+	}
+
+	async #need(): Promise<RedisLike> {
+		return (this.#c ??= await resolve(this.#client));
+	}
+
+	#VZ(page: string): string {
+		return `${this.#V}z:${page}`;
+	}
+
+	async #set_str(r: RedisLike, key: string, val: string): Promise<void> {
 		const n = node(r);
+		const ttl = this.#ttl;
 		if (!ttl) await r.set(key, val);
 		else if (n) await n.set(key, val, { EX: ttl });
 		else await r.set(key, val, 'EX', ttl);
-	};
-	const zadd = (r: RedisLike, key: string, score: number, member: string) => {
-		const n = node(r);
-		return n ? n.zAdd(key, { score, value: member }) : r.zadd!(key, score, member);
-	};
-	const zrem = (r: RedisLike, key: string, members: string[]) => {
-		if (!members.length) return Promise.resolve();
-		const n = node(r);
-		return n ? n.zRem(key, members) : r.zrem!(key, ...members);
-	};
-	const zrange = (
-		r: RedisLike,
-		key: string,
-		a: number,
-		b: number,
-		rev = false
-	): Promise<string[]> => {
-		const n = node(r);
-		if (n) return rev ? n.zRange(key, a, b, { REV: true }) : n.zRange(key, a, b);
-		return rev ? r.zrange!(key, a, b, 'REV') : r.zrange!(key, a, b);
-	};
-	const zcard = (r: RedisLike, key: string): Promise<number> => {
-		const n = node(r);
-		return n ? n.zCard(key) : r.zcard!(key);
-	};
-	/** drop every member but the newest `keep`, with the keys they name */
-	const trim = async (r: RedisLike, key: string, item: string, keep: number) => {
-		const stale = await zrange(r, key, 0, -(keep + 1));
-		if (!stale.length) return;
-		await r.del(stale.map((m) => item + m));
-		await zrem(r, key, stale);
-	};
-	return {
-		kind: 'redis',
-		async init() {
-			await need();
-		},
-		async putReport(rec: ProfilerRecord) {
-			const r = await need();
-			const summary: ProfilerSummary = {
-				id: rec.id,
-				created: rec.created,
-				page: rec.page,
-				trigger: rec.trigger,
-				label: rec.label,
-				median: rec.median
-			};
-			await setStr(r, R + rec.id, JSON.stringify({ summary, dump: rec.dump }));
-			await zadd(r, RZ, rec.created, rec.id);
-			// the store's own cap, whatever the host prunes to: one ZCARD, a trim only past it
-			if ((await zcard(r, RZ)) > MAX_REPORTS) await trim(r, RZ, R, MAX_REPORTS);
-		},
-		async getReport(id: string): Promise<string | null> {
-			const raw = await (await need()).get(R + id);
-			if (!raw) return null;
-			try {
-				return (JSON.parse(raw) as { dump: string }).dump;
-			} catch {
-				return null;
-			}
-		},
-		async listReports(limit = 30): Promise<ProfilerSummary[]> {
-			const r = await need();
-			const ids = await zrange(r, RZ, 0, limit - 1, true);
-			const out: ProfilerSummary[] = [];
-			const gone: string[] = [];
-			for (const id of ids) {
-				const raw = await r.get(R + id);
-				if (!raw) {
-					gone.push(id); // expired (TTL) or deleted elsewhere: its id leaves the index too
-					continue;
-				}
-				try {
-					out.push((JSON.parse(raw) as { summary: ProfilerSummary }).summary);
-				} catch {
-					/* skip */
-				}
-			}
-			await zrem(r, RZ, gone);
-			return out;
-		},
-		async deleteReport(id: string) {
-			const r = await need();
-			await r.del(R + id);
-			await zrem(r, RZ, [id]);
-		},
-		async prune(keep: number) {
-			await trim(await need(), RZ, R, keep);
-		},
-		async putVisit(rec: ProfilerVisitRecord) {
-			const r = await need();
-			await setStr(r, V + rec.key, JSON.stringify(rec));
-			await zadd(r, VZ(rec.page), rec.at, rec.key);
-			if ((await zcard(r, VZ(rec.page))) > MAX_VISITS_PER_KEY)
-				await trim(r, VZ(rec.page), V, MAX_VISITS_PER_KEY);
-		},
-		async listVisits(page: string, limit = 10): Promise<ProfilerVisitRecord[]> {
-			const r = await need();
-			const keys = await zrange(r, VZ(page), 0, limit - 1, true);
-			const out: ProfilerVisitRecord[] = [];
-			const gone: string[] = [];
-			for (const k of keys) {
-				const raw = await r.get(V + k);
-				if (!raw) {
-					gone.push(k);
-					continue;
-				}
-				try {
-					out.push(JSON.parse(raw) as ProfilerVisitRecord);
-				} catch {
-					/* skip */
-				}
-			}
-			await zrem(r, VZ(page), gone);
-			return out;
-		},
-		async close() {
-			await (c as unknown as { quit?: () => Promise<void>; disconnect?: () => void })
-				?.quit?.()
-				.catch(() => {});
-			c = null;
-		}
-	};
+	}
 }
