@@ -82,6 +82,31 @@ describe('OgygiaError and warn', () => {
 	});
 });
 
+describe('a server bundle: worded in dev and while prerendering', () => {
+	it('a production server prints the link alone; a prerender, the wording and the link', async () => {
+		const { dev_or_prerender } = await import('../src/messages/define.ts');
+		vi.stubEnv('DEV', false);
+		const key = Symbol.for('ogygia.prerendering');
+		const g = globalThis as unknown as Record<symbol, unknown>;
+		const before = g[key];
+		try {
+			const server = define_messages(SERVER_ERRORS, SERVER_WARNINGS, dev_or_prerender);
+			g[key] = false;
+			expect(new server.OgygiaError('handle_secret_too_short', { min: 32 }).message).toBe(
+				'[ogygia] https://ogygiajs.dev/e/handle_secret_too_short?min=32'
+			);
+			g[key] = true;
+			expect(new server.OgygiaError('handle_secret_too_short', { min: 32 }).message).toBe(
+				'[ogygia] handle({ secret }) is too short for production (need ≥32 UTF-8 bytes).\n' +
+					'https://ogygiajs.dev/e/handle_secret_too_short?min=32'
+			);
+		} finally {
+			g[key] = before;
+			vi.unstubAllEnvs();
+		}
+	});
+});
+
 describe('the tables', () => {
 	it('no code is both an error and a warning', () => {
 		const both = Object.keys(ERRORS).filter((c) => c in WARNINGS);

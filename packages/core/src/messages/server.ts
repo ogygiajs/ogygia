@@ -1,13 +1,13 @@
 /**
  * EVERY MESSAGE OGYGIA'S SERVER PRINTS — the handle, the islands endpoint, region capabilities, the
  * page a render outside Kit reads: their code, their wording, what to do about them. Same calls as
- * the runtime's (./core.ts), and the same rule: the wording and the code's page in dev; a production
- * server build prints the page's link alone (the tables are only passed under `import.meta.env.DEV`).
+ * the runtime's (./core.ts): the wording and the code's page in dev and while prerendering; a
+ * production server prints the page's link alone.
  *
  *   throw new OgygiaError('handle_secret_too_short', { min });
  *   warn('endpoint_bad_signature', { id });
  */
-import { define_messages, type MessagesOf } from './define.ts';
+import { define_messages, dev_or_prerender, type MessagesOf } from './define.ts';
 import { prose } from './prose.ts';
 
 const SECRET_FIX =
@@ -200,10 +200,13 @@ export const SERVER_WARNINGS = {
 };
 
 type Server = MessagesOf<typeof SERVER_ERRORS, typeof SERVER_WARNINGS>;
-// (`?.`: a plain Node import — a test, a script — has no `import.meta.env`; it gets the link alone)
+// (the tables reach a dev build and the server's, worded in dev and while prerendering — a production
+// server prints the link alone; a browser bundle that reaches this module through shared code drops
+// them. `?.`: a plain Node import has no `import.meta.env`, it gets the link alone)
 const server: Server = /* @__PURE__ */ define_messages(
-	import.meta.env?.DEV ? SERVER_ERRORS : null,
-	import.meta.env?.DEV ? SERVER_WARNINGS : null
+	import.meta.env?.DEV || import.meta.env?.SSR ? SERVER_ERRORS : null,
+	import.meta.env?.DEV || import.meta.env?.SSR ? SERVER_WARNINGS : null,
+	dev_or_prerender
 );
 export const OgygiaError: Server['OgygiaError'] = server.OgygiaError;
 export const warn: Server['warn'] = server.warn;

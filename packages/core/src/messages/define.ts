@@ -61,6 +61,15 @@ export type MessagesOf<E, W> = {
 };
 
 /** The line for a code: the wording and its link with the table, the link alone without it. */
+/** Dev, or a prerender (the server's handle publishes Kit's `building`, hooks.ts): the moments a
+ *  server-side message prints its wording. Asked when it prints, never as a module loads. */
+export function dev_or_prerender(): boolean {
+	return (
+		!!import.meta.env?.DEV ||
+		(globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.prerendering')] === true
+	);
+}
+
 function line(table: MessageTableShape | null, code: string, a: unknown): string {
 	let link = 'https://ogygiajs.dev/e/' + code;
 	if (a && typeof a === 'object') {
@@ -76,15 +85,23 @@ function line(table: MessageTableShape | null, code: string, a: unknown): string
 	return entry ? '[ogygia] ' + entry.text(a) + '\n' + link : '[ogygia] ' + link;
 }
 
+/**
+ * A package's `OgygiaError`, `warn` and `line` from its tables. A table left out (`null`) prints the
+ * link alone; `worded`, asked as each message prints, says whether a table it was given is used —
+ * a server bundle keeps its tables for a prerender and words a message only then (and in dev).
+ */
 export function define_messages<E extends MessageTableShape, W extends MessageTableShape>(
-	errors: E | null,
-	warnings: W | null
+	errors_table: E | null,
+	warnings_table: W | null,
+	worded: () => boolean = () => true
 ): MessagesOf<E, W> {
 	type Out = MessagesOf<E, W>;
+	const errors = () => (errors_table && worded() ? errors_table : null);
+	const warnings = () => (warnings_table && worded() ? warnings_table : null);
 	class OgygiaError extends Error {
 		code: string;
 		constructor(code: string, a?: unknown) {
-			super(line(errors, code, a));
+			super(line(errors(), code, a));
 			this.name = 'OgygiaError';
 			this.code = code;
 		}
@@ -98,11 +115,11 @@ export function define_messages<E extends MessageTableShape, W extends MessageTa
 			const proto = first !== null && typeof first === 'object' ? Object.getPrototypeOf(first) : 0;
 			const has_args = proto === Object.prototype || proto === null;
 			console.warn(
-				line(warnings, code, has_args ? first : undefined),
+				line(warnings(), code, has_args ? first : undefined),
 				...(has_args ? rest.slice(1) : rest)
 			);
 		}) as Out['warn'],
 		line: ((code: string, a?: unknown) =>
-			line(errors && code in errors ? errors : warnings, code, a)) as Out['line']
+			line(errors_table && code in errors_table ? errors() : warnings(), code, a)) as Out['line']
 	};
 }

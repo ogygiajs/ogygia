@@ -7,8 +7,13 @@
  * Flag reads run in the app's server and its pages, so the wording is only passed in dev: a
  * production build prints the code's page alone.
  */
-import { define_messages, prose, type MessagesOf } from '@ogygia/core/internal/messages';
-import { DEV } from 'esm-env';
+import {
+	define_messages,
+	dev_or_prerender,
+	prose,
+	type MessagesOf
+} from '@ogygia/core/internal/messages';
+import { BROWSER, DEV } from 'esm-env';
 
 /** The errors: `throw new OgygiaError(code, args)`. */
 export const FLAGS_ERRORS = {};
@@ -48,12 +53,15 @@ export const FLAGS_WARNINGS = {
 };
 
 type Own = MessagesOf<typeof FLAGS_ERRORS, typeof FLAGS_WARNINGS>;
+// (the tables reach a dev build and the server's — a prerender words them too; a production browser
+// bundle drops them)
 const own: Own = /* @__PURE__ */ define_messages(
-	DEV ? FLAGS_ERRORS : null,
-	DEV ? FLAGS_WARNINGS : null
+	DEV || !BROWSER ? FLAGS_ERRORS : null,
+	DEV || !BROWSER ? FLAGS_WARNINGS : null,
+	dev_or_prerender
 );
 /** `throw new OgygiaError(code, args)`; `warn(code, args, ...rest)` logs; `line(code, args)` is the
- *  line as a string. Wording and link in dev, the link alone in a production build. */
+ *  line as a string. Wording and link in dev and while prerendering, the link alone otherwise. */
 export const OgygiaError: Own['OgygiaError'] = own.OgygiaError;
 export const warn: Own['warn'] = own.warn;
 export const line: Own['line'] = own.line;

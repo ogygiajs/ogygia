@@ -9,6 +9,7 @@
  */
 export {
 	define_messages,
+	dev_or_prerender,
 	type MessageEntry,
 	type MessageTableShape,
 	type MessagesOf

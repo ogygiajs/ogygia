@@ -192,16 +192,20 @@ import {
 } from './insights/switch.ts';
 import { mark_personal } from './server/personal-response.ts';
 import { OgygiaError, warn } from './messages/server.ts';
-import * as runtime_messages from './messages/core.ts';
+import { ERRORS, WARNINGS } from './messages/core.ts';
+import { define_messages, dev_or_prerender } from './messages/define.ts';
 
+// A prerender words every message, the link after it (messages/define.ts `dev_or_prerender`).
+(globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.prerendering')] = building;
 // The server's render runs the same shared code as the island (a transport, `Region`), which words
 // its messages through the runtime's own (messages/island.ts): published here as the runtime's boot
-// publishes them in the browser.
-(globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.messages')] ??= {
-	OgygiaError: runtime_messages.OgygiaError,
-	warn: runtime_messages.warn,
-	line: runtime_messages.line
-};
+// publishes them in the browser — with the tables, worded in dev and while prerendering.
+(globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.messages')] ??=
+	define_messages(
+		import.meta.env?.DEV || import.meta.env?.SSR ? ERRORS : null,
+		import.meta.env?.DEV || import.meta.env?.SSR ? WARNINGS : null,
+		dev_or_prerender
+	);
 
 /** Is devtools on for this request's browser (a devtools BUILD): the URL's `?og-devtools=on|off`
  *  wins and is written to the response's cookie, else the cookie (insights/switch.ts). */

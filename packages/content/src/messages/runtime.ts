@@ -10,7 +10,12 @@
  * build prints the code's page alone. The build side (the Vite plugin, the macros, the markdown
  * compiler) has its own (./build.ts).
  */
-import { define_messages, prose, type MessagesOf } from '@ogygia/core/internal/messages';
+import {
+	define_messages,
+	dev_or_prerender,
+	prose,
+	type MessagesOf
+} from '@ogygia/core/internal/messages';
 
 /** The errors: `throw new OgygiaError(code, args)`, or `console.error(new OgygiaError(…), err)` for a
  *  failure that is caught. */
@@ -259,13 +264,15 @@ export const CONTENT_WARNINGS = {
 };
 
 type Own = MessagesOf<typeof CONTENT_ERRORS, typeof CONTENT_WARNINGS>;
-// (`?.`: a plain Node import — a test, a script — has no `import.meta.env`; it gets the link alone)
+// (the tables reach a dev build and the server's — a prerender words them too; a production browser
+// bundle drops them. `?.`: a plain Node import has no `import.meta.env`, it gets the link alone)
 const own: Own = /* @__PURE__ */ define_messages(
-	import.meta.env?.DEV ? CONTENT_ERRORS : null,
-	import.meta.env?.DEV ? CONTENT_WARNINGS : null
+	import.meta.env?.DEV || import.meta.env?.SSR ? CONTENT_ERRORS : null,
+	import.meta.env?.DEV || import.meta.env?.SSR ? CONTENT_WARNINGS : null,
+	dev_or_prerender
 );
 /** `throw new OgygiaError(code, args)`; `warn(code, args, ...rest)` logs; `line(code, args)` is the
- *  line as a string. Wording and link in dev, the link alone in a production build. */
+ *  line as a string. Wording and link in dev and while prerendering, the link alone otherwise. */
 export const OgygiaError: Own['OgygiaError'] = own.OgygiaError;
 export const warn: Own['warn'] = own.warn;
 export const line: Own['line'] = own.line;
