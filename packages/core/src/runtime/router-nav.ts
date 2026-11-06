@@ -38,6 +38,9 @@ import { emit as dt_emit } from '../events/bus.ts';
 const KitBoot = { document_has: (doc: ParentNode) => boot_link().KitBoot.document_has(doc) };
 const regions_in_shadow = () => boot_link().regions_in_shadow();
 const session = () => boot_link().runtime_session;
+/** devalue first, when the fetched page holds a script in its lane (./devalue-lane.ts) */
+const devalue_for = (doc: Document) =>
+	boot_link().needs_devalue(doc) ? boot_link().load_devalue() : undefined;
 const is_warmed_module = (entry: string, base?: string) =>
 	boot_link().is_warmed_module(entry, base);
 const warm_island_module = (entry: string, base?: string) =>
@@ -702,6 +705,10 @@ export async function navigate(
 	// batch via the store when it connects — no per-region fetch waterfall on navigation. Fired
 	// synchronously so every reservation is in place before the body swap connects any binder.
 	batch_regions(doc, dest.href);
+	// (the incoming page's seed and sidecars parse in its preflight and wakes: devalue first, when
+	// one of them is in its lane — ./devalue-lane.ts)
+	await devalue_for(doc);
+	if (gen !== r.nav_gen) return;
 	preflight(doc, dest);
 
 	// Cold-cache FOUC guard: get the destination's stylesheets loaded and applied BEFORE the body
@@ -912,6 +919,8 @@ export async function invalidate_all(): Promise<void> {
 	const doc = new DOMParser().parseFromString(html, 'text/html');
 	if (KitBoot.document_has(doc)) return;
 	if (!doc.querySelector('meta[name="ogygia-router"]')) return;
+	await devalue_for(doc);
+	if (gen !== soft_gen) return;
 
 	merge_head(doc.head);
 	apply_soft_invalidate_doc(doc);

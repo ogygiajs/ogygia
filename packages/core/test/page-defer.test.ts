@@ -5,8 +5,10 @@
  *   stage_deferred → serialize(defer_reducer) → parse(page_defer_revivers) → pending Promise
  *   → __ogygia_page_resolve(id, ok, encoded) → the Promise settles with the decoded value.
  */
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeAll, beforeEach } from 'vitest';
 import { parse, stringify } from 'devalue';
+import { link_boot } from '../src/runtime/boot-link.ts';
+import { load_devalue } from '../src/runtime/devalue-lane.ts';
 import { analyze } from '../src/seed-refs.ts';
 import {
 	stage_deferred,
@@ -34,6 +36,12 @@ const g = globalThis as unknown as Record<PropertyKey, unknown>;
  *  takes `(value: any) => any` (the same hand-off `runtime/wire-format.ts` makes). */
 const revivers = (): Parameters<typeof parse>[1] =>
 	page_defer_revivers() as Parameters<typeof parse>[1];
+
+// (the runtime's boot link and devalue, as a booted page whose seed carries promises has them)
+beforeAll(async () => {
+	link_boot();
+	await load_devalue();
+});
 
 /** Fresh per-document registry + global for each case (both are singletons on globalThis). */
 beforeEach(() => {

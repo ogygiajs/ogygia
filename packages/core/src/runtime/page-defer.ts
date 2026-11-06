@@ -11,7 +11,7 @@
  * after its resolve arrives. One registry per document via a Symbol.for handle (dev evaluates the
  * runtime twice — a module-local map would split; PAGE-STATE-SINGLETON).
  */
-import { parse } from 'devalue';
+import { boot_link } from './slots.ts';
 import {
 	PAGE_DEFER_KEY,
 	PAGE_SETTLED_KEY,
@@ -104,15 +104,17 @@ export function install_page_defer(
 	// promises — mirrors Kit's recursive deferral) and app-transport custom types, so parse with the
 	// full reviver map.
 	r.revivers = page_defer_revivers(extra_revivers);
-	r.live = (id, ok, encoded) => {
-		let value: unknown = null;
-		try {
-			value = parse(encoded, r.revivers as Parameters<typeof parse>[1]);
-		} catch {
-			/* leave null — a mangled chunk resolves to null, never hangs the `{#await}` */
-		}
-		settle(id, ok, value);
-	};
+	// (a resolve is always devalue-encoded; the seed that holds its marker already loaded devalue)
+	r.live = (id, ok, encoded) =>
+		boot_link().with_devalue(({ parse }) => {
+			let value: unknown = null;
+			try {
+				value = parse(encoded, r.revivers as Parameters<typeof parse>[1]);
+			} catch {
+				/* leave null — a mangled chunk resolves to null, never hangs the `{#await}` */
+			}
+			settle(id, ok, value);
+		});
 	const queued = r.q;
 	r.q = [];
 	if (queued) for (const [id, ok, encoded] of queued) r.live(id, ok, encoded);
