@@ -13,22 +13,40 @@ type Published = { OgygiaError: typeof CoreError; warn: typeof core_warn; line: 
 // module exists to avoid)
 const runtime = (): Published | undefined =>
 	(globalThis as unknown as Record<symbol, Published | undefined>)[Symbol.for('ogygia.messages')];
-const link = (code: string) => '[ogygia] https://ogygiajs.dev/e/' + code;
+/** The code's link with its arguments — what a production build prints (./define.ts `line`). */
+function link(code: string, a?: unknown): string {
+	let url = '[ogygia] https://ogygiajs.dev/e/' + code;
+	if (a && typeof a === 'object') {
+		const params = new URLSearchParams();
+		for (const name in a) {
+			const value = (a as Record<string, unknown>)[name];
+			if (value != null && value !== '') params.set(name, String(value).slice(0, 300));
+		}
+		const query = params.toString();
+		if (query) url += '?' + query;
+	}
+	return url;
+}
 
 export const OgygiaError: typeof CoreError = function (code: string, a?: unknown) {
 	const own = runtime();
 	return own
 		? new (own.OgygiaError as unknown as new (code: string, a?: unknown) => Error)(code, a)
-		: Object.assign(new Error(link(code)), { code });
+		: Object.assign(new Error(link(code, a)), { code });
 } as unknown as typeof CoreError;
 
 export const warn: typeof core_warn = ((code: string, ...rest: unknown[]) => {
 	const own = runtime();
 	if (own) (own.warn as (code: string, ...rest: unknown[]) => void)(code, ...rest);
-	else console.warn(link(code));
+	else {
+		// (the arguments are the plain object after the code, as ./define.ts reads them)
+		const first = rest[0];
+		const proto = first !== null && typeof first === 'object' ? Object.getPrototypeOf(first) : 0;
+		console.warn(link(code, proto === Object.prototype || proto === null ? first : undefined));
+	}
 }) as typeof core_warn;
 
 export const line: typeof core_line = ((code: string, a?: unknown) => {
 	const own = runtime();
-	return own ? (own.line as (code: string, a?: unknown) => string)(code, a) : link(code);
+	return own ? (own.line as (code: string, a?: unknown) => string)(code, a) : link(code, a);
 }) as typeof core_line;

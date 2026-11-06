@@ -15,7 +15,8 @@
 //   pnpm exec playwright test island-foreign-edit
 import { test, check, sleep } from '@ogygia/tooling/e2e';
 
-const DISCARDED_RE = /discarded its ENTIRE server-rendered DOM/;
+// (the detector's code: its wording in dev, its link alone in a production build)
+const DISCARDED_RE = /hydration_discarded/;
 const FAILED_TO_HYDRATE_RE = /Failed to hydrate/;
 const HEAD_RE = /<head\b[^>]*>([\s\S]*?)<\/head>/i;
 const SCRIPT_TAG_RE = /<script\b[^>]*>/gi;
