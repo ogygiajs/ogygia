@@ -63,6 +63,21 @@ test("a deferred answer (render()'s shape, its stylesheet links first) adopts it
 	expect(region.hasAttribute('data-og-recovered')).toBe(false);
 });
 
+test("a placed island an earlier build rendered (its host's {#if} pair around it) is adopted too", async () => {
+	// (a hole's answer from a server still on the earlier build, mid rolling deploy)
+	const region = region_with('<!--[0-->' + decode('counter_render_b64') + '<!--]-->', {
+		entry: '/counter'
+	});
+	const button = region.querySelector('button')!;
+	const app = hydrate_island(region, '/counter', as_module(Counter), null, false);
+	expect(app).not.toBeNull();
+	expect(region.querySelector('button'), 'the earlier build’s button, adopted').toBe(button);
+	expect(region.hasAttribute('data-og-recovered')).toBe(false);
+	// (no props sidecar here: the island counts from its default)
+	button.click();
+	await expect.poll(() => region.querySelector('[data-testid="count"]')!.textContent).toBe('1');
+});
+
 test('a live region adopts its server nodes, and a pushed tick shows on the same node', async () => {
 	const region = region_with(decode('label_render_b64'), { live: '' });
 	const p = region.querySelector('p')!;

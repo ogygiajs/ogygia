@@ -76,11 +76,33 @@ export type IslandModule = {
 /** The hydration ENVELOPE: `hydrate()` anchors on a top-level `<!--[-->` comment, then walks the
  *  component's own nodes. Every server shape carries it — a placed island's dynamic-component pair
  *  (Region.svelte), `render()`'s root pair (a hole's answer, a live region) — so this only adds one
- *  to markup that has none. Idempotent: the second attempt after a failed first one finds it. */
+ *  to markup that has none. Idempotent: the second attempt after a failed first one finds it.
+ *
+ *  A placed island an EARLIER build rendered (a hole's answer from a server still on it, mid rolling
+ *  deploy) carries one pair more: its host's `{#if}` branch (`<!--[0-->`) around the component's
+ *  pair. That outer pair goes, so the component's own is the envelope and the island is adopted
+ *  instead of re-rendered. */
 function ensure_envelope(region: Element): void {
 	if (has_envelope(region)) return;
+	const first = region.firstChild;
+	const last = region.lastChild;
+	if (
+		first &&
+		last &&
+		first !== last &&
+		is_comment(first, '[0') &&
+		is_comment(first.nextSibling, '[') &&
+		is_comment(last, ']')
+	) {
+		first.remove();
+		last.remove();
+		return;
+	}
 	region.insertBefore(document.createComment('['), region.firstChild);
 	region.appendChild(document.createComment(']'));
+}
+function is_comment(node: Node | null, data: string): boolean {
+	return !!node && node.nodeType === 8 && (node as Comment).data === data;
 }
 function has_envelope(region: Element): boolean {
 	const first = region.firstChild;
