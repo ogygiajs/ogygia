@@ -32,6 +32,7 @@
 import { og_js_regions, type JsRegion } from '../parse/scan.ts';
 import { find_og_calls } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
+import { OgygiaError } from '../../messages/build.ts';
 
 // ── regexes
 const STATIC_WIRE_TAIL_RE = /\bstatic\s+wire\s*=\s*$/;
@@ -86,11 +87,11 @@ function line_of(src: string, offset: number): number {
 
 /** The strict-position build error. `id` + line point at the offending spelling. */
 function misuse(id: string, src: string, offset: number, what: string): never {
-	throw new Error(
-		`[ogygia] ${id}:${line_of(src, offset)} — ${what}. import.meta.og.wire is legal in exactly one ` +
-			`position: \`static wire = import.meta.og.wire({ encode, decode })\` inside a class body. ` +
-			`The macro consumes that member and mints the symbol key; the construct is not a value.`
-	);
+	throw new OgygiaError('macro_wire_misuse', {
+		file: id,
+		line: line_of(src, offset),
+		problem: what
+	});
 }
 
 /**

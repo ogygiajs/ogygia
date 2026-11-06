@@ -8,6 +8,7 @@
  * back to serve `/og/fragment/*`, `/og/thaw`, and the deferred remote-region holes.
  */
 import { fed_app } from './app.ts';
+import { warn } from './messages.ts';
 import { make_peer } from './peer.ts';
 import { set_federation, current_federation } from './registry.ts';
 import {
@@ -52,11 +53,7 @@ export function federate<P extends Record<string, PeerConfig>>(
 	// nobody is allowed to call — a config bug, not a choice. Say it loudly.
 	const has_inbound = Object.values(config.peers ?? {}).some((p) => p.key);
 	if ((config.expose || config.widgets) && !has_inbound && !config.open) {
-		console.warn(
-			'[ogygia] federate() exposes a table/widgets but no peer has a `key` — every inbound call ' +
-				'would be UNAUTHENTICATED. Add each caller as a peer with its public `key`, or pass ' +
-				'`open: true` to acknowledge an intentionally open endpoint (behind mTLS / a mesh).'
-		);
+		warn('federation_open_without_keys');
 	}
 
 	const peers = new Map<string, Peer & { keys: readonly string[] }>();

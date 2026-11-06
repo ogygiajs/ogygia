@@ -61,6 +61,7 @@ import type {
 	PlaywrightWorkerArgs,
 	PlaywrightWorkerOptions
 } from '@playwright/test';
+import { OgygiaError, warn } from './messages.ts';
 
 // ── the reports (plain JSON, as the page hands them over) ──
 
@@ -287,10 +288,6 @@ export interface Ogygia {
 	readonly reports: OgygiaReport[];
 }
 
-const NOT_THERE =
-	"ogygia's testing API is not in this page. Serve the app with the devtools plugin listed beside ogygia() (`plugins: [ogygia(), devtools(), sveltekit()]`) " +
-	'(the dev server, or a preview build) and open a csr = false page.';
-
 /** The primitives over any driver. */
 export function createOgygia(driver: OgygiaDriver, options: OgygiaOptions = {}): Ogygia {
 	const wait = driver.wait ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
@@ -307,7 +304,7 @@ export function createOgygia(driver: OgygiaDriver, options: OgygiaOptions = {}):
 		while (
 			!(await in_page(() => !!(window as { __ogygia_testing?: unknown }).__ogygia_testing, null))
 		) {
-			if (Date.now() > until) throw new Error(NOT_THERE);
+			if (Date.now() > until) throw new OgygiaError('testing_api_absent');
 			await wait(100);
 		}
 		const out = (await in_page(
@@ -332,10 +329,7 @@ export function createOgygia(driver: OgygiaDriver, options: OgygiaOptions = {}):
 			const key = `${at}|${out.v}`;
 			if (warned_engines.has(key)) return out.r;
 			warned_engines.add(key);
-			console.warn(
-				`[@ogygia/testing] the page${at ? ` at ${at}` : ''} runs an older testing engine (version ${out.v}, this package expects ${TESTING_ENGINE_VERSION}): ` +
-					'its reports lack instance keys, finding names, counts.cls and what started each navigation. Filled in where the test side knows (navigations).'
-			);
+			warn('testing_engine_older', { at, version: out.v, expected: TESTING_ENGINE_VERSION });
 		}
 		return out.r;
 	};

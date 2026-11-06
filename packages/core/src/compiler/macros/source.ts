@@ -19,6 +19,7 @@
 import { og_js_regions, find_og_calls, type JsRegion } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { og_member } from './wire.ts';
+import { OgygiaError } from '../../messages/build.ts';
 
 // ── regexes
 const EXPORT_CONST_TAIL_RE = /\bexport\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*$/;
@@ -37,11 +38,11 @@ function line_of(src: string, offset: number): number {
 }
 
 function misuse(id: string, src: string, offset: number, what: string): never {
-	throw new Error(
-		`[ogygia] ${id}:${line_of(src, offset)} — ${what}. import.meta.og.source is legal in exactly ` +
-			`one position: \`export const <name> = import.meta.og.source(fn)\` (optionally \`(fn, { key })\`) ` +
-			`at module top level. The compiler stamps the source id from that export's identity.`
-	);
+	throw new OgygiaError('macro_source_misuse', {
+		file: id,
+		line: line_of(src, offset),
+		problem: what
+	});
 }
 
 function walk(node: Node, visit: (n: Node) => void): void {

@@ -39,6 +39,7 @@ import { PORTABLE_FORM, with_portable_forms } from './portable-form.ts';
 import { analyze } from './seed-refs.ts';
 import { fnv1a, fnv1a32 } from './runtime/hash.ts';
 import { import_entry } from './runtime/entry-locations.ts';
+import { OgygiaError } from './messages/island.ts';
 
 /**
  * A hand-written SERVER component that renders a bare snippet: svelte has no public API to
@@ -256,16 +257,10 @@ function capture_static(snippet: Snippet, label?: string): RegionSnippet {
 		// callback until it tries to render it — which is HERE. Lead with "function" (not "snippet"):
 		// the most common cause is a plain function passed as a prop, which never crosses an island.
 		const where = label ? `prop \`${label}\`` : 'a function prop';
-		throw new Error(
-			`[ogygia] ${where} is a function that can't cross the island boundary — ` +
-				`${e instanceof Error ? e.message : String(e)}. Island props must be SERIALIZABLE; a function ` +
-				`crosses only as a Svelte snippet that freezes to HTML, and this one didn't. Usually one of:\n` +
-				`  • it's a PLAIN function (an event handler / callback) — those can't cross into an island; ` +
-				`pass serializable data as props and keep the behavior inside the island component;\n` +
-				`  • it's a snippet WITH PARAMETERS — declare it as a {#snippet} so it crosses LIVE, or pass ` +
-				`its data as props;\n` +
-				`  • it's children containing a NESTED island — keep those out of frozen children for now.`
-		);
+		throw new OgygiaError('function_prop_cannot_cross', {
+			where,
+			reason: e instanceof Error ? e.message : String(e)
+		});
 	}
 	return make({ m: 'static', h: body });
 }
@@ -316,10 +311,7 @@ export function region_snippet(input: Snippet | RawRegionSnippet): RegionSnippet
 	// is fully client-safe and is what an island actually revives from).
 	if (typeof input === 'function' && !BROWSER) return capture_static(input as Snippet); // lift form
 	if (typeof input === 'function') {
-		throw new Error(
-			'[ogygia] region_snippet(fn) freezes a snippet by server-rendering it — call it during SSR, ' +
-				'not on the client. Pass a raw { render, setup } region snippet for client-constructed regions.'
-		);
+		throw new OgygiaError('region_snippet_on_client');
 	}
 	const caps = input.captures ?? [];
 	const snip = createRawSnippet(() => ({

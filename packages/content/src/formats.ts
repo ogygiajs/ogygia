@@ -10,6 +10,7 @@ import type { Component } from 'svelte';
 import type { Heading, LinkRef } from './index.ts';
 import { region } from '@ogygia/core';
 import { prebaked_region } from '@ogygia/core/internal';
+import { OgygiaError } from './messages/runtime.ts';
 import {
 	defineSource,
 	toRawSource,
@@ -34,9 +35,10 @@ function unwrap_default(resolved: unknown): unknown {
 
 function as_object(value: unknown, label: string): Record<string, unknown> {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		throw new Error(
-			`[ogygia/content] ${label}: expected a plain object (got ${Array.isArray(value) ? 'array' : typeof value})`
-		);
+		throw new OgygiaError('content_format_not_object', {
+			label,
+			got: Array.isArray(value) ? 'array' : typeof value
+		});
 	}
 	return value as Record<string, unknown>;
 }
@@ -49,11 +51,11 @@ export type MarkdownMeta = { headings: Heading[]; links: LinkRef[] };
 
 const markdown_format: Format<unknown, MarkdownMeta> = (resolved, id) => {
 	if (!resolved || typeof resolved !== 'object' || Array.isArray(resolved)) {
-		throw new Error(`[ogygia/content] markdown: ${id}: expected a module with metadata`);
+		throw new OgygiaError('content_markdown_not_module', { id });
 	}
 	const mod = resolved as Record<string, unknown>;
 	if (!('metadata' in mod)) {
-		throw new Error(`[ogygia/content] markdown: ${id}: missing metadata (is markdown configured?)`);
+		throw new OgygiaError('content_markdown_no_metadata', { id });
 	}
 	const meta = as_object(mod.metadata ?? {}, `markdown:${id}`);
 	const { headings, links, ...data } = meta as { headings?: Heading[]; links?: LinkRef[] } & Record<

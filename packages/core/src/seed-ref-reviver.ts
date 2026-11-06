@@ -7,6 +7,7 @@
  * every island page downloaded the planner (~4 kB) for the Kit graph's sake. A leaf holds only
  * what the hydrate core runs.
  */
+import { warn } from './messages/lazy.ts';
 
 /** The devalue type tag. */
 export const SEED_REF_KEY = 'OgygiaSeedRef';
@@ -42,9 +43,7 @@ export function seed_ref_reviver(get_data: () => unknown): (path: SeedPath) => u
 		}
 		const node = resolve_seed_ref(data, path);
 		if (node === undefined && typeof console !== 'undefined' && import.meta.env?.DEV) {
-			console.warn(
-				`[ogygia] island props reference page.data at ${JSON.stringify(path)} but the page seed does not carry it — the island receives undefined there.`
-			);
+			warn('page_seed_ref_missing', { path: JSON.stringify(path) });
 		}
 		return node;
 	};

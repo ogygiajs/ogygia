@@ -23,7 +23,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const app = fileURLToPath(new URL('..', import.meta.url));
-const WARN_RE = /per-build random key[\s\S]*?OGYGIA_SECRET/;
+// (a production build prints the warning as its code's link: messages/server.ts `build_key_prerender`)
+const WARN_RE = /ogygiajs\.dev\/e\/build_key_prerender/;
 
 /** Fail the whole run: print why, then a non-zero exit so `&& vite preview` never starts. */
 function fail(message: string, extra?: string): never {

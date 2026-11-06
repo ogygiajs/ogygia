@@ -130,6 +130,7 @@ import {
 import { build_ledger, pkg_of, type LedgerLine } from './ledger.ts';
 import { at_line, build_drill, call_group, tag_fills, type DrillNode } from './drill.ts';
 import { forecast_of, type Forecast } from './forecast.ts';
+import { OgygiaError, warn } from '../messages/runtime.ts';
 import { site_fixes } from './site-fixes.ts';
 import { may_be_chunk, module_category, module_lookup } from './module-map.ts';
 import {
@@ -1026,7 +1027,7 @@ class Profiler {
 			// init may be sync-throwing (a driver, a bad path) or async-rejecting — guard both, and
 			// never let a store problem break the profiler mount (it falls back to memory-only)
 			(async () => this.#store!.init?.())().catch((e) => {
-				console.error('[ogygia/profiler] store init failed; falling back to in-memory:', e);
+				console.error(new OgygiaError('devtools_profiler_store_init_failed'), e);
 				this.#store = null;
 			});
 		}
@@ -1561,10 +1562,7 @@ class Profiler {
 								heap_on = true;
 							} catch (e) {
 								if (process.env.OGYGIA_PROFILER_DEBUG)
-									console.error(
-										'[ogygia/profiler] allocation sampling unavailable, GC attribution off:',
-										e
-									);
+									console.error(new OgygiaError('devtools_profiler_alloc_sampling_unavailable'), e);
 								await session.post('HeapProfiler.startSampling', { samplingInterval: 16384 });
 							}
 						}
@@ -2182,7 +2180,7 @@ class Profiler {
 				gc_attr.window_offset_ms = window_offset_ms;
 			} catch (e) {
 				if (process.env.OGYGIA_PROFILER_DEBUG)
-					console.error('[ogygia/profiler] GC attribution failed:', e);
+					console.error(new OgygiaError('devtools_profiler_gc_attribution_failed'), e);
 				gc_attr = undefined;
 			}
 		}
@@ -2557,9 +2555,11 @@ class Profiler {
 			// why in the server log (facts only, never a cookie value) — the one line that tells a dropped
 			// cookie, a duplicate and a wrong secret apart.
 			if (after_login || diag.pairs > 0)
-				console.warn(
-					`[ogygia profiler] session not accepted on ${ctx.url.pathname}: ${JSON.stringify(diag)} — ${describe_cookie_diagnosis(diag)}`
-				);
+				warn('devtools_profiler_session_rejected', {
+					path: ctx.url.pathname,
+					diagnosis: JSON.stringify(diag),
+					reason: describe_cookie_diagnosis(diag)
+				});
 			const target = new URL(ctx.url);
 			target.searchParams.delete(AFTER_LOGIN_PARAM);
 			const next = encodeURIComponent(target.pathname + target.search);
@@ -5740,7 +5740,7 @@ class Profiler {
 			})
 			.catch((err) => {
 				if (process.env.OGYGIA_PROFILER_DEBUG)
-					console.error('[ogygia/profiler] store.putReport failed:', err);
+					console.error(new OgygiaError('devtools_profiler_put_report_failed'), err);
 			});
 	}
 
@@ -5764,7 +5764,7 @@ class Profiler {
 			return stored;
 		} catch (err) {
 			if (process.env.OGYGIA_PROFILER_DEBUG)
-				console.error('[ogygia/profiler] store.getReport failed:', err);
+				console.error(new OgygiaError('devtools_profiler_get_report_failed'), err);
 			return undefined;
 		}
 	}

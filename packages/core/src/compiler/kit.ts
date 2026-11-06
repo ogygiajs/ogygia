@@ -2,6 +2,7 @@ import { fs, path, dir_entries } from './host.ts';
 import { createRequire } from 'node:module';
 import { ISLAND_DIR } from './region/transform.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
+import { OgygiaError } from '../messages/build.ts';
 
 /** The Kit-internal + app paths ogygia deep-imports (resolved off the APP root, not this package). */
 export interface KitPaths {
@@ -269,10 +270,7 @@ function read_route_config_uncached(
 			property.key?.type === 'Identifier' ? property.key.name : property.key?.value;
 		if (typeof key !== 'string' || !keys.includes(key)) continue;
 		const value = literal_value(property.value);
-		if (value === NOT_LITERAL)
-			throw new Error(
-				`[ogygia] ${file}: \`config.${key}\` must be a literal (true, false, a number, a string or null) — ogygia reads it at build time.`
-			);
+		if (value === NOT_LITERAL) throw new OgygiaError('kit_config_not_literal', { file, key });
 		out[key] = value;
 	}
 	return out;

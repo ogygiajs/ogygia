@@ -17,6 +17,7 @@
 import { buildKey, buildHadSecret } from 'virtual:ogygia/secret';
 import { sign } from 'virtual:ogygia/sign';
 import { building } from '$app/env';
+import { OgygiaError, warn } from '../messages/server.ts';
 
 export interface SigningKey {
 	secret: string;
@@ -78,9 +79,13 @@ export function configure_signing_secret(secret: string | undefined): void {
 	const from = s.key
 		? `${SOURCE_NAME[s.key.source]}, decided by an earlier mint or verify`
 		: 'another handle({ secret })';
-	const message = `[ogygia] handle({ secret }) names key ${key_fingerprint(secret)}, but this server already signs with key ${key_fingerprint(decided)} (from ${from}). The first key stays: pass one secret, before anything renders.`;
-	if (import.meta.env.DEV) throw new Error(message);
-	console.error(message);
+	const error = new OgygiaError('secret_conflict', {
+		key: key_fingerprint(secret),
+		decided: key_fingerprint(decided),
+		from
+	});
+	if (import.meta.env.DEV) throw error;
+	console.error(error);
 }
 
 export function key_fingerprint(secret: string): string {
@@ -94,19 +99,9 @@ function warn_build_key(): void {
 	const K = Symbol.for('ogygia.build-key-warned');
 	if (g[K]) return;
 	g[K] = true;
-	if (building) {
-		console.warn(
-			'[ogygia] prerendered page mints region capabilities signed with a per-build random key — they stop verifying after your next deploy while the static HTML lives on. Set a stable OGYGIA_SECRET env var (or pass it to handle({ secret })) so prerendered holes survive redeploys.'
-		);
-	} else if (buildHadSecret) {
-		console.error(
-			"[ogygia] OGYGIA_SECRET was set when this app was built but is not set where it runs: region capabilities are signed with this build's random key, so every hole minted by another deployment (another backend behind the same CDN, the previous deploy) is refused (403, x-ogygia-deny: foreign-key). Set OGYGIA_SECRET in the server's runtime environment, or pass it to handle({ secret }) (e.g. from $env/static/private)."
-		);
-	} else {
-		console.warn(
-			"[ogygia] OGYGIA_SECRET is not set: region capabilities are signed with this build's random key, so a page cached across a deploy, or served by another deployment than its islands endpoint, gets its holes refused (403, x-ogygia-deny: foreign-key). Set a stable OGYGIA_SECRET, or pass one to handle({ secret })."
-		);
-	}
+	if (building) warn('build_key_prerender');
+	else if (buildHadSecret) console.error(new OgygiaError('secret_missing_at_runtime'));
+	else warn('secret_missing');
 }
 
 /** Tests: forget the decided key and the app's secret. */

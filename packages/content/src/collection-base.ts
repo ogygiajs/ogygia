@@ -11,6 +11,7 @@
 import type { ContentRef, ContentRelations, Entry, RefEntry, SchemaLike } from './index.ts';
 import type { GroupMeta, Source, SourceEntry, SourceRef } from './source.ts';
 import { parseSchema } from './schema.ts';
+import { OgygiaError } from './messages/runtime.ts';
 
 // ── content graph registry ───────────────────────────────────────────────────
 
@@ -92,12 +93,9 @@ export class Collection<
 	#backlinkKey: string | null = null;
 
 	constructor(opts: CollectionBaseOptions<Data, Meta>) {
-		if (!opts || opts.loader == null)
-			throw new Error('[ogygia/content] content() requires `loader`');
+		if (!opts || opts.loader == null) throw new OgygiaError('content_loader_missing');
 		if (typeof opts.loader.refs !== 'function' || typeof opts.loader.get !== 'function') {
-			throw new Error(
-				'[ogygia/content] `loader` must be a source ({ refs, get }) — use markdown()/json()/blocks()/folder()/glob()'
-			);
+			throw new OgygiaError('content_loader_not_source');
 		}
 		this.#opts = opts;
 		this.#source = opts.loader;
@@ -179,10 +177,10 @@ export class Collection<
 	 *  strip a field a later layer needs (e.g. `post`'s `date`) before it ever sees it. */
 	async #normalizeRef(row: SourceRef<Meta>, seen?: Set<string>): Promise<ContentRef<Data, Meta>> {
 		if (!row?.id || typeof row.id !== 'string') {
-			throw new Error('[ogygia/content] source ref missing string id');
+			throw new OgygiaError('content_ref_missing_id');
 		}
 		if (seen) {
-			if (seen.has(row.id)) throw new Error(`[ogygia/content] duplicate id '${row.id}'`);
+			if (seen.has(row.id)) throw new OgygiaError('content_duplicate_id', { id: row.id });
 			seen.add(row.id);
 		}
 		const original = (row.data ?? {}) as Record<string, unknown>;
@@ -246,7 +244,7 @@ export class Collection<
 							}
 						}
 					} catch (err) {
-						console.error('[ogygia/content] live source failed:', err);
+						console.error(new OgygiaError('content_live_source_failed'), err);
 					}
 				})();
 			}

@@ -24,6 +24,7 @@ import { REF_WIRE_KEY, ref_reducer } from '../ref.ts';
 import { ensure_prop_kinds } from './region-props.ts';
 import { island_url, island_render } from 'virtual:ogygia/server-manifest';
 import { islandCss } from 'virtual:ogygia/island-deps';
+import { OgygiaError, warn } from '../messages/server.ts';
 
 /** A hole's own stylesheet hrefs, by region id — the list its endpoint answer links (hooks.ts
  *  `region_css_links`), for a render that inlines the hole in the page instead (Region.svelte). */
@@ -138,10 +139,11 @@ export function mintServerIsland(entry: string, props: Record<string, unknown>, 
 	ensure_prop_kinds();
 	const payload = B64Url.encode(stringify(props, { [REF_WIRE_KEY]: ref_reducer(PROP_FAMILIES) }));
 	if (payload.length > MAX_REGION_PROPS_LEN) {
-		throw new Error(
-			`[ogygia] server island "${entry}": props payload is ${payload.length} b64 chars (max ${MAX_REGION_PROPS_LEN}). ` +
-				`Shrink what you pass into the deferred region — the handle would reject this capability anyway.`
-		);
+		throw new OgygiaError('hole_props_too_large', {
+			entry,
+			length: payload.length,
+			max: MAX_REGION_PROPS_LEN
+		});
 	}
 	return mint_region_capability(entry, payload, ttl);
 }
@@ -152,9 +154,7 @@ export function makeRegionEndpoint(entry: string, props: Record<string, unknown>
 	if (payload == null) {
 		// Non-serializable or oversized props. Degrading to "no endpoint" makes the region behave
 		// like a static lake; throwing would 500 the PAGE. The handle would 403 the same blob.
-		console.warn(
-			`[ogygia] render:'live' region ${entry} has props that cannot cross the wire (non-serializable or >${MAX_REGION_PROPS_LEN} b64 chars) — no revalidate endpoint minted (behaves like a static lake).`
-		);
+		warn('live_props_not_serializable', { entry, max: MAX_REGION_PROPS_LEN });
 		return '';
 	}
 	return mint_region_capability(entry, payload);

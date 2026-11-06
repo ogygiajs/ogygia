@@ -25,6 +25,7 @@
  */
 
 import { register_kind, mint, resolve, type Ref } from './ref.ts';
+import { OgygiaError } from './messages/island.ts';
 
 /** Brand on a live handle: carries `{ t, d }` so encode is a field read, not an analysis. */
 const FN_BRAND = Symbol.for('ogygia.fn');
@@ -68,14 +69,11 @@ export function fn_handle(tag: string, bound: unknown[]): (...args: unknown[]) =
 	register_fn_kind();
 	const factory = fn_registry().factories.get(tag);
 	if (factory === undefined) {
-		throw new Error(
-			`[ogygia] fn_handle("${tag}"): its factory is not registered on this side. The generated ` +
-				`module must be imported as a VALUE at the call site (the compiler emits this import).`
-		);
+		throw new OgygiaError('fn_factory_missing', { tag });
 	}
 	const live = factory(...bound) as BrandedFn;
 	if (typeof live !== 'function') {
-		throw new Error(`[ogygia] fn factory "${tag}" did not return a function.`);
+		throw new OgygiaError('fn_factory_not_function', { tag });
 	}
 	// The factory is SELF-CONTAINED by construction (og-dollar's capture law), so its source is
 	// shippable: it rides the brand as the registry-miss fallback — a client bundle that never
@@ -121,11 +119,7 @@ export function register_fn_kind(): void {
 				fn_registry().factories.set(ref.t as string, factory); // once per tag
 			}
 			if (factory === undefined) {
-				throw new Error(
-					`[ogygia] cannot revive fn "${ref.t}": its factory is not loaded on this side and the ` +
-						`payload carries no source. The island must import the generated module as a VALUE so ` +
-						`\`__register_fn\` runs in its bundle (or the fn manifest must be in the runtime).`
-				);
+				throw new OgygiaError('fn_revive_missing', { tag: String(ref.t) });
 			}
 			const bound = Array.isArray(payload.b) ? payload.b : [];
 			const live = factory(...bound) as BrandedFn;

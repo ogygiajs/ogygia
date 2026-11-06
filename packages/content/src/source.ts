@@ -18,6 +18,7 @@
  * `@ogygia/content`.
  */
 import type { RegionValue } from '@ogygia/core';
+import { OgygiaError } from './messages/runtime.ts';
 
 /** Directory/section decoration a source may expose (`groups()`), keyed by clean group path. */
 export type GroupMeta = { label?: string };
@@ -150,9 +151,9 @@ export function glob<V = unknown>(
 	for (const key of keys) {
 		const id = idFor(key);
 		if (!id || id.includes('..') || id.startsWith('/')) {
-			throw new Error(`[ogygia/content] illegal id '${id}' for ${key}`);
+			throw new OgygiaError('content_glob_illegal_id', { id, key });
 		}
-		if (byId.has(id)) throw new Error(`[ogygia/content] duplicate id '${id}' (${key})`);
+		if (byId.has(id)) throw new OgygiaError('content_glob_duplicate_id', { id, key });
 		byId.set(id, key);
 	}
 	const load = async (key: string): Promise<V> => {

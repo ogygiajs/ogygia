@@ -13,6 +13,11 @@ import { fileURLToPath } from 'node:url';
  *  path (backslashes on Windows): for the file system, never to compare against a module id. */
 export const PKG_ROOT: string = fileURLToPath(new URL('../..', import.meta.url));
 
+/** This package's version, as installed (the runtime discloses it: runtime/disclose-version.ts). */
+export const OGYGIA_VERSION: string = (
+	JSON.parse(fs.readFileSync(path.join(PKG_ROOT, 'package.json'), 'utf8')) as { version: string }
+).version;
+
 /** Windows separators → posix. */
 const WIN_SEP_RE = /\\/g;
 

@@ -14,6 +14,7 @@ import { set_fed_app } from './app.ts';
 import { install_federation, serve_federation } from './serve.ts';
 import { current_federation } from './registry.ts';
 import { broadcast_thaw } from './federate.ts';
+import { warn } from './messages.ts';
 
 const server: ServerPlugin = defineServer({
 	setup(app) {
@@ -30,7 +31,7 @@ const server: ServerPlugin = defineServer({
 		const fed = current_federation();
 		if (!fed) return;
 		void broadcast_thaw(fed, { id: crypto.randomUUID(), hop: 0, tags }).catch((e) => {
-			console.warn('[ogygia] federation: thaw notice to peers failed —', e);
+			warn('federation_thaw_notice_failed', e);
 		});
 	}
 });

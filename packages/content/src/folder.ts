@@ -23,6 +23,7 @@ import {
 	type MetaDecoration
 } from './convention.ts';
 import { markdown } from './formats.ts';
+import { OgygiaError } from './messages/runtime.ts';
 import type { GlobMap, RawRecord, RawSource, Source } from './source.ts';
 
 const BACKSLASH = /\\/g;
@@ -112,9 +113,11 @@ export function folder<Meta = Record<string, never>>(
 				(siblings.get(parent) ?? siblings.set(parent, new Set()).get(parent)!).add(segs[d]);
 			}
 		} else {
-			throw new Error(
-				`[ogygia/content] folder(): unexpected file '${key}' — expected a page (${page_rx}) or sidecar (${meta_rx || 'none'}). A '**/*' glob drags colocated components into the bundle; narrow it.`
-			);
+			throw new OgygiaError('content_folder_unexpected_file', {
+				key,
+				page: String(page_rx),
+				sidecar: meta_rx ? String(meta_rx) : ''
+			});
 		}
 	}
 
@@ -158,7 +161,8 @@ export function folder<Meta = Record<string, never>>(
 		const errors: string[] = [];
 		for (const [dir, set] of siblings)
 			errors.push(...conv.verify(dir, [...set], decorations.get(dir)));
-		if (errors.length) throw new Error(`[ogygia/content] folder(): ${errors.join('; ')}`);
+		if (errors.length)
+			throw new OgygiaError('content_folder_invalid', { issues: errors.join('; ') });
 	};
 
 	// Build the page raw source directly (ids/order baked here), then hand it to the format builder.
@@ -169,9 +173,8 @@ export function folder<Meta = Record<string, never>>(
 	const keys_by_id = new Map<string, string>();
 	for (const key of Object.keys(page_map)) {
 		const id = page_id(key);
-		if (!id) throw new Error(`[ogygia/content] folder(): empty id for '${key}'`);
-		if (keys_by_id.has(id))
-			throw new Error(`[ogygia/content] folder(): duplicate id '${id}' ('${key}')`);
+		if (!id) throw new OgygiaError('content_folder_empty_id', { key });
+		if (keys_by_id.has(id)) throw new OgygiaError('content_folder_duplicate_id', { id, key });
 		keys_by_id.set(id, key);
 	}
 	const record = async (id: string, key: string): Promise<RawRecord<unknown>> => ({

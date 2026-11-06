@@ -17,6 +17,7 @@ import type { Handle } from '@ogygia/core/plugin';
 import type { PostrenderHandleOptions } from './types.ts';
 import { install, mark_handled } from './registry.ts';
 import { postrender_app } from './app.ts';
+import { warn } from './messages.ts';
 
 let warned_unlisted = false;
 
@@ -28,11 +29,7 @@ export function handle(options: PostrenderHandleOptions = {}): Handle {
 		// by now means vite.config never listed `postrender()`, and nothing would ever be stored.
 		if (!postrender_app() && !warned_unlisted) {
 			warned_unlisted = true;
-			console.warn(
-				'[@ogygia/postrender] postrender.handle() runs, but `postrender()` is not listed in ' +
-					'vite.config, so no page is stored. Add it: `plugins: [ogygia(), postrender(), sveltekit()]` ' +
-					"(from '@ogygia/postrender/vite')."
-			);
+			warn('postrender_handle_unlisted');
 		}
 		return resolve(event);
 	};

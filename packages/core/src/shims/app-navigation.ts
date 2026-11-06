@@ -15,6 +15,7 @@
 import { kit_bridge } from './kit-bridge.ts';
 import { refresh_remote_instances } from './kit-remote/remote-cache.ts';
 import { bind_to_component } from '../runtime/nav-hooks.ts';
+import { OgygiaError } from '../messages/island.ts';
 import type { NavHandle } from '../runtime/nav-handle.ts';
 import type { BeforeNavigateCallback, AfterNavigateCallback } from '../runtime/router.ts';
 
@@ -30,12 +31,10 @@ function browser_goto(
 ) {
 	const target = new URL(url, location.href);
 	if (target.protocol !== 'http:' && target.protocol !== 'https:') {
-		throw new Error('[ogygia] goto() only supports http(s) URLs');
+		throw new OgygiaError('goto_not_http');
 	}
 	if (target.origin !== location.origin && !opts.external) {
-		throw new Error(
-			'[ogygia] goto() only supports same-origin URLs (pass { external: true } to leave)'
-		);
+		throw new OgygiaError('goto_cross_origin');
 	}
 	if (opts.replaceState) location.replace(target.href);
 	else location.assign(target.href);

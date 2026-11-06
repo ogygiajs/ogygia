@@ -16,6 +16,7 @@
 import type { Heading, LinkRef } from '../index.ts';
 import { href_of, type Collection, type Outline } from './outline.ts';
 import { is_dimensioned } from './dimensions.ts';
+import { OgygiaError } from '../messages/runtime.ts';
 
 // ── regexes
 const FRONTMATTER_BLOCK_RE = /^﻿?---\r?\n[\s\S]*?\r?\n---\r?\n?/;
@@ -217,10 +218,7 @@ async function load_orama(): Promise<OramaModule> {
 	try {
 		return await import('@orama/orama');
 	} catch {
-		throw new Error(
-			'[ogygia/content] search needs the optional peer dependency "@orama/orama". Install it:\n' +
-				'  npm i @orama/orama   (or the pnpm / yarn / bun equivalent)'
-		);
+		throw new OgygiaError('content_search_engine_missing');
 	}
 }
 

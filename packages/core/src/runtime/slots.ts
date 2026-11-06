@@ -171,6 +171,9 @@ export type BootLink = {
 	devalue: typeof import('./devalue-lane.ts').devalue;
 	with_devalue: typeof import('./devalue-lane.ts').with_devalue;
 	needs_devalue: typeof import('./devalue-lane.ts').needs_devalue;
+	/** the runtime's messages (../messages/core.ts), as a lazy chunk throws and logs them (../messages/lazy.ts) */
+	OgygiaError: typeof import('../messages/core.ts').OgygiaError;
+	warn: typeof import('../messages/core.ts').warn;
 };
 export type RouterLink = {
 	document_key: typeof import('./router.ts').document_key;
@@ -250,8 +253,10 @@ export const slots: Slots = {
 /** A link a lazy chunk needs, or a loud error: every link is filled before its chunk can load, so a
  *  missing one means a chunk ran without the boot that owns it (a test that skipped `link_boot()`). */
 function linked<T>(link: T | null, name: string): T {
+	// (its code's link written out: every chunk imports this registry, so it imports no messages
+	// module — messages/core.ts has the code)
 	if (link === null)
-		throw new Error(`[ogygia] runtime chunk used \`slots.${name}\` before the boot linked it`);
+		throw new Error('[ogygia] https://ogygiajs.dev/e/slot_not_linked?name=' + name);
 	return link;
 }
 export const boot_link = (): BootLink => linked(slots.boot, 'boot');

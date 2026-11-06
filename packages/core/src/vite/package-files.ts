@@ -17,6 +17,7 @@ import path from 'node:path';
 import { globSync } from 'tinyglobby';
 import type { PackageScan } from '../compiler/ctx.ts';
 import { OWN_PACKAGE_NAMES } from '../own-package.ts';
+import { OgygiaError, warn } from '../messages/build.ts';
 
 export type { PackageScan };
 
@@ -48,10 +49,10 @@ export function discover_package_files(app_root: string): PackageScan[] {
 		const declared = (manifest?.ogygia as { files?: unknown } | undefined)?.files;
 		if (declared == null) continue;
 		if (!Array.isArray(declared) || !declared.every((p) => typeof p === 'string')) {
-			throw new Error(
-				`[ogygia] ${name}: \`"ogygia": { "files": […] }\` must be an array of package-relative ` +
-					`paths/globs (like npm's "files") — got ${JSON.stringify(declared)}.`
-			);
+			throw new OgygiaError('package_files_not_array', {
+				package: name,
+				got: JSON.stringify(declared)
+			});
 		}
 		let root: string;
 		try {
@@ -78,13 +79,13 @@ export function discover_package_files(app_root: string): PackageScan[] {
 			// the declaration must stay INSIDE the package — a path escaping it would silently
 			// widen the compile surface to unrelated code
 			if (abs !== root && !abs.startsWith(root + path.sep)) {
-				throw new Error(`[ogygia] ${name}: ogygia.files entry '${entry}' escapes the package.`);
+				throw new OgygiaError('package_files_escapes', { package: name, entry });
 			}
 			let stat;
 			try {
 				stat = fs.statSync(abs);
 			} catch {
-				console.warn(`[ogygia] ${name}: ogygia.files entry '${entry}' does not exist — skipped.`);
+				warn('package_files_missing', { package: name, entry });
 				continue;
 			}
 			if (stat.isDirectory()) dirs.push(posix(fs.realpathSync(abs)));

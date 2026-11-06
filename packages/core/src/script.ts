@@ -23,6 +23,7 @@
  * Pass what it needs as `args`; they are JSON-serialized and handed to it in order.
  */
 import { escape_attr, escape_script_text } from './escape.ts';
+import { OgygiaError } from './messages/island.ts';
 
 /** A JSON value (what `args` and the data payloads carry). */
 export type ScriptJson =
@@ -218,8 +219,7 @@ export function script(
 	let kinds = 0;
 	if (o.run !== undefined) {
 		kinds++;
-		if (typeof o.run !== 'function')
-			throw new TypeError('[ogygia] script(): `run` must be a function');
+		if (typeof o.run !== 'function') throw new OgygiaError('script_run_not_function');
 		const module = o.type === 'module';
 		if (module) type = 'module';
 		const args = (o.args as unknown[] | undefined) ?? [];
@@ -233,17 +233,14 @@ export function script(
 		// `imports`: static `import * as` lines first, the namespaces handed to `run` as one object
 		let lines = '';
 		if (o.imports !== undefined) {
-			if (!module)
-				throw new TypeError(
-					"[ogygia] script(): `imports` needs `type: 'module'` (a static import only works in a module)"
-				);
+			if (!module) throw new OgygiaError('script_imports_need_module');
 			let mods = '';
 			let n = 0;
 			const imports = o.imports as Record<string, unknown>;
 			for (const name in imports) {
 				const url = imports[name];
 				if (typeof url !== 'string' || !url)
-					throw new TypeError(`[ogygia] script(): \`imports.${name}\` must be a URL string`);
+					throw new OgygiaError('script_import_not_url', { name });
 				lines += `import * as __og_m${n} from ${escape_script_text(JSON.stringify(url))};`;
 				mods += (n ? ',' : '') + `${escape_script_text(JSON.stringify(name))}:__og_m${n}`;
 				n++;
@@ -253,10 +250,7 @@ export function script(
 		const src = fn_source(o.run);
 		// A bundler rewrote the function before it reached us: Vite's SSR transform turns an `import()`
 		// (and an imported binding) inside it into `__vite_ssr_…` helpers the browser does not have.
-		if (src.indexOf('__vite_ssr_') !== -1)
-			throw new TypeError(
-				"[ogygia] script(): `run` was rewritten by the bundler (it holds `__vite_ssr_…`): an `import()` or an imported binding inside it cannot cross into the browser. Declare the module in `imports` (with `type: 'module'`) and read it from `run`'s first parameter."
-			);
+		if (src.indexOf('__vite_ssr_') !== -1) throw new OgygiaError('script_run_rewritten');
 		// (a module awaits its `run`: an async rejection reports as the module's own)
 		body = `${lines}${module ? 'await ' : ''}(${close_safe(src)})(${call});`;
 	} else {
@@ -267,21 +261,16 @@ export function script(
 		kinds++;
 		type = kind;
 		const json = JSON.stringify(o[key]);
-		if (json === undefined)
-			throw new TypeError(`[ogygia] script(): \`${key}\` must be JSON-serializable`);
+		if (json === undefined) throw new OgygiaError('script_not_json', { key });
 		body = escape_script_text(json);
 	}
-	if (kinds !== 1)
-		throw new TypeError(
-			`[ogygia] script(): pass exactly one of \`run\`, \`json\`, \`ld\`, \`importmap\`, \`speculation\` (got ${kinds})`
-		);
+	if (kinds !== 1) throw new OgygiaError('script_one_kind', { count: kinds });
 	let attrs = type ? ` type="${type}"` : '';
 	for (const key in o) {
 		if (RESERVED.has(key)) continue;
 		const v = o[key];
 		if (v === undefined || v === null || v === false) continue;
-		if (!is_attr_name(key))
-			throw new TypeError(`[ogygia] script(): \`${key}\` is not an attribute name`);
+		if (!is_attr_name(key)) throw new OgygiaError('script_bad_attribute', { key });
 		attrs += v === true ? ' ' + key : ` ${key}="${escape_attr(String(v))}"`;
 	}
 	return `<script${attrs}>${body}</script>`;

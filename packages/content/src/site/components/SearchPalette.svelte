@@ -11,6 +11,7 @@
 	import { Command, Dialog } from 'bits-ui';
 	import { search as search_handle, type SearchClient } from '../search-client.ts';
 	import type { SearchHit } from '../search.ts';
+	import { OgygiaError } from '../../messages/runtime.ts';
 
 	let {
 		base = '',
@@ -47,7 +48,7 @@
 			.then(() => (ready = true))
 			.catch((e) => {
 				error = e instanceof Error ? e.message : String(e);
-				console.error('[ogygia/content] search index unavailable —', error);
+				console.error(new OgygiaError('content_search_unavailable'), error);
 			});
 		return () => client?.destroy();
 	});

@@ -13,6 +13,7 @@
 
 import { is_store, is_derived_like } from './store-transport.ts';
 import { wire } from './live-transport.ts';
+import { OgygiaError } from './messages/island.ts';
 
 export interface BoundaryFinding {
 	/** What the seam will do with this leaf. */
@@ -180,11 +181,6 @@ export function boundary_problems(value: unknown, key = ''): BoundaryFinding[] {
 	return classify_boundary(value, key).filter((f) => f.kind === 'refuse' || f.kind === 'warn');
 }
 
-/** Format one finding as the console line for a dropped/degraded context key. */
-export function format_boundary_finding(key: string, f: BoundaryFinding): string {
-	return `[ogygia] context '${key}'${f.path ? ` @ ${f.path}` : ''}: ${f.detail}`;
-}
-
 /**
  * The `import.meta.og.$` rewrite target for NON-function values — the universal boundary
  * assertion. Classifies the value AT THE MARK (creation), so a refusal (DOM node, bare
@@ -196,10 +192,12 @@ export function __og_boundary<T>(value: T, site: string): T {
 	const refusals = classify_boundary(value).filter((f) => f.kind === 'refuse');
 	if (refusals.length) {
 		const f = refusals[0];
-		throw new Error(
-			`[ogygia] ${site} — og.$ value${f.path ? ` @ ${f.path}` : ''}: ${f.detail}` +
-				(refusals.length > 1 ? ` (+${refusals.length - 1} more)` : '')
-		);
+		throw new OgygiaError('boundary_refused', {
+			site,
+			path: f.path || undefined,
+			detail: f.detail,
+			more: refusals.length - 1
+		});
 	}
 	return value;
 }

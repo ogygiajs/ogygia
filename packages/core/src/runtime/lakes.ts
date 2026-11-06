@@ -11,6 +11,7 @@ import {
 } from './region-attrs.ts';
 import { runtime_session } from './session.ts';
 import { slots, type LakeArm, type LiftedLake } from './slots.ts';
+import { warn } from '../messages/core.ts';
 
 /** Feature entry: fill the `lakes` slot so core lifts/restores frozen regions. */
 export function install(): void {
@@ -156,11 +157,7 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 			// A live region with NO island host: nothing ever drives its remount revalidation on a
 			// regular page (it works on store-served documents via the doc marker, and inside an
 			// island host via lift/restore + remount). Say so instead of silently baking forever.
-			console.warn(
-				`[ogygia] render:'live' region "${id}" has no island host — on regular pages it will ` +
-					`never revalidate (only on documents served from a page store). Wrap it in a wake:'load' ` +
-					`island to drive remount revalidation.`
-			);
+			warn('live_region_no_host', { id });
 		}
 		// A lake with no AWAKE region host is settled as it stands: nothing will ever lift/restore
 		// it (that is the host island's hydrate), so the regions authored inside must self-run now
@@ -241,9 +238,7 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 				runtime_session.settled_lakes.add(el);
 				arm.wake_children();
 				if (import.meta.env.DEV) {
-					console.warn(
-						`[ogygia] region "${id}" is render:'live' but no signed endpoint was captured at SSR — painting the cache only.`
-					);
+					warn('live_region_no_endpoint', { id });
 				}
 				return true;
 			}

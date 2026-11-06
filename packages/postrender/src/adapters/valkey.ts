@@ -9,6 +9,7 @@
  */
 import type { PostrenderStore } from '../types.ts';
 import { normalize_prefix, subtree_prefix } from '../key.ts';
+import { OgygiaError } from '../messages.ts';
 
 // ── regexes
 const GLOB_ACTIVE_G = /[*?[\]\\]/g;
@@ -61,12 +62,19 @@ export function valkey(client: ValkeyLike): PostrenderStore {
 	const sadd = async (key: string, member: string) => {
 		if (client.sadd) await client.sadd(key, member);
 		else if (client.sAdd) await client.sAdd(key, member);
-		else throw new Error('[ogygia] valkey client has no sadd/sAdd — og.source tags need it');
+		else
+			throw new OgygiaError('postrender_store_client_missing', {
+				client: 'valkey',
+				commands: 'sadd/sAdd'
+			});
 	};
 	const smembers = async (key: string): Promise<string[]> => {
 		if (client.smembers) return client.smembers(key);
 		if (client.sMembers) return client.sMembers(key);
-		throw new Error('[ogygia] valkey client has no smembers/sMembers — og.source tags need it');
+		throw new OgygiaError('postrender_store_client_missing', {
+			client: 'valkey',
+			commands: 'smembers/sMembers'
+		});
 	};
 
 	/** Seconds left on a key (-1 = no expiry), or null when the client has no TTL command. */

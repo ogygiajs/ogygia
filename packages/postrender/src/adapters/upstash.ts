@@ -8,6 +8,7 @@
  */
 import type { PostrenderStore } from '../types.ts';
 import { normalize_prefix, subtree_prefix } from '../key.ts';
+import { OgygiaError } from '../messages.ts';
 
 // ── regexes
 const GLOB_ACTIVE_G = /[*?[\]\\]/g;
@@ -42,9 +43,11 @@ export function upstash(config: UpstashConfig): PostrenderStore {
 			body: JSON.stringify(parts.map(String))
 		});
 		if (!res.ok) {
-			throw new Error(
-				`[ogygia] upstash command failed: ${res.status} ${await res.text().catch(() => '')}`
-			);
+			throw new OgygiaError('postrender_adapter_request_failed', {
+				what: 'upstash command',
+				status: res.status,
+				body: await res.text().catch(() => '')
+			});
 		}
 		return ((await res.json()) as { result: T }).result;
 	};

@@ -141,6 +141,11 @@ const KIT_PAGE_THREAD =
 	`import * as __og_kit_navigation from '$app/navigation';\n` +
 	`globalThis[Symbol.for('ogygia.kit-page')] = ` +
 	`{ page: __og_kit_page, navigating: __og_kit_nav, navigation: __og_kit_navigation };\n`;
+// Which ogygia a csr=true page runs, on `window.__ogygia.v` — Kit runs that page, and the ogygia
+// runtime boots there only for what Kit cannot do (a deferred region, a lake); a page with neither
+// runs no ogygia runtime, so Kit's entry discloses it too. Where the runtime does boot, it adds the
+// same version (runtime/disclose-version.ts): the Set keeps one.
+const KIT_DISCLOSE_VERSION = `((globalThis.__ogygia ??= {}).v ??= new Set()).add(${JSON.stringify(OGYGIA_VERSION)});\n`;
 import { OWN_PACKAGE_NAMES, is_own_specifier } from '../own-package.ts';
 import {
 	PKG_ROOT,
@@ -160,10 +165,12 @@ import {
 	HMAC_MODULE,
 	RUNTIME_DIR,
 	REGION_ENDPOINT_MODULE,
-	RUNTIME_HASH
+	RUNTIME_HASH,
+	OGYGIA_VERSION
 } from './paths.ts';
 
 import type { OgygiaOptions } from './options.ts';
+import { OgygiaError, warn, line } from '../messages/build.ts';
 
 /** css-ish file the dev bridge manages (mirrors the bridge's glob). */
 const DEV_CSS_FILE_RE = /\.(css|scss|sass|less|styl)$/;
@@ -634,7 +641,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							__OGYGIA_CLIENT_PLUGINS__: JSON.stringify(client_plugins.length > 0),
 							// the app's Kit major: whether Kit's `asset()` takes a path with its leading
 							// slash (2) or without (3) — kit-paths.ts, where a runtime probe guessed wrong in builds
-							__OGYGIA_KIT_MAJOR__: JSON.stringify(kit_major(path.resolve(userConfig.root ?? '.')))
+							__OGYGIA_KIT_MAJOR__: JSON.stringify(kit_major(path.resolve(userConfig.root ?? '.'))),
+							// the installed ogygia's version, which the page's runtime discloses (`window.__ogygia.v`)
+							__OGYGIA_VERSION__: JSON.stringify(OGYGIA_VERSION)
 						},
 						server: {
 							fs: {
@@ -663,7 +672,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					const own = (config.optimizeDeps?.include ?? []).filter((d) => is_own_specifier(d));
 					if (own.length)
 						config.logger.warn(
-							`[ogygia] optimizeDeps.include lists ${own.join(', ')}: ogygia must not be pre-bundled in dev (the page would run two copies of its runtime, and islands with snippet props fail to hydrate). Remove ${own.length === 1 ? 'it' : 'them'}.`
+							line('optimize_deps_includes_ogygia', {
+								specifiers: own.join(', '),
+								count: own.length
+							})
 						);
 				}
 				// SvelteKit exposes appDir via a build-time `define` (its `config` hook runs before any
@@ -721,9 +733,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				if (env_secret) {
 					// Production builds: reject weak user secrets (L-HMAC). Dev may use short keys.
 					if (is_build && !secret_has_min_entropy(env_secret)) {
-						throw new Error(
-							`[ogygia] OGYGIA_SECRET is too short for production builds (need ≥${MIN_SECRET_BYTES} UTF-8 bytes).`
-						);
+						throw new OgygiaError('secret_too_short', { min_bytes: MIN_SECRET_BYTES });
 					}
 					id_salt = derive_id_salt(env_secret);
 				} else {
@@ -887,9 +897,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						loaded
 					});
 					if (skipped && isMainThread)
-						console.log(
-							`[ogygia] ${skipped} island chunk(s) not emitted: their host modules are not in the server bundle (unreachable from this build's routes).`
-						);
+						console.log(line('island_chunks_not_emitted', { count: skipped }));
 					compiled_css.clear();
 					const tree_css = tree_css_walk(this);
 					// Router pages: resolved to a handoff `rcss:<rel>` href in writeBundle, linked at SSR by
@@ -1014,8 +1022,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						fs.writeFileSync(handoff, JSON.stringify(compiler.ssr_transformed_hosts()));
 					} catch (e) {
 						// best effort — without it the client leg emits every prescanned island
-						if (isMainThread)
-							console.warn('[ogygia] could not write the server-leg island handoff:', e);
+						if (isMainThread) warn('island_handoff_write_failed', e);
 					}
 				}
 				if (__P) {
@@ -1130,11 +1137,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// real remote-functions entry; the router-coupled modules they import are stubbed just
 				// below. Fallback: our hand-rolled shim. enforce:'pre' wins over Kit's resolveId.
 				if (!ssr && source === '__sveltekit/remote') {
-					if (!kit_remote_index) {
-						throw new Error(
-							"[ogygia] could not locate Kit's client remote-functions (src). Use an @sveltejs/kit that publishes its `src/` (2.70.2 or later, or 3.x)."
-						);
-					}
+					if (!kit_remote_index) throw new OgygiaError('kit_remote_src_missing');
 					return kit_remote_index;
 				}
 				// Scope-alias the two router-coupled modules Kit's remote-functions pull in, ONLY when
@@ -1227,10 +1230,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				let source = code;
 
 				// KIT-WORLD PAGE THREAD: append the two publish lines to Kit's generated client app
-				// entry (see KIT_PAGE_THREAD above). Client leg only — the SSR graph renders islands
-				// against Kit's real modules already, and this file is client-world by construction.
+				// entry (see KIT_PAGE_THREAD above), and the version it discloses. Client leg only — the
+				// SSR graph renders islands against Kit's real modules already, and this file is
+				// client-world by construction.
 				if (!options?.ssr && KIT_CLIENT_APP_RE.test(id)) {
-					source += KIT_PAGE_THREAD;
+					source += KIT_PAGE_THREAD + KIT_DISCLOSE_VERSION;
 				}
 
 				// The whole per-file pass — content-preset tag ▸ macros ▸ host-island transform ▸ ts-region
@@ -1402,9 +1406,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							path.join(dir, 'flags-manifest.json'),
 							JSON.stringify(manifest, null, '\t') + '\n'
 						);
-						console.log(
-							`[ogygia] flags manifest: ${manifest.names.length} flag(s) → node_modules/.ogygia/flags-manifest.json`
-						);
+						console.log(line('flags_manifest_written', { count: manifest.names.length }));
 					} catch {
 						/* a read-only FS must never fail the build over an inventory */
 					}

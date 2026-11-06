@@ -25,6 +25,7 @@ import {
 	find_og_calls,
 	split_first_string
 } from '@ogygia/core/internal/compiler-browser';
+import { OgygiaError } from '../messages/build.ts';
 
 // ── regexes
 const FILE_EXT_RE = /\.[^.]+$/;
@@ -65,10 +66,12 @@ export function rewrite_regions(src: string, id: string): string {
 		for (const abs of files) {
 			const key = region_key(abs);
 			if (seen.has(key)) {
-				throw new Error(
-					`[ogygia] import.meta.og.regions('${glob}'): two files map to the block key '${key}' ` +
-						`(${path.relative(dir, seen.get(key)!)} and ${path.relative(dir, abs)}). Rename one.`
-				);
+				throw new OgygiaError('content_regions_key_collision', {
+					glob,
+					key,
+					first: path.relative(dir, seen.get(key)!),
+					second: path.relative(dir, abs)
+				});
 			}
 			seen.set(key, abs);
 			const alias = `__og_region_${alias_n++}`;

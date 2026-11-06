@@ -93,6 +93,7 @@ interface HubRegistry {
 import { emit as dt_emit } from './events/bus.ts';
 import { batch, notify, watchers } from './ref-watch.ts';
 import { resolve_sink } from './ref-sink.ts';
+import { OgygiaError } from './messages/island.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
@@ -316,10 +317,7 @@ export function resolve(ref: Ref, scope_or_remember: boolean | Scope): unknown {
 	}
 	const kind = reg.kinds.get(ref.k);
 	if (kind === undefined) {
-		throw new Error(
-			`[ogygia] cannot resolve a "${ref.k}" ref: no such kind is registered on this side. ` +
-				`The module that registers it must be imported as a VALUE in this bundle.`
-		);
+		throw new OgygiaError('ref_kind_missing', { kind: String(ref.k) });
 	}
 
 	if (remember) {
@@ -331,10 +329,7 @@ export function resolve(ref: Ref, scope_or_remember: boolean | Scope): unknown {
 			const owner = reg.keep_owner.get(name);
 			if (owner === undefined) reg.keep_owner.set(name, tag);
 			else if (owner !== tag && typeof console !== 'undefined') {
-				console.error(
-					`[ogygia] two transportables both use continuity id "${name}" ("${owner}" and "${tag}"). ` +
-						`A continuity id must be unique per class — rename one, or they will clobber each other in the session Keep.`
-				);
+				console.error(new OgygiaError('continuity_id_collision', { name, owner, tag }));
 			}
 			const kept = bucket(reg, 'session').get(name);
 			if (kept !== undefined) {

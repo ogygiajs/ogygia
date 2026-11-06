@@ -5,14 +5,12 @@
  * build's codec and hand it to ANOTHER build's svelte — the exact live-value crossing the
  * boundary laws forbid. A ref in a foreign sidecar fails HERE, loudly, at the boundary.
  */
+import { OgygiaError } from '../messages/lazy.ts';
+
 export function foreign_region_prop_revivers(): Record<string, (d: never) => unknown> {
 	return {
 		OgygiaRef: () => {
-			throw new Error(
-				'[ogygia] a wired class crossed a build boundary: foreign (stitched-fragment) island ' +
-					'props must be plain data — wired live objects cannot reunite across two svelte ' +
-					'runtimes. Pass the underlying data instead.'
-			);
+			throw new OgygiaError('wired_class_foreign');
 		}
 	};
 }

@@ -24,6 +24,7 @@
 import { get, writable, derived } from 'svelte/store';
 import { wire } from './live-transport.ts';
 import { register_kind, mint, resolve, type Ref } from './ref.ts';
+import { OgygiaError, warn } from './messages/island.ts';
 
 /** Brand on an `og_derived` store: the RECIPE (sources + formula) it was made from. */
 const DERIVED_BRAND = Symbol.for('ogygia.derived');
@@ -109,11 +110,7 @@ export function mark_store<T extends object>(store: T, tag: string): T {
 		Object.defineProperty(store, STORE_TAG, { value: tag, enumerable: false });
 	} catch {
 		if (typeof console !== 'undefined') {
-			console.warn(
-				`[ogygia] store "${tag}": the store object is not extensible (frozen/sealed), so it cannot ` +
-					`carry its factory brand — it will cross boundaries as a plain writable (custom methods ` +
-					`unavailable). Brand before freezing, or leave the store extensible.`
-			);
+			warn('store_not_extensible', { tag });
 		}
 	}
 	return store;
@@ -136,11 +133,7 @@ export function register_store_kind(): void {
 				// factory's grafted methods are missing. This keeps auto-branding strictly additive
 				// (before branding, this store crossed generic anyway). Warn so the fix is one import.
 				if (typeof console !== 'undefined') {
-					console.warn(
-						`[ogygia] store "${t}": factory not loaded in this bundle — degraded to a plain writable ` +
-							`(custom methods unavailable). Import the factory's module in the island (or its graph) ` +
-							`so \`__register_store_factory\` runs there.`
-					);
+					warn('store_factory_missing', { tag: t });
 				}
 				return writable(ref.d) as object;
 			}
@@ -150,11 +143,7 @@ export function register_store_kind(): void {
 				// environment guard fired on THIS side). Only a real store gets encoded under a tag, so
 				// the seed is real — it must survive even when the factory won't cooperate here.
 				if (typeof console !== 'undefined') {
-					console.warn(
-						`[ogygia] store "${t}": factory returned ${type_of(built)} while rebuilding — degraded ` +
-							`to a plain writable (custom methods unavailable). A store factory must return a ` +
-							`store on every call; move environment guards inside the factory body.`
-					);
+					warn('store_factory_bad_rebuild', { tag: t, got: type_of(built) });
 				}
 				return writable(ref.d) as object;
 			}
@@ -212,12 +201,7 @@ export function __og_store<F extends (...args: never[]) => object>(tag: string, 
 		if (product === null || typeof product !== 'object') {
 			if (!warned_unbranded.has(tag) && typeof console !== 'undefined') {
 				warned_unbranded.add(tag);
-				console.warn(
-					`[ogygia] store "${tag}": factory returned ${type_of(product)} — nothing to brand, value ` +
-						`passed through as-is. Fine for a client-only store; a store that must cross an island ` +
-						`boundary has to exist on the server too — return e.g. writable(seed) under your guard ` +
-						`and gate the side effects inside the factory instead.`
-				);
+				warn('store_factory_unbranded', { tag, got: type_of(product) });
 			}
 			return product;
 		}
@@ -300,10 +284,7 @@ export function register_derived_kind(): void {
 				seed: unknown;
 			};
 			if (typeof d.f !== 'function') {
-				throw new Error(
-					`[ogygia] cannot resume og_derived: its formula did not cross — mark it with ` +
-						`import.meta.og.$ at the og_derived call site so it travels as a fn ref.`
-				);
+				throw new OgygiaError('og_derived_formula_missing');
 			}
 			return og_derived((d.single ? d.s[0] : d.s) as never, d.f, d.seed as never);
 		}

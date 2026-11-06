@@ -11,7 +11,8 @@ import {
 } from '../../../packages/core/dist/live-transport.js';
 import { test, check } from '@ogygia/tooling/e2e';
 
-const DUPE_WARN_RE = /both use continuity id "dupe"/;
+// (the collision's code and its id: worded where the runtime published its messages, the link alone here)
+const DUPE_WARN_RE = /continuity_id_collision[\s\S]*name=dupe|both use continuity id "dupe"/;
 const SSR_COUNT_RE = /data-t-count[^>]*>(\d+)</;
 
 test.describe('static [ogygia.wire] codec: cross-island live object, no leak, alias-proof', () => {

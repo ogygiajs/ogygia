@@ -17,6 +17,7 @@
 import { BROWSER, DEV } from 'esm-env';
 import { fnv1a32, type StandardSchemaV1 } from '@ogygia/core/plugin/utils';
 import { flags_app } from './app.ts';
+import { warn } from './messages.ts';
 
 export type CtxLike = {
 	request: Request;
@@ -195,9 +196,7 @@ function resolved_for(c: CtxLike, name: string): { variant: string; value?: unkn
 		// a source is configured but nothing primed this request: the plugin is not in the app's list,
 		// so every read silently ignores the source. Say it once.
 		_unprimed_warned = true;
-		console.warn(
-			'[ogygia] flags: `decide({ source })` is set but no request was primed — list `flags()` beside `ogygia()` in vite.config `plugins`.'
-		);
+		warn('flags_source_unprimed');
 	}
 	return map?.[name];
 }
@@ -382,9 +381,7 @@ export function flag(
 			// read on a server where the plugin never started: nothing reports the read, so a store
 			// plugin could keep ONE variant of an A/B'd page for everyone. Say it once, loudly.
 			_unstarted_warned = true;
-			console.warn(
-				'[ogygia] flags: a flag was read on the server but the flags plugin is not running — list `flags()` (from `@ogygia/flags/vite`) beside `ogygia()` in vite.config `plugins`. Until then flag reads are not reported to the request, and a stored page could keep one variant.'
-			);
+			warn('flags_plugin_not_running');
 		}
 		const cached = memo.get(c.request);
 		if (cached !== undefined) return cached;

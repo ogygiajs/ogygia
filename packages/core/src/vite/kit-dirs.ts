@@ -25,6 +25,7 @@ import {
 	type KitDirs,
 	DEFAULT_KIT_DIRS
 } from '../compiler/kit.ts';
+import { warn } from '../messages/build.ts';
 
 const CONFIG_FILES = ['svelte.config.js', 'svelte.config.mjs'];
 
@@ -65,9 +66,12 @@ async function kit_options_from_file(root: string): Promise<KitOptions | null> {
 		const mod = (await import(pathToFileURL(file).href)) as { default?: { kit?: KitOptions } };
 		return mod.default?.kit ?? {};
 	} catch (e) {
-		console.warn(
-			`[ogygia] could not read ${path.relative(root, file)} for kit.files.routes / kit.outDir — using the defaults (${DEFAULT_KIT_DIRS.routes}, ${DEFAULT_KIT_DIRS.out}). ${e instanceof Error ? e.message : String(e)}`
-		);
+		warn('kit_config_unreadable', {
+			file: path.relative(root, file),
+			routes: DEFAULT_KIT_DIRS.routes,
+			out: DEFAULT_KIT_DIRS.out,
+			reason: e instanceof Error ? e.message : String(e)
+		});
 		return null;
 	}
 }

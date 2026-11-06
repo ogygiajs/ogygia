@@ -15,6 +15,11 @@ const { signing_key, key_fingerprint, reset_signing_key, configure_signing_secre
 	await import('../src/server/signing-key.ts');
 
 const WARNED = Symbol.for('ogygia.build-key-warned');
+/** Where a production server's `secret_conflict` link says the first key came from. */
+const conflict_from = (logged: unknown): string | null =>
+	new URL(String((logged as Error).message ?? logged).replace('[ogygia] ', '')).searchParams.get(
+		'from'
+	);
 const g = globalThis as Record<symbol, unknown>;
 
 beforeEach(() => {
@@ -59,9 +64,8 @@ describe('the signing key', () => {
 		reset_signing_key();
 		signing_key();
 		expect(error).toHaveBeenCalledTimes(1);
-		expect(String(error.mock.calls[0][0])).toContain(
-			'was set when this app was built but is not set where it runs'
-		);
+		// (a production server prints the code's link alone: messages/server.ts)
+		expect(String(error.mock.calls[0][0])).toContain('ogygiajs.dev/e/secret_missing_at_runtime');
 	});
 
 	it('a production server with no OGYGIA_SECRET anywhere warns, once', () => {
@@ -70,7 +74,7 @@ describe('the signing key', () => {
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		signing_key();
 		expect(warn).toHaveBeenCalledTimes(1);
-		expect(String(warn.mock.calls[0][0])).toContain('OGYGIA_SECRET is not set');
+		expect(String(warn.mock.calls[0][0])).toContain('ogygiajs.dev/e/secret_missing');
 	});
 
 	it('an env key is silent', () => {
@@ -169,7 +173,7 @@ describe('handle({ secret })', () => {
 		signing_key();
 		configure_signing_secret('a-later-secret');
 		expect(error).toHaveBeenCalledTimes(1);
-		expect(String(error.mock.calls[0][0])).toContain("from this build's random key");
+		expect(conflict_from(error.mock.calls[0][0])).toContain("this build's random key");
 		expect(signing_key().secret).toBe('build-random-key');
 	});
 
@@ -179,7 +183,7 @@ describe('handle({ secret })', () => {
 		configure_signing_secret('the-first-secret');
 		configure_signing_secret('the-second-secret');
 		expect(error).toHaveBeenCalledTimes(1);
-		expect(String(error.mock.calls[0][0])).toContain('from another handle({ secret })');
+		expect(conflict_from(error.mock.calls[0][0])).toBe('another handle({ secret })');
 		expect(signing_key().secret).toBe('the-first-secret');
 	});
 });

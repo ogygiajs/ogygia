@@ -25,6 +25,7 @@ import { rewrite_loaders } from '../macros/loaders.ts';
 import { rewrite_regions } from '../macros/regions.ts';
 import { materialize } from '../macros/git.ts';
 import { content_hmr, type ContentHmrOptions } from './hmr.ts';
+import { OgygiaError, warn } from '../messages/build.ts';
 
 export { invalidateModuleTree } from './hmr.ts';
 export type { ContentHmrOptions };
@@ -80,11 +81,7 @@ export function content(options: ContentOptions = {}): [OgygiaPlugin, ...VitePlu
 			b.macro('loader', (code, m) => {
 				if (!JS_MODULE_RE.test(m.id)) {
 					if (m.id.endsWith('.svelte') && !m.id.includes('/node_modules/'))
-						console.warn(
-							`[ogygia/content] ${m.rel} calls import.meta.og.loader.* inside a component. ` +
-								`Loaders build a content corpus and are server-only — move the collection to a \`.server.ts\` ` +
-								`module and cross the wire with remotes. (In a component it never rewrites and fails at runtime.)`
-						);
+						warn('content_loader_in_component', { file: m.rel });
 					return code;
 				}
 				// `git` first materializes a shallow checkout into the app's content cache (sync,
@@ -131,9 +128,11 @@ function content_checks(get_root: () => string, exts: readonly string[]): VitePl
 				const file = id.slice(0, q);
 				if (m && exts.some((e) => file.endsWith(e))) {
 					if (!bridge.contentPresets[m[1]])
-						throw new Error(
-							`[ogygia/content] '${id}': unknown content preset '${m[1]}' in the module query. Configured: ${Object.keys(bridge.contentPresets).join(', ')}.`
-						);
+						throw new OgygiaError('content_preset_unknown_query', {
+							id,
+							preset: m[1],
+							configured: Object.keys(bridge.contentPresets).join(', ')
+						});
 					return { code: `${code}\n<!--og_preset:${m[1]}-->`, map: null };
 				}
 			}
@@ -157,11 +156,7 @@ function warn_placement(root: string, file: string, code: string, warned: Set<st
 	if (!defines_collection && !code.includes('import.meta.og.loader.')) return;
 	if (SERVER_MODULE_EXT_RE.test(file) || SERVER_DIR_RE.test(file.slice(root.length))) return;
 	warned.add(file);
-	console.warn(
-		`[ogygia/content] ${path.relative(root, file)} defines a collection outside a server-only module. ` +
-			`Move it to a \`.server.ts\` file (or \`src/lib/server/\`) and mint remotes for the wire — ` +
-			`Kit then guarantees the corpus can never reach a client bundle.`
-	);
+	warn('content_collection_not_server_only', { file: path.relative(root, file) });
 }
 
 /**
@@ -169,24 +164,13 @@ function warn_placement(root: string, file: string, code: string, warned: Set<st
  * names, and `markdown` required (the defaults are the base every preset merges over).
  */
 function validate_presets(presets: Record<string, unknown>, has_markdown: boolean): void {
-	if (!has_markdown)
-		throw new Error(
-			'[ogygia/content] `presets` requires `markdown` — the defaults are the base every preset merges over (an empty `markdown: {}` is fine).'
-		);
+	if (!has_markdown) throw new OgygiaError('content_presets_need_markdown');
 	for (const [name, bag] of Object.entries(presets)) {
-		if (!IDENT_NAME_RE.test(name))
-			throw new Error(
-				`[ogygia/content] presets: '${name}' — preset names are identifiers ([A-Za-z0-9_-]).`
-			);
+		if (!IDENT_NAME_RE.test(name)) throw new OgygiaError('content_preset_name_invalid', { name });
 		if (!bag || typeof bag !== 'object' || Object.keys(bag).length === 0)
-			throw new Error(
-				`[ogygia/content] presets.${name} is empty — a preset with nothing is a mistake.`
-			);
+			throw new OgygiaError('content_preset_empty', { name });
 		for (const k of Object.keys(bag))
-			if (k !== 'markdown')
-				throw new Error(
-					`[ogygia/content] presets.${name}: unknown key \`${k}\`. A content preset takes \`markdown\`.`
-				);
+			if (k !== 'markdown') throw new OgygiaError('content_preset_unknown_key', { name, key: k });
 	}
 }
 

@@ -14,6 +14,7 @@
  */
 import { createSubscriber } from 'svelte/reactivity';
 import { parse, stringify } from 'devalue';
+import { OgygiaError } from './messages/island.ts';
 
 interface Entry {
 	value: unknown;
@@ -57,12 +58,10 @@ function snapshot<T>(name: string, value: T): T {
 	try {
 		return parse(stringify(value)) as T;
 	} catch (e) {
-		throw new Error(
-			`[ogygia] SharedState '${name}': values must be plain data (devalue-serializable — ` +
-				`JSON, Date, Map, Set, BigInt, RegExp). Functions, class instances, and DOM nodes ` +
-				`do not cross build boundaries — share facts, not live objects. ` +
-				`(${e instanceof Error ? e.message : e})`
-		);
+		throw new OgygiaError('shared_state_not_plain', {
+			name,
+			reason: e instanceof Error ? e.message : String(e)
+		});
 	}
 }
 

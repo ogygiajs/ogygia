@@ -40,6 +40,7 @@ export type { MarkdownShikiOptions, MarkdownThemePair, RemarkHeadingsOptions };
 import type { ShikiTransformer } from 'shiki';
 import type { MetaParser, VariantGenerator } from './code.ts';
 import { default_pipeline } from './code-render.ts';
+import { OgygiaError } from '../messages/build.ts';
 export { infostring, slash_meta } from './code.ts';
 export { diff_markers } from './diff.ts';
 export { inline_markers } from './inline-markers.ts';
@@ -211,10 +212,7 @@ async function load_mdsvex(): Promise<typeof import('mdsvex').mdsvex> {
 	try {
 		return (await import('mdsvex')).mdsvex;
 	} catch {
-		throw new Error(
-			'[ogygia/content] Markdown content needs the optional peer dependency "mdsvex". Install it:\n' +
-				'  npm i -D mdsvex   (or the pnpm / yarn / bun equivalent)'
-		);
+		throw new OgygiaError('content_mdsvex_missing');
 	}
 }
 
@@ -624,9 +622,10 @@ export function ogygiaPresetPreprocess(): PreprocessorGroup {
 		if (!g) {
 			const bag = bridge.contentPresets?.[preset];
 			if (!bag) {
-				throw new Error(
-					`[ogygia/content] unknown content preset '${preset}' on a module variant. Configured: ${Object.keys(bridge.contentPresets ?? {}).join(', ') || '(none)'}.`
-				);
+				throw new OgygiaError('content_preset_unknown_variant', {
+					preset,
+					configured: Object.keys(bridge.contentPresets ?? {}).join(', ')
+				});
 			}
 			const base = (bridge.markdownConfig as MarkdownOptions | null) ?? {};
 			g = ogygiaPreprocess({ ...base, ...bag.markdown } as MarkdownOptions);

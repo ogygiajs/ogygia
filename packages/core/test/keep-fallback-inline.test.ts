@@ -10,7 +10,7 @@ import type { Component } from 'svelte';
 import Region from '../src/Region.svelte';
 import KeepHole from './_fixtures/KeepHole.svelte';
 import HostWithHole from './_fixtures/HostWithHole.svelte';
-import { is_keep_fallback, KEEP_FALLBACK_INLINE_MESSAGE } from '../src/keep-fallback.ts';
+import { is_keep_fallback } from '../src/keep-fallback.ts';
 
 const region = Region as unknown as Component<Record<string, unknown>>;
 // `render()`'s body is a LAZY getter — the component runs on first read.
@@ -55,7 +55,7 @@ describe('keepFallback() placement', () => {
 		}
 		expect(caught).toBeInstanceOf(Error);
 		expect(is_keep_fallback(caught)).toBe(false);
-		expect((caught as Error).message).toBe(KEEP_FALLBACK_INLINE_MESSAGE);
+		expect((caught as { code?: string }).code).toBe('keep_fallback_inline');
 		expect((caught as Error).message).toContain('nested inside a `wake` island');
 	});
 });

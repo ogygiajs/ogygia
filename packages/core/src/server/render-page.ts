@@ -26,6 +26,7 @@ import type { PageSnapshot } from '../page-seed-registry.ts';
 import { look_up_page, type PageFacts } from './page-facts.ts';
 import { merge_seed_ask, shape_page_data, type SeedAsk, type SeedKeys } from './seed-shape.ts';
 import { PAGE_FACTS_SCRIPT_TYPE } from '../page-facts-script.ts';
+import { line } from '../messages/server.ts';
 
 type Transport = Record<
 	string,
@@ -87,9 +88,7 @@ export function prepare_render_page(
 	for (const name in transport ?? {}) decoders[name] = transport![name].decode;
 	const p = look_up_page(page, event.fetch, decoders).then((facts) => {
 		if ('miss' in facts)
-			warn?.(
-				`[ogygia] ${page.pathname}: the page's data for a render outside it is unavailable: ${facts.miss}. The render sees an empty page.data.`
-			);
+			warn?.(line('outside_page_data_unavailable', { path: page.pathname, miss: facts.miss }));
 		else facts_of.set(request, facts);
 	});
 	looked_up.set(request, p);
@@ -159,10 +158,7 @@ function watched_data(facts: PageFacts, say: (message: string) => void): Record<
 				if (!seen) warned_keys.set(facts, (seen = new Set()));
 				if (!seen.has(key)) {
 					seen.add(key);
-					say(
-						`[ogygia] ${facts.url.pathname}: a region rendered outside its page read page.data.${key}, which this page's server loads do not produce. ` +
-							`A key a universal load (+page.ts / +layout.ts) returns exists only inside a full page render: return it from a server load, or pass it as a prop.`
-					);
+					say(line('outside_page_data_key', { path: facts.url.pathname, key }));
 				}
 			}
 			return Reflect.get(target, key, receiver);

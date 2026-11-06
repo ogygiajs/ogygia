@@ -42,6 +42,7 @@ import {
 	type SearchEngine
 } from './search.ts';
 import type { BaseOption, PageView, Heading, NavRef, NavTree, PrevNext } from './types.ts';
+import { OgygiaError, warn } from '../messages/runtime.ts';
 
 // ── regexes
 const TRAILING_SLASHES_RE = /\/+$/;
@@ -238,8 +239,13 @@ class OgygiaSite implements Site {
 				const findings = await run_page_checks(this.#checks, slug, { outline: ol, base, ctx });
 				const warns = findings.filter((f) => f.severity === 'warn');
 				const errors = findings.filter((f) => f.severity === 'error');
-				if (warns.length) console.warn(format_findings(slug, warns, hit.record.filePath));
-				if (errors.length) throw new Error(format_findings(slug, errors, hit.record.filePath));
+				if (warns.length)
+					warn('content_check_warned', format_findings(slug, warns, hit.record.filePath));
+				if (errors.length)
+					throw new OgygiaError(
+						'content_check_failed',
+						format_findings(slug, errors, hit.record.filePath)
+					);
 			}
 			return;
 		}
