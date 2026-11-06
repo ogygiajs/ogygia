@@ -36,6 +36,7 @@ import {
 	pin_build_map,
 	pin_region_urls
 } from './entry-locations.ts';
+import { load_devalue, needs_devalue } from './devalue-lane.ts';
 import {
 	is_awake,
 	is_deferred,
@@ -184,7 +185,16 @@ function hydrate_core(): Promise<HydrateCore> {
  *  islands are awake (the hydrate core loaded), they join the page store NOW, so a KEPT island reading
  *  those keys shows the new values; before any island woke, the first hydrate absorbs them. */
 function absorb_page_facts_now(): void {
-	if (runtime_session.page_facts.length) loaded_core?.seed_page_once();
+	// (facts cross in devalue's lane)
+	if (runtime_session.page_facts.length && loaded_core)
+		void load_devalue().then(() => loaded_core?.seed_page_once());
+}
+
+/** devalue, when this wake's reads need it (./devalue-lane.ts): a devalue-lane script in the
+ *  document (a props sidecar, the page seed) or page facts an answer queued. Started beside the
+ *  hydrate core, so it adds no hop; a page of JSON-lane scripts never downloads it. */
+function devalue_for_wake(): Promise<unknown> | undefined {
+	if (runtime_session.page_facts.length || needs_devalue(document)) return load_devalue();
 }
 
 /** What counts as intent for an ON-DEMAND hole (`render: 'deferred'` + `fetch: 'interaction'`).
@@ -1318,7 +1328,8 @@ class OgygiaRegion extends HTMLElement {
 				[mod, core] = await Promise.all([
 					load_island(entry, cls()),
 					hydrate_core(),
-					slots.wire_classes?.(this)
+					slots.wire_classes?.(this),
+					devalue_for_wake()
 				]);
 			} finally {
 				release();
@@ -1517,7 +1528,11 @@ class OgygiaRegion extends HTMLElement {
 		let mod: IslandModule, core: HydrateCore;
 		try {
 			if (!this.isConnected) return;
-			[mod, core] = await Promise.all([load_island(entry, cls()), hydrate_core()]);
+			[mod, core] = await Promise.all([
+				load_island(entry, cls()),
+				hydrate_core(),
+				devalue_for_wake()
+			]);
 		} finally {
 			release();
 		}

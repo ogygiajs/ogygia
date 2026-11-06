@@ -28,6 +28,7 @@ import {
 	walk_enters
 } from './ownership.ts';
 import { load_slot } from './load-scheduler.ts';
+import { load_devalue, devalue, with_devalue, needs_devalue } from './devalue-lane.ts';
 
 // (the profiler's browser half ships only where something reads it: see `__OGYGIA_BEACON__`; a
 // plain import of dist/ without the define keeps it)
@@ -54,6 +55,10 @@ export function link_boot(): void {
 		record_server_body,
 		server_body_attributes,
 		server_body_child,
-		load_slot
+		load_slot,
+		load_devalue,
+		devalue,
+		with_devalue,
+		needs_devalue
 	};
 }

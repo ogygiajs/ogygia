@@ -167,6 +167,11 @@ export type BootLink = {
 	record_server_body: typeof import('./ownership.ts').record_server_body;
 	server_body_attributes: typeof import('./ownership.ts').server_body_attributes;
 	server_body_child: typeof import('./ownership.ts').server_body_child;
+	/** devalue, loaded when a page needs it (./devalue-lane.ts) */
+	load_devalue: typeof import('./devalue-lane.ts').load_devalue;
+	devalue: typeof import('./devalue-lane.ts').devalue;
+	with_devalue: typeof import('./devalue-lane.ts').with_devalue;
+	needs_devalue: typeof import('./devalue-lane.ts').needs_devalue;
 };
 export type RouterLink = {
 	document_key: typeof import('./router.ts').document_key;
