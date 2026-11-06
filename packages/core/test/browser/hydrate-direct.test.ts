@@ -86,6 +86,19 @@ test('a kept island takes the next page’s props in place', async () => {
 	expect(region.querySelector('p')).toBe(p);
 });
 
+test('pushable props: the values as pushed (never proxied), a push replaces the whole snapshot', async () => {
+	const { pushable_props } = await import('../../src/runtime/pushable-props.svelte.ts');
+	const tree = { items: [{ href: '/a' }] };
+	const p = pushable_props({ tree, title: 'one' });
+	expect(p.props.tree, 'the very object, not a reactive proxy of it').toBe(tree);
+	expect(Object.keys(p.props)).toEqual(['tree', 'title']);
+	const next = { items: [] };
+	p.push({ tree: next });
+	expect(p.props.tree).toBe(next);
+	expect('title' in p.props, 'a prop the next snapshot leaves out is gone').toBe(false);
+	expect(p.props.title).toBeUndefined();
+});
+
 test('a hydrated island is "inside an island" for its children (placed and live)', () => {
 	const seen: boolean[] = [];
 	(globalThis as { __og_nested_seen?: boolean[] }).__og_nested_seen = seen;

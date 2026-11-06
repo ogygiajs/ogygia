@@ -4,6 +4,11 @@
  * is hydrated with `props` itself (Svelte's documented reactive-props form for `hydrate`), so
  * focus and local state survive and Svelte reconciles the view. Filled into the `pushable` slot by
  * the live feature (./live.ts); a page with neither live nor kept regions never loads it.
+ *
+ * The props are a snapshot of data, as every island's are: held RAW (`$state.raw`), never deep-proxied
+ * — the island reads the very values pushed (a large nav tree pays no proxy on each read, identity
+ * holds), and mutating one is no more reactive than in any other island. A push replaces the whole
+ * snapshot; `props` is a plain reader over the current one, so each prop read tracks it.
  */
 export type PushableProps = {
 	props: Record<string, unknown>;
@@ -11,12 +16,20 @@ export type PushableProps = {
 };
 
 export function pushable_props(initial: Record<string, unknown>): PushableProps {
-	const props = $state(initial);
+	let current = $state.raw(initial);
+	const props = new Proxy({} as Record<string, unknown>, {
+		get: (_, key) => (typeof key === 'string' ? current[key] : undefined),
+		has: (_, key) => key in current,
+		ownKeys: () => Reflect.ownKeys(current),
+		getOwnPropertyDescriptor: (_, key) =>
+			key in current
+				? { enumerable: true, configurable: true, value: current[key as string] }
+				: undefined
+	});
 	return {
 		props,
 		push(next) {
-			for (const key of Object.keys(props)) if (!(key in next)) delete props[key];
-			Object.assign(props, next);
+			current = next;
 		}
 	};
 }
