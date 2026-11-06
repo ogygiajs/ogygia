@@ -270,8 +270,8 @@ export type RuntimeEventInput =
 			domain: 'runtime';
 			/** Two owners wanted the same nodes (runtime/ownership.ts): a web component changed its own
 			 *  children in a position Svelte's hydration reads, and the repair removed what it added so
-			 *  the island could hydrate. `reason` names the element and the way out ({@html} / static
-			 *  markup / a lake / data-ogygia-keep). */
+			 *  the island could hydrate. `reason` names the element (the message `ownership_conflict`
+			 *  says the way out). */
 			name: 'region.hydrate.conflict';
 			entry?: string;
 			fp?: string;

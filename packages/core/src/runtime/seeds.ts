@@ -34,6 +34,7 @@ import { install_page_defer, page_defer_revivers } from './page-defer.ts';
 import { transport_decoders } from './app-transport.ts';
 import { kit_page_thread } from './kit-page-thread.svelte.ts';
 import { boot_link, slots } from './slots.ts';
+import { warn } from '../messages/lazy.ts';
 
 // The boot's session and hint-set reset, handed over through the registry — this lazy module (the
 // hydrate core's and the navigation's) never imports a boot module (./slots.ts `BootLink`).
@@ -174,10 +175,7 @@ function absorb_page_facts(): void {
 			const older = Object.keys(merged).filter(
 				(k) => data[k] !== merged![k] && JSON.stringify(data[k]) !== JSON.stringify(merged![k])
 			);
-			if (older.length)
-				console.warn(
-					`[ogygia] a region came back rendered with newer page.data (${older.join(', ')}) than this Kit page holds. Refresh the page's data (invalidateAll()) before refreshing the region, or the islands inside it hydrate against the older values.`
-				);
+			if (older.length) warn('region_newer_page_data', { keys: older.join(', ') });
 		}
 		return;
 	}

@@ -22,6 +22,7 @@ import { boot_link, slots, type LiftedLake } from './slots.ts';
 import { keep_host_classes, note_host_classes } from './host-classes.ts';
 import { install as install_hydrate_features } from 'virtual:ogygia/hydrate-features';
 import { emit as dt_emit } from '../events/bus.ts';
+import { warn } from '../messages/lazy.ts';
 
 // The page's seeds, through their features' slots (`page`, `remote-seeds`: hydrate phase, installed
 // below). Exported for core: an answer's page facts join the page store at once once islands are
@@ -299,13 +300,11 @@ function describe_divergence(live: Node, want: Node, where = 'the island'): stri
 	return null;
 }
 
-/** The first ownership conflict the current repair met (DEV / devtools read it), or `null`. */
+/** The element of the first ownership conflict the current repair met (DEV / devtools read it:
+ *  `ownership_conflict`), or `null`. */
 let conflict: string | null = null;
 function note_conflict(el: Element): void {
-	conflict ??=
-		`${node_label(el)} is a web component that changed its own children in a position Svelte's hydration reads, ` +
-		`so the repair had to remove the nodes it added. Render that subtree with {@html} or as static markup ` +
-		`(Svelte never reads inside it), put it in a lake (wake: 'none'), or mark the element data-ogygia-keep.`;
+	conflict ??= node_label(el);
 }
 
 /** Put the island's light DOM back to the server's node sequence when it drifted while the island
@@ -409,12 +408,6 @@ function quietly<T>(fn: () => T): T {
 	}
 }
 
-const HEALED_WARNING =
-	'[ogygia] island "%s" was edited while it slept (its light DOM no longer matched the server ' +
-	'render — a design-system runtime, an A/B tool, a translator), so its server HTML was put back ' +
-	'and hydrated instead of re-rendering it client-side. Whatever the edit added is gone; the ' +
-	'script that made it should leave <ogygia-region> subtrees alone.';
-
 /** Is this entry another build's (fragment federation): absolute, different origin. */
 export function is_foreign_entry(entry: string): boolean {
 	return boot_link().ABSOLUTE_URL_SCHEME.test(entry) && new URL(entry).origin !== location.origin;
@@ -481,11 +474,7 @@ class PropMutationGuard {
 		const key = entry + '' + prop_path;
 		if (this.#warned.has(key)) return;
 		this.#warned.add(key);
-		console.warn(
-			`[ogygia] mutating prop '${prop_path}' inside island ${entry} — island props are a serialized ` +
-				`snapshot of the host, or a reference into page.data shared with every island that reads it: ` +
-				`the write updates nothing (or leaks into page.data). Move mutable state inside the island component.`
-		);
+		warn('prop_mutation', { prop: prop_path, entry });
 	}
 
 	#guard_map(map: Map<unknown, unknown>, entry: string, prop_path: string) {
@@ -646,9 +635,7 @@ export function hydrate_island(
 	if (kit_hydrates_page() && !ours_on_kit_document(region)) {
 		region.setAttribute('data-kit-hydrated', '');
 		if (import.meta.env.DEV) {
-			console.warn(
-				`[ogygia] island "${entry}" is on a csr=true page; Kit hydrates it, so the island directive is redundant here (it behaves as a normal component).`
-			);
+			warn('island_on_kit_page', { entry });
 		}
 		return null;
 	}
@@ -671,14 +658,7 @@ export function hydrate_island(
 	// loudly (dev) instead of silently duplicating; the real fix lives in authoring (render an
 	// inline element, or place the island in block context).
 	if (import.meta.env.DEV && !is_deferred(region) && region_ssr_truncated(region)) {
-		console.warn(
-			`[ogygia] island "${entry}" rendered a BLOCK element inline inside a <p> (or other ` +
-				`phrasing-only context). The browser's HTML parser hoisted that block out of the ` +
-				`paragraph before hydration, so this region is empty and a SECOND copy is about to mount ` +
-				`here — the server-rendered copy is now an orphaned sibling of the paragraph. Fix: make ` +
-				`the component render an inline element (e.g. <span> instead of <div>), or place the ` +
-				`island on its own line (block context) rather than inside a sentence.`
-		);
+		warn('island_block_in_inline', { entry });
 	}
 
 	// BOX-STABILITY THROUGH WAKE needs NOTHING here, and ogygia must not touch the region's box. This
@@ -737,9 +717,7 @@ export function hydrate_island(
 		const KeepHost = slots.keep ?? slots.live;
 		const keep = region.hasAttribute('data-ogygia-keep') && !!KeepHost;
 		if (keep && import.meta.env.DEV && !document.querySelector('meta[name="ogygia-router"]')) {
-			console.warn(
-				`[ogygia] island "${entry}" has keep:'${region.getAttribute('data-ogygia-keep')}' but the SPA router is off (ogygia({ router: false })) — keep relies on SPA navigation; a full-page load replaces the DOM, so the attribute is a no-op here.`
-			);
+			warn('keep_without_router', { entry, key: region.getAttribute('data-ogygia-keep') || '' });
 		}
 
 		/**
@@ -832,11 +810,7 @@ export function hydrate_island(
 					fp: region.getAttribute('data-og-fp') || undefined,
 					reason: drift.reason || undefined
 				});
-			if (import.meta.env.DEV)
-				console.warn(
-					HEALED_WARNING + (drift.reason ? `\nWhat drifted: ${drift.reason}` : ''),
-					entry
-				);
+			if (import.meta.env.DEV) warn('island_healed', { entry, drift: drift.reason });
 		}
 		if (drift.conflict) {
 			// Two owners wanted the same nodes (runtime/ownership.ts): the repair kept Svelte's walk
@@ -849,7 +823,7 @@ export function hydrate_island(
 					fp: region.getAttribute('data-og-fp') || undefined,
 					reason: drift.conflict
 				});
-			if (import.meta.env.DEV) console.warn(`[ogygia] ${drift.conflict}`, entry);
+			if (import.meta.env.DEV) warn('ownership_conflict', { element: drift.conflict }, entry);
 		}
 
 		// Restore each frozen region's SSR DOM AFTER hydrate. An inner waking region whose
@@ -885,37 +859,16 @@ export function hydrate_island(
 					fp: region.getAttribute('data-og-fp') || undefined,
 					reason: drift.reason || undefined
 				});
-			console.warn(
-				`[ogygia] island "${entry}" discarded its ENTIRE server-rendered DOM during hydration ` +
-					`and re-rendered client-side (Svelte hydration-mismatch recovery). Three things cause this. ` +
-					`(1) Something changed this region's HTML between SSR and wake — a post-SSR transform ` +
-					`(transformPageChunk / an HTML-rewriting middleware), an A/B-testing snippet, or an edge ` +
-					`rewriter; whatever it injected (e.g. declarative shadow DOM) was just destroyed, and the ` +
-					`swap is timing-dependent, so symptoms look erratic. (2) A component in this island reads a ` +
-					`page/layout CONTEXT via plain Svelte setContext — on csr=false that runs only on the server, ` +
-					`so getContext returns undefined on the client and the island renders a different tree. ` +
-					`(3) A block in this island ({#if} / {:else if} / {#each} / {#await}) took a DIFFERENT branch ` +
-					`on the client than on the server — its condition reads something that differs between the ` +
-					`two (a browser global, a store's client default, url/page state, a Date). Svelte recovers a ` +
-					`branch mismatch SILENTLY (no throw); the walk is then off and the rest of the tree follows.` +
-					(drift.reason ? `\nWhat changed: ${drift.reason}` : '') +
-					// The walk's own verdict, after any repair — the one line that separates "repair left a
-					// residue" (1) from "the sequence was fine and Svelte failed for a reason this walk can't see"
-					// (2/3). No drift AND no throw is the signature of (3): nothing touched this region's DOM.
-					(strict_error
-						? `\nSvelte threw on the strict attempt (after repair): ${strict_error instanceof Error ? strict_error.message : String(strict_error)}`
-						: drift.reason
-							? `\nSvelte did not throw after the repair — the mismatch is one this walk does not model.`
-							: `\nThe server node sequence was INTACT and Svelte did not throw: nothing mutated this ` +
-								`region's DOM, so this is (3) (or (2)). Find the block whose branch differs: in the ` +
-								`server markup its anchor reads <!--[N--> where N is the branch the SERVER chose.`) +
-					`\nFix: for (1) make the mutation invisible to hydration (mutate only <head>, attributes, or ` +
-					`shadow templates — never the region's light DOM), or freeze the foreign-owned subtree with a ` +
-					`wake:'none' (lake) boundary; for (2) provide the value with setContext / <Provide> / ` +
-					`createContext imported from 'ogygia', read it with the same getContext(key); for (3) make ` +
-					`the condition read the same value on both sides (a prop / page.data), or move the ` +
-					`browser-only branch behind an $effect / hydratedBy().`
-			);
+			warn('hydration_discarded', {
+				entry,
+				drift: drift.reason,
+				strict:
+					strict_error === null
+						? null
+						: strict_error instanceof Error
+							? strict_error.message
+							: String(strict_error)
+			});
 		}
 
 		// This island's `<svelte:head>` re-rendered fresh (neutralize_head_hydration_markers) next to
@@ -948,7 +901,7 @@ export function hydrate_live(
 	const LiveHost = slots.live;
 	if (!LiveHost) {
 		if (import.meta.env.DEV) {
-			console.warn('[ogygia] live region needs the live feature plugin (LiveHost missing)');
+			warn('live_feature_missing');
 		}
 		return null;
 	}

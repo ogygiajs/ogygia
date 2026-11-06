@@ -20,10 +20,8 @@ export function load_devalue(): Promise<Devalue> {
 
 /** devalue, already loaded: a devalue-lane read only runs after its load ({@link load_devalue}). */
 export function devalue(): Devalue {
-	if (!lib)
-		throw new Error(
-			'[ogygia] a devalue-lane payload was read before devalue loaded (load_devalue() first)'
-		);
+	// (its code's link written out: this leaf imports nothing, see the top — messages/core.ts has it)
+	if (!lib) throw new Error('[ogygia] https://ogygiajs.dev/e/devalue_not_loaded');
 	return lib;
 }
 

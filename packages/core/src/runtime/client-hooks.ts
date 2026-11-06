@@ -13,6 +13,7 @@
  * dynamic import means the file (and its deps) load only where Kit didn't — never on a csr=true page.
  */
 import { kit_hydrates_page } from './kit-boot.ts';
+import { OgygiaError } from '../messages/core.ts';
 
 type ClientHooksModule = { init?: (input?: unknown) => unknown };
 
@@ -23,5 +24,5 @@ export function run_app_client_hooks(loader: () => Promise<ClientHooksModule>): 
 	Promise.resolve()
 		.then(loader)
 		.then((m) => m.init?.())
-		.catch((e) => console.error('[ogygia] hooks.client init failed:', e));
+		.catch((e) => console.error(new OgygiaError('client_hooks_init_failed'), e));
 }

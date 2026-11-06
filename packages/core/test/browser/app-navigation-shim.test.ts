@@ -150,6 +150,7 @@ test('refreshAll with no runtime at all refreshes the queries alone', async () =
 
 test('with no runtime at all, the browser fallback keeps goto’s contract: same-origin only', () => {
 	delete scope[NAV];
-	// A cross-origin goto without `external` throws — the same contract the router's goto has.
-	expect(() => shim.goto('https://elsewhere.example/x')).toThrow(/same-origin/);
+	// A cross-origin goto without `external` throws — the same contract the router's goto has (with no
+	// runtime to word it, the message is its code's link: messages/island.ts).
+	expect(() => shim.goto('https://elsewhere.example/x')).toThrow(/e\/goto_cross_origin/);
 });

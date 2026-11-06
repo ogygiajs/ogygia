@@ -16,6 +16,7 @@ import { slots } from './slots.ts';
 import { publish_nav } from './nav-handle.ts';
 import { nearest_attr } from './nearest-attr.ts';
 import { record_server_body } from './ownership.ts';
+import { OgygiaError, warn } from '../messages/core.ts';
 
 const WS = /\s+/;
 
@@ -357,16 +358,14 @@ export class SpaRouter {
 	): Promise<void> {
 		const target = new URL(url, location.href);
 		if (target.protocol !== 'http:' && target.protocol !== 'https:') {
-			throw new Error('[ogygia] goto() only supports http(s) URLs');
+			throw new OgygiaError('goto_not_http');
 		}
 		if (target.origin !== location.origin) {
 			if (opts.external) {
 				location.assign(target.href);
 				return Promise.resolve();
 			}
-			throw new Error(
-				'[ogygia] goto() only supports same-origin URLs (pass { external: true } to leave)'
-			);
+			throw new OgygiaError('goto_cross_origin');
 		}
 		return this.navigate(target, { push: !opts.replaceState, replace: false, type: 'goto' });
 	}
@@ -394,16 +393,16 @@ export class SpaRouter {
 
 	disableScrollHandling(): void {
 		if (typeof console !== 'undefined') {
-			console.warn('[ogygia] disableScrollHandling() is a no-op in the islands SPA router.');
+			warn('scroll_handling_noop');
 		}
 	}
 
 	pushState(): void {
-		console.warn('[ogygia] pushState() shallow routing is not supported; use goto().');
+		warn('shallow_routing_unsupported', { method: 'pushState' });
 	}
 
 	replaceState(): void {
-		console.warn('[ogygia] replaceState() shallow routing is not supported; use goto().');
+		warn('shallow_routing_unsupported', { method: 'replaceState' });
 	}
 
 	start(): void {
