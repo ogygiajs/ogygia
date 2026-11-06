@@ -271,6 +271,58 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 	/** content_css_key → emitted CSS asset referenceId (client leg). Resolved to hrefs in writeBundle. */
 	const content_css_refs = new Map();
+	// THE CSS OF A SUBTREE NO CLIENT CHUNK CARRIES. Three kinds of root render without a client chunk
+	// of their own, so no page stylesheet carries their CSS or their children's: a router page (a
+	// runtime value, not a Kit route), a server-only hole (`render: 'deferred'` with no client chunk),
+	// and a content module (it renders on the server only; the leak-free corpus never enters the
+	// client graph). Each root gets its whole tree CSS (every scoped `<style>` + plain style imports,
+	// in cascade order) as ONE dedicated asset, which rolldown's shared-chunk CSS hoisting cannot
+	// scatter (every profiler page wraps Shell). The walk reaches what the build resolves
+	// (compiler/fouc-css.ts), and a file compiles once per build however many roots reach it.
+	// Preprocessed, script kept (TS stripped): a raw `svelte.compile` throws on scss or a script-reading
+	// template (`$store`) and falls back to UNSCOPED bodies, leaking a component's CSS across the
+	// document. A plain `.css` import ships verbatim; a preprocessor dialect file (.scss/…) is skipped.
+	// `own`: the root's source when it is not the file on disk (a content module's post-mdsvex Svelte);
+	// the root's own CSS is then the caller's. `skip`: files whose CSS ships some other way.
+	const compiled_css = new Map<string, string | null>();
+	const tree_css_walk = (ctx: Parameters<typeof bundler_resolve>[0]) => {
+		const walk_resolve = bundler_resolve(ctx);
+		return async (
+			abs: string,
+			opts: { own?: string; skip?: (abs: string) => boolean } = {}
+		): Promise<string> => {
+			const { own, skip } = opts;
+			const parts: string[] = [];
+			for (const e of await collectFoucCssReachable(abs, {
+				root,
+				libDir,
+				readFile: own == null ? readFile : (p: string) => (p === abs ? own : readFile(p)),
+				alias: resolve_alias,
+				resolve: walk_resolve
+			})) {
+				if ((own != null && e.abs === abs) || skip?.(e.abs)) continue;
+				let css = compiled_css.get(e.abs);
+				if (css === undefined) {
+					const src = readFile(e.abs);
+					css =
+						src == null
+							? null
+							: e.kind === 'scoped'
+								? compileFoucScopedCss(
+										e.abs,
+										await preprocess_component_for_css(src, e.abs, root),
+										{ keepScript: true }
+									)
+								: CSS_EXT_RE.test(e.abs)
+									? src
+									: null;
+					compiled_css.set(e.abs, css);
+				}
+				if (css) parts.push(css);
+			}
+			return parts.join('\n');
+		};
+	};
 	/** router-css `rcss:<rel>` key → emitted CSS asset referenceId (client leg). A server router page
 	 *  component's whole-tree scoped CSS, compiled + emitted as a dedicated asset (link/router-css.ts). */
 	const router_css_refs = new Map<string, string>();
@@ -838,54 +890,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						console.log(
 							`[ogygia] ${skipped} island chunk(s) not emitted: their host modules are not in the server bundle (unreachable from this build's routes).`
 						);
-					// THE CSS OF A SUBTREE NO CLIENT CHUNK CARRIES. Three kinds of root render without a client
-					// chunk of their own, so no page stylesheet carries their CSS or their children's: a
-					// router page (a runtime value, not a Kit route), a server-only hole (`render:
-					// 'deferred'` with no client chunk), and a content module (it renders on the server only;
-					// the leak-free corpus never enters the client graph). Each root gets its whole tree CSS
-					// (every scoped `<style>` + plain style imports, in cascade order) as ONE dedicated asset,
-					// which rolldown's shared-chunk CSS hoisting cannot scatter (every profiler page wraps
-					// Shell). The walk reaches what the build resolves (compiler/fouc-css.ts), and a component
-					// compiles once however many roots reach it. Preprocessed, script kept (TS stripped): a raw
-					// `svelte.compile` throws on scss or a script-reading template (`$store`) and falls back to
-					// UNSCOPED bodies, leaking a component's CSS across the document. A plain `.css` import
-					// ships verbatim; a preprocessor dialect file (.scss/…) is skipped.
-					// `own`: the root's source when it is not the file on disk (a content module's
-					// post-mdsvex Svelte); the root's own CSS is then the caller's, and the walk starts there.
-					const walk_resolve = bundler_resolve(this);
-					const compiled_css = new Map<string, string | null>();
-					const tree_css = async (abs: string, own?: string): Promise<string> => {
-						const parts: string[] = [];
-						const read = own == null ? readFile : (p: string) => (p === abs ? own : readFile(p));
-						for (const e of await collectFoucCssReachable(abs, {
-							root,
-							libDir,
-							readFile: read,
-							alias: resolve_alias,
-							resolve: walk_resolve
-						})) {
-							if (own != null && e.abs === abs) continue;
-							let css = compiled_css.get(e.abs);
-							if (css === undefined) {
-								const src = readFile(e.abs);
-								css =
-									src == null
-										? null
-										: e.kind === 'scoped'
-											? compileFoucScopedCss(
-													e.abs,
-													await preprocess_component_for_css(src, e.abs, root),
-													{ keepScript: true }
-												)
-											: CSS_EXT_RE.test(e.abs)
-												? src
-												: null;
-								compiled_css.set(e.abs, css);
-							}
-							if (css) parts.push(css);
-						}
-						return parts.join('\n');
-					};
+					compiled_css.clear();
+					const tree_css = tree_css_walk(this);
 					// Router pages: resolved to a handoff `rcss:<rel>` href in writeBundle, linked at SSR by
 					// `virtual:ogygia/router-css` (link/router-css.ts).
 					router_css_refs.clear();
@@ -910,41 +916,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						}
 						if (ref) hole_css_refs.set(iid, ref);
 					}
-					// Content modules: Region.svelte links each one's asset via the handoff (writeBundle maps
-					// content_css_key → the emitted `.css` by referenceId). The module's own `<style>` comes
-					// first, compiled with `svelte.compile` on the post-mdsvex source the scanner captured, so
-					// Svelte resolves `:global` (a raw `:global` would crash the CSS minifier) and mints the
-					// SAME scoped hash the SSR'd HTML carries (default `cssHash` = hash of the CSS; `.svx`
-					// bodies use plain `<style>`, so vitePreprocess is a no-op and the source matches).
-					content_css_refs.clear();
-					const modules = markup.flatMap((m) => (m.modules ? [...m.modules] : []));
-					if (modules.length) {
-						const { compile } = await import('svelte/compiler');
-						for (const [abs, source] of modules) {
-							try {
-								let own = '';
-								if (svelteHasStyle(source)) {
-									const { css } = compile(source, {
-										filename: abs,
-										css: 'external',
-										dev: false,
-										generate: 'client',
-										experimental: { async: true }
-									});
-									own = css?.code ?? '';
-								}
-								const css = [own, await tree_css(abs, source)].filter(Boolean).join('\n');
-								if (css)
-									content_css_refs.set(
-										content_css_key(abs),
-										this.emitFile({ type: 'asset', name: 'og-content.css', source: css })
-									);
-							} catch {
-								/* a content file whose CSS can't be extracted just goes unstyled — the fix must
-							   never break a build. */
-							}
-						}
-					}
+					// (content modules: generateBundle, once the client graph is known)
 				}
 			},
 
@@ -1324,10 +1296,53 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				} as typeof output;
 			},
 
-			generateBundle() {
+			async generateBundle() {
 				if (!is_build || server_leg_of(this)) return;
 				for (const file of compiler.location_maps((ref) => this.getFileName(ref)))
 					this.emitFile({ type: 'asset', fileName: file.fileName, source: file.source });
+				// CONTENT MODULES (the third root of `tree_css_walk`): Region.svelte links each one's asset
+				// via the handoff (writeBundle maps content_css_key → the emitted `.css` by referenceId).
+				// Unlike a router page or a hole, a content module imports components the client graph
+				// may carry too (a layout's, an island's, a registry's): their CSS already ships with that
+				// chunk, and a second copy, hoisted after the page's stylesheets on a client-side
+				// navigation, would outrank the app's own overrides. So the walk skips every file the
+				// client graph holds, and the asset carries only what no client chunk does. The module's
+				// own `<style>` comes first, compiled with `svelte.compile` on the post-mdsvex source the
+				// scanner captured, so Svelte resolves `:global` (a raw `:global` would crash the CSS
+				// minifier) and mints the SAME scoped hash the SSR'd HTML carries (default `cssHash` =
+				// hash of the CSS; `.svx` bodies use plain `<style>`, so vitePreprocess is a no-op).
+				content_css_refs.clear();
+				const modules = markup.flatMap((m) => (m.modules ? [...m.modules] : []));
+				if (!modules.length) return;
+				const client = new Set<string>();
+				for (const id of this.getModuleIds()) client.add(path.normalize(id.split('?')[0]));
+				const tree_css = tree_css_walk(this);
+				const { compile } = await import('svelte/compiler');
+				for (const [abs, source] of modules) {
+					try {
+						let own = '';
+						if (svelteHasStyle(source)) {
+							const { css } = compile(source, {
+								filename: abs,
+								css: 'external',
+								dev: false,
+								generate: 'client',
+								experimental: { async: true }
+							});
+							own = css?.code ?? '';
+						}
+						const tree = await tree_css(abs, { own: source, skip: (p) => client.has(p) });
+						const css = [own, tree].filter(Boolean).join('\n');
+						if (css)
+							content_css_refs.set(
+								content_css_key(abs),
+								this.emitFile({ type: 'asset', name: 'og-content.css', source: css })
+							);
+					} catch {
+						/* a content file whose CSS can't be extracted just goes unstyled — the fix must never
+						   break a build. */
+					}
+				}
 			},
 
 			// THE PROFILER'S MAPS, FILLED: after every plugin's writeBundle (the chunks are final on disk)

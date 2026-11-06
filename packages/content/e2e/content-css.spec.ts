@@ -73,5 +73,26 @@ test.describe('REGRESSION: content body (.svx) ships + applies its own scoped CS
 			child === 'rgb(201, 27, 142)',
 			child
 		);
+		// A component the client graph carries too (the layout renders it) ships its CSS with that
+		// chunk only: a second copy in the body's asset would load after the page's stylesheets on a
+		// client-side navigation and outrank the app's overrides.
+		const shared = await page
+			.locator('[data-content-css-probe] ~ [data-content-css-shared]')
+			.evaluate((el) => getComputedStyle(el).outlineColor)
+			.catch(() => '');
+		check('content body: the shared component is styled', shared === 'rgb(37, 99, 235)', shared);
+		const own_assets = await page.evaluate(() =>
+			Array.from(document.querySelectorAll('link[data-ogygia-region-css]'), (l) =>
+				l.getAttribute('href')
+			).filter((h): h is string => !!h && h.includes('og-content'))
+		);
+		const texts = await Promise.all(
+			own_assets.map((h) => page.evaluate((u) => fetch(u).then((r) => r.text()), h))
+		);
+		check(
+			"content body: its asset leaves out a client-graph component's CSS",
+			texts.length > 0 && texts.every((t) => !t.includes('sharedprobe')),
+			`${texts.length} asset(s)`
+		);
 	});
 });
