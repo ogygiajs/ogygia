@@ -70,8 +70,8 @@ export type {
 	SearchOptions,
 	SearchBrain
 } from './search.ts';
-export { search } from './search-client.ts';
-export type { SearchClient, SearchClientOptions } from './search-client.ts';
+export { SearchClient } from './search-client.ts';
+export type { SearchClientOptions } from './search-client.ts';
 
 // ── chrome: every component, one barrel (see ./components/index.ts — modern bundlers tree-shake
 // barrels; import a brick, ship a brick). Styling is an EXPLICIT import:

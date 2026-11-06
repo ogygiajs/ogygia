@@ -346,7 +346,7 @@ export interface ProfilerOptions {
 	 * own copies). Not a `devtools({ profiler })` option: a store is a live object the build-time
 	 * options cannot carry, so the app sets it at runtime with `setProfilerStore(store)` from
 	 * `@ogygia/devtools/profiler/storage`, in hooks.server.ts, and the server half passes it in here
-	 * when the profiler mounts. A store is `sqliteStore(...)`, `redisStore(...)` or `postgresStore(...)`
+	 * when the profiler mounts. A store is `new SqliteStore(…)`, `new RedisStore(…)` or `new PostgresStore(…)`
 	 * from `@ogygia/devtools/profiler/storage/{sqlite,redis,postgres}`, or your own; every finished
 	 * report is written there and read back from there, so it survives the instance that made it and
 	 * a whole team shares one list. The store is dual-written: memory stays the hot cache, the store

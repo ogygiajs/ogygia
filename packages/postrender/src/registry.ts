@@ -21,7 +21,7 @@ import type {
 	PostrenderHandleOptions,
 	EdgeAdapter
 } from './types.ts';
-import { memory_store } from './memory-store.ts';
+import { MemoryStore } from './memory-store.ts';
 import { normalize_prefix } from './key.ts';
 import type { DevtoolsEventInput } from '@ogygia/core/plugin';
 import { sourceTag } from '@ogygia/core/plugin/utils';
@@ -65,7 +65,7 @@ export function install(options: PostrenderHandleOptions): Runtime {
 		warned_replica_blindspot = true;
 		warn('postrender_edges_without_shared_store');
 	}
-	const runtime: Runtime = { store: options.store ?? memory_store(), edges };
+	const runtime: Runtime = { store: options.store ?? new MemoryStore(), edges };
 	slot.installed = runtime;
 	return runtime;
 }
@@ -87,7 +87,7 @@ export function installed_runtime(): Runtime | null {
 
 /** This server's runtime: its handle's, else the memory default. */
 export function current_runtime(): Runtime {
-	return slot.installed ?? (slot.fallback ??= { store: memory_store(), edges: [] });
+	return slot.installed ?? (slot.fallback ??= { store: new MemoryStore(), edges: [] });
 }
 
 /** Harness/test escape hatch: no handle made, a fresh memory default. */

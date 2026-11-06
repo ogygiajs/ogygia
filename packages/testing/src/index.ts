@@ -25,7 +25,7 @@
  * });
  * ```
  *
- * Anything else (Puppeteer, WebdriverIO, a custom harness): `createOgygia(driver)` with a driver
+ * Anything else (Puppeteer, WebdriverIO, a custom harness): `new Ogygia(driver)` with a driver
  * that can run a function in the page and make a request; `expect.extend(ogygiaMatchers)` in
  * Vitest / Jest. Every report is plain JSON: keep them (the Playwright fixture attaches them to each
  * test as `ogygia.json`) and `compare` / `toMarkdown` two runs in a CI script.
@@ -268,46 +268,232 @@ const wire_pat = (p: string | RegExp | undefined) =>
 /** "Older engine" said once per site and version for the whole process (a CI run opens hundreds of pages). */
 const warned_engines = new Set<string>();
 
-export interface Ogygia {
-	page(): Promise<OgygiaPageReport>;
-	hydration(): Promise<OgygiaHydrationReport>;
+/** The primitives over any driver. */
+export class Ogygia {
+	/** every report taken so far, in order */
+	readonly reports: OgygiaReport[] = [];
+	#driver: OgygiaDriver;
+	#options: OgygiaOptions;
+	// the page's engine version, from the last call (an older site's engine answers less)
+	#engine: OgygiaEngine = { version: TESTING_ENGINE_VERSION };
+
+	constructor(driver: OgygiaDriver, options: OgygiaOptions = {}) {
+		this.#driver = driver;
+		this.#options = options;
+	}
+
+	async page(): Promise<OgygiaPageReport> {
+		await this.#call('settled', 300, 10_000);
+		const r = await this.#call<Omit<OgygiaPageReport, 'kind'> | null>(
+			'page',
+			this.#options.cpuFunctions
+		);
+		if (!r)
+			throw new Error(
+				'the page load was not measured: in a build, devtools must be on in the browser (the `og_devtools=on` cookie, or `?og-devtools=on`) before the page loads'
+			);
+		return this.#keep({ kind: 'page', ...r, engine: this.#engine });
+	}
+
+	async hydration(): Promise<OgygiaHydrationReport> {
+		await this.#call('settled', 300, 10_000);
+		const ignore = (this.#options.ignoreAttributes ?? []).map((r) => ({
+			tag: wire_pat(r.tag),
+			name: wire_pat(r.name),
+			value: wire_pat(r.value)
+		}));
+		const r = await this.#call<Omit<OgygiaHydrationReport, 'kind' | 'engine'>>(
+			'hydration',
+			this.#options.islandKey,
+			ignore
+		);
+		return this.#keep({ kind: 'hydration', ...r, engine: this.#engine });
+	}
+
 	/** `server: true` also records the server over the same stretch (needs `devtools({ profiler })`, the devtools plugin's profiler).
 	 *  `blockNavigation: true` holds back any document load the actions cause (a reload, a link), so the
 	 *  page and the recording stay, and lists each in `navigations` (needs a driver that can: Playwright's) */
-	record(
+	async record(
 		actions: () => Promise<unknown>,
-		opts?: { server?: boolean; blockNavigation?: boolean }
-	): Promise<OgygiaSessionReport>;
+		ropts?: { server?: boolean; blockNavigation?: boolean }
+	): Promise<OgygiaSessionReport> {
+		const driver = this.#driver;
+		const options = this.#options;
+		await this.#call('settled', 300, 10_000);
+		const b = options.profilerBase ?? '/__profiler';
+		const headers = {
+			accept: 'application/json',
+			...(options.profilerKey ? { 'x-profiler-key': options.profilerKey } : {})
+		};
+		// the server window first (a 409: another recording holds the recorder — wait for it). A window
+		// that cannot start leaves the session whole, with `server: { error }`
+		let window_id: { header: string; id: string } | null = null;
+		let untag: (() => Promise<void>) | null = null;
+		let server_error: string | null = null;
+		if (ropts?.server) {
+			for (let tries = 0; ; tries++) {
+				const s = await this.#post(`${b}/window/start`, headers);
+				if (s.status === 200) {
+					const j = JSON.parse(s.body) as { id?: string; header?: string };
+					if (j.id && j.header) window_id = { header: j.header, id: j.id };
+					break;
+				}
+				if (s.status !== 409 || tries >= 30) {
+					server_error = `the profiler could not start a window (${s.status}): ${s.body.slice(0, 200)}`;
+					break;
+				}
+				await this.#wait(2000);
+			}
+			// each request of the session carries the window's id, so every instance of a serverless
+			// deployment attributes it (the profiler gathers them from its store at stop)
+			if (window_id && driver.tagRequests)
+				untag = await driver.tagRequests(window_id.header, window_id.id);
+		}
+		if (ropts?.blockNavigation && !driver.blockNavigation)
+			throw new Error(
+				'record(…, { blockNavigation: true }) needs a driver with `blockNavigation()` (withOgygia’s Playwright driver has one)'
+			);
+		const blocker = ropts?.blockNavigation ? await driver.blockNavigation!() : null;
+		await this.#call('record_start');
+		let failed = false;
+		let failure: unknown;
+		try {
+			await actions();
+			await this.#wait(600); // the last entries (a paint, a late request) land
+		} catch (e) {
+			failed = true;
+			failure = e;
+		}
+		const blocked = blocker ? await blocker.stop() : [];
+		// The recording lives in the page. If the actions took it to another document that has no
+		// testing API (another site, a page without devtools), it is gone: say THAT, with the actions'
+		// own error as the cause — never the "serve with devtools" of a page that never had it.
+		let r: Omit<OgygiaSessionReport, 'kind'> | null = null;
+		let stop_error: unknown;
+		try {
+			r = await this.#call<Omit<OgygiaSessionReport, 'kind'> | null>('record_stop', blocked);
+		} catch (e) {
+			stop_error = e;
+		}
+		let server: OgygiaSessionReport['server'];
+		if (untag) await untag().catch(() => {});
+		if (ropts?.server && !server_error) {
+			const s = await this.#post(`${b}/window/stop`, {
+				...headers,
+				...(window_id ? { [window_id.header]: window_id.id } : {})
+			});
+			if (s.status === 200) {
+				const json = JSON.parse(s.body) as Record<string, unknown>;
+				server = {
+					...json,
+					mode: json.kind,
+					kind: 'profile'
+				} as unknown as OgygiaSessionReport['server'];
+			} else server_error = `the profiler's window failed (${s.status}): ${s.body.slice(0, 200)}`;
+		}
+		if (server_error) server = { error: server_error } as unknown as OgygiaSessionReport['server'];
+		if (!r) {
+			const now = await this.#in_page(() => location.href, null).catch(() => null);
+			throw new Error(
+				'the recording was lost: the page went to another document while it ran' +
+					(now ? ` (it is now at ${now})` : '') +
+					(stop_error !== undefined
+						? ', and that document has no ogygia testing API to finish it'
+						: '') +
+					(failed ? '. The actions failed too: see `cause`' : '') +
+					'. To keep the page, record with `{ blockNavigation: true }`.',
+				{ cause: failed ? failure : stop_error }
+			);
+		}
+		if (failed) throw failure;
+		// an older site's engine ignores what it is handed: fill in what the test side knows
+		const old = r as Partial<OgygiaSessionReport> & Omit<OgygiaSessionReport, 'kind'>;
+		const navigations =
+			old.navigations ??
+			blocked.map((n) => ({ url: n.url, t: n.t, after: null, island: null, approx: true }));
+		const findings = old.findings.map((f) => ({ ...f, names: f.names ?? [] }));
+		if (!old.navigations)
+			for (const n of navigations)
+				findings.push({
+					code: 'navigation-blocked',
+					severity: 'warn',
+					message: `The page tried to load another document (${n.url}); it was blocked, so the recording kept going.`,
+					refs: [],
+					names: []
+				});
+		return this.#keep({
+			kind: 'session',
+			...r,
+			findings,
+			navigations,
+			engine: this.#engine,
+			...(server ? { server } : {})
+		});
+	}
+
 	/** `fields`: only these top-level sections of the report (with what names it — schema, engine, id,
 	 *  target, links), e.g. `['requests', 'network', 'findings', 'assets', 'summary']`: a full report is
 	 *  hundreds of KB, mostly `stacks`, `hot_functions` and `drill` */
-	profile(path: string, opts?: { runs?: number; fields?: string[] }): Promise<OgygiaProfileReport>;
-	/** wait until no island is waking or hydrating */
-	settled(opts?: { quiet?: number; timeout?: number }): Promise<boolean>;
-	/** every report taken so far, in order */
-	readonly reports: OgygiaReport[];
-}
+	async profile(
+		path: string,
+		opts?: { runs?: number; fields?: string[] }
+	): Promise<OgygiaProfileReport> {
+		const options = this.#options;
+		const b = options.profilerBase ?? '/__profiler';
+		const fields = opts?.fields?.length
+			? `&fields=${encodeURIComponent(opts.fields.join(','))}`
+			: '';
+		const res = await this.#get(
+			`${b}/page?p=${encodeURIComponent(path)}&runs=${opts?.runs ?? 3}&format=json${fields}`,
+			{
+				accept: 'application/json',
+				...(options.profilerKey ? { 'x-profiler-key': options.profilerKey } : {})
+			}
+		);
+		if (res.status !== 200)
+			throw new Error(`the profiler answered ${res.status} for ${path}: ${res.body.slice(0, 200)}`);
+		// (the profiler's JSON carries its own `kind` — the recording mode — so ours goes last)
+		const json = JSON.parse(res.body) as Omit<OgygiaProfileReport, 'kind'> & { kind?: string };
+		return this.#keep({
+			...json,
+			mode: json.kind,
+			kind: 'profile'
+		} as unknown as OgygiaProfileReport);
+	}
 
-/** The primitives over any driver. */
-export function createOgygia(driver: OgygiaDriver, options: OgygiaOptions = {}): Ogygia {
-	const wait = driver.wait ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
-	const reports: OgygiaReport[] = [];
-	const keep = <T extends OgygiaReport>(r: T): T => (reports.push(r), r);
-	// the page's engine version, from the last call (an older site's engine answers less)
-	let engine: OgygiaEngine = { version: TESTING_ENGINE_VERSION };
+	/** wait until no island is waking or hydrating */
+	settled(opts?: { quiet?: number; timeout?: number }): Promise<boolean> {
+		return this.#call<boolean>('settled', opts?.quiet ?? 300, opts?.timeout ?? 10_000);
+	}
+
+	#keep<T extends OgygiaReport>(r: T): T {
+		this.reports.push(r);
+		return r;
+	}
+
+	#wait(ms: number): Promise<void> {
+		const driver = this.#driver;
+		return driver.wait ? driver.wait(ms) : new Promise<void>((r) => setTimeout(r, ms));
+	}
+
 	/** `driver.evaluate`, typed at the call site: `fn` goes to the driver as is (it runs in the
 	 *  page), and its result comes back as `fn` returns it. */
-	const in_page = <A, R>(fn: (arg: A) => R | Promise<R>, arg: A): Promise<R> =>
-		driver.evaluate(fn as (arg: unknown) => unknown, arg) as Promise<R>;
-	const call = async <T>(name: string, ...args: unknown[]): Promise<T> => {
-		const until = Date.now() + (options.timeout ?? 15_000);
+	#in_page<A, R>(fn: (arg: A) => R | Promise<R>, arg: A): Promise<R> {
+		return this.#driver.evaluate(fn as (arg: unknown) => unknown, arg) as Promise<R>;
+	}
+
+	async #call<T>(name: string, ...args: unknown[]): Promise<T> {
+		const until = Date.now() + (this.#options.timeout ?? 15_000);
 		while (
-			!(await in_page(() => !!(window as { __ogygia_testing?: unknown }).__ogygia_testing, null))
+			!(await this.#in_page(
+				() => !!(window as { __ogygia_testing?: unknown }).__ogygia_testing,
+				null
+			))
 		) {
 			if (Date.now() > until) throw new OgygiaError('testing_api_absent');
-			await wait(100);
+			await this.#wait(100);
 		}
-		const out = (await in_page(
+		const out = (await this.#in_page(
 			async ([n, a]: readonly [string, unknown[]]) => {
 				const t = (
 					window as unknown as {
@@ -323,196 +509,42 @@ export function createOgygia(driver: OgygiaDriver, options: OgygiaOptions = {}):
 		// (an engine from 3 on names itself, lean or not, in its reports)
 		const own =
 			out.r && typeof out.r === 'object' ? (out.r as { engine?: OgygiaEngine }).engine : undefined;
-		engine = own ?? { version: out.v };
+		this.#engine = own ?? { version: out.v };
 		if (out.v < TESTING_ENGINE_VERSION) {
-			const at = await in_page(() => location.origin, null).catch(() => '');
+			const at = await this.#in_page(() => location.origin, null).catch(() => '');
 			const key = `${at}|${out.v}`;
 			if (warned_engines.has(key)) return out.r;
 			warned_engines.add(key);
 			warn('testing_engine_older', { at, version: out.v, expected: TESTING_ENGINE_VERSION });
 		}
 		return out.r;
-	};
-	const get =
-		driver.get ??
-		((url: string, headers: Record<string, string>) =>
-			in_page(
-				async ([u, h]: readonly [string, Record<string, string>]) => {
-					const r = await fetch(u, { headers: h });
-					return { status: r.status, body: await r.text() };
-				},
-				[url, headers] as const
-			));
-	const post =
-		driver.post ??
-		((url: string, headers: Record<string, string>) =>
-			in_page(
-				async ([u, h]: readonly [string, Record<string, string>]) => {
-					const r = await fetch(u, { method: 'POST', headers: h });
-					return { status: r.status, body: await r.text() };
-				},
-				[url, headers] as const
-			));
-	return {
-		reports,
-		async page() {
-			await call('settled', 300, 10_000);
-			const r = await call<Omit<OgygiaPageReport, 'kind'> | null>('page', options.cpuFunctions);
-			if (!r)
-				throw new Error(
-					'the page load was not measured: in a build, devtools must be on in the browser (the `og_devtools=on` cookie, or `?og-devtools=on`) before the page loads'
-				);
-			return keep({ kind: 'page', ...r, engine });
-		},
-		async hydration() {
-			await call('settled', 300, 10_000);
-			const ignore = (options.ignoreAttributes ?? []).map((r) => ({
-				tag: wire_pat(r.tag),
-				name: wire_pat(r.name),
-				value: wire_pat(r.value)
-			}));
-			const r = await call<Omit<OgygiaHydrationReport, 'kind' | 'engine'>>(
-				'hydration',
-				options.islandKey,
-				ignore
-			);
-			return keep({ kind: 'hydration', ...r, engine });
-		},
-		async record(actions, ropts) {
-			await call('settled', 300, 10_000);
-			const b = options.profilerBase ?? '/__profiler';
-			const headers = {
-				accept: 'application/json',
-				...(options.profilerKey ? { 'x-profiler-key': options.profilerKey } : {})
-			};
-			// the server window first (a 409: another recording holds the recorder — wait for it). A window
-			// that cannot start leaves the session whole, with `server: { error }`
-			let window_id: { header: string; id: string } | null = null;
-			let untag: (() => Promise<void>) | null = null;
-			let server_error: string | null = null;
-			if (ropts?.server) {
-				for (let tries = 0; ; tries++) {
-					const s = await post(`${b}/window/start`, headers);
-					if (s.status === 200) {
-						const j = JSON.parse(s.body) as { id?: string; header?: string };
-						if (j.id && j.header) window_id = { header: j.header, id: j.id };
-						break;
-					}
-					if (s.status !== 409 || tries >= 30) {
-						server_error = `the profiler could not start a window (${s.status}): ${s.body.slice(0, 200)}`;
-						break;
-					}
-					await wait(2000);
-				}
-				// each request of the session carries the window's id, so every instance of a serverless
-				// deployment attributes it (the profiler gathers them from its store at stop)
-				if (window_id && driver.tagRequests)
-					untag = await driver.tagRequests(window_id.header, window_id.id);
-			}
-			if (ropts?.blockNavigation && !driver.blockNavigation)
-				throw new Error(
-					'record(…, { blockNavigation: true }) needs a driver with `blockNavigation()` (withOgygia’s Playwright driver has one)'
-				);
-			const blocker = ropts?.blockNavigation ? await driver.blockNavigation!() : null;
-			await call('record_start');
-			let failed = false;
-			let failure: unknown;
-			try {
-				await actions();
-				await wait(600); // the last entries (a paint, a late request) land
-			} catch (e) {
-				failed = true;
-				failure = e;
-			}
-			const blocked = blocker ? await blocker.stop() : [];
-			// The recording lives in the page. If the actions took it to another document that has no
-			// testing API (another site, a page without devtools), it is gone: say THAT, with the actions'
-			// own error as the cause — never the "serve with devtools" of a page that never had it.
-			let r: Omit<OgygiaSessionReport, 'kind'> | null = null;
-			let stop_error: unknown;
-			try {
-				r = await call<Omit<OgygiaSessionReport, 'kind'> | null>('record_stop', blocked);
-			} catch (e) {
-				stop_error = e;
-			}
-			let server: OgygiaSessionReport['server'];
-			if (untag) await untag().catch(() => {});
-			if (ropts?.server && !server_error) {
-				const s = await post(`${b}/window/stop`, {
-					...headers,
-					...(window_id ? { [window_id.header]: window_id.id } : {})
-				});
-				if (s.status === 200) {
-					const json = JSON.parse(s.body) as Record<string, unknown>;
-					server = {
-						...json,
-						mode: json.kind,
-						kind: 'profile'
-					} as unknown as OgygiaSessionReport['server'];
-				} else server_error = `the profiler's window failed (${s.status}): ${s.body.slice(0, 200)}`;
-			}
-			if (server_error)
-				server = { error: server_error } as unknown as OgygiaSessionReport['server'];
-			if (!r) {
-				const now = await in_page(() => location.href, null).catch(() => null);
-				throw new Error(
-					'the recording was lost: the page went to another document while it ran' +
-						(now ? ` (it is now at ${now})` : '') +
-						(stop_error !== undefined
-							? ', and that document has no ogygia testing API to finish it'
-							: '') +
-						(failed ? '. The actions failed too: see `cause`' : '') +
-						'. To keep the page, record with `{ blockNavigation: true }`.',
-					{ cause: failed ? failure : stop_error }
-				);
-			}
-			if (failed) throw failure;
-			// an older site's engine ignores what it is handed: fill in what the test side knows
-			const old = r as Partial<OgygiaSessionReport> & Omit<OgygiaSessionReport, 'kind'>;
-			const navigations =
-				old.navigations ??
-				blocked.map((n) => ({ url: n.url, t: n.t, after: null, island: null, approx: true }));
-			const findings = old.findings.map((f) => ({ ...f, names: f.names ?? [] }));
-			if (!old.navigations)
-				for (const n of navigations)
-					findings.push({
-						code: 'navigation-blocked',
-						severity: 'warn',
-						message: `The page tried to load another document (${n.url}); it was blocked, so the recording kept going.`,
-						refs: [],
-						names: []
-					});
-			return keep({
-				kind: 'session',
-				...r,
-				findings,
-				navigations,
-				engine,
-				...(server ? { server } : {})
-			});
-		},
-		async profile(path, opts) {
-			const b = options.profilerBase ?? '/__profiler';
-			const fields = opts?.fields?.length
-				? `&fields=${encodeURIComponent(opts.fields.join(','))}`
-				: '';
-			const res = await get(
-				`${b}/page?p=${encodeURIComponent(path)}&runs=${opts?.runs ?? 3}&format=json${fields}`,
-				{
-					accept: 'application/json',
-					...(options.profilerKey ? { 'x-profiler-key': options.profilerKey } : {})
-				}
-			);
-			if (res.status !== 200)
-				throw new Error(
-					`the profiler answered ${res.status} for ${path}: ${res.body.slice(0, 200)}`
-				);
-			// (the profiler's JSON carries its own `kind` — the recording mode — so ours goes last)
-			const json = JSON.parse(res.body) as Omit<OgygiaProfileReport, 'kind'> & { kind?: string };
-			return keep({ ...json, mode: json.kind, kind: 'profile' } as unknown as OgygiaProfileReport);
-		},
-		settled: (o) => call<boolean>('settled', o?.quiet ?? 300, o?.timeout ?? 10_000)
-	};
+	}
+
+	/** GET in the app: the driver's own, else `fetch` inside the page */
+	#get(url: string, headers: Record<string, string>): Promise<{ status: number; body: string }> {
+		const driver = this.#driver;
+		if (driver.get) return driver.get(url, headers);
+		return this.#in_page(
+			async ([u, h]: readonly [string, Record<string, string>]) => {
+				const r = await fetch(u, { headers: h });
+				return { status: r.status, body: await r.text() };
+			},
+			[url, headers] as const
+		);
+	}
+
+	/** POST in the app: the driver's own, else `fetch` inside the page */
+	#post(url: string, headers: Record<string, string>): Promise<{ status: number; body: string }> {
+		const driver = this.#driver;
+		if (driver.post) return driver.post(url, headers);
+		return this.#in_page(
+			async ([u, h]: readonly [string, Record<string, string>]) => {
+				const r = await fetch(u, { method: 'POST', headers: h });
+				return { status: r.status, body: await r.text() };
+			},
+			[url, headers] as const
+		);
+	}
 }
 
 // ── Playwright, without importing it at runtime (types only: they vanish in the build) ──
@@ -534,7 +566,7 @@ export interface HeldNavigation {
 
 /**
  * The driver `withOgygia` builds, for a Playwright `Page` you hold yourself (several contexts in one
- * test, a custom fixture): `createOgygia(playwrightDriver(page, { baseURL }))`. `onNavigationHeld` is
+ * test, a custom fixture): `new Ogygia(playwrightDriver(page, { baseURL }))`. `onNavigationHeld` is
  * called as each document load is held back, so you can note what your script was doing then.
  */
 export function playwrightDriver(
@@ -655,7 +687,7 @@ export function withOgygia<
 		ogygiaOptions: [{}, { option: true }],
 		ogygia: async ({ page, baseURL, ogygiaOptions }, use, testInfo) => {
 			await turnOnDevtools(page, baseURL, { lean: ogygiaOptions.lean });
-			const o = createOgygia(playwrightDriver(page, { baseURL }), ogygiaOptions);
+			const o = new Ogygia(playwrightDriver(page, { baseURL }), ogygiaOptions);
 			await use(o);
 			if (ogygiaOptions.attach !== false && o.reports.length)
 				await testInfo.attach('ogygia.json', {

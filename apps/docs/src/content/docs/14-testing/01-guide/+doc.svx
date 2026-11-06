@@ -191,14 +191,14 @@ Three runs per side is a good starting point for the pages whose first pass show
 
 ## Other runners and drivers
 
-`createOgygia(driver)` gives the same four primitives over any driver that can run a function in the page (`evaluate`) and, for `profile()`, make a request (`get`). Puppeteer's `Page` works, for example. The matchers are plain `expect.extend` matchers:
+`new Ogygia(driver)` gives the same four primitives over any driver that can run a function in the page (`evaluate`) and, for `profile()`, make a request (`get`). Puppeteer's `Page` works, for example. The matchers are plain `expect.extend` matchers:
 
 ```ts
 import { expect } from 'vitest';
-import { createOgygia, ogygiaMatchers } from '@ogygia/testing';
+import { Ogygia, ogygiaMatchers } from '@ogygia/testing';
 
 expect.extend(ogygiaMatchers);
-const ogygia = createOgygia({ evaluate: (fn, arg) => page.evaluate(fn, arg) });
+const ogygia = new Ogygia({ evaluate: (fn, arg) => page.evaluate(fn, arg) });
 ```
 
 The driver is an `OgygiaDriver`, and only `evaluate` is required. The other members let a driver do what the defaults cannot:
@@ -212,13 +212,13 @@ The driver is an `OgygiaDriver`, and only `evaluate` is required. The other memb
 | `blockNavigation()`          | Starts holding back the page's document loads, for `record(…, { blockNavigation: true })`. Returns `{ stop() }`, which lists them.                                                     | `record(…, { blockNavigation: true })` throws |
 | `tagRequests(header, value)` | Adds a header to every request the page makes to its own origin until the returned function is called, so a serverless deployment can tie the session's requests to its server window. | requests go untagged                          |
 
-`createOgygia(driver, options)` takes the same options as the fixture's `ogygiaOptions`, apart from `attach` and `lean`, which belong to the fixture.
+`new Ogygia(driver, options)` takes the same options as the fixture's `ogygiaOptions`, apart from `attach` and `lean`, which belong to the fixture.
 
 If you manage Playwright pages yourself without the fixture (for example two browser contexts in one test, one for a preview and one for a baseline), `playwrightDriver(page)` gives you the driver the fixture builds, `blockNavigation` included, and `turnOnDevtools(page, baseURL)` sets the cookie. `onNavigationHeld` is called each time a load is held back, so you can note which step of your script was running:
 
 ```ts
-import { createOgygia, playwrightDriver, turnOnDevtools } from '@ogygia/testing';
+import { Ogygia, playwrightDriver, turnOnDevtools } from '@ogygia/testing';
 
 await turnOnDevtools(previewPage, previewURL);
-const preview = createOgygia(playwrightDriver(previewPage, { baseURL: previewURL, onNavigationHeld: (n) => log(step, n.url) }));
+const preview = new Ogygia(playwrightDriver(previewPage, { baseURL: previewURL, onNavigationHeld: (n) => log(step, n.url) }));
 ```

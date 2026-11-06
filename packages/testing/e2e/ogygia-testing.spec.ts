@@ -14,7 +14,7 @@ import {
 	compare,
 	toMarkdown,
 	checkBudget,
-	createOgygia,
+	Ogygia,
 	playwrightDriver,
 	turnOnDevtools
 } from '../dist/index.js';
@@ -188,7 +188,7 @@ test('a reload in a click handler is named by the button that ran it, run after 
 	// (a caller holding its own pages: the driver withOgygia builds, with a hook on each held load)
 	const held: string[] = [];
 	await turnOnDevtools(page, baseURL);
-	const og = createOgygia(
+	const og = new Ogygia(
 		playwrightDriver(page, { baseURL, onNavigationHeld: (n) => held.push(n.url) })
 	);
 	await page.goto('/dt-session');

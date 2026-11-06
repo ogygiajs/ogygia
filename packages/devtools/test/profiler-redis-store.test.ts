@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { redisStore } from '../src/profiler/storage/redis.ts';
+import { RedisStore } from '../src/profiler/storage/redis.ts';
 import { MAX_VISITS_PER_KEY } from '../src/profiler/storage/visits.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ describe('redis store', () => {
 	for (const flavour of ['node', 'io'] as const) {
 		it(`${flavour}: the prefix names every key, and a TTL write is one SET`, async () => {
 			const f = fake(flavour);
-			const s = redisStore(f.client as never, { prefix: 'app1:', ttlSeconds: 60 });
+			const s = new RedisStore(f.client as never, { prefix: 'app1:', ttlSeconds: 60 });
 			await s.putReport(rec('a', 1));
 			expect([...f.kv.keys()]).toEqual(['app1:report:a']);
 			expect([...f.z.keys()]).toEqual(['app1:reports']);
@@ -112,7 +112,7 @@ describe('redis store', () => {
 
 		it(`${flavour}: an expired report's id leaves the index when the list is read`, async () => {
 			const f = fake(flavour);
-			const s = redisStore(f.client as never);
+			const s = new RedisStore(f.client as never);
 			await s.putReport(rec('a', 1));
 			await s.putReport(rec('b', 2));
 			f.kv.delete('og:report:a'); // the TTL ran out
@@ -122,7 +122,7 @@ describe('redis store', () => {
 
 		it(`${flavour}: prune keeps the newest, and visits are capped per page`, async () => {
 			const f = fake(flavour);
-			const s = redisStore(f.client as never);
+			const s = new RedisStore(f.client as never);
 			for (let i = 0; i < 5; i++) await s.putReport(rec('r' + i, i));
 			await s.prune!(2);
 			expect((await s.listReports()).map((r) => r.id)).toEqual(['r4', 'r3']);

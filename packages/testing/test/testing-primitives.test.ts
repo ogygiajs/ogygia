@@ -4,7 +4,7 @@ import {
 	ogygiaMatchers,
 	compare,
 	toMarkdown,
-	createOgygia,
+	Ogygia,
 	type OgygiaReport
 } from '../src/index.ts';
 
@@ -430,9 +430,9 @@ describe('compare: hydration, session counts, vitals', () => {
 	});
 });
 
-describe('createOgygia', () => {
+describe('Ogygia', () => {
 	it('drives any page driver, and tells you when the page has no testing API', async () => {
-		const o = createOgygia({ evaluate: async () => false as never }, { timeout: 50 });
+		const o = new Ogygia({ evaluate: async () => false as never }, { timeout: 50 });
 		await expect(o.page()).rejects.toThrow('plugins: [ogygia(), devtools(), sveltekit()]');
 	});
 	/** A page driver over a fake in-page API: `present()` says whether the API is in the page now. */
@@ -464,7 +464,7 @@ describe('createOgygia', () => {
 
 	it('record(): a page that left for another document says so, with the actions’ own error as the cause', async () => {
 		let here = true;
-		const o = createOgygia(
+		const o = new Ogygia(
 			fake(
 				{ settled: () => true, record_start: () => true, record_stop: () => session },
 				() => here
@@ -484,7 +484,7 @@ describe('createOgygia', () => {
 		expect((err as Error).cause).toBe(boom);
 	});
 	it('record(): the actions’ error still surfaces when the page stayed', async () => {
-		const o = createOgygia(
+		const o = new Ogygia(
 			fake({ settled: () => true, record_start: () => true, record_stop: () => session })
 		);
 		await expect(o.record(async () => Promise.reject(new Error('plain failure')))).rejects.toThrow(
@@ -494,7 +494,7 @@ describe('createOgygia', () => {
 	it('record({ blockNavigation }): the driver holds the loads back and the page lists them', async () => {
 		let stop_args: unknown[] = [];
 		const held = [{ url: 'http://app.test/', t: 120 }];
-		const o = createOgygia({
+		const o = new Ogygia({
 			...fake({
 				settled: () => true,
 				record_start: () => true,
@@ -514,7 +514,7 @@ describe('createOgygia', () => {
 		expect(stop_args).toEqual([held]);
 		expect(r.navigations[0]).toMatchObject({ after: 'button.reload', island: 'Hero' });
 		await expect(
-			createOgygia(fake({ settled: () => true })).record(async () => {}, { blockNavigation: true })
+			new Ogygia(fake({ settled: () => true })).record(async () => {}, { blockNavigation: true })
 		).rejects.toThrow('blockNavigation()');
 	});
 	it('an older site’s engine: navigations filled in from what the driver held, finding names empty, warned once', async () => {
@@ -533,7 +533,7 @@ describe('createOgygia', () => {
 				timeline: [],
 				unmeasured: []
 			};
-			const o = createOgygia({
+			const o = new Ogygia({
 				...fake(
 					{ settled: () => true, record_start: () => true, record_stop: () => old_session },
 					() => true,
@@ -563,7 +563,7 @@ describe('createOgygia', () => {
 		console.warn = (m: string) => warnings.push(m);
 		try {
 			for (let n = 0; n < 3; n++)
-				await createOgygia(fake({ settled: () => true }, () => true, 2)).settled();
+				await new Ogygia(fake({ settled: () => true }, () => true, 2)).settled();
 			expect(warnings.filter((w) => w.includes('(version 2'))).toHaveLength(1);
 		} finally {
 			console.warn = warn;
@@ -571,7 +571,7 @@ describe('createOgygia', () => {
 	});
 	it('ignoreAttributes crosses into the page as plain data (a RegExp as its source)', async () => {
 		let asked: unknown[] = [];
-		const o = createOgygia(
+		const o = new Ogygia(
 			fake({
 				settled: () => true,
 				hydration: (...a) => ((asked = a), { measured: true, islands: [] })
@@ -594,7 +594,7 @@ describe('createOgygia', () => {
 		]);
 	});
 	it('record({ server }): a window that fails leaves the session whole, with server.error', async () => {
-		const o = createOgygia({
+		const o = new Ogygia({
 			...fake({ settled: () => true, record_start: () => true, record_stop: () => session }),
 			post: async (url: string) =>
 				url.endsWith('/start')
@@ -608,7 +608,7 @@ describe('createOgygia', () => {
 	it('record({ server }): the window id rides every request the session makes, and its stop', async () => {
 		const tagged: string[] = [];
 		let stop_headers: Record<string, string> = {};
-		const o = createOgygia({
+		const o = new Ogygia({
 			...fake({ settled: () => true, record_start: () => true, record_stop: () => session }),
 			post: async (url: string, headers: Record<string, string>) => {
 				if (url.endsWith('/start'))
@@ -627,7 +627,7 @@ describe('createOgygia', () => {
 	});
 	it('hydration() asks the page to key islands by the app’s attribute', async () => {
 		let asked: unknown;
-		const o = createOgygia(
+		const o = new Ogygia(
 			fake({
 				settled: () => true,
 				hydration: (k) => ((asked = k), { measured: true, islands: [] })
@@ -638,7 +638,7 @@ describe('createOgygia', () => {
 		expect(asked).toBe('data-block-id');
 	});
 	it('profile() keeps its own kind over the profiler JSON', async () => {
-		const o = createOgygia({
+		const o = new Ogygia({
 			evaluate: async () => true as never,
 			get: async () => ({
 				status: 200,
