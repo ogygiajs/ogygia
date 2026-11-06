@@ -239,18 +239,9 @@ export default function setup(project: TestProject) {
 	for (let i = 18; i < 21; i++) schedule += heavy(i, (i - 18) * 40);
 	project.provide('heavy_schedule_ssr_b64', b64(schedule));
 
-	project.provide(
-		'seed_nav_a_html_b64',
-		b64(seed_nav_document(body, 3, 'aaaaaaaaaaaaaaaa'))
-	);
+	project.provide('seed_nav_a_html_b64', b64(seed_nav_document(body, 3, 'aaaaaaaaaaaaaaaa')));
 	project.provide(
 		'seed_nav_b_html_b64',
-		b64(
-			seed_nav_document(
-				render(Counter, { props: { start: 7 } }).body,
-				7,
-				'bbbbbbbbbbbbbbbb'
-			)
-		)
+		b64(seed_nav_document(render(Counter, { props: { start: 7 } }).body, 7, 'bbbbbbbbbbbbbbbb'))
 	);
 }
