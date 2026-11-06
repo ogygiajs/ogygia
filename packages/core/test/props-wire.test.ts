@@ -12,7 +12,7 @@ import {
 	WIRE_FORMAT_ATTR,
 	WIRE_FORMAT_JSON
 } from '../src/server/props-wire.ts';
-import { analyze, index_seed, SEED_REF_KEY, seed_ref_reviver } from '../src/seed-refs.ts';
+import { analyze, SeedIndex, SEED_REF_KEY, seed_ref_reviver } from '../src/seed-refs.ts';
 import { fingerprint_of } from '../src/runtime/hash.ts';
 import { island_fingerprint } from '../src/server/fingerprint.ts';
 
@@ -132,7 +132,7 @@ describe('plan_props_wire · fingerprint input', () => {
 		const w = plan_props_wire(props, '/islands/x.js');
 		const fp = fingerprint_of('/islands/x.js', '', w.canonical);
 		// referenced or not, the wire text differs but the canonical (what data-og-fp hashes) does not
-		expect(w.wire(index_seed(data)).text).not.toBe(w.wire(null).text);
+		expect(w.wire(SeedIndex.of(data)).text).not.toBe(w.wire(null).text);
 		expect(fingerprint_of('/islands/x.js', '', w.canonical)).toBe(fp);
 		expect(
 			fingerprint_of(
@@ -155,7 +155,7 @@ describe('plan_props_wire · seed references at wire time', () => {
 		};
 		const w = plan_props_wire(props, '/islands/x.js');
 		expect(w.json).toBe(true); // plain props: JSON canonical …
-		const out = w.wire(index_seed(data));
+		const out = w.wire(SeedIndex.of(data));
 		expect(out.json).toBe(false); // … but devalue on the wire once references apply
 		expect(out.text.split(SEED_REF_KEY).length - 1).toBe(2);
 		expect(out.text.length).toBeLessThan(w.canonical.length / 3);
@@ -167,15 +167,15 @@ describe('plan_props_wire · seed references at wire time', () => {
 		const props = { block: data.catalog.blocks[0] };
 		const w = plan_props_wire(props, '/islands/x.js');
 		expect(w.wire(null)).toEqual({ text: w.canonical, json: true });
-		expect(w.wire(index_seed({ other: block('zzz') })).json).toBe(true);
-		expect(w.wire(index_seed({})).json).toBe(true);
+		expect(w.wire(SeedIndex.of({ other: block('zzz') })).json).toBe(true);
+		expect(w.wire(SeedIndex.of({})).json).toBe(true);
 	});
 
 	it('devalue-lane props reference too (a Date next to a seed node)', () => {
 		const props = { block: data.catalog.blocks[1], at: new Date(5) };
 		const w = plan_props_wire(props, '/islands/x.js');
 		expect(w.json).toBe(false);
-		const out = w.wire(index_seed(data));
+		const out = w.wire(SeedIndex.of(data));
 		expect(out.text).toContain(SEED_REF_KEY);
 		expect(parse(out.text, { [SEED_REF_KEY]: seed_ref_reviver(() => data) })).toEqual(props);
 	});
@@ -187,7 +187,7 @@ describe('plan_props_wire · seed references at wire time', () => {
 		);
 		expect(w.refs).toEqual({ count: 0, keys: [] });
 		expect(w.culprit()).toBeNull(); // JSON lane: nothing to blame
-		w.wire(index_seed(data));
+		w.wire(SeedIndex.of(data));
 		expect(w.refs).toEqual({ count: 1, keys: ['catalog'] }); // a primitive is never a seed node
 		const d = plan_props_wire({ block: data.catalog.blocks[0], at: new Date(5) }, '/islands/x.js');
 		expect(d.culprit()).toBe('at (Date)');
@@ -196,7 +196,7 @@ describe('plan_props_wire · seed references at wire time', () => {
 
 	it('the same plan can be wired twice (identical islands share a sidecar render)', () => {
 		const w = plan_props_wire({ block: data.catalog.blocks[0] }, '/islands/x.js');
-		const idx = index_seed(data);
+		const idx = SeedIndex.of(data);
 		expect(w.wire(idx).text).toBe(w.wire(idx).text);
 	});
 });
