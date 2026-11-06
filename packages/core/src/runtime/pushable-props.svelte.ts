@@ -2,7 +2,7 @@
  * PUSHABLE PROPS: the props a mounted island reads reactively, so the next value reaches it in
  * place instead of a re-hydrate — a live region's next tick, a kept island's next page. The island
  * is hydrated with `props` itself (Svelte's documented reactive-props form for `hydrate`), so
- * focus and local state survive and Svelte reconciles the view. Filled into the `pushable` slot by
+ * focus and local state survive and Svelte reconciles the view. Filled into the `Pushable` slot by
  * the live feature (./live.ts); a page with neither live nor kept regions never loads it.
  *
  * The props are a snapshot of data, as every island's are: held RAW (`$state.raw`), never deep-proxied

@@ -8,7 +8,7 @@
 import { slots } from './slots.ts';
 import { PushableProps } from './pushable-props.svelte.ts';
 
-/** Feature entry: fill the `pushable` slot with {@link PushableProps}. */
+/** Feature entry: fill the `Pushable` slot with {@link PushableProps}. */
 export function install(): void {
-	slots.pushable = PushableProps;
+	slots.Pushable = PushableProps;
 }

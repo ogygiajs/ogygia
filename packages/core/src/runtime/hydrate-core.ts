@@ -732,7 +732,7 @@ export function hydrate_island(
 		const wrapped = foreign ? props : prop_guard.wrap(props, entry);
 		// Keep needs SPA navigation — a full-page load throws the DOM away, so there is nothing
 		// to relocate. Warn (dev) when the router is off on this page.
-		const keep = region.hasAttribute('data-ogygia-keep') && !!slots.pushable;
+		const keep = region.hasAttribute('data-ogygia-keep') && !!slots.Pushable;
 		if (keep && import.meta.env.DEV && !document.querySelector('meta[name="ogygia-router"]')) {
 			console.warn(
 				`[ogygia] island "${entry}" has keep:'${region.getAttribute('data-ogygia-keep')}' but the SPA router is off (ogygia({ router: false })) — keep relies on SPA navigation; a full-page load replaces the DOM, so the attribute is a no-op here.`
@@ -773,7 +773,7 @@ export function hydrate_island(
 				const recovery = recover ? {} : { recover: false as const };
 				// A KEPT island hydrates with pushable props, so that when it relocates onto the next
 				// page its props are pushed in reactively.
-				const pushed = keep ? new slots.pushable!(wrapped) : null;
+				const pushed = keep ? new slots.Pushable!(wrapped) : null;
 				const app = hydrate(Component, {
 					target: region,
 					props: pushed ? pushed.props : wrapped,
@@ -933,7 +933,7 @@ export function hydrate_live(
 ): IslandHandle | null {
 	seed_remote_once();
 	seed_page_once();
-	if (!slots.pushable) {
+	if (!slots.Pushable) {
 		if (import.meta.env.DEV) {
 			console.warn('[ogygia] live region needs the live feature plugin (pushable props missing)');
 		}
@@ -941,7 +941,7 @@ export function hydrate_live(
 	}
 	const provided_ctx = capture_region_ids(region, () => slots.context?.(region));
 	const host_classes = note_host_classes(region);
-	const pushed = new slots.pushable(prop_guard.wrap(props, entry));
+	const pushed = new slots.Pushable(prop_guard.wrap(props, entry));
 	const app = hydrate(mod.default, {
 		target: region,
 		props: pushed.props,

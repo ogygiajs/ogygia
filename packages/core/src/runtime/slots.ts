@@ -188,7 +188,7 @@ export type Slots = {
 	interaction: ArmFn | null;
 	morph: MorphFn | null;
 	/** props a live region or a kept island is hydrated with, pushed in place later (./live.ts) */
-	pushable: typeof import('./pushable-props.svelte.ts').PushableProps | null;
+	Pushable: typeof import('./pushable-props.svelte.ts').PushableProps | null;
 	wire: WireOps | null;
 	/** The transportable classes an island's props, context and seeds need, loaded before it
 	 *  decodes (./wire-classes.ts). Null in an app without transportable classes: nothing to load. */
@@ -233,7 +233,7 @@ export const slots: Slots = {
 	},
 	interaction: null,
 	morph: null,
-	pushable: null,
+	Pushable: null,
 	wire: null,
 	wire_classes: null,
 	remoteSeeds: null,
