@@ -16,6 +16,7 @@ import {
 	BuildCache,
 	configure_build_cache
 } from '@ogygia/core/internal/compiler-browser';
+import { OgygiaError } from '../messages/build.ts';
 
 // git's own corners of the shared build cache: resolved shas (kv) + the checkout trees (a dir).
 // Persistence location is the cache's concern — git thinks in get/set and a directory, never paths.
@@ -32,10 +33,7 @@ const NON_SLUG_CHARS_G = /[^\w.-]/g;
 /** Parse `owner/repo[@ref][:path]` → its parts. Default ref `HEAD`, default sub `''`. Throws on garbage. */
 export function parse_git_spec(spec: string): GitSpec {
 	const m = SPEC_RE.exec(spec.trim());
-	if (!m)
-		throw new Error(
-			`[ogygia] import.meta.og.loader.git(): bad spec '${spec}' — expected 'owner/repo[@ref][:path]'`
-		);
+	if (!m) throw new OgygiaError('content_git_spec_invalid', { spec });
 	return {
 		owner: m[1]!,
 		repo: m[2]!,
@@ -55,9 +53,7 @@ export function git_slug(s: GitSpec): string {
 export function git_checkout_dir(s: GitSpec): string {
 	const base = content_cache.dir();
 	if (!base) {
-		throw new Error(
-			`[ogygia] git(${s.owner}/${s.repo}): the build cache (node_modules/.ogygia) is unavailable — cannot materialize a checkout.`
-		);
+		throw new OgygiaError('content_git_cache_unavailable', { repo: `${s.owner}/${s.repo}` });
 	}
 	return path.join(base, git_slug(s));
 }
@@ -120,9 +116,9 @@ export function materialize(
 	if (locked && current === locked) return { dir, sha: locked };
 	if (opts.frozen) {
 		if (current) return { dir, sha: current };
-		throw new Error(
-			`[ogygia] git(${spec.owner}/${spec.repo}): frozen build, but no materialized checkout. Restore the node_modules/.ogygia cache, run a non-frozen build first, or pin a sha in the spec.`
-		);
+		throw new OgygiaError('content_git_frozen_no_checkout', {
+			repo: `${spec.owner}/${spec.repo}`
+		});
 	}
 
 	const url = `${opts.base_url ?? 'https://github.com'}/${spec.owner}/${spec.repo}.git`;

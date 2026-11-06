@@ -24,6 +24,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Plugin as VitePlugin } from 'vite';
 import type { ServerRealm } from '../compiler/link/caps.ts';
+import { OgygiaError } from '../messages/build.ts';
 
 /** Where `definePlugin` puts the definition on the Vite plugin it returns. A registered symbol, so a
  *  second copy of ogygia in one app still recognizes the first's plugins. */
@@ -143,9 +144,7 @@ export function definePlugin<Options = undefined>(
 		[PLUGIN]: definition,
 		configResolved(config) {
 			if (!config.plugins.some((p) => p.name === OGYGIA_VITE_PLUGIN))
-				throw new Error(
-					`[ogygia] \`${definition.name}\` is listed in vite.config but \`ogygia()\` is not — add \`ogygia()\` from \`ogygia/vite\` to \`plugins\`.`
-				);
+				throw new OgygiaError('plugin_without_ogygia', { plugin: definition.name });
 		}
 	};
 }
@@ -166,19 +165,16 @@ export async function find_plugins(list: unknown): Promise<PluginDefinition[]> {
 			for (const item of value) await walk(item);
 			return;
 		}
-		if (typeof value === 'function')
-			throw new Error(
-				'[ogygia] a function is listed in vite.config `plugins` — call the factory: `flags()`, not `flags`.'
-			);
+		if (typeof value === 'function') throw new OgygiaError('plugin_factory_not_called');
 		const plugin = value as { name?: unknown; [PLUGIN]?: { name?: unknown } } | null;
 		const name = typeof plugin?.name === 'string' ? plugin.name : '';
 		const definition = plugin?.[PLUGIN];
 		if (name.startsWith(KIT_VITE_PLUGIN_PREFIX)) kit_seen = true;
 		const own = name === OGYGIA_VITE_PLUGIN;
 		if ((own || definition) && kit_seen)
-			throw new Error(
-				`[ogygia] \`${own ? 'ogygia()' : String(definition?.name)}\` is listed after \`sveltekit()\` in vite.config — list \`ogygia()\` and its plugins first: \`plugins: [ogygia(), flags(), sveltekit()]\`.`
-			);
+			throw new OgygiaError('plugin_after_sveltekit', {
+				plugin: own ? 'ogygia()' : String(definition?.name)
+			});
 		if (definition) found.push(definition);
 	};
 	await walk(list);
@@ -238,22 +234,18 @@ export function check_plugins(plugins: readonly unknown[]): PluginDefinition[] {
 			typeof plugin.name !== 'string' ||
 			plugin.name === ''
 		)
-			throw new Error('[ogygia] a plugin definition needs a `name` (its package name).');
+			throw new OgygiaError('plugin_name_missing');
 		if (seen.has(plugin.name))
-			throw new Error(`[ogygia] plugin \`${plugin.name}\` is listed twice.`);
+			throw new OgygiaError('plugin_listed_twice', { plugin: plugin.name });
 		seen.add(plugin.name);
 		for (const realm of ['server', 'client'] as const)
 			if (plugin[realm] !== undefined && typeof plugin[realm] !== 'string')
-				throw new Error(
-					`[ogygia] plugin \`${plugin.name}\`: \`${realm}\` is a module location — \`import.meta.resolve('./${realm}.ts')\`.`
-				);
+				throw new OgygiaError('plugin_realm_not_location', { plugin: plugin.name, realm });
 		if (plugin.options !== undefined) {
 			try {
 				JSON.stringify(plugin.options);
 			} catch {
-				throw new Error(
-					`[ogygia] plugin \`${plugin.name}\`: \`options\` must be plain JSON (configure live objects in hooks.server.ts).`
-				);
+				throw new OgygiaError('plugin_options_not_json', { plugin: plugin.name });
 			}
 		}
 	}
@@ -267,9 +259,11 @@ function realm_path(plugin: PluginDefinition, realm: 'server' | 'client'): strin
 	if (where === undefined) return null;
 	const abs = where.startsWith('file:') ? fileURLToPath(where) : where;
 	if (!path.isAbsolute(abs) || !fs.existsSync(abs))
-		throw new Error(
-			`[ogygia] plugin \`${plugin.name}\`: its \`${realm}\` realm \`${where}\` is not a file — resolve it next to the factory: \`import.meta.resolve('./${realm}.ts')\`.`
-		);
+		throw new OgygiaError('plugin_realm_not_file', {
+			plugin: plugin.name,
+			realm,
+			location: where
+		});
 	return abs.split(path.sep).join('/');
 }
 
@@ -312,9 +306,7 @@ export function resolve_plugins(
 	const macro_owner = new Map<string, string>();
 	for (const plugin of ordered) {
 		if (!package_resolves(req, plugin.name))
-			throw new Error(
-				`[ogygia] plugin \`${plugin.name}\`: no package by that name resolves from ${root} — its name must be its package name.`
-			);
+			throw new OgygiaError('plugin_package_unresolved', { plugin: plugin.name, root });
 		const server = realm_path(plugin, 'server');
 		if (server)
 			out.servers.push({ name: plugin.name, module: server, options: plugin.options ?? {} });
@@ -325,14 +317,10 @@ export function resolve_plugins(
 			dev,
 			routeConfig(key) {
 				if (!ROUTE_CONFIG_KEY_RE.test(key))
-					throw new Error(
-						`[ogygia] plugin \`${plugin.name}\`: route config key \`${key}\` must be a camelCase identifier.`
-					);
+					throw new OgygiaError('route_config_key_invalid', { plugin: plugin.name, key });
 				const owner = config_owner.get(key);
 				if (owner && owner !== plugin.name)
-					throw new Error(
-						`[ogygia] route config key \`${key}\` is claimed by both \`${owner}\` and \`${plugin.name}\`.`
-					);
+					throw new OgygiaError('route_config_key_claimed', { key, owner, plugin: plugin.name });
 				if (!owner) {
 					config_owner.set(key, plugin.name);
 					out.route_config.push(key);
@@ -343,14 +331,10 @@ export function resolve_plugins(
 			},
 			macro(name, handler) {
 				if (!MACRO_NAME_RE.test(name) || CORE_MACROS.has(name))
-					throw new Error(
-						`[ogygia] plugin \`${plugin.name}\`: macro \`import.meta.og.${name}\` must be a camelCase name core does not own.`
-					);
+					throw new OgygiaError('plugin_macro_name_invalid', { plugin: plugin.name, name });
 				const owner = macro_owner.get(name);
 				if (owner)
-					throw new Error(
-						`[ogygia] macro \`import.meta.og.${name}\` is claimed by both \`${owner}\` and \`${plugin.name}\`.`
-					);
+					throw new OgygiaError('plugin_macro_claimed', { name, owner, plugin: plugin.name });
 				macro_owner.set(name, plugin.name);
 				out.macros.push({ name, handler });
 			},
@@ -379,9 +363,7 @@ export function resolve_plugins(
 					if (!out.page_modules.importers.includes(spec)) out.page_modules.importers.push(spec);
 				for (const file of modules.files ?? []) {
 					if (!path.isAbsolute(file))
-						throw new Error(
-							`[ogygia] plugin \`${plugin.name}\`: \`pageModules({ files })\` takes absolute paths (got \`${file}\`).`
-						);
+						throw new OgygiaError('page_modules_not_absolute', { plugin: plugin.name, file });
 					if (!out.page_modules.files.includes(file)) out.page_modules.files.push(file);
 				}
 			}

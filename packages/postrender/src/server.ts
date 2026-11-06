@@ -40,6 +40,7 @@ import {
 import { observe_event, type Observation } from './observe.ts';
 import { esi_rewrite, stitch_html, stitch_modes } from './stitch.ts';
 import { set_postrender_app } from './app.ts';
+import { warn } from './messages.ts';
 import type { PostrenderEntry } from './types.ts';
 
 /** The plugin's serializable policy (`postrender({ ttl, default })`, normalized by the factory). */
@@ -228,10 +229,7 @@ function dev_postrender_note(response: Response, ctx: Ctx, obs: Observation): vo
 	}
 	if (dev_noted_paths.has(ctx.path)) return;
 	dev_noted_paths.add(ctx.path);
-	console.warn(
-		`[ogygia] postrender: ${ctx.path} stays per-request — the render read ${refusal}. ` +
-			`Personalize inside a render:'deferred' hole to make the shell storable.`
-	);
+	warn('postrender_stays_per_request', { path: ctx.path, refusal });
 }
 
 /**

@@ -19,6 +19,7 @@ import type { Plugin as VitePlugin, UserConfig } from 'vite';
 import { definePlugin, type OgygiaPlugin } from '@ogygia/core/vite';
 import type { ProfilerOptions } from './profiler/index.ts';
 import type { DevtoolsServerOptions } from './server.ts';
+import { warn } from './messages/build.ts';
 
 export type { ProfilerOptions };
 
@@ -89,20 +90,11 @@ function devtools_vite(dock: boolean, profiler: ProfilerOptions | null): VitePlu
 			dev = env.command === 'serve';
 			if (env.command === 'build' && isMainThread) {
 				// said once, loudly, so a dock left on by accident is seen before it ships
-				if (dock)
-					console.warn(
-						'[ogygia] devtools is ON for this build: its pages carry the devtools launcher (the dock ' +
-							"loads only when opened). Keep it off for production: list `devtools()` only when `mode !== 'production'`."
-					);
+				if (dock) warn('devtools_on_in_build');
 				// an explicit `secret` that is EMPTY at build time: the author meant to bake it, the build env
 				// lacked the variable, and the UI ends up disabled in production (Amplify, Lambda)
 				if (profiler && 'secret' in profiler && !profiler.secret)
-					console.warn(
-						'[ogygia] profiler: `profiler.secret` is EMPTY in this build — the variable it reads is not set ' +
-							'in the BUILD environment. The UI will be DISABLED in production unless OGYGIA_PROFILER_SECRET ' +
-							'exists at runtime (on Amplify / Lambda it does not): /__profiler will answer "installed but ' +
-							'disabled". Set the variable where the build runs, and keep the `profiler` option unconditional.'
-					);
+					warn('devtools_profiler_secret_empty');
 			}
 			// the dock's drag and resize, named through this package (under a strict install the app cannot
 			// resolve them bare): found late in dev, each re-optimized and reloaded the page

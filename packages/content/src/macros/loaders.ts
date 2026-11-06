@@ -35,6 +35,7 @@ import {
 } from '@ogygia/core/internal/compiler-browser';
 import { parse_git_spec, git_glob_pattern, type GitSpec } from './git.ts';
 import { bridge } from '../bridge.ts';
+import { OgygiaError } from '../messages/build.ts';
 
 const PREFIX = 'import.meta.og.loader.';
 
@@ -145,9 +146,7 @@ export function extract_preset(
 	const wrapped = `__og(${args})`;
 	const { program, ok } = parse_module(wrapped, 'loader-args.ts');
 	if (!ok || !program) {
-		throw new Error(
-			`[ogygia] ${context}: could not parse the options object while looking for \`preset\` — simplify the options, and keep \`preset\` a literal string.`
-		);
+		throw new OgygiaError('content_loader_options_unparsable', { context });
 	}
 	// program → ExpressionStatement → CallExpression(args)
 	const call = (program as ArgsProgram).body?.[0]?.expression;
@@ -164,9 +163,7 @@ export function extract_preset(
 					? v.value
 					: null;
 			if (literal == null) {
-				throw new Error(
-					`[ogygia] ${context}: \`preset\` must be a literal string ('name') — it selects a content preset at build.`
-				);
+				throw new OgygiaError('content_preset_not_literal', { context });
 			}
 			// Splice the property (and one neighboring comma) out of the ORIGINAL args text. Offsets in
 			// `wrapped` are the args offsets + the `__og(` prefix length.
@@ -190,13 +187,11 @@ function check_preset_name(preset: string, context: string): void {
 	const dict = bridge.contentPresets;
 	const names = dict ? Object.keys(dict) : [];
 	if (!names.includes(preset)) {
-		throw new Error(
-			`[ogygia] ${context}: unknown content preset '${preset}'. ${
-				names.length
-					? `Configured: ${names.join(', ')}.`
-					: 'No content presets are configured — define it under content({ presets }).'
-			}`
-		);
+		throw new OgygiaError('content_preset_unknown', {
+			context,
+			preset,
+			configured: names.join(', ')
+		});
 	}
 }
 
@@ -363,9 +358,7 @@ function emit(c: LoaderCall, used: Set<'markdown' | 'folder' | 'json'>, specs: G
 
 	const builder = BUILDER[c.method];
 	if (!builder) {
-		throw new Error(
-			`[ogygia] import.meta.og.loader.${c.method}() is not a loader — expected markdown, folder, json, or git.`
-		);
+		throw new OgygiaError('content_loader_unknown', { method: c.method });
 	}
 	const { value: glob, rest } = split_first_string(c.args, context);
 	used.add(builder);

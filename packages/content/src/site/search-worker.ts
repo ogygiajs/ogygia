@@ -7,6 +7,7 @@
  * Messages out: { type: 'ready' } | { type: 'error', message } | { type: 'result', id, hits }
  */
 import { orama_engine, type SearchIndex } from './search.ts';
+import { OgygiaError } from '../messages/runtime.ts';
 
 let index_p: Promise<SearchIndex> | null = null;
 
@@ -24,9 +25,10 @@ self.onmessage = async (e: MessageEvent) => {
 		index_p = (async () => {
 			const res = await fetch(msg.url!);
 			if (!res.ok) {
-				throw new Error(
-					`[ogygia/content] could not load the search index at ${msg.url} (HTTP ${res.status}). Did you mount site.emit.search()?`
-				);
+				throw new OgygiaError('content_search_index_fetch_failed', {
+					url: msg.url!,
+					status: res.status
+				});
 			}
 			const docs = await res.json();
 			const engine = orama_engine();

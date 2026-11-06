@@ -184,11 +184,12 @@ test.describe("wake:'interaction' — cold until used, click replay, typing surv
 		// catches it, logs, and the wake path disarms on the fulfilled branch.
 		check(
 			'failure: error logged, region left static',
+			// (a production build: the message is its code's link — messages/core.ts)
 			consoleErrs.some(
 				(t) =>
-					t.includes('island entry failed to load') ||
-					t.includes('hydration failed') ||
-					t.includes('failed to hydrate')
+					t.includes('e/island_load_failed') ||
+					t.includes('e/island_hydrate_failed') ||
+					t.includes('e/interaction_hydrate_failed')
 			),
 			consoleErrs.slice(0, 3).join(' | ')
 		);

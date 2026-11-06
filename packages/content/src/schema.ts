@@ -1,4 +1,5 @@
 import type { SchemaLike } from './index.ts';
+import { OgygiaError } from './messages/runtime.ts';
 
 export async function parseSchema(
 	schema: SchemaLike | undefined,
@@ -11,7 +12,7 @@ export async function parseSchema(
 		const result = await schema['~standard'].validate(data);
 		if ('issues' in result && result.issues) {
 			const msgs = result.issues.map((i) => i.message ?? 'invalid').join('; ');
-			throw new Error(`[ogygia/content] schema failed for ${label}: ${msgs}`);
+			throw new OgygiaError('content_schema_failed', { label, issues: msgs });
 		}
 		return ('value' in result ? result.value : data) as Record<string, unknown>;
 	}
@@ -21,11 +22,9 @@ export async function parseSchema(
 			return schema.parse(data) as Record<string, unknown>;
 		} catch (e) {
 			const msg = e instanceof Error ? e.message : String(e);
-			throw new Error(`[ogygia/content] schema failed for ${label}: ${msg}`);
+			throw new OgygiaError('content_schema_failed', { label, issues: msg });
 		}
 	}
 
-	throw new Error(
-		`[ogygia/content] schema for ${label} is not Standard Schema / parse()-compatible`
-	);
+	throw new OgygiaError('content_schema_unsupported', { label });
 }

@@ -13,6 +13,7 @@
  *
  * One global slot: every module instance dispatches over the same implementations.
  */
+import { warn } from '../messages/server.ts';
 
 /** The shared hooks. Each is optional on a plugin; the signature is the contract. */
 export interface ServerHooks {
@@ -63,7 +64,7 @@ export const notify: Notify = new Proxy({} as Notify, {
 				try {
 					await (fn as AnyFn).apply(impl, args);
 				} catch (e) {
-					console.warn(`[ogygia] a \`${name}\` hook failed —`, e);
+					warn('plugin_hook_failed', { name }, e);
 				}
 			}
 		}
@@ -82,7 +83,7 @@ export const ask: Ask = new Proxy({} as Ask, {
 					const answer = await (fn as AnyFn).apply(impl, args);
 					if (answer !== undefined) return answer;
 				} catch (e) {
-					console.warn(`[ogygia] a \`${name}\` hook failed —`, e);
+					warn('plugin_hook_failed', { name }, e);
 				}
 			}
 			return undefined;

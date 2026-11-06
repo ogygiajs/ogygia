@@ -89,6 +89,8 @@ import {
 	client_region_unmount
 } from './client-plugins.ts';
 import type { ClientPlugin } from '../plugin/client.ts';
+import { OgygiaError, warn, line } from '../messages/core.ts';
+import { report_restores } from './restore-report.ts';
 import { disclose_version } from './disclose-version.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (the proven DCE pattern): when off, every
@@ -137,11 +139,6 @@ function fragment_markup(frag: DocumentFragment): string | null {
 	frag.append(...Array.from(box.childNodes));
 	return html.length > SSR_SNAPSHOT_MAX ? null : html;
 }
-
-const HOLE_WITHOUT_ADDRESS_WARNING =
-	'[ogygia] deferred region %s was rendered in the browser with no server-minted address, and the ' +
-	'document records none for it (a client-side navigation mounted it, or its props differ from ' +
-	'the server render) — its fallback stands. A hole is server HTML: render it on the server.';
 
 /** Read the identity fields devtools events correlate on, off a region element. Cheap — attributes
  *  already in hand. Only ever called from behind an `if (DEVTOOLS)` guard, so it costs nothing off. */
@@ -574,7 +571,7 @@ class OgygiaRegion extends HTMLElement {
 					if (facts.sidecar)
 						restore_props_sidecar(this, facts.sidecar.cloneNode(true) as HTMLScriptElement);
 				} else if (import.meta.env.DEV && identity) {
-					console.warn(HOLE_WITHOUT_ADDRESS_WARNING, this.getAttribute('entry') || identity);
+					warn('hole_without_address', { region: this.getAttribute('entry') || identity });
 				}
 			}
 		}
@@ -620,9 +617,10 @@ class OgygiaRegion extends HTMLElement {
 					nested: true
 				});
 			if (import.meta.env.DEV) {
-				console.warn(
-					`[ogygia] nested region "${this.getAttribute('entry')}" skipped self-run; the nearest region above it is awake, so it rides that hydration (inner hydrate "${this.getAttribute('wake') || 'load'}" ignored).`
-				);
+				warn('nested_region_rides_parent', {
+					entry: this.getAttribute('entry') || '',
+					wake: this.getAttribute('wake') || 'load'
+				});
 			}
 			return;
 		}
@@ -1088,7 +1086,7 @@ class OgygiaRegion extends HTMLElement {
 		// HOLE-TRUST defense-in-depth: mint emits path-only; reject absolute/cross-origin attrs.
 		if (!is_allowed_region_endpoint(endpoint)) {
 			if (import.meta.env.DEV) {
-				console.warn('[ogygia] refused non-same-origin region endpoint', endpoint);
+				warn('region_endpoint_foreign', { endpoint });
 			}
 			return;
 		}
@@ -1162,20 +1160,15 @@ class OgygiaRegion extends HTMLElement {
 				refused && err.reason === 'forbidden' ? err.deny || 'no reason given' : undefined;
 			if (import.meta.env.DEV) {
 				if (deny !== undefined) {
-					console.warn(
-						`[ogygia] region answer refused for ${endpoint}: ${deny.startsWith('not ogygia') ? deny : `the islands endpoint refused its capability (403: ${deny})`}. ` +
-							(deny.startsWith('foreign-key')
-								? 'The page and its islands endpoint came from different deployments (two keys): route the endpoint to the deployment that served the page, or give every deployment one OGYGIA_SECRET. '
-								: '') +
-							'The fallback stands.'
-					);
+					warn('region_answer_denied', { endpoint, deny });
 				} else if (refused) {
-					console.warn(
-						`[ogygia] region answer refused for ${endpoint}: the request was ${err.reason === 'redirected' ? 'redirected to' : 'answered with a whole document at'} ${err.final_url}. ` +
-							`A handle in front of ogygia.handle() (an auth redirect, a locale bounce, a 404 handler) took the region request — exempt the islands endpoint there. The fallback stands.`
-					);
+					warn('region_answer_redirected', {
+						endpoint,
+						how: err.reason === 'redirected' ? 'redirected' : 'document',
+						final_url: err.final_url
+					});
 				} else {
-					console.warn('[ogygia] region fetch failed for', endpoint, err);
+					warn('region_fetch_failed', { endpoint }, err);
 				}
 			}
 			this.#fetch_attempts++;
@@ -1404,19 +1397,13 @@ class OgygiaRegion extends HTMLElement {
 			const entry = this.getAttribute('entry');
 			if (ENTRY_FETCH_FAILED_RE.test(msg)) {
 				if (import.meta.env.DEV) {
-					console.error(
-						`[ogygia] island entry failed to load: ${entry}\n` +
-							`The module could not be FETCHED (not a hydration error). In dev this almost always ` +
-							`means Vite re-optimized dependencies and rotated its optimizer hash while this tab ` +
-							`was open, so its dep imports 404. Recovering… Original error:`,
-						err
-					);
+					console.error(new OgygiaError('island_load_failed_stale_deps', { entry }), err);
 					void recover_from_stale_deps(entry);
 				} else {
-					console.error('[ogygia] island entry failed to load:', entry, err);
+					console.error(new OgygiaError('island_load_failed', { entry }), err);
 				}
 			} else {
-				console.error('[ogygia] hydration failed for', entry, err);
+				console.error(new OgygiaError('island_hydrate_failed', { entry }), err);
 			}
 		} finally {
 			this.#hydrating = false;
@@ -1674,6 +1661,14 @@ export function boot(
 	// The head the server sent is the page's (session.ts: who owns each node in <head>). No island
 	// has woken yet — the runtime boots before any wake — so nothing here is an island's.
 	runtime_session.adopt_document_head();
+	// island-side code (a shim) throws and logs through the runtime's own messages (messages/island.ts)
+	(globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.messages')] ??= {
+		OgygiaError,
+		warn,
+		line
+	};
+	// what the server transform's restorer recorded, said out loud (./restore-report.ts)
+	report_restores();
 	// What the lazy chunks use from the boot, handed over through the registry (./boot-link.ts).
 	link_boot();
 	for (const install of installers) install();

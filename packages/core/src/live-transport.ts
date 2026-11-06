@@ -36,6 +36,7 @@ import { register_snippet_kind } from './region-snippet.ts';
 import { register_store_kind, register_derived_kind } from './store-transport.ts';
 import { register_fn_kind } from './fn-transport.ts';
 import { register_kind, mint, resolve, REF_WIRE_KEY, type Ref } from './ref.ts';
+import { OgygiaError } from './messages/island.ts';
 
 /** Feature entry: register every props-seam kind, then fill the `wire` slot so core resolves
  *  ANY transportable kind from `data-ogygia-props` through the one hub key. */
@@ -134,11 +135,7 @@ function codec_of(cls: TransportableClass): TransportCodec {
 function class_for(tag: string | undefined): TransportableClass {
 	const cls = tag === undefined ? undefined : wire_registry().classes.get(tag);
 	if (cls === undefined) {
-		throw new Error(
-			`[ogygia] cannot revive transportable "${tag}": its class is not loaded on this side. ` +
-				`The island must import the class as a VALUE (not \`import type\`) so its codec travels ` +
-				`with the island's bundle.`
-		);
+		throw new OgygiaError('transportable_class_missing', { tag: String(tag) });
 	}
 	return cls;
 }
@@ -155,11 +152,7 @@ export function register_wire_kind(): void {
 			const cls = value.constructor as unknown as TransportableClass;
 			const tag = wire_registry().tags.get(cls as unknown as object);
 			if (tag === undefined) {
-				throw new Error(
-					`[ogygia] class "${cls.name ?? '?'}" has a [import.meta.og.wire] codec but was never ` +
-						`registered. Transportable classes must be declared in a module the ogygia vite plugin ` +
-						`transforms (an \`export class\` in your app source, not node_modules or a dynamic eval).`
-				);
+				throw new OgygiaError('transportable_unregistered', { name: cls.name ?? '?' });
 			}
 			return { t: tag, d: codec_of(cls).encode(value) };
 		},

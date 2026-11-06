@@ -22,6 +22,7 @@ import { og_member } from './wire.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { og_js_regions } from '../parse/scan.ts';
 import { BuildCache } from '../../build-cache.ts';
+import { OgygiaError } from '../../messages/build.ts';
 
 // ── regexes
 const REGEX_SPECIAL_G = /[.*+?^${}()|[\]\\]/g;
@@ -102,15 +103,11 @@ function scan(
 			const abs = off + n.start;
 			const args = (n.arguments as Node[] | undefined) ?? [];
 			if (args.length !== 1) {
-				throw new Error(
-					`[ogygia] ${id}:${line_of(src, abs)} — import.meta.og.bake(fn) takes exactly one argument (a function).`
-				);
+				throw new OgygiaError('macro_bake_arity', { file: id, line: line_of(src, abs) });
 			}
 			const a = args[0]!;
 			if (a.type !== 'ArrowFunctionExpression' && a.type !== 'FunctionExpression') {
-				throw new Error(
-					`[ogygia] ${id}:${line_of(src, abs)} — import.meta.og.bake(fn): the argument must be a function (\`() => …\`).`
-				);
+				throw new OgygiaError('macro_bake_not_function', { file: id, line: line_of(src, abs) });
 			}
 			calls.push({ start: abs, end: off + n.end, fn: region.code.slice(a.start, a.end) });
 		});
@@ -361,11 +358,7 @@ export async function rewrite_bake(
 		results = await evaluate(entry_code, id, { ...opts, hash });
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : String(e);
-		throw new Error(
-			`[ogygia] import.meta.og.bake() in ${path.basename(id)}: evaluating the function failed — ${msg}. ` +
-				`A baked function may use this module's IMPORTS and literals only (not its other local variables), ` +
-				`and must not touch runtime-only modules ($app/*, the browser).`
-		);
+		throw new OgygiaError('macro_bake_eval_failed', { file: path.basename(id), reason: msg });
 	}
 
 	// Serialize each result; also drop imports that only fed a baked fn (so the computation's
@@ -377,10 +370,11 @@ export async function rewrite_bake(
 			literal = uneval(results[i]);
 		} catch (e) {
 			const msg = e instanceof Error ? e.message : String(e);
-			throw new Error(
-				`[ogygia] ${id}:${line_of(src, c.start)} — import.meta.og.bake(): the result is not serializable (${msg}). ` +
-					`bake produces DATA — return plain values (JSON + Date/Map/Set/RegExp/BigInt), never a function, Promise, or class instance.`
-			);
+			throw new OgygiaError('macro_bake_not_serializable', {
+				file: id,
+				line: line_of(src, c.start),
+				reason: msg
+			});
 		}
 		edits.push({ start: c.start, end: c.end, text: `(${literal})` });
 	});

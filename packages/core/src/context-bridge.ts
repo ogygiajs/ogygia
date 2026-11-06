@@ -29,9 +29,10 @@ function ensure_ctx_kinds(): void {
 	register_fn_kind();
 	register_derived_kind();
 }
-import { boundary_problems, format_boundary_finding } from './boundary.ts';
+import { boundary_problems } from './boundary.ts';
 import { PAGE_CTX_MARKER, record_ctx, type SetContextOptions } from './context-registry.ts';
 import { escape_script_text } from './escape.ts';
+import { warn } from './messages/island.ts';
 
 /** The `<Provide>` seam carries classes, stores AND snippets (a snippet freezes/travels live). */
 const PROVIDE_FAMILIES = new Set(['wire', 'store', 'snippet', 'fn', 'derived']);
@@ -109,21 +110,19 @@ function warn_ctx_size(map: Map<string, unknown>, total: number): void {
 		.slice(0, 3)
 		.map(([k, n]) => `'${k}' ~${(n / 1024).toFixed(1)}kB`)
 		.join(', ');
-	console.warn(
-		`[ogygia] the island context marker is ${(total / 1024).toFixed(1)}kB — it ships in every page's HTML. ` +
-			`Biggest keys: ${top}. Slim the values, or mark host-only keys with setContext(key, value, { islands: false }).`
-	);
+	warn('context_marker_large', { size: (total / 1024).toFixed(1), top });
 }
 
 /** DEV: explain a dropped (or degraded-but-bridged) context key via the classifier. */
 function warn_boundary(key: string, value: unknown, dropped: boolean): void {
 	const problems = boundary_problems(value, key);
 	if (dropped && problems.length === 0) {
-		console.warn(`[ogygia] context '${key}' could not be serialized for islands and was dropped.`);
+		warn('context_dropped', { key });
 		return;
 	}
 	for (const f of problems) {
-		if (dropped || f.kind === 'warn') console.warn(format_boundary_finding(key, f));
+		if (dropped || f.kind === 'warn')
+			warn('context_unserializable', { key, path: f.path || undefined, detail: f.detail });
 	}
 }
 

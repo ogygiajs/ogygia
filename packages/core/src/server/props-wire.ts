@@ -36,6 +36,7 @@ import { register_wire_kind } from '../live-transport.ts';
 import { register_store_kind, register_derived_kind } from '../store-transport.ts';
 import { register_snippet_kind } from '../region-snippet.ts';
 import { register_fn_kind } from '../fn-transport.ts';
+import { OgygiaError } from '../messages/server.ts';
 import {
 	analyze,
 	json_culprit,
@@ -101,12 +102,7 @@ export function stringify_props(
 		return stringify(value, reducers);
 	} catch (e) {
 		const detail = e instanceof Error ? e.message : String(e);
-		throw new Error(
-			`[ogygia] island "${entry}": a captured prop is not serializable — ${detail}. ` +
-				`Captured host values cross the boundary via devalue; functions/Promises cannot, and a ` +
-				`class instance only can when the class declares a static [ogygia.wire] codec. ` +
-				`Pass a serializable value, add a codec, or move that logic inside the island component.`
-		);
+		throw new OgygiaError('prop_not_serializable', { entry, detail });
 	}
 }
 

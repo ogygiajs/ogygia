@@ -13,6 +13,7 @@
 import type { PreprocessorGroup } from 'svelte/compiler';
 import { ogygiaPreprocess, type MarkdownOptions } from './index.ts';
 import { try_region_emit } from './region-emit.ts';
+import { OgygiaError } from '../messages/build.ts';
 
 // One preprocessor group per markdown-config object (mdsvex init is heavy; the config is stable).
 const groups = new WeakMap<object, PreprocessorGroup>();
@@ -39,9 +40,7 @@ export async function render_markdown(
 		| undefined;
 	const emitted = try_region_emit(out?.code ?? text, []);
 	if (!emitted) {
-		throw new Error(
-			`[ogygia/content] import.meta.og.md(): the content compiled to something dynamic (a script, component tag, island import, or Svelte expression). md() is for static prose + fenced code — use a component for anything live.`
-		);
+		throw new OgygiaError('content_md_dynamic');
 	}
 	return emitted.html;
 }

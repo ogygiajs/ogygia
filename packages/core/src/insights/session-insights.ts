@@ -563,7 +563,7 @@ export function analyze_session(
 			findings.push({
 				code: 'hydrate-conflict',
 				severity: 'warn',
-				message: `${name_of(e.fp ?? null)}: ${e.reason ?? 'a web component and Svelte wanted the same nodes'}`,
+				message: `${name_of(e.fp ?? null)}: ${e.reason ?? 'a web component'} changed its own children where Svelte's hydration reads, so the repair removed what it added (render it with {@html}, put it in a lake, or mark it data-ogygia-keep).`,
 				refs: e.fp ? [{ kind: 'island', fp: e.fp }] : []
 			});
 		else if (e.name === 'load.critical' && e.outcome === 'cap')
@@ -592,7 +592,14 @@ export function analyze_session(
 	// name: not counted again; each message by its first line — a component stack follows it)
 	const failed_here = s.events.some((e) => e.name === 'region.hydrate.failed');
 	const errors = failed_here
-		? s.errors.filter((e) => !e.message.startsWith('console.error: [ogygia] hydration failed'))
+		? s.errors.filter(
+				// (its line, worded in dev or the code's link alone)
+				(e) =>
+					!(
+						e.message.startsWith('console.error: OgygiaError: [ogygia] hydration failed') ||
+						e.message.includes('ogygiajs.dev/e/island_hydrate_failed')
+					)
+			)
 		: s.errors;
 	if (errors.length)
 		findings.push({

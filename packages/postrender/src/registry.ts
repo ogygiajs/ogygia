@@ -26,6 +26,7 @@ import { normalize_prefix } from './key.ts';
 import type { DevtoolsEventInput } from '@ogygia/core/plugin';
 import { sourceTag } from '@ogygia/core/plugin/utils';
 import { postrender_app } from './app.ts';
+import { OgygiaError, warn } from './messages.ts';
 
 /** One server's live settings: what its `postrender.handle({ store, edge })` was given. */
 export interface Runtime {
@@ -62,11 +63,7 @@ export function install(options: PostrenderHandleOptions): Runtime {
 	// copy to the CDN's refills. Say it once — multi-instance deploys want valkey/upstash/KV.
 	if (edges.length && !options.store && !warned_replica_blindspot) {
 		warned_replica_blindspot = true;
-		console.warn(
-			'[ogygia] postrender: edge adapters are configured but the store is the per-instance ' +
-				'memory default — invalidations cannot reach other replicas. Use a shared store ' +
-				'(valkey / upstash / cloudflareKv) in multi-instance deploys.'
-		);
+		warn('postrender_edges_without_shared_store');
 	}
 	const runtime: Runtime = { store: options.store ?? memory_store(), edges };
 	slot.installed = runtime;
@@ -118,10 +115,7 @@ export async function invalidate_tags(
 	const { store, edges } = runtime;
 	const evict_by_tag = store.evictByTag?.bind(store);
 	if (!evict_by_tag) {
-		console.warn(
-			'[ogygia] postrender: the configured store has no evictByTag — tag invalidation needs it ' +
-				'(memory/valkey/upstash/cloudflareKv all provide it).'
-		);
+		warn('postrender_store_no_evict_by_tag');
 		return [];
 	}
 	// A tag the store fails to evict is reported and skipped: the other tags still evict, and every
@@ -131,11 +125,7 @@ export async function invalidate_tags(
 		try {
 			for (const key of await evict_by_tag(tag)) keys.add(key);
 		} catch (e) {
-			console.warn(
-				`[ogygia] postrender.invalidate(tags): the store failed to evict tag ${tag} (evictByTag); ` +
-					'its pages stay stored until they expire —',
-				e
-			);
+			warn('postrender_tag_evict_failed', { tag }, e);
 		}
 	}
 	const jobs: Job[] = [];
@@ -221,7 +211,7 @@ async function settle_all(label: string, jobs: readonly Job[]): Promise<void> {
 	const results = await Promise.allSettled(jobs.map((job) => job.run));
 	results.forEach((r, i) => {
 		if (r.status === 'rejected')
-			console.warn(`[ogygia] postrender.${label}: ${jobs[i].what} —`, r.reason);
+			warn('postrender_fanout_failed', { label, what: jobs[i].what }, r.reason);
 	});
 }
 
@@ -249,10 +239,7 @@ export async function invalidate(target: string | SourceFn, args?: unknown[]): P
 	}
 	const tag = sourceTag(target, args ?? []);
 	if (!tag) {
-		throw new Error(
-			'[ogygia] postrender.invalidate(fn, args): the function is not a declared source — ' +
-				'wrap its definition: `export const fn = import.meta.og.source(async (…) => …)`.'
-		);
+		throw new OgygiaError('postrender_invalidate_not_source');
 	}
 	await invalidate_tags([tag]);
 	// peers file the pages that baked a fragment which read this source under `r:<me>:<tag>`

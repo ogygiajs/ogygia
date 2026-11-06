@@ -41,7 +41,7 @@ describe('analyze_session', () => {
 		const log = {
 			t: 11,
 			message:
-				'console.error: [ogygia] hydration failed for x.js boom\n\tin <unknown>\n\tin X.svelte'
+				'console.error: OgygiaError: [ogygia] hydration failed for x.js\nhttps://ogygiajs.dev/e/island_hydrate_failed?entry=x.js boom\n\tin <unknown>\n\tin X.svelte'
 		};
 		const own = { t: 12, message: 'TypeError: nope\n    at f (a.js:1)' };
 		const r = analyze_session(base({ events: [failed], errors: [log, own] }), names, 'http://x/x');

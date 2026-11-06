@@ -36,6 +36,7 @@ import { og_js_regions } from '../parse/scan.ts';
 import { match_close } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { og_member } from './wire.ts';
+import { OgygiaError } from '../../messages/build.ts';
 
 // ── regexes
 const SERVER_MODULE_RE = /\.server(\.|$|\/)/;
@@ -137,11 +138,11 @@ function line_of(src: string, offset: number): number {
 }
 
 function misuse(id: string, src: string, offset: number, what: string): never {
-	throw new Error(
-		`[ogygia] ${id}:${line_of(src, offset)} — ${what}. import.meta.og.$ is legal in exactly one ` +
-			`shape: a direct call wrapping an inline function — import.meta.og.$((args) => { … }). ` +
-			`It hoists that function so its VALUE can cross an island boundary as a handle.`
-	);
+	throw new OgygiaError('macro_dollar_misuse', {
+		file: id,
+		line: line_of(src, offset),
+		problem: what
+	});
 }
 
 /** Names DECLARED anywhere inside `fn` (params, vars, inner fns, catch, destructuring). */

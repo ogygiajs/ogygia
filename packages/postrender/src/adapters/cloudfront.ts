@@ -11,6 +11,7 @@
 import { createHmac, createHash } from 'node:crypto';
 import type { EdgeAdapter } from '../types.ts';
 import { normalize_prefix } from '../key.ts';
+import { OgygiaError } from '../messages.ts';
 
 // ── regexes
 const DASH_COLON_G = /[-:]/g;
@@ -87,9 +88,11 @@ export function cloudfront(config: CloudfrontConfig): EdgeAdapter {
 			body
 		});
 		if (!res.ok) {
-			throw new Error(
-				`[ogygia] cloudfront invalidation failed: ${res.status} ${await res.text().catch(() => '')}`
-			);
+			throw new OgygiaError('postrender_adapter_request_failed', {
+				what: 'cloudfront invalidation',
+				status: res.status,
+				body: await res.text().catch(() => '')
+			});
 		}
 	};
 

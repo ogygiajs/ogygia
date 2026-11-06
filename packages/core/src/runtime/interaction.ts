@@ -45,6 +45,7 @@
 import { slots } from './slots.ts';
 import { warm_island_module } from './region-endpoint-url.ts';
 import { island_entry_of } from './entry-locations.ts';
+import { OgygiaError } from '../messages/core.ts';
 
 /** Feature entry: fill the `interaction` slot — wake a cold island on first use, warm on hover. */
 export function install(): void {
@@ -245,7 +246,7 @@ function wake(a: Armed, e: Event): void {
 			// dead-but-real HTML. Replay the swallowed clicks so the failed one still acts.
 			disarm();
 			replay().then((r) => r.replay_clicks(region, queued));
-			console.error('[ogygia] interaction island failed to hydrate — leaving it static.', err);
+			console.error(new OgygiaError('interaction_hydrate_failed'), err);
 		}
 	);
 }

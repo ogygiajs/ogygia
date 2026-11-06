@@ -18,6 +18,7 @@ import {
 import type { SvelteNode, HostImport, RegionMark } from './ir.ts';
 import type * as NodePath from 'node:path';
 import { blank_styles } from '../blank-styles.ts';
+import { OgygiaError, warn } from '../../messages/build.ts';
 
 /** A host the parser still cannot read keeps its region imports as plain imports (no island):
  *  said once per file, never skipped in silence. The Svelte compiler reports the error itself. */
@@ -26,9 +27,11 @@ function warn_unparsed(id: string, err: unknown): void {
 	if (warned_unparsed.has(id)) return;
 	warned_unparsed.add(id);
 	const e = err as { code?: string; start?: { line?: number; column?: number }; message?: string };
-	console.warn(
-		`[ogygia] regions: skipped ${id}: ${e.code ?? (e.message ?? 'parse error').split('\n')[0].slice(0, 80)}${e.start?.line ? ` at ${e.start.line}:${(e.start.column ?? 0) + 1}` : ''} — its region imports stay plain imports`
-	);
+	warn('region_host_skipped', {
+		file: id,
+		reason: e.code ?? (e.message ?? 'parse error').split('\n')[0].slice(0, 80),
+		at: e.start?.line ? `${e.start.line}:${(e.start.column ?? 0) + 1}` : ''
+	});
 }
 
 /** The resolved context the adapter/driver threads into a host transform. */
@@ -192,10 +195,10 @@ function line_col(src: string, offset: number): string {
 }
 /** Once per key for the process — the ssr AND client passes both transform the same host. */
 const store_warned = new Set<string>();
-function warn_once(key: string, msg: string): void {
+function warn_once(key: string, say: () => void): void {
 	if (store_warned.has(key)) return;
 	store_warned.add(key);
-	console.warn(msg);
+	say();
 }
 
 // Invariant per-build — hoisted to module scope so they aren't reallocated on every transformHost.
@@ -257,15 +260,14 @@ function normalize_import_keys_uncached(overrides?: Partial<ImportKeys> | null):
 		['region', region]
 	] as const) {
 		if (!name || !JS_IDENT.test(name)) {
-			throw new Error(
-				`[ogygia] importKeys.${role} must be a non-empty JS identifier (got ${JSON.stringify(overrides?.[role])}).`
-			);
+			throw new OgygiaError('import_key_invalid', {
+				role,
+				got: String(JSON.stringify(overrides?.[role]))
+			});
 		}
 	}
 	if (new Set([wake, fetch, render, preset, region]).size !== 5) {
-		throw new Error(
-			'[ogygia] importKeys.wake, importKeys.fetch, importKeys.render, importKeys.preset, and importKeys.region must be distinct.'
-		);
+		throw new OgygiaError('import_keys_not_distinct');
 	}
 	return { wake, fetch, render, preset, region };
 }
@@ -481,10 +483,7 @@ function parse_ts_as_region_options(
 export function normalize_region_value(raw: string, where: string, regionKey = 'region'): void {
 	const v = (raw ?? '').trim();
 	if (v === 'raw') return;
-	throw new Error(
-		`[ogygia] ${where}: \`${regionKey}\` only takes the value 'raw' (a held region with no baked ` +
-			`schedule). To bake a schedule use a \`wake:\` mark, or set it at the \`region()\` call.`
-	);
+	throw new OgygiaError('region_value_not_raw', { host: where, key: regionKey });
 }
 
 /**
@@ -495,9 +494,7 @@ export function normalize_region_value(raw: string, where: string, regionKey = '
 export function normalize_hydrate_value(raw: string, where: string, wakeKey = 'wake'): string {
 	const v = (raw ?? '').trim();
 	if (HYDRATE_STRATEGIES.has(v) || is_media_query(v)) return v;
-	throw new Error(
-		`[ogygia] ${where}: unknown \`${wakeKey}\` strategy '${v}'. Use 'load' | 'idle' | 'visible' | 'interaction' | a media query.`
-	);
+	throw new OgygiaError('wake_strategy_unknown', { host: where, key: wakeKey, value: v });
 }
 
 /** Reconstruct an import declaration without its `with { ... }` attributes clause. */
@@ -881,10 +878,7 @@ function resolve_component_path(spec: string, host_id: string, ctx: HostCtx) {
 	// surfaced later as an opaque UNRESOLVED_IMPORT out of a region module. The origin host is
 	// threaded via `ctx.originOf`; reaching here with a virtual host means that thread is missing.
 	if (spec.startsWith('.') && VIRTUAL_HOST_RE.test(host_id)) {
-		throw new Error(
-			`[ogygia] ${host_id}: cannot resolve the relative import '${spec}' from a generated module — ` +
-				`it has no directory. Its real origin must be threaded (HostCtx.originOf); this is an ogygia bug, please report it.`
-		);
+		throw new OgygiaError('generated_module_relative_import', { host: host_id, specifier: spec });
 	}
 	if (spec === '$lib' || spec.startsWith('$lib/')) {
 		return ctx.pathModule.join(ctx.libDir, spec === '$lib' ? '' : spec.slice('$lib/'.length));
@@ -1217,11 +1211,15 @@ class FileCompilation {
 						`Keep \`${import_keys.fetch}\`: it says when a hole's HTML arrives.`
 				);
 			}
-			warn_once(
-				`deferred-wake:${rel_host}:${said}:${wake_val}`,
-				`[ogygia] ${rel_host}: ${said} times a \`${import_keys.render}: 'deferred'\` hole with \`${import_keys.wake}: '${wake_val}'\`, which is deprecated. ` +
-					`Write \`${import_keys.render}: 'deferred', ${import_keys.fetch}: '${wake_val}'\` instead: \`${import_keys.fetch}\` says when a hole's HTML arrives. ` +
-					`(\`${import_keys.wake}\` is when an island's JS runs; a hole ships no JS.)`
+			warn_once(`deferred-wake:${rel_host}:${said}:${wake_val}`, () =>
+				warn('hole_wake_deprecated', {
+					host: rel_host,
+					said,
+					render_key: import_keys.render,
+					wake_key: import_keys.wake,
+					fetch_key: import_keys.fetch,
+					value: wake_val
+				})
 			);
 			fetch_val = wake_val;
 		}
@@ -1402,13 +1400,11 @@ class FileCompilation {
 			kids[0].type === 'SnippetBlock' &&
 			kids[0].expression?.name === 'ogygiaFallback';
 		if (only_fallback) return;
-		throw new Error(
-			`[ogygia] ${this.#rel_host}: <${local}> has host children/snippets that cannot cross the island boundary. ` +
-				`Under portable bindings, pass serializable props and put UI inside the island component` +
-				(is_server
-					? ` (only the reserved \`{#snippet ogygiaFallback()}\` may appear at the call site).`
-					: `.`)
-		);
+		throw new OgygiaError('region_children_not_portable', {
+			host: this.#rel_host,
+			tag: local,
+			server: is_server
+		});
 	}
 
 	/** Walk the markup: enforce region-usage rules + surface whether a hydrate island has real
@@ -1423,10 +1419,11 @@ class FileCompilation {
 						this.#marked_components.has(root) &&
 						this.#marked_components.get(root)!.strategy !== 'lake'
 					) {
-						throw new Error(
-							`[ogygia] ${this.#rel_host}: dotted tag \`<${name}>\` is not supported for region import '${root}'. ` +
-								`Import the leaf component with \`with { hydrate|defer }\` instead.`
-						);
+						throw new OgygiaError('region_dotted_tag', {
+							host: this.#rel_host,
+							tag: name,
+							import: root
+						});
 					}
 				} else if (this.#marked_components.has(name)) {
 					this.#static_placed.add(name);
@@ -1483,14 +1480,23 @@ class FileCompilation {
 		return pkg ?? this.#posix_rel(p);
 	}
 
-	/** `[ogygia] host: import { … } — msg` — the region-import error formatter. */
+	/** `host: import { … } — msg` (`region_import_invalid`) — the region-import error formatter. */
 	#err(specifiers: string, msg: string) {
-		return new Error(`[ogygia] ${this.#rel_host}: import { ${specifiers} } — ${msg}`);
+		return new OgygiaError('region_import_invalid', {
+			host: this.#rel_host,
+			names: specifiers,
+			problem: msg
+		});
 	}
 
-	/** `[ogygia] host: import.meta.og.asRegion (local) — msg` — the asRegion error formatter. */
+	/** `host: import.meta.og.asRegion (local) — msg` (`as_region_invalid`) — the asRegion error
+	 *  formatter. */
 	#as_err(local: string, msg: string) {
-		return new Error(`[ogygia] ${this.#rel_host}: import.meta.og.asRegion (${local}) — ${msg}`);
+		return new OgygiaError('as_region_invalid', {
+			host: this.#rel_host,
+			name: local,
+			problem: msg
+		});
 	}
 
 	/** Read asRegion's options object into the same key→value map an import attribute produces, so the
@@ -1578,26 +1584,17 @@ class FileCompilation {
 		//   - runtimes reject unknown keys like `hydrate` if left in place,
 		//   - ogygia islands need a static import + a static `<Tag />` so SSR can emit the shell.
 		// Fail at transform time with the working alternatives rather than silently no-op.
-		reject_dynamic_region_imports(instance_body, import_keys, (keys) => {
-			throw new Error(
-				`[ogygia] ${rel_host}: dynamic import() with { with: { ${keys.join(', ')} } } is not supported. ` +
-					`Mark islands with a static \`import X from '…' with { ${import_keys.wake}: '…' }\` ` +
-					`(or \`${import_keys.render}\` / \`${import_keys.preset}\`) — the binding becomes a portable island component. ` +
-					`For a click-loaded chunk that is not an island, use plain \`await import('./Comp.svelte')\` ` +
-					`(no region attributes) inside a host island. ` +
-					`To delay a real island until click, gate a static region import with \`{#if}\`.`
-			);
-		});
-		reject_dynamic_region_imports(module_body, import_keys, (keys) => {
-			throw new Error(
-				`[ogygia] ${rel_host}: dynamic import() with { with: { ${keys.join(', ')} } } is not supported. ` +
-					`Mark islands with a static \`import X from '…' with { ${import_keys.wake}: '…' }\` ` +
-					`(or \`${import_keys.render}\` / \`${import_keys.preset}\`) — the binding becomes a portable island component. ` +
-					`For a click-loaded chunk that is not an island, use plain \`await import('./Comp.svelte')\` ` +
-					`(no region attributes) inside a host island. ` +
-					`To delay a real island until click, gate a static region import with \`{#if}\`.`
-			);
-		});
+		const reject_dynamic = (keys: string[]): never => {
+			throw new OgygiaError('dynamic_region_import', {
+				host: rel_host,
+				keys: keys.join(', '),
+				wake_key: import_keys.wake,
+				render_key: import_keys.render,
+				preset_key: import_keys.preset
+			});
+		};
+		reject_dynamic_region_imports(instance_body, import_keys, reject_dynamic);
+		reject_dynamic_region_imports(module_body, import_keys, reject_dynamic);
 
 		// --- collect host imports & region marks (the two-key region model) --------
 		// The authoring syntax is the import attribute, one concern per key (`wake` = the schedule,
@@ -1954,9 +1951,11 @@ class FileCompilation {
 			const entry_spec = info.node.source?.value;
 			const componentPath = resolve_component_path(entry_spec, origin, ctx);
 			if (!componentPath) {
-				throw new Error(
-					`[ogygia] ${rel_host}: region import '${local}' needs a module specifier ($lib/…, relative, or a package specifier like 'pkg/component').`
-				);
+				throw new OgygiaError('region_import_no_specifier', {
+					host: rel_host,
+					name: local,
+					held: false
+				});
 			}
 			// asRegion regions ride in as a synthetic default-import; `exportName` is the barrel export the
 			// generators pull (entry/wrapper import `{ Name as … }`), and identity keys on `source#exportName`.
@@ -2354,10 +2353,11 @@ class FileCompilation {
 			const store_rewrites: Array<{ start: number; end: number; prop: string }> = [];
 			for (const [nm, sites] of stores) {
 				if (nm.startsWith('$$')) {
-					throw new Error(
-						`[ogygia] ${rel_host}: {#snippet ${name}} crosses an island boundary but reads \`${nm}\` — ` +
-							`the host's $$-props cannot cross. Read the value into a plain host variable outside the snippet and use that instead.`
-					);
+					throw new OgygiaError('snippet_reads_dollar_props', {
+						host: rel_host,
+						snippet: name,
+						name: nm
+					});
 				}
 				const base = nm.slice(1);
 				const prop = `__og_sub_${base}`;
@@ -2365,19 +2365,17 @@ class FileCompilation {
 				for (const p of sites) store_rewrites.push({ start: p.start, end: p.end, prop });
 				const trace = sites.map((p) => `${rel_host}:${line_col(source, p.start)}`).join(', ');
 				if (host_declared.has(base) || imports.has(base)) {
-					warn_once(
-						`${id}\0${name}\0${nm}\0frozen`,
-						`[ogygia] ${rel_host}: {#snippet ${name}} crosses an island boundary and reads \`${nm}\` ` +
-							`(at ${trace}) — captured as a FROZEN snapshot of the store's value at render time; later ` +
-							`store updates never reach the island. To make the snapshot explicit (and silence this), ` +
-							`read it at host scope outside the snippet — e.g. \`const ${base}_value = ${nm};\` — and use that.`
+					warn_once(`${id}\0${name}\0${nm}\0frozen`, () =>
+						warn('snippet_store_snapshot', { host: rel_host, snippet: name, store: nm, at: trace })
 					);
 				} else {
-					warn_once(
-						`${id}\0${name}\0${nm}\0unresolved`,
-						`[ogygia] ${rel_host}: {#snippet ${name}} reads \`${nm}\` (at ${trace}), but \`${base}\` is not ` +
-							`a host declaration or import, so ogygia cannot verify it is a store. Its value is captured ` +
-							`at the host anyway — if the build now errors in ${rel_host}, start there.`
+					warn_once(`${id}\0${name}\0${nm}\0unresolved`, () =>
+						warn('snippet_store_unverified', {
+							host: rel_host,
+							snippet: name,
+							store: nm,
+							at: trace
+						})
 					);
 				}
 			}
@@ -2408,12 +2406,8 @@ class FileCompilation {
 					// A host-declared STORE captured as an OBJECT: devalue can't serialize its functions —
 					// the island gets a runtime error or a dead copy. Warn with the fix; never gate.
 					if (store_like.has(nm)) {
-						warn_once(
-							`${id}\0${name}\0${nm}\0object`,
-							`[ogygia] ${rel_host}: {#snippet ${name}} crosses an island boundary and captures the ` +
-								`store \`${nm}\` as an OBJECT — a host-declared store cannot cross (its functions ` +
-								`don't serialize). Use its value (\`$${nm}\`) inside the snippet, or share live state ` +
-								`with a wired class instead.`
+						warn_once(`${id}\0${name}\0${nm}\0object`, () =>
+							warn('snippet_captures_store', { host: rel_host, snippet: name, store: nm })
 						);
 					}
 					captures.push(nm);
@@ -2708,9 +2702,13 @@ class TsRegionCompilation {
 		return this.#path.relative(this.#root, abs).split(PATH_SEP).join('/');
 	}
 
-	/** `[ogygia] host: import.meta.og.asRegion (local) — msg`. */
+	/** `host: import.meta.og.asRegion (local) — msg` (`as_region_invalid`). */
 	#as_err(local: string, msg: string) {
-		return new Error(`[ogygia] ${this.#rel_host}: import.meta.og.asRegion (${local}) — ${msg}`);
+		return new OgygiaError('as_region_invalid', {
+			host: this.#rel_host,
+			name: local,
+			problem: msg
+		});
 	}
 
 	/**
@@ -2768,33 +2766,46 @@ class TsRegionCompilation {
 		const fetchKey = this.#import_keys.fetch;
 		const renderKey = this.#import_keys.render;
 		if (marker.fetch != null && marker.render == null) {
-			throw new Error(
-				`[ogygia] ${this.#rel_host}: \`${fetchKey}: '${marker.fetch}'\` without \`${renderKey}: 'deferred'\` — \`${fetchKey}\` is a hole's timing. ` +
-					`Write \`${renderKey}: 'deferred', ${fetchKey}: '${marker.fetch}'\` for a hole, or \`${this.#wakeKey}: '${marker.fetch}'\` for an island.`
-			);
+			throw new OgygiaError('held_fetch_without_render', {
+				host: this.#rel_host,
+				fetch_key: fetchKey,
+				render_key: renderKey,
+				wake_key: this.#wakeKey,
+				value: marker.fetch
+			});
 		}
 		if (marker.render != null) {
 			if (marker.render !== 'deferred') {
-				throw new Error(
-					marker.render === 'live'
-						? `[ogygia] ${this.#rel_host}: \`${renderKey}: 'live'\` is not supported on a .ts import — use it in a .svelte file.`
-						: `[ogygia] ${this.#rel_host}: unknown \`${renderKey}\` '${marker.render}'. Use 'deferred'.`
-				);
+				throw marker.render === 'live'
+					? new OgygiaError('held_render_live', { host: this.#rel_host, render_key: renderKey })
+					: new OgygiaError('held_render_unknown', {
+							host: this.#rel_host,
+							render_key: renderKey,
+							value: marker.render
+						});
 			}
 			// the old `wake` timing still times the hole, with a warning naming its replacement (as the
 			// `.svelte` path does); both at once is a contradiction
 			if (marker.wake != null) {
 				if (marker.fetch != null) {
-					throw new Error(
-						`[ogygia] ${this.#rel_host}: a \`${renderKey}: 'deferred'\` hole timed twice, with \`${fetchKey}: '${marker.fetch}'\` and \`${this.#wakeKey}: '${marker.wake}'\`. ` +
-							`Keep \`${fetchKey}\`: it says when a hole's HTML arrives.`
-					);
+					throw new OgygiaError('held_hole_timed_twice', {
+						host: this.#rel_host,
+						render_key: renderKey,
+						fetch_key: fetchKey,
+						wake_key: this.#wakeKey,
+						fetch: marker.fetch,
+						wake: marker.wake
+					});
 				}
-				warn_once(
-					`deferred-wake:${this.#rel_host}:ts:${marker.wake}`,
-					`[ogygia] ${this.#rel_host}: a \`${renderKey}: 'deferred'\` hole timed with \`${this.#wakeKey}: '${marker.wake}'\`, which is deprecated. ` +
-						`Write \`${renderKey}: 'deferred', ${fetchKey}: '${marker.wake}'\` instead: \`${fetchKey}\` says when a hole's HTML arrives. ` +
-						`(\`${this.#wakeKey}\` is when an island's JS runs; a hole ships no JS.)`
+				const wake = marker.wake;
+				warn_once(`deferred-wake:${this.#rel_host}:ts:${wake}`, () =>
+					warn('hole_wake_deprecated', {
+						host: this.#rel_host,
+						render_key: renderKey,
+						wake_key: this.#wakeKey,
+						fetch_key: fetchKey,
+						value: wake
+					})
 				);
 			}
 			const dval = marker.fetch ?? marker.wake ?? 'load';
@@ -2802,9 +2813,11 @@ class TsRegionCompilation {
 			if (DEFER_STRATEGIES.has(dval)) when = dval;
 			else if (is_media_query(dval)) when = dval;
 			else
-				throw new Error(
-					`[ogygia] ${this.#rel_host}: \`${fetchKey}: '${dval}'\` is not a timing. Use \`${fetchKey}: 'load' | 'idle' | 'visible' | 'interaction'\` or a media query (a hole must fetch — not 'none').`
-				);
+				throw new OgygiaError('held_fetch_not_timing', {
+					host: this.#rel_host,
+					fetch_key: fetchKey,
+					value: dval
+				});
 			const options: { when: string; margin?: string } = { when };
 			if (when === 'visible' && this.#ctx.visibleMargin != null)
 				options.margin = this.#ctx.visibleMargin;
@@ -2961,15 +2974,22 @@ class TsRegionCompilation {
 					[...attrs.keys()].some((k) => k !== renderKey && k !== wakeKey && k !== fetchKey)) ||
 				(!has_render && has_wake && attrs.size > 1);
 			if (bad_combo) {
-				throw new Error(
-					`[ogygia] ${rel_host}: a held-region import on '${local}' takes ONE marker — \`${regionKey}: 'raw'\`, \`${wakeKey}: '…'\`, or \`${renderKey}: 'deferred'\` (with \`${fetchKey}\` as its timing).`
-				);
+				throw new OgygiaError('held_marker_mixed', {
+					host: rel_host,
+					name: local,
+					region_key: regionKey,
+					wake_key: wakeKey,
+					render_key: renderKey,
+					fetch_key: fetchKey
+				});
 			}
 			const componentPath = this.#resolve_spec(spec);
 			if (!componentPath) {
-				throw new Error(
-					`[ogygia] ${rel_host}: held-region import '${local}' needs a module specifier ($lib/…, relative, or a package specifier like 'pkg/component').`
-				);
+				throw new OgygiaError('region_import_no_specifier', {
+					host: rel_host,
+					name: local,
+					held: true
+				});
 			}
 			const marker = has_render
 				? { render: attrs.get(renderKey), wake: attrs.get(wakeKey), fetch: attrs.get(fetchKey) }

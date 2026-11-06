@@ -11,6 +11,7 @@
  */
 import type { PostrenderMeta, EdgeAdapter } from '../types.ts';
 import { prefix_tags, normalize_prefix } from '../key.ts';
+import { OgygiaError } from '../messages.ts';
 
 // ── regexes
 const TRAILING_SLASHES_RE = /\/+$/;
@@ -46,9 +47,11 @@ export function cloudflare(config: CloudflareConfig): EdgeAdapter {
 			body: JSON.stringify(body)
 		});
 		if (!res.ok) {
-			throw new Error(
-				`[ogygia] cloudflare purge failed: ${res.status} ${await res.text().catch(() => '')}`
-			);
+			throw new OgygiaError('postrender_adapter_request_failed', {
+				what: 'cloudflare purge',
+				status: res.status,
+				body: await res.text().catch(() => '')
+			});
 		}
 	};
 

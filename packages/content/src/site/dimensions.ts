@@ -27,6 +27,7 @@ import {
 	type TrailScope
 } from './outline.ts';
 import type { NavRef, NavTree } from './types.ts';
+import { OgygiaError } from '../messages/runtime.ts';
 
 // ── regexes
 const EDGE_SLASHES_G = /^\/+|\/+$/g;
@@ -102,13 +103,13 @@ class Dimensions implements Dimensioned {
 	constructor(spec: DimensionsSpec) {
 		this.#spec = spec;
 		this.#names = Object.keys(spec.axes);
-		if (this.#names.length === 0)
-			throw new Error('[ogygia/content] dimensions() needs at least one axis.');
+		if (this.#names.length === 0) throw new OgygiaError('content_dimensions_no_axis');
 		for (const name of this.#names) {
 			if (!spec.axes[name].values.includes(this.#def(name))) {
-				throw new Error(
-					`[ogygia/content] axis "${name}": default "${this.#def(name)}" is not in values.`
-				);
+				throw new OgygiaError('content_axis_default_missing', {
+					axis: name,
+					value: this.#def(name)
+				});
 			}
 		}
 		this.axes = spec.axes;

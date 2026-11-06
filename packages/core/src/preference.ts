@@ -16,6 +16,7 @@
  * ```
  */
 import { script } from './script.ts';
+import { OgygiaError } from './messages/island.ts';
 
 /** A preference declaration: its name, allowed values, and default (which must be one of the values). */
 export type PreferenceSpec = {
@@ -73,9 +74,11 @@ function preference_switch(): string {
 /** Declare a site-wide client preference. Throws at creation if `default` isn't one of `values`. */
 function preference_impl(spec: PreferenceSpec): Preference {
 	if (!spec.values.includes(spec.default)) {
-		throw new Error(
-			`[ogygia] preference('${spec.name}'): default '${spec.default}' is not one of values [${spec.values.join(', ')}]`
-		);
+		throw new OgygiaError('preference_default_invalid', {
+			name: spec.name,
+			fallback: spec.default,
+			values: spec.values.join(', ')
+		});
 	}
 	const name = spec.name;
 	const values = spec.values;

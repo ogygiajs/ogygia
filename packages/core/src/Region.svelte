@@ -63,6 +63,7 @@
 	import { plan_props_wire, props_sidecar } from './server/props-wire.ts';
 	import { region_css_tag } from './server/region-css.ts';
 	import { escape_amp, escape_amp_quot, escape_attr } from './escape.ts';
+	import { warn } from './messages/island.ts';
 	import {
 		isNested,
 		setNested,
@@ -216,10 +217,7 @@
 	// the promise and its stylesheet resolve). The model is "loading UI lives on the region" — say so.
 	// svelte-ignore state_referenced_locally
 	if (of_is_promise && !placeholder && !children && import.meta.env && import.meta.env.DEV) {
-		console.warn(
-			'[ogygia] <Region of={promise}> has no `placeholder` — the region will sit empty until the ' +
-				'promise resolves and its stylesheet loads. Add {#snippet placeholder()}…{/snippet} for the wait.'
-		);
+		warn('region_promise_no_placeholder');
 	}
 	// A promise is PromiseRegion's (the template hands it over): how it waits — in the render where the
 	// app runs async mode, a late slot on a streamed document, after hydration otherwise — is decided
@@ -419,11 +417,8 @@
 	// eliminated in builds via the `import.meta.env.DEV` guard.
 	if (nested && (is_island || is_server) && import.meta.env && import.meta.env.DEV) {
 		const entry = untrack(() => (is_server ? __entry : island_entry));
-		console.warn(
-			is_server
-				? `[ogygia] nested server island "${entry}" is inside another island; it renders inline as frozen HTML (no JS ships; islands inside it wake on their own) — 'deferred' ignored.`
-				: `[ogygia] nested island "${entry}" is inside another island; it hydrates with its parent (strategy ignored).`
-		);
+		if (is_server) warn('nested_server_island_inline', { entry: entry || '' });
+		else warn('nested_island_with_parent', { entry: entry || '' });
 	}
 	// Freeze bare snippet PROPS (named-snippet props) to static region snippets (server) so the island
 	// BODY and the serialized PAYLOAD render byte-for-byte identically — hydration then adopts the frozen
@@ -877,9 +872,7 @@
 			// client-renders from scratch has nothing. (Inside an island an empty element is the lifted
 			// lake, which the runtime fills right after.)
 			if (is_csr && !el.firstChild && import.meta.env && import.meta.env.DEV)
-				console.warn(
-					`[ogygia] lake "${__entry}" was mounted by Kit on the client with no server HTML to adopt (a client-side navigation, or a hydration failure — look for an error above). The runtime restores it from its server HTML when this document rendered it; otherwise it stays empty. A lake is server HTML: keep chrome lakes in a layout that persists across navigations, or serve that route csr=false.`
-				);
+				warn('lake_mounted_without_html', { entry: __entry || '' });
 		}
 	);
 

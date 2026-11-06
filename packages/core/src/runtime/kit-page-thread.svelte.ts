@@ -35,6 +35,8 @@
  * `null` when the page is already applied (the common late-wake case: a fetched hole's islands, a
  * click long after boot) — the caller skips the await entirely.
  */
+import { warn } from '../messages/lazy.ts';
+
 const KIT_PAGE_KEY = Symbol.for('ogygia.kit-page');
 /** Kit constructs its `$app/state` page with this status; `initialize()` replaces it with the real one. */
 const KIT_PRE_START_STATUS = -1;
@@ -72,15 +74,10 @@ export function kit_page_thread(): Promise<void> | null {
 		let slow: ReturnType<typeof setTimeout> | null = null;
 		if (import.meta.env.DEV) {
 			slow = setTimeout(() => {
-				const bridge = bridge_of();
-				console.warn(
-					`[ogygia] islands inside a lake / hole answer on this Kit (csr=true) page have waited ${DEV_STILL_WAITING_MS / 1000}s ` +
-						`for Kit to apply its page and are still holding their server HTML. ` +
-						(bridge == null
-							? `Kit's client entry has not evaluated (no page bridge yet) — Kit's boot script may be blocked, failing, or missing.`
-							: `Kit's client entry evaluated but start() has not applied the page (status is still -1) — Kit's start() may have thrown; check the console above.`) +
-						` They hydrate the moment Kit does; nothing is discarded meanwhile.`
-				);
+				warn('kit_page_waiting', {
+					seconds: DEV_STILL_WAITING_MS / 1000,
+					booted: bridge_of() != null
+				});
 			}, DEV_STILL_WAITING_MS);
 		}
 		const done = () => {

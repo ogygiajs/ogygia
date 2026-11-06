@@ -133,8 +133,8 @@ test('a web component in a position Svelte WALKS: its added nodes go, and the co
 	const out = repair_if_drifted(region, server);
 	expect(out.repaired).toBe(true);
 	expect(region.querySelector(`${name} .p`)).toBeNull();
+	// (the element; the way out is its message's — `ownership_conflict`, messages/core.ts)
 	expect(out.conflict).toContain(`<${name}>`);
-	expect(out.conflict).toContain('{@html}');
 	expect(sequence_differs(region, want_of(server))).toBe(false);
 });
 

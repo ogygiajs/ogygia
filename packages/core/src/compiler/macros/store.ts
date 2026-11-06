@@ -23,6 +23,7 @@
 import { og_js_regions } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { og_member } from './wire.ts';
+import { OgygiaError, warn } from '../../messages/build.ts';
 
 const MARKER = 'import.meta.og.store';
 
@@ -49,13 +50,11 @@ function line_of(src: string, offset: number): number {
 }
 
 function misuse(id: string, src: string, offset: number, what: string): never {
-	throw new Error(
-		`[ogygia] ${id}:${line_of(src, offset)} — ${what}. import.meta.og.store is legal in exactly ` +
-			`one shape: a direct call wrapping a store factory — ` +
-			`import.meta.og.store((seed) => ({ subscribe, … })). It registers the factory under a build ` +
-			`tag so islands rebuild the store THROUGH it (custom methods survive); the factory's first ` +
-			`parameter is the seed value.`
-	);
+	throw new OgygiaError('macro_store_misuse', {
+		file: id,
+		line: line_of(src, offset),
+		problem: what
+	});
 }
 
 /** Unwrap oxc's preserved parens. */
@@ -165,13 +164,10 @@ export function rewrite_store(
 					// the exact line at build time instead of a warning at first render.
 					const bad = first_non_store_return(fn);
 					if (bad !== undefined && typeof console !== 'undefined') {
-						console.warn(
-							`[ogygia] ${id}:${line_of(src, region.offset + bad)} — this import.meta.og.store ` +
-								`factory has a return that is provably not a store (undefined/null/primitive). ` +
-								`Where that branch runs, the product crosses as plain data, unbranded. If it is an ` +
-								`environment guard, return a store there too (e.g. writable(seed)) and guard the ` +
-								`side effects inside the factory instead.`
-						);
+						warn('macro_store_returns_non_store', {
+							file: id,
+							line: line_of(src, region.offset + bad)
+						});
 					}
 				}
 				const fn_text = region.code.slice(fn.start, fn.end);

@@ -103,7 +103,9 @@ export default defineConfig({
 					name: 'node',
 					include: ['test/**/*.test.ts'],
 					exclude: ['test/browser/**', '**/node_modules/**'],
-					environment: 'node'
+					environment: 'node',
+					// the runtime's messages, published as the runtime's boot and the server's handle do
+					setupFiles: ['./test/_setup/messages.ts']
 				}
 			},
 			{

@@ -44,6 +44,7 @@
  *
  * @module
  */
+import { OgygiaError } from '../messages/build.ts';
 
 // ── regexes
 const HEX4_RE = /^[0-9a-fA-F]{4}$/;
@@ -69,7 +70,7 @@ function indent_of(line: string): number {
 	let i = 0;
 	while (i < line.length && line[i] === ' ') i++;
 	if (line[i] === '\t') {
-		throw new Error('[ogygia/content] tabs are not allowed for indentation');
+		throw new OgygiaError('content_frontmatter_tab_indent');
 	}
 	return i;
 }
@@ -575,7 +576,9 @@ function parse_mapping(ctx: Ctx, indent: number): Record<string, unknown> {
 		// An empty key (a line that is just `:` or `: : :`) is malformed, not a valid mapping —
 		// surface it so callers reject broken frontmatter instead of silently keying on "".
 		if (key === '') {
-			throw new Error(`[ogygia/content] empty mapping key in line: ${JSON.stringify(line.trim())}`);
+			throw new OgygiaError('content_frontmatter_empty_key', {
+				line: JSON.stringify(line.trim())
+			});
 		}
 		const value_part = content.slice(kc + 1);
 		ctx.i++;
@@ -653,7 +656,7 @@ export function parseFrontmatter(source: string): FrontmatterResult {
 		}
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : String(e);
-		throw new Error(`[ogygia/content] invalid frontmatter YAML: ${msg}`);
+		throw new OgygiaError('content_frontmatter_invalid', { reason: msg });
 	}
 	return { data, body: after };
 }

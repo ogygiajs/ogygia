@@ -84,6 +84,7 @@ export class PageState {
 // (e.g. a sidebar's active link stuck on the old page in dev). A `globalThis` + `Symbol.for` handle
 // is one instance regardless of how many times the module is evaluated. PAGE-STATE-SINGLETON.
 import { foreign_hydrate } from '../current-region.ts';
+import { warn } from '../messages/island.ts';
 
 const PAGE_STATE_KEY = Symbol.for('ogygia.page-state');
 const global_scope = globalThis as unknown as Record<symbol, PageState | undefined>;
@@ -122,10 +123,5 @@ export function warn_foreign_page_read(expr: string): void {
 	const f = foreign_hydrate();
 	if (!f || warned_foreign_entries.has(f.entry)) return;
 	warned_foreign_entries.add(f.entry);
-	console.warn(
-		`[ogygia] ${expr} was read inside a mounted MFE island (${f.entry}, from ${f.origin}).\n` +
-			`In the browser this is the SHELL's page, not the MFE's. The HTML you see was rendered with ` +
-			`the MFE's own load data, so this island will repaint with different values after hydrate.\n` +
-			`Pass the value as a prop, or read it with a remote function.`
-	);
+	warn('foreign_page_read', { expr, entry: f.entry, origin: f.origin });
 }

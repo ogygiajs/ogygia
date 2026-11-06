@@ -12,6 +12,7 @@
 import type { LinkRef } from '../index.ts';
 import { href_of, type Outline } from './outline.ts';
 import type { ReadContext } from './site.ts';
+import { warn } from '../messages/runtime.ts';
 
 /** How loud a finding is: `'error'` fails the build (load throws); `'warn'` logs in dev. */
 export type Severity = 'error' | 'warn';
@@ -101,11 +102,7 @@ export function links(opts: LinkOptions = {}): Check {
 		if (!has_link_data(entry?.meta)) {
 			if (!warned.has(hit.collection)) {
 				warned.add(hit.collection);
-				if (import.meta.env?.DEV) {
-					console.warn(
-						`[ogygia/content] links() check is on, but '${slug}' comes from a collection whose entries carry no 'meta.links' (only markdown collects them). Link checking is a NO-OP for this corpus — fill 'meta.links' in the format to enable it.`
-					);
-				}
+				if (import.meta.env?.DEV) warn('content_links_no_data', { slug });
 			}
 			return [];
 		}
@@ -212,14 +209,14 @@ export async function run_site_checks(checks: Check[], cx: CheckContext): Promis
 	return out;
 }
 
-/** Format a page's error findings into ONE thrown message — file-anchored, every finding named. */
+/** A page's findings as ONE message's arguments — file-anchored, every finding named. */
 export function format_findings(
 	slug: string,
 	findings: Finding[],
 	file: string | undefined
-): string {
+): { slug: string; file: string; count: number; findings: string } {
 	const rows = findings.map(
 		(f) => `  - [${f.check}] ${f.message}${f.line !== undefined ? ` (line ~${f.line})` : ''}`
 	);
-	return `[ogygia/content] check failure${findings.length === 1 ? '' : 's'} on '${slug}'${file ? ` (${file})` : ''}:\n${rows.join('\n')}`;
+	return { slug, file: file ?? '', count: findings.length, findings: rows.join('\n') };
 }

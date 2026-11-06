@@ -307,7 +307,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		tpl.innerHTML = want;
 		const diff = differ(tpl.content, host, `<${host.localName}>`);
 		if (!diff) return;
-		console.error(`[ogygia] the transform broke hydration markup: ${diff}`);
+		// (recorded, never printed here: the runtime reports the log — runtime/restore-report.ts)
 		host.dispatchEvent(
 			new CustomEvent('ogygia:restore-mismatch', {
 				bubbles: true,

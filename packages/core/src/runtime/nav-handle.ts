@@ -23,6 +23,7 @@
  * purpose: importing {@link NAV_HANDLE_KEY} would be the very edge this module exists to avoid).
  */
 import { speculate_url } from './speculate-hint.ts';
+import { OgygiaError, warn } from '../messages/core.ts';
 import type { AfterNavigateCallback, BeforeNavigateCallback } from './router.ts';
 
 export const NAV_HANDLE_KEY: unique symbol = Symbol.for('ogygia.nav');
@@ -63,12 +64,10 @@ export function mpa_nav(): NavHandle {
 		goto(url, opts = {}) {
 			const target = new URL(url, location.href);
 			if (target.protocol !== 'http:' && target.protocol !== 'https:') {
-				throw new Error('[ogygia] goto() only supports http(s) URLs');
+				throw new OgygiaError('goto_not_http');
 			}
 			if (target.origin !== location.origin && !opts.external) {
-				throw new Error(
-					'[ogygia] goto() only supports same-origin URLs (pass { external: true } to leave)'
-				);
+				throw new OgygiaError('goto_cross_origin');
 			}
 			if (opts.replaceState) location.replace(target.href);
 			else location.assign(target.href);
@@ -87,10 +86,10 @@ export function mpa_nav(): NavHandle {
 		},
 		disableScrollHandling() {},
 		pushState() {
-			console.warn('[ogygia] pushState() shallow routing is not supported; use goto().');
+			warn('shallow_routing_unsupported', { method: 'pushState' });
 		},
 		replaceState() {
-			console.warn('[ogygia] replaceState() shallow routing is not supported; use goto().');
+			warn('shallow_routing_unsupported', { method: 'replaceState' });
 		},
 		// No client-side navigations happen without the router: nothing to notify.
 		beforeNavigate: () => NO_UNSUBSCRIBE,

@@ -9,6 +9,7 @@ import { page, redirect, type PageDef, type ComponentPick, type Ctx } from '@ogy
 import { fed_app } from './app.ts';
 import { child_traceparent, type Claims, type FragmentDocument } from './wire.ts';
 import type { Peer } from './types.ts';
+import { OgygiaError } from './messages.ts';
 
 export interface MountOptions {
 	/** OVERRIDE the visitor claims for this mount. Default: the federation's `visitor` as it
@@ -51,9 +52,9 @@ function mount_fn(
 		const got =
 			typeof target === 'function' ? target(c) : (target as ComponentPick).__ogpick(c as never);
 		if (!got || typeof (got as Peer).doc !== 'function')
-			throw new Error(
-				`[ogygia] mount(): the ${typeof target === 'function' ? 'resolver' : 'pick'} must yield a peer (from federate({ peers })).`
-			);
+			throw new OgygiaError('federation_mount_no_peer', {
+				via: typeof target === 'function' ? 'resolver' : 'pick'
+			});
 		return got as Peer;
 	};
 

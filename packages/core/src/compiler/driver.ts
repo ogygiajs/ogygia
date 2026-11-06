@@ -137,6 +137,7 @@ import {
 import { island_host_loaded } from './link/emit-gate.ts';
 import { stamp_opaque } from './ownership-stamps.ts';
 import { strip_bom } from './bom.ts';
+import { OgygiaError, warn, line } from '../messages/build.ts';
 import type { Program, RegisterResult } from './program.ts';
 import type { CompileCtx } from './ctx.ts';
 
@@ -258,11 +259,7 @@ const warned_undeclared = new Set<string>();
 function warn_undeclared_pkg_marks(id: string): void {
 	if (warned_undeclared.has(id)) return;
 	warned_undeclared.add(id);
-	console.warn(
-		`[ogygia] ${id} uses ogygia marks, but its package declares no ` +
-			`\`"ogygia": { "files": [...] }\` — the marks are IGNORED. Add the field to that ` +
-			`package's package.json (npm-"files"-style paths/globs) to put it on ogygia's compile surface.`
-	);
+	warn('package_marks_undeclared', { file: id });
 }
 
 /** The client-hooks boot snippet for a generated runtime entry: an import of the runtime runner and
@@ -722,15 +719,7 @@ export class Compiler {
 			for (const { file, keys } of reads) {
 				for (const key of keys) {
 					if (island_set.has(key)) continue; // the island provides it itself, within one root
-					console.warn(
-						`[ogygia] island code ${path.relative(root, file)} reads getContext('${key}'), but this app ` +
-							`registers no ogygia context provider and no island code sets '${key}'. On a csr=false page a ` +
-							`value set with Svelte's setContext in a page/layout does NOT cross the island boundary — the ` +
-							`island reads undefined on the client, re-renders a different tree, and Svelte discards its ` +
-							`server-rendered DOM on hydration (a silent full re-render). Fix: provide '${key}' with ` +
-							`setContext / <Provide> / createContext imported from 'ogygia' (in a csr=false layout); the ` +
-							`read stays getContext('${key}').`
-					);
+					warn('island_context_unprovided', { file: path.relative(root, file), key });
 				}
 			}
 		}
@@ -1291,8 +1280,9 @@ export class Compiler {
 		if (id === RESOLVED(V_REQUEST_EVENT)) {
 			// ServerIsland may appear in a transformed page module that Kit's client guard scans.
 			// Real getRequestEvent only on SSR; client stub never runs (holes fetch HTML).
+			// (the message is written in whole: the stub imports nothing)
 			if (!ssr) {
-				return `export function getRequestEvent() { throw new Error('[ogygia] getRequestEvent is server-only'); }`;
+				return `export function getRequestEvent() { throw new Error(${JSON.stringify(line('request_event_server_only'))}); }`;
 			}
 			return `export { getRequestEvent } from '$app/server';`;
 		}
@@ -1555,12 +1545,10 @@ export class Compiler {
 				!source.startsWith('virtual:') &&
 				!path.isAbsolute(source)
 			) {
-				throw new Error(
-					`[ogygia] cannot resolve '${source}' imported by the generated island module for ` +
-						`${path.relative(ctx.root, host)}. That island was marked on a package import, so the ` +
-						`specifier must resolve from the host file: check the package is installed and its ` +
-						`"exports" map exposes this subpath (with a "svelte" condition for .svelte components).`
-				);
+				throw new OgygiaError('island_import_unresolved', {
+					specifier: source,
+					host: path.relative(ctx.root, host)
+				});
 			}
 			return resolved;
 		}
