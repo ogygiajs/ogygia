@@ -5,6 +5,7 @@
  */
 import type { ImportKeys } from '../compiler/region/transform.ts';
 import type { DebarrelOptions } from '../compiler/debarrel/options.ts';
+import { OgygiaError, RETIRED_OPTIONS } from '../messages/build.ts';
 
 // ── regexes
 
@@ -191,35 +192,12 @@ export interface OgygiaOptions {
 	standalone?: boolean;
 }
 
-/**
- * Retired option spellings. Detected at config load and answered with the exact new spelling — a
- * rename map, never silent aliasing (a legacy key that silently did nothing would un-tune real apps).
- */
-const LEGACY_OPTION_RENAMES: Record<string, string> = {
-	regions:
-		'`regions` is gone — its keys sit at the root now: write `visible`, `presets`, `ttl` and `maxPageAge` directly in `ogygia({ … })`.',
-	continuity:
-		'`continuity` is gone — form continuity rides the router. Write `router: { forms: false }` to disable it.',
-	regionTtl: '`regionTtl` is `ttl` now — write `ogygia({ ttl: … })`.',
-	preload:
-		'`preload` is gone — there is nothing to choose any more. The page carries each island’s chunk list as data, and the runtime preloads an island’s whole graph when it wakes (after the page has painted), so no island code moves before its wake and none waits on a waterfall after it. Remove the key.',
-	plugins:
-		'`plugins` is gone — ogygia plugins are Vite plugins: list them beside `ogygia()` in vite.config, `plugins: [ogygia(), flags(), sveltekit()]`.',
-	freeze:
-		'`freeze` is a plugin now, named postrender — install `@ogygia/postrender` and list `postrender({ ttl, default })` (from `@ogygia/postrender/vite`) beside `ogygia()` in vite.config `plugins`.',
-	content:
-		'`content` is a plugin now — install `@ogygia/content` and list `content({ markdown, presets })` (from `@ogygia/content/vite`) beside `ogygia()` in vite.config `plugins`; the svelte config takes `preprocess()` / `extensions()` from there too.',
-	devtools:
-		"`devtools` is a plugin now — install `@ogygia/devtools` and list `devtools()` (from `@ogygia/devtools/vite`) beside `ogygia()` in vite.config `plugins`; only where you want it, e.g. `...(mode !== 'production' ? [devtools()] : [])`.",
-	profiler:
-		'`profiler` is part of the devtools plugin now — install `@ogygia/devtools` and list `devtools({ profiler: { … } })` (from `@ogygia/devtools/vite`) beside `ogygia()` in vite.config `plugins`.'
-};
-
-/** The rename map: a legacy key errors with its new spelling, never silently no-ops. */
+/** The rename map (`RETIRED_OPTIONS`, with the messages): a legacy key errors with its new
+ *  spelling, never silently no-ops. */
 export function assert_no_legacy_options(options: OgygiaOptions): void {
-	for (const key of Object.keys(LEGACY_OPTION_RENAMES)) {
+	for (const key of Object.keys(RETIRED_OPTIONS)) {
 		if (key in (options as Record<string, unknown>)) {
-			throw new Error(`[ogygia] ${LEGACY_OPTION_RENAMES[key]}`);
+			throw new OgygiaError('option_retired', { option: key });
 		}
 	}
 }
@@ -244,13 +222,15 @@ const REGION_PRESET_KEYS = new Set([
 export function validate_region_presets(presets: Record<string, unknown>): void {
 	for (const [name, bag] of Object.entries(presets)) {
 		if (!bag || typeof bag !== 'object' || Object.keys(bag).length === 0) {
-			throw new Error(`[ogygia] presets.${name} is empty — a preset with nothing is a mistake.`);
+			throw new OgygiaError('preset_empty', { name });
 		}
 		for (const k of Object.keys(bag)) {
 			if (!REGION_PRESET_KEYS.has(k)) {
-				throw new Error(
-					`[ogygia] presets.${name}: unknown key \`${k}\`. A preset takes ${[...REGION_PRESET_KEYS].join(', ')}.`
-				);
+				throw new OgygiaError('preset_key_unknown', {
+					name,
+					key: k,
+					allowed: [...REGION_PRESET_KEYS].join(', ')
+				});
 			}
 		}
 	}
@@ -304,9 +284,7 @@ export function resolve_options(
 		renew_raw !== undefined &&
 		!(typeof renew_raw === 'number' && Number.isFinite(renew_raw) && renew_raw >= 0)
 	) {
-		throw new Error(
-			`[ogygia] maxPageAge must be a number of seconds ≥ 0 (got ${String(renew_raw)}). Write e.g. \`30 * 24 * 3600\` for 30 days, or \`0\` to turn renewal off.`
-		);
+		throw new OgygiaError('max_page_age_invalid', { value: String(renew_raw) });
 	}
 	const renew_window = Math.min(10 * 365 * 24 * 3600, Math.floor(renew_raw ?? defaultRenewWindow));
 

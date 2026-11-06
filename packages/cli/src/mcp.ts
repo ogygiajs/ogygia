@@ -28,6 +28,7 @@ import {
 	flags_manifest,
 	type FlagSite
 } from '@ogygia/core/internal/compiler';
+import { line } from './messages.ts';
 
 /** The profiler's report reading (`@ogygia/devtools/report`), as these tools use it: loaded from the
  *  app's own install on first need — core does not depend on the plugin. */
@@ -464,7 +465,9 @@ function tool_compile(args: Attrs): ToolResult {
 	try {
 		out = compile(source, filename, true, csr);
 	} catch (e) {
-		return fail(`[ogygia] transform error:\n${e instanceof Error ? e.message : String(e)}`);
+		return fail(
+			line('cli_transform_failed', { error: e instanceof Error ? e.message : String(e) })
+		);
 	}
 	const map = out.islands.length
 		? out.islands
@@ -502,7 +505,9 @@ function tool_islands(args: Attrs): ToolResult {
 	try {
 		out = compile(source, 'App.svelte', true, false);
 	} catch (e) {
-		return fail(`[ogygia] transform error:\n${e instanceof Error ? e.message : String(e)}`);
+		return fail(
+			line('cli_transform_failed', { error: e instanceof Error ? e.message : String(e) })
+		);
 	}
 	const structured = out.islands.map((i) => ({
 		component: i.component,
@@ -542,7 +547,9 @@ function tool_explain(args: Attrs): ToolResult {
 	try {
 		out = compile(source, 'App.svelte', true, false);
 	} catch (e) {
-		return fail(`[ogygia] transform error:\n${e instanceof Error ? e.message : String(e)}`);
+		return fail(
+			line('cli_transform_failed', { error: e instanceof Error ? e.message : String(e) })
+		);
 	}
 	if (!out.islands.length)
 		return text(

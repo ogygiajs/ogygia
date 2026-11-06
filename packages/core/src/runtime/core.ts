@@ -89,7 +89,7 @@ import {
 	client_region_unmount
 } from './client-plugins.ts';
 import type { ClientPlugin } from '../plugin/client.ts';
-import { OgygiaError, warn } from '../messages/core.ts';
+import { OgygiaError, warn, line } from '../messages/core.ts';
 import { report_restores } from './restore-report.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (the proven DCE pattern): when off, every
@@ -1661,7 +1661,8 @@ export function boot(
 	// island-side code (a shim) throws and logs through the runtime's own messages (messages/island.ts)
 	(globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.messages')] ??= {
 		OgygiaError,
-		warn
+		warn,
+		line
 	};
 	// what the server transform's restorer recorded, said out loud (./restore-report.ts)
 	report_restores();

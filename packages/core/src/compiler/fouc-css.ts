@@ -20,6 +20,7 @@ import { unscoped_marker } from '../unscoped-css.ts';
 import { blank_styles } from './blank-styles.ts';
 import { BarrelIndex } from './debarrel/barrel.ts';
 import { analyze_exports, analyze_imports } from './debarrel/parse.ts';
+import { warn } from '../messages/build.ts';
 
 export const FOUC_CSS_PREFIX = 'virtual:ogygia/fouc-css/';
 export const FOUC_SCOPED_PREFIX = 'virtual:ogygia/fouc-scoped/';
@@ -378,11 +379,7 @@ export function compileFoucScopedCss(
 		}
 	}
 	const why = (err as Error).message.split('\n')[0];
-	if (opts.keepScript) {
-		console.warn(
-			`[ogygia] scoped CSS for ${abs} could not be compiled (${why}) — shipping its style bodies unscoped`
-		);
-	}
+	if (opts.keepScript) warn('scoped_css_failed', { file: abs, reason: why });
 	const raw = extractRawStyleBodies(source);
 	return raw ? unscoped_marker(abs, why) + raw : raw;
 }

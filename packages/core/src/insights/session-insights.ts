@@ -592,7 +592,14 @@ export function analyze_session(
 	// name: not counted again; each message by its first line — a component stack follows it)
 	const failed_here = s.events.some((e) => e.name === 'region.hydrate.failed');
 	const errors = failed_here
-		? s.errors.filter((e) => !e.message.startsWith('console.error: [ogygia] hydration failed'))
+		? s.errors.filter(
+				// (its line, worded in dev or the code's link alone)
+				(e) =>
+					!(
+						e.message.startsWith('console.error: OgygiaError: [ogygia] hydration failed') ||
+						e.message.includes('ogygiajs.dev/e/island_hydrate_failed')
+					)
+			)
 		: s.errors;
 	if (errors.length)
 		findings.push({

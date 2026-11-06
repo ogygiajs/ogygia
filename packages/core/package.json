@@ -58,6 +58,11 @@
 			"types": "./dist/internal-instruments.d.ts",
 			"default": "./src/internal-instruments.ts"
 		},
+		"./internal/messages": {
+			"svelte": "./src/messages/index.ts",
+			"types": "./dist/messages/index.d.ts",
+			"default": "./src/messages/index.ts"
+		},
 		"./internal/register": {
 			"svelte": "./src/internal-register.ts",
 			"types": "./dist/internal-register.d.ts",
@@ -166,6 +171,11 @@
 				"types": "./dist/internal-instruments.d.ts",
 				"svelte": "./dist/internal-instruments.js",
 				"default": "./dist/internal-instruments.js"
+			},
+			"./internal/messages": {
+				"types": "./dist/messages/index.d.ts",
+				"svelte": "./dist/messages/index.js",
+				"default": "./dist/messages/index.js"
 			},
 			"./internal/register": {
 				"types": "./dist/internal-register.d.ts",

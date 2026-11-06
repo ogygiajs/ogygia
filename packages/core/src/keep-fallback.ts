@@ -9,21 +9,15 @@
  * only: it throws a branded signal the handle recognises; in the browser a hole never renders.
  */
 import { isHoleInline } from './context.ts';
+import { OgygiaError, line } from './messages/island.ts';
 
 const KEEP = Symbol.for('ogygia.keep-fallback');
-
-/** The message a misplaced `keepFallback()` fails with (a real error, not the signal). */
-export const KEEP_FALLBACK_INLINE_MESSAGE: string =
-	'[ogygia] keepFallback() ran inside the PAGE render: this server island is nested inside a `wake` island, ' +
-	'where `render: "deferred"` is ignored and its component renders inline — nothing catches the signal there ' +
-	'and its fallback never shows. Move the island out of the enclosing island (into the page, a layout, or a lake), ' +
-	'or drop keepFallback() from a component that can render inline.';
 
 export { KEEP_FALLBACK_HTML } from './keep-fallback-marker.ts';
 
 export class KeepFallbackSignal extends Error {
 	constructor() {
-		super('[ogygia] keepFallback(): the page fallback stands');
+		super(line('keep_fallback_signal'));
 		this.name = 'KeepFallback';
 		Object.defineProperty(this, KEEP, { value: true });
 	}
@@ -39,7 +33,8 @@ export function keepFallback(): never {
 	} catch {
 		/* outside component init (after an await on some runtimes): no context to read — the signal path */
 	}
-	if (inline) throw new Error(KEEP_FALLBACK_INLINE_MESSAGE);
+	// (a misplaced keepFallback() fails with a real error, not the signal)
+	if (inline) throw new OgygiaError('keep_fallback_inline');
 	throw new KeepFallbackSignal();
 }
 

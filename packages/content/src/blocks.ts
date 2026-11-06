@@ -25,6 +25,7 @@ import {
 	type RawSource,
 	type Source
 } from './source.ts';
+import { warn } from './messages/runtime.ts';
 
 /** One node in a block tree: a `type` naming a registered block, its `props`, and nested `children`.
  * A block's wake schedule is baked into its registry import (`with { wake: 'load' }`) or decided by a
@@ -70,10 +71,7 @@ export function resolve_block_tree(
 		const binding = registry?.[node?.type];
 		if (!binding) {
 			if (import.meta.env && import.meta.env.DEV) {
-				console.warn(
-					`[ogygia] blocks: no block registered for type ${JSON.stringify(node?.type)} — skipped. ` +
-						`Add it to your registry, or fix the type name.`
-				);
+				warn('content_block_unregistered', { type: String(JSON.stringify(node?.type)) });
 			}
 			continue;
 		}

@@ -13,9 +13,10 @@
 // Usage: pnpm exec playwright test lazy-chunks
 import { test, check, replayed_once } from '@ogygia/tooling/e2e';
 
-/** A string only the hydrate core carries: the foreign-mutation detector's warning text. (The
- *  `data-og-recovered` MARK it sets is not unique — the boot's hydration beacon reads it.) */
-const HYDRATE_CORE_MARKER = 'discarded its ENTIRE server-rendered DOM';
+/** A string only the hydrate core carries: the foreign-mutation detector's message code (its wording
+ *  is not in a production build). (The `data-og-recovered` MARK it sets is not unique — the boot's
+ *  hydration beacon reads it.) */
+const HYDRATE_CORE_MARKER = 'hydration_discarded';
 /** A string only Svelte's client runtime carries: its error-code URLs, kept in production builds. */
 const SVELTE_RUNTIME_MARKER = 'svelte.dev/e/';
 /** A string only the navigation chunk carries (the SPA fetch header). */

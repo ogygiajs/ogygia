@@ -7,6 +7,18 @@ import path from 'node:path';
 import { define_messages } from '../src/messages/define.ts';
 import { ERRORS, WARNINGS, OgygiaError, warn } from '../src/messages/core.ts';
 import { prose } from '../src/messages/prose.ts';
+import { SERVER_ERRORS, SERVER_WARNINGS } from '../src/messages/server.ts';
+import { BUILD_ERRORS, BUILD_WARNINGS } from '../src/messages/build.ts';
+import type { MessageEntry } from '../src/messages/define.ts';
+
+const TABLES: Record<string, MessageEntry<never>> = {
+	...ERRORS,
+	...WARNINGS,
+	...SERVER_ERRORS,
+	...SERVER_WARNINGS,
+	...BUILD_ERRORS,
+	...BUILD_WARNINGS
+};
 
 const SRC = path.join(import.meta.dirname, '../src');
 
@@ -77,28 +89,41 @@ describe('the tables', () => {
 	});
 
 	it("each code's page reads as plain sentences: no { } or < outside backticks (the docs render it)", () => {
-		const bad = Object.entries({ ...ERRORS, ...WARNINGS })
+		const bad = Object.entries(TABLES)
 			.filter(([, m]) => /[{}<]/.test(m.details().replace(/`[^`]*`/g, '')))
 			.map(([c]) => c);
 		expect(bad).toEqual([]);
 	});
 
-	it('every message the browser-side source prints comes from a table', () => {
+	it('every message the source prints comes from a table', () => {
 		const raw: string[] = [];
 		const unknown: string[] = [];
-		const codes = new Set([...Object.keys(ERRORS), ...Object.keys(WARNINGS)]);
-		for (const dir of ['runtime', 'shims']) {
-			for (const f of files(path.join(SRC, dir))) {
-				const src = fs.readFileSync(f, 'utf8');
-				for (const m of src.matchAll(/(['"`])\[ogygia\] ([^'"`]*)/g)) {
-					const link = m[2].match(/^https:\/\/ogygiajs\.dev\/e\/([a-z_]+)/);
-					if (!link) raw.push(`${path.relative(SRC, f)}: ${m[2].slice(0, 60)}`);
-					else if (!codes.has(link[1])) unknown.push(`${path.relative(SRC, f)}: ${link[1]}`);
-				}
+		const codes = new Set(Object.keys(TABLES));
+		for (const f of files(SRC)) {
+			if (f.includes(`${path.sep}messages${path.sep}`)) continue;
+			const src = fs.readFileSync(f, 'utf8');
+			for (const m of src.matchAll(/(['"`])\[ogygia\] ([^'"`]*)/g)) {
+				const link = m[2].match(/^https:\/\/ogygiajs\.dev\/e\/([a-z_]+)/);
+				if (!link) raw.push(`${path.relative(SRC, f)}: ${m[2].slice(0, 60)}`);
+				else if (!codes.has(link[1])) unknown.push(`${path.relative(SRC, f)}: ${link[1]}`);
 			}
 		}
-		expect(raw, 'wording written in place: give it a code in src/messages/core.ts').toEqual([]);
+		expect(raw, 'wording written in place: give it a code in src/messages/').toEqual([]);
 		expect(unknown, 'a link to a code no table has').toEqual([]);
+	});
+
+	it('a code is in one table only (one namespace across the runtime, server and build)', () => {
+		const seen = new Map<string, number>();
+		for (const t of [
+			ERRORS,
+			WARNINGS,
+			SERVER_ERRORS,
+			SERVER_WARNINGS,
+			BUILD_ERRORS,
+			BUILD_WARNINGS
+		])
+			for (const code of Object.keys(t)) seen.set(code, (seen.get(code) ?? 0) + 1);
+		expect([...seen].filter(([, n]) => n > 1).map(([c]) => c)).toEqual([]);
 	});
 });
 

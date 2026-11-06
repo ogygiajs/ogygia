@@ -7,13 +7,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { set_foreign_hydrate } from '../src/current-region.ts';
 import { page } from '../src/shims/app-state.svelte.ts';
 import { page as page_store } from '../src/shims/app-stores.ts';
-import { OgygiaError, warn } from '../src/messages/core.ts';
-
-// (island-side code words its messages through the runtime's, which the runtime's boot publishes)
-(globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.messages')] = {
-	OgygiaError,
-	warn
-};
 
 const CMS = 'https://cms.internal';
 /** Distinct entries per test: the warning is once-per-entry for the life of the module. */

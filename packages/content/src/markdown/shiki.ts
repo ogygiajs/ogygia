@@ -16,6 +16,7 @@ import type { ShikiTransformer } from 'shiki';
 import { render_fence, default_pipeline, type CodePipeline } from './code-render.ts';
 import { fence_key, fence_cache_get, fence_cache_set } from './fence-cache.ts';
 import type { SerializedRegion } from '../region-store.ts';
+import { OgygiaError } from '../messages/build.ts';
 
 /** A Shiki bundled theme name, or a theme object (e.g. `ThemeRegistrationResolved`). */
 export type MarkdownThemeInput = string | { name?: string };
@@ -211,9 +212,7 @@ export async function highlight(
 ): Promise<string> {
 	const cfg = options ? normalize_shiki(options) : active;
 	if (!cfg) {
-		throw new Error(
-			'[ogygia/content] highlight() needs markdown() in svelte.config, or pass options as the third argument'
-		);
+		throw new OgygiaError('content_highlight_unconfigured');
 	}
 	const highlighter = await get_highlighter(cfg);
 	// An unknown fence language (a `tree` file-listing, a bespoke DSL) must NOT throw — one exotic

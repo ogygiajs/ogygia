@@ -100,6 +100,246 @@ export const ERRORS = {
 		text: (a: { name: string }): string =>
 			`runtime chunk used \`slots.${a.name}\` before the boot linked it`,
 		details: (): string => BUG
+	},
+
+	// ── what crosses into an island (shared code: the page's render and the island's) ─────────────
+	boundary_refused: {
+		text: (a: { site: string; path?: string; detail: string; more?: number }): string =>
+			`${a.site} — og.$ value${a.path ? ` @ ${a.path}` : ''}: ${a.detail}${a.more ? ` (+${a.more} more)` : ''}`,
+		details: (): string => prose`
+			A value marked with \`import.meta.og.$\` cannot cross into an island: a DOM node, a bare
+			function, a class with no wire codec, a secret. It fails where it is marked, so the file
+			and line point at it. Pass plain data, or give the class a codec.
+		`
+	},
+	function_prop_cannot_cross: {
+		text: (a: { where: string; reason: string }): string => prose`
+			${a.where} is a function that can't cross the island boundary — ${a.reason}. Island props
+			must be SERIALIZABLE; a function crosses only as a Svelte snippet that freezes to HTML, and
+			this one didn't. Usually one of:
+
+			• it's a PLAIN function (an event handler / callback) — those can't cross into an island;
+			pass serializable data as props and keep the behavior inside the island component;
+
+			• it's a snippet WITH PARAMETERS — declare it as a {#snippet} so it crosses LIVE, or pass
+			its data as props;
+
+			• it's children containing a NESTED island — keep those out of frozen children for now.
+		`,
+		details: (): string => prose`
+			An island's props must be serializable. A function only crosses as a snippet that freezes
+			to HTML, and this one could not.
+
+			A plain function (an event handler, a callback) never crosses: keep the behavior inside the
+			island and pass data. A snippet with parameters crosses live when it is declared as a
+			snippet. Children that contain another island cannot be frozen yet.
+		`
+	},
+	region_snippet_on_client: {
+		text: (): string => prose`
+			region_snippet(fn) freezes a snippet by server-rendering it — call it during SSR, not on
+			the client. Pass a raw { render, setup } region snippet for client-constructed regions.
+		`,
+		details: (): string => prose`
+			\`region_snippet(fn)\` renders the snippet on the server to freeze it. In the browser, build
+			the region from a raw \`{ render, setup }\` snippet instead.
+		`
+	},
+	raw_region_on_client: {
+		text: (): string => prose`
+			a \`with { region: 'raw' }\` component must be turned into a region on the server (the
+			signer lives server-side). Call region() in a load / remote / render context, not in client
+			code.
+		`,
+		details: (): string => prose`
+			A held region is signed on the server, so \`region()\` on a \`with { region: 'raw' }\`
+			component must run there: in a load, a remote function or a render.
+		`
+	},
+	held_region_plain_import: {
+		text: (): string => prose`
+			a held region reached the wire but its component is a plain import, so nothing built a
+			chunk for it. \`await\` the region before returning it from a remote/load — an awaited
+			region bakes its SSR HTML and crosses as an HTML-only ticket. Or import the component
+			\`with { region: 'raw' }\` (or a \`wake:\` mark) to make it a signed, fetchable capability. On
+			a csr=false page you can also skip the wire entirely: call \`get()\` in a universal
+			\`+page.ts\` load / the component — its data reaches the render by reference.
+		`,
+		details: (): string => prose`
+			A region returned from a load or a remote function has to travel: as HTML, or as a signed
+			address the browser fetches. This one's component was imported plainly, so neither exists.
+
+			\`await\` the region (it then travels as its HTML), or import the component
+			\`with { region: 'raw' }\` or with a \`wake\` mark.
+		`
+	},
+	region_kind_mismatch: {
+		text: (): string => 'region kind claimed a non-region value',
+		details: (): string => BUG
+	},
+	keep_fallback_inline: {
+		text: (): string => prose`
+			keepFallback() ran inside the PAGE render: this server island is nested inside a \`wake\`
+			island, where \`render: "deferred"\` is ignored and its component renders inline — nothing
+			catches the signal there and its fallback never shows. Move the island out of the
+			enclosing island (into the page, a layout, or a lake), or drop keepFallback() from a
+			component that can render inline.
+		`,
+		details: (): string => prose`
+			\`keepFallback()\` tells a deferred region to keep the page's fallback. Inside a \`wake\`
+			island the region renders inline instead, so nothing can keep a fallback. Move the region
+			out of the island (into the page, a layout or a lake).
+		`
+	},
+	keep_fallback_signal: {
+		text: (): string => 'keepFallback(): the page fallback stands',
+		details: (): string => prose`
+			Not an error: the signal \`keepFallback()\` throws to end a deferred region's render. You
+			only see it when something catches and logs every error the render throws.
+		`
+	},
+	preference_default_invalid: {
+		text: (a: { name: string; fallback: string; values: string }): string =>
+			`preference('${a.name}'): default '${a.fallback}' is not one of values [${a.values}]`,
+		details: (): string => prose`
+			A preference's \`default\` must be one of its \`values\`.
+		`
+	},
+	fn_factory_missing: {
+		text: (a: { tag: string }): string => prose`
+			fn_handle("${a.tag}"): its factory is not registered on this side. The generated module
+			must be imported as a VALUE at the call site (the compiler emits this import).
+		`,
+		details: (): string => prose`
+			A function marked to cross into an island is rebuilt on the other side from a factory the
+			compiler generates. That factory's module was not imported here. Import it as a value, not
+			\`import type\`.
+		`
+	},
+	fn_factory_not_function: {
+		text: (a: { tag: string }): string => `fn factory "${a.tag}" did not return a function.`,
+		details: (): string => BUG
+	},
+	fn_revive_missing: {
+		text: (a: { tag: string }): string => prose`
+			cannot revive fn "${a.tag}": its factory is not loaded on this side and the payload carries
+			no source. The island must import the generated module as a VALUE so \`__register_fn\`
+			runs in its bundle (or the fn manifest must be in the runtime).
+		`,
+		details: (): string => prose`
+			An island received a function it cannot rebuild: the module that registers its factory is
+			not in the island's bundle. Import that module as a value in the island.
+		`
+	},
+	transportable_class_missing: {
+		text: (a: { tag: string }): string => prose`
+			cannot revive transportable "${a.tag}": its class is not loaded on this side. The island
+			must import the class as a VALUE (not \`import type\`) so its codec travels with the
+			island's bundle.
+		`,
+		details: (): string => prose`
+			An island received an instance of a wired class whose module it never imports, so the
+			class's codec is not there to rebuild it. Import the class as a value in the island.
+		`
+	},
+	transportable_unregistered: {
+		text: (a: { name: string }): string => prose`
+			class "${a.name}" has a [import.meta.og.wire] codec but was never registered. Transportable
+			classes must be declared in a module the ogygia vite plugin transforms (an \`export class\`
+			in your app source, not node_modules or a dynamic eval).
+		`,
+		details: (): string => prose`
+			A class with a wire codec is registered by the ogygia Vite plugin while it compiles the
+			class's module. This class was declared somewhere the plugin does not compile. Declare it
+			as an \`export class\` in the app's source.
+		`
+	},
+	ref_kind_missing: {
+		text: (a: { kind: string }): string => prose`
+			cannot resolve a "${a.kind}" ref: no such kind is registered on this side. The module that
+			registers it must be imported as a VALUE in this bundle.
+		`,
+		details: (): string => prose`
+			A value crossed into an island as a reference of a kind this bundle does not know. Import
+			the module that registers that kind as a value.
+		`
+	},
+	continuity_id_collision: {
+		text: (a: { name: string; owner: string; tag: string }): string => prose`
+			two transportables both use continuity id "${a.name}" ("${a.owner}" and "${a.tag}"). A
+			continuity id must be unique per class — rename one, or they will clobber each other in the
+			session Keep.
+		`,
+		details: (): string => prose`
+			Two different wired classes claim the same continuity id, so they would share one kept
+			instance. Give each class its own id.
+		`
+	},
+	shared_state_not_plain: {
+		text: (a: { name: string; reason: string }): string => prose`
+			SharedState '${a.name}': values must be plain data (devalue-serializable — JSON, Date, Map,
+			Set, BigInt, RegExp). Functions, class instances, and DOM nodes do not cross build
+			boundaries — share facts, not live objects. (${a.reason})
+		`,
+		details: (): string => prose`
+			Shared state crosses between builds as data, so its values must serialize. Share plain
+			facts; keep live objects (functions, class instances, DOM nodes) on one side.
+		`
+	},
+	og_derived_formula_missing: {
+		text: (): string => prose`
+			cannot resume og_derived: its formula did not cross — mark it with import.meta.og.$ at the
+			og_derived call site so it travels as a fn ref.
+		`,
+		details: (): string => prose`
+			An \`og_derived\` crossed into an island without its formula. Mark the formula with
+			\`import.meta.og.$\` where \`og_derived\` is called, so it travels too.
+		`
+	},
+
+	// ── script() ─────────────────────────────────────────────────────────────────────────────────
+	script_run_not_function: {
+		text: (): string => 'script(): `run` must be a function',
+		details: (): string =>
+			'`script({ run })` takes a function, which it inlines as the script body.'
+	},
+	script_imports_need_module: {
+		text: (): string =>
+			"script(): `imports` needs `type: 'module'` (a static import only works in a module)",
+		details: (): string =>
+			"`imports` become static `import` lines, which only work in a module: add `type: 'module'`."
+	},
+	script_import_not_url: {
+		text: (a: { name: string }): string => `script(): \`imports.${a.name}\` must be a URL string`,
+		details: (): string => 'Each entry of `imports` is a module URL, as a string.'
+	},
+	script_run_rewritten: {
+		text: (): string => prose`
+			script(): \`run\` was rewritten by the bundler (it holds \`__vite_ssr_…\`): an \`import()\` or
+			an imported binding inside it cannot cross into the browser. Declare the module in
+			\`imports\` (with \`type: 'module'\`) and read it from \`run\`'s first parameter.
+		`,
+		details: (): string => prose`
+			\`run\` is inlined into the page as its source, so it cannot use what Vite rewrites for
+			the server: an \`import()\` or an imported binding. Declare the module in \`imports\` and
+			read it from \`run\`'s first parameter.
+		`
+	},
+	script_not_json: {
+		text: (a: { key: string }): string => `script(): \`${a.key}\` must be JSON-serializable`,
+		details: (): string =>
+			'The value is written into the page as JSON, so it must serialize to JSON.'
+	},
+	script_one_kind: {
+		text: (a: { count: number }): string =>
+			`script(): pass exactly one of \`run\`, \`json\`, \`ld\`, \`importmap\`, \`speculation\` (got ${a.count})`,
+		details: (): string =>
+			'A script has one body: pass one of `run`, `json`, `ld`, `importmap` or `speculation`.'
+	},
+	script_bad_attribute: {
+		text: (a: { key: string }): string => `script(): \`${a.key}\` is not an attribute name`,
+		details: (): string =>
+			'Options other than the body become attributes of the script element, so each must be a valid attribute name.'
 	}
 };
 
@@ -426,15 +666,146 @@ export const WARNINGS = {
 			different values after it hydrates. Pass the value as a prop, or read it with a remote
 			function.
 		`
+	},
+
+	// ── what crosses into an island (shared code) ────────────────────────────────────────────────
+	context_marker_large: {
+		text: (a: { size: string; top: string }): string => prose`
+			the island context marker is ${a.size}kB — it ships in every page's HTML. Biggest keys:
+			${a.top}. Slim the values, or mark host-only keys with setContext(key, value, { islands:
+			false }).
+		`,
+		details: (): string => prose`
+			Dev only. Context set above islands is serialized into the page so the islands can read it,
+			and it has grown large. Slim the values, or keep a key on the server with
+			\`setContext(key, value, { islands: false })\`.
+		`
+	},
+	context_dropped: {
+		text: (a: { key: string }): string =>
+			`context '${a.key}' could not be serialized for islands and was dropped.`,
+		details: (): string => prose`
+			Dev only. A context value set above islands could not be serialized, so islands do not see
+			it. Pass plain data, or a wired value.
+		`
+	},
+	context_unserializable: {
+		text: (a: { key: string; path?: string; detail: string }): string =>
+			`context '${a.key}'${a.path ? ` @ ${a.path}` : ''}: ${a.detail}`,
+		details: (): string => prose`
+			Dev only. Part of a context value set above islands does not cross into them: \`path\`
+			names where, \`detail\` what. Pass plain data there.
+		`
+	},
+	page_seed_ref_missing: {
+		text: (a: { path: string }): string => prose`
+			island props reference page.data at ${a.path} but the page seed does not carry it — the
+			island receives undefined there.
+		`,
+		details: (): string => prose`
+			Dev only. An island's props point into \`page.data\`, but the page did not ship that part,
+			so the island reads \`undefined\` there.
+		`
+	},
+	store_not_extensible: {
+		text: (a: { tag: string }): string => prose`
+			store "${a.tag}": the store object is not extensible (frozen/sealed), so it cannot carry
+			its factory brand — it will cross boundaries as a plain writable (custom methods
+			unavailable). Brand before freezing, or leave the store extensible.
+		`,
+		details: (): string => prose`
+			A store crosses into an island with a mark naming the factory that rebuilds it. A frozen
+			store cannot take the mark, so it crosses as a plain writable. Freeze it after it is
+			branded, or leave it extensible.
+		`
+	},
+	store_factory_missing: {
+		text: (a: { tag: string }): string => prose`
+			store "${a.tag}": factory not loaded in this bundle — degraded to a plain writable (custom
+			methods unavailable). Import the factory's module in the island (or its graph) so
+			\`__register_store_factory\` runs there.
+		`,
+		details: (): string => prose`
+			The island received a store whose factory module it never imports, so the store arrives
+			as a plain writable. Import that module in the island.
+		`
+	},
+	store_factory_bad_rebuild: {
+		text: (a: { tag: string; got: string }): string => prose`
+			store "${a.tag}": factory returned ${a.got} while rebuilding — degraded to a plain writable
+			(custom methods unavailable). A store factory must return a store on every call; move
+			environment guards inside the factory body.
+		`,
+		details: (): string => prose`
+			A store factory returned something other than a store while the island rebuilt it. Return
+			a store on every call, and put environment checks inside the factory's body.
+		`
+	},
+	store_factory_unbranded: {
+		text: (a: { tag: string; got: string }): string => prose`
+			store "${a.tag}": factory returned ${a.got} — nothing to brand, value passed through as-is.
+			Fine for a client-only store; a store that must cross an island boundary has to exist on
+			the server too — return e.g. writable(seed) under your guard and gate the side effects
+			inside the factory instead.
+		`,
+		details: (): string => prose`
+			A store factory returned something other than a store, so it cannot be marked to cross
+			into islands. That is fine for a store only the browser uses; to cross, the factory must
+			return a store on the server too.
+		`
+	},
+	region_promise_no_placeholder: {
+		text: (): string => prose`
+			<Region of={promise}> has no \`placeholder\` — the region will sit empty until the promise
+			resolves and its stylesheet loads. Add {#snippet placeholder()}…{/snippet} for the wait.
+		`,
+		details: (): string => prose`
+			Dev only. A region given a promise shows nothing until it resolves. Give it a
+			\`placeholder\` snippet for the wait.
+		`
+	},
+	nested_server_island_inline: {
+		text: (a: { entry: string }): string => prose`
+			nested server island "${a.entry}" is inside another island; it renders inline as frozen
+			HTML (no JS ships; islands inside it wake on their own) — 'deferred' ignored.
+		`,
+		details: (): string => prose`
+			Dev only. A deferred region inside an island cannot be fetched on its own, so it renders
+			inline as part of the island's HTML.
+		`
+	},
+	nested_island_with_parent: {
+		text: (a: { entry: string }): string =>
+			`nested island "${a.entry}" is inside another island; it hydrates with its parent (strategy ignored).`,
+		details: (): string => prose`
+			Dev only. An island inside an island hydrates with the outer one, so its own \`wake\` is
+			ignored. Put a lake (\`wake: 'none'\`) between them to give it its own schedule.
+		`
+	},
+	lake_mounted_without_html: {
+		text: (a: { entry: string }): string => prose`
+			lake "${a.entry}" was mounted by Kit on the client with no server HTML to adopt (a
+			client-side navigation, or a hydration failure — look for an error above). The runtime
+			restores it from its server HTML when this document rendered it; otherwise it stays empty.
+			A lake is server HTML: keep chrome lakes in a layout that persists across navigations, or
+			serve that route csr=false.
+		`,
+		details: (): string => prose`
+			Dev only. On a csr=true page Kit mounted a lake in the browser, but a lake is server HTML
+			and there was none to adopt. Keep such lakes in a layout that stays across navigations, or
+			serve the route with \`csr = false\`.
+		`
 	}
 };
 
 type Core = MessagesOf<typeof ERRORS, typeof WARNINGS>;
+// (`?.`: a plain Node import — a vite.config, a script — has no `import.meta.env`; it gets the link)
 const core: Core = /* @__PURE__ */ define_messages(
-	import.meta.env.DEV ? ERRORS : null,
-	import.meta.env.DEV ? WARNINGS : null
+	import.meta.env?.DEV ? ERRORS : null,
+	import.meta.env?.DEV ? WARNINGS : null
 );
 /** `throw new OgygiaError(code, args)`; `warn(code, args, ...rest)` logs. Wording and link in dev,
  *  the link alone in a production build. */
 export const OgygiaError: Core['OgygiaError'] = core.OgygiaError;
 export const warn: Core['warn'] = core.warn;
+export const line: Core['line'] = core.line;

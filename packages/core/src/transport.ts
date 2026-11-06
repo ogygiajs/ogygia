@@ -31,6 +31,7 @@ import { register_wire_kind } from './live-transport.ts';
 import { register_store_kind, register_derived_kind } from './store-transport.ts';
 import { register_snippet_kind } from './region-snippet.ts';
 import { register_fn_kind } from './fn-transport.ts';
+import { OgygiaError } from './messages/island.ts';
 
 type EncodedRegion = {
 	i: string; // id
@@ -97,14 +98,7 @@ function encode_region(value: unknown): false | EncodedRegion {
 			);
 		}
 		// Inline and NOT awaited — nothing prepared it to travel: no chunk, no signer, no HTML.
-		throw new Error(
-			'[ogygia] a held region reached the wire but its component is a plain import, so nothing ' +
-				'built a chunk for it. `await` the region before returning it from a remote/load — an ' +
-				'awaited region bakes its SSR HTML and crosses as an HTML-only ticket. Or import the ' +
-				"component `with { region: 'raw' }` (or a `wake:` mark) to make it a signed, fetchable " +
-				'capability. On a csr=false page you can also skip the wire entirely: call `get()` in a ' +
-				'universal `+page.ts` load / the component — its data reaches the render by reference.'
-		);
+		throw new OgygiaError('held_region_plain_import');
 	}
 }
 
@@ -164,7 +158,7 @@ export function register_region_kind(): void {
 			const packed = encode_region(value);
 			if (packed === false) {
 				// unreachable through mint (match gates), kept as a hard guard
-				throw new Error('[ogygia] region kind claimed a non-region value');
+				throw new OgygiaError('region_kind_mismatch');
 			}
 			return { d: packed };
 		},

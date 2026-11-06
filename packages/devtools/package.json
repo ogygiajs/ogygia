@@ -59,6 +59,10 @@
 		"./profiler/storage/postgres": {
 			"types": "./dist/profiler/storage/postgres.d.ts",
 			"default": "./src/profiler/storage/postgres.ts"
+		},
+		"./internal/messages": {
+			"types": "./dist/messages/index.d.ts",
+			"default": "./src/messages/index.ts"
 		}
 	},
 	"publishConfig": {
@@ -99,6 +103,10 @@
 			"./profiler/storage/postgres": {
 				"types": "./dist/profiler/storage/postgres.d.ts",
 				"default": "./dist/profiler/storage/postgres.js"
+			},
+			"./internal/messages": {
+				"types": "./dist/messages/index.d.ts",
+				"default": "./dist/messages/index.js"
 			}
 		},
 		"access": "public"

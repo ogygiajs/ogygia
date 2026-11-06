@@ -51,13 +51,13 @@ test.describe('foreign-mutation detector: corrupted region → data-og-recovered
 			`got ${flags.recovered_total}`
 		);
 
-		const attributed = warns.find((w) => w.includes('discarded its ENTIRE server-rendered DOM'));
+		// (a production build: the warning is its code's link, the island and what changed as its
+		// arguments; the causes and the lake fix are on that page — messages/core.ts)
+		const attributed = warns.find((w) => w.includes('ogygiajs.dev/e/hydration_discarded'));
 		check('attributing console.warn fired', !!attributed);
 		check(
-			'warn names the likely causes + the lake fix',
-			!!attributed &&
-				attributed.includes('post-SSR transform') &&
-				attributed.includes("wake:'none'")
+			'warn links the island it names',
+			!!attributed && new URL(attributed.replace('[ogygia] ', '')).searchParams.has('entry')
 		);
 
 		// recovery means the island was re-rendered client-side — it must still WORK

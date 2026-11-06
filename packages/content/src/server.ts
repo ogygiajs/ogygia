@@ -20,6 +20,7 @@
 import { prerender, query } from '$app/server';
 import type { ContentRef, Entry } from './index.ts';
 import { Collection, COLLECTION } from './collection-base.ts';
+import { OgygiaError } from './messages/runtime.ts';
 
 export type ContentMode = 'prerender' | 'query';
 
@@ -74,9 +75,7 @@ const string_arg = {
 function collection_of<T extends Record<string, unknown>>(handle: unknown): Collection<T> {
 	const c = (handle as Record<symbol, unknown>)?.[COLLECTION];
 	if (!(c instanceof Collection)) {
-		throw new Error(
-			'[ogygia/content] withRemotes() expects a collection from content()/collection()'
-		);
+		throw new OgygiaError('content_with_remotes_not_collection');
 	}
 	return c as Collection<T>;
 }
@@ -112,9 +111,7 @@ export function withRemotes<T extends Record<string, unknown> = Record<string, u
 
 			if (mode === 'query') return query(run) as unknown as ListRemote<Out>;
 			if (c.streaming) {
-				throw new Error(
-					'[ogygia/content] streaming `loader` cannot use prerender list — use live.list() or mode: "query"'
-				);
+				throw new OgygiaError('content_streaming_prerender_list');
 			}
 			return prerender(run, { dynamic: options.dynamic ?? true }) as unknown as ListRemote<Out>;
 		},

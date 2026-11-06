@@ -27,6 +27,7 @@ import { rewrite_module, type RewritePolicy } from './rewrite.ts';
 import { rewrite_svelte } from './svelte.ts';
 import { is_script_request } from '../script-request.ts';
 import { strip_bom } from '../bom.ts';
+import { warn, line } from '../../messages/build.ts';
 
 const IMPORTER_RE = /\.(?:[cm]?[jt]sx?|svelte|svelte\.[jt]s)$/;
 
@@ -183,9 +184,11 @@ export function debarrel(
 						report.skipped.add(importer);
 						if (warned.has(importer)) return;
 						warned.add(importer);
-						console.warn(
-							`[ogygia] barrels: skipped ${short(importer, root)}: ${why.code}${why.line ? ` at ${why.line}:${why.column ?? 1}` : ''} — its imports stay on their barrels`
-						);
+						warn('barrels_component_skipped', {
+							file: short(importer, root),
+							reason: why.code,
+							at: why.line ? `${why.line}:${why.column ?? 1}` : ''
+						});
 					})
 				: await rewrite_module(code, importer, lookup, policy);
 			// The importer no longer imports the barrels it was rewritten away from: watch them (and
@@ -207,7 +210,12 @@ export function debarrel(
 			if (o.debug)
 				for (const m of result.moves)
 					log(
-						`[ogygia] barrels: ${short(importer, root)}: ${m.names.join(', ')} ← ${short(m.barrel, root)} → ${m.leaves.map((l) => short(l, root)).join(', ')}`
+						line('barrels_rewrite', {
+							file: short(importer, root),
+							names: m.names.join(', '),
+							barrel: short(m.barrel, root),
+							leaves: m.leaves.map((l) => short(l, root)).join(', ')
+						})
 					);
 			return { code: result.code, map: result.map };
 		},
@@ -250,13 +258,17 @@ export function format_report(
 			]
 		: [];
 	if (r.importers === 0)
-		return [
-			`[ogygia] barrels: ${n(r.files)} files scanned, no barrel imports to rewrite (${span_s} s)`,
-			...skipped
-		].join('\n');
-	const head =
-		`[ogygia] barrels: ${n(r.importers)} of ${n(r.files)} files rewritten — ${n(r.imports)} barrel imports → leaves ` +
-		`(${n(r.names)} names), ${n(r.barrels.size)} barrels bypassed, ${span_s} s first to last transform`;
+		return [line('barrels_report_none', { files: n(r.files), seconds: span_s }), ...skipped].join(
+			'\n'
+		);
+	const head = line('barrels_report', {
+		importers: n(r.importers),
+		files: n(r.files),
+		imports: n(r.imports),
+		names: n(r.names),
+		barrels: n(r.barrels.size),
+		seconds: span_s
+	});
 	const sorted = [...r.barrels.entries()].sort((a, b) => b[1].names - a[1].names);
 	const top = sorted.slice(0, limit);
 	const width = Math.max(...top.map(([, b]) => n(b.names).length));

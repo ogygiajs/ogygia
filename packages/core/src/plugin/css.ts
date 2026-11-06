@@ -12,6 +12,7 @@
 import { DEV } from 'esm-env';
 import { router_css_active, router_css_of } from '../router-css.ts';
 import { claim_region_css } from '../context.ts';
+import { warn } from '../messages/server.ts';
 
 // ── regexes
 const STYLE_CLOSE_G = /<\/style/gi;
@@ -38,9 +39,7 @@ export async function componentCssHead(components: readonly unknown[]): Promise<
 	const registry = ready ? await ready : null;
 	if (DEV && registry && !warned_inactive && components.length && !router_css_active()) {
 		warned_inactive = true;
-		console.warn(
-			"[ogygia] a page rendered outside Kit's routes, but no plugin declared page modules, so its components' CSS is not linked. Using `@ogygia/router`? List `router()` from `@ogygia/router/vite` beside `ogygia()` in vite.config `plugins`."
-		);
+		warn('router_css_inactive');
 	}
 	const entries = components.flatMap((c) => router_css_of(c));
 	if (!entries.length) return '';

@@ -14,6 +14,7 @@
  * (critically) survives partial/invalid syntax mid-edit in dev. The git loader proved it; this is
  * that scanner, generalized so all constructs share one code path.
  */
+import { OgygiaError } from '../../messages/build.ts';
 
 // ── regexes
 const REGEX_FLAG_RE = /[a-z]/i;
@@ -167,9 +168,7 @@ export function split_first_string(args: string, who: string): { value: string; 
 	while (i < args.length && WS_RE.test(args[i]!)) i++;
 	const q = args[i];
 	if (q !== "'" && q !== '"' && q !== '`') {
-		throw new Error(
-			`[ogygia] ${who}: the first argument must be a static string literal, got '${args.slice(0, 24)}…'`
-		);
+		throw new OgygiaError('call_arg_not_literal', { call: who, got: args.slice(0, 24) });
 	}
 	let j = i + 1;
 	for (; j < args.length; j++) {
@@ -179,9 +178,7 @@ export function split_first_string(args: string, who: string): { value: string; 
 	const value = args.slice(i + 1, j);
 	// A template literal with interpolation is a runtime value, not a build-time literal.
 	if (q === '`' && TEMPLATE_INTERPOLATION_RE.test(value)) {
-		throw new Error(
-			`[ogygia] ${who}: the first argument must be a static string literal — a template literal with \${…} interpolation is a runtime value the build cannot resolve.`
-		);
+		throw new OgygiaError('call_arg_interpolated', { call: who });
 	}
 	let k = j + 1;
 	while (k < args.length && WS_RE.test(args[k]!)) k++;
@@ -189,9 +186,7 @@ export function split_first_string(args: string, who: string): { value: string; 
 	// Anything else means the string is part of a larger expression (`"./" + dir`, a tagged template,
 	// a `.concat(…)` call) — a runtime value the build can't resolve. Fail loudly, don't mis-slice.
 	if (k < args.length && args[k] !== ',') {
-		throw new Error(
-			`[ogygia] ${who}: the first argument must be a static string literal, but it is part of a larger expression (near '${args.slice(i, k + 8)}…'). Use one plain string.`
-		);
+		throw new OgygiaError('call_arg_in_expression', { call: who, near: args.slice(i, k + 8) });
 	}
 	if (args[k] === ',') k++;
 	return { value, rest: args.slice(k).trim() };

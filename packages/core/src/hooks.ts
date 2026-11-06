@@ -191,6 +191,17 @@ import {
 	switch_in_url
 } from './insights/switch.ts';
 import { mark_personal } from './server/personal-response.ts';
+import { OgygiaError, warn } from './messages/server.ts';
+import * as runtime_messages from './messages/core.ts';
+
+// The server's render runs the same shared code as the island (a transport, `Region`), which words
+// its messages through the runtime's own (messages/island.ts): published here as the runtime's boot
+// publishes them in the browser.
+(globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.messages')] ??= {
+	OgygiaError: runtime_messages.OgygiaError,
+	warn: runtime_messages.warn,
+	line: runtime_messages.line
+};
 
 /** Is devtools on for this request's browser (a devtools BUILD): the URL's `?og-devtools=on|off`
  *  wins and is written to the response's cookie, else the cookie (insights/switch.ts). */
@@ -750,9 +761,7 @@ class OgygiaHandle {
 		// verify decides the key (server/signing-key.ts) and finds it there. Held to the floor a
 		// production build holds OGYGIA_SECRET to; dev may use short keys.
 		if (options.secret?.trim() && !import.meta.env.DEV && !secret_has_min_entropy(options.secret)) {
-			throw new Error(
-				`[ogygia] handle({ secret }) is too short for production (need ≥${MIN_SECRET_BYTES} UTF-8 bytes).`
-			);
+			throw new OgygiaError('handle_secret_too_short', { min: MIN_SECRET_BYTES });
 		}
 		configure_signing_secret(options.secret);
 		// MPA mode's Speculation Rules leave this endpoint out (one string, built once)
@@ -1755,7 +1764,7 @@ class OgygiaHandle {
 			if (is_keep_fallback(e)) return KEEP_FALLBACK_HTML;
 			// The response is an opaque 500 ("Region render failed"); the reason belongs in the dev
 			// terminal — a hole that throws only on the dev server is otherwise a blind hunt.
-			if (import.meta.env.DEV) console.warn('[ogygia] region render failed:', e);
+			if (import.meta.env.DEV) warn('region_render_failed', e);
 			return null;
 		}
 	}
@@ -1873,8 +1882,7 @@ class OgygiaHandle {
 				[REF_WIRE_KEY]: ref_reviver(false)
 			} as Parameters<typeof devalue.parse>[1]);
 		} catch (e) {
-			if (import.meta.env.DEV)
-				console.warn('[ogygia] region endpoint 403: island module load / props decode failed', e);
+			if (import.meta.env.DEV) warn('endpoint_props_decode_failed', e);
 			return null;
 		}
 		if (props === null || typeof props !== 'object' || Array.isArray(props)) return null;
@@ -2002,9 +2010,7 @@ class OgygiaHandle {
 		const refused = this.#capability_precheck(cap, renewal);
 		if (refused) {
 			if (import.meta.env.DEV && refused === 'foreign-key')
-				console.warn(
-					`[ogygia] region endpoint 403: id "${id}" was signed by key ${cap.k}, this server signs with ${signing_key().fp}`
-				);
+				warn('endpoint_foreign_key', { id, key: String(cap.k), own: signing_key().fp });
 			return region_denied(refused);
 		}
 
@@ -2023,8 +2029,7 @@ class OgygiaHandle {
 			// Verify (session-bound) before consulting the manifest — bad MAC never distinguishes
 			// unknown vs known id.
 			if (!this.#verify_region_mac(cap, event)) {
-				if (import.meta.env.DEV)
-					console.warn(`[ogygia] region endpoint 403: bad signature for id "${id}"`);
+				if (import.meta.env.DEV) warn('endpoint_bad_signature', { id });
 				return region_denied('sig');
 			}
 		}
@@ -2046,9 +2051,11 @@ class OgygiaHandle {
 		const target = capability_target(cap);
 		if (target === null) {
 			if (import.meta.env.DEV)
-				console.warn(
-					`[ogygia] region endpoint 403: id "${id}"${cap.render ? ` (component ${cap.render})` : ''} is not in the server manifest (${Object.keys(island_url).length} known)`
-				);
+				warn('endpoint_unknown_id', {
+					id,
+					component: cap.render || undefined,
+					known: Object.keys(island_url).length
+				});
 			return region_denied('unknown-id');
 		}
 		const load = (await load_islands()).islands[target];

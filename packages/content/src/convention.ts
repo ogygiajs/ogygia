@@ -4,6 +4,7 @@
  * from `NN-` prefixes is generic corpus knowledge (a blog wants it too), and the outline reads the
  * RESULT — `order`/`groups` as data — so it never parses a filename.
  */
+import { OgygiaError } from './messages/runtime.ts';
 
 // ── regexes
 const ORDER_PREFIX_RE = /^\d+-/;
@@ -172,9 +173,7 @@ function compile_format(format: string): CompiledFormat {
 		}
 	}
 	if (!(order.includes('Y') && order.includes('M') && order.includes('D')) || order.length !== 3) {
-		throw new Error(
-			`[ogygia/content] dated(): format '${format}' must contain YYYY, MM and DD exactly once`
-		);
+		throw new OgygiaError('content_dated_format_invalid', { format });
 	}
 	const out: CompiledFormat = {
 		re: new RegExp(`^${re}-(.+)$`),

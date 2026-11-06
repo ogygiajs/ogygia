@@ -22,6 +22,7 @@ import RawHtml from './RawHtml.svelte';
 import { REGION_BRAND } from './region-brand.ts';
 import { kit_page_facts_tail, kit_page_ready, kit_render_context } from './server/kit-context.ts';
 import { region_css_tags } from './server/html-scan.ts';
+import { OgygiaError } from './messages/island.ts';
 
 /** context.ts's LAKE key (`isInLake`), by its global name — context.ts reaches virtual modules. */
 const LAKE_SUBTREE_KEY = Symbol.for('ogygia.lake-subtree');
@@ -185,11 +186,7 @@ function make_region<P extends Record<string, unknown>>(
 				};
 				return make_inline_awaitable(inlineWrap);
 			}
-			throw new Error(
-				"[ogygia] a `with { region: 'raw' }` component must be turned into a region on the server " +
-					'(the signer lives server-side). Call region() in a load / remote / render context, ' +
-					'not in client code.'
-			);
+			throw new OgygiaError('raw_region_on_client');
 		}
 		// Schedule: the call's `wake` wins, else the binding's baked schedule (from a `wake:` mark). A
 		// `region: 'raw'` binding bakes none, so the call sets it — that's how the descriptor stays reusable.

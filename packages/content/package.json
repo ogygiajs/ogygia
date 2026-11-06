@@ -44,6 +44,10 @@
 			"types": "./dist/vite/index.d.ts",
 			"default": "./src/vite/index.ts"
 		},
+		"./internal/messages": {
+			"types": "./dist/messages/index.d.ts",
+			"default": "./src/messages/index.ts"
+		},
 		"./slot": {
 			"types": "./dist/site/components/SiteSlot.svelte.d.ts",
 			"svelte": "./src/site/components/SiteSlot.svelte",
@@ -80,6 +84,10 @@
 			"./vite": {
 				"types": "./dist/vite/index.d.ts",
 				"default": "./dist/vite/index.js"
+			},
+			"./internal/messages": {
+				"types": "./dist/messages/index.d.ts",
+				"default": "./dist/messages/index.js"
 			},
 			"./slot": {
 				"types": "./dist/site/components/SiteSlot.svelte.d.ts",

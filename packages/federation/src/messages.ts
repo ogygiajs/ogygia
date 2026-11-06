@@ -1,0 +1,63 @@
+/**
+ * EVERY MESSAGE THE FEDERATION PACKAGE PRINTS, in one place: its code, its wording, what to do about
+ * it (core's `@ogygia/core/internal/messages` says how the system works).
+ *
+ *   throw new OgygiaError('federation_mount_no_peer', { via: 'resolver' });
+ *   warn('federation_thaw_notice_failed', e);
+ *
+ * Federation runs in the app's server build, so the wording is only passed in dev: a production
+ * build prints the code's page alone.
+ */
+import { define_messages, prose, type MessagesOf } from '@ogygia/core/internal/messages';
+
+/** The errors: `throw new OgygiaError(code, args)`. */
+export const FEDERATION_ERRORS = {
+	federation_mount_no_peer: {
+		text: (a: { via: string }): string =>
+			`mount(): the ${a.via} must yield a peer (from federate({ peers })).`,
+		details: (): string => prose`
+			\`mount()\` was given a resolver function or a pick, and for this request it returned
+			something that is not a peer. Return one of the peers \`federate({ peers })\` made, for
+			every request the page serves.
+		`
+	}
+};
+
+/** The warnings: `warn(code, args, ...rest)`. */
+export const FEDERATION_WARNINGS = {
+	federation_open_without_keys: {
+		text: (): string => prose`
+			federate() exposes a table/widgets but no peer has a \`key\` — every inbound call would be
+			UNAUTHENTICATED. Add each caller as a peer with its public \`key\`, or pass \`open: true\`
+			to acknowledge an intentionally open endpoint (behind mTLS / a mesh).
+		`,
+		details: (): string => prose`
+			\`federate()\` exposes pages or widgets to other apps, but none of its peers has a public
+			\`key\`, so no inbound call can be checked: anyone could call the endpoint.
+
+			Add each calling app as a peer with its public \`key\` (\`ogygia keys\` mints a pair). If
+			the endpoint is meant to be open, because something in front of it (mTLS, a service
+			mesh) already checks the caller, pass \`open: true\`.
+		`
+	},
+	federation_thaw_notice_failed: {
+		text: (): string => 'federation: thaw notice to peers failed —',
+		details: (): string => prose`
+			After an invalidation, this app tells its peers which of their stored pages used the
+			changed data, so they can drop them. Sending that notice failed (the error follows the
+			message), so a peer may serve its stored copy until it expires.
+		`
+	}
+};
+
+type Own = MessagesOf<typeof FEDERATION_ERRORS, typeof FEDERATION_WARNINGS>;
+// (`?.`: a plain Node import — a test, a script — has no `import.meta.env`; it gets the link alone)
+const own: Own = /* @__PURE__ */ define_messages(
+	import.meta.env?.DEV ? FEDERATION_ERRORS : null,
+	import.meta.env?.DEV ? FEDERATION_WARNINGS : null
+);
+/** `throw new OgygiaError(code, args)`; `warn(code, args, ...rest)` logs; `line(code, args)` is the
+ *  line as a string. Wording and link in dev, the link alone in a production build. */
+export const OgygiaError: Own['OgygiaError'] = own.OgygiaError;
+export const warn: Own['warn'] = own.warn;
+export const line: Own['line'] = own.line;

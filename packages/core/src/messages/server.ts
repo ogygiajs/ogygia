@@ -1,0 +1,210 @@
+/**
+ * EVERY MESSAGE OGYGIA'S SERVER PRINTS — the handle, the islands endpoint, region capabilities, the
+ * page a render outside Kit reads: their code, their wording, what to do about them. Same calls as
+ * the runtime's (./core.ts), and the same rule: the wording and the code's page in dev; a production
+ * server build prints the page's link alone (the tables are only passed under `import.meta.env.DEV`).
+ *
+ *   throw new OgygiaError('handle_secret_too_short', { min });
+ *   warn('endpoint_bad_signature', { id });
+ */
+import { define_messages, type MessagesOf } from './define.ts';
+import { prose } from './prose.ts';
+
+const SECRET_FIX =
+	'Set a stable `OGYGIA_SECRET` in the server environment, or pass one to `handle({ secret })`.';
+
+/** The errors: `throw new OgygiaError(code, args)`, or `console.error(new OgygiaError(…))`. */
+export const SERVER_ERRORS = {
+	handle_secret_too_short: {
+		text: (a: { min: number }): string =>
+			`handle({ secret }) is too short for production (need ≥${a.min} UTF-8 bytes).`,
+		details: (): string => prose`
+			A production build signs region capabilities with the secret passed to
+			\`handle({ secret })\`, and a short one can be guessed. Use a random secret at least as long
+			as the message says, from the server's environment.
+		`
+	},
+	secret_conflict: {
+		text: (a: { key: string; decided: string; from: string }): string => prose`
+			handle({ secret }) names key ${a.key}, but this server already signs with key ${a.decided}
+			(from ${a.from}). The first key stays: pass one secret, before anything renders.
+		`,
+		details: (): string => prose`
+			The server decides its signing key once, the first time it mints or verifies a region
+			capability. A second, different secret arrived after that, and is ignored: every
+			capability keeps verifying with the first key.
+
+			Pass one secret, to the one \`handle()\`, before anything renders.
+		`
+	},
+	secret_missing_at_runtime: {
+		text: (): string => prose`
+			OGYGIA_SECRET was set when this app was built but is not set where it runs: region
+			capabilities are signed with this build's random key, so every hole minted by another
+			deployment (another backend behind the same CDN, the previous deploy) is refused (403,
+			x-ogygia-deny: foreign-key). Set OGYGIA_SECRET in the server's runtime environment, or pass
+			it to handle({ secret }) (e.g. from $env/static/private).
+		`,
+		details: (): string => prose`
+			The build saw \`OGYGIA_SECRET\` but the running server does not, so it signs with a random
+			key of its own. A page from another deployment carries capabilities signed with another
+			key, and the islands endpoint refuses them (\`x-ogygia-deny: foreign-key\`).
+
+			${SECRET_FIX}
+		`
+	},
+	hole_props_too_large: {
+		text: (a: { entry: string; length: number; max: number }): string => prose`
+			server island "${a.entry}": props payload is ${a.length} b64 chars (max ${a.max}). Shrink
+			what you pass into the deferred region — the handle would reject this capability anyway.
+		`,
+		details: (): string => prose`
+			A deferred region's props travel inside its signed address, so they have a size limit.
+			Pass less: an id the region looks up on the server instead of the record itself.
+		`
+	},
+	prop_not_serializable: {
+		text: (a: { entry: string; detail: string }): string => prose`
+			island "${a.entry}": a captured prop is not serializable — ${a.detail}. Captured host values
+			cross the boundary via devalue; functions/Promises cannot, and a class instance only can
+			when the class declares a static [ogygia.wire] codec. Pass a serializable value, add a
+			codec, or move that logic inside the island component.
+		`,
+		details: (): string => prose`
+			An island's props are serialized into the page so the browser can hydrate it. Functions
+			and promises cannot be serialized, and a class instance can only when its class declares
+			a wire codec.
+
+			Pass plain data, give the class a codec, or move the logic inside the island.
+		`
+	}
+};
+
+/** The warnings: `warn(code, args, ...rest)`. */
+export const SERVER_WARNINGS = {
+	region_render_failed: {
+		text: (): string => 'region render failed:',
+		details: (): string => prose`
+			Dev only. A region's server render threw, so the islands endpoint answered 500 and the page
+			keeps the region's fallback. The error follows the message.
+		`
+	},
+	endpoint_props_decode_failed: {
+		text: (): string => 'region endpoint 403: island module load / props decode failed',
+		details: (): string => prose`
+			Dev only. The islands endpoint could not load the region's module, or could not decode
+			the props in its address, so it refused the request. The error follows the message.
+		`
+	},
+	endpoint_foreign_key: {
+		text: (a: { id: string; key: string; own: string }): string =>
+			`region endpoint 403: id "${a.id}" was signed by key ${a.key}, this server signs with ${a.own}`,
+		details: (): string => prose`
+			Dev only. The region's address was signed by another deployment's key. Route the islands
+			endpoint to the deployment that served the page, or give every deployment the same
+			\`OGYGIA_SECRET\`.
+		`
+	},
+	endpoint_bad_signature: {
+		text: (a: { id: string }): string => `region endpoint 403: bad signature for id "${a.id}"`,
+		details: (): string => prose`
+			Dev only. The region's address does not carry a valid signature: it was edited, or
+			truncated on the way. The endpoint refuses it.
+		`
+	},
+	endpoint_unknown_id: {
+		text: (a: { id: string; component?: string; known: number }): string =>
+			`region endpoint 403: id "${a.id}"${a.component ? ` (component ${a.component})` : ''} is not in the server manifest (${a.known} known)`,
+		details: (): string => prose`
+			Dev only. The address names a region this server's build does not have: the page came
+			from another build, or the region was renamed. After a deploy the page reloads its
+			regions from the current build.
+		`
+	},
+	live_props_not_serializable: {
+		text: (a: { entry: string; max: number }): string => prose`
+			render:'live' region ${a.entry} has props that cannot cross the wire (non-serializable or
+			>${a.max} b64 chars) — no revalidate endpoint minted (behaves like a static lake).
+		`,
+		details: (): string => prose`
+			A live region refreshes from a signed address that carries its props. These props cannot
+			be serialized, or are too large, so the region gets no address and never refreshes. Pass
+			plain, small props.
+		`
+	},
+	build_key_prerender: {
+		text: (): string => prose`
+			prerendered page mints region capabilities signed with a per-build random key — they stop
+			verifying after your next deploy while the static HTML lives on. Set a stable
+			OGYGIA_SECRET env var (or pass it to handle({ secret })) so prerendered holes survive
+			redeploys.
+		`,
+		details: (): string => prose`
+			A prerendered page keeps the addresses of its holes in static HTML. Signed with a random
+			per-build key, they stop verifying after the next deploy. ${SECRET_FIX}
+		`
+	},
+	secret_missing: {
+		text: (): string => prose`
+			OGYGIA_SECRET is not set: region capabilities are signed with this build's random key, so
+			a page cached across a deploy, or served by another deployment than its islands endpoint,
+			gets its holes refused (403, x-ogygia-deny: foreign-key). Set a stable OGYGIA_SECRET, or
+			pass one to handle({ secret }).
+		`,
+		details: (): string => prose`
+			Without a secret, each deployment signs with its own random key. A page cached across a
+			deploy, or served by one backend while another answers its islands endpoint, gets its holes
+			refused. ${SECRET_FIX}
+		`
+	},
+	outside_page_data_unavailable: {
+		text: (a: { path: string; miss: string }): string =>
+			`${a.path}: the page's data for a render outside it is unavailable: ${a.miss}. The render sees an empty page.data.`,
+		details: (): string => prose`
+			A region rendered outside its page (an islands endpoint request) reads that page's
+			\`page.data\`, which ogygia looks up from the page. The lookup failed for the reason given,
+			so the region rendered with an empty \`page.data\`.
+		`
+	},
+	outside_page_data_key: {
+		text: (a: { path: string; key: string }): string => prose`
+			${a.path}: a region rendered outside its page read page.data.${a.key}, which this page's
+			server loads do not produce. A key a universal load (+page.ts / +layout.ts) returns exists
+			only inside a full page render: return it from a server load, or pass it as a prop.
+		`,
+		details: (): string => prose`
+			Outside a full page render only the server loads run. A key a universal load returns
+			(\`+page.ts\`, \`+layout.ts\`) is missing there. Return it from a server load, or pass it
+			to the region as a prop.
+		`
+	},
+	router_css_inactive: {
+		text: (): string => prose`
+			a page rendered outside Kit's routes, but no plugin declared page modules, so its
+			components' CSS is not linked. Using \`@ogygia/router\`? List \`router()\` from
+			\`@ogygia/router/vite\` beside \`ogygia()\` in vite.config \`plugins\`.
+		`,
+		details: (): string => prose`
+			Dev only. A page rendered outside Kit's routes needs a plugin to name its modules so their
+			CSS can be linked. With \`@ogygia/router\`, add \`router()\` from \`@ogygia/router/vite\` to
+			the Vite plugins.
+		`
+	},
+	plugin_hook_failed: {
+		text: (a: { name: string }): string => `a \`${a.name}\` hook failed —`,
+		details: (): string => prose`
+			A plugin's hook threw. ogygia logs it and goes on with the next plugin. The error follows
+			the message.
+		`
+	}
+};
+
+type Server = MessagesOf<typeof SERVER_ERRORS, typeof SERVER_WARNINGS>;
+// (`?.`: a plain Node import — a test, a script — has no `import.meta.env`; it gets the link alone)
+const server: Server = /* @__PURE__ */ define_messages(
+	import.meta.env?.DEV ? SERVER_ERRORS : null,
+	import.meta.env?.DEV ? SERVER_WARNINGS : null
+);
+export const OgygiaError: Server['OgygiaError'] = server.OgygiaError;
+export const warn: Server['warn'] = server.warn;
+export const line: Server['line'] = server.line;

@@ -7,6 +7,7 @@
  */
 import { fs, path, dir_entries } from '../host.ts';
 import { islandDepsHandoffPath } from './island-deps.ts';
+import { warn, line } from '../../messages/build.ts';
 
 const CORPUS_RE = /\.(svx|md)(\?|$)/;
 /** A `?…type=style…` / `lang.css` sub-import id — a CSS face, never a corpus JS leak. */
@@ -47,16 +48,15 @@ export function warn_content_leaks(
 		}
 		if (leaks.length) {
 			const all = [...new Set(leaks.flatMap((l) => l.modules))];
-			const sample = all
-				.slice(0, 5)
-				.map((m) => '    ' + path.relative(root, m.split('?')[0]))
-				.join('\n');
-			console.warn(
-				`[ogygia] content leaked into the CLIENT bundle: ${all.length} corpus module(s) (.svx/.md) shipped to the browser (in chunk '${leaks[0].chunk}').\n` +
-					`  A content() collection was imported into client-shipped code — usually an island — which drags its eager import.meta.glob (every doc) in.\n` +
-					`  Fix: keep the collection in a server-only module (or a .remote.ts) and feed islands DATA (refs) via props or a remote, never the collection itself.\n` +
-					`${sample}${all.length > 5 ? '\n    …' : ''}`
-			);
+			warn('content_leaked_to_client', {
+				count: all.length,
+				chunk: leaks[0].chunk,
+				// the first five, one a line
+				modules: all
+					.slice(0, 5)
+					.map((m) => path.relative(root, m.split('?')[0]))
+					.join('\n')
+			});
 		}
 	} catch {
 		/* a guardrail must never break the build */
@@ -151,8 +151,12 @@ export function report_seed_shaping(
 	const rel = (p: string) => (p.startsWith(root) ? p.slice(root.length).replace(/^\//, '') : p);
 	const lines: string[] = [];
 	lines.push(
-		`[ogygia] page seed: ${readers.length} island${readers.length === 1 ? '' : 's'} read page.data — ` +
-			`${pinned.length} pinned to ${key_count} key${key_count === 1 ? '' : 's'}, ${unpinned.length} ship all of it`
+		line('page_seed_report', {
+			islands: readers.length,
+			pinned: pinned.length,
+			keys: key_count,
+			unpinned: unpinned.length
+		})
 	);
 	if (unpinned.length) {
 		// The modules to blame: every recorded reason reachable from an unpinned island's closure.

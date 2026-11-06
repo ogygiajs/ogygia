@@ -26,6 +26,7 @@ import {
 	parse_module,
 	type JsRegion
 } from '@ogygia/core/internal/compiler-browser';
+import { OgygiaError } from '../messages/build.ts';
 
 // Both snippet constructs share this transform: `code(source, lang, meta?)` and `md(text)` each bake
 // to static html at build and inline as the same `og_html_region(...)`.
@@ -96,15 +97,15 @@ function static_string(
 	if (node?.type === 'TemplateLiteral') {
 		const tl = node as TemplateLiteralNode;
 		if ((tl.expressions?.length ?? 0) > 0) {
-			throw new Error(
-				`[ogygia] ${id}:${line_of(src, offset)} — import.meta.og.code(): ${label} is a template literal with \${…} interpolation, which the build can't resolve. Use a static string.`
-			);
+			throw new OgygiaError('content_code_interpolated', {
+				file: id,
+				line: line_of(src, offset),
+				label
+			});
 		}
 		return String(tl.quasis?.[0]?.value?.cooked ?? '');
 	}
-	throw new Error(
-		`[ogygia] ${id}:${line_of(src, offset)} — import.meta.og.code(): ${label} must be a static string literal.`
-	);
+	throw new OgygiaError('content_code_not_static', { file: id, line: line_of(src, offset), label });
 }
 
 /** Find every legal `import.meta.og.code(...)` / `.md(...)` call in one JS region. Returns null when
@@ -121,9 +122,7 @@ function find_calls(src: string, region: JsRegion, id: string): CodeCall[] | nul
 		const args = (n.arguments as Node[] | undefined) ?? [];
 		if (method === 'md') {
 			if (args.length !== 1) {
-				throw new Error(
-					`[ogygia] ${id}:${line_of(src, abs)} — import.meta.og.md(text) takes exactly one argument.`
-				);
+				throw new OgygiaError('content_md_arity', { file: id, line: line_of(src, abs) });
 			}
 			const source = dedent(static_string(args[0], src, id, abs, 'text'));
 			calls.push({
@@ -137,9 +136,7 @@ function find_calls(src: string, region: JsRegion, id: string): CodeCall[] | nul
 			return;
 		}
 		if (args.length < 2 || args.length > 3) {
-			throw new Error(
-				`[ogygia] ${id}:${line_of(src, abs)} — import.meta.og.code(source, lang, meta?) takes 2 or 3 arguments.`
-			);
+			throw new OgygiaError('content_code_arity', { file: id, line: line_of(src, abs) });
 		}
 		const source = dedent(static_string(args[0], src, id, abs, 'source'));
 		const lang = static_string(args[1], src, id, abs, 'lang');

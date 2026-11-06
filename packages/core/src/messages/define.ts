@@ -52,6 +52,12 @@ export type MessagesOf<E, W> = {
 		code: C,
 		...rest: [...Args<ArgsOf<W>, C>, ...unknown[]]
 	) => void;
+	/** A code's line as a string, for a logger that takes one (Rollup's `this.warn`, an injected
+	 *  `warn`): what `OgygiaError` and `warn` print. */
+	line: <C extends (keyof E | keyof W) & string>(
+		code: C,
+		...args: Args<ArgsOf<E & W>, C & keyof (E & W)>
+	) => string;
 };
 
 /** The line for a code: the wording and its link with the table, the link alone without it. */
@@ -95,6 +101,8 @@ export function define_messages<E extends MessageTableShape, W extends MessageTa
 				line(warnings, code, has_args ? first : undefined),
 				...(has_args ? rest.slice(1) : rest)
 			);
-		}) as Out['warn']
+		}) as Out['warn'],
+		line: ((code: string, a?: unknown) =>
+			line(errors && code in errors ? errors : warnings, code, a)) as Out['line']
 	};
 }

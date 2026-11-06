@@ -34,6 +34,10 @@
 		"./vite": {
 			"types": "./dist/vite.d.ts",
 			"default": "./src/vite.ts"
+		},
+		"./internal/messages": {
+			"types": "./dist/messages.d.ts",
+			"default": "./src/messages.ts"
 		}
 	},
 	"publishConfig": {
@@ -49,6 +53,10 @@
 			"./vite": {
 				"types": "./dist/vite.d.ts",
 				"default": "./dist/vite.js"
+			},
+			"./internal/messages": {
+				"types": "./dist/messages.d.ts",
+				"default": "./dist/messages.js"
 			}
 		},
 		"access": "public"

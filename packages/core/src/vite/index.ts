@@ -164,6 +164,7 @@ import {
 } from './paths.ts';
 
 import type { OgygiaOptions } from './options.ts';
+import { OgygiaError, warn, line } from '../messages/build.ts';
 
 /** css-ish file the dev bridge manages (mirrors the bridge's glob). */
 const DEV_CSS_FILE_RE = /\.(css|scss|sass|less|styl)$/;
@@ -663,7 +664,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					const own = (config.optimizeDeps?.include ?? []).filter((d) => is_own_specifier(d));
 					if (own.length)
 						config.logger.warn(
-							`[ogygia] optimizeDeps.include lists ${own.join(', ')}: ogygia must not be pre-bundled in dev (the page would run two copies of its runtime, and islands with snippet props fail to hydrate). Remove ${own.length === 1 ? 'it' : 'them'}.`
+							line('optimize_deps_includes_ogygia', {
+								specifiers: own.join(', '),
+								count: own.length
+							})
 						);
 				}
 				// SvelteKit exposes appDir via a build-time `define` (its `config` hook runs before any
@@ -721,9 +725,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				if (env_secret) {
 					// Production builds: reject weak user secrets (L-HMAC). Dev may use short keys.
 					if (is_build && !secret_has_min_entropy(env_secret)) {
-						throw new Error(
-							`[ogygia] OGYGIA_SECRET is too short for production builds (need ≥${MIN_SECRET_BYTES} UTF-8 bytes).`
-						);
+						throw new OgygiaError('secret_too_short', { min_bytes: MIN_SECRET_BYTES });
 					}
 					id_salt = derive_id_salt(env_secret);
 				} else {
@@ -887,9 +889,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						loaded
 					});
 					if (skipped && isMainThread)
-						console.log(
-							`[ogygia] ${skipped} island chunk(s) not emitted: their host modules are not in the server bundle (unreachable from this build's routes).`
-						);
+						console.log(line('island_chunks_not_emitted', { count: skipped }));
 					compiled_css.clear();
 					const tree_css = tree_css_walk(this);
 					// Router pages: resolved to a handoff `rcss:<rel>` href in writeBundle, linked at SSR by
@@ -1014,8 +1014,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						fs.writeFileSync(handoff, JSON.stringify(compiler.ssr_transformed_hosts()));
 					} catch (e) {
 						// best effort — without it the client leg emits every prescanned island
-						if (isMainThread)
-							console.warn('[ogygia] could not write the server-leg island handoff:', e);
+						if (isMainThread) warn('island_handoff_write_failed', e);
 					}
 				}
 				if (__P) {
@@ -1130,11 +1129,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// real remote-functions entry; the router-coupled modules they import are stubbed just
 				// below. Fallback: our hand-rolled shim. enforce:'pre' wins over Kit's resolveId.
 				if (!ssr && source === '__sveltekit/remote') {
-					if (!kit_remote_index) {
-						throw new Error(
-							"[ogygia] could not locate Kit's client remote-functions (src). Use an @sveltejs/kit that publishes its `src/` (2.70.2 or later, or 3.x)."
-						);
-					}
+					if (!kit_remote_index) throw new OgygiaError('kit_remote_src_missing');
 					return kit_remote_index;
 				}
 				// Scope-alias the two router-coupled modules Kit's remote-functions pull in, ONLY when
@@ -1402,9 +1397,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							path.join(dir, 'flags-manifest.json'),
 							JSON.stringify(manifest, null, '\t') + '\n'
 						);
-						console.log(
-							`[ogygia] flags manifest: ${manifest.names.length} flag(s) → node_modules/.ogygia/flags-manifest.json`
-						);
+						console.log(line('flags_manifest_written', { count: manifest.names.length }));
 					} catch {
 						/* a read-only FS must never fail the build over an inventory */
 					}
