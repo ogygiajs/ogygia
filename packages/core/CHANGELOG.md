@@ -1,5 +1,11 @@
 # @ogygia/core
 
+## 0.12.3
+
+### Patch Changes
+
+- [#166](https://github.com/ogygiajs/ogygia/pull/166) [`a2eade9`](https://github.com/ogygiajs/ogygia/commit/a2eade9cebe01c844d8ba3106945acadf05b10a8) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A component a markdown page imports is styled on a csr=false page: its scoped CSS (and any style file it imports) now ships in the page's content stylesheet beside the page's own `<style>`.
+
 ## 0.12.2
 
 ### Patch Changes
