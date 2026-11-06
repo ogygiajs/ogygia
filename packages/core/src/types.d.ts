@@ -228,6 +228,8 @@ declare const __OGYGIA_BEACON__: boolean;
 declare const __OGYGIA_CLIENT_PLUGINS__: boolean;
 /** The app's Kit major version (2, 3), or null when the plugin found none (kit-paths.ts). */
 declare const __OGYGIA_KIT_MAJOR__: number | null;
+/** The installed ogygia's version, which the runtime discloses (runtime/disclose-version.ts). */
+declare const __OGYGIA_VERSION__: string;
 
 declare module 'virtual:ogygia/router-css' {
 	// Generated component→CSS registrations for the server router — side-effect only.

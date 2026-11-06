@@ -89,6 +89,7 @@ import {
 	client_region_unmount
 } from './client-plugins.ts';
 import type { ClientPlugin } from '../plugin/client.ts';
+import { disclose_version } from './disclose-version.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (the proven DCE pattern): when off, every
 // `if (DEVTOOLS) dt_emit({…})` folds to `if (false)` and the whole devtools graph tree-shakes away.
@@ -1666,6 +1667,8 @@ export function boot(
 	installers: Array<() => void> = [],
 	client_plugins: readonly ClientPlugin[] = []
 ): void {
+	// which ogygia this page runs: `window.__ogygia.v` (./disclose-version.ts)
+	disclose_version();
 	// (The navigation handle island code reaches the runtime through is a feature now: `mpa-nav`
 	// publishes the MPA one, the router's install replaces it — ./nav-handle.ts.)
 	// The head the server sent is the page's (session.ts: who owns each node in <head>). No island
