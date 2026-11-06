@@ -9,7 +9,7 @@
  */
 import { fed_app } from './app.ts';
 import { warn } from './messages.ts';
-import { make_peer } from './peer.ts';
+import { PeerHandle } from './peer.ts';
 import { set_federation, current_federation } from './registry.ts';
 import {
 	sign_headers,
@@ -62,7 +62,7 @@ export function federate<P extends Record<string, PeerConfig>>(
 		keyof P & string,
 		PeerConfig
 	][]) {
-		const handle = make_peer(peer_name, peer_cfg, config.name, config.key);
+		const handle = new PeerHandle(peer_name, peer_cfg, config.name, config.key);
 		const keys = peer_cfg.key ? ([] as string[]).concat(peer_cfg.key) : [];
 		peers.set(peer_name, Object.assign(handle, { keys }));
 		out[peer_name] = handle;
