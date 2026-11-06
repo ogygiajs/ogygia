@@ -14,6 +14,8 @@ import type { Component } from 'svelte';
 import { stringify } from 'devalue';
 import Counter from './fixtures/Counter.svelte';
 import Heavy from './fixtures/Heavy.svelte';
+import Label from './fixtures/Label.svelte';
+import NestedProbe from './fixtures/NestedProbe.svelte';
 import LakeKitHost from './fixtures/LakeKitHost.svelte';
 import HoleKitHost from './fixtures/HoleKitHost.svelte';
 import LakePageReaderHost from './fixtures/LakePageReaderHost.svelte';
@@ -34,12 +36,9 @@ function island(entry: string, body: string, props: Record<string, unknown>, wak
 
 const b64 = (s: string) => Buffer.from(s, 'utf-8').toString('base64');
 
-// The runtime hydrates a top-level island through NestedProvider (`{#if Component}<Component/>{/if}`),
-// so a real region's SSR content is `<!--[0-->` (the if-branch) + `<!--[-->` (the dynamic component)
-// + html + `<!--]--><!--]-->` — empirically `<!--[0--><!--[-->…` (see test/region-attrs.test.ts). The
-// outermost envelope the runtime inserts itself at hydrate. `render()` gives us the component wrapped
-// in ONE anchor pair, which stands in for the dynamic-component pair; add the if-branch pair around it.
-const nested = (body: string) => `<!--[0-->${body}<!--]-->`;
+// A real region's SSR content is the component in ONE anchor pair (Region.svelte's dynamic
+// component: `<!--[-->` + html + `<!--]-->`), which the runtime hydrates as the component itself.
+// `render()` gives exactly that pair, so its body stands in for a placed island's content.
 
 /** A keyed sidecar as the server emits it: `id="og-props-<fp>"` (the id-map lookup) AND the
  *  `data-ogygia-props="<fp>"` attribute (the reconciler's key); `legacy` drops the id — a document
@@ -121,6 +120,12 @@ declare module 'vitest' {
 		counter_seedref_ssr_b64: string;
 		/** A `wake: 'load'` Counter island, SSR'd with `start: 3` — base64 of the HTML. */
 		counter_ssr_b64: string;
+		/** `render(Counter, { start: 5 })` and `render(Label, { text: 'one' })` bodies as they are
+		 *  (a deferred answer's and a live region's shape) — base64. */
+		counter_render_b64: string;
+		label_render_b64: string;
+		/** `render(NestedProbe)`: records `isNested()` as it hydrates — base64. */
+		probe_render_b64: string;
 		/** The same Counter with its props sidecar KEYED (id + attribute) at the end of the body. */
 		counter_tail_ssr_b64: string;
 		/** The keyed shape from before the server stamped the id: attribute only. */
@@ -161,13 +166,16 @@ export default function setup(project: TestProject) {
 	const { body } = render(Counter, { props });
 	// Root-relative: the browser project's Vite server serves the package root, and the svelte plugin
 	// compiles the `.svelte` on import — a real `import(entry)` through `island_module_url`.
-	project.provide('counter_ssr_b64', b64(island(COUNTER, nested(body), props)));
+	project.provide('counter_ssr_b64', b64(island(COUNTER, body, props)));
+	project.provide('counter_render_b64', b64(render(Counter, { props: { start: 5 } }).body));
+	project.provide('label_render_b64', b64(render(Label, { props: { text: 'one' } }).body));
+	project.provide('probe_render_b64', b64(render(NestedProbe).body));
 	project.provide(
 		'counter_seedref_ssr_b64',
 		b64(
 			island_seed_ref(
 				COUNTER,
-				nested(body),
+				body,
 				{ counter: { start: 3, pad: 'seed data the island does not read '.repeat(4) } },
 				['counter'],
 				'0123456789abcdef'
@@ -176,11 +184,11 @@ export default function setup(project: TestProject) {
 	);
 	project.provide(
 		'counter_tail_ssr_b64',
-		b64(island_tail(COUNTER, nested(body), props, 'feedfacecafebeef'))
+		b64(island_tail(COUNTER, body, props, 'feedfacecafebeef'))
 	);
 	project.provide(
 		'counter_tail_legacy_ssr_b64',
-		b64(island_tail(COUNTER, nested(body), props, 'feedfacecafebee0', true))
+		b64(island_tail(COUNTER, body, props, 'feedfacecafebee0', true))
 	);
 	// JSON lane: the sidecar is plain JSON with a seed reference written the JSON way? No — a seed
 	// reference needs devalue's type tag, so the JSON lane carries PLAIN props (`{ start: 3 }`) and a
@@ -188,7 +196,7 @@ export default function setup(project: TestProject) {
 	project.provide(
 		'counter_json_lane_ssr_b64',
 		b64(
-			`<ogygia-region wake="load" entry="${COUNTER}" data-og-fp="0000aaaa1111bbbb">${nested(body)}</ogygia-region>` +
+			`<ogygia-region wake="load" entry="${COUNTER}" data-og-fp="0000aaaa1111bbbb">${body}</ogygia-region>` +
 				`<p data-filler>content</p>` +
 				keyed_sidecar('0000aaaa1111bbbb', JSON.stringify(props), { json: true }) +
 				seed_script(
@@ -224,25 +232,16 @@ export default function setup(project: TestProject) {
 	// far below), the 3 in-viewport ones LAST — so viewport-first and document-first disagree.
 	const heavy = (n: number, top: number) =>
 		`<div style="position:absolute;top:${top}px;left:0">` +
-		island(HEAVY, nested(render(Heavy, { props: { n } }).body), { n }) +
+		island(HEAVY, render(Heavy, { props: { n } }).body, { n }) +
 		`</div>`;
 	let schedule = '';
 	for (let i = 0; i < 18; i++) schedule += heavy(i, 4000 + i * 40);
 	for (let i = 18; i < 21; i++) schedule += heavy(i, (i - 18) * 40);
 	project.provide('heavy_schedule_ssr_b64', b64(schedule));
 
-	project.provide(
-		'seed_nav_a_html_b64',
-		b64(seed_nav_document(nested(body), 3, 'aaaaaaaaaaaaaaaa'))
-	);
+	project.provide('seed_nav_a_html_b64', b64(seed_nav_document(body, 3, 'aaaaaaaaaaaaaaaa')));
 	project.provide(
 		'seed_nav_b_html_b64',
-		b64(
-			seed_nav_document(
-				nested(render(Counter, { props: { start: 7 } }).body),
-				7,
-				'bbbbbbbbbbbbbbbb'
-			)
-		)
+		b64(seed_nav_document(render(Counter, { props: { start: 7 } }).body, 7, 'bbbbbbbbbbbbbbbb'))
 	);
 }

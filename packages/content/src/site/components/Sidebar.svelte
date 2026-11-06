@@ -39,7 +39,7 @@
 	const fetched: NavTree = nav ? [] : the_site ? await the_site.nav({ base: the_base }) : [];
 	// The tree is REACTIVE to the `nav` prop: this island is commonly KEPT (`keep: 'og-sidebar'`), and
 	// on every SPA navigation the router pushes the incoming page's props into the persisted app
-	// (`absorbKeptProps` → LiveHost.setProps). A version/locale switch therefore swaps the tree IN
+	// (`absorbKeptProps` → its pushable props). A version/locale switch therefore swaps the tree IN
 	// PLACE — new links, new base prefixes — without a re-mount, so the active chip still glides.
 	const tree: NavTree = $derived(nav ?? fetched);
 

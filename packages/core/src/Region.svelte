@@ -1112,8 +1112,7 @@
 			margin={root_margin || undefined}
 			data-ogygia-keep={__keep || undefined}
 			data-og-fp={island_fp || undefined}
-			src={island_src || undefined}
-			>{#if Component}<Component {...island_props_body} />{/if}</ogygia-region
+			src={island_src || undefined}><Component {...island_props_body} /></ogygia-region
 		><!-- svelte-ignore hydration_html_changed -->{@html island_props_inline}{/if}
 {:else if is_server}
 	{@const Component = __component}

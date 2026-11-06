@@ -1420,7 +1420,7 @@ class OgygiaRegion extends HTMLElement {
 	 * carries server-rendered HTML). No fetch — the HTML is already here.
 	 *
 	 * - **First tick:** parse + swap the HTML in. Interactive (`hydrate` + `module`) → hydrate a
-	 *   {@link LiveHost} so later ticks can push props. Static → done (no JS ever ships).
+	 *   pushable props so later ticks can push them. Static → done (no JS ever ships).
 	 * - **Later tick, same interactive module:** keep-alive — push the new props to the mounted
 	 *   component (focus + local state survive; Svelte reconciles). No swap, no re-hydrate.
 	 * - **Later tick, static:** morph the new HTML in place (see {@link morph_children}).
@@ -1503,7 +1503,7 @@ class OgygiaRegion extends HTMLElement {
 		return core.kit_page_thread();
 	}
 
-	/** Hydrate a live region's swapped-in HTML through the hydrate core's LiveHost path. */
+	/** Hydrate a live region's swapped-in HTML through the hydrate core's live path. */
 	async #live_hydrate(props: Record<string, unknown>) {
 		// A pushed tick is no user gesture either: its island code asks for a slot like any scheduled
 		// wake (load-scheduler.ts).

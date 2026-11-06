@@ -1,6 +1,6 @@
 /**
  * THE HYDRATE CORE — everything an island needs only at the moment it hydrates: Svelte's
- * `hydrate`/`unmount`, the `NestedProvider` host, the devalue props parse, the page seed, the
+ * `hydrate`/`unmount`, the "inside an island" context, the devalue props parse, the page seed, the
  * DEV props guard. Loaded LAZILY by the region element on its first `#hydrate` (one dynamic
  * import, shared by every island), so a page whose islands all wake on `visible` or `interaction`
  * boots the runtime WITHOUT fetching Svelte's client runtime — that arrives with the first island
@@ -13,7 +13,8 @@
 import { hydrate, unmount, type Component } from 'svelte';
 import { set_current_region, set_foreign_hydrate } from '../current-region.ts';
 import { capture_region_ids } from './region-ids.ts';
-import NestedProvider from '../NestedProvider.svelte';
+import { nested_context } from '../nested.ts';
+import type { PushableProps } from './pushable-props.svelte.ts';
 import { foreign_region_prop_revivers } from './foreign-props.ts';
 import { SEED_REF_KEY, seed_ref_reviver } from '../seed-ref-reviver.ts';
 import { parse_sidecar_text } from './wire-format.ts';
@@ -73,13 +74,36 @@ export type IslandModule = {
 	__og_unmount?: (app: unknown) => void;
 };
 
-/** The hydration ENVELOPE: `hydrate()` anchors on a top-level `<!--[-->` comment and then expects
- *  the component's OWN region envelope — but embedded SSR (Region.svelte) emits only the inner
- *  layer. Idempotent: the second attempt after a failed first one finds it in place. */
+/** The hydration ENVELOPE: `hydrate()` anchors on a top-level `<!--[-->` comment, then walks the
+ *  component's own nodes. Every server shape carries it — a placed island's dynamic-component pair
+ *  (Region.svelte), `render()`'s root pair (a hole's answer, a live region) — so this only adds one
+ *  to markup that has none. Idempotent: the second attempt after a failed first one finds it.
+ *
+ *  A placed island an EARLIER build rendered (a hole's answer from a server still on it, mid rolling
+ *  deploy) carries one pair more: its host's `{#if}` branch (`<!--[0-->`) around the component's
+ *  pair. That outer pair goes, so the component's own is the envelope and the island is adopted
+ *  instead of re-rendered. */
 function ensure_envelope(region: Element): void {
 	if (has_envelope(region)) return;
+	const first = region.firstChild;
+	const last = region.lastChild;
+	if (
+		first &&
+		last &&
+		first !== last &&
+		is_comment(first, '[0') &&
+		is_comment(first.nextSibling, '[') &&
+		is_comment(last, ']')
+	) {
+		first.remove();
+		last.remove();
+		return;
+	}
 	region.insertBefore(document.createComment('['), region.firstChild);
 	region.appendChild(document.createComment(']'));
+}
+function is_comment(node: Node | null, data: string): boolean {
+	return !!node && node.nodeType === 8 && (node as Comment).data === data;
 }
 function has_envelope(region: Element): boolean {
 	const first = region.firstChild;
@@ -572,12 +596,12 @@ const prop_guard = {
 /** Svelte's `unmount`, typed for the opaque app this module hands around. */
 const unmount_app = (app: unknown) => void unmount(app as Record<string, unknown>);
 
-/** A handle over a mounted Svelte app: dispose unmounts, `set_props` pushes through a host. */
+/** A handle over a mounted Svelte app: dispose unmounts, `set_props` pushes into its pushable props. */
 function handle(
 	app: unknown,
 	dispose_with: (app: unknown) => void,
 	entry: string,
-	host: boolean
+	pushed: PushableProps | null
 ): IslandHandle {
 	const h: IslandHandle = {
 		dispose() {
@@ -588,10 +612,7 @@ function handle(
 			}
 		}
 	};
-	if (host) {
-		const live = app as { setProps?: (p: Record<string, unknown>) => void };
-		h.set_props = (props) => live.setProps?.(prop_guard.wrap(props, entry));
-	}
+	if (pushed) h.set_props = (props) => pushed.push(prop_guard.wrap(props, entry));
 	return h;
 }
 
@@ -713,9 +734,7 @@ export function hydrate_island(
 		const wrapped = foreign ? props : prop_guard.wrap(props, entry);
 		// Keep needs SPA navigation — a full-page load throws the DOM away, so there is nothing
 		// to relocate. Warn (dev) when the router is off on this page.
-		// (a kept island's own host: the placed island's SSR shape, which LiveHost's render() shape is not)
-		const KeepHost = slots.keep ?? slots.live;
-		const keep = region.hasAttribute('data-ogygia-keep') && !!KeepHost;
+		const keep = region.hasAttribute('data-ogygia-keep') && !!slots.Pushable;
 		if (keep && import.meta.env.DEV && !document.querySelector('meta[name="ogygia-router"]')) {
 			warn('keep_without_router', { entry, key: region.getAttribute('data-ogygia-keep') || '' });
 		}
@@ -725,11 +744,10 @@ export function hydrate_island(
 		 * instead of silently discarding the server DOM and re-rendering — that silent path is what
 		 * the self-heal below replaces; `recover: true` is that path, the last resort.
 		 *
-		 * Hydration envelope: `render()` (region endpoint / deferred swap) has BOTH anchor layers —
-		 * do not wrap again or hydration mismatches. (Verified against svelte 5.56.) Hydrate through
-		 * NestedProvider so descendants see the "inside a hydrated island" context — any nested
-		 * island wrapper then degrades to a plain inline component (single hydration with this
-		 * parent). The provider adds no DOM, so this matches SSR.
+		 * The component itself is hydrated, no host around it: every server shape is the component's
+		 * nodes in one anchor pair (see ensure_envelope; a deferred answer carries `render()`'s own, so
+		 * it is never wrapped again). Its context marks it "inside a hydrated island", so any nested
+		 * island wrapper degrades to a plain inline component (one hydration, with this parent).
 		 */
 		const attempt = (recover: boolean): IslandHandle => {
 			if (!is_deferred(region) && !foreign_delegate) ensure_envelope(region);
@@ -738,7 +756,7 @@ export function hydrate_island(
 				if (foreign_delegate) {
 					// FOREIGN island: its module-level svelte state is not ours, so delegate the whole
 					// hydrate to the entry's own `__og_hydrate` (and remember its unmounter). No
-					// NestedProvider, no context capture — context deliberately does not cross a team
+					// context capture — context deliberately does not cross a team
 					// boundary. FOREIGN PAGE READS: the `$app/state` shim inside this island reads the
 					// SHELL's page store (one singleton per document — the MFE's own seed never crosses
 					// the fragment boundary). Mark the hydrate so that shim can warn (dev) when the island
@@ -746,31 +764,23 @@ export function hydrate_island(
 					// own load.
 					set_foreign_hydrate({ origin: new URL(entry).origin, entry });
 					const app = mod.__og_hydrate!(region, wrapped, recover ? undefined : { recover: false });
-					return handle(app, mod.__og_unmount ?? (() => {}), entry, false);
+					return handle(app, mod.__og_unmount ?? (() => {}), entry, null);
 				}
 				// Seed this island's context from any `<Provide>` above it in the DOM, so a child's plain
 				// `getContext('key')` reads a (csr=false) layout's context across the island-root split.
 				// Undefined when there is no provider above — the common case pays only a short DOM walk.
 				const provided_ctx = capture_region_ids(region, () => slots.context?.(region));
 				const recovery = recover ? {} : { recover: false as const };
-				// A PERSIST island hydrates through KeepHost (NestedProvider's shape, with pushable props) so
-				// that when it relocates onto the next page its props can be pushed in reactively.
-				if (keep) {
-					const app = hydrate(KeepHost!, {
-						target: region,
-						props: { component: Component, initialProps: wrapped },
-						...(provided_ctx ? { context: provided_ctx } : {}),
-						...recovery
-					});
-					return handle(app, unmount_app, entry, true);
-				}
-				const app = hydrate(NestedProvider, {
+				// A KEPT island hydrates with pushable props, so that when it relocates onto the next
+				// page its props are pushed in reactively.
+				const pushed = keep ? new slots.Pushable!(wrapped) : null;
+				const app = hydrate(Component, {
 					target: region,
-					props: { component: Component, props: wrapped },
-					...(provided_ctx ? { context: provided_ctx } : {}),
+					props: pushed ? pushed.props : wrapped,
+					context: nested_context(provided_ctx),
 					...recovery
 				});
-				return handle(app, unmount_app, entry, false);
+				return handle(app, unmount_app, entry, pushed);
 			} finally {
 				set_current_region(null);
 				set_foreign_hydrate(null);
@@ -886,9 +896,9 @@ export function hydrate_island(
 }
 
 /**
- * Hydrate a live region's swapped-in HTML through {@link LiveHost} (props-pushable). A live region's
- * HTML comes from svelte `render()` (both envelope layers) — same as the deferred swap path, so it
- * is NOT wrapped in extra `[..]` hydration comments. `null` when the live feature is absent.
+ * Hydrate a live region's swapped-in HTML with pushable props, so a later tick reaches the mounted
+ * island in place. Its HTML is svelte `render()`'s (the root anchor pair already there) — the
+ * deferred swap's shape, so it is never wrapped again. `null` when the live feature is absent.
  */
 export function hydrate_live(
 	region: HTMLElement,
@@ -898,8 +908,7 @@ export function hydrate_live(
 ): IslandHandle | null {
 	seed_remote_once();
 	seed_page_once();
-	const LiveHost = slots.live;
-	if (!LiveHost) {
+	if (!slots.Pushable) {
 		if (import.meta.env.DEV) {
 			warn('live_feature_missing');
 		}
@@ -907,11 +916,12 @@ export function hydrate_live(
 	}
 	const provided_ctx = capture_region_ids(region, () => slots.context?.(region));
 	const host_classes = note_host_classes(region);
-	const app = hydrate(LiveHost, {
+	const pushed = new slots.Pushable(prop_guard.wrap(props, entry));
+	const app = hydrate(mod.default, {
 		target: region,
-		props: { component: mod.default, initialProps: prop_guard.wrap(props, entry) },
-		...(provided_ctx ? { context: provided_ctx } : {})
+		props: pushed.props,
+		context: nested_context(provided_ctx)
 	});
 	keep_host_classes(host_classes);
-	return handle(app, unmount_app, entry, true);
+	return handle(app, unmount_app, entry, pushed);
 }

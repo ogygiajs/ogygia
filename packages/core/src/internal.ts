@@ -12,9 +12,8 @@
  * @internal
  */
 export { default as Region } from './Region.svelte';
-// The foreign-hydrate contract (fragment federation) hydrates through the PRODUCER'S
-// NestedProvider — the native runtime's exact call shape, compiled by the producer's build.
-export { default as NestedProvider } from './NestedProvider.svelte';
+// The foreign-hydrate contract (fragment federation): the native runtime's exact call shape, run
+// against the PRODUCER'S svelte.
 export { og_entry_hydrate, og_entry_unmount } from './entry-hydrate.ts';
 export { isNested, setNested, documentIsCsrTrue } from './context.ts';
 
