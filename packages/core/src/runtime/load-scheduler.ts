@@ -188,65 +188,71 @@ export function critical_settled(): Promise<void> {
 
 // ── the queue ───────────────────────────────────────────────────────────────────────────────────
 
-type Entry = {
-	kind: LoadKind;
-	cls: () => LoadClass;
-	label?: string;
-	queued_at: number;
-	order: number;
-	resolve: (release: () => void) => void;
-	background: boolean;
-};
-
-const queue: Entry[] = [];
+const queue: LoadSlot[] = [];
 let in_flight_background = 0;
 let next_order = 0;
 let scroll_watch = false;
 
-/** A queued download: its current class, and a way to lift it. */
-export interface LoadTicket {
-	promote(cls: LoadClass): void;
-}
-
 /**
- * Ask for a slot. `ready` resolves with a `release` to call when the download is done (settled,
- * success or not). `cls` may be a getter, re-read whenever the queue drains (viewport changes).
+ * A queued download: asking for one queues it. `ready` resolves with a `release` to call when the
+ * download is done (settled, success or not). `cls` may be a getter, re-read whenever the queue
+ * drains (viewport changes); `promote` lifts it.
  */
-export function load_slot(o: {
-	kind: LoadKind;
-	cls: LoadClass | (() => LoadClass);
-	label?: string;
-}): { ready: Promise<() => void>; ticket: LoadTicket } {
-	let forced: LoadClass | null = null;
-	const read = typeof o.cls === 'function' ? o.cls : () => o.cls as LoadClass;
-	const cls = () => {
-		const c = read();
+export class LoadSlot {
+	readonly kind: LoadKind;
+	readonly label: string | undefined;
+	readonly queued_at: number = now();
+	readonly order: number = next_order++;
+	readonly ready: Promise<() => void>;
+	#read: () => LoadClass;
+	#forced: LoadClass | null = null;
+	#resolve!: (release: () => void) => void;
+
+	constructor(o: { kind: LoadKind; cls: LoadClass | (() => LoadClass); label?: string }) {
+		this.kind = o.kind;
+		this.label = o.label;
+		this.#read = typeof o.cls === 'function' ? o.cls : () => o.cls as LoadClass;
+		this.ready = new Promise<() => void>((r) => (this.#resolve = r));
+		queue.push(this);
+		if (typeof o.cls === 'function') watch_scroll();
+		if (!critical_done && waits_for_critical(this.kind, this.cls())) void critical_settled();
+		drain();
+	}
+
+	/** Its class now: the getter's, or the promoted one when that ranks higher. */
+	cls(): LoadClass {
+		const c = this.#read();
+		const forced = this.#forced;
 		return forced !== null && RANK[forced] < RANK[c] ? forced : c;
-	};
-	let resolve!: (release: () => void) => void;
-	const ready = new Promise<() => void>((r) => (resolve = r));
-	const entry: Entry = {
-		kind: o.kind,
-		cls,
-		label: o.label,
-		queued_at: now(),
-		order: next_order++,
-		resolve,
-		background: false
-	};
-	queue.push(entry);
-	if (typeof o.cls === 'function') watch_scroll();
-	if (!critical_done && waits_for_critical(entry.kind, cls())) void critical_settled();
-	drain();
-	return {
-		ready,
-		ticket: {
-			promote(c: LoadClass) {
-				forced = c;
-				drain();
-			}
-		}
-	};
+	}
+
+	/** Lift it (a prefetch the visitor then navigates to). */
+	promote(c: LoadClass): void {
+		this.#forced = c;
+		drain();
+	}
+
+	/** Out of the queue: the holder's `ready` resolves, counted in the background window when it
+	 *  is one of the guesses. */
+	start(cls: LoadClass, background: boolean): void {
+		if (background) in_flight_background++;
+		let released = false;
+		if (DEVTOOLS)
+			dt_emit({
+				domain: 'runtime',
+				name: 'load.started',
+				class: cls,
+				kind: this.kind,
+				label: this.label,
+				waited_ms: Math.round(now() - this.queued_at)
+			});
+		this.#resolve(() => {
+			if (released) return;
+			released = true;
+			if (background) in_flight_background--;
+			drain();
+		});
+	}
 }
 
 function waits_for_critical(kind: LoadKind, cls: LoadClass): boolean {
@@ -300,7 +306,7 @@ async function drain_queue(): Promise<void> {
 				continue;
 			}
 			queue.splice(i, 1);
-			start(e, cls, background);
+			e.start(cls, background);
 			// the holder's continuation (its synchronous start-up) runs in this microtask turn
 			await Promise.resolve();
 			if (now() >= until) {
@@ -312,27 +318,6 @@ async function drain_queue(): Promise<void> {
 		}
 		if (!yielded && !drain_again) return;
 	}
-}
-
-function start(e: Entry, cls: LoadClass, background: boolean): void {
-	if (background) in_flight_background++;
-	e.background = background;
-	let released = false;
-	if (DEVTOOLS)
-		dt_emit({
-			domain: 'runtime',
-			name: 'load.started',
-			class: cls,
-			kind: e.kind,
-			label: e.label,
-			waited_ms: Math.round(now() - e.queued_at)
-		});
-	e.resolve(() => {
-		if (released) return;
-		released = true;
-		if (background) in_flight_background--;
-		drain();
-	});
 }
 
 /** While a queued download's class can change with the viewport, re-drain on scroll (one frame). */

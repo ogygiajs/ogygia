@@ -8,7 +8,7 @@
 	 */
 	import type { IslandRow } from './report-data.ts';
 	import { fmt_ms, fmt_bytes, ink_on } from './format.ts';
-	import { sortable } from './sort.svelte.ts';
+	import { Sortable } from './sort.svelte.ts';
 	import { pressable } from './press.ts';
 	import { row_id, follow_hash } from './row-anchor.svelte.ts';
 
@@ -24,7 +24,7 @@
 				r.name.toLowerCase().includes(q) || r.entry.toLowerCase().includes(q) || r.wake.includes(q)
 		);
 	});
-	const s = sortable(() => filtered, 'props_bytes');
+	const s = new Sortable(() => filtered, 'props_bytes');
 	let open = $state<string | null>(null);
 	const max_props = $derived(Math.max(...rows.map((r) => r.props_bytes), 1));
 	const max_js = $derived(Math.max(...rows.map((r) => r.js_bytes ?? 0), 1));

@@ -5,51 +5,45 @@
  * "something is happening" reassurance bar. Call `start()` when the request goes out, `finish()` when
  * it resolves (it awaits one paint at 100% before returning), `fail()` on error.
  */
-export interface FakeProgress {
-	readonly value: number;
-	readonly running: boolean;
-	start(): void;
-	finish(): Promise<void>;
-	fail(): void;
-}
+export class FakeProgress {
+	#value = $state(0);
+	#running = $state(false);
+	#timer: ReturnType<typeof setInterval> | undefined;
 
-export function fake_progress(): FakeProgress {
-	let value = $state(0);
-	let running = $state(false);
-	let timer: ReturnType<typeof setInterval> | undefined;
-
-	function tick() {
-		if (value >= 95) return;
-		const gap = 95 - value;
-		// base easing (fast when far from 95, slow as it nears) + an occasional "then a lot" jump
-		const burst = Math.random() < 0.18 ? gap * 0.14 : 0;
-		value = Math.min(95, value + gap * 0.045 + burst + 0.5);
+	get value(): number {
+		return this.#value;
 	}
 
-	return {
-		get value(): number {
-			return value;
-		},
-		get running(): boolean {
-			return running;
-		},
-		start(): void {
-			clearInterval(timer);
-			value = 0;
-			running = true;
-			timer = setInterval(tick, 170);
-		},
-		async finish(): Promise<void> {
-			clearInterval(timer);
-			value = 100;
-			// let the 100% frame paint before the caller swaps the view
-			await new Promise((r) => setTimeout(r, 420));
-			running = false;
-		},
-		fail(): void {
-			clearInterval(timer);
-			running = false;
-			value = 0;
-		}
-	};
+	get running(): boolean {
+		return this.#running;
+	}
+
+	start(): void {
+		clearInterval(this.#timer);
+		this.#value = 0;
+		this.#running = true;
+		this.#timer = setInterval(() => this.#tick(), 170);
+	}
+
+	async finish(): Promise<void> {
+		clearInterval(this.#timer);
+		this.#value = 100;
+		// let the 100% frame paint before the caller swaps the view
+		await new Promise((r) => setTimeout(r, 420));
+		this.#running = false;
+	}
+
+	fail(): void {
+		clearInterval(this.#timer);
+		this.#running = false;
+		this.#value = 0;
+	}
+
+	#tick(): void {
+		if (this.#value >= 95) return;
+		const gap = 95 - this.#value;
+		// base easing (fast when far from 95, slow as it nears) + an occasional "then a lot" jump
+		const burst = Math.random() < 0.18 ? gap * 0.14 : 0;
+		this.#value = Math.min(95, this.#value + gap * 0.045 + burst + 0.5);
+	}
 }

@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { routes, when } from '@ogygia/router';
 import { startPlugin } from '@ogygia/core/plugin/testing';
 import { mount } from '../src/mount.ts';
-import { make_peer } from '../src/peer.ts';
+import { PeerHandle } from '../src/peer.ts';
 import { flag, decide } from '../../flags/src/index.ts';
 import flags_server from '../../flags/src/server.ts';
 import { facts_of } from '../../core/src/plugin/facts.ts';
@@ -40,7 +40,7 @@ describe('when() — a gated-off route does not exist', () => {
 			{
 				'/cms/[...rest]': when(
 					rollout,
-					mount(make_peer('cms', { origin: 'http://never.test' }, 'shell'))
+					mount(new PeerHandle('cms', { origin: 'http://never.test' }, 'shell'))
 				)
 			},
 			{ base: '/app' }
@@ -76,8 +76,8 @@ describe('mount(pick) — the flag-picked canary', () => {
 			return new Response(doc_json());
 		});
 		const v2 = flag('cms-v2-canary'); // off by default; forced per-request via ?og-exp
-		const v1_peer = make_peer('cms', { origin: 'http://a.test' }, 'shell');
-		const v2_peer = make_peer('cms', { origin: 'http://b.test' }, 'shell');
+		const v1_peer = new PeerHandle('cms', { origin: 'http://a.test' }, 'shell');
+		const v2_peer = new PeerHandle('cms', { origin: 'http://b.test' }, 'shell');
 		const app = routes({
 			'/cms/[...rest]': mount(v2.pick({ off: v1_peer, on: v2_peer }))
 		});

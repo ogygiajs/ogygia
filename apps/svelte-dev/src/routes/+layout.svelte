@@ -23,7 +23,7 @@
 
 	let { children } = $props();
 
-	// The JS↔TS code preference (js_to_ts variants bind to it). head() applies the saved choice
+	// The JS↔TS code preference (JsToTs variants bind to it). head() applies the saved choice
 	// before paint; preference.switch() is ONE delegated handler wiring every variant-switcher button.
 	const codeLang = preference({ name: 'code-language', values: ['ts', 'js'], default: 'ts' });
 

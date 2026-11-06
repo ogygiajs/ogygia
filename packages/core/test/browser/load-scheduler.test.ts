@@ -12,7 +12,7 @@ import {
 	critical_outcome,
 	critical_settled,
 	fetch_priority_of,
-	load_slot,
+	LoadSlot,
 	preload_urls,
 	reset_load_scheduler,
 	viewport_class
@@ -79,7 +79,7 @@ test('island code waits for the critical image; a gesture and visible content do
 	const hero = pending_hero();
 	const started: string[] = [];
 	const ask = (label: string, kind: 'code' | 'content', cls: 'user' | 'visible' | 'ahead') =>
-		load_slot({ kind, cls, label }).ready.then((release) => {
+		new LoadSlot({ kind, cls, label }).ready.then((release) => {
 			started.push(label);
 			release();
 		});
@@ -98,7 +98,7 @@ test('island code waits for the critical image; a gesture and visible content do
 test('the visitor’s first input releases the wait (the browser stops measuring LCP there)', async () => {
 	pending_hero();
 	let started = false;
-	void load_slot({ kind: 'code', cls: 'visible' }).ready.then(() => (started = true));
+	void new LoadSlot({ kind: 'code', cls: 'visible' }).ready.then(() => (started = true));
 	await tick(50);
 	expect(started).toBe(false);
 	document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
@@ -141,7 +141,7 @@ test('no marked resource: code starts right after the paint', async () => {
 		waited_ms: expect.any(Number)
 	});
 	let started = false;
-	void load_slot({ kind: 'code', cls: 'visible' }).ready.then(() => (started = true));
+	void new LoadSlot({ kind: 'code', cls: 'visible' }).ready.then(() => (started = true));
 	await tick();
 	expect(started).toBe(true);
 });
@@ -151,7 +151,7 @@ test('background work shares a window; ahead goes before speculative; release le
 	const started: string[] = [];
 	const releases: (() => void)[] = [];
 	const ask = (label: string, cls: 'ahead' | 'speculative') =>
-		void load_slot({ kind: 'content', cls, label }).ready.then((release) => {
+		void new LoadSlot({ kind: 'content', cls, label }).ready.then((release) => {
 			started.push(label);
 			releases.push(release);
 		});
@@ -176,11 +176,11 @@ test('a queued download follows the viewport, and promote() lifts it', async () 
 	await critical_settled();
 	const hold: (() => void)[] = [];
 	for (let i = 0; i < BACKGROUND_WINDOW; i++)
-		void load_slot({ kind: 'content', cls: 'ahead' }).ready.then((r) => hold.push(r));
+		void new LoadSlot({ kind: 'content', cls: 'ahead' }).ready.then((r) => hold.push(r));
 	await tick();
 	let cls: 'ahead' | 'visible' = 'ahead';
 	let started = false;
-	void load_slot({ kind: 'code', cls: () => cls }).ready.then(() => (started = true));
+	void new LoadSlot({ kind: 'code', cls: () => cls }).ready.then(() => (started = true));
 	await tick();
 	expect(started).toBe(false); // ahead: the window is full
 	cls = 'visible';
@@ -189,11 +189,11 @@ test('a queued download follows the viewport, and promote() lifts it', async () 
 	expect(started).toBe(true); // scrolled into view: visible code is not windowed
 
 	let promoted = false;
-	const queued = load_slot({ kind: 'content', cls: 'speculative' });
+	const queued = new LoadSlot({ kind: 'content', cls: 'speculative' });
 	void queued.ready.then(() => (promoted = true));
 	await tick();
 	expect(promoted).toBe(false);
-	queued.ticket.promote('user');
+	queued.promote('user');
 	await tick();
 	expect(promoted).toBe(true);
 	for (const r of hold) r();
@@ -217,7 +217,7 @@ test('starts go out across tasks: holders with heavy start-ups never make one lo
 	let started = 0;
 	// 8 × 12 ms = 96 ms of start-up: in one task, a long one; against a 16 ms budget, none
 	const all = Array.from({ length: 8 }, () =>
-		load_slot({ kind: 'code', cls: 'visible' }).ready.then((release) => {
+		new LoadSlot({ kind: 'code', cls: 'visible' }).ready.then((release) => {
 			started++;
 			busy(12);
 			release();
@@ -233,7 +233,7 @@ test('starts go out across tasks: holders with heavy start-ups never make one lo
 test('a single start still goes out at once (no yield before the first)', async () => {
 	await critical_settled();
 	let started = false;
-	void load_slot({ kind: 'code', cls: 'user' }).ready.then(() => (started = true));
+	void new LoadSlot({ kind: 'code', cls: 'user' }).ready.then(() => (started = true));
 	await Promise.resolve();
 	await Promise.resolve();
 	expect(started).toBe(true);

@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { generateKeyPairSync } from 'node:crypto';
-import { make_peer } from '../src/peer.ts';
+import { PeerHandle } from '../src/peer.ts';
 import { federate } from '../src/federate.ts';
 import { mount } from '../src/mount.ts';
 import { mint_hole, set_hole_signer } from '../src/hole.ts';
@@ -48,7 +48,7 @@ describe('peer transport — one per remote app', () => {
 			await new Promise((r) => setTimeout(r, 5));
 			return new Response(doc_json({ body: 'one' }));
 		});
-		const cms = make_peer('cms', { origin: 'http://mfe.test' }, 'shell');
+		const cms = new PeerHandle('cms', { origin: 'http://mfe.test' }, 'shell');
 		const [a, b] = await Promise.all([cms.doc('/p', ''), cms.doc('/p', '')]);
 		expect(calls).toBe(1);
 		expect(a.body).toBe('one');
@@ -61,7 +61,7 @@ describe('peer transport — one per remote app', () => {
 		const now = vi.spyOn(Date, 'now');
 		const t0 = 1_000_000;
 		now.mockReturnValue(t0);
-		const cms = make_peer('cms', { origin: 'http://mfe.test', cache: { ttl: 1000 } }, 'shell');
+		const cms = new PeerHandle('cms', { origin: 'http://mfe.test', cache: { ttl: 1000 } }, 'shell');
 
 		expect((await cms.doc('/p', '')).body).toBe('v1'); // miss
 		expect((await cms.doc('/p', '')).body).toBe('v1'); // fresh hit
@@ -85,7 +85,7 @@ describe('peer transport — one per remote app', () => {
 		const now = vi.spyOn(Date, 'now');
 		const t0 = 1_000_000;
 		now.mockReturnValue(t0);
-		const cms = make_peer('cms', { origin: 'http://mfe.test', cache: { ttl: 1000 } }, 'shell');
+		const cms = new PeerHandle('cms', { origin: 'http://mfe.test', cache: { ttl: 1000 } }, 'shell');
 		expect((await cms.doc('/p', '')).body).toBe('good');
 
 		now.mockReturnValue(t0 + 5000); // past ttl: this read starts a refresh, which answers a 500
@@ -107,7 +107,11 @@ describe('peer transport — one per remote app', () => {
 			if (gets === 1) await gate;
 			return new Response(doc_json({ body: `get${gets}` }));
 		});
-		const cms = make_peer('cms', { origin: 'http://mfe.test', cache: { ttl: 60_000 } }, 'shell');
+		const cms = new PeerHandle(
+			'cms',
+			{ origin: 'http://mfe.test', cache: { ttl: 60_000 } },
+			'shell'
+		);
 		const before = cms.doc('/p', '');
 		await cms.postDoc('/p', '', new ArrayBuffer(0), 'text/plain');
 		release();
@@ -122,7 +126,7 @@ describe('peer transport — one per remote app', () => {
 			captured = init?.headers as Record<string, string>;
 			return new Response(doc_json());
 		});
-		const cms = make_peer('cms', { origin: 'http://mfe.test' }, 'shell');
+		const cms = new PeerHandle('cms', { origin: 'http://mfe.test' }, 'shell');
 		await cms.postDoc('/p', '', new ArrayBuffer(0), 'application/x-www-form-urlencoded');
 		expect(captured.origin).toBe('http://mfe.test');
 		expect(captured['content-type']).toBe('application/x-www-form-urlencoded');
@@ -134,7 +138,7 @@ describe('peer transport — one per remote app', () => {
 			seen = u;
 			return new Response(JSON.stringify({ html: '<div>kpis</div>' }));
 		});
-		const dash = make_peer('dash', { origin: 'http://dash.test' }, 'shell');
+		const dash = new PeerHandle('dash', { origin: 'http://dash.test' }, 'shell');
 		const d = await dash.widgetDoc('kpis', { org: 'acme' });
 		expect(seen!.href).toBe('http://dash.test/og/fragment/kpis?org=acme');
 		expect(d.html).toBe('<div>kpis</div>');
@@ -142,13 +146,13 @@ describe('peer transport — one per remote app', () => {
 
 	it('widgetDoc throws a plain Error; doc() throws http errors; a network failure is a 504', async () => {
 		vi.stubGlobal('fetch', async () => new Response('nope', { status: 500 }));
-		const dash = make_peer('dash', { origin: 'http://dash.test' }, 'shell');
+		const dash = new PeerHandle('dash', { origin: 'http://dash.test' }, 'shell');
 		await expect(dash.widgetDoc('kpis')).rejects.toThrow("fragment 'kpis' answered 500");
 		await expect(dash.doc('/p', '')).rejects.toMatchObject({ status: 502 });
 		vi.stubGlobal('fetch', async () => {
 			throw new TypeError('fetch failed');
 		});
-		const cms = make_peer('cms', { origin: 'http://mfe.test' }, 'shell');
+		const cms = new PeerHandle('cms', { origin: 'http://mfe.test' }, 'shell');
 		await expect(cms.doc('/p', '')).rejects.toMatchObject({ status: 504 });
 	});
 
@@ -159,7 +163,7 @@ describe('peer transport — one per remote app', () => {
 			if (new URL(u).host === 'a.test') throw new TypeError('down');
 			return new Response(doc_json({ body: 'from-b' }));
 		});
-		const cms = make_peer('cms', { origin: ['http://a.test', 'http://b.test'] }, 'shell');
+		const cms = new PeerHandle('cms', { origin: ['http://a.test', 'http://b.test'] }, 'shell');
 		expect((await cms.doc('/p', '')).body).toBe('from-b');
 		expect(hit).toEqual(['a.test', 'b.test']);
 	});
@@ -298,7 +302,7 @@ describe('mount() — claims auto-built from the table identity', () => {
 			return new Response(doc_json());
 		});
 		const exp = flag('hero', { rollout: 100 });
-		const cms = make_peer('cms', { origin: 'http://mfe.test' }, 'shell', priv);
+		const cms = new PeerHandle('cms', { origin: 'http://mfe.test' }, 'shell', priv);
 		const app = routes(
 			{ '/cms/[...rest]': mount(cms) },
 			{ visitor: () => ({ sub: 'u9' }), flags: [exp] }
@@ -315,7 +319,7 @@ describe('mount() — claims auto-built from the table identity', () => {
 
 	it('STATUS CHANNEL: a mounted 404 answers 404 through the shell', async () => {
 		vi.stubGlobal('fetch', async () => new Response(doc_json({ status: 404, body: 'gone' })));
-		const cms = make_peer('cms', { origin: 'http://mfe.test' }, 'shell');
+		const cms = new PeerHandle('cms', { origin: 'http://mfe.test' }, 'shell');
 		const app = routes({ '/cms/[...rest]': mount(cms) });
 		const res = await app.fetch(new Request('http://shell.test/cms/x'));
 		expect(res!.status).toBe(404);
@@ -327,7 +331,7 @@ describe('mount() — claims auto-built from the table identity', () => {
 			seen = new Request(u, init);
 			return new Response(doc_json());
 		});
-		const cms = make_peer('cms', { origin: 'http://mfe.test' }, 'shell', priv);
+		const cms = new PeerHandle('cms', { origin: 'http://mfe.test' }, 'shell', priv);
 		const app = routes({ '/cms/[...rest]': mount(cms) });
 		await app.fetch(new Request('http://shell.test/cms/x'));
 		expect(seen!.headers.get('x-og-user')).toBeNull();
@@ -370,7 +374,7 @@ describe('remote regions', () => {
 					doc_json({ body: '<p>fresh</p>', css: ['<link>'], sources: ['s:doc:1'], path: '/cms/p' })
 				)
 		);
-		const cms = make_peer('cms', { origin: 'http://cms.test' }, 'shell');
+		const cms = new PeerHandle('cms', { origin: 'http://cms.test' }, 'shell');
 		const region = await cms.page('/p');
 		expect((region as { html?: string; props: { html?: string } }).props.html).toContain('fresh');
 		// the page's receipts are adopted under the peer name (so a thaw matches)
@@ -381,7 +385,7 @@ describe('remote regions', () => {
 
 	it('a deferred remote region is a hole with a shell-signed url', async () => {
 		set_hole_signer(({ peer, target }) => `/og/frag?peer=${peer}&target=${target}&sig=abc`);
-		const cms = make_peer('cms', { origin: 'http://cms.test' }, 'shell');
+		const cms = new PeerHandle('cms', { origin: 'http://cms.test' }, 'shell');
 		const hole = await cms.page('/p', { render: 'deferred' });
 		expect(hole.kind).toBe('deferred');
 		expect((hole as { url: string }).url).toBe('/og/frag?peer=cms&target=/p&sig=abc');
@@ -483,7 +487,11 @@ describe('cross-app thaw', () => {
 			calls++;
 			return new Response(doc_json({ body: `v${calls}`, sources: ['s:doc:1'], path: '/cms/p' }));
 		});
-		const cms = make_peer('cms', { origin: 'http://cms.test', cache: { ttl: 60_000 } }, 'shell');
+		const cms = new PeerHandle(
+			'cms',
+			{ origin: 'http://cms.test', cache: { ttl: 60_000 } },
+			'shell'
+		);
 		expect((await cms.doc('/p', '')).body).toBe('v1');
 		expect((await cms.doc('/p', '')).body).toBe('v1'); // cached
 		expect(calls).toBe(1);

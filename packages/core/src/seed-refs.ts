@@ -52,36 +52,6 @@ export {
 	type SeedPath
 } from './seed-ref-reviver.ts';
 
-export interface SeedIndex {
-	/** node → its path from `page.data` (identity matches: the app passed the seed's own object).
-	 *  The path is materialised on the first ask — an indexed node that no island references
-	 *  never allocates one. */
-	readonly by_identity: {
-		get(node: object): SeedPath | undefined;
-		has(node: object): boolean;
-	};
-	/**
-	 * The seed nodes with exactly this byte estimate — the only ones a props node of that size can
-	 * be a clone of. Structure matching hashes just those few candidates (memoised per seed node)
-	 * instead of the whole seed, so an app that passes the seed's own objects never hashes a seed
-	 * node at all, and a cloning app hashes only what it has to. The buckets are built on the first
-	 * ask — a page whose islands only pass seed objects by identity never builds them.
-	 */
-	candidates(bytes: number): readonly object[];
-	/** Structural hash of an indexed seed node, memoised for the request. */
-	hash_of(node: object): string | null;
-	/** nodes indexed (for tests / devtools). */
-	readonly size: number;
-	/**
-	 * SEED SHAPING: the top-level `page.data` keys under which a props node was matched
-	 * (`plan_seed_refs` records the first path segment of every reference it plans). The handle
-	 * renders the tail against the FULL index, then ships every touched key — a key no island's
-	 * code reads but whose node an island's props point into still ships, so a reference always
-	 * has something to point at.
-	 */
-	readonly touched: Set<string>;
-}
-
 /** A node the codec may reference: a plain object or an array (own prototype only). */
 function is_plain(v: unknown): v is Record<string, unknown> | unknown[] {
 	if (v === null || typeof v !== 'object') return false;
@@ -449,88 +419,118 @@ function path_of(at: PathNode): SeedPath {
 }
 
 const EMPTY_NODES: readonly object[] = [];
-const EMPTY_INDEX: SeedIndex = {
-	by_identity: { get: () => undefined, has: () => false },
-	candidates: () => EMPTY_NODES,
-	hash_of: () => null,
-	size: 0,
-	touched: new Set()
-};
 
 const index_cache = new WeakMap<object, SeedIndex>();
 
 /**
- * Index the seed's `data` for referencing: every referenceable node at or above `min_bytes`, by
+ * The seed's `data` indexed for referencing: every referenceable node at or above `min_bytes`, by
  * identity now and by structural hash on demand (first occurrence wins — the shortest path is not
- * guaranteed, the first in key order is, which is deterministic). Cached per `data` object: one
- * index per request, however many islands ask. It reads the one measuring walk (`analyze`) and
- * prunes: a node below `min_bytes` cannot hold a child at or above it (a child is never larger
- * than its parent), so its subtree is skipped BEFORE anything is materialised — on a CMS tree that
- * is most of the nodes.
+ * guaranteed, the first in key order is, which is deterministic). It reads the one measuring walk
+ * (`analyze`) and prunes: a node below `min_bytes` cannot hold a child at or above it (a child is
+ * never larger than its parent), so its subtree is skipped BEFORE anything is materialised — on a
+ * CMS tree that is most of the nodes. Data that is not a plain object or array indexes nothing.
  */
-export function index_seed(data: unknown, min_bytes = 96): SeedIndex {
-	if (!is_plain(data)) return { ...EMPTY_INDEX, touched: new Set() };
-	const hit = index_cache.get(data);
-	if (hit) return hit;
-	const memo = analysis(data).memo;
-	const at = new WeakMap<object, PathNode>();
-	const nodes: object[] = [];
-	const seen = new Set<object>();
-	// Enter a child when it is plain, unseen, measured, and big enough to hold a referenceable node.
-	const enter = (c: unknown): c is Record<string, unknown> | unknown[] => {
-		if (!is_plain(c) || seen.has(c)) return false;
-		const p = memo.get(c);
-		return p !== undefined && bytes_of(p) >= min_bytes;
-	};
-	const visit = (v: Record<string, unknown> | unknown[], here: PathNode) => {
-		seen.add(v);
-		if (memo.get(v)! & F_REF) {
-			at.set(v, here);
-			nodes.push(v);
-		}
-		if (Array.isArray(v)) {
-			for (let i = 0; i < v.length; i++) {
-				const c = v[i];
-				if (enter(c)) visit(c, { parent: here, key: i, path: null });
-			}
-		} else {
-			for (const key in v) {
-				const c = v[key];
-				if (enter(c)) visit(c, { parent: here, key, path: null });
-			}
-		}
-	};
-	if (enter(data)) visit(data, { parent: null, key: '', path: [] });
+export class SeedIndex {
+	/** nodes indexed (for tests / devtools). */
+	readonly size: number;
+	/**
+	 * SEED SHAPING: the top-level `page.data` keys under which a props node was matched
+	 * (`plan_seed_refs` records the first path segment of every reference it plans). The handle
+	 * renders the tail against the FULL index, then ships every touched key — a key no island's
+	 * code reads but whose node an island's props point into still ships, so a reference always
+	 * has something to point at.
+	 */
+	readonly touched: Set<string> = new Set();
+	#memo: MeasureMemo | null = null;
+	#at = new WeakMap<object, PathNode>();
+	#nodes: object[] = [];
 	// Size buckets for structure matching, built on the first ask; hashes memoised per seed node.
-	let by_bytes: Map<number, object[]> | null = null;
-	const buckets = () => {
-		if (by_bytes === null) {
-			by_bytes = new Map();
-			for (const n of nodes) {
-				const b = bytes_of(memo.get(n)!);
+	#by_bytes: Map<number, object[]> | null = null;
+	#hash_memo = new Map<object, { hash: string; bytes: number } | null>();
+
+	/** The index of `data`, cached per `data` object: one index per request, however many islands
+	 *  ask. */
+	static of(data: unknown, min_bytes = 96): SeedIndex {
+		if (!is_plain(data)) return new SeedIndex(data, min_bytes);
+		let index = index_cache.get(data);
+		if (!index) index_cache.set(data, (index = new SeedIndex(data, min_bytes)));
+		return index;
+	}
+
+	constructor(data: unknown, min_bytes: number) {
+		if (is_plain(data)) {
+			const memo = (this.#memo = analysis(data).memo);
+			const at = this.#at;
+			const nodes = this.#nodes;
+			const seen = new Set<object>();
+			// Enter a child when it is plain, unseen, measured, and big enough to hold a referenceable node.
+			const enter = (c: unknown): c is Record<string, unknown> | unknown[] => {
+				if (!is_plain(c) || seen.has(c)) return false;
+				const p = memo.get(c);
+				return p !== undefined && bytes_of(p) >= min_bytes;
+			};
+			const visit = (v: Record<string, unknown> | unknown[], here: PathNode) => {
+				seen.add(v);
+				if (memo.get(v)! & F_REF) {
+					at.set(v, here);
+					nodes.push(v);
+				}
+				if (Array.isArray(v)) {
+					for (let i = 0; i < v.length; i++) {
+						const c = v[i];
+						if (enter(c)) visit(c, { parent: here, key: i, path: null });
+					}
+				} else {
+					for (const key in v) {
+						const c = v[key];
+						if (enter(c)) visit(c, { parent: here, key, path: null });
+					}
+				}
+			};
+			if (enter(data)) visit(data, { parent: null, key: '', path: [] });
+		}
+		this.size = this.#nodes.length;
+	}
+
+	/** node → its path from `page.data` (identity matches: the app passed the seed's own object).
+	 *  The path is materialised on the first ask — an indexed node that no island references
+	 *  never allocates one. */
+	path(node: object): SeedPath | undefined {
+		const here = this.#at.get(node);
+		return here === undefined ? undefined : path_of(here);
+	}
+
+	/** Whether `node` is an indexed seed node (by identity). */
+	has(node: object): boolean {
+		return this.#at.has(node);
+	}
+
+	/**
+	 * The seed nodes with exactly this byte estimate — the only ones a props node of that size can
+	 * be a clone of. Structure matching hashes just those few candidates (memoised per seed node)
+	 * instead of the whole seed, so an app that passes the seed's own objects never hashes a seed
+	 * node at all, and a cloning app hashes only what it has to. The buckets are built on the first
+	 * ask — a page whose islands only pass seed objects by identity never builds them.
+	 */
+	candidates(bytes: number): readonly object[] {
+		if (this.#by_bytes === null) {
+			const by_bytes = (this.#by_bytes = new Map());
+			for (const n of this.#nodes) {
+				const b = bytes_of(this.#memo!.get(n)!);
 				const bucket = by_bytes.get(b);
 				if (bucket) bucket.push(n);
 				else by_bytes.set(b, [n]);
 			}
 		}
-		return by_bytes;
-	};
-	const hash_memo = new Map<object, { hash: string; bytes: number } | null>();
-	const index: SeedIndex = {
-		by_identity: {
-			get: (node) => {
-				const here = at.get(node);
-				return here === undefined ? undefined : path_of(here);
-			},
-			has: (node) => at.has(node)
-		},
-		candidates: (b) => buckets().get(b) ?? EMPTY_NODES,
-		hash_of: (node) => hash_subtree(node, hash_memo, new Set())?.hash ?? null,
-		size: nodes.length,
-		touched: new Set()
-	};
-	index_cache.set(data, index);
-	return index;
+		return this.#by_bytes.get(bytes) ?? EMPTY_NODES;
+	}
+
+	/** Structural hash of an indexed seed node, memoised for the request. */
+	hash_of(node: object): string | null {
+		return this.#memo === null
+			? null
+			: (hash_subtree(node, this.#hash_memo, new Set())?.hash ?? null);
+	}
 }
 
 export interface SeedRefPlan {
@@ -568,7 +568,7 @@ export function plan_seed_refs(index: SeedIndex, props: unknown, min_bytes = 96)
 		const visit = (v: unknown) => {
 			if (!is_plain(v) || seen.has(v)) return;
 			seen.add(v);
-			const by_id = index.by_identity.get(v);
+			const by_id = index.path(v);
 			if (by_id) return hit(v, by_id);
 			const p = memo.get(v) ?? measure(v, memo);
 			const bytes = bytes_of(p);
@@ -578,7 +578,7 @@ export function plan_seed_refs(index: SeedIndex, props: unknown, min_bytes = 96)
 				if (cands.length) {
 					const h = hash_subtree(v, hashed, new Set())?.hash ?? null;
 					const cand = h ? cands.find((c) => index.hash_of(c) === h) : undefined;
-					if (cand && deep_equal_plain(cand, v)) return hit(v, index.by_identity.get(cand)!);
+					if (cand && deep_equal_plain(cand, v)) return hit(v, index.path(cand)!);
 				}
 			}
 			if (Array.isArray(v)) for (const item of v) visit(item);

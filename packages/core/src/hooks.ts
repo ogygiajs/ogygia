@@ -131,7 +131,7 @@ import { hole_head } from './server/hole-graph.ts';
 import { restore, restore_adopt } from './runtime/restore.ts';
 import { RateLimiter } from './server/rate-limit.ts';
 import { PageSeed } from './server/page-seed.ts';
-import { analyze, index_seed, set_measure_memo_reader, type MeasureMemo } from './seed-refs.ts';
+import { analyze, SeedIndex, set_measure_memo_reader, type MeasureMemo } from './seed-refs.ts';
 import { WIRE_FORMAT_ATTR, WIRE_FORMAT_JSON } from './server/props-wire.ts';
 import {
 	stage_deferred,
@@ -1293,7 +1293,7 @@ class OgygiaHandle {
 		// path into the full tree resolves identically against the shipped seed, provided its key
 		// ships. The plan records the keys it referenced (`touched`) for exactly that.
 		const detail = request_stats_detailed();
-		const tail_html = bag!.tail.render(seed_wanted ? index_seed(page_snap.data) : null, detail);
+		const tail_html = bag!.tail.render(seed_wanted ? SeedIndex.of(page_snap.data) : null, detail);
 		// SEED SHAPING: the slice of `page.data` the page's islands read (server/seed-shape.ts) — every
 		// step below (streaming, settling, the payload) sees the shaped tree. A key no island's code
 		// reads but whose node an island's props point into ships too: a reference must have something
@@ -1301,7 +1301,7 @@ class OgygiaHandle {
 		// keeps the page per-request).
 		let seed_keys = bag!.seed_keys;
 		if (seed_wanted && seed_keys !== 'all' && seed_keys !== null) {
-			for (const k of index_seed(page_snap.data).touched) seed_keys.add(k);
+			for (const k of SeedIndex.of(page_snap.data).touched) seed_keys.add(k);
 		}
 		const shaped_data = shape_page_data(page_snap.data, seed_keys);
 		let seed_data = shaped_data;

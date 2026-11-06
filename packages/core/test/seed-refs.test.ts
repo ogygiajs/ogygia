@@ -16,10 +16,10 @@ import {
 	SEED_REF_KEY,
 	analyze,
 	deep_equal_plain,
-	index_seed,
 	json_culprit,
 	resolve_seed_ref,
 	plan_seed_refs,
+	SeedIndex,
 	seed_ref_reviver,
 	set_measure_memo_reader,
 	type MeasureMemo
@@ -42,21 +42,21 @@ const big = (label: string, n = 4) => ({
 });
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 
-describe('index_seed', () => {
+describe('SeedIndex', () => {
 	it('indexes every referenceable node at or above the byte threshold, by identity and by hash', () => {
 		const data = { catalog: { blocks: [big('one'), big('two')] }, tiny: { a: 1 } };
-		const idx = index_seed(data);
-		expect(idx.by_identity.get(data.catalog.blocks[0])).toEqual(['catalog', 'blocks', 0]);
-		expect(idx.by_identity.get(data.catalog.blocks)).toEqual(['catalog', 'blocks']);
-		expect(idx.by_identity.get(data.catalog)).toEqual(['catalog']);
-		expect(idx.by_identity.has(data.tiny)).toBe(false); // below min_bytes
+		const idx = SeedIndex.of(data);
+		expect(idx.path(data.catalog.blocks[0])).toEqual(['catalog', 'blocks', 0]);
+		expect(idx.path(data.catalog.blocks)).toEqual(['catalog', 'blocks']);
+		expect(idx.path(data.catalog)).toEqual(['catalog']);
+		expect(idx.has(data.tiny)).toBe(false); // below min_bytes
 		expect(idx.size).toBeGreaterThan(3);
 	});
 
 	it('is cached per data object', () => {
 		const data = { x: big('x') };
-		expect(index_seed(data)).toBe(index_seed(data));
-		expect(index_seed({ x: big('x') })).not.toBe(index_seed(data));
+		expect(SeedIndex.of(data)).toBe(SeedIndex.of(data));
+		expect(SeedIndex.of({ x: big('x') })).not.toBe(SeedIndex.of(data));
 	});
 
 	it('skips subtrees holding non-plain values (class instances, Maps, Sets) and cycles', () => {
@@ -71,25 +71,25 @@ describe('index_seed', () => {
 			cyc,
 			ok: big('ok')
 		};
-		const idx = index_seed(data);
-		expect(idx.by_identity.has(data.withClass)).toBe(false);
-		expect(idx.by_identity.has(data.withMap)).toBe(false);
-		expect(idx.by_identity.has(cyc)).toBe(false);
-		expect(idx.by_identity.has(data.ok)).toBe(true);
+		const idx = SeedIndex.of(data);
+		expect(idx.has(data.withClass)).toBe(false);
+		expect(idx.has(data.withMap)).toBe(false);
+		expect(idx.has(cyc)).toBe(false);
+		expect(idx.has(data.ok)).toBe(true);
 		// the class-holding node's CLEAN children are still referenceable on their own
-		expect(idx.by_identity.has(data.withClass.inner)).toBe(true);
-		expect(idx.by_identity.has(data.withClass.meta)).toBe(true);
+		expect(idx.has(data.withClass.inner)).toBe(true);
+		expect(idx.has(data.withClass.meta)).toBe(true);
 	});
 
 	it('a non-object data (null, string) yields an empty index', () => {
-		expect(index_seed(null).size).toBe(0);
-		expect(index_seed('x').size).toBe(0);
+		expect(SeedIndex.of(null).size).toBe(0);
+		expect(SeedIndex.of('x').size).toBe(0);
 	});
 });
 
 describe('plan_seed_refs', () => {
 	const data = { catalog: { blocks: [big('one'), big('two', 6)] }, greeting: 'hi' };
-	const idx = index_seed(data);
+	const idx = SeedIndex.of(data);
 
 	it('identity: the seed object itself → its path, largest ancestor wins, children untouched', () => {
 		const props = { block: data.catalog.blocks[0], mode: 'identity' };
@@ -124,7 +124,9 @@ describe('plan_seed_refs', () => {
 	});
 
 	it('an empty index never references anything (and never walks the props)', () => {
-		const { reducer: r, count } = plan_seed_refs(index_seed({}), { block: data.catalog.blocks[0] });
+		const { reducer: r, count } = plan_seed_refs(SeedIndex.of({}), {
+			block: data.catalog.blocks[0]
+		});
 		expect(count).toBe(0);
 		expect(r(data.catalog.blocks[0])).toBeUndefined();
 	});
@@ -166,7 +168,7 @@ describe('the shared request memo', () => {
 		const memo: MeasureMemo = new Map();
 		set_measure_memo_reader(() => memo);
 		const data = { catalog: { blocks: Array.from({ length: 20 }, (_, i) => big(`b${i}`)) } };
-		const idx = index_seed(data);
+		const idx = SeedIndex.of(data);
 		const after_seed = memo.size;
 		expect(after_seed).toBeGreaterThan(20 * 3); // blocks, metas, link objects…
 		for (const block of data.catalog.blocks) {
@@ -184,7 +186,7 @@ describe('the shared request memo', () => {
 	it('without a reader every root measures on its own (a hole endpoint, a test)', () => {
 		const data = { x: big('x') };
 		expect(analyze({ x: data.x }).ref).toBe(true);
-		expect(index_seed(data).by_identity.get(data.x)).toEqual(['x']);
+		expect(SeedIndex.of(data).path(data.x)).toEqual(['x']);
 	});
 
 	it('a cycle met through the shared memo is opaque, and the walk still terminates', () => {
@@ -194,7 +196,7 @@ describe('the shared request memo', () => {
 		cyc.self = cyc;
 		expect(analyze({ cyc })).toMatchObject({ ref: false, json: false });
 		expect(analyze({ again: cyc })).toMatchObject({ ref: false, json: false });
-		expect(index_seed({ cyc }).by_identity.has(cyc)).toBe(false);
+		expect(SeedIndex.of({ cyc }).has(cyc)).toBe(false);
 	});
 });
 
@@ -218,7 +220,7 @@ describe('json_culprit (why a tree left the JSON lane)', () => {
 
 	it('the plan reports which top-level keys its references point into', () => {
 		const data = { catalog: { blocks: [big('one')] }, other: big('two') };
-		const idx = index_seed(data);
+		const idx = SeedIndex.of(data);
 		const plan = plan_seed_refs(idx, { a: data.catalog.blocks[0], b: data.other, c: 1 });
 		expect(plan.count).toBe(2);
 		expect([...plan.keys].sort()).toEqual(['catalog', 'other']);
@@ -280,7 +282,7 @@ describe('Region.svelte × seed references', () => {
 			island({ block: data.catalog.blocks[0] }), // identity
 			island({ block: clone(data.catalog.blocks[1]) }) // clone
 		]);
-		const html = tail.render(index_seed(data));
+		const html = tail.render(SeedIndex.of(data));
 		expect(html.split(SEED_REF_KEY).length - 1).toBe(2);
 		expect(html).not.toContain('one body');
 		expect(html).not.toContain('two body');
@@ -299,7 +301,7 @@ describe('Region.svelte × seed references', () => {
 		const data = page.data as { catalog: { blocks: ReturnType<typeof big>[] } };
 		// one island, rendered before anything could have asked for the seed
 		render_in_kit_pass([island({ block: data.catalog.blocks[0] })]);
-		const html = tail.render(index_seed(data));
+		const html = tail.render(SeedIndex.of(data));
 		expect(html.split(SEED_REF_KEY).length - 1).toBe(1);
 		expect(html).not.toContain('one body');
 	});
@@ -311,7 +313,7 @@ describe('Region.svelte × seed references', () => {
 		tail = new DocumentTail();
 		set_tail_reader(() => tail);
 		const a = render_in_kit_pass([island({ block: data.catalog.blocks[0] })]);
-		expect(tail.render(index_seed(data))).toContain(SEED_REF_KEY);
+		expect(tail.render(SeedIndex.of(data))).toContain(SEED_REF_KEY);
 		tail = new DocumentTail();
 		const b = render_in_kit_pass([island({ block: data.catalog.blocks[0] })]);
 		expect(tail.render(null)).not.toContain(SEED_REF_KEY);
@@ -344,7 +346,7 @@ describe('Region.svelte × seed references', () => {
 		set_tail_reader(() => tail);
 		Object.assign(page.data, { catalog: { blocks: [big('one')] } });
 		render_in_kit_pass([island({ n: 1, label: 'plain' })]);
-		const html = tail.render(index_seed(page.data));
+		const html = tail.render(SeedIndex.of(page.data));
 		expect(html).toContain('data-og-format="json"');
 		expect(html).toContain('>{"n":1,"label":"plain"}<');
 	});

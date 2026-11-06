@@ -27,7 +27,7 @@ import {
 	server_body_child,
 	walk_enters
 } from './ownership.ts';
-import { load_slot } from './load-scheduler.ts';
+import { LoadSlot } from './load-scheduler.ts';
 import { load_devalue, devalue, with_devalue, needs_devalue } from './devalue-lane.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
 
@@ -56,7 +56,7 @@ export function link_boot(): void {
 		record_server_body,
 		server_body_attributes,
 		server_body_child,
-		load_slot,
+		LoadSlot,
 		load_devalue,
 		devalue,
 		with_devalue,

@@ -7,7 +7,7 @@
 	 * parent frame, so the devtools tab can offer "open in new tab".
 	 */
 	import { onMount } from 'svelte';
-	import { fake_progress } from './fake-progress.svelte.ts';
+	import { FakeProgress } from './fake-progress.svelte.ts';
 	import { put_report } from './store.ts';
 
 	// ── regexes
@@ -28,7 +28,7 @@
 	const QUEUE_POLL_MS = 2000;
 	const QUEUE_MAX_MS = 120_000;
 
-	const p = fake_progress();
+	const p = new FakeProgress();
 	let phase = $state('Starting the profiler…');
 	let error = $state('');
 	let done_ogp = $state(false);

@@ -70,11 +70,14 @@ const TRACK = new Set([
 
 const MAX = 20_000;
 
-export interface IoRecorder {
-	stop(): IoOp[];
-	/** promises created while the recorder ran, and who created them (one stack per
-	 *  PROMISE_SAMPLE_EVERY promises — a counter otherwise) */
-	promises(): { count: number; top: { caller: string; share: number; site?: CallerSite }[] };
+/** a resource still open: when and where it started, and a timer's period or delay */
+interface OpenIo {
+	t: number;
+	type: string;
+	site?: CallerSite;
+	repeat?: number;
+	delay?: number;
+	timer?: { hasRef?: () => boolean };
 }
 
 /** a promise storm is counted, not stacked: one stack capture per this many promises */
@@ -112,123 +115,120 @@ export function short_site(s: CallerSite): string {
 	return `${s.fn} (${clean.split('/').slice(-2).join('/')}:${s.line})`;
 }
 
-/** Start timing I/O resources. Call `stop()` at the end of the window. */
-export async function record_async_io(): Promise<IoRecorder | null> {
-	let async_hooks: typeof import('node:async_hooks');
-	try {
-		async_hooks = await import('node:async_hooks');
-	} catch {
-		return null; // no async_hooks (edge) — the fetch patch and wall/CPU split still work
+/** Times I/O resources over one recording window: `IoRecorder.start()` at its start, `stop()` at
+ *  its end. */
+export class IoRecorder {
+	#open = new Map<number, OpenIo>();
+	#ops: IoOp[] = [];
+	#promise_count = 0;
+	/** generated `fn\0file\0line` → how many sampled promises it made, and the site itself */
+	#promise_sites = new Map<string, { n: number; site: CallerSite | null }>();
+	#hook: import('node:async_hooks').AsyncHook;
+
+	/** Start timing I/O resources; null without `async_hooks` (edge) — the fetch patch and wall/CPU
+	 *  split still work there. */
+	static async start(): Promise<IoRecorder | null> {
+		let async_hooks: typeof import('node:async_hooks');
+		try {
+			async_hooks = await import('node:async_hooks');
+		} catch {
+			return null;
+		}
+		return new IoRecorder(async_hooks);
 	}
 
-	const open = new Map<
-		number,
-		{
-			t: number;
-			type: string;
-			site?: CallerSite;
-			repeat?: number;
-			delay?: number;
-			timer?: { hasRef?: () => boolean };
-		}
-	>();
-	const ops: IoOp[] = [];
+	constructor(async_hooks: typeof import('node:async_hooks')) {
+		this.#hook = async_hooks.createHook({
+			init: (asyncId, type, _trigger, resource) => this.#init(asyncId, type, resource),
+			destroy: (asyncId) => this.#destroy(asyncId)
+		});
+		this.#hook.enable();
+	}
 
-	let promise_count = 0;
-	/** generated `fn\0file\0line` → how many sampled promises it made, and the site itself */
-	const promise_sites = new Map<string, { n: number; site: CallerSite | null }>();
-	const hook = async_hooks.createHook({
-		init(asyncId, type, _trigger, resource) {
-			if (type === 'PROMISE') {
-				// a counter on every promise (cheap), a stack on one in PROMISE_SAMPLE_EVERY — the
-				// nearest frame that is not Node's own or the profiler's: the app's, or the
-				// dependency's (a design system's renderer makes promises of its own, and that is
-				// the answer)
-				if (++promise_count % PROMISE_SAMPLE_EVERY === 0 && promise_sites.size < 200) {
-					const site = nearest_own_or_dep_site() ?? null;
-					const k = site ? site.fn + '\0' + site.file + '\0' + site.line : '';
-					const hit = promise_sites.get(k);
-					if (hit) hit.n++;
-					else promise_sites.set(k, { n: 1, site });
-				}
-				return;
-			}
-			if (open.size >= MAX || !TRACK.has(type)) return;
-			const s: {
-				t: number;
-				type: string;
-				site?: CallerSite;
-				repeat?: number;
-				delay?: number;
-				timer?: { hasRef?: () => boolean };
-			} = { t: performance.now(), type, site: nearest_app_site() };
-			if (type === 'Timeout') {
-				// (Node's Timeout keeps its period on `_repeat` — null for a one-shot — and its delay on
-				// `_idleTimeout`: long-standing fields, read defensively. The timer itself is held only
-				// while it is open: whether it was unref'd is asked at the window's end)
-				const r = resource as { _repeat?: unknown; _idleTimeout?: unknown; hasRef?: () => boolean };
-				if (typeof r._repeat === 'number' && r._repeat > 0) s.repeat = r._repeat;
-				else if (typeof r._idleTimeout === 'number' && r._idleTimeout >= 0)
-					s.delay = r._idleTimeout;
-				s.timer = r;
-			}
-			open.set(asyncId, s);
-		},
-		destroy(asyncId) {
-			const s = open.get(asyncId);
-			if (!s) return;
-			open.delete(asyncId);
+	/** promises created while the recorder ran, and who created them (one stack per
+	 *  PROMISE_SAMPLE_EVERY promises — a counter otherwise) */
+	promises(): { count: number; top: { caller: string; share: number; site?: CallerSite }[] } {
+		const sampled = [...this.#promise_sites.values()].reduce((a, b) => a + b.n, 0) || 1;
+		return {
+			count: this.#promise_count,
+			top: [...this.#promise_sites.values()]
+				.sort((a, b) => b.n - a.n)
+				.slice(0, 8)
+				.map(({ n, site }) => ({
+					caller: site ? short_site(site) : '(no frame outside node)',
+					share: Math.round((n / sampled) * 100) / 100,
+					// the generated position, mapped to the source when the report is built
+					...(site ? { site } : {})
+				}))
+		};
+	}
+
+	stop(): IoOp[] {
+		this.#hook.disable();
+		const ops = this.#ops;
+		// resources still open at window end (a socket kept alive, a watcher) —
+		// record their elapsed time, flagged, so nothing silently vanishes
+		const now = performance.now();
+		for (const s of this.#open.values()) {
 			if (ops.length < MAX) {
 				ops.push({
 					type: s.type,
 					caller_site: s.site,
-					ms: round2(performance.now() - s.t),
-					start: s.t
+					ms: round2(now - s.t),
+					start: s.t,
+					open: true,
+					...(s.repeat !== undefined ? { repeat: s.repeat } : {}),
+					...(s.delay !== undefined ? { delay: s.delay } : {}),
+					...(s.timer?.hasRef?.() === false ? { unref: true as const } : {})
 				});
 			}
 		}
-	});
-	hook.enable();
+		this.#open.clear();
+		return ops;
+	}
 
-	return {
-		promises() {
-			const sampled = [...promise_sites.values()].reduce((a, b) => a + b.n, 0) || 1;
-			return {
-				count: promise_count,
-				top: [...promise_sites.values()]
-					.sort((a, b) => b.n - a.n)
-					.slice(0, 8)
-					.map(({ n, site }) => ({
-						caller: site ? short_site(site) : '(no frame outside node)',
-						share: Math.round((n / sampled) * 100) / 100,
-						// the generated position, mapped to the source when the report is built
-						...(site ? { site } : {})
-					}))
-			};
-		},
-		stop() {
-			hook.disable();
-			// resources still open at window end (a socket kept alive, a watcher) —
-			// record their elapsed time, flagged, so nothing silently vanishes
-			const now = performance.now();
-			for (const s of open.values()) {
-				if (ops.length < MAX) {
-					ops.push({
-						type: s.type,
-						caller_site: s.site,
-						ms: round2(now - s.t),
-						start: s.t,
-						open: true,
-						...(s.repeat !== undefined ? { repeat: s.repeat } : {}),
-						...(s.delay !== undefined ? { delay: s.delay } : {}),
-						...(s.timer?.hasRef?.() === false ? { unref: true as const } : {})
-					});
-				}
+	#init(asyncId: number, type: string, resource: object): void {
+		if (type === 'PROMISE') {
+			// a counter on every promise (cheap), a stack on one in PROMISE_SAMPLE_EVERY — the
+			// nearest frame that is not Node's own or the profiler's: the app's, or the
+			// dependency's (a design system's renderer makes promises of its own, and that is
+			// the answer)
+			if (++this.#promise_count % PROMISE_SAMPLE_EVERY === 0 && this.#promise_sites.size < 200) {
+				const site = nearest_own_or_dep_site() ?? null;
+				const k = site ? site.fn + '\0' + site.file + '\0' + site.line : '';
+				const hit = this.#promise_sites.get(k);
+				if (hit) hit.n++;
+				else this.#promise_sites.set(k, { n: 1, site });
 			}
-			open.clear();
-			return ops;
+			return;
 		}
-	};
+		if (this.#open.size >= MAX || !TRACK.has(type)) return;
+		const s: OpenIo = { t: performance.now(), type, site: nearest_app_site() };
+		if (type === 'Timeout') {
+			// (Node's Timeout keeps its period on `_repeat` — null for a one-shot — and its delay on
+			// `_idleTimeout`: long-standing fields, read defensively. The timer itself is held only
+			// while it is open: whether it was unref'd is asked at the window's end)
+			const r = resource as { _repeat?: unknown; _idleTimeout?: unknown; hasRef?: () => boolean };
+			if (typeof r._repeat === 'number' && r._repeat > 0) s.repeat = r._repeat;
+			else if (typeof r._idleTimeout === 'number' && r._idleTimeout >= 0) s.delay = r._idleTimeout;
+			s.timer = r;
+		}
+		this.#open.set(asyncId, s);
+	}
+
+	#destroy(asyncId: number): void {
+		const s = this.#open.get(asyncId);
+		if (!s) return;
+		this.#open.delete(asyncId);
+		if (this.#ops.length < MAX) {
+			this.#ops.push({
+				type: s.type,
+				caller_site: s.site,
+				ms: round2(performance.now() - s.t),
+				start: s.t
+			});
+		}
+	}
 }
 
 /**
