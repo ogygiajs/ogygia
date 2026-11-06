@@ -55,9 +55,18 @@ bench(
 	'transformHost: a route page with twenty islands, server leg',
 	({ source }) =>
 		transformHost(source, '/app/src/routes/catalog/+page.svelte', host_ctx(true))?.code.length,
+	{ setup: () => ({ source: route_page(20) }) }
+);
+
+// Growth from a small page: the transform is superlinear in the island count (twice the islands,
+// about four times the work at a few hundred), so 100x of twenty would not finish.
+bench(
+	'transformHost: a route page as its island count grows',
+	({ source }) =>
+		transformHost(source, '/app/src/routes/catalog/+page.svelte', host_ctx(true))?.code.length,
 	{
-		setup: () => ({ source: route_page(20) }),
-		scale: (_ctx, k) => ({ source: route_page(20 * k) })
+		setup: () => ({ source: route_page(3) }),
+		scale: (_ctx, k) => ({ source: route_page(3 * k) })
 	}
 );
 
