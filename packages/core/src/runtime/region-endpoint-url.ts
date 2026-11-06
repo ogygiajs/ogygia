@@ -1,5 +1,5 @@
 import { preload_island_graph } from './island-graph-preload.ts';
-import { fetch_priority_of, load_slot, type LoadClass } from './load-scheduler.ts';
+import { fetch_priority_of, LoadSlot, type LoadClass } from './load-scheduler.ts';
 import { entry_location } from './entry-locations.ts';
 
 /** Hoisted (hot paths — connectedCallback/hydrate run per region); shared with core's
@@ -200,7 +200,7 @@ export function warm_island_module(
 	warmed_modules.add(key);
 	// a warm is the load scheduler's to time (load-scheduler.ts): a hover is the visitor's, a page
 	// prefetch's warm is speculative
-	void load_slot({ kind: 'code', cls, label: entry }).ready.then((release) => {
+	void new LoadSlot({ kind: 'code', cls, label: entry }).ready.then((release) => {
 		preload_island_graph(entry, base, fetch_priority_of(cls)); // the whole graph with the entry
 		import(/* @vite-ignore */ url)
 			.catch(() => {

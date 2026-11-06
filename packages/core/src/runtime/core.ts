@@ -61,7 +61,7 @@ import {
 } from './schedule.ts';
 import { once_visible } from './observe.ts';
 import { preload_island_graph } from './island-graph-preload.ts';
-import { fetch_priority_of, load_slot, viewport_class, type LoadClass } from './load-scheduler.ts';
+import { fetch_priority_of, LoadSlot, viewport_class, type LoadClass } from './load-scheduler.ts';
 import { connected_regions } from './connected.ts';
 import { restore_props_sidecar } from './sidecar.ts';
 import { hole_facts_of } from './hole-facts.ts';
@@ -712,7 +712,7 @@ class OgygiaRegion extends HTMLElement {
 			// HTML is content: on screen it never waits for the page's critical resources; off screen it
 			// is background work (load-scheduler.ts). The server gate still caps what one page asks of
 			// the origin at once.
-			const release = await load_slot({ kind: 'content', cls, label: endpoint }).ready;
+			const release = await new LoadSlot({ kind: 'content', cls, label: endpoint }).ready;
 			try {
 				return await this.#fetch_region(
 					endpoint,
@@ -1311,7 +1311,7 @@ class OgygiaRegion extends HTMLElement {
 			// Its downloads wait for their slot (load-scheduler.ts): a gesture's never wait; otherwise
 			// the class follows the viewport, re-read while queued (an island scrolled into view moves up).
 			const cls = () => (this.#user_woken ? 'user' : viewport_class(this));
-			const release = await load_slot({ kind: 'code', cls, label: entry }).ready;
+			const release = await new LoadSlot({ kind: 'code', cls, label: entry }).ready;
 			let mod: IslandModule, core: HydrateCore;
 			try {
 				if (!this.isConnected) return;
@@ -1512,7 +1512,7 @@ class OgygiaRegion extends HTMLElement {
 		const entry = island_entry_of(this);
 		if (!entry) return;
 		const cls = () => viewport_class(this);
-		const release = await load_slot({ kind: 'code', cls, label: entry }).ready;
+		const release = await new LoadSlot({ kind: 'code', cls, label: entry }).ready;
 		let mod: IslandModule, core: HydrateCore;
 		try {
 			if (!this.isConnected) return;

@@ -438,8 +438,9 @@ export function fetch_page(
 	// window (load-scheduler.ts). A navigation never waits.
 	let fetched: Promise<Response>;
 	if (purpose === 'prefetch') {
-		const slot = boot_link().load_slot({ kind: 'content', cls: 'speculative', label: href });
-		queued_prefetch.set(href, slot.ticket);
+		const { LoadSlot } = boot_link();
+		const slot = new LoadSlot({ kind: 'content', cls: 'speculative', label: href });
+		queued_prefetch.set(href, slot);
 		fetched = slot.ready.then((release) => {
 			queued_prefetch.delete(href);
 			return go().finally(release);
