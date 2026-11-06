@@ -21,6 +21,15 @@ for (const [path, csr] of [
 ] as const) {
 	test(`a csr=${csr} page discloses the ogygia version (${path})`, async ({ page }) => {
 		await page.goto(path, { waitUntil: 'load' });
+		// (a csr=true page discloses it as Kit's app entry evaluates: Kit imports it, so it can land
+		// after `load`)
+		await page
+			.waitForFunction(
+				() => ((window as { __ogygia?: { v?: Set<string> } }).__ogygia?.v?.size ?? 0) > 0,
+				null,
+				{ timeout: 10_000 }
+			)
+			.catch(() => {});
 		const seen = await page.evaluate(() => ({
 			v: [...((window as { __ogygia?: { v?: Set<string> } }).__ogygia?.v ?? [])],
 			kit: Object.keys(window).some((k) => k.startsWith('__sveltekit_'))
