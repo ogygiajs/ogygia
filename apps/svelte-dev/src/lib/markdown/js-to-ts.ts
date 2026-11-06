@@ -30,39 +30,42 @@ type Deps = { ts: typeof TS; MagicString: typeof MagicStringT };
  * loaded (the pipeline awaits the module's `ready` before rendering). `cache_key` folds the TS
  * version into the fence cache so a compiler bump re-generates.
  */
-export function js_to_ts(): VariantGenerator {
-	let deps: Deps | null = null;
-	let ready: Promise<void> | null = null;
-	const load = () =>
-		(ready ??= Promise.all([import('typescript'), import('magic-string')]).then(([t, m]) => {
-			deps = {
-				ts: (t as { default?: typeof TS }).default ?? (t as unknown as typeof TS),
-				MagicString: (m as { default: typeof MagicStringT }).default
-			};
-		}));
+export class JsToTs implements VariantGenerator {
+	readonly pref = CODE_LANGUAGE;
+	#deps: Deps | null = null;
+	#ready: Promise<void> | null = null;
 
-	return {
-		pref: CODE_LANGUAGE,
-		get cache_key() {
-			// `#5`: svelte script splice re-adds the newlines the converter strips (Overview glue bug).
-			return deps ? `ts@${deps.ts.version}#5` : 'ts#5';
-		},
-		ready: () => load(),
-		generate(fence: Fence): Variant[] | null {
-			if (fence.lang !== 'js' && fence.lang !== 'svelte') return null;
-			if (!deps) return [{ label: 'JS', value: 'js', fence }]; // deps not loaded yet — JS only
-			const converted = convert(deps, fence.source, fence.lang);
-			if (converted == null) return [{ label: 'JS', value: 'js', fence }]; // nothing to convert → single
-			return [
-				{
-					label: 'TS',
-					value: 'ts',
-					fence: { ...fence, lang: fence.lang === 'svelte' ? 'svelte' : 'ts', source: converted }
-				},
-				{ label: 'JS', value: 'js', fence }
-			];
-		}
-	};
+	get cache_key(): string {
+		// `#5`: svelte script splice re-adds the newlines the converter strips (Overview glue bug).
+		return this.#deps ? `ts@${this.#deps.ts.version}#5` : 'ts#5';
+	}
+
+	ready(): Promise<void> {
+		return (this.#ready ??= Promise.all([import('typescript'), import('magic-string')]).then(
+			([t, m]) => {
+				this.#deps = {
+					ts: (t as { default?: typeof TS }).default ?? (t as unknown as typeof TS),
+					MagicString: (m as { default: typeof MagicStringT }).default
+				};
+			}
+		));
+	}
+
+	generate(fence: Fence): Variant[] | null {
+		if (fence.lang !== 'js' && fence.lang !== 'svelte') return null;
+		const deps = this.#deps;
+		if (!deps) return [{ label: 'JS', value: 'js', fence }]; // deps not loaded yet — JS only
+		const converted = convert(deps, fence.source, fence.lang);
+		if (converted == null) return [{ label: 'JS', value: 'js', fence }]; // nothing to convert → single
+		return [
+			{
+				label: 'TS',
+				value: 'ts',
+				fence: { ...fence, lang: fence.lang === 'svelte' ? 'svelte' : 'ts', source: converted }
+			},
+			{ label: 'JS', value: 'js', fence }
+		];
+	}
 }
 
 /** Svelte fences: convert only the instance `<script>` (site-kit's assumption: no module blocks) and

@@ -8,7 +8,7 @@ import { rehypeAdmonitions } from './src/lib/markdown/admonitions.ts';
 import { inline_markers } from '@ogygia/content/markdown';
 import { expandTypes } from './src/lib/markdown/expand-types.ts';
 import { infostring, slash_meta } from '@ogygia/content/markdown';
-import { js_to_ts } from './src/lib/markdown/js-to-ts.ts';
+import { JsToTs } from './src/lib/markdown/js-to-ts.ts';
 import {
 	twoslash_banner,
 	twoslash_ts,
@@ -63,7 +63,7 @@ export default defineConfig({
 						twoslash_popup_markdown()
 					],
 					meta: [infostring(), slash_meta()],
-					variants: [js_to_ts()],
+					variants: [new JsToTs()],
 					cacheSalt: 'sd-twoslash3'
 				}
 			}

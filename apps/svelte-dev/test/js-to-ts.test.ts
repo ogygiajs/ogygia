@@ -1,14 +1,14 @@
 /**
  * The JS→TS converter — the full site-kit `convert_to_ts` port, tested through its PUBLIC contract
- * (the `js_to_ts()` VariantGenerator): every JSDoc shape the svelte.dev corpus uses, the type-import
+ * (the `JsToTs` VariantGenerator): every JSDoc shape the svelte.dev corpus uses, the type-import
  * collection, the named throws, and the fence-claiming rules.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
-import { js_to_ts } from '../src/lib/markdown/js-to-ts.ts';
+import { JsToTs } from '../src/lib/markdown/js-to-ts.ts';
 import type { Fence, Variant } from '@ogygia/content/markdown';
 
-const gen = js_to_ts();
-beforeAll(() => gen.ready!());
+const gen = new JsToTs();
+beforeAll(() => gen.ready());
 
 const fence = (source: string, lang = 'js'): Fence => ({ lang, raw_meta: '', meta: {}, source });
 
