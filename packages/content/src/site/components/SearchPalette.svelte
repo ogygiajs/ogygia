@@ -9,7 +9,7 @@
 	import { onMount } from 'svelte';
 	import { on } from 'svelte/events';
 	import { Command, Dialog } from 'bits-ui';
-	import { search as search_handle, type SearchClient } from '../search-client.ts';
+	import { SearchClient } from '../search-client.ts';
 	import type { SearchHit } from '../search.ts';
 	import { OgygiaError } from '../../messages/runtime.ts';
 
@@ -43,7 +43,7 @@
 
 	onMount(() => {
 		if (query) return; // custom backend — no worker
-		client = search_handle({ base, ...(endpoint ? { endpoint } : {}), limit });
+		client = new SearchClient({ base, ...(endpoint ? { endpoint } : {}), limit });
 		client.ready
 			.then(() => (ready = true))
 			.catch((e) => {
