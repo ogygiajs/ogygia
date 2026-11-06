@@ -5,10 +5,11 @@
 	"type": "module",
 	"scripts": {
 		"types": "node src/types.ts",
-		"check": "node src/check.ts"
+		"check": "node src/check.ts",
+		"unmeasured": "node src/unmeasured.ts"
 	},
 	"abax": {
 		"repo": "https://github.com/ogygiajs/bench.git",
-		"ref": "2aed91f1a2eb5457dddca1ce229135a8f96dce94"
+		"ref": "7b3d7a50658215eb3157751e903d305e9bd42f4d"
 	}
 }

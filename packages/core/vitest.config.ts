@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { playwright } from '@vitest/browser-playwright';
 import { fileURLToPath } from 'node:url';
+import { abax_record } from '../../internal/abax/src/record.ts';
 
 // Two projects, one config:
 //
@@ -20,7 +21,9 @@ export default defineConfig({
 	// files (e.g. `RenderSnippet.svelte` behind the region-snippet capture). The Svelte plugin lets those
 	// parse; dist-importing suites are unaffected (they resolve `.js`). The browser project needs it for
 	// the island fixtures (client compile) and their SSR twin in `setup.ts` (server compile).
-	plugins: [svelte()],
+	// abax_record(): nothing, unless the measurement-source gate records the tests' inputs
+	// (internal/abax/src/record.ts)
+	plugins: [svelte(), ...abax_record()],
 	resolve: {
 		alias: {
 			'$app/server': fileURLToPath(new URL('./test/_stubs/app-server.ts', import.meta.url)),
