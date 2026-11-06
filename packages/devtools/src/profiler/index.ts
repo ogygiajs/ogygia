@@ -247,7 +247,7 @@ import {
 	islandPageKeys,
 	islandPageWhy
 } from 'virtual:ogygia/island-deps';
-import { set_span_recorder, type SpanRecord, type SpanRecorder } from './span.ts';
+import { set_span_recorder, type SpanAttrs, type SpanRecord, type SpanRecorder } from './span.ts';
 import { register_profiler_file } from './frames.ts';
 
 // The span recorder's `begin` lives in this file: skip its frame when finding a span's caller.
@@ -722,6 +722,68 @@ interface Ctx extends NetContext {
 const MAX_SPANS_PER_REQUEST = 2000;
 const MAX_WINDOW_SPANS = 20_000;
 const MAX_TAGS = 16;
+
+/** The span recorder one recording window installs (`span()` / `tag()` from ogygia/profiler): every
+ *  span the window sees, nested through the request's async context, or through the window's own
+ *  store where no request is attributed. */
+class WindowSpans implements SpanRecorder {
+	/** every span recorded during the window, any request */
+	readonly spans: SpanRecord[] = [];
+	#seq = 0;
+	#als: import('node:async_hooks').AsyncLocalStorage<Ctx> | null;
+	#span_als: import('node:async_hooks').AsyncLocalStorage<number>;
+	#netmod: typeof import('./net.ts') | null;
+
+	constructor(
+		als: import('node:async_hooks').AsyncLocalStorage<Ctx> | null,
+		span_als: import('node:async_hooks').AsyncLocalStorage<number>,
+		netmod: typeof import('./net.ts') | null
+	) {
+		this.#als = als;
+		this.#span_als = span_als;
+		this.#netmod = netmod;
+	}
+
+	begin(name: string, attrs?: SpanAttrs): SpanRecord {
+		const ctx = this.#als?.getStore();
+		const parent = ctx?.span ?? this.#span_als.getStore();
+		const rec: SpanRecord = {
+			id: ++this.#seq,
+			name: String(name).slice(0, 120),
+			start: performance.now(),
+			ms: -1,
+			...(attrs ? { attrs: { ...attrs } } : {}),
+			...(parent !== undefined ? { parent } : {}),
+			caller_site: this.#netmod?.nearest_app_site(),
+			route: ctx?.route ?? null,
+			path: ctx?.path ?? null
+		};
+		if (this.spans.length < MAX_WINDOW_SPANS) this.spans.push(rec);
+		if (ctx && ctx.spans.length < MAX_SPANS_PER_REQUEST) ctx.spans.push(rec);
+		return rec;
+	}
+
+	within<T>(s: SpanRecord, fn: () => T): T {
+		const als = this.#als;
+		const ctx = als?.getStore();
+		return ctx && als ? als.run({ ...ctx, span: s.id }, fn) : this.#span_als.run(s.id, fn);
+	}
+
+	end(s: SpanRecord, attrs?: SpanAttrs, error?: unknown): void {
+		s.ms = round2(performance.now() - s.start);
+		if (attrs) s.attrs = { ...s.attrs, ...attrs };
+		if (error !== undefined) {
+			s.error = error instanceof Error ? error.message : String(error);
+		}
+	}
+
+	tag(key: string, value: string): void {
+		const ctx = this.#als?.getStore();
+		if (!ctx) return;
+		const tags = (ctx.entry.tags ??= {});
+		if (key in tags || Object.keys(tags).length < MAX_TAGS) tags[key] = value;
+	}
+}
 /** the process's live profiler (the newest): an older one's background timers stand down */
 const LIVE_PROFILER = Symbol.for('ogygia.profiler.live');
 
@@ -1481,52 +1543,14 @@ class Profiler {
 		// A span rides the same async context as the fetch patch — the request it belongs to, and
 		// for nesting a child store carrying the span's id (only during a recording, so the per-hop
 		// cost of a second store never reaches an un-profiled request).
-		const spans: SpanRecord[] = [];
-		let span_seq = 0;
-		const als = this.#als;
 		// NESTING outside a request context: a span opened where no request is being attributed
 		// (a handle in front of ogygia's, a background job) still needs its parent — a store of the
 		// recording's own, alive only for this window
 		const { AsyncLocalStorage: SpanALS } = await import('node:async_hooks');
 		const span_als = new SpanALS<number>();
-		const span_recorder: SpanRecorder = {
-			begin: (name, attrs) => {
-				const ctx = als?.getStore();
-				const parent = ctx?.span ?? span_als.getStore();
-				const rec: SpanRecord = {
-					id: ++span_seq,
-					name: String(name).slice(0, 120),
-					start: perf_hooks.performance.now(),
-					ms: -1,
-					...(attrs ? { attrs: { ...attrs } } : {}),
-					...(parent !== undefined ? { parent } : {}),
-					caller_site: netmod?.nearest_app_site(),
-					route: ctx?.route ?? null,
-					path: ctx?.path ?? null
-				};
-				if (spans.length < MAX_WINDOW_SPANS) spans.push(rec);
-				if (ctx && ctx.spans.length < MAX_SPANS_PER_REQUEST) ctx.spans.push(rec);
-				return rec;
-			},
-			within: (s, fn) => {
-				const ctx = als?.getStore();
-				return ctx && als ? als.run({ ...ctx, span: s.id }, fn) : span_als.run(s.id, fn);
-			},
-			end: (s, attrs, error) => {
-				s.ms = round2(perf_hooks.performance.now() - s.start);
-				if (attrs) s.attrs = { ...s.attrs, ...attrs };
-				if (error !== undefined) {
-					s.error = error instanceof Error ? error.message : String(error);
-				}
-			},
-			tag: (key, value) => {
-				const ctx = als?.getStore();
-				if (!ctx) return;
-				const tags = (ctx.entry.tags ??= {});
-				if (key in tags || Object.keys(tags).length < MAX_TAGS) tags[key] = value;
-			}
-		};
-		set_span_recorder(span_recorder);
+		const window_spans = new WindowSpans(this.#als, span_als, netmod);
+		const { spans } = window_spans;
+		set_span_recorder(window_spans);
 		const iomod = opts.light ? null : await import('./async-io.ts').catch(() => null);
 		let io_rec = iomod ? await iomod.IoRecorder.start() : null;
 
