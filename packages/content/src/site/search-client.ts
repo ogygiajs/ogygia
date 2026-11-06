@@ -12,15 +12,6 @@ import type { SearchHit } from './search.ts';
 // ── regexes
 const TRAILING_SLASHES_RE = /\/+$/;
 
-export type SearchClient = {
-	/** Ranked hits for a query (empty string → []). */
-	query(q: string): Promise<SearchHit[]>;
-	/** Resolves once the index is fetched + built (rejects on load failure). */
-	ready: Promise<void>;
-	/** Terminate the worker. */
-	destroy(): void;
-};
-
 export type SearchClientOptions = {
 	/** Mount prefix — hit hrefs AND the index location derive from it (default `''`, root mount). */
 	base?: string;
@@ -32,53 +23,64 @@ export type SearchClientOptions = {
 };
 
 /**
- * The headless search handle for bespoke chrome — `const s = search({ base: '/docs' })`, then
- * `s.query(q)`. One argument, convention-first. (The `<Search>` brick uses this internally; inside a
- * `<Shell>` it needs no arguments at all.)
+ * The headless search handle for bespoke chrome — `const s = new SearchClient({ base: '/docs' })`,
+ * then `s.query(q)`. One argument, convention-first. (The `<Search>` brick uses this internally;
+ * inside a `<Shell>` it needs no arguments at all.)
  */
-export function search(opts: SearchClientOptions = {}): SearchClient {
-	const base = (opts.base ?? '').replace(TRAILING_SLASHES_RE, '');
-	const url = opts.endpoint ?? `${base}/search.json`;
-	const worker = new Worker(new URL('./search-worker.js', import.meta.url), { type: 'module' });
-	let seq = 0;
-	const pending = new Map<number, (hits: SearchHit[]) => void>();
+export class SearchClient {
+	/** Resolves once the index is fetched + built (rejects on load failure). */
+	readonly ready: Promise<void>;
+	#base: string;
+	#limit: number;
+	#worker: Worker;
+	#seq = 0;
+	#pending = new Map<number, (hits: SearchHit[]) => void>();
 
-	let ready_resolve!: () => void;
-	let ready_reject!: (err: Error) => void;
-	const ready = new Promise<void>((resolve, reject) => {
-		ready_resolve = resolve;
-		ready_reject = reject;
-	});
+	constructor(opts: SearchClientOptions = {}) {
+		const base = (this.#base = (opts.base ?? '').replace(TRAILING_SLASHES_RE, ''));
+		this.#limit = opts.limit ?? 10;
+		const url = opts.endpoint ?? `${base}/search.json`;
+		const worker = (this.#worker = new Worker(new URL('./search-worker.js', import.meta.url), {
+			type: 'module'
+		}));
 
-	worker.onmessage = (e: MessageEvent) => {
-		const m = e.data as { type: string; id?: number; hits?: SearchHit[]; message?: string };
-		if (m.type === 'result' && m.id !== undefined) pending.get(m.id)?.(m.hits ?? []);
-		else if (m.type === 'ready') ready_resolve();
-		else if (m.type === 'error')
-			ready_reject(new Error(m.message ?? 'search index failed to load'));
-	};
-	// A worker-level crash (module failed to load/parse) never sends a message — surface it so the
-	// palette shows *why* instead of hanging on "loading" forever.
-	worker.onerror = (e: ErrorEvent) => {
-		ready_reject(new Error(e.message || `search worker failed to start (${url})`));
-	};
-	worker.postMessage({ type: 'load', url });
+		let ready_resolve!: () => void;
+		let ready_reject!: (err: Error) => void;
+		this.ready = new Promise<void>((resolve, reject) => {
+			ready_resolve = resolve;
+			ready_reject = reject;
+		});
 
-	return {
-		ready,
-		query(q) {
-			if (!q.trim()) return Promise.resolve([]);
-			const id = ++seq;
-			return new Promise<SearchHit[]>((resolve) => {
-				pending.set(id, (hits) => {
-					pending.delete(id);
-					resolve(hits);
-				});
-				worker.postMessage({ type: 'query', id, q, base, limit: opts.limit ?? 10 });
+		worker.onmessage = (e: MessageEvent) => {
+			const m = e.data as { type: string; id?: number; hits?: SearchHit[]; message?: string };
+			if (m.type === 'result' && m.id !== undefined) this.#pending.get(m.id)?.(m.hits ?? []);
+			else if (m.type === 'ready') ready_resolve();
+			else if (m.type === 'error')
+				ready_reject(new Error(m.message ?? 'search index failed to load'));
+		};
+		// A worker-level crash (module failed to load/parse) never sends a message — surface it so the
+		// palette shows *why* instead of hanging on "loading" forever.
+		worker.onerror = (e: ErrorEvent) => {
+			ready_reject(new Error(e.message || `search worker failed to start (${url})`));
+		};
+		worker.postMessage({ type: 'load', url });
+	}
+
+	/** Ranked hits for a query (empty string → []). */
+	query(q: string): Promise<SearchHit[]> {
+		if (!q.trim()) return Promise.resolve([]);
+		const id = ++this.#seq;
+		return new Promise<SearchHit[]>((resolve) => {
+			this.#pending.set(id, (hits) => {
+				this.#pending.delete(id);
+				resolve(hits);
 			});
-		},
-		destroy() {
-			worker.terminate();
-		}
-	};
+			this.#worker.postMessage({ type: 'query', id, q, base: this.#base, limit: this.#limit });
+		});
+	}
+
+	/** Terminate the worker. */
+	destroy(): void {
+		this.#worker.terminate();
+	}
 }
