@@ -4,11 +4,13 @@ title: content css probe
 
 <script>
 	import CssProbeChild from '$lib/CssProbeChild.svelte';
+	import CssProbeShared from '$lib/CssProbeShared.svelte';
 </script>
 
 <div class="cssprobe" data-content-css-probe>content body css probe</div>
 
 <CssProbeChild />
+<CssProbeShared />
 
 <style>
 	/* A distinctive, unmistakable value: unstyled would be the browser default `rgb(0, 0, 0)` /
