@@ -114,3 +114,6 @@ export const islandHazards = (entry: string): StubHazard[] | null => island_haza
 export function set_island_hazards(map: typeof island_hazards) {
 	island_hazards = map;
 }
+// `fnManifest()` — the build's `og.$` fn tag → module map; null in a graph with no build (hooks.ts
+// reads it; Vite's alias lets a missing export through, plain Node's linker does not).
+export const fnManifest = (): Record<string, string> | null => null;

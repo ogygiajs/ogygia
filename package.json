@@ -14,6 +14,8 @@
 		"check:lib": "turbo run check --filter=./packages/*",
 		"check:palaestra": "turbo run check --filter=palaestra",
 		"check:docs": "turbo run check --filter=docs",
+		"check:bench": "node internal/abax/src/check.ts",
+		"bench:types": "node internal/abax/src/types.ts",
 		"test:e2e": "node packages/tooling/src/e2e/run.ts",
 		"test:e2e:fast": "E2E_NO_BUILD=1 node packages/tooling/src/e2e/run.ts",
 		"test:e2e:serial": "turbo run e2e --concurrency=1",

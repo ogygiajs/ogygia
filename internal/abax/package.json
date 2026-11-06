@@ -1,0 +1,14 @@
+{
+	"name": "ogygia-internal-abax",
+	"private": true,
+	"description": "The bench files (packages/*/bench/*.bench.ts) and Abax, the function-level benchmark engine in ogygiajs/bench that runs them: the private-function types, the bench type check, and the module stubs a bench run loads.",
+	"type": "module",
+	"scripts": {
+		"types": "node src/types.ts",
+		"check": "node src/check.ts"
+	},
+	"abax": {
+		"repo": "https://github.com/ogygiajs/bench.git",
+		"ref": "2aed91f1a2eb5457dddca1ce229135a8f96dce94"
+	}
+}
