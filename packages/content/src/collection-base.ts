@@ -10,8 +10,13 @@
  */
 import type { ContentRef, ContentRelations, Entry, RefEntry, SchemaLike } from './index.ts';
 import type { GroupMeta, Source, SourceEntry, SourceRef } from './source.ts';
+import { once } from '@ogygia/machine';
 import { parseSchema } from './schema.ts';
 import { OgygiaError } from './messages/runtime.ts';
+
+/** A live connection that dropped is opened again after this wait, doubling up to the last. */
+const LIVE_RETRY_FIRST_MS = 1000;
+const LIVE_RETRY_LAST_MS = 60_000;
 
 // ── content graph registry ───────────────────────────────────────────────────
 
@@ -27,6 +32,12 @@ const GRAPH: { all: Set<Collection<Record<string, unknown>>> } = ((
 
 /** Back-pointer from a public handle to its underlying `Collection` (relations resolve through it). */
 export const COLLECTION: unique symbol = Symbol.for('ogygia.content.collection');
+
+/** The catalog version of a collection (a `content()` handle or a Collection), or null for a
+ *  collection this package did not make (it has no version: whatever reads it never sees it change). */
+export function catalog_version(collection: unknown): number | null {
+	return to_collection(collection)?.version() ?? null;
+}
 
 /** Resolve a relation value (a handle or a Collection) to its Collection, or undefined. */
 function to_collection(value: unknown): Collection<Record<string, unknown>> | undefined {
@@ -85,8 +96,12 @@ export class Collection<
 	#relationNames: string[] = [];
 	#relationsResolved = false;
 
-	#startPromise: Promise<void> | null = null;
-	#initPromise: Promise<void> | null = null;
+	/** The source's `init`, and the first full read with the live connection: each runs once, and a
+	 *  failure is never kept (one source outage once broke the collection until a restart, #189). */
+	readonly #init = once(async () => {
+		await this.#source.init?.();
+	});
+	readonly #start = once(() => this.#begin());
 	#version = 0;
 	readonly #waiters = new Set<() => void>();
 	#backlinkIndex: Map<string, RefEntry[]> | null = null;
@@ -153,8 +168,11 @@ export class Collection<
 		return this.#version;
 	}
 
-	async *watchChanges(): AsyncGenerator<number> {
-		let seen = this.#version;
+	/** Each new catalog version, from `from` on (default: the version now). Pass the version of the
+	 *  snapshot already handed out, so a change made while it was being used is yielded at once
+	 *  (taking the version on the first pull missed it, #191). */
+	async *watchChanges(from?: number): AsyncGenerator<number> {
+		let seen = from ?? this.#version;
 		while (true) {
 			if (this.#version !== seen) {
 				seen = this.#version;
@@ -200,56 +218,131 @@ export class Collection<
 		};
 	}
 
-	/** Materialize the whole source (refs) into the catalog. Re-run on each live change. */
-	async #reload(): Promise<void> {
+	/**
+	 * Materialize the whole source (refs) into the catalog. Re-run on each live change.
+	 *
+	 * The first read is strict: an entry that fails its schema fails the read (and the start, which a
+	 * later read tries again). A LIVE reread is lenient: such an entry keeps its last good version (or
+	 * stays out) and is reported, and every other entry updates. One editor saving one bad field once
+	 * froze the whole catalog (#190).
+	 */
+	async #reload(lenient = false): Promise<void> {
 		const rows = await this.#source.refs();
 		const seen = new Set<string>();
 		const next: ContentRef<Data, Meta>[] = [];
-		for (const row of rows) next.push(await this.#normalizeRef(row, seen));
+		const refused: unknown[] = [];
+		for (const row of rows) {
+			try {
+				next.push(await this.#normalizeRef(row, seen));
+			} catch (err) {
+				if (!lenient) throw err;
+				refused.push(err);
+				const kept = typeof row?.id === 'string' ? this.#catalog.get(row.id) : undefined;
+				if (kept && !next.some((e) => e.id === kept.id)) next.push(kept);
+			}
+		}
 		this.#catalog.clear();
 		for (const e of next) this.#catalog.set(e.id, e);
 		this.#backlinkIndex = null;
 		this.#notify();
+		for (const err of refused) console.error(new OgygiaError('content_live_change_failed'), err);
 	}
 
-	/** Incremental live update: refetch just the changed ids (drop the ones the source no longer has). */
+	/** Incremental live update: refetch just the changed ids (drop the ones the source no longer has).
+	 *  An entry that fails its schema keeps its last good version, and is reported; the rest update. */
 	async #reloadIds(ids: string[]): Promise<void> {
 		for (const id of ids) {
-			const row = await this.#source.get(id);
-			if (row) this.#catalog.set(id, await this.#normalizeRef(row));
-			else this.#catalog.delete(id);
+			try {
+				const row = await this.#source.get(id);
+				if (row) this.#catalog.set(id, await this.#normalizeRef(row));
+				else this.#catalog.delete(id);
+			} catch (err) {
+				console.error(new OgygiaError('content_live_change_failed'), err);
+			}
 		}
 		this.#backlinkIndex = null;
 		this.#notify();
 	}
 
-	#init(): Promise<void> {
-		return (this.#initPromise ??= Promise.resolve(this.#source.init?.()).then(() => undefined));
+	/** The source started, read in full, and (a live source) followed. */
+	async #begin(): Promise<void> {
+		await this.#init();
+		// the live connection opens BEFORE the first read starts: a source that announces a change
+		// only to whoever listens at that moment would tell nobody about one made during the read (#191)
+		await (this.#source.live ? this.#follow(() => this.#reload(), 0) : this.#reload());
 	}
 
-	#start(): Promise<void> {
-		if (this.#startPromise) return this.#startPromise;
-		this.#startPromise = (async () => {
-			await this.#init();
-			await this.#reload();
-			if (this.#source.live) {
-				const changes = this.#source.live();
-				void (async () => {
+	/**
+	 * Follow the live connection. Its first pull starts now (that is when a source subscribes); the
+	 * changes it brings apply once `ready` (the read they follow) has. A change that fails to apply is
+	 * reported and the next one still applies. A connection that drops is opened again after a wait
+	 * that doubles, reading the whole source again first (what changed meanwhile has no event). A
+	 * connection that ends (the source says there is nothing more) is not.
+	 */
+	#follow(read: () => Promise<void>, attempt: number, reconnecting = false): Promise<void> {
+		const live = this.#source.live!;
+		let changes: AsyncIterator<unknown>;
+		let pending: Promise<IteratorResult<unknown>>;
+		try {
+			changes = live.call(this.#source)[Symbol.asyncIterator]();
+			pending = changes.next();
+		} catch (err) {
+			pending = Promise.reject(err);
+			changes = { next: () => pending };
+		}
+		pending.catch(() => {}); // (seen below, once the read has run)
+		// the read starts only now: the connection above is already listening
+		const ready = read();
+		void (async () => {
+			try {
+				await ready;
+			} catch (err) {
+				void changes.return?.();
+				// a reconnect's read failed (the source is still down): try again after a longer wait.
+				// The FIRST read failing fails the start instead, and the next read starts it (and this)
+				if (reconnecting) {
+					console.error(new OgygiaError('content_live_source_failed'), err);
+					this.#reconnect(attempt);
+				}
+				return;
+			}
+			let failures = attempt;
+			try {
+				while (true) {
+					const step = await pending;
+					if (step.done) return;
+					failures = 0;
 					try {
-						for await (const change of changes) {
-							if (Array.isArray(change) && change.every((x) => typeof x === 'string')) {
-								await this.#reloadIds(change as string[]);
-							} else {
-								await this.#reload();
-							}
-						}
+						await this.#apply(step.value);
 					} catch (err) {
-						console.error(new OgygiaError('content_live_source_failed'), err);
+						console.error(new OgygiaError('content_live_change_failed'), err);
 					}
-				})();
+					pending = changes.next();
+				}
+			} catch (err) {
+				console.error(new OgygiaError('content_live_source_failed'), err);
+				this.#reconnect(failures);
 			}
 		})();
-		return this.#startPromise;
+		return ready;
+	}
+
+	/** Open a dropped connection again after its wait, reading the whole source again first. */
+	#reconnect(attempt: number): void {
+		const wait = Math.min(LIVE_RETRY_FIRST_MS * 2 ** attempt, LIVE_RETRY_LAST_MS);
+		const timer = setTimeout(() => {
+			// (a failed read is reported, and retried, by #follow; the connection listens first)
+			void this.#follow(() => this.#reload(true), attempt + 1, true).catch(() => {});
+		}, wait);
+		// (a server shutting down does not wait for a reconnect)
+		(timer as { unref?: () => void }).unref?.();
+	}
+
+	/** One change the live connection brought: the ids it names, else everything. */
+	async #apply(change: unknown): Promise<void> {
+		if (Array.isArray(change) && change.every((x) => typeof x === 'string'))
+			await this.#reloadIds(change as string[]);
+		else await this.#reload(true);
 	}
 
 	async #loaded(): Promise<void> {

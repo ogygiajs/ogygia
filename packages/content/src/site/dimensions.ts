@@ -21,6 +21,7 @@
 import {
 	outline,
 	href_of,
+	OUTLINE_TOKEN,
 	type Outline,
 	type OutlineSpec,
 	type ReadContext,
@@ -154,10 +155,17 @@ class Dimensions implements Dimensioned {
 		if (!p) {
 			const full: Coordinate = {};
 			for (const n of this.#names) full[n] = coord[n] ?? this.#def(n);
-			p = Promise.resolve(this.#spec.resolve(full)).then((r) =>
-				is_outline(r) ? r : outline(r as OutlineSpec)
-			);
-			this.#cache.set(key, p);
+			// (a resolve that throws at once fails like one that rejects: kept out of the cache)
+			const built = Promise.resolve()
+				.then(() => this.#spec.resolve(full))
+				.then((r) => (is_outline(r) ? r : outline(r as OutlineSpec)));
+			p = built;
+			this.#cache.set(key, built);
+			// a failure is never kept: the coordinate's next page builds its outline again (one source
+			// blip once broke every page of a language until a restart, #192)
+			built.catch(() => {
+				if (this.#cache.get(key) === built) this.#cache.delete(key);
+			});
 		}
 		return p;
 	}
@@ -219,6 +227,16 @@ class Dimensions implements Dimensioned {
 		const def_coord: Coordinate = {};
 		for (const n of this.#names) def_coord[n] = this.#def(n);
 		return (await this.#outline_for(def_coord)).addresses(ctx);
+	}
+
+	/** The default coordinate's materialization (what search indexes): see outline.ts OUTLINE_TOKEN. */
+	async [OUTLINE_TOKEN](ctx: ReadContext = {}): Promise<unknown> {
+		const def_coord: Coordinate = {};
+		for (const n of this.#names) def_coord[n] = this.#def(n);
+		const ol = (await this.#outline_for(def_coord)) as {
+			[OUTLINE_TOKEN]?: (ctx: ReadContext) => unknown;
+		};
+		return ol[OUTLINE_TOKEN]?.(ctx) ?? null;
 	}
 
 	async fallbackOf(slug: string, ctx: ReadContext = {}): Promise<Fallback> {

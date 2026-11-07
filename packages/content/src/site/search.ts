@@ -14,7 +14,7 @@
  * engine swap (MiniSearch, FlexSearch, custom) is a one-line `engine:` option.
  */
 import type { Heading, LinkRef } from '../index.ts';
-import { href_of, type Collection, type Outline } from './outline.ts';
+import { href_of, OUTLINE_TOKEN, type Collection, type Outline } from './outline.ts';
 import { is_dimensioned } from './dimensions.ts';
 import { OgygiaError } from '../messages/runtime.ts';
 
@@ -337,8 +337,12 @@ export type SearchBrain = (q: string, opts?: SearchOptions) => Promise<SearchHit
  * collection's catalog version changes (live sources).
  */
 export function create_search(ol: Outline, engine: SearchEngine): SearchBrain {
-	// One memoized index per distinct scope (base is applied at query time, not indexed).
-	const cache = new Map<string, Promise<SearchIndex>>();
+	// One memoized index per distinct scope (base is applied at query time, not indexed), built from
+	// one materialization of the outline: a new one (the content changed) builds the index again. A
+	// failed build is never kept. (It was built once, ever: a page a live source added was never
+	// found, and one failed build failed every search, #193.)
+	const cache = new Map<string, { index: Promise<SearchIndex>; from: unknown }>();
+	const token = (ol as { [OUTLINE_TOKEN]?: () => unknown })[OUTLINE_TOKEN];
 
 	return async (q, opts = {}) => {
 		const query = q.trim();
@@ -346,15 +350,22 @@ export function create_search(ol: Outline, engine: SearchEngine): SearchBrain {
 		const limit = opts.limit ?? 10;
 		const base = opts.base ?? '';
 		const scope_id = opts.in ? opts.in.map((c) => scope_tag(c)).join(',') : '*';
-		let index = cache.get(scope_id);
-		if (!index) {
-			index = (async () => {
+		// (an outline this package did not make has no token: built once, as before)
+		const from = token ? await token.call(ol) : null;
+		let built = cache.get(scope_id);
+		if (!built || built.from !== from) {
+			const index = (async () => {
 				await engine.init?.();
 				return engine.build(await build_docs(ol, opts.in));
 			})();
-			cache.set(scope_id, index);
+			const mine = { index, from };
+			built = mine;
+			cache.set(scope_id, mine);
+			index.catch(() => {
+				if (cache.get(scope_id) === mine) cache.delete(scope_id);
+			});
 		}
-		return (await index).query(query, { limit, base });
+		return (await built.index).query(query, { limit, base });
 	};
 }
 
