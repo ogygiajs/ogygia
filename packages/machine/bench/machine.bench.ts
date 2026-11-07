@@ -321,3 +321,42 @@ bench(
 	},
 	{ setup: () => ({ n: 150 }), scale: (_ctx, k) => ({ n: 150 * k }) }
 );
+
+const timed = machine<{ idle: {}; fetching: { attempt: number }; failed: { attempt: number } }>()({
+	name: 'timed',
+	initial: 'idle',
+	steps: { idle: ['fetching'], fetching: ['idle', 'failed'], failed: ['fetching'] },
+	after: {
+		fetching: { ms: 20, to: 'failed', data: (s) => ({ attempt: s.attempt }) },
+		failed: { ms: (s) => s.attempt, to: 'fetching', data: (s) => ({ attempt: s.attempt + 1 }) }
+	}
+});
+
+bench(
+	'machine: states that end on their own (some left first, some timed out and retried)',
+	async ({ n }) => {
+		const machines = Array.from({ length: n }, () => timed.create());
+		for (let i = 0; i < n; i++) machines[i].go('fetching', { attempt: 1 });
+		for (let i = 0; i < n; i += 2) machines[i].go('idle'); // half leave before their time
+		await new Promise((r) => setTimeout(r, 30)); // the rest time out, then retry
+		let retried = 0;
+		for (const m of machines) {
+			if (m.now.kind !== 'idle') retried++;
+			m.stop();
+		}
+		return retried;
+	},
+	{ setup: () => ({ n: 100 }), scale: (_ctx, k) => ({ n: 100 * k }) }
+);
+
+bench(
+	'machine: a definition of n states as data (graph and the paths that take every step)',
+	({ steps }) => {
+		const def = machine<Record<string, {}>>()({ name: 'chain', initial: 's0', steps } as never);
+		return def.graph().states.length + def.paths().length;
+	},
+	{
+		setup: () => ({ steps: chain_steps(40) }),
+		scale: (_ctx, k) => ({ steps: chain_steps(40 * k) })
+	}
+);
