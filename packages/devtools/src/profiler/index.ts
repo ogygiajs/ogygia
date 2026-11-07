@@ -248,6 +248,7 @@ import {
 	islandPageWhy
 } from 'virtual:ogygia/island-deps';
 import { set_span_recorder, type SpanAttrs, type SpanRecord, type SpanRecorder } from './span.ts';
+import { lock, machine, type LockToken } from '@ogygia/machine';
 import { register_profiler_file } from './frames.ts';
 
 // The span recorder's `begin` lives in this file: skip its frame when finding a span's caller.
@@ -845,6 +846,69 @@ const RECORDING_HARD_CAP_MS = 30_000;
 // waiting on it and finishes with what it has, rather than pinning the whole recording — and the site —
 // on a page whose own upstream never returns.
 const PER_RENDER_TIMEOUT_MS = 15_000;
+
+/**
+ * What the recorder's owner records (the process's one inspector and attribution context). Its
+ * lock says who owns it; this says how: `background` (the trap, the sampler, a started window: a
+ * request is matched to it by time, and runs in no request context) or `recording` (a page profile
+ * or a header-profiled request: every request is attributed). A recording still running past the
+ * hard cap is `cut`: it keeps the inspector until it ends, but the site stops paying for its
+ * attribution context.
+ */
+const recorder_machine = machine<{
+	free: {};
+	background: { token: LockToken; since: number };
+	recording: { token: LockToken; since: number };
+	cut: { token: LockToken };
+}>()({
+	name: 'profiler-recorder',
+	initial: 'free',
+	steps: {
+		free: ['background', 'recording'],
+		background: ['free'],
+		recording: ['free', 'cut'],
+		cut: ['free']
+	},
+	after: {
+		recording: { ms: RECORDING_HARD_CAP_MS + 2_000, to: 'cut', data: (s) => ({ token: s.token }) }
+	}
+});
+
+/** A stopped window's answer, shared by every stop of it (a retried stop gets the same report). */
+type WindowAnswer = { status: number; body: unknown };
+
+/**
+ * A window you start and stop. `recording` lasts at most WINDOW_MAX_MS (a stop that never comes);
+ * leaving it, however, ends the capture's work. `stopping` makes the report, and holds the
+ * recorder until it is made.
+ */
+const window_machine = machine<{
+	idle: {};
+	recording: { id: string; token: LockToken; done: Promise<WindowCapture> };
+	stopping: { id: string; token: LockToken; answer: Promise<WindowAnswer> };
+}>()({
+	name: 'profiler-window',
+	initial: 'idle',
+	steps: { idle: ['recording'], recording: ['stopping', 'idle'], stopping: ['idle'] },
+	after: { recording: { ms: WINDOW_MAX_MS, to: 'idle' } }
+});
+
+/** The span recorders of the windows recording now, newest last. Spans go to the newest; a window
+ *  that ends hands them back to the one before it, never to nothing while another still records
+ *  (two profilers in one dev process). */
+const span_windows: SpanRecorder[] = [];
+
+function own_spans(r: SpanRecorder): void {
+	span_windows.push(r);
+	set_span_recorder(r);
+}
+
+function disown_spans(r: SpanRecorder): void {
+	const at = span_windows.lastIndexOf(r);
+	if (at === -1) return;
+	span_windows.splice(at, 1);
+	set_span_recorder(span_windows.length > 0 ? span_windows[span_windows.length - 1] : null);
+}
 /** the heap's fill (of its limit) past which no timed render is made: one more could end the process */
 const HEAP_STOP = 0.85;
 /** …and past which the extra renders (what a render keeps, the growth check) are skipped */
@@ -1020,7 +1084,6 @@ class Profiler {
 	#sink_inflight = false;
 	#sink_last: { at: number; ok: boolean; rows: number; error?: string } | null = null;
 	#trap_caught = 0;
-	#trap_running = false;
 	#trap_timer: ReturnType<typeof setTimeout> | null = null;
 	readonly #sample: ProfilerOptions['sample'] | null;
 	readonly #sampled: SampledWindow[] = [];
@@ -1031,22 +1094,22 @@ class Profiler {
 	/** every page asset weighed so far (hashed assets never change): page-assets.ts */
 	readonly #asset_weights = new Map<string, Weight | null>();
 	readonly #background_net: NetCall[] = [];
-	#window_net: NetCall[] | null = null;
+	/** each capture's own network log while it records (two only after a reset left one running) */
+	readonly #window_nets = new Set<NetCall[]>();
 	#inflight = 0;
-	// Epoch-ms a recording began, or 0. A TIMESTAMP (not a boolean) so a stuck run self-heals: on a
-	// serverless host (Amplify/Lambda) the process can freeze or time out mid-profile and the `finally`
-	// that clears it never runs — leaving a boolean flag `true` forever, which is exactly the "previous
-	// session is still running, can't profile again" bug. Past RECORDING_MAX_MS a stale run is ignored.
-	#recording_since = 0;
 	/** performance.now() when this instance's first request arrived (its cold start, on Lambda) */
 	#first_request_pt: number | undefined;
 	/** requests this instance has handled */
 	#requests_seen = 0;
 	// The recorder lock: held for the life of a recording (the inspector session is only free once it
-	// ends), independent of `#recording_since` (which the watchdog may clear earlier to unblock the site).
-	// Non-blocking — a second recording on the same worker is refused, not queued (the client retries onto
-	// another worker). See #try_acquire_recorder.
-	#recorder_busy = false;
+	// ends). Non-blocking: a second recording on the same worker is refused, not queued (the client
+	// retries onto another worker). See #take. Only its owner's token frees it: a recording that a
+	// reset took it from frees, and switches off, nothing of the next one's.
+	readonly #recorder = lock();
+	/** what the owner records, and since when (see `recorder_machine`) */
+	readonly #holder = recorder_machine.create();
+	/** the window you start and stop (see `window_machine`) */
+	readonly #win = window_machine.create();
 	/** page profiles waiting for a background window to give the recorder back */
 	#page_waiting = 0;
 	/** the durable report store (SQLite/Redis/Postgres/custom), when configured — else null and the
@@ -1060,9 +1123,10 @@ class Profiler {
 	#wrap_event_fetch: (<F extends typeof globalThis.fetch>(f: F) => F) | null = null;
 	/** the network layer's kept answers (net.ts): what the keep-the-answers render is served */
 	#kept: {
-		keep: (on: boolean) => void;
+		/** each recording turns its own keeping on and off (`owner`) */
+		keep: (owner: object, on: boolean) => void;
 		get: (key: string) => Response | undefined;
-		drop: () => void;
+		drop: (owner: object) => void;
 		diff: (key: string) => { bytes: number; size: number; text: string } | undefined;
 	} | null = null;
 	/** the keep-the-answers render in flight: its request carries this token, and only these calls
@@ -1188,9 +1252,8 @@ class Profiler {
 		if (this.#trap_caught >= keep) return;
 		// a page profile is waiting for the recorder: let it have it, come back after
 		if (this.#page_waiting) return this.#schedule_trap(1000);
-		if (!this.#try_acquire_recorder()) return this.#schedule_trap(2000); // a recording is on — later
-		this.#trap_running = true;
-		this.#recording_since = Date.now();
+		const token = this.#take('background');
+		if (token === null) return this.#schedule_trap(2000); // a recording is on — later
 		try {
 			const window_ms = t.window ?? 5000;
 			const cap = await this.#capture_window(
@@ -1239,10 +1302,7 @@ class Profiler {
 			// the inspector refused (another debugger, an unsupported host): stop trying
 			this.#trap_caught = keep;
 		} finally {
-			this.#trap_running = false;
-			this.#recording_since = 0;
-			this.#release_als();
-			this.#release_recorder();
+			this.#free(token);
 		}
 		if (this.#trap_caught < keep) this.#schedule_trap(1000);
 	}
@@ -1254,9 +1314,9 @@ class Profiler {
 		if (this.#superseded()) return this.#retire();
 		const every_ms = (s.every ?? 60) * 1000;
 		if (this.#page_waiting) return this.#schedule_sample(Math.min(every_ms, 2000));
-		if (!this.#try_acquire_recorder()) return this.#schedule_sample(Math.min(every_ms, 5000));
-		this.#trap_running = true; // same rule: no per-request context for a background window
-		this.#recording_since = Date.now();
+		// (a background window too: no per-request context)
+		const token = this.#take('background');
+		if (token === null) return this.#schedule_sample(Math.min(every_ms, 5000));
 		try {
 			const window_ms = s.window ?? 2000;
 			const cap = await this.#capture_window(
@@ -1296,10 +1356,7 @@ class Profiler {
 			// unsupported host: stop
 			return;
 		} finally {
-			this.#trap_running = false;
-			this.#recording_since = 0;
-			this.#release_als();
-			this.#release_recorder();
+			this.#free(token);
 		}
 		this.#schedule_sample(every_ms);
 	}
@@ -1333,7 +1390,7 @@ class Profiler {
 	}
 
 	#collect_window(call: NetCall): void {
-		if (this.#window_net && this.#window_net.length < MAX_WINDOW_NET) this.#window_net.push(call);
+		for (const net of this.#window_nets) if (net.length < MAX_WINDOW_NET) net.push(call);
 	}
 
 	/** An attributed request's context: its own calls (capped), each also offered to the window. */
@@ -1403,26 +1460,39 @@ class Profiler {
 	/** A recording is "active" only if one started recently — a run abandoned by a frozen/killed
 	 *  serverless invocation ages out after the cap instead of wedging the profiler forever. */
 	#recording_active(): boolean {
-		return this.#recording_since > 0 && Date.now() - this.#recording_since < RECORDING_MAX_MS;
+		// (by its start too: a process frozen mid-profile and thawed may answer before its timer runs)
+		const s = this.#holder.now;
+		return s.kind === 'recording' && Date.now() - s.since < RECORDING_MAX_MS;
 	}
 
-	/** Take the recorder slot without waiting: true if it was free (now ours), false if busy. Recordings
+	/** Take the recorder without waiting: its token if it was free (now ours), null if busy. Recordings
 	 *  serialize PER WORKER — one V8 inspector CPU/heap sampler + one attribution context per process — so
 	 *  a second recording on the same process is refused, NOT queued in memory: on serverless the process
 	 *  can be recycled at any moment (Amplify freezes a worker after ~30 s), so a waiter parked in memory
 	 *  is unreliable, and it isn't needed — a retry lands on a different, free worker. The "queue" is the
-	 *  CLIENT polling `/page` until a worker says yes (see RunView). */
-	#try_acquire_recorder(): boolean {
-		if (this.#recorder_busy) return false;
-		this.#recorder_busy = true;
-		return true;
+	 *  CLIENT polling `/page` until a worker says yes (see RunView). A recording that runs past the hard
+	 *  cap is cut (its own time, `recorder_machine`): the site stops paying for its context. */
+	#take(kind: 'background' | 'recording'): LockToken | null {
+		const token = this.#recorder.take();
+		if (token === null) return null;
+		this.#holder.go(kind, { token, since: Date.now() });
+		// (leaving it, to `cut` or `free`, detaches the attribution context)
+		this.#holder.onLeave(() => this.#release_als());
+		return token;
 	}
 
-	/** Free the recorder slot. Called only when the recording is truly finished (its inspector session
-	 *  closed) — never from the site-unblock watchdog, which may fire while an orphaned run still holds
-	 *  the inspector. */
-	#release_recorder(): void {
-		this.#recorder_busy = false;
+	/** `token` still owns the recorder (a reset, or the next owner, took it otherwise). */
+	#holds(token: LockToken): boolean {
+		const s = this.#holder.now;
+		return s.kind !== 'free' && s.token === token;
+	}
+
+	/** Free the recorder, only for the token that owns it: false for one a reset took it from. Called
+	 *  only when the recording is truly finished (its inspector session closed). */
+	#free(token: LockToken): boolean {
+		if (!this.#recorder.free(token)) return false;
+		this.#holder.go('free');
+		return true;
 	}
 
 	/** Production: detach the profiler's AsyncLocalStorage once a recording ends. An ALS that has
@@ -1534,11 +1604,12 @@ class Profiler {
 			}
 		}
 
-		this.#window_net = [];
-		// capture the calling stack of each outbound I/O call for the duration of
-		// the window (off otherwise — it costs a stack per call)
+		// this capture's own: its network log, and its asks for stacks and spans (another capture
+		// ending, in this profiler after a reset or in another one, never takes them away)
+		// (each turned on right at the `try` whose `finally` turns it off)
+		const owner = {};
+		const window_net: NetCall[] = [];
 		const netmod = await import('./net.ts').catch(() => null);
-		if (!opts.light) netmod?.set_stack_capture(true);
 		// SPANS (`span()` / `tag()` from ogygia/profiler): recorded only while this window runs.
 		// A span rides the same async context as the fetch patch — the request it belongs to, and
 		// for nesting a child store carrying the span's id (only during a recording, so the per-hop
@@ -1550,7 +1621,6 @@ class Profiler {
 		const span_als = new SpanALS<number>();
 		const window_spans = new WindowSpans(this.#als, span_als, netmod);
 		const { spans } = window_spans;
-		set_span_recorder(window_spans);
 		const iomod = opts.light ? null : await import('./async-io.ts').catch(() => null);
 		let io_rec = iomod ? await iomod.IoRecorder.start() : null;
 
@@ -1559,6 +1629,11 @@ class Profiler {
 		// per region — asked for only while this window records (server/request-stats.ts). Counted, so
 		// turned on right at the `try` whose `finally` turns it off: every on has its off
 		set_request_stats_detail(true);
+		this.#window_nets.add(window_net);
+		// capture the calling stack of each outbound I/O call for the duration of
+		// the window (off otherwise — it costs a stack per call)
+		if (!opts.light) netmod?.set_stack_capture(owner, true);
+		own_spans(window_spans);
 		try {
 			await session.post('Profiler.enable');
 			await session.post('Profiler.setSamplingInterval', { interval: interval_us });
@@ -1647,7 +1722,7 @@ class Profiler {
 			const cpu = process.cpuUsage(cpu0);
 			const elu = perf_hooks.performance.eventLoopUtilization(elu0);
 			const duration_ms = t1 - t0;
-			const net = this.#window_net ?? [];
+			const net = window_net;
 
 			// a span never ended before the window closed stays `open` (a hung driver call, a
 			// handle the app forgot) — reported as such, never timed as if it had finished
@@ -1700,17 +1775,17 @@ class Profiler {
 			clearInterval(mem_timer);
 			if (heap_timer) clearInterval(heap_timer);
 			histogram.disable();
-			set_span_recorder(null);
+			disown_spans(window_spans);
 			span_als.disable(); // the recording's own nesting store: gone with the window
 			set_request_stats_detail(false);
-			netmod?.set_stack_capture(false);
+			netmod?.set_stack_capture(owner, false);
 			io_rec?.stop();
 			try {
 				observer?.disconnect();
 			} catch {
 				// already gone
 			}
-			this.#window_net = null;
+			this.#window_nets.delete(window_net);
 			try {
 				session.disconnect();
 			} catch {
@@ -2618,7 +2693,7 @@ class Profiler {
 			window_stop: (c) => this.#window_stop(c),
 			reset: (c) => this.#reset(c),
 			status: () => ({
-				recording: this.#recorder_busy || this.#recording_active(),
+				recording: this.#recorder.held,
 				inflight: this.#inflight,
 				rss_mb: Math.round(process.memoryUsage().rss / 1048576),
 				reports: this.#reports.size
@@ -4207,7 +4282,7 @@ class Profiler {
 			site_fixes: this.#site_fixes(),
 			// holes across the server: their renders, their cache, and who held the render slots
 			holes: hole_slots(this.#ring),
-			recording: this.#recorder_busy || this.#recording_active(),
+			recording: this.#recorder.held,
 			dev: this.dev,
 			rss_mb: Math.round(process.memoryUsage().rss / 1048576),
 			inflight: this.#inflight,
@@ -4230,7 +4305,7 @@ class Profiler {
 						window_ms: this.#trap.window ?? 5000,
 						caught: this.#trap_caught,
 						keep: this.#trap.keep ?? 3,
-						armed: !!this.#trap_timer || this.#trap_running
+						armed: !!this.#trap_timer || this.#holder.now.kind === 'background'
 					}
 				: null,
 			sampled: this.#sampled_summary(),
@@ -4275,12 +4350,7 @@ class Profiler {
 	// A WINDOW YOU START AND STOP — the server side of a test's (or the devtools Record tab's) actions:
 	// the CPU sampled across every request those actions made, their outbound calls, the requests
 	// themselves. One at a time (it holds the recorder); capped so a forgotten stop cannot hold it.
-	#window: {
-		id: string;
-		stop: () => void;
-		done: Promise<WindowCapture>;
-		timer: ReturnType<typeof setTimeout>;
-	} | null = null;
+	// Its state is `#win` (window_machine).
 
 	// A WINDOW ACROSS INSTANCES (a serverless deployment: start, the session's requests and stop can
 	// each land on another instance). Start answers an id, signed with the profiler's secret so any
@@ -4372,43 +4442,34 @@ class Profiler {
 					'cache-control': 'no-store'
 				}
 			});
-		if (this.#window) return busy('A window is already recording: stop it first.');
+		if (this.#win.now.kind !== 'idle') return busy('A window is already recording: stop it first.');
 		// a BACKGROUND window (the trap, the always-on sampler) holding the recorder is short: wait
 		// for it (as a page profile does); another page profile is the real conflict
-		if (this.#recorder_busy && this.#trap_running) {
-			this.#page_waiting++;
-			try {
-				const until = Date.now() + PAGE_WAITS_FOR_BACKGROUND_MS;
-				while (this.#recorder_busy && this.#trap_running && Date.now() < until)
-					await new Promise((r) => setTimeout(r, 50));
-			} finally {
-				this.#page_waiting--;
-			}
-		}
-		if (!this.#try_acquire_recorder())
-			return busy('Another recording holds the recorder. Try again in a moment.');
-		this.#recording_since = Date.now();
-		this.#trap_running = true; // a background window: no per-request attribution context
+		await this.#wait_for_background();
+		const nonce = Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+		const id = `${nonce}.${await this.#window_sign(nonce)}`;
+		// (a window started meanwhile holds the recorder: this take fails)
+		const token = this.#take('background');
+		if (token === null) return busy('Another recording holds the recorder. Try again in a moment.');
 		this.#ensure_net?.();
 		let stop!: () => void;
 		const stopped = new Promise<void>((r) => (stop = r));
-		const nonce = Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
-		const id = `${nonce}.${await this.#window_sign(nonce)}`;
-		// the cap: a stop that never comes here (a forgotten one, or one another instance answered)
-		// ends the window and frees the recorder — it held this instance's profiling until then
-		const timer = setTimeout(() => {
-			stop();
-			void done.finally(() => {
-				if (this.#window?.id === id) this.#window_release();
-			});
-		}, WINDOW_MAX_MS);
-		timer.unref?.();
 		const done = this.#capture_window(Math.min(this.sample_interval, 1000), () => stopped, {
 			light: true
 		});
-		// a capture that fails to start frees the recorder at once
-		done.catch(() => this.#window_release());
-		this.#window = { id, stop, done, timer };
+		this.#win.go('recording', { id, token, done });
+		const mine = this.#win.now;
+		// leaving `recording` any way (a stop, the cap, a reset) ends the capture's work
+		this.#win.onLeave(stop);
+		// the capture settled: a failed one ends the window; once one the cap (a stop that never came
+		// here: a forgotten one, or one another instance answered) or a reset ended is done, the recorder
+		// is free. A stop frees it itself, once its report is made.
+		const settled = () => {
+			if (this.#win.now === mine) this.#win.go('idle');
+			const now = this.#win.now;
+			if (now.kind !== 'stopping' || now.token !== token) this.#free(token);
+		};
+		done.then(settled, settled);
 		// `shared`: the requests of other instances reach this window (a store with visit rows)
 		return ctx.json({
 			ok: true,
@@ -4419,19 +4480,31 @@ class Profiler {
 		});
 	}
 
-	#window_release(): void {
-		if (this.#window) clearTimeout(this.#window.timer);
-		this.#window = null;
-		this.#trap_running = false;
-		this.#recording_since = 0;
-		this.#release_als();
-		this.#release_recorder();
+	/** A page profile or a window waits (a few seconds at most) for a background window (the trap,
+	 *  the sampler, a started window) to give the recorder back. The trap and the sampler do not
+	 *  start again while one waits. */
+	async #wait_for_background(): Promise<void> {
+		if (this.#holder.now.kind !== 'background') return;
+		this.#page_waiting++;
+		try {
+			const until = Date.now() + PAGE_WAITS_FOR_BACKGROUND_MS;
+			while (this.#holder.now.kind === 'background' && Date.now() < until)
+				await new Promise((r) => setTimeout(r, 50));
+		} finally {
+			this.#page_waiting--;
+		}
 	}
 
 	async #window_stop(ctx: RouteCtx): Promise<Response> {
 		const asked = ctx.event ? await this.#window_id_of(ctx.event.request) : null;
-		const w = this.#window && (!asked || this.#window.id === asked) ? this.#window : null;
-		if (!w) {
+		const w = this.#win.now;
+		const ours = w.kind !== 'idle' && (!asked || w.id === asked);
+		// a second stop (a retry) while the first makes the report: the same answer
+		if (ours && w.kind === 'stopping') {
+			const a = await w.answer;
+			return ctx.json(a.body, { status: a.status });
+		}
+		if (!ours || w.kind !== 'recording') {
 			// another instance started it: its requests from the store (every instance wrote them), and no
 			// CPU profile — sampling ran in the starting instance
 			if (asked && this.#store?.listVisits) {
@@ -4460,22 +4533,39 @@ class Profiler {
 				{ status: 400 }
 			);
 		}
-		w.stop();
-		let cap: WindowCapture;
+		// (leaving `recording` ends the capture's work: the answer waits for the capture to finish)
+		const answer = this.#window_answer(w);
+		this.#win.move('recording', 'stopping', { id: w.id, token: w.token, answer });
+		const a = await answer;
+		return ctx.json(a.body, { status: a.status });
+	}
+
+	/** The stopped window's report, made once; the window holds the recorder until it is made. */
+	async #window_answer(w: {
+		id: string;
+		token: LockToken;
+		done: Promise<WindowCapture>;
+	}): Promise<WindowAnswer> {
 		try {
-			cap = await w.done;
+			return await this.#window_report(w.id, await w.done);
 		} catch (e) {
-			this.#window_release();
-			return ctx.json(
-				{ error: `The window failed: ${e instanceof Error ? e.message : String(e)}` },
-				{ status: 500 }
-			);
+			return {
+				status: 500,
+				body: { error: `The window failed: ${e instanceof Error ? e.message : String(e)}` }
+			};
+		} finally {
+			const now = this.#win.now;
+			if (now.kind === 'stopping' && now.token === w.token) this.#win.go('idle');
+			this.#free(w.token);
 		}
+	}
+
+	async #window_report(window_id: string, cap: WindowCapture): Promise<WindowAnswer> {
 		// the requests the window saw (not the profiler's own)
 		const own = `${this.base}/`;
 		// this instance's requests over the window (all of them: the server-side calls a tagged request
 		// made carry no tag), and the other instances' tagged ones from the store
-		const shared = await this.#window_requests(w.id);
+		const shared = await this.#window_requests(window_id);
 		const others = shared.filter(
 			(e) => e.instance !== this.#instance_id && !e.path.startsWith(own) && e.path !== this.base
 		);
@@ -4500,41 +4590,45 @@ class Profiler {
 				})),
 			...others
 		];
-		try {
-			const id = await this.#finish_report(cap, {
-				trigger: 'window',
-				...(requests[0]
-					? {
-							request: {
-								method: requests[0].method,
-								path: requests[0].path,
-								route: requests[0].route,
-								ms: requests[0].ms
-							}
+		const id = await this.#finish_report(cap, {
+			trigger: 'window',
+			...(requests[0]
+				? {
+						request: {
+							method: requests[0].method,
+							path: requests[0].path,
+							route: requests[0].route,
+							ms: requests[0].ms
 						}
-					: {})
-			});
-			const s = this.#reports.get(id)!;
-			return ctx.json({
+					}
+				: {})
+		});
+		const s = this.#reports.get(id)!;
+		return {
+			status: 200,
+			body: {
 				...report_json(s.analysis, s.meta, this.base, this.#report_extras(s)),
 				window: {
 					ms: round2(cap.t1 - cap.t0),
 					requests,
 					...(shared.length ? { instances: new Set(requests.map((r) => r.instance)).size } : {})
 				}
-			});
-		} finally {
-			this.#window_release();
-		}
+			}
+		};
 	}
 
 	// Manually clear a wedged recording flag (belt-and-suspenders with the time-based auto-heal).
 	// The dashboard's Reset: the escape hatch for a wedged recording. Clears the site-wide attribution tax
-	// AND frees the recorder lock so a new profile can start on this worker.
+	// AND frees the recorder lock so a new profile can start on this worker. Whoever held it loses it:
+	// its token stops working, so its late cleanup frees and switches off nothing of the next owner's.
+	// A window recording ends with it.
 	#reset(ctx: RouteCtx): Response {
-		this.#recording_since = 0;
+		if (this.#holder.now.kind !== 'free') {
+			this.#recorder.free(this.#recorder.seize());
+			this.#holder.go('free');
+		}
+		if (this.#win.now.kind !== 'idle') this.#win.go('idle');
 		this.#release_als();
-		this.#recorder_busy = false;
 		return ctx.redirect(this.base);
 	}
 
@@ -4551,17 +4645,9 @@ class Profiler {
 		// conflict: refuse immediately with a 409 the client retries — don't hold a waiter in memory
 		// (unreliable on a worker that may be recycled within 30 s). The retry lands on a free worker
 		// (serverless) or comes back once this one finishes (single server). Reset clears a wedged one.
-		if (this.#recorder_busy && this.#trap_running) {
-			this.#page_waiting++;
-			try {
-				const until = Date.now() + PAGE_WAITS_FOR_BACKGROUND_MS;
-				while (this.#recorder_busy && this.#trap_running && Date.now() < until)
-					await new Promise((r) => setTimeout(r, 50));
-			} finally {
-				this.#page_waiting--;
-			}
-		}
-		if (!this.#try_acquire_recorder()) {
+		await this.#wait_for_background();
+		const token = this.#take('recording');
+		if (token === null) {
 			return new Response(
 				JSON.stringify({
 					busy: true,
@@ -4579,16 +4665,11 @@ class Profiler {
 			);
 		}
 		const q = ctx.url.searchParams;
-		this.#recording_since = Date.now();
-		// Backstop for a wedged run: if the profiled page (or one of its upstream calls) hangs and this
-		// method never reaches its `finally`, force-clear the recording state at the hard cap so the whole
-		// site stops paying the attribution tax now — don't wait out RECORDING_MAX_MS. An orphaned run that
-		// later settles finds recording already cleared and simply drops its result.
-		const watchdog = setTimeout(() => {
-			this.#recording_since = 0;
-			this.#release_als();
-		}, RECORDING_HARD_CAP_MS + 2_000);
-		watchdog.unref?.();
+		// (a wedged run, whose page or upstream call hangs so this method never reaches its `finally`,
+		// is cut at the hard cap: the site stops paying the attribution tax then, not at
+		// RECORDING_MAX_MS; recorder_machine's own time)
+		// THIS RECORDING'S OWN kept answers: another recording ending never drops them
+		const kept_owner = {};
 		// Re-assert the fetch patch right before profiling — `globalThis.fetch` may have been replaced
 		// since install, which is why runs sometimes missed network. Self-heals to reliable capture.
 		this.#ensure_net?.();
@@ -4634,6 +4715,9 @@ class Profiler {
 			// Each render is raced against a timeout so a single hung upstream can't pin the recording (and
 			// the site) — the smaller of PER_RENDER_TIMEOUT_MS and whatever budget is left.
 			const fetch_render = (p: string, extra?: Record<string, string>) => {
+				// a reset took the recorder: this run renders nothing more under the next owner
+				if (!this.#holds(token))
+					return Promise.reject(new Error('the recording was reset before it finished'));
 				const left = deadline - Date.now();
 				const ms = Number.isFinite(left)
 					? Math.max(1, Math.min(PER_RENDER_TIMEOUT_MS, left))
@@ -4779,7 +4863,7 @@ class Profiler {
 					: undefined;
 			};
 			// the timed renders keep what each GET answered: the keep-the-answers renders are served it
-			this.#kept?.keep(true);
+			this.#kept?.keep(kept_owner, true);
 			mem_mark('before the timed renders');
 			const cap = await this.#capture_window(
 				interval,
@@ -4924,7 +5008,7 @@ class Profiler {
 			// THE SAME ANSWER EVERY TIME, read across EVERY run before the calls are scoped to one: a GET
 			// that answered the same bytes in each render (the same-answer pattern, at report time)
 			const stable = stable_answers(cap.net, run_windows);
-			this.#kept?.keep(false);
+			this.#kept?.keep(kept_owner, false);
 			// ALMOST THE SAME ANSWER: made in every render, never the same bytes, yet the first and the
 			// last differ only in a small stretch (a timestamp, a request id) — data that did not change
 			const almost = new Map<string, string>();
@@ -4961,8 +5045,8 @@ class Profiler {
 				} catch {
 					answers = undefined;
 				} finally {
-					this.#answers = null;
-					this.#kept.drop();
+					if (this.#answers === state) this.#answers = null;
+					this.#kept.drop(kept_owner);
 				}
 			}
 			// EACH ENDPOINT'S WAITING IN EVERY RUN (its calls' own clocks), read before the calls are
@@ -5349,14 +5433,10 @@ class Profiler {
 					: `Profiling failed: ${e instanceof Error ? e.message : String(e)}`
 			);
 		} finally {
-			clearTimeout(watchdog);
-			this.#recording_since = 0;
-			// (a recording that threw mid-way leaves no answers kept, nor a render served them)
-			this.#kept?.keep(false);
-			this.#kept?.drop();
-			this.#answers = null;
-			this.#release_als();
-			this.#release_recorder();
+			// (a recording that threw mid-way leaves no answers kept; the answers' own `finally` stops
+			// any render being served them)
+			this.#kept?.drop(kept_owner);
+			this.#free(token);
 		}
 	}
 
@@ -6539,7 +6619,8 @@ class Profiler {
 		// Take the recorder slot atomically (no await between the check and the take): two concurrent
 		// header-profiled requests must not both start a recording and collide on the one process-wide
 		// inspector. If it's busy, this request just renders un-profiled rather than waiting.
-		const header_profile = key_ok && this.#try_acquire_recorder();
+		const header_token = key_ok ? this.#take('recording') : null;
+		const header_profile = header_token !== null;
 
 		// PAY ONLY WHEN PROFILING. Attributing outbound calls to a request means running it inside
 		// an AsyncLocalStorage, and on Node 20 every ALS in flight costs a store copy per async hop —
@@ -6550,9 +6631,7 @@ class Profiler {
 		// and dev latency is nobody's metric.
 		// (a background window — the trap, the sampler — never opens a per-request context: the
 		// request is matched to the window by time instead, so the site pays the sampler only)
-		const attribute =
-			!!this.#als &&
-			(this.dev || (this.#recording_active() && !this.#trap_running) || header_profile);
+		const attribute = !!this.#als && (this.dev || this.#recording_active() || header_profile);
 		const ctx: Ctx | null = attribute ? this.#request_ctx(entry) : null;
 		// THE KEEP-THE-ANSWERS RENDER: the profiler's own render, marked with this recording's token,
 		// is served the kept answers for the calls that answered the same in every timed render
@@ -6688,15 +6767,8 @@ class Profiler {
 		};
 
 		// header-triggered single-request profile (decided above)
-		if (header_profile) {
-			this.#recording_since = Date.now();
-			// Same site-unblock backstop as the page path: if this request wedges inside the capture, don't
-			// leave the whole site paying the attribution tax past the hard cap.
-			const watchdog = setTimeout(() => {
-				this.#recording_since = 0;
-				this.#release_als();
-			}, RECORDING_HARD_CAP_MS + 2_000);
-			watchdog.unref?.();
+		// (cut at the hard cap like a page recording, should this request wedge inside the capture)
+		if (header_token !== null) {
 			try {
 				let res: Response | undefined;
 				const cap = await this.#capture_window(100, async () => {
@@ -6722,10 +6794,7 @@ class Profiler {
 				}
 				return res!;
 			} finally {
-				clearTimeout(watchdog);
-				this.#recording_since = 0;
-				this.#release_als();
-				this.#release_recorder();
+				this.#free(header_token);
 			}
 		}
 
