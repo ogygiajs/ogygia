@@ -1724,27 +1724,25 @@ class OgygiaHandle {
 				props,
 				context: kit_render_context()
 			});
-			return await Promise.race([
-				// (with what its islands wrote into the head — their graph and their CSS: the endpoint
-				// ships the body only — server/hole-graph.ts)
-				Promise.resolve(rendered).then((out) => {
-					const body = out.body as string;
-					if (body === KEEP_FALLBACK_HTML) return body;
-					// (and the page facts its islands read: they hydrate against what it rendered from)
-					return hole_head(out.head as string, base) + body + kit_page_facts_tail();
-				}),
-				new Promise<never>((_, rej) =>
-					setTimeout(() => rej(new Error('region render timeout')), RENDER_TIMEOUT_MS)
-				)
-			]);
+			// (with what its islands wrote into the head — their graph and their CSS: the endpoint
+			// ships the body only — server/hole-graph.ts)
+			const out = await rendered;
+			const body = out.body as string;
+			if (body === KEEP_FALLBACK_HTML) return body;
+			// (and the page facts its islands read: they hydrate against what it rendered from)
+			return hole_head(out.head as string, base) + body + kit_page_facts_tail();
 		};
+		// The gate holds a render's slot until the render really ends (it cannot be cancelled): its
+		// caller stops waiting after RENDER_TIMEOUT_MS, and a hole waits at most as long for a slot
+		// (#195). A slot freed at the timeout let more renders run than the limit.
+		const gated = { run_ms: RENDER_TIMEOUT_MS, wait_ms: RENDER_TIMEOUT_MS };
 		try {
 			return await cached_render(
 				async () => {
 					// the page first, outside the gate: a render slot is never held while Kit runs the
 					// page's loads (and a cache hit never gets here)
 					await kit_page_ready(reads_page_data);
-					if (!timing) return render_gate.run(render_body);
+					if (!timing) return render_gate.run(render_body, gated);
 					// the wait for a slot, and the time in it. A slot is held for the whole render,
 					// awaits included: a hole waiting on slow data keeps the next one queued
 					const asked = performance.now();
@@ -1756,7 +1754,7 @@ class OgygiaHandle {
 						} finally {
 							timing.render_ms = performance.now() - entered;
 						}
-					});
+					}, gated);
 				},
 				cache,
 				Date.now(),
