@@ -197,8 +197,9 @@ describe('after: refused definitions', () => {
 		).toThrow(/machine_bad_timeout/);
 	});
 
-	it('a time that is not a time', () => {
-		for (const ms of [-1, Number.NaN, Infinity, '10' as unknown as number])
+	it('a time that is not a time, or longer than a timer can hold (2^31 - 1 ms, ~24.8 days)', () => {
+		// (a longer one is clamped to 1 ms by Node and browsers: the state would end at once)
+		for (const ms of [-1, Number.NaN, Infinity, '10' as unknown as number, 2 ** 31, 30 * 864e5])
 			expect(() =>
 				machine<{ a: {}; b: {} }>()({
 					name: 'bad',
@@ -207,6 +208,35 @@ describe('after: refused definitions', () => {
 					after: { a: { ms, to: 'b' } }
 				})
 			).toThrow(/machine_bad_timeout/);
+	});
+
+	it('the longest time a timer holds is accepted', () => {
+		expect(() =>
+			machine<{ a: {}; b: {} }>()({
+				name: 'ok',
+				initial: 'a',
+				steps: { a: ['b'], b: [] },
+				after: { a: { ms: 2 ** 31 - 1, to: 'b' } }
+			})
+		).not.toThrow();
+	});
+
+	it('a time made from the state that is not a time: reported, and the state does not end at once', async () => {
+		vi.useFakeTimers();
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+		for (const bad of [Number.NaN, -5, 2 ** 31, Infinity]) {
+			const timed = machine<{ a: {}; b: {} }>()({
+				name: 'computed',
+				initial: 'a',
+				steps: { a: ['b'], b: [] },
+				after: { a: { ms: () => bad, to: 'b' } }
+			});
+			const m = timed.create();
+			await vi.advanceTimersByTimeAsync(5);
+			expect(m.now.kind).toBe('a'); // not stepped 1 ms in
+			m.stop();
+		}
+		expect(error).toHaveBeenCalledTimes(4);
 	});
 
 	it('a state that is not a state', () => {

@@ -18,6 +18,10 @@ export type MachineErrors = {
 	machine_kind_in_data: Entry<{ name: string; state: string }>;
 	machine_bad_option: Entry<{ option: string; value: string }>;
 	machine_bad_timeout: Entry<{ name: string; state: string; problem: string }>;
+	machine_timeout_not_a_time: Entry<{ name: string; state: string; ms: string }>;
+	machine_timeout_failed: Entry<{ name: string; state: string }>;
+	machine_timed_step_failed: Entry<{ name: string; from: string; to: string }>;
+	machine_observer_failed: Entry<{ name: string }>;
 };
 
 /** The errors: thrown in dev (and tests), where a wrong move is a bug to fix now. */
@@ -71,7 +75,40 @@ export const MACHINE_ERRORS: MachineErrors = {
 			'A state in `after` ends on its own: still in it after `ms`, the machine takes the step `to`. ' +
 			'`to` must be one of that state’s own `steps` (the timed step is a move like any other), and ' +
 			'`ms` a number of 0 or more, or a function that makes one from the state’s value.\n\n' +
-			'This is refused in every build: a timer set from it would fire a move the steps do not allow.'
+			'This is refused in every build: a timer set from it would fire a move the steps do not allow.\n\n' +
+			'A timer holds at most 2^31 - 1 ms (about 24.8 days); Node and browsers run a longer delay ' +
+			'after 1 ms, so a longer `ms` is refused too.'
+	},
+	machine_timeout_not_a_time: {
+		text: (a: { name: string; state: string; ms: string }): string =>
+			`machine ${a.name}: the timeout of "${a.state}" made ${a.ms}, not a time of 0 to 2147483647 ms; the state does not end on its own this time.`,
+		details: (): string =>
+			'A state in `after` whose `ms` is a function made a value no timer can hold: not a number, ' +
+			'negative, or longer than 2^31 - 1 ms (about 24.8 days). Node and browsers would run such a ' +
+			'timer after 1 ms and end the state at once, so this visit to the state gets no timeout ' +
+			'instead. Make the function return a time in range (clamp it).'
+	},
+	machine_timeout_failed: {
+		text: (a: { name: string; state: string }): string =>
+			`machine ${a.name}: the timeout of "${a.state}" threw while making its time; the state does not end on its own this time.`,
+		details: (): string =>
+			'A state in `after` whose `ms` is a function threw when the machine entered the state. The ' +
+			'error follows the message. This visit to the state gets no timeout; fix the function.'
+	},
+	machine_timed_step_failed: {
+		text: (a: { name: string; from: string; to: string }): string =>
+			`machine ${a.name}: the timed step from "${a.from}" to "${a.to}" failed.`,
+		details: (): string =>
+			"A state's timeout came, and taking its step failed: its `data` function threw (the " +
+			'machine stays where it is), or a cleanup of the state it left threw (the step was taken). ' +
+			'The error follows the message. A timer has no caller to throw to, so it is said here.'
+	},
+	machine_observer_failed: {
+		text: (a: { name: string }): string =>
+			`machine ${a.name}: an observer threw while hearing a move.`,
+		details: (): string =>
+			'A function given to `observe()` threw. The error follows the message. The move itself is ' +
+			'done, and the other observers still heard it.'
 	}
 };
 
@@ -110,6 +147,13 @@ export class MachineError extends Error {
 /** The error for `code`, worded with its arguments. */
 export function machine_error<C extends keyof Errors>(code: C, a: ArgsOf<C>): MachineError {
 	return new MachineError(code, line(code, a));
+}
+
+/** Prints `code` as an error, with the error that caused it after it (a timer or an observer has no
+ *  caller to throw to). */
+export function report<C extends keyof Errors>(code: C, a: ArgsOf<C>, cause?: unknown): void {
+	if (cause === undefined) console.error(line(code, a));
+	else console.error(line(code, a), cause);
 }
 
 const warned = new Set<string>();
