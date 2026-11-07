@@ -49,7 +49,8 @@ export function heisenbench_record(): Array<{
 	const load = (): Promise<TransformPlugin> =>
 		(inner ??= (
 			import(
-				pathToFileURL(join(REPO_ROOT, 'node_modules/@bench/heisenbench/src/coverage/plugin.ts')).href
+				pathToFileURL(join(REPO_ROOT, 'node_modules/@bench/heisenbench/src/coverage/plugin.ts'))
+					.href
 			) as Promise<RecordPluginFactory>
 		).then((m) =>
 			m.heisenbench_record_plugin({

@@ -3,7 +3,7 @@
  *
  * Heisenbench lives in ogygiajs/bench (packages/heisenbench), not on npm. A bench file imports its API as
  * `@bench/heisenbench/bench`; `link_heisenbench` makes that name resolve by linking the root
- * `node_modules/@bench/heisenbench` to an Heisenbench checkout:
+ * `node_modules/@bench/heisenbench` to a Heisenbench checkout:
  *
  * - `HEISENBENCH_DIR` set: that directory (the bench repo's runner sets it to its own packages/heisenbench, so a
  *   bench run and its types use the Heisenbench that measures).
@@ -60,7 +60,7 @@ export function heisenbench_dir(): string {
 	if (from_env) {
 		const dir = resolve(from_env);
 		if (!existsSync(join(dir, 'src', 'cli.ts')))
-			throw new Error(`HEISENBENCH_DIR=${from_env} is not an Heisenbench package (no src/cli.ts)`);
+			throw new Error(`HEISENBENCH_DIR=${from_env} is not a Heisenbench package (no src/cli.ts)`);
 		return dir;
 	}
 	const pin = read_pin();
@@ -79,7 +79,7 @@ export function heisenbench_dir(): string {
 		}
 		if (!has_commit(clone, pin.ref)) run('git', ['fetch', '--quiet', 'origin', pin.ref], clone);
 		run('git', ['checkout', '--quiet', '--force', pin.ref], clone);
-		run('pnpm', ['install', '--frozen-lockfile', '--filter', '@bench/heisenbench'], clone);
+		run('pnpm', ['install', '--frozen-lockfile', '--filter', 'heisenbench'], clone);
 		writeFileSync(stamp, pin.ref + '\n');
 	}
 	return join(clone, 'packages', 'heisenbench');

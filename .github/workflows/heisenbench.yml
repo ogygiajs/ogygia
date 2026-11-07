@@ -1,6 +1,6 @@
 name: heisenbench
 
-# Asks ogygiajs/bench for an Heisenbench run the moment a PR is opened or pushed: Heisenbench counts the steps of
+# Asks ogygiajs/bench for a Heisenbench run the moment a PR is opened or pushed: Heisenbench counts the steps of
 # the bench files (packages/*/bench) on the PR's commit and on its base, from source, so it needs no
 # pkg.pr.new preview and does not wait for one (pkg-pr-new.yml asks for the app benchmark once the
 # preview is published). Heisenbench's section comes first in the PR's one benchmark comment.
@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Request an Heisenbench run
+      - name: Request a Heisenbench run
         env:
           GH_TOKEN: ${{ secrets.BENCH_TOKEN }}
           PR: ${{ github.event.pull_request.number }}

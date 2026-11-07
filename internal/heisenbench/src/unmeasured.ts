@@ -142,7 +142,9 @@ if (!values['no-record']) {
 
 // 4. replay
 const replay = join(out, 'replay.json');
-heisenbench_cli(['replay', '--records', records, '--root', '.', '--out', replay], { preload: true });
+heisenbench_cli(['replay', '--records', records, '--root', '.', '--out', replay], {
+	preload: true
+});
 
 // 5. the base's functions, then the gate
 const gate_args = [
