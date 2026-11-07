@@ -2,7 +2,7 @@
 // trip, the reversible-transform marks, the head's link dedupe and runtime placement, the final
 // assembly, a hole answer's URL rewrite, and the region-CSS scan. Per page or per hole, on a CMS
 // document of a few hundred regions.
-import { bench } from '@bench/abax/bench';
+import { bench } from '@bench/heisenbench/bench';
 import { assemble, locate } from '../src/server/document-assembly.ts';
 import { dedupe_head_links, runtime_first } from '../src/server/head-presence.ts';
 import { absolutize_hole_html } from '../src/server/hole-urls.ts';

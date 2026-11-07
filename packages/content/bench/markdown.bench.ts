@@ -5,8 +5,8 @@
 //
 // The pages are generated, not read from apps/docs: a docs edit must never move these counts.
 // The full `ogygiaPreprocess` run (mdsvex, Shiki fences) reaches @ogygia/core's built compiler
-// (`dist`) and Shiki's WASM engine, so it waits for Abax's coverage run of a built tree.
-import { bench } from '@bench/abax/bench';
+// (`dist`) and Shiki's WASM engine, so it waits for Heisenbench's coverage run of a built tree.
+import { bench } from '@bench/heisenbench/bench';
 import { transform_containers } from '../src/markdown/containers.ts';
 import { parseFrontmatter } from '../src/markdown/frontmatter.ts';
 import { remarkHeadings } from '../src/markdown/remark-headings.ts';

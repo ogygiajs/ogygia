@@ -72,14 +72,14 @@ See `apps/palaestra/e2e/README.md` for core's suite list.
 ## Bench files
 
 `packages/<name>/bench/*.bench.ts` are function-level benchmarks of the hot paths, counted by
-[Abax](https://github.com/ogygiajs/bench/tree/main/packages/abax) (exact steps, allocations and
+[Heisenbench](https://github.com/ogygiajs/bench/tree/main/packages/heisenbench) (exact steps, allocations and
 calls per function and line; no timings). Every PR gets them run against its base, and the PR's
 benchmark comment shows what changed, down to the line. Only the bench files whose import graph
 reaches a file the PR changes run.
 
 ```ts
-import { bench } from '@bench/abax/bench';
-import { match_path, __abax } from '../src/match.ts';
+import { bench } from '@bench/heisenbench/bench';
+import { match_path, __heisenbench } from '../src/match.ts';
 
 bench('match_path: a request against 300 routes', ({ table }) => match_path(table, '/a/b'), {
 	setup: () => ({ table: make_table(300) }), // outside the measured window
@@ -87,29 +87,29 @@ bench('match_path: a request against 300 routes', ({ table }) => match_path(tabl
 });
 ```
 
-- `__abax` is every top-level binding a module does not export (`__abax.normalize(path)`): the
+- `__heisenbench` is every top-level binding a module does not export (`__heisenbench.normalize(path)`): the
   bench run appends it to each module, and `pnpm bench:types` writes its types to the gitignored
-  `bench/__abax.d.ts`.
+  `bench/__heisenbench.d.ts`.
 - Inputs are built in `setup`, sized like a real page or app, and deterministic (no reading files
   that change for other reasons, like docs content).
 - Code outside Vite works: `virtual:ogygia/*` and `$app/*` resolve to `packages/core/test/_stubs`
-  (internal/abax/src/preload.ts). Browser-only code waits for Abax's browser coverage.
+  (internal/heisenbench/src/preload.ts). Browser-only code waits for Heisenbench's browser coverage.
 - `pnpm check:bench` writes the types and type-checks every bench directory against the built
   libraries, like the tests (run `pnpm build:lib` first; CI runs it after `pnpm check`). It fetches
-  Abax at the ref pinned in `internal/abax/package.json` into `.abax/`; set `ABAX_DIR` to a bench
-  checkout's `packages/abax` to use that instead.
+  Heisenbench at the ref pinned in `internal/heisenbench/package.json` into `.heisenbench/`; set `HEISENBENCH_DIR` to a bench
+  checkout's `packages/heisenbench` to use that instead.
 
-Count one bench file locally (after `pnpm bench:types`, which also links `@bench/abax`):
+Count one bench file locally (after `pnpm bench:types`, which also links `@bench/heisenbench`):
 
 ```bash
-node --import ./internal/abax/src/preload.ts node_modules/@bench/abax/src/cli.ts \
-  run packages/router/bench/match.bench.ts --root . --out abax-report.json
+node --import ./internal/heisenbench/src/preload.ts node_modules/@bench/heisenbench/src/cli.ts \
+  run packages/router/bench/match.bench.ts --root . --out heisenbench-report.json
 ```
 
 Every new function needs a measurement source. The `unmeasured` job (and `pnpm bench:unmeasured`
 locally, after `pnpm build:lib`) fails a PR that adds a function no bench file runs and no unit
 test calls with inputs that replay to the same output. Either add a bench case or a test that
-calls it, or exempt it in `internal/abax/unmeasured.json` with the reason nothing can measure it:
+calls it, or exempt it in `internal/heisenbench/unmeasured.json` with the reason nothing can measure it:
 
 ```json
 { "exempt": [{ "id": "packages/core/src/x.ts > fn", "reason": "runs once at startup" }] }

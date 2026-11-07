@@ -1,7 +1,7 @@
 // Route matching and planning: compiling and ordering a route table, matching every request
 // against it (static, params, optional and rest segments, a miss that falls to the catch-all),
 // filling a pattern for every link, and the per-request context.
-import { bench } from '@bench/abax/bench';
+import { bench } from '@bench/heisenbench/bench';
 import { make_ctx } from '../src/ctx.ts';
 import { compile_all, fill, match_path } from '../src/match.ts';
 

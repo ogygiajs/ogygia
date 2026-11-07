@@ -1,7 +1,7 @@
 // Flag evaluation, per read per request: sticky rollouts, weighted variants, a mutual-exclusion
 // layer, the `?og-exp` override and a context rule, read for a crowd of visitors. Each visitor is
 // a fresh request (reads are memoized per request, as on a real server).
-import { bench } from '@bench/abax/bench';
+import { bench } from '@bench/heisenbench/bench';
 import { startPlugin } from '@ogygia/core/plugin/testing';
 import { decide, flag, type CtxLike } from '../src/index.ts';
 import server from '../src/server.ts';

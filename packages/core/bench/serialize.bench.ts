@@ -1,14 +1,14 @@
 // Server serialization: an island's props on the wire (the JSON and devalue lanes), the page seed
 // and the references islands make into it, and the document tail that writes them all out. Per
 // island and per page, on the palaestra's CMS page (twenty ~35 KB blocks, a ~300 KB header config).
-import { bench } from '@bench/abax/bench';
+import { bench } from '@bench/heisenbench/bench';
 import { stringify } from 'devalue';
 import { encode_island_graph, decode_island_graph } from '../src/island-graph.ts';
-import { SeedIndex, plan_seed_refs, __abax as seed_refs } from '../src/seed-refs.ts';
+import { SeedIndex, plan_seed_refs, __heisenbench as seed_refs } from '../src/seed-refs.ts';
 import { DocumentTail } from '../src/server/document-tail.ts';
 import { island_fingerprint } from '../src/server/fingerprint.ts';
 import { PageSeed } from '../src/server/page-seed.ts';
-import { plan_props_wire, __abax as props_wire } from '../src/server/props-wire.ts';
+import { plan_props_wire, __heisenbench as props_wire } from '../src/server/props-wire.ts';
 import { encode_region_props } from '../src/server/region-props.ts';
 import { block, header, island_entry, page_of, page_tree, rich_block } from './fixtures.ts';
 

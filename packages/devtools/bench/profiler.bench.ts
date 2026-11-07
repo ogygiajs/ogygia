@@ -3,9 +3,9 @@
 // load-function source scans behind the "same work every request" and data-key findings; and the
 // document diff between two renders.
 //
-// The devtools dock and the profiler's report UI run in the browser and wait for Abax's browser
+// The devtools dock and the profiler's report UI run in the browser and wait for Heisenbench's browser
 // coverage.
-import { bench } from '@bench/abax/bench';
+import { bench } from '@bench/heisenbench/bench';
 import { analyze, decode_mappings, type CpuProfile } from '../src/profiler/analyze.ts';
 import { doc_diff } from '../src/profiler/doc-diff.ts';
 import { constant_work, key_sources } from '../src/profiler/source-scan.ts';

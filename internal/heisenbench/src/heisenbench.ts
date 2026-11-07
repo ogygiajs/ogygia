@@ -1,17 +1,17 @@
 /**
- * Where Abax comes from, and where the bench files are.
+ * Where Heisenbench comes from, and where the bench files are.
  *
- * Abax lives in ogygiajs/bench (packages/abax), not on npm. A bench file imports its API as
- * `@bench/abax/bench`; `link_abax` makes that name resolve by linking the root
- * `node_modules/@bench/abax` to an Abax checkout:
+ * Heisenbench lives in ogygiajs/bench (packages/heisenbench), not on npm. A bench file imports its API as
+ * `@bench/heisenbench/bench`; `link_heisenbench` makes that name resolve by linking the root
+ * `node_modules/@bench/heisenbench` to a Heisenbench checkout:
  *
- * - `ABAX_DIR` set: that directory (the bench repo's runner sets it to its own packages/abax, so a
- *   bench run and its types use the Abax that measures).
+ * - `HEISENBENCH_DIR` set: that directory (the bench repo's runner sets it to its own packages/heisenbench, so a
+ *   bench run and its types use the Heisenbench that measures).
  * - otherwise: a clone of the bench repo at the ref pinned in this package's package.json, kept in
- *   the gitignored `.abax/` at the repository root and installed once per ref.
+ *   the gitignored `.heisenbench/` at the repository root and installed once per ref.
  *
  * The checkout stays outside node_modules on purpose: Node strips TypeScript types only outside
- * node_modules, and Abax ships its source as .ts.
+ * node_modules, and Heisenbench ships its source as .ts.
  */
 import { execFileSync } from 'node:child_process';
 import {
@@ -29,16 +29,16 @@ import { fileURLToPath } from 'node:url';
 
 export const REPO_ROOT: string = fileURLToPath(new URL('../../../', import.meta.url));
 
-interface AbaxPin {
+interface HeisenbenchPin {
 	repo: string;
 	ref: string;
 }
 
-function read_pin(): AbaxPin {
+function read_pin(): HeisenbenchPin {
 	const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
-		abax: AbaxPin;
+		heisenbench: HeisenbenchPin;
 	};
-	return pkg.abax;
+	return pkg.heisenbench;
 }
 
 function run(cmd: string, args: string[], cwd: string): void {
@@ -54,17 +54,17 @@ function has_commit(dir: string, ref: string): boolean {
 	}
 }
 
-/** The Abax package directory (packages/abax of a bench checkout), fetched when needed. */
-export function abax_dir(): string {
-	const from_env = process.env.ABAX_DIR;
+/** The Heisenbench package directory (packages/heisenbench of a bench checkout), fetched when needed. */
+export function heisenbench_dir(): string {
+	const from_env = process.env.HEISENBENCH_DIR;
 	if (from_env) {
 		const dir = resolve(from_env);
 		if (!existsSync(join(dir, 'src', 'cli.ts')))
-			throw new Error(`ABAX_DIR=${from_env} is not an Abax package (no src/cli.ts)`);
+			throw new Error(`HEISENBENCH_DIR=${from_env} is not a Heisenbench package (no src/cli.ts)`);
 		return dir;
 	}
 	const pin = read_pin();
-	const cache = join(REPO_ROOT, '.abax');
+	const cache = join(REPO_ROOT, '.heisenbench');
 	const clone = join(cache, 'bench');
 	const stamp = join(cache, 'ready');
 	const ready = existsSync(stamp) && readFileSync(stamp, 'utf8').trim() === pin.ref;
@@ -79,15 +79,15 @@ export function abax_dir(): string {
 		}
 		if (!has_commit(clone, pin.ref)) run('git', ['fetch', '--quiet', 'origin', pin.ref], clone);
 		run('git', ['checkout', '--quiet', '--force', pin.ref], clone);
-		run('pnpm', ['install', '--frozen-lockfile', '--filter', '@bench/abax'], clone);
+		run('pnpm', ['install', '--frozen-lockfile', '--filter', 'heisenbench'], clone);
 		writeFileSync(stamp, pin.ref + '\n');
 	}
-	return join(clone, 'packages', 'abax');
+	return join(clone, 'packages', 'heisenbench');
 }
 
-/** Point `node_modules/@bench/abax` (at the repository root) at `dir`. */
-export function link_abax(dir: string): void {
-	const link = join(REPO_ROOT, 'node_modules', '@bench', 'abax');
+/** Point `node_modules/@bench/heisenbench` (at the repository root) at `dir`. */
+export function link_heisenbench(dir: string): void {
+	const link = join(REPO_ROOT, 'node_modules', '@bench', 'heisenbench');
 	mkdirSync(dirname(link), { recursive: true });
 	let stat = null;
 	try {

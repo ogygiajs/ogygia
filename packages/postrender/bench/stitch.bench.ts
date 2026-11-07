@@ -1,7 +1,7 @@
 // Post-render serving: finding the stitch holes in a stored page, rewriting edge holes into ESI
 // includes, stitching rendered holes back in, and the in-memory page store a site serves from
 // (hits, writes, a subtree purge and a tag purge).
-import { bench } from '@bench/abax/bench';
+import { bench } from '@bench/heisenbench/bench';
 import { MemoryStore } from '../src/memory-store.ts';
 import { esi_rewrite, find_stitch_holes, stitch_html, stitch_modes } from '../src/stitch.ts';
 import type { PostrenderEntry } from '../src/types.ts';

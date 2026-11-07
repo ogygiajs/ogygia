@@ -1,5 +1,5 @@
 /**
- * Type-check the bench files: `node internal/abax/src/check.ts` (or `pnpm check:bench`).
+ * Type-check the bench files: `node internal/heisenbench/src/check.ts` (or `pnpm check:bench`).
  *
  * Writes their types first (types.ts), then runs `tsc -p packages/<pkg>/bench` for every package
  * with bench files. Each bench tsconfig extends its package's and includes the package source, so
@@ -8,7 +8,7 @@
 import { execFileSync } from 'node:child_process';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bench_packages, REPO_ROOT } from './abax.ts';
+import { bench_packages, REPO_ROOT } from './heisenbench.ts';
 
 const TYPES = fileURLToPath(new URL('./types.ts', import.meta.url));
 const TSC = join(REPO_ROOT, 'node_modules', '.bin', 'tsc');
