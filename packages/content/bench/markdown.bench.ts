@@ -106,9 +106,20 @@ function doc_page(n: number, sections: number): string {
 	return lines.join('\n') + '\n';
 }
 
-/** A docs site: `count` pages of a few sections each. */
-const site = (count: number): string[] =>
-	Array.from({ length: count }, (_, i) => doc_page(i, 3 + (i % 4)));
+/** A docs site: `count` pages of a few sections each (`k` times as many sections per page). */
+const site = (count: number, k = 1): string[] =>
+	Array.from({ length: count }, (_, i) => doc_page(i, (3 + (i % 4)) * k));
+
+/** A long page and the `##` headings its collector would hand the section split. */
+function sectioned(sections: number): { source: string; headings: Heading[] } {
+	const source = doc_page(3, sections);
+	const headings: Heading[] = [];
+	for (const line of source.split('\n')) {
+		if (line.startsWith('## '))
+			headings.push({ depth: 2, id: line.slice(3).toLowerCase(), text: line.slice(3) });
+	}
+	return { source, headings };
+}
 
 interface MdNode {
 	type: string;
@@ -146,7 +157,7 @@ bench(
 		for (const s of sources) keys += Object.keys(parseFrontmatter(s).data).length;
 		return keys;
 	},
-	{ setup: () => ({ sources: site(120) }) }
+	{ setup: () => ({ sources: site(120) }), scale: (_ctx, k) => ({ sources: site(120 * k) }) }
 );
 
 bench(
@@ -174,17 +185,7 @@ bench(
 bench(
 	'search: split a long page into sections and strip their prose',
 	({ source, headings }) => split_sections(source, headings).length,
-	{
-		setup: () => {
-			const source = doc_page(3, 20);
-			const headings: Heading[] = [];
-			for (const line of source.split('\n')) {
-				if (line.startsWith('## '))
-					headings.push({ depth: 2, id: line.slice(3).toLowerCase(), text: line.slice(3) });
-			}
-			return { source, headings };
-		}
-	}
+	{ setup: () => sectioned(20), scale: (_ctx, k) => sectioned(20 * k) }
 );
 
 bench(
@@ -194,5 +195,6 @@ bench(
 		for (const s of sources) n += excerpt_of(strip_prose(s), ['lake', 'frozen']).length;
 		return n;
 	},
-	{ setup: () => ({ sources: site(60) }) }
+	// Grows the pages, not their number: a longer page is where a strip pass could go superlinear.
+	{ setup: () => ({ sources: site(60) }), scale: (_ctx, k) => ({ sources: site(60, k) }) }
 );

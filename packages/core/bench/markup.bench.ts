@@ -31,25 +31,31 @@ bench(
 		const { shell, regions } = liftRegions(html);
 		return restoreRegions(shell, regions).length;
 	},
-	{ setup: () => ({ html: document(200) }) }
+	{
+		setup: () => ({ html: document(200) }),
+		scale: (_ctx, k) => ({ html: document(200 * k) })
+	}
 );
 
 bench(
 	'reversible mark: plan the hosts of a document',
 	({ html }) => mark(html, 'document', false)?.html.length ?? 0,
-	{ setup: () => ({ html: document(200) }) }
+	{
+		setup: () => ({ html: document(200) }),
+		scale: (_ctx, k) => ({ html: document(200 * k) })
+	}
 );
 
 bench(
 	'reversible settle: keep what the restorer needs after a scoped render',
 	({ rendered, record }) => settle(rendered, record).html.length,
-	{
-		setup: () => {
-			const marked = mark(document(200), 'document', false)!;
-			return { rendered: fake_scoped(marked.html), record: marked.record };
-		}
-	}
+	{ setup: () => scoped(document(200)), scale: (_ctx, k) => scoped(document(200 * k)) }
 );
+
+function scoped(html: string) {
+	const marked = mark(html, 'document', false)!;
+	return { rendered: fake_scoped(marked.html), record: marked.record };
+}
 
 bench(
 	'head: dedupe repeated hints and sheets, then put the runtime first',

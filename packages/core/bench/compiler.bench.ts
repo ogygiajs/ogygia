@@ -58,8 +58,8 @@ bench(
 	{ setup: () => ({ source: route_page(20) }) }
 );
 
-// Growth from a small page: the transform is superlinear in the island count (twice the islands,
-// about four times the work at a few hundred), so 100x of twenty would not finish.
+// Growth from a small page: the transform is linear in the island count. It was quadratic while
+// each marked import walked the whole file to learn whether it was used.
 bench(
 	'transformHost: a route page as its island count grows',
 	({ source }) =>

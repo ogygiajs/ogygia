@@ -1031,21 +1031,19 @@ class FileCompilation {
 		return this.#lower();
 	}
 
-	/** Walk an AST subtree for an Identifier / Component reference to `local`. Pure over the AST. */
-	#ast_refs_local(root: SvelteNode, local: string) {
-		let found = false;
+	/** Every name the host's code references outside its imports and the `skip`ped instance
+	 *  statements: Identifier names, Component names and each dotted prefix of one (`<Ui.Card>`
+	 *  references `Ui`). ONE walk answers every "is `local` used?" question — asking per import walked
+	 *  the whole file once per island, quadratic in the island count. Pure over the AST. */
+	#referenced_names(skip?: Set<SvelteNode>) {
+		const names = new Set<string>();
 		const walk = (node: SvelteNode) => {
-			if (found || !node || typeof node !== 'object') return;
-			if (node.type === 'Identifier' && node.name === local) {
-				found = true;
-				return;
-			}
-			if (node.type === 'Component') {
-				const n = node.name || '';
-				if (n === local || n.startsWith(local + '.')) {
-					found = true;
-					return;
-				}
+			if (!node || typeof node !== 'object') return;
+			if (node.type === 'Identifier') names.add(node.name);
+			else if (node.type === 'Component') {
+				const n: string = node.name || '';
+				names.add(n);
+				for (let i = n.indexOf('.'); i !== -1; i = n.indexOf('.', i + 1)) names.add(n.slice(0, i));
 			}
 			for (const k of Object.keys(node)) {
 				if (k === 'start' || k === 'end' || k === 'loc') continue;
@@ -1054,22 +1052,18 @@ class FileCompilation {
 				else if (v && typeof v === 'object' && typeof v.type === 'string') walk(v);
 			}
 		};
-		if (Array.isArray(root)) for (const n of root) walk(n);
-		else walk(root);
-		return found;
+		for (const n of this.#instance_body)
+			if (n.type !== 'ImportDeclaration' && !skip?.has(n)) walk(n);
+		for (const n of this.#module_body) if (n.type !== 'ImportDeclaration') walk(n);
+		for (const n of this.#ast.fragment?.nodes ?? []) walk(n);
+		return names;
 	}
+
+	#used_names?: Set<string>;
 
 	/** Is a marked import's `local` used anywhere but its own import (else it is dead, strip it)? */
 	#marked_import_referenced(local: string) {
-		for (const n of this.#instance_body) {
-			if (n.type === 'ImportDeclaration') continue;
-			if (this.#ast_refs_local(n, local)) return true;
-		}
-		for (const n of this.#module_body) {
-			if (n.type === 'ImportDeclaration') continue;
-			if (this.#ast_refs_local(n, local)) return true;
-		}
-		return this.#ast_refs_local(this.#ast.fragment?.nodes ?? [], local);
+		return (this.#used_names ??= this.#referenced_names()).has(local);
 	}
 
 	// The SINGLE source of truth for the region option surface — shared by `with { … }` import
@@ -1776,7 +1770,7 @@ class FileCompilation {
 	 * Lower — the compilation's fields → rewritten source + `IslandDescriptor[]`. Consumes ONLY the
 	 * analyze pass's fields (it never re-reads the file): creates the MagicString, rewrites each marked
 	 * import to its wrapper / binding / stub, mints the island records, and brands portable snippets.
-	 * `err` / `ast_refs_local` / `marked_import_referenced` are rebuilt here from those fields — pure
+	 * `err` / `referenced_names` / `marked_import_referenced` are rebuilt here from those fields — pure
 	 * over the AST + host path.
 	 */
 	#lower() {
@@ -2139,17 +2133,8 @@ class FileCompilation {
 		const as_region_locals = new Set(as_regions.map((r) => r.compLocal));
 		// Strip a component's import when EVERY specifier was consumed by asRegion and used nowhere else.
 		if (as_region_locals.size) {
-			const referenced_outside = (local: string) => {
-				for (const n of instance_body) {
-					if (n.type === 'ImportDeclaration' || as_region_nodes.has(n)) continue;
-					if (this.#ast_refs_local(n, local)) return true;
-				}
-				for (const n of module_body) {
-					if (n.type === 'ImportDeclaration') continue;
-					if (this.#ast_refs_local(n, local)) return true;
-				}
-				return this.#ast_refs_local(ast.fragment?.nodes ?? [], local);
-			};
+			const outside = this.#referenced_names(as_region_nodes);
+			const referenced_outside = (local: string) => outside.has(local);
 			const seen = new Set();
 			for (const compLocal of as_region_locals) {
 				const info = imports.get(compLocal);
@@ -2222,12 +2207,22 @@ class FileCompilation {
 
 		// Drop snippets nested inside another candidate's body — that content ships in the outer entry and
 		// is re-processed when the entry `.svelte` is transformed, so converting it here would double-edit.
-		const outer_candidates = portable_candidates.filter(
-			(c) =>
-				!portable_candidates.some(
-					(o) => o !== c && c.snip.start >= o.snip.start && c.snip.end <= o.snip.end
-				)
-		);
+		// One sweep, not every pair: in start order (ties: the longer first) a candidate sits inside
+		// another exactly when the furthest end reached before it covers its end, or a twin shares its span.
+		const by_start = [...portable_candidates].sort(outer_spans_first);
+		const nested = new Set<(typeof portable_candidates)[number]>();
+		let reach = -Infinity;
+		for (let i = 0; i < by_start.length; i++) {
+			const c = by_start[i];
+			const twin = by_start[i + 1];
+			if (
+				c.snip.end <= reach ||
+				(twin && twin.snip.start === c.snip.start && twin.snip.end === c.snip.end)
+			)
+				nested.add(c);
+			if (c.snip.end > reach) reach = c.snip.end;
+		}
+		const outer_candidates = portable_candidates.filter((c) => !nested.has(c));
 
 		// BLOCK-BOUND names: what a template block declares — `{#each}` items and indexes, `{:then}` /
 		// `{:catch}` values, `{@const}`, snippet parameters, and snippets declared below the root. A
@@ -2584,6 +2579,11 @@ class FileCompilation {
  * @param raw the text between the `with {` and `}`
  * @returns
  */
+/** Span order for the portable-snippet nesting sweep: by start, the longer span first on a tie. */
+function outer_spans_first(a: { snip: SvelteNode }, b: { snip: SvelteNode }): number {
+	return a.snip.start - b.snip.start || b.snip.end - a.snip.end;
+}
+
 function parse_import_attrs(raw: string) {
 	const attrs = new Map();
 	IMPORT_ATTR_PAIR_G.lastIndex = 0; // shared `g` regex — start each scan at 0
