@@ -8,7 +8,9 @@
 import { bench } from '@bench/heisenbench/bench';
 import { analyze, decode_mappings, type CpuProfile } from '../src/profiler/analyze.ts';
 import { doc_diff } from '../src/profiler/doc-diff.ts';
-import { constant_work, key_sources } from '../src/profiler/source-scan.ts';
+import { attribute_gc, type AllocSite } from '../src/profiler/gc.ts';
+import { find_wait_patterns, type WaitCall } from '../src/profiler/patterns.ts';
+import { constant_work, hoist_plan, key_sources } from '../src/profiler/source-scan.ts';
 
 const APP = 'file:///srv/app/build/server/chunks';
 const SVELTE = 'file:///srv/app/node_modules/svelte/src/internal/server';
@@ -160,4 +162,118 @@ bench(
 	'doc_diff: two renders of a page that differ in a few rows',
 	({ a, b }) => doc_diff(a, b)?.groups.length ?? 0,
 	{ setup: () => ({ a: render_html(400, 0), b: render_html(400, 12) }) }
+);
+
+/** A profiled window of `pauses` collections, one every 10 ms, over the CPU timeline (four segments
+ *  a pause: the app's code, a component, idle time and the collector) and twenty allocation reads. */
+function gc_window(pauses: number): Parameters<typeof attribute_gc>[0] {
+	const window_ms = pauses * 10;
+	const dict: Record<string, AllocSite> = {};
+	for (let j = 0; j < 12; j++)
+		dict[`s${j}`] = {
+			key: `s${j}`,
+			name: `make${j}`,
+			url: 'file:///srv/app/src/lib/data.ts',
+			line: j + 1,
+			category: j % 3 ? 'app' : 'component',
+			component: j % 3 ? null : `Card${j}`
+		};
+	const slices = Array.from({ length: 20 }, (_, i) => ({
+		t0: (i * window_ms) / 20,
+		t1: ((i + 1) * window_ms) / 20,
+		bytes: Object.fromEntries(Object.keys(dict).map((k, j) => [k, 1000 * (i + j + 1)]))
+	}));
+	const events = Array.from({ length: pauses }, (_, i) => ({
+		t: i * 10 + 7,
+		ms: 1 + (i % 4),
+		kind: i % 10 === 9 ? ('major' as const) : ('minor' as const),
+		flags: 0
+	}));
+	const categories = ['app', 'component', 'idle', 'gc'];
+	const running = Array.from({ length: pauses * 4 }, (_, i) => ({
+		t0: i * 2.5,
+		t1: i * 2.5 + 2,
+		label: `fn${i % 50}`,
+		category: categories[i % 4],
+		file: 'src/lib/data.ts'
+	}));
+	return { slices, events, dict, window_ms, running };
+}
+
+// Growth: linear in the window's pauses and segments. It was quadratic while each pause looked
+// through every segment of the timeline for what was running.
+bench(
+	'attribute_gc: what each pause of a window was charged to, as the window grows',
+	(input) => attribute_gc(input).pauses.length,
+	{
+		setup: () => gc_window(50),
+		scale: (_ctx, k) => gc_window(50 * k)
+	}
+);
+
+/** One helper line called in `chains` chains of awaits in a row (`for (…) await getItem(id)`), each
+ *  chain then a batch of three calls run together (a `Promise.all`), across two pages. */
+function wait_calls(chains: number): WaitCall[] {
+	const at = { path: '/srv/app/src/lib/api.ts', line: 12 };
+	const calls: WaitCall[] = [];
+	let t = 0;
+	for (let c = 0; c < chains; c++) {
+		const scope = c % 2 ? '/products' : '/cart';
+		const outer = { path: `/srv/app/src/routes${scope}/+page.server.ts`, line: 4 + (c % 3) };
+		for (let i = 0; i < 4; i++, t += 31)
+			calls.push({ start: t, ms: 30, target: 'GET api/items/:id', at, outer, scope });
+		for (let i = 0; i < 3; i++)
+			calls.push({ start: t, ms: 25, target: 'GET api/stock/:id', at, outer, scope });
+		t += 40;
+	}
+	return calls;
+}
+
+// Growth: n log n in the calls (one sort per helper line). It was quadratic while each call looked
+// through every other call of its line for one that started with it.
+bench(
+	'find_wait_patterns: the waits in a row of one helper line, as the calls grow',
+	({ calls }) => find_wait_patterns({ calls }).length,
+	{
+		setup: () => ({ calls: wait_calls(10) }),
+		scale: (_ctx, k) => ({ calls: wait_calls(10 * k) })
+	}
+);
+
+/** A `+page.server.ts` with `helpers` pairs of helpers (one formats with the other, every fifth of
+ *  those reads the clock) and a load that runs each pair on the module's products. */
+function helper_module(helpers: number): string {
+	const lines = [
+		`import type { PageServerLoad } from './$types';`,
+		`import { PRODUCTS } from '$lib/catalog';`,
+		''
+	];
+	for (let i = 0; i < helpers; i++)
+		lines.push(
+			`function list${i}(items) {`,
+			`\treturn items.map(card${i});`,
+			'}',
+			`const card${i} = (p) => ({ ...p, slot: ${i}${i % 5 === 0 ? ', at: Date.now()' : ''} });`
+		);
+	lines.push('', 'export const load: PageServerLoad = async ({ url }) => {');
+	for (let i = 0; i < helpers; i++) lines.push(`\tconst cards${i} = list${i}(PRODUCTS);`);
+	lines.push(
+		'\treturn {',
+		...Array.from({ length: helpers }, (_, i) => `\t\tcards${i},`),
+		"\t\tq: url.searchParams.get('q')",
+		'\t};',
+		'};'
+	);
+	return lines.join('\n') + '\n';
+}
+
+// Growth: linear in the module's helpers. It was quadratic while each token of a helper's lines
+// looked through the list of every helper, again on every pass.
+bench(
+	'hoist_plan: the constant lines of a load to move to the top, as its helpers grow',
+	({ source }) => hoist_plan(source)?.stmts.length ?? 0,
+	{
+		setup: () => ({ source: helper_module(10) }),
+		scale: (_ctx, k) => ({ source: helper_module(10 * k) })
+	}
 );

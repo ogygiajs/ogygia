@@ -40,12 +40,23 @@ const KINDS = new Set(['flag']);
 const MAYBE_RE = /\bflag\b/;
 /** All `<script …>` blocks of a `.svelte` file (instance AND module — flags can sit in either). */
 const SCRIPT_BLOCK_RE = /<script\b[^>]*>([\s\S]*?)<\/script>/g;
-const NL = 10;
+/** Where every newline of `src` is, in order: one pass, then each line is a binary search. */
+function newlines_of(src: string): number[] {
+	const at: number[] = [];
+	for (let i = src.indexOf('\n'); i !== -1; i = src.indexOf('\n', i + 1)) at.push(i);
+	return at;
+}
 
-function line_at(src: string, index: number, base_line: number): number {
-	let line = base_line;
-	for (let i = 0; i < index; i++) if (src.charCodeAt(i) === NL) line++;
-	return line;
+/** The line `index` is on: `base_line` plus the newlines before it. */
+function line_at(newlines: readonly number[], index: number, base_line: number): number {
+	let lo = 0;
+	let hi = newlines.length;
+	while (lo < hi) {
+		const mid = (lo + hi) >>> 1;
+		if (newlines[mid] < index) lo = mid + 1;
+		else hi = mid;
+	}
+	return base_line + lo;
 }
 
 function string_arg(node: AstNode | undefined): string | null {
@@ -85,6 +96,7 @@ function collect_from_source(
 	if (locals.size === 0 && namespaces.size === 0) return;
 
 	// 2) count only calls through those bindings
+	let newlines: number[] | undefined;
 	walk(result.program as never, {
 		enter(n: unknown) {
 			const node = n as AstNode;
@@ -105,7 +117,8 @@ function collect_from_source(
 			if (!kind) return;
 			const name = string_arg((node.arguments as AstNode[])?.[0]);
 			if (name == null) return; // dynamic first arg — not inventoriable (and not our style)
-			out.push({ name, kind, file, line: line_at(src, node.start ?? 0, base_line) });
+			newlines ??= newlines_of(src);
+			out.push({ name, kind, file, line: line_at(newlines, node.start ?? 0, base_line) });
 		}
 	});
 }
@@ -115,10 +128,11 @@ export function collect_flag_sites(code: string, id: string, file: string): Flag
 	const out: FlagSite[] = [];
 	if (id.endsWith('.svelte')) {
 		SCRIPT_BLOCK_RE.lastIndex = 0;
+		const newlines = newlines_of(code);
 		let m: RegExpExecArray | null;
 		while ((m = SCRIPT_BLOCK_RE.exec(code))) {
 			const body_start = m.index + m[0].indexOf('>') + 1;
-			collect_from_source(m[1], id + '.ts', file, line_at(code, body_start, 1), out);
+			collect_from_source(m[1], id + '.ts', file, line_at(newlines, body_start, 1), out);
 		}
 	} else {
 		collect_from_source(code, id, file, 1, out);

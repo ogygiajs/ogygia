@@ -1294,6 +1294,7 @@ export function constant_work(
 	// A HELPER THAT ANSWERS PER CALL: one that reads a clock, a random, the disk or the network
 	// (directly, through a per-call module, or through another such helper) or changes the file's
 	// state (`recent.set(…)`, `count++`). Moved to the top, it would answer once for every request
+	const helper_names = new Set(helpers.map((h) => h.name));
 	const impure = (t: readonly string[]) => {
 		for (let k = 0; k < t.length; k++) {
 			const x = t[k];
@@ -1305,21 +1306,35 @@ export function constant_work(
 				(t[k + 2] === 'now' || (t[k - 1] === 'new' && t[k + 1] === '(' && t[k + 2] === ')'))
 			)
 				return true;
-			if (helpers.some((h) => h.name === x) && !module_names.has(x)) return true;
+			if (helper_names.has(x) && !module_names.has(x)) return true;
 		}
 		return changed_names(t).some((n) => state.has(n));
 	};
-	for (let dropped = true; dropped;) {
-		dropped = false;
-		for (const h of helpers) {
-			if (!module_names.has(h.name)) continue;
-			for (let i = h.from; i <= h.to; i++)
-				if (impure(T[i])) {
-					module_names.delete(h.name);
-					dropped = true;
-					break;
+	// the helpers each helper's lines name: once one answers per call, so does every helper naming
+	// it (with no pass over every helper again)
+	const named_by = new Map<string, string[]>();
+	for (const h of helpers)
+		for (let i = h.from; i <= h.to; i++) {
+			const t = T[i];
+			for (let k = 0; k < t.length; k++)
+				if (helper_names.has(t[k]) && t[k - 1] !== '.' && t[k - 1] !== '?.') {
+					const by = named_by.get(t[k]);
+					if (by) by.push(h.name);
+					else named_by.set(t[k], [h.name]);
 				}
 		}
+	const dropped: string[] = [];
+	for (const h of helpers) {
+		if (!module_names.has(h.name)) continue;
+		for (let i = h.from; i <= h.to; i++)
+			if (impure(T[i])) {
+				dropped.push(h.name);
+				break;
+			}
+	}
+	while (dropped.length) {
+		const name = dropped.pop()!;
+		if (module_names.delete(name)) for (const by of named_by.get(name) ?? []) dropped.push(by);
 	}
 	// a value the load CHANGES after making it (`state.user = …`, `list.push(…)`) is that request's
 	// own: made once and shared, every request would change the same object
@@ -1445,11 +1460,10 @@ export function constant_work(
 	}
 	// a function the load also names on a line that is not constant: its time is not all this
 	// work's, so it is not counted as this work's cost
-	const mine = stmt_lines;
-	for (const o of out)
-		o.calls = o.calls.filter(
-			(c) => !T.some((t, i) => i > body0 && i < body1 && !mine.has(i) && t.includes(c))
-		);
+	const elsewhere = new Set<string>();
+	for (let i = body0 + 1; i < body1; i++)
+		if (!stmt_lines.has(i)) for (const x of T[i]) elsewhere.add(x);
+	for (const o of out) o.calls = o.calls.filter((c) => !elsewhere.has(c));
 	return out;
 }
 

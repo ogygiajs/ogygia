@@ -2608,20 +2608,26 @@ export function lcp_rivals(
 	const below = visit?.images_eager_below;
 	const p = visit?.paints;
 	if (!visit || !below?.length || typeof p?.lcp !== 'number') return null;
-	const resources = visit.resources ?? [];
-	const res = p.lcp_url ? resources.find((r) => r.url === p.lcp_url) : undefined;
+	// each url's first download, looked up once per image
+	const by_url = new Map<string, NonNullable<typeof visit.resources>[number]>();
+	for (const r of visit.resources ?? []) if (!by_url.has(r.url)) by_url.set(r.url, r);
+	const res = p.lcp_url ? by_url.get(p.lcp_url) : undefined;
 	const from = res
 		? (res.req_start ?? res.start)
 		: (visit.nav?.res_start ?? visit.nav?.res_end ?? 0);
 	const to = res ? res.end : p.lcp;
 	let bytes = 0;
 	const files: string[] = [];
+	const named = new Set<string>();
 	for (const i of below) {
-		const r = resources.find((x) => x.url === i.url);
+		const r = by_url.get(i.url);
 		if (!r || r.start >= to || r.end <= from) continue;
 		bytes += i.bytes;
 		const f = i.url.slice(i.url.lastIndexOf('/') + 1).split('?')[0];
-		if (!files.includes(f)) files.push(f);
+		if (!named.has(f)) {
+			named.add(f);
+			files.push(f);
+		}
 	}
 	return bytes ? { bytes, files } : null;
 }
