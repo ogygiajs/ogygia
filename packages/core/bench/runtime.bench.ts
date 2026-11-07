@@ -10,7 +10,43 @@ import { fingerprint_of, fnv1a, signature_of } from '../src/runtime/hash.ts';
 import { morph_children } from '../src/runtime/morph.ts';
 import { PageCache } from '../src/runtime/page-cache.ts';
 import { parse_wire_text } from '../src/runtime/wire-format.ts';
+import { failed_import_url, import_again, retry_url } from '../src/runtime/import-again.ts';
 import { block, header } from './fixtures.ts';
+
+bench(
+	'import_again: chunks that failed to download, asked for again under fresh URLs',
+	async ({ chunks }) => {
+		let loaded = 0;
+		for (const url of chunks) {
+			// each chunk's first download fails as Chromium reports it; the retry gets a fresh URL
+			const load = import_again(
+				() => Promise.reject(new TypeError(`Failed to fetch dynamically imported module: ${url}`)),
+				async (fresh) => fresh
+			);
+			try {
+				await load();
+			} catch {
+				// the first attempt: the failure the caller sees (once() then calls again)
+			}
+			const fresh = (await load()) as string;
+			if (fresh === retry_url(url, 1)) loaded++;
+			// a message that names no URL (Safari) or another origin is not retried under a new one
+			if (failed_import_url(new TypeError('Importing a module script failed.')) === null) loaded++;
+		}
+		return loaded;
+	},
+	{
+		setup: () => ({
+			chunks: Array.from(
+				{ length: 40 },
+				(_, i) => `https://shop.test/_app/immutable/chunks/C${i.toString(36)}hunk.js?v=${i}`
+			)
+		}),
+		scale: (ctx, k) => ({
+			chunks: Array.from({ length: k }, () => ctx.chunks).flat()
+		})
+	}
+);
 
 bench(
 	'fnv1a: fingerprints of twenty CMS blocks',

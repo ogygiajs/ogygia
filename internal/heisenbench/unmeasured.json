@@ -1,3 +1,60 @@
 {
-	"exempt": []
+	"exempt": [
+		{
+			"id": "packages/core/src/runtime/core.ts > import_again:0",
+			"reason": "browser only: the dynamic import of the hydrate core chunk; its download, failure and retry are proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > once:0",
+			"reason": "browser only: loads the hydrate core chunk (yield, import, keep); proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > once:0 > then:0",
+			"reason": "browser only: keeps the loaded hydrate core; proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > absorb_page_facts_now > then:1",
+			"reason": "browser only: devalue failed to download while page facts were queued (they stay queued); a constant no-op"
+		},
+		{
+			"id": "packages/core/src/runtime/devalue-lane.ts > import_again:0",
+			"reason": "browser only: the dynamic import of devalue's chunk; proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/devalue-lane.ts > once:0",
+			"reason": "browser only: loads devalue's chunk and keeps it; proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/devalue-lane.ts > once:0 > then:0",
+			"reason": "browser only: keeps the loaded devalue module; proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/devalue-lane.ts > with_devalue > then:1",
+			"reason": "browser only: devalue failed to download; schedules a later ask (bounded doubling wait), constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/devalue-lane.ts > with_devalue > then:1 > setTimeout:0",
+			"reason": "browser only: the later ask after a failed devalue download, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > import_again > fresh",
+			"reason": "browser only: the default retry is a dynamic import() of a chunk URL; import_again itself runs in packages/core/bench/runtime.bench.ts with a stand-in"
+		},
+		{
+			"id": "packages/core/src/runtime/interaction.ts > import_again:0",
+			"reason": "browser only: the dynamic import of the interaction replay chunk; proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/interaction.ts > wake > then:1 > then:1",
+			"reason": "browser only: the replay chunk failed to load again after a failed wake: reports it, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/ui.ts > import_again:0",
+			"reason": "browser only: the dynamic import of the devtools dock's chunk; proven in packages/devtools/e2e/devtools.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/ui.ts > mount_launcher > load > then:1",
+			"reason": "browser only: the dock's chunk failed to load: resets the button, constant work; proven in packages/devtools/e2e/devtools.spec.ts"
+		}
+	]
 }
