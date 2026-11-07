@@ -191,6 +191,10 @@
 		{
 			"id": "packages/federation/src/serve.ts > check_deploy > catch:0",
 			"reason": "the store failed to answer during a check: rethrown unless a thaw is owed, constant work; a bench cannot take the store down without the shared hook warning once per server (runs would differ); proven in packages/federation/test/owners.test.ts"
+		},
+		{
+			"id": "packages/content/src/collection-base.ts > ignore",
+			"reason": "a no-op (a failure reported elsewhere, on a promise nothing else awaits); it runs only when a live connection fails before its first read, which a bench would have to wait out a reconnect timer for; proven in packages/content/test/lifecycle.test.ts"
 		}
 	]
 }
