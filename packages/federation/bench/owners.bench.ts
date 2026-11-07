@@ -1,7 +1,7 @@
 // Work that belongs to whoever started it: a peer's reads joining the request in flight across
 // drops (an old request ending never removes the newer one), and the deploy thaw's machine, its
-// checks failing (the store down, a peer that never takes the notice) and finishing. The network
-// is a stand-in fetch: nothing leaves the process.
+// checks failing (a peer that never takes the notice) and finishing. The network is a stand-in
+// fetch: nothing leaves the process.
 import { bench } from '@bench/heisenbench/bench';
 import { startPlugin } from '@ogygia/core/plugin/testing';
 import { PeerHandle } from '../src/peer.ts';
@@ -16,7 +16,10 @@ startPlugin(fed_server, { name: '@ogygia/federation' });
 const DOC = JSON.stringify({ status: 200, title: 't', css: [], body: 'B' });
 
 /** Runs `work` with `fetch` answered by `answer`. */
-async function with_fetch<T>(answer: (url: string) => Response, work: () => Promise<T>): Promise<T> {
+async function with_fetch<T>(
+	answer: (url: string) => Response,
+	work: () => Promise<T>
+): Promise<T> {
 	const g = globalThis as { fetch: typeof fetch };
 	const real = g.fetch;
 	g.fetch = (async (input: RequestInfo | URL) => answer(String(input))) as typeof fetch;
@@ -64,13 +67,8 @@ bench(
 		});
 		const fed = current_federation()!;
 		let marker = 'the build before';
-		let store_down = 0;
 		const off = register_hooks({
 			lastBuild(v: string) {
-				if (store_down > 0) {
-					store_down--;
-					throw new Error('store unreachable');
-				}
 				const seen = marker;
 				marker = v;
 				return seen;
