@@ -2,4 +2,4 @@
 '@ogygia/core': patch
 ---
 
-Compiling a page now takes time in line with its region count. It used to grow with the square: each region import walked the whole file again (a 2,000-region page took 33x the work).
+Compiling a page with many regions is up to 1.9x faster: each region import no longer walks the whole file again to learn whether it is used.
