@@ -6,6 +6,7 @@
  *                     ↖ retrying ↙   ╲ failed
  *   answer  none ─ answered ⇄ kept                    what is on screen from the hole's answers
  *   wake    cold ─ armed ─ waking ─ awake | failed    an island's hydration
+ *   live    idle ─ static | hydrating ─ live          a live region, driven by `applyLive`
  *
  * - The hole's fetch and its answer are two machines because they are independent: an answer can land
  *   while the hole waits to retry, or comes from a twin, a batch or a write at its address; the
@@ -17,6 +18,7 @@
  *   the visit it started in.
  */
 import { machine, type Machine } from '@ogygia/machine';
+import type { IslandHandle } from './hydrate-core.ts';
 
 type HoleStates = {
 	/** Not asked yet, or its fetch ended (answered, or torn down). */
@@ -112,4 +114,35 @@ export type Wake = Machine<WakeStates, typeof wake_steps>;
 /** An island's wake machine, cold. */
 export function create_wake(): Wake {
 	return wake_definition.create();
+}
+
+type LiveStates = {
+	/** No tick yet, or its island could not hydrate (the next tick starts over). */
+	idle: {};
+	/** A static region: the frame store's frames morph into it (it is subscribed while here). */
+	static: {};
+	/** An interactive tick's HTML is in; its island loads and hydrates. */
+	hydrating: { module: string };
+	/** Its island is live: a tick of the same module pushes props. Leaving disposes it. */
+	live: { module: string; app: IslandHandle };
+};
+
+const live_steps = {
+	idle: ['static', 'hydrating'],
+	static: ['idle', 'hydrating'],
+	hydrating: ['idle', 'static', 'hydrating', 'live'],
+	live: ['idle', 'static', 'hydrating']
+} as const;
+
+const live_definition = machine<LiveStates>()({
+	name: 'live-region',
+	initial: 'idle',
+	steps: live_steps
+});
+
+export type Live = Machine<LiveStates, typeof live_steps>;
+
+/** A live region's machine, before its first tick. */
+export function create_live(): Live {
+	return live_definition.create();
 }

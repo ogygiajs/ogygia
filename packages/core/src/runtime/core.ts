@@ -48,9 +48,11 @@ import { slots, type FrameOps } from './slots.ts';
 import {
 	create_answer,
 	create_hole,
+	create_live,
 	create_wake,
 	type Answer,
 	type Hole,
+	type Live,
 	type Wake
 } from './region-machines.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
@@ -516,8 +518,12 @@ class OgygiaRegion extends HTMLElement {
 	#leaving = false;
 	/** Live region (`<ogygia-region live>`): driven imperatively by Region.svelte's applyLive. */
 	#live_ready = false;
-	#live_app: IslandHandle | null = null;
-	#live_module = '';
+	/** Its mode, tick by tick: static (subscribed to the store), hydrating, live (./region-machines.ts). */
+	#live: Live = create_live();
+	/** The props of the latest same-module tick that came while its island hydrated: pushed once live. */
+	#live_props: Record<string, unknown> | null = null;
+	/** A static live region's subscription to its address, while it is static. */
+	#live_unsub: (() => void) | null = null;
 	// The two wake targets, bound once per element (not per connect): `#arm` hands them to a
 	// schedule, and `load` calls them straight — no closure built on the connect path. Each returns
 	// its promise: the interaction feature awaits it to know when the island is live (replay).
@@ -1094,13 +1100,15 @@ class OgygiaRegion extends HTMLElement {
 			this.dispatchEvent(new CustomEvent('ogygia:live', { bubbles: true }));
 			return;
 		}
+		const mine = this.#live.now;
 		const { frag, ready } = region_fragment(html);
 		// Wait for the component's stylesheet before painting. On first paint the region's placeholder
 		// CHILDREN stay visible meanwhile; on a later morph the OLD content stays — either way no flash
 		// of unstyled or missing content. An already-loaded sheet resolves instantly, so live ticks
 		// (query.live breathing) stay fast.
 		await ready;
-		if (!this.isConnected) return;
+		// (an interactive tick took over meanwhile: its island is not morphed over)
+		if (!this.isConnected || this.#live.now !== mine) return;
 		slots.lakes.settle_in(frag);
 		if (!this.#live_ready) {
 			this.replaceChildren(frag);
@@ -1528,46 +1536,59 @@ class OgygiaRegion extends HTMLElement {
 		// first paint, a `query.live` tick, or a SINGLE-FLIGHT mutation — flows through `#morph_live`
 		// (first swap, then breathing morph). Binding also catches OUT-OF-BAND writes: a command that
 		// returns `await region(C, props)` is decoded on its own response and written at this same
-		// address (id|props), so the mounted region morphs with NO extra fetch. Subscribe once.
+		// address (id|props), so the mounted region morphs with NO extra fetch. Subscribe once: the
+		// subscription belongs to `static` (an interactive tick taking over drops it), and entering
+		// `static` disposes an island an interactive tick hydrated.
 		if (!interactive) {
-			if (desc.url && !this.#frame_unsub) {
-				this.#frame_address = frameAddress(desc.url);
-				this.#frame_unsub =
-					slots.frames?.subscribe(this.#frame_address, (f) => this.#morph_live(f.html)) ?? null;
+			if (this.#live.now.kind !== 'static') this.#live.go('static');
+			if (desc.url && !this.#live_unsub) {
+				const off = slots.frames?.subscribe(
+					frameAddress(desc.url),
+					(f) => void this.#morph_live(f.html)
+				);
+				if (off) {
+					this.#live_unsub = off;
+					this.#live.onLeave(() => {
+						off();
+						this.#live_unsub = null;
+					});
+				}
 			}
-			this.#morph_live(desc.html);
+			void this.#morph_live(desc.html);
 			return;
 		}
 
+		const s = this.#live.now;
 		// Keep-alive: same interactive module, already mounted → reactive prop push, no DOM churn.
-		if (this.#live_ready && interactive && this.#live_app && desc.module === this.#live_module) {
-			this.#live_app.set_props?.(desc.props);
+		if (s.kind === 'live' && s.module === desc.module) {
+			s.app.set_props?.(desc.props);
 			this.dispatchEvent(new CustomEvent('ogygia:live', { bubbles: true }));
 			return;
 		}
-
-		// First tick, or the interactive module changed: (unmount and) swap + maybe hydrate.
-		if (this.#live_app) {
-			this.#live_app.dispose();
-			this.#live_app = null;
+		// Same module, its island still hydrating: its props are pushed once it is live (the latest
+		// tick's), never a second island on the same node.
+		if (s.kind === 'hydrating' && s.module === desc.module) {
+			this.#live_props = desc.props;
+			return;
 		}
+
+		// First tick, the interactive module changed, or it was static: swap + hydrate. (Leaving `live`
+		// disposes its island; leaving `static` drops its subscription; leaving `hydrating` ends that
+		// tick's hydrate before it mounts.)
+		this.#live.go('hydrating', { module: desc.module });
+		const mine = this.#live.now;
+		this.#live_props = null;
 		this.#live_ready = true;
-		this.#live_module = desc.module;
 		// createContextualFragment — signed same-origin HTML trust boundary (HOLE-TRUST). The HTML is
 		// our own SSR under a verified MAC (or, for a live tick, rendered in-process on the server).
 		const { frag, ready } = region_fragment(desc.html);
 		await ready; // stylesheet before paint — an interactive held region has CSS too (no FOUC)
-		if (!this.isConnected) return;
+		if (!this.isConnected || this.#live.now !== mine) return;
 		slots.lakes.settle_in(frag);
 		this.replaceChildren(frag);
 		restore_adopt_sheets();
 		init_shadow_registries(this);
-		if (interactive) {
-			await this.#live_hydrate(desc.props);
-		} else {
-			this.setAttribute('data-hydrated', '');
-			this.dispatchEvent(new CustomEvent('ogygia:live', { bubbles: true }));
-		}
+		await this.#live_hydrate(desc.props, mine, desc.module);
 	}
 
 	/**
@@ -1580,36 +1601,55 @@ class OgygiaRegion extends HTMLElement {
 		return core.kit_page_thread();
 	}
 
-	/** Hydrate a live region's swapped-in HTML through the hydrate core's live path. */
-	async #live_hydrate(props: Record<string, unknown>) {
-		// A pushed tick is no user gesture either: its island code asks for a slot like any scheduled
-		// wake (load-scheduler.ts).
-		await dom_ready();
-		if (!this.isConnected) return;
-		const entry = island_entry_of(this);
-		if (!entry) return;
-		const cls = () => viewport_class(this);
-		const release = await new LoadSlot({ kind: 'code', cls, label: entry }).ready;
-		let mod: IslandModule, core: HydrateCore;
+	/**
+	 * Hydrate a live region's swapped-in HTML through the hydrate core's live path — for the visit to
+	 * `hydrating` that swapped it (`mine`): a later tick that took over (another module, a static
+	 * tick) or the region leaving ends it before it mounts. One that could not mount goes back to
+	 * `idle`, so the next tick starts over.
+	 */
+	async #live_hydrate(props: Record<string, unknown>, mine: Live['now'], module: string) {
+		const ours = () => this.isConnected && this.#live.now === mine;
 		try {
-			if (!this.isConnected) return;
-			[mod, core] = await Promise.all([
-				load_island(entry, cls()),
-				hydrate_core(),
-				devalue_for_wake()
-			]);
+			// A pushed tick is no user gesture either: its island code asks for a slot like any
+			// scheduled wake (load-scheduler.ts).
+			await dom_ready();
+			if (!ours()) return;
+			const entry = island_entry_of(this);
+			if (!entry) return;
+			const cls = () => viewport_class(this);
+			const release = await new LoadSlot({ kind: 'code', cls, label: entry }).ready;
+			let mod: IslandModule, core: HydrateCore;
+			try {
+				if (!ours()) return;
+				[mod, core] = await Promise.all([
+					load_island(entry, cls()),
+					hydrate_core(),
+					devalue_for_wake()
+				]);
+			} finally {
+				release();
+			}
+			if (!ours()) return;
+			await this.#kit_page_ready(core);
+			if (!ours()) return;
+			if (CLIENT_PLUGINS) client_region_mount(this);
+			const app = core.hydrate_live(this, entry, mod, props);
+			if (!app) return;
+			this.#live.go('live', { module, app });
+			// (leaving `live` — a static tick, another module, the region gone — disposes it)
+			this.#live.onLeave(() => {
+				if (CLIENT_PLUGINS) client_region_unmount(this, this.getAttribute('entry') ?? '');
+				app.dispose();
+			});
+			const pending = this.#live_props;
+			this.#live_props = null;
+			if (pending) app.set_props?.(pending);
+			this.setAttribute('data-hydrated', '');
+			this.dispatchEvent(new CustomEvent('ogygia:hydrated', { bubbles: true }));
+			this.dispatchEvent(new CustomEvent('ogygia:live', { bubbles: true }));
 		} finally {
-			release();
+			if (this.#live.now === mine) this.#live.go('idle');
 		}
-		if (!this.isConnected) return;
-		await this.#kit_page_ready(core);
-		if (!this.isConnected) return;
-		if (CLIENT_PLUGINS) client_region_mount(this);
-		this.#live_app = core.hydrate_live(this, entry, mod, props);
-		if (!this.#live_app) return;
-		this.setAttribute('data-hydrated', '');
-		this.dispatchEvent(new CustomEvent('ogygia:hydrated', { bubbles: true }));
-		this.dispatchEvent(new CustomEvent('ogygia:live', { bubbles: true }));
 	}
 
 	/**
@@ -1638,12 +1678,10 @@ class OgygiaRegion extends HTMLElement {
 		if (this.#watching) mark_region_changed(this);
 		this.#unwatch();
 		// Out past the task it left in: the island is gone (a move came back before the microtask).
-		if (CLIENT_PLUGINS && (this.#live_app || this.#app))
-			client_region_unmount(this, this.getAttribute('entry') ?? '');
-		if (this.#live_app) {
-			this.#live_app.dispose();
-			this.#live_app = null;
-		}
+		if (CLIENT_PLUGINS && this.#app) client_region_unmount(this, this.getAttribute('entry') ?? '');
+		// a live region: leaving its mode disposes its island (the plugins told) or drops its
+		// subscription
+		if (this.#live.now.kind !== 'idle') this.#live.go('idle');
 		// The hole's fetch and the island's wake go back to rest: leaving their states drops every
 		// schedule listener armed in them, calls off a retry it waited for, and gives back this
 		// region's own stake in a shared fetch (aborted only if it was the last one). The answer
