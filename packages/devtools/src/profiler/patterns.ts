@@ -2029,6 +2029,38 @@ const CHAIN_MIN = 3;
 const CHAIN_MIN_MS = 20;
 
 /**
+ * The calls that started together (under 1 ms apart) with another call from the same calling line:
+ * one of a batch run in parallel (a `Promise.all`). Each calling line's calls are sorted by start
+ * once, so the call that started nearest to one is beside it.
+ */
+function batched_calls(calls: readonly WaitCall[]): Set<WaitCall> {
+	const by_line = new Map<string | undefined, Map<number | undefined, Set<WaitCall>>>();
+	for (const c of calls) {
+		const line = c.outer?.line ?? c.at?.line;
+		// (a line that is not a number is the same as no other; a start that is not finite starts
+		// together with nothing)
+		if (Number.isNaN(line) || !Number.isFinite(c.start)) continue;
+		const path = c.outer?.path ?? c.at?.path;
+		let lines = by_line.get(path);
+		if (!lines) by_line.set(path, (lines = new Map()));
+		let same = lines.get(line);
+		if (!same) lines.set(line, (same = new Set()));
+		same.add(c);
+	}
+	const out = new Set<WaitCall>();
+	for (const lines of by_line.values())
+		for (const same of lines.values()) {
+			const sorted = [...same].sort((a, b) => a.start - b.start);
+			for (let i = 1; i < sorted.length; i++)
+				if (Math.abs(sorted[i].start - sorted[i - 1].start) < 1) {
+					out.add(sorted[i]);
+					out.add(sorted[i - 1]);
+				}
+		}
+	return out;
+}
+
+/**
  * THE WAITS IN A ROW: calls made from ONE line whose waits did not overlap — each started after
  * the one before it ended — so the line waited for them one by one (`for (…) await fetch(…)`).
  * Measured, not guessed: the sum of the waits is what the line cost in wall time, the longest
@@ -2079,14 +2111,8 @@ export function find_wait_patterns(input: WaitInput): Pattern[] {
 		// link made the batch's other calls look like work running beside the chain.
 		// (started with another from the SAME calling line: a layout's call through the same helper,
 		// starting alongside, is not this chain's batch)
-		const batched = (c: WaitCall) =>
-			g.some(
-				(o) =>
-					o !== c &&
-					Math.abs(o.start - c.start) < 1 &&
-					(o.outer?.line ?? o.at?.line) === (c.outer?.line ?? c.at?.line) &&
-					(o.outer?.path ?? o.at?.path) === (c.outer?.path ?? c.at?.path)
-			);
+		const in_batch = batched_calls(g);
+		const batched = (c: WaitCall) => in_batch.has(c);
 		let run: WaitCall[] = batched(g[0]) ? [] : [g[0]];
 		for (let i = 1; i < g.length; i++) {
 			if (batched(g[i])) {

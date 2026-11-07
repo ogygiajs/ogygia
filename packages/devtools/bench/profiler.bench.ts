@@ -9,6 +9,7 @@ import { bench } from '@bench/heisenbench/bench';
 import { analyze, decode_mappings, type CpuProfile } from '../src/profiler/analyze.ts';
 import { doc_diff } from '../src/profiler/doc-diff.ts';
 import { attribute_gc, type AllocSite } from '../src/profiler/gc.ts';
+import { find_wait_patterns, type WaitCall } from '../src/profiler/patterns.ts';
 import { constant_work, key_sources } from '../src/profiler/source-scan.ts';
 
 const APP = 'file:///srv/app/build/server/chunks';
@@ -207,5 +208,34 @@ bench(
 	{
 		setup: () => gc_window(50),
 		scale: (_ctx, k) => gc_window(50 * k)
+	}
+);
+
+/** One helper line called in `chains` chains of awaits in a row (`for (…) await getItem(id)`), each
+ *  chain then a batch of three calls run together (a `Promise.all`), across two pages. */
+function wait_calls(chains: number): WaitCall[] {
+	const at = { path: '/srv/app/src/lib/api.ts', line: 12 };
+	const calls: WaitCall[] = [];
+	let t = 0;
+	for (let c = 0; c < chains; c++) {
+		const scope = c % 2 ? '/products' : '/cart';
+		const outer = { path: `/srv/app/src/routes${scope}/+page.server.ts`, line: 4 + (c % 3) };
+		for (let i = 0; i < 4; i++, t += 31)
+			calls.push({ start: t, ms: 30, target: 'GET api/items/:id', at, outer, scope });
+		for (let i = 0; i < 3; i++)
+			calls.push({ start: t, ms: 25, target: 'GET api/stock/:id', at, outer, scope });
+		t += 40;
+	}
+	return calls;
+}
+
+// Growth: n log n in the calls (one sort per helper line). It was quadratic while each call looked
+// through every other call of its line for one that started with it.
+bench(
+	'find_wait_patterns: the waits in a row of one helper line, as the calls grow',
+	({ calls }) => find_wait_patterns({ calls }).length,
+	{
+		setup: () => ({ calls: wait_calls(10) }),
+		scale: (_ctx, k) => ({ calls: wait_calls(10 * k) })
 	}
 );
