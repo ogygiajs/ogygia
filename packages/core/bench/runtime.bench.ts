@@ -1,6 +1,7 @@
 // The runtime's DOM-free work, run in Node: the fingerprint and signature hashes, the JSON lane of
-// a props sidecar, the page cache, and the keyed body morph of a navigation against the unit
-// tests' DOM shim (packages/core/test/_stubs/dom.ts; the shim's own work counts too).
+// a props sidecar, the page cache, the region element's machines, the frame store's shared fetches,
+// and the keyed body morph of a navigation against the unit tests' DOM shim
+// (packages/core/test/_stubs/dom.ts; the shim's own work counts too).
 //
 // Browser-only runtime code (the custom element, hydration, the router's navigation, the frame and
 // lake stores, interaction replay) needs a real document and waits for Heisenbench's browser coverage.
@@ -12,6 +13,14 @@ import { PageCache } from '../src/runtime/page-cache.ts';
 import { parse_wire_text } from '../src/runtime/wire-format.ts';
 import { failed_import_url, import_again, retry_url } from '../src/runtime/import-again.ts';
 import { ConcurrencyGate } from '../src/runtime/concurrency.ts';
+import {
+	create_answer,
+	create_hole,
+	create_live,
+	create_wake
+} from '../src/runtime/region-machines.ts';
+import * as frames from '../src/runtime/frame-store.ts';
+import type { IslandHandle } from '../src/runtime/hydrate-core.ts';
 
 bench(
 	'concurrency gate: hole renders through a gate of four (some slow, some past their time)',
@@ -164,4 +173,91 @@ bench(
 			return { parent, next: frag(list(next)) };
 		}
 	}
+);
+
+bench(
+	'region machines: holes fetch, retry and answer; their islands arm and wake; live regions switch modes',
+	({ n }) => {
+		let left = 0;
+		const leave = () => void left++;
+		const app: IslandHandle = { dispose: leave };
+		for (let i = 0; i < n; i++) {
+			const hole = create_hole();
+			const answer = create_answer();
+			const wake = create_wake();
+			hole.go('armed', { attempts: 0 });
+			hole.onLeave(leave); // (a schedule's listener)
+			hole.go('fetching', { attempts: 0, revalidate: false });
+			if (i % 3 === 0) {
+				// its fetch failed: it waits, re-arms, and tries again
+				hole.go('retrying', { attempts: 1, revalidate: false });
+				hole.go('armed', { attempts: 1 });
+				hole.go('fetching', { attempts: 1, revalidate: false });
+			}
+			if (i % 7 === 0) {
+				hole.go('failed');
+				continue;
+			}
+			hole.go('idle');
+			answer.go(i % 5 === 0 ? 'kept' : 'answered');
+			if (answer.now.kind === 'kept') continue;
+			wake.go('armed');
+			wake.onLeave(leave); // (the capture, handed on to `waking`)
+			wake.go('waking');
+			if (i % 11 === 0) wake.go('failed', { error: i });
+			else wake.go('awake');
+			wake.go('cold');
+		}
+		for (let i = 0; i < n / 4; i++) {
+			const live = create_live();
+			live.go('static');
+			live.onLeave(leave); // (its subscription)
+			live.go('hydrating', { module: 'a' });
+			live.go('live', { module: 'a', app });
+			live.onLeave(() => app.dispose());
+			live.go('hydrating', { module: 'b' });
+			live.go('idle');
+		}
+		return left;
+	},
+	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
+);
+
+bench(
+	'frame store: twin holes share one fetch per address, copies leave with their own stakes, a renewal is the address’s',
+	async ({ n }) => {
+		frames._reset();
+		const settled: Promise<string>[] = [];
+		for (let i = 0; i < n; i++) {
+			const a = `h${i}|p`;
+			const fetcher = () => Promise.resolve(`<p>${i}</p>`);
+			if (i % 4 === 0) {
+				// a batch reserved it: both copies join; one leaves; the batch delivers
+				frames.reserve(a);
+				const leaving = frames.ensure(a, fetcher);
+				const twin = frames.ensure(a, fetcher);
+				frames.abandon(leaving);
+				frames.write({ a, v: frames.ticket(a), html: `<p>batch ${i}</p>` });
+				settled.push(
+					leaving.catch(() => ''),
+					twin
+				);
+				continue;
+			}
+			const first = frames.ensure(a, fetcher);
+			const twin = frames.ensure(a, fetcher);
+			if (i % 3 === 0) frames.abandon(twin);
+			if (i % 5 === 0) frames.renew(a, `/__ogygia__?id=h${i}&props=p&exp=2&sig=new`);
+			settled.push(
+				first,
+				twin.catch(() => '')
+			);
+		}
+		const out = await Promise.all(settled);
+		let renewed = 0;
+		for (let i = 0; i < n; i++) if (frames.renewal(`h${i}|p`) !== null) renewed++;
+		frames._reset();
+		return out.filter((html) => html !== '').length * 1000 + renewed;
+	},
+	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
 );
