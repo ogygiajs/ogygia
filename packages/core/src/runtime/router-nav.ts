@@ -362,7 +362,12 @@ let soft_abort: AbortController | null = null;
  *  removes it, then re-attached. See {@link announce} / {@link reset_focus}. */
 let announcer: HTMLElement | null = null;
 
+/** Bumped by every clear of the page cache: a fetch that started before a clear (a prefetch out
+ *  when a remote mutation lands) must not fill the cache after it with the page as it was (#208). */
+let cache_gen = 0;
+
 export function bust_page_cache(): void {
+	cache_gen++;
 	page_cache.clear();
 	inflight.clear();
 	final_url.clear();
@@ -427,6 +432,8 @@ export function fetch_page(
 	// A fresh fetch is about to define this href's redirect fate — drop any stale mapping from an
 	// earlier (now cache-expired) prefetch so a non-redirecting response isn't shadowed by it.
 	final_url.delete(href);
+	/** the cache this fetch may fill: the one in place now, not one cleared while it was out */
+	const gen = cache_gen;
 
 	const go = () =>
 		fetch(href, {
@@ -455,7 +462,8 @@ export function fetch_page(
 			// followed transparently by `fetch`; the only trace is `response.url`. Record the landing
 			// href so `navigate()` can correct the address bar it optimistically pushed BEFORE the
 			// fetch — otherwise the old URL sits over the redirected content.
-			if (res.redirected && res.url && res.url !== href) final_url.set(href, res.url);
+			if (res.redirected && res.url && res.url !== href && gen === cache_gen)
+				final_url.set(href, res.url);
 			// NOTE: we intentionally swap even non-2xx HTML (e.g. Kit's SSR'd 404/500
 			// +error.svelte page) so error pages render without a full reload.
 			const html = await res.text();
@@ -479,7 +487,7 @@ export function fetch_page(
 		settled
 			.then((r) => {
 				if (r.html == null) return;
-				if (r.cacheable) page_cache.set(href, r.html);
+				if (r.cacheable && gen === cache_gen) page_cache.set(href, r.html);
 				// Warm the destination's island JS during the hover/idle runway, so the click path is
 				// swap + hydrate with no first-time import() per island — the module graph is already
 				// resolved when load_island() runs. This is the biggest prefetch win: without it, a warm
@@ -591,6 +599,12 @@ export async function navigate(
 			to: url.pathname + url.search,
 			type
 		});
+
+	// A soft refresh still out belongs to the page being left: its late answer would merge that
+	// page's head and data into this one (#202). The navigation brings its own.
+	soft_abort?.abort();
+	soft_abort = null;
+	soft_gen++;
 
 	// Cancel any in-flight navigation; only the latest gen may apply a body swap (P2).
 	r.nav_abort?.abort();

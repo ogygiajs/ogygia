@@ -335,6 +335,10 @@ export class SpaRouter {
 		// navigation in flight (the click listener swallows it) instead of starting — and aborting
 		// this one with — a second fetch. router-nav clears the claim when the navigation applies,
 		// is aborted, or is cancelled by a beforeNavigate hook.
+		// A claim made while another navigation is in flight (its chunk still loading, its page still
+		// out) takes over from it: the newest click wins. Without the bump, two clicks during the first
+		// chunk load held the same generation, and the FIRST to resume cancelled the LAST (#203).
+		if (this.nav_target !== null) this.nav_gen++;
 		this.nav_target = url.href;
 		const gen = this.nav_gen;
 		let n: Nav;
