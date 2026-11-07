@@ -1460,11 +1460,10 @@ export function constant_work(
 	}
 	// a function the load also names on a line that is not constant: its time is not all this
 	// work's, so it is not counted as this work's cost
-	const mine = stmt_lines;
-	for (const o of out)
-		o.calls = o.calls.filter(
-			(c) => !T.some((t, i) => i > body0 && i < body1 && !mine.has(i) && t.includes(c))
-		);
+	const elsewhere = new Set<string>();
+	for (let i = body0 + 1; i < body1; i++)
+		if (!stmt_lines.has(i)) for (const x of T[i]) elsewhere.add(x);
+	for (const o of out) o.calls = o.calls.filter((c) => !elsewhere.has(c));
 	return out;
 }
 
