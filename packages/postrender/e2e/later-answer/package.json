@@ -1,0 +1,14 @@
+{
+	"name": "postrender-e2e-later-answer",
+	"version": "0.0.0",
+	"private": true,
+	"description": "A plugin listed after postrender in its e2e fixture that answers some page requests itself (postrender.spec.ts S20).",
+	"type": "module",
+	"exports": {
+		"./vite": "./src/vite.ts",
+		"./server": "./src/server.ts"
+	},
+	"dependencies": {
+		"ogygia": "workspace:*"
+	}
+}
