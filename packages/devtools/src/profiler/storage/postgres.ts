@@ -20,6 +20,7 @@ import type {
 	ProfilerSummary,
 	ProfilerVisitRecord
 } from './index.ts';
+import { once } from '@ogygia/machine';
 import { MAX_VISITS_PER_KEY } from './visits.ts';
 
 interface PgLike {
@@ -47,8 +48,12 @@ export class PostgresStore implements ProfilerStore {
 	#base: string;
 	#R: string;
 	#V: string;
-	#c: PgLike | null = null;
-	#ready: Promise<void> | null = null;
+	/** the client, made once: two first calls share it, and a failure to make it is not kept */
+	#connect: () => Promise<PgLike>;
+	/** the client made, for `close` */
+	#made: PgLike | null = null;
+	/** the tables, made once: a setup that failed (a connection blip) is made again by the next call */
+	readonly #setup: () => Promise<void>;
 
 	constructor(client: PgLike | string, opts: { schema?: string; table?: string } = {}) {
 		const base = opts.table ?? 'ogygia';
@@ -58,6 +63,8 @@ export class PostgresStore implements ProfilerStore {
 		this.#base = base;
 		this.#R = q('reports');
 		this.#V = q('visits');
+		this.#connect = this.#connector();
+		this.#setup = once(() => this.#create_tables());
 	}
 
 	async init(): Promise<void> {
@@ -143,28 +150,37 @@ export class PostgresStore implements ProfilerStore {
 	}
 
 	async close(): Promise<void> {
-		await this.#c?.end?.();
-		this.#c = null;
+		const made = this.#made;
+		this.#made = null;
+		// (the next call connects again)
+		this.#connect = this.#connector();
+		await made?.end?.();
+	}
+
+	#connector(): () => Promise<PgLike> {
+		return once(async () => (this.#made = await resolve(this.#client)));
 	}
 
 	async #need(): Promise<PgLike> {
-		const c = (this.#c ??= await resolve(this.#client));
+		const c = await this.#connect();
+		await this.#setup();
+		return c;
+	}
+
+	async #create_tables(): Promise<void> {
+		const c = await this.#connect();
 		const R = this.#R;
 		const V = this.#V;
 		const base = this.#base;
 		const schema = this.#schema;
-		this.#ready ??= (async () => {
-			if (schema) await c.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
-			await c.query(
-				`CREATE TABLE IF NOT EXISTS ${R} (id TEXT PRIMARY KEY, created BIGINT NOT NULL, page TEXT, trigger TEXT, label TEXT, median DOUBLE PRECISION, dump JSONB NOT NULL)`
-			);
-			await c.query(`CREATE INDEX IF NOT EXISTS ${base}_reports_created ON ${R} (created DESC)`);
-			await c.query(
-				`CREATE TABLE IF NOT EXISTS ${V} (key TEXT PRIMARY KEY, page TEXT NOT NULL, at BIGINT NOT NULL, visit JSONB NOT NULL)`
-			);
-			await c.query(`CREATE INDEX IF NOT EXISTS ${base}_visits_page ON ${V} (page, at DESC)`);
-		})();
-		await this.#ready;
-		return this.#c!;
+		if (schema) await c.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
+		await c.query(
+			`CREATE TABLE IF NOT EXISTS ${R} (id TEXT PRIMARY KEY, created BIGINT NOT NULL, page TEXT, trigger TEXT, label TEXT, median DOUBLE PRECISION, dump JSONB NOT NULL)`
+		);
+		await c.query(`CREATE INDEX IF NOT EXISTS ${base}_reports_created ON ${R} (created DESC)`);
+		await c.query(
+			`CREATE TABLE IF NOT EXISTS ${V} (key TEXT PRIMARY KEY, page TEXT NOT NULL, at BIGINT NOT NULL, visit JSONB NOT NULL)`
+		);
+		await c.query(`CREATE INDEX IF NOT EXISTS ${base}_visits_page ON ${V} (page, at DESC)`);
 	}
 }
