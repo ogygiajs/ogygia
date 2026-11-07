@@ -104,7 +104,8 @@ export type FrameOps = {
 		fetcher: (signal: AbortSignal) => Promise<string>,
 		opts?: { force?: boolean }
 	): Promise<string>;
-	abandon(a: string): void;
+	/** Give back the stake an `ensure` returned: only that caller leaves the fetch. */
+	abandon(stake: Promise<string>): void;
 	/**
 	 * SINGLE-FLIGHT NAVIGATION: batch a page's signed deferred endpoints into the store as one streamed response. Lives
 	 * on the seam (not a static router import) so an app with `router` but no deferred/live/lake region

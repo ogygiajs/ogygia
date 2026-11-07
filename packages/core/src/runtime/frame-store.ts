@@ -31,8 +31,9 @@ type Inflight = {
 	ticket: number;
 	promise: Promise<string>;
 	controller: AbortController;
-	/** ensure() callers currently awaiting; last abandon() aborts. */
-	waiters: number;
+	/** The stakes `ensure()` handed out in it, one per caller: the last one abandoned aborts a fetch
+	 *  (counted per caller, not per address: a twin leaving gives up only its own). */
+	stakes: Set<Promise<string>>;
 	/**
 	 * Set ONLY for a reservation (an address whose content is arriving via an external batch stream,
 	 * not a fetch this store started). `write()` calls `settle` when the frame lands; `release()` calls
@@ -159,7 +160,7 @@ export function reserve(a: string): void {
 		ticket: ticket(a),
 		promise,
 		controller: new AbortController(),
-		waiters: 0,
+		stakes: new Set(),
 		settle,
 		fail
 	};
@@ -206,6 +207,25 @@ export function subscribe(a: string, cb: (f: Frame) => void): () => void {
 	};
 }
 
+/** Each stake `ensure()` handed out: the fetch (or reservation) it is in, and how to let its caller
+ *  go at once when it abandons. */
+const stakes = new WeakMap<
+	Promise<string>,
+	{ a: string; flight: Inflight; drop: (err: unknown) => void }
+>();
+
+/** A caller's own stake in `flight`: settles with it, unless the caller abandons it first. */
+function stake_in(a: string, flight: Inflight): Promise<string> {
+	let drop!: (err: unknown) => void;
+	const mine = new Promise<string>((resolve, reject) => {
+		drop = reject;
+		flight.promise.then(resolve, reject);
+	});
+	flight.stakes.add(mine);
+	stakes.set(mine, { a, flight, drop });
+	return mine;
+}
+
 /**
  * Ensure an address has content, deduping concurrent callers onto one fetch.
  *
@@ -216,7 +236,8 @@ export function subscribe(a: string, cb: (f: Frame) => void): () => void {
  * - `force` (SWR revalidate) always starts a new fetch; the ticket ordering still guarantees an
  *   older in-flight response can't overwrite it.
  *
- * Rejections propagate to every joined caller; retry policy stays with the caller (the element).
+ * The promise is the caller's own STAKE in the fetch: hand it to {@link abandon} to leave. Rejections
+ * propagate to every joined caller; retry policy stays with the caller (the element).
  */
 export function ensure(
 	a: string,
@@ -226,17 +247,14 @@ export function ensure(
 	const e = entry(a);
 	if (!opts.force) {
 		if (e.html != null) return Promise.resolve(e.html);
-		if (e.inflight) {
-			e.inflight.waiters++;
-			return e.inflight.promise;
-		}
+		if (e.inflight) return stake_in(a, e.inflight);
 	}
 	const controller = new AbortController();
 	const t = ticket(a);
 	const inflight: Inflight = {
 		ticket: t,
 		controller,
-		waiters: 1,
+		stakes: new Set(),
 		promise: fetcher(controller.signal).then(
 			(html) => {
 				if (e.inflight === inflight) e.inflight = null;
@@ -251,20 +269,27 @@ export function ensure(
 		)
 	};
 	e.inflight = inflight;
-	return inflight.promise;
+	return stake_in(a, inflight);
 }
 
 /**
- * A waiter is leaving (its element disconnected). Aborts the shared fetch only when the LAST
- * waiter leaves — one unmounting element must not kill a fetch its twin still awaits.
+ * A caller is leaving (its element disconnected) and gives back the stake `ensure()` handed it: that
+ * stake rejects at once (an `AbortError`), and only that one. The shared fetch is aborted only when
+ * its LAST stake leaves — one unmounting element must not kill a fetch its twin still awaits, and a
+ * stake in a fetch that already ended, or in one a forced fetch replaced, touches nothing newer. A
+ * batch reservation is the batch's: it stays for a later binder, and the batch's end releases it.
  */
-export function abandon(a: string): void {
+export function abandon(held: Promise<string>): void {
+	const s = stakes.get(held);
+	if (!s) return;
+	stakes.delete(held);
+	const { a, flight } = s;
+	flight.stakes.delete(held);
+	s.drop(new DOMException('the caller left', 'AbortError'));
+	if (flight.stakes.size > 0 || flight.settle) return;
 	const e = entries.get(a);
-	if (!e?.inflight) return;
-	if (--e.inflight.waiters <= 0) {
-		e.inflight.controller.abort();
-		e.inflight = null;
-	}
+	if (e?.inflight === flight) e.inflight = null;
+	flight.controller.abort();
 }
 
 /** Test/HMR hook — drop everything. */

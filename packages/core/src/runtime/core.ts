@@ -493,8 +493,11 @@ class OgygiaRegion extends HTMLElement {
 	#fetch_attempts = 0;
 	/** when this hole's first fetch started (devtools + profiler: how long its fallback showed) */
 	#fetch_started = 0;
-	/** Frame-store address (endpoint call) this region is fetching, so disconnect can release it. */
+	/** Frame-store address (endpoint call) this region is bound to. */
 	#frame_address: string | null = null;
+	/** This region's own stake in the shared fetch it awaits (frame-store `ensure`): disconnect gives
+	 *  back this one, never a twin's. */
+	#frame_stake: Promise<string> | null = null;
 	/** Unsubscribe from the frame store (a defer region binds to its address). */
 	#frame_unsub: (() => void) | null = null;
 	/** Set while an SWR revalidate is in flight, so the next apply marks `data-revalidated`. */
@@ -1137,14 +1140,15 @@ class OgygiaRegion extends HTMLElement {
 			)
 				await frames.join(endpoint);
 			const run = () =>
-				frames?.ensure(
-					address,
-					this.#frame_fetcher(endpoint, !!opts.revalidate, () =>
-						this.#user_woken ? 'user' : viewport_class(this)
-					),
-					{ force: opts.revalidate }
-				);
-			let html: string | undefined;
+				(this.#frame_stake =
+					frames?.ensure(
+						address,
+						this.#frame_fetcher(endpoint, !!opts.revalidate, () =>
+							this.#user_woken ? 'user' : viewport_class(this)
+						),
+						{ force: opts.revalidate }
+					) ?? null);
+			let html: string | null;
 			try {
 				html = await run();
 			} catch (err) {
@@ -1159,7 +1163,9 @@ class OgygiaRegion extends HTMLElement {
 			void html;
 			this.#adopt_renewed();
 		} catch (err) {
-			if ((err as { name?: string })?.name === 'AbortError' || outer.aborted) return;
+			// (only its OWN abort, disconnecting: a fetch that ended for any other reason is a failure,
+			// tried again like one)
+			if (outer.aborted) return;
 			// A refused answer is deterministic (a redirect rule in front of the handle, a refused
 			// capability, not a flaky network): say what answered instead and do not retry.
 			const refused = err instanceof RegionAnswerRefused;
@@ -1577,13 +1583,14 @@ class OgygiaRegion extends HTMLElement {
 		}
 		this.#fetch_abort?.abort();
 		this.#fetch_abort = null;
-		// Unbind from the store + release our stake in the shared fetch (aborted only if we were the
-		// last waiter).
+		// Unbind from the store + give back our own stake in the shared fetch (aborted only if it was
+		// the last one).
 		this.#frame_unsub?.();
 		this.#frame_unsub = null;
-		if (this.#frame_address) {
-			slots.frames?.abandon(this.#frame_address);
-			this.#frame_address = null;
+		this.#frame_address = null;
+		if (this.#frame_stake) {
+			slots.frames?.abandon(this.#frame_stake);
+			this.#frame_stake = null;
 		}
 		if (this.#idle_handle != null) {
 			if ('cancelIdleCallback' in window) {

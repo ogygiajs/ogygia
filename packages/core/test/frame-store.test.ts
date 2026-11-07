@@ -81,14 +81,52 @@ describe('frame-store: staleness', () => {
 });
 
 describe('frame-store: lifecycle', () => {
-	it('abandon aborts the fetch only when the LAST waiter leaves', () => {
+	it('abandon aborts the fetch only when the LAST stake leaves', () => {
 		const d = deferred();
-		frames.ensure('/r?sig=1', d.fetcher); // waiters: 1
-		frames.ensure('/r?sig=1', d.fetcher); // waiters: 2 (deduped)
-		frames.abandon('/r?sig=1');
-		expect(d.aborted).toBe(false); // one waiter still there
-		frames.abandon('/r?sig=1');
+		const a = frames.ensure('/r?sig=1', d.fetcher);
+		const b = frames.ensure('/r?sig=1', d.fetcher); // (deduped: a second stake in the same fetch)
+		a.catch(() => {});
+		b.catch(() => {});
+		frames.abandon(a);
+		expect(d.aborted).toBe(false); // one stake still there
+		frames.abandon(a); // (the same stake twice counts once)
+		expect(d.aborted).toBe(false);
+		frames.abandon(b);
 		expect(d.aborted).toBe(true); // last one out
+	});
+
+	it('an abandoned stake lets its caller go at once; the others still get the answer', async () => {
+		const d = deferred('X');
+		const leaving = frames.ensure('/r?sig=1', d.fetcher);
+		const staying = frames.ensure('/r?sig=1', d.fetcher);
+		frames.abandon(leaving);
+		await expect(leaving).rejects.toMatchObject({ name: 'AbortError' });
+		d.resolve('X');
+		expect(await staying).toBe('X');
+	});
+
+	it('a stake in a fetch that ended touches nothing newer at its address', async () => {
+		const first = deferred('ONE');
+		const old = frames.ensure('/r?sig=1', first.fetcher);
+		first.reject(new Error('net'));
+		await expect(old).rejects.toThrow('net');
+		const retry = deferred('TWO');
+		const fresh = frames.ensure('/r?sig=1', retry.fetcher);
+		frames.abandon(old); // (the copy that fetched first leaves)
+		expect(retry.aborted).toBe(false);
+		retry.resolve('TWO');
+		expect(await fresh).toBe('TWO');
+	});
+
+	it('a joiner of a fetch a forced fetch replaced leaves only the fetch it joined', () => {
+		const older = deferred();
+		const joined = frames.ensure('/r?sig=1', older.fetcher);
+		joined.catch(() => {});
+		const forced = deferred();
+		frames.ensure('/r?sig=1', forced.fetcher, { force: true }).catch(() => {});
+		frames.abandon(joined);
+		expect(forced.aborted).toBe(false);
+		expect(older.aborted).toBe(true); // (its last stake left)
 	});
 
 	it('a rejected fetch propagates to every joined caller and clears in-flight', async () => {
@@ -170,6 +208,18 @@ describe('frame-store: reservation (single-flight navigation)', () => {
 		const spy = vi.fn(deferred('LATE').fetcher);
 		frames.ensure('/r?sig=1', spy);
 		expect(spy).toHaveBeenCalledTimes(1);
+	});
+
+	it('the last joiner leaving a reservation lets it go, and a later binder still joins the batch', async () => {
+		frames.reserve('/r?sig=1');
+		const leaving = frames.ensure('/r?sig=1', vi.fn());
+		frames.abandon(leaving);
+		await expect(leaving).rejects.toMatchObject({ name: 'AbortError' });
+		const spy = vi.fn(deferred().fetcher);
+		const later = frames.ensure('/r?sig=1', spy);
+		expect(spy).not.toHaveBeenCalled(); // the batch is still coming
+		frames.write({ a: '/r?sig=1', v: 9, html: 'FROM-BATCH' });
+		expect(await later).toBe('FROM-BATCH');
 	});
 
 	it('release() is a no-op once the frame has landed', () => {
