@@ -6,6 +6,11 @@
 // Each test drops the first N downloads of one chunk at the network (the browser sees a failed
 // fetch, as on a dropped connection), found by a string only that chunk carries in a production
 // build. Against the built palaestra (/lazy-retry).
+//
+// What the browser does, measured here: a module whose download failed stays failed in its module
+// map for the life of the page; a second import() of the same URL fails without a request. The
+// runtime asks for a failed lazy chunk again under a fresh URL (runtime/import-again.ts). A failed
+// chunk SHARED with others (imported statically) cannot be asked for again at all.
 // Usage: pnpm exec playwright test lazy-chunk-retry
 import { expect, test, type Page } from '@playwright/test';
 import { check, replayed_once } from '@ogygia/tooling/e2e';
@@ -107,21 +112,27 @@ test.describe('lazy chunks that fail once are loaded again (#201)', () => {
 		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
 	});
 
-	test('devalue dropped until a wake fails: the next wake loads it afresh, its Date intact', async ({
+	// devalue is not a chunk of its own in a Kit app: it shares one with Kit's client, which other
+	// chunks import statically. A SHARED chunk that failed stays failed for the life of the page in
+	// Chromium and Firefox (no URL trick reaches a static import), so its islands cannot wake until a
+	// reload. What the runtime owes then: say so for each wake, leave nothing uncaught, hang nothing.
+	test('devalue’s shared chunk dropped: each wake that needs it says so, nothing uncaught', async ({
 		page
 	}) => {
 		const thrown = errors(page);
-		const seen = await drop(page, 'devalue', 2);
+		const logged: string[] = [];
+		page.on('console', (m) => m.type() === 'error' && logged.push(m.text()));
+		const seen = await drop(page, 'devalue', 1);
 		await page.goto('/lazy-retry');
-		await expect.poll(() => seen.dropped).toBe(2);
-		check('the near island did not hydrate', !(await hydrated(page, 'near', 500)));
+		await expect.poll(() => seen.dropped).toBe(1);
+		await expect
+			.poll(() => logged.filter((t) => t.includes('island_load_failed')).length)
+			.toBeGreaterThan(0);
 		await page.locator('[data-dated-counter="far"]').scrollIntoViewIfNeeded();
-		check('the far island hydrated', await hydrated(page, 'far'));
-		check(
-			'its Date prop crossed as a Date',
-			(await page.locator('[data-dated-counter="far"]').getAttribute('data-since-ok')) === 'true'
-		);
-		check('it counts', await counts(page, 'far'));
+		// the far wake settles too (reported, not left pending): a second report
+		await expect
+			.poll(() => logged.filter((t) => t.includes('island_load_failed')).length)
+			.toBeGreaterThan(1);
 		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
 	});
 
