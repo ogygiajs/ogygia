@@ -82,7 +82,7 @@ test.describe('dev: an installed (not linked) ogygia runs as one copy in the bro
 			fs.writeFileSync(path.join(app, rel), text);
 		}
 		// the packages exactly as published (publishConfig swaps the exports to dist), unpacked: ogygia,
-		// the core it re-exports, and the devtools plugin the app lists
+		// the core it re-exports (and the machine package core depends on), and the devtools plugin
 		const nm = path.join(app, 'node_modules');
 		const unpack = (from: string, to: string) => {
 			fs.mkdirSync(to, { recursive: true });
@@ -103,6 +103,8 @@ test.describe('dev: an installed (not linked) ogygia runs as one copy in the bro
 		};
 		unpack(pkg, path.join(nm, 'ogygia'));
 		unpack(core, path.join(nm, '@ogygia', 'core'));
+		// (core's own dependency, released with it)
+		unpack(path.join(repo, 'packages', 'machine'), path.join(nm, '@ogygia', 'machine'));
 		unpack(path.join(repo, 'packages', 'devtools'), path.join(nm, '@ogygia', 'devtools'));
 		for (const dep of [
 			'svelte',

@@ -261,6 +261,7 @@
 		"verify:package": "node scripts/verify-package.ts"
 	},
 	"dependencies": {
+		"@ogygia/machine": "workspace:^",
 		"devalue": "catalog:",
 		"esm-env": "catalog:",
 		"estree-walker": "^3.0.3",

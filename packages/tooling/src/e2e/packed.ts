@@ -1,7 +1,8 @@
 // The packed (published-shape) `ogygia` for the suites that install it outside the workspace.
 // `ogygia` is a thin package over `@ogygia/core` and depends on it by exact version, which the
 // registry may not have yet: the app gets both tarballs, and its own pnpm-workspace.yaml overrides
-// `@ogygia/core` with core's tarball, so the install never asks the registry for it.
+// `@ogygia/core` with core's tarball, so the install never asks the registry for it. The same goes
+// for `@ogygia/machine`, which core depends on (released with it, so also not on the registry yet).
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -10,10 +11,12 @@ import { REPO } from './paths.ts';
 /** The `ogygia` package apps install (packages/ogygia) and the core it re-exports (packages/core). */
 export const OGYGIA_DIR = join(REPO, 'packages', 'ogygia');
 export const CORE_DIR = join(REPO, 'packages', 'core');
+export const MACHINE_DIR = join(REPO, 'packages', 'machine');
 
 export interface PackedOgygia {
 	ogygia: string;
 	core: string;
+	machine: string;
 }
 
 /** `pnpm pack` one package into `dest`; the tarball's absolute path. */
@@ -27,9 +30,13 @@ export function pack(dir: string, dest: string): string {
 	return line.startsWith('/') ? line : join(dest, line.split('/').pop()!);
 }
 
-/** Pack `ogygia` and `@ogygia/core` (both already built) into `dest`. */
+/** Pack `ogygia`, `@ogygia/core` and `@ogygia/machine` (all already built) into `dest`. */
 export function pack_ogygia(dest: string): PackedOgygia {
-	return { ogygia: pack(OGYGIA_DIR, dest), core: pack(CORE_DIR, dest) };
+	return {
+		ogygia: pack(OGYGIA_DIR, dest),
+		core: pack(CORE_DIR, dest),
+		machine: pack(MACHINE_DIR, dest)
+	};
 }
 
 /** Point the app at the packed `ogygia`: its dependency, plus the `@ogygia/core` override in the app's
@@ -46,6 +53,6 @@ export function use_packed(app: string, packed: PackedOgygia): void {
 		throw new Error(`${ws} already has overrides: merge them by hand`);
 	writeFileSync(
 		ws,
-		`${before}${before && !before.endsWith('\n') ? '\n' : ''}overrides:\n  '@ogygia/core': 'file:${packed.core}'\n`
+		`${before}${before && !before.endsWith('\n') ? '\n' : ''}overrides:\n  '@ogygia/core': 'file:${packed.core}'\n  '@ogygia/machine': 'file:${packed.machine}'\n`
 	);
 }

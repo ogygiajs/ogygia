@@ -42,6 +42,8 @@
  * pointer reaches an armed island or input lands — off the boot path, ahead of the replay.
  */
 
+import { once } from '@ogygia/machine';
+import { import_again } from './import-again.ts';
 import { slots } from './slots.ts';
 import { warm_island_module } from './region-endpoint-url.ts';
 import { island_entry_of } from './entry-locations.ts';
@@ -133,14 +135,18 @@ type Armed = {
 const armed = new Map<Element, Armed>();
 let installed = false;
 
-/** THE REPLAY HALF, loaded once, when the first region arms. */
+/** THE REPLAY HALF, loaded once, when the first region arms. A download that fails is tried again
+ *  at once and never kept: the next wake (or the failure path below) loads it afresh. */
 type Replay = typeof import('./interaction-replay.ts');
-let replay_promise: Promise<Replay> | null = null;
+const load_replay: () => Promise<Replay> = once(
+	import_again(() => import('./interaction-replay.ts')),
+	{ retries: 1 }
+);
 function replay(): Promise<Replay> {
 	// Link what the replay chunk uses from this module right where the chunk is loaded, so whoever
 	// loads it (the feature's arm, or a direct `arm_interaction`) has linked it (./slots.ts `BootLink`).
 	slots.interaction_link ??= { resolve_address };
-	return (replay_promise ??= import('./interaction-replay.ts'));
+	return load_replay();
 }
 
 /** The nearest ARMED region above an event's target (past nested regions that are not armed), never
@@ -245,7 +251,12 @@ function wake(a: Armed, e: Event): void {
 			// clicks — native behavior (links, form posts, checkboxes) must keep working on the
 			// dead-but-real HTML. Replay the swallowed clicks so the failed one still acts.
 			disarm();
-			replay().then((r) => r.replay_clicks(region, queued));
+			// (the replay half itself may be what failed: asked for again; if it fails again the
+			// clicks are lost, and said so, never left as an unhandled rejection)
+			replay().then(
+				(r) => r.replay_clicks(region, queued),
+				(again: unknown) => console.error(new OgygiaError('interaction_hydrate_failed'), again)
+			);
 			console.error(new OgygiaError('interaction_hydrate_failed'), err);
 		}
 	);
