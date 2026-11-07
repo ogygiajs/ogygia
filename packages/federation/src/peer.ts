@@ -82,30 +82,25 @@ export class PeerHandle implements Peer {
 			this.#cache_put(key, hit); // LRU touch
 			if (Date.now() - hit.at >= ttl && !this.#inflight.has(key)) {
 				const gen = this.#generation;
-				const p = this.#raw_doc(path, search, undefined, claims, traceparent)
-					.then((doc) => {
-						// an error answer never replaces the good copy (the next stale read retries)
-						if (gen === this.#generation && cacheable(doc))
-							this.#cache_put(key, { doc, at: Date.now(), tags: this.#adopt_tags(doc) });
-						return doc;
-					})
-					.finally(() => this.#inflight.delete(key));
-				this.#inflight.set(key, p);
-				p.catch(() => {});
+				const p = this.#raw_doc(path, search, undefined, claims, traceparent).then((doc) => {
+					// an error answer never replaces the good copy (the next stale read retries)
+					if (gen === this.#generation && cacheable(doc))
+						this.#cache_put(key, { doc, at: Date.now(), tags: this.#adopt_tags(doc) });
+					return doc;
+				});
+				this.#track(key, p);
 			}
 			return hit.doc;
 		}
 		let p = this.#inflight.get(key);
 		if (!p) {
 			const gen = this.#generation;
-			p = this.#raw_doc(path, search, undefined, claims, traceparent)
-				.then((doc) => {
-					if (gen === this.#generation && ttl > 0 && cacheable(doc))
-						this.#cache_put(key, { doc, at: Date.now(), tags: this.#adopt_tags(doc) });
-					return doc;
-				})
-				.finally(() => this.#inflight.delete(key));
-			this.#inflight.set(key, p);
+			p = this.#raw_doc(path, search, undefined, claims, traceparent).then((doc) => {
+				if (gen === this.#generation && ttl > 0 && cacheable(doc))
+					this.#cache_put(key, { doc, at: Date.now(), tags: this.#adopt_tags(doc) });
+				return doc;
+			});
+			this.#track(key, p);
 		}
 		try {
 			return await p;
@@ -202,6 +197,17 @@ export class PeerHandle implements Peer {
 				}
 			}
 		}
+	}
+
+	/** `p` is THE request for `key` until it ends; then it leaves, but only if it is still the one
+	 *  there (a drop or a mutation may have started a newer one meanwhile: removing that one let the
+	 *  next read start yet another upstream fetch, #210). */
+	#track(key: string, p: Promise<FragmentDocument>): void {
+		this.#inflight.set(key, p);
+		const leave = () => {
+			if (this.#inflight.get(key) === p) this.#inflight.delete(key);
+		};
+		p.then(leave, leave);
 	}
 
 	#cache_put(key: string, entry: Entry): void {

@@ -70,11 +70,14 @@ export const notify: Notify = new Proxy({} as Notify, {
 		}
 });
 
-/** The first implementation that answers something other than `undefined`. */
+/** The first implementation that answers something other than `undefined`. When none answered and
+ *  one threw, the ask throws that error: "nobody knows" and "the one who knows could not say" are
+ *  different answers (a store down once read as "no store", and the deploy thaw was lost, #198). */
 export const ask: Ask = new Proxy({} as Ask, {
 	get:
 		(_, name: string) =>
 		async (...args: unknown[]): Promise<unknown> => {
+			let failed: { error: unknown } | null = null;
 			// (a copy: an implementation may join or leave while a hook awaits)
 			for (const impl of implementations.slice()) {
 				const fn = impl[name];
@@ -84,8 +87,10 @@ export const ask: Ask = new Proxy({} as Ask, {
 					if (answer !== undefined) return answer;
 				} catch (e) {
 					warn('plugin_hook_failed', { name }, e);
+					failed ??= { error: e };
 				}
 			}
+			if (failed) throw failed.error;
 			return undefined;
 		}
 });
