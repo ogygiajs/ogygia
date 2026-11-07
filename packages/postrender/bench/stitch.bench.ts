@@ -37,7 +37,8 @@ bench(
 	'esi_rewrite: edge holes into ESI includes',
 	({ html }) => esi_rewrite(html, '/catalog/').length,
 	{
-		setup: () => ({ html: page(200) })
+		setup: () => ({ html: page(200) }),
+		scale: (_ctx, k) => ({ html: page(200 * k) })
 	}
 );
 
@@ -45,7 +46,10 @@ bench(
 	'stitch_html: splice fifty rendered holes into the page',
 	async ({ html }) =>
 		(await stitch_html(html, async (endpoint) => `<p data-from="${endpoint}">rendered</p>`)).length,
-	{ setup: () => ({ html: page(200) }) }
+	{
+		setup: () => ({ html: page(200) }),
+		scale: (_ctx, k) => ({ html: page(200 * k) })
+	}
 );
 
 const entry = (i: number): PostrenderEntry => ({

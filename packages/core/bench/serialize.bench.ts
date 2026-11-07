@@ -72,7 +72,7 @@ bench(
 		for (const b of data.catalog.blocks) count += plan_seed_refs(index, { block: b }).count;
 		return count;
 	},
-	{ setup: () => ({ data: page_tree() }) }
+	{ setup: () => ({ data: page_tree() }), scale: (_ctx, k) => ({ data: page_of(20 * k) }) }
 );
 
 bench(
@@ -84,12 +84,14 @@ bench(
 		return count;
 	},
 	{
-		setup: () => {
-			const data = page_tree();
-			return { data, props: data.catalog.blocks.map((b) => ({ block: structuredClone(b) })) };
-		}
+		setup: () => clones_of(page_tree()),
+		scale: (_ctx, k) => clones_of(page_of(20 * k))
 	}
 );
+
+function clones_of(data: ReturnType<typeof page_tree>) {
+	return { data, props: data.catalog.blocks.map((b) => ({ block: structuredClone(b) })) };
+}
 
 bench('page seed: the JSON lane', ({ page }) => PageSeed.serialize(page, stringify, true), {
 	setup: () => ({
@@ -113,6 +115,9 @@ bench('page seed: the devalue lane', ({ page }) => PageSeed.serialize(page, stri
 			status: 200,
 			data: { ...page_tree(), updated: new Date(Date.UTC(2026, 8, 10)) }
 		}
+	}),
+	scale: (ctx, k) => ({
+		page: { ...ctx.page, data: { ...page_of(20 * k), updated: ctx.page.data.updated } }
 	})
 });
 
@@ -139,7 +144,10 @@ bench(
 		tail.hole('h1', '/__ogygia__/r?id=1&p=abc', '');
 		return tail.render(SeedIndex.of(data)).length;
 	},
-	{ setup: () => ({ data: page_tree(), header_props: header() }) }
+	{
+		setup: () => ({ data: page_tree(), header_props: header() }),
+		scale: (ctx, k) => ({ data: page_of(20 * k), header_props: ctx.header_props })
+	}
 );
 
 bench(
