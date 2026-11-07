@@ -195,6 +195,62 @@
 		{
 			"id": "packages/content/src/collection-base.ts > ignore",
 			"reason": "a no-op (a failure reported elsewhere, on a promise nothing else awaits); it runs only when a live connection fails before its first read, which a bench would have to wait out a reconnect timer for; proven in packages/content/test/lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/beacon.ts > on_show",
+			"reason": "browser only: the page shown again (its tab, a back/forward cache restore) reopens the visit, one compare-and-set move; proven in packages/core/test/browser/beacon-visit-reopen.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/beacon.ts > schedule > addEventListener:1",
+			"reason": "browser only: the pageshow listener (a back/forward cache restore), constant work; proven in packages/core/test/browser/beacon-visit-reopen.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > show",
+			"reason": "browser only, inside the inlined standalone beacon script: reopens the visit, constant work; proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > addEventListener:1 > addEventListener:1",
+			"reason": "browser only, inside the inlined standalone beacon script: the pageshow listener, constant work; proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #take",
+			"reason": "takes the recorder for a recording: runs only before a V8 inspector capture (its session and lazy imports, refused in the bench window), constant work; proven in packages/devtools/test/profiler-recorder.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #holds",
+			"reason": "a recording's ownership check, one compare: runs only inside a V8 inspector capture's page renders; proven in packages/devtools/test/profiler-recorder.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #free",
+			"reason": "frees the recorder for its owner only: runs only after a V8 inspector capture, constant work; proven in packages/devtools/test/profiler-recorder.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #wait_for_background",
+			"reason": "a page profile or a window waiting (50 ms polls, up to 8 s) for a background capture to give the recorder back: real time around a V8 inspector capture; proven in packages/devtools/test/profiler.test.ts (the trap and the sampler) and packages/devtools/test/profiler-recorder.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #window_start > settled",
+			"reason": "a started window's capture settled: ends the window and frees its own token, constant work; runs only after a V8 inspector capture; proven in packages/devtools/test/profiler-recorder.test.ts and packages/devtools/test/profiler-window-cap.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #window_answer",
+			"reason": "a stopped window's one answer: awaits the V8 inspector capture, then its report; proven in packages/devtools/test/profiler-recorder.test.ts and packages/devtools/e2e/profiler-window-instances.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #window_report",
+			"reason": "a stopped window's report from its V8 inspector capture, with the requests it saw (moved out of #window_stop as it was, closures too); proven in packages/devtools/test/profiler-recorder.test.ts and packages/devtools/e2e/profiler-window-instances.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > call:0 > after > recording > data",
+			"reason": "the recorder machine's timed step (a recording still running 32 s after it started is cut): its data, constant work, after a real wait no bench can make; proven in packages/devtools/test/profiler-recorder.test.ts (the hard cap)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > own_spans",
+			"reason": "puts a capture's span recorder in: runs only as a V8 inspector capture starts, constant work; proven in packages/devtools/test/profiler-recorder.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > disown_spans",
+			"reason": "takes a capture's span recorder out, handing spans back to the newest left: runs only as a V8 inspector capture ends, linear in the captures open (one or two); proven in packages/devtools/test/profiler-recorder.test.ts"
 		}
 	]
 }
