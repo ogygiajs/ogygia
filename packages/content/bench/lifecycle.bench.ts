@@ -4,13 +4,40 @@
 // client over a stand-in worker (the browser's Worker is the client's only browser need).
 import { bench } from '@bench/heisenbench/bench';
 import * as v from 'valibot';
-// (the modules themselves, not the package's index or the site layer: those reach its Svelte
-// components, which a bench in plain node does not compile)
-import { content } from '../src/factory.ts';
-import type { Source, SourceEntry } from '../src/source.ts';
-import { outline } from '../src/site/outline.ts';
-import { create_search, orama_engine } from '../src/site/search.ts';
+// (the site layer reaches the package's own Svelte components, written for experimental.async:
+// Heisenbench compiles them with the package's svelte.config.js)
+import { content, type Source, type SourceEntry } from '../src/index.ts';
+import { site } from '../src/site/site.ts';
 import { dimensions } from '../src/site/dimensions.ts';
+import { create_search, type SearchEngine } from '../src/site/search.ts';
+
+/** Every content collection registers in one process-wide graph (relations, backlinks), and a
+ *  graph read walks all of them: each run starts from an empty graph, or a run would walk the
+ *  collections every earlier run made and count more than the one before. */
+function fresh<T>(ctx: T): T {
+	const graph = (globalThis as Record<symbol, { all?: Set<unknown> } | undefined>)[
+		Symbol.for('ogygia.content.graph')
+	];
+	graph?.all?.clear();
+	return ctx;
+}
+
+/** A search engine in the bench itself: the site's default (Orama) loads lazily on the first query,
+ *  and a module load is file IO, which a measuring window refuses. What is measured is the search
+ *  brain around the engine: when it builds the index again (the content changed) and that it never
+ *  keeps a failed build. */
+const in_memory: SearchEngine = {
+	async build(docs) {
+		return {
+			async query(q, { limit }) {
+				return docs
+					.filter((d) => d.text.includes(q) || d.title.includes(q))
+					.slice(0, limit)
+					.map((d) => ({ id: d.id, href: d.id, title: d.title, excerpt: '', score: 1 })) as never;
+			}
+		};
+	}
+};
 import { SearchClient } from '../src/site/search-client.ts';
 import { CONTENT_ERRORS } from '../src/messages/runtime.ts';
 
@@ -57,8 +84,8 @@ bench(
 		const rows = Array.from({ length: 20 }, (_, i) => doc(i));
 		const src = live_source(rows);
 		const c = content({ schema, loader: src.source });
-		const ol = outline(c as never);
-		const search = create_search(ol, orama_engine());
+		const s = site({ outline: c });
+		const search = create_search(s.outline, in_memory);
 		let found = (await search('islands')).length;
 		const error = console.error;
 		console.error = () => {};
@@ -69,7 +96,7 @@ bench(
 				src.emit(i % 2 === 0 ? [`guide/p${id}`] : 1); // by id, or "something changed"
 				await tick();
 				await tick();
-				found += (await ol.tree()).length + (await search('islands')).length;
+				found += (await s.nav()).length + (await search('islands')).length;
 			}
 			src.drop(); // the connection drops: opened again after its wait, the source read again
 			await new Promise((r) => setTimeout(r, 1100));
@@ -85,7 +112,7 @@ bench(
 		found += CONTENT_ERRORS.content_live_change_failed.details().length;
 		return found;
 	},
-	{ setup: () => ({ n: 12 }), scale: (_ctx, k) => ({ n: 12 * k }) }
+	{ setup: () => fresh({ n: 12 }), scale: (_ctx, k) => fresh({ n: 12 * k }) }
 );
 
 bench(
@@ -109,14 +136,14 @@ bench(
 					});
 				}
 			});
-			const search = create_search(d, orama_engine());
-			await d.resolve('fr/guide/p1').catch(() => null);
-			if (await d.resolve('fr/guide/p1')) pages++;
-			pages += (await search('islands')).length;
+			const s = site({ outline: d });
+			await s.page('fr/guide/p1').catch(() => null);
+			if (await s.page('fr/guide/p1')) pages++;
+			pages += (await create_search(s.outline, in_memory)('islands')).length;
 		}
 		return pages;
 	},
-	{ setup: () => ({ n: 6 }), scale: (_ctx, k) => ({ n: 6 * k }) }
+	{ setup: () => fresh({ n: 6 }), scale: (_ctx, k) => fresh({ n: 6 * k }) }
 );
 
 /** The browser's Worker, stood in for: answers the client as the search worker does. */
