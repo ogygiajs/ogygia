@@ -168,6 +168,57 @@ describe('types', () => {
 		});
 	});
 
+	it('after: a timeout takes one of its state’s steps, with the data that state needs', () => {
+		compile_only(() => {
+			machine<{ a: { n: number }; b: { m: number }; c: {} }>()({
+				name: 'ok',
+				initial: 'a',
+				steps: { a: ['b', 'c'], b: [], c: [] },
+				after: {
+					a: { ms: (s) => s.n * 10, to: 'b', data: (s) => ({ m: s.n }) },
+					b: undefined
+				}
+			});
+			machine<{ a: {}; b: {}; c: {} }>()({
+				name: 'x',
+				initial: 'a',
+				steps: { a: ['b'], b: ['c'], c: [] },
+				// @ts-expect-error: `c` is not one of `a`'s steps
+				after: { a: { ms: 1, to: 'c' } }
+			});
+			machine<{ a: {}; b: { m: number } }>()({
+				name: 'x',
+				initial: 'a',
+				steps: { a: ['b'], b: [] },
+				// @ts-expect-error: `b` needs its data
+				after: { a: { ms: 1, to: 'b' } }
+			});
+			machine<{ a: {}; b: { m: number } }>()({
+				name: 'x',
+				initial: 'a',
+				steps: { a: ['b'], b: [] },
+				// @ts-expect-error: wrong data
+				after: { a: { ms: 1, to: 'b', data: () => ({ m: 'one' }) } }
+			});
+			machine<{ a: {}; b: {} }>()({
+				name: 'x',
+				initial: 'a',
+				steps: { a: ['b'], b: [] },
+				// @ts-expect-error: `b` takes no data
+				after: { a: { ms: 1, to: 'b', data: () => ({}) } }
+			});
+		});
+	});
+
+	it('graph and paths name the states', () => {
+		expectTypeOf(hole.graph().initial).toEqualTypeOf<
+			'idle' | 'fetching' | 'applying' | 'failed' | 'maybe' | 'done'
+		>();
+		expectTypeOf(hole.paths()).toEqualTypeOf<
+			('idle' | 'fetching' | 'applying' | 'failed' | 'maybe' | 'done')[][]
+		>();
+	});
+
 	it('once and lock', () => {
 		const load = once(async () => 42);
 		expectTypeOf(load).toEqualTypeOf<() => Promise<number>>();
