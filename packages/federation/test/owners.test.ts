@@ -123,6 +123,35 @@ describe('the deploy thaw is tried again until it is done (#198)', () => {
 		p.off();
 	});
 
+	it('the peer never takes the thaw AND the store is down for putting the marker back: a later check still thaws', async () => {
+		vi.useFakeTimers({ now: 1_000_000 });
+		const p = producer({ peer_down: 4 });
+		// the store answers the first ask (moving the marker to the new build), then is down for the
+		// rollback: the marker stays on the new build, so lastBuild alone no longer says a thaw is owed
+		let calls = 0;
+		const real_off = registered.pop()!;
+		real_off();
+		registered.push(
+			register_hooks({
+				lastBuild(v: string) {
+					calls++;
+					if (calls === 1) return 'the build before';
+					if (calls === 2) throw new Error('store unreachable');
+					return v; // the marker says the new build from here on
+				}
+			})
+		);
+		const first = deploy_thaw_check(p.fed);
+		await vi.advanceTimersByTimeAsync(10_000);
+		await first;
+		expect(p.thaws).toHaveLength(0);
+		await vi.advanceTimersByTimeAsync(60_000);
+		const second = deploy_thaw_check(p.fed);
+		await vi.advanceTimersByTimeAsync(10_000);
+		await second;
+		expect(p.thaws).toHaveLength(1); // still owed: thawed though the marker already moved
+	});
+
 	it('done is done: a check after a successful thaw does nothing', async () => {
 		vi.useFakeTimers({ now: 1_000_000 });
 		const p = producer({});
