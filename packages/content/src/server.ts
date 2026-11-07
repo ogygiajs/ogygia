@@ -124,8 +124,12 @@ export function withRemotes<T extends Record<string, unknown> = Record<string, u
 					Promise.all((await Promise.all(rows.filter(filter).map((e) => c.withGraph(e)))).map(map));
 
 				return query.live(async function* () {
-					yield await project(await c.ready());
-					for await (const _ of c.watchChanges()) yield await project(c.snapshot());
+					const first = await c.ready();
+					// (the version of THIS snapshot: a change made while it is projected and sent is
+					// yielded at the next pull, not missed — #191)
+					const sent = c.version();
+					yield await project(first);
+					for await (const _ of c.watchChanges(sent)) yield await project(c.snapshot());
 				}) as unknown as ListRemote<Out>;
 			},
 
@@ -143,8 +147,9 @@ export function withRemotes<T extends Record<string, unknown> = Record<string, u
 
 				return query.live(string_arg, async function* (id: unknown) {
 					await c.ready();
+					const sent = c.version(); // (as for list: changes after this version are yielded)
 					yield await project(id as string);
-					for await (const _ of c.watchChanges()) yield await project(id as string);
+					for await (const _ of c.watchChanges(sent)) yield await project(id as string);
 				}) as unknown as GetRemote<Out>;
 			}
 		}
