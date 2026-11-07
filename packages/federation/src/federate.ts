@@ -94,22 +94,27 @@ export function federate<P extends Record<string, PeerConfig>>(
 	return out;
 }
 
-/** Send one thaw notice to every peer (fire-and-forget with bounded retries). Also the chain
- *  forwarder: a notice this app RECEIVED and applied re-broadcasts with `hop + 1`. */
+/** Send one thaw notice to every peer (bounded retries each). Also the chain forwarder: a notice
+ *  this app RECEIVED and applied re-broadcasts with `hop + 1`. Whether every peer took it (the deploy
+ *  thaw tries again when one did not). */
 export async function broadcast_thaw(
 	fed: Federation,
 	notice: { id: string; hop: number; tags: string[] | 'all' }
-): Promise<void> {
-	if (notice.hop >= HOP_MAX) return;
+): Promise<boolean> {
+	if (notice.hop >= HOP_MAX) return true;
 	const bytes = new TextEncoder().encode(JSON.stringify({ ...notice, from: fed.name }));
 	const body = bytes.buffer.slice(
 		bytes.byteOffset,
 		bytes.byteOffset + bytes.byteLength
 	) as ArrayBuffer;
-	await Promise.allSettled([...fed.peers.values()].map((peer) => post_thaw(fed, peer, body)));
+	const reached = await Promise.all(
+		[...fed.peers.values()].map((peer) => post_thaw(fed, peer, body))
+	);
+	return reached.every(Boolean);
 }
 
-async function post_thaw(fed: Federation, peer: Peer, body: ArrayBuffer): Promise<void> {
+/** Post one thaw notice to `peer`, retrying: whether it took it. */
+async function post_thaw(fed: Federation, peer: Peer, body: ArrayBuffer): Promise<boolean> {
 	const u = new URL(THAW_PATH, peer.origin);
 	const attempts = [0, 200, 1000, 5000];
 	for (let i = 0; i < attempts.length; i++) {
@@ -122,11 +127,12 @@ async function post_thaw(fed: Federation, peer: Peer, body: ArrayBuffer): Promis
 				body,
 				signal: AbortSignal.timeout(5000)
 			});
-			if (res.ok) return;
+			if (res.ok) return true;
 		} catch {
 			/* unreachable — retry, then the peer's TTL backstop holds */
 		}
 	}
+	return false;
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));

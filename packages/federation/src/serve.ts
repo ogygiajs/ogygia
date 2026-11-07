@@ -7,6 +7,7 @@
  * handle owns all of it, so a `federate()` in hooks.server.ts is the whole wiring.
  */
 import { version } from '$app/env';
+import { machine } from '@ogygia/machine';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { ServerApp } from '@ogygia/core/plugin';
 import { current_federation } from './registry.ts';
@@ -63,24 +64,60 @@ export function install_federation(app: ServerApp): void {
 // broadcasts a thaw-all so every consumer drops the stored pages that baked its now-stale assets.
 // A store plugin keeps the last build it saw (the shared `lastBuild` hook; on a shared store only a
 // changed `version` fires). No store plugin: nothing remembers a build, nothing fires.
-let deploy_checked = false;
+//
+// Its lifecycle, one machine: not checked yet (or a failed check, with the time a request may try
+// again), checking (requests meanwhile join it), done. A check fails when the store cannot answer,
+// or when a peer never took the thaw (then the marker is put back, so the next check still sees the
+// old build). It once flipped to done before the work and was never tried again: one store blip at
+// the first request after a deploy, and consumers kept pages with stale asset hashes until TTL (#198).
+const deploy_thaw = machine<{
+	unchecked: { after: number };
+	checking: { run: Promise<void> };
+	done: {};
+}>()({
+	name: 'deploy thaw',
+	initial: 'unchecked',
+	steps: { unchecked: ['checking'], checking: ['done', 'unchecked'], done: [] }
+});
+
+/** A failed check is tried again by a request at least this long after it. */
+const DEPLOY_RETRY_MS = 30_000;
+
+let deploy = deploy_thaw.create({ after: 0 });
 
 /** Tests: forget the deploy thaw's state (a fresh boot). */
 export function reset_deploy_thaw_for_tests(): void {
-	deploy_checked = false;
+	deploy = deploy_thaw.create({ after: 0 });
 }
 
-export async function deploy_thaw_check(fed: Federation): Promise<void> {
-	if (deploy_checked || fed.deploy !== 'auto') return;
-	deploy_checked = true;
+/** The deploy check for this request: start it, join the one running, or nothing (done, or a
+ *  failed one not due again yet). */
+export function deploy_thaw_check(fed: Federation): Promise<void> {
+	if (fed.deploy !== 'auto') return Promise.resolve();
+	const s = deploy.now;
+	if (s.kind === 'checking') return s.run;
+	if (s.kind === 'done' || Date.now() < s.after) return Promise.resolve();
+	const run = check_deploy(fed).then(
+		() => void deploy.move('checking', 'done'),
+		() => void deploy.move('checking', 'unchecked', { after: Date.now() + DEPLOY_RETRY_MS })
+	);
+	deploy.move('unchecked', 'checking', { run });
+	return run;
+}
+
+/** One check: throws when it must be tried again. */
+async function check_deploy(fed: Federation): Promise<void> {
 	if (!fed.expose && fed.widgets.size === 0) return; // only producers matter
-	try {
-		const seen = await fed_app()?.ask.lastBuild(version);
-		if (seen !== undefined && seen !== version)
-			await broadcast_thaw(fed, { id: crypto.randomUUID(), hop: 0, tags: 'all' });
-	} catch {
-		/* store unavailable — deploy-thaw is best-effort, the TTL backstop still holds */
-	}
+	const app = fed_app();
+	if (!app) return;
+	// (throws when the store cannot answer: a check to try again, not "no store")
+	const seen = await app.ask.lastBuild(version);
+	if (seen === undefined || seen === version) return;
+	const reached = await broadcast_thaw(fed, { id: crypto.randomUUID(), hop: 0, tags: 'all' });
+	if (reached) return;
+	// a peer never took it: the store goes back to the build before, so the next check thaws again
+	await app.ask.lastBuild(seen);
+	throw new Error('deploy thaw: a peer did not take the notice');
 }
 
 /** Dispatch a federation request, or null if the path is none of ours. */

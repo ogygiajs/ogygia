@@ -2,7 +2,7 @@
  * The plugin API v2 (internal/notes/packages.md): config-time checks, realms named by the plugin, the
  * generated `virtual:ogygia/server-plugins`, shared hooks, facts, route config, and the test starter.
  */
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
@@ -223,6 +223,28 @@ describe('shared hooks — notify / ask', () => {
 	it('nobody implementing: notify does nothing, ask answers undefined', async () => {
 		await expect(notify.invalidated('all')).resolves.toBeUndefined();
 		expect(await ask.lastBuild('v')).toBeUndefined();
+	});
+	it('ask: one that throws is skipped when another answers, and thrown when none does (#198)', async () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const down = new Error('store unreachable');
+		const leave_a = register_hooks({
+			lastBuild: () => {
+				throw down;
+			}
+		});
+		try {
+			// the only one that knows could not say: not the same as nobody knowing
+			await expect(ask.lastBuild('v')).rejects.toBe(down);
+			const leave_b = register_hooks({ lastBuild: () => 'v1' });
+			try {
+				expect(await ask.lastBuild('v')).toBe('v1');
+			} finally {
+				leave_b();
+			}
+		} finally {
+			leave_a();
+			warn.mockRestore();
+		}
 	});
 });
 
