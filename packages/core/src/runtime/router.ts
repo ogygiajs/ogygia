@@ -12,7 +12,7 @@
  * intercepted click. A visitor who never leaves the page never downloads it.
  */
 import { kit_hydrates_page } from './kit-boot.ts';
-import { create_navigation, type Navigation } from './navigation.ts';
+import { create_navigation, create_soft_refresh, type Navigation } from './navigation.ts';
 import { slots } from './slots.ts';
 import { publish_nav } from './nav-handle.ts';
 import { nearest_attr } from './nearest-attr.ts';
@@ -215,7 +215,13 @@ let loaded_nav: Nav | null = null;
 function nav(): Promise<Nav> {
 	// Link what the navigation chunk uses from this module right where the chunk is loaded
 	// (./slots.ts `BootLink`: it never imports this module, or both would be split out of the runtime).
-	slots.router_link ??= { document_key, jump_to_hash, push_state, replace_state };
+	slots.router_link ??= {
+		document_key,
+		jump_to_hash,
+		push_state,
+		replace_state,
+		soft: create_soft_refresh()
+	};
 	if (!nav_promise)
 		nav_promise = import('./router-nav.ts').then(
 			(m) => (loaded_nav = m),

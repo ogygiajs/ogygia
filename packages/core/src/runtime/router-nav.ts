@@ -11,7 +11,6 @@
  * two `'*'` walks and a seed parse inside `startViewTransition`, on the frame the transition
  * captures.
  */
-import { machine, STALE } from '@ogygia/machine';
 import { PageCache } from './page-cache.ts';
 import { boot_link, router_link, slots } from './slots.ts';
 import { dispose_scope } from '../ref.ts';
@@ -51,6 +50,8 @@ const note_entry_location = (entry: string, src: string | null, base?: string) =
 const register_island_graph = (text: string, base: string) =>
 	boot_link().register_island_graph(text, base);
 const yield_task = () => boot_link().yield_task();
+/** What a machine's task answers once its visit is left (the boot's `@ogygia/machine`). */
+const is_stale = (v: unknown) => v === boot_link().STALE;
 const document_key = (url: URL) => router_link().document_key(url);
 const jump_to_hash = (hash: string) => router_link().jump_to_hash(hash);
 const push_state = (state: unknown, url: string) => router_link().push_state(state, url);
@@ -353,18 +354,8 @@ const final_url = new Map<string, string>();
  *  import dedupe lives in the shared `warm_island_module`.) */
 const warmed_pages = new Set<string>();
 /** (Hard SPA navigations are the router's own machine, `r.nav` (./navigation.ts), so a "same
- *  document" decision there can stop one in flight: SpaRouter.supersede.) */
-/**
- * THE SOFT REFRESH (`invalidateAll`), a machine of its own: refreshing it never cancels a real
- * click navigation, but a real navigation ends it (its answer belongs to the page being left,
- * #202), and a newer refresh supersedes it. Each refresh is a visit: its fetch is a task of it, and
- * each step after an await checks it is still `mine`.
- */
-const soft = machine<{ idle: {}; refreshing: { href: string } }>()({
-	name: 'soft refresh',
-	initial: 'idle',
-	steps: { idle: ['refreshing'], refreshing: ['refreshing', 'idle'] }
-}).create();
+ *  document" decision there can stop one in flight: SpaRouter.supersede. The soft refresh is its
+ *  machine too, `router_link().soft`, also in ./navigation.ts.) */
 /** The visually-hidden `aria-live` region that announces each navigation to screen readers. Created
  *  lazily on the first nav and reused (a live region must persist so assistive tech observes its
  *  mutations). It lives in `<body>` but is DETACHED before each body swap so the reconcile never
@@ -614,6 +605,7 @@ export async function navigate(
 
 	// A soft refresh still out belongs to the page being left: its late answer would merge that
 	// page's head and data into this one (#202). The navigation brings its own.
+	const { soft } = router_link();
 	if (soft.now.kind === 'refreshing') soft.go('idle');
 
 	// This navigation's visit: only it may apply a body swap (P2). A newer click starts a new visit:
@@ -638,7 +630,7 @@ export async function navigate(
 	let html: string | null;
 	try {
 		const fetched = await r.nav.task((signal) => fetch_page(url.href, signal, purpose));
-		if (fetched === STALE) return; // a newer navigation took over (and aborted this fetch)
+		if (is_stale(fetched)) return; // a newer navigation took over (and aborted this fetch)
 		html = fetched;
 	} catch {
 		location.href = url.href;
@@ -914,20 +906,21 @@ export async function navigate(
  * that need query updates use `.refresh()`, or `submit().updates(q)` with server
  * `requested(q).refreshAll()` (updates alone does not populate response `q`).
  *
- * Its own machine (`soft`, above) so soft fetches never cancel an in-flight click navigation;
+ * Its own machine (`soft`, ./navigation.ts) so soft fetches never cancel an in-flight click navigation;
  * a real navigation ends a soft refresh in flight.
  */
 export async function invalidate_all(): Promise<void> {
 	bust_page_cache();
 	const url = new URL(location.href);
 
+	const { soft } = router_link();
 	soft.go('refreshing', { href: url.href });
 	const mine = soft.now;
 
 	let html: string | null;
 	try {
 		const fetched = await soft.task((signal) => fetch_page(url.href, signal));
-		if (fetched === STALE) return; // a navigation, or a newer refresh, took over
+		if (is_stale(fetched)) return; // a navigation, or a newer refresh, took over
 		html = fetched;
 	} catch {
 		if (soft.now === mine) soft.go('idle');
