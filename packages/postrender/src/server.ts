@@ -427,7 +427,11 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			state.settle = null;
 			// Invalidated while it rendered: this render may be the page as it was before the publish.
 			// It goes to the visitor who asked; nothing stores it, and joiners render the page anew.
+			// Stamped no-store like every refusal (when the app set nothing): a CDN's property-wide TTL
+			// must not keep the pre-publish page, nor a personalized one that never reached the
+			// personalization guards below.
 			if (invalidation_count() !== state.invalidations) {
+				stamp_no_store(response);
 				settle({ stored: null });
 				ctx.app.devtools({
 					domain: 'server',
