@@ -59,6 +59,7 @@ import {
 	page_slot_chunks,
 	late_region_chunks,
 	merge_chunks,
+	until_drained,
 	PAGE_SLOT_ID
 } from './stream.ts';
 
@@ -459,7 +460,9 @@ export function routes<const T extends KeyedTable<T>>(
 					: late?.length
 						? late_region_chunks(late)
 						: null;
-		if (chunk_src && m === 'GET') return stream_document(await res.text(), res, chunk_src);
+		// (and every late region that registers while those chunks bake, until none is left)
+		if (chunk_src && m === 'GET')
+			return stream_document(await res.text(), res, until_drained(chunk_src, take_late_regions));
 		return res;
 	}
 
