@@ -15,6 +15,7 @@ import {
 	store_put,
 	join_flight,
 	begin_flight,
+	settle_flight,
 	invalidate,
 	invalidateWhere,
 	invalidate_tags
@@ -256,11 +257,11 @@ describe('postrender/registry', () => {
 	afterEach(() => reset_for_tests());
 
 	it('single-flight: joiners see the first render’s outcome', async () => {
-		const settle = begin_flight('/hot/');
+		const flight = begin_flight('/hot/');
 		const join = join_flight('/hot/');
 		expect(join).not.toBeNull();
 		const entry = page_entry();
-		settle({ stored: entry });
+		settle_flight('/hot/', flight, { stored: entry });
 		expect((await join!).stored).toBe(entry);
 		// the flight is gone once settled
 		expect(join_flight('/hot/')).toBeNull();
@@ -269,16 +270,28 @@ describe('postrender/registry', () => {
 	it('single-flight: a flight settles once, and a late settle never ends a newer flight (#194)', async () => {
 		const first = begin_flight('/hot/');
 		const joined_first = join_flight('/hot/')!;
-		first({ stored: null }); // the request that opened it ended (its `done`)
+		settle_flight('/hot/', first, { stored: null }); // the request that opened it ended (its `done`)
 		const second = begin_flight('/hot/');
 		const joined_second = join_flight('/hot/')!;
-		first({ stored: page_entry() }); // a late, second settle of the old flight
+		settle_flight('/hot/', first, { stored: page_entry() }); // a late, second settle of the old flight
 		expect((await joined_first).stored).toBeNull(); // settled once, with the first outcome
-		expect(join_flight('/hot/')).toBe(joined_second); // the newer flight is still open
+		expect(second.now.kind).toBe('rendering'); // the newer flight is still open …
+		expect(join_flight('/hot/')).not.toBeNull(); // … and still the one joiners find
 		const entry = page_entry();
-		second({ stored: entry });
+		settle_flight('/hot/', second, { stored: entry });
 		expect((await joined_second).stored).toBe(entry);
 		expect(join_flight('/hot/')).toBeNull();
+	});
+
+	it('single-flight: an invalidation turns every flight still rendering stale (#194)', async () => {
+		const a = begin_flight('/a/');
+		const b = begin_flight('/b/');
+		settle_flight('/b/', b, { stored: null });
+		await invalidate('/somewhere-else/');
+		expect(a.now.kind).toBe('stale'); // any invalidation: what it read may have changed
+		expect(b.now.kind).toBe('done'); // a settled one stays as it was
+		settle_flight('/a/', a, { stored: null });
+		expect(a.now.kind).toBe('done');
 	});
 
 	it('store failures never throw through store_get/put', async () => {
