@@ -2209,9 +2209,7 @@ class FileCompilation {
 		// is re-processed when the entry `.svelte` is transformed, so converting it here would double-edit.
 		// One sweep, not every pair: in start order (ties: the longer first) a candidate sits inside
 		// another exactly when the furthest end reached before it covers its end, or a twin shares its span.
-		const by_start = [...portable_candidates].sort(
-			(a, b) => a.snip.start - b.snip.start || b.snip.end - a.snip.end
-		);
+		const by_start = [...portable_candidates].sort(outer_spans_first);
 		const nested = new Set<(typeof portable_candidates)[number]>();
 		let reach = -Infinity;
 		for (let i = 0; i < by_start.length; i++) {
@@ -2581,6 +2579,11 @@ class FileCompilation {
  * @param raw the text between the `with {` and `}`
  * @returns
  */
+/** Span order for the portable-snippet nesting sweep: by start, the longer span first on a tie. */
+function outer_spans_first(a: { snip: SvelteNode }, b: { snip: SvelteNode }): number {
+	return a.snip.start - b.snip.start || b.snip.end - a.snip.end;
+}
+
 function parse_import_attrs(raw: string) {
 	const attrs = new Map();
 	IMPORT_ATTR_PAIR_G.lastIndex = 0; // shared `g` regex — start each scan at 0
