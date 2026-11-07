@@ -82,6 +82,42 @@ test.describe('streamed pages (yield regions): flush-before-slow-yield timing, t
 		);
 	});
 
+	// 2c) A LATE REGION THAT HOLDS ANOTHER (#199): the inner region registers while the outer's
+	// chunk is baked, after the router drained the first list. Its slot is filled down the same
+	// response too, never left as an empty slot nothing fills.
+	test('late regions: a late region holding another promise region streams both', async ({
+		baseURL,
+		page
+	}) => {
+		const raw = await (await fetch(baseURL + '/rtr/stream-region-nested')).text();
+		const slots = [...raw.matchAll(/<og-late-slot data-og-slot="(r\d+)"/g)].map((m) => m[1]);
+		const filled = [...raw.matchAll(/<template data-og-late="(r\d+)"/g)].map((m) => m[1]);
+		check(
+			'nested late region: the inner region has its slot',
+			raw.includes('data-inner-skeleton') && slots.length >= 2,
+			slots.join(',')
+		);
+		check(
+			'nested late region: every slot has its chunk',
+			slots.every((s) => filled.includes(s)),
+			`slots ${slots.join(',')}, chunks ${filled.join(',')}`
+		);
+		check(
+			'nested late region: the inner payload is in the response',
+			raw.includes('inner late region')
+		);
+		await page.goto('/rtr/stream-region-nested', { waitUntil: 'domcontentloaded' });
+		await page.waitForTimeout(500);
+		check(
+			'nested late region (browser): the inner payload swapped in',
+			(await page.locator('[data-stream-outer] [data-stream-payload]').count()) === 1
+		);
+		check(
+			'nested late region (browser): no placeholder left',
+			(await page.locator('[data-inner-skeleton], [data-region-skeleton]').count()) === 0
+		);
+	});
+
 	// 3) BROWSER truth: payload swapped in, template consumed, the LATE island is interactive
 	test('browser: payload swapped in, template consumed, LATE island interactive + SPA-swap twin', async ({
 		page
