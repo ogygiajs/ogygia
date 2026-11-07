@@ -93,6 +93,8 @@ bench(
 			for (let i = 0; i < n; i++) {
 				const id = 20 + i;
 				rows.push(doc(id, i % 5 === 0 ? 5 : `Page ${id}`)); // one in five fails its schema
+				// an editor saves a bad field on a page already there: it keeps its last good version
+				if (i % 4 === 3) rows[1] = doc(1, 7);
 				src.emit(i % 2 === 0 ? [`guide/p${id}`] : 1); // by id, or "something changed"
 				await tick();
 				await tick();
@@ -142,6 +144,41 @@ bench(
 			pages += (await create_search(s.outline, in_memory)('islands')).length;
 		}
 		return pages;
+	},
+	{ setup: () => fresh({ n: 6 }), scale: (_ctx, k) => fresh({ n: 6 * k }) }
+);
+
+bench(
+	'content: an outline and a search index that fail once are never kept',
+	async ({ n }) => {
+		let found = 0;
+		for (let i = 0; i < n; i++) {
+			let refs_fail = 1;
+			let build_fail = 1;
+			const c = content({
+				schema,
+				loader: {
+					get: async () => null,
+					refs: async () => {
+						if (refs_fail-- > 0) throw new Error('source down');
+						return [doc(1), doc(2)];
+					}
+				} as Source<Meta>
+			});
+			const s = site({ outline: c });
+			await s.nav().catch(() => null); // the source is down: the outline fails
+			found += (await s.nav()).length; // and the next read builds it
+			const failing: SearchEngine = {
+				async build(docs) {
+					if (build_fail-- > 0) throw new Error('index build failed');
+					return in_memory.build(docs);
+				}
+			};
+			const search = create_search(s.outline, failing);
+			await search('Page').catch(() => null); // the index build fails
+			found += (await search('Page')).length; // and the next query builds it again
+		}
+		return found;
 	},
 	{ setup: () => fresh({ n: 6 }), scale: (_ctx, k) => fresh({ n: 6 * k }) }
 );
