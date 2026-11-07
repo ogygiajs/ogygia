@@ -151,6 +151,40 @@ describe('a live source keeps going (#190)', () => {
 	});
 });
 
+describe('a source that is down never leaves live connections behind', () => {
+	it('reads that fail while the source is down share one connection, and the change it brings applies once', async () => {
+		const rows = [row('a', 'A')];
+		const { source, ctl, push } = liveSource(rows);
+		ctl.refs_fail = 3;
+		const reads = vi.spyOn(source, 'refs');
+		const c = content({ schema, loader: source });
+		for (let i = 0; i < 3; i++) await expect(c.refs()).rejects.toThrow('source down');
+		expect((await c.refs()).map((e) => e.id)).toEqual(['a']);
+		expect(ctl.subscribed).toBe(1); // one connection, not one per failed read
+		const before = reads.mock.calls.length;
+		push(row('b', 'B'));
+		await settle();
+		expect((await c.refs()).map((e) => e.id)).toEqual(['a', 'b']);
+		expect(reads.mock.calls.length - before).toBe(1); // the change read once, by one connection
+	});
+
+	it('a reconnect whose read fails waits and tries again on the same connection', async () => {
+		vi.useFakeTimers();
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		const rows = [row('a', 'A')];
+		const { source, ctl } = liveSource(rows);
+		ctl.live_drops = 1;
+		const c = content({ schema, loader: source });
+		await c.refs();
+		ctl.refs_fail = 3; // the source is down for the next three reads
+		await vi.advanceTimersByTimeAsync(0);
+		rows.push(row('b', 'B'));
+		await vi.advanceTimersByTimeAsync(120_000);
+		expect((await c.refs()).map((e) => e.id)).toContain('b'); // it came back, and was read
+		expect(ctl.subscribed).toBe(2); // the first, and the one opened again: not one per retry
+	});
+});
+
 describe('a change made while the first value is built is not missed (#191)', () => {
 	it('the live connection is open before the first full read: a change during it is seen', async () => {
 		// a source that announces each change to whoever listens AT THAT MOMENT (a CMS webhook feed,
