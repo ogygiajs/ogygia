@@ -164,6 +164,33 @@ test.describe('devtools (dev server, OGYGIA_DEVTOOLS=1): events, panel tabs, pag
 		check('no dependency found late', late.length === 0, late.slice(0, 3).join(' | '));
 	});
 
+	test('the dock’s code fails to download once: the button does not stick on “loading…”, a click loads it again (#201)', async ({
+		page
+	}) => {
+		let dropped = 0;
+		await page.route(
+			(url) => url.pathname.includes('ui-app'),
+			(route) => (dropped++ === 0 ? route.abort('failed') : route.continue())
+		);
+		const thrown: string[] = [];
+		page.on('pageerror', (e) => thrown.push(String(e)));
+		await page.goto('/interaction', { waitUntil: 'load' });
+		// the closed dock's code loads once the page is idle: that first download is dropped
+		await expect.poll(() => dropped, { timeout: 15_000 }).toBeGreaterThan(0);
+		await page.waitForTimeout(300);
+		const launcher = page.locator('[data-og-panel-toggle]');
+		check('the button is still there', (await launcher.count()) === 1);
+		await launcher.click();
+		const open = await page
+			.locator('[data-og-win]')
+			.waitFor({ timeout: 20_000 })
+			.then(() => true)
+			.catch(() => false);
+		check('a click after the failed download loads the dock and opens it', open);
+		check('the dock’s code was asked for again', dropped >= 2, `${dropped} request(s)`);
+		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
+	});
+
 	test('schema, server realm, panel tabs, event-driven wake/replay, identity spine, nav, trace, timeline', async ({
 		page
 	}) => {
