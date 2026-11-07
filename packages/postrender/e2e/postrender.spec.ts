@@ -595,4 +595,61 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 			cfr_html.includes('<esi:include') && cfr_html.includes('data-stitch-fallback')
 		);
 	});
+
+	// THE STAMPEDE FLIGHT BELONGS TO ITS REQUEST (#194): it settles however that request ends, and a
+	// publish during it means its render is not the page any more.
+	test('S20 a later plugin answers the flight’s request: the next cold request is not left waiting', async () => {
+		const path = '/fr/fr/c/later-answered';
+		// the first cold request opens the flight; a plugin after postrender answers it itself, so
+		// postrender's `response()` never runs for it
+		const first = await fetch(origin + path, { headers: { 'x-later-answer': '1' } });
+		check('S20: the later plugin answered', first.headers.get('x-later-answer') === '1');
+		// a plain cold request for the same page: before the fix it joined that flight and waited forever
+		const second = await Promise.race([
+			fetch(origin + path).then(async (r) => ({ status: r.status, html: await r.text() })),
+			new Promise<null>((r) => setTimeout(() => r(null), 5000))
+		]);
+		check('S20: the next request answered (not left waiting on the flight)', second !== null);
+		check(
+			'S20: …with the page itself',
+			second !== null && second.status === 200 && second.html.includes('data-postrender-page')
+		);
+	});
+
+	test('S21 a publish lands while the page renders: the render is served, not stored', async () => {
+		const slug = 'slow-published';
+		const path = `/fr/fr/c/${slug}`;
+		// the render reads v1, then takes 600 ms more (a slow upstream)
+		const rendering = fetch(origin + path).then(async (r) => ({
+			html: await r.text(),
+			cache: r.headers.get('cache-control') ?? ''
+		}));
+		await new Promise((r) => setTimeout(r, 200));
+		// the editor publishes v2 while it renders: the webhook bumps the doc and invalidates the URL
+		const pub = await fetch(origin + '/api/publish', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ slug })
+		});
+		check('S21: published', pub.ok);
+		const first = await rendering;
+		check(
+			'S21: the visitor who asked got the render (v1, read before the publish)',
+			first.html.includes(`content of ${slug} v1`)
+		);
+		// …marked no-store like every refused render: a CDN's property-wide TTL must not keep the
+		// page as it was before the publish either
+		check(
+			'S21: that render goes out no-store',
+			first.cache.includes('no-store'),
+			first.cache || '(no cache-control)'
+		);
+		const after = await fetch(origin + path);
+		const html = await after.text();
+		check(
+			'S21: the next request shows v2, not the v1 render stored after the publish',
+			html.includes(`content of ${slug} v2`),
+			`${via(after)}: ${html.includes(`content of ${slug} v1`) ? 'v1' : '?'}`
+		);
+	});
 });

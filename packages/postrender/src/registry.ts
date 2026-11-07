@@ -112,6 +112,7 @@ export async function invalidate_tags(
 	tags: readonly string[],
 	runtime: Runtime = current_runtime()
 ): Promise<string[]> {
+	invalidations++;
 	const { store, edges } = runtime;
 	const evict_by_tag = store.evictByTag?.bind(store);
 	if (!evict_by_tag) {
@@ -158,6 +159,15 @@ export async function store_put(
 	}
 }
 
+/** Take `key` out of the origin store (a broken store never fails a render). */
+export async function store_evict(runtime: Runtime, key: string): Promise<void> {
+	try {
+		await runtime.store.evict(key);
+	} catch {
+		/* a broken store must never 500 a render */
+	}
+}
+
 // ── single-flight ──────────────────────────────────────────────────────────────────────────────
 // The stampede law (the harness DEFINES it): N concurrent cold requests for an ELIGIBLE page =
 // ONE render. The first request registers its flight; joiners await the outcome. `stored: null`
@@ -171,16 +181,36 @@ export function join_flight(key: string): Promise<FlightOutcome> | null {
 	return inflight.get(key) ?? null;
 }
 
+/**
+ * Open the flight for `key`. The settle it returns is the request's to call however that request
+ * ends (the plugin's `done` settles it when nothing else did): it settles once, and only ever
+ * removes ITS flight, never a newer one opened for the same key after it.
+ */
 export function begin_flight(key: string): (outcome: FlightOutcome) => void {
 	let settle!: (outcome: FlightOutcome) => void;
 	const flight = new Promise<FlightOutcome>((res) => {
 		settle = res;
 	});
 	inflight.set(key, flight);
+	let settled = false;
 	return (outcome) => {
-		inflight.delete(key);
+		if (settled) return;
+		settled = true;
+		if (inflight.get(key) === flight) inflight.delete(key);
 		settle(outcome);
 	};
+}
+
+/**
+ * Every invalidation, counted, before it evicts. A render that began before one cannot know whether
+ * it read the content that changed, so it does not store (the visitor who asked is still served
+ * it): a publish during a render once stored the page as it was before the publish (#194).
+ */
+let invalidations = 0;
+
+/** How many invalidations this process has started. */
+export function invalidation_count(): number {
+	return invalidations;
 }
 
 // ── invalidation fan-out ───────────────────────────────────────────────────────────────────────
@@ -227,6 +257,7 @@ type SourceFn = (...args: never[]) => unknown;
  * Reaches the store and edges `postrender.handle()` was given in hooks.server.ts.
  */
 export async function invalidate(target: string | SourceFn, args?: unknown[]): Promise<void> {
+	invalidations++;
 	if (typeof target === 'string') {
 		record({ domain: 'server', name: 'server.postrender', op: 'invalidate', url: target });
 		const { store, edges } = current_runtime();
@@ -250,6 +281,7 @@ export async function invalidate(target: string | SourceFn, args?: unknown[]): P
  *  a section nuke. One origin scan + one purge per edge (Akamai: prefix tag; CloudFront: wildcard;
  *  Cloudflare: prefix purge). */
 export async function invalidateWhere(filter: { prefix: string }): Promise<void> {
+	invalidations++;
 	const prefix = normalize_prefix(filter.prefix);
 	record({ domain: 'server', name: 'server.postrender', op: 'invalidate-where', url: prefix });
 	const { store, edges } = current_runtime();
@@ -264,6 +296,7 @@ export async function invalidateWhere(filter: { prefix: string }): Promise<void>
 /** Action self-evict: a successful non-GET on a page URL evicts that URL (origin only — the
  *  edge copy follows via its s-maxage or the app's explicit invalidate; fire-and-forget). */
 export function self_evict(runtime: Runtime, pathname: string): void {
+	invalidations++;
 	record({ domain: 'server', name: 'server.postrender', op: 'self-evict', url: pathname });
 	void runtime.store.evict(pathname).catch(() => {});
 }

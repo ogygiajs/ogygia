@@ -30,8 +30,10 @@ import {
 	handled_runtime,
 	installed_runtime,
 	invalidate_tags,
+	invalidation_count,
 	join_flight,
 	self_evict,
+	store_evict,
 	store_get,
 	store_put,
 	type FlightOutcome,
@@ -55,8 +57,11 @@ export interface PostrenderServerOptions {
 interface State {
 	/** the store + edges this request reads and writes (its `postrender.handle()`'s) */
 	runtime: Runtime | null;
-	/** settles the stampede flight this request opened (null when it opened none) */
+	/** settles the stampede flight this request opened (null when it opened none, or once settled) */
 	settle: ((outcome: FlightOutcome) => void) | null;
+	/** the invalidation count when its flight opened: a different one at capture means its render may
+	 *  predate a publish, and it is not stored */
+	invalidations: number;
 	/** the personalization observation (eligible requests only) */
 	obs: Observation | null;
 	/** the request was eligible to be stored */
@@ -232,9 +237,18 @@ function dev_postrender_note(response: Response, ctx: Ctx, obs: Observation): vo
 	warn('postrender_stays_per_request', { path: ctx.path, refusal });
 }
 
+/** What a capture did: stored an entry (with the Response to send), or refused to. A refusal made
+ *  after the body was read carries a Response rebuilt from it: the original's body is spent. */
+type Captured =
+	| { stored: true; entry: PostrenderEntry; response: Response }
+	| { stored: false; response: Response | null };
+
+/** A refusal made before the body was read: the original Response is still whole. */
+const REFUSED: Captured = { stored: false, response: null };
+
 /**
  * The write-path verdict + store. Returns the stored entry AND a fresh Response (reading the
- * body consumes the original) — or null when the page must stay per-request. Pre-body guards
+ * body consumes the original), or a refusal when the page must stay per-request. Pre-body guards
  * run FIRST so an ineligible response's stream is never consumed.
  */
 async function capture(
@@ -242,37 +256,53 @@ async function capture(
 	ctx: Ctx,
 	runtime: Runtime,
 	obs: Observation,
-	ttl: number
-): Promise<{ entry: PostrenderEntry; response: Response } | null> {
+	ttl: number,
+	invalidations: number
+): Promise<Captured> {
 	const { path, facts } = ctx;
 	const tags = facts.sources ?? [];
+	/** Store `entry`, unless an invalidation started while the store was being written to (its
+	 *  evict may have run first): then the entry comes back out, and the page stays per-request. */
+	const put = async (entry: PostrenderEntry): Promise<boolean> => {
+		await store_put(runtime, path, entry, { ttl, tags });
+		if (invalidation_count() === invalidations) return true;
+		await store_evict(runtime, path);
+		return false;
+	};
 	// Personalization observed (cookie/header/locals/flag read, or a cookie write) → per-request.
-	if (obs.disqualified_by || obs.wrote_cookie) return null;
+	if (obs.disqualified_by || obs.wrote_cookie) return REFUSED;
 	// Permanent redirects are the hottest cheap wins (canonical 301s) — store status + location.
 	if (response.status === 301 || response.status === 308) {
 		const location = response.headers.get('location');
-		if (!location) return null;
+		if (!location) return REFUSED;
 		const entry: PostrenderEntry = {
 			kind: 'redirect',
 			status: response.status,
 			location,
 			created: Date.now()
 		};
-		await store_put(runtime, path, entry, { ttl, tags });
-		return { entry, response };
+		if (!(await put(entry))) return REFUSED;
+		return { stored: true, entry, response };
 	}
-	if (response.status !== 200) return null;
-	if (response.headers.has('set-cookie')) return null;
+	if (response.status !== 200) return REFUSED;
+	if (response.headers.has('set-cookie')) return REFUSED;
 	const content_type = response.headers.get('content-type') ?? '';
-	if (!content_type.includes('text/html')) return null;
+	if (!content_type.includes('text/html')) return REFUSED;
 	const app_cc = response.headers.get('cache-control') ?? '';
-	if (app_cc.includes('private') || app_cc.includes('no-store')) return null;
-	if (facts.streamed) return null; // streamed page — always per-request
+	if (app_cc.includes('private') || app_cc.includes('no-store')) return REFUSED;
+	if (facts.streamed) return REFUSED; // streamed page — always per-request
 	const html = await response.text();
+	/** The page as Kit answered it, again (its body was read above). */
+	const answered = (): Response =>
+		new Response(html, {
+			status: response.status,
+			statusText: response.statusText,
+			headers: response.headers
+		});
 	// Belt and braces for streamed pages WITHOUT regions (no page snapshot to probe): Kit's boot
 	// only declares its deferred-map when the page carries pending promises — buffering such a
 	// response bakes ONE settle's inline resolve scripts into the copy. Never store it.
-	if (KIT_DEFERRED_BOOT_RE.test(html)) return null;
+	if (KIT_DEFERRED_BOOT_RE.test(html)) return { stored: false, response: answered() };
 	const created = Date.now();
 	// STITCH holes, two modes (stitch.ts):
 	//  - `stitch="serve"` flips the entry's nature: the SHELL stores (renders once), but every
@@ -316,8 +346,8 @@ async function capture(
 		created,
 		...(has_serve ? { stitch: true } : {})
 	};
-	await store_put(runtime, path, entry, { ttl, tags });
-	return { entry, response: postrender_response(entry, 'stored') };
+	if (!(await put(entry))) return { stored: false, response: answered() };
+	return { stored: true, entry, response: postrender_response(entry, 'stored') };
 }
 
 /** This request's value for the `postrender` key of Kit's `config` (the route's, merged from its
@@ -340,7 +370,7 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 		set_postrender_app(app);
 	},
 
-	state: () => ({ runtime: null, settle: null, obs: null, eligible: false }),
+	state: () => ({ runtime: null, settle: null, invalidations: 0, obs: null, eligible: false }),
 
 	async page(ctx) {
 		const { event, path, facts, state } = ctx;
@@ -378,6 +408,7 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			return;
 		}
 		// First cold request: open the flight + observe the render for the verdict.
+		state.invalidations = invalidation_count();
 		state.settle = begin_flight(path);
 		state.obs = observe_event(event, facts);
 		facts.storable = true;
@@ -393,19 +424,44 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			self_evict(runtime, path);
 		const { settle, obs } = state;
 		if (settle && obs) {
+			state.settle = null;
+			// Invalidated while it rendered: this render may be the page as it was before the publish.
+			// It goes to the visitor who asked; nothing stores it, and joiners render the page anew.
+			// Stamped no-store like every refusal (when the app set nothing): a CDN's property-wide TTL
+			// must not keep the pre-publish page, nor a personalized one that never reached the
+			// personalization guards below.
+			if (invalidation_count() !== state.invalidations) {
+				stamp_no_store(response);
+				settle({ stored: null });
+				ctx.app.devtools({
+					domain: 'server',
+					name: 'server.postrender',
+					op: 'skip',
+					url: path,
+					reason: 'invalidated-while-rendering'
+				});
+				return;
+			}
 			// A failed flight ALWAYS settles (joiners in the stampede must never hang), and a store
 			// problem never fails the request.
 			try {
-				const stored = await capture(response, ctx, runtime, obs, ctx.options.ttl);
-				settle({ stored: stored?.entry ?? null });
+				const captured = await capture(
+					response,
+					ctx,
+					runtime,
+					obs,
+					ctx.options.ttl,
+					state.invalidations
+				);
+				settle({ stored: captured.stored ? captured.entry : null });
 				ctx.app.devtools(
-					stored
+					captured.stored
 						? {
 								domain: 'server',
 								name: 'server.postrender',
 								op: 'stored',
 								url: path,
-								bytes: stored.entry.kind === 'page' ? stored.entry.html.length : 0
+								bytes: captured.entry.kind === 'page' ? captured.entry.html.length : 0
 							}
 						: {
 								domain: 'server',
@@ -415,21 +471,35 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 								reason: obs.disqualified_by ?? 'response-ineligible'
 							}
 				);
-				if (stored) {
-					return stored.entry.kind === 'page' && stored.entry.stitch
-						? await serve_stitched(stored.entry, 'stored', ctx)
-						: stored.response;
+				if (captured.stored) {
+					return captured.entry.kind === 'page' && captured.entry.stitch
+						? await serve_stitched(captured.entry, 'stored', ctx)
+						: captured.response;
 				}
 				// Refused → per-request forever (until inputs change). Stamp `no-store` when the app set
 				// nothing: the verdict's word replaces blanket CDN rules in BOTH directions (a personal
-				// page must never be edge-cached by a property-wide TTL).
-				stamp_no_store(response);
+				// page must never be edge-cached by a property-wide TTL). A refusal after the body was
+				// read sends the page rebuilt from it (the original's body is spent).
+				stamp_no_store(captured.response ?? response);
+				if (captured.response) return captured.response;
 			} catch {
 				settle({ stored: null });
 			}
 		} else if (dev && obs && state.eligible) {
 			dev_postrender_note(response, ctx, obs);
 		}
+	},
+
+	// The request's end, however it ended: a flight it opened and nothing settled (a later plugin
+	// answered `page()`, a plugin's `response()` threw, the render threw before the response stage)
+	// settles here, so the requests that joined it render the page themselves instead of waiting
+	// forever (#194).
+	done(ctx) {
+		const { state } = ctx;
+		if (!state.settle) return;
+		const settle = state.settle;
+		state.settle = null;
+		settle({ stored: null });
 	},
 
 	// SHARED HOOK — a peer said these tags are stale (federation's inbound thaw): drop the pages.

@@ -55,6 +55,26 @@
 		{
 			"id": "packages/devtools/src/devtools/ui.ts > mount_launcher > load > then:1",
 			"reason": "browser only: the dock's chunk failed to load: resets the button, constant work; proven in packages/devtools/e2e/devtools.spec.ts"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > invalidation_count",
+			"reason": "reads one module counter, constant work; what it guards is proven in packages/postrender/e2e/postrender.spec.ts S21"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > store_evict",
+			"reason": "one store call wrapped so a broken store never fails a render, constant work; proven in packages/postrender/e2e/postrender.spec.ts S21"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > capture > put",
+			"reason": "a request's store write and its invalidation re-check (needs a live request context), constant work besides the store's; proven in packages/postrender/e2e/postrender.spec.ts S21"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > capture > answered",
+			"reason": "rebuilds the request's Response from its already-read body (needs a live request context), one copy; proven in packages/postrender/e2e/postrender.spec.ts"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > defineServer:0 > done",
+			"reason": "the request's end: settles its open flight, constant work (needs the real plugin loop); proven in packages/postrender/e2e/postrender.spec.ts S20"
 		}
 	]
 }
