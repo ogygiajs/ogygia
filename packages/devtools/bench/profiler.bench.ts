@@ -8,6 +8,7 @@
 import { bench } from '@bench/heisenbench/bench';
 import { analyze, decode_mappings, type CpuProfile } from '../src/profiler/analyze.ts';
 import { doc_diff } from '../src/profiler/doc-diff.ts';
+import { attribute_gc, type AllocSite } from '../src/profiler/gc.ts';
 import { constant_work, key_sources } from '../src/profiler/source-scan.ts';
 
 const APP = 'file:///srv/app/build/server/chunks';
@@ -160,4 +161,51 @@ bench(
 	'doc_diff: two renders of a page that differ in a few rows',
 	({ a, b }) => doc_diff(a, b)?.groups.length ?? 0,
 	{ setup: () => ({ a: render_html(400, 0), b: render_html(400, 12) }) }
+);
+
+/** A profiled window of `pauses` collections, one every 10 ms, over the CPU timeline (four segments
+ *  a pause: the app's code, a component, idle time and the collector) and twenty allocation reads. */
+function gc_window(pauses: number): Parameters<typeof attribute_gc>[0] {
+	const window_ms = pauses * 10;
+	const dict: Record<string, AllocSite> = {};
+	for (let j = 0; j < 12; j++)
+		dict[`s${j}`] = {
+			key: `s${j}`,
+			name: `make${j}`,
+			url: 'file:///srv/app/src/lib/data.ts',
+			line: j + 1,
+			category: j % 3 ? 'app' : 'component',
+			component: j % 3 ? null : `Card${j}`
+		};
+	const slices = Array.from({ length: 20 }, (_, i) => ({
+		t0: (i * window_ms) / 20,
+		t1: ((i + 1) * window_ms) / 20,
+		bytes: Object.fromEntries(Object.keys(dict).map((k, j) => [k, 1000 * (i + j + 1)]))
+	}));
+	const events = Array.from({ length: pauses }, (_, i) => ({
+		t: i * 10 + 7,
+		ms: 1 + (i % 4),
+		kind: i % 10 === 9 ? ('major' as const) : ('minor' as const),
+		flags: 0
+	}));
+	const categories = ['app', 'component', 'idle', 'gc'];
+	const running = Array.from({ length: pauses * 4 }, (_, i) => ({
+		t0: i * 2.5,
+		t1: i * 2.5 + 2,
+		label: `fn${i % 50}`,
+		category: categories[i % 4],
+		file: 'src/lib/data.ts'
+	}));
+	return { slices, events, dict, window_ms, running };
+}
+
+// Growth: linear in the window's pauses and segments. It was quadratic while each pause looked
+// through every segment of the timeline for what was running.
+bench(
+	'attribute_gc: what each pause of a window was charged to, as the window grows',
+	(input) => attribute_gc(input).pauses.length,
+	{
+		setup: () => gc_window(50),
+		scale: (_ctx, k) => gc_window(50 * k)
+	}
 );

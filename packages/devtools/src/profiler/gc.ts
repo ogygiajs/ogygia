@@ -234,6 +234,57 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const mb = (b: number) => r1(b / 1048576);
 
+/**
+ * What was running at each moment of `times`: the first segment (in the timeline's order) that
+ * holds it, else the last to end before it, within 50 ms. A collector, idle or profiler segment is
+ * not the app's own work. The moments are swept in order, so the timeline is read about once
+ * instead of once per moment.
+ */
+function running_at_each<S extends { t0: number; t1: number; category: string }>(
+	segs: readonly S[],
+	times: readonly number[]
+): Map<number, S | undefined> {
+	const work = segs.filter(
+		(s) => s.category !== 'gc' && s.category !== 'idle' && s.category !== 'profiler'
+	);
+	// (a moment that is not a number is held by no segment and comes after none)
+	const at = [...new Set(times)].filter((t) => !Number.isNaN(t)).sort((a, b) => a - b);
+	const found: (S | undefined)[] = [];
+	// the next moment no segment has taken yet, from each one on (path-halved)
+	const open = Array.from({ length: at.length + 1 }, (_, k) => k);
+	const next_open = (k: number) => {
+		while (open[k] !== k) k = open[k] = open[open[k]];
+		return k;
+	};
+	for (const s of work) {
+		if (!(s.t0 <= s.t1)) continue;
+		let lo = 0;
+		let hi = at.length;
+		while (lo < hi) {
+			const mid = (lo + hi) >>> 1;
+			if (at[mid] < s.t0) lo = mid + 1;
+			else hi = mid;
+		}
+		for (let k = next_open(lo); k < at.length && at[k] <= s.t1; k = next_open(k + 1)) {
+			found[k] = s;
+			open[k] = k + 1;
+		}
+	}
+	// held by none: the last to end before it, the first of those that end together
+	const by_end = work
+		.map((s, i) => ({ s, i }))
+		.filter(({ s }) => !Number.isNaN(s.t1))
+		.sort((a, b) => a.s.t1 - b.s.t1 || a.i - b.i);
+	const out = new Map<number, S | undefined>();
+	let best: S | undefined;
+	for (let k = 0, j = 0; k < at.length; k++) {
+		for (; j < by_end.length && by_end[j].s.t1 <= at[k]; j++)
+			if (!best || by_end[j].s.t1 > best.t1) best = by_end[j].s;
+		out.set(at[k], found[k] ?? (best && at[k] - best.t1 <= 50 ? best : undefined));
+	}
+	return out;
+}
+
 export function attribute_gc(input: {
 	slices: AllocSlice[];
 	events: GcEvent[];
@@ -249,16 +300,11 @@ export function attribute_gc(input: {
 	const single = slices.length === 1;
 	// what was running when the pause fell: the segment at that moment — but the moment itself is
 	// the collector's, so the answer is the last piece of the app's own work before it
-	const running_at = (t: number) => {
-		const segs = input.running ?? [];
-		let best: (typeof segs)[number] | undefined;
-		for (const s of segs) {
-			if (s.category === 'gc' || s.category === 'idle' || s.category === 'profiler') continue;
-			if (s.t0 <= t && t <= s.t1) return s;
-			if (s.t1 <= t && (!best || s.t1 > best.t1)) best = s;
-		}
-		return best && t - best.t1 <= 50 ? best : undefined;
-	};
+	const run_by_t = running_at_each(
+		input.running ?? [],
+		events.map((e) => e.t)
+	);
+	const running_at = (t: number) => run_by_t.get(t);
 	// the runtime's own allocations (the V8 API, the collector) are nobody's fault; the PROFILER's
 	// own (its reads of this very profile, its stack captures) are its fault and are taken out of
 	// every pause as its share of what filled the heap
