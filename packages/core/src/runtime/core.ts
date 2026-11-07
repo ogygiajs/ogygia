@@ -1045,7 +1045,9 @@ class OgygiaRegion extends HTMLElement {
 		this.removeAttribute('data-og-kept');
 		if (revalidate) this.setAttribute('data-revalidated', '');
 		else if (!is_awake(this)) this.setAttribute('data-hydrated', '');
-		slots.lakes.after_html_swap(this, { revalidate });
+		// (a lake this settled wakes the regions inside that waited on it: morphed in place, nothing
+		// reconnects them)
+		slots.lakes.after_html_swap(this, { revalidate }, () => this.#wake_waiting_regions());
 		if (BEACON && !revalidate && this.#fetch_started) {
 			const ep = this.getAttribute('endpoint');
 			beacon_hole_answered(

@@ -258,16 +258,35 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 	}
 }
 
+/**
+ * The unsettled lakes regions authored inside them are waiting on (they connected, found the lake
+ * unsettled, and stopped: `wait_for_boundary`). A lake's settling wakes them, on every path it
+ * settles by: a refresh that MORPHS its children in place reconnects none of them (a vacant swr
+ * remount's cached copy, refreshed), so nothing else would.
+ */
+const waited_on = new WeakSet<Element>();
+
 export function wait_for_boundary(_el: HTMLElement, boundary: Element | null): boolean {
-	return !!(boundary && is_frozen(boundary) && !runtime_session.settled_lakes.has(boundary));
+	if (!(boundary && is_frozen(boundary) && !runtime_session.settled_lakes.has(boundary)))
+		return false;
+	waited_on.add(boundary);
+	return true;
 }
 
 export function mark_frozen_settled(region: HTMLElement): void {
 	if (is_frozen(region)) runtime_session.settled_lakes.add(region);
 }
 
-export function after_html_swap(region: HTMLElement, opts: { revalidate?: boolean }): void {
-	if (!(opts.revalidate && is_frozen(region))) return;
+export function after_html_swap(
+	region: HTMLElement,
+	opts: { revalidate?: boolean },
+	wake_children: () => void
+): void {
+	if (!is_frozen(region)) return;
+	// (settled before the swap — mark_frozen_settled: what the swap brought in connected self-running;
+	// what it morphed in place is woken here)
+	if (waited_on.delete(region)) wake_children();
+	if (!opts.revalidate) return;
 	const id = region.getAttribute('entry') || '';
 	if (!id) return;
 	const cached = document.createDocumentFragment();
@@ -291,6 +310,7 @@ export function after_fetch_exhausted(
 ): void {
 	if (opts.revalidate && is_frozen(region) && region.isConnected) {
 		runtime_session.settled_lakes.add(region);
+		waited_on.delete(region);
 		wake_children();
 	}
 }

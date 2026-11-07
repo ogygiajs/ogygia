@@ -38,7 +38,12 @@ export type LakeOps = {
 	restore(parent: Element, lifted: LiftedLake[]): void;
 	settle_in(root: ParentNode): void;
 	mark_frozen_settled(region: HTMLElement): void;
-	after_html_swap(region: HTMLElement, opts: { revalidate?: boolean }): void;
+	/** After an answer swapped into `region`: a lake that settled wakes the regions waiting on it. */
+	after_html_swap(
+		region: HTMLElement,
+		opts: { revalidate?: boolean },
+		wake_children: () => void
+	): void;
 	after_fetch_exhausted(
 		region: HTMLElement,
 		opts: { revalidate?: boolean },
