@@ -167,6 +167,30 @@
 		{
 			"id": "packages/core/src/runtime/frame-nav.ts > streamFrames > catch:0",
 			"reason": "browser only: a stalled stream's reader cancel that failed, a constant no-op"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > navigate > task:0",
+			"reason": "browser only: the navigation's page fetch, run as a task of its visit (a newer click aborts it); proven in apps/palaestra/e2e/router-ownership.spec.ts and router-race.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > invalidate_all > task:0",
+			"reason": "browser only: the soft refresh's fetch, run as a task of its visit (a navigation ends it); proven in apps/palaestra/e2e/router-ownership.spec.ts (#202)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > is_stale",
+			"reason": "browser only: one comparison with the boot's STALE, inside the navigation chunk; proven in apps/palaestra/e2e/router-ownership.spec.ts and router-race.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > get nav_target",
+			"reason": "browser only: reads the navigation machine's state, constant work; proven in apps/palaestra/e2e/router-document-fetch.spec.ts and router-ownership.spec.ts"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > defineServer:0 > response > settle",
+			"reason": "settles the request's own flight (needs a live request context), constant work; proven in packages/postrender/e2e/postrender.spec.ts S20 and S21"
+		},
+		{
+			"id": "packages/federation/src/serve.ts > check_deploy > catch:0",
+			"reason": "the store failed to answer during a check: rethrown unless a thaw is owed, constant work; a bench cannot take the store down without the shared hook warning once per server (runs would differ); proven in packages/federation/test/owners.test.ts"
 		}
 	]
 }
