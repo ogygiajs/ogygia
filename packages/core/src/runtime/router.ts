@@ -341,6 +341,10 @@ export class SpaRouter {
 			return;
 		}
 
+		// The guards first: a `beforeNavigate` that cancels means this navigation never starts, so it
+		// must never claim — a claim takes over (and aborts) the navigation already in flight.
+		if (!this.run_before(from, url, type)) return;
+
 		// Claim the address NOW, before the navigation chunk loads: a web-component link re-dispatches
 		// the visitor's click on its inner `<a>` a few ms later, and that second click must see this
 		// navigation in flight (the click listener swallows it) instead of starting — and aborting

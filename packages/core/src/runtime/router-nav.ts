@@ -580,12 +580,7 @@ export async function navigate(
 	claim: SpaRouter['nav']['now'] = r.nav.now
 ): Promise<void> {
 	if (r.nav.now !== claim) return; // (a newer click took over first)
-	if (!r.run_before(from, url, type)) {
-		// A beforeNavigate hook cancelled: this navigation never starts, so it must not keep claiming
-		// the address (SpaRouter.navigate set it) — a later click on the same link has to navigate.
-		if (r.nav.now === claim) r.nav.go('idle');
-		return;
-	}
+	// (its `beforeNavigate` guards ran before the claim: SpaRouter.navigate)
 
 	const dt_t0 = DEVTOOLS ? dt_now() : 0;
 	let dt_reconciled = false;
