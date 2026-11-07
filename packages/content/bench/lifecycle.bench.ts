@@ -4,8 +4,12 @@
 // client over a stand-in worker (the browser's Worker is the client's only browser need).
 import { bench } from '@bench/heisenbench/bench';
 import * as v from 'valibot';
-import { content, type Source, type SourceEntry } from '../src/index.ts';
-import { site } from '../src/site/site.ts';
+// (the modules themselves, not the package's index or the site layer: those reach its Svelte
+// components, which a bench in plain node does not compile)
+import { content } from '../src/factory.ts';
+import type { Source, SourceEntry } from '../src/source.ts';
+import { outline } from '../src/site/outline.ts';
+import { create_search, orama_engine } from '../src/site/search.ts';
 import { dimensions } from '../src/site/dimensions.ts';
 import { SearchClient } from '../src/site/search-client.ts';
 import { CONTENT_ERRORS } from '../src/messages/runtime.ts';
@@ -53,8 +57,9 @@ bench(
 		const rows = Array.from({ length: 20 }, (_, i) => doc(i));
 		const src = live_source(rows);
 		const c = content({ schema, loader: src.source });
-		const s = site({ outline: c });
-		let found = (await s.search('islands')).length;
+		const ol = outline(c as never);
+		const search = create_search(ol, orama_engine());
+		let found = (await search('islands')).length;
 		const error = console.error;
 		console.error = () => {};
 		try {
@@ -64,7 +69,7 @@ bench(
 				src.emit(i % 2 === 0 ? [`guide/p${id}`] : 1); // by id, or "something changed"
 				await tick();
 				await tick();
-				found += (await s.nav()).length + (await s.search('islands')).length;
+				found += (await ol.tree()).length + (await search('islands')).length;
 			}
 			src.drop(); // the connection drops: opened again after its wait, the source read again
 			await new Promise((r) => setTimeout(r, 1100));
@@ -104,10 +109,10 @@ bench(
 					});
 				}
 			});
-			const s = site({ outline: d });
-			await s.page('fr/guide/p1').catch(() => null);
-			if (await s.page('fr/guide/p1')) pages++;
-			pages += (await s.search('islands')).length;
+			const search = create_search(d, orama_engine());
+			await d.resolve('fr/guide/p1').catch(() => null);
+			if (await d.resolve('fr/guide/p1')) pages++;
+			pages += (await search('islands')).length;
 		}
 		return pages;
 	},

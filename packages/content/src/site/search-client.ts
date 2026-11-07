@@ -107,7 +107,9 @@ export class SearchClient {
 
 	/** Terminate the worker: waiting queries, and later ones, are rejected. */
 	destroy(): void {
-		if (!this.#state.go('destroyed')) return;
+		// (twice is once: a manual destroy, then the palette's unmount; `destroyed` steps nowhere)
+		if (this.#state.now.kind === 'destroyed') return;
+		this.#state.go('destroyed');
 		this.#worker.terminate();
 		this.#reject_all();
 	}
