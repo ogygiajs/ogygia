@@ -120,6 +120,19 @@ describe('ConcurrencyGate: a body past its time (the region render timeout, #195
 		expect(vi.getTimerCount()).toBe(0);
 	});
 
+	it('waiters that gave up leave the queue at once, even while no slot ever frees (a hung upstream)', async () => {
+		const g = new ConcurrencyGate(1);
+		void g.run(() => new Promise(() => {})); // a render that never ends holds the only slot
+		const gave_up = Array.from({ length: 100 }, () =>
+			g.run(async () => 'never', { wait_ms: 10 }).catch((e: Error) => e.message)
+		);
+		expect(g.waiting).toBe(100);
+		await vi.advanceTimersByTimeAsync(10);
+		expect(await Promise.all(gave_up)).toEqual(Array(100).fill('region render queue timeout'));
+		expect(g.waiting).toBe(0); // not kept until a slot frees: one never does
+		expect(g.active).toBe(1);
+	});
+
 	it('a waiter that gave up never runs, and frees nothing it never held', async () => {
 		const g = new ConcurrencyGate(1);
 		const b = bodies();

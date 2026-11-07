@@ -58,6 +58,11 @@ export class ConcurrencyGate {
 		return this.#active;
 	}
 
+	/** Calls waiting for a slot. */
+	get waiting(): number {
+		return this.#wait.length;
+	}
+
 	/** A slot: at once when one is free, else in turn (or the wait gives up). */
 	#enter(wait_ms: number | undefined): Promise<void> {
 		if (this.#active < this.#limit) {
