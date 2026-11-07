@@ -23,6 +23,7 @@
 		"ambient.d.ts"
 	],
 	"type": "module",
+	"sideEffects": false,
 	"exports": {
 		".": {
 			"svelte": "./src/index.ts",

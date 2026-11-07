@@ -22,6 +22,9 @@
 		"README.md"
 	],
 	"type": "module",
+	"sideEffects": [
+		"**/*.css"
+	],
 	"exports": {
 		".": {
 			"types": "./dist/devtools/index.d.ts",
