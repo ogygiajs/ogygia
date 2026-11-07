@@ -12,7 +12,7 @@
 		"**/.vercel/**",
 		"svelte/**",
 		"kit/**",
-		".abax/**",
-		"packages/*/bench/__abax.d.ts"
+		".heisenbench/**",
+		"packages/*/bench/__heisenbench.d.ts"
 	]
 }

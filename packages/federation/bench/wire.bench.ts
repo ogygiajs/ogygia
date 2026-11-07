@@ -3,13 +3,13 @@
 // hop: signing a request, and verifying it against the keys in rotation with the replay guard
 // holding a busy minute's signatures.
 import { generateKeyPairSync } from 'node:crypto';
-import { bench } from '@bench/abax/bench';
+import { bench } from '@bench/heisenbench/bench';
 import {
 	absolutize,
 	lift_document,
 	sign_headers,
 	verify_signed_request,
-	__abax as wire
+	__heisenbench as wire
 } from '../src/wire.ts';
 
 const ORIGIN = 'https://cms.example.test';

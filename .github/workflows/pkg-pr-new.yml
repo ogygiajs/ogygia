@@ -77,7 +77,7 @@ jobs:
       # Ask ogygiajs/bench to measure what was just published (it installs this commit's build
       # from pkg.pr.new). A PR commit is requested by the pull_request run only (the push run of the
       # same commit stays quiet, so nothing runs twice), and a push to main becomes the new baseline
-      # (`ogygia-main` runs the app benchmark and Abax; a PR's Abax run is asked for by abax.yml).
+      # (`ogygia-main` runs the app benchmark and Heisenbench; a PR's Heisenbench run is asked for by heisenbench.yml).
       # Forks and drafts are skipped, version PRs never get here (the job's `if`). This never fails
       # the job: without BENCH_TOKEN it skips with a notice, and a refused request only warns.
       - name: Request a benchmark run

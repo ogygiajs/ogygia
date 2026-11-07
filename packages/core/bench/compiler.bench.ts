@@ -4,7 +4,7 @@
 // variables of an island's children.
 import path from 'node:path';
 import { parse } from 'svelte/compiler';
-import { bench } from '@bench/abax/bench';
+import { bench } from '@bench/heisenbench/bench';
 import { analyze_exports, analyze_imports } from '../src/compiler/debarrel/parse.ts';
 import { collectFreeIdentifiers } from '../src/compiler/free-vars.ts';
 import { page_data_keys_answer } from '../src/compiler/link/page-keys.ts';

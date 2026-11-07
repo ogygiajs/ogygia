@@ -3,9 +3,9 @@
 // tests' DOM shim (packages/core/test/_stubs/dom.ts; the shim's own work counts too).
 //
 // Browser-only runtime code (the custom element, hydration, the router's navigation, the frame and
-// lake stores, interaction replay) needs a real document and waits for Abax's browser coverage.
+// lake stores, interaction replay) needs a real document and waits for Heisenbench's browser coverage.
 import { el, frag } from '../test/_stubs/dom.ts';
-import { bench } from '@bench/abax/bench';
+import { bench } from '@bench/heisenbench/bench';
 import { fingerprint_of, fnv1a, signature_of } from '../src/runtime/hash.ts';
 import { morph_children } from '../src/runtime/morph.ts';
 import { PageCache } from '../src/runtime/page-cache.ts';

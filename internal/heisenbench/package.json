@@ -1,0 +1,15 @@
+{
+	"name": "ogygia-internal-heisenbench",
+	"private": true,
+	"description": "The bench files (packages/*/bench/*.bench.ts) and Heisenbench, the function-level benchmark engine in ogygiajs/bench that runs them: the private-function types, the bench type check, and the module stubs a bench run loads.",
+	"type": "module",
+	"scripts": {
+		"types": "node src/types.ts",
+		"check": "node src/check.ts",
+		"unmeasured": "node src/unmeasured.ts"
+	},
+	"heisenbench": {
+		"repo": "https://github.com/ogygiajs/bench.git",
+		"ref": "82323ca48cf08cab54c1af161fee7cd4147247a4"
+	}
+}

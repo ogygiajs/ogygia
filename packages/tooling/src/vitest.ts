@@ -2,7 +2,7 @@ import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import type { ViteUserConfig } from 'vitest/config';
-import { abax_record } from '../../../internal/abax/src/record.ts';
+import { heisenbench_record } from '../../../internal/heisenbench/src/record.ts';
 
 /** Core's test stubs: `app-<name>.ts` stands in for `$app/<name>`, `virtual-<name>.ts` for
  *  `virtual:ogygia/<name>` (packages/core/test/_stubs). */
@@ -25,8 +25,8 @@ function stub_aliases(): Record<string, string> {
  */
 export function pluginTests(): ViteUserConfig {
 	return {
-		// abax_record(): nothing, unless the measurement-source gate records the tests' inputs
-		plugins: [svelte(), ...abax_record()],
+		// heisenbench_record(): nothing, unless the measurement-source gate records the tests' inputs
+		plugins: [svelte(), ...heisenbench_record()],
 		resolve: { alias: stub_aliases() },
 		test: { include: ['test/**/*.test.ts'], environment: 'node' }
 	};

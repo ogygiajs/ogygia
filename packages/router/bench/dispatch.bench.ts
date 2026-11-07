@@ -1,7 +1,7 @@
 // The router's request path ("answer"): a request through `routes(table).fetch`, from the base and
 // slash handling and the match to the verb pick, the context, a shared memoized load and the
 // endpoint's JSON response. Endpoints only: a page render needs the Kit app around it.
-import { bench } from '@bench/abax/bench';
+import { bench } from '@bench/heisenbench/bench';
 import { clearRouteConfig } from '@ogygia/core/plugin/testing';
 import type { Ctx } from '../src/ctx.ts';
 import { load, routes } from '../src/index.ts';

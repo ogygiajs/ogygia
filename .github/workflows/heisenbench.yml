@@ -1,12 +1,12 @@
-name: abax
+name: heisenbench
 
-# Asks ogygiajs/bench for an Abax run the moment a PR is opened or pushed: Abax counts the steps of
+# Asks ogygiajs/bench for an Heisenbench run the moment a PR is opened or pushed: Heisenbench counts the steps of
 # the bench files (packages/*/bench) on the PR's commit and on its base, from source, so it needs no
 # pkg.pr.new preview and does not wait for one (pkg-pr-new.yml asks for the app benchmark once the
-# preview is published). Abax's section comes first in the PR's one benchmark comment.
+# preview is published). Heisenbench's section comes first in the PR's one benchmark comment.
 #
 # A push to main needs nothing here: the `ogygia-main` request pkg-pr-new.yml sends after the
-# publish runs Abax over every bench file too. Forks, drafts and version PRs are skipped, like the
+# publish runs Heisenbench over every bench file too. Forks, drafts and version PRs are skipped, like the
 # app benchmark. The request never fails: without BENCH_TOKEN it skips with a notice, and a refused
 # request only warns.
 #
@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Request an Abax run
+      - name: Request an Heisenbench run
         env:
           GH_TOKEN: ${{ secrets.BENCH_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
@@ -37,17 +37,17 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           if [ -z "$GH_TOKEN" ]; then
-            echo "::notice::BENCH_TOKEN is not set, so no Abax run was requested"
+            echo "::notice::BENCH_TOKEN is not set, so no Heisenbench run was requested"
             exit 0
           fi
-          gh api repos/ogygiajs/bench/dispatches -f event_type=ogygia-abax \
+          gh api repos/ogygiajs/bench/dispatches -f event_type=ogygia-heisenbench \
             -F "client_payload[pr]=$PR" -f "client_payload[sha]=$HEAD_SHA" \
             -f "client_payload[base_sha]=$BASE_SHA" ||
-            echo "::warning::ogygiajs/bench refused the Abax request (check BENCH_TOKEN)"
+            echo "::warning::ogygiajs/bench refused the Heisenbench request (check BENCH_TOKEN)"
 
-  # The measurement-source gate (internal/abax/src/unmeasured.ts): every function in
+  # The measurement-source gate (internal/heisenbench/src/unmeasured.ts): every function in
   # packages/<pkg>/src needs a bench file that runs it or a unit test whose inputs replay. Fails only
-  # on functions this PR adds with neither (and no exemption in internal/abax/unmeasured.json);
+  # on functions this PR adds with neither (and no exemption in internal/heisenbench/unmeasured.json);
   # what was unmeasured before is listed in the job summary, not failed.
   unmeasured:
     if: >-
@@ -70,7 +70,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # Abax needs Node 26.4+; ogygia itself is still tested on 22 everywhere else
+          # Heisenbench needs Node 26.4+; ogygia itself is still tested on 22 everywhere else
           node-version: 26
           cache: pnpm
 
@@ -96,14 +96,14 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
-          node internal/abax/src/unmeasured.ts --base "$base"
+          node internal/heisenbench/src/unmeasured.ts --base "$base"
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: abax-unmeasured
+          name: heisenbench-unmeasured
           path: |
-            .abax/unmeasured/gate.md
-            .abax/unmeasured/gate.json
-            .abax/unmeasured/replay.json
+            .heisenbench/unmeasured/gate.md
+            .heisenbench/unmeasured/gate.json
+            .heisenbench/unmeasured/replay.json
           if-no-files-found: ignore
