@@ -3,7 +3,7 @@
 // the work they own (tasks, cleanups, waits), and the two helpers (once, lock).
 import { bench } from '@bench/heisenbench/bench';
 import { lock, machine, observe, once, STALE, type LockToken } from '../src/index.ts';
-import { MACHINE_ERRORS, machine_error } from '../src/messages.ts';
+import { MACHINE_ERRORS, machine_error, report } from '../src/messages.ts';
 
 const hole = machine<{
 	idle: {};
@@ -255,9 +255,19 @@ bench('machine: every message, worded', () => {
 		where: 'initial',
 		initial: 'idle',
 		option: 'retries',
-		value: '-1'
+		value: '-1',
+		problem: 'its ms is not a time',
+		ms: 'NaN'
 	};
 	for (const code in table) length += table[code].text(args).length + table[code].details().length;
+	const error = console.error;
+	console.error = () => void length++;
+	try {
+		report('machine_observer_failed', { name: 'hole' }, new Error('observer'));
+		report('machine_timeout_not_a_time', { name: 'hole', state: 'fetching', ms: 'NaN' });
+	} finally {
+		console.error = error;
+	}
 	length += machine_error('machine_illegal_move', { name: 'hole', from: 'idle', to: 'kept' })
 		.message.length;
 	return length;
