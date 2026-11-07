@@ -1390,6 +1390,10 @@ importers:
         version: 6.0.3
 
   packages/postrender:
+    dependencies:
+      '@ogygia/machine':
+        specifier: workspace:^
+        version: link:../machine
     devDependencies:
       '@ogygia/core':
         specifier: workspace:*

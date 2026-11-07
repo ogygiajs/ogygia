@@ -30,13 +30,13 @@ import {
 	handled_runtime,
 	installed_runtime,
 	invalidate_tags,
-	invalidation_count,
 	join_flight,
 	self_evict,
+	settle_flight,
 	store_evict,
 	store_get,
 	store_put,
-	type FlightOutcome,
+	type Flight,
 	type Runtime
 } from './registry.ts';
 import { observe_event, type Observation } from './observe.ts';
@@ -57,11 +57,9 @@ export interface PostrenderServerOptions {
 interface State {
 	/** the store + edges this request reads and writes (its `postrender.handle()`'s) */
 	runtime: Runtime | null;
-	/** settles the stampede flight this request opened (null when it opened none, or once settled) */
-	settle: ((outcome: FlightOutcome) => void) | null;
-	/** the invalidation count when its flight opened: a different one at capture means its render may
-	 *  predate a publish, and it is not stored */
-	invalidations: number;
+	/** the stampede flight this request opened, until it settled it (registry.ts: rendering, stale —
+	 *  a publish landed while it rendered, so it is not stored — done) */
+	flight: Flight | null;
 	/** the personalization observation (eligible requests only) */
 	obs: Observation | null;
 	/** the request was eligible to be stored */
@@ -257,15 +255,16 @@ async function capture(
 	runtime: Runtime,
 	obs: Observation,
 	ttl: number,
-	invalidations: number
+	flight: Flight
 ): Promise<Captured> {
 	const { path, facts } = ctx;
 	const tags = facts.sources ?? [];
-	/** Store `entry`, unless an invalidation started while the store was being written to (its
-	 *  evict may have run first): then the entry comes back out, and the page stays per-request. */
+	/** Store `entry`, unless an invalidation started while the store was being written to (the
+	 *  flight went stale; its evict may have run first): then the entry comes back out, and the
+	 *  page stays per-request. */
 	const put = async (entry: PostrenderEntry): Promise<boolean> => {
 		await store_put(runtime, path, entry, { ttl, tags });
-		if (invalidation_count() === invalidations) return true;
+		if (flight.now.kind !== 'stale') return true;
 		await store_evict(runtime, path);
 		return false;
 	};
@@ -370,7 +369,7 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 		set_postrender_app(app);
 	},
 
-	state: () => ({ runtime: null, settle: null, invalidations: 0, obs: null, eligible: false }),
+	state: () => ({ runtime: null, flight: null, obs: null, eligible: false }),
 
 	async page(ctx) {
 		const { event, path, facts, state } = ctx;
@@ -408,8 +407,7 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			return;
 		}
 		// First cold request: open the flight + observe the render for the verdict.
-		state.invalidations = invalidation_count();
-		state.settle = begin_flight(path);
+		state.flight = begin_flight(path);
 		state.obs = observe_event(event, facts);
 		facts.storable = true;
 		facts.sources ??= []; // keep the render's data-source receipts: the page's reverse index
@@ -422,17 +420,18 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 		// Kit's actions-invalidate-loads semantics; origin store only, fire-and-forget).
 		if (event.request.method.toUpperCase() !== 'GET' && response.status < 400)
 			self_evict(runtime, path);
-		const { settle, obs } = state;
-		if (settle && obs) {
-			state.settle = null;
-			// Invalidated while it rendered: this render may be the page as it was before the publish.
-			// It goes to the visitor who asked; nothing stores it, and joiners render the page anew.
-			// Stamped no-store like every refusal (when the app set nothing): a CDN's property-wide TTL
-			// must not keep the pre-publish page, nor a personalized one that never reached the
-			// personalization guards below.
-			if (invalidation_count() !== state.invalidations) {
+		const { flight, obs } = state;
+		if (flight && obs) {
+			state.flight = null;
+			const settle = (stored: PostrenderEntry | null) => settle_flight(path, flight, { stored });
+			// Invalidated while it rendered (the flight went stale): this render may be the page as it
+			// was before the publish. It goes to the visitor who asked; nothing stores it, and joiners
+			// render the page anew. Stamped no-store like every refusal (when the app set nothing): a
+			// CDN's property-wide TTL must not keep the pre-publish page, nor a personalized one that
+			// never reached the personalization guards below.
+			if (flight.now.kind === 'stale') {
 				stamp_no_store(response);
-				settle({ stored: null });
+				settle(null);
 				ctx.app.devtools({
 					domain: 'server',
 					name: 'server.postrender',
@@ -445,15 +444,8 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			// A failed flight ALWAYS settles (joiners in the stampede must never hang), and a store
 			// problem never fails the request.
 			try {
-				const captured = await capture(
-					response,
-					ctx,
-					runtime,
-					obs,
-					ctx.options.ttl,
-					state.invalidations
-				);
-				settle({ stored: captured.stored ? captured.entry : null });
+				const captured = await capture(response, ctx, runtime, obs, ctx.options.ttl, flight);
+				settle(captured.stored ? captured.entry : null);
 				ctx.app.devtools(
 					captured.stored
 						? {
@@ -483,7 +475,7 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 				stamp_no_store(captured.response ?? response);
 				if (captured.response) return captured.response;
 			} catch {
-				settle({ stored: null });
+				settle(null);
 			}
 		} else if (dev && obs && state.eligible) {
 			dev_postrender_note(response, ctx, obs);
@@ -496,10 +488,9 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 	// forever (#194).
 	done(ctx) {
 		const { state } = ctx;
-		if (!state.settle) return;
-		const settle = state.settle;
-		state.settle = null;
-		settle({ stored: null });
+		if (!state.flight) return;
+		settle_flight(ctx.path, state.flight, { stored: null });
+		state.flight = null;
 	},
 
 	// SHARED HOOK — a peer said these tags are stale (federation's inbound thaw): drop the pages.
