@@ -60,6 +60,9 @@
 		"test": "vitest run",
 		"e2e": "playwright test"
 	},
+	"dependencies": {
+		"@ogygia/machine": "workspace:^"
+	},
 	"devDependencies": {
 		"@ogygia/core": "workspace:*",
 		"@ogygia/flags": "workspace:*",
