@@ -119,56 +119,89 @@ describe('lock', () => {
 		expect(l.held).toBe(false);
 	});
 
-	it('random runs: never two owners, never a lost waiter', async () => {
+	it('random runs agree with a model: one owner, exact held, first come first served', async () => {
 		let seed = 7;
 		const rand = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
 		for (let round = 0; round < 300; round++) {
 			const l = lock();
+			// the model. A token is "handed" from the moment the lock gives it (synchronously, in
+			// `free` or `acquire`) until its owner's promise callback receives it: the lock is held
+			// all that time, though no owner holds the token yet.
+			type Waiter = { id: number; outcome: 'waiting' | 'handed' | 'owner' | 'aborted' };
 			const owners = new Set<LockToken>();
-			const waiting: Promise<void>[] = [];
-			let granted = 0;
-			let asked = 0;
-			let aborted = 0;
+			const queue: Waiter[] = []; // still waiting, in the order asked
+			const waiters: Waiter[] = [];
+			const received: number[] = []; // waiter ids, in the order they received the lock
+			const handed_order: number[] = []; // waiter ids, in the order the model hands it on
+			let handed = 0;
+			const held = () => owners.size > 0 || handed > 0;
+			const hand_on = () => {
+				const next = queue.shift();
+				if (next === undefined) return;
+				next.outcome = 'handed';
+				handed++;
+				handed_order.push(next.id);
+			};
 			for (let op = 0; op < 40; op++) {
 				const r = rand();
 				if (r < 0.3) {
 					const t = l.take();
-					if (t !== null) {
-						expect(owners.size).toBe(0);
-						owners.add(t);
-					}
+					expect(t === null).toBe(held()); // takes it exactly when the model says it is free
+					if (t !== null) owners.add(t);
 				} else if (r < 0.6) {
-					asked++;
+					const w: Waiter = { id: waiters.length, outcome: 'waiting' };
+					waiters.push(w);
+					if (held()) queue.push(w);
+					else {
+						w.outcome = 'handed';
+						handed++;
+						handed_order.push(w.id);
+					}
 					const ctl = new AbortController();
-					waiting.push(
-						l.acquire(ctl.signal).then(
-							(t) => {
-								expect(owners.size).toBe(0);
-								owners.add(t);
-								granted++;
-							},
-							() => void aborted++
-						)
+					void l.acquire(ctl.signal).then(
+						(t) => {
+							expect(w.outcome).toBe('handed');
+							w.outcome = 'owner';
+							handed--;
+							owners.add(t);
+							received.push(w.id);
+						},
+						() => expect(w.outcome).toBe('aborted')
 					);
-					if (rand() < 0.3) ctl.abort();
-				} else {
+					if (rand() < 0.3) {
+						ctl.abort();
+						// an abort before its turn leaves the queue; after it, it changes nothing
+						const at = queue.indexOf(w);
+						if (at !== -1) {
+							queue.splice(at, 1);
+							w.outcome = 'aborted';
+						}
+					}
+				} else if (r < 0.85) {
 					for (const t of owners) {
 						expect(l.free(t)).toBe(true);
 						owners.delete(t);
+						hand_on();
 					}
-					await Promise.resolve();
+				} else {
+					await macrotask(); // handed tokens reach their owners
 				}
-				expect(l.held).toBe(owners.size > 0 || l.held);
+				expect(owners.size).toBeLessThanOrEqual(1);
+				expect(owners.size + handed).toBeLessThanOrEqual(1);
+				expect(l.held).toBe(held());
 			}
 			// drain: free until every waiter has had its turn
-			for (let i = 0; i < 200 && granted + aborted < asked; i++) {
+			for (let i = 0; i < 400 && (queue.length > 0 || handed > 0 || owners.size > 0); i++) {
 				for (const t of owners) {
-					l.free(t);
+					expect(l.free(t)).toBe(true);
 					owners.delete(t);
+					hand_on();
 				}
 				await macrotask();
 			}
-			expect(granted + aborted).toBe(asked);
+			expect(waiters.every((w) => w.outcome === 'owner' || w.outcome === 'aborted')).toBe(true);
+			expect(received).toEqual(handed_order);
+			expect(l.held).toBe(false);
 		}
 	});
 });
