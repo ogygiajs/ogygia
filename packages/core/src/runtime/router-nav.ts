@@ -11,6 +11,7 @@
  * two `'*'` walks and a seed parse inside `startViewTransition`, on the frame the transition
  * captures.
  */
+import { machine, STALE } from '@ogygia/machine';
 import { PageCache } from './page-cache.ts';
 import { boot_link, router_link, slots } from './slots.ts';
 import { dispose_scope } from '../ref.ts';
@@ -351,11 +352,19 @@ const final_url = new Map<string, string>();
 /** Hrefs whose prefetched HTML was already scanned for island entries — parse once. (URL-level
  *  import dedupe lives in the shared `warm_island_module`.) */
 const warmed_pages = new Set<string>();
-/** (Hard SPA navigations cancel through the router's own handle, `r.nav_gen` / `r.nav_abort`, so a
- *  "same document" decision there can stop one in flight: SpaRouter.supersede.) */
-/** Soft invalidate fetches only — aborting these must not cancel a real click nav. */
-let soft_gen = 0;
-let soft_abort: AbortController | null = null;
+/** (Hard SPA navigations are the router's own machine, `r.nav` (./navigation.ts), so a "same
+ *  document" decision there can stop one in flight: SpaRouter.supersede.) */
+/**
+ * THE SOFT REFRESH (`invalidateAll`), a machine of its own: refreshing it never cancels a real
+ * click navigation, but a real navigation ends it (its answer belongs to the page being left,
+ * #202), and a newer refresh supersedes it. Each refresh is a visit: its fetch is a task of it, and
+ * each step after an await checks it is still `mine`.
+ */
+const soft = machine<{ idle: {}; refreshing: { href: string } }>()({
+	name: 'soft refresh',
+	initial: 'idle',
+	steps: { idle: ['refreshing'], refreshing: ['refreshing', 'idle'] }
+}).create();
 /** The visually-hidden `aria-live` region that announces each navigation to screen readers. Created
  *  lazily on the first nav and reused (a live region must persist so assistive tech observes its
  *  mutations). It lives in `<body>` but is DETACHED before each body swap so the reconcile never
@@ -575,12 +584,15 @@ export async function navigate(
 		pop_scroll?: { x: number; y: number } | null;
 		type?: string;
 		replace?: boolean;
-	} = {}
+	} = {},
+	/** the router's claim for this navigation (SpaRouter.navigate made it: ./navigation.ts) */
+	claim: SpaRouter['nav']['now'] = r.nav.now
 ): Promise<void> {
+	if (r.nav.now !== claim) return; // (a newer click took over first)
 	if (!r.run_before(from, url, type)) {
 		// A beforeNavigate hook cancelled: this navigation never starts, so it must not keep claiming
 		// the address (SpaRouter.navigate set it) — a later click on the same link has to navigate.
-		if (r.nav_target === url.href) r.nav_target = null;
+		if (r.nav.now === claim) r.nav.go('idle');
 		return;
 	}
 
@@ -602,20 +614,12 @@ export async function navigate(
 
 	// A soft refresh still out belongs to the page being left: its late answer would merge that
 	// page's head and data into this one (#202). The navigation brings its own.
-	soft_abort?.abort();
-	soft_abort = null;
-	soft_gen++;
+	if (soft.now.kind === 'refreshing') soft.go('idle');
 
-	// Cancel any in-flight navigation; only the latest gen may apply a body swap (P2).
-	r.nav_abort?.abort();
-	r.nav_abort = new AbortController();
-	const { signal } = r.nav_abort;
-	const gen = ++r.nav_gen;
-	// the address being navigated to, while the fetch + swap are in flight (click listener)
-	r.nav_target = url.href;
-	signal.addEventListener('abort', () => {
-		if (r.nav_target === url.href) r.nav_target = null;
-	});
+	// This navigation's visit: only it may apply a body swap (P2). A newer click starts a new visit:
+	// every step below checks it is still `mine`, and its fetch (a task of the visit) is aborted.
+	r.nav.go('loading', { href: url.href });
+	const mine = r.nav.now;
 
 	// Update history SYNCHRONOUSLY (before any await) so the URL is correct and
 	// races between overlapping navigations can't drop the pushState.
@@ -633,13 +637,14 @@ export async function navigate(
 
 	let html: string | null;
 	try {
-		html = await fetch_page(url.href, signal, purpose);
-	} catch (err) {
-		if ((err as { name?: string })?.name === 'AbortError' || gen !== r.nav_gen) return;
+		const fetched = await r.nav.task((signal) => fetch_page(url.href, signal, purpose));
+		if (fetched === STALE) return; // a newer navigation took over (and aborted this fetch)
+		html = fetched;
+	} catch {
 		location.href = url.href;
 		return;
 	}
-	if (gen !== r.nav_gen) return;
+	if (r.nav.now !== mine) return;
 	if (html == null) {
 		location.href = url.href;
 		return;
@@ -723,7 +728,7 @@ export async function navigate(
 	// (the incoming page's seed and sidecars parse in its preflight and wakes: devalue first, when
 	// one of them is in its lane — ./devalue-lane.ts)
 	await devalue_for(doc);
-	if (gen !== r.nav_gen) return;
+	if (r.nav.now !== mine) return;
 	preflight(doc, dest);
 
 	// Cold-cache FOUC guard: get the destination's stylesheets loaded and applied BEFORE the body
@@ -731,12 +736,12 @@ export async function navigate(
 	// snapping to its styled width). Warm caches resolve this instantly. Old body keeps its styles
 	// until the swap, so adding the sheets early is invisible.
 	await preload_stylesheets(doc.head);
-	if (gen !== r.nav_gen) return;
+	if (r.nav.now !== mine) return;
 	nav_styled = performance.now();
 	// The transition starts in a task of its own: everything above is a finished task by then, and
 	// the frame it captures is not the one that parsed 2 MB of HTML.
 	await yield_task();
-	if (gen !== r.nav_gen) return;
+	if (r.nav.now !== mine) return;
 
 	// Reconcile in place unless a region lives where a body morph cannot reach it (a shadow root —
 	// counted, not walked), or an author opted the page out on either side.
@@ -750,14 +755,14 @@ export async function navigate(
 	// ── TASK TWO: the DOM — head, seeds, body, title ──
 	const swap = () => {
 		// Stale nav: do not mutate the DOM (view-transition can otherwise commit a superseded swap).
-		if (gen !== r.nav_gen) return;
+		if (r.nav.now !== mine) return;
 		// Pull the a11y announcer out of the body before the reconcile — it isn't in the incoming
 		// HTML, so a body morph would remove it. Re-attached (with the new title) by `announce`.
 		announcer?.remove();
 		// LIFECYCLE (Astro-parity DOM events): last chance to read the OUTGOING page's DOM.
 		document.dispatchEvent(new Event('og:before-swap'));
 		merge_head(doc.head); // keeps our runtime module script alive across swaps
-		if (gen !== r.nav_gen) return;
+		if (r.nav.now !== mine) return;
 		// CONTINUITY: snapshot the LEAVING page's changed island form fields (session-scoped) so
 		// returning to it restores what the visitor was mid-typing. Read the old body now.
 		if (slots.forms.enabled && r.current_url) {
@@ -769,7 +774,7 @@ export async function navigate(
 		// that connects below reads the new page, never a stale script. Seeds first, DOM second.
 		prepare_spa_document();
 		apply_soft_invalidate_doc(doc);
-		if (gen !== r.nav_gen) return;
+		if (r.nav.now !== mine) return;
 		if (reconcile) {
 			// THE nav path: diff the live body toward the parsed one IN PLACE. Matched regions
 			// (same fingerprint) keep their live hydrated node and island state; changed regions
@@ -832,13 +837,15 @@ export async function navigate(
 	} else {
 		swap();
 	}
-	if (gen !== r.nav_gen) return;
+	if (r.nav.now !== mine) return;
 
 	// From here on, `dest` is the address the swapped content belongs to (== `url` unless a
 	// server redirect moved it).
 	r.doc_key = document_key(dest);
 	r.current_url = dest;
-	r.nav_target = null; // applied — a later same-address click is a refresh, not a duplicate
+	// applied: a later same-address click is a refresh, not a duplicate
+	r.nav.move('loading', 'settling', { href: url.href });
+	const settled = r.nav.now;
 	// (the profiler's browser half, through the boot's link — this lazy chunk imports no boot
 	// module; a no-op without the profiler's tag or devtools)
 	boot_link().beacon_nav({
@@ -888,13 +895,10 @@ export async function navigate(
 	// per-navigation hook for code that a body swap's inert <script> tags can never run. Also
 	// fired once on initial load by the runtime boot, so ONE listener covers every page view.
 	document.dispatchEvent(new Event('og:page-load'));
-	// The navigation is done: nothing is in flight to abort. Drop its controller — its abort listener
-	// closes over this call's scope, and kept the parsed document and its HTML alive until the next
-	// navigation (~1 MB, thousands of nodes) — and the in-flight address with it.
-	if (gen === r.nav_gen) {
-		r.nav_abort = null;
-		if (r.nav_target === url.href) r.nav_target = null;
-	}
+	// The navigation is done: nothing is in flight. Ending its visit drops what the visit held (its
+	// fetch's controller, whose listener once kept the parsed document and its HTML alive until the
+	// next navigation, ~1 MB) — unless a newer navigation already took over.
+	if (r.nav.now === settled) r.nav.go('idle');
 	// new <body> -> re-evaluate eager/viewport preload links on the freshly-swapped page
 	r.scan_preload_links();
 }
@@ -910,35 +914,37 @@ export async function navigate(
  * that need query updates use `.refresh()`, or `submit().updates(q)` with server
  * `requested(q).refreshAll()` (updates alone does not populate response `q`).
  *
- * Uses a separate abort/generation from hard `navigate()` so soft fetches never cancel
- * an in-flight click navigation (and vice versa).
+ * Its own machine (`soft`, above) so soft fetches never cancel an in-flight click navigation;
+ * a real navigation ends a soft refresh in flight.
  */
 export async function invalidate_all(): Promise<void> {
 	bust_page_cache();
 	const url = new URL(location.href);
 
-	soft_abort?.abort();
-	soft_abort = new AbortController();
-	const { signal } = soft_abort;
-	const gen = ++soft_gen;
+	soft.go('refreshing', { href: url.href });
+	const mine = soft.now;
 
 	let html: string | null;
 	try {
-		html = await fetch_page(url.href, signal);
-	} catch (err) {
-		if ((err as { name?: string })?.name === 'AbortError' || gen !== soft_gen) return;
+		const fetched = await soft.task((signal) => fetch_page(url.href, signal));
+		if (fetched === STALE) return; // a navigation, or a newer refresh, took over
+		html = fetched;
+	} catch {
+		if (soft.now === mine) soft.go('idle');
 		return;
 	}
-	if (gen !== soft_gen || html == null) return;
+	if (soft.now !== mine) return;
+	if (html == null) return void soft.go('idle');
 
 	const doc = new DOMParser().parseFromString(html, 'text/html');
-	if (KitBoot.document_has(doc)) return;
-	if (!doc.querySelector('meta[name="ogygia-router"]')) return;
+	if (KitBoot.document_has(doc) || !doc.querySelector('meta[name="ogygia-router"]'))
+		return void soft.go('idle');
 	await devalue_for(doc);
-	if (gen !== soft_gen) return;
+	if (soft.now !== mine) return;
 
 	merge_head(doc.head);
 	apply_soft_invalidate_doc(doc);
+	soft.go('idle');
 }
 
 /**

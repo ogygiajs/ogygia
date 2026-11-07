@@ -57,10 +57,6 @@
 			"reason": "browser only: the dock's chunk failed to load: resets the button, constant work; proven in packages/devtools/e2e/devtools.spec.ts"
 		},
 		{
-			"id": "packages/postrender/src/registry.ts > invalidation_count",
-			"reason": "reads one module counter, constant work; what it guards is proven in packages/postrender/e2e/postrender.spec.ts S21"
-		},
-		{
 			"id": "packages/postrender/src/registry.ts > store_evict",
 			"reason": "one store call wrapped so a broken store never fails a render, constant work; proven in packages/postrender/e2e/postrender.spec.ts S21"
 		},
