@@ -389,6 +389,64 @@ describe('cache + invalidation', () => {
 		).toEqual(leaf(f, 'lib/leaf.ts', 'l'));
 	});
 
+	// (#200, dev) a barrel saved while a transform resolves through it
+	const gated = (f: Fixture, holds: (spec: string) => boolean) => {
+		let open!: () => void;
+		const opened = new Promise<void>((r) => (open = r));
+		let held!: () => void;
+		const holding = new Promise<void>((r) => (held = r));
+		const resolve = async (spec: string, importer: string) => {
+			if (holds(spec)) {
+				held();
+				await opened;
+			}
+			return f.host().resolve(spec, importer);
+		};
+		return { resolve, open, holding };
+	};
+
+	it('a barrel edited while its map is being built is built again: no caller keeps the old map', async () => {
+		f = fixture({
+			'lib/a.ts': 'export const a = 1;',
+			'lib/b.ts': 'export const a = 2;',
+			'lib/index.ts': `export { a } from './a';`
+		});
+		const gate = gated(f, (spec) => spec === './a');
+		const i = f.index({ resolve: gate.resolve });
+		const during = i.map(f.id('lib/index.ts'), '$lib');
+		await gate.holding;
+		// saved while the build waits on its resolve: `a` now comes from b
+		f.write('lib/index.ts', `export { a } from './b';`);
+		i.invalidate(f.id('lib/index.ts'));
+		const after = i.map(f.id('lib/index.ts'), '$lib');
+		gate.open();
+		expect((await after)!.entries.get('a')).toEqual(leaf(f, 'lib/b.ts', 'a'));
+		expect((await during)!.entries.get('a')).toEqual(leaf(f, 'lib/b.ts', 'a'));
+		expect((await i.map(f.id('lib/index.ts'), '$lib'))!.entries.get('a')).toEqual(
+			leaf(f, 'lib/b.ts', 'a')
+		);
+	});
+
+	it('a nested barrel edited while the outer map walks through it is walked again', async () => {
+		f = fixture({
+			'lib/leaf.ts': 'export const l = 1;',
+			'lib/other.ts': 'export const l = 2;',
+			'lib/mid.ts': `export { l } from './leaf';`,
+			'lib/index.ts': `export * from './mid';`
+		});
+		const gate = gated(f, (spec) => spec === './leaf');
+		const i = f.index({ resolve: gate.resolve });
+		const during = i.map(f.id('lib/index.ts'), '$lib');
+		await gate.holding;
+		f.write('lib/mid.ts', `export { l } from './other';`);
+		i.invalidate(f.id('lib/mid.ts'));
+		gate.open();
+		await during;
+		expect((await i.map(f.id('lib/index.ts'), '$lib'))!.entries.get('l')).toEqual(
+			leaf(f, 'lib/other.ts', 'l')
+		);
+	});
+
 	it('at scale: a 2 000-name barrel over 200 leaves maps in well under a second and points every name home', async () => {
 		const files: Record<string, string> = {};
 		const lines: string[] = [];
