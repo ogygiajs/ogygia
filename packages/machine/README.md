@@ -60,6 +60,28 @@ The first call (`machine<{ ... }>()`) takes each state's data. The second reads 
 
 A move the steps do not allow throws in dev and in tests. In production it is refused (`false`), the machine stays where it is, and the move is printed once with its code: [machine_illegal_move](https://ogygiajs.dev/e/machine_illegal_move).
 
+## States that end on their own
+
+A state in `after` lasts at most `ms`. Still in it when the time is up, the machine takes the step `to` (one of that state's own steps, checked as you write it), with that state's data made from the one it leaves.
+
+```ts
+const hole = machine<{ idle: {}; fetching: { attempt: number }; failed: { attempt: number } }>()({
+	name: 'hole',
+	initial: 'idle',
+	steps: { idle: ['fetching'], fetching: ['idle', 'failed'], failed: ['fetching'] },
+	after: {
+		fetching: { ms: 10_000, to: 'failed', data: (s) => ({ attempt: s.attempt }) },
+		failed: { ms: (s) => 500 * s.attempt, to: 'fetching', data: (s) => ({ attempt: s.attempt + 1 }) }
+	}
+});
+```
+
+Leaving the state first, or `stop()`, cancels the time; coming back starts it again. The timed step is a move like any other: tasks end, cleanups run, waits and observers hear it. Only a state with a timeout pays for a timer.
+
+## The definition as data
+
+`hole.graph()` gives every state, its steps, whether it is final and its timeout, as plain data (devtools draw it, docs show it). `hole.paths()` gives paths from `initial` that between them take every step: drive a machine down each in a test and every move the definition allows has run.
+
 ## Two helpers
 
 ```ts

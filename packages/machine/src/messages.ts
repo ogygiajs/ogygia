@@ -17,6 +17,7 @@ export type MachineErrors = {
 	machine_duplicate_step: Entry<{ name: string; from: string; to: string }>;
 	machine_kind_in_data: Entry<{ name: string; state: string }>;
 	machine_bad_option: Entry<{ option: string; value: string }>;
+	machine_bad_timeout: Entry<{ name: string; state: string; problem: string }>;
 };
 
 /** The errors: thrown in dev (and tests), where a wrong move is a bug to fix now. */
@@ -62,6 +63,15 @@ export const MACHINE_ERRORS: MachineErrors = {
 		text: (a: { option: string; value: string }): string =>
 			`machine: \`${a.option}\` must be a whole number of 0 or more (got ${a.value}).`,
 		details: (): string => 'An option that counts something takes a whole number of 0 or more.'
+	},
+	machine_bad_timeout: {
+		text: (a: { name: string; state: string; problem: string }): string =>
+			`machine ${a.name}: the timeout of "${a.state}" cannot be used: ${a.problem}.`,
+		details: (): string =>
+			'A state in `after` ends on its own: still in it after `ms`, the machine takes the step `to`. ' +
+			'`to` must be one of that state’s own `steps` (the timed step is a move like any other), and ' +
+			'`ms` a number of 0 or more, or a function that makes one from the state’s value.\n\n' +
+			'This is refused in every build: a timer set from it would fire a move the steps do not allow.'
 	}
 };
 
