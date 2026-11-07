@@ -47,6 +47,30 @@ export type DataArgs<D> = [keyof D] extends [never] ? [] : {} extends D ? [data?
 /** The steps written in the definition: every state, and nothing else. */
 type ExactSteps<S, T> = T & { readonly [K in Exclude<keyof T, keyof S>]: never };
 
+/** The value of state `K`. */
+export type StateIn<S, K extends Kind<S>> = Extract<StateOf<S>, { kind: K }>;
+
+/**
+ * How long state `K` lasts on its own, and the step it then takes: one of its own steps, with that
+ * state's data made from the state it leaves (required exactly when the target has data).
+ */
+export type Timeout<S extends Shape<S>, T extends Steps<S>, K extends Kind<S>> = {
+	[To in T[K][number] & Kind<S>]: {
+		/** Milliseconds in the state before the step (0 or more), or made from the state's value. */
+		readonly ms: number | ((now: StateIn<S, K>) => number);
+		readonly to: To;
+	} & ([keyof S[To]] extends [never]
+		? { readonly data?: never }
+		: {} extends S[To]
+			? { readonly data?: (now: StateIn<S, K>) => S[To] }
+			: { readonly data: (now: StateIn<S, K>) => S[To] });
+}[T[K][number] & Kind<S>];
+
+/** The states that end on their own after a time: `{ fetching: { ms: 10_000, to: 'failed', … } }`. */
+export type After<S extends Shape<S>, T extends Steps<S>> = {
+	readonly [K in Kind<S>]?: Timeout<S, T, K>;
+};
+
 export interface Config<S extends Shape<S>, T extends Steps<S>, I extends Kind<S>> {
 	/** Names the machine in messages and to observers (minifiers rename functions, not this). */
 	name: string;
@@ -54,6 +78,28 @@ export interface Config<S extends Shape<S>, T extends Steps<S>, I extends Kind<S
 	initial: I;
 	/** Where each state can go next. */
 	steps: ExactSteps<S, T>;
+	/**
+	 * States that end on their own: still in the state after `ms`, the machine takes the step `to`
+	 * (a step of that state, checked as it is written). A move out of it first, or `stop()`,
+	 * cancels it; coming back starts the time again. In place of a timer kept by hand beside the
+	 * machine, which outlives the state it was for.
+	 */
+	after?: After<S, T>;
+}
+
+/** A definition as data: its states and steps, for devtools, docs and tests. */
+export interface MachineGraph<K extends string = string> {
+	readonly name: string;
+	readonly initial: K;
+	readonly states: readonly {
+		readonly kind: K;
+		/** Where it can go next. */
+		readonly steps: readonly K[];
+		/** No steps out. */
+		readonly final: boolean;
+		/** The step it takes on its own, and after how long (`null`: made from the state's value). */
+		readonly after: { readonly to: K; readonly ms: number | null } | null;
+	}[];
 }
 
 /** A machine definition: written once, at the top of a module. Its machines are made by `create`. */
@@ -63,6 +109,14 @@ export interface Definition<S extends Shape<S>, T extends Steps<S>, I extends Ki
 	readonly steps: T;
 	/** A new machine, in `initial` (with its data, if that state has data). */
 	create(...data: DataArgs<S[I]>): Machine<S, T>;
+	/** Its states and steps as data. */
+	graph(): MachineGraph<Kind<S>>;
+	/**
+	 * Paths from `initial` that between them take every step at least once: for each step, the
+	 * shortest path that reaches its state and takes it. Drive a machine down each in a test and
+	 * every move the definition allows has run.
+	 */
+	paths(): Kind<S>[][];
 }
 
 /** A running machine. */
@@ -151,6 +205,13 @@ function notify(name: string, from: State, to: State | null, machine: AnyMachine
 type State = { readonly kind: string };
 type Waiter = { kind: string; resolve: (value: State | Stale) => void };
 
+/** A state's own timeout, linked to the state it steps to. */
+interface Timed {
+	readonly ms: number | ((now: State) => number);
+	readonly to: Node;
+	readonly data: ((now: State) => object) | undefined;
+}
+
 /** One state of a definition, linked straight to the states it steps to: a move walks a short
  *  array of these and never looks a name up. */
 interface Node {
@@ -158,6 +219,8 @@ interface Node {
 	readonly next: Node[];
 	/** The shared, frozen value of this state with no data. */
 	readonly empty: State;
+	/** The step it takes on its own after a time, or null (most states: no cost to them). */
+	timed: Timed | null;
 }
 
 /** A definition as the machines read it. */
@@ -241,6 +304,7 @@ class Running implements AnyMachine {
 		this._def = def;
 		this._node = node;
 		this._now = now;
+		if (node.timed !== null) this._arm(node.timed);
 	}
 
 	get now(): State {
@@ -346,9 +410,39 @@ class Running implements AnyMachine {
 		const abort = this._abort;
 		this._leave = null;
 		this._abort = null;
+		// (armed before anything else runs: a waiter or an observer that moves the machine again
+		// then leaves this visit, and its leave clears this timer)
+		if (target.timed !== null) this._arm(target.timed);
 		if (this._waiters !== null) this._settle(next);
 		if (observers.length !== 0) notify(def.name, prev, next, this);
 		if (leave !== null || abort !== null) this._exit(leave, abort);
+	}
+
+	/**
+	 * The state's own time: still in this visit when it is up, the machine takes the step. Leaving
+	 * (or stopping) clears it. A failure while taking it (its data, a cleanup) is reported and the
+	 * machine stays where it is: a timer has nobody to throw to.
+	 */
+	_arm(timed: Timed): void {
+		const visit = this._visit;
+		let ms: number;
+		try {
+			ms = typeof timed.ms === 'function' ? timed.ms(this._now) : timed.ms;
+		} catch (error) {
+			console.error(`[ogygia] machine ${this._def.name}: its timeout could not be timed`, error);
+			return;
+		}
+		const timer = setTimeout(() => {
+			if (this._visit !== visit || this._stopped) return;
+			try {
+				this._enter(timed.to, timed.data === undefined ? undefined : timed.data(this._now));
+			} catch (error) {
+				console.error(`[ogygia] machine ${this._def.name}: its timed step failed`, error);
+			}
+		}, ms);
+		// (a server shutting down does not wait for a state's time)
+		(timer as { unref?: () => void }).unref?.();
+		(this._leave ??= []).push(() => clearTimeout(timer));
 	}
 
 	_settle(next: State): void {
@@ -424,17 +518,24 @@ export function machine<S extends Shape<S>>(): <const T extends Steps<S>, const 
 	return define as never;
 }
 
+type TimeoutConfig = {
+	ms: number | ((now: State) => number);
+	to: string;
+	data?: (now: State) => object;
+};
+
 function define(config: {
 	name: string;
 	initial: string;
 	steps: Record<string, readonly string[]>;
+	after?: Record<string, TimeoutConfig | undefined>;
 }): object {
 	const name = String(config.name);
 	const steps: Record<string, readonly string[]> = Object.create(null);
 	const nodes = new Map<string, Node>();
 	for (const kind of Object.keys(config.steps)) {
 		steps[kind] = Object.freeze([...config.steps[kind]]);
-		nodes.set(kind, { kind, next: [], empty: Object.freeze({ kind }) });
+		nodes.set(kind, { kind, next: [], empty: Object.freeze({ kind }), timed: null });
 	}
 	// a machine with no state to start in cannot run at all: refused in every build
 	const initial = nodes.get(config.initial);
@@ -449,10 +550,72 @@ function define(config: {
 			const target = nodes.get(to);
 			if (target !== undefined && !node.next.includes(target)) node.next.push(target);
 		}
+	// each state's own timeout: refused in every build when it is not one of the state's steps, or
+	// its time is not a time (a timer set from a bad definition would fire a move nobody allowed)
+	for (const [kind, timeout] of Object.entries(config.after ?? {})) {
+		if (timeout === undefined) continue;
+		const node = nodes.get(kind);
+		if (node === undefined)
+			throw machine_error('machine_unknown_state', { name, state: kind, where: 'after' });
+		const target = step_to(node, timeout.to);
+		if (target === null)
+			throw machine_error('machine_bad_timeout', {
+				name,
+				state: kind,
+				problem: `"${timeout.to}" is not one of its steps`
+			});
+		const ms = timeout.ms;
+		if (typeof ms !== 'function' && !(typeof ms === 'number' && Number.isFinite(ms) && ms >= 0))
+			throw machine_error('machine_bad_timeout', {
+				name,
+				state: kind,
+				problem: `its ms (${String(ms)}) is not a time of 0 or more`
+			});
+		node.timed = { ms, to: target, data: timeout.data };
+	}
 	return Object.freeze({
 		name,
 		initial: initial.kind,
 		steps: def.steps,
-		create: (data?: object) => new Running(def, initial, state_of(def, initial, data))
+		create: (data?: object) => new Running(def, initial, state_of(def, initial, data)),
+		graph: () => graph_of(def),
+		paths: () => paths_of(def)
 	});
+}
+
+function graph_of(def: Def): MachineGraph {
+	return {
+		name: def.name,
+		initial: def.initial.kind,
+		states: [...def.nodes.values()].map((node) => ({
+			kind: node.kind,
+			steps: def.steps[node.kind],
+			final: def.steps[node.kind].length === 0,
+			after:
+				node.timed === null
+					? null
+					: {
+							to: node.timed.to.kind,
+							ms: typeof node.timed.ms === 'number' ? node.timed.ms : null
+						}
+		}))
+	};
+}
+
+/** For each step, the shortest path from `initial` that reaches its state and then takes it. */
+function paths_of(def: Def): string[][] {
+	// the shortest way to each state (breadth first)
+	const way = new Map<string, string[]>([[def.initial.kind, [def.initial.kind]]]);
+	const queue = [def.initial.kind];
+	while (queue.length > 0) {
+		const kind = queue.shift() as string;
+		for (const to of def.steps[kind])
+			if (!way.has(to)) {
+				way.set(to, [...(way.get(kind) as string[]), to]);
+				queue.push(to);
+			}
+	}
+	const out: string[][] = [];
+	for (const [kind, path] of way) for (const to of def.steps[kind]) out.push([...path, to]);
+	return out;
 }
