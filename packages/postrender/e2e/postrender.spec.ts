@@ -620,7 +620,10 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		const slug = 'slow-published';
 		const path = `/fr/fr/c/${slug}`;
 		// the render reads v1, then takes 600 ms more (a slow upstream)
-		const rendering = fetch(origin + path).then((r) => r.text());
+		const rendering = fetch(origin + path).then(async (r) => ({
+			html: await r.text(),
+			cache: r.headers.get('cache-control') ?? ''
+		}));
 		await new Promise((r) => setTimeout(r, 200));
 		// the editor publishes v2 while it renders: the webhook bumps the doc and invalidates the URL
 		const pub = await fetch(origin + '/api/publish', {
@@ -632,7 +635,14 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		const first = await rendering;
 		check(
 			'S21: the visitor who asked got the render (v1, read before the publish)',
-			first.includes(`content of ${slug} v1`)
+			first.html.includes(`content of ${slug} v1`)
+		);
+		// …marked no-store like every refused render: a CDN's property-wide TTL must not keep the
+		// page as it was before the publish either
+		check(
+			'S21: that render goes out no-store',
+			first.cache.includes('no-store'),
+			first.cache || '(no cache-control)'
 		);
 		const after = await fetch(origin + path);
 		const html = await after.text();
