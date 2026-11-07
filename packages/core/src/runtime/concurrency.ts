@@ -82,6 +82,10 @@ export class ConcurrencyGate {
 			if (wait_ms !== undefined)
 				timer = setTimeout(() => {
 					waiter.gave_up = true;
+					// out of the queue now: with every slot held by bodies that never end, no `#leave`
+					// would ever come to drop it, and the queue would grow by the request rate
+					const at = this.#wait.indexOf(waiter);
+					if (at !== -1) this.#wait.splice(at, 1);
 					reject(new Error(WAIT_TIMEOUT));
 				}, wait_ms);
 			this.#wait.push(waiter);
