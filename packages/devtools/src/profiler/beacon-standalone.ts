@@ -58,7 +58,11 @@ export function standalone_beacon(): void {
 	const seen: PerformanceResourceTiming[] = [];
 	let off = false;
 	let cls = 0;
-	let sent = false;
+	// THE VISIT'S STATE (the runtime's beacon keeps the same one, as a machine: this script is
+	// inlined, so it holds no import). A hide sends the visit (`sent`); coming back to the tab or a
+	// back/forward cache restore opens it again (`reopened`), and the next hide sends it again. While
+	// `sent`, nothing more goes: no early visit, no re-send.
+	let visit_state: 'open' | 'sent' | 'reopened' = 'open';
 	let resend: ReturnType<typeof setTimeout> | undefined;
 	/** visits sent while the page lives (the early one, then re-sends): at most 8 */
 	let early_sends = 0;
@@ -181,7 +185,8 @@ export function standalone_beacon(): void {
 		if (body.length > room) {
 			// (once the hide ran the page is leaving, whatever its visibility reads: a link or a reload
 			// fires pagehide on a page still "visible", and an ordinary request went with it)
-			if (!sent && document.visibilityState === 'visible') return post(body, false);
+			if (visit_state !== 'sent' && document.visibilityState === 'visible')
+				return post(body, false);
 			const smaller = slim?.();
 			if (!smaller || smaller.length > room) return;
 			body = smaller;
@@ -416,8 +421,10 @@ export function standalone_beacon(): void {
 
 	/** the page is going away: the vitals (final only now), the visit, the CPU trace */
 	function hide() {
-		if (runtime_claimed() || sent) return;
-		sent = true;
+		if (runtime_claimed() || visit_state === 'sent') return;
+		visit_state = 'sent';
+		// (the re-send waiting to go is this visit's copy: it is not sent after it)
+		clearTimeout(resend);
 		// (the small vitals first, then the visit: the queued requests share 64 KB, and the visit has a
 		// slim copy to fit what is left)
 		if (Object.keys(vitals).length)
@@ -430,6 +437,10 @@ export function standalone_beacon(): void {
 				JSON.stringify({ page: location.pathname, visit: { ...v, resources: [] } })
 			);
 		cpu(true);
+	}
+	/** the page is shown again (its tab, or a back/forward cache restore): the visit goes on */
+	function show() {
+		if (visit_state === 'sent') visit_state = 'reopened';
 	}
 	/** a later paint or shift: the visit again a moment later (debounced), once one has gone */
 	function again() {
@@ -449,7 +460,7 @@ export function standalone_beacon(): void {
 	}
 	/** the visit while the page lives: the early one, and each re-send */
 	function early() {
-		if (runtime_claimed() || early_sends >= 8) return;
+		if (runtime_claimed() || visit_state === 'sent' || early_sends >= 8) return;
 		early_sends++;
 		const v = visit();
 		if (v) send(JSON.stringify({ page: location.pathname, visit: v }));
@@ -480,8 +491,12 @@ export function standalone_beacon(): void {
 		if (document.querySelector('script[data-ogygia-runtime]')) return stand_down();
 		document.addEventListener('visibilitychange', () => {
 			if (document.visibilityState === 'hidden') hide();
+			else show();
 		});
 		addEventListener('pagehide', hide);
+		addEventListener('pageshow', (e) => {
+			if (e.persisted) show();
+		});
 		addEventListener('load', () => setTimeout(early, 1500));
 	});
 }
