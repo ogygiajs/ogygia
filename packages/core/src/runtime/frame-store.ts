@@ -51,6 +51,9 @@ type Entry = {
 	seq: number;
 	inflight: Inflight | null;
 	evict: ReturnType<typeof setTimeout> | null;
+	/** The fresh capability a renewal at this address answered (an expired one is re-signed once):
+	 *  the address's, so every element bound here moves onto it, not only the one that fetched. */
+	renewed: string | null;
 };
 
 /** Entries with no subscribers linger this long (ms) so quick remounts / SPA swaps reuse content. */
@@ -71,7 +74,7 @@ const entries: Map<string, Entry> = store_host[GLOBAL_KEY] ?? (store_host[GLOBAL
 function entry(a: string): Entry {
 	let e = entries.get(a);
 	if (!e) {
-		e = { v: 0, html: null, seq: 0, inflight: null, evict: null };
+		e = { v: 0, html: null, seq: 0, inflight: null, evict: null, renewed: null };
 		entries.set(a, e);
 	}
 	return e;
@@ -99,6 +102,16 @@ function schedule_evict(a: string, e: Entry): void {
 export function peek(a: string): { v: number; html: string } | null {
 	const e = entries.get(a);
 	return e && e.html != null ? { v: e.v, html: e.html } : null;
+}
+
+/** A renewal at this address answered `fresh`, the capability its elements fetch with from now on. */
+export function renew(a: string, fresh: string): void {
+	entry(a).renewed = fresh;
+}
+
+/** The fresh capability a renewal at this address answered, if any. */
+export function renewal(a: string): string | null {
+	return entries.get(a)?.renewed ?? null;
 }
 
 /** Nothing applied and nothing in flight at this address (a batch may take it on). */

@@ -460,9 +460,6 @@ class OgygiaRegion extends HTMLElement {
 	 *  The fetch reads this copy and restores the attribute (lakes, devtools and the router's
 	 *  next-page warm all read the DOM). */
 	#minted_endpoint: string | null = null;
-	/** A fresh capability a renewal answered (#frame_fetcher), adopted once the fetch that got it is
-	 *  applied (#adopt_renewed) — moving addresses mid-fetch would orphan that answer. */
-	#renewed_endpoint: string | null = null;
 	/** THE HYDRATION SOURCE OF TRUTH: this island's server markup as it connected (or, for a
 	 *  hydrating hole, as its answer was swapped in). An island can sleep a long time and other
 	 *  scripts edit the page meanwhile; on wake, hydrate-core hydrates against THIS when the live
@@ -753,7 +750,8 @@ class OgygiaRegion extends HTMLElement {
 			} as RequestInit);
 			// An EXPIRED capability (its document outlived it in a cache): renew once. The handle
 			// re-signs an anonymous hole it minted itself and answers with the hole AND the fresh
-			// capability, which this element adopts for its later fetches (#adopt_renewed).
+			// capability — the address's, kept in the store: every element bound there adopts it for
+			// its later fetches (#adopt_renewed), not only this one.
 			if (res.status === 403 && capability_expired(endpoint)) {
 				res = await fetch(renewal_url(endpoint), {
 					credentials: 'same-origin',
@@ -761,7 +759,8 @@ class OgygiaRegion extends HTMLElement {
 					signal
 				});
 				const fresh = res.ok ? res.headers.get('x-ogygia-capability') : null;
-				if (fresh && is_allowed_region_endpoint(fresh)) this.#renewed_endpoint = fresh;
+				if (fresh && is_allowed_region_endpoint(fresh))
+					slots.frames?.renew(frameAddress(endpoint), fresh);
 			}
 			if (!is_same_origin_response(res)) throw new Error('cross-origin redirect');
 			// THE ANSWER MUST BE THE REGION'S. ogygia's handle answers a region request in place —
@@ -877,22 +876,26 @@ class OgygiaRegion extends HTMLElement {
 	}
 
 	/**
-	 * Move this hole onto the fresh capability a renewal answered: the attribute (every DOM reader —
-	 * lakes, devtools, the router's warm — agrees), the minted copy, and the frame-store address its
-	 * later wakes and revalidates fetch and apply at. Called after the answer that carried it landed.
+	 * Move this hole onto the fresh capability a renewal at its address answered (frame-store
+	 * `renew`, whichever copy's fetch got it): the attribute (every DOM reader — lakes, devtools, the
+	 * router's warm — agrees), the minted copy, and, should the address differ, the frame-store
+	 * address its later wakes and revalidates fetch and apply at. Called once an answer landed — moving
+	 * addresses mid-fetch would orphan that answer. A copy whose own capability has not expired keeps
+	 * it (it can be newer than the renewal: a page rendered since).
 	 */
 	#adopt_renewed() {
-		const fresh = this.#renewed_endpoint;
-		if (!fresh) return;
-		this.#renewed_endpoint = null;
+		const address = this.#frame_address;
+		const fresh = address ? slots.frames?.renewal(address) : null;
+		const current = this.getAttribute('endpoint');
+		if (!fresh || fresh === current || (current && !capability_expired(current))) return;
 		this.#minted_endpoint = fresh;
 		this.setAttribute('endpoint', fresh);
-		if (this.#frame_unsub) {
+		const moved = frameAddress(fresh);
+		if (this.#frame_unsub && moved !== address) {
 			this.#frame_unsub();
-			const address = (this.#frame_address = frameAddress(fresh));
+			this.#frame_address = moved;
 			this.#frame_unsub =
-				slots.frames?.subscribe(address, (f) => void (this.#applying = this.#apply(f.html))) ??
-				null;
+				slots.frames?.subscribe(moved, (f) => void (this.#applying = this.#apply(f.html))) ?? null;
 		}
 	}
 
@@ -960,6 +963,7 @@ class OgygiaRegion extends HTMLElement {
 			this.#kept = true;
 			if (!is_awake(this)) this.setAttribute('data-hydrated', '');
 			this.setAttribute('data-og-kept', '');
+			this.#adopt_renewed();
 			this.dispatchEvent(new CustomEvent('ogygia:server', { bubbles: true }));
 			return;
 		}
@@ -1017,6 +1021,8 @@ class OgygiaRegion extends HTMLElement {
 					? { wait_ms: Math.round(performance.now() - this.#fetch_started) }
 					: {})
 			});
+		// (whichever copy's fetch renewed the capability: this one moves onto it too)
+		this.#adopt_renewed();
 		this.dispatchEvent(new CustomEvent('ogygia:server', { bubbles: true }));
 	}
 

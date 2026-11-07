@@ -106,6 +106,9 @@ export type FrameOps = {
 	): Promise<string>;
 	/** Give back the stake an `ensure` returned: only that caller leaves the fetch. */
 	abandon(stake: Promise<string>): void;
+	/** A renewal answered a fresh capability for this address; and the one it answered, if any. */
+	renew(a: string, fresh: string): void;
+	renewal(a: string): string | null;
 	/**
 	 * SINGLE-FLIGHT NAVIGATION: batch a page's signed deferred endpoints into the store as one streamed response. Lives
 	 * on the seam (not a static router import) so an app with `router` but no deferred/live/lake region

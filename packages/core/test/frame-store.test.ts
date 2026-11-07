@@ -153,6 +153,15 @@ describe('frame-store: lifecycle', () => {
 	});
 });
 
+describe('frame-store: renewal', () => {
+	it('a renewed capability is the address’s, for every element bound there', () => {
+		expect(frames.renewal('id|p')).toBeNull();
+		frames.renew('id|p', '/__ogygia__?id=id&props=p&exp=2&sig=new');
+		expect(frames.renewal('id|p')).toBe('/__ogygia__?id=id&props=p&exp=2&sig=new');
+		expect(frames.renewal('id|other')).toBeNull();
+	});
+});
+
 describe('frame-store: eviction (no leak)', () => {
 	afterEach(() => vi.useRealTimers());
 
