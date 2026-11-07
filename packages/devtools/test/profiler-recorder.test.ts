@@ -206,4 +206,45 @@ describe('the recorder has one owner', () => {
 		await slow;
 		expect(stacks_after).toBe(true);
 	}, 60_000);
+
+	it("a recording wedged past the hard cap is cut: the site's requests stop paying for its context", async () => {
+		dev_switch.dev = false;
+		const orig = globalThis.fetch;
+		globalThis.fetch = (async () =>
+			new Response('data', { headers: { 'content-length': '4' } })) as typeof fetch;
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		try {
+			const handle = profiler({ secret: 'k', serverTiming: true });
+			const visitor = async () =>
+				(
+					await handle({
+						event: make_event('/visitor'),
+						resolve: async () => {
+							await fetch('https://api.example.com/data');
+							return new Response('page');
+						}
+					})
+				).headers.get('Server-Timing') ?? '';
+			// a header-profiled request whose page never answers
+			const held = gate();
+			const wedged = handle({
+				event: make_event('/wedged', { headers: { 'x-profile': 'k' } }),
+				resolve: async () => {
+					await held.opened;
+					return new Response('late');
+				}
+			});
+			while (!span_recording()) await new Promise((r) => setImmediate(r));
+			// while it records, every request is attributed
+			expect(await visitor()).toContain('net;');
+			// past the hard cap (30 s, and 2 more)
+			await vi.advanceTimersByTimeAsync(33_000);
+			expect(await visitor()).not.toContain('net;');
+			held.open();
+			await wedged;
+		} finally {
+			vi.useRealTimers();
+			globalThis.fetch = orig;
+		}
+	}, 30_000);
 });
