@@ -18,11 +18,15 @@ import { OgygiaError } from './messages/runtime.ts';
 const LIVE_RETRY_FIRST_MS = 1000;
 const LIVE_RETRY_LAST_MS = 60_000;
 
-/** An open live connection: its changes, and the pull out on it now. */
+/** An open live connection: its changes (none when `live()` threw as it was called: its pull failed),
+ *  and the pull out on it now. */
 type LiveConnection = {
-	changes: AsyncIterator<unknown>;
+	changes: AsyncIterator<unknown> | null;
 	pending: Promise<IteratorResult<unknown>>;
 };
+
+/** A failure seen elsewhere (where it is reported), on a promise nothing else awaits. */
+function ignore(): void {}
 
 // ── content graph registry ───────────────────────────────────────────────────
 
@@ -320,7 +324,8 @@ export class Collection<
 					} catch (err) {
 						console.error(new OgygiaError('content_live_change_failed'), err);
 					}
-					connection.pending = connection.changes.next();
+					// (a pull that answered came from the iterator `live()` returned)
+					connection.pending = connection.changes!.next();
 				}
 			} catch (err) {
 				this.#connection = null;
@@ -335,16 +340,14 @@ export class Collection<
 	#connect(): LiveConnection {
 		if (this.#connection) return this.#connection;
 		const live = this.#source.live!;
-		let changes: AsyncIterator<unknown>;
-		let pending: Promise<IteratorResult<unknown>>;
-		try {
+		let changes: AsyncIterator<unknown> | null = null;
+		// (the source is called, and pulled, right now: an async function runs to its first await.
+		// A `live()` that throws as it is called is a pull that failed: the connection dropped.)
+		const pending = (async () => {
 			changes = live.call(this.#source)[Symbol.asyncIterator]();
-			pending = changes.next();
-		} catch (err) {
-			pending = Promise.reject(err);
-			changes = { next: () => pending };
-		}
-		pending.catch(() => {}); // (seen by #follow, once a read has run)
+			return changes.next();
+		})();
+		pending.catch(ignore); // (seen by #follow, once a read has run)
 		return (this.#connection = { changes, pending });
 	}
 
@@ -353,7 +356,7 @@ export class Collection<
 		const wait = Math.min(LIVE_RETRY_FIRST_MS * 2 ** attempt, LIVE_RETRY_LAST_MS);
 		const timer = setTimeout(() => {
 			// (a failed read is reported, and retried, by #follow; the connection listens first)
-			void this.#follow(() => this.#reload(true), attempt + 1, true).catch(() => {});
+			void this.#follow(() => this.#reload(true), attempt + 1, true).catch(ignore);
 		}, wait);
 		// (a server shutting down does not wait for a reconnect)
 		(timer as { unref?: () => void }).unref?.();
