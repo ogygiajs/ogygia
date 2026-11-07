@@ -34,6 +34,11 @@ const RUNES = new Set(['$state', '$derived', '$effect', '$props', '$inspect']);
 // arbitrary app code can import anything — in practice `ogygia` itself, and so Svelte. The boot must
 // never reach one; it is how the app's transport graph once put Svelte's runtime into `<head>`.
 const APP_CODE = new Set(['virtual:ogygia/transport']);
+// The workspace packages the runtime bundles in (not the app's own dependencies): their modules are
+// part of the graph like core's own, so a lazy chunk and the boot that both import one share a file.
+const BUNDLED_PACKAGES = new Map([
+	['@ogygia/machine', path.resolve(__dirname, '../../machine/src/index.ts')]
+]);
 
 function resolve(from: string, spec: string): string | null {
 	const base = path.resolve(path.dirname(from), spec);
@@ -86,6 +91,11 @@ function static_files(entry: string): Map<string, string[]> {
 		if (seen.has(file)) return;
 		seen.set(file, chain);
 		for (const spec of scan(file).specs) {
+			const bundled = BUNDLED_PACKAGES.get(spec);
+			if (bundled) {
+				walk(bundled, [...chain, spec]);
+				continue;
+			}
 			if (!spec.startsWith('.') || spec.endsWith('.svelte')) continue;
 			const next = resolve(file, spec);
 			if (next && !next.startsWith(DEVTOOLS)) walk(next, [...chain, path.relative(SRC, next)]);
@@ -241,5 +251,9 @@ describe('island-side modules reach the runtime only through its handles', () =>
 	it('Kit’s transport really does share the registry (so it is the allowed exception, not a loophole)', () => {
 		expect(kit_transport_shared.has(path.join(RUNTIME, 'slots.ts'))).toBe(true);
 		expect(kit_transport_shared.has(path.join(RUNTIME, 'router.ts'))).toBe(false);
+	});
+
+	it('the boot set follows the bundled packages too (the machine the boot runs on)', () => {
+		expect(boot.has(BUNDLED_PACKAGES.get('@ogygia/machine')!)).toBe(true);
 	});
 });
