@@ -174,12 +174,16 @@ export type BootLink = {
 	/** the runtime's messages (../messages/core.ts), as a lazy chunk throws and logs them (../messages/lazy.ts) */
 	OgygiaError: typeof import('../messages/core.ts').OgygiaError;
 	warn: typeof import('../messages/core.ts').warn;
+	/** what a machine's task answers once its visit is left (`@ogygia/machine`, which the boot runs on) */
+	STALE: typeof import('@ogygia/machine').STALE;
 };
 export type RouterLink = {
 	document_key: typeof import('./router.ts').document_key;
 	jump_to_hash: typeof import('./router.ts').jump_to_hash;
 	push_state: typeof import('./router.ts').push_state;
 	replace_state: typeof import('./router.ts').replace_state;
+	/** the soft refresh's machine (./navigation.ts): one per page, a real navigation ends it */
+	soft: import('./navigation.ts').SoftRefresh;
 };
 export type InteractionLink = {
 	resolve_address: typeof import('./interaction.ts').resolve_address;

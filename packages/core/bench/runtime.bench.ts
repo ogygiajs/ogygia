@@ -11,6 +11,7 @@ import { morph_children } from '../src/runtime/morph.ts';
 import { PageCache } from '../src/runtime/page-cache.ts';
 import { parse_wire_text } from '../src/runtime/wire-format.ts';
 import { failed_import_url, import_again, retry_url } from '../src/runtime/import-again.ts';
+import { create_navigation, create_soft_refresh } from '../src/runtime/navigation.ts';
 import { ConcurrencyGate } from '../src/runtime/concurrency.ts';
 
 bench(
@@ -137,6 +138,37 @@ bench(
 			])
 		})
 	}
+);
+
+bench(
+	"the router's machines: clicks that take over a navigation in flight, and soft refreshes it ends",
+	async ({ n }) => {
+		const nav = create_navigation();
+		const soft = create_soft_refresh();
+		let arrived = 0;
+		for (let i = 0; i < n; i++) {
+			// a soft refresh out when the visitor clicks: the navigation ends it
+			soft.go('refreshing', { href: '/a' });
+			const refresh = soft.task(async () => 'the page refreshed');
+			nav.go('claimed', { href: `/p${i}` });
+			const mine = nav.now;
+			if (soft.now.kind === 'refreshing') soft.go('idle');
+			nav.go('loading', { href: `/p${i}` });
+			const page = nav.task(async () => `<h1>p${i}</h1>`);
+			// every third click is taken over by a newer one while its page is out
+			if (i % 3 === 0) nav.go('claimed', { href: `/p${i}b` });
+			const [html] = await Promise.all([page, refresh]);
+			if (typeof html !== 'string' || nav.now !== mine) {
+				nav.go('idle');
+				continue;
+			}
+			nav.go('settling', { href: `/p${i}` });
+			nav.go('idle');
+			arrived++;
+		}
+		return arrived;
+	},
+	{ setup: () => ({ n: 60 }), scale: (_ctx, k) => ({ n: 60 * k }) }
 );
 
 function list(keys: number[]): string {

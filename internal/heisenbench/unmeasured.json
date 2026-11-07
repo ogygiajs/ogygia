@@ -81,6 +81,10 @@
 			"reason": "browser only: the soft refresh's fetch, run as a task of its visit (a navigation ends it); proven in apps/palaestra/e2e/router-ownership.spec.ts (#202)"
 		},
 		{
+			"id": "packages/core/src/runtime/router-nav.ts > is_stale",
+			"reason": "browser only: one comparison with the boot's STALE, inside the navigation chunk; proven in apps/palaestra/e2e/router-ownership.spec.ts and router-race.spec.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/router.ts > SpaRouter > get nav_target",
 			"reason": "browser only: reads the navigation machine's state, constant work; proven in apps/palaestra/e2e/router-document-fetch.spec.ts and router-ownership.spec.ts"
 		},
