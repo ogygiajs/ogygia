@@ -1,5 +1,29 @@
 # @ogygia/core
 
+## 0.13.0
+
+### Minor Changes
+
+- [#174](https://github.com/ogygiajs/ogygia/pull/174) [`413e77f`](https://github.com/ogygiajs/ogygia/commit/413e77f339c19a394ea7582685ed04d5858bf352) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A page discloses which ogygia it runs on `window.__ogygia.v` (a Set of versions, as Svelte's `window.__svelte.v`), on csr=false and csr=true pages alike.
+
+- [#175](https://github.com/ogygiajs/ogygia/pull/175) [`a99a49a`](https://github.com/ogygiajs/ogygia/commit/a99a49a724ecd61ee0e1388a4e659732a73f5939) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Every ogygia error and warning has a code and a page at `ogygiajs.dev/e/<code>`: dev prints the wording and the link, a production build prints the link alone (`[ogygia] https://ogygiajs.dev/e/<code>?<args>`), so the wording stays out of the client and server bundles.
+
+### Patch Changes
+
+- [#186](https://github.com/ogygiajs/ogygia/pull/186) [`01dc5b9`](https://github.com/ogygiajs/ogygia/commit/01dc5b99c13cba0e30a96b0ff765865096a76dca) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Compiling a page with many regions is up to 1.9x faster: each region import no longer walks the whole file again to learn whether it is used.
+
+- [#169](https://github.com/ogygiajs/ogygia/pull/169) [`e8cd9f7`](https://github.com/ogygiajs/ogygia/commit/e8cd9f7b9cf0695c4d287283d34ce258ef71c10a) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A page whose islands get plain JSON props no longer downloads devalue: it loads only when a props sidecar, the page seed or page facts are in devalue's lane, beside the hydrate code (about 2 KB brotli off each island page of the benchmark).
+
+- [#187](https://github.com/ogygiajs/ogygia/pull/187) [`b46798f`](https://github.com/ogygiajs/ogygia/commit/b46798f90c26830c7f4eab0daf64602dee89edaa) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The build's flag inventory takes time in line with a module's size: each flag's line is found from one pass over the file, not counted again from the top.
+
+- [#173](https://github.com/ogygiajs/ogygia/pull/173) [`e7c31c0`](https://github.com/ogygiajs/ogygia/commit/e7c31c0d32dae5a525c417b9d3936bc3775f5b10) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Islands hydrate the component itself instead of through a wrapper component: an island page ships less Svelte (about 0.3–0.4 KB brotli), and a placed island's server markup carries one marker pair fewer.
+
+- [#187](https://github.com/ogygiajs/ogygia/pull/187) [`b46798f`](https://github.com/ogygiajs/ogygia/commit/b46798f90c26830c7f4eab0daf64602dee89edaa) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Finding the images that downloaded beside a page's largest paint takes time in line with its images.
+
+- [#170](https://github.com/ogygiajs/ogygia/pull/170) [`6a63ecf`](https://github.com/ogygiajs/ogygia/commit/6a63ecf2d7e281ca739121de0219b65c4c4d53a7) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The island prop-mutation warning (a dev aid) no longer ships in production builds: its guard is created only in dev, so the bundler drops it (about 0.4 KB brotli per island page).
+
+- [#173](https://github.com/ogygiajs/ogygia/pull/173) [`e7c31c0`](https://github.com/ogygiajs/ogygia/commit/e7c31c0d32dae5a525c417b9d3936bc3775f5b10) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A live region and a woken deferred island now adopt their server HTML: they were thrown away and re-rendered on the client every time they hydrated.
+
 ## 0.12.3
 
 ### Patch Changes
