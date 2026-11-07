@@ -266,6 +266,21 @@ describe('postrender/registry', () => {
 		expect(join_flight('/hot/')).toBeNull();
 	});
 
+	it('single-flight: a flight settles once, and a late settle never ends a newer flight (#194)', async () => {
+		const first = begin_flight('/hot/');
+		const joined_first = join_flight('/hot/')!;
+		first({ stored: null }); // the request that opened it ended (its `done`)
+		const second = begin_flight('/hot/');
+		const joined_second = join_flight('/hot/')!;
+		first({ stored: page_entry() }); // a late, second settle of the old flight
+		expect((await joined_first).stored).toBeNull(); // settled once, with the first outcome
+		expect(join_flight('/hot/')).toBe(joined_second); // the newer flight is still open
+		const entry = page_entry();
+		second({ stored: entry });
+		expect((await joined_second).stored).toBe(entry);
+		expect(join_flight('/hot/')).toBeNull();
+	});
+
 	it('store failures never throw through store_get/put', async () => {
 		const runtime = install({
 			store: {
