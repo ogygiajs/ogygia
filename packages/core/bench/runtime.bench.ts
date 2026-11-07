@@ -11,6 +11,38 @@ import { morph_children } from '../src/runtime/morph.ts';
 import { PageCache } from '../src/runtime/page-cache.ts';
 import { parse_wire_text } from '../src/runtime/wire-format.ts';
 import { failed_import_url, import_again, retry_url } from '../src/runtime/import-again.ts';
+import { ConcurrencyGate } from '../src/runtime/concurrency.ts';
+
+bench(
+	'concurrency gate: hole renders through a gate of four (some slow, some past their time)',
+	async ({ n }) => {
+		const gate = new ConcurrencyGate(4);
+		const calls: Promise<unknown>[] = [];
+		for (let i = 0; i < n; i++) {
+			const ms = i % 7 === 0 ? 50 : i % 3; // one in seven runs past its time
+			const fails = i % 5 === 0; // one in five throws (a hole whose render fails)
+			calls.push(
+				gate
+					.run(
+						() =>
+							new Promise<number>((resolve, reject) =>
+								setTimeout(() => (fails ? reject(new Error('render')) : resolve(i)), ms)
+							),
+						{
+							run_ms: 20,
+							wait_ms: i % 11 === 0 ? 1 : 10_000 // one in eleven gives up waiting
+						}
+					)
+					.catch(() => -1)
+			);
+		}
+		const out = await Promise.all(calls);
+		// the slow ones still end and hand their slots on
+		await new Promise((r) => setTimeout(r, 60));
+		return out.filter((v) => v === -1).length + gate.active;
+	},
+	{ setup: () => ({ n: 120 }), scale: (_ctx, k) => ({ n: 120 * k }) }
+);
 import { block, header } from './fixtures.ts';
 
 bench(
