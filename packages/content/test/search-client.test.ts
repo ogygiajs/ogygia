@@ -107,6 +107,12 @@ describe('SearchClient: a query is answered or rejected, never left waiting', ()
 		expect((await within(s.query('again'))).settled).toBe('rejected');
 	});
 
+	it('destroy() twice is the same as once (a manual destroy, then the palette’s unmount)', () => {
+		const s = new SearchClient();
+		s.destroy();
+		expect(() => s.destroy()).not.toThrow();
+	});
+
 	it('an empty query is [] at once, in any state', async () => {
 		const s = new SearchClient();
 		s.destroy();
