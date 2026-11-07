@@ -22,15 +22,11 @@ import {
 import { runtime_session } from './session.ts';
 import {
 	capability_expired,
-	renewal_url,
 	is_allowed_region_endpoint,
-	is_document_answer,
-	is_redirected_answer,
-	is_same_origin_response,
 	island_module_url,
-	RegionAnswerRefused,
-	deny_of
+	RegionAnswerRefused
 } from './region-endpoint-url.ts';
+import { fetch_hole } from './hole-fetch.ts';
 import {
 	island_entry_of,
 	import_entry,
@@ -740,45 +736,17 @@ class OgygiaRegion extends HTMLElement {
 		priority: 'high' | 'auto' | 'low',
 		signal: AbortSignal
 	) {
-		return runtime_session.server_gate.run(async () => {
+		return runtime_session.server_gate.run(() => {
 			if (BEACON) beacon_hole_fetched(endpoint);
-			let res = await fetch(endpoint, {
-				credentials: 'same-origin',
-				cache: revalidate ? 'no-store' : 'default',
+			// (./hole-fetch.ts: the same read of the answer `preload()` makes. A renewed capability is
+			// the address's, kept in the store: every element bound there adopts it — #adopt_renewed)
+			const address = frameAddress(endpoint);
+			return fetch_hole(endpoint, {
+				revalidate,
 				priority,
-				signal
-			} as RequestInit);
-			// An EXPIRED capability (its document outlived it in a cache): renew once. The handle
-			// re-signs an anonymous hole it minted itself and answers with the hole AND the fresh
-			// capability — the address's, kept in the store: every element bound there adopts it for
-			// its later fetches (#adopt_renewed), not only this one.
-			if (res.status === 403 && capability_expired(endpoint)) {
-				res = await fetch(renewal_url(endpoint), {
-					credentials: 'same-origin',
-					cache: 'no-store',
-					signal
-				});
-				const fresh = res.ok ? res.headers.get('x-ogygia-capability') : null;
-				if (fresh && is_allowed_region_endpoint(fresh))
-					slots.frames?.renew(frameAddress(endpoint), fresh);
-			}
-			if (!is_same_origin_response(res)) throw new Error('cross-origin redirect');
-			// THE ANSWER MUST BE THE REGION'S. ogygia's handle answers a region request in place —
-			// a fragment, a 204, an error status — and never redirects; a redirected response, or a
-			// body that is a whole document, means a handle in front of `ogygia.handle()` took the
-			// request (an auth wall, a locale bounce, a 404 handler) and the browser followed it.
-			// Swapping that in put a site's account page — scripts, skeletons, a second header —
-			// into every hole of its header for signed-in visitors. Refused: the fallback stands.
-			if (is_redirected_answer(res)) throw new RegionAnswerRefused('redirected', res.url);
-			// A refused capability is deterministic (its key, its MAC, its id): no retry would differ.
-			if (res.status === 403)
-				throw new RegionAnswerRefused('forbidden', res.url || endpoint, deny_of(res, endpoint));
-			if (!res.ok) throw new Error('status ' + res.status);
-			// 204: the hole said keepFallback() — the page's fallback stands, nothing to swap.
-			if (res.status === 204) return KEEP_FALLBACK_HTML;
-			const text = await res.text();
-			if (is_document_answer(text)) throw new RegionAnswerRefused('document', res.url);
-			return text;
+				signal,
+				renewed: (fresh) => slots.frames?.renew(address, fresh)
+			});
 		});
 	}
 
