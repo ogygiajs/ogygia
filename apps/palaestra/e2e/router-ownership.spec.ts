@@ -111,6 +111,42 @@ test.describe('work in flight belongs to what started it', () => {
 		);
 	});
 
+	test('a click a beforeNavigate guard cancels never ends the navigation already in flight', async ({
+		page
+	}) => {
+		await page.goto('/soft-race', { waitUntil: 'networkidle' });
+		await page
+			.locator('ogygia-region[data-hydrated]:has([data-guard-cancelled])')
+			.waitFor({ state: 'attached' }); // (the guard renders nothing visible)
+		const b = gate();
+		await page.route('**/soft-race/b', async (route) => {
+			if (route.request().resourceType() !== 'fetch') return route.continue();
+			await b.hold(route, () => route.continue());
+		});
+		// the visitor clicks B; while B's page is still out, a link the guard blocks
+		await page.evaluate(() => (document.querySelector('[data-soft-b]') as HTMLElement).click());
+		await expect.poll(() => b.held.length).toBe(1);
+		await page.evaluate(() =>
+			(document.querySelector('[data-soft-blocked]') as HTMLElement).click()
+		);
+		await expect
+			.poll(() => page.locator('[data-guard-cancelled]').getAttribute('data-guard-cancelled'))
+			.toBe('1');
+		b.open();
+		await page.waitForURL('**/soft-race/b', { timeout: 5000 }).catch(() => {});
+		await page.waitForTimeout(300);
+		check(
+			'the guard cancelled the blocked link',
+			new URL(page.url()).pathname !== '/soft-race/blocked',
+			page.url()
+		);
+		check(
+			'B, already in flight, still arrived',
+			new URL(page.url()).pathname === '/soft-race/b' && (await heading(page)) === 'Soft race B',
+			`${page.url()} · ${await heading(page)}`
+		);
+	});
+
 	test('#208 a prefetch in flight when a mutation clears the cache: the click gets the fresh page', async ({
 		page
 	}) => {
