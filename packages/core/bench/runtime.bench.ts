@@ -39,7 +39,7 @@ bench(
 		const out = await Promise.all(calls);
 		// the slow ones still end and hand their slots on
 		await new Promise((r) => setTimeout(r, 60));
-		return out.filter((v) => v === -1).length + gate.active;
+		return out.filter((v) => v === -1).length + gate.active + gate.waiting;
 	},
 	{ setup: () => ({ n: 120 }), scale: (_ctx, k) => ({ n: 120 * k }) }
 );

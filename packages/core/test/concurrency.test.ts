@@ -153,8 +153,10 @@ describe('ConcurrencyGate: a body past its time (the region render timeout, #195
 		const g = new ConcurrencyGate(1);
 		let fail!: (e: Error) => void;
 		const slow = g.run(() => new Promise<string>((_, reject) => (fail = reject)), { run_ms: 10 });
+		// (the caller's handler is attached before its timeout fires, as a real caller's is)
+		const caller = slow.catch((e: Error) => e.message);
 		await vi.advanceTimersByTimeAsync(10);
-		await expect(slow).rejects.toThrow('region render timeout');
+		expect(await caller).toBe('region render timeout');
 		const unhandled = vi.fn();
 		process.on('unhandledRejection', unhandled);
 		fail(new Error('after the caller left'));
