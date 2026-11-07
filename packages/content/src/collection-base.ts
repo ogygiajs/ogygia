@@ -18,6 +18,16 @@ import { OgygiaError } from './messages/runtime.ts';
 const LIVE_RETRY_FIRST_MS = 1000;
 const LIVE_RETRY_LAST_MS = 60_000;
 
+/** An open live connection: its changes (none when `live()` threw as it was called: its pull failed),
+ *  and the pull out on it now. */
+type LiveConnection = {
+	changes: AsyncIterator<unknown> | null;
+	pending: Promise<IteratorResult<unknown>>;
+};
+
+/** A failure seen elsewhere (where it is reported), on a promise nothing else awaits. */
+function ignore(): void {}
+
 // ── content graph registry ───────────────────────────────────────────────────
 
 /**
@@ -102,6 +112,10 @@ export class Collection<
 		await this.#source.init?.();
 	});
 	readonly #start = once(() => this.#begin());
+	/** The live connection, while it is open: one per collection. A read that fails leaves it open
+	 *  (an async iterator's `return()` waits behind its pull, so it cannot be closed while the source
+	 *  is quiet), and the next read listens on it again instead of opening another. */
+	#connection: LiveConnection | null = null;
 	#version = 0;
 	readonly #waiters = new Set<() => void>();
 	#backlinkIndex: Map<string, RefEntry[]> | null = null;
@@ -280,26 +294,16 @@ export class Collection<
 	 * connection that ends (the source says there is nothing more) is not.
 	 */
 	#follow(read: () => Promise<void>, attempt: number, reconnecting = false): Promise<void> {
-		const live = this.#source.live!;
-		let changes: AsyncIterator<unknown>;
-		let pending: Promise<IteratorResult<unknown>>;
-		try {
-			changes = live.call(this.#source)[Symbol.asyncIterator]();
-			pending = changes.next();
-		} catch (err) {
-			pending = Promise.reject(err);
-			changes = { next: () => pending };
-		}
-		pending.catch(() => {}); // (seen below, once the read has run)
-		// the read starts only now: the connection above is already listening
+		const connection = this.#connect();
+		// the read starts only now: the connection is already listening
 		const ready = read();
 		void (async () => {
 			try {
 				await ready;
 			} catch (err) {
-				void changes.return?.();
-				// a reconnect's read failed (the source is still down): try again after a longer wait.
-				// The FIRST read failing fails the start instead, and the next read starts it (and this)
+				// The connection stays open for the next read (this.#connection). A reconnect's read
+				// failed (the source is still down): try again after a longer wait. The FIRST read
+				// failing fails the start instead, and the next read starts it (and this) again.
 				if (reconnecting) {
 					console.error(new OgygiaError('content_live_source_failed'), err);
 					this.#reconnect(attempt);
@@ -309,17 +313,22 @@ export class Collection<
 			let failures = attempt;
 			try {
 				while (true) {
-					const step = await pending;
-					if (step.done) return;
+					const step = await connection.pending;
+					if (step.done) {
+						this.#connection = null;
+						return;
+					}
 					failures = 0;
 					try {
 						await this.#apply(step.value);
 					} catch (err) {
 						console.error(new OgygiaError('content_live_change_failed'), err);
 					}
-					pending = changes.next();
+					// (a pull that answered came from the iterator `live()` returned)
+					connection.pending = connection.changes!.next();
 				}
 			} catch (err) {
+				this.#connection = null;
 				console.error(new OgygiaError('content_live_source_failed'), err);
 				this.#reconnect(failures);
 			}
@@ -327,12 +336,27 @@ export class Collection<
 		return ready;
 	}
 
+	/** The open live connection, or a new one: its first pull starts now (when a source subscribes). */
+	#connect(): LiveConnection {
+		if (this.#connection) return this.#connection;
+		const live = this.#source.live!;
+		let changes: AsyncIterator<unknown> | null = null;
+		// (the source is called, and pulled, right now: an async function runs to its first await.
+		// A `live()` that throws as it is called is a pull that failed: the connection dropped.)
+		const pending = (async () => {
+			changes = live.call(this.#source)[Symbol.asyncIterator]();
+			return changes.next();
+		})();
+		pending.catch(ignore); // (seen by #follow, once a read has run)
+		return (this.#connection = { changes, pending });
+	}
+
 	/** Open a dropped connection again after its wait, reading the whole source again first. */
 	#reconnect(attempt: number): void {
 		const wait = Math.min(LIVE_RETRY_FIRST_MS * 2 ** attempt, LIVE_RETRY_LAST_MS);
 		const timer = setTimeout(() => {
 			// (a failed read is reported, and retried, by #follow; the connection listens first)
-			void this.#follow(() => this.#reload(true), attempt + 1, true).catch(() => {});
+			void this.#follow(() => this.#reload(true), attempt + 1, true).catch(ignore);
 		}, wait);
 		// (a server shutting down does not wait for a reconnect)
 		(timer as { unref?: () => void }).unref?.();
