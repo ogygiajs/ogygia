@@ -91,10 +91,6 @@
 		{
 			"id": "packages/postrender/src/server.ts > defineServer:0 > response > settle",
 			"reason": "settles the request's own flight (needs a live request context), constant work; proven in packages/postrender/e2e/postrender.spec.ts S20 and S21"
-		},
-		{
-			"id": "packages/content/src/collection-base.ts > ignore",
-			"reason": "a no-op (a failure reported elsewhere, on a promise nothing else awaits); it runs only when a live connection fails before its first read, which a bench would have to wait out a reconnect timer for; proven in packages/content/test/lifecycle.test.ts"
 		}
 	]
 }
