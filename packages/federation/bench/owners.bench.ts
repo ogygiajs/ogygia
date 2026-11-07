@@ -54,7 +54,7 @@ bench(
 );
 
 bench(
-	'federation deploy thaw: checks that fail (store down, peer down) and checks that finish',
+	'federation deploy thaw: checks that fail (a peer down) and checks that finish',
 	async ({ n }) => {
 		federate({
 			name: 'cms',
@@ -91,8 +91,9 @@ bench(
 					for (let i = 0; i < n; i++) {
 						reset_deploy_thaw_for_tests(); // a fresh boot
 						marker = 'the build before';
-						store_down = i % 3 === 1 ? 1 : 0;
-						peer_down = i % 3 === 2;
+						// (the store is never down here: the shared hook says so once per server, so a run
+						// after the first would count less; owners.test.ts proves that path)
+						peer_down = i % 2 === 1;
 						// requests during a check join it
 						await Promise.all([deploy_thaw_check(fed), deploy_thaw_check(fed)]);
 					}
