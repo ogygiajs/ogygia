@@ -64,7 +64,13 @@ export function install_federation(app: ServerApp): void {
 // A store plugin keeps the last build it saw (the shared `lastBuild` hook; on a shared store only a
 // changed `version` fires). No store plugin: nothing remembers a build, nothing fires.
 let deploy_checked = false;
-async function maybe_deploy_thaw(fed: Federation): Promise<void> {
+
+/** Tests: forget the deploy thaw's state (a fresh boot). */
+export function reset_deploy_thaw_for_tests(): void {
+	deploy_checked = false;
+}
+
+export async function deploy_thaw_check(fed: Federation): Promise<void> {
 	if (deploy_checked || fed.deploy !== 'auto') return;
 	deploy_checked = true;
 	if (!fed.expose && fed.widgets.size === 0) return; // only producers matter
@@ -85,7 +91,7 @@ export async function serve_federation(event: RequestEvent): Promise<Response | 
 	const path = url.pathname;
 
 	if (path.endsWith(FRAGMENT_ROUTES_PATH)) {
-		void maybe_deploy_thaw(fed);
+		void deploy_thaw_check(fed);
 		return serve_expose(fed, event);
 	}
 	if (path.endsWith(HOLE_PATH)) return serve_hole(fed, event);
@@ -95,7 +101,7 @@ export async function serve_federation(event: RequestEvent): Promise<Response | 
 	if (frag_at !== -1) {
 		const name = path.slice(frag_at + FRAGMENT_BASE.length);
 		if (name && !name.includes('/')) {
-			void maybe_deploy_thaw(fed);
+			void deploy_thaw_check(fed);
 			return serve_widget(fed, event, name);
 		}
 	}
