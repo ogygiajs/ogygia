@@ -211,14 +211,20 @@ bench(
 	}
 );
 
+/** …with the reads handed over newest first (each pause's reads are put back in read order) */
+const newest_first = (w: Parameters<typeof attribute_gc>[0]) => ({
+	...w,
+	slices: [...w.slices].reverse()
+});
+
 // Growth: n log n in the window's pauses and reads (one read every 20 ms, as the recorder reads).
 // It was quadratic while each pause looked through every read for the allocations before it.
 bench(
 	'attribute_gc: what each pause was charged to, as the window and its allocation reads grow',
 	(input) => attribute_gc(input).pauses.length,
 	{
-		setup: () => gc_window(50, 25),
-		scale: (_ctx, k) => gc_window(50 * k, 25 * k)
+		setup: () => newest_first(gc_window(50, 25)),
+		scale: (_ctx, k) => newest_first(gc_window(50 * k, 25 * k))
 	}
 );
 
