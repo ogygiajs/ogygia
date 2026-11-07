@@ -70,7 +70,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # Abax needs Node 26.4+; ogygia itself is still tested on 22 everywhere else
+          node-version: 26
           cache: pnpm
 
       - name: Install workspace deps
