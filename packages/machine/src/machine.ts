@@ -21,7 +21,7 @@
  * waiter list are made the first time they are needed.
  */
 import { DEV } from 'esm-env';
-import { machine_error, warn_once } from './messages.ts';
+import { machine_error, report, warn_once } from './messages.ts';
 
 /** What `task()` and `wait()` give back when the machine moved on before the answer arrived. */
 export const STALE: unique symbol = Symbol.for('ogygia.machine.stale');
@@ -197,7 +197,7 @@ function notify(name: string, from: State, to: State | null, machine: AnyMachine
 		try {
 			list[i](name, from, to, machine);
 		} catch (error) {
-			console.error('[ogygia] a machine observer threw', error);
+			report('machine_observer_failed', { name }, error);
 		}
 	}
 }
@@ -274,6 +274,15 @@ function state_of(def: Def, node: Node, data: object | undefined): State {
 		return Object.freeze({ ...data, kind });
 	}
 	return { ...data, kind };
+}
+
+/** The longest delay a timer holds (2^31 - 1 ms, ~24.8 days): Node and browsers clamp a longer one
+ *  to 1 ms, so a state with it would end at once. */
+const MAX_TIMEOUT_MS = 2_147_483_647;
+
+/** A delay a timer can hold. */
+function is_time(ms: unknown): ms is number {
+	return typeof ms === 'number' && Number.isFinite(ms) && ms >= 0 && ms <= MAX_TIMEOUT_MS;
 }
 
 function illegal(def: Def, from: string, to: string): false {
@@ -425,19 +434,34 @@ class Running implements AnyMachine {
 	 */
 	_arm(timed: Timed): void {
 		const visit = this._visit;
-		let ms: number;
+		let ms: unknown;
 		try {
 			ms = typeof timed.ms === 'function' ? timed.ms(this._now) : timed.ms;
 		} catch (error) {
-			console.error(`[ogygia] machine ${this._def.name}: its timeout could not be timed`, error);
+			report('machine_timeout_failed', { name: this._def.name, state: this._node.kind }, error);
+			return;
+		}
+		// (a made time that is not one a timer can hold would be clamped to 1 ms: the state would end
+		// at once; it does not end on its own instead, and says so)
+		if (!is_time(ms)) {
+			report('machine_timeout_not_a_time', {
+				name: this._def.name,
+				state: this._node.kind,
+				ms: String(ms)
+			});
 			return;
 		}
 		const timer = setTimeout(() => {
 			if (this._visit !== visit || this._stopped) return;
+			const from = this._node.kind;
 			try {
 				this._enter(timed.to, timed.data === undefined ? undefined : timed.data(this._now));
 			} catch (error) {
-				console.error(`[ogygia] machine ${this._def.name}: its timed step failed`, error);
+				report(
+					'machine_timed_step_failed',
+					{ name: this._def.name, from, to: timed.to.kind },
+					error
+				);
 			}
 		}, ms);
 		// (a server shutting down does not wait for a state's time)
@@ -565,11 +589,11 @@ function define(config: {
 				problem: `"${timeout.to}" is not one of its steps`
 			});
 		const ms = timeout.ms;
-		if (typeof ms !== 'function' && !(typeof ms === 'number' && Number.isFinite(ms) && ms >= 0))
+		if (typeof ms !== 'function' && !is_time(ms))
 			throw machine_error('machine_bad_timeout', {
 				name,
 				state: kind,
-				problem: `its ms (${String(ms)}) is not a time of 0 or more`
+				problem: `its ms (${String(ms)}) is not a time of 0 to ${MAX_TIMEOUT_MS} (a timer holds no more)`
 			});
 		node.timed = { ms, to: target, data: timeout.data };
 	}
