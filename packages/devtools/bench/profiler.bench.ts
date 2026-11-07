@@ -10,7 +10,7 @@ import { analyze, decode_mappings, type CpuProfile } from '../src/profiler/analy
 import { doc_diff } from '../src/profiler/doc-diff.ts';
 import { attribute_gc, type AllocSite } from '../src/profiler/gc.ts';
 import { find_wait_patterns, type WaitCall } from '../src/profiler/patterns.ts';
-import { constant_work, key_sources } from '../src/profiler/source-scan.ts';
+import { constant_work, hoist_plan, key_sources } from '../src/profiler/source-scan.ts';
 
 const APP = 'file:///srv/app/build/server/chunks';
 const SVELTE = 'file:///srv/app/node_modules/svelte/src/internal/server';
@@ -237,5 +237,43 @@ bench(
 	{
 		setup: () => ({ calls: wait_calls(10) }),
 		scale: (_ctx, k) => ({ calls: wait_calls(10 * k) })
+	}
+);
+
+/** A `+page.server.ts` with `helpers` pairs of helpers (one formats with the other, every fifth of
+ *  those reads the clock) and a load that runs each pair on the module's products. */
+function helper_module(helpers: number): string {
+	const lines = [
+		`import type { PageServerLoad } from './$types';`,
+		`import { PRODUCTS } from '$lib/catalog';`,
+		''
+	];
+	for (let i = 0; i < helpers; i++)
+		lines.push(
+			`function list${i}(items) {`,
+			`\treturn items.map(card${i});`,
+			'}',
+			`const card${i} = (p) => ({ ...p, slot: ${i}${i % 5 === 0 ? ', at: Date.now()' : ''} });`
+		);
+	lines.push('', 'export const load: PageServerLoad = async ({ url }) => {');
+	for (let i = 0; i < helpers; i++) lines.push(`\tconst cards${i} = list${i}(PRODUCTS);`);
+	lines.push(
+		'\treturn {',
+		...Array.from({ length: helpers }, (_, i) => `\t\tcards${i},`),
+		"\t\tq: url.searchParams.get('q')",
+		'\t};',
+		'};'
+	);
+	return lines.join('\n') + '\n';
+}
+
+// Growth: linear in the module's helpers. It was quadratic while each token of a helper's lines
+// looked through the list of every helper, again on every pass.
+bench(
+	'hoist_plan: the constant lines of a load to move to the top, as its helpers grow',
+	({ source }) => hoist_plan(source)?.stmts.length ?? 0,
+	{
+		setup: () => ({ source: helper_module(10) }),
+		scale: (_ctx, k) => ({ source: helper_module(10 * k) })
 	}
 );
