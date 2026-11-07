@@ -66,12 +66,14 @@ export function install_federation(app: ServerApp): void {
 // changed `version` fires). No store plugin: nothing remembers a build, nothing fires.
 //
 // Its lifecycle, one machine: not checked yet (or a failed check, with the time a request may try
-// again), checking (requests meanwhile join it), done. A check fails when the store cannot answer,
-// or when a peer never took the thaw (then the marker is put back, so the next check still sees the
-// old build). It once flipped to done before the work and was never tried again: one store blip at
-// the first request after a deploy, and consumers kept pages with stale asset hashes until TTL (#198).
+// again, and whether a thaw is OWED: one was found due and not every peer took it), checking
+// (requests meanwhile join it), done. A check fails when the store cannot answer, or when a peer
+// never took the thaw: then the thaw stays owed, and the next check sends it whatever the store
+// says (the store has already moved its marker to this build, and putting it back can fail the same
+// way). It once flipped to done before the work and was never tried again: one store blip at the
+// first request after a deploy, and consumers kept pages with stale asset hashes until TTL (#198).
 const deploy_thaw = machine<{
-	unchecked: { after: number };
+	unchecked: { after: number; owed: boolean };
 	checking: { run: Promise<void> };
 	done: {};
 }>()({
@@ -83,12 +85,15 @@ const deploy_thaw = machine<{
 /** A failed check is tried again by a request at least this long after it. */
 const DEPLOY_RETRY_MS = 30_000;
 
-let deploy = deploy_thaw.create({ after: 0 });
+let deploy = deploy_thaw.create({ after: 0, owed: false });
 
 /** Tests: forget the deploy thaw's state (a fresh boot). */
 export function reset_deploy_thaw_for_tests(): void {
-	deploy = deploy_thaw.create({ after: 0 });
+	deploy = deploy_thaw.create({ after: 0, owed: false });
 }
+
+/** A check found the thaw due and not every peer took it. */
+class ThawOwed extends Error {}
 
 /** The deploy check for this request: start it, join the one running, or nothing (done, or a
  *  failed one not due again yet). */
@@ -97,27 +102,38 @@ export function deploy_thaw_check(fed: Federation): Promise<void> {
 	const s = deploy.now;
 	if (s.kind === 'checking') return s.run;
 	if (s.kind === 'done' || Date.now() < s.after) return Promise.resolve();
-	const run = check_deploy(fed).then(
+	const owed = s.owed;
+	const run = check_deploy(fed, owed).then(
 		() => void deploy.move('checking', 'done'),
-		() => void deploy.move('checking', 'unchecked', { after: Date.now() + DEPLOY_RETRY_MS })
+		(error: unknown) =>
+			void deploy.move('checking', 'unchecked', {
+				after: Date.now() + DEPLOY_RETRY_MS,
+				owed: owed || error instanceof ThawOwed
+			})
 	);
 	deploy.move('unchecked', 'checking', { run });
 	return run;
 }
 
-/** One check: throws when it must be tried again. */
-async function check_deploy(fed: Federation): Promise<void> {
+/** One check: throws when it must be tried again. `owed`: an earlier check found the thaw due. */
+async function check_deploy(fed: Federation, owed: boolean): Promise<void> {
 	if (!fed.expose && fed.widgets.size === 0) return; // only producers matter
 	const app = fed_app();
 	if (!app) return;
-	// (throws when the store cannot answer: a check to try again, not "no store")
-	const seen = await app.ask.lastBuild(version);
-	if (seen === undefined || seen === version) return;
+	let seen: string | undefined;
+	try {
+		// (throws when the store cannot answer: a check to try again, not "no store")
+		seen = await app.ask.lastBuild(version);
+	} catch (error) {
+		if (!owed) throw error; // (an owed thaw needs no answer from the store)
+	}
+	if (!owed && (seen === undefined || seen === version)) return;
 	const reached = await broadcast_thaw(fed, { id: crypto.randomUUID(), hop: 0, tags: 'all' });
 	if (reached) return;
-	// a peer never took it: the store goes back to the build before, so the next check thaws again
-	await app.ask.lastBuild(seen);
-	throw new Error('deploy thaw: a peer did not take the notice');
+	// a peer never took it: owed until a check reaches every peer. The store goes back to the build
+	// before too, best effort, so another instance of this app still sees the thaw due
+	if (seen !== undefined && seen !== version) await app.ask.lastBuild(seen).catch(() => {});
+	throw new ThawOwed('deploy thaw: a peer did not take the notice');
 }
 
 /** Dispatch a federation request, or null if the path is none of ours. */
