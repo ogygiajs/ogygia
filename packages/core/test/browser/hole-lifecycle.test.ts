@@ -1,0 +1,204 @@
+// A HOLE'S LIFE, AND ITS ISLAND'S WAKE, in a real browser: whatever brings a hole its answer (its own
+// fetch, a twin's, a batch, a write at its address), a hydrating hole's island wakes once the answer
+// is in; a kept fallback that later gets a real answer is no longer kept; a refetch that failed does
+// not mark the next answer a refresh; every schedule a region arms is disarmed when it leaves; and a
+// visitor's wake that failed is told so.
+import { afterEach, beforeEach, expect, inject, test, vi } from 'vitest';
+import { bootDev } from '../../src/runtime/full.ts';
+import { _reset, ticket, write } from '../../src/runtime/frame-store.ts';
+import { frameAddress } from '../../src/frame.ts';
+
+const COUNTER = '/test/browser/fixtures/Counter.svelte';
+const counter = () => decodeURIComponent(escape(atob(inject('counter_render_b64'))));
+const ep = (id: string, props = 'W3t9XQ') =>
+	`/__ogygia__?id=${id}&props=${props}&exp=9999999999&sig=stub`;
+
+const real_fetch = window.fetch;
+beforeEach(() => {
+	document.body.innerHTML = '';
+});
+afterEach(() => {
+	window.fetch = real_fetch;
+	vi.restoreAllMocks();
+	document.body.innerHTML = '';
+	_reset();
+});
+
+const html = (body: string) =>
+	new Response(body, { status: 200, headers: { 'content-type': 'text/html' } });
+
+/** A deferred client island: its answer swaps in, then its island wakes (`wake`). */
+const interactive_hole = (endpoint: string, attrs = 'when="load" wake="load"') =>
+	`<ogygia-region render="defer" ${attrs} entry="${COUNTER}" endpoint="${endpoint}"><p data-fallback>loading</p></ogygia-region>`;
+const plain_hole = (endpoint: string) =>
+	`<ogygia-region render="defer" when="load" endpoint="${endpoint}"><p data-fallback>loading</p></ogygia-region>`;
+
+function insert(markup: string): HTMLElement[] {
+	const box = document.createElement('div');
+	box.innerHTML = markup;
+	const regions = Array.from(box.querySelectorAll<HTMLElement>(':scope > ogygia-region'));
+	document.body.append(...Array.from(box.childNodes));
+	return regions;
+}
+
+const tick = (ms = 50) => new Promise((r) => setTimeout(r, ms));
+
+test('a hole its twin answers while it waits to retry still wakes its island', async () => {
+	const E = ep('life00000001');
+	let calls = 0;
+	window.fetch = async () => (++calls === 1 ? new Response('', { status: 500 }) : html(counter()));
+	const [first] = insert(interactive_hole(E));
+	bootDev();
+	await expect.poll(() => calls, { timeout: 5_000 }).toBe(1);
+	// its fetch failed and it waits to retry; the same call elsewhere on the page is answered
+	insert(plain_hole(E));
+	await expect.poll(() => first.querySelector('button') !== null, { timeout: 5_000 }).toBe(true);
+	await expect
+		.poll(() => first.hasAttribute('data-hydrated'), {
+			timeout: 5_000,
+			message: 'the island in the answer its twin brought woke'
+		})
+		.toBe(true);
+});
+
+test('a kept fallback that later gets a real answer is not kept any more, and its island wakes', async () => {
+	const E = ep('life00000002');
+	window.fetch = async () => new Response(null, { status: 204 });
+	const [el] = insert(interactive_hole(E));
+	bootDev();
+	await expect.poll(() => el.hasAttribute('data-og-kept'), { timeout: 5_000 }).toBe(true);
+	// a write at its address (a command that returned the region, a refresh) brings a real answer
+	const a = frameAddress(E);
+	write({ a, v: ticket(a), html: counter() });
+	await expect.poll(() => el.querySelector('button') !== null, { timeout: 5_000 }).toBe(true);
+	expect(el.hasAttribute('data-og-kept'), 'no longer the kept fallback').toBe(false);
+	await expect
+		.poll(() => el.hasAttribute('data-hydrated'), { timeout: 5_000, message: 'its island woke' })
+		.toBe(true);
+});
+
+test('a refetch that failed does not mark the hole’s first answer a refresh', async () => {
+	// A static live region renders a hole; its next render re-mints the hole at a new address (new
+	// props), and the hole refetches there. Both fetches are refused: the hole never had an answer.
+	const E1 = ep('life00000003', 'cHJvcHMx');
+	const E2 = ep('life00000003', 'cHJvcHMy');
+	const calls: string[] = [];
+	window.fetch = async (input) => {
+		calls.push(String(input));
+		return new Response('', { status: 403 });
+	};
+	const live = document.createElement('ogygia-region');
+	live.setAttribute('live', '');
+	document.body.append(live);
+	bootDev();
+	type Live = { applyLive(desc: Record<string, unknown>): Promise<void> };
+	const tick_with = (endpoint: string) =>
+		(live as unknown as Live).applyLive({
+			id: 'life-live',
+			module: '',
+			props: {},
+			html: plain_hole(endpoint),
+			url: ep('life0000live')
+		});
+	await tick_with(E1);
+	await expect.poll(() => calls.length, { timeout: 5_000 }).toBe(1);
+	await tick_with(E2);
+	await expect.poll(() => calls.length, { timeout: 5_000 }).toBe(2);
+	expect(calls[1]).toContain('cHJvcHMy');
+	await tick();
+	const hole = live.querySelector('ogygia-region')!;
+	// then its answer arrives at the new address: the hole's FIRST answer
+	const a = frameAddress(E2);
+	write({ a, v: ticket(a), html: '<p data-testid="served">served</p>' });
+	await expect
+		.poll(() => hole.querySelector('[data-testid="served"]') !== null, { timeout: 5_000 })
+		.toBe(true);
+	expect(hole.hasAttribute('data-revalidated'), 'not a refresh: it had no answer before').toBe(
+		false
+	);
+	expect(hole.hasAttribute('data-hydrated'), 'marked answered').toBe(true);
+});
+
+test('a hole that arms two media schedules disarms both when it leaves', async () => {
+	const added = new Set<unknown>();
+	const removed = new Set<unknown>();
+	const add = MediaQueryList.prototype.addEventListener;
+	const remove = MediaQueryList.prototype.removeEventListener;
+	vi.spyOn(MediaQueryList.prototype, 'addEventListener').mockImplementation(function (
+		this: MediaQueryList,
+		...args: Parameters<MediaQueryList['addEventListener']>
+	) {
+		if (args[0] === 'change') added.add(args[1]);
+		return add.apply(this, args);
+	});
+	vi.spyOn(MediaQueryList.prototype, 'removeEventListener').mockImplementation(function (
+		this: MediaQueryList,
+		...args: Parameters<MediaQueryList['removeEventListener']>
+	) {
+		if (args[0] === 'change') removed.add(args[1]);
+		return remove.apply(this, args);
+	});
+	window.fetch = async () => html('<p>never</p>');
+	// `when` and `prefetch` both media queries that do not match: both listen for a change
+	const [el] = insert(
+		`<ogygia-region render="defer" when="(min-width: 99999px)" prefetch="(min-height: 99999px)" endpoint="${ep('life00000004')}"><p>fallback</p></ogygia-region>`
+	);
+	bootDev();
+	await tick();
+	expect(added.size, 'both schedules listen').toBe(2);
+	el.remove();
+	await tick();
+	expect(
+		[...added].filter((on) => !removed.has(on)),
+		'no listener left behind'
+	).toHaveLength(0);
+});
+
+test('a hole whose prefetch and island both wait to be visible stops watching for both when it leaves', async () => {
+	const unobserved: Element[] = [];
+	const unobserve = IntersectionObserver.prototype.unobserve;
+	vi.spyOn(IntersectionObserver.prototype, 'unobserve').mockImplementation(function (
+		this: IntersectionObserver,
+		target: Element
+	) {
+		unobserved.push(target);
+		return unobserve.call(this, target);
+	});
+	window.fetch = async () => html(counter());
+	// fetched at idle, warmed when visible, its island wakes when visible: far below the fold
+	const [el] = insert(
+		`<div style="height:5000px"></div>` +
+			interactive_hole(ep('life00000005'), 'when="idle" prefetch="visible" wake="visible"')
+	);
+	bootDev();
+	await expect.poll(() => el.querySelector('button') !== null, { timeout: 5_000 }).toBe(true);
+	await tick();
+	el.remove();
+	await tick();
+	expect(unobserved, 'nothing watches the element after it left').toContain(el);
+});
+
+test('an interaction island that fails to wake says so, and its click is replayed on the server markup', async () => {
+	const errors: unknown[][] = [];
+	vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => void errors.push(args));
+	// its module loads, but it is no component: hydrating it throws
+	document.body.innerHTML =
+		'<ogygia-region wake="interaction" entry="/test/browser/fixtures/entry-current.ts"><button id="press">press</button></ogygia-region>';
+	bootDev();
+	document.getElementById('press')!.click();
+	await expect
+		.poll(
+			() => errors.some((args) => (args[0] as { code?: string })?.code === 'island_hydrate_failed'),
+			{ timeout: 5_000 }
+		)
+		.toBe(true);
+	await expect
+		.poll(
+			() =>
+				errors.some(
+					(args) => (args[0] as { code?: string })?.code === 'interaction_hydrate_failed'
+				),
+			{ timeout: 5_000, message: 'the capture heard that the wake failed' }
+		)
+		.toBe(true);
+});
