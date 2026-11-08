@@ -10,5 +10,5 @@
 		"types": ["node"],
 		"lib": ["esnext", "dom", "dom.iterable"]
 	},
-	"include": ["src"]
+	"include": ["src", "test"]
 }

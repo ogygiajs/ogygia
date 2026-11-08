@@ -12,7 +12,8 @@
 		"./tsconfig.e2e.json": "./tsconfig.e2e.json"
 	},
 	"scripts": {
-		"check": "tsc -p ."
+		"check": "tsc -p . && vitest run",
+		"test": "vitest run"
 	},
 	"dependencies": {
 		"@ogygia/tsdown-plugin-svelte": "workspace:*",
@@ -22,7 +23,8 @@
 		"@playwright/test": "catalog:",
 		"@types/node": "catalog:",
 		"@typescript/native": "catalog:tsgo",
-		"typescript": "catalog:"
+		"typescript": "catalog:",
+		"vitest": "catalog:"
 	},
 	"peerDependencies": {
 		"@playwright/test": "catalog:",

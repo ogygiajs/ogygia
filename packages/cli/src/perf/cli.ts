@@ -98,7 +98,12 @@ function sh(cmd: string, cwd: string, timeout_ms: number): void {
 }
 
 /** Start a server command, wait until `url` answers (or `ready_ms`), return a stopper. */
-async function serve(cmd: string, cwd: string, url: string, ready_ms: number): Promise<() => void> {
+export async function serve(
+	cmd: string,
+	cwd: string,
+	url: string,
+	ready_ms: number
+): Promise<() => void> {
 	const child = spawn(cmd, {
 		cwd,
 		shell: true,
