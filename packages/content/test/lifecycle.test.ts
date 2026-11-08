@@ -318,6 +318,52 @@ describe('site search follows the content (#193)', () => {
 	});
 });
 
+describe('the outline is stamped with the content it read, never a newer version (#326)', () => {
+	it('a change that lands while its entries are graphed: the next read weaves again', async () => {
+		const page = (id: string, title: string) =>
+			({
+				id,
+				filePath: `content/docs/00-start/0${id.length}-${id}/+doc.svx`,
+				data: { title, author: 'ada' },
+				meta: { headings: [] }
+			}) as unknown as SourceEntry<Meta>;
+		// the authors load when the test says: graphing the docs waits on them
+		let authors_in!: () => void;
+		const authors_held = new Promise<void>((r) => (authors_in = r));
+		const people = content({
+			schema: v.object({ name: v.string() }),
+			loader: {
+				async refs() {
+					await authors_held;
+					return [{ id: 'ada', data: { name: 'Ada' }, meta: { headings: [] } }];
+				},
+				async get() {
+					return null;
+				}
+			} as Source<Meta>
+		});
+		const rows = [page('install', 'Install')];
+		const { source, emit } = liveSource(rows);
+		const docs = content({
+			schema: v.object({ title: v.string(), author: v.string() }),
+			loader: source,
+			relations: () => ({ author: people })
+		});
+		const s = siteRaw({ outline: docs });
+		const first = s.outline.addresses();
+		// the docs are read (install only); their graph waits on the authors
+		await settle();
+		// an editor adds a page while the weave is still graphing what it read
+		rows.push(page('usage', 'Usage'));
+		emit();
+		await settle();
+		authors_in();
+		expect(await first).toEqual(['install']); // woven from what it read: the page before
+		// read again: the content changed since the entries the outline was woven from
+		expect(await s.outline.addresses()).toEqual(['install', 'usage']);
+	});
+});
+
 describe('a live edit that breaks the outline keeps the last good one', () => {
 	const doc = (id: string, title: string) =>
 		({
