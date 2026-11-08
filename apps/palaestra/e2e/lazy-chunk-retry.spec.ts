@@ -28,21 +28,30 @@ const CHUNKS = {
 	navigation: 'x-ogygia-known',
 	/** a transportable class's lazy load (runtime/wire-classes.ts): the small chunk that re-exports
 	 *  it, the one its loader imports (the class itself sits in a chunk the page's own node shares) */
-	'class module': /export\{\w+ as RetryStamp\}from/
+	'class module': /export\{\w+ as RetryStamp\}from/,
+	/** Svelte's client runtime: a static import of the hydrate core and of every island's code */
+	svelte: 'svelte.dev/e/'
 } as const;
 
 type Chunk = keyof typeof CHUNKS;
 
-/** Drops the first `times` downloads of `chunk`. Returns how many were dropped and served. */
-async function drop(page: Page, chunk: Chunk, times: number) {
+/** Drops the first `times` downloads of `chunk` (or of the file whose path ends with `file`).
+ *  Returns how many were dropped and served. */
+async function drop(page: Page, chunk: Chunk | { file: string }, times: number) {
 	const seen = { dropped: 0, served: 0 };
-	const mark = CHUNKS[chunk];
+	const mark = typeof chunk === 'string' ? CHUNKS[chunk] : null;
+	const is_it = (path: string, body: string) =>
+		typeof chunk !== 'string'
+			? path.endsWith(chunk.file)
+			: typeof mark === 'string'
+				? body.includes(mark)
+				: mark!.test(body);
 	await page.route(
 		(url) => url.pathname.endsWith('.js'),
 		async (route) => {
 			const response = await route.fetch();
 			const body = await response.text();
-			if (typeof mark === 'string' ? body.includes(mark) : mark.test(body)) {
+			if (is_it(new URL(route.request().url()).pathname, body)) {
 				if (seen.dropped < times) {
 					seen.dropped++;
 					return route.abort('failed');
@@ -320,5 +329,44 @@ test.describe('the navigation chunk that fails once is loaded again (#238)', () 
 		);
 		check('the click swapped the page in place (no full load)', same_doc);
 		check('then served', seen.served >= 1, JSON.stringify(seen));
+	});
+});
+
+/** The file an island's region loads (its `src`), read off the page's server HTML. */
+async function island_file(page: Page, path: string, wake: string): Promise<string> {
+	const html = await (await page.request.get(path)).text();
+	const src = new RegExp(`<ogygia-region [^>]*wake="${wake}"[^>]*\\ssrc="([^"]+)"`).exec(html)?.[1];
+	if (!src) throw new Error(`no ${wake} region with a src on ${path}`);
+	return src.slice(src.lastIndexOf('/'));
+}
+
+// AN ISLAND'S OWN FILE (#261): the lazy runtime chunks above are asked for again under a fresh URL,
+// and an island's own entry file must be too. It went through a plain import(): one dropped
+// download, and the island never woke for the rest of the tab (the browser keeps the failed URL).
+test.describe('an island’s own file that fails once is loaded again (#261)', () => {
+	test('dropped once: the island wakes on the retry, and so does the next island of that file', async ({
+		page
+	}) => {
+		const thrown = errors(page);
+		const logged: string[] = [];
+		page.on('console', (m) => m.type() === 'error' && logged.push(m.text()));
+		const file = await island_file(page, '/lazy-retry', 'visible');
+		const seen = await drop(page, { file }, 1);
+		await page.goto('/lazy-retry');
+		check('the near island hydrated', await hydrated(page, 'near', 8000));
+		check('it counts', await counts(page, 'near'));
+		await page.locator('[data-dated-counter="far"]').scrollIntoViewIfNeeded();
+		check('the far island (same file) hydrated', await hydrated(page, 'far', 8000));
+		check(
+			'the island’s file was dropped once, then loaded',
+			seen.dropped === 1 && seen.served >= 1,
+			JSON.stringify(seen)
+		);
+		check(
+			'no island_load_failed',
+			!logged.some((t) => t.includes('island_load_failed')),
+			logged.join('\n')
+		);
+		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
 	});
 });
