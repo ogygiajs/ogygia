@@ -11,9 +11,11 @@ import {
 	outbox,
 	policy,
 	scope,
+	stage,
 	STALE,
 	type LockToken,
-	type Scope
+	type Scope,
+	type Stage
 } from '../src/index.ts';
 import { MACHINE_ERRORS, machine_error, report } from '../src/messages.ts';
 import { backoff_after } from '../src/policy.ts';
@@ -606,4 +608,52 @@ bench(
 		return total;
 	},
 	{ setup: () => ({ n: 300 }), scale: (_ctx, k) => ({ n: 300 * k }) }
+);
+
+bench(
+	'stage: changes built and committed, some owners left first, a few commits that throw',
+	async ({ n }) => {
+		const said = console.error;
+		console.error = () => {};
+		let live = 0;
+		let given_back = 0;
+		const owners: Scope[] = [];
+		const stages: Stage<number>[] = [];
+		for (let i = 0; i < n; i++) {
+			const owner = scope();
+			owners.push(owner);
+			stages.push(
+				stage(owner, {
+					name: 'page',
+					build: async ({ discard }) => {
+						discard(() => given_back++);
+						if (i % 7 === 0)
+							discard(() => {
+								throw new Error('stuck');
+							});
+						await Promise.resolve();
+						return i;
+					},
+					commit: (built, undo) => {
+						live += built;
+						undo(() => (live -= built));
+						if (built % 11 === 0) throw new Error('half way');
+					}
+				})
+			);
+			if (i % 3 === 0) owner.close(); // left before it was built
+		}
+		for (let i = 0; i < n; i++) {
+			if ((await stages[i].ready) === STALE) continue;
+			try {
+				stages[i].commit();
+			} catch {
+				// ok: counted in `given_back`
+			}
+		}
+		for (const owner of owners) owner.close();
+		console.error = said;
+		return live + given_back;
+	},
+	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
 );
