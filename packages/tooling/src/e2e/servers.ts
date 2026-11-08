@@ -171,7 +171,7 @@ export async function spawn_server(opts: SpawnServerOptions): Promise<SpawnedSer
 			if (m.move('spawning', 'stopping') || m.move('ready', 'stopping')) {
 				signal_group('SIGTERM');
 				const sigkill = setTimeout(() => signal_group('SIGKILL'), KILL_GRACE_MS);
-				m.onLeave(() => clearTimeout(sigkill));
+				m.scope.defer(() => clearTimeout(sigkill));
 			}
 			await m.wait('exited');
 		},
@@ -182,7 +182,7 @@ export async function spawn_server(opts: SpawnServerOptions): Promise<SpawnedSer
 	const ready = opts.ready ?? (() => true);
 	const start = Date.now();
 	const timeout = opts.timeout_ms ?? 60_000;
-	const answered = await m.task(async (signal) => {
+	const answered = await m.scope.task(async (signal) => {
 		while (Date.now() - start < timeout && !signal.aborted) {
 			try {
 				const res = await fetch(opts.url, { redirect: 'manual', signal });
