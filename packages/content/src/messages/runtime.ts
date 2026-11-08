@@ -184,6 +184,16 @@ export const CONTENT_ERRORS = {
 			change after this one, still applies.
 		`
 	},
+	content_outline_weave_failed: {
+		text: (): string => 'the outline could not be woven from changed content, so it keeps the last one:',
+		details: (): string => prose`
+			A live source changed a collection the site's outline arranges, and the outline could
+			not be woven from the new content: an entry it places nowhere, a pick whose entry is
+			gone, or two entries at one address. The error follows the message and names them. The
+			nav, the pages and the addresses stay as last woven, and the outline weaves again at
+			the next change. Fix the content, or the outline.
+		`
+	},
 	content_search_index_fetch_failed: {
 		text: (a: { url: string; status: number }): string =>
 			`could not load the search index at ${a.url} (HTTP ${a.status}). Did you mount site.emit.search()?`,

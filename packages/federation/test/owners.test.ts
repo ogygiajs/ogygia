@@ -5,7 +5,11 @@ import { version } from '$app/env';
 import { PeerHandle } from '../src/peer.ts';
 import { federate } from '../src/federate.ts';
 import { current_federation, set_federation } from '../src/registry.ts';
-import { deploy_thaw_check, reset_deploy_thaw_for_tests } from '../src/serve.ts';
+import {
+	DEPLOY_THAW_ROUNDS,
+	deploy_thaw_check,
+	reset_deploy_thaw_for_tests
+} from '../src/serve.ts';
 import { startPlugin } from '@ogygia/core/plugin/testing';
 import fed_server from '../src/server.ts';
 import { register_hooks } from '../../core/src/plugin/hooks.ts';
@@ -106,20 +110,22 @@ describe('the deploy thaw is tried again until it is done (#198)', () => {
 		p.off();
 	});
 
-	it('the peer never takes the thaw: the marker is put back, and a later request thaws again', async () => {
+	it('the peer never takes the thaw: a later request thaws again, and the store is asked once', async () => {
 		vi.useFakeTimers({ now: 1_000_000 });
 		const p = producer({ peer_down: 4 }); // every attempt of the first broadcast fails
 		const first = deploy_thaw_check(p.fed);
 		await vi.advanceTimersByTimeAsync(10_000); // through the broadcast's own retries
 		await first;
 		expect(p.thaws).toHaveLength(0);
-		expect(p.marker()).toBe('the build before'); // not marked done while nobody thawed
+		// the marker stays on this build: this instance owes the thaw, and every other instance of
+		// the app would otherwise thaw every peer again
+		expect(p.marker()).toBe(version);
 		await vi.advanceTimersByTimeAsync(60_000);
 		const second = deploy_thaw_check(p.fed);
 		await vi.advanceTimersByTimeAsync(10_000);
 		await second;
 		expect(p.thaws).toHaveLength(1);
-		expect(p.marker()).toBe(version);
+		expect(p.asked).toEqual([version]);
 		p.off();
 	});
 
@@ -173,5 +179,86 @@ describe('the deploy thaw is tried again until it is done (#198)', () => {
 		expect(p.asked).toEqual([version]);
 		expect(p.thaws).toHaveLength(1);
 		p.off();
+	});
+});
+
+describe('a deploy thaw is owed to the peers that missed it, not to every peer', () => {
+	/** A producer with three peers; `refuses(peer)` says whether that peer refuses this thaw post. */
+	function producer(refuses: (peer: string, posts: number) => boolean) {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		federate({
+			name: 'cms',
+			expose: {} as never,
+			peers: {
+				shell: { origin: 'http://shell.test' },
+				docs: { origin: 'http://docs.test' },
+				blog: { origin: 'http://blog.test' }
+			},
+			open: true
+		});
+		let marker = 'the build before';
+		registered.push(
+			register_hooks({
+				lastBuild(v: string) {
+					const seen = marker;
+					marker = v;
+					return seen;
+				}
+			})
+		);
+		const took: Record<string, number> = { shell: 0, docs: 0, blog: 0 };
+		const posts: Record<string, number> = { shell: 0, docs: 0, blog: 0 };
+		const ids = new Set<string>();
+		vi.stubGlobal('fetch', async (url: URL | string, init?: RequestInit) => {
+			const peer = new URL(String(url)).hostname.split('.')[0];
+			posts[peer]++;
+			ids.add(JSON.parse(new TextDecoder().decode(init!.body as ArrayBuffer)).id);
+			// a WAF in front of it, or a peer that has no key for this app
+			if (refuses(peer, posts[peer])) return new Response('no', { status: 401 });
+			took[peer]++;
+			return new Response('{}', { status: 200 });
+		});
+		return { fed: current_federation()!, took, posts, ids, warn };
+	}
+
+	/** One check, through the broadcast's own retries. */
+	async function check(fed: ReturnType<typeof current_federation> & object) {
+		const run = deploy_thaw_check(fed);
+		await vi.advanceTimersByTimeAsync(10_000);
+		await run;
+	}
+
+	it('one peer refuses: only it is sent the thaw again, the others take it once', async () => {
+		vi.useFakeTimers({ now: 1_000_000 });
+		// the blog refuses its first round (four posts with the retries), then takes it
+		const p = producer((peer, n) => peer === 'blog' && n <= 4);
+		await check(p.fed);
+		expect(p.took).toEqual({ shell: 1, docs: 1, blog: 0 });
+		for (let i = 0; i < 5; i++) {
+			await vi.advanceTimersByTimeAsync(31_000);
+			await check(p.fed);
+		}
+		// healthy peers never purge again for the same deploy; the blog got it on the next round
+		expect(p.took).toEqual({ shell: 1, docs: 1, blog: 1 });
+		expect(p.posts.shell).toBe(1);
+		expect(p.posts.docs).toBe(1);
+		expect(p.ids.size).toBe(1); // one notice, sent again: a peer that forwards it dedupes it
+	});
+
+	it('a peer that never takes it: given up after a bounded number of rounds, with a warning naming it', async () => {
+		vi.useFakeTimers({ now: 1_000_000 });
+		const p = producer((peer) => peer === 'blog');
+		for (let i = 0; i < 40; i++) {
+			await check(p.fed);
+			await vi.advanceTimersByTimeAsync(31_000);
+		}
+		const rounds = p.posts.blog / 4; // each round posts four times (its retries)
+		expect(rounds).toBe(DEPLOY_THAW_ROUNDS);
+		expect(p.took).toEqual({ shell: 1, docs: 1, blog: 0 });
+		const said = p.warn.mock.calls.filter((c) =>
+			String(c[0]).includes('federation_deploy_thaw_undelivered')
+		);
+		expect(said).toHaveLength(1);
+		expect(said[0].join(' ')).toContain('blog');
 	});
 });

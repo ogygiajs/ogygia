@@ -45,6 +45,17 @@ export const FEDERATION_WARNINGS = {
 			mesh) already checks the caller, pass \`open: true\`.
 		`
 	},
+	federation_deploy_thaw_undelivered: {
+		text: (a: { peers: string; rounds: number }): string =>
+			`federation: the deploy thaw never reached ${a.peers} (${a.rounds} tries), so it is given up`,
+		details: (): string => prose`
+			After a deploy, this app tells its peers to drop the pages they stored with its fragments,
+			as their asset links now point at the build before. These peers refused the notice or
+			never answered, every time it was sent, so their stored pages keep the old build until
+			they expire. A peer usually refuses when it has no key for this app, or something in front
+			of it blocks the request.
+		`
+	},
 	federation_thaw_notice_failed: {
 		text: (): string => 'federation: thaw notice to peers failed —',
 		details: (): string => prose`

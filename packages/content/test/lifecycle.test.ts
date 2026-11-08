@@ -7,6 +7,7 @@ import { content, type Source, type SourceEntry } from '../src/index.ts';
 import { withRemotes } from '../src/server.ts';
 import { site as siteRaw } from '../src/site/site.ts';
 import { dimensions } from '../src/site/dimensions.ts';
+import { outline, pick } from '../src/site/outline.ts';
 
 type Meta = { headings: never[] };
 const schema = v.object({ title: v.string() });
@@ -314,5 +315,61 @@ describe('site search follows the content (#193)', () => {
 		ctl.refs_fail = 1;
 		await expect(s.search('installer')).rejects.toThrow();
 		expect((await s.search('installer')).length).toBeGreaterThan(0);
+	});
+});
+
+describe('a live edit that breaks the outline keeps the last good one', () => {
+	const doc = (id: string, title: string) =>
+		({
+			id,
+			filePath: `content/docs/00-start/0${id.length}-${id}/+doc.svx`,
+			data: { title },
+			meta: { headings: [] },
+			source: async () => `# ${title}\n\nThe ${title} page.`
+		}) as unknown as SourceEntry<Meta>;
+
+	it('an entry the outline places nowhere: the nav stays, an error says why, the fix applies', async () => {
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const rows = [doc('install', 'Install'), doc('usage', 'Usage')];
+		const { source, emit } = liveSource(rows);
+		const docs = content({ schema, loader: source });
+		// a hand-placed outline, no remainder: every entry must be picked
+		const s = siteRaw({
+			outline: outline([
+				{ label: 'Start', items: pick(docs, 'install') },
+				{ label: 'Use', items: pick(docs, 'usage') }
+			])
+		});
+		const slugs = async () => (await s.outline.addresses()).slice();
+		expect(await slugs()).toEqual(['install', 'usage']);
+
+		// an editor adds a page the outline does not place: the weave fails (unplaced entry)
+		rows.push(doc('draft', 'Draft'));
+		emit();
+		await settle();
+		expect(await slugs()).toEqual(['install', 'usage']); // the last good outline
+		await expect(s.nav()).resolves.toHaveLength(2);
+		expect(await s.page('install')).not.toBeNull(); // and its pages still serve
+		const said = error.mock.calls.filter((c) =>
+			String(c[0]).includes('content_outline_weave_failed')
+		);
+		expect(said).toHaveLength(1); // said once for the broken content, not once per request
+		expect(String(said[0][1])).toMatch(/unplaced entr/);
+
+		// the editor removes it: the outline weaves again, from the fixed content
+		rows.pop();
+		rows.push(doc('usage', 'Using it'));
+		rows.splice(1, 1);
+		emit();
+		await settle();
+		const tree = await s.nav();
+		expect(JSON.stringify(tree)).toContain('Using it');
+	});
+
+	it('the first weave failing is still the caller’s error (there is nothing to keep)', async () => {
+		const { source } = liveSource([doc('install', 'Install'), doc('stray', 'Stray')]);
+		const docs = content({ schema, loader: source });
+		const s = siteRaw({ outline: outline([{ label: 'Start', items: pick(docs, 'install') }]) });
+		await expect(s.nav()).rejects.toThrow(/unplaced entr/);
 	});
 });

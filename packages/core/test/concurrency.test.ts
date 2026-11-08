@@ -1,6 +1,7 @@
 // The concurrency gate (runtime/concurrency.ts): hole renders on the server (REGION_RENDER_CONCURRENCY)
-// and the runtime's hole fetches in the browser. Its one promise: never more than `limit` bodies
-// running at once (#195). Fake timers make each race exact.
+// and the runtime's hole fetches in the browser. Never more than `limit` bodies running that someone
+// still waits on (#195); a body past its deadline is abandoned and never blocks the next call (a hung
+// upstream must not take every hole down). Fake timers make each race exact.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConcurrencyGate } from '../src/runtime/concurrency.ts';
 
@@ -78,53 +79,88 @@ describe('ConcurrencyGate: never more than its limit running', () => {
 	});
 });
 
-describe('ConcurrencyGate: a body past its time (the region render timeout, #195)', () => {
+describe('ConcurrencyGate: one deadline per call (the region render timeout, #195)', () => {
 	beforeEach(() => vi.useFakeTimers());
 	afterEach(() => vi.useRealTimers());
 
-	it('stops being waited on, but keeps its slot until it really ends', async () => {
+	it('a body past its deadline is abandoned: its caller gets the timeout, its slot goes on', async () => {
 		const g = new ConcurrencyGate(1);
 		const b = bodies();
-		const slow = g.run(b.body('slow'), { run_ms: 100 });
+		const slow = g.run(b.body('slow'), { deadline_ms: 100 });
 		const caught = slow.catch((e: Error) => e.message);
-		const next = g.run(b.body('next'), { wait_ms: 10_000 });
+		const next = g.run(b.body('next'), { deadline_ms: 10_000 });
 		await vi.advanceTimersByTimeAsync(100);
 		expect(await caught).toBe('region render timeout'); // the caller stops waiting …
-		expect(b.order).toEqual(['slow']); // … but `next` does not start beside it
-		expect(b.most).toBe(1);
-		b.end(0); // the slow render really ends
-		await vi.advanceTimersByTimeAsync(0);
-		expect(b.order).toEqual(['slow', 'next']);
+		expect(b.order).toEqual(['slow', 'next']); // … and the next call runs: nobody waits on `slow`
+		expect(g.active).toBe(1); // the one someone waits on
+		expect(g.abandoned).toBe(1); // and the one still running that nobody waits on
 		b.end(1);
 		await expect(next).resolves.toBe('next');
-		expect(b.most).toBe(1);
+		b.end(0); // the abandoned render really ends: it frees nothing it gave away
+		await vi.advanceTimersByTimeAsync(0);
+		expect(g.abandoned).toBe(0);
+		expect(g.active).toBe(0);
+	});
+
+	it('four renders on a hung upstream never stop the fifth hole: it renders at once', async () => {
+		const g = new ConcurrencyGate(4);
+		const b = bodies();
+		const hung = Array.from({ length: 4 }, (_, i) =>
+			g.run(b.body(`hung ${i}`), { deadline_ms: 10_000 }).catch((e: Error) => e.message)
+		);
+		await vi.advanceTimersByTimeAsync(10_000);
+		expect(await Promise.all(hung)).toEqual(Array(4).fill('region render timeout'));
+		// minutes later, the upstream still hangs: a hole that never touches it renders anyway
+		await vi.advanceTimersByTimeAsync(120_000);
+		const fifth = g.run(async () => 'rendered', { deadline_ms: 10_000 });
+		await expect(fifth).resolves.toBe('rendered');
+		expect(g.abandoned).toBe(4);
+		expect(g.waiting).toBe(0);
+	});
+
+	it('the deadline covers the wait and the run together: the call answers within it', async () => {
+		const g = new ConcurrencyGate(1);
+		const b = bodies();
+		const first = g.run(b.body('first'));
+		const second = g.run(b.body('second'), { deadline_ms: 10_000 }).catch((e: Error) => e.message);
+		await vi.advanceTimersByTimeAsync(6_000);
+		b.end(0); // the first ends at 6 s: the second enters, with 4 s of its deadline left
+		await vi.advanceTimersByTimeAsync(0);
+		expect(b.order).toEqual(['first', 'second']);
+		await vi.advanceTimersByTimeAsync(4_000);
+		expect(await second).toBe('region render timeout'); // at 10 s, never at 16 s
+		await first;
 	});
 
 	it('eight bodies that never end, through a gate of four: four run, the rest give up waiting', async () => {
 		const g = new ConcurrencyGate(4);
 		const b = bodies();
 		const calls = Array.from({ length: 8 }, (_, i) =>
-			g.run(b.body(String(i)), { run_ms: 10_000, wait_ms: 10_000 }).catch((e: Error) => e.message)
+			g.run(b.body(String(i)), { deadline_ms: 10_000 }).catch((e: Error) => e.message)
 		);
 		await vi.advanceTimersByTimeAsync(10_000);
-		await vi.advanceTimersByTimeAsync(10_000);
-		expect(b.most).toBe(4); // never more than the limit, however long they run
+		expect(b.most).toBe(4); // never more than the limit while they are waited on
 		const outcomes = await Promise.all(calls);
 		expect(outcomes.filter((o) => o === 'region render timeout')).toHaveLength(4);
+		// (a waiter whose deadline passed is never handed a slot: it would only start a body nobody
+		// waits on)
 		expect(outcomes.filter((o) => o === 'region render queue timeout')).toHaveLength(4);
+		expect(b.order).toEqual(['0', '1', '2', '3']);
+		expect(g.active).toBe(0);
+		expect(g.abandoned).toBe(4);
 	});
 
 	it('a body that ends in time leaves no timer behind', async () => {
 		const g = new ConcurrencyGate(2);
-		await g.run(async () => 'quick', { run_ms: 10_000, wait_ms: 10_000 });
+		await g.run(async () => 'quick', { deadline_ms: 10_000 });
 		expect(vi.getTimerCount()).toBe(0);
 	});
 
-	it('waiters that gave up leave the queue at once, even while no slot ever frees (a hung upstream)', async () => {
+	it('waiters that gave up leave the queue at once, even while no slot ever frees', async () => {
 		const g = new ConcurrencyGate(1);
-		void g.run(() => new Promise(() => {})); // a render that never ends holds the only slot
+		void g.run(() => new Promise(() => {})); // a render with no deadline that never ends
 		const gave_up = Array.from({ length: 100 }, () =>
-			g.run(async () => 'never', { wait_ms: 10 }).catch((e: Error) => e.message)
+			g.run(async () => 'never', { deadline_ms: 10 }).catch((e: Error) => e.message)
 		);
 		expect(g.waiting).toBe(100);
 		await vi.advanceTimersByTimeAsync(10);
@@ -137,7 +173,7 @@ describe('ConcurrencyGate: a body past its time (the region render timeout, #195
 		const g = new ConcurrencyGate(1);
 		const b = bodies();
 		const first = g.run(b.body('first'));
-		const gave_up = g.run(b.body('gave-up'), { wait_ms: 50 }).catch((e: Error) => e.message);
+		const gave_up = g.run(b.body('gave-up'), { deadline_ms: 50 }).catch((e: Error) => e.message);
 		await vi.advanceTimersByTimeAsync(50);
 		expect(await gave_up).toBe('region render queue timeout');
 		const after = g.run(b.body('after'));
@@ -152,7 +188,9 @@ describe('ConcurrencyGate: a body past its time (the region render timeout, #195
 	it('a late failure of a body nobody waits on any more is not an unhandled rejection', async () => {
 		const g = new ConcurrencyGate(1);
 		let fail!: (e: Error) => void;
-		const slow = g.run(() => new Promise<string>((_, reject) => (fail = reject)), { run_ms: 10 });
+		const slow = g.run(() => new Promise<string>((_, reject) => (fail = reject)), {
+			deadline_ms: 10
+		});
 		// (the caller's handler is attached before its timeout fires, as a real caller's is)
 		const caller = slow.catch((e: Error) => e.message);
 		await vi.advanceTimersByTimeAsync(10);
@@ -165,5 +203,6 @@ describe('ConcurrencyGate: a body past its time (the region render timeout, #195
 		process.off('unhandledRejection', unhandled);
 		expect(unhandled).not.toHaveBeenCalled();
 		expect(g.active).toBe(0);
+		expect(g.abandoned).toBe(0);
 	});
 });

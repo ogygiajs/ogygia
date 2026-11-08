@@ -2,34 +2,33 @@
  * Shared concurrency gate — client region fetches (SI-STORM) and server region SSR (M1).
  * Caps in-flight work; waiters queue FIFO. Does not cancel running work (see INVARIANTS.md).
  *
- * The one promise: never more than `limit` bodies running at once (#195).
+ * The promise: never more than `limit` bodies running that someone still waits on (#195), and a
+ * call with a deadline answers within it.
  * - A freed slot is HANDED to the next waiter in the same step: it is never free in between, so a
  *   call arriving while the waiter resumes queues behind it instead of entering beside it.
- * - A body past `run_ms` stops being waited on (its caller gets the timeout), but it keeps its slot
- *   until it really ends: Svelte's `render()` cannot be cancelled, so a slot freed early let more
- *   renders run than the limit.
- * - A waiter that waited `wait_ms` for a slot gives up and never runs: with slots held by bodies
- *   that will not end (a hung upstream), the next call answers with its fallback instead of waiting
- *   forever.
+ * - `deadline_ms` covers the whole call, the wait for a slot and the run together. A waiter whose
+ *   deadline passes gives up and never runs. A body still running at its deadline is ABANDONED: its
+ *   caller gets the timeout and its slot goes to the next call at once. Svelte's `render()` cannot
+ *   be cancelled, so the body runs on, counted in `abandoned` until it ends; it never blocks a slot,
+ *   or a hung upstream (renders that never end) would hold every slot and take every hole down.
  */
 
 export interface GateOptions {
-	/** Stop waiting for the body after this long (it keeps its slot until it ends). */
-	run_ms?: number;
-	/** Give up waiting for a slot after this long (the body never runs). */
-	wait_ms?: number;
+	/** The call answers within this long: the wait for a slot and the run together. */
+	deadline_ms?: number;
 }
 
-type Waiter = { enter: () => void; gave_up: boolean };
+type Waiter = { enter: () => void; gave_up: boolean; deadline: number };
 
-/** The caller's error when a body ran past `run_ms`. */
+/** The caller's error when its body ran past the deadline (it was abandoned). */
 const RUN_TIMEOUT = 'region render timeout';
-/** The caller's error when no slot came within `wait_ms`. */
+/** The caller's error when no slot came before the deadline (its body never ran). */
 const WAIT_TIMEOUT = 'region render queue timeout';
 
 export class ConcurrencyGate {
 	#limit: number;
 	#active = 0;
+	#abandoned = 0;
 	#wait: Waiter[] = [];
 
 	constructor(max: number) {
@@ -37,25 +36,42 @@ export class ConcurrencyGate {
 	}
 
 	async run<T>(fn: () => Promise<T>, options: GateOptions = {}): Promise<T> {
-		await this.#enter(options.wait_ms);
-		// holds its slot from here until `fn` really ends, whatever the caller does meanwhile
+		const { deadline_ms } = options;
+		const deadline = deadline_ms === undefined ? Infinity : Date.now() + deadline_ms;
+		await this.#enter(deadline);
 		let body: Promise<T>;
 		try {
 			body = fn();
 		} catch (error) {
 			body = Promise.reject(error);
 		}
-		const done = body.then(
-			() => this.#leave(),
-			() => this.#leave()
-		);
-		void done;
-		if (options.run_ms === undefined) return body;
-		return within(body, options.run_ms, RUN_TIMEOUT);
+		// the slot is this body's until it ends, or until it is abandoned at the deadline; it is given
+		// back exactly once either way
+		let holds = true;
+		const end = () => {
+			if (holds) {
+				holds = false;
+				this.#leave();
+			} else this.#abandoned--;
+		};
+		body.then(end, end);
+		if (deadline === Infinity) return body;
+		return within(body, deadline - Date.now(), () => {
+			if (!holds) return;
+			holds = false;
+			this.#abandoned++;
+			this.#leave();
+		});
 	}
 
+	/** Bodies running that someone waits on (the limit counts these). */
 	get active(): number {
 		return this.#active;
+	}
+
+	/** Bodies past their deadline still running: nobody waits on them, and they hold no slot. */
+	get abandoned(): number {
+		return this.#abandoned;
 	}
 
 	/** Calls waiting for a slot. */
@@ -63,8 +79,8 @@ export class ConcurrencyGate {
 		return this.#wait.length;
 	}
 
-	/** A slot: at once when one is free, else in turn (or the wait gives up). */
-	#enter(wait_ms: number | undefined): Promise<void> {
+	/** A slot: at once when one is free, else in turn (or the deadline passes first). */
+	#enter(deadline: number): Promise<void> {
 		if (this.#active < this.#limit) {
 			this.#active++;
 			return Promise.resolve();
@@ -73,13 +89,14 @@ export class ConcurrencyGate {
 			let timer: ReturnType<typeof setTimeout> | undefined;
 			const waiter: Waiter = {
 				gave_up: false,
+				deadline,
 				// (handed a slot by #leave, already counted)
 				enter: () => {
 					if (timer !== undefined) clearTimeout(timer);
 					resolve();
 				}
 			};
-			if (wait_ms !== undefined)
+			if (deadline !== Infinity)
 				timer = setTimeout(() => {
 					waiter.gave_up = true;
 					// out of the queue now: with every slot held by bodies that never end, no `#leave`
@@ -87,24 +104,35 @@ export class ConcurrencyGate {
 					const at = this.#wait.indexOf(waiter);
 					if (at !== -1) this.#wait.splice(at, 1);
 					reject(new Error(WAIT_TIMEOUT));
-				}, wait_ms);
+				}, deadline - Date.now());
 			this.#wait.push(waiter);
 		});
 	}
 
-	/** A body ended: its slot goes straight to the next waiter still waiting, else it is free. */
+	/** A slot is given back: it goes straight to the next waiter still waiting, else it is free. (A
+	 *  waiter whose deadline has come is passed over even before its timer runs: handed a slot, it
+	 *  would only start a body nobody waits on.) */
 	#leave(): void {
+		const now = Date.now();
 		let next = this.#wait.shift();
-		while (next && next.gave_up) next = this.#wait.shift();
+		while (next && (next.gave_up || next.deadline <= now)) next = this.#wait.shift();
 		if (next) next.enter();
 		else this.#active--;
 	}
 }
 
-/** `work`, or `message` as an error after `ms` (the timer cleared either way). */
-function within<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
+/** Whether `error` is a call's run timeout: its body ran past the deadline and was abandoned. */
+export function is_run_timeout(error: unknown): boolean {
+	return error instanceof Error && error.message === RUN_TIMEOUT;
+}
+
+/** `work`, or the run timeout after `ms` (`on_timeout` first; the timer cleared either way). */
+function within<T>(work: Promise<T>, ms: number, on_timeout: () => void): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
-		const timer = setTimeout(() => reject(new Error(message)), ms);
+		const timer = setTimeout(() => {
+			on_timeout();
+			reject(new Error(RUN_TIMEOUT));
+		}, ms);
 		work.then(
 			(value) => {
 				clearTimeout(timer);
