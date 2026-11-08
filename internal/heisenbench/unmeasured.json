@@ -1039,6 +1039,34 @@
 		{
 			"id": "packages/core/src/runtime/session.ts > RuntimeSession > next_visit",
 			"reason": "makes a page visit record (a scope and an empty list), constant work; run by packages/core/test/browser/nav-called-off-sheets.test.ts"
+		},
+		{
+			"id": "packages/content/src/vite/hmr.ts > content_hmr > closeBundle",
+			"reason": "dev only: closes the closing environment's run (a map read and a scope close; the plugin context is not cloneable), constant work; proven in packages/content/test/dev-close.test.ts"
+		},
+		{
+			"id": "packages/content/src/vite/hmr.ts > content_hmr > configureServer > schedule > timeout:0~07ca2e",
+			"reason": "dev only: the debounce firing the flush on a real dev server's run (not replayable), constant work; proven in packages/content/test/dev-close.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/session.ts > start_session > watch > defer:0~6b8970",
+			"reason": "browser only: counts an observer's queued entries as the recording ends (one takeRecords), constant work; run by the devtools e2e session recording"
+		},
+		{
+			"id": "packages/devtools/src/devtools/ui-app.ts > mount_app > defer:0~0c1f37",
+			"reason": "browser only: unmounts the dock when its mounted visit ends, constant work; run by packages/devtools/e2e/dock-switch.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/ui.ts > after_load_idle > idle > defer:0~e2e76a",
+			"reason": "browser only: cancels the launcher's idle callback when its button visit ends, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/ui.ts > after_load_idle > on:2~348955",
+			"reason": "browser only: the page's load event arms the launcher's idle wait (one timeout on its visit), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/ui/row-anchor.svelte.ts > follow_hash > apply > timeout:0~21105b",
+			"reason": "browser only: scrolls the opened row into view once it renders (one lookup), constant work"
 		}
 	]
 }
