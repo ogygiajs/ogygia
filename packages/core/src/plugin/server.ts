@@ -11,6 +11,7 @@ import { ask, notify, register_hooks } from './hooks.ts';
 import { route_config } from './routes.ts';
 import { plugin_capabilities, type CapabilitySigner } from './capability.ts';
 import { record_server_event } from '../events/server-registry.ts';
+import { warn } from '../messages/server.ts';
 
 /** One plugin's server half as the build lists it (`virtual:ogygia/server-plugins`). */
 export interface ServerPluginEntry {
@@ -149,11 +150,12 @@ export function end_request(
 ): void {
 	let left: Promise<void>[] | null = null;
 	for (let i = 0; i < plugins.length; i++) {
+		// (a plugin's tail never fails the request, and its failure is said)
 		try {
 			const work = plugins[i].def.done?.(ctxs[i]);
-			if (work) (left ??= []).push(Promise.resolve(work).then(undefined, ignore));
-		} catch {
-			/* a plugin's tail never fails the request */
+			if (work) (left ??= []).push(Promise.resolve(work).then(undefined, done_failed));
+		} catch (error) {
+			done_failed(error);
 		}
 	}
 	if (left === null) return;
@@ -162,8 +164,12 @@ export function end_request(
 	try {
 		wait_until(left.length === 1 ? left[0] : Promise.all(left).then(ignore));
 	} catch {
-		/* a platform that refuses it: the work runs on by itself */
+		// ok: a platform that refuses it: the work runs on by itself
 	}
+}
+
+function done_failed(error: unknown): void {
+	warn('plugin_hook_failed', { name: 'done' }, error);
 }
 
 function ignore(): void {}
