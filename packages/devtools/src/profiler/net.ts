@@ -9,6 +9,7 @@
  */
 
 import type { AsyncLocalStorage } from 'node:async_hooks';
+import type { Scope } from '@ogygia/machine';
 import { may_be_chunk, module_category, module_lookup } from './module-map.ts';
 
 // ── regexes
@@ -179,6 +180,8 @@ const shared = ((globalThis as Record<symbol, unknown>)[NET_STATE] ??= { stacks:
 	emit?: Emit | null;
 	/** the current request's kept-answer lookup (its context's `answer`) */
 	answer?: ((method: string, url: string) => Response | undefined) | null;
+	/** the current request's owner (its context's `owner`) */
+	owner?: (() => Scope | undefined) | null;
 	/** `http` / `https` are wrapped (once per process) */
 	http_patched?: boolean;
 };
@@ -275,6 +278,9 @@ export interface NetContext {
 	/** the profiler's what-if render: an answer kept from the timed renders, for a call this request
 	 *  makes (`GET <url>`), instead of making it — undefined = make the call */
 	answer?(method: string, url: string): Response | undefined;
+	/** the request's owner: what the capture reads for a call this request makes (the copy of its
+	 *  body it counts) is let go when the request ends */
+	owner?: Scope;
 }
 
 type Emit = (call: NetCall) => void;
@@ -371,6 +377,7 @@ export async function install_net_capture(
 	fallback: Emit
 ): Promise<void> {
 	shared.answer = (method, url) => als.getStore()?.answer?.(method, url);
+	shared.owner = () => als.getStore()?.owner;
 	shared.emit = (call: NetCall) => {
 		const ctx = als.getStore();
 		if (ctx) {
@@ -583,7 +590,7 @@ function wrap_fetch(orig: typeof globalThis.fetch): typeof globalThis.fetch {
 			if (trace) call.trace = trace;
 			// Robust DECODED size: count a cloned body stream. Works however the app reads the original
 			// (json/text/stream) and with no content-length (chunked / dev servers) — no more dashes.
-			count_decoded(res, call);
+			count_decoded(res, call, shared.owner?.());
 			wrap_body(res, call);
 			return res;
 		} catch (e) {
@@ -683,8 +690,10 @@ function capture_req_payload(init: RequestInit | undefined, call: NetCall): void
 const BODY_HASH_MAX = 4 * 1024 * 1024;
 
 /** Count the DECODED response body size by draining a CLONE in the background (the original is left
- *  untouched). Sets `call.bytes` when done — the render finishes first, so it's ready by report time. */
-function count_decoded(res: Response, call: NetCall): void {
+ *  untouched). Sets `call.bytes` when done — the render finishes first, so it's ready by report time.
+ *  The clone is the request's (`owner`): when the request ends it is let go, so a body that never
+ *  ends is not read for good. */
+function count_decoded(res: Response, call: NetCall, owner: Scope | undefined): void {
 	let clone: Response;
 	try {
 		clone = res.clone();
@@ -700,6 +709,7 @@ function count_decoded(res: Response, call: NetCall): void {
 	void (async () => {
 		try {
 			const reader = stream.getReader();
+			owner?.defer(() => void reader.cancel().catch(() => {}));
 			let total = 0;
 			let parts: Uint8Array[] | null = keep ? [] : null;
 			// a fingerprint of the body (FNV-1a over its first BODY_HASH_MAX bytes, and its length):

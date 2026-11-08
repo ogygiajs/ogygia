@@ -233,6 +233,7 @@ import { gzip_large } from './compress.ts';
 import { io_kind, mark_left_each_run } from './async-io.ts';
 import {
 	hole_stats_of,
+	request_scope,
 	request_stats_of,
 	set_batch_hole_listener,
 	set_request_stats_detail,
@@ -248,7 +249,15 @@ import {
 	islandPageWhy
 } from 'virtual:ogygia/island-deps';
 import { set_span_recorder, type SpanAttrs, type SpanRecord, type SpanRecorder } from './span.ts';
-import { flights, lock, machine, STALE, type Flights, type LockToken } from '@ogygia/machine';
+import {
+	flights,
+	lock,
+	machine,
+	STALE,
+	type Flights,
+	type LockToken,
+	type Scope
+} from '@ogygia/machine';
 import { register_profiler_file } from './frames.ts';
 
 // The span recorder's `begin` lives in this file: skip its frame when finding a span's caller.
@@ -1400,7 +1409,7 @@ class Profiler {
 	}
 
 	/** An attributed request's context: its own calls (capped), each also offered to the window. */
-	#request_ctx(entry: RequestEntry): Ctx {
+	#request_ctx(entry: RequestEntry, owner: Scope): Ctx {
 		const collect_window = (call: NetCall) => this.#collect_window(call);
 		return {
 			entry,
@@ -1408,6 +1417,7 @@ class Profiler {
 			spans: [],
 			route: entry.route,
 			path: entry.path,
+			owner,
 			on_net(call) {
 				if (this.net.length < MAX_NET_PER_REQUEST) this.net.push(call);
 				collect_window(call);
@@ -6669,7 +6679,9 @@ class Profiler {
 		// (a background window — the trap, the sampler — never opens a per-request context: the
 		// request is matched to the window by time instead, so the site pays the sampler only)
 		const attribute = !!this.#als && (this.dev || this.#recording_active() || header_profile);
-		const ctx: Ctx | null = attribute ? this.#request_ctx(entry) : null;
+		const ctx: Ctx | null = attribute
+			? this.#request_ctx(entry, request_scope(event.request))
+			: null;
 		// THE KEEP-THE-ANSWERS RENDER: the profiler's own render, marked with this recording's token,
 		// is served the kept answers for the calls that answered the same in every timed render
 		const answers = this.#answers;
