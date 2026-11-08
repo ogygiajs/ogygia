@@ -72,7 +72,13 @@ function keep_serializable(value: unknown, stringify_fn: typeof stringify): unkn
 			const out = Object.create(proto) as Record<string, unknown>;
 			copies.set(v, out);
 			for (const key of Object.keys(v)) {
-				const c = keep((v as Record<string, unknown>)[key]);
+				let e: unknown;
+				try {
+					e = (v as Record<string, unknown>)[key];
+				} catch {
+					continue; // a getter that throws: devalue could not read it either
+				}
+				const c = keep(e);
 				if (c !== DROP) put(out, key, c);
 			}
 			return out;
@@ -146,11 +152,18 @@ export class PageSeed {
 			} catch {
 				// A value devalue cannot carry must not take its neighbours with it: islands' props
 				// sidecars point into `data` by path, so only the values that cannot go are left out.
-				const kept = keep_serializable(full, stringify_fn) as typeof full;
+				// (the copy itself may throw: data nested past the stack, a Map whose iterator throws;
+				// then the source goes to the per-field fallback below, never the whole seed lost)
+				let kept = full;
+				try {
+					kept = keep_serializable(full, stringify_fn) as typeof full;
+				} catch {
+					/* kept stays the source */
+				}
 				try {
 					raw = stringify_fn(kept);
 				} catch {
-					// (a reducer that throws on the copy: then each field that serializes on its own)
+					// (a reducer that throws on the copy, or no copy: each field that serializes alone)
 					const safe: Record<string, unknown> = { ...base };
 					for (const key of ['data', 'form', 'error'] as const) {
 						try {

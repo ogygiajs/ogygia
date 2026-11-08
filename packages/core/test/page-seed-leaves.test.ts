@@ -128,6 +128,31 @@ describe('PageSeed.serialize keeps everything that serializes', () => {
 		expect(seed.url).toBe('https://example.test/');
 	});
 
+	it('a getter that throws: only that key goes', () => {
+		const data = {
+			name: 'Site',
+			fn: () => 1,
+			get broken(): never {
+				throw new Error('no');
+			}
+		};
+		const seed = seed_of(PageSeed.serialize(page(data)));
+		expect(seed.data).toEqual({ name: 'Site' });
+	});
+
+	it('when the copy itself fails, each field that serializes alone still ships with the url', () => {
+		const m = new Map([['a', 1]]);
+		Object.defineProperty(m, Symbol.iterator, {
+			value: () => {
+				throw new Error('no');
+			}
+		});
+		const seed = seed_of(PageSeed.serialize(page({ m, fn: () => 1 }, { q: 'x' })));
+		expect(seed.url).toBe('https://example.test/');
+		expect(seed.data).toBeUndefined();
+		expect(seed.form).toEqual({ q: 'x' });
+	});
+
 	it('the source objects are left as they were', () => {
 		const fn = () => 1;
 		const data = { site: { fn, name: 'Site' }, list: [fn] };
