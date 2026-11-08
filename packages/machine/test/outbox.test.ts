@@ -276,6 +276,27 @@ describe('inOrder', () => {
 		expect(most).toBe(1);
 	});
 
+	it('with none ahead, the send starts inside the put; behind one, once it ends', async () => {
+		const started: number[] = [];
+		const box = outbox({
+			send: (n: number) => {
+				started.push(n);
+				return wait(10);
+			},
+			retry: quick(),
+			inOrder: true
+		});
+		const a = box.put(1);
+		expect(started).toEqual([1]);
+		const b = box.put(2);
+		expect(started).toEqual([1]);
+		await a;
+		await b;
+		expect(started).toEqual([1, 2]);
+		void box.put(3);
+		expect(started).toEqual([1, 2, 3]); // (none ahead again)
+	});
+
 	it('one given up does not stop the ones after it', async () => {
 		const seen: string[] = [];
 		const box = outbox({

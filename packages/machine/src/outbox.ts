@@ -74,8 +74,10 @@ class Box<T> implements Outbox<T> {
 	_give_up: ((item: T, error: unknown) => void) | undefined;
 	_wait_until: ((work: Promise<unknown>) => void) | undefined;
 	_flights: Flights<Put<T>, boolean, unknown>;
-	/** In order: the send before the next one's turn (it never rejects). */
-	_tail: Promise<unknown> | null;
+	_in_order: boolean;
+	/** In order: the last send put (it never rejects), and how many are put and not ended. */
+	_tail: Promise<unknown> = Promise.resolve();
+	_ahead = 0;
 
 	constructor(o: OutboxOptions<T>) {
 		if (typeof o.send !== 'function')
@@ -90,18 +92,24 @@ class Box<T> implements Outbox<T> {
 		this._retry = o.retry ?? policy.standard;
 		this._give_up = o.giveUp;
 		this._wait_until = o.waitUntil;
-		this._tail = o.inOrder === true ? Promise.resolve() : null;
+		this._in_order = o.inOrder === true;
 		this._flights = flights({
 			name: this._name,
 			key: (p: Put<T>) => p.key,
 			keep: 0,
-			run: (p: Put<T>) => {
-				if (this._tail === null) return this._deliver(p.item);
-				const mine = this._tail.then(() => this._deliver(p.item));
-				this._tail = mine;
-				return mine;
-			}
+			run: (p: Put<T>) => (this._in_order ? this._next(p.item) : this._deliver(p.item))
 		});
+	}
+
+	/** In order: the send starts now when none is ahead of it, else once the last one put ends. */
+	_next(item: T): Promise<boolean> {
+		const mine =
+			this._ahead === 0 ? this._deliver(item) : this._tail.then(() => this._deliver(item));
+		this._ahead++;
+		this._tail = mine.then(() => {
+			this._ahead--;
+		});
+		return mine;
 	}
 
 	put(item: T): Promise<boolean> {
