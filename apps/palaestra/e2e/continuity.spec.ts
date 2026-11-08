@@ -159,6 +159,54 @@ test.describe('named wire codec: session-lifetime cart survives SPA nav, merge, 
 		await fresh.close();
 	});
 
+	// ---------- the restore window is its page's: the next navigation ends it ----------
+	// Back on a page with saved fields, the restore listens for its islands' hydrations for a few
+	// seconds. Going on to another page within that time must not restore the form page's values
+	// into the next page's islands (they are matched by position: region index, child address, tag).
+	test('form values restored on a page stay there when the visitor goes on within the restore window', async ({
+		page
+	}) => {
+		const errors: string[] = [];
+		page.on('pageerror', (e) => errors.push(e.message));
+		await page.goto('/formkeep', { waitUntil: 'networkidle' });
+		await page.waitForTimeout(150);
+		await page.locator('[data-kf-name]').fill('Ada Lovelace');
+		await page.locator('[data-kf-sub]').check();
+		await page.locator('[data-leave]').click();
+		await page.waitForTimeout(200);
+		await page.goBack();
+		await page.locator('[data-kf-name]').waitFor();
+		await page.waitForFunction(
+			() => (document.querySelector('[data-kf-name]') as HTMLInputElement | null)?.value !== ''
+		);
+		check(
+			'back on the form page: its fields are restored',
+			(await page.locator('[data-kf-name]').inputValue()) === 'Ada Lovelace'
+		);
+		// on to the next page at once: well inside the restore window
+		await page.locator('[data-next]').click();
+		await page.locator('[data-next-form]').waitFor();
+		await page.waitForFunction(
+			() => !!document.querySelector('[data-next-form]')?.closest('ogygia-region[data-hydrated]')
+		);
+		await page.waitForTimeout(300);
+		check(
+			'the next page’s text field starts blank',
+			(await page.locator('[data-nf-note]').inputValue()) === '',
+			`note=${await page.locator('[data-nf-note]').inputValue()}`
+		);
+		check(
+			'the next page’s checkbox starts unchecked',
+			!(await page.locator('[data-nf-agree]').isChecked())
+		);
+		check(
+			'the next page’s island saw no restore (echo blank)',
+			(await page.locator('[data-nf-echo]').innerText()) === '',
+			`echo=${await page.locator('[data-nf-echo]').innerText()}`
+		);
+		check('no page errors', errors.length === 0, errors.join(' | '));
+	});
+
 	// ---------- speculation rules: NEVER in SPA mode ----------
 	// Speculation caches serve real navigations only — a body-swap router can't read them, so with
 	// the router ON ogygia must emit no rules (its own prefetch + module warming is the working
