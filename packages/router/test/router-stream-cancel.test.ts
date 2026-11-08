@@ -1,7 +1,7 @@
 // A streamed page whose visitor leaves (#284): the response body is cancelled while late regions
 // still stream. The page's generator must be ended (its `finally` runs: a database cursor closed,
 // say), every source a merged stream holds must be ended too, and nothing more renders.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { merge_chunks, stream_document, until_drained, type LateChunk } from '../src/stream.ts';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -57,5 +57,50 @@ describe('a streamed page the visitor left (#284)', () => {
 		expect(made).toBeLessThan(10);
 		await sleep(60);
 		expect(page.seen.made + late.seen.made).toBe(made);
+	});
+});
+
+// A source whose own cleanup (its `finally`) throws as the visitor leaves: nobody waits on that
+// ending, so the failure is said with a code, never dropped.
+describe('a source whose cleanup fails as the visitor leaves', () => {
+	async function* torn(): AsyncGenerator<LateChunk> {
+		try {
+			for (let i = 0; ; i++) {
+				await sleep(10);
+				yield { slot: `t${i}`, html: `<p>t${i}</p>` };
+			}
+		} finally {
+			// eslint-disable-next-line no-unsafe-finally
+			throw new Error('cursor close failed');
+		}
+	}
+
+	async function warned_after_cancel(make: () => AsyncGenerator<LateChunk>) {
+		const warns: unknown[][] = [];
+		const spy = vi.spyOn(console, 'warn').mockImplementation((...a) => void warns.push(a));
+		try {
+			const reader = stream_document(DOC, new Response(''), make()).body!.getReader();
+			await reader.read();
+			await reader.read();
+			await reader.cancel();
+			await sleep(60);
+		} finally {
+			spy.mockRestore();
+		}
+		return warns;
+	}
+
+	it('a page generator: request_cleanup_failed, with the error', async () => {
+		const warns = await warned_after_cancel(torn);
+		const hit = warns.find((a) => String(a[0]).includes('request_cleanup_failed'));
+		expect(hit).toBeDefined();
+		expect((hit![1] as Error).message).toBe('cursor close failed');
+	});
+
+	it('a source a merged stream holds: request_cleanup_failed, with the error', async () => {
+		const warns = await warned_after_cancel(() =>
+			until_drained(merge_chunks(source('p', 50).gen, torn()), () => null)
+		);
+		expect(warns.some((a) => String(a[0]).includes('request_cleanup_failed'))).toBe(true);
 	});
 });
