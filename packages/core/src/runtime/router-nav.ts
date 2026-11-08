@@ -717,7 +717,7 @@ export async function navigate(
 	// them ALL in one batch request, kicked off now (before the swap). Each region binder joins the
 	// batch via the store when it connects — no per-region fetch waterfall on navigation. Fired
 	// synchronously so every reservation is in place before the body swap connects any binder.
-	batch_regions(doc, dest.href);
+	batch_regions(doc, dest.href, next.scope);
 	// (the incoming page's seed and sidecars parse in its preflight and wakes: devalue first, when
 	// one of them is in its lane — ./devalue-lane.ts)
 	await devalue_for(doc);
@@ -1119,8 +1119,9 @@ function preload_stylesheets(
  * irrelevant. Only `when="load"` (or unset) is batched: a region scheduled `visible`/`idle`/media
  * stays lazy and fetches on its own trigger, so dynamic schedules are preserved, not eagerly pulled.
  */
-/** `base`: the fetched page's own URL (its relative hrefs resolve against it). */
-function batch_regions(doc: Document, base: string) {
+/** `base`: the fetched page's own URL (its relative hrefs resolve against it). `visit`: the scope of
+ *  the page's visit, the batch's owner (a navigation called off stops it). */
+function batch_regions(doc: Document, base: string, visit: Scope) {
 	const endpoints: string[] = [];
 	const batched = new Set<string>();
 	for (const el of Array.from(doc.querySelectorAll('ogygia-region[render="defer"][endpoint]'))) {
@@ -1154,5 +1155,5 @@ function batch_regions(doc: Document, base: string) {
 	// Through the seam, never a static `frame-nav` import: an app with `router` but no
 	// deferred/live/lake region has no `frames` feature (and no `render="defer"` holes — so
 	// `endpoints` is empty above and we already returned). Optional-chain keeps that honest.
-	void slots.frames?.stream?.(endpoints);
+	void slots.frames?.stream?.(endpoints, visit);
 }

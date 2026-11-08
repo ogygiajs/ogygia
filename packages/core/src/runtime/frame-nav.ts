@@ -9,9 +9,10 @@
 // This is Ryan's test made concrete: request new server-component data on navigation, flush part of
 // the response, let the rest come in as the server's async settles.
 // ─────────────────────────────────────────────────────────────────────────────
-import { machine, STALE } from '@ogygia/machine';
+import { machine, STALE, type Scope } from '@ogygia/machine';
 import { frameAddress } from '../frame.ts';
 import { is_idle, reserve, release, ticket, write } from './frame-store.ts';
+import { runtime_session } from './session.ts';
 import { emit as dt_emit } from '../events/bus.ts';
 
 import { beacon_hole_batch_missed } from './beacon.ts';
@@ -111,10 +112,16 @@ function sigOf(endpoint: string): string | null {
  * do — all are minted against the app's one islands endpoint, `handle({ endpoint })`, read here off
  * the first URL). Frames apply as they land; the promise resolves when
  * the response ends.
+ *
+ * `visit`: the scope of the page whose holes these are (the page on screen by default; a navigation
+ * hands the next page's, runtime/session.ts `PageVisit`). The batch is its: the visit ending stops
+ * the request and lets go of its body. Every other end lets go of the body too (the end mark, a
+ * stall, a refusal), and the holes it did not carry fetch on their own.
  */
 export async function streamFrames(
 	endpoints: string[],
-	kind: 'page' | 'nav' = 'nav'
+	kind: 'page' | 'nav' = 'nav',
+	visit: Scope = runtime_session.visit.scope
 ): Promise<void> {
 	if (!endpoints.length) return;
 	const first = endpoints[0];
@@ -153,9 +160,10 @@ export async function streamFrames(
 	let refused: 'redirected' | 'document' | undefined;
 	let final_url: string | undefined;
 	const stream = batch_stream.create();
-	// (given up: the request and its body stop; the reservations are released below)
-	const controller = new AbortController();
-	void stream.wait('stalled').then((s) => s !== STALE && controller.abort());
+	// The batch's own owner, under its page's visit: closed at its end, whichever (the request and
+	// its body stop; the reservations are released below)
+	const batch_scope = visit.child();
+	void stream.wait('stalled').then((s) => s !== STALE && batch_scope.close());
 
 	try {
 		let res: Response | typeof STALE;
@@ -166,7 +174,7 @@ export async function streamFrames(
 					credentials: 'same-origin',
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify(endpoints),
-					signal: controller.signal
+					signal: batch_scope.signal
 				})
 			);
 		} catch {
@@ -179,20 +187,23 @@ export async function streamFrames(
 			refused = 'redirected';
 			final_url = res.url;
 		}
-		if (!res.ok || !res.body) return;
+		if (!res.ok || !res.body) {
+			void res.body?.cancel().catch(() => {});
+			return;
+		}
 
 		const reader = res.body.getReader();
+		batch_scope.defer(() => void reader.cancel().catch(() => {}));
 		const decoder = new TextDecoder();
 		let buffer = '';
 		let parcels = false;
 		for (;;) {
+			// (STALE: quiet for STALL_MS; the holes it still owes fetch on their own)
 			const read = await stream.scope.task(() => reader.read());
-			if (read === STALE) {
-				// quiet for STALL_MS: the holes it still owes fetch on their own
-				void reader.cancel().catch(() => {});
-				return;
-			}
+			if (read === STALE) return;
 			const { done, value } = read;
+			// (done once the page left: its owner cancelled the body)
+			if (batch_scope.closed) return;
 			if (done) break;
 			stream.go('reading'); // bytes: the quiet time starts again
 			buffer += decoder.decode(value, { stream: true });
@@ -230,13 +241,15 @@ export async function streamFrames(
 		}
 	} finally {
 		stream.stop();
+		// (whichever way it ended: the request and its body are let go)
+		batch_scope.close();
 		// Any address the batch never delivered (dropped/forged/errored/stalled) has its reservation
 		// failed, so a bound binder retries with its own fetch. release() is a no-op once the frame has
 		// landed.
 		for (const a of reserved) release(a);
 		// a batch that did not carry all its holes: the profiler's report says what answered (each
-		// hole then fetched on its own)
-		if (BEACON && delivered < reserved.length)
+		// hole then fetched on its own). Not when its page was left: nothing missed it.
+		if (BEACON && delivered < reserved.length && !visit.closed)
 			beacon_hole_batch_missed({
 				sent: reserved.length,
 				delivered,
