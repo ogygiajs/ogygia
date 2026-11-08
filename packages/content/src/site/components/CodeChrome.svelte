@@ -133,7 +133,7 @@
 						}, 1500);
 					},
 					() => {}
-				);
+				); // ok: the clipboard refused (no permission); the link stays as it was
 			});
 
 			// Copy the code text.

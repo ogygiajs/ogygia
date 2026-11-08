@@ -90,7 +90,7 @@
 
 	onMount(() => {
 		// inline mode (a sheet) — the sheet opening was the intent; mount the palette now.
-		if (mode === 'inline') void wake_palette();
+		if (mode === 'inline') void wake_palette(); // ok: never rejects (a failed download answers false)
 
 		// ⌘K / Ctrl-K (or a lone `/`) opens the palette from anywhere — dialog mode only.
 		if (mode !== 'dialog') return;
@@ -105,10 +105,10 @@
 				e.preventDefault();
 				if (open) open = false;
 				else if (opening) opening = false;
-				else void open_palette();
+				else void open_palette(); // ok: never rejects (a failed download answers false)
 			} else if (k === '/' && !typing && !open && !opening) {
 				e.preventDefault();
-				void open_palette();
+				void open_palette(); // ok: never rejects (a failed download answers false)
 			}
 		});
 	});

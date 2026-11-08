@@ -74,7 +74,7 @@ export class SearchClient {
 			if (s === STALE) throw this.#error();
 		});
 		// (a load failure reaches every query too: nobody has to listen to `ready`)
-		this.ready.catch(() => {});
+		this.ready.catch(() => {}); // ok: the same failure rejects every query, which the palette shows
 
 		worker.onmessage = (e: MessageEvent) => {
 			const m = e.data as { type: string; id?: number; hits?: SearchHit[]; message?: string };

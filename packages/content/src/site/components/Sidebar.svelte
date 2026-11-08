@@ -79,7 +79,7 @@
 			try {
 				sessionStorage.setItem(`og:sidenav:${the_base}`, String(scroller.scrollTop));
 			} catch {
-				/* private mode */
+				// ok: no storage (private mode); the scroll position is not kept
 			}
 		}
 	};
@@ -108,7 +108,7 @@
 			const raw = sessionStorage.getItem(`og:sidenav:${the_base}`);
 			saved = raw == null ? null : Number(raw);
 		} catch {
-			/* private mode */
+			// ok: no storage (private mode); the scroll position is not kept
 		}
 		if (saved != null && Number.isFinite(saved)) scroller.scrollTop = saved;
 		// Center the active row when it sits outside the window (scroller-relative math — never
