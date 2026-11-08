@@ -353,24 +353,12 @@
 			"reason": "hands the loaded Shiki module to createHighlighter: Shiki's WASM engine, which a measuring window refuses; proven in packages/content/test/markdown-start.test.ts"
 		},
 		{
-			"id": "packages/content/src/vite/hmr.ts > calling_file",
-			"reason": "dev server only: reads the call site of content() off a V8 stack frame of a module the dev server runs; proven against a real Vite dev server in packages/content/test/dev-reload.test.ts"
+			"id": "packages/content/src/vite/hmr.ts > content_runs",
+			"reason": "makes the dev plugin object (a name, apply and a transform hook), constant work; its transform's work is mark_content_calls, benched in packages/content/bench/lifecycle.bench.ts"
 		},
 		{
-			"id": "packages/content/src/vite/hmr.ts > calling_file > prepareStackTrace",
-			"reason": "dev server only: hands V8's raw stack frames back for one captureStackTrace, constant work; proven in packages/content/test/dev-reload.test.ts"
-		},
-		{
-			"id": "packages/content/src/vite/hmr.ts > content_hmr > closeBundle",
-			"reason": "Vite's server-close hook: removes the dev server's module-run hook from the content graph, constant work"
-		},
-		{
-			"id": "packages/content/src/vite/hmr.ts > module_runs",
-			"reason": "dev server only: makes the module-run hook over a Vite dev server's module graph; proven in packages/content/test/dev-reload.test.ts"
-		},
-		{
-			"id": "packages/content/src/vite/hmr.ts > module_runs > <anonymous>~fd042c",
-			"reason": "dev server only: names the module run building a collection from a Vite dev server's ssr module graph; proven against a real Vite dev server in packages/content/test/dev-reload.test.ts (the collection side is benched in packages/content/bench/lifecycle.bench.ts with a stand-in)"
+			"id": "packages/content/src/vite/hmr.ts > content_runs > transform",
+			"reason": "Vite's dev transform hook: skips a client module or one that does not name @ogygia/content, else hands it to mark_content_calls (benched in packages/content/bench/lifecycle.bench.ts); proven against a real Vite dev server in packages/content/test/dev-reload.test.ts"
 		}
 	]
 }
