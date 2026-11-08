@@ -1477,6 +1477,9 @@ class OgygiaRegion extends HTMLElement {
 				});
 			this.dispatchEvent(new CustomEvent('ogygia:hydrated', { bubbles: true }));
 		} catch (err) {
+			// A run whose visit is over fails quietly: the region left while it loaded, and what stands
+			// now (the region put back) is a new visit, which loads, fails or wakes on its own.
+			if (this.#wake.now !== mine) return;
 			failure = { error: err };
 			// (a failed island stops being watched; its copy, if kept, counts as changed from here)
 			if (this.#watching) mark_region_changed(this);
@@ -1511,11 +1514,12 @@ class OgygiaRegion extends HTMLElement {
 				console.error(new OgygiaError('island_hydrate_failed', { entry }), err);
 			}
 		} finally {
-			hydrate_settled(this);
 			// live (or failed, or not ours): leaving `waking` disarms the capture — its clicks are its own
 			// from here (a click it already queued is still replayed by the wake that queued it). Not
-			// when the visit is over already: the region left the page, and its teardown moved it.
+			// when the visit is over already: the region left the page, and its teardown moved it and
+			// took it out of the scheduler (the scheduler's mark, if any, is the new visit's).
 			if (this.#wake.now === mine) {
+				hydrate_settled(this);
 				if (failure) this.#wake.go('failed', failure);
 				else this.#wake.go(this.#app ? 'awake' : 'cold');
 			}
