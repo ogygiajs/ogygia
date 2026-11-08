@@ -85,6 +85,10 @@
 			"reason": "browser only: the dynamic import of the router's navigation chunk; its download, failure and retry are proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > fetch_page > then:1",
+			"reason": "browser only: the navigation chunk did not load, so a prefetch has no page (a constant null); proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/nav-handle.ts > import_again:0",
 			"reason": "browser only: the dynamic import of the router-off soft refresh's chunk; its download, failure and retry are proven in packages/core/test/browser/nav-handle-routerless-retry.test.ts"
 		},
