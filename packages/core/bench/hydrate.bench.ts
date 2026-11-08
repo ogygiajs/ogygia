@@ -115,9 +115,8 @@ bench('region element: a 250-block page boots and its islands wake', boot_page, 
 	setup: () => booted_page(250)
 });
 
-// Growth from a small page (5 blocks: at 100 times it is a 500-block page). Quadratic today: the
-// scheduler's turns (see its own case below), and every wake asks the whole document whether a
-// devalue-lane script is in it (devalue-lane.ts `needs_devalue`): islands × the page's elements on a
+// Growth from a small page (5 blocks: at 100 times it is a 500-block page). Quadratic today: every
+// wake asks the whole document whether a devalue-lane script is in it (devalue-lane.ts `needs_devalue`): islands × the page's elements on a
 // page whose scripts are all in the JSON lane.
 bench('region element: a page boots and wakes as it grows', boot_page, {
 	setup: () => booted_page(5),
@@ -256,9 +255,9 @@ bench('scheduler: a 250-block page takes its hydrate turns', ({ regions }) => wa
 	setup: () => ({ regions: cms_page(250) })
 });
 
-// Growth from a small page. Quadratic today: one turn goes per task, and each turn's drain walks
-// every pending island (the snapshot check, then the best pick), while a page's `load` wakes are
-// all pending at once.
+// Growth from a small page: linear in the islands (a turn per island, each a heap pick). It was
+// quadratic while each turn's drain walked every pending island (the snapshot check, then the
+// best pick), and a page's `load` wakes are all pending at once.
 bench('scheduler: hydrate turns as the page grows', ({ regions }) => wake_page(regions), {
 	setup: () => ({ regions: cms_page(25) }),
 	scale: (_ctx, k) => ({ regions: cms_page(25 * k) })
