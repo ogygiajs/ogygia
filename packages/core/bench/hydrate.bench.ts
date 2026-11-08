@@ -15,9 +15,9 @@
 // What is a stand-in: Svelte's `hydrate` (test/_stubs/svelte-hydrate.ts: the anchor check, then the
 // component runs once; nothing of Svelte's walk is counted), the island module
 // (test/_stubs/island-module.ts), `scheduler.yield` / `postTask` (timer-loop tasks),
-// `IntersectionObserver` (one report a task after observing), `MutationObserver` (the records of
-// the page's own edits), the custom element registry, and `requestIdleCallback` (absent: the
-// element's timer fallback).
+// `IntersectionObserver` (one report a task after observing), the custom element registry, and
+// `requestIdleCallback` (absent: the element's timer fallback). `MutationObserver` is the shim's,
+// which records every change of the page as a browser does.
 import {
 	cms_page,
 	edit_while_asleep,
@@ -29,8 +29,9 @@ import {
 	strip_whitespace,
 	type PageRegion
 } from './hydration-page.ts';
-import type { DomNode } from '../test/_stubs/dom.ts';
+import { frag, type DomNode } from '../test/_stubs/dom.ts';
 import { bench } from '@bench/heisenbench/bench';
+import { RuntimeSession } from '../src/runtime/session.ts';
 import island_module from '../test/_stubs/island-module.ts';
 import { link_boot } from '../src/runtime/boot-link.ts';
 import { __heisenbench as core_private, boot } from '../src/runtime/core.ts';
@@ -220,6 +221,63 @@ bench(
 		return document.head.childNodes.length;
 	},
 	{ setup: () => head_of(10), scale: (_ctx, k) => head_of(10 * k) }
+);
+
+// ── the head ownership record: what one island's step put in `<head>` ───────────────────────────
+
+/** A page head of `blocks` islands' head blocks, and a session that owns it. */
+function owned_head(blocks: number): { session: RuntimeSession } {
+	page_head(blocks * 10);
+	const session = new RuntimeSession();
+	session.adopt_document_head();
+	return { session };
+}
+
+/** An island's step: its `<svelte:head>` renders three tags, the last one inserted first. */
+function island_head_step(): void {
+	const head = document.head as unknown as DomNode;
+	const [a, b, c] = frag('<meta name="i1"><meta name="i2"><meta name="i3">');
+	head.appendChild(c);
+	head.insertBefore(b, c);
+	head.insertBefore(a, b);
+}
+
+// Growth: constant in the head (the mark reads only the step's records). The records reach the
+// observer's callback first here (a task boundary inside the step), and come back in head order.
+bench(
+	'head mark: an island’s head block, from the observer’s records',
+	async ({ session }) => {
+		const mark = session.mark_head();
+		island_head_step();
+		await Promise.resolve();
+		const added = mark.added();
+		mark.stop();
+		return added.length;
+	},
+	{ setup: () => owned_head(10), scale: (_ctx, k) => owned_head(10 * k) }
+);
+
+const saved_observer = (globalThis as { MutationObserver?: unknown }).MutationObserver;
+
+// Growth: linear in the head (without MutationObserver the head is copied, then scanned).
+bench(
+	'head mark: an island’s head block, without MutationObserver',
+	({ session }) => {
+		const mark = session.mark_head();
+		island_head_step();
+		const added = mark.added();
+		mark.stop();
+		return added.length;
+	},
+	{
+		setup: () => {
+			delete (globalThis as { MutationObserver?: unknown }).MutationObserver;
+			return owned_head(10);
+		},
+		teardown: () => {
+			(globalThis as { MutationObserver?: unknown }).MutationObserver = saved_observer;
+		}
+	}
 );
 
 // ── the scheduler and the background drain, alone ──────────────────────────────────────────────

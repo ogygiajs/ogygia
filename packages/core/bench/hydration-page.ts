@@ -56,30 +56,8 @@ class StandInObserver {
 }
 g.IntersectionObserver = StandInObserver;
 
-// `MutationObserver`: the records are the ones the page's own scripts make through
-// `edit_while_asleep` (the shim does not observe itself), taken or delivered a microtask later.
-type Mutation = { target: Node; type: 'childList' };
-const pending_mutations: Mutation[] = [];
-const mutation_observers = new Set<StandInMutationObserver>();
-class StandInMutationObserver {
-	#cb: (records: Mutation[], mo: unknown) => void;
-	constructor(cb: (records: Mutation[], mo: unknown) => void) {
-		this.#cb = cb;
-	}
-	observe(): void {
-		mutation_observers.add(this);
-	}
-	disconnect(): void {
-		mutation_observers.delete(this);
-	}
-	takeRecords(): Mutation[] {
-		return pending_mutations.splice(0);
-	}
-	deliver(): void {
-		if (pending_mutations.length) this.#cb(this.takeRecords(), this);
-	}
-}
-g.MutationObserver = StandInMutationObserver;
+// `MutationObserver` is the shim's own (test/_stubs/dom.ts): every child-list and text change of the
+// page, the runtime's included, as a browser records them.
 
 // The custom element registry, as a browser's: `define` upgrades every element of that name already
 // in the document, in document order (the constructor runs on the element itself, then its
@@ -116,12 +94,7 @@ g.customElements = {
  * A script edits a sleeping island: the whitespace text nodes go. The observer hears it, as a browser's would.
  */
 export function edit_while_asleep(region: Element): void {
-	strip_whitespace(region as unknown as DomNode, (parent) =>
-		pending_mutations.push({ target: parent as unknown as Node, type: 'childList' })
-	);
-	queueMicrotask(() => {
-		for (const mo of mutation_observers) mo.deliver();
-	});
+	strip_whitespace(region as unknown as DomNode);
 }
 
 const WAKES = ['load', 'visible', 'idle', 'interaction'] as const;
