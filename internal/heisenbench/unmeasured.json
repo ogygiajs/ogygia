@@ -187,6 +187,18 @@
 		{
 			"id": "packages/postrender/src/server.ts > defineServer:0 > response > settle",
 			"reason": "settles the request's own flight (needs a live request context), constant work; proven in packages/postrender/e2e/postrender.spec.ts S20 and S21"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fire_hydrate > ran",
+			"reason": "browser only: forgets a hydration run once it ended, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate_ran",
+			"reason": "browser only: forgets a hydration run unless a newer visit's took its place, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate > gone",
+			"reason": "browser only: is the hydration still its visit's (connected, the wake unchanged), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
 		}
 	]
 }
