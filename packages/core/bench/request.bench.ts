@@ -435,6 +435,8 @@ bench(
 	}
 );
 
+// Growth: linear in the products. It was quadratic while each copied product looked through
+// every seed node of its byte size for its hash (same-shaped records share a size).
 bench(
 	'seed refs: a list island passed copies of the page’s products',
 	({ index, props }) => plan_seed_refs(index, props).count,
