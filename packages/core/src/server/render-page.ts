@@ -20,6 +20,7 @@
  */
 import type { RequestEvent } from '@sveltejs/kit';
 import * as devalue from 'devalue';
+import { flights, type Flights } from '@ogygia/machine';
 import { islands_endpoint } from './endpoint.ts';
 import type { KitPage } from './kit-context.ts';
 import type { PageSnapshot } from '../page-seed-registry.ts';
@@ -63,7 +64,8 @@ export function page_url_of(event: RequestEvent): URL {
 	return event.url;
 }
 
-const looked_up = new WeakMap<Request, Promise<void>>();
+/** Each request's look-up of its page's facts: once per request, a failed one not kept. */
+const looked_up = new WeakMap<Request, Flights<void, void>>();
 const facts_of = new WeakMap<Request, PageFacts>();
 
 /**
@@ -80,19 +82,27 @@ export function prepare_render_page(
 	if (!event || !renders_for_a_page(event)) return;
 	if (!(reads_data ?? (event as { isRemoteRequest?: boolean }).isRemoteRequest === true)) return;
 	const request = event.request;
-	const known = looked_up.get(request);
-	if (known) return known;
 	const page = page_url_of(event);
 	if (page === event.url) return;
-	const decoders: Record<string, (v: unknown) => unknown> = {};
-	for (const name in transport ?? {}) decoders[name] = transport![name].decode;
-	const p = look_up_page(page, event.fetch, decoders).then((facts) => {
-		if ('miss' in facts)
-			warn?.(line('outside_page_data_unavailable', { path: page.pathname, miss: facts.miss }));
-		else facts_of.set(request, facts);
-	});
-	looked_up.set(request, p);
-	return p;
+	let look_up = looked_up.get(request);
+	if (!look_up) {
+		const decoders: Record<string, (v: unknown) => unknown> = {};
+		for (const name in transport ?? {}) decoders[name] = transport![name].decode;
+		look_up = flights({
+			name: 'page facts',
+			run: () =>
+				look_up_page(page, event.fetch, decoders).then((facts) => {
+					if ('miss' in facts)
+						warn?.(
+							line('outside_page_data_unavailable', { path: page.pathname, miss: facts.miss })
+						);
+					else facts_of.set(request, facts);
+				})
+		});
+		looked_up.set(request, look_up);
+	}
+	// (its callers only wait: nothing drops it, so it never answers STALE)
+	return look_up.get().then(() => {});
 }
 
 /**

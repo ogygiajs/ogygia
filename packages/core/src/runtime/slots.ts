@@ -99,7 +99,7 @@ export type PageOps = {
 	/** the `page.data` a seed reference in island props resolves against */
 	seed_data_of(doc: Document): unknown;
 	/** on a Kit-hydrated document: the wait for Kit to apply its page (`null` once applied) */
-	kit_page_thread(): Promise<void> | null;
+	kit_page_thread(): Promise<unknown> | null;
 };
 
 /**

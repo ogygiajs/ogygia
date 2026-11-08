@@ -1665,7 +1665,7 @@ class OgygiaRegion extends HTMLElement {
 	 * apply its page before it hydrates — `null` (no await) once applied. The wait lives in the lazy
 	 * hydrate core (it observes Kit's reactive page, i.e. it needs Svelte), so it never reaches the boot.
 	 */
-	#kit_page_ready(core: HydrateCore): Promise<void> | null {
+	#kit_page_ready(core: HydrateCore): Promise<unknown> | null {
 		if (!kit_hydrates_page() || !ours_on_kit_document(this)) return null;
 		return core.kit_page_thread();
 	}

@@ -32,7 +32,7 @@ export const seed_page_once = (): void => slots.page?.seed_page_once();
 export const seed_remote_once = (): void => slots.remoteSeeds?.seed_once();
 // For core's wake paths: observing Kit's reactive page needs Svelte, so the wait lives in this lazy
 // chunk's phase, never in the boot's static graph (see core.ts `hydrate_core`).
-export const kit_page_thread = (): Promise<void> | null => slots.page?.kit_page_thread() ?? null;
+export const kit_page_thread = (): Promise<unknown> | null => slots.page?.kit_page_thread() ?? null;
 
 // The HYDRATE-phase features (context, live, wire, remote-seeds — as the app's marks select them;
 // link/runtime-entry.ts) install as this chunk evaluates: before any island below can hydrate, and
