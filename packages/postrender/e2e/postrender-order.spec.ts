@@ -53,7 +53,7 @@ test.describe('POSTRENDER handle order: misordered = dev error / production warn
 				srv.tail()
 			);
 		} finally {
-			srv.kill();
+			await srv.kill();
 		}
 	});
 
@@ -76,7 +76,7 @@ test.describe('POSTRENDER handle order: misordered = dev error / production warn
 				srv.tail()
 			);
 		} finally {
-			srv.kill();
+			await srv.kill();
 		}
 	});
 
@@ -101,7 +101,7 @@ test.describe('POSTRENDER handle order: misordered = dev error / production warn
 				srv.tail()
 			);
 		} finally {
-			srv.kill();
+			await srv.kill();
 		}
 	});
 });

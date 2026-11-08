@@ -69,9 +69,9 @@ test.describe('PAGE-CSR dev leg: a csr-export toggle refreshes virtual:ogygia/ro
 			timeout_ms: 120_000
 		});
 	});
-	test.afterAll(() => {
+	test.afterAll(async () => {
 		if (orig !== undefined) writeFileSync(page_ts, orig);
-		srv?.kill();
+		await srv?.kill();
 	});
 
 	test('toggling the leaf csr export refreshes the server set in BOTH directions', async () => {

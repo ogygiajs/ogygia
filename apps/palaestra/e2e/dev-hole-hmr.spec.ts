@@ -62,9 +62,9 @@ test.describe('dev: hole endpoint survives an HMR edit of its host', () => {
 		});
 	});
 
-	test.afterAll(() => {
+	test.afterAll(async () => {
 		if (original != null) fs.writeFileSync(host, original);
-		srv?.kill();
+		await srv?.kill();
 	});
 
 	test('hole answers before AND after the host file changes', async () => {

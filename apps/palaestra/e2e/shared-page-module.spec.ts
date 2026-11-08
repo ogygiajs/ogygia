@@ -63,9 +63,7 @@ test.describe('dev: the Kit page loads first, then the island page', () => {
 		});
 	});
 
-	test.afterAll(() => {
-		srv?.kill();
-	});
+	test.afterAll(() => srv?.kill());
 
 	test('the island still reads the seed after the Kit page claimed the shared module', async ({
 		page

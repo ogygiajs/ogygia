@@ -938,6 +938,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@ogygia/machine':
+        specifier: workspace:^
+        version: link:../machine
       playwright:
         specifier: catalog:peers
         version: 1.62.1

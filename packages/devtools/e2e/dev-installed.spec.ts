@@ -136,8 +136,8 @@ test.describe('dev: an installed (not linked) ogygia runs as one copy in the bro
 		});
 	});
 
-	test.afterAll(() => {
-		srv?.kill();
+	test.afterAll(async () => {
+		await srv?.kill();
 		if (app) fs.rmSync(app, { recursive: true, force: true });
 	});
 

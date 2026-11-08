@@ -41,6 +41,9 @@
 		"check": "tsc -p . && tsc -p test && vitest run",
 		"test": "vitest run"
 	},
+	"dependencies": {
+		"@ogygia/machine": "workspace:^"
+	},
 	"devDependencies": {
 		"@ogygia/core": "workspace:*",
 		"@ogygia/devtools": "workspace:*",

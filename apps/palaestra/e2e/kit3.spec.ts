@@ -152,7 +152,7 @@ test.describe('SvelteKit 3: build + dev on the packed ogygia (self-building fixt
 			await exercise(await context.newPage(), base, '/kit', true);
 			await context.close();
 		} finally {
-			srv?.kill();
+			await srv?.kill();
 		}
 	});
 
@@ -188,7 +188,7 @@ test.describe('SvelteKit 3: build + dev on the packed ogygia (self-building fixt
 			await exercise(await context.newPage(), base, '/kit', true);
 			await context.close();
 		} finally {
-			srv?.kill();
+			await srv?.kill();
 		}
 	});
 });
