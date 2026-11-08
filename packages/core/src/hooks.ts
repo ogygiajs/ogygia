@@ -806,19 +806,16 @@ class OgygiaHandle {
 		const ctxs = request_contexts(plugins, event, path, facts, (endpoint) =>
 			this.#render_hole(endpoint, event)
 		);
-		let response: Response | null = null;
 		try {
-			for (let i = 0; i < plugins.length && response === null; i++) {
+			for (let i = 0; i < plugins.length; i++) {
 				const answer = await plugins[i].def.request?.(ctxs[i]);
-				if (answer) response = answer;
+				if (answer) return answer;
 			}
-			response ??= await this.#route(event, resolve, path, ctxs, facts);
+			return await this.#route(event, resolve, path, ctxs, facts);
 		} finally {
-			// (an answered, failed or streamed request included)
-			const kept = end_request(plugins, ctxs, event.platform, response);
-			if (kept !== null) response = await kept;
+			// (an answered, failed or streamed request included; the response never waits for it)
+			end_request(plugins, ctxs, event.platform);
 		}
-		return response as Response;
 	};
 
 	/** One signed hole rendered in place with THIS request's event (a plugin's `ctx.renderHole`:

@@ -30,19 +30,18 @@ function sender(ms: number) {
 	return { plugin, seen };
 }
 
-/** Kept by `end_request`, or the response as it was. */
+/** The request's end, then what goes out: the response as the route made it. */
 async function end(
 	plugins: LivePlugin[],
 	platform: unknown,
 	response: Response | null
 ): Promise<Response | null> {
-	const kept = end_request(
+	end_request(
 		plugins,
 		plugins.map(() => ctx),
-		platform,
-		response
+		platform
 	);
-	return kept === null ? response : await kept;
+	return response;
 }
 
 describe('end_request: the work a plugin leaves at the request end', () => {
@@ -104,9 +103,10 @@ describe('end_request: the work a plugin leaves at the request end', () => {
 		expect(s.seen.finished).toBe(true);
 	});
 
-	it('no work left: the same response, untouched', () => {
-		const response = new Response('page');
-		const kept = end_request([live({ done: () => {} }), live({})], [ctx, ctx], undefined, response);
-		expect(kept).toBe(null);
+	it('no work left: nothing is handed to the platform', () => {
+		const handed: Promise<unknown>[] = [];
+		const platform = { context: { waitUntil: (p: Promise<unknown>) => void handed.push(p) } };
+		end_request([live({ done: () => {} }), live({})], [ctx, ctx], platform);
+		expect(handed).toEqual([]);
 	});
 });

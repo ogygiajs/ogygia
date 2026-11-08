@@ -104,15 +104,10 @@ bench(
 			{ context: { waitUntil: (p: Promise<unknown>) => void handed.push(p) } },
 			{ ctx: { waitUntil: (p: Promise<unknown>) => void handed.push(p) } }
 		];
-		let bytes = 0;
-		for (let i = 0; i < n; i++) {
-			const response = i % 4 === 3 ? null : new Response(i % 4 === 2 ? null : `page ${i}`);
-			const kept = end_request(plugins, ctxs, platforms[i % 3], response);
-			const out = kept === null ? response : await kept;
-			if (out?.body) bytes += (await out.text()).length;
-		}
+		for (let i = 0; i < n; i++) end_request(plugins, ctxs, platforms[i % 3]);
 		await Promise.all(handed);
-		return bytes + handed.length;
+		await tick(); // (the sends no platform kept run on by themselves)
+		return handed.length;
 	},
 	{ setup: () => ({ n: 120 }), scale: (_ctx, k) => ({ n: 120 * k }) }
 );
