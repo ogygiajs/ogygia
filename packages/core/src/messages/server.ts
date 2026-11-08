@@ -208,6 +208,20 @@ export const SERVER_WARNINGS = {
 			the message.
 		`
 	},
+	personal_response_unmarked: {
+		text: (a: { status: number }): string => prose`
+			a page made for one browser (status ${a.status}) could not be marked private: its headers
+			cannot be changed —
+		`,
+		details: (): string => prose`
+			A page that carries something for one browser (its devtools events, the profiler's beacon,
+			the devtools switch's cookie) is marked \`cache-control: private, no-store\` so no shared
+			cache keeps it. This response's headers cannot be changed (a Response from \`fetch()\`, or
+			\`Response.redirect()\`, handed back as it is), so it goes out with the headers it has, and a
+			shared cache could keep it. The error follows the message. Return a new Response
+			(\`new Response(res.body, res)\`) from the hook or route that made it.
+		`
+	},
 	request_cleanup_failed: {
 		text: (): string => `a cleanup at the end of a request failed —`,
 		details: (): string => prose`
