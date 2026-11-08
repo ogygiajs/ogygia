@@ -42,23 +42,27 @@ function open(filename: string): SyncDb {
 			const dir = path.dirname(filename);
 			if (dir && dir !== '.') fs.mkdirSync(dir, { recursive: true });
 		} catch {
-			/* best effort — the open below will report a real problem */
+			// ok: best effort; the open below fails with the real problem
 		}
 	}
-	// node:sqlite (built in) — `new DatabaseSync(path)`, `.exec`, `.prepare().run/get/all`
+	// node:sqlite (built in) — `new DatabaseSync(path)`, `.exec`, `.prepare().run/get/all`. Only a
+	// driver that is not there falls through: one that is there and cannot open the file throws its
+	// own error.
+	const built_in = load_driver<{ DatabaseSync: new (p: string) => SyncDb }>('node:sqlite');
+	if (built_in) return new built_in.DatabaseSync(filename);
+	const Database = load_driver<new (p: string) => SyncDb>('better-sqlite3');
+	if (Database) return new Database(filename);
+	throw new Error(
+		"ogygia/profiler: SqliteStore needs Node 22.5+ (built-in node:sqlite) or the 'better-sqlite3' package."
+	);
+}
+
+/** A driver module, or null when it is not installed (this runtime has no such module). */
+function load_driver<T>(id: string): T | null {
 	try {
-		const { DatabaseSync } = require('node:sqlite') as { DatabaseSync: new (p: string) => SyncDb };
-		return new DatabaseSync(filename);
+		return require(id) as T;
 	} catch {
-		/* fall through */
-	}
-	try {
-		const Database = require('better-sqlite3') as new (p: string) => SyncDb;
-		return new Database(filename);
-	} catch {
-		throw new Error(
-			"ogygia/profiler: SqliteStore needs Node 22.5+ (built-in node:sqlite) or the 'better-sqlite3' package."
-		);
+		return null; // (not installed: the next driver is tried, and none says what to install)
 	}
 }
 
