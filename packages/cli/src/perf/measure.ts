@@ -5,6 +5,7 @@
  * numbers a budget can be set on. Pure apart from the fetch it is handed, so a test drives it with
  * a fake and a runner with the real one.
  */
+import { scope } from '@ogygia/machine';
 
 /** What one page costs, from the profiler's JSON report. */
 export interface PageSnapshot {
@@ -144,7 +145,8 @@ export async function measure(opts: MeasureOptions): Promise<PerfSnapshot> {
 		if (!page.startsWith('/')) throw new Error(`page must be a path on the site: ${page}`);
 		const url = `${origin}${base}/page?p=${encodeURIComponent(page)}&runs=${runs}&format=json`;
 		const ctrl = new AbortController();
-		const timer = setTimeout(() => ctrl.abort(), opts.timeout_ms ?? 120_000);
+		const deadline = scope();
+		deadline.timeout(() => ctrl.abort(), opts.timeout_ms ?? 120_000);
 		let res: Response;
 		try {
 			res = await f(url, {
@@ -160,7 +162,7 @@ export async function measure(opts: MeasureOptions): Promise<PerfSnapshot> {
 				`${page}: the profiler did not answer (${e instanceof Error ? e.message : String(e)})`
 			);
 		} finally {
-			clearTimeout(timer);
+			deadline.close();
 		}
 		if (res.status === 409)
 			throw new Error(

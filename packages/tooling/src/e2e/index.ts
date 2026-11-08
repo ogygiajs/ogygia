@@ -19,6 +19,7 @@ export function check(name: string, cond: unknown, extra = ''): void {
 	expect.soft(!!cond, extra ? `${name} — ${extra}` : name).toBe(true);
 }
 
+// oxlint-disable-next-line ogygia/owned-effects -- a pause the test's own process awaits: it ends itself, holds nothing past it, and must keep the process open (a scope's timer does not)
 export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** The interaction lab's counter (`[data-i-count]`) reached 1 — the click that woke its island,
