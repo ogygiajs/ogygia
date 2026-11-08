@@ -59,6 +59,14 @@ describe('render cache: what it keeps', () => {
 		expect(render_cache_get(kb)).toBe('B-html');
 	});
 
+	it('props and a session that spell one string another way are another entry', async () => {
+		// a visitor whose props end in what another visitor's session is: never one entry
+		const mine = render_cache_key('id', '{"q":"a"} B', 'A');
+		const theirs = render_cache_key('id', '{"q":"a"}', 'B A');
+		await put(mine, 'mine', 60);
+		expect(render_cache_get(theirs)).toBe(null);
+	});
+
 	it('bounds memory — past 500 entries the oldest evict', async () => {
 		for (let i = 0; i < 600; i++) await put('k' + i, 'v' + i, 60);
 		expect(render_cache_get('k0')).toBe(null); // oldest evicted
