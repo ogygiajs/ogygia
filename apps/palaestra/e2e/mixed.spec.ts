@@ -66,4 +66,38 @@ test.describe('csr=true coexistence + opt-in router', () => {
 			(await pbtn.textContent()).includes('count is 6')
 		);
 	});
+
+	// BACK FROM A csr=true PAGE (#259). A link from a router page to a csr=true page is handed to the
+	// browser (the router does not render Kit's pages). The router had already written the history
+	// entry for it, and a browser navigation to the address it is on reloads that entry: the Kit
+	// document took over the entry, with the router's state, and the router page's entry before it
+	// became an entry of the Kit document too. Back was then a same-document step inside the Kit
+	// page: the address changed, the Kit page stayed, nothing loaded.
+	test('back from a csr=true page the router handed off shows the router page', async ({
+		page
+	}) => {
+		await page.goto('/router-links', { waitUntil: 'networkidle' });
+		const before = await page.evaluate(() => history.length);
+		await page.locator('[data-kit-link]').click();
+		await page.waitForSelector('[data-kit-status]', { timeout: 10_000 });
+		await page.waitForLoadState('networkidle');
+		const kit_doc = await stamp_document(page);
+		check(
+			'one history entry for the click',
+			(await page.evaluate(() => history.length)) === before + 1
+		);
+		check(
+			'the Kit document starts with an entry of its own (no router state)',
+			!(await page.evaluate(() => (history.state as { ogygia?: boolean } | null)?.ogygia))
+		);
+		await page.goBack();
+		const shown = await page.waitForSelector('[data-router-links]', { timeout: 10_000 }).then(
+			() => true,
+			() => false
+		);
+		check('back shows the router page', shown, page.url());
+		check('at the router page’s address', new URL(page.url()).pathname === '/router-links');
+		check('the Kit document is gone', (await document_stamp(page)) !== kit_doc);
+		check('the Kit page is not on screen', (await page.locator('[data-kit-status]').count()) === 0);
+	});
 });
