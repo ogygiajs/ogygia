@@ -448,7 +448,8 @@ export function fetch_page(
 		const slot = new LoadSlot({ kind: 'content', cls: 'speculative', label: href });
 		queued_prefetch.set(href, slot);
 		fetched = slot.ready.then((release) => {
-			queued_prefetch.delete(href);
+			// only its own entry: after a cache clear a newer prefetch of the page holds the address
+			if (queued_prefetch.get(href) === slot) queued_prefetch.delete(href);
 			return go().finally(release);
 		});
 	} else fetched = go();
