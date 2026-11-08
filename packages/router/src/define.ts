@@ -9,6 +9,7 @@
 import type { Component } from 'svelte';
 import { flights, STALE, type Flights } from '@ogygia/machine';
 import type { RouteConfig } from '@ogygia/core/plugin';
+import { request_scope } from '@ogygia/core/internal/server';
 import type { Ctx } from './ctx.ts';
 import type { Params } from './view.ts';
 import type { StandardSchemaV1 } from './view.ts';
@@ -64,16 +65,20 @@ export interface LoadDef<
 }
 
 /** Per-request loads, hidden on ctx: one flight per LoadDef, kept for the request once it lands; a
- *  failed one is not kept, so a later `await other_load(c)` in the same request runs it again. */
+ *  failed one is not kept, so a later `await other_load(c)` in the same request runs it again. The
+ *  request owns them: once it ends, they are let go, and a load asked for then is refused. */
 type LoadIn = { def: LoadDef; run: (c: Ctx) => unknown; c: Ctx };
 type LoadMemo = Flights<LoadIn, unknown, LoadDef>;
 function memo_of(c: Ctx): LoadMemo {
 	const holder = c as { __ogloads?: LoadMemo };
-	return (holder.__ogloads ??= flights({
+	if (holder.__ogloads) return holder.__ogloads;
+	const memo = flights({
 		name: 'router load',
 		run: (i: LoadIn) => i.run(i.c),
-		key: (i) => i.def
-	}));
+		key: (i: LoadIn) => i.def
+	});
+	request_scope(c.request).adopt(memo);
+	return (holder.__ogloads = memo);
 }
 
 /** `load(fn)` / `load(pattern, fn)`. The returned function memoizes on `c` (run once per request);
@@ -94,10 +99,12 @@ export function load(
 	const pattern = typeof a === 'string' ? a : undefined;
 	const run = (typeof a === 'string' ? b! : a) as (c: Ctx) => unknown;
 	const fn = ((c: Ctx) =>
-		// (nothing drops a request's loads, so this is never STALE; were it, it runs again)
+		// (STALE only once the request has ended: nobody waits on the load any more)
 		memo_of(c)
 			.get({ def: fn as LoadDef, run, c })
-			.then((v) => (v === STALE ? fn(c) : v))) as LoadDef<unknown, string>;
+			.then((v) =>
+				v === STALE ? Promise.reject(request_scope(c.request).signal.reason) : v
+			)) as LoadDef<unknown, string>;
 	(fn as { __ogload: boolean }).__ogload = true;
 	(fn as { pattern: string | undefined }).pattern = pattern;
 	(fn as { run: unknown }).run = run;

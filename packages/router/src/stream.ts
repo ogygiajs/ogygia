@@ -23,7 +23,7 @@
  */
 import { lateChunk as late_chunk, LATE_BOOT_SCRIPT } from '@ogygia/core/plugin';
 import { escapeText as escape_text } from '@ogygia/core/plugin/utils';
-import { scope, STALE } from '@ogygia/machine';
+import { scope, STALE, type Scope } from '@ogygia/machine';
 
 /** The slot id for the page position (one streamed slot per page in v1). */
 export const PAGE_SLOT_ID = 'pg';
@@ -96,7 +96,9 @@ export function stream_document(
 	res: Response,
 	rest: AsyncGenerator<LateChunk>,
 	/** the slot an ERROR CARD lands in when the chunk source itself throws */
-	error_slot: string = PAGE_SLOT_ID
+	error_slot: string = PAGE_SLOT_ID,
+	/** the request's owner: its end (the visitor left) ends the stream too */
+	request?: Scope
 ): Response {
 	const with_boot = full_html.replace(HEAD_CLOSE_RE, LATE_BOOT_SCRIPT + '</head>');
 	const cut = with_boot.lastIndexOf('</body>');
@@ -104,10 +106,10 @@ export function stream_document(
 	const tail_part = cut === -1 ? '' : with_boot.slice(cut);
 	const enc = new TextEncoder();
 
-	// The response's owner: the visitor leaving cancels the body, which closes it, ends the chunk
-	// source (its generators' `finally` blocks run, and a merged source ends the ones it holds) and
-	// drops what lands after (#284).
-	const owner = scope();
+	// The response's owner, the request's child: the visitor leaving (the body cancelled, or the
+	// request's signal) closes it, ends the chunk source (its generators' `finally` blocks run, and
+	// a merged source ends the ones it holds) and drops what lands after (#284).
+	const owner = scope(request);
 	owner.defer(() => void rest.return(undefined).catch(() => {}));
 	const body = new ReadableStream<Uint8Array>({
 		async start(controller) {

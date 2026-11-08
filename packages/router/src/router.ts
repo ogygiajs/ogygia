@@ -18,6 +18,7 @@ import {
 	lateSlot as slot_html
 } from '@ogygia/core/plugin';
 import { componentCssHead as router_css_head } from '@ogygia/core/plugin/css';
+import { request_scope } from '@ogygia/core/internal/server';
 import { escapeText as escape_text, type StandardSchemaV1 } from '@ogygia/core/plugin/utils';
 import LayoutChain from './LayoutChain.svelte';
 import RawHtml from './RawHtml.svelte';
@@ -462,7 +463,13 @@ export function routes<const T extends KeyedTable<T>>(
 						: null;
 		// (and every late region that registers while those chunks bake, until none is left)
 		if (chunk_src && m === 'GET')
-			return stream_document(await res.text(), res, until_drained(chunk_src, take_late_regions));
+			return stream_document(
+				await res.text(),
+				res,
+				until_drained(chunk_src, take_late_regions),
+				PAGE_SLOT_ID,
+				request_scope(ctx.request)
+			);
 		return res;
 	}
 
