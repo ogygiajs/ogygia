@@ -15,10 +15,14 @@
 //      may never reach `document`: a click event that is not composed stays in the shadow tree, and
 //      a click on an anchor the swap took out of the page reaches no document at all. The browser
 //      followed the link itself: a full load, after a router click it had already prevented.
+//   6. A link the browser never replaces the page for (a file download, a 204) works every time
+//      (#266). The router's fetch gets no page and hands the link to the browser, which keeps the
+//      page on screen: no swap ever ended that navigation, and every later click on the link joined
+//      it and was swallowed.
 // The foreign server and the web components are faked by the test (page.route / an init script).
 // Usage: pnpm exec playwright test router-document-fetch
 import type { Page, Request } from '@playwright/test';
-import { test, check, stamp_document, document_stamp } from '@ogygia/tooling/e2e';
+import { test, check, expect, stamp_document, document_stamp } from '@ogygia/tooling/e2e';
 
 /** What Chromium sends for a top-level document navigation. */
 const DOCUMENT_ACCEPT = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
@@ -261,4 +265,60 @@ test.describe('the router fetches a page the way the browser fetches a document'
 			page.url()
 		);
 	});
+});
+
+test.describe('a link the browser never replaces the page for works every time (#266)', () => {
+	for (const [link, path, what, file] of [
+		['[data-download]', '/router-links/export.csv', 'a file download', 'export.csv'],
+		['[data-no-content]', '/router-links/no-content', 'a 204', null]
+	] as const) {
+		test(`${what}, clicked twice: the browser gets it each time and the page stays`, async ({
+			page
+		}) => {
+			// the browser's own requests for the link (the router's fetch carries `x-ogygia-spa`)
+			const asked: string[] = [];
+			page.on('request', (r) => {
+				if (new URL(r.url()).pathname === path && !r.headers()['x-ogygia-spa'])
+					asked.push(r.resourceType());
+			});
+			const downloads: string[] = [];
+			page.on('download', (d) => downloads.push(d.suggestedFilename()));
+			await open(page);
+			const stamp = await stamp_document(page);
+			for (const n of [1, 2]) {
+				await page.locator(link).click();
+				await expect
+					.poll(() => asked.length, {
+						message: `click ${n}: the browser asked for ${path}`,
+						timeout: 5_000
+					})
+					.toBe(n);
+				if (file)
+					await expect
+						.poll(() => downloads.length, {
+							message: `click ${n}: the file downloaded`,
+							timeout: 5_000
+						})
+						.toBe(n);
+				// past the browser's answer: nothing else comes of the click
+				await page.waitForTimeout(300);
+			}
+			check(
+				'each was a document navigation',
+				asked.every((t) => t === 'document'),
+				asked.join()
+			);
+			if (file)
+				check(
+					'both downloads are the file',
+					downloads.every((f) => f === file)
+				);
+			check(
+				'the page stayed: the document is the one the clicks started on',
+				(await document_stamp(page)) === stamp
+			);
+			check('at the page', new URL(page.url()).pathname === '/router-links', page.url());
+			await expect(page.locator('[data-router-links]')).toBeVisible();
+		});
+	}
 });
