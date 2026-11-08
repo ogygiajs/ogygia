@@ -56,7 +56,7 @@ export function install(): void {
 			const entry = island_entry_of(el);
 			if (entry) warm_island_module(entry, undefined, 'user'); // a hover: the visitor is reaching for it
 		};
-		return arm_interaction(el, warm, () => Promise.resolve(fire()));
+		return arm_interaction(el, warm, fire);
 	};
 }
 
@@ -112,6 +112,14 @@ function snapshot_fields(region: Element): FieldSnapshot[] {
 	return out;
 }
 
+/**
+ * Wake the island for a visitor. `replayed` is what replays their input once it is live (the replay
+ * half, loading): the island's wake waits for it before it goes live, so the input lands AT wake. An
+ * island that went live first left the replay to come in later, over a slow network, beside the
+ * visitor's next click (#260). Resolves when the island is live; rejects when it failed to wake.
+ */
+export type WakeFn = (replayed: Promise<unknown>) => Promise<void> | void;
+
 export type QueuedClick = {
 	addr: number[];
 	/** The deepest node of the click's composed path when it lies INSIDE a web component's shadow
@@ -131,7 +139,7 @@ export type QueuedClick = {
 type Armed = {
 	region: Element;
 	warm: () => void;
-	fire: () => Promise<void> | void;
+	fire: WakeFn;
 	state: 'armed' | 'woken' | 'over';
 	warmed: boolean;
 	queued: QueuedClick[];
@@ -255,7 +263,8 @@ function wake(a: Armed, e: Event): void {
 	const active_addr =
 		active instanceof Element && region.contains(active) ? element_address(region, active) : null;
 
-	Promise.all([replay(), Promise.resolve(a.fire())]).then(
+	const replayed = replay();
+	Promise.all([replayed, Promise.resolve(a.fire(replayed))]).then(
 		([r]) => {
 			if (a.state === 'over') return;
 			disarm(a, false);
@@ -283,7 +292,7 @@ function wake(a: Armed, e: Event): void {
  *
  * @param region the `<ogygia-region>` element
  * @param warm   prefetch the island module (no hydrate) — wired to the pointer entering the region
- * @param fire   begin hydration; resolves when the island is live
+ * @param fire   begin hydration ({@link WakeFn}); resolves when the island is live
  * @returns disarm(over?) — end this arming (the island is live or failed, or the region left
  *          before any interaction); `over`: the region left while it was woken, so its queued clicks
  *          are dropped instead of replayed
@@ -291,7 +300,7 @@ function wake(a: Armed, e: Event): void {
 export function arm_interaction(
 	region: Element,
 	warm: () => void,
-	fire: () => Promise<void> | void
+	fire: WakeFn
 ): (over?: boolean) => void {
 	const a: Armed = { region, warm, fire, state: 'armed', warmed: false, queued: [] };
 	armed.set(region, a);

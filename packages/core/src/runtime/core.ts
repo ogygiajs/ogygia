@@ -222,6 +222,8 @@ const ON_DEMAND_EVENTS = [
 	'keydown'
 ] as const;
 const ON_DEMAND_SELECTOR = 'ogygia-region[render="defer"][when="interaction"]';
+/** A visitor's wake with nothing to replay (a hole's on-demand fetch). */
+const NO_REPLAY: Promise<unknown> = Promise.resolve();
 
 /**
  * ON-DEMAND holes, delegated: ONE set of capture listeners on the document for every armed hole
@@ -512,8 +514,10 @@ class OgygiaRegion extends HTMLElement {
 	#frame_address: string | null = null;
 	/** Unsubscribe from the frame store (a defer region binds to its address). */
 	#frame_unsub: (() => void) | null = null;
-	/** A visitor's gesture woke this region (`interaction`): its downloads are the `user` class. */
-	#user_woken = false;
+	/** A visitor's gesture woke this region (`interaction`, or the capture on a scheduled island): its
+	 *  downloads are the `user` class, and this is what replays their input (the capture's replay half,
+	 *  loading) — its island goes live once it is in, so the input lands AT wake (#260). */
+	#visitor: Promise<unknown> | null = null;
 	/** The hydrated island (hydrate core handle): dispose, and for a kept island, props push. */
 	#app: IslandHandle | null = null;
 	/** Disconnected, teardown waiting a microtask: a reconnect before it is a move. */
@@ -856,7 +860,7 @@ class OgygiaRegion extends HTMLElement {
 			if (is_deferred(this)) {
 				// a visitor's gesture: this region's downloads are the `user` class from here on
 				arm_on_demand(this, () => {
-					this.#user_woken = true;
+					this.#visitor = NO_REPLAY; // (a hole's answer: nothing of the visitor's to replay)
 					return fire();
 				});
 				owner.onLeave(() => on_demand_armed.delete(this));
@@ -904,9 +908,9 @@ class OgygiaRegion extends HTMLElement {
 	 * replays its clicks onto the server markup and says so (interaction.ts). Only the capture gets this:
 	 * a schedule's own wake has nobody to tell.
 	 */
-	#by_visitor(fire: () => unknown): () => Promise<void> {
-		return () => {
-			this.#user_woken = true;
+	#by_visitor(fire: () => unknown): (replayed: Promise<unknown>) => Promise<void> {
+		return (replayed) => {
+			this.#visitor = replayed;
 			return Promise.resolve(fire()).then(() => {
 				const s = this.#wake.now;
 				if (s.kind === 'failed') throw s.error;
@@ -1253,7 +1257,7 @@ class OgygiaRegion extends HTMLElement {
 		if (!revalidate && frames.join && !endpoint.includes('&ttl=') && !capability_expired(endpoint))
 			await frames.join(endpoint);
 		const fetcher = this.#frame_fetcher(endpoint, revalidate, () =>
-			this.#user_woken ? 'user' : viewport_class(this)
+			this.#visitor ? 'user' : viewport_class(this)
 		);
 		const run = (): Promise<string> => {
 			if (signal.aborted) return Promise.resolve('');
@@ -1439,7 +1443,7 @@ class OgygiaRegion extends HTMLElement {
 			if (!entry) return;
 			// Its downloads wait for their slot (load-scheduler.ts): a gesture's never wait; otherwise
 			// the class follows the viewport, re-read while queued (an island scrolled into view moves up).
-			const cls = () => (this.#user_woken ? 'user' : viewport_class(this));
+			const cls = () => (this.#visitor ? 'user' : viewport_class(this));
 			const release = await new LoadSlot({ kind: 'code', cls, label: entry }).ready;
 			let mod: IslandModule, core: HydrateCore;
 			try {
@@ -1468,8 +1472,18 @@ class OgygiaRegion extends HTMLElement {
 			// parse plus the hydrate made one long task. (The step calls these again: a no-op by then.)
 			core.seed_remote_once();
 			core.seed_page_once();
-			await hydrate_turn(this);
-			if (gone() || this.#app) return;
+			// A visitor woke it (or reached it while it loaded): what replays their input is in before
+			// the island is live, so the input lands AT wake. Live first, the replay came in later over
+			// a slow network, beside the visitor's next click (#260). A visitor who came while it waited
+			// for its turn: their replay too, and a turn after it.
+			let visitor: Promise<unknown> | null;
+			do {
+				visitor = this.#visitor;
+				if (visitor) await visitor.catch(() => {}); // (a replay that failed says so itself)
+				if (gone()) return;
+				await hydrate_turn(this);
+				if (gone() || this.#app) return;
+			} while (this.#visitor !== visitor);
 			// ── the turn: everything below is one synchronous step ──
 			t_turn = now_ms();
 			const ssr_html = this.#ssr_html;
