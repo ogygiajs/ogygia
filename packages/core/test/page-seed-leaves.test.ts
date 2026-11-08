@@ -57,9 +57,25 @@ describe('PageSeed.serialize keeps everything that serializes', () => {
 		expect(at(seed.data, ['list', 2, 'id'])).toBe(2);
 	});
 
+	it('a sparse array keeps its holes', () => {
+		const sparse: unknown[] = [];
+		sparse[0] = 'a';
+		sparse[3] = () => 1;
+		sparse[5] = 'b';
+		const seed = seed_of(PageSeed.serialize(page({ sparse })));
+		const back = at(seed.data, ['sparse']) as unknown[];
+		expect(back).toHaveLength(6);
+		expect(1 in back).toBe(false);
+		expect(3 in back).toBe(true);
+		expect(back[5]).toBe('b');
+	});
+
 	it('a class no reducer knows goes; a value a reducer encodes stays', () => {
 		class Money {
-			constructor(readonly amount: number) {}
+			readonly amount: number;
+			constructor(amount: number) {
+				this.amount = amount;
+			}
 		}
 		const reducers = { Money: (v: unknown) => v instanceof Money && [v.amount] };
 		const data = { price: new Money(5), odd: new Unknown(), when: new Date(7), n: 10n };

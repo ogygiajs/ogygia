@@ -75,7 +75,7 @@ interface PageOptions {
 	context?: boolean;
 	/** the site settings carry a Date and an app type (the seed leaves the JSON lane) */
 	rich?: boolean;
-	/** a load returned a function in `page.data` (the seed drops that field) */
+	/** a load returned a function in `page.data` (the seed leaves out that one value) */
 	function_leaf?: boolean;
 	/** remote queries resolved during the render, two of them callable by the page's islands */
 	remotes?: boolean;
