@@ -119,12 +119,41 @@ describe('definition', () => {
 });
 
 describe('now', () => {
-	it('starts in initial, as the one shared frozen value', () => {
+	it('starts in initial, a value of its own, frozen in dev', () => {
 		const a = hole.create();
 		const b = hole.create();
 		expect(a.now).toEqual({ kind: 'idle' });
-		expect(a.now).toBe(b.now);
+		expect(a.now).not.toBe(b.now);
 		expect(Object.isFrozen(a.now)).toBe(true);
+	});
+
+	it('is the same value for as long as the visit lasts', () => {
+		const m = hole.create();
+		m.go('fetching', { attempt: 1 });
+		m.go('applying');
+		const mine = m.now;
+		expect(m.now).toBe(mine);
+		m.move('fetching', 'idle'); // refused: not in fetching
+		expect(m.now).toBe(mine);
+	});
+
+	it('is a new value on every visit, with no data too: a saved now tells the visits apart', () => {
+		const m = hole.create();
+		m.go('fetching', { attempt: 1 });
+		m.go('applying');
+		const mine = m.now;
+		m.go('kept');
+		m.go('applying'); // back in the same dataless state: a later visit
+		expect(m.now).toEqual(mine);
+		expect(m.now).not.toBe(mine);
+	});
+
+	it('a dataless step to itself is a new visit too', () => {
+		const tick = machine<{ on: {} }>()({ name: 'tick', initial: 'on', steps: { on: ['on'] } });
+		const m = tick.create();
+		const mine = m.now;
+		m.go('on');
+		expect(m.now).not.toBe(mine);
 	});
 
 	it('carries the data of the state it is in, frozen in dev', () => {
@@ -666,7 +695,7 @@ describe('observe', () => {
 });
 
 describe('machines are independent', () => {
-	it('two machines of one definition share nothing but the empty states', () => {
+	it('two machines of one definition share nothing', () => {
 		const a = hole.create();
 		const b = hole.create();
 		const leave_a = vi.fn();
