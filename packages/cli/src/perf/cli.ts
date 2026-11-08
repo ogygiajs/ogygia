@@ -212,7 +212,7 @@ export async function serve(
 		try {
 			if (pid !== undefined) process.kill(-pid, sig);
 		} catch {
-			/* gone */
+			// ok: the group already exited (ESRCH), which is what the signal was for
 		}
 	};
 
@@ -230,10 +230,10 @@ export async function serve(
 		await Promise.race([closed, sleep(1000)]);
 		if (!m.move('stopping', 'exited')) m.move('exited_early', 'exited');
 	};
-	child.once('exit', (code, sig) => void on_exit(sig ? `signal ${sig}` : `code ${code}`));
+	child.once('exit', (code, sig) => void on_exit(sig ? `signal ${sig}` : `code ${code}`)); // ok: on_exit never rejects
 	child.once('error', (error) => {
 		keep(error.message);
-		void on_exit(error.message);
+		void on_exit(error.message); // ok: on_exit never rejects
 	});
 
 	const stop = async (): Promise<void> => {
@@ -255,7 +255,7 @@ export async function serve(
 				await res.body?.cancel();
 				if (res.status < 500) return true;
 			} catch {
-				/* not up yet */
+				// ok: not up yet; the loop asks again until the timeout says so
 			}
 			await sleep(200, signal);
 		}
@@ -334,7 +334,7 @@ export async function runBisect(argv: string[]): Promise<number> {
 			try {
 				sh(`git worktree remove --force "${path.join(worktree, sha.slice(0, 12))}"`, repo, 60_000);
 			} catch {
-				/* already gone */
+				// ok: the worktree is already gone, which is what the remove was for
 			}
 		}
 	};

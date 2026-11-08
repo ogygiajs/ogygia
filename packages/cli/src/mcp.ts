@@ -60,7 +60,7 @@ const reading_load = flights({
 });
 export async function load_profiler_reading(): Promise<ProfilerReading | null> {
 	// (nothing drops it, so it is never STALE)
-	const got = await reading_load.get().catch(() => null);
+	const got = await reading_load.get().catch(() => null); // ok: no @ogygia/devtools in the app; each tool that needs it says so
 	return got === STALE ? null : got;
 }
 
@@ -793,7 +793,7 @@ async function tool_debug(args: Attrs): Promise<ToolResult> {
 			await page.waitForTimeout(500);
 		}
 		if (click_sel) {
-			await page.click(click_sel, { timeout: 3000 }).catch(() => {});
+			await page.click(click_sel, { timeout: 3000 }).catch(() => {}); // ok: the trace still runs; the click is a best-effort warm-up
 			await page.waitForTimeout(400);
 		}
 		const trace = (await page.evaluate(() =>
@@ -1604,7 +1604,7 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 			await fetch_timeout(reset, { redirect: 'manual', headers: reset_h }, 5000);
 			res = await record_once();
 		} catch {
-			/* fall through to the 409 message below */
+			// ok: falls through to the 409 message below, which says what to do
 		}
 	}
 
