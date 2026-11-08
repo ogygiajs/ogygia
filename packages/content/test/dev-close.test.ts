@@ -32,6 +32,20 @@ describe('the content plugin in dev, when its server closes', { timeout: 30_000 
 		expect(sent).not.toHaveBeenCalled();
 	});
 
+	it('a restart ends the old run only: the new server still reloads on an edit', async () => {
+		app = new DevApp('og-content-dev-close-');
+		const srv = await app.start(DEBOUNCE_MS);
+		// (the new server is made, with this same plugin, before the old one closes)
+		await srv.restart();
+		const sent = vi.spyOn(srv.ws, 'send');
+
+		await app.edit('src/content/a.md', '# A, edited');
+		const until = Date.now() + 5_000;
+		while (sent.mock.calls.length === 0 && Date.now() < until) await sleep(20);
+
+		expect(sent).toHaveBeenCalledWith({ type: 'full-reload', path: '*' });
+	});
+
 	it('still reloads on an edit while the server runs', async () => {
 		app = new DevApp('og-content-dev-close-');
 		const srv = await app.start(DEBOUNCE_MS);
