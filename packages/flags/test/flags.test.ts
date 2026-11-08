@@ -300,8 +300,9 @@ describe('flag.value — vendor payloads, schema-validated', () => {
 });
 
 describe('decide — exposure batching', () => {
-	it('fires once per (request, flag); flushes at max, at the timer, and at flush_exposures()', () => {
+	it('fires once per (request, flag); flushes at max, at the timer, and at flush_exposures()', async () => {
 		vi.useFakeTimers();
+		vi.spyOn(console, 'warn').mockImplementation(() => {}); // (the throwing sink is said)
 		const batches: Array<Array<{ name: string; variant: string }>> = [];
 		decide({
 			exposure: (b) => {
@@ -319,12 +320,13 @@ describe('decide — exposure batching', () => {
 			f(ctx('http://s/x', { sub: 'v2', vid: 'v2' })); // hits max=2
 			expect(batches).toHaveLength(1);
 			expect(batches[0].map((e) => e.name)).toEqual(['batched', 'batched']);
-			f(ctx('http://s/x', { sub: 'v3', vid: 'v3' }));
-			flush_exposures(); // manual drain (the per-request tail)
+			f(ctx('http://s/x', { sub: 'v3', vid: 'v3' })); // read while that send is in flight
+			await flush_exposures(); // manual drain (the per-request tail): the next send, after it
 			expect(batches).toHaveLength(2);
 			expect(batches[1]).toHaveLength(1);
 		} finally {
 			vi.useRealTimers();
+			vi.restoreAllMocks();
 		}
 	});
 });

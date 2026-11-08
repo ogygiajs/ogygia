@@ -1,7 +1,8 @@
 /**
  * The flags plugin's server realm (named by `flags()`).
  * `request`: prime the decision source once, above the page / hole split, so every read stays sync.
- * `done`: drain queued exposures at the request's end, always (the serverless-safe tail).
+ * `done`: drain queued exposures at the request's end, always (the serverless-safe tail): the send
+ * is returned, so the request's end keeps it alive until it has reached the sink (#243).
  */
 import { defineServer, type ServerPlugin } from '@ogygia/core/plugin';
 import { prime_flags, flush_exposures } from './index.ts';
@@ -15,7 +16,7 @@ const server: ServerPlugin = defineServer({
 		await prime_flags({ request: event.request, url: event.url, cookies: event.cookies });
 	},
 	done() {
-		flush_exposures();
+		return flush_exposures();
 	}
 });
 export default server;

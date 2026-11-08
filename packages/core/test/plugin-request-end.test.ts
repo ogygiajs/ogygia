@@ -47,14 +47,12 @@ async function end(
 
 describe('end_request: the work a plugin leaves at the request end', () => {
 	it("the platform's waitUntil (platform.context) gets it, and the response does not wait", async () => {
-		const s = sender(40);
+		const s = sender(200);
 		const handed: Promise<unknown>[] = [];
 		const platform = { context: { waitUntil: (p: Promise<unknown>) => void handed.push(p) } };
-		const t0 = performance.now();
 		const out = await end([s.plugin], platform, new Response('page'));
 		expect(await out!.text()).toBe('page');
-		expect(performance.now() - t0).toBeLessThan(30); // not held for the 40 ms send
-		expect(s.seen.finished).toBe(false);
+		expect(s.seen.finished).toBe(false); // the whole body came before the 200 ms send ended
 		expect(handed).toHaveLength(1);
 		await handed[0];
 		expect(s.seen.finished).toBe(true);

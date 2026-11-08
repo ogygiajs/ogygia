@@ -34,6 +34,21 @@ export const FLAGS_WARNINGS = {
 			vite.config.
 		`
 	},
+	flags_exposure_failed: {
+		text: (): string => prose`
+			flags: the exposure sink (\`decide({ exposure })\`) failed, and the batch it was sent is lost.
+			The error follows.
+		`,
+		details: (): string => prose`
+			The function given to \`decide({ exposure })\` threw, or the promise it returned rejected (a
+			send that failed), so the exposures in that batch did not reach your analytics. The request
+			that read the flags is not affected. Said once, then again only after a send has worked:
+			a sink that stays down does not fill the log.
+
+			Check the sink's endpoint and credentials. To keep a batch through an outage, retry or
+			queue inside the sink.
+		`
+	},
 	flags_plugin_not_running: {
 		text: (): string => prose`
 			flags: a flag was read on the server but the flags plugin is not running — list

@@ -106,21 +106,67 @@ export function around(plugins: readonly LivePlugin[], core: Handle): Handle {
 }
 
 /**
- * The request's end: each plugin's `done`, in order (one that throws does not stop the others).
- * Null: `response` goes out as it is.
+ * The request's end: each plugin's `done`, in order (one that throws does not stop the others), and
+ * the work they leave running (a sink's send, #243) kept alive until it ends:
+ * - the platform keeps a request alive past its response (`platform.context.waitUntil` or
+ *   `platform.ctx.waitUntil`): the work is handed to it, and the response does not wait;
+ * - otherwise a serverless instance may freeze as soon as its response ends, so the response's body
+ *   ends after the work (its head and every byte of the body go out as they come; only the end
+ *   waits). A response with no body, or a request that threw (`response` null), waits for it.
+ *
+ * Null: no work was left, `response` goes out as it is. A failed piece of work never fails the
+ * response (the plugin says what went wrong).
  */
 export function end_request(
 	plugins: readonly LivePlugin[],
 	ctxs: readonly RequestContext<unknown, unknown>[],
-	_platform: unknown,
-	_response: Response | null
+	platform: unknown,
+	response: Response | null
 ): Promise<Response | null> | null {
+	let left: Promise<void>[] | null = null;
 	for (let i = 0; i < plugins.length; i++) {
 		try {
-			plugins[i].def.done?.(ctxs[i]);
+			const work = plugins[i].def.done?.(ctxs[i]);
+			if (work) (left ??= []).push(Promise.resolve(work).then(undefined, ignore));
 		} catch {
 			/* a plugin's tail never fails the request */
 		}
+	}
+	if (left === null) return null;
+	const work = left.length === 1 ? left[0] : Promise.all(left).then(ignore);
+	const wait_until = wait_until_of(platform);
+	if (wait_until !== null) {
+		try {
+			wait_until(work);
+			return Promise.resolve(response);
+		} catch {
+			/* a platform that refuses it: the response waits instead */
+		}
+	}
+	const body = response?.body;
+	if (!response || !body) return work.then(() => response);
+	// (the body's chunks pass through as they come; its end waits for the work)
+	const held = body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({ flush: () => work }));
+	return Promise.resolve(
+		new Response(held, {
+			status: response.status,
+			statusText: response.statusText,
+			headers: response.headers
+		})
+	);
+}
+
+function ignore(): void {}
+
+/** The platform's way to keep a request alive past its response, or null. */
+function wait_until_of(platform: unknown): ((work: Promise<unknown>) => void) | null {
+	if (typeof platform !== 'object' || platform === null) return null;
+	for (const at of ['context', 'ctx'] as const) {
+		const host = (platform as Record<string, unknown>)[at] as
+			| { waitUntil?: (work: Promise<unknown>) => void }
+			| null
+			| undefined;
+		if (typeof host?.waitUntil === 'function') return (work) => host.waitUntil!(work);
 	}
 	return null;
 }

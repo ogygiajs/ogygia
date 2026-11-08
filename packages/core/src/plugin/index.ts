@@ -137,8 +137,11 @@ export type ServerPlugin<Options = undefined, State = undefined> = Partial<Serve
 	/** SEQUENTIAL — the page's response, before it streams out. A Response replaces it. */
 	response?(ctx: RequestContext<Options, State>, response: Response): MaybePromise<void | Response>;
 	/** PARALLEL — the request's end, always (an answered, failed or streamed request included). Must
-	 *  not throw; must not await anything slow. */
-	done?(ctx: RequestContext<Options, State>): void;
+	 *  not throw. Work it leaves running that must finish (a send) it returns: the platform's
+	 *  `waitUntil` keeps it alive past the response, or, on a platform without one, the response's
+	 *  body ends after it (a serverless instance may freeze once its response ends). A failure in it
+	 *  never fails the request: say what went wrong yourself. */
+	done?(ctx: RequestContext<Options, State>): void | Promise<void>;
 };
 
 /** Typed identity: a plugin's server half. */
