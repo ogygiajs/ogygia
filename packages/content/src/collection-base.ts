@@ -135,6 +135,8 @@ export class Collection<
 	/** The wait before a dropped connection is opened again, while one is pending. */
 	#retry: ReturnType<typeof setTimeout> | null = null;
 	#version = 0;
+	/** How many times it was disposed: a watcher started before the last one has ended. */
+	#disposals = 0;
 	readonly #waiters = new Set<() => void>();
 	#backlinkIndex: Map<string, RefEntry[]> | null = null;
 	#backlinkKey: string | null = null;
@@ -174,6 +176,9 @@ export class Collection<
 		if (this.#life.now.kind === 'disposed') return;
 		this.#life.go('disposed');
 		GRAPH.all.delete(this as unknown as Collection<Record<string, unknown>>);
+		// its watchers end (see watchChanges)
+		this.#disposals++;
+		for (const wake of this.#waiters) wake();
 	}
 
 	/** A disposed collection read again: back in the graph, to start when its catalog is needed. */
@@ -243,10 +248,13 @@ export class Collection<
 
 	/** Each new catalog version, from `from` on (default: the version now). Pass the version of the
 	 *  snapshot already handed out, so a change made while it was being used is yielded at once
-	 *  (taking the version on the first pull missed it, #191). */
+	 *  (taking the version on the first pull missed it, #191). It ends once the collection is
+	 *  disposed: a replaced collection changes no more, so a live remote streaming it ends instead of
+	 *  waiting forever (#247). */
 	async *watchChanges(from?: number): AsyncGenerator<number> {
 		let seen = from ?? this.#version;
-		while (true) {
+		const disposals = this.#disposals;
+		while (this.#disposals === disposals) {
 			if (this.#version !== seen) {
 				seen = this.#version;
 				yield seen;
