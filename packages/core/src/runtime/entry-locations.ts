@@ -10,6 +10,7 @@
  * is known, else the identity (on the dev server, the module itself; in a build, a name, no file).
  */
 import { import_file } from './import-again.ts';
+import { flights, STALE } from '@ogygia/machine';
 
 /** absolute identity → absolute location */
 const locations = new Map<string, string>();
@@ -69,7 +70,23 @@ export function entry_location(entry: string, base?: string): string | undefined
  * is not kept: the next identity-only load asks again (a blip must not cost the page every later one).
  */
 const BUILD_MAP_ATTR = 'data-og-locations';
-let build_map: Promise<void> | null = null;
+/** The map's read: whether it filled the locations. One read at a time, kept once it did. */
+const build_map = flights({
+	name: 'build location map',
+	run: (url: string) =>
+		fetch(url)
+			.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
+			.catch(() => null)
+			.then((map) => {
+				if (!map) return false;
+				for (const stable in map) {
+					const identity = absolute(stable, url);
+					if (!locations.has(identity)) locations.set(identity, absolute(map[stable], url));
+				}
+				return true;
+			}),
+	keep: (filled) => (filled ? Infinity : 0)
+});
 
 /**
  * Pin the build map's address to the page that wrote it, as `pin_region_urls` pins a region's: with
@@ -84,26 +101,11 @@ export function pin_build_map(): void {
 	if (script && href) script.setAttribute(BUILD_MAP_ATTR, absolute(href));
 }
 
-function read_build_map(): Promise<void> | null {
-	if (build_map) return build_map;
+function read_build_map(): Promise<unknown> | null {
 	if (typeof document === 'undefined') return null;
 	const href = document.querySelector(`script[${BUILD_MAP_ATTR}]`)?.getAttribute(BUILD_MAP_ATTR);
 	if (!href) return null;
-	const url = absolute(href);
-	const read: Promise<void> = fetch(url)
-		.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
-		.catch(() => null)
-		.then((map) => {
-			if (!map) {
-				if (build_map === read) build_map = null;
-				return;
-			}
-			for (const stable in map) {
-				const identity = absolute(stable, url);
-				if (!locations.has(identity)) locations.set(identity, absolute(map[stable], url));
-			}
-		});
-	return (build_map = read);
+	return build_map.get(absolute(href));
 }
 
 /** The region attributes that hold a URL: its identity, its location, its hole's endpoint. */
@@ -149,7 +151,15 @@ export function island_entry_of(el: Element): string | null {
  * that kept it anyway), read once per document per app. Only an ogygia identity has one: the dev
  * server's module URLs never ask.
  */
-const current_maps = new Map<string, Promise<Record<string, string> | null>>();
+const current_maps = flights({
+	name: 'current build map',
+	run: (file: string) =>
+		fetch(file, { cache: 'no-cache' })
+			.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
+			.catch(() => null),
+	// (a map that could not be read is not kept: the next ask reads again)
+	keep: (map) => (map ? Infinity : 0)
+});
 
 /** A build's island identity (`…/<appDir>/ogygia/og-region.<id>.js`): a name, no file. */
 function is_build_identity(entry: string): boolean {
@@ -168,25 +178,12 @@ async function current_location(entry: string): Promise<string | null | undefine
 	const identity = absolute(entry);
 	const file = current_map_file(identity);
 	if (!file) return null;
-	let map = current_maps.get(file);
-	if (!map) {
-		map = fetch(file, { cache: 'no-cache' })
-			.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
-			.catch(() => null);
-		current_maps.set(file, map);
-	}
-	const pairs = await map;
-	if (!pairs) {
-		forget_current_map(file, map);
-		return undefined;
-	}
+	const pairs = await current_maps.get(file);
+	// (STALE: a recovery dropped it meanwhile, as one it could not use)
+	if (!pairs || pairs === STALE) return undefined;
 	for (const name in pairs)
 		if (absolute(name, file) === identity) return absolute(pairs[name], file);
 	return null;
-}
-
-function forget_current_map(file: string, map = current_maps.get(file)): void {
-	if (current_maps.get(file) === map) current_maps.delete(file);
 }
 
 /** The host says this file is not there (it does not say so of a file that failed another way). */
@@ -214,7 +211,7 @@ async function recover_location(entry: string, failed: string): Promise<string |
 		current = await current_location(entry);
 		if (current === undefined) continue;
 		if (current !== failed || !(await is_gone(failed))) break;
-		forget_current_map(current_map_file(absolute(entry))!);
+		current_maps.drop(current_map_file(absolute(entry))!);
 	}
 	return current ?? null;
 }

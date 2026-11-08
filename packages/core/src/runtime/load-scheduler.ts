@@ -30,6 +30,7 @@
  */
 import { after_document_painted, yield_task } from './schedule.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
+import { flights, type Stale } from '@ogygia/machine';
 import { emit as dt_emit } from '../events/bus.ts';
 
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
@@ -86,7 +87,8 @@ if (typeof document !== 'undefined') {
 		addEventListener(type, on_first_input, { capture: true, passive: true, once: true });
 }
 
-let critical: Promise<void> | null = null;
+/** The critical wait below, once for the document (a test's reset drops it). */
+const critical = flights({ name: 'critical resources', run: () => until_critical() });
 let critical_done = false;
 let release_critical: (() => void) | null = null;
 
@@ -150,8 +152,11 @@ export function preload_urls(link: HTMLLinkElement): string[] {
  * arrived (or failed) — or at the visitor's first click or key, or {@link CRITICAL_CAP_MS} into the
  * wait. A page with no marked resource resolves right after the paint. Once resolved it stays so.
  */
-export function critical_settled(): Promise<void> {
-	return (critical ??= after_document_painted().then(
+export function critical_settled(): Promise<void | Stale> {
+	return critical.get();
+}
+function until_critical(): Promise<void> {
+	return after_document_painted().then(
 		() =>
 			new Promise<void>((resolve) => {
 				const t0 = now();
@@ -183,7 +188,7 @@ export function critical_settled(): Promise<void> {
 					el.addEventListener('error', one, { once: true });
 				}
 			})
-	));
+	);
 }
 
 // ── the queue ───────────────────────────────────────────────────────────────────────────────────
@@ -350,7 +355,7 @@ export function reset_load_scheduler(): void {
 	in_flight_background = 0;
 	draining = false;
 	drain_again = false;
-	critical = null;
+	critical.drop(() => true);
 	critical_done = false;
 	release_critical = null;
 	critical_report = null;

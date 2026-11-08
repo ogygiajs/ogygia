@@ -19,7 +19,7 @@
  * classes: without one the loader map is empty, but the bundler cannot see that through the virtual
  * module, so this code shipped to every island page for a lookup that always found nothing.
  */
-import { flights, type Flights } from '@ogygia/machine';
+import { flights } from '@ogygia/machine';
 import { wire_loaders, wire_all } from 'virtual:ogygia/transportables';
 import { import_again } from './import-again.ts';
 import { props_sidecar_of } from './sidecar.ts';
@@ -33,22 +33,25 @@ export function install(): void {
 
 const loaders = wire_loaders as Record<string, () => Promise<unknown>>;
 const paths = Object.keys(loaders);
-/** Each class module's load, kept once it succeeds (a flight: a failure is never kept). */
-const loads = new Map<string, Flights<void, unknown>>();
-
-function load(path: string): Promise<unknown> {
-	let l = loads.get(path);
-	if (!l) {
-		const loader = loaders[path];
-		if (!loader) return Promise.resolve();
-		const import_class = import_again(loader);
+/** Each class module's loader: what it asks for next (its file, or a fresh URL after a failure). */
+const imports = new Map<string, () => Promise<unknown>>();
+/** Each class module's load, by path, kept once it succeeds (a failure is never kept). */
+const loads = flights({
+	name: 'wire class',
+	run: (path: string) => {
+		let import_class = imports.get(path);
+		if (!import_class) imports.set(path, (import_class = import_again(loaders[path]!)));
 		// (each import starts in a task of its own: every class's preload ran inside the first
 		// island's start)
-		l = flights({ name: 'wire class', run: () => yield_task().then(import_class), retries: 1 });
-		loads.set(path, l);
-	}
+		return yield_task().then(import_class);
+	},
+	retries: 1
+});
+
+function load(path: string): Promise<unknown> {
+	if (!loaders[path]) return Promise.resolve();
 	// (a failed load resolves for this wake: its decode then says which class is missing)
-	return l.get().catch(() => undefined);
+	return loads.get(path).catch(() => undefined);
 }
 
 /** The classes a text names (`"<tag path>#…` appears in it), into `want`. */

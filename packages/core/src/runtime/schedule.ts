@@ -23,6 +23,7 @@
  * first one.
  */
 import { observe } from './observe.ts';
+import { flights, type Stale } from '@ogygia/machine';
 
 type Turn = { el: Element; order: number; queued_at: number; resolve: () => void };
 
@@ -120,7 +121,8 @@ function post_background(fn: () => void): void {
 	setTimeout(fn, 0);
 }
 
-let document_painted: Promise<void> | null = null;
+/** The gate below, once for the document (a test's reset drops it). */
+const document_painted = flights({ name: 'document painted', run: () => until_painted() });
 
 /**
  * Resolves once the document is parsed AND painted: after `DOMContentLoaded`, then one rendered
@@ -136,8 +138,11 @@ let document_painted: Promise<void> | null = null;
  * so it waits one task instead. Once resolved it stays resolved: a late region (SPA swap, a hole's
  * answer) passes straight through.
  */
-export function after_document_painted(): Promise<void> {
-	return (document_painted ??= new Promise<void>((resolve) => {
+export function after_document_painted(): Promise<void | Stale> {
+	return document_painted.get();
+}
+function until_painted(): Promise<void> {
+	return new Promise<void>((resolve) => {
 		if (typeof document === 'undefined') return resolve();
 		const painted = () => {
 			if (document.visibilityState === 'hidden' || typeof requestAnimationFrame !== 'function')
@@ -155,7 +160,7 @@ export function after_document_painted(): Promise<void> {
 		};
 		document.addEventListener('DOMContentLoaded', once);
 		addEventListener('load', once);
-	}));
+	});
 }
 
 function dom_content_loaded(): boolean {
@@ -168,7 +173,7 @@ function dom_content_loaded(): boolean {
 
 /** Test seam: forget the resolved gate (a test that fakes a fresh document). */
 export function reset_document_painted(): void {
-	document_painted = null;
+	document_painted.drop(() => true);
 }
 
 /**
