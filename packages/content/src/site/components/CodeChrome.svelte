@@ -10,6 +10,8 @@
 	 * `installation-code-2`), and the link button copies the full `#`-anchored URL and jumps to it — the
 	 * same "grab a link to exactly this" affordance the heading anchors give.
 	 */
+	import { scope, type Scope } from '@ogygia/machine';
+
 	// ── regexes
 	const WS_G = /\s+/g;
 
@@ -25,18 +27,20 @@
 	/** Attachment: enhance every `<pre>`, then watch the doc body for late-inserted blocks. */
 	function chrome(anchor: HTMLElement) {
 		const root = (anchor.closest('.og-doc') || anchor.parentElement || document.body) as Element;
+		// the chrome's watch of the doc (its observer, its delegated click, a focus ring): let go on unmount
+		const s = scope();
 		// Focus the deep-link target so an accent ring lands the eye — and CLEARS on blur (unlike a sticky
 		// `:target`). The class gates the ring to permalink jumps, not stray clicks. `preventScroll` since
 		// the `#`-hash navigation already scrolled it into view (respecting scroll-margin).
+		let ring: Scope | null = null;
 		function focus_target(el: HTMLElement) {
+			ring?.close();
+			const r = (ring = s.child());
 			el.tabIndex = -1;
 			el.classList.add('og-target-focus');
+			r.defer(() => el.classList.remove('og-target-focus'));
 			el.focus({ preventScroll: true });
-			const off = () => {
-				el.classList.remove('og-target-focus');
-				el.removeEventListener('blur', off);
-			};
-			el.addEventListener('blur', off);
+			r.on(el, 'blur', () => r.close());
 		}
 
 		/** Nearest heading id in document order that PRECEDES this `<pre>` (robust to nesting). */
@@ -111,6 +115,10 @@
 			link.href = `#${id}`;
 			link.setAttribute('aria-label', 'Copy link to this code block');
 			link.innerHTML = LINK;
+			// (the buttons are the block's, as long as it is: they stay working when the chrome unmounts
+			// and a block it enhanced stays, so their listeners and their tick's reset are theirs, not
+			// the chrome's)
+			// oxlint-disable-next-line ogygia/owned-effects -- on the button it made, which it lives and goes with
 			link.addEventListener('click', () => {
 				focus_target(pre as HTMLElement); // land the reader's eye on the block (ring clears on blur)
 				const url = `${location.origin}${location.pathname}#${id}`;
@@ -118,6 +126,7 @@
 					() => {
 						link.setAttribute('data-linked', '1');
 						link.innerHTML = CHECK;
+						// oxlint-disable-next-line ogygia/owned-effects -- the button's own tick, which ends itself
 						setTimeout(() => {
 							link.removeAttribute('data-linked');
 							link.innerHTML = LINK;
@@ -133,6 +142,7 @@
 			btn.className = 'og-copy';
 			btn.setAttribute('aria-label', 'Copy code');
 			btn.innerHTML = COPY;
+			// oxlint-disable-next-line ogygia/owned-effects -- on the button it made, which it lives and goes with
 			btn.addEventListener('click', () => {
 				const code = pre.querySelector('code') || pre;
 				const text = (code as HTMLElement).innerText || code.textContent || '';
@@ -140,6 +150,7 @@
 				navigator.clipboard.writeText(text).then(() => {
 					pre.setAttribute('data-copied', '1');
 					btn.innerHTML = CHECK;
+					// oxlint-disable-next-line ogygia/owned-effects -- the button's own tick, which ends itself
 					setTimeout(() => {
 						pre.removeAttribute('data-copied');
 						btn.innerHTML = COPY;
@@ -153,7 +164,8 @@
 		}
 		const scan = () => document.querySelectorAll(selector).forEach(enhance);
 		scan();
-		const mo = typeof MutationObserver !== 'undefined' ? new MutationObserver(() => scan()) : null;
+		const mo =
+			typeof MutationObserver !== 'undefined' ? s.watch(new MutationObserver(() => scan())) : null;
 		// `childList` catches blocks a live region inserts; `hidden`/`open` catch a block REVEALED
 		// after load — a `::: code-group` tab switch (the panel's `hidden` toggles) or a `::: details`
 		// opening. `enhance` skips hidden `<pre>`s (`offsetParent === null`) at first scan, so without
@@ -175,12 +187,9 @@
 			const h = a.closest('h1, h2, h3, h4, h5, h6') as HTMLElement | null;
 			if (h) focus_target(h);
 		};
-		root.addEventListener('click', on_click);
+		s.on(root, 'click', on_click);
 
-		return () => {
-			mo?.disconnect();
-			root.removeEventListener('click', on_click);
-		};
+		return () => s.close();
 	}
 </script>
 

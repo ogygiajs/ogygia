@@ -7,7 +7,7 @@
 	 * the prerendered index fetches from here, not at page hydrate.
 	 */
 	import { onMount } from 'svelte';
-	import { on } from 'svelte/events';
+	import { scope, STALE } from '@ogygia/machine';
 	import { Command, Dialog } from 'bits-ui';
 	import { SearchClient } from '../search-client.ts';
 	import type { SearchHit } from '../search.ts';
@@ -59,27 +59,26 @@
 	}
 
 	// Attachment on the field wrapper: find the (Bits UI) input and debounce-query on each keystroke.
-	let debounce: ReturnType<typeof setTimeout> | undefined;
 	function searchField(node: HTMLElement) {
 		const input = node.querySelector('input');
 		if (!input) return;
+		// the field's listener, its debounce and its query in flight: let go when the field goes
+		const s = scope();
+		let cancel: (() => void) | null = null;
 		const run = () => {
 			const term = input.value.trim();
-			clearTimeout(debounce);
+			cancel?.();
 			if (!term) {
 				results = [];
 				return;
 			}
-			debounce = setTimeout(async () => {
-				const hits = await run_query(term);
-				if (input.value.trim() === term) results = hits;
+			cancel = s.timeout(async () => {
+				const hits = await s.task(() => run_query(term));
+				if (hits !== STALE && input.value.trim() === term) results = hits;
 			}, 150);
 		};
-		const off = on(input, 'input', run);
-		return () => {
-			off();
-			clearTimeout(debounce);
-		};
+		s.on(input, 'input', run);
+		return () => s.close();
 	}
 </script>
 

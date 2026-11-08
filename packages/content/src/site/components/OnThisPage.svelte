@@ -5,12 +5,12 @@
 	 * navigation, so the active marker just works on the new page — no inline `script()`, no dependence
 	 * on scripts re-running across a body swap.
 	 *
-	 * The scrollspy lives in an ATTACHMENT on the list (runs on mount, cleans up on unmount) using
-	 * `svelte/events` `on()` for the window listeners. It marks the last heading above the fold line as
+	 * The scrollspy lives in an ATTACHMENT on the list (runs on mount, cleans up on unmount), its
+	 * window listeners and its frame on one scope. It marks the last heading above the fold line as
 	 * active and slides the rail thumb to it. Customize each row with the `item` snippet (then apply
 	 * your own active state); `.og-toc*` hooks for CSS.
 	 */
-	import { on } from 'svelte/events';
+	import { scope } from '@ogygia/machine';
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/state';
 	import { roving } from './roving.ts';
@@ -51,9 +51,11 @@
 	function spy(list: HTMLElement) {
 		if (!scrollspy || !headings.length) return;
 		const ids = headings.map((h) => h.id);
-		let raf = 0;
+		// the spy's listeners and its frame, let go together on unmount
+		const s = scope();
+		let queued = false;
 		const pick = () => {
-			raf = 0;
+			queued = false;
 			const seen: Array<{ id: string; top: number }> = [];
 			for (const id of ids) {
 				const el = document.getElementById(id);
@@ -93,16 +95,14 @@
 			move_thumb(document.querySelector('.og-mtoc .og-toc-list'), true);
 		};
 		const onScroll = () => {
-			if (!raf) raf = requestAnimationFrame(pick);
+			if (queued) return;
+			queued = true;
+			s.timeout(pick, 'frame');
 		};
-		const off_scroll = on(window, 'scroll', onScroll, { passive: true });
-		const off_resize = on(window, 'resize', onScroll, { passive: true });
+		s.on(window, 'scroll', onScroll, { passive: true });
+		s.on(window, 'resize', onScroll, { passive: true });
 		pick();
-		return () => {
-			off_scroll();
-			off_resize();
-			cancelAnimationFrame(raf);
-		};
+		return () => s.close();
 	}
 </script>
 
