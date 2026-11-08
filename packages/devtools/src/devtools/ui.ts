@@ -25,6 +25,7 @@ import {
 import { TESTING_ENGINE_VERSION } from '@ogygia/core/insights';
 import { import_again } from '@ogygia/core/internal/instruments';
 import { machine, once, STALE, type Machine } from '@ogygia/machine';
+import { OgygiaError } from '../messages/runtime.ts';
 
 /** The dock's code: after a failed download, asked for again under a fresh URL. */
 const import_app = import_again(() => import('./ui-app.ts'));
@@ -149,10 +150,7 @@ function mount_launcher(opts?: { csr_true?: boolean }): void {
 					if (!state.move('loading', 'button')) return;
 					want_open = false;
 					button.textContent = 'og devtools';
-					console.error(
-						'[ogygia] devtools: the dock’s code failed to load (click to try again)',
-						error
-					);
+					console.error(new OgygiaError('devtools_dock_load_failed'), error);
 				}
 			);
 	};

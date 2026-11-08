@@ -1,12 +1,13 @@
 /**
- * EVERY MESSAGE THE PROFILER'S SERVER HALF PRINTS, in one place: its code, its wording, what to do
- * about it (core's `@ogygia/core/internal/messages` says how the system works).
+ * EVERY MESSAGE THE PROFILER'S SERVER HALF AND THE DOCK PRINT, in one place: its code, its wording,
+ * what to do about it (core's `@ogygia/core/internal/messages` says how the system works).
  *
  *   console.error(new OgygiaError('devtools_profiler_store_init_failed'), e);
  *   warn('devtools_profiler_session_rejected', { path, diagnosis, reason });
  *
- * It runs in the app's server build, so the wording is only passed in dev: a production build prints
- * the code's page alone. The Vite plugin's messages are in ./build.ts.
+ * It runs in the app's server build (and the dock's launcher in its browser bundle), so the wording is
+ * only passed in dev: a production build prints the code's page alone. The Vite plugin's messages are
+ * in ./build.ts.
  */
 import {
 	define_messages,
@@ -55,6 +56,14 @@ export const DEVTOOLS_ERRORS = {
 		details: (): string => prose`
 			Printed with \`OGYGIA_PROFILER_DEBUG\` set. The profiler's \`store\` failed to read a
 			report back (the error follows the message), so the report is answered as not found.
+		`
+	},
+	devtools_dock_load_failed: {
+		text: (): string => 'the devtools dock’s code failed to load (click its button to try again):',
+		details: (): string => prose`
+			The browser could not download the devtools dock's code (the network failed, or a deploy
+			removed the file; the error follows the message). The page is not affected, and the
+			dock's button stays: a click, or Alt+O, asks for the code again under a fresh URL.
 		`
 	}
 };
