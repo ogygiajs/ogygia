@@ -204,7 +204,7 @@ function stamp_no_store(response: Response): void {
 		if (response.headers.get('cache-control')) return;
 		response.headers.set('cache-control', 'private, no-store');
 	} catch {
-		/* immutable headers — the app's platform wins */
+		// ok: immutable headers; the app's platform's headers win
 	}
 }
 
@@ -225,7 +225,7 @@ function dev_postrender_note(response: Response, ctx: Ctx, obs: Observation): vo
 		try {
 			response.headers.set(VIA_HEADER, 'would-store');
 		} catch {
-			/* immutable headers */
+			// ok: immutable headers; a dev hint only, the page is unchanged
 		}
 		return;
 	}
@@ -332,7 +332,7 @@ async function capture(
 			try {
 				Object.assign(headers, edge.headers({ url: path, ttl }));
 			} catch {
-				/* an edge adapter must never fail a render */
+				// ok: an edge adapter never fails a render; the page is stored without that edge's headers, and the edge serves it by its own rules
 			}
 		}
 	}

@@ -129,7 +129,7 @@ export async function stitch_html(
 ): Promise<string> {
 	const holes = find_stitch_holes(html);
 	if (!holes.length) return html;
-	const rendered = await Promise.all(holes.map((h) => render(h.endpoint).catch(() => null)));
+	const rendered = await Promise.all(holes.map((h) => render(h.endpoint).catch(() => null))); // ok: fail-open, the hole keeps its fallback and fetches itself as an unstitched hole would
 	let out = '';
 	let last = 0;
 	for (let i = 0; i < holes.length; i++) {
