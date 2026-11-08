@@ -1151,7 +1151,7 @@ export class SourceMapResolver {
 						}
 					}
 				} catch {
-					// unusable map — remember the miss
+					// ok: an unusable source map; the miss is remembered and the frame keeps its generated place
 				}
 			}
 			this.#cache.set(path, entry);

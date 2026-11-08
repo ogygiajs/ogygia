@@ -19,7 +19,8 @@ const loading = flights({
 		const r = await fetch('/__ogygia_devtools_meta');
 		// no meta endpoint (a build with no names): hashes stand in
 		if (!r.ok) return;
-		const meta = (await r.json().catch(() => null)) as {
+		const sent: unknown = await r.json().catch(() => null); // ok: an answer that is not JSON has no names: hashes stand in
+		const meta = sent as {
 			names?: Record<string, string>;
 			bytes?: Record<string, unknown>;
 		} | null;
@@ -35,5 +36,5 @@ export function ensure_region_names(): Promise<void> {
 	return loading.get().then(
 		() => {},
 		() => {}
-	);
+	); // ok: a failed fetch: hashes stand in this time, and the next ask fetches again
 }

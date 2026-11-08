@@ -24,7 +24,7 @@
 				return;
 			}
 		} catch {
-			/* network error → treated as a failed unlock below */
+			// ok: a network error is a failed unlock, shown below
 		}
 		wrong = true;
 		key = '';

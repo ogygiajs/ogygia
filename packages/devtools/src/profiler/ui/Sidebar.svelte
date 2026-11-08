@@ -47,11 +47,11 @@
 				});
 				if (next !== STALE && next !== null) live = next;
 			} catch {
-				/* offline / gone */
+				// ok: offline, or the server is gone; the next poll asks again
 			}
 		};
-		void poll();
-		s.every(() => void poll(), 4000);
+		void poll(); // ok: a poll catches its own failure
+		s.every(() => void poll(), 4000); // ok: a poll catches its own failure
 		return () => s.close();
 	});
 

@@ -101,9 +101,13 @@ function mount_launcher(opts?: { csr_true?: boolean }): void {
 	// recorder loads only then (the key: session.ts SAVED_KEY)
 	try {
 		if (sessionStorage.getItem('ogygia:devtools:session'))
-			void import('./session.ts').then((m) => m.resume_session_if_any());
+			import('./session.ts').then(
+				(m) => m.resume_session_if_any(),
+				// (the recorder's code did not load: the session does not go on, and that is said)
+				(error: unknown) => console.error(new OgygiaError('devtools_dock_load_failed'), error)
+			);
 	} catch {
-		// no storage
+		// ok: no storage: no session to go on with
 	}
 	// A 0×0 fixed host holds the shadow root; the real UI is a fixed, viewport-filling root inside it.
 	// MAX z-index (int32) on the HOST: without one the host stacks at `auto` in the page's root
@@ -196,7 +200,10 @@ function after_load_idle(s: Scope, fn: () => void): void {
 			requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
 			cancelIdleCallback?: (id: number) => void;
 		};
-		if (!host.requestIdleCallback) return void s.timeout(fn, 1000);
+		if (!host.requestIdleCallback) {
+			s.timeout(fn, 1000);
+			return;
+		}
 		// (a scope's idle wait has no deadline: this one gives up waiting after 3 s)
 		const id = host.requestIdleCallback(fn, { timeout: 3000 });
 		s.defer(() => host.cancelIdleCallback?.(id));
@@ -272,7 +279,7 @@ function apply_url_switch(): void {
 		write_switch(want);
 		history.replaceState(history.state, '', without_switch(url).href);
 	} catch {
-		// no URL / history (an embedded frame): the cookie alone
+		// ok: no URL or history (an embedded frame): the cookie alone
 	}
 }
 
@@ -291,7 +298,7 @@ export function devtools_off(): void {
 	try {
 		localStorage.removeItem(LAYOUT_KEY); // (a dock left open must not come back with the switch)
 	} catch {
-		// no storage
+		// ok: no storage: no layout was kept
 	}
 	// the dock goes whatever it is doing: a mounted one is unmounted, a download's answer is dropped
 	if (dock) {

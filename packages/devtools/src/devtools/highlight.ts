@@ -70,7 +70,7 @@ export function highlight(els: Element[], caption = '', scroll = false): void {
 		try {
 			els[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
 		} catch {
-			// detached
+			// ok: a detached element cannot scroll into view
 		}
 	}
 	schedule();

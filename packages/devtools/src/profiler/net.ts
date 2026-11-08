@@ -558,7 +558,7 @@ function wrap_fetch(orig: typeof globalThis.fetch): typeof globalThis.fetch {
 			);
 			if (h.has('cookie') || h.has('authorization')) call.personal = true;
 		} catch {
-			/* exotic headers: unknown */
+			// ok: headers this cannot read: whether the call is personal stays unknown
 		}
 		emit(call);
 		try {
@@ -624,7 +624,7 @@ function wrap_body(res: Response, call: NetCall): void {
 				}
 			});
 		} catch {
-			// frozen response — skip body timing
+			// ok: a frozen response: no body timing
 		}
 	}
 }
@@ -682,7 +682,7 @@ function capture_req_payload(init: RequestInit | undefined, call: NetCall): void
 		}
 		// FormData / Blob / ReadableStream: sizing would consume/serialize it — skip.
 	} catch {
-		/* exotic body — skip */
+		// ok: a body this cannot size is left unsized
 	}
 }
 
@@ -709,7 +709,7 @@ function count_decoded(res: Response, call: NetCall, owner: Scope | undefined): 
 	void (async () => {
 		try {
 			const reader = stream.getReader();
-			owner?.defer(() => void reader.cancel().catch(() => {}));
+			owner?.defer(() => void reader.cancel().catch(() => {})); // ok: the copy is let go; its cancel failing changes nothing
 			let total = 0;
 			let parts: Uint8Array[] | null = keep ? [] : null;
 			// a fingerprint of the body (FNV-1a over its first BODY_HASH_MAX bytes, and its length):
@@ -755,9 +755,9 @@ function count_decoded(res: Response, call: NetCall, owner: Scope | undefined): 
 				}
 			}
 		} catch {
-			/* stream errored mid-read — leave the size to the wrap_body / transfer fallback */
+			// ok: the stream errored mid-read (the caller sees that error); the size is left to the wrap_body / transfer fallback
 		}
-	})();
+	})(); // ok: never rejects, its whole body is caught above
 }
 
 // ---------------------------------------------------------------------------
@@ -787,7 +787,7 @@ async function patch_http(): Promise<void> {
 				};
 			}
 		} catch {
-			// module object not writable on this platform — fetch patch still works
+			// ok: the module object is not writable on this platform; the fetch patch still works
 		}
 	}
 }

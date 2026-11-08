@@ -46,7 +46,7 @@
 			copied = true;
 			owner.timeout(() => (copied = false), 1200);
 		} catch {
-			/* no clipboard (insecure context) — the text is selectable */
+			// ok: no clipboard (insecure context); the text is selectable
 		}
 	}
 	// SOURCE PEEK: the code around the hot lines. The report carries it (`f.src`, captured at report
@@ -65,7 +65,7 @@
 			.then((j) => {
 				if (live && j && Array.isArray(j.lines)) fetched = j;
 			})
-			.catch(() => {});
+			.catch(() => {}); // ok: no source peek; the frame shows its location alone
 		return () => {
 			live = false;
 		};

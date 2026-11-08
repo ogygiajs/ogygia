@@ -41,7 +41,7 @@ export function raw_cookie_values(header: string, name: string): string[] {
 		try {
 			value = decodeURIComponent(value);
 		} catch {
-			/* not percent-encoded as sent — the raw value is the candidate */
+			// ok: not percent-encoded as sent; the raw value is the candidate
 		}
 		out.push(value);
 	}

@@ -94,7 +94,7 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 				JSON.stringify({ open, launch: launchPos, win: winPos, rz: winResizeOff, size: winSize })
 			);
 		} catch {
-			/* private mode / quota — layout just won't persist */
+			// ok: private mode or quota: the layout is not kept
 		}
 	}
 
@@ -255,7 +255,7 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 					if (meta.bytes) window.__ogygia_region_bytes = meta.bytes;
 					tick++;
 				})
-				.catch(() => {});
+				.catch(() => {}); // ok: best effort (dev server only): without names the tabs show hashes
 
 		if (startOpen && !open) set_open(true);
 		else if (open) refresh_on();

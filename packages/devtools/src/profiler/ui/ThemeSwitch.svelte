@@ -17,7 +17,7 @@
 			const saved = localStorage.getItem(KEY) as Mode | null;
 			saved_mode = saved === 'light' || saved === 'dark' ? saved : 'system';
 		} catch {
-			/* private mode */
+			// ok: no storage (private mode); the theme holds for this page
 		}
 		mode = saved_mode;
 		apply(saved_mode);
@@ -31,7 +31,7 @@
 			if (m === 'system') localStorage.removeItem(KEY);
 			else localStorage.setItem(KEY, m);
 		} catch {
-			/* private mode */
+			// ok: no storage (private mode); the theme holds for this page
 		}
 	}
 	function cycle() {

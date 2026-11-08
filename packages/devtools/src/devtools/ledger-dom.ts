@@ -52,7 +52,7 @@ function runtime_parts(src: string): RuntimeParts | null {
 		parts = { src, read: null };
 		void read_parts(src).then((read) => {
 			if (parts?.src === src) parts.read = read;
-		});
+		}); // ok: read_parts never rejects (a file the network failed reads as empty)
 	}
 	return parts.read;
 }

@@ -114,7 +114,7 @@ export function span<T>(
 			try {
 				extra = attrs(result as Awaited<T>);
 			} catch {
-				/* an attrs function must never fail the span */
+				// ok: an attrs function never fails the span; the span is kept without its extra attributes
 			}
 		}
 		r.end(s, extra, error);
@@ -258,7 +258,7 @@ function wrap_call(
 		Object.defineProperty(wrapped, 'name', { value: fn.name || name });
 		Object.defineProperty(wrapped, 'length', { value: fn.length });
 	} catch {
-		/* frozen — the wrapper still works */
+		// ok: frozen; the wrapper still works, under its own name
 	}
 	return wrapped;
 }

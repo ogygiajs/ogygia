@@ -14,7 +14,7 @@
 	const on_server = $derived(new Set(server_ids));
 	void list_reports()
 		.then((r) => (rows = r))
-		.finally(() => (loaded = true));
+		.finally(() => (loaded = true)); // ok: the browser store never rejects (a store it cannot open reads as nothing)
 	const when = (ms: number) => new Date(ms).toLocaleString();
 	/** the previous kept report of the same page, for a compare link */
 	const prev_of = (r: Omit<StoredDump, 'dump'>) =>

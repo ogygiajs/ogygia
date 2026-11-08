@@ -64,7 +64,7 @@
 			(here) => here === true,
 			() => (profiler_here = false)
 		);
-	onMount(() => void probe_profiler());
+	onMount(() => void probe_profiler()); // ok: never rejects (a failed probe reads as no profiler)
 	let window_on = false;
 	/** the window's start in flight (a stop pressed before it answered waits, then stops it) */
 	let window_starting = /** @type {Promise<void> | null} */ (null);

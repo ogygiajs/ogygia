@@ -53,7 +53,7 @@
 				(e) =>
 					(load_error = `Could not read ${from}: ${e instanceof Error ? e.message : e}. The URL must be readable by this browser (CORS).`)
 			)
-			.finally(() => (loading = false));
+			.finally(() => (loading = false)); // ok: the .catch above shows a failed read
 	}
 	const points = $derived(cloud_points(rows));
 	const cake = $derived(layer_cake(rows));

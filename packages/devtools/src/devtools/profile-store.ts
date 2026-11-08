@@ -124,7 +124,7 @@ export async function run_profile(
 				said =
 					typeof j.error === 'string' ? j.error : typeof j.message === 'string' ? j.message : text;
 			} catch {
-				// not JSON: the text itself
+				// ok: not JSON: the text itself is said
 			}
 			throw new Error(
 				r.status === 503
@@ -407,7 +407,7 @@ function load(): void {
 		const list = raw ? (JSON.parse(raw) as SlimProfile[]) : [];
 		for (const p of list) if (p && p.page) by_page.set(p.page, p);
 	} catch {
-		// private mode / quota: memory only
+		// ok: private mode or quota: memory only
 	}
 }
 
@@ -420,7 +420,7 @@ export function set_profile(p: SlimProfile): void {
 		const list = [...by_page.values()].sort((a, b) => b.at - a.at).slice(0, 8);
 		sessionStorage.setItem(KEY, JSON.stringify(list));
 	} catch {
-		// memory only
+		// ok: no storage: memory only
 	}
 }
 
