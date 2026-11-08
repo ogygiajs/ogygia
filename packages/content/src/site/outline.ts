@@ -21,6 +21,7 @@ import { title_case } from '../convention.ts';
 import type { GroupMeta } from '../index.ts';
 import { catalog_version } from '../collection-base.ts';
 import { OgygiaError } from '../messages/runtime.ts';
+import { flights, STALE } from '@ogygia/machine';
 
 /**
  * The materialization an outline answers from for a context (an opaque token: a new one each time
@@ -384,7 +385,11 @@ async function materialize(
 	const slug_of = new Map<number, Map<string, string>>();
 	const placed = new Map<Collection, Set<string>>();
 	const entries_cache = new Map<Collection, Ent[]>();
-	const groups_cache = new Map<Collection, Promise<Map<string, GroupMeta>>>();
+	// each collection's groups once for this weave; a failed read is not kept (the next ask reads again)
+	const groups_cache = flights({
+		name: 'content outline groups',
+		run: async (c: Collection): Promise<Map<string, GroupMeta>> => (await c.groups?.()) ?? new Map()
+	});
 	const read = new Map<Collection, number | null>();
 	const by_slug = new Map<string, LeafRecord>();
 	const order: string[] = [];
@@ -434,14 +439,9 @@ async function materialize(
 		return e;
 	};
 	/** The source's own group decoration (clean dir path → label), memoized. `folder()` / a CMS fills it. */
-	const groups_of = (c: Collection): Promise<Map<string, GroupMeta>> => {
-		let m = groups_cache.get(c);
-		if (!m) {
-			m = c.groups?.() ?? Promise.resolve(new Map());
-			groups_cache.set(c, m);
-		}
-		return m;
-	};
+	const groups_of = (c: Collection): Promise<Map<string, GroupMeta>> =>
+		// (nothing drops a weave's groups, so this is never STALE)
+		groups_cache.get(c).then((m) => (m === STALE ? new Map<string, GroupMeta>() : m));
 
 	const register_leaf = (
 		entry: Ent,
