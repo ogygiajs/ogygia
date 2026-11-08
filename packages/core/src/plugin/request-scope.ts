@@ -75,12 +75,18 @@ export function request_local<T extends Disposable>(
 	};
 }
 
+/** Says that a cleanup of a request's work failed (`request_cleanup_failed`, the error after it):
+ *  for an ending nobody waits on, such as a stream source ended as the visitor leaves. */
+export function cleanup_failed(error: unknown): void {
+	warn('request_cleanup_failed', error);
+}
+
 /** Ends a request's owner. A cleanup that throws is said, never thrown: the response is not its. */
 export function end_request_scope(owner: Scope): void {
 	try {
 		owner.close();
 	} catch (error) {
-		warn('request_cleanup_failed', error);
+		cleanup_failed(error);
 	}
 }
 
