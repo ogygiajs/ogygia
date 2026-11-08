@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { STALE } from '@ogygia/machine';
 import * as frames from '../src/runtime/frame-store.ts';
 
 afterEach(() => frames._reset());
@@ -65,68 +66,88 @@ describe('frame-store: staleness', () => {
 	});
 
 	it('a slow response that started earlier cannot overwrite a newer one', async () => {
-		// Two forced fetches race; the SECOND to start gets the higher ticket. The FIRST resolves last
-		// but must not clobber, because its ticket is lower.
+		// Two forced fetches race; the SECOND to start gets the higher ticket and takes the place of
+		// the first: the first is aborted, its caller joins the second, and a late answer of the first
+		// (a fetcher that ignores its signal) is never written.
 		const slow = deferred('SLOW-old');
 		const fast = deferred('FAST-new');
 		const pSlow = frames.ensure('/r?sig=1', slow.fetcher, { force: true }); // ticket 1
 		const pFast = frames.ensure('/r?sig=1', fast.fetcher, { force: true }); // ticket 2
+		expect(slow.aborted).toBe(true);
 		fast.resolve('FAST-new'); // ticket 2 applies
 		await pFast;
 		expect(frames.peek('/r?sig=1')?.html).toBe('FAST-new');
 		slow.resolve('SLOW-old'); // ticket 1 arrives late — dropped
-		await pSlow;
+		expect(await pSlow).toBe('FAST-new');
 		expect(frames.peek('/r?sig=1')?.html).toBe('FAST-new');
 	});
 });
 
 describe('frame-store: lifecycle', () => {
-	it('abandon aborts the fetch only when the LAST stake leaves', () => {
+	it('the fetch is aborted only when the LAST caller leaves', () => {
 		const d = deferred();
-		const a = frames.ensure('/r?sig=1', d.fetcher);
-		const b = frames.ensure('/r?sig=1', d.fetcher); // (deduped: a second stake in the same fetch)
-		a.catch(() => {});
-		b.catch(() => {});
-		frames.abandon(a);
-		expect(d.aborted).toBe(false); // one stake still there
-		frames.abandon(a); // (the same stake twice counts once)
-		expect(d.aborted).toBe(false);
-		frames.abandon(b);
+		const a = new AbortController();
+		const b = new AbortController();
+		void frames.ensure('/r?sig=1', d.fetcher, { signal: a.signal });
+		void frames.ensure('/r?sig=1', d.fetcher, { signal: b.signal }); // (deduped: one fetch)
+		a.abort();
+		expect(d.aborted).toBe(false); // one caller still there
+		b.abort();
 		expect(d.aborted).toBe(true); // last one out
 	});
 
-	it('an abandoned stake lets its caller go at once; the others still get the answer', async () => {
+	it('a caller that leaves gets STALE at once; the others still get the answer', async () => {
 		const d = deferred('X');
-		const leaving = frames.ensure('/r?sig=1', d.fetcher);
-		const staying = frames.ensure('/r?sig=1', d.fetcher);
-		frames.abandon(leaving);
-		await expect(leaving).rejects.toMatchObject({ name: 'AbortError' });
+		const leave = new AbortController();
+		const leaving = frames.ensure('/r?sig=1', d.fetcher, { signal: leave.signal });
+		const staying = frames.ensure('/r?sig=1', d.fetcher, { signal: new AbortController().signal });
+		leave.abort();
+		expect(await leaving).toBe(STALE);
 		d.resolve('X');
 		expect(await staying).toBe('X');
 	});
 
-	it('a stake in a fetch that ended touches nothing newer at its address', async () => {
+	it('a caller of a fetch that ended touches nothing newer at its address when it leaves', async () => {
 		const first = deferred('ONE');
-		const old = frames.ensure('/r?sig=1', first.fetcher);
+		const old = new AbortController();
+		const failed = frames.ensure('/r?sig=1', first.fetcher, { signal: old.signal });
 		first.reject(new Error('net'));
-		await expect(old).rejects.toThrow('net');
+		await expect(failed).rejects.toThrow('net');
 		const retry = deferred('TWO');
-		const fresh = frames.ensure('/r?sig=1', retry.fetcher);
-		frames.abandon(old); // (the copy that fetched first leaves)
+		const fresh = frames.ensure('/r?sig=1', retry.fetcher, {
+			signal: new AbortController().signal
+		});
+		old.abort(); // (the copy that fetched first leaves)
 		expect(retry.aborted).toBe(false);
 		retry.resolve('TWO');
 		expect(await fresh).toBe('TWO');
 	});
 
-	it('a joiner of a fetch a forced fetch replaced leaves only the fetch it joined', () => {
+	it('a forced fetch takes the place of the one out: its callers join the forced one', async () => {
+		const older = deferred('OLD');
+		const joined = frames.ensure('/r?sig=1', older.fetcher, {
+			signal: new AbortController().signal
+		});
+		const forced = deferred('NEW');
+		const refresh = frames.ensure('/r?sig=1', forced.fetcher, { force: true });
+		expect(older.aborted).toBe(true); // (nobody waits on it any more)
+		forced.resolve();
+		expect(await refresh).toBe('NEW');
+		expect(await joined).toBe('NEW');
+	});
+
+	it('a joiner of the forced fetch that leaves does not end it for its caller', async () => {
 		const older = deferred();
-		const joined = frames.ensure('/r?sig=1', older.fetcher);
-		joined.catch(() => {});
-		const forced = deferred();
-		frames.ensure('/r?sig=1', forced.fetcher, { force: true }).catch(() => {});
-		frames.abandon(joined);
+		const leave = new AbortController();
+		const joined = frames.ensure('/r?sig=1', older.fetcher, { signal: leave.signal });
+		const forced = deferred('NEW');
+		const refresh = frames.ensure('/r?sig=1', forced.fetcher, { force: true });
+		await Promise.resolve(); // (the joiner of the older fetch moves onto the forced one)
+		leave.abort();
+		expect(await joined).toBe(STALE);
 		expect(forced.aborted).toBe(false);
-		expect(older.aborted).toBe(true); // (its last stake left)
+		forced.resolve();
+		expect(await refresh).toBe('NEW');
 	});
 
 	it('a rejected fetch propagates to every joined caller and clears in-flight', async () => {
@@ -221,9 +242,10 @@ describe('frame-store: reservation (single-flight navigation)', () => {
 
 	it('the last joiner leaving a reservation lets it go, and a later binder still joins the batch', async () => {
 		frames.reserve('/r?sig=1');
-		const leaving = frames.ensure('/r?sig=1', vi.fn());
-		frames.abandon(leaving);
-		await expect(leaving).rejects.toMatchObject({ name: 'AbortError' });
+		const leave = new AbortController();
+		const leaving = frames.ensure('/r?sig=1', vi.fn(), { signal: leave.signal });
+		leave.abort();
+		expect(await leaving).toBe(STALE);
 		const spy = vi.fn(deferred().fetcher);
 		const later = frames.ensure('/r?sig=1', spy);
 		expect(spy).not.toHaveBeenCalled(); // the batch is still coming
@@ -231,34 +253,29 @@ describe('frame-store: reservation (single-flight navigation)', () => {
 		expect(await later).toBe('FROM-BATCH');
 	});
 
-	it('a forced fetch at a reserved address leaves the reservation to its batch: its frame settles every joiner', async () => {
+	it('a forced fetch at a reserved address takes its place: the joiners wait on it, and the batch frame is what they get', async () => {
 		frames.reserve('a');
 		const joined = frames.ensure('a', deferred().fetcher);
 		const forced = deferred('<p>refresh</p>');
 		const refresh = frames.ensure('a', forced.fetcher, { force: true }); // a lake revalidates
 		frames.write({ a: 'a', v: frames.ticket('a'), html: '<p>batch</p>' }); // the batch's part lands
-		const settled = await Promise.race([
-			joined,
-			new Promise((r) => setTimeout(() => r('still waiting'), 50))
-		]);
-		expect(settled).toBe('<p>batch</p>');
-		forced.resolve();
-		await refresh;
+		forced.resolve(); // (its ticket is older than the batch's part: not written)
+		expect(await refresh).toBe('<p>batch</p>');
+		expect(await joined).toBe('<p>batch</p>');
 	});
 
-	it('a forced fetch at a reserved address: a batch that ends without the frame still lets its joiners go', async () => {
+	it('a forced fetch at a reserved address that fails fails the joiners it took on, and the batch end touches nothing', async () => {
 		frames.reserve('a');
 		const joined = frames.ensure('a', deferred().fetcher);
 		const forced = deferred();
 		const refresh = frames.ensure('a', forced.fetcher, { force: true });
 		forced.reject(new Error('the refresh failed'));
 		await expect(refresh).rejects.toThrow('the refresh failed');
+		await expect(joined).rejects.toThrow('the refresh failed');
 		frames.release('a'); // the batch ended without it
-		const err = await Promise.race([
-			joined.catch((e: { name?: string }) => e.name),
-			new Promise((r) => setTimeout(() => r('still waiting'), 50))
-		]);
-		expect(err).toBe(frames.BATCH_MISS);
+		const spy = vi.fn(deferred('OWN').fetcher);
+		void frames.ensure('a', spy);
+		expect(spy).toHaveBeenCalledTimes(1); // a binder now fetches on its own
 	});
 
 	it('a forced fetch that lands first settles the joiners of the reservation with its frame', async () => {

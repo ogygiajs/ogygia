@@ -29,6 +29,7 @@ import {
 	create_wake
 } from '../src/runtime/region-machines.ts';
 import * as frames from '../src/runtime/frame-store.ts';
+import { STALE } from '@ogygia/machine';
 import type { IslandHandle } from '../src/runtime/hydrate-core.ts';
 import { block, header } from './fixtures.ts';
 
@@ -281,24 +282,22 @@ bench(
 );
 
 bench(
-	'frame store: twin holes share one fetch per address, copies leave with their own stakes, a renewal is the address’s',
+	'frame store: twin holes share one fetch per address, copies leave with their own signals, a renewal is the address’s',
 	async ({ n }) => {
 		frames._reset();
-		const settled: Promise<string>[] = [];
+		const settled: Promise<string | typeof STALE>[] = [];
 		for (let i = 0; i < n; i++) {
 			const a = `h${i}|p`;
 			const fetcher = () => Promise.resolve(`<p>${i}</p>`);
 			if (i % 4 === 0) {
 				// a batch reserved it: both copies join; one leaves; the batch delivers
 				frames.reserve(a);
-				const leaving = frames.ensure(a, fetcher);
+				const leave = new AbortController();
+				const leaving = frames.ensure(a, fetcher, { signal: leave.signal });
 				const twin = frames.ensure(a, fetcher);
-				frames.abandon(leaving);
+				leave.abort();
 				frames.write({ a, v: frames.ticket(a), html: `<p>batch ${i}</p>` });
-				settled.push(
-					leaving.catch(() => ''),
-					twin
-				);
+				settled.push(leaving, twin);
 				continue;
 			}
 			if (i % 4 === 2) {
@@ -315,19 +314,17 @@ bench(
 				continue;
 			}
 			const first = frames.ensure(a, fetcher);
-			const twin = frames.ensure(a, fetcher);
-			if (i % 3 === 0) frames.abandon(twin);
+			const leave = new AbortController();
+			const twin = frames.ensure(a, fetcher, { signal: leave.signal });
+			if (i % 3 === 0) leave.abort();
 			if (i % 5 === 0) frames.renew(a, `/__ogygia__?id=h${i}&props=p&exp=2&sig=new`);
-			settled.push(
-				first,
-				twin.catch(() => '')
-			);
+			settled.push(first, twin);
 		}
 		const out = await Promise.all(settled);
 		let renewed = 0;
 		for (let i = 0; i < n; i++) if (frames.renewal(`h${i}|p`) !== null) renewed++;
 		frames._reset();
-		return out.filter((html) => html !== '').length * 1000 + renewed;
+		return out.filter((html) => html !== STALE).length * 1000 + renewed;
 	},
 	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
 );

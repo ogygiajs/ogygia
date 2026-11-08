@@ -9,6 +9,7 @@
  *
  * This is the single wiring mechanism — there is no service locator and no per-feature setter.
  */
+import type { Stale } from '@ogygia/machine';
 import type { Frame } from '../frame.ts';
 import { is_frozen } from './region-attrs.ts';
 
@@ -109,13 +110,12 @@ export type PageOps = {
  */
 export type FrameOps = {
 	subscribe(a: string, cb: (f: Frame) => void): () => void;
+	/** `STALE` when its `signal` aborted: only that caller leaves the fetch. */
 	ensure(
 		a: string,
 		fetcher: (signal: AbortSignal) => Promise<string>,
-		opts?: { force?: boolean }
-	): Promise<string>;
-	/** Give back the stake an `ensure` returned: only that caller leaves the fetch. */
-	abandon(stake: Promise<string>): void;
+		opts?: { force?: boolean; signal?: AbortSignal }
+	): Promise<string | Stale>;
 	/** A renewal answered a fresh capability for this address; and the one it answered, if any. */
 	renew(a: string, fresh: string): void;
 	renewal(a: string): string | null;
