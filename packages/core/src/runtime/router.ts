@@ -306,12 +306,18 @@ export class SpaRouter {
 		return loaded_nav?.page_cache_size() ?? 0;
 	}
 
+	/** The page at `href`, or `null` when there is none to have: the fetch failed (./router-nav.ts
+	 *  `fetch_page`), or the navigation code itself did not load. The prefetches (a hover, a
+	 *  viewport link, `preloadData`) start it and never wait on it: a rejection here was uncaught. */
 	fetch_page(
 		href: string,
 		signal?: AbortSignal,
 		purpose?: 'nav' | 'prefetch' | 'history'
 	): Promise<import('./page-cache.ts').FetchedPage | null> {
-		return nav().then((n) => n.fetch_page(href, signal, purpose));
+		return nav().then(
+			(n) => n.fetch_page(href, signal, purpose),
+			() => null
+		);
 	}
 
 	async navigate(
