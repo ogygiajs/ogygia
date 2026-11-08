@@ -9,7 +9,8 @@
 	 * skipped under prefers-reduced-motion). Headings are read from the rendered page's DOM (the
 	 * shell has no access to the current doc's `meta.headings`, but the DOM does).
 	 */
-	import { tick } from 'svelte';
+	import { onDestroy, tick } from 'svelte';
+	import { scope, type Scope } from '@ogygia/machine';
 	import { fade } from 'svelte/transition';
 	import BottomBar from './BottomBar.svelte';
 	import Sheet from './Sheet.svelte';
@@ -41,6 +42,11 @@
 	let open = $state(false);
 	let view = $state<'nav' | 'search'>('nav');
 	let swap_el = $state<HTMLElement | undefined>();
+	/** The bar's own work in the page (a view switch's frames and glide): let go when it unmounts. */
+	const owner = scope();
+	onDestroy(() => owner.close());
+	/** The view switch gliding now, if one is. */
+	let glide: Scope | null = null;
 
 	const reduced = () =>
 		typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -60,17 +66,34 @@
 		await tick();
 		const target = el.lastElementChild as HTMLElement | null;
 		const h1 = target?.offsetHeight ?? h0;
+		// one glide at a time: a new switch ends the last one's, and so does the unmount
+		glide?.close();
+		const g = (glide = owner.child());
 		el.style.height = `${h0}px`;
+		// (however the glide ends: back to auto)
+		g.defer(() => (el.style.height = ''));
 		// Two frames: the first commits the pinned height, the second starts the glide.
-		requestAnimationFrame(() =>
-			requestAnimationFrame(() => {
-				el.style.height = `${h1}px`;
-				const done = () => {
-					el.style.height = '';
-					el.removeEventListener('transitionend', done);
-				};
-				el.addEventListener('transitionend', done);
-			})
+		g.timeout(
+			() =>
+				g.timeout(() => {
+					el.style.height = `${h1}px`;
+					// the glide the new height started, if one did: none when the heights match or the
+					// skin has no height transition, and then there is nothing to wait for
+					const glided = el
+						.getAnimations?.()
+						.find(
+							(a) =>
+								typeof CSSTransition !== 'undefined' &&
+								a instanceof CSSTransition &&
+								a.transitionProperty === 'height'
+						);
+					if (!glided) return g.close();
+					glided.finished.then(
+						() => g.close(),
+						() => g.close()
+					);
+				}, 'frame'),
+			'frame'
 		);
 	}
 

@@ -49,4 +49,37 @@ describe('the mobile bar switches its sheet between views', () => {
 		expect(swap.style.height).toBe('');
 		await unmount(app);
 	});
+
+	it('holds the height through a glide, then lets go when it ends', async () => {
+		const style = document.createElement('style');
+		style.textContent = '.og-sheet-swap { overflow: hidden; transition: height 200ms linear; }';
+		document.head.append(style);
+		try {
+			const target = document.createElement('div');
+			document.body.append(target);
+			const app = mount(ShellBar, { target, props: { nav } });
+			flushSync();
+			const menu = await until(() => target.querySelector<HTMLButtonElement>('.og-cbar-menu'));
+			menu.click();
+			const swap = await until(() => document.querySelector<HTMLElement>('.og-sheet-swap'));
+			// (the nav view is taller than the search one)
+			const view = await until(() => swap.querySelector<HTMLElement>('.og-sheet-view'));
+			view.style.minHeight = '300px';
+			const search = await until(() =>
+				target.querySelector<HTMLButtonElement>('[data-ph-sheet-toggle]:not(.og-cbar-menu)')
+			);
+			search.click();
+			await frame();
+			await frame();
+			await frame();
+
+			// mid-glide: the height is held
+			expect(swap.style.height).toMatch(/px$/);
+			await sleep(400);
+			expect(swap.style.height).toBe('');
+			await unmount(app);
+		} finally {
+			style.remove();
+		}
+	});
 });
