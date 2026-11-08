@@ -869,10 +869,6 @@
 			"reason": "the request's page-facts look-up (event.fetch of the page, a RequestEvent nothing can clone), once per request; run by packages/core/test/render-page.test.ts"
 		},
 		{
-			"id": "packages/core/src/server/stream-regions.ts > batch_stream > defer:0~0f99c8",
-			"reason": "the batch is cancelled when its request ends: a cancel when its owner ends, constant work; the cancel itself is proven in packages/core/test/batch-stream-cancel.test.ts"
-		},
-		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #record_page > finally:0~9b8aec",
 			"reason": "closes the store write bound's scope, constant work"
 		},
@@ -1131,6 +1127,38 @@
 		{
 			"id": "packages/postrender/src/registry.ts > store_put > guarded:2~0652df",
 			"reason": "one store write through the store adapter (not cloneable), constant work; proven in packages/postrender/test/store-failed.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > personal_response_unmarked > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > personal_response_unmarked > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_ERRORS > devtools_profiler_mount_failed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_ERRORS > devtools_profiler_mount_failed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/runtime/interaction.ts > on_warm_event > catch:0~a1b2d0",
+			"reason": "browser only: a constant no-op for a replay warm that failed (the press loads it again and says it)"
+		},
+		{
+			"id": "packages/devtools/src/devtools/ui.ts > mount_launcher > then:1~33ec2e",
+			"reason": "browser only: one coded error when the session recorder's chunk fails to load, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > stand_down > catch:0~a1b2d0",
+			"reason": "browser only, inlined into the page: a constant no-op for a sampler stop that rejects as the beacon ends"
+		},
+		{
+			"id": "packages/devtools/src/profiler/storage/sqlite.ts > load_driver",
+			"reason": "a require of a driver module (a module object, not cloneable), constant work; proven in packages/devtools/test/profiler-sqlite-open.test.ts"
 		}
 	]
 }
