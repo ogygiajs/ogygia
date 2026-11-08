@@ -14,6 +14,7 @@
  */
 import { createInterface } from 'node:readline';
 import { createRequire } from 'node:module';
+import { flights, STALE } from '@ogygia/machine';
 import { gzipSync } from 'node:zlib';
 import { readdirSync, readFileSync, type Dirent } from 'node:fs';
 import path from 'node:path';
@@ -47,16 +48,20 @@ interface ProfilerReading {
 		| undefined;
 }
 let profiler_reading: ProfilerReading | null | undefined;
-export async function load_profiler_reading(): Promise<ProfilerReading | null> {
-	if (profiler_reading !== undefined) return profiler_reading;
-	try {
+/** The reading's load, kept once it lands; a failed one (the plugin not installed yet) is not kept,
+ *  so the next call loads it, with no restart of this long-lived server (#295). */
+const reading_load = flights({
+	name: 'profiler report reading',
+	run: async () => {
 		const from_app = createRequire(path.join(process.cwd(), 'package.json'));
 		const url = pathToFileURL(from_app.resolve('@ogygia/devtools/report')).href;
-		profiler_reading = (await import(url)) as ProfilerReading;
-	} catch {
-		profiler_reading = null;
+		return (profiler_reading = (await import(url)) as ProfilerReading);
 	}
-	return profiler_reading;
+});
+export async function load_profiler_reading(): Promise<ProfilerReading | null> {
+	// (nothing drops it, so it is never STALE)
+	const got = await reading_load.get().catch(() => null);
+	return got === STALE ? null : got;
 }
 
 // ── regexes
