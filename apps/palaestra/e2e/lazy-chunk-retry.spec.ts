@@ -340,6 +340,17 @@ async function island_file(page: Page, path: string, wake: string): Promise<stri
 	return src.slice(src.lastIndexOf('/'));
 }
 
+/** Every request for a `.js` file the page makes: its file name and its retry mark. */
+function js_requests(page: Page): string[] {
+	const out: string[] = [];
+	page.on('request', (r) => {
+		const u = new URL(r.url());
+		if (u.pathname.endsWith('.js'))
+			out.push(u.pathname.slice(u.pathname.lastIndexOf('/') + 1) + u.search);
+	});
+	return out;
+}
+
 // AN ISLAND'S OWN FILE (#261): the lazy runtime chunks above are asked for again under a fresh URL,
 // and an island's own entry file must be too. It went through a plain import(): one dropped
 // download, and the island never woke for the rest of the tab (the browser keeps the failed URL).
@@ -368,5 +379,62 @@ test.describe('an island’s own file that fails once is loaded again (#261)', (
 			logged.join('\n')
 		);
 		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
+	});
+});
+
+// A FAILED DEPENDENCY (#262). When a static import of a lazy chunk fails, the browser's error names
+// the chunk, not the dependency, and the dependency stays failed in the module map: the chunk under
+// a fresh URL fails again the same way, however often it is asked for (the runtime asked `og-retry=1`,
+// `2`, … on every later wake, each failing). After one retry that fails although the chunk itself
+// came, asking again cannot help: the runtime says once that the page needs a reload, and asks no more.
+// And a failed file in the RUNTIME's own static graph (it never runs, so no island wakes) is said too.
+test.describe('a lazy chunk whose dependency fails says a reload is needed (#262)', () => {
+	test('Svelte’s shared chunk dropped: one retry each, then one reload message, nothing more asked', async ({
+		page
+	}) => {
+		const thrown = errors(page);
+		const logged: string[] = [];
+		page.on('console', (m) => m.type() === 'error' && logged.push(m.text()));
+		const asked = js_requests(page);
+		const seen = await drop(page, 'svelte', 1);
+		await page.goto('/lazy-retry');
+		await expect.poll(() => logged.some((t) => t.includes('island_load_failed'))).toBe(true);
+		const retried_at_first_wake = asked.filter((r) => r.includes('og-retry=')).length;
+		// later wakes, in the same tab: the far island, then a click on the interaction island
+		await page.locator('[data-dated-counter="far"]').scrollIntoViewIfNeeded();
+		await page.waitForTimeout(1000);
+		await page.locator('[data-i-btn]').click();
+		await page.waitForTimeout(1000);
+		const retries = asked.filter((r) => r.includes('og-retry='));
+		check('Svelte’s chunk was dropped', seen.dropped === 1, JSON.stringify(seen));
+		check('the first wake retried its chunks once', retried_at_first_wake > 0, retries.join(', '));
+		check(
+			'never a second retry of a chunk (og-retry=2)',
+			!retries.some((r) => r.includes('og-retry=2')),
+			retries.join(', ')
+		);
+		check(
+			'each chunk asked for again once at most',
+			new Set(retries.map((r) => r.split('?')[0])).size === retries.length,
+			retries.join(', ')
+		);
+		const reload = logged.filter((t) => t.includes('chunk_reload_needed'));
+		check('one message says the page needs a reload', reload.length === 1, logged.join('\n'));
+		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
+	});
+
+	test('a file of the runtime’s own static graph dropped: the page says so', async ({ page }) => {
+		const logged: string[] = [];
+		page.on('console', (m) => m.type() === 'error' && logged.push(m.text()));
+		const html = await (await page.request.get('/lazy-retry')).text();
+		const dep = /<link rel="modulepreload" href="([^"]+)" data-ogygia-runtime-dep>/.exec(html)?.[1];
+		check('the runtime has a static dependency to drop', !!dep, html.slice(0, 300));
+		const seen = await drop(page, { file: dep!.slice(dep!.lastIndexOf('/')) }, 1);
+		await page.goto('/lazy-retry');
+		await expect
+			.poll(() => logged.some((t) => t.includes('runtime_load_failed')), { timeout: 5000 })
+			.toBe(true);
+		check('the dependency was dropped', seen.dropped === 1, JSON.stringify(seen));
+		check('no island woke', (await page.locator('ogygia-region[data-hydrated]').count()) === 0);
 	});
 });
