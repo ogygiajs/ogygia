@@ -86,6 +86,8 @@ type DtWindow = typeof window & {
 	__ogygia_testing: {
 		hydration(): Promise<{ islands: { reason: string; status: string }[] }>;
 		settled(quiet?: number, timeout?: number): Promise<boolean>;
+		record_start(): Promise<boolean>;
+		record_stop(): Promise<{ counts: { errors: number } } | null>;
 	};
 };
 
@@ -216,6 +218,44 @@ test.describe('devtools (dev server, OGYGIA_DEVTOOLS=1): events, panel tabs, pag
 		check('the next call loaded the engine and answered', second === 'ok: true', second);
 		check('the engine was asked for again', dropped >= 2, `${dropped} request(s)`);
 		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
+	});
+
+	test('a recording stopped a second time leaves the recording after it alone (#240)', async ({
+		page
+	}) => {
+		await page.goto('/dt-session', { waitUntil: 'load' });
+		await page.evaluate(() => {
+			(window as { __console_error?: unknown }).__console_error = console.error;
+		});
+		await page.click('[data-og-panel-toggle]');
+		await page.click('[data-og-tab="record"]');
+		// the Record tab starts recording A, and holds it
+		await page.click('[data-og-session-start]');
+		// the testing API stops A and starts B, while the tab still holds A
+		const started = await page.evaluate(async () => {
+			const t = (window as DtWindow).__ogygia_testing;
+			await t.record_stop();
+			return t.record_start();
+		});
+		check('B started', started === true);
+		// the tab's Stop: A, stopped a second time
+		await page.click('[data-og-session-stop]');
+		await page.locator('[data-og-session] .bar button:not([disabled])').waitFor();
+		const b = await page.evaluate(async () => {
+			console.error('planted: logged during B');
+			const report = await (window as DtWindow).__ogygia_testing.record_stop();
+			return report ? { errors: report.counts.errors } : null;
+		});
+		check('B is still recording: the testing API stops it', b !== null, JSON.stringify(b));
+		check(
+			"B's console patch is still on: it counted the error",
+			(b?.errors ?? 0) >= 1,
+			JSON.stringify(b)
+		);
+		const restored = await page.evaluate(
+			() => console.error === (window as { __console_error?: unknown }).__console_error
+		);
+		check("B's stop puts the page's console.error back", restored);
 	});
 
 	test('schema, server realm, panel tabs, event-driven wake/replay, identity spine, nav, trace, timeline', async ({
