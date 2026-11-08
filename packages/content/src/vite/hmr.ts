@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import MagicString from 'magic-string';
 import type { ModuleNode, Plugin, ViteDevServer } from 'vite';
+import { parse_module } from '@ogygia/core/internal/compiler-browser';
 
 const BACKSLASH = /\\/g;
 const REMOTE_FILE = /\.remote\.(ts|js|mts|mjs)$/;
@@ -73,9 +74,12 @@ function* nodes(node: unknown): Generator<Node> {
  */
 export function mark_content_calls(
 	code: string,
-	id: string,
-	program: unknown
+	id: string
 ): { code: string; map: ReturnType<MagicString['generateMap']> } | null {
+	// (core's one parser seam: the oxc parser, TypeScript and byte offsets as written; a module that
+	// does not parse, mid-edit, is left alone)
+	const { program, ok } = parse_module(code, id);
+	if (!ok) return null;
 	const named = new Set<string>();
 	const namespaces = new Set<string>();
 	for (const node of nodes(program)) {
@@ -127,7 +131,7 @@ export function content_runs(): Plugin {
 		apply: 'serve',
 		transform(code, id, options) {
 			if (!options?.ssr || !code.includes(CONTENT_MODULE)) return null;
-			return mark_content_calls(code, id, this.parse(code));
+			return mark_content_calls(code, id);
 		}
 	};
 }

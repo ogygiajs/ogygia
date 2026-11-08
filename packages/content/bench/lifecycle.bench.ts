@@ -6,7 +6,6 @@ import { bench } from '@bench/heisenbench/bench';
 import * as v from 'valibot';
 // (the site layer reaches the package's own Svelte components, written for experimental.async:
 // Heisenbench compiles them with the package's svelte.config.js)
-import { parseAst } from 'vite';
 import { content, folder, json, type Source, type SourceEntry } from '../src/index.ts';
 import { mark_content_calls } from '../src/vite/hmr.ts';
 import { site } from '../src/site/site.ts';
@@ -302,16 +301,10 @@ function collections_module(k: number): string {
 
 bench(
 	'content: the dev plugin marks the content() calls of a module with n collections',
-	({ code, program }) => mark_content_calls(code, '/app/src/lib/collections.server.ts', program),
+	({ code }) => mark_content_calls(code, '/app/src/lib/collections.server.ts'),
 	{
-		setup: () => {
-			const code = collections_module(4);
-			return { code, program: parseAst(code) };
-		},
-		scale: (_ctx, k) => {
-			const code = collections_module(4 * k);
-			return { code, program: parseAst(code) };
-		}
+		setup: () => ({ code: collections_module(4) }),
+		scale: (_ctx, k) => ({ code: collections_module(4 * k) })
 	}
 );
 

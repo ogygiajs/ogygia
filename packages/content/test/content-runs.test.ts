@@ -1,11 +1,9 @@
 // The content dev plugin's mark (#247): in a server module, each content() call imported from
 // @ogygia/content goes through the module run's wrapper, asked for once at the top of the module.
 import { describe, expect, it } from 'vitest';
-import { parseAst } from 'vite';
 import { mark_content_calls } from '../src/vite/hmr.ts';
 
-const mark = (code: string) =>
-	mark_content_calls(code, '/app/src/lib/docs.server.ts', parseAst(code));
+const mark = (code: string) => mark_content_calls(code, '/app/src/lib/docs.server.ts');
 
 describe('mark_content_calls', () => {
 	it('marks a named, a renamed and a namespace content() call, and asks for the run once', () => {
@@ -31,6 +29,17 @@ describe('mark_content_calls', () => {
 		expect(out.code).toContain('loader: folder({})');
 		expect(out.code).toContain('loader: c.folder({})');
 		expect(out.map.mappings).not.toBe('');
+	});
+
+	it('marks a module still in TypeScript the same, at the same offsets', () => {
+		const out = mark(
+			`import { content } from '@ogygia/content';\nexport const a: unknown = content<{ x: 1 }>({ loader: {} as never });`
+		)!;
+		expect(out.code).toContain('a: unknown = __og_content_run(content)<{ x: 1 }>({');
+	});
+
+	it('leaves a module alone that does not parse (mid-edit)', () => {
+		expect(mark(`import { content } from '@ogygia/content';\ncontent({`)).toBeNull();
 	});
 
 	it('leaves a module alone that calls no content() from @ogygia/content', () => {
