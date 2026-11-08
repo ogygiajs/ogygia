@@ -13,6 +13,12 @@ export function store_key(pathname: string): string {
 	return pathname;
 }
 
+/** Whether `key` is in the subtree of a normalized prefix: the prefix itself or a page under it
+ *  (`/fr/fr` holds `/fr/fr` and `/fr/fr/x`, never `/fr/fright`). */
+export function in_subtree(key: string, normalized: string): boolean {
+	return key === normalized || key.startsWith(subtree_prefix(normalized));
+}
+
 /** How many leading path segments become edge prefix tags (`p:/fr`, `p:/fr/fr`, `p:/fr/fr/x`).
  *  Depth-capped so tag counts stay bounded on deep trees; a purge deeper than the cap falls back
  *  to origin eviction + edge TTL. Shared by the akamai adapter and its emulator personality. */

@@ -23,7 +23,7 @@ import type {
 	EdgeAdapter
 } from './types.ts';
 import { MemoryStore } from './memory-store.ts';
-import { normalize_prefix } from './key.ts';
+import { in_subtree, normalize_prefix } from './key.ts';
 import type { DevtoolsEventInput } from '@ogygia/core/plugin';
 import { sourceTag } from '@ogygia/core/plugin/utils';
 import { postrender_app } from './app.ts';
@@ -113,7 +113,7 @@ export async function invalidate_tags(
 	tags: readonly string[],
 	runtime: Runtime = current_runtime()
 ): Promise<string[]> {
-	stale_flights();
+	stale_flights('all');
 	const { store, edges } = runtime;
 	const evict_by_tag = store.evictByTag?.bind(store);
 	if (!evict_by_tag) {
@@ -222,9 +222,20 @@ export function settle_flight(key: string, flight: Flight, outcome: FlightOutcom
 	if (inflight.get(key) === flight) inflight.delete(key);
 }
 
-/** An invalidation is starting: every flight still rendering may have read what it changes. */
-function stale_flights(): void {
-	for (const flight of inflight.values()) flight.move('rendering', 'stale');
+/** The pages an invalidation evicts: one URL, a prefix's subtree (normalized), or every page (a
+ *  tag names pages by what they read, and a render's receipts are not all in until it ends). */
+type Evicts = { url: string } | { prefix: string } | 'all';
+
+/** An invalidation is starting: a flight still rendering a page it evicts may have read what it
+ *  changes. A flight is stale when the invalidation would have evicted its page, had it been
+ *  stored; the others go on and store. */
+function stale_flights(evicts: Evicts): void {
+	for (const [key, flight] of inflight) {
+		const hit =
+			evicts === 'all' ||
+			('url' in evicts ? key === evicts.url : in_subtree(key, evicts.prefix));
+		if (hit) flight.move('rendering', 'stale');
+	}
 }
 
 // ── invalidation fan-out ───────────────────────────────────────────────────────────────────────
@@ -271,8 +282,8 @@ type SourceFn = (...args: never[]) => unknown;
  * Reaches the store and edges `postrender.handle()` was given in hooks.server.ts.
  */
 export async function invalidate(target: string | SourceFn, args?: unknown[]): Promise<void> {
-	stale_flights();
 	if (typeof target === 'string') {
+		stale_flights({ url: target });
 		record({ domain: 'server', name: 'server.postrender', op: 'invalidate', url: target });
 		const { store, edges } = current_runtime();
 		const jobs = [store_job(`evict ${target}`, () => store.evict(target))];
@@ -286,7 +297,7 @@ export async function invalidate(target: string | SourceFn, args?: unknown[]): P
 	if (!tag) {
 		throw new OgygiaError('postrender_invalidate_not_source');
 	}
-	await invalidate_tags([tag]);
+	await invalidate_tags([tag]); // (which stales the flights)
 	// peers file the pages that baked a fragment which read this source under `r:<me>:<tag>`
 	notify_thaw([tag]);
 }
@@ -295,8 +306,8 @@ export async function invalidate(target: string | SourceFn, args?: unknown[]): P
  *  a section nuke. One origin scan + one purge per edge (Akamai: prefix tag; CloudFront: wildcard;
  *  Cloudflare: prefix purge). */
 export async function invalidateWhere(filter: { prefix: string }): Promise<void> {
-	stale_flights();
 	const prefix = normalize_prefix(filter.prefix);
+	stale_flights({ prefix });
 	record({ domain: 'server', name: 'server.postrender', op: 'invalidate-where', url: prefix });
 	const { store, edges } = current_runtime();
 	const jobs = [store_job(`evict prefix ${prefix}`, () => store.evictWhere({ prefix }))];
@@ -310,7 +321,7 @@ export async function invalidateWhere(filter: { prefix: string }): Promise<void>
 /** Action self-evict: a successful non-GET on a page URL evicts that URL (origin only — the
  *  edge copy follows via its s-maxage or the app's explicit invalidate; fire-and-forget). */
 export function self_evict(runtime: Runtime, pathname: string): void {
-	stale_flights();
+	stale_flights({ url: pathname });
 	record({ domain: 'server', name: 'server.postrender', op: 'self-evict', url: pathname });
 	void runtime.store.evict(pathname).catch(() => {});
 }
