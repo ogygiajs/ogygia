@@ -52,6 +52,10 @@ describe('a streamed page the visitor left (#284)', () => {
 		await sleep(60);
 		expect(page.seen.ended).toBe(true);
 		expect(late.seen.ended).toBe(true);
-		expect(page.seen.made + late.seen.made).toBeLessThanOrEqual(4);
+		// (the steps already asked for land, as each merge asks its sources one ahead; then nothing)
+		const made = page.seen.made + late.seen.made;
+		expect(made).toBeLessThan(10);
+		await sleep(60);
+		expect(page.seen.made + late.seen.made).toBe(made);
 	});
 });

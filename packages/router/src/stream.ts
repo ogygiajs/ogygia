@@ -23,6 +23,7 @@
  */
 import { lateChunk as late_chunk, LATE_BOOT_SCRIPT } from '@ogygia/core/plugin';
 import { escapeText as escape_text } from '@ogygia/core/plugin/utils';
+import { scope, STALE } from '@ogygia/machine';
 
 /** The slot id for the page position (one streamed slot per page in v1). */
 export const PAGE_SLOT_ID = 'pg';
@@ -103,20 +104,31 @@ export function stream_document(
 	const tail_part = cut === -1 ? '' : with_boot.slice(cut);
 	const enc = new TextEncoder();
 
+	// The response's owner: the visitor leaving cancels the body, which closes it, ends the chunk
+	// source (its generators' `finally` blocks run, and a merged source ends the ones it holds) and
+	// drops what lands after (#284).
+	const owner = scope();
+	owner.defer(() => void rest.return(undefined).catch(() => {}));
 	const body = new ReadableStream<Uint8Array>({
 		async start(controller) {
 			controller.enqueue(enc.encode(head_part));
 			try {
 				for (;;) {
-					const n = await rest.next();
+					const n = await owner.task(() => rest.next());
+					if (n === STALE) return;
 					if (n.done) break;
 					controller.enqueue(enc.encode(late_chunk(n.value.slot, n.value.html)));
 				}
 			} catch (e) {
+				if (owner.closed) return;
 				controller.enqueue(enc.encode(late_chunk(error_slot, error_card_html(e))));
 			}
 			controller.enqueue(enc.encode(tail_part));
 			controller.close();
+			owner.close();
+		},
+		cancel() {
+			owner.close();
 		}
 	});
 
@@ -189,23 +201,34 @@ export async function* until_drained(
 		if (more?.length) add(late_region_chunks(more));
 	};
 	add(first);
-	for (;;) {
-		if (nexts.size === 0) {
+	try {
+		for (;;) {
+			if (nexts.size === 0) {
+				take_more();
+				if (nexts.size === 0) return;
+			}
+			const { i, r } = await Promise.race(nexts.values());
+			if (r.done) {
+				nexts.delete(i);
+				continue;
+			}
+			nexts.set(
+				i,
+				sources[i].next().then((res) => ({ i, r: res }))
+			);
+			yield r.value;
 			take_more();
-			if (nexts.size === 0) return;
 		}
-		const { i, r } = await Promise.race(nexts.values());
-		if (r.done) {
-			nexts.delete(i);
-			continue;
-		}
-		nexts.set(
-			i,
-			sources[i].next().then((res) => ({ i, r: res }))
-		);
-		yield r.value;
-		take_more();
+	} finally {
+		// ended early (the visitor left): every source it holds ends too
+		end_all(sources);
 	}
+}
+
+/** Ends each source (its `finally` runs once its pending step lands); one that already ended is
+ *  left as it is. */
+function end_all(sources: readonly AsyncGenerator<LateChunk>[]): void {
+	for (const s of sources) void s.return(undefined).catch(() => {});
 }
 
 /** Interleave chunk sources by READINESS (a page generator + the late-region pool run together;
@@ -214,15 +237,20 @@ export async function* merge_chunks(
 	...sources: AsyncGenerator<LateChunk>[]
 ): AsyncGenerator<LateChunk> {
 	const nexts = new Map(sources.map((s, i) => [i, s.next().then((r) => ({ i, r }))]));
-	while (nexts.size) {
-		const { i, r } = await Promise.race(nexts.values());
-		if (r.done) nexts.delete(i);
-		else {
-			nexts.set(
-				i,
-				sources[i].next().then((res) => ({ i, r: res }))
-			);
-			yield r.value;
+	try {
+		while (nexts.size) {
+			const { i, r } = await Promise.race(nexts.values());
+			if (r.done) nexts.delete(i);
+			else {
+				nexts.set(
+					i,
+					sources[i].next().then((res) => ({ i, r: res }))
+				);
+				yield r.value;
+			}
 		}
+	} finally {
+		// ended early (the visitor left): every source ends too
+		end_all(sources);
 	}
 }
