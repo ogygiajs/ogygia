@@ -19,7 +19,7 @@ import type { ContentEntry, ContentHandle, Entry } from '../index.ts';
 import type { Crumb, NavItem, NavLeaf, NavRef, NavTree, Resolved } from './types.ts';
 import { title_case } from '../convention.ts';
 import type { GroupMeta } from '../index.ts';
-import { catalog_version } from '../collection-base.ts';
+import { catalog_fresh, catalog_version } from '../collection-base.ts';
 import { OgygiaError } from '../messages/runtime.ts';
 import { flights, STALE } from '@ogygia/machine';
 
@@ -161,8 +161,8 @@ type Materialized = {
 	slug_of: Map<number, Map<string, string>>; // collectionIndex → (entryId → slug)
 	aliases: Map<string, string>; // old slug → canonical slug (declared redirect history)
 	collections: Collection[];
-	/** each collection's catalog version when its entries were read: a different one now means this
-	 *  materialization is out of date (a live source changed it) */
+	/** each collection's catalog version (its world's stamp) taken before its entries were read: one
+	 *  no longer fresh means this materialization is out of date (a live source changed it) */
 	read: Map<Collection, number | null>;
 };
 
@@ -220,9 +220,9 @@ export interface Outline {
 	aliases(ctx?: ReadContext): Promise<Map<string, string>>;
 }
 
-/** Every collection still at the version it was read at. */
+/** Every collection still in the world it was read in. */
 function unchanged(read: Map<Collection, number | null>): boolean {
-	for (const [c, v] of read) if (catalog_version(c) !== v) return false;
+	for (const [c, v] of read) if (!catalog_fresh(c, v)) return false;
 	return true;
 }
 
@@ -428,8 +428,12 @@ async function materialize(
 		let e = entries_cache.get(c);
 		if (!e) {
 			// The read context flows to the collection filter here — drafts survive under `{ preview }`.
+			// The entries are stamped with the version taken BEFORE the read: an edit that lands while
+			// it runs (its graph waits on a relation target) is newer than them, and the next read
+			// weaves again (#326). Stamped after, they passed for the edit they never saw.
+			const at = catalog_version(c);
 			e = await c.refs(ctx);
-			read.set(c, catalog_version(c)); // (the version these entries are)
+			read.set(c, at);
 			entries_cache.set(c, e);
 		}
 		return e;
