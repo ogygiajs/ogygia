@@ -57,15 +57,19 @@ async function resolve(client: RedisLike | string): Promise<RedisLike> {
 	// not require these optional peers to be installed (they resolve at runtime only).
 	const nodeRedis = 'redis';
 	const ioRedis = 'ioredis';
+	// (only a node-redis that is not there falls through to ioredis: one that is there and cannot
+	// connect fails with its own error)
+	type NodeRedis = { createClient: (o: { url: string }) => RedisLike };
+	let node_redis: NodeRedis | null = null;
 	try {
-		const { createClient } = (await import(nodeRedis)) as {
-			createClient: (o: { url: string }) => RedisLike;
-		};
-		const c = createClient({ url: client });
+		node_redis = (await import(nodeRedis)) as NodeRedis;
+	} catch {
+		// ok: node-redis is not installed; ioredis is tried, and its import failing says so
+	}
+	if (node_redis) {
+		const c = node_redis.createClient({ url: client });
 		await c.connect?.();
 		return c;
-	} catch {
-		/* try ioredis */
 	}
 	const mod = (await import(ioRedis)) as unknown as { default: new (url: string) => RedisLike };
 	return new mod.default(client);
@@ -173,7 +177,7 @@ export class RedisStore implements ProfilerStore {
 			try {
 				out.push((JSON.parse(raw) as { summary: ProfilerSummary }).summary);
 			} catch {
-				/* skip */
+				// ok: a row that does not parse is left out of the list
 			}
 		}
 		await zrem(r, this.#RZ, gone);
@@ -212,7 +216,7 @@ export class RedisStore implements ProfilerStore {
 			try {
 				out.push(JSON.parse(raw) as ProfilerVisitRecord);
 			} catch {
-				/* skip */
+				// ok: a row that does not parse is left out of the list
 			}
 		}
 		await zrem(r, this.#VZ(page), gone);
@@ -226,7 +230,7 @@ export class RedisStore implements ProfilerStore {
 		this.#connect = this.#connector();
 		await (made as unknown as { quit?: () => Promise<void>; disconnect?: () => void })
 			?.quit?.()
-			.catch(() => {});
+			.catch(() => {}); // ok: closing: a connection that fails to quit is dropped all the same
 	}
 
 	#connector(): Flights<void, RedisLike> {
