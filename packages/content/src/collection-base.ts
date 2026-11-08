@@ -135,8 +135,6 @@ export class Collection<
 	 *  (an async iterator's `return()` waits behind its pull, so it cannot be closed while the source
 	 *  is quiet), and the next read listens on it again instead of opening another. */
 	#connection: LiveConnection | null = null;
-	/** The wait before a dropped connection is opened again, while one is pending. */
-	#retry: ReturnType<typeof setTimeout> | null = null;
 	#version = 0;
 	/** How many times it was disposed: a watcher started before the last one has ended. */
 	#disposals = 0;
@@ -191,12 +189,10 @@ export class Collection<
 	}
 
 	/** Leaving `running`: the live connection closed (its pull may never answer: nothing waits on
-	 *  it), the pending retry cleared. */
+	 *  it). (A pending retry is the visit's timer: it goes with it.) */
 	#stop_following(): void {
 		const connection = this.#connection;
 		this.#connection = null;
-		if (this.#retry !== null) clearTimeout(this.#retry);
-		this.#retry = null;
 		const changes = connection?.changes;
 		if (changes) void Promise.resolve(changes).then(close).catch(ignore);
 	}
@@ -436,14 +432,11 @@ export class Collection<
 	 *  wait is the visit's: leaving `running` clears it. */
 	#reconnect(visit: Running, attempt: number): void {
 		const wait = Math.min(LIVE_RETRY_FIRST_MS * 2 ** attempt, LIVE_RETRY_LAST_MS);
-		const timer = setTimeout(() => {
-			this.#retry = null;
+		// (only ever called in that visit; a server shutting down does not wait for a reconnect)
+		this.#life.scope.timeout(() => {
 			// (a failed read is reported, and retried, by #follow; the connection listens first)
 			void this.#follow(visit, () => this.#reload(true), attempt + 1, true).catch(ignore);
 		}, wait);
-		this.#retry = timer;
-		// (a server shutting down does not wait for a reconnect)
-		(timer as { unref?: () => void }).unref?.();
 	}
 
 	/** One change the live connection brought: the ids it names, else everything. */
