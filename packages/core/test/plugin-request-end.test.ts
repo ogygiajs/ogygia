@@ -5,7 +5,7 @@
  * keeps it alive in the process, and the visitor's response is never held for it. Real streams,
  * real timers.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { end_request, type LivePlugin } from '../src/plugin/server.ts';
 import type { RequestContext, ServerApp, ServerPlugin } from '../src/plugin/index.ts';
 
@@ -101,6 +101,30 @@ describe('end_request: the work a plugin leaves at the request end', () => {
 		expect(await out!.text()).toBe('page');
 		await new Promise((r) => setTimeout(r, 30)); // (a rejection left unhandled is reported by now)
 		expect(s.seen.finished).toBe(true);
+	});
+
+	// The plugin's own failure, at its end, is said with a code: nothing else would say it.
+	it('a done that throws, or work that fails, is said (plugin_hook_failed), with the error', async () => {
+		const said: unknown[][] = [];
+		const warn = vi.spyOn(console, 'warn').mockImplementation((...a: unknown[]) => {
+			said.push(a);
+		});
+		try {
+			const plugins = [
+				live({
+					done: () => {
+						throw new Error('tail broke');
+					}
+				}),
+				live({ done: () => Promise.reject(new Error('send broke')) })
+			];
+			await end(plugins, undefined, new Response('page'));
+			await new Promise((r) => setTimeout(r, 10));
+		} finally {
+			warn.mockRestore();
+		}
+		const failed = said.filter((a) => String(a[0]).includes('plugin_hook_failed'));
+		expect(failed.map((a) => (a[1] as Error).message).sort()).toEqual(['send broke', 'tail broke']);
 	});
 
 	it('no work left: nothing is handed to the platform', () => {
