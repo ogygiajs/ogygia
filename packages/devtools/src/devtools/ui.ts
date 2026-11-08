@@ -24,7 +24,7 @@ import {
 } from '@ogygia/core/insights';
 import { TESTING_ENGINE_VERSION } from '@ogygia/core/insights';
 import { import_again } from '@ogygia/core/internal/instruments';
-import { machine, once, STALE, type Machine } from '@ogygia/machine';
+import { flights, machine, STALE, type Machine } from '@ogygia/machine';
 import { OgygiaError } from '../messages/runtime.ts';
 
 /** The dock's code: after a failed download, asked for again under a fresh URL. */
@@ -131,14 +131,14 @@ function mount_launcher(opts?: { csr_true?: boolean }): void {
 	// `loading`), so nothing mounts into the detached root.
 	const load = () => {
 		if (!state.move('button', 'loading')) return;
-		void state
+		void state.scope
 			.task(() => import_app())
 			.then(
 				(app) => {
 					if (app === STALE || !state.move('loading', 'mounted')) return;
 					here.launcher.abort();
 					button.remove();
-					state.onLeave(
+					state.scope.defer(
 						app.mount_app(root, {
 							csr_true,
 							start_open: want_open,
@@ -231,12 +231,21 @@ function install_testing_api(): void {
 	// failed one). It once failed every call for the life of the page. The engine's own files, as
 	// they load, are what `page().self.bytes` counts: the resources fetched while its import ran.
 	const import_engine = import_again(() => import('./testing-engine.ts'));
-	const engine = once(async () => {
-		const from = performance.now();
-		const m = await import_engine();
-		m.note_engine_files(from, performance.now());
-		return m;
+	const load_engine = flights({
+		name: 'testing engine',
+		run: async () => {
+			const from = performance.now();
+			const m = await import_engine();
+			m.note_engine_files(from, performance.now());
+			return m;
+		}
 	});
+	// (nothing drops it, so it is never STALE; were it, it is asked for again)
+	type Engine = Awaited<ReturnType<typeof import_engine>>;
+	const engine = async (): Promise<Engine> => {
+		const m = await load_engine.get();
+		return m === STALE ? engine() : m;
+	};
 	window.__ogygia_testing = {
 		version: TESTING_ENGINE_VERSION,
 		page: async (cpu_fns) => (await engine()).page_json(cpu_fns),

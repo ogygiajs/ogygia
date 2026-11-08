@@ -7,7 +7,7 @@
  */
 import { defineServer, type Handle, type ServerPlugin } from '@ogygia/core/plugin';
 import { want_request_stats } from '@ogygia/core/internal/server';
-import { once } from '@ogygia/machine';
+import { flights, STALE } from '@ogygia/machine';
 import type { ProfilerOptions } from './profiler/index.ts';
 import { profiler_demand_skip } from './profiler/on-demand.ts';
 
@@ -25,10 +25,9 @@ let mounted: Handle | null = null;
 /** The process's one profiler mount: the first requests that arrive together share it. A mount
  *  that fails (an edge runtime without node:inspector, a dev server mid-edit) is not kept, so the
  *  next request tries again. */
-let mounting: (() => Promise<Handle>) | null = null;
-
-async function mount(options: ProfilerOptions): Promise<Handle | null> {
-	mounting ??= once(async () => {
+const mounting = flights({
+	name: 'profiler mount',
+	run: async (options: ProfilerOptions) => {
 		const { profiler } = await import('./profiler/index.ts');
 		// a runtime store (`setProfilerStore` in hooks.server.ts): a live DB object the build-time options
 		// could not carry, merged over them
@@ -37,8 +36,17 @@ async function mount(options: ProfilerOptions): Promise<Handle | null> {
 		}));
 		const store = getProfilerStore();
 		return (mounted = profiler({ ...options, ...(store ? { store } : {}) }));
-	});
-	return mounting().catch(() => null);
+	},
+	// (one mount for the process: the first request's options are the ones it mounts with)
+	key: () => 'profiler'
+});
+
+async function mount(options: ProfilerOptions): Promise<Handle | null> {
+	// (nothing drops the mount, so it is never STALE)
+	return mounting.get(options).then(
+		(m) => (m === STALE ? null : m),
+		() => null
+	);
 }
 
 const server: ServerPlugin<DevtoolsServerOptions> = defineServer<DevtoolsServerOptions>({

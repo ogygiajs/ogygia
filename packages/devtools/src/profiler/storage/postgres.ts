@@ -20,7 +20,7 @@ import type {
 	ProfilerSummary,
 	ProfilerVisitRecord
 } from './index.ts';
-import { once } from '@ogygia/machine';
+import { flights, STALE, type Flights } from '@ogygia/machine';
 import { MAX_VISITS_PER_KEY } from './visits.ts';
 
 interface PgLike {
@@ -49,11 +49,11 @@ export class PostgresStore implements ProfilerStore {
 	#R: string;
 	#V: string;
 	/** the client, made once: two first calls share it, and a failure to make it is not kept */
-	#connect: () => Promise<PgLike>;
+	#connect: Flights<void, PgLike>;
 	/** the client made, for `close` */
 	#made: PgLike | null = null;
 	/** the tables, made once: a setup that failed (a connection blip) is made again by the next call */
-	readonly #setup: () => Promise<void>;
+	readonly #setup: Flights<void, void>;
 
 	constructor(client: PgLike | string, opts: { schema?: string; table?: string } = {}) {
 		const base = opts.table ?? 'ogygia';
@@ -64,7 +64,7 @@ export class PostgresStore implements ProfilerStore {
 		this.#R = q('reports');
 		this.#V = q('visits');
 		this.#connect = this.#connector();
-		this.#setup = once(() => this.#create_tables());
+		this.#setup = flights({ name: 'profiler postgres tables', run: () => this.#create_tables() });
 	}
 
 	async init(): Promise<void> {
@@ -157,18 +157,28 @@ export class PostgresStore implements ProfilerStore {
 		await made?.end?.();
 	}
 
-	#connector(): () => Promise<PgLike> {
-		return once(async () => (this.#made = await resolve(this.#client)));
+	#connector(): Flights<void, PgLike> {
+		return flights({
+			name: 'profiler postgres client',
+			run: async () => (this.#made = await resolve(this.#client))
+		});
+	}
+
+	/** The client (nothing drops a connector, so it is never STALE; were it, the current one is
+	 *  asked). */
+	async #client_made(): Promise<PgLike> {
+		const c = await this.#connect.get();
+		return c === STALE ? this.#client_made() : c;
 	}
 
 	async #need(): Promise<PgLike> {
-		const c = await this.#connect();
-		await this.#setup();
+		const c = await this.#client_made();
+		await this.#setup.get();
 		return c;
 	}
 
 	async #create_tables(): Promise<void> {
-		const c = await this.#connect();
+		const c = await this.#client_made();
 		const R = this.#R;
 		const V = this.#V;
 		const base = this.#base;
