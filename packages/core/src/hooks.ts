@@ -763,7 +763,7 @@ function owned(inner: Handle): Handle {
 			end_request_scope(owner);
 			throw error;
 		}
-		return own_response(owner, response);
+		return own_response(owner, response, input.event.request);
 	};
 }
 
