@@ -185,7 +185,8 @@ export const CONTENT_ERRORS = {
 		`
 	},
 	content_outline_weave_failed: {
-		text: (): string => 'the outline could not be woven from changed content, so it keeps the last one:',
+		text: (): string =>
+			'the outline could not be woven from changed content, so it keeps the last one:',
 		details: (): string => prose`
 			A live source changed a collection the site's outline arranges, and the outline could
 			not be woven from the new content: an entry it places nowhere, a pick whose entry is
