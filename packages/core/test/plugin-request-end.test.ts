@@ -6,7 +6,8 @@
  * real timers.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { end_request, type LivePlugin } from '../src/plugin/server.ts';
+import { end_request, start_plugins, type LivePlugin } from '../src/plugin/server.ts';
+import { inRequest } from '../src/plugin/testing.ts';
 import type { RequestContext, ServerApp, ServerPlugin } from '../src/plugin/index.ts';
 
 const live = (def: ServerPlugin<unknown, unknown>): LivePlugin => ({
@@ -132,5 +133,46 @@ describe('end_request: the work a plugin leaves at the request end', () => {
 		const platform = { context: { waitUntil: (p: Promise<unknown>) => void handed.push(p) } };
 		end_request([live({ done: () => {} }), live({})], [ctx, ctx], platform);
 		expect(handed).toEqual([]);
+	});
+});
+
+// `app.keepAlive(work)`: the same hand-off from anywhere in a request (an outbox's send started in a
+// hook, an endpoint, a shared hook), found through Kit's request store.
+describe('app.keepAlive', () => {
+	const {
+		plugins: [p]
+	} = start_plugins([{ name: 'p', options: undefined, server: {} }], {
+		sign: () => '',
+		verify: () => false
+	} as never);
+
+	it("hands work to the waitUntil of the request it runs in, after the request's awaits", async () => {
+		const handed: Promise<unknown>[] = [];
+		const work = new Promise<void>(() => {});
+		await inRequest(
+			{ platform: { ctx: { waitUntil: (w: Promise<unknown>) => handed.push(w) } } },
+			async () => {
+				await new Promise((r) => setTimeout(r, 5));
+				p.app.keepAlive(work);
+			}
+		);
+		expect(handed).toEqual([work]);
+	});
+
+	it('outside a request, on a platform without one, or one that refuses it: nothing, and no throw', () => {
+		p.app.keepAlive(Promise.resolve());
+		inRequest({ platform: {} }, () => p.app.keepAlive(Promise.resolve()));
+		inRequest(
+			{
+				platform: {
+					context: {
+						waitUntil: () => {
+							throw new Error('closed');
+						}
+					}
+				}
+			},
+			() => p.app.keepAlive(Promise.resolve())
+		);
 	});
 });

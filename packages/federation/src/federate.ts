@@ -7,6 +7,7 @@
  * Called at server module-eval (in or under hooks.server.ts). The handle reads the registration
  * back to serve `/og/fragment/*`, `/og/thaw`, and the deferred remote-region holes.
  */
+import { outbox, policy, type Outbox } from '@ogygia/machine';
 import { fed_app } from './app.ts';
 import { warn } from './messages.ts';
 import { PeerHandle } from './peer.ts';
@@ -94,13 +95,70 @@ export function federate<P extends Record<string, PeerConfig>>(
 	return out;
 }
 
-/** Send one thaw notice to every peer, or to the peers named in `to` (bounded retries each). Also
- *  the chain forwarder: a notice this app RECEIVED and applied re-broadcasts with `hop + 1`. The
- *  names of the peers that did not take it (the deploy thaw sends it to those again). */
+/** One thaw notice on its way to one peer. */
+type Thaw = {
+	fed: Federation;
+	peer: Peer;
+	peer_name: string;
+	id: string;
+	body: ArrayBuffer;
+};
+
+/** How a notice to a peer is tried again: a peer restarting or briefly down is ridden out, and the
+ *  whole send fits the time a serverless platform keeps a request alive after its response. */
+const PEER_POLICY = policy({
+	attempts: 4,
+	backoff: [200, 1000, 5000],
+	jitter: 0.2,
+	deadline: 30_000
+});
+/** The longest one try waits for a peer's answer. */
+const PEER_TRY_MS = 5000;
+
+/** One try: done only once the peer answered ok, which it does once it APPLIED the notice (it
+ *  answers an error for one its store failed to apply, #287). */
+async function post_thaw(t: Thaw, signal: AbortSignal): Promise<void> {
+	const u = new URL(THAW_PATH, t.peer.origin);
+	const signed = t.fed.key ? sign_headers(t.fed.key, 'POST', u, t.body, undefined) : {};
+	const res = await fetch(u, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json', ...signed },
+		body: t.body,
+		signal: AbortSignal.any([signal, AbortSignal.timeout(PEER_TRY_MS)])
+	});
+	if (!res.ok) throw new Error(`${t.peer_name} answered ${res.status}`);
+}
+
+/** The outbox thaw notices go through: kept alive past the response of the request that caused
+ *  them (#286), tried again, one send per notice and peer. `say`: a peer that never took it is
+ *  said here (a publish's notices), or by the caller (the deploy thaw's rounds). */
+function thaw_outbox(name: string, say: boolean): Outbox<Thaw> {
+	return outbox<Thaw>({
+		name,
+		send: post_thaw,
+		id: (t) => t.id + '\n' + t.peer_name,
+		retry: PEER_POLICY,
+		// (a peer that never took it keeps its stored copy until it expires)
+		giveUp: say
+			? (t, error) => warn('federation_thaw_notice_failed', t.peer_name, error)
+			: () => {}, // ok: the deploy thaw names the peers that missed it once its rounds are spent
+		waitUntil: (work) => fed_app()?.keepAlive(work)
+	});
+}
+
+/** A publish's notices, and the ones this app passes on. */
+const publish_thaws = thaw_outbox('federation thaw notices', true);
+/** The deploy thaw's notices (serve.ts): its rounds say who never took them. */
+export const deploy_thaws: Outbox<Thaw> = thaw_outbox('federation deploy thaw', false);
+
+/** Send one thaw notice to every peer, or to the peers named in `to`, through `box`. Also the
+ *  chain forwarder: a notice this app RECEIVED and applied re-broadcasts with `hop + 1`. The names
+ *  of the peers that did not take it (the deploy thaw sends it to those again). */
 export async function broadcast_thaw(
 	fed: Federation,
 	notice: { id: string; hop: number; tags: string[] | 'all' },
-	to?: ReadonlySet<string>
+	to?: ReadonlySet<string>,
+	box: Outbox<Thaw> = publish_thaws
 ): Promise<Set<string>> {
 	const missed = new Set<string>();
 	if (notice.hop >= HOP_MAX) return missed;
@@ -110,38 +168,14 @@ export async function broadcast_thaw(
 		bytes.byteOffset + bytes.byteLength
 	) as ArrayBuffer;
 	const peers = [...fed.peers].filter(([name]) => !to || to.has(name));
-	const reached = await Promise.all(peers.map(([, peer]) => post_thaw(fed, peer, body)));
+	const reached = await Promise.all(
+		peers.map(([peer_name, peer]) => box.put({ fed, peer, peer_name, id: notice.id, body }))
+	);
 	reached.forEach((took, i) => {
 		if (!took) missed.add(peers[i][0]);
 	});
 	return missed;
 }
-
-/** Post one thaw notice to `peer`, retrying: whether it took it. */
-async function post_thaw(fed: Federation, peer: Peer, body: ArrayBuffer): Promise<boolean> {
-	const u = new URL(THAW_PATH, peer.origin);
-	const attempts = [0, 200, 1000, 5000];
-	for (let i = 0; i < attempts.length; i++) {
-		if (attempts[i]) await sleep(attempts[i]);
-		try {
-			const signed = fed.key ? sign_headers(fed.key, 'POST', u, body, undefined) : {};
-			const res = await fetch(u, {
-				method: 'POST',
-				headers: { 'content-type': 'application/json', ...signed },
-				body,
-				signal: AbortSignal.timeout(5000)
-			});
-			if (res.ok) return true;
-		} catch {
-			// ok: unreachable, so retried; a peer that never takes it is said by the caller (missed)
-		}
-	}
-	return false;
-}
-
-const sleep = (ms: number) =>
-	// oxlint-disable-next-line ogygia/owned-effects -- a thaw notice is the app's, not a request's: its retries go on after the request that caused it ended
-	new Promise<void>((r) => setTimeout(r, ms));
 
 // re-exported so the handle (which holds the region secret) can read the registration
 export { current_federation };

@@ -4,6 +4,7 @@
  * by hooks.ts only.
  */
 import type { RequestEvent } from '@sveltejs/kit';
+import { try_get_request_store } from '@sveltejs/kit/internal/server';
 import type { Handle } from '../kit-handle.ts';
 import type { RequestContext, ResolveOptions, ServerApp, ServerPlugin } from './index.ts';
 import { current_facts, facts_of, mark_per_visitor, type RequestFacts } from './facts.ts';
@@ -50,6 +51,7 @@ export function start_plugins(
 			verify: signer.verify,
 			capability: plugin_capabilities(name, signer),
 			devtools: record_server_event,
+			keepAlive: keep_alive,
 			warn(message) {
 				if (warned.has(message)) return;
 				warned.add(message);
@@ -173,6 +175,19 @@ function done_failed(error: unknown): void {
 }
 
 function ignore(): void {}
+
+/** `app.keepAlive`: `work` handed to the `waitUntil` of the request the running code belongs to
+ *  (Kit's request store knows it, through every await of the request), or left to run on. */
+function keep_alive(work: Promise<unknown>): void {
+	const event = (try_get_request_store() as { event?: RequestEvent } | null)?.event;
+	const wait_until = wait_until_of(event?.platform);
+	if (wait_until === null) return;
+	try {
+		wait_until(work);
+	} catch {
+		// ok: a platform that refuses it: the work runs on by itself
+	}
+}
 
 /** The platform's way to keep a request alive past its response, or null. */
 function wait_until_of(platform: unknown): ((work: Promise<unknown>) => void) | null {
