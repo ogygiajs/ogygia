@@ -135,7 +135,7 @@ export async function spawn_server(opts: SpawnServerOptions): Promise<SpawnedSer
 		try {
 			if (pid !== undefined) process.kill(-pid, sig);
 		} catch {
-			/* already gone */
+			// ok: the group already exited (ESRCH), which is what the signal was for
 		}
 	};
 
@@ -154,10 +154,10 @@ export async function spawn_server(opts: SpawnServerOptions): Promise<SpawnedSer
 		await Promise.race([closed, sleep(1000)]);
 		if (!m.move('stopping', 'exited')) m.move('exited_early', 'exited');
 	};
-	child.once('exit', (code, sig) => void on_exit(sig ? `signal ${sig}` : `code ${code}`));
+	child.once('exit', (code, sig) => void on_exit(sig ? `signal ${sig}` : `code ${code}`)); // ok: on_exit never rejects
 	child.once('error', (error) => {
 		logs.push(error.message);
-		void on_exit(error.message);
+		void on_exit(error.message); // ok: on_exit never rejects
 	});
 
 	const server: SpawnedServer = {
@@ -184,7 +184,7 @@ export async function spawn_server(opts: SpawnServerOptions): Promise<SpawnedSer
 				const res = await fetch(opts.url, { redirect: 'manual', signal });
 				if (res.status > 0 && ready(res)) return true;
 			} catch {
-				/* not up yet */
+				// ok: not up yet; the loop asks again until the timeout says so
 			}
 			await sleep(300, signal);
 		}

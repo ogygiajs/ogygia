@@ -377,7 +377,7 @@ export class Ogygia {
 				// deployment attributes it (the profiler gathers them from its store at stop)
 				if (window_id && driver.tagRequests) {
 					const untag = await driver.tagRequests(window_id.header, window_id.id);
-					undo(server_side, () => untag().catch(() => {}));
+					undo(server_side, () => untag().catch(() => {})); // ok: unroute fails only on a closed page, which has no tag left to take off
 				}
 			}
 			if (ropts?.blockNavigation && !driver.blockNavigation)
@@ -413,7 +413,9 @@ export class Ogygia {
 			}
 		} finally {
 			for (const owner of [nav, page, server_side])
-				await owner[Symbol.asyncDispose]().catch((error: unknown) => void undo_errors.push(error));
+				await owner[Symbol.asyncDispose]().catch((error: unknown) => {
+					undo_errors.push(error);
+				});
 		}
 		// (an undo that failed, once nothing else did: the blocker or the window could not be stopped)
 		if (undo_errors.length) throw undo_errors[0];
@@ -432,7 +434,7 @@ export class Ogygia {
 		}
 		if (server_error) server = { error: server_error } as unknown as OgygiaSessionReport['server'];
 		if (!r) {
-			const now = await this.#in_page(() => location.href, null).catch(() => null);
+			const now = await this.#in_page(() => location.href, null).catch(() => null); // ok: only words the error thrown below
 			throw new Error(
 				'the recording was lost: the page went to another document while it ran' +
 					(now ? ` (it is now at ${now})` : '') +
@@ -620,7 +622,7 @@ export function playwrightDriver(
 		async blockNavigation() {
 			const held: HeldNavigation[] = [];
 			// the page's clock, from its start (the page cannot be asked while a load waits on the route)
-			const origin = await page.evaluate(() => performance.timeOrigin).catch(() => null);
+			const origin = await page.evaluate(() => performance.timeOrigin).catch(() => null); // ok: a page that cannot answer has no clock; holds are kept untimed (t: null)
 			// a document load in the page's own frame: answered 204, so the browser keeps the page
 			const hold = async (route: Route) => {
 				const req = route.request();
