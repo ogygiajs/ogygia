@@ -86,7 +86,14 @@ export class PageState {
 // is one instance regardless of how many times the module is evaluated. PAGE-STATE-SINGLETON.
 import { foreign_hydrate } from '../current-region.ts';
 import { warn } from '../messages/island.ts';
-import { report_thrown } from '../report-thrown.ts';
+
+/** report-thrown.ts's `report_thrown`, here in full: island-side code never imports a module the
+ *  runtime's boot imports (runtime-boot-svelte-free.test.ts), and the boot's ref watchers use it. */
+function report_thrown(error: unknown): void {
+	const report = (globalThis as { reportError?: (e: unknown) => void }).reportError;
+	if (typeof report === 'function') report(error);
+	else console.error(error);
+}
 
 const PAGE_STATE_KEY = Symbol.for('ogygia.page-state');
 const global_scope = globalThis as unknown as Record<symbol, PageState | undefined>;
