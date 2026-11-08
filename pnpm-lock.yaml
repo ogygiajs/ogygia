@@ -989,7 +989,7 @@ importers:
         version: link:../tsdown-plugin-svelte
       '@sveltejs/vite-plugin-svelte':
         specifier: 'catalog:'
-        version: 7.2.0(svelte@5.57.2)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 7.2.0(svelte@5.56.8)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
@@ -1000,6 +1000,9 @@ importers:
       '@typescript/native':
         specifier: catalog:tsgo
         version: typescript@7.0.2
+      svelte:
+        specifier: 'catalog:'
+        version: 5.56.8
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
