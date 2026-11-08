@@ -115,9 +115,10 @@ bench('region element: a 250-block page boots and its islands wake', boot_page, 
 	setup: () => booted_page(250)
 });
 
-// Growth from a small page (5 blocks: at 100 times it is a 500-block page). Quadratic today: every
-// wake asks the whole document whether a devalue-lane script is in it (devalue-lane.ts `needs_devalue`): islands × the page's elements on a
-// page whose scripts are all in the JSON lane.
+// Growth from a small page (5 blocks: at 100 times it is a 500-block page). It was quadratic while
+// the scheduler's turns walked every pending island (see its own case below) and every wake asked
+// the whole document whether a devalue-lane script is in it (devalue-lane.ts `needs_devalue`):
+// islands × the page's elements. The document is asked once now, and again only when markup comes in.
 bench('region element: a page boots and wakes as it grows', boot_page, {
 	setup: () => booted_page(5),
 	scale: (_ctx, k) => page_of(5 * k)
