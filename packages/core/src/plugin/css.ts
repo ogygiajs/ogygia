@@ -30,10 +30,12 @@ let warned_inactive = false;
 /** Head tags for the components ONE render places (a layout chain + its page or error component):
  *  each component's whole-tree CSS, linked once per request. */
 export async function componentCssHead(components: readonly unknown[]): Promise<string> {
-	const read = await registry().then(
-		() => true,
-		() => false
-	);
+	let read = true;
+	try {
+		await registry();
+	} catch {
+		read = false;
+	}
 	if (DEV && read && !warned_inactive && components.length && !router_css_active()) {
 		warned_inactive = true;
 		warn('router_css_inactive');

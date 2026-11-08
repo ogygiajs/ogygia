@@ -1,11 +1,19 @@
 // The server's hole work around a render: the cache's one flight per key (a burst of one cached
 // hole renders it once), a batch's frame stream (read to its end, or cancelled when its visitor
-// leaves), and the request's end (the work plugins leave running, kept alive past the response).
+// leaves), the request's end (the work plugins leave running, kept alive past the response), and the
+// app's plugins started again by dev edits.
 import { bench } from '@bench/heisenbench/bench';
 import { ConcurrencyGate } from '../src/runtime/concurrency.ts';
 import { cached_render, render_cache_clear, render_cache_key } from '../src/server/render-cache.ts';
 import { batch_stream, type BatchAnswer } from '../src/server/stream-regions.ts';
-import { end_request, type LivePlugin } from '../src/plugin/server.ts';
+import {
+	end_request,
+	start_app_plugins,
+	type AppSigner,
+	type LivePlugin,
+	type ServerPluginEntry
+} from '../src/plugin/server.ts';
+import { ask, notify } from '../src/plugin/hooks.ts';
 import type { RequestContext, ServerApp } from '../src/plugin/index.ts';
 
 const tick = () => new Promise<void>((r) => setTimeout(r, 0));
@@ -110,4 +118,38 @@ bench(
 		return handed.length;
 	},
 	{ setup: () => ({ n: 120 }), scale: (_ctx, k) => ({ n: 120 * k }) }
+);
+
+/** A signer for the plugins' apps (they only hold it: nothing here signs). */
+const SIGNER = {
+	sign: (message: string) => message,
+	verify: (message: string, signature: string) => message === signature,
+	deny: () => new Response(null, { status: 403 })
+} as unknown as AppSigner;
+
+// Dev edits run the handle module again: each run starts the app's plugins anew (new objects for
+// the edited ones), and the run before leaves the shared hooks first, so `ask` answers from the
+// current run and `notify` reaches each plugin once.
+bench(
+	"the app's plugins started again by n dev edits: each run's predecessor leaves the shared hooks",
+	async ({ n, plugins }) => {
+		let answered = 0;
+		for (let run = 0; run < n; run++) {
+			const entries: ServerPluginEntry[] = [];
+			for (let p = 0; p < plugins; p++)
+				entries.push({
+					name: `p${p}`,
+					options: undefined,
+					server: {
+						lastBuild: p === 0 ? () => `run ${run}` : undefined,
+						invalidate: () => void answered++
+					}
+				});
+			start_app_plugins(entries, SIGNER);
+			if ((await ask.lastBuild('v')) === `run ${run}`) answered++;
+		}
+		await notify.invalidate(['p:/']);
+		return answered;
+	},
+	{ setup: () => ({ n: 40, plugins: 6 }), scale: (_ctx, k) => ({ n: 40 * k, plugins: 6 }) }
 );

@@ -359,6 +359,26 @@
 		{
 			"id": "packages/content/src/vite/hmr.ts > content_runs > transform",
 			"reason": "Vite's dev transform hook: skips a client module or one that does not name @ogygia/content, else hands it to mark_content_calls (benched in packages/content/bench/lifecycle.bench.ts); proven against a real Vite dev server in packages/content/test/dev-reload.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > start_app_plugins:1~7cbc84 > sign",
+			"reason": "the handle module's signer for its plugins' apps: one call of sign() with the app's region key, which only the handle module's start has (a one-line hand-off, constant work over the HMAC)"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > start_app_plugins:1~7cbc84 > verify",
+			"reason": "the handle module's verifier for its plugins' apps: one call of verify() with the app's region key, which only the handle module's start has (a one-line hand-off, constant work over the HMAC)"
+		},
+		{
+			"id": "packages/core/src/plugin/css.ts > once:0~64d9cf",
+			"reason": "the dynamic import of the generated virtual:ogygia/router-css, which resolves only under the app's Vite pipeline; its failed read and the read after it are proven against a real Vite dev server in packages/core/test/router-css-dev.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > index_of",
+			"reason": "the debarrel plugin's barrel index for one environment (a Map get or create, over the plugin's closure: not replayable); the index's work is benched in packages/core/bench/compiler.bench.ts; proven against a real Vite dev server in packages/core/test/debarrel/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > invalidate",
+			"reason": "an edit handed to every environment's barrel index (a loop over the plugin's closure: not replayable); BarrelIndex.invalidate is benched in packages/core/bench/compiler.bench.ts; proven against a real Vite dev server in packages/core/test/debarrel/plugin.test.ts"
 		}
 	]
 }
