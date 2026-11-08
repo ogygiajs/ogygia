@@ -88,7 +88,13 @@ describe('the server realm, started', () => {
 		server.done?.(post);
 
 		// the browser follows the 303 at once
-		const get = ctx(new Request('http://x.test/cart/'));
+		const jar = {
+			get: () => undefined,
+			getAll: () => [],
+			set: () => {},
+			delete: () => {}
+		};
+		const get = ctx(new Request('http://x.test/cart/'), { cookies: jar as never });
 		mark_handled(get.event, runtime);
 		const answered = await server.page?.(get);
 		server.done?.(get);

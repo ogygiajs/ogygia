@@ -422,9 +422,10 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 		const { event, path, state } = ctx;
 		const runtime = state.runtime ?? current_runtime();
 		// Action self-evict — a successful mutation on a page URL evicts its stored copy (mirrors
-		// Kit's actions-invalidate-loads semantics; origin store only, fire-and-forget).
+		// Kit's actions-invalidate-loads semantics; origin store only). The response waits for it:
+		// the redirect's GET comes right after, and must not get the copy from before (#283).
 		if (event.request.method.toUpperCase() !== 'GET' && response.status < 400)
-			self_evict(runtime, path);
+			await self_evict(runtime, path);
 		const { flight, obs } = state;
 		if (flight && obs) {
 			state.flight = null;

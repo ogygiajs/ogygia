@@ -14,7 +14,7 @@
  * two module instances (src beside dist), and both must see the same runtime.
  */
 import type { RequestEvent } from '@sveltejs/kit';
-import { flights, type Stale } from '@ogygia/machine';
+import { flights, outbox, policy, type Stale } from '@ogygia/machine';
 import type {
 	PostrenderEntry,
 	PostrenderPutOptions,
@@ -361,10 +361,29 @@ export async function invalidateWhere(filter: { prefix: string }): Promise<void>
 	notify_thaw('all');
 }
 
-/** Action self-evict: a successful non-GET on a page URL evicts that URL (origin only — the
- *  edge copy follows via its s-maxage or the app's explicit invalidate; fire-and-forget). */
-export function self_evict(runtime: Runtime, pathname: string): void {
+/** How the origin store is tried again for an evict a response waits for: three quick tries within
+ *  2 s. The post's answer waits for it, so a store that is down costs the visitor that, not more. */
+const STORE_POLICY = policy({ attempts: 3, backoff: [50, 250], jitter: 0.2, deadline: 2000 });
+
+/** One page's stored copy to take out of one runtime's store. */
+type Evict = { runtime: Runtime; key: string };
+
+/** A post's evicts: tried again, kept alive by the platform past the response when the post does
+ *  not wait (it does: `self_evict`'s caller), and said with the store's failure when given up. */
+const self_evicts = outbox<Evict>({
+	name: 'postrender self-evict',
+	send: (e) => e.runtime.store.evict(e.key),
+	retry: STORE_POLICY,
+	giveUp: (e, error) => store_failed('evict', e.key, error),
+	waitUntil: (work) => postrender_app()?.keepAlive(work)
+});
+
+/** Action self-evict: a successful non-GET on a page URL evicts that URL (origin only — the edge
+ *  copy follows via its s-maxage or the app's explicit invalidate). Settles once the store took it
+ *  out, or gave up (it never rejects): the response waits for it, so the redirect's GET right after
+ *  cannot be answered with the page from before the post (#283). */
+export async function self_evict(runtime: Runtime, pathname: string): Promise<void> {
 	stale_flights({ url: pathname });
 	record({ domain: 'server', name: 'server.postrender', op: 'self-evict', url: pathname });
-	void store_evict(runtime, pathname); // ok: store_evict never rejects (a failure is said)
+	if (await self_evicts.put({ runtime, key: pathname })) store_failing = false;
 }

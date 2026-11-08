@@ -317,7 +317,7 @@ describe('postrender/registry', () => {
 		await invalidateWhere({ prefix: '/fr/fr/' }); // the subtree, never `/fr/fright`
 		expect(stale()).toEqual([true, true, false, false]);
 
-		self_evict(current_runtime(), '/b/'); // a form post on /b/ evicts /b/
+		await self_evict(current_runtime(), '/b/'); // a form post on /b/ evicts /b/
 		expect(stale()).toEqual([true, true, false, true]);
 
 		// a tag names pages by what they read, and a render's receipts are not all in until it ends:
