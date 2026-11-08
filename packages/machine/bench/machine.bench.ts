@@ -1,8 +1,18 @@
 // Machine moves, as the runtime and the server make them: a crowd of machines (one per region on a
 // page, one per request on a server) each walked around its lifecycle, with and without data, with
-// the work they own (tasks, cleanups, waits), and the two helpers (once, lock).
+// the work they own (their visit's scope: tasks, cleanups; waits), and the others (flights, scope,
+// lock).
 import { bench } from '@bench/heisenbench/bench';
-import { lock, machine, observe, once, STALE, type LockToken } from '../src/index.ts';
+import {
+	flights,
+	lock,
+	machine,
+	observe,
+	scope,
+	STALE,
+	type LockToken,
+	type Scope
+} from '../src/index.ts';
 import { MACHINE_ERRORS, machine_error, report } from '../src/messages.ts';
 
 const hole = machine<{
@@ -103,13 +113,13 @@ bench(
 		for (let i = 0; i < machines.length; i++) {
 			const m = machines[i];
 			m.go('fetching', { attempt: 1 });
-			if (i % 3 === 0) out.push(m.task(async () => 'html'));
+			if (i % 3 === 0) out.push(m.scope.task(async () => 'html'));
 			else if (i % 3 === 1) {
-				out.push(m.task(() => new Promise<string>(() => {})));
+				out.push(m.scope.task(() => new Promise<string>(() => {})));
 				m.go('idle'); // the visit ends: settles STALE at once
 			} else {
 				let fail!: (e: unknown) => void;
-				out.push(m.task(() => new Promise((_, reject) => (fail = reject))));
+				out.push(m.scope.task(() => new Promise((_, reject) => (fail = reject))));
 				m.go('idle');
 				fail(new Error('after it left'));
 			}
@@ -130,10 +140,10 @@ bench(
 		let thrown = 0;
 		for (let i = 0; i < machines.length; i++) {
 			const m = machines[i];
-			m.onLeave(() => ran++);
-			m.onLeave(() => ran++);
+			m.scope.defer(() => ran++);
+			m.scope.defer(() => ran++);
 			if (i % 10 === 0)
-				m.onLeave(() => {
+				m.scope.defer(() => {
 					throw new Error('cleanup');
 				});
 			try {
@@ -180,11 +190,11 @@ bench(
 		let ran = 0;
 		for (const m of machines) {
 			m.go('fetching', { attempt: 1 });
-			void m.task(() => new Promise(() => {}));
-			m.onLeave(() => ran++);
+			void m.scope.task(() => new Promise(() => {}));
+			m.scope.defer(() => ran++);
 			m.stop();
 			m.stop();
-			m.onLeave(() => ran++); // a stopped machine runs it at once
+			m.scope.defer(() => ran++); // a stopped machine runs it at once
 		}
 		return ran;
 	},
@@ -257,7 +267,9 @@ bench('machine: every message, worded', () => {
 		option: 'retries',
 		value: '-1',
 		problem: 'its ms is not a time',
-		ms: 'NaN'
+		ms: 'NaN',
+		rule: 'a whole number of 0 or more',
+		owner: 'scope'
 	};
 	for (const code in table) length += table[code].text(args).length + table[code].details().length;
 	const error = console.error;
@@ -274,29 +286,202 @@ bench('machine: every message, worded', () => {
 });
 
 bench(
-	'once: loaders shared, failures not kept, retried',
+	'flights: one key (a lazy chunk): loads shared, failures not kept, retried',
 	async ({ n }) => {
 		let loads = 0;
 		const out: Promise<unknown>[] = [];
 		for (let i = 0; i < n; i++) {
 			let calls = 0;
-			const get = once(
-				async () => {
+			const chunk = flights({
+				run: async () => {
 					loads++;
 					if (calls++ === 0 && i % 2 === 0) throw new Error('blip');
 					return i;
 				},
-				{ retries: i % 4 === 0 ? 1 : 0 }
-			);
+				retries: i % 4 === 0 ? 1 : 0
+			});
 			out.push(
-				get().catch(() => get()),
-				get().catch(() => -1)
+				chunk.get().catch(() => chunk.get()),
+				chunk.get().catch(() => -1)
 			);
 		}
 		await Promise.all(out);
 		return loads;
 	},
 	{ setup: () => ({ n: 150 }), scale: (_ctx, k) => ({ n: 150 * k }) }
+);
+
+bench(
+	'flights: a kept answer read by every island (the hot path)',
+	({ chunk, n }) => {
+		let got = 0;
+		for (let i = 0; i < n; i++) if (chunk.get() !== null) got++;
+		return got;
+	},
+	{
+		setup: async () => {
+			const chunk = flights({ run: async () => ({ hydrate: 1 }) });
+			await chunk.get();
+			return { chunk, n: 500 };
+		},
+		scale: (ctx, k) => ({ chunk: ctx.chunk, n: 500 * k })
+	}
+);
+
+bench(
+	'flights: keyed pages (joins, callers that leave, drops, fresh, keep, max and weigh)',
+	async ({ n }) => {
+		const pages = flights({
+			name: 'pages',
+			run: async (href: string, signal: AbortSignal) => {
+				await Promise.resolve();
+				if (signal.aborted) throw signal.reason;
+				if (href.endsWith('7')) throw new Error('blip');
+				return { html: 'x'.repeat(href.length * 10), cacheable: !href.endsWith('3') };
+			},
+			keep: (page) => (page.cacheable ? 60_000 : 0),
+			max: 2_000,
+			weigh: (page) => page.html.length
+		});
+		const out: Promise<unknown>[] = [];
+		for (let i = 0; i < n; i++) {
+			const href = '/page/' + (i % 40);
+			const ctl = new AbortController();
+			out.push(pages.get(href).catch(() => null));
+			out.push(pages.get(href, { signal: ctl.signal }).catch(() => null));
+			if (i % 5 === 0) ctl.abort();
+			if (i % 11 === 0) pages.drop(href);
+			if (i % 13 === 0) out.push(pages.get(href, { fresh: true }).catch(() => null));
+			if (i % 17 === 0) pages.drop((key) => key.endsWith('1'));
+			if (i % 4 === 0) pages.peek(href);
+		}
+		const settled = await Promise.all(out);
+		// revalidations of what is kept now: each one beside its kept answer
+		const again: Promise<unknown>[] = [];
+		for (let i = 0; i < 40; i += 2) again.push(pages.get('/page/' + i, { fresh: true }));
+		await Promise.allSettled(again);
+		pages[Symbol.dispose]();
+		return settled.filter((v) => v === STALE).length;
+	},
+	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
+);
+
+bench(
+	'scope: listeners, timers, observers, children and cleanups held, then released by one close',
+	({ n }) => {
+		const target = new EventTarget();
+		// a Node-style emitter (on / off), as a child process or a socket is one
+		const listeners = new Set<() => void>();
+		const emitter = {
+			on: (_type: string, fn: () => void) => listeners.add(fn),
+			off: (_type: string, fn: () => void) => listeners.delete(fn),
+			emit: () => {
+				for (const fn of listeners) fn();
+			}
+		};
+		const root = scope();
+		let heard = 0;
+		const on_ping = () => heard++;
+		for (let i = 0; i < n; i++) {
+			const s = i % 3 === 0 ? root.child() : scope(root);
+			s.on(target, 'ping', on_ping);
+			if (i % 2 === 0) s.on(emitter, 'data', on_ping);
+			const cancel = s.timeout(() => heard--, 60_000);
+			if (i % 2 === 0) cancel();
+			if (i % 5 === 0) s.every(() => heard--, 60_000);
+			if (i % 7 === 0) s.timeout(() => heard--, i % 2 === 0 ? 'frame' : 'idle');
+			s.watch({ disconnect: () => heard++ });
+			s.defer(() => heard++);
+			s.adopt({ [Symbol.dispose]: () => heard++ });
+			if (i % 4 === 0) s.close();
+		}
+		target.dispatchEvent(new Event('ping'));
+		emitter.emit();
+		root.close();
+		target.dispatchEvent(new Event('ping'));
+		emitter.emit();
+		return heard;
+	},
+	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
+);
+
+type Frames = {
+	requestAnimationFrame?: (fn: () => void) => number;
+	cancelAnimationFrame?: (id: number) => void;
+	requestIdleCallback?: (fn: () => void) => number;
+	cancelIdleCallback?: (id: number) => void;
+};
+
+bench(
+	'scope: `using` and `await using`, async disposals awaited or reported, frame and idle callbacks',
+	async ({ n, frames }) => {
+		const host = globalThis as Frames;
+		// a page's frame and idle callbacks (node has neither: these stand in, as a browser's would)
+		Object.assign(host, frames);
+		const error = console.error;
+		console.error = () => {};
+		let done = 0;
+		try {
+			for (let i = 0; i < n; i++) {
+				{
+					using s = scope();
+					s.defer(() => done++);
+					if (s.closed) done--;
+					const cancel = s.timeout(() => done++, i % 2 === 0 ? 'frame' : 'idle');
+					if (i % 3 === 0) cancel();
+				}
+				await using later = scope();
+				later.adopt({ [Symbol.asyncDispose]: async () => void done++ });
+				if (i % 5 === 0) {
+					const plain = scope();
+					plain.adopt({
+						[Symbol.asyncDispose]: () => Promise.reject(new Error('could not close'))
+					});
+					plain.close(); // nobody waits: reported
+				}
+			}
+			await new Promise((r) => setTimeout(r, 0));
+		} finally {
+			console.error = error;
+			delete host.requestAnimationFrame;
+			delete host.cancelAnimationFrame;
+			delete host.requestIdleCallback;
+			delete host.cancelIdleCallback;
+		}
+		return done;
+	},
+	{
+		setup: () => ({
+			n: 100,
+			frames: {
+				requestAnimationFrame: (fn: () => void) => setTimeout(fn, 0) as unknown as number,
+				cancelAnimationFrame: (id: number) => clearTimeout(id),
+				requestIdleCallback: (fn: () => void) => setTimeout(fn, 0) as unknown as number,
+				cancelIdleCallback: (id: number) => clearTimeout(id)
+			}
+		}),
+		scale: (ctx, k) => ({ ...ctx, n: 100 * k })
+	}
+);
+
+bench(
+	'scope: tasks answered, failed, and settled STALE by a close',
+	async ({ n }) => {
+		const out: Promise<unknown>[] = [];
+		const scopes: Scope[] = [];
+		for (let i = 0; i < n; i++) {
+			const s = scope();
+			scopes.push(s);
+			if (i % 3 === 0) out.push(s.task(async () => i));
+			else if (i % 3 === 1) out.push(s.task(() => Promise.reject(new Error('x'))).catch(() => -1));
+			else out.push(s.task(() => new Promise(() => {})));
+		}
+		for (let i = 2; i < n; i += 3) scopes[i].close();
+		const settled = await Promise.all(out);
+		for (const s of scopes) s.close();
+		return settled.filter((v) => v === STALE).length;
+	},
+	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
 );
 
 bench(
