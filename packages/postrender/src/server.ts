@@ -28,9 +28,9 @@ import { STALE } from '@ogygia/machine';
 import {
 	current_runtime,
 	enter_flight,
+	evict_tags,
 	handled_runtime,
 	installed_runtime,
-	invalidate_tags,
 	self_evict,
 	store_evict,
 	store_get,
@@ -499,9 +499,13 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 	},
 
 	// SHARED HOOK — a peer said these tags are stale (federation's inbound thaw): drop the pages.
-	// Never re-announced.
+	// Never re-announced. A tag the store failed to evict throws, once the rest is evicted: the
+	// peer then answers an error and the sender sends the notice again (#287).
 	async invalidate(tags) {
-		await invalidate_tags(tags);
+		const { failed } = await evict_tags(tags);
+		if (failed.length === 1) throw failed[0];
+		if (failed.length > 1)
+			throw new AggregateError(failed, `[ogygia] ${failed.length} tags failed to evict`);
 	},
 
 	// SHARED HOOK — deploy thaw: remember this build, answer the one the store saw before. Written on

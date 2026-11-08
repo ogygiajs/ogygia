@@ -105,7 +105,9 @@ export function reset_for_tests(): void {
 // hook; a `federate()` implements it and tells the peers that baked this app's fragments (see
 // internal/notes/federation.md §4). Fire-and-forget: a peer that is down never fails a publish.
 function notify_thaw(tags: string[] | 'all'): void {
-	void postrender_app()?.notify.invalidated(tags);
+	void postrender_app()
+		?.notify.invalidated(tags)
+		.catch(() => {}); // ok: notify said each failed hook (plugin_hook_failed); a publish never fails on a peer
 }
 
 /** Evict every stored page carrying ANY of `tags` (origin + every edge). The receiving half of a
@@ -114,28 +116,39 @@ export async function invalidate_tags(
 	tags: readonly string[],
 	runtime: Runtime = current_runtime()
 ): Promise<string[]> {
+	return (await evict_tags(tags, runtime)).keys;
+}
+
+/** `invalidate_tags`, with what the store failed to evict: the shared hook (a peer's thaw) must not
+ *  answer "done" for a tag that is still stored (#287). */
+export async function evict_tags(
+	tags: readonly string[],
+	runtime: Runtime = current_runtime()
+): Promise<{ keys: string[]; failed: unknown[] }> {
 	stale_flights('all');
 	const { store, edges } = runtime;
 	const evict_by_tag = store.evictByTag?.bind(store);
 	if (!evict_by_tag) {
 		warn('postrender_store_no_evict_by_tag');
-		return [];
+		return { keys: [], failed: [] };
 	}
 	// A tag the store fails to evict is reported and skipped: the other tags still evict, and every
 	// page they named is still purged at the edges.
 	const keys = new Set<string>();
+	const failed: unknown[] = [];
 	for (const tag of tags) {
 		try {
 			for (const key of await evict_by_tag(tag)) keys.add(key);
 		} catch (e) {
 			warn('postrender_tag_evict_failed', { tag }, e);
+			failed.push(e);
 		}
 	}
 	const jobs: Job[] = [];
 	for (const key of keys)
 		for (const edge of edges) jobs.push(edge_job(edge, (e) => e.purgeUrl(key)));
 	await settle_all('invalidate(tags)', jobs);
-	return [...keys];
+	return { keys: [...keys], failed };
 }
 
 // ── read/write (hooks-facing; store failures NEVER fail a request) ─────────────────────────────
