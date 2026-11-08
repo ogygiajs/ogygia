@@ -45,7 +45,7 @@ test.describe('og:before-swap / og:after-swap / og:page-load DOM events — init
 		// ordering sanity: page-load implies the body already swapped
 		check(
 			'same-document survived (SPA, not a full reload)',
-			await page.evaluate(() => history.state?.ogygia === true)
+			await page.evaluate(() => typeof history.state?.ogygia === 'string')
 		);
 	});
 });

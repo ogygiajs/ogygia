@@ -206,6 +206,103 @@ export function jump_to_hash(hash: string): void {
 	}
 }
 
+/** One entry of the visitor's history the router made (or took over): its address, and where the
+ *  page was when the visitor left it: its scroll, and the id of the element that had focus. */
+export interface HistoryEntry {
+	readonly id: string;
+	url: URL;
+	scroll: { x: number; y: number } | null;
+	focus: string | null;
+}
+
+/** How a navigation writes history: a new entry, the current one's address, or the entry a back or
+ *  forward step is already on. */
+export type HistoryMove = 'push' | 'replace' | 'pop';
+
+/**
+ * THE ROUTER'S HISTORY, one record (#310). The router keeps the visitor's entries it made, each with
+ * its address and where its page was left, and reads the rest from it: the page on screen
+ * (`current_url`, its document key), the scroll a back or forward step puts back. `history.state`
+ * holds only an entry's id. It once kept the same facts in several places (the address bar written
+ * before the fetch, `current_url`, `doc_key`, a scroll saved on push only), and they drifted.
+ *
+ * - An entry is written when a page goes in (the navigation's commit), never before its fetch: a
+ *   download or a 204 adds none (#297), and the address bar is the page on screen.
+ * - Leaving an entry keeps where its page was, on every move: a click, a back or forward step (#270).
+ * - An id this document never made (its state names another document's entry) is not this
+ *   document's to show: the browser loads it whole. An entry with no id (the browser's own fragment
+ *   jump, an app's own `pushState`) is taken over when the router meets it.
+ */
+export class RouterHistory {
+	/** Names this document's entries apart from another document's (a reload's, say). */
+	readonly #doc = Math.random().toString(36).slice(2, 10);
+	#n = 0;
+	readonly #entries = new Map<string, HistoryEntry>();
+	#current: HistoryEntry | null = null;
+
+	/** The entry of the page on screen. */
+	get current(): HistoryEntry {
+		return (this.#current ??= this.#add(new URL(location.href)));
+	}
+
+	/** Takes over the entry the browser is on as the router starts: its state names it now. */
+	start(): void {
+		replace_state({ ogygia: this.current.id });
+	}
+
+	/** The entry a history state names: this model's, `'foreign'` (another document's), or null
+	 *  (no id: an entry the browser or the app made). */
+	find(state: unknown): HistoryEntry | 'foreign' | null {
+		const id = (state as { ogygia?: unknown } | null)?.ogygia;
+		if (typeof id !== 'string') return null;
+		return this.#entries.get(id) ?? (id.startsWith(this.#doc + '.') ? null : 'foreign');
+	}
+
+	/** The page on screen is being left: keep where it is. */
+	leave(): void {
+		const entry = this.current;
+		entry.scroll = { x: scrollX, y: scrollY };
+		const active = typeof document === 'undefined' ? null : document.activeElement;
+		entry.focus = active && active !== document.body && active.id ? active.id : null;
+	}
+
+	/** A page goes in at `url` (the browser's entry is written now). `push`: a new entry after the
+	 *  one left; `replace`: the current one at a new address; `pop`: `to`, the entry a back or
+	 *  forward step is on. */
+	commit(url: URL, move: HistoryMove, to?: HistoryEntry): HistoryEntry {
+		if (move === 'push') {
+			this.leave();
+			const entry = this.#add(url);
+			push_state({ ogygia: entry.id }, url.href);
+			return (this.#current = entry);
+		}
+		const entry = move === 'pop' && to ? to : this.current;
+		entry.url = url;
+		this.#current = entry;
+		if (location.href !== url.href || history.state?.ogygia !== entry.id)
+			replace_state({ ogygia: entry.id }, url.href);
+		return entry;
+	}
+
+	/** The entry the browser stepped to, which no id names: this model's from now on. */
+	adopt(url: URL): HistoryEntry {
+		const entry = this.#add(url);
+		replace_state({ ogygia: entry.id });
+		return entry;
+	}
+
+	#add(url: URL): HistoryEntry {
+		const entry: HistoryEntry = {
+			id: this.#doc + '.' + ++this.#n,
+			url,
+			scroll: null,
+			focus: null
+		};
+		this.#entries.set(entry.id, entry);
+		return entry;
+	}
+}
+
 /** Run `fn` once, when the browser is idle or after `cap` ms, whichever is first, unless `page` (a
  *  page visit's scope) ends first. */
 function on_idle(page: Scope, fn: () => void, cap = 1000) {
@@ -236,12 +333,7 @@ const load_nav = flights({
 function nav(): Promise<Nav | Stale> {
 	// Link what the navigation chunk uses from this module right where the chunk is loaded
 	// (./slots.ts `BootLink`: it never imports this module, or both would be split out of the runtime).
-	slots.router_link ??= {
-		document_key,
-		jump_to_hash,
-		push_state,
-		replace_state
-	};
+	slots.router_link ??= { jump_to_hash };
 	return load_nav.get().then((m) => (m === STALE ? m : (loaded_nav = m)));
 }
 
@@ -274,16 +366,22 @@ export class SpaRouter {
 	 * clicks `document` will not hear (`#on_anchor_click`).
 	 */
 	#taken = new WeakMap<HTMLAnchorElement, string>();
-	/** pathname+search of the document currently in the DOM (hash ignored). */
-	doc_key = '';
+	/** The visitor's history, as the router keeps it (`RouterHistory`): the rest is read from it. */
+	readonly history: RouterHistory = new RouterHistory();
 	/**
-	 * Full URL of the document currently displayed in the DOM. `navigate()` uses this as its `from`
+	 * Full URL of the page on screen: its history entry's. `navigate()` uses this as its `from`
 	 * instead of `location.href`, because on a `popstate` (back/forward) the browser has ALREADY
 	 * changed `location` to the target — so `location.href` would equal the target and the
 	 * same-document guard would wrongly bail into the hash-only branch, never swapping the body
 	 * (browser back left the old page's DOM in place). POP-FROM.
 	 */
-	current_url: URL | null = null;
+	get current_url(): URL {
+		return this.history.current.url;
+	}
+	/** pathname+search of the page on screen (hash ignored). */
+	get doc_key(): string {
+		return document_key(this.current_url);
+	}
 
 	beforeNavigate(fn: BeforeNavigateCallback): () => boolean {
 		this.#before_hooks.add(fn);
@@ -328,29 +426,23 @@ export class SpaRouter {
 	 * link joined it and was swallowed (#266). A visit already left (a newer click took over, or back
 	 * to the page on screen) hands nothing off: the browser never goes where the visitor no longer is.
 	 *
-	 * When the history entry already has `url` (the router pushed it for the click, or back/forward
-	 * stepped to it), a browser navigation to it RELOADS that entry: the new document took the entry
-	 * over, the router's state with it, and the router page's entry beside it became the new
-	 * document's too. Back was then a step inside the new document, which loads nothing: from a
-	 * csr=true page the address changed and the Kit page stayed (#259). So the entry first gets back
-	 * the address of the document on screen, and the browser's navigation REPLACES it: one entry for
-	 * the visit, holding a document of its own. Otherwise (nothing written yet) it is a plain
-	 * navigation, a new entry.
+	 * The router writes an entry only when a page goes in, so a click handed off has none: the
+	 * browser's navigation is a new entry of its own, and one it keeps the page on screen for adds
+	 * none (#297). A back or forward step is already on its entry, and a refresh on the one on
+	 * screen: the browser's navigation REPLACES it, so its document holds the entry alone, never
+	 * shares it with the router's page (back from a csr=true page then loads the router page, #259).
+	 * So does a commit that failed after it wrote the entry (the address is already `url`).
 	 *
 	 * `error`: the navigation failed part way (its devalue did not load, its swap threw, #276). It
 	 * is said (the page's error handler, as an uncaught throw would be), and the browser loads the
 	 * page whole.
 	 */
-	hand_off(url: URL, from: URL, visit: Navigation['now'], error?: unknown): void {
+	hand_off(url: URL, visit: Navigation['now'], move: HistoryMove, error?: unknown): void {
 		if (this.nav.now !== visit) return;
 		this.nav.go('idle');
 		if (error !== undefined) report_thrown(error);
-		if (location.href !== url.href) {
-			location.href = url.href;
-			return;
-		}
-		replace_state(history.state, from.href);
-		location.replace(url.href);
+		if (move === 'push' && location.href !== url.href) location.assign(url.href);
+		else location.replace(url.href);
 	}
 
 	bust_page_cache(): void {
@@ -375,13 +467,15 @@ export class SpaRouter {
 		url: URL,
 		opts: {
 			push?: boolean;
-			pop_scroll?: { x: number; y: number } | null;
+			/** the entry a back or forward step is on */
+			pop?: HistoryEntry;
 			type?: string;
 			replace?: boolean;
 		} = {}
 	): Promise<void> {
 		const { push = true, type = 'link', replace = false } = opts;
-		const from = this.current_url ?? new URL(location.href);
+		const from = this.current_url;
+		const move: HistoryMove = opts.pop ? 'pop' : push && !replace ? 'push' : 'replace';
 
 		// Same document, hash-only (or identical URL): never fetch / swap / view-transition — and
 		// never the navigation chunk. (`invalidateAll` is a soft seed refresh — it does not call
@@ -389,13 +483,8 @@ export class SpaRouter {
 		if (same_document(url, from) && !replace) {
 			if (!this.run_before(from, url, type)) return;
 			this.supersede();
-			if (push && url.href !== location.href) {
-				push_state({ ...history.state, ogygia: true }, url.href);
-			} else if (url.href !== location.href) {
-				replace_state({ ...history.state, ogygia: true }, url.href);
-			}
+			if (url.href !== location.href) this.history.commit(url, move);
 			jump_to_hash(url.hash);
-			this.current_url = url;
 			this.run_after(from, url, type);
 			return;
 		}
@@ -419,9 +508,9 @@ export class SpaRouter {
 		} catch {
 			// The navigation code could not load (offline, a deploy removed the chunk): the link must
 			// still work — let the browser navigate.
-			return this.hand_off(url, from, mine);
+			return this.hand_off(url, mine, move);
 		}
-		if (n === STALE) return this.hand_off(url, from, mine);
+		if (n === STALE) return this.hand_off(url, mine, move);
 		// superseded while the navigation code loaded
 		if (this.nav.now !== mine) return;
 		return n.navigate(this, url, from, opts, mine);
@@ -490,8 +579,8 @@ export class SpaRouter {
 		// On those pages Kit owns navigation — do not intercept clicks alongside it.
 		if (kit_hydrates_page()) return;
 		this.#started = true;
-		this.doc_key = document_key(new URL(location.href));
-		this.current_url = new URL(location.href);
+		// the entry the browser is on is the router's from now on (its page is the one on screen)
+		this.history.start();
 		// What the server sent `<body>`, before any island wakes and mounts something into it (a
 		// popover's portal): a navigation replaces the server's part only (ownership.ts).
 		const body = document.body;
@@ -505,21 +594,28 @@ export class SpaRouter {
 		// oxlint-disable-next-line ogygia/owned-effects -- the router's back/forward, installed once (`#started`): it lives as long as the document
 		window.addEventListener('popstate', () => {
 			const url = new URL(location.href);
-			// Hash-only back/forward on the same document — browser already updated the URL;
-			// do not fetch or swap. Scroll to the target if present.
-			if (document_key(url) === this.doc_key) {
-				// (back to the page still on screen while the next one loads: that load must not land)
+			const found = this.history.find(history.state);
+			// An entry of another document: not this document's page to show. It loads whole (#259).
+			if (found === 'foreign') {
 				this.supersede();
-				jump_to_hash(url.hash);
+				location.reload();
 				return;
 			}
-			const pop_scroll = history.state?.scroll || null;
+			// The page on screen is left: keep where it is, before anything scrolls it (the browser
+			// restores the next entry's scroll after this event, onto the page still on screen).
+			this.history.leave();
+			const entry = found ?? this.history.adopt(url);
+			// Same document (a fragment step): nothing to fetch or swap, and no jump: the browser
+			// restores the entry's scroll itself, and a jump to a fragment no element has went to the
+			// top (#282). (Back to the page on screen while the next one loads: that load must not land.)
+			if (document_key(url) === this.doc_key) {
+				this.supersede();
+				this.history.commit(url, 'pop', entry);
+				return;
+			}
 			// `popstate` type → the fetch is marked a history restore (x-ogygia-purpose: history).
-			this.navigate(url, { push: false, pop_scroll, type: 'popstate' });
+			this.navigate(url, { push: false, pop: entry, type: 'popstate' });
 		});
-
-		// seed initial history entry so scroll is restored on the first back
-		replace_state({ ...history.state, ogygia: true });
 	}
 
 	/** A click on `anchor`: the router's, or the browser's. A click it prevents always ends in a
@@ -546,9 +642,11 @@ export class SpaRouter {
 				if (!hash_target_exists(url.hash)) {
 					event.preventDefault();
 					if (location.hash !== url.hash) {
-						push_state(history.state || {}, url.href);
+						// (the address it leaves, read before the entry moves on: #277)
+						const old = location.href;
+						this.history.commit(url, 'push');
 						window.dispatchEvent(
-							new HashChangeEvent('hashchange', { oldURL: location.href, newURL: url.href })
+							new HashChangeEvent('hashchange', { oldURL: old, newURL: url.href })
 						);
 					}
 				}
@@ -578,7 +676,6 @@ export class SpaRouter {
 		return (
 			!event.isTrusted &&
 			this.#taken.get(anchor) === url.href &&
-			!!this.current_url &&
 			same_document(url, this.current_url)
 		);
 	}

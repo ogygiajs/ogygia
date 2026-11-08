@@ -203,10 +203,7 @@ export type BootLink = {
 	soft: import('./soft-refresh.ts').SoftRefresh;
 };
 export type RouterLink = {
-	document_key: typeof import('./router.ts').document_key;
 	jump_to_hash: typeof import('./router.ts').jump_to_hash;
-	push_state: typeof import('./router.ts').push_state;
-	replace_state: typeof import('./router.ts').replace_state;
 };
 export type InteractionLink = {
 	resolve_address: typeof import('./interaction.ts').resolve_address;

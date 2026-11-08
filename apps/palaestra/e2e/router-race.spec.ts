@@ -1,6 +1,6 @@
 // P2: overlapping SPA navigations must not leave URL ≠ DOM (last-nav-wins).
 // Usage: pnpm exec playwright test router-race
-import { test, check } from '@ogygia/tooling/e2e';
+import { test, check, expect } from '@ogygia/tooling/e2e';
 
 const FORMS_HEADING_RE = /classic form actions/i;
 
@@ -38,15 +38,19 @@ test.describe('overlapping SPA navigations / stale-swap guards', () => {
 		);
 	});
 
-	// REGRESSION (CI, a slow runner): back pressed while the next page was still loading. The router
-	// knows the page on screen only once a swap commits, so the back looked "same document" and did
-	// nothing — and the load still in flight then swapped in under the old page's address.
-	test('back while the next page loads: the load never lands, URL and DOM stay on the page', async ({
+	// REGRESSION (CI, a slow runner): back pressed while the next page was still loading. The load
+	// still in flight must never land: Back goes back from the page on screen (the router writes an
+	// entry only when a page goes in, as a browser commits one only when its document arrives), and
+	// the page it brings is the one that shows.
+	test('back while the next page loads: the load never lands, Back goes back from the page on screen', async ({
 		page
 	}) => {
-		await page.goto('/about', { waitUntil: 'load' });
+		await page.goto('/', { waitUntil: 'load' });
 		await page.waitForSelector('meta[name="ogygia-router"]', { state: 'attached' });
-		const about_h1 = (await page.locator('h1').first().textContent())?.trim();
+		const home_h1 = (await page.locator('h1').first().textContent())?.trim();
+		await page.locator('a[href="/about"]').first().click();
+		await page.waitForURL('**/about');
+		await page.waitForSelector('#about-heading');
 		let release!: () => void;
 		const held = new Promise<void>((r) => (release = r));
 		await page.route('**/data', async (route) => {
@@ -54,14 +58,22 @@ test.describe('overlapping SPA navigations / stale-swap guards', () => {
 			await route.continue();
 		});
 		await page.locator('a[href="/data"]').first().click();
-		await page.waitForURL('**/data');
+		await page.waitForTimeout(200);
+		check(
+			'the address is the page on screen while /data loads',
+			new URL(page.url()).pathname === '/about',
+			page.url()
+		);
 		await page.goBack();
-		await page.waitForURL('**/about');
+		await page.waitForURL((u) => u.pathname === '/');
+		await expect
+			.poll(async () => (await page.locator('h1').first().textContent())?.trim())
+			.toBe(home_h1);
 		release();
 		await page.waitForTimeout(800);
 		const path = await page.evaluate(() => location.pathname);
 		const h1 = (await page.locator('h1').first().textContent())?.trim();
-		check('URL back on /about', path === '/about', path);
-		check('DOM is still /about (the held /data never swapped in)', h1 === about_h1, `h1=${h1}`);
+		check('URL back on /', path === '/', path);
+		check('DOM is / (the held /data never swapped in)', h1 === home_h1, `h1=${h1}`);
 	});
 });

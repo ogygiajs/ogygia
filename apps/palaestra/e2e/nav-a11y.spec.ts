@@ -12,7 +12,7 @@ test.describe('SPA navigation accessibility', () => {
 		await page.waitForSelector('meta[name="ogygia-router"]', { state: 'attached' });
 		// Router started (click listener installed) once history.state.ogygia is set by start().
 		await page.waitForFunction(
-			() => (history.state as { ogygia?: boolean } | null)?.ogygia === true,
+			() => typeof (history.state as { ogygia?: string } | null)?.ogygia === 'string',
 			{ timeout: 8000 }
 		);
 
@@ -71,7 +71,7 @@ test.describe('SPA navigation accessibility', () => {
 		await page.waitForSelector('meta[name="ogygia-router"]', { state: 'attached' });
 		// Router started (click listener installed) once history.state.ogygia is set by start().
 		await page.waitForFunction(
-			() => (history.state as { ogygia?: boolean } | null)?.ogygia === true,
+			() => typeof (history.state as { ogygia?: string } | null)?.ogygia === 'string',
 			{ timeout: 8000 }
 		);
 

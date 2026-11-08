@@ -88,7 +88,7 @@ test.describe('csr=true coexistence + opt-in router', () => {
 		);
 		check(
 			'the Kit document starts with an entry of its own (no router state)',
-			!(await page.evaluate(() => (history.state as { ogygia?: boolean } | null)?.ogygia))
+			!(await page.evaluate(() => (history.state as { ogygia?: string } | null)?.ogygia))
 		);
 		await page.goBack();
 		const shown = await page.waitForSelector('[data-router-links]', { timeout: 10_000 }).then(
