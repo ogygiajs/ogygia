@@ -205,10 +205,7 @@ describe('audit fixes — page cache bounds', () => {
 	it('evicts by max entries and drops expired', async () => {
 		const { PageCache } = await import('../dist/runtime/page-cache.js');
 		const c = new PageCache({ ttlMs: 50, maxEntries: 3, maxBytes: 1_000_000 });
-		c.set('/a', 'aaaa');
-		c.set('/b', 'bbbb');
-		c.set('/c', 'cccc');
-		c.set('/d', 'dddd');
+		for (const p of ['/a', '/b', '/c', '/d']) c.set(p, { html: p.repeat(2), url: p });
 		expect(c.size).toBeLessThanOrEqual(3);
 		await new Promise((r) => setTimeout(r, 60));
 		expect(c.get('/a')).toBeNull();

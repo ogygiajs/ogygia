@@ -89,6 +89,17 @@ export const SERVER_WARNINGS = {
 			keeps the region's fallback. The error follows the message.
 		`
 	},
+	region_render_abandoned: {
+		text: (a: { ms: number }): string =>
+			`a region render ran past ${a.ms} ms and was abandoned: its hole kept its fallback`,
+		details: (): string => prose`
+			A hole's render did not finish within its deadline, so the islands endpoint answered with
+			the fallback and gave the render's slot to the next hole. The render still runs (a render
+			cannot be cancelled) until what it awaits ends. Renders that outlive their deadline usually
+			await an upstream that hangs: give that fetch a timeout of its own. Said once each time a
+			render is abandoned while no other is.
+		`
+	},
 	endpoint_props_decode_failed: {
 		text: (): string => 'region endpoint 403: island module load / props decode failed',
 		details: (): string => prose`
