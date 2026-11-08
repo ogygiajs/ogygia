@@ -21,6 +21,9 @@
  * it blanks the page; a MutationObserver would also delete FOUC styles the SPA router merges
  * in on navigation.
  *
+ * Its `hot.on` listeners are its module run's, and need no scope: Vite drops a replaced module's
+ * `hot.on` listeners itself (the client's `ctxToListenersMap`), and a full reload ends the page.
+ *
  * @internal Emitted by the plugin; exported for unit tests.
  */
 export function dev_hmr_client_source(): string {

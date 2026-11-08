@@ -11,7 +11,13 @@
 		{
 			"files": [
 				"packages/router/src/**",
-				"packages/devtools/src/profiler/ui/fake-progress.svelte.ts",
+				"packages/devtools/src/profiler/ui/**",
+				"packages/devtools/src/profiler/beacon-standalone.ts",
+				"packages/devtools/src/devtools/**",
+				"packages/content/src/site/**",
+				"packages/content/src/vite/**",
+				"packages/core/src/compiler/dev/**",
+				"packages/core/src/vite/**",
 				"packages/core/src/hooks.ts",
 				"packages/core/src/plugin/**",
 				"packages/core/src/server/**",
