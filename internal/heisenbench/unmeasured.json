@@ -5,11 +5,11 @@
 			"reason": "browser only: the dynamic import of the hydrate core chunk; its download, failure and retry are proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > once:0",
+			"id": "packages/core/src/runtime/core.ts > flights:0 > run",
 			"reason": "browser only: loads the hydrate core chunk (yield, import, keep); proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > once:0 > then:0",
+			"id": "packages/core/src/runtime/core.ts > flights:0 > run > then:0",
 			"reason": "browser only: keeps the loaded hydrate core; proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
 		{
@@ -21,11 +21,19 @@
 			"reason": "browser only: the dynamic import of devalue's chunk; proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/devalue-lane.ts > once:0",
+			"id": "packages/core/src/runtime/devalue-lane.ts > flights:0 > run",
 			"reason": "browser only: loads devalue's chunk and keeps it; proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/devalue-lane.ts > once:0 > then:0",
+			"id": "packages/core/src/runtime/devalue-lane.ts > load_devalue",
+			"reason": "browser only: hands out devalue's flight (its answer is the module, not cloneable), constant work; proven in packages/core/test/browser/devalue-lane.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/devalue-lane.ts > with_devalue > then:0",
+			"reason": "browser only: hands the loaded devalue to a waiting read, constant work; proven in packages/core/test/browser/devalue-lane.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/devalue-lane.ts > flights:0 > run > then:0",
 			"reason": "browser only: keeps the loaded devalue module; proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
 		{
@@ -41,7 +49,7 @@
 			"reason": "browser only: the default retry is a dynamic import() of a chunk URL; import_again itself runs in packages/core/bench/runtime.bench.ts with a stand-in"
 		},
 		{
-			"id": "packages/core/src/runtime/interaction.ts > import_again:0",
+			"id": "packages/core/src/runtime/interaction.ts > flights:0 > import_again:0",
 			"reason": "browser only: the dynamic import of the interaction replay chunk; proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
 		{
@@ -49,7 +57,7 @@
 			"reason": "browser only: ends the open form restore window (one machine move), constant work; proven in apps/palaestra/e2e/continuity.spec.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/form-continuity.ts > arm_form_restore > onLeave:0~395c45",
+			"id": "packages/core/src/runtime/form-continuity.ts > arm_form_restore > defer:0",
 			"reason": "browser only: the restore window closing removes its two document listeners, constant work; proven in apps/palaestra/e2e/continuity.spec.ts"
 		},
 		{
@@ -73,8 +81,12 @@
 			"reason": "browser only: the dynamic import of the testing engine's chunk; its download, failure and retry are proven in packages/devtools/e2e/devtools.spec.ts"
 		},
 		{
-			"id": "packages/devtools/src/devtools/ui.ts > install_testing_api > once:0",
+			"id": "packages/devtools/src/devtools/ui.ts > install_testing_api > flights:0 > run",
 			"reason": "browser only: loads the testing engine's chunk and notes its files, constant work; proven in packages/devtools/e2e/devtools.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/ui.ts > install_testing_api > engine",
+			"reason": "browser only: the testing engine from its flight, constant work; proven in packages/devtools/e2e/devtools.spec.ts"
 		},
 		{
 			"id": "packages/devtools/src/devtools/ui.ts > mount_launcher > load > task:0",
@@ -89,31 +101,47 @@
 			"reason": "browser only: the dock's teardown (its observer off, the Svelte app unmounted), once per dock; proven in packages/devtools/e2e/dock-switch.spec.ts"
 		},
 		{
-			"id": "packages/devtools/src/devtools/session.ts > start_session > onLeave:0",
+			"id": "packages/devtools/src/devtools/session.ts > start_session > defer:0",
 			"reason": "browser only: a recording's watchers coming off (PerformanceObservers, a MutationObserver, listeners), once per recording; proven in packages/devtools/e2e/devtools.spec.ts"
 		},
 		{
-			"id": "packages/devtools/src/devtools/session.ts > start_session > rec > once:0",
+			"id": "packages/devtools/src/devtools/session.ts > start_session > flights:0 > run",
 			"reason": "browser only: a recording's stop (the JS Self-Profiling sampler, the page's entries), once per recording; proven in packages/devtools/e2e/devtools.spec.ts"
 		},
 		{
-			"id": "packages/devtools/src/server.ts > mount > once:0",
+			"id": "packages/devtools/src/devtools/session.ts > start_session > stop",
+			"reason": "browser only: a recording's stop from its flight, constant work; proven in packages/devtools/e2e/devtools.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > flights:0 > run",
 			"reason": "once per process: the profiler's dynamic import and construction, nothing to repeat; proven in packages/devtools/test/profiler-mount-once.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/server.ts > mount > once:0 > catch:0",
+			"id": "packages/devtools/src/server.ts > flights:0 > key",
+			"reason": "the one profiler mount's constant key; proven in packages/devtools/test/profiler-mount-once.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > mount > then:0",
+			"reason": "the mounted profiler handed on (a handle, not cloneable), constant work; proven in packages/devtools/test/profiler-mount-once.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > mount > then:1",
+			"reason": "a failed mount: a constant null, once per wave of requests; proven in packages/devtools/test/profiler-mount-once.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > flights:0 > run > catch:0",
 			"reason": "the profiler's store module failed to load: a constant fallback, once per process"
 		},
 		{
-			"id": "packages/devtools/src/server.ts > mount > once:0 > catch:0 > getProfilerStore",
+			"id": "packages/devtools/src/server.ts > flights:0 > run > catch:0 > getProfilerStore",
 			"reason": "the fallback store getter when the store module failed to load: a constant undefined"
 		},
 		{
-			"id": "packages/core/src/runtime/wire-classes.ts > load > once:0",
+			"id": "packages/core/src/runtime/wire-classes.ts > load > flights:0 > run",
 			"reason": "browser only: yields a task, then the dynamic import of a transportable class's chunk; its download, failure and retry are proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/router.ts > import_again:0",
+			"id": "packages/core/src/runtime/router.ts > flights:0 > import_again:0",
 			"reason": "browser only: the dynamic import of the router's navigation chunk; its download, failure and retry are proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
 		{
@@ -121,12 +149,16 @@
 			"reason": "browser only: the navigation chunk did not load, so a prefetch has no page (a constant null); proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/nav-handle.ts > import_again:0",
+			"id": "packages/core/src/runtime/nav-handle.ts > flights:0 > import_again:0",
 			"reason": "browser only: the dynamic import of the router-off soft refresh's chunk; its download, failure and retry are proven in packages/core/test/browser/nav-handle-routerless-retry.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/nav-handle.ts > import_again:0 > then:0",
+			"id": "packages/core/src/runtime/nav-handle.ts > flights:0 > import_again:0 > then:0",
 			"reason": "browser only: picks the refresh out of the loaded navigation chunk, constant work; proven in packages/core/test/browser/nav-handle-routerless-retry.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/nav-handle.ts > invalidate_all",
+			"reason": "browser only: the router-off refresh, once its chunk is in; proven in packages/core/test/browser/nav-handle-routerless-retry.test.ts"
 		},
 		{
 			"id": "packages/postrender/src/registry.ts > store_evict",
@@ -197,15 +229,15 @@
 			"reason": "browser only: an on-demand hole's intent fires its fetch, constant work; proven in packages/core/test/browser/deferred-endpoint.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #arm > onLeave:0",
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #arm > defer:0",
 			"reason": "browser only: forgets an on-demand hole's arm when its fetch machine leaves `armed`, constant work; proven in packages/core/test/browser/deferred-endpoint.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #on_idle > onLeave:0",
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #on_idle > defer:0",
 			"reason": "browser only: cancels an idle schedule's callback when its machine leaves `armed`, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #on_media > onLeave:0",
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #on_media > defer:0",
 			"reason": "browser only: removes a media schedule's listener when its machine leaves `armed`, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
 		},
 		{
@@ -217,7 +249,7 @@
 			"reason": "browser only: hands the interaction capture's disarm from `armed` to `waking`, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts and interaction-delegated.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > applyLive > onLeave:0",
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > applyLive > defer:0",
 			"reason": "browser only: drops a static live region's subscription when an interactive tick takes over, constant work; proven in packages/core/test/browser/live-region.test.ts"
 		},
 		{
@@ -225,7 +257,7 @@
 			"reason": "browser only: is this still the live region's hydrating visit, constant work; proven in packages/core/test/browser/live-region.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #live_hydrate > onLeave:0",
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #live_hydrate > defer:0",
 			"reason": "browser only: disposes a live region's island when it leaves `live`, constant work besides Svelte's unmount; proven in packages/core/test/browser/live-region.test.ts"
 		},
 		{
@@ -341,15 +373,15 @@
 			"reason": "the handle's one-line hand-off of a batch call (and the stream's signal) to #render_capability; the handle runs only inside a Kit server build, and batch_stream itself is benched (packages/core/bench/server.bench.ts)"
 		},
 		{
-			"id": "packages/content/src/markdown/index.ts > ogygiaPreprocess > once:0~374c51",
+			"id": "packages/content/src/markdown/index.ts > ogygiaPreprocess > flights:0 > run",
 			"reason": "starts mdsvex (a dynamic import, then its instance) once and keeps it; mdsvex reaches @ogygia/core's built compiler, which a bench run does not load (see packages/content/bench/markdown.bench.ts); its failed start and retry are proven in packages/content/test/markdown-start.test.ts"
 		},
 		{
-			"id": "packages/content/src/markdown/shiki.ts > get_highlighter > highlighter > once:0~6db43e",
+			"id": "packages/content/src/markdown/shiki.ts > get_highlighter > highlighter > flights:0 > run",
 			"reason": "starts the Shiki highlighter (a dynamic import, grammars and Shiki's WASM engine) once and keeps it: module IO a measuring window refuses; its failed start and retry are proven in packages/content/test/markdown-start.test.ts"
 		},
 		{
-			"id": "packages/content/src/markdown/shiki.ts > get_highlighter > highlighter > once:0~6db43e > then:0~a452b6",
+			"id": "packages/content/src/markdown/shiki.ts > get_highlighter > highlighter > flights:0 > run > then:0",
 			"reason": "hands the loaded Shiki module to createHighlighter: Shiki's WASM engine, which a measuring window refuses; proven in packages/content/test/markdown-start.test.ts"
 		},
 		{
@@ -369,7 +401,7 @@
 			"reason": "the handle module's verifier for its plugins' apps: one call of verify() with the app's region key, which only the handle module's start has (a one-line hand-off, constant work over the HMAC)"
 		},
 		{
-			"id": "packages/core/src/plugin/css.ts > once:0~64d9cf",
+			"id": "packages/core/src/plugin/css.ts > flights:0 > run",
 			"reason": "the dynamic import of the generated virtual:ogygia/router-css, which resolves only under the app's Vite pipeline; its failed read and the read after it are proven against a real Vite dev server in packages/core/test/router-css-dev.test.ts"
 		},
 		{
@@ -429,7 +461,7 @@
 			"reason": "sends a signal to the server's process group (one syscall); proven with real child processes in packages/cli/test/serve.test.ts"
 		},
 		{
-			"id": "packages/cli/src/perf/cli.ts > serve > stop > onLeave:0~444023",
+			"id": "packages/cli/src/perf/cli.ts > serve > stop > defer:0",
 			"reason": "clears the SIGKILL timer when the server leaves stopping, constant work; proven in packages/cli/test/serve.test.ts"
 		},
 		{
@@ -493,7 +525,7 @@
 			"reason": "the e2e harness: the timer's end or its abort, constant work"
 		},
 		{
-			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > server > kill > onLeave:0~59e99b",
+			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > server > kill > defer:0",
 			"reason": "the e2e harness: clears the SIGKILL timer when the server leaves stopping, constant work; proven in packages/tooling/test/servers.test.ts"
 		},
 		{
