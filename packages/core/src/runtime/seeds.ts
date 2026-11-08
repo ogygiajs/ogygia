@@ -143,7 +143,7 @@ export function seed_page_once(): void {
 		const el = document.querySelector(PAGE_SEED_SELECTOR);
 		if (el) apply_page_seed(parse_page_seed(el));
 	}
-	if (session().page_facts.length) absorb_page_facts();
+	if (session().visit.facts.length) absorb_page_facts();
 }
 
 /**
@@ -153,9 +153,11 @@ export function seed_page_once(): void {
  * values their HTML was rendered from, and every island reading the same keys sees them too (the
  * page's data changed: a locale saved, a sign-in). On a Kit-hydrated page Kit owns `page.data`: the
  * page's data is older than the answer's, and dev says to refresh it (`invalidateAll()`) first.
+ * Only the page's own: the facts queued on its visit (runtime/session.ts `PageVisit`), never the
+ * ones a page left before them brought (#269).
  */
 function absorb_page_facts(): void {
-	const queued = session().page_facts.splice(0);
+	const queued = session().visit.facts.splice(0);
 	let merged: Record<string, unknown> | null = null;
 	for (const text of queued) {
 		let facts: Record<string, unknown>;

@@ -1,7 +1,9 @@
 /**
- * Document-scoped runtime session: lake caches, seed flags, kit-page probe, server-island gate.
- * Cleared on SPA body swap via `reset()` so connecting regions never see the previous page.
+ * Document-scoped runtime session: lake caches, seed flags, kit-page probe, server-island gate, and
+ * the page visit. Cleared on SPA body swap via `reset()` so connecting regions never see the previous
+ * page.
  */
+import { scope, type Scope } from '@ogygia/machine';
 import { ConcurrencyGate } from './concurrency.ts';
 import { FROZEN_SELECTOR } from './region-attrs.ts';
 
@@ -42,6 +44,22 @@ export type LakeCacheEntry = {
  * copy could unstyle the page for a frame; a doubled sheet is harmless).
  */
 const STYLESHEET_REL_RE = /(?:^|\s)stylesheet(?:\s|$)/i;
+
+/**
+ * THE PAGE VISIT: one per page the visitor is on, the document load, then each page a navigation
+ * swaps in. It ends when the next page's swap takes over (`RuntimeSession.reset`). What the page
+ * holds is its own and goes with it: on `scope`, its listeners, timers, observers and streams (the
+ * router's link scan, the batch of its holes, the waits for the sheets its answers bring); in
+ * `facts`, what its answers brought for its next hydrate.
+ */
+export class PageVisit {
+	/** Closed when the visit ends. */
+	readonly scope: Scope = scope();
+	/** The page facts answers rendered with (server/render-page.ts), queued at the answer seam
+	 *  (`region_fragment`) for the next hydrate to merge into the page store (seeds.ts). This page's
+	 *  only: the next page's visit starts with none (#269). */
+	readonly facts: string[] = [];
+}
 
 export class RuntimeSession {
 	/** Page-owned head nodes (see above). Survives `reset()`: it is the document's, not a page's. */
@@ -103,9 +121,12 @@ export class RuntimeSession {
 	readonly settled_lakes: WeakSet<Element> = new WeakSet<Element>();
 	readonly initialized_lakes: Set<string> = new Set<string>();
 	readonly server_gate: ConcurrencyGate = new ConcurrencyGate(3);
-	/** The page facts answers rendered with (server/render-page.ts), queued at the answer seam
-	 *  (`region_fragment`) for the next hydrate to merge into the page store (seeds.ts). */
-	readonly page_facts: string[] = [];
+
+	#visit: PageVisit = new PageVisit();
+	/** The visit of the page on screen (see {@link PageVisit}). */
+	get visit(): PageVisit {
+		return this.#visit;
+	}
 
 	#remote_seeded = false;
 	#page_seeded = false;
@@ -152,12 +173,16 @@ export class RuntimeSession {
 		}
 	}
 
+	/** The next page takes over (a new visit), and the visit of the page it replaces ends. */
 	reset(): void {
+		const left = this.#visit;
+		this.#visit = new PageVisit();
 		this.#kit_page = undefined;
 		this.#remote_seeded = false;
 		this.#page_seeded = false;
 		this.lake_cache.clear();
 		this.initialized_lakes.clear();
+		left.scope.close();
 	}
 }
 

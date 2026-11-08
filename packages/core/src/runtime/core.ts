@@ -197,7 +197,7 @@ const hydrate_core = flights({
  *  those keys shows the new values; before any island woke, the first hydrate absorbs them. */
 function absorb_page_facts_now(): void {
 	// (facts cross in devalue's lane)
-	if (runtime_session.page_facts.length && loaded_core)
+	if (runtime_session.visit.facts.length && loaded_core)
 		// (devalue failed to download: the facts stay queued, and the next wake's load absorbs them)
 		void load_devalue().then(
 			() => loaded_core?.seed_page_once(),
@@ -209,7 +209,7 @@ function absorb_page_facts_now(): void {
  *  document (a props sidecar, the page seed) or page facts an answer queued. Started beside the
  *  hydrate core, so it adds no hop; a page of JSON-lane scripts never downloads it. */
 function devalue_for_wake(): Promise<unknown> | undefined {
-	if (runtime_session.page_facts.length || needs_devalue(document)) return load_devalue();
+	if (runtime_session.visit.facts.length || needs_devalue(document)) return load_devalue();
 }
 
 /** What counts as intent for an ON-DEMAND hole (`render: 'deferred'` + `fetch: 'interaction'`).
@@ -343,11 +343,13 @@ async function snippets_settled(region: Element): Promise<void> {
 export function region_fragment(html: string): { frag: DocumentFragment; ready: Promise<void> } {
 	const frag = parse_region_html(html);
 	// THE PAGE AN ANSWER RENDERED FOR (server/render-page.ts): the `page.data` its islands read, as the
-	// server looked it up. Queued for the hydrate of those islands (seeds.ts), never left in the DOM.
-	// (one per render root: a region rendered inside a hole carries its own)
+	// server looked it up. Queued on the page's visit for the hydrate of those islands (seeds.ts),
+	// never left in the DOM, and never handed to the next page (#269). (one per render root: a region
+	// rendered inside a hole carries its own)
+	const queued = runtime_session.visit.facts;
 	for (const facts of frag.querySelectorAll(PAGE_FACTS_SELECTOR)) {
 		facts.remove();
-		runtime_session.page_facts.push(facts.textContent ?? '');
+		queued.push(facts.textContent ?? '');
 	}
 	const links = frag.querySelectorAll('link[data-ogygia-region-css]');
 	const pending: Array<Promise<void>> = [];
