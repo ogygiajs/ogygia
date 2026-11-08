@@ -2,7 +2,12 @@
  * Bounded SPA HTML cache: TTL + max entries + approximate byte budget.
  * Expired entries are dropped on read/insert; overflow drops oldest by timestamp.
  */
-export type PageCacheEntry = { html: string; t: number; bytes: number };
+
+/** A page as a fetch got it: its HTML and the address it belongs to (where the fetch landed, after
+ *  the server's redirects; the requested href when there were none). */
+export type FetchedPage = { html: string; url: string };
+
+export type PageCacheEntry = { page: FetchedPage; t: number; bytes: number };
 
 export class PageCache {
 	#map = new Map<string, PageCacheEntry>();
@@ -45,7 +50,7 @@ export class PageCache {
 		}
 	}
 
-	get(href: string): string | null {
+	get(href: string): FetchedPage | null {
 		const now = Date.now();
 		const e = this.#map.get(href);
 		if (!e) return null;
@@ -56,15 +61,15 @@ export class PageCache {
 		this.#map.delete(href);
 		e.t = now;
 		this.#map.set(href, e);
-		return e.html;
+		return e.page;
 	}
 
-	set(href: string, html: string): void {
+	set(href: string, page: FetchedPage): void {
 		const now = Date.now();
 		this.#evict_expired(now);
 		this.#drop(href);
-		const bytes = html.length * 2;
-		this.#map.set(href, { html, t: now, bytes });
+		const bytes = page.html.length * 2;
+		this.#map.set(href, { page, t: now, bytes });
 		this.#total_bytes += bytes;
 		this.#evict_overflow();
 	}

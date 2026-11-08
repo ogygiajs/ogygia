@@ -12,7 +12,7 @@
  * intercepted click. A visitor who never leaves the page never downloads it.
  */
 import { kit_hydrates_page } from './kit-boot.ts';
-import { create_navigation, create_soft_refresh, type Navigation } from './navigation.ts';
+import { create_navigation, type Navigation } from './navigation.ts';
 import { slots } from './slots.ts';
 import { publish_nav } from './nav-handle.ts';
 import { nearest_attr } from './nearest-attr.ts';
@@ -219,8 +219,7 @@ function nav(): Promise<Nav> {
 		document_key,
 		jump_to_hash,
 		push_state,
-		replace_state,
-		soft: create_soft_refresh()
+		replace_state
 	};
 	if (!nav_promise)
 		nav_promise = import('./router-nav.ts').then(
@@ -308,7 +307,7 @@ export class SpaRouter {
 		href: string,
 		signal?: AbortSignal,
 		purpose?: 'nav' | 'prefetch' | 'history'
-	): Promise<string | null> {
+	): Promise<import('./page-cache.ts').FetchedPage | null> {
 		return nav().then((n) => n.fetch_page(href, signal, purpose));
 	}
 
