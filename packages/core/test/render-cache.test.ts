@@ -10,6 +10,7 @@ import {
 	render_cache_clear,
 	cached_render
 } from '../src/server/render-cache.ts';
+import { ConcurrencyGate } from '../src/runtime/concurrency.ts';
 
 beforeEach(() => render_cache_clear());
 
@@ -190,5 +191,32 @@ describe('cached_render — one render per key in flight (#244)', () => {
 		const joined = cached_render(r.body, cache, Date.now());
 		expect(await Promise.all([fresh, joined])).toEqual(['<p>2</p>', '<p>2</p>']);
 		expect(r.renders).toBe(2);
+	});
+
+	it('a render whose own request left before it started is not a failure for the calls that joined it (#245)', async () => {
+		// a full render gate: the owner's render waits for a slot, and its visitor leaves meanwhile
+		const gate = new ConcurrencyGate(1);
+		const busy = gate.run(() => new Promise((r) => setTimeout(r, 30)));
+		let renders = 0;
+		const body = (signal?: AbortSignal) => () =>
+			gate.run(
+				async () => {
+					renders++;
+					return `<p>${renders}</p>`;
+				},
+				{ signal }
+			);
+		const cache = { key: render_cache_key('left', 'p', ''), ttl: 60 };
+		const leave = new AbortController();
+		const owner = cached_render(body(leave.signal), cache, Date.now(), undefined, leave.signal);
+		const owner_out = owner.catch((e: unknown) => e);
+		const joiner = cached_render(body(), cache, Date.now()); // another request, still there
+		leave.abort();
+		expect(await owner_out).toBe(leave.signal.reason);
+		// the joiner renders it itself, once, and stores it
+		expect(await joiner).toBe('<p>1</p>');
+		expect(renders).toBe(1);
+		expect(render_cache_get(cache.key, Date.now())).toBe('<p>1</p>');
+		await busy;
 	});
 });
