@@ -67,10 +67,22 @@ for (const observer of [true, false]) {
 			expect(document.head.children.filter((e) => e.getAttribute('name') === 'og')).toEqual([live]);
 		});
 
-		it('stop() ends the mark: nothing is noted after it', () => {
-			const mark = s.mark_head();
-			mark.stop();
-			expect(Array.isArray(mark.added())).toBe(true);
-		});
+		it(
+			observer
+				? 'stop() ends the mark: nothing is noted after it, and nothing observes the head'
+				: 'stop() has nothing to end: the copy decides',
+			() => {
+				const mark = s.mark_head();
+				mark.stop();
+				document.head.appendChild(el('<meta name="after">'));
+				const head = document.head as unknown as { _observers: unknown[] | null };
+				if (observer) {
+					expect(mark.added()).toEqual([]);
+					expect(head._observers ?? []).toEqual([]);
+				} else {
+					expect(names(mark.added())).toEqual(['after']);
+				}
+			}
+		);
 	});
 }
