@@ -1,23 +1,28 @@
 // Client hydration, run in Node against the unit tests' DOM shim (bench/hydration-page.ts; the
 // shim's own work counts too): a CMS page of a header, a builder list of block islands with mixed
 // wakes (load / visible / idle / interaction) and a footer, each with its props sidecar in the keyed
-// body tail. Three parts of the path:
+// body tail. One block in five is edited while it sleeps (a design-system runtime strips its
+// whitespace), so its wake compares it with its server copy and repairs it.
 //
-// - the hydrate step of hydrate_island, piece by piece: the props sidecar read, the drift check and
-//   repair of an island a script edited while it slept, the envelope, the head ownership record.
-//   hydrate_island itself (and the element's #hydrate / #fire_hydrate around it) reads
-//   `import.meta.env.DEV` unguarded, and Node has no `import.meta.env`, so their own lines wait for
-//   Heisenbench to bring one. Svelte's `hydrate()` is not run: its walk is Svelte's work, not ogygia's.
-// - the hydration scheduler: every region registered at connect, its viewport snapshot, the wakes
-//   starting at background priority, one hydrate turn per task, viewport first.
-// - the background drain: every wake start queued in one task, drained under its time budget.
+// - the region element, through its public path: the runtime boots, `customElements.define`
+//   upgrades every region, each connects and arms its wake, and `#fire_hydrate` wakes it (from its
+//   schedule, or from a tap that lands first): the module and the hydrate core load, the scheduler
+//   hands out turns, and each turn runs `hydrate_island`.
+// - `hydrate_island` itself, for one island and for every island of a page.
+// - the drift check and repair, and the head's `<svelte:head>` markers, each as its input grows.
+// - the hydration scheduler and the background drain, without the element around them.
 //
-// What is a stand-in: the island module's download (a timer per island, in network order), the
-// Svelte hydrate itself (nothing runs in the turn), `scheduler.yield` / `postTask` (timer-loop
-// tasks), `IntersectionObserver` (one report a task after observing) and `requestIdleCallback`
-// (a timer).
+// What is a stand-in: Svelte's `hydrate` (test/_stubs/svelte-hydrate.ts: the anchor check, then the
+// component runs once; nothing of Svelte's walk is counted), the island module
+// (test/_stubs/island-module.ts), `scheduler.yield` / `postTask` (timer-loop tasks),
+// `IntersectionObserver` (one report a task after observing), `MutationObserver` (the records of
+// the page's own edits), the custom element registry, and `requestIdleCallback` (absent: the
+// element's timer fallback).
 import {
 	cms_page,
+	edit_while_asleep,
+	grid_page,
+	ISLAND_SRCS,
 	in_view,
 	page_head,
 	server_copy,
@@ -26,15 +31,21 @@ import {
 } from './hydration-page.ts';
 import type { DomNode } from '../test/_stubs/dom.ts';
 import { bench } from '@bench/heisenbench/bench';
+import island_module from '../test/_stubs/island-module.ts';
 import { link_boot } from '../src/runtime/boot-link.ts';
+import { __heisenbench as core_private, boot } from '../src/runtime/core.ts';
+import { import_entry } from '../src/runtime/entry-locations.ts';
 import {
 	__heisenbench as hydrate_core,
+	hydrate_island,
 	neutralize_head_hydration_markers,
-	read_region_props,
-	seed_page_once,
-	seed_remote_once,
-	sequence_differs
+	sequence_differs,
+	type IslandModule
 } from '../src/runtime/hydrate-core.ts';
+import {
+	__heisenbench as interaction_private,
+	install as install_interaction
+} from '../src/runtime/interaction.ts';
 import { once_visible } from '../src/runtime/observe.ts';
 import {
 	background_start,
@@ -43,63 +54,135 @@ import {
 	hydrate_turn,
 	register_region
 } from '../src/runtime/schedule.ts';
-import { runtime_session } from '../src/runtime/session.ts';
-import { slots } from '../src/runtime/slots.ts';
 
-interface StepCtx {
-	regions: PageRegion[];
-	/** each touched island's server copy, parsed (the parse is the browser's, not counted here) */
-	copies: Map<Element, Element>;
+const MOD = { default: island_module } as unknown as IslandModule;
+
+// ── the region element, booted ─────────────────────────────────────────────────────────────────
+
+/** Every island that wakes without a visitor: `load`, `idle`, and `visible` ones on the first screen. */
+function wakes_alone(regions: PageRegion[]): number {
+	let n = 0;
+	for (const r of regions)
+		if (r.wake === 'load' || r.wake === 'idle' || (r.wake === 'visible' && in_view.has(r.el))) n++;
+	return n;
 }
 
-function step_ctx(regions: PageRegion[]): StepCtx {
-	const copies = new Map<Element, Element>();
-	for (const r of regions) if (r.touched) copies.set(r.el, server_copy(r));
-	return { regions, copies };
+/**
+ * The page as the browser runs it: the runtime boots (the interaction feature with it), every region
+ * upgrades and connects, a design-system runtime then edits one block in five while they sleep, and
+ * a visitor taps the header before it is live. Ends when every island that wakes alone is hydrated.
+ */
+function boot_page({ page }: Booted): Promise<number> {
+	const regions = page();
+	const expected = wakes_alone(regions);
+	let hydrated = 0;
+	const all = new Promise<number>((resolve, reject) => {
+		document.addEventListener('ogygia:hydrated', () => {
+			if (++hydrated === expected) resolve(hydrated);
+		});
+		// (a wake that never comes fails the case instead of ending it early)
+		setTimeout(() => reject(new Error(`${hydrated} of ${expected} islands hydrated`)), 60_000);
+	});
+	boot([install_interaction]);
+	for (const r of regions) if (r.touched) edit_while_asleep(r.el);
+	const tap = regions[0].el.querySelector('button')!;
+	tap.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+	return all;
 }
 
-/** Region `i` edited while it slept (its server copy kept first), as a design-system runtime does. */
-function edited(regions: PageRegion[], i: number): StepCtx {
-	const ctx = step_ctx(regions);
-	ctx.copies.set(regions[i].el, server_copy(regions[i]));
-	strip_whitespace(regions[i].el as unknown as DomNode);
-	regions[i].touched = true;
-	return ctx;
+/** The page behind a function: it is the document's, and a generic scaler must not repeat it. */
+type Booted = { page: () => PageRegion[] };
+
+function page_of(blocks: number): Booted {
+	const regions = cms_page(blocks, 6, false);
+	return { page: () => regions };
 }
 
-/** hydrate_island's own work for one island, in its order, up to (not including) Svelte's hydrate. */
-function hydrate_step(r: PageRegion, copies: Map<Element, Element>, first: boolean): number {
-	seed_remote_once();
-	seed_page_once();
-	const props = read_region_props(r.el);
-	// (a csr=false document: the first island makes the head's `<svelte:head>` markers safe)
-	if (!slots.boot!.kit_hydrates_page() && first) neutralize_head_hydration_markers();
-	const head_before: ReadonlySet<Node> = new Set(document.head.children);
-	const lifted = slots.lakes.lift(r.el);
-	const want = r.touched ? copies.get(r.el) : undefined;
-	if (want && sequence_differs(r.el, want)) hydrate_core.repair_markup(r.el as HTMLElement, want);
-	hydrate_core.ensure_envelope(r.el);
-	slots.lakes.restore(r.el, lifted);
-	runtime_session.record_island_head(head_before);
-	return Object.keys(props).length;
+/**
+ * The page, and the lazy chunks a wake imports loaded ahead of the window: the hydrate core, the
+ * interaction replay, and every island module the page builder names. Node resolves an `import()`
+ * with a filesystem call Heisenbench does not allow inside the window; in a browser each is a
+ * fetch, not ogygia's work.
+ */
+async function booted_page(blocks: number): Promise<Booted> {
+	await core_private.hydrate_core();
+	await interaction_private.replay();
+	await Promise.all(ISLAND_SRCS.map((src) => import_entry(src, src)));
+	return page_of(blocks);
 }
 
-function hydrate_page({ regions, copies }: StepCtx): number {
+bench('region element: a 250-block page boots and its islands wake', boot_page, {
+	setup: () => booted_page(250)
+});
+
+// Growth from a small page (5 blocks: at 100 times it is a 500-block page). Quadratic today: the
+// scheduler's turns (see its own case below), and every wake asks the whole document whether a
+// devalue-lane script is in it (devalue-lane.ts `needs_devalue`): islands × the page's elements on a
+// page whose scripts are all in the JSON lane.
+bench('region element: a page boots and wakes as it grows', boot_page, {
+	setup: () => booted_page(5),
+	scale: (_ctx, k) => page_of(5 * k)
+});
+
+// ── hydrate_island ─────────────────────────────────────────────────────────────────────────────
+
+/** Every island of the page, each hydrated against the server copy it connected with. */
+function hydrate_all(regions: PageRegion[]): number {
 	link_boot();
 	let n = 0;
-	regions.forEach((r, i) => (n += hydrate_step(r, copies, i === 0)));
+	for (const r of regions)
+		if (hydrate_island(r.el as HTMLElement, r.entry, MOD, r.ssr_html, r.touched)) n++;
 	return n;
 }
 
 bench(
-	'hydrate step: the header island (a large props config, edited while it slept)',
-	({ regions, copies }) => {
+	'hydrate_island: the header island (a large props config, edited while it slept)',
+	({ regions }) => {
 		link_boot();
-		return hydrate_step(regions[0], copies, true);
+		const r = regions[0];
+		return hydrate_island(r.el as HTMLElement, r.entry, MOD, r.ssr_html, true) !== null;
 	},
-	// (the header is the island a design-system runtime strips while it upgrades the nav)
-	{ setup: () => edited(cms_page(4), 0) }
+	{
+		setup: () => {
+			const regions = cms_page(4);
+			// (the header is the island a design-system runtime strips while it upgrades the nav)
+			strip_whitespace(regions[0].el as unknown as DomNode);
+			return { regions };
+		}
+	}
 );
+
+bench('hydrate_island: every island of a 250-block page', ({ regions }) => hydrate_all(regions), {
+	setup: () => ({ regions: cms_page(250) })
+});
+
+// Growth from a small page. Each island's sidecar is one id lookup and its drift check walks its
+// own markup only, but each island also copies and walks the whole `<head>` (the head ownership
+// record), and the head grows with the islands that render a `<svelte:head>`: islands × head.
+bench('hydrate_island: every island as the page grows', ({ regions }) => hydrate_all(regions), {
+	setup: () => ({ regions: cms_page(25) }),
+	scale: (_ctx, k) => ({ regions: cms_page(25 * k) })
+});
+
+/** A product grid island Svelte will not match (its stand-in re-renders it, see svelte-hydrate.ts). */
+function mismatched_grid(cards: number): { r: PageRegion } {
+	const r = grid_page(cards);
+	r.el.setAttribute('data-mismatch', '');
+	return { r };
+}
+
+// Growth: linear in the island's root cards. The strict attempt throws, Svelte's recovery renders
+// the island fresh, and the discard check looks for any of the server's root elements still there.
+bench(
+	'hydrate_island: a grid island Svelte re-renders, as its root cards grow',
+	({ r }) => {
+		link_boot();
+		return hydrate_island(r.el as HTMLElement, r.entry, MOD, r.ssr_html, false) !== null;
+	},
+	{ setup: () => mismatched_grid(12), scale: (_ctx, k) => mismatched_grid(12 * k) }
+);
+
+// ── the drift check and repair, the head markers ───────────────────────────────────────────────
 
 /** A block island an A/B tool left a comment in, in its last row: the drift check walks every row. */
 function ab_edited(rows: number): { region: Element; want: Element } {
@@ -138,17 +221,7 @@ bench(
 	{ setup: () => head_of(10), scale: (_ctx, k) => head_of(10 * k) }
 );
 
-bench('hydrate step: every island of a 250-block page', hydrate_page, {
-	setup: () => step_ctx(cms_page(250))
-});
-
-// Growth from a small page. Each island's sidecar is one id lookup and its drift check walks its
-// own markup only, but each island also copies and walks the whole `<head>` (the head ownership
-// record), and the head grows with the islands that render a `<svelte:head>`: islands × head.
-bench('hydrate step: every island as the page grows', hydrate_page, {
-	setup: () => step_ctx(cms_page(25)),
-	scale: (_ctx, k) => step_ctx(cms_page(25 * k))
-});
+// ── the scheduler and the background drain, alone ──────────────────────────────────────────────
 
 /**
  * The page wakes through the scheduler: every region registers at connect; `load` wakes start at
@@ -160,6 +233,7 @@ function wake_page(regions: PageRegion[]): Promise<number> {
 	let turns = 0;
 	let resolve_all: (n: number) => void = () => {};
 	const all = new Promise<number>((r) => (resolve_all = r));
+	const expected = wakes_alone(regions);
 	const start = (r: PageRegion, i: number) => async () => {
 		hydrate_started(r.el);
 		await new Promise<void>((arrive) => setTimeout(arrive, 2 + (i % 7)));
@@ -168,20 +242,12 @@ function wake_page(regions: PageRegion[]): Promise<number> {
 		hydrate_settled(r.el);
 		if (++turns === expected) resolve_all(turns);
 	};
-	let expected = 0;
 	regions.forEach((r, i) => {
 		register_region(r.el);
 		const fire = start(r, i);
-		if (r.wake === 'load') {
-			expected++;
-			background_start(fire);
-		} else if (r.wake === 'visible') {
-			if (in_view.has(r.el)) expected++;
-			once_visible(r.el, '0px', () => background_start(fire));
-		} else if (r.wake === 'idle') {
-			expected++;
-			setTimeout(fire, 200);
-		}
+		if (r.wake === 'load') background_start(fire);
+		else if (r.wake === 'visible') once_visible(r.el, '0px', () => background_start(fire));
+		else if (r.wake === 'idle') setTimeout(fire, 200);
 	});
 	return expected === 0 ? Promise.resolve(0) : all;
 }

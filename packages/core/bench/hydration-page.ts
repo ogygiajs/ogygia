@@ -14,8 +14,11 @@
  * with its props sidecar in the keyed tail at the end of the body, as the server renders it.
  * Setup only: nothing here runs inside a measured window, except the stand-ins' own callbacks.
  */
-import { document, el, frag, type DomElement, type DomNode } from '../test/_stubs/dom.ts';
+import { DomElement, document, el, frag, type DomNode } from '../test/_stubs/dom.ts';
+import { ISLAND_GRAPH_ATTR, encode_island_graph } from '../src/island-graph.ts';
 import { block, header, island_entry } from './fixtures.ts';
+
+const chunk_of = (i: number): string => `/_app/immutable/chunks/c${i}.js`;
 
 type G = Record<string, unknown>;
 const g = globalThis as unknown as G;
@@ -53,6 +56,75 @@ class StandInObserver {
 }
 g.IntersectionObserver = StandInObserver;
 
+// `MutationObserver`: the records are the ones the page's own scripts make through
+// `edit_while_asleep` (the shim does not observe itself), taken or delivered a microtask later.
+type Mutation = { target: Node; type: 'childList' };
+const pending_mutations: Mutation[] = [];
+const mutation_observers = new Set<StandInMutationObserver>();
+class StandInMutationObserver {
+	#cb: (records: Mutation[], mo: unknown) => void;
+	constructor(cb: (records: Mutation[], mo: unknown) => void) {
+		this.#cb = cb;
+	}
+	observe(): void {
+		mutation_observers.add(this);
+	}
+	disconnect(): void {
+		mutation_observers.delete(this);
+	}
+	takeRecords(): Mutation[] {
+		return pending_mutations.splice(0);
+	}
+	deliver(): void {
+		if (pending_mutations.length) this.#cb(this.takeRecords(), this);
+	}
+}
+g.MutationObserver = StandInMutationObserver;
+
+// The custom element registry, as a browser's: `define` upgrades every element of that name already
+// in the document, in document order (the constructor runs on the element itself, then its
+// `connectedCallback`). `HTMLElement` is the shim's element; constructed for an upgrade, it is that
+// element.
+let upgrading: DomElement | null = null;
+function StandInHTMLElement(): DomElement {
+	const el = upgrading;
+	upgrading = null;
+	if (!el) throw new TypeError('Illegal constructor');
+	return el;
+}
+StandInHTMLElement.prototype = Object.create(DomElement.prototype);
+g.HTMLElement = StandInHTMLElement;
+g.Element = DomElement;
+g.window = globalThis;
+
+type Ctor = new () => { connectedCallback?: () => void };
+const defined = new Map<string, Ctor>();
+g.customElements = {
+	get: (name: string) => defined.get(name),
+	define(name: string, ctor: Ctor) {
+		defined.set(name, ctor);
+		for (const el of document.querySelectorAll(name)) {
+			Object.setPrototypeOf(el, ctor.prototype);
+			upgrading = el;
+			const upgraded = new ctor();
+			upgraded.connectedCallback?.();
+		}
+	}
+};
+
+/**
+ * A script edits a sleeping island, as a design-system runtime does while it upgrades the page
+ * around it: the whitespace text nodes go. The observer hears it, as a browser's would.
+ */
+export function edit_while_asleep(region: Element): void {
+	strip_whitespace(region as unknown as DomNode, (parent) =>
+		pending_mutations.push({ target: parent as unknown as Node, type: 'childList' })
+	);
+	queueMicrotask(() => {
+		for (const mo of mutation_observers) mo.deliver();
+	});
+}
+
 const WAKES = ['load', 'visible', 'idle', 'interaction'] as const;
 export type Wake = (typeof WAKES)[number];
 
@@ -87,19 +159,40 @@ function header_html(menus: number): string {
 	);
 }
 
+/** Where an island's code is (`src`, the location the server names): the stand-in island module,
+ *  one module instance per entry. */
+const ISLAND_MODULE = new URL('../test/_stubs/island-module.ts', import.meta.url).href;
+
+const src_of = (entry: string): string => `${ISLAND_MODULE}?entry=${entry.slice(-11, -3)}`;
+
+/** Every island location the pages below name: the header's, the blocks' 24, the footer's, the grid's. */
+export const ISLAND_SRCS: string[] = [
+	0,
+	...Array.from({ length: 24 }, (_, i) => i + 1),
+	30,
+	50
+].map((i) => src_of(island_entry(i)));
+
 const region_open = (i: number, wake: Wake, entry: string): string =>
-	`<ogygia-region entry="${entry}" wake="${wake}" data-og-fp="${fp(i)}">`;
+	`<ogygia-region entry="${entry}" src="${src_of(entry)}" wake="${wake}" data-og-fp="${fp(i)}">`;
 
 // (the server escapes `<` in a sidecar, so the script's text never closes it)
 const sidecar = (i: number, json: string): string =>
 	`<script type="application/ogygia-props" data-ogygia-props="${fp(i)}" id="og-props-${fp(i)}" data-og-format="json">${json.replaceAll('<', '\\u003c')}</script>`;
 
 /** Strip the whitespace text nodes under `node`, as a design-system runtime does while it upgrades. */
-export function strip_whitespace(node: DomNode): void {
+export function strip_whitespace(
+	node: DomNode,
+	removed: (parent: DomNode) => void = () => {}
+): void {
+	let any = false;
 	for (const c of node.childNodes) {
-		if (c.nodeType === 3 && !(c.nodeValue ?? '').trim()) c.remove();
-		else if (c.nodeType === 1) strip_whitespace(c);
+		if (c.nodeType === 3 && !(c.nodeValue ?? '').trim()) {
+			c.remove();
+			any = true;
+		} else if (c.nodeType === 1) strip_whitespace(c, removed);
 	}
+	if (any) removed(node);
 }
 
 /**
@@ -117,10 +210,11 @@ export function page_head(blocks: number): void {
 
 /**
  * The page, in the shim's document: a header (wake `load`, a large props config), `blocks` builder
- * blocks with mixed wakes, a footer (`idle`). One block in five was edited while it slept. The head
- * carries Svelte's head-block markers for the islands' `<svelte:head>`.
+ * blocks with mixed wakes, a footer (`idle`). One block in five is edited while it sleeps: here
+ * (`edit`), or by the bench once the runtime has its copy (`edit_while_asleep`). The head carries
+ * Svelte's head-block markers for the islands' `<svelte:head>`.
  */
-export function cms_page(blocks: number, rows = 6): PageRegion[] {
+export function cms_page(blocks: number, rows = 6, edit = true): PageRegion[] {
 	const body = document.body as unknown as DomElement;
 	body.replaceChildren();
 	page_head(blocks);
@@ -152,6 +246,14 @@ export function cms_page(blocks: number, rows = 6): PageRegion[] {
 	parts.forEach((p, i) => (html += region_open(i, p.wake, p.entry) + p.html + '</ogygia-region>'));
 	html += '</div></main><div hidden>';
 	parts.forEach((p, i) => (html += sidecar(i, p.props)));
+	// the tail's island graph: each entry's chunks, preloaded at its wake (island-graph-preload.ts)
+	const graph = new Map<string, string[]>();
+	for (const p of parts)
+		if (!graph.has(p.entry)) {
+			const k = graph.size;
+			graph.set(p.entry, [chunk_of(k), chunk_of(k + 1), chunk_of(40)]);
+		}
+	html += `<script type="application/json" ${ISLAND_GRAPH_ATTR}>${encode_island_graph(graph)}</script>`;
 	html += '</div>';
 	for (const n of frag(html)) body.appendChild(n);
 	const els = (body as unknown as Element).querySelectorAll('ogygia-region');
@@ -159,11 +261,33 @@ export function cms_page(blocks: number, rows = 6): PageRegion[] {
 		const region = els[i];
 		const ssr_html = (region as unknown as DomElement).innerHTML;
 		const touched = i > 0 && i % 5 === 0;
-		if (touched) strip_whitespace(region as unknown as DomNode);
+		if (touched && edit) strip_whitespace(region as unknown as DomNode);
 		// (the first screen: the header and the first blocks)
 		if (i < 8) in_view.add(region);
 		return { el: region, wake: p.wake, entry: p.entry, ssr_html, touched };
 	});
+}
+
+/**
+ * A page of one product-grid island whose component renders its cards at its root (an `{#each}` with
+ * no wrapper element): `cards` root elements in the island's anchor pair.
+ */
+export function grid_page(cards: number): PageRegion {
+	const body = document.body as unknown as DomElement;
+	body.replaceChildren();
+	page_head(0);
+	const entry = island_entry(50);
+	let inner = '<!--[-->';
+	for (let i = 0; i < cards; i++)
+		inner += `<article class="card"><h3>Product ${i}</h3> <p>${(i * 13) % 97} EUR</p></article>`;
+	inner += '<!--]-->';
+	const props = JSON.stringify({ ids: Array.from({ length: cards }, (_, i) => i) });
+	for (const n of frag(
+		region_open(0, 'load', entry) + inner + '</ogygia-region>' + sidecar(0, props)
+	))
+		body.appendChild(n);
+	const region = (body as unknown as Element).querySelector('ogygia-region')!;
+	return { el: region, wake: 'load', entry, ssr_html: inner, touched: false };
 }
 
 /** The server copy of a region's markup under a detached region element (what the repair compares). */
