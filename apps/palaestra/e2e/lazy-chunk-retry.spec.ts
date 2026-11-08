@@ -1,11 +1,11 @@
-// LAZY CHUNKS THAT FAIL (#201). The runtime loads its lazy pieces (the hydrate core, devalue, the
-// interaction replay) on the first island that needs each. On a flaky mobile network that first
-// download can fail. It must never break every later wake in the tab: a dropped download is tried
-// again, and a wake after a failed one loads it afresh.
+// LAZY CHUNKS THAT FAIL (#201, #237). The runtime loads its lazy pieces (the hydrate core,
+// devalue, the interaction replay, a transportable class's module) on the first use that needs
+// each. On a flaky mobile network that first download can fail. It must never break every later
+// use in the tab: a dropped download is tried again, and a use after a failed one loads it afresh.
 //
 // Each test drops the first N downloads of one chunk at the network (the browser sees a failed
-// fetch, as on a dropped connection), found by a string only that chunk carries in a production
-// build. Against the built palaestra (/lazy-retry).
+// fetch, as on a dropped connection), found by what only that chunk carries in a production build.
+// Against the built palaestra (/lazy-retry, /lazy-retry-class).
 //
 // What the browser does, measured here: a module whose download failed stays failed in its module
 // map for the life of the page; a second import() of the same URL fails without a request. The
@@ -15,14 +15,17 @@
 import { expect, test, type Page } from '@playwright/test';
 import { check, replayed_once } from '@ogygia/tooling/e2e';
 
-/** Strings only each chunk carries in a production build. */
+/** What only each chunk carries in a production build. */
 const CHUNKS = {
 	/** the foreign-mutation detector's message code, kept in production */
 	'hydrate core': 'hydration_discarded',
 	/** devalue's own parse error */
 	devalue: 'Invalid circular reference',
 	/** the replay restores a field's selection */
-	'interaction replay': 'setSelectionRange'
+	'interaction replay': 'setSelectionRange',
+	/** a transportable class's lazy load (runtime/wire-classes.ts): the small chunk that re-exports
+	 *  it, the one its loader imports (the class itself sits in a chunk the page's own node shares) */
+	'class module': /export\{\w+ as RetryStamp\}from/
 } as const;
 
 type Chunk = keyof typeof CHUNKS;
@@ -30,12 +33,13 @@ type Chunk = keyof typeof CHUNKS;
 /** Drops the first `times` downloads of `chunk`. Returns how many were dropped and served. */
 async function drop(page: Page, chunk: Chunk, times: number) {
 	const seen = { dropped: 0, served: 0 };
+	const mark = CHUNKS[chunk];
 	await page.route(
 		(url) => url.pathname.endsWith('.js'),
 		async (route) => {
 			const response = await route.fetch();
 			const body = await response.text();
-			if (body.includes(CHUNKS[chunk])) {
+			if (typeof mark === 'string' ? body.includes(mark) : mark.test(body)) {
 				if (seen.dropped < times) {
 					seen.dropped++;
 					return route.abort('failed');
@@ -162,6 +166,66 @@ test.describe('lazy chunks that fail once are loaded again (#201)', () => {
 		await page.waitForTimeout(300);
 		await page.locator('[data-i-btn]').click();
 		check('the click replayed', await replayed_once(page));
+		check(
+			'dropped twice, then served',
+			seen.dropped === 2 && seen.served >= 1,
+			JSON.stringify(seen)
+		);
+		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
+	});
+});
+
+// A TRANSPORTABLE CLASS'S MODULE (#237): an island whose props carry an instance loads the class's
+// module before it decodes them (runtime/wire-classes.ts). A failed load must not be kept: the
+// decode of the wake it failed for says which class is missing, and the next wake loads it afresh.
+test.describe('a class module that fails once is loaded again (#237)', () => {
+	const stamp_region = (page: Page, label: string) =>
+		page.locator(`ogygia-region:has([data-stamp-counter="${label}"])`);
+	const stamp_hydrated = (page: Page, label: string, timeout = 4000) =>
+		stamp_region(page, label)
+			.and(page.locator('[data-hydrated]'))
+			.waitFor({ timeout })
+			.then(
+				() => true,
+				() => false
+			);
+	const stamp_counts = async (page: Page, label: string) => {
+		const button = page.locator(`[data-stamp-counter="${label}"] button`);
+		await button.click();
+		return (await button.innerText()).includes('count is 1');
+	};
+
+	test('dropped once: the first wake still decodes its class', async ({ page }) => {
+		const thrown = errors(page);
+		const seen = await drop(page, 'class module', 1);
+		await page.goto('/lazy-retry-class');
+		check('the near island hydrated', await stamp_hydrated(page, 'near'));
+		check('it counts', await stamp_counts(page, 'near'));
+		check(
+			'the class module was dropped once, then loaded',
+			seen.dropped === 1 && seen.served >= 1,
+			JSON.stringify(seen)
+		);
+		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
+	});
+
+	test('dropped until a wake fails: that wake names the class, the next wake loads it afresh', async ({
+		page
+	}) => {
+		const thrown = errors(page);
+		const logged: string[] = [];
+		page.on('console', (m) => m.type() === 'error' && logged.push(m.text()));
+		const seen = await drop(page, 'class module', 2);
+		await page.goto('/lazy-retry-class');
+		// the near island's decode had no class: it says which, and its HTML stays
+		await expect
+			.poll(() => logged.some((t) => t.includes('transportable_class_missing')))
+			.toBe(true);
+		check('the near island did not hydrate', !(await stamp_hydrated(page, 'near', 500)));
+		// a later wake, in the same tab
+		await page.locator('[data-stamp-counter="far"]').scrollIntoViewIfNeeded();
+		check('the far island hydrated', await stamp_hydrated(page, 'far'));
+		check('it counts', await stamp_counts(page, 'far'));
 		check(
 			'dropped twice, then served',
 			seen.dropped === 2 && seen.served >= 1,
