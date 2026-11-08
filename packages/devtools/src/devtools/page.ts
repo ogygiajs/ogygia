@@ -598,6 +598,7 @@ function watch_url(): void {
 		push.apply(this, args);
 		seen();
 	};
+	// oxlint-disable-next-line ogygia/owned-effects -- the document's URL watch, installed once (beside the pushState patch it pairs with)
 	addEventListener('popstate', seen);
 }
 
@@ -1097,6 +1098,7 @@ export function install_page_hook(): void {
 	// the picture the next load of this page is read against (the dev loop: change, reload, compare)
 	if (typeof window !== 'undefined' && !hooked_hide) {
 		hooked_hide = true;
+		// oxlint-disable-next-line ogygia/owned-effects -- the document's, installed once: it saves the page as the document goes
 		addEventListener('pagehide', () => {
 			try {
 				const v = read_page();

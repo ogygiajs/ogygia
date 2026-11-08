@@ -110,6 +110,7 @@ export async function run_profile(
 	for (let tries = 0; tries < 30; tries++) {
 		const r = await fetch(url, { headers: { accept: 'application/json' } });
 		if (r.status === 409) {
+			// oxlint-disable-next-line ogygia/owned-effects -- a one-shot wait inside the caller's own await, which ends with it
 			await new Promise((ok) => setTimeout(ok, 2000));
 			continue;
 		}

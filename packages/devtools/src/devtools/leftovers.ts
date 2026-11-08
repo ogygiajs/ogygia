@@ -344,6 +344,8 @@ function note_listener(
 		fires: 0
 	});
 	listeners.set(fn, list);
+	// (the app's own signal, from the app's own listener: the mirror of it goes when the app's does)
+	// oxlint-disable-next-line ogygia/owned-effects -- once, on the app's signal: released as it aborts
 	signal?.addEventListener('abort', () => forget_listener(on, type, fn, capture), { once: true });
 }
 

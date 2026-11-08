@@ -70,6 +70,9 @@ export function standalone_beacon(): void {
 
 	const watch = (type: string, on: (entries: Timed[]) => void) => {
 		try {
+			// (an inline classic script: it can import no scope. What it holds lives as long as the
+			// document, and stand_down() lets go of its observers and sampler, by hand)
+			// oxlint-disable-next-line ogygia/owned-effects -- the document's, disconnected by stand_down()
 			const po = new PerformanceObserver((list) => {
 				if (!off) on(list.getEntries() as Timed[]);
 			});
@@ -127,6 +130,7 @@ export function standalone_beacon(): void {
 			if (vitals.inp === undefined || d > vitals.inp) {
 				vitals.inp = d;
 				clearTimeout(resend);
+				// oxlint-disable-next-line ogygia/owned-effects -- inline script, no imports: the document's re-send, cleared on re-arm
 				resend = setTimeout(early, 1500);
 			}
 		}
@@ -148,6 +152,7 @@ export function standalone_beacon(): void {
 	try {
 		if (w.Profiler) {
 			profiler = new w.Profiler({ sampleInterval: 10, maxBufferSize: 30000 });
+			// oxlint-disable-next-line ogygia/owned-effects -- inline script, no imports: one-shot, the document's load sample
 			setTimeout(() => cpu(false), 8000);
 		}
 	} catch {
@@ -162,6 +167,7 @@ export function standalone_beacon(): void {
 		queued += bytes;
 		const release = () => (queued = Math.max(0, queued - bytes));
 		if (settled) settled.finally(release);
+		// oxlint-disable-next-line ogygia/owned-effects -- inline script, no imports: one-shot, ends the task that sent the beacon
 		else setTimeout(release, 0);
 	}
 	function post(body: string, keepalive: boolean) {
@@ -446,6 +452,7 @@ export function standalone_beacon(): void {
 	function again() {
 		if (!early_sends || early_sends >= 8) return;
 		clearTimeout(resend);
+		// oxlint-disable-next-line ogygia/owned-effects -- inline script, no imports: the document's re-send, cleared on re-arm
 		resend = setTimeout(early, 1500);
 	}
 	/** the runtime's beacon claimed the page after all — it came without the runtime's script tag (the
@@ -486,17 +493,24 @@ export function standalone_beacon(): void {
 		}
 	}
 
+	// (the page's hide and show, for as long as the document lives: after stand_down they find `off`
+	// and send nothing. An inline script, so no scope to hold them)
+	// oxlint-disable-next-line ogygia/owned-effects -- the document's, installed once
 	document.addEventListener('DOMContentLoaded', () => {
 		// the runtime's script came after this one: it reports
 		if (document.querySelector('script[data-ogygia-runtime]')) return stand_down();
+		// oxlint-disable-next-line ogygia/owned-effects -- the document's, installed once
 		document.addEventListener('visibilitychange', () => {
 			if (document.visibilityState === 'hidden') hide();
 			else show();
 		});
+		// oxlint-disable-next-line ogygia/owned-effects -- the document's, installed once
 		addEventListener('pagehide', hide);
+		// oxlint-disable-next-line ogygia/owned-effects -- the document's, installed once
 		addEventListener('pageshow', (e) => {
 			if (e.persisted) show();
 		});
+		// oxlint-disable-next-line ogygia/owned-effects -- the document's, installed once (its timer is one-shot)
 		addEventListener('load', () => setTimeout(early, 1500));
 	});
 }
