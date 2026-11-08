@@ -203,6 +203,12 @@ catalogs:
     '@types/node':
       specifier: ^26.1.2
       version: 26.1.2
+    '@vitest/browser':
+      specifier: 4.1.12
+      version: 4.1.12
+    '@vitest/browser-playwright':
+      specifier: 4.1.12
+      version: 4.1.12
     axe-core:
       specifier: ^4.13.0
       version: 4.13.0
@@ -1043,6 +1049,12 @@ importers:
       '@typescript/native':
         specifier: catalog:tsgo
         version: typescript@7.0.2
+      '@vitest/browser':
+        specifier: 'catalog:'
+        version: 4.1.12(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
+      '@vitest/browser-playwright':
+        specifier: 'catalog:'
+        version: 4.1.12(playwright@1.62.1)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
       shiki:
         specifier: 'catalog:'
         version: 4.4.3
@@ -1136,10 +1148,10 @@ importers:
         specifier: catalog:tsgo
         version: typescript@7.0.2
       '@vitest/browser':
-        specifier: 4.1.12
+        specifier: 'catalog:'
         version: 4.1.12(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
       '@vitest/browser-playwright':
-        specifier: 4.1.12
+        specifier: 'catalog:'
         version: 4.1.12(playwright@1.62.1)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
       rolldown:
         specifier: 'catalog:'
@@ -1387,10 +1399,10 @@ importers:
         specifier: catalog:tsgo
         version: typescript@7.0.2
       '@vitest/browser':
-        specifier: 4.1.12
+        specifier: 'catalog:'
         version: 4.1.12(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
       '@vitest/browser-playwright':
-        specifier: 4.1.12
+        specifier: 'catalog:'
         version: 4.1.12(playwright@1.62.1)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
       playwright:
         specifier: 'catalog:'
