@@ -92,6 +92,20 @@ export const DEVTOOLS_WARNINGS = {
 			Forward cookies to the profiler's path, clear the site's cookies and log in again, or
 			give every instance the same secret.
 		`
+	},
+	devtools_profiler_sink_undelivered: {
+		text: (a: { rows: string }): string =>
+			`the sink never took a post of ${a.rows} rows, after every try; they are dropped:`,
+		details: (): string => prose`
+			The profiler posts the rows it reads (\`sink: { url }\`) one post at a time, in order, and
+			tries a failed post again a few times before the next one goes. This post failed every
+			time (the last error follows the message), so its rows are not at the sink and the site
+			view misses those requests. The site page shows the sink's last answer.
+
+			Check the sink's URL, its key, and that it answers 2xx once it stored a post. A post
+			carries an \`idempotency-key\` header: a sink that stored a post already can answer ok
+			for its copy.
+		`
 	}
 };
 
