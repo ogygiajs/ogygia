@@ -45,6 +45,10 @@
 			"reason": "browser only: the dynamic import of the interaction replay chunk; proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/interaction.ts > disarm",
+			"reason": "browser only: ends one arming of the interaction capture (an owner-checked map delete and a state field), constant work; proven in packages/core/test/browser/interaction-rearm.test.ts and interaction-delegated.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/interaction.ts > wake > then:1 > then:1",
 			"reason": "browser only: the replay chunk failed to load again after a failed wake: reports it, constant work"
 		},
