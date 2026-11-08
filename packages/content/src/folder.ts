@@ -22,7 +22,7 @@ import {
 	type Convention,
 	type MetaDecoration
 } from './convention.ts';
-import { once } from '@ogygia/machine';
+import { flights, STALE } from '@ogygia/machine';
 import { markdown } from './formats.ts';
 import { OgygiaError } from './messages/runtime.ts';
 import type { GlobMap, RawRecord, RawSource, Source } from './source.ts';
@@ -132,8 +132,9 @@ export function folder<Meta = Record<string, never>>(
 	// read and kept — awaiting sidecar modules (a lazy glob hands us thunks, an eager glob the
 	// modules). A sidecar that fails to load is not kept: the next read (of the entries or the
 	// groups) loads them again (#246).
-	const resolve_meta = once(
-		async (): Promise<{
+	const resolve_meta = flights({
+		name: 'content-folder meta',
+		run: async (): Promise<{
 			decorations: Map<string, MetaDecoration>;
 			group_map: Map<string, { label?: string }>;
 		}> => {
@@ -156,11 +157,18 @@ export function folder<Meta = Record<string, never>>(
 			}
 			return { decorations, group_map };
 		}
-	);
+	});
+	// (nothing drops it and no read leaves it, so it never answers STALE: that is the empty answer)
+	const meta = async () => {
+		const got = await resolve_meta.get();
+		return got === STALE
+			? { decorations: new Map<string, MetaDecoration>(), group_map: new Map() }
+			: got;
+	};
 
 	// Verify sibling numbering once, at first read (build-error voice).
 	const verify = async () => {
-		const { decorations } = await resolve_meta();
+		const { decorations } = await meta();
 		const errors: string[] = [];
 		for (const [dir, set] of siblings)
 			errors.push(...conv.verify(dir, [...set], decorations.get(dir)));
@@ -194,7 +202,7 @@ export function folder<Meta = Record<string, never>>(
 			const key = keys_by_id.get(id);
 			return key ? record(id, key) : null;
 		},
-		groups: async () => (await resolve_meta()).group_map
+		groups: async () => (await meta()).group_map
 	};
 
 	return build(page_raw);

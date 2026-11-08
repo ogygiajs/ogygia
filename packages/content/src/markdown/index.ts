@@ -17,7 +17,7 @@
 import type { MdsvexOptions } from 'mdsvex';
 import type { PreprocessorGroup, Processed } from 'svelte/compiler';
 import { BuildCache, content_css_key } from '@ogygia/core/internal/compiler-browser';
-import { once } from '@ogygia/machine';
+import { flights, STALE } from '@ogygia/machine';
 import { bridge } from '../bridge.ts';
 import { RegionStore } from '../region-store.ts';
 import { remarkHeadingId } from './remark-heading-id.ts';
@@ -468,9 +468,11 @@ export function ogygiaPreprocess(options?: MarkdownOptions): PreprocessorGroup {
 	// Construct mdsvex lazily and once. The config above needs no mdsvex; only the instance does. A
 	// start that fails (mdsvex or a plugin that failed to load) is not kept: the next page starts
 	// it again (#248).
-	const get_md = once(
-		async (): Promise<PreprocessorGroup> => (await load_mdsvex())(mdsvex_opts) as PreprocessorGroup
-	);
+	const get_md = flights({
+		name: 'mdsvex',
+		run: async (): Promise<PreprocessorGroup> =>
+			(await load_mdsvex())(mdsvex_opts) as PreprocessorGroup
+	});
 
 	// Compose ogygia's marked-import transform AFTER mdsvex so islands authored inside `.svx` / `.md`
 	// (`import X from '…' with { wake | render | region }`) become real islands. It runs on the
@@ -516,7 +518,9 @@ export function ogygiaPreprocess(options?: MarkdownOptions): PreprocessorGroup {
 			// get branded as phantom portable snippets, whose registration then WIPES the host's real
 			// wrapper registrations (the csr=false + `render:'deferred'` prerender crash).
 			if (!isContent) return undefined;
-			const md = await get_md();
+			const md = await get_md.get();
+			// (nothing drops mdsvex's start, so this is never STALE)
+			if (md === STALE) return undefined;
 			const out = await md.markup?.(raw === input.content ? input : { ...input, content: raw });
 			const code = markup_code(out, raw);
 			const islandCode = transform_islands(code, input.filename ?? '');
