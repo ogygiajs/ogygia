@@ -156,9 +156,10 @@ bench('hydrate_island: every island of a 250-block page', ({ regions }) => hydra
 	setup: () => ({ regions: cms_page(250) })
 });
 
-// Growth from a small page. Each island's sidecar is one id lookup and its drift check walks its
-// own markup only, but each island also copies and walks the whole `<head>` (the head ownership
-// record), and the head grows with the islands that render a `<svelte:head>`: islands × head.
+// Growth from a small page: linear. Each island's sidecar is one id lookup, its drift check walks its
+// own markup only, and its head ownership record reads what its step put in `<head>`. It was
+// islands × head while each island copied and walked the whole `<head>`, which grows with the
+// islands that render a `<svelte:head>`.
 bench('hydrate_island: every island as the page grows', ({ regions }) => hydrate_all(regions), {
 	setup: () => ({ regions: cms_page(25) }),
 	scale: (_ctx, k) => ({ regions: cms_page(25 * k) })
