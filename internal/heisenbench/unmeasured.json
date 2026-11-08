@@ -45,6 +45,14 @@
 			"reason": "browser only: the dynamic import of the interaction replay chunk; proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/form-continuity.ts > close_restore",
+			"reason": "browser only: ends the open form restore window (one machine move), constant work; proven in apps/palaestra/e2e/continuity.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/form-continuity.ts > arm_form_restore > onLeave:0~395c45",
+			"reason": "browser only: the restore window closing removes its two document listeners, constant work; proven in apps/palaestra/e2e/continuity.spec.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/interaction.ts > disarm",
 			"reason": "browser only: ends one arming of the interaction capture (an owner-checked map delete and a state field), constant work; proven in packages/core/test/browser/interaction-rearm.test.ts and interaction-delegated.test.ts"
 		},
