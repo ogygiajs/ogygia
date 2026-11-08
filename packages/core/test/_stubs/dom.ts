@@ -7,9 +7,11 @@
  * enough of the DOM: a doubly-linked child list, elements with attributes + namespaces, text/comment
  * nodes, `importNode`, `activeElement`/`focus`, and dirty-value/checked/selected form properties that
  * mirror the browser's "property vs attribute" split. The document has a `<head>` and a `<body>`,
- * an id map (`getElementById`) and the few selectors the runtime asks of it.
+ * an id map (`getElementById`) and the few selectors the runtime asks of it. A MutationObserver
+ * (child lists and text, with subtree), so the runtime's observer paths run as in a browser.
  *
- * Importing this module INSTALLS `globalThis.Node` and `globalThis.document` as a side effect, so it
+ * Importing this module INSTALLS `globalThis.Node`, `globalThis.document` and
+ * `globalThis.MutationObserver` as a side effect, so it
  * MUST be imported before `morph.ts` (which reads `Node.ELEMENT_NODE` at module load).
  */
 
@@ -55,6 +57,8 @@ class DomNode {
 	_next: DomNode | null = null;
 	_first: DomNode | null = null;
 	_last: DomNode | null = null;
+	/** the mutation observers registered on this node (see DomMutationObserver) */
+	_observers: DomMutationObserver[] | null = null;
 
 	constructor(doc: DomDocument | null) {
 		// The document itself passes null and patches ownerDocument to itself.
@@ -89,6 +93,25 @@ class DomNode {
 	get nextElementSibling(): DomNode | null {
 		for (let n = this._next; n; n = n._next) if (n.nodeType === 1) return n;
 		return null;
+	}
+	/** DOM `compareDocumentPosition`: following (4) / preceding (2), with contains (8) and
+	 *  contained-by (16) for an ancestor or a descendant; another tree is disconnected (1). */
+	compareDocumentPosition(other: DomNode): number {
+		if (other === this) return 0;
+		const chain = (n: DomNode) => {
+			const out: DomNode[] = [];
+			for (let x: DomNode | null = n; x; x = x._parent) out.unshift(x);
+			return out;
+		};
+		const a = chain(this);
+		const b = chain(other);
+		if (a[0] !== b[0]) return 1;
+		let i = 0;
+		while (i < a.length && i < b.length && a[i] === b[i]) i++;
+		if (i === a.length) return 16 | 4;
+		if (i === b.length) return 8 | 2;
+		for (let n: DomNode | null = a[i]; n; n = n._next) if (n === b[i]) return 4;
+		return 2;
 	}
 	/** The top of this node's tree: the document when it is in it, else the detached root. */
 	getRootNode(): DomNode {
@@ -140,6 +163,7 @@ class DomNode {
 	_detach(node: DomNode): void {
 		const prev = node._prev;
 		const next = node._next;
+		if (observing > 0) notify(this, 'childList', [], [node], prev, next);
 		if (prev) prev._next = next;
 		else this._first = next;
 		if (next) next._prev = prev;
@@ -162,6 +186,7 @@ class DomNode {
 		else this._first = node;
 		if (ref) ref._prev = node;
 		else this._last = node;
+		if (observing > 0) notify(this, 'childList', [node], [], prev, ref);
 		return node;
 	}
 
@@ -215,6 +240,7 @@ class DomText extends DomNode {
 	}
 	set data(v: string) {
 		this.nodeValue = v;
+		if (observing > 0) notify(this, 'characterData', [], [], null, null);
 	}
 	cloneNode(): DomNode {
 		return new DomText(this.ownerDocument, this.nodeValue ?? '', this.nodeType);
@@ -595,12 +621,102 @@ function parse(doc: DomDocument, html: string): DomNode[] {
 }
 
 // ---------------------------------------------------------------------------
+// MutationObserver: `childList`, `characterData` (through `data`; a `nodeValue` write is not seen)
+// and `subtree`, records taken with `takeRecords()` or delivered in a microtask, as the browser
+// does. A mutation reads one counter when nothing observes.
+// ---------------------------------------------------------------------------
+
+type MutationKind = 'childList' | 'characterData';
+interface ObserveOptions {
+	childList?: boolean;
+	characterData?: boolean;
+	subtree?: boolean;
+	attributes?: boolean;
+}
+interface DomMutationRecord {
+	type: MutationKind;
+	target: DomNode;
+	addedNodes: DomNode[];
+	removedNodes: DomNode[];
+	previousSibling: DomNode | null;
+	nextSibling: DomNode | null;
+}
+
+/** Registrations across every observer: 0 means a mutation records nothing. */
+let observing = 0;
+
+class DomMutationObserver {
+	_callback: (records: DomMutationRecord[], observer: DomMutationObserver) => void;
+	_targets = new Map<DomNode, ObserveOptions>();
+	_records: DomMutationRecord[] = [];
+	_queued = false;
+
+	constructor(callback: (records: DomMutationRecord[], observer: DomMutationObserver) => void) {
+		this._callback = callback;
+	}
+	observe(target: DomNode, options: ObserveOptions): void {
+		if (options.attributes)
+			throw new Error('dom stub: MutationObserver attributes are not supported');
+		if (!this._targets.has(target)) {
+			observing++;
+			(target._observers ??= []).push(this);
+		}
+		this._targets.set(target, options);
+	}
+	disconnect(): void {
+		for (const t of this._targets.keys()) {
+			t._observers!.splice(t._observers!.indexOf(this), 1);
+			observing--;
+		}
+		this._targets.clear();
+		this._records = [];
+	}
+	takeRecords(): DomMutationRecord[] {
+		const out = this._records;
+		this._records = [];
+		return out;
+	}
+	_queue(record: DomMutationRecord): void {
+		this._records.push(record);
+		if (this._queued) return;
+		this._queued = true;
+		queueMicrotask(() => {
+			this._queued = false;
+			if (this._records.length) this._callback(this.takeRecords(), this);
+		});
+	}
+}
+
+/** One record per interested observer: one on the target, or on an ancestor with `subtree`. */
+function notify(
+	target: DomNode,
+	type: MutationKind,
+	addedNodes: DomNode[],
+	removedNodes: DomNode[],
+	previousSibling: DomNode | null,
+	nextSibling: DomNode | null
+): void {
+	let told: Set<DomMutationObserver> | null = null;
+	for (let n: DomNode | null = target; n; n = n._parent) {
+		if (!n._observers) continue;
+		for (const o of n._observers) {
+			const opts = o._targets.get(n)!;
+			if (!opts[type] || (n !== target && !opts.subtree) || told?.has(o)) continue;
+			(told ??= new Set()).add(o);
+			o._queue({ type, target, addedNodes, removedNodes, previousSibling, nextSibling });
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Install globals + export test helpers.
 // ---------------------------------------------------------------------------
 
 export const document = new DomDocument();
 (globalThis as unknown as { document: DomDocument }).document = document;
 (globalThis as unknown as { Node: typeof DomNode }).Node = DomNode;
+(globalThis as unknown as { MutationObserver: typeof DomMutationObserver }).MutationObserver =
+	DomMutationObserver;
 
 /** Parse HTML and return its top-level nodes (the `new_nodes` array for `morph_children`). */
 export function frag(html: string): DomNode[] {
