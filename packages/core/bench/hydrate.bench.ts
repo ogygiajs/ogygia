@@ -1,0 +1,288 @@
+// Client hydration, run in Node against the unit tests' DOM shim (bench/hydration-page.ts; the
+// shim's own work counts too): a CMS page of a header, a builder list of block islands with mixed
+// wakes (load / visible / idle / interaction) and a footer, each with its props sidecar in the keyed
+// body tail. One block in five is edited while it sleeps (a design-system runtime strips its
+// whitespace), so its wake compares it with its server copy and repairs it.
+//
+// - the region element, through its public path: the runtime boots, `customElements.define`
+//   upgrades every region, each connects and arms its wake, and `#fire_hydrate` wakes it (from its
+//   schedule, or from a tap that lands first): the module and the hydrate core load, the scheduler
+//   hands out turns, and each turn runs `hydrate_island`.
+// - `hydrate_island` itself, for one island and for every island of a page.
+// - the drift check and repair, and the head's `<svelte:head>` markers, each as its input grows.
+// - the hydration scheduler and the background drain, without the element around them.
+//
+// What is a stand-in: Svelte's `hydrate` (test/_stubs/svelte-hydrate.ts: the anchor check, then the
+// component runs once; nothing of Svelte's walk is counted), the island module
+// (test/_stubs/island-module.ts), `scheduler.yield` / `postTask` (timer-loop tasks),
+// `IntersectionObserver` (one report a task after observing), `MutationObserver` (the records of
+// the page's own edits), the custom element registry, and `requestIdleCallback` (absent: the
+// element's timer fallback).
+import {
+	cms_page,
+	edit_while_asleep,
+	grid_page,
+	ISLAND_SRCS,
+	in_view,
+	page_head,
+	server_copy,
+	strip_whitespace,
+	type PageRegion
+} from './hydration-page.ts';
+import type { DomNode } from '../test/_stubs/dom.ts';
+import { bench } from '@bench/heisenbench/bench';
+import island_module from '../test/_stubs/island-module.ts';
+import { link_boot } from '../src/runtime/boot-link.ts';
+import { __heisenbench as core_private, boot } from '../src/runtime/core.ts';
+import { import_entry } from '../src/runtime/entry-locations.ts';
+import {
+	__heisenbench as hydrate_core,
+	hydrate_island,
+	neutralize_head_hydration_markers,
+	sequence_differs,
+	type IslandModule
+} from '../src/runtime/hydrate-core.ts';
+import {
+	__heisenbench as interaction_private,
+	install as install_interaction
+} from '../src/runtime/interaction.ts';
+import { once_visible } from '../src/runtime/observe.ts';
+import {
+	background_start,
+	hydrate_settled,
+	hydrate_started,
+	hydrate_turn,
+	register_region
+} from '../src/runtime/schedule.ts';
+
+const MOD = { default: island_module } as unknown as IslandModule;
+
+// ── the region element, booted ─────────────────────────────────────────────────────────────────
+
+/** Every island that wakes without a visitor: `load`, `idle`, and `visible` ones on the first screen. */
+function wakes_alone(regions: PageRegion[]): number {
+	let n = 0;
+	for (const r of regions)
+		if (r.wake === 'load' || r.wake === 'idle' || (r.wake === 'visible' && in_view.has(r.el))) n++;
+	return n;
+}
+
+/**
+ * The page as the browser runs it: the runtime boots (the interaction feature with it), every region
+ * upgrades and connects, a design-system runtime then edits one block in five while they sleep, and
+ * a visitor taps the header before it is live. Ends when every island that wakes alone is hydrated.
+ */
+function boot_page({ page }: Booted): Promise<number> {
+	const regions = page();
+	const expected = wakes_alone(regions);
+	let hydrated = 0;
+	const all = new Promise<number>((resolve, reject) => {
+		document.addEventListener('ogygia:hydrated', () => {
+			if (++hydrated === expected) resolve(hydrated);
+		});
+		// (a wake that never comes fails the case instead of ending it early)
+		setTimeout(() => reject(new Error(`${hydrated} of ${expected} islands hydrated`)), 60_000);
+	});
+	boot([install_interaction]);
+	for (const r of regions) if (r.touched) edit_while_asleep(r.el);
+	const tap = regions[0].el.querySelector('button')!;
+	tap.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+	return all;
+}
+
+/** The page behind a function: it is the document's, and a generic scaler must not repeat it. */
+type Booted = { page: () => PageRegion[] };
+
+function page_of(blocks: number): Booted {
+	const regions = cms_page(blocks, 6, false);
+	return { page: () => regions };
+}
+
+/**
+ * The page, and the lazy chunks a wake imports loaded ahead of the window: the hydrate core, the
+ * interaction replay, and every island module the page builder names. Node resolves an `import()`
+ * with a filesystem call Heisenbench does not allow inside the window; in a browser each is a
+ * fetch, not ogygia's work.
+ */
+async function booted_page(blocks: number): Promise<Booted> {
+	await core_private.hydrate_core();
+	await interaction_private.replay();
+	await Promise.all(ISLAND_SRCS.map((src) => import_entry(src, src)));
+	return page_of(blocks);
+}
+
+bench('region element: a 250-block page boots and its islands wake', boot_page, {
+	setup: () => booted_page(250)
+});
+
+// Growth from a small page (5 blocks: at 100 times it is a 500-block page). Quadratic today: the
+// scheduler's turns (see its own case below), and every wake asks the whole document whether a
+// devalue-lane script is in it (devalue-lane.ts `needs_devalue`): islands × the page's elements on a
+// page whose scripts are all in the JSON lane.
+bench('region element: a page boots and wakes as it grows', boot_page, {
+	setup: () => booted_page(5),
+	scale: (_ctx, k) => page_of(5 * k)
+});
+
+// ── hydrate_island ─────────────────────────────────────────────────────────────────────────────
+
+/** Every island of the page, each hydrated against the server copy it connected with. */
+function hydrate_all(regions: PageRegion[]): number {
+	link_boot();
+	let n = 0;
+	for (const r of regions)
+		if (hydrate_island(r.el as HTMLElement, r.entry, MOD, r.ssr_html, r.touched)) n++;
+	return n;
+}
+
+bench(
+	'hydrate_island: the header island (a large props config, edited while it slept)',
+	({ regions }) => {
+		link_boot();
+		const r = regions[0];
+		return hydrate_island(r.el as HTMLElement, r.entry, MOD, r.ssr_html, true) !== null;
+	},
+	{
+		setup: () => {
+			const regions = cms_page(4);
+			// (the header is the island a design-system runtime strips while it upgrades the nav)
+			strip_whitespace(regions[0].el as unknown as DomNode);
+			return { regions };
+		}
+	}
+);
+
+bench('hydrate_island: every island of a 250-block page', ({ regions }) => hydrate_all(regions), {
+	setup: () => ({ regions: cms_page(250) })
+});
+
+// Growth from a small page. Each island's sidecar is one id lookup and its drift check walks its
+// own markup only, but each island also copies and walks the whole `<head>` (the head ownership
+// record), and the head grows with the islands that render a `<svelte:head>`: islands × head.
+bench('hydrate_island: every island as the page grows', ({ regions }) => hydrate_all(regions), {
+	setup: () => ({ regions: cms_page(25) }),
+	scale: (_ctx, k) => ({ regions: cms_page(25 * k) })
+});
+
+/** A product grid island Svelte will not match (its stand-in re-renders it, see svelte-hydrate.ts). */
+function mismatched_grid(cards: number): { r: PageRegion } {
+	const r = grid_page(cards);
+	r.el.setAttribute('data-mismatch', '');
+	return { r };
+}
+
+// Growth: linear in the island's root cards. The strict attempt throws, Svelte's recovery renders
+// the island fresh, and the discard check looks for any of the server's root elements still there.
+bench(
+	'hydrate_island: a grid island Svelte re-renders, as its root cards grow',
+	({ r }) => {
+		link_boot();
+		return hydrate_island(r.el as HTMLElement, r.entry, MOD, r.ssr_html, false) !== null;
+	},
+	{ setup: () => mismatched_grid(12), scale: (_ctx, k) => mismatched_grid(12 * k) }
+);
+
+// ── the drift check and repair, the head markers ───────────────────────────────────────────────
+
+/** A block island an A/B tool left a comment in, in its last row: the drift check walks every row. */
+function ab_edited(rows: number): { region: Element; want: Element } {
+	const [, r] = cms_page(1, rows);
+	const want = server_copy(r);
+	const items = r.el.querySelectorAll('li');
+	items[items.length - 1].appendChild(document.createComment('ab: variant b'));
+	return { region: r.el, want };
+}
+
+// Growth: linear in the island's markup (the drift check and the repair walk it once).
+bench(
+	'drift check and repair: an edited block island as its rows grow',
+	({ region, want }) => {
+		link_boot();
+		if (!sequence_differs(region, want)) return false;
+		hydrate_core.repair_markup(region as HTMLElement, want);
+		return sequence_differs(region, want);
+	},
+	{ setup: () => ab_edited(6), scale: (_ctx, k) => ab_edited(6 * k) }
+);
+
+/** A csr=false page's head with `blocks` islands' `<svelte:head>` blocks in it. */
+function head_of(blocks: number): { blocks: number } {
+	page_head(blocks * 10);
+	return { blocks };
+}
+
+// Growth: linear in the head's nodes (one walk, then each confirmed marker removed).
+bench(
+	'head markers: a page head as its islands’ head blocks grow',
+	() => {
+		neutralize_head_hydration_markers();
+		return document.head.childNodes.length;
+	},
+	{ setup: () => head_of(10), scale: (_ctx, k) => head_of(10 * k) }
+);
+
+// ── the scheduler and the background drain, alone ──────────────────────────────────────────────
+
+/**
+ * The page wakes through the scheduler: every region registers at connect; `load` wakes start at
+ * background priority, `visible` ones when the observer reports them in view, `idle` ones on an idle
+ * timer, `interaction` ones never. Each started island's module arrives a few ms later (network
+ * order), then it asks for its turn; the case ends when every started island had its turn.
+ */
+function wake_page(regions: PageRegion[]): Promise<number> {
+	let turns = 0;
+	let resolve_all: (n: number) => void = () => {};
+	const all = new Promise<number>((r) => (resolve_all = r));
+	const expected = wakes_alone(regions);
+	const start = (r: PageRegion, i: number) => async () => {
+		hydrate_started(r.el);
+		await new Promise<void>((arrive) => setTimeout(arrive, 2 + (i % 7)));
+		await hydrate_turn(r.el);
+		// (the turn: the hydrate step would run here)
+		hydrate_settled(r.el);
+		if (++turns === expected) resolve_all(turns);
+	};
+	regions.forEach((r, i) => {
+		register_region(r.el);
+		const fire = start(r, i);
+		if (r.wake === 'load') background_start(fire);
+		else if (r.wake === 'visible') once_visible(r.el, '0px', () => background_start(fire));
+		else if (r.wake === 'idle') setTimeout(fire, 200);
+	});
+	return expected === 0 ? Promise.resolve(0) : all;
+}
+
+bench('scheduler: a 250-block page takes its hydrate turns', ({ regions }) => wake_page(regions), {
+	setup: () => ({ regions: cms_page(250) })
+});
+
+// Growth from a small page. Quadratic today: one turn goes per task, and each turn's drain walks
+// every pending island (the snapshot check, then the best pick), while a page's `load` wakes are
+// all pending at once.
+bench('scheduler: hydrate turns as the page grows', ({ regions }) => wake_page(regions), {
+	setup: () => ({ regions: cms_page(25) }),
+	scale: (_ctx, k) => ({ regions: cms_page(25 * k) })
+});
+
+/** Every `load` wake of the page starts in one task (the element's connect); one drain runs them. */
+function drain_starts(regions: PageRegion[]): Promise<number> {
+	let ran = 0;
+	for (const r of regions) {
+		background_start(() => {
+			hydrate_started(r.el);
+			ran++;
+		});
+	}
+	return new Promise<number>((done) => setTimeout(() => done(ran), 10_000));
+}
+
+bench(
+	'background drain: 250 wake starts queued in one task',
+	({ regions }) => drain_starts(regions),
+	{ setup: () => ({ regions: cms_page(250) }) }
+);
+
+bench('background drain: wake starts as the page grows', ({ regions }) => drain_starts(regions), {
+	setup: () => ({ regions: cms_page(25) }),
+	scale: (_ctx, k) => ({ regions: cms_page(25 * k) })
+});
