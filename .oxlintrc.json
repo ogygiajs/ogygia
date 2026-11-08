@@ -7,6 +7,15 @@
 		"typescript/no-explicit-any": "error",
 		"ogygia/no-promise-cache": "error"
 	},
+	"overrides": [
+		{
+			"files": [
+				"packages/router/src/**",
+				"packages/devtools/src/profiler/ui/fake-progress.svelte.ts"
+			],
+			"rules": { "ogygia/owned-effects": "error" }
+		}
+	],
 	"ignorePatterns": [
 		"**/dist/**",
 		"**/build/**",
