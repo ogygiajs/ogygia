@@ -70,7 +70,6 @@ export function debarrel(
 		};
 	};
 	let root = process.cwd().replace(BACKSLASH_G, '/');
-	let resolver: Resolver | null = null;
 	let log: (msg: string) => void = (msg) => console.log(msg);
 	let command: 'build' | 'serve' = 'serve';
 	const mtimes = new Map<string, number>();
@@ -91,30 +90,40 @@ export function debarrel(
 	let report = fresh_report();
 	const warned = new Set<string>();
 
-	// One index per plugin instance. Resolution goes through Vite via whichever plugin context last
-	// handed us its `resolve` — `buildStart` first, then every `transform` (any context resolves the
-	// same; `skipSelf` keeps us out of our own hook). Reads are the file system with an mtime check:
-	// a changed barrel drops its cached shape and every map that depended on it.
-	const host: Host = {
+	// One index per ENVIRONMENT: a dev server shares this plugin between the client and the server,
+	// and a leaf can resolve to another file for each (`browser` / `node` conditions), so a map one
+	// built must never answer the other. Resolution goes through the transform that asked, its own
+	// `resolve` handed down every walk (`skipSelf` keeps us out of our own hook). Reads are the file
+	// system with an mtime check: a changed barrel drops its cached shape and every map that
+	// depended on it, in every index.
+	const indexes = new Map<string, BarrelIndex<Resolver>>();
+	const index_of = (environment: string): BarrelIndex<Resolver> => {
+		let index = indexes.get(environment);
+		if (index === undefined) indexes.set(environment, (index = new BarrelIndex(host)));
+		return index;
+	};
+	const invalidate = (id: string) => {
+		for (const index of indexes.values()) index.invalidate(id);
+	};
+	const host: Host<Resolver> = {
 		read(id) {
 			try {
 				const st = statSync(id);
 				const prev = mtimes.get(id);
-				if (prev !== undefined && prev !== st.mtimeMs) index.invalidate(id);
+				if (prev !== undefined && prev !== st.mtimeMs) invalidate(id);
 				mtimes.set(id, st.mtimeMs);
 				return strip_bom(readFileSync(id, 'utf8'));
 			} catch {
 				return null;
 			}
 		},
-		async resolve(spec, importer) {
-			if (!resolver) return null;
+		async resolve(spec, importer, caller) {
 			// Vite THROWS for a specifier it cannot resolve from this importer (a strict pnpm layout, a
 			// deep import into a package's `src`). Unresolvable = not a barrel: the import stays as
 			// written and the bundler reports it — or not, if the import was a type.
 			let r: Awaited<ReturnType<Resolver['resolve']>>;
 			try {
-				r = await resolver.resolve(spec, importer, { skipSelf: true });
+				r = await caller.resolve(spec, importer, { skipSelf: true });
 			} catch {
 				return null;
 			}
@@ -131,7 +140,6 @@ export function debarrel(
 		kept: (id, spec) => o.keep.length > 0 && matches_any(o.keep, id, spec),
 		follow_packages: o.follow_packages
 	};
-	const index = new BarrelIndex(host);
 
 	const is_importer = (id: string): boolean => {
 		if (id.includes('\0')) return false;
@@ -156,23 +164,21 @@ export function debarrel(
 			command = config.command;
 			log = (msg) => config.logger.info(msg);
 		},
-		buildStart() {
-			resolver = this as unknown as Resolver;
-		},
 		async transform(raw, id) {
 			if (!is_importer(id)) return null;
 			// edits land by parser offsets: no byte-order mark in front of them (../bom.ts)
 			const code = strip_bom(raw);
-			resolver = this as unknown as Resolver;
+			const caller = this as unknown as Resolver;
+			const index = index_of(this.environment.name);
 			const t0 = performance.now();
 			if (report.files === 0) report.first_ms = t0;
 			report.files++;
 			const importer = id.replace(QUERY_RE, '');
 			const seen: ExportMap[] = [];
 			const lookup = async (spec: string): Promise<ExportMap | null> => {
-				const resolved = await host.resolve(spec, importer);
+				const resolved = await host.resolve(spec, importer, caller);
 				if (!resolved) return null;
-				const map = await index.map(resolved, spec);
+				const map = await index.map(resolved, spec, caller);
 				if (map) seen.push(map);
 				return map;
 			};
@@ -220,7 +226,7 @@ export function debarrel(
 			return { code: result.code, map: result.map };
 		},
 		watchChange(id) {
-			index.invalidate(id.replace(BACKSLASH_G, '/'));
+			invalidate(id.replace(BACKSLASH_G, '/'));
 		},
 		// The report, once per build leg (Kit builds client then server; each gets its own). Dev
 		// prints nothing here — `debug` narrates rewrites as they happen.
