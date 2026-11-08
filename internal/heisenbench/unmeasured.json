@@ -699,6 +699,34 @@
 		{
 			"id": "packages/config/src/vitest.ts > stub_aliases",
 			"reason": "the repo's unit-test config: lists core's test stubs on disk once per test run"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > pages",
+			"reason": "browser only: the router's page flights (made once from the boot link; key, keep and weigh are one-liners over a fetched page); proven in packages/core/test/browser/page-flights.test.ts and prefetch-owner.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > run_page_fetch",
+			"reason": "browser only: one page fetch (window.fetch, the load scheduler's slot for a prefetch); proven in packages/core/test/browser/page-flights.test.ts and prefetch-owner.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > bust_page_cache",
+			"reason": "browser only: drops every page flight (a one-line predicate); proven in packages/core/test/browser/page-flights.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > navigate > drop:0",
+			"reason": "browser only: a navigation drops the page it used (a one-line predicate over a flights entry); navigate runs in apps/palaestra e2e"
+		},
+		{
+			"id": "packages/federation/src/peer.ts > PeerHandle > drop > drop:0",
+			"reason": "a one-line predicate over a flights entry (kept and sharing a thawed tag); run by packages/federation/test/peer-flights.test.ts, not replayable as a closure"
+		},
+		{
+			"id": "packages/federation/src/peer.ts > PeerHandle > postDoc > drop:0",
+			"reason": "a constant predicate (a mutation drops every read); run by packages/federation/test/peer-flights.test.ts"
+		},
+		{
+			"id": "packages/federation/src/peer.ts > noop",
+			"reason": "the empty handler for a background refresh's failure (the next stale read tries again): no work"
 		}
 	]
 }
