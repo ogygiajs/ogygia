@@ -302,7 +302,8 @@ export function apply_late_templates(root: ParentNode): void {
  * making it momentarily focusable via `tabindex=-1` and then cleaning that up so the target does not
  * linger in the tab order. For `<body>` the attribute is removed immediately (body stays the active
  * element regardless). For a normal element — a `#hash` heading — removing `tabindex` while it is
- * focused would BLUR it back to `<body>`, so the cleanup is deferred to the element's next `blur`.
+ * focused would BLUR it back to `<body>`, so the cleanup is deferred to the element's next `blur`,
+ * heard for as long as the page is on screen (its visit, runtime/session.ts `PageVisit`).
  */
 function focus_reset(el: HTMLElement) {
 	const is_body = el === document.body || el === document.documentElement;
@@ -317,7 +318,7 @@ function focus_reset(el: HTMLElement) {
 	if (is_body) {
 		restore(); // body keeps focus even without the attribute
 	} else {
-		el.addEventListener('blur', () => restore(), { once: true });
+		session().visit.scope.on(el, 'blur', () => restore(), { once: true });
 	}
 }
 
