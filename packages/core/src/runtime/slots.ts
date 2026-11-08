@@ -198,6 +198,7 @@ export type RouterLink = {
 	jump_to_hash: typeof import('./router.ts').jump_to_hash;
 	push_state: typeof import('./router.ts').push_state;
 	replace_state: typeof import('./router.ts').replace_state;
+	hand_off: typeof import('./router.ts').hand_off;
 };
 export type InteractionLink = {
 	resolve_address: typeof import('./interaction.ts').resolve_address;
