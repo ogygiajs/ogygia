@@ -652,4 +652,36 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 			`${via(after)}: ${html.includes(`content of ${slug} v1`) ? 'v1' : '?'}`
 		);
 	});
+
+	test('S22 a form post on another page while the page renders: the render is still stored', async () => {
+		const path = '/fr/fr/c/slow-busy';
+		const before = (await renders())[path] ?? 0;
+		const rendering = fetch(origin + path).then(async (r) => ({
+			html: await r.text(),
+			cache: r.headers.get('cache-control') ?? ''
+		}));
+		await new Promise((r) => setTimeout(r, 200));
+		// a visitor signs up for the newsletter meanwhile: a post that evicts nothing this page is
+		const post = await fetch(origin + '/api/newsletter', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ email: 'a@example.com' })
+		});
+		check('S22: the post went through', post.ok);
+		const first = await rendering;
+		check('S22: the page rendered', first.html.includes('content of slow-busy'));
+		check(
+			'S22: the render is not refused (no no-store)',
+			!first.cache.includes('no-store'),
+			first.cache
+		);
+		const after = await fetch(origin + path);
+		await after.text();
+		check('S22: the next request is served from the store', via(after) === 'hit', via(after));
+		check(
+			'S22: the page rendered once',
+			((await renders())[path] ?? 0) - before === 1,
+			String(((await renders())[path] ?? 0) - before)
+		);
+	});
 });

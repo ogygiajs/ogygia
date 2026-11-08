@@ -11,7 +11,7 @@
  * two `'*'` walks and a seed parse inside `startViewTransition`, on the frame the transition
  * captures.
  */
-import { PageCache } from './page-cache.ts';
+import { PageCache, type FetchedPage } from './page-cache.ts';
 import { boot_link, router_link, slots } from './slots.ts';
 import { dispose_scope } from '../ref.ts';
 import {
@@ -343,19 +343,16 @@ const page_cache = new PageCache({
 	maxEntries: PAGE_CACHE_MAX_ENTRIES,
 	maxBytes: PAGE_CACHE_MAX_BYTES
 });
-const inflight = new Map<string, Promise<string | null>>();
+const inflight = new Map<string, Promise<FetchedPage | null>>();
 /** Prefetches still waiting in the load scheduler's queue, by href (a click promotes its one). */
 const queued_prefetch = new Map<string, { promote(cls: 'user'): void }>();
-/** requested href → the FINAL href a fetch landed on after following server redirects, when it
- *  differs. One-shot: `navigate()` reads it to correct the address bar (a redirect is invisible to
- *  `fetch` beyond `response.url`), then deletes it. See {@link fetch_page}. */
-const final_url = new Map<string, string>();
 /** Hrefs whose prefetched HTML was already scanned for island entries — parse once. (URL-level
  *  import dedupe lives in the shared `warm_island_module`.) */
 const warmed_pages = new Set<string>();
 /** (Hard SPA navigations are the router's own machine, `r.nav` (./navigation.ts), so a "same
  *  document" decision there can stop one in flight: SpaRouter.supersede. The soft refresh is its
- *  machine too, `router_link().soft`, also in ./navigation.ts.) */
+ *  machine too, `boot_link().soft` (./soft-refresh.ts): the boot holds it, as a page without the
+ *  router refreshes too.) */
 /** The visually-hidden `aria-live` region that announces each navigation to screen readers. Created
  *  lazily on the first nav and reused (a live region must persist so assistive tech observes its
  *  mutations). It lives in `<body>` but is DETACHED before each body swap so the reconcile never
@@ -370,7 +367,6 @@ export function bust_page_cache(): void {
 	cache_gen++;
 	page_cache.clear();
 	inflight.clear();
-	final_url.clear();
 }
 
 export function page_cache_size(): number {
@@ -410,11 +406,17 @@ function install_remote_mutation_cache_bust() {
 }
 install_remote_mutation_cache_bust();
 
+/**
+ * The page at `href`, as HTML plus the address it belongs to: a server redirect (a Kit `redirect()`
+ * in load, a trailing-slash canonicalization) is followed by `fetch` transparently, and
+ * `response.url` is its only trace. The landing travels WITH the HTML, through the cache and to the
+ * navigation that reads it, so nothing else (a cache clear, another fetch) can take it away.
+ */
 export function fetch_page(
 	href: string,
 	signal?: AbortSignal,
 	purpose: NavPurpose = 'nav'
-): Promise<string | null> {
+): Promise<FetchedPage | null> {
 	// Warm cache hit (a prefetched page, or an in-flight prefetch): serving it is instant, so
 	// even an abortable navigation uses it — there is nothing to abort on a resolved cache hit
 	// or a shared prefetch promise. Without this, a click after a hover-prefetch would re-fetch
@@ -429,9 +431,6 @@ export function fetch_page(
 		return pending;
 	}
 
-	// A fresh fetch is about to define this href's redirect fate — drop any stale mapping from an
-	// earlier (now cache-expired) prefetch so a non-redirecting response isn't shadowed by it.
-	final_url.delete(href);
 	/** the cache this fetch may fill: the one in place now, not one cleared while it was out */
 	const gen = cache_gen;
 
@@ -457,26 +456,23 @@ export function fetch_page(
 	const settled = fetched
 		.then(async (res) => {
 			const ct = res.headers.get('content-type') || '';
-			if (!ct.includes('text/html')) return { html: null as string | null, cacheable: false };
-			// A server redirect (a Kit `redirect()` in load, a trailing-slash canonicalization) is
-			// followed transparently by `fetch`; the only trace is `response.url`. Record the landing
-			// href so `navigate()` can correct the address bar it optimistically pushed BEFORE the
-			// fetch — otherwise the old URL sits over the redirected content.
-			if (res.redirected && res.url && res.url !== href && gen === cache_gen)
-				final_url.set(href, res.url);
+			if (!ct.includes('text/html')) return { page: null as FetchedPage | null, cacheable: false };
+			// where it landed: `navigate()` corrects the address bar it pushed BEFORE the fetch from
+			// this, or the old URL would sit over the redirected content
+			const url = res.redirected && res.url ? res.url : href;
 			// NOTE: we intentionally swap even non-2xx HTML (e.g. Kit's SSR'd 404/500
 			// +error.svelte page) so error pages render without a full reload.
 			const html = await res.text();
 			const cc = res.headers.get('cache-control') || '';
 			const cacheable = spa_html_cacheable(cc, res.headers.has('set-cookie'));
-			return { html, cacheable };
+			return { page: { html, url }, cacheable };
 		})
 		.catch((err) => {
 			if (err && (err as { name?: string }).name === 'AbortError') throw err;
-			return { html: null as string | null, cacheable: false };
+			return { page: null as FetchedPage | null, cacheable: false };
 		});
 
-	const html_p = settled.then((r) => r.html);
+	const html_p = settled.then((r) => r.page);
 
 	// Prefetch (no signal): coalesce in-flight + insert only after cacheable is known.
 	if (!signal) {
@@ -486,13 +482,13 @@ export function fetch_page(
 		});
 		settled
 			.then((r) => {
-				if (r.html == null) return;
-				if (r.cacheable && gen === cache_gen) page_cache.set(href, r.html);
+				if (r.page == null) return;
+				if (r.cacheable && gen === cache_gen) page_cache.set(href, r.page);
 				// Warm the destination's island JS during the hover/idle runway, so the click path is
 				// swap + hydrate with no first-time import() per island — the module graph is already
 				// resolved when load_island() runs. This is the biggest prefetch win: without it, a warm
 				// (HTML-cached) navigation still stalls hydration on cold island chunks.
-				warm_modules(href, r.html);
+				warm_modules(href, r.page.html);
 			})
 			.catch(() => {});
 	}
@@ -600,7 +596,7 @@ export async function navigate(
 
 	// A soft refresh still out belongs to the page being left: its late answer would merge that
 	// page's head and data into this one (#202). The navigation brings its own.
-	const { soft } = router_link();
+	const { soft } = boot_link();
 	if (soft.now.kind === 'refreshing') soft.go('idle');
 
 	// This navigation's visit: only it may apply a body swap (P2). A newer click starts a new visit:
@@ -622,20 +618,21 @@ export async function navigate(
 	// side effects the visitor already triggered on the first visit. A plain click is `nav`.
 	const purpose: NavPurpose = type === 'popstate' ? 'history' : 'nav';
 
-	let html: string | null;
+	let page: FetchedPage | null;
 	try {
 		const fetched = await r.nav.task((signal) => fetch_page(url.href, signal, purpose));
 		if (is_stale(fetched)) return; // a newer navigation took over (and aborted this fetch)
-		html = fetched;
+		page = fetched;
 	} catch {
 		location.href = url.href;
 		return;
 	}
 	if (r.nav.now !== mine) return;
-	if (html == null) {
+	if (page == null) {
 		location.href = url.href;
 		return;
 	}
+	const { html } = page;
 	nav_fetched = performance.now();
 	page_cache.delete(url.href); // one-shot; always fresh on real navigation
 
@@ -644,11 +641,9 @@ export async function navigate(
 	// used from here on for the address bar, doc key, current URL, and hash scroll, but only once
 	// the router knows it will render this response itself (below). `dest` === `url` in the common case.
 	let dest = url;
-	const landed = final_url.get(url.href);
-	final_url.delete(url.href); // one-shot, like the page cache
-	if (landed) {
+	if (page.url !== url.href) {
 		try {
-			dest = new URL(landed, url);
+			dest = new URL(page.url, url);
 		} catch {
 			dest = url;
 		}
@@ -901,28 +896,29 @@ export async function navigate(
  * that need query updates use `.refresh()`, or `submit().updates(q)` with server
  * `requested(q).refreshAll()` (updates alone does not populate response `q`).
  *
- * Its own machine (`soft`, ./navigation.ts) so soft fetches never cancel an in-flight click navigation;
- * a real navigation ends a soft refresh in flight.
+ * Its own machine (`soft`, ./soft-refresh.ts, which the boot holds: a page without the router
+ * refreshes too) so soft fetches never cancel an in-flight click navigation; a real navigation ends
+ * a soft refresh in flight.
  */
 export async function invalidate_all(): Promise<void> {
 	bust_page_cache();
 	const url = new URL(location.href);
 
-	const { soft } = router_link();
+	const { soft } = boot_link();
 	soft.go('refreshing', { href: url.href });
 	const mine = soft.now;
 
-	let html: string | null;
+	let html: string | undefined;
 	try {
 		const fetched = await soft.task((signal) => fetch_page(url.href, signal));
 		if (is_stale(fetched)) return; // a navigation, or a newer refresh, took over
-		html = fetched;
+		html = fetched?.html;
 	} catch {
 		if (soft.now === mine) soft.go('idle');
 		return;
 	}
 	if (soft.now !== mine) return;
-	if (html == null) return void soft.go('idle');
+	if (html === undefined) return void soft.go('idle');
 
 	const doc = new DOMParser().parseFromString(html, 'text/html');
 	if (KitBoot.document_has(doc) || !doc.querySelector('meta[name="ogygia-router"]'))
