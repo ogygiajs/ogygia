@@ -13,7 +13,7 @@ import { page_state } from '../../src/shims/page-store.svelte.ts';
 declare module 'vitest/browser' {
 	interface BrowserCommands {
 		hold_downloads(path: string): Promise<void>;
-		keep_downloads(): Promise<void>;
+		keep_downloads(path: string): Promise<void>;
 	}
 }
 
@@ -53,7 +53,7 @@ beforeEach(() => {
 afterEach(async () => {
 	window.fetch = real_fetch;
 	history.replaceState(null, '', home);
-	await commands.keep_downloads();
+	await commands.keep_downloads(HELD);
 });
 
 test('invalidateAll while a navigation waits refreshes the page on screen, not the next one', async () => {
@@ -75,7 +75,7 @@ test('invalidateAll while a navigation waits refreshes the page on screen, not t
 	expect((page_state.data as { who?: string }).who).toBe('a');
 	expect(document.querySelector('p')?.textContent).toBe('a');
 	// the navigation still goes in, afterwards
-	await commands.keep_downloads();
+	await commands.keep_downloads(HELD);
 	await went;
 	expect(document.title).toBe('page B');
 	expect((page_state.data as { who?: string }).who).toBe('b');

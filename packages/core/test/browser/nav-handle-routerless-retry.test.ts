@@ -13,14 +13,14 @@ import * as mpa_nav from '../../src/runtime/nav-handle.ts';
 declare module 'vitest/browser' {
 	interface BrowserCommands {
 		drop_downloads(path: string, times: number): Promise<void>;
-		keep_downloads(): Promise<void>;
+		keep_downloads(path: string): Promise<void>;
 	}
 }
 
 const NAV = Symbol.for('ogygia.nav');
 const scope = globalThis as unknown as Record<symbol, Record<string, unknown> | undefined>;
 
-afterEach(() => commands.keep_downloads());
+afterEach(() => commands.keep_downloads('/src/runtime/router-nav.ts'));
 
 test('without the router, a refresh whose code failed to download loads it on the next refresh', async () => {
 	delete scope[NAV];

@@ -15,7 +15,7 @@ import { prepare_spa_document } from '../../src/runtime/seeds.ts';
 declare module 'vitest/browser' {
 	interface BrowserCommands {
 		hold_downloads(path: string): Promise<void>;
-		keep_downloads(): Promise<void>;
+		keep_downloads(path: string): Promise<void>;
 	}
 }
 
@@ -44,7 +44,7 @@ beforeEach(() => {
 afterEach(async () => {
 	window.fetch = real_fetch;
 	history.replaceState(null, '', home);
-	await commands.keep_downloads();
+	await commands.keep_downloads(HELD);
 });
 
 test('a sheet of the next page that loaded first does not style the page on screen', async () => {
@@ -58,7 +58,7 @@ test('a sheet of the next page that loaded first does not style the page on scre
 	expect(document.querySelector('p')?.textContent).not.toBe('next');
 	expect(next_page().trim()).toBe('');
 	// the held sheet arrives: the page goes in, and its sheets style it
-	await commands.keep_downloads();
+	await commands.keep_downloads(HELD);
 	await went;
 	expect(document.querySelector('p')?.textContent).toBe('next');
 	expect(next_page().trim()).toBe('on');

@@ -13,11 +13,11 @@ import { import_file } from '../../src/runtime/import-again.ts';
 declare module 'vitest/browser' {
 	interface BrowserCommands {
 		drop_downloads(path: string, times: number): Promise<void>;
-		keep_downloads(): Promise<void>;
+		keep_downloads(path: string): Promise<void>;
 	}
 }
 
-afterEach(() => commands.keep_downloads());
+afterEach(() => commands.keep_downloads('/fixtures/island-file-copy.ts'));
 
 test('two loads of one file that fail together share one retry, and get one copy of the module', async () => {
 	const url = new URL('./fixtures/island-file-copy.ts', import.meta.url).href;

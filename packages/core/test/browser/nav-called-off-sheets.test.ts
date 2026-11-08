@@ -13,7 +13,7 @@ import { SpaRouter } from '../../src/runtime/router.ts';
 declare module 'vitest/browser' {
 	interface BrowserCommands {
 		hold_downloads(path: string): Promise<void>;
-		keep_downloads(): Promise<void>;
+		keep_downloads(path: string): Promise<void>;
 	}
 }
 
@@ -34,7 +34,7 @@ beforeEach(() => {
 afterEach(async () => {
 	window.fetch = real_fetch;
 	history.replaceState(null, '', home);
-	await commands.keep_downloads();
+	await commands.keep_downloads(SHEET);
 });
 
 test('a navigation called off while the next page’s sheet loads takes that sheet out', async () => {
