@@ -727,6 +727,62 @@
 		{
 			"id": "packages/federation/src/peer.ts > noop",
 			"reason": "the empty handler for a background refresh's failure (the next stale read tries again): no work"
+		},
+		{
+			"id": "packages/content/src/site/search-worker.ts > flights:0~bef8c7 > run",
+			"reason": "worker only: downloads the index (fetch) and builds the Orama engine over it; run by packages/content/test/search-client.test.ts against a stubbed fetch"
+		},
+		{
+			"id": "packages/content/src/site/search-worker.ts > index_now",
+			"reason": "worker only: hands out the index flight (its answer is the built engine, not cloneable), constant work; run by packages/content/test/search-client.test.ts"
+		},
+		{
+			"id": "packages/content/src/site/search-worker.ts > onmessage > drop:0~8b94d4",
+			"reason": "a constant predicate (a new load drops every index): no work"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > _reset > drop:0~8b94d4",
+			"reason": "a constant predicate in the test/HMR reset (drops every frame flight): no work"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > Flight > _fly",
+			"reason": "keeps the flight's signal and hands back its outcome promise (not cloneable), constant work; run by packages/postrender/test/postrender.test.ts and e2e S21/S23"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > Flight > constructor",
+			"reason": "makes one outcome promise for a flight, constant work; run by packages/postrender/test/postrender.test.ts"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > Flight > constructor > Promise:0~2e2844",
+			"reason": "keeps the outcome promise's resolver, constant work"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > Flight > get stale",
+			"reason": "two field reads (settled, its signal aborted), constant work; run by packages/postrender/test/postrender.test.ts"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > Flight > settle",
+			"reason": "settles a flight once, constant work; run by packages/postrender/test/postrender.test.ts and e2e S20-S23"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > enter_flight",
+			"reason": "one peek and one get of the render flights (its answer is a Flight or a promise, not cloneable), constant work; run by packages/postrender/test/postrender.test.ts and the e2e stampede S9/S23"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > flights:0~3e13ef > key",
+			"reason": "a field read (the flight's path): no work"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > flights:0~3e13ef > run",
+			"reason": "calls the flight's _fly, constant work"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > reset_for_tests > drop:0~8b94d4",
+			"reason": "a constant predicate in the test reset (drops every render flight): no work"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > stale_flights > drop:0~2bdcbc",
+			"reason": "one comparison or one in_subtree check per render in flight (in_subtree is measured on its own); run by packages/postrender/test/postrender.test.ts"
 		}
 	]
 }
