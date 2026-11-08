@@ -37,6 +37,8 @@ import { emit as dt_emit } from '../events/bus.ts';
 const KitBoot = { document_has: (doc: ParentNode) => boot_link().KitBoot.document_has(doc) };
 const regions_in_shadow = () => boot_link().regions_in_shadow();
 const session = () => boot_link().runtime_session;
+type Scope = import('@ogygia/machine').Scope;
+type PageVisit = import('./session.ts').PageVisit;
 /** devalue first, when the fetched page holds a script in its lane (./devalue-lane.ts) */
 const devalue_for = (doc: Document) =>
 	boot_link().needs_devalue(doc) ? boot_link().load_devalue() : undefined;
@@ -607,6 +609,12 @@ export async function navigate(
 	// every step below checks it is still `mine`, and its fetch (a task of the visit) is aborted.
 	r.nav.go('loading', { href: url.href });
 	const mine = r.nav.now;
+	// What this one navigation does is its visit's (`attempt`): leaving it (a newer click, back to
+	// the page on screen, a hand-off) lets it all go. The page it brings has a visit of its own, made
+	// now (runtime/session.ts `PageVisit`): what is started for that page before its swap is that
+	// visit's, which the swap makes the page's, and which ends with `attempt` when there is no swap.
+	const attempt = r.nav.scope;
+	const next = session().next_visit(attempt);
 
 	// Update history SYNCHRONOUSLY (before any await) so the URL is correct and
 	// races between overlapping navigations can't drop the pushState.
@@ -634,7 +642,7 @@ export async function navigate(
 
 	let page: FetchedPage | null;
 	try {
-		const fetched = await r.nav.scope.task((signal) => fetch_page(url.href, signal, purpose));
+		const fetched = await attempt.task((signal) => fetch_page(url.href, signal, purpose));
 		if (is_stale(fetched)) return; // a newer navigation took over (and aborted this fetch)
 		page = fetched;
 	} catch {
@@ -718,9 +726,10 @@ export async function navigate(
 
 	// Cold-cache FOUC guard: get the destination's stylesheets loaded and applied BEFORE the body
 	// swap, so the first post-deploy navigation never flashes unstyled content (a full-width column
-	// snapping to its styled width). Warm caches resolve this instantly. Old body keeps its styles
-	// until the swap, so adding the sheets early is invisible.
-	await preload_stylesheets(doc.head);
+	// snapping to its styled width). Warm caches resolve this instantly. The sheets are the next
+	// page's (`next.early`): a navigation that ends before its swap takes them out (#267), and stops
+	// waiting for them at once.
+	await attempt.task(() => preload_stylesheets(doc.head, attempt, next));
 	if (r.nav.now !== mine) return;
 	nav_styled = performance.now();
 	// The transition starts in a task of its own: everything above is a finished task by then, and
@@ -757,7 +766,7 @@ export async function navigate(
 		// seed the shared page store + remote seeds from the new doc (the parse preflight made) —
 		// `$app/state` page.url/params/data update reactively inside KEPT islands, and every island
 		// that connects below reads the new page, never a stale script. Seeds first, DOM second.
-		prepare_spa_document();
+		prepare_spa_document(next);
 		apply_soft_invalidate_doc(doc);
 		if (r.nav.now !== mine) return;
 		if (reconcile) {
@@ -1053,8 +1062,16 @@ function merge_head(new_head: HTMLHeadElement) {
  * the first visit after a deploy, when the route CSS isn't cached yet. Preloading here closes it;
  * `merge_head` then dedupes these by key so nothing is added twice. Capped so a stalled sheet
  * can't hang navigation.
+ *
+ * The wait is the navigation's (`attempt`: its listeners and its cap go when it ends), the sheets the
+ * next page's (`next`): its swap makes them the page's, and a navigation that ends without one takes
+ * them out again (#267).
  */
-function preload_stylesheets(new_head: HTMLHeadElement): Promise<unknown> {
+function preload_stylesheets(
+	new_head: HTMLHeadElement,
+	attempt: Scope,
+	next: PageVisit
+): Promise<unknown> {
 	const present = new Set<string>();
 	for (const node of Array.from(document.head.children)) {
 		if (node.tagName === 'LINK' && node.getAttribute('rel') === 'stylesheet') {
@@ -1074,21 +1091,25 @@ function preload_stylesheets(new_head: HTMLHeadElement): Promise<unknown> {
 		const link = node.cloneNode(true) as HTMLLinkElement;
 		pending.push(
 			new Promise<void>((resolve) => {
-				link.addEventListener('load', () => resolve(), { once: true });
-				link.addEventListener('error', () => resolve(), { once: true });
+				attempt.on(link, 'load', () => resolve(), { once: true });
+				attempt.on(link, 'error', () => resolve(), { once: true });
 			})
 		);
 		// Insert at the TOP of <head>, not the end: an island's `<svelte:head>` hydration removes a
 		// trailing node range, so a stylesheet appended after the island head blocks gets reclaimed.
 		session().claim_page_head(link); // the next page's own sheet (runtime/session.ts)
 		document.head.insertBefore(link, document.head.firstChild);
+		next.early(link);
 	}
 	if (!pending.length) return Promise.resolve();
 	// Never let a hung stylesheet block the swap indefinitely.
-	return Promise.race([
-		Promise.all(pending),
-		new Promise((resolve) => setTimeout(resolve, STYLESHEET_WAIT_MS))
-	]);
+	return new Promise<void>((resolve) => {
+		const cancel = attempt.timeout(resolve, STYLESHEET_WAIT_MS);
+		void Promise.all(pending).then(() => {
+			cancel();
+			resolve();
+		});
+	});
 }
 
 /**

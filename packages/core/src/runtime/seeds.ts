@@ -219,9 +219,12 @@ export function apply_soft_invalidate_doc(doc: Document): void {
  * Do **not** clear `query_map` / `live_query_map` here — old islands are still mounted, and Kit's
  * LiveQueryProxy throws if its cache entry vanishes mid-render. Instance sweep happens in
  * {@link finish_spa_document} after the swap.
+ *
+ * `next`: the visit of the page going in, made by its navigation (runtime/session.ts `PageVisit`):
+ * from here on it is the page's, and the visit of the page going out ends.
  */
-export function prepare_spa_document(): void {
-	session().reset();
+export function prepare_spa_document(next?: import('./session.ts').PageVisit): void {
+	session().reset(next);
 	slots.remoteSeeds?.clear_remote_seeds();
 	reset_page();
 }

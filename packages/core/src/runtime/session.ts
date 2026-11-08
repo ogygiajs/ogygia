@@ -51,6 +51,11 @@ const STYLESHEET_REL_RE = /(?:^|\s)stylesheet(?:\s|$)/i;
  * holds is its own and goes with it: on `scope`, its listeners, timers, observers and streams (the
  * router's link scan, the batch of its holes, the waits for the sheets its answers bring); in
  * `facts`, what its answers brought for its next hydrate.
+ *
+ * A navigation makes the visit of the page it brings before its swap (`RuntimeSession.next_visit`):
+ * what it starts for that page early, the batch of its holes and its stylesheets, is that visit's. A
+ * navigation that ends without its swap (called off, taken over, given to the browser) ends that
+ * visit, never the page's, and the sheets it put in the head go with it (#267).
  */
 export class PageVisit {
 	/** Closed when the visit ends. */
@@ -59,6 +64,23 @@ export class PageVisit {
 	 *  (`region_fragment`) for the next hydrate to merge into the page store (seeds.ts). This page's
 	 *  only: the next page's visit starts with none (#269). */
 	readonly facts: string[] = [];
+	/** Head nodes put in for this page before its swap (null: it is the page, or it has ended). */
+	_early: Element[] | null = [];
+
+	/** `node` went into the head for this page before its swap: a visit that never becomes the
+	 *  page takes it out (at once, when it has already ended). */
+	early(node: Element): void {
+		if (this._early !== null) this._early.push(node);
+		else if (this.scope.closed) node.remove();
+	}
+
+	/** The visit ends without ever being the page: its early head nodes go, then what it holds. */
+	_abandon(): void {
+		const early = this._early;
+		this._early = null;
+		if (early !== null) for (const node of early) node.remove();
+		this.scope.close();
+	}
 }
 
 export class RuntimeSession {
@@ -122,10 +144,23 @@ export class RuntimeSession {
 	readonly initialized_lakes: Set<string> = new Set<string>();
 	readonly server_gate: ConcurrencyGate = new ConcurrencyGate(3);
 
-	#visit: PageVisit = new PageVisit();
+	#visit: PageVisit = arrived(new PageVisit());
 	/** The visit of the page on screen (see {@link PageVisit}). */
 	get visit(): PageVisit {
 		return this.#visit;
+	}
+
+	/**
+	 * The visit of the page a navigation brings, made before its swap: the navigation's until
+	 * `reset(next)` makes it the page. When `navigation` (the navigation's own scope) ends first, the
+	 * visit ends with it.
+	 */
+	next_visit(navigation: Scope): PageVisit {
+		const next = new PageVisit();
+		navigation.defer(() => {
+			if (this.#visit !== next) next._abandon();
+		});
+		return next;
 	}
 
 	#remote_seeded = false;
@@ -173,17 +208,24 @@ export class RuntimeSession {
 		}
 	}
 
-	/** The next page takes over (a new visit), and the visit of the page it replaces ends. */
-	reset(): void {
+	/** The next page takes over (its visit, made by its navigation; a new one when none is given),
+	 *  and the visit of the page it replaces ends. */
+	reset(next: PageVisit = new PageVisit()): void {
 		const left = this.#visit;
-		this.#visit = new PageVisit();
+		this.#visit = arrived(next);
 		this.#kit_page = undefined;
 		this.#remote_seeded = false;
 		this.#page_seeded = false;
 		this.lake_cache.clear();
 		this.initialized_lakes.clear();
-		left.scope.close();
+		if (left !== next) left.scope.close();
 	}
+}
+
+/** `visit` is the page now: what it put in the head early is the page's. */
+function arrived(visit: PageVisit): PageVisit {
+	visit._early = null;
+	return visit;
 }
 
 /** Process-wide session for the islands runtime (one client module graph). */
