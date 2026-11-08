@@ -11,7 +11,7 @@
  * A download that fails is tried again at once, and a failure is never kept: the next read loads it
  * afresh (one dropped request must not leave every later wake, and every streamed value, unreadable).
  */
-import { once } from '@ogygia/machine';
+import { flights, STALE, type Stale } from '@ogygia/machine';
 import { import_again } from './import-again.ts';
 
 type Devalue = typeof import('devalue');
@@ -20,11 +20,14 @@ let lib: Devalue | null = null;
 
 const import_devalue = import_again(() => import('devalue'));
 
-/** Start (once) and await devalue's import. */
-export const load_devalue: () => Promise<Devalue> = once(
-	() => import_devalue().then((m) => (lib = m)),
-	{ retries: 1 }
-);
+const devalue_load = flights({
+	name: 'devalue',
+	run: () => import_devalue().then((m) => (lib = m)),
+	retries: 1
+});
+
+/** Start (once) and await devalue's import. (Never STALE: nothing drops it.) */
+export const load_devalue = (): Promise<Devalue | Stale> => devalue_load.get();
 
 /** How long `with_devalue` waits before it asks again after a failed download, doubling, and when
  *  it stops asking (the network is down: the reads that wait on it stay pending, as before). */
@@ -43,9 +46,12 @@ export function devalue(): Devalue {
 export function with_devalue(fn: (d: Devalue) => void, wait: number = RETRY_FIRST_MS): void {
 	if (lib) fn(lib);
 	else
-		void load_devalue().then(fn, () => {
-			if (wait <= RETRY_LAST_MS) setTimeout(() => with_devalue(fn, wait * 2), wait);
-		});
+		void load_devalue().then(
+			(d) => d !== STALE && fn(d),
+			() => {
+				if (wait <= RETRY_LAST_MS) setTimeout(() => with_devalue(fn, wait * 2), wait);
+			}
+		);
 }
 
 /** Every side-channel a read may parse with devalue: props sidecars, the page seed, page facts. */

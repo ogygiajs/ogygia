@@ -73,7 +73,7 @@ export function batch_stream(
 		async start(controller) {
 			const streaming = batch.now;
 			// Each call renders independently; enqueue its frame on settle, whatever the order.
-			const ran = await batch.task((signal) =>
+			const ran = await batch.scope.task((signal) =>
 				Promise.all(
 					calls.map(async (endpoint) => {
 						const out = await render(endpoint, signal).catch(() => null);

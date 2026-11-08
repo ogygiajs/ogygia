@@ -197,20 +197,22 @@ export class BarrelIndex<Caller = void> {
 		});
 		b.go('building', { map, run });
 		const mine = b.now;
-		b.task(() => this.#build(map, shape, walk)).then(
-			(built) => {
-				if (built !== STALE && b.now === mine) {
-					// (a provisional map, or one that lacks a ring's names, is served once, not kept)
-					if (!built.provisional && built.cycles.size === 0) b.go('built', { map: built });
-					else b.go('idle');
+		b.scope
+			.task(() => this.#build(map, shape, walk))
+			.then(
+				(built) => {
+					if (built !== STALE && b.now === mine) {
+						// (a provisional map, or one that lacks a ring's names, is served once, not kept)
+						if (!built.provisional && built.cycles.size === 0) b.go('built', { map: built });
+						else b.go('idle');
+					}
+					settle(built);
+				},
+				(error: unknown) => {
+					if (b.now === mine) b.go('idle');
+					fail(error);
 				}
-				settle(built);
-			},
-			(error: unknown) => {
-				if (b.now === mine) b.go('idle');
-				fail(error);
-			}
-		);
+			);
 		return run;
 	}
 

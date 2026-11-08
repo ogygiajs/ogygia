@@ -84,7 +84,7 @@ bench(
 			try {
 				await load();
 			} catch {
-				// the first attempt: the failure the caller sees (once() then calls again)
+				// the first attempt: the failure the caller sees (its flight then calls again)
 			}
 			const fresh = (await load()) as string;
 			if (fresh === retry_url(url, 1)) loaded++;
@@ -196,12 +196,12 @@ bench(
 		for (let i = 0; i < n; i++) {
 			// a soft refresh out when the visitor clicks: the navigation ends it
 			soft.go('refreshing', { href: '/a' });
-			const refresh = soft.task(async () => 'the page refreshed');
+			const refresh = soft.scope.task(async () => 'the page refreshed');
 			nav.go('claimed', { href: `/p${i}` });
 			const mine = nav.now;
 			if (soft.now.kind === 'refreshing') soft.go('idle');
 			nav.go('loading', { href: `/p${i}` });
-			const page = nav.task(async () => `<h1>p${i}</h1>`);
+			const page = nav.scope.task(async () => `<h1>p${i}</h1>`);
 			// every third click is taken over by a newer one while its page is out
 			if (i % 3 === 0) nav.go('claimed', { href: `/p${i}b` });
 			const [html] = await Promise.all([page, refresh]);
@@ -256,7 +256,7 @@ bench(
 			const answer = create_answer();
 			const wake = create_wake();
 			hole.go('armed', { attempts: 0 });
-			hole.onLeave(leave); // (a schedule's listener)
+			hole.scope.defer(leave); // (a schedule's listener)
 			hole.go('fetching', { attempts: 0, revalidate: false });
 			if (i % 3 === 0) {
 				// its fetch failed: it waits, re-arms, and tries again
@@ -272,7 +272,7 @@ bench(
 			answer.go(i % 5 === 0 ? 'kept' : 'answered');
 			if (answer.now.kind === 'kept') continue;
 			wake.go('armed');
-			wake.onLeave(leave); // (the capture, handed on to `waking`)
+			wake.scope.defer(leave); // (the capture, handed on to `waking`)
 			wake.go('waking');
 			if (i % 11 === 0) wake.go('failed', { error: i });
 			else wake.go('awake');
@@ -281,10 +281,10 @@ bench(
 		for (let i = 0; i < n / 4; i++) {
 			const live = create_live();
 			live.go('static');
-			live.onLeave(leave); // (its subscription)
+			live.scope.defer(leave); // (its subscription)
 			live.go('hydrating', { module: 'a' });
 			live.go('live', { module: 'a', app });
-			live.onLeave(() => app.dispose());
+			live.scope.defer(() => app.dispose());
 			live.go('hydrating', { module: 'b' });
 			live.go('idle');
 		}

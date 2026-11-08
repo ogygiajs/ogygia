@@ -1,4 +1,4 @@
-import { once, STALE } from '@ogygia/machine';
+import { flights, STALE, type Scope, type Stale } from '@ogygia/machine';
 import { frameAddress } from '../frame.ts';
 import { import_again, on_reload_needed } from './import-again.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
@@ -181,15 +181,16 @@ function now_ms(): number {
 type HydrateCore = typeof import('./hydrate-core.ts');
 let loaded_core: HydrateCore | null = null;
 const import_core = import_again(() => import('./hydrate-core.ts'));
-const hydrate_core: () => Promise<HydrateCore> = once(
-	() =>
+const hydrate_core = flights({
+	name: 'hydrate core',
+	run: () =>
 		// in a task of its own: the import's synchronous start (the bundler's preload of the chunk's
 		// ~20 dependencies) ran inside the first island's start, one long task with it
 		yield_task()
 			.then(import_core)
 			.then((m) => (loaded_core = m)),
-	{ retries: 1 }
-);
+	retries: 1
+});
 
 /** An answer just went in carrying the page facts it rendered with (server/render-page.ts): once
  *  islands are awake (the hydrate core loaded), they join the page store NOW, so a KEPT island reading
@@ -296,7 +297,7 @@ function dom_ready() {
 }
 
 /** A machine's state, as the schedules armed in it see it: what to run when it is left. */
-type Leaves = { onLeave(cleanup: () => void): void };
+type Leaves = { readonly scope: Scope };
 
 /** Resolves after `ms`, unless `signal` aborts first (it then never resolves: the visit that
  *  waited is over, and `task()` has already answered it `STALE`). */
@@ -863,7 +864,7 @@ class OgygiaRegion extends HTMLElement {
 					this.#visitor = NO_REPLAY; // (a hole's answer: nothing of the visitor's to replay)
 					return fire();
 				});
-				owner.onLeave(() => on_demand_armed.delete(this));
+				owner.scope.defer(() => on_demand_armed.delete(this));
 			} else this.#on_interaction(fire);
 		} else this.#on_media(when, start, owner); // a media query string
 	}
@@ -928,10 +929,10 @@ class OgygiaRegion extends HTMLElement {
 		if (typeof disarm !== 'function') return;
 		const wake = this.#wake;
 		const hold = () => {
-			if (wake.now.kind === 'waking') wake.onLeave(hold);
+			if (wake.now.kind === 'waking') wake.scope.defer(hold);
 			else disarm(!this.isConnected);
 		};
-		wake.onLeave(hold);
+		wake.scope.defer(hold);
 	}
 
 	/**
@@ -1222,7 +1223,7 @@ class OgygiaRegion extends HTMLElement {
 		const mine = this.#hole.now;
 		let html: string | typeof STALE;
 		try {
-			html = await this.#hole.task((signal) =>
+			html = await this.#hole.scope.task((signal) =>
 				this.#ensure_frame(frames, endpoint, address, revalidate, signal)
 			);
 		} catch (err) {
@@ -1358,7 +1359,7 @@ class OgygiaRegion extends HTMLElement {
 				return;
 			}
 			this.#hole.go('retrying', { attempts, revalidate });
-			const waited = await this.#hole.task((signal) => sleep(500 * attempts, signal));
+			const waited = await this.#hole.scope.task((signal) => sleep(500 * attempts, signal));
 			if (waited === STALE || !this.isConnected) return;
 			if (revalidate) void this.#fetch_html(true);
 			else this.connectedCallback();
@@ -1383,17 +1384,17 @@ class OgygiaRegion extends HTMLElement {
 	#on_idle(fire: () => unknown, owner: Leaves) {
 		if ('requestIdleCallback' in window) {
 			const handle = requestIdleCallback(() => fire(), { timeout: 2000 });
-			owner.onLeave(() => cancelIdleCallback(handle));
+			owner.scope.defer(() => cancelIdleCallback(handle));
 		} else {
 			const timer = setTimeout(() => fire(), 200);
-			owner.onLeave(() => clearTimeout(timer));
+			owner.scope.defer(() => clearTimeout(timer));
 		}
 	}
 
 	/** `visible`: the shared observer for this margin (observe.ts) — fires once, on first entry. */
 	#on_visible(fire: () => unknown, root_margin: string | undefined, owner: Leaves) {
 		const rootMargin = root_margin || this.getAttribute('margin') || '0px';
-		owner.onLeave(once_visible(this, rootMargin, () => void fire()));
+		owner.scope.defer(once_visible(this, rootMargin, () => void fire()));
 	}
 
 	#on_media(q: string, fire: () => unknown, owner: Leaves) {
@@ -1406,7 +1407,7 @@ class OgygiaRegion extends HTMLElement {
 			fire();
 		};
 		mql.addEventListener('change', on);
-		owner.onLeave(() => mql.removeEventListener('change', on));
+		owner.scope.defer(() => mql.removeEventListener('change', on));
 	}
 
 	/**
@@ -1445,7 +1446,7 @@ class OgygiaRegion extends HTMLElement {
 			// the class follows the viewport, re-read while queued (an island scrolled into view moves up).
 			const cls = () => (this.#visitor ? 'user' : viewport_class(this));
 			const release = await new LoadSlot({ kind: 'code', cls, label: entry }).ready;
-			let mod: IslandModule, core: HydrateCore;
+			let mod: IslandModule, core: HydrateCore | Stale;
 			try {
 				if (gone()) return;
 				hydrate_started(this); // a viewport island in flight holds ready islands below the fold
@@ -1454,7 +1455,7 @@ class OgygiaRegion extends HTMLElement {
 				// The island's module first: its graph links go in before the lazy runtime chunks' own preloads.
 				[mod, core] = await Promise.all([
 					load_island(entry, cls()),
-					hydrate_core(),
+					hydrate_core.get(),
 					slots.wire_classes?.(this),
 					devalue_for_wake()
 				]);
@@ -1462,7 +1463,8 @@ class OgygiaRegion extends HTMLElement {
 				release();
 			}
 			t_loaded = now_ms();
-			if (gone()) return;
+			// (the hydrate core is never dropped: STALE does not come)
+			if (gone() || core === STALE) return;
 			// An island of OURS on a Kit-hydrated document reads Kit's page through the bridge Kit's
 			// client entry publishes; it must not hydrate before Kit applied it (kit-page-thread.svelte.ts).
 			await this.#kit_page_ready(core);
@@ -1613,7 +1615,7 @@ class OgygiaRegion extends HTMLElement {
 				);
 				if (off) {
 					this.#live_unsub = off;
-					this.#live.onLeave(() => {
+					this.#live.scope.defer(() => {
 						off();
 						this.#live_unsub = null;
 					});
@@ -1685,18 +1687,18 @@ class OgygiaRegion extends HTMLElement {
 			if (!entry) return;
 			const cls = () => viewport_class(this);
 			const release = await new LoadSlot({ kind: 'code', cls, label: entry }).ready;
-			let mod: IslandModule, core: HydrateCore;
+			let mod: IslandModule, core: HydrateCore | Stale;
 			try {
 				if (!ours()) return;
 				[mod, core] = await Promise.all([
 					load_island(entry, cls()),
-					hydrate_core(),
+					hydrate_core.get(),
 					devalue_for_wake()
 				]);
 			} finally {
 				release();
 			}
-			if (!ours()) return;
+			if (!ours() || core === STALE) return;
 			await this.#kit_page_ready(core);
 			if (!ours()) return;
 			if (CLIENT_PLUGINS) client_region_mount(this);
@@ -1704,7 +1706,7 @@ class OgygiaRegion extends HTMLElement {
 			if (!app) return;
 			this.#live.go('live', { module, app });
 			// (leaving `live` — a static tick, another module, the region gone — disposes it)
-			this.#live.onLeave(() => {
+			this.#live.scope.defer(() => {
 				if (CLIENT_PLUGINS) client_region_unmount(this, this.getAttribute('entry') ?? '');
 				app.dispose();
 			});

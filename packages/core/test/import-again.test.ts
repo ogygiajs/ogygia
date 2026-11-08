@@ -2,7 +2,7 @@
 // keeps the failed URL for the life of the page). The real browser behaviour is proven by the e2e
 // lazy-chunk-retry spec; this pins the URL reading and the attempt sequence.
 import { describe, expect, it, vi } from 'vitest';
-import { once } from '@ogygia/machine';
+import { flights } from '@ogygia/machine';
 import { failed_import_url, import_again, retry_url } from '../src/runtime/import-again.ts';
 
 const CHROMIUM = new TypeError(
@@ -93,16 +93,16 @@ describe('import_again', () => {
 		expect(fresh).not.toHaveBeenCalled();
 	});
 
-	it('with once({ retries: 1 }): one dropped download is invisible to the caller', async () => {
+	it('with flights({ retries: 1 }): one dropped download is invisible to the caller', async () => {
 		vi.stubGlobal('location', new URL('https://shop.test/cart'));
-		const get = once(
-			import_again(
+		const core = flights({
+			run: import_again(
 				() => Promise.reject(CHROMIUM),
 				async () => 'core'
 			),
-			{ retries: 1 }
-		);
-		await expect(get()).resolves.toBe('core');
+			retries: 1
+		});
+		await expect(core.get()).resolves.toBe('core');
 		vi.unstubAllGlobals();
 	});
 });

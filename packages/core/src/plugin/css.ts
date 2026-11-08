@@ -10,7 +10,7 @@
  * plugin's server realm) — and it is imported on the first call, never at module load.
  */
 import { DEV } from 'esm-env';
-import { once } from '@ogygia/machine';
+import { flights } from '@ogygia/machine';
 import { router_css_active, router_css_of } from '../router-css.ts';
 import { claim_region_css } from '../context.ts';
 import { warn } from '../messages/server.ts';
@@ -24,7 +24,10 @@ const STYLE_CLOSE_G = /<\/style/gi;
 // (bare node, `ogygia mcp`) the import rejects and CSS linking is a silent no-op — those realms
 // render data. An edit invalidates the registry, and Vite then runs this module again (its
 // importer): that run reads the edited registry.
-const registry = once(() => import('virtual:ogygia/router-css'));
+const registry = flights({
+	name: 'router-css registry',
+	run: () => import('virtual:ogygia/router-css')
+});
 let warned_inactive = false;
 
 /** Head tags for the components ONE render places (a layout chain + its page or error component):
@@ -32,7 +35,8 @@ let warned_inactive = false;
 export async function componentCssHead(components: readonly unknown[]): Promise<string> {
 	let read = true;
 	try {
-		await registry();
+		// (nothing drops it, so it is never STALE)
+		await registry.get();
 	} catch {
 		read = false;
 	}

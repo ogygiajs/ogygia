@@ -11,7 +11,7 @@
  * merge, body reconcile, seeds, a11y) is ./router-nav.ts, loaded on the first prefetch or
  * intercepted click. A visitor who never leaves the page never downloads it.
  */
-import { once } from '@ogygia/machine';
+import { flights, STALE, type Stale } from '@ogygia/machine';
 import { import_again } from './import-again.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
 import { create_navigation, type Navigation } from './navigation.ts';
@@ -219,11 +219,13 @@ function on_idle(fn: () => void, timeout = 1000) {
  */
 type Nav = typeof import('./router-nav.ts');
 let loaded_nav: Nav | null = null;
-const load_nav: () => Promise<Nav> = once(
-	import_again(() => import('./router-nav.ts')),
-	{ retries: 1 }
-);
-function nav(): Promise<Nav> {
+const load_nav = flights({
+	name: 'navigation',
+	run: import_again(() => import('./router-nav.ts')),
+	retries: 1
+});
+/** (Never STALE: nothing drops the navigation's load; a caller treats it as one that failed.) */
+function nav(): Promise<Nav | Stale> {
 	// Link what the navigation chunk uses from this module right where the chunk is loaded
 	// (./slots.ts `BootLink`: it never imports this module, or both would be split out of the runtime).
 	slots.router_link ??= {
@@ -232,7 +234,7 @@ function nav(): Promise<Nav> {
 		push_state,
 		replace_state
 	};
-	return load_nav().then((m) => (loaded_nav = m));
+	return load_nav.get().then((m) => (m === STALE ? m : (loaded_nav = m)));
 }
 
 export class SpaRouter {
@@ -357,7 +359,7 @@ export class SpaRouter {
 		purpose?: 'nav' | 'prefetch' | 'history'
 	): Promise<import('./page-cache.ts').FetchedPage | null> {
 		return nav().then(
-			(n) => n.fetch_page(href, signal, purpose),
+			(n) => (n === STALE ? null : n.fetch_page(href, signal, purpose)),
 			() => null
 		);
 	}
@@ -404,7 +406,7 @@ export class SpaRouter {
 		// newest click wins (#203).
 		this.nav.go('claimed', { href: url.href });
 		const mine = this.nav.now;
-		let n: Nav;
+		let n: Nav | Stale;
 		try {
 			n = await nav();
 		} catch {
@@ -412,6 +414,7 @@ export class SpaRouter {
 			// still work — let the browser navigate.
 			return this.hand_off(url, from, mine);
 		}
+		if (n === STALE) return this.hand_off(url, from, mine);
 		// superseded while the navigation code loaded
 		if (this.nav.now !== mine) return;
 		return n.navigate(this, url, from, opts, mine);
@@ -436,7 +439,7 @@ export class SpaRouter {
 	}
 
 	invalidateAll(): Promise<void> {
-		return nav().then((n) => n.invalidate_all());
+		return nav().then((n) => (n === STALE ? undefined : n.invalidate_all()));
 	}
 
 	invalidate(): Promise<void> {

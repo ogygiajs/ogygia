@@ -148,7 +148,7 @@ export function arm_form_restore(pathKey: string): void {
 	restore_window.go('open');
 	document.addEventListener('ogygia:hydrated', on_hydrated, true);
 	document.addEventListener('ogygia:server', on_answer, true);
-	restore_window.onLeave(() => {
+	restore_window.scope.defer(() => {
 		document.removeEventListener('ogygia:hydrated', on_hydrated, true);
 		document.removeEventListener('ogygia:server', on_answer, true);
 	});

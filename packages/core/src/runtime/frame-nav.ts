@@ -160,7 +160,7 @@ export async function streamFrames(
 	try {
 		let res: Response | typeof STALE;
 		try {
-			res = await stream.task(() =>
+			res = await stream.scope.task(() =>
 				fetch(path, {
 					method: 'POST',
 					credentials: 'same-origin',
@@ -186,7 +186,7 @@ export async function streamFrames(
 		let buffer = '';
 		let parcels = false;
 		for (;;) {
-			const read = await stream.task(() => reader.read());
+			const read = await stream.scope.task(() => reader.read());
 			if (read === STALE) {
 				// quiet for STALL_MS: the holes it still owes fetch on their own
 				void reader.cancel().catch(() => {});
