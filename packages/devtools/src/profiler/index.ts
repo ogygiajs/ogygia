@@ -1091,14 +1091,18 @@ class Profiler {
 	#sink_url: string | null = null;
 	#sink_key: string | null = null;
 	#sink_every = 10_000;
-	#sink_timer: ReturnType<typeof setInterval> | null = null;
+	/** The background work's owner (the sink's timer, the trap's and the sampler's, their windows):
+	 *  closed when a newer profiler takes the process over (`#retire`). */
+	readonly #background: Scope = scope();
+	/** The sink's timer, while it runs: its cancel. */
+	#sink_timer: (() => void) | null = null;
 	#sink_inflight = false;
 	#sink_last: { at: number; ok: boolean; rows: number; error?: string } | null = null;
 	#trap_caught = 0;
-	#trap_timer: ReturnType<typeof setTimeout> | null = null;
+	#trap_timer: (() => void) | null = null;
 	readonly #sample: ProfilerOptions['sample'] | null;
 	readonly #sampled: SampledWindow[] = [];
-	#sample_timer: ReturnType<typeof setTimeout> | null = null;
+	#sample_timer: (() => void) | null = null;
 	#background_note: string | null = null;
 	/** bytes per asset URL, measured once per process */
 	readonly #weights = new Map<string, number | null>();
@@ -1181,8 +1185,7 @@ class Profiler {
 			this.#sink_every = Math.max(1000, options.sink.every ?? 10_000);
 			// a long-lived host flushes on a timer; a serverless one flushes after each request (below)
 			if (!Number.isFinite(serverless_work_budget_ms())) {
-				this.#sink_timer = setInterval(() => void this.#sink_flush(), this.#sink_every);
-				this.#sink_timer.unref?.();
+				this.#sink_timer = this.#background.every(() => void this.#sink_flush(), this.#sink_every);
 			}
 		}
 		this.#sample = options.sample ? options.sample : null;
@@ -1223,15 +1226,19 @@ class Profiler {
 
 	/** Stand down: the background timers stop (a sink sends what it holds first). */
 	#retire(): void {
-		if (this.#trap_timer) clearTimeout(this.#trap_timer);
-		if (this.#sample_timer) clearTimeout(this.#sample_timer);
-		this.#trap_timer = null;
-		this.#sample_timer = null;
-		if (this.#sink_timer) {
-			clearInterval(this.#sink_timer);
-			this.#sink_timer = null;
-			void this.#sink_flush();
-		}
+		const sinking = this.#sink_timer !== null;
+		this.#trap_timer = this.#sample_timer = this.#sink_timer = null;
+		this.#background.close();
+		if (sinking) void this.#sink_flush();
+	}
+
+	/** A background window's length: `ms`, or less when the profiler stands down meanwhile. */
+	#pause(ms: number): Promise<void> {
+		return new Promise<void>((done) => {
+			const wait = this.#background.child();
+			wait.defer(done);
+			wait.timeout(() => wait.close(), ms);
+		});
 	}
 
 	// ---- background: the trap and the always-on sampler ----------------------
@@ -1250,13 +1257,13 @@ class Profiler {
 	}
 
 	#schedule_trap(delay_ms: number): void {
-		this.#trap_timer = setTimeout(() => void this.#trap_cycle(), delay_ms);
-		this.#trap_timer.unref?.();
+		if (this.#background.closed) return;
+		this.#trap_timer = this.#background.timeout(() => void this.#trap_cycle(), delay_ms);
 	}
 
 	#schedule_sample(delay_ms: number): void {
-		this.#sample_timer = setTimeout(() => void this.#sample_cycle(), delay_ms);
-		this.#sample_timer.unref?.();
+		if (this.#background.closed) return;
+		this.#sample_timer = this.#background.timeout(() => void this.#sample_cycle(), delay_ms);
 	}
 
 	/** One rolling trap window: sample coarsely, then keep the window only if a request in it blew
@@ -1275,7 +1282,7 @@ class Profiler {
 			const window_ms = t.window ?? 5000;
 			const cap = await this.#capture_window(
 				(t.interval ?? 10) * 1000,
-				() => new Promise<void>((r) => setTimeout(r, window_ms)),
+				() => this.#pause(window_ms),
 				{ light: true }
 			);
 			const slow = this.#ring
@@ -1338,7 +1345,7 @@ class Profiler {
 			const window_ms = s.window ?? 2000;
 			const cap = await this.#capture_window(
 				(s.interval ?? 10) * 1000,
-				() => new Promise<void>((r) => setTimeout(r, window_ms)),
+				() => this.#pause(window_ms),
 				{ light: true }
 			);
 			const resolver = await this.#make_resolver();
@@ -1603,14 +1610,14 @@ class Profiler {
 			});
 		};
 		sample_mem();
-		const mem_timer = setInterval(sample_mem, 250);
-		mem_timer.unref?.();
+		// the window's own sampling timers, stopped as it ends
+		const sampling = scope();
+		sampling.every(sample_mem, 250);
 		// ALLOCATION ON THE TIMELINE: the used heap read finely (a V8 statistic, no syscall, a few
 		// µs) so the report can say WHEN the heap grew and what ran then (alloc.ts). A timer only
 		// fires when the loop yields, so each interval is "between two awaits" — the samples
 		// carry their true times, the analysis never assumes the period. Full windows only.
 		const heap_series: { t: number; mb: number }[] = [];
-		let heap_timer: ReturnType<typeof setInterval> | undefined;
 		if (!opts.light) {
 			try {
 				const v8 = await import('node:v8');
@@ -1621,8 +1628,7 @@ class Profiler {
 						mb: v8.getHeapStatistics().used_heap_size / 1048576
 					});
 				};
-				heap_timer = setInterval(sample_heap, HEAP_SERIES_PERIOD_MS);
-				heap_timer.unref?.();
+				sampling.every(sample_heap, HEAP_SERIES_PERIOD_MS);
 			} catch {
 				// no v8 module (edge): no series
 			}
@@ -1796,8 +1802,7 @@ class Profiler {
 					: {})
 			};
 		} finally {
-			clearInterval(mem_timer);
-			if (heap_timer) clearInterval(heap_timer);
+			sampling.close();
 			histogram.disable();
 			disown_spans(window_spans);
 			span_als.disable(); // the recording's own nesting store: gone with the window
@@ -6926,7 +6931,7 @@ class Profiler {
 	async #sink_flush(): Promise<void> {
 		// (a superseded profiler sends what it holds this once, then its timer stops)
 		if (this.#sink_timer && this.#superseded()) {
-			clearInterval(this.#sink_timer);
+			this.#sink_timer();
 			this.#sink_timer = null;
 		}
 		if (!this.#sink_url || this.#sink_inflight || !this.#sink.size) return;

@@ -50,12 +50,14 @@ function beacon_mark(...args: MarkArgs): void {
 		if (later) {
 			retrying = false;
 			for (const w of waiting.splice(0)) later.beacon_mark(...w);
+			// oxlint-disable-next-line ogygia/owned-effects -- the document's one wait for its beacon (`retrying`), at most 40 tries: it ends itself, and the marks it holds are the document's
 		} else if (++tries < 40) setTimeout(retry, 250);
 		else {
 			retrying = false;
 			waiting.length = 0;
 		}
 	};
+	// oxlint-disable-next-line ogygia/owned-effects -- the first try of the document's one wait for its beacon (see above)
 	setTimeout(retry, 250);
 }
 
@@ -105,6 +107,7 @@ function mark_event(
 	if (!target) return Promise.resolve();
 	const t0 = opts.from === 'navigation' ? 0 : now();
 	return new Promise<void>((resolve) => {
+		// oxlint-disable-next-line ogygia/owned-effects -- the mark's wait for the caller's event, once (`once`): it lives as long as the target (the document by default), and nothing else owns a public mark
 		target.addEventListener(
 			type,
 			() => {
