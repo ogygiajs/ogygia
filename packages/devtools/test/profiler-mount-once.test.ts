@@ -87,4 +87,28 @@ describe('the profiler mount', () => {
 		expect((await request('/b')).status).toBe(200);
 		expect(made).toHaveLength(1);
 	}, 30_000);
+
+	// A profiler that cannot mount (an edge runtime without node:inspector, a profiler module that
+	// throws) leaves every request unprofiled: that is said, once for the process, with the error.
+	it('a mount that fails is said once, with its error', async () => {
+		const errors: unknown[][] = [];
+		const spy = vi.spyOn(console, 'error').mockImplementation((...a: unknown[]) => {
+			errors.push(a);
+		});
+		vi.doMock('../src/profiler/index.ts', async () => {
+			throw new Error('no node:inspector here');
+		});
+		try {
+			const request = await fresh_server();
+			expect((await request('/a')).status).toBe(200);
+			expect((await request('/b')).status).toBe(200);
+			const said = errors.filter((a) => String(a[0]).includes('devtools_profiler_mount_failed'));
+			expect(said).toHaveLength(1);
+			// (the test runner wraps a module that failed to load: the error is its cause)
+			const error = said[0][1] as Error;
+			expect(String(error.cause ?? error)).toContain('no node:inspector here');
+		} finally {
+			spy.mockRestore();
+		}
+	}, 30_000);
 });
