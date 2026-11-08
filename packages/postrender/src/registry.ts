@@ -232,8 +232,7 @@ type Evicts = { url: string } | { prefix: string } | 'all';
 function stale_flights(evicts: Evicts): void {
 	for (const [key, flight] of inflight) {
 		const hit =
-			evicts === 'all' ||
-			('url' in evicts ? key === evicts.url : in_subtree(key, evicts.prefix));
+			evicts === 'all' || ('url' in evicts ? key === evicts.url : in_subtree(key, evicts.prefix));
 		if (hit) flight.move('rendering', 'stale');
 	}
 }
