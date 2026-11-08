@@ -13,6 +13,7 @@
  *   decide({ source: openfeature(OpenFeature.getClient()) });
  */
 import type { FlagSource, FlagQuery, Resolved, CtxLike } from './index.ts';
+import { source_failed } from './source-health.ts';
 
 export { ofrep, type OfrepOptions } from './ofrep.ts';
 
@@ -81,8 +82,10 @@ export function openfeature(
 							};
 						}
 					}
-				} catch {
-					/* one flag's eval failure falls through to the native rule, not the whole request */
+				} catch (error) {
+					// one flag's eval failure falls through to the native rule, not the whole request,
+					// and is said
+					source_failed(error);
 				}
 			})
 		);

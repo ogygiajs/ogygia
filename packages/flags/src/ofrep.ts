@@ -48,15 +48,17 @@ export function ofrep(opts: OfrepOptions): FlagSource {
 	const timeout = opts.timeout ?? 800;
 	return async (queries: FlagQuery[], c: CtxLike): Promise<Record<string, Resolved>> => {
 		const out: Record<string, Resolved> = {};
+		const ended = request_scope(c.request).signal;
 		try {
 			const res = await f(endpoint, {
 				method: 'POST',
 				headers: { 'content-type': 'application/json', ...opts.headers },
 				body: JSON.stringify({ context: ctx_of(c) }),
 				// (or the request ending first: nobody reads the answer then)
-				signal: AbortSignal.any([AbortSignal.timeout(timeout), request_scope(c.request).signal])
+				signal: AbortSignal.any([AbortSignal.timeout(timeout), ended])
 			});
-			if (!res.ok) return out; // whole endpoint down → all native
+			// whole endpoint down → all native, and said (prime_flags: flags_source_failed)
+			if (!res.ok) throw new Error(`OFREP ${endpoint} answered ${res.status}`);
 			const body = (await res.json()) as { flags?: OfrepFlag[] };
 			const want = new Map(queries.map((q) => [q.name, q]));
 			for (const f of body.flags ?? []) {
@@ -71,8 +73,12 @@ export function ofrep(opts: OfrepOptions): FlagSource {
 						? { variant, value: f.value }
 						: variant;
 			}
-		} catch {
-			/* timeout / network → everything falls through to the native rule */
+		} catch (error) {
+			// the request ended first: nobody reads these flags, nothing failed
+			if (ended.aborted) return out;
+			// a timeout, the network, an error answer: everything falls through to the native rule,
+			// and prime_flags says it
+			throw error;
 		}
 		return out;
 	};
