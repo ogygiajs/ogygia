@@ -24,6 +24,7 @@ import {
 } from '@ogygia/core/insights';
 import { TESTING_ENGINE_VERSION } from '@ogygia/core/insights';
 import { import_again } from '@ogygia/core/internal/instruments';
+import { once } from '@ogygia/machine';
 
 /** The dock's code: after a failed download, asked for again under a fresh URL. */
 const import_app = import_again(() => import('./ui-app.ts'));
@@ -187,15 +188,17 @@ declare global {
 }
 function install_testing_api(): void {
 	if (window.__ogygia_testing) return;
-	// the engine's own files, as they load (`page().self.bytes`): the resources fetched while its import ran
-	let loading: Promise<typeof import('./testing-engine.ts')> | null = null;
-	const engine = () =>
-		(loading ??= (async () => {
-			const from = performance.now();
-			const m = await import('./testing-engine.ts');
-			m.note_engine_files(from, performance.now());
-			return m;
-		})());
+	// The engine, loaded once, on the first call that needs it. A failed download is never kept: the
+	// next call asks for it again, under a fresh URL (core's import-again.ts: the browser keeps the
+	// failed one). It once failed every call for the life of the page. The engine's own files, as
+	// they load, are what `page().self.bytes` counts: the resources fetched while its import ran.
+	const import_engine = import_again(() => import('./testing-engine.ts'));
+	const engine = once(async () => {
+		const from = performance.now();
+		const m = await import_engine();
+		m.note_engine_files(from, performance.now());
+		return m;
+	});
 	window.__ogygia_testing = {
 		version: TESTING_ENGINE_VERSION,
 		page: async (cpu_fns) => (await engine()).page_json(cpu_fns),
