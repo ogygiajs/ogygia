@@ -21,7 +21,7 @@ bench(
 	'concurrency gate: hole renders through a gate of four (some slow, some past their time)',
 	async ({ n }) => {
 		const gate = new ConcurrencyGate(4);
-		const calls: Promise<unknown>[] = [];
+		const calls: Promise<number>[] = [];
 		for (let i = 0; i < n; i++) {
 			const ms = i % 7 === 0 ? 50 : i % 3; // one in seven runs past its time
 			const fails = i % 5 === 0; // one in five throws (a hole whose render fails)
