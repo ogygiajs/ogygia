@@ -69,4 +69,54 @@ test.describe('SPA navigation into a server redirect', () => {
 		const back = await page.evaluate(() => location.pathname);
 		check('back button skipped the intermediate /dashboard and returned home', back === '/', back);
 	});
+
+	// The page cache is cleared whenever a remote command or form lands (and by invalidateAll). A
+	// clear while the navigation's own fetch is out must never cost the navigation its redirect: where
+	// the fetch landed is a fact about that fetch, not about the cache.
+	test('a page cache cleared while the redirecting fetch is out still lands the address bar on the target', async ({
+		page
+	}) => {
+		await page.goto('/', { waitUntil: 'domcontentloaded' });
+		await page.waitForFunction(
+			() => (history.state as { ogygia?: boolean } | null)?.ogygia === true,
+			{ timeout: 8000 }
+		);
+
+		// hold the navigation's request until the cache has been cleared
+		let release!: () => void;
+		const held = new Promise<void>((r) => (release = r));
+		let seen!: () => void;
+		const asked = new Promise<void>((r) => (seen = r));
+		await page.route('**/dashboard', async (route) => {
+			if (route.request().headers()['x-ogygia-spa'] !== '1') return route.continue();
+			seen();
+			await held;
+			await route.continue();
+		});
+
+		await page.evaluate(() => {
+			const a = document.createElement('a');
+			a.href = '/dashboard';
+			a.id = '__redir_link';
+			a.textContent = 'to dashboard';
+			document.body.appendChild(a);
+			a.click();
+		});
+		await asked;
+		// what a remote command landing does, while the navigation's fetch is out
+		await page.evaluate(() =>
+			(globalThis as unknown as Record<symbol, { bust_page_cache(): void }>)[
+				Symbol.for('ogygia.nav')
+			].bust_page_cache()
+		);
+		release();
+
+		await page
+			.waitForFunction(() => location.pathname === '/dashboard/orders', { timeout: 8000 })
+			.catch(() => {});
+		const path = await page.evaluate(() => location.pathname);
+		check('address bar corrected to the redirect target', path === '/dashboard/orders', path);
+		const h1 = ((await page.locator('h1').first().textContent()) || '').trim();
+		check('destination content is rendered (Orders heading)', /orders/i.test(h1), h1);
+	});
 });

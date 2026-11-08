@@ -5,7 +5,7 @@
  * per-instance LRU there means per-instance misses AND invalidation blind spots.
  */
 import type { PostrenderEntry, PostrenderPutOptions, PostrenderStore } from './types.ts';
-import { normalize_prefix, subtree_prefix } from './key.ts';
+import { in_subtree, normalize_prefix } from './key.ts';
 import { SizedLru } from '@ogygia/core/plugin/utils';
 
 /** Resident budget for stored pages (a stored page can be multi-MB; a count alone bounds nothing). */
@@ -47,10 +47,9 @@ export class MemoryStore implements PostrenderStore {
 		// Keys ARE pathnames — a subtree eviction is a startsWith scan. `/fr/fr` matches
 		// `/fr/fr` itself and everything under `/fr/fr/`, never `/fr/fright`.
 		const p = normalize_prefix(prefix);
-		const subtree = subtree_prefix(p);
 		const entries = this.#entries;
 		for (const key of entries.keys()) {
-			if (key === p || key.startsWith(subtree)) entries.delete(key);
+			if (in_subtree(key, p)) entries.delete(key);
 		}
 	}
 
