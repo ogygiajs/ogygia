@@ -341,6 +341,42 @@
 			"reason": "browser only: reads the navigation machine's state, constant work; proven in apps/palaestra/e2e/router-document-fetch.spec.ts and router-ownership.spec.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > get current_url",
+			"reason": "browser only: reads the router history's current entry (location on first read), constant work; proven in apps/palaestra/e2e/router-history.spec.ts and router-race.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > get doc_key",
+			"reason": "browser only: the current entry's pathname and search, constant work; proven in apps/palaestra/e2e/router-history.spec.ts and router-race.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > RouterHistory > get current",
+			"reason": "browser only: the current entry, made from location on first read, constant work; proven in apps/palaestra/e2e/router-history.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > RouterHistory > start",
+			"reason": "browser only: one history.replaceState with the entry id, constant work; proven in every palaestra router e2e (the ready check reads the id)"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > RouterHistory > find",
+			"reason": "browser only: one map lookup by the id in history.state, constant work; proven in apps/palaestra/e2e/router-history.spec.ts and mixed.spec.ts (#259)"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > RouterHistory > leave",
+			"reason": "browser only: reads the window's scroll and the focused element into the current entry, constant work; proven in apps/palaestra/e2e/router-history.spec.ts (#270)"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > RouterHistory > commit",
+			"reason": "browser only: writes one browser history entry (pushState or replaceState), constant work; proven in apps/palaestra/e2e/router-history.spec.ts and router-document-fetch.spec.ts (#297)"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > RouterHistory > adopt",
+			"reason": "browser only: takes over a history entry with no id (one replaceState), constant work; proven in apps/palaestra/e2e/router-history.spec.ts (#282, Back to the fragments page's first entry)"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > RouterHistory > #add",
+			"reason": "browser only: a new entry for an address (an id and a map write), constant work; proven in apps/palaestra/e2e/router-history.spec.ts"
+		},
+		{
 			"id": "packages/postrender/src/server.ts > defineServer:0 > response > settle",
 			"reason": "settles the request's own flight (needs a live request context), constant work; proven in packages/postrender/e2e/postrender.spec.ts S20 and S21"
 		},
