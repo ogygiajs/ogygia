@@ -13,7 +13,8 @@ import { parse_wire_text } from '../src/runtime/wire-format.ts';
 import { failed_import_url, import_again, retry_url } from '../src/runtime/import-again.ts';
 import { create_navigation } from '../src/runtime/navigation.ts';
 import { create_soft_refresh } from '../src/runtime/soft-refresh.ts';
-import { ConcurrencyGate } from '../src/runtime/concurrency.ts';
+import { ConcurrencyGate, is_run_timeout } from '../src/runtime/concurrency.ts';
+import { SERVER_WARNINGS } from '../src/messages/server.ts';
 import { block, header } from './fixtures.ts';
 
 bench(
@@ -31,18 +32,25 @@ bench(
 							new Promise<number>((resolve, reject) =>
 								setTimeout(() => (fails ? reject(new Error('render')) : resolve(i)), ms)
 							),
-						{
-							run_ms: 20,
-							wait_ms: i % 11 === 0 ? 1 : 10_000 // one in eleven gives up waiting
-						}
+						// one in eleven has almost no time: it gives up waiting, or is abandoned
+						{ deadline_ms: i % 11 === 0 ? 1 : 20 }
 					)
-					.catch(() => -1)
+					.catch((e: unknown) => (is_run_timeout(e) ? -2 : -1))
 			);
 		}
 		const out = await Promise.all(calls);
-		// the slow ones still end and hand their slots on
+		// the abandoned ones still end (they hold no slot by then)
 		await new Promise((r) => setTimeout(r, 60));
-		return out.filter((v) => v === -1).length + gate.active + gate.waiting;
+		// (and the warning the endpoint logs when the first is abandoned)
+		const said = SERVER_WARNINGS.region_render_abandoned;
+		return (
+			out.filter((v) => v < 0).length +
+			gate.active +
+			gate.waiting +
+			gate.abandoned +
+			said.text({ ms: 20 }).length +
+			said.details().length
+		);
 	},
 	{ setup: () => ({ n: 120 }), scale: (_ctx, k) => ({ n: 120 * k }) }
 );

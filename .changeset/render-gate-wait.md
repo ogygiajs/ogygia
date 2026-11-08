@@ -2,4 +2,4 @@
 '@ogygia/core': patch
 ---
 
-A hole waits at most the render timeout for a free render slot, then answers with its fallback instead of waiting forever behind renders that do not end (#195).
+A hole answers within the render timeout, its wait for a render slot included, and a warning names the first render that outlives it (#195).
