@@ -7,7 +7,12 @@ import { startPlugin } from '@ogygia/core/plugin/testing';
 import { PeerHandle } from '../src/peer.ts';
 import { federate } from '../src/federate.ts';
 import { current_federation } from '../src/registry.ts';
-import { deploy_thaw_check, reset_deploy_thaw_for_tests } from '../src/serve.ts';
+import {
+	DEPLOY_THAW_ROUNDS,
+	deploy_thaw_check,
+	reset_deploy_thaw_for_tests
+} from '../src/serve.ts';
+import { FEDERATION_WARNINGS } from '../src/messages.ts';
 import fed_server from '../src/server.ts';
 import { register_hooks } from '../../core/src/plugin/hooks.ts';
 
@@ -104,4 +109,13 @@ bench(
 		return thaws;
 	},
 	{ setup: () => ({ n: 9 }), scale: (_ctx, k) => ({ n: 9 * k }) }
+);
+
+bench(
+	'federation: the deploy thaw given up, worded',
+	({ peers }) => {
+		const said = FEDERATION_WARNINGS.federation_deploy_thaw_undelivered;
+		return said.text({ peers, rounds: DEPLOY_THAW_ROUNDS }).length + said.details().length;
+	},
+	{ setup: () => ({ peers: 'blog, docs' }) }
 );

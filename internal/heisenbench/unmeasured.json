@@ -91,10 +91,6 @@
 		{
 			"id": "packages/postrender/src/server.ts > defineServer:0 > response > settle",
 			"reason": "settles the request's own flight (needs a live request context), constant work; proven in packages/postrender/e2e/postrender.spec.ts S20 and S21"
-		},
-		{
-			"id": "packages/federation/src/serve.ts > check_deploy > catch:0",
-			"reason": "the store failed to answer during a check: rethrown unless a thaw is owed, constant work; a bench cannot take the store down without the shared hook warning once per server (runs would differ); proven in packages/federation/test/owners.test.ts"
 		}
 	]
 }
