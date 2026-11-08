@@ -302,12 +302,11 @@ describe('flag.value — vendor payloads, schema-validated', () => {
 describe('decide — exposure batching', () => {
 	it('fires once per (request, flag); flushes at max, at the timer, and at flush_exposures()', async () => {
 		vi.useFakeTimers();
-		vi.spyOn(console, 'warn').mockImplementation(() => {}); // (the throwing sink is said)
+		// (a sink that throws is tried again, then said: exposure-queue.test.ts, on real timers)
 		const batches: Array<Array<{ name: string; variant: string }>> = [];
 		decide({
 			exposure: (b) => {
 				batches.push(b as Array<{ name: string; variant: string }>);
-				throw new Error('pipeline down'); // contained
 			},
 			batch: { max: 2, ms: 1000 }
 		});
