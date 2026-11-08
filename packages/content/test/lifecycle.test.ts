@@ -3,7 +3,7 @@
 // first value is built is never missed, and the site's search follows the content.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as v from 'valibot';
-import { content, type Source, type SourceEntry } from '../src/index.ts';
+import { content, folder, json, type Source, type SourceEntry } from '../src/index.ts';
 import { withRemotes } from '../src/server.ts';
 import { site as siteRaw } from '../src/site/site.ts';
 import { dimensions } from '../src/site/dimensions.ts';
@@ -371,5 +371,42 @@ describe('a live edit that breaks the outline keeps the last good one', () => {
 		const docs = content({ schema, loader: source });
 		const s = siteRaw({ outline: outline([{ label: 'Start', items: pick(docs, 'install') }]) });
 		await expect(s.nav()).rejects.toThrow(/unplaced entr/);
+	});
+});
+
+describe('a folder sidecar that fails to load once is loaded again (#246)', () => {
+	/** A folder over a lazy glob (each file a thunk, as `import.meta.glob` without `eager` gives):
+	 *  the section's `+meta.json` fails to load the first `fails` times. */
+	function lazy_folder(fails: number) {
+		const loads = { meta: 0 };
+		const map = {
+			'content/docs/00-guide/+meta.json': async () => {
+				loads.meta++;
+				if (fails-- > 0) throw new Error('sidecar failed to load');
+				return { default: { label: 'The guide' } };
+			},
+			'content/docs/00-guide/00-intro/+doc.svx': async () => ({ title: 'Intro' }),
+			'content/docs/01-api/00-reference/+doc.svx': async () => ({ title: 'Reference' })
+		};
+		return { docs: content({ loader: folder(map, { format: json }), schema }), loads };
+	}
+
+	it('the collection: the next read loads it', async () => {
+		const { docs } = lazy_folder(1);
+		await expect(docs.refs()).rejects.toThrow('sidecar failed to load');
+		expect((await docs.refs()).map((e) => e.id)).toEqual(['guide/intro', 'api/reference']);
+	});
+
+	it('its groups: the next read has the label', async () => {
+		const { docs } = lazy_folder(1);
+		await expect(docs.groups()).rejects.toThrow('sidecar failed to load');
+		expect((await docs.groups()).get('guide')).toEqual({ label: 'The guide' });
+	});
+
+	it('once loaded, the sidecars are kept: readers share the one load', async () => {
+		const { docs, loads } = lazy_folder(0);
+		await Promise.all([docs.refs(), docs.groups(), docs.groups()]);
+		await docs.groups();
+		expect(loads.meta).toBe(1);
 	});
 });
