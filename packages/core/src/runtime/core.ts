@@ -912,14 +912,15 @@ class OgygiaRegion extends HTMLElement {
 	/**
 	 * The capture outlives the schedule it was armed with: it stays while the island wakes (a click
 	 * meanwhile is queued, and replayed once the island is live), so leaving `armed` for `waking` hands
-	 * its disarm on to `waking`, and leaving that (awake, failed, or the region gone) disarms it.
+	 * its disarm on to `waking`, and leaving that (awake, failed, or the region gone) disarms it. Gone
+	 * (out of the document), its visit is over: the clicks it queued go with it.
 	 */
-	#hold_capture(disarm: void | (() => void)): void {
+	#hold_capture(disarm: void | ((over?: boolean) => void)): void {
 		if (typeof disarm !== 'function') return;
 		const wake = this.#wake;
 		const hold = () => {
 			if (wake.now.kind === 'waking') wake.onLeave(hold);
-			else disarm();
+			else disarm(!this.isConnected);
 		};
 		wake.onLeave(hold);
 	}

@@ -59,8 +59,9 @@ export type FormOps = {
 };
 
 // ── the rest (nullable — core reads with optional chaining) ────────────────
-/** Wake a cold island when interaction lands inside it; returns a disarm fn. */
-export type ArmFn = (el: HTMLElement, fire: () => void) => void | (() => void);
+/** Wake a cold island when interaction lands inside it; returns a disarm fn (`over`: the region
+ *  left while it was waking — the clicks it queued are dropped, not replayed). */
+export type ArmFn = (el: HTMLElement, fire: () => void) => void | ((over?: boolean) => void);
 
 /** `target: 'walk'` = the hydration repair (the server sequence Svelte's walk binds); default = a live
  *  morph toward a new answer. Same ownership rules either way (runtime/ownership.ts). `stays`: a
