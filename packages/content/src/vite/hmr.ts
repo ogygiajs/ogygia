@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { ModuleNode, Plugin, ViteDevServer } from 'vite';
+import { GRAPH, type ContentGraph } from '../graph.ts';
 
 const BACKSLASH = /\\/g;
 const REMOTE_FILE = /\.remote\.(ts|js|mts|mjs)$/;
@@ -41,6 +43,46 @@ function is_remote_module(id: string) {
 	return REMOTE_FILE.test(bare);
 }
 
+/** The file of the code calling `caller` now: its call site's frame (a module the dev server runs
+ *  is named by its id there), or null. */
+function calling_file(caller: (...args: never[]) => unknown): string | null {
+	const prepare = Error.prepareStackTrace;
+	const limit = Error.stackTraceLimit;
+	try {
+		// the frames as V8 has them (not as a source-map support formats them), only the first
+		Error.prepareStackTrace = (_error, frames) => frames;
+		Error.stackTraceLimit = 1;
+		const holder: { stack?: unknown } = {};
+		Error.captureStackTrace(holder, caller);
+		const frames = holder.stack as NodeJS.CallSite[] | undefined;
+		// (a module the dev server runs is evaluated code: its id is the frame's source URL)
+		const frame = frames?.[0];
+		const file = frame?.getScriptNameOrSourceURL() ?? frame?.getFileName() ?? null;
+		return file?.startsWith('file:') ? fileURLToPath(file) : file;
+	} finally {
+		Error.prepareStackTrace = prepare;
+		Error.stackTraceLimit = limit;
+	}
+}
+
+/**
+ * Which run of which module calls `caller` now (#247): the server module that holds the call, and
+ * its run. A run is told by the module's last invalidation (an edit of it, of a file it imports or
+ * globs, or the content HMR below), and by whether its code was fetched again since: a module the
+ * dev server invalidated WHILE it ran is run once more under the same invalidation. A collection a
+ * newer run of its module builds replaces the ones older runs built, so each edit leaves one, not
+ * one more.
+ */
+function module_runs(server: ViteDevServer): NonNullable<ContentGraph['module_run']> {
+	return (caller) => {
+		const file = calling_file(caller);
+		const mod = file ? server.environments.ssr?.moduleGraph.getModuleById(file) : undefined;
+		if (!mod?.id) return null;
+		const invalidated = Math.max(mod.lastInvalidationTimestamp, mod.lastHMRTimestamp);
+		return { module: mod.id, run: `${invalidated}${mod.transformResult ? '' : ' (stale)'}` };
+	};
+}
+
 /**
  * Content dev HMR (one of the `content()` plugin's Vite plugins). Collections live in `.remote.ts` /
  * `.server.ts` modules; when a content file changes: invalidate the remotes → full-reload so SSR
@@ -49,6 +91,7 @@ function is_remote_module(id: string) {
 export function content_hmr(options: ContentHmrOptions = {}): Plugin {
 	const debounceMs = Math.max(0, options.hmrDebounceMs ?? 50);
 	let root = '';
+	let module_run: ContentGraph['module_run'];
 
 	return {
 		name: 'ogygia:content-hmr',
@@ -58,7 +101,16 @@ export function content_hmr(options: ContentHmrOptions = {}): Plugin {
 			root = config.root;
 		},
 
+		closeBundle() {
+			// (the dev server closing: its module graph names no more runs)
+			if (module_run && GRAPH.module_run === module_run) delete GRAPH.module_run;
+		},
+
 		configureServer(server) {
+			// the collections this dev server's module runs build replace the ones older runs built
+			module_run = module_runs(server);
+			GRAPH.module_run = module_run;
+
 			let timer: ReturnType<typeof setTimeout> | null = null;
 			let pending = new Set<string>();
 
