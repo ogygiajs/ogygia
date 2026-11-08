@@ -301,12 +301,36 @@
 			"reason": "browser only: a stalled stream's reader cancel that failed, a constant no-op"
 		},
 		{
-			"id": "packages/core/src/runtime/router-nav.ts > navigate > task:0",
-			"reason": "browser only: the navigation's page fetch, run as a task of its visit (a newer click aborts it); proven in apps/palaestra/e2e/router-ownership.spec.ts and router-race.spec.ts"
+			"id": "packages/core/src/runtime/router-nav.ts > navigate > build",
+			"reason": "browser only: the navigation's staged build (its page fetch, the parsed document, live link elements; not recorded), linear in the page; proven in apps/palaestra/e2e/router-ownership.spec.ts, router-race.spec.ts and packages/core/test/browser/nav-sheets-inert.test.ts (#267)"
 		},
 		{
-			"id": "packages/core/src/runtime/router-nav.ts > invalidate_all > task:0",
-			"reason": "browser only: the soft refresh's fetch, run as a task of its visit (a navigation ends it); proven in apps/palaestra/e2e/router-ownership.spec.ts (#202)"
+			"id": "packages/core/src/runtime/router-nav.ts > navigate > commit",
+			"reason": "browser only: the navigation's commit, the head merge and body reconcile on the live document (not cloneable), linear in the page; proven in every palaestra navigation e2e and packages/core/test/browser/nav-swap-fails.test.ts (#276)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > invalidate_all > stage:1~0e170d > build",
+			"reason": "browser only: the soft refresh's staged fetch and parse (not recorded), linear in the page; proven in packages/core/test/browser/soft-refresh-page-on-screen.test.ts (#268) and apps/palaestra/e2e/router-ownership.spec.ts (#202)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > invalidate_all > stage:1~0e170d > commit",
+			"reason": "browser only: the soft refresh's commit, a head merge and seed refresh on the live document (not cloneable), linear in the head; proven in packages/core/test/browser/soft-refresh-page-on-screen.test.ts (#268)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > apply_sheet",
+			"reason": "browser only: gives a live link element its media back (two attribute writes), constant work; proven in packages/core/test/browser/nav-sheets-inert.test.ts (#267)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > preload_stylesheets > discard:0~b6b485",
+			"reason": "browser only: takes one live link element out of the head, constant work; proven in packages/core/test/browser/nav-called-off-sheets.test.ts (#267)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > navigate > build > drop:0~bca4cb",
+			"reason": "browser only: a navigation drops the page it used (a one-line predicate over a flights entry); navigate runs in apps/palaestra e2e"
+		},
+		{
+			"id": "packages/machine/src/stage.ts > Staged > constructor > then:1~344a2f",
+			"reason": "a build that rejected: gives back its steps and rethrows (an error, not replayable), linear in the steps; proven in packages/machine/test/stage.test.ts and the stage bench case"
 		},
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > is_stale",
@@ -741,10 +765,6 @@
 			"reason": "browser only: drops every page flight (a one-line predicate); proven in packages/core/test/browser/page-flights.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/router-nav.ts > navigate > drop:0",
-			"reason": "browser only: a navigation drops the page it used (a one-line predicate over a flights entry); navigate runs in apps/palaestra e2e"
-		},
-		{
 			"id": "packages/federation/src/peer.ts > PeerHandle > drop > drop:0",
 			"reason": "a one-line predicate over a flights entry (kept and sharing a thawed tag); run by packages/federation/test/peer-flights.test.ts, not replayable as a closure"
 		},
@@ -967,10 +987,6 @@
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > focus_reset > on:2~5c0ef7",
 			"reason": "the focus reset's blur on the page visit (a live element and a scope, not cloneable), constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > navigate > defer:0~313340",
-			"reason": "ends the next page's visit when a navigation ends without its swap, and takes out its early sheets (a scope and live head nodes, not cloneable), linear in the sheets; proven in packages/core/test/browser/nav-called-off-sheets.test.ts (#267)"
 		},
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > preload_stylesheets > Promise:0~4881be > then:0~54bc50",
