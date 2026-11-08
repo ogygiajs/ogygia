@@ -410,3 +410,69 @@ describe('a folder sidecar that fails to load once is loaded again (#246)', () =
 		expect(loads.meta).toBe(1);
 	});
 });
+
+describe('a collection a newer run of its module replaces stops following (#247)', () => {
+	// What the content dev plugin tells collections in dev: the module run building them. (A real
+	// dev server drives it in dev-reload.test.ts; this is its stand-in, to reach the retry timer.)
+	const graph = (globalThis as Record<symbol, unknown>)[Symbol.for('ogygia.content.graph')] as {
+		module_run?: () => { module: string; run: string };
+	};
+	let run = '';
+	const in_run = <T>(r: string, build: () => T): T => {
+		run = r;
+		graph.module_run = () => ({ module: '/app/src/lib/docs.server.ts', run });
+		try {
+			return build();
+		} finally {
+			delete graph.module_run;
+		}
+	};
+
+	it('its live connection: a change after it was replaced is not read', async () => {
+		const old = liveSource([row('a', 'A')]);
+		const reads = vi.spyOn(old.source, 'refs');
+		const first = in_run('1', () => content({ schema, loader: old.source }));
+		await first.refs();
+		await settle();
+		const current = liveSource([row('a', 'A')]);
+		in_run('2', () => content({ schema, loader: current.source }));
+		old.push(row('b', 'B'));
+		await settle();
+		expect(reads).toHaveBeenCalledOnce(); // the first read only
+	});
+
+	it('its retry: a dropped connection is not opened again once it was replaced', async () => {
+		vi.useFakeTimers();
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		const old = liveSource([row('a', 'A')]);
+		old.ctl.live_drops = 1;
+		const first = in_run('1', () => content({ schema, loader: old.source }));
+		await first.refs();
+		await vi.advanceTimersByTimeAsync(0); // the connection dropped: a retry waits
+		in_run('2', () => content({ schema, loader: liveSource([row('a', 'A')]).source }));
+		await vi.advanceTimersByTimeAsync(120_000);
+		expect(old.ctl.subscribed).toBe(1);
+	});
+
+	it('the module kept it: read again, it follows again', async () => {
+		const kept = liveSource([row('a', 'A')]);
+		const c = in_run('1', () => content({ schema, loader: kept.source }));
+		await c.refs();
+		in_run('2', () => content({ schema, loader: liveSource([row('a', 'A')]).source }));
+		await settle();
+		expect((await c.refs()).map((e) => e.id)).toEqual(['a']);
+		kept.push(row('b', 'B'));
+		await settle();
+		expect((await c.refs()).map((e) => e.id)).toEqual(['a', 'b']);
+	});
+
+	it('a collection the same run builds replaces nothing', async () => {
+		const one = liveSource([row('a', 'A')]);
+		const a = in_run('1', () => content({ schema, loader: one.source }));
+		await a.refs();
+		in_run('1', () => content({ schema, loader: liveSource([]).source }));
+		one.push(row('b', 'B'));
+		await settle();
+		expect((await a.refs()).map((e) => e.id)).toEqual(['a', 'b']);
+	});
+});
