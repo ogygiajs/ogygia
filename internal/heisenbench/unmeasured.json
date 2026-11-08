@@ -69,6 +69,30 @@
 			"reason": "browser only: the dock's chunk failed to load: resets the button, constant work; proven in packages/devtools/e2e/devtools.spec.ts"
 		},
 		{
+			"id": "packages/devtools/src/devtools/ui.ts > install_testing_api > import_again:0",
+			"reason": "browser only: the dynamic import of the testing engine's chunk; its download, failure and retry are proven in packages/devtools/e2e/devtools.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/ui.ts > install_testing_api > once:0",
+			"reason": "browser only: loads the testing engine's chunk and notes its files, constant work; proven in packages/devtools/e2e/devtools.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/wire-classes.ts > load > once:0",
+			"reason": "browser only: yields a task, then the dynamic import of a transportable class's chunk; its download, failure and retry are proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > import_again:0",
+			"reason": "browser only: the dynamic import of the router's navigation chunk; its download, failure and retry are proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/nav-handle.ts > import_again:0",
+			"reason": "browser only: the dynamic import of the router-off soft refresh's chunk; its download, failure and retry are proven in packages/core/test/browser/nav-handle-routerless-retry.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/nav-handle.ts > import_again:0 > then:0",
+			"reason": "browser only: picks the refresh out of the loaded navigation chunk, constant work; proven in packages/core/test/browser/nav-handle-routerless-retry.test.ts"
+		},
+		{
 			"id": "packages/postrender/src/registry.ts > store_evict",
 			"reason": "one store call wrapped so a broken store never fails a render, constant work; proven in packages/postrender/e2e/postrender.spec.ts S21"
 		},
