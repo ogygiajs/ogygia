@@ -189,10 +189,6 @@
 			"reason": "settles the request's own flight (needs a live request context), constant work; proven in packages/postrender/e2e/postrender.spec.ts S20 and S21"
 		},
 		{
-			"id": "packages/federation/src/serve.ts > check_deploy > catch:0",
-			"reason": "the store failed to answer during a check: rethrown unless a thaw is owed, constant work; a bench cannot take the store down without the shared hook warning once per server (runs would differ); proven in packages/federation/test/owners.test.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/beacon.ts > on_show",
 			"reason": "browser only: the page shown again (its tab, a back/forward cache restore) reopens the visit, one compare-and-set move; proven in packages/core/test/browser/beacon-visit-reopen.test.ts"
 		},
@@ -247,6 +243,18 @@
 		{
 			"id": "packages/devtools/src/profiler/index.ts > disown_spans",
 			"reason": "takes a capture's span recorder out, handing spans back to the newest left: runs only as a V8 inspector capture ends, linear in the captures open (one or two); proven in packages/devtools/test/profiler-recorder.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fire_hydrate > ran",
+			"reason": "browser only: forgets a hydration run once it ended, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate_ran",
+			"reason": "browser only: forgets a hydration run unless a newer visit's took its place, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate > gone",
+			"reason": "browser only: is the hydration still its visit's (connected, the wake unchanged), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
 		}
 	]
 }

@@ -10,6 +10,7 @@ import { content, type Source, type SourceEntry } from '../src/index.ts';
 import { site } from '../src/site/site.ts';
 import { dimensions } from '../src/site/dimensions.ts';
 import { create_search, type SearchEngine } from '../src/site/search.ts';
+import { outline, pick } from '../src/site/outline.ts';
 
 /** Every content collection registers in one process-wide graph (relations, backlinks), and a
  *  graph read walks all of them: each run starts from an empty graph, or a run would walk the
@@ -179,6 +180,45 @@ bench(
 			found += (await search('Page')).length; // and the next query builds it again
 		}
 		return found;
+	},
+	{ setup: () => fresh({ n: 6 }), scale: (_ctx, k) => fresh({ n: 6 * k }) }
+);
+
+bench(
+	'content: live edits that break a hand-placed outline keep the last good one, then the fix weaves',
+	async ({ n }) => {
+		let found = 0;
+		const error = console.error;
+		console.error = () => {};
+		try {
+			for (let i = 0; i < n; i++) {
+				const rows = [doc(1), doc(2)];
+				const src = live_source(rows);
+				const c = content({ schema, loader: src.source });
+				// picks and no remainder: an entry it places nowhere breaks the weave
+				const s = site({
+					outline: outline([
+						{ label: 'One', items: pick(c, 'guide/p1') },
+						{ label: 'Two', items: pick(c, 'guide/p2') }
+					])
+				});
+				found += (await s.nav()).length;
+				rows.push(doc(3)); // an editor adds a page the outline does not place
+				src.emit(['guide/p3']);
+				await tick();
+				await tick();
+				found += (await s.nav()).length + (await s.nav()).length; // the last good one, twice
+				rows.pop(); // the editor takes it out again
+				src.emit(1);
+				await tick();
+				await tick();
+				found += (await s.nav()).length;
+			}
+		} finally {
+			console.error = error;
+		}
+		const said = CONTENT_ERRORS.content_outline_weave_failed;
+		return found + said.text().length + said.details().length;
 	},
 	{ setup: () => fresh({ n: 6 }), scale: (_ctx, k) => fresh({ n: 6 * k }) }
 );

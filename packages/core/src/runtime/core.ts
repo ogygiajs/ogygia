@@ -527,11 +527,25 @@ class OgygiaRegion extends HTMLElement {
 	// The two wake targets, bound once per element (not per connect): `#arm` hands them to a
 	// schedule, and `load` calls them straight — no closure built on the connect path. Each returns
 	// its promise: the interaction feature awaits it to know when the island is live (replay).
-	// ONE hydration in flight: a click that lands while the island's own schedule is already waking
-	// it waits for THAT run (an early return would replay the click before the island is live)
-	#hydrate_run: Promise<void> | null = null;
-	#fire_hydrate = () =>
-		(this.#hydrate_run ??= this.#hydrate().finally(() => (this.#hydrate_run = null)));
+	// ONE hydration in flight per visit: a click that lands while the island's own schedule is already
+	// waking it waits for THAT run (an early return would replay the click before the island is
+	// live). The run is its visit's: a region taken out and put back while it loads starts a visit of
+	// its own, and the old run, out of its visit, stops at its next step.
+	#hydrate_run: { visit: unknown; run: Promise<void> } | null = null;
+	#fire_hydrate = (): Promise<void> => {
+		const held = this.#hydrate_run;
+		if (held && held.visit === this.#wake.now) return held.run;
+		const run = this.#hydrate();
+		const entry = { visit: this.#wake.now, run };
+		this.#hydrate_run = entry;
+		const ran = () => this.#hydrate_ran(entry);
+		run.then(ran, ran);
+		return run;
+	};
+	/** A hydration run ended: forget it, unless a newer one took its place. */
+	#hydrate_ran(entry: { visit: unknown; run: Promise<void> }): void {
+		if (this.#hydrate_run === entry) this.#hydrate_run = null;
+	}
 	#fire_server = () => this.#server();
 	#fire_prefetch = () => this.#prefetch_html();
 
@@ -1175,19 +1189,23 @@ class OgygiaRegion extends HTMLElement {
 		const address = this.#bind(endpoint);
 		const attempts = s.kind === 'armed' || s.kind === 'retrying' ? s.attempts : 0;
 		this.#hole.go('fetching', { attempts, revalidate });
+		const mine = this.#hole.now;
 		let html: string | typeof STALE;
 		try {
 			html = await this.#hole.task((signal) =>
 				this.#ensure_frame(frames, endpoint, address, revalidate, signal)
 			);
 		} catch (err) {
-			// (a task fails only while it is still its visit: leaving — the region gone — answers STALE)
+			// A task fails only while it is still its visit (leaving — the region gone — answers
+			// STALE), but the region can leave between the task failing and this step: then the visit
+			// is over, and nothing is left to retry or to fail.
+			if (this.#hole.now !== mine) return;
 			return this.#fetch_failed(err, endpoint, revalidate, attempts + 1);
 		}
 		// Network went to the STORE, not the DOM: the write notified our subscriber, which is the
-		// single apply path (a twin may have applied before us: then this was a no-op). STALE: the
-		// region left the page meanwhile, and gave its stake back.
-		if (html !== STALE) this.#hole.go('idle');
+		// single apply path (a twin may have applied before us: then this was a no-op). STALE, or a
+		// visit already over: the region left the page meanwhile, and gave its stake back.
+		if (html !== STALE && this.#hole.now === mine) this.#hole.go('idle');
 	}
 
 	/**
@@ -1372,6 +1390,9 @@ class OgygiaRegion extends HTMLElement {
 		// (leaving `armed` drops the schedule's listeners: it fired, or a visitor came first)
 		this.#wake.go('waking');
 		const mine = this.#wake.now;
+		/** The region left (its module may still be on its way), or left and came back: then this visit
+		 *  is over and the one it came back to wakes it. Checked after every await before the turn. */
+		const gone = () => !this.isConnected || this.#wake.now !== mine;
 		let failure: { error: unknown } | null = null;
 		const t0 = now_ms();
 		const dt_t0 = DEVTOOLS ? t0 : 0;
@@ -1387,7 +1408,7 @@ class OgygiaRegion extends HTMLElement {
 			if (typeof document !== 'undefined' && document.readyState === 'loading') await dom_ready();
 			// SWR remount (and SPA swaps) can disconnect an island-in-lake while its module load is
 			// in flight — abort rather than hydrate into a detached tree (SWR-ORPHAN-HYDRATE).
-			if (!this.isConnected) return;
+			if (gone()) return;
 			const entry = island_entry_of(this);
 			if (!entry) return;
 			// Its downloads wait for their slot (load-scheduler.ts): a gesture's never wait; otherwise
@@ -1396,7 +1417,7 @@ class OgygiaRegion extends HTMLElement {
 			const release = await new LoadSlot({ kind: 'code', cls, label: entry }).ready;
 			let mod: IslandModule, core: HydrateCore;
 			try {
-				if (!this.isConnected) return;
+				if (gone()) return;
 				hydrate_started(this); // a viewport island in flight holds ready islands below the fold
 				// (with the module: the transportable classes its props and context carry — runtime/wire-classes.ts,
 				// a feature only an app with transportable classes installs)
@@ -1411,18 +1432,18 @@ class OgygiaRegion extends HTMLElement {
 				release();
 			}
 			t_loaded = now_ms();
-			if (!this.isConnected) return;
+			if (gone()) return;
 			// An island of OURS on a Kit-hydrated document reads Kit's page through the bridge Kit's
 			// client entry publishes; it must not hydrate before Kit applied it (kit-page-thread.svelte.ts).
 			await this.#kit_page_ready(core);
-			if (!this.isConnected) return;
+			if (gone()) return;
 			// The page's seeds parse now, BEFORE the turn: data arriving is not the hydrate step. The
 			// first island parses the seed once (700 KB on a large CMS page), and inside its turn that
 			// parse plus the hydrate made one long task. (The step calls these again: a no-op by then.)
 			core.seed_remote_once();
 			core.seed_page_once();
 			await hydrate_turn(this);
-			if (!this.isConnected || this.#app) return;
+			if (gone() || this.#app) return;
 			// ── the turn: everything below is one synchronous step ──
 			t_turn = now_ms();
 			const ssr_html = this.#ssr_html;

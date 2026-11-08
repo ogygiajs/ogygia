@@ -94,23 +94,27 @@ export function federate<P extends Record<string, PeerConfig>>(
 	return out;
 }
 
-/** Send one thaw notice to every peer (bounded retries each). Also the chain forwarder: a notice
- *  this app RECEIVED and applied re-broadcasts with `hop + 1`. Whether every peer took it (the deploy
- *  thaw tries again when one did not). */
+/** Send one thaw notice to every peer, or to the peers named in `to` (bounded retries each). Also
+ *  the chain forwarder: a notice this app RECEIVED and applied re-broadcasts with `hop + 1`. The
+ *  names of the peers that did not take it (the deploy thaw sends it to those again). */
 export async function broadcast_thaw(
 	fed: Federation,
-	notice: { id: string; hop: number; tags: string[] | 'all' }
-): Promise<boolean> {
-	if (notice.hop >= HOP_MAX) return true;
+	notice: { id: string; hop: number; tags: string[] | 'all' },
+	to?: ReadonlySet<string>
+): Promise<Set<string>> {
+	const missed = new Set<string>();
+	if (notice.hop >= HOP_MAX) return missed;
 	const bytes = new TextEncoder().encode(JSON.stringify({ ...notice, from: fed.name }));
 	const body = bytes.buffer.slice(
 		bytes.byteOffset,
 		bytes.byteOffset + bytes.byteLength
 	) as ArrayBuffer;
-	const reached = await Promise.all(
-		[...fed.peers.values()].map((peer) => post_thaw(fed, peer, body))
-	);
-	return reached.every(Boolean);
+	const peers = [...fed.peers].filter(([name]) => !to || to.has(name));
+	const reached = await Promise.all(peers.map(([, peer]) => post_thaw(fed, peer, body)));
+	reached.forEach((took, i) => {
+		if (!took) missed.add(peers[i][0]);
+	});
+	return missed;
 }
 
 /** Post one thaw notice to `peer`, retrying: whether it took it. */

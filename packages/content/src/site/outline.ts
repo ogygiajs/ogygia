@@ -20,6 +20,7 @@ import type { Crumb, NavItem, NavLeaf, NavRef, NavTree, Resolved } from './types
 import { title_case } from '../convention.ts';
 import type { GroupMeta } from '../index.ts';
 import { catalog_version } from '../collection-base.ts';
+import { OgygiaError } from '../messages/runtime.ts';
 
 /**
  * The materialization an outline answers from for a context (an opaque token: a new one each time
@@ -224,15 +225,31 @@ function unchanged(read: Map<Collection, number | null>): boolean {
 	return true;
 }
 
+/** The versions `read`'s collections are at now. */
+function versions_now(read: Map<Collection, number | null>): Map<Collection, number | null> {
+	const now = new Map<Collection, number | null>();
+	for (const c of read.keys()) now.set(c, catalog_version(c));
+	return now;
+}
+
+/**
+ * One read context's weave: the last good one, the weave out now (readers join it), and, when
+ * weaving the content again failed, the versions it failed at: the last good weave stands until
+ * the content changes again (an editor's next save), as a collection keeps an entry's last good
+ * version over one that fails its schema.
+ */
+type Weave = {
+	good: Materialized | null;
+	pending: Promise<Materialized> | null;
+	failed: Map<Collection, number | null> | null;
+};
+
 /** The outline as a class — spec + options + a PER-CONTEXT memoized materialization, each read a
  *  method. Methods are always called attached (through `pharos()`/`dimensions()`), so no binding. */
 class OutlineImpl implements Outline {
 	readonly #spec: OutlineSpec;
 	readonly #opts: OutlineOptions;
-	readonly #cache = new Map<
-		string,
-		{ m: Promise<Materialized>; read: Map<Collection, number | null> | null }
-	>();
+	readonly #cache = new Map<string, Weave>();
 
 	constructor(spec: OutlineSpec, opts: OutlineOptions = {}) {
 		this.#spec = spec;
@@ -242,26 +259,41 @@ class OutlineImpl implements Outline {
 	/**
 	 * Materialize PER CONTEXT, memoized. `{}` is the public/prerendered projection. Woven again once
 	 * a collection it read has changed since (a live source): the nav, pages and addresses follow the
-	 * content (they once stayed as first woven, #193). A failed weave is never kept.
+	 * content (they once stayed as first woven, #193). A failed weave is never kept: the first one
+	 * fails its caller (there is nothing to keep, and the next read weaves again), and one over
+	 * changed content keeps the last good weave and says why, once (Weave).
 	 */
 	#ready(ctx: ReadContext = {}): Promise<Materialized> {
 		const key = ctx_key(ctx);
-		const hit = this.#cache.get(key);
-		if (hit && (hit.read === null || unchanged(hit.read))) return hit.m;
-		const entry: { m: Promise<Materialized>; read: Map<Collection, number | null> | null } = {
-			m: materialize(this.#spec, this.#opts, ctx),
-			read: null
+		let w = this.#cache.get(key);
+		if (!w) this.#cache.set(key, (w = { good: null, pending: null, failed: null }));
+		if (w.pending) return w.pending;
+		const { good } = w;
+		if (good && (unchanged(good.read) || (w.failed !== null && unchanged(w.failed))))
+			return Promise.resolve(good);
+		const weave = this.#weave(w, ctx, good);
+		w.pending = weave;
+		const done = () => {
+			if (w.pending === weave) w.pending = null;
 		};
-		this.#cache.set(key, entry);
-		entry.m.then(
-			(m) => {
-				entry.read = m.read;
-			},
-			() => {
-				if (this.#cache.get(key) === entry) this.#cache.delete(key);
-			}
-		);
-		return entry.m;
+		weave.then(done, done);
+		return weave;
+	}
+
+	/** Weave `w` for `ctx`: the new weave, or (it failed over changed content) the last good one. */
+	async #weave(w: Weave, ctx: ReadContext, good: Materialized | null): Promise<Materialized> {
+		const at = good ? versions_now(good.read) : null;
+		try {
+			const m = await materialize(this.#spec, this.#opts, ctx);
+			w.good = m;
+			w.failed = null;
+			return m;
+		} catch (error) {
+			if (!good || !at) throw error;
+			w.failed = at;
+			console.error(new OgygiaError('content_outline_weave_failed'), error);
+			return good;
+		}
 	}
 
 	[OUTLINE_TOKEN](ctx: ReadContext = {}): Promise<Materialized> {
