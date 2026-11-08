@@ -4,12 +4,15 @@
  * fixed, click-through layer), follow scroll and resize while shown, and cap at a few hundred so a
  * huge match stays cheap. No Svelte: plain DOM, one layer, replaced on each call.
  */
+import { scope, type Scope } from '@ogygia/machine';
 
 let root: ShadowRoot | null = null;
 let layer: HTMLDivElement | null = null;
 let current: Element[] = [];
 let label = '';
-let frame = 0;
+/** The layer while it is shown: its scroll and resize watch and its queued frame. Hiding it closes. */
+let shown: Scope | null = null;
+let queued = false;
 const MAX_BOXES = 400;
 
 /** The dock's shadow root (ui-app.ts sets it at mount). */
@@ -18,7 +21,7 @@ export function set_highlight_root(r: ShadowRoot): void {
 }
 
 function draw(): void {
-	frame = 0;
+	queued = false;
 	if (!layer) return;
 	layer.textContent = '';
 	const vw = innerWidth;
@@ -44,7 +47,9 @@ function draw(): void {
 }
 
 const schedule = () => {
-	if (!frame) frame = requestAnimationFrame(draw);
+	if (queued || !shown) return;
+	queued = true;
+	shown.timeout(draw, 'frame');
 };
 
 /** Show boxes over `els` (with a caption); `scroll` brings the first into view. */
@@ -57,8 +62,9 @@ export function highlight(els: Element[], caption = '', scroll = false): void {
 		layer.setAttribute('data-og-highlight', '');
 		layer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483600';
 		root.prepend(layer);
-		addEventListener('scroll', schedule, { passive: true, capture: true });
-		addEventListener('resize', schedule, { passive: true });
+		shown = scope();
+		shown.on(globalThis, 'scroll', schedule, { passive: true, capture: true });
+		shown.on(globalThis, 'resize', schedule, { passive: true });
 	}
 	if (scroll && els[0]) {
 		try {
@@ -76,8 +82,9 @@ export function clear_highlight(): void {
 	if (layer) {
 		layer.remove();
 		layer = null;
-		removeEventListener('scroll', schedule, { capture: true } as EventListenerOptions);
-		removeEventListener('resize', schedule);
+		shown?.close();
+		shown = null;
+		queued = false;
 	}
 }
 
