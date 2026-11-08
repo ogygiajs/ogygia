@@ -94,7 +94,7 @@ import {
 	set_current_request,
 	type RequestFacts
 } from './plugin/facts.ts';
-import { around, request_contexts, start_plugins } from './plugin/server.ts';
+import { around, end_request, request_contexts, start_plugins } from './plugin/server.ts';
 // PULL-registration at decode time (idempotent; no import-time side effects).
 import { register_wire_kind } from './live-transport.ts';
 import { register_store_kind, register_derived_kind } from './store-transport.ts';
@@ -806,21 +806,19 @@ class OgygiaHandle {
 		const ctxs = request_contexts(plugins, event, path, facts, (endpoint) =>
 			this.#render_hole(endpoint, event)
 		);
+		let response: Response | null = null;
 		try {
-			for (let i = 0; i < plugins.length; i++) {
+			for (let i = 0; i < plugins.length && response === null; i++) {
 				const answer = await plugins[i].def.request?.(ctxs[i]);
-				if (answer) return answer;
+				if (answer) response = answer;
 			}
-			return await this.#route(event, resolve, path, ctxs, facts);
+			response ??= await this.#route(event, resolve, path, ctxs, facts);
 		} finally {
-			for (let i = 0; i < plugins.length; i++) {
-				try {
-					plugins[i].def.done?.(ctxs[i]);
-				} catch {
-					/* a plugin's tail never fails the request */
-				}
-			}
+			// (an answered, failed or streamed request included)
+			const kept = end_request(plugins, ctxs, event.platform, response);
+			if (kept !== null) response = await kept;
 		}
+		return response as Response;
 	};
 
 	/** One signed hole rendered in place with THIS request's event (a plugin's `ctx.renderHole`:

@@ -105,6 +105,26 @@ export function around(plugins: readonly LivePlugin[], core: Handle): Handle {
 	return inner;
 }
 
+/**
+ * The request's end: each plugin's `done`, in order (one that throws does not stop the others).
+ * Null: `response` goes out as it is.
+ */
+export function end_request(
+	plugins: readonly LivePlugin[],
+	ctxs: readonly RequestContext<unknown, unknown>[],
+	_platform: unknown,
+	_response: Response | null
+): Promise<Response | null> | null {
+	for (let i = 0; i < plugins.length; i++) {
+		try {
+			plugins[i].def.done?.(ctxs[i]);
+		} catch {
+			/* a plugin's tail never fails the request */
+		}
+	}
+	return null;
+}
+
 /** The per-plugin contexts of one request. */
 export function request_contexts(
 	plugins: readonly LivePlugin[],
