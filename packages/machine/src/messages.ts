@@ -25,6 +25,7 @@ export type MachineErrors = {
 	machine_timeout_failed: Entry<{ name: string; state: string }>;
 	machine_timed_step_failed: Entry<{ name: string; from: string; to: string }>;
 	machine_observer_failed: Entry<{ name: string }>;
+	machine_outbox_gave_up: Entry<{ name: string }>;
 };
 
 /** The errors: thrown in dev (and tests), where a wrong move is a bug to fix now. */
@@ -140,6 +141,16 @@ export const MACHINE_ERRORS: MachineErrors = {
 		details: (): string =>
 			'A function given to `observe()` threw. The error follows the message. The move itself is ' +
 			'done, and the other observers still heard it.'
+	},
+	machine_outbox_gave_up: {
+		text: (a: { name: string }): string =>
+			`outbox ${a.name}: a send ran out of tries, so it is given up.`,
+		details: (): string =>
+			'An `outbox()` tried a send as many times as its `retry` policy allows (or until its ' +
+			'deadline), and every try failed. The last error follows the message. Nothing of it is ' +
+			'kept: the work it carried did not happen.\n\n' +
+			'Give the outbox a `giveUp` to say it in your own words, or to keep the work somewhere ' +
+			'it survives. A `giveUp` that throws is said here too.'
 	}
 };
 

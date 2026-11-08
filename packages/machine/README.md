@@ -157,6 +157,43 @@ if (page === STALE) return; // dropped, or this caller left
 
 Each key's entry is a machine (`flying`, `kept`, `gone`), so `observe()` hears every flight's moves under the flights' `name`.
 
+## Outbox
+
+Work that must happen after the response (a notice to a peer, a batch of events to a sink) goes through one place that keeps it alive, tries it again, sends it once, and calls it done only when the other side applied it.
+
+```ts
+import { outbox, policy } from '@ogygia/machine';
+
+const peer = policy({ attempts: 4, backoff: [200, 1000, 5000], jitter: 0.2, deadline: 30_000 });
+
+const thaws = outbox({
+	name: 'thaw notices',
+	send: async (n: Notice, signal) => {
+		const res = await fetch(n.url, { method: 'POST', body: n.body, signal });
+		if (!res.ok) throw new Error(`answered ${res.status}`); // not applied: tried again
+	},
+	id: (n) => n.id, // the receiver drops a second copy
+	retry: peer,
+	giveUp: (n, error) => console.warn('never delivered', n.id, error),
+	waitUntil: (work) => platform.waitUntil(work)
+});
+
+thaws.put(notice); // returns at once, never throws
+const done = await thaws.put(evict); // true once applied, false once given up (never rejects)
+```
+
+|                       |                                                                                                                          |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `send(item, signal)`  | One try. Resolves once the receiver applied it; throws when it did not. `signal` aborts at the deadline.                 |
+| `id(item)`            | Names an item: a put of an id still out joins it. The receiver uses it to drop a copy it already applied.                |
+| `retry`               | A `policy`: tries in all, the waits between them, their spread, and a deadline. Default `policy.standard`.               |
+| `inOrder`             | One send at a time, in put order. A failing one is tried again before the next goes.                                     |
+| `giveUp(item, error)` | Hears a send that ran out of tries or time, once. Default: prints `machine_outbox_gave_up`.                              |
+| `waitUntil(work)`     | The platform's way to keep a request alive past its response, handed each send. Without it, the send runs on in-process. |
+
+- **Done means applied.** The receiver applies the work first and records its id after. A failed apply answers an error and is tried again; a second copy of an applied one is dropped.
+- **A policy is data.** `policy({ attempts, backoff, jitter, deadline })` is checked where it is written and frozen. `backoff` is a list of waits (the last repeats) or one number that doubles. Name each one for what it protects, so its numbers live in one place.
+
 ## Locks
 
 ```ts

@@ -8,12 +8,15 @@ import {
 	lock,
 	machine,
 	observe,
+	outbox,
+	policy,
 	scope,
 	STALE,
 	type LockToken,
 	type Scope
 } from '../src/index.ts';
 import { MACHINE_ERRORS, machine_error, report } from '../src/messages.ts';
+import { backoff_after } from '../src/policy.ts';
 
 const hole = machine<{
 	idle: {};
@@ -554,4 +557,53 @@ bench(
 		setup: () => ({ steps: chain_steps(40) }),
 		scale: (_ctx, k) => ({ steps: chain_steps(40 * k) })
 	}
+);
+
+bench(
+	'outbox: sends put, joined by id, tried again once, some in order, a few given up',
+	async ({ n }) => {
+		const quick = policy({ attempts: 2, backoff: 0, jitter: 0, deadline: 1000 });
+		const failed_once = new Set<number>();
+		const send = (i: number) => {
+			if (i % 5 === 0 && !failed_once.has(i)) {
+				failed_once.add(i);
+				throw new Error('blip');
+			}
+			if (i % 17 === 0) return Promise.reject(new Error('down'));
+		};
+		const kept: Promise<unknown>[] = [];
+		const box = outbox({
+			send,
+			id: (i: number) => i,
+			retry: quick,
+			giveUp: () => {},
+			waitUntil: (w) => kept.push(w)
+		});
+		const ordered = outbox({ send, retry: quick, inOrder: true, giveUp: () => {} });
+		const out: Promise<boolean>[] = [];
+		for (let i = 0; i < n; i++) {
+			out.push(box.put(i), box.put(i)); // the second joins the first
+			if (i % 4 === 0) out.push(ordered.put(i + 1));
+		}
+		const done = await Promise.all(out);
+		return done.filter(Boolean).length + kept.length;
+	},
+	{ setup: () => ({ n: 150 }), scale: (_ctx, k) => ({ n: 150 * k }) }
+);
+
+bench(
+	'outbox: retry policies made and their waits worked out',
+	({ n }) => {
+		let total = 0;
+		for (let i = 0; i < n; i++) {
+			const p = policy({
+				attempts: 1 + (i % 6),
+				backoff: i % 2 ? 50 : [10, 100, 1000],
+				jitter: 0.2
+			});
+			for (let t = 1; t < p.attempts; t++) total += backoff_after(p, t, 0.5);
+		}
+		return total;
+	},
+	{ setup: () => ({ n: 300 }), scale: (_ctx, k) => ({ n: 300 * k }) }
 );
