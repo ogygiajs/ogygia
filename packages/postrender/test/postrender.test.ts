@@ -440,8 +440,11 @@ describe('postrender/registry', () => {
 		expect(await invalidate_tags(['s:bad:1', 's:good:1'], runtime)).toEqual(['/good/']);
 		expect(purged).toEqual(['/good/']);
 		expect(said()).toContainEqual(expect.stringContaining('the store failed to evict tag s:bad:1'));
-		// the shared `invalidate` hook (a peer's thaw notice) never throws either
-		await expect(server.invalidate!(['s:bad:1'])).resolves.toBeUndefined();
+		// the shared `invalidate` hook (a peer's thaw notice) throws once it has evicted what it could:
+		// the peer must not answer "done" for a thaw it did not apply (#287)
+		purged.length = 0;
+		await expect(server.invalidate!(['s:bad:1', 's:good:1'])).rejects.toThrow('store down');
+		expect(purged).toEqual(['/good/']);
 
 		// a url and a prefix: the edge still purges, and the warning blames the store, not an edge
 		await invalidate('/x/');
