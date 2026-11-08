@@ -57,10 +57,6 @@
 			"reason": "browser only: ends the open form restore window (one machine move), constant work; proven in apps/palaestra/e2e/continuity.spec.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/form-continuity.ts > arm_form_restore > defer:0",
-			"reason": "browser only: the restore window closing removes its two document listeners, constant work; proven in apps/palaestra/e2e/continuity.spec.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/interaction.ts > disarm",
 			"reason": "browser only: ends one arming of the interaction capture (an owner-checked map delete and a state field), constant work; proven in packages/core/test/browser/interaction-rearm.test.ts and interaction-delegated.test.ts"
 		},
@@ -489,11 +485,7 @@
 			"reason": "sends a signal to the server's process group (one syscall); proven with real child processes in packages/cli/test/serve.test.ts"
 		},
 		{
-			"id": "packages/cli/src/perf/cli.ts > serve > stop > defer:0",
-			"reason": "clears the SIGKILL timer when the server leaves stopping, constant work; proven in packages/cli/test/serve.test.ts"
-		},
-		{
-			"id": "packages/cli/src/perf/cli.ts > serve > stop > setTimeout:0~8d6a1d",
+			"id": "packages/cli/src/perf/cli.ts > serve > stop > timeout:0~8d6a1d",
 			"reason": "the grace time's SIGKILL to the server's process group (a timer and one syscall); proven in packages/cli/test/serve.test.ts"
 		},
 		{
@@ -507,14 +499,6 @@
 		{
 			"id": "packages/cli/src/perf/cli.ts > sleep",
 			"reason": "a timer promise (its output is a promise, not a value), constant work"
-		},
-		{
-			"id": "packages/cli/src/perf/cli.ts > sleep > Promise:0~24d955",
-			"reason": "the timer promise's executor (sets a timer), constant work"
-		},
-		{
-			"id": "packages/cli/src/perf/cli.ts > sleep > Promise:0~24d955 > done",
-			"reason": "the timer's end or its abort, constant work"
 		},
 		{
 			"id": "packages/tooling/src/e2e/servers.ts > group_alive",
@@ -549,12 +533,8 @@
 			"reason": "the e2e harness: the child process's close event, constant work"
 		},
 		{
-			"id": "packages/tooling/src/e2e/servers.ts > sleep > Promise:0~24d955 > done",
-			"reason": "the e2e harness: the timer's end or its abort, constant work"
-		},
-		{
-			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > server > kill > defer:0",
-			"reason": "the e2e harness: clears the SIGKILL timer when the server leaves stopping, constant work; proven in packages/tooling/test/servers.test.ts"
+			"id": "packages/tooling/src/e2e/servers.ts > sleep > catch:0~88b1a3",
+			"reason": "the e2e harness: a sleep's abort (swallowed when the caller's signal aborted, else thrown), constant work"
 		},
 		{
 			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > task:0~253284",
@@ -573,7 +553,7 @@
 			"reason": "the e2e harness: the child process's exit event, handed to on_exit"
 		},
 		{
-			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > server > kill > setTimeout:0~8d6a1d",
+			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > server > kill > timeout:0~8d6a1d",
 			"reason": "the e2e harness: the grace time's SIGKILL to the server's process group; proven in packages/tooling/test/servers.test.ts"
 		},
 		{
@@ -1067,6 +1047,46 @@
 		{
 			"id": "packages/devtools/src/profiler/ui/row-anchor.svelte.ts > follow_hash > apply > timeout:0~21105b",
 			"reason": "browser only: scrolls the opened row into view once it renders (one lookup), constant work"
+		},
+		{
+			"id": "packages/cli/src/mcp.ts > fetch_timeout > timeout:0~b3907b",
+			"reason": "a fetch deadline firing (one abort) against a server that hangs, constant work"
+		},
+		{
+			"id": "packages/cli/src/perf/measure.ts > measure > timeout:0~032695",
+			"reason": "the profiler call's deadline firing (one abort) against a server that hangs, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/beacon.ts > resend_soon > timeout:0~5bb08a",
+			"reason": "browser only: the visit's re-send firing 1.5 s after a late change (one flush_visit), constant work of its own"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > watch_scroll > on_scroll > timeout:0~f3a215",
+			"reason": "browser only: a scroll's frame runs one drain of the queue and closes the watch once it is empty; constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #pause",
+			"reason": "a background window's wait (over the profiler instance: not cloneable), one child scope and one timer, constant work; run by the profiler's trap and sample tests"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #pause > Promise:0~e1f03a",
+			"reason": "the window wait's executor (a child scope, a defer, a timer), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #pause > Promise:0~e1f03a > timeout:0~4a8350",
+			"reason": "the window wait's end (one scope close), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #schedule_sample > timeout:0~0436bb",
+			"reason": "the sampler's next cycle firing on a real timer (not replayable); the cycle records with the inspector"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #schedule_trap > timeout:0~a44037",
+			"reason": "the trap's next cycle firing on a real timer (not replayable); the cycle records with the inspector"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > constructor > every:0~cfcd21",
+			"reason": "the sink's interval tick (not replayable): one post of the buffered rows over the network"
 		}
 	]
 }
