@@ -97,6 +97,7 @@ export function reset_for_tests(): void {
 	slot.handled = new WeakMap();
 	slot.fallback = null;
 	warned_replica_blindspot = false;
+	store_failing = false;
 	renders.drop(() => true);
 }
 
@@ -153,34 +154,49 @@ export async function evict_tags(
 
 // ── read/write (hooks-facing; store failures NEVER fail a request) ─────────────────────────────
 
-export async function store_get(runtime: Runtime, key: string): Promise<PostrenderEntry | null> {
+// A store down never fails a render, and is said: once per failing streak (postrender_store_failed),
+// again only after a store call worked, so an outage does not fill the log.
+let store_failing = false;
+
+function store_failed(op: string, key: string, error: unknown): void {
+	if (store_failing) return;
+	store_failing = true;
+	warn('postrender_store_failed', { op, key }, error);
+}
+
+/** `work` against the store: its failure is said and answered `fallback`. */
+async function guarded<T>(
+	op: string,
+	key: string,
+	work: () => Promise<T>,
+	fallback: T
+): Promise<T> {
 	try {
-		return await runtime.store.get(key);
-	} catch {
-		return null;
+		const out = await work();
+		store_failing = false;
+		return out;
+	} catch (error) {
+		store_failed(op, key, error);
+		return fallback;
 	}
 }
 
-export async function store_put(
+export function store_get(runtime: Runtime, key: string): Promise<PostrenderEntry | null> {
+	return guarded('get', key, () => runtime.store.get(key), null);
+}
+
+export function store_put(
 	runtime: Runtime,
 	key: string,
 	entry: PostrenderEntry,
 	options: PostrenderPutOptions
 ): Promise<void> {
-	try {
-		await runtime.store.put(key, entry, options);
-	} catch {
-		/* a broken store must never 500 a render */
-	}
+	return guarded('put', key, () => runtime.store.put(key, entry, options), undefined);
 }
 
 /** Take `key` out of the origin store (a broken store never fails a render). */
-export async function store_evict(runtime: Runtime, key: string): Promise<void> {
-	try {
-		await runtime.store.evict(key);
-	} catch {
-		/* a broken store must never 500 a render */
-	}
+export function store_evict(runtime: Runtime, key: string): Promise<void> {
+	return guarded('evict', key, () => runtime.store.evict(key), undefined);
 }
 
 // ── single-flight ──────────────────────────────────────────────────────────────────────────────
@@ -350,5 +366,5 @@ export async function invalidateWhere(filter: { prefix: string }): Promise<void>
 export function self_evict(runtime: Runtime, pathname: string): void {
 	stale_flights({ url: pathname });
 	record({ domain: 'server', name: 'server.postrender', op: 'self-evict', url: pathname });
-	void runtime.store.evict(pathname).catch(() => {});
+	void store_evict(runtime, pathname); // ok: store_evict never rejects (a failure is said)
 }
