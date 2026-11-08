@@ -87,3 +87,41 @@ describe('a thaw notice whose evict fails (#287)', () => {
 		}
 	});
 });
+
+describe('two copies of a notice at once (the sender tried again while the first applied)', () => {
+	it('applies it once, and passes it on once', async () => {
+		const forwarded: string[] = [];
+		vi.stubGlobal('fetch', async (u: URL) => {
+			forwarded.push(String(u));
+			return new Response('{}');
+		});
+		federate({
+			name: 'shell',
+			peers: {
+				cms: { origin: 'http://cms.test', key: cms_pub },
+				site: { origin: 'http://site.test' }
+			}
+		});
+		const applied: string[][] = [];
+		const leave = register_hooks({
+			async invalidate(tags: string[]) {
+				await new Promise((r) => setTimeout(r, 20)); // a store's round trip
+				applied.push(tags);
+			}
+		});
+		try {
+			const notice = { id: 'n-twice', hop: 0, tags: ['s:doc:2'] };
+			const [a, b] = await Promise.all([
+				serve_federation(thaw_event(notice)),
+				serve_federation(thaw_event(notice))
+			]);
+			expect(a!.ok && b!.ok).toBe(true);
+			expect(applied).toEqual([['r:cms:s:doc:2']]);
+			await new Promise((r) => setTimeout(r, 10));
+			// (passed on once to each consumer, the sender among them)
+			expect(forwarded.filter((u) => u.startsWith('http://site.test'))).toHaveLength(1);
+		} finally {
+			leave();
+		}
+	});
+});
