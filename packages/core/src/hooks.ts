@@ -94,7 +94,7 @@ import {
 	set_current_request,
 	type RequestFacts
 } from './plugin/facts.ts';
-import { around, end_request, request_contexts, start_plugins } from './plugin/server.ts';
+import { around, end_request, request_contexts, start_app_plugins } from './plugin/server.ts';
 // PULL-registration at decode time (idempotent; no import-time side effects).
 import { register_wire_kind } from './live-transport.ts';
 import { register_store_kind, register_derived_kind } from './store-transport.ts';
@@ -461,11 +461,12 @@ set_source_recorder((tag) => {
 // ROUTE CONFIG: each Kit page's merged `config`, the keys plugins claim, baked by the compiler
 set_page_route_config(route_config);
 // PLUGINS (listed beside `ogygia()`): each one's server half, live — its app made, its shared hooks
-// registered, its `setup` run — once, when this module loads.
+// registered, its `setup` run — once, when this module loads. A run of this module again (dev) makes
+// the plugins of the run before leave first.
 // Their `app.sign` / `app.verify` use the region key, read at first use (an env the host fills after
 // module eval still counts). Their `app.capability` lives and renews by the app's own hole lifetime,
 // and a refused one is answered like a refused region request.
-const plugins = start_plugins(plugin_entries, {
+const plugins = start_app_plugins(plugin_entries, {
 	sign: (message) => sign(signing_key().secret, message),
 	verify: (message, signature) => verify(signing_key().secret, message, signature),
 	lifetime: app_lifetime,

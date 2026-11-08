@@ -29,12 +29,14 @@ export interface LivePlugin {
  *  capability the way it answers a refused region request). */
 export type AppSigner = CapabilitySigner;
 
-/** Make each plugin live, in order: app, shared hooks, `setup`. */
+/** Make each plugin live, in order: app, shared hooks, `setup`. `leave` takes their shared hooks out
+ *  again. */
 export function start_plugins(
 	entries: readonly ServerPluginEntry[],
 	signer: AppSigner
-): LivePlugin[] {
-	return entries.map(({ name, options, server }) => {
+): { plugins: LivePlugin[]; leave: () => void } {
+	const leaves: Array<() => void> = [];
+	const plugins = entries.map(({ name, options, server }) => {
 		const warned = new Set<string>();
 		const app: ServerApp<unknown> = {
 			name,
@@ -53,10 +55,35 @@ export function start_plugins(
 				console.warn(`[${name}] ${message}`);
 			}
 		};
-		register_hooks(server);
+		leaves.push(register_hooks(server));
 		server.setup?.(app);
 		return { def: server, app };
 	});
+	return {
+		plugins,
+		leave() {
+			for (const leave of leaves) leave();
+		}
+	};
+}
+
+/** The leave of the app's plugins as the handle module last started them. One global slot, like the
+ *  shared hooks themselves: the handle module runs again in dev (an edit runs a plugin's server half
+ *  again, and the handle module that imports it), and its new run must not find the old one there. */
+const app_plugins: { leave: (() => void) | null } = ((globalThis as Record<symbol, unknown>)[
+	Symbol.for('ogygia.app-plugins.v1')
+] ??= { leave: null }) as { leave: (() => void) | null };
+
+/** The app's plugins, live: the handle module's start, each time it runs. The plugins of the run
+ *  before leave first, so only this run's answer `ask` and hear `notify`. */
+export function start_app_plugins(
+	entries: readonly ServerPluginEntry[],
+	signer: AppSigner
+): LivePlugin[] {
+	app_plugins.leave?.();
+	const { plugins, leave } = start_plugins(entries, signer);
+	app_plugins.leave = leave;
+	return plugins;
 }
 
 /** Two `resolve()` option sets as one: the inner transform (ogygia's document injection) runs first,
