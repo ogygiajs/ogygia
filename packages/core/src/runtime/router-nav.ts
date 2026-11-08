@@ -354,15 +354,19 @@ type PageAsk = { href: string; purpose: NavPurpose };
 type Fetched = { page: FetchedPage | null; cacheable: boolean };
 type Pages = import('@ogygia/machine').Flights<PageAsk, Fetched, string>;
 let page_flights: Pages | undefined;
+/** The world the cached pages are made in: a mutation moves it (`bust_page_cache`). */
+let page_world: import('@ogygia/machine').World | undefined;
 /** The page fetches: one flight per address, shared by every navigation and prefetch of it. A
  *  cacheable answer is kept for PREFETCH_TTL_MS, within PAGE_CACHE_MAX_BYTES (each entry weighs at
- *  least its share of it, so no more than PAGE_CACHE_MAX_ENTRIES small pages are kept). A cache clear
- *  drops them all: a fetch in flight is aborted, and a navigation that waited on it fetches again. */
+ *  least its share of it, so no more than PAGE_CACHE_MAX_ENTRIES small pages are kept). They are made
+ *  in `page_world`: a move of it drops them all, a fetch in flight is aborted, and a navigation that
+ *  waited on it fetches again. */
 const pages = (): Pages =>
 	(page_flights ??= boot_link().flights<PageAsk, Promise<Fetched>, string>({
 		name: 'router pages',
 		key: (ask) => ask.href,
 		run: (ask, signal) => run_page_fetch(ask, signal),
+		world: (page_world = boot_link().world()),
 		keep: (answer) => (answer.page !== null && answer.cacheable ? PREFETCH_TTL_MS : 0),
 		max: PAGE_CACHE_MAX_BYTES,
 		weigh: (answer) =>
@@ -383,11 +387,12 @@ const warmed_pages = new Set<string>();
  *  removes it, then re-attached. See {@link announce} / {@link reset_focus}. */
 let announcer: HTMLElement | null = null;
 
-/** Clears the page cache, and ends the fetches in flight: a fetch that started before a clear (a
- *  prefetch out when a remote mutation lands) never fills the cache after it with the page as it
- *  was (#208), and a navigation that waited on it fetches again. */
+/** Moves the world the cached pages are made in: what is kept goes, and a fetch that started before
+ *  the move (a prefetch out when a remote mutation lands) never fills the cache after it with the
+ *  page as it was (#208), and a navigation that waited on it fetches again. (No pages yet: none to
+ *  put out of date.) */
 export function bust_page_cache(): void {
-	page_flights?.drop(() => true);
+	page_world?.bump();
 }
 
 /**
