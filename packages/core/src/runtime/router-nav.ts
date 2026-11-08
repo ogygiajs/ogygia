@@ -56,7 +56,6 @@ const document_key = (url: URL) => router_link().document_key(url);
 const jump_to_hash = (hash: string) => router_link().jump_to_hash(hash);
 const push_state = (state: unknown, url: string) => router_link().push_state(state, url);
 const replace_state = (state: unknown, url?: string) => router_link().replace_state(state, url);
-const give_to_browser = (url: URL, from: URL) => router_link().hand_off(url, from);
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
@@ -622,8 +621,9 @@ export async function navigate(
 	// exactly where a navigation without the router would have; a redirect seen by a fetch is a fact
 	// about that fetch. The entry written above is handed back with it: the browser's document
 	// REPLACES it, so the visit is one entry, and one the router's page does not share (#259:
-	// ./router.ts `hand_off`).
-	const hand_off = () => give_to_browser(url, from);
+	// ./router.ts `hand_off`). A hand-off ends this visit: the navigation is the browser's now, and
+	// one the browser keeps the page on screen for (a download, a 204) must not stay in flight (#266).
+	const hand_off = () => r.hand_off(url, from, mine);
 
 	// A back/forward restore re-fetches (we hold no DOM snapshot); mark it so the server can skip
 	// side effects the visitor already triggered on the first visit. A plain click is `nav`.

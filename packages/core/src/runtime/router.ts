@@ -67,29 +67,6 @@ export const replace_state = (state: unknown, url?: string): void => {
 	return url === undefined ? fn.call(history, state, '') : fn.call(history, state, '', url);
 };
 
-/**
- * GIVE A NAVIGATION TO THE BROWSER — a page the router will not render (a csr=true Kit page, a
- * page that is not ogygia's, another build), or one it could not fetch: a document navigation to
- * `url`, from the document on screen (`from`).
- *
- * When the history entry already has `url` (the router pushed it for the click, or back/forward
- * stepped to it), a browser navigation to it RELOADS that entry: the new document took the entry
- * over, the router's state with it, and the router page's entry beside it became the new
- * document's too. Back was then a step inside the new document, which loads nothing: from a
- * csr=true page the address changed and the Kit page stayed (#259). So the entry first gets back
- * the address of the document on screen, and the browser's navigation REPLACES it: one entry for
- * the visit, holding a document of its own. Otherwise (nothing written yet) it is a plain
- * navigation, a new entry.
- */
-export function hand_off(url: URL, from: URL): void {
-	if (location.href !== url.href) {
-		location.href = url.href;
-		return;
-	}
-	replace_state(history.state, from.href);
-	location.replace(url.href);
-}
-
 // ---- navigation lifecycle hooks (for the $app/navigation shim + `ogygia/app`) ----
 
 /** Resolved navigation target (URL + Kit-shaped stubs for params/route). */
@@ -253,8 +230,7 @@ function nav(): Promise<Nav> {
 		document_key,
 		jump_to_hash,
 		push_state,
-		replace_state,
-		hand_off
+		replace_state
 	};
 	return load_nav().then((m) => (loaded_nav = m));
 }
@@ -272,7 +248,8 @@ export class SpaRouter {
 	 */
 	readonly nav: Navigation = create_navigation();
 
-	/** href of the navigation in flight (claimed or loading; cleared once it applied or ended) */
+	/** href of the router's navigation in flight (claimed or loading; cleared once it applied,
+	 *  ended, or went to the browser: `hand_off`) */
 	get nav_target(): string | null {
 		const s = this.nav.now;
 		return s.kind === 'claimed' || s.kind === 'loading' ? s.href : null;
@@ -330,6 +307,37 @@ export class SpaRouter {
 	 */
 	supersede(): void {
 		if (this.nav.now.kind !== 'idle') this.nav.go('idle');
+	}
+
+	/**
+	 * GIVE `visit`'s NAVIGATION TO THE BROWSER — a page the router will not render (a csr=true Kit
+	 * page, a page that is not ogygia's, another build), or one it could not fetch or load its code
+	 * for: a document navigation to `url`, from the document on screen (`from`).
+	 *
+	 * It ENDS the visit, on every path: from here on the navigation is the browser's, never the
+	 * router's in flight. The browser may well keep this page on screen (a file download, a 204, a
+	 * body it does not show), and then nothing else ends it: left `loading`, every later click on the
+	 * link joined it and was swallowed (#266). A visit already left (a newer click took over, or back
+	 * to the page on screen) hands nothing off: the browser never goes where the visitor no longer is.
+	 *
+	 * When the history entry already has `url` (the router pushed it for the click, or back/forward
+	 * stepped to it), a browser navigation to it RELOADS that entry: the new document took the entry
+	 * over, the router's state with it, and the router page's entry beside it became the new
+	 * document's too. Back was then a step inside the new document, which loads nothing: from a
+	 * csr=true page the address changed and the Kit page stayed (#259). So the entry first gets back
+	 * the address of the document on screen, and the browser's navigation REPLACES it: one entry for
+	 * the visit, holding a document of its own. Otherwise (nothing written yet) it is a plain
+	 * navigation, a new entry.
+	 */
+	hand_off(url: URL, from: URL, visit: Navigation['now']): void {
+		if (this.nav.now !== visit) return;
+		this.nav.go('idle');
+		if (location.href !== url.href) {
+			location.href = url.href;
+			return;
+		}
+		replace_state(history.state, from.href);
+		location.replace(url.href);
 	}
 
 	bust_page_cache(): void {
@@ -402,9 +410,7 @@ export class SpaRouter {
 		} catch {
 			// The navigation code could not load (offline, a deploy removed the chunk): the link must
 			// still work — let the browser navigate.
-			if (this.nav.now === mine) this.nav.go('idle');
-			hand_off(url, from);
-			return;
+			return this.hand_off(url, from, mine);
 		}
 		// superseded while the navigation code loaded
 		if (this.nav.now !== mine) return;
@@ -546,8 +552,10 @@ export class SpaRouter {
 	}
 
 	/**
-	 * Does this click join a navigation the router already has? The one in flight to its address (a
-	 * double click, or a link component re-dispatching the visitor's click on its inner `<a>`); or
+	 * Does this click join a navigation the router already has? Its own in flight to the click's
+	 * address (a double click, or a link component re-dispatching the visitor's click on its inner
+	 * `<a>`): never one it gave the browser (`hand_off` ends that visit), so a link to a download is
+	 * a new navigation each time; or
 	 * the one this very anchor started, to the page now on screen, when the click is a re-dispatch
 	 * (untrusted: the component's, never the visitor's — a visitor's click on a link to the page they
 	 * are on refreshes it).
