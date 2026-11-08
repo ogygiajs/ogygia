@@ -22,6 +22,7 @@ import {
 	type Convention,
 	type MetaDecoration
 } from './convention.ts';
+import { once } from '@ogygia/machine';
 import { markdown } from './formats.ts';
 import { OgygiaError } from './messages/runtime.ts';
 import type { GlobMap, RawRecord, RawSource, Source } from './source.ts';
@@ -127,14 +128,15 @@ export function folder<Meta = Record<string, never>>(
 			.join('/');
 	const page_order = (key: string): number[] => raw_segments(key).map((s) => conv.segment(s).order);
 
-	// Each directory's `+meta.json` decoration + the clean group path → label map. Resolved ONCE, on
-	// first read — awaiting sidecar modules (a lazy glob hands us thunks, an eager glob the modules).
-	let resolved: Promise<{
-		decorations: Map<string, MetaDecoration>;
-		group_map: Map<string, { label?: string }>;
-	}> | null = null;
-	const resolve_meta = () =>
-		(resolved ??= (async () => {
+	// Each directory's `+meta.json` decoration + the clean group path → label map. Resolved on first
+	// read and kept — awaiting sidecar modules (a lazy glob hands us thunks, an eager glob the
+	// modules). A sidecar that fails to load is not kept: the next read (of the entries or the
+	// groups) loads them again (#246).
+	const resolve_meta = once(
+		async (): Promise<{
+			decorations: Map<string, MetaDecoration>;
+			group_map: Map<string, { label?: string }>;
+		}> => {
 			const decorations = new Map<string, MetaDecoration>();
 			for (const { dir, value } of meta_entries) {
 				const mod = unwrap(
@@ -153,7 +155,8 @@ export function folder<Meta = Record<string, never>>(
 				group_map.set(dir, { label: decorations.get(dir)?.label ?? title_case(last) });
 			}
 			return { decorations, group_map };
-		})());
+		}
+	);
 
 	// Verify sibling numbering once, at first read (build-error voice).
 	const verify = async () => {
