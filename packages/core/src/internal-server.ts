@@ -27,5 +27,7 @@ export {
 	type SeedKeyStat
 } from './server/request-stats.ts';
 export { mark_personal } from './server/personal-response.ts';
+/** The owner (a scope) of a server request: what the request starts goes when it ends. */
+export { current_request_scope, request_local, request_scope } from './plugin/request-scope.ts';
 export { islands_endpoint } from './server/endpoint.ts';
 export { scanRegions } from './server/split-regions.ts';

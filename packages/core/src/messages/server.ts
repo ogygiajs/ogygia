@@ -207,6 +207,14 @@ export const SERVER_WARNINGS = {
 			A plugin's hook threw. ogygia logs it and goes on with the next plugin. The error follows
 			the message.
 		`
+	},
+	request_cleanup_failed: {
+		text: (): string => `a cleanup at the end of a request failed —`,
+		details: (): string => prose`
+			Work a request started (a timer, a stream, a fetch) is let go when its response ends or
+			its visitor leaves. One of those cleanups threw. The response was not affected. The error
+			follows the message.
+		`
 	}
 };
 
