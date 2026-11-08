@@ -1,5 +1,5 @@
 import { defineConfig } from 'tsdown';
-import { library } from '@ogygia/tooling/tsdown';
+import { library } from '@ogygia/config/tsdown';
 
 // [0] the modules the command loads on demand (`mcp`, `perf/*`): unbundled, core left as an import.
 // [1] the command itself, `dist/cli.mjs`: ONE self-contained file (sv-utils and its dependencies

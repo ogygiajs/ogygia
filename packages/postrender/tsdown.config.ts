@@ -1,3 +1,3 @@
-import { library } from '@ogygia/tooling/tsdown';
+import { library } from '@ogygia/config/tsdown';
 
 export default library();

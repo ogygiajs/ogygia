@@ -63,6 +63,7 @@
 		"e2e": "playwright test"
 	},
 	"devDependencies": {
+		"@ogygia/config": "workspace:*",
 		"@ogygia/core": "workspace:*",
 		"@ogygia/tooling": "workspace:*",
 		"@playwright/test": "catalog:",

@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
-import { pluginTests } from '@ogygia/tooling/vitest';
+import { pluginTests } from '@ogygia/config/vitest';
 
 // Every test runs twice: in node (the server and the compiler use machines) and in a real browser
 // (the runtime does), so neither host's timers, AbortSignal or promise order is taken on faith.

@@ -515,6 +515,30 @@
 		{
 			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > signal_group",
 			"reason": "the e2e harness: sends a signal to the server's process group (one syscall); proven in packages/tooling/test/servers.test.ts"
+		},
+		{
+			"id": "packages/config/src/tsdown.ts > library",
+			"reason": "the repo's build config (private, not shipped), moved unchanged from packages/tooling: tsdown runs it once per package build; every package's dist is the proof"
+		},
+		{
+			"id": "packages/config/src/tsdown.ts > resolve_to_js",
+			"reason": "the repo's build config: makes the tsdown plugin object, constant work"
+		},
+		{
+			"id": "packages/config/src/tsdown.ts > resolve_to_js > renderChunk",
+			"reason": "the repo's build config: tsdown's chunk hook, run on every built chunk; every package's dist is the proof"
+		},
+		{
+			"id": "packages/config/src/tsdown.ts > resolve_to_js > renderChunk > replace:1~03ff4f",
+			"reason": "the repo's build config: rewrites one import.meta.resolve('./x.ts') to './x.js', constant work"
+		},
+		{
+			"id": "packages/config/src/vitest.ts > pluginTests",
+			"reason": "the repo's unit-test config (private, not shipped), moved unchanged from packages/tooling: vitest runs it once per package test run"
+		},
+		{
+			"id": "packages/config/src/vitest.ts > stub_aliases",
+			"reason": "the repo's unit-test config: lists core's test stubs on disk once per test run"
 		}
 	]
 }
