@@ -1,9 +1,9 @@
 /**
  * THE REQUEST END (plugin/server.ts `end_request`, #243): a plugin's `done` may return work that
  * must finish (a sink's send). Where the platform keeps a request alive past its response
- * (`waitUntil`), the work is handed to it and the response does not wait; elsewhere (a serverless
- * instance freezes once its response ends) the response's body ends only after the work. Real
- * streams, real timers.
+ * (`waitUntil`), the work is handed to it. Elsewhere it runs on by itself: a long-running server
+ * keeps it alive in the process, and the visitor's response is never held for it. Real streams,
+ * real timers.
  */
 import { describe, expect, it } from 'vitest';
 import { end_request, type LivePlugin } from '../src/plugin/server.ts';
@@ -68,26 +68,23 @@ describe('end_request: the work a plugin leaves at the request end', () => {
 		expect(s.seen.finished).toBe(true);
 	});
 
-	it("no waitUntil: the response's body ends only after the work (an instance freezes at its end)", async () => {
-		const s = sender(40);
-		const out = await end([s.plugin], undefined, new Response('page', { status: 201 }));
-		expect(out!.status).toBe(201); // the head goes out at once …
-		expect(s.seen.finished).toBe(false);
-		expect(await out!.text()).toBe('page'); // … the body, whole, and ended after the send
-		expect(s.seen.finished).toBe(true);
+	it('no waitUntil: the response is never held for the work, its body ends before a slow send', async () => {
+		const s = sender(200);
+		const response = new Response('page', { status: 201 });
+		const out = await end([s.plugin], undefined, response);
+		expect(out).toBe(response); // the visitor's response, as it was
+		expect(await out!.text()).toBe('page');
+		expect(s.seen.finished).toBe(false); // the whole body came before the 200 ms send ended …
+		await new Promise((r) => setTimeout(r, 250));
+		expect(s.seen.finished).toBe(true); // … which runs on by itself in the process
 	});
 
-	it('no waitUntil and a response with no body: answered after the work', async () => {
-		const s = sender(20);
-		const out = await end([s.plugin], undefined, new Response(null, { status: 304 }));
-		expect(s.seen.finished).toBe(true);
-		expect(out!.status).toBe(304);
-	});
-
-	it('a request that threw: the work is still waited for before the error goes on', async () => {
-		const s = sender(20);
+	it('no waitUntil and a response with no body, or a request that threw: nothing waits either', async () => {
+		const s = sender(200);
+		const response = new Response(null, { status: 304 });
+		expect(await end([s.plugin], undefined, response)).toBe(response);
 		expect(await end([s.plugin], undefined, null)).toBe(null);
-		expect(s.seen.finished).toBe(true);
+		expect(s.seen.finished).toBe(false);
 	});
 
 	it('work that fails never fails the response, and a throwing done does not stop the next', async () => {
@@ -103,6 +100,7 @@ describe('end_request: the work a plugin leaves at the request end', () => {
 		];
 		const out = await end(plugins, undefined, new Response('page'));
 		expect(await out!.text()).toBe('page');
+		await new Promise((r) => setTimeout(r, 30)); // (a rejection left unhandled is reported by now)
 		expect(s.seen.finished).toBe(true);
 	});
 
