@@ -157,10 +157,6 @@
 			"reason": "browser only: the router-off refresh, once its chunk is in; proven in packages/core/test/browser/nav-handle-routerless-retry.test.ts"
 		},
 		{
-			"id": "packages/postrender/src/registry.ts > store_evict",
-			"reason": "one store call wrapped so a broken store never fails a render, constant work; proven in packages/postrender/e2e/postrender.spec.ts S21"
-		},
-		{
 			"id": "packages/postrender/src/server.ts > capture > put",
 			"reason": "a request's store write and its invalidation re-check (needs a live request context), constant work besides the store's; proven in packages/postrender/e2e/postrender.spec.ts S21"
 		},
@@ -625,10 +621,6 @@
 			"reason": "one tick's handoff to #tick (a scope timer), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
 		},
 		{
-			"id": "packages/router/src/stream.ts > end_all > catch:0",
-			"reason": "a source whose return() failed while ending: a constant no-op"
-		},
-		{
 			"id": "packages/router/src/stream.ts > stream_document > ReadableStream:0 > cancel",
 			"reason": "the visitor left: closes the response's scope, constant work; proven in packages/router/test/router-stream-cancel.test.ts (#284)"
 		},
@@ -798,10 +790,6 @@
 		},
 		{
 			"id": "packages/core/src/hooks.ts > owned",
-			"reason": "wraps the handle with the request's owner (a Kit request event nothing can clone); its parts are proven in packages/core/test/request-scope.test.ts"
-		},
-		{
-			"id": "packages/core/src/hooks.ts > owned > <anonymous>~abe4e3",
 			"reason": "wraps the handle with the request's owner (a Kit request event nothing can clone); its parts are proven in packages/core/test/request-scope.test.ts"
 		},
 		{
@@ -1025,10 +1013,6 @@
 			"reason": "dev only: closes the closing environment's run (a map read and a scope close; the plugin context is not cloneable), constant work; proven in packages/content/test/dev-close.test.ts"
 		},
 		{
-			"id": "packages/content/src/vite/hmr.ts > content_hmr > configureServer > schedule > timeout:0~07ca2e",
-			"reason": "dev only: the debounce firing the flush on a real dev server's run (not replayable), constant work; proven in packages/content/test/dev-close.test.ts"
-		},
-		{
 			"id": "packages/devtools/src/devtools/session.ts > start_session > watch > defer:0~6b8970",
 			"reason": "browser only: counts an observer's queued entries as the recording ends (one takeRecords), constant work; run by the devtools e2e session recording"
 		},
@@ -1087,6 +1071,66 @@
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > constructor > every:0~cfcd21",
 			"reason": "the sink's interval tick (not replayable): one post of the buffered rows over the network"
+		},
+		{
+			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_search_query_failed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_search_query_failed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/flags/src/messages.ts > FLAGS_WARNINGS > flags_source_failed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/flags/src/messages.ts > FLAGS_WARNINGS > flags_source_failed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/postrender/src/messages.ts > POSTRENDER_WARNINGS > postrender_store_failed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/postrender/src/messages.ts > POSTRENDER_WARNINGS > postrender_store_failed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/plugin/request-scope.ts > body_unread",
+			"reason": "reads a Request and a Response (not cloneable): two header compares, constant work; proven in packages/core/test/request-scope.test.ts"
+		},
+		{
+			"id": "packages/federation/src/serve.ts > serve_thaw > then:0~7789e5",
+			"reason": "the forward's answer after its posts and their retry timers (not replayable): one warning when a consumer missed it, constant work"
+		},
+		{
+			"id": "packages/federation/src/server.ts > defineServer:0~1d4f75 > invalidated > then:0~7789e5",
+			"reason": "the thaw broadcast's answer after its posts and their retry timers (not replayable): one warning when a peer missed it; proven in packages/federation/test/thaw-send.test.ts"
+		},
+		{
+			"id": "packages/federation/src/server.ts > defineServer:0~1d4f75 > invalidated > then:1~434b63",
+			"reason": "broadcast_thaw never rejects: the warning for a rejection that cannot happen, constant work"
+		},
+		{
+			"id": "packages/flags/src/source-health.ts > source_mark",
+			"reason": "reads the module's failure count (hidden state by design): one number, constant work; proven in packages/flags/test/source-failed.test.ts"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > evict_tags > edge_job:1~e13e32",
+			"reason": "one edge purge per evicted key through an edge adapter (not cloneable), constant work; proven in packages/postrender/test/postrender.test.ts"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > notify_thaw > catch:0~a1b2d0",
+			"reason": "a constant no-op: notify already said each failed hook (plugin_hook_failed)"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > store_get > guarded:2~862c4d",
+			"reason": "one store read through the store adapter (not cloneable), constant work; proven in packages/postrender/test/store-failed.test.ts"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > store_put > guarded:2~0652df",
+			"reason": "one store write through the store adapter (not cloneable), constant work; proven in packages/postrender/test/store-failed.test.ts"
 		}
 	]
 }
