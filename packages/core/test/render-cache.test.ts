@@ -219,4 +219,36 @@ describe('cached_render — one render per key in flight (#244)', () => {
 		expect(render_cache_get(cache.key, Date.now())).toBe('<p>1</p>');
 		await busy;
 	});
+
+	it('a render whose opener leaves while it waits for a slot keeps its place in the queue for the calls still waiting on it', async () => {
+		// one slot, held; the cached hole's render waits for it, and a render of another hole after it
+		const gate = new ConcurrencyGate(1);
+		const busy = gate.run(() => new Promise((r) => setTimeout(r, 30)));
+		const order: string[] = [];
+		const leave = new AbortController();
+		// (the render runs with the signal it is handed, or else its own request's)
+		const hole =
+			(own?: AbortSignal) =>
+			(signal?: AbortSignal): Promise<string> =>
+				gate.run(
+					async () => {
+						order.push('hole');
+						return '<p>hole</p>';
+					},
+					{ signal: signal ?? own }
+				);
+		const cache = { key: render_cache_key('queued', 'p', ''), ttl: 60 };
+		const owner = cached_render(hole(leave.signal), cache, Date.now(), undefined, leave.signal);
+		const owner_out = owner.catch((e: unknown) => e);
+		const joiner = cached_render(hole(), cache, Date.now()); // another request, still there
+		const other = gate.run(async () => {
+			order.push('other');
+		});
+		leave.abort(); // the opener's visitor leaves while its render waits
+		expect(await owner_out).toBe(leave.signal.reason);
+		expect(await joiner).toBe('<p>hole</p>');
+		await other;
+		expect(order, 'the hole went to the back of the queue').toEqual(['hole', 'other']);
+		await busy;
+	});
 });
