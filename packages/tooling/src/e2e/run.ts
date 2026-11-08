@@ -289,6 +289,7 @@ async function main() {
 	if (libs.status !== 0) process.exit(libs.status ?? 1);
 
 	// each split suite built once, side by side; its lanes wait for it
+	// oxlint-disable-next-line ogygia/no-promise-cache -- not a cache: every split suite's build, all started here up front, each awaited by its lanes
 	const prebuilds = new Map<string, Promise<boolean>>();
 	for (const suite of suites.filter((s) => s.split)) {
 		const { cmd, cwd } = SPLIT[suite.dir];

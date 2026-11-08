@@ -51,6 +51,7 @@ export class PeerHandle implements Peer {
 	#ttl: number;
 	#cache_max: number;
 	#cache = new Map<string, Entry>();
+	// oxlint-disable-next-line ogygia/no-promise-cache -- not moved yet: a flights drop answers the callers of an in-flight fetch STALE, where a thaw today still hands them its document, and a partial thaw cannot tell an in-flight answer's tags before it lands (#294); the move needs that rule decided first
 	#inflight = new Map<string, Promise<FragmentDocument>>();
 	// Invalidation generation: an in-flight fetch that STARTED before a mutation/thaw cleared the
 	// cache must not repopulate it with stale data when it lands.

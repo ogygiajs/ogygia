@@ -343,6 +343,7 @@ const page_cache = new PageCache({
 	maxEntries: PAGE_CACHE_MAX_ENTRIES,
 	maxBytes: PAGE_CACHE_MAX_BYTES
 });
+// oxlint-disable-next-line ogygia/no-promise-cache -- not moved yet: as a flights a bust's drop answers a navigation joined to a prefetch STALE (it re-fetches) where today it gets the page, and PageCache's count cap becomes a weight; that change wants its own PR and tests
 const inflight = new Map<string, Promise<FetchedPage | null>>();
 /** Prefetches still waiting in the load scheduler's queue, by href (a click promotes its one). */
 const queued_prefetch = new Map<string, { promote(cls: 'user'): void }>();
