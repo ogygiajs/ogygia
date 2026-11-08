@@ -2,9 +2,10 @@
 // compiles, or when an expectTypeOf does not hold. The bodies under `compile_only` never run.
 import { describe, expectTypeOf, it } from 'vitest';
 import {
+	flights,
 	lock,
 	machine,
-	once,
+	scope,
 	STALE,
 	type LockToken,
 	type Machine,
@@ -96,10 +97,10 @@ describe('types', () => {
 
 	it('task gives the answer or STALE', () => {
 		const m = hole.create();
-		expectTypeOf(m.task(async () => 'x')).toEqualTypeOf<Promise<string | Stale>>();
-		expectTypeOf(m.task(() => 1)).toEqualTypeOf<Promise<number | Stale>>();
+		expectTypeOf(m.scope.task(async () => 'x')).toEqualTypeOf<Promise<string | Stale>>();
+		expectTypeOf(m.scope.task(() => 1)).toEqualTypeOf<Promise<number | Stale>>();
 		compile_only(async () => {
-			const r = await m.task(async (signal) => {
+			const r = await m.scope.task(async (signal) => {
 				expectTypeOf(signal).toEqualTypeOf<AbortSignal>();
 				return 'x';
 			});
@@ -219,9 +220,44 @@ describe('types', () => {
 		>();
 	});
 
-	it('once and lock', () => {
-		const load = once(async () => 42);
-		expectTypeOf(load).toEqualTypeOf<() => Promise<number>>();
+	it('flights: one key takes no input, a keyed one its input, answers may be STALE', () => {
+		const core = flights({ run: async () => 42 });
+		expectTypeOf(core.get()).toEqualTypeOf<Promise<number | Stale>>();
+		const pages = flights({
+			run: (href: string, signal) => fetch(href, { signal }).then((r) => r.text()),
+			keep: (html) => (html.length > 0 ? 1000 : 0)
+		});
+		compile_only(() => {
+			expectTypeOf(pages.get('/a', { signal: new AbortController().signal })).toEqualTypeOf<
+				Promise<string | Stale>
+			>();
+		});
+		const keyed = flights({ run: (i: { href: string; n: number }) => i.n, key: (i) => i.href });
+		const seen = keyed.peek('/a');
+		if (seen?.kind === 'kept') expectTypeOf(seen.answer).toEqualTypeOf<number>();
+		keyed.drop((key) => key.startsWith('/a'));
+		compile_only(() => {
+			// @ts-expect-error: a keyed flights needs its input
+			void pages.get();
+			// @ts-expect-error: a key is the key's type
+			keyed.peek(1);
+		});
+	});
+
+	it('scope: listeners get the event their target names', () => {
+		const s = scope();
+		compile_only(() => {
+			s.on(window, 'keydown', (event) => expectTypeOf(event).toEqualTypeOf<KeyboardEvent>());
+			s.on(new AbortController().signal, 'abort', (event) =>
+				expectTypeOf(event).toEqualTypeOf<Event>()
+			);
+		});
+		expectTypeOf(s.task(() => 'x')).toEqualTypeOf<Promise<string | Stale>>();
+		expectTypeOf(s.timeout(() => {}, 'frame')).toEqualTypeOf<() => void>();
+		s.close();
+	});
+
+	it('lock', () => {
 		const l = lock();
 		const t = l.take();
 		expectTypeOf(t).toEqualTypeOf<LockToken | null>();

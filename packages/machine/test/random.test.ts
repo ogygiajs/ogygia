@@ -49,8 +49,10 @@ type AnyM = {
 	now: { kind: string };
 	go(to: string): boolean;
 	move(from: string, to: string): boolean;
-	task<R>(work: (signal: AbortSignal) => R): Promise<unknown>;
-	onLeave(cleanup: () => void): void;
+	scope: {
+		task<R>(work: (signal: AbortSignal) => R): Promise<unknown>;
+		defer(cleanup: () => void): void;
+	};
 	wait(kind: string): Promise<unknown>;
 	stop(): void;
 };
@@ -149,7 +151,7 @@ async function run(seed: number): Promise<void> {
 					signal: null
 				};
 				tasks.push(t);
-				void m
+				void m.scope
 					.task(
 						(signal) =>
 							new Promise<number>((resolve) => {
@@ -170,7 +172,7 @@ async function run(seed: number): Promise<void> {
 			} else if (r < 0.84) {
 				const c: Cleanup = { visit: stopped ? -1 : visit, runs: 0 };
 				cleanups.push(c);
-				m.onLeave(() => c.runs++);
+				m.scope.defer(() => c.runs++);
 			} else if (r < 0.97) {
 				const target = pick(names);
 				const w: Wait = {
