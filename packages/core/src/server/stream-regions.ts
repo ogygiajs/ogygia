@@ -10,7 +10,7 @@
  * decoded string counts in — so its content can never close the box or forge a parcel for another
  * slot, and it no longer falls back to a second request.
  *
- * Pure (no I/O, no Kit) so it stays unit-testable.
+ * No I/O and no Kit (the batch stream is handed its render), so it stays unit-testable.
  */
 
 /** Sentinel slot appended once a batch finishes, so waiting regions know it is complete. */
@@ -36,4 +36,33 @@ export function build_parcel(slot: string, html: string): string {
 /** The done-sentinel parcel (empty template) the client watches to end the batch. */
 export function done_parcel(): string {
 	return `<template data-ogygia-slot="${STREAM_DONE_SLOT}"></template>`;
+}
+
+/** One region call's answer in a batch: its slot (the capability signature) and its HTML. Null:
+ *  the call is left out (the client fetches it on its own). */
+export type BatchAnswer = { slot: string; html: string } | null;
+
+/**
+ * The batch's frame stream: every call renders at once, and each answer goes out as its parcel the
+ * moment it settles, whatever the order; the done sentinel ends it.
+ */
+export function batch_stream(
+	calls: readonly string[],
+	render: (endpoint: string) => Promise<BatchAnswer>
+): ReadableStream<Uint8Array> {
+	const encoder = new TextEncoder();
+	return new ReadableStream<Uint8Array>({
+		async start(controller) {
+			// Each call renders independently; enqueue its frame on settle, whatever the order.
+			await Promise.all(
+				calls.map(async (endpoint) => {
+					const out = await render(endpoint).catch(() => null);
+					const parcel = out ? build_parcel(out.slot, out.html) : null;
+					if (parcel) controller.enqueue(encoder.encode(parcel));
+				})
+			);
+			controller.enqueue(encoder.encode(done_parcel()));
+			controller.close();
+		}
+	});
 }

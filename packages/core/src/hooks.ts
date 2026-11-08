@@ -107,7 +107,7 @@ import {
 	is_region_id,
 	is_region_ttl
 } from './server/endpoint.ts';
-import { build_parcel, done_parcel } from './server/stream-regions.ts';
+import { batch_stream } from './server/stream-regions.ts';
 import {
 	page_declares_router_meta,
 	page_declares_runtime_script,
@@ -1044,23 +1044,9 @@ class OgygiaHandle {
 			return region_response('Bad Request', { status: 400 });
 		}
 		const calls = parsed.filter((e): e is string => typeof e === 'string').slice(0, MAX_BATCH);
-		const render = (endpoint: string) => this.#render_capability(endpoint, event, true);
-		const encoder = new TextEncoder();
-
-		const stream = new ReadableStream<Uint8Array>({
-			async start(controller) {
-				// Each call renders independently; enqueue its frame on settle, whatever the order.
-				await Promise.all(
-					calls.map(async (endpoint) => {
-						const out = await render(endpoint).catch(() => null);
-						const parcel = out ? build_parcel(out.slot, out.html) : null;
-						if (parcel) controller.enqueue(encoder.encode(parcel));
-					})
-				);
-				controller.enqueue(encoder.encode(done_parcel()));
-				controller.close();
-			}
-		});
+		const stream = batch_stream(calls, (endpoint) =>
+			this.#render_capability(endpoint, event, true)
+		);
 
 		return region_response(stream, {
 			status: 200,
