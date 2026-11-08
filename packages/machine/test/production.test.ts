@@ -45,8 +45,13 @@ describe('production', () => {
 		expect(m.now).toEqual({ kind: 'green', since: 1 });
 	});
 
-	it('the shared empty values stay frozen in every build', () => {
-		expect(Object.isFrozen(light.create().now)).toBe(true);
+	it('a saved now still tells two visits to one dataless state apart', () => {
+		const m = light.create();
+		const mine = m.now;
+		m.go('green', { since: 1 });
+		m.go('red');
+		expect(m.now).toEqual(mine);
+		expect(m.now).not.toBe(mine);
 	});
 
 	it('skips the definition checks but still refuses an initial that is not a state', () => {
