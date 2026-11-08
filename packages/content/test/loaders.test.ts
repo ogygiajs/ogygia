@@ -52,25 +52,34 @@ describe('parse_git_spec', () => {
 });
 
 describe('git_slug', () => {
-	it('is owner-repo, filesystem-safe', () => {
-		expect(git_slug(parse_git_spec('sveltejs/svelte'))).toBe('sveltejs-svelte');
+	it('is the whole spec (owner, repo, ref, sub), filesystem-safe', () => {
+		expect(git_slug(parse_git_spec('sveltejs/svelte'))).toBe('sveltejs~svelte~HEAD~');
+		expect(git_slug(parse_git_spec('sveltejs/kit@v2:documentation/docs'))).toBe(
+			'sveltejs~kit~v2~documentation_2f_docs'
+		);
+	});
+	it('never spells two specs one way', () => {
+		const slugs = ['a-b/c', 'a/b-c', 'a/b:x/y', 'a/b:x_y', 'a/b@x:y', 'a/b@x~y', 'a/b'].map((s) =>
+			git_slug(parse_git_spec(s))
+		);
+		expect(new Set(slugs).size).toBe(slugs.length);
 	});
 });
 
 describe('git_glob_pattern', () => {
 	it('is a root-absolute glob under node_modules/.ogygia/content/<slug>/<sub>', () => {
 		expect(git_glob_pattern(parse_git_spec('sveltejs/svelte:documentation/docs'))).toBe(
-			'/node_modules/.ogygia/content/sveltejs-svelte/documentation/docs/**/*.md'
+			'/node_modules/.ogygia/content/sveltejs~svelte~HEAD~documentation_2f_docs/documentation/docs/**/*.md'
 		);
 	});
 	it('omits the sub segment when there is none', () => {
 		expect(git_glob_pattern(parse_git_spec('a/b'))).toBe(
-			'/node_modules/.ogygia/content/a-b/**/*.md'
+			'/node_modules/.ogygia/content/a~b~HEAD~/**/*.md'
 		);
 	});
 	it('honors a custom extension', () => {
 		expect(git_glob_pattern(parse_git_spec('a/b:docs'), 'svx')).toBe(
-			'/node_modules/.ogygia/content/a-b/docs/**/*.svx'
+			'/node_modules/.ogygia/content/a~b~HEAD~docs/docs/**/*.svx'
 		);
 	});
 });
@@ -79,7 +88,7 @@ describe('git_checkout_dir', () => {
 	it('joins under the project cache root', () => {
 		const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'og-git-dir-'));
 		__set_build_cache_root(tmp);
-		expect(git_checkout_dir(parse_git_spec('a/b'))).toBe(path.join(tmp, 'content', 'a-b'));
+		expect(git_checkout_dir(parse_git_spec('a/b'))).toBe(path.join(tmp, 'content', 'a~b~HEAD~'));
 		__set_build_cache_root(undefined);
 	});
 });
@@ -151,7 +160,7 @@ describe('rewrite_loaders', () => {
 		);
 		expect(code).toContain("import { folder as __og_folder } from '@ogygia/content';");
 		expect(code).toContain(
-			'__og_folder(import.meta.glob("/node_modules/.ogygia/content/sveltejs-svelte/documentation/docs/**/*.md", { eager: false }), { page: /\\.md$/ })'
+			'__og_folder(import.meta.glob("/node_modules/.ogygia/content/sveltejs~svelte~HEAD~documentation_2f_docs/documentation/docs/**/*.md", { eager: false }), { page: /\\.md$/ })'
 		);
 		expect(specs).toHaveLength(1);
 		expect(specs[0]!.owner).toBe('sveltejs');
