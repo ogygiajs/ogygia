@@ -6,7 +6,7 @@ import { bench } from '@bench/heisenbench/bench';
 import * as v from 'valibot';
 // (the site layer reaches the package's own Svelte components, written for experimental.async:
 // Heisenbench compiles them with the package's svelte.config.js)
-import { content, type Source, type SourceEntry } from '../src/index.ts';
+import { content, folder, json, type Source, type SourceEntry } from '../src/index.ts';
 import { site } from '../src/site/site.ts';
 import { dimensions } from '../src/site/dimensions.ts';
 import { create_search, type SearchEngine } from '../src/site/search.ts';
@@ -221,6 +221,67 @@ bench(
 		return found + said.text().length + said.details().length;
 	},
 	{ setup: () => fresh({ n: 6 }), scale: (_ctx, k) => fresh({ n: 6 * k }) }
+);
+
+bench(
+	'content: a folder whose section sidecar fails to load once, read again',
+	async ({ n }) => {
+		let found = 0;
+		for (let i = 0; i < n; i++) {
+			let fails = 1;
+			const map: Record<string, unknown> = {
+				'content/docs/00-guide/+meta.json': async () => {
+					if (fails-- > 0) throw new Error('sidecar failed to load');
+					return { default: { label: 'The guide' } };
+				}
+			};
+			for (let p = 0; p < 8; p++) {
+				map[`content/docs/00-guide/0${p}-page-${p}/+doc.svx`] = async () => ({ title: `P${p}` });
+				map[`content/docs/01-api/0${p}-ref-${p}/+doc.svx`] = async () => ({ title: `R${p}` });
+			}
+			const c = content({ schema, loader: folder(map, { format: json }) });
+			await c.refs().catch(() => null); // the sidecar fails: the start fails
+			found += (await c.refs()).length; // and the next read loads it
+			found += (await c.groups()).size;
+		}
+		return found;
+	},
+	{ setup: () => fresh({ n: 6 }), scale: (_ctx, k) => fresh({ n: 6 * k }) }
+);
+
+/** What the content dev plugin tells collections in dev (the module run building them), stood
+ *  in for: the bench has no dev server. */
+const graph_hooks = (globalThis as Record<symbol, unknown>)[Symbol.for('ogygia.content.graph')] as {
+	module_run?: () => { module: string; run: string };
+};
+
+bench(
+	'content: edits in dev, each run of a module replacing the live collections the run before built',
+	async ({ n }) => {
+		let found = 0;
+		const kept: ReturnType<typeof content>[] = [];
+		try {
+			for (let run = 0; run < n; run++) {
+				graph_hooks.module_run = () => ({ module: '/app/src/lib/docs.server.ts', run: `${run}` });
+				const rows = Array.from({ length: 10 }, (_, i) => doc(i));
+				const src = live_source(rows);
+				const c = content({ schema, loader: src.source });
+				// a second collection the same run builds: it replaces nothing
+				const other = content({ schema, loader: live_source(rows.slice(0, 3)).source });
+				delete graph_hooks.module_run;
+				if (run % 3 === 0) kept.push(c); // one the module keeps on a global, read later
+				found += (await c.refs()).length + (await other.refs()).length;
+				src.emit(['guide/p1']);
+				await tick();
+			}
+			// read again, a kept one comes back and follows again
+			for (const c of kept) found += (await c.refs()).length;
+		} finally {
+			delete graph_hooks.module_run;
+		}
+		return found;
+	},
+	{ setup: () => fresh({ n: 12 }), scale: (_ctx, k) => fresh({ n: 12 * k }) }
 );
 
 /** The browser's Worker, stood in for: answers the client as the search worker does. */
