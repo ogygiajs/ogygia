@@ -605,6 +605,38 @@
 			"reason": "a request's page-facts look-up (event.fetch of the page, a RequestEvent nothing can clone), once per request; run by packages/core/test/render-page.test.ts"
 		},
 		{
+			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > #stop",
+			"reason": "closes the run's scope (a timer), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > [computed]",
+			"reason": "Symbol.dispose: closes the bar's scope (its timers), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > finish > task:0",
+			"reason": "browser only: waits one paint (420 ms on the bar's scope) at 100%, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > start > every:0",
+			"reason": "one tick's handoff to #tick (a scope timer), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
+		},
+		{
+			"id": "packages/router/src/stream.ts > end_all > catch:0",
+			"reason": "a source whose return() failed while ending: a constant no-op"
+		},
+		{
+			"id": "packages/router/src/stream.ts > stream_document > ReadableStream:0 > cancel",
+			"reason": "the visitor left: closes the response's scope, constant work; proven in packages/router/test/router-stream-cancel.test.ts (#284)"
+		},
+		{
+			"id": "packages/router/src/stream.ts > stream_document > ReadableStream:0 > start > task:0",
+			"reason": "one step of the chunk source (a live generator, not cloneable) under the response's scope; proven in packages/router/test/router-stream-cancel.test.ts (#284)"
+		},
+		{
+			"id": "packages/router/src/stream.ts > stream_document > defer:0",
+			"reason": "ends the chunk source with return() when the response's scope closes, constant work; proven in packages/router/test/router-stream-cancel.test.ts (#284)"
+		},
+		{
 			"id": "packages/cli/src/mcp.ts > flights:0",
 			"reason": "loads the app's @ogygia/devtools/report (module IO from the app's install); the retry after a failed load is proven in a real node process by packages/cli/test/mcp-report-load.test.ts (#295)"
 		},
