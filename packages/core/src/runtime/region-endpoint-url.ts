@@ -1,6 +1,7 @@
 import { preload_island_graph } from './island-graph-preload.ts';
 import { fetch_priority_of, LoadSlot, type LoadClass } from './load-scheduler.ts';
 import { entry_location } from './entry-locations.ts';
+import { import_file } from './import-again.ts';
 
 /** Hoisted (hot paths — connectedCallback/hydrate run per region); shared with core's
  *  foreign-origin checks. */
@@ -202,7 +203,9 @@ export function warm_island_module(
 	// prefetch's warm is speculative
 	void new LoadSlot({ kind: 'code', cls, label: entry }).ready.then((release) => {
 		preload_island_graph(entry, base, fetch_priority_of(cls)); // the whole graph with the entry
-		import(/* @vite-ignore */ url)
+		// (through the file's loader the island's own load uses: a warm that failed leaves the load a
+		// fresh URL to ask, not the failed one — #261)
+		import_file(url)
 			.catch(() => {
 				warmed_modules.delete(key);
 			})

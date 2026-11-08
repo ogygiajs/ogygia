@@ -163,11 +163,15 @@ test.describe("wake:'interaction' — cold until used, click replay, typing surv
 		page.on('console', (m) => {
 			if (m.type() === 'error') consoleErrs.push(m.text());
 		});
-		// Block the island's file AND its stable name (the fallback a lost location takes) → the
-		// wake's import truly fails.
+		// Block the island's file (under any retry mark: a dropped download is asked for again under a
+		// fresh URL) AND its stable name (the fallback a lost location takes) → the wake's import
+		// truly fails.
 		const entryFile = interaction_file.split('/').pop() ?? '@@none@@';
 		const stableFile = interaction_entry.split('/').pop() ?? '@@none@@';
-		await page.route(`**/${entryFile}`, (r) => r.abort());
+		await page.route(
+			(url) => url.pathname.endsWith('/' + entryFile),
+			(r) => r.abort()
+		);
 		await page.route(
 			(url) => url.pathname.endsWith('/' + stableFile),
 			(r) => r.abort()
