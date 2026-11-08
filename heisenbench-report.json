@@ -1,0 +1,104 @@
+{
+	"schema": "heisenbench-report/1",
+	"prices": {
+		"version": 3,
+		"hash": "e26f04eaea9d8f31"
+	},
+	"node": "v26.4.0",
+	"env": {
+		"node": "v26.4.0",
+		"v8": "14.6.202.34-node.21",
+		"platform": "darwin",
+		"arch": "arm64",
+		"weights": {
+			"version": 2,
+			"hash": "3e4cdefa0957697f"
+		}
+	},
+	"git": {
+		"sha": "e0be4db00547723eb16c6dd1702ef516e25971cc",
+		"prefix": ""
+	},
+	"cases": [],
+	"unit_terms": [
+		"parts",
+		"matches",
+		"callbacks",
+		"values",
+		"items"
+	],
+	"contracts": {
+		"schema": "heisenbench-contracts/1",
+		"bar": 0.9,
+		"contracts": [
+			{
+				"id": "packages/core/src/runtime/schedule.ts > drain",
+				"module": "packages/core/src/runtime/schedule.ts",
+				"path": "drain",
+				"line": 382,
+				"tag_line": 380,
+				"class": "log",
+				"param": null,
+				"argument": null,
+				"text": "log",
+				"verdict": "unmeasured",
+				"sources": [
+					{
+						"kind": "growth",
+						"from": "scheduler: hydrate turns as the page grows",
+						"verdict": null,
+						"class": "log",
+						"exponent": 0.119,
+						"sizes": [
+							1,
+							10,
+							100
+						],
+						"input_sizes": [
+							16362,
+							149836,
+							1516068
+						],
+						"steps": [
+							650.7951388888889,
+							901.172821969697,
+							1185.1548555776892
+						],
+						"odds": null,
+						"within": 0,
+						"lines": [
+							{
+								"at": "packages/core/src/runtime/schedule.ts:104",
+								"steps": 329280,
+								"share": 0.209
+							},
+							{
+								"at": "packages/core/src/runtime/schedule.ts:130",
+								"steps": 284139.84375,
+								"share": 0.18
+							},
+							{
+								"at": "packages/core/src/runtime/schedule.ts:81",
+								"steps": 111624,
+								"share": 0.071
+							},
+							{
+								"at": "packages/core/src/runtime/schedule.ts:101",
+								"steps": 109587,
+								"share": 0.069
+							},
+							{
+								"at": "packages/core/src/runtime/schedule.ts:102",
+								"steps": 105043,
+								"share": 0.067
+							}
+						],
+						"why": "no shape to read (log)"
+					}
+				]
+			}
+		],
+		"errors": [],
+		"pass": false
+	}
+}
