@@ -11,7 +11,13 @@ import { fingerprint_of, fnv1a, signature_of } from '../src/runtime/hash.ts';
 import { morph_children } from '../src/runtime/morph.ts';
 import { PageCache } from '../src/runtime/page-cache.ts';
 import { parse_wire_text } from '../src/runtime/wire-format.ts';
-import { failed_import_url, import_again, retry_url } from '../src/runtime/import-again.ts';
+import {
+	failed_import_url,
+	import_again,
+	on_reload_needed,
+	retry_url
+} from '../src/runtime/import-again.ts';
+import { ERRORS } from '../src/messages/core.ts';
 import { create_navigation } from '../src/runtime/navigation.ts';
 import { create_soft_refresh } from '../src/runtime/soft-refresh.ts';
 import { ConcurrencyGate, is_run_timeout } from '../src/runtime/concurrency.ts';
@@ -97,6 +103,28 @@ bench(
 		scale: (ctx, k) => ({
 			chunks: Array.from({ length: k }, () => ctx.chunks).flat()
 		})
+	}
+);
+
+bench(
+	'the reload messages: a chunk no retry loads, a runtime that did not load',
+	({ urls }) => {
+		let n = 0;
+		// the boot hands import-again its message (said once per page)
+		on_reload_needed((url) => (n += url.length));
+		const chunk = ERRORS.chunk_reload_needed;
+		const runtime = ERRORS.runtime_load_failed;
+		for (const url of urls) n += chunk.text({ url }).length;
+		return n + chunk.details().length + runtime.text().length + runtime.details().length;
+	},
+	{
+		setup: () => ({
+			urls: Array.from(
+				{ length: 40 },
+				(_, i) => `https://shop.test/_app/immutable/chunks/C${i.toString(36)}hunk.js?og-retry=1`
+			)
+		}),
+		scale: (ctx, k) => ({ urls: Array.from({ length: k }, () => ctx.urls).flat() })
 	}
 );
 

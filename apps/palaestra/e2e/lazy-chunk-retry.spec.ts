@@ -1,4 +1,4 @@
-// LAZY CHUNKS THAT FAIL (#201, #237, #238). The runtime loads its lazy pieces (the hydrate core,
+// LAZY CHUNKS THAT FAIL (#201, #237, #238, #261, #262). The runtime loads its lazy pieces (the hydrate core,
 // devalue, the interaction replay, a transportable class's module, the router's navigation) on the
 // first use that needs each. On a flaky mobile network that first download can fail. It must never
 // break every later use in the tab: a dropped download is tried again, and a use after a failed one
