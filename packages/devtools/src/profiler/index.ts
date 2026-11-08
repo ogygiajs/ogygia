@@ -248,7 +248,7 @@ import {
 	islandPageWhy
 } from 'virtual:ogygia/island-deps';
 import { set_span_recorder, type SpanAttrs, type SpanRecord, type SpanRecorder } from './span.ts';
-import { lock, machine, type LockToken } from '@ogygia/machine';
+import { flights, lock, machine, STALE, type Flights, type LockToken } from '@ogygia/machine';
 import { register_profiler_file } from './frames.ts';
 
 // The span recorder's `begin` lives in this file: skip its frame when finding a span's caller.
@@ -1115,6 +1115,8 @@ class Profiler {
 	/** the durable report store (SQLite/Redis/Postgres/custom), when configured — else null and the
 	 *  in-memory map is all there is (the prior behaviour) */
 	#store: import('./storage/index.ts').ProfilerStore | null = null;
+	/** the store's `init`: kept once it succeeds, tried again by the next use after a failure */
+	#store_init: Flights<void, void> | null = null;
 	#als: import('node:async_hooks').AsyncLocalStorage<Ctx> | null = null;
 	#init_done: Promise<void> | null = null;
 	/** Re-assert the `globalThis.fetch` patch before a profile (self-heal if it was replaced). */
@@ -1149,13 +1151,18 @@ class Profiler {
 		this.#disabled = options.enabled === false;
 		this.#trap = options.trap && options.trap.over > 0 ? options.trap : null;
 		if (options.store) {
-			this.#store = options.store;
-			// init may be sync-throwing (a driver, a bad path) or async-rejecting — guard both, and
-			// never let a store problem break the profiler mount (it falls back to memory-only)
-			(async () => this.#store!.init?.())().catch((e) => {
-				console.error(new OgygiaError('devtools_profiler_store_init_failed'), e);
-				this.#store = null;
+			const store = options.store;
+			this.#store = store;
+			// init may be sync-throwing (a driver, a bad path) or async-rejecting: both are a failed
+			// flight, which is not kept, so the next use of the store tries it again (#289). It starts
+			// at the mount, as before.
+			this.#store_init = flights({
+				name: 'profiler store init',
+				run: async () => {
+					await store.init?.();
+				}
 			});
+			void this.#store_ready();
 		}
 		this.#client_cpu = options.clientCpu !== false;
 		if (options.sink?.url) {
@@ -4393,8 +4400,10 @@ class Profiler {
 			at: Date.now(),
 			instance: this.#instance_id
 		};
+		const store = await this.#store_ready();
+		if (!store?.putVisit) return;
 		try {
-			await this.#store.putVisit({
+			await store.putVisit({
 				key: `${WINDOW_PAGE_PREFIX}${id}\0${rec.at}\0${Math.random().toString(36).slice(2, 8)}`,
 				page: WINDOW_PAGE_PREFIX + id,
 				at: rec.at,
@@ -4420,9 +4429,10 @@ class Profiler {
 			instance: string;
 		}[]
 	> {
-		if (!this.#store?.listVisits) return [];
+		const store = await this.#store_ready();
+		if (!store?.listVisits) return [];
 		try {
-			const rows = await this.#store.listVisits(WINDOW_PAGE_PREFIX + id, MAX_VISITS_PER_KEY);
+			const rows = await store.listVisits(WINDOW_PAGE_PREFIX + id, MAX_VISITS_PER_KEY);
 			return rows.map((r) => JSON.parse(r.visit)).sort((a, b) => a.at - b.at);
 		} catch {
 			return [];
@@ -5822,6 +5832,20 @@ class Profiler {
 	 *  fails the recording). The dump is the same portable JSON the `.ogp` export uses. The returned
 	 *  promise settles when the write did: a serverless host freezes the process once the response
 	 *  is sent, so a write left running after it may never land — the page recording awaits it. */
+	/** The durable store, once its `init` has succeeded; null when none is configured or its init
+	 *  failed this time (said, and tried again by the next use). */
+	async #store_ready(): Promise<import('./storage/index.ts').ProfilerStore | null> {
+		const store = this.#store;
+		if (!store || !this.#store_init) return store;
+		try {
+			// (nothing drops the init, so it is never STALE)
+			return (await this.#store_init.get()) === STALE ? null : store;
+		} catch (e) {
+			console.error(new OgygiaError('devtools_profiler_store_init_failed'), e);
+			return null;
+		}
+	}
+
 	#persist(stored: StoredReport): Promise<void> {
 		if (!this.#store) return Promise.resolve();
 		const meta = stored.meta;
@@ -5839,8 +5863,10 @@ class Profiler {
 		};
 		return Promise.resolve()
 			.then(async () => {
-				await this.#store!.putReport(rec);
-				await this.#store!.prune?.(Math.max(this.max_reports * 8, 200));
+				const store = await this.#store_ready();
+				if (!store) return;
+				await store.putReport(rec);
+				await store.prune?.(Math.max(this.max_reports * 8, 200));
 			})
 			.catch((err) => {
 				if (process.env.OGYGIA_PROFILER_DEBUG)
@@ -5853,9 +5879,10 @@ class Profiler {
 		if (!id) return undefined;
 		const hit = this.#reports.get(id);
 		if (hit) return hit;
-		if (!this.#store) return undefined;
+		const store = await this.#store_ready();
+		if (!store) return undefined;
 		try {
-			const json = await this.#store.getReport(id);
+			const json = await store.getReport(id);
 			if (!json) return undefined;
 			const dump = JSON.parse(json) as {
 				analysis: Analysis;
@@ -5877,9 +5904,10 @@ class Profiler {
 	async #list_stored(
 		limit = 20
 	): Promise<{ id: string; label: string; page?: string; created: number }[]> {
-		if (!this.#store) return [];
+		const store = await this.#store_ready();
+		if (!store) return [];
 		try {
-			const rows = await this.#store.listReports(limit);
+			const rows = await store.listReports(limit);
 			return rows.map((r) => ({
 				id: r.id,
 				label: r.label,
