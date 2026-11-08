@@ -7,6 +7,7 @@
  * the Kit dictionary live in internal/notes/router-v2.md.
  */
 import type { Component } from 'svelte';
+import { flights, STALE, type Flights } from '@ogygia/machine';
 import type { RouteConfig } from '@ogygia/core/plugin';
 import type { Ctx } from './ctx.ts';
 import type { Params } from './view.ts';
@@ -62,11 +63,17 @@ export interface LoadDef<
 	readonly run: (c: Ctx) => Data | Promise<Data>;
 }
 
-/** Per-request memo store, hidden on ctx (keyed by the LoadDef). */
-type LoadMemo = Map<LoadDef, Promise<unknown>>;
+/** Per-request loads, hidden on ctx: one flight per LoadDef, kept for the request once it lands; a
+ *  failed one is not kept, so a later `await other_load(c)` in the same request runs it again. */
+type LoadIn = { def: LoadDef; run: (c: Ctx) => unknown; c: Ctx };
+type LoadMemo = Flights<LoadIn, unknown, LoadDef>;
 function memo_of(c: Ctx): LoadMemo {
 	const holder = c as { __ogloads?: LoadMemo };
-	return (holder.__ogloads ??= new Map());
+	return (holder.__ogloads ??= flights({
+		name: 'router load',
+		run: (i: LoadIn) => i.run(i.c),
+		key: (i) => i.def
+	}));
 }
 
 /** `load(fn)` / `load(pattern, fn)`. The returned function memoizes on `c` (run once per request);
@@ -86,15 +93,11 @@ export function load(
 ): LoadDef<unknown, string> {
 	const pattern = typeof a === 'string' ? a : undefined;
 	const run = (typeof a === 'string' ? b! : a) as (c: Ctx) => unknown;
-	const fn = ((c: Ctx) => {
-		const memo = memo_of(c);
-		let p = memo.get(fn as LoadDef);
-		if (!p) {
-			p = Promise.resolve(run(c));
-			memo.set(fn as LoadDef, p);
-		}
-		return p;
-	}) as LoadDef<unknown, string>;
+	const fn = ((c: Ctx) =>
+		// (nothing drops a request's loads, so this is never STALE; were it, it runs again)
+		memo_of(c)
+			.get({ def: fn as LoadDef, run, c })
+			.then((v) => (v === STALE ? fn(c) : v))) as LoadDef<unknown, string>;
 	(fn as { __ogload: boolean }).__ogload = true;
 	(fn as { pattern: string | undefined }).pattern = pattern;
 	(fn as { run: unknown }).run = run;

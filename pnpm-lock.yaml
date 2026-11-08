@@ -1529,6 +1529,10 @@ importers:
         version: link:../../../ogygia
 
   packages/router:
+    dependencies:
+      '@ogygia/machine':
+        specifier: workspace:^
+        version: link:../machine
     devDependencies:
       '@ogygia/config':
         specifier: workspace:*
