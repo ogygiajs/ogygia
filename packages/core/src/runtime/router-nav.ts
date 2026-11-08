@@ -412,7 +412,7 @@ function install_remote_mutation_cache_bust() {
 				if (REMOTE_MUTATION_PATH.test(href)) bust_page_cache();
 			}
 		} catch {
-			/* never break fetch */
+			// ok: the cache bust is a nicety; it never breaks the app's fetch
 		}
 		return res;
 	};
@@ -830,11 +830,11 @@ export async function navigate(
 		// A rapid follow-up navigation skips this transition; the browser then rejects `.ready`
 		// and `.finished` with "Transition was skipped". Nothing awaits those, so without a catch
 		// they surface as unhandled rejections (console noise, no functional effect). Swallow them.
-		t.ready?.catch(() => {});
+		t.ready?.catch(() => {}); // ok: a skipped transition (a rapid next navigation); nothing awaits it
 		// Restore folded names once the transition settles (resolve OR skip) — the next same-shell
 		// nav needs them back, and this doubles as the `.finished` rejection catch.
 		(t.finished ?? Promise.resolve()).then(restore_vt_names, restore_vt_names);
-		await t.updateCallbackDone.catch(() => {});
+		await t.updateCallbackDone.catch(() => {}); // ok: the swap's own failure is the swap's, said there; this only waits for it
 	} else {
 		swap();
 	}
@@ -937,11 +937,16 @@ export async function invalidate_all(): Promise<void> {
 		return;
 	}
 	if (soft.now !== mine) return;
-	if (html === undefined) return void soft.go('idle');
+	if (html === undefined) {
+		soft.go('idle');
+		return;
+	}
 
 	const doc = new DOMParser().parseFromString(html, 'text/html');
-	if (KitBoot.document_has(doc) || !doc.querySelector('meta[name="ogygia-router"]'))
-		return void soft.go('idle');
+	if (KitBoot.document_has(doc) || !doc.querySelector('meta[name="ogygia-router"]')) {
+		soft.go('idle');
+		return;
+	}
 	await devalue_for(doc);
 	if (soft.now !== mine) return;
 
@@ -1115,7 +1120,7 @@ function preload_stylesheets(
 		void Promise.all(pending).then(() => {
 			cancel();
 			resolve();
-		});
+		}); // ok: every pending sheet resolves, on load or on error
 	});
 }
 

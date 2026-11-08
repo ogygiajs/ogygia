@@ -871,7 +871,7 @@ class OgygiaHandle {
 						encodeURIComponent(JSON.stringify({ id: event.route.id, params: event.params }))
 					);
 				} catch {
-					/* an immutable response: the render keeps the endpoint's route and params */
+					// ok: an immutable response; the render keeps the endpoint's route and params
 				}
 				return res;
 			}
@@ -965,7 +965,7 @@ class OgygiaHandle {
 				try {
 					response.headers.append('vary', 'x-ogygia-spa');
 				} catch {
-					/* immutable headers — the app's platform wins */
+					// ok: immutable headers; the app's platform's headers win
 				}
 			// a browser that turned devtools on may sample its main thread (the JS Self-Profiling API needs
 			// the document to allow it): the CPU of a page load and of a recorded session. Its own pages only
@@ -985,7 +985,7 @@ class OgygiaHandle {
 							`og-route;desc=${JSON.stringify(event.route.id)}`
 						);
 				} catch {
-					// immutable headers
+					// ok: immutable headers; the timing header is left out
 				}
 			}
 			// PLUGINS, `response` stage (SEQUENTIAL): the page's response before it streams out — each
@@ -1577,7 +1577,7 @@ class OgygiaHandle {
 		const reader = source.getReader();
 		const encoder = new TextEncoder();
 		const owner = request.child();
-		owner.defer(() => void reader.cancel().catch(() => {}));
+		owner.defer(() => void reader.cancel().catch(() => {})); // ok: the request ended; a failed cancel of its source has nothing left to stop
 		const stream = new ReadableStream<Uint8Array>({
 			async start(controller) {
 				// 1. Forward Kit's document through `</body></html>` (one enqueue in practice). Kit streams
@@ -1596,7 +1596,7 @@ class OgygiaHandle {
 						carry = value.length >= 6 ? value.subarray(value.length - 6) : value;
 					}
 				} catch {
-					/* fall through — resolution streaming below still runs */
+					// ok: Kit's stream broke; the resolution streaming below still runs
 				}
 				// 2. Read + discard Kit's dead resolve tail so it never reaches the client and Kit's own
 				//    stream closes cleanly (best-effort, runs alongside our resolution streaming).
@@ -1607,9 +1607,9 @@ class OgygiaHandle {
 							if (done) break;
 						}
 					} catch {
-						/* ignore */
+						// ok: Kit's dead tail is discarded; a read that fails has nothing left to discard
 					}
-				})();
+				})(); // ok: never rejects, its body is caught
 				// 3. Our resolve script per promise, streamed as each settles; close once all have.
 				//    A promise may RESOLVE to a value that itself holds promises (Kit re-defers those
 				//    recursively). We mirror it: re-stage each settled value, stream the staged value
@@ -1625,7 +1625,7 @@ class OgygiaHandle {
 						try {
 							controller.close();
 						} catch {
-							/* already closed */
+							// ok: already closed (the visitor left), which is what this was for
 						}
 					}
 				};
@@ -1636,7 +1636,7 @@ class OgygiaHandle {
 							encoder.encode(resolve_script(PAGE_DEFER_GLOBAL, id, { ok, value }, reducers))
 						);
 					} catch {
-						/* client gone / stream already closed */
+						// ok: the client is gone and the stream closed; nobody reads this script
 					}
 				};
 				const stream_one = (id: number, promise: PromiseLike<unknown>) => {

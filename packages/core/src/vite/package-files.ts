@@ -70,7 +70,7 @@ export function discover_package_files(app_root: string): PackageScan[] {
 					try {
 						files.add(posix(fs.realpathSync(m)));
 					} catch {
-						/* dangling symlink — skip */
+						// ok: a dangling symlink is no file to list
 					}
 				}
 				continue;

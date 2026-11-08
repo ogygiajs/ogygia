@@ -798,7 +798,7 @@ export class Compiler {
 				try {
 					if (fs.statSync(base + ext).isFile()) return base + ext;
 				} catch {
-					/* not this ext */
+					// ok: not this extension; the next is tried
 				}
 			}
 			for (const ext of ISLAND_DEP_EXTS.slice(1)) {
@@ -806,7 +806,7 @@ export class Compiler {
 				try {
 					if (fs.statSync(idx).isFile()) return idx;
 				} catch {
-					/* not an index */
+					// ok: not an index; the next is tried
 				}
 			}
 			return null;
@@ -878,7 +878,7 @@ export class Compiler {
 			try {
 				if (fs.statSync(abs).isFile()) out.add(abs);
 			} catch {
-				/* a virtual id or a vanished file — not a crawl root */
+				// ok: a virtual id or a vanished file is not a crawl root
 			}
 		};
 		for (const entry of registry.values()) {

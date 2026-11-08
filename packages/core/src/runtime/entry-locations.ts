@@ -74,7 +74,7 @@ const BUILD_MAP_ATTR = 'data-og-locations';
 const build_map = flights({
 	name: 'build location map',
 	run: (url: string) =>
-		fetch(url)
+		fetch(url) // ok: a map that could not be read is not kept: the next load asks again, and loads keep their stable URLs meanwhile
 			.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
 			.catch(() => null)
 			.then((map) => {
@@ -154,7 +154,7 @@ export function island_entry_of(el: Element): string | null {
 const current_maps = flights({
 	name: 'current build map',
 	run: (file: string) =>
-		fetch(file, { cache: 'no-cache' })
+		fetch(file, { cache: 'no-cache' }) // ok: a map that could not be read is not kept: the next ask reads again
 			.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
 			.catch(() => null),
 	// (a map that could not be read is not kept: the next ask reads again)

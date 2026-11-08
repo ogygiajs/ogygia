@@ -51,7 +51,7 @@ const loads = flights({
 function load(path: string): Promise<unknown> {
 	if (!loaders[path]) return Promise.resolve();
 	// (a failed load resolves for this wake: its decode then says which class is missing)
-	return loads.get(path).catch(() => undefined);
+	return loads.get(path).catch(() => undefined); // ok: its decode then says which class is missing
 }
 
 /** The classes a text names (`"<tag path>#…` appears in it), into `want`. */

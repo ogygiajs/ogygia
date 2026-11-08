@@ -76,10 +76,8 @@ export async function collect_remote_seed(
 					(v) => {
 						if (resolved && !opts.skip_value?.(v)) data[bucket][remote_key] = { v };
 					},
-					() => {
-						/* errored/pending remotes are omitted → the client fetches them itself */
-					}
-				),
+					() => {}
+				), // ok: an errored remote is left out of the seed; the client fetches it itself and sees its error
 				Promise.resolve().then(() => {
 					resolved = false;
 				})

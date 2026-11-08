@@ -20,6 +20,7 @@ import { SEED_REF_KEY, seed_ref_reviver } from '../seed-ref-reviver.ts';
 import { parse_sidecar_text } from './wire-format.ts';
 import { is_deferred, ours_on_kit_document, region_ssr_truncated } from './region-attrs.ts';
 import { boot_link, slots, type LiftedLake } from './slots.ts';
+import { report_thrown } from '../report-thrown.ts';
 import { keep_host_classes, note_host_classes } from './host-classes.ts';
 import { install as install_hydrate_features } from 'virtual:ogygia/hydrate-features';
 import { emit as dt_emit } from '../events/bus.ts';
@@ -595,7 +596,7 @@ const prop_guard = {
 };
 
 /** Svelte's `unmount`, typed for the opaque app this module hands around. */
-const unmount_app = (app: unknown) => void unmount(app as Record<string, unknown>);
+const unmount_app = (app: unknown) => void unmount(app as Record<string, unknown>); // ok: unmount's promise is its outros ending; it never rejects
 
 /** A handle over a mounted Svelte app: dispose unmounts, `set_props` pushes into its pushable props. */
 function handle(
@@ -608,8 +609,9 @@ function handle(
 		dispose() {
 			try {
 				dispose_with(app);
-			} catch {
-				/* noop */
+			} catch (error) {
+				// (the island goes either way; an onDestroy of its that threw is the app's, and said)
+				report_thrown(error);
 			}
 		}
 	};

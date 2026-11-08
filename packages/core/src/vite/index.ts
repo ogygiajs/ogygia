@@ -430,7 +430,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			try {
 				fs.rmSync(keep_client_dir(r), { recursive: true, force: true });
 			} catch {
-				/* best-effort; gitignored + self-healed next run */
+				// ok: best effort; the folder is gitignored and cleaned on the next run
 			}
 		});
 	};
@@ -692,7 +692,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						const v = JSON.parse(app_dir_define);
 						if (typeof v === 'string' && v) app_dir = v;
 					} catch {
-						/* non-JSON define → keep the `_app` default */
+						// ok: a define that is not JSON keeps the `_app` default
 					}
 				}
 				// Normalize resolve.alias (array or object form) to `{ find, replacement }[]` for bake().
@@ -890,7 +890,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							fs.readFileSync(ssr_hosts_handoff_path(kit_dirs(root).out_dir), 'utf8')
 						);
 					} catch {
-						/* no server-leg handoff (standalone / client-only build) */
+						// ok: no server-leg handoff (a standalone or client-only build)
 					}
 					const skipped = compiler.emit_build_chunks((chunk) => this.emitFile(chunk), {
 						emitRuntime: emit_runtime,
@@ -1343,8 +1343,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 								this.emitFile({ type: 'asset', name: 'og-content.css', source: css })
 							);
 					} catch {
-						/* a content file whose CSS can't be extracted just goes unstyled — the fix must never
-						   break a build. */
+						// ok: a content file whose CSS cannot be extracted goes unstyled; the fix never breaks a build
 					}
 				}
 			},
@@ -1361,7 +1360,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					try {
 						fill_profiler_maps(dir, bundle, root);
 					} catch {
-						/* the profiler then reads the files beside the chunks, where they exist */
+						// ok: the profiler then reads the files beside the chunks, where they exist
 					}
 				}
 			},
@@ -1376,7 +1375,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					try {
 						write_module_map(_options.dir, bundle as Record<string, unknown>, root);
 					} catch {
-						/* a module map is a nicety: never fail the build over it */
+						// ok: a module map is a nicety; the build never fails over it
 					}
 					// ...and the same, with every chunk's sourcemap, written INTO the profiler's maps module:
 					// the one copy that survives any adapter (vite/profiler-maps.ts) — in closeBundle
@@ -1408,7 +1407,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						);
 						console.log(line('flags_manifest_written', { count: manifest.names.length }));
 					} catch {
-						/* a read-only FS must never fail the build over an inventory */
+						// ok: a read-only file system never fails the build over an inventory
 					}
 				}
 
@@ -1476,7 +1475,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						const file = this.getFileName(ref);
 						map.css[key] = [file.startsWith('/') ? file : '/' + file];
 					} catch {
-						/* asset dropped — skip; the page just goes unstyled rather than 404 a link */
+						// ok: an asset the bundle dropped: the page goes unstyled rather than link a 404
 					}
 				}
 
@@ -1489,7 +1488,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						const key = compiler.island_public_url(iid);
 						(map.css[key] ??= []).push(file.startsWith('/') ? file : '/' + file);
 					} catch {
-						/* asset dropped — the hole just goes unstyled rather than 404 a link */
+						// ok: an asset the bundle dropped: the hole goes unstyled rather than link a 404
 					}
 				}
 
@@ -1504,7 +1503,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						const file = this.getFileName(ref);
 						content_css[key] = [file.startsWith('/') ? file : '/' + file];
 					} catch {
-						/* asset dropped — skip; the body just goes unstyled rather than 404 a link */
+						// ok: an asset the bundle dropped: the body goes unstyled rather than link a 404
 					}
 				}
 

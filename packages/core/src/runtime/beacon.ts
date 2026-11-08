@@ -507,7 +507,7 @@ export function hole_request_times(
 			...(render !== undefined ? { render } : {})
 		};
 	} catch {
-		/* no Resource Timing */
+		// ok: no Resource Timing in this browser: no timing for it
 	}
 	return null;
 }
@@ -553,7 +553,7 @@ export function beacon_hole_fetched(endpoint: string): void {
 		const url = new URL(endpoint, location.href).href;
 		hole_fetches.set(url, (hole_fetches.get(url) ?? 0) + 1);
 	} catch {
-		/* not a URL */
+		// ok: not a URL, so not a file the page loaded
 	}
 }
 let holes_answered_els = new WeakSet<Element>();
@@ -727,7 +727,7 @@ function observe_vitals(): void {
 			| undefined;
 		if (nav && nav.responseStart > 0) v.ttfb = r2(nav.responseStart);
 	} catch {
-		// no navigation timing
+		// ok: no navigation timing in this browser: no TTFB
 	}
 	const observe = (type: string, cb: (entries: PerformanceEntryList) => void) => {
 		try {
@@ -741,7 +741,7 @@ function observe_vitals(): void {
 				...(type === 'event' ? { durationThreshold: 16 } : {})
 			} as PerformanceObserverInit);
 		} catch {
-			// unsupported entry type
+			// ok: an entry type this browser does not have: its numbers are left out
 		}
 	};
 	observe('paint', (entries) => {
@@ -753,7 +753,7 @@ function observe_vitals(): void {
 	try {
 		performance.setResourceTimingBufferSize(MAX_SEEN_RESOURCES);
 	} catch {
-		// unsupported
+		// ok: a browser that cannot grow the buffer keeps its default
 	}
 	observe('resource', (entries) => {
 		for (const e of entries)
@@ -785,7 +785,7 @@ function observe_vitals(): void {
 	try {
 		if (PerformanceObserver.supportedEntryTypes?.includes('layout-shift')) v.cls = 0;
 	} catch {
-		// no entry-type list
+		// ok: no entry-type list: CLS stays unknown
 	}
 	observe('layout-shift', (entries) => {
 		for (const e of entries as (PerformanceEntry & {
@@ -972,7 +972,7 @@ function observe_vitals(): void {
 			// oxlint-disable-next-line ogygia/owned-effects -- the document's recent input, watched once with the vitals (`vitals`), as long as the document
 			document.addEventListener(type, note_input(type), { capture: true, passive: true });
 	} catch {
-		// no document
+		// ok: no document: no input to watch
 	}
 	// the first interaction inside each island: capture phase, one entry per fingerprint
 	const seen = new Set<string>();
@@ -1004,7 +1004,7 @@ function observe_vitals(): void {
 			{ capture: true, passive: true }
 		);
 	} catch {
-		// no document
+		// ok: no document: no input to watch
 	}
 }
 
@@ -1027,7 +1027,7 @@ function hold_keepalive(bytes: number, settled?: Promise<unknown>): void {
 	const release = () => {
 		keepalive_queued = Math.max(0, keepalive_queued - bytes);
 	};
-	if (settled) void settled.finally(release);
+	if (settled) void settled.finally(release); // ok: settled never rejects (its catch is the post's)
 	// oxlint-disable-next-line ogygia/owned-effects -- a one-shot release of the document's keepalive budget, at the next task: it ends itself
 	else setTimeout(release, BEACON_HOLD_MS);
 }
@@ -1051,12 +1051,10 @@ function send(body: string, slim?: () => string): void {
 				keepalive,
 				credentials: 'same-origin',
 				headers: { 'content-type': 'text/plain' }
-			}).catch(() => {
-				// best-effort: a dropped beacon is a missing measurement, never a page error
-			});
+			}).catch(() => {}); // ok: a dropped beacon is a missing measurement, never a page error
 			if (keepalive) hold_keepalive(b.length, settled);
 		} catch {
-			// no fetch
+			// ok: no fetch in this browser: no beacon
 		}
 	};
 	// (what is left of the 64 KB the page's queued keepalive requests share)
@@ -1081,7 +1079,7 @@ function send(body: string, slim?: () => string): void {
 			return;
 		}
 	} catch {
-		// fall through to fetch
+		// ok: no sendBeacon; the fetch below sends it
 	}
 	post(body, true);
 }
@@ -1197,7 +1195,7 @@ function font_faces_of(
 					const url = new URL(raw, sheet.href ?? location.href).href.slice(0, 500);
 					if (fetched.has(url)) urls.push(url);
 				} catch {
-					/* not a URL */
+					// ok: not a URL, so not a file the page loaded
 				}
 				at = src.indexOf('url(', end);
 			}
@@ -1312,7 +1310,7 @@ function preloads_never_used(
 								).href
 							);
 						} catch {
-							/* not a URL */
+							// ok: not a URL, so not a file the page loaded
 						}
 						at = src.indexOf('url(', end);
 					}
@@ -1528,7 +1526,7 @@ function build_visit_now(): Record<string, unknown> | null {
 			link_co.set(l.href, l.getAttribute('crossorigin'));
 		}
 	} catch {
-		/* no document */
+		// ok: no document: nothing of it to read
 	}
 	const preload_misses: {
 		url: string;
@@ -1653,7 +1651,7 @@ function build_visit_now(): Record<string, unknown> | null {
 					...(hole ? { hole: hole.slice(0, 40) } : {})
 				});
 			} catch {
-				/* not a URL */
+				// ok: not a URL, so not a file the page loaded
 			}
 		}
 		const runtime_src =
@@ -1732,7 +1730,7 @@ function build_visit_now(): Record<string, unknown> | null {
 			new Set(resources.filter((r) => r.type === 'font').map((r) => r.url as string))
 		);
 	} catch {
-		/* no stylesheets to read */
+		// ok: no stylesheets to read: no fonts
 	}
 	let oversized: ReturnType<typeof oversized_images> = [];
 	let dom: DomShape | null = null;
@@ -1746,7 +1744,7 @@ function build_visit_now(): Record<string, unknown> | null {
 		dom = dom_shape();
 		wasted = preloads_never_used(nav.loadEventEnd);
 	} catch {
-		/* no document */
+		// ok: no document: nothing of it to read
 	}
 	return {
 		at: Math.round(performance.timeOrigin),
@@ -1910,7 +1908,7 @@ function flush_visit(final: boolean): void {
 		at: visit.at as number,
 		visit,
 		snapshots
-	});
+	}); // ok: never rejects (a browser store it cannot open keeps nothing)
 }
 
 // THE BROWSER STORE: the same IndexedDB the profiler UI reads (`ui/store.ts` — one schema, two
@@ -1990,7 +1988,7 @@ async function store_visit(rec: {
 			};
 		};
 	} catch {
-		// best effort
+		// ok: no IndexedDB here: the visit is not kept in this browser
 	}
 }
 
@@ -2350,7 +2348,7 @@ function visit_regions(): Record<string, unknown>[] {
 			});
 		}
 	} catch {
-		// best effort
+		// ok: a document this cannot read: the regions are left out of the visit
 	}
 	return out;
 }
@@ -2385,7 +2383,7 @@ function start_cpu(): void {
 		if ((now - last < CPU_QUIET_MS || waiting) && now - cpu_started_at < CPU_WINDOW_MAX_MS)
 			// oxlint-disable-next-line ogygia/owned-effects -- the document's load trace, once (`cpu`): its check ends itself at the cap
 			setTimeout(check, CPU_QUIET_MS);
-		else void flush_cpu(false);
+		else void flush_cpu(false); // ok: never rejects (a sampler that cannot stop has no trace)
 	};
 	// oxlint-disable-next-line ogygia/owned-effects -- the document's load trace, once (`cpu`): its check ends itself at the cap
 	setTimeout(check, CPU_WINDOW_MS);
@@ -2424,12 +2422,10 @@ async function flush_cpu(hiding: boolean): Promise<void> {
 			credentials: 'same-origin',
 			headers: { 'content-type': 'text/plain' },
 			...(keepalive ? { keepalive: true } : {})
-		}).catch(() => {
-			// best effort
-		});
+		}).catch(() => {}); // ok: a dropped beacon is a missing measurement, never a page error
 		if (keepalive) hold_keepalive(body.length, settled);
 	} catch {
-		// no fetch
+		// ok: no fetch in this browser: no beacon
 	}
 }
 
@@ -2453,7 +2449,7 @@ function start_interaction_cpu(): void {
 	icpu = make_profiler();
 	if (!icpu) return;
 	// oxlint-disable-next-line ogygia/owned-effects -- the document's one interaction trace (`icpu_done`): its cap, cleared as it stops
-	icpu_timer = setTimeout(() => void stop_interaction_cpu(false), ICPU_MAX_MS);
+	icpu_timer = setTimeout(() => void stop_interaction_cpu(false), ICPU_MAX_MS); // ok: never rejects (a sampler that cannot stop has no trace)
 }
 
 /** the event observer saw a new slowest interaction: a slow one ends the sampling shortly after */
@@ -2468,7 +2464,7 @@ function interaction_seen(i: Interaction): void {
 	if (icpu_timer) clearTimeout(icpu_timer);
 	// (a moment for the rest of its entries and its paint; the trace then holds all of it)
 	// oxlint-disable-next-line ogygia/owned-effects -- the document's one interaction trace (`icpu_done`): its end, cleared as it stops
-	icpu_timer = setTimeout(() => void stop_interaction_cpu(false), 300);
+	icpu_timer = setTimeout(() => void stop_interaction_cpu(false), 300); // ok: never rejects (a sampler that cannot stop has no trace)
 }
 
 async function stop_interaction_cpu(hiding: boolean): Promise<void> {
@@ -2513,12 +2509,10 @@ async function stop_interaction_cpu(hiding: boolean): Promise<void> {
 			credentials: 'same-origin',
 			headers: { 'content-type': 'text/plain' },
 			...(keepalive ? { keepalive: true } : {})
-		}).catch(() => {
-			// best effort
-		});
+		}).catch(() => {}); // ok: a dropped beacon is a missing measurement, never a page error
 		if (keepalive) hold_keepalive(body.length, settled);
 	} catch {
-		// no fetch
+		// ok: no fetch in this browser: no beacon
 	}
 }
 
@@ -2643,7 +2637,7 @@ function send_after_preload_check(): void {
 			// oxlint-disable-next-line ogygia/owned-effects -- once per document (`early_visit_done`): the document's load (`once`), then a one-shot whose re-send is the visit's own
 		} else addEventListener('load', () => setTimeout(resend_soon, 1700), { once: true });
 	} catch {
-		/* no document */
+		// ok: no document: nothing of it to read
 	}
 }
 
@@ -2666,8 +2660,8 @@ function on_hide(): void {
 	} finally {
 		leaving = false;
 	}
-	void flush_cpu(true);
-	void stop_interaction_cpu(true);
+	void flush_cpu(true); // ok: never rejects (a sampler that cannot stop has no trace)
+	void stop_interaction_cpu(true); // ok: never rejects (a sampler that cannot stop has no trace)
 }
 
 /** the page is shown again (back to its tab, or restored from the back/forward cache): the visit

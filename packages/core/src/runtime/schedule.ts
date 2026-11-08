@@ -116,7 +116,7 @@ function post_background(fn: () => void): void {
 			s.postTask(fn, { priority: 'background' });
 			return;
 		} catch {
-			/* an invalid-priority throw (older postTask) → fall back */
+			// ok: an invalid-priority throw (an older postTask); the fallback below runs it
 		}
 	}
 	// oxlint-disable-next-line ogygia/owned-effects -- the process's one background drain (`background_armed`), one task: it ends itself, and a start queued in it belongs to whoever queued it

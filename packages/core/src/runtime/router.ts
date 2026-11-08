@@ -129,7 +129,7 @@ function hash_target_exists(hash: string): boolean {
 	try {
 		dec = decodeURIComponent(raw);
 	} catch {
-		/* keep raw */
+		// ok: not percent-encoded: the raw hash is the id
 	}
 	if (raw === 'top' || dec === 'top') return true;
 	return !!(
@@ -363,7 +363,7 @@ export class SpaRouter {
 		return nav().then(
 			(n) => (n === STALE ? null : n.fetch_page(href, signal, purpose)),
 			() => null
-		);
+		); // ok: the navigation chunk did not load: no page fetched, so the browser navigates (the chunk's load says its failure)
 	}
 
 	async navigate(

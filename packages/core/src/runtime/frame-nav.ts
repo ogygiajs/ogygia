@@ -163,7 +163,7 @@ export async function streamFrames(
 	// The batch's own owner, under its page's visit: closed at its end, whichever (the request and
 	// its body stop; the reservations are released below)
 	const batch_scope = visit.child();
-	void stream.wait('stalled').then((s) => s !== STALE && batch_scope.close());
+	void stream.wait('stalled').then((s) => s !== STALE && batch_scope.close()); // ok: a machine's wait never rejects
 
 	try {
 		let res: Response | typeof STALE;
@@ -188,12 +188,12 @@ export async function streamFrames(
 			final_url = res.url;
 		}
 		if (!res.ok || !res.body) {
-			void res.body?.cancel().catch(() => {});
+			void res.body?.cancel().catch(() => {}); // ok: an answer not read; its cancel failing has nothing to stop
 			return;
 		}
 
 		const reader = res.body.getReader();
-		batch_scope.defer(() => void reader.cancel().catch(() => {}));
+		batch_scope.defer(() => void reader.cancel().catch(() => {})); // ok: the batch ended; a failed cancel has nothing left to stop
 		const decoder = new TextDecoder();
 		let buffer = '';
 		let parcels = false;
@@ -317,7 +317,7 @@ export function join_batch(endpoint: string): Promise<void> {
 				// (reserve happens synchronously inside streamFrames, before this resolves)
 				if (fresh.length >= 2)
 					for (let i = 0; i < fresh.length; i += MAX_BATCH)
-						void streamFrames(fresh.slice(i, i + MAX_BATCH), 'page');
+						void streamFrames(fresh.slice(i, i + MAX_BATCH), 'page'); // ok: a batch says its own failure, and its holes fall back to their own fetch
 				resolve();
 			})
 		);

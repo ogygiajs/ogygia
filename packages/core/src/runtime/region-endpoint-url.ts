@@ -123,7 +123,7 @@ export function deny_of(res: Response, endpoint: string): string {
 	try {
 		minted = new URL(endpoint, location.href).searchParams.get('k') ?? '';
 	} catch {
-		/* the endpoint parsed to be fetched */
+		// ok: the endpoint parsed to be fetched; the diagnosis goes without its key otherwise
 	}
 	return `foreign-key: signed by ${minted || '?'}, answered by ${res.headers.get('x-ogygia-key') ?? '?'}`;
 }
@@ -210,7 +210,7 @@ export function warm_island_module(
 				warmed_modules.delete(key);
 			})
 			.finally(release);
-	});
+	}); // ok: the import's failure is caught inside (a warm that failed leaves a fresh URL to ask)
 }
 
 /** Has this island module already been warmed (or imported through the warmer)? `entry` resolves

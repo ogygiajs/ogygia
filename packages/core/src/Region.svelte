@@ -407,7 +407,7 @@
 					entry === '?' ? '' : entry
 				);
 			} catch {
-				/* isolated render without a live page — the recorder is unset there anyway */
+				// ok: an isolated render without a live page; the recorder is unset there anyway
 			}
 		});
 	}
@@ -747,7 +747,7 @@
 				props: { children: ogygiaFallback },
 				context: region_contexts
 			});
-			return () => void unmount(app);
+			return () => void unmount(app); // ok: unmount's promise is its outros ending; it never rejects
 		}
 	);
 	// A hole NESTED in an island renders in the page pass (`deferred` ignored, the nested rule) — as a
@@ -1076,7 +1076,7 @@
 					});
 				}
 			} catch {
-				/* devtools emit must never break a render */
+				// ok: a devtools emit never breaks a render; the event is left out of the timeline
 			}
 		});
 	}

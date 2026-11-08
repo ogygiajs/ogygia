@@ -65,7 +65,7 @@ function preference_switch(): string {
 			try {
 				localStorage.setItem('og-pref-' + name, val);
 			} catch {
-				/* private mode — the attr still updates for this session */
+				// ok: private mode; the attribute still updates for this session
 			}
 			document.documentElement.setAttribute('data-pref-' + name, val);
 		});
@@ -113,7 +113,7 @@ function preference_impl(spec: PreferenceSpec): Preference {
 			try {
 				localStorage.setItem(KEY(name), v);
 			} catch {
-				/* private mode — the attr still updates for this session */
+				// ok: private mode; the attribute still updates for this session
 			}
 			document.documentElement.setAttribute(attr, v);
 		},

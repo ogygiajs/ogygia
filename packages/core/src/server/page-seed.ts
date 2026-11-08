@@ -55,7 +55,7 @@ export class PageSeed {
 				try {
 					return { text: escape_script_text(JSON.stringify(full)), json: true };
 				} catch {
-					/* the analysis was wrong about a leaf — devalue below is the safe lane */
+					// ok: the analysis was wrong about a leaf; devalue below is the safe lane
 				}
 			}
 			let raw: string;
@@ -70,7 +70,7 @@ export class PageSeed {
 						stringify_fn(full[key]);
 						safe[key] = full[key];
 					} catch {
-						/* drop just this field */
+						// ok: this field cannot cross, so just it is dropped
 					}
 				}
 				raw = stringify_fn(safe);

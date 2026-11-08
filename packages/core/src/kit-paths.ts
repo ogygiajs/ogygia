@@ -35,7 +35,7 @@ export function kit_asset(file: string): string {
 				return out;
 			}
 		} catch {
-			/* Kit 2 in dev: refused */
+			// ok: Kit 2 in dev refuses it; the fallback below answers
 		}
 		wants_slash = true;
 	}

@@ -60,7 +60,7 @@ export function page_url_of(event: RequestEvent): URL {
 		const page = new URL(referer);
 		if (page.origin === event.url.origin) return page;
 	} catch {
-		/* malformed referer: the request's own */
+		// ok: a malformed referer: the request's own URL
 	}
 	return event.url;
 }
@@ -214,7 +214,7 @@ export function render_page_version(
 		try {
 			v = fnv1a(JSON.stringify(data));
 		} catch {
-			/* a value JSON cannot write (a cycle, a bigint): no version, the address is the call alone */
+			// ok: a value JSON cannot write (a cycle, a bigint): no version, the address is the call alone
 		}
 	}
 	// (no data yet — a hole minted before the page recorded its snapshot — is not remembered)

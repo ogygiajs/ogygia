@@ -209,7 +209,9 @@ function on_warm_event(e: Event): void {
 	if (!a || a.warmed) return;
 	a.warmed = true;
 	a.warm();
-	void replay(); // the pointer is reaching for an island: the replay half, ahead of its press
+	// the pointer is reaching for an island: the replay half, ahead of its press (a warm: a download
+	// that fails is asked for again by the press, which says its failure)
+	replay().catch(() => {}); // ok: a warm ahead; the press loads it again and says a failure
 }
 
 function install_listeners(): void {

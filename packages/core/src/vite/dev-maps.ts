@@ -99,7 +99,7 @@ export function install_dev_page_keys(
 			for (const p of a.pending) {
 				const resolved = await server.pluginContainer
 					.resolveId(p.specifier, f, { ssr: true })
-					.catch(() => null);
+					.catch(() => null); // ok: dev only: a helper that does not resolve is not followed (one level only, as the build)
 				const target = resolved?.id?.split('?')[0];
 				const tcode = target && app_file(target) ? read(target) : undefined;
 				const s = tcode

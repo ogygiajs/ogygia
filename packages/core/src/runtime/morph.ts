@@ -896,7 +896,7 @@ function carry_shadows(src: Element, dst: Element): void {
 		try {
 			if (root.adoptedStyleSheets.length) copy.adoptedStyleSheets = [...root.adoptedStyleSheets];
 		} catch {
-			// sheets made for another document: the restorer's pending list covers ours
+			// ok: sheets made for another document; the restorer's pending list covers ours
 		}
 		const pending = (root as ShadowRoot & { __og_pending?: CSSStyleSheet[] }).__og_pending;
 		if (pending) {

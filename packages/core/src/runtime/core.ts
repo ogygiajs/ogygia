@@ -202,7 +202,7 @@ function absorb_page_facts_now(): void {
 		void load_devalue().then(
 			() => loaded_core?.seed_page_once(),
 			() => {}
-		);
+		); // ok: devalue's download failed: the facts stay queued, and the next wake's load absorbs them (and says a failure)
 }
 
 /** devalue, when this wake's reads need it (./devalue-lane.ts): a devalue-lane script in the
@@ -287,7 +287,7 @@ async function recover_from_stale_deps(entry: string | null): Promise<void> {
 		sessionStorage.setItem(STALE_DEP_RELOAD_KEY, String(Date.now()));
 		location.reload();
 	} catch {
-		/* storage blocked / fetch blocked — the dev sees the error and reloads by hand */
+		// ok: dev only: storage or fetch blocked; the error said before this stays, and the dev reloads by hand
 	}
 }
 
@@ -377,7 +377,7 @@ export function region_fragment(html: string): { frag: DocumentFragment; ready: 
 				import(/* @vite-ignore */ url).then(
 					() => undefined,
 					() => undefined
-				)
+				) // ok: a stylesheet wait only: the swap goes on, and the region's own import says a failure
 			);
 		}
 	} else if (links.length) {
@@ -467,7 +467,7 @@ export function region_fragment(html: string): { frag: DocumentFragment; ready: 
 							void Promise.all(pending).then(() => {
 								cancel();
 								resolve();
-							});
+							}); // ok: every pending import above resolves, failed or not
 						})
 				)
 				.then(() => undefined)
@@ -607,7 +607,7 @@ class OgygiaRegion extends HTMLElement {
 		try {
 			this.#app.set_props(loaded_core.read_region_props(next));
 		} catch {
-			/* malformed incoming props — keep the current live props */
+			// ok: malformed incoming props: the live props it has are kept
 		}
 	}
 
@@ -791,7 +791,7 @@ class OgygiaRegion extends HTMLElement {
 		// a warm ahead of the hole's own schedule: background work (load-scheduler.ts)
 		void slots.frames
 			?.ensure(address, this.#frame_fetcher(endpoint, false, 'ahead'))
-			?.catch(() => {});
+			?.catch(() => {}); // ok: a warm ahead; the hole's own fetch asks again and says its failure
 	}
 
 	/**
@@ -853,7 +853,7 @@ class OgygiaRegion extends HTMLElement {
 			media: (when: string, fire: () => void) => {
 				if (this.#hole_armed()) this.#on_media(when, fire, this.#hole);
 			},
-			fetch_revalidate: () => void this.#fetch_html(true),
+			fetch_revalidate: () => void this.#fetch_html(true), // ok: a fetch says its own failure (region_fetch_failed)
 			wake_children: () => this.#wake_waiting_regions()
 		};
 	}
@@ -1008,7 +1008,7 @@ class OgygiaRegion extends HTMLElement {
 		binding.defer(() => {
 			if (this.#binding === binding) this.#frame_address = null;
 		});
-		const off = slots.frames?.subscribe(address, (f) => void this.#apply(f.html));
+		const off = slots.frames?.subscribe(address, (f) => void this.#apply(f.html)); // ok: a paint of HTML in hand; its own failures are said where they happen
 		if (off) binding.defer(off);
 		return address;
 	}
@@ -1234,7 +1234,7 @@ class OgygiaRegion extends HTMLElement {
 		if (!this.#frame_address || !is_deferred(this)) return;
 		const endpoint = this.getAttribute('endpoint');
 		if (!endpoint || frameAddress(endpoint) === this.#frame_address) return;
-		void this.#fetch_html(true);
+		void this.#fetch_html(true); // ok: a fetch says its own failure (region_fetch_failed)
 	}
 
 	/**
@@ -1358,7 +1358,7 @@ class OgygiaRegion extends HTMLElement {
 				id = new URL(endpoint, location.href).searchParams.get('id') ?? '';
 				if (refused) final_path = new URL(err.final_url, location.href).pathname;
 			} catch {
-				/* an endpoint URL cannot fail to parse here; stay quiet if it does */
+				// ok: an endpoint URL that was fetched parses; the message goes without its id if not
 			}
 			if (BEACON && id)
 				beacon_hole_failed({
@@ -1409,7 +1409,7 @@ class OgygiaRegion extends HTMLElement {
 				() => new Promise<void>((resolve) => retrying.timeout(resolve, 500 * attempts))
 			);
 			if (waited === STALE || !this.isConnected) return;
-			if (revalidate) void this.#fetch_html(true);
+			if (revalidate) void this.#fetch_html(true); // ok: a fetch says its own failure (region_fetch_failed)
 			else this.connectedCallback();
 			return;
 		}
@@ -1432,7 +1432,10 @@ class OgygiaRegion extends HTMLElement {
 	#on_idle(fire: () => unknown, owner: Leaves) {
 		const s = owner.scope;
 		// (no idle time in this browser: a short pause stands in for it)
-		if (!('requestIdleCallback' in window)) return void s.timeout(() => fire(), 200);
+		if (!('requestIdleCallback' in window)) {
+			s.timeout(() => fire(), 200);
+			return;
+		}
 		// idle time, or 2 s at the latest: whichever comes first fires, once
 		const first = () => {
 			off_idle();
@@ -1446,13 +1449,13 @@ class OgygiaRegion extends HTMLElement {
 	/** `visible`: the shared observer for this margin (observe.ts) — fires once, on first entry. */
 	#on_visible(fire: () => unknown, root_margin: string | undefined, owner: Leaves) {
 		const rootMargin = root_margin || this.getAttribute('margin') || '0px';
-		owner.scope.defer(once_visible(this, rootMargin, () => void fire()));
+		owner.scope.defer(once_visible(this, rootMargin, () => void fire())); // ok: a wake; its hydrate says its own failure
 	}
 
 	#on_media(q: string, fire: () => unknown, owner: Leaves) {
-		if (!q) return void fire();
+		if (!q) return void fire(); // ok: a wake; its hydrate says its own failure
 		const mql = matchMedia(q);
-		if (mql.matches) return void fire();
+		if (mql.matches) return void fire(); // ok: a wake; its hydrate says its own failure
 		const off = owner.scope.on(mql, 'change', (e) => {
 			if (!e.matches) return;
 			off();
@@ -1533,7 +1536,7 @@ class OgygiaRegion extends HTMLElement {
 			let visitor: Promise<unknown> | null;
 			do {
 				visitor = this.#visitor;
-				if (visitor) await visitor.catch(() => {}); // (a replay that failed says so itself)
+				if (visitor) await visitor.catch(() => {}); // ok: a replay that failed says so itself
 				if (gone()) return;
 				await hydrate_turn(this);
 				if (gone() || this.#app) return;
@@ -1599,7 +1602,7 @@ class OgygiaRegion extends HTMLElement {
 			if (ENTRY_FETCH_FAILED_RE.test(msg)) {
 				if (import.meta.env.DEV) {
 					console.error(new OgygiaError('island_load_failed_stale_deps', { entry }), err);
-					void recover_from_stale_deps(entry);
+					void recover_from_stale_deps(entry); // ok: dev only, never rejects (its failure leaves the error above)
 				} else {
 					console.error(new OgygiaError('island_load_failed', { entry }), err);
 				}
@@ -1663,7 +1666,7 @@ class OgygiaRegion extends HTMLElement {
 			if (desc.url && !this.#live_unsub) {
 				const off = slots.frames?.subscribe(
 					frameAddress(desc.url),
-					(f) => void this.#morph_live(f.html)
+					(f) => void this.#morph_live(f.html) // ok: a paint of HTML in hand; its own failures are said where they happen
 				);
 				if (off) {
 					this.#live_unsub = off;
@@ -1673,7 +1676,7 @@ class OgygiaRegion extends HTMLElement {
 					});
 				}
 			}
-			void this.#morph_live(desc.html);
+			void this.#morph_live(desc.html); // ok: a paint of HTML in hand; its own failures are said where they happen
 			return;
 		}
 
@@ -1866,9 +1869,9 @@ function apply_dev_head_region_css(): void {
 			const url = island_module_url(href);
 			if (seen.has(url)) continue;
 			seen.add(url);
-			void import(/* @vite-ignore */ url).catch(() => {});
+			void import(/* @vite-ignore */ url).catch(() => {}); // ok: dev only: a region's own import says a failure; this one only styles early
 		}
-	});
+	}); // ok: dom_ready never rejects, and the work in it catches
 }
 
 export function boot(

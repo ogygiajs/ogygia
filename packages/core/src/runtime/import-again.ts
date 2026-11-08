@@ -112,7 +112,7 @@ export function import_again<T>(
 		run.then(
 			() => (loaded = run),
 			() => {}
-		);
+		); // ok: the failure is the caller's: `run` itself is returned and rejects to it
 		return run;
 	};
 }

@@ -187,7 +187,7 @@ export function reserve(a: string): void {
 	const batch = new Promise<string>((settle, fail) => {
 		e.batch = { settle, fail };
 	});
-	batch.catch(() => {}); // a part no flight waits on (a forced fetch took its place) is not unhandled
+	batch.catch(() => {}); // ok: a part no flight waits on (a forced fetch took its place) is not unhandled
 	const settled = () => schedule_evict(a, e);
 	frame_flights().get({ a, batch }).then(settled, settled);
 }

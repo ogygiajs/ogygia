@@ -40,7 +40,7 @@ function restore_fields(region: Element, fields: FieldSnapshot[]) {
 					f.setSelectionRange(selectionStart, selectionEnd);
 				}
 			} catch {
-				// non-text input types reject selection access
+				// ok: non-text input types reject selection access; there is no selection to carry
 			}
 			f.dispatchEvent(new Event('input', { bubbles: true }));
 			f.dispatchEvent(new Event('change', { bubbles: true }));

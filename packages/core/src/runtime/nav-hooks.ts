@@ -18,7 +18,7 @@ export function bind_to_component(off: () => void): () => void {
 	try {
 		onDestroy(off);
 	} catch {
-		/* not inside a component — the caller owns the unsubscribe */
+		// ok: not inside a component; the caller owns the unsubscribe it was handed
 	}
 	return off;
 }

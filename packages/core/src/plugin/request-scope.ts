@@ -126,7 +126,7 @@ export function own_response(owner: Scope, response: Response, request: Request)
 		return response;
 	}
 	const reader = body.getReader();
-	owner.defer(() => void reader.cancel().catch(noop));
+	owner.defer(() => void reader.cancel().catch(noop)); // ok: the request ended; a failed cancel of its body has nothing left to stop
 	const carried = new ReadableStream<Uint8Array>(
 		{
 			async pull(controller) {
