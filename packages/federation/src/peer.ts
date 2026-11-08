@@ -4,7 +4,7 @@
  * `widget()`. The peer is request-agnostic: per-request facts (claims, traceparent) are call
  * arguments, so one instance is shared across requests.
  */
-import { flights, STALE, type Flights } from '@ogygia/machine';
+import { flights, STALE, world, type Flights } from '@ogygia/machine';
 import { error, isHttpError as is_http_error } from '@ogygia/router';
 import type { RegionValue } from '@ogygia/core';
 import { htmlRegion as og_html_region } from '@ogygia/core/plugin';
@@ -48,11 +48,6 @@ type SignedInit = RequestInit & { body?: ArrayBuffer };
 
 const noop = (): void => {};
 
-function shares_tag(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
-	for (const t of a) if (b.has(t)) return true;
-	return false;
-}
-
 /**
  * One peer handle. `me` is the federating app's name (the tag prefix a consumed fragment's
  * receipts are filed under); `sign_key` is its private key (undefined = calls go unsigned).
@@ -66,13 +61,15 @@ export class PeerHandle implements Peer {
 	#origins: string[];
 	#timeout: number;
 	#ttl: number;
+	/** The world the peer's documents are made in, one stamp per source tag: a thaw moves the tags it
+	 *  names, a mutation or a thaw of everything moves the whole of it. */
+	#sources = world.keyed<string>();
 	/** The document reads: one flight per key. A successful, non-redirect answer is kept (with a
 	 *  ttl), up to `cache.max` of them; a stale one is served while a fresh flight refreshes it. A
-	 *  mutation or a thaw drops what it touches, and a caller of a dropped flight reads again. */
+	 *  move of the sources drops what it touches: a kept document that carries a moved tag, and a
+	 *  fetch out whose answer does once it lands (a thaw cannot tell an answer's tags before then, so
+	 *  a fetch for other tags goes on, #294). A caller of a dropped flight reads again. */
 	#docs: Flights<Read, Fetched, string>;
-	/** The tags thawed while each fetch is out (one set per fetch in flight): a thaw cannot tell an
-	 *  answer's tags before it lands, so the fetch checks them after it does. */
-	#thawed_while_out = new Set<Set<string>>();
 
 	constructor(name: string, cfg: PeerConfig, me: string, sign_key?: string) {
 		this.#origins = Array.isArray(cfg.origin) ? cfg.origin : [cfg.origin];
@@ -80,10 +77,12 @@ export class PeerHandle implements Peer {
 		this.#sign_key = sign_key;
 		this.#timeout = cfg.timeout ?? 5000;
 		const ttl = (this.#ttl = cfg.cache?.ttl ?? 0);
-		this.#docs = flights<Read, Promise<Fetched>, string>({
+		this.#docs = flights<Read, Promise<Fetched>, string, string>({
 			name: 'federation peer documents',
 			key: (read: Read) => read.key,
 			run: (read: Read, signal) => this.#fetch_read(read, signal),
+			world: this.#sources,
+			touches: (answer: Fetched) => answer.tags,
 			keep: (answer: Fetched) => (ttl > 0 && cacheable(answer.doc) ? Infinity : 0),
 			max: cfg.cache?.max ?? 500
 		});
@@ -136,7 +135,7 @@ export class PeerHandle implements Peer {
 		claims?: Claims,
 		traceparent?: string
 	): Promise<FragmentDocument> {
-		this.#docs.drop(() => true);
+		this.#sources.bump();
 		return this.#raw_doc(
 			path,
 			search,
@@ -201,34 +200,23 @@ export class PeerHandle implements Peer {
 
 	/** Thaw: drop cached documents carrying any of these tags (`'all'` = every entry). */
 	drop(tags: ReadonlySet<string> | 'all'): void {
-		if (tags === 'all') return this.#docs.drop(() => true);
-		// a kept document (or the one a refresh is out for) that carries a thawed tag goes; a fetch
-		// with nothing kept yet goes on, and checks its answer's tags against this thaw when it lands
-		this.#docs.drop((_, entry) => entry.kind === 'kept' && shares_tag(entry.answer.tags, tags));
-		for (const thawed of this.#thawed_while_out) for (const t of tags) thawed.add(t);
+		// (a kept document, or the one a refresh is out beside, that carries a thawed tag goes; a fetch
+		// with nothing kept yet goes on, and its answer is judged by its own tags when it lands)
+		if (tags === 'all') this.#sources.bump();
+		else this.#sources.bump(tags);
 	}
 
-	/** A read's fetch: done again while a thaw that names its answer's tags landed during it. */
+	/** A read's fetch: the document, with the source tags it carries. */
 	async #fetch_read(read: Read, signal: AbortSignal): Promise<Fetched> {
-		for (;;) {
-			const thawed = new Set<string>();
-			this.#thawed_while_out.add(thawed);
-			let doc: FragmentDocument;
-			try {
-				doc = await this.#raw_doc(
-					read.path,
-					read.search,
-					undefined,
-					read.claims,
-					read.traceparent,
-					signal
-				);
-			} finally {
-				this.#thawed_while_out.delete(thawed);
-			}
-			const tags = this.#adopt_tags(doc);
-			if (!shares_tag(tags, thawed)) return { doc, tags };
-		}
+		const doc = await this.#raw_doc(
+			read.path,
+			read.search,
+			undefined,
+			read.claims,
+			read.traceparent,
+			signal
+		);
+		return { doc, tags: this.#adopt_tags(doc) };
 	}
 
 	#signed_fetch(
