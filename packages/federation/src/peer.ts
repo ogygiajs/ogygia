@@ -8,6 +8,7 @@ import { flights, STALE, type Flights } from '@ogygia/machine';
 import { error, isHttpError as is_http_error } from '@ogygia/router';
 import type { RegionValue } from '@ogygia/core';
 import { htmlRegion as og_html_region } from '@ogygia/core/plugin';
+import { current_request_scope } from '@ogygia/core/internal/server';
 import { fed_app } from './app.ts';
 import {
 	sign_headers,
@@ -101,6 +102,9 @@ export class PeerHandle implements Peer {
 		const key = path + '?' + search + '\0' + (claims ? JSON.stringify(claims) : '');
 		const read: Read = { key, path, search, claims, traceparent };
 		const docs = this.#docs;
+		// the request reading it: once it ends it waits no more, and once every request waiting on
+		// a fetch has ended, the fetch is aborted
+		const signal = current_request_scope()?.signal;
 		for (;;) {
 			const seen = docs.peek(key);
 			if (seen?.kind === 'kept' && Date.now() - seen.at >= this.#ttl) {
@@ -111,12 +115,13 @@ export class PeerHandle implements Peer {
 			}
 			let answer: Fetched | typeof STALE;
 			try {
-				answer = await docs.get(read);
+				answer = await docs.get(read, { signal });
 			} catch (e) {
 				if (is_http_error(e)) throw e;
 				error(504, 'This section is temporarily unavailable.');
 			}
 			if (answer !== STALE) return answer.doc;
+			if (signal?.aborted) throw signal.reason;
 			// a mutation or a thaw dropped the flight this read joined: what it fetched may be the
 			// page from before, so read again
 		}
@@ -148,15 +153,18 @@ export class PeerHandle implements Peer {
 		w: { claims?: Claims; traceparent?: string } = {}
 	): Promise<WidgetDocument> {
 		const origins = this.#origins;
+		// (the request asking: its end aborts the fetch)
+		const signal = current_request_scope()?.signal;
 		let res: Response | undefined;
 		let last_err: unknown;
 		for (let i = 0; i < origins.length; i++) {
 			const u = new URL(FRAGMENT_BASE + widget_name, origins[i]);
 			for (const [k, v] of Object.entries(props)) u.searchParams.set(k, v);
 			try {
-				res = await this.#signed_fetch(u, undefined, w.claims, w.traceparent);
+				res = await this.#signed_fetch(u, undefined, w.claims, w.traceparent, signal);
 			} catch (e) {
 				last_err = e;
+				if (signal?.aborted) break;
 				continue;
 			}
 			if (res.status < 500 || i === origins.length - 1) break;
