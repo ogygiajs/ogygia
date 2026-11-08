@@ -190,6 +190,8 @@ export type BootLink = {
 	warn: typeof import('../messages/core.ts').warn;
 	/** what a machine's task answers once its visit is left (`@ogygia/machine`, which the boot runs on) */
 	STALE: typeof import('@ogygia/machine').STALE;
+	/** keyed shared async work (`@ogygia/machine`): the router's page fetches */
+	flights: typeof import('@ogygia/machine').flights;
 	/** the page's soft refresh (./soft-refresh.ts): `invalidateAll`, with the router or without it */
 	soft: import('./soft-refresh.ts').SoftRefresh;
 };

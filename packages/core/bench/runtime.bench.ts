@@ -9,7 +9,6 @@ import { el, frag } from '../test/_stubs/dom.ts';
 import { bench } from '@bench/heisenbench/bench';
 import { fingerprint_of, fnv1a, signature_of } from '../src/runtime/hash.ts';
 import { morph_children } from '../src/runtime/morph.ts';
-import { PageCache } from '../src/runtime/page-cache.ts';
 import { parse_wire_text } from '../src/runtime/wire-format.ts';
 import {
 	failed_import_url,
@@ -163,28 +162,6 @@ bench(
 	'parse_wire_text: the header config’s JSON-lane sidecar',
 	({ text }) => parse_wire_text(text, true),
 	{ setup: () => ({ text: JSON.stringify(header()) }) }
-);
-
-bench(
-	'page cache: a session of prefetches and visits',
-	({ pages }) => {
-		const cache = new PageCache({ ttlMs: 60_000, maxEntries: 32, maxBytes: 2_000_000 });
-		let hits = 0;
-		for (let i = 0; i < 400; i++) {
-			const href = pages[(i * 7) % pages.length][0];
-			if (cache.get(href) !== null) hits++;
-			else cache.set(href, { html: pages[(i * 7) % pages.length][1], url: href });
-		}
-		return hits;
-	},
-	{
-		setup: () => ({
-			pages: Array.from({ length: 64 }, (_, i): [string, string] => [
-				`/catalog/${i}`,
-				`<main>${JSON.stringify(block(i % 4)).slice(0, 20_000)}</main>`
-			])
-		})
-	}
 );
 
 bench(

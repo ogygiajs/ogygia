@@ -11,7 +11,6 @@
  * two `'*'` walks and a seed parse inside `startViewTransition`, on the frame the transition
  * captures.
  */
-import { PageCache, type FetchedPage } from './page-cache.ts';
 import { boot_link, router_link, slots } from './slots.ts';
 import { dispose_scope } from '../ref.ts';
 import {
@@ -338,13 +337,31 @@ function is_dangerous_head_node(node: Element): boolean {
 }
 
 // ── navigation state (one per document lifetime, module-level: this chunk loads once) ──────────
-const page_cache = new PageCache({
-	ttlMs: PREFETCH_TTL_MS,
-	maxEntries: PAGE_CACHE_MAX_ENTRIES,
-	maxBytes: PAGE_CACHE_MAX_BYTES
-});
-// oxlint-disable-next-line ogygia/no-promise-cache -- not moved yet: as a flights a bust's drop answers a navigation joined to a prefetch STALE (it re-fetches) where today it gets the page, and PageCache's count cap becomes a weight; that change wants its own PR and tests
-const inflight = new Map<string, Promise<FetchedPage | null>>();
+/** A page as a fetch got it: its HTML and the address it belongs to (where the fetch landed, after
+ *  the server's redirects; the requested href when there were none). */
+export type FetchedPage = { html: string; url: string };
+/** A page fetch's ask: the address, and why (the purpose of the call that starts the flight is the
+ *  one its request carries). */
+type PageAsk = { href: string; purpose: NavPurpose };
+/** A page fetch's answer: the page (`null`: not HTML, or the fetch failed), and whether the
+ *  response lets us keep it. */
+type Fetched = { page: FetchedPage | null; cacheable: boolean };
+type Pages = import('@ogygia/machine').Flights<PageAsk, Fetched, string>;
+let page_flights: Pages | undefined;
+/** The page fetches: one flight per address, shared by every navigation and prefetch of it. A
+ *  cacheable answer is kept for PREFETCH_TTL_MS, within PAGE_CACHE_MAX_BYTES (each entry also
+ *  weighs a fixed share, so no more than PAGE_CACHE_MAX_ENTRIES small pages are kept). A cache clear
+ *  drops them all: a fetch in flight is aborted, and a navigation that waited on it fetches again. */
+const pages = (): Pages =>
+	(page_flights ??= boot_link().flights<PageAsk, Promise<Fetched>, string>({
+		name: 'router pages',
+		key: (ask) => ask.href,
+		run: (ask, signal) => run_page_fetch(ask, signal),
+		keep: (answer) => (answer.page !== null && answer.cacheable ? PREFETCH_TTL_MS : 0),
+		max: PAGE_CACHE_MAX_BYTES,
+		weigh: (answer) =>
+			(answer.page?.html.length ?? 0) * 2 + PAGE_CACHE_MAX_BYTES / PAGE_CACHE_MAX_ENTRIES
+	}));
 /** Prefetches still waiting in the load scheduler's queue, by href (a click promotes its one). */
 const queued_prefetch = new Map<string, { promote(cls: 'user'): void }>();
 /** Hrefs whose prefetched HTML was already scanned for island entries — parse once. (URL-level
@@ -360,18 +377,11 @@ const warmed_pages = new Set<string>();
  *  removes it, then re-attached. See {@link announce} / {@link reset_focus}. */
 let announcer: HTMLElement | null = null;
 
-/** Bumped by every clear of the page cache: a fetch that started before a clear (a prefetch out
- *  when a remote mutation lands) must not fill the cache after it with the page as it was (#208). */
-let cache_gen = 0;
-
+/** Clears the page cache, and ends the fetches in flight: a fetch that started before a clear (a
+ *  prefetch out when a remote mutation lands) never fills the cache after it with the page as it
+ *  was (#208), and a navigation that waited on it fetches again. */
 export function bust_page_cache(): void {
-	cache_gen++;
-	page_cache.clear();
-	inflight.clear();
-}
-
-export function page_cache_size(): number {
-	return page_cache.size;
+	page_flights?.drop(() => true);
 }
 
 /**
@@ -413,28 +423,38 @@ install_remote_mutation_cache_bust();
  * `response.url` is its only trace. The landing travels WITH the HTML, through the cache and to the
  * navigation that reads it, so nothing else (a cache clear, another fetch) can take it away.
  */
-export function fetch_page(
+export async function fetch_page(
 	href: string,
 	signal?: AbortSignal,
 	purpose: NavPurpose = 'nav'
 ): Promise<FetchedPage | null> {
-	// Warm cache hit (a prefetched page, or an in-flight prefetch): serving it is instant, so
-	// even an abortable navigation uses it — there is nothing to abort on a resolved cache hit
-	// or a shared prefetch promise. Without this, a click after a hover-prefetch would re-fetch
-	// (the whole point of prefetch is to skip that second request). Real navigations delete the
-	// entry after use (one-shot — see navigate()), so the next visit is still fresh. PREFETCH-HIT.
-	const cached = page_cache.get(href);
-	if (cached != null) return Promise.resolve(cached);
-	const pending = inflight.get(href);
-	if (pending) {
+	// One flight per address: a kept page (a prefetched one) is served at once, and a fetch out for
+	// it (a prefetch, or a navigation) is joined. Without this, a click after a hover-prefetch would
+	// re-fetch (the whole point of prefetch is to skip that second request). Real navigations drop
+	// the kept page after use (one-shot — see navigate()), so the next visit is still fresh.
+	// PREFETCH-HIT.
+	const ask: PageAsk = { href, purpose };
+	for (;;) {
 		// a click joining a prefetch the load scheduler still holds: it is the visitor's now
-		if (purpose === 'nav') queued_prefetch.get(href)?.promote('user');
-		return pending;
+		if (purpose !== 'prefetch') queued_prefetch.get(href)?.promote('user');
+		const answer = await pages().get(ask, { signal });
+		if (answer !== boot_link().STALE) {
+			// Warm the destination's island JS during the hover/idle runway, so the click path is
+			// swap + hydrate with no first-time import() per island — the module graph is already
+			// resolved when load_island() runs. This is the biggest prefetch win: without it, a warm
+			// (HTML-cached) navigation still stalls hydration on cold island chunks.
+			if (purpose === 'prefetch' && answer.page !== null) warm_modules(href, answer.page.html);
+			return answer.page;
+		}
+		// this caller left (its navigation was taken over), or a prefetch, a guess, was made moot
+		if (signal?.aborted || purpose === 'prefetch') return null;
+		// a cache clear ended the fetch this navigation waited on: it may hold the page as it was
+		// before a mutation, so fetch it again
 	}
+}
 
-	/** the cache this fetch may fill: the one in place now, not one cleared while it was out */
-	const gen = cache_gen;
-
+/** One page fetch (a flight's work): a prefetch waits for its turn in the load scheduler first. */
+async function run_page_fetch({ href, purpose }: PageAsk, signal: AbortSignal): Promise<Fetched> {
 	const go = () =>
 		fetch(href, {
 			signal,
@@ -443,58 +463,40 @@ export function fetch_page(
 		} as RequestInit);
 	// A prefetch is a guess: it waits for the page's critical resources and shares the background
 	// window (load-scheduler.ts). A navigation never waits.
-	let fetched: Promise<Response>;
-	if (purpose === 'prefetch') {
-		const { LoadSlot } = boot_link();
-		const slot = new LoadSlot({ kind: 'content', cls: 'speculative', label: href });
-		queued_prefetch.set(href, slot);
-		fetched = slot.ready.then((release) => {
+	let res: Response;
+	try {
+		if (purpose === 'prefetch') {
+			const { LoadSlot } = boot_link();
+			const slot = new LoadSlot({ kind: 'content', cls: 'speculative', label: href });
+			queued_prefetch.set(href, slot);
+			const release = await slot.ready;
 			// only its own entry: after a cache clear a newer prefetch of the page holds the address
 			if (queued_prefetch.get(href) === slot) queued_prefetch.delete(href);
-			return go().finally(release);
-		});
-	} else fetched = go();
-
-	const settled = fetched
-		.then(async (res) => {
-			const ct = res.headers.get('content-type') || '';
-			if (!ct.includes('text/html')) return { page: null as FetchedPage | null, cacheable: false };
-			// where it landed: `navigate()` corrects the address bar it pushed BEFORE the fetch from
-			// this, or the old URL would sit over the redirected content
-			const url = res.redirected && res.url ? res.url : href;
-			// NOTE: we intentionally swap even non-2xx HTML (e.g. Kit's SSR'd 404/500
-			// +error.svelte page) so error pages render without a full reload.
-			const html = await res.text();
-			const cc = res.headers.get('cache-control') || '';
-			const cacheable = spa_html_cacheable(cc, res.headers.has('set-cookie'));
-			return { page: { html, url }, cacheable };
-		})
-		.catch((err) => {
-			if (err && (err as { name?: string }).name === 'AbortError') throw err;
-			return { page: null as FetchedPage | null, cacheable: false };
-		});
-
-	const html_p = settled.then((r) => r.page);
-
-	// Prefetch (no signal): coalesce in-flight + insert only after cacheable is known.
-	if (!signal) {
-		inflight.set(href, html_p);
-		html_p.finally(() => {
-			if (inflight.get(href) === html_p) inflight.delete(href);
-		});
-		settled
-			.then((r) => {
-				if (r.page == null) return;
-				if (r.cacheable && gen === cache_gen) page_cache.set(href, r.page);
-				// Warm the destination's island JS during the hover/idle runway, so the click path is
-				// swap + hydrate with no first-time import() per island — the module graph is already
-				// resolved when load_island() runs. This is the biggest prefetch win: without it, a warm
-				// (HTML-cached) navigation still stalls hydration on cold island chunks.
-				warm_modules(href, r.page.html);
-			})
-			.catch(() => {});
+			try {
+				// a cache clear ended it while it waited: its turn is given back without a fetch
+				if (signal.aborted) return { page: null, cacheable: false };
+				res = await go();
+			} finally {
+				release();
+			}
+		} else res = await go();
+		const ct = res.headers.get('content-type') || '';
+		if (!ct.includes('text/html')) return { page: null, cacheable: false };
+		// where it landed: `navigate()` corrects the address bar it pushed BEFORE the fetch from
+		// this, or the old URL would sit over the redirected content
+		const url = res.redirected && res.url ? res.url : href;
+		// NOTE: we intentionally swap even non-2xx HTML (e.g. Kit's SSR'd 404/500
+		// +error.svelte page) so error pages render without a full reload.
+		const html = await res.text();
+		const cc = res.headers.get('cache-control') || '';
+		return {
+			page: { html, url },
+			cacheable: spa_html_cacheable(cc, res.headers.has('set-cookie'))
+		};
+	} catch (err) {
+		if (err && (err as { name?: string }).name === 'AbortError') throw err;
+		return { page: null, cacheable: false };
 	}
-	return html_p;
 }
 
 /**
@@ -642,7 +644,8 @@ export async function navigate(
 	if (page == null) return hand_off();
 	const { html } = page;
 	nav_fetched = performance.now();
-	page_cache.delete(url.href); // one-shot; always fresh on real navigation
+	// one-shot; always fresh on real navigation (a fetch already out again for it is left be)
+	pages().drop((href, entry) => href === url.href && entry.kind === 'kept' && !entry.flying);
 
 	// REDIRECT: the fetch may have landed on a different href (a Kit `redirect()` in load, a
 	// canonical trailing-slash bounce). `dest` is the address the content actually belongs to —

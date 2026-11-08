@@ -346,10 +346,6 @@ export class SpaRouter {
 		loaded_nav?.bust_page_cache(); // no navigation loaded yet ⇒ nothing cached
 	}
 
-	_page_cache_size(): number {
-		return loaded_nav?.page_cache_size() ?? 0;
-	}
-
 	/** The page at `href`, or `null` when there is none to have: the fetch failed (./router-nav.ts
 	 *  `fetch_page`), or the navigation code itself did not load. The prefetches (a hover, a
 	 *  viewport link, `preloadData`) start it and never wait on it: a rejection here was uncaught. */
@@ -357,7 +353,7 @@ export class SpaRouter {
 		href: string,
 		signal?: AbortSignal,
 		purpose?: 'nav' | 'prefetch' | 'history'
-	): Promise<import('./page-cache.ts').FetchedPage | null> {
+	): Promise<import('./router-nav.ts').FetchedPage | null> {
 		return nav().then(
 			(n) => (n === STALE ? null : n.fetch_page(href, signal, purpose)),
 			() => null
@@ -763,11 +759,6 @@ export function afterNavigate(fn: AfterNavigateCallback): () => boolean {
 /** Drop all warmed page HTML (call after mutations / auth changes). */
 export function bust_page_cache(): void {
 	spa.bust_page_cache();
-}
-
-/** Test helper — current warmed entry count. */
-export function _page_cache_size(): number {
-	return spa._page_cache_size();
 }
 
 /**
