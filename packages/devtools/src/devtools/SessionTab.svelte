@@ -20,6 +20,7 @@
 	 * Engine: session.ts; analysis: session-insights.ts.
 	 */
 	import { onMount } from 'svelte';
+	import { flights } from '@ogygia/machine';
 	import { start_session, recording, set_last_session, session_names } from './session.ts';
 	import { run_profile, slim_profile } from './profile-store.ts';
 	import { analyze_session, session_timeline } from '@ogygia/core/insights';
@@ -51,12 +52,18 @@
 	let server_window = $state(
 		/** @type {import('./profile-store.ts').SlimProfile & { window?: any } | null} */ (null)
 	);
-	/** @type {Promise<boolean> | null} */
-	let probe = null;
+	/** Is the profiler here? Asked once and kept; a probe the network failed is not kept (the next
+	 *  ask probes again), and reads as no for now. */
+	const probe = flights({
+		name: 'devtools profiler probe',
+		run: () =>
+			fetch('/__profiler', { redirect: 'manual' }).then((r) => (profiler_here = r.status !== 404))
+	});
 	const probe_profiler = () =>
-		(probe ??= fetch('/__profiler', { redirect: 'manual' })
-			.then((r) => (profiler_here = r.status !== 404))
-			.catch(() => (profiler_here = false)));
+		probe.get().then(
+			(here) => here === true,
+			() => (profiler_here = false)
+		);
 	onMount(() => void probe_profiler());
 	let window_on = false;
 	/** the window's start in flight (a stop pressed before it answered waits, then stops it) */

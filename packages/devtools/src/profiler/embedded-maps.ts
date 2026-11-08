@@ -14,34 +14,43 @@ export interface EmbeddedMaps {
 	chunks?: Record<string, string>;
 }
 
-let loaded: Promise<EmbeddedMaps | null> | undefined;
 let ready: EmbeddedMaps | null = null;
 
 import { PROFILER_MAPS_GZ_PREFIX as GZ_PREFIX } from '@ogygia/core/internal/compiler-ids';
+import { flights, STALE } from '@ogygia/machine';
 
 export function load_embedded_maps(): Promise<EmbeddedMaps | null> {
-	loaded ??= import('virtual:ogygia/profiler-maps')
-		.then(async (m) => {
-			let raw = (m as { default?: unknown }).default;
-			if (typeof raw === 'string' && raw.startsWith(GZ_PREFIX)) {
-				const zlib = await import('node:zlib');
-				raw = zlib.gunzipSync(Buffer.from(raw.slice(GZ_PREFIX.length), 'base64')).toString('utf8');
-			}
-			// the placeholder (a build that did not fill it) and null alike: nothing
-			if (typeof raw !== 'string' || !raw.startsWith('{')) return null;
-			const p = JSON.parse(raw) as { v?: number } & EmbeddedMaps;
-			return p.v === 1 && p.maps && p.modules
-				? (ready = {
-						modules: p.modules,
-						maps: p.maps,
-						...(p.sources && typeof p.sources === 'object' ? { sources: p.sources } : {}),
-						...(p.chunks && typeof p.chunks === 'object' ? { chunks: p.chunks } : {})
-					})
-				: null;
-		})
-		.catch(() => null);
-	return loaded;
+	// (nothing drops it, so it is never STALE)
+	return loaded.get().then((maps) => (maps === STALE ? null : maps));
 }
+
+/** The read, once for the process (it never fails: an unreadable payload is no maps). */
+const loaded = flights({
+	name: 'profiler embedded maps',
+	run: () =>
+		import('virtual:ogygia/profiler-maps')
+			.then(async (m) => {
+				let raw = (m as { default?: unknown }).default;
+				if (typeof raw === 'string' && raw.startsWith(GZ_PREFIX)) {
+					const zlib = await import('node:zlib');
+					raw = zlib
+						.gunzipSync(Buffer.from(raw.slice(GZ_PREFIX.length), 'base64'))
+						.toString('utf8');
+				}
+				// the placeholder (a build that did not fill it) and null alike: nothing
+				if (typeof raw !== 'string' || !raw.startsWith('{')) return null;
+				const p = JSON.parse(raw) as { v?: number } & EmbeddedMaps;
+				return p.v === 1 && p.maps && p.modules
+					? (ready = {
+							modules: p.modules,
+							maps: p.maps,
+							...(p.sources && typeof p.sources === 'object' ? { sources: p.sources } : {}),
+							...(p.chunks && typeof p.chunks === 'object' ? { chunks: p.chunks } : {})
+						})
+					: null;
+			})
+			.catch(() => null)
+});
 
 /** the maps once loaded (synchronous readers: the module map lookup), else null */
 export const embedded_maps = (): EmbeddedMaps | null => ready;

@@ -1118,7 +1118,6 @@ class Profiler {
 	/** the store's `init`: kept once it succeeds, tried again by the next use after a failure */
 	#store_init: Flights<void, void> | null = null;
 	#als: import('node:async_hooks').AsyncLocalStorage<Ctx> | null = null;
-	#init_done: Promise<void> | null = null;
 	/** Re-assert the `globalThis.fetch` patch before a profile (self-heal if it was replaced). */
 	#ensure_net: (() => void) | null = null;
 	/** wraps Kit's `event.fetch` (in-process same-origin dispatch) with the recorder, per attributed request */
@@ -1416,8 +1415,14 @@ class Profiler {
 		};
 	}
 
-	#init(): Promise<void> {
-		return (this.#init_done ??= (async () => {
+	#init(): Promise<unknown> {
+		return this.#init_done.get();
+	}
+
+	/** The mount's one-time setup: the background timers and the network capture (it never fails). */
+	readonly #init_done = flights({
+		name: 'profiler init',
+		run: async () => {
 			this.#arm_background();
 			// AsyncLocalStorage + the fetch/http patch exist ONLY to attribute
 			// outbound calls. With network capture off there is no per-request work
@@ -1460,8 +1465,8 @@ class Profiler {
 					// platform without patchable modules — wall timing still works
 				}
 			}
-		})());
-	}
+		}
+	});
 
 	// ---- recording --------------------------------------------------------
 	/** A recording is "active" only if one started recently — a run abandoned by a frozen/killed
@@ -3788,10 +3793,9 @@ class Profiler {
 	 *  profile saw with a `.svelte` source on this machine, and the islands (their keys from the
 	 *  build), each with the page.data keys it reads — joined to the loads' keys and the seed. */
 	/** every `.svelte` under the app's `src/`, relative to it, listed once (null: no src here) */
-	#svelte_files: Promise<string[] | null> | undefined;
-	/** The `src/`-relative paths of `<name>.svelte` files (a component is named after its file). */
-	async #component_files(name: string): Promise<string[]> {
-		this.#svelte_files ??= (async () => {
+	readonly #svelte_files = flights({
+		name: 'profiler svelte files',
+		run: async (): Promise<string[] | null> => {
 			try {
 				const fs = await import('node:fs');
 				const path = await import('node:path');
@@ -3811,8 +3815,13 @@ class Profiler {
 				const carried = embedded_files().filter((f) => f.endsWith('.svelte'));
 				return carried.length ? carried : null;
 			}
-		})();
-		const all = await this.#svelte_files;
+		}
+	});
+	/** The `src/`-relative paths of `<name>.svelte` files (a component is named after its file). */
+	async #component_files(name: string): Promise<string[]> {
+		// (nothing drops the list, so it is never STALE)
+		const all = await this.#svelte_files.get();
+		if (all === STALE) return [];
 		const leaf = '/' + name + '.svelte';
 		return all ? all.filter((f) => f === name + '.svelte' || f.endsWith(leaf)) : [];
 	}
