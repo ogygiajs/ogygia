@@ -13,6 +13,9 @@
 		"check": "tsc -p . && vitest run",
 		"test": "vitest run"
 	},
+	"dependencies": {
+		"@ogygia/machine": "workspace:*"
+	},
 	"devDependencies": {
 		"@playwright/test": "catalog:",
 		"@types/node": "catalog:",

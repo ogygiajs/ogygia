@@ -489,12 +489,16 @@
 			"reason": "the e2e harness: the child process's close event, constant work"
 		},
 		{
-			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > Promise:0~fcbd5b",
-			"reason": "the e2e harness: the server's exit as a promise, constant work"
+			"id": "packages/tooling/src/e2e/servers.ts > sleep > Promise:0~24d955 > done",
+			"reason": "the e2e harness: the timer's end or its abort, constant work"
 		},
 		{
-			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > life_now",
-			"reason": "the e2e harness: reads the server's lifecycle value (a closure variable), constant work"
+			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > server > kill > onLeave:0~59e99b",
+			"reason": "the e2e harness: clears the SIGKILL timer when the server leaves stopping, constant work; proven in packages/tooling/test/servers.test.ts"
+		},
+		{
+			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > task:0~253284",
+			"reason": "the e2e harness: the readiness poll, real fetches to the child's port until it answers; proven in packages/tooling/test/servers.test.ts"
 		},
 		{
 			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > on_exit",
