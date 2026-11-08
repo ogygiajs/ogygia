@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer, type RunnableDevEnvironment, type ViteDevServer } from 'vite';
+import { edit } from '../../core/test/_dev-edit.ts';
 import { content_hmr, content_runs } from '../src/vite/hmr.ts';
 
 const own = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
@@ -155,6 +156,11 @@ export class DevApp {
 		writeFileSync(abs, text);
 	}
 
+	/** An edit of `rel` once the dev server runs: done when its watcher reports it. */
+	edit(rel: string, text: string): Promise<void> {
+		return edit(this.server!.watcher, path.join(this.root, rel), text);
+	}
+
 	async start(): Promise<ViteDevServer> {
 		const server = await createServer({
 			root: this.root,
@@ -219,7 +225,7 @@ export async function two_page_edits(
 		let mod = await load(srv, '/src/lib/docs.server.ts');
 		const seen: unknown[] = [await texts(mod.docs)];
 		for (const text of ['# A, edited', '# A, edited again']) {
-			app.write('src/content/a.md', text);
+			await app.edit('src/content/a.md', text);
 			mod = await app.reloaded(load, '/src/lib/docs.server.ts', mod);
 			seen.push(await texts(mod.docs));
 		}

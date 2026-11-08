@@ -54,7 +54,7 @@ describe.each(LOADERS)(
 			expect(live().open.docs).toBe(1);
 
 			for (const text of ['# A, edited', '# A, edited again']) {
-				app.write('src/content/a.md', text);
+				await app.edit('src/content/a.md', text);
 				mod = await app.reloaded(load, DOCS, mod);
 				// a new collection was built: it reads the edit, over a connection of its own
 				expect(await texts(mod.docs)).toEqual([text]);
@@ -81,7 +81,7 @@ describe.each(LOADERS)(
 			await texts(mod.docs);
 
 			for (const n of [1, 2]) {
-				app.write('src/lib/docs.server.ts', docs_module(`export const edit = ${n};`));
+				await app.edit('src/lib/docs.server.ts', docs_module(`export const edit = ${n};`));
 				mod = await app.reloaded(load, DOCS, mod);
 				expect(mod.edit).toBe(n);
 				await texts(mod.docs);
@@ -100,7 +100,7 @@ describe.each(LOADERS)(
 			const people = (await load(srv, '/src/lib/people.server.ts')).people;
 			await Promise.all([texts(mod.docs), texts(people)]);
 
-			app.write('src/content/a.md', '# A, edited');
+			await app.edit('src/content/a.md', '# A, edited');
 			mod = await app.reloaded(load, DOCS, mod);
 			await texts(mod.docs);
 
@@ -126,7 +126,7 @@ describe.each(LOADERS)(
 			await texts(mod.docs);
 
 			for (const text of ['# A, edited', '# A, edited again']) {
-				app.write('src/content/a.md', text);
+				await app.edit('src/content/a.md', text);
 				mod = await app.reloaded(load, DOCS, mod);
 				await texts(mod.docs);
 			}
@@ -151,7 +151,7 @@ describe.each(LOADERS)(
 			expect((await stream.next()).value).toEqual(['# A']);
 			const next = stream.next(); // a page streams the list across the edit
 
-			app.write('src/content/a.md', '# A, edited');
+			await app.edit('src/content/a.md', '# A, edited');
 			mod = await app.reloaded(load, DOCS, mod);
 			await texts(mod.docs);
 
@@ -172,7 +172,7 @@ describe.each(LOADERS)(
 			const kept = mod.kept;
 			await Promise.all([texts(mod.docs), texts(kept)]);
 
-			app.write('src/content/a.md', '# A, edited');
+			await app.edit('src/content/a.md', '# A, edited');
 			mod = await app.reloaded(load, DOCS, mod);
 			expect(mod.kept).toBe(kept);
 			await Promise.all([texts(mod.docs), texts(kept)]);
