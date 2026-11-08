@@ -65,6 +65,15 @@ describe.each(LOADERS)(
 			expect(graph().all.size - in_graph).toBe(1);
 		});
 
+		it('an app in a folder whose name has a space: the same', async () => {
+			expect(await two_page_edits(load, 'og content dev ')).toEqual({
+				texts: [['# A'], ['# A, edited'], ['# A, edited again']],
+				opened: 3,
+				open: 1,
+				in_graph: 1
+			});
+		});
+
 		it('two edits of the collections module itself: the same', async () => {
 			app.write('src/lib/docs.server.ts', docs_module());
 			const srv = await app.start();

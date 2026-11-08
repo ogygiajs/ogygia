@@ -136,10 +136,12 @@ export const LOADERS: Array<[string, Load]> = [
 ];
 
 export class DevApp {
-	readonly root: string = realpathSync(mkdtempSync(path.join(tmpdir(), 'og-content-dev-')));
+	readonly root: string;
 	server: ViteDevServer | null = null;
 
-	constructor() {
+	/** `folder`: the app folder's name (a prefix: a few random characters follow it). */
+	constructor(folder = 'og-content-dev-') {
+		this.root = realpathSync(mkdtempSync(path.join(tmpdir(), folder)));
 		this.write('package.json', JSON.stringify({ name: 'app', type: 'module' }));
 		this.write('src/content/a.md', '# A');
 		this.write('src/lib/live.ts', live_module);
@@ -206,9 +208,10 @@ export class DevApp {
 /** Two page edits under `load`: how many connections the docs source opened, how many are open,
  *  and how many collections the graph gained. */
 export async function two_page_edits(
-	load: Load
+	load: Load,
+	folder?: string
 ): Promise<{ texts: unknown[]; opened: number; open: number; in_graph: number }> {
-	const app = new DevApp();
+	const app = new DevApp(folder);
 	const before = graph().all.size;
 	try {
 		app.write('src/lib/docs.server.ts', docs_module());
