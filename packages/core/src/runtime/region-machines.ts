@@ -7,6 +7,7 @@
  *   answer  none ─ answered ⇄ kept                    what is on screen from the hole's answers
  *   wake    cold ─ armed ─ waking ─ awake | failed    an island's hydration
  *   live    idle ─ static | hydrating ─ live          a live region, driven by `applyLive`
+ *   paint   idle ─ painting ⟲                         the frame waiting for its sheets to paint
  *
  * - The hole's fetch and its answer are two machines because they are independent: an answer can land
  *   while the hole waits to retry, or comes from a twin, a batch or a write at its address; the
@@ -14,6 +15,9 @@
  * - A schedule (`when`, `prefetch`, a wake's `wake`) arms its listener with `onLeave` on the state that
  *   armed it, so leaving `armed` drops every one of them: two schedules on one region, or one armed
  *   again, can no longer overwrite each other's slot and leak the first.
+ * - Every frame that lands (a hole's answer or refresh, a static live tick) waits for its stylesheets
+ *   before it paints, and sheets settle in any order: each frame is a visit of `paint`, so only the
+ *   newest one paints once its wait is over, and an older one never paints over it.
  * - A visit is its own object: code that awaited checks `machine.now === mine` to know it still is
  *   the visit it started in.
  */
@@ -145,4 +149,30 @@ export type Live = Machine<LiveStates, typeof live_steps>;
 /** A live region's machine, before its first tick. */
 export function create_live(): Live {
 	return live_definition.create();
+}
+
+type PaintStates = {
+	/** No frame is waiting to paint. */
+	idle: {};
+	/** A frame waits for its stylesheets, then paints. A newer frame is a new visit: the older one's
+	 *  wait ends with nothing painted. */
+	painting: {};
+};
+
+const paint_steps = {
+	idle: ['painting'],
+	painting: ['painting', 'idle']
+} as const;
+
+const paint_definition = machine<PaintStates>()({
+	name: 'region-paint',
+	initial: 'idle',
+	steps: paint_steps
+});
+
+export type Paint = Machine<PaintStates, typeof paint_steps>;
+
+/** A region's paint machine: which frame (a hole's answer, a static live tick) paints next. */
+export function create_paint(): Paint {
+	return paint_definition.create();
 }
