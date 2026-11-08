@@ -38,7 +38,6 @@ const KitBoot = { document_has: (doc: ParentNode) => boot_link().KitBoot.documen
 const regions_in_shadow = () => boot_link().regions_in_shadow();
 const session = () => boot_link().runtime_session;
 type Scope = import('@ogygia/machine').Scope;
-type PageVisit = import('./session.ts').PageVisit;
 /** devalue first, when the fetched page holds a script in its lane (./devalue-lane.ts) */
 const devalue_for = (doc: Document) =>
 	boot_link().needs_devalue(doc) ? boot_link().load_devalue() : undefined;
@@ -615,7 +614,14 @@ export async function navigate(
 	// now (runtime/session.ts `PageVisit`): what is started for that page before its swap is that
 	// visit's, which the swap makes the page's, and which ends with `attempt` when there is no swap.
 	const attempt = r.nav.scope;
-	const next = session().next_visit(attempt);
+	const next = session().next_visit();
+	/** The next page's sheets this navigation put in the head before its swap (`preload_stylesheets`). */
+	const early: Element[] = [];
+	attempt.defer(() => {
+		if (session().visit === next) return; // swapped in: the visit and its sheets are the page's
+		for (const sheet of early) sheet.remove(); // (#267)
+		next.scope.close();
+	});
 
 	// Update history SYNCHRONOUSLY (before any await) so the URL is correct and
 	// races between overlapping navigations can't drop the pushState.
@@ -728,9 +734,9 @@ export async function navigate(
 	// Cold-cache FOUC guard: get the destination's stylesheets loaded and applied BEFORE the body
 	// swap, so the first post-deploy navigation never flashes unstyled content (a full-width column
 	// snapping to its styled width). Warm caches resolve this instantly. The sheets are the next
-	// page's (`next.early`): a navigation that ends before its swap takes them out (#267), and stops
+	// page's (`early`): a navigation that ends before its swap takes them out (#267), and stops
 	// waiting for them at once.
-	await attempt.task(() => preload_stylesheets(doc.head, attempt, next));
+	await attempt.task(() => preload_stylesheets(doc.head, attempt, early));
 	if (r.nav.now !== mine) return;
 	nav_styled = performance.now();
 	// The transition starts in a task of its own: everything above is a finished task by then, and
@@ -1065,13 +1071,13 @@ function merge_head(new_head: HTMLHeadElement) {
  * can't hang navigation.
  *
  * The wait is the navigation's (`attempt`: its listeners and its cap go when it ends), the sheets the
- * next page's (`next`): its swap makes them the page's, and a navigation that ends without one takes
- * them out again (#267).
+ * next page's (listed in `early`): its swap makes them the page's, and a navigation that ends without
+ * one takes them out again (#267).
  */
 function preload_stylesheets(
 	new_head: HTMLHeadElement,
 	attempt: Scope,
-	next: PageVisit
+	early: Element[]
 ): Promise<unknown> {
 	const present = new Set<string>();
 	for (const node of Array.from(document.head.children)) {
@@ -1100,7 +1106,7 @@ function preload_stylesheets(
 		// trailing node range, so a stylesheet appended after the island head blocks gets reclaimed.
 		session().claim_page_head(link); // the next page's own sheet (runtime/session.ts)
 		document.head.insertBefore(link, document.head.firstChild);
-		next.early(link);
+		early.push(link);
 	}
 	if (!pending.length) return Promise.resolve();
 	// Never let a hung stylesheet block the swap indefinitely.
