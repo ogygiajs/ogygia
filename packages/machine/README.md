@@ -222,6 +222,29 @@ next.commit(); // false: refused (not built yet, or the visit was left)
 - **A stage belongs to its owner's scope.** When the owner closes before the commit, every `discard` step runs, newest first. A build that lands later has its steps run at once.
 - **The commit is one synchronous step**, refused until the build is ready, once the owner closed, and after a first commit. One that throws runs its `undo` steps, then the `discard` steps, and throws.
 
+## Worlds
+
+Data carries a stamp of the world it was made in, and a read refuses data whose stamp is out of date. A scope stops work that outlives its owner; a world stops data that outlives its facts.
+
+```ts
+import { flights, world } from '@ogygia/machine';
+
+const pages = world();
+const made = pages.stamp();
+const html = await fetch_page(href);
+if (!pages.fresh(made)) return; // a change since: this page is from before it
+pages.bump(); // a mutation: every stamp taken so far is out of date
+
+// split by key: a move puts out of date only what read the keys it moved
+const sources = world.keyed<string>();
+const docs = flights({ run: fetch_doc, world: sources, touches: (doc) => doc.tags });
+sources.bump(['post:12']); // kept docs that read post 12 go; the rest stay
+```
+
+- **A stamp only moves forward.** `bump()` puts every stamp before it out of date; on a keyed world, `bump(keys)` only those that read `keys`, and `fresh(stamp, keys)` asks about those keys alone.
+- **Flights take a world.** A move is a `drop` of what it touches, and an answer whose world moved while it was out is `STALE` for every caller that joined it, never kept. With `touches`, a flight with nothing kept yet goes on through a move of other keys, and is judged by its answer when it lands.
+- A keyed world remembers the moves of its newest 4096 keys; an older one folds into a floor that puts every stamp before it out of date. It errs one way: data may be made again that was still good, never kept when it was not.
+
 ## Locks
 
 ```ts

@@ -39,4 +39,5 @@ export { lock, type Lock, type LockToken } from './lock.ts';
 export { outbox, type Outbox, type OutboxOptions } from './outbox.ts';
 export { policy, type Policy } from './policy.ts';
 export { stage, type Stage, type StageOptions, type Staging } from './stage.ts';
+export { world, type World } from './world.ts';
 export { MachineError } from './messages.ts';

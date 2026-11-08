@@ -28,6 +28,11 @@
  *   until it lands.
  * - `fresh` starts a new flight even when an answer is kept; the kept one stays (and `peek` shows
  *   it) until the new one lands, and stays when the new one fails or is not kept.
+ * - A `world` (`world()`) is what its answers are made in. A move of it is a `drop` of what the
+ *   move touches; and an answer whose world moved while it was out is `STALE` for every caller that
+ *   joined it, and never kept. With a keyed world, `touches` says which keys an answer was made
+ *   from: a move of other keys leaves it be, and a flight with nothing kept yet goes on, judged by
+ *   its answer when it lands.
  *
  * Each key's entry is a machine (`flying`, `kept`, `gone`), and the work of a flight is its
  * `flying` visit's `scope.task`: leaving the visit (a drop, the last caller gone, a fresh flight in
@@ -38,8 +43,9 @@ import { machine, type Machine } from './machine.ts';
 import { machine_error } from './messages.ts';
 import { DISPOSE } from './scope.ts';
 import { STALE, type Stale } from './stale.ts';
+import { watch_world, type World } from './world.ts';
 
-export interface FlightsOptions<I, V, K> {
+export interface FlightsOptions<I, V, K, W = never> {
 	/** Names its flights in messages and to observers. Default `flights`. */
 	name?: string;
 	/** The work for an input: started by the `get` that finds no flight and no kept answer. */
@@ -58,6 +64,13 @@ export interface FlightsOptions<I, V, K> {
 	weigh?: (answer: Awaited<V>, input: I) => number;
 	/** Tries again at once this many times, inside one flight, before it fails. Default 0. */
 	retries?: number;
+	/** The world the answers are made in (`world()`): when it moves, what the move touches goes (a
+	 *  kept answer, and the flight out for it), and an answer whose world moved while it was out is
+	 *  `STALE` for every caller that joined it, and never kept. */
+	world?: World<W>;
+	/** The keys of a keyed `world` an answer was made from: a move of other keys leaves it (and a
+	 *  flight out, judged by its answer once it lands) be. Without it, any move touches every answer. */
+	touches?: (answer: Awaited<V>) => Iterable<W>;
 }
 
 export interface GetOptions {
@@ -108,6 +121,8 @@ type Flight = {
 	holders: number;
 	/** A caller with no signal joined: it holds the flight until it lands. */
 	pinned: boolean;
+	/** The world when it started (`world.stamp()`): its answer is judged against it. */
+	stamp: number;
 };
 type EntryStates = {
 	flying: { flight: Flight; prior: Kept | null };
@@ -158,13 +173,17 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 	_max: number;
 	_weigh: ((answer: V, input: I) => number) | undefined;
 	_retries: number;
+	_world: World<unknown> | undefined;
+	_touches: ((answer: V) => Iterable<unknown>) | undefined;
+	/** Stops hearing the world (on dispose). */
+	_unwatch: () => void = noop;
 	/** Some answer can expire: a new flight sweeps the expired ones out. */
 	_expires: boolean;
 	_entries = new Map<K, Entry>();
 	_weight = 0;
 	_disposed = false;
 
-	constructor(o: FlightsOptions<I, unknown, K>) {
+	constructor(o: FlightsOptions<I, unknown, K, unknown>) {
 		if (typeof o.run !== 'function') throw bad_option('run', typeof o.run, 'a function');
 		const retries = o.retries ?? 0;
 		if (!Number.isInteger(retries) || retries < 0)
@@ -186,6 +205,40 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		this._weigh = o.weigh as ((answer: V, input: I) => number) | undefined;
 		this._retries = retries;
 		this._expires = keep !== Infinity;
+		this._world = o.world;
+		this._touches = o.touches as ((answer: V) => Iterable<unknown>) | undefined;
+		if (o.world !== undefined) {
+			const unwatch = watch_world(o.world, (keys) => this._moved(keys));
+			if (unwatch === null) throw bad_option('world', typeof o.world, 'a world from world()');
+			this._unwatch = unwatch;
+		}
+	}
+
+	/** The world moved: what the move touches goes. With no `touches` (or the whole world moved),
+	 *  that is everything; else the kept answers made from a moved key (a flight out beside one
+	 *  goes with it; one with nothing kept yet is judged by its answer when it lands). */
+	_moved(keys: ReadonlySet<unknown> | null): void {
+		const touches = this._touches;
+		if (keys === null || touches === undefined) return this.drop(() => true);
+		this.drop((_, entry) => {
+			if (entry.kind !== 'kept') return false;
+			let read: Iterable<unknown>;
+			try {
+				read = touches(entry.answer);
+			} catch {
+				return true; // (what it read cannot be told: made again, never kept past the move)
+			}
+			for (const k of read) if (keys.has(k)) return true;
+			return false;
+		});
+	}
+
+	/** Whether an answer that landed is still of the world its flight started in. */
+	_current(flight: Flight, answer: V): boolean {
+		const w = this._world;
+		if (w === undefined) return true;
+		const touches = this._touches;
+		return touches === undefined ? w.fresh(flight.stamp) : w.fresh(flight.stamp, touches(answer));
 	}
 
 	get(input?: I, options?: GetOptions): Promise<V | Stale> {
@@ -238,6 +291,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 
 	[DISPOSE](): void {
 		this._disposed = true;
+		this._unwatch();
 		this.drop(() => true);
 	}
 
@@ -260,7 +314,8 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 	/** Starts a flight for `key` (the entry's `flying` visit), keeping `prior` beside it. */
 	_fly(key: K, m: Entry | undefined, input: I, prior: Kept | null): [Entry, Flight] {
 		if (this._expires) this._sweep(Date.now());
-		const flight: Flight = { shared: STALE_NOW, holders: 0, pinned: false };
+		const stamp = this._world === undefined ? 0 : this._world.stamp();
+		const flight: Flight = { shared: STALE_NOW, holders: 0, pinned: false, stamp };
 		let entry: Entry;
 		if (m !== undefined && this._entries.get(key) === m) {
 			entry = m;
@@ -276,6 +331,18 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		flight.shared = work.then(
 			(answer) => {
 				if (answer === STALE || entry.now !== visit) return STALE;
+				let current: boolean;
+				try {
+					current = this._current(flight, answer as V);
+				} catch (error) {
+					this._back(key, entry, prior);
+					throw error;
+				}
+				// its world moved while it was out: made from facts that are gone, so no caller has it
+				if (!current) {
+					this._back(key, entry, prior);
+					return STALE;
+				}
 				this._land(key, entry, input, answer as V, prior, flight.shared);
 				return answer;
 			},
@@ -381,8 +448,8 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 }
 
 /** Keyed shared async work (see the module's comment). */
-export function flights<I = void, V = unknown, K = I>(
-	options: FlightsOptions<I, V, K>
+export function flights<I = void, V = unknown, K = I, W = never>(
+	options: FlightsOptions<I, V, K, W>
 ): Flights<I, Awaited<V>, K> {
-	return new Flown<I, Awaited<V>, K>(options as FlightsOptions<I, unknown, K>);
+	return new Flown<I, Awaited<V>, K>(options as FlightsOptions<I, unknown, K, unknown>);
 }
