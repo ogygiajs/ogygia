@@ -50,7 +50,7 @@ The first call (`machine<{ ... }>()`) takes each state's data. The second reads 
 
 |                         |                                                                                                     |
 | ----------------------- | --------------------------------------------------------------------------------------------------- |
-| `now`                   | The state it is in: `kind` plus that state's data.                                                  |
+| `now`                   | The state it is in: `kind` plus that state's data. A new value on every visit (`m.now === saved`).  |
 | `go(to, data?)`         | Moves along a step from wherever it is. `true` when it moved.                                       |
 | `move(from, to, data?)` | Moves only if it is still in `from` (`false`, quietly, when something else moved it first).         |
 | `task(work)`            | Runs `work(signal)` for this visit to the state. `STALE` once the machine leaves it.                |
