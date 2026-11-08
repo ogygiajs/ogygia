@@ -248,11 +248,12 @@ export class Flight {
 
 /** The renders in progress, one per page: nothing is kept (the store keeps what they stored). The
  *  request that opens one holds it until it settles it. */
-const renders = flights<Flight, Promise<FlightOutcome>, string>({
+const renders = flights<Flight>()({
 	name: 'postrender flight',
-	key: (flight) => flight.key,
+	key: ['key'],
+	ignore: { _fly: 'the request that opens a page render runs it: the others join it' },
 	keep: 0,
-	run: (flight, signal) => flight._fly(signal)
+	run: (flight, signal): Promise<FlightOutcome> => flight._fly(signal)
 });
 
 /** The render of `key` in progress: join it (its outcome, `STALE` when an invalidation ended it),
@@ -262,7 +263,7 @@ export function enter_flight(
 	key: string
 ): { opened: Flight } | { joined: Promise<FlightOutcome | Stale> } {
 	const flight = new Flight(key);
-	const opens = renders.peek(key) === undefined;
+	const opens = renders.peek({ key }) === undefined;
 	const outcome = renders.get(flight);
 	return opens ? { opened: flight } : { joined: outcome };
 }
@@ -276,7 +277,7 @@ type Evicts = { url: string } | { prefix: string } | 'all';
  *  on and store. */
 function stale_flights(evicts: Evicts): void {
 	renders.drop(
-		(key) =>
+		({ key }) =>
 			evicts === 'all' || ('url' in evicts ? key === evicts.url : in_subtree(key, evicts.prefix))
 	);
 }

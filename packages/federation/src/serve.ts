@@ -365,10 +365,18 @@ type Received = {
  * nothing, so the sender's retry of it is applied. A copy that arrives while it applies joins it,
  * and one after is dropped. Ids are kept 10 minutes, the newest 10 000 at most.
  */
-const applied_notices = flights({
+const SAME_NOTICE = 'an id names one notice: a copy of it is that notice again';
+const applied_notices = flights<Received>()({
 	name: 'federation thaws applied',
+	key: ['id'],
+	ignore: {
+		fed: SAME_NOTICE,
+		hop: SAME_NOTICE,
+		tags: SAME_NOTICE,
+		sender: SAME_NOTICE,
+		sender_name: SAME_NOTICE
+	},
 	run: apply_thaw,
-	key: (n: Received) => n.id,
 	keep: NOTICE_TTL_MS,
 	max: 10_000
 });
@@ -432,7 +440,7 @@ async function serve_thaw(fed: Federation, event: RequestEvent): Promise<Respons
 		sender,
 		sender_name
 	};
-	if (received.id && applied_notices.peek(received.id)?.kind === 'kept')
+	if (received.id && applied_notices.peek({ id: received.id })?.kind === 'kept')
 		return json_response({ ok: true, deduped: true });
 	try {
 		const thawed = received.id ? await applied_notices.get(received) : await apply_thaw(received);

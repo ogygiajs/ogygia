@@ -12,9 +12,19 @@
  *   const core = flights({ run: () => import('./hydrate-core.ts'), retries: 1 }); // one key
  *   const mod = await core.get();
  *
- * - `get` joins the flight out for its key, else gives the kept answer, else starts a flight. The
- *   input of the call that started it is the one that runs (`key` says which inputs are the same
- *   flight), and `run` starts inside that `get`.
+ *   const checkouts = flights<Spec>()({            // an object input, keyed by some of its fields
+ *     key: ['owner', 'repo', 'ref', 'sub'],
+ *     ignore: { depth: 'how much history to fetch, not which files' },
+ *     run: ({ owner, repo, ref, sub, depth }, signal) => checkout(owner, repo, ref, sub, depth, signal)
+ *   });
+ *
+ * - `get` joins the flight out for its key, else gives the kept answer, else starts a flight, and
+ *   `run` starts inside that `get`. The key is the input itself (by `Map` identity), or, keyed, the
+ *   fields `key` names: `run` (and `keep`, `weigh`) is handed the input typed to those fields only,
+ *   so work that reads a field its key leaves out does not compile, unless `ignore` names that field
+ *   with the reason (the input of the call that started the flight is then the one that runs).
+ *   `peek` and `drop` name a keyed flights' keys by those fields too (`peek({ href })`). The fields
+ *   are spelled into one string one way everywhere: a string by its text, an object by identity.
  * - A failure (after `retries`, tried again at once) fails every caller that joined it, and is
  *   never kept: the next `get` starts a new flight. A failing key costs one try per wave of
  *   callers, not one per caller.
@@ -45,23 +55,22 @@ import { DISPOSE } from './scope.ts';
 import { STALE, type Stale } from './stale.ts';
 import { watch_world, type World } from './world.ts';
 
-export interface FlightsOptions<I, V, K, W = never> {
+/** What every flights takes; `R` is what `run` (and `keep`, `weigh`) may read of an input. */
+interface FlightsCommon<R, V, W> {
 	/** Names its flights in messages and to observers. Default `flights`. */
 	name?: string;
 	/** The work for an input: started by the `get` that finds no flight and no kept answer. */
-	run: (input: I, signal: AbortSignal) => V;
-	/** Which inputs are the same flight (default: the input itself, by `Map` identity). */
-	key?: (input: I) => K;
+	run: (input: R, signal: AbortSignal) => V;
 	/** How long an answer stays, in ms: a number, or made from the answer and its input. 0 keeps
 	 *  nothing (callers share the flight while it is out); the default, `Infinity`, keeps it for as
 	 *  long as the flights lives. A failure is never kept. */
-	keep?: number | ((answer: Awaited<V>, input: I) => number);
+	keep?: number | ((answer: Awaited<V>, input: R) => number);
 	/** The most total weight it keeps; past it, the least recently used answers go. Default
 	 *  `Infinity`. */
 	max?: number;
 	/** An answer's weight against `max` (bytes, say). Default 1: `max` then counts answers. An
 	 *  answer heavier than `max` is not kept. */
-	weigh?: (answer: Awaited<V>, input: I) => number;
+	weigh?: (answer: Awaited<V>, input: R) => number;
 	/** Tries again at once this many times, inside one flight, before it fails. Default 0. */
 	retries?: number;
 	/** The world the answers are made in (`world()`): when it moves, what the move touches goes (a
@@ -71,6 +80,28 @@ export interface FlightsOptions<I, V, K, W = never> {
 	/** The keys of a keyed `world` an answer was made from: a move of other keys leaves it (and a
 	 *  flight out, judged by its answer once it lands) be. Without it, any move touches every answer. */
 	touches?: (answer: Awaited<V>) => Iterable<W>;
+}
+
+/** A flights whose key is its whole input (by `Map` identity: a string, a number, an object
+ *  itself), or of one key when it takes none. */
+export interface FlightsOptions<I, V, W = never> extends FlightsCommon<I, V, W> {}
+
+/** A flights over an object input whose key is some of its fields (`flights<I>()({ key, … })`):
+ *  `run` reads only the fields its key names, and those `ignore` names with the reason it may. */
+export interface KeyedFlightsOptions<
+	I,
+	F extends keyof I,
+	G extends Exclude<keyof I, F>,
+	V,
+	W = never
+> extends FlightsCommon<Pick<I, F | G>, V, W> {
+	/** The fields that make the key: two inputs that agree on them are one flight. It must list
+	 *  every field the work reads (`run`'s input holds no other), unless `ignore` says why not. */
+	key: readonly F[];
+	/** Fields the work reads that are left out of the key on purpose, each with its reason (the
+	 *  input of the call that started the flight is the one that runs): `{ retries: 'how hard to
+	 *  try, not what is made' }`. */
+	ignore?: { readonly [field in G]: string };
 }
 
 export interface GetOptions {
@@ -155,6 +186,48 @@ async function attempt<I, V>(
 	}
 }
 
+/** Ids for the objects (and symbols) a key holds: a key field compares by identity. */
+const object_ids = new WeakMap<object, number>();
+const symbol_ids = new Map<symbol, number>();
+let next_id = 0;
+
+/** One field of a key, spelled so that two different values never spell one string: a string is
+ *  its length, then itself; any other value its kind, then itself, then `;`. */
+function key_part(v: unknown): string {
+	switch (typeof v) {
+		case 'string':
+			return 's' + v.length + ':' + v;
+		case 'number':
+			return 'n' + v + ';'; // (0 and -0 are one key, as in a Map)
+		case 'bigint':
+			return 'g' + v + ';';
+		case 'boolean':
+			return v ? 't;' : 'f;';
+		case 'undefined':
+			return 'u;';
+		case 'symbol': {
+			let id = symbol_ids.get(v);
+			if (id === undefined) symbol_ids.set(v, (id = next_id++));
+			return 'y' + id + ';';
+		}
+		default: {
+			if (v === null) return 'z;';
+			const o = v as object;
+			let id = object_ids.get(o);
+			if (id === undefined) object_ids.set(o, (id = next_id++));
+			return 'o' + id + ';';
+		}
+	}
+}
+
+/** The key of a keyed flights' input: its key fields, in their order, spelled one way. */
+export function key_of(fields: readonly PropertyKey[], input: unknown): string {
+	const of = input as Record<PropertyKey, unknown>;
+	let key = '';
+	for (const f of fields) key += key_part(of[f]);
+	return key;
+}
+
 function bad_option(option: string, value: unknown, rule: string): Error {
 	return machine_error('machine_bad_option', { option, value: String(value), rule });
 }
@@ -168,7 +241,10 @@ const expired = (k: Readonly<Kept>, now: number): boolean => k.until !== Infinit
 class Flown<I, V, K> implements Flights<I, V, K> {
 	_def: { create(data: EntryStates['flying']): Entry };
 	_run: (input: I, signal: AbortSignal) => unknown;
-	_key: ((input: I) => K) | undefined;
+	/** A keyed flights' key fields (`null`: the input itself is the key). */
+	_fields: readonly PropertyKey[] | null;
+	/** A keyed flights' keys as callers name them (its key fields), by the spelled key. */
+	_keys: Map<string, K> | null;
 	_keep: number | ((answer: V, input: I) => number);
 	_max: number;
 	_weigh: ((answer: V, input: I) => number) | undefined;
@@ -179,12 +255,33 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 	_unwatch: () => void = noop;
 	/** Some answer can expire: a new flight sweeps the expired ones out. */
 	_expires: boolean;
-	_entries = new Map<K, Entry>();
+	/** By key: the input itself, or (keyed) the spelled key. */
+	_entries = new Map<unknown, Entry>();
 	_weight = 0;
 	_disposed = false;
 
-	constructor(o: FlightsOptions<I, unknown, K, unknown>) {
+	constructor(
+		o: FlightsCommon<I, unknown, unknown> & {
+			key?: readonly PropertyKey[];
+			ignore?: Record<PropertyKey, string>;
+		}
+	) {
 		if (typeof o.run !== 'function') throw bad_option('run', typeof o.run, 'a function');
+		this._fields = null;
+		this._keys = null;
+		if (o.key !== undefined) {
+			const fields = o.key;
+			if (!Array.isArray(fields) || new Set(fields).size !== fields.length)
+				throw bad_option('key', String(fields), 'a list of the input fields that make the key');
+			for (const [field, why] of Object.entries(o.ignore ?? {})) {
+				if (fields.includes(field))
+					throw bad_option('ignore', field, 'a field the key leaves out, not one of its fields');
+				if (typeof why !== 'string' || why.trim() === '')
+					throw bad_option('ignore', field, 'the reason the key leaves it out');
+			}
+			this._fields = Object.freeze([...fields]);
+			this._keys = new Map();
+		} else if (o.ignore !== undefined) throw bad_option('ignore', 'without key', 'beside a key');
 		const retries = o.retries ?? 0;
 		if (!Number.isInteger(retries) || retries < 0)
 			throw bad_option('retries', retries, 'a whole number of 0 or more');
@@ -199,7 +296,6 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 			steps: entry_steps
 		});
 		this._run = o.run;
-		this._key = o.key;
 		this._keep = keep as number | ((answer: V, input: I) => number);
 		this._max = max;
 		this._weigh = o.weigh as ((answer: V, input: I) => number) | undefined;
@@ -245,7 +341,8 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		if (this._disposed) return STALE_NOW;
 		const signal = options?.signal;
 		if (signal?.aborted) return STALE_NOW;
-		const key = this._key === undefined ? (input as K) : this._key(input as I);
+		const fields = this._fields;
+		const key = fields === null ? input : key_of(fields, input);
 		let m = this._entries.get(key);
 		let prior: Kept | null = null;
 		if (m !== undefined) {
@@ -269,23 +366,31 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		return this._join(key, ...this._fly(key, m, input as I, prior), signal);
 	}
 
+	/** The entry key of a key as callers name it (keyed: its fields, spelled). */
+	_entry_key(key: K): unknown {
+		return this._fields === null ? key : key_of(this._fields, key);
+	}
+
 	peek(key: K): FlightEntry<V> | undefined {
-		const m = this._entries.get(key);
+		const m = this._entries.get(this._entry_key(key));
 		return m === undefined ? undefined : this._view(m, Date.now());
 	}
 
 	drop(which: K | ((key: K, entry: FlightEntry<V>) => boolean)): void {
 		if (typeof which !== 'function') {
-			const m = this._entries.get(which);
-			if (m !== undefined) this._remove(which, m);
+			const key = this._entry_key(which);
+			const m = this._entries.get(key);
+			if (m !== undefined) this._remove(key, m);
 			return;
 		}
 		const test = which as (key: K, entry: FlightEntry<V>) => boolean;
+		const keys = this._keys;
 		const now = Date.now();
 		// (a Map lets an entry be deleted while it is walked)
 		for (const [key, m] of this._entries) {
 			const view = this._view(m, now);
-			if (view === undefined || test(key, view)) this._remove(key, m);
+			if (view === undefined || test(keys === null ? (key as K) : keys.get(key as string)!, view))
+				this._remove(key, m);
 		}
 	}
 
@@ -312,7 +417,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 	}
 
 	/** Starts a flight for `key` (the entry's `flying` visit), keeping `prior` beside it. */
-	_fly(key: K, m: Entry | undefined, input: I, prior: Kept | null): [Entry, Flight] {
+	_fly(key: unknown, m: Entry | undefined, input: I, prior: Kept | null): [Entry, Flight] {
 		if (this._expires) this._sweep(Date.now());
 		const stamp = this._world === undefined ? 0 : this._world.stamp();
 		const flight: Flight = { shared: STALE_NOW, holders: 0, pinned: false, stamp };
@@ -323,6 +428,13 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		} else {
 			entry = this._def.create({ flight, prior });
 			this._entries.set(key, entry);
+			const fields = this._fields;
+			if (fields !== null) {
+				// the key as callers name it (drop's predicate): its fields only, never the rest
+				const named: Record<PropertyKey, unknown> = {};
+				for (const f of fields) named[f] = (input as Record<PropertyKey, unknown>)[f];
+				this._keys!.set(key as string, named as K);
+			}
 		}
 		const visit = entry.now;
 		const run = this._run;
@@ -359,7 +471,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 
 	/** A flight's answer landed: kept, or (not kept) the entry goes back to what it kept before. */
 	_land(
-		key: K,
+		key: unknown,
 		m: Entry,
 		input: I,
 		answer: V,
@@ -388,13 +500,18 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 	}
 
 	/** Back to the answer kept before this flight, or gone when there was none. */
-	_back(key: K, m: Entry, prior: Kept | null): void {
+	_back(key: unknown, m: Entry, prior: Kept | null): void {
 		if (prior !== null) m.go('kept', prior);
 		else this._remove(key, m);
 	}
 
 	/** A caller joins `flight`: with no signal, the shared answer; with one, its own stake in it. */
-	_join(key: K, m: Entry, flight: Flight, signal: AbortSignal | undefined): Promise<V | Stale> {
+	_join(
+		key: unknown,
+		m: Entry,
+		flight: Flight,
+		signal: AbortSignal | undefined
+	): Promise<V | Stale> {
 		const shared = flight.shared as Promise<V | Stale>;
 		if (signal === undefined) {
 			flight.pinned = true;
@@ -424,8 +541,11 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 	}
 
 	/** Takes `key`'s entry out: its kept answer goes, its flight (if out) ends. */
-	_remove(key: K, m: Entry): void {
-		if (this._entries.get(key) === m) this._entries.delete(key);
+	_remove(key: unknown, m: Entry): void {
+		if (this._entries.get(key) === m) {
+			this._entries.delete(key);
+			this._keys?.delete(key as string);
+		}
 		const s = m.now;
 		if (s.kind === 'gone') return;
 		this._weight -= s.kind === 'kept' ? s.weight : (s.prior?.weight ?? 0);
@@ -447,9 +567,29 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 	}
 }
 
-/** Keyed shared async work (see the module's comment). */
-export function flights<I = void, V = unknown, K = I, W = never>(
-	options: FlightsOptions<I, V, K, W>
-): Flights<I, Awaited<V>, K> {
-	return new Flown<I, Awaited<V>, K>(options as FlightsOptions<I, unknown, K, unknown>);
+/** Makes a keyed flights over input `I` (`flights<I>()({ key, ignore?, run, … })`). */
+export type KeyedFlights<I> = <
+	const F extends keyof I,
+	G extends Exclude<keyof I, F> = never,
+	V = unknown,
+	W = never
+>(
+	options: KeyedFlightsOptions<I, F, G, V, W>
+) => Flights<I, Awaited<V>, Pick<I, F>>;
+
+/** Keyed shared async work (see the module's comment). With no options, a maker of a flights over
+ *  object input `I` keyed by some of its fields: `flights<Ask>()({ key: ['href'], run })`. */
+export function flights<I extends object>(): KeyedFlights<I>;
+export function flights<I = void, V = unknown, W = never>(
+	options: FlightsOptions<I, V, W>
+): Flights<I, Awaited<V>, I>;
+export function flights(options?: object): unknown {
+	if (options === undefined) return keyed;
+	return new Flown(options as FlightsOptions<unknown, unknown, unknown>);
+}
+
+function keyed(options: KeyedFlightsOptions<object, never, never, unknown>): unknown {
+	if (typeof options !== 'object' || options === null || options.key === undefined)
+		throw bad_option('key', 'none', 'the input fields that make the key');
+	return new Flown(options);
 }

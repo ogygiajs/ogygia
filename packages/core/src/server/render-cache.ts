@@ -37,33 +37,47 @@ const MAX_BYTES = 64 * 1024 * 1024;
 const MAX_ENTRIES = 500;
 const ENTRY_SHARE = Math.floor(MAX_BYTES / MAX_ENTRIES);
 
-/** A render to share: its key, the render itself (the caller's: the endpoint gates it, the inline
- *  path renders directly), and how long its HTML stays (seconds). */
-type Ask = {
-	key: string;
+/** What a region render is made from: the region, its props, the visitor's session seal, and (when
+ *  its tree reads `page.data`) the page it renders for. */
+export type RenderKey = { id: string; payload: string; session: string; page: string | null };
+
+/** A render to share: what it is made from, the render itself (the caller's: the endpoint gates
+ *  it, the inline path renders directly), and how long its HTML stays (seconds). */
+type Ask = RenderKey & {
 	render_body: (signal: AbortSignal) => string | null | Promise<string | null>;
 	ttl: number;
 };
 
-const renders = flights<Ask, Promise<string | null>, string>({
+const renders = flights<Ask>()({
 	name: 'render cache',
-	key: (ask) => ask.key,
-	run: async (ask, signal) => ask.render_body(signal),
+	key: ['id', 'payload', 'session', 'page'],
+	ignore: {
+		render_body: 'the render of the key: the same region, props, visitor and page',
+		ttl: 'how long the HTML stays, not what is rendered'
+	},
+	run: async (ask, signal): Promise<string | null> => ask.render_body(signal),
 	// (a null render — a failure folded to null — is shared while it flies, and never kept)
 	keep: (html, ask) => (html === null ? 0 : ask.ttl * 1000),
 	max: MAX_BYTES,
 	weigh: (html) => Math.max(html?.length ?? 0, ENTRY_SHARE)
 });
 
-/** Cache key for a region render — id + props payload + session seal. `exp`/`sig` (which rotate per
- *  mint) and `ttl` (a cache-window declaration, not a render input) are DELIBERATELY excluded so
- *  two renders of the same region+props+user hit; session is INCLUDED so users never cross. */
-export function render_cache_key(id: string, props_payload: string, session: string): string {
-	return id + ' ' + props_payload + ' ' + session;
+/** Cache key for a region render — id + props payload + session seal (+ the page, for a tree that
+ *  reads `page.data`). `exp`/`sig` (which rotate per mint) and `ttl` (a cache-window declaration,
+ *  not a render input) are DELIBERATELY excluded so two renders of the same region+props+user hit;
+ *  session is INCLUDED so users never cross. Each part is its own key field, so two calls whose
+ *  parts differ never share an entry, whatever the parts hold. */
+export function render_cache_key(
+	id: string,
+	payload: string,
+	session: string,
+	page: string | null = null
+): RenderKey {
+	return { id, payload, session, page };
 }
 
 /** Test/ops hook: the HTML kept for `key` now, or null. */
-export function render_cache_get(key: string): string | null {
+export function render_cache_get(key: RenderKey): string | null {
 	const seen = renders.peek(key);
 	return seen?.kind === 'kept' ? seen.answer : null;
 }
@@ -83,7 +97,7 @@ export function render_cache_clear(): void {
  */
 export async function cached_render(
 	render_body: (signal?: AbortSignal) => string | null | Promise<string | null>,
-	cache: { key: string; ttl: number } | undefined,
+	cache: { key: RenderKey; ttl: number } | undefined,
 	/** told what happened (`hit` served without rendering: the memo, or the render in flight it
 	 *  joined; `miss` rendered + stored; `none` uncached) */
 	report?: (outcome: 'hit' | 'miss' | 'none') => void,
@@ -96,7 +110,7 @@ export async function cached_render(
 		report?.('none');
 		return body;
 	}
-	const ask: Ask = { key: cache.key, render_body, ttl: cache.ttl };
+	const ask: Ask = { ...cache.key, render_body, ttl: cache.ttl };
 	for (;;) {
 		// (the flight starts inside `get`: nothing out for the key just before it means this call
 		// opened it)

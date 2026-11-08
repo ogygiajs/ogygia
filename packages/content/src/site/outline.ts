@@ -239,10 +239,11 @@ class OutlineImpl implements Outline {
 	readonly #spec: OutlineSpec;
 	readonly #opts: OutlineOptions;
 	/** One weave per read context: the last good one is kept, and a weave out for it is joined. */
-	readonly #weaves = flights({
+	readonly #weaves = flights<{ key: string; ctx: ReadContext }>()({
 		name: 'content outline weaves',
-		key: ctx_key,
-		run: (ctx: ReadContext) => this.#weave(ctx)
+		key: ['key'],
+		ignore: { ctx: 'the key spells all of it (ctx_key: every field, sorted)' },
+		run: ({ key, ctx }) => this.#weave(key, ctx)
 	});
 	/** Per read context, when weaving changed content failed: the versions it failed at. The last
 	 *  good weave stands until the content changes again (an editor's next save), as a collection
@@ -263,22 +264,21 @@ class OutlineImpl implements Outline {
 	 */
 	async #ready(ctx: ReadContext = {}): Promise<Materialized> {
 		const key = ctx_key(ctx);
-		const seen = this.#weaves.peek(key);
+		const seen = this.#weaves.peek({ key });
 		const failed = this.#failed.get(key);
 		const fresh =
 			seen?.kind === 'kept' &&
 			!seen.flying &&
 			!unchanged(seen.answer.read) &&
 			!(failed !== undefined && unchanged(failed));
-		const m = await this.#weaves.get(ctx, { fresh });
+		const m = await this.#weaves.get({ key, ctx }, { fresh });
 		// (nothing drops a weave and no reader leaves one, so it is never STALE; were it, ask again)
 		return m === STALE ? this.#ready(ctx) : m;
 	}
 
 	/** Weave `ctx`: the new weave, or (it failed over changed content) the last good one. */
-	async #weave(ctx: ReadContext): Promise<Materialized> {
-		const key = ctx_key(ctx);
-		const seen = this.#weaves.peek(key);
+	async #weave(key: string, ctx: ReadContext): Promise<Materialized> {
+		const seen = this.#weaves.peek({ key });
 		const good = seen?.kind === 'kept' ? seen.answer : null;
 		const at = good ? versions_now(good.read) : null;
 		try {

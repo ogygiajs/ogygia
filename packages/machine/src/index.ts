@@ -23,6 +23,8 @@ export {
 	type FlightEntry,
 	type Flights,
 	type FlightsOptions,
+	type KeyedFlights,
+	type KeyedFlightsOptions,
 	type GetArgs,
 	type GetOptions
 } from './flights.ts';

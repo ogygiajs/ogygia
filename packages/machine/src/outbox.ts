@@ -73,7 +73,7 @@ class Box<T> implements Outbox<T> {
 	_retry: Policy;
 	_give_up: ((item: T, error: unknown) => void) | undefined;
 	_wait_until: ((work: Promise<unknown>) => void) | undefined;
-	_flights: Flights<Put<T>, boolean, unknown>;
+	_flights: Flights<Put<T>, boolean, Pick<Put<T>, 'key'>>;
 	_in_order: boolean;
 	/** In order: the last send put (it never rejects), and how many are put and not ended. */
 	_tail: Promise<unknown> = Promise.resolve();
@@ -93,11 +93,12 @@ class Box<T> implements Outbox<T> {
 		this._give_up = o.giveUp;
 		this._wait_until = o.waitUntil;
 		this._in_order = o.inOrder === true;
-		this._flights = flights({
+		this._flights = flights<Put<T>>()({
 			name: this._name,
-			key: (p: Put<T>) => p.key,
+			key: ['key'],
+			ignore: { item: 'one send per id: a put of an id still out joins the send of the first' },
 			keep: 0,
-			run: (p: Put<T>) => (this._in_order ? this._next(p.item) : this._deliver(p.item))
+			run: (p) => (this._in_order ? this._next(p.item) : this._deliver(p.item))
 		});
 	}
 

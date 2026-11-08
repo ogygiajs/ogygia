@@ -352,7 +352,7 @@ type PageAsk = { href: string; purpose: NavPurpose };
 /** A page fetch's answer: the page (`null`: not HTML, or the fetch failed), and whether the
  *  response lets us keep it. */
 type Fetched = { page: FetchedPage | null; cacheable: boolean };
-type Pages = import('@ogygia/machine').Flights<PageAsk, Fetched, string>;
+type Pages = import('@ogygia/machine').Flights<PageAsk, Fetched, Pick<PageAsk, 'href'>>;
 let page_flights: Pages | undefined;
 /** The world the cached pages are made in: a mutation moves it (`bust_page_cache`). */
 let page_world: import('@ogygia/machine').World | undefined;
@@ -362,10 +362,11 @@ let page_world: import('@ogygia/machine').World | undefined;
  *  in `page_world`: a move of it drops them all, a fetch in flight is aborted, and a navigation that
  *  waited on it fetches again. */
 const pages = (): Pages =>
-	(page_flights ??= boot_link().flights<PageAsk, Promise<Fetched>, string>({
+	(page_flights ??= boot_link().flights<PageAsk>()({
 		name: 'router pages',
-		key: (ask) => ask.href,
-		run: (ask, signal) => run_page_fetch(ask, signal),
+		key: ['href'],
+		ignore: { purpose: 'a navigation joins the prefetch out for its address: how, not what' },
+		run: (ask, signal): Promise<Fetched> => run_page_fetch(ask, signal),
 		world: (page_world = boot_link().world()),
 		keep: (answer) => (answer.page !== null && answer.cacheable ? PREFETCH_TTL_MS : 0),
 		max: PAGE_CACHE_MAX_BYTES,
@@ -683,7 +684,7 @@ export async function navigate(
 		const { html } = page;
 		const fetched = performance.now();
 		// one-shot; always fresh on real navigation (a fetch already out again for it is left be)
-		pages().drop((href, entry) => href === url.href && entry.kind === 'kept' && !entry.flying);
+		pages().drop(({ href }, entry) => href === url.href && entry.kind === 'kept' && !entry.flying);
 
 		// REDIRECT: the fetch may have landed on a different href (a Kit `redirect()` in load, a
 		// canonical trailing-slash bounce). `dest` is the address the content actually belongs to —

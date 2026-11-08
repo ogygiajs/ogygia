@@ -232,15 +232,42 @@ describe('types', () => {
 				Promise<string | Stale>
 			>();
 		});
-		const keyed = flights({ run: (i: { href: string; n: number }) => i.n, key: (i) => i.href });
-		const seen = keyed.peek('/a');
+		type Ask = { href: string; n: number; by: string };
+		const keyed = flights<Ask>()({
+			key: ['href', 'n'],
+			ignore: { by: 'who asked, not what is fetched' },
+			run: (i) => {
+				expectTypeOf(i).toEqualTypeOf<Pick<Ask, 'href' | 'n' | 'by'>>();
+				return i.n;
+			}
+		});
+		const seen = keyed.peek({ href: '/a', n: 1 });
 		if (seen?.kind === 'kept') expectTypeOf(seen.answer).toEqualTypeOf<number>();
-		keyed.drop((key) => key.startsWith('/a'));
+		keyed.drop((key) => {
+			expectTypeOf(key).toEqualTypeOf<Pick<Ask, 'href' | 'n'>>();
+			return key.href.startsWith('/a');
+		});
+		expectTypeOf(keyed.get).parameter(0).toEqualTypeOf<Ask>();
 		compile_only(() => {
 			// @ts-expect-error: a keyed flights needs its input
 			void pages.get();
-			// @ts-expect-error: a key is the key's type
-			keyed.peek(1);
+			// @ts-expect-error: a key is named by its fields
+			keyed.peek('/a');
+			flights<Ask>()({
+				key: ['href'],
+				// @ts-expect-error: run reads a field its key leaves out
+				run: (i) => i.n
+			});
+			flights<Ask>()({
+				key: ['href'],
+				// @ts-expect-error: a field cannot be both in the key and ignored
+				ignore: { href: 'twice' },
+				run: (i) => i.href
+			});
+			// @ts-expect-error: a field the input does not have
+			flights<Ask>()({ key: ['nope'], run: () => 0 });
+			// @ts-expect-error: an unkeyed flights takes no key: its input is its key
+			flights({ run: (i: Ask) => i.n, key: ['href'] });
 		});
 	});
 

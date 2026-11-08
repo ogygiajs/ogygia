@@ -27,9 +27,13 @@ let mounted: Handle | null = null;
 /** The process's one profiler mount: the first requests that arrive together share it. A mount
  *  that fails (an edge runtime without node:inspector, a dev server mid-edit) is not kept, so the
  *  next request tries again. */
-const mounting = flights({
+const mounting = flights<{ options: ProfilerOptions }>()({
 	name: 'profiler mount',
-	run: async (options: ProfilerOptions) => {
+	key: [],
+	ignore: {
+		options: "one mount for the process: the first request's options are the ones it mounts with"
+	},
+	run: async ({ options }) => {
 		const { profiler } = await import('./profiler/index.ts');
 		// a runtime store (`setProfilerStore` in hooks.server.ts): a live DB object the build-time options
 		// could not carry, merged over them
@@ -38,9 +42,7 @@ const mounting = flights({
 		}));
 		const store = getProfilerStore();
 		return (mounted = profiler({ ...options, ...(store ? { store } : {}) }));
-	},
-	// (one mount for the process: the first request's options are the ones it mounts with)
-	key: () => 'profiler'
+	}
 });
 
 /** a failed mount was said (once for the process: an edge runtime fails every request the same way) */
@@ -48,7 +50,7 @@ let mount_failure_said = false;
 
 async function mount(options: ProfilerOptions): Promise<Handle | null> {
 	// (nothing drops the mount, so it is never STALE)
-	return mounting.get(options).then(
+	return mounting.get({ options }).then(
 		(m) => (m === STALE ? null : m),
 		(error: unknown) => {
 			if (!mount_failure_said) {

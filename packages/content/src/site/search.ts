@@ -342,13 +342,17 @@ export function create_search(ol: Outline, engine: SearchEngine): SearchBrain {
 	// one materialization of the outline: a new one (the content changed) builds the index again. A
 	// failed build is never kept. (It was built once, ever: a page a live source added was never
 	// found, and one failed build failed every search, #193.)
-	const indexes = flights({
+	const indexes = flights<{ scope_id: string; from: unknown; in: Collection[] | undefined }>()({
 		name: 'content search index',
-		run: async (i: { scope_id: string; from: unknown; in: Collection[] | undefined }) => {
+		key: ['scope_id'],
+		ignore: {
+			in: 'the collections scope_id spells',
+			from: 'the materialization it was built from: the answer carries it, and one built from an older one is built again'
+		},
+		run: async (i) => {
 			await engine.init?.();
 			return { index: await engine.build(await build_docs(ol, i.in)), from: i.from };
-		},
-		key: (i) => i.scope_id
+		}
 	});
 	const token = (ol as { [OUTLINE_TOKEN]?: () => unknown })[OUTLINE_TOKEN];
 
@@ -361,7 +365,7 @@ export function create_search(ol: Outline, engine: SearchEngine): SearchBrain {
 		// (an outline this package did not make has no token: built once, as before)
 		const from = token ? await token.call(ol) : null;
 		const input = { scope_id, from, in: opts.in };
-		const kept = indexes.peek(scope_id);
+		const kept = indexes.peek({ scope_id });
 		let built = await indexes.get(input, {
 			fresh: kept?.kind === 'kept' && kept.answer.from !== from
 		});

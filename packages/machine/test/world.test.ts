@@ -132,7 +132,6 @@ describe('flights in a world', () => {
 		const w = world.keyed<string>();
 		const docs = flights({
 			world: w,
-			key: (p: string) => p,
 			touches: (a: { tags: string[] }) => a.tags,
 			run: async (p: string) => ({ tags: [p] })
 		});

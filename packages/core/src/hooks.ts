@@ -83,7 +83,7 @@ import {
 } from './server/hmac.ts';
 import { expiry_refusal, note_cache_control } from './server/shared-cache.ts';
 import { app_lifetime } from './server/region-endpoint.ts';
-import { render_cache_key, cached_render } from './server/render-cache.ts';
+import { render_cache_key, cached_render, type RenderKey } from './server/render-cache.ts';
 import { B64Url } from './server/payload.ts';
 import { REF_WIRE_KEY, ref_reviver } from './ref.ts';
 import { plugins as plugin_entries } from 'virtual:ogygia/server-plugins';
@@ -1723,7 +1723,7 @@ class OgygiaHandle {
 	async #render_component(
 		load: () => Promise<{ default: unknown }>,
 		props: Record<string, unknown>,
-		cache?: { key: string; ttl: number },
+		cache?: { key: RenderKey; ttl: number },
 		/** the profiler's hole economics: what the cache did for this request */
 		report?: (outcome: 'hit' | 'miss' | 'none') => void,
 		/** filled when the render ran: its wait for a slot in the gate, and its time in it */
@@ -1813,12 +1813,12 @@ class OgygiaHandle {
 		payload: string,
 		event: RequestEvent,
 		reads_page_data: boolean
-	): string {
-		const session = this.#region_session(event);
+	): RenderKey {
 		return render_cache_key(
 			id,
 			payload,
-			reads_page_data ? session + '\n' + page_url_of(event).href : session
+			this.#region_session(event),
+			reads_page_data ? page_url_of(event).href : null
 		);
 	}
 

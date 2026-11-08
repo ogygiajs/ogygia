@@ -7,7 +7,8 @@ import {
 	render_cache_key,
 	render_cache_get,
 	render_cache_clear,
-	cached_render
+	cached_render,
+	type RenderKey
 } from '../src/server/render-cache.ts';
 import { ConcurrencyGate } from '../src/runtime/concurrency.ts';
 
@@ -15,7 +16,9 @@ beforeEach(() => render_cache_clear());
 afterEach(() => vi.useRealTimers());
 
 /** Renders `html` for `key` through the cache (kept for `ttl` seconds). */
-const put = (key: string, html: string, ttl: number) => cached_render(() => html, { key, ttl });
+const put = (key: RenderKey, html: string, ttl: number) => cached_render(() => html, { key, ttl });
+/** The key of region `id` with props `p` and no session. */
+const k = (id: string) => render_cache_key(id, 'p', '');
 const at = (ms: number) => {
 	vi.useFakeTimers({ toFake: ['Date'] });
 	vi.setSystemTime(ms);
@@ -25,8 +28,8 @@ describe('render_cache_key', () => {
 	it('includes the session seal so users never cross; excludes exp/sig (not passed) and ttl', () => {
 		const a = render_cache_key('id1', 'PROPS', 'sessionA');
 		const b = render_cache_key('id1', 'PROPS', 'sessionB');
-		expect(a).not.toBe(b); // different user → different key (no leak)
-		expect(render_cache_key('id1', 'PROPS', '')).toBe(render_cache_key('id1', 'PROPS', '')); // stable
+		expect(a).not.toEqual(b); // different user → different key (no leak)
+		expect(render_cache_key('id1', 'PROPS', '')).toEqual(render_cache_key('id1', 'PROPS', '')); // stable
 	});
 });
 
@@ -68,29 +71,29 @@ describe('render cache: what it keeps', () => {
 	});
 
 	it('bounds memory — past 500 entries the oldest evict', async () => {
-		for (let i = 0; i < 600; i++) await put('k' + i, 'v' + i, 60);
-		expect(render_cache_get('k0')).toBe(null); // oldest evicted
-		expect(render_cache_get('k599')).toBe('v599'); // newest kept
+		for (let i = 0; i < 600; i++) await put(k('k' + i), 'v' + i, 60);
+		expect(render_cache_get(k('k0'))).toBe(null); // oldest evicted
+		expect(render_cache_get(k('k599'))).toBe('v599'); // newest kept
 	});
 
 	it('a hit is an LRU touch — a recently-served entry survives eviction pressure', async () => {
-		await put('keep', 'v', 60);
-		for (let i = 0; i < 499; i++) await put('f' + i, 'x', 60); // fill to 500
-		await put('keep', 'other', 60); // a hit (served 'v') → most-recent
-		for (let i = 0; i < 100; i++) await put('g' + i, 'x', 60); // pressure
-		expect(render_cache_get('keep')).toBe('v'); // survived because touched
+		await put(k('keep'), 'v', 60);
+		for (let i = 0; i < 499; i++) await put(k('f' + i), 'x', 60); // fill to 500
+		await put(k('keep'), 'other', 60); // a hit (served 'v') → most-recent
+		for (let i = 0; i < 100; i++) await put(k('g' + i), 'x', 60); // pressure
+		expect(render_cache_get(k('keep'))).toBe('v'); // survived because touched
 	});
 
 	it('holds many small renders, but 2 MB renders evict each other long before 500 entries', async () => {
 		const big = 'x'.repeat(2_000_000);
-		for (let i = 0; i < 40; i++) await put('big' + i, big, 60);
-		const kept = Array.from({ length: 40 }, (_, i) => render_cache_get('big' + i)).filter(
+		for (let i = 0; i < 40; i++) await put(k('big' + i), big, 60);
+		const kept = Array.from({ length: 40 }, (_, i) => render_cache_get(k('big' + i))).filter(
 			(v) => v !== null
 		).length;
 		expect(kept).toBeLessThan(40);
 		expect(kept).toBeGreaterThan(20);
-		expect(render_cache_get('big39')).toBe(big); // the newest survive
-		expect(render_cache_get('big0')).toBeNull(); // the oldest went
+		expect(render_cache_get(k('big39'))).toBe(big); // the newest survive
+		expect(render_cache_get(k('big0'))).toBeNull(); // the oldest went
 	});
 });
 

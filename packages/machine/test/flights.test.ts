@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { flights, observe, scope, STALE } from '../src/index.ts';
+import { flights, MachineError, observe, scope, STALE } from '../src/index.ts';
 import { macrotask } from './_tick.ts';
 
 /** A promise and its two ends. */
@@ -160,15 +160,78 @@ describe('keyed', () => {
 		expect(run.mock.calls.map((c) => c[0])).toEqual(['/a', '/b']);
 	});
 
-	it('`key` says which inputs are one flight; the input that started it is the one that runs', async () => {
+	it('`key` names the fields that are one flight; the input that started it is the one that runs', async () => {
 		const run = vi.fn(async (i: { href: string; by: string }) => i.by);
-		const pages = flights({ run, key: (i) => i.href });
+		const pages = flights<{ href: string; by: string }>()({
+			key: ['href'],
+			ignore: { by: 'who asked, not what is fetched' },
+			run
+		});
 		const a = pages.get({ href: '/a', by: 'prefetch' });
 		const b = pages.get({ href: '/a', by: 'click' });
 		expect(await a).toBe('prefetch');
 		expect(await b).toBe('prefetch');
 		expect(run).toHaveBeenCalledOnce();
-		expect(pages.peek('/a')?.kind).toBe('kept');
+		expect(pages.peek({ href: '/a' })?.kind).toBe('kept');
+	});
+
+	it('two inputs that differ in any key field never share an answer', async () => {
+		type Spec = { owner: string; repo: string; ref: string; sub: string };
+		const run = vi.fn(async (s: Spec) => `${s.owner}/${s.repo}@${s.ref}:${s.sub}`);
+		const checkouts = flights<Spec>()({ key: ['owner', 'repo', 'ref', 'sub'], run });
+		const base: Spec = { owner: 'a', repo: 'b', ref: 'main', sub: 'docs' };
+		const inputs: Spec[] = [base];
+		for (const field of ['owner', 'repo', 'ref', 'sub'] as const) {
+			inputs.push({ ...base, [field]: base[field] + 'x' });
+			// a value that a careless join would spell like another field's
+			inputs.push({ ...base, [field]: base[field] + ':' + 'b' });
+		}
+		inputs.push({ owner: 'a:b', repo: '', ref: 'main', sub: 'docs' });
+		const answers = await Promise.all(inputs.map((i) => checkouts.get(i)));
+		expect(new Set(answers).size).toBe(inputs.length);
+		expect(run).toHaveBeenCalledTimes(inputs.length);
+		await checkouts.get({ ...base });
+		expect(run).toHaveBeenCalledTimes(inputs.length); // the same fields: the kept answer
+	});
+
+	it('a key field compares objects by identity, and keeps every kind of value apart', async () => {
+		type In = { v: unknown };
+		const run = vi.fn(async (i: In) => i.v);
+		const vs = flights<In>()({ key: ['v'], run });
+		const o = {};
+		const values = [o, {}, 1, '1', 1n, true, 'true', null, 'null', undefined, 'u;', Symbol('s')];
+		for (const v of values) await vs.get({ v });
+		expect(run).toHaveBeenCalledTimes(values.length);
+		await vs.get({ v: o });
+		expect(run).toHaveBeenCalledTimes(values.length);
+		expect(vs.peek({ v: o })?.kind).toBe('kept');
+	});
+
+	it('drop by key fields, or by a predicate over them (never over the rest of the input)', async () => {
+		type Ask = { href: string; purpose: string };
+		const pages = flights<Ask>()({
+			key: ['href'],
+			ignore: { purpose: 'how it is fetched, not what' },
+			run: async (a) => a.href
+		});
+		await pages.get({ href: '/a', purpose: 'nav' });
+		await pages.get({ href: '/b', purpose: 'prefetch' });
+		const seen: unknown[] = [];
+		pages.drop((key) => (seen.push(key), key.href === '/a'));
+		expect(seen).toEqual([{ href: '/a' }, { href: '/b' }]);
+		expect(pages.peek({ href: '/a' })).toBeUndefined();
+		pages.drop({ href: '/b' });
+		expect(pages.peek({ href: '/b' })).toBeUndefined();
+	});
+
+	it('a keyed flights refuses a key it cannot use, where it is written', () => {
+		const run = async () => 0;
+		const make = flights<{ a: string; b: string }>();
+		expect(() => make({ key: ['a', 'a'], run })).toThrow(MachineError);
+		expect(() => make({ key: ['a'], ignore: { a: 'twice' } as never, run })).toThrow(MachineError);
+		expect(() => make({ key: ['a'], ignore: { b: ' ' }, run })).toThrow(MachineError);
+		expect(() => make({ run } as never)).toThrow(MachineError);
+		expect(make({ key: [], ignore: { a: 'one look-up per owner', b: 'same' }, run })).toBeDefined();
 	});
 
 	it('runs inside the get that starts it, with a signal of its own', () => {
