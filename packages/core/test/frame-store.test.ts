@@ -231,6 +231,50 @@ describe('frame-store: reservation (single-flight navigation)', () => {
 		expect(await later).toBe('FROM-BATCH');
 	});
 
+	it('a forced fetch at a reserved address leaves the reservation to its batch: its frame settles every joiner', async () => {
+		frames.reserve('a');
+		const joined = frames.ensure('a', deferred().fetcher);
+		const forced = deferred('<p>refresh</p>');
+		const refresh = frames.ensure('a', forced.fetcher, { force: true }); // a lake revalidates
+		frames.write({ a: 'a', v: frames.ticket('a'), html: '<p>batch</p>' }); // the batch's part lands
+		const settled = await Promise.race([
+			joined,
+			new Promise((r) => setTimeout(() => r('still waiting'), 50))
+		]);
+		expect(settled).toBe('<p>batch</p>');
+		forced.resolve();
+		await refresh;
+	});
+
+	it('a forced fetch at a reserved address: a batch that ends without the frame still lets its joiners go', async () => {
+		frames.reserve('a');
+		const joined = frames.ensure('a', deferred().fetcher);
+		const forced = deferred();
+		const refresh = frames.ensure('a', forced.fetcher, { force: true });
+		forced.reject(new Error('the refresh failed'));
+		await expect(refresh).rejects.toThrow('the refresh failed');
+		frames.release('a'); // the batch ended without it
+		const err = await Promise.race([
+			joined.catch((e: { name?: string }) => e.name),
+			new Promise((r) => setTimeout(() => r('still waiting'), 50))
+		]);
+		expect(err).toBe(frames.BATCH_MISS);
+	});
+
+	it('a forced fetch that lands first settles the joiners of the reservation with its frame', async () => {
+		frames.reserve('a');
+		const joined = frames.ensure('a', deferred().fetcher);
+		const forced = deferred('<p>refresh</p>');
+		const refresh = frames.ensure('a', forced.fetcher, { force: true });
+		forced.resolve();
+		await refresh;
+		const settled = await Promise.race([
+			joined,
+			new Promise((r) => setTimeout(() => r('still waiting'), 50))
+		]);
+		expect(settled).toBe('<p>refresh</p>');
+	});
+
 	it('release() is a no-op once the frame has landed', () => {
 		frames.reserve('/r?sig=1');
 		frames.write({ a: '/r?sig=1', v: 1, html: 'HAVE-IT' });
