@@ -202,3 +202,56 @@ test('an interaction island that fails to wake says so, and its click is replaye
 		)
 		.toBe(true);
 });
+
+test('a region taken out while its island loads and put back wakes once, and stops catching clicks once awake', async () => {
+	const SLOW = '/test/browser/fixtures/slow-entry.ts';
+	document.body.innerHTML = `<ogygia-region wake="load" entry="${SLOW}">${counter()}</ogygia-region>`;
+	const el = document.querySelector<HTMLElement>('ogygia-region')!;
+	bootDev();
+	// its module is on its way (it takes 400 ms)
+	await expect
+		.poll(
+			() => performance.getEntriesByType('resource').some((r) => r.name.includes('slow-entry')),
+			{ timeout: 5_000 }
+		)
+		.toBe(true);
+	el.remove();
+	await tick(10); // out past its task: torn down
+	document.body.append(el); // put back while the module still loads: it arms again
+	await expect.poll(() => el.hasAttribute('data-hydrated'), { timeout: 5_000 }).toBe(true);
+	await tick();
+	// awake: a click is the island's own, never caught and queued for a replay
+	const click = new MouseEvent('click', { bubbles: true, cancelable: true, composed: true });
+	el.querySelector('button')!.dispatchEvent(click);
+	expect(click.defaultPrevented, 'an awake island’s click is not held for a replay').toBe(false);
+	expect(el.getAttribute('data-og-woke')).not.toBe('interaction');
+});
+
+test('a hole whose failed fetch lands as it leaves the page settles quietly, whatever the timing', async () => {
+	const thrown: unknown[] = [];
+	const on_rejection = (e: PromiseRejectionEvent) => {
+		thrown.push(e.reason);
+		e.preventDefault();
+	};
+	window.addEventListener('unhandledrejection', on_rejection);
+	vi.spyOn(console, 'warn').mockImplementation(() => {});
+	try {
+		// the failure, then the region's removal k microtasks later: one of them falls between the
+		// fetch's task failing and the hole hearing of it
+		for (let k = 0; k < 12; k++) {
+			let answer!: (r: Response) => void;
+			window.fetch = () => new Promise<Response>((r) => (answer = r));
+			const [el] = insert(plain_hole(ep(`lifefail${String(k).padStart(4, '0')}`)));
+			bootDev();
+			await expect.poll(() => typeof answer, { timeout: 5_000 }).toBe('function');
+			answer(new Response('', { status: 500 }));
+			for (let i = 0; i < k; i++) await Promise.resolve();
+			el.remove();
+			await tick(20);
+			_reset();
+		}
+	} finally {
+		window.removeEventListener('unhandledrejection', on_rejection);
+	}
+	expect(thrown.map((e) => String((e as Error)?.message ?? e))).toEqual([]);
+});

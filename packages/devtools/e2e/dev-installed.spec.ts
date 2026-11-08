@@ -148,6 +148,17 @@ test.describe('dev: an installed (not linked) ogygia runs as one copy in the bro
 		// (the first visit may optimize the app's own deps and reload once: land on a settled page)
 		await page.goto(`${base}/`, { waitUntil: 'load' });
 		await page.waitForTimeout(2500);
+		// …but never ogygia's own: what its runtime imports is named up front, as the app cannot
+		// know it (each one found late re-optimizes and reloads the page)
+		const late_own = srv!.logs
+			.join('')
+			.split('\n')
+			.filter((l) => /dependenc(y|ies) optimized/.test(l) && /@ogygia\/|esm-env|devalue/.test(l));
+		check(
+			'the first visit finds none of ogygia’s own dependencies late',
+			late_own.length === 0,
+			late_own.slice(0, 3).join(' | ')
+		);
 		errors.length = 0;
 		await page.goto(`${base}/`, { waitUntil: 'load' });
 		await page

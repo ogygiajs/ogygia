@@ -7,6 +7,7 @@
  */
 import { STALE } from '@ogygia/machine';
 import { slots } from './slots.ts';
+import { create_soft_refresh } from './soft-refresh.ts';
 import { KitBoot, kit_hydrates_page } from './kit-boot.ts';
 import {
 	ABSOLUTE_URL_SCHEME,
@@ -64,6 +65,7 @@ export function link_boot(): void {
 		needs_devalue,
 		OgygiaError,
 		warn,
-		STALE
+		STALE,
+		soft: create_soft_refresh()
 	};
 }
