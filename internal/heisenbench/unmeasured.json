@@ -601,10 +601,6 @@
 			"reason": "a test seam: drops the painted gate, constant work"
 		},
 		{
-			"id": "packages/core/src/server/render-page.ts > prepare_render_page > flights:0",
-			"reason": "a request's page-facts look-up (event.fetch of the page, a RequestEvent nothing can clone), once per request; run by packages/core/test/render-page.test.ts"
-		},
-		{
 			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > #stop",
 			"reason": "closes the run's scope (a timer), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
 		},
@@ -815,6 +811,170 @@
 		{
 			"id": "packages/postrender/src/registry.ts > stale_flights > drop:0~2bdcbc",
 			"reason": "one comparison or one in_subtree check per render in flight (in_subtree is measured on its own); run by packages/postrender/test/postrender.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > stream_page_deferred > defer:0~95f179",
+			"reason": "the streamed page's Kit reader is cancelled when the request ends: a cancel when its owner ends, constant work"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > stream_page_deferred > defer:0~95f179 > catch:0~a1b2d0",
+			"reason": "the streamed page's Kit reader is cancelled when the request ends: a cancel when its owner ends, constant work"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > owned",
+			"reason": "wraps the handle with the request's owner (a Kit request event nothing can clone); its parts are proven in packages/core/test/request-scope.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > owned > <anonymous>~abe4e3",
+			"reason": "wraps the handle with the request's owner (a Kit request event nothing can clone); its parts are proven in packages/core/test/request-scope.test.ts"
+		},
+		{
+			"id": "packages/core/src/insights/page-assets.ts > weigh_one > Promise:0~9ee1b9 > timeout:0~e7251f",
+			"reason": "a file's budget race timer on its own scope (a fetched Response, not cloneable), constant work; run by packages/core/test/profiler-page-assets.test.ts"
+		},
+		{
+			"id": "packages/core/src/insights/page-assets.ts > weigh_one > finally:0~4a8350",
+			"reason": "a file's budget race timer on its own scope (a fetched Response, not cloneable), constant work; run by packages/core/test/profiler-page-assets.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > request_cleanup_failed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > request_cleanup_failed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/plugin/request-scope.ts > entry_of > on:2~c36b88",
+			"reason": "the visitor leaving ends the request's owner, constant work; proven in packages/core/test/request-scope.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/request-scope.ts > noop",
+			"reason": "a constant no-op"
+		},
+		{
+			"id": "packages/core/src/plugin/request-scope.ts > own_response",
+			"reason": "carries a response body through and ends the request's owner at its end (a live stream, not cloneable); proven in packages/core/test/request-scope.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/request-scope.ts > own_response > ReadableStream:0~e26599 > cancel",
+			"reason": "carries a response body through and ends the request's owner at its end (a live stream, not cloneable); proven in packages/core/test/request-scope.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/request-scope.ts > own_response > ReadableStream:0~e26599 > pull",
+			"reason": "carries a response body through and ends the request's owner at its end (a live stream, not cloneable); proven in packages/core/test/request-scope.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/request-scope.ts > own_response > defer:0~0e7f21",
+			"reason": "carries a response body through and ends the request's owner at its end (a live stream, not cloneable); proven in packages/core/test/request-scope.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/request-scope.ts > request_local",
+			"reason": "a value per request on its owner (a Request and a scope, not cloneable); proven in packages/core/test/request-scope.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/request-scope.ts > request_local > <anonymous>~d9ecdd",
+			"reason": "a value per request on its owner (a Request and a scope, not cloneable); proven in packages/core/test/request-scope.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/page-facts.ts > look_up_page > defer:0~95f179",
+			"reason": "the page-facts reader is cancelled when the request ends: a cancel when its owner ends, constant work"
+		},
+		{
+			"id": "packages/core/src/server/page-facts.ts > look_up_page > defer:0~95f179 > catch:0~a1b2d0",
+			"reason": "the page-facts reader is cancelled when the request ends: a cancel when its owner ends, constant work"
+		},
+		{
+			"id": "packages/core/src/server/render-page.ts > facts_of",
+			"reason": "reads the request's kept page facts (a Request, not cloneable), constant work; run by packages/core/test/render-page.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/render-page.ts > request_local:0~74ae29",
+			"reason": "the request's page-facts look-up (event.fetch of the page, a RequestEvent nothing can clone), once per request; run by packages/core/test/render-page.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/render-page.ts > request_local:0~74ae29 > flights:0~3f13e1 > key",
+			"reason": "the request's page-facts look-up (event.fetch of the page, a RequestEvent nothing can clone), once per request; run by packages/core/test/render-page.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/render-page.ts > request_local:0~74ae29 > flights:0~3f13e1 > run",
+			"reason": "the request's page-facts look-up (event.fetch of the page, a RequestEvent nothing can clone), once per request; run by packages/core/test/render-page.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/render-page.ts > request_local:0~74ae29 > flights:0~3f13e1 > run > then:0~14e8e7",
+			"reason": "the request's page-facts look-up (event.fetch of the page, a RequestEvent nothing can clone), once per request; run by packages/core/test/render-page.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/stream-regions.ts > batch_stream > defer:0~0f99c8",
+			"reason": "the batch is cancelled when its request ends: a cancel when its owner ends, constant work; the cancel itself is proven in packages/core/test/batch-stream-cancel.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #record_page > finally:0~9b8aec",
+			"reason": "closes the store write bound's scope, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > pause",
+			"reason": "a timer on a scope that settles after ms or when the scope ends (a scope, not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > pause > task:0~ae75fa",
+			"reason": "a timer on a scope that settles after ms or when the scope ends (a scope, not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > pause > task:0~ae75fa > Promise:0~6a90f3",
+			"reason": "a timer on a scope that settles after ms or when the scope ends (a scope, not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > with_timeout > Promise:0~5c1151 > timeout:0~25c4cd",
+			"reason": "a render's timeout on its race's scope, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > count_decoded > <anonymous>~f23f4b > defer:0~95f179",
+			"reason": "the counted copy's reader is cancelled when its request ends: a cancel when its owner ends, constant work; proven in packages/devtools/test/profiler-net-capture.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > count_decoded > <anonymous>~f23f4b > defer:0~95f179 > catch:0~a1b2d0",
+			"reason": "the counted copy's reader is cancelled when its request ends: a cancel when its owner ends, constant work; proven in packages/devtools/test/profiler-net-capture.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > install_net_capture > answer",
+			"reason": "the live profiler sink reads its AsyncLocalStorage (not cloneable), constant work; proven in packages/devtools/test/profiler-net-capture.test.ts (#285)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > install_net_capture > emit",
+			"reason": "the live profiler sink reads its AsyncLocalStorage (not cloneable), constant work; proven in packages/devtools/test/profiler-net-capture.test.ts (#285)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > install_net_capture > owner",
+			"reason": "the live profiler sink reads its AsyncLocalStorage (not cloneable), constant work; proven in packages/devtools/test/profiler-net-capture.test.ts (#285)"
+		},
+		{
+			"id": "packages/testing/src/index.ts > Ogygia > record > undo:1~3db11b",
+			"reason": "one of record()'s undos (a page driver, not cloneable), constant work; proven in packages/testing/test/testing-primitives.test.ts (#291)"
+		},
+		{
+			"id": "packages/testing/src/index.ts > Ogygia > record > undo:1~9f99e5",
+			"reason": "one of record()'s undos (a page driver, not cloneable), constant work; proven in packages/testing/test/testing-primitives.test.ts (#291)"
+		},
+		{
+			"id": "packages/testing/src/index.ts > Ogygia > record > undo:1~e9f6a4",
+			"reason": "one of record()'s undos (a page driver, not cloneable), constant work; proven in packages/testing/test/testing-primitives.test.ts (#291)"
+		},
+		{
+			"id": "packages/testing/src/index.ts > Ogygia > record > undo:1~e9f6a4 > catch:0~a1b2d0",
+			"reason": "one of record()'s undos (a page driver, not cloneable), constant work; proven in packages/testing/test/testing-primitives.test.ts (#291)"
+		},
+		{
+			"id": "packages/testing/src/index.ts > Ogygia > record > undo:1~f2aba9",
+			"reason": "one of record()'s undos (a page driver, not cloneable), constant work; proven in packages/testing/test/testing-primitives.test.ts (#291)"
+		},
+		{
+			"id": "packages/testing/src/index.ts > undo",
+			"reason": "puts an undo on an owner (a scope, not cloneable), constant work; proven in packages/testing/test/testing-primitives.test.ts (#291)"
+		},
+		{
+			"id": "packages/testing/src/index.ts > undo > adopt:0~4056a1 > [computed]",
+			"reason": "puts an undo on an owner (a scope, not cloneable), constant work; proven in packages/testing/test/testing-primitives.test.ts (#291)"
 		}
 	]
 }
