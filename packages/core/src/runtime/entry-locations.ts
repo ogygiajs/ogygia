@@ -207,6 +207,7 @@ const RECOVERY_WAITS = [0, 1000, 3000, 9000];
 async function recover_location(entry: string, failed: string): Promise<string | null> {
 	let current: string | null | undefined;
 	for (const wait of RECOVERY_WAITS) {
+		// oxlint-disable-next-line ogygia/owned-effects -- a pause inside one file's load, which every page that wakes the island shares (a kept island wakes on the next page too): it ends itself in seconds and holds nothing
 		if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
 		current = await current_location(entry);
 		if (current === undefined) continue;
