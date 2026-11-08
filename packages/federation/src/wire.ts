@@ -194,7 +194,7 @@ export function verify_signed_request(
 					return null; // signed but unparseable claims = reject
 				}
 			} catch {
-				// malformed key entry — try the next
+				// ok: a malformed key entry verifies nothing; the next is tried, and none verifying refuses the call
 			}
 		}
 	}
