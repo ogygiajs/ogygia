@@ -500,6 +500,8 @@ const RENDER_TIMEOUT_MS = 10_000;
 
 /** Process-local cap on concurrent region SSR (M1 CPU amp under valid MAC). */
 const render_gate = new ConcurrencyGate(REGION_RENDER_CONCURRENCY);
+/** The abandoned renders already told (one render's timeout reaches every call that joined it). */
+const told_abandoned = new WeakSet<Error>();
 
 /** The per-plugin contexts of an app with no plugins (shared: never written to). */
 const NO_CTXS: readonly RequestContext<unknown, unknown>[] = [];
@@ -1720,7 +1722,8 @@ class OgygiaHandle {
 	): Promise<string | null> {
 		// R6/G2: the ONE cache-fronted render seam. `cached_render` serves a memo when the hole opted
 		// into a positive `maxAge` (key carries the session seal — a per-user render never crosses
-		// users); on a miss it runs the render_body below. The ENDPOINT wraps its render in the
+		// users); on a miss it runs the render_body below, once for every call of its key in flight
+		// (they join it: one slot for a burst, #244). The ENDPOINT wraps its render in the
 		// concurrency gate + timeout (the inline-island path, sharing `cached_render`, does not).
 		const render_body = async (): Promise<string> => {
 			const mod = await load();
@@ -1770,9 +1773,12 @@ class OgygiaHandle {
 			// visitor. Carried as a marker string so the cache/batch/endpoint seams stay string-typed.
 			if (is_keep_fallback(e)) return KEEP_FALLBACK_HTML;
 			// The first render abandoned while none was: a production log line too, as renders that
-			// outlive their deadline usually await something that hangs
-			if (is_run_timeout(e) && render_gate.abandoned === 1)
+			// outlive their deadline usually await something that hangs. (Said by one call: the calls
+			// that joined a cached hole's render get the same error, render_cache.ts)
+			if (is_run_timeout(e) && render_gate.abandoned === 1 && !told_abandoned.has(e as Error)) {
+				told_abandoned.add(e as Error);
 				warn('region_render_abandoned', { ms: RENDER_TIMEOUT_MS });
+			}
 			// The response is an opaque 500 ("Region render failed"); the reason belongs in the dev
 			// terminal — a hole that throws only on the dev server is otherwise a blind hunt.
 			if (import.meta.env.DEV) warn('region_render_failed', e);
