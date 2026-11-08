@@ -2,3 +2,6 @@
 // runs): a test can act while it loads, and see what its failure touches.
 await new Promise((resolve) => setTimeout(resolve, 400));
 throw new Error('slow-fail-entry: this module fails as it loads');
+
+// (a module: its top-level await needs one, and it exports nothing it ever gets to)
+export {};
