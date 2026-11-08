@@ -233,24 +233,21 @@ function versions_now(read: Map<Collection, number | null>): Map<Collection, num
 	return now;
 }
 
-/**
- * One read context's weave: the last good one, the weave out now (readers join it), and, when
- * weaving the content again failed, the versions it failed at: the last good weave stands until
- * the content changes again (an editor's next save), as a collection keeps an entry's last good
- * version over one that fails its schema.
- */
-type Weave = {
-	good: Materialized | null;
-	pending: Promise<Materialized> | null;
-	failed: Map<Collection, number | null> | null;
-};
-
 /** The outline as a class — spec + options + a PER-CONTEXT memoized materialization, each read a
  *  method. Methods are always called attached (through `pharos()`/`dimensions()`), so no binding. */
 class OutlineImpl implements Outline {
 	readonly #spec: OutlineSpec;
 	readonly #opts: OutlineOptions;
-	readonly #cache = new Map<string, Weave>();
+	/** One weave per read context: the last good one is kept, and a weave out for it is joined. */
+	readonly #weaves = flights({
+		name: 'content outline weaves',
+		key: ctx_key,
+		run: (ctx: ReadContext) => this.#weave(ctx)
+	});
+	/** Per read context, when weaving changed content failed: the versions it failed at. The last
+	 *  good weave stands until the content changes again (an editor's next save), as a collection
+	 *  keeps an entry's last good version over one that fails its schema. */
+	readonly #failed = new Map<string, Map<Collection, number | null>>();
 
 	constructor(spec: OutlineSpec, opts: OutlineOptions = {}) {
 		this.#spec = spec;
@@ -262,36 +259,35 @@ class OutlineImpl implements Outline {
 	 * a collection it read has changed since (a live source): the nav, pages and addresses follow the
 	 * content (they once stayed as first woven, #193). A failed weave is never kept: the first one
 	 * fails its caller (there is nothing to keep, and the next read weaves again), and one over
-	 * changed content keeps the last good weave and says why, once (Weave).
+	 * changed content keeps the last good weave and says why, once (#weave).
 	 */
-	#ready(ctx: ReadContext = {}): Promise<Materialized> {
+	async #ready(ctx: ReadContext = {}): Promise<Materialized> {
 		const key = ctx_key(ctx);
-		let w = this.#cache.get(key);
-		if (!w) this.#cache.set(key, (w = { good: null, pending: null, failed: null }));
-		if (w.pending) return w.pending;
-		const { good } = w;
-		if (good && (unchanged(good.read) || (w.failed !== null && unchanged(w.failed))))
-			return Promise.resolve(good);
-		const weave = this.#weave(w, ctx, good);
-		w.pending = weave;
-		const done = () => {
-			if (w.pending === weave) w.pending = null;
-		};
-		weave.then(done, done);
-		return weave;
+		const seen = this.#weaves.peek(key);
+		const failed = this.#failed.get(key);
+		const fresh =
+			seen?.kind === 'kept' &&
+			!seen.flying &&
+			!unchanged(seen.answer.read) &&
+			!(failed !== undefined && unchanged(failed));
+		const m = await this.#weaves.get(ctx, { fresh });
+		// (nothing drops a weave and no reader leaves one, so it is never STALE; were it, ask again)
+		return m === STALE ? this.#ready(ctx) : m;
 	}
 
-	/** Weave `w` for `ctx`: the new weave, or (it failed over changed content) the last good one. */
-	async #weave(w: Weave, ctx: ReadContext, good: Materialized | null): Promise<Materialized> {
+	/** Weave `ctx`: the new weave, or (it failed over changed content) the last good one. */
+	async #weave(ctx: ReadContext): Promise<Materialized> {
+		const key = ctx_key(ctx);
+		const seen = this.#weaves.peek(key);
+		const good = seen?.kind === 'kept' ? seen.answer : null;
 		const at = good ? versions_now(good.read) : null;
 		try {
 			const m = await materialize(this.#spec, this.#opts, ctx);
-			w.good = m;
-			w.failed = null;
+			this.#failed.delete(key);
 			return m;
 		} catch (error) {
 			if (!good || !at) throw error;
-			w.failed = at;
+			this.#failed.set(key, at);
 			console.error(new OgygiaError('content_outline_weave_failed'), error);
 			return good;
 		}
