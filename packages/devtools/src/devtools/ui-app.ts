@@ -4,16 +4,18 @@
  * only the launcher in the runtime chunk: this file, the components and their CSS load when someone
  * opens the dock (a dynamic import the bundler splits off). On the dev server it loads at once.
  */
-import { mount } from 'svelte';
+import { mount, unmount } from 'svelte';
 import Devtools from './Devtools.svelte';
 import { install_page_hook } from './page.ts';
 import { set_highlight_root } from './highlight.ts';
 import { names as built_names } from 'virtual:ogygia/devtools-meta';
 
+/** Mounts the dock into `root`. Returns its teardown: the app (its Alt+O listener and timers with
+ *  it) unmounted and its observers off. */
 export function mount_app(
 	root: ShadowRoot,
 	opts: { csr_true: boolean; start_open: boolean; hide?: () => void }
-): void {
+): () => void {
 	install_page_hook();
 	set_highlight_root(root);
 	// a build knows its islands' component names (the dev server serves them live instead)
@@ -23,7 +25,7 @@ export function mount_app(
 	// (and its event bus) never ran — the dock renders a notice instead of empty instruments.
 	// `hide` (a build): turns devtools off in this browser — the launcher's, handed in so the dock's
 	// chunk never imports the launcher's module
-	mount(Devtools, {
+	const app = mount(Devtools, {
 		target: root,
 		props: { csrTrue: opts.csr_true, startOpen: opts.start_open, hide: opts.hide }
 	});
@@ -38,6 +40,10 @@ export function mount_app(
 	const mo = new MutationObserver(() => adopt_scoped_styles(root));
 	mo.observe(document.head, { childList: true });
 	mo.observe(root, { childList: true, subtree: true });
+	return () => {
+		mo.disconnect();
+		void unmount(app);
+	};
 }
 
 /** the dock's `<style>`s a page's Content-Security-Policy refused, already re-made as sheets */
