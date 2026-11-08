@@ -15,6 +15,7 @@ import { drop_answers, keep_answers, set_stack_capture } from '../src/profiler/n
 import { PostgresStore } from '../src/profiler/storage/postgres.ts';
 import { RedisStore } from '../src/profiler/storage/redis.ts';
 import type { ProfilerRecord } from '../src/profiler/storage/index.ts';
+import { DEVTOOLS_ERRORS, line } from '../src/messages/runtime.ts';
 
 const APP = 'file:///srv/app/build/server/chunks';
 const SVELTE = 'file:///srv/app/node_modules/svelte/src/internal/server';
@@ -363,4 +364,14 @@ bench(
 		return listed;
 	},
 	{ setup: () => ({ n: 20 }), scale: (_ctx, k) => ({ n: 20 * k }) }
+);
+
+// The message the dock's launcher logs when its code fails to download: its line, and its page.
+bench(
+	'the dock’s failed-download message: its line and its page',
+	() => {
+		const said = DEVTOOLS_ERRORS.devtools_dock_load_failed;
+		return line('devtools_dock_load_failed').length + said.text().length + said.details().length;
+	},
+	{ setup: () => ({}) }
 );
