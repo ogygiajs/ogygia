@@ -7,22 +7,40 @@ import type { Collection } from './collection-base.ts';
 
 /** Which run of which module built a collection (dev only). */
 export type ModuleRun = {
-	/** The module whose code called `content()`. */
+	/** The id of the module whose code calls `content()`. */
 	module: string;
-	/** Its run: the same for every collection one run of the module builds, and for no other run. */
-	run: string;
+	/** Its run: higher for each run of a module, the newest run highest. */
+	run: number;
 };
 
 export type ContentGraph = {
 	all: Set<Collection<Record<string, unknown>>>;
+	/** The module run whose `content()` call is building a collection right now (dev only). */
+	building?: ModuleRun;
 	/**
-	 * Dev only, set by the content dev plugin: the module run calling `caller` now, or null when it
-	 * is no module the dev server runs. A collection a newer run of its module builds replaces the
-	 * ones its older runs built (#247).
+	 * Dev only. The content dev plugin's transform calls it at the top of each server module that
+	 * calls `content()`, with the module's id, once per run of the module, and passes each of the
+	 * module's `content()` calls through what it returns: the call builds in that run. A collection
+	 * a newer run of its module builds replaces the ones older runs built (#247).
 	 */
-	module_run?: (caller: (...args: never[]) => unknown) => ModuleRun | null;
+	module_run?: (module: string) => <F extends (...args: never[]) => unknown>(build: F) => F;
 };
 
 export const GRAPH: ContentGraph = ((globalThis as Record<symbol, unknown>)[
 	Symbol.for('ogygia.content.graph')
 ] ??= { all: new Set() }) as ContentGraph;
+
+let runs = 0;
+GRAPH.module_run ??= (module) => {
+	const run: ModuleRun = { module, run: ++runs };
+	return (build) =>
+		((...args) => {
+			const outer = GRAPH.building;
+			GRAPH.building = run;
+			try {
+				return build(...args);
+			} finally {
+				GRAPH.building = outer;
+			}
+		}) as typeof build;
+};

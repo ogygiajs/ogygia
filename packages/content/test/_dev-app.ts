@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer, type RunnableDevEnvironment, type ViteDevServer } from 'vite';
-import { content_hmr } from '../src/vite/hmr.ts';
+import { content_hmr, content_runs } from '../src/vite/hmr.ts';
 
 const own = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 
@@ -160,7 +160,7 @@ export class DevApp {
 			root: this.root,
 			configFile: false,
 			logLevel: 'silent',
-			plugins: [content_hmr({ hmrDebounceMs: 0 })],
+			plugins: [content_hmr({ hmrDebounceMs: 0 }), content_runs()],
 			// the package as an app imports it (its collection factory, its server remotes), and
 			// Kit's `$app/server` as core's tests stand it in
 			resolve: {

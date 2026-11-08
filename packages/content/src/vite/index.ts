@@ -24,7 +24,7 @@ import { snippet_macros } from '../macros/snippets.ts';
 import { rewrite_loaders } from '../macros/loaders.ts';
 import { rewrite_regions } from '../macros/regions.ts';
 import { materialize } from '../macros/git.ts';
-import { content_hmr, type ContentHmrOptions } from './hmr.ts';
+import { content_hmr, content_runs, type ContentHmrOptions } from './hmr.ts';
 import { OgygiaError, warn } from '../messages/build.ts';
 
 export { invalidateModuleTree } from './hmr.ts';
@@ -103,7 +103,7 @@ export function content(options: ContentOptions = {}): [OgygiaPlugin, ...VitePlu
 			}
 		}
 	});
-	return [plugin, content_hmr(hmr), content_checks(() => root, exts)];
+	return [plugin, content_hmr(hmr), content_runs(), content_checks(() => root, exts)];
 }
 
 type ContentBridgePresets = NonNullable<typeof bridge.contentPresets>;

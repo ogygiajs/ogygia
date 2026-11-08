@@ -139,9 +139,7 @@ export class Collection<
 	#backlinkIndex: Map<string, RefEntry[]> | null = null;
 	#backlinkKey: string | null = null;
 
-	/** `caller`: the function the app called to build it (`content`). In dev it names the module
-	 *  run building it, and this collection replaces the ones older runs of that module built. */
-	constructor(opts: CollectionBaseOptions<Data, Meta>, caller?: (...args: never[]) => unknown) {
+	constructor(opts: CollectionBaseOptions<Data, Meta>) {
 		if (!opts || opts.loader == null) throw new OgygiaError('content_loader_missing');
 		if (typeof opts.loader.refs !== 'function' || typeof opts.loader.get !== 'function') {
 			throw new OgygiaError('content_loader_not_source');
@@ -151,7 +149,9 @@ export class Collection<
 		this.#schema =
 			opts.schema == null ? [] : Array.isArray(opts.schema) ? opts.schema : [opts.schema];
 		this.#visible = opts.filter ?? (() => true);
-		const built_in = (caller && GRAPH.module_run?.(caller)) || null;
+		// Dev: the module run whose content() call builds it (the dev plugin marks each call, see
+		// graph.ts). It replaces the collections older runs of that module built.
+		const built_in = GRAPH.building ?? null;
 		this.#built_in = built_in;
 		if (built_in)
 			for (const older of GRAPH.all)
@@ -159,10 +159,10 @@ export class Collection<
 		GRAPH.all.add(this as unknown as Collection<Record<string, unknown>>);
 	}
 
-	/** Built by another (an older) run of the module `run` is a run of. */
+	/** Built by an older run of the module `run` is a run of. */
 	#replaced_by(run: ModuleRun): boolean {
 		const mine = this.#built_in;
-		return mine !== null && mine.module === run.module && mine.run !== run.run;
+		return mine !== null && mine.module === run.module && mine.run < run.run;
 	}
 
 	/**

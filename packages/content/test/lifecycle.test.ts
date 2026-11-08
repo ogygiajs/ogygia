@@ -1,7 +1,7 @@
 // A content collection's lifecycle, and the caches built on it (#189-#193): a failure is never kept,
 // a live source keeps going past a bad update and a dropped connection, a change made while the
 // first value is built is never missed, and the site's search follows the content.
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as v from 'valibot';
 import { content, folder, json, type Source, type SourceEntry } from '../src/index.ts';
 import { withRemotes } from '../src/server.ts';
@@ -412,20 +412,21 @@ describe('a folder sidecar that fails to load once is loaded again (#246)', () =
 });
 
 describe('a collection a newer run of its module replaces stops following (#247)', () => {
-	// What the content dev plugin tells collections in dev: the module run building them. (A real
-	// dev server drives it in dev-reload.test.ts; this is its stand-in, to reach the retry timer.)
+	// What the content dev plugin's mark does in a module run: the run asks the graph for its
+	// wrapper, and the module's content() calls go through it. (A real dev server drives it in
+	// dev-reload.test.ts; here each named run is one run of the same module, to reach the retry
+	// timer.)
 	const graph = (globalThis as Record<symbol, unknown>)[Symbol.for('ogygia.content.graph')] as {
-		module_run?: () => { module: string; run: string };
+		module_run: (module: string) => <F extends (...a: never[]) => unknown>(build: F) => F;
 	};
-	let run = '';
+	let runs = new Map<string, ReturnType<typeof graph.module_run>>();
+	beforeEach(() => {
+		runs = new Map();
+	});
 	const in_run = <T>(r: string, build: () => T): T => {
-		run = r;
-		graph.module_run = () => ({ module: '/app/src/lib/docs.server.ts', run });
-		try {
-			return build();
-		} finally {
-			delete graph.module_run;
-		}
+		let wrap = runs.get(r);
+		if (!wrap) runs.set(r, (wrap = graph.module_run('/app/src/lib/docs.server.ts')));
+		return wrap(build)();
 	};
 
 	it('its live connection: a change after it was replaced is not read', async () => {

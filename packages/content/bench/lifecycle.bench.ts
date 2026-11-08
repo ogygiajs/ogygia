@@ -6,7 +6,9 @@ import { bench } from '@bench/heisenbench/bench';
 import * as v from 'valibot';
 // (the site layer reaches the package's own Svelte components, written for experimental.async:
 // Heisenbench compiles them with the package's svelte.config.js)
+import { parseAst } from 'vite';
 import { content, folder, json, type Source, type SourceEntry } from '../src/index.ts';
+import { mark_content_calls } from '../src/vite/hmr.ts';
 import { site } from '../src/site/site.ts';
 import { dimensions } from '../src/site/dimensions.ts';
 import { create_search, type SearchEngine } from '../src/site/search.ts';
@@ -249,10 +251,10 @@ bench(
 	{ setup: () => fresh({ n: 6 }), scale: (_ctx, k) => fresh({ n: 6 * k }) }
 );
 
-/** What the content dev plugin tells collections in dev (the module run building them), stood
- *  in for: the bench has no dev server. */
-const graph_hooks = (globalThis as Record<symbol, unknown>)[Symbol.for('ogygia.content.graph')] as {
-	module_run?: () => { module: string; run: string };
+/** The content graph's module runs: what a module the content dev plugin marked asks for at the
+ *  top of each of its runs, and passes each of its content() calls through. */
+const graph_runs = (globalThis as Record<symbol, unknown>)[Symbol.for('ogygia.content.graph')] as {
+	module_run: (module: string) => <F extends (...a: never[]) => unknown>(build: F) => F;
 };
 
 bench(
@@ -260,28 +262,57 @@ bench(
 	async ({ n }) => {
 		let found = 0;
 		const kept: ReturnType<typeof content>[] = [];
-		try {
-			for (let run = 0; run < n; run++) {
-				graph_hooks.module_run = () => ({ module: '/app/src/lib/docs.server.ts', run: `${run}` });
-				const rows = Array.from({ length: 10 }, (_, i) => doc(i));
-				const src = live_source(rows);
-				const c = content({ schema, loader: src.source });
-				// a second collection the same run builds: it replaces nothing
-				const other = content({ schema, loader: live_source(rows.slice(0, 3)).source });
-				delete graph_hooks.module_run;
-				if (run % 3 === 0) kept.push(c); // one the module keeps on a global, read later
-				found += (await c.refs()).length + (await other.refs()).length;
-				src.emit(['guide/p1']);
-				await tick();
-			}
-			// read again, a kept one comes back and follows again
-			for (const c of kept) found += (await c.refs()).length;
-		} finally {
-			delete graph_hooks.module_run;
+		for (let run = 0; run < n; run++) {
+			const marked = graph_runs.module_run('/app/src/lib/docs.server.ts');
+			const rows = Array.from({ length: 10 }, (_, i) => doc(i));
+			const src = live_source(rows);
+			const c = marked(content)({ schema, loader: src.source });
+			// a second collection the same run builds: it replaces nothing
+			const other = marked(content)({ schema, loader: live_source(rows.slice(0, 3)).source });
+			if (run % 3 === 0) kept.push(c); // one the module keeps on a global, read later
+			found += (await c.refs()).length + (await other.refs()).length;
+			src.emit(['guide/p1']);
+			await tick();
 		}
+		// read again, a kept one comes back and follows again
+		for (const c of kept) found += (await c.refs()).length;
 		return found;
 	},
 	{ setup: () => fresh({ n: 12 }), scale: (_ctx, k) => fresh({ n: 12 * k }) }
+);
+
+/** A server module with `content()` calls (named, renamed, through a namespace), `k` times over. */
+function collections_module(k: number): string {
+	const parts = [
+		`import { content, folder } from '@ogygia/content';`,
+		`import { content as collection } from '@ogygia/content';`,
+		`import * as c from '@ogygia/content';`,
+		`import { content as other } from './elsewhere.ts';`
+	];
+	for (let i = 0; i < k; i++)
+		parts.push(
+			`export const docs${i} = content({ loader: folder(import.meta.glob('./d${i}/**')) });`,
+			`export const blog${i} = collection({ loader: folder(import.meta.glob('./b${i}/**')) });`,
+			`export const news${i} = c.content({ loader: c.folder(import.meta.glob('./n${i}/**')) });`,
+			`export const not${i} = other({ loader: folder({}) });`,
+			`function lazy${i}() { return content({ loader: folder({}) }); }`
+		);
+	return parts.join('\n');
+}
+
+bench(
+	'content: the dev plugin marks the content() calls of a module with n collections',
+	({ code, program }) => mark_content_calls(code, '/app/src/lib/collections.server.ts', program),
+	{
+		setup: () => {
+			const code = collections_module(4);
+			return { code, program: parseAst(code) };
+		},
+		scale: (_ctx, k) => {
+			const code = collections_module(4 * k);
+			return { code, program: parseAst(code) };
+		}
+	}
 );
 
 /** The browser's Worker, stood in for: answers the client as the search worker does. */

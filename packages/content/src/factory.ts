@@ -96,11 +96,7 @@ export function content<
 	/** Relations to other collections — an object, or `(self) => object` for self / mutual relations. */
 	relations?: (self: ContentHandle<Data, Meta>) => ContentRelations;
 }): ContentHandle<Data, Meta> {
-	// (`content` names the call: in dev, the module run building it)
-	const c = new Collection<Data, Meta>(
-		opts as unknown as CollectionBaseOptions<Data, Meta>,
-		content
-	);
+	const c = new Collection<Data, Meta>(opts as unknown as CollectionBaseOptions<Data, Meta>);
 	const handle: ContentHandle<Data, Meta> = {
 		refs: (ctx) => c.refs(ctx),
 		get: (id, ctx) => c.get(id, ctx),
