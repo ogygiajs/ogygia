@@ -142,4 +142,29 @@ describe('the search worker: a failed query is answered with its id', () => {
 		await self_fake.onmessage!({ data: { type: 'query', id: 7, q: 'x' } } as MessageEvent);
 		expect(posted.at(-1)).toMatchObject({ type: 'error', id: 7 });
 	});
+
+	it('the index failed to download once: the next query downloads it again and is answered', async () => {
+		const doc = {
+			id: 'install',
+			slug: 'install',
+			anchor: '',
+			title: 'Install',
+			section: 'Start',
+			heading: '',
+			text: 'Run the installer.'
+		};
+		let fetches = 0;
+		vi.stubGlobal('fetch', async () =>
+			++fetches === 1 ? new Response('busy', { status: 503 }) : Response.json([doc])
+		);
+		await import('../src/site/search-worker.ts');
+		await self_fake.onmessage!({ data: { type: 'load', url: '/search.json' } } as MessageEvent);
+		expect(posted.at(-1)).toMatchObject({ type: 'error' });
+		await self_fake.onmessage!({ data: { type: 'query', id: 8, q: 'install' } } as MessageEvent);
+		expect(fetches).toBe(2);
+		expect(posted.at(-1)).toMatchObject({ type: 'result', id: 8 });
+		expect((posted.at(-1) as { hits: { title: string }[] }).hits[0]).toMatchObject({
+			title: 'Install'
+		});
+	});
 });

@@ -42,17 +42,17 @@ describe('a peer request belongs to the generation that started it (#210)', () =
 		);
 		const old = cms.doc('/p', '');
 		await tick();
-		cms.drop('all'); // a thaw lands while that fetch is out
-		const fresh = cms.doc('/p', ''); // the next read fetches again (the old answer is stale)
+		cms.drop('all'); // a thaw lands while that fetch is out: its caller reads again
+		const fresh = cms.doc('/p', ''); // the next read joins that new fetch
 		await tick();
 		expect(answers).toHaveLength(2);
 		answers[0](new Response(doc_json('old'))); // the OLD fetch ends …
-		await old;
 		await tick();
 		const joined = cms.doc('/p', ''); // … and a read now must join the NEW fetch, not start a third
 		await tick();
 		expect(answers).toHaveLength(2);
 		for (const answer of answers.slice(1)) answer(new Response(doc_json('new')));
+		expect((await old).body).toBe('new');
 		expect((await fresh).body).toBe('new');
 		expect((await joined).body).toBe('new');
 	});

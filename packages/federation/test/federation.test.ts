@@ -97,7 +97,7 @@ describe('peer transport — one per remote app', () => {
 		now.mockRestore();
 	});
 
-	it('generation: a pre-mutation in-flight fetch cannot repopulate the cache', async () => {
+	it('a pre-mutation in-flight fetch cannot repopulate the cache: its caller reads again', async () => {
 		let release!: () => void;
 		const gate = new Promise<void>((r) => (release = r));
 		let gets = 0;
@@ -115,8 +115,8 @@ describe('peer transport — one per remote app', () => {
 		const before = cms.doc('/p', '');
 		await cms.postDoc('/p', '', new ArrayBuffer(0), 'text/plain');
 		release();
-		expect((await before).body).toBe('get1'); // caller still gets its answer
-		expect((await cms.doc('/p', '')).body).toBe('get2'); // cache re-reads truth
+		expect((await before).body).toBe('get2'); // the page as it is after the mutation
+		expect((await cms.doc('/p', '')).body).toBe('get2'); // kept: no third read
 		expect(gets).toBe(2);
 	});
 

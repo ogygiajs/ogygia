@@ -5,7 +5,7 @@
  * (./slots.ts `BootLink` explains why). Core calls this at boot, before any lazy chunk can load; a
  * test that imports a lazy module without booting calls it too. Idempotent.
  */
-import { STALE } from '@ogygia/machine';
+import { flights, STALE } from '@ogygia/machine';
 import { slots } from './slots.ts';
 import { create_soft_refresh } from './soft-refresh.ts';
 import { KitBoot, kit_hydrates_page } from './kit-boot.ts';
@@ -66,6 +66,7 @@ export function link_boot(): void {
 		OgygiaError,
 		warn,
 		STALE,
+		flights,
 		soft: create_soft_refresh()
 	};
 }

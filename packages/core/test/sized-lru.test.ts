@@ -1,16 +1,10 @@
 /**
- * SizedLru (server/sized-lru.ts) — the byte-bounded LRU behind the region render cache and the
- * postrender memory store: bytes first, entries second, per-entry expiry, LRU touch on read, and the
- * two stores' behaviour on top of it (a multi-MB entry can never blow the budget).
+ * SizedLru (server/sized-lru.ts) — the byte-bounded LRU behind the postrender memory store: bytes
+ * first, entries second, per-entry expiry, LRU touch on read (a multi-MB entry can never blow the
+ * budget). (The region render cache is a `flights()` with the same bounds: render-cache.test.ts.)
  */
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { SizedLru } from '../src/server/sized-lru.ts';
-import {
-	render_cache_clear,
-	render_cache_get,
-	render_cache_set,
-	render_cache_stats
-} from '../src/server/render-cache.ts';
 
 describe('SizedLru', () => {
 	it('bounds bytes: the least recently used entries evict until the new one fits', () => {
@@ -66,20 +60,5 @@ describe('SizedLru', () => {
 		expect(lru.size).toBe(1);
 		lru.clear();
 		expect(lru.bytes).toBe(0);
-	});
-});
-
-describe('render cache is byte-bounded', () => {
-	beforeEach(() => render_cache_clear());
-
-	it('holds many small renders, but 2 MB renders evict each other long before 500 entries', () => {
-		const big = 'x'.repeat(2_000_000);
-		for (let i = 0; i < 40; i++) render_cache_set('big' + i, big, 60, 0);
-		const { entries, bytes } = render_cache_stats();
-		expect(bytes).toBeLessThanOrEqual(64 * 1024 * 1024);
-		expect(entries).toBeLessThan(40);
-		expect(entries).toBeGreaterThan(20);
-		expect(render_cache_get('big39', 1)).toBe(big); // the newest survive
-		expect(render_cache_get('big0', 1)).toBeNull(); // the oldest went
 	});
 });

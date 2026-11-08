@@ -24,15 +24,14 @@ import {
 	type RequestContext,
 	type ServerPlugin
 } from '@ogygia/core/plugin';
+import { STALE } from '@ogygia/machine';
 import {
-	begin_flight,
 	current_runtime,
+	enter_flight,
 	handled_runtime,
 	installed_runtime,
 	invalidate_tags,
-	join_flight,
 	self_evict,
-	settle_flight,
 	store_evict,
 	store_get,
 	store_put,
@@ -57,8 +56,8 @@ export interface PostrenderServerOptions {
 interface State {
 	/** the store + edges this request reads and writes (its `postrender.handle()`'s) */
 	runtime: Runtime | null;
-	/** the stampede flight this request opened, until it settled it (registry.ts: rendering, stale —
-	 *  a publish landed while it rendered, so it is not stored — done) */
+	/** the stampede flight this request opened, until it settled it (registry.ts: `stale` once a
+	 *  publish landed while it rendered, so it is not stored) */
 	flight: Flight | null;
 	/** the personalization observation (eligible requests only) */
 	obs: Observation | null;
@@ -264,7 +263,7 @@ async function capture(
 	 *  page stays per-request. */
 	const put = async (entry: PostrenderEntry): Promise<boolean> => {
 		await store_put(runtime, path, entry, { ttl, tags });
-		if (flight.now.kind !== 'stale') return true;
+		if (!flight.stale) return true;
 		await store_evict(runtime, path);
 		return false;
 	};
@@ -395,9 +394,15 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			ctx.app.devtools({ domain: 'server', name: 'server.postrender', op: 'hit', url: path });
 			return serve(hit, 'hit', ctx);
 		}
-		const flight = join_flight(path);
-		if (flight) {
-			const outcome = await flight;
+		let flight = enter_flight(path);
+		while ('joined' in flight) {
+			const outcome = await flight.joined;
+			// An invalidation ended the render it waited on (it may be the page from before the
+			// publish): ask again, so the requests let go share one new render.
+			if (outcome === STALE) {
+				flight = enter_flight(path);
+				continue;
+			}
 			if (outcome.stored) {
 				ctx.app.devtools({ domain: 'server', name: 'server.postrender', op: 'join', url: path });
 				return serve(outcome.stored, 'join', ctx);
@@ -407,7 +412,7 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			return;
 		}
 		// First cold request: open the flight + observe the render for the verdict.
-		state.flight = begin_flight(path);
+		state.flight = flight.opened;
 		state.obs = observe_event(event, facts);
 		facts.storable = true;
 		facts.sources ??= []; // keep the render's data-source receipts: the page's reverse index
@@ -423,13 +428,13 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 		const { flight, obs } = state;
 		if (flight && obs) {
 			state.flight = null;
-			const settle = (stored: PostrenderEntry | null) => settle_flight(path, flight, { stored });
+			const settle = (stored: PostrenderEntry | null) => flight.settle({ stored });
 			// Invalidated while it rendered (the flight went stale): this render may be the page as it
 			// was before the publish. It goes to the visitor who asked; nothing stores it, and joiners
 			// render the page anew. Stamped no-store like every refusal (when the app set nothing): a
 			// CDN's property-wide TTL must not keep the pre-publish page, nor a personalized one that
 			// never reached the personalization guards below.
-			if (flight.now.kind === 'stale') {
+			if (flight.stale) {
 				stamp_no_store(response);
 				settle(null);
 				ctx.app.devtools({
@@ -489,7 +494,7 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 	done(ctx) {
 		const { state } = ctx;
 		if (!state.flight) return;
-		settle_flight(ctx.path, state.flight, { stored: null });
+		state.flight.settle({ stored: null });
 		state.flight = null;
 	},
 

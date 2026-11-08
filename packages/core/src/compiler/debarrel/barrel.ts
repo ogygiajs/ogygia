@@ -9,17 +9,16 @@
  * with `this.resolve`.
  *
  * CONCURRENCY: a bundler transforms hundreds of importers at once, and most of them ask for the same
- * few barrels. Each barrel is one machine (`barrel_machine`: idle, building, built): one build per
- * barrel is in flight and every concurrent caller awaits it. An edit (`invalidate`) moves a barrel
- * whose build or map depends on the changed file back to idle: a build in flight then ends STALE (it
- * is a task of the visit that started it), stores nothing, and its callers build again from the files
- * as they are now (dev: a barrel saved while a transform resolves through it). A cycle is detected against the WALK STACK of the build that is running (a → b → a), never
+ * few barrels. The barrels are one flights keyed by id: one build per barrel is in flight and every
+ * concurrent caller awaits it. An edit (`invalidate`) drops a barrel whose build or map depends on
+ * the changed file: a build in flight then ends STALE, stores nothing, and its callers build again
+ * from the files as they are now (dev: a barrel saved while a transform resolves through it). A cycle is detected against the WALK STACK of the build that is running (a → b → a), never
  * against another build's in-flight state; when a walk meets a barrel some other walk is still
  * building, it does not wait (two walks waiting on each other would never finish) — it leaves that
  * name unresolved and marks its own map PROVISIONAL, so the map is served once but not cached, and
  * the next importer rebuilds it against the finished neighbour.
  */
-import { machine, STALE, type Stale } from '@ogygia/machine';
+import { flights, STALE } from '@ogygia/machine';
 import { analyze_exports, type ModuleShape } from './parse.ts';
 
 /** `Caller`: who asked for the map (`map(id, spec, caller)`), handed to every resolve of its walk —
@@ -77,41 +76,32 @@ interface Walk<Caller> {
 	caller: Caller;
 }
 
-type BarrelStates = {
-	/** nothing known: never asked, or an edit dropped what was */
-	idle: {};
-	/** one build in flight (`map`: what it has met so far, its deps among it); callers share `run`,
-	 *  which is STALE when an edit dropped the build */
-	building: { map: ExportMap; run: Promise<ExportMap | Stale> };
-	/** the map, kept until an edit to the barrel or one of its deps (null: not a barrel we rewrite) */
-	built: { map: ExportMap | null };
-};
-
-/** One barrel's map: built once and kept, but never across an edit to it or to what it walked. */
-const barrel_machine = machine<BarrelStates>()({
-	name: 'debarrel-barrel',
-	initial: 'idle',
-	steps: { idle: ['building', 'built'], building: ['built', 'idle'], built: ['idle'] }
-});
-
-type Barrel = ReturnType<typeof barrel_machine.create>;
+/** What a barrel's flight does: build its map (`shape`: the module, parsed; `walk`: the walk that
+ *  asked), or answer that it is not a barrel we rewrite (`null`). */
+type BuildAsk<Caller> =
+	| { id: string; shape: ModuleShape; walk: Walk<Caller> }
+	| { id: string; shape: null };
 
 /** One index caches the maps its callers' walks built, so every caller of one index must resolve
  *  alike: the Vite plugin keeps one index per environment (a leaf may resolve to another file for
  *  the client than for the server). */
 export class BarrelIndex<Caller = void> {
 	#host: Host<Caller>;
-	#barrels = new Map<string, Barrel>();
+	/** One build per barrel: its map is kept until an edit to the barrel or to one of its deps
+	 *  (null: not a barrel we rewrite); a provisional map, or one that lacks a ring's names, is
+	 *  served to the callers of its build, not kept. */
+	#barrels = flights<BuildAsk<Caller>, Promise<ExportMap | null>, string>({
+		name: 'debarrel-barrel',
+		key: (ask) => ask.id,
+		keep: (map) => (map !== null && (map.provisional || map.cycles.size > 0) ? 0 : Infinity),
+		run: async (ask) => (ask.shape === null ? null : this.#build_of(ask.id, ask.shape, ask.walk))
+	});
+	/** The map each build in flight has met so far (its deps among it), for `invalidate`. */
+	#building = new Map<string, ExportMap>();
 	#shapes = new Map<string, ModuleShape | null>();
 
 	constructor(host: Host<Caller>) {
 		this.#host = host;
-	}
-
-	#barrel(id: string): Barrel {
-		let b = this.#barrels.get(id);
-		if (b === undefined) this.#barrels.set(id, (b = barrel_machine.create()));
-		return b;
 	}
 
 	/** Drop every cached map/shape that depends on `id` (the file changed), and every build in flight
@@ -119,11 +109,11 @@ export class BarrelIndex<Caller = void> {
 	invalidate(id: string): void {
 		const clean = id.replace(STRIP_QUERY_RE, '');
 		this.#shapes.delete(clean);
-		for (const [k, b] of this.#barrels) {
-			const s = b.now;
-			if (s.kind === 'idle') continue;
-			if (k === clean || (s.map !== null && s.map.deps.has(clean))) b.go('idle');
-		}
+		this.#barrels.drop((k, entry) => {
+			if (k === clean) return true;
+			const map = entry.kind === 'kept' ? entry.answer : this.#building.get(k);
+			return map != null && map.deps.has(clean);
+		});
 	}
 
 	/** The parsed shape of a module (cached), or null when it cannot be read/parsed. */
@@ -152,33 +142,23 @@ export class BarrelIndex<Caller = void> {
 		if (!this.#host.candidate(clean, spec)) return null;
 		// (again while an edit drops the build it waited on: the next one reads the files as they are)
 		for (;;) {
-			const b = this.#barrel(clean);
-			const s = b.now;
-			if (s.kind === 'built') return s.map;
-			const got = s.kind === 'building' ? await s.run : await this.#first(clean, spec, b, caller);
+			const got = await this.#barrels.get(this.#ask(clean, spec, caller));
 			if (got !== STALE) return got;
 		}
 	}
 
-	/** The first ask for a barrel that is not built: its build, or null when it is not one. */
-	#first(
-		id: string,
-		spec: string,
-		b: Barrel,
-		caller: Caller
-	): Promise<ExportMap | null | Stale> | null {
+	/** What a caller of `map()` asks for: the barrel's build, or (it is not one) null. Only the ask
+	 *  that starts the barrel's flight runs; a built or building barrel is not looked at again. */
+	#ask(id: string, spec: string, caller: Caller): BuildAsk<Caller> {
+		if (this.#barrels.peek(id) !== undefined) return { id, shape: null };
 		const shape = this.shape(id);
-		if (!shape || (!shape.pure && !this.#host.forced(id, spec))) {
-			b.go('built', { map: null });
-			return null;
-		}
-		return this.#start(id, shape, { stack: new Set(), caller });
+		if (!shape || (!shape.pure && !this.#host.forced(id, spec))) return { id, shape: null };
+		return { id, shape, walk: { stack: new Set(), caller } };
 	}
 
-	/** Begin one build for `id` as the barrel's `building` visit, kept once built unless
-	 *  provisional; STALE when an edit drops it first (it stores nothing then). */
-	#start(id: string, shape: ModuleShape, walk: Walk<Caller>): Promise<ExportMap | Stale> {
-		const b = this.#barrel(id);
+	/** One build of `id` (a barrel's flight): kept once built unless provisional; STALE to its
+	 *  callers when an edit drops it first (it stores nothing then). */
+	async #build_of(id: string, shape: ModuleShape, walk: Walk<Caller>): Promise<ExportMap> {
 		const map: ExportMap = {
 			id,
 			entries: new Map(),
@@ -189,31 +169,12 @@ export class BarrelIndex<Caller = void> {
 			provisional: false,
 			cycles: new Set()
 		};
-		let settle!: (built: ExportMap | Stale) => void;
-		let fail!: (error: unknown) => void;
-		const run = new Promise<ExportMap | Stale>((resolve, reject) => {
-			settle = resolve;
-			fail = reject;
-		});
-		b.go('building', { map, run });
-		const mine = b.now;
-		b.scope
-			.task(() => this.#build(map, shape, walk))
-			.then(
-				(built) => {
-					if (built !== STALE && b.now === mine) {
-						// (a provisional map, or one that lacks a ring's names, is served once, not kept)
-						if (!built.provisional && built.cycles.size === 0) b.go('built', { map: built });
-						else b.go('idle');
-					}
-					settle(built);
-				},
-				(error: unknown) => {
-					if (b.now === mine) b.go('idle');
-					fail(error);
-				}
-			);
-		return run;
+		this.#building.set(id, map);
+		try {
+			return await this.#build(map, shape, walk);
+		} finally {
+			if (this.#building.get(id) === map) this.#building.delete(id);
+		}
 	}
 
 	async #build(map: ExportMap, shape: ModuleShape, outer: Walk<Caller>): Promise<ExportMap> {
@@ -306,9 +267,9 @@ export class BarrelIndex<Caller = void> {
 	 */
 	async #through(id: string, parent: ExportMap, walk: Walk<Caller>): Promise<ExportMap | null> {
 		if (this.#host.kept(id, id)) return null;
-		const s = this.#barrel(id).now;
-		if (s.kind === 'built') {
-			const m = s.map;
+		const s = this.#barrels.peek(id);
+		if (s?.kind === 'kept') {
+			const m = s.answer;
 			if (m) for (const d of m.deps) parent.deps.add(d);
 			return m;
 		}
@@ -318,18 +279,20 @@ export class BarrelIndex<Caller = void> {
 			if (id !== parent.id) parent.cycles.add(id);
 			return null;
 		}
-		if (s.kind === 'building') {
+		if (s !== undefined) {
+			// building on another walk
 			parent.provisional = true;
 			return null;
 		}
 		const shape = this.shape(id);
 		if (!shape || !shape.pure) return null;
-		const built = await this.#start(id, shape, walk);
+		const built = await this.#barrels.get({ id, shape, walk });
 		// an edit dropped the nested build mid-walk: its names stay on the parent, served once
 		if (built === STALE) {
 			parent.provisional = true;
 			return null;
 		}
+		if (built === null) return null;
 		if (built.provisional) parent.provisional = true;
 		for (const c of built.cycles) if (c !== parent.id) parent.cycles.add(c);
 		for (const d of built.deps) parent.deps.add(d);

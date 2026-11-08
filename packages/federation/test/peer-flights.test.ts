@@ -1,0 +1,78 @@
+// A peer's document reads are one flight per key (#294): a thaw ends only what it names, and a
+// caller whose fetch a thaw or a mutation made stale fetches again, so it never gets the old page.
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { PeerHandle } from '../src/peer.ts';
+
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+/** A fetch that answers when the test says, with the fragment's path and the sources it read. */
+function upstream() {
+	const out: Array<{ path: string; answer: (body: string, sources: string[]) => void }> = [];
+	vi.stubGlobal('fetch', (url: URL) => {
+		const path = new URL(String(url)).searchParams.get('path') ?? '';
+		return new Promise<Response>((resolve) => {
+			out.push({
+				path,
+				answer: (body, sources) =>
+					resolve(
+						new Response(JSON.stringify({ status: 200, title: 't', css: [], body, path, sources }))
+					)
+			});
+		});
+	});
+	return out;
+}
+
+const peer = () =>
+	new PeerHandle('cms', { origin: 'http://mfe.test', cache: { ttl: 60_000 } }, 'shell');
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+});
+
+describe('a peer read is one flight per key (#294)', () => {
+	it('a thaw of other tags keeps the fetch in flight: its answer is kept', async () => {
+		const out = upstream();
+		const cms = peer();
+		const y = cms.doc('/y', '');
+		await tick();
+		cms.drop(new Set(['r:cms:x'])); // a publish thaws x while y's fetch is out
+		out[0].answer('y', ['y']);
+		expect((await y).body).toBe('y');
+		// kept: the next read is the cached copy, with no second fetch
+		const again = cms.doc('/y', '');
+		await tick();
+		expect(out).toHaveLength(1);
+		expect((await again).body).toBe('y');
+	});
+
+	it('a thaw of the tags its answer carries: the waiting caller gets the page fetched again', async () => {
+		const out = upstream();
+		const cms = peer();
+		const x = cms.doc('/x', '');
+		await tick();
+		cms.drop(new Set(['r:cms:x'])); // the source x changed while the fetch was out
+		out[0].answer('before', ['x']);
+		await tick();
+		expect(out).toHaveLength(2);
+		out[1].answer('after', ['x']);
+		expect((await x).body).toBe('after');
+		expect((await cms.doc('/x', '')).body).toBe('after');
+		expect(out).toHaveLength(2);
+	});
+
+	it('a mutation while a read is out: the reader gets the page as it is after it', async () => {
+		const out = upstream();
+		const cms = peer();
+		const read = cms.doc('/p', '');
+		await tick();
+		const post = cms.postDoc('/p', '', new ArrayBuffer(0), 'application/x-www-form-urlencoded');
+		await tick();
+		expect(out).toHaveLength(3); // the read, the POST, the read again
+		out[1].answer('posted', []);
+		await post;
+		out[0].answer('before', []);
+		out[2].answer('after', []);
+		expect((await read).body).toBe('after');
+	});
+});
