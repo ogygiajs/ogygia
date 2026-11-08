@@ -121,7 +121,11 @@ export interface Definition<S extends Shape<S>, T extends Steps<S>, I extends Ki
 
 /** A running machine. */
 export interface Machine<S extends Shape<S>, T extends Steps<S>> {
-	/** The state it is in. Read it once into a local to narrow it: `const s = m.now`. */
+	/**
+	 * The state it is in. Read it once into a local to narrow it: `const s = m.now`. Each visit to
+	 * a state is a new value, with no data too: after an `await`, `m.now === s` says the machine
+	 * is still in the visit `s` was read in.
+	 */
 	readonly now: StateOf<S>;
 	/**
 	 * Go to `to` from whatever state the machine is in, if that state's steps allow it. Returns
@@ -217,8 +221,6 @@ interface Timed {
 interface Node {
 	readonly kind: string;
 	readonly next: Node[];
-	/** The shared, frozen value of this state with no data. */
-	readonly empty: State;
 	/** The step it takes on its own after a time, or null (most states: no cost to them). */
 	timed: Timed | null;
 }
@@ -264,10 +266,13 @@ function reach_of(def: Def, from: string): Set<string> {
 	return reach.get(from) as Set<string>;
 }
 
-/** The value of state `node` with `data`: the shared empty value when there is none. */
+/**
+ * The value of state `node` with `data`, new for each visit (with no data too): a saved `now` is
+ * still `now` only while that visit lasts, so `m.now === mine` tells two visits apart.
+ */
 function state_of(def: Def, node: Node, data: object | undefined): State {
-	if (data === undefined) return node.empty;
 	const kind = node.kind;
+	if (data === undefined) return DEV ? Object.freeze({ kind }) : { kind };
 	if (DEV) {
 		if (Object.hasOwn(data, 'kind'))
 			throw machine_error('machine_kind_in_data', { name: def.name, state: kind });
@@ -409,7 +414,7 @@ class Running implements AnyMachine {
 	/** The one place a move happens: the new state first, then everything the old one owned. */
 	_enter(target: Node, data: object | undefined): void {
 		const def = this._def;
-		const next = data === undefined ? target.empty : state_of(def, target, data);
+		const next = state_of(def, target, data);
 		const prev = this._now;
 		this._node = target;
 		this._now = next;
@@ -559,7 +564,7 @@ function define(config: {
 	const nodes = new Map<string, Node>();
 	for (const kind of Object.keys(config.steps)) {
 		steps[kind] = Object.freeze([...config.steps[kind]]);
-		nodes.set(kind, { kind, next: [], empty: Object.freeze({ kind }), timed: null });
+		nodes.set(kind, { kind, next: [], timed: null });
 	}
 	// a machine with no state to start in cannot run at all: refused in every build
 	const initial = nodes.get(config.initial);
