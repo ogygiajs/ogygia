@@ -47,7 +47,7 @@ interface ProfilerReading {
 		| undefined;
 }
 let profiler_reading: ProfilerReading | null | undefined;
-async function load_profiler_reading(): Promise<ProfilerReading | null> {
+export async function load_profiler_reading(): Promise<ProfilerReading | null> {
 	if (profiler_reading !== undefined) return profiler_reading;
 	try {
 		const from_app = createRequire(path.join(process.cwd(), 'package.json'));
