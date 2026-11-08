@@ -17,6 +17,7 @@ import { createServer, type Plugin, type RunnableDevEnvironment, type ViteDevSer
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { server_plugins_module } from '../src/compiler/link/caps.ts';
 import { ask, notify } from '../src/plugin/hooks.ts';
+import { edit as dev_edit } from './_dev-edit.ts';
 
 const own = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const V = 'virtual:ogygia/server-plugins';
@@ -59,7 +60,8 @@ afterEach(async () => {
 
 async function start(): Promise<{
 	srv: ViteDevServer;
-	write: (rel: string, text: string) => void;
+	/** An edit once the dev server runs: done when its watcher reports it. */
+	edit: (rel: string, text: string) => Promise<void>;
 }> {
 	root = realpathSync(mkdtempSync(path.join(tmpdir(), 'og-hooks-dev-')));
 	const write = (rel: string, text: string) => {
@@ -115,7 +117,8 @@ async function start(): Promise<{
 	server.watcher.on('all', seen);
 	while (Date.now() - last < 300) await new Promise((r) => setTimeout(r, 50));
 	server.watcher.off('all', seen);
-	return { srv: server, write };
+	const watcher = server.watcher;
+	return { srv: server, edit: (rel, text) => dev_edit(watcher, path.join(root, rel), text) };
 }
 
 /** The app's hooks as the next request loads them, once an edit has run them again. */
@@ -138,12 +141,12 @@ describe.each(LOADERS)(
 	{ timeout: 30_000 },
 	(_, load) => {
 		it('two edits of a plugin: only its current run answers and hears; the other plugin hears once', async () => {
-			const { srv, write } = await start();
+			const { srv, edit } = await start();
 			let hooks = await load(srv, '/src/hooks.server.ts');
 			expect(await ask.lastBuild('v')).toBe('answer of run 0');
 
 			for (const n of [1, 2]) {
-				write('plugins/answering-body.ts', `export const edit = ${n};\n`);
+				await edit('plugins/answering-body.ts', `export const edit = ${n};\n`);
 				hooks = await reloaded(load, srv, hooks);
 				expect(await ask.lastBuild('v')).toBe(`answer of run ${n}`);
 			}
