@@ -11,7 +11,16 @@
 		{
 			"files": [
 				"packages/router/src/**",
-				"packages/devtools/src/profiler/ui/fake-progress.svelte.ts"
+				"packages/devtools/src/profiler/ui/fake-progress.svelte.ts",
+				"packages/core/src/hooks.ts",
+				"packages/core/src/plugin/**",
+				"packages/core/src/server/**",
+				"packages/core/src/runtime/concurrency.ts",
+				"packages/core/src/insights/page-assets.ts",
+				"packages/federation/src/**",
+				"packages/flags/src/ofrep.ts",
+				"packages/devtools/src/profiler/net.ts",
+				"packages/testing/src/**"
 			],
 			"rules": { "ogygia/owned-effects": "error" }
 		}

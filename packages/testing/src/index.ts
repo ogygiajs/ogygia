@@ -512,7 +512,9 @@ export class Ogygia {
 
 	#wait(ms: number): Promise<void> {
 		const driver = this.#driver;
-		return driver.wait ? driver.wait(ms) : new Promise<void>((r) => setTimeout(r, ms));
+		if (driver.wait) return driver.wait(ms);
+		// oxlint-disable-next-line ogygia/owned-effects -- a pause the test's own process awaits: it ends itself, and holds nothing past it
+		return new Promise<void>((r) => setTimeout(r, ms));
 	}
 
 	/** `driver.evaluate`, typed at the call site: `fn` goes to the driver as is (it runs in the
