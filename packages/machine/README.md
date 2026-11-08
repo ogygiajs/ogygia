@@ -4,8 +4,8 @@ Tiny typed state machines for [ogygia](https://ogygiajs.dev). The server, the br
 
 A machine is in one state at a time, and each state lists where it can go next. Every move goes through one place, which gives you three things a pile of flags cannot:
 
-- **Work that cannot land late.** `task()` runs async work for the state the machine is in. Leaving that state aborts the work and turns its answer into `STALE`, even if the machine comes back to the same state later.
-- **Cleanups that run exactly once.** `onLeave()` ties a cleanup (a listener, a timer, an observer) to the state. Leaving runs it.
+- **Work that cannot land late.** Each visit to a state is a scope (`m.scope`). `m.scope.task()` runs async work for that visit. Leaving the state aborts the work and turns its answer into `STALE`, even if the machine comes back to the same state later.
+- **Cleanups that run exactly once.** A listener, a timer, an observer or a cleanup given to `m.scope` belongs to the visit. Leaving lets go of it.
 - **Waits that never hang.** `wait()` settles with `STALE` as soon as the state it waits for can no longer be reached.
 
 ## Install
@@ -38,7 +38,7 @@ const hole = machine<{
 const h = hole.create();
 
 h.go('fetching', { attempt: 1 });
-const html = await h.task((signal) => fetch(url, { signal }).then((r) => r.text()));
+const html = await h.scope.task((signal) => fetch(url, { signal }).then((r) => r.text()));
 if (html === STALE) return; // it moved on meanwhile
 h.move('fetching', 'answered', { html }); // only if it is still fetching
 
@@ -48,15 +48,14 @@ if (s.kind === 'answered') s.html;
 
 The first call (`machine<{ ... }>()`) takes each state's data. The second reads the exact steps, so a move they do not allow is a type error: `h.move('idle', 'answered')` does not compile.
 
-|                         |                                                                                                     |
-| ----------------------- | --------------------------------------------------------------------------------------------------- |
-| `now`                   | The state it is in: `kind` plus that state's data. A new value on every visit (`m.now === saved`).  |
-| `go(to, data?)`         | Moves along a step from wherever it is. `true` when it moved.                                       |
-| `move(from, to, data?)` | Moves only if it is still in `from` (`false`, quietly, when something else moved it first).         |
-| `task(work)`            | Runs `work(signal)` for this visit to the state. `STALE` once the machine leaves it.                |
-| `onLeave(cleanup)`      | Runs `cleanup` once, when the machine leaves this state.                                            |
-| `wait(kind)`            | The next time it is in `kind`, or `STALE` once `kind` cannot be reached.                            |
-| `stop()`                | Ends the machine: aborts its tasks, runs its cleanups, settles its waits, refuses every move after. |
+|                         |                                                                                                                                                                                                                      |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `now`                   | The state it is in: `kind` plus that state's data. A new value on every visit (`m.now === saved`).                                                                                                                   |
+| `go(to, data?)`         | Moves along a step from wherever it is. `true` when it moved.                                                                                                                                                        |
+| `move(from, to, data?)` | Moves only if it is still in `from` (`false`, quietly, when something else moved it first).                                                                                                                          |
+| `scope`                 | This visit's [scope](#scopes): `scope.task(work)` is `STALE` once the machine leaves, `scope.defer(cleanup)` runs as it leaves, `scope.on` / `.timeout` / `.watch` hold a listener, timer or observer for the visit. |
+| `wait(kind)`            | The next time it is in `kind`, or `STALE` once `kind` cannot be reached.                                                                                                                                             |
+| `stop()`                | Ends the machine: aborts its tasks, runs its cleanups, settles its waits, refuses every move after.                                                                                                                  |
 
 A move the steps do not allow throws in dev and in tests. In production it is refused (`false`), the machine stays where it is, and the move is printed once with its code: [machine_illegal_move](https://ogygiajs.dev/e/machine_illegal_move).
 
@@ -76,20 +75,92 @@ const hole = machine<{ idle: {}; fetching: { attempt: number }; failed: { attemp
 });
 ```
 
-Leaving the state first, or `stop()`, cancels the time; coming back starts it again. The timed step is a move like any other: tasks end, cleanups run, waits and observers hear it. Only a state with a timeout pays for a timer.
+Leaving the state first, or `stop()`, cancels the time; coming back starts it again. The timed step is a move like any other: the visit's scope closes, waits and observers hear it. Only a state with a timeout pays for a timer.
 
 ## The definition as data
 
 `hole.graph()` gives every state, its steps, whether it is final and its timeout, as plain data (devtools draw it, docs show it). `hole.paths()` gives paths from `initial` that between them take every step: drive a machine down each in a test and every move the definition allows has run.
 
-## Two helpers
+## Scopes
+
+A scope is one owner for everything a piece of work holds: its listeners, timers, observers, child work and cleanups. They are let go together, exactly once, when the owner ends: a page visit, a region, a request, a state's visit.
 
 ```ts
-import { once, lock } from '@ogygia/machine';
+import { scope, STALE } from '@ogygia/machine';
 
-// load once and keep it, but never keep a failure: the next call tries again
-const core = once(() => import('./hydrate-core.ts'), { retries: 2 });
-await core();
+const page = scope();
+page.on(window, 'popstate', on_pop); // the event is typed from the target (`PopStateEvent`)
+page.timeout(retry, 500); // ms, 'frame' or 'idle'
+page.every(poll, 1_000);
+page.watch(new IntersectionObserver(on_seen)).observe(el);
+page.adopt(cache); // anything with Symbol.dispose / Symbol.asyncDispose
+page.defer(() => console.log('left'));
+const html = await page.task((signal) => fetch(url, { signal }).then((r) => r.text()));
+if (html === STALE) return; // the page was left meanwhile
+
+page.close(); // listeners off, timers cleared, observers disconnected, the fetch aborted
+```
+
+|                               |                                                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `scope(parent?)`              | A new scope; with a parent, one that closes with it (`parent.child()`).                                |
+| `signal`                      | Aborts when it closes.                                                                                 |
+| `on(target, type, fn, opts?)` | A listener on an `EventTarget`, or on a Node-style emitter (`on` / `off`). Returns its early release.  |
+| `timeout(fn, when)`           | Once, after `ms`, at the next `'frame'`, or when `'idle'`. Returns its cancel.                         |
+| `every(fn, ms)`               | Every `ms`. Returns its cancel.                                                                        |
+| `watch(observer)`             | Disconnects it on close.                                                                               |
+| `task(work)`                  | `work(signal)`; `STALE` once the scope closed, even when the work never finishes.                      |
+| `child()`                     | Closes before its parent's own cleanups (or sooner, on its own).                                       |
+| `defer(cleanup)`              | Runs once on close, newest first.                                                                      |
+| `adopt(disposable)`           | Disposes it on close (`Symbol.dispose` or `Symbol.asyncDispose`).                                      |
+| `close()`                     | Children first, then the signal, then the rest. Safe twice. Throws what cleanups threw, after all ran. |
+
+A closed scope lets go of anything given to it at once: a cleanup runs, an observer disconnects, a listener or timer is never set, a task is `STALE` without running. So code that runs after its owner ended cannot leave anything behind. A scope is `Disposable`: `using s = scope()` closes it at the end of the block, and `await using` also waits for async disposals (a plain `close()` reports one that fails: [machine_dispose_failed](https://ogygiajs.dev/e/machine_dispose_failed)). Timers never keep a server process alive: their owner does.
+
+## Flights
+
+Keyed async work that callers share: one flight per key at a time, its answer kept as long as you say, and never a failure.
+
+```ts
+import { flights, STALE } from '@ogygia/machine';
+
+// one key: a lazy chunk, loaded once and kept; a failed load is tried again by the next get
+const core = flights({ run: () => import('./hydrate-core.ts'), retries: 1 });
+const mod = await core.get();
+
+// keyed: pages, shared while they load, kept 8 s when cacheable, 4 MB at most
+const pages = flights({
+	run: (href: string, signal) => fetch(href, { signal }).then(read_page),
+	keep: (page) => (page.cacheable ? 8_000 : 0),
+	max: 4_000_000,
+	weigh: (page) => page.html.length * 2
+});
+const page = await pages.get('/docs', { signal }); // joins the fetch already out for /docs
+if (page === STALE) return; // dropped, or this caller left
+```
+
+|                                  |                                                                                                                |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `run(input, signal)`             | The work. Starts inside the `get` that finds no flight and no kept answer; that caller's input is the one run. |
+| `key(input)`                     | Which inputs are the same flight. Default: the input itself.                                                   |
+| `keep`                           | How long an answer stays, ms (or made from the answer). `0` keeps nothing. Default: for as long as it lives.   |
+| `max` / `weigh(answer)`          | The most total weight kept (default weight 1: a count); the least recently used go first.                      |
+| `retries`                        | Tries again at once, inside one flight, before it fails.                                                       |
+| `get(input, { signal, fresh })`  | Joins, gives the kept answer, or starts a flight. `STALE` when it was dropped or this caller left.             |
+| `peek(key)`                      | What the key holds now (`flying`, or `kept` with its answer and when it landed), without starting anything.    |
+| `drop(key \| (key, entry) => …)` | Takes kept answers out and ends flights in progress: their callers get `STALE`, nothing they answer is kept.   |
+
+- **A failure is never kept.** Every caller of a failed flight gets the failure, and the next `get` starts a new one. A failing key costs one try per wave of callers, not one per caller.
+- **The last caller out stops the work.** A caller with a `signal` that aborts gets `STALE` at once; the flight's own signal aborts only when every caller has left. A caller with no signal holds it until it lands.
+- **`fresh` revalidates.** It starts a new flight beside the kept answer, which stays (and `peek` shows it) until the new one lands, and stays when the new one fails or is not kept. A flight already out is ended, so an answer from before a change cannot land after it.
+- A flights is `Disposable`: a scope can `adopt` it, and closing the scope ends its flights.
+
+Each key's entry is a machine (`flying`, `kept`, `gone`), so `observe()` hears every flight's moves under the flights' `name`.
+
+## Locks
+
+```ts
+import { lock } from '@ogygia/machine';
 
 // a lock only its owner can free
 const recorder = lock();
@@ -100,4 +171,4 @@ await recorder.acquire(signal); // waits its turn
 
 ## Watching
 
-`observe((name, from, to, machine) => …)` hears every move of every machine (`to` is `null` when one stops). Devtools and tests use it. It costs one check per move while nothing listens.
+`observe((name, from, to, machine) => …)` hears every move of every machine, flights included (`to` is `null` when one stops). Devtools and tests use it. It costs one check per move while nothing listens.
