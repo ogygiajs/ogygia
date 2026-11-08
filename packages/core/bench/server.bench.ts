@@ -30,7 +30,7 @@ bench(
 			const cache = { key: render_cache_key(`h${hole}`, 'p', ''), ttl: 60 };
 			// one request in nine has left before its render got a slot
 			const leave = i % 9 === 0 ? AbortSignal.abort() : undefined;
-			const render = () =>
+			const render = (signal?: AbortSignal) =>
 				gate.run(
 					async () => {
 						renders++;
@@ -38,10 +38,10 @@ bench(
 						if (hole === 7) throw new Error('upstream down');
 						return `<p>${hole}</p>`;
 					},
-					{ signal: leave }
+					{ signal }
 				);
 			calls.push(
-				cached_render(render, cache, 0, undefined, leave).then(
+				cached_render(render, cache, undefined, leave).then(
 					(html) => html?.length ?? 0,
 					() => -1
 				)

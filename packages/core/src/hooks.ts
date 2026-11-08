@@ -1729,10 +1729,11 @@ class OgygiaHandle {
 		// within RENDER_TIMEOUT_MS. A render still running then is abandoned (it cannot be cancelled):
 		// its hole keeps the fallback and its slot goes to the next hole, so renders stuck on a hung
 		// upstream never hold every slot.
-		const gated = { deadline_ms: RENDER_TIMEOUT_MS, signal };
 		try {
 			return await cached_render(
-				async () => {
+				// (`render_signal`: this call's own, or a shared render's — aborted once nobody waits)
+				async (render_signal) => {
+					const gated = { deadline_ms: RENDER_TIMEOUT_MS, signal: render_signal };
 					// the page first, outside the gate: a render slot is never held while Kit runs the
 					// page's loads (and a cache hit never gets here)
 					await kit_page_ready(reads_page_data);
@@ -1751,7 +1752,6 @@ class OgygiaHandle {
 					}, gated);
 				},
 				cache,
-				Date.now(),
 				report,
 				signal
 			);

@@ -349,8 +349,8 @@ type Fetched = { page: FetchedPage | null; cacheable: boolean };
 type Pages = import('@ogygia/machine').Flights<PageAsk, Fetched, string>;
 let page_flights: Pages | undefined;
 /** The page fetches: one flight per address, shared by every navigation and prefetch of it. A
- *  cacheable answer is kept for PREFETCH_TTL_MS, within PAGE_CACHE_MAX_BYTES (each entry also
- *  weighs a fixed share, so no more than PAGE_CACHE_MAX_ENTRIES small pages are kept). A cache clear
+ *  cacheable answer is kept for PREFETCH_TTL_MS, within PAGE_CACHE_MAX_BYTES (each entry weighs at
+ *  least its share of it, so no more than PAGE_CACHE_MAX_ENTRIES small pages are kept). A cache clear
  *  drops them all: a fetch in flight is aborted, and a navigation that waited on it fetches again. */
 const pages = (): Pages =>
 	(page_flights ??= boot_link().flights<PageAsk, Promise<Fetched>, string>({
@@ -360,7 +360,7 @@ const pages = (): Pages =>
 		keep: (answer) => (answer.page !== null && answer.cacheable ? PREFETCH_TTL_MS : 0),
 		max: PAGE_CACHE_MAX_BYTES,
 		weigh: (answer) =>
-			(answer.page?.html.length ?? 0) * 2 + PAGE_CACHE_MAX_BYTES / PAGE_CACHE_MAX_ENTRIES
+			Math.max((answer.page?.html.length ?? 0) * 2, PAGE_CACHE_MAX_BYTES / PAGE_CACHE_MAX_ENTRIES)
 	}));
 /** Prefetches still waiting in the load scheduler's queue, by href (a click promotes its one). */
 const queued_prefetch = new Map<string, { promote(cls: 'user'): void }>();
