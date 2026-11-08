@@ -118,8 +118,7 @@ type Checked = { done: true } | { done: false; owed: Owed | null };
 /** A check ended: done, or tried again by a request after DEPLOY_RETRY_MS. */
 function checked(c: Checked): void {
 	if (c.done) deploy.move('checking', 'done');
-	else
-		deploy.move('checking', 'unchecked', { after: Date.now() + DEPLOY_RETRY_MS, owed: c.owed });
+	else deploy.move('checking', 'unchecked', { after: Date.now() + DEPLOY_RETRY_MS, owed: c.owed });
 }
 
 /** One check (it never throws). `owed`: the thaw an earlier check found due, still owed. */
