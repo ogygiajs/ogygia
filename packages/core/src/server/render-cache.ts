@@ -72,7 +72,9 @@ export async function cached_render(
 	now: number,
 	/** told what happened (`hit` served without rendering: the memo, or the render in flight it
 	 *  joined; `miss` rendered + stored; `none` uncached) */
-	report?: (outcome: 'hit' | 'miss' | 'none') => void
+	report?: (outcome: 'hit' | 'miss' | 'none') => void,
+	/** aborts when this call's request has gone (`render_body` gives up with its reason then) */
+	signal?: AbortSignal
 ): Promise<string | null> {
 	if (cache === undefined || cache.ttl <= 0) {
 		const body = await render_body();
@@ -80,13 +82,39 @@ export async function cached_render(
 		return body;
 	}
 	const { key } = cache;
-	const hit = render_cache_get(key, now);
-	if (hit !== null) {
-		report?.('hit');
-		return hit;
+	for (;;) {
+		const hit = render_cache_get(key, now);
+		if (hit !== null) {
+			report?.('hit');
+			return hit;
+		}
+		const joined = inflight.get(key);
+		if (joined === undefined) return fly(key, cache.ttl, render_body, now, report, signal);
+		const done = await joined.wait('rendered');
+		if (done !== STALE) {
+			report?.(done.html === null ? 'none' : 'hit');
+			return done.html;
+		}
+		// (`rendered` can no longer come: the flight failed, or its request left before it rendered)
+		const ended = joined.now;
+		if (ended.kind === 'failed') {
+			report?.('none');
+			throw ended.error;
+		}
+		// dropped: nothing went wrong with the render, it just never ran. This call renders it (or
+		// joins the call that got there first)
 	}
-	const joined = inflight.get(key);
-	if (joined !== undefined) return join_flight(joined, report);
+}
+
+/** A miss: this call opens the key's flight and renders it. */
+async function fly(
+	key: string,
+	ttl: number,
+	render_body: () => string | null | Promise<string | null>,
+	now: number,
+	report: ((outcome: 'hit' | 'miss' | 'none') => void) | undefined,
+	signal: AbortSignal | undefined
+): Promise<string | null> {
 	const flight = flight_def.create();
 	inflight.set(key, flight);
 	try {
@@ -95,13 +123,15 @@ export async function cached_render(
 		// it, and what that one rendered may be what the clear was for)
 		const current = inflight.get(key) === flight;
 		if (current && body !== null) {
-			render_cache_set(key, body, cache.ttl, now);
+			render_cache_set(key, body, ttl, now);
 			report?.('miss');
 		} else report?.('none');
 		flight.go('rendered', { html: body });
 		return body;
 	} catch (error) {
-		flight.go('failed', { error });
+		// (this call's own request left: the render gave up before it ran, for it alone)
+		if (signal?.aborted && error === signal.reason) flight.go('dropped');
+		else flight.go('failed', { error });
 		throw error;
 	} finally {
 		// (after the store: a call arriving now finds the memo, never neither)
@@ -110,21 +140,31 @@ export async function cached_render(
 }
 
 /**
- * ONE FLIGHT, one machine: rendering, then rendered (stored when it rendered HTML) or failed. The
- * call that opened it renders, every other call for its key waits on it, and only it takes it out
- * of the registry, and only while it is still the one there.
+ * ONE FLIGHT, one machine: rendering, then rendered (stored when it rendered HTML), failed, or
+ * dropped. The call that opened it renders, every other call for its key waits on it, and only it
+ * takes it out of the registry, and only while it is still the one there.
  *
  * A failed flight fails the calls that joined it too, and is not stored: the next call renders
  * afresh. They asked for the same render (same region, props and visitor), so it failed for them as
  * it would have on their own; each trying again in turn would be the burst this stops, on the path
  * that is already failing (a hung upstream would time each of them out, each holding a slot).
+ *
+ * A dropped flight is one whose own request left before it rendered (a cancelled batch, #245): that
+ * says nothing about the render, so the calls that joined it render it themselves, one of them for
+ * all the others.
  */
 type FlightStates = {
 	rendering: {};
 	rendered: { html: string | null };
 	failed: { error: unknown };
+	dropped: {};
 };
-const flight_steps = { rendering: ['rendered', 'failed'], rendered: [], failed: [] } as const;
+const flight_steps = {
+	rendering: ['rendered', 'failed', 'dropped'],
+	rendered: [],
+	failed: [],
+	dropped: []
+} as const;
 const flight_def = machine<FlightStates>()({
 	name: 'render cache flight',
 	initial: 'rendering',
@@ -134,19 +174,3 @@ type Flight = Machine<FlightStates, typeof flight_steps>;
 
 /** The flight rendering each key now. */
 const inflight = new Map<string, Flight>();
-
-/** A call for a key already rendering: the flight's answer, or its failure. */
-async function join_flight(
-	flight: Flight,
-	report: ((outcome: 'hit' | 'miss' | 'none') => void) | undefined
-): Promise<string | null> {
-	const done = await flight.wait('rendered');
-	if (done !== STALE) {
-		report?.(done.html === null ? 'none' : 'hit');
-		return done.html;
-	}
-	// (`rendered` can no longer come: the flight failed)
-	const failed = flight.now;
-	report?.('none');
-	throw failed.kind === 'failed' ? failed.error : new Error('render cache flight ended');
-}

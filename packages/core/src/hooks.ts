@@ -1044,8 +1044,9 @@ class OgygiaHandle {
 			return region_response('Bad Request', { status: 400 });
 		}
 		const calls = parsed.filter((e): e is string => typeof e === 'string').slice(0, MAX_BATCH);
-		const stream = batch_stream(calls, (endpoint) =>
-			this.#render_capability(endpoint, event, true)
+		// (the stream's signal aborts when the visitor leaves: the holes not rendered yet never are)
+		const stream = batch_stream(calls, (endpoint, signal) =>
+			this.#render_capability(endpoint, event, true, signal)
 		);
 
 		return region_response(stream, {
@@ -1704,7 +1705,10 @@ class OgygiaHandle {
 		base?: URL,
 		/** the hole's server tree reads `page.data`: its page is looked up before it renders (a cache
 		 *  hit never pays it) */
-		reads_page_data = false
+		reads_page_data = false,
+		/** aborts when nobody waits on this render any more (a cancelled batch): one not started
+		 *  yet never starts, and never takes a render slot (#245) */
+		signal?: AbortSignal
 	): Promise<string | null> {
 		// R6/G2: the ONE cache-fronted render seam. `cached_render` serves a memo when the hole opted
 		// into a positive `maxAge` (key carries the session seal — a per-user render never crosses
@@ -1729,7 +1733,7 @@ class OgygiaHandle {
 		// within RENDER_TIMEOUT_MS. A render still running then is abandoned (it cannot be cancelled):
 		// its hole keeps the fallback and its slot goes to the next hole, so renders stuck on a hung
 		// upstream never hold every slot.
-		const gated = { deadline_ms: RENDER_TIMEOUT_MS };
+		const gated = { deadline_ms: RENDER_TIMEOUT_MS, signal };
 		try {
 			return await cached_render(
 				async () => {
@@ -1752,12 +1756,15 @@ class OgygiaHandle {
 				},
 				cache,
 				Date.now(),
-				report
+				report,
+				signal
 			);
 		} catch (e) {
 			// `keepFallback()` ends a render on purpose: the page's fallback is right for this
 			// visitor. Carried as a marker string so the cache/batch/endpoint seams stay string-typed.
 			if (is_keep_fallback(e)) return KEEP_FALLBACK_HTML;
+			// nobody waits on it: nothing to say, and nothing to answer
+			if (signal?.aborted) return null;
 			// The first render abandoned while none was: a production log line too, as renders that
 			// outlive their deadline usually await something that hangs. (Said by one call: the calls
 			// that joined a cached hole's render get the same error, render_cache.ts)
@@ -1904,10 +1911,12 @@ class OgygiaHandle {
 		/** A BATCH parcel is the hole's answer: through the app's transform like its own request, and
 		 *  logged for the profiler as a hole request. A postrender stitch splices into a stored document
 		 *  and stays as it was. */
-		batch = false
+		batch = false,
+		/** the batch's: aborts when its visitor left (nothing more is verified, loaded or rendered) */
+		signal?: AbortSignal
 	): Promise<{ slot: string; html: string } | null> {
 		const q = endpoint.indexOf('?');
-		if (q === -1) return null;
+		if (q === -1 || signal?.aborted) return null;
 		const cap = capability_of(new URLSearchParams(endpoint.slice(q + 1)));
 		const { id, payload, sig } = cap;
 
@@ -1940,7 +1949,8 @@ class OgygiaHandle {
 			stats ? (o) => (outcome = o) : undefined,
 			stats ? timing : undefined,
 			event.url,
-			reads_page_data
+			reads_page_data,
+			signal
 		);
 		if (stats)
 			record_batch_hole_stats(event.request, {
@@ -1956,7 +1966,8 @@ class OgygiaHandle {
 				ms: performance.now() - t0,
 				status: body === null ? 500 : 200
 			});
-		if (body === null || body.length > MAX_REGION_BODY) return null;
+		// (an answer nobody waits on any more is not shaped: the stream drops it)
+		if (body === null || body.length > MAX_REGION_BODY || signal?.aborted) return null;
 		// "Keep the fallback": the parcel carries the marker alone (no CSS links, nothing to hoist).
 		if (body === KEEP_FALLBACK_HTML) return { slot: sig, html: KEEP_FALLBACK_HTML };
 		// CSS links ride in the parcel; the client hoists them to <head> (a body/parcel link is inert

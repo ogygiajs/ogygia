@@ -11,11 +11,17 @@
  *   caller gets the timeout and its slot goes to the next call at once. Svelte's `render()` cannot
  *   be cancelled, so the body runs on, counted in `abandoned` until it ends; it never blocks a slot,
  *   or a hung upstream (renders that never end) would hold every slot and take every hole down.
+ * - A call's `signal` aborting while it waits takes it out of the queue: a body nobody waits on any
+ *   more never starts, and never holds a slot.
  */
 
 export interface GateOptions {
 	/** The call answers within this long: the wait for a slot and the run together. */
 	deadline_ms?: number;
+	/** Nobody waits on the call any more once it aborts (a batch whose visitor left, #245): still
+	 *  waiting, it leaves the queue at once and its body never runs (the call rejects with the
+	 *  signal's reason); already running, it runs on (a body cannot be cancelled). */
+	signal?: AbortSignal;
 }
 
 type Waiter = { enter: () => void; gave_up: boolean; deadline: number };
@@ -36,9 +42,15 @@ export class ConcurrencyGate {
 	}
 
 	async run<T>(fn: () => Promise<T>, options: GateOptions = {}): Promise<T> {
-		const { deadline_ms } = options;
+		const { deadline_ms, signal } = options;
+		if (signal?.aborted) throw signal.reason;
 		const deadline = deadline_ms === undefined ? Infinity : Date.now() + deadline_ms;
-		await this.#enter(deadline);
+		await this.#enter(deadline, signal);
+		// (handed a slot in the same step the signal aborted: the slot goes on, the body never starts)
+		if (signal?.aborted) {
+			this.#leave();
+			throw signal.reason;
+		}
 		let body: Promise<T>;
 		try {
 			body = fn();
@@ -79,32 +91,41 @@ export class ConcurrencyGate {
 		return this.#wait.length;
 	}
 
-	/** A slot: at once when one is free, else in turn (or the deadline passes first). */
-	#enter(deadline: number): Promise<void> {
+	/** A slot: at once when one is free, else in turn (or the deadline passes, or the signal aborts,
+	 *  first). */
+	#enter(deadline: number, signal: AbortSignal | undefined): Promise<void> {
 		if (this.#active < this.#limit) {
 			this.#active++;
 			return Promise.resolve();
 		}
 		return new Promise<void>((resolve, reject) => {
 			let timer: ReturnType<typeof setTimeout> | undefined;
+			const settle = () => {
+				if (timer !== undefined) clearTimeout(timer);
+				signal?.removeEventListener('abort', on_abort);
+			};
+			// out of the queue at once: with every slot held by bodies that never end, no `#leave`
+			// would ever come to drop it, and the queue would grow by the request rate
+			const give_up = (error: unknown) => {
+				waiter.gave_up = true;
+				settle();
+				const at = this.#wait.indexOf(waiter);
+				if (at !== -1) this.#wait.splice(at, 1);
+				reject(error);
+			};
+			const on_abort = () => give_up(signal?.reason);
 			const waiter: Waiter = {
 				gave_up: false,
 				deadline,
 				// (handed a slot by #leave, already counted)
 				enter: () => {
-					if (timer !== undefined) clearTimeout(timer);
+					settle();
 					resolve();
 				}
 			};
 			if (deadline !== Infinity)
-				timer = setTimeout(() => {
-					waiter.gave_up = true;
-					// out of the queue now: with every slot held by bodies that never end, no `#leave`
-					// would ever come to drop it, and the queue would grow by the request rate
-					const at = this.#wait.indexOf(waiter);
-					if (at !== -1) this.#wait.splice(at, 1);
-					reject(new Error(WAIT_TIMEOUT));
-				}, deadline - Date.now());
+				timer = setTimeout(() => give_up(new Error(WAIT_TIMEOUT)), deadline - Date.now());
+			signal?.addEventListener('abort', on_abort, { once: true });
 			this.#wait.push(waiter);
 		});
 	}
