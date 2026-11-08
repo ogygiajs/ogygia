@@ -6,6 +6,7 @@
 import { expect, test } from 'vitest';
 import { observe, once_visible } from '../../src/runtime/observe.ts';
 import { hydrate_turn, register_region, unregister_region } from '../../src/runtime/schedule.ts';
+import { scope } from '@ogygia/machine';
 
 const box = () => {
 	const el = document.createElement('div');
@@ -50,7 +51,7 @@ test('a watcher that joins late gets the last known state (the browser will not 
 
 test('a visible island woken on screen gets its turn without the 48 ms snapshot wait', async () => {
 	const el = box();
-	register_region(el); // the scheduler's snapshot (at connect)
+	register_region(el, scope()); // the scheduler's snapshot (at connect)
 	let woke_at = 0;
 	once_visible(el, '0px', () => (woke_at = performance.now())); // the island's wake, same margin
 	await expect.poll(() => woke_at > 0).toBe(true);

@@ -23,7 +23,9 @@ Object.defineProperty(globalThis, KIT_PAGE_KEY, {
 		reads++;
 		return value;
 	},
-	set: (v) => (value = v)
+	set: (v) => {
+		value = v;
+	}
 });
 
 /** Kit's document with our lake + idle island in it, not booted by Kit yet. */

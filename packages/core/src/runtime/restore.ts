@@ -69,6 +69,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		let w = W.__og_class_watch;
 		if (!w) {
 			const hosts = new Set<Element>();
+			// oxlint-disable-next-line ogygia/owned-effects -- one class watch for the document (self-contained: the handle inlines this function, no scope reaches it); it disconnects itself once no host is left
 			const mo = new MutationObserver((records) => {
 				let removed = false;
 				for (let i = 0; i < records.length; i++) {

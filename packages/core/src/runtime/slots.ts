@@ -9,7 +9,7 @@
  *
  * This is the single wiring mechanism — there is no service locator and no per-feature setter.
  */
-import type { Stale } from '@ogygia/machine';
+import type { Scope, Stale } from '@ogygia/machine';
 import type { Frame } from '../frame.ts';
 import { is_frozen } from './region-attrs.ts';
 
@@ -62,10 +62,12 @@ export type FormOps = {
 // ── the rest (nullable — core reads with optional chaining) ────────────────
 /** Wake a cold island when interaction lands inside it; returns a disarm fn (`over`: the region
  *  left while it was waking — the clicks it queued are dropped, not replayed). `fire` gets what
- *  replays the visitor's input (./interaction.ts `WakeFn`): the island goes live once it is in. */
+ *  replays the visitor's input (./interaction.ts `WakeFn`): the island goes live once it is in.
+ *  `owner`: the region's lifetime in the page, which the replay's frame belongs to. */
 export type ArmFn = (
 	el: HTMLElement,
-	fire: import('./interaction.ts').WakeFn
+	fire: import('./interaction.ts').WakeFn,
+	owner: Scope
 ) => void | ((over?: boolean) => void);
 
 /** `target: 'walk'` = the hydration repair (the server sequence Svelte's walk binds); default = a live

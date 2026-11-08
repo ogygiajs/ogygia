@@ -2,6 +2,7 @@
 // island, and a scheduled one pressed before its schedule made it live (its first click is a replay).
 import { expect, test } from 'vitest';
 import { hydratedBy } from '../../src/hydration-info.ts';
+import { scope } from '@ogygia/machine';
 import { arm_interaction } from '../../src/runtime/interaction.ts';
 
 const CURRENT_REGION = Symbol.for('ogygia.context.current-region');
@@ -23,7 +24,8 @@ test('a scheduled island a visitor pressed first reports interaction', () => {
 	const disarm = arm_interaction(
 		el,
 		() => {},
-		() => new Promise<void>(() => {})
+		() => new Promise<void>(() => {}),
+		scope()
 	);
 	el.querySelector('button')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
 	as_current(el);

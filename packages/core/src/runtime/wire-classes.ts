@@ -73,6 +73,7 @@ function classes_in_seeds(doc: Document): Set<string> {
 	return want;
 }
 if (typeof document !== 'undefined')
+	// oxlint-disable-next-line ogygia/owned-effects -- the module's own cache reset on each page swap, once per module: it lives as long as the document
 	document.addEventListener('og:after-swap', () => (seed_classes = null));
 
 /** The loads this island's props, context and page seeds need, or `null` when none (the common
