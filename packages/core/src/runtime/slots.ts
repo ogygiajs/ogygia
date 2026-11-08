@@ -99,8 +99,9 @@ export type PageOps = {
 	seed_page_once(): void;
 	/** the `page.data` a seed reference in island props resolves against */
 	seed_data_of(doc: Document): unknown;
-	/** on a Kit-hydrated document: the wait for Kit to apply its page (`null` once applied) */
-	kit_page_thread(): Promise<unknown> | null;
+	/** on a Kit-hydrated document: the wait for Kit to apply its page (`null` once applied), for as
+	 *  long as `signal` (the waiting region's visit) lasts */
+	kit_page_thread(signal?: AbortSignal): Promise<unknown> | null;
 };
 
 /**

@@ -1479,7 +1479,7 @@ class OgygiaRegion extends HTMLElement {
 			if (gone() || core === STALE) return;
 			// An island of OURS on a Kit-hydrated document reads Kit's page through the bridge Kit's
 			// client entry publishes; it must not hydrate before Kit applied it (kit-page-thread.svelte.ts).
-			await this.#kit_page_ready(core);
+			await this.#kit_page_ready(core, this.#wake.scope);
 			if (gone()) return;
 			// The page's seeds parse now, BEFORE the turn: data arriving is not the hydrate step. The
 			// first island parses the seed once (700 KB on a large CMS page), and inside its turn that
@@ -1676,10 +1676,12 @@ class OgygiaRegion extends HTMLElement {
 	 * On a Kit-hydrated document, a region of ours (a lake's inside, a hole's answer) waits for Kit to
 	 * apply its page before it hydrates — `null` (no await) once applied. The wait lives in the lazy
 	 * hydrate core (it observes Kit's reactive page, i.e. it needs Svelte), so it never reaches the boot.
+	 * It waits for `visit` (the wake's, or the live tick's): a region that left stops waiting, and the
+	 * wait ends with the last region in it.
 	 */
-	#kit_page_ready(core: HydrateCore): Promise<unknown> | null {
+	#kit_page_ready(core: HydrateCore, visit: Scope): Promise<unknown> | null {
 		if (!kit_hydrates_page() || !ours_on_kit_document(this)) return null;
-		return core.kit_page_thread();
+		return core.kit_page_thread(visit.signal);
 	}
 
 	/**
@@ -1711,7 +1713,7 @@ class OgygiaRegion extends HTMLElement {
 				release();
 			}
 			if (!ours() || core === STALE) return;
-			await this.#kit_page_ready(core);
+			await this.#kit_page_ready(core, this.#live.scope);
 			if (!ours()) return;
 			if (CLIENT_PLUGINS) client_region_mount(this);
 			const app = core.hydrate_live(this, entry, mod, props);
