@@ -1097,16 +1097,80 @@
 			"reason": "reads a Request and a Response (not cloneable): two header compares, constant work; proven in packages/core/test/request-scope.test.ts"
 		},
 		{
-			"id": "packages/federation/src/serve.ts > serve_thaw > then:0~7789e5",
-			"reason": "the forward's answer after its posts and their retry timers (not replayable): one warning when a consumer missed it, constant work"
+			"id": "packages/core/src/plugin/testing.ts > inRequest",
+			"reason": "a test helper: runs a callback inside Kit's request store (a function, not cloneable), constant work; proven in packages/core/test/plugin-request-end.test.ts"
 		},
 		{
-			"id": "packages/federation/src/server.ts > defineServer:0~1d4f75 > invalidated > then:0~7789e5",
-			"reason": "the thaw broadcast's answer after its posts and their retry timers (not replayable): one warning when a peer missed it; proven in packages/federation/test/thaw-send.test.ts"
+			"id": "packages/devtools/src/app.ts > set_devtools_app",
+			"reason": "stores the plugin's app (a live object, not cloneable) in one slot at setup, constant work"
 		},
 		{
-			"id": "packages/federation/src/server.ts > defineServer:0~1d4f75 > invalidated > then:1~434b63",
-			"reason": "broadcast_thaw never rejects: the warning for a rejection that cannot happen, constant work"
+			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_WARNINGS > devtools_profiler_sink_undelivered > details",
+			"reason": "a message's fixed wording: one constant string"
+		},
+		{
+			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_WARNINGS > devtools_profiler_sink_undelivered > text",
+			"reason": "a message's wording: one template string, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #sink_post",
+			"reason": "one fetch to the sink and its answer (network, not recorded), constant work; proven in packages/devtools/test/profiler.test.ts (the sink tests)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > outbox:0~f383a4 > giveUp",
+			"reason": "keeps a given-up post's outcome and says it once, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > outbox:0~f383a4 > id",
+			"reason": "reads a post's id field, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > outbox:0~f383a4 > send",
+			"reason": "hands a post to #sink_post (a profiler, not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > outbox:0~f383a4 > waitUntil",
+			"reason": "hands a send to the app's keepAlive (a promise, not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > error_text",
+			"reason": "an error's message as a string, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > noop",
+			"reason": "a constant no-op"
+		},
+		{
+			"id": "packages/federation/src/federate.ts > thaw_outbox",
+			"reason": "makes one outbox at module load (functions and a policy, not cloneable), constant work; the outbox itself is benched in packages/machine/bench/machine.bench.ts"
+		},
+		{
+			"id": "packages/federation/src/federate.ts > thaw_outbox > outbox:0~64419c > giveUp",
+			"reason": "one warning for a peer that never took a notice, constant work; proven in packages/federation/test/thaw-send.test.ts"
+		},
+		{
+			"id": "packages/federation/src/serve.ts > apply_thaw",
+			"reason": "applies a signed notice through the store's shared hook and passes it on over the network (not recorded); proven in packages/federation/test/thaw-receive.test.ts"
+		},
+		{
+			"id": "packages/federation/src/serve.ts > flights:0~0a0ef5 > key",
+			"reason": "reads a notice's id field, constant work"
+		},
+		{
+			"id": "packages/flags/src/index.ts > outbox:0~82c77f > giveUp",
+			"reason": "one warning per failing streak of the exposure sink, constant work; proven in packages/flags/test/exposure-queue.test.ts"
+		},
+		{
+			"id": "packages/machine/src/outbox.ts > Box > _deliver > timeout:0~10b94e",
+			"reason": "the deadline's timer callback: closes one scope, constant work; proven in packages/machine/test/outbox.test.ts"
+		},
+		{
+			"id": "packages/machine/src/outbox.ts > late",
+			"reason": "builds the TimeoutError a send past its deadline gives up with, constant work; proven in packages/machine/test/outbox.test.ts"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > outbox:0~54d733 > giveUp",
+			"reason": "says a store that never took an evict (the store's failing streak), constant work; proven in packages/postrender/test/store-failed.test.ts"
 		},
 		{
 			"id": "packages/flags/src/source-health.ts > source_mark",
