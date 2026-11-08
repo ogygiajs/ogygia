@@ -3,6 +3,24 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { playwright } from '@vitest/browser-playwright';
 import { fileURLToPath } from 'node:url';
 import { heisenbench_record } from '../../internal/heisenbench/src/record.ts';
+import type { BrowserCommand } from 'vitest/node';
+
+/**
+ * `drop_downloads(path, times)` (browser tests, `commands` from `vitest/browser`): the next `times`
+ * requests for a URL whose path ends with `path` fail at the network, as on a dropped connection
+ * (Playwright's `route.abort`); the ones after go through. A real failed download, so the browser
+ * keeps that module failed the way it does for a visitor. `keep_downloads()` lifts it.
+ */
+const drop_downloads: BrowserCommand<[path: string, times: number]> = async (ctx, path, times) => {
+	let left = times;
+	await ctx.page.route(
+		(url) => url.pathname.endsWith(path),
+		(route) => (left-- > 0 ? route.abort('failed') : route.continue())
+	);
+};
+const keep_downloads: BrowserCommand<[]> = async (ctx) => {
+	await ctx.page.unrouteAll({ behavior: 'ignoreErrors' });
+};
 
 // Two projects, one config:
 //
@@ -121,7 +139,8 @@ export default defineConfig({
 						enabled: true,
 						headless: true,
 						provider: playwright(),
-						instances: [{ browser: 'chromium' }]
+						instances: [{ browser: 'chromium' }],
+						commands: { drop_downloads, keep_downloads }
 					}
 				}
 			}

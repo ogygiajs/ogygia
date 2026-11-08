@@ -1,11 +1,12 @@
-// LAZY CHUNKS THAT FAIL (#201, #237). The runtime loads its lazy pieces (the hydrate core,
-// devalue, the interaction replay, a transportable class's module) on the first use that needs
-// each. On a flaky mobile network that first download can fail. It must never break every later
-// use in the tab: a dropped download is tried again, and a use after a failed one loads it afresh.
+// LAZY CHUNKS THAT FAIL (#201, #237, #238). The runtime loads its lazy pieces (the hydrate core,
+// devalue, the interaction replay, a transportable class's module, the router's navigation) on the
+// first use that needs each. On a flaky mobile network that first download can fail. It must never
+// break every later use in the tab: a dropped download is tried again, and a use after a failed one
+// loads it afresh.
 //
 // Each test drops the first N downloads of one chunk at the network (the browser sees a failed
 // fetch, as on a dropped connection), found by what only that chunk carries in a production build.
-// Against the built palaestra (/lazy-retry, /lazy-retry-class).
+// Against the built palaestra (/lazy-retry, /lazy-retry-class, /router-links).
 //
 // What the browser does, measured here: a module whose download failed stays failed in its module
 // map for the life of the page; a second import() of the same URL fails without a request. The
@@ -23,6 +24,8 @@ const CHUNKS = {
 	devalue: 'Invalid circular reference',
 	/** the replay restores a field's selection */
 	'interaction replay': 'setSelectionRange',
+	/** the router's navigation (runtime/router-nav.ts): the server-delta header it sends */
+	navigation: 'x-ogygia-known',
 	/** a transportable class's lazy load (runtime/wire-classes.ts): the small chunk that re-exports
 	 *  it, the one its loader imports (the class itself sits in a chunk the page's own node shares) */
 	'class module': /export\{\w+ as RetryStamp\}from/
@@ -226,6 +229,67 @@ test.describe('a class module that fails once is loaded again (#237)', () => {
 		await page.locator('[data-stamp-counter="far"]').scrollIntoViewIfNeeded();
 		check('the far island hydrated', await stamp_hydrated(page, 'far'));
 		check('it counts', await stamp_counts(page, 'far'));
+		check(
+			'dropped twice, then served',
+			seen.dropped === 2 && seen.served >= 1,
+			JSON.stringify(seen)
+		);
+		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
+	});
+});
+
+// THE ROUTER'S NAVIGATION (#238): its heavy half loads on the first prefetch, click or refresh
+// (runtime/router.ts). A failed load must not be kept: a click it failed for falls back to a full
+// load, as always, but every later click, `invalidateAll` and `preloadData` loads it afresh.
+test.describe('the navigation chunk that fails once is loaded again (#238)', () => {
+	type Handle = { invalidateAll(): Promise<void> };
+	const invalidate_all = (page: Page) =>
+		page.evaluate(() =>
+			(globalThis as unknown as Record<symbol, Handle>)[Symbol.for('ogygia.nav')]
+				.invalidateAll()
+				.then(
+					() => 'ok',
+					(e: unknown) => 'failed: ' + String(e)
+				)
+		);
+
+	const open = async (page: Page) => {
+		await page.goto('/router-links', { waitUntil: 'networkidle' });
+		await page.waitForFunction(() => Symbol.for('ogygia.nav') in globalThis);
+	};
+
+	test('dropped until a refresh fails: the next invalidateAll loads it and refreshes', async ({
+		page
+	}) => {
+		const thrown = errors(page);
+		const seen = await drop(page, 'navigation', 2);
+		await open(page);
+		const first = await invalidate_all(page);
+		check('the first refresh failed (its chunk dropped)', first !== 'ok', first);
+		const second = await invalidate_all(page);
+		check('the next refresh loaded the chunk and refreshed', second === 'ok', second);
+		check(
+			'dropped twice, then served',
+			seen.dropped === 2 && seen.served >= 1,
+			JSON.stringify(seen)
+		);
+		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
+	});
+
+	test('dropped until a refresh fails: the next click is still a router navigation', async ({
+		page
+	}) => {
+		const thrown = errors(page);
+		const seen = await drop(page, 'navigation', 2);
+		await open(page);
+		await invalidate_all(page);
+		await page.evaluate(() => ((window as unknown as { __same_doc: boolean }).__same_doc = true));
+		await page.locator('[data-plain]').click();
+		await page.waitForSelector('#about-heading', { timeout: 10_000 });
+		const same_doc = await page.evaluate(
+			() => (window as unknown as { __same_doc?: boolean }).__same_doc === true
+		);
+		check('the click swapped the page in place (no full load)', same_doc);
 		check(
 			'dropped twice, then served',
 			seen.dropped === 2 && seen.served >= 1,
