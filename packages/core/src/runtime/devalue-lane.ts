@@ -49,6 +49,7 @@ export function with_devalue(fn: (d: Devalue) => void, wait: number = RETRY_FIRS
 		void load_devalue().then(
 			(d) => d !== STALE && fn(d),
 			() => {
+				// oxlint-disable-next-line ogygia/owned-effects -- the document's download retry, doubling and capped (it ends itself): the read it serves runs once and outlives any page, so no visit owns it
 				if (wait <= RETRY_LAST_MS) setTimeout(() => with_devalue(fn, wait * 2), wait);
 			}
 		);

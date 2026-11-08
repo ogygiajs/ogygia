@@ -53,6 +53,7 @@ const ATTR = (name: string) => 'data-pref-' + name;
  */
 function preference_switch(): string {
 	return script(() => {
+		// oxlint-disable-next-line ogygia/owned-effects -- inline script, no imports: the document's switch delegation, installed once, as long as the document
 		document.addEventListener('click', function (e) {
 			var t = e.target;
 			var btn =

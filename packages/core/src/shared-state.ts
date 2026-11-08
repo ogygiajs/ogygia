@@ -87,6 +87,7 @@ export class SharedState<T extends object> {
 			const on = (e: Event) => {
 				if ((e as CustomEvent).detail === name) update();
 			};
+			// oxlint-disable-next-line ogygia/owned-effects -- the reading effect's own: its remover is handed back, and Svelte runs it when the last effect reading this goes
 			store.target.addEventListener('og:shared', on);
 			return () => store.target.removeEventListener('og:shared', on);
 		});
@@ -182,6 +183,7 @@ function vanilla(name: string): VanillaHandle {
 			const on = (e: Event) => {
 				if ((e as CustomEvent).detail === name) fn(store.map.get(name)!.value);
 			};
+			// oxlint-disable-next-line ogygia/owned-effects -- the subscriber's own: its remover is handed back as the unsubscribe, which the caller owns
 			store.target.addEventListener('og:shared', on);
 			return () => store.target.removeEventListener('og:shared', on);
 		}
