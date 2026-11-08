@@ -10,7 +10,7 @@
  *   `in_view`.
  * - `addEventListener`, `location`: what the runtime's modules touch at load.
  *
- * And the page: a CMS document of a header, a builder list of blocks and a footer, every region
+ * And the page: a CMS document of a header, a list of blocks and a footer, every region
  * with its props sidecar in the keyed tail at the end of the body, as the server renders it.
  * Setup only: nothing here runs inside a measured window, except the stand-ins' own callbacks.
  */
@@ -113,8 +113,7 @@ g.customElements = {
 };
 
 /**
- * A script edits a sleeping island, as a design-system runtime does while it upgrades the page
- * around it: the whitespace text nodes go. The observer hears it, as a browser's would.
+ * A script edits a sleeping island: the whitespace text nodes go. The observer hears it, as a browser's would.
  */
 export function edit_while_asleep(region: Element): void {
 	strip_whitespace(region as unknown as DomNode, (parent) =>
@@ -134,7 +133,7 @@ export interface PageRegion {
 	entry: string;
 	/** the island's server markup as it connected (core.ts `#ssr_html`) */
 	ssr_html: string;
-	/** a script edited it while it slept (a design-system runtime stripped its whitespace) */
+	/** a script edited it while it slept (stripped its whitespace) */
 	touched: boolean;
 }
 
@@ -180,7 +179,7 @@ const region_open = (i: number, wake: Wake, entry: string): string =>
 const sidecar = (i: number, json: string): string =>
 	`<script type="application/ogygia-props" data-ogygia-props="${fp(i)}" id="og-props-${fp(i)}" data-og-format="json">${json.replaceAll('<', '\\u003c')}</script>`;
 
-/** Strip the whitespace text nodes under `node`, as a design-system runtime does while it upgrades. */
+/** Strip the whitespace text nodes under `node`, as a page script might. */
 export function strip_whitespace(
 	node: DomNode,
 	removed: (parent: DomNode) => void = () => {}
@@ -209,7 +208,7 @@ export function page_head(blocks: number): void {
 }
 
 /**
- * The page, in the shim's document: a header (wake `load`, a large props config), `blocks` builder
+ * The page, in the shim's document: a header (wake `load`, a large props config), `blocks`
  * blocks with mixed wakes, a footer (`idle`). One block in five is edited while it sleeps: here
  * (`edit`), or by the bench once the runtime has its copy (`edit_while_asleep`). The head carries
  * Svelte's head-block markers for the islands' `<svelte:head>`.
@@ -242,7 +241,7 @@ export function cms_page(blocks: number, rows = 6, edit = true): PageRegion[] {
 		entry: island_entry(30),
 		props: JSON.stringify({ year: 2026, links: ['a', 'b', 'c'] })
 	});
-	let html = '<main><div class="builder">';
+	let html = '<main><div class="blocks">';
 	parts.forEach((p, i) => (html += region_open(i, p.wake, p.entry) + p.html + '</ogygia-region>'));
 	html += '</div></main><div hidden>';
 	parts.forEach((p, i) => (html += sidecar(i, p.props)));
@@ -279,7 +278,7 @@ export function grid_page(cards: number): PageRegion {
 	const entry = island_entry(50);
 	let inner = '<!--[-->';
 	for (let i = 0; i < cards; i++)
-		inner += `<article class="card"><h3>Product ${i}</h3> <p>${(i * 13) % 97} EUR</p></article>`;
+		inner += `<article class="card"><h3>Product ${i}</h3> <p>${(i * 13) % 97} USD</p></article>`;
 	inner += '<!--]-->';
 	const props = JSON.stringify({ ids: Array.from({ length: cards }, (_, i) => i) });
 	for (const n of frag(

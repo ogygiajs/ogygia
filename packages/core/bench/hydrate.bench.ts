@@ -1,7 +1,7 @@
 // Client hydration, run in Node against the unit tests' DOM shim (bench/hydration-page.ts; the
-// shim's own work counts too): a CMS page of a header, a builder list of block islands with mixed
+// shim's own work counts too): a CMS page of a header, a list of block islands with mixed
 // wakes (load / visible / idle / interaction) and a footer, each with its props sidecar in the keyed
-// body tail. One block in five is edited while it sleeps (a design-system runtime strips its
+// body tail. One block in five is edited while it sleeps (a page script strips its
 // whitespace), so its wake compares it with its server copy and repairs it.
 //
 // - the region element, through its public path: the runtime boots, `customElements.define`
@@ -69,7 +69,7 @@ function wakes_alone(regions: PageRegion[]): number {
 
 /**
  * The page as the browser runs it: the runtime boots (the interaction feature with it), every region
- * upgrades and connects, a design-system runtime then edits one block in five while they sleep, and
+ * upgrades and connects, a page script then edits one block in five while they sleep, and
  * a visitor taps the header before it is live. Ends when every island that wakes alone is hydrated.
  */
 function boot_page({ page }: Booted): Promise<number> {
@@ -100,7 +100,7 @@ function page_of(blocks: number): Booted {
 
 /**
  * The page, and the lazy chunks a wake imports loaded ahead of the window: the hydrate core, the
- * interaction replay, and every island module the page builder names. Node resolves an `import()`
+ * interaction replay, and every island module the page names. Node resolves an `import()`
  * with a filesystem call Heisenbench does not allow inside the window; in a browser each is a
  * fetch, not ogygia's work.
  */
@@ -145,7 +145,7 @@ bench(
 	{
 		setup: () => {
 			const regions = cms_page(4);
-			// (the header is the island a design-system runtime strips while it upgrades the nav)
+			// (the header is the island a page script edits while it sleeps)
 			strip_whitespace(regions[0].el as unknown as DomNode);
 			return { regions };
 		}
