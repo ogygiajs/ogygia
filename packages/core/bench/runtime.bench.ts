@@ -296,6 +296,19 @@ bench(
 				);
 				continue;
 			}
+			if (i % 4 === 2) {
+				// a batch reserved it, a copy joined, and a refresh (forced) came: the batch ends without
+				// its part every other time, and the copy goes to a fetch of its own
+				frames.reserve(a);
+				const joined = frames.ensure(a, fetcher);
+				const refresh = frames.ensure(a, fetcher, { force: true });
+				if (i % 8 === 2) frames.release(a);
+				settled.push(
+					joined.catch(() => frames.ensure(a, fetcher)),
+					refresh
+				);
+				continue;
+			}
 			const first = frames.ensure(a, fetcher);
 			const twin = frames.ensure(a, fetcher);
 			if (i % 3 === 0) frames.abandon(twin);
