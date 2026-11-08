@@ -29,7 +29,8 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 	import PageTab from './PageTab.svelte';
 	import SessionTab from './SessionTab.svelte';
 	import HydrationTab from './HydrationTab.svelte';
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
+	import { scope, STALE } from '@ogygia/machine';
 	import BoundaryOverlay from './BoundaryOverlay.svelte';
 	import IslandDetail from './IslandDetail.svelte';
 	import { to_trace } from '@ogygia/core/events';
@@ -155,15 +156,19 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 	// Explicit hover state for the launcher (pointerenter/leave — a `:hover` descendant selector proved
 	// flaky against neodrag's inline transform). `up` = fully revealed; otherwise it peeks below the fold.
 	let launchHover = $state(false);
-	let tickTimer = /** @type {ReturnType<typeof setInterval> | null} */ (null);
+	/** The dock's own work in the page (its keys, its timers, its fetch): let go when it unmounts. */
+	const owner = scope();
+	onDestroy(() => owner.close());
+	/** The live refresh while the window is open: a child of the dock's scope. */
+	let refresh = /** @type {import('@ogygia/machine').Scope | null} */ (null);
 	function refresh_on() {
-		if (!tickTimer) tickTimer = setInterval(() => tick++, 700);
+		if (refresh) return;
+		refresh = owner.child();
+		refresh.every(() => tick++, 700);
 	}
 	function refresh_off() {
-		if (tickTimer) {
-			clearInterval(tickTimer);
-			tickTimer = null;
-		}
+		refresh?.close();
+		refresh = null;
 	}
 	function place_near_launcher() {
 		winPos = {
@@ -216,10 +221,12 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 			a.href = url;
 			a.download = `ogygia-trace-${Date.now()}.json`;
 			a.click();
+			// (the download is the page's, not the dock's: it lets go of the file even if the dock goes)
+			// oxlint-disable-next-line ogygia/owned-effects -- one-shot, ends itself, outlives the dock on purpose
 			setTimeout(() => URL.revokeObjectURL(url), 1000);
 			copied = 'saved as a file';
 		}
-		setTimeout(() => (copied = ''), 1600);
+		owner.timeout(() => (copied = ''), 1600);
 	}
 
 	// One-time setup: Alt+O toggle, the compiler's devtools metadata, and (re)starting the refresh timer
@@ -231,16 +238,19 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 				toggle_open();
 			}
 		};
-		window.addEventListener('keydown', onkey);
+		owner.on(window, 'keydown', onkey);
 
 		// `names` (island id → component name) and `bytes` (island id → transitive dev-graph size) label
 		// the tabs with real names/costs. Best-effort — the endpoint only exists on the dev server (a
 		// build carries its names in the dock's own module: ui-app.ts).
 		if (!LAZY)
-			fetch('/__ogygia_devtools_meta')
-				.then((r) => (r.ok ? r.json() : null))
+			owner
+				.task((signal) =>
+					fetch('/__ogygia_devtools_meta', { signal }).then((r) => (r.ok ? r.json() : null))
+				)
 				.then((meta) => {
-					if (!meta || typeof meta !== 'object') return;
+					// (STALE: the dock unmounted first)
+					if (!meta || meta === STALE || typeof meta !== 'object') return;
 					if (meta.names) window.__ogygia_region_names = meta.names;
 					if (meta.bytes) window.__ogygia_region_bytes = meta.bytes;
 					tick++;
@@ -249,10 +259,6 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 
 		if (startOpen && !open) set_open(true);
 		else if (open) refresh_on();
-		return () => {
-			window.removeEventListener('keydown', onkey);
-			refresh_off();
-		};
 	});
 </script>
 

@@ -19,6 +19,7 @@
 		document.body.appendChild(a);
 		a.click();
 		a.remove();
+		// oxlint-disable-next-line ogygia/owned-effects -- the download's, not the button's: it lets go of the file even if the button goes
 		setTimeout(() => URL.revokeObjectURL(a.href), 1500);
 	}
 

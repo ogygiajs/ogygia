@@ -4,6 +4,8 @@
  * tables: give it the anchor kind and a getter for the open state, get back the row id maker and
  * the effect to install.
  */
+import { scope } from '@ogygia/machine';
+
 export type RowKind = 'comp' | 'fn' | 'island' | 'seed';
 
 export function row_id(kind: RowKind, key: string): string {
@@ -24,6 +26,8 @@ export function follow_hash(
 	keys: () => string[],
 	open: (key: string) => void
 ): () => void {
+	// the hash watch, the click watch and their scrolls: let go when the table goes
+	const s = scope();
 	const apply = () => {
 		const m = /^#(comp|fn|island|seed)=(.*)$/.exec(location.hash);
 		if (!m || m[1] !== kind) return;
@@ -36,24 +40,21 @@ export function follow_hash(
 		if (!keys().includes(key)) return;
 		open(key);
 		// after the row renders
-		setTimeout(() => {
+		s.timeout(() => {
 			document
 				.getElementById(row_id(kind, key))
 				?.scrollIntoView({ block: 'center', behavior: 'smooth' });
 		}, 30);
 	};
 	apply();
-	window.addEventListener('hashchange', apply);
+	s.on(window, 'hashchange', apply);
 	// the same link pressed again (scrolled back up, "show the row" once more): the hash does not
 	// change, so no hashchange fires, and the press did nothing
 	const again = (e: MouseEvent) => {
 		const a = (e.target as Element | null)?.closest?.('a');
 		const href = a?.getAttribute('href');
-		if (href && href === location.hash) setTimeout(apply, 0);
+		if (href && href === location.hash) s.timeout(apply, 0);
 	};
-	document.addEventListener('click', again);
-	return () => {
-		window.removeEventListener('hashchange', apply);
-		document.removeEventListener('click', again);
-	};
+	s.on(document, 'click', again);
+	return () => s.close();
 }

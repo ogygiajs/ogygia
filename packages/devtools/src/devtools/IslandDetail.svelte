@@ -12,6 +12,7 @@
 	 */
 	import { parse } from 'devalue';
 	import { onDestroy } from 'svelte';
+	import { scope } from '@ogygia/machine';
 	import { highlight, clear_highlight } from './highlight.ts';
 	import {
 		region_info,
@@ -142,14 +143,15 @@
 	});
 
 	// scroll to it AND mark it for a moment: an island already on screen gave no sign at all
-	/** @type {ReturnType<typeof setTimeout> | undefined} */
-	let flash;
+	const owner = scope();
+	onDestroy(() => owner.close());
+	/** @type {(() => void) | null} */
+	let unflash = null;
 	function locate() {
 		highlight([el], model.name, true);
-		clearTimeout(flash);
-		flash = setTimeout(clear_highlight, 1400);
+		unflash?.();
+		unflash = owner.timeout(clear_highlight, 1400);
 	}
-	onDestroy(() => clearTimeout(flash));
 </script>
 
 <div class="detail" data-og-detail>

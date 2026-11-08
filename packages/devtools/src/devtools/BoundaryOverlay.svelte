@@ -15,6 +15,7 @@
 	 * the real element under the cursor via `<svelte:window>`. A pure consumer, drawn only while on.
 	 */
 	import { onMount } from 'svelte';
+	import { scope } from '@ogygia/machine';
 	import {
 		all_regions,
 		region_info,
@@ -45,19 +46,22 @@
 		const onkey = (e) => {
 			if (e.key === 'Escape' && picking) picking = false;
 		};
-		window.addEventListener('keydown', onkey);
-		return () => window.removeEventListener('keydown', onkey);
+		const s = scope();
+		s.on(window, 'keydown', onkey);
+		return () => s.close();
 	});
 	// The rAF loop runs ONLY while the overlay is on (it follows the `overlay` prop, hence an effect):
 	// a loop left running with the overlay off asked the browser for a frame sixty times a second on
 	// every page with devtools, the dock closed — ~90 ms of main-thread work each 5 s of idle
 	$effect(() => {
 		if (!overlay) return;
-		let raf = requestAnimationFrame(function loop() {
+		const s = scope();
+		const loop = () => {
 			frame++;
-			raf = requestAnimationFrame(loop);
-		});
-		return () => cancelAnimationFrame(raf);
+			s.timeout(loop, 'frame');
+		};
+		s.timeout(loop, 'frame');
+		return () => s.close();
 	});
 
 	const boxes = $derived.by(() => {

@@ -9,6 +9,7 @@
 	 * waterfall of every island's wake (module → turn → hydrate, against FCP / LCP / DCL / load), the
 	 * files that blocked the first paint, and the bytes by type. The analysis is page-insights.ts.
 	 */
+	import { scope } from '@ogygia/machine';
 	import { read_page, cpu_of, summary_lines } from './page.ts';
 	import { first_difference, rate } from '@ogygia/core/insights';
 	import { beacon_record_cpu } from '@ogygia/core/internal/instruments';
@@ -48,14 +49,15 @@
 	const nav_key = $derived(view?.nav?.t ?? 0);
 	$effect(() => {
 		void nav_key;
-		const id = setTimeout(
+		const s = scope();
+		s.timeout(
 			() => {
 				check_styles();
 				check_cache();
 			},
 			nav_key ? 400 : 60
 		);
-		return () => clearTimeout(id);
+		return () => s.close();
 	});
 	const findings = $derived.by(() => {
 		if (!view) return [];
