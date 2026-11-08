@@ -75,7 +75,7 @@ interface PageOptions {
 	context?: boolean;
 	/** the site settings carry a Date and an app type (the seed leaves the JSON lane) */
 	rich?: boolean;
-	/** a load returned a function in `page.data` (the seed drops that field) */
+	/** a load returned a function in `page.data` (the seed leaves out that one value) */
 	function_leaf?: boolean;
 	/** remote queries resolved during the render, two of them callable by the page's islands */
 	remotes?: boolean;
@@ -435,6 +435,8 @@ bench(
 	}
 );
 
+// Growth: linear in the products. It was quadratic while each copied product looked through
+// every seed node of its byte size for its hash (same-shaped records share a size).
 bench(
 	'seed refs: a list island passed copies of the page’s products',
 	({ index, props }) => plan_seed_refs(index, props).count,
