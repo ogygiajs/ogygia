@@ -76,7 +76,7 @@ export const notify: Notify = new Proxy({} as Notify, {
 			if (failed)
 				throw failed.length === 1
 					? failed[0]
-					: new AggregateError(failed, `[ogygia] ${failed.length} \`${name}\` hooks failed`);
+					: new AggregateError(failed, `${failed.length} implementations of ${name} failed`);
 		}
 });
 

@@ -505,7 +505,7 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 		const { failed } = await evict_tags(tags);
 		if (failed.length === 1) throw failed[0];
 		if (failed.length > 1)
-			throw new AggregateError(failed, `[ogygia] ${failed.length} tags failed to evict`);
+			throw new AggregateError(failed, `${failed.length} tags failed to evict`);
 	},
 
 	// SHARED HOOK — deploy thaw: remember this build, answer the one the store saw before. Written on
