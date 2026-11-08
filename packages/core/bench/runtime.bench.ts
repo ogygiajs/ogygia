@@ -11,7 +11,8 @@ import { morph_children } from '../src/runtime/morph.ts';
 import { PageCache } from '../src/runtime/page-cache.ts';
 import { parse_wire_text } from '../src/runtime/wire-format.ts';
 import { failed_import_url, import_again, retry_url } from '../src/runtime/import-again.ts';
-import { create_navigation, create_soft_refresh } from '../src/runtime/navigation.ts';
+import { create_navigation } from '../src/runtime/navigation.ts';
+import { create_soft_refresh } from '../src/runtime/soft-refresh.ts';
 import { block, header } from './fixtures.ts';
 
 bench(
@@ -94,7 +95,7 @@ bench(
 		for (let i = 0; i < 400; i++) {
 			const href = pages[(i * 7) % pages.length][0];
 			if (cache.get(href) !== null) hits++;
-			else cache.set(href, pages[(i * 7) % pages.length][1]);
+			else cache.set(href, { html: pages[(i * 7) % pages.length][1], url: href });
 		}
 		return hits;
 	},
