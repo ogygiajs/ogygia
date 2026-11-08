@@ -18,8 +18,21 @@ const drop_downloads: BrowserCommand<[path: string, times: number]> = async (ctx
 		(route) => (left-- > 0 ? route.abort('failed') : route.continue())
 	);
 };
+/** Requests `hold_downloads` holds, each sent on when the hold is lifted. */
+const held: Array<() => Promise<void>> = [];
+/**
+ * `hold_downloads(path)`: every request for a URL whose path ends with `path` waits, unanswered, as
+ * on a slow network, until `keep_downloads()` sends it on. A stylesheet still loading, for real.
+ */
+const hold_downloads: BrowserCommand<[path: string]> = async (ctx, path) => {
+	await ctx.page.route(
+		(url) => url.pathname.endsWith(path),
+		(route) => void held.push(() => route.continue())
+	);
+};
 const keep_downloads: BrowserCommand<[]> = async (ctx) => {
 	await ctx.page.unrouteAll({ behavior: 'ignoreErrors' });
+	for (const send of held.splice(0)) await send().catch(() => {});
 };
 
 // Two projects, one config:
@@ -140,7 +153,7 @@ export default defineConfig({
 						headless: true,
 						provider: playwright(),
 						instances: [{ browser: 'chromium' }],
-						commands: { drop_downloads, keep_downloads }
+						commands: { drop_downloads, hold_downloads, keep_downloads }
 					}
 				}
 			}
