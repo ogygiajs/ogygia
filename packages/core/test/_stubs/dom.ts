@@ -1,11 +1,13 @@
 /**
- * Tiny, faithful DOM shim for the morph unit tests.
+ * Tiny, faithful DOM shim for the morph unit tests (and the bench files that run DOM code in Node:
+ * bench/runtime.bench.ts, bench/hydrate.bench.ts).
  *
  * The ogygia repo runs vitest in the `node` environment on purpose (no jsdom/happy-dom dependency),
  * so there is no real DOM. `morph.ts` is pure DOM manipulation, so to unit-test it we stand up just
  * enough of the DOM: a doubly-linked child list, elements with attributes + namespaces, text/comment
  * nodes, `importNode`, `activeElement`/`focus`, and dirty-value/checked/selected form properties that
- * mirror the browser's "property vs attribute" split.
+ * mirror the browser's "property vs attribute" split. The document has a `<head>` and a `<body>`,
+ * an id map (`getElementById`) and the few selectors the runtime asks of it.
  *
  * Importing this module INSTALLS `globalThis.Node` and `globalThis.document` as a side effect, so it
  * MUST be imported before `morph.ts` (which reads `Node.ELEMENT_NODE` at module load).
@@ -84,6 +86,20 @@ class DomNode {
 	get previousSibling(): DomNode | null {
 		return this._prev;
 	}
+	get nextElementSibling(): DomNode | null {
+		for (let n = this._next; n; n = n._next) if (n.nodeType === 1) return n;
+		return null;
+	}
+	/** The top of this node's tree: the document when it is in it, else the detached root. */
+	getRootNode(): DomNode {
+		return this._parent ? this._parent.getRootNode() : this;
+	}
+	get isConnected(): boolean {
+		return this.getRootNode().nodeType === 9;
+	}
+	remove(): void {
+		if (this._parent) this._parent._detach(this);
+	}
 
 	get childNodes(): DomNode[] {
 		const out: DomNode[] = [];
@@ -158,6 +174,13 @@ class DomText extends DomNode {
 		this.nodeType = type;
 		this.nodeValue = data;
 	}
+	/** CharacterData `data`: a text or comment node's text. */
+	get data(): string {
+		return this.nodeValue ?? '';
+	}
+	set data(v: string) {
+		this.nodeValue = v;
+	}
 	cloneNode(): DomNode {
 		return new DomText(this.ownerDocument, this.nodeValue ?? '', this.nodeType);
 	}
@@ -186,17 +209,21 @@ class DomElement extends DomNode {
 		return this._attrs;
 	}
 
+	// (plain loops: a bench counts the shim's work too, and a browser's lookup is native)
 	getAttribute(name: string): string | null {
-		const a = this._attrs.find((x) => x.name === name);
-		return a ? a.value : null;
+		for (const a of this._attrs) if (a.name === name) return a.value;
+		return null;
 	}
 	hasAttribute(name: string): boolean {
-		return this._attrs.some((x) => x.name === name);
+		for (const a of this._attrs) if (a.name === name) return true;
+		return false;
 	}
 	setAttribute(name: string, value: string): void {
 		const a = this._attrs.find((x) => x.name === name);
 		if (a) a.value = String(value);
 		else this._attrs.push({ name, value: String(value) });
+		// the document's id map (getElementById), as a browser keeps one
+		if (name === 'id') this.ownerDocument._ids.set(String(value), this);
 	}
 	removeAttribute(name: string): void {
 		const i = this._attrs.findIndex((x) => x.name === name);
@@ -248,27 +275,12 @@ class DomElement extends DomNode {
 		this._selected = !!v;
 	}
 
-	/** Minimal selectors — a comma list of `tag`, `[attr]`, `tag[attr]` — what `morph.ts` needs. */
+	/** Minimal selectors: a comma list of `tag`, `[attr]`, `tag[attr]`, `tag[attr="value"]`. */
 	querySelectorAll(selector: string): DomElement[] {
-		const tests = selector.split(',').map((part) => {
-			const m = part.trim().match(/^([a-zA-Z][\w-]*)?(?:\[([\w-]+)\])?$/);
-			if (!m || (!m[1] && !m[2])) throw new Error('dom shim: unsupported selector ' + part);
-			const tag = m[1] ? m[1].toUpperCase() : null;
-			const attr = m[2] ?? null;
-			return (e: DomElement) =>
-				(tag === null || e.tagName === tag) && (attr === null || e.hasAttribute(attr));
-		});
-		const out: DomElement[] = [];
-		const walk = (n: DomNode): void => {
-			for (let c = n._first; c; c = c._next) {
-				if (c.nodeType !== 1) continue;
-				const e = c as DomElement;
-				if (tests.some((t) => t(e))) out.push(e);
-				walk(c);
-			}
-		};
-		walk(this);
-		return out;
+		return select(this, selector, false);
+	}
+	querySelector(selector: string): DomElement | null {
+		return select(this, selector, true)[0] ?? null;
 	}
 
 	private querySelectorOptions(): DomElement[] {
@@ -321,15 +333,39 @@ class DomElement extends DomNode {
 
 class DomDocument extends DomNode {
 	_active: DomElement | null = null;
+	_ids = new Map<string, DomElement>();
+	readonly documentElement: DomElement;
+	readonly head: DomElement;
+	readonly body: DomElement;
+	readyState = 'complete';
+	visibilityState = 'visible';
 
 	constructor() {
 		super(null);
 		this.nodeType = 9;
 		this.ownerDocument = this;
+		this.documentElement = this.createElement('html');
+		this.head = this.createElement('head');
+		this.body = this.createElement('body');
+		this.documentElement.appendChild(this.head);
+		this.documentElement.appendChild(this.body);
+		this.appendChild(this.documentElement);
 	}
 
 	get activeElement(): DomElement | null {
 		return this._active;
+	}
+
+	/** By the id map (O(1), as in a browser): the element, while it is still in this document. */
+	getElementById(id: string): DomElement | null {
+		const e = this._ids.get(id);
+		return e && e.getAttribute('id') === id && e.getRootNode() === this ? e : null;
+	}
+	querySelectorAll(selector: string): DomElement[] {
+		return select(this, selector, false);
+	}
+	querySelector(selector: string): DomElement | null {
+		return select(this, selector, true)[0] ?? null;
 	}
 
 	createElement(tag: string): DomElement {
@@ -356,6 +392,35 @@ class DomDocument extends DomNode {
 	importNode(node: DomNode, deep?: boolean): DomNode {
 		return node.cloneNode(deep);
 	}
+}
+
+/** The descendants of `root` a minimal selector list matches, in document order (`first`: stop at one). */
+function select(root: DomNode, selector: string, first: boolean): DomElement[] {
+	const tests = selector.split(',').map((part) => {
+		const m = part.trim().match(/^([a-zA-Z][\w-]*)?(?:\[([\w-]+)(?:="([^"]*)")?\])?$/);
+		if (!m || (!m[1] && !m[2])) throw new Error('dom shim: unsupported selector ' + part);
+		const tag = m[1] ? m[1].toUpperCase() : null;
+		const attr = m[2] ?? null;
+		const value = m[3] ?? null;
+		return (e: DomElement) =>
+			(tag === null || e.tagName === tag) &&
+			(attr === null || (value === null ? e.hasAttribute(attr) : e.getAttribute(attr) === value));
+	});
+	const out: DomElement[] = [];
+	const walk = (n: DomNode): boolean => {
+		for (let c = n._first; c; c = c._next) {
+			if (c.nodeType !== 1) continue;
+			const e = c as DomElement;
+			if (tests.some((t) => t(e))) {
+				out.push(e);
+				if (first) return true;
+			}
+			if (walk(c)) return true;
+		}
+		return false;
+	};
+	walk(root);
+	return out;
 }
 
 // ---------------------------------------------------------------------------
