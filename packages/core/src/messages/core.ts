@@ -41,6 +41,26 @@ export const ERRORS = {
 			deploy, ogygia retries the current build's file first.
 		`
 	},
+	chunk_reload_needed: {
+		text: (a: { url: string }): string =>
+			`a file this page needs cannot load until the page reloads: ${a.url}`,
+		details: (): string => prose`
+			A file the runtime loads when it needs it (an island's code, a part of the runtime) failed,
+			and asking for it again failed the same way although the file itself came: one of the files
+			it imports failed to download, and the browser keeps that failure for the life of the page.
+			No retry can load it, so ogygia stops asking. The islands that need it stay as their server
+			HTML until the page reloads. Said once per page.
+		`
+	},
+	runtime_load_failed: {
+		text: (): string => 'the ogygia runtime failed to load: no island on this page wakes',
+		details: (): string => prose`
+			The runtime's script, or one of the files it imports, failed to download (a dropped
+			connection, a file a deploy removed). The runtime never ran, so every island on the page
+			stays as its server HTML: links and forms still work, nothing interactive does. Reloading
+			the page loads it again. Printed by the runtime's script tag itself, as the page link alone.
+		`
+	},
 	island_load_failed_stale_deps: {
 		text: (a: { entry: string | null }): string => prose`
 			island entry failed to load: ${a.entry}

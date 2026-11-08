@@ -308,7 +308,9 @@ describe('the runtime bootstrap (server/entry-location.ts), shared by every docu
 		set_island_deps({ '/og-runtime.js': ['/chunks/Shared.js'] });
 		const html = runtime_bootstrap();
 		expect(html).toContain(
-			'<script type="module" data-ogygia-runtime src="/chunks/Rt.js"></script>'
+			'<script type="module" data-ogygia-runtime src="/chunks/Rt.js" onerror="' +
+				"console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')" +
+				'"></script>'
 		);
 		expect(html).toContain(
 			'<link rel="modulepreload" href="/chunks/Shared.js" data-ogygia-runtime-dep>'

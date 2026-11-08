@@ -9,8 +9,14 @@
  * Safari's error names no URL: there the retry is the plain import again (it fails the same way),
  * so a dropped chunk stays dropped until the page reloads, as before.
  *
+ * One failure no URL fixes: a static dependency of the chunk that failed. The error names the chunk
+ * all the same, and the chunk under a fresh URL imports the dependency's own URL, which the browser
+ * keeps failed: every retry fails the same way (#262). Told apart by the retry itself — it failed,
+ * yet its own file came (the browser's resource timing holds its response): asking again cannot
+ * help, so the loader stops asking, and the page says once that it needs a reload.
+ *
  * A leaf: the boot and island-side code (devalue's lane, the entry locations) import it, so it
- * imports nothing.
+ * imports nothing; the boot hands it its message (`on_reload_needed`).
  */
 
 /** The URL in a failed dynamic import's message: Chromium "Failed to fetch dynamically imported
@@ -52,11 +58,22 @@ function response_of(url: string): number | null {
 	return status;
 }
 
+/** What the page says when a chunk cannot load until it reloads: the boot's message (./core.ts). */
+let say_reload_needed: (url: string, error: unknown) => void = () => {};
+let said = false;
+/** The boot hands over its message for a chunk no retry can load. Said once per page (for the first
+ *  such chunk: one reload loads them all). */
+export function on_reload_needed(say: (url: string, error: unknown) => void): void {
+	say_reload_needed = say;
+}
+
 /**
  * `load` (a bundler-resolved `() => import('./x.ts')`), and after it fails to download, the same
  * file under a fresh URL on each later call; once it has loaded, every later call is that load (a
- * fresh URL after a success would be a second copy of the module). Pair it with `once()` from
- * `@ogygia/machine`, which calls it again on a failure and never keeps one.
+ * fresh URL after a success would be a second copy of the module). A retry whose own file came and
+ * still failed is a dependency's failure, which no URL fixes: from then on every call fails at once
+ * with its error, asking nothing. Pair it with `once()` from `@ogygia/machine`, which calls it again
+ * on a failure and never keeps one.
  */
 export function import_again<T>(
 	load: () => Promise<T>,
@@ -65,11 +82,26 @@ export function import_again<T>(
 	let failed: string | null = null;
 	let attempt = 0;
 	let loaded: Promise<T> | null = null;
+	/** a failure no retry fixes (its dependency's): every later call is it */
+	let stuck: { error: unknown } | null = null;
 	return () => {
 		if (loaded) return loaded;
+		if (stuck) return Promise.reject(stuck.error);
 		let run: Promise<T>;
-		if (failed !== null) run = fresh(retry_url(failed, ++attempt)) as Promise<T>;
-		else {
+		if (failed !== null) {
+			const url = retry_url(failed, ++attempt);
+			run = (fresh(url) as Promise<T>).catch((error: unknown) => {
+				const status = response_of(url);
+				if (status !== null && status < 400) {
+					stuck = { error };
+					if (!said) {
+						said = true;
+						say_reload_needed(url, error);
+					}
+				}
+				throw error;
+			});
+		} else {
 			run = load().catch((error: unknown) => {
 				failed = failed_import_url(error);
 				throw error;

@@ -1,6 +1,6 @@
 import { once, STALE } from '@ogygia/machine';
 import { frameAddress } from '../frame.ts';
-import { import_again } from './import-again.ts';
+import { import_again, on_reload_needed } from './import-again.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
 // off in a build where no region streams HTML, and the bundler drops the element's fetch / apply /
 // morph / renew path with it — that path works on the element's own state, so it cannot be a
@@ -1845,6 +1845,11 @@ export function boot(
 		if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'entry.fallback', ...report });
 		if (BEACON) beacon_entry_fallback(report);
 	});
+	// A chunk whose dependency failed: no retry loads it, the page needs a reload (#262; said once,
+	// import-again.ts imports nothing)
+	on_reload_needed((url, error) =>
+		console.error(new OgygiaError('chunk_reload_needed', { url }), error)
+	);
 
 	if (import.meta.env.DEV) apply_dev_head_region_css();
 
