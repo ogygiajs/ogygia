@@ -2,6 +2,7 @@
 // whose request made it. Real AsyncLocalStorage contexts, a real fetch patch over a stand-in fetch.
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { scope } from '@ogygia/machine';
 import { install_net_capture, type NetCall, type NetContext } from '../src/profiler/net.ts';
 
 const real_fetch = globalThis.fetch;
@@ -36,5 +37,50 @@ describe('install_net_capture', () => {
 		await fetch('http://upstream.test/b');
 		expect(second_left).toEqual(['http://upstream.test/b']);
 		expect(first_left).toEqual([]);
+	});
+
+	it('the copy of an endless body it counts stops being read when its request ends', async () => {
+		const als = new AsyncLocalStorage<NetContext>();
+		await install_net_capture(als, () => {});
+		// an upstream that never stops sending (an event stream, a hung proxy)
+		const source = { pulls: 0, cancelled: false };
+		const endless = () =>
+			new ReadableStream<Uint8Array>({
+				async pull(controller) {
+					source.pulls++;
+					await new Promise((r) => setTimeout(r, 1));
+					controller.enqueue(new Uint8Array(64));
+				},
+				cancel() {
+					source.cancelled = true;
+				}
+			});
+		const before = globalThis.fetch;
+		const inner = (async () => new Response(endless())) as typeof fetch;
+		// (the capture wraps whatever fetch is live when it is asked to)
+		globalThis.fetch = inner;
+		await install_net_capture(als, () => {});
+		const request = scope();
+		try {
+			const res = await als.run({ ...context([]), owner: request }, () =>
+				fetch('http://upstream.test/stream')
+			);
+			// the app reads a little of it, then lets it go
+			const reader = res.body!.getReader();
+			await reader.read();
+			// (a copy's cancel settles once both copies are let go: not awaited)
+			const let_go = reader.cancel();
+			await new Promise((r) => setTimeout(r, 20));
+			expect(source.cancelled).toBe(false); // the counting copy still reads
+			request.close(); // the request ends
+			await new Promise((r) => setTimeout(r, 20));
+			expect(source.cancelled).toBe(true);
+			const pulls = source.pulls;
+			await new Promise((r) => setTimeout(r, 20));
+			expect(source.pulls).toBe(pulls);
+			await let_go;
+		} finally {
+			globalThis.fetch = before;
+		}
 	});
 });
