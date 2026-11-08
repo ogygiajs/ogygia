@@ -102,11 +102,14 @@ export class RuntimeSession {
 				stop: () => {}
 			};
 		}
-		const watch = new MutationObserver(() => {});
+		// (records the browser hands the callback before the step reads them are kept: the step is
+		// synchronous, so none should be, but a lost record would be a node of the island's missed)
+		const delivered: MutationRecord[] = [];
+		const watch = new MutationObserver((records) => delivered.push(...records));
 		watch.observe(head, { childList: true });
 		return {
 			added: () => {
-				const records = watch.takeRecords();
+				const records = delivered.concat(watch.takeRecords());
 				watch.disconnect();
 				return added_children(head, records);
 			},

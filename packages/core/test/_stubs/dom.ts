@@ -94,6 +94,25 @@ class DomNode {
 		for (let n = this._next; n; n = n._next) if (n.nodeType === 1) return n;
 		return null;
 	}
+	/** DOM `compareDocumentPosition`: following (4) / preceding (2), with contains (8) and
+	 *  contained-by (16) for an ancestor or a descendant; another tree is disconnected (1). */
+	compareDocumentPosition(other: DomNode): number {
+		if (other === this) return 0;
+		const chain = (n: DomNode) => {
+			const out: DomNode[] = [];
+			for (let x: DomNode | null = n; x; x = x._parent) out.unshift(x);
+			return out;
+		};
+		const a = chain(this);
+		const b = chain(other);
+		if (a[0] !== b[0]) return 1;
+		let i = 0;
+		while (i < a.length && i < b.length && a[i] === b[i]) i++;
+		if (i === a.length) return 16 | 4;
+		if (i === b.length) return 8 | 2;
+		for (let n: DomNode | null = a[i]; n; n = n._next) if (n === b[i]) return 4;
+		return 2;
+	}
 	/** The top of this node's tree: the document when it is in it, else the detached root. */
 	getRootNode(): DomNode {
 		return this._parent ? this._parent.getRootNode() : this;
