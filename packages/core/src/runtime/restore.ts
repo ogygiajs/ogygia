@@ -59,7 +59,9 @@ export function restore(root: Document | DocumentFragment | Element): number {
 	 * every token it dropped (the component's, the render's `sc-*`), read from the value just before
 	 * that write. A component only ever adds and removes its own tokens, so no later state of the
 	 * host equals Svelte's alone. One observer for all of them; a host leaves the watch at that
-	 * write, and the observer goes when the last one has.
+	 * write, or when it leaves the document (Kit dropped it and mounted another: no write is coming;
+	 * a host moved in one task is back in by the time the observer hears of it), and the observer
+	 * goes when the last one has.
 	 */
 	const watch_classes =
 		live && document.querySelector('meta[name="ogygia-csr"][content="true"]') !== null;
@@ -68,13 +70,19 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		if (!w) {
 			const hosts = new Set<Element>();
 			const mo = new MutationObserver((records) => {
+				let removed = false;
 				for (let i = 0; i < records.length; i++) {
+					if (records[i].type === 'childList') {
+						if (records[i].removedNodes.length) removed = true;
+						continue;
+					}
 					const host = records[i].target as Element & { __og_svelte_class?: string };
 					if (!hosts.has(host)) continue;
 					// this record's NEW value: the next record's old value for the same host, else the current one
 					let now: string | null | undefined;
 					for (let j = i + 1; j < records.length && now === undefined; j++)
-						if (records[j].target === host) now = records[j].oldValue;
+						if (records[j].target === host && records[j].type === 'attributes')
+							now = records[j].oldValue;
 					if (now === undefined) now = host.getAttribute('class');
 					if ((now ?? '') !== host.__og_svelte_class) continue;
 					hosts.delete(host);
@@ -82,11 +90,15 @@ export function restore(root: Document | DocumentFragment | Element): number {
 					for (const t of (records[i].oldValue ?? '').split(' '))
 						if (t && !own.has(t)) host.classList.add(t);
 				}
+				// (a host moved in one task is back in: only one out of the document now has left it)
+				if (removed) for (const host of hosts) if (!host.isConnected) hosts.delete(host);
 				if (hosts.size === 0) {
 					mo.disconnect();
 					W.__og_class_watch = undefined;
 				}
 			});
+			// what leaves the document, anywhere: a watched host can go with any ancestor
+			mo.observe(document, { childList: true, subtree: true });
 			w = W.__og_class_watch = { mo, hosts };
 		}
 		w.hosts.add(el);
