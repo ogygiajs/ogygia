@@ -605,6 +605,65 @@ describe('Ogygia', () => {
 		expect(r.kind).toBe('session');
 		expect(r.server).toEqual({ error: expect.stringContaining('(400)') });
 	});
+	it('record() that fails early lets go of what it started: the window stops, the requests are untagged, the next one starts at once (#291)', async () => {
+		// the profiler: one recorder, held by a started window until it is stopped
+		let held = false;
+		const posts: string[] = [];
+		const log: string[] = [];
+		const driver = {
+			...fake({ settled: () => true, record_start: () => true, record_stop: () => session }),
+			post: async (url: string) => {
+				posts.push(url.slice(url.lastIndexOf('/') + 1));
+				if (url.endsWith('/start')) {
+					if (held) return { status: 409, body: '{"error":"busy"}' };
+					held = true;
+					return { status: 200, body: '{"ok":true,"id":"n.s","header":"x-og-window"}' };
+				}
+				held = false;
+				return { status: 200, body: '{"kind":"window","window":{"ms":1,"requests":[]}}' };
+			},
+			tagRequests: async () => (log.push('tagged'), async () => void log.push('untagged'))
+		};
+		const o = new Ogygia(driver);
+		// a driver that cannot hold navigation back: refused after the window started
+		await expect(o.record(async () => {}, { server: true, blockNavigation: true })).rejects.toThrow(
+			'blockNavigation()'
+		);
+		expect(log).toEqual(['tagged', 'untagged']);
+		expect(posts).toEqual(['start', 'stop']);
+		// the next recording gets the recorder at once
+		const r = await o.record(async () => {}, { server: true });
+		expect(posts).toEqual(['start', 'stop', 'start', 'stop']);
+		expect(r.server).not.toHaveProperty('error');
+	});
+	it('record() whose page cannot start recording stops the window and the navigation blocker (#291)', async () => {
+		const posts: string[] = [];
+		const log: string[] = [];
+		const o = new Ogygia({
+			...fake({
+				settled: () => true,
+				record_start: () => {
+					throw new Error('no recorder on this page');
+				}
+			}),
+			post: async (url: string) => {
+				posts.push(url.slice(url.lastIndexOf('/') + 1));
+				return url.endsWith('/start')
+					? { status: 200, body: '{"ok":true,"id":"n.s","header":"x-og-window"}' }
+					: { status: 200, body: '{"kind":"window","window":{"ms":1,"requests":[]}}' };
+			},
+			tagRequests: async () => (log.push('tagged'), async () => void log.push('untagged')),
+			blockNavigation: async () => (
+				log.push('blocking'),
+				{ stop: async () => (log.push('unblocked'), []) }
+			)
+		});
+		await expect(o.record(async () => {}, { server: true, blockNavigation: true })).rejects.toThrow(
+			'no recorder on this page'
+		);
+		expect(log).toEqual(['tagged', 'blocking', 'unblocked', 'untagged']);
+		expect(posts).toEqual(['start', 'stop']);
+	});
 	it('record({ server }): the window id rides every request the session makes, and its stop', async () => {
 		const tagged: string[] = [];
 		let stop_headers: Record<string, string> = {};
