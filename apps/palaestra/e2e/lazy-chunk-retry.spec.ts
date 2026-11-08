@@ -240,7 +240,8 @@ test.describe('a class module that fails once is loaded again (#237)', () => {
 
 // THE ROUTER'S NAVIGATION (#238): its heavy half loads on the first prefetch, click or refresh
 // (runtime/router.ts). A failed load must not be kept: a click it failed for falls back to a full
-// load, as always, but every later click, `invalidateAll` and `preloadData` loads it afresh.
+// load, as always, but every later click, `invalidateAll` and `preloadData` loads it afresh. A
+// prefetch it failed for warms nothing, quietly.
 test.describe('the navigation chunk that fails once is loaded again (#238)', () => {
 	type Handle = { invalidateAll(): Promise<void> };
 	const invalidate_all = (page: Page) =>
@@ -296,5 +297,28 @@ test.describe('the navigation chunk that fails once is loaded again (#238)', () 
 			JSON.stringify(seen)
 		);
 		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
+	});
+
+	// A hover prefetch is a guess: when the navigation code cannot load, it warms nothing and says
+	// nothing (it once left an uncaught rejection), and the click after it still navigates.
+	test('dropped while a hover prefetches: nothing uncaught, and the click navigates', async ({
+		page
+	}) => {
+		const thrown = errors(page);
+		const seen = await drop(page, 'navigation', 2);
+		await open(page);
+		await page.locator('[data-plain]').hover();
+		await expect.poll(() => seen.dropped).toBe(2);
+		// (an unhandled rejection reaches the page's error event a moment after it settles)
+		await page.waitForTimeout(300);
+		check('the failed prefetch left no uncaught error', thrown.length === 0, thrown.join('\n'));
+		await page.evaluate(() => ((window as unknown as { __same_doc: boolean }).__same_doc = true));
+		await page.locator('[data-plain]').click();
+		await page.waitForSelector('#about-heading', { timeout: 10_000 });
+		const same_doc = await page.evaluate(
+			() => (window as unknown as { __same_doc?: boolean }).__same_doc === true
+		);
+		check('the click swapped the page in place (no full load)', same_doc);
+		check('then served', seen.served >= 1, JSON.stringify(seen));
 	});
 });
