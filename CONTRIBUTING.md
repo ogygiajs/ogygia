@@ -47,7 +47,8 @@ pnpm --filter palaestra e2e split-brain         # one spec of core's suite (libr
 Each package's e2e specs live with the package (`packages/<name>/e2e/*.spec.ts`, its own
 `playwright.config.ts` and fixture app in `e2e/app`); core's specs run against the palaestra
 (`apps/palaestra/e2e`). The shared harness (`check()`, `spawn_server`, the regexes, the suite config)
-is `@ogygia/tooling/e2e`. The library's `check` runs `tsc --noEmit && vitest run && oxlint` (the
+is `@ogygia/tooling/e2e`; the build and unit-test config every package shares (`library()`,
+`pluginTests()`) is `@ogygia/config`. The library's `check` runs `tsc --noEmit && vitest run && oxlint` (the
 transform unit suite + the `no-explicit-any` lint gate). `svelte-check` remains the template/markup
 guard for the palaestra and the fixture apps.
 

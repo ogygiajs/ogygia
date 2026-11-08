@@ -72,8 +72,8 @@
 		"esm-env": "catalog:"
 	},
 	"devDependencies": {
+		"@ogygia/config": "workspace:*",
 		"@ogygia/core": "workspace:*",
-		"@ogygia/tooling": "workspace:*",
 		"@typescript/native": "catalog:tsgo",
 		"tsdown": "catalog:",
 		"typescript": "catalog:",

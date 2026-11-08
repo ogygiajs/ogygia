@@ -125,6 +125,7 @@
 		"mdsvex": "catalog:"
 	},
 	"devDependencies": {
+		"@ogygia/config": "workspace:*",
 		"@ogygia/core": "workspace:*",
 		"@ogygia/tooling": "workspace:*",
 		"@playwright/test": "catalog:",

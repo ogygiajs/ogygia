@@ -45,9 +45,9 @@
 		"@ogygia/machine": "workspace:^"
 	},
 	"devDependencies": {
+		"@ogygia/config": "workspace:*",
 		"@ogygia/core": "workspace:*",
 		"@ogygia/devtools": "workspace:*",
-		"@ogygia/tooling": "workspace:*",
 		"@sveltejs/sv-utils": "^0.3.3",
 		"@types/node": "catalog:",
 		"@typescript/native": "catalog:tsgo",

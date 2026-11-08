@@ -127,6 +127,7 @@
 		"devalue": "catalog:"
 	},
 	"devDependencies": {
+		"@ogygia/config": "workspace:*",
 		"@ogygia/core": "workspace:*",
 		"@ogygia/tooling": "workspace:*",
 		"@ogygia/tsdown-plugin-svelte": "workspace:*",

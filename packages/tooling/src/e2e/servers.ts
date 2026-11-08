@@ -11,6 +11,7 @@
 // - stdout/stderr are captured, and a boot failure throws WITH the log tail.
 import { spawn, type ChildProcess } from 'node:child_process';
 import { connect } from 'node:net';
+import { machine } from '@ogygia/machine';
 
 /** A port a suite owns, moved up by `E2E_PORT_OFFSET`: when one machine runs a suite as several
  *  groups at once (`pnpm test:e2e`), each group's servers sit in their own range. Every fixed port
@@ -48,23 +49,46 @@ const PORT_WAIT_MS = 10_000;
 const KILL_GRACE_MS = 5_000;
 
 /**
- * One server's lifecycle, as one value:
+ * One server, from its spawn to its exit:
  *
  *   spawning ─ ready ─ stopping ─ exited
  *       │        │                  │
  *       └────────┴── exited_early ──┘     (it exited before kill(): on boot, or mid-spec)
  *
- * (A plain value, not an `@ogygia/machine` machine: that package is built and tested with this
- * one, so it cannot be a dependency of it.)
+ * `ready` is reached only while our own child is still in its spawning visit, so the answer was
+ * its. `exited` is reached only when its whole process group is gone (a wrapper such as pnpm can
+ * exit first and leave the server on the port).
  */
-type Life =
-	| { kind: 'spawning' }
-	| { kind: 'ready' }
-	| { kind: 'stopping' }
-	| { kind: 'exited_early'; how: string }
-	| { kind: 'exited' };
+type ServerStates = {
+	spawning: {};
+	ready: {};
+	stopping: {};
+	exited_early: { how: string };
+	exited: {};
+};
+const server_machine = machine<ServerStates>()({
+	name: 'e2e server',
+	initial: 'spawning',
+	steps: {
+		spawning: ['ready', 'stopping', 'exited_early'],
+		ready: ['stopping', 'exited_early'],
+		stopping: ['exited'],
+		exited_early: ['exited'],
+		exited: []
+	}
+});
 
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+/** `ms` later, or at once when `signal` aborts. */
+const sleep = (ms: number, signal?: AbortSignal) =>
+	new Promise<void>((resolve) => {
+		const done = () => {
+			clearTimeout(t);
+			signal?.removeEventListener('abort', done);
+			resolve();
+		};
+		const t = setTimeout(done, ms);
+		signal?.addEventListener('abort', done, { once: true });
+	});
 
 /** Something accepts a connection at `host:port`. */
 function port_held(host: string, port: number): Promise<boolean> {
@@ -119,27 +143,20 @@ export async function spawn_server(opts: SpawnServerOptions): Promise<SpawnedSer
 		}
 	};
 
-	let life: Life = { kind: 'spawning' };
-	// (read through a function where it is checked after an await: the exit handler moves it)
-	const life_now = (): Life => life;
-	let mark_exited!: () => void;
-	const exited = new Promise<void>((r) => (mark_exited = r));
-	let kill_timer: ReturnType<typeof setTimeout> | undefined;
-	// the child's exit: `exited` only once nothing of its group is left
+	const m = server_machine.create();
+	// the child's exit: unasked (exited_early) or asked (stopping); either way `exited` only once
+	// nothing of its group is left
 	let exit_how: string | null = null;
 	const on_exit = async (how: string) => {
 		if (exit_how !== null) return;
 		exit_how = how;
-		if (life.kind === 'spawning' || life.kind === 'ready') {
-			life = { kind: 'exited_early', how };
-			signal_group('SIGKILL');
-		}
+		const unasked =
+			m.move('spawning', 'exited_early', { how }) || m.move('ready', 'exited_early', { how });
+		if (unasked) signal_group('SIGKILL');
 		while (pid !== undefined && group_alive(pid)) await sleep(25);
-		clearTimeout(kill_timer);
 		// (its last output read too, for a failure message: the pipes close once no writer is left)
 		await Promise.race([closed, sleep(1000)]);
-		life = { kind: 'exited' };
-		mark_exited();
+		if (!m.move('stopping', 'exited')) m.move('exited_early', 'exited');
 	};
 	child.once('exit', (code, sig) => void on_exit(sig ? `signal ${sig}` : `code ${code}`));
 	child.once('error', (error) => {
@@ -150,13 +167,13 @@ export async function spawn_server(opts: SpawnServerOptions): Promise<SpawnedSer
 	const server: SpawnedServer = {
 		child,
 		logs,
-		kill() {
-			if (life.kind === 'spawning' || life.kind === 'ready') {
-				life = { kind: 'stopping' };
+		async kill() {
+			if (m.move('spawning', 'stopping') || m.move('ready', 'stopping')) {
 				signal_group('SIGTERM');
-				kill_timer = setTimeout(() => signal_group('SIGKILL'), KILL_GRACE_MS);
+				const sigkill = setTimeout(() => signal_group('SIGKILL'), KILL_GRACE_MS);
+				m.onLeave(() => clearTimeout(sigkill));
 			}
-			return exited;
+			await m.wait('exited');
 		},
 		tail(n = 20) {
 			return logs.join('').split('\n').slice(-n).join('\n');
@@ -165,21 +182,22 @@ export async function spawn_server(opts: SpawnServerOptions): Promise<SpawnedSer
 	const ready = opts.ready ?? (() => true);
 	const start = Date.now();
 	const timeout = opts.timeout_ms ?? 60_000;
-	while (Date.now() - start < timeout && life_now().kind === 'spawning') {
-		try {
-			const res = await fetch(opts.url, { redirect: 'manual' });
-			// (still spawning: our child has not exited, so the answer was its)
-			if (res.status > 0 && ready(res) && life_now().kind === 'spawning') {
-				life = { kind: 'ready' };
-				return server;
+	const answered = await m.task(async (signal) => {
+		while (Date.now() - start < timeout && !signal.aborted) {
+			try {
+				const res = await fetch(opts.url, { redirect: 'manual', signal });
+				if (res.status > 0 && ready(res)) return true;
+			} catch {
+				/* not up yet */
 			}
-		} catch {
-			/* not up yet */
+			await sleep(300, signal);
 		}
-		await sleep(300);
-	}
-	if (life_now().kind !== 'spawning') {
-		await exited;
+		return false;
+	});
+	// (still in this spawning visit: our child has not exited, so the answer was its)
+	if (answered === true && m.move('spawning', 'ready')) return server;
+	if (m.now.kind !== 'spawning') {
+		await m.wait('exited');
 		throw new Error(`server exited early (${what}) — ${exit_how}\n${server.tail()}`);
 	}
 	await server.kill();

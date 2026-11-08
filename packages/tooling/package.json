@@ -2,11 +2,9 @@
 	"name": "@ogygia/tooling",
 	"version": "0.0.0",
 	"private": true,
-	"description": "Shared build and test config for the ogygia packages: each package's tsdown.config.ts calls library(), its vitest.config.ts pluginTests(), its playwright.config.ts suite() (the e2e harness: @ogygia/tooling/e2e).",
+	"description": "The e2e harness the ogygia packages and apps share: each playwright.config.ts calls suite(), each spec uses check(), spawn_server and the regexes (@ogygia/tooling/e2e). The build and test config is @ogygia/config.",
 	"type": "module",
 	"exports": {
-		"./tsdown": "./src/tsdown.ts",
-		"./vitest": "./src/vitest.ts",
 		"./e2e": "./src/e2e/index.ts",
 		"./e2e/*": "./src/e2e/*",
 		"./tsconfig.e2e.json": "./tsconfig.e2e.json"
@@ -16,8 +14,7 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
-		"@ogygia/tsdown-plugin-svelte": "workspace:*",
-		"@sveltejs/vite-plugin-svelte": "catalog:"
+		"@ogygia/machine": "workspace:*"
 	},
 	"devDependencies": {
 		"@playwright/test": "catalog:",
@@ -27,9 +24,7 @@
 		"vitest": "catalog:"
 	},
 	"peerDependencies": {
-		"@playwright/test": "catalog:",
-		"tsdown": "catalog:",
-		"vitest": "catalog:"
+		"@playwright/test": "catalog:"
 	},
 	"peerDependenciesMeta": {
 		"@playwright/test": {
