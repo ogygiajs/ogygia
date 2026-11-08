@@ -6563,6 +6563,66 @@ describe('the deep pictures on the host: visits, keep, the byte strip, nested tr
 		}
 	}, 10_000);
 
+	// #293: rows read while a post is out, on a profiler that stands down meanwhile (a dev server ran
+	// the app's hooks again), still reach the sink once the post ends.
+	it('the sink: a profiler that stands down during a post still sends the rows left', async () => {
+		const bodies: string[] = [];
+		const orig = globalThis.fetch;
+		globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+			await new Promise((r) => setTimeout(r, 1500)); // a slow sink
+			bodies.push(String(init?.body));
+			return new Response('ok');
+		}) as typeof fetch;
+		try {
+			const handle = profiler({ sink: { url: 'http://sink.test/rows', every: 1000 } });
+			await handle({ event: make_event('/a'), resolve: async () => new Response('ok') });
+			await new Promise((r) => setTimeout(r, 1100)); // the first post is out
+			await handle({ event: make_event('/b'), resolve: async () => new Response('ok') });
+			profiler({}); // a newer profiler takes the process over: this one stands down at its next tick
+			await new Promise((r) => setTimeout(r, 4000));
+			const paths = bodies
+				.join('\n')
+				.split('\n')
+				.filter(Boolean)
+				.map((l) => (JSON.parse(l) as { path: string }).path);
+			expect(paths).toEqual(['/a', '/b']);
+		} finally {
+			globalThis.fetch = orig;
+		}
+	}, 10_000);
+
+	// #293: a failed post's rows are older than the rows read during it; they reach the sink first.
+	it('the sink: the rows of a failed post go before the rows read while it was out', async () => {
+		const bodies: string[] = [];
+		let fail = true;
+		const orig = globalThis.fetch;
+		globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+			await new Promise((r) => setTimeout(r, 200));
+			if (fail) {
+				fail = false;
+				return new Response('down', { status: 503 });
+			}
+			bodies.push(String(init?.body));
+			return new Response('ok');
+		}) as typeof fetch;
+		try {
+			const handle = profiler({ sink: { url: 'http://sink.test/rows', every: 1000 } });
+			await handle({ event: make_event('/a'), resolve: async () => new Response('ok') });
+			await handle({ event: make_event('/b'), resolve: async () => new Response('ok') });
+			await new Promise((r) => setTimeout(r, 1100)); // the post of /a and /b is out, and fails
+			await handle({ event: make_event('/c'), resolve: async () => new Response('ok') });
+			await new Promise((r) => setTimeout(r, 3500));
+			const paths = bodies
+				.join('\n')
+				.split('\n')
+				.filter(Boolean)
+				.map((l) => (JSON.parse(l) as { path: string }).path);
+			expect(paths).toEqual(['/a', '/b', '/c']);
+		} finally {
+			globalThis.fetch = orig;
+		}
+	}, 10_000);
+
 	it('compare with a report this server no longer holds renders the browser-store fallback, not a 404', async () => {
 		const handle = profiler({ secret: 'prof-key' });
 		const res = await handle({
