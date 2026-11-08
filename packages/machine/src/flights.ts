@@ -9,7 +9,8 @@
  *   const html = await pages.get('/docs', { signal }); // joins the fetch already out for it
  *   if (html === STALE) return; // dropped, or this caller left
  *
- *   const core = flights({ run: () => import('./hydrate-core.ts'), retries: 1 }); // one key
+ *   const download = policy({ attempts: 2, backoff: 0, jitter: 0, deadline: Infinity });
+ *   const core = flights({ run: () => import('./hydrate-core.ts'), retry: download }); // one key
  *   const mod = await core.get();
  *
  *   const checkouts = flights<Spec>()({            // an object input, keyed by some of its fields
@@ -25,9 +26,9 @@
  *   with the reason (the input of the call that started the flight is then the one that runs).
  *   `peek` and `drop` name a keyed flights' keys by those fields too (`peek({ href })`). The fields
  *   are spelled into one string one way everywhere: a string by its text, an object by identity.
- * - A failure (after `retries`, tried again at once) fails every caller that joined it, and is
- *   never kept: the next `get` starts a new flight. A failing key costs one try per wave of
- *   callers, not one per caller.
+ * - A failure (after the tries its `retry` policy gives, inside the one flight) fails every caller
+ *   that joined it, and is never kept: the next `get` starts a new flight. A failing key costs one
+ *   round of tries per wave of callers, not one per caller.
  * - `keep` is how long an answer stays (ms: a number, or made from the answer; 0 keeps nothing,
  *   the default keeps it for as long as the flights lives). `max` caps the total `weigh` of what is
  *   kept: the least recently used go first.
@@ -51,6 +52,7 @@
  */
 import { machine, type Machine } from './machine.ts';
 import { machine_error } from './messages.ts';
+import { under_policy, type Policy } from './policy.ts';
 import { DISPOSE } from './scope.ts';
 import { STALE, type Stale } from './stale.ts';
 import { watch_world, type World } from './world.ts';
@@ -71,8 +73,10 @@ interface FlightsCommon<R, V, W> {
 	/** An answer's weight against `max` (bytes, say). Default 1: `max` then counts answers. An
 	 *  answer heavier than `max` is not kept. */
 	weigh?: (answer: Awaited<V>, input: R) => number;
-	/** Tries again at once this many times, inside one flight, before it fails. Default 0. */
-	retries?: number;
+	/** How a failed run is tried again, inside one flight, before it fails (`policy()`): its tries,
+	 *  the waits between them (none when 0: the next try runs at once) and its deadline. Default:
+	 *  one try. */
+	retry?: Policy;
 	/** The world the answers are made in (`world()`): when it moves, what the move touches goes (a
 	 *  kept answer, and the flight out for it), and an answer whose world moved while it was out is
 	 *  `STALE` for every caller that joined it, and never kept. */
@@ -99,8 +103,8 @@ export interface KeyedFlightsOptions<
 	 *  every field the work reads (`run`'s input holds no other), unless `ignore` says why not. */
 	key: readonly F[];
 	/** Fields the work reads that are left out of the key on purpose, each with its reason (the
-	 *  input of the call that started the flight is the one that runs): `{ retries: 'how hard to
-	 *  try, not what is made' }`. */
+	 *  input of the call that started the flight is the one that runs): `{ depth: 'how much
+	 *  history to fetch, not which files' }`. */
 	ignore?: { readonly [field in G]: string };
 }
 
@@ -171,19 +175,15 @@ const STALE_NOW: Promise<Stale> = Promise.resolve(STALE);
 const noop = (): void => {};
 const FLYING: FlightEntry<never> = Object.freeze({ kind: 'flying' });
 
-async function attempt<I, V>(
+/** One flight's work: one run, or the runs its policy gives (`STALE` once the flight is left). */
+function attempt<I, V>(
 	run: (input: I, signal: AbortSignal) => V,
 	input: I,
 	signal: AbortSignal,
-	retries: number
-): Promise<Awaited<V>> {
-	for (let left = retries; ; left--) {
-		try {
-			return await run(input, signal);
-		} catch (error) {
-			if (left <= 0 || signal.aborted) throw error;
-		}
-	}
+	retry: Policy | null
+): V | Promise<Awaited<V> | Stale> {
+	if (retry === null) return run(input, signal);
+	return under_policy(retry, (s) => run(input, s), signal);
 }
 
 /** Ids for the objects (and symbols) a key holds: a key field compares by identity. */
@@ -248,7 +248,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 	_keep: number | ((answer: V, input: I) => number);
 	_max: number;
 	_weigh: ((answer: V, input: I) => number) | undefined;
-	_retries: number;
+	_retry: Policy | null;
 	_world: World<unknown> | undefined;
 	_touches: ((answer: V) => Iterable<unknown>) | undefined;
 	/** Stops hearing the world (on dispose). */
@@ -282,9 +282,9 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 			this._fields = Object.freeze([...fields]);
 			this._keys = new Map();
 		} else if (o.ignore !== undefined) throw bad_option('ignore', 'without key', 'beside a key');
-		const retries = o.retries ?? 0;
-		if (!Number.isInteger(retries) || retries < 0)
-			throw bad_option('retries', retries, 'a whole number of 0 or more');
+		const retry = o.retry ?? null;
+		if (retry !== null && !(typeof retry === 'object' && Number.isInteger(retry.attempts)))
+			throw bad_option('retry', typeof retry, 'a policy from policy()');
 		const keep = o.keep ?? Infinity;
 		if (typeof keep !== 'function' && !(typeof keep === 'number' && keep >= 0))
 			throw bad_option('keep', keep, 'a time in ms of 0 or more, or a function that makes one');
@@ -299,7 +299,9 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		this._keep = keep as number | ((answer: V, input: I) => number);
 		this._max = max;
 		this._weigh = o.weigh as ((answer: V, input: I) => number) | undefined;
-		this._retries = retries;
+		// (one try with no deadline needs no policy: the run is the flight's work as it is)
+		this._retry =
+			retry === null || (retry.attempts <= 1 && retry.deadline === Infinity) ? null : retry;
 		this._expires = keep !== Infinity;
 		this._world = o.world;
 		this._touches = o.touches as ((answer: V) => Iterable<unknown>) | undefined;
@@ -438,8 +440,8 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		}
 		const visit = entry.now;
 		const run = this._run;
-		const retries = this._retries;
-		const work = entry.scope.task((signal) => attempt(run, input, signal, retries));
+		const retry = this._retry;
+		const work = entry.scope.task((signal) => attempt(run, input, signal, retry));
 		flight.shared = work.then(
 			(answer) => {
 				if (answer === STALE || entry.now !== visit) return STALE;

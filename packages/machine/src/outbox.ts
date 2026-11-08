@@ -32,9 +32,7 @@
  */
 import { flights, type Flights } from './flights.ts';
 import { machine_error, report } from './messages.ts';
-import { backoff_after, policy, type Policy } from './policy.ts';
-import { scope } from './scope.ts';
-import { STALE } from './stale.ts';
+import { policy, under_policy, type Policy } from './policy.ts';
 
 export interface OutboxOptions<T> {
 	/** Names the outbox in messages. Default `outbox`. */
@@ -137,38 +135,13 @@ class Box<T> implements Outbox<T> {
 
 	/** The tries of one send, within the deadline: true once one is done, false once given up. */
 	async _deliver(item: T): Promise<boolean> {
-		const retry = this._retry;
-		const tries = scope();
-		const started = Date.now();
-		if (retry.deadline !== Infinity) tries.timeout(() => tries.close(), retry.deadline);
-		let error: unknown = undefined;
 		try {
-			for (let n = 1; ; n++) {
-				try {
-					const answer = await tries.task((signal) => this._send(item, signal));
-					if (answer !== STALE) return true;
-				} catch (e) {
-					error = e;
-				}
-				if (tries.closed) {
-					error = late(retry.deadline, error);
-					break;
-				}
-				if (n >= retry.attempts) break;
-				const wait = backoff_after(retry, n);
-				// (a wait that ends past the deadline is a try that would only be aborted)
-				if (Date.now() - started + wait >= retry.deadline) break;
-				const waited = await tries.task(() => new Promise<void>((r) => tries.timeout(r, wait)));
-				if (waited === STALE) {
-					error = late(retry.deadline, error);
-					break;
-				}
-			}
-		} finally {
-			tries.close();
+			await under_policy(this._retry, (signal) => this._send(item, signal));
+			return true;
+		} catch (error) {
+			this._gave_up(item, error);
+			return false;
 		}
-		this._gave_up(item, error);
-		return false;
 	}
 
 	_gave_up(item: T, error: unknown): void {
@@ -182,15 +155,6 @@ class Box<T> implements Outbox<T> {
 			report('machine_outbox_gave_up', { name: this._name }, thrown);
 		}
 	}
-}
-
-/** What a send that ran out of time failed with: the deadline, and the try's own error first. */
-function late(deadline: number, error: unknown): unknown {
-	return new DOMException(
-		`no try was done within ${deadline} ms` +
-			(error === undefined ? '' : ` (last: ${String(error)})`),
-		'TimeoutError'
-	);
 }
 
 /** Work after the response, kept alive, tried again, sent once (see the module's comment). */

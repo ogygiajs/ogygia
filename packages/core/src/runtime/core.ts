@@ -1,4 +1,5 @@
 import { flights, scope, STALE, type Scope, type Stale } from '@ogygia/machine';
+import { backoff_after } from '@ogygia/machine/internal/policy';
 import { frameAddress } from '../frame.ts';
 import { import_again, on_reload_needed } from './import-again.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
@@ -58,6 +59,7 @@ import {
 	type Wake
 } from './region-machines.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
+import { download, region_fetch } from '../policies.ts';
 import { PAGE_FACTS_SELECTOR } from '../page-facts-script.ts';
 import { link_boot } from './boot-link.ts';
 import {
@@ -189,7 +191,7 @@ const hydrate_core = flights({
 		yield_task()
 			.then(import_core)
 			.then((m) => (loaded_core = m)),
-	retries: 1
+	retry: download
 });
 
 /** An answer just went in carrying the page facts it rendered with (server/render-page.ts): once
@@ -1349,7 +1351,7 @@ class OgygiaRegion extends HTMLElement {
 				warn('region_fetch_failed', { endpoint }, err);
 			}
 		}
-		const final = refused || !this.isConnected || attempts >= 3;
+		const final = refused || !this.isConnected || attempts >= region_fetch.attempts;
 		// the profiler's browser half: the hole that kept its fallback, by its island id
 		if (final) {
 			let id = '';
@@ -1405,8 +1407,9 @@ class OgygiaRegion extends HTMLElement {
 			}
 			this.#hole.go('retrying', { attempts, revalidate });
 			const retrying = this.#hole.scope;
+			const wait = backoff_after(region_fetch, attempts);
 			const waited = await retrying.task(
-				() => new Promise<void>((resolve) => retrying.timeout(resolve, 500 * attempts))
+				() => new Promise<void>((resolve) => retrying.timeout(resolve, wait))
 			);
 			if (waited === STALE || !this.isConnected) return;
 			if (revalidate) void this.#fetch_html(true); // ok: a fetch says its own failure (region_fetch_failed)

@@ -22,6 +22,7 @@ import { record_server_body } from './ownership.ts';
 import { runtime_session } from './session.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
 import { report_thrown } from '../report-thrown.ts';
+import { download } from '../policies.ts';
 
 const WS = /\s+/;
 
@@ -327,7 +328,7 @@ let loaded_nav: Nav | null = null;
 const load_nav = flights({
 	name: 'navigation',
 	run: import_again(() => import('./router-nav.ts')),
-	retries: 1
+	retry: download
 });
 /** (Never STALE: nothing drops the navigation's load; a caller treats it as one that failed.) */
 function nav(): Promise<Nav | Stale> {

@@ -48,6 +48,7 @@ import { slots } from './slots.ts';
 import { warm_island_module } from './region-endpoint-url.ts';
 import { island_entry_of } from './entry-locations.ts';
 import { OgygiaError } from '../messages/core.ts';
+import { download } from '../policies.ts';
 
 /** Feature entry: fill the `interaction` slot — wake a cold island on first use, warm on hover. */
 export function install(): void {
@@ -166,7 +167,7 @@ type Replay = typeof import('./interaction-replay.ts');
 const load_replay = flights({
 	name: 'interaction replay',
 	run: import_again(() => import('./interaction-replay.ts')),
-	retries: 1
+	retry: download
 });
 /** (Never STALE: nothing drops the replay half.) */
 function replay(): Promise<Replay | Stale> {

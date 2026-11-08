@@ -84,6 +84,7 @@ import {
 import { expiry_refusal, note_cache_control } from './server/shared-cache.ts';
 import { app_lifetime } from './server/region-endpoint.ts';
 import { render_cache_key, cached_render, type RenderKey } from './server/render-cache.ts';
+import { render as render_policy } from './policies.ts';
 import { B64Url } from './server/payload.ts';
 import { REF_WIRE_KEY, ref_reviver } from './ref.ts';
 import { plugins as plugin_entries } from 'virtual:ogygia/server-plugins';
@@ -498,8 +499,9 @@ if (DEVTOOLS) set_server_devtools_recorder((input) => dt_record(bag_of(), input)
  *  8192 + URL overhead) ≈ 270kB; 512kB leaves margin. Rejected up front via `content-length`. */
 const MAX_BATCH_BODY = 512 * 1024;
 
-/** Abort waiting on slow region SSR (work may continue — see INVARIANTS · RENDER-TIMEOUT). */
-const RENDER_TIMEOUT_MS = 10_000;
+/** Abort waiting on slow region SSR (work may continue — see INVARIANTS · RENDER-TIMEOUT): the
+ *  `render` policy's deadline (./policies.ts). */
+const RENDER_TIMEOUT_MS = render_policy.deadline;
 
 /** Process-local cap on concurrent region SSR (M1 CPU amp under valid MAC). */
 const render_gate = new ConcurrencyGate(REGION_RENDER_CONCURRENCY);

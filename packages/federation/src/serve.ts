@@ -7,7 +7,8 @@
  * handle owns all of it, so a `federate()` in hooks.server.ts is the whole wiring.
  */
 import { version } from '$app/env';
-import { flights, machine } from '@ogygia/machine';
+import { flights, machine, policy, type Policy } from '@ogygia/machine';
+import { backoff_after } from '@ogygia/machine/internal/policy';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { ServerApp } from '@ogygia/core/plugin';
 import { current_federation } from './registry.ts';
@@ -88,10 +89,20 @@ const deploy_thaw = machine<{
 	steps: { unchecked: ['checking'], checking: ['done', 'unchecked'], done: [] }
 });
 
+/** How the deploy check and its owed thaw are tried again: by a request at least 30 s after the last
+ *  (no timer: a request does it, so an idle instance holds none), the owed thaw sent to the peers
+ *  that missed it for 10 rounds before it is given up (#221). Five minutes rides out a peer's own
+ *  deploy; past it the peer is down for real, and the warning names it. */
+const DEPLOY_THAW_POLICY: Policy = policy({
+	attempts: 10,
+	backoff: [30_000],
+	jitter: 0,
+	deadline: Infinity
+});
 /** A check to try again is tried by a request at least this long after the last. */
-const DEPLOY_RETRY_MS = 30_000;
+const DEPLOY_RETRY_MS = backoff_after(DEPLOY_THAW_POLICY, 1);
 /** How many rounds an owed thaw is sent to the peers that missed it before it is given up. */
-export const DEPLOY_THAW_ROUNDS = 10;
+export const DEPLOY_THAW_ROUNDS: number = DEPLOY_THAW_POLICY.attempts;
 
 let deploy = deploy_thaw.create({ after: 0, owed: null });
 
