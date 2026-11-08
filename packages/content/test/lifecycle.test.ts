@@ -467,6 +467,26 @@ describe('a collection a newer run of its module replaces stops following (#247)
 		expect((await c.refs()).map((e) => e.id)).toEqual(['a', 'b']);
 	});
 
+	it('a live list streaming it ends once it was replaced, and so does a live get', async () => {
+		const old = liveSource([row('a', 'A')]);
+		const c = in_run('1', () => content({ schema, loader: old.source }));
+		const remotes = withRemotes(c);
+		const list = (await remotes.live.list({ map: (e) => e.id })()) as unknown as AsyncGenerator;
+		const one = (await remotes.live.get({ map: (e) => e.id })('a')) as unknown as AsyncGenerator;
+		expect((await list.next()).value).toEqual(['a']);
+		expect((await one.next()).value).toBe('a');
+		const next = [list.next(), one.next()]; // pages stream them across the edit
+		in_run('2', () => content({ schema, loader: liveSource([row('a', 'A')]).source }));
+		const steps = await Promise.race([
+			Promise.all(next),
+			new Promise<'hangs'>((r) => setTimeout(() => r('hangs'), 300))
+		]);
+		expect(steps).toEqual([
+			{ done: true, value: undefined },
+			{ done: true, value: undefined }
+		]);
+	});
+
 	it('a collection the same run builds replaces nothing', async () => {
 		const one = liveSource([row('a', 'A')]);
 		const a = in_run('1', () => content({ schema, loader: one.source }));
