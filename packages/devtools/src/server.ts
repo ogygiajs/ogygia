@@ -10,6 +10,7 @@ import { want_request_stats } from '@ogygia/core/internal/server';
 import { flights, STALE } from '@ogygia/machine';
 import type { ProfilerOptions } from './profiler/index.ts';
 import { profiler_demand_skip } from './profiler/on-demand.ts';
+import { OgygiaError } from './messages/runtime.ts';
 
 /** What `devtools()` hands its server half (vite.config → `virtual:ogygia/server-plugins`). The
  *  profiler's `secret` is here only when the app passed one (then it IS baked into the server build,
@@ -41,11 +42,20 @@ const mounting = flights({
 	key: () => 'profiler'
 });
 
+/** a failed mount was said (once for the process: an edge runtime fails every request the same way) */
+let mount_failure_said = false;
+
 async function mount(options: ProfilerOptions): Promise<Handle | null> {
 	// (nothing drops the mount, so it is never STALE)
 	return mounting.get(options).then(
 		(m) => (m === STALE ? null : m),
-		() => null
+		(error: unknown) => {
+			if (!mount_failure_said) {
+				mount_failure_said = true;
+				console.error(new OgygiaError('devtools_profiler_mount_failed'), error);
+			}
+			return null;
+		}
 	);
 }
 
