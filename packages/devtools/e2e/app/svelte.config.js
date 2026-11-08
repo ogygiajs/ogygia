@@ -4,7 +4,15 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
 // LAB_ADAPTER=node builds with adapter-node (it re-bundles the server output, the way a Lambda-style
 // deployment does): what the profiler's embedded maps are checked against
-const adapter = process.env.LAB_ADAPTER === 'node' ? () => node() : (o) => vercel(o);
+// LAB_OUT=<dir>: a second build of the lab beside the suite's own, Kit's output and adapter-node's
+// both under <dir>, so a spec can build the lab another way (the dock on) and preview it without
+// touching the build the other specs preview
+const out = process.env.LAB_OUT;
+const adapter = out
+	? () => node({ out: `${out}/build` })
+	: process.env.LAB_ADAPTER === 'node'
+		? () => node()
+		: (o) => vercel(o);
 
 const PLANTED = /\/(lib|routes)\/(heavy|hell|hell-fixed|inferno|inferno-fixed)\//;
 
@@ -26,6 +34,7 @@ const config = {
 	},
 	kit: {
 		adapter: adapter({ runtime: 'nodejs22.x' }),
+		...(out ? { outDir: `${out}/.svelte-kit` } : {}),
 		experimental: { remoteFunctions: true },
 		alias: { $boot: 'src/lib/boot' },
 		// the same inline-vs-link number as the palaestra: the region-css channel ships tiny sheets inline
