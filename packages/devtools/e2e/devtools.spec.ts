@@ -177,12 +177,23 @@ test.describe('devtools (dev server, OGYGIA_DEVTOOLS=1): events, panel tabs, pag
 		);
 		const thrown: string[] = [];
 		page.on('pageerror', (e) => thrown.push(String(e)));
+		const logged: string[] = [];
+		page.on('console', (m) => m.type() === 'error' && logged.push(m.text()));
 		await page.goto('/interaction', { waitUntil: 'load' });
 		// the closed dock's code loads once the page is idle: that first download is dropped
 		await expect.poll(() => dropped, { timeout: 15_000 }).toBeGreaterThan(0);
 		await page.waitForTimeout(300);
 		const launcher = page.locator('[data-og-panel-toggle]');
 		check('the button is still there', (await launcher.count()) === 1);
+		const failure = logged.filter(
+			(t) => t.includes('failed to load') || t.includes('/e/devtools_')
+		);
+		check(
+			'the failure is logged with its code and page',
+			failure.length === 1 &&
+				failure[0].includes('https://ogygiajs.dev/e/devtools_dock_load_failed'),
+			failure.join('\n')
+		);
 		await launcher.click();
 		const open = await page
 			.locator('[data-og-win]')
