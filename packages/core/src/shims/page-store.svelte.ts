@@ -51,8 +51,9 @@ export class PageState {
 		for (const fn of this.#subscribers) {
 			try {
 				fn();
-			} catch {
-				/* ignore */
+			} catch (error) {
+				// (a subscriber throwing must not stop the others, and is not dropped)
+				report_thrown(error);
 			}
 		}
 	}
@@ -85,6 +86,7 @@ export class PageState {
 // is one instance regardless of how many times the module is evaluated. PAGE-STATE-SINGLETON.
 import { foreign_hydrate } from '../current-region.ts';
 import { warn } from '../messages/island.ts';
+import { report_thrown } from '../report-thrown.ts';
 
 const PAGE_STATE_KEY = Symbol.for('ogygia.page-state');
 const global_scope = globalThis as unknown as Record<symbol, PageState | undefined>;

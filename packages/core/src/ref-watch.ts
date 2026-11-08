@@ -8,6 +8,7 @@
  * routes through here instead of owning its own subscriber set. Browser-only in practice (the
  * request-scoped server never re-settles an id within one render).
  */
+import { report_thrown } from './report-thrown.ts';
 
 type Watcher = (live: unknown) => void;
 
@@ -55,8 +56,9 @@ function notify_now(id: string, live: unknown): void {
 	for (const cb of Array.from(set)) {
 		try {
 			cb(live);
-		} catch {
-			/* one watcher's throw must not starve the rest */
+		} catch (error) {
+			// (one watcher's throw must not starve the rest, and is not dropped)
+			report_thrown(error);
 		}
 	}
 }

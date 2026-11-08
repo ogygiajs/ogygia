@@ -21,6 +21,7 @@
  * import is fully shakeable.
  */
 import { DEVTOOLS_SCHEMA_VERSION, type DevtoolsEvent, type DevtoolsEventInput } from './schema.ts';
+import { report_thrown } from '../report-thrown.ts';
 
 /** Compile-time gate (Vite `define`). Exported for the public surface + tests; seam modules declare
  *  their OWN local `const DEVTOOLS` from the same token so DCE never depends on cross-module folding. */
@@ -119,8 +120,9 @@ export function emit(input: DevtoolsEventInput): void {
 		for (const sink of b.sinks) {
 			try {
 				sink(event);
-			} catch {
-				/* a sink throwing must never break the framework path that emitted */
+			} catch (error) {
+				// (a sink throwing never breaks the framework path that emitted, and is not dropped)
+				report_thrown(error);
 			}
 		}
 	}
@@ -144,8 +146,9 @@ export function ingest(events: DevtoolsEvent[]): void {
 			for (const sink of b.sinks) {
 				try {
 					sink(event);
-				} catch {
-					/* a sink throwing must never break ingest */
+				} catch (error) {
+					// (a sink throwing never breaks ingest, and is not dropped)
+					report_thrown(error);
 				}
 			}
 		}

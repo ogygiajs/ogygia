@@ -94,6 +94,7 @@ import { emit as dt_emit } from './events/bus.ts';
 import { batch, notify, watchers } from './ref-watch.ts';
 import { resolve_sink } from './ref-sink.ts';
 import { OgygiaError } from './messages/island.ts';
+import { report_thrown } from './report-thrown.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
@@ -209,8 +210,9 @@ export function dispose_scope(scope: Scope): void {
 			const kind = reg.kinds.get(reg.instance_kind.get(inst) ?? '');
 			try {
 				kind?.dispose?.(inst);
-			} catch {
-				/* one instance's teardown throwing must not strand the rest */
+			} catch (error) {
+				// (one instance's teardown throwing must not strand the rest, and is not dropped)
+				report_thrown(error);
 			}
 		}
 		b.clear();
@@ -221,8 +223,9 @@ export function dispose_scope(scope: Scope): void {
 		for (const fn of Array.from(ds)) {
 			try {
 				fn();
-			} catch {
-				/* a disposer throwing must not block the others */
+			} catch (error) {
+				// (a disposer throwing must not block the others, and is not dropped)
+				report_thrown(error);
 			}
 		}
 }
@@ -250,8 +253,9 @@ export function dispose_ids(ids: Iterable<string>): void {
 		reg.instance_kind.delete(inst);
 		try {
 			kind?.dispose?.(inst);
-		} catch {
-			/* one instance's teardown throwing must not strand the rest */
+		} catch (error) {
+			// (one instance's teardown throwing must not strand the rest, and is not dropped)
+			report_thrown(error);
 		}
 	}
 	if (DEVTOOLS && dt_disposed > 0)

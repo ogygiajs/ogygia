@@ -21,6 +21,7 @@ import { nearest_attr } from './nearest-attr.ts';
 import { record_server_body } from './ownership.ts';
 import { runtime_session } from './session.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
+import { report_thrown } from '../report-thrown.ts';
 
 const WS = /\s+/;
 
@@ -299,8 +300,8 @@ export class SpaRouter {
 				type: 'enter',
 				willUnload: false
 			});
-		} catch {
-			/* noop */
+		} catch (error) {
+			report_thrown(error);
 		}
 		return () => this.#after_hooks.delete(fn);
 	}
@@ -623,10 +624,11 @@ export class SpaRouter {
 			willUnload: false
 		};
 		for (const fn of this.#before_hooks) {
+			// (a hook that throws does not stop the others, or the navigation, and is not dropped)
 			try {
 				fn(nav);
-			} catch {
-				/* noop */
+			} catch (error) {
+				report_thrown(error);
 			}
 		}
 		return !cancelled;
@@ -641,8 +643,8 @@ export class SpaRouter {
 					type,
 					willUnload: false
 				});
-			} catch {
-				/* noop */
+			} catch (error) {
+				report_thrown(error);
 			}
 		}
 	}
