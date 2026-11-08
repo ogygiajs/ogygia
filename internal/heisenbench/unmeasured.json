@@ -177,10 +177,6 @@
 			"reason": "the request's end: settles its open flight, constant work (needs the real plugin loop); proven in packages/postrender/e2e/postrender.spec.ts S20"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > sleep",
-			"reason": "browser only: a hole's retry delay (a timer its visit to `retrying` can call off), constant work; proven in packages/core/test/browser/hole-twins.test.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #answered",
 			"reason": "browser only: the custom element's answer landing (two machine moves), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
 		},
@@ -233,12 +229,44 @@
 			"reason": "browser only: forgets an on-demand hole's arm when its fetch machine leaves `armed`, constant work; proven in packages/core/test/browser/deferred-endpoint.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #on_idle > defer:0",
-			"reason": "browser only: cancels an idle schedule's callback when its machine leaves `armed`, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #on_idle > first",
+			"reason": "browser only: an idle schedule fires once, at idle time or the 2 s cap, whichever is first (two cancels and the fire), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #on_media > defer:0",
-			"reason": "browser only: removes a media schedule's listener when its machine leaves `armed`, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #on_idle > timeout:0~361f36",
+			"reason": "browser only: the idle schedule's fallback where the browser has no idle callback (a 200 ms pause on the visit), constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #on_media > on:2~a3a7e5",
+			"reason": "browser only: a media schedule's change listener on its visit (a match check, then off and fire), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #bound",
+			"reason": "browser only: two field reads (the region's frame-store binding, still open), constant work; proven in packages/core/test/browser/region-move.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > get #watching",
+			"reason": "browser only: two field reads (the region's sleep in the drift watch, still open), constant work; proven in packages/core/test/browser/drift-watch.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > snippets_settled > timeout:0~4a8350",
+			"reason": "browser only: the 10 s cap on the wait for an island's live snippets closes the wait's scope, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-page-thread.svelte.ts > await_applied > end",
+			"reason": "browser only: tears the effect on Kit's page down once (a flag and a microtask), constant work; proven in packages/core/test/browser/kit-page-thread.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-page-thread.svelte.ts > await_applied > end > queueMicrotask:0~1129fc",
+			"reason": "browser only: calls the effect root's teardown, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-page-thread.svelte.ts > await_bridge > every:0~678e81",
+			"reason": "browser only: a sealed global's 50 ms watch of Kit's page symbol (one read, and the call on once it is there), constant work; proven in packages/core/test/browser/kit-page-thread-owner.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/svelte-warnings.ts > set_hydrating > clear",
+			"reason": "dev and browser only: clears the hydrating island's mark if it is still that one, constant work"
 		},
 		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #by_visitor",
@@ -773,44 +801,12 @@
 			"reason": "a constant predicate in the test/HMR reset (drops every frame flight): no work"
 		},
 		{
-			"id": "packages/postrender/src/registry.ts > Flight > _fly",
-			"reason": "keeps the flight's signal and hands back its outcome promise (not cloneable), constant work; run by packages/postrender/test/postrender.test.ts and e2e S21/S23"
-		},
-		{
-			"id": "packages/postrender/src/registry.ts > Flight > constructor",
-			"reason": "makes one outcome promise for a flight, constant work; run by packages/postrender/test/postrender.test.ts"
-		},
-		{
-			"id": "packages/postrender/src/registry.ts > Flight > constructor > Promise:0~2e2844",
-			"reason": "keeps the outcome promise's resolver, constant work"
-		},
-		{
 			"id": "packages/postrender/src/registry.ts > Flight > get stale",
 			"reason": "two field reads (settled, its signal aborted), constant work; run by packages/postrender/test/postrender.test.ts"
 		},
 		{
-			"id": "packages/postrender/src/registry.ts > Flight > settle",
-			"reason": "settles a flight once, constant work; run by packages/postrender/test/postrender.test.ts and e2e S20-S23"
-		},
-		{
-			"id": "packages/postrender/src/registry.ts > enter_flight",
-			"reason": "one peek and one get of the render flights (its answer is a Flight or a promise, not cloneable), constant work; run by packages/postrender/test/postrender.test.ts and the e2e stampede S9/S23"
-		},
-		{
-			"id": "packages/postrender/src/registry.ts > flights:0~3e13ef > key",
-			"reason": "a field read (the flight's path): no work"
-		},
-		{
-			"id": "packages/postrender/src/registry.ts > flights:0~3e13ef > run",
-			"reason": "calls the flight's _fly, constant work"
-		},
-		{
 			"id": "packages/postrender/src/registry.ts > reset_for_tests > drop:0~8b94d4",
 			"reason": "a constant predicate in the test reset (drops every render flight): no work"
-		},
-		{
-			"id": "packages/postrender/src/registry.ts > stale_flights > drop:0~2bdcbc",
-			"reason": "one comparison or one in_subtree check per render in flight (in_subtree is measured on its own); run by packages/postrender/test/postrender.test.ts"
 		},
 		{
 			"id": "packages/core/src/hooks.ts > OgygiaHandle > stream_page_deferred > defer:0~95f179",
