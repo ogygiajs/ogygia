@@ -14,7 +14,8 @@
  * two module instances (src beside dist), and both must see the same runtime.
  */
 import type { RequestEvent } from '@sveltejs/kit';
-import { flights, machine, outbox, policy, type Stale } from '@ogygia/machine';
+import { flights, machine, outbox, policy, scope, type Scope, type Stale } from '@ogygia/machine';
+import { registry } from '@ogygia/machine/internal/registry';
 import type {
 	PostrenderEntry,
 	PostrenderPutOptions,
@@ -99,7 +100,8 @@ export function reset_for_tests(): void {
 	warned_replica_blindspot = false;
 	store_health = health_def.create();
 	renders.drop(() => true);
-	writes.clear();
+	writes_life.close();
+	writes_life = scope();
 }
 
 // ── cross-app thaw (federation) ──────────────────────────────────────────────────────────────
@@ -214,7 +216,10 @@ export function store_put(
 
 /** A render's write to the store, while it is out: its page, and the render's flight. */
 type Write = { key: string; flight: Flight };
-const writes = new Set<Write>();
+/** The writes out now, each held from its start until it settles (and all of them until a test
+ *  harness reset ends `writes_life`). */
+const writes = registry<Write>();
+let writes_life: Scope = scope();
 
 /**
  * Store a render's page. An invalidation that starts while the write is out ends the render's
@@ -234,7 +239,7 @@ export async function store_render(
 	flight: Flight
 ): Promise<boolean> {
 	const write: Write = { key, flight };
-	writes.add(write);
+	const settled = writes.add(write, writes_life);
 	try {
 		await store_put(runtime, key, entry, options);
 		if (!flight.stale) return true;
@@ -242,7 +247,7 @@ export async function store_render(
 		if (await self_evicts.put({ runtime, key })) store_answered(mark);
 		return false;
 	} finally {
-		writes.delete(write);
+		settled();
 	}
 }
 
