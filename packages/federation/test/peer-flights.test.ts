@@ -75,4 +75,23 @@ describe('a peer read is one flight per key (#294)', () => {
 		out[2].answer('after', []);
 		expect((await read).body).toBe('after');
 	});
+
+	it('a read that starts while a mutation is out: once the mutation ends, no read gets the page from before it', async () => {
+		const out = upstream();
+		const cms = peer();
+		const post = cms.postDoc('/p', '', new ArrayBuffer(0), 'application/x-www-form-urlencoded');
+		await tick();
+		const read = cms.doc('/p', ''); // another visitor reads the page while the POST is out
+		await tick();
+		expect(out).toHaveLength(2);
+		out[1].answer('before', []); // the upstream answers that read before it applied the POST
+		expect((await read).body).toBe('before'); // (the page as it was when it asked)
+		out[0].answer('posted', []); // the POST is applied, and answered
+		await post;
+		const after = cms.doc('/p', ''); // the poster's redirect GET
+		await tick();
+		expect(out).toHaveLength(3); // the copy from before the POST is not served
+		out[2].answer('after', []);
+		expect((await after).body).toBe('after');
+	});
 });
