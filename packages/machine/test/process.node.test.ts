@@ -14,4 +14,8 @@ describe('a Node process', () => {
 	it('stays alive through the wait between two tries of a send (#351)', () => {
 		expect(run('exit-during-backoff.ts')).toBe('done true after 2 tries');
 	});
+
+	it('collects a flights nobody holds, and its world forgets it (#352)', () => {
+		expect(run('world-forgets-flights.ts', ['--expose-gc'])).toBe('1 dropped');
+	});
 });
