@@ -13,7 +13,7 @@
  *   behind in the owner.
  * - Iteration is in add order, and an entry removed while it is walked is not walked after.
  */
-import { scope, type Scope } from './scope.ts';
+import type { Scope } from './scope.ts';
 
 export interface Registry<T> {
 	/** Holds `entry` while `owner` is open; returns its removal. */
@@ -51,9 +51,9 @@ function make_registry<T>(): Registry<T> {
 
 /**
  * A registry of definitions by key: `set(key, value, owner)` holds `value` under `key` while
- * `owner` is open, replacing what the key held. The owner is the defining module's life
- * ({@link moduleLife}), so a module's reload ends its definitions: one deleted from its code is
- * gone, one kept is set again by its new run. Another owner's end never takes a definition it does
+ * `owner` is open, replacing what the key held. The owner is the defining module's run, so
+ * a module's reload ends its definitions: one deleted from its code is gone, one kept is set again
+ * by its new run. Another owner's end never takes a definition it does
  * not hold. Setting with an ended owner is refused.
  */
 export interface KeyedRegistry<K, V> {
@@ -113,14 +113,3 @@ export const registry: { <T>(): Registry<T>; keyed<K, V>(): KeyedRegistry<K, V> 
 	/* @__PURE__ */ Object.assign(make_registry, {
 		keyed: <K, V>(): KeyedRegistry<K, V> => new Keyed<K, V>()
 	});
-
-/**
- * A defining module's life: pass the module's `import.meta.hot` (dev). Its HMR dispose ends the
- * scope, so what the module defined leaves on reload. With no hot module (production) the scope
- * lives as long as the process.
- */
-export function moduleLife(hot: { dispose(cb: () => void): void } | undefined): Scope {
-	const life = scope();
-	hot?.dispose(() => life.close());
-	return life;
-}
