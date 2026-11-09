@@ -457,8 +457,76 @@
 			"reason": "browser only: hands the interaction capture's disarm from `armed` to `waking`, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts and interaction-delegated.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > applyLive > defer:0",
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #apply_live",
+			"reason": "browser only: one live tick in its mailbox turn (the custom element, the frame store, hydration), constant work besides the morph and hydrate it calls; proven in packages/core/test/browser/live-region.test.ts, sim-region.test.ts and region-orderings.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #apply_live > defer:0~f0b0cb",
 			"reason": "browser only: drops a static live region's subscription when an interactive tick takes over, constant work; proven in packages/core/test/browser/live-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #apply_live > subscribe:1~0fe909",
+			"reason": "browser only: a frame at a static live region's address, posted to its mailbox, constant work; proven in packages/core/test/browser/live-region.test.ts and region-orderings.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #apply_live > subscribe:1~0fe909 > post:0~fc2088",
+			"reason": "browser only: hands that frame to the morph in its turn, constant work; proven in packages/core/test/browser/live-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #arm > start > background_start:0~120013",
+			"reason": "browser only: a schedule's background start, skipped once its armed state was left (#335), constant work; proven in packages/core/test/browser/region-orderings.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #connect",
+			"reason": "browser only: the custom element's connect in its mailbox turn (the old connectedCallback body, moved), constant work per region; proven in every packages/core/test/browser region test; its machines' cost is benched in packages/core/bench/runtime.bench.ts (region machines)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fire_hydrate > ask:0~b4992e",
+			"reason": "browser only: hands the wake to the mailbox, constant work; the mailbox's wake path is benched in packages/core/bench/runtime.bench.ts (region mailbox)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fire_prefetch > post:0~906789",
+			"reason": "browser only: hands a prefetch to the mailbox, constant work; proven in packages/core/test/browser/prefetch-owner.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fire_server > post:0~dda1f3",
+			"reason": "browser only: hands a hole's schedule fire to the mailbox, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts and sim-holes.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #lake_arm > fetch_revalidate > post:0~e921f6",
+			"reason": "browser only: hands a lake's revalidate to the mailbox, constant work; proven in packages/core/test/browser/lake-swr-remount.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #live_put_back",
+			"reason": "browser only: a live region put back goes on with its last tick (#337), constant work; proven in packages/core/test/browser/region-orderings.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #morph_live > post:0~d8f6fe",
+			"reason": "browser only: hands a re-minted nested hole's renew to its own mailbox, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #put_back",
+			"reason": "browser only: a hole put back with its answer binds again, or paints its own last answer (#336), constant work; proven in packages/core/test/browser/region-orderings.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #put_back > post:0~10e6ee",
+			"reason": "browser only: hands that last answer to the apply in its turn, constant work; proven in packages/core/test/browser/region-orderings.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > applyLive > ask:0~e5193e",
+			"reason": "browser only: hands a live tick to the mailbox, constant work; proven in packages/core/test/browser/live-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > connectedCallback > post:0~ecc7b6",
+			"reason": "browser only: hands the connect to the mailbox, constant work; proven in every packages/core/test/browser region test"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > hand_back",
+			"reason": "a constant one-liner: gives back a download slot whose region left while it queued"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > nothing",
+			"reason": "a constant no-op: maps a wake's STALE to nothing"
 		},
 		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #live_hydrate > ours",
@@ -805,8 +873,24 @@
 			"reason": "the e2e harness: sends a signal to the server's process group (one syscall); proven in packages/tooling/test/servers.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate > catch:0~a1b2d0",
-			"reason": "a constant no-op: a visitor's replay chunk that failed to load reports itself (interaction.ts); the wait is proven in apps/palaestra/e2e/wake-early-click.spec.ts"
+			"id": "packages/core/src/runtime/mailbox.ts > <anonymous>~371caf",
+			"reason": "runs once at module load: makes the one closed mailbox, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/mailbox.ts > Box > _start > then:1~409c47",
+			"reason": "a handler that rejected: ends its turn and throws the failure on, constant work; proven in packages/core/test/mailbox.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/mailbox.ts > Box > get closed",
+			"reason": "a constant field read; proven in packages/core/test/mailbox.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/mailbox.ts > Box > wait > Promise:0~0d2dcd > then:1~4ff304",
+			"reason": "a wait whose work rejected: comes back in its turn to throw it there, constant work; proven in packages/core/test/mailbox.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/mailbox.ts > Box > wait > Promise:0~0d2dcd > then:1~4ff304 > back:0~aaf251",
+			"reason": "the same, as it gets its turn back, constant work; proven in packages/core/test/mailbox.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/core.ts > boot > on_reload_needed:0~c56e54",

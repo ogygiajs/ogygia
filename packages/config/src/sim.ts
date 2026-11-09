@@ -15,7 +15,7 @@
  *
  * The run owns every async edge of the code under test, or it is not deterministic:
  * - time: `setTimeout`, `setInterval`, `requestAnimationFrame`, `requestIdleCallback`,
- *   `AbortSignal.timeout` and `Date.now` read one clock the run owns. Timers fire in the order they
+ *   `AbortSignal.timeout`, `Date.now` and `performance.now` read one clock the run owns. Timers fire in the order they
  *   are due, and "time passes" is a step the scheduler picks like any other: an answer can come
  *   before a 0 ms timer, or after a 10 s deadline. Past `horizon` no timer fires.
  *   In a browser, the task scheduler too (`scheduler.yield()`, `scheduler.postTask`): a task
@@ -428,6 +428,15 @@ class Run implements Sim {
 		}
 		Date.now = () => this._base + this._clock;
 		this._restore.push(() => (Date.now = real_now));
+		// the monotonic clock too: a scheduler that measures a wait with it (the hydration turn's
+		// viewport wait) waits in the run's time, not the host's
+		if (typeof performance !== 'undefined') {
+			const perf = performance as { now: () => number };
+			const was_perf_now = perf.now;
+			const perf_base = was_perf_now.call(performance);
+			perf.now = () => perf_base + this._clock;
+			this._restore.push(() => (perf.now = was_perf_now));
+		}
 		AbortSignal.timeout = (ms: number) => {
 			const abort = new AbortController();
 			this._add(

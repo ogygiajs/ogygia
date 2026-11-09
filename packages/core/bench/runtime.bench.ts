@@ -31,7 +31,8 @@ import {
 	create_wake
 } from '../src/runtime/region-machines.ts';
 import * as frames from '../src/runtime/frame-store.ts';
-import { STALE } from '@ogygia/machine';
+import { mailbox } from '../src/runtime/mailbox.ts';
+import { scope, STALE } from '@ogygia/machine';
 import type { IslandHandle } from '../src/runtime/hydrate-core.ts';
 import { block, header } from './fixtures.ts';
 
@@ -281,6 +282,39 @@ bench(
 		return left + painted;
 	},
 	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
+);
+
+bench(
+	'region mailbox: each region’s wake path through its mailbox (connect, schedule, six waits), frames landing while it waits, a quarter leaving mid-wake',
+	async ({ n }) => {
+		let ran = 0;
+		const wakes: Promise<unknown>[] = [];
+		for (let i = 0; i < n; i++) {
+			const life = scope();
+			const box = mailbox(life);
+			// the connect and its schedule firing: turns that run at once on an idle box
+			box.post(() => void ran++);
+			box.post(() => void ran++);
+			// the wake: the island's wait for its slot, its module, the kit page, a visitor's replay,
+			// its scheduler turn and its snippets, each a wait that lets the element's other events in
+			wakes.push(
+				box.ask(async (turn) => {
+					for (let w = 0; w < 6; w++) if ((await turn.wait(Promise.resolve(w))) === STALE) return;
+					ran++;
+				})
+			);
+			// a frame landing while it waits (a turn of its own, between two of the wake's)
+			box.post(() => void ran++);
+			if (i % 4 === 0) {
+				// it leaves the page mid-wake: its wait is STALE, what it queued is dropped
+				box.post(() => void ran++);
+				queueMicrotask(() => life.close());
+			}
+		}
+		await Promise.all(wakes);
+		return ran;
+	},
+	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
 );
 
 bench(
