@@ -95,8 +95,7 @@ import {
 	beacon_warning,
 	beacon_hole_failed,
 	beacon_hole_answered,
-	beacon_entry_fallback,
-	beacon_hole_fetched
+	beacon_entry_fallback
 } from './beacon.ts';
 import { set_hydrating, tap_svelte_warnings, on_svelte_warning } from './svelte-warnings.ts';
 import type { IslandHandle, IslandModule } from './hydrate-core.ts';
@@ -939,7 +938,6 @@ class OgygiaRegion extends HTMLElement {
 		signal: AbortSignal
 	) {
 		return runtime_session.server_gate.run(() => {
-			if (BEACON) beacon_hole_fetched(endpoint);
 			// (./hole-fetch.ts: the same read of the answer `preload()` makes. A renewed capability is
 			// the address's, kept in the store: every element bound there adopts it — #adopt_renewed)
 			const address = frameAddress(endpoint);

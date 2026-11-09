@@ -45,8 +45,9 @@ export const ISLAND_HINT_G_RE =
 export const KIT_BOOT_RE = /__sveltekit_\w+\s*=/;
 /** Any Kit bootstrap trace at all (looser than KIT_BOOT_RE). */
 export const KIT_MARKER_RE = /__sveltekit/;
-/** A server-island prefetch hint. */
-export const PRELOAD_FETCH_RE = /rel="preload" as="fetch"/;
+/** The head's early start of the `load` holes' requests: its data block, the endpoints it lists. */
+export const EARLY_HOLES_RE =
+	/<script type="application\/json" id="ogygia-early-holes">([^<]*)<\/script>/;
 /** The stamp a page store (postrender) puts on a copy it serves. */
 export const STORED_META_RE = /<meta name="ogygia-stored"[^>]*>/;
 

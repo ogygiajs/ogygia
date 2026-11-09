@@ -29,6 +29,16 @@ export type FrameFetcher = (signal: AbortSignal) => Promise<string>;
  *  a parallel subscriber set. */
 const frame_id = (a: string): string => 'frame:' + a;
 
+/** The name of a refused answer's error (./region-endpoint-url.ts): by name, since the store is one
+ *  per document across bundle copies, and a copy's class is not another's. */
+const REFUSED = 'RegionAnswerRefused';
+
+/** A refused answer nobody asked for yet (the page's early start: ./early-holes.ts), held at its
+ *  address for the first caller that asks there (see `Entry.refused`). Any other failure is not. */
+export function hold_refusal(a: string, err: unknown): void {
+	if ((err as { name?: string } | null)?.name === REFUSED) entry(a).refused = err as Error;
+}
+
 /** What a flight at an address runs: the store's own fetch, or a batch's part arriving through an
  *  external stream (the batch's promise, settled by the frame written there or failed by the
  *  batch's end). The input of the call that started the flight is the one that runs. */
@@ -49,6 +59,10 @@ type Entry = {
 	/** The fresh capability a renewal at this address answered (an expired one is re-signed once):
 	 *  the address's, so every element bound here moves onto it, not only the one that fetched. */
 	renewed: string | null;
+	/** A refused answer that no element asked for yet (the page's early start read it before any hole
+	 *  woke: ./early-holes.ts): handed, once, to the first caller that asks here, which is refused as
+	 *  if it had asked itself. A frame written here, or a forced fetch, ends it. */
+	refused: Error | null;
 };
 
 /** Entries with no subscribers linger this long (ms) so quick remounts / SPA swaps reuse content. */
@@ -98,7 +112,7 @@ const flying = (a: string): boolean => store_host[FLIGHTS_KEY]?.peek({ a }) !== 
 function entry(a: string): Entry {
 	let e = entries.get(a);
 	if (!e) {
-		e = { v: 0, html: null, seq: 0, batch: null, evict: null, renewed: null };
+		e = { v: 0, html: null, seq: 0, batch: null, evict: null, renewed: null, refused: null };
 		entries.set(a, e);
 	}
 	return e;
@@ -160,6 +174,7 @@ export function write(f: Frame): boolean {
 	if (f.v > e.seq) e.seq = f.v; // foreign ticket (streamed/mutation frame) — keep seq monotonic
 	e.v = f.v;
 	e.html = f.html;
+	e.refused = null;
 	// Fulfil a batch's part, whoever wrote the frame (the batch, or a forced fetch that landed
 	// first): a binder that joined via ensure() unblocks, and no per-region fetch ever starts. The
 	// subscription (set in the binder) is what actually paints — settle just unblocks.
@@ -261,6 +276,9 @@ export async function ensure(
 	try {
 		for (;;) {
 			if (!fresh && e.html != null) return e.html;
+			const refused = e.refused;
+			e.refused = null;
+			if (!fresh && refused !== null) throw refused;
 			const html = await f.get({ a, work: fetcher }, { signal, fresh });
 			// STALE: this caller left, the store was reset, or a forced fetch took the place of the
 			// one it waited on: then it asks again (and joins that one)
