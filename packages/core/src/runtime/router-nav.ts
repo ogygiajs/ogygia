@@ -631,7 +631,7 @@ export async function navigate(
 
 	let page: FetchedPage | null;
 	try {
-		const fetched = await r.nav.task((signal) => fetch_page(url.href, signal, purpose));
+		const fetched = await r.nav.scope.task((signal) => fetch_page(url.href, signal, purpose));
 		if (is_stale(fetched)) return; // a newer navigation took over (and aborted this fetch)
 		page = fetched;
 	} catch {
@@ -909,7 +909,7 @@ export async function invalidate_all(): Promise<void> {
 
 	let html: string | undefined;
 	try {
-		const fetched = await soft.task((signal) => fetch_page(url.href, signal));
+		const fetched = await soft.scope.task((signal) => fetch_page(url.href, signal));
 		if (is_stale(fetched)) return; // a navigation, or a newer refresh, took over
 		html = fetched?.html;
 	} catch {

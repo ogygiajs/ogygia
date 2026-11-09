@@ -16,7 +16,10 @@ export type MachineErrors = {
 	machine_unreachable_state: Entry<{ name: string; state: string; initial: string }>;
 	machine_duplicate_step: Entry<{ name: string; from: string; to: string }>;
 	machine_kind_in_data: Entry<{ name: string; state: string }>;
-	machine_bad_option: Entry<{ option: string; value: string }>;
+	machine_bad_option: Entry<{ option: string; value: string; rule: string }>;
+	machine_bad_time: Entry<{ where: string; ms: string }>;
+	machine_not_disposable: Entry<{ value: string }>;
+	machine_dispose_failed: Entry<{ owner: string }>;
 	machine_bad_timeout: Entry<{ name: string; state: string; problem: string }>;
 	machine_timeout_not_a_time: Entry<{ name: string; state: string; ms: string }>;
 	machine_timeout_failed: Entry<{ name: string; state: string }>;
@@ -64,9 +67,37 @@ export const MACHINE_ERRORS: MachineErrors = {
 			'Rename the field.'
 	},
 	machine_bad_option: {
-		text: (a: { option: string; value: string }): string =>
-			`machine: \`${a.option}\` must be a whole number of 0 or more (got ${a.value}).`,
-		details: (): string => 'An option that counts something takes a whole number of 0 or more.'
+		text: (a: { option: string; value: string; rule: string }): string =>
+			`machine: \`${a.option}\` must be ${a.rule} (got ${a.value}).`,
+		details: (): string =>
+			'An option was given a value it cannot take. `retries` counts tries: a whole number of 0 ' +
+			'or more. A flights `keep` is milliseconds: 0 or more, `Infinity` for as long as the ' +
+			'flights lives. A flights `max` is the most weight it keeps: more than 0.'
+	},
+	machine_bad_time: {
+		text: (a: { where: string; ms: string }): string =>
+			`machine: ${a.where} was given ${a.ms}, not a time of 0 to 2147483647 ms.`,
+		details: (): string =>
+			"A scope's `timeout()` takes milliseconds, `'frame'` or `'idle'`, and `every()` takes " +
+			'milliseconds: a number of 0 to 2^31 - 1 (about 24.8 days). Node and browsers run a timer ' +
+			'with a longer, negative or non-number delay after 1 ms, so it is refused instead.'
+	},
+	machine_not_disposable: {
+		text: (a: { value: string }): string =>
+			`machine: a scope cannot adopt this ${a.value}: it has no Symbol.dispose or Symbol.asyncDispose.`,
+		details: (): string =>
+			'`adopt()` takes what disposes itself: an object with a `[Symbol.dispose]()` or ' +
+			'`[Symbol.asyncDispose]()` method (a flights, a scope, a lock holder). For anything else, ' +
+			'hand the scope its release: `defer(() => x.close())`, `watch(observer)` for an observer.'
+	},
+	machine_dispose_failed: {
+		text: (a: { owner: string }): string =>
+			`machine: an async disposal of a ${a.owner} failed after it closed.`,
+		details: (): string =>
+			'A scope closed with `close()` (or `using`) and something it adopted disposes itself ' +
+			'asynchronously (`Symbol.asyncDispose`); that disposal rejected. The error follows the ' +
+			'message. Nobody waited for it, so it is said here: close with `await using` or ' +
+			'`await s[Symbol.asyncDispose]()` to wait for such disposals and get their errors.'
 	},
 	machine_bad_timeout: {
 		text: (a: { name: string; state: string; problem: string }): string =>

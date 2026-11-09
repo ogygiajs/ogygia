@@ -42,7 +42,7 @@
  * pointer reaches an armed island or input lands — off the boot path, ahead of the replay.
  */
 
-import { once } from '@ogygia/machine';
+import { flights, STALE, type Stale } from '@ogygia/machine';
 import { import_again } from './import-again.ts';
 import { slots } from './slots.ts';
 import { warm_island_module } from './region-endpoint-url.ts';
@@ -161,15 +161,17 @@ let installed = false;
 /** THE REPLAY HALF, loaded once, when the first region arms. A download that fails is tried again
  *  at once and never kept: the next wake (or the failure path below) loads it afresh. */
 type Replay = typeof import('./interaction-replay.ts');
-const load_replay: () => Promise<Replay> = once(
-	import_again(() => import('./interaction-replay.ts')),
-	{ retries: 1 }
-);
-function replay(): Promise<Replay> {
+const load_replay = flights({
+	name: 'interaction replay',
+	run: import_again(() => import('./interaction-replay.ts')),
+	retries: 1
+});
+/** (Never STALE: nothing drops the replay half.) */
+function replay(): Promise<Replay | Stale> {
 	// Link what the replay chunk uses from this module right where the chunk is loaded, so whoever
 	// loads it (the feature's arm, or a direct `arm_interaction`) has linked it (./slots.ts `BootLink`).
 	slots.interaction_link ??= { resolve_address };
-	return load_replay();
+	return load_replay.get();
 }
 
 /** The nearest ARMED region above an event's target (past nested regions that are not armed), never
@@ -268,7 +270,7 @@ function wake(a: Armed, e: Event): void {
 		([r]) => {
 			if (a.state === 'over') return;
 			disarm(a, false);
-			r.after_wake(region, fields, active_addr, queued);
+			if (r !== STALE) r.after_wake(region, fields, active_addr, queued);
 		},
 		(err) => {
 			if (a.state === 'over') return;
@@ -279,7 +281,7 @@ function wake(a: Armed, e: Event): void {
 			// (the replay half itself may be what failed: asked for again; if it fails again the
 			// clicks are lost, and said so, never left as an unhandled rejection)
 			replay().then(
-				(r) => r.replay_clicks(region, queued),
+				(r) => r !== STALE && r.replay_clicks(region, queued),
 				(again: unknown) => console.error(new OgygiaError('interaction_hydrate_failed'), again)
 			);
 			console.error(new OgygiaError('interaction_hydrate_failed'), err);

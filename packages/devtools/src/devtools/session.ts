@@ -12,7 +12,7 @@
  * Elements are kept by WeakRef so the tab can point at them without holding the page alive.
  */
 import { add_sink, snapshot } from '@ogygia/core/events';
-import { machine, once } from '@ogygia/machine';
+import { flights, machine, STALE } from '@ogygia/machine';
 import { all_regions, region_name } from './regions.ts';
 import type {
 	SessionClick,
@@ -550,14 +550,13 @@ export function start_session(prior?: SavedPart[]): Recorder {
 	const run = run_definition.create();
 	// out of `recording` (a stop, or the page going away): the watchers come off, and the module's
 	// recording is let go only while it is still this one (a newer one may have started since)
-	run.onLeave(() => {
+	run.scope.defer(() => {
 		detach();
 		if (active === rec) active = null;
 	});
-	const rec: Recorder = {
-		// (a resumed session: its first page's start, on this document's clock)
-		started: prior?.length ? prior[0].data.from + (prior[0].origin - performance.timeOrigin) : from,
-		stop: once(async () => {
+	const stopping = flights({
+		name: 'session stop',
+		run: async () => {
 			run.move('recording', 'stopped');
 			let cpu: unknown = null;
 			if (prof) {
@@ -574,7 +573,17 @@ export function start_session(prior?: SavedPart[]): Recorder {
 				// no storage
 			}
 			return prior?.length ? merge_parts(prior, here) : here;
-		})
+		}
+	});
+	// (nothing drops the stop, so it is never STALE; were it, it is asked for again)
+	const stop = async (): Promise<SessionData> => {
+		const data = await stopping.get();
+		return data === STALE ? stop() : data;
+	};
+	const rec: Recorder = {
+		// (a resumed session: its first page's start, on this document's clock)
+		started: prior?.length ? prior[0].data.from + (prior[0].origin - performance.timeOrigin) : from,
+		stop
 	};
 	active = rec;
 	return rec;

@@ -168,7 +168,7 @@ function emit_exposure(e: ExposureEvent): void {
 	_exposures.go('buffering');
 	// the age cap, for this visit of `buffering` only: a send or a flush clears it
 	const timer = setTimeout(() => void send(), _batch.ms);
-	_exposures.onLeave(() => clearTimeout(timer));
+	_exposures.scope.defer(() => clearTimeout(timer));
 }
 
 /** A send of everything queued, now: idle (the size cap), buffering, or a send that just ended, →
@@ -181,7 +181,7 @@ function send(): Promise<void> {
 	_exposures.go('flushing', { sent });
 	const visit = _exposures.now;
 	const sink = _exposure;
-	void _exposures
+	void _exposures.scope
 		.task(() => sink?.(batch))
 		.then(
 			() => {

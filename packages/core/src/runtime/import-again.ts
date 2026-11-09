@@ -72,8 +72,8 @@ export function on_reload_needed(say: (url: string, error: unknown) => void): vo
  * file under a fresh URL on each later call; once it has loaded, every later call is that load (a
  * fresh URL after a success would be a second copy of the module). A retry whose own file came and
  * still failed is a dependency's failure, which no URL fixes: from then on every call fails at once
- * with its error, asking nothing. Pair it with `once()` from `@ogygia/machine`, which calls it again
- * on a failure and never keeps one.
+ * with its error, asking nothing. Pair it with `flights()` from `@ogygia/machine`, which calls it
+ * again on a failure and never keeps one.
  */
 export function import_again<T>(
 	load: () => Promise<T>,

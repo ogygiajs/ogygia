@@ -22,7 +22,7 @@
  * Island code reads it as `globalThis[Symbol.for('ogygia.nav')]` (the key is repeated there on
  * purpose: importing {@link NAV_HANDLE_KEY} would be the very edge this module exists to avoid).
  */
-import { once } from '@ogygia/machine';
+import { flights, STALE } from '@ogygia/machine';
 import { import_again } from './import-again.ts';
 import { speculate_url } from './speculate-hint.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
@@ -38,10 +38,16 @@ export const NAV_HANDLE_KEY: unique symbol = Symbol.for('ogygia.nav');
  * read from the module, so the bundler leaves the rest of the navigation out of this chunk; the
  * router's own load, ./router.ts, reads all of it.)
  */
-const load_refresh: () => Promise<{ invalidate_all(): Promise<void> }> = once(
-	import_again(() => import('./router-nav.ts').then(({ invalidate_all }) => ({ invalidate_all }))),
-	{ retries: 1 }
-);
+const load_refresh = flights({
+	name: 'soft refresh',
+	run: import_again(() =>
+		import('./router-nav.ts').then(({ invalidate_all }) => ({ invalidate_all }))
+	),
+	retries: 1
+});
+/** The refresh, once its module is in (never STALE: nothing drops it). */
+const invalidate_all = (): Promise<void> =>
+	load_refresh.get().then((n) => (n === STALE ? undefined : n.invalidate_all()));
 
 export type NavHandle = {
 	goto(url: string | URL, opts?: { replaceState?: boolean; external?: boolean }): Promise<void>;
@@ -89,8 +95,8 @@ export function mpa_nav(): NavHandle {
 			return Promise.resolve();
 		},
 		// No SPA cache to bust, but the page's seeds can still refresh in place.
-		invalidate: () => load_refresh().then((n) => n.invalidate_all()),
-		invalidateAll: () => load_refresh().then((n) => n.invalidate_all()),
+		invalidate: invalidate_all,
+		invalidateAll: invalidate_all,
 		preloadData(url) {
 			speculate_url(url, 'prerender');
 			return Promise.resolve({ type: 'loaded' as const, status: 200, data: {} });

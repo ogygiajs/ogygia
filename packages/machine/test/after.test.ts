@@ -110,9 +110,9 @@ describe('after: a state that ends on its own', () => {
 	it('the timed step is a move like any other: tasks end, cleanups run, waits and observers hear it', async () => {
 		const m = hole.create();
 		m.go('fetching', { attempt: 1 });
-		const task = m.task(() => new Promise(() => {}));
+		const task = m.scope.task(() => new Promise(() => {}));
 		const cleanup = vi.fn();
-		m.onLeave(cleanup);
+		m.scope.defer(cleanup);
 		const failed = m.wait('failed');
 		const heard: string[] = [];
 		const off = observe(
@@ -164,7 +164,7 @@ describe('after: a state that ends on its own', () => {
 		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 		const m = hole.create();
 		m.go('fetching', { attempt: 1 });
-		m.onLeave(() => {
+		m.scope.defer(() => {
 			throw new Error('cleanup');
 		});
 		await vi.advanceTimersByTimeAsync(10_000);

@@ -1477,7 +1477,7 @@ class Profiler {
 		if (token === null) return null;
 		this.#holder.go(kind, { token, since: Date.now() });
 		// (leaving it, to `cut` or `free`, detaches the attribution context)
-		this.#holder.onLeave(() => this.#release_als());
+		this.#holder.scope.defer(() => this.#release_als());
 		return token;
 	}
 
@@ -4460,7 +4460,7 @@ class Profiler {
 		this.#win.go('recording', { id, token, done });
 		const mine = this.#win.now;
 		// leaving `recording` any way (a stop, the cap, a reset) ends the capture's work
-		this.#win.onLeave(stop);
+		this.#win.scope.defer(stop);
 		// the capture settled: a failed one ends the window; once one the cap (a stop that never came
 		// here: a forgotten one, or one another instance answered) or a reset ended is done, the recorder
 		// is free. A stop frees it itself, once its report is made.

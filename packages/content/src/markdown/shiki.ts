@@ -13,7 +13,7 @@ const DOUBLE_QUOTE_G = /"/g;
  */
 
 import type { ShikiTransformer } from 'shiki';
-import { once } from '@ogygia/machine';
+import { flights, STALE, type Flights } from '@ogygia/machine';
 import { render_fence, default_pipeline, type CodePipeline } from './code-render.ts';
 import { fence_key, fence_cache_get, fence_cache_set } from './fence-cache.ts';
 import type { SerializedRegion } from '../region-store.ts';
@@ -129,7 +129,7 @@ let active: ResolvedShiki | null = null;
 /** The highlighter for one set of themes and languages: started on first use and kept, but never a
  *  failed start (a grammar that failed to load), which the next highlight tries again (#248). A
  *  highlight with other themes or languages starts its own in its place. */
-let highlighter: { key: string; get: () => Promise<Highlighter> } | null = null;
+let highlighter: { key: string; start: Flights<void, Highlighter> } | null = null;
 
 export function normalize_shiki(options: MarkdownShikiOptions = {}): ResolvedShiki {
 	const themes = options.themes ?? DEFAULT_THEMES;
@@ -172,16 +172,18 @@ function get_highlighter(cfg: ResolvedShiki) {
 	if (highlighter?.key !== key)
 		highlighter = {
 			key,
-			get: once(() =>
-				import('shiki').then(({ createHighlighter }) =>
-					createHighlighter({
-						themes: [cfg.themes.light as never, cfg.themes.dark as never],
-						langs: cfg.langs
-					})
-				)
-			)
+			start: flights({
+				name: 'shiki highlighter',
+				run: () =>
+					import('shiki').then(({ createHighlighter }) =>
+						createHighlighter({
+							themes: [cfg.themes.light as never, cfg.themes.dark as never],
+							langs: cfg.langs
+						})
+					)
+			})
 		};
-	return highlighter.get();
+	return highlighter.start.get();
 }
 
 export function wrap_html(html: string, wrapperClass: string | false): string {
@@ -220,6 +222,8 @@ export async function highlight(
 		throw new OgygiaError('content_highlight_unconfigured');
 	}
 	const highlighter = await get_highlighter(cfg);
+	// (nothing drops a highlighter's start, so this is never STALE; were it, the next one is asked)
+	if (highlighter === STALE) return highlight(code, lang, options, rawMeta);
 	// An unknown fence language (a `tree` file-listing, a bespoke DSL) must NOT throw — one exotic
 	// fence in a large imported corpus would otherwise fail the whole build. Fall back to plain text.
 	const loaded = highlighter.getLoadedLanguages();

@@ -106,7 +106,7 @@ function page_of(blocks: number): Booted {
  * fetch, not ogygia's work.
  */
 async function booted_page(blocks: number): Promise<Booted> {
-	await core_private.hydrate_core();
+	await core_private.hydrate_core.get();
 	await interaction_private.replay();
 	await Promise.all(ISLAND_SRCS.map((src) => import_entry(src, src)));
 	return page_of(blocks);

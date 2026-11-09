@@ -22,7 +22,7 @@ import type {
 	ProfilerSummary,
 	ProfilerVisitRecord
 } from './index.ts';
-import { once } from '@ogygia/machine';
+import { flights, STALE, type Flights } from '@ogygia/machine';
 import { MAX_VISITS_PER_KEY } from './visits.ts';
 
 /** The subset of a Redis client this store uses — node-redis and ioredis both satisfy it (their
@@ -115,7 +115,7 @@ export class RedisStore implements ProfilerStore {
 	#RZ: string;
 	#V: string;
 	/** the client, made once: two first calls share it, and a failure to make it is not kept */
-	#connect: () => Promise<RedisLike>;
+	#connect: Flights<void, RedisLike>;
 	/** the client made, for `close` */
 	#made: RedisLike | null = null;
 
@@ -229,12 +229,17 @@ export class RedisStore implements ProfilerStore {
 			.catch(() => {});
 	}
 
-	#connector(): () => Promise<RedisLike> {
-		return once(async () => (this.#made = await resolve(this.#client)));
+	#connector(): Flights<void, RedisLike> {
+		return flights({
+			name: 'profiler redis client',
+			run: async () => (this.#made = await resolve(this.#client))
+		});
 	}
 
-	#need(): Promise<RedisLike> {
-		return this.#connect();
+	async #need(): Promise<RedisLike> {
+		// (nothing drops a connector, so it is never STALE; were it, the current one is asked)
+		const c = await this.#connect.get();
+		return c === STALE ? this.#need() : c;
 	}
 
 	#VZ(page: string): string {

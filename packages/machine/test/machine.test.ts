@@ -213,7 +213,7 @@ describe('go', () => {
 		const m = hole.create();
 		m.go('fetching', { attempt: 1 });
 		const leave = vi.fn();
-		m.onLeave(leave);
+		m.scope.defer(leave);
 		expect(m.go('fetching', { attempt: 2 })).toBe(true);
 		expect(leave).toHaveBeenCalledOnce();
 		const s = m.now;
@@ -245,23 +245,23 @@ describe('move', () => {
 	});
 });
 
-describe('task', () => {
+describe('scope.task: work of one visit', () => {
 	it('gives the answer while the machine stays put', async () => {
 		const m = hole.create();
 		m.go('fetching', { attempt: 1 });
-		await expect(m.task(async () => 'html')).resolves.toBe('html');
+		await expect(m.scope.task(async () => 'html')).resolves.toBe('html');
 	});
 
 	it('takes a plain value too', async () => {
 		const m = hole.create();
-		await expect(m.task(() => 7)).resolves.toBe(7);
+		await expect(m.scope.task(() => 7)).resolves.toBe(7);
 	});
 
 	it('passes a live signal, aborted once the machine leaves', async () => {
 		const m = hole.create();
 		m.go('fetching', { attempt: 1 });
 		let seen: AbortSignal | undefined;
-		const out = m.task(
+		const out = m.scope.task(
 			(signal) =>
 				new Promise<string>((resolve, reject) => {
 					seen = signal;
@@ -279,7 +279,7 @@ describe('task', () => {
 		const m = hole.create();
 		m.go('fetching', { attempt: 1 });
 		let finish!: (v: string) => void;
-		const out = m.task(() => new Promise<string>((r) => (finish = r)));
+		const out = m.scope.task(() => new Promise<string>((r) => (finish = r)));
 		m.go('failed', { error: 'x', attempt: 1 });
 		finish('late');
 		await expect(out).resolves.toBe(STALE);
@@ -289,7 +289,7 @@ describe('task', () => {
 		const m = hole.create();
 		m.go('fetching', { attempt: 1 });
 		let finish!: (v: string) => void;
-		const out = m.task(() => new Promise<string>((r) => (finish = r)));
+		const out = m.scope.task(() => new Promise<string>((r) => (finish = r)));
 		m.go('idle');
 		m.go('fetching', { attempt: 2 });
 		finish('from visit 1');
@@ -300,7 +300,7 @@ describe('task', () => {
 		const m = hole.create();
 		m.go('fetching', { attempt: 1 });
 		let finish!: (v: string) => void;
-		const out = m.task(() => new Promise<string>((r) => (finish = r)));
+		const out = m.scope.task(() => new Promise<string>((r) => (finish = r)));
 		m.go('fetching', { attempt: 2 });
 		finish('old');
 		await expect(out).resolves.toBe(STALE);
@@ -309,14 +309,14 @@ describe('task', () => {
 	it('rejects with the failure while the machine stays put', async () => {
 		const m = hole.create();
 		const boom = new Error('boom');
-		await expect(m.task(async () => Promise.reject(boom))).rejects.toBe(boom);
+		await expect(m.scope.task(async () => Promise.reject(boom))).rejects.toBe(boom);
 	});
 
 	it('turns a failure after the machine left into STALE (no unhandled error)', async () => {
 		const m = hole.create();
 		m.go('fetching', { attempt: 1 });
 		let fail!: (e: unknown) => void;
-		const out = m.task(() => new Promise((_, reject) => (fail = reject)));
+		const out = m.scope.task(() => new Promise((_, reject) => (fail = reject)));
 		m.go('idle');
 		fail(new Error('after'));
 		await expect(out).resolves.toBe(STALE);
@@ -326,7 +326,7 @@ describe('task', () => {
 		const m = hole.create();
 		const boom = new Error('sync');
 		await expect(
-			m.task(() => {
+			m.scope.task(() => {
 				throw boom;
 			})
 		).rejects.toBe(boom);
@@ -334,7 +334,7 @@ describe('task', () => {
 
 	it('work that moves the machine itself gives STALE', async () => {
 		const m = hole.create();
-		const out = m.task(() => {
+		const out = m.scope.task(() => {
 			m.go('fetching', { attempt: 1 });
 			return 'x';
 		});
@@ -344,10 +344,10 @@ describe('task', () => {
 	it('tasks of one visit share one signal; the next visit gets a new one', () => {
 		const m = hole.create();
 		const signals: AbortSignal[] = [];
-		void m.task((s) => signals.push(s));
-		void m.task((s) => signals.push(s));
+		void m.scope.task((s) => signals.push(s));
+		void m.scope.task((s) => signals.push(s));
 		m.go('fetching', { attempt: 1 });
-		void m.task((s) => signals.push(s));
+		void m.scope.task((s) => signals.push(s));
 		expect(signals[0]).toBe(signals[1]);
 		expect(signals[0].aborted).toBe(true);
 		expect(signals[2]).not.toBe(signals[0]);
@@ -357,7 +357,7 @@ describe('task', () => {
 	it('settles with STALE the moment the machine leaves, even when work never finishes', async () => {
 		const m = hole.create();
 		m.go('fetching', { attempt: 1 });
-		const out = m.task(() => new Promise<string>(() => {}));
+		const out = m.scope.task(() => new Promise<string>(() => {}));
 		let settled: unknown = 'pending';
 		void out.then((v) => (settled = v));
 		await flush();
@@ -370,7 +370,7 @@ describe('task', () => {
 	it('work that ignores its signal and answers late still gives STALE once', async () => {
 		const m = hole.create();
 		let finish!: (v: string) => void;
-		const out = m.task(() => new Promise<string>((r) => (finish = r)));
+		const out = m.scope.task(() => new Promise<string>((r) => (finish = r)));
 		m.go('fetching', { attempt: 1 });
 		finish('late');
 		await expect(out).resolves.toBe(STALE);
@@ -380,7 +380,7 @@ describe('task', () => {
 		const m = hole.create();
 		m.stop();
 		const work = vi.fn(() => 1);
-		await expect(m.task(work)).resolves.toBe(STALE);
+		await expect(m.scope.task(work)).resolves.toBe(STALE);
 		expect(work).not.toHaveBeenCalled();
 	});
 
@@ -394,12 +394,12 @@ describe('task', () => {
 	});
 });
 
-describe('onLeave', () => {
+describe('scope.defer: cleanups of one visit', () => {
 	it('runs once when the machine leaves, newest first', () => {
 		const m = hole.create();
 		const order: string[] = [];
-		m.onLeave(() => order.push('a'));
-		m.onLeave(() => order.push('b'));
+		m.scope.defer(() => order.push('a'));
+		m.scope.defer(() => order.push('b'));
 		m.go('fetching', { attempt: 1 });
 		m.go('idle');
 		expect(order).toEqual(['b', 'a']);
@@ -408,10 +408,10 @@ describe('onLeave', () => {
 	it('belongs to the visit it was added in', () => {
 		const m = hole.create();
 		const first = vi.fn();
-		m.onLeave(first);
+		m.scope.defer(first);
 		m.go('fetching', { attempt: 1 });
 		const second = vi.fn();
-		m.onLeave(second);
+		m.scope.defer(second);
 		expect(first).toHaveBeenCalledOnce();
 		expect(second).not.toHaveBeenCalled();
 		m.go('idle');
@@ -422,7 +422,7 @@ describe('onLeave', () => {
 	it('sees the new state already in place', () => {
 		const m = hole.create();
 		let seen = '';
-		m.onLeave(() => (seen = m.now.kind));
+		m.scope.defer(() => (seen = m.now.kind));
 		m.go('fetching', { attempt: 1 });
 		expect(seen).toBe('fetching');
 	});
@@ -431,8 +431,8 @@ describe('onLeave', () => {
 		const m = hole.create();
 		const after = vi.fn();
 		const boom = new Error('cleanup');
-		m.onLeave(after);
-		m.onLeave(() => {
+		m.scope.defer(after);
+		m.scope.defer(() => {
 			throw boom;
 		});
 		expect(() => m.go('fetching', { attempt: 1 })).toThrow(boom);
@@ -442,10 +442,10 @@ describe('onLeave', () => {
 
 	it('several that throw come back together', () => {
 		const m = hole.create();
-		m.onLeave(() => {
+		m.scope.defer(() => {
 			throw new Error('one');
 		});
-		m.onLeave(() => {
+		m.scope.defer(() => {
 			throw new Error('two');
 		});
 		try {
@@ -461,9 +461,9 @@ describe('onLeave', () => {
 	it('a cleanup that moves the machine again works, and the next visit starts clean', () => {
 		const m = hole.create();
 		const later = vi.fn();
-		m.onLeave(() => {
+		m.scope.defer(() => {
 			m.go('applying');
-			m.onLeave(later);
+			m.scope.defer(later);
 		});
 		m.go('fetching', { attempt: 1 });
 		expect(m.now.kind).toBe('applying');
@@ -476,7 +476,7 @@ describe('onLeave', () => {
 		const m = hole.create();
 		m.stop();
 		const cleanup = vi.fn();
-		m.onLeave(cleanup);
+		m.scope.defer(cleanup);
 		expect(cleanup).toHaveBeenCalledOnce();
 	});
 
@@ -484,8 +484,8 @@ describe('onLeave', () => {
 		const m = hole.create();
 		let aborted: boolean | undefined;
 		let signal!: AbortSignal;
-		void m.task((s) => (signal = s));
-		m.onLeave(() => (aborted = signal.aborted));
+		void m.scope.task((s) => (signal = s));
+		m.scope.defer(() => (aborted = signal.aborted));
 		m.go('fetching', { attempt: 1 });
 		expect(aborted).toBe(true);
 	});
@@ -493,7 +493,7 @@ describe('onLeave', () => {
 	it('a refused move runs no cleanup', () => {
 		const m = hole.create();
 		const cleanup = vi.fn();
-		m.onLeave(cleanup);
+		m.scope.defer(cleanup);
 		expect(m.move('failed', 'fetching', { attempt: 1 })).toBe(false);
 		expect(() => m.go('kept')).toThrow();
 		expect(cleanup).not.toHaveBeenCalled();
@@ -578,12 +578,12 @@ describe('stop', () => {
 		const m = hole.create();
 		m.go('fetching', { attempt: 1 });
 		let signal!: AbortSignal;
-		const out = m.task((s) => {
+		const out = m.scope.task((s) => {
 			signal = s;
 			return new Promise(() => {});
 		});
 		const cleanup = vi.fn();
-		m.onLeave(cleanup);
+		m.scope.defer(cleanup);
 		const w = m.wait('answered');
 		m.stop();
 		expect(signal.aborted).toBe(true);
@@ -599,7 +599,7 @@ describe('stop', () => {
 	it('twice is the same as once', () => {
 		const m = hole.create();
 		const cleanup = vi.fn();
-		m.onLeave(cleanup);
+		m.scope.defer(cleanup);
 		m.stop();
 		m.stop();
 		expect(cleanup).toHaveBeenCalledOnce();
@@ -608,8 +608,8 @@ describe('stop', () => {
 	it('a cleanup that throws on stop still runs the rest, then throws', () => {
 		const m = hole.create();
 		const rest = vi.fn();
-		m.onLeave(rest);
-		m.onLeave(() => {
+		m.scope.defer(rest);
+		m.scope.defer(() => {
 			throw new Error('x');
 		});
 		expect(() => m.stop()).toThrow('x');
@@ -699,7 +699,7 @@ describe('machines are independent', () => {
 		const a = hole.create();
 		const b = hole.create();
 		const leave_a = vi.fn();
-		a.onLeave(leave_a);
+		a.scope.defer(leave_a);
 		b.go('fetching', { attempt: 1 });
 		expect(a.now.kind).toBe('idle');
 		expect(leave_a).not.toHaveBeenCalled();

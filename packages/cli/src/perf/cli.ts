@@ -244,12 +244,12 @@ export async function serve(
 		if (m.move('spawning', 'stopping') || m.move('ready', 'stopping')) {
 			signal_group('SIGTERM');
 			const kill = setTimeout(() => signal_group('SIGKILL'), grace_ms);
-			m.onLeave(() => clearTimeout(kill));
+			m.scope.defer(() => clearTimeout(kill));
 		}
 		await m.wait('exited');
 	};
 
-	const answered = await m.task(async (signal) => {
+	const answered = await m.scope.task(async (signal) => {
 		while (Date.now() < deadline && !signal.aborted) {
 			try {
 				const res = await fetch(url, {

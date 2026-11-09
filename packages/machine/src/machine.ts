@@ -10,22 +10,22 @@
  *   h.go('fetching', { attempt: 1 });
  *
  * A machine is in exactly one state at a time, and a state can only go where its `steps` say. Every
- * move goes through one place, which is what makes the rest possible: work started in a state
- * (`task`) is aborted and its answer dropped once the machine leaves it, cleanups tied to a state
- * (`onLeave`) run exactly once when it leaves, and a `wait()` for a state that can no longer be
- * reached settles at once instead of hanging.
+ * move goes through one place, which is what makes the rest possible: each visit to a state is a
+ * scope (`m.scope`, ./scope.ts), so work started in it (`m.scope.task`) is aborted and its answer
+ * dropped once the machine leaves, and what it holds (listeners, timers, observers, cleanups) is
+ * released exactly once when it leaves; and a `wait()` for a state that can no longer be reached
+ * settles at once instead of hanging.
  *
  * Speed: every machine of every definition is one class with one field layout, so the moves stay
- * on V8's fast path. A state with no data is one frozen object shared by every machine of its
- * definition, so most moves allocate nothing. The abort controller, the cleanup list and the
- * waiter list are made the first time they are needed.
+ * on V8's fast path. The value of a visit is one small object, and a visit's scope and the waiter
+ * list are made the first time they are needed: a move nothing hangs work on makes neither.
  */
 import { DEV } from 'esm-env';
 import { machine_error, report, warn_once } from './messages.ts';
+import { CLOSED, is_time, MAX_TIMEOUT_MS, visit_scope, type Scope } from './scope.ts';
+import { STALE, type Stale } from './stale.ts';
 
-/** What `task()` and `wait()` give back when the machine moved on before the answer arrived. */
-export const STALE: unique symbol = Symbol.for('ogygia.machine.stale');
-export type Stale = typeof STALE;
+export { STALE, type Stale };
 
 /** The data each state carries, by state name: `{ idle: {}; failed: { error: unknown } }`. A
  *  state's data cannot have a `kind` field: that is the state's name. */
@@ -143,21 +143,22 @@ export interface Machine<S extends Shape<S>, T extends Steps<S>> {
 		...data: DataArgs<S[K & keyof S]>
 	): boolean;
 	/**
-	 * Runs `work` for the state the machine is in now. Leaving that state aborts `signal` and
-	 * settles the task with `STALE` right then, even when `work` never finishes, and even when the
-	 * machine comes back to the same state later: an answer only ever lands in the visit that asked
-	 * for it. A failure after the machine left is `STALE` too. A stopped machine gives `STALE`
-	 * without running `work`.
+	 * The scope of the visit the machine is in now: leaving the state (or `stop()`) closes it. What
+	 * hangs on it belongs to this visit alone, even when the machine comes back to the same state
+	 * later:
 	 *
-	 * After `await`, move on with `move()`, which checks the machine is still where you expect.
+	 * - `m.scope.task(work)`: its answer lands only in this visit, `STALE` once the machine left
+	 *   (aborting `signal` then), even when `work` never finishes. After `await`, move on with
+	 *   `move()`, which checks the machine is still where you expect.
+	 * - `m.scope.defer(cleanup)`: runs once when the machine leaves, newest first. One that throws
+	 *   does not stop the others or the move: once all have run, the move throws the error.
+	 * - `m.scope.on(...)`, `.timeout(...)`, `.watch(...)`: a listener, timer or observer for this
+	 *   visit only.
+	 *
+	 * On a stopped machine it is a closed scope: a task gives `STALE` without running, a cleanup
+	 * runs at once.
 	 */
-	task<R>(work: (signal: AbortSignal) => R): Promise<Awaited<R> | Stale>;
-	/**
-	 * Runs `cleanup` once, when the machine leaves the state it is in now (or stops). Cleanups run
-	 * last-added first. One that throws does not stop the others or the move: once all have run,
-	 * the move throws the error. On a stopped machine, `cleanup` runs at once.
-	 */
-	onLeave(cleanup: () => void): void;
+	readonly scope: Scope;
 	/**
 	 * The next time the machine is in `kind`: at once when it is in it now. `STALE` as soon as
 	 * `kind` can no longer be reached from where the machine is, or when it stops, so a wait never
@@ -281,15 +282,6 @@ function state_of(def: Def, node: Node, data: object | undefined): State {
 	return { ...data, kind };
 }
 
-/** The longest delay a timer holds (2^31 - 1 ms, ~24.8 days): Node and browsers clamp a longer one
- *  to 1 ms, so a state with it would end at once. */
-const MAX_TIMEOUT_MS = 2_147_483_647;
-
-/** A delay a timer can hold. */
-function is_time(ms: unknown): ms is number {
-	return typeof ms === 'number' && Number.isFinite(ms) && ms >= 0 && ms <= MAX_TIMEOUT_MS;
-}
-
 function illegal(def: Def, from: string, to: string): false {
 	const args = { name: def.name, from, to };
 	if (DEV) throw machine_error('machine_illegal_move', args);
@@ -307,11 +299,9 @@ class Running implements AnyMachine {
 	/** The state it is in, as the definition's node (its steps) and as its value (`now`). */
 	_node: Node;
 	_now: State;
-	/** Bumped by every move and by `stop`: a task's answer lands only while it is unchanged. */
-	_visit = 0;
 	_stopped = false;
-	_leave: (() => void)[] | null = null;
-	_abort: AbortController | null = null;
+	/** The visit's scope, once something asked for it: closed by the move that leaves the visit. */
+	_scope: Scope | null = null;
 	_waiters: Waiter[] | null = null;
 
 	constructor(def: Def, node: Node, now: State) {
@@ -323,6 +313,12 @@ class Running implements AnyMachine {
 
 	get now(): State {
 		return this._now;
+	}
+
+	get scope(): Scope {
+		if (this._scope !== null) return this._scope;
+		if (this._stopped) return CLOSED;
+		return (this._scope = visit_scope(this._def.name));
 	}
 
 	go(to: string, data?: object): boolean {
@@ -348,39 +344,6 @@ class Running implements AnyMachine {
 		return false;
 	}
 
-	task<R>(work: (signal: AbortSignal) => R): Promise<Awaited<R> | Stale> {
-		if (this._stopped) return Promise.resolve(STALE);
-		const visit = this._visit;
-		const signal = (this._abort ??= new AbortController()).signal;
-		let out: R | Promise<never>;
-		try {
-			out = work(signal);
-		} catch (error) {
-			out = Promise.reject(error);
-		}
-		return new Promise((resolve, reject) => {
-			// settles the moment the visit ends, even when `work` ignores its signal and never does
-			const on_leave = () => resolve(STALE);
-			signal.addEventListener('abort', on_leave, { once: true });
-			Promise.resolve(out).then(
-				(value) => {
-					signal.removeEventListener('abort', on_leave);
-					resolve(this._visit === visit ? value : STALE);
-				},
-				(error: unknown) => {
-					signal.removeEventListener('abort', on_leave);
-					if (this._visit === visit) reject(error);
-					else resolve(STALE);
-				}
-			);
-		});
-	}
-
-	onLeave(cleanup: () => void): void {
-		if (this._stopped) cleanup();
-		else (this._leave ??= []).push(cleanup);
-	}
-
 	wait(kind: string): Promise<State | Stale> {
 		if (!this._def.nodes.has(kind)) {
 			if (DEV)
@@ -401,14 +364,12 @@ class Running implements AnyMachine {
 	stop(): void {
 		if (this._stopped) return;
 		this._stopped = true;
-		this._visit++;
-		const leave = this._leave;
-		const abort = this._abort;
+		const scope = this._scope;
 		const waiters = this._waiters;
-		this._leave = this._abort = this._waiters = null;
+		this._scope = this._waiters = null;
 		if (waiters !== null) for (const w of waiters) w.resolve(STALE);
 		if (observers.length !== 0) notify(this._def.name, this._now, null, this);
-		this._exit(leave, abort);
+		scope?.close();
 	}
 
 	/** The one place a move happens: the new state first, then everything the old one owned. */
@@ -418,18 +379,15 @@ class Running implements AnyMachine {
 		const prev = this._now;
 		this._node = target;
 		this._now = next;
-		this._visit++;
 		// detached before anything runs, so a cleanup that moves the machine again starts clean
-		const leave = this._leave;
-		const abort = this._abort;
-		this._leave = null;
-		this._abort = null;
+		const scope = this._scope;
+		this._scope = null;
 		// (armed before anything else runs: a waiter or an observer that moves the machine again
-		// then leaves this visit, and its leave clears this timer)
+		// then leaves this visit, and closing it clears this timer)
 		if (target.timed !== null) this._arm(target.timed);
 		if (this._waiters !== null) this._settle(next);
 		if (observers.length !== 0) notify(def.name, prev, next, this);
-		if (leave !== null || abort !== null) this._exit(leave, abort);
+		scope?.close();
 	}
 
 	/**
@@ -438,7 +396,6 @@ class Running implements AnyMachine {
 	 * machine stays where it is: a timer has nobody to throw to.
 	 */
 	_arm(timed: Timed): void {
-		const visit = this._visit;
 		let ms: unknown;
 		try {
 			ms = typeof timed.ms === 'function' ? timed.ms(this._now) : timed.ms;
@@ -456,8 +413,9 @@ class Running implements AnyMachine {
 			});
 			return;
 		}
-		const timer = setTimeout(() => {
-			if (this._visit !== visit || this._stopped) return;
+		// (the visit's own timer: leaving closes its scope, which clears it, so it only ever fires in
+		// the visit that set it; and it never keeps a server process alive)
+		this.scope.timeout(() => {
 			const from = this._node.kind;
 			try {
 				this._enter(timed.to, timed.data === undefined ? undefined : timed.data(this._now));
@@ -469,9 +427,6 @@ class Running implements AnyMachine {
 				);
 			}
 		}, ms);
-		// (a server shutting down does not wait for a state's time)
-		(timer as { unref?: () => void }).unref?.();
-		(this._leave ??= []).push(() => clearTimeout(timer));
 	}
 
 	_settle(next: State): void {
@@ -486,26 +441,6 @@ class Running implements AnyMachine {
 		}
 		waiters.length = kept;
 		if (kept === 0 && this._waiters === waiters) this._waiters = null;
-	}
-
-	_exit(leave: (() => void)[] | null, abort: AbortController | null): void {
-		abort?.abort();
-		if (leave === null) return;
-		let errors: unknown[] | null = null;
-		for (let i = leave.length - 1; i >= 0; i--) {
-			try {
-				leave[i]();
-			} catch (error) {
-				(errors ??= []).push(error);
-			}
-		}
-		if (errors !== null)
-			throw errors.length === 1
-				? errors[0]
-				: new AggregateError(
-						errors,
-						`[ogygia] machine ${this._def.name}: ${errors.length} cleanups threw`
-					);
 	}
 }
 

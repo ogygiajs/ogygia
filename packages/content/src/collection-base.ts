@@ -10,7 +10,7 @@
  */
 import type { ContentRef, ContentRelations, Entry, RefEntry, SchemaLike } from './index.ts';
 import type { GroupMeta, Source, SourceEntry, SourceRef } from './source.ts';
-import { machine, once } from '@ogygia/machine';
+import { flights, machine, type Flights } from '@ogygia/machine';
 import { GRAPH, type ModuleRun } from './graph.ts';
 import { parseSchema } from './schema.ts';
 import { OgygiaError } from './messages/runtime.ts';
@@ -43,7 +43,7 @@ function close(changes: AsyncIterator<unknown>): unknown {
  */
 const collection_life = machine<{
 	idle: {};
-	running: { start: () => Promise<void> };
+	running: { start: Flights<void, void> };
 	disposed: {};
 }>()({
 	name: 'content-collection',
@@ -122,8 +122,11 @@ export class Collection<
 	/** The source's `init`, and (in `running`) the first full read with the live connection: each
 	 *  runs once, and a failure is never kept (one source outage once broke the collection until a
 	 *  restart, #189). */
-	readonly #init = once(async () => {
-		await this.#source.init?.();
+	readonly #init = flights({
+		name: 'content-collection init',
+		run: async () => {
+			await this.#source.init?.();
+		}
 	});
 	readonly #life: CollectionLife = collection_life.create();
 	/** Dev: the module run that built this collection (null outside the dev server). */
@@ -348,7 +351,7 @@ export class Collection<
 	/** The source started, read in full, and (a live source) followed for as long as the collection
 	 *  stays in this visit to `running`. */
 	async #begin(visit: Running): Promise<void> {
-		await this.#init();
+		await this.#init.get();
 		// the live connection opens BEFORE the first read starts: a source that announces a change
 		// only to whoever listens at that moment would tell nobody about one made during the read (#191)
 		const follow = this.#source.live && this.#life.now === visit;
@@ -451,13 +454,19 @@ export class Collection<
 	}
 
 	/** The catalog, loaded: the start of this visit to `running` (entered on the first read). */
-	#loaded(): Promise<void> {
+	#loaded(): Promise<unknown> {
 		this.#awake();
 		if (this.#life.now.kind !== 'running') {
-			this.#life.go('running', { start: once(() => this.#begin(this.#life.now as Running)) });
-			this.#life.onLeave(() => this.#stop_following());
+			this.#life.go('running', {
+				start: flights({
+					name: 'content-collection start',
+					run: () => this.#begin(this.#life.now as Running)
+				})
+			});
+			this.#life.scope.defer(() => this.#stop_following());
 		}
-		return (this.#life.now as Running).start();
+		// (its callers only wait: nothing drops a visit's start, so it never answers STALE)
+		return (this.#life.now as Running).start.get();
 	}
 
 	async ready(): Promise<ContentRef<Data, Meta>[]> {
@@ -586,7 +595,7 @@ export class Collection<
 		if (!this.#hasGraph()) {
 			// On-demand: a graph-less collection needs no catalog — fetch ONE full record.
 			this.#awake();
-			await this.#init();
+			await this.#init.get();
 			let ref = this.#catalog.get(id) ?? null;
 			const full = await this.#source.get(id);
 			if (!ref) {
