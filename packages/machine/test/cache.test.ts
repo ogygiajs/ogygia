@@ -61,6 +61,23 @@ describe('cache: bounded', () => {
 		expect(n.seen).toEqual(['a:xxxx:size', 'b:xxxx:size']);
 	});
 
+	it('a value in use counts against max but does not go for size: the next oldest goes', () => {
+		const n = noted();
+		const busy = new Set(['a']);
+		const c = cache<string, number>({
+			max: 2,
+			in_use: (_v, k) => busy.has(k),
+			on_evict: n.on_evict
+		});
+		c.set('a', 1);
+		c.set('b', 2);
+		c.set('c', 3);
+		expect(n.seen).toEqual(['b:2:size']);
+		busy.clear();
+		c.set('d', 4);
+		expect(n.seen).toEqual(['b:2:size', 'a:1:size']);
+	});
+
 	it('a value heavier than max, or with a bad weight, is not kept, and the old one stays', () => {
 		const c = cache<string, number>({ max: 5, weigh: (v) => v });
 		c.set('a', 2);

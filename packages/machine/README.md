@@ -165,7 +165,42 @@ if (page === STALE) return; // dropped, or this caller left
 - **`fresh` revalidates.** It starts a new flight beside the kept answer, which stays (and `peek` shows it) until the new one lands, and stays when the new one fails or is not kept. A flight already out is ended, so an answer from before a change cannot land after it.
 - A flights is `Disposable`: a scope can `adopt` it, and closing the scope ends its flights.
 
-Each key's entry is a machine (`flying`, `kept`, `gone`), so `observe()` hears every flight's moves under the flights' `name`.
+Each key's entry is a machine (`flying`, `kept`, `gone`), so `observe()` hears every flight's moves under the flights' `name`. Its kept answers live in a cache (below): `keep`, `max` and `weigh` are the cache's.
+
+## Caches
+
+A keyed store that is always bounded, always owned, and says when it lets a value go.
+
+```ts
+import { cache } from '@ogygia/machine';
+
+const pages = cache<string, Page>({
+	max: 4_000_000, // required: `Infinity` is a choice written out
+	weigh: (page) => page.html.length * 2, // default 1: `max` then counts values
+	keep: 60_000, // ms a value stays (or made from the value and key)
+	owner: request, // a scope: its end ends the cache
+	on_evict: (href, page, why) => page.stream?.cancel() // 'age' | 'size' | 'delete' | 'end'
+});
+pages.set('/docs', page);
+pages.get('/docs'); // a use: the least recently used go first past `max`
+```
+
+|                                         |                                                                                                               |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `max` / `weigh(value, key)`             | The most total weight it keeps. Past it, the expired go first, then the least recently used.                  |
+| `keep`                                  | How long a value stays, ms (or made from the value and key). `0` keeps nothing. Default `Infinity`.           |
+| `on_evict(key, value, why)`             | Hears each value that leaves, after it left, in order: `'age'`, `'size'`, `'delete'` (or replaced), `'end'`.  |
+| `in_use(value, key)`                    | A value in use counts against `max` but does not go for size.                                                 |
+| `owner`                                 | The scope it lives in. Its end ends the cache, and every value is heard `'end'`.                              |
+| `world`                                 | Values carry the stamp they were made at (`set(key, value, { stamp })`): an older one never replaces a newer. |
+| `get` / `peek`                          | The value: `get` is a use, `peek` is not.                                                                     |
+| `set` / `delete` / `clear`              | `set` says `false` when it did not keep the value (too heavy, kept 0 ms, older, or ended).                    |
+| `has` / `size` / `weight` / `entries()` | What it holds now, least recently used first.                                                                 |
+
+- **No unbounded default.** A cache with no `max` does not compile, and throws `machine_bad_option`.
+- **One timer.** The ages are kept by one timer of the cache's scope, set for the value due first.
+- **Notices never break it.** A notice that throws is reported (`machine_evict_failed`) and the rest still run. A `set` or `delete` inside a notice is a normal call: what it lets go is heard after the notices already due.
+- A cache is `Disposable`: with no `owner`, a scope can `adopt` it.
 
 ## Outbox
 

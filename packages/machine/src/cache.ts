@@ -47,6 +47,9 @@ export interface CacheOptions<K, V> {
 	keep?: number | ((value: V, key: K) => number);
 	/** Hears each value that leaves, after it left (see the module's comment). */
 	on_evict?: (key: K, value: V, why: EvictWhy) => void;
+	/** A value in use now: it counts against `max`, but does not go for size (the next least
+	 *  recently used goes instead). A flights' answer kept beside a refresh still out is one. */
+	in_use?: (value: V, key: K) => boolean;
 	/** The scope it lives in: when it ends, the cache ends, and every value is noticed 'end'. */
 	owner?: Scope;
 	/** The world its values are made in: a value made before the one a key holds never replaces it. */
@@ -90,6 +93,7 @@ class Store<K, V> implements Cache<K, V> {
 	_weigh: ((value: V, key: K) => number) | undefined;
 	_keep: number | ((value: V, key: K) => number);
 	_on_evict: ((key: K, value: V, why: EvictWhy) => void) | undefined;
+	_in_use: ((value: V, key: K) => boolean) | undefined;
 	_world: World<unknown> | undefined;
 	/** Least recently used first. */
 	_held = new Map<K, Held<V>>();
@@ -115,6 +119,7 @@ class Store<K, V> implements Cache<K, V> {
 		this._weigh = o.weigh;
 		this._keep = keep;
 		this._on_evict = o.on_evict;
+		this._in_use = o.in_use;
 		this._world = o.world as World<unknown> | undefined;
 		this._scope = o.owner === undefined ? scope() : o.owner.child();
 		this._scope.defer(() => this._end());
@@ -222,8 +227,10 @@ class Store<K, V> implements Cache<K, V> {
 	/** Past max: the expired go first, then the least recently used. */
 	_evict(now: number): void {
 		this._sweep(now);
+		const in_use = this._in_use;
 		for (const [key, h] of this._held) {
 			if (this._weight <= this._max) return;
+			if (in_use !== undefined && in_use(h.value, key)) continue;
 			this._held.delete(key);
 			this._weight -= h.weight;
 			this._due.push([key, h.value, 'size']);

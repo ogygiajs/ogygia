@@ -51,6 +51,7 @@
  * its place) is what aborts the work and turns its answer into STALE. `observe()` hears every
  * flight's moves, under the flights' `name`.
  */
+import { cache, type Cache, type EvictWhy } from './cache.ts';
 import { machine, type Machine } from './machine.ts';
 import { machine_error } from './messages.ts';
 import { under_policy, type Policy } from './policy.ts';
@@ -264,12 +265,18 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 	_touches: ((answer: V) => Iterable<unknown>) | undefined;
 	/** Stops hearing the world (on dispose). */
 	_unwatch: () => void = noop;
-	/** Some answer can expire: a new flight sweeps the expired ones out. */
-	_expires: boolean;
-	/** By key: the input itself, or (keyed) the spelled key. */
+	/** By key: the input itself, or (keyed) the spelled key. Every entry, flying or kept. */
 	_entries = new Map<unknown, Entry>();
-	_weight = 0;
+	/** The entries that keep an answer (kept, or flying beside the answer kept before): their
+	 *  bound (`max`, `weigh`), ages (`keep`) and use order. An answer it lets go for age or size
+	 *  leaves its entry. */
+	_kept: Cache<unknown, Entry>;
 	_disposed = false;
+
+	/** The total weight of what it keeps. */
+	get _weight(): number {
+		return this._kept.weight;
+	}
 
 	constructor(
 		o: FlightsCommon<I, unknown, unknown> & {
@@ -313,7 +320,18 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		// (one try with no deadline needs no policy: the run is the flight's work as it is)
 		this._retry =
 			retry === null || (retry.attempts <= 1 && retry.deadline === Infinity) ? null : retry;
-		this._expires = keep !== Infinity;
+		this._kept = cache<unknown, Entry>({
+			name: o.name ?? 'flights',
+			max,
+			weigh: (m) => held_of(m)?.weight ?? 0,
+			keep: (m) => {
+				const k = held_of(m);
+				return k === null || k.until === Infinity ? Infinity : k.until - Date.now();
+			},
+			on_evict: (key, m, why) => this._let_go(key, m, why),
+			// (an answer kept beside a refresh still out stays until the refresh lands)
+			in_use: (m) => m.now.kind === 'flying'
+		});
 		this._world = o.world;
 		this._touches = o.touches as ((answer: V) => Iterable<unknown>) | undefined;
 		if (o.world !== undefined) {
@@ -362,16 +380,10 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		if (m !== undefined) {
 			const s = m.now;
 			if (s.kind === 'kept') {
-				if (expired(s, s.until === Infinity ? 0 : Date.now())) {
-					this._remove(key, m);
-					m = undefined;
-				} else if (options?.fresh !== true) {
-					if (this._max !== Infinity) {
-						this._entries.delete(key);
-						this._entries.set(key, m);
-					}
-					return s.promise as Promise<V>;
-				} else prior = kept_of(s);
+				// (a use: the kept answer is the most recently used; one past its age leaves its entry)
+				if (this._kept.get(key) !== m) m = undefined;
+				else if (options?.fresh !== true) return s.promise as Promise<V>;
+				else prior = kept_of(s);
 			} else if (s.kind === 'flying') {
 				if (options?.fresh !== true) return this._join(key, m, s.flight, signal);
 				prior = s.prior;
@@ -412,6 +424,15 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		this._disposed = true;
 		this._unwatch();
 		this.drop(() => true);
+		this._kept[DISPOSE]();
+	}
+
+	/** The cache let an answer go: for its age or past `max`, the entry that kept it goes too. (A
+	 *  flight out beside an answer kept before goes on: it lands, or fails back to nothing kept.)
+	 *  Its own `delete`s are the entry's leaving already, and its end is the flights'. */
+	_let_go(key: unknown, m: Entry, why: EvictWhy): void {
+		if (why !== 'age' && why !== 'size') return;
+		if (m.now.kind === 'kept') this._remove(key, m);
 	}
 
 	/** What an entry shows (`undefined`: its answer expired). */
@@ -432,7 +453,6 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 
 	/** Starts a flight for `key` (the entry's `flying` visit), keeping `prior` beside it. */
 	_fly(key: unknown, m: Entry | undefined, input: I, prior: Kept | null): [Entry, Flight] {
-		if (this._expires) this._sweep(Date.now());
 		const stamp = this._world === undefined ? 0 : this._world.stamp();
 		// the shared answer is there before the run starts: a run that gets its own key (before it
 		// returns) joins this flight (#354)
@@ -534,20 +554,19 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		// (a weight below 0, or not a number, would lower the total and let `max` cap nothing)
 		if (!(ms > 0) || !(weight >= 0 && weight <= this._max)) return this._back(key, m, prior);
 		const at = Date.now();
-		this._weight += weight - (prior?.weight ?? 0);
 		m.go('kept', { answer, at, until: ms === Infinity ? Infinity : at + ms, weight, promise });
-		if (this._max !== Infinity) {
-			// the newest use last: the least recently used are first in line to go
-			this._entries.delete(key);
-			this._entries.set(key, m);
-			this._evict();
-		}
+		// the newest use: the least recently used are first in line to go past `max`
+		if (!this._kept.set(key, m)) this._remove(key, m);
 	}
 
-	/** Back to the answer kept before this flight, or gone when there was none. */
+	/** Back to the answer kept before this flight, or gone when there was none (or the cache let
+	 *  it go while the flight was out). */
 	_back(key: unknown, m: Entry, prior: Kept | null): void {
-		if (prior !== null) m.go('kept', prior);
-		else this._remove(key, m);
+		if (prior !== null) {
+			m.go('kept', prior);
+			if (this._kept.peek(key) === m || this._kept.set(key, m)) return;
+		}
+		this._remove(key, m);
 	}
 
 	/** A caller joins `flight`: with no signal, the shared answer; with one, its own stake in it. */
@@ -590,29 +609,16 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		if (this._entries.get(key) === m) {
 			this._entries.delete(key);
 			this._keys?.delete(key as string);
+			this._kept.delete(key);
 		}
-		const s = m.now;
-		if (s.kind === 'gone') return;
-		this._weight -= s.kind === 'kept' ? s.weight : (s.prior?.weight ?? 0);
-		m.go('gone');
+		if (m.now.kind !== 'gone') m.go('gone');
 	}
+}
 
-	_sweep(now: number): void {
-		for (const [key, m] of this._entries) {
-			const s = m.now;
-			if (s.kind === 'kept' && expired(s, now)) this._remove(key, m);
-		}
-	}
-
-	_evict(): void {
-		if (this._weight <= this._max) return;
-		// the expired go first: no caller gets them any more, so no live answer goes for them
-		if (this._expires) this._sweep(Date.now());
-		for (const [key, m] of this._entries) {
-			if (this._weight <= this._max) return;
-			if (m.now.kind === 'kept') this._remove(key, m);
-		}
-	}
+/** What an entry keeps: its answer, or the one kept beside its flight (`null`: none). */
+function held_of(m: Entry): Kept | null {
+	const s = m.now;
+	return s.kind === 'kept' ? s : s.kind === 'flying' ? s.prior : null;
 }
 
 /** A flights hears its world move (a function of its own: it holds no flights). */
