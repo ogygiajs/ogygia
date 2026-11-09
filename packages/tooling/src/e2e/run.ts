@@ -17,6 +17,7 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { join, relative } from 'node:path';
+import { registry, scope } from '@ogygia/machine';
 import { REPO } from './paths.ts';
 
 /** Suites split by spec file across lanes, and how each is built once before its lanes start. */
@@ -177,7 +178,9 @@ function assign(units: Unit[], lanes: number): Run[][] {
 		});
 }
 
-const children = new Set<ChildProcess>();
+/** The test processes running now: each leaves when it exits; the run's own scope owns them all. */
+const run_scope = scope();
+const children = registry<ChildProcess>();
 function kill_all() {
 	for (const child of children) {
 		try {
@@ -205,12 +208,12 @@ function run_process(
 			detached: true,
 			stdio: ['ignore', 'pipe', 'pipe']
 		});
-		children.add(child);
+		const exited = children.add(child, run_scope);
 		const chunks: Buffer[] = [];
 		child.stdout!.on('data', (d: Buffer) => chunks.push(d));
 		child.stderr!.on('data', (d: Buffer) => chunks.push(d));
 		child.on('close', (code) => {
-			children.delete(child);
+			exited();
 			writeFileSync(log_file, Buffer.concat(chunks));
 			resolve(code ?? 1);
 		});
