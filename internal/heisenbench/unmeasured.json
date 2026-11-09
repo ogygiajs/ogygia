@@ -33,44 +33,8 @@
 			"reason": "names an unnamed theme object for Shiki: a spread of a theme object, constant work; proven in packages/content/test/shiki-highlighters.test.ts"
 		},
 		{
-			"id": "packages/core/src/server/page-stream.ts > has_body_close > at_bytes",
-			"reason": "seven byte compares at one offset (constant work), moved as it was from hooks.ts; the search around it runs per streamed chunk in packages/core/test/page-stream-out.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred",
-			"reason": "wraps a Response's body in a ReadableStream owned by the request's scope (not cloneable), constant work; proven in packages/core/test/page-stream-out.test.ts"
-		},
-		{
 			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > cancel",
 			"reason": "the stream's cancel closes its owner: constant work"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start",
-			"reason": "forwards Kit's document and streams each promise's script as it settles: a live stream and promises (not recorded); its work per chunk is has_body_close's, per promise resolve_script's; proven in packages/core/test/page-stream-out.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start > <anonymous>~c8a149",
-			"reason": "reads Kit's dead tail to its end and drops it: a live stream reader (not recorded), one read per chunk"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start > maybe_close",
-			"reason": "closes the stream once nothing is pending: a stream controller (not replayable), constant work"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start > push",
-			"reason": "enqueues one promise's script on the stream controller (not replayable); its work is resolve_script's"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start > settled",
-			"reason": "one promise settled: its push and the count down, on the stream controller (not replayable), constant work; proven in packages/core/test/page-stream-out.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start > stream_one",
-			"reason": "attaches its handlers to one promise (not cloneable), constant work"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start > stream_one > then:0~cfd0a7",
-			"reason": "stages one settled value for the stream (stage_deferred's work, measured on its own) on the stream controller (not replayable); proven in packages/core/test/page-stream-out.test.ts"
 		},
 		{
 			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start > stream_one > then:1~0cd750",
@@ -337,10 +301,6 @@
 			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
 		},
 		{
-			"id": "packages/machine/src/flights.ts > attempt > under_policy:1~f8f205",
-			"reason": "the retry loop wiring (a timer, a caller signal, the try under a scope): timing work; proven in packages/machine/test/flights.test.ts and packages/machine/test/outbox.test.ts"
-		},
-		{
 			"id": "packages/machine/src/policy.ts > out_of_time",
 			"reason": "builds the TimeoutError tries past their deadline fail with, constant work; proven in packages/machine/test/flights.test.ts and packages/machine/test/outbox.test.ts"
 		},
@@ -435,10 +395,6 @@
 		{
 			"id": "packages/core/src/runtime/form-continuity.ts > close_restore",
 			"reason": "browser only: ends the open form restore window (one machine move), constant work; proven in apps/palaestra/e2e/continuity.spec.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/interaction.ts > disarm",
-			"reason": "browser only: ends one arming of the interaction capture (an owner-checked map delete and a state field), constant work; proven in packages/core/test/browser/interaction-rearm.test.ts and interaction-delegated.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/interaction.ts > wake > then:1 > then:1",
@@ -601,20 +557,12 @@
 			"reason": "browser only: an idle schedule fires once, at idle time or the 2 s cap, whichever is first (two cancels and the fire), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #on_idle > timeout:0~361f36",
-			"reason": "browser only: the idle schedule's fallback where the browser has no idle callback (a 200 ms pause on the visit), constant work"
-		},
-		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #on_media > on:2~a3a7e5",
 			"reason": "browser only: a media schedule's change listener on its visit (a match check, then off and fire), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #bound",
 			"reason": "browser only: two field reads (the region's frame-store binding, still open), constant work; proven in packages/core/test/browser/region-move.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > get #watching",
-			"reason": "browser only: two field reads (the region's sleep in the drift watch, still open), constant work; proven in packages/core/test/browser/drift-watch.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/core.ts > snippets_settled > timeout:0~4a8350",
@@ -637,14 +585,6 @@
 			"reason": "dev and browser only: clears the hydrating island's mark if it is still that one, constant work"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #by_visitor",
-			"reason": "browser only: the wake the interaction capture awaits (rejects when the island failed to wake), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hold_capture",
-			"reason": "browser only: hands the interaction capture's disarm from `armed` to `waking`, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts and interaction-delegated.test.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #apply_live",
 			"reason": "browser only: one live tick in its mailbox turn (the custom element, the frame store, hydration), constant work besides the morph and hydrate it calls; proven in packages/core/test/browser/live-region.test.ts, sim-region.test.ts and region-orderings.test.ts"
 		},
@@ -659,18 +599,6 @@
 		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #apply_live > subscribe:1~0fe909 > post:0~fc2088",
 			"reason": "browser only: hands that frame to the morph in its turn, constant work; proven in packages/core/test/browser/live-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #arm > start > background_start:0~120013",
-			"reason": "browser only: a schedule's background start, skipped once its armed state was left (#335), constant work; proven in packages/core/test/browser/region-orderings.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #connect",
-			"reason": "browser only: the custom element's connect in its mailbox turn (the old connectedCallback body, moved), constant work per region; proven in every packages/core/test/browser region test; its machines' cost is benched in packages/core/bench/runtime.bench.ts (region machines)"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fire_hydrate > ask:0~b4992e",
-			"reason": "browser only: hands the wake to the mailbox, constant work; the mailbox's wake path is benched in packages/core/bench/runtime.bench.ts (region mailbox)"
 		},
 		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fire_prefetch > post:0~906789",
@@ -705,16 +633,8 @@
 			"reason": "browser only: hands a live tick to the mailbox, constant work; proven in packages/core/test/browser/live-region.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > connectedCallback > post:0~ecc7b6",
-			"reason": "browser only: hands the connect to the mailbox, constant work; proven in every packages/core/test/browser region test"
-		},
-		{
 			"id": "packages/core/src/runtime/core.ts > hand_back",
 			"reason": "a constant one-liner: gives back a download slot whose region left while it queued"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > nothing",
-			"reason": "a constant no-op: maps a wake's STALE to nothing"
 		},
 		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #live_hydrate > ours",
@@ -871,18 +791,6 @@
 		{
 			"id": "packages/devtools/src/profiler/index.ts > disown_spans",
 			"reason": "takes a capture's span recorder out, handing spans back to the newest left: runs only as a V8 inspector capture ends, linear in the captures open (one or two); proven in packages/devtools/test/profiler-recorder.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fire_hydrate > ran",
-			"reason": "browser only: forgets a hydration run once it ended, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate_ran",
-			"reason": "browser only: forgets a hydration run unless a newer visit's took its place, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate > gone",
-			"reason": "browser only: is the hydration still its visit's (connected, the wake unchanged), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
 		},
 		{
 			"id": "packages/core/src/hooks.ts > OgygiaHandle > render_batch > batch_stream:1~4b5cdf",
@@ -1081,10 +989,6 @@
 			"reason": "browser only: logs chunk_reload_needed once per page (one console.error); proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/import-again.ts > import_file",
-			"reason": "browser only: a dynamic import() of an island's file through its loader; proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts (#261)"
-		},
-		{
 			"id": "packages/core/src/runtime/import-again.ts > flights:0",
 			"reason": "browser only: an island file's one load at a time (the dynamic import() of its URL, and the immediate retry under a fresh URL after a dropped download); proven in packages/core/test/browser/import-file-one-retry.test.ts (#271) and apps/palaestra/e2e/lazy-chunk-retry.spec.ts (#261)"
 		},
@@ -1097,20 +1001,12 @@
 			"reason": "browser only: the wait for Kit to apply its page (a global accessor and a Svelte effect root), once per wait; proven in packages/core/test/browser/kit-page-thread.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/load-scheduler.ts > flights:0",
-			"reason": "browser only: the critical-resources wait, once per document; proven in packages/core/test/browser/load-scheduler.test.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/load-scheduler.ts > until_critical",
 			"reason": "browser only: waits for the page's critical resources' load/error events, the first input or the cap, once per document; proven in packages/core/test/browser/load-scheduler.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/load-scheduler.ts > reset_load_scheduler > drop:0",
 			"reason": "a test seam: drops the critical wait, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/schedule.ts > flights:0",
-			"reason": "browser only: the document-painted gate, once per document; proven in packages/core/test/browser/document-painted-gate.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/schedule.ts > until_painted",
@@ -1569,10 +1465,6 @@
 			"reason": "a constant predicate in the test reset (drops every render flight): no work"
 		},
 		{
-			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > defer:0~95f179",
-			"reason": "the streamed page's Kit reader is cancelled when the request ends: a cancel when its owner ends, constant work"
-		},
-		{
 			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > defer:0~95f179 > catch:0~a1b2d0",
 			"reason": "the streamed page's Kit reader is cancelled when the request ends: a cancel when its owner ends, constant work"
 		},
@@ -1606,10 +1498,6 @@
 		},
 		{
 			"id": "packages/core/src/plugin/request-scope.ts > own_response",
-			"reason": "carries a response body through and ends the request's owner at its end (a live stream, not cloneable); proven in packages/core/test/request-scope.test.ts"
-		},
-		{
-			"id": "packages/core/src/plugin/request-scope.ts > own_response > defer:0~0e7f21",
 			"reason": "carries a response body through and ends the request's owner at its end (a live stream, not cloneable); proven in packages/core/test/request-scope.test.ts"
 		},
 		{
@@ -1757,10 +1645,6 @@
 			"reason": "runs an idle callback once and cancels its twin timer (scope timers, not cloneable), constant work"
 		},
 		{
-			"id": "packages/core/src/runtime/session.ts > RuntimeSession > get visit",
-			"reason": "returns a field, constant work"
-		},
-		{
 			"id": "packages/core/src/runtime/session.ts > RuntimeSession > next_visit",
 			"reason": "makes a page visit record (a scope and an empty list), constant work; run by packages/core/test/browser/nav-called-off-sheets.test.ts"
 		},
@@ -1851,10 +1735,6 @@
 		{
 			"id": "packages/postrender/src/messages.ts > POSTRENDER_WARNINGS > postrender_store_failed > text",
 			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/plugin/request-scope.ts > body_unread",
-			"reason": "reads a Request and a Response (not cloneable): two header compares, constant work; proven in packages/core/test/request-scope.test.ts"
 		},
 		{
 			"id": "packages/core/src/plugin/testing.ts > inRequest",
@@ -1991,14 +1871,6 @@
 		{
 			"id": "packages/core/src/runtime/core.ts > region_fragment > until_settled > then:0~2baffa",
 			"reason": "browser only: a constant no-op mapping the sheet's settled state to void; proven in packages/core/test/browser/region-sheet-failed.test.ts (#274)"
-		},
-		{
-			"id": "packages/core/src/runtime/load-scheduler.ts > critical_done",
-			"reason": "browser only: reads the critical gate machine's state, constant work; run in packages/core/test/browser/load-scheduler.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/load-scheduler.ts > settle_critical",
-			"reason": "browser only: one move of the critical gate machine and a queue drain (live document, not cloneable), constant work plus the drain; run in packages/core/test/browser/load-scheduler.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/region-sheets.ts > release_sheets",
