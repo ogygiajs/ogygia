@@ -53,7 +53,9 @@ export function startPlugin<Options = undefined, State = undefined>(
 	server: ServerPlugin<Options, State>,
 	{ name = 'test-plugin', options }: { name?: string; options?: Options } = {}
 ): StartedPlugin<Options, State> {
-	const [live] = start_plugins(
+	const {
+		plugins: [live]
+	} = start_plugins(
 		[{ name, options, server: server as ServerPlugin<unknown, unknown> }],
 		TEST_SIGNER
 	);

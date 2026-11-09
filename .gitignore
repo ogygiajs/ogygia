@@ -67,6 +67,8 @@ internal/repro-ogygia-footer/
 # Turborepo
 .turbo
 
-# Heisenbench (the bench files' engine, internal/heisenbench): its checkout, and the bench files' generated types
+# Heisenbench (the bench files' engine, internal/heisenbench): its checkout, the bench files' generated types,
+# and the report the bench CLI writes to the cwd when --out is not given
 /.heisenbench/
 /packages/*/bench/__heisenbench.d.ts
+/heisenbench-report.json

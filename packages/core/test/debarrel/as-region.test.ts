@@ -108,7 +108,8 @@ describe('debarrel + import.meta.og.asRegion', () => {
 				const id = await f.host().resolve(spec, importer);
 				return id ? { id } : null;
 			},
-			addWatchFile() {}
+			addWatchFile() {},
+			environment: { name: 'client' }
 		};
 		(plugin.configResolved as (c: unknown) => void)({
 			root: f.root,

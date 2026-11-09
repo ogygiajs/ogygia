@@ -22,11 +22,13 @@
 import { machine, STALE, type Stale } from '@ogygia/machine';
 import { analyze_exports, type ModuleShape } from './parse.ts';
 
-export interface Host {
+/** `Caller`: who asked for the map (`map(id, spec, caller)`), handed to every resolve of its walk —
+ *  the Vite plugin's transform context, whose own `resolve` knows its environment's conditions. */
+export interface Host<Caller = void> {
 	/** The module's source, or null when it cannot be read (virtual, binary, missing). */
 	read(id: string): string | null;
-	/** Resolve `spec` from `importer` to a file id; null when Vite cannot. */
-	resolve(spec: string, importer: string): Promise<string | null>;
+	/** Resolve `spec` from `importer` to a file id, as `caller` resolves it; null when Vite cannot. */
+	resolve(spec: string, importer: string, caller: Caller): Promise<string | null>;
 	/** May this resolved module be treated as a barrel at all? (matchers + node_modules policy) */
 	candidate(id: string, spec: string): boolean;
 	/** Is this module forced even though impure? */
@@ -68,8 +70,12 @@ const STRIP_QUERY_RE = /[?#].*$/;
 const NODE_MODULES_RE = /[\\/]node_modules[\\/]/;
 const PARSABLE_RE = /\.(?:[cm]?[jt]sx?|svelte\.[jt]s)$/;
 
-/** The walk in progress: the ids on the current recursion path (cycle detection). */
-type Walk = Set<string>;
+/** The walk in progress: the ids on the current recursion path (cycle detection), and the caller
+ *  whose resolve it walks with (a nested build started on the way walks with it too). */
+interface Walk<Caller> {
+	stack: ReadonlySet<string>;
+	caller: Caller;
+}
 
 type BarrelStates = {
 	/** nothing known: never asked, or an edit dropped what was */
@@ -90,12 +96,15 @@ const barrel_machine = machine<BarrelStates>()({
 
 type Barrel = ReturnType<typeof barrel_machine.create>;
 
-export class BarrelIndex {
-	#host: Host;
+/** One index caches the maps its callers' walks built, so every caller of one index must resolve
+ *  alike: the Vite plugin keeps one index per environment (a leaf may resolve to another file for
+ *  the client than for the server). */
+export class BarrelIndex<Caller = void> {
+	#host: Host<Caller>;
 	#barrels = new Map<string, Barrel>();
 	#shapes = new Map<string, ModuleShape | null>();
 
-	constructor(host: Host) {
+	constructor(host: Host<Caller>) {
 		this.#host = host;
 	}
 
@@ -133,9 +142,10 @@ export class BarrelIndex {
 	/**
 	 * The export map of a barrel, or null when the module is not a barrel the plugin may rewrite
 	 * (not a candidate, impure and not forced, kept, unreadable). `spec` is the specifier the
-	 * importer wrote — matchers see both. Concurrent callers share one build.
+	 * importer wrote — matchers see both. Concurrent callers share one build; a build resolves as
+	 * the `caller` that started it.
 	 */
-	async map(id: string, spec: string): Promise<ExportMap | null> {
+	async map(id: string, spec: string, caller: Caller): Promise<ExportMap | null> {
 		const clean = id.replace(STRIP_QUERY_RE, '');
 		if (clean !== id) return null; // `?raw`, `?url`, a virtual query — never a barrel
 		if (this.#host.kept(clean, spec)) return null;
@@ -145,24 +155,29 @@ export class BarrelIndex {
 			const b = this.#barrel(clean);
 			const s = b.now;
 			if (s.kind === 'built') return s.map;
-			const got = s.kind === 'building' ? await s.run : await this.#first(clean, spec, b);
+			const got = s.kind === 'building' ? await s.run : await this.#first(clean, spec, b, caller);
 			if (got !== STALE) return got;
 		}
 	}
 
 	/** The first ask for a barrel that is not built: its build, or null when it is not one. */
-	#first(id: string, spec: string, b: Barrel): Promise<ExportMap | null | Stale> | null {
+	#first(
+		id: string,
+		spec: string,
+		b: Barrel,
+		caller: Caller
+	): Promise<ExportMap | null | Stale> | null {
 		const shape = this.shape(id);
 		if (!shape || (!shape.pure && !this.#host.forced(id, spec))) {
 			b.go('built', { map: null });
 			return null;
 		}
-		return this.#start(id, shape, new Set());
+		return this.#start(id, shape, { stack: new Set(), caller });
 	}
 
 	/** Begin one build for `id` as the barrel's `building` visit, kept once built unless
 	 *  provisional; STALE when an edit drops it first (it stores nothing then). */
-	#start(id: string, shape: ModuleShape, walk: Walk): Promise<ExportMap | Stale> {
+	#start(id: string, shape: ModuleShape, walk: Walk<Caller>): Promise<ExportMap | Stale> {
 		const b = this.#barrel(id);
 		const map: ExportMap = {
 			id,
@@ -199,10 +214,9 @@ export class BarrelIndex {
 		return run;
 	}
 
-	async #build(map: ExportMap, shape: ModuleShape, outer: Walk): Promise<ExportMap> {
+	async #build(map: ExportMap, shape: ModuleShape, outer: Walk<Caller>): Promise<ExportMap> {
 		const id = map.id;
-		const walk: Walk = new Set(outer);
-		walk.add(id);
+		const walk: Walk<Caller> = { stack: new Set([...outer.stack, id]), caller: outer.caller };
 		// Explicit exports first (they win over stars: the spec shadows a star's name with a local
 		// export), stars after — a star never overrides an explicit name, and two stars with different
 		// leaves for one name make it ambiguous (a SyntaxError to import per spec; we leave it on the
@@ -220,7 +234,7 @@ export class BarrelIndex {
 				else map.opaque = true; // the target could not be resolved: that name stays on the barrel
 			} else if (rec.kind === 'star_ns') {
 				explicit.add(rec.exported);
-				const target = await this.#host.resolve(rec.source, id);
+				const target = await this.#host.resolve(rec.source, id, walk.caller);
 				if (target)
 					map.entries.set(rec.exported, {
 						id: target.replace(STRIP_QUERY_RE, ''),
@@ -230,7 +244,7 @@ export class BarrelIndex {
 			} else stars.push({ source: rec.source, type_only: rec.type_only });
 		}
 		for (const star of stars) {
-			const target = await this.#host.resolve(star.source, id);
+			const target = await this.#host.resolve(star.source, id, walk.caller);
 			if (!target || target !== target.replace(STRIP_QUERY_RE, '')) {
 				map.opaque = true;
 				continue;
@@ -263,9 +277,9 @@ export class BarrelIndex {
 		source: string,
 		imported: string,
 		map: ExportMap,
-		walk: Walk
+		walk: Walk<Caller>
 	): Promise<Leaf | null> {
-		const target = await this.#host.resolve(source, from);
+		const target = await this.#host.resolve(source, from, walk.caller);
 		if (!target) return null;
 		if (target !== target.replace(STRIP_QUERY_RE, '')) return null; // `?raw` etc. — leave it
 		map.deps.add(target);
@@ -288,7 +302,7 @@ export class BarrelIndex {
 	 * must run for the name to exist). On our own walk stack = a cycle (null); in flight on another
 	 * walk = do not wait (null, and the parent becomes provisional).
 	 */
-	async #through(id: string, parent: ExportMap, walk: Walk): Promise<ExportMap | null> {
+	async #through(id: string, parent: ExportMap, walk: Walk<Caller>): Promise<ExportMap | null> {
 		if (this.#host.kept(id, id)) return null;
 		const s = this.#barrel(id).now;
 		if (s.kind === 'built') {
@@ -296,7 +310,7 @@ export class BarrelIndex {
 			if (m) for (const d of m.deps) parent.deps.add(d);
 			return m;
 		}
-		if (walk.has(id)) {
+		if (walk.stack.has(id)) {
 			// a ring: the parent lacks this module's names until the build that owns it closes the
 			// ring (a self-star is the trivial ring — nothing is missing)
 			if (id !== parent.id) parent.cycles.add(id);
@@ -324,7 +338,7 @@ export class BarrelIndex {
 	async #star_names(
 		target: string,
 		parent: ExportMap,
-		walk: Walk
+		walk: Walk<Caller>
 	): Promise<Map<string, Leaf> | null> {
 		const shape = this.shape(target);
 		if (!shape) return null;
@@ -347,11 +361,11 @@ export class BarrelIndex {
 				if (leaf) out.set(rec.exported, leaf);
 				else parent.opaque = true;
 			} else if (rec.kind === 'star_ns') {
-				const t = await this.#host.resolve(rec.source, target);
+				const t = await this.#host.resolve(rec.source, target, walk.caller);
 				if (t) out.set(rec.exported, { id: t.replace(STRIP_QUERY_RE, ''), namespace: true });
 			} else {
 				// a star inside an impure module: follow it too
-				const t = await this.#host.resolve(rec.source, target);
+				const t = await this.#host.resolve(rec.source, target, walk.caller);
 				if (!t) {
 					parent.opaque = true;
 					continue;

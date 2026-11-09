@@ -258,6 +258,76 @@ describe('vite dev', { timeout: 30_000 }, () => {
 		}
 	});
 
+	describe('a leaf the client and the server resolve to different files (#252)', () => {
+		// `#where` is one specifier with a browser target and a server target (the app's `imports`
+		// conditions); the barrel re-exports it, so its map's leaf for `where` depends on who resolves
+		const per_environment = () => {
+			const files = app();
+			files['package.json'] = JSON.stringify({
+				name: 'app',
+				type: 'module',
+				imports: {
+					'#where': { browser: './lib/where.browser.ts', default: './lib/where.server.ts' }
+				}
+			});
+			files['lib/where.browser.ts'] = 'export const where = "browser";';
+			files['lib/where.server.ts'] = 'export const where = "server";';
+			files['lib/places/index.ts'] =
+				`export { where } from '#where';\nexport { util } from '../util';`;
+			files['src/where.ts'] =
+				`import { where, util } from '$lib/places';\nconsole.log(where, util);`;
+			return files;
+		};
+		const leaf = (code: string) =>
+			code.includes('where.browser.ts') && !code.includes('where.server.ts')
+				? 'browser'
+				: code.includes('where.server.ts') && !code.includes('where.browser.ts')
+					? 'server'
+					: code;
+
+		it('client and SSR transforms at the same time: each gets its own leaf', async () => {
+			f = fixture(per_environment());
+			const server = await createServer({
+				...config(f),
+				server: { middlewareMode: true, hmr: false }
+			});
+			try {
+				const [client, ssr] = await Promise.all([
+					server.environments.client.transformRequest('/src/where.ts'),
+					server.environments.ssr.transformRequest('/src/where.ts')
+				]);
+				expect(leaf(client!.code)).toBe('browser');
+				expect(leaf(ssr!.code)).toBe('server');
+			} finally {
+				await server.close();
+			}
+		});
+
+		it('the client first, then SSR (and the other way): the cached barrel map is not handed across', async () => {
+			for (const order of [
+				['client', 'ssr'],
+				['ssr', 'client']
+			] as const) {
+				f?.dispose();
+				f = fixture(per_environment());
+				const server = await createServer({
+					...config(f),
+					server: { middlewareMode: true, hmr: false }
+				});
+				try {
+					const got: Record<string, string> = {};
+					for (const env of order)
+						got[env] = leaf(
+							(await server.environments[env].transformRequest('/src/where.ts'))!.code
+						);
+					expect(got, order.join(' then ')).toEqual({ client: 'browser', ssr: 'server' });
+				} finally {
+					await server.close();
+				}
+			}
+		});
+	});
+
 	it('editing a barrel re-points the importer on the next transform (watch + invalidate)', async () => {
 		f = fixture(app());
 		const server = await createServer({
@@ -315,7 +385,8 @@ describe('ogygia({ barrels }) wiring', () => {
 				const id = await f.host().resolve(spec, importer);
 				return id ? { id } : null;
 			},
-			addWatchFile() {}
+			addWatchFile() {},
+			environment: { name: 'client' }
 		};
 		(plugin.configResolved as (c: unknown) => void)({
 			root: f.root,
@@ -347,7 +418,8 @@ describe('ogygia({ barrels }) wiring', () => {
 				const id = await f.host().resolve(spec, importer);
 				return id ? { id } : null;
 			},
-			addWatchFile() {}
+			addWatchFile() {},
+			environment: { name: 'client' }
 		};
 		(plugin.configResolved as (c: unknown) => void)({
 			root: f.root,
