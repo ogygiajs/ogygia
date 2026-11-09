@@ -1507,6 +1507,26 @@ const NOT_MOUNTED = (base: string, where: string) =>
 	`  plugins: [ogygia(), devtools({ profiler: true /* or { secret, path, … } */ }), sveltekit()]\n\n` +
 	`ogygia.handle() mounts it for you — no hooks wiring needed. Restart the server, then retry.`;
 
+/** Who holds the profiler's recorder, as its 409 says (devtools profiler `#busy`). */
+type BusyHolder = { kind: string; age_ms: number; stale: boolean };
+
+/** The holder a 409 names: null when it names none (an older profiler, or a body that is not its). */
+async function busy_holder(res: Response): Promise<BusyHolder | null> {
+	try {
+		const body = (await res.json()) as { holder?: BusyHolder | null };
+		return body.holder ?? null;
+	} catch {
+		return null; // ok: a 409 that names no holder is treated as a live one, and left alone
+	}
+}
+
+function busy_message(origin: string, holder: BusyHolder | null): string {
+	const who = holder
+		? `a ${holder.kind === 'window' ? 'recording window' : holder.kind === 'background' ? 'background capture' : 'page profile'} started ${Math.round(holder.age_ms / 1000)}s ago`
+		: 'another recording';
+	return `The profiler on ${origin} is busy: ${who} holds it, and it may be someone else's, so ogygia_profile leaves it alone. Wait for it to end and retry (the dashboard's Reset takes it over, if it is yours and stuck).`;
+}
+
 async function tool_profile(args: Attrs): Promise<ToolResult> {
 	const raw = String(args.url ?? '').trim();
 	if (!raw)
@@ -1595,9 +1615,14 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		);
 	}
 
-	// Stuck-session self-heal: a run abandoned by a crashed/timed-out request leaves a 409. Clear it
-	// via /reset (which we own) and retry ONCE — the agent shouldn't have to wait out the 2-min auto-heal.
+	// A 409: the recorder is someone else's, and the answer says whose. Only a STALE holder (a page
+	// recording past its cap, whose request died before its cleanup ran) is cleared, via /reset, and
+	// recorded again ONCE: the agent shouldn't have to wait out the auto-heal. A live holder (a window
+	// someone started, an e2e recording, a profile still running) is someone's recording, and a reset
+	// would take it from them: the tool says the profiler is busy instead (#290).
 	if (res.status === 409) {
+		const holder = await busy_holder(res);
+		if (holder?.stale !== true) return fail(busy_message(origin, holder));
 		try {
 			const reset = new URL(origin + profiler_base + '/reset');
 			const reset_h: Record<string, string> = key ? { 'x-profiler-key': key } : {};
@@ -1606,6 +1631,7 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		} catch {
 			// ok: falls through to the 409 message below, which says what to do
 		}
+		if (res.status === 409) return fail(busy_message(origin, await busy_holder(res)));
 	}
 
 	if ((res.headers.get('content-type') ?? '').includes('application/json')) {
@@ -1613,10 +1639,6 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		return text(render_profile(origin, (await res.json()) as ProfileReport));
 	}
 	const body = (await res.text()).replace(HTML_TAG_G, ' ').replace(WS_G, ' ').trim().slice(0, 300);
-	if (res.status === 409)
-		return fail(
-			`A profile is already running on ${origin} and /reset didn’t clear it. It auto-heals after ~2 min — wait and retry.`
-		);
 	if (res.status === 401 || res.status === 403)
 		return fail(
 			`The profiler on ${origin} is locked. Pass its secret as \`key\` (ask the user for it).`

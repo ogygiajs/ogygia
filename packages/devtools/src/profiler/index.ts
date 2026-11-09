@@ -890,7 +890,7 @@ const recorder_machine = machine<{
 	free: {};
 	background: { token: LockToken; since: number };
 	recording: { token: LockToken; since: number };
-	cut: { token: LockToken };
+	cut: { token: LockToken; since: number };
 }>()({
 	name: 'profiler-recorder',
 	initial: 'free',
@@ -901,7 +901,11 @@ const recorder_machine = machine<{
 		cut: ['free']
 	},
 	after: {
-		recording: { ms: RECORDING_HARD_CAP_MS + 2_000, to: 'cut', data: (s) => ({ token: s.token }) }
+		recording: {
+			ms: RECORDING_HARD_CAP_MS + 2_000,
+			to: 'cut',
+			data: (s) => ({ token: s.token, since: s.since })
+		}
 	}
 });
 
@@ -1544,6 +1548,33 @@ class Profiler {
 		// (leaving it, to `cut` or `free`, detaches the attribution context)
 		this.#holder.scope.defer(() => this.#release_als());
 		return token;
+	}
+
+	/**
+	 * The answer to a recording asked for while the recorder is someone else's: a 409 the client
+	 * retries, which says who holds it, since when, and whether that holder is STALE: a page recording
+	 * past its cap (`cut`, or past RECORDING_MAX_MS by its start), whose request died before its
+	 * cleanup ran. Only a stale holder is a reset's to take: a live one (a window someone started, a
+	 * page profile still running, the trap) is someone's recording (#290).
+	 */
+	#busy(message: string): Response {
+		const s = this.#holder.now;
+		const holder =
+			s.kind === 'free'
+				? null
+				: {
+						kind: this.#win.now.kind !== 'idle' ? 'window' : s.kind,
+						age_ms: Date.now() - s.since,
+						stale: s.kind === 'cut' || (s.kind === 'recording' && !this.#recording_active())
+					};
+		return new Response(JSON.stringify({ busy: true, message, holder }), {
+			status: 409,
+			headers: {
+				'content-type': 'application/json; charset=utf-8',
+				'retry-after': '2',
+				'cache-control': 'no-store'
+			}
+		});
 	}
 
 	/** `token` still owns the recorder (a reset, or the next owner, took it otherwise). */
@@ -4504,15 +4535,7 @@ class Profiler {
 	readonly #instance_id = Math.random().toString(36).slice(2, 10);
 
 	async #window_start(ctx: RouteCtx): Promise<Response> {
-		const busy = (message: string) =>
-			new Response(JSON.stringify({ busy: true, message }), {
-				status: 409,
-				headers: {
-					'content-type': 'application/json; charset=utf-8',
-					'retry-after': '2',
-					'cache-control': 'no-store'
-				}
-			});
+		const busy = (message: string) => this.#busy(message);
 		if (this.#win.now.kind !== 'idle') return busy('A window is already recording: stop it first.');
 		// a BACKGROUND window (the trap, the always-on sampler) holding the recorder is short: wait
 		// for it (as a page profile does); another page profile is the real conflict
@@ -4721,23 +4744,10 @@ class Profiler {
 		// (serverless) or comes back once this one finishes (single server). Reset clears a wedged one.
 		await this.#wait_for_background();
 		const token = this.#take('recording');
-		if (token === null) {
-			return new Response(
-				JSON.stringify({
-					busy: true,
-					message:
-						'A profile is already running on this worker. Waiting for it to finish (or for a free worker).'
-				}),
-				{
-					status: 409,
-					headers: {
-						'content-type': 'application/json; charset=utf-8',
-						'retry-after': '2',
-						'cache-control': 'no-store'
-					}
-				}
+		if (token === null)
+			return this.#busy(
+				'A profile is already running on this worker. Waiting for it to finish (or for a free worker).'
 			);
-		}
 		const q = ctx.url.searchParams;
 		// (a wedged run, whose page or upstream call hangs so this method never reaches its `finally`,
 		// is cut at the hard cap: the site stops paying the attribution tax then, not at

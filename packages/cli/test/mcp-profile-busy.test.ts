@@ -81,4 +81,41 @@ describe('ogygia_profile while another recording holds the profiler', () => {
 		expect(report.kind).toBe('window');
 		expect(report.id).not.toBeNull();
 	}, 30_000);
+
+	it('clears a stale holder with a reset, and records once more', async () => {
+		// a profiler whose recorder a dead page recording still holds, past its cap
+		const asked: string[] = [];
+		const stale = createServer((req, res) => {
+			const path = new URL(req.url ?? '/', 'http://localhost').pathname;
+			asked.push(path);
+			if (path === '/__profiler/page' && !asked.includes('/__profiler/reset')) {
+				res.writeHead(409, { 'content-type': 'application/json' });
+				res.end(
+					JSON.stringify({
+						busy: true,
+						message: 'busy',
+						holder: { kind: 'cut', age_ms: 40_000, stale: true }
+					})
+				);
+			} else if (path === '/__profiler/reset') {
+				res.writeHead(303, { location: '/__profiler' });
+				res.end();
+			} else {
+				res.writeHead(200, { 'content-type': 'text/plain' });
+				res.end('profiler');
+			}
+		});
+		await new Promise<void>((r) => stale.listen(0, '127.0.0.1', r));
+		try {
+			const at = `http://127.0.0.1:${(stale.address() as AddressInfo).port}`;
+			await dispatch_tool('ogygia_profile', { url: at + '/p', runs: 1 });
+			expect(asked.filter((p) => p !== '/__profiler')).toEqual([
+				'/__profiler/page',
+				'/__profiler/reset',
+				'/__profiler/page'
+			]);
+		} finally {
+			await new Promise((r) => stale.close(r));
+		}
+	});
 });
