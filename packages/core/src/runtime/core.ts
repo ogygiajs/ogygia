@@ -209,7 +209,33 @@ function absorb_page_facts_now(): void {
  *  document (a props sidecar, the page seed) or page facts an answer queued. Started beside the
  *  hydrate core, so it adds no hop; a page of JSON-lane scripts never downloads it. */
 function devalue_for_wake(): Promise<unknown> | undefined {
-	if (runtime_session.visit.facts.length || needs_devalue(document)) return load_devalue();
+	if (runtime_session.visit.facts.length || document_needs_devalue()) return load_devalue();
+}
+
+/**
+ * The document's `needs_devalue` answer (null: ask). One query of the whole document, not one per
+ * wake (that was islands × the page's elements). Asked again only after markup came in: a region
+ * connecting (every later render root, a hole answer, a router document, a fragment, carries its
+ * sidecars beside its regions), a fetched region's HTML parsed, a router swap. A yes stays yes: devalue
+ * is loading from then on.
+ */
+let doc_needs_devalue: boolean | null = null;
+let devalue_swap_armed = false;
+function document_needs_devalue(): boolean {
+	if (doc_needs_devalue === null) {
+		if (!devalue_swap_armed) {
+			devalue_swap_armed = true;
+			// oxlint-disable-next-line ogygia/owned-effects -- the devalue-lane answer's reset on each page swap, installed once (`devalue_swap_armed`): it lives as long as the document
+			document.addEventListener('og:after-swap', devalue_lane_stale);
+		}
+		doc_needs_devalue = needs_devalue(document);
+	}
+	return doc_needs_devalue;
+}
+
+/** New markup may hold a devalue-lane script: the next wake asks the document again. */
+function devalue_lane_stale(): void {
+	if (doc_needs_devalue === false) doc_needs_devalue = null;
 }
 
 /** What counts as intent for an ON-DEMAND hole (`render: 'deferred'` + `fetch: 'interaction'`).
@@ -347,6 +373,7 @@ async function snippets_settled(region: Element, visit: Scope): Promise<void> {
  */
 export function region_fragment(html: string): { frag: DocumentFragment; ready: Promise<void> } {
 	const frag = parse_region_html(html);
+	devalue_lane_stale();
 	// THE PAGE AN ANSWER RENDERED FOR (server/render-page.ts): the `page.data` its islands read, as the
 	// server looked it up. Queued on the page's visit for the hydrate of those islands (seeds.ts),
 	// never left in the DOM, and never handed to the next page (#269). (one per render root: a region
@@ -616,6 +643,7 @@ class OgygiaRegion extends HTMLElement {
 		// connect called on an element out of the page starts none)
 		if (this.#life.closed && this.isConnected) this.#life = scope();
 		connected_regions.add(this); // the navigation's shadow-root check counts these (connected.ts)
+		devalue_lane_stale(); // (its sidecar may have come in with it)
 		// its relative URLs, against the address it entered at — they are read again after any
 		// navigation, when `location` is another page (entry-locations.ts)
 		pin_region_urls(this);
