@@ -306,25 +306,39 @@ export function apply_late_templates(root: ParentNode): void {
  * making it momentarily focusable via `tabindex=-1` and then cleaning that up so the target does not
  * linger in the tab order. For `<body>` the attribute is removed immediately (body stays the active
  * element regardless). For a normal element — a `#hash` heading — removing `tabindex` while it is
- * focused would BLUR it back to `<body>`, so the cleanup is deferred to the element's next `blur`,
- * heard for as long as the page is on screen (its visit, runtime/session.ts `PageVisit`).
+ * focused would BLUR it back to `<body>`, so the cleanup is deferred to the element's next `blur`.
+ *
+ * The `tabindex` is LENT until that blur (`lent`), once per element: a second navigation that
+ * focuses it meanwhile (a refresh in place at its `#hash`) finds the loan and leaves it, instead of
+ * saving the first one's `-1` as the element's own and putting that back after the first cleanup
+ * (#278). The loan is the element's, not the page's: an element kept across a navigation (inside a
+ * kept island) still gives its `tabindex` back when focus leaves it on the next page.
  */
 function focus_reset(el: HTMLElement) {
 	const is_body = el === document.body || el === document.documentElement;
-	const had = el.hasAttribute('tabindex');
+	if (lent.has(el)) {
+		el.focus({ preventScroll: true }); // (still focusable: its loan waits for the blur)
+		return;
+	}
 	const prev = el.getAttribute('tabindex');
 	const restore = () => {
-		if (had) el.setAttribute('tabindex', prev as string);
+		lent.delete(el);
+		if (prev !== null) el.setAttribute('tabindex', prev);
 		else el.removeAttribute('tabindex');
 	};
 	el.tabIndex = -1; // focusable for this one call
 	el.focus({ preventScroll: true });
 	if (is_body) {
 		restore(); // body keeps focus even without the attribute
-	} else {
-		session().visit.scope.on(el, 'blur', () => restore(), { once: true });
+		return;
 	}
+	lent.set(el, prev);
+	// oxlint-disable-next-line ogygia/owned-effects -- the element's own tabindex loan: it ends on the element's next blur, and outlives the page when the element is kept
+	el.addEventListener('blur', restore, { once: true });
 }
+
+/** The elements whose `tabindex` a navigation's focus lent until they blur, with their own value. */
+const lent = new WeakMap<HTMLElement, string | null>();
 
 /** Head nodes that must never be adopted from SPA HTML (rewrite relative fetches / CSP). */
 function is_dangerous_head_node(node: Element): boolean {
