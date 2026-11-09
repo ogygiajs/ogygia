@@ -10,6 +10,7 @@ import {
 	render_cache_clear,
 	cached_render
 } from '../src/server/render-cache.ts';
+import { ConcurrencyGate } from '../src/runtime/concurrency.ts';
 
 beforeEach(() => render_cache_clear());
 
@@ -102,5 +103,120 @@ describe('cached_render — the shared seam (G2)', () => {
 		expect(await cached_render(body, cache, 1)).toBe(null);
 		expect(await cached_render(body, cache, 2)).toBe(null);
 		expect(calls).toBe(2); // both attempted — a failed render didn't poison the cache
+	});
+});
+
+describe('cached_render — one render per key in flight (#244)', () => {
+	/** A render that takes `ms` of real time (a real upstream wait), counting how many ran. */
+	function slow(ms: number | ((n: number) => number), answer: (n: number) => string) {
+		let renders = 0;
+		const body = async () => {
+			const n = ++renders;
+			await new Promise((r) => setTimeout(r, typeof ms === 'number' ? ms : ms(n)));
+			return answer(n);
+		};
+		return {
+			body,
+			get renders() {
+				return renders;
+			}
+		};
+	}
+
+	it('20 concurrent calls for one cached hole render it once, and all get its answer', async () => {
+		const r = slow(20, (n) => `<p>${n}</p>`);
+		const cache = { key: render_cache_key('burst', 'p', ''), ttl: 60 };
+		const reports: string[] = [];
+		const out = await Promise.all(
+			Array.from({ length: 20 }, () =>
+				cached_render(r.body, cache, Date.now(), (o) => reports.push(o))
+			)
+		);
+		expect(r.renders).toBe(1);
+		expect(new Set(out)).toEqual(new Set(['<p>1</p>']));
+		// the one that rendered stored it; the others were served without rendering
+		expect(reports.filter((o) => o === 'miss')).toHaveLength(1);
+		expect(reports.filter((o) => o === 'hit')).toHaveLength(19);
+		// and the next call is a plain hit
+		expect(await cached_render(r.body, cache, Date.now())).toBe('<p>1</p>');
+		expect(r.renders).toBe(1);
+	});
+
+	it('a failed render is not cached: the calls that joined it get its failure, the next call renders', async () => {
+		const r = slow(20, (n) => {
+			if (n === 1) throw new Error('upstream down');
+			return `<p>${n}</p>`;
+		});
+		const cache = { key: render_cache_key('fails', 'p', ''), ttl: 60 };
+		const out = await Promise.allSettled(
+			Array.from({ length: 5 }, () => cached_render(r.body, cache, Date.now()))
+		);
+		expect(r.renders).toBe(1); // the joiners did not each try again
+		for (const o of out) {
+			expect(o.status).toBe('rejected');
+			expect((o as PromiseRejectedResult).reason.message).toBe('upstream down');
+		}
+		expect(await cached_render(r.body, cache, Date.now())).toBe('<p>2</p>');
+		expect(r.renders).toBe(2);
+	});
+
+	it('different keys never share a render', async () => {
+		const r = slow(10, (n) => `<p>${n}</p>`);
+		const a = { key: render_cache_key('a', 'p', 'A'), ttl: 60 };
+		const b = { key: render_cache_key('a', 'p', 'B'), ttl: 60 };
+		await Promise.all([cached_render(r.body, a, Date.now()), cached_render(r.body, b, Date.now())]);
+		expect(r.renders).toBe(2);
+	});
+
+	it('an uncached hole renders for every call, concurrent or not', async () => {
+		const r = slow(10, (n) => `<p>${n}</p>`);
+		await Promise.all(
+			Array.from({ length: 3 }, () => cached_render(r.body, undefined, Date.now()))
+		);
+		expect(r.renders).toBe(3);
+	});
+
+	it('a flight from before a clear stores nothing and never removes the flight after it', async () => {
+		// (the first render takes 20 ms, the second 60: the old flight ends while the new one runs)
+		const r = slow(
+			(n) => (n === 1 ? 20 : 60),
+			(n) => `<p>${n}</p>`
+		);
+		const cache = { key: render_cache_key('cleared', 'p', ''), ttl: 60 };
+		const old = cached_render(r.body, cache, Date.now());
+		render_cache_clear(); // (ops: drop everything, the flight in progress too)
+		const fresh = cached_render(r.body, cache, Date.now()); // a new flight for the same key
+		expect(await old).toBe('<p>1</p>'); // its own caller still gets its answer …
+		// … but it is not stored, and the fresh flight is still the one a new call joins
+		const joined = cached_render(r.body, cache, Date.now());
+		expect(await Promise.all([fresh, joined])).toEqual(['<p>2</p>', '<p>2</p>']);
+		expect(r.renders).toBe(2);
+	});
+
+	it('a render whose own request left before it started is not a failure for the calls that joined it (#245)', async () => {
+		// a full render gate: the owner's render waits for a slot, and its visitor leaves meanwhile
+		const gate = new ConcurrencyGate(1);
+		const busy = gate.run(() => new Promise((r) => setTimeout(r, 30)));
+		let renders = 0;
+		const body = (signal?: AbortSignal) => () =>
+			gate.run(
+				async () => {
+					renders++;
+					return `<p>${renders}</p>`;
+				},
+				{ signal }
+			);
+		const cache = { key: render_cache_key('left', 'p', ''), ttl: 60 };
+		const leave = new AbortController();
+		const owner = cached_render(body(leave.signal), cache, Date.now(), undefined, leave.signal);
+		const owner_out = owner.catch((e: unknown) => e);
+		const joiner = cached_render(body(), cache, Date.now()); // another request, still there
+		leave.abort();
+		expect(await owner_out).toBe(leave.signal.reason);
+		// the joiner renders it itself, once, and stores it
+		expect(await joiner).toBe('<p>1</p>');
+		expect(renders).toBe(1);
+		expect(render_cache_get(cache.key, Date.now())).toBe('<p>1</p>');
+		await busy;
 	});
 });

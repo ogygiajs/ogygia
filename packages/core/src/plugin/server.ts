@@ -105,6 +105,55 @@ export function around(plugins: readonly LivePlugin[], core: Handle): Handle {
 	return inner;
 }
 
+/**
+ * The request's end: each plugin's `done`, in order (one that throws does not stop the others), and
+ * the work they leave running (a sink's send, #243):
+ * - the platform keeps a request alive past its response (`platform.context.waitUntil` or
+ *   `platform.ctx.waitUntil`): the work is handed to it;
+ * - otherwise it runs on by itself: a long-running server keeps it alive in the process.
+ *
+ * The visitor's response is never held for it. A failed piece of work never fails the request (the
+ * plugin says what went wrong), and is never an unhandled rejection.
+ */
+export function end_request(
+	plugins: readonly LivePlugin[],
+	ctxs: readonly RequestContext<unknown, unknown>[],
+	platform: unknown
+): void {
+	let left: Promise<void>[] | null = null;
+	for (let i = 0; i < plugins.length; i++) {
+		try {
+			const work = plugins[i].def.done?.(ctxs[i]);
+			if (work) (left ??= []).push(Promise.resolve(work).then(undefined, ignore));
+		} catch {
+			/* a plugin's tail never fails the request */
+		}
+	}
+	if (left === null) return;
+	const wait_until = wait_until_of(platform);
+	if (wait_until === null) return;
+	try {
+		wait_until(left.length === 1 ? left[0] : Promise.all(left).then(ignore));
+	} catch {
+		/* a platform that refuses it: the work runs on by itself */
+	}
+}
+
+function ignore(): void {}
+
+/** The platform's way to keep a request alive past its response, or null. */
+function wait_until_of(platform: unknown): ((work: Promise<unknown>) => void) | null {
+	if (typeof platform !== 'object' || platform === null) return null;
+	for (const at of ['context', 'ctx'] as const) {
+		const host = (platform as Record<string, unknown>)[at] as
+			| { waitUntil?: (work: Promise<unknown>) => void }
+			| null
+			| undefined;
+		if (typeof host?.waitUntil === 'function') return (work) => host.waitUntil!(work);
+	}
+	return null;
+}
+
 /** The per-plugin contexts of one request. */
 export function request_contexts(
 	plugins: readonly LivePlugin[],

@@ -334,7 +334,7 @@ decide({ source: within(300, openfeature(OpenFeature.getClient())) });
 
 ### `prime_flags()` and `flush_exposures()`
 
-The flags plugin calls these for you: `prime_flags(c)` at the start of each request and `flush_exposures()` at its end. They are exported for code that runs outside a request. Call `flush_exposures()` to send queued exposures before a process exits or at the end of a test, and `prime_flags(c)` to run the source for a request the plugin never saw, such as one built in a unit test. Priming a request twice does nothing the second time.
+The flags plugin calls these for you: `prime_flags(c)` at the start of each request and `flush_exposures()` at its end. They are exported for code that runs outside a request. Call `await flush_exposures()` to send queued exposures before a process exits or at the end of a test; it resolves once they have reached the sink. Call `prime_flags(c)` to run the source for a request the plugin never saw, such as one built in a unit test. Priming a request twice does nothing the second time.
 
 ## The precedence chain
 
@@ -396,7 +396,7 @@ decide({
 });
 ```
 
-A sink that throws never breaks a request, and the remaining events drain at the end of each request, which is safe on serverless platforms. For logs and `data-og-exp` stamps, `stamp(c)` gives you `name:variant`:
+A sink that throws or rejects never breaks a request; the failure is logged once with the code `flags_exposure_failed`, and that batch is lost. The remaining events drain at the end of each request, and the response never waits for the send. When the platform offers `waitUntil` (as serverless and edge platforms do), the send is handed to it, so the instance stays alive until the send ends. Otherwise the send runs on in the server's process, which a long-running server keeps alive. One send runs at a time, and events read during a send go in the next one. For logs and `data-og-exp` stamps, `stamp(c)` gives you `name:variant`:
 
 ```svelte
 <section data-og-exp={data.stamp}>…</section>

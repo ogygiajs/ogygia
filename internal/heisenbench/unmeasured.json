@@ -335,6 +335,10 @@
 		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate > gone",
 			"reason": "browser only: is the hydration still its visit's (connected, the wake unchanged), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > render_batch > batch_stream:1~4b5cdf",
+			"reason": "the handle's one-line hand-off of a batch call (and the stream's signal) to #render_capability; the handle runs only inside a Kit server build, and batch_stream itself is benched (packages/core/bench/server.bench.ts)"
 		}
 	]
 }

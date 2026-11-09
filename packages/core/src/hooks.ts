@@ -94,7 +94,7 @@ import {
 	set_current_request,
 	type RequestFacts
 } from './plugin/facts.ts';
-import { around, request_contexts, start_plugins } from './plugin/server.ts';
+import { around, end_request, request_contexts, start_plugins } from './plugin/server.ts';
 // PULL-registration at decode time (idempotent; no import-time side effects).
 import { register_wire_kind } from './live-transport.ts';
 import { register_store_kind, register_derived_kind } from './store-transport.ts';
@@ -107,7 +107,7 @@ import {
 	is_region_id,
 	is_region_ttl
 } from './server/endpoint.ts';
-import { build_parcel, done_parcel } from './server/stream-regions.ts';
+import { batch_stream } from './server/stream-regions.ts';
 import {
 	page_declares_router_meta,
 	page_declares_runtime_script,
@@ -500,6 +500,8 @@ const RENDER_TIMEOUT_MS = 10_000;
 
 /** Process-local cap on concurrent region SSR (M1 CPU amp under valid MAC). */
 const render_gate = new ConcurrencyGate(REGION_RENDER_CONCURRENCY);
+/** The abandoned renders already told (one render's timeout reaches every call that joined it). */
+const told_abandoned = new WeakSet<Error>();
 
 /** The per-plugin contexts of an app with no plugins (shared: never written to). */
 const NO_CTXS: readonly RequestContext<unknown, unknown>[] = [];
@@ -811,13 +813,8 @@ class OgygiaHandle {
 			}
 			return await this.#route(event, resolve, path, ctxs, facts);
 		} finally {
-			for (let i = 0; i < plugins.length; i++) {
-				try {
-					plugins[i].def.done?.(ctxs[i]);
-				} catch {
-					/* a plugin's tail never fails the request */
-				}
-			}
+			// (an answered, failed or streamed request included; the response never waits for it)
+			end_request(plugins, ctxs, event.platform);
 		}
 	};
 
@@ -1042,23 +1039,10 @@ class OgygiaHandle {
 			return region_response('Bad Request', { status: 400 });
 		}
 		const calls = parsed.filter((e): e is string => typeof e === 'string').slice(0, MAX_BATCH);
-		const render = (endpoint: string) => this.#render_capability(endpoint, event, true);
-		const encoder = new TextEncoder();
-
-		const stream = new ReadableStream<Uint8Array>({
-			async start(controller) {
-				// Each call renders independently; enqueue its frame on settle, whatever the order.
-				await Promise.all(
-					calls.map(async (endpoint) => {
-						const out = await render(endpoint).catch(() => null);
-						const parcel = out ? build_parcel(out.slot, out.html) : null;
-						if (parcel) controller.enqueue(encoder.encode(parcel));
-					})
-				);
-				controller.enqueue(encoder.encode(done_parcel()));
-				controller.close();
-			}
-		});
+		// (the stream's signal aborts when the visitor leaves: the holes not rendered yet never are)
+		const stream = batch_stream(calls, (endpoint, signal) =>
+			this.#render_capability(endpoint, event, true, signal)
+		);
 
 		return region_response(stream, {
 			status: 200,
@@ -1716,11 +1700,15 @@ class OgygiaHandle {
 		base?: URL,
 		/** the hole's server tree reads `page.data`: its page is looked up before it renders (a cache
 		 *  hit never pays it) */
-		reads_page_data = false
+		reads_page_data = false,
+		/** aborts when nobody waits on this render any more (a cancelled batch): one not started
+		 *  yet never starts, and never takes a render slot (#245) */
+		signal?: AbortSignal
 	): Promise<string | null> {
 		// R6/G2: the ONE cache-fronted render seam. `cached_render` serves a memo when the hole opted
 		// into a positive `maxAge` (key carries the session seal — a per-user render never crosses
-		// users); on a miss it runs the render_body below. The ENDPOINT wraps its render in the
+		// users); on a miss it runs the render_body below, once for every call of its key in flight
+		// (they join it: one slot for a burst, #244). The ENDPOINT wraps its render in the
 		// concurrency gate + timeout (the inline-island path, sharing `cached_render`, does not).
 		const render_body = async (): Promise<string> => {
 			const mod = await load();
@@ -1740,7 +1728,7 @@ class OgygiaHandle {
 		// within RENDER_TIMEOUT_MS. A render still running then is abandoned (it cannot be cancelled):
 		// its hole keeps the fallback and its slot goes to the next hole, so renders stuck on a hung
 		// upstream never hold every slot.
-		const gated = { deadline_ms: RENDER_TIMEOUT_MS };
+		const gated = { deadline_ms: RENDER_TIMEOUT_MS, signal };
 		try {
 			return await cached_render(
 				async () => {
@@ -1763,16 +1751,22 @@ class OgygiaHandle {
 				},
 				cache,
 				Date.now(),
-				report
+				report,
+				signal
 			);
 		} catch (e) {
 			// `keepFallback()` ends a render on purpose: the page's fallback is right for this
 			// visitor. Carried as a marker string so the cache/batch/endpoint seams stay string-typed.
 			if (is_keep_fallback(e)) return KEEP_FALLBACK_HTML;
+			// nobody waits on it: nothing to say, and nothing to answer
+			if (signal?.aborted) return null;
 			// The first render abandoned while none was: a production log line too, as renders that
-			// outlive their deadline usually await something that hangs
-			if (is_run_timeout(e) && render_gate.abandoned === 1)
+			// outlive their deadline usually await something that hangs. (Said by one call: the calls
+			// that joined a cached hole's render get the same error, render_cache.ts)
+			if (is_run_timeout(e) && render_gate.abandoned === 1 && !told_abandoned.has(e as Error)) {
+				told_abandoned.add(e as Error);
 				warn('region_render_abandoned', { ms: RENDER_TIMEOUT_MS });
+			}
 			// The response is an opaque 500 ("Region render failed"); the reason belongs in the dev
 			// terminal — a hole that throws only on the dev server is otherwise a blind hunt.
 			if (import.meta.env.DEV) warn('region_render_failed', e);
@@ -1912,10 +1906,12 @@ class OgygiaHandle {
 		/** A BATCH parcel is the hole's answer: through the app's transform like its own request, and
 		 *  logged for the profiler as a hole request. A postrender stitch splices into a stored document
 		 *  and stays as it was. */
-		batch = false
+		batch = false,
+		/** the batch's: aborts when its visitor left (nothing more is verified, loaded or rendered) */
+		signal?: AbortSignal
 	): Promise<{ slot: string; html: string } | null> {
 		const q = endpoint.indexOf('?');
-		if (q === -1) return null;
+		if (q === -1 || signal?.aborted) return null;
 		const cap = capability_of(new URLSearchParams(endpoint.slice(q + 1)));
 		const { id, payload, sig } = cap;
 
@@ -1948,7 +1944,8 @@ class OgygiaHandle {
 			stats ? (o) => (outcome = o) : undefined,
 			stats ? timing : undefined,
 			event.url,
-			reads_page_data
+			reads_page_data,
+			signal
 		);
 		if (stats)
 			record_batch_hole_stats(event.request, {
@@ -1964,7 +1961,8 @@ class OgygiaHandle {
 				ms: performance.now() - t0,
 				status: body === null ? 500 : 200
 			});
-		if (body === null || body.length > MAX_REGION_BODY) return null;
+		// (an answer nobody waits on any more is not shaped: the stream drops it)
+		if (body === null || body.length > MAX_REGION_BODY || signal?.aborted) return null;
 		// "Keep the fallback": the parcel carries the marker alone (no CSS links, nothing to hoist).
 		if (body === KEEP_FALLBACK_HTML) return { slot: sig, html: KEEP_FALLBACK_HTML };
 		// CSS links ride in the parcel; the client hoists them to <head> (a body/parcel link is inert

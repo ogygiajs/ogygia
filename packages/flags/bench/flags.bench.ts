@@ -3,10 +3,11 @@
 // a fresh request (reads are memoized per request, as on a real server).
 import { bench } from '@bench/heisenbench/bench';
 import { startPlugin } from '@ogygia/core/plugin/testing';
-import { decide, flag, type CtxLike } from '../src/index.ts';
+import { decide, flag, flush_exposures, type CtxLike } from '../src/index.ts';
+import { FLAGS_WARNINGS } from '../src/messages.ts';
 import server from '../src/server.ts';
 
-startPlugin(server, { name: '@ogygia/flags' });
+const { ctx } = startPlugin(server, { name: '@ogygia/flags' });
 decide({ overrides: () => true, source: undefined, exposure: undefined });
 
 const checkout = flag('checkout-v2', 25);
@@ -42,6 +43,50 @@ bench(
 	{
 		setup: () => ({ crowd: Array.from({ length: 500 }, (_, i) => visitor(i)) }),
 		scale: (_ctx, k) => ({ crowd: Array.from({ length: 500 * k }, (_, i) => visitor(i)) })
+	}
+);
+
+// The exposure queue: reads buffer exposures, each request's end sends them (one send at a time,
+// what is read meanwhile goes in the next), and a sink that fails is said, not thrown.
+bench(
+	'flags: exposures of 200 requests sent at each request end, through a sink that sometimes fails',
+	async ({ crowd }) => {
+		const quiet = console.warn;
+		console.warn = () => {};
+		let sends = 0;
+		let events = 0;
+		decide({
+			exposure: async (batch) => {
+				await Promise.resolve();
+				if (++sends % 5 === 0) throw new Error('pipeline down');
+				events += batch.length;
+			},
+			batch: { max: 8, ms: 1 }
+		});
+		try {
+			// requests one after another, two at a time in flight: the second's exposures wait for the
+			// first's send
+			for (let i = 0; i < crowd.length; i += 2) {
+				for (const f of FLAGS) f(crowd[i]);
+				const first = server.done!(ctx(crowd[i].request));
+				if (i + 1 < crowd.length) for (const f of FLAGS) f(crowd[i + 1]);
+				const second = i + 1 < crowd.length ? server.done!(ctx(crowd[i + 1].request)) : undefined;
+				await Promise.all([first, second]);
+			}
+			// reads outside a request: the age cap sends them
+			for (const f of FLAGS) f(visitor(crowd.length));
+			await new Promise((r) => setTimeout(r, 5));
+			await flush_exposures();
+		} finally {
+			decide({ exposure: undefined, batch: { max: 25, ms: 2000 } });
+			console.warn = quiet;
+		}
+		const said = FLAGS_WARNINGS.flags_exposure_failed;
+		return sends * 1000 + events + said.text().length + said.details().length;
+	},
+	{
+		setup: () => ({ crowd: Array.from({ length: 200 }, (_, i) => visitor(i)) }),
+		scale: (_ctx, k) => ({ crowd: Array.from({ length: 200 * k }, (_, i) => visitor(i)) })
 	}
 );
 

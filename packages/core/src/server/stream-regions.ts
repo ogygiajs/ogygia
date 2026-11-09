@@ -10,8 +10,9 @@
  * decoded string counts in — so its content can never close the box or forge a parcel for another
  * slot, and it no longer falls back to a second request.
  *
- * Pure (no I/O, no Kit) so it stays unit-testable.
+ * No I/O and no Kit (the batch stream is handed its render), so it stays unit-testable.
  */
+import { machine, STALE } from '@ogygia/machine';
 
 /** Sentinel slot appended once a batch finishes, so waiting regions know it is complete. */
 const STREAM_DONE_SLOT = '__ogygia_done__';
@@ -36,4 +37,58 @@ export function build_parcel(slot: string, html: string): string {
 /** The done-sentinel parcel (empty template) the client watches to end the batch. */
 export function done_parcel(): string {
 	return `<template data-ogygia-slot="${STREAM_DONE_SLOT}"></template>`;
+}
+
+/** One region call's answer in a batch: its slot (the capability signature) and its HTML. Null:
+ *  the call is left out (the client fetches it on its own). */
+export type BatchAnswer = { slot: string; html: string } | null;
+
+/**
+ * A batch's stream, as a machine: streaming while its calls render, then ended (the done sentinel
+ * written) or cancelled (the visitor left: the response body was cancelled). The renders are the
+ * streaming visit's work, so a cancel aborts their signal (a call still waiting for a render slot
+ * leaves the queue and never renders, #245), and a parcel that lands after it is dropped, never
+ * written to a closed stream.
+ */
+type BatchStates = { streaming: {}; ended: {}; cancelled: {} };
+const batch_steps = { streaming: ['ended', 'cancelled'], ended: [], cancelled: [] } as const;
+const batch_def = machine<BatchStates>()({
+	name: 'batch stream',
+	initial: 'streaming',
+	steps: batch_steps
+});
+
+/**
+ * The batch's frame stream: every call renders at once, and each answer goes out as its parcel the
+ * moment it settles, whatever the order; the done sentinel ends it. `render` is handed the batch's
+ * signal: it aborts when the stream is cancelled.
+ */
+export function batch_stream(
+	calls: readonly string[],
+	render: (endpoint: string, signal: AbortSignal) => Promise<BatchAnswer>
+): ReadableStream<Uint8Array> {
+	const encoder = new TextEncoder();
+	const batch = batch_def.create();
+	return new ReadableStream<Uint8Array>({
+		async start(controller) {
+			const streaming = batch.now;
+			// Each call renders independently; enqueue its frame on settle, whatever the order.
+			const ran = await batch.task((signal) =>
+				Promise.all(
+					calls.map(async (endpoint) => {
+						const out = await render(endpoint, signal).catch(() => null);
+						// (only while it still streams: after a cancel the controller is closed)
+						if (out && batch.now === streaming)
+							controller.enqueue(encoder.encode(build_parcel(out.slot, out.html)));
+					})
+				)
+			);
+			if (ran === STALE || !batch.move('streaming', 'ended')) return;
+			controller.enqueue(encoder.encode(done_parcel()));
+			controller.close();
+		},
+		cancel() {
+			batch.move('streaming', 'cancelled');
+		}
+	});
 }
