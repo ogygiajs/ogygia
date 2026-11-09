@@ -6,7 +6,9 @@
 	"git": {
 		"deploymentEnabled": {
 			"**": false,
-			"latest": true
+			"latest": true,
+			"main": true,
+			"changeset-release/*": true
 		}
 	}
 }
