@@ -26,14 +26,6 @@
 		".": {
 			"types": "./dist/index.d.ts",
 			"default": "./src/index.ts"
-		},
-		"./internal/messages": {
-			"types": "./dist/messages.d.ts",
-			"default": "./src/messages.ts"
-		},
-		"./internal/policy": {
-			"types": "./dist/policy.d.ts",
-			"default": "./src/policy.ts"
 		}
 	},
 	"publishConfig": {
@@ -41,14 +33,6 @@
 			".": {
 				"types": "./dist/index.d.ts",
 				"default": "./dist/index.js"
-			},
-			"./internal/messages": {
-				"types": "./dist/messages.d.ts",
-				"default": "./dist/messages.js"
-			},
-			"./internal/policy": {
-				"types": "./dist/policy.d.ts",
-				"default": "./dist/policy.js"
 			}
 		},
 		"access": "public"
