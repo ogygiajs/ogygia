@@ -517,6 +517,17 @@ describe('Ogygia', () => {
 			new Ogygia(fake({ settled: () => true })).record(async () => {}, { blockNavigation: true })
 		).rejects.toThrow('blockNavigation()');
 	});
+	it('record(): actions that fail, then an undo that fails too: the actions’ error is the one thrown', async () => {
+		const o = new Ogygia({
+			...fake({ settled: () => true, record_start: () => true, record_stop: () => session }),
+			blockNavigation: async () => ({
+				stop: async () => Promise.reject(new Error('the page navigated away'))
+			})
+		});
+		await expect(
+			o.record(async () => Promise.reject(new Error('the click failed')), { blockNavigation: true })
+		).rejects.toThrow('the click failed');
+	});
 	it('an older site’s engine: navigations filled in from what the driver held, finding names empty, warned once', async () => {
 		const warn = console.warn;
 		const warnings: string[] = [];
