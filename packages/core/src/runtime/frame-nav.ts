@@ -12,7 +12,7 @@
 import { machine, STALE, type Scope } from '@ogygia/machine';
 import { frameAddress } from '../frame.ts';
 import { stream } from '../policies.ts';
-import { is_idle, reserve, release, ticket, write } from './frame-store.ts';
+import { is_idle, reserve, release, stamp, write } from './frame-store.ts';
 import { runtime_session } from './session.ts';
 import { emit as dt_emit } from '../events/bus.ts';
 
@@ -221,7 +221,7 @@ export async function streamFrames(
 						batched.set(ep, { left, at: performance.now(), size: reserved.length });
 						if (batched.size > 64) batched.delete(batched.keys().next().value!);
 					}
-					write({ a, v: ticket(a), html: p.html });
+					write({ a, v: stamp(), html: p.html });
 					delivered++;
 					if (DEVTOOLS)
 						dt_emit({
