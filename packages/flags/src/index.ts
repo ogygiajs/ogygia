@@ -19,7 +19,7 @@ import { fnv1a32, type StandardSchemaV1 } from '@ogygia/core/plugin/utils';
 import { flags_app } from './app.ts';
 import { warn } from './messages.ts';
 import { source_answered, source_failed, source_mark, source_reset } from './source-health.ts';
-import { defining, machine, moduleLife, outbox, policy, registry } from '@ogygia/machine';
+import { defining, machine, outbox, policy, registry, scope } from '@ogygia/machine';
 
 export type CtxLike = {
 	request: Request;
@@ -249,9 +249,10 @@ const _registry = registry.keyed<string, Definition>();
 type Definition = { query: FlagQuery; layer: string | undefined };
 
 /** Who owns a definition made outside a marked call (a build, or a test calling flag() itself):
- *  this module's life, which is the process's in a build. In dev, core marks each flag() call with
- *  the run of the module making it (`b.definers()`), and that run owns it instead (`defining()`). */
-const DEFINED_HERE = moduleLife((import.meta as { hot?: { dispose(cb: () => void): void } }).hot);
+ *  this module's run, as long as `_registry` beside it (a reload of this module makes both anew).
+ *  In dev, core marks each flag() call with the run of the module making it (`b.definers()`), and
+ *  that run owns it instead (`defining()`). */
+const DEFINED_HERE = scope();
 
 /**
  * Resolve the source ONCE per request over every registered flag, caching decisions on the

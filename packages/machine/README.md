@@ -214,14 +214,13 @@ const stop = watchers.add(watcher, visit); // gone with the visit, or at `stop()
 for (const w of watchers) w(event); // in add order
 ```
 
-A keyed registry holds definitions by name. Each one is owned by the run of the module that defined it, so a dev reload ends what that run defined: a definition deleted from the code is gone, one kept is set again by the new run.
+A keyed registry holds definitions by name, each owned by a scope: the run of the module that defined it, so a dev reload ends what that run defined. A definition deleted from the code is gone; one kept is set again by the new run.
 
 ```ts
-import { registry, moduleLife } from '@ogygia/machine';
+import { registry } from '@ogygia/machine';
 
 const shapes = registry.keyed<string, Shape>();
-const life = moduleLife(import.meta.hot); // ends at the module's reload; the process, in production
-shapes.set('circle', circle, life);
+shapes.set('circle', circle, run); // gone when `run` ends, unless set again by another owner
 shapes.get('circle');
 ```
 
@@ -230,7 +229,6 @@ shapes.get('circle');
 | `registry().add(entry, owner)`            | Holds `entry` while `owner` (a scope) is open; returns its removal. Each add is one entry. |
 | `registry.keyed().set(key, value, owner)` | Holds `value` under `key` while `owner` is open, replacing what the key held.              |
 | `get` / `has` / `entries()` / `values()`  | The definitions, in the order they were last set.                                          |
-| `moduleLife(hot)`                         | A scope for one run of a module: its `import.meta.hot` dispose ends it.                    |
 | `size` / iteration                        | What it holds now, in add order.                                                           |
 
 - **Owned, never evicted.** Adding or setting with an owner that already ended is refused: nothing is held, and the removal is a no-op.
@@ -242,10 +240,10 @@ shapes.get('circle');
 A plugin's definer (`content()`, `flag()`) owns what it defines by the run of the module that called it. In dev, ogygia's transform marks each such call: `defineRun(id)` runs at the top of the module, once per evaluation, and its calls go through the wrapper it returns. The definer reads that run with `defining()`.
 
 ```ts
-import { defining, moduleLife, registry } from '@ogygia/machine';
+import { defining, registry, scope } from '@ogygia/machine';
 
 const shapes = registry.keyed<string, Shape>();
-const here = moduleLife(import.meta.hot);
+const here = scope(); // an unmarked call (a build): as long as `shapes`
 export function shape(name: string, s: Shape) {
 	shapes.set(name, s, defining() ?? here); // a marked call: the calling module's run
 }

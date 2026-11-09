@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defineRun, defining, moduleLife, registry, scope } from '../src/index.ts';
+import { defineRun, defining, registry, scope } from '../src/index.ts';
 
 describe('registry: live entries, each owned', () => {
 	it('iterates in add order', () => {
@@ -81,17 +81,15 @@ describe('keyed registry: definitions by name, each owned by its defining module
 		expect(defs.size).toBe(2);
 	});
 
-	it("a module's reload ends its definitions: one deleted from its code is gone, one kept is set again", () => {
+	it("an owner's end ends its definitions: one not set again is gone, one set again stays", () => {
 		const defs = registry.keyed<string, string>();
-		const hot = { dispose: (cb: () => void) => (dispose = cb) };
-		let dispose = () => {};
-		// the module's first run defines two
-		const first = moduleLife(hot);
+		// a module's first run defines two
+		const first = scope();
 		defs.set('kept', 'v1', first);
 		defs.set('deleted', 'v1', first);
 		// a dev reload: its old run ends, its new run defines one of them
-		dispose();
-		const second = moduleLife(hot);
+		first.close();
+		const second = scope();
 		defs.set('kept', 'v2', second);
 		expect([...defs.entries()]).toEqual([['kept', 'v2']]);
 		expect(defs.has('deleted')).toBe(false);
@@ -107,11 +105,6 @@ describe('keyed registry: definitions by name, each owned by its defining module
 		expect(defs.get('x')).toBe('two');
 		two.close();
 		expect(defs.get('x')).toBeUndefined();
-	});
-
-	it('with no hot module (production) the module lives as long as the process', () => {
-		const life = moduleLife(undefined);
-		expect(life.closed).toBe(false);
 	});
 
 	it('setting with an owner that already ended is refused', () => {
