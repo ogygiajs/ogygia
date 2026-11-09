@@ -140,6 +140,31 @@ describe('put', () => {
 		expect(give_up).toHaveBeenCalledOnce();
 	});
 
+	it('an id that is not a string or a finite number names nothing: not sent, said, false (#350)', async () => {
+		const give_up = vi.fn();
+		const send = vi.fn(() => wait(10));
+		const box = outbox<{ id?: unknown }>({
+			send,
+			id: (x) => x.id as string,
+			giveUp: give_up
+		});
+		// (each would have joined the first one's send while it was out)
+		const puts = [box.put({}), box.put({}), box.put({ id: NaN }), box.put({ id: Infinity })];
+		const good = box.put({ id: 'a' });
+		expect(await Promise.all(puts)).toEqual([false, false, false, false]);
+		expect(await good).toBe(true);
+		expect(send).toHaveBeenCalledOnce();
+		expect(give_up).toHaveBeenCalledTimes(4);
+		expect(String(give_up.mock.calls[0][1])).toContain('machine_bad_option');
+	});
+
+	it('ids 1 and "1" are two sends', async () => {
+		const send = vi.fn(() => wait(5));
+		const box = outbox<{ id: string | number }>({ send, id: (x) => x.id });
+		await Promise.all([box.put({ id: 1 }), box.put({ id: '1' }), box.put({ id: 1 })]);
+		expect(send).toHaveBeenCalledTimes(2);
+	});
+
 	it('a giveUp that throws is printed with the code', async () => {
 		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 		const box = outbox({
