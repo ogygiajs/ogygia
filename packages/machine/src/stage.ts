@@ -24,20 +24,28 @@
  *   and `ready` is `STALE`. A build still running then gets a closed signal, and a `discard` step it
  *   gives afterwards runs at once: a build that lands late leaves nothing behind.
  * - `commit()` runs `commit` once, synchronously, so nothing interleaves inside it. It is refused
- *   (`false`) until the build is ready, once the owner closed, and after a first commit.
+ *   (`false`) until the build is ready, once the owner closed, and after a first commit. A commit
+ *   that closes the owner itself (switching the page in moves the navigation on) is still a commit:
+ *   nothing it switched in is discarded. After a commit, a `discard` step is dropped: the change is
+ *   live.
  * - A `commit` that throws puts back what it already changed (its `undo` steps, newest first), then
  *   discards what the build made, and `commit()` throws its error. A build that throws discards
  *   too, and `ready` rejects with its error.
  * - A `discard` or `undo` step that throws does not stop the others; it is said once
  *   (`machine_stage_step_failed`).
+ * - A stage that committed or was discarded leaves nothing on its owner.
+ *
+ * A stage is a machine (`building`, `built`, `committing`, then `committed` or `discarded`), and
+ * its life in its owner is a child scope of the owner, closed once it ends.
  */
+import { machine, type Machine } from './machine.ts';
 import { machine_error, report } from './messages.ts';
 import type { Scope } from './scope.ts';
 import { STALE, type Stale } from './stale.ts';
 
 /** What a build is handed: the owner's signal, and a way to give back a change it made. */
 export interface Staging {
-	/** Aborts when the owner closes. */
+	/** Aborts when the owner closes (or once the stage ended). */
 	readonly signal: AbortSignal;
 	/** Runs `step` unless the stage commits: when the owner closes first, the build fails, or the
 	 *  commit throws. At once when that has already happened. */
@@ -63,15 +71,37 @@ export interface Stage<B> {
 	commit(): boolean;
 }
 
+/** Where a stage is: its build out, built and waiting for the commit, its commit running, or
+ *  ended (switched in, or given back). */
+type StageStates = {
+	building: {};
+	built: { value: unknown };
+	committing: {};
+	committed: {};
+	discarded: {};
+};
+const stage_machine = machine<StageStates>()({
+	name: 'stage',
+	initial: 'building',
+	steps: {
+		building: ['built', 'discarded'],
+		built: ['committing', 'discarded'],
+		committing: ['committed', 'discarded'],
+		committed: [],
+		discarded: []
+	}
+});
+
 class Staged<B> implements Stage<B> {
 	readonly ready: Promise<B | Stale>;
 	_name: string;
-	_owner: Scope;
 	_commit: (built: B, undo: (step: () => void) => void) => void;
-	/** What the build made, once it is made. */
-	_built: { value: B } | null = null;
-	/** The build's discard steps; null once the stage committed or was discarded. */
-	_steps: (() => void)[] | null = [];
+	_m: Machine<StageStates, typeof stage_machine.steps> = stage_machine.create();
+	/** Its life in its owner: closes with the owner, and once the stage ends (so an owner that
+	 *  makes many stages holds none of the ended ones). */
+	_life: Scope;
+	/** The build's discard steps, until the stage ends. */
+	_steps: (() => void)[] = [];
 
 	constructor(owner: Scope, o: StageOptions<B>) {
 		for (const option of ['build', 'commit'] as const)
@@ -82,21 +112,28 @@ class Staged<B> implements Stage<B> {
 					rule: 'a function'
 				});
 		this._name = o.name ?? 'stage';
-		this._owner = owner;
 		this._commit = o.commit;
-		owner.defer(() => this._discard());
+		const life = (this._life = owner.child());
+		// the owner closed: what is built so far is given back, unless a commit is running (one that
+		// closes its own owner switches the change in all the same)
+		life.defer(() => {
+			const kind = this._m.now.kind;
+			if (kind === 'building' || kind === 'built') this._discard();
+		});
 		const staging: Staging = {
-			signal: owner.signal,
+			signal: life.signal,
 			discard: (step) => {
-				if (this._steps === null) run([step], this._name);
-				else this._steps.push(step);
+				const kind = this._m.now.kind;
+				if (kind === 'discarded') run([step], this._name);
+				else if (kind !== 'committed') this._steps.push(step);
+				// (committed: the change is live, nothing of it is given back)
 			}
 		};
-		this.ready = owner
+		this.ready = life
 			.task(() => o.build(staging))
 			.then(
 				(built) => {
-					if (built !== STALE && this._steps !== null) this._built = { value: built };
+					if (built !== STALE) this._m.move('building', 'built', { value: built });
 					return built;
 				},
 				(error: unknown) => {
@@ -106,27 +143,33 @@ class Staged<B> implements Stage<B> {
 			);
 	}
 
-	/** Gives back what the build made (once). */
+	/** Gives back what the build made (once), and ends the stage. */
 	_discard(): void {
+		const kind = this._m.now.kind;
+		if (kind === 'committed' || kind === 'discarded') return;
+		this._m.go('discarded');
 		const steps = this._steps;
-		this._steps = null;
-		this._built = null;
-		if (steps !== null) run(steps, this._name);
+		this._steps = [];
+		run(steps, this._name);
+		this._life.close();
 	}
 
 	commit(): boolean {
-		const built = this._built;
-		if (built === null || this._steps === null || this._owner.closed) return false;
-		this._built = null;
+		const s = this._m.now;
+		if (s.kind !== 'built' || this._life.closed) return false;
+		this._m.go('committing');
 		const undo: (() => void)[] = [];
 		try {
-			this._commit(built.value, (step) => void undo.push(step));
+			this._commit(s.value as B, (step) => void undo.push(step));
 		} catch (error) {
 			run(undo, this._name);
 			this._discard();
 			throw error;
 		}
-		this._steps = null; // switched in: nothing is discarded any more
+		// switched in: nothing is given back any more
+		this._m.go('committed');
+		this._steps = [];
+		this._life.close();
 		return true;
 	}
 }
