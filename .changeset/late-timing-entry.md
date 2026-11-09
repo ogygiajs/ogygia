@@ -2,4 +2,4 @@
 '@ogygia/core': patch
 ---
 
-A file the server answered with an error is not asked again under a fresh URL when the browser's timing entry for it arrives a moment after the failed import.
+An island file that 404s is no longer asked for again under a fresh URL when the browser's timing entry for it lands late (Firefox on a busy machine): the loader waits for the entry, up to a second.
