@@ -192,7 +192,7 @@ pages.get('/docs'); // a use: the least recently used go first past `max`
 | `onEvict(key, value, why)`              | Hears each value that leaves, after it left, in order: `'age'`, `'size'`, `'delete'` (or replaced), `'end'`.  |
 | `owner`                                 | The scope it lives in. Its end ends the cache, and every value is heard `'end'`.                              |
 | `world`                                 | Values carry the stamp they were made at (`set(key, value, { stamp })`): an older one never replaces a newer. |
-| `pinned(value, key)`                    | A value in use now: it counts against `max` but never goes for size; the next least recently used goes.      |
+| `pinned(value, key)`                    | A value in use now: it counts against `max` but never goes for size; the next least recently used goes.       |
 | `get` / `peek`                          | The value: `get` is a use, `peek` is not.                                                                     |
 | `set` / `delete` / `clear`              | `set` says `false` when it did not keep the value (too heavy, kept 0 ms, older, or ended).                    |
 | `has` / `size` / `weight` / `entries()` | What it holds now, least recently used first.                                                                 |
