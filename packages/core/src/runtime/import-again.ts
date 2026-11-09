@@ -72,7 +72,12 @@ export function response_of(url: string): number | null {
 	let status: number | null = null;
 	for (const e of performance.getEntriesByName(url, 'resource')) {
 		const t = e as PerformanceResourceTiming & { responseStatus?: number };
-		if (t.responseStart > 0) status = t.responseStatus ?? 0;
+		// An engine that reports the status says 0 for a download that got no response (Firefox
+		// gives a dropped one a response start too); one that does not (WebKit) is read by its
+		// response start alone.
+		if (typeof t.responseStatus === 'number') {
+			if (t.responseStatus > 0) status = t.responseStatus;
+		} else if (t.responseStart > 0) status = 0;
 	}
 	return status;
 }
