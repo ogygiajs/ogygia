@@ -29,12 +29,20 @@ export interface SigningKey {
 	source: 'option' | 'env' | 'build';
 }
 
-interface KeySlot {
-	/** `handle({ secret })`, recorded as the hooks load */
-	option?: string;
-	/** the decided key */
-	key?: SigningKey;
-}
+/**
+ * The process's key, one state at a time:
+ *
+ *   undecided ─ secret ─ decided
+ *             ╲────────╱
+ *
+ * `undecided`: no secret from the app yet, and nobody minted or verified. `secret`: the app's
+ * `handle({ secret })` is recorded, not used yet. `decided`: the first mint or verify picked the
+ * key, and it never changes in the process.
+ */
+type KeySlot =
+	| { kind: 'undecided' }
+	| { kind: 'secret'; option: string }
+	| { kind: 'decided'; key: SigningKey };
 
 const SLOT = Symbol.for('ogygia.signing-key');
 
@@ -44,23 +52,31 @@ const SOURCE_NAME: Record<SigningKey['source'], string> = {
 	build: "this build's random key"
 };
 
+const slots = globalThis as unknown as Record<symbol, KeySlot | undefined>;
+
 function slot(): KeySlot {
-	const g = globalThis as unknown as Record<symbol, KeySlot | undefined>;
-	return (g[SLOT] ??= {});
+	return slots[SLOT] ?? { kind: 'undecided' };
 }
 
 export function signing_key(): SigningKey {
 	const s = slot();
-	if (s.key) return s.key;
+	if (s.kind === 'decided') return s.key;
 	const from_env = (typeof process !== 'undefined' && process.env?.OGYGIA_SECRET) || '';
-	const [secret, source] = s.option
-		? [s.option, 'option' as const]
-		: from_env
-			? [from_env, 'env' as const]
-			: [buildKey, 'build' as const];
-	s.key = { secret, stable: source !== 'build', fp: key_fingerprint(secret), source };
-	if (!s.key.stable && !import.meta.env.DEV) warn_build_key();
-	return s.key;
+	const [secret, source] =
+		s.kind === 'secret'
+			? [s.option, 'option' as const]
+			: from_env
+				? [from_env, 'env' as const]
+				: [buildKey, 'build' as const];
+	const key: SigningKey = {
+		secret,
+		stable: source !== 'build',
+		fp: key_fingerprint(secret),
+		source
+	};
+	slots[SLOT] = { kind: 'decided', key };
+	if (!key.stable && !import.meta.env.DEV) warn_build_key();
+	return key;
 }
 
 /**
@@ -71,14 +87,16 @@ export function signing_key(): SigningKey {
 export function configure_signing_secret(secret: string | undefined): void {
 	if (!secret?.trim()) return;
 	const s = slot();
-	const decided = s.key?.secret ?? s.option;
-	if (decided === undefined || decided === secret) {
-		s.option = secret;
+	if (s.kind === 'undecided') {
+		slots[SLOT] = { kind: 'secret', option: secret };
 		return;
 	}
-	const from = s.key
-		? `${SOURCE_NAME[s.key.source]}, decided by an earlier mint or verify`
-		: 'another handle({ secret })';
+	const decided = s.kind === 'decided' ? s.key.secret : s.option;
+	if (decided === secret) return;
+	const from =
+		s.kind === 'decided'
+			? `${SOURCE_NAME[s.key.source]}, decided by an earlier mint or verify`
+			: 'another handle({ secret })';
 	const error = new OgygiaError('secret_conflict', {
 		key: key_fingerprint(secret),
 		decided: key_fingerprint(decided),
@@ -106,5 +124,5 @@ function warn_build_key(): void {
 
 /** Tests: forget the decided key and the app's secret. */
 export function reset_signing_key(): void {
-	delete (globalThis as unknown as Record<symbol, KeySlot | undefined>)[SLOT];
+	delete slots[SLOT];
 }

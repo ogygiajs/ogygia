@@ -172,6 +172,8 @@ export type BootLink = {
 	parse_region_html: typeof import('./parse-html.ts').parse_region_html;
 	runtime_session: typeof import('./session.ts').runtime_session;
 	regions_in_shadow: typeof import('./connected.ts').regions_in_shadow;
+	/** the region sheets a navigation's head merge left, taken out but for those a region uses */
+	release_sheets: typeof import('./region-sheets.ts').release_sheets;
 	yield_task: typeof import('./schedule.ts').yield_task;
 	/** the router's navigation, timed for the profiler's beacon (a no-op without it) */
 	beacon_nav: typeof import('./beacon.ts').beacon_nav;

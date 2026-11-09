@@ -39,6 +39,7 @@ import { emit as dt_emit } from '../events/bus.ts';
 // router) touches none of them.
 const KitBoot = { document_has: (doc: ParentNode) => boot_link().KitBoot.document_has(doc) };
 const regions_in_shadow = () => boot_link().regions_in_shadow();
+const release_sheets = (unlisted: readonly Element[]) => boot_link().release_sheets(unlisted);
 const session = () => boot_link().runtime_session;
 type Scope = import('@ogygia/machine').Scope;
 type Stale = import('@ogygia/machine').Stale;
@@ -305,25 +306,39 @@ export function apply_late_templates(root: ParentNode): void {
  * making it momentarily focusable via `tabindex=-1` and then cleaning that up so the target does not
  * linger in the tab order. For `<body>` the attribute is removed immediately (body stays the active
  * element regardless). For a normal element — a `#hash` heading — removing `tabindex` while it is
- * focused would BLUR it back to `<body>`, so the cleanup is deferred to the element's next `blur`,
- * heard for as long as the page is on screen (its visit, runtime/session.ts `PageVisit`).
+ * focused would BLUR it back to `<body>`, so the cleanup is deferred to the element's next `blur`.
+ *
+ * The `tabindex` is LENT until that blur (`lent`), once per element: a second navigation that
+ * focuses it meanwhile (a refresh in place at its `#hash`) finds the loan and leaves it, instead of
+ * saving the first one's `-1` as the element's own and putting that back after the first cleanup
+ * (#278). The loan is the element's, not the page's: an element kept across a navigation (inside a
+ * kept island) still gives its `tabindex` back when focus leaves it on the next page.
  */
 function focus_reset(el: HTMLElement) {
 	const is_body = el === document.body || el === document.documentElement;
-	const had = el.hasAttribute('tabindex');
+	if (lent.has(el)) {
+		el.focus({ preventScroll: true }); // (still focusable: its loan waits for the blur)
+		return;
+	}
 	const prev = el.getAttribute('tabindex');
 	const restore = () => {
-		if (had) el.setAttribute('tabindex', prev as string);
+		lent.delete(el);
+		if (prev !== null) el.setAttribute('tabindex', prev);
 		else el.removeAttribute('tabindex');
 	};
 	el.tabIndex = -1; // focusable for this one call
 	el.focus({ preventScroll: true });
 	if (is_body) {
 		restore(); // body keeps focus even without the attribute
-	} else {
-		session().visit.scope.on(el, 'blur', () => restore(), { once: true });
+		return;
 	}
+	lent.set(el, prev);
+	// oxlint-disable-next-line ogygia/owned-effects -- the element's own tabindex loan: it ends on the element's next blur, and outlives the page when the element is kept
+	el.addEventListener('blur', restore, { once: true });
 }
+
+/** The elements whose `tabindex` a navigation's focus lent until they blur, with their own value. */
+const lent = new WeakMap<HTMLElement, string | null>();
 
 /** Head nodes that must never be adopted from SPA HTML (rewrite relative fetches / CSP). */
 function is_dangerous_head_node(node: Element): boolean {
@@ -795,7 +810,7 @@ export async function navigate(
 		announcer?.remove();
 		// LIFECYCLE (Astro-parity DOM events): last chance to read the OUTGOING page's DOM.
 		document.dispatchEvent(new Event('og:before-swap'));
-		merge_head(doc.head); // keeps our runtime module script alive across swaps
+		const unlisted_sheets = merge_head(doc.head); // keeps our runtime module script alive across swaps
 		// the next page's sheets, loaded while it was built, style it from now on (#267)
 		for (const sheet of built.sheets) apply_sheet(sheet);
 		// CONTINUITY: snapshot the LEAVING page's changed island form fields (session-scoped) so
@@ -838,6 +853,9 @@ export async function navigate(
 		// and the merge above put the next page's server copy of the same content in beside it — retire
 		// that copy now that the reconcile has settled which islands stayed (runtime/session.ts).
 		session().retire_page_head_copies();
+		// the region sheets the new page does not list go now, but for those a region kept across the
+		// swap still uses (#275)
+		release_sheets(unlisted_sheets);
 		// STREAMED pages fetched over SPA nav arrive COMPLETE (fetch buffers the stream), so any
 		// late templates still inert in the parsed doc apply now — the inline boot script that
 		// handles them on a full load never executes across a body swap.
@@ -1003,7 +1021,8 @@ export async function invalidate_all(on_screen?: URL | null): Promise<void> {
 		},
 		commit: (doc) => {
 			if (doc === null) return;
-			merge_head(doc.head);
+			// (the page's regions all stay: their sheets go once no region uses them)
+			release_sheets(merge_head(doc.head));
 			apply_soft_invalidate_doc(doc);
 		}
 	});
@@ -1078,8 +1097,12 @@ function reset_focus(hash: string, kept: string | null = null) {
 	focus_reset(document.body);
 }
 
-/** Merge <head>: keep nodes present in both, remove stale, add new. Keeps runtime scripts alive. */
-function merge_head(new_head: HTMLHeadElement) {
+/**
+ * Merge <head>: keep nodes present in both, remove stale, add new. Keeps runtime scripts alive.
+ * Returns the region sheets the new head does not list: they are for the regions that use them too
+ * (./region-sheets.ts), so they go only after the swap, once it is settled which regions stayed.
+ */
+function merge_head(new_head: HTMLHeadElement): Element[] {
 	const current = document.head;
 	// Only the PAGE's nodes take part (runtime/session.ts — who owns each node in <head>). An island's
 	// live head content is its own: removing a node of it here is what let Svelte's teardown of that
@@ -1098,10 +1121,12 @@ function merge_head(new_head: HTMLHeadElement) {
 		next_keys.add(head_node_key(node));
 	}
 	// remove stale nodes — keep runtime / vite-dev CSS across swaps
+	const unlisted: Element[] = [];
 	for (const [key, node] of current_nodes) {
 		if (next_keys.has(key)) continue;
 		if (keep_head_node_across_spa(node)) continue;
-		node.remove();
+		if (node.hasAttribute('data-ogygia-region-css')) unlisted.push(node);
+		else node.remove();
 	}
 	// add / replace nodes (skip dangerous head policy tags)
 	// A `<style>` the next document carries goes at the TOP of <head>, in document order — exactly
@@ -1135,6 +1160,7 @@ function merge_head(new_head: HTMLHeadElement) {
 			session().claim_page_head(current.appendChild(node.cloneNode(true)));
 		}
 	}
+	return unlisted;
 }
 
 /**

@@ -565,14 +565,6 @@
 			"reason": "browser only: the navigation's commit, the head merge and body reconcile on the live document (not cloneable), linear in the page; proven in every palaestra navigation e2e and packages/core/test/browser/nav-swap-fails.test.ts (#276)"
 		},
 		{
-			"id": "packages/core/src/runtime/router-nav.ts > invalidate_all > stage:1~0e170d > build",
-			"reason": "browser only: the soft refresh's staged fetch and parse (not recorded), linear in the page; proven in packages/core/test/browser/soft-refresh-page-on-screen.test.ts (#268) and apps/palaestra/e2e/router-ownership.spec.ts (#202)"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > invalidate_all > stage:1~0e170d > commit",
-			"reason": "browser only: the soft refresh's commit, a head merge and seed refresh on the live document (not cloneable), linear in the head; proven in packages/core/test/browser/soft-refresh-page-on-screen.test.ts (#268)"
-		},
-		{
 			"id": "packages/core/src/runtime/router-nav.ts > apply_sheet",
 			"reason": "browser only: gives a live link element its media back (two attribute writes), constant work; proven in packages/core/test/browser/nav-sheets-inert.test.ts (#267)"
 		},
@@ -1537,10 +1529,6 @@
 			"reason": "the wait for a region answer's sheets on the page visit (a scope and live link elements, not cloneable), constant work per answer; run in the browser suite (packages/core/test/browser)"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > region_fragment > until_loaded > Promise:0~0b1fbf > done",
-			"reason": "lets go of a sheet's two listeners on the page visit (a live link element, not cloneable), constant work"
-		},
-		{
 			"id": "packages/core/src/runtime/frame-nav.ts > streamFrames > defer:0~95f179",
 			"reason": "cancels the batch body's reader when the batch's owner closes (a live stream reader, not cloneable), constant work; proven in packages/core/test/browser/batch-stream-owner.test.ts"
 		},
@@ -1551,10 +1539,6 @@
 		{
 			"id": "packages/core/src/runtime/frames.ts > install > frames > stream",
 			"reason": "hands a navigation's batch to streamFrames with its page visit's scope (not cloneable), one call"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > focus_reset > on:2~5c0ef7",
-			"reason": "the focus reset's blur on the page visit (a live element and a scope, not cloneable), constant work"
 		},
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > preload_stylesheets > Promise:0~4881be > then:0~54bc50",
@@ -1803,6 +1787,70 @@
 		{
 			"id": "packages/devtools/src/profiler/storage/sqlite.ts > load_driver",
 			"reason": "a require of a driver module (a module object, not cloneable), constant work; proven in packages/devtools/test/profiler-sqlite-open.test.ts"
+		},
+		{
+			"id": "packages/cli/src/mcp.ts > busy_holder",
+			"reason": "reads a 409's JSON body (a live Response, not recorded), constant work; proven in packages/cli/test/mcp-profile-busy.test.ts (#290)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > region_fragment > until_settled",
+			"reason": "browser only, built-runtime path: waits on a region sheet's machine (a live link's download, not cloneable), constant work; proven in packages/core/test/browser/region-sheet-failed.test.ts (#274)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > region_fragment > until_settled > then:0~2baffa",
+			"reason": "browser only: a constant no-op mapping the sheet's settled state to void; proven in packages/core/test/browser/region-sheet-failed.test.ts (#274)"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > critical_done",
+			"reason": "browser only: reads the critical gate machine's state, constant work; run in packages/core/test/browser/load-scheduler.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > settle_critical",
+			"reason": "browser only: one move of the critical gate machine and a queue drain (live document, not cloneable), constant work plus the drain; run in packages/core/test/browser/load-scheduler.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/region-sheets.ts > release_sheets",
+			"reason": "browser only: after a navigation's swap, takes out the unlisted region sheets no connected region uses (live head elements, not cloneable), linear in regions and sheets; proven in apps/palaestra/e2e/hole-kept-sheet.spec.ts (#275)"
+		},
+		{
+			"id": "packages/core/src/runtime/region-sheets.ts > sheet_of",
+			"reason": "browser only: makes a link's download machine and its load/error listeners (a live link element, not cloneable), constant work; proven in packages/core/test/browser/region-sheet-failed.test.ts (#274)"
+		},
+		{
+			"id": "packages/core/src/runtime/region-sheets.ts > sheet_of > on:2~3181a7",
+			"reason": "browser only: a link's error moves its machine to failed, constant work; proven in packages/core/test/browser/region-sheet-failed.test.ts (#274)"
+		},
+		{
+			"id": "packages/core/src/runtime/region-sheets.ts > sheet_of > on:2~456322",
+			"reason": "browser only: a link's load moves its machine to loaded, constant work; proven in packages/core/test/browser/region-sheet-failed.test.ts (#274)"
+		},
+		{
+			"id": "packages/core/src/runtime/region-sheets.ts > use_sheets",
+			"reason": "browser only: records the head sheets a region's painted answer uses (a WeakMap write keyed by a live element, not cloneable), constant work; proven in apps/palaestra/e2e/hole-kept-sheet.spec.ts (#275)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > release_sheets",
+			"reason": "browser only: hands the head merge's unlisted sheets to the boot's release_sheets (live elements, not cloneable), one call; proven in apps/palaestra/e2e/hole-kept-sheet.spec.ts (#275)"
+		},
+		{
+			"id": "packages/core/src/server/request-stats.ts > hold_request_stats_detail",
+			"reason": "returns a release closure (a function, not cloneable), constant work; proven in packages/core/test/request-stats-detail.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/request-stats.ts > hold_request_stats_detail > <anonymous>~4ba179",
+			"reason": "lets go of one hold in a module-level set (not replayable: process state), constant work; proven in packages/core/test/request-stats-detail.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #busy",
+			"reason": "builds the 409 Response from the recorder machine's state (a Response, not cloneable), constant work; proven in packages/cli/test/mcp-profile-busy.test.ts (#290)"
+		},
+		{
+			"id": "packages/flags/src/index.ts > ask_source",
+			"reason": "awaits the app's flag source (an async call out, not recorded), linear in the registered flags; proven in packages/flags/test/prime-twice.test.ts and packages/flags/test/source-failed.test.ts"
+		},
+		{
+			"id": "packages/flags/src/index.ts > set_prime",
+			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
 		}
 	]
 }

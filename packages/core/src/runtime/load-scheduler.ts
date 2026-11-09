@@ -30,7 +30,7 @@
  */
 import { after_document_painted, yield_task } from './schedule.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
-import { flights, scope, type Scope, type Stale } from '@ogygia/machine';
+import { flights, machine, scope, type Scope, type Stale } from '@ogygia/machine';
 import { emit as dt_emit } from '../events/bus.ts';
 
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
@@ -78,10 +78,43 @@ function on_screen(el: Element, depth: number): boolean {
 
 // ── the critical-resources gate ─────────────────────────────────────────────────────────────────
 
-let input_seen = false;
+/** How the critical-resources wait ended: they `arrived` (or failed), the visitor's first `input`,
+ *  the `cap`, or `none` were pending. */
+export type CriticalOutcome = 'arrived' | 'input' | 'cap' | 'none';
+type CriticalReport = { outcome: CriticalOutcome; resources: number; waited_ms: number };
+
+/**
+ * The gate, as a machine:
+ *
+ *   fresh ─ waiting{t0, resources} ─ settled{report}
+ *       ╲ touched ───────────────────╱
+ *
+ * `fresh`: no wait yet. `touched`: the visitor clicked or typed before the wait began, so it waits on
+ * nothing. `waiting`: the wait is up; its visit owns the cap and the resources' listeners, so they go
+ * as it settles, however it settles. `settled`: open for good, with how it ended (the beacon reads
+ * it). One state in place of `input_seen`, `critical_done`, `release_critical` and the report.
+ */
+const gate_definition = machine<{
+	fresh: {};
+	touched: {};
+	waiting: { t0: number; resources: number };
+	settled: { report: CriticalReport };
+}>()({
+	name: 'critical-gate',
+	initial: 'fresh',
+	steps: {
+		fresh: ['touched', 'waiting', 'settled'],
+		touched: ['settled'],
+		waiting: ['settled'],
+		settled: []
+	}
+});
+let gate = gate_definition.create();
+
 const on_first_input = () => {
-	input_seen = true;
-	release_critical?.();
+	const kind = gate.now.kind;
+	if (kind === 'fresh') gate.go('touched');
+	else if (kind === 'waiting') settle_critical('input');
 };
 if (typeof document !== 'undefined') {
 	for (const type of ['pointerdown', 'keydown'] as const)
@@ -91,17 +124,27 @@ if (typeof document !== 'undefined') {
 
 /** The critical wait below, once for the document (a test's reset drops it). */
 const critical = flights({ name: 'critical resources', run: () => until_critical() });
-let critical_done = false;
-let release_critical: (() => void) | null = null;
 
-/** How the critical-resources wait ended: they `arrived` (or failed), the visitor's first `input`,
- *  the `cap`, or `none` were pending. */
-export type CriticalOutcome = 'arrived' | 'input' | 'cap' | 'none';
-let critical_report: { outcome: CriticalOutcome; resources: number; waited_ms: number } | null =
-	null;
+/** The gate is open: the critical wait settled. */
+const critical_done = () => gate.now.kind === 'settled';
+
 /** The critical wait's outcome once it settled (the profiler's beacon reads it), else `null`. */
-export function critical_outcome(): typeof critical_report {
-	return critical_report;
+export function critical_outcome(): CriticalReport | null {
+	const s = gate.now;
+	return s.kind === 'settled' ? s.report : null;
+}
+
+/** The wait ends (once: a gate already settled stays as it settled). */
+function settle_critical(outcome: CriticalOutcome): void {
+	const s = gate.now;
+	if (s.kind === 'settled') return;
+	const report: CriticalReport =
+		s.kind === 'waiting'
+			? { outcome, resources: s.resources, waited_ms: Math.round(now() - s.t0) }
+			: { outcome, resources: 0, waited_ms: 0 };
+	gate.go('settled', { report });
+	if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'load.critical', ...report });
+	drain();
 }
 
 /** Elements carrying the page's critical resources that have not arrived yet: an eager
@@ -158,41 +201,26 @@ export function critical_settled(): Promise<void | Stale> {
 	return critical.get();
 }
 function until_critical(): Promise<void> {
-	return after_document_painted().then(
-		() =>
-			new Promise<void>((resolve) => {
-				const t0 = now();
-				// the wait's cap and its resources' listeners: all go as it ends, however it ends
-				const wait = scope();
-				const done = (outcome: CriticalOutcome) => {
-					if (critical_done) return;
-					critical_done = true;
-					release_critical = null;
-					wait.close();
-					critical_report = {
-						outcome,
-						resources: waiting.length,
-						waited_ms: Math.round(now() - t0)
-					};
-					if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'load.critical', ...critical_report });
-					resolve();
-					drain();
-				};
-				const waiting =
-					input_seen || document.visibilityState === 'hidden' ? [] : pending_critical();
-				if (!waiting.length) return done('none');
-				wait.timeout(() => done('cap'), CRITICAL_CAP_MS);
-				release_critical = () => done('input');
-				let left = waiting.length;
-				const one = () => {
-					if (--left === 0) done('arrived');
-				};
-				for (const el of waiting) {
-					wait.on(el, 'load', one, { once: true });
-					wait.on(el, 'error', one, { once: true });
-				}
-			})
-	);
+	return after_document_painted().then(async () => {
+		const s = gate.now;
+		if (s.kind === 'settled') return;
+		const waiting =
+			s.kind === 'touched' || document.visibilityState === 'hidden' ? [] : pending_critical();
+		if (!waiting.length) return settle_critical('none');
+		gate.go('waiting', { t0: now(), resources: waiting.length });
+		// the wait's cap and its resources' listeners: its visit's, so all go as it settles
+		const wait = gate.scope;
+		wait.timeout(() => settle_critical('cap'), CRITICAL_CAP_MS);
+		let left = waiting.length;
+		const one = () => {
+			if (--left === 0) settle_critical('arrived');
+		};
+		for (const el of waiting) {
+			wait.on(el, 'load', one, { once: true });
+			wait.on(el, 'error', one, { once: true });
+		}
+		await gate.wait('settled');
+	});
 }
 
 // ── the queue ───────────────────────────────────────────────────────────────────────────────────
@@ -230,7 +258,7 @@ export class LoadSlot {
 		queue.push(this);
 		waiting++;
 		if (typeof o.cls === 'function') watch_scroll();
-		if (!critical_done && waits_for_critical(this.kind, this.cls())) void critical_settled(); // ok: the critical wait only waits on timers and resources' events; it never rejects
+		if (!critical_done() && waits_for_critical(this.kind, this.cls())) void critical_settled(); // ok: the critical wait only waits on timers and resources' events; it never rejects
 		drain();
 	}
 
@@ -283,22 +311,32 @@ function waits_for_critical(kind: LoadKind, cls: LoadClass): boolean {
  * task (52 ms on a 4×-throttled runner). After this much work in one task the drain yields.
  */
 const START_BUDGET_MS = 16;
-let draining = false;
-let drain_again = false;
+/**
+ * The queue's drain, as a machine: `idle`, `draining`, or `again` (a drain was asked for while one
+ * ran: the one running goes round once more, and asks again when it is done). One state in place of
+ * `draining` beside `drain_again`.
+ */
+const drain_definition = machine<{ idle: {}; draining: {}; again: {} }>()({
+	name: 'load-drain',
+	initial: 'idle',
+	steps: { idle: ['draining'], draining: ['idle', 'again'], again: ['idle', 'draining'] }
+});
+let drainer = drain_definition.create();
 
 function drain(): void {
-	if (draining) {
-		drain_again = true;
+	const kind = drainer.now.kind;
+	if (kind !== 'idle') {
+		if (kind === 'draining') drainer.go('again');
 		return;
 	}
 	if (!waiting) return;
-	draining = true;
+	drainer.go('draining');
+	const mine = drainer;
 	void drain_queue().finally(() => {
-		draining = false;
-		if (drain_again) {
-			drain_again = false;
-			drain();
-		}
+		if (drainer !== mine) return; // (a test's reset: a fresh document)
+		const again = drainer.now.kind === 'again';
+		drainer.go('idle');
+		if (again) drain();
 	}); // ok: a drain only hands out slots and yields; it never rejects
 }
 
@@ -313,7 +351,8 @@ function drain(): void {
 async function drain_queue(): Promise<void> {
 	let until = now() + START_BUDGET_MS;
 	for (;;) {
-		drain_again = false;
+		// (a drain asked for until now is this round)
+		if (drainer.now.kind === 'again') drainer.go('draining');
 		const asked = queue.length;
 		const by_class: LoadSlot[][] = [[], [], [], []];
 		for (let i = 0; i < asked; i++) by_class[RANK[queue[i].cls()]].push(queue[i]);
@@ -327,7 +366,7 @@ async function drain_queue(): Promise<void> {
 				const e = list[i];
 				if (!e.queued) continue; // (the test seam emptied the queue while the pass waited)
 				const cls = r < 4 && !ran ? CLASSES[r] : e.cls();
-				if (!critical_done && waits_for_critical(e.kind, cls)) continue;
+				if (!critical_done() && waits_for_critical(e.kind, cls)) continue;
 				const background = cls === 'ahead' || cls === 'speculative';
 				if (background && in_flight_background >= BACKGROUND_WINDOW) continue;
 				e.queued = false;
@@ -348,7 +387,7 @@ async function drain_queue(): Promise<void> {
 		}
 		if (!yielded) {
 			if (started) leave_queue();
-			if (!drain_again) return;
+			if (drainer.now.kind !== 'again') return;
 		}
 	}
 }
@@ -390,11 +429,9 @@ export function reset_load_scheduler(): void {
 	queue.length = 0;
 	waiting = 0;
 	in_flight_background = 0;
-	draining = false;
-	drain_again = false;
+	drainer.stop();
+	drainer = drain_definition.create();
 	critical.drop(() => true);
-	critical_done = false;
-	release_critical = null;
-	critical_report = null;
-	input_seen = false;
+	gate.stop();
+	gate = gate_definition.create();
 }

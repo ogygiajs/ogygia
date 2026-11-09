@@ -25,8 +25,8 @@ import { island_fingerprint } from '../src/server/fingerprint.ts';
 import { settle_deferred, stage_deferred, type Deferred } from '../src/server/page-stream.ts';
 import { plan_props_wire } from '../src/server/props-wire.ts';
 import {
+	hold_request_stats_detail,
 	request_stats_detailed,
-	set_request_stats_detail,
 	want_request_stats
 } from '../src/server/request-stats.ts';
 import { merge_seed_ask, shape_page_data, type SeedAsk } from '../src/server/seed-shape.ts';
@@ -300,21 +300,26 @@ bench('inject_client_seeds: a streamed load the router fetched, the promise sett
 	setup: () => content_request(250, { streamed: true, navigate: false })
 });
 
+/** The recording case's hold on the stats detail, let go at its teardown. */
+let release_detail: (() => void) | null = null;
 bench(
 	'inject_client_seeds: the profiler recording (island rows, the seed explainer)',
 	async (r) => (await transform(r)).length,
 	{
 		setup: () => {
 			want_request_stats();
-			set_request_stats_detail(true);
+			release_detail ??= hold_request_stats_detail();
 			return content_request(250, { rich: true });
 		},
 		scale: (_ctx, k) => {
 			want_request_stats();
-			set_request_stats_detail(true);
+			release_detail ??= hold_request_stats_detail();
 			return content_request(25 * k, { rich: true });
 		},
-		teardown: () => set_request_stats_detail(false)
+		teardown: () => {
+			release_detail?.();
+			release_detail = null;
+		}
 	}
 );
 

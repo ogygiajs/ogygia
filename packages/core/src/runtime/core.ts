@@ -74,6 +74,7 @@ import {
 	yield_task
 } from './schedule.ts';
 import { once_visible } from './observe.ts';
+import { sheet_of, use_sheets, type RegionSheet } from './region-sheets.ts';
 import { preload_island_graph } from './island-graph-preload.ts';
 import { fetch_priority_of, LoadSlot, viewport_class, type LoadClass } from './load-scheduler.ts';
 import { connected_regions } from './connected.ts';
@@ -393,9 +394,14 @@ async function snippets_settled(region: Element, visit: Scope): Promise<void> {
  * inlined `<style data-ogygia-region-css="href">`) it carries into `<head>` (deduped by href). A held / server-picked region's component was never
  * imported by the page, so its scoped CSS is in no stylesheet the page loaded; the region response
  * ships the links and the runtime lifts them to the head — where they load once and stick. (A link
- * left in the body would also fail to load inside a `<template>` batch parcel.)
+ * left in the body would also fail to load inside a `<template>` batch parcel.) `sheets`: the head
+ * nodes the answer uses, for the region that paints it (./region-sheets.ts `use_sheets`).
  */
-export function region_fragment(html: string): { frag: DocumentFragment; ready: Promise<void> } {
+export function region_fragment(html: string): {
+	frag: DocumentFragment;
+	ready: Promise<void>;
+	sheets: readonly Element[];
+} {
 	const frag = parse_region_html(html);
 	devalue_lane_stale();
 	// THE PAGE AN ANSWER RENDERED FOR (server/render-page.ts): the `page.data` its islands read, as the
@@ -409,6 +415,7 @@ export function region_fragment(html: string): { frag: DocumentFragment; ready: 
 	}
 	const links = frag.querySelectorAll('link[data-ogygia-region-css]');
 	const pending: Array<Promise<void>> = [];
+	const sheets: Element[] = [];
 	if (links.length && import.meta.env.DEV) {
 		// DEV: there is no linkable CSS asset — Vite serves component CSS only as an importable module
 		// (importing it injects the scoped `<style>`). `islandCss` handed us the region's dev module URL
@@ -438,40 +445,33 @@ export function region_fragment(html: string): { frag: DocumentFragment; ready: 
 				l as HTMLLinkElement
 			])
 		);
-		// Resolve on load OR error (a broken sheet must not wedge the paint) so the caller can await
-		// the stylesheet before swapping the HTML in — no flash of unstyled server-picked content.
-		// The listeners are the page visit's, and let go once the sheet is in.
-		const until_loaded = (l: HTMLLinkElement) =>
-			new Promise<void>((resolve) => {
-				const done = () => {
-					off_load();
-					off_error();
-					resolve();
-				};
-				const off_load = page.on(l, 'load', done);
-				const off_error = page.on(l, 'error', done);
-				// Attach-then-check closes the race where the sheet finished between our lookup and the
-				// listener registration (`sheet` is set synchronously with the load event).
-				if (l.sheet) done();
-			});
+		// The caller awaits the stylesheet before swapping the HTML in: no flash of unstyled
+		// server-picked content. Its download ends loaded or failed (a broken sheet must not wedge the
+		// paint), and every answer that carries it waits on the SAME download (a frame morph and an
+		// applyLive of one ticket hoist side by side), or a later one paints unstyled mid-download.
+		const until_settled = (sheet: RegionSheet) => sheet.wait('loaded').then(() => undefined);
 		for (const link of links) {
 			const href = link.getAttribute('href');
 			link.remove();
 			if (!href) continue;
 			const present = existing.get(href);
 			if (present) {
-				// Already in the document — but "present" is not "loaded". A concurrent applier (frame
-				// morph vs applyLive of the same ticket) hoists first and awaits; every later applier
-				// must await the SAME in-flight sheet, or it paints unstyled mid-download.
-				if (!present.sheet) pending.push(until_loaded(present));
-				continue;
+				const sheet = sheet_of(present);
+				if (sheet.now.kind === 'loading') pending.push(until_settled(sheet));
+				// failed: it never loads, so ask again, with a fresh link in its place
+				if (sheet.now.kind !== 'failed') {
+					sheets.push(present);
+					continue;
+				}
+				present.remove();
 			}
 			const clone = document.createElement('link');
 			clone.rel = 'stylesheet';
 			clone.href = href;
 			clone.setAttribute('data-ogygia-region-css', '');
-			pending.push(until_loaded(clone));
+			pending.push(until_settled(sheet_of(clone)));
 			existing.set(href, clone);
+			sheets.push(clone);
 			runtime_session.claim_page_head(clone);
 			document.head.appendChild(clone);
 		}
@@ -482,20 +482,26 @@ export function region_fragment(html: string): { frag: DocumentFragment; ready: 
 	// either shape. Nothing to await: the text is right here.
 	const styles = frag.querySelectorAll('style[data-ogygia-region-css]');
 	if (styles.length) {
-		const present = new Set<string>();
+		const present = new Map<string, Element>();
 		for (const n of document.head.querySelectorAll(
 			'[data-ogygia-region-css], link[rel="stylesheet"]'
 		)) {
 			const id =
 				n.tagName === 'STYLE' ? n.getAttribute('data-ogygia-region-css') : n.getAttribute('href');
-			if (id) present.add(id);
+			if (id) present.set(id, n);
 		}
 		for (const style of styles) {
 			const id = style.getAttribute('data-ogygia-region-css') || '';
 			style.remove();
-			if (!id || present.has(id)) continue;
-			present.add(id);
+			if (!id) continue;
+			const found = present.get(id);
+			if (found !== undefined) {
+				sheets.push(found);
+				continue;
+			}
 			const el = document.createElement('style');
+			present.set(id, el);
+			sheets.push(el);
 			el.setAttribute('data-ogygia-region-css', id);
 			el.textContent = style.textContent || '';
 			// At the TOP of <head>, like the router's SPA sheets (router-nav.ts): an island's
@@ -540,7 +546,7 @@ export function region_fragment(html: string): { frag: DocumentFragment; ready: 
 		}
 	}
 
-	return { frag, ready };
+	return { frag, ready, sheets };
 }
 
 /** TEST: the pristine server markup {@link region_fragment} stashed on a nested island, if any. */
@@ -1213,6 +1219,7 @@ class OgygiaRegion extends HTMLElement {
 		// marker parcel in a batch): keep what the page rendered, mark the region done, wake nothing.
 		if (html === KEEP_FALLBACK_HTML) {
 			this.#painted(painting);
+			use_sheets(this, []); // (the fallback's sheets are the page's)
 			this.#answered('kept');
 			if (!is_awake(this)) this.setAttribute('data-hydrated', '');
 			this.setAttribute('data-og-kept', '');
@@ -1224,11 +1231,12 @@ class OgygiaRegion extends HTMLElement {
 		// any frame into a lake (its content is always an earlier render). A hole's first answer is
 		// never one, however it was fetched — even by a refetch (a re-minted hole), or after one failed.
 		const revalidate = is_frozen(this) || this.#answer.now.kind === 'answered';
-		const { frag, ready } = region_fragment(html);
+		const { frag, ready, sheets } = region_fragment(html);
 		// let the server-picked component's stylesheet load before painting (no FOUC). STALE: the
 		// region left the page meanwhile; a newer frame came meanwhile: it paints, this one never does.
 		if ((await turn.wait(ready)) === STALE || this.#paint.now !== painting) return;
 		this.#painted(painting);
+		use_sheets(this, sheets);
 		this.#shown = html;
 		slots.lakes.settle_in(frag);
 		slots.lakes.mark_frozen_settled(this);
@@ -1308,7 +1316,7 @@ class OgygiaRegion extends HTMLElement {
 			return;
 		}
 		const painting = this.#paint_next();
-		const { frag, ready } = region_fragment(html);
+		const { frag, ready, sheets } = region_fragment(html);
 		// Wait for the component's stylesheet before painting. On first paint the region's placeholder
 		// CHILDREN stay visible meanwhile; on a later morph the OLD content stays — either way no flash
 		// of unstyled or missing content. An already-loaded sheet resolves instantly, so live ticks
@@ -1317,6 +1325,7 @@ class OgygiaRegion extends HTMLElement {
 		// interactive tick brought is not morphed over)
 		if ((await turn.wait(ready)) === STALE || this.#paint.now !== painting) return;
 		this.#painted(painting);
+		use_sheets(this, sheets);
 		slots.lakes.settle_in(frag);
 		if (!this.#live_ready) {
 			this.replaceChildren(frag);
@@ -1852,11 +1861,12 @@ class OgygiaRegion extends HTMLElement {
 		this.#live_ready = true;
 		// createContextualFragment — signed same-origin HTML trust boundary (HOLE-TRUST). The HTML is
 		// our own SSR under a verified MAC (or, for a live tick, rendered in-process on the server).
-		const { frag, ready } = region_fragment(desc.html);
+		const { frag, ready, sheets } = region_fragment(desc.html);
 		// stylesheet before paint — an interactive held region has CSS too (no FOUC). (STALE: the
 		// region left the page meanwhile; another tick took over: it paints)
 		if ((await turn.wait(ready)) === STALE || this.#live.now !== mine) return;
 		this.#painted(painting);
+		use_sheets(this, sheets);
 		slots.lakes.settle_in(frag);
 		this.replaceChildren(frag);
 		restore_adopt_sheets();

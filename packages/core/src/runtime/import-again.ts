@@ -19,7 +19,7 @@
  * imports nothing of the boot (only `@ogygia/machine`, which the boot runs on); the boot hands it
  * its message (`on_reload_needed`).
  */
-import { flights, STALE } from '@ogygia/machine';
+import { flights, machine, STALE } from '@ogygia/machine';
 
 /** The URL in a failed dynamic import's message: Chromium "Failed to fetch dynamically imported
  *  module: <url>", Firefox "error loading dynamically imported module: <url>". */
@@ -81,21 +81,21 @@ export function import_again<T>(
 	load: () => Promise<T>,
 	fresh: (url: string) => Promise<unknown> = (url) => import(/* @vite-ignore */ url)
 ): () => Promise<T> {
-	let failed: string | null = null;
-	let attempt = 0;
-	let loaded: Promise<T> | null = null;
-	/** a failure no retry fixes (its dependency's): every later call is it */
-	let stuck: { error: unknown } | null = null;
+	const file = file_definition.create();
 	return () => {
-		if (loaded) return loaded;
-		if (stuck) return Promise.reject(stuck.error);
+		const s = file.now;
+		if (s.kind === 'loaded') return s.run as Promise<T>;
+		if (s.kind === 'stuck') return Promise.reject(s.error);
 		let run: Promise<T>;
-		if (failed !== null) {
-			const url = retry_url(failed, ++attempt);
+		if (s.kind === 'failed') {
+			// (each retry its own URL, counted as it starts: two calls at once ask under two)
+			const attempt = s.attempt + 1;
+			file.go('failed', { url: s.url, attempt });
+			const url = retry_url(s.url, attempt);
 			run = (fresh(url) as Promise<T>).catch((error: unknown) => {
 				const status = response_of(url);
-				if (status !== null && status < 400) {
-					stuck = { error };
+				// its own file came, and it still failed: a dependency's failure, which no URL fixes
+				if (status !== null && status < 400 && file.move('failed', 'stuck', { error })) {
 					if (!said) {
 						said = true;
 						say_reload_needed(url, error);
@@ -105,17 +105,49 @@ export function import_again<T>(
 			});
 		} else {
 			run = load().catch((error: unknown) => {
-				failed = failed_import_url(error);
+				const url = failed_import_url(error);
+				// (a failure that names no URL: the next call loads the same way again)
+				if (url !== null) file.move('fresh', 'failed', { url, attempt: 0 });
 				throw error;
 			});
 		}
 		run.then(
-			() => (loaded = run),
+			() => {
+				if (file.now.kind !== 'loaded') file.go('loaded', { run });
+			},
 			() => {}
 		); // ok: the failure is the caller's: `run` itself is returned and rejects to it
 		return run;
 	};
 }
+
+/**
+ * One file's loads, as a machine:
+ *
+ *   fresh ─ failed{url, attempt} ⟲ ─ loaded{run}
+ *     ╲──────────────────────────╱ ╲ stuck{error}
+ *
+ * `fresh`: nothing failed yet (or a failure named no URL): a call loads the bundler's way. `failed`:
+ * a download failed; each call asks under a fresh URL. `loaded`: a load landed, and every later call
+ * is that load (a fresh URL after a success would be a second copy of the module). `stuck`: a retry's
+ * own file came and it still failed, a dependency's failure: every later call fails at once with it.
+ */
+const file_definition = machine<{
+	fresh: {};
+	failed: { url: string; attempt: number };
+	loaded: { run: Promise<unknown> };
+	stuck: { error: unknown };
+}>()({
+	name: 'import-again',
+	initial: 'fresh',
+	steps: {
+		fresh: ['failed', 'loaded'],
+		failed: ['failed', 'loaded', 'stuck'],
+		loaded: [],
+		// (a retry already out when another got stuck may still land: the file loaded after all)
+		stuck: ['loaded']
+	}
+});
 
 /** Each file's loader, by URL (an island's own file: its load, and the warm ahead of it): what it
  *  asks for next (the file, or a fresh URL after a failed download). */

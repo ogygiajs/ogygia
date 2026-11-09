@@ -1,28 +1,34 @@
 /**
- * DETAIL IS COUNTED (server/request-stats.ts): two profilers can record at once in one process (the
+ * DETAIL IS HELD (server/request-stats.ts): two profilers can record at once in one process (the
  * dev server re-runs the app's hooks on an edit: a new profiler, while the old one's timers still
- * record). The first window to end must not turn detail off under the other.
+ * record). The first window to end must not turn detail off under the other, and a window's own
+ * release lets go of its hold only, once.
  */
 import { describe, it, expect } from 'vitest';
-import { request_stats_detailed, set_request_stats_detail } from '../src/server/request-stats.ts';
+import { hold_request_stats_detail, request_stats_detailed } from '../src/server/request-stats.ts';
 
-describe('set_request_stats_detail', () => {
-	it('stays on while any window records; overlapping windows end in any order', () => {
+describe('hold_request_stats_detail', () => {
+	it('stays on while any window holds it; overlapping windows end in any order', () => {
 		expect(request_stats_detailed()).toBe(false);
-		set_request_stats_detail(true); // window A
-		set_request_stats_detail(true); // window B, overlapping
-		set_request_stats_detail(false); // A ends first
+		const a = hold_request_stats_detail(); // window A
+		const b = hold_request_stats_detail(); // window B, overlapping
+		a(); // A ends first
 		expect(request_stats_detailed()).toBe(true); // B still records: its render keeps its rows
-		set_request_stats_detail(false); // B ends
+		b(); // B ends
 		expect(request_stats_detailed()).toBe(false);
 	});
-	it('an extra off never goes below none (the next window still turns it on)', () => {
-		set_request_stats_detail(false);
-		set_request_stats_detail(false);
+	it('a release called twice lets go once: it never ends another window’s hold', () => {
+		const a = hold_request_stats_detail();
+		const b = hold_request_stats_detail();
+		a();
+		a(); // a second "off" from A (a retried cleanup)
+		expect(request_stats_detailed()).toBe(true); // B still holds it
+		b();
 		expect(request_stats_detailed()).toBe(false);
-		set_request_stats_detail(true);
+		// the next window still turns it on
+		const c = hold_request_stats_detail();
 		expect(request_stats_detailed()).toBe(true);
-		set_request_stats_detail(false);
+		c();
 		expect(request_stats_detailed()).toBe(false);
 	});
 });

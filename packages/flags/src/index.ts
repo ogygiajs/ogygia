@@ -32,8 +32,23 @@ export type CtxLike = {
 
 /** Written by an upstream shell's identity hop (the fragment feature); absent = the tier is skipped. */
 const CLAIMS = Symbol.for('ogygia.claims.v1');
-/** Per-request source resolution, cached on the Request (GC'd with it). */
-const RESOLVED = Symbol.for('ogygia.flags.resolved.v1');
+/** Per-request source resolution, cached on the Request (GC'd with it): its {@link Prime}. */
+const RESOLVED = Symbol.for('ogygia.flags.resolved.v2');
+
+type Decision = { variant: string; value?: unknown };
+/**
+ * A request's source answer: `priming` while the source is asked (a second prime waits on `done`,
+ * and a read meanwhile falls through to the native rule), then `resolved` with what it decided (an
+ * empty map when the source decided nothing, or failed).
+ */
+type Prime =
+	| { kind: 'priming'; done: Promise<void> }
+	| { kind: 'resolved'; map: Record<string, Decision> };
+
+const prime_of = (c: CtxLike) =>
+	(c.request as unknown as Record<symbol, Prime | undefined>)[RESOLVED];
+const set_prime = (c: CtxLike, p: Prime) =>
+	((c.request as unknown as Record<symbol, Prime | undefined>)[RESOLVED] = p);
 
 /** 0..9999 — sticky hash bucket for (salt, visitor). Uniform + deterministic, not cryptographic;
  *  the shared pure hash keeps this module safe in ANY bundle (runtime + every island entry). */
@@ -237,17 +252,32 @@ const _registry = new Map<string, FlagQuery>();
  * degrades every flag to its native rule, it does not take the request down, and is said
  * (`flags_source_failed`, once per failing streak).
  */
-export async function prime_flags(c: CtxLike): Promise<void> {
-	const req = c.request as unknown as Record<symbol, unknown>;
-	if (!_source || req[RESOLVED] !== undefined) return;
-	req[RESOLVED] = {}; // claim the slot up front (idempotent across concurrent primes)
-	if (_registry.size === 0) return;
+export function prime_flags(c: CtxLike): Promise<void> {
+	if (!_source) return Promise.resolve();
+	const now = prime_of(c);
+	if (now !== undefined) return now.kind === 'priming' ? now.done : Promise.resolve();
+	if (_registry.size === 0) {
+		set_prime(c, { kind: 'resolved', map: {} });
+		return Promise.resolve();
+	}
+	// claimed before the source is asked: a second prime of this request waits on this one, and a
+	// source that fails at once writes `resolved` over the claim, never under it (#374)
+	const claim: { kind: 'priming'; done: Promise<void> } = {
+		kind: 'priming',
+		done: Promise.resolve()
+	};
+	set_prime(c, claim);
+	claim.done = ask_source(c, _source);
+	return claim.done;
+}
+
+async function ask_source(c: CtxLike, source: NonNullable<typeof _source>): Promise<void> {
 	const mark = source_mark();
 	try {
 		// the source sees the identity a read hashes on: it primes above the router, where no
 		// `c.visitor` exists yet, so a vendor's per-user targeting would otherwise have no key
-		const out = await _source([..._registry.values()], { ...c, visitor: visitor_of(c) });
-		const map: Record<string, { variant: string; value?: unknown }> = {};
+		const out = await source([..._registry.values()], { ...c, visitor: visitor_of(c) });
+		const map: Record<string, Decision> = {};
 		for (const q of _registry.values()) {
 			const raw = out?.[q.name];
 			if (raw === undefined) continue;
@@ -259,25 +289,23 @@ export async function prime_flags(c: CtxLike): Promise<void> {
 						: raw;
 			if (norm && q.variants.includes(norm.variant)) map[q.name] = norm;
 		}
-		req[RESOLVED] = map;
+		set_prime(c, { kind: 'resolved', map });
 		source_answered(mark);
 	} catch (error) {
-		req[RESOLVED] = {}; // source down → everything falls through to native
+		set_prime(c, { kind: 'resolved', map: {} }); // source down → everything falls through to native
 		source_failed(error);
 	}
 }
 
-function resolved_for(c: CtxLike, name: string): { variant: string; value?: unknown } | undefined {
-	const map = (
-		c.request as unknown as Record<symbol, Record<string, { variant: string; value?: unknown }>>
-	)[RESOLVED];
-	if (map === undefined && _source && !_unprimed_warned) {
+function resolved_for(c: CtxLike, name: string): Decision | undefined {
+	const p = prime_of(c);
+	if (p === undefined && _source && !_unprimed_warned) {
 		// a source is configured but nothing primed this request: the plugin is not in the app's list,
 		// so every read silently ignores the source. Say it once.
 		_unprimed_warned = true;
 		warn('flags_source_unprimed');
 	}
-	return map?.[name];
+	return p?.kind === 'resolved' ? p.map[name] : undefined;
 }
 let _unprimed_warned = false;
 let _unstarted_warned = false;
