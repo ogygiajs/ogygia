@@ -143,7 +143,7 @@ const highlighters: Flights<
 	HighlighterAsk,
 	Highlighter,
 	Pick<HighlighterAsk, 'key'>
-> = flights<HighlighterAsk>()({
+> = flights.keyed<HighlighterAsk>()({
 	name: 'shiki highlighter',
 	key: ['key'],
 	ignore: { cfg: 'every config with one key has the same themes and languages' },

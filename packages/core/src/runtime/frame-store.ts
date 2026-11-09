@@ -87,7 +87,7 @@ const entries: Map<string, Entry> = (store_host[GLOBAL_KEY] ??= new Map());
 /** The fetches in flight, one per address, shared by every caller of it. Nothing is kept: the
  *  versioned store holds what landed. A flight's work aborts once its last caller left. */
 function frame_flights(): FrameFlights {
-	return (store_host[FLIGHTS_KEY] ??= flights<FrameAsk>()({
+	return (store_host[FLIGHTS_KEY] ??= flights.keyed<FrameAsk>()({
 		name: 'frames',
 		key: ['a'],
 		ignore: { work: 'one flight per address: a fetch or a batch part out there is joined' },

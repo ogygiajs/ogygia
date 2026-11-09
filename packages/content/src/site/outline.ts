@@ -239,7 +239,7 @@ class OutlineImpl implements Outline {
 	readonly #spec: OutlineSpec;
 	readonly #opts: OutlineOptions;
 	/** One weave per read context: the last good one is kept, and a weave out for it is joined. */
-	readonly #weaves = flights<{ key: string; ctx: ReadContext }>()({
+	readonly #weaves = flights.keyed<{ key: string; ctx: ReadContext }>()({
 		name: 'content outline weaves',
 		key: ['key'],
 		ignore: { ctx: 'the key spells all of it (ctx_key: every field, sorted)' },

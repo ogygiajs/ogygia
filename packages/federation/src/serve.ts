@@ -376,7 +376,7 @@ type Received = {
  * and one after is dropped. Ids are kept 10 minutes, the newest 10 000 at most.
  */
 const SAME_NOTICE = 'an id names one notice: a copy of it is that notice again';
-const applied_notices = flights<Received>()({
+const applied_notices = flights.keyed<Received>()({
 	name: 'federation thaws applied',
 	key: ['id'],
 	ignore: {
