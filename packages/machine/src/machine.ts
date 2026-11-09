@@ -22,6 +22,7 @@
  */
 import { DEV } from 'esm-env';
 import { machine_error, report, warn_once } from './messages.ts';
+import { cache } from './cache.ts';
 import { CLOSED, is_time, MAX_TIMEOUT_MS, visit_scope, type Scope } from './scope.ts';
 import { STALE, type Stale } from './stale.ts';
 
@@ -183,24 +184,26 @@ export type Observer = (
 	machine: AnyMachine
 ) => void;
 
-let observers: readonly Observer[] = [];
+/** Who watches every move, in the order they started: each kept until its own stop. (No bound:
+ *  each is a caller's, and its stop lets it go; a watcher is devtools or a test.) */
+const observers = cache<Observer, true>({ name: 'observers', max: Infinity });
 
 /**
  * Watches every machine's moves (devtools, tests). Returns the function that stops watching. An
  * observer that throws is reported and does not break the move.
  */
 export function observe(observer: Observer): () => void {
-	observers = [...observers, observer];
+	observers.set(observer, true);
 	return () => {
-		observers = observers.filter((o) => o !== observer);
+		observers.delete(observer);
 	};
 }
 
 function notify(name: string, from: State, to: State | null, machine: AnyMachine): void {
-	const list = observers;
+	const list = observers.entries();
 	for (let i = 0; i < list.length; i++) {
 		try {
-			list[i](name, from, to, machine);
+			list[i]![0](name, from, to, machine);
 		} catch (error) {
 			report('machine_observer_failed', { name }, error);
 		}
@@ -370,7 +373,7 @@ class Running implements AnyMachine {
 		const waiters = this._waiters;
 		this._scope = this._waiters = null;
 		if (waiters !== null) for (const w of waiters) w.resolve(STALE);
-		if (observers.length !== 0) notify(this._def.name, this._now, null, this);
+		if (observers.size !== 0) notify(this._def.name, this._now, null, this);
 		scope?.close();
 	}
 
@@ -388,7 +391,7 @@ class Running implements AnyMachine {
 		// then leaves this visit, and closing it clears this timer)
 		if (target.timed !== null) this._arm(target.timed);
 		if (this._waiters !== null) this._settle(next);
-		if (observers.length !== 0) notify(def.name, prev, next, this);
+		if (observers.size !== 0) notify(def.name, prev, next, this);
 		scope?.close();
 	}
 
