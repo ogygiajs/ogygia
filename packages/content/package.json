@@ -118,6 +118,7 @@
 		"e2e": "playwright test"
 	},
 	"dependencies": {
+		"@ogygia/machine": "workspace:^",
 		"@orama/orama": "^3.1.18",
 		"bits-ui": "catalog:",
 		"mdsvex": "catalog:"

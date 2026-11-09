@@ -4,7 +4,8 @@
  * prerendered `search.json` documents; the heavy engine (optional peer) is lazy-loaded inside.
  *
  * Messages in:  { type: 'load', url } | { type: 'query', id, q, base, limit }
- * Messages out: { type: 'ready' } | { type: 'error', message } | { type: 'result', id, hits }
+ * Messages out: { type: 'ready' } | { type: 'error', message } (the index failed to load)
+ *             | { type: 'result', id, hits } | { type: 'error', id, message } (that query failed)
  */
 import { orama_engine, type SearchIndex } from './search.ts';
 import { OgygiaError } from '../messages/runtime.ts';
@@ -53,8 +54,10 @@ self.onmessage = async (e: MessageEvent) => {
 			const hits = await index.query(msg.q ?? '', { limit: msg.limit ?? 10, base: msg.base ?? '' });
 			(self as unknown as Worker).postMessage({ type: 'result', id: msg.id, hits });
 		} catch (err) {
+			// answered with the query's id: an error without one reached no query (it waited forever)
 			(self as unknown as Worker).postMessage({
 				type: 'error',
+				id: msg.id,
 				message: err instanceof Error ? err.message : String(err)
 			});
 		}
