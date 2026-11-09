@@ -31,8 +31,9 @@
  *   that joined it, and is never kept: the next `get` starts a new flight. A failing key costs one
  *   round of tries per wave of callers, not one per caller.
  * - `keep` is how long an answer stays (ms: a number, or made from the answer; 0 keeps nothing,
- *   the default keeps it for as long as the flights lives). `max` caps the total `weigh` of what is
- *   kept: past it, the expired go first, then the least recently used.
+ *   the default keeps it until `max` lets it go). `max` caps the total `weigh` of what is kept
+ *   (default 1000: with the default weight, 1000 answers): past it, the expired go first, then the
+ *   least recently used.
  * - `drop` takes kept answers out and ends the flights in progress: their signal aborts, every
  *   caller that joined them gets `STALE`, and nothing they answer is kept.
  * - A caller may bring a `signal`: when it aborts, that caller alone gets `STALE` at once, and the
@@ -66,11 +67,11 @@ interface FlightsCommon<R, V, W> {
 	/** The work for an input: started by the `get` that finds no flight and no kept answer. */
 	run: (input: R, signal: AbortSignal) => V;
 	/** How long an answer stays, in ms: a number, or made from the answer and its input. 0 keeps
-	 *  nothing (callers share the flight while it is out); the default, `Infinity`, keeps it for as
-	 *  long as the flights lives. A failure is never kept. */
+	 *  nothing (callers share the flight while it is out); the default, `Infinity`, keeps it until
+	 *  `max` lets it go. A failure is never kept. */
 	keep?: number | ((answer: Fresh<Awaited<V>>, input: R) => number);
-	/** The most total weight it keeps; past it, the least recently used answers go. Default
-	 *  `Infinity`. */
+	/** The most total weight it keeps (a finite number more than 0); past it, the least recently
+	 *  used answers go. Default 1000 (answers, with the default weight). */
 	max?: number;
 	/** An answer's weight against `max` (bytes, say). Default 1: `max` then counts answers. An
 	 *  answer heavier than `max`, or with a weight below 0 or not a number, is not kept. */
@@ -174,6 +175,8 @@ const entry_steps = {
 type Entry = Machine<EntryStates, typeof entry_steps>;
 
 const STALE_NOW: Promise<Stale> = Promise.resolve(STALE);
+/** The most total weight a flights keeps when its options do not say (1000 answers). */
+const DEFAULT_MAX = 1000;
 const noop = (): void => {};
 const FLYING: FlightEntry<never> = Object.freeze({ kind: 'flying' });
 
@@ -306,8 +309,9 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		const keep = o.keep ?? Infinity;
 		if (typeof keep !== 'function' && !(typeof keep === 'number' && keep >= 0))
 			throw bad_option('keep', keep, 'a time in ms of 0 or more, or a function that makes one');
-		const max = o.max ?? Infinity;
-		if (!(typeof max === 'number' && max > 0)) throw bad_option('max', max, 'more than 0');
+		const max = o.max ?? DEFAULT_MAX;
+		if (!(typeof max === 'number' && max > 0 && Number.isFinite(max)))
+			throw bad_option('max', max, 'a finite number more than 0');
 		this._def = machine<EntryStates>()({
 			name: o.name ?? 'flights',
 			initial: 'flying',

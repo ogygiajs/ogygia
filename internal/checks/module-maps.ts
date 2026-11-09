@@ -1,14 +1,17 @@
 // NO UNBOUNDED, UNOWNED MODULE-LEVEL MAP OR SET (#414). A module-level `Map`, `Set` or growing
 // array lives as long as the page or the server process. One that grows with requests, pages or
 // visits, with no bound and no owner, is a leak. At module level, each one in `packages/*/src` is
-// one of two forms:
+// one of three forms:
 //
-//   - a `cache()` (@ogygia/machine): bounded, owned, and it says what it lets go;
+//   - a `cache()` (@ogygia/machine): bounded, owned, and it says what it lets go. Its bound is a
+//     number: a literal `max: Infinity` is refused anywhere in the module;
+//   - a `registry()` (@ogygia/machine/internal/registry): live entries, each owned by a scope and
+//     gone with it, never evicted (watchers, modules);
 //   - a fixed table, filled by its initializer and never grown, marked `// static: <why>` (on its
 //     line or the line before). The check proves the "never grown": a `.set` / `.add` / `.push` /
 //     `.unshift` / `.splice` on it, or a write to an index of it, anywhere in the module, is an error.
 //
-// Both are `const`: a module-level `let` holding a collection is growth (it is reassigned:
+// All are `const`: a module-level `let` holding a collection is growth (it is reassigned:
 // `x = [...x, o]`, `x = new Map(x)`, `x ||= …`), marked or not.
 //
 // One owned by a scope does not live at module level: it is made inside its owner (the scope's
@@ -39,7 +42,7 @@ export type Finding = {
 	line: number;
 	name: string;
 	/** What it is: an unowned Map / Set / growing array, or a static table the module grows. */
-	kind: 'Map' | 'Set' | 'array' | 'static-grown' | 'let';
+	kind: 'Map' | 'Set' | 'array' | 'static-grown' | 'let' | 'infinite-max';
 	fix: string;
 };
 
@@ -179,6 +182,37 @@ export function find_unowned(file: string, source: string): Finding[] {
 	if (statics.size)
 		for (const w of writes_to(program, statics))
 			out.push({ file, line: line_of(w.at), name: w.name, kind: 'static-grown', fix: FIX_GROWN });
+	for (const at of infinite_maxes(program))
+		out.push({ file, line: line_of(at), name: 'max', kind: 'infinite-max', fix: FIX_MAX });
+	return out;
+}
+
+const FIX_MAX =
+	'a bound is a finite number: give the cache or flights the most it may keep (Infinity is no bound)';
+
+/** Each `max: Infinity` property in `program`: where it starts. */
+function infinite_maxes(program: Node): number[] {
+	const out: number[] = [];
+	const walk = (n: unknown): void => {
+		if (!n || typeof n !== 'object') return;
+		const node = n as Node;
+		if (
+			node.type === 'Property' &&
+			!node.computed &&
+			(node.key as Node).type === 'Identifier' &&
+			(node.key as Node).name === 'max' &&
+			(node.value as Node).type === 'Identifier' &&
+			(node.value as Node).name === 'Infinity'
+		)
+			out.push(node.start);
+		for (const key in node) {
+			if (key === 'type' || key === 'start' || key === 'end') continue;
+			const v = node[key];
+			if (Array.isArray(v)) v.forEach(walk);
+			else if (v && typeof v === 'object') walk(v);
+		}
+	};
+	walk(program);
 	return out;
 }
 

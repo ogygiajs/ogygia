@@ -331,7 +331,7 @@ bench(
 				const leaving = frames.ensure(a, fetcher, { signal: leave.signal });
 				const twin = frames.ensure(a, fetcher);
 				leave.abort();
-				frames.write({ a, v: frames.ticket(a), html: `<p>batch ${i}</p>` });
+				frames.write({ a, v: frames.stamp(), html: `<p>batch ${i}</p>` });
 				settled.push(leaving, twin);
 				continue;
 			}

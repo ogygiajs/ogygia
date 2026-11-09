@@ -154,7 +154,7 @@ if (page === STALE) return; // dropped, or this caller left
 | `run(input, signal)`             | The work. Starts inside the `get` that finds no flight and no kept answer; that caller's input is the one run. |
 | `key(input)`                     | Which inputs are the same flight. Default: the input itself.                                                   |
 | `keep`                           | How long an answer stays, ms (or made from the answer). `0` keeps nothing. Default: for as long as it lives.   |
-| `max` / `weigh(answer)`          | The most total weight kept (default weight 1: a count); the least recently used go first.                      |
+| `max` / `weigh(answer)`          | The most total weight kept (default 1000, weight 1: a count); the least recently used go first.                |
 | `retries`                        | Tries again at once, inside one flight, before it fails.                                                       |
 | `get(input, { signal, fresh })`  | Joins, gives the kept answer, or starts a flight. `STALE` when it was dropped or this caller left.             |
 | `peek(key)`                      | What the key holds now (`flying`, or `kept` with its answer and when it landed), without starting anything.    |
@@ -175,7 +175,7 @@ A keyed store that is always bounded, always owned, and says when it lets a valu
 import { cache } from '@ogygia/machine';
 
 const pages = cache<string, Page>({
-	max: 4_000_000, // required: `Infinity` is a choice written out
+	max: 4_000_000, // required, finite: a cache is always bounded
 	weigh: (page) => page.html.length * 2, // default 1: `max` then counts values
 	keep: 60_000, // ms a value stays (or made from the value and key)
 	owner: request, // a scope: its end ends the cache
@@ -196,8 +196,8 @@ pages.get('/docs'); // a use: the least recently used go first past `max`
 | `set` / `delete` / `clear`              | `set` says `false` when it did not keep the value (too heavy, kept 0 ms, older, or ended).                    |
 | `has` / `size` / `weight` / `entries()` | What it holds now, least recently used first.                                                                 |
 
-- **No unbounded default.** A cache with no `max` does not compile, and throws `machine_bad_option`.
-- **One timer.** The ages are kept by one timer of the cache's scope, set for the value due first.
+- **Always bounded.** A cache with no `max` does not compile. A `max` that is not a finite number more than 0 (`Infinity` included) throws `machine_bad_option` in dev; in production the cache is refused (it keeps nothing) and the code is printed.
+- **One timer.** The ages are kept by one timer of the cache's scope, set for the value due first, sweeping at most once a second (a read past a value's age finds nothing at once all the same).
 - **Notices never break it.** A notice that throws is reported (`machine_evict_failed`) and the rest still run. A `set` or `delete` inside a notice is a normal call: what it lets go is heard after the notices already due.
 - A cache is `Disposable`: with no `owner`, a scope can `adopt` it.
 
