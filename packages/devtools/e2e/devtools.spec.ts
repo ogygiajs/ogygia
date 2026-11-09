@@ -85,6 +85,7 @@ type DtWindow = typeof window & {
 	__ogygia_session?: { findings: { code: string; message: string }[] };
 	__ogygia_testing: {
 		hydration(): Promise<{ islands: { reason: string; status: string }[] }>;
+		settled(quiet?: number, timeout?: number): Promise<boolean>;
 	};
 };
 
@@ -188,6 +189,32 @@ test.describe('devtools (dev server, OGYGIA_DEVTOOLS=1): events, panel tabs, pag
 			.catch(() => false);
 		check('a click after the failed download loads the dock and opens it', open);
 		check('the dock’s code was asked for again', dropped >= 2, `${dropped} request(s)`);
+		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
+	});
+
+	test('the testing engine fails to download once: the next `__ogygia_testing` call loads it (#241)', async ({
+		page
+	}) => {
+		let dropped = 0;
+		await page.route(
+			(url) => url.pathname.includes('testing-engine'),
+			(route) => (dropped++ === 0 ? route.abort('failed') : route.continue())
+		);
+		const thrown: string[] = [];
+		page.on('pageerror', (e) => thrown.push(String(e)));
+		await page.goto('/interaction', { waitUntil: 'load' });
+		const settle = () =>
+			page.evaluate(() =>
+				(window as DtWindow).__ogygia_testing.settled(50, 5000).then(
+					(v) => 'ok: ' + v,
+					(e: unknown) => 'failed: ' + String(e)
+				)
+			);
+		const first = await settle();
+		check('the first call failed (its download dropped)', first.startsWith('failed'), first);
+		const second = await settle();
+		check('the next call loaded the engine and answered', second === 'ok: true', second);
+		check('the engine was asked for again', dropped >= 2, `${dropped} request(s)`);
 		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
 	});
 

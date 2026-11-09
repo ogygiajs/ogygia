@@ -11,6 +11,8 @@
  * merge, body reconcile, seeds, a11y) is ./router-nav.ts, loaded on the first prefetch or
  * intercepted click. A visitor who never leaves the page never downloads it.
  */
+import { once } from '@ogygia/machine';
+import { import_again } from './import-again.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
 import { create_navigation, type Navigation } from './navigation.ts';
 import { slots } from './slots.ts';
@@ -208,10 +210,19 @@ function on_idle(fn: () => void, timeout = 1000) {
 	else setTimeout(fn, 50);
 }
 
-/** THE NAVIGATION (./router-nav.ts), loaded once, on first use. */
+/**
+ * THE NAVIGATION (./router-nav.ts), loaded once, on first use. A download that fails is tried again
+ * at once, and a failure is never kept: the next prefetch, click or refresh loads it afresh, under a
+ * fresh URL (./import-again.ts: the browser keeps the failed one). It once imported the same URL
+ * again, which fails at once for the life of the page: links fell back to full loads, and every
+ * refresh failed. `loaded_nav` is the synchronous view once it has arrived.
+ */
 type Nav = typeof import('./router-nav.ts');
-let nav_promise: Promise<Nav> | null = null;
 let loaded_nav: Nav | null = null;
+const load_nav: () => Promise<Nav> = once(
+	import_again(() => import('./router-nav.ts')),
+	{ retries: 1 }
+);
 function nav(): Promise<Nav> {
 	// Link what the navigation chunk uses from this module right where the chunk is loaded
 	// (./slots.ts `BootLink`: it never imports this module, or both would be split out of the runtime).
@@ -221,15 +232,7 @@ function nav(): Promise<Nav> {
 		push_state,
 		replace_state
 	};
-	if (!nav_promise)
-		nav_promise = import('./router-nav.ts').then(
-			(m) => (loaded_nav = m),
-			(err) => {
-				nav_promise = null; // a failed load is retried by the next navigation, not cached
-				throw err;
-			}
-		);
-	return nav_promise;
+	return load_nav().then((m) => (loaded_nav = m));
 }
 
 export class SpaRouter {
@@ -303,12 +306,18 @@ export class SpaRouter {
 		return loaded_nav?.page_cache_size() ?? 0;
 	}
 
+	/** The page at `href`, or `null` when there is none to have: the fetch failed (./router-nav.ts
+	 *  `fetch_page`), or the navigation code itself did not load. The prefetches (a hover, a
+	 *  viewport link, `preloadData`) start it and never wait on it: a rejection here was uncaught. */
 	fetch_page(
 		href: string,
 		signal?: AbortSignal,
 		purpose?: 'nav' | 'prefetch' | 'history'
 	): Promise<import('./page-cache.ts').FetchedPage | null> {
-		return nav().then((n) => n.fetch_page(href, signal, purpose));
+		return nav().then(
+			(n) => n.fetch_page(href, signal, purpose),
+			() => null
+		);
 	}
 
 	async navigate(

@@ -11,11 +11,17 @@
  * through Kit's `transport` (`wire_all`: remote functions, loads) gets every class with every island,
  * as before: those values decode synchronously whenever they arrive. Each module loads once.
  *
+ * A download that fails is tried again at once, and a failure is never kept: the wake it failed for
+ * decodes without the class (the decode says which class is missing), and the next wake that needs
+ * it loads it afresh, under a fresh URL (./import-again.ts: the browser keeps the failed one).
+ *
  * A BOOT-phase feature (link/runtime-entry.ts), installed only when the app has transportable
  * classes: without one the loader map is empty, but the bundler cannot see that through the virtual
  * module, so this code shipped to every island page for a lookup that always found nothing.
  */
+import { once } from '@ogygia/machine';
 import { wire_loaders, wire_all } from 'virtual:ogygia/transportables';
+import { import_again } from './import-again.ts';
 import { props_sidecar_of } from './sidecar.ts';
 import { yield_task } from './schedule.ts';
 import { slots } from './slots.ts';
@@ -27,22 +33,22 @@ export function install(): void {
 
 const loaders = wire_loaders as Record<string, () => Promise<unknown>>;
 const paths = Object.keys(loaders);
-const loading = new Map<string, Promise<unknown>>();
+/** Each class module's load, kept once it succeeds (`once`: a failure is never kept). */
+const loads = new Map<string, () => Promise<unknown>>();
 
 function load(path: string): Promise<unknown> {
-	let p = loading.get(path);
-	if (!p) {
+	let l = loads.get(path);
+	if (!l) {
 		const loader = loaders[path];
-		// (a failed load resolves: the decode then says which class is missing, as it always did; each
-		// import starts in a task of its own — every class's preload ran inside the first island's start)
-		p = loader
-			? yield_task()
-					.then(loader)
-					.catch(() => undefined)
-			: Promise.resolve();
-		loading.set(path, p);
+		if (!loader) return Promise.resolve();
+		const import_class = import_again(loader);
+		// (each import starts in a task of its own: every class's preload ran inside the first
+		// island's start)
+		l = once(() => yield_task().then(import_class), { retries: 1 });
+		loads.set(path, l);
 	}
-	return p;
+	// (a failed load resolves for this wake: its decode then says which class is missing)
+	return l().catch(() => undefined);
 }
 
 /** The classes a text names (`"<tag path>#…` appears in it), into `want`. */

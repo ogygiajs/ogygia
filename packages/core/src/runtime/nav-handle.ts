@@ -22,11 +22,26 @@
  * Island code reads it as `globalThis[Symbol.for('ogygia.nav')]` (the key is repeated there on
  * purpose: importing {@link NAV_HANDLE_KEY} would be the very edge this module exists to avoid).
  */
+import { once } from '@ogygia/machine';
+import { import_again } from './import-again.ts';
 import { speculate_url } from './speculate-hint.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
 import type { AfterNavigateCallback, BeforeNavigateCallback } from './router.ts';
 
 export const NAV_HANDLE_KEY: unique symbol = Symbol.for('ogygia.nav');
+
+/**
+ * THE SOFT REFRESH (./router-nav.ts `invalidate_all`), loaded once, on the first refresh. A
+ * download that fails is tried again at once, and a failure is never kept: the next refresh loads
+ * it afresh, under a fresh URL (./import-again.ts: the browser keeps the failed one). It once
+ * imported the same URL again, which fails at once for the life of the page. (Only the refresh is
+ * read from the module, so the bundler leaves the rest of the navigation out of this chunk; the
+ * router's own load, ./router.ts, reads all of it.)
+ */
+const load_refresh: () => Promise<{ invalidate_all(): Promise<void> }> = once(
+	import_again(() => import('./router-nav.ts').then(({ invalidate_all }) => ({ invalidate_all }))),
+	{ retries: 1 }
+);
 
 export type NavHandle = {
 	goto(url: string | URL, opts?: { replaceState?: boolean; external?: boolean }): Promise<void>;
@@ -74,8 +89,8 @@ export function mpa_nav(): NavHandle {
 			return Promise.resolve();
 		},
 		// No SPA cache to bust, but the page's seeds can still refresh in place.
-		invalidate: () => import('./router-nav.ts').then((n) => n.invalidate_all()),
-		invalidateAll: () => import('./router-nav.ts').then((n) => n.invalidate_all()),
+		invalidate: () => load_refresh().then((n) => n.invalidate_all()),
+		invalidateAll: () => load_refresh().then((n) => n.invalidate_all()),
 		preloadData(url) {
 			speculate_url(url, 'prerender');
 			return Promise.resolve({ type: 'loaded' as const, status: 200, data: {} });
