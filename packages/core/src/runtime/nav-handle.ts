@@ -26,6 +26,7 @@ import { flights, STALE } from '@ogygia/machine';
 import { import_again } from './import-again.ts';
 import { speculate_url } from './speculate-hint.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
+import { download } from '../policies.ts';
 import type { AfterNavigateCallback, BeforeNavigateCallback } from './router.ts';
 
 export const NAV_HANDLE_KEY: unique symbol = Symbol.for('ogygia.nav');
@@ -43,7 +44,7 @@ const load_refresh = flights({
 	run: import_again(() =>
 		import('./router-nav.ts').then(({ invalidate_all }) => ({ invalidate_all }))
 	),
-	retries: 1
+	retry: download
 });
 /** The refresh, once its module is in (never STALE: nothing drops it). */
 const invalidate_all = (): Promise<void> =>

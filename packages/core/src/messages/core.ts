@@ -815,6 +815,43 @@ export const WARNINGS = {
 			and there was none to adopt. Keep such lakes in a layout that stays across navigations, or
 			serve the route with \`csr = false\`.
 		`
+	},
+	rule_region_mounted_twice: {
+		text: (a: { detail: string }): string => `rule broken, one mount per region: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). A region element holds one island at a
+			time, and an island whose element left the page is let go with it. One held two, or kept
+			its island after its element left: ${BUG}
+		`
+	},
+	rule_address_bar_drift: {
+		text: (a: { detail: string }): string =>
+			`rule broken, the address bar and the router's history agree: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). With no navigation out, the address bar
+			is the router's page on screen. They differ: a later back or forward step would show the
+			wrong page, or scroll to the wrong place. If the app writes \`history\` itself (outside
+			\`pushState\`/\`replaceState\` from \`$app/navigation\`), that is the likely cause; else
+			${BUG}
+		`
+	},
+	rule_old_page_open: {
+		text: (a: { detail: string }): string =>
+			`rule broken, nothing of a page that was left stays open: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). Each page the router shows owns what it
+			starts (listeners, timers, streams), and all of it is let go when the next page takes over.
+			Something of an earlier page is still open: ${BUG}
+		`
+	},
+	rule_failure_uncoded: {
+		text: (a: { detail: string }): string =>
+			`rule broken, no failure leaves ogygia without a code: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). Every failure ogygia lets out names its
+			code's page, and its internal \`STALE\` answer is never a rejection. One got out without
+			either: ${BUG}
+		`
 	}
 };
 

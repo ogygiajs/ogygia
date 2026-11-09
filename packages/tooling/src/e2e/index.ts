@@ -12,7 +12,37 @@ import { ISLAND_GRAPH_SCRIPT_G_RE } from './re.ts';
 
 export { expect };
 export { REPO } from './paths.ts';
-export const test = base;
+
+/** A rule ogygia found broken on itself (core src/rules.ts): its code, and what it found. */
+export type BrokenRule = { code: string; detail: string };
+
+/** The rules broken on the page now, or null where the page has none to check (a build made
+ *  without them, a page that is not ogygia's, a page already closed). */
+export async function rules(page: Page): Promise<BrokenRule[] | null> {
+	try {
+		return await page.evaluate(
+			() => (globalThis as { __ogygia_rules?: () => BrokenRule[] }).__ogygia_rules?.() ?? null
+		);
+	} catch {
+		return null; // ok: closed, or navigating away: nothing to read
+	}
+}
+
+/**
+ * Playwright's `test`, and at the end of every test, ogygia's rules on itself: a page that has them
+ * (the dev server, a build made with `OGYGIA_RULES=1` such as the palaestra's) must end the test
+ * with none broken. A soft assertion: the test's own checks all still report.
+ */
+export const test = base.extend<{ ogygia_rules: void }>({
+	ogygia_rules: [
+		async ({ page }, use) => {
+			await use();
+			const broken = await rules(page);
+			if (broken !== null) expect.soft(broken, 'ogygia rules broken at the end').toEqual([]);
+		},
+		{ auto: true }
+	]
+});
 
 /** A named soft assertion. `extra` (a measured value, a snippet) rides in the failure message. */
 export function check(name: string, cond: unknown, extra = ''): void {

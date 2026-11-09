@@ -6,10 +6,13 @@
  *
  * A policy is plain data (frozen), checked when it is made, so a wrong number fails where it is
  * written, not on the first failure in production. Name it for what it protects (`peer`, `store`,
- * `sink`): its numbers are then tuned in one place, with their reason beside them.
+ * `sink`): its numbers are then tuned in one place, with their reason beside them. The outbox and
+ * `flights({ retry })` run their tries under one (`under_policy`); work with tries of its own (a
+ * machine's `retrying` state) reads its waits from one (`backoff_after`).
  */
 import { machine_error } from './messages.ts';
-import { MAX_TIMEOUT_MS } from './scope.ts';
+import { MAX_TIMEOUT_MS, scope } from './scope.ts';
+import { STALE, type Stale } from './stale.ts';
 
 export interface Policy {
 	/** Tries in all, the first one included: a whole number of 1 or more. */
@@ -78,4 +81,57 @@ export function backoff_after(p: Policy, n: number, random: number = Math.random
 	const b = p.backoff;
 	const base = typeof b === 'number' ? b * 2 ** (n - 1) : b[Math.min(n, b.length) - 1];
 	return Math.min(MAX_TIMEOUT_MS, Math.round(base * (1 - p.jitter * random)));
+}
+
+/** What tries that ran out of time failed with: the deadline, and the last try's own error. */
+export function out_of_time(deadline: number, error: unknown): DOMException {
+	return new DOMException(
+		`no try was done within ${deadline} ms` +
+			(error === undefined ? '' : ` (last: ${String(error)})`),
+		'TimeoutError'
+	);
+}
+
+/**
+ * Runs `work` under `p`: its answer once a try gives one; after a try fails, the next one after the
+ * policy's wait (at once when it is 0: no timer, the same turn of the loop); the last try's error
+ * once the tries run out, or a `TimeoutError` (`out_of_time`) once the deadline passes, which also
+ * aborts the try out. `signal` (the caller's) ends it early: the try out is aborted and it answers
+ * `STALE`. Each try's signal aborts with either.
+ */
+export async function under_policy<T>(
+	p: Policy,
+	work: (signal: AbortSignal) => T,
+	signal?: AbortSignal
+): Promise<Awaited<T> | Stale> {
+	if (signal?.aborted) return STALE;
+	const tries = scope();
+	let left = false;
+	if (signal !== undefined) tries.on(signal, 'abort', () => ((left = true), tries.close()));
+	const started = p.deadline === Infinity ? 0 : Date.now();
+	if (p.deadline !== Infinity) tries.timeout(() => tries.close(), p.deadline);
+	let error: unknown = undefined;
+	try {
+		for (let n = 1; ; n++) {
+			try {
+				const answer = await tries.task(work);
+				if (!tries.closed) return answer as Awaited<T>;
+			} catch (e) {
+				error = e;
+			}
+			if (left) return STALE;
+			if (tries.closed) throw out_of_time(p.deadline, error);
+			if (n >= p.attempts) throw error;
+			const wait = backoff_after(p, n);
+			// (a wait that ends past the deadline is a try that would only be aborted)
+			if (p.deadline !== Infinity && Date.now() - started + wait >= p.deadline) throw error;
+			if (wait > 0) {
+				await tries.task(() => new Promise<void>((r) => tries.timeout(r, wait)));
+				if (left) return STALE;
+				if (tries.closed) throw out_of_time(p.deadline, error);
+			}
+		}
+	} finally {
+		tries.close();
+	}
 }

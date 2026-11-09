@@ -632,6 +632,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							// a BUILD with devtools on: the dock and the page measuring wait until
 							// someone opens it (a cookie remembers that for the next loads)
 							__OGYGIA_DEVTOOLS_LAZY__: JSON.stringify(devtools_lazy),
+							// ogygia's rules on itself (src/rules.ts), in a build: only one made for e2e
+							// (`OGYGIA_RULES=1`), which reads them at the end of each test. Dev has them always.
+							__OGYGIA_RULES__: JSON.stringify(process.env.OGYGIA_RULES === '1'),
 							// the profiler's browser half (runtime/beacon.ts) ships only to an app that
 							// can read it: the profiler configured, or devtools. Everywhere else every
 							// `if (BEACON) …` folds out and the module leaves the boot (a quarter of it)

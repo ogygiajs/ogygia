@@ -12,7 +12,9 @@
  * afresh (one dropped request must not leave every later wake, and every streamed value, unreadable).
  */
 import { flights, STALE, type Stale } from '@ogygia/machine';
+import { backoff_after } from '@ogygia/machine/internal/policy';
 import { import_again } from './import-again.ts';
+import { devalue_download, download } from '../policies.ts';
 
 type Devalue = typeof import('devalue');
 
@@ -23,16 +25,11 @@ const import_devalue = import_again(() => import('devalue'));
 const devalue_load = flights({
 	name: 'devalue',
 	run: () => import_devalue().then((m) => (lib = m)),
-	retries: 1
+	retry: download
 });
 
 /** Start (once) and await devalue's import. (Never STALE: nothing drops it.) */
 export const load_devalue = (): Promise<Devalue | Stale> => devalue_load.get();
-
-/** How long `with_devalue` waits before it asks again after a failed download, doubling, and when
- *  it stops asking (the network is down: the reads that wait on it stay pending, as before). */
-const RETRY_FIRST_MS = 1000;
-const RETRY_LAST_MS = 8000;
 
 /** devalue, already loaded: a devalue-lane read only runs after its load ({@link load_devalue}). */
 export function devalue(): Devalue {
@@ -42,15 +39,18 @@ export function devalue(): Devalue {
 }
 
 /** Run `fn` with devalue now when it is loaded, else once it is. Nothing else asks again for its
- *  caller (a streamed value's resolver runs once), so a failed download is asked for again later. */
-export function with_devalue(fn: (d: Devalue) => void, wait: number = RETRY_FIRST_MS): void {
+ *  caller (a streamed value's resolver runs once), so a failed download is asked for again later,
+ *  as `devalue_download` says (`tried`: the loads that failed so far). */
+export function with_devalue(fn: (d: Devalue) => void, tried = 0): void {
 	if (lib) fn(lib);
 	else
 		void load_devalue().then(
 			(d) => d !== STALE && fn(d),
 			() => {
+				const failed = tried + 1;
+				if (failed >= devalue_download.attempts) return;
 				// oxlint-disable-next-line ogygia/owned-effects -- the document's download retry, doubling and capped (it ends itself): the read it serves runs once and outlives any page, so no visit owns it
-				if (wait <= RETRY_LAST_MS) setTimeout(() => with_devalue(fn, wait * 2), wait);
+				setTimeout(() => with_devalue(fn, failed), backoff_after(devalue_download, failed));
 			}
 		);
 }

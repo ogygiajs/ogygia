@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { flights, MachineError, observe, scope, STALE } from '../src/index.ts';
+import { flights, MachineError, observe, policy, scope, STALE, type Policy } from '../src/index.ts';
 import { macrotask } from './_tick.ts';
 
 /** A promise and its two ends. */
@@ -81,13 +81,18 @@ describe('one key (what once() was)', () => {
 		await expect(core.get()).resolves.toBe('second');
 	});
 
-	it('tries again at once before it fails', async () => {
+	it('tries again at once before it fails, within the turn: no timer between tries', async () => {
 		const run = vi
 			.fn<() => Promise<string>>()
 			.mockRejectedValueOnce(new Error('1'))
 			.mockRejectedValueOnce(new Error('2'))
 			.mockResolvedValue('ok');
-		await expect(flights({ run, retries: 2 }).get()).resolves.toBe('ok');
+		const retry = policy({ attempts: 3, backoff: 0, jitter: 0, deadline: Infinity });
+		const got = flights({ run, retry }).get();
+		let timer_ran = false;
+		setTimeout(() => (timer_ran = true), 0);
+		await expect(got).resolves.toBe('ok');
+		expect(timer_ran).toBe(false); // all three tries ran before any macrotask
 		expect(run).toHaveBeenCalledTimes(3);
 	});
 
@@ -96,8 +101,45 @@ describe('one key (what once() was)', () => {
 			.fn<() => Promise<string>>()
 			.mockRejectedValueOnce(new Error('1'))
 			.mockRejectedValueOnce(new Error('2'));
-		await expect(flights({ run, retries: 1 }).get()).rejects.toThrow('2');
+		const retry = policy({ attempts: 2, backoff: 0, jitter: 0, deadline: Infinity });
+		await expect(flights({ run, retry }).get()).rejects.toThrow('2');
 		expect(run).toHaveBeenCalledTimes(2);
+	});
+
+	it('waits between tries as its policy says, real timers', async () => {
+		const at: number[] = [];
+		const start = Date.now();
+		const run = vi.fn(async () => {
+			at.push(Date.now() - start);
+			if (at.length < 3) throw new Error(String(at.length));
+			return 'ok';
+		});
+		const retry = policy({ attempts: 3, backoff: [30, 60], jitter: 0, deadline: Infinity });
+		await expect(flights({ run, retry }).get()).resolves.toBe('ok');
+		expect(at[1] - at[0]).toBeGreaterThanOrEqual(29);
+		expect(at[2] - at[1]).toBeGreaterThanOrEqual(59);
+	});
+
+	it('a deadline aborts the try out and fails with a TimeoutError', async () => {
+		let signal!: AbortSignal;
+		const run = (_: void, s: AbortSignal) => ((signal = s), new Promise<string>(() => {}));
+		const retry = policy({ attempts: 1, backoff: 0, jitter: 0, deadline: 30 });
+		await expect(flights({ run, retry }).get()).rejects.toThrow(/no try was done within 30 ms/);
+		expect(signal.aborted).toBe(true);
+	});
+
+	it('a drop during the wait between tries ends them: STALE, no next try', async () => {
+		const run = vi.fn(async () => {
+			throw new Error('down');
+		});
+		const retry = policy({ attempts: 3, backoff: 40, jitter: 0, deadline: Infinity });
+		const pages = flights({ run, retry });
+		const out = pages.get();
+		await macrotask();
+		pages.drop(undefined);
+		await expect(out).resolves.toBe(STALE);
+		await wait(120);
+		expect(run).toHaveBeenCalledOnce();
 	});
 
 	it('a run that throws synchronously is a failure too', async () => {
@@ -117,8 +159,8 @@ describe('one key (what once() was)', () => {
 	});
 
 	it('refuses options it cannot take', () => {
-		for (const retries of [-1, 1.5, Number.NaN, Infinity])
-			expect(() => flights({ run: () => 1, retries })).toThrow(/machine_bad_option/);
+		for (const retry of [1, 'twice', { attempts: 1.5 }] as unknown as Policy[])
+			expect(() => flights({ run: () => 1, retry })).toThrow(/machine_bad_option/);
 		for (const keep of [-1, Number.NaN, '5' as unknown as number])
 			expect(() => flights({ run: () => 1, keep })).toThrow(/`keep` must be a time in ms/);
 		for (const max of [0, -1, Number.NaN])

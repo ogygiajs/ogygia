@@ -245,6 +245,20 @@ describe('a deploy thaw is owed to the peers that missed it, not to every peer',
 		expect(p.ids.size).toBe(1); // one notice, sent again: a peer that forwards it dedupes it
 	});
 
+	it('its policy keeps the old numbers: a round no sooner than 30 s after the last, 10 rounds', async () => {
+		expect(DEPLOY_THAW_ROUNDS).toBe(10);
+		vi.useFakeTimers({ now: 1_000_000 });
+		const p = producer((peer) => peer === 'blog');
+		await check(p.fed);
+		const first = p.posts.blog;
+		await vi.advanceTimersByTimeAsync(29_000 - 10_000); // 29 s after the first round began
+		await check(p.fed);
+		expect(p.posts.blog).toBe(first); // not due yet
+		await vi.advanceTimersByTimeAsync(1_000);
+		await check(p.fed);
+		expect(p.posts.blog).toBe(first * 2); // 30 s on: the next round
+	});
+
 	it('a peer that never takes it: given up after a bounded number of rounds, with a warning naming it', async () => {
 		vi.useFakeTimers({ now: 1_000_000 });
 		const p = producer((peer) => peer === 'blog');

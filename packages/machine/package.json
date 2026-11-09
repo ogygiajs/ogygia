@@ -30,6 +30,10 @@
 		"./internal/messages": {
 			"types": "./dist/messages.d.ts",
 			"default": "./src/messages.ts"
+		},
+		"./internal/policy": {
+			"types": "./dist/policy.d.ts",
+			"default": "./src/policy.ts"
 		}
 	},
 	"publishConfig": {
@@ -41,6 +45,10 @@
 			"./internal/messages": {
 				"types": "./dist/messages.d.ts",
 				"default": "./dist/messages.js"
+			},
+			"./internal/policy": {
+				"types": "./dist/policy.d.ts",
+				"default": "./dist/policy.js"
 			}
 		},
 		"access": "public"

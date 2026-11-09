@@ -11,6 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { machine, STALE, type Scope } from '@ogygia/machine';
 import { frameAddress } from '../frame.ts';
+import { stream } from '../policies.ts';
 import { is_idle, reserve, release, ticket, write } from './frame-store.ts';
 import { runtime_session } from './session.ts';
 import { emit as dt_emit } from '../events/bus.ts';
@@ -76,10 +77,9 @@ export function read_parcel(buf: string, from: number): Parcel | null {
 	return { slot, html: buf.slice(start, start + len), end };
 }
 
-/** A batch stream quiet this long is given up, and the holes still waiting on it fetch on their own.
- *  Long on purpose: the server sends a hole's part only once that hole has rendered, so a few quiet
- *  seconds are a slow render, not a dead stream. */
-const STALL_MS = 10_000;
+/** A batch stream quiet this long is given up, and the holes still waiting on it fetch on their own:
+ *  the `stream` policy's deadline (../policies.ts, where its reason lives). */
+const STALL_MS = stream.deadline;
 
 /**
  * A BATCH STREAM'S LIFE, one machine: `sending` (the POST, until its answer starts), `reading` (each

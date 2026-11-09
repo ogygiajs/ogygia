@@ -1,0 +1,135 @@
+// THE RUNTIME'S RULES (#313, runtime/rules.ts), in a real browser on the real runtime: a page that
+// keeps them reports none, and each one, broken, is reported under its code, by `__ogygia_rules()`
+// (what e2e reads at the end of every test) and, in dev, said a task after the move that broke it.
+//
+// Its own file: the rules are module state shared by a file's tests.
+import { afterEach, expect, inject, test, vi } from 'vitest';
+import { STALE } from '@ogygia/machine';
+import { bootDev } from '../../src/runtime/full.ts';
+import { note_mount, note_unmount, watch_router } from '../../src/runtime/rules.ts';
+import { runtime_session } from '../../src/runtime/session.ts';
+
+type Broken = Array<{ code: string; detail: string }>;
+const rules = (): Broken =>
+	(globalThis as unknown as { __ogygia_rules: () => Broken }).__ogygia_rules();
+const codes = () => rules().map((b) => b.code);
+const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
+const counter_html = () => decodeURIComponent(escape(atob(inject('counter_ssr_b64'))));
+
+afterEach(() => vi.restoreAllMocks());
+
+test('a page that keeps them: an island mounts, leaves the page, and no rule is broken', async () => {
+	document.body.innerHTML = counter_html();
+	const region = document.querySelector('ogygia-region')!;
+	bootDev();
+	expect(typeof (globalThis as { __ogygia_rules?: unknown }).__ogygia_rules).toBe('function');
+	await expect.poll(() => region.hasAttribute('data-hydrated'), { timeout: 10_000 }).toBe(true);
+	expect(rules()).toEqual([]);
+	region.remove();
+	await tick(10); // past its teardown
+	expect(rules()).toEqual([]);
+});
+
+test('one mount per region: a region holding two islands, or keeping one after it left', async () => {
+	const el = document.createElement('ogygia-region');
+	el.setAttribute('entry', 'probe.svelte');
+	document.body.append(el);
+	note_mount(el);
+	expect(rules()).toEqual([]);
+	note_mount(el);
+	expect(rules()).toEqual([
+		{ code: 'rule_region_mounted_twice', detail: 'probe.svelte holds 2 islands at once' }
+	]);
+	note_unmount(el);
+	el.remove();
+	expect(rules()).toEqual([
+		{
+			code: 'rule_region_mounted_twice',
+			detail: 'probe.svelte left the page with its island still mounted'
+		}
+	]);
+	note_unmount(el);
+	expect(rules()).toEqual([]);
+});
+
+test('nothing of an old page open: a visit before the one on screen still open', () => {
+	// the page goes, the next one takes over: the old visit is closed with it
+	runtime_session.reset(runtime_session.next_visit());
+	expect(rules()).toEqual([]);
+	// a navigation that ended without its swap and left its visit open, then another page went in
+	const stray = runtime_session.next_visit();
+	runtime_session.reset(runtime_session.next_visit());
+	expect(rules()).toEqual([
+		{ code: 'rule_old_page_open', detail: '1 page visit(s) before the one on screen still open' }
+	]);
+	stray.scope.close();
+	// a visit made after the one on screen (a navigation's, still on its way) is not over
+	const on_its_way = runtime_session.next_visit();
+	expect(rules()).toEqual([]);
+	on_its_way.scope.close();
+});
+
+test('the address bar and the history model: checked once no navigation is out', () => {
+	const nav = { now: { kind: 'idle' } };
+	const entry = { id: 'doc.1', url: new URL(location.href) };
+	watch_router({ nav, history: { current: entry } });
+	history.replaceState({ ogygia: 'doc.1' }, '');
+	expect(rules()).toEqual([]);
+	entry.url = new URL('/elsewhere', location.href);
+	expect(codes()).toEqual(['rule_address_bar_drift']);
+	nav.now = { kind: 'loading' }; // a navigation out: the bar moves at its commit
+	expect(rules()).toEqual([]);
+	nav.now = { kind: 'idle' };
+	entry.url = new URL(location.href + '#a-fragment'); // a fragment is the same page
+	expect(rules()).toEqual([]);
+	history.replaceState({ ogygia: 'doc.2' }, '');
+	expect(rules()[0]?.detail).toBe('the address bar is on entry doc.2, the history model on doc.1');
+	history.replaceState(null, ''); // an entry the router has not met: not its yet
+	expect(rules()).toEqual([]);
+});
+
+test('no failure without a code: a STALE rejection, an ogygia error with no code page', async () => {
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	window.dispatchEvent(
+		new PromiseRejectionEvent('unhandledrejection', {
+			promise: Promise.resolve(),
+			reason: new Error('[ogygia] https://ogygiajs.dev/e/goto_not_http')
+		})
+	);
+	window.dispatchEvent(
+		new PromiseRejectionEvent('unhandledrejection', {
+			promise: Promise.resolve(),
+			reason: new Error('not ours')
+		})
+	);
+	expect(rules()).toEqual([]);
+	window.dispatchEvent(
+		new PromiseRejectionEvent('unhandledrejection', { promise: Promise.resolve(), reason: STALE })
+	);
+	window.dispatchEvent(
+		new PromiseRejectionEvent('unhandledrejection', {
+			promise: Promise.resolve(),
+			reason: new Error('[ogygia] something went wrong')
+		})
+	);
+	expect(rules()).toEqual([
+		{
+			code: 'rule_failure_uncoded',
+			detail:
+				'a STALE escaped as a rejection; an ogygia error with no code: [ogygia] something went wrong'
+		}
+	]);
+	// dev: a machine move asks for a check, and what is broken is said with its code, once
+	const { machine } = await import('@ogygia/machine');
+	const m = machine<{ a: {}; b: {} }>()({
+		name: 'probe',
+		initial: 'a',
+		steps: { a: ['b'], b: [] }
+	}).create();
+	m.go('b');
+	await tick(10);
+	const said = warn.mock.calls
+		.map((c) => String(c[0]))
+		.filter((s) => s.includes('rule_failure_uncoded'));
+	expect(said).toHaveLength(1);
+});

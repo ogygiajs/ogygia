@@ -25,6 +25,7 @@ import { import_again } from './import-again.ts';
 import { props_sidecar_of } from './sidecar.ts';
 import { yield_task } from './schedule.ts';
 import { slots } from './slots.ts';
+import { download } from '../policies.ts';
 
 /** Feature entry: fill the `wire_classes` slot. */
 export function install(): void {
@@ -45,7 +46,7 @@ const loads = flights({
 		// island's start)
 		return yield_task().then(import_class);
 	},
-	retries: 1
+	retry: download
 });
 
 function load(path: string): Promise<unknown> {

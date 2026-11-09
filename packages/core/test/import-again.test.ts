@@ -4,6 +4,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { flights } from '@ogygia/machine';
 import { failed_import_url, import_again, retry_url } from '../src/runtime/import-again.ts';
+import { download } from '../src/policies.ts';
 
 const CHROMIUM = new TypeError(
 	'Failed to fetch dynamically imported module: https://shop.test/_app/immutable/chunks/DmQpvhkC.js'
@@ -93,14 +94,14 @@ describe('import_again', () => {
 		expect(fresh).not.toHaveBeenCalled();
 	});
 
-	it('with flights({ retries: 1 }): one dropped download is invisible to the caller', async () => {
+	it('with flights({ retry: download }): one dropped download is invisible to the caller', async () => {
 		vi.stubGlobal('location', new URL('https://shop.test/cart'));
 		const core = flights({
 			run: import_again(
 				() => Promise.reject(CHROMIUM),
 				async () => 'core'
 			),
-			retries: 1
+			retry: download
 		});
 		await expect(core.get()).resolves.toBe('core');
 		vi.unstubAllGlobals();

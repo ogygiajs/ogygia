@@ -6,6 +6,7 @@
 import { scope, type Scope } from '@ogygia/machine';
 import { ConcurrencyGate } from './concurrency.ts';
 import { FROZEN_SELECTOR } from './region-attrs.ts';
+import { note_visit } from './rules.ts';
 
 /** Soft cap on lake cache entries (unique lake ids). Evict oldest insertion on overflow. */
 const LAKE_CACHE_MAX = 64;
@@ -66,7 +67,15 @@ export type PageVisit = {
 	readonly facts: string[];
 };
 
-const page_visit = (): PageVisit => ({ scope: scope(), facts: [] });
+// the runtime's rules (./rules.ts): dev, and a build made with OGYGIA_RULES=1; folds out elsewhere
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
+
+function page_visit(): PageVisit {
+	const visit: PageVisit = { scope: scope(), facts: [] };
+	if (RULES) note_visit(visit, false);
+	return visit;
+}
 
 /** What one island's hydrate step put in `<head>` ({@link RuntimeSession.mark_head}). */
 export interface HeadMark {
@@ -249,6 +258,7 @@ export class RuntimeSession {
 	reset(next: PageVisit = page_visit()): void {
 		const left = this.#visit;
 		this.#visit = next;
+		if (RULES) note_visit(next, true);
 		this.#kit_page = undefined;
 		this.#remote_seeded = false;
 		this.#page_seeded = false;

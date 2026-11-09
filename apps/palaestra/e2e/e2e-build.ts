@@ -72,7 +72,9 @@ console.log('▸ Building palaestra (warn-path probe: secret hidden)');
 
 console.log('▸ Building palaestra (production — this is what the preview serves)');
 {
-	const real = build_palaestra(process.env);
+	// with ogygia's rules on itself built in: every spec reads them at its end (@ogygia/tooling/e2e
+	// `rules`), and a build without the flag ships none (core's test/rules-stripped.test.ts)
+	const real = build_palaestra({ ...process.env, OGYGIA_RULES: '1' });
 	process.stdout.write(real.out);
 	if (!real.ok) fail('palaestra build failed');
 	if (WARN_RE.test(real.out)) fail('stable OGYGIA_SECRET present, but the build still warned');

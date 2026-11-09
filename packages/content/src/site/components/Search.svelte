@@ -1,13 +1,13 @@
 <script lang="ts" module>
 	import { flights, STALE } from '@ogygia/machine';
-	import { import_again } from '@ogygia/core/internal/instruments';
+	import { download, import_again } from '@ogygia/core/internal/instruments';
 
 	/** The heavy half's download, once for the page: kept once it lands, and a failed one is asked for
 	 *  again under a fresh URL (the browser keeps a failed module URL failed). */
 	const palette = flights({
 		name: 'search palette',
 		run: import_again(() => import('./SearchPalette.svelte')),
-		retries: 1
+		retry: download
 	});
 </script>
 

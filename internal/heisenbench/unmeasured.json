@@ -1,6 +1,194 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_address_bar_drift > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_address_bar_drift > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_failure_uncoded > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_failure_uncoded > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_old_page_open > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_old_page_open > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_mounted_twice > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_mounted_twice > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_flight_kept_failure > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_flight_kept_failure > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_request_scope_open > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_request_scope_open > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/rules.ts > Rules > add",
+			"reason": "the rules registry (dev and e2e builds only): its checks are closures over module state; proven in packages/core/test/browser/rules.test.ts and packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/rules.ts > Rules > broken",
+			"reason": "the rules registry (dev and e2e builds only): its checks are closures over module state; proven in packages/core/test/browser/rules.test.ts and packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/rules.ts > Rules > say",
+			"reason": "the rules registry (dev and e2e builds only): its checks are closures over module state; proven in packages/core/test/browser/rules.test.ts and packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > check_soon",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > check_soon > setTimeout:0~4b03ad",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > check_soon > setTimeout:0~4b03ad > say:0~df861d",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > entry_of",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > failure",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > install_rules",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > install_rules > __ogygia_rules",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > install_rules > addEventListener:1~1cd3e3",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > install_rules > addEventListener:1~d7a76b",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > no_failure_uncoded",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > no_hash",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > no_old_page_open",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > no_old_page_open > filter:0~66ae57",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > no_old_page_open > find:0~927960",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > note_mount",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > note_unmount",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > note_visit > some:0~83d735",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > one_mount_per_region",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > watch_router",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > watch_router > add:1~d995ad",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > check_soon > setTimeout:0~8db2a9",
+			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > check_soon > setTimeout:0~8db2a9 > say:0~df861d",
+			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > install_server_rules > observe:0~1b6a67",
+			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > no_kept_failure",
+			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > request_scopes_closed",
+			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/machine/src/flights.ts > attempt > under_policy:1~f8f205",
+			"reason": "the retry loop wiring (a timer, a caller signal, the try under a scope): timing work; proven in packages/machine/test/flights.test.ts and packages/machine/test/outbox.test.ts"
+		},
+		{
+			"id": "packages/machine/src/policy.ts > out_of_time",
+			"reason": "builds the TimeoutError tries past their deadline fail with, constant work; proven in packages/machine/test/flights.test.ts and packages/machine/test/outbox.test.ts"
+		},
+		{
+			"id": "packages/machine/src/policy.ts > under_policy > on:2~637346",
+			"reason": "the retry loop wiring (a timer, a caller signal, the try under a scope): timing work; proven in packages/machine/test/flights.test.ts and packages/machine/test/outbox.test.ts"
+		},
+		{
+			"id": "packages/machine/src/policy.ts > under_policy > timeout:0~10b94e",
+			"reason": "the retry loop wiring (a timer, a caller signal, the try under a scope): timing work; proven in packages/machine/test/flights.test.ts and packages/machine/test/outbox.test.ts"
+		},
+		{
+			"id": "packages/tooling/src/e2e/index.ts > extend:0~4aa870 > <anonymous>~b2b79b",
+			"reason": "the e2e harness's end-of-test rules read: Playwright only, runs at the end of every e2e spec"
+		},
+		{
+			"id": "packages/tooling/src/e2e/index.ts > rules",
+			"reason": "the e2e harness's end-of-test rules read: Playwright only, runs at the end of every e2e spec"
+		},
+		{
+			"id": "packages/tooling/src/e2e/index.ts > rules > evaluate:0~336849",
+			"reason": "the e2e harness's end-of-test rules read: Playwright only, runs at the end of every e2e spec"
+		},
+		{
 			"id": "packages/core/src/runtime/core.ts > import_again:0",
 			"reason": "browser only: the dynamic import of the hydrate core chunk; its download, failure and retry are proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
@@ -865,14 +1053,6 @@
 			"reason": "carries a response body through and ends the request's owner at its end (a live stream, not cloneable); proven in packages/core/test/request-scope.test.ts"
 		},
 		{
-			"id": "packages/core/src/plugin/request-scope.ts > own_response > ReadableStream:0~e26599 > cancel",
-			"reason": "carries a response body through and ends the request's owner at its end (a live stream, not cloneable); proven in packages/core/test/request-scope.test.ts"
-		},
-		{
-			"id": "packages/core/src/plugin/request-scope.ts > own_response > ReadableStream:0~e26599 > pull",
-			"reason": "carries a response body through and ends the request's owner at its end (a live stream, not cloneable); proven in packages/core/test/request-scope.test.ts"
-		},
-		{
 			"id": "packages/core/src/plugin/request-scope.ts > own_response > defer:0~0e7f21",
 			"reason": "carries a response body through and ends the request's owner at its end (a live stream, not cloneable); proven in packages/core/test/request-scope.test.ts"
 		},
@@ -1195,14 +1375,6 @@
 		{
 			"id": "packages/flags/src/index.ts > outbox:0~82c77f > giveUp",
 			"reason": "one warning per failing streak of the exposure sink, constant work; proven in packages/flags/test/exposure-queue.test.ts"
-		},
-		{
-			"id": "packages/machine/src/outbox.ts > Box > _deliver > timeout:0~10b94e",
-			"reason": "the deadline's timer callback: closes one scope, constant work; proven in packages/machine/test/outbox.test.ts"
-		},
-		{
-			"id": "packages/machine/src/outbox.ts > late",
-			"reason": "builds the TimeoutError a send past its deadline gives up with, constant work; proven in packages/machine/test/outbox.test.ts"
 		},
 		{
 			"id": "packages/postrender/src/registry.ts > outbox:0~54d733 > giveUp",
