@@ -11,7 +11,7 @@ import { REPO } from './paths.ts';
 /** The `ogygia` package apps install (packages/ogygia) and the core it re-exports (packages/core). */
 export const OGYGIA_DIR = join(REPO, 'packages', 'ogygia');
 export const CORE_DIR = join(REPO, 'packages', 'core');
-export const MACHINE_DIR = join(REPO, 'packages', 'machine');
+const MACHINE_DIR = join(REPO, 'packages', 'machine');
 
 export interface PackedOgygia {
 	ogygia: string;

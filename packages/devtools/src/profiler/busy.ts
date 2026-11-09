@@ -9,7 +9,7 @@ import { policy, STALE, type Policy, type Scope, type Stale } from '@ogygia/mach
 
 /** How a profile waits for a busy profiler: asked again every 2 s (or when the 409's
  *  `Retry-After` says), for up to 2 min; a profile ahead longer than that is a stuck one (Reset). */
-export const PROFILER_BUSY: Policy = policy({
+const PROFILER_BUSY: Policy = policy({
 	attempts: 61,
 	backoff: 2000,
 	jitter: 0,
