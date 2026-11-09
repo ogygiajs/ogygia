@@ -130,6 +130,23 @@ test('a static table must be const', () => {
 	assert.match(f!.fix, /const/);
 });
 
+test('a registry() is allowed: its entries are owned, never evicted', () => {
+	assert.deepEqual(names('const watchers = registry<Function>();'), []);
+});
+
+test('a literal max: Infinity is refused anywhere in the module (no bound is no bound)', () => {
+	assert.deepEqual(
+		names(
+			[
+				'const pages = cache({ max: Infinity });',
+				'function make() { return flights({ run, max: Infinity }); }',
+				'const ok = cache({ max: 64 });'
+			].join('\n')
+		),
+		['1:max:infinite-max', '2:max:infinite-max']
+	);
+});
+
 test('each finding says the fix', () => {
 	const [f] = find_unowned('x.ts', 'const seen = new Map();');
 	assert.match(f!.fix, /cache\(\)/);
