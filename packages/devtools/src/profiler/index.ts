@@ -254,13 +254,34 @@ import {
 	flights,
 	lock,
 	machine,
+	outbox,
+	policy,
 	scope,
 	STALE,
 	type Flights,
 	type LockToken,
+	type Outbox,
 	type Scope
 } from '@ogygia/machine';
 import { register_profiler_file } from './frames.ts';
+import { devtools_app } from '../app.ts';
+
+/** One post of sink rows: its id (the sink may drop a copy by it), its NDJSON, and its row count. */
+type SinkPost = { id: string; body: string; rows: number };
+/** A sink post out: settles once it (and the post of the rows read meanwhile, when `again`) ended. */
+type SinkOut = { again: boolean; done: Promise<void> };
+/** How a sink post is tried again: a sink restarting is ridden out, and a sink that is down costs
+ *  each post 30 s at most, so the posts after it are not held long. */
+const SINK_POLICY = /* @__PURE__ */ policy({
+	attempts: 4,
+	backoff: [1000, 5000, 10_000],
+	jitter: 0.2,
+	deadline: 30_000
+});
+/** The longest one try at a post waits for the sink's answer. */
+const SINK_TRY_MS = 5000;
+const error_text = (error: unknown): string =>
+	error instanceof Error ? error.message : String(error);
 
 // The span recorder's `begin` lives in this file: skip its frame when finding a span's caller.
 register_profiler_file();
@@ -1096,7 +1117,21 @@ class Profiler {
 	readonly #background: Scope = scope();
 	/** The sink's timer, while it runs: its cancel. */
 	#sink_timer: (() => void) | null = null;
-	#sink_inflight = false;
+	/** The sink's posts, one at a time in the order their rows were read: a failed one is tried
+	 *  again before the next goes, so rows reach the sink in order and only once (#293). */
+	readonly #sink_posts: Outbox<SinkPost> = outbox<SinkPost>({
+		name: 'profiler sink',
+		send: (post, signal) => this.#sink_post(post, signal),
+		id: (post) => post.id,
+		retry: SINK_POLICY,
+		inOrder: true,
+		giveUp: (post, error) => {
+			// (kept for the site view, as every post's outcome is; the rows themselves are gone)
+			this.#sink_last = { at: Date.now(), ok: false, rows: post.rows, error: error_text(error) };
+			warn('devtools_profiler_sink_undelivered', { rows: String(post.rows) }, error);
+		},
+		waitUntil: (work) => devtools_app()?.keepAlive(work)
+	});
 	#sink_last: { at: number; ok: boolean; rows: number; error?: string } | null = null;
 	#trap_caught = 0;
 	#trap_timer: (() => void) | null = null;
@@ -6927,47 +6962,64 @@ class Profiler {
 	}
 
 	// ── the sink ─────────────────────────────────────────────────────────────────────────────
-	/** Post the buffered rows as NDJSON to the sink. One post in flight at a time; a failure keeps
-	 *  the rows for the next try (the buffer drops its oldest request rows when full). */
-	async #sink_flush(): Promise<void> {
+	/** Hand the buffered rows to the sink's outbox as one post, now. While a post is out, the rows
+	 *  wait in the buffer (capped: it drops the oldest when full) and go in one post once it ends,
+	 *  never a post per tick queued behind a sink that is down (#376). Settles once the rows asked
+	 *  for were taken or given up; never rejects. */
+	#sink_flush(): Promise<void> {
 		// (a superseded profiler sends what it holds this once, then its timer stops)
 		if (this.#sink_timer && this.#superseded()) {
 			this.#sink_timer();
 			this.#sink_timer = null;
 		}
-		if (!this.#sink_url || this.#sink_inflight || !this.#sink.size) return;
-		this.#sink_inflight = true;
+		const out = this.#sink_out;
+		if (out !== null) {
+			out.again = true;
+			return out.done;
+		}
+		if (!this.#sink_url || !this.#sink.size) return Promise.resolve();
 		const rows = this.#sink.size;
-		const body = this.#sink.drain();
+		const post: SinkPost = {
+			id: `${this.#sink_run}-${++this.#sink_count}`,
+			body: this.#sink.drain(),
+			rows
+		};
+		const posting: SinkOut = { again: false, done: Promise.resolve() };
+		this.#sink_out = posting;
+		posting.done = this.#sink_posts.put(post).then(() => {
+			this.#sink_out = null;
+			// (rows read while it was out, asked for meanwhile: the next post)
+			if (posting.again) return this.#sink_flush();
+		});
+		return posting.done;
+	}
+	/** The post out now, and whether a flush asked for the rows read meanwhile. */
+	#sink_out: SinkOut | null = null;
+
+	/** Each post's id: this profiler's run, and its count. */
+	readonly #sink_run = Math.random().toString(36).slice(2, 10);
+	#sink_count = 0;
+
+	/** One try at a post: done once the sink answered ok. Its id rides `idempotency-key`, so a sink
+	 *  that saw it already (an answer lost on the way back) can drop the copy. */
+	async #sink_post(post: SinkPost, signal: AbortSignal): Promise<void> {
 		try {
-			const res = await fetch(this.#sink_url, {
+			const res = await fetch(this.#sink_url!, {
 				method: 'POST',
-				body,
+				body: post.body,
 				headers: {
 					'content-type': 'application/x-ndjson',
+					'idempotency-key': post.id,
 					'x-og-profiler-internal': '1',
 					...(this.#sink_key ? { authorization: `Bearer ${this.#sink_key}` } : {})
 				},
-				signal: AbortSignal.timeout(5000)
+				signal: AbortSignal.any([signal, AbortSignal.timeout(SINK_TRY_MS)])
 			});
-			this.#sink_last = {
-				at: Date.now(),
-				ok: res.ok,
-				rows,
-				...(res.ok ? {} : { error: `the sink answered ${res.status}` })
-			};
-			if (!res.ok)
-				for (const line of body.split('\n')) if (line) this.#sink.push(JSON.parse(line) as SinkRow);
-		} catch (e) {
-			this.#sink_last = {
-				at: Date.now(),
-				ok: false,
-				rows,
-				error: e instanceof Error ? e.message : String(e)
-			};
-			for (const line of body.split('\n')) if (line) this.#sink.push(JSON.parse(line) as SinkRow);
-		} finally {
-			this.#sink_inflight = false;
+			if (!res.ok) throw new Error(`the sink answered ${res.status}`);
+			this.#sink_last = { at: Date.now(), ok: true, rows: post.rows };
+		} catch (error) {
+			this.#sink_last = { at: Date.now(), ok: false, rows: post.rows, error: error_text(error) };
+			throw error;
 		}
 	}
 

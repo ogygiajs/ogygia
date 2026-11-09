@@ -7,11 +7,11 @@
  * handle owns all of it, so a `federate()` in hooks.server.ts is the whole wiring.
  */
 import { version } from '$app/env';
-import { machine } from '@ogygia/machine';
+import { flights, machine } from '@ogygia/machine';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { ServerApp } from '@ogygia/core/plugin';
 import { current_federation } from './registry.ts';
-import { begin_source_capture, broadcast_thaw } from './federate.ts';
+import { begin_source_capture, broadcast_thaw, deploy_thaws } from './federate.ts';
 import { set_hole_signer } from './hole.ts';
 import { fed_app } from './app.ts';
 import { warn } from './messages.ts';
@@ -133,7 +133,12 @@ async function check_deploy(fed: Federation, owed: Owed | null): Promise<Checked
 			if (seen === undefined || seen === version) return { done: true };
 			owed = { id: crypto.randomUUID(), peers: new Set(fed.peers.keys()), rounds: 0 };
 		}
-		const missed = await broadcast_thaw(fed, { id: owed.id, hop: 0, tags: 'all' }, owed.peers);
+		const missed = await broadcast_thaw(
+			fed,
+			{ id: owed.id, hop: 0, tags: 'all' },
+			owed.peers,
+			deploy_thaws
+		);
 		if (missed.size === 0) return { done: true };
 		const rounds = owed.rounds + 1;
 		if (rounds < DEPLOY_THAW_ROUNDS)
@@ -342,8 +347,52 @@ function hole_html(html: string, headers: Record<string, string>): Response {
 }
 
 // ── thaw: /og/thaw (a peer's publish/deploy notice) ──────────────────────────────────────────
-const seen_notices = new Map<string, number>();
 const NOTICE_TTL_MS = 10 * 60_000;
+
+/** A notice as this app applies it: who sent it, and what it thaws here. */
+type Received = {
+	fed: Federation;
+	id: string;
+	hop: number;
+	tags: string[] | 'all';
+	sender: Peer;
+	sender_name: string;
+};
+
+/**
+ * The receiver's half of the sender's outbox: the notices applied, by id. A notice is applied
+ * first and its id kept after (#287), as a flight is kept only once it lands: a failed apply keeps
+ * nothing, so the sender's retry of it is applied. A copy that arrives while it applies joins it,
+ * and one after is dropped. Ids are kept 10 minutes, the newest 10 000 at most.
+ */
+const applied_notices = flights({
+	name: 'federation thaws applied',
+	run: apply_thaw,
+	key: (n: Received) => n.id,
+	keep: NOTICE_TTL_MS,
+	max: 10_000
+});
+
+/** Applies a notice here, then passes it on to this app's own consumers: the number of tags it
+ *  thawed. Throws when the store did not apply it (nothing is passed on then). */
+async function apply_thaw(n: Received): Promise<number> {
+	// map the sender's tags into THIS app's namespace (how its peer handle filed the pages)
+	const local = map_thaw_tags(n.sender_name, n.tags);
+	// the cached documents from that peer go either way (they are this app's own memory); the
+	// stored pages go through the store, which can fail (the store said why: plugin_hook_failed)
+	if (local.length) n.sender.drop(new Set(local));
+	else if (n.tags === 'all') n.sender.drop('all');
+	if (local.length) await fed_app()?.notify.invalidate(local);
+	else if (n.tags === 'all') await fed_app()?.notify.invalidate([`a:${n.sender_name}`]);
+	// chain: tell MY consumers, with the tags I just applied, hop+1 (an outbox send, kept alive past
+	// this answer; a consumer that never took it is said)
+	void broadcast_thaw(n.fed, {
+		id: n.id || crypto.randomUUID(),
+		hop: n.hop + 1,
+		tags: n.tags === 'all' ? 'all' : local
+	}); // ok: broadcast_thaw never rejects (an outbox put never does)
+	return local.length;
+}
 
 async function serve_thaw(fed: Federation, event: RequestEvent): Promise<Response> {
 	const { request, url } = event;
@@ -375,40 +424,24 @@ async function serve_thaw(fed: Federation, event: RequestEvent): Promise<Respons
 	} catch {
 		return json_error(400, 'bad notice');
 	}
-	const id = notice.id ?? '';
-	// dedupe (sweep expired first)
-	const now = Date.now();
-	for (const [k, exp] of seen_notices) if (exp <= now) seen_notices.delete(k);
-	if (id && seen_notices.has(id)) return json_response({ ok: true, deduped: true });
-
-	// map the sender's tags into THIS app's namespace (how its peer handle filed the pages)
-	const local = map_thaw_tags(sender_name, notice.tags ?? []);
-	// the cached documents from that peer go either way (they are this app's own memory); the
-	// stored pages go through the store, which can fail
-	if (local.length) sender.drop(new Set(local));
-	else if (notice.tags === 'all') sender.drop('all');
+	const received: Received = {
+		fed,
+		id: notice.id ?? '',
+		hop: notice.hop ?? 0,
+		tags: notice.tags ?? [],
+		sender,
+		sender_name
+	};
+	if (received.id && applied_notices.peek(received.id)?.kind === 'kept')
+		return json_response({ ok: true, deduped: true });
 	try {
-		if (local.length) await fed_app()?.notify.invalidate(local);
-		else if (notice.tags === 'all') await fed_app()?.notify.invalidate([`a:${sender_name}`]);
+		const thawed = received.id ? await applied_notices.get(received) : await apply_thaw(received);
+		return json_response({ ok: true, thawed });
 	} catch {
-		// not applied (the store said why: plugin_hook_failed): no id kept and no "done", so the
-		// sender's retry of this notice is applied, and nothing is passed on (#287)
+		// not applied: no id kept and no "done", so the sender's retry of this notice is applied,
+		// and nothing is passed on (#287)
 		return json_error(503, 'thaw not applied');
 	}
-	// (kept only once applied: a retry of a notice that failed is not a duplicate)
-	if (id) seen_notices.set(id, now + NOTICE_TTL_MS);
-
-	// chain: tell MY consumers, with the tags I just applied, hop+1
-	const forward = notice.tags === 'all' ? 'all' : local;
-	void broadcast_thaw(fed, {
-		id: id || crypto.randomUUID(),
-		hop: (notice.hop ?? 0) + 1,
-		tags: forward
-	}).then((missed) => {
-		// (a consumer that never took it, after its retries: its stored copy stays until it expires)
-		if (missed.size) warn('federation_thaw_notice_failed', [...missed].join(', '));
-	}); // ok: broadcast_thaw never rejects (each post catches and retries)
-	return json_response({ ok: true, thawed: local.length });
 }
 
 /** `p:<path>` → `p:<peer>:<path>`; `s:…`/`r:…` → `r:<peer>:…`; `a:…` → `a:<peer>`. */

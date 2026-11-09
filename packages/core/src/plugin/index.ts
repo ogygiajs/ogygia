@@ -53,6 +53,10 @@ export interface ServerApp<Options = undefined> {
 	/** Record a server-realm event into the current request's devtools stream (a no-op unless
 	 *  devtools is on for that browser). */
 	devtools(event: DevtoolsEventInput): void;
+	/** Keeps `work` alive past the response of the request the running code belongs to: it is handed
+	 *  to the platform's `waitUntil` when there is one. Outside a request, or on a platform without
+	 *  one, it runs on in the process. Never throws. An outbox's `waitUntil`. */
+	keepAlive(work: Promise<unknown>): void;
 	/** Warn once per message, prefixed with the plugin's name. */
 	warn(message: string): void;
 }

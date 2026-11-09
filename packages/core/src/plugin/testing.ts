@@ -7,6 +7,7 @@
  *   await server.request?.(ctx(new Request('http://x/')));
  */
 import type { RequestEvent } from '@sveltejs/kit';
+import { with_request_store } from '@sveltejs/kit/internal/server';
 import type { RequestContext, ServerApp, ServerPlugin } from './index.ts';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { facts_of } from './facts.ts';
@@ -42,6 +43,15 @@ const TEST_SIGNER: AppSigner = {
 	// the handle's refusal, without its framing headers
 	deny: (why) => new Response('Forbidden', { status: 403, headers: { 'x-ogygia-deny': why } })
 };
+
+/**
+ * Runs `fn` inside a request, as Kit runs a hook or an endpoint: Kit's request store carries
+ * `event` through every await of it, so `app.keepAlive` finds its platform (a `waitUntil` at
+ * `platform.context` or `platform.ctx`).
+ */
+export function inRequest<T>(event: Partial<RequestEvent>, fn: () => T): T {
+	return with_request_store({ event, state: {} as never }, fn);
+}
 
 export interface StartedPlugin<Options, State> {
 	app: ServerApp<Options>;

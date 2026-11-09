@@ -7,14 +7,14 @@
  * their own protocol. Any other path falls through.
  * `invalidated` (shared hook): every invalidation of this app's stored pages tells the peers that
  * baked its fragments. A peer is notified whether or not it has a key (a pure consumer still needs to
- * drop its SWR copies). Fire and forget — a peer that is down never fails a publish.
+ * drop its SWR copies). The notices go through an outbox: the publish never waits for them (a peer
+ * that is down never fails it), and the platform keeps them alive past its response (#286).
  */
 import { defineServer, type ServerPlugin } from '@ogygia/core/plugin';
 import { set_fed_app } from './app.ts';
 import { install_federation, serve_federation } from './serve.ts';
 import { current_federation } from './registry.ts';
 import { broadcast_thaw } from './federate.ts';
-import { warn } from './messages.ts';
 
 const server: ServerPlugin = defineServer({
 	setup(app) {
@@ -30,13 +30,9 @@ const server: ServerPlugin = defineServer({
 	invalidated(tags) {
 		const fed = current_federation();
 		if (!fed) return;
-		// (a peer that never took it, after its retries, keeps its stored copy until it expires)
-		void broadcast_thaw(fed, { id: crypto.randomUUID(), hop: 0, tags }).then(
-			(missed) => {
-				if (missed.size) warn('federation_thaw_notice_failed', [...missed].join(', '));
-			},
-			(e: unknown) => warn('federation_thaw_notice_failed', e)
-		);
+		// (an outbox send: kept alive past this request's response, and a peer that never took it is
+		// said once its tries are spent)
+		void broadcast_thaw(fed, { id: crypto.randomUUID(), hop: 0, tags }); // ok: broadcast_thaw never rejects (an outbox put never does)
 	}
 });
 export default server;

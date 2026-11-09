@@ -5,7 +5,8 @@
  * path — loads on the first request through a dynamic import, so an app pays for it only when it is
  * on; with `onDemand`, only once someone opens the profiler.
  */
-import { defineServer, type Handle, type ServerPlugin } from '@ogygia/core/plugin';
+import { defineServer, type Handle, type ServerApp, type ServerPlugin } from '@ogygia/core/plugin';
+import { set_devtools_app } from './app.ts';
 import { want_request_stats } from '@ogygia/core/internal/server';
 import { flights, STALE } from '@ogygia/machine';
 import type { ProfilerOptions } from './profiler/index.ts';
@@ -61,6 +62,7 @@ async function mount(options: ProfilerOptions): Promise<Handle | null> {
 
 const server: ServerPlugin<DevtoolsServerOptions> = defineServer<DevtoolsServerOptions>({
 	setup(app) {
+		set_devtools_app(app as ServerApp<unknown>);
 		if (app.options.profiler) want_request_stats();
 	},
 	async handle({ event, options }, next) {

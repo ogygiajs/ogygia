@@ -51,8 +51,7 @@ describe('a store that is down', () => {
 		expect(await store_get(runtime, '/a/')).toBeNull();
 		await expect(store_put(runtime, '/a/', entry, { ttl: 60, tags: [] })).resolves.toBeUndefined();
 		await expect(store_evict(runtime, '/a/')).resolves.toBeUndefined();
-		self_evict(runtime, '/a/');
-		await new Promise((r) => setTimeout(r, 0));
+		await self_evict(runtime, '/a/'); // (its tries spent: the same failing streak)
 		expect(said()).toHaveLength(1);
 		expect((said()[0][1] as Error).message).toBe('store down');
 

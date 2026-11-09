@@ -88,6 +88,24 @@ describe('the exposure queue', () => {
 		await first;
 	});
 
+	it('a batch the sink failed is tried again before the batch read after it', async () => {
+		const f = flag('queue-again', 100);
+		const got: string[] = [];
+		let fails = 1;
+		decide({
+			exposure: async (events) => {
+				await sleep(5);
+				if (fails-- > 0) throw new Error('pipeline blip');
+				got.push(...events.map((e) => e.sub ?? ''));
+			},
+			batch: { max: 100, ms: 60_000 }
+		});
+		const first = server.done!(read(f)); // fails once, then goes again
+		const second = server.done!(read(f)); // read meanwhile: waits its turn
+		await Promise.all([first, second]);
+		expect(got).toEqual([`v${n - 1}`, `v${n}`]);
+	});
+
 	it('the age cap sends a buffered batch on its own', async () => {
 		const f = flag('queue-age', 100);
 		const batches: ExposureEvent[][] = [];

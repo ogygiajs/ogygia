@@ -10,8 +10,9 @@ import type { PluginDefinition } from '@ogygia/core/vite';
 import { postrender as postrenderPlugin } from '../src/vite.ts';
 import server, { type PostrenderServerOptions } from '../src/server.ts';
 import { postrender } from '../src/index.ts';
-import { install, reset_for_tests } from '../src/registry.ts';
+import { install, mark_handled, reset_for_tests } from '../src/registry.ts';
 import { MemoryStore } from '../src/memory-store.ts';
+import type { PostrenderEntry } from '../src/types.ts';
 
 /** the definition `definePlugin` put on the Vite plugin */
 const definition = (plugin: ReturnType<typeof postrenderPlugin>) =>
@@ -55,8 +56,50 @@ describe('postrender() — the vite value', () => {
 
 describe('the server realm, started', () => {
 	const options: PostrenderServerOptions = { ttl: 60, default: true };
-	startPlugin(server, { name: '@ogygia/postrender', options });
+	const { ctx } = startPlugin(server, { name: '@ogygia/postrender', options });
 	afterEach(() => reset_for_tests());
+
+	// A successful form post on a page with a stored copy: the redirect's GET comes right after the
+	// response, and must not get the copy from before the post.
+	it('a POST evicts its page before its response goes out: the GET right after renders fresh (#283)', async () => {
+		const store = new MemoryStore();
+		const evict = store.evict.bind(store);
+		// a remote store: an evict is a 200 ms round trip
+		store.evict = async (key) => {
+			await new Promise((r) => setTimeout(r, 200));
+			return evict(key);
+		};
+		const runtime = install({ store });
+		const before: PostrenderEntry = {
+			kind: 'page',
+			html: '<p>cart: empty</p>',
+			headers: { 'content-type': 'text/html' },
+			created: Date.now()
+		};
+		await store.put('/cart/', before, { ttl: 60, tags: [] });
+
+		const post = ctx(new Request('http://x.test/cart/', { method: 'POST' }));
+		mark_handled(post.event, runtime);
+		await server.page?.(post);
+		await server.response?.(
+			post,
+			new Response(null, { status: 303, headers: { location: '/cart/' } })
+		);
+		server.done?.(post);
+
+		// the browser follows the 303 at once
+		const jar = {
+			get: () => undefined,
+			getAll: () => [],
+			set: () => {},
+			delete: () => {}
+		};
+		const get = ctx(new Request('http://x.test/cart/'), { cookies: jar as never });
+		mark_handled(get.event, runtime);
+		const answered = await server.page?.(get);
+		server.done?.(get);
+		expect(answered).toBeUndefined(); // a miss: the page renders fresh, with the post applied
+	});
 
 	it('an invalidation announces what it dropped through the shared `invalidated` hook', async () => {
 		const heard: (string[] | 'all')[] = [];

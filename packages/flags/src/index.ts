@@ -19,7 +19,7 @@ import { fnv1a32, type StandardSchemaV1 } from '@ogygia/core/plugin/utils';
 import { flags_app } from './app.ts';
 import { warn } from './messages.ts';
 import { source_answered, source_failed, source_mark, source_reset } from './source-health.ts';
-import { machine } from '@ogygia/machine';
+import { machine, outbox, policy } from '@ogygia/machine';
 
 export type CtxLike = {
 	request: Request;
@@ -132,43 +132,66 @@ export function decide(opts: DecideOptions): void {
 // ── the exposure queue ───────────────────────────────────────────────────────────────────────
 
 /**
- * THE EXPOSURE QUEUE, one machine (#243): idle (nothing waiting), buffering (events waiting for the
- * size cap, the age cap or the request's end), flushing (a batch is with the sink; `sent` settles
- * when that send has ended and the queue moved on). One send at a time: events read during a send
- * wait in the queue, and go together in the next send, which starts as soon as it ends. The send is
- * the flushing visit's task, its failure contained: a sink that throws or rejects is said
- * (`flags_exposure_failed`), never an unhandled rejection, which exits Node by default.
+ * THE EXPOSURE QUEUE (#243): a machine, idle (nothing waiting) or buffering (events waiting for the
+ * size cap, the age cap or the request's end), and an outbox its batches go through. The outbox
+ * sends one batch at a time, in the order they were made: events read during a send wait in the
+ * queue and go in a batch of their own behind it. A sink that throws or rejects is tried again by
+ * the exposure policy before the next batch goes, and one it never takes is said
+ * (`flags_exposure_failed`, once per failing streak), never an unhandled rejection, which exits
+ * Node by default.
  *
  * Server only: a browser bundle never sends exposures, and drops the queue.
  */
-type QueueStates = { idle: {}; buffering: {}; flushing: { sent: Promise<void> } };
-const queue_steps = {
-	idle: ['buffering', 'flushing'],
-	buffering: ['flushing'],
-	flushing: ['flushing', 'idle']
-} as const;
+type QueueStates = { idle: {}; buffering: {} };
+const queue_steps = { idle: ['buffering'], buffering: ['idle'] } as const;
 const queue_def = /* @__PURE__ */ machine<QueueStates>()({
 	name: 'flags exposures',
 	initial: 'idle',
 	steps: queue_steps
 });
 const _exposures = /* @__PURE__ */ queue_def.create();
-/** What the next send takes. */
+/** What the next batch takes. */
 let _queue: ExposureEvent[] = [];
-/** The last send failed: the next failure is not said again until one works. */
+/** The last batch was given up: the next one given up is not said again until one is taken. */
 let _sink_failing = false;
+/** The last batch put, until it settles: the request's end waits for it (the outbox sends in
+ *  order, so every batch before it has settled by then). */
+let _last_sent: Promise<void> | null = null;
+
+/** How a batch the sink failed is tried again: a pipeline restarting is ridden out, and the
+ *  batches behind a sink that is down are not held long. */
+const EXPOSURE_POLICY = /* @__PURE__ */ policy({
+	attempts: 3,
+	backoff: [250, 1000],
+	jitter: 0.2,
+	deadline: 10_000
+});
+
+/** The batches on their way to the sink: kept alive past the response, one at a time, in order. */
+const _batches = /* @__PURE__ */ outbox<ExposureEvent[]>({
+	name: 'flags exposures',
+	send: async (batch) => {
+		await _exposure?.(batch);
+		_sink_failing = false;
+	},
+	retry: EXPOSURE_POLICY,
+	inOrder: true,
+	giveUp: (_batch, error) => {
+		if (_sink_failing) return;
+		_sink_failing = true;
+		warn('flags_exposure_failed', error);
+	},
+	waitUntil: (work) => flags_app()?.keepAlive(work)
+});
 
 function emit_exposure(e: ExposureEvent): void {
 	if (BROWSER || !_exposure) return;
 	_queue.push(e);
-	const now = _exposures.now;
-	// (a send is in flight: this goes in the next one)
-	if (now.kind === 'flushing') return;
 	if (_queue.length >= _batch.max) {
 		void send(); // ok: send never rejects (a sink failure is said as flags_exposure_failed)
 		return;
 	}
-	if (now.kind === 'buffering') return;
+	if (_exposures.now.kind === 'buffering') return;
 	_exposures.go('buffering');
 	// the age cap, for this visit of `buffering` only: a send or a flush clears it
 	// oxlint-disable-next-line ogygia/owned-effects -- the buffering visit's (its scope clears it, below), but a bare timer: it holds the process open until the queued exposures are sent, which a scope's timer does not
@@ -176,54 +199,28 @@ function emit_exposure(e: ExposureEvent): void {
 	_exposures.scope.defer(() => clearTimeout(timer));
 }
 
-/** A send of everything queued, now: idle (the size cap), buffering, or a send that just ended, →
- *  flushing. */
+/** Everything queued, as one batch into the outbox now (buffering → idle). Settles once the sink
+ *  took it or it was given up; never rejects. */
 function send(): Promise<void> {
 	const batch = _queue;
 	_queue = [];
-	let ended!: () => void;
-	const sent = new Promise<void>((resolve) => (ended = resolve));
-	_exposures.go('flushing', { sent });
-	const visit = _exposures.now;
-	const sink = _exposure;
-	void _exposures.scope // ok: the sink's failure is handled below, as flags_exposure_failed
-		.task(() => sink?.(batch))
-		.then(
-			() => {
-				_sink_failing = false;
-			},
-			(error: unknown) => {
-				if (_sink_failing) return;
-				_sink_failing = true;
-				warn('flags_exposure_failed', error);
-			}
-		)
-		.then(() => {
-			// (what was read during the send goes now, in one batch)
-			if (_exposures.now === visit) {
-				if (_queue.length > 0) void send(); // ok: send never rejects
-				else _exposures.go('idle');
-			}
-			ended();
-		});
+	_exposures.move('buffering', 'idle');
+	const sent = _batches.put(batch).then(() => {
+		if (_last_sent === sent) _last_sent = null;
+	});
+	_last_sent = sent;
 	return sent;
 }
 
 /**
  * Send the queued exposures to the sink now. Called at each request's end (the flags plugin's `done`)
- * and by the size and age caps. Resolves when they have reached the sink (behind a send already in
- * flight: then the next one, which takes them); `undefined` when nothing is queued or being sent. A
- * sink failure is contained: a lost batch is never a request's problem.
+ * and by the size and age caps. Resolves when they have reached the sink (behind the batches before
+ * them); `undefined` when nothing is queued or being sent. A sink failure is contained: a lost batch
+ * is never a request's problem.
  */
 export function flush_exposures(): Promise<void> | undefined {
-	const now = _exposures.now;
-	if (now.kind === 'idle') return undefined;
-	if (now.kind === 'buffering') return send();
-	if (_queue.length === 0) return now.sent;
-	return now.sent.then(() => {
-		const next = _exposures.now;
-		return next.kind === 'flushing' ? next.sent : undefined;
-	});
+	if (_queue.length > 0) return send();
+	return _last_sent ?? undefined;
 }
 
 // ── registry + per-request source priming ────────────────────────────────────────────────────

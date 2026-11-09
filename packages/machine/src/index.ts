@@ -36,4 +36,6 @@ export {
 	type When
 } from './scope.ts';
 export { lock, type Lock, type LockToken } from './lock.ts';
+export { outbox, type Outbox, type OutboxOptions } from './outbox.ts';
+export { policy, type Policy } from './policy.ts';
 export { MachineError } from './messages.ts';
