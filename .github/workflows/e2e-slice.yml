@@ -1,0 +1,134 @@
+name: e2e slice
+
+# One slice of the e2e suites in one engine, called by e2e.yml's `e2e` jobs with the slice the plan
+# chose. Each suite runs one test at a time on purpose (its fixture app's state is shared, and some
+# specs time things), so a bigger runner would sit idle: the speedup comes from running the slices at
+# once, not from cores.
+
+on:
+  workflow_call:
+    inputs:
+      name: { type: string, required: true }
+      id: { type: string, required: true }
+      filter: { type: string, required: true }
+      shard: { type: string, required: false, default: '' }
+      adapters: { type: boolean, required: false, default: false }
+      browser: { type: string, required: true }
+
+jobs:
+  run:
+    name: run
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # a pull request runs only the suites its changes reach (`turbo --affected` diffs against
+          # the base branch, so it needs the history)
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      # turbo's local cache, one per slice and engine: a slice whose suite, fixture app and
+      # dependencies' builds did not change replays from it
+      - name: Turbo cache
+        uses: actions/cache@v6
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-e2e-${{ inputs.id }}-${{ inputs.browser }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-e2e-${{ inputs.id }}-${{ inputs.browser }}-
+            turbo-${{ runner.os }}-
+
+      # What the run below would do, asked of turbo first (`--dry=json`, the same filter, `--affected`
+      # and hashed env): when no e2e task is left or every one is a cache hit (a rerun, say), nothing
+      # runs a browser, bun or workerd (a replay only prints the stored logs), so their setup is
+      # skipped. The run step itself always runs, so the logs replay.
+      - name: Plan
+        id: plan
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then affected=--affected; fi
+          pnpm exec turbo run e2e --concurrency=1 ${{ inputs.filter }} $affected --dry=json > turbo-plan.json
+          node -e '
+            const plan = JSON.parse(require("fs").readFileSync("turbo-plan.json", "utf8"));
+            const e2e = (plan.tasks ?? []).filter((t) => t.task === "e2e" && t.command !== "<NONEXISTENT>");
+            const left = e2e.filter((t) => t.cache?.status !== "HIT");
+            console.log(`${e2e.length} e2e task(s), ${left.length} to run: ${left.map((t) => t.taskId).join(", ") || "none"}`);
+            require("fs").appendFileSync(process.env.GITHUB_OUTPUT, `skip=${left.length === 0}\n`);
+          '
+        env:
+          E2E_SHARD: ${{ inputs.shard }}
+          OGYGIA_BROWSERS: ${{ inputs.browser }}
+          TURBO_SCM_BASE: origin/${{ github.base_ref || 'main' }}
+
+      # Bun runtime dimension — the adapter e2e suite runs the node-server output under bun too.
+      - if: inputs.adapters && steps.plan.outputs.skip != 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Playwright's browser, cached per engine and Playwright version: a hit downloads nothing.
+      # Chromium needs no `--with-deps` (the runner image has its system libraries; that apt step is
+      # what stalled jobs). Firefox and WebKit need theirs.
+      - if: steps.plan.outputs.skip != 'true'
+        name: Playwright version
+        id: playwright
+        run: echo "version=$(pnpm exec playwright --version | sed 's/Version //')" >> "$GITHUB_OUTPUT"
+
+      - if: steps.plan.outputs.skip != 'true'
+        name: Playwright browser cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ inputs.browser }}-${{ steps.playwright.outputs.version }}
+
+      - if: steps.plan.outputs.skip != 'true'
+        name: Install Playwright ${{ inputs.browser }}
+        run: pnpm exec playwright install ${{ inputs.browser != 'chromium' && '--with-deps' || '' }} ${{ inputs.browser }}
+
+      # wrangler (Cloudflare workerd) is fetched on demand by the suite via npx; warm it so the
+      # cloudflare adapter boots the real Workers runtime instead of skipping.
+      - if: inputs.adapters && steps.plan.outputs.skip != 'true'
+        name: Warm wrangler
+        run: npx --yes wrangler --version
+
+      # This slice's suites through turbo's `e2e` task (libraries built first, `e2e` depends on
+      # `^build`), one suite at a time. A pull request: only if its changes reach them (`--affected`).
+      # A push to main or a manual run: always. `E2E_SHARD` and `OGYGIA_BROWSERS` reach Playwright
+      # through the suite config, and turbo hashes both into the `e2e` task.
+      - name: Run the e2e suites
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then affected=--affected; fi
+          pnpm turbo run e2e --concurrency=1 ${{ inputs.filter }} $affected
+        env:
+          E2E_SHARD: ${{ inputs.shard }}
+          OGYGIA_BROWSERS: ${{ inputs.browser }}
+          TURBO_SCM_BASE: origin/${{ github.base_ref || 'main' }}
+          OGYGIA_E2E_WRANGLER: ${{ inputs.adapters && '1' || '' }}
+          # Stable CI-only signing key so the warn-path probe's production build is silent (locally
+          # this comes from apps/palaestra/.env, which is gitignored). NOT a production secret —
+          # the Vercel deploy sets its own OGYGIA_SECRET.
+          OGYGIA_SECRET: 3f9a2b7c1e5d8046af62c93b1d7e4058a6c2f19b3e8d70425c9a1f6b8d3e07c4
+
+      # Traces (retained on failure) + the html report, for a red run.
+      - if: failure()
+        name: Upload Playwright report
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-${{ inputs.id }}-${{ inputs.browser }}
+          path: |
+            **/playwright-report/
+            **/test-results/
+            !**/node_modules/**
+          retention-days: 7
