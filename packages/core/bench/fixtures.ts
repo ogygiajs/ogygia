@@ -2,7 +2,9 @@
  * Inputs for the core bench files, sized like a real CMS page: the palaestra's server-cost page data
  * (twenty block islands over a ~700 KB `page.data`, a ~300 KB header config), and a rendered
  * document of the same shape (head hints and sheets with the duplicates islands emit, regions of
- * every kind, Svelte's hydration comments, tag-like text in scripts and styles).
+ * every kind, Svelte's hydration comments, tag-like text in scripts and styles). And a CMS page of
+ * blocks for the request path: nested blocks in `page.data`, the rendered page around them (a header
+ * and a footer region, ~10 KB of markup per block), and a page with no region on it.
  *
  * Setup only: nothing here runs inside a measured window.
  */
@@ -91,6 +93,138 @@ export function document(regions: number, rows = 8): string {
 	}
 	body += '</div></body>';
 	return `<!doctype html><html lang="en">${head(Math.min(regions, 40))}${body}</html>`;
+}
+
+const LOREM_TEXT =
+	'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. ';
+
+/** One block of a CMS page's list: its own fields, a nested layout of child blocks, rich text. */
+export function content_block(i: number) {
+	return {
+		id: `b-${i}`,
+		type: ['hero', 'tiles', 'text', 'product-grid', 'banner', 'faq'][i % 6],
+		props: {
+			title: `Section ${i}: ${LOREM_TEXT.slice(0, 48)}`,
+			body: `${LOREM_TEXT}(section ${i}) `.repeat(4),
+			image: { src: `/media/${hex(i + 300)}.webp`, alt: `Image ${i}`, width: 1200, height: 630 },
+			theme: { tone: i % 2 ? 'light' : 'dark', spacing: i % 3 }
+		},
+		children: Array.from({ length: 6 }, (_, c) => ({
+			id: `b-${i}-${c}`,
+			type: 'tile',
+			props: {
+				label: `Tile ${i}.${c}`,
+				href: `/section/${i}/tile/${c}`,
+				text: `${LOREM_TEXT.slice(0, 160)} (${i}.${c})`,
+				tags: ['new', `t-${c}`]
+			}
+		}))
+	};
+}
+export type ContentBlock = ReturnType<typeof content_block>;
+
+/** A CMS page's `page.data`: the page's fields and its `blocks`, the site's settings, the
+ *  visitor's session. ~4 KB per block. */
+export function content_data(blocks: number) {
+	return {
+		page: {
+			id: 'home',
+			path: '/',
+			title: 'Home',
+			seo: { description: LOREM_TEXT, canonical: 'https://example.test/', noindex: false },
+			blocks: Array.from({ length: blocks }, (_, i) => content_block(i))
+		},
+		site: {
+			locale: 'en',
+			currency: 'USD',
+			flags: Object.fromEntries(Array.from({ length: 30 }, (_, i) => [`flag_${i}`, i % 3 === 0]))
+		},
+		session: { signed_in: false, cart: { count: 0 } }
+	};
+}
+export type ContentData = ReturnType<typeof content_data>;
+
+/** A footer's config: columns of links, the legal text (not in `page.data`, like the header's). */
+export function footer_config() {
+	return {
+		columns: Array.from({ length: 6 }, (_, c) => ({
+			title: `Column ${c}`,
+			links: Array.from({ length: 12 }, (_, k) => ({
+				label: `Link ${c}.${k}`,
+				href: `/f/${c}/${k}`
+			}))
+		})),
+		legal: LOREM_TEXT.repeat(6)
+	};
+}
+
+/** A listing page's `page.data`: `items` small products (~130 bytes each, each one a node the seed
+ *  index keeps) in one list, beside the site settings and the session. */
+export function listing_data(items: number) {
+	return {
+		page: {
+			id: 'listing',
+			title: 'All products',
+			items: Array.from({ length: items }, (_, i) => ({
+				sku: `SKU-${i}`,
+				name: `Product ${i} ${LOREM_TEXT.slice(0, 30)}`,
+				href: `/p/${i}`,
+				price: (i * 7) / 3,
+				stock: i % 17
+			}))
+		},
+		site: { locale: 'en', currency: 'USD' },
+		session: { signed_in: false }
+	};
+}
+export type ListingData = ReturnType<typeof listing_data>;
+
+/** A `page.data` holding a dictionary: `entries` prices by SKU (one object of many keys), beside a
+ *  short list. */
+export function dictionary_data(entries: number) {
+	return {
+		page: { id: 'prices', title: 'Price list' },
+		prices: Object.fromEntries(
+			Array.from({ length: entries }, (_, i) => [
+				`SKU-${i}`,
+				{ amount: (i * 7) / 3, currency: 'USD', label: `Price of product ${i}`, tier: i % 4 }
+			])
+		) as Record<string, { amount: number; currency: string; label: string; tier: number }>,
+		site: { locale: 'en', currency: 'USD' }
+	};
+}
+
+/**
+ * A CMS page as Kit hands it to `transformPageChunk` (csr=false, not streamed): the header
+ * region, `blocks` block regions (islands, every seventh one a lake holding an island, every
+ * eleventh a hole), the footer region. ~10 KB of markup per block: ~2.5 MB at 250 blocks.
+ */
+export function content_document(blocks: number): string {
+	let nav = '';
+	for (let i = 0; i < 240; i++)
+		nav += `<li><a href="/menu/${i % 6}/item/${i}">Item ${i}</a><p>${LOREM_TEXT.slice(0, 100)}</p></li>`;
+	const header_html = `<ogygia-region entry="${island_entry(900)}" wake="load" data-og-fp="${hex(990)}${hex(991)}"><!--[--><header><nav><ul>${nav}</ul></nav></header><!--]--></ogygia-region>`;
+	const doc = document(blocks, 100);
+	const at =
+		doc.indexOf('<div style="display: contents">') + '<div style="display: contents">'.length;
+	const end = doc.lastIndexOf('</div></body>');
+	let footer = '';
+	for (let i = 0; i < 72; i++) footer += `<li><a href="/f/${i % 6}/${i}">Link ${i}</a></li>`;
+	const footer_html = `<ogygia-region entry="${island_entry(901)}" wake="visible" data-og-fp="${hex(992)}${hex(993)}"><!--[--><footer><ul>${footer}</ul><p>${LOREM_TEXT.repeat(6)}</p></footer><!--]--></ogygia-region>`;
+	return doc.slice(0, at) + header_html + doc.slice(at, end) + footer_html + doc.slice(end);
+}
+
+/** A page with no region on it: the same markup as plain HTML (~10 KB per section). */
+export function plain_document(sections: number): string {
+	let body = '<body><main>';
+	for (let i = 0; i < sections; i++) {
+		body += `<section class="s${i}"><h2>Section ${i}</h2><ul>`;
+		for (let r = 0; r < 100; r++)
+			body += `<li data-sku="SKU-${i}-${r}"><a href="/p/${i}/${r}">Row ${r}</a> <span>${(i * 7 + r) % 97}</span></li>`;
+		body += '</ul></section>';
+	}
+	body += '</main><script>window.__note = "</body> is text here";</script></body>';
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Docs</title><link rel="stylesheet" href="${sheet(0)}"></head>${body}</html>`;
 }
 
 /** A hole's answer: regions with relative entry, endpoint and region-CSS URLs. */
