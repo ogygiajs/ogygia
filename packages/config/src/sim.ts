@@ -42,7 +42,10 @@ export { fc };
 export type SimRule = () => string | null;
 
 /** A step of the test: its label (the scheduler's report names it) and what it does. */
-export type SimStep = readonly [label: string, run: () => unknown];
+export type SimStep =
+	| readonly [label: string, run: () => unknown]
+	/** `'then'`: the steps after it wait until it settles (a wait the next step comes after). */
+	| readonly [label: string, run: () => unknown, then: 'then'];
 
 export interface SimOptions {
 	/** Virtual ms past which no timer fires (an `every` would otherwise run forever). Default 120 s. */
@@ -257,21 +260,41 @@ class Run implements Sim {
 	}
 
 	async play(steps: readonly SimStep[]): Promise<void> {
-		const seq = this.s.scheduleSequence(
-			steps.map(([label, run]) => ({
-				label,
-				builder: async () => {
-					try {
-						this.track(label, run());
-					} catch (error) {
-						this.broke('steps', `"${label}" threw: ${String(error)}`);
-					}
-					this._check(this._always);
-				}
-			}))
-		);
+		let ran = 0;
+		const segment = (from: number): void => {
+			// up to and with the next `'then'` step: the rest starts once that step's work settles (a
+			// builder that awaited it would hold the scheduler, which waits for each builder to end)
+			let to = from;
+			while (to < steps.length - 1 && steps[to][2] !== 'then') to++;
+			let held: unknown;
+			this.s
+				.scheduleSequence(
+					steps.slice(from, to + 1).map(([label, run], k) => ({
+						label,
+						builder: async () => {
+							let work: unknown;
+							try {
+								work = this.track(label, run());
+							} catch (error) {
+								this.broke('steps', `"${label}" threw: ${String(error)}`);
+							}
+							ran++;
+							if (from + k === to) held = work;
+							this._check(this._always);
+						}
+					}))
+				)
+				.task.then(() => {
+					if (to + 1 >= steps.length) return;
+					Promise.resolve(held).then(
+						() => segment(to + 1),
+						() => segment(to + 1)
+					);
+				}, noop); // ok: a builder never rejects (it says what threw)
+		};
+		if (steps.length > 0) segment(0);
 		await this.settle();
-		if (!seq.done) this.broke('steps', 'the steps never all ran');
+		if (ran !== steps.length) this.broke('steps', `${steps.length - ran} steps never ran`);
 	}
 
 	async settle(): Promise<void> {
