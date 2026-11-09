@@ -2,8 +2,9 @@
 // success) re-reads the page's head and data in place. Started while a navigation to the next page
 // waits (here on that page's stylesheet, held at the network for real), it must refresh the page
 // still on screen: never fetch the next page and merge its title, head and page data into this one.
-import { afterEach, beforeEach, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect } from 'vitest';
 import { commands } from 'vitest/browser';
+import { it_with_network_routes } from './_browsers.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { install as install_morph } from '../../src/runtime/morph.ts';
 import { SpaRouter } from '../../src/runtime/router.ts';
@@ -56,27 +57,32 @@ afterEach(async () => {
 	await commands.keep_downloads(HELD);
 });
 
-test('invalidateAll while a navigation waits refreshes the page on screen, not the next one', async () => {
-	await commands.hold_downloads(HELD);
-	const r = new SpaRouter();
-	r.start();
-	const went = r.navigate(new URL(NEXT, home));
-	// the next page is fetched; the navigation waits for its sheet
-	await expect
-		.poll(() => document.head.querySelector(`link[href="${HELD}"]`), { timeout: 2_000 })
-		.not.toBeNull();
-	expect(r.nav.now.kind).toBe('loading');
-	asked.length = 0;
-	// a remote form on A succeeds: A's data is refreshed in place
-	await r.invalidateAll();
-	expect(asked).toEqual([new URL(home).pathname]);
-	expect(document.title).toBe('page A');
-	expect(document.head.querySelector('meta[name="soft-page"]')?.getAttribute('content')).toBe('a');
-	expect((page_state.data as { who?: string }).who).toBe('a');
-	expect(document.querySelector('p')?.textContent).toBe('a');
-	// the navigation still goes in, afterwards
-	await commands.keep_downloads(HELD);
-	await went;
-	expect(document.title).toBe('page B');
-	expect((page_state.data as { who?: string }).who).toBe('b');
-});
+it_with_network_routes(
+	'invalidateAll while a navigation waits refreshes the page on screen, not the next one',
+	async () => {
+		await commands.hold_downloads(HELD);
+		const r = new SpaRouter();
+		r.start();
+		const went = r.navigate(new URL(NEXT, home));
+		// the next page is fetched; the navigation waits for its sheet
+		await expect
+			.poll(() => document.head.querySelector(`link[href="${HELD}"]`), { timeout: 2_000 })
+			.not.toBeNull();
+		expect(r.nav.now.kind).toBe('loading');
+		asked.length = 0;
+		// a remote form on A succeeds: A's data is refreshed in place
+		await r.invalidateAll();
+		expect(asked).toEqual([new URL(home).pathname]);
+		expect(document.title).toBe('page A');
+		expect(document.head.querySelector('meta[name="soft-page"]')?.getAttribute('content')).toBe(
+			'a'
+		);
+		expect((page_state.data as { who?: string }).who).toBe('a');
+		expect(document.querySelector('p')?.textContent).toBe('a');
+		// the navigation still goes in, afterwards
+		await commands.keep_downloads(HELD);
+		await went;
+		expect(document.title).toBe('page B');
+		expect((page_state.data as { who?: string }).who).toBe('b');
+	}
+);

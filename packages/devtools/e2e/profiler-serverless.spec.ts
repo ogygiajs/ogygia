@@ -9,6 +9,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
+import { needs_js_self_profiling } from '@ogygia/tooling/e2e/browsers.ts';
 
 const PORT = port(3101);
 const ORIGIN = `http://localhost:${PORT}`;
@@ -165,6 +166,7 @@ test.describe('profiler on a serverless host', () => {
 	test("the browser's CPU names an island by its component, not the minified name in its chunk", async ({
 		page
 	}) => {
+		needs_js_self_profiling(page);
 		await fresh_instance();
 		const rec = await page.request.get(`${ORIGIN}/__profiler/page?p=/hell&runs=2`, {
 			maxRedirects: 0,

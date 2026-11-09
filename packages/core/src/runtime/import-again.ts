@@ -19,19 +19,48 @@
  * imports nothing of the boot (only `@ogygia/machine`, which the boot runs on); the boot hands it
  * its message (`on_reload_needed`).
  */
-import { flights, machine, STALE } from '@ogygia/machine';
+import { flights, machine, scope, STALE } from '@ogygia/machine';
+
+/** One task from now: the engine's own queued work (a resource-timing entry) runs first. Its own
+ *  scope: it ends itself, and no page's visit owns a file's load. */
+function next_task(): Promise<void> {
+	const wait = scope();
+	return new Promise<void>((resolve) =>
+		wait.timeout(() => {
+			wait.close();
+			resolve();
+		}, 0)
+	);
+}
 
 /** The URL in a failed dynamic import's message: Chromium "Failed to fetch dynamically imported
  *  module: <url>", Firefox "error loading dynamically imported module: <url>". */
 const FAILED_IMPORT_RE = /dynamically imported module:?\s+(\S+)/i;
+/** WebKit's (Safari's) failed import, which names no URL: "Importing a module script failed." */
+const WEBKIT_IMPORT_FAILED_RE = /^importing a module script failed\.?$/i;
 
-/** The URL a failed dynamic import names, if it names one we can load again (http(s), this origin). */
-export function failed_import_url(error: unknown): string | null {
+/** Whether `error` is a dynamic import that failed to load (any engine's wording), not an error the
+ *  module threw as it ran. */
+export function is_failed_import(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+	return FAILED_IMPORT_RE.test(message) || WEBKIT_IMPORT_FAILED_RE.test(message);
+}
+
+/**
+ * The URL a failed dynamic import names, if it names one we can load again (http(s), this origin).
+ * WebKit names none: there `known`, the file the caller imported, is it (#383).
+ */
+export function failed_import_url(error: unknown, known?: string): string | null {
 	const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
 	const match = FAILED_IMPORT_RE.exec(message);
-	if (!match) return null;
+	const named = match
+		? match[1]
+		: known !== undefined && WEBKIT_IMPORT_FAILED_RE.test(message)
+			? known
+			: null;
+	if (named === null) return null;
 	try {
-		const url = new URL(match[1], typeof location !== 'undefined' ? location.href : undefined);
+		const url = new URL(named, typeof location !== 'undefined' ? location.href : undefined);
 		if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
 		if (typeof location !== 'undefined' && url.origin !== location.origin) return null;
 		return url.href;
@@ -49,13 +78,18 @@ export function retry_url(url: string, attempt: number): string {
 
 /** The status of the response the browser's resource timing holds for `url` (0 where the browser does
  *  not say), or `null` when none came: a download that failed (or no timing for it). */
-function response_of(url: string): number | null {
+export function response_of(url: string): number | null {
 	if (typeof performance === 'undefined' || typeof performance.getEntriesByName !== 'function')
 		return null;
 	let status: number | null = null;
 	for (const e of performance.getEntriesByName(url, 'resource')) {
 		const t = e as PerformanceResourceTiming & { responseStatus?: number };
-		if (t.responseStart > 0) status = t.responseStatus ?? 0;
+		// An engine that reports the status says 0 for a download that got no response (Firefox
+		// gives a dropped one a response start too); one that does not (WebKit) is read by its
+		// response start alone.
+		if (typeof t.responseStatus === 'number') {
+			if (t.responseStatus > 0) status = t.responseStatus;
+		} else if (t.responseStart > 0) status = 0;
 	}
 	return status;
 }
@@ -79,7 +113,10 @@ export function on_reload_needed(say: (url: string, error: unknown) => void): vo
  */
 export function import_again<T>(
 	load: () => Promise<T>,
-	fresh: (url: string) => Promise<unknown> = (url) => import(/* @vite-ignore */ url)
+	fresh: (url: string) => Promise<unknown> = (url) => import(/* @vite-ignore */ url),
+	/** The file `load` imports, when the caller knows it: what a failure that names no URL (WebKit)
+	 *  failed to load. */
+	known?: string
 ): () => Promise<T> {
 	const file = file_definition.create();
 	return () => {
@@ -105,7 +142,7 @@ export function import_again<T>(
 			});
 		} else {
 			run = load().catch((error: unknown) => {
-				const url = failed_import_url(error);
+				const url = failed_import_url(error, known);
 				// (a failure that names no URL: the next call loads the same way again)
 				if (url !== null) file.move('fresh', 'failed', { url, attempt: 0 });
 				throw error;
@@ -159,11 +196,19 @@ const file_loads = flights({
 	name: 'island file',
 	run: (url: string) => {
 		let again = file_loaders.get(url);
-		if (!again) file_loaders.set(url, (again = import_again(() => import(/* @vite-ignore */ url))));
+		if (!again)
+			file_loaders.set(
+				url,
+				(again = import_again(() => import(/* @vite-ignore */ url), undefined, url))
+			);
 		const load = again;
-		return load().catch((error: unknown) => {
-			const failed = failed_import_url(error);
-			if (failed !== null && response_of(failed) === null) return load();
+		return load().catch(async (error: unknown) => {
+			const failed = failed_import_url(error, url);
+			if (failed === null) throw error;
+			// (an engine can reject the import before the response's timing entry is in the timeline:
+			// Firefox on a loaded machine. One task later it is there, when the server answered.)
+			if (response_of(failed) === null) await next_task();
+			if (response_of(failed) === null) return load();
 			throw error;
 		});
 	}

@@ -17,8 +17,26 @@ on:
   pull_request:
     # ready_for_review: a draft gets no run, so one starts when it leaves draft
     types: [opened, synchronize, reopened, ready_for_review]
+    # only when runtime or bench code changed: what Heisenbench counts and the gate reads
+    paths:
+      - 'packages/*/src/**'
+      - 'packages/*/bench/**'
+      - 'packages/*/test/**'
+      - 'internal/heisenbench/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/heisenbench.yml'
 
 permissions: {}
+
+# A new push to a PR cancels that PR's older runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# The tests these jobs record run their browser projects in Chromium only (the engine this workflow
+# installs); the other engines run in e2e.yml's `browsers` jobs.
+env:
+  OGYGIA_BROWSERS: chromium
 
 jobs:
   request:
@@ -61,14 +79,14 @@ jobs:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: ${{ vars.TURBO_TEAM }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # the base commit's source is read from git
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # Heisenbench needs Node 26.4+; ogygia itself is still tested on 22 everywhere else
           node-version: 26
@@ -76,15 +94,6 @@ jobs:
 
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
-
-      - name: Turbo cache
-        uses: actions/cache@v4
-        with:
-          path: .turbo/cache
-          key: turbo-${{ runner.os }}-unmeasured-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-check-
-            turbo-${{ runner.os }}-
 
       # some unit tests import the built libraries
       - name: Build the libraries
@@ -98,7 +107,7 @@ jobs:
           base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
           node internal/heisenbench/src/unmeasured.ts --base "$base"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: heisenbench-unmeasured

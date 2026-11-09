@@ -961,6 +961,82 @@
 			"reason": "the e2e harness: sends a signal to the server's process group (one syscall); proven in packages/tooling/test/servers.test.ts"
 		},
 		{
+			"id": "packages/config/src/sim.ts > timer_task",
+			"reason": "the simulation harness, in a browser only (Node waits with setImmediate): one real timer task while a run settles, constant work; run by every browser simulation"
+		},
+		{
+			"id": "packages/config/src/sim.ts > timer_task > Promise:0~6502f7",
+			"reason": "the same timer task's promise, constant work"
+		},
+		{
+			"id": "packages/config/src/vitest.ts > browser_runs",
+			"reason": "test config: picks the browser projects' provider when a vitest config loads (before any test or bench), constant work; every browser job runs it"
+		},
+		{
+			"id": "packages/config/src/vitest.ts > browser_runs > map:0~5b89ec",
+			"reason": "test config: one browser instance per engine asked for, constant work"
+		},
+		{
+			"id": "packages/config/src/vitest.ts > firefox_binary",
+			"reason": "test config: looks up the installed Firefox (an env path, the platform's install place), a few file checks; the firefox-stable job runs it"
+		},
+		{
+			"id": "packages/config/src/vitest.ts > firefox_version",
+			"reason": "test config: asks the Firefox binary its version (a child process), once per run"
+		},
+		{
+			"id": "packages/config/src/vitest.ts > on_path",
+			"reason": "test config: one `which` (a child process), once per run"
+		},
+		{
+			"id": "packages/config/src/vitest.ts > playwright_run",
+			"reason": "test config: reads the browsers asked for, constant work, when core's vitest config loads"
+		},
+		{
+			"id": "packages/config/src/vitest.ts > test_browsers",
+			"reason": "test config: splits OGYGIA_BROWSERS (a handful of names), when a vitest config loads"
+		},
+		{
+			"id": "packages/config/src/vitest.ts > test_browsers > map:0~02af0a",
+			"reason": "test config: trims one browser name, constant work"
+		},
+		{
+			"id": "packages/tooling/src/e2e/browsers.ts > console_text",
+			"reason": "the e2e harness: reads one console message's arguments through Playwright (a live page), inside a spec"
+		},
+		{
+			"id": "packages/tooling/src/e2e/browsers.ts > console_text > map:0~1496d7",
+			"reason": "the e2e harness: one argument's text through Playwright, inside a spec"
+		},
+		{
+			"id": "packages/tooling/src/e2e/browsers.ts > console_text > map:0~1496d7 > catch:0~c20148",
+			"reason": "the e2e harness: an argument of a page that left reads as empty, constant work"
+		},
+		{
+			"id": "packages/tooling/src/e2e/browsers.ts > console_text > map:0~1496d7 > evaluate:0~109b84",
+			"reason": "the e2e harness: runs in the page (an Error's name and message), constant work"
+		},
+		{
+			"id": "packages/tooling/src/e2e/browsers.ts > needs_js_self_profiling",
+			"reason": "the e2e harness: skips a Chromium-only spec in the other engines (one name read), inside Playwright"
+		},
+		{
+			"id": "packages/tooling/src/e2e/browsers.ts > needs_cdp",
+			"reason": "the e2e harness: skips a Chromium-only spec in the other engines (one name read), inside Playwright"
+		},
+		{
+			"id": "packages/tooling/src/e2e/config.ts > e2e_browsers",
+			"reason": "the e2e harness: splits OGYGIA_BROWSERS when a Playwright config loads, constant work"
+		},
+		{
+			"id": "packages/tooling/src/e2e/config.ts > e2e_browsers > map:0~02af0a",
+			"reason": "the e2e harness: trims one browser name, constant work"
+		},
+		{
+			"id": "packages/tooling/src/e2e/config.ts > suite > defineConfig:0~a4fcc5 > map:0~e75143",
+			"reason": "the e2e harness: one Playwright project per engine when a config loads, constant work"
+		},
+		{
 			"id": "packages/machine/src/mailbox.ts > <anonymous>~371caf",
 			"reason": "runs once at module load: makes the one closed mailbox, constant work"
 		},

@@ -5,6 +5,7 @@
 // under a 4× CPU throttle (a mid-range phone), from navigation start until every island is live.
 // Usage: pnpm exec playwright test long-task-budget
 import { test, check } from '@ogygia/tooling/e2e';
+import { needs_cdp } from '@ogygia/tooling/e2e/browsers.ts';
 
 /** The budget for any single task after the document is parsed: the Long Tasks threshold. */
 const TASK_BUDGET_MS = 50;
@@ -13,6 +14,8 @@ test.describe('long-task budget: the large CMS page boots with no task over 50 m
 	test('/bench-cms: 21 islands, seed parsed once, no long task after DOMContentLoaded', async ({
 		page
 	}) => {
+		// (CPU throttling through CDP, and the Long Tasks API: both Chromium's)
+		needs_cdp(page);
 		// Observe from the very first script: an init script installs the observer before the runtime.
 		await page.addInitScript(() => {
 			const w = window as unknown as {

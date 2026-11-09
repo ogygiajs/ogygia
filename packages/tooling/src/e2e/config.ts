@@ -26,10 +26,26 @@ export interface SuiteOptions {
 	env?: Record<string, string>;
 }
 
+/** Playwright's engines a suite runs in: `OGYGIA_BROWSERS` (a comma list; CI runs one per job),
+ *  else all three. */
+export function e2e_browsers(): Array<'chromium' | 'firefox' | 'webkit'> {
+	const all = ['chromium', 'firefox', 'webkit'] as const;
+	const asked = process.env.OGYGIA_BROWSERS?.split(',')
+		.map((b) => b.trim())
+		.filter(Boolean);
+	if (!asked?.length) return [...all];
+	for (const b of asked)
+		if (!(all as readonly string[]).includes(b))
+			throw new Error(`[e2e] OGYGIA_BROWSERS: "${b}" is not chromium, firefox or webkit`);
+	return asked as Array<'chromium' | 'firefox' | 'webkit'>;
+}
+
 export function suite(opts: SuiteOptions): PlaywrightTestConfig {
 	const served_port = port(opts.port);
 	const base = `http://localhost:${served_port}`;
 	return defineConfig({
+		// every spec in each engine (one project per browser, one fixture server for them all)
+		projects: e2e_browsers().map((browserName) => ({ name: browserName, use: { browserName } })),
 		testDir: 'e2e',
 		testMatch: /.*\.spec\.ts$/,
 		// fixture apps (and their node_modules) live under e2e/ too; they hold no specs

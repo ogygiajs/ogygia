@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { expect, type Page } from '@playwright/test';
 import { test, check, REPO as repo } from '@ogygia/tooling/e2e';
 import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
+import { console_text } from '@ogygia/tooling/e2e/browsers.ts';
 
 const lab = fileURLToPath(new URL('./app', import.meta.url));
 const PORT = port(3084);
@@ -178,7 +179,10 @@ test.describe('devtools (dev server, OGYGIA_DEVTOOLS=1): events, panel tabs, pag
 		const thrown: string[] = [];
 		page.on('pageerror', (e) => thrown.push(String(e)));
 		const logged: string[] = [];
-		page.on('console', (m) => m.type() === 'error' && logged.push(m.text()));
+		// (the message's own text in every engine: Firefox's console text of an Error is its class)
+		page.on('console', (m) => {
+			if (m.type() === 'error') void console_text(m).then((t) => logged.push(t));
+		});
 		await page.goto('/interaction', { waitUntil: 'load' });
 		// the closed dock's code loads once the page is idle: that first download is dropped
 		await expect.poll(() => dropped, { timeout: 15_000 }).toBeGreaterThan(0);

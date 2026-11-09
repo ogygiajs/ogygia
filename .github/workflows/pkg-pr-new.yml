@@ -1,17 +1,36 @@
 name: pkg.pr.new
 
-# Publishes a continuous PREVIEW build of `ogygia` for every push / PR, so a branch can be tested
+# Publishes a continuous PREVIEW build of `ogygia` for every PR push and main, so a branch can be tested
 # with `npm i https://pkg.pr.new/ogygiajs/ogygia@<sha-or-branch>` before anything hits npm.
 # Requires the pkg.pr.new GitHub App installed on the repo: https://github.com/apps/pkg-pr-new
 # Once published, it asks ogygiajs/bench to measure the build (the last step).
 
 on:
+  # main: the new benchmark baseline (and a preview of what was merged)
   push:
-    branches:
-      - '**'
+    branches: [main]
+  # a pull request: once per push (a push to a PR's branch no longer publishes a second time), and
+  # only when a published package's files (or what builds them) changed
   pull_request:
     # ready_for_review: a draft gets no benchmark run, so one starts when it leaves draft
     types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'packages/ogygia/**'
+      - 'packages/core/**'
+      - 'packages/flags/**'
+      - 'packages/postrender/**'
+      - 'packages/federation/**'
+      - 'packages/content/**'
+      - 'packages/devtools/**'
+      - 'packages/router/**'
+      - 'packages/testing/**'
+      - 'packages/cli/**'
+      - 'packages/machine/**'
+      - 'packages/config/**'
+      - 'packages/tsdown-plugin-svelte/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/pkg-pr-new.yml'
   workflow_dispatch:
 
 # turbo's remote cache (Vercel, the purus-projects team), shared with the e2e workflow
@@ -19,32 +38,27 @@ env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
 
+# A new push to a PR cancels that PR's older runs (branch pushes and manual runs never are)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   publish:
     # a version PR (changeset-release/*) publishes for real once merged: no preview to try first
     if: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-
-      # turbo's local cache: a package whose inputs did not change replays its build
-      - name: Turbo cache
-        uses: actions/cache@v4
-        with:
-          path: .turbo/cache
-          key: turbo-${{ runner.os }}-${{ github.workflow }}-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-${{ github.workflow }}-
-            turbo-${{ runner.os }}-
 
       # Build the library to dist (the published preview uses publishConfig.exports → dist).
       - run: pnpm run build:lib

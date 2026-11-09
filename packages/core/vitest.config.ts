@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { playwright } from '@vitest/browser-playwright';
+import { browser_runs, playwright_run } from '@ogygia/config/vitest';
 import { fileURLToPath } from 'node:url';
 import { heisenbench_record } from '../../internal/heisenbench/src/record.ts';
 import type { BrowserCommand } from 'vitest/node';
@@ -64,6 +64,9 @@ export default defineConfig({
 	// heisenbench_record(): nothing, unless the measurement-source gate records the tests' inputs
 	// (internal/heisenbench/src/record.ts)
 	plugins: [svelte(), ...heisenbench_record()],
+	// The browser tests' dependencies, bundled before the first test file loads: found during the
+	// run, Vite bundles again and changes the URLs a test file still imports.
+	optimizeDeps: { include: ['devalue', 'esm-env', 'fast-check'] },
 	resolve: {
 		alias: {
 			'$app/server': fileURLToPath(new URL('./test/_stubs/app-server.ts', import.meta.url)),
@@ -160,9 +163,12 @@ export default defineConfig({
 					browser: {
 						enabled: true,
 						headless: true,
-						provider: playwright(),
-						instances: [{ browser: 'chromium' }],
-						commands: { drop_downloads, hold_downloads, keep_downloads }
+						...(await browser_runs()),
+						// (network routes are Playwright's: real Firefox runs without them, and the tests
+						// that need them say so, test/browser/_browsers.ts)
+						...(playwright_run()
+							? { commands: { drop_downloads, hold_downloads, keep_downloads } }
+							: {})
 					}
 				}
 			}

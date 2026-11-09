@@ -5,8 +5,9 @@
 //
 // The download fails for real, at the network (the `drop_downloads` command: Playwright's
 // `route.abort`). Its own file: the refresh's load is module state.
-import { afterEach, expect, test } from 'vitest';
+import { afterEach, expect } from 'vitest';
 import { commands } from 'vitest/browser';
+import { it_with_named_import_failures } from './_browsers.ts';
 import { boot } from '../../src/runtime/core.ts';
 import * as mpa_nav from '../../src/runtime/nav-handle.ts';
 
@@ -22,16 +23,21 @@ const scope = globalThis as unknown as Record<symbol, Record<string, unknown> | 
 
 afterEach(() => commands.keep_downloads('/src/runtime/router-nav.ts'));
 
-test('without the router, a refresh whose code failed to download loads it on the next refresh', async () => {
-	delete scope[NAV];
-	boot([mpa_nav.install]);
-	const handle = scope[NAV]!;
-	const invalidate_all = handle.invalidateAll as () => Promise<void>;
+it_with_named_import_failures(
+	'without the router, a refresh whose code failed to download loads it on the next refresh',
+	async () => {
+		delete scope[NAV];
+		boot([mpa_nav.install]);
+		const handle = scope[NAV]!;
+		const invalidate_all = handle.invalidateAll as () => Promise<void>;
 
-	// every request the first refresh makes for its code fails
-	await commands.drop_downloads('/src/runtime/router-nav.ts', 2);
-	await expect(invalidate_all()).rejects.toThrow('dynamically imported module');
-	// the next refresh, the network back: it loads the code and refreshes
-	await expect(invalidate_all()).resolves.toBeUndefined();
-	await expect((handle.invalidate as () => Promise<void>)()).resolves.toBeUndefined();
-});
+		// every request the first refresh makes for its code fails
+		await commands.drop_downloads('/src/runtime/router-nav.ts', 2);
+		// (each engine words a failed import its own way: Chromium and Firefox name the module, WebKit
+		// says "Importing a module script failed.")
+		await expect(invalidate_all()).rejects.toThrow(TypeError);
+		// the next refresh, the network back: it loads the code and refreshes
+		await expect(invalidate_all()).resolves.toBeUndefined();
+		await expect((handle.invalidate as () => Promise<void>)()).resolves.toBeUndefined();
+	}
+);

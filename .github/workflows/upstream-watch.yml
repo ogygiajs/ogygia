@@ -15,6 +15,10 @@ permissions:
   contents: read
   issues: write
 
+# Upstream's breakage, in the one engine this workflow installs (Chromium); the others are e2e.yml's.
+env:
+  OGYGIA_BROWSERS: chromium
+
 jobs:
   upstream:
     name: upstream (SvelteKit ${{ matrix.kit }} on ${{ matrix.ref }})
@@ -31,13 +35,13 @@ jobs:
           # kit3 is the SvelteKit-3-only line (#133)
           - { kit: 3, ref: kit3, kit_spec: 'latest' }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ matrix.ref }}
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # Node 22: adapter-vercel rejects unpinned bleeding-edge Node; 22 is a supported runtime.
           node-version: 22
@@ -51,17 +55,6 @@ jobs:
       - name: Install workspace deps (baseline lockfile)
         run: pnpm install --frozen-lockfile
 
-      # turbo's local cache: a package whose inputs did not change replays its build and check (the
-      # upstream leg moves the lockfile, so its tasks hash differently and run fresh)
-      - name: Turbo cache
-        uses: actions/cache@v4
-        with:
-          path: .turbo/cache
-          key: turbo-${{ runner.os }}-${{ github.workflow }}-kit${{ matrix.kit }}-${{ matrix.ref }}-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-${{ github.workflow }}-kit${{ matrix.kit }}-${{ matrix.ref }}-
-            turbo-${{ runner.os }}-
-
       # Playwright before the baseline: the baseline runs the browser project too. Cached per
       # Playwright version, no `--with-deps` (the runner image has the libraries) — as in e2e.yml.
       - name: Playwright version
@@ -69,7 +62,7 @@ jobs:
         run: echo "version=$(pnpm exec playwright --version | sed 's/Version //')" >> "$GITHUB_OUTPUT"
 
       - name: Playwright browser cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}

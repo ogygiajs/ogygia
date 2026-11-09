@@ -6,29 +6,83 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Two kinds of job, side by side on separate runners: `check` (format, lint, every package's check)
-# and `e2e`, one runner per slice of the e2e suites. Each suite runs one test at a time on purpose (its
-# fixture app's state is shared, and some specs time things), so a bigger runner would sit idle: the
-# speedup comes from running the slices AT ONCE, not from cores.
+# A STAGED JOB GRAPH: the expensive jobs run only when needed, and only after the cheap ones pass.
+#
+#   plan ─┬─ check ── e2e (Chromium slices) ─┬─ e2e (Firefox and WebKit slices)
+#         │                                   └─ browsers (Firefox, WebKit, released Firefox)
+#         └─ size
+#   ci ok: after all of them; THE required check
+#
+# `plan` asks turbo (`--dry=json`, `--affected` on a pull request) which tasks this push leaves to
+# run (.github/scripts/ci-plan.ts): a job, or an e2e slice, with nothing to run is left out, and a
+# push that changes only changesets, Markdown or other workflows runs nothing but `plan` and `ci ok`.
+# A red Chromium run never starts the other engines' runners.
 
 # turbo's remote cache (Vercel, the purus-projects team): every runner, slice and machine shares one
-# cache. Without the secret (a fork's PR) turbo falls back to the local cache restored below.
+# cache. Without the secret (a fork's PR) turbo falls back to the local cache restored in each job.
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
 
+# A new push to a PR cancels that PR's older runs (main, schedules and manual runs never are)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      check: ${{ steps.plan.outputs.check }}
+      browsers: ${{ steps.plan.outputs.browsers }}
+      e2e_chromium: ${{ steps.plan.outputs.e2e_chromium }}
+      e2e_engines: ${{ steps.plan.outputs.e2e_engines }}
+      size: ${{ steps.plan.outputs.size }}
+      browsers_hash: ${{ steps.plan.outputs.browsers_hash }}
+      check_hash: ${{ steps.plan.outputs.check_hash }}
+      size_hash: ${{ steps.plan.outputs.size_hash }}
+    # (reads the Actions cache list: a pass the browser and size jobs remembered)
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # `--affected` and the path check diff against the base branch: they need the history
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Plan
+        id: plan
+        run: node .github/scripts/ci-plan.ts
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_REF: ${{ github.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+
   check:
-    # A version PR (changeset-release/*) only bumps versions and changelogs: nothing to check
-    if: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
+    needs: plan
+    if: needs.plan.outputs.check == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # Node 22: adapter-vercel rejects unpinned bleeding-edge Node; 22 is a supported runtime.
           node-version: 22
@@ -44,15 +98,21 @@ jobs:
       - name: Lint (oxlint)
         run: pnpm run lint
 
-      # turbo's local cache: a package whose inputs did not change replays its build and check
-      - name: Turbo cache
-        uses: actions/cache@v4
-        with:
-          path: .turbo/cache
-          key: turbo-${{ runner.os }}-check-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-check-
-            turbo-${{ runner.os }}-
+      # What `check` would run, asked of turbo first: when every check task is a cache hit, nothing
+      # runs a browser (a replay only prints the stored logs), so the browser's setup is skipped.
+      - name: Plan
+        id: plan
+        run: |
+          pnpm exec turbo run check --filter=./packages/* --filter=./packages/*/e2e/* --filter=./apps/* --dry=json > turbo-plan.json
+          node -e '
+            const plan = JSON.parse(require("fs").readFileSync("turbo-plan.json", "utf8"));
+            const checks = (plan.tasks ?? []).filter((t) => t.task === "check" && t.command !== "<NONEXISTENT>");
+            const left = checks.filter((t) => t.cache?.status !== "HIT");
+            console.log(`${checks.length} check task(s), ${left.length} to run: ${left.map((t) => t.taskId).join(", ") || "none"}`);
+            require("fs").appendFileSync(process.env.GITHUB_OUTPUT, `skip=${left.length === 0}\n`);
+          '
+        env:
+          OGYGIA_BROWSERS: chromium
 
       # core's vitest has a browser project.
       # Playwright's Chromium, cached per Playwright version: a hit downloads nothing. No `--with-deps`:
@@ -60,16 +120,19 @@ jobs:
       # apt step is what stalled jobs. (Not the runner's Chrome itself: it fetches /favicon.ico on every
       # page, and the 404 trips the suites' "no console errors" checks.)
       - name: Playwright version
+        if: steps.plan.outputs.skip != 'true'
         id: playwright
         run: echo "version=$(pnpm exec playwright --version | sed 's/Version //')" >> "$GITHUB_OUTPUT"
 
       - name: Playwright browser cache
-        uses: actions/cache@v4
+        if: steps.plan.outputs.skip != 'true'
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
       - name: Install Playwright Chromium
+        if: steps.plan.outputs.skip != 'true'
         run: pnpm exec playwright install chromium
 
       # Root `check` (build:lib + every package's check, every fixture app's and app's svelte-check
@@ -79,6 +142,9 @@ jobs:
       # ten at once on this 4-core runner starved them into timeouts.
       - name: Type-check (build:lib, every package's check)
         run: pnpm run check --concurrency=2
+        # (the browser projects in Chromium here; the other engines in the `browsers` jobs)
+        env:
+          OGYGIA_BROWSERS: chromium
 
       # the bench files (packages/*/bench, run by Heisenbench in ogygiajs/bench): their private-function
       # types written from Heisenbench at the ref internal/heisenbench pins, then type-checked like the tests are,
@@ -86,26 +152,156 @@ jobs:
       - name: Type-check the bench files
         run: pnpm run check:bench
 
+      # remembered: these inputs passed format, lint and every check (the plan leaves the job out next time)
+      - name: Remember the pass
+        run: echo "${{ needs.plan.outputs.check_hash }}" > .check-pass
+      - uses: actions/cache/save@v6
+        with:
+          path: .check-pass
+          key: check-pass-${{ needs.plan.outputs.check_hash }}
+
+  # The e2e slices the plan left to run, in Chromium first. (Chromium's jobs keep their slice names:
+  # `e2e (core 1/3)`…)
+  e2e-chromium:
+    name: e2e (${{ matrix.name }})
+    needs: [plan, check]
+    if: ${{ !cancelled() && needs.plan.outputs.e2e_chromium != '[]' && needs.check.result != 'failure' }}
+    strategy:
+      # one red slice must not cancel the others: the whole picture in one run
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.e2e_chromium) }}
+    uses: ./.github/workflows/e2e-slice.yml
+    with:
+      name: ${{ matrix.name }}
+      id: ${{ matrix.id }}
+      filter: ${{ matrix.filter }}
+      shard: ${{ matrix.shard }}
+      adapters: ${{ matrix.adapters }}
+      browser: ${{ matrix.browser }}
+    secrets: inherit
+
+  # The same slices in Firefox and WebKit, once Chromium's passed (or had nothing to run): a red
+  # Chromium never starts these runners. Playwright's WebKit is the engine behind Safari, not Safari.
+  e2e-engines:
+    name: e2e (${{ matrix.name }}, ${{ matrix.browser }})
+    needs: [plan, check, e2e-chromium]
+    if: >-
+      ${{ !cancelled() && needs.plan.outputs.e2e_engines != '[]' && needs.check.result != 'failure' &&
+      needs.e2e-chromium.result != 'failure' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.e2e_engines) }}
+    uses: ./.github/workflows/e2e-slice.yml
+    with:
+      name: ${{ matrix.name }}
+      id: ${{ matrix.id }}
+      filter: ${{ matrix.filter }}
+      shard: ${{ matrix.shard }}
+      adapters: ${{ matrix.adapters }}
+      browser: ${{ matrix.browser }}
+    secrets: inherit
+
+  # The browser test projects (core, content, machine) in the engines beside Chromium (which `check`
+  # runs): Playwright's Firefox and WebKit, and Firefox as released (WebdriverIO and geckodriver:
+  # Playwright's Firefox build can lag the release, and #382 showed in the release). After Chromium's
+  # e2e passed. They run vitest directly (no turbo task to replay), so they always set up.
+  browsers:
+    name: browsers (${{ matrix.browser }})
+    needs: [plan, check, e2e-chromium]
+    if: >-
+      ${{ !cancelled() && needs.plan.outputs.browsers != '[]' && needs.check.result != 'failure' &&
+      needs.e2e-chromium.result != 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: ${{ fromJSON(needs.plan.outputs.browsers) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Playwright version
+        if: matrix.browser != 'firefox-stable'
+        id: playwright
+        run: echo "version=$(pnpm exec playwright --version | sed 's/Version //')" >> "$GITHUB_OUTPUT"
+
+      - name: Playwright browser cache
+        if: matrix.browser != 'firefox-stable'
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
+
+      # WebKit needs system libraries the runner image lacks: --with-deps here
+      - name: Install Playwright ${{ matrix.browser }}
+        if: matrix.browser != 'firefox-stable'
+        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+
+      # the released Firefox (the runner's own is replaced by the latest release); geckodriver is
+      # fetched by webdriverio when the run starts
+      - name: Install Firefox (release)
+        if: matrix.browser == 'firefox-stable'
+        id: firefox
+        uses: browser-actions/setup-firefox@v1
+        with:
+          firefox-version: latest
+
+      - name: Build the libraries
+        run: pnpm run build:lib
+
+      - name: Browser tests (core, content, machine)
+        run: |
+          for pkg in machine content core; do
+            echo "::group::$pkg"
+            (cd packages/$pkg && pnpm exec vitest run --project browser) || failed=1
+            echo "::endgroup::"
+          done
+          exit ${failed:-0}
+        env:
+          OGYGIA_BROWSERS: ${{ matrix.browser }}
+          OGYGIA_FIREFOX: ${{ steps.firefox.outputs.firefox-path }}
+
+      # remembered: the same inputs in this engine passed (the plan leaves the job out next time)
+      - name: Remember the pass
+        run: echo "${{ needs.plan.outputs.browsers_hash }}" > .browsers-pass
+      - uses: actions/cache/save@v6
+        with:
+          path: .browsers-pass
+          key: browsers-pass-${{ matrix.browser }}-${{ needs.plan.outputs.browsers_hash }}
+
   # The runtime's size against the PR's base branch, both measured here with this PR's tool
   # (apps/palaestra/e2e/bundle-size.ts: per page kind, brotli, as a production browser build ships it).
   # Growth past 0.5 % fails, unless the PR body says why on a line of its own: `Size baseline: <why>`.
-  # A PR can no longer raise its own baseline by rewriting a snapshot.
+  # A PR can no longer raise its own baseline by rewriting a snapshot. Only when core's build changed.
   size:
-    if: ${{ github.event_name == 'pull_request' && !startsWith(github.head_ref, 'changeset-release/') }}
+    needs: plan
+    if: ${{ github.event_name == 'pull_request' && needs.plan.outputs.size == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check out the base branch beside it
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           path: .size-base
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -136,121 +332,39 @@ jobs:
           fi
           exit 1
 
-  e2e:
-    name: e2e (${{ matrix.name }})
+      # remembered: this core build against this base passed (the plan leaves the job out next time)
+      - name: Remember the pass
+        run: echo "${{ needs.plan.outputs.size_hash }}" > .size-pass
+      - uses: actions/cache/save@v6
+        with:
+          path: .size-pass
+          key: size-pass-${{ needs.plan.outputs.size_hash }}
+
+  # THE required check: green when every job the plan asked for passed, and jobs it left out on
+  # purpose were skipped (a version PR, a push that changes nothing to test, slices whose tasks all
+  # replay). Red when any needed job failed or was cancelled. The matrices are dynamic, so no other
+  # job name can be required: a name the plan leaves out would wait forever.
+  ci-ok:
+    name: ci ok
+    needs: [plan, check, e2e-chromium, e2e-engines, browsers, size]
+    if: always()
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      # one red slice must not cancel the others: the whole picture in one run
-      fail-fast: false
-      matrix:
-        include:
-          # core's suite (apps/palaestra/e2e), the longest, in three Playwright shards (split by spec
-          # file); it holds the adapter suite, so bun and wrangler are its alone
-          - { name: core 1/3, id: core-1, filter: --filter=palaestra, shard: 1/3, adapters: true }
-          - { name: core 2/3, id: core-2, filter: --filter=palaestra, shard: 2/3, adapters: true }
-          - { name: core 3/3, id: core-3, filter: --filter=palaestra, shard: 3/3, adapters: true }
-          - { name: devtools 1/2, id: devtools-1, filter: --filter=@ogygia/devtools, shard: 1/2 }
-          - { name: devtools 2/2, id: devtools-2, filter: --filter=@ogygia/devtools, shard: 2/2 }
-          # every other package's suite, one after another; a new suite lands here by itself
-          - { name: the rest, id: rest, filter: --filter=!palaestra --filter=!@ogygia/devtools }
-    env:
-      # A version PR (changeset-release/*) only bumps versions and changelogs: every step skips. (A
-      # matrix job skipped as a whole reports one unexpanded name, and the required `e2e (core 1/3)`…
-      # checks would wait forever, so the job runs and its steps don't.)
-      TEST: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
+    timeout-minutes: 5
     steps:
-      - if: env.TEST == 'true'
-        uses: actions/checkout@v4
-        with:
-          # a pull request runs only the suites its changes reach (`turbo --affected` diffs against
-          # the base branch, so it needs the history)
-          fetch-depth: 0
-
-      - if: env.TEST == 'true'
-        uses: pnpm/action-setup@v4
-
-      - if: env.TEST == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      # Bun runtime dimension — the adapter e2e suite runs the node-server output under bun too.
-      - if: env.TEST == 'true' && matrix.adapters
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - if: env.TEST == 'true'
-        name: Install workspace deps
-        run: pnpm install --frozen-lockfile
-
-      # turbo's local cache, one per slice: a slice whose suite, fixture app and dependencies' builds
-      # did not change replays from it
-      - if: env.TEST == 'true'
-        name: Turbo cache
-        uses: actions/cache@v4
-        with:
-          path: .turbo/cache
-          key: turbo-${{ runner.os }}-e2e-${{ matrix.id }}-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-e2e-${{ matrix.id }}-
-            turbo-${{ runner.os }}-
-
-      # Playwright's Chromium, cached per Playwright version: a hit downloads nothing. No `--with-deps`:
-      # the runner image already has the browser's system libraries (it ships Google Chrome), and that
-      # apt step is what stalled jobs. (Not the runner's Chrome itself: it fetches /favicon.ico on every
-      # page, and the 404 trips the suites' "no console errors" checks.)
-      - if: env.TEST == 'true'
-        name: Playwright version
-        id: playwright
-        run: echo "version=$(pnpm exec playwright --version | sed 's/Version //')" >> "$GITHUB_OUTPUT"
-
-      - if: env.TEST == 'true'
-        name: Playwright browser cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-
-      - if: env.TEST == 'true'
-        name: Install Playwright Chromium
-        run: pnpm exec playwright install chromium
-
-      # wrangler (Cloudflare workerd) is fetched on demand by the suite via npx; warm it so the
-      # cloudflare adapter boots the real Workers runtime instead of skipping.
-      - if: env.TEST == 'true' && matrix.adapters
-        name: Warm wrangler
-        run: npx --yes wrangler --version
-
-      # This slice's suites through turbo's `e2e` task (libraries built first, `e2e` depends on
-      # `^build`), one suite at a time. A pull request: only if its changes reach them (`--affected`
-      # narrows the filter, diffed against the base branch — a core change reaches every suite). A
-      # push to main/next, or a manual run: always. `E2E_SHARD` reaches Playwright through the
-      # suite config (and turbo hashes it into the `e2e` task, so each shard caches on its own).
-      - if: env.TEST == 'true'
-        name: Run the e2e suites
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then affected=--affected; fi
-          pnpm turbo run e2e --concurrency=1 ${{ matrix.filter }} $affected
+      - name: Every needed job passed
         env:
-          E2E_SHARD: ${{ matrix.shard }}
-          TURBO_SCM_BASE: origin/${{ github.base_ref || 'main' }}
-          OGYGIA_E2E_WRANGLER: ${{ matrix.adapters && '1' || '' }}
-          # Stable CI-only signing key so the warn-path probe's production build is silent (locally
-          # this comes from apps/palaestra/.env, which is gitignored). NOT a production secret —
-          # the Vercel deploy sets its own OGYGIA_SECRET.
-          OGYGIA_SECRET: 3f9a2b7c1e5d8046af62c93b1d7e4058a6c2f19b3e8d70425c9a1f6b8d3e07c4
-
-      # Traces (retained on failure) + the html report, for a red run.
-      - if: env.TEST == 'true' && failure()
-        name: Upload Playwright report
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report-${{ matrix.id }}
-          path: |
-            **/playwright-report/
-            **/test-results/
-            !**/node_modules/**
-          retention-days: 7
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          node -e '
+            // Firefox and WebKit report but do not block yet: their open findings are tracked in
+            // one issue; once fixed, they join the blocking set
+            const reporting = new Set(["e2e-engines", "browsers"]);
+            const needs = JSON.parse(process.env.RESULTS);
+            let bad = 0;
+            for (const [job, { result }] of Object.entries(needs)) {
+              const blocks = !reporting.has(job);
+              console.log(`${job}: ${result}${blocks ? "" : " (reports only)"}`);
+              if (blocks && (result === "failure" || result === "cancelled")) bad++;
+            }
+            process.exit(bad ? 1 : 0);
+          '

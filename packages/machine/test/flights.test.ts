@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { flights, MachineError, observe, policy, scope, STALE, type Policy } from '../src/index.ts';
 import { macrotask } from './_tick.ts';
+import { DISPOSE } from './_dispose.ts';
 
 /** A promise and its two ends. */
 function deferred<T>() {
@@ -647,7 +648,7 @@ describe('owned', () => {
 		const run = vi.fn(() => new Promise<string>(() => {}));
 		const pages = flights<string, Promise<string>>({ run });
 		const out = pages.get('/a');
-		pages[Symbol.dispose]();
+		pages[DISPOSE]();
 		await expect(out).resolves.toBe(STALE);
 		await expect(pages.get('/b')).resolves.toBe(STALE);
 		expect(run).toHaveBeenCalledOnce();

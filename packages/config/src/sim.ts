@@ -141,6 +141,13 @@ const macrotask = (): Promise<void> =>
 		}
 	});
 
+/** A real timer task (the host's own `setTimeout`, taken before any run swaps it): every task
+ *  source already queued runs before it, which a message task does not promise. */
+const real_set_timeout = globalThis.setTimeout;
+const timer_task = (): Promise<void> => new Promise<void>((r) => real_set_timeout(r, 0));
+/** How many real timer tasks in a row must find nothing scheduled before a run is quiet. */
+const QUIET_TIMER_TASKS = 5;
+
 /** The most real task boundaries a run waits through for work the scheduler does not see yet. */
 const SETTLE_ROUNDS = 1000;
 
@@ -169,6 +176,8 @@ class Run implements Sim {
 	_broken: string[] = [];
 	_tracked: Array<{ label: string; settled: boolean }> = [];
 	_restore: Array<() => void> = [];
+	/** `'then'` steps whose own work is still out (the next steps wait on it). */
+	_holding = 0;
 
 	constructor(s: fc.Scheduler, o: SimOptions) {
 		this.s = s;
@@ -297,10 +306,14 @@ class Run implements Sim {
 				)
 				.task.then(() => {
 					if (to + 1 >= steps.length) return;
-					Promise.resolve(held).then(
-						() => segment(to + 1),
-						() => segment(to + 1)
-					);
+					// (the run is not quiet while a step's own work is out: it waits on the page, which
+					// the scheduler does not see)
+					this._holding++;
+					const next = () => {
+						this._holding--;
+						segment(to + 1);
+					};
+					Promise.resolve(held).then(next, next);
 				}, noop); // ok: a builder never rejects (it says what threw)
 		};
 		if (steps.length > 0) segment(0);
@@ -312,7 +325,24 @@ class Run implements Sim {
 		for (let i = 0; i < SETTLE_ROUNDS; i++) {
 			await this.s.waitIdle();
 			await macrotask();
-			if (this.s.count() === 0) return;
+			if (this.s.count() !== 0) continue;
+			// a `'then'` step's work still out (the page has yet to do what it waits for): give the
+			// host real time, without ending the run
+			if (this._holding > 0) {
+				await timer_task();
+				continue;
+			}
+			// Nothing scheduled: a few real timer tasks more before the run ends, so the host's own
+			// async work the scheduler never sees gets its turns (a Response body read, a dynamic
+			// import of a module already loaded: tasks of their own, and Firefox runs message tasks
+			// ahead of them; on message tasks alone the run ended before an answer was read, #386).
+			// (Node's setImmediate already comes after the I/O and timers queued: no more needed there)
+			let quiet = true;
+			for (let k = 0; real_set_immediate === undefined && k < QUIET_TIMER_TASKS && quiet; k++) {
+				await timer_task();
+				quiet = this.s.count() === 0;
+			}
+			if (quiet) return;
 		}
 		this.broke('settles', `work was still scheduled after ${SETTLE_ROUNDS} rounds`);
 	}

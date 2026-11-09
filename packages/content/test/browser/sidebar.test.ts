@@ -53,7 +53,8 @@ describe('the sidebar keeps its scroll position', () => {
 		const el = panel();
 		const app = await mount_sidebar(el);
 		await scroll_to(el, 200);
-		expect(sessionStorage.getItem(KEY)).toBe('200');
+		// (the position the engine reports: Firefox snaps a scroll to its device pixels, 200.35)
+		expect(Number(sessionStorage.getItem(KEY))).toBeCloseTo(200, 0);
 		await unmount(app);
 	});
 
