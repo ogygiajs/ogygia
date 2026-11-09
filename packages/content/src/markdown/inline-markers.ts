@@ -40,12 +40,9 @@ export type InlineMarkerOptions = {
 	classes?: { add?: string; remove?: string };
 };
 
-const HTML_TEXT_RE = /[&<>]/g;
-const HTML_TEXT: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;' };
-
 /** `text` as HTML text content. */
 function escape_text(text: string): string {
-	return text.replace(HTML_TEXT_RE, (c) => HTML_TEXT[c]!);
+	return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
 
 /** True when the marker at `i` sits alone on its line (only whitespace around it). */
@@ -140,11 +137,12 @@ export function inline_markers(options: InlineMarkerOptions = {}): ShikiTransfor
 			let out = html;
 			// Restore redacted removed-content (still fenced by its `---` space runs) before matching:
 			// as text, escaped like the rest of the fence (markup in it must not become live HTML),
-			// and through a function, so a `$&` or `$'` in it is not read as a replacement pattern.
+			// and spliced in, so a `$&` or `$'` in it is not read as a replacement pattern.
 			if (meta) {
 				for (const { placeholder, content } of meta.redactions) {
-					const text = escape_text(content);
-					out = out.replace(placeholder, () => text);
+					const at = out.indexOf(placeholder);
+					if (at !== -1)
+						out = out.slice(0, at) + escape_text(content) + out.slice(at + placeholder.length);
 				}
 			}
 			out = highlight_all_spans(out, SUB['---'], CLASS['---']);
