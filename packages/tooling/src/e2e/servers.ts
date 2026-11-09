@@ -11,6 +11,7 @@
 // - stdout/stderr are captured, and a boot failure throws WITH the log tail.
 import { spawn, type ChildProcess } from 'node:child_process';
 import { connect } from 'node:net';
+import { setTimeout as pause } from 'node:timers/promises';
 import { machine } from '@ogygia/machine';
 
 /** A port a suite owns, moved up by `E2E_PORT_OFFSET`: when one machine runs a suite as several
@@ -78,16 +79,11 @@ const server_machine = machine<ServerStates>()({
 	}
 });
 
-/** `ms` later, or at once when `signal` aborts. */
-const sleep = (ms: number, signal?: AbortSignal) =>
-	new Promise<void>((resolve) => {
-		const done = () => {
-			clearTimeout(t);
-			signal?.removeEventListener('abort', done);
-			resolve();
-		};
-		const t = setTimeout(done, ms);
-		signal?.addEventListener('abort', done, { once: true });
+/** `ms` later, or at once when `signal` aborts. Its timer holds the process open, as a wait the
+ *  test run itself awaits must (a scope's timer does not). */
+const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
+	pause(ms, undefined, { signal }).catch((error: unknown) => {
+		if (!signal?.aborted) throw error;
 	});
 
 /** Something accepts a connection at `host:port`. */
@@ -170,8 +166,8 @@ export async function spawn_server(opts: SpawnServerOptions): Promise<SpawnedSer
 		async kill() {
 			if (m.move('spawning', 'stopping') || m.move('ready', 'stopping')) {
 				signal_group('SIGTERM');
-				const sigkill = setTimeout(() => signal_group('SIGKILL'), KILL_GRACE_MS);
-				m.scope.defer(() => clearTimeout(sigkill));
+				// (the stopping visit's: an exit before it clears it; the child holds the process meanwhile)
+				m.scope.timeout(() => signal_group('SIGKILL'), KILL_GRACE_MS);
 			}
 			await m.wait('exited');
 		},

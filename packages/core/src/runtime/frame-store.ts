@@ -112,6 +112,7 @@ function entry(a: string): Entry {
 function schedule_evict(a: string, e: Entry): void {
 	if (watcher_count(frame_id(a)) > 0 || flying(a)) return; // still live — keep it
 	if (e.evict) clearTimeout(e.evict);
+	// oxlint-disable-next-line ogygia/owned-effects -- the entry's own idle TTL in the document's one store (no region owns an unbound entry): reset and cleared on the entry (`e.evict`)
 	e.evict = setTimeout(() => {
 		const cur = entries.get(a);
 		if (cur === e && watcher_count(frame_id(a)) === 0 && !flying(a)) entries.delete(a);

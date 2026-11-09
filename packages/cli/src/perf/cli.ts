@@ -14,6 +14,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { setTimeout as pause } from 'node:timers/promises';
 import { machine } from '@ogygia/machine';
 import { OgygiaError } from '../messages.ts';
 import { measure, type PerfSnapshot } from './measure.ts';
@@ -137,16 +138,11 @@ const STOP_GRACE_MS = 10_000;
 const OUTPUT_LINES = 40;
 const OUTPUT_CHARS = 64 * 1024;
 
-/** `ms` later, or at once when `signal` aborts. */
-const sleep = (ms: number, signal?: AbortSignal) =>
-	new Promise<void>((resolve) => {
-		const done = () => {
-			clearTimeout(t);
-			signal?.removeEventListener('abort', done);
-			resolve();
-		};
-		const t = setTimeout(done, ms);
-		signal?.addEventListener('abort', done, { once: true });
+/** `ms` later, or at once when `signal` aborts. Its timer holds the process open, as a wait the
+ *  command itself awaits must (a scope's timer does not). */
+const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
+	pause(ms, undefined, { signal }).catch((error: unknown) => {
+		if (!signal?.aborted) throw error;
 	});
 
 /** Something accepts a connection at `host:port` (an HTTP server or not: either would get in the
@@ -243,8 +239,8 @@ export async function serve(
 	const stop = async (): Promise<void> => {
 		if (m.move('spawning', 'stopping') || m.move('ready', 'stopping')) {
 			signal_group('SIGTERM');
-			const kill = setTimeout(() => signal_group('SIGKILL'), grace_ms);
-			m.scope.defer(() => clearTimeout(kill));
+			// (the stopping visit's: an exit before it clears it; the child holds the process meanwhile)
+			m.scope.timeout(() => signal_group('SIGKILL'), grace_ms);
 		}
 		await m.wait('exited');
 	};

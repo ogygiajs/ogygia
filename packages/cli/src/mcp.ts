@@ -14,7 +14,7 @@
  */
 import { createInterface } from 'node:readline';
 import { createRequire } from 'node:module';
-import { flights, STALE } from '@ogygia/machine';
+import { flights, scope, STALE } from '@ogygia/machine';
 import { gzipSync } from 'node:zlib';
 import { readdirSync, readFileSync, type Dirent } from 'node:fs';
 import path from 'node:path';
@@ -756,6 +756,7 @@ async function tool_debug(args: Attrs): Promise<ToolResult> {
 			const w = window as unknown as { __og_restore_events?: { type: string; detail: unknown }[] };
 			const list: { type: string; detail: unknown }[] = (w.__og_restore_events = []);
 			for (const type of ['ogygia:restore-late', 'ogygia:restore-mismatch'])
+				// oxlint-disable-next-line ogygia/owned-effects -- runs in the probed page (sent as source, no imports): the page's record for its whole life, read at the end
 				document.addEventListener(
 					type,
 					(e) => list.push({ type, detail: (e as CustomEvent).detail }),
@@ -784,6 +785,7 @@ async function tool_debug(args: Attrs): Promise<ToolResult> {
 			await page.evaluate(async () => {
 				for (let y = 0; y <= document.body.scrollHeight; y += 400) {
 					window.scrollTo(0, y);
+					// oxlint-disable-next-line ogygia/owned-effects -- runs in the probed page (sent as source, no imports): a pause inside the scroll walk it awaits, which ends itself
 					await new Promise((r) => setTimeout(r, 120));
 				}
 				window.scrollTo(0, 0);
@@ -1472,12 +1474,14 @@ const LOCAL_PORTS = [4173, 5173, 3000, 5174, 4174, 3001, 8080, 4321, 5175];
 
 /** fetch with a hard deadline — a hung server can't wedge the tool. */
 async function fetch_timeout(url: string | URL, opts: RequestInit, ms: number): Promise<Response> {
+	// (the deadline is the answer's: the body read after it is not cut off)
 	const ac = new AbortController();
-	const t = setTimeout(() => ac.abort(), ms);
+	const deadline = scope();
+	deadline.timeout(() => ac.abort(), ms);
 	try {
 		return await fetch(url, { ...opts, signal: ac.signal });
 	} finally {
-		clearTimeout(t);
+		deadline.close();
 	}
 }
 

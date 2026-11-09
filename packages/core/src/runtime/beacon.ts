@@ -731,6 +731,7 @@ function observe_vitals(): void {
 	}
 	const observe = (type: string, cb: (entries: PerformanceEntryList) => void) => {
 		try {
+			// oxlint-disable-next-line ogygia/owned-effects -- the document's vitals, observed once (`vitals`): they read the whole visit, so they live as long as the document
 			const po = new PerformanceObserver((list) => cb(list.getEntries()));
 			// (interactions: every one from 16 ms, the floor — the default 104 ms hides a page's INP
 			// until it is already bad)
@@ -968,6 +969,7 @@ function observe_vitals(): void {
 	};
 	try {
 		for (const type of ['pointerover', 'pointerdown', 'keydown', 'focusin'] as const)
+			// oxlint-disable-next-line ogygia/owned-effects -- the document's recent input, watched once with the vitals (`vitals`), as long as the document
 			document.addEventListener(type, note_input(type), { capture: true, passive: true });
 	} catch {
 		// no document
@@ -985,9 +987,12 @@ function observe_vitals(): void {
 		visit_firsts.push({ fp, t: r2(at), type });
 	};
 	try {
+		// oxlint-disable-next-line ogygia/owned-effects -- the visit's first press per island, watched once with the vitals (`vitals`), as long as the document
 		document.addEventListener('pointerdown', first('pointer'), { capture: true, passive: true });
+		// oxlint-disable-next-line ogygia/owned-effects -- the visit's first key per island, watched once with the vitals (`vitals`), as long as the document
 		document.addEventListener('keydown', first('key'), { capture: true, passive: true });
 		// (scrolls of the page and of any scroller: captured, passive, one stamp per 50 ms)
+		// oxlint-disable-next-line ogygia/owned-effects -- the visit's scroll stamps, watched once with the vitals (`vitals`), as long as the document
 		document.addEventListener(
 			'scroll',
 			() => {
@@ -1023,6 +1028,7 @@ function hold_keepalive(bytes: number, settled?: Promise<unknown>): void {
 		keepalive_queued = Math.max(0, keepalive_queued - bytes);
 	};
 	if (settled) void settled.finally(release);
+	// oxlint-disable-next-line ogygia/owned-effects -- a one-shot release of the document's keepalive budget, at the next task: it ends itself
 	else setTimeout(release, BEACON_HOLD_MS);
 }
 /** what a keepalive request may still carry */
@@ -2188,7 +2194,9 @@ function estimate_wake_shift(el: Element, fp: string, t: number): void {
 	};
 	look(t);
 	if (typeof requestAnimationFrame !== 'undefined')
+		// oxlint-disable-next-line ogygia/owned-effects -- two frames on, one more look at a woken island's box for the document's visit: it only reads, and ends itself
 		requestAnimationFrame(() => requestAnimationFrame(() => look(performance.now())));
+	// oxlint-disable-next-line ogygia/owned-effects -- a last look at a woken island's box for the document's visit: it only reads, and ends itself
 	setTimeout(() => look(performance.now()), BOX_LOOK_AGAIN_MS);
 }
 /** the island's box against `before`: a shift when its height changed with its bottom on the screen;
@@ -2279,8 +2287,10 @@ function watch_frame_gaps(): void {
 			| undefined;
 		const loaded = nav?.loadEventEnd || 0;
 		if (now >= FRAMES_MAX_MS || (loaded && now >= loaded + FRAMES_AFTER_LOAD_MS)) return;
+		// oxlint-disable-next-line ogygia/owned-effects -- the document's frame watch, once (`longtasks_from_frames`): it ends itself a few seconds after load
 		requestAnimationFrame(tick);
 	};
+	// oxlint-disable-next-line ogygia/owned-effects -- the document's frame watch, once (`longtasks_from_frames`): it ends itself a few seconds after load
 	requestAnimationFrame(tick);
 }
 
@@ -2373,9 +2383,11 @@ function start_cpu(): void {
 			waiting = false;
 		}
 		if ((now - last < CPU_QUIET_MS || waiting) && now - cpu_started_at < CPU_WINDOW_MAX_MS)
+			// oxlint-disable-next-line ogygia/owned-effects -- the document's load trace, once (`cpu`): its check ends itself at the cap
 			setTimeout(check, CPU_QUIET_MS);
 		else void flush_cpu(false);
 	};
+	// oxlint-disable-next-line ogygia/owned-effects -- the document's load trace, once (`cpu`): its check ends itself at the cap
 	setTimeout(check, CPU_WINDOW_MS);
 }
 
@@ -2440,6 +2452,7 @@ function start_interaction_cpu(): void {
 	if (icpu || icpu_done || !collecting()) return;
 	icpu = make_profiler();
 	if (!icpu) return;
+	// oxlint-disable-next-line ogygia/owned-effects -- the document's one interaction trace (`icpu_done`): its cap, cleared as it stops
 	icpu_timer = setTimeout(() => void stop_interaction_cpu(false), ICPU_MAX_MS);
 }
 
@@ -2454,6 +2467,7 @@ function interaction_seen(i: Interaction): void {
 	};
 	if (icpu_timer) clearTimeout(icpu_timer);
 	// (a moment for the rest of its entries and its paint; the trace then holds all of it)
+	// oxlint-disable-next-line ogygia/owned-effects -- the document's one interaction trace (`icpu_done`): its end, cleared as it stops
 	icpu_timer = setTimeout(() => void stop_interaction_cpu(false), 300);
 }
 
@@ -2571,13 +2585,15 @@ let early_visit_done = false;
 // (a tab closed hard, a browser that drops beacons while unloading). So do a later largest paint,
 // a shift, a hole's answer or failure, an island waking late. At most RESEND_MAX times a page: a
 // page that keeps shifting would otherwise send its visit every couple of seconds for ever.
-let resend_timer: ReturnType<typeof setTimeout> | null = null;
+/** The re-send waiting to go: its cancel. The open visit's timer: the hide (`sent`) or a reset ends
+ *  it with the visit. */
+let resend_timer: (() => void) | null = null;
 let resends = 0;
 const RESEND_MAX = 8;
 function resend_soon(): void {
 	if (!endpoint() || visit_state.now.kind === 'sent' || resends >= RESEND_MAX) return;
-	if (resend_timer) clearTimeout(resend_timer);
-	resend_timer = setTimeout(() => {
+	resend_timer?.();
+	resend_timer = visit_state.scope.timeout(() => {
 		resend_timer = null;
 		resends++;
 		flush_visit(false);
@@ -2622,7 +2638,9 @@ function send_after_preload_check(): void {
 			const nav = performance.getEntriesByType('navigation')[0] as
 				| PerformanceNavigationTiming
 				| undefined;
+			// oxlint-disable-next-line ogygia/owned-effects -- once per document (`early_visit_done`), a one-shot: the re-send it asks for is the visit's own
 			setTimeout(resend_soon, Math.max(0, 1700 - (performance.now() - (nav?.loadEventEnd ?? 0))));
+			// oxlint-disable-next-line ogygia/owned-effects -- once per document (`early_visit_done`): the document's load (`once`), then a one-shot whose re-send is the visit's own
 		} else addEventListener('load', () => setTimeout(resend_soon, 1700), { once: true });
 	} catch {
 		/* no document */
@@ -2639,7 +2657,7 @@ function on_hide(): void {
 		// (once each time the page is shown: a second hide with no return in between sends no more)
 		if (visit_state.now.kind !== 'sent') {
 			// the visit's re-send waiting to go is this one's copy: it is not sent after it
-			if (resend_timer) clearTimeout(resend_timer);
+			resend_timer?.();
 			resend_timer = null;
 			flush_vitals();
 			flush_visit(true);
@@ -2665,16 +2683,20 @@ function schedule(): void {
 		listening = true;
 		observe_vitals();
 		start_cpu();
+		// oxlint-disable-next-line ogygia/owned-effects -- the document's hide and show, installed once (`listening`): the visit's sends, as long as the document
 		document.addEventListener('visibilitychange', () =>
 			document.visibilityState === 'hidden' ? on_hide() : on_show()
 		);
+		// oxlint-disable-next-line ogygia/owned-effects -- the document's hide, installed once (`listening`), as long as the document
 		addEventListener('pagehide', on_hide);
+		// oxlint-disable-next-line ogygia/owned-effects -- the document's show from the back/forward cache, installed once (`listening`), as long as the document
 		addEventListener('pageshow', (e) => e.persisted && on_show());
 	}
 	const idle = (
 		globalThis as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void }
 	).requestIdleCallback;
 	if (idle) idle(flush, { timeout: 2000 });
+	// oxlint-disable-next-line ogygia/owned-effects -- the document's one queued send (`scheduled`): a one-shot that ends itself
 	else setTimeout(flush, 1500);
 }
 
@@ -2870,6 +2892,7 @@ export async function beacon_record_cpu(ms: number, label: string): Promise<bool
 	const p = make_profiler();
 	if (!p) return false;
 	const from = performance.now();
+	// oxlint-disable-next-line ogygia/owned-effects -- the recording's length, inside the devtools' own await, which ends with it
 	await new Promise((ok) => setTimeout(ok, Math.max(200, Math.min(30_000, ms))));
 	try {
 		const trace = await p.stop();
@@ -2981,7 +3004,6 @@ export function _reset_beacon(): void {
 	snapshots = [];
 	visit_state.stop();
 	visit_state = visit_machine.create();
-	if (resend_timer) clearTimeout(resend_timer);
 	resend_timer = null;
 	early_visit_done = false;
 	resends = 0;

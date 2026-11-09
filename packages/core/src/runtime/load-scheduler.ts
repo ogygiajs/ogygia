@@ -30,7 +30,7 @@
  */
 import { after_document_painted, yield_task } from './schedule.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
-import { flights, type Stale } from '@ogygia/machine';
+import { flights, scope, type Scope, type Stale } from '@ogygia/machine';
 import { emit as dt_emit } from '../events/bus.ts';
 
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
@@ -85,6 +85,7 @@ const on_first_input = () => {
 };
 if (typeof document !== 'undefined') {
 	for (const type of ['pointerdown', 'keydown'] as const)
+		// oxlint-disable-next-line ogygia/owned-effects -- the visitor's first click or key, once for the document (`once`): it ends whichever critical wait is up
 		addEventListener(type, on_first_input, { capture: true, passive: true, once: true });
 }
 
@@ -161,11 +162,13 @@ function until_critical(): Promise<void> {
 		() =>
 			new Promise<void>((resolve) => {
 				const t0 = now();
+				// the wait's cap and its resources' listeners: all go as it ends, however it ends
+				const wait = scope();
 				const done = (outcome: CriticalOutcome) => {
 					if (critical_done) return;
 					critical_done = true;
 					release_critical = null;
-					clearTimeout(timer);
+					wait.close();
 					critical_report = {
 						outcome,
 						resources: waiting.length,
@@ -177,16 +180,16 @@ function until_critical(): Promise<void> {
 				};
 				const waiting =
 					input_seen || document.visibilityState === 'hidden' ? [] : pending_critical();
-				const timer = waiting.length ? setTimeout(() => done('cap'), CRITICAL_CAP_MS) : undefined;
 				if (!waiting.length) return done('none');
+				wait.timeout(() => done('cap'), CRITICAL_CAP_MS);
 				release_critical = () => done('input');
 				let left = waiting.length;
 				const one = () => {
 					if (--left === 0) done('arrived');
 				};
 				for (const el of waiting) {
-					el.addEventListener('load', one, { once: true });
-					el.addEventListener('error', one, { once: true });
+					wait.on(el, 'load', one, { once: true });
+					wait.on(el, 'error', one, { once: true });
 				}
 			})
 	);
@@ -199,7 +202,9 @@ function until_critical(): Promise<void> {
 const queue: LoadSlot[] = [];
 let waiting = 0;
 let in_flight_background = 0;
-let scroll_watch = false;
+/** The scroll watch while a queued download waits (its listener and its frame): closed once the
+ *  queue is empty. */
+let scroll_watch: Scope | null = null;
 
 /**
  * A queued download: asking for one queues it. `ready` resolves with a `release` to call when the
@@ -357,22 +362,22 @@ function leave_queue(): void {
 
 /** While a queued download's class can change with the viewport, re-drain on scroll (one frame). */
 function watch_scroll(): void {
-	if (scroll_watch || typeof addEventListener === 'undefined') return;
-	scroll_watch = true;
+	if (scroll_watch || typeof window === 'undefined') return;
+	const watch = (scroll_watch = scope());
 	let framed = false;
 	const on_scroll = () => {
 		if (framed) return;
 		framed = true;
-		requestAnimationFrame(() => {
+		watch.timeout(() => {
 			framed = false;
 			drain();
 			if (!waiting) {
-				removeEventListener('scroll', on_scroll, true);
-				scroll_watch = false;
+				watch.close();
+				scroll_watch = null;
 			}
-		});
+		}, 'frame');
 	};
-	addEventListener('scroll', on_scroll, { capture: true, passive: true });
+	watch.on(window, 'scroll', on_scroll, { capture: true, passive: true });
 }
 
 function now(): number {

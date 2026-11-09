@@ -167,6 +167,7 @@ function emit_exposure(e: ExposureEvent): void {
 	if (now.kind === 'buffering') return;
 	_exposures.go('buffering');
 	// the age cap, for this visit of `buffering` only: a send or a flush clears it
+	// oxlint-disable-next-line ogygia/owned-effects -- the buffering visit's (its scope clears it, below), but a bare timer: it holds the process open until the queued exposures are sent, which a scope's timer does not
 	const timer = setTimeout(() => void send(), _batch.ms);
 	_exposures.scope.defer(() => clearTimeout(timer));
 }

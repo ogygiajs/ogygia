@@ -146,10 +146,6 @@ export function arm_form_restore(pathKey: string): void {
 	// (a hole's answer can put regions anywhere, shifting the indices: read the list again after one)
 	const on_answer = () => (regions = Array.from(document.querySelectorAll('ogygia-region')));
 	restore_window.go('open');
-	document.addEventListener('ogygia:hydrated', on_hydrated, true);
-	document.addEventListener('ogygia:server', on_answer, true);
-	restore_window.scope.defer(() => {
-		document.removeEventListener('ogygia:hydrated', on_hydrated, true);
-		document.removeEventListener('ogygia:server', on_answer, true);
-	});
+	restore_window.scope.on(document, 'ogygia:hydrated', on_hydrated, true);
+	restore_window.scope.on(document, 'ogygia:server', on_answer, true);
 }
