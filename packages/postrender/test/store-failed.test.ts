@@ -2,14 +2,7 @@
 // store down for a day, every page rendered fresh and nothing kept, must be said. Once per failing
 // streak (again only after a store call worked), so an outage does not fill the log.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-	install,
-	reset_for_tests,
-	self_evict,
-	store_evict,
-	store_get,
-	store_put
-} from '../src/registry.ts';
+import { install, reset_for_tests, self_evict, store_get, store_put } from '../src/registry.ts';
 import type { PostrenderEntry, PostrenderStore } from '../src/types.ts';
 
 const entry: PostrenderEntry = { kind: 'page', html: '<p>x</p>', headers: {}, created: 0 };
@@ -50,8 +43,8 @@ describe('a store that is down', () => {
 		const runtime = install({ store });
 		expect(await store_get(runtime, '/a/')).toBeNull();
 		await expect(store_put(runtime, '/a/', entry, { ttl: 60, tags: [] })).resolves.toBeUndefined();
-		await expect(store_evict(runtime, '/a/')).resolves.toBeUndefined();
-		await self_evict(runtime, '/a/'); // (its tries spent: the same failing streak)
+		// (an evict, a post's or a stale render's, is tried again; its tries spent: the same streak)
+		await self_evict(runtime, '/a/');
 		expect(said()).toHaveLength(1);
 		expect((said()[0][1] as Error).message).toBe('store down');
 

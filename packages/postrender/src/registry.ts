@@ -99,6 +99,7 @@ export function reset_for_tests(): void {
 	warned_replica_blindspot = false;
 	store_failing = false;
 	renders.drop(() => true);
+	writes.clear();
 }
 
 // ── cross-app thaw (federation) ──────────────────────────────────────────────────────────────
@@ -194,9 +195,43 @@ export function store_put(
 	return guarded('put', key, () => runtime.store.put(key, entry, options), undefined);
 }
 
-/** Take `key` out of the origin store (a broken store never fails a render). */
-export function store_evict(runtime: Runtime, key: string): Promise<void> {
-	return guarded('evict', key, () => runtime.store.evict(key), undefined);
+/** A render's write to the store, while it is out: its page, and the render's flight. */
+type Write = { key: string; flight: Flight };
+const writes = new Set<Write>();
+
+/**
+ * Store a render's page. An invalidation that starts while the write is out ends the render's
+ * flight (it may have read what the invalidation changes), and its evict may run before the write
+ * lands: the page is then taken back out, through the same tried-again evict a post waits for.
+ * True when it stays stored.
+ *
+ * From the moment its flight goes stale until that evict ends, the page is RETRACTING: what the
+ * store holds for it may be the page from before the invalidation, so no hit is served from it
+ * (#332).
+ */
+export async function store_render(
+	runtime: Runtime,
+	key: string,
+	entry: PostrenderEntry,
+	options: PostrenderPutOptions,
+	flight: Flight
+): Promise<boolean> {
+	const write: Write = { key, flight };
+	writes.add(write);
+	try {
+		await store_put(runtime, key, entry, options);
+		if (!flight.stale) return true;
+		if (await self_evicts.put({ runtime, key })) store_failing = false;
+		return false;
+	} finally {
+		writes.delete(write);
+	}
+}
+
+/** A stale render's page is being taken back out of the store: a hit for it is a miss. */
+export function retracting(key: string): boolean {
+	for (const w of writes) if (w.key === key && w.flight.stale) return true;
+	return false;
 }
 
 // ── single-flight ──────────────────────────────────────────────────────────────────────────────
