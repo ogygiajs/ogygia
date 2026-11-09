@@ -161,6 +161,22 @@
 			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/rules.test.ts"
 		},
 		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_parse_upgraded > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/inert-parse.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_parse_upgraded > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/inert-parse.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > restore_late > details",
+			"reason": "a message's wording, constant text; said in packages/core/test/browser/inert-parse.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > restore_late > text",
+			"reason": "a message's wording (one tag name), constant text; said in packages/core/test/browser/inert-parse.test.ts"
+		},
+		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_old_page_open > details",
 			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/rules.test.ts"
 		},
