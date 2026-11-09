@@ -85,6 +85,28 @@ describe('close', () => {
 		}
 	});
 
+	it('a release that throws does not stop the other releases or the cleanups (#346)', async () => {
+		const s = scope();
+		const bad = emitter();
+		bad.off = () => {
+			throw new Error('off');
+		};
+		const good = new EventTarget();
+		const heard = vi.fn();
+		const ticks = vi.fn();
+		const cleanup = vi.fn();
+		s.on(bad, 'x', () => {});
+		s.on(good, 'x', heard);
+		s.every(ticks, 1);
+		s.defer(cleanup);
+		expect(() => s.close()).toThrow('off');
+		good.dispatchEvent(new Event('x'));
+		await wait(10);
+		expect(heard).not.toHaveBeenCalled();
+		expect(ticks).not.toHaveBeenCalled();
+		expect(cleanup).toHaveBeenCalledOnce();
+	});
+
 	it('works with `using`', () => {
 		const cleanup = vi.fn();
 		{
