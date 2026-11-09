@@ -9,7 +9,7 @@
  * Each area tells this module what it holds (`note_response_end`) only when rules are on: every call
  * site folds out of a build without them.
  */
-import { observe, type Scope } from '@ogygia/machine';
+import { observe, type AnyMachine, type Scope } from '@ogygia/machine';
 import { Rules } from '../rules.ts';
 import { warn } from '../messages/server.ts';
 
@@ -38,11 +38,15 @@ function request_scopes_closed(): string | null {
 	return open === 0 ? null : `${open} request scope(s) still open after their response ended`;
 }
 
-/** The kept failures found, as found (a few). */
-const kept_failures: string[] = [];
+/** The flights' entries that keep an error as their answer now, each with what it keeps. An entry
+ *  leaves when it moves on (dropped, or a fresh answer kept): the rule is about what is kept now, so
+ *  a check (a simulated run, the next response in dev) sees its own breaks, not an earlier one's. */
+const kept_failures = new Map<AnyMachine, string>();
 
-const no_kept_failure = (): string | null =>
-	kept_failures.length === 0 ? null : kept_failures.join('; ');
+function no_kept_failure(): string | null {
+	if (kept_failures.size === 0) return null;
+	return [...kept_failures.values()].slice(0, 10).join('; ');
+}
 
 let installed = false;
 let pending = false;
@@ -64,11 +68,12 @@ export function install_server_rules(): void {
 	installed = true;
 	server_rules.add('rule_request_scope_open', request_scopes_closed);
 	server_rules.add('rule_flight_kept_failure', no_kept_failure);
-	// a flight's entry moving to `kept` with an error for its answer (flights' machine, @ogygia/machine)
-	observe((name, _from, to) => {
-		if (kept_failures.length >= 10 || to?.kind !== 'kept') return;
-		const answer = (to as { answer?: unknown }).answer;
+	// a flight's entry moving to `kept` with an error for its answer (flights' machine, @ogygia/machine),
+	// and out of it again
+	observe((name, _from, to, machine) => {
+		const answer = to?.kind === 'kept' ? (to as { answer?: unknown }).answer : undefined;
 		if (answer instanceof Error)
-			kept_failures.push(`"${name}" kept ${answer.name}: ${answer.message.slice(0, 120)}`);
+			kept_failures.set(machine, `"${name}" kept ${answer.name}: ${answer.message.slice(0, 120)}`);
+		else if (kept_failures.size !== 0) kept_failures.delete(machine);
 	});
 }
