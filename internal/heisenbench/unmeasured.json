@@ -881,11 +881,11 @@
 			"reason": "a constant field read; proven in packages/core/test/mailbox.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/mailbox.ts > Box > wait > Promise:0~4b3714 > then:1~4ff304",
+			"id": "packages/core/src/runtime/mailbox.ts > Box > wait > Promise:0~0d2dcd > then:1~4ff304",
 			"reason": "a wait whose work rejected: comes back in its turn to throw it there, constant work; proven in packages/core/test/mailbox.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/mailbox.ts > Box > wait > Promise:0~4b3714 > then:1~4ff304 > back:0~aaf251",
+			"id": "packages/core/src/runtime/mailbox.ts > Box > wait > Promise:0~0d2dcd > then:1~4ff304 > back:0~aaf251",
 			"reason": "the same, as it gets its turn back, constant work; proven in packages/core/test/mailbox.test.ts"
 		},
 		{
