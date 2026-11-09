@@ -317,7 +317,7 @@ const TOOLS = [
 			'A bare path is accepted too, but then the tool just asks you for the URL (and lists any local ' +
 			'server it can see). Records N renders and returns a digest: verdict (compute- vs io-bound), render ' +
 			'p50, CPU findings, time-by-category, hottest functions + components (Svelte names each after its ' +
-			'file), network, heap. Self-heals a stuck session (auto /reset + retry). Requires the profiler ' +
+			'file), network, heap. Clears a stale session (auto /reset + retry); leaves a live recording alone and says the profiler is busy. Requires the profiler ' +
 			'turned on: `devtools({ profiler: true })` from `@ogygia/devtools/vite` in the app’s vite.config ' +
 			'(the tool tells you how if missing). Prod build = real numbers; dev ' +
 			'is indicative (the digest says which). For a report you already downloaded, use ogygia_profile_open.',
