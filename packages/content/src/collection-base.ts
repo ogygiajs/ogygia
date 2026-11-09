@@ -10,14 +10,29 @@
  */
 import type { ContentRef, ContentRelations, Entry, RefEntry, SchemaLike } from './index.ts';
 import type { GroupMeta, Source, SourceEntry, SourceRef } from './source.ts';
-import { flights, machine, world, type Flights, type World } from '@ogygia/machine';
+import {
+	flights,
+	machine,
+	policy,
+	world,
+	type Flights,
+	type Policy,
+	type World
+} from '@ogygia/machine';
+import { backoff_after } from '@ogygia/machine/internal/policy';
 import { GRAPH, type ModuleRun } from './graph.ts';
 import { parseSchema } from './schema.ts';
 import { OgygiaError } from './messages/runtime.ts';
 
-/** A live connection that dropped is opened again after this wait, doubling up to the last. */
-const LIVE_RETRY_FIRST_MS = 1000;
-const LIVE_RETRY_LAST_MS = 60_000;
+/** How a live connection that dropped is opened again: after 1 s, doubling up to a minute (the last
+ *  wait repeats; it never stops trying while the collection runs), each wait cut by up to a fifth
+ *  so every instance a source dropped at once does not come back at the same moment. */
+const LIVE_RECONNECT: Policy = policy({
+	attempts: 1,
+	backoff: [1000, 2000, 4000, 8000, 16_000, 32_000, 60_000],
+	jitter: 0.2,
+	deadline: Infinity
+});
 
 /** An open live connection: its changes (none when `live()` threw as it was called: its pull failed),
  *  and the pull out on it now. */
@@ -447,7 +462,7 @@ export class Collection<
 	/** Open a dropped connection again after its wait, reading the whole source again first. The
 	 *  wait is the visit's: leaving `running` clears it. */
 	#reconnect(visit: Running, attempt: number): void {
-		const wait = Math.min(LIVE_RETRY_FIRST_MS * 2 ** attempt, LIVE_RETRY_LAST_MS);
+		const wait = backoff_after(LIVE_RECONNECT, attempt + 1);
 		// (only ever called in that visit; a server shutting down does not wait for a reconnect)
 		this.#life.scope.timeout(() => {
 			// (a failed read is reported, and retried, by #follow; the connection listens first)
