@@ -41,7 +41,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => {
 	for (const a of api) await a.dispose();
-	for (const s of servers) s.kill();
+	await Promise.all(servers.map((s) => s.kill()));
 	rmSync(dir, { recursive: true, force: true });
 });
 

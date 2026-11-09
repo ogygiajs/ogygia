@@ -1,0 +1,28 @@
+{
+	"name": "@ogygia/config",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Shared build and test config for the ogygia packages: each package's tsdown.config.ts calls library(), its vitest.config.ts pluginTests().",
+	"type": "module",
+	"exports": {
+		"./tsdown": "./src/tsdown.ts",
+		"./vitest": "./src/vitest.ts"
+	},
+	"scripts": {
+		"check": "tsc -p ."
+	},
+	"dependencies": {
+		"@ogygia/tsdown-plugin-svelte": "workspace:*",
+		"@sveltejs/vite-plugin-svelte": "catalog:"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"@typescript/native": "catalog:tsgo",
+		"typescript": "catalog:",
+		"vitest": "catalog:"
+	},
+	"peerDependencies": {
+		"tsdown": "catalog:",
+		"vitest": "catalog:"
+	}
+}

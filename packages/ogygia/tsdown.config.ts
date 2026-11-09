@@ -1,5 +1,5 @@
 import { defineConfig } from 'tsdown';
-import { library } from '@ogygia/tooling/tsdown';
+import { library } from '@ogygia/config/tsdown';
 
 // [0] the re-exports (every subpath forwards to the same subpath of `@ogygia/core`, left an import).
 // [1] the `ogygia` command's front door (`npx ogygia init` → @ogygia/cli), `dist/cli.mjs`: ONE

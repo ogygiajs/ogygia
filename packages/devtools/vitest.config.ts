@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
-import { pluginTests } from '@ogygia/tooling/vitest';
+import { pluginTests } from '@ogygia/config/vitest';
 
 const base = pluginTests();
 // the stores' drivers (optional peers, not installed here): stand-ins the store tests count

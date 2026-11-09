@@ -38,8 +38,8 @@ test.beforeAll(async () => {
 		url: `${base}/robots.txt`
 	});
 });
-test.afterAll(() => {
-	server?.kill();
+test.afterAll(async () => {
+	await server?.kill();
 	rmSync(join(app, OUT), { recursive: true, force: true });
 });
 

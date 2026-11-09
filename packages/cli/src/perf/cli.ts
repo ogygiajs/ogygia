@@ -11,8 +11,11 @@
  */
 import { spawn, execSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { machine } from '@ogygia/machine';
+import { OgygiaError } from '../messages.ts';
 import { measure, type PerfSnapshot } from './measure.ts';
 import { verdict, type Budget } from './compare.ts';
 import { markdown, summary } from './report.ts';
@@ -97,34 +100,180 @@ function sh(cmd: string, cwd: string, timeout_ms: number): void {
 	execSync(cmd, { cwd, stdio: 'inherit', timeout: timeout_ms, env: { ...process.env, CI: '1' } });
 }
 
-/** Start a server command, wait until `url` answers (or `ready_ms`), return a stopper. */
-async function serve(cmd: string, cwd: string, url: string, ready_ms: number): Promise<() => void> {
+/**
+ * One commit's server, from its spawn to its exit. Bisect stops one commit's server and starts
+ * the next on the same port, so every step here is about whose server answers:
+ *
+ *   spawning ─ ready ─ stopping ─ exited
+ *       │        │                  │
+ *       └────────┴── exited_early ──┘     (it exited before we asked: on boot, or while measured)
+ *
+ * `ready` is reached only while our own child is still running and the port was free before it
+ * started, so the answer is its. `exited` is reached only when its whole process group is gone (a
+ * wrapper such as a package manager can exit first and leave the server on the port).
+ */
+type ServerStates = {
+	spawning: {};
+	ready: {};
+	stopping: {};
+	exited_early: { how: string };
+	exited: {};
+};
+const server_machine = machine<ServerStates>()({
+	name: 'bisect server',
+	initial: 'spawning',
+	steps: {
+		spawning: ['ready', 'stopping', 'exited_early'],
+		ready: ['stopping', 'exited_early'],
+		stopping: ['exited'],
+		exited_early: ['exited'],
+		exited: []
+	}
+});
+
+/** How long a stopped server has to exit on SIGTERM before its group gets SIGKILL. */
+const STOP_GRACE_MS = 10_000;
+/** The server's output kept for a failure message: its last lines, from at most this much. */
+const OUTPUT_LINES = 40;
+const OUTPUT_CHARS = 64 * 1024;
+
+/** `ms` later, or at once when `signal` aborts. */
+const sleep = (ms: number, signal?: AbortSignal) =>
+	new Promise<void>((resolve) => {
+		const done = () => {
+			clearTimeout(t);
+			signal?.removeEventListener('abort', done);
+			resolve();
+		};
+		const t = setTimeout(done, ms);
+		signal?.addEventListener('abort', done, { once: true });
+	});
+
+/** Something accepts a connection at `host:port` (an HTTP server or not: either would get in the
+ *  way of the readiness check). */
+function port_held(host: string, port: number): Promise<boolean> {
+	return new Promise((resolve) => {
+		const socket = connect({ host, port });
+		socket.setTimeout(1000, () => (socket.destroy(), resolve(false)));
+		socket.once('connect', () => (socket.destroy(), resolve(true)));
+		socket.once('error', () => resolve(false));
+	});
+}
+
+/** The process group still has a process in it. */
+function group_alive(pid: number): boolean {
+	try {
+		process.kill(-pid, 0);
+		return true;
+	} catch (error) {
+		return (error as NodeJS.ErrnoException).code === 'EPERM';
+	}
+}
+
+/**
+ * Start a server command and wait until `url` answers (within `ready_ms`, the wait for a free
+ * port included). Returns its stop, which resolves once the server's whole process group has
+ * exited (SIGTERM, then SIGKILL after `grace_ms`). Throws when the port stays held, when the server
+ * exits before it answers (with its output), or when it never answers (stopped first).
+ */
+export async function serve(
+	cmd: string,
+	cwd: string,
+	url: string,
+	ready_ms: number,
+	grace_ms: number = STOP_GRACE_MS
+): Promise<() => Promise<void>> {
+	const deadline = Date.now() + ready_ms;
+	const at = new URL(url);
+	const host = at.hostname.replace(/^\[(.*)\]$/, '$1');
+	const port = Number(at.port) || (at.protocol === 'https:' ? 443 : 80);
+	// the port free first: whoever is on it would answer the readiness poll below
+	while (await port_held(host, port)) {
+		if (Date.now() >= deadline)
+			throw new OgygiaError('cli_server_port_busy', { url, port, ms: ready_ms });
+		await sleep(200);
+	}
+
+	const m = server_machine.create();
+	let output = '';
+	const keep = (chunk: Buffer | string) => {
+		output = (output + String(chunk)).slice(-OUTPUT_CHARS);
+	};
+	const tail = () => output.split('\n').slice(-OUTPUT_LINES).join('\n').trim();
 	const child = spawn(cmd, {
 		cwd,
 		shell: true,
-		stdio: 'ignore',
+		stdio: ['ignore', 'pipe', 'pipe'],
+		// its own process group: a signal to it reaches the server behind any wrapper
 		detached: true,
 		env: { ...process.env }
 	});
-	const stop = () => {
+	child.stdout?.on('data', keep);
+	child.stderr?.on('data', keep);
+	const closed = new Promise<void>((r) => child.once('close', () => r()));
+	const pid = child.pid;
+	const signal_group = (sig: NodeJS.Signals) => {
 		try {
-			if (child.pid) process.kill(-child.pid, 'SIGTERM');
+			if (pid !== undefined) process.kill(-pid, sig);
 		} catch {
 			/* gone */
 		}
 	};
-	const until = Date.now() + ready_ms;
-	while (Date.now() < until) {
-		try {
-			const res = await fetch(url, { redirect: 'manual' });
-			if (res.status < 500) return stop;
-		} catch {
-			/* not up yet */
+
+	// the child's exit: unasked (exited_early) or asked (stopping); either way `exited` only once
+	// nothing of its group is left
+	let exit_seen = false;
+	const on_exit = async (how: string) => {
+		if (exit_seen) return;
+		exit_seen = true;
+		const unasked =
+			m.move('spawning', 'exited_early', { how }) || m.move('ready', 'exited_early', { how });
+		if (unasked) signal_group('SIGKILL');
+		while (pid !== undefined && group_alive(pid)) await sleep(25);
+		// (its last output read too, for a failure message: the pipes close once no writer is left)
+		await Promise.race([closed, sleep(1000)]);
+		if (!m.move('stopping', 'exited')) m.move('exited_early', 'exited');
+	};
+	child.once('exit', (code, sig) => void on_exit(sig ? `signal ${sig}` : `code ${code}`));
+	child.once('error', (error) => {
+		keep(error.message);
+		void on_exit(error.message);
+	});
+
+	const stop = async (): Promise<void> => {
+		if (m.move('spawning', 'stopping') || m.move('ready', 'stopping')) {
+			signal_group('SIGTERM');
+			const kill = setTimeout(() => signal_group('SIGKILL'), grace_ms);
+			m.onLeave(() => clearTimeout(kill));
 		}
-		await new Promise((r) => setTimeout(r, 500));
+		await m.wait('exited');
+	};
+
+	const answered = await m.task(async (signal) => {
+		while (Date.now() < deadline && !signal.aborted) {
+			try {
+				const res = await fetch(url, {
+					redirect: 'manual',
+					signal: AbortSignal.any([signal, AbortSignal.timeout(2000)])
+				});
+				await res.body?.cancel();
+				if (res.status < 500) return true;
+			} catch {
+				/* not up yet */
+			}
+			await sleep(200, signal);
+		}
+		return false;
+	});
+	// (still in this spawning visit: our child has not exited, so the answer was its)
+	if (answered === true && m.move('spawning', 'ready')) return stop;
+	const now = m.now;
+	if (now.kind === 'exited_early') {
+		await m.wait('exited');
+		throw new OgygiaError('cli_server_exited_early', { cmd, how: now.how, output: tail() });
 	}
-	stop();
-	throw new Error(`server did not answer at ${url} within ${ready_ms} ms`);
+	await stop();
+	throw new OgygiaError('cli_server_not_ready', { url, ms: ready_ms, output: tail() });
 }
 
 export async function runBisect(argv: string[]): Promise<number> {
@@ -161,8 +310,6 @@ export async function runBisect(argv: string[]): Promise<number> {
 		`ogygia bisect · ${commits.length} commits between ${good.slice(0, 7)} and ${bad.slice(0, 7)} · page ${page}\n`
 	);
 	const worktree = mkdtempSync(path.join(tmpdir(), 'ogygia-bisect-'));
-	// a holder, not a `let`: the closure below assigns it and the finally at the end reads it
-	const running: { stop: (() => void) | null } = { stop: null };
 	const measure_sha = async (sha: string): Promise<number | null> => {
 		try {
 			const dir = path.join(worktree, sha.slice(0, 12));
@@ -173,13 +320,14 @@ export async function runBisect(argv: string[]): Promise<number> {
 				process.stdout.write(`  ${sha.slice(0, 7)}: build failed — skipped\n`);
 				return null;
 			}
-			running.stop = await serve(start, dir, url, ready_ms);
+			const stop = await serve(start, dir, url, ready_ms);
 			try {
 				const snap = await measure({ url, pages: [page], runs, key });
 				return snap.pages[0].render_p50;
 			} finally {
-				running.stop();
-				running.stop = null;
+				// (resolves once the server has exited: the worktree it runs from goes next, and the
+				// next commit's server takes the same port)
+				await stop();
 			}
 		} catch (e) {
 			process.stdout.write(
@@ -231,7 +379,6 @@ export async function runBisect(argv: string[]): Promise<number> {
 		);
 		return 0;
 	} finally {
-		running.stop?.();
 		rmSync(worktree, { recursive: true, force: true });
 	}
 }

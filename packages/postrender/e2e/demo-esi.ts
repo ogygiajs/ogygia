@@ -34,7 +34,7 @@ let srv: SpawnedServer | undefined;
 let akamai: EdgeEmulator | undefined;
 let cf: EdgeEmulator | undefined;
 const bye = async (code: number) => {
-	srv?.kill();
+	await srv?.kill();
 	await akamai?.close();
 	await cf?.close();
 	process.exit(code);

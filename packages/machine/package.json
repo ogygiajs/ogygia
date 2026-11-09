@@ -54,7 +54,7 @@
 		"esm-env": "catalog:"
 	},
 	"devDependencies": {
-		"@ogygia/tooling": "workspace:*",
+		"@ogygia/config": "workspace:*",
 		"@types/node": "catalog:",
 		"@typescript/native": "catalog:tsgo",
 		"@vitest/browser": "4.1.12",

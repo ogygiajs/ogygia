@@ -21,8 +21,8 @@ let server: SpawnedServer | undefined;
 
 /** a new instance: the same build, a database no report was ever written to */
 async function fresh_instance(env: Record<string, string> = {}) {
-	server?.kill();
-	// (spawn_server waits for the port to be free: the killed instance is gone first)
+	// (kill() resolves once the instance has exited, so the next one takes its port)
+	await server?.kill();
 	server = await spawn_server({
 		cmd: 'node',
 		args: ['node_modules/vite/bin/vite.js', 'preview', '--port', String(PORT), '--strictPort'],
@@ -45,8 +45,8 @@ async function record(page: Page, query: string): Promise<string> {
 
 test.describe('profiler on a serverless host', () => {
 	test.use({ extraHTTPHeaders: { 'x-profiler-key': KEY }, acceptDownloads: true });
-	test.afterAll(() => {
-		server?.kill();
+	test.afterAll(async () => {
+		await server?.kill();
 		rmSync(dir, { recursive: true, force: true });
 	});
 

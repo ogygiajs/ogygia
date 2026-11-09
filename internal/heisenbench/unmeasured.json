@@ -379,6 +379,170 @@
 		{
 			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > invalidate",
 			"reason": "an edit handed to every environment's barrel index (a loop over the plugin's closure: not replayable); BarrelIndex.invalidate is benched in packages/core/bench/compiler.bench.ts; proven against a real Vite dev server in packages/core/test/debarrel/plugin.test.ts"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > group_alive",
+			"reason": "asks the OS whether a process group still exists (process.kill(-pid, 0)): its answer is the process table's, one syscall of constant work; proven with real child processes in packages/cli/test/serve.test.ts"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > port_held",
+			"reason": "a real TCP connect to the server's port (a socket, not a value); proven on real ports in packages/cli/test/serve.test.ts"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > port_held > Promise:0~18d99d",
+			"reason": "the TCP connect's promise executor (opens a socket); proven on real ports in packages/cli/test/serve.test.ts"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > port_held > Promise:0~18d99d > once:1~3c3515",
+			"reason": "the socket's error handler (nothing on the port), constant work; proven on real ports in packages/cli/test/serve.test.ts"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > port_held > Promise:0~18d99d > once:1~5795f1",
+			"reason": "the socket's connect handler (something holds the port), constant work; proven on real ports in packages/cli/test/serve.test.ts"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > port_held > Promise:0~18d99d > setTimeout:1~807d56",
+			"reason": "the socket's timeout handler (a connect that never settles), constant work"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > serve > Promise:0~29e958 > once:1~f2b9d4",
+			"reason": "the child process's close event (its pipes closed), constant work; proven with real child processes in packages/cli/test/serve.test.ts"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > serve > keep",
+			"reason": "a chunk of the child process's output kept (over serve's closure: not replayable), one bounded string slice; proven with real child processes in packages/cli/test/serve.test.ts"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > serve > on_exit",
+			"reason": "the child process's exit: moves the server machine and waits for its process group to go (real processes and timers); proven in packages/cli/test/serve.test.ts"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > serve > once:1~56678e",
+			"reason": "the child process's exit event, handed to on_exit; proven with real child processes in packages/cli/test/serve.test.ts"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > serve > once:1~ebc95a",
+			"reason": "the child process's spawn error event, handed to on_exit, constant work"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > serve > signal_group",
+			"reason": "sends a signal to the server's process group (one syscall); proven with real child processes in packages/cli/test/serve.test.ts"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > serve > stop > onLeave:0~444023",
+			"reason": "clears the SIGKILL timer when the server leaves stopping, constant work; proven in packages/cli/test/serve.test.ts"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > serve > stop > setTimeout:0~8d6a1d",
+			"reason": "the grace time's SIGKILL to the server's process group (a timer and one syscall); proven in packages/cli/test/serve.test.ts"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > serve > tail",
+			"reason": "the last lines of the child's output for a failure message (over serve's closure: not replayable), bounded; proven in packages/cli/test/serve.test.ts"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > serve > task:0~67b300",
+			"reason": "the readiness poll: real fetches to the child's port until it answers; proven in packages/cli/test/serve.test.ts"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > sleep",
+			"reason": "a timer promise (its output is a promise, not a value), constant work"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > sleep > Promise:0~24d955",
+			"reason": "the timer promise's executor (sets a timer), constant work"
+		},
+		{
+			"id": "packages/cli/src/perf/cli.ts > sleep > Promise:0~24d955 > done",
+			"reason": "the timer's end or its abort, constant work"
+		},
+		{
+			"id": "packages/tooling/src/e2e/servers.ts > group_alive",
+			"reason": "the e2e harness (not a shipped package): asks the OS whether a process group still exists, one syscall; proven with real child processes in packages/tooling/test/servers.test.ts"
+		},
+		{
+			"id": "packages/tooling/src/e2e/servers.ts > port_held",
+			"reason": "the e2e harness: a real TCP connect to the server's port; proven on real ports in packages/tooling/test/servers.test.ts"
+		},
+		{
+			"id": "packages/tooling/src/e2e/servers.ts > port_held > Promise:0~18d99d",
+			"reason": "the e2e harness: the TCP connect's promise executor (opens a socket)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/servers.ts > port_held > Promise:0~18d99d > once:1~3c3515",
+			"reason": "the e2e harness: the socket's error handler, constant work"
+		},
+		{
+			"id": "packages/tooling/src/e2e/servers.ts > port_held > Promise:0~18d99d > once:1~5795f1",
+			"reason": "the e2e harness: the socket's connect handler, constant work"
+		},
+		{
+			"id": "packages/tooling/src/e2e/servers.ts > port_held > Promise:0~18d99d > setTimeout:1~807d56",
+			"reason": "the e2e harness: the socket's timeout handler, constant work"
+		},
+		{
+			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > Promise:0~29e958",
+			"reason": "the e2e harness: the child process's close as a promise, constant work"
+		},
+		{
+			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > Promise:0~29e958 > once:1~f2b9d4",
+			"reason": "the e2e harness: the child process's close event, constant work"
+		},
+		{
+			"id": "packages/tooling/src/e2e/servers.ts > sleep > Promise:0~24d955 > done",
+			"reason": "the e2e harness: the timer's end or its abort, constant work"
+		},
+		{
+			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > server > kill > onLeave:0~59e99b",
+			"reason": "the e2e harness: clears the SIGKILL timer when the server leaves stopping, constant work; proven in packages/tooling/test/servers.test.ts"
+		},
+		{
+			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > task:0~253284",
+			"reason": "the e2e harness: the readiness poll, real fetches to the child's port until it answers; proven in packages/tooling/test/servers.test.ts"
+		},
+		{
+			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > on_exit",
+			"reason": "the e2e harness: the child process's exit, waits for its process group to go (real processes and timers); proven in packages/tooling/test/servers.test.ts"
+		},
+		{
+			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > once:1~084b56",
+			"reason": "the e2e harness: the child process's spawn error event, constant work"
+		},
+		{
+			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > once:1~56678e",
+			"reason": "the e2e harness: the child process's exit event, handed to on_exit"
+		},
+		{
+			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > server > kill > setTimeout:0~8d6a1d",
+			"reason": "the e2e harness: the grace time's SIGKILL to the server's process group; proven in packages/tooling/test/servers.test.ts"
+		},
+		{
+			"id": "packages/tooling/src/e2e/servers.ts > spawn_server > signal_group",
+			"reason": "the e2e harness: sends a signal to the server's process group (one syscall); proven in packages/tooling/test/servers.test.ts"
+		},
+		{
+			"id": "packages/config/src/tsdown.ts > library",
+			"reason": "the repo's build config (private, not shipped), moved unchanged from packages/tooling: tsdown runs it once per package build; every package's dist is the proof"
+		},
+		{
+			"id": "packages/config/src/tsdown.ts > resolve_to_js",
+			"reason": "the repo's build config: makes the tsdown plugin object, constant work"
+		},
+		{
+			"id": "packages/config/src/tsdown.ts > resolve_to_js > renderChunk",
+			"reason": "the repo's build config: tsdown's chunk hook, run on every built chunk; every package's dist is the proof"
+		},
+		{
+			"id": "packages/config/src/tsdown.ts > resolve_to_js > renderChunk > replace:1~03ff4f",
+			"reason": "the repo's build config: rewrites one import.meta.resolve('./x.ts') to './x.js', constant work"
+		},
+		{
+			"id": "packages/config/src/vitest.ts > pluginTests",
+			"reason": "the repo's unit-test config (private, not shipped), moved unchanged from packages/tooling: vitest runs it once per package test run"
+		},
+		{
+			"id": "packages/config/src/vitest.ts > stub_aliases",
+			"reason": "the repo's unit-test config: lists core's test stubs on disk once per test run"
 		}
 	]
 }

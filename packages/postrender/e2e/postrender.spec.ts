@@ -52,7 +52,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		});
 	});
 	test.afterAll(async () => {
-		srv?.kill();
+		await srv?.kill();
 		await akamai?.close();
 		await cf?.close();
 	});
