@@ -116,7 +116,7 @@ const BEACON = typeof __OGYGIA_BEACON__ !== 'undefined' ? __OGYGIA_BEACON__ : tr
 // the runtime's rules (./rules.ts): in dev, and in a build made with OGYGIA_RULES=1 (e2e). Every
 // `if (RULES) …` folds out of any other build, and the rules with it.
 const RULES =
-	import.meta.env.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 /** Above this many characters an island keeps no server copy (its hydration falls back to
  *  Svelte's own recovery on a mismatch) — a bound on memory, not a behaviour anyone tunes. */
