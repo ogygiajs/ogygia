@@ -1,4 +1,5 @@
 import {
+	backoffAfter,
 	flights,
 	mailbox,
 	scope,
@@ -8,7 +9,6 @@ import {
 	type Stale,
 	type Turn
 } from '@ogygia/machine';
-import { backoff_after } from '@ogygia/machine/internal/policy';
 import { frameAddress } from '../frame.ts';
 import { import_again, is_failed_import, on_reload_needed } from './import-again.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
@@ -1537,7 +1537,7 @@ class OgygiaRegion extends HTMLElement {
 			}
 			this.#hole.go('retrying', { attempts, revalidate });
 			const retrying = this.#hole.scope;
-			const wait = backoff_after(region_fetch, attempts);
+			const wait = backoffAfter(region_fetch, attempts);
 			const waited = await turn.wait(
 				retrying.task(() => new Promise<void>((resolve) => retrying.timeout(resolve, wait)))
 			);

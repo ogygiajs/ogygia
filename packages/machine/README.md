@@ -203,6 +203,11 @@ const done = await thaws.put(evict); // true once applied, false once given up (
 
 - **Done means applied.** The receiver applies the work first and records its id after. A failed apply answers an error and is tried again; a second copy of an applied one is dropped.
 - **A policy is data.** `policy({ attempts, backoff, jitter, deadline })` is checked where it is written and frozen. `backoff` is a list of waits (the last repeats) or one number that doubles. Name each one for what it protects, so its numbers live in one place.
+- **`backoffAfter(policy, n, random?)`** is the wait before try `n + 1` once try `n` failed, for code that runs its own tries by a policy: `0` up to the timer limit, spread by `jitter` (`random` is 0 to 1, default `Math.random()`).
+
+## Messages
+
+Every error and warning the package prints has a code and a page at `https://ogygiajs.dev/e/<code>`. `MACHINE_ERRORS` and `MACHINE_WARNINGS` are the tables they come from, by code: each entry's text and page.
 
 ## Staged changes
 
