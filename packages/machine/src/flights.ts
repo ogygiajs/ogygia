@@ -423,7 +423,15 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 	_fly(key: unknown, m: Entry | undefined, input: I, prior: Kept | null): [Entry, Flight] {
 		if (this._expires) this._sweep(Date.now());
 		const stamp = this._world === undefined ? 0 : this._world.stamp();
-		const flight: Flight = { shared: STALE_NOW, holders: 0, pinned: false, stamp };
+		// the shared answer is there before the run starts: a run that gets its own key (before it
+		// returns) joins this flight (#354)
+		let resolve!: (answer: unknown) => void;
+		let reject!: (error: unknown) => void;
+		const shared = new Promise<unknown>((res, rej) => {
+			resolve = res;
+			reject = rej;
+		});
+		const flight: Flight = { shared, holders: 0, pinned: false, stamp };
 		let entry: Entry;
 		if (m !== undefined && this._entries.get(key) === m) {
 			entry = m;
@@ -442,33 +450,48 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		const visit = entry.now;
 		const run = this._run;
 		const retry = this._retry;
-		const work = entry.scope.task((signal) => attempt(run, input, signal, retry));
-		flight.shared = work.then(
-			(answer) => {
-				if (answer === STALE || entry.now !== visit) return STALE;
-				let current: boolean;
-				try {
-					current = this._current(flight, answer as V);
-				} catch (error) {
-					this._back(key, entry, prior);
-					throw error;
-				}
-				// its world moved while it was out: made from facts that are gone, so no caller has it
-				if (!current) {
-					this._back(key, entry, prior);
-					return STALE;
-				}
-				this._land(key, entry, input, answer as V, prior, flight.shared);
-				return answer;
-			},
-			(error: unknown) => {
-				if (entry.now !== visit) return STALE;
+		const landed = (answer: unknown): unknown => {
+			if (answer === STALE || entry.now !== visit) return STALE;
+			let current: boolean;
+			try {
+				current = this._current(flight, answer as V);
+			} catch (error) {
 				this._back(key, entry, prior);
 				throw error;
 			}
-		);
+			// its world moved while it was out: made from facts that are gone, so no caller has it
+			if (!current) {
+				this._back(key, entry, prior);
+				return STALE;
+			}
+			this._land(key, entry, input, answer as V, prior, shared);
+			return answer;
+		};
+		const failed = (error: unknown): unknown => {
+			if (entry.now !== visit) return STALE;
+			this._back(key, entry, prior);
+			throw error;
+		};
 		// (the callers handle its failure; this one is the flights' own, so it is never unhandled)
-		flight.shared.then(undefined, noop);
+		shared.then(undefined, noop);
+		entry.scope
+			.task((signal) => attempt(run, input, signal, retry))
+			.then(
+				(answer) => {
+					try {
+						resolve(landed(answer));
+					} catch (error) {
+						reject(error);
+					}
+				},
+				(error: unknown) => {
+					try {
+						resolve(failed(error));
+					} catch (thrown) {
+						reject(thrown);
+					}
+				}
+			);
 		return [entry, flight];
 	}
 
