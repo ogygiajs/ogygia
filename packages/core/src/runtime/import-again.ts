@@ -66,7 +66,7 @@ export function retry_url(url: string, attempt: number): string {
 
 /** The status of the response the browser's resource timing holds for `url` (0 where the browser does
  *  not say), or `null` when none came: a download that failed (or no timing for it). */
-function response_of(url: string): number | null {
+export function response_of(url: string): number | null {
 	if (typeof performance === 'undefined' || typeof performance.getEntriesByName !== 'function')
 		return null;
 	let status: number | null = null;
