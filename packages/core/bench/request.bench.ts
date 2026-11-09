@@ -22,7 +22,13 @@ import { facts_of } from '../src/plugin/facts.ts';
 import { SeedIndex, json_culprit, plan_seed_refs } from '../src/seed-refs.ts';
 import { DocumentTail, document_tail } from '../src/server/document-tail.ts';
 import { island_fingerprint } from '../src/server/fingerprint.ts';
-import { settle_deferred, stage_deferred, type Deferred } from '../src/server/page-stream.ts';
+import {
+	__heisenbench as page_stream,
+	settle_deferred,
+	stage_deferred,
+	stream_page_deferred,
+	type Deferred
+} from '../src/server/page-stream.ts';
 import { plan_props_wire } from '../src/server/props-wire.ts';
 import {
 	hold_request_stats_detail,
@@ -546,7 +552,7 @@ bench(
 		let found = 0;
 		let carry: Uint8Array = new Uint8Array(0);
 		for (const chunk of chunks) {
-			if (hooks.has_body_close(carry, chunk)) found++;
+			if (page_stream.has_body_close(carry, chunk)) found++;
 			carry = chunk.subarray(Math.max(0, chunk.length - 6));
 		}
 		return found;
@@ -626,12 +632,11 @@ bench(
 
 bench(
 	'stream_page_deferred: one resolve script per promise, nested ones too',
-	async ({ handle, deferred }) => {
+	async ({ deferred }) => {
 		const page = new Response('<!doctype html><html><body><p>page</p></body></html>');
 		// (the request's owner: the response streams under it)
 		const request = scope();
-		return (await handle.stream_page_deferred(request, page, deferred, deferred.length).text())
-			.length;
+		return (await stream_page_deferred(request, page, deferred, deferred.length).text()).length;
 	},
 	{ setup: () => promises_of(40), scale: (_ctx, k) => promises_of(40 * k) }
 );

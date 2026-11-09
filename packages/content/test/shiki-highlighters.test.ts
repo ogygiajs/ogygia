@@ -19,8 +19,15 @@ afterAll(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
-/** A theme object with no `name`, its keywords in `color`. */
-const theme = (color: string, type: 'light' | 'dark') => ({
+/** A theme object with no `name`, its keywords in `color`. (Typed with the optional `name` the
+ *  theme input reads, so TypeScript takes it for one.) */
+type UnnamedTheme = {
+	name?: string;
+	type: 'light' | 'dark';
+	colors: Record<string, string>;
+	tokenColors: Array<{ scope: string[]; settings: { foreground: string } }>;
+};
+const theme = (color: string, type: 'light' | 'dark'): UnnamedTheme => ({
 	type,
 	colors: { 'editor.background': type === 'light' ? '#ffffff' : '#000000' },
 	tokenColors: [{ scope: ['keyword', 'storage.type'], settings: { foreground: color } }]
