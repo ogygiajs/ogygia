@@ -41,7 +41,9 @@ export interface OutboxOptions<T> {
 	 *  when it did not, and is tried again. `signal` aborts at the policy's deadline. */
 	send: (item: T, signal: AbortSignal) => unknown;
 	/** What names an item for the receiver to drop a second copy: a put of an id still out joins
-	 *  it. Default: none (each put is its own send). */
+	 *  it. An id that is not a string or a finite number (or that throws) names nothing: that item
+	 *  is not sent, `giveUp` hears why, and its put resolves false. Default: none (each put is its
+	 *  own send). */
 	id?: (item: T) => string | number;
 	/** How a failed send is tried again. Default `policy.standard`. */
 	retry?: Policy;
@@ -59,6 +61,17 @@ export interface Outbox<T> {
 	/** Sends `item` (or joins its id's send still out). Returns at once and never throws; resolves
 	 *  `true` once it was applied, `false` once it was given up, and never rejects. */
 	put(item: T): Promise<boolean>;
+}
+
+/** An id that names one item: a string, or a finite number. Anything else (`undefined` from an
+ *  item missing its id, `NaN`) would name every such item alike and join them into one send. */
+function id_of(id: unknown): string | number {
+	if (typeof id === 'string' || (typeof id === 'number' && Number.isFinite(id))) return id;
+	throw machine_error('machine_bad_option', {
+		option: 'outbox id',
+		value: String(id),
+		rule: 'a string or a finite number'
+	});
 }
 
 /** One put: its item, and the key its send is shared under. */
@@ -115,7 +128,7 @@ class Box<T> implements Outbox<T> {
 		let sent: Promise<boolean>;
 		try {
 			const p: Put<T> = { item, key: undefined };
-			p.key = this._id === undefined ? p : this._id(item);
+			p.key = this._id === undefined ? p : id_of(this._id(item));
 			// (never STALE: nothing drops a send, and no caller leaves it)
 			sent = this._flights.get(p).then((done) => done === true);
 		} catch (error) {
