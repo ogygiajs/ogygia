@@ -29,7 +29,7 @@ import { STALE, whole, type Fresh, type Stale } from './stale.ts';
 // TypeScript and esbuild `using` helpers do)
 export const DISPOSE: typeof Symbol.dispose =
 	Symbol.dispose ?? (Symbol.for('Symbol.dispose') as typeof Symbol.dispose);
-export const ASYNC_DISPOSE: typeof Symbol.asyncDispose =
+const ASYNC_DISPOSE: typeof Symbol.asyncDispose =
 	Symbol.asyncDispose ?? (Symbol.for('Symbol.asyncDispose') as typeof Symbol.asyncDispose);
 
 /** Something with `addEventListener` / `removeEventListener`: a window, a document, an element, an

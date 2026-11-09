@@ -78,7 +78,7 @@ let next_order = 0;
 /** The snapshot: intersecting now? Absent = the observer has not reported yet. */
 const in_viewport = new WeakMap<Element, boolean>();
 /** Each region's viewport snapshot while it runs (closing it stops the snapshot). */
-const snapshot_of = new WeakMap<Element, Scope>();
+const snapshot_of = new WeakMap<Element, () => void>();
 /** Regions whose hydrate has STARTED (module in flight) and not yet taken its turn. */
 const loading = new Set<Element>();
 /** The loading regions the snapshot says intersect the viewport (what a hold waits for). */
@@ -294,17 +294,19 @@ export function reset_document_painted(): void {
  */
 export function register_region(el: Element, owner: Scope): void {
 	if (!order_of.has(el)) order_of.set(el, next_order++);
-	if (snapshot_of.get(el)?.closed === false) return;
-	const snapshot = owner.child();
-	snapshot_of.set(el, snapshot);
-	snapshot.defer(
-		observe(el, '0px', (intersecting) => {
-			in_viewport.set(el, intersecting);
-			sync_loading(el);
-			refile(el);
-			if (pending_count) schedule_drain();
-		})
-	);
+	if (snapshot_of.has(el) || owner.closed) return;
+	const stop = observe(el, '0px', (intersecting) => {
+		in_viewport.set(el, intersecting);
+		sync_loading(el);
+		refile(el);
+		if (pending_count) schedule_drain();
+	});
+	snapshot_of.set(el, stop);
+	// (the owner ending stops this snapshot only: a later one of the element is another owner's.
+	// A defer, not a child scope: one closure per region on the hydrate path, #300)
+	owner.defer(() => {
+		if (snapshot_of.get(el) === stop) stop_snapshot(el);
+	});
 }
 
 /**
@@ -328,8 +330,10 @@ export function unregister_region(el: Element): void {
 }
 
 function stop_snapshot(el: Element): void {
-	snapshot_of.get(el)?.close();
+	const stop = snapshot_of.get(el);
+	if (stop === undefined) return;
 	snapshot_of.delete(el);
+	stop();
 }
 
 /** The island's module is in flight: a viewport island here holds ready islands below the fold. */
