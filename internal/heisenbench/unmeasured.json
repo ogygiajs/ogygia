@@ -1093,6 +1093,26 @@
 			"reason": "browser only: an island file's one load at a time (the dynamic import() of its URL, and the immediate retry under a fresh URL after a dropped download); proven in packages/core/test/browser/import-file-one-retry.test.ts (#271) and apps/palaestra/e2e/lazy-chunk-retry.spec.ts (#261)"
 		},
 		{
+			"id": "packages/core/src/runtime/import-again.ts > entries_landed",
+			"reason": "browser only: waits (a PerformanceObserver, at most 1 s on its own scope timer) for a failed island file's timing entry, constant work; proven in packages/core/test/browser/import-response.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > entries_landed > Promise:0~3dc0a8",
+			"reason": "browser only: waits (a PerformanceObserver, at most 1 s on its own scope timer) for a failed island file's timing entry, constant work; proven in packages/core/test/browser/import-response.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > entries_landed > Promise:0~3dc0a8 > PerformanceObserver:0~0c8732",
+			"reason": "browser only: the observer's callback, linear in the timeline entries it is handed; proven in packages/core/test/browser/import-response.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > entries_landed > Promise:0~3dc0a8 > done",
+			"reason": "browser only: closes the wait's scope and settles it, constant work; proven in packages/core/test/browser/import-response.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > entries_landed > Promise:0~3dc0a8 > timeout:0~e9cbf4",
+			"reason": "browser only: the wait's 1 s bound on its own scope timer, constant work; proven in packages/core/test/browser/import-response.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/entry-locations.ts > flights:0",
 			"reason": "browser only: the reads of this build's location map and the current build's ogygia.json (fetch), kept once read; proven in packages/core/test/browser/entry-location-map.test.ts and entry-location-rollover.test.ts"
 		},
