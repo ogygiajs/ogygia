@@ -209,14 +209,24 @@ class Scoped implements Scope {
 		if (this._closed) return noop;
 		if ('addEventListener' in target) {
 			const t = target as unknown as EventTarget;
-			const fn = listener as unknown as EventListener;
+			const heard = listener as unknown as EventListener;
+			// a once listener that fired is gone from the target: it lets go of itself, as a fired
+			// timer does, so a long-lived scope does not pile them up
+			let release: () => void = noop;
+			const fn: EventListener =
+				typeof options === 'object' && options.once === true
+					? function (this: EventTarget, event) {
+							release();
+							heard.call(this, event);
+						}
+					: heard;
 			t.addEventListener(type, fn, options);
 			// (removed by its capture alone, as an object: Node's EventTarget does not match a bare
 			// `true` on removal, and would keep a capture listener)
 			const capture = {
 				capture: typeof options === 'boolean' ? options : options?.capture === true
 			};
-			return this._hold(() => t.removeEventListener(type, fn, capture));
+			return (release = this._hold(() => t.removeEventListener(type, fn, capture)));
 		}
 		const e = target as unknown as {
 			on(type: string, fn: unknown): unknown;
