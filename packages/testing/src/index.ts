@@ -417,8 +417,9 @@ export class Ogygia {
 					undo_errors.push(error);
 				});
 		}
-		// (an undo that failed, once nothing else did: the blocker or the window could not be stopped)
-		if (undo_errors.length) throw undo_errors[0];
+		// (an undo that failed, once nothing else did: the blocker or the window could not be stopped.
+		// When the actions failed, theirs is the error the test reports, below.)
+		if (undo_errors.length && !failed) throw undo_errors[0];
 		const r = out.r;
 		let server: OgygiaSessionReport['server'];
 		if (ropts?.server && !server_error && out.stopped) {
