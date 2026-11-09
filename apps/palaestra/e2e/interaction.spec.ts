@@ -4,6 +4,7 @@
 // hydrating; hydratedBy() reports 'interaction'.
 // Usage: pnpm exec playwright test interaction
 import { test, check } from '@ogygia/tooling/e2e';
+import { console_text } from '@ogygia/tooling/e2e/browsers.ts';
 
 const WAKE_INTERACTION_RE = /ogygia-region[^>]*wake="interaction"/;
 const INTERACTION_ENTRY_RE = /ogygia-region entry="([^"]+)"[^>]*wake="interaction"/;
@@ -160,8 +161,11 @@ test.describe("wake:'interaction' — cold until used, click replay, typing surv
 		page
 	}) => {
 		const consoleErrs: string[] = [];
+		// (each read awaits the page: the check below waits for the reads still out)
+		const reads: Promise<void>[] = [];
 		page.on('console', (m) => {
-			if (m.type() === 'error') consoleErrs.push(m.text());
+			// (the message's own text in every engine: Firefox's console text of an Error is its class)
+			if (m.type() === 'error') reads.push(console_text(m).then((t) => void consoleErrs.push(t)));
 		});
 		// Block the island's file (under any retry mark: a dropped download is asked for again under a
 		// fresh URL) AND its stable name (the fallback a lost location takes) → the wake's import
@@ -186,6 +190,7 @@ test.describe("wake:'interaction' — cold until used, click replay, typing surv
 		// The chunk was aborted, so this is an ENTRY-FETCH failure, not a hydrate throw — the runtime
 		// distinguishes them (dev names the Vite re-optimize cause; here it's a real abort). #hydrate
 		// catches it, logs, and the wake path disarms on the fulfilled branch.
+		await Promise.all(reads);
 		check(
 			'failure: error logged, region left static',
 			// (a production build: the message is its code's link — messages/core.ts)
