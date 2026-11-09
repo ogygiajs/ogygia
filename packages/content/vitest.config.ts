@@ -13,6 +13,10 @@ const base = pluginTests();
 //             browser tells the truth about.
 export default defineConfig({
 	...base,
+	// The browser tests' dependencies, bundled before the first test file loads. Found during the
+	// run instead, they made Vite bundle again and change their URLs under a test file still
+	// importing the old ones ("Failed to import test file", seen in Firefox and Chromium on CI).
+	optimizeDeps: { include: ['@orama/orama', 'bits-ui', 'esm-env', 'svelte > clsx'] },
 	test: {
 		projects: [
 			{

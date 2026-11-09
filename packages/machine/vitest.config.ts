@@ -9,6 +9,9 @@ const browsers = await browser_runs();
 
 export default defineConfig({
 	...base,
+	// (bundled before the first test file loads: found during the run, Vite bundles again and
+	// changes the URLs a test file still imports)
+	optimizeDeps: { include: ['esm-env'] },
 	test: {
 		projects: [
 			{

@@ -64,6 +64,9 @@ export default defineConfig({
 	// heisenbench_record(): nothing, unless the measurement-source gate records the tests' inputs
 	// (internal/heisenbench/src/record.ts)
 	plugins: [svelte(), ...heisenbench_record()],
+	// The browser tests' dependencies, bundled before the first test file loads: found during the
+	// run, Vite bundles again and changes the URLs a test file still imports.
+	optimizeDeps: { include: ['devalue', 'esm-env', 'fast-check'] },
 	resolve: {
 		alias: {
 			'$app/server': fileURLToPath(new URL('./test/_stubs/app-server.ts', import.meta.url)),
