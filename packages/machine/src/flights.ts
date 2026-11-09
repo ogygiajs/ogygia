@@ -55,7 +55,7 @@ import { machine, type Machine } from './machine.ts';
 import { machine_error } from './messages.ts';
 import { under_policy, type Policy } from './policy.ts';
 import { DISPOSE } from './scope.ts';
-import { STALE, type Stale } from './stale.ts';
+import { STALE, type Fresh, type Stale } from './stale.ts';
 import { watch_world, type World } from './world.ts';
 
 /** What every flights takes; `R` is what `run` (and `keep`, `weigh`) may read of an input. */
@@ -67,13 +67,13 @@ interface FlightsCommon<R, V, W> {
 	/** How long an answer stays, in ms: a number, or made from the answer and its input. 0 keeps
 	 *  nothing (callers share the flight while it is out); the default, `Infinity`, keeps it for as
 	 *  long as the flights lives. A failure is never kept. */
-	keep?: number | ((answer: Awaited<V>, input: R) => number);
+	keep?: number | ((answer: Fresh<Awaited<V>>, input: R) => number);
 	/** The most total weight it keeps; past it, the least recently used answers go. Default
 	 *  `Infinity`. */
 	max?: number;
 	/** An answer's weight against `max` (bytes, say). Default 1: `max` then counts answers. An
 	 *  answer heavier than `max`, or with a weight below 0 or not a number, is not kept. */
-	weigh?: (answer: Awaited<V>, input: R) => number;
+	weigh?: (answer: Fresh<Awaited<V>>, input: R) => number;
 	/** How a failed run is tried again, inside one flight, before it fails (`policy()`): its tries,
 	 *  the waits between them (none when 0: the next try runs at once) and its deadline. Default:
 	 *  one try. */
@@ -84,7 +84,7 @@ interface FlightsCommon<R, V, W> {
 	world?: World<W>;
 	/** The keys of a keyed `world` an answer was made from: a move of other keys leaves it (and a
 	 *  flight out, judged by its answer once it lands) be. Without it, any move touches every answer. */
-	touches?: (answer: Awaited<V>) => Iterable<W>;
+	touches?: (answer: Fresh<Awaited<V>>) => Iterable<W>;
 }
 
 /** A flights whose key is its whole input (by `Map` identity: a string, a number, an object
@@ -462,7 +462,14 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		const run = this._run;
 		const retry = this._retry;
 		const landed = (answer: unknown): unknown => {
-			if (answer === STALE || entry.now !== visit) return STALE;
+			if (entry.now !== visit) return STALE;
+			// (its run answered STALE: kept by nobody, like a failure; the key goes back to what it
+			// held, so the next get runs again, #377. Its task already made a stale part a stale
+			// whole, #378.)
+			if (answer === STALE) {
+				this._back(key, entry, prior);
+				return STALE;
+			}
 			let current: boolean;
 			try {
 				current = this._current(flight, answer as V);
@@ -624,14 +631,14 @@ export type KeyedFlights<I> = <
 	W = never
 >(
 	options: KeyedFlightsOptions<I, F, G, V, W>
-) => Flights<I, Awaited<V>, Pick<I, F>>;
+) => Flights<I, Fresh<Awaited<V>>, Pick<I, F>>;
 
 /** Keyed shared async work (see the module's comment). With no options, a maker of a flights over
  *  object input `I` keyed by some of its fields: `flights<Ask>()({ key: ['href'], run })`. */
 export function flights<I extends object>(): KeyedFlights<I>;
 export function flights<I = void, V = unknown, W = never>(
 	options: FlightsOptions<I, V, W>
-): Flights<I, Awaited<V>, I>;
+): Flights<I, Fresh<Awaited<V>>, I>;
 export function flights(options?: object): unknown {
 	if (options === undefined) return keyed;
 	return new Flown(options as FlightsOptions<unknown, unknown, unknown>);

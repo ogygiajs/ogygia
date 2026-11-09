@@ -115,6 +115,16 @@ page.close(); // listeners off, timers cleared, observers disconnected, the fetc
 | `adopt(disposable)`           | Disposes it on close (`Symbol.dispose` or `Symbol.asyncDispose`).                                      |
 | `close()`                     | Children first, then the signal, then the rest. Safe twice. Throws what cleanups threw, after all ran. |
 
+**A stale part makes the whole wait stale.** A wait (`task`, a mailbox's `turn.wait` / `wait` / `ask`, a flights `run`, `stage().ready`) gives `STALE` when what it waited on is `STALE`, or an array with `STALE` among its items. So hand it the whole `Promise.all`, and one check covers every slot:
+
+```ts
+const both = await page.task(() => Promise.all([load_module(), pages.get(href)]));
+if (both === STALE) return; // the page was left, or the page fetch was dropped
+const [mod, html] = both; // neither is STALE (the type says so too: `Fresh<T>`)
+```
+
+It looks one level deep: an object holding a `STALE` is not seen, so build objects after the check. The repo's lint rule `ogygia/stale-whole` refuses a STALE-returning call left in an array that no wait checks.
+
 A closed scope lets go of anything given to it at once: a cleanup runs, an observer disconnects, a listener or timer is never set, a task is `STALE` without running. So code that runs after its owner ended cannot leave anything behind. A scope is `Disposable`: `using s = scope()` closes it at the end of the block, and `await using` also waits for async disposals (a plain `close()` reports one that fails: [machine_dispose_failed](https://ogygiajs.dev/e/machine_dispose_failed)). Timers never keep a server process alive: their owner does.
 
 ## Flights

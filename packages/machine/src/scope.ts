@@ -23,7 +23,7 @@
  * first time they are needed. A scope nothing was given to costs one small object.
  */
 import { machine_error, report } from './messages.ts';
-import { STALE, type Stale } from './stale.ts';
+import { STALE, whole, type Fresh, type Stale } from './stale.ts';
 
 // (a runtime without the explicit-resource-management symbols gets the registered ones, as the
 // TypeScript and esbuild `using` helpers do)
@@ -96,8 +96,10 @@ export interface Scope {
 	 * Runs `work` for this scope. Closing aborts `signal` and settles the task with `STALE` right
 	 * then, even when `work` never finishes: an answer only lands while its scope is open. A failure
 	 * after the scope closed is `STALE` too. A closed scope gives `STALE` without running `work`.
+	 * Work that answers `STALE`, or an array with `STALE` in it (a `Promise.all` with a stale part),
+	 * gives `STALE`: if anything it waited on is stale, the whole task is.
 	 */
-	task<R>(work: (signal: AbortSignal) => R): Promise<Awaited<R> | Stale>;
+	task<R>(work: (signal: AbortSignal) => R): Promise<Fresh<Awaited<R>> | Stale>;
 	/** A scope that closes when this one does, before this one's own cleanups. It can close sooner
 	 *  on its own. A closed scope's child is closed. */
 	child(): Scope;
@@ -271,7 +273,7 @@ class Scoped implements Scope {
 		return observer;
 	}
 
-	task<R>(work: (signal: AbortSignal) => R): Promise<Awaited<R> | Stale> {
+	task<R>(work: (signal: AbortSignal) => R): Promise<Fresh<Awaited<R>> | Stale> {
 		if (this._closed) return Promise.resolve(STALE);
 		const signal = this.signal;
 		let out: R | Promise<never>;
@@ -293,7 +295,7 @@ class Scoped implements Scope {
 			Promise.resolve(out).then(
 				(value) => {
 					signal.removeEventListener('abort', on_close);
-					resolve(this._closed ? STALE : value);
+					resolve(this._closed ? STALE : whole(value as Awaited<R>));
 				},
 				(error: unknown) => {
 					signal.removeEventListener('abort', on_close);

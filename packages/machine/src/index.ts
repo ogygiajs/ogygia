@@ -39,6 +39,7 @@ export {
 } from './scope.ts';
 export { lock, type Lock, type LockToken } from './lock.ts';
 export { mailbox, type Mailbox, type Turn } from './mailbox.ts';
+export type { Fresh } from './stale.ts';
 export { outbox, type Outbox, type OutboxOptions } from './outbox.ts';
 export { policy, type Policy } from './policy.ts';
 export { stage, type Stage, type StageOptions, type Staging } from './stage.ts';

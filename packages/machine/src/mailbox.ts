@@ -32,7 +32,7 @@
  */
 import { report_thrown } from './messages.ts';
 import type { Scope } from './scope.ts';
-import { STALE, type Stale } from './stale.ts';
+import { STALE, whole, type Fresh, type Stale } from './stale.ts';
 
 /** The handler's side of its turn. */
 export interface Turn {
@@ -41,9 +41,11 @@ export interface Turn {
 	/**
 	 * Ends the turn while `work` settles, then waits for a turn again (in order, behind what came
 	 * meanwhile): `work`'s value, or `STALE` once the owner closed (at once, without waiting for
-	 * `work`). A rejection is thrown back in the handler's turn, unless the owner closed.
+	 * `work`). A rejection is thrown back in the handler's turn, unless the owner closed. `work`
+	 * that gives `STALE`, or an array with `STALE` in it (a `Promise.all` with a stale part), gives
+	 * `STALE`: if anything it waited on is stale, the whole wait is.
 	 */
-	wait<T>(work: PromiseLike<T> | T): Promise<T | Stale>;
+	wait<T>(work: PromiseLike<T> | T): Promise<Fresh<T> | Stale>;
 }
 
 export interface Mailbox extends Turn {
@@ -51,11 +53,12 @@ export interface Mailbox extends Turn {
 	 *  Dropped once the box closed. A handler that throws when it runs at once throws to the
 	 *  poster; one that ran later is reported (`machine_mailbox_handler_failed`). */
 	post(handler: (turn: Turn) => unknown): void;
-	/** {@link post}, and what the handler gave back: its value, or `STALE` when it was dropped. */
-	ask<R>(handler: (turn: Turn) => R): Promise<Awaited<R> | Stale>;
+	/** {@link post}, and what the handler gave back: its value, or `STALE` when it was dropped (or
+	 *  it gave `STALE`, or an array with `STALE` in it). */
+	ask<R>(handler: (turn: Turn) => R): Promise<Fresh<Awaited<R>> | Stale>;
 	/** A wait from outside any turn: `work`'s value, or `STALE` once the owner closed. It ends
 	 *  nobody's turn and takes none. */
-	wait<T>(work: PromiseLike<T> | T): Promise<T | Stale>;
+	wait<T>(work: PromiseLike<T> | T): Promise<Fresh<T> | Stale>;
 }
 
 /**
@@ -75,7 +78,7 @@ class Held implements Turn {
 		return this._box._closed;
 	}
 
-	wait<T>(work: PromiseLike<T> | T): Promise<T | Stale> {
+	wait<T>(work: PromiseLike<T> | T): Promise<Fresh<T> | Stale> {
 		return this._box._wait(this, work);
 	}
 }
@@ -108,7 +111,7 @@ class Box implements Mailbox {
 		else this._start(handler);
 	}
 
-	ask<R>(handler: (turn: Turn) => R): Promise<Awaited<R> | Stale> {
+	ask<R>(handler: (turn: Turn) => R): Promise<Fresh<Awaited<R>> | Stale> {
 		return new Promise((resolve, reject) => {
 			if (this._closed) return resolve(STALE);
 			const stale = resolve as (value: Stale) => void;
@@ -123,7 +126,7 @@ class Box implements Mailbox {
 					return reject(error);
 				}
 				// (the asker hears the handler's failure: the box's own chain never rejects)
-				return Promise.resolve(out).then(resolve as (value: Awaited<R>) => void, reject);
+				return Promise.resolve(out).then((value) => resolve(whole(value)), reject);
 			});
 			// (queued: dropped by the box closing first, its asker hears STALE)
 			if (!started) (this._waiting ??= new Set()).add(stale);
@@ -132,7 +135,7 @@ class Box implements Mailbox {
 
 	/** A wait from outside any turn (whoever holds the box): it ends no turn, and comes back with
 	 *  none. */
-	wait<T>(work: PromiseLike<T> | T): Promise<T | Stale> {
+	wait<T>(work: PromiseLike<T> | T): Promise<Fresh<T> | Stale> {
 		return this._wait(null, work);
 	}
 
@@ -140,10 +143,10 @@ class Box implements Mailbox {
 	 *  one again. A wait of nobody's turn (`null`, a handler that ended, a second wait of a handler
 	 *  already waiting) ends no turn: it waits, and takes the turn only when its handler would
 	 *  otherwise go on without one. */
-	_wait<T>(held: Held | null, work: PromiseLike<T> | T): Promise<T | Stale> {
+	_wait<T>(held: Held | null, work: PromiseLike<T> | T): Promise<Fresh<T> | Stale> {
 		if (held !== null && this._holder === held) this._end_turn();
 		if (this._closed) return Promise.resolve(STALE);
-		return new Promise<T | Stale>((resolve, reject) => {
+		return new Promise<Fresh<T> | Stale>((resolve, reject) => {
 			const waiting = (this._waiting ??= new Set());
 			const stale = resolve as (value: Stale) => void;
 			waiting.add(stale);
@@ -165,7 +168,7 @@ class Box implements Mailbox {
 				}
 			};
 			Promise.resolve(work).then(
-				(value) => back(() => resolve(value)),
+				(value) => back(() => resolve(whole(value as T))),
 				(error: unknown) => back(() => reject(error))
 			);
 		});

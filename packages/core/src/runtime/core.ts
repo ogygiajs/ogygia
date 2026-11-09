@@ -1644,7 +1644,9 @@ class OgygiaRegion extends HTMLElement {
 			const release = await turn.wait(slot.ready);
 			// (gone while it queued: the slot, when it comes, goes straight back)
 			if (release === STALE) return void slot.ready.then(hand_back); // ok: a slot's turn never fails
-			let mod: IslandModule, core: HydrateCore | Stale;
+			// (a part that went STALE, the hydrate core's download or devalue's, makes the whole wait
+			// STALE: no slot is checked on its own)
+			let mod: IslandModule, core: HydrateCore;
 			try {
 				if (gone()) return;
 				hydrate_started(this); // a viewport island in flight holds ready islands below the fold
@@ -1665,8 +1667,7 @@ class OgygiaRegion extends HTMLElement {
 				release();
 			}
 			t_loaded = now_ms();
-			// (the hydrate core is never dropped: STALE does not come)
-			if (gone() || core === STALE) return;
+			if (gone()) return;
 			// An island of OURS on a Kit-hydrated document reads Kit's page through the bridge Kit's
 			// client entry publishes; it must not hydrate before Kit applied it (kit-page-thread.svelte.ts).
 			if (gone(await turn.wait(this.#kit_page_ready(core, visit)))) return;
@@ -1923,7 +1924,7 @@ class OgygiaRegion extends HTMLElement {
 			const release = await turn.wait(slot.ready);
 			// (gone while it queued: the slot, when it comes, goes straight back)
 			if (release === STALE) return void slot.ready.then(hand_back); // ok: a slot's turn never fails
-			let mod: IslandModule, core: HydrateCore | Stale;
+			let mod: IslandModule, core: HydrateCore;
 			try {
 				if (!ours()) return;
 				const loaded = await turn.wait(
@@ -1934,7 +1935,7 @@ class OgygiaRegion extends HTMLElement {
 			} finally {
 				release();
 			}
-			if (!ours() || core === STALE) return;
+			if (!ours()) return;
 			if (!ours(await turn.wait(this.#kit_page_ready(core, this.#live.scope)))) return;
 			if (CLIENT_PLUGINS) client_region_mount(this);
 			const app = core.hydrate_live(this, entry, mod, props);

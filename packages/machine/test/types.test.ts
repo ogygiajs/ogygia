@@ -320,7 +320,9 @@ describe('types', () => {
 			expectTypeOf(one).toEqualTypeOf<number>();
 
 			// (one level deep: an object keeps its Stale)
-			const obj = await s.task(async () => ({ page: await pages.get('/') }));
+			const obj = await s.task(async (): Promise<{ page: number | Stale }> => ({
+				page: await pages.get('/')
+			}));
 			if (obj === STALE) return;
 			expectTypeOf(obj.page).toEqualTypeOf<number | Stale>();
 
