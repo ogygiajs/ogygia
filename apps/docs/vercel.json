@@ -1,7 +1,9 @@
 {
 	"$schema": "https://openapi.vercel.sh/vercel.json",
 	"ignoreCommand": "[ \"$VERCEL_ENV\" = production ] && exit 1; b=${VERCEL_GIT_PREVIOUS_SHA:-HEAD^}; git cat-file -e $b || exit 1; git diff --quiet $b HEAD -- ':/apps/docs' ':/packages' ':/package.json' ':/pnpm-*' ':/turbo.json'",
-	"git": { "deploymentEnabled": { "changeset-release/*": false } },
+	"git": {
+		"deploymentEnabled": { "**": false, "latest": true, "main": true, "changeset-release/*": true }
+	},
 	"headers": [
 		{
 			"source": "/_app/immutable/(.*)",
