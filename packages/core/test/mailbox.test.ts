@@ -183,4 +183,22 @@ describe('mailbox', () => {
 		expect(mailbox(life)).toBe(CLOSED_BOX);
 		expect(await CLOSED_BOX.wait(Promise.resolve(1))).toBe(STALE);
 	});
+
+	it('a wait whose work settled while another handler held the turn hears STALE when the box closes', async () => {
+		const life = scope();
+		const box = mailbox(life);
+		let release!: () => void;
+		const work = new Promise<string>((r) => (release = () => r('x')));
+		// b waits; a then takes the turn and holds it on a plain await
+		const b = box.ask((turn) => turn.wait(work));
+		box.post(async () => {
+			await new Promise(() => {});
+		});
+		// b's work settles while a holds the turn: b's return queues behind a
+		release();
+		await later(null);
+		// the element leaves before a lets the turn go
+		life.close();
+		expect(await Promise.race([b, later('never settled', 50)])).toBe(STALE);
+	});
 });
