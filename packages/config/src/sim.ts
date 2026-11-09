@@ -18,8 +18,13 @@
  *   `AbortSignal.timeout` and `Date.now` read one clock the run owns. Timers fire in the order they
  *   are due, and "time passes" is a step the scheduler picks like any other: an answer can come
  *   before a 0 ms timer, or after a 10 s deadline. Past `horizon` no timer fires.
+ *   In a browser, the task scheduler too (`scheduler.yield()`, `scheduler.postTask`): a task
+ *   boundary is a step the scheduler picks.
  * - fetch (`sim.fetch`): each call is answered when the scheduler picks it; an aborted signal
- *   rejects it at once, as a real fetch does.
+ *   rejects it at once, as a real fetch does. The global is the one seam: every fetch of the
+ *   runtime and the server reads it when it calls. (A module that wraps the global when it loads,
+ *   as the router's navigation chunk does for its cache bust, keeps whatever was there then: load
+ *   it before the runs.)
  * - anything else that answers later (`sim.later`): a store, a render, a lock.
  * - streams (`sim.stream`): each chunk comes when the scheduler picks it.
  * - the test's own steps (`sim.play`): each starts when the scheduler picks it, and runs beside the
@@ -110,6 +115,12 @@ type Clocked = {
 	fetch: typeof fetch;
 };
 const host = globalThis as unknown as Clocked;
+
+/** A browser's `scheduler` (Prioritized Task Scheduling), the parts the runtime uses. */
+type TaskScheduler = {
+	yield?: () => Promise<void>;
+	postTask?: <T>(fn: () => T, options?: { delay?: number; signal?: AbortSignal }) => Promise<T>;
+};
 
 /** The host's own, taken before any run swaps them: a real task boundary between scheduler waits. */
 const real_now = Date.now;
@@ -391,6 +402,30 @@ class Run implements Sim {
 			this._add(() => fn({ didTimeout: false, timeRemaining: () => 50 }), 1, false)
 		);
 		swap('cancelIdleCallback', clear);
+		// a browser's task scheduler (`scheduler.yield()`, `postTask`): a task boundary is a step the
+		// scheduler picks, and a delayed task a timer
+		const tasks = (globalThis as { scheduler?: TaskScheduler }).scheduler;
+		if (tasks !== undefined) {
+			const { yield: was_yield, postTask: was_post } = tasks;
+			tasks.yield = () => this.later('a task boundary');
+			tasks.postTask = <T>(fn: () => T, o?: { delay?: number; signal?: AbortSignal }) =>
+				new Promise<T>((resolve, reject) => {
+					const run = () => {
+						if (o?.signal?.aborted) return reject(o.signal.reason);
+						try {
+							resolve(fn());
+						} catch (error) {
+							reject(error);
+						}
+					};
+					if ((o?.delay ?? 0) > 0) this._add(run, o!.delay!, false);
+					else this.later('a posted task').then(run, noop); // ok: `run` says its own failure
+				});
+			this._restore.push(() => {
+				tasks.yield = was_yield;
+				tasks.postTask = was_post;
+			});
+		}
 		Date.now = () => this._base + this._clock;
 		this._restore.push(() => (Date.now = real_now));
 		AbortSignal.timeout = (ms: number) => {
