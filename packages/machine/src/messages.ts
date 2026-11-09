@@ -27,6 +27,7 @@ export type MachineErrors = {
 	machine_observer_failed: Entry<{ name: string }>;
 	machine_outbox_gave_up: Entry<{ name: string }>;
 	machine_stage_step_failed: Entry<{ name: string }>;
+	machine_mailbox_handler_failed: Entry<Record<string, never>>;
 };
 
 /** The errors: thrown in dev (and tests), where a wrong move is a bug to fix now. */
@@ -161,6 +162,16 @@ export const MACHINE_ERRORS: MachineErrors = {
 			'when its commit throws part way (its `undo` steps). One of those steps threw. The error ' +
 			'follows the message. The other steps still ran; whatever this step should have put back ' +
 			'may still be in place.'
+	},
+	machine_mailbox_handler_failed: {
+		text: (): string => 'mailbox: a handler that waited for its turn threw.',
+		details: (): string =>
+			'A `mailbox()` handler threw while it ran in its turn, after events ahead of it. Nobody ' +
+			'waits on its stack (it was posted earlier, by someone who has moved on), so its error ' +
+			"goes to the page's error handler (`reportError`: the console and `window.onerror`), as an " +
+			"event listener's would, and the box goes on with the next event.\n\n" +
+			'A handler that runs at once (posted to an idle box) throws to its poster instead, and one ' +
+			"posted with `ask()` rejects its asker's promise. Catch inside the handler to handle it there."
 	}
 };
 
@@ -206,6 +217,17 @@ export function machine_error<C extends keyof Errors>(code: C, a: ArgsOf<C>): Ma
 export function report<C extends keyof Errors>(code: C, a: ArgsOf<C>, cause?: unknown): void {
 	if (cause === undefined) console.error(line(code, a));
 	else console.error(line(code, a), cause);
+}
+
+/** Prints `code`, then hands `cause` (an app's own error, thrown where nobody waits for it) to the
+ *  page's error handler (`reportError`: the console and `window.onerror`, where error monitoring
+ *  sees it), as an uncaught throw would be. Where there is none (a server, a test), it follows the
+ *  message. */
+export function report_thrown<C extends keyof Errors>(code: C, a: ArgsOf<C>, cause: unknown): void {
+	const page = (globalThis as { reportError?: (e: unknown) => void }).reportError;
+	if (typeof page !== 'function') return report(code, a, cause);
+	console.error(line(code, a));
+	page(cause);
 }
 
 const warned = new Set<string>();

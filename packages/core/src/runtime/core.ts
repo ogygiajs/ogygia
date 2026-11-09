@@ -1,4 +1,13 @@
-import { flights, scope, STALE, type Scope, type Stale } from '@ogygia/machine';
+import {
+	flights,
+	mailbox,
+	scope,
+	STALE,
+	type Mailbox,
+	type Scope,
+	type Stale,
+	type Turn
+} from '@ogygia/machine';
 import { backoff_after } from '@ogygia/machine/internal/policy';
 import { frameAddress } from '../frame.ts';
 import { import_again, on_reload_needed } from './import-again.ts';
@@ -58,7 +67,6 @@ import {
 	type Paint,
 	type Wake
 } from './region-machines.ts';
-import { CLOSED_BOX, mailbox, type Mailbox, type Turn } from './mailbox.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
 import { download, region_fetch } from '../policies.ts';
 import { install_rules, note_mount, note_unmount } from './rules.ts';
@@ -342,6 +350,8 @@ type Leaves = { readonly scope: Scope };
  *  Anything given to it is let go at once. */
 const NOT_CONNECTED = scope();
 NOT_CONNECTED.close();
+/** Its mailbox then: closed (every post dropped, every wait `STALE`). */
+const CLOSED_BOX: Mailbox = mailbox(NOT_CONNECTED);
 
 /** A live region's tick, as Region.svelte hands it to `applyLive`. */
 type LiveTick = {
@@ -578,9 +588,10 @@ class OgygiaRegion extends HTMLElement {
 	 */
 	#life: Scope = NOT_CONNECTED;
 	/**
-	 * ITS EVENTS, ONE AT A TIME (./mailbox.ts, #322): a connect, a schedule firing, a frame landing, a
-	 * live tick, its fetch's end and its retry, its wake's steps — each a turn, in the order they came,
-	 * so no two see each other's half-done step, whichever of its machines they drive. Its lifetime's:
+	 * ITS EVENTS, ONE AT A TIME (@ogygia/machine's `mailbox()`, #322): a connect, a schedule firing, a
+	 * frame landing, a live tick, its fetch's end and its retry, its wake's steps — each a turn, in the
+	 * order they came, so no two see each other's half-done step, whichever of its machines they drive.
+	 * Its lifetime's:
 	 * the element leaving drops what is queued, and a step waiting gets `STALE` at once. Every callback
 	 * that comes back to the element later posts here (the box of the lifetime it started in).
 	 */

@@ -31,8 +31,7 @@ import {
 	create_wake
 } from '../src/runtime/region-machines.ts';
 import * as frames from '../src/runtime/frame-store.ts';
-import { mailbox } from '../src/runtime/mailbox.ts';
-import { scope, STALE } from '@ogygia/machine';
+import { mailbox, scope, STALE } from '@ogygia/machine';
 import type { IslandHandle } from '../src/runtime/hydrate-core.ts';
 import { block, header } from './fixtures.ts';
 
