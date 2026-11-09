@@ -31,7 +31,6 @@ const devalue_load = flights({
 /** Start (once) and await devalue's import. (Never STALE: nothing drops it.) */
 export const load_devalue = (): Promise<Devalue | Stale> => devalue_load.get();
 
-
 /** devalue, already loaded: a devalue-lane read only runs after its load ({@link load_devalue}). */
 export function devalue(): Devalue {
 	// (its code's link written out: this leaf imports nothing, see the top — messages/core.ts has it)

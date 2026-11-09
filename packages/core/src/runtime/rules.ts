@@ -51,7 +51,8 @@ function one_mount_per_region(): string | null {
 		if (n > 1) return `${entry_of(region)} holds ${n} islands at once`;
 		// (a region moved within one task is still the page's: its teardown waits a microtask, and a
 		// check runs a task after the moves)
-		if (!region.isConnected) return `${entry_of(region)} left the page with its island still mounted`;
+		if (!region.isConnected)
+			return `${entry_of(region)} left the page with its island still mounted`;
 	}
 	return null;
 }
@@ -74,7 +75,8 @@ export function note_visit(visit: Visit, is_current: boolean): void {
 function no_old_page_open(): string | null {
 	const now = visits.find((v) => v.visit === current);
 	if (now === undefined) return null;
-	for (let i = visits.length - 1; i >= 0; i--) if (visits[i].visit.scope.closed) visits.splice(i, 1);
+	for (let i = visits.length - 1; i >= 0; i--)
+		if (visits[i].visit.scope.closed) visits.splice(i, 1);
 	const open = visits.filter((v) => v.n < now.n).length;
 	return open === 0 ? null : `${open} page visit(s) before the one on screen still open`;
 }
@@ -116,7 +118,8 @@ function failure(reason: unknown): void {
 		uncoded.push('a STALE escaped as a rejection');
 		return;
 	}
-	const message = reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : '';
+	const message =
+		reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : '';
 	if (message.startsWith('[ogygia]') && !CODE_LINK_RE.test(message))
 		uncoded.push('an ogygia error with no code: ' + message.split('\n')[0].slice(0, 160));
 }
