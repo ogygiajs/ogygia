@@ -7,7 +7,10 @@ import { describe, expect, it } from 'vitest';
 
 function run(fixture: string, flags: string[] = []): string {
 	const file = fileURLToPath(new URL(`./fixtures/${fixture}`, import.meta.url));
-	return execFileSync(process.execPath, [...flags, file], { encoding: 'utf8', timeout: 20_000 }).trim();
+	return execFileSync(process.execPath, [...flags, file], {
+		encoding: 'utf8',
+		timeout: 20_000
+	}).trim();
 }
 
 describe('a Node process', () => {

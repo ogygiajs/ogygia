@@ -306,7 +306,8 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		this._world = o.world;
 		this._touches = o.touches as ((answer: V) => Iterable<unknown>) | undefined;
 		if (o.world !== undefined) {
-			const unwatch = watch_world(o.world, (keys) => this._moved(keys));
+			// (heard for itself, held weakly: a flights nobody holds is collected, its world forgets it)
+			const unwatch = watch_world(o.world, this, heard_move);
 			if (unwatch === null) throw bad_option('world', typeof o.world, 'a world from world()');
 			this._unwatch = unwatch;
 		}
@@ -567,6 +568,14 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 			if (m.now.kind === 'kept') this._remove(key, m);
 		}
 	}
+}
+
+/** A flights hears its world move (a function of its own: it holds no flights). */
+function heard_move(
+	f: { _moved(keys: ReadonlySet<unknown> | null): void },
+	keys: ReadonlySet<unknown> | null
+): void {
+	f._moved(keys);
 }
 
 /** Makes a keyed flights over input `I` (`flights<I>()({ key, ignore?, run, … })`). */

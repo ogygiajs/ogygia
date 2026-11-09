@@ -463,7 +463,9 @@ describe('watch and adopt', () => {
 			m.stop();
 			const shared = m.scope as unknown as { _settling: unknown[] | null };
 			const before = shared._settling?.length ?? 0;
-			const failing = () => ({ [Symbol.asyncDispose]: vi.fn(() => Promise.reject(new Error('late'))) });
+			const failing = () => ({
+				[Symbol.asyncDispose]: vi.fn(() => Promise.reject(new Error('late')))
+			});
 			const a = failing();
 			const b = failing();
 			s.adopt(a);
@@ -509,8 +511,11 @@ describe('task', () => {
 		await expect(Promise.race([out, hang])).resolves.toBe(STALE);
 
 		// a machine's visit: the work moves the machine out of the state it runs in
-		const m = machine<{ a: {}; b: {} }>()({ name: 'self', initial: 'a', steps: { a: ['b'], b: [] } })
-			.create();
+		const m = machine<{ a: {}; b: {} }>()({
+			name: 'self',
+			initial: 'a',
+			steps: { a: ['b'], b: [] }
+		}).create();
 		const moved = m.scope.task(() => (m.go('b'), new Promise<never>(() => {})));
 		await expect(Promise.race([moved, hang])).resolves.toBe(STALE);
 	});

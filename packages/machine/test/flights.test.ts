@@ -1,13 +1,5 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import {
-	flights,
-	MachineError,
-	observe,
-	policy,
-	scope,
-	STALE,
-	type Policy
-} from '../src/index.ts';
+import { flights, MachineError, observe, policy, scope, STALE, type Policy } from '../src/index.ts';
 import { macrotask } from './_tick.ts';
 
 /** A promise and its two ends. */

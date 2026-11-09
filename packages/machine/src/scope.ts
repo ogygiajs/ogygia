@@ -380,7 +380,8 @@ class Scoped implements Scope {
 			}
 		}
 		this._closing = false;
-		if (this._settling !== null && !this._awaited) for (const done of this._settling) this._said(done);
+		if (this._settling !== null && !this._awaited)
+			for (const done of this._settling) this._said(done);
 		if (errors !== null)
 			throw errors.length === 1
 				? errors[0]
