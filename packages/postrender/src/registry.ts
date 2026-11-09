@@ -14,8 +14,16 @@
  * two module instances (src beside dist), and both must see the same runtime.
  */
 import type { RequestEvent } from '@sveltejs/kit';
-import { flights, machine, outbox, policy, scope, type Scope, type Stale } from '@ogygia/machine';
-import { registry } from '@ogygia/machine/internal/registry';
+import {
+	flights,
+	machine,
+	outbox,
+	policy,
+	registry,
+	scope,
+	type Scope,
+	type Stale
+} from '@ogygia/machine';
 import type {
 	PostrenderEntry,
 	PostrenderPutOptions,
