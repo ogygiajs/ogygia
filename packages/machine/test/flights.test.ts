@@ -284,6 +284,31 @@ describe('keyed', () => {
 		expect(signal!.aborted).toBe(false);
 	});
 
+	it('a run that gets its own key before it returns joins its own flight (#354)', async () => {
+		let inner: Promise<unknown> | null = null;
+		const sync = flights({
+			run: (href: string) => {
+				inner = sync.get(href);
+				return href.length;
+			}
+		});
+		expect(await sync.get('/abc')).toBe(4);
+		expect(await inner).toBe(4);
+
+		let later: Promise<unknown> | null = null;
+		const d = deferred<string>();
+		const run = vi.fn((href: string) => {
+			later = pages.get(href);
+			return d.promise;
+		});
+		const pages = flights({ run });
+		const outer = pages.get('/a');
+		d.resolve('page');
+		expect(await outer).toBe('page');
+		expect(await later).toBe('page');
+		expect(run).toHaveBeenCalledOnce();
+	});
+
 	it('a drop ends the flight out: every caller gets STALE, its signal aborts, nothing is kept', async () => {
 		const d = deferred<string>();
 		let signal!: AbortSignal;
