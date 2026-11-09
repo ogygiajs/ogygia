@@ -42,7 +42,7 @@
  * pointer reaches an armed island or input lands — off the boot path, ahead of the replay.
  */
 
-import { flights, STALE, type Stale } from '@ogygia/machine';
+import { flights, STALE, type Scope, type Stale } from '@ogygia/machine';
 import { import_again } from './import-again.ts';
 import { slots } from './slots.ts';
 import { warm_island_module } from './region-endpoint-url.ts';
@@ -51,12 +51,12 @@ import { OgygiaError } from '../messages/core.ts';
 
 /** Feature entry: fill the `interaction` slot — wake a cold island on first use, warm on hover. */
 export function install(): void {
-	slots.interaction = (el, fire) => {
+	slots.interaction = (el, fire, owner) => {
 		const warm = () => {
 			const entry = island_entry_of(el);
 			if (entry) warm_island_module(entry, undefined, 'user'); // a hover: the visitor is reaching for it
 		};
-		return arm_interaction(el, warm, fire);
+		return arm_interaction(el, warm, fire, owner);
 	};
 }
 
@@ -140,6 +140,8 @@ type Armed = {
 	region: Element;
 	warm: () => void;
 	fire: WakeFn;
+	/** the region's lifetime in the page: the replay's frame is its */
+	owner: Scope;
 	state: 'armed' | 'woken' | 'over';
 	warmed: boolean;
 	queued: QueuedClick[];
@@ -213,7 +215,10 @@ function on_warm_event(e: Event): void {
 function install_listeners(): void {
 	if (installed) return;
 	installed = true;
-	for (const type of WAKE_EVENTS) document.addEventListener(type, on_wake_event, { capture: true });
+	for (const type of WAKE_EVENTS)
+		// oxlint-disable-next-line ogygia/owned-effects -- the wake delegation, installed once (`installed`) for every armed region: it lives as long as the document
+		document.addEventListener(type, on_wake_event, { capture: true });
+	// oxlint-disable-next-line ogygia/owned-effects -- the warm delegation, installed once beside the wake's: it lives as long as the document
 	document.addEventListener('pointerover', on_warm_event, { capture: true, passive: true });
 }
 
@@ -270,7 +275,7 @@ function wake(a: Armed, e: Event): void {
 		([r]) => {
 			if (a.state === 'over') return;
 			disarm(a, false);
-			if (r !== STALE) r.after_wake(region, fields, active_addr, queued);
+			if (r !== STALE) r.after_wake(region, fields, active_addr, queued, a.owner);
 		},
 		(err) => {
 			if (a.state === 'over') return;
@@ -281,7 +286,7 @@ function wake(a: Armed, e: Event): void {
 			// (the replay half itself may be what failed: asked for again; if it fails again the
 			// clicks are lost, and said so, never left as an unhandled rejection)
 			replay().then(
-				(r) => r !== STALE && r.replay_clicks(region, queued),
+				(r) => r !== STALE && r.replay_clicks(region, queued, a.owner),
 				(again: unknown) => console.error(new OgygiaError('interaction_hydrate_failed'), again)
 			);
 			console.error(new OgygiaError('interaction_hydrate_failed'), err);
@@ -295,6 +300,7 @@ function wake(a: Armed, e: Event): void {
  * @param region the `<ogygia-region>` element
  * @param warm   prefetch the island module (no hydrate) — wired to the pointer entering the region
  * @param fire   begin hydration ({@link WakeFn}); resolves when the island is live
+ * @param owner  the region's lifetime in the page: the frame its clicks replay in is its
  * @returns disarm(over?) — end this arming (the island is live or failed, or the region left
  *          before any interaction); `over`: the region left while it was woken, so its queued clicks
  *          are dropped instead of replayed
@@ -302,9 +308,10 @@ function wake(a: Armed, e: Event): void {
 export function arm_interaction(
 	region: Element,
 	warm: () => void,
-	fire: WakeFn
+	fire: WakeFn,
+	owner: Scope
 ): (over?: boolean) => void {
-	const a: Armed = { region, warm, fire, state: 'armed', warmed: false, queued: [] };
+	const a: Armed = { region, warm, fire, owner, state: 'armed', warmed: false, queued: [] };
 	armed.set(region, a);
 	install_listeners();
 	// (the replay half loads when a pointer reaches an armed island or input lands — not at arm: every

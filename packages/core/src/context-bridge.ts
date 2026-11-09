@@ -183,6 +183,7 @@ let page_ctx_reset = false;
 function page_ctx(): Record<string, unknown> | undefined {
 	if (!page_ctx_reset) {
 		page_ctx_reset = true;
+		// oxlint-disable-next-line ogygia/owned-effects -- the page context cache's reset on each page swap, installed once (`page_ctx_reset`): it lives as long as the document
 		document.addEventListener('og:after-swap', () => (page_ctx_cache = null));
 	}
 	return (page_ctx_cache ??= {

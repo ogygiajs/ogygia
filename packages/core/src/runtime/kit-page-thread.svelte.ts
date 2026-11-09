@@ -36,7 +36,7 @@
  * click long after boot) — the caller skips the await entirely.
  */
 import { warn } from '../messages/lazy.ts';
-import { flights } from '@ogygia/machine';
+import { flights, scope, type Scope } from '@ogygia/machine';
 
 const KIT_PAGE_KEY = Symbol.for('ogygia.kit-page');
 /** Kit constructs its `$app/state` page with this status; `initialize()` replaces it with the real one. */
@@ -67,37 +67,43 @@ function page_applied(bridge: Bridge): boolean {
  */
 const DEV_STILL_WAITING_MS = 5000;
 
-export function kit_page_thread(): Promise<unknown> | null {
+/** `signal`: the waiter's (an island's wake). Once every waiter has left, the wait ends. */
+export function kit_page_thread(signal?: AbortSignal): Promise<unknown> | null {
 	if (page_applied(bridge_of())) return null;
-	return pending.get();
+	return pending.get(undefined, { signal });
 }
 
 /** The wait, shared by every island asking while Kit has not applied its page; kept for nothing
- *  (keep 0): once it lands, the fast path above answers. */
+ *  (keep 0): once it lands, the fast path above answers. What it holds (the dev warning's timer, a
+ *  sealed global's watch, the effect on Kit's page) is its own scope's: the flight's signal aborts
+ *  once the last island waiting left, and that lets go of all of it. */
 const pending = flights({
 	name: 'kit page thread',
-	run: () =>
-		new Promise<void>((resolve) => {
-			let slow: ReturnType<typeof setTimeout> | null = null;
+	run: (_: void, signal: AbortSignal) => {
+		const wait = scope();
+		wait.on(signal, 'abort', () => wait.close());
+		return new Promise<void>((resolve) => {
 			if (import.meta.env.DEV) {
-				slow = setTimeout(() => {
+				wait.timeout(() => {
 					warn('kit_page_waiting', {
 						seconds: DEV_STILL_WAITING_MS / 1000,
 						booted: bridge_of() != null
 					});
 				}, DEV_STILL_WAITING_MS);
 			}
-			const done = () => {
-				if (slow !== null) clearTimeout(slow);
-				resolve();
-			};
-			await_bridge((bridge) => await_applied(bridge, done));
-		}),
+			await_bridge(wait, (bridge) =>
+				await_applied(wait, bridge, () => {
+					wait.close();
+					resolve();
+				})
+			);
+		});
+	},
 	keep: 0
 });
 
 /** Moment 1: the symbol is assigned. Calls back synchronously if it already is. */
-function await_bridge(cb: (bridge: Bridge) => void): void {
+function await_bridge(wait: Scope, cb: (bridge: Bridge) => void): void {
 	const g = globalThis as unknown as Global;
 	if (g[KIT_PAGE_KEY] != null) return cb(g[KIT_PAGE_KEY] as Bridge);
 	let value: unknown;
@@ -120,21 +126,32 @@ function await_bridge(cb: (bridge: Bridge) => void): void {
 			set: settle
 		});
 	} catch {
-		// A global that refuses accessors (a sealed sandbox): the same contract, observed on a timer.
-		const tick = () => (g[KIT_PAGE_KEY] != null ? settle(g[KIT_PAGE_KEY]) : setTimeout(tick, 50));
-		tick();
+		// A global that refuses accessors (a sealed sandbox): the same contract, observed on a timer,
+		// as long as the wait lasts. (It refuses a redefined plain value too: the symbol stays as is.)
+		const stop = wait.every(() => {
+			if (g[KIT_PAGE_KEY] == null) return;
+			stop();
+			cb(g[KIT_PAGE_KEY] as Bridge);
+		}, 50);
 	}
 }
 
 /** Moment 2: Kit assigns the real status onto its live page — observed by an effect, resolved once. */
-function await_applied(bridge: Bridge, done: () => void): void {
+function await_applied(wait: Scope, bridge: Bridge, done: () => void): void {
 	if (page_applied(bridge)) return done();
+	// Torn down outside its own run, once: when it saw the page, or when the wait ends first.
+	let ended = false;
+	const end = () => {
+		if (ended) return;
+		ended = true;
+		queueMicrotask(() => stop());
+	};
 	const stop = $effect.root(() => {
 		$effect(() => {
 			if (!page_applied(bridge)) return;
-			// Tear the root down outside its own run, then resolve.
-			queueMicrotask(stop);
+			end();
 			done();
 		});
 	});
+	wait.defer(end);
 }

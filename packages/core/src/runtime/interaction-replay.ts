@@ -4,6 +4,7 @@
  * element's ADDRESS (hydration may have replaced the nodes). Loaded when the first interaction
  * island arms; never part of the boot.
  */
+import type { Scope } from '@ogygia/machine';
 import type { FieldSnapshot, QueuedClick } from './interaction.ts';
 import { interaction_link } from './slots.ts';
 import { emit as dt_emit } from '../events/bus.ts';
@@ -52,9 +53,10 @@ function restore_fields(region: Element, fields: FieldSnapshot[]) {
  * One frame later: hydration just (re)bound the island's web-component wiring (a dropdown web
  * component's `target` element, set by a reactive statement) and many components apply such
  * changes in their own render tick. A synchronous replay lands before that tick and toggles
- * nothing; after a frame the component is settled.
+ * nothing; after a frame the component is settled. The frame is `owner`'s (the region's lifetime in
+ * the page): a region gone by then replays nothing.
  */
-export function replay_clicks(region: Element, queued: QueuedClick[]): void {
+export function replay_clicks(region: Element, queued: QueuedClick[], owner: Scope): void {
 	const replay = () => {
 		for (const q of queued) {
 			const t = resolve_address(region, q.addr);
@@ -69,8 +71,7 @@ export function replay_clicks(region: Element, queued: QueuedClick[]): void {
 		}
 		queued.length = 0;
 	};
-	if (typeof requestAnimationFrame === 'function') requestAnimationFrame(replay);
-	else replay();
+	owner.timeout(replay, 'frame');
 }
 
 /** The island is live: fields back, focus back, clicks replayed. */
@@ -78,7 +79,8 @@ export function after_wake(
 	region: Element,
 	fields: FieldSnapshot[],
 	active_addr: number[] | null,
-	queued: QueuedClick[]
+	queued: QueuedClick[],
+	owner: Scope
 ): void {
 	restore_fields(region, fields);
 	if (active_addr) {
@@ -86,7 +88,7 @@ export function after_wake(
 		if (el instanceof HTMLElement && document.activeElement !== el) el.focus();
 	}
 	const replayed = queued.length;
-	replay_clicks(region, queued);
+	replay_clicks(region, queued, owner);
 	if (DEVTOOLS)
 		dt_emit({
 			domain: 'runtime',

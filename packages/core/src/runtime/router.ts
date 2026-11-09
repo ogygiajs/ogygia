@@ -579,7 +579,7 @@ export class SpaRouter {
 	/** The router took a click on `anchor` to `url`: from now on the anchor hears its own clicks too. */
 	#take(anchor: HTMLAnchorElement, url: URL): void {
 		if (!this.#taken.has(anchor)) {
-			// oxlint-disable-next-line ogygia/owned-effects -- the anchor's own, for its life: a kept anchor needs it on the next page too, and it goes with the anchor (an owner of its own is the region element's work)
+			// oxlint-disable-next-line ogygia/owned-effects -- the anchor's own, for its life: a kept anchor needs it on the next page too, an anchor in no region hears it as well, and it goes with the anchor (nothing else holds it: `#taken` is weak)
 			anchor.addEventListener('click', (event) => this.#on_anchor_click(event, anchor));
 		}
 		this.#taken.set(anchor, url.href);

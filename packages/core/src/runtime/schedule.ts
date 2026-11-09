@@ -23,7 +23,7 @@
  * first one.
  */
 import { observe } from './observe.ts';
-import { flights, type Stale } from '@ogygia/machine';
+import { flights, type Scope, type Stale } from '@ogygia/machine';
 
 type Turn = {
 	el: Element;
@@ -59,7 +59,8 @@ const order_of = new WeakMap<Element, number>();
 let next_order = 0;
 /** The snapshot: intersecting now? Absent = the observer has not reported yet. */
 const in_viewport = new WeakMap<Element, boolean>();
-const unobserve_of = new WeakMap<Element, () => void>();
+/** Each region's viewport snapshot while it runs (closing it stops the snapshot). */
+const snapshot_of = new WeakMap<Element, Scope>();
 /** Regions whose hydrate has STARTED (module in flight) and not yet taken its turn. */
 const loading = new Set<Element>();
 /** The loading regions the snapshot says intersect the viewport (what a hold waits for). */
@@ -206,6 +207,7 @@ function post_background(fn: () => void): void {
 			/* an invalid-priority throw (older postTask) → fall back */
 		}
 	}
+	// oxlint-disable-next-line ogygia/owned-effects -- the process's one background drain (`background_armed`), one task: it ends itself, and a start queued in it belongs to whoever queued it
 	setTimeout(fn, 0);
 }
 
@@ -232,9 +234,12 @@ export function after_document_painted(): Promise<void | Stale> {
 function until_painted(): Promise<void> {
 	return new Promise<void>((resolve) => {
 		if (typeof document === 'undefined') return resolve();
+		// (the document's own gate, once per document: these end themselves, whoever waits on them)
 		const painted = () => {
 			if (document.visibilityState === 'hidden' || typeof requestAnimationFrame !== 'function')
+				// oxlint-disable-next-line ogygia/owned-effects -- the document's paint gate, one task, once per document
 				setTimeout(resolve, 0);
+			// oxlint-disable-next-line ogygia/owned-effects -- the document's paint gate, one frame and one task, once per document
 			else requestAnimationFrame(() => setTimeout(resolve, 0)); // the task after the frame
 		};
 		if (dom_content_loaded()) return painted();
@@ -246,7 +251,9 @@ function until_painted(): Promise<void> {
 			removeEventListener('load', once);
 			painted();
 		};
+		// oxlint-disable-next-line ogygia/owned-effects -- the document's paint gate, once per document: the first of the two takes both off
 		document.addEventListener('DOMContentLoaded', once);
+		// oxlint-disable-next-line ogygia/owned-effects -- the document's paint gate, once per document: the first of the two takes both off
 		addEventListener('load', once);
 	});
 }
@@ -266,13 +273,16 @@ export function reset_document_painted(): void {
 
 /**
  * Register a region with the scheduler at connect: stamp its order, start its viewport snapshot.
- * Cheap on purpose (a stamp and an `observe`) — connect runs for every region in one task.
+ * Cheap on purpose (a stamp and an `observe`) — connect runs for every region in one task. The
+ * snapshot is `owner`'s (the region's lifetime in the page): it stops at the region's turn, or when
+ * the owner ends.
  */
-export function register_region(el: Element): void {
+export function register_region(el: Element, owner: Scope): void {
 	if (!order_of.has(el)) order_of.set(el, next_order++);
-	if (unobserve_of.has(el)) return;
-	unobserve_of.set(
-		el,
+	if (snapshot_of.get(el)?.closed === false) return;
+	const snapshot = owner.child();
+	snapshot_of.set(el, snapshot);
+	snapshot.defer(
 		observe(el, '0px', (intersecting) => {
 			in_viewport.set(el, intersecting);
 			sync_loading(el);
@@ -303,8 +313,8 @@ export function unregister_region(el: Element): void {
 }
 
 function stop_snapshot(el: Element): void {
-	unobserve_of.get(el)?.();
-	unobserve_of.delete(el);
+	snapshot_of.get(el)?.close();
+	snapshot_of.delete(el);
 }
 
 /** The island's module is in flight: a viewport island here holds ready islands below the fold. */
@@ -364,6 +374,7 @@ function drain_after(ms: number): void {
 		clearTimeout(wait_timer);
 	}
 	wait_at = at;
+	// oxlint-disable-next-line ogygia/owned-effects -- the process's one scheduler re-drain (`wait_timer`, the earliest wins): the queue it drains is every region's
 	wait_timer = setTimeout(
 		() => {
 			wait_timer = null;

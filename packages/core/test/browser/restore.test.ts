@@ -4,7 +4,7 @@
 // light DOM exactly as Svelte rendered them, the host's attributes back to Svelte's — in the document,
 // in an answer's inert fragment (sheets adopted after the insertion), and never into a root a
 // component's constructor made.
-import { afterEach, expect, test } from 'vitest';
+import { afterEach, expect, test, vi } from 'vitest';
 import { check_script, transformMarkup } from '../../src/server/reversible.ts';
 import { restore, restore_adopt } from '../../src/runtime/restore.ts';
 import { fake_scoped } from '../fixtures/fake-scoped-render.ts';
@@ -304,6 +304,47 @@ test('a Kit-hydrated page: the first whole write to Svelte’s tokens gets back 
 		expect(W.__og_class_watch).toBeUndefined(); // the last host had its write: the observer is gone
 	} finally {
 		meta.remove();
+		W.__og_class_watch = undefined;
+	}
+});
+
+test('a Kit-hydrated page: a watched host that leaves the document leaves the watch, a moved one stays, and the observer goes with the last one', async () => {
+	const meta = document.createElement('meta');
+	meta.name = 'ogygia-csr';
+	meta.content = 'true';
+	document.head.append(meta);
+	const W = window as { __og_class_watch?: { mo: MutationObserver; hosts: Set<Element> } };
+	const records = () => new Promise((r) => setTimeout(r, 0));
+	try {
+		await served('<demo-card class="own"> x </demo-card><demo-card class="other"> y </demo-card>');
+		restore(document);
+		const [a, b] = Array.from(document.querySelectorAll('demo-card'));
+		const w = W.__og_class_watch!;
+		expect(w.hosts.size).toBe(2);
+		const disconnect = vi.spyOn(w.mo, 'disconnect');
+		// a move in one task (out and back in): still the page's host, still watched
+		const parent = a.parentNode!;
+		const next = a.nextSibling;
+		a.remove();
+		parent.insertBefore(a, next);
+		await records();
+		expect(w.hosts.has(a)).toBe(true);
+		// Kit drops a host and mounts a new one in its place: the old host leaves the watch
+		const fresh = document.createElement('demo-card');
+		b.replaceWith(fresh);
+		await records();
+		expect(w.hosts.has(b)).toBe(false);
+		expect(w.hosts.size).toBe(1);
+		expect(disconnect).not.toHaveBeenCalled();
+		// the last host goes: nothing is left to watch, the observer goes with it
+		a.remove();
+		await records();
+		expect(w.hosts.size).toBe(0);
+		expect(disconnect).toHaveBeenCalled();
+		expect(W.__og_class_watch).toBeUndefined();
+	} finally {
+		meta.remove();
+		W.__og_class_watch?.mo.disconnect();
 		W.__og_class_watch = undefined;
 	}
 });

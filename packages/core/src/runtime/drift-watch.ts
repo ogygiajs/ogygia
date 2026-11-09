@@ -41,6 +41,7 @@ function mark(records: MutationRecord[]): void {
 /** A region kept its server copy: watch until it wakes (pair with {@link unwatch_region}). */
 export function watch_region(): void {
 	if (!supported || ++sleeping > 1) return;
+	// oxlint-disable-next-line ogygia/owned-effects -- one observer for the document, shared by every sleeping region: each region's sleep is its own (core.ts), and the last one to end disconnects it
 	observer ??= new MutationObserver(mark);
 	observer.observe(document.documentElement, {
 		childList: true,

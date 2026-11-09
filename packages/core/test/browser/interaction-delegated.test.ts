@@ -3,7 +3,11 @@
 // region are what its own capture listeners gave it: first event wakes (once), clicks before the
 // island is live are canceled and queued, the pointer crossing in warms once, disarm forgets it.
 import { expect, test } from 'vitest';
+import { scope } from '@ogygia/machine';
 import { arm_interaction } from '../../src/runtime/interaction.ts';
+
+/** the regions' lifetime in the page (a replay's frame is its) */
+const page = scope();
 
 const region = (id: string, inner = '<button>go</button>') =>
 	`<ogygia-region id="${id}" wake="interaction" entry="/x.js">${inner}</ogygia-region>`;
@@ -27,7 +31,8 @@ test('an event inside an armed region wakes THAT region only, once; the pointer 
 		() => {
 			fired.one++;
 			return live.promise;
-		}
+		},
+		page
 	);
 	arm_interaction(
 		two,
@@ -35,7 +40,8 @@ test('an event inside an armed region wakes THAT region only, once; the pointer 
 		() => {
 			fired.two++;
 			return live.promise;
-		}
+		},
+		page
 	);
 
 	const btn = two.querySelector('button')!;
@@ -67,7 +73,8 @@ test('a nested region that is not armed hands the event to the armed region abov
 	arm_interaction(
 		outer,
 		() => {},
-		() => void fired++
+		() => void fired++,
+		page
 	);
 	inner.querySelector('button')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
 	expect(fired).toBe(1);
@@ -80,7 +87,8 @@ test('disarm forgets the region: later events pass through untouched', () => {
 	const disarm = arm_interaction(
 		gone,
 		() => {},
-		() => void fired++
+		() => void fired++,
+		page
 	);
 	disarm();
 	const click = new MouseEvent('click', { bubbles: true, cancelable: true });
@@ -99,7 +107,8 @@ test('a SCHEDULED island is armed the same way: a click before it is live is can
 		() => {
 			fired++;
 			return new Promise<void>(() => {});
-		}
+		},
+		page
 	);
 	const click = new MouseEvent('click', { bubbles: true, cancelable: true });
 	el.querySelector('button')!.dispatchEvent(click);
@@ -117,7 +126,8 @@ test('a live island inside a sleeping one keeps its clicks', () => {
 		() => {},
 		() => {
 			fired++;
-		}
+		},
+		page
 	);
 	const click = new MouseEvent('click', { bubbles: true, cancelable: true });
 	document.querySelector('#inner button')!.dispatchEvent(click);
@@ -132,7 +142,8 @@ test('a click that opens a link elsewhere is never canceled (an untrusted replay
 	const disarm = arm_interaction(
 		el,
 		() => {},
-		() => new Promise<void>(() => {})
+		() => new Promise<void>(() => {}),
+		page
 	);
 	const a = el.querySelector('a')!;
 	// read on the link itself — after the document's capture listener ran, before the test cancels the

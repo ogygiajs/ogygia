@@ -6,6 +6,7 @@
  * and the profiler's browser half. Dev only (production Svelte has no such warnings); the console line
  * itself goes out unchanged. No regex: warnings are rare, read by string search.
  */
+import type { Scope } from '@ogygia/machine';
 
 export interface SvelteWarning {
 	code: string;
@@ -22,12 +23,15 @@ const listeners: ((w: SvelteWarning) => void)[] = [];
 
 /** core.ts marks the island whose hydrate step is running. Svelte raises some warnings as the
  *  step's effects flush (a microtask after it returns): the mark holds until the task ends, and
- *  islands hydrate one per task, so the next one never inherits it. */
-export function set_hydrating(el: Element): void {
+ *  islands hydrate one per task, so the next one never inherits it. The task's end is `owner`'s to
+ *  wait for (the island's lifetime in the page): an island gone first takes its mark with it. */
+export function set_hydrating(el: Element, owner: Scope): void {
 	hydrating = el;
-	setTimeout(() => {
+	const clear = () => {
 		if (hydrating === el) hydrating = null;
-	}, 0);
+	};
+	owner.timeout(clear, 0);
+	owner.defer(clear);
 }
 
 export function svelte_warnings(): SvelteWarning[] {

@@ -14,8 +14,11 @@ import {
 	register_region,
 	unregister_region
 } from '../../src/runtime/schedule.ts';
+import { scope } from '@ogygia/machine';
 
 const made: Element[] = [];
+/** the regions' lifetime in the page (their snapshots are its) */
+const page = scope();
 
 function region(where: 'top' | 'low'): Element {
 	const el = document.createElement('div');
@@ -48,8 +51,8 @@ afterEach(() => {
 test('a short snapshot wait set after a long hold wakes the drain at its own time', async () => {
 	const top = region('top');
 	const low = region('low');
-	register_region(top);
-	register_region(low);
+	register_region(top, page);
+	register_region(low, page);
 	await snapshots();
 	hydrate_started(top); // a viewport island still loads its module
 	const t0 = performance.now();
@@ -70,8 +73,8 @@ test('a short snapshot wait set after a long hold wakes the drain at its own tim
 test('a long hold set after a short wait ran out still ends at its own deadline', async () => {
 	const top = region('top');
 	const low = region('low');
-	register_region(top);
-	register_region(low);
+	register_region(top, page);
+	register_region(low, page);
 	await snapshots();
 	hydrate_started(top); // loads, and never takes its turn in this test
 	const t0 = performance.now();

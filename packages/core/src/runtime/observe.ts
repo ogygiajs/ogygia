@@ -26,6 +26,7 @@ function shared(rootMargin: string): Shared {
 	if (!s) {
 		const callbacks = new WeakMap<Element, Set<Callback>>();
 		const last = new WeakMap<Element, boolean>();
+		// oxlint-disable-next-line ogygia/owned-effects -- one observer per margin for the document, shared by every element: each element's watch is its owner's (the unobserve it hands back)
 		const io = new IntersectionObserver(
 			(entries) => {
 				for (const e of entries) {
