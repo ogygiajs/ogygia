@@ -10,7 +10,7 @@
 import { scope, type Scope } from '@ogygia/machine';
 import { EARLY_HOLES_KEY, type EarlyHole } from '../early-holes.ts';
 import { frameAddress } from '../frame.ts';
-import { ensure, renew } from './frame-store.ts';
+import { ensure, hold_refusal, renew } from './frame-store.ts';
 import { read_hole } from './hole-fetch.ts';
 
 const PARKED = Symbol.for(EARLY_HOLES_KEY);
@@ -41,6 +41,6 @@ export function adopt_early_holes(visit: Scope): void {
 				}
 			},
 			{ signal: visit.signal }
-		).catch(() => {}); // ok: an answer refused stays at its address; any other failure is never kept, and the hole's own wake asks again and says it
+		).catch((err: unknown) => hold_refusal(address, err)); // ok: a refused answer waits at its address for the hole that asks; any other failure is never kept, and the hole's own wake asks again and says it
 	}
 }

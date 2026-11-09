@@ -33,6 +33,12 @@ const frame_id = (a: string): string => 'frame:' + a;
  *  per document across bundle copies, and a copy's class is not another's. */
 const REFUSED = 'RegionAnswerRefused';
 
+/** A refused answer nobody asked for yet (the page's early start: ./early-holes.ts), held at its
+ *  address for the first caller that asks there (see `Entry.refused`). Any other failure is not. */
+export function hold_refusal(a: string, err: unknown): void {
+	if ((err as { name?: string } | null)?.name === REFUSED) entry(a).refused = err as Error;
+}
+
 /** What a flight at an address runs: the store's own fetch, or a batch's part arriving through an
  *  external stream (the batch's promise, settled by the frame written there or failed by the
  *  batch's end). The input of the call that started the flight is the one that runs. */
@@ -53,9 +59,9 @@ type Entry = {
 	/** The fresh capability a renewal at this address answered (an expired one is re-signed once):
 	 *  the address's, so every element bound here moves onto it, not only the one that fetched. */
 	renewed: string | null;
-	/** The answer at this address was refused (./region-endpoint-url.ts `RegionAnswerRefused`: a
-	 *  redirect, a whole document, a refused capability): deterministic, so it is the address's, and
-	 *  a later caller gets it instead of asking again. A frame written here, or a forced fetch, ends it. */
+	/** A refused answer that no element asked for yet (the page's early start read it before any hole
+	 *  woke: ./early-holes.ts): handed, once, to the first caller that asks here, which is refused as
+	 *  if it had asked itself. A frame written here, or a forced fetch, ends it. */
 	refused: Error | null;
 };
 
@@ -95,14 +101,7 @@ function frame_flights(): FrameFlights {
  *  have raced past it: the answer is whatever the store then holds). */
 async function fetch_frame(a: string, fetcher: FrameFetcher, signal: AbortSignal): Promise<string> {
 	const t = ticket(a);
-	let html: string;
-	try {
-		html = await fetcher(signal);
-	} catch (err) {
-		if (!signal.aborted && (err as { name?: string })?.name === REFUSED)
-			entry(a).refused = err as Error;
-		throw err;
-	}
+	const html = await fetcher(signal);
 	if (!signal.aborted) write({ a, v: t, html });
 	return entries.get(a)?.html ?? html;
 }
@@ -277,8 +276,9 @@ export async function ensure(
 	try {
 		for (;;) {
 			if (!fresh && e.html != null) return e.html;
-			if (!fresh && e.refused) throw e.refused;
-			if (fresh) e.refused = null;
+			const refused = e.refused;
+			e.refused = null;
+			if (!fresh && refused !== null) throw refused;
 			const html = await f.get({ a, work: fetcher }, { signal, fresh });
 			// STALE: this caller left, the store was reset, or a forced fetch took the place of the
 			// one it waited on: then it asks again (and joins that one)
