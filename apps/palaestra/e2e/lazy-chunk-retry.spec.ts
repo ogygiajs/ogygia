@@ -20,7 +20,21 @@ import { console_text } from '@ogygia/tooling/e2e/browsers.ts';
 /** Keeps an error message's own text in every engine (Firefox's console text of an Error is its
  *  class, without the message code the tests look for). */
 function log_error(m: ConsoleMessage, logged: string[]): void {
-	if (m.type() === 'error') void console_text(m).then((t) => logged.push(t));
+	if (m.type() !== 'error') return;
+	const read = console_text(m).then((t) => void logged.push(t));
+	let pending = reading.get(logged);
+	if (!pending) reading.set(logged, (pending = []));
+	pending.push(read);
+}
+
+/** The console reads still out for each list (`console_text` awaits the page for each argument). */
+const reading = new WeakMap<string[], Promise<void>[]>();
+
+/** Every error the page logged so far is in `logged`: a check that reads it once (not a poll) waits
+ *  for the reads still out first. */
+async function all_logged(logged: string[]): Promise<string[]> {
+	await Promise.all(reading.get(logged) ?? []);
+	return logged;
 }
 
 /** What only each chunk carries in a production build. */
@@ -380,6 +394,7 @@ test.describe('an island’s own file that fails once is loaded again (#261)', (
 			seen.dropped === 1 && seen.served >= 1,
 			JSON.stringify(seen)
 		);
+		await all_logged(logged);
 		check(
 			'no island_load_failed',
 			!logged.some((t) => t.includes('island_load_failed')),
@@ -425,7 +440,7 @@ test.describe('a lazy chunk whose dependency fails says a reload is needed (#262
 			new Set(retries.map((r) => r.split('?')[0])).size === retries.length,
 			retries.join(', ')
 		);
-		const reload = logged.filter((t) => t.includes('chunk_reload_needed'));
+		const reload = (await all_logged(logged)).filter((t) => t.includes('chunk_reload_needed'));
 		check('one message says the page needs a reload', reload.length === 1, logged.join('\n'));
 		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
 	});
