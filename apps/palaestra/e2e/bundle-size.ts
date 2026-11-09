@@ -22,19 +22,32 @@
 import { brotliCompressSync } from 'node:zlib';
 import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { rolldown, type OutputChunk } from 'rolldown';
-import {
-	generateRuntimeEntrySource,
-	resolveFeatures
-} from '../../../packages/core/dist/compiler/link/runtime-entry.js';
 import type { RuntimeMarks } from '../../../packages/core/dist/compiler/link/runtime-entry.js';
 
-const RUNTIME_DIR = fileURLToPath(new URL('../../../packages/core/dist/runtime', import.meta.url));
+/** The value after `flag` on the command line, if any. */
+const arg = (flag: string): string | undefined => {
+	const at = process.argv.indexOf(flag);
+	return at === -1 ? undefined : process.argv[at + 1];
+};
+
+// `--core <dir>`: measure another checkout's built core (CI measures the PR's base this way)
+const CORE = arg('--core')
+	? resolve(arg('--core')!)
+	: fileURLToPath(new URL('../../../packages/core', import.meta.url));
+const { generateRuntimeEntrySource, resolveFeatures } = (await import(
+	pathToFileURL(join(CORE, 'dist/compiler/link/runtime-entry.js')).href
+)) as typeof import('../../../packages/core/dist/compiler/link/runtime-entry.js');
+
+const RUNTIME_DIR = join(CORE, 'dist/runtime');
 const SNAPSHOT = fileURLToPath(new URL('./bundle-size.snapshot.json', import.meta.url));
-/** A profile may grow this much over its snapshot before the gate fails. */
-const TOLERANCE = 0.02;
+// `--compare <json>`: gate against another build's `--json` (the PR's base) instead of the snapshot
+const COMPARE = arg('--compare');
+/** A profile may grow this much over its baseline before the gate fails: over the snapshot, the
+ *  build's own noise; over the base branch's build (same tool, same machine), almost nothing. */
+const TOLERANCE = COMPARE ? 0.005 : 0.02;
 
 const update = process.argv.includes('--update');
 const asJson = process.argv.includes('--json');
@@ -79,7 +92,7 @@ const PROFILES: Array<{ name: string; blurb: string; marks: RuntimeMarks }> = [
 	},
 	{
 		name: 'Everything',
-		blurb: 'kitchen sink',
+		blurb: 'kitchen sink, with the profiler beacon and a client plugin',
 		marks: {
 			complete: true,
 			hydrate: ['load', 'interaction', 'none'],
@@ -106,6 +119,8 @@ type Row = {
 	boot: Size;
 	total: Size;
 	lazy: Array<{ name: string } & Size>;
+	/** The boot's modules, by minified length. */
+	modules: Record<string, number>;
 };
 type Snapshot = Record<string, { boot: Size; total: Size }>;
 
@@ -114,16 +129,23 @@ const size = (code: string): Size => {
 	return { raw: buf.length, brotli: brotliCompressSync(buf).length };
 };
 
-async function measure(marks: RuntimeMarks): Promise<Pick<Row, 'boot' | 'total' | 'lazy'>> {
+async function measure(
+	marks: RuntimeMarks,
+	extras: boolean
+): Promise<Pick<Row, 'boot' | 'total' | 'lazy' | 'modules'>> {
 	const { code } = generateRuntimeEntrySource(marks, RUNTIME_DIR);
 	const dir = mkdtempSync(join(tmpdir(), 'ogygia-size-'));
 	const entry = join(dir, 'entry.mjs');
 	writeFileSync(entry, code);
 	// Bundle everything ogygia owns (core, features, devalue); externalize what the host app already
-	// ships (svelte, Kit's $app, esm-env) so we measure ogygia's MARGINAL cost, not shared runtime.
+	// ships (svelte, Kit's $app) so we measure ogygia's MARGINAL cost, not shared runtime. esm-env is
+	// bundled as a production browser build resolves it (its `DEV` false, `BROWSER` true: a few
+	// bytes), so what it gates folds as it does in an app: the message tables of a production browser
+	// bundle (they print the code's link alone) are not shipped, and not counted.
 	const bundle = await rolldown({
 		input: entry,
-		external: [/^svelte(\/|$)/, /^\$app\//, 'esm-env', /\.svelte$/],
+		external: [/^svelte(\/|$)/, /^\$app\//, /\.svelte$/],
+		resolve: { conditionNames: ['browser', 'production', 'import', 'default'] },
 		// Strip DEV like a real Vite prod build (import.meta.env.DEV → false), so the numbers reflect
 		// what actually ships — not the dev-only warnings and the PropMutationGuard, which prod DCEs.
 		// Mirror the plugin's `define` (vite/index.ts) at their prod defaults: the runtime's build-time
@@ -137,7 +159,11 @@ async function measure(marks: RuntimeMarks): Promise<Pick<Row, 'boot' | 'total' 
 				__OGYGIA_DEVTOOLS__: 'false', // off by default — user apps never ship it
 				__OGYGIA_RULES__: 'false', // ogygia's rules on itself: dev and e2e builds only, never shipped
 				__OGYGIA_CONTINUITY_FORMS__: 'true', // form continuity on by default (gated by the profile's marks)
-				__OGYGIA_SERVER_DELTA__: 'false' // server-delta nav is opt-in
+				__OGYGIA_SERVER_DELTA__: 'false', // server-delta nav is opt-in
+				// the profiler's browser half and plugin hooks: on only for an app that configured the
+				// profiler or devtools, or installs a client plugin (the kitchen-sink profile does)
+				__OGYGIA_BEACON__: String(extras),
+				__OGYGIA_CLIENT_PLUGINS__: String(extras)
 			}
 		},
 		logLevel: 'silent'
@@ -165,12 +191,26 @@ async function measure(marks: RuntimeMarks): Promise<Pick<Row, 'boot' | 'total' 
 	const lazy = chunks
 		.filter((c) => !boot_set.has(c.fileName))
 		.map((c) => ({ name: c.name, ...size(c.code) }));
-	return { boot, total, lazy };
+	// each module of the boot, by its minified length (`--modules`): what to look at first
+	const modules: Record<string, number> = {};
+	for (const c of chunks)
+		if (boot_set.has(c.fileName))
+			for (const [id, m] of Object.entries(c.modules))
+				if (m.renderedLength > 0) modules[module_name(id)] = m.renderedLength;
+	return { boot, total, lazy, modules };
+}
+
+/** A module's id, short: its path from the repo's packages (or its package in node_modules). */
+function module_name(id: string): string {
+	const at = id.lastIndexOf('/node_modules/');
+	if (at !== -1) return id.slice(at + '/node_modules/'.length);
+	const pkg = id.indexOf('/packages/');
+	return pkg === -1 ? id : id.slice(pkg + 1);
 }
 
 const rows: Row[] = [];
 for (const p of PROFILES) {
-	const m = await measure(p.marks);
+	const m = await measure(p.marks, p.name === 'Everything');
 	rows.push({ name: p.name, blurb: p.blurb, features: resolveFeatures(p.marks), ...m });
 }
 
@@ -187,7 +227,16 @@ if (asJson) {
 	process.exit(0);
 }
 
-const base: Snapshot = existsSync(SNAPSHOT) ? JSON.parse(readFileSync(SNAPSHOT, 'utf8')) : {};
+const base: Snapshot = COMPARE
+	? Object.fromEntries(
+			(JSON.parse(readFileSync(COMPARE, 'utf8')) as Row[]).map((r) => [
+				r.name,
+				{ boot: r.boot, total: r.total }
+			])
+		)
+	: existsSync(SNAPSHOT)
+		? JSON.parse(readFileSync(SNAPSHOT, 'utf8'))
+		: {};
 /** A profile's baseline, or undefined when the snapshot predates the boot/total split. */
 const baseline = (name: string) => (base[name]?.boot && base[name]?.total ? base[name] : undefined);
 const kb = (n: number) => (n / 1024).toFixed(2) + ' kB';
@@ -226,7 +275,7 @@ for (const r of rows) {
 		const limit = Math.ceil(prev[key].brotli * (1 + TOLERANCE));
 		if (r[key].brotli > limit)
 			failures.push(
-				`${r.name} ${key}: ${kb(r[key].brotli)} > ${kb(limit)} (snapshot ${kb(prev[key].brotli)} + ${TOLERANCE * 100} %)`
+				`${r.name} ${key}: ${kb(r[key].brotli)} > ${kb(limit)} (${COMPARE ? 'base' : 'snapshot'} ${kb(prev[key].brotli)} + ${TOLERANCE * 100} %)`
 			);
 	}
 }
@@ -235,7 +284,14 @@ console.log('  ' + '─'.repeat(84));
 console.log('  ' + 'average boot'.padEnd(16) + kb(avg));
 console.log('');
 if (failures.length) {
-	console.error('✗ bundle-size regression (over snapshot + 2 %):\n  ' + failures.join('\n  '));
-	console.error('  If the growth is intended, refresh the baseline: pnpm bundle-size --update');
+	if (COMPARE) {
+		console.error('✗ bundle-size growth over the base branch:\n  ' + failures.join('\n  '));
+		console.error(
+			'  If the growth is meant, the PR body says why on a line of its own: `Size baseline: <why>`.'
+		);
+	} else {
+		console.error('✗ bundle-size regression (over snapshot + 2 %):\n  ' + failures.join('\n  '));
+		console.error('  If the growth is intended, refresh the baseline: pnpm bundle-size --update');
+	}
 	process.exit(1);
 }
