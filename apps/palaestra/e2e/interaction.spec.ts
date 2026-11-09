@@ -74,6 +74,22 @@ test.describe("wake:'interaction' — cold until used, click replay, typing surv
 		);
 
 		// ---------- first click wakes + replays (counts exactly once) ----------
+		// Whether the island was still waking when the browser's own click fired: its press wakes it,
+		// and a warmed island can be live before the click lands (Firefox and WebKit space a click's
+		// events out more than Chromium does). Waking: the click is replayed, untrusted. Live: it
+		// lands natively, trusted. Either way it counts once.
+		await page.evaluate(() => {
+			const w = window as Window & { __click_while_waking?: boolean };
+			window.addEventListener(
+				'click',
+				(e) => {
+					if (!e.isTrusted || w.__click_while_waking !== undefined) return;
+					w.__click_while_waking =
+						document.querySelector('ogygia-region[wake="interaction"][data-hydrated]') === null;
+				},
+				{ capture: true }
+			);
+		});
 		await page.locator('[data-i-btn]').click();
 		await page.waitForTimeout(300);
 		check(
@@ -85,9 +101,14 @@ test.describe("wake:'interaction' — cold until used, click replay, typing surv
 			(await page.locator('[data-i-count]').innerText()) === '1',
 			`count=${await page.locator('[data-i-count]').innerText()}`
 		);
+		const while_waking = await page.evaluate(
+			() => (window as Window & { __click_while_waking?: boolean }).__click_while_waking
+		);
+		const trusted = await page.locator('[data-i-trusted]').innerText();
 		check(
-			'click: replayed event is untrusted (documented semantics)',
-			(await page.locator('[data-i-trusted]').innerText()) === 'false'
+			'click: replayed while waking is untrusted, landed live is trusted (documented semantics)',
+			typeof while_waking === 'boolean' && trusted === (while_waking ? 'false' : 'true'),
+			`while waking: ${while_waking}, trusted: ${trusted}`
 		);
 		check(
 			'click: hydratedBy() === interaction',
