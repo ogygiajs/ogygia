@@ -23,6 +23,10 @@ import {
 	write_switch
 } from '@ogygia/core/insights';
 import { TESTING_ENGINE_VERSION } from '@ogygia/core/insights';
+import { import_again } from '@ogygia/core/internal/instruments';
+
+/** The dock's code: after a failed download, asked for again under a fresh URL. */
+const import_app = import_again(() => import('./ui-app.ts'));
 
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 const LAZY = typeof __OGYGIA_DEVTOOLS_LAZY__ !== 'undefined' ? __OGYGIA_DEVTOOLS_LAZY__ : false;
@@ -86,18 +90,32 @@ function mount_launcher(opts?: { csr_true?: boolean }): void {
 	let want_open = false;
 	let button: HTMLButtonElement | null = null;
 	let on_key: ((e: KeyboardEvent) => void) | null = null;
+	// A download that fails puts the button back as it was, so the next click asks again, under a
+	// fresh URL (the browser keeps the failed one: core's import-again.ts). It once stayed on
+	// "loading…" for good.
 	const load = () => {
 		if (loading) return;
 		loading = true;
-		void import('./ui-app.ts').then((m) => {
-			button?.remove();
-			if (on_key) removeEventListener('keydown', on_key);
-			m.mount_app(root, {
-				csr_true,
-				start_open: want_open,
-				...(LAZY ? { hide: devtools_off } : {})
-			});
-		});
+		void import_app().then(
+			(m) => {
+				button?.remove();
+				if (on_key) removeEventListener('keydown', on_key);
+				m.mount_app(root, {
+					csr_true,
+					start_open: want_open,
+					...(LAZY ? { hide: devtools_off } : {})
+				});
+			},
+			(error: unknown) => {
+				loading = false;
+				want_open = false;
+				if (button) button.textContent = 'og devtools';
+				console.error(
+					'[ogygia] devtools: the dock’s code failed to load (click to try again)',
+					error
+				);
+			}
+		);
 	};
 	button = document.createElement('button');
 	button.setAttribute('data-og-panel-toggle', '');

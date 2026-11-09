@@ -1,4 +1,6 @@
+import { once } from '@ogygia/machine';
 import { frameAddress } from '../frame.ts';
+import { import_again } from './import-again.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
 // off in a build where no region streams HTML, and the bundler drops the element's fetch / apply /
 // morph / renew path with it — that path works on the element's own state, so it cannot be a
@@ -164,20 +166,22 @@ function now_ms(): number {
  * `test/runtime-boot-svelte-free.test.ts` pins the invariant over the whole boot graph.
  * `loaded_core` is the synchronous view once it has arrived (a kept island's props absorb runs
  * inside the reconciler, synchronously, and only ever for an island that already hydrated).
+ *
+ * A download that fails is tried again at once, and a failure is never kept: the next wake loads it
+ * afresh, so one dropped request on a flaky network does not leave every island in the tab dead.
  */
 type HydrateCore = typeof import('./hydrate-core.ts');
-let core_promise: Promise<HydrateCore> | null = null;
 let loaded_core: HydrateCore | null = null;
-function hydrate_core(): Promise<HydrateCore> {
-	if (!core_promise) {
+const import_core = import_again(() => import('./hydrate-core.ts'));
+const hydrate_core: () => Promise<HydrateCore> = once(
+	() =>
 		// in a task of its own: the import's synchronous start (the bundler's preload of the chunk's
 		// ~20 dependencies) ran inside the first island's start, one long task with it
-		core_promise = yield_task()
-			.then(() => import('./hydrate-core.ts'))
-			.then((m) => (loaded_core = m));
-	}
-	return core_promise;
-}
+		yield_task()
+			.then(import_core)
+			.then((m) => (loaded_core = m)),
+	{ retries: 1 }
+);
 
 /** An answer just went in carrying the page facts it rendered with (server/render-page.ts): once
  *  islands are awake (the hydrate core loaded), they join the page store NOW, so a KEPT island reading
@@ -185,7 +189,11 @@ function hydrate_core(): Promise<HydrateCore> {
 function absorb_page_facts_now(): void {
 	// (facts cross in devalue's lane)
 	if (runtime_session.page_facts.length && loaded_core)
-		void load_devalue().then(() => loaded_core?.seed_page_once());
+		// (devalue failed to download: the facts stay queued, and the next wake's load absorbs them)
+		void load_devalue().then(
+			() => loaded_core?.seed_page_once(),
+			() => {}
+		);
 }
 
 /** devalue, when this wake's reads need it (./devalue-lane.ts): a devalue-lane script in the
