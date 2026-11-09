@@ -240,7 +240,8 @@ export const SERVER_WARNINGS = {
 		`
 	},
 	rule_flight_kept_failure: {
-		text: (a: { detail: string }): string => `rule broken, no shared work keeps a failure: ${a.detail}`,
+		text: (a: { detail: string }): string =>
+			`rule broken, no shared work keeps a failure: ${a.detail}`,
 		details: (): string => prose`
 			Dev and e2e builds only (a rule ogygia checks on itself). Shared work (a render, a fetch
 			that callers join) keeps its answer for the next caller, but never a failure: the next

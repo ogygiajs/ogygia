@@ -21,8 +21,7 @@ export type BrokenRule = { code: string; detail: string };
 export async function rules(page: Page): Promise<BrokenRule[] | null> {
 	try {
 		return await page.evaluate(
-			() =>
-				(globalThis as { __ogygia_rules?: () => BrokenRule[] }).__ogygia_rules?.() ?? null
+			() => (globalThis as { __ogygia_rules?: () => BrokenRule[] }).__ogygia_rules?.() ?? null
 		);
 	} catch {
 		return null; // ok: closed, or navigating away: nothing to read
