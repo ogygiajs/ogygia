@@ -349,6 +349,10 @@
 			"reason": "browser only: the current entry's pathname and search, constant work; proven in apps/palaestra/e2e/router-history.spec.ts and router-race.spec.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/router.ts > named",
+			"reason": "browser only: history.state with the entry id merged in, one spread of the app's state, constant work; proven in packages/core/test/browser/router-history-state.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/router.ts > RouterHistory > get current",
 			"reason": "browser only: the current entry, made from location on first read, constant work; proven in apps/palaestra/e2e/router-history.spec.ts"
 		},
