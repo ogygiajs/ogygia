@@ -6623,6 +6623,37 @@ describe('the deep pictures on the host: visits, keep, the byte strip, nested tr
 		}
 	}, 10_000);
 
+	// A sink that is down: the rows read meanwhile stay in the capped buffer (which drops the oldest
+	// when full) instead of a post per tick queued without a bound behind the one still out.
+	it('the sink: while a post is out, the rows read wait in the buffer, not in a post per tick', async () => {
+		const bodies: string[] = [];
+		const down_until = Date.now() + 4000;
+		const orig = globalThis.fetch;
+		globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+			if (Date.now() < down_until) return new Response('down', { status: 503 });
+			bodies.push(String(init?.body));
+			return new Response('ok');
+		}) as typeof fetch;
+		try {
+			const handle = profiler({ sink: { url: 'http://sink.test/rows', every: 1000 } });
+			for (const path of ['/a', '/b', '/c', '/d']) {
+				await handle({ event: make_event(path), resolve: async () => new Response('ok') });
+				await new Promise((r) => setTimeout(r, 1000));
+			}
+			await new Promise((r) => setTimeout(r, 9000));
+			const paths = bodies
+				.join('\n')
+				.split('\n')
+				.filter(Boolean)
+				.map((l) => (JSON.parse(l) as { path: string }).path);
+			expect(paths).toEqual(['/a', '/b', '/c', '/d']);
+			// the post that was out, then one with everything read meanwhile
+			expect(bodies.length).toBeLessThanOrEqual(2);
+		} finally {
+			globalThis.fetch = orig;
+		}
+	}, 20_000);
+
 	it('compare with a report this server no longer holds renders the browser-store fallback, not a 404', async () => {
 		const handle = profiler({ secret: 'prof-key' });
 		const res = await handle({
