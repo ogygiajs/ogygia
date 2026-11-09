@@ -21,4 +21,8 @@ describe('a Node process', () => {
 	it('collects a flights nobody holds, and its world forgets it (#352)', () => {
 		expect(run('world-forgets-flights.ts', ['--expose-gc'])).toBe('1 dropped');
 	});
+
+	it('frees a symbol a keyed flights spelled into a key, once nothing holds it (#357)', () => {
+		expect(run('symbol-keys-freed.ts', ['--expose-gc'])).toBe('freed');
+	});
 });
