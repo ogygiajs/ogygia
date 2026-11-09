@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cache, flights, MachineError, scope, world, type EvictWhy } from '../src/index.ts';
-import { IN_USE, type InternalCacheOptions } from '../src/cache.ts';
 import { DISPOSE } from './_dispose.ts';
 
 /** A cache's notices, as `key:value:why`. */
@@ -70,16 +69,14 @@ describe('cache: bounded', () => {
 		expect(n.seen).toEqual(['a:xxxx:size', 'b:xxxx:size']);
 	});
 
-	it('a value in use counts against max but does not go for size: the next oldest goes', () => {
+	it('a pinned value counts against max but does not go for size: the next oldest goes', () => {
 		const n = noted();
 		const busy = new Set(['a']);
-		// (the package's own option: flights passes it, the public shape does not have it)
-		const options: InternalCacheOptions<string, number> = {
+		const c = cache<string, number>({
 			max: 2,
-			[IN_USE]: (_v, k) => busy.has(k),
+			pinned: (_v, k) => busy.has(k),
 			onEvict: n.onEvict
-		};
-		const c = cache<string, number>(options);
+		});
 		c.set('a', 1);
 		c.set('b', 2);
 		c.set('c', 3);
