@@ -247,7 +247,7 @@ function shown_under_media(el: Element): string | null {
  *  belong to. Null until read; never off the dev server, nor on a page that loaded no pre-bundled file. */
 let prebundled: string[] | null = null;
 let prebundled_asked = false;
-function prebundled_packages(script_urls: readonly string[]): string[] | null {
+export function prebundled_packages(script_urls: readonly string[]): string[] | null {
 	if (!import.meta.env.DEV || prebundled_asked) return prebundled;
 	const one = script_urls.find((u) => u.includes('/node_modules/.vite/deps/'));
 	if (!one) return null;
@@ -265,7 +265,7 @@ function prebundled_packages(script_urls: readonly string[]): string[] | null {
 /** A FILE THE BROWSER DOWNLOADED AGAIN: its answer's `Vary` header, asked once per URL with a HEAD
  *  (a tool's request, out of every measurement). Null until it is in, or when the answer has none. */
 const varies = new Map<string, string | null>();
-function vary_of(url: string): string | null {
+export function vary_of(url: string): string | null {
 	if (varies.has(url)) return varies.get(url) ?? null;
 	varies.set(url, null);
 	void tool_fetch(url, { method: 'HEAD', cache: 'no-store' })
