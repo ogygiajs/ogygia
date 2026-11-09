@@ -22,8 +22,16 @@ describe('cache: bounded', () => {
 		expect(() => cache({ max: 0 })).toThrow(MachineError);
 		expect(() => cache({ max: -1 })).toThrow(MachineError);
 		expect(() => cache({ max: Number.NaN })).toThrow(MachineError);
-		// unbounded is a choice written out
-		expect(() => cache({ max: Infinity })).not.toThrow();
+		// a bound is a number: Infinity is no bound
+		expect(() => cache({ max: Infinity })).toThrow(MachineError);
+	});
+
+	it('flights keeps at most 1000 answers by default, the least recently used out first', async () => {
+		const pages = flights({ run: async (k: number) => k });
+		for (let k = 0; k <= 1000; k++) await pages.get(k);
+		expect(pages.peek(0)).toBeUndefined();
+		expect(pages.peek(1)).toMatchObject({ kind: 'kept', answer: 1 });
+		expect(pages.peek(1000)).toMatchObject({ kind: 'kept', answer: 1000 });
 	});
 
 	it('past max, the least recently used goes first, and a get is a use', () => {
@@ -114,6 +122,25 @@ describe('cache: ages', () => {
 		c.set('long', 100);
 		vi.advanceTimersByTime(50);
 		expect([...c.entries()].map(([k]) => k)).toEqual(['long']);
+	});
+
+	it('ages are swept at most once a second: a value due soon after a sweep goes with the next (reads are exact)', () => {
+		vi.useFakeTimers();
+		const n = noted();
+		const c = cache<string, number>({
+			max: 10,
+			keep: (v) => v,
+			onEvict: n.onEvict
+		});
+		c.set('a', 1000);
+		c.set('b', 1500);
+		vi.advanceTimersByTime(1000);
+		expect(n.seen).toEqual(['a:1000:age']);
+		vi.advanceTimersByTime(500); // b is past its age: a read says so, the sweep has not run yet
+		expect(c.has('b')).toBe(false);
+		expect(n.seen).toEqual(['a:1000:age']);
+		vi.advanceTimersByTime(500);
+		expect(n.seen).toEqual(['a:1000:age', 'b:1500:age']);
 	});
 
 	it('one timer for all the ages, owned by the cache', () => {

@@ -75,8 +75,9 @@ export const MACHINE_ERRORS: MachineErrors = {
 			`machine: \`${a.option}\` must be ${a.rule} (got ${a.value}).`,
 		details: (): string =>
 			'An option was given a value it cannot take. `retries` counts tries: a whole number of 0 ' +
-			'or more. A flights `keep` is milliseconds: 0 or more, `Infinity` for as long as the ' +
-			'flights lives. A flights `max` is the most weight it keeps: more than 0.'
+			'or more. A flights `keep` is milliseconds: 0 or more, `Infinity` for until `max` lets it ' +
+			'go. A flights or cache `max` is the most weight it keeps: a finite number more than 0 ' +
+			'(a cache with no bound is refused).'
 	},
 	machine_bad_time: {
 		text: (a: { where: string; ms: string }): string =>
