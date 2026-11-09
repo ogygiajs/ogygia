@@ -183,7 +183,7 @@ function kill_all() {
 		try {
 			if (child.pid) process.kill(-child.pid, 'SIGTERM');
 		} catch {
-			// already gone
+			// ok: the group already exited (ESRCH), which is what the signal was for
 		}
 	}
 }

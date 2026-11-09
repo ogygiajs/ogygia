@@ -804,7 +804,7 @@ export function page_origin(pa: PageAssets | undefined): string {
 				try {
 					return new URL(a.url).origin;
 				} catch {
-					// not a URL
+					// ok: not a URL, so no origin; the next asset is tried
 				}
 	return '';
 }

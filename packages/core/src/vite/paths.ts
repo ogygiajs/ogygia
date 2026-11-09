@@ -26,7 +26,7 @@ export function real_posix(p: string): string {
 	try {
 		p = fs.realpathSync(p);
 	} catch {
-		/* keep as-given — a missing path simply never matches an id */
+		// ok: kept as given; a missing path never matches an id
 	}
 	return p.replace(WIN_SEP_RE, '/');
 }
@@ -158,14 +158,14 @@ function runtime_content_hash(): string {
 			if (name.endsWith('.js')) inputs.push(path.join(rt_dir, name));
 		}
 	} catch {
-		/* dist may lack runtime until first build */
+		// ok: dist may lack the runtime until its first build
 	}
 	const h = crypto.createHash('sha256');
 	for (const f of inputs) {
 		try {
 			h.update(fs.readFileSync(f));
 		} catch {
-			/* a missing input just doesn't contribute — still deterministic across both builds */
+			// ok: a missing input does not contribute; still the same across both builds
 		}
 	}
 	return h.digest('hex').slice(0, 12);

@@ -75,7 +75,7 @@
 			try {
 				g.value = labels[i]; // shared store: every same-group block follows + persists
 			} catch {
-				/* store set never throws, but keep the DOM update resilient */
+				// ok: the store's set only fails on storage, which it already handles; the tabs above are switched
 			}
 		};
 

@@ -250,11 +250,11 @@ export function start_session(prior?: SavedPart[]): Recorder {
 					const left = po.takeRecords();
 					if (left.length) cb(left);
 				} catch {
-					// ignore
+					// ok: no takeRecords here; the entries already delivered count
 				}
 			});
 		} catch {
-			// unsupported here
+			// ok: an entry type this browser does not have; the session records without it
 		}
 	};
 	watch(
@@ -435,7 +435,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 			attributes: true
 		});
 	} catch {
-		// no body
+		// ok: no body yet: no DOM changes to count
 	}
 	// (a window's `onerror` is typed for the legacy string form too: a listener gets the event)
 	const on_error = (e: Event | string) =>
@@ -538,7 +538,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 				])
 			);
 		} catch {
-			// no storage: the session ends with this page
+			// ok: no storage: the session ends with this page
 		}
 	};
 	s.on(globalThis, 'pagehide', on_hide);
@@ -565,7 +565,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 			try {
 				sessionStorage.removeItem(SAVED_KEY);
 			} catch {
-				// no storage
+				// ok: no storage: nothing was saved to remove
 			}
 			return prior?.length ? merge_parts(prior, here) : here;
 		}

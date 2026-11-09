@@ -172,7 +172,7 @@ function styles_the_panel(
 				}
 				if (panel.querySelector(m)) in_panel = true;
 			} catch {
-				/* a selector this browser cannot query */
+				// ok: a selector this browser cannot query matches nothing
 			}
 		}
 	});
@@ -307,7 +307,7 @@ export async function scan_unscoped(
 			tool_fetch(href, { cache: 'force-cache' })
 				.then((r) => (r.ok ? r.text() : ''))
 				.then((css) => add(css, file_of(href)))
-				.catch(() => {})
+				.catch(() => {}) // ok: a sheet that cannot be fetched is left out of the report
 		);
 	}
 	await Promise.all(jobs);

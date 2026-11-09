@@ -69,7 +69,7 @@
 			copied = true;
 			owner.timeout(() => (copied = false), 1500);
 		} catch {
-			/* clipboard blocked — the field is selectable */
+			// ok: clipboard blocked; the field is selectable
 		}
 	}
 </script>

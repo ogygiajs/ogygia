@@ -6,7 +6,8 @@
 	"rules": {
 		"typescript/no-explicit-any": "error",
 		"ogygia/no-promise-cache": "error",
-		"ogygia/owned-effects": "error"
+		"ogygia/owned-effects": "error",
+		"ogygia/no-silent-failures": "error"
 	},
 	"ignorePatterns": [
 		"**/dist/**",

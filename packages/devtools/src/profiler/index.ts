@@ -1176,7 +1176,7 @@ class Profiler {
 					await store.init?.();
 				}
 			});
-			void this.#store_ready();
+			void this.#store_ready(); // ok: never rejects (a failed init is said: devtools_profiler_store_init_failed)
 		}
 		this.#client_cpu = options.clientCpu !== false;
 		if (options.sink?.url) {
@@ -1185,7 +1185,7 @@ class Profiler {
 			this.#sink_every = Math.max(1000, options.sink.every ?? 10_000);
 			// a long-lived host flushes on a timer; a serverless one flushes after each request (below)
 			if (!Number.isFinite(serverless_work_budget_ms())) {
-				this.#sink_timer = this.#background.every(() => void this.#sink_flush(), this.#sink_every);
+				this.#sink_timer = this.#background.every(() => void this.#sink_flush(), this.#sink_every); // ok: a flush never rejects (its failure is kept for the site view)
 			}
 		}
 		this.#sample = options.sample ? options.sample : null;
@@ -1229,7 +1229,7 @@ class Profiler {
 		const sinking = this.#sink_timer !== null;
 		this.#trap_timer = this.#sample_timer = this.#sink_timer = null;
 		this.#background.close();
-		if (sinking) void this.#sink_flush();
+		if (sinking) void this.#sink_flush(); // ok: a flush never rejects (its failure is kept for the site view)
 	}
 
 	/** A background window's length: `ms`, or less when the profiler stands down meanwhile. */
@@ -1258,12 +1258,12 @@ class Profiler {
 
 	#schedule_trap(delay_ms: number): void {
 		if (this.#background.closed) return;
-		this.#trap_timer = this.#background.timeout(() => void this.#trap_cycle(), delay_ms);
+		this.#trap_timer = this.#background.timeout(() => void this.#trap_cycle(), delay_ms); // ok: a cycle catches its own failure
 	}
 
 	#schedule_sample(delay_ms: number): void {
 		if (this.#background.closed) return;
-		this.#sample_timer = this.#background.timeout(() => void this.#sample_cycle(), delay_ms);
+		this.#sample_timer = this.#background.timeout(() => void this.#sample_cycle(), delay_ms); // ok: a cycle catches its own failure
 	}
 
 	/** One rolling trap window: sample coarsely, then keep the window only if a request in it blew
@@ -1318,7 +1318,7 @@ class Profiler {
 						id,
 						dump: report_dump(stored.analysis, stored.meta, this.#report_extras(stored))
 					});
-					void this.#sink_flush();
+					void this.#sink_flush(); // ok: a flush never rejects (its failure is kept for the site view)
 				}
 				this.#trap_caught++;
 			}
@@ -1481,7 +1481,7 @@ class Profiler {
 					// capture. This is what makes a run RELIABLY see network instead of sometimes.
 					this.#ensure_net = ensure_fetch_patched;
 				} catch {
-					// platform without patchable modules — wall timing still works
+					// ok: a platform without patchable modules; wall timing still works
 				}
 			}
 		}
@@ -1596,7 +1596,7 @@ class Profiler {
 			observer = new perf_hooks.PerformanceObserver((list) => ingest(list.getEntries()));
 			observer.observe({ entryTypes: ['gc', 'measure'] });
 		} catch {
-			// entry types unavailable on this runtime — sampler still covers GC
+			// ok: entry types unavailable on this runtime; the sampler still covers GC
 		}
 
 		const mem: MemSample[] = [];
@@ -1630,7 +1630,7 @@ class Profiler {
 				};
 				sampling.every(sample_heap, HEAP_SERIES_PERIOD_MS);
 			} catch {
-				// no v8 module (edge): no series
+				// ok: no v8 module (edge): no heap series
 			}
 		}
 
@@ -1639,7 +1639,7 @@ class Profiler {
 		// (each turned on right at the `try` whose `finally` turns it off)
 		const owner = {};
 		const window_net: NetCall[] = [];
-		const netmod = await import('./net.ts').catch(() => null);
+		const netmod = await import('./net.ts').catch(() => null); // ok: a runtime with no network module: no network capture, the window still records
 		// SPANS (`span()` / `tag()` from ogygia/profiler): recorded only while this window runs.
 		// A span rides the same async context as the fetch patch — the request it belongs to, and
 		// for nesting a child store carrying the span's id (only during a recording, so the per-hop
@@ -1651,7 +1651,7 @@ class Profiler {
 		const span_als = new SpanALS<number>();
 		const window_spans = new WindowSpans(this.#als, span_als, netmod);
 		const { spans } = window_spans;
-		const iomod = opts.light ? null : await import('./async-io.ts').catch(() => null);
+		const iomod = opts.light ? null : await import('./async-io.ts').catch(() => null); // ok: a runtime with no async hooks: no I/O lanes, the window still records
 		let io_rec = iomod ? await iomod.IoRecorder.start() : null;
 
 		let heap_head: HeapNode | null = null;
@@ -1697,7 +1697,7 @@ class Profiler {
 						}
 					} else await session.post('HeapProfiler.startSampling', { samplingInterval: 16384 });
 				} catch {
-					// heap sampling unsupported — carry on
+					// ok: heap sampling unsupported here; the window records without it
 				}
 			}
 			// The samples' clock: V8 stamps the profile's `startTime` when the profile is created, at
@@ -1746,7 +1746,7 @@ class Profiler {
 			try {
 				if (observer) ingest(observer.takeRecords());
 			} catch {
-				// takeRecords unsupported — callback-delivered entries still counted
+				// ok: takeRecords unsupported; callback-delivered entries are still counted
 			}
 
 			const cpu = process.cpuUsage(cpu0);
@@ -1812,13 +1812,13 @@ class Profiler {
 			try {
 				observer?.disconnect();
 			} catch {
-				// already gone
+				// ok: already disconnected, which is what this was for
 			}
 			this.#window_nets.delete(window_net);
 			try {
 				session.disconnect();
 			} catch {
-				// already gone
+				// ok: already disconnected, which is what this was for
 			}
 		}
 	}
@@ -1899,7 +1899,7 @@ class Profiler {
 				session.disconnect();
 			}
 		} catch {
-			// no inspector / coverage — counts just won't show
+			// ok: no inspector or coverage here; the call counts are left out
 		}
 		return { counts, ...(profile ? { profile } : {}) };
 	}
@@ -1996,7 +1996,7 @@ class Profiler {
 						try {
 							return fs.readFileSync(base ? path.join(base, p) : p, 'utf8');
 						} catch {
-							/* try the next base */
+							// ok: not under this base; the next is tried
 						}
 					}
 					// a map the host left behind; a source file it did not ship (a build without maps
@@ -2364,7 +2364,7 @@ class Profiler {
 			const { gzipSync } = await import('node:zlib');
 			raw = gzipSync(raw_json);
 		} catch {
-			// no zlib (unlikely) — keep the string
+			// ok: no zlib (unlikely); the string is kept as it is
 		}
 		// THE ISLANDS' JS WEIGHT: every module / preload href the page's islands pull, fetched once
 		// through the app (a built app's hashed assets; dev URLs are unbundled and say nothing).
@@ -2512,11 +2512,11 @@ class Profiler {
 			try {
 				await this.#lines_for(s, undefined, cap.window?.start);
 			} catch {
-				// no ledger
+				// ok: a report without its line ledger; the rest of the report stands
 			}
 		}
 		// page mode writes once, at its end, with every extra in (and waits for the write)
-		if (meta_partial.trigger !== 'page') void this.#persist(this.#reports.get(id)!);
+		if (meta_partial.trigger !== 'page') void this.#persist(this.#reports.get(id)!); // ok: never rejects (a failed write is said: devtools_profiler_put_report_failed)
 		while (this.#reports.size > this.max_reports) {
 			const oldest = this.#reports.keys().next().value;
 			if (oldest === undefined) break;
@@ -2574,7 +2574,8 @@ class Profiler {
 	 * is never spent on profiler auth (it stays free, and there's a real Logout).
 	 */
 	async #login(ctx: RouteCtx): Promise<Response> {
-		const body = (await ctx.request.json().catch(() => null)) as {
+		const sent: unknown = await ctx.request.json().catch(() => null); // ok: a body that is not JSON is a failed unlock, answered below
+		const body = sent as {
 			key?: unknown;
 			next?: unknown;
 		} | null;
@@ -2880,7 +2881,7 @@ class Profiler {
 					const res = await f(url, { headers });
 					if (res.ok) return await res.text();
 				} catch {
-					// the next way
+					// ok: this way could not fetch it; the next way is tried
 				}
 			}
 			return null;
@@ -3091,7 +3092,7 @@ class Profiler {
 				};
 			}
 		} catch {
-			// no node:v8 (not Node)
+			// ok: no node:v8 (not Node): no memory limit to read
 		}
 		const patterns = ledger.length
 			? find_patterns({
@@ -3607,7 +3608,7 @@ class Profiler {
 				const p = counted_sync_io(s.call_counts, files);
 				if (p) patterns.push(p);
 			} catch {
-				// no file system: nothing to read the route's files from
+				// ok: no file system: nothing to read the route's files from
 			}
 		}
 		// biggest saving first — except a severe leak (8 MB+ kept per render), which leads: it ends
@@ -3796,7 +3797,7 @@ class Profiler {
 					out = fs.readFileSync(c, 'utf8');
 					break;
 				} catch {
-					/* next */
+					// ok: not this candidate; the next is tried
 				}
 			}
 			// a deployed host has no src/: the text the build's maps carry (embedded-maps.ts)
@@ -4104,7 +4105,7 @@ class Profiler {
 			try {
 				session.disconnect();
 			} catch {
-				// already gone
+				// ok: already disconnected, which is what this was for
 			}
 		}
 	}
@@ -4132,7 +4133,7 @@ class Profiler {
 			try {
 				session.disconnect();
 			} catch {
-				// already gone
+				// ok: already disconnected, which is what this was for
 			}
 		}
 	}
@@ -4436,7 +4437,7 @@ class Profiler {
 				visit: JSON.stringify(rec)
 			});
 		} catch {
-			// the store is down: this request is missing from the window, nothing else breaks
+			// ok: the store is down: this request is missing from the window, and the window's own report write says the store failed
 		}
 	}
 
@@ -5018,7 +5019,7 @@ class Profiler {
 				try {
 					own_calls.add(new URL(c.url, 'http://x').pathname);
 				} catch {
-					/* not a URL */
+					// ok: not a URL, so not a path the renders called
 				}
 			}
 			const outside = this.#ring.filter(
@@ -5247,7 +5248,7 @@ class Profiler {
 					const r = await event.fetch(u, { headers: { 'x-og-profiler-internal': '1' } });
 					if (r.ok) return r;
 				} catch {
-					// not answered internally
+					// ok: not answered internally; the origin is asked below
 				}
 				return fetch(new URL(u, event.url.origin), {
 					headers: { 'x-og-profiler-internal': '1' }
@@ -5331,7 +5332,7 @@ class Profiler {
 					const diff = doc_diff(first_body, last_body, name_of);
 					if (diff) s.meta.doc_diff = diff;
 				} catch {
-					// no diff
+					// ok: a report without the documents' diff; the rest stands
 				}
 			}
 			// THE DOCUMENT AS BYTES and THE DATA RIVER, from the last run's body
@@ -5345,7 +5346,7 @@ class Profiler {
 						if (tail) s.strip.tail = tail;
 					}
 				} catch {
-					// a document the scanner cannot walk: no strip
+					// ok: a document the scanner cannot walk: no byte strip
 				}
 				// THE PAGE'S WEIGHT: every file the document loads at start (whatever built it) and
 				// the islands' modules, weighed through the app — the score's JS / weight / blocking.
@@ -5401,19 +5402,19 @@ class Profiler {
 				try {
 					s.river = await this.#river_for(s, last_body, run_windows[run_windows.length - 1]);
 				} catch {
-					// no river
+					// ok: a report without its river; the rest stands
 				}
 				try {
 					s.lineage = await this.#lineage_for(s, last_body);
 				} catch {
-					// no lineage
+					// ok: a report without its lineage; the rest stands
 				}
 			}
 			// THE LINE LEDGER, now that the retained sites are in: the app lines that cost the most
 			try {
 				await this.#lines_for(s, counted.profile, cap.window?.start, stable, wait_runs, almost);
 			} catch {
-				// no ledger
+				// ok: a report without its line ledger; the rest of the report stands
 			}
 			// the durable copy, with every extra in, so a report read back from the store (another
 			// instance, a restart) carries all of them. AWAITED, up to a bound: on a serverless host the
@@ -5655,7 +5656,7 @@ class Profiler {
 					.sort((a, b) => b.created - a.created)[0];
 				if (earlier) prev = earlier.id;
 			} catch {
-				// no store
+				// ok: no store to list: no earlier report to compare with
 			}
 		}
 		const P = prev ? (this.#reports.get(prev) ?? (await this.#report_load(prev))) : undefined;
@@ -6661,7 +6662,7 @@ class Profiler {
 			const search = remote_url ? remote_url.search : event.url.search;
 			if (search) entry.search = search;
 		} catch {
-			/* prerendering: no query to keep */
+			// ok: prerendering: no query to keep
 		}
 		// the inputs a caught request is replayed with: only the headers the trap config names
 		if (this.#trap?.replay?.length) {
@@ -6725,7 +6726,7 @@ class Profiler {
 				// (SvelteKit 3 types `fetch` as readonly; at runtime it is a plain property on 2 and 3)
 				(event as { fetch: typeof fetch }).fetch = this.#wrap_event_fetch(event.fetch);
 			} catch {
-				// a frozen event (a test double) — the global patch still covers real HTTP
+				// ok: a frozen event (a test double); the global patch still covers real HTTP
 			}
 		}
 		const beacon_tag = await this.#beacon_tag(event);
@@ -6749,7 +6750,7 @@ class Profiler {
 				try {
 					res.headers.set('document-policy', 'js-profiling');
 				} catch {
-					// immutable headers
+					// ok: immutable headers; the response goes as it is
 				}
 			}
 			// (the beacon is this user's: no shared cache may keep the page that carries it)
@@ -6767,7 +6768,7 @@ class Profiler {
 							`cpu;desc="process CPU while it ran";dur=${((c.user + c.system) / 1000).toFixed(1)}`
 						);
 					} catch {
-						// no cpuUsage on this runtime
+						// ok: no cpuUsage on this runtime: no CPU timing
 					}
 					if (ctx?.net.length) {
 						const net_ms = ctx.net.reduce((a, c) => a + Math.max(c.ms, 0) + (c.body_ms ?? 0), 0);
@@ -6787,7 +6788,7 @@ class Profiler {
 								const u = new URL(x.url, 'http://relative.invalid');
 								where = (u.host === 'relative.invalid' ? '' : u.host) + u.pathname;
 							} catch {
-								// keep the stripped string
+								// ok: not a URL: the stripped string is kept
 							}
 							const desc = `${x.method ?? 'GET'} ${where}`
 								.slice(0, 120)
@@ -6823,7 +6824,7 @@ class Profiler {
 						);
 					}
 				} catch {
-					// immutable headers (e.g. a cached Response) — skip
+					// ok: immutable headers (a cached Response); the timing header is left out
 				}
 			}
 			return res;
@@ -6853,7 +6854,7 @@ class Profiler {
 				try {
 					res?.headers.append('x-profile-report', `${this.base}/report/${id}`);
 				} catch {
-					// immutable headers
+					// ok: immutable headers; the response goes as it is
 				}
 				return res!;
 			} finally {
@@ -6921,7 +6922,7 @@ class Profiler {
 				...(entry.og ? { og: entry.og.seed_bytes + entry.og.tail_bytes } : {})
 			});
 			// serverless: this instance may be frozen after the response — post now, best effort
-			if (Number.isFinite(serverless_work_budget_ms())) void this.#sink_flush();
+			if (Number.isFinite(serverless_work_budget_ms())) void this.#sink_flush(); // ok: a flush never rejects (its failure is kept for the site view)
 		}
 	}
 

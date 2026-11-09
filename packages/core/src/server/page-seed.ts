@@ -143,7 +143,7 @@ export class PageSeed {
 				try {
 					return { text: escape_script_text(JSON.stringify(full)), json: true };
 				} catch {
-					/* the analysis was wrong about a leaf — devalue below is the safe lane */
+					// ok: the analysis was wrong about a leaf; devalue below is the safe lane
 				}
 			}
 			let raw: string;
@@ -158,7 +158,7 @@ export class PageSeed {
 				try {
 					kept = keep_serializable(full, stringify_fn) as typeof full;
 				} catch {
-					/* kept stays the source */
+					// ok: kept stays the source
 				}
 				try {
 					raw = stringify_fn(kept);
@@ -170,7 +170,7 @@ export class PageSeed {
 							stringify_fn(kept[key]);
 							safe[key] = kept[key];
 						} catch {
-							/* drop just this field */
+							// ok: this field cannot cross, so just it is dropped
 						}
 					}
 					raw = stringify_fn(safe);

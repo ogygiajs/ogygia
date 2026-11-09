@@ -83,7 +83,7 @@ export function standalone_beacon(): void {
 			);
 			observers.push(po);
 		} catch {
-			/* an entry type this browser does not have */
+			// ok: an entry type this browser does not have; its numbers are left out
 		}
 	};
 
@@ -93,7 +93,7 @@ export function standalone_beacon(): void {
 			| undefined;
 		if (nav && nav.responseStart > 0) vitals.ttfb = r2(nav.responseStart);
 	} catch {
-		/* no navigation timing */
+		// ok: no navigation timing in this browser; its numbers are left out
 	}
 	watch('paint', (es) => {
 		for (const e of es)
@@ -111,7 +111,7 @@ export function standalone_beacon(): void {
 	try {
 		if (PerformanceObserver.supportedEntryTypes?.includes('layout-shift')) vitals.cls = 0;
 	} catch {
-		/* no entry-type list */
+		// ok: no entry-type list in this browser; nothing is marked unsupported
 	}
 	watch('layout-shift', (es) => {
 		for (const e of es) {
@@ -138,7 +138,7 @@ export function standalone_beacon(): void {
 	try {
 		performance.setResourceTimingBufferSize(3000);
 	} catch {
-		/* unsupported */
+		// ok: a browser that cannot grow the buffer keeps its default
 	}
 	watch('resource', (es) => {
 		for (const e of es)
@@ -178,10 +178,10 @@ export function standalone_beacon(): void {
 				keepalive,
 				credentials: 'same-origin',
 				headers: { 'content-type': 'text/plain' }
-			}).catch(() => {});
+			}).catch(() => {}); // ok: a beacon that failed has nobody to tell (the page may be gone); the profiler shows what reached it
 			if (keepalive) hold(body.length, settled);
 		} catch {
-			/* no fetch */
+			// ok: no fetch in this browser: no beacon
 		}
 	}
 	/** a beacon when it fits (what is left of the 64 KB the queued requests share); a big body as a
@@ -200,7 +200,7 @@ export function standalone_beacon(): void {
 		try {
 			if (navigator.sendBeacon?.(url!, body)) return hold(body.length);
 		} catch {
-			/* no beacon */
+			// ok: no sendBeacon; the fetch below sends it
 		}
 		post(body, true);
 	}
@@ -229,7 +229,7 @@ export function standalone_beacon(): void {
 				link_co[l.href] = l.getAttribute('crossorigin');
 			}
 		} catch {
-			/* no document */
+			// ok: no document: no preload links to read
 		}
 		return link_as;
 	}
@@ -305,7 +305,7 @@ export function standalone_beacon(): void {
 					});
 			}
 		} catch {
-			/* no resource timing */
+			// ok: no resource timing in this browser; the resources are left out
 		}
 		return out;
 	}
@@ -319,7 +319,7 @@ export function standalone_beacon(): void {
 				| PerformanceNavigationTiming
 				| undefined;
 		} catch {
-			/* no navigation timing */
+			// ok: no navigation timing in this browser; its numbers are left out
 		}
 		if (!nav || !(nav.responseStart > 0)) return null;
 		const resources: Record<string, unknown>[] = [];
@@ -360,7 +360,7 @@ export function standalone_beacon(): void {
 				resources.push(o);
 			}
 		} catch {
-			/* no resource timing */
+			// ok: no resource timing in this browser; the resources are left out
 		}
 		const n: Record<string, unknown> = {
 			req_start: r2(nav.requestStart),
@@ -403,7 +403,7 @@ export function standalone_beacon(): void {
 			].filter((t) => !types.includes(t));
 			if (missing.length) out.unsupported = missing;
 		} catch {
-			/* no entry-type list */
+			// ok: no entry-type list in this browser; nothing is marked unsupported
 		}
 		if (Object.keys(vitals).length) out.vitals = { ...vitals };
 		return out;
@@ -422,7 +422,7 @@ export function standalone_beacon(): void {
 				post(body, hiding);
 			},
 			() => {}
-		);
+		); // ok: a profiler that cannot stop has no trace; the visit goes without one
 	}
 
 	/** the page is going away: the vitals (final only now), the visit, the CPU trace */
@@ -480,14 +480,15 @@ export function standalone_beacon(): void {
 			try {
 				o.disconnect();
 			} catch {
-				/* gone */
+				// ok: already disconnected
 			}
 		}
 		if (profiler) {
+			// (its rejection too: a stop that throws, or rejects, as the beacon ends has nothing to keep)
 			try {
-				void profiler.stop();
+				profiler.stop().catch(() => {}); // ok: the beacon is ending; its trace is not wanted
 			} catch {
-				/* gone */
+				// ok: already stopped
 			}
 			profiler = null;
 		}

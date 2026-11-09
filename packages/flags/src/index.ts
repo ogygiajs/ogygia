@@ -18,6 +18,7 @@ import { BROWSER, DEV } from 'esm-env';
 import { fnv1a32, type StandardSchemaV1 } from '@ogygia/core/plugin/utils';
 import { flags_app } from './app.ts';
 import { warn } from './messages.ts';
+import { source_answered, source_failed, source_mark, source_reset } from './source-health.ts';
 import { machine } from '@ogygia/machine';
 
 export type CtxLike = {
@@ -119,7 +120,10 @@ let _batch = { max: 25, ms: 2000 };
  *   decide({ source: openfeature(client), overrides: (c) => !!c.visitor?.qa, exposure: send });
  */
 export function decide(opts: DecideOptions): void {
-	if ('source' in opts) _source = opts.source ?? null;
+	if ('source' in opts) {
+		_source = opts.source ?? null;
+		source_reset();
+	}
 	if (opts.overrides) _override_gate = opts.overrides;
 	if ('exposure' in opts) _exposure = opts.exposure ?? null;
 	if (opts.batch) _batch = { max: opts.batch.max ?? 25, ms: opts.batch.ms ?? 2000 };
@@ -161,14 +165,14 @@ function emit_exposure(e: ExposureEvent): void {
 	// (a send is in flight: this goes in the next one)
 	if (now.kind === 'flushing') return;
 	if (_queue.length >= _batch.max) {
-		void send();
+		void send(); // ok: send never rejects (a sink failure is said as flags_exposure_failed)
 		return;
 	}
 	if (now.kind === 'buffering') return;
 	_exposures.go('buffering');
 	// the age cap, for this visit of `buffering` only: a send or a flush clears it
 	// oxlint-disable-next-line ogygia/owned-effects -- the buffering visit's (its scope clears it, below), but a bare timer: it holds the process open until the queued exposures are sent, which a scope's timer does not
-	const timer = setTimeout(() => void send(), _batch.ms);
+	const timer = setTimeout(() => void send(), _batch.ms); // ok: send never rejects
 	_exposures.scope.defer(() => clearTimeout(timer));
 }
 
@@ -182,7 +186,7 @@ function send(): Promise<void> {
 	_exposures.go('flushing', { sent });
 	const visit = _exposures.now;
 	const sink = _exposure;
-	void _exposures.scope
+	void _exposures.scope // ok: the sink's failure is handled below, as flags_exposure_failed
 		.task(() => sink?.(batch))
 		.then(
 			() => {
@@ -197,7 +201,7 @@ function send(): Promise<void> {
 		.then(() => {
 			// (what was read during the send goes now, in one batch)
 			if (_exposures.now === visit) {
-				if (_queue.length > 0) void send();
+				if (_queue.length > 0) void send(); // ok: send never rejects
 				else _exposures.go('idle');
 			}
 			ended();
@@ -233,13 +237,15 @@ const _registry = new Map<string, FlagQuery>();
  * Resolve the source ONCE per request over every registered flag, caching decisions on the
  * Request so reads stay sync. Awaited by the flags plugin's `request` stage (flags/server.ts), above
  * the page / hole split. Idempotent; a no-op without a source. Never throws — a source failure
- * degrades every flag to its native rule, it does not take the request down.
+ * degrades every flag to its native rule, it does not take the request down, and is said
+ * (`flags_source_failed`, once per failing streak).
  */
 export async function prime_flags(c: CtxLike): Promise<void> {
 	const req = c.request as unknown as Record<symbol, unknown>;
 	if (!_source || req[RESOLVED] !== undefined) return;
 	req[RESOLVED] = {}; // claim the slot up front (idempotent across concurrent primes)
 	if (_registry.size === 0) return;
+	const mark = source_mark();
 	try {
 		// the source sees the identity a read hashes on: it primes above the router, where no
 		// `c.visitor` exists yet, so a vendor's per-user targeting would otherwise have no key
@@ -257,8 +263,10 @@ export async function prime_flags(c: CtxLike): Promise<void> {
 			if (norm && q.variants.includes(norm.variant)) map[q.name] = norm;
 		}
 		req[RESOLVED] = map;
-	} catch {
+		source_answered(mark);
+	} catch (error) {
 		req[RESOLVED] = {}; // source down → everything falls through to native
+		source_failed(error);
 	}
 }
 

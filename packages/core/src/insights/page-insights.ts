@@ -842,7 +842,7 @@ export function analyze_page(
 			const u = new URL(path);
 			where = (page.visit?.origin && u.origin === page.visit.origin ? '' : u.host) + u.pathname;
 		} catch {
-			// keep the raw URL
+			// ok: not a URL: the raw string is kept
 		}
 		return `; mostly ${where} (${Math.round(top.ms)} ms)`;
 	};

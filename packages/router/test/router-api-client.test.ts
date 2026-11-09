@@ -66,4 +66,29 @@ describe('api() — the typed endpoint client', () => {
 		const err = await bad.get('/nope').catch((e: ApiError) => e);
 		expect((err as ApiError).status).toBe(404);
 	});
+
+	// A success whose JSON body does not parse is a failure, not a payload of `undefined` (the
+	// caller's typed result would be a lie); a failed response keeps answering ApiError either way.
+	it('a 200 whose JSON body does not parse rejects, it does not resolve undefined', async () => {
+		const broken = routes({
+			'/torn': {
+				GET: () => new Response('{"id": 4', { headers: { 'content-type': 'application/json' } })
+			},
+			'/torn-bad': {
+				GET: () =>
+					new Response('{"oops', {
+						status: 500,
+						headers: { 'content-type': 'application/json' }
+					})
+			}
+		});
+		const c = api<typeof broken.$infer>('http://svc', {
+			fetch: (async (url: string | URL | Request, init?: RequestInit) =>
+				(await broken.fetch(new Request(url as string, init)))!) as typeof fetch
+		});
+		await expect(c.get('/torn')).rejects.toThrow(SyntaxError);
+		const err = await c.get('/torn-bad').catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(ApiError);
+		expect((err as ApiError).status).toBe(500);
+	});
 });

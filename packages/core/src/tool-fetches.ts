@@ -31,7 +31,7 @@ export function tool_fetch(url: string, init?: RequestInit): Promise<Response> {
 		if (at) at.push(performance.now());
 		else all.set(href, [performance.now()]);
 	} catch {
-		// no location (not a browser): nothing to list it in
+		// ok: no location (not a browser): nothing to list it in
 	}
 	return fetch(href, init);
 }

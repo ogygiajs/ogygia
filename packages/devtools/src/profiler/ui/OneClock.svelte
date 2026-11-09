@@ -44,7 +44,7 @@
 					source = 'browser';
 				}
 			})
-			.finally(() => (looked = true));
+			.finally(() => (looked = true)); // ok: the browser store never rejects (a store it cannot open reads as nothing)
 	}
 	const clock = $derived(v ? one_clock(v, server, names, hole_names) : null);
 

@@ -25,7 +25,7 @@ export function tab_group(group: string) {
 			try {
 				localStorage.setItem(KEY + group, label);
 			} catch {
-				/* private mode — memory-only is fine */
+				// ok: no storage (private mode); the choice is kept in memory only
 			}
 		}
 	};
@@ -42,7 +42,7 @@ export function hydrate_group(group: string, fallback: string): void {
 	try {
 		saved = localStorage.getItem(KEY + group);
 	} catch {
-		/* private mode */
+		// ok: no storage (private mode); the fallback is chosen
 	}
 	selected[group] = saved ?? fallback;
 }

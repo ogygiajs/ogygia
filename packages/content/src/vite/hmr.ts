@@ -185,7 +185,7 @@ export function content_hmr(options: ContentHmrOptions = {}): Plugin {
 				return is_remote_module(abs);
 			};
 
-			const flush = async () => {
+			const flush = () => {
 				cancel = null;
 				const files = [...pending];
 				pending.clear();
@@ -221,7 +221,7 @@ export function content_hmr(options: ContentHmrOptions = {}): Plugin {
 				if (!under_watch(abs)) return;
 				pending.add(abs);
 				cancel?.();
-				cancel = run.timeout(() => void flush(), debounceMs);
+				cancel = run.timeout(flush, debounceMs);
 			};
 
 			run.on(server.watcher, 'add', schedule);

@@ -49,7 +49,7 @@ const loaded = flights({
 						})
 					: null;
 			})
-			.catch(() => null)
+			.catch(() => null) // ok: no embedded maps in this build (or an unreadable payload): frames keep their generated places
 });
 
 /** the maps once loaded (synchronous readers: the module map lookup), else null */

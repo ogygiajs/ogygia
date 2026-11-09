@@ -69,7 +69,7 @@ export function recover_ogp_bytes(bytes: Uint8Array): Uint8Array {
 			if (is_ogp(decoded)) return decoded;
 		}
 	} catch {
-		// not text / not base64 — fall through
+		// ok: not text or not base64; it is read as the bytes they are below
 	}
 	return bytes;
 }

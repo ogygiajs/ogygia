@@ -32,9 +32,9 @@
 	const idle = (
 		globalThis as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void }
 	).requestIdleCallback;
-	if (idle) idle(() => void keep(), { timeout: 3000 });
+	if (idle) idle(() => void keep(), { timeout: 3000 }); // ok: keep shows its own failure (state 'failed')
 	// oxlint-disable-next-line ogygia/owned-effects -- an island of the report page, as long as the document: keeping the report finishes even as the page goes
-	else setTimeout(() => void keep(), 500);
+	else setTimeout(() => void keep(), 500); // ok: keep shows its own failure (state 'failed')
 </script>
 
 <span

@@ -120,7 +120,7 @@ export function ingest_server_events(): number {
 				total += events.length;
 			}
 		} catch {
-			/* malformed side-channel — ignore, never break boot */
+			// ok: a malformed devtools side-channel never breaks boot; its events are left out
 		}
 	}
 	return total;

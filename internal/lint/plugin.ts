@@ -218,7 +218,118 @@ const owned_effects = {
 	}
 };
 
+type Comment = { type: string; value: string; loc: { start: { line: number } } };
+type Located = Node & { loc: { start: { line: number }; end: { line: number } } };
+
+/** The lines of this file that carry an `// ok: <reason>` comment (a reason, not just `ok:`). */
+function ok_lines(context: Context): Set<number> {
+	const comments =
+		(
+			context as { sourceCode?: { getAllComments?: () => Comment[] } }
+		).sourceCode?.getAllComments?.() ?? [];
+	const lines = new Set<number>();
+	for (const c of comments) if (/^\s*ok:\s*\S/.test(c.value)) lines.add(c.loc.start.line);
+	return lines;
+}
+
+/** A handler that does nothing with the failure: `() => {}`, `() => undefined`, `() => null`,
+ *  `() => void 0`, or a function named `noop`. */
+function swallows(handler: unknown): boolean {
+	const h = handler as Node | undefined;
+	if (!h) return false;
+	if (h.type === 'Identifier') return (h as { name?: string }).name === 'noop';
+	if (h.type !== 'ArrowFunctionExpression' && h.type !== 'FunctionExpression') return false;
+	const body = h.body as Node;
+	if (body.type === 'BlockStatement') return (body.body as unknown[]).length === 0;
+	if (body.type === 'Identifier') return (body as { name?: string }).name === 'undefined';
+	if (body.type === 'Literal') return (body as { value?: unknown }).value === null;
+	if (body.type === 'UnaryExpression')
+		return body.operator === 'void' && (body.argument as Node).type === 'Literal';
+	return false;
+}
+
+/** `p.catch(handler)` / `p.then(ok, handler)`: the failure has a handler that does something. */
+function handled(call: Node): boolean {
+	const callee = call.callee as Node;
+	if (callee?.type !== 'MemberExpression') return false;
+	const name = (callee.property as { name?: string }).name;
+	const args = call.arguments as unknown[];
+	if (name === 'catch') return args.length > 0 && !swallows(args[0]);
+	if (name === 'then') return args.length > 1 && !swallows(args[1]);
+	return false;
+}
+
+const MESSAGE_SILENT =
+	'A failure swallowed with no word: report it (a message code), re-throw it, or move a machine. One that is truly fine says why on the same line: `// ok: <reason>`.';
+
+/**
+ * `ogygia/no-silent-failures`: every caught failure reports a message code, re-throws, or moves a
+ * machine; nothing is swallowed without a written reason. Refused: an empty `catch` (a comment is
+ * not a body), `.catch(() => {})` (or `=> undefined`, `=> null`, `noop`), and a bare `void <call>()`,
+ * whose rejection goes unhandled unless the callee catches it (`void p.catch(report)` is handled).
+ * A site that is truly fine carries `// ok: <reason>` on its first or last line (for a catch, also
+ * inside its body).
+ */
+const no_silent_failures = {
+	meta: {
+		type: 'problem',
+		docs: {
+			description: 'A caught failure reports, re-throws or moves a machine, or says why not.'
+		}
+	},
+	create(context: Context) {
+		if (!in_source(context)) return {};
+		let ok: Set<number> | null = null;
+		const marked = (node: Node): boolean => {
+			const n = node as Located;
+			ok ??= ok_lines(context);
+			for (let line = n.loc.start.line; line <= n.loc.end.line; line++) {
+				// (first and last line; a catch also inside its body)
+				if (line !== n.loc.start.line && line !== n.loc.end.line && n.type !== 'CatchClause')
+					continue;
+				if (ok.has(line)) return true;
+			}
+			return false;
+		};
+		const refuse = (node: Node) => {
+			if (!marked(node)) context.report({ node, message: MESSAGE_SILENT });
+		};
+		return {
+			CatchClause(node: Node) {
+				if (((node.body as Node).body as unknown[]).length === 0) refuse(node);
+			},
+			CallExpression(node: Node) {
+				const callee = node.callee as Node;
+				if (callee?.type !== 'MemberExpression') return;
+				const name = (callee.property as { name?: string }).name;
+				const args = node.arguments as unknown[];
+				if (name === 'catch' && swallows(args[0])) refuse(node);
+				else if (name === 'then' && args.length > 1 && swallows(args[1])) refuse(node);
+			},
+			UnaryExpression(node: Node) {
+				if (node.operator !== 'void') return;
+				const arg = node.argument as Node;
+				// (`void p.catch(() => {})` is the `.catch` site's, said once there)
+				if (arg.type === 'CallExpression' && !handled(arg) && !swallowing_chain(arg)) refuse(node);
+			}
+		};
+	}
+};
+
+/** `p.catch(<swallow>)` or `p.then(a, <swallow>)`: reported as a `.catch` site already. */
+function swallowing_chain(call: Node): boolean {
+	const callee = call.callee as Node;
+	if (callee?.type !== 'MemberExpression') return false;
+	const name = (callee.property as { name?: string }).name;
+	const args = call.arguments as unknown[];
+	return (name === 'catch' && swallows(args[0])) || (name === 'then' && swallows(args[1]));
+}
+
 export default {
 	meta: { name: 'ogygia' },
-	rules: { 'no-promise-cache': no_promise_cache, 'owned-effects': owned_effects }
+	rules: {
+		'no-promise-cache': no_promise_cache,
+		'owned-effects': owned_effects,
+		'no-silent-failures': no_silent_failures
+	}
 };

@@ -60,7 +60,7 @@ function fp_drift(nav = 0): FpDrift[] {
 	try {
 		sessionStorage.setItem(FPS_KEY, JSON.stringify(store));
 	} catch {
-		/* full or blocked: the next load just compares nothing */
+		// ok: storage full or blocked: the next load compares nothing
 	}
 	fps_memo = { at, drift };
 	return drift;
@@ -258,7 +258,7 @@ function prebundled_packages(script_urls: readonly string[]): string[] | null {
 		.then((m: { optimized?: Record<string, unknown> } | null) => {
 			prebundled = prebundled_names(Object.keys(m?.optimized ?? {}));
 		})
-		.catch(() => {});
+		.catch(() => {}); // ok: no metadata: no prebundled names, the finding is left out
 	return null;
 }
 
@@ -270,7 +270,7 @@ function vary_of(url: string): string | null {
 	varies.set(url, null);
 	void tool_fetch(url, { method: 'HEAD', cache: 'no-store' })
 		.then((r) => varies.set(url, r.headers.get('vary')))
-		.catch(() => {});
+		.catch(() => {}); // ok: no answer: no Vary to show (null)
 	return null;
 }
 
@@ -434,7 +434,7 @@ function batch_request_start(endpoint: string, sent: number): number {
 			if (r.startTime >= sent - 5 && (!best || r.startTime < best.startTime)) best = r;
 		if (best) return best.requestStart || best.startTime;
 	} catch {
-		/* no Resource Timing */
+		// ok: no Resource Timing in this browser: no request start
 	}
 	return sent;
 }
@@ -1105,7 +1105,7 @@ export function install_page_hook(): void {
 				if (v && !v.nav)
 					sessionStorage.setItem(LOAD_KEY + location.pathname, JSON.stringify(snapshot_of(v)));
 			} catch {
-				// no storage
+				// ok: no storage: the next load compares nothing
 			}
 		});
 	}

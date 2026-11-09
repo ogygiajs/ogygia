@@ -98,14 +98,14 @@
 	}
 
 	function openMenu() {
-		if (open) void set_view('nav');
+		if (open) void set_view('nav'); // ok: a view switch only waits a tick and sets styles
 		else {
 			view = 'nav';
 			open = true;
 		}
 	}
 	function openSearch() {
-		if (open) void set_view('search');
+		if (open) void set_view('search'); // ok: a view switch only waits a tick and sets styles
 		else {
 			view = 'search';
 			open = true;

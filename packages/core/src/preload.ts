@@ -28,5 +28,5 @@ export function preload(region: unknown): void {
 	// a renewed capability is the address's.
 	void ensure(address, (signal) =>
 		fetch_hole(url, { signal, renewed: (fresh) => renew(address, fresh) })
-	).catch(() => {}); // a failed warm is harmless — the bound region falls back to its own fetch
+	).catch(() => {}); // ok: a failed warm is harmless; the bound region falls back to its own fetch, which says its failure
 }

@@ -87,7 +87,7 @@ export class BuildCache<T> {
 			fs.writeFileSync(tmp, JSON.stringify(value));
 			fs.renameSync(tmp, path.join(d, key + '.json'));
 		} catch {
-			/* best-effort — a failed write just means a recompute next time */
+			// ok: best effort; a failed write means a recompute next time
 		}
 	}
 }

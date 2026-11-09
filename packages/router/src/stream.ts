@@ -23,6 +23,7 @@
  */
 import { lateChunk as late_chunk, LATE_BOOT_SCRIPT } from '@ogygia/core/plugin';
 import { escapeText as escape_text } from '@ogygia/core/plugin/utils';
+import { cleanup_failed } from '@ogygia/core/internal/server';
 import { scope, STALE, type Scope } from '@ogygia/machine';
 
 /** The slot id for the page position (one streamed slot per page in v1). */
@@ -110,7 +111,7 @@ export function stream_document(
 	// request's signal) closes it, ends the chunk source (its generators' `finally` blocks run, and
 	// a merged source ends the ones it holds) and drops what lands after (#284).
 	const owner = scope(request);
-	owner.defer(() => void rest.return(undefined).catch(() => {}));
+	owner.defer(() => void rest.return(undefined).catch(cleanup_failed));
 	const body = new ReadableStream<Uint8Array>({
 		async start(controller) {
 			controller.enqueue(enc.encode(head_part));
@@ -228,9 +229,10 @@ export async function* until_drained(
 }
 
 /** Ends each source (its `finally` runs once its pending step lands); one that already ended is
- *  left as it is. */
+ *  left as it is. Nobody waits on that ending, so a `finally` that throws is said
+ *  (`request_cleanup_failed`). */
 function end_all(sources: readonly AsyncGenerator<LateChunk>[]): void {
-	for (const s of sources) void s.return(undefined).catch(() => {});
+	for (const s of sources) void s.return(undefined).catch(cleanup_failed);
 }
 
 /** Interleave chunk sources by READINESS (a page generator + the late-region pool run together;

@@ -153,7 +153,7 @@ export async function serve_federation(event: RequestEvent): Promise<Response | 
 	const path = url.pathname;
 
 	if (path.endsWith(FRAGMENT_ROUTES_PATH)) {
-		void deploy_thaw_check(fed);
+		void deploy_thaw_check(fed); // ok: a check never rejects (a failed one is tried again later)
 		return serve_expose(fed, event);
 	}
 	if (path.endsWith(HOLE_PATH)) return serve_hole(fed, event);
@@ -163,7 +163,7 @@ export async function serve_federation(event: RequestEvent): Promise<Response | 
 	if (frag_at !== -1) {
 		const name = path.slice(frag_at + FRAGMENT_BASE.length);
 		if (name && !name.includes('/')) {
-			void deploy_thaw_check(fed);
+			void deploy_thaw_check(fed); // ok: a check never rejects (a failed one is tried again later)
 			return serve_widget(fed, event, name);
 		}
 	}
@@ -380,17 +380,23 @@ async function serve_thaw(fed: Federation, event: RequestEvent): Promise<Respons
 	const now = Date.now();
 	for (const [k, exp] of seen_notices) if (exp <= now) seen_notices.delete(k);
 	if (id && seen_notices.has(id)) return json_response({ ok: true, deduped: true });
-	if (id) seen_notices.set(id, now + NOTICE_TTL_MS);
 
 	// map the sender's tags into THIS app's namespace (how its peer handle filed the pages)
 	const local = map_thaw_tags(sender_name, notice.tags ?? []);
-	if (local.length) {
-		await fed_app()?.notify.invalidate(local); // this app's own stored pages
-		sender.drop(new Set(local)); // this app's cached documents from that peer
-	} else if (notice.tags === 'all') {
-		await fed_app()?.notify.invalidate([`a:${sender_name}`]);
-		sender.drop('all');
+	// the cached documents from that peer go either way (they are this app's own memory); the
+	// stored pages go through the store, which can fail
+	if (local.length) sender.drop(new Set(local));
+	else if (notice.tags === 'all') sender.drop('all');
+	try {
+		if (local.length) await fed_app()?.notify.invalidate(local);
+		else if (notice.tags === 'all') await fed_app()?.notify.invalidate([`a:${sender_name}`]);
+	} catch {
+		// not applied (the store said why: plugin_hook_failed): no id kept and no "done", so the
+		// sender's retry of this notice is applied, and nothing is passed on (#287)
+		return json_error(503, 'thaw not applied');
 	}
+	// (kept only once applied: a retry of a notice that failed is not a duplicate)
+	if (id) seen_notices.set(id, now + NOTICE_TTL_MS);
 
 	// chain: tell MY consumers, with the tags I just applied, hop+1
 	const forward = notice.tags === 'all' ? 'all' : local;
@@ -398,7 +404,10 @@ async function serve_thaw(fed: Federation, event: RequestEvent): Promise<Respons
 		id: id || crypto.randomUUID(),
 		hop: (notice.hop ?? 0) + 1,
 		tags: forward
-	});
+	}).then((missed) => {
+		// (a consumer that never took it, after its retries: its stored copy stays until it expires)
+		if (missed.size) warn('federation_thaw_notice_failed', [...missed].join(', '));
+	}); // ok: broadcast_thaw never rejects (each post catches and retries)
 	return json_response({ ok: true, thawed: local.length });
 }
 

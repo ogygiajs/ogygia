@@ -7,15 +7,16 @@
 	 * Where the app runs Svelte's async mode, the build imports LateIslandAwait.svelte in this one's
 	 * place, which holds the navigation until the code is in (vite/late-island.ts).
 	 */
+	import { OgygiaError } from './messages/island.ts';
 	/** @type {{ load: () => Promise<import('svelte').Component>, props: Record<string, unknown>, children?: import('svelte').Snippet }} */
 	let { load, props, children } = $props();
 	/** @type {import('svelte').Component | undefined} */
 	let Component = $state(undefined);
-	// (a failed load renders nothing)
+	// (a failed load renders nothing, and is said)
 	// svelte-ignore state_referenced_locally
 	load().then(
 		(c) => (Component = c),
-		() => {}
+		(error) => console.error(new OgygiaError('island_load_failed', { entry: null }), error)
 	);
 </script>
 

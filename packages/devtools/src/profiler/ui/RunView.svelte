@@ -100,14 +100,14 @@
 						await put_report(keep.dump);
 					}
 				} catch {
-					// an older server 303s to the report instead: res.url is it
+					// ok: an older server 303s to the report instead: res.url is it
 				}
 				await p.finish();
 				phase = 'Opening the report…';
 				try {
 					window.parent?.postMessage({ type: 'ogygia:profiled', url }, location.origin);
 				} catch {
-					/* no parent / cross-origin — fine */
+					// ok: no parent, or a cross-origin one: nobody to tell
 				}
 				location.href = url;
 			}
@@ -123,7 +123,7 @@
 	}
 
 	onMount(() => {
-		void run();
+		void run(); // ok: run shows its own failure (error)
 		// unmounted (mid-run or in the queue): its request, its queue's waits and its bar's timers go
 		return () => {
 			owner.close();

@@ -9,7 +9,8 @@
  *
  * It ends at the first of:
  * - the response ends: its body is read to the end, or cancelled (a streamed page included: its
- *   body is the response's, so it ends when the stream does);
+ *   body is the response's, so it ends when the stream does), or it has a body the platform will
+ *   not read (a HEAD answer, or a page SvelteKit turns into a 304), which ends at once;
  * - the visitor leaves: `request.signal` aborts.
  *
  * The handle makes it when the request comes in and closes it at the end of the response
@@ -74,30 +75,58 @@ export function request_local<T extends Disposable>(
 	};
 }
 
+/** Says that a cleanup of a request's work failed (`request_cleanup_failed`, the error after it):
+ *  for an ending nobody waits on, such as a stream source ended as the visitor leaves. */
+export function cleanup_failed(error: unknown): void {
+	warn('request_cleanup_failed', error);
+}
+
 /** Ends a request's owner. A cleanup that throws is said, never thrown: the response is not its. */
 export function end_request_scope(owner: Scope): void {
 	try {
 		owner.close();
 	} catch (error) {
-		warn('request_cleanup_failed', error);
+		cleanup_failed(error);
 	}
 }
 
 const noop = (): void => {};
 
 /**
- * Core only (the handle): `response`, whose end ends `owner`. No body: it ends now. A body: the
- * response carries it through as it is, chunk by chunk, and its last chunk read or its cancel ends
- * the owner; the owner ending first (the visitor left) cancels the body and ends the response.
+ * Will the platform answer `request` with `response` without reading its body? A HEAD answer sends
+ * none, and SvelteKit turns a 200 whose etag the visitor already has into a 304 after the handle
+ * returns, dropping the body (the same match as its respond: a `W/` prefix on the asked etag
+ * ignored). Nobody reads or cancels such a body, so its end would never come.
  */
-export function own_response(owner: Scope, response: Response): Response {
+function body_unread(request: Request, response: Response): boolean {
+	if (request.method === 'HEAD') return true;
+	if (response.status !== 200) return false;
+	const etag = response.headers.get('etag');
+	if (etag === null) return false;
+	let asked = request.headers.get('if-none-match');
+	if (asked?.startsWith('W/"')) asked = asked.slice(2);
+	return asked === etag;
+}
+
+/**
+ * Core only (the handle): `response` to `request`, whose end ends `owner`. No body, or one the
+ * platform will not read (`body_unread`): it ends now. A body: the response carries it through as
+ * it is, chunk by chunk, and its last chunk read or its cancel ends the owner; the owner ending
+ * first (the visitor left) cancels the body and ends the response.
+ */
+export function own_response(owner: Scope, response: Response, request: Request): Response {
 	const body = response.body;
 	if (body === null || owner.closed) {
 		end_request_scope(owner);
 		return response;
 	}
+	if (body_unread(request, response)) {
+		body.cancel().catch(noop); // ok: the body is dropped unread, so a failed cancel has nothing to stop
+		end_request_scope(owner);
+		return response;
+	}
 	const reader = body.getReader();
-	owner.defer(() => void reader.cancel().catch(noop));
+	owner.defer(() => void reader.cancel().catch(noop)); // ok: the request ended; a failed cancel of its body has nothing left to stop
 	const carried = new ReadableStream<Uint8Array>(
 		{
 			async pull(controller) {

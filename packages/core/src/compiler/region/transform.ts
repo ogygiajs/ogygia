@@ -2621,7 +2621,10 @@ function ts_literal_ranges(source: string, id: string): Array<[number, number]> 
 	const ranges: Array<[number, number]> = [];
 	const walk = (n: unknown): void => {
 		if (!n || typeof n !== 'object') return;
-		if (Array.isArray(n)) return void n.forEach(walk);
+		if (Array.isArray(n)) {
+			n.forEach(walk);
+			return;
+		}
 		const node = n as Record<string, unknown>;
 		const t = node.type;
 		const is_str = (t === 'Literal' || t === 'StringLiteral') && typeof node.value === 'string';

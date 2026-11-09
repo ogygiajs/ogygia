@@ -69,7 +69,7 @@ export function client_file_finder(
 				}
 			}
 		} catch {
-			/* not a URL */
+			// ok: not a URL, so not a file of the page
 		}
 		cache.set(url, file);
 		return file;

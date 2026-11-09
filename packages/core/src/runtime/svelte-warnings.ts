@@ -93,7 +93,7 @@ export function tap_svelte_warnings(): void {
 				}
 			}
 		} catch {
-			// never break a console line
+			// ok: reading a warning never breaks the console line it came in
 		}
 		return warn.apply(this, args as []);
 	};

@@ -37,7 +37,7 @@ function load_sass(root: string): Sass | null {
 			sass = require(name) as Sass;
 			return sass;
 		} catch {
-			/* try the next */
+			// ok: not installed; the next is tried, and none says sass_missing
 		}
 	}
 	sass = null;

@@ -82,7 +82,7 @@
 					kept: true
 				};
 			})
-			.finally(() => (looking = false));
+			.finally(() => (looking = false)); // ok: the browser store never rejects (a store it cannot open reads as nothing)
 	}
 
 	async function unlock(e: Event) {

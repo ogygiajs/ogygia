@@ -102,7 +102,7 @@ function warn_ctx_size(map: Map<string, unknown>, total: number): void {
 		try {
 			sizes.push([k, stringify_bridgeable({ [k]: v }).length]);
 		} catch {
-			/* unbridgeable keys are dropped elsewhere */
+			// ok: an unbridgeable key is dropped (and said) where the bridge is written
 		}
 	}
 	sizes.sort((a, b) => b[1] - a[1]);

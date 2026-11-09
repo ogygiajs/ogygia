@@ -107,9 +107,13 @@ export function api<App>(base: string, opts: ApiClientOptions = {}): ApiClient<A
 		});
 		if (res.status === 204) return undefined;
 		const is_json = (res.headers.get('content-type') ?? '').includes('json');
-		const body = is_json ? await res.json().catch(() => undefined) : await res.text();
-		if (!res.ok) throw new ApiError(res.status, body);
-		return body;
+		if (!res.ok) {
+			// (a failed answer's body only words the ApiError: one that does not parse is left out)
+			const body = is_json ? await res.json().catch(() => undefined) : await res.text(); // ok: the ApiError still carries the status
+			throw new ApiError(res.status, body);
+		}
+		// a success's payload is the caller's typed result: one that does not parse rejects
+		return is_json ? await res.json() : await res.text();
 	};
 	return {
 		get: (p, ...a) => call('GET', p, a[0] as never),

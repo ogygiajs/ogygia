@@ -125,7 +125,7 @@ export function byte_strip(html: string): ByteStrip {
 			});
 		}
 	} catch {
-		/* a scanner that throws on a broken document leaves the strip to the regexes */
+		// ok: a scanner that throws on a broken document leaves the strip to the regexes
 	}
 	spans.sort((a, b) => a.start - b.start || b.end - a.end);
 	// drop spans inside an earlier one (a script inside an island is the island's bytes), fill gaps

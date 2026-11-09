@@ -70,7 +70,9 @@ export function batch_stream(
 ): ReadableStream<Uint8Array> {
 	const encoder = new TextEncoder();
 	const batch = batch_def.create();
-	owner?.defer(() => void batch.move('streaming', 'cancelled'));
+	owner?.defer(() => {
+		batch.move('streaming', 'cancelled');
+	});
 	return new ReadableStream<Uint8Array>({
 		async start(controller) {
 			const streaming = batch.now;
@@ -78,7 +80,7 @@ export function batch_stream(
 			const ran = await batch.scope.task((signal) =>
 				Promise.all(
 					calls.map(async (endpoint) => {
-						const out = await render(endpoint, signal).catch(() => null);
+						const out = await render(endpoint, signal).catch(() => null); // ok: the render says its own failure; the hole keeps its fallback and fetches itself
 						// (only while it still streams: after a cancel the controller is closed)
 						if (out && batch.now === streaming)
 							controller.enqueue(encoder.encode(build_parcel(out.slot, out.html)));

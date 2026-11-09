@@ -32,7 +32,7 @@
 				if (next) localStorage.setItem(key, next);
 				else localStorage.removeItem(key);
 			} catch {
-				/* private mode */
+				// ok: no storage (private mode); the theme holds for this page only
 			}
 		};
 		const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;

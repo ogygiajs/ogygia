@@ -143,7 +143,7 @@ export function preload_urls(link: HTMLLinkElement): string[] {
 		try {
 			out.push(new URL(url, document.baseURI).href);
 		} catch {
-			/* not a URL: skip the candidate */
+			// ok: not a URL: the candidate is skipped
 		}
 	}
 	return out;
@@ -230,7 +230,7 @@ export class LoadSlot {
 		queue.push(this);
 		waiting++;
 		if (typeof o.cls === 'function') watch_scroll();
-		if (!critical_done && waits_for_critical(this.kind, this.cls())) void critical_settled();
+		if (!critical_done && waits_for_critical(this.kind, this.cls())) void critical_settled(); // ok: the critical wait only waits on timers and resources' events; it never rejects
 		drain();
 	}
 
@@ -299,7 +299,7 @@ function drain(): void {
 			drain_again = false;
 			drain();
 		}
-	});
+	}); // ok: a drain only hands out slots and yields; it never rejects
 }
 
 /**

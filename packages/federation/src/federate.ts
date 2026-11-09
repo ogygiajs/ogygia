@@ -133,7 +133,7 @@ async function post_thaw(fed: Federation, peer: Peer, body: ArrayBuffer): Promis
 			});
 			if (res.ok) return true;
 		} catch {
-			/* unreachable — retry, then the peer's TTL backstop holds */
+			// ok: unreachable, so retried; a peer that never takes it is said by the caller (missed)
 		}
 	}
 	return false;

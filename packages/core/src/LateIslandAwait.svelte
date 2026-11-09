@@ -6,12 +6,16 @@
 	 * (an island nested in it awaits in the same batch). Without async mode this file does not compile,
 	 * which is why it is never the default.
 	 */
+	import { OgygiaError } from './messages/island.ts';
 	/** @type {{ load: () => Promise<import('svelte').Component>, props: Record<string, unknown>, children?: import('svelte').Snippet }} */
 	let { load, props, children } = $props();
-	// (a failed load renders nothing)
+	// (a failed load renders nothing, and is said)
 	// one load per island, read once on purpose (as in LateIsland.svelte)
 	// svelte-ignore state_referenced_locally
-	const Component = await load().catch(() => undefined);
+	const Component = await load().catch((error) => {
+		console.error(new OgygiaError('island_load_failed', { entry: null }), error);
+		return undefined;
+	});
 </script>
 
 {#if Component}<Component {...props}>{@render children?.()}</Component>{/if}

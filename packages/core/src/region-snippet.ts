@@ -316,7 +316,11 @@ export function region_snippet(input: Snippet | RawRegionSnippet): RegionSnippet
 	const caps = input.captures ?? [];
 	const snip = createRawSnippet(() => ({
 		render: () => WRAP_OPEN + input.render(...caps) + WRAP_CLOSE,
-		setup: input.setup ? (el: Element) => void input.setup!(el, ...caps) : () => {}
+		setup: input.setup
+			? (el: Element) => {
+					input.setup!(el, ...caps);
+				}
+			: () => {}
 	})) as RegionSnippet;
 	// Reduced form carries the rendered HTML (setup can't cross a wire — it warns there, not here).
 	snip.__ogRegion = { m: 'static', h: input.render(...caps) };

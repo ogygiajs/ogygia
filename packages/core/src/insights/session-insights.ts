@@ -96,7 +96,7 @@ export function session_timeline(s: SessionData, names: (fp: string) => string):
 		try {
 			path = new URL(r.url).pathname;
 		} catch {
-			// keep
+			// ok: not a URL: the raw string is kept
 		}
 		return {
 			t0: r.t - z,

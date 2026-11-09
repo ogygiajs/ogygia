@@ -36,7 +36,7 @@
 			missing = [...(da ? [] : [a]), ...(db ? [] : [b])];
 			if (da && db) cmp = compare_reports(pack(da), pack(db));
 		})
-		.finally(() => (loaded = true));
+		.finally(() => (loaded = true)); // ok: the browser store never rejects (a store it cannot open reads as nothing)
 </script>
 
 {#if cmp}

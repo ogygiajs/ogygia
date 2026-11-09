@@ -92,6 +92,21 @@ export const POSTRENDER_WARNINGS = {
 			they expire.
 		`
 	},
+	postrender_store_failed: {
+		text: (a: { op: string; key: string }): string => prose`
+			postrender: the store failed (${a.op} ${a.key}); pages render fresh and are not kept
+			while it does —
+		`,
+		details: (): string => prose`
+			A call to the store given to \`postrender.handle({ store })\` threw (the error follows the
+			message). A store that is down never fails a render: a read is a miss, a write or an
+			evict is skipped. So every page renders fresh, nothing is kept, and an evict may leave a
+			page stored until it expires. Said once, then again only after a store call worked: a
+			store that stays down does not fill the log.
+
+			Check the store's connection and credentials.
+		`
+	},
 	postrender_fanout_failed: {
 		text: (a: { label: string; what: string }): string => `postrender.${a.label}: ${a.what} —`,
 		details: (): string => prose`

@@ -74,7 +74,7 @@ export function props_diff(
 	try {
 		return first_path(revive(JSON.parse(a)), revive(JSON.parse(b)), '');
 	} catch {
-		/* neither lane parsed: the text, with the ids masked */
+		// ok: neither lane parsed: the text is compared, with the ids masked, below
 	}
 	const ma = mask_ids(a);
 	const mb = mask_ids(b);

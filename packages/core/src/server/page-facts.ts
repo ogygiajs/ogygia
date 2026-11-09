@@ -63,11 +63,11 @@ export async function look_up_page(
 		return { miss: `the data request failed (${String((e as Error)?.message ?? e)})` };
 	}
 	if (!res.ok || !res.body) {
-		void res.body?.cancel().catch(() => {});
+		void res.body?.cancel().catch(() => {}); // ok: an answer not read; the miss below says why
 		return { miss: `the data request answered ${res.status}` };
 	}
 	const reader = res.body.getReader();
-	owner?.defer(() => void reader.cancel().catch(() => {}));
+	owner?.defer(() => void reader.cancel().catch(() => {})); // ok: the request ended; a failed cancel has nothing left to stop
 	const text = new TextDecoder();
 	let buf = '';
 	let nl = -1;
@@ -79,7 +79,7 @@ export async function look_up_page(
 	const first = nl === -1 ? buf : buf.slice(0, nl);
 	const rest = nl === -1 ? '' : buf.slice(nl + 1);
 	const stop = (miss: string) => {
-		void reader.cancel().catch(() => {});
+		void reader.cancel().catch(() => {}); // ok: the miss returned says why it stopped
 		return { miss };
 	};
 	let head: { type?: string; nodes?: unknown[]; location?: string };
@@ -98,7 +98,7 @@ export async function look_up_page(
 			...decoders,
 			Promise: (id: number) => {
 				const p = new Promise((fulfil, reject) => deferreds.set(id, { fulfil, reject }));
-				p.catch(() => {}); // a rejected stream the render never awaited must not crash the process
+				p.catch(() => {}); // ok: the same promise is handed to the render, which sees the rejection; one it never awaited must not crash the process
 				return p;
 			}
 		});
@@ -111,8 +111,8 @@ export async function look_up_page(
 	} catch (e) {
 		return stop(`its data did not decode (${String((e as Error)?.message ?? e)})`);
 	}
-	if (deferreds.size) void settle_streamed(reader, text, rest, deferreds, revive);
-	else void reader.cancel().catch(() => {});
+	if (deferreds.size) void settle_streamed(reader, text, rest, deferreds, revive); // ok: never rejects (its body is caught)
+	else void reader.cancel().catch(() => {}); // ok: nothing more to read; a failed cancel has nothing to stop
 
 	let route: { id: string | null } = { id: null };
 	let params: Record<string, string | undefined> = {};
@@ -126,7 +126,7 @@ export async function look_up_page(
 			route = { id: r.id ?? null };
 			params = r.params ?? {};
 		} catch {
-			/* a mangled header: the page keeps no route */
+			// ok: a mangled header: the page keeps no route
 		}
 	}
 	return { url: page, params, route, data };
@@ -156,7 +156,7 @@ async function settle_streamed(
 			if (chunk.error !== undefined) d.reject(revive(chunk.error));
 			else d.fulfil(revive(chunk.data));
 		} catch {
-			/* a line that does not decode leaves its promise pending */
+			// ok: a line that does not decode leaves its promise pending (the request's end lets it go)
 		}
 	};
 	try {
@@ -173,8 +173,8 @@ async function settle_streamed(
 		}
 		line(buf);
 	} catch {
-		/* the stream broke: what did not arrive stays pending */
+		// ok: the stream broke: what did not arrive stays pending (the request's end lets it go)
 	} finally {
-		void reader.cancel().catch(() => {});
+		void reader.cancel().catch(() => {}); // ok: done reading; a failed cancel has nothing to stop
 	}
 }

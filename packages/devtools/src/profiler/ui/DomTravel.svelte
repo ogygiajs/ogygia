@@ -21,7 +21,7 @@
 	// svelte-ignore state_referenced_locally
 	void latest_visit(page)
 		.then((r) => (rec = r))
-		.finally(() => (looked = true));
+		.finally(() => (looked = true)); // ok: the browser store never rejects (a store it cannot open reads as nothing)
 	const v = $derived((rec?.visit as Visit | undefined) ?? visit);
 	const boxes = $derived(v ? shift_boxes(v.shifts, v.viewport) : []);
 	const cls_total = $derived(boxes.reduce((s, b) => s + b.value, 0));

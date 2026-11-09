@@ -59,7 +59,7 @@ export function warn_content_leaks(
 			});
 		}
 	} catch {
-		/* a guardrail must never break the build */
+		// ok: a guardrail never breaks the build; the check is skipped
 	}
 }
 
@@ -82,7 +82,7 @@ export function emit_island_deps_handoff(root: string, json: string, out_dir: st
 		fs.mkdirSync(path.dirname(server_copy), { recursive: true });
 		fs.writeFileSync(server_copy, json);
 	} catch {
-		/* ignore — handoff path is enough for prerender */
+		// ok: the handoff path is enough for prerender
 	}
 
 	try {
@@ -122,7 +122,7 @@ export function emit_island_deps_handoff(root: string, json: string, out_dir: st
 		};
 		patch_server(server_dir);
 	} catch {
-		/* ignore — fs fallback still serves adapter-node / preview */
+		// ok: the fs fallback still serves adapter-node and preview
 	}
 }
 

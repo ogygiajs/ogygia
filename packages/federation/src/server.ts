@@ -30,9 +30,13 @@ const server: ServerPlugin = defineServer({
 	invalidated(tags) {
 		const fed = current_federation();
 		if (!fed) return;
-		void broadcast_thaw(fed, { id: crypto.randomUUID(), hop: 0, tags }).catch((e) => {
-			warn('federation_thaw_notice_failed', e);
-		});
+		// (a peer that never took it, after its retries, keeps its stored copy until it expires)
+		void broadcast_thaw(fed, { id: crypto.randomUUID(), hop: 0, tags }).then(
+			(missed) => {
+				if (missed.size) warn('federation_thaw_notice_failed', [...missed].join(', '));
+			},
+			(e: unknown) => warn('federation_thaw_notice_failed', e)
+		);
 	}
 });
 export default server;

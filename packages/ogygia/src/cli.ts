@@ -19,7 +19,7 @@ function installed(): string | null {
 		try {
 			return createRequire(from).resolve('@ogygia/cli/bin');
 		} catch {
-			/* not there */
+			// ok: not installed there; the next place is tried, and none says how to install it
 		}
 	}
 	return null;

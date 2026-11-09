@@ -232,7 +232,7 @@ function resolve_file(base: string): string | null {
 		try {
 			if (fs.statSync(f).isFile()) return f;
 		} catch {
-			/* not this ext */
+			// ok: not this extension; the next is tried
 		}
 	}
 	for (const e of INDEX_EXTS) {
@@ -240,7 +240,7 @@ function resolve_file(base: string): string | null {
 		try {
 			if (fs.statSync(f).isFile()) return f;
 		} catch {
-			/* not this index */
+			// ok: not this index; the next is tried
 		}
 	}
 	return null;

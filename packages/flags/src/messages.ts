@@ -49,6 +49,21 @@ export const FLAGS_WARNINGS = {
 			queue inside the sink.
 		`
 	},
+	flags_source_failed: {
+		text: (): string => prose`
+			flags: the flag source (\`decide({ source })\`) failed, so its flags fell back to their own
+			rule. The error follows.
+		`,
+		details: (): string => prose`
+			The source given to \`decide({ source })\` threw, rejected, or (with \`ofrep()\`) its
+			endpoint answered an error or could not be reached in time; with \`openfeature()\`, one
+			flag's evaluation threw. The request is not affected: each flag the source did not answer
+			is decided by its own rollout, as if there were no source. Said once, then again only
+			after a request the source served worked: a source that stays down does not fill the log.
+
+			Check the vendor's status, the endpoint and its credentials, and \`ofrep({ timeout })\`.
+		`
+	},
 	flags_plugin_not_running: {
 		text: (): string => prose`
 			flags: a flag was read on the server but the flags plugin is not running — list

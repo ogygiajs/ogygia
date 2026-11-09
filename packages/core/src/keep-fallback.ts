@@ -31,7 +31,7 @@ export function keepFallback(): never {
 	try {
 		inline = isHoleInline();
 	} catch {
-		/* outside component init (after an await on some runtimes): no context to read — the signal path */
+		// ok: outside component init (after an await on some runtimes): no context to read, so the signal path below
 	}
 	// (a misplaced keepFallback() fails with a real error, not the signal)
 	if (inline) throw new OgygiaError('keep_fallback_inline');

@@ -165,7 +165,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 					else el.setAttribute(name, v);
 				}
 			} catch {
-				// a mangled diff: leave the attributes
+				// ok: a mangled diff: the attributes are left as served
 			}
 		}
 		// (no class in the diff: the render left it as Svelte's)
@@ -498,7 +498,7 @@ export function restore_adopt(): void {
 			try {
 				item.shadow.adoptedStyleSheets = [...item.shadow.adoptedStyleSheets, ...item.sheets];
 			} catch {
-				// a sheet this page cannot adopt: the other roots still get theirs
+				// ok: a sheet this page cannot adopt; the other roots still get theirs
 			}
 	}
 	W.__og_adopt = left;

@@ -211,6 +211,15 @@ export const CONTENT_ERRORS = {
 			answers nothing. The message before this one usually says why.
 		`
 	},
+	content_search_query_failed: {
+		text: (): string => 'a search query failed —',
+		details: (): string => prose`
+			The search palette asked its engine (the search worker, or the \`query\` function given to
+			\`Search\`) for a term, and the engine failed (the error follows the message): a worker
+			that crashed, a backend that is down. The palette shows the error in place of results.
+			The next term typed asks again.
+		`
+	},
 	content_search_engine_missing: {
 		text: (): string =>
 			'search needs the optional peer dependency "@orama/orama". Install it:\n' +

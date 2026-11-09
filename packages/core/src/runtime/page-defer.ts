@@ -66,7 +66,7 @@ export function create_deferred(id: number): Promise<unknown> {
 		r.settled!.delete(id);
 		if (early.ok) return Promise.resolve(early.value);
 		const p = Promise.reject(to_error(early.value));
-		p.catch(() => {}); // resolve raced ahead of the island — guard before `{#await}` attaches its :catch
+		p.catch(() => {}); // ok: the same promise is handed back, and its `{#await}` sees the rejection; resolve raced ahead of the island — guard before `{#await}` attaches its :catch
 		return p;
 	}
 	let resolve!: (v: unknown) => void;
@@ -75,7 +75,7 @@ export function create_deferred(id: number): Promise<unknown> {
 		resolve = res;
 		reject = rej;
 	});
-	promise.catch(() => {}); // no unhandled-rejection noise if a rejected leaf goes un-awaited
+	promise.catch(() => {}); // ok: the same promise is handed back, and its `{#await}` sees the rejection; no unhandled-rejection noise if a rejected leaf goes un-awaited
 	deferreds.set(id, { promise, resolve, reject });
 	return promise;
 }
@@ -111,7 +111,7 @@ export function install_page_defer(
 			try {
 				value = parse(encoded, r.revivers as Parameters<typeof parse>[1]);
 			} catch {
-				/* leave null — a mangled chunk resolves to null, never hangs the `{#await}` */
+				// ok: a mangled chunk resolves to null, never hangs the `{#await}`
 			}
 			settle(id, ok, value);
 		});
@@ -137,7 +137,7 @@ export function page_defer_revivers(
 			const [ok, value] = payload as [boolean, unknown];
 			if (ok) return Promise.resolve(value);
 			const p = Promise.reject(to_error(value));
-			p.catch(() => {}); // no unhandled-rejection noise if a rejected leaf goes un-awaited
+			p.catch(() => {}); // ok: the same promise is handed back, and its `{#await}` sees the rejection; no unhandled-rejection noise if a rejected leaf goes un-awaited
 			return p;
 		}
 	};

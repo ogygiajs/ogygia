@@ -39,7 +39,7 @@ function region_urls(el: Element, entry: string): string[] {
 		try {
 			if (u) urls.push(new URL(u, document.baseURI).href);
 		} catch {
-			/* not a URL */
+			// ok: not a URL, so not a script of the page
 		}
 	}
 	return urls;

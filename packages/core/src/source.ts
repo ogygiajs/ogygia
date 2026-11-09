@@ -12,6 +12,7 @@
  */
 // The house hash — runtime/hash.ts owns FNV-1a (region fps, flag buckets); never re-rolled.
 import { fnv1a } from './runtime/hash.ts';
+import { report_thrown } from './report-thrown.ts';
 
 interface SourceSlots {
 	recorder: ((tag: string) => void) | null;
@@ -37,15 +38,17 @@ export function set_source_observer(fn: ((tag: string) => void) | null): void {
 /** Called by the `__og_source` wrapper on every invocation (and by a peer handle for the tags it
  *  ADOPTS from a remote fragment). Neither seam may fail the app's own call. */
 export function record_source_read(tag: string): void {
+	// (a receipt never fails the app's own call; a seam that throws is not dropped either: a receipt
+	// that is not filed is a stored page an invalidation will miss)
 	try {
 		slots.recorder?.(tag);
-	} catch {
-		/* a receipt must never fail the app's own call */
+	} catch (error) {
+		report_thrown(error);
 	}
 	try {
 		slots.observer?.(tag);
-	} catch {
-		/* same law */
+	} catch (error) {
+		report_thrown(error);
 	}
 }
 

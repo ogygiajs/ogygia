@@ -60,8 +60,10 @@ export const FEDERATION_WARNINGS = {
 		text: (): string => 'federation: thaw notice to peers failed —',
 		details: (): string => prose`
 			After an invalidation, this app tells its peers which of their stored pages used the
-			changed data, so they can drop them. Sending that notice failed (the error follows the
-			message), so a peer may serve its stored copy until it expires.
+			changed data, so they can drop them. Sending that notice failed (the error, or the peers
+			that never took it after every retry, follows the message), so a peer may serve its
+			stored copy until it expires. A peer usually refuses when it has no key for this app, or
+			its store is down.
 		`
 	}
 };

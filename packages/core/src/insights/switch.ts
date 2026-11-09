@@ -100,6 +100,6 @@ export function write_switch(on: boolean): void {
 			? `${DEVTOOLS_COOKIE}=${DEVTOOLS_ON}; path=/; max-age=${MAX_AGE}; samesite=lax`
 			: `${DEVTOOLS_COOKIE}=; path=/; max-age=0; samesite=lax`;
 	} catch {
-		// cookies off: nothing remembers it
+		// ok: cookies off: nothing remembers the switch past this page
 	}
 }

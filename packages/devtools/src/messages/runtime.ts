@@ -27,6 +27,15 @@ export const DEVTOOLS_ERRORS = {
 			in memory instead, so they are gone when the server restarts.
 		`
 	},
+	devtools_profiler_mount_failed: {
+		text: (): string => 'the profiler could not start; requests are served without it:',
+		details: (): string => prose`
+			The profiler (\`devtools({ profiler })\`) loads on the first request, and loading it
+			failed (the error follows the message): a runtime without \`node:inspector\` (an edge
+			runtime), or a dev server in the middle of an edit. Every request is still answered,
+			unprofiled, and the next request tries to start it again. Said once per server.
+		`
+	},
 	devtools_profiler_alloc_sampling_unavailable: {
 		text: (): string => 'allocation sampling unavailable, GC attribution off:',
 		details: (): string => prose`

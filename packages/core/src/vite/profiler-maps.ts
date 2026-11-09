@@ -115,7 +115,7 @@ export function fill_profiler_maps(
 		try {
 			code = fs.readFileSync(path.join(dir, c.fileName), 'utf8');
 		} catch {
-			/* keep the generated code */
+			// ok: the generated code is kept
 		}
 		on_disk[k] = { ...c, code };
 	}
@@ -131,7 +131,7 @@ export function fill_profiler_maps(
 			try {
 				sources[id] = fs.readFileSync(path.join(root, id), 'utf8');
 			} catch {
-				/* a module the build made up: nothing to read */
+				// ok: a module the build made up: nothing to read
 			}
 		}
 		// and the chunk itself, for a host that re-bundles the output (adapter-node): its own map

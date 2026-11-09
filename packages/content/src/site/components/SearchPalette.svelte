@@ -35,23 +35,39 @@
 
 	let q = $state('');
 	let results = $state<SearchHit[]>([]);
+	/** The palette's one state: its index loading, ready to answer, or failed (the index did not
+	 *  load, or the last query failed: its message is shown and no results are). A query that works
+	 *  again makes it ready. */
+	type Status = { kind: 'loading' } | { kind: 'ready' } | { kind: 'failed'; message: string };
 	// svelte-ignore state_referenced_locally
-	let ready = $state(!!query);
-	let error = $state('');
+	let status = $state<Status>(query ? { kind: 'ready' } : { kind: 'loading' });
 
 	let client: SearchClient | undefined;
+
+	const message_of = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 	onMount(() => {
 		if (query) return; // custom backend — no worker
 		client = new SearchClient({ base, ...(endpoint ? { endpoint } : {}), limit });
-		client.ready
-			.then(() => (ready = true))
-			.catch((e) => {
-				error = e instanceof Error ? e.message : String(e);
-				console.error(new OgygiaError('content_search_unavailable'), error);
-			});
+		client.ready.then(
+			() => {
+				if (status.kind === 'loading') status = { kind: 'ready' };
+			},
+			(e: unknown) => {
+				status = { kind: 'failed', message: message_of(e) };
+				results = [];
+				console.error(new OgygiaError('content_search_unavailable'), e);
+			}
+		);
 		return () => client?.destroy();
 	});
+
+	/** A query of `term` failed: shown, with no results under it. */
+	function query_failed(error: unknown): void {
+		status = { kind: 'failed', message: message_of(error) };
+		results = [];
+		console.error(new OgygiaError('content_search_query_failed'), error);
+	}
 
 	function run_query(term: string): Promise<SearchHit[]> {
 		if (query) return query(term);
@@ -73,8 +89,17 @@
 				return;
 			}
 			cancel = s.timeout(async () => {
-				const hits = await s.task(() => run_query(term));
-				if (hits !== STALE && input.value.trim() === term) results = hits;
+				let hits: SearchHit[] | typeof STALE;
+				try {
+					hits = await s.task(() => run_query(term));
+				} catch (error) {
+					// (a failure of a term the visitor already typed past is not the screen's)
+					if (input.value.trim() === term) query_failed(error);
+					return;
+				}
+				if (hits === STALE || input.value.trim() !== term) return;
+				results = hits;
+				status = { kind: 'ready' };
 			}, 150);
 		};
 		s.on(input, 'input', run);
@@ -110,10 +135,10 @@
 	     DISABLED option (aria-disabled, skipped by keyboard nav) — a valid required child. -->
 	<Command.List class="og-search-scene-body">
 		<Command.Viewport>
-			{#if error}
+			{#if status.kind === 'failed'}
 				<Command.Item disabled value="__error" class="og-search-error">
 					<strong>Search is unavailable.</strong>
-					<span>{error}</span>
+					<span>{status.message}</span>
 				</Command.Item>
 			{:else if results.length}
 				{#each results as hit (hit.href)}
@@ -127,7 +152,7 @@
 						<span class="og-search-hit-section">{hit.section}</span>
 					</Command.LinkItem>
 				{/each}
-			{:else if q.trim() && ready}
+			{:else if q.trim() && status.kind === 'ready'}
 				<Command.Item disabled value="__empty" class="og-search-empty"
 					>No results for “{q}”</Command.Item
 				>

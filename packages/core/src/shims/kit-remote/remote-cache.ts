@@ -70,7 +70,7 @@ function destroy_map(map: Map<string, Map<string, RemoteEntry>>) {
 			try {
 				entry.resource?.destroy?.();
 			} catch {
-				/* already torn down */
+				// ok: already torn down, which is what this was for
 			}
 		}
 	}

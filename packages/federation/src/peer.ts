@@ -110,7 +110,7 @@ export class PeerHandle implements Peer {
 			if (seen?.kind === 'kept' && Date.now() - seen.at >= this.#ttl) {
 				// stale: served as it is while one fresh flight refreshes it (an error answer, or a
 				// failure, leaves the good copy kept, and the next stale read tries again)
-				if (!seen.flying) docs.get(read, { fresh: true }).then(undefined, noop);
+				if (!seen.flying) docs.get(read, { fresh: true }).then(undefined, noop); // ok: the good copy stays served and the next stale read tries again; a read with no copy throws the failure
 				return seen.answer.doc;
 			}
 			let answer: Fetched | typeof STALE;

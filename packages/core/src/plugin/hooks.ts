@@ -2,7 +2,8 @@
  * SHARED HOOKS — how plugins (and core) talk to each other: the same way core talks to them. A
  * plugin implements a hook as a method of its server half; anyone calls it through `app`:
  *
- *   app.notify.invalidate(tags)        every implementation runs (resolves when all are done)
+ *   app.notify.invalidate(tags)        every implementation runs (resolves when all are done;
+ *                                      rejects then if one failed)
  *   app.ask.lastBuild(version)         the first answer that is not `undefined`, in plugin order
  *
  * Nobody implementing a hook is normal: `notify` does nothing, `ask` answers `undefined`. Core owns
@@ -52,11 +53,15 @@ export type Ask = {
 	) => Promise<Awaited<ReturnType<ServerHooks[K]>> | undefined>;
 };
 
-/** Every implementation of the named hook runs; a failing one is logged, never thrown. */
+/** Every implementation of the named hook runs; a failing one is logged and does not stop the
+ *  others. Once all ran, the notify rejects with what failed (the one error, or an
+ *  AggregateError): "done" and "done, but one could not" are different answers, like the ask's
+ *  (a peer said done for a thaw its store failed to apply, #287). */
 export const notify: Notify = new Proxy({} as Notify, {
 	get:
 		(_, name: string) =>
 		async (...args: unknown[]): Promise<void> => {
+			let failed: unknown[] | null = null;
 			// (a copy: an implementation may join or leave while a hook awaits)
 			for (const impl of implementations.slice()) {
 				const fn = impl[name];
@@ -65,8 +70,13 @@ export const notify: Notify = new Proxy({} as Notify, {
 					await (fn as AnyFn).apply(impl, args);
 				} catch (e) {
 					warn('plugin_hook_failed', { name }, e);
+					(failed ??= []).push(e);
 				}
 			}
+			if (failed)
+				throw failed.length === 1
+					? failed[0]
+					: new AggregateError(failed, `${failed.length} implementations of ${name} failed`);
 		}
 });
 
