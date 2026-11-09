@@ -7,6 +7,7 @@
  */
 import { defineServer, type Handle, type ServerPlugin } from '@ogygia/core/plugin';
 import { want_request_stats } from '@ogygia/core/internal/server';
+import { once } from '@ogygia/machine';
 import type { ProfilerOptions } from './profiler/index.ts';
 import { profiler_demand_skip } from './profiler/on-demand.ts';
 
@@ -18,12 +19,16 @@ export interface DevtoolsServerOptions {
 	profiler: ProfilerOptions | null;
 }
 
-/** the mounted profiler; `undefined` until the first request resolves it, `null` when unavailable */
-let mounted: Handle | null | undefined;
+/** the mounted profiler, once a mount succeeded */
+let mounted: Handle | null = null;
+
+/** The process's one profiler mount: the first requests that arrive together share it. A mount
+ *  that fails (an edge runtime without node:inspector, a dev server mid-edit) is not kept, so the
+ *  next request tries again. */
+let mounting: (() => Promise<Handle>) | null = null;
 
 async function mount(options: ProfilerOptions): Promise<Handle | null> {
-	if (mounted !== undefined) return mounted;
-	try {
+	mounting ??= once(async () => {
 		const { profiler } = await import('./profiler/index.ts');
 		// a runtime store (`setProfilerStore` in hooks.server.ts): a live DB object the build-time options
 		// could not carry, merged over them
@@ -31,11 +36,9 @@ async function mount(options: ProfilerOptions): Promise<Handle | null> {
 			getProfilerStore: () => undefined
 		}));
 		const store = getProfilerStore();
-		mounted = profiler({ ...options, ...(store ? { store } : {}) });
-	} catch {
-		mounted = null; // unavailable here (an edge runtime without node:inspector, …)
-	}
-	return mounted;
+		return (mounted = profiler({ ...options, ...(store ? { store } : {}) }));
+	});
+	return mounting().catch(() => null);
 }
 
 const server: ServerPlugin<DevtoolsServerOptions> = defineServer<DevtoolsServerOptions>({
@@ -50,7 +53,7 @@ const server: ServerPlugin<DevtoolsServerOptions> = defineServer<DevtoolsServerO
 		if (
 			profiler_demand_skip(
 				!!config.onDemand,
-				mounted !== undefined,
+				mounted !== null,
 				event.url.pathname,
 				config.path || '/__profiler'
 			)

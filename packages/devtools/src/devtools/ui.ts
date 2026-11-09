@@ -24,7 +24,8 @@ import {
 } from '@ogygia/core/insights';
 import { TESTING_ENGINE_VERSION } from '@ogygia/core/insights';
 import { import_again } from '@ogygia/core/internal/instruments';
-import { once } from '@ogygia/machine';
+import { machine, once, STALE, type Machine } from '@ogygia/machine';
+import { OgygiaError } from '../messages/runtime.ts';
 
 /** The dock's code: after a failed download, asked for again under a fresh URL. */
 const import_app = import_again(() => import('./ui-app.ts'));
@@ -34,11 +35,44 @@ const LAZY = typeof __OGYGIA_DEVTOOLS_LAZY__ !== 'undefined' ? __OGYGIA_DEVTOOLS
 
 const LAYOUT_KEY = 'ogygia:devtools:layout:v4';
 
-let mounted = false;
+type DockStates = {
+	/** The launcher's button is up; the dock's code is not in. */
+	button: {};
+	/** The dock's code downloads. Its answer counts only while the dock is still here. */
+	loading: {};
+	/** The dock is mounted. Leaving it unmounts the app, its observers and its Alt+O listener. */
+	mounted: {};
+	/** Devtools turned off in this browser: nothing of this dock is left. A new one starts over. */
+	off: {};
+};
+
+const dock_steps = {
+	button: ['loading', 'off'],
+	loading: ['button', 'mounted', 'off'],
+	mounted: ['off'],
+	off: []
+} as const;
+
+const dock_definition = machine<DockStates>()({
+	name: 'devtools-dock',
+	initial: 'button',
+	steps: dock_steps
+});
+
+/** The page's dock: its machine, and what turning it off takes away. */
+interface Dock {
+	readonly machine: Machine<DockStates, typeof dock_steps>;
+	/** the host element, and the launcher's button and Alt+O listener */
+	readonly host: HTMLElement;
+	readonly launcher: AbortController;
+}
+
+/** This module's dock, until devtools is turned off. */
+let dock: Dock | null = null;
 let launch_opts: { csr_true?: boolean } | undefined;
 
 export function install_devtools_ui(opts?: { csr_true?: boolean }): void {
-	if (!DEVTOOLS || typeof document === 'undefined' || mounted) return;
+	if (!DEVTOOLS || typeof document === 'undefined' || dock) return;
 	// Never mount on a profiler page — including the Profiler tab's embedded `/run` iframe. Profiler pages
 	// tag themselves with `<meta name="ogygia-devtools" content="off">`; the devtools has no business
 	// x-raying its own tooling (and a launcher inside the iframe is nonsense).
@@ -61,9 +95,8 @@ export function install_devtools_ui(opts?: { csr_true?: boolean }): void {
 function mount_launcher(opts?: { csr_true?: boolean }): void {
 	// ONE dock per document, whichever copy of this module asks: a Kit-hydrated page with holes
 	// boots both the standalone dock and the ogygia runtime, and two copies of this module (two
-	// URLs for one file) each have their own `mounted` — the host element is the shared truth
-	if (mounted || document.querySelector('[data-ogygia-devtools-host]')) return;
-	mounted = true;
+	// URLs for one file) each have their own `dock` — the host element is the shared truth
+	if (dock || document.querySelector('[data-ogygia-devtools-host]')) return;
 	// a session the page before was recording (a full page load mid-session) goes on here — the
 	// recorder loads only then (the key: session.ts SAVED_KEY)
 	try {
@@ -84,41 +117,43 @@ function mount_launcher(opts?: { csr_true?: boolean }): void {
 	document.documentElement.appendChild(host);
 	const root = host.attachShadow({ mode: 'open' });
 	const csr_true = opts?.csr_true ?? false;
+	const here: Dock = { machine: dock_definition.create(), host, launcher: new AbortController() };
+	dock = here;
+	const state = here.machine;
 
 	// The button shows at once; the dock replaces it when its code is in. A click while it loads is
 	// remembered (`want_open`), so the dock opens when it arrives.
-	let loading = false;
 	let want_open = false;
-	let button: HTMLButtonElement | null = null;
-	let on_key: ((e: KeyboardEvent) => void) | null = null;
+	const button = document.createElement('button');
 	// A download that fails puts the button back as it was, so the next click asks again, under a
 	// fresh URL (the browser keeps the failed one: core's import-again.ts). It once stayed on
-	// "loading…" for good.
+	// "loading…" for good. Devtools turned off meanwhile: the download's answer is dropped (a task of
+	// `loading`), so nothing mounts into the detached root.
 	const load = () => {
-		if (loading) return;
-		loading = true;
-		void import_app().then(
-			(m) => {
-				button?.remove();
-				if (on_key) removeEventListener('keydown', on_key);
-				m.mount_app(root, {
-					csr_true,
-					start_open: want_open,
-					...(LAZY ? { hide: devtools_off } : {})
-				});
-			},
-			(error: unknown) => {
-				loading = false;
-				want_open = false;
-				if (button) button.textContent = 'og devtools';
-				console.error(
-					'[ogygia] devtools: the dock’s code failed to load (click to try again)',
-					error
-				);
-			}
-		);
+		if (!state.move('button', 'loading')) return;
+		void state
+			.task(() => import_app())
+			.then(
+				(app) => {
+					if (app === STALE || !state.move('loading', 'mounted')) return;
+					here.launcher.abort();
+					button.remove();
+					state.onLeave(
+						app.mount_app(root, {
+							csr_true,
+							start_open: want_open,
+							...(LAZY ? { hide: devtools_off } : {})
+						})
+					);
+				},
+				(error: unknown) => {
+					if (!state.move('loading', 'button')) return;
+					want_open = false;
+					button.textContent = 'og devtools';
+					console.error(new OgygiaError('devtools_dock_load_failed'), error);
+				}
+			);
 	};
-	button = document.createElement('button');
 	button.setAttribute('data-og-panel-toggle', '');
 	button.title = 'ogygia devtools (Alt+O)';
 	button.textContent = 'og devtools';
@@ -126,23 +161,26 @@ function mount_launcher(opts?: { csr_true?: boolean }): void {
 		'position:fixed;right:24px;bottom:8px;padding:7px 12px;border-radius:999px;border:1px solid rgba(148,163,184,.35);' +
 		'background:#0b1220;color:#e2e8f0;font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer;' +
 		'opacity:.55;box-shadow:0 4px 16px rgba(0,0,0,.4)';
-	const b = button;
-	b.onmouseenter = () => (b.style.opacity = '1');
-	b.onmouseleave = () => (b.style.opacity = '.55');
+	button.onmouseenter = () => (button.style.opacity = '1');
+	button.onmouseleave = () => (button.style.opacity = '.55');
 	const open = () => {
 		want_open = true;
-		b.textContent = 'loading…';
+		button.textContent = 'loading…';
 		load();
 	};
-	b.onclick = open;
-	on_key = (e: KeyboardEvent) => {
-		if (e.altKey && (e.key === 'o' || e.key === 'O')) {
-			e.preventDefault();
-			open();
-		}
-	};
-	addEventListener('keydown', on_key);
-	root.appendChild(b);
+	button.onclick = open;
+	// the launcher's Alt+O, until the dock mounts (it has its own) or devtools is turned off
+	addEventListener(
+		'keydown',
+		(e: KeyboardEvent) => {
+			if (e.altKey && (e.key === 'o' || e.key === 'O')) {
+				e.preventDefault();
+				open();
+			}
+		},
+		{ signal: here.launcher.signal }
+	);
+	root.appendChild(button);
 	// a dock left open: its code now (it restores its own state). On the dev server a closed dock
 	// still loads, but only once the page is done and the browser idle — the dock's own work must
 	// not land in the page load it measures (it once pushed a healthy island's wake a second late)
@@ -241,8 +279,15 @@ export function devtools_off(): void {
 	} catch {
 		// no storage
 	}
+	// the dock goes whatever it is doing: a mounted one is unmounted, a download's answer is dropped
+	if (dock) {
+		dock.machine.go('off');
+		dock.launcher.abort();
+		dock.host.remove();
+		dock = null;
+	}
+	// (the host another copy of this module made: the shared truth, see mount_launcher)
 	document.querySelector('[data-ogygia-devtools-host]')?.remove();
-	mounted = false;
 }
 
 /**

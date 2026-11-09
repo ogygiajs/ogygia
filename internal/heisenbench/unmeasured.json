@@ -77,6 +77,38 @@
 			"reason": "browser only: loads the testing engine's chunk and notes its files, constant work; proven in packages/devtools/e2e/devtools.spec.ts"
 		},
 		{
+			"id": "packages/devtools/src/devtools/ui.ts > mount_launcher > load > task:0",
+			"reason": "browser only: the dock's chunk download as a task of its `loading` state, one import; proven in packages/devtools/e2e/dock-switch.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/ui.ts > mount_launcher > addEventListener:1",
+			"reason": "browser only: the launcher's Alt+O key listener, constant work; proven in packages/devtools/e2e/dock-switch.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/ui-app.ts > mount_app > <anonymous>",
+			"reason": "browser only: the dock's teardown (its observer off, the Svelte app unmounted), once per dock; proven in packages/devtools/e2e/dock-switch.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/session.ts > start_session > onLeave:0",
+			"reason": "browser only: a recording's watchers coming off (PerformanceObservers, a MutationObserver, listeners), once per recording; proven in packages/devtools/e2e/devtools.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/session.ts > start_session > rec > once:0",
+			"reason": "browser only: a recording's stop (the JS Self-Profiling sampler, the page's entries), once per recording; proven in packages/devtools/e2e/devtools.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > mount > once:0",
+			"reason": "once per process: the profiler's dynamic import and construction, nothing to repeat; proven in packages/devtools/test/profiler-mount-once.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > mount > once:0 > catch:0",
+			"reason": "the profiler's store module failed to load: a constant fallback, once per process"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > mount > once:0 > catch:0 > getProfilerStore",
+			"reason": "the fallback store getter when the store module failed to load: a constant undefined"
+		},
+		{
 			"id": "packages/core/src/runtime/wire-classes.ts > load > once:0",
 			"reason": "browser only: yields a task, then the dynamic import of a transportable class's chunk; its download, failure and retry are proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},

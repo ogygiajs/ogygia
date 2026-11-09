@@ -3,3 +3,5 @@
 build
 # internal/checks/cache-bust-check.ts keeps its two builds here while it runs
 .cache-check
+# the dock-on build e2e/dock-switch.spec.ts previews (svelte.config.js LAB_OUT)
+.lab-dock

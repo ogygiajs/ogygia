@@ -12,6 +12,7 @@
  * Elements are kept by WeakRef so the tab can point at them without holding the page alive.
  */
 import { add_sink, snapshot } from '@ogygia/core/events';
+import { machine, once } from '@ogygia/machine';
 import { all_regions, region_name } from './regions.ts';
 import type {
 	SessionClick,
@@ -163,10 +164,29 @@ export function describe_el(el: Element | null | undefined): string {
 }
 
 interface Recorder {
+	/** Ends this recording, once: a second call gets the first call's data, and touches nothing of
+	 *  a recording started after it. */
 	stop(): Promise<SessionData>;
 	started: number;
 }
 
+type RunStates = {
+	/** Watching the page. */
+	recording: {};
+	/** The page went away mid-session: its part is saved for the next document. */
+	saved: {};
+	/** Stopped: its data handed back. */
+	stopped: {};
+};
+
+/** One recording's run. Leaving `recording`, whichever way, takes its watchers off, once. */
+const run_definition = machine<RunStates>()({
+	name: 'session-recorder',
+	initial: 'recording',
+	steps: { recording: ['saved', 'stopped'], saved: [], stopped: [] }
+});
+
+/** The recording now: the newest started and not yet stopped. */
 let active: Recorder | null = null;
 
 /** the last finished session (its data + report), for every tab: the Record tab writes it, the
@@ -508,9 +528,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 	// A FULL PAGE LOAD mid-session: save this page's part (no CPU — the sampler cannot be stopped
 	// while the page goes away), the next document's devtools boot picks the session up
 	const on_hide = (e: PageTransitionEvent) => {
-		if (e.persisted || active !== rec) return;
-		detach();
-		active = null;
+		if (e.persisted || !run.move('recording', 'saved')) return;
 		const strip = (s: SessionData): SessionData =>
 			JSON.parse(
 				JSON.stringify({ ...s, cpu: null }, (k, v) => (k === 'el' ? null : v))
@@ -529,12 +547,18 @@ export function start_session(prior?: SavedPart[]): Recorder {
 	};
 	addEventListener('pagehide', on_hide);
 
+	const run = run_definition.create();
+	// out of `recording` (a stop, or the page going away): the watchers come off, and the module's
+	// recording is let go only while it is still this one (a newer one may have started since)
+	run.onLeave(() => {
+		detach();
+		if (active === rec) active = null;
+	});
 	const rec: Recorder = {
 		// (a resumed session: its first page's start, on this document's clock)
 		started: prior?.length ? prior[0].data.from + (prior[0].origin - performance.timeOrigin) : from,
-		async stop() {
-			active = null;
-			detach();
+		stop: once(async () => {
+			run.move('recording', 'stopped');
 			let cpu: unknown = null;
 			if (prof) {
 				try {
@@ -550,7 +574,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 				// no storage
 			}
 			return prior?.length ? merge_parts(prior, here) : here;
-		}
+		})
 	};
 	active = rec;
 	return rec;
