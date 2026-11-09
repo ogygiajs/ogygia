@@ -2028,7 +2028,8 @@ async function tool_fragment(args: Attrs): Promise<ToolResult> {
 	);
 }
 
-async function dispatch_tool(name: string, args: Attrs): Promise<ToolResult> {
+/** Run one tool, as the server does for a `tools/call`. @internal Exported for tests. */
+export async function dispatch_tool(name: string, args: Attrs): Promise<ToolResult> {
 	switch (name) {
 		case 'ogygia_compile':
 			return tool_compile(args);
