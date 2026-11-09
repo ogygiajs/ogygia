@@ -4,6 +4,7 @@
 // hydrating; hydratedBy() reports 'interaction'.
 // Usage: pnpm exec playwright test interaction
 import { test, check } from '@ogygia/tooling/e2e';
+import { console_text } from '@ogygia/tooling/e2e/browsers.ts';
 
 const WAKE_INTERACTION_RE = /ogygia-region[^>]*wake="interaction"/;
 const INTERACTION_ENTRY_RE = /ogygia-region entry="([^"]+)"[^>]*wake="interaction"/;
@@ -161,7 +162,8 @@ test.describe("wake:'interaction' — cold until used, click replay, typing surv
 	}) => {
 		const consoleErrs: string[] = [];
 		page.on('console', (m) => {
-			if (m.type() === 'error') consoleErrs.push(m.text());
+			// (the message's own text in every engine: Firefox's console text of an Error is its class)
+			if (m.type() === 'error') void console_text(m).then((t) => consoleErrs.push(t));
 		});
 		// Block the island's file (under any retry mark: a dropped download is asked for again under a
 		// fresh URL) AND its stable name (the fallback a lost location takes) → the wake's import
