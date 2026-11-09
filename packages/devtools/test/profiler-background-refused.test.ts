@@ -75,6 +75,6 @@ it('a window started after the trap stopped does not show the trap armed', async
 	const start = await call(handle, '/__profiler/window/start', 'POST');
 	expect(start.status).toBe(200);
 	const dash = await dashboard(handle);
-	expect(dash).toMatch(/Catch the slow one: stopped/);
+	expect(dash).toMatch(/Catch the slow one:<\/b> stopped/);
 	await call(handle, '/__profiler/window/stop', 'POST');
 }, 10_000);
