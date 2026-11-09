@@ -20,7 +20,7 @@
 	 * Engine: session.ts; analysis: session-insights.ts.
 	 */
 	import { onMount } from 'svelte';
-	import { flights } from '@ogygia/machine';
+	import { flights, scope } from '@ogygia/machine';
 	import { start_session, recording, set_last_session, session_names } from './session.ts';
 	import { run_profile, slim_profile } from './profile-store.ts';
 	import { analyze_session, session_timeline } from '@ogygia/core/insights';
@@ -181,12 +181,15 @@
 	let server = $state(
 		/** @type {Record<string, { busy?: boolean; error?: string; p?: import('./profile-store.ts').SlimProfile }>} */ ({})
 	);
+	/** The tab's server profiles (their requests, their waits for a busy profiler): end with the tab. */
+	const owner = scope();
 	async function profile_request(url) {
 		const u = new URL(url);
 		const path = u.pathname + u.search;
 		server = { ...server, [url]: { busy: true } };
 		try {
-			const p = await run_profile(path, 3);
+			const p = await run_profile(path, 3, '/__profiler', owner);
+			if (p === null) return; // the tab was left
 			server = { ...server, [url]: { p } };
 		} catch (e) {
 			server = { ...server, [url]: { error: e instanceof Error ? e.message : String(e) } };
@@ -200,7 +203,10 @@
 				? (n / 1024).toFixed(1) + ' KB'
 				: (n / 1048576).toFixed(1) + ' MB';
 
-	onMount(() => () => clear_highlight());
+	onMount(() => () => {
+		clear_highlight();
+		owner.close();
+	});
 </script>
 
 <div class="rec" data-og-session>
