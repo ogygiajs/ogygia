@@ -10,12 +10,13 @@ import { inline_markers } from '../src/markdown/inline-markers.ts';
 const OPTS = { transformers: [inline_markers()] };
 
 describe('inline_markers', () => {
+	// (the file's first highlight makes Shiki's highlighter: seconds on a loaded CI runner)
 	it('wraps an added span, strips the delimiters', async () => {
 		const html = await highlight('let +++count+++ = 0;', 'js', OPTS);
 		expect(html).toContain('og-mark-add');
 		expect(html).not.toContain('+++');
 		expect(html).toContain('count');
-	});
+	}, 30_000);
 
 	it('wraps a removed span and keeps its content visible', async () => {
 		const html = await highlight('let ---old--- fresh = 1;', 'js', OPTS);
