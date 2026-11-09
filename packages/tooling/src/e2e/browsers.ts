@@ -29,6 +29,17 @@ export function needs_js_self_profiling(page: Page): void {
 	);
 }
 
+/**
+ * The requests a page's hole preloads (`<link rel="preload" as="fetch">`, one per hole address)
+ * add in this engine: `per_page` in WebKit, which never hands a fetch preload to a later `fetch()`
+ * (every crossorigin, credentials and Cache-Control: the runtime's fetch asks again, #404), and 0
+ * in Chromium and Firefox, which reuse it. A spec that counts a hole's requests or renders adds
+ * this, so it stays exact about retries in every engine.
+ */
+export function unused_fetch_preloads(page: Page, per_page = 1): number {
+	return page.context().browser()?.browserType().name() === 'webkit' ? per_page : 0;
+}
+
 /** Skips the running test outside Chromium: it drives the Chrome DevTools Protocol (CPU and
  *  network throttling), which Firefox and WebKit do not speak. */
 export function needs_cdp(page: Page): void {

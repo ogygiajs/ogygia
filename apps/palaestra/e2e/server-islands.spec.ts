@@ -3,6 +3,7 @@
 // query) and the dev server.
 import { createHash } from 'node:crypto';
 import { test, check } from '@ogygia/tooling/e2e';
+import { unused_fetch_preloads } from '@ogygia/tooling/e2e/browsers.ts';
 import {
 	AMP_ENTITY_G_RE,
 	ENDPOINT_ATTR_RE,
@@ -295,7 +296,7 @@ test.describe('defer fallback/endpoint/HMAC/cookie/CSS', () => {
 		await page.waitForTimeout(300);
 		check(
 			'no double server render (preload reused, 1 render)',
-			renderStamps.size === 1,
+			renderStamps.size === 1 + unused_fetch_preloads(page),
 			`${renderStamps.size} renders`
 		);
 	});

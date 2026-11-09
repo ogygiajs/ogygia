@@ -9,6 +9,7 @@
 //
 //   pnpm exec playwright test hole-wall
 import { test, check, sleep } from '@ogygia/tooling/e2e';
+import { unused_fetch_preloads } from '@ogygia/tooling/e2e/browsers.ts';
 
 const HOLE_REQUEST_RE = /\/__ogygia__\?/;
 
@@ -57,7 +58,7 @@ for (const mode of ['redirect', 'document'] as const) {
 		);
 		check(
 			`${mode}: exactly ONE hole request (no retry of a deterministic refusal)`,
-			hole_requests.length === 1,
+			hole_requests.length === 1 + unused_fetch_preloads(page),
 			String(hole_requests.length)
 		);
 		check(`${mode}: no page errors`, errs.length === 0, errs.slice(0, 2).join('; '));
@@ -98,7 +99,7 @@ for (const [mode, param, value, deny] of [
 		await sleep(2000); // past the runtime's retry delays, had it retried
 		check(
 			`${mode}: exactly ONE hole request (no retry of a refused capability)`,
-			answers.length === 1,
+			answers.length === 1 + unused_fetch_preloads(page),
 			String(answers.length)
 		);
 		const a = answers[0];

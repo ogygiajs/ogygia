@@ -8,6 +8,7 @@
 // The staleness/version discipline is covered deterministically in test/frame-store.test.ts.
 import { test, check } from '@ogygia/tooling/e2e';
 import { ENDPOINT_PATH_RE, REGION_ENDPOINT_G_RE } from '@ogygia/tooling/e2e/re.ts';
+import { unused_fetch_preloads } from '@ogygia/tooling/e2e/browsers.ts';
 
 const ISLANDS_RE = /\/_islands\b/;
 
@@ -50,7 +51,7 @@ test.describe('frame store: identical twins share ONE endpoint fetch', () => {
 		// The whole point: one fetch for three identical calls.
 		check(
 			'endpoint fetched EXACTLY once (dedupe)',
-			endpointHits.length === 1,
+			endpointHits.length === 1 + unused_fetch_preloads(page),
 			`${endpointHits.length} hits`
 		);
 	});
