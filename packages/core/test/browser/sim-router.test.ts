@@ -11,7 +11,7 @@
 //   refresh settles.
 // Back and forward stay with e2e: the browser's own history traversal (`popstate`) is not ours to
 // order, and the chunk's first load is a real module load (it is loaded once, before the runs).
-import { afterAll, beforeAll, describe, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, vi } from 'vitest';
 import { fc, simulate } from '@ogygia/config/sim';
 import { it_with_history_unthrottled } from './_browsers.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';
