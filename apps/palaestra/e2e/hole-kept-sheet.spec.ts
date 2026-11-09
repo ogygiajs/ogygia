@@ -28,7 +28,9 @@ test('a hole kept across a navigation keeps its stylesheet in the head the whole
 			for (const r of records)
 				for (const n of r.removedNodes)
 					if (n instanceof Element && n.hasAttribute('data-ogygia-region-css'))
-						w.__sheets_out.push(n.getAttribute('href') ?? n.getAttribute('data-ogygia-region-css')!);
+						w.__sheets_out.push(
+							n.getAttribute('href') ?? n.getAttribute('data-ogygia-region-css')!
+						);
 		}).observe(document.head, { childList: true });
 	});
 	const sheets_before = await page.evaluate(
