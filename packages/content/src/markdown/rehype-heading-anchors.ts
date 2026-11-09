@@ -19,6 +19,7 @@ type HastNode = {
 	children?: HastNode[];
 };
 
+// static: the heading levels that get an anchor, a fixed list
 const HEADINGS = new Set(['h2', 'h3', 'h4', 'h5', 'h6']);
 
 const text_of = (node: HastNode): string => {

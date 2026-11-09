@@ -4,6 +4,7 @@
  * from `NN-` prefixes is generic corpus knowledge (a blog wants it too), and the outline reads the
  * RESULT — `order`/`groups` as data — so it never parses a filename.
  */
+import { cache } from '@ogygia/machine';
 import { OgygiaError } from './messages/runtime.ts';
 
 // ── regexes
@@ -147,7 +148,9 @@ export type DatedOptions = {
 
 type CompiledFormat = { re: RegExp; date_re: RegExp; order: Array<'Y' | 'M' | 'D'> };
 
-const compiled_formats = new Map<string, CompiledFormat>();
+/** Each date format compiled, by its text: a site has one or two (a convention's, and any
+ *  `date_of(segment, format)` asks with), so a few are kept. */
+const compiled_formats = cache<string, CompiledFormat>({ name: 'date formats', max: 16 });
 
 function compile_format(format: string): CompiledFormat {
 	const hit = compiled_formats.get(format);
