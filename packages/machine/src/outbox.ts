@@ -16,7 +16,8 @@
  *   (which never rejects) says how it ended: `true` once `send` resolved, `false` once it was given
  *   up; a caller whose next step needs the work done awaits it.
  * - `waitUntil` is handed each send: a serverless platform then keeps the instance alive until it
- *   ends. Without one, it runs on in the process.
+ *   ends. Without one, it runs on in the process, which stays alive for it (the waits between its
+ *   tries too) until it is done or given up.
  * - `send` resolving is done, so it resolves only once the receiver confirmed it APPLIED the work
  *   (an HTTP send checks `ok`), and throws otherwise. The receiver applies first and records the id
  *   after, so a failed apply is tried again and a second copy of an applied one is dropped.

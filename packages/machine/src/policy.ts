@@ -11,7 +11,7 @@
  * machine's `retrying` state) reads its waits from one (`backoff_after`).
  */
 import { machine_error } from './messages.ts';
-import { MAX_TIMEOUT_MS, scope } from './scope.ts';
+import { MAX_TIMEOUT_MS, scope, type Scope } from './scope.ts';
 import { STALE, type Stale } from './stale.ts';
 
 export interface Policy {
@@ -93,6 +93,16 @@ export function out_of_time(deadline: number, error: unknown): DOMException {
 }
 
 /**
+ * A timer of the tries that keeps a Node process alive, unlike a scope's own: the work between two
+ * tries is still work out, as a try in flight is (whose socket holds the process). Without it a
+ * process with nothing else to do exits in the wait, and the send is neither done nor given up.
+ */
+function alive(tries: Scope, fn: () => void, ms: number): void {
+	const timer = setTimeout(fn, ms);
+	tries.defer(() => clearTimeout(timer));
+}
+
+/**
  * Runs `work` under `p`: its answer once a try gives one; after a try fails, the next one after the
  * policy's wait (at once when it is 0: no timer, the same turn of the loop); the last try's error
  * once the tries run out, or a `TimeoutError` (`out_of_time`) once the deadline passes, which also
@@ -109,7 +119,7 @@ export async function under_policy<T>(
 	let left = false;
 	if (signal !== undefined) tries.on(signal, 'abort', () => ((left = true), tries.close()));
 	const started = p.deadline === Infinity ? 0 : Date.now();
-	if (p.deadline !== Infinity) tries.timeout(() => tries.close(), p.deadline);
+	if (p.deadline !== Infinity) alive(tries, () => tries.close(), p.deadline);
 	let error: unknown = undefined;
 	try {
 		for (let n = 1; ; n++) {
@@ -126,7 +136,7 @@ export async function under_policy<T>(
 			// (a wait that ends past the deadline is a try that would only be aborted)
 			if (p.deadline !== Infinity && Date.now() - started + wait >= p.deadline) throw error;
 			if (wait > 0) {
-				await tries.task(() => new Promise<void>((r) => tries.timeout(r, wait)));
+				await tries.task(() => new Promise<void>((r) => alive(tries, r, wait)));
 				if (left) return STALE;
 				if (tries.closed) throw out_of_time(p.deadline, error);
 			}
