@@ -59,22 +59,41 @@ jobs:
             turbo-${{ runner.os }}-check-
             turbo-${{ runner.os }}-
 
+      # What `check` would run, asked of turbo first: when every check task is a cache hit, nothing
+      # runs a browser (a replay only prints the stored logs), so the browser's setup is skipped.
+      - name: Plan
+        id: plan
+        run: |
+          pnpm exec turbo run check --filter=./packages/* --filter=./packages/*/e2e/* --filter=./apps/* --dry=json > turbo-plan.json
+          node -e '
+            const plan = JSON.parse(require("fs").readFileSync("turbo-plan.json", "utf8"));
+            const checks = (plan.tasks ?? []).filter((t) => t.task === "check");
+            const left = checks.filter((t) => t.cache?.status !== "HIT");
+            console.log(`${checks.length} check task(s), ${left.length} to run: ${left.map((t) => t.taskId).join(", ") || "none"}`);
+            require("fs").appendFileSync(process.env.GITHUB_OUTPUT, `skip=${left.length === 0}\n`);
+          '
+        env:
+          OGYGIA_BROWSERS: chromium
+
       # core's vitest has a browser project.
       # Playwright's Chromium, cached per Playwright version: a hit downloads nothing. No `--with-deps`:
       # the runner image already has the browser's system libraries (it ships Google Chrome), and that
       # apt step is what stalled jobs. (Not the runner's Chrome itself: it fetches /favicon.ico on every
       # page, and the 404 trips the suites' "no console errors" checks.)
       - name: Playwright version
+        if: steps.plan.outputs.skip != 'true'
         id: playwright
         run: echo "version=$(pnpm exec playwright --version | sed 's/Version //')" >> "$GITHUB_OUTPUT"
 
       - name: Playwright browser cache
+        if: steps.plan.outputs.skip != 'true'
         uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
       - name: Install Playwright Chromium
+        if: steps.plan.outputs.skip != 'true'
         run: pnpm exec playwright install chromium
 
       # Root `check` (build:lib + every package's check, every fixture app's and app's svelte-check
@@ -265,12 +284,6 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      # Bun runtime dimension — the adapter e2e suite runs the node-server output under bun too.
-      - if: env.TEST == 'true' && matrix.slice.adapters
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - if: env.TEST == 'true'
         name: Install workspace deps
         run: pnpm install --frozen-lockfile
@@ -287,16 +300,44 @@ jobs:
             turbo-${{ runner.os }}-e2e-${{ matrix.slice.id }}-${{ matrix.browser }}-
             turbo-${{ runner.os }}-
 
+      # What the run below would do, asked of turbo first (`--dry=json`, the same filter, `--affected`
+      # and hashed env): when no e2e task is left or every one is a cache hit, nothing runs a browser,
+      # bun or workerd (a replay only prints the stored logs), so their setup is skipped. The run step
+      # itself always runs, so the logs replay.
+      - if: env.TEST == 'true'
+        name: Plan
+        id: plan
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then affected=--affected; fi
+          pnpm exec turbo run e2e --concurrency=1 ${{ matrix.slice.filter }} $affected --dry=json > turbo-plan.json
+          node -e '
+            const plan = JSON.parse(require("fs").readFileSync("turbo-plan.json", "utf8"));
+            const e2e = (plan.tasks ?? []).filter((t) => t.task === "e2e");
+            const left = e2e.filter((t) => t.cache?.status !== "HIT");
+            console.log(`${e2e.length} e2e task(s), ${left.length} to run: ${left.map((t) => t.taskId).join(", ") || "none"}`);
+            require("fs").appendFileSync(process.env.GITHUB_OUTPUT, `skip=${left.length === 0}\n`);
+          '
+        env:
+          E2E_SHARD: ${{ matrix.slice.shard }}
+          OGYGIA_BROWSERS: ${{ matrix.browser }}
+          TURBO_SCM_BASE: origin/${{ github.base_ref || 'main' }}
+
+      # Bun runtime dimension — the adapter e2e suite runs the node-server output under bun too.
+      - if: env.TEST == 'true' && matrix.slice.adapters && steps.plan.outputs.skip != 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
       # Playwright's Chromium, cached per Playwright version: a hit downloads nothing. No `--with-deps`:
       # the runner image already has the browser's system libraries (it ships Google Chrome), and that
       # apt step is what stalled jobs. (Not the runner's Chrome itself: it fetches /favicon.ico on every
       # page, and the 404 trips the suites' "no console errors" checks.)
-      - if: env.TEST == 'true'
+      - if: env.TEST == 'true' && steps.plan.outputs.skip != 'true'
         name: Playwright version
         id: playwright
         run: echo "version=$(pnpm exec playwright --version | sed 's/Version //')" >> "$GITHUB_OUTPUT"
 
-      - if: env.TEST == 'true'
+      - if: env.TEST == 'true' && steps.plan.outputs.skip != 'true'
         name: Playwright browser cache
         uses: actions/cache@v6
         with:
@@ -304,13 +345,13 @@ jobs:
           key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
 
       # (Chromium's system libraries are on the image; WebKit's and Firefox's need --with-deps)
-      - if: env.TEST == 'true'
+      - if: env.TEST == 'true' && steps.plan.outputs.skip != 'true'
         name: Install Playwright ${{ matrix.browser }}
         run: pnpm exec playwright install ${{ matrix.browser != 'chromium' && '--with-deps' || '' }} ${{ matrix.browser }}
 
       # wrangler (Cloudflare workerd) is fetched on demand by the suite via npx; warm it so the
       # cloudflare adapter boots the real Workers runtime instead of skipping.
-      - if: env.TEST == 'true' && matrix.slice.adapters
+      - if: env.TEST == 'true' && matrix.slice.adapters && steps.plan.outputs.skip != 'true'
         name: Warm wrangler
         run: npx --yes wrangler --version
 
