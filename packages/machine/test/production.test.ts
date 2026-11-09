@@ -80,8 +80,8 @@ describe('production', () => {
 		});
 		const m = loose.create();
 		const reached = m.wait('c');
-		const never = m.wait('a'); // (no step leads back to a)
 		m.go('b');
+		const never = m.wait('a'); // (no step leads back to a)
 		expect((m.go as (to: string) => boolean)('zz')).toBe(false);
 		m.go('c');
 		await expect(reached).resolves.toEqual({ kind: 'c' });
