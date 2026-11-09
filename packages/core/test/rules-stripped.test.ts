@@ -53,9 +53,14 @@ const RUNTIME_ENTRY =
 	`import { boot } from ${JSON.stringify(SRC + 'runtime/core.ts')};\n` +
 	`import { install } from ${JSON.stringify(SRC + 'runtime/router.ts')};\n` +
 	`boot([install]);\n`;
+// The response path, and the checks installed as the handle installs them (hooks.ts: its `RULES`
+// guard, word for word; the handle itself reads virtual modules a bare build cannot resolve).
 const SERVER_ENTRY =
 	`export { own_response } from ${JSON.stringify(SRC + 'plugin/request-scope.ts')};\n` +
-	`export { flights } from '@ogygia/machine';\n`;
+	`export { flights } from '@ogygia/machine';\n` +
+	`import { install_server_rules } from ${JSON.stringify(SRC + 'server/rules.ts')};\n` +
+	`const RULES = import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);\n` +
+	`if (RULES) install_server_rules();\n`;
 
 describe('rules never ship in a production build', () => {
 	it('the runtime boot with its router: none of them off, every one on', async () => {
@@ -73,8 +78,11 @@ describe('rules never ship in a production build', () => {
 	it("the server's response path: none of them off, every one on", async () => {
 		const off = await build(SERVER_ENTRY, false);
 		const on = await build(SERVER_ENTRY, true);
-		for (const check of SERVER_RULES) expect(off, check).not.toContain(check);
-		// on, the response path notes each response's end for them (the handle installs the checks)
+		for (const check of SERVER_RULES) {
+			expect(off, check).not.toContain(check);
+			expect(on, check).toContain(check);
+		}
+		// on, the response path notes each response's end for them too
 		expect(off.length).toBeLessThan(on.length);
 		expect(on).not.toBe(off);
 	}, 60_000);

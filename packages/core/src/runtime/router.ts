@@ -239,6 +239,15 @@ export type HistoryMove = 'push' | 'replace' | 'pop';
  *   document's to show: the browser loads it whole. An entry with no id (the browser's own fragment
  *   jump, an app's own `pushState`) is taken over when the router meets it.
  */
+/** The state of the entry the browser is on, named by `id`: the id goes beside what the app (or
+ *  Kit) keeps there, never over it (#375). */
+function named(id: string): Record<string, unknown> {
+	const kept = history.state as unknown;
+	return kept !== null && typeof kept === 'object'
+		? { ...(kept as Record<string, unknown>), ogygia: id }
+		: { ogygia: id };
+}
+
 export class RouterHistory {
 	/** Names this document's entries apart from another document's (a reload's, say). */
 	readonly #doc = Math.random().toString(36).slice(2, 10);
@@ -253,7 +262,7 @@ export class RouterHistory {
 
 	/** Takes over the entry the browser is on as the router starts: its state names it now. */
 	start(): void {
-		replace_state({ ogygia: this.current.id });
+		replace_state(named(this.current.id));
 	}
 
 	/** The entry a history state names: this model's, `'foreign'` (another document's), or null
@@ -286,14 +295,14 @@ export class RouterHistory {
 		entry.url = url;
 		this.#current = entry;
 		if (location.href !== url.href || history.state?.ogygia !== entry.id)
-			replace_state({ ogygia: entry.id }, url.href);
+			replace_state(named(entry.id), url.href);
 		return entry;
 	}
 
 	/** The entry the browser stepped to, which no id names: this model's from now on. */
 	adopt(url: URL): HistoryEntry {
 		const entry = this.#add(url);
-		replace_state({ ogygia: entry.id });
+		replace_state(named(entry.id));
 		return entry;
 	}
 
