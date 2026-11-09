@@ -3,13 +3,16 @@
  * intercepted click: page fetch + cache, head merge, the body reconcile / morph, seeds, a11y.
  * Nothing here runs at boot; a visitor who never leaves the page never downloads it.
  *
- * A navigation is TWO tasks. The first — this module's `navigate` after the fetch — does everything
- * that needs no live DOM change: parse the HTML, read the route facts, batch the incoming holes,
- * stamp reconcile keys, parse the incoming page seed, drop hints for modules already warm, preload
- * stylesheets. Then it yields. The second task is the view transition's callback and does ONLY the
- * DOM: head merge, seeds, body morph, title. The old single-task swap ran a whole-document regex,
- * two `'*'` walks and a seed parse inside `startViewTransition`, on the frame the transition
- * captures.
+ * A navigation is a STAGED CHANGE (`stage`, @ogygia/machine), in two tasks. The build — this
+ * module's `navigate` up to the commit — does everything that needs no live DOM change: fetch and
+ * parse the HTML, read the route facts, batch the incoming holes, stamp reconcile keys, parse the
+ * incoming page seed, drop hints for modules already warm, load the stylesheets (inert: they style
+ * nothing yet). Then it yields. The commit is one synchronous step, the view transition's callback
+ * or a plain call, and does ONLY the DOM: head merge, seeds, body morph, title. A navigation left
+ * before its commit gives back what it built; one whose commit throws goes to the browser. The old
+ * single-task swap ran a whole-document regex, two `'*'` walks and a seed parse inside
+ * `startViewTransition`, on the frame the transition captures. The soft refresh is staged the same
+ * way.
  */
 import { boot_link, router_link, slots } from './slots.ts';
 import { dispose_scope } from '../ref.ts';
@@ -38,6 +41,8 @@ const KitBoot = { document_has: (doc: ParentNode) => boot_link().KitBoot.documen
 const regions_in_shadow = () => boot_link().regions_in_shadow();
 const session = () => boot_link().runtime_session;
 type Scope = import('@ogygia/machine').Scope;
+type Stale = import('@ogygia/machine').Stale;
+type Staging = import('@ogygia/machine').Staging;
 /** devalue first, when the fetched page holds a script in its lane (./devalue-lane.ts) */
 const devalue_for = (doc: Document) =>
 	boot_link().needs_devalue(doc) ? boot_link().load_devalue() : undefined;
@@ -51,7 +56,7 @@ const register_island_graph = (text: string, base: string) =>
 	boot_link().register_island_graph(text, base);
 const yield_task = () => boot_link().yield_task();
 /** What a machine's task answers once its visit is left (the boot's `@ogygia/machine`). */
-const is_stale = (v: unknown) => v === boot_link().STALE;
+const is_stale = (v: unknown): v is Stale => v === boot_link().STALE;
 const document_key = (url: URL) => router_link().document_key(url);
 const jump_to_hash = (hash: string) => router_link().jump_to_hash(hash);
 const push_state = (state: unknown, url: string) => router_link().push_state(state, url);
@@ -559,6 +564,32 @@ function build_of(d: Document): string | null {
 	return file(s.getAttribute('src')) + ' ' + file(s.getAttribute('data-og-locations'));
 }
 
+/** A next page's stylesheet, loaded before its commit and styling nothing until then: the link,
+ *  in the head under a media no screen matches, and the media and fetch priority it came with. */
+type InertSheet = { link: HTMLLinkElement; media: string | null; priority: string | null };
+/** What matches no screen: a sheet under it loads, and styles nothing. */
+const INERT_MEDIA = 'not all';
+
+/** The next page's sheet goes live: it styles the page as it came. */
+function apply_sheet({ link, media, priority }: InertSheet): void {
+	if (media === null) link.removeAttribute('media');
+	else link.setAttribute('media', media);
+	if (priority === null) link.removeAttribute('fetchpriority');
+}
+
+/** What a navigation builds off to the side before its commit (`navigate`'s stage): the parsed
+ *  next page, the address it belongs to, whether it goes in under a view transition, its sheets
+ *  (loaded, styling nothing yet), and the beacon's clock (fetched, styled; reconciled at commit). */
+type Built = {
+	doc: Document;
+	dest: URL;
+	use_vt: boolean;
+	sheets: InertSheet[];
+	fetched: number;
+	styled: number;
+	reconciled: boolean;
+};
+
 // NOTE: the library does NO script processing. Scripts inserted via a client-side body swap do
 // not execute (standard browser behaviour for parsed/adopted <script> nodes) — if you need code
 // to run per navigation, use an island. Our own runtime module script is marked
@@ -585,12 +616,10 @@ export async function navigate(
 	// (its `beforeNavigate` guards ran before the claim: SpaRouter.navigate)
 
 	const dt_t0 = DEVTOOLS ? dt_now() : 0;
-	let dt_reconciled = false;
 	// THE NAVIGATION'S OWN CLOCK (the beacon's: a slow in-app navigation is a page's cost the
-	// document timing never sees): its start, the page fetched, its styles in, the swap committed
+	// document timing never sees): its start, the page fetched and its styles in (the build's), the
+	// swap committed
 	const nav_t0 = performance.now();
-	let nav_fetched = nav_t0;
-	let nav_styled = nav_t0;
 	if (DEVTOOLS)
 		dt_emit({
 			domain: 'nav',
@@ -599,11 +628,6 @@ export async function navigate(
 			to: url.pathname + url.search,
 			type
 		});
-
-	// A soft refresh still out belongs to the page being left: its late answer would merge that
-	// page's head and data into this one (#202). The navigation brings its own.
-	const { soft } = boot_link();
-	if (soft.now.kind === 'refreshing') soft.go('idle');
 
 	// This navigation's visit: only it may apply a body swap (P2). A newer click starts a new visit:
 	// every step below checks it is still `mine`, and its fetch (a task of the visit) is aborted.
@@ -615,12 +639,8 @@ export async function navigate(
 	// visit's, which the swap makes the page's, and which ends with `attempt` when there is no swap.
 	const attempt = r.nav.scope;
 	const next = session().next_visit();
-	/** The next page's sheets this navigation put in the head before its swap (`preload_stylesheets`). */
-	const early: Element[] = [];
 	attempt.defer(() => {
-		if (session().visit === next) return; // swapped in: the visit and its sheets are the page's
-		for (const sheet of early) sheet.remove(); // (#267)
-		next.scope.close();
+		if (session().visit !== next) next.scope.close(); // (swapped in: the visit is the page's)
 	});
 
 	// Update history SYNCHRONOUSLY (before any await) so the URL is correct and
@@ -641,129 +661,131 @@ export async function navigate(
 	// REPLACES it, so the visit is one entry, and one the router's page does not share (#259:
 	// ./router.ts `hand_off`). A hand-off ends this visit: the navigation is the browser's now, and
 	// one the browser keeps the page on screen for (a download, a 204) must not stay in flight (#266).
-	const hand_off = () => r.hand_off(url, from, mine);
+	// A navigation that fails part way (its devalue does not load, its swap throws) goes to the
+	// browser too, its error said: never left in flight, never finished as if it went in (#276).
+	const hand_off = (error?: unknown) => r.hand_off(url, from, mine, error);
 
 	// A back/forward restore re-fetches (we hold no DOM snapshot); mark it so the server can skip
 	// side effects the visitor already triggered on the first visit. A plain click is `nav`.
 	const purpose: NavPurpose = type === 'popstate' ? 'history' : 'nav';
 
-	let page: FetchedPage | null;
-	try {
-		const fetched = await attempt.task((signal) => fetch_page(url.href, signal, purpose));
-		if (is_stale(fetched)) return; // a newer navigation took over (and aborted this fetch)
-		page = fetched;
-	} catch {
-		return hand_off();
-	}
-	if (r.nav.now !== mine) return;
-	if (page == null) return hand_off();
-	const { html } = page;
-	nav_fetched = performance.now();
-	// one-shot; always fresh on real navigation (a fetch already out again for it is left be)
-	pages().drop((href, entry) => href === url.href && entry.kind === 'kept' && !entry.flying);
+	// ── THE BUILD: fetch, parse, facts, preflight, sheets — off to the side, no live change ──
+	// Null: nothing came, or the router will not render what came: the browser's, then.
+	const build = async ({ signal, discard }: Staging): Promise<Built | null> => {
+		const page = await fetch_page(url.href, signal, purpose);
+		if (page === null || signal.aborted) return null;
+		const { html } = page;
+		const fetched = performance.now();
+		// one-shot; always fresh on real navigation (a fetch already out again for it is left be)
+		pages().drop((href, entry) => href === url.href && entry.kind === 'kept' && !entry.flying);
 
-	// REDIRECT: the fetch may have landed on a different href (a Kit `redirect()` in load, a
-	// canonical trailing-slash bounce). `dest` is the address the content actually belongs to —
-	// used from here on for the address bar, doc key, current URL, and hash scroll, but only once
-	// the router knows it will render this response itself (below). `dest` === `url` in the common case.
-	let dest = url;
-	if (page.url !== url.href) {
-		try {
-			dest = new URL(page.url, url);
-		} catch {
-			dest = url;
+		// REDIRECT: the fetch may have landed on a different href (a Kit `redirect()` in load, a
+		// canonical trailing-slash bounce). `dest` is the address the content actually belongs to —
+		// used from here on for the address bar, doc key, current URL, and hash scroll, but only once
+		// the router knows it will render this response itself (below). `dest` === `url` in the common case.
+		let dest = url;
+		if (page.url !== url.href) {
+			try {
+				dest = new URL(page.url, url);
+			} catch {
+				dest = url;
+			}
 		}
-	}
 
-	// A cross-origin landing can't be a body swap.
-	if (dest.origin !== location.origin) return hand_off();
+		// A cross-origin landing can't be a body swap.
+		if (dest.origin !== location.origin) return null;
 
-	// ── TASK ONE: parse + facts + preflight — no live DOM change ──
-	const doc = new DOMParser().parseFromString(html, 'text/html');
+		// ── TASK ONE: parse + facts + preflight — no live DOM change ──
+		const doc = new DOMParser().parseFromString(html, 'text/html');
 
-	// csr=true Kit pages boot via inline/module scripts that cloneNode will NOT execute.
-	// Hand off to a full navigation instead of a half-broken SPA swap (BRK-HEAD). Read off the
-	// parsed document (the route meta, else its inline scripts) — never a regex over the string.
-	if (KitBoot.document_has(doc)) return hand_off();
+		// csr=true Kit pages boot via inline/module scripts that cloneNode will NOT execute.
+		// Hand off to a full navigation instead of a half-broken SPA swap (BRK-HEAD). Read off the
+		// parsed document (the route meta, else its inline scripts) — never a regex over the string.
+		if (KitBoot.document_has(doc)) return null;
 
-	// Mixed sites: if the target page has no `ogygia-router` marker (the handle injects it on
-	// every ogygia page), it is not an ogygia page — hand over to a real document navigation
-	// (and stop SPA behaviour from here on).
-	const marker = doc.querySelector('meta[name="ogygia-router"]');
-	if (!marker) return hand_off();
-	// ANOTHER BUILD: the next page names another runtime or location map than the ones running here
-	// (a deploy since this document loaded). Its islands were built against that build's runtime and
-	// Svelte; woken by this document's runtime, two copies of each would meet on one page. A document
-	// navigation loads it whole, on its own build.
-	const next_build = build_of(doc);
-	const this_build = next_build === null ? null : build_of(document);
-	if (this_build !== null && next_build !== this_build) return hand_off();
-	// A page whose custom elements are in the app transform's FIRST-LOAD form (served from a store,
-	// a prerender, or a cache that held the full-load copy — the server renders a router fetch as an
-	// answer otherwise): only each component's own first hydrate reads that form, and swapped into
-	// live hosts it would leave the transform's tree in their light DOM. Loaded, it is right.
-	if (doc.querySelector('meta[name="ogygia-first-load"]')) return hand_off();
-	// The app's transform reshaped the incoming page: restore it before anything reads it (the
-	// reconcile, the islands' copies). The restorer is the page's own global, when the app has one.
-	(globalThis as { __og_restore?: (root: ParentNode) => number }).__og_restore?.(doc);
+		// Mixed sites: if the target page has no `ogygia-router` marker (the handle injects it on
+		// every ogygia page), it is not an ogygia page — hand over to a real document navigation
+		// (and stop SPA behaviour from here on).
+		const marker = doc.querySelector('meta[name="ogygia-router"]');
+		if (!marker) return null;
+		// ANOTHER BUILD: the next page names another runtime or location map than the ones running here
+		// (a deploy since this document loaded). Its islands were built against that build's runtime and
+		// Svelte; woken by this document's runtime, two copies of each would meet on one page. A document
+		// navigation loads it whole, on its own build.
+		const next_build = build_of(doc);
+		const this_build = next_build === null ? null : build_of(document);
+		if (this_build !== null && next_build !== this_build) return null;
+		// A page whose custom elements are in the app transform's FIRST-LOAD form (served from a store,
+		// a prerender, or a cache that held the full-load copy — the server renders a router fetch as an
+		// answer otherwise): only each component's own first hydrate reads that form, and swapped into
+		// live hosts it would leave the transform's tree in their light DOM. Loaded, it is right.
+		if (doc.querySelector('meta[name="ogygia-first-load"]')) return null;
+		// The app's transform reshaped the incoming page: restore it before anything reads it (the
+		// reconcile, the islands' copies). The restorer is the page's own global, when the app has one.
+		(globalThis as { __og_restore?: (root: ParentNode) => number }).__og_restore?.(doc);
 
-	// Ours to render. A redirect REPLACES the intermediate URL (browser semantics), so the back
-	// button skips it.
-	if (dest !== url) replace_state({ ...history.state, ogygia: true }, dest.href);
-	// Same-document hash jumps already returned above (no VT). Cross-route swaps keep VT
-	// even when the target has a hash (A → B#C); scroll snaps after the transition.
-	const prefer_reduced_motion =
-		typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-	const use_vt = marker.getAttribute('content') !== 'plain' && !prefer_reduced_motion;
+		// Same-document hash jumps already returned above (no VT). Cross-route swaps keep VT
+		// even when the target has a hash (A → B#C); scroll snaps after the transition.
+		const prefer_reduced_motion =
+			typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const use_vt = marker.getAttribute('content') !== 'plain' && !prefer_reduced_motion;
 
-	// The fetched page's relative region URLs belong to ITS address: pin them before anything reads
-	// them — the batch's endpoints, the preflight, the reconcile keys (entry-locations.ts)
-	for (const el of doc.querySelectorAll('ogygia-region')) pin_region_urls(el, dest.href);
+		// The fetched page's relative region URLs belong to ITS address: pin them before anything reads
+		// them — the batch's endpoints, the preflight, the reconcile keys (entry-locations.ts)
+		for (const el of doc.querySelectorAll('ogygia-region')) pin_region_urls(el, dest.href);
 
-	// SINGLE-FLIGHT NAV: prescan the incoming page for its load-timed deferred region calls and stream
-	// them ALL in one batch request, kicked off now (before the swap). Each region binder joins the
-	// batch via the store when it connects — no per-region fetch waterfall on navigation. Fired
-	// synchronously so every reservation is in place before the body swap connects any binder.
-	batch_regions(doc, dest.href, next.scope);
-	// (the incoming page's seed and sidecars parse in its preflight and wakes: devalue first, when
-	// one of them is in its lane — ./devalue-lane.ts)
-	await devalue_for(doc);
-	if (r.nav.now !== mine) return;
-	preflight(doc, dest);
+		// SINGLE-FLIGHT NAV: prescan the incoming page for its load-timed deferred region calls and stream
+		// them ALL in one batch request, kicked off now (before the swap). Each region binder joins the
+		// batch via the store when it connects — no per-region fetch waterfall on navigation. Fired
+		// synchronously so every reservation is in place before the body swap connects any binder.
+		batch_regions(doc, dest.href, next.scope);
+		// (the incoming page's seed and sidecars parse in its preflight and wakes: devalue first, when
+		// one of them is in its lane — ./devalue-lane.ts)
+		await devalue_for(doc);
+		if (signal.aborted) return null;
+		preflight(doc, dest);
 
-	// Cold-cache FOUC guard: get the destination's stylesheets loaded and applied BEFORE the body
-	// swap, so the first post-deploy navigation never flashes unstyled content (a full-width column
-	// snapping to its styled width). Warm caches resolve this instantly. The sheets are the next
-	// page's (`early`): a navigation that ends before its swap takes them out (#267), and stops
-	// waiting for them at once.
-	await attempt.task(() => preload_stylesheets(doc.head, attempt, early));
-	if (r.nav.now !== mine) return;
-	nav_styled = performance.now();
-	// The transition starts in a task of its own: everything above is a finished task by then, and
-	// the frame it captures is not the one that parsed 2 MB of HTML.
-	await yield_task();
-	if (r.nav.now !== mine) return;
+		// Cold-cache FOUC guard: get the destination's stylesheets loaded BEFORE the body swap, so the
+		// first post-deploy navigation never flashes unstyled content (a full-width column snapping to
+		// its styled width). Warm caches resolve this instantly. They load inert, styling nothing until
+		// the commit (the page on screen is not the next one, #267), and a navigation that ends before
+		// its commit takes them out again.
+		const sheets: InertSheet[] = [];
+		await preload_stylesheets(doc.head, attempt, sheets, discard);
+		if (signal.aborted) return null;
+		const styled = performance.now();
+		// The transition starts in a task of its own: everything above is a finished task by then, and
+		// the frame it captures is not the one that parsed 2 MB of HTML.
+		await yield_task();
+		return { doc, dest, use_vt, sheets, fetched, styled, reconciled: false };
+	};
 
-	// Reconcile in place unless a region lives where a body morph cannot reach it (a shadow root —
-	// counted, not walked), or an author opted the page out on either side.
-	const reconcile =
-		RECONCILE_NAV &&
-		!!slots.morph &&
-		!regions_in_shadow() &&
-		!document.body.querySelector(NO_RECONCILE_SELECTOR) &&
-		!doc.body.querySelector(NO_RECONCILE_SELECTOR);
-
-	// ── TASK TWO: the DOM — head, seeds, body, title ──
-	const swap = () => {
-		// Stale nav: do not mutate the DOM (view-transition can otherwise commit a superseded swap).
-		if (r.nav.now !== mine) return;
+	// ── THE COMMIT: the DOM in one synchronous step — head, seeds, body, title ──
+	const commit = (built: Built | null) => {
+		if (built === null) return; // (never committed: nothing to render goes to the browser)
+		const { doc, dest } = built;
+		// A soft refresh still out belongs to the page being left: its late answer would merge that
+		// page's head and data into this one (#202). It ends with the page it refreshes (#268).
+		const { soft } = boot_link();
+		if (soft.now.kind === 'refreshing') soft.go('idle');
+		// A redirect REPLACES the intermediate URL (browser semantics), so the back button skips it.
+		if (dest !== url) replace_state({ ...history.state, ogygia: true }, dest.href);
+		// Reconcile in place unless a region lives where a body morph cannot reach it (a shadow
+		// root — counted, not walked), or an author opted the page out on either side.
+		const reconcile =
+			RECONCILE_NAV &&
+			!!slots.morph &&
+			!regions_in_shadow() &&
+			!document.body.querySelector(NO_RECONCILE_SELECTOR) &&
+			!doc.body.querySelector(NO_RECONCILE_SELECTOR);
 		// Pull the a11y announcer out of the body before the reconcile — it isn't in the incoming
 		// HTML, so a body morph would remove it. Re-attached (with the new title) by `announce`.
 		announcer?.remove();
 		// LIFECYCLE (Astro-parity DOM events): last chance to read the OUTGOING page's DOM.
 		document.dispatchEvent(new Event('og:before-swap'));
 		merge_head(doc.head); // keeps our runtime module script alive across swaps
-		if (r.nav.now !== mine) return;
+		// the next page's sheets, loaded while it was built, style it from now on (#267)
+		for (const sheet of built.sheets) apply_sheet(sheet);
 		// CONTINUITY: snapshot the LEAVING page's changed island form fields (session-scoped) so
 		// returning to it restores what the visitor was mid-typing. Read the old body now.
 		if (slots.forms.enabled && r.current_url) {
@@ -775,14 +797,13 @@ export async function navigate(
 		// that connects below reads the new page, never a stale script. Seeds first, DOM second.
 		prepare_spa_document(next);
 		apply_soft_invalidate_doc(doc);
-		if (r.nav.now !== mine) return;
 		if (reconcile) {
 			// THE nav path: diff the live body toward the parsed one IN PLACE. Matched regions
 			// (same fingerprint) keep their live hydrated node and island state; changed regions
 			// re-mount; shell + keep-chrome (data-ogygia-keep) morph in place. Selective dispose of
 			// only REMOVED regions' hub ids happens inside reconcile_body.
 			reconcile_body(document.body, doc.body, slots.morph!);
-			dt_reconciled = true;
+			built.reconciled = true;
 			document.title = doc.title;
 			session().settle_lakes_in(document.body);
 		} else {
@@ -815,17 +836,47 @@ export async function navigate(
 		finish_spa_document();
 		// CONTINUITY: restore fields the visitor left on THIS page in a prior visit (this session).
 		if (slots.forms.enabled) slots.forms.restore(url.pathname);
+		// From here on, `dest` is the address the page on screen belongs to (== `url` unless a
+		// server redirect moved it).
+		r.doc_key = document_key(dest);
+		r.current_url = dest;
 		// LIFECYCLE: the INCOMING page's DOM is in place (islands may still be waking on their
 		// own schedules — this is the DOM milestone, not a hydration barrier).
 		document.dispatchEvent(new Event('og:after-swap'));
 	};
 
-	if (use_vt && document.startViewTransition) {
+	// THE NEXT PAGE IS STAGED (`stage`, @ogygia/machine): built off to the side, then switched in
+	// with one synchronous commit, or given back whole. It is this navigation's visit's: a newer
+	// click, back to the page on screen or a hand-off closes it, which gives back what was built
+	// (the next page's sheets come out of the head, #267) and refuses a commit still to come.
+	const staged = boot_link().stage<Built | null>(attempt, { name: 'navigation', build, commit });
+	let built: Built | null | Stale;
+	try {
+		built = await staged.ready;
+	} catch (error) {
+		return hand_off(error); // (its devalue did not load, or another step of it threw)
+	}
+	if (is_stale(built) || r.nav.now !== mine) return;
+	if (built === null) return hand_off();
+	const { dest } = built;
+
+	// One path with or without a view transition: a commit refused (a newer navigation took over
+	// before the transition's callback ran) changes nothing, and one that throws is put back and
+	// goes to the browser (#276).
+	const out: { failed?: { error: unknown } } = {};
+	const swap = () => {
+		try {
+			staged.commit();
+		} catch (error) {
+			out.failed = { error };
+		}
+	};
+	if (built.use_vt && document.startViewTransition) {
 		// Fold names with no counterpart on the destination into the page cross-fade, so a shell
 		// change (docs sidebar ↔ marketing page) doesn't fire dozens of solo enter/exits over a
 		// holed-out root snapshot. Matched names (the docs↔docs highlight slide) are untouched.
 		// Captured NOW — before the transition snapshots `before` — and restored after it settles.
-		const restore_vt_names = fold_orphan_vt_names(document.body, doc.body);
+		const restore_vt_names = fold_orphan_vt_names(document.body, built.doc.body);
 		const t = document.startViewTransition(swap);
 		// A rapid follow-up navigation skips this transition; the browser then rejects `.ready`
 		// and `.finished` with "Transition was skipped". Nothing awaits those, so without a catch
@@ -834,16 +885,14 @@ export async function navigate(
 		// Restore folded names once the transition settles (resolve OR skip) — the next same-shell
 		// nav needs them back, and this doubles as the `.finished` rejection catch.
 		(t.finished ?? Promise.resolve()).then(restore_vt_names, restore_vt_names);
-		await t.updateCallbackDone.catch(() => {}); // ok: the swap's own failure is the swap's, said there; this only waits for it
+		await t.updateCallbackDone.catch(() => {}); // ok: `swap` never throws (a failed commit is `out.failed`); this only waits for it
+		if (out.failed) t.skipTransition?.();
 	} else {
 		swap();
 	}
+	if (out.failed) return hand_off(out.failed.error);
 	if (r.nav.now !== mine) return;
 
-	// From here on, `dest` is the address the swapped content belongs to (== `url` unless a
-	// server redirect moved it).
-	r.doc_key = document_key(dest);
-	r.current_url = dest;
 	// applied: a later same-address click is a refresh, not a duplicate
 	r.nav.move('loading', 'settling', { href: url.href });
 	const settled = r.nav.now;
@@ -854,8 +903,8 @@ export async function navigate(
 		to: dest.pathname + dest.search,
 		type,
 		t: nav_t0,
-		fetched: nav_fetched,
-		styled: nav_styled,
+		fetched: built.fetched,
+		styled: built.styled,
 		swapped: performance.now(),
 		href: url.href
 	});
@@ -865,8 +914,8 @@ export async function navigate(
 			name: 'nav.finish',
 			to: dest.pathname + dest.search,
 			ms: dt_now() - dt_t0,
-			reconciled: dt_reconciled,
-			vt: !!(use_vt && document.startViewTransition)
+			reconciled: built.reconciled,
+			vt: !!(built.use_vt && document.startViewTransition)
 		});
 
 	// Instant after a body swap — CSS smooth must not animate programmatic post-nav scroll.
@@ -916,43 +965,47 @@ export async function navigate(
  * `requested(q).refreshAll()` (updates alone does not populate response `q`).
  *
  * Its own machine (`soft`, ./soft-refresh.ts, which the boot holds: a page without the router
- * refreshes too) so soft fetches never cancel an in-flight click navigation; a real navigation ends
- * a soft refresh in flight.
+ * refreshes too) so soft fetches never cancel an in-flight click navigation; a real navigation's
+ * commit ends a soft refresh in flight.
+ *
+ * It refreshes the PAGE ON SCREEN (`on_screen`: the router's, which knows it; the address bar
+ * without the router), never the page a navigation is still bringing (#268). The refreshed page is
+ * staged like a navigation's (`stage`): fetched and parsed off to the side, merged in one commit,
+ * which a navigation that went in first refuses (its commit ended this refresh). A refresh whose
+ * devalue fails to load ends, and says so to its caller.
  */
-export async function invalidate_all(): Promise<void> {
+export async function invalidate_all(on_screen?: URL | null): Promise<void> {
 	bust_page_cache();
-	const url = new URL(location.href);
+	const url = on_screen ?? new URL(location.href);
 
-	const { soft } = boot_link();
+	const { soft, stage } = boot_link();
 	soft.go('refreshing', { href: url.href });
 	const mine = soft.now;
 
-	let html: string | undefined;
+	const staged = stage<Document | null>(soft.scope, {
+		name: 'soft refresh',
+		build: async ({ signal }) => {
+			const fetched = await fetch_page(url.href, signal);
+			if (fetched === null || signal.aborted) return null;
+			const doc = new DOMParser().parseFromString(fetched.html, 'text/html');
+			if (KitBoot.document_has(doc) || !doc.querySelector('meta[name="ogygia-router"]'))
+				return null;
+			await devalue_for(doc);
+			return doc;
+		},
+		commit: (doc) => {
+			if (doc === null) return;
+			merge_head(doc.head);
+			apply_soft_invalidate_doc(doc);
+		}
+	});
 	try {
-		const fetched = await soft.scope.task((signal) => fetch_page(url.href, signal));
-		if (is_stale(fetched)) return; // a navigation, or a newer refresh, took over
-		html = fetched?.html;
-	} catch {
+		// (STALE: a navigation went in, or a newer refresh took over)
+		if (is_stale(await staged.ready)) return;
+		staged.commit();
+	} finally {
 		if (soft.now === mine) soft.go('idle');
-		return;
 	}
-	if (soft.now !== mine) return;
-	if (html === undefined) {
-		soft.go('idle');
-		return;
-	}
-
-	const doc = new DOMParser().parseFromString(html, 'text/html');
-	if (KitBoot.document_has(doc) || !doc.querySelector('meta[name="ogygia-router"]')) {
-		soft.go('idle');
-		return;
-	}
-	await devalue_for(doc);
-	if (soft.now !== mine) return;
-
-	merge_head(doc.head);
-	apply_soft_invalidate_doc(doc);
-	soft.go('idle');
 }
 
 /**
@@ -1046,15 +1099,20 @@ function merge_head(new_head: HTMLHeadElement) {
 	// destination page lost its `ogygia-region{display:block}` and the layout collapsed
 	// (e2e/context, "Context after SPA navigation"). `anchor` is the head's first child BEFORE this
 	// merge, so the new sheets land above everything old and keep their own order.
-	const anchor = current.firstChild;
+	let anchor = current.firstChild;
 	for (const node of Array.from(new_head.children)) {
 		if (is_dangerous_head_node(node)) continue;
 		const key = head_node_key(node);
 		const existing = current_nodes.get(key);
-		// Kit FOUC bag: always refresh content (same key every page, different CSS).
+		// Kit FOUC bag: always refresh content (same key every page, different CSS). The new bag goes
+		// in first, then the old one comes out. After one navigation the old bag is the head's first
+		// child, so it is `anchor` itself: what comes after it goes where it was.
 		if (key === 'STYLE:data-sveltekit') {
-			existing?.remove();
 			install_head_style(node, current, anchor);
+			if (existing) {
+				if (existing === anchor) anchor = existing.nextSibling;
+				existing.remove();
+			}
 			continue;
 		}
 		if (existing) continue;
@@ -1068,21 +1126,25 @@ function merge_head(new_head: HTMLHeadElement) {
 
 /**
  * Load the destination page's stylesheets into the live `<head>` and resolve once they have
- * applied — call this BEFORE the body swap. A freshly appended `<link rel="stylesheet">` loads
+ * loaded — call this BEFORE the body swap. A freshly appended `<link rel="stylesheet">` loads
  * asynchronously, so swapping the body first shows the new route unstyled (e.g. a content column
  * at full width) until the sheet arrives. That window is invisible on a warm cache but flashes on
  * the first visit after a deploy, when the route CSS isn't cached yet. Preloading here closes it;
  * `merge_head` then dedupes these by key so nothing is added twice. Capped so a stalled sheet
  * can't hang navigation.
  *
- * The wait is the navigation's (`attempt`: its listeners and its cap go when it ends), the sheets the
- * next page's (listed in `early`): its swap makes them the page's, and a navigation that ends without
- * one takes them out again (#267).
+ * Each loads INERT: under a media no screen matches (at the fetch priority of a sheet that does),
+ * so a sheet that arrived first never styles the page still on screen while the navigation waits
+ * for the rest (#267). The commit gives each its own media back (`apply_sheet`). The wait is the
+ * navigation's (`attempt`: its listeners and its cap go when it ends); the sheets are the stage's
+ * (listed in `sheets`, given back by `discard`): a navigation that ends before its commit takes
+ * them out again.
  */
 function preload_stylesheets(
 	new_head: HTMLHeadElement,
 	attempt: Scope,
-	early: Element[]
+	sheets: InertSheet[],
+	discard: Staging['discard']
 ): Promise<unknown> {
 	const present = new Set<string>();
 	for (const node of Array.from(document.head.children)) {
@@ -1101,6 +1163,13 @@ function preload_stylesheets(
 		if (present.has(key)) continue;
 		present.add(key);
 		const link = node.cloneNode(true) as HTMLLinkElement;
+		const sheet: InertSheet = {
+			link,
+			media: link.getAttribute('media'),
+			priority: link.getAttribute('fetchpriority')
+		};
+		link.setAttribute('media', INERT_MEDIA);
+		if (sheet.priority === null) link.setAttribute('fetchpriority', 'high');
 		pending.push(
 			new Promise<void>((resolve) => {
 				attempt.on(link, 'load', () => resolve(), { once: true });
@@ -1111,7 +1180,8 @@ function preload_stylesheets(
 		// trailing node range, so a stylesheet appended after the island head blocks gets reclaimed.
 		session().claim_page_head(link); // the next page's own sheet (runtime/session.ts)
 		document.head.insertBefore(link, document.head.firstChild);
-		early.push(link);
+		sheets.push(sheet);
+		discard(() => link.remove());
 	}
 	if (!pending.length) return Promise.resolve();
 	// Never let a hung stylesheet block the swap indefinitely.

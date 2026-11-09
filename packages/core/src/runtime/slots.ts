@@ -196,6 +196,9 @@ export type BootLink = {
 	STALE: typeof import('@ogygia/machine').STALE;
 	/** keyed shared async work (`@ogygia/machine`): the router's page fetches */
 	flights: typeof import('@ogygia/machine').flights;
+	/** a change built off to the side and switched in at once (`@ogygia/machine`): the router's
+	 *  swap and the soft refresh */
+	stage: typeof import('@ogygia/machine').stage;
 	/** the page's soft refresh (./soft-refresh.ts): `invalidateAll`, with the router or without it */
 	soft: import('./soft-refresh.ts').SoftRefresh;
 };

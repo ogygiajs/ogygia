@@ -6,33 +6,42 @@ import { heisenbench_record } from '../../internal/heisenbench/src/record.ts';
 import type { BrowserCommand } from 'vitest/node';
 
 /**
- * `drop_downloads(path, times)` (browser tests, `commands` from `vitest/browser`): the next `times`
- * requests for a URL whose path ends with `path` fail at the network, as on a dropped connection
- * (Playwright's `route.abort`); the ones after go through. A real failed download, so the browser
- * keeps that module failed the way it does for a visitor. `keep_downloads()` lifts it.
+ * The network, for the browser tests (`commands` from `vitest/browser`), by the path each names:
+ *
+ * - `drop_downloads(path, times)`: the next `times` requests for a URL whose path ends with `path`
+ *   fail at the network, as on a dropped connection (Playwright's `route.abort`); the ones after go
+ *   through. A real failed download, so the browser keeps that module failed the way it does for a
+ *   visitor.
+ * - `hold_downloads(path)`: every request for it waits, unanswered, as on a slow network. A
+ *   stylesheet still loading, for real.
+ * - `keep_downloads(path)` lifts either, and sends the held requests on.
+ *
+ * Test files run side by side in one browser page, so each lifts only what it named: lifting every
+ * route let one file's held sheet load in the middle of another file's test.
  */
+type Routed = { matches: (url: URL) => boolean; held: Array<() => Promise<void>> };
+const routed = new Map<string, Routed>();
+function route_of(path: string): Routed {
+	const r: Routed = { matches: (url) => url.pathname.endsWith(path), held: [] };
+	routed.set(path, r);
+	return r;
+}
 const drop_downloads: BrowserCommand<[path: string, times: number]> = async (ctx, path, times) => {
 	let left = times;
-	await ctx.page.route(
-		(url) => url.pathname.endsWith(path),
-		(route) => (left-- > 0 ? route.abort('failed') : route.continue())
+	await ctx.page.route(route_of(path).matches, (route) =>
+		left-- > 0 ? route.abort('failed') : route.continue()
 	);
 };
-/** Requests `hold_downloads` holds, each sent on when the hold is lifted. */
-const held: Array<() => Promise<void>> = [];
-/**
- * `hold_downloads(path)`: every request for a URL whose path ends with `path` waits, unanswered, as
- * on a slow network, until `keep_downloads()` sends it on. A stylesheet still loading, for real.
- */
 const hold_downloads: BrowserCommand<[path: string]> = async (ctx, path) => {
-	await ctx.page.route(
-		(url) => url.pathname.endsWith(path),
-		(route) => void held.push(() => route.continue())
-	);
+	const r = route_of(path);
+	await ctx.page.route(r.matches, (route) => void r.held.push(() => route.continue()));
 };
-const keep_downloads: BrowserCommand<[]> = async (ctx) => {
-	await ctx.page.unrouteAll({ behavior: 'ignoreErrors' });
-	for (const send of held.splice(0)) await send().catch(() => {});
+const keep_downloads: BrowserCommand<[path: string]> = async (ctx, path) => {
+	const r = routed.get(path);
+	if (!r) return;
+	routed.delete(path);
+	await ctx.page.unroute(r.matches);
+	for (const send of r.held.splice(0)) await send().catch(() => {});
 };
 
 // Two projects, one config:

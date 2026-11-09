@@ -194,6 +194,34 @@ const done = await thaws.put(evict); // true once applied, false once given up (
 - **Done means applied.** The receiver applies the work first and records its id after. A failed apply answers an error and is tried again; a second copy of an applied one is dropped.
 - **A policy is data.** `policy({ attempts, backoff, jitter, deadline })` is checked where it is written and frozen. `backoff` is a list of waits (the last repeats) or one number that doubles. Name each one for what it protects, so its numbers live in one place.
 
+## Staged changes
+
+A change that takes several steps is built off to the side, then switched in with one synchronous step, or thrown away whole. Live state is never half-changed.
+
+```ts
+import { stage, STALE } from '@ogygia/machine';
+
+const next = stage(visit, {
+	name: 'navigation',
+	build: async ({ signal, discard }) => {
+		const page = await fetch_page(url, signal);
+		const sheet = inert_sheet(page); // off to the side: styles nothing yet
+		discard(() => sheet.remove()); // given back unless the stage commits
+		return { page, sheet };
+	},
+	commit: ({ page, sheet }, undo) => {
+		sheet.media = 'all';
+		undo(() => (sheet.media = 'not all')); // put back if a later step throws
+		swap_in(page);
+	}
+});
+if ((await next.ready) === STALE) return; // the visit was left: everything built is given back
+next.commit(); // false: refused (not built yet, or the visit was left)
+```
+
+- **A stage belongs to its owner's scope.** When the owner closes before the commit, every `discard` step runs, newest first. A build that lands later has its steps run at once.
+- **The commit is one synchronous step**, refused until the build is ready, once the owner closed, and after a first commit. One that throws runs its `undo` steps, then the `discard` steps, and throws.
+
 ## Locks
 
 ```ts

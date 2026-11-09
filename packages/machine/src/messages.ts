@@ -26,6 +26,7 @@ export type MachineErrors = {
 	machine_timed_step_failed: Entry<{ name: string; from: string; to: string }>;
 	machine_observer_failed: Entry<{ name: string }>;
 	machine_outbox_gave_up: Entry<{ name: string }>;
+	machine_stage_step_failed: Entry<{ name: string }>;
 };
 
 /** The errors: thrown in dev (and tests), where a wrong move is a bug to fix now. */
@@ -151,6 +152,15 @@ export const MACHINE_ERRORS: MachineErrors = {
 			'kept: the work it carried did not happen.\n\n' +
 			'Give the outbox a `giveUp` to say it in your own words, or to keep the work somewhere ' +
 			'it survives. A `giveUp` that throws is said here too.'
+	},
+	machine_stage_step_failed: {
+		text: (a: { name: string }): string =>
+			`stage ${a.name}: a step that gives back a change threw.`,
+		details: (): string =>
+			'A `stage()` gives back what it changed when it does not commit (its `discard` steps) or ' +
+			'when its commit throws part way (its `undo` steps). One of those steps threw. The error ' +
+			'follows the message. The other steps still ran; whatever this step should have put back ' +
+			'may still be in place.'
 	}
 };
 

@@ -336,10 +336,15 @@ export class SpaRouter {
 	 * the address of the document on screen, and the browser's navigation REPLACES it: one entry for
 	 * the visit, holding a document of its own. Otherwise (nothing written yet) it is a plain
 	 * navigation, a new entry.
+	 *
+	 * `error`: the navigation failed part way (its devalue did not load, its swap threw, #276). It
+	 * is said (the page's error handler, as an uncaught throw would be), and the browser loads the
+	 * page whole.
 	 */
-	hand_off(url: URL, from: URL, visit: Navigation['now']): void {
+	hand_off(url: URL, from: URL, visit: Navigation['now'], error?: unknown): void {
 		if (this.nav.now !== visit) return;
 		this.nav.go('idle');
+		if (error !== undefined) report_thrown(error);
 		if (location.href !== url.href) {
 			location.href = url.href;
 			return;
@@ -441,7 +446,8 @@ export class SpaRouter {
 	}
 
 	invalidateAll(): Promise<void> {
-		return nav().then((n) => (n === STALE ? undefined : n.invalidate_all()));
+		// (the page on screen: the address bar may already name the page a navigation still brings)
+		return nav().then((n) => (n === STALE ? undefined : n.invalidate_all(this.current_url)));
 	}
 
 	invalidate(): Promise<void> {
