@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cache, MachineError, scope, world, type EvictWhy } from '../src/index.ts';
+import { cache, flights, MachineError, scope, world, type EvictWhy } from '../src/index.ts';
 import { IN_USE, type InternalCacheOptions } from '../src/cache.ts';
 import { DISPOSE } from './_dispose.ts';
 
@@ -143,6 +143,33 @@ describe('cache: ages', () => {
 });
 
 describe('cache: the eviction notice', () => {
+	it('a value replaced after its age, before its timer ran, is noticed as delete, not age', () => {
+		vi.useFakeTimers();
+		const n = noted();
+		const c = cache<string, number>({ max: 10, keep: 100, onEvict: n.onEvict });
+		c.set('a', 1);
+		vi.setSystemTime(Date.now() + 200); // past its age, its timer not run yet
+		c.set('a', 2);
+		expect(n.seen).toEqual(['a:1:delete']);
+		expect(c.get('a')).toBe(2);
+	});
+
+	it('a flights answer that lands while the one it replaces is past its age is kept', async () => {
+		vi.useFakeTimers();
+		let round = 0;
+		let land!: (v: string) => void;
+		const pages = flights({
+			run: () => (round++ === 0 ? Promise.resolve('old') : new Promise<string>((r) => (land = r))),
+			keep: 100
+		});
+		expect(await pages.get()).toBe('old');
+		const refresh = pages.get(undefined, { fresh: true });
+		vi.setSystemTime(Date.now() + 200); // the kept answer is past its age; its timer has not run
+		land('new');
+		expect(await refresh).toBe('new');
+		expect(pages.peek(undefined)).toMatchObject({ kind: 'kept', answer: 'new' });
+	});
+
 	it('a delete and a replace are noticed as delete; a clear notices each, oldest first', () => {
 		const n = noted();
 		const c = cache<string, number>({ max: 10, onEvict: n.onEvict });
