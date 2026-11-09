@@ -45,11 +45,11 @@ describe('PageSeed.serialize', () => {
 		expect(parse(out.text)).toMatchObject({ data: { n: 10n } });
 	});
 
-	it('one non-serializable field is dropped, never the whole seed (devalue lane)', () => {
-		const out = PageSeed.serialize(page({ ok: 1 }, { fn: () => 1 }))!;
+	it('one non-serializable leaf is left out, never its field or the whole seed (devalue lane)', () => {
+		const out = PageSeed.serialize(page({ ok: 1 }, { fn: () => 1, message: 'm' }))!;
 		expect(out.json).toBe(false);
 		const v = parse(out.text) as { data: unknown; error?: unknown };
 		expect(v.data).toEqual({ ok: 1 });
-		expect(v.error).toBeUndefined();
+		expect(v.error).toEqual({ message: 'm' });
 	});
 });
