@@ -86,6 +86,56 @@ jobs:
       - name: Type-check the bench files
         run: pnpm run check:bench
 
+  # The runtime's size against the PR's base branch, both measured here with this PR's tool
+  # (apps/palaestra/e2e/bundle-size.ts: per page kind, brotli, as a production browser build ships it).
+  # Growth past 0.5 % fails, unless the PR body says why on a line of its own: `Size baseline: <why>`.
+  # A PR can no longer raise its own baseline by rewriting a snapshot.
+  size:
+    if: ${{ github.event_name == 'pull_request' && !startsWith(github.head_ref, 'changeset-release/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out the base branch beside it
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .size-base
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install and build core (this PR)
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm turbo run build --filter=@ogygia/core...
+
+      - name: Install and build core (the base)
+        working-directory: .size-base
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm turbo run build --filter=@ogygia/core...
+
+      - name: Measure the base
+        run: node apps/palaestra/e2e/bundle-size.ts --core .size-base/packages/core --json > size-base.json
+
+      - name: Measure this PR against it
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if node apps/palaestra/e2e/bundle-size.ts --compare size-base.json; then exit 0; fi
+          if printf '%s\n' "$PR_BODY" | grep -q '^Size baseline: .'; then
+            echo "Growth accepted by the PR body:"
+            printf '%s\n' "$PR_BODY" | grep '^Size baseline: '
+            exit 0
+          fi
+          exit 1
+
   e2e:
     name: e2e (${{ matrix.name }})
     runs-on: ubuntu-latest
