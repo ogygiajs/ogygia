@@ -429,6 +429,39 @@ describe('watch and adopt', () => {
 		s.adopt(d);
 		expect(d[Symbol.dispose]).toHaveBeenCalledOnce();
 	});
+
+	it('an async disposal adopted by a closed scope runs at once, is said when it fails, and is not kept (#347)', async () => {
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const unhandled = vi.fn();
+		const on_node = typeof process !== 'undefined' && typeof process.on === 'function';
+		if (on_node) process.on('unhandledRejection', unhandled);
+		else window.addEventListener('unhandledrejection', unhandled);
+		try {
+			const s = scope();
+			s.close();
+			// (a stopped machine's scope is the one closed scope every stopped machine shares)
+			const m = machine<{ on: {} }>()({ name: 'gone', initial: 'on', steps: { on: [] } }).create();
+			m.stop();
+			const shared = m.scope as unknown as { _settling: unknown[] | null };
+			const before = shared._settling?.length ?? 0;
+			const failing = () => ({ [Symbol.asyncDispose]: vi.fn(() => Promise.reject(new Error('late'))) });
+			const a = failing();
+			const b = failing();
+			s.adopt(a);
+			m.scope.adopt(b);
+			expect(a[Symbol.asyncDispose]).toHaveBeenCalledOnce();
+			expect(b[Symbol.asyncDispose]).toHaveBeenCalledOnce();
+			await wait(20);
+			expect(unhandled).not.toHaveBeenCalled();
+			expect(error).toHaveBeenCalledTimes(2);
+			expect(String(error.mock.calls[0][0])).toContain('machine_dispose_failed');
+			expect(shared._settling?.length ?? 0).toBe(before);
+		} finally {
+			if (on_node) process.off('unhandledRejection', unhandled);
+			else window.removeEventListener('unhandledrejection', unhandled);
+			error.mockRestore();
+		}
+	});
 });
 
 describe('task', () => {
