@@ -37,6 +37,7 @@ export {
 	type Watcher,
 	type When
 } from './scope.ts';
+export { cache, type Cache, type CacheOptions, type EvictWhy, type SetOptions } from './cache.ts';
 export { lock, type Lock, type LockToken } from './lock.ts';
 export { mailbox, type Mailbox, type Turn } from './mailbox.ts';
 export type { Fresh } from './stale.ts';

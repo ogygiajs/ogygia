@@ -28,6 +28,7 @@ export type MachineErrors = {
 	machine_outbox_gave_up: Entry<{ name: string }>;
 	machine_stage_step_failed: Entry<{ name: string }>;
 	machine_mailbox_handler_failed: Entry<Record<string, never>>;
+	machine_evict_failed: Entry<{ name: string; why: string }>;
 };
 
 /** The errors: thrown in dev (and tests), where a wrong move is a bug to fix now. */
@@ -172,6 +173,14 @@ export const MACHINE_ERRORS: MachineErrors = {
 			"event listener's would, and the box goes on with the next event.\n\n" +
 			'A handler that runs at once (posted to an idle box) throws to its poster instead, and one ' +
 			"posted with `ask()` rejects its asker's promise. Catch inside the handler to handle it there."
+	},
+	machine_evict_failed: {
+		text: (a: { name: string; why: string }): string =>
+			`${a.name}: an eviction notice (${a.why}) threw.`,
+		details: (): string =>
+			"A `cache()`'s `on_evict` threw while it heard a value leave. The value had already left: " +
+			'the cache goes on, and the notices after it still run. Its error follows this message. ' +
+			'Catch inside `on_evict` when a cleanup can fail.'
 	}
 };
 
