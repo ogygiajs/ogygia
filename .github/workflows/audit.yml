@@ -16,7 +16,7 @@ on:
     - cron: '0 6 * * 1'
   push:
     branches:
-      - main
+      - lts-0.12
     paths:
       - pnpm-lock.yaml
       - pnpm-workspace.yaml

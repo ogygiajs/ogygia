@@ -11,8 +11,8 @@ would rather stay anonymous.
 
 ## Supported versions
 
-| Line                      | Packages              | Fixes                       |
-| ------------------------- | --------------------- | --------------------------- |
-| Current (`latest` on npm) | `ogygia`, `@ogygia/*` | Yes                         |
-| 0.8.x (`lts-0.8` on npm)  | `ogygia`              | Security and critical fixes |
-| Older                     |                       | No                          |
+| Line                       | Packages              | Fixes                       |
+| -------------------------- | --------------------- | --------------------------- |
+| Current (`latest` on npm)  | `ogygia`, `@ogygia/*` | Yes                         |
+| 0.12.x (`lts-0.12` on npm) | `ogygia`, `@ogygia/*` | Security and critical fixes |
+| Older                      |                       | No                          |

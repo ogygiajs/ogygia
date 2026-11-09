@@ -1,15 +1,13 @@
 name: Changesets
 
-# main is the development line (.changeset/README.md): a merged changeset opens or updates the
-# version PR; merging that PR publishes to npm under `latest`. The production sites (ogygiajs.dev,
-# svelte.dev.ogygiajs.dev) deploy from the `latest` branch, which this workflow moves to main
-# whenever main has nothing waiting to release: right after a publish, and after any merge that
-# leaves no pending changeset (a docs or site change goes live by itself; while a package change
-# waits for its release, so does the site, so it never documents what npm does not have).
+# lts-0.12 is the 0.12.x line, kept for patches (.changeset/README.md): a merged changeset opens or
+# updates the version PR; merging that PR publishes to npm under the tag `lts-0.12`. `latest` (the
+# npm tag and the branch the sites deploy from) belongs to main, so this workflow never touches it.
+# (npm refuses a tag that reads as a version range, like `0.12`.)
 on:
   push:
     branches:
-      - main
+      - lts-0.12
 
 # turbo's remote cache (see e2e.yml): build:lib replays what CI already built for this commit
 env:
@@ -29,7 +27,7 @@ jobs:
           # all history, so changesets can link each changelog entry to its commit and PR
           fetch-depth: 0
           # SHIP_TOKEN (a fine-grained token, not GITHUB_TOKEN): the version PR it opens and pushes
-          # then runs CI like any PR, so the `ship` label can merge it
+          # then runs CI like any PR
           token: ${{ secrets.SHIP_TOKEN || github.token }}
       - uses: actions/setup-node@v7
         with:
@@ -43,27 +41,9 @@ jobs:
         uses: changesets/action@v2
         with:
           version-script: pnpm ci:version
-          publish-script: pnpm ci:release
+          publish-script: pnpm ci:release --tag lts-0.12
           commit-message: 'chore: update versions (${{ github.ref_name }})'
           pr-title: 'chore: update versions (${{ github.ref_name }})'
           create-github-releases: true
           # the action refuses a GITHUB_TOKEN env that differs from this input
           github-token: ${{ secrets.SHIP_TOKEN || github.token }}
-      # main matches npm: just published, or no changeset is pending. A fast-forward only: latest
-      # is only ever set from main, so a refused push means someone moved it by hand.
-      # Pushed over SSH with the LATEST_DEPLOY_KEY deploy key: the "latest: only the release workflow"
-      # ruleset lets deploy keys update latest and nobody else, admins included. (GitHub accepts no
-      # GitHub Actions bypass on a repository ruleset, and a token push is a person or the bot.)
-      # GitHub's published ed25519 host key is pinned, so the push trusts nothing it is handed.
-      - name: Move the latest branch to main
-        if: steps.changesets.outputs.published == 'true' || steps.changesets.outputs.has-changesets == 'false'
-        env:
-          LATEST_DEPLOY_KEY: ${{ secrets.LATEST_DEPLOY_KEY }}
-        run: |
-          dir="$(mktemp -d)"
-          trap 'rm -rf "$dir"' EXIT
-          printf '%s\n' "$LATEST_DEPLOY_KEY" > "$dir/key"
-          chmod 600 "$dir/key"
-          echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' > "$dir/known_hosts"
-          GIT_SSH_COMMAND="ssh -i $dir/key -o IdentitiesOnly=yes -o UserKnownHostsFile=$dir/known_hosts -o StrictHostKeyChecking=yes" \
-            git push "git@github.com:${{ github.repository }}.git" HEAD:refs/heads/latest
