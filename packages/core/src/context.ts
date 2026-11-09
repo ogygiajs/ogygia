@@ -193,7 +193,9 @@ export function claimRuntimeEmit(): boolean {
 	}
 }
 
-const early_holes = new WeakMap<object, Set<string>>();
+/** Each request's noted `load` hole endpoints, by its `Request`: the render's event and the handle's
+ *  are not one object, the request they carry is. */
+const early_holes = new WeakMap<Request, Set<string>>();
 
 /**
  * Note a top-level `defer: 'load'` hole's endpoint for this request: the head starts its request
@@ -202,25 +204,26 @@ const early_holes = new WeakMap<object, Set<string>>();
  */
 export function note_early_hole(endpoint: string): void {
 	try {
-		const event = getRequestEvent() as object;
-		let seen = early_holes.get(event);
-		if (!seen) early_holes.set(event, (seen = new Set()));
+		const { request } = getRequestEvent() as { request: Request };
+		let seen = early_holes.get(request);
+		if (!seen) early_holes.set(request, (seen = new Set()));
 		seen.add(endpoint);
 	} catch {
 		// ok: no request (the client, a build step): no head to start it from
 	}
 }
 
-/** This request's noted `load` hole endpoints, taken once (the head that writes them). */
-export function take_early_holes(): string[] {
-	let event: object;
-	try {
-		event = getRequestEvent() as object;
-	} catch {
-		return []; // ok: no request, so no hole of it was noted
-	}
-	const seen = early_holes.get(event);
+/** This request's noted `load` hole endpoints, taken once (the head that writes them). `request`: the
+ *  one the caller holds (the handle's event); else the current render's. */
+export function take_early_holes(request?: Request): string[] {
+	if (!request)
+		try {
+			request = (getRequestEvent() as { request: Request }).request;
+		} catch {
+			return []; // ok: no request, so no hole of it was noted
+		}
+	const seen = early_holes.get(request);
 	if (!seen) return [];
-	early_holes.delete(event);
+	early_holes.delete(request);
 	return [...seen];
 }

@@ -21,8 +21,9 @@ export const EARLY_HOLES_ID = 'ogygia-early-holes';
  *  {@link EarlyHole}), until the runtime takes them over. */
 export const EARLY_HOLES_KEY = 'ogygia.early-holes';
 
-/** One request the head started: the hole's endpoint, resolved, and the `fetch` that asks for it. */
-export type EarlyHole = { url: string; response: Promise<Response> };
+/** One request the head started: the hole's endpoint, resolved, the `fetch` that asks for it, and
+ *  the controller that cancels it (the flight that takes it over owns it). */
+export type EarlyHole = { url: string; response: Promise<Response>; controller: AbortController };
 
 /**
  * The early start, run inline in the head (`script()` writes its source: self-contained, browser
@@ -40,9 +41,10 @@ export function start_early_holes(id: string, key: string): void {
 		const url = new URL(endpoint, document.baseURI).href;
 		if (asked.has(url)) continue;
 		asked.add(url);
-		const response = fetch(url, { credentials: 'same-origin' });
+		const controller = new AbortController();
+		const response = fetch(url, { credentials: 'same-origin', signal: controller.signal });
 		response.catch(() => {}); // ok: the runtime says the failure when it takes the request over
-		parked.push({ url, response });
+		parked.push({ url, response, controller });
 	}
 	(globalThis as Record<symbol, unknown>)[Symbol.for(key)] = parked;
 }

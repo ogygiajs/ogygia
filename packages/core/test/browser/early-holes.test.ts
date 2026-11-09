@@ -7,7 +7,7 @@ import { scope } from '@ogygia/machine';
 import { early_holes_head } from '../../src/early-holes-head.ts';
 import { adopt_early_holes } from '../../src/runtime/early-holes.ts';
 import { join_batch } from '../../src/runtime/frame-nav.ts';
-import { _reset, ensure } from '../../src/runtime/frame-store.ts';
+import { _reset, ensure, peek } from '../../src/runtime/frame-store.ts';
 import { frameAddress } from '../../src/frame.ts';
 import { done_parcel } from '../../src/server/stream-regions.ts';
 
@@ -38,19 +38,21 @@ function stub_network() {
 	vi.spyOn(window, 'fetch').mockImplementation(async (input, init) => {
 		const url = String(input instanceof Request ? input.url : input);
 		asked.push({ url, method: init?.method ?? 'GET' });
-		await new Promise((r) => setTimeout(r, 20));
-		if (init?.method === 'POST') return new Response(done_parcel(), { status: 200 });
 		const sig = new URL(url, location.href).searchParams.get('sig');
-		const body = new ReadableStream({
-			start(c) {
-				c.enqueue(new TextEncoder().encode(`<p>${sig}</p>`));
-				c.close();
-			},
-			cancel() {
+		// (a network that hears its request's signal, as the browser's does)
+		await new Promise<void>((resolve, reject) => {
+			const t = setTimeout(resolve, 20);
+			init?.signal?.addEventListener('abort', () => {
+				clearTimeout(t);
 				cancelled.push(sig ?? '');
-			}
+				reject(init.signal!.reason);
+			});
 		});
-		return new Response(body, { status: 200, headers: { 'content-type': 'text/html' } });
+		if (init?.method === 'POST') return new Response(done_parcel(), { status: 200 });
+		return new Response(`<p>${sig}</p>`, {
+			status: 200,
+			headers: { 'content-type': 'text/html' }
+		});
 	});
 	return { asked, cancelled };
 }
@@ -109,12 +111,38 @@ describe('a hole the page started early', () => {
 		first.close();
 	});
 
-	it('that nobody joins goes with the page visit, its download cancelled', async () => {
+	it('that nobody joins, left before its answer lands: cancelled in the network, nothing written, nothing unhandled', async () => {
 		const { cancelled } = stub_network();
-		start_early([ep('d1')]);
+		const unhandled: unknown[] = [];
+		const on_unhandled = (e: PromiseRejectionEvent) => unhandled.push(e.reason);
+		window.addEventListener('unhandledrejection', on_unhandled);
+		try {
+			start_early([ep('d1')]);
+			const visit = scope();
+			adopt_early_holes(visit);
+			visit.close();
+			await expect.poll(() => cancelled).toEqual(['d1']);
+			await new Promise((r) => setTimeout(r, 50));
+			expect(peek(frameAddress(ep('d1')))).toBeNull();
+			expect(unhandled).toEqual([]);
+		} finally {
+			window.removeEventListener('unhandledrejection', on_unhandled);
+		}
+	});
+
+	it('a refused answer stays at its address: the hole that wakes later is refused too, and asks nothing', async () => {
+		vi.spyOn(window, 'fetch').mockImplementation(
+			async () => new Response('<!doctype html><html><body>sign in</body></html>', { status: 200 })
+		);
+		start_early([ep('x1')]);
 		const visit = scope();
 		adopt_early_holes(visit);
+		await new Promise((r) => setTimeout(r, 20));
+		const own = vi.fn(async () => 'own');
+		const err = await ensure(frameAddress(ep('x1')), own).catch((e: unknown) => e);
+		expect((err as Error)?.name).toBe('RegionAnswerRefused');
+		expect(own).not.toHaveBeenCalled();
+		expect(window.fetch).toHaveBeenCalledTimes(1);
 		visit.close();
-		await expect.poll(() => cancelled).toEqual(['d1']);
 	});
 });

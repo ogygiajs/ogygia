@@ -1148,7 +1148,7 @@ class OgygiaHandle {
 		// THE EARLY START (early-holes.ts): the requests of this page's `load` holes start during the
 		// parse, from one data block and one constant script in the chunk that carries `</head>`. A
 		// policy that would block the script gets its hash: a <meta> one here, a header after `resolve`.
-		const early = head === null ? [] : take_early_holes();
+		const early = head === null || !event ? [] : take_early_holes(event.request);
 		if (early.length && bag) bag.early_holes = early;
 		const early_head = early_holes_head(early);
 		const with_early_csp = (h: string): string => (early.length ? with_early_holes_meta_csp(h) : h);
