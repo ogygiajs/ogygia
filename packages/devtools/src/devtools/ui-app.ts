@@ -5,6 +5,7 @@
  * opens the dock (a dynamic import the bundler splits off). On the dev server it loads at once.
  */
 import { mount, unmount } from 'svelte';
+import { scope } from '@ogygia/machine';
 import Devtools from './Devtools.svelte';
 import { install_page_hook } from './page.ts';
 import { set_highlight_root } from './highlight.ts';
@@ -37,13 +38,13 @@ export function mount_app(
 	// page whose CSP refuses inline styles gets them re-made as adopted sheets. Keep going as tabs and
 	// detail views mount their styles later.
 	adopt_scoped_styles(root);
-	const mo = new MutationObserver(() => adopt_scoped_styles(root));
+	// the mounted dock and its style watch: the dock's `mounted` visit lets go of them (ui.ts)
+	const s = scope();
+	s.defer(() => void unmount(app));
+	const mo = s.watch(new MutationObserver(() => adopt_scoped_styles(root)));
 	mo.observe(document.head, { childList: true });
 	mo.observe(root, { childList: true, subtree: true });
-	return () => {
-		mo.disconnect();
-		void unmount(app);
-	};
+	return () => s.close();
 }
 
 /** the dock's `<style>`s a page's Content-Security-Policy refused, already re-made as sheets */

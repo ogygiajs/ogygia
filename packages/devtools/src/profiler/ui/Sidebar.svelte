@@ -9,6 +9,7 @@
 	 * browser kept ("the browser is the database"); when the backend lands, the router fills `server`
 	 * and the two lists merge — nothing else here changes. `live` is the same seam for a status feed.
 	 */
+	import { scope, STALE } from '@ogygia/machine';
 	import { list_reports } from './store.ts';
 	import ThemeSwitch from './ThemeSwitch.svelte';
 
@@ -33,21 +34,25 @@
 		reports: number;
 	} | null>(null);
 	$effect(() => {
-		let alive = true;
+		// the poll and its request in flight: the next run of the effect, or the unmount, ends them
+		const s = scope();
 		const poll = async () => {
 			try {
-				const r = await fetch(`${base}/status.json`, { headers: { accept: 'application/json' } });
-				if (r.ok && alive) live = await r.json();
+				const next = await s.task(async (signal) => {
+					const r = await fetch(`${base}/status.json`, {
+						headers: { accept: 'application/json' },
+						signal
+					});
+					return r.ok ? await r.json() : null;
+				});
+				if (next !== STALE && next !== null) live = next;
 			} catch {
 				/* offline / gone */
 			}
 		};
-		poll();
-		const t = setInterval(poll, 4000);
-		return () => {
-			alive = false;
-			clearInterval(t);
-		};
+		void poll();
+		s.every(() => void poll(), 4000);
+		return () => s.close();
 	});
 
 	type Row = {

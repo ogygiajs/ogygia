@@ -7,6 +7,8 @@
 	 * URLs too low, so links are disabled there; Chromium/Firefox go up to ~1.5 MB, with a Safari-
 	 * recipient disclaimer past the universal-safe size. No `$effect`; all state moves on click/submit.
 	 */
+	import { onDestroy } from 'svelte';
+	import { scope } from '@ogygia/machine';
 	import { encode_permalink, is_webkit_capped, MAX_PERMALINK_CHARS } from './permalink.ts';
 	import { get_report } from './store.ts';
 	import { report_request } from './report-request.ts';
@@ -25,6 +27,9 @@
 	let note = $state('');
 	let err = $state('');
 	let copied = $state(false);
+	/** The panel's own timer: let go when it unmounts. */
+	const owner = scope();
+	onDestroy(() => owner.close());
 
 	async function generate(e: Event) {
 		e.preventDefault();
@@ -62,7 +67,7 @@
 		try {
 			await navigator.clipboard.writeText(url);
 			copied = true;
-			setTimeout(() => (copied = false), 1500);
+			owner.timeout(() => (copied = false), 1500);
 		} catch {
 			/* clipboard blocked — the field is selectable */
 		}

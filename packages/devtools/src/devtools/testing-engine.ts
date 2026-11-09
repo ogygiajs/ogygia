@@ -313,6 +313,7 @@ export async function settled(quiet = 300, timeout = 10_000): Promise<boolean> {
 		if (!started.size && performance.now() - last >= quiet && document.readyState === 'complete')
 			return true;
 		if (performance.now() > until) return false;
+		// oxlint-disable-next-line ogygia/owned-effects -- a one-shot poll step inside the caller's own await, which ends with it
 		await new Promise((r) => setTimeout(r, 50));
 	}
 }

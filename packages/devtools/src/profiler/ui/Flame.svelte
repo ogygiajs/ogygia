@@ -4,6 +4,7 @@
 	 * click the top bar to zoom back out; hover for detail. Zoom + tooltip are `$state`; the canvas
 	 * redraws in an `$effect` on zoom/resize. `rects` (hit regions) is plain, rebuilt each draw.
 	 */
+	import { scope } from '@ogygia/machine';
 	import type { FlameNode } from '../analyze.ts';
 	import { CATEGORY_COLOR } from './format.ts';
 
@@ -107,9 +108,9 @@
 		layout();
 	});
 	$effect(() => {
-		const on = () => resizeTick++;
-		window.addEventListener('resize', on);
-		return () => window.removeEventListener('resize', on);
+		const s = scope();
+		s.on(window, 'resize', () => resizeTick++);
+		return () => s.close();
 	});
 
 	function hit(ev: MouseEvent) {

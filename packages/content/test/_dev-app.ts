@@ -161,12 +161,13 @@ export class DevApp {
 		return edit(this.server!.watcher, path.join(this.root, rel), text);
 	}
 
-	async start(): Promise<ViteDevServer> {
+	/** `debounce_ms`: how long the content plugin waits on a change before it reloads. */
+	async start(debounce_ms = 0): Promise<ViteDevServer> {
 		const server = await createServer({
 			root: this.root,
 			configFile: false,
 			logLevel: 'silent',
-			plugins: [content_hmr({ hmrDebounceMs: 0 }), content_runs()],
+			plugins: [content_hmr({ hmrDebounceMs: debounce_ms }), content_runs()],
 			// the package as an app imports it (its collection factory, its server remotes), and
 			// Kit's `$app/server` as core's tests stand it in
 			resolve: {

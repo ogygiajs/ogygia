@@ -211,6 +211,10 @@ export function recording(): Recorder | null {
 /** Start recording (or go on with the parts earlier pages saved — `resume_session_if_any`). */
 export function start_session(prior?: SavedPart[]): Recorder {
 	if (active) return active;
+	// the run's visit to `recording` owns every watcher below: leaving it (a stop, the page going
+	// away) takes them all off, once
+	const run = run_definition.create();
+	const s = run.scope;
 	const from = performance.now();
 	const seq0 = snapshot().at(-1)?.seq ?? -1;
 	const interactions: SessionInteraction[] = [];
@@ -227,19 +231,28 @@ export function start_session(prior?: SavedPart[]): Recorder {
 		for (const r of all_regions()) if (r.fp && !names[r.fp]) names[r.fp] = region_name(r.entry);
 	};
 	note_names();
-	const off_nav = add_sink((e) => {
-		if (e.name === 'nav.start') note_names();
-	});
-	const observers: { po: PerformanceObserver; cb: (entries: PerformanceEntryList) => void }[] = [];
+	s.defer(
+		add_sink((e) => {
+			if (e.name === 'nav.start') note_names();
+		})
+	);
 	const watch = (
 		type: string,
 		cb: (entries: PerformanceEntryList) => void,
 		extra: Record<string, unknown> = {}
 	) => {
 		try {
-			const po = new PerformanceObserver((l) => cb(l.getEntries()));
+			const po = s.watch(new PerformanceObserver((l) => cb(l.getEntries())));
 			po.observe({ type, ...extra } as PerformanceObserverInit);
-			observers.push({ po, cb });
+			// (newest first: the entries still queued count too, before it disconnects)
+			s.defer(() => {
+				try {
+					const left = po.takeRecords();
+					if (left.length) cb(left);
+				} catch {
+					// ignore
+				}
+			});
 		} catch {
 			// unsupported here
 		}
@@ -317,19 +330,21 @@ export function start_session(prior?: SavedPart[]): Recorder {
 	});
 	// the DOM, per island (and outside any): a lot of changes = something re-renders
 	const mut_log: { t: number; fp: string | null }[] = [];
-	const mo = new MutationObserver((records) => {
-		const now = r1(performance.now());
-		const seen = new Set<string | null>();
-		for (const m of records) {
-			const island = island_of(m.target);
-			muts.set(island, (muts.get(island) ?? 0) + 1);
-			const fp = island?.getAttribute('data-og-fp') ?? null;
-			if (!seen.has(fp) && mut_log.length < 20_000) {
-				seen.add(fp);
-				mut_log.push({ t: now, fp });
+	const mo = s.watch(
+		new MutationObserver((records) => {
+			const now = r1(performance.now());
+			const seen = new Set<string | null>();
+			for (const m of records) {
+				const island = island_of(m.target);
+				muts.set(island, (muts.get(island) ?? 0) + 1);
+				const fp = island?.getAttribute('data-og-fp') ?? null;
+				if (!seen.has(fp) && mut_log.length < 20_000) {
+					seen.add(fp);
+					mut_log.push({ t: now, fp });
+				}
 			}
-		}
-	});
+		})
+	);
 	// EVERY click (the browser's interaction timing reports only those over 16 ms: a quick click on a
 	// dead button would never show) — for dead clicks and repeated clicks
 	const clicks: SessionClick[] = [];
@@ -345,7 +360,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 			...(el && looks_clickable(el) ? { clickable: true as const } : {})
 		});
 	};
-	addEventListener('click', on_click, { capture: true, passive: true });
+	s.on(globalThis, 'click', on_click, { capture: true, passive: true });
 	// EVERY NAVIGATION as it starts, with what started it: the link or form the browser names, else the
 	// input being handled at that moment (a reload in a click handler) — read when it fires, not
 	// guessed later from the last input (Chromium's Navigation API; elsewhere none are noted)
@@ -361,7 +376,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 		};
 	};
 	const INPUTS = ['click', 'submit', 'keydown', 'change'] as const;
-	for (const type of INPUTS) addEventListener(type, on_input, { capture: true, passive: true });
+	for (const type of INPUTS) s.on(globalThis, type, on_input, { capture: true, passive: true });
 	const navigation = (globalThis as { navigation?: EventTarget }).navigation;
 	const on_navigate = (e: Event) => {
 		const n = e as Event & {
@@ -381,7 +396,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 			fp: by ? (island_of(by)?.getAttribute('data-og-fp') ?? null) : (input?.fp ?? null)
 		});
 	};
-	navigation?.addEventListener('navigate', on_navigate);
+	if (navigation) s.on(navigation, 'navigate', on_navigate);
 	// every request (a PerformanceObserver: the resource buffer holds only 250, a dev page fills it)
 	const requests: SessionRequest[] = [];
 	watch('resource', (es) => {
@@ -422,11 +437,12 @@ export function start_session(prior?: SavedPart[]): Recorder {
 	} catch {
 		// no body
 	}
-	const on_error = (e: ErrorEvent) =>
+	// (a window's `onerror` is typed for the legacy string form too: a listener gets the event)
+	const on_error = (e: Event | string) =>
 		errors.length < 200 &&
 		errors.push({
 			t: r1(performance.now()),
-			message: String(e.message || e.error || 'error').slice(0, 300)
+			message: String((e as ErrorEvent).message || (e as ErrorEvent).error || 'error').slice(0, 300)
 		});
 	const on_rej = (e: PromiseRejectionEvent) =>
 		errors.length < 200 &&
@@ -436,9 +452,10 @@ export function start_session(prior?: SavedPart[]): Recorder {
 				'unhandled rejection: ' +
 				String((e.reason as { message?: string })?.message ?? e.reason).slice(0, 280)
 		});
-	addEventListener('error', on_error);
-	addEventListener('unhandledrejection', on_rej);
+	s.on(globalThis, 'error', on_error);
+	s.on(globalThis, 'unhandledrejection', on_rej);
 	const console_error = console.error;
+	s.defer(() => (console.error = console_error));
 	console.error = (...args: unknown[]) => {
 		if (errors.length < 200)
 			errors.push({
@@ -472,27 +489,6 @@ export function start_session(prior?: SavedPart[]): Recorder {
 	const heap0 =
 		(performance as { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? null;
 
-	/** stop watching (the entries still queued count too) */
-	const detach = () => {
-		for (const { po, cb } of observers) {
-			try {
-				const left = po.takeRecords();
-				if (left.length) cb(left);
-				po.disconnect();
-			} catch {
-				// ignore
-			}
-		}
-		mo.disconnect();
-		off_nav();
-		removeEventListener('error', on_error);
-		removeEventListener('unhandledrejection', on_rej);
-		removeEventListener('click', on_click, { capture: true });
-		for (const type of INPUTS) removeEventListener(type, on_input, { capture: true });
-		navigation?.removeEventListener('navigate', on_navigate);
-		removeEventListener('pagehide', on_hide);
-		console.error = console_error;
-	};
 	/** this document's part of the session */
 	const collect = (cpu: unknown): SessionData => {
 		const heap1 =
@@ -545,13 +541,12 @@ export function start_session(prior?: SavedPart[]): Recorder {
 			// no storage: the session ends with this page
 		}
 	};
-	addEventListener('pagehide', on_hide);
+	s.on(globalThis, 'pagehide', on_hide);
 
-	const run = run_definition.create();
-	// out of `recording` (a stop, or the page going away): the watchers come off, and the module's
-	// recording is let go only while it is still this one (a newer one may have started since)
-	run.scope.defer(() => {
-		detach();
+	// out of `recording` (a stop, or the page going away): the watchers come off (the scope's), and
+	// the module's recording is let go only while it is still this one (a newer one may have started
+	// since)
+	s.defer(() => {
 		if (active === rec) active = null;
 	});
 	const stopping = flights({

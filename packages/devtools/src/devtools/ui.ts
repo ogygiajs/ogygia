@@ -24,7 +24,7 @@ import {
 } from '@ogygia/core/insights';
 import { TESTING_ENGINE_VERSION } from '@ogygia/core/insights';
 import { import_again } from '@ogygia/core/internal/instruments';
-import { flights, machine, STALE, type Machine } from '@ogygia/machine';
+import { flights, machine, STALE, type Machine, type Scope } from '@ogygia/machine';
 import { OgygiaError } from '../messages/runtime.ts';
 
 /** The dock's code: after a failed download, asked for again under a fresh URL. */
@@ -185,19 +185,24 @@ function mount_launcher(opts?: { csr_true?: boolean }): void {
 	// still loads, but only once the page is done and the browser idle — the dock's own work must
 	// not land in the page load it measures (it once pushed a healthy island's wake a second late)
 	if (was_open()) load();
-	else if (!LAZY) after_load_idle(load);
+	// (the waits are the launcher's visit: a click that loads it sooner, or devtools turned off, ends them)
+	else if (!LAZY) after_load_idle(state.scope, load);
 }
 
-function after_load_idle(fn: () => void): void {
+/** Runs `fn` once the page is loaded and the browser idle, unless `s` closes first. */
+function after_load_idle(s: Scope, fn: () => void): void {
 	const idle = () => {
-		const ric = (
-			globalThis as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void }
-		).requestIdleCallback;
-		if (ric) ric(fn, { timeout: 3000 });
-		else setTimeout(fn, 1000);
+		const host = globalThis as {
+			requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
+			cancelIdleCallback?: (id: number) => void;
+		};
+		if (!host.requestIdleCallback) return void s.timeout(fn, 1000);
+		// (a scope's idle wait has no deadline: this one gives up waiting after 3 s)
+		const id = host.requestIdleCallback(fn, { timeout: 3000 });
+		s.defer(() => host.cancelIdleCallback?.(id));
 	};
-	if (document.readyState === 'complete') setTimeout(idle, 500);
-	else addEventListener('load', () => setTimeout(idle, 500), { once: true });
+	if (document.readyState === 'complete') s.timeout(idle, 500);
+	else s.on(globalThis, 'load', () => s.timeout(idle, 500), { once: true });
 }
 
 /**

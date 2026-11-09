@@ -5,6 +5,8 @@
 	 * The zoom stack and tooltip are `$state`; the canvas redraws in an `$effect` when either the stack
 	 * or a resize changes. `rects` (hit regions) is plain (non-reactive) — it's rebuilt each draw.
 	 */
+	import { scope } from '@ogygia/machine';
+
 	interface Leaf {
 		label: string;
 		value: number;
@@ -189,9 +191,9 @@
 		draw();
 	});
 	$effect(() => {
-		const on = () => resizeTick++;
-		window.addEventListener('resize', on);
-		return () => window.removeEventListener('resize', on);
+		const s = scope();
+		s.on(window, 'resize', () => resizeTick++);
+		return () => s.close();
 	});
 
 	function at(ev: MouseEvent) {

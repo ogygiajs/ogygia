@@ -203,6 +203,12 @@ catalogs:
     '@types/node':
       specifier: ^26.1.2
       version: 26.1.2
+    '@vitest/browser':
+      specifier: 4.1.12
+      version: 4.1.12
+    '@vitest/browser-playwright':
+      specifier: 4.1.12
+      version: 4.1.12
     axe-core:
       specifier: ^4.13.0
       version: 4.13.0
@@ -983,7 +989,7 @@ importers:
         version: link:../tsdown-plugin-svelte
       '@sveltejs/vite-plugin-svelte':
         specifier: 'catalog:'
-        version: 7.2.0(svelte@5.57.2)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 7.2.0(svelte@5.56.8)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
@@ -994,6 +1000,9 @@ importers:
       '@typescript/native':
         specifier: catalog:tsgo
         version: typescript@7.0.2
+      svelte:
+        specifier: 'catalog:'
+        version: 5.56.8
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -1043,6 +1052,12 @@ importers:
       '@typescript/native':
         specifier: catalog:tsgo
         version: typescript@7.0.2
+      '@vitest/browser':
+        specifier: 'catalog:'
+        version: 4.1.12(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
+      '@vitest/browser-playwright':
+        specifier: 'catalog:'
+        version: 4.1.12(playwright@1.62.1)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
       shiki:
         specifier: 'catalog:'
         version: 4.4.3
@@ -1136,10 +1151,10 @@ importers:
         specifier: catalog:tsgo
         version: typescript@7.0.2
       '@vitest/browser':
-        specifier: 4.1.12
+        specifier: 'catalog:'
         version: 4.1.12(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
       '@vitest/browser-playwright':
-        specifier: 4.1.12
+        specifier: 'catalog:'
         version: 4.1.12(playwright@1.62.1)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
       rolldown:
         specifier: 'catalog:'
@@ -1387,10 +1402,10 @@ importers:
         specifier: catalog:tsgo
         version: typescript@7.0.2
       '@vitest/browser':
-        specifier: 4.1.12
+        specifier: 'catalog:'
         version: 4.1.12(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
       '@vitest/browser-playwright':
-        specifier: 4.1.12
+        specifier: 'catalog:'
         version: 4.1.12(playwright@1.62.1)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
       playwright:
         specifier: 'catalog:'

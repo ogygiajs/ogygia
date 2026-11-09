@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import MagicString from 'magic-string';
 import type { ModuleNode, Plugin, ViteDevServer } from 'vite';
+import { scope, type Scope } from '@ogygia/machine';
 import { parse_module } from '@ogygia/core/internal/compiler-browser';
 
 const BACKSLASH = /\\/g;
@@ -144,6 +145,12 @@ export function content_runs(): Plugin {
 export function content_hmr(options: ContentHmrOptions = {}): Plugin {
 	const debounceMs = Math.max(0, options.hmrDebounceMs ?? 50);
 	let root = '';
+	/**
+	 * Each dev server's run of the plugin (its watcher listeners, its debounce), by the server's
+	 * environments: closing an environment ends its server's run. By environment, not one run per
+	 * plugin: a restart makes the new server (with this same plugin) before it closes the old one.
+	 */
+	const runs = new WeakMap<object, Scope>();
 
 	return {
 		name: 'ogygia:content-hmr',
@@ -153,8 +160,15 @@ export function content_hmr(options: ContentHmrOptions = {}): Plugin {
 			root = config.root;
 		},
 
+		// the server closes (a restart, a quit): what its run still waits on goes with it
+		closeBundle() {
+			runs.get(this.environment)?.close();
+		},
+
 		configureServer(server) {
-			let timer: ReturnType<typeof setTimeout> | null = null;
+			const run = scope();
+			for (const environment of Object.values(server.environments)) runs.set(environment, run);
+			let cancel: (() => void) | null = null;
 			let pending = new Set<string>();
 
 			const watchRoots = new Set<string>();
@@ -172,7 +186,7 @@ export function content_hmr(options: ContentHmrOptions = {}): Plugin {
 			};
 
 			const flush = async () => {
-				timer = null;
+				cancel = null;
 				const files = [...pending];
 				pending.clear();
 				if (files.length === 0) return;
@@ -206,15 +220,13 @@ export function content_hmr(options: ContentHmrOptions = {}): Plugin {
 				if (base.endsWith('~') || base.startsWith('.#')) return;
 				if (!under_watch(abs)) return;
 				pending.add(abs);
-				if (timer) clearTimeout(timer);
-				timer = setTimeout(() => {
-					void flush();
-				}, debounceMs);
+				cancel?.();
+				cancel = run.timeout(() => void flush(), debounceMs);
 			};
 
-			server.watcher.on('add', schedule);
-			server.watcher.on('change', schedule);
-			server.watcher.on('unlink', schedule);
+			run.on(server.watcher, 'add', schedule);
+			run.on(server.watcher, 'change', schedule);
+			run.on(server.watcher, 'unlink', schedule);
 
 			for (const dir of watchRoots) {
 				if (fs.existsSync(dir)) server.watcher.add(dir);

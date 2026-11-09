@@ -5,6 +5,8 @@
 	 * needed — it holds the element refs) and tracks the active one with an IntersectionObserver.
 	 * Hidden on narrow screens.
 	 */
+	import { scope } from '@ogygia/machine';
+
 	// every heading in document order: the part bands (level 0) and each section's h2 (level 1),
 	// so the rail is the whole report at a glance, not just the eight parts
 	type Entry = { n: string; t: string; el: HTMLElement; level: 0 | 1 };
@@ -26,20 +28,23 @@
 			return { n: '', t, el, level: 1 as const };
 		});
 		if (!els.length) return;
-		const io = new IntersectionObserver(
-			(ents) => {
-				for (const e of ents) {
-					if (e.isIntersecting) {
-						const i = els.indexOf(e.target as HTMLElement);
-						if (i >= 0) active = i;
+		const s = scope();
+		const io = s.watch(
+			new IntersectionObserver(
+				(ents) => {
+					for (const e of ents) {
+						if (e.isIntersecting) {
+							const i = els.indexOf(e.target as HTMLElement);
+							if (i >= 0) active = i;
+						}
 					}
-				}
-			},
-			{ rootMargin: '-6% 0px -85% 0px', threshold: 0 }
+				},
+				{ rootMargin: '-6% 0px -85% 0px', threshold: 0 }
+			)
 		);
 		for (const el of els) io.observe(el);
 		// the report reserves the rail's space server-side (Shell `toc`); nothing to toggle here
-		return () => io.disconnect();
+		return () => s.close();
 	});
 	const jump = (e: Entry) => e.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 </script>

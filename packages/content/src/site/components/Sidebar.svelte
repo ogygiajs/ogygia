@@ -7,6 +7,7 @@
 	 */
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/state';
+	import { scope } from '@ogygia/machine';
 	import { get_shell_context } from '../context.ts';
 	import { roving } from './roving.ts';
 	import type { Site } from '../site.ts';
@@ -96,14 +97,12 @@
 		void path; // re-run per navigation (props push into the kept app)
 		const el = nav_el;
 		if (!el || el.offsetParent === null) return;
-		// The panel is a new element each nav — rebind the saver to the live one.
-		const s = find_scroller(el);
-		if (s !== scroller) {
-			scroller?.removeEventListener('scroll', save);
-			scroller = s;
-			scroller?.addEventListener('scroll', save, { passive: true });
-		}
+		// The panel is a new element each nav: the saver binds to the live one.
+		scroller = find_scroller(el);
 		if (!scroller) return;
+		// (this run's saver: the next navigation's run, or the unmount, lets go of it)
+		const run = scope();
+		run.on(scroller, 'scroll', save, { passive: true });
 		let saved: number | null = null;
 		try {
 			const raw = sessionStorage.getItem(`og:sidenav:${the_base}`);
@@ -130,6 +129,7 @@
 			}
 		}
 		first_sync = false;
+		return () => run.close();
 	});
 </script>
 

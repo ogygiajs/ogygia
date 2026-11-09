@@ -5,6 +5,8 @@
 	 * themselves) and HOW it was reached (its heaviest call stacks, nearest caller first).
 	 * Rendered inside the table islands; plain markup.
 	 */
+	import { onDestroy } from 'svelte';
+	import { scope } from '@ogygia/machine';
 	import type { FrameStat } from '../analyze.ts';
 	import { fmt_ms, CATEGORY_LABEL } from './format.ts';
 
@@ -35,11 +37,14 @@
 	const last_hot = $derived(lines.length ? Math.max(...lines.map((l) => l.line)) : 0);
 	const ms_at = (n: number) => lines.find((l) => l.line === n)?.ms ?? 0;
 	let copied = $state(false);
+	/** The panel's own timer: let go when it unmounts. */
+	const owner = scope();
+	onDestroy(() => owner.close());
 	async function copy() {
 		try {
 			await navigator.clipboard.writeText(location);
 			copied = true;
-			setTimeout(() => (copied = false), 1200);
+			owner.timeout(() => (copied = false), 1200);
 		} catch {
 			/* no clipboard (insecure context) — the text is selectable */
 		}
