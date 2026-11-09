@@ -13,10 +13,12 @@ import {
 	scope,
 	stage,
 	STALE,
+	world,
 	type LockToken,
 	type Scope,
 	type Stage
 } from '../src/index.ts';
+import { KEYS_KEPT } from '../src/world.ts';
 import { MACHINE_ERRORS, machine_error, report } from '../src/messages.ts';
 import { backoff_after } from '../src/policy.ts';
 
@@ -654,6 +656,65 @@ bench(
 		for (const owner of owners) owner.close();
 		console.error = said;
 		return live + given_back;
+	},
+	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
+);
+
+bench(
+	'world: stamps taken and judged, whole and keyed moves, past the keys it keeps',
+	({ n }) => {
+		const page = world();
+		const tags = world.keyed<string>();
+		let fresh = 0;
+		for (let i = 0; i < n; i++) {
+			const a = page.stamp();
+			const b = tags.stamp();
+			if (i % 7 === 0) page.bump();
+			if (i % 3 === 0) tags.bump(['t' + (i % 50), 'all']);
+			if (i % 97 === 0) tags.bump();
+			if (i % 13 === 0) tags.bump([]);
+			if (page.fresh(a)) fresh++;
+			if (tags.fresh(b, ['t' + (i % 60)])) fresh++;
+			if (tags.fresh(b)) fresh++;
+		}
+		// more keys than it keeps: the oldest fold into the floor
+		const many = world.keyed<number>();
+		const before = many.stamp();
+		for (let i = 0; i <= KEYS_KEPT; i++) many.bump([i]);
+		if (many.fresh(before, [n])) fresh++;
+		return fresh;
+	},
+	{ setup: () => ({ n: 600 }), scale: (_ctx, k) => ({ n: 600 * k }) }
+);
+
+bench(
+	'flights in a world: keyed moves drop what they touch, answers made stale on the way',
+	async ({ n }) => {
+		const tags = world.keyed<string>();
+		const docs = flights({
+			name: 'docs',
+			world: tags,
+			touches: (doc: { tags: string[] }) => doc.tags,
+			run: async (path: string) => {
+				await Promise.resolve();
+				return { tags: ['p:' + path, 's:' + (path.length % 3)] };
+			}
+		});
+		const whole = world();
+		const pages = flights({ world: whole, run: async (href: string) => href });
+		const out: Promise<unknown>[] = [];
+		for (let i = 0; i < n; i++) {
+			const path = '/doc/' + (i % 30);
+			out.push(docs.get(path), pages.get(path));
+			if (i % 5 === 0) tags.bump(['s:' + (i % 3)]);
+			if (i % 9 === 0) tags.bump(['p:' + path]);
+			if (i % 23 === 0) whole.bump();
+			if (i % 31 === 0) out.push(docs.get(path, { fresh: true }));
+		}
+		const settled = await Promise.all(out);
+		docs[Symbol.dispose]();
+		pages[Symbol.dispose]();
+		return settled.filter((v) => v === STALE).length;
 	},
 	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
 );

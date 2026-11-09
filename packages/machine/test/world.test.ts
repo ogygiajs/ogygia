@@ -1,0 +1,204 @@
+import { describe, expect, it, vi } from 'vitest';
+import { flights, STALE, world } from '../src/index.ts';
+import { KEYS_KEPT } from '../src/world.ts';
+import { macrotask } from './_tick.ts';
+
+/** A promise and its two ends. */
+function deferred<T>() {
+	let resolve!: (value: T) => void;
+	let reject!: (error: unknown) => void;
+	const promise = new Promise<T>((res, rej) => {
+		resolve = res;
+		reject = rej;
+	});
+	return { promise, resolve, reject };
+}
+
+describe('a world', () => {
+	it('a stamp is fresh until the world moves, and only moves forward', () => {
+		const w = world();
+		const a = w.stamp();
+		expect(w.fresh(a)).toBe(true);
+		w.bump();
+		expect(w.fresh(a)).toBe(false);
+		const b = w.stamp();
+		expect(b).toBeGreaterThan(a);
+		expect(w.fresh(b)).toBe(true);
+		// a stamp from ahead of it is no stamp of this world
+		expect(w.fresh(b + 1)).toBe(false);
+	});
+
+	it('a keyed world moves only what read the keys it moved', () => {
+		const w = world.keyed<string>();
+		const s = w.stamp();
+		w.bump(['x']);
+		expect(w.fresh(s, ['y'])).toBe(true);
+		expect(w.fresh(s, ['x', 'y'])).toBe(false);
+		expect(w.fresh(s, [])).toBe(true);
+		// no keys: did anything at all move
+		expect(w.fresh(s)).toBe(false);
+		expect(w.fresh(w.stamp())).toBe(true);
+		// made after the move: fresh for x too
+		expect(w.fresh(w.stamp(), ['x'])).toBe(true);
+	});
+
+	it('a whole move of a keyed world puts every stamp before it out of date', () => {
+		const w = world.keyed<string>();
+		const s = w.stamp();
+		w.bump();
+		expect(w.fresh(s, ['never-moved'])).toBe(false);
+		expect(w.fresh(w.stamp(), ['never-moved'])).toBe(true);
+	});
+
+	it('an empty move moves nothing', () => {
+		const w = world.keyed<string>();
+		const s = w.stamp();
+		w.bump([]);
+		expect(w.stamp()).toBe(s);
+		expect(w.fresh(s)).toBe(true);
+	});
+
+	it('past KEYS_KEPT keys, the oldest move folds into the floor: never fresh when it is not', () => {
+		const w = world.keyed<number>();
+		const before = w.stamp();
+		w.bump([-1]); // the oldest move, folded once the map is full
+		const mid = w.stamp();
+		for (let i = 0; i < KEYS_KEPT; i++) w.bump([i]);
+		// -1's move is forgotten, so a stamp from before it is out of date for every key
+		expect(w.fresh(before, [-1])).toBe(false);
+		expect(w.fresh(before, [KEYS_KEPT + 7])).toBe(false);
+		// a stamp from after the folded move still reads exactly
+		expect(w.fresh(mid, [-1])).toBe(true);
+		expect(w.fresh(mid, [0])).toBe(false);
+	});
+});
+
+describe('flights in a world', () => {
+	it('a move drops the kept answers and ends the flights out: their callers get STALE', async () => {
+		const w = world();
+		const d = deferred<string>();
+		let aborted = false;
+		const pages = flights({
+			world: w,
+			run: (href: string, signal) => {
+				signal.addEventListener('abort', () => (aborted = true));
+				return href === '/out' ? d.promise : Promise.resolve(href);
+			}
+		});
+		expect(await pages.get('/kept')).toBe('/kept');
+		const out = pages.get('/out');
+		w.bump();
+		expect(await out).toBe(STALE);
+		expect(aborted).toBe(true);
+		expect(pages.peek('/kept')).toBeUndefined();
+		d.resolve('late');
+		await macrotask();
+		expect(pages.peek('/out')).toBeUndefined();
+	});
+
+	it('an answer whose world moved on its way is STALE for every joiner, and not kept', async () => {
+		const w = world.keyed<string>();
+		const d = deferred<{ tags: string[] }>();
+		const docs = flights({
+			world: w,
+			touches: (answer: { tags: string[] }) => answer.tags,
+			run: () => d.promise
+		});
+		const pinned = docs.get();
+		const held = docs.get(undefined, { signal: new AbortController().signal });
+		w.bump(['x']); // nothing kept yet: the flight goes on, to be judged by its answer
+		expect(docs.peek(undefined)).toEqual({ kind: 'flying' });
+		d.resolve({ tags: ['x'] });
+		expect(await pinned).toBe(STALE);
+		expect(await held).toBe(STALE);
+		expect(docs.peek(undefined)).toBeUndefined();
+	});
+
+	it('a move of other keys keeps the flight out and its answer (#294)', async () => {
+		const w = world.keyed<string>();
+		const d = deferred<{ tags: string[] }>();
+		const run = vi.fn(() => d.promise);
+		const docs = flights({ world: w, touches: (a: { tags: string[] }) => a.tags, run });
+		const y = docs.get();
+		w.bump(['x']);
+		d.resolve({ tags: ['y'] });
+		expect(await y).toEqual({ tags: ['y'] });
+		expect(docs.peek(undefined)?.kind).toBe('kept');
+		await docs.get();
+		expect(run).toHaveBeenCalledOnce();
+	});
+
+	it('a keyed move drops the kept answers made from its keys, and only those', async () => {
+		const w = world.keyed<string>();
+		const docs = flights({
+			world: w,
+			key: (p: string) => p,
+			touches: (a: { tags: string[] }) => a.tags,
+			run: async (p: string) => ({ tags: [p] })
+		});
+		await docs.get('x');
+		await docs.get('y');
+		w.bump(['x']);
+		expect(docs.peek('x')).toBeUndefined();
+		expect(docs.peek('y')?.kind).toBe('kept');
+	});
+
+	it('a refresh beside a kept answer: an answer made stale on the way leaves the kept one', async () => {
+		const w = world.keyed<string>();
+		let next = deferred<{ v: number; tags: string[] }>();
+		const docs = flights({
+			world: w,
+			touches: (a: { v: number; tags: string[] }) => a.tags,
+			run: () => next.promise
+		});
+		const first = docs.get();
+		next.resolve({ v: 1, tags: ['a'] });
+		await first;
+		next = deferred();
+		const refresh = docs.get(undefined, { fresh: true });
+		w.bump(['b']); // the kept answer read a: it stays; the refresh is judged when it lands
+		next.resolve({ v: 2, tags: ['b'] });
+		expect(await refresh).toBe(STALE);
+		const kept = docs.peek(undefined);
+		expect(kept?.kind === 'kept' && kept.answer.v).toBe(1);
+	});
+
+	it('a touches that throws: the kept answer goes on a move, a landing fails its callers', async () => {
+		const w = world.keyed<string>();
+		const bad = new Error('cannot tell');
+		let throws = false;
+		const docs = flights({
+			world: w,
+			touches: () => {
+				if (throws) throw bad;
+				return ['a'];
+			},
+			run: async () => 1
+		});
+		await docs.get();
+		throws = true;
+		w.bump(['z']);
+		expect(docs.peek(undefined)).toBeUndefined();
+		await expect(docs.get()).rejects.toBe(bad);
+		expect(docs.peek(undefined)).toBeUndefined();
+	});
+
+	it('a disposed flights stops hearing its world', async () => {
+		const w = world();
+		const run = vi.fn(async () => 1);
+		const docs = flights({ world: w, run });
+		await docs.get();
+		docs[Symbol.dispose]();
+		w.bump();
+		expect(await docs.get()).toBe(STALE);
+	});
+
+	it('takes only a world made by world()', () => {
+		expect(() =>
+			flights({
+				world: { stamp: () => 0, fresh: () => true, bump: () => {} },
+				run: () => 1
+			})
+		).toThrow(/world/);
+	});
+});

@@ -10,7 +10,7 @@
  */
 import type { ContentRef, ContentRelations, Entry, RefEntry, SchemaLike } from './index.ts';
 import type { GroupMeta, Source, SourceEntry, SourceRef } from './source.ts';
-import { flights, machine, type Flights } from '@ogygia/machine';
+import { flights, machine, world, type Flights, type World } from '@ogygia/machine';
 import { GRAPH, type ModuleRun } from './graph.ts';
 import { parseSchema } from './schema.ts';
 import { OgygiaError } from './messages/runtime.ts';
@@ -56,11 +56,22 @@ type Running = Extract<CollectionLife['now'], { kind: 'running' }>;
 /** Back-pointer from a public handle to its underlying `Collection` (relations resolve through it). */
 export const COLLECTION: unique symbol = Symbol.for('ogygia.content.collection');
 
-/** The catalog version of a collection (a `content()` handle or a Collection), or null for a
- *  collection this package did not make (it has no version: whatever reads it never sees it change). */
+/** The catalog version of a collection (a `content()` handle or a Collection): the stamp of the
+ *  world its catalog is in now, which what is read from it takes BEFORE the read. Null for a
+ *  collection this package did not make (it has no world: whatever reads it never sees it change). */
 export function catalog_version(collection: unknown): number | null {
 	return to_collection(collection)?.version() ?? null;
 }
+
+/** Whether what was read from `collection` at `version` (`catalog_version`) is still its catalog:
+ *  nothing changed since. */
+export function catalog_fresh(collection: unknown, version: number | null): boolean {
+	const c = to_collection(collection);
+	return c === undefined ? version === null : version !== null && world_of(c).fresh(version);
+}
+
+/** A collection's world (set by the class, which alone holds it). */
+let world_of: (c: Collection<Record<string, unknown>>) => World;
 
 /** Resolve a relation value (a handle or a Collection) to its Collection, or undefined. */
 function to_collection(value: unknown): Collection<Record<string, unknown>> | undefined {
@@ -135,7 +146,11 @@ export class Collection<
 	 *  (an async iterator's `return()` waits behind its pull, so it cannot be closed while the source
 	 *  is quiet), and the next read listens on it again instead of opening another. */
 	#connection: LiveConnection | null = null;
-	#version = 0;
+	/** The world the catalog is in: each change to it moves it (`#notify`). */
+	readonly #world = world();
+	static {
+		world_of = (c) => c.#world;
+	}
 	/** How many times it was disposed: a watcher started before the last one has ended. */
 	#disposals = 0;
 	readonly #waiters = new Set<() => void>();
@@ -234,7 +249,7 @@ export class Collection<
 	}
 
 	#notify() {
-		this.#version += 1;
+		this.#world.bump();
 		for (const wake of this.#waiters) wake();
 	}
 
@@ -242,7 +257,7 @@ export class Collection<
 		return [...this.#catalog.values()];
 	}
 	version(): number {
-		return this.#version;
+		return this.#world.stamp();
 	}
 
 	/** Each new catalog version, from `from` on (default: the version now). Pass the version of the
@@ -251,11 +266,12 @@ export class Collection<
 	 *  disposed: a replaced collection changes no more, so a live remote streaming it ends instead of
 	 *  waiting forever (#247). */
 	async *watchChanges(from?: number): AsyncGenerator<number> {
-		let seen = from ?? this.#version;
+		const w = this.#world;
+		let seen = from ?? w.stamp();
 		const disposals = this.#disposals;
 		while (this.#disposals === disposals) {
-			if (this.#version !== seen) {
-				seen = this.#version;
+			if (!w.fresh(seen)) {
+				seen = w.stamp();
 				yield seen;
 				continue;
 			}
