@@ -141,7 +141,11 @@ import {
 	type Deferred
 } from './server/page-stream.ts';
 import { PAGE_DEFER_BOOTSTRAP, PAGE_DEFER_GLOBAL } from './page-defer.ts';
-import { ConcurrencyGate, REGION_RENDER_CONCURRENCY } from './runtime/concurrency.ts';
+import {
+	ConcurrencyGate,
+	REGION_RENDER_CONCURRENCY,
+	is_run_timeout
+} from './runtime/concurrency.ts';
 import { stringify } from 'devalue';
 import { serialize_provided_context } from './context-bridge.ts';
 import { escape_script_text } from './escape.ts';
@@ -1724,27 +1728,26 @@ class OgygiaHandle {
 				props,
 				context: kit_render_context()
 			});
-			return await Promise.race([
-				// (with what its islands wrote into the head — their graph and their CSS: the endpoint
-				// ships the body only — server/hole-graph.ts)
-				Promise.resolve(rendered).then((out) => {
-					const body = out.body as string;
-					if (body === KEEP_FALLBACK_HTML) return body;
-					// (and the page facts its islands read: they hydrate against what it rendered from)
-					return hole_head(out.head as string, base) + body + kit_page_facts_tail();
-				}),
-				new Promise<never>((_, rej) =>
-					setTimeout(() => rej(new Error('region render timeout')), RENDER_TIMEOUT_MS)
-				)
-			]);
+			// (with what its islands wrote into the head — their graph and their CSS: the endpoint
+			// ships the body only — server/hole-graph.ts)
+			const out = await rendered;
+			const body = out.body as string;
+			if (body === KEEP_FALLBACK_HTML) return body;
+			// (and the page facts its islands read: they hydrate against what it rendered from)
+			return hole_head(out.head as string, base) + body + kit_page_facts_tail();
 		};
+		// One deadline for the hole, its wait for a slot and its render together (#195): it answers
+		// within RENDER_TIMEOUT_MS. A render still running then is abandoned (it cannot be cancelled):
+		// its hole keeps the fallback and its slot goes to the next hole, so renders stuck on a hung
+		// upstream never hold every slot.
+		const gated = { deadline_ms: RENDER_TIMEOUT_MS };
 		try {
 			return await cached_render(
 				async () => {
 					// the page first, outside the gate: a render slot is never held while Kit runs the
 					// page's loads (and a cache hit never gets here)
 					await kit_page_ready(reads_page_data);
-					if (!timing) return render_gate.run(render_body);
+					if (!timing) return render_gate.run(render_body, gated);
 					// the wait for a slot, and the time in it. A slot is held for the whole render,
 					// awaits included: a hole waiting on slow data keeps the next one queued
 					const asked = performance.now();
@@ -1756,7 +1759,7 @@ class OgygiaHandle {
 						} finally {
 							timing.render_ms = performance.now() - entered;
 						}
-					});
+					}, gated);
 				},
 				cache,
 				Date.now(),
@@ -1766,6 +1769,10 @@ class OgygiaHandle {
 			// `keepFallback()` ends a render on purpose: the page's fallback is right for this
 			// visitor. Carried as a marker string so the cache/batch/endpoint seams stay string-typed.
 			if (is_keep_fallback(e)) return KEEP_FALLBACK_HTML;
+			// The first render abandoned while none was: a production log line too, as renders that
+			// outlive their deadline usually await something that hangs
+			if (is_run_timeout(e) && render_gate.abandoned === 1)
+				warn('region_render_abandoned', { ms: RENDER_TIMEOUT_MS });
 			// The response is an opaque 500 ("Region render failed"); the reason belongs in the dev
 			// terminal — a hole that throws only on the dev server is otherwise a blind hunt.
 			if (import.meta.env.DEV) warn('region_render_failed', e);
