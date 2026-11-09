@@ -40,17 +40,6 @@ jobs:
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
 
-      # turbo's local cache, one per slice and engine: a slice whose suite, fixture app and
-      # dependencies' builds did not change replays from it
-      - name: Turbo cache
-        uses: actions/cache@v6
-        with:
-          path: .turbo/cache
-          key: turbo-${{ runner.os }}-e2e-${{ inputs.id }}-${{ inputs.browser }}-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-e2e-${{ inputs.id }}-${{ inputs.browser }}-
-            turbo-${{ runner.os }}-
-
       # What the run below would do, asked of turbo first (`--dry=json`, the same filter, `--affected`
       # and hashed env): when no e2e task is left or every one is a cache hit (a rerun, say), nothing
       # runs a browser, bun or workerd (a replay only prints the stored logs), so their setup is

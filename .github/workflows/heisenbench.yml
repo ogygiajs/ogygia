@@ -95,15 +95,6 @@ jobs:
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
 
-      - name: Turbo cache
-        uses: actions/cache@v6
-        with:
-          path: .turbo/cache
-          key: turbo-${{ runner.os }}-unmeasured-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-check-
-            turbo-${{ runner.os }}-
-
       # some unit tests import the built libraries
       - name: Build the libraries
         run: pnpm run build:lib
