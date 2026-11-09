@@ -18,7 +18,7 @@
 // fetches in flight (one flights(), keyed by address). No DOM, no Svelte. Unit-tested in
 // test/frame-store.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
-import { flights, STALE, type Flights, type Stale } from '@ogygia/machine';
+import { flights, scope, STALE, type Flights, type Scope, type Stale } from '@ogygia/machine';
 import type { Frame } from '../frame.ts';
 import { watch, notify, watcher_count } from '../ref-watch.ts';
 
@@ -44,7 +44,8 @@ type Entry = {
 	 *  fetch that landed first) settles it, and `release()` fails it when the batch ends with no
 	 *  frame there. */
 	batch: { settle: (html: string) => void; fail: (err: unknown) => void } | null;
-	evict: ReturnType<typeof setTimeout> | null;
+	/** Its idle linger (EVICT_TTL), while it lingers: the scope that owns the timer. */
+	evict: Scope | null;
 	/** The fresh capability a renewal at this address answered (an expired one is re-signed once):
 	 *  the address's, so every element bound here moves onto it, not only the one that fetched. */
 	renewed: string | null;
@@ -114,9 +115,9 @@ function entry(a: string): Entry {
  */
 function schedule_evict(a: string, e: Entry): void {
 	if (watcher_count(frame_id(a)) > 0 || flying(a)) return; // still live — keep it
-	if (e.evict) clearTimeout(e.evict);
-	// oxlint-disable-next-line ogygia/owned-effects -- the entry's own idle TTL in the document's one store (no region owns an unbound entry): reset and cleared on the entry (`e.evict`)
-	e.evict = setTimeout(() => {
+	e.evict?.close();
+	// (the entry's own linger in the document's one store: no region owns an unbound entry)
+	(e.evict = scope()).timeout(() => {
 		const cur = entries.get(a);
 		if (cur === e && watcher_count(frame_id(a)) === 0 && !flying(a)) entries.delete(a);
 	}, EVICT_TTL);
@@ -183,10 +184,8 @@ export function write(f: Frame): boolean {
 export function reserve(a: string): void {
 	const e = entry(a);
 	if (e.html != null || flying(a)) return;
-	if (e.evict) {
-		clearTimeout(e.evict);
-		e.evict = null;
-	}
+	e.evict?.close();
+	e.evict = null;
 	const batch = new Promise<string>((settle, fail) => {
 		e.batch = { settle, fail };
 	});
@@ -222,10 +221,8 @@ export const BATCH_MISS = 'OgygiaBatchMiss';
  */
 export function subscribe(a: string, cb: (f: Frame) => void): () => void {
 	const e = entry(a);
-	if (e.evict) {
-		clearTimeout(e.evict);
-		e.evict = null;
-	}
+	e.evict?.close();
+	e.evict = null;
 	// Ongoing notifications ride the hub's watcher set; immediate replay of already-applied
 	// content stays here (a late binder catching a frame that landed before it mounted).
 	const off = watch(frame_id(a), cb as (v: unknown) => void);
@@ -278,7 +275,7 @@ export async function ensure(
 /** Test/HMR hook — drop everything. */
 export function _reset(): void {
 	for (const e of entries.values()) {
-		if (e.evict) clearTimeout(e.evict);
+		e.evict?.close();
 		e.batch?.fail(new Error('reset')); // reject any joined reservation waiters (no hung promises)
 	}
 	// (a new flights: a caller of a dropped one sees it was replaced, and does not ask again)
