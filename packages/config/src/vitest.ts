@@ -1,4 +1,5 @@
-import { readdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import type { ViteUserConfig } from 'vitest/config';
@@ -17,6 +18,144 @@ function stub_aliases(): Record<string, string> {
 	}
 	return out;
 }
+
+/**
+ * A browser the browser projects run in: Playwright's three engines (`chromium`, `firefox`, its
+ * own Firefox build, `webkit`), or a real installed browser through WebDriver: `safari` (Safari,
+ * safaridriver, a macOS job) and `firefox-stable` (Firefox as released, geckodriver), which a
+ * Playwright engine build can lag behind.
+ */
+export type TestBrowser = 'chromium' | 'firefox' | 'webkit' | 'safari' | 'firefox-stable';
+const ENGINES: readonly TestBrowser[] = ['chromium', 'firefox', 'webkit'];
+const REAL: Readonly<Record<string, 'safari' | 'firefox'>> = {
+	safari: 'safari',
+	'firefox-stable': 'firefox'
+};
+
+/**
+ * The browsers this run's browser projects use: `OGYGIA_BROWSERS` (a comma list, as CI runs one
+ * per job), else Playwright's three engines. A real browser (`safari`, `firefox-stable`) runs on
+ * its own, since a project has one provider.
+ */
+export function test_browsers(): TestBrowser[] {
+	const asked = process.env.OGYGIA_BROWSERS?.split(',')
+		.map((b) => b.trim())
+		.filter(Boolean);
+	if (!asked?.length) return [...ENGINES];
+	for (const b of asked)
+		if (!(b in REAL) && !ENGINES.includes(b as TestBrowser))
+			throw new Error(
+				`OGYGIA_BROWSERS: "${b}" is not chromium, firefox, webkit, safari or firefox-stable`
+			);
+	if (asked.some((b) => b in REAL) && asked.length > 1)
+		throw new Error('OGYGIA_BROWSERS: a real browser runs on its own (its own WebDriver provider)');
+	return asked as TestBrowser[];
+}
+
+/**
+ * A browser project's `provider` and `instances` for this run (see {@link test_browsers}):
+ * Playwright for its engines, WebdriverIO for a real browser.
+ */
+export async function browser_runs(): Promise<{
+	provider: NonNullable<NonNullable<ViteUserConfig['test']>['browser']>['provider'];
+	instances: { browser: string }[];
+	headless: boolean;
+}> {
+	const browsers = test_browsers();
+	const real = REAL[browsers[0]];
+	if (real === 'safari') {
+		const driver = safaridriver();
+		if (driver === null)
+			throw new Error(
+				'OGYGIA_BROWSERS=safari: real Safari runs only on macOS, through safaridriver ' +
+					`(none found on ${process.platform}). Run the other browsers here.`
+			);
+		console.log(`[browsers] Safari through ${driver}`);
+		const { webdriverio } = await import('@vitest/browser-webdriverio');
+		// (Safari has no headless mode: the macOS job runs it windowed)
+		return { provider: webdriverio(), instances: [{ browser: 'safari' }], headless: false };
+	}
+	if (real === 'firefox') {
+		const binary = firefox_binary();
+		console.log(
+			binary === null
+				? '[browsers] Firefox: none installed, webdriverio fetches a managed one'
+				: `[browsers] Firefox ${firefox_version(binary)} at ${binary}`
+		);
+		const { webdriverio } = await import('@vitest/browser-webdriverio');
+		return {
+			provider: webdriverio(
+				binary === null
+					? {}
+					: { capabilities: { browserName: 'firefox', 'moz:firefoxOptions': { binary } } }
+			),
+			instances: [{ browser: 'firefox' }],
+			headless: true
+		};
+	}
+	const { playwright } = await import('@vitest/browser-playwright');
+	return {
+		provider: playwright(),
+		instances: browsers.map((browser) => ({ browser })),
+		headless: true
+	};
+}
+
+/**
+ * The installed Firefox a `firefox-stable` run uses: `OGYGIA_FIREFOX` (a path), else the platform's
+ * own install place, else null (webdriverio fetches a managed Firefox and its geckodriver).
+ */
+export function firefox_binary(): string | null {
+	const given = process.env.OGYGIA_FIREFOX;
+	if (given) {
+		if (!existsSync(given)) throw new Error(`OGYGIA_FIREFOX: no file at ${given}`);
+		return given;
+	}
+	const places =
+		process.platform === 'darwin'
+			? ['/Applications/Firefox.app/Contents/MacOS/firefox']
+			: process.platform === 'win32'
+				? [
+						'C:\\Program Files\\Mozilla Firefox\\firefox.exe',
+						'C:\\Program Files (x86)\\Mozilla Firefox\\firefox.exe'
+					]
+				: [on_path('firefox')];
+	for (const p of places) if (p && existsSync(p)) return p;
+	return null;
+}
+
+/** The version a Firefox binary says it is (`Mozilla Firefox 159.0.1`), or `unknown`. */
+function firefox_version(binary: string): string {
+	try {
+		return execFileSync(binary, ['--version'], { encoding: 'utf8', timeout: 20_000 }).trim();
+	} catch {
+		return 'unknown';
+	}
+}
+
+/** safaridriver, on macOS (it ships with Safari), else null. */
+export function safaridriver(): string | null {
+	if (process.platform !== 'darwin') return null;
+	for (const p of [
+		'/System/Cryptexes/App/usr/bin/safaridriver',
+		'/usr/bin/safaridriver',
+		on_path('safaridriver')
+	])
+		if (p && existsSync(p)) return p;
+	return null;
+}
+
+/** A command's path on PATH, or null. */
+function on_path(name: string): string | null {
+	try {
+		return execFileSync('which', [name], { encoding: 'utf8' }).trim() || null;
+	} catch {
+		return null;
+	}
+}
+
+/** Whether this run drives the browser through Playwright (its network routes). */
+export const playwright_run = (): boolean => !(test_browsers()[0] in REAL);
 
 /**
  * The unit-test setup every ogygia plugin package shares: node environment, the Svelte plugin (core's

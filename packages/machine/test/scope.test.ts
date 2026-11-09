@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { machine, scope, STALE } from '../src/index.ts';
 import { macrotask } from './_tick.ts';
+import { ASYNC_DISPOSE, DISPOSE } from './_dispose.ts';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const in_browser = typeof document !== 'undefined';
@@ -34,7 +35,7 @@ describe('close', () => {
 		expect(s.closed).toBe(false);
 		s.close();
 		s.close();
-		s[Symbol.dispose]();
+		s[DISPOSE]();
 		expect(s.closed).toBe(true);
 		expect(cleanup).toHaveBeenCalledOnce();
 	});
@@ -426,30 +427,30 @@ describe('watch and adopt', () => {
 
 	it('adopts what disposes itself, sync or async', async () => {
 		const s = scope();
-		const sync = { [Symbol.dispose]: vi.fn() };
+		const sync = { [DISPOSE]: vi.fn() };
 		let done = false;
 		const later = {
-			[Symbol.asyncDispose]: vi.fn(async () => {
+			[ASYNC_DISPOSE]: vi.fn(async () => {
 				await wait(5);
 				done = true;
 			})
 		};
 		expect(s.adopt(sync)).toBe(sync);
 		s.adopt(later);
-		await s[Symbol.asyncDispose]();
-		expect(sync[Symbol.dispose]).toHaveBeenCalledOnce();
+		await s[ASYNC_DISPOSE]();
+		expect(sync[DISPOSE]).toHaveBeenCalledOnce();
 		expect(done).toBe(true);
 	});
 
 	it('`await using` gets the errors of an async disposal; a plain close reports them', async () => {
 		const failing = () => ({
-			[Symbol.asyncDispose]: async () => {
+			[ASYNC_DISPOSE]: async () => {
 				throw new Error('could not close');
 			}
 		});
 		const s = scope();
 		s.adopt(failing());
-		await expect(s[Symbol.asyncDispose]()).rejects.toThrow('could not close');
+		await expect(s[ASYNC_DISPOSE]()).rejects.toThrow('could not close');
 
 		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 		const plain = scope();
@@ -470,9 +471,9 @@ describe('watch and adopt', () => {
 	it('disposes at once on a closed scope', () => {
 		const s = scope();
 		s.close();
-		const d = { [Symbol.dispose]: vi.fn() };
+		const d = { [DISPOSE]: vi.fn() };
 		s.adopt(d);
-		expect(d[Symbol.dispose]).toHaveBeenCalledOnce();
+		expect(d[DISPOSE]).toHaveBeenCalledOnce();
 	});
 
 	it('an async disposal adopted by a closed scope runs at once, is said when it fails, and is not kept (#347)', async () => {
@@ -490,14 +491,14 @@ describe('watch and adopt', () => {
 			const shared = m.scope as unknown as { _settling: unknown[] | null };
 			const before = shared._settling?.length ?? 0;
 			const failing = () => ({
-				[Symbol.asyncDispose]: vi.fn(() => Promise.reject(new Error('late')))
+				[ASYNC_DISPOSE]: vi.fn(() => Promise.reject(new Error('late')))
 			});
 			const a = failing();
 			const b = failing();
 			s.adopt(a);
 			m.scope.adopt(b);
-			expect(a[Symbol.asyncDispose]).toHaveBeenCalledOnce();
-			expect(b[Symbol.asyncDispose]).toHaveBeenCalledOnce();
+			expect(a[ASYNC_DISPOSE]).toHaveBeenCalledOnce();
+			expect(b[ASYNC_DISPOSE]).toHaveBeenCalledOnce();
 			await wait(20);
 			expect(unhandled).not.toHaveBeenCalled();
 			expect(error).toHaveBeenCalledTimes(2);

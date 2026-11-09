@@ -1,10 +1,11 @@
 import { defineConfig } from 'vitest/config';
-import { playwright } from '@vitest/browser-playwright';
-import { pluginTests } from '@ogygia/config/vitest';
+import { browser_runs, pluginTests } from '@ogygia/config/vitest';
 
-// Every test runs twice: in node (the server and the compiler use machines) and in a real browser
-// (the runtime does), so neither host's timers, AbortSignal or promise order is taken on faith.
+// Every test runs in node (the server and the compiler use machines) and in real browsers (the
+// runtime does): Chromium, Firefox and WebKit, or real Safari (`OGYGIA_BROWSERS`), so no host's
+// timers, AbortSignal or promise order is taken on faith.
 const base = pluginTests();
+const browsers = await browser_runs();
 
 export default defineConfig({
 	...base,
@@ -16,6 +17,9 @@ export default defineConfig({
 			},
 			{
 				extends: true,
+				// `using` lowered as an app's build ships it to browsers without it (WebKit, Safari):
+				// the transform's helpers, with the registered dispose symbols the package falls back to
+				oxc: { target: 'es2022' },
 				test: {
 					name: 'browser',
 					include: ['test/**/*.test.ts'],
@@ -24,8 +28,7 @@ export default defineConfig({
 					browser: {
 						enabled: true,
 						headless: true,
-						provider: playwright(),
-						instances: [{ browser: 'chromium' }]
+						...browsers
 					}
 				}
 			}

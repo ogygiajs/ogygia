@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
-import { playwright } from '@vitest/browser-playwright';
-import { pluginTests } from '@ogygia/config/vitest';
+import { browser_runs, pluginTests } from '@ogygia/config/vitest';
+
+const browsers = await browser_runs();
 
 const base = pluginTests();
 
@@ -31,8 +32,7 @@ export default defineConfig({
 					browser: {
 						enabled: true,
 						headless: true,
-						provider: playwright(),
-						instances: [{ browser: 'chromium' }]
+						...browsers
 					}
 				}
 			}

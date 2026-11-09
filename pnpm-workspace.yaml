@@ -20,6 +20,10 @@ allowBuilds:
   # Its native watcher build is not needed — sass compileString works without it — and CI's
   # `--frozen-lockfile` errors on an unlisted build script, so deny it explicitly.
   '@parcel/watcher': false
+  # webdriverio's drivers for Edge and Firefox: the browser projects drive only Safari through it
+  # (safaridriver ships with macOS), so neither download runs
+  edgedriver: false
+  geckodriver: false
   '@swc/core': true
   esbuild: true
 # ONE version per dependency that more than one workspace package uses: `"x": "catalog:"`.
@@ -47,6 +51,10 @@ catalog:
   vitest: ^4.1.12
   '@vitest/browser': 4.1.12
   '@vitest/browser-playwright': 4.1.12
+  # real Safari for the browser projects (a macOS job, through safaridriver)
+  '@vitest/browser-webdriverio': 4.1.12
+  # 9, not 10: vitest 4.1's webdriverio provider calls `switchFrame`, which 10 removed for BiDi sessions
+  webdriverio: 9.32.0
   '@playwright/test': 1.62.1
   playwright: ^1.62.1
   axe-core: ^4.13.0

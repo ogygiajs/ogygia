@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { flights, STALE, world } from '../src/index.ts';
 import { KEYS_KEPT } from '../src/world.ts';
 import { macrotask } from './_tick.ts';
+import { DISPOSE } from './_dispose.ts';
 
 /** A promise and its two ends. */
 function deferred<T>() {
@@ -208,7 +209,7 @@ describe('flights in a world', () => {
 		const run = vi.fn(async () => 1);
 		const docs = flights({ world: w, run });
 		await docs.get();
-		docs[Symbol.dispose]();
+		docs[DISPOSE]();
 		w.bump();
 		expect(await docs.get()).toBe(STALE);
 	});

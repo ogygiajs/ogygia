@@ -14,7 +14,10 @@
 	},
 	"dependencies": {
 		"@ogygia/tsdown-plugin-svelte": "workspace:*",
-		"@sveltejs/vite-plugin-svelte": "catalog:"
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"@vitest/browser-playwright": "catalog:",
+		"@vitest/browser-webdriverio": "catalog:",
+		"webdriverio": "catalog:"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",

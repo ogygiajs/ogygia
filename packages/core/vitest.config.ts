@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { playwright } from '@vitest/browser-playwright';
+import { browser_runs, playwright_run } from '@ogygia/config/vitest';
 import { fileURLToPath } from 'node:url';
 import { heisenbench_record } from '../../internal/heisenbench/src/record.ts';
 import type { BrowserCommand } from 'vitest/node';
@@ -160,9 +160,12 @@ export default defineConfig({
 					browser: {
 						enabled: true,
 						headless: true,
-						provider: playwright(),
-						instances: [{ browser: 'chromium' }],
-						commands: { drop_downloads, hold_downloads, keep_downloads }
+						...(await browser_runs()),
+						// (network routes are Playwright's: real Safari runs without them, and the tests
+						// that need them say so, test/browser/_browsers.ts)
+						...(playwright_run()
+							? { commands: { drop_downloads, hold_downloads, keep_downloads } }
+							: {})
 					}
 				}
 			}
