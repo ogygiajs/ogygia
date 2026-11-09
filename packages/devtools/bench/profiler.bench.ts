@@ -170,8 +170,8 @@ bench(
 );
 
 /** A profiled window of `pauses` collections, one every 10 ms, over the CPU timeline (four segments
- *  a pause: the app's code, a component, idle time and the collector) and twenty allocation reads. */
-function gc_window(pauses: number): Parameters<typeof attribute_gc>[0] {
+ *  a pause: the app's code, a component, idle time and the collector) and `reads` allocation reads. */
+function gc_window(pauses: number, reads = 20): Parameters<typeof attribute_gc>[0] {
 	const window_ms = pauses * 10;
 	const dict: Record<string, AllocSite> = {};
 	for (let j = 0; j < 12; j++)
@@ -183,9 +183,9 @@ function gc_window(pauses: number): Parameters<typeof attribute_gc>[0] {
 			category: j % 3 ? 'app' : 'component',
 			component: j % 3 ? null : `Card${j}`
 		};
-	const slices = Array.from({ length: 20 }, (_, i) => ({
-		t0: (i * window_ms) / 20,
-		t1: ((i + 1) * window_ms) / 20,
+	const slices = Array.from({ length: reads }, (_, i) => ({
+		t0: (i * window_ms) / reads,
+		t1: ((i + 1) * window_ms) / reads,
 		bytes: Object.fromEntries(Object.keys(dict).map((k, j) => [k, 1000 * (i + j + 1)]))
 	}));
 	const events = Array.from({ length: pauses }, (_, i) => ({
@@ -213,6 +213,23 @@ bench(
 	{
 		setup: () => gc_window(50),
 		scale: (_ctx, k) => gc_window(50 * k)
+	}
+);
+
+/** …with the reads handed over newest first (each pause's reads are put back in read order) */
+const newest_first = (w: Parameters<typeof attribute_gc>[0]) => ({
+	...w,
+	slices: [...w.slices].reverse()
+});
+
+// Growth: n log n in the window's pauses and reads (one read every 20 ms, as the recorder reads).
+// It was quadratic while each pause looked through every read for the allocations before it.
+bench(
+	'attribute_gc: what each pause was charged to, as the window and its allocation reads grow',
+	(input) => attribute_gc(input).pauses.length,
+	{
+		setup: () => newest_first(gc_window(50, 25)),
+		scale: (_ctx, k) => newest_first(gc_window(50 * k, 25 * k))
 	}
 );
 
