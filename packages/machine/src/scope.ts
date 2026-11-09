@@ -280,6 +280,12 @@ class Scoped implements Scope {
 		} catch (error) {
 			out = Promise.reject(error);
 		}
+		// (work that closed its own scope before it returned, by moving its machine on: the abort
+		// came before anyone could listen for it)
+		if (this._closed) {
+			Promise.resolve(out).then(noop, noop);
+			return Promise.resolve(STALE);
+		}
 		return new Promise((resolve, reject) => {
 			// settles the moment the scope closes, even when `work` ignores its signal and never does
 			const on_close = () => resolve(STALE);
