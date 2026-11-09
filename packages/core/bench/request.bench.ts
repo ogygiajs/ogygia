@@ -12,6 +12,7 @@
 // into a request bag built like the handle builds it. Only the handle's work after the render is in
 // the measured window.
 import { bench } from '@bench/heisenbench/bench';
+import { scope } from '@ogygia/machine';
 import type { RequestEvent } from '@sveltejs/kit';
 import * as kit_server from '@sveltejs/kit/internal/server';
 import type { RequestState } from '@sveltejs/kit/internal/server';
@@ -627,7 +628,10 @@ bench(
 	'stream_page_deferred: one resolve script per promise, nested ones too',
 	async ({ handle, deferred }) => {
 		const page = new Response('<!doctype html><html><body><p>page</p></body></html>');
-		return (await handle.stream_page_deferred(page, deferred, deferred.length).text()).length;
+		// (the request's owner: the response streams under it)
+		const request = scope();
+		return (await handle.stream_page_deferred(request, page, deferred, deferred.length).text())
+			.length;
 	},
 	{ setup: () => promises_of(40), scale: (_ctx, k) => promises_of(40 * k) }
 );
