@@ -50,6 +50,7 @@ catalog:
   '@playwright/test': 1.62.1
   playwright: ^1.62.1
   axe-core: ^4.13.0
+  fast-check: ^4.10.2
   # runtime
   devalue: ^5.9.3
   esm-env: ^1.2.2

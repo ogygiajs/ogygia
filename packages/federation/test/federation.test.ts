@@ -115,9 +115,10 @@ describe('peer transport — one per remote app', () => {
 		const before = cms.doc('/p', '');
 		await cms.postDoc('/p', '', new ArrayBuffer(0), 'text/plain');
 		release();
-		expect((await before).body).toBe('get2'); // the page as it is after the mutation
-		expect((await cms.doc('/p', '')).body).toBe('get2'); // kept: no third read
-		expect(gets).toBe(2);
+		// its read again went out while the POST was (get2), so it reads once more after it (#331)
+		expect((await before).body).toBe('get3'); // the page as it is after the mutation
+		expect((await cms.doc('/p', '')).body).toBe('get3'); // kept: no fourth read
+		expect(gets).toBe(3);
 	});
 
 	it('postDoc speaks AS the peer (origin header) and forwards the content-type', async () => {

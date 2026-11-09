@@ -31,10 +31,10 @@ import {
 	evict_tags,
 	handled_runtime,
 	installed_runtime,
+	retracting,
 	self_evict,
-	store_evict,
 	store_get,
-	store_put,
+	store_render,
 	type Flight,
 	type Runtime
 } from './registry.ts';
@@ -260,13 +260,9 @@ async function capture(
 	const tags = facts.sources ?? [];
 	/** Store `entry`, unless an invalidation started while the store was being written to (the
 	 *  flight went stale; its evict may have run first): then the entry comes back out, and the
-	 *  page stays per-request. */
-	const put = async (entry: PostrenderEntry): Promise<boolean> => {
-		await store_put(runtime, path, entry, { ttl, tags });
-		if (!flight.stale) return true;
-		await store_evict(runtime, path);
-		return false;
-	};
+	 *  page stays per-request (no hit is served from it meanwhile, `retracting`). */
+	const put = (entry: PostrenderEntry): Promise<boolean> =>
+		store_render(runtime, path, entry, { ttl, tags }, flight);
 	// Personalization observed (cookie/header/locals/flag read, or a cookie write) → per-request.
 	if (obs.disqualified_by || obs.wrote_cookie) return REFUSED;
 	// Permanent redirects are the hottest cheap wins (canonical 301s) — store status + location.
@@ -389,8 +385,9 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			return;
 		}
 		const hit = await store_get(runtime, path);
-		// (an entry past its TTL is a miss: the render below stores a fresh one over it)
-		if (hit && within_ttl(hit, ctx.options.ttl)) {
+		// (an entry past its TTL is a miss: the render below stores a fresh one over it; so is one a
+		// stale render is taking back out, which may be the page from before a publish, #332)
+		if (hit && within_ttl(hit, ctx.options.ttl) && !retracting(path)) {
 			ctx.app.devtools({ domain: 'server', name: 'server.postrender', op: 'hit', url: path });
 			return serve(hit, 'hit', ctx);
 		}

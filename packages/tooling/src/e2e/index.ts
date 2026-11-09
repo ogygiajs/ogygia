@@ -29,19 +29,19 @@ export async function rules(page: Page): Promise<BrokenRule[] | null> {
 }
 
 /**
- * Playwright's `test`, and at the end of every test, ogygia's rules on itself: a page that has them
- * (the dev server, a build made with `OGYGIA_RULES=1` such as the palaestra's) must end the test
- * with none broken. A soft assertion: the test's own checks all still report.
+ * Playwright's `test`, and at the end of every test that used a page, ogygia's rules on itself: a
+ * page that has them (the dev server, a build made with `OGYGIA_RULES=1` such as the palaestra's)
+ * must end the test with none broken. A soft assertion: the test's own checks all still report.
+ *
+ * The check rides on `page` itself, which Playwright makes only for a test that asks for it: a test
+ * that reads the wire alone (`fetch`, `request`) opens no browser for the rules.
  */
-export const test = base.extend<{ ogygia_rules: void }>({
-	ogygia_rules: [
-		async ({ page }, use) => {
-			await use();
-			const broken = await rules(page);
-			if (broken !== null) expect.soft(broken, 'ogygia rules broken at the end').toEqual([]);
-		},
-		{ auto: true }
-	]
+export const test = base.extend({
+	page: async ({ page }, use) => {
+		await use(page);
+		const broken = await rules(page);
+		if (broken !== null) expect.soft(broken, 'ogygia rules broken at the end').toEqual([]);
+	}
 });
 
 /** A named soft assertion. `extra` (a measured value, a snippet) rides in the failure message. */

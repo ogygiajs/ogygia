@@ -116,6 +116,53 @@ describe('the server realm, started', () => {
 		}
 	});
 
+	// A render's store write is out when a publish evicts its page: the write lands after the evict,
+	// and the render (now stale) takes its page back out. A GET between the two must not get it.
+	it('a page written after a publish evicted it is never served while it is taken back out', async () => {
+		const store = new MemoryStore();
+		const held: Array<() => void> = [];
+		const hold =
+			<A extends unknown[], R>(op: (...a: A) => Promise<R>) =>
+			(...a: A) =>
+				new Promise<R>((r) => held.push(() => r(op(...a))));
+		const real_put = store.put.bind(store);
+		const real_evict = store.evict.bind(store);
+		const runtime = install({ store });
+		const jar = { get: () => undefined, getAll: () => [], set: () => {}, delete: () => {} };
+		const get = () => {
+			const c = ctx(new Request('http://x.test/news/'), { cookies: jar as never });
+			mark_handled(c.event, runtime);
+			return c;
+		};
+
+		// a visitor's render of /news/ is stored: its write to a remote store is slow
+		store.put = hold(real_put);
+		const first = get();
+		expect(await server.page?.(first)).toBeUndefined();
+		const html = '<html><head></head><body><p>news: before</p></body></html>';
+		const responded = server.response?.(
+			first,
+			new Response(html, { headers: { 'content-type': 'text/html' } })
+		);
+		await new Promise((r) => setTimeout(r, 0));
+		expect(held).toHaveLength(1); // the write is out
+		// the editor publishes /news/: its evict runs (there is nothing stored yet)
+		await postrender.invalidate('/news/');
+		// the write lands now, after the evict; the render, stale, takes it back out (slow too)
+		store.evict = hold(real_evict);
+		held.shift()!();
+		await new Promise((r) => setTimeout(r, 0));
+		expect(held).toHaveLength(1); // the evict is out
+		// a GET in between: the copy in the store is the page from before the publish
+		const second = get();
+		const answered = await server.page?.(second);
+		server.done?.(second);
+		expect(answered).toBeUndefined(); // a miss: it renders the page as it is now
+		held.shift()!();
+		await responded;
+		server.done?.(first);
+	});
+
 	it('answers `lastBuild`: nothing the first time, the previous build after that', async () => {
 		expect(await ask.lastBuild('v1')).toBeUndefined();
 		expect(await ask.lastBuild('v2')).toBe('v1');

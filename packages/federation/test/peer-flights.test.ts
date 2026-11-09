@@ -71,8 +71,32 @@ describe('a peer read is one flight per key (#294)', () => {
 		expect(out).toHaveLength(3); // the read, the POST, the read again
 		out[1].answer('posted', []);
 		await post;
+		await tick();
+		// the read again went out while the POST was: it may be answered from before it, so once the
+		// POST ends it is read once more (#331)
+		expect(out).toHaveLength(4);
 		out[0].answer('before', []);
-		out[2].answer('after', []);
+		out[2].answer('during', []);
+		out[3].answer('after', []);
 		expect((await read).body).toBe('after');
+	});
+
+	it('a read that starts while a mutation is out: once the mutation ends, no read gets the page from before it', async () => {
+		const out = upstream();
+		const cms = peer();
+		const post = cms.postDoc('/p', '', new ArrayBuffer(0), 'application/x-www-form-urlencoded');
+		await tick();
+		const read = cms.doc('/p', ''); // another visitor reads the page while the POST is out
+		await tick();
+		expect(out).toHaveLength(2);
+		out[1].answer('before', []); // the upstream answers that read before it applied the POST
+		expect((await read).body).toBe('before'); // (the page as it was when it asked)
+		out[0].answer('posted', []); // the POST is applied, and answered
+		await post;
+		const after = cms.doc('/p', ''); // the poster's redirect GET
+		await tick();
+		expect(out).toHaveLength(3); // the copy from before the POST is not served
+		out[2].answer('after', []);
+		expect((await after).body).toBe('after');
 	});
 });

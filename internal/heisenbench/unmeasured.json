@@ -149,10 +149,6 @@
 			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
 		},
 		{
-			"id": "packages/core/src/server/rules.ts > install_server_rules > observe:0~1b6a67",
-			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
-		},
-		{
 			"id": "packages/core/src/server/rules.ts > no_kept_failure",
 			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
 		},
@@ -177,8 +173,16 @@
 			"reason": "the retry loop wiring (a timer, a caller signal, the try under a scope): timing work; proven in packages/machine/test/flights.test.ts and packages/machine/test/outbox.test.ts"
 		},
 		{
-			"id": "packages/tooling/src/e2e/index.ts > extend:0~4aa870 > <anonymous>~b2b79b",
-			"reason": "the e2e harness's end-of-test rules read: Playwright only, runs at the end of every e2e spec"
+			"id": "packages/tooling/src/e2e/index.ts > extend:0~aecd13 > page",
+			"reason": "the e2e harness's end-of-test rules read: Playwright only, runs at the end of every e2e spec that used a page"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > retracting",
+			"reason": "reads the module's store writes in flight (hidden state), a walk of the few out; proven in packages/postrender/test/plugin.test.ts and packages/postrender/test/sim.test.ts"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > store_render",
+			"reason": "a store write and the outbox evict after it: I/O against the app's store, nothing to replay; proven in packages/postrender/test/plugin.test.ts and packages/postrender/test/sim.test.ts"
 		},
 		{
 			"id": "packages/tooling/src/e2e/index.ts > rules",
@@ -947,6 +951,290 @@
 		{
 			"id": "packages/core/src/runtime/router.ts > SpaRouter > #on_anchor_click",
 			"reason": "browser only: decides whether the click reaches document (two DOM reads); proven in apps/palaestra/e2e/router-document-fetch.spec.ts (#263)"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _add",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _arm",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _arm > then:0~2f2542",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _check",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _earliest",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _end",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _end > filter:0~2c7ea0",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _end > map:0~0553fd",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _fire",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > clear",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > now",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > on_event",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > on_unheard",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > push:0~106f05",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > push:0~45a4e7",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > push:0~789f90",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > push:0~e3066e",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > swap",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > swap > push:0~80b906",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > swap:1~37e7c2",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > swap:1~37e7c2 > _add:0~e1f4fe",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > swap:1~59a0aa",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > swap:1~59a0aa > _add:0~992e2d",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > swap:1~59a0aa > _add:0~992e2d > fn:0~c9cb43 > timeRemaining",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > swap:1~c7fa5c",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > swap:1~c7fa5c > _add:0~5ed8a3",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > swap:1~e1b93a",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > swap:1~e1b93a > _add:0~e1f4fe",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > timeout",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _install > timeout > _add:0~355949",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > _uninstall",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > always",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > broke",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > constructor",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > elapsed",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > fetch",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > fetch > fetch_stub",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > fetch > fetch_stub > Promise:0~97c41d",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > fetch > fetch_stub > Promise:0~97c41d > finally:0~2aee17",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > fetch > fetch_stub > Promise:0~97c41d > later:1~91017a",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > fetch > fetch_stub > Promise:0~97c41d > on_abort",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > fetch > push:0~6b58df",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > finally",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > later",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > later > then:0~5c78b1",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > play",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > play > segment",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > play > segment > map:0~daa394",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > play > segment > map:0~daa394 > builder",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > play > segment > then:0~f48eb5",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > play > segment > then:0~f48eb5 > then:0~174022",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > play > segment > then:0~f48eb5 > then:1~174022",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > settle",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > stream",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > stream > ReadableStream:0~264709 > cancel",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > stream > ReadableStream:0~264709 > pull",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > stream > ReadableStream:0~264709 > pull > later:1~4fcdea",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > stream > cancelled",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > timers",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > track",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > track > then:0~01ff73",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > Run > track > then:1~01ff73",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > check",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > check > asyncProperty:2~f9c909",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > check > asyncProperty:2~f9c909 > simulate:1~f49049",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > macrotask",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > macrotask > Promise:0~4d72cf",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > macrotask > Promise:0~4d72cf > onmessage",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > noop",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > simulate",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
 		{
 			"id": "packages/config/src/tsdown.ts > library",
