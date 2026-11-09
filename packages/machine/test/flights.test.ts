@@ -464,6 +464,28 @@ describe('keep, max and weigh', () => {
 		expect(pages.peek('cccc')?.kind).toBe('kept');
 	});
 
+	it('a weight below 0 or not a number is not kept, so `max` still caps (#355)', async () => {
+		const weights: Record<string, number> = { a: -1, b: NaN, c: -Infinity, d: 1, e: 1 };
+		const pages = flights({ run: async (k: string) => k, max: 1, weigh: (k) => weights[k] });
+		for (const k of ['a', 'b', 'c', 'd', 'e']) expect(await pages.get(k)).toBe(k);
+		expect(['a', 'b', 'c', 'd', 'e'].filter((k) => pages.peek(k) !== undefined)).toEqual(['e']);
+	});
+
+	it('an expired answer goes before a live one is pushed out (#356)', async () => {
+		const pages = flights({
+			run: async (k: string) => (k === 'new' ? wait(40).then(() => k) : k),
+			keep: (k) => (k === 'short' ? 20 : 60_000),
+			max: 2
+		});
+		await pages.get('long');
+		await pages.get('short'); // (the newest use: 'long' is first in line)
+		// a flight starts while 'short' is still good, and lands once it has expired
+		await pages.get('new');
+		expect(pages.peek('long')?.kind).toBe('kept');
+		expect(pages.peek('new')?.kind).toBe('kept');
+		expect(pages.peek('short')).toBeUndefined();
+	});
+
 	it('a keep or weigh that throws fails the flight and keeps nothing', async () => {
 		const pages = flights({
 			run: async () => 'x',
