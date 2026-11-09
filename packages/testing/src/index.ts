@@ -61,7 +61,7 @@ import type {
 	PlaywrightWorkerArgs,
 	PlaywrightWorkerOptions
 } from '@playwright/test';
-import { scope, type Scope } from '@ogygia/machine';
+import { cache, scope, type Scope } from '@ogygia/machine';
 import { OgygiaError, warn } from './messages.ts';
 
 // ── the reports (plain JSON, as the page hands them over) ──
@@ -267,7 +267,7 @@ const wire_pat = (p: string | RegExp | undefined) =>
 	p instanceof RegExp ? { re: p.source, flags: p.flags } : p;
 
 /** "Older engine" said once per site and version for the whole process (a CI run opens hundreds of pages). */
-const warned_engines = new Set<string>();
+const warned_engines = cache<string, true>({ name: 'older engines said', max: 100 });
 
 /** `step` runs when `owner` ends (awaited by `await owner[Symbol.asyncDispose]()`). */
 function undo(owner: Scope, step: () => Promise<unknown>): void {
@@ -557,8 +557,8 @@ export class Ogygia {
 		if (out.v < TESTING_ENGINE_VERSION) {
 			const at = await this.#in_page(() => location.origin, null).catch(() => '');
 			const key = `${at}|${out.v}`;
-			if (warned_engines.has(key)) return out.r;
-			warned_engines.add(key);
+			if (warned_engines.get(key)) return out.r;
+			warned_engines.set(key, true);
 			warn('testing_engine_older', { at, version: out.v, expected: TESTING_ENGINE_VERSION });
 		}
 		return out.r;
@@ -1016,6 +1016,7 @@ export interface CompareOptions {
 }
 
 const NOISE = { lcp: 150, fcp: 150, ttfb: 100, inp: 50, cls: 0.02 } as const;
+// static: the hydration statuses that read as good, a fixed pair
 const GOOD_HYDRATION = new Set(['clean', 'asleep']);
 
 /** Islands whose hydration got worse / better between two reports: by instance key, or (reports from
@@ -1116,6 +1117,7 @@ function hydration_consensus(reports: OgygiaHydrationReport[]): OgygiaHydrationR
 }
 
 /** The session-only codes `compare` leaves to their own line: `navigation-blocked` IS `navigations`. */
+// static: the session-only codes, a fixed list
 const SESSION_LISTED = new Set(['navigation-blocked']);
 
 /**
