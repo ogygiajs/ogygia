@@ -12,6 +12,7 @@
 // into a request bag built like the handle builds it. Only the handle's work after the render is in
 // the measured window.
 import { bench } from '@bench/heisenbench/bench';
+import { scope } from '@ogygia/machine';
 import type { RequestEvent } from '@sveltejs/kit';
 import * as kit_server from '@sveltejs/kit/internal/server';
 import type { RequestState } from '@sveltejs/kit/internal/server';
@@ -24,8 +25,8 @@ import { island_fingerprint } from '../src/server/fingerprint.ts';
 import { settle_deferred, stage_deferred, type Deferred } from '../src/server/page-stream.ts';
 import { plan_props_wire } from '../src/server/props-wire.ts';
 import {
+	hold_request_stats_detail,
 	request_stats_detailed,
-	set_request_stats_detail,
 	want_request_stats
 } from '../src/server/request-stats.ts';
 import { merge_seed_ask, shape_page_data, type SeedAsk } from '../src/server/seed-shape.ts';
@@ -299,21 +300,26 @@ bench('inject_client_seeds: a streamed load the router fetched, the promise sett
 	setup: () => content_request(250, { streamed: true, navigate: false })
 });
 
+/** The recording case's hold on the stats detail, let go at its teardown. */
+let release_detail: (() => void) | null = null;
 bench(
 	'inject_client_seeds: the profiler recording (island rows, the seed explainer)',
 	async (r) => (await transform(r)).length,
 	{
 		setup: () => {
 			want_request_stats();
-			set_request_stats_detail(true);
+			release_detail ??= hold_request_stats_detail();
 			return content_request(250, { rich: true });
 		},
 		scale: (_ctx, k) => {
 			want_request_stats();
-			set_request_stats_detail(true);
+			release_detail ??= hold_request_stats_detail();
 			return content_request(25 * k, { rich: true });
 		},
-		teardown: () => set_request_stats_detail(false)
+		teardown: () => {
+			release_detail?.();
+			release_detail = null;
+		}
 	}
 );
 
@@ -622,7 +628,10 @@ bench(
 	'stream_page_deferred: one resolve script per promise, nested ones too',
 	async ({ handle, deferred }) => {
 		const page = new Response('<!doctype html><html><body><p>page</p></body></html>');
-		return (await handle.stream_page_deferred(page, deferred, deferred.length).text()).length;
+		// (the request's owner: the response streams under it)
+		const request = scope();
+		return (await handle.stream_page_deferred(request, page, deferred, deferred.length).text())
+			.length;
 	},
 	{ setup: () => promises_of(40), scale: (_ctx, k) => promises_of(40 * k) }
 );
