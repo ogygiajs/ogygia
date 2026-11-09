@@ -22,6 +22,9 @@ import { KEYS_KEPT } from '../src/world.ts';
 import { MACHINE_ERRORS, machine_error, report } from '../src/messages.ts';
 import { backoff_after } from '../src/policy.ts';
 
+/** A lazy chunk's one more try, at once (core's `download` policy). */
+const ONE_MORE_TRY = policy({ attempts: 2, backoff: 0, jitter: 0, deadline: Infinity });
+
 const hole = machine<{
 	idle: {};
 	fetching: { attempt: number };
@@ -305,7 +308,7 @@ bench(
 					if (calls++ === 0 && i % 2 === 0) throw new Error('blip');
 					return i;
 				},
-				retries: i % 4 === 0 ? 1 : 0
+				...(i % 4 === 0 ? { retry: ONE_MORE_TRY } : {})
 			});
 			out.push(
 				chunk.get().catch(() => chunk.get()),
