@@ -25,7 +25,8 @@
  *   so work that reads a field its key leaves out does not compile, unless `ignore` names that field
  *   with the reason (the input of the call that started the flight is then the one that runs).
  *   `peek` and `drop` name a keyed flights' keys by those fields too (`peek({ href })`). The fields
- *   are spelled into one string one way everywhere: a string by its text, an object by identity.
+ *   are spelled into one string one way everywhere: a string by its text, an object by identity
+ *   (a field left out and one set to `undefined` are one key; `1` and `'1'` are two).
  * - A failure (after the tries its `retry` policy gives, inside the one flight) fails every caller
  *   that joined it, and is never kept: the next `get` starts a new flight. A failing key costs one
  *   round of tries per wave of callers, not one per caller.

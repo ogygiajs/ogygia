@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { outbox, policy, type Policy } from '../src/index.ts';
+import { outbox, policy, STALE, type Policy } from '../src/index.ts';
 import { backoff_after, under_policy } from '../src/policy.ts';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -199,6 +199,22 @@ describe('waitUntil', () => {
 		expect(applied).toBe(true);
 	});
 
+	it('puts that join one send each hand it over, and each settles when that one send ends', async () => {
+		const kept: Promise<unknown>[] = [];
+		const send = vi.fn(() => wait(20));
+		const box = outbox({
+			send,
+			id: (n: { id: string }) => n.id,
+			retry: quick(),
+			waitUntil: (work) => kept.push(work)
+		});
+		const first = box.put({ id: 'x' });
+		const joined = box.put({ id: 'x' });
+		expect(kept).toEqual([first, joined]);
+		expect(await Promise.all(kept)).toEqual([true, true]);
+		expect(send).toHaveBeenCalledOnce();
+	});
+
 	it('a platform that refuses it does not stop the send, and put does not throw', async () => {
 		const send = vi.fn();
 		const box = outbox({
@@ -275,6 +291,25 @@ describe('id', () => {
 });
 
 describe('inOrder', () => {
+	it('a put of an id still queued joins it: one send, in its place in line', async () => {
+		const seen: string[] = [];
+		const box = outbox<{ id: string; v: number }>({
+			send: async (x) => {
+				seen.push(`${x.id}${x.v}`);
+				await wait(10);
+			},
+			id: (x) => x.id,
+			retry: quick(),
+			inOrder: true
+		});
+		const a = box.put({ id: 'a', v: 1 }); // (out)
+		const b = box.put({ id: 'b', v: 1 }); // (queued behind a)
+		const b_again = box.put({ id: 'b', v: 2 }); // (joins the queued b: the first put is the one sent)
+		const c = box.put({ id: 'c', v: 1 });
+		expect(await Promise.all([a, b, b_again, c])).toEqual([true, true, true, true]);
+		expect(seen).toEqual(['a1', 'b1', 'c1']);
+	});
+
 	it('one send at a time, in put order, a failing one tried again before the next goes', async () => {
 		const seen: string[] = [];
 		let first_fails = true;
@@ -419,6 +454,21 @@ describe('policy', () => {
 		const error = await under_policy(p, () => Promise.reject(new Error('down'))).catch((e) => e);
 		expect((error as DOMException).name).toBe('TimeoutError');
 		expect((error as DOMException).message).toContain('down');
+	});
+
+	it('the caller leaving and the deadline in the same turn: whichever came first says how it ended', async () => {
+		const p = quick({ attempts: 1, deadline: 20 });
+		const never = () => new Promise<never>(() => {});
+		// the caller's abort first (its timer was set before the deadline's)
+		const first = new AbortController();
+		setTimeout(() => first.abort(), 20);
+		await expect(under_policy(p, never, first.signal)).resolves.toBe(STALE);
+		// the deadline first (the caller's timer set after it, for the same moment)
+		const second = new AbortController();
+		const out = under_policy(p, never, second.signal);
+		setTimeout(() => second.abort(), 20);
+		const error = await out.catch((e) => e);
+		expect((error as DOMException).name).toBe('TimeoutError');
 	});
 
 	it('the outbox refuses a send that is not a function', () => {

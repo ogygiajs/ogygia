@@ -155,6 +155,32 @@ describe('children', () => {
 		expect(cleanup).toHaveBeenCalledOnce();
 	});
 
+	it('a cleanup that gives the closing scope more work gets the closed behaviour', async () => {
+		const s = scope();
+		const target = new EventTarget();
+		const heard = vi.fn();
+		const work = vi.fn(() => 'ran');
+		const late = vi.fn();
+		let child!: ReturnType<typeof scope>;
+		let task!: Promise<unknown>;
+		s.defer(() => {
+			child = s.child();
+			task = s.task(work);
+			s.on(target, 'ping', heard);
+			s.timeout(late, 0);
+			s.defer(late);
+		});
+		s.close();
+		expect(child.closed).toBe(true);
+		expect(await task).toBe(STALE);
+		expect(work).not.toHaveBeenCalled();
+		target.dispatchEvent(new Event('ping'));
+		expect(heard).not.toHaveBeenCalled();
+		expect(late).toHaveBeenCalledOnce(); // (the defer, at once; the timer never set)
+		await wait(5);
+		expect(late).toHaveBeenCalledOnce();
+	});
+
 	it('what a child throws is thrown by the parent’s close, after its own cleanups ran', () => {
 		const parent = scope();
 		const mine = vi.fn();

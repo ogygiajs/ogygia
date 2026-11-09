@@ -249,6 +249,20 @@ describe('keyed', () => {
 		expect(vs.peek({ v: o })?.kind).toBe('kept');
 	});
 
+	it('a missing key field and one that is undefined are one key; a registered symbol is one by its name', async () => {
+		type In = { v?: unknown };
+		const run = vi.fn(async (i: In) => String(i.v));
+		const vs = flights<In>()({ key: ['v'], run });
+		await vs.get({});
+		await vs.get({ v: undefined });
+		expect(run).toHaveBeenCalledOnce();
+		await vs.get({ v: Symbol.for('ogygia.test.key') });
+		await vs.get({ v: Symbol.for('ogygia.test.key') });
+		await vs.get({ v: Symbol('ogygia.test.key') }); // (a symbol of its own: another key)
+		await vs.get({ v: 's15:ogygia.test.key' }); // (a string spelled like it: another key)
+		expect(run).toHaveBeenCalledTimes(4);
+	});
+
 	it('drop by key fields, or by a predicate over them (never over the rest of the input)', async () => {
 		type Ask = { href: string; purpose: string };
 		const pages = flights<Ask>()({
@@ -350,6 +364,29 @@ describe('keyed', () => {
 		expect(pages.peek('/blog/c')?.kind).toBe('kept');
 		await pages.get('/docs/a');
 		expect(run).toHaveBeenCalledTimes(5);
+	});
+
+	it('a drop predicate that gets or drops as it is asked: every key is asked once, every caller settles', async () => {
+		const run = vi.fn(async (href: string) => href);
+		const pages = flights({ run });
+		await Promise.all([pages.get('/a'), pages.get('/b'), pages.get('/c')]);
+		const asked: string[] = [];
+		let started: Promise<unknown> | null = null;
+		pages.drop((key) => {
+			asked.push(key);
+			if (key === '/a') {
+				pages.drop('/b'); // (another key, taken out under the walk)
+				started = pages.get('/d'); // (a new flight, put in under the walk)
+			}
+			return key === '/a' || key === '/d';
+		});
+		// (a Map walk sees a key put in during it: the new flight is asked, and goes too)
+		expect(asked).toEqual(['/a', '/c', '/d']);
+		await expect(started).resolves.toBe(STALE);
+		expect(pages.peek('/a')).toBeUndefined();
+		expect(pages.peek('/b')).toBeUndefined();
+		expect(pages.peek('/c')?.kind).toBe('kept');
+		expect(await pages.get('/d')).toBe('/d');
 	});
 
 	it('a caller that leaves gets STALE at once; the work stops only when the last one has left', async () => {
@@ -486,6 +523,26 @@ describe('keep, max and weigh', () => {
 		expect(pages.peek('short')).toBeUndefined();
 	});
 
+	it('a refresh out keeps its prior against `max` until it lands; nothing kept passes `max` after', async () => {
+		const d = deferred<string>();
+		let round = 0;
+		const pages = flights({
+			run: (k: string) => (k === '/a' && round++ === 1 ? d.promise : Promise.resolve(k + round)),
+			max: 1
+		});
+		await pages.get('/a');
+		const refresh = pages.get('/a', { fresh: true });
+		// (only the refresh's prior is kept: a new answer has no room beside it)
+		expect(await pages.get('/b')).toBe('/b2');
+		expect(pages.peek('/b')).toBeUndefined();
+		expect(pages.peek('/a')).toMatchObject({ kind: 'kept', flying: true });
+		d.resolve('/a new');
+		expect(await refresh).toBe('/a new');
+		expect(pages.peek('/a')).toMatchObject({ kind: 'kept', answer: '/a new', flying: false });
+		const weight = (pages as unknown as { _weight: number })._weight;
+		expect(weight).toBe(1);
+	});
+
 	it('a keep or weigh that throws fails the flight and keeps nothing', async () => {
 		const pages = flights({
 			run: async () => 'x',
@@ -544,6 +601,29 @@ describe('fresh', () => {
 		await expect(before).resolves.toBe(STALE);
 		await expect(after).resolves.toBe('after the mutation');
 		expect(await pages.get('/a')).toBe('after the mutation');
+	});
+
+	it('a fresh flight over one whose callers have signals: they get STALE, and their leaving later stops nothing', async () => {
+		const first = deferred<string>();
+		const second = deferred<string>();
+		let signal2!: AbortSignal;
+		const run = vi
+			.fn<(href: string, s: AbortSignal) => Promise<string>>()
+			.mockImplementationOnce(() => first.promise)
+			.mockImplementationOnce((_, s) => ((signal2 = s), second.promise));
+		const pages = flights({ name: NAME, run });
+		const a = new AbortController();
+		const b = new AbortController();
+		const before = [pages.get('/a', { signal: a.signal }), pages.get('/a', { signal: b.signal })];
+		const after = pages.get('/a', { fresh: true });
+		await expect(Promise.all(before)).resolves.toEqual([STALE, STALE]);
+		// (the callers of the ended flight leave: the new one is not theirs)
+		a.abort();
+		b.abort();
+		expect(signal2.aborted).toBe(false);
+		second.resolve('new');
+		await expect(after).resolves.toBe('new');
+		expect(pages.peek('/a')).toMatchObject({ kind: 'kept', answer: 'new' });
 	});
 
 	it('the last caller of a refresh leaving puts the kept answer back', async () => {

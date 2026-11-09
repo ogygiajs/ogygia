@@ -256,6 +256,52 @@ describe('mailbox', () => {
 		expect(n).toBe(50_001);
 	});
 
+	it('work that settles after the box closed changes nothing: the box stays closed and idle', async () => {
+		const life = scope();
+		const box = mailbox(life);
+		let done!: () => void;
+		let failed!: (e: unknown) => void;
+		const waits: Promise<unknown>[] = [];
+		box.post((turn) => void waits.push(turn.wait(new Promise<void>((r) => (done = r)))));
+		box.post((turn) => void waits.push(turn.wait(new Promise<void>((_, r) => (failed = r)))));
+		life.close();
+		done();
+		failed(new Error('late'));
+		expect(await Promise.all(waits)).toEqual([STALE, STALE]);
+		const seen: string[] = [];
+		box.post(() => seen.push('after'));
+		expect(seen).toEqual([]);
+		expect(await box.ask(() => 'never')).toBe(STALE);
+	});
+
+	it('a handler that never settles holds the box until its owner closes', async () => {
+		const life = scope();
+		const box = mailbox(life);
+		box.post(() => new Promise<never>(() => {}));
+		const next = vi.fn(() => 'ran');
+		const asked = box.ask(next);
+		await later(null, 10);
+		expect(next).not.toHaveBeenCalled(); // (by design: a turn ends when its handler waits or ends)
+		life.close();
+		expect(await asked).toBe(STALE);
+		expect(next).not.toHaveBeenCalled();
+	});
+
+	it('an ask whose handler waits, then sees its element leave: STALE for the asker too', async () => {
+		const life = scope();
+		const box = mailbox(life);
+		const after = vi.fn();
+		const asked = box.ask(async (turn) => {
+			const v = await turn.wait(new Promise<never>(() => {}));
+			if (v === STALE) return STALE;
+			after();
+			return 'on';
+		});
+		life.close();
+		expect(await asked).toBe(STALE);
+		expect(after).not.toHaveBeenCalled();
+	});
+
 	it('is closed for an owner already closed', async () => {
 		const life = scope();
 		life.close();
