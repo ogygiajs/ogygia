@@ -48,6 +48,7 @@ import {
 	install as install_interaction
 } from '../src/runtime/interaction.ts';
 import { once_visible } from '../src/runtime/observe.ts';
+import { scope } from '@ogygia/machine';
 import {
 	background_start,
 	hydrate_settled,
@@ -57,6 +58,8 @@ import {
 } from '../src/runtime/schedule.ts';
 
 const MOD = { default: island_module } as unknown as IslandModule;
+/** The page the scheduler's regions are on: their viewport snapshots are its. */
+const PAGE = scope();
 
 // ── the region element, booted ─────────────────────────────────────────────────────────────────
 
@@ -305,7 +308,7 @@ function wake_page(regions: PageRegion[]): Promise<number> {
 		if (++turns === expected) resolve_all(turns);
 	};
 	regions.forEach((r, i) => {
-		register_region(r.el);
+		register_region(r.el, PAGE);
 		const fire = start(r, i);
 		if (r.wake === 'load') background_start(fire);
 		else if (r.wake === 'visible') once_visible(r.el, '0px', () => background_start(fire));
