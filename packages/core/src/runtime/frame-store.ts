@@ -33,7 +33,6 @@ import {
 	type Stale,
 	type World
 } from '@ogygia/machine';
-import { IN_USE, type InternalCacheOptions } from '@ogygia/machine/internal/cache';
 import type { Frame } from '../frame.ts';
 import { watch, notify, watcher_count } from '../ref-watch.ts';
 
@@ -97,13 +96,13 @@ function store(): Store {
 
 function make_store(): Store {
 	const life = scope();
-	const options: InternalCacheOptions<string, Entry> = {
+	const entries = cache<string, Entry>({
 		name: 'frames',
 		// (an entry nothing binds or fetches lingers EVICT_TTL, and past MAX_ADDRESSES the least
 		// recently used of those goes; a bound or fetched one is in use, never let go for size)
 		max: MAX_ADDRESSES,
 		keep: (_e, a) => (live(a) ? Infinity : EVICT_TTL),
-		[IN_USE]: (_e, a) => live(a),
+		pinned: (_e, a) => live(a),
 		owner: life,
 		onEvict: (a, e, why) => {
 			// the store ends: a binder joined to a reservation must not hang
@@ -111,8 +110,7 @@ function make_store(): Store {
 			// its linger ran out while something bound it again or fetches it: it stays
 			else if (why === 'age' && live(a)) entries.set(a, e);
 		}
-	};
-	const entries = cache<string, Entry>(options);
+	});
 	const s: Store = {
 		life,
 		world: world(),

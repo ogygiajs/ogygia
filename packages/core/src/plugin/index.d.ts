@@ -1,0 +1,172 @@
+/**
+ * `ogygia/plugin` — the SERVER realm of a plugin (design: internal/notes/packages.md, plugin API v2).
+ *
+ * A plugin package exports `./server`; its default export is `defineServer({ … })`. The build finds
+ * it by the plugin's name and imports it statically into the server bundle. Every hook gets a
+ * context scoped to its moment: `app` once per server process (`setup`), `ctx` per request.
+ *
+ *   export default defineServer<Options, State>({
+ *     setup(app) { … },                       // once: app.options, app.notify, app.ask, app.facts()
+ *     state: () => ({ … }),                   // fresh per request: ctx.state
+ *     handle(ctx, next) { return next(); },   // AROUND: wraps the whole request, like Kit's handle
+ *     async page(ctx) { … },                  // FIRST: a Response answers the page request
+ *     async response(ctx, res) { … },         // SEQUENTIAL: a Response replaces the page's
+ *     done(ctx) { … },                        // PARALLEL: the request's end, always
+ *     invalidate(tags) { … }                  // a SHARED hook: anyone calls app.notify.invalidate()
+ *   });
+ *
+ * First-party only until the ports settle (user ruling, 2026-10-31). Pure helpers that need no
+ * context live in `ogygia/plugin/utils`.
+ */
+import type { RequestEvent } from '@sveltejs/kit';
+import type { ResolveOptions } from '../kit-handle.ts';
+import type { RequestFacts } from './facts.ts';
+import type { Ask, Notify, ServerHooks } from './hooks.ts';
+import type { DevtoolsEventInput } from '../events/schema.ts';
+export type { Handle, ResolveOptions } from '../kit-handle.ts';
+export type { RequestFacts } from './facts.ts';
+export type { ServerHooks } from './hooks.ts';
+export type { DevtoolsEventInput } from '../events/schema.ts';
+/** The server process, as one plugin sees it (handed to `setup`, and on every `ctx.app`). */
+export interface ServerApp<Options = undefined> {
+    /** The plugin's name (its package name). */
+    readonly name: string;
+    /** The options the app gave the plugin in vite.config (JSON). */
+    readonly options: Options;
+    /** Call a shared hook on every plugin that has it. */
+    readonly notify: Notify;
+    /** Ask a shared hook: the first answer that is not `undefined`, in plugin order. */
+    readonly ask: Ask;
+    /** A request's facts (made on first touch) — for the plugin's own code outside a hook. */
+    facts(request: Request): RequestFacts;
+    /** The facts of the request the running code belongs to (a load, a render), or null outside one. */
+    current(): RequestFacts | null;
+    /** Sign `message` with the app's region key (HMAC): a capability only this app can mint. */
+    sign(message: string): string;
+    /** Check a signature `sign` made (constant-time). */
+    verify(message: string, signature: string): boolean;
+    /** Signed capabilities for an endpoint the plugin serves, held to the rules of region holes. */
+    readonly capability: PluginCapabilities;
+    /** Record a server-realm event into the current request's devtools stream (a no-op unless
+     *  devtools is on for that browser). */
+    devtools(event: DevtoolsEventInput): void;
+    /** Keeps `work` alive past the response of the request the running code belongs to: it is handed
+     *  to the platform's `waitUntil` when there is one. Outside a request, or on a platform without
+     *  one, it runs on in the process. Never throws. An outbox's `waitUntil`. */
+    keepAlive(work: Promise<unknown>): void;
+    /** Warn once per message, prefixed with the plugin's name. */
+    warn(message: string): void;
+}
+/**
+ * A capability URL for an endpoint the plugin serves (a hole the browser fetches later), held to the
+ * rules of the app's own region holes: the same lifetime, expiry in unix seconds, and the same answer
+ * once one has expired, so the runtime renews it the way it renews a region hole. The URL carries the
+ * plugin's own fields first, then `exp` and `sig`.
+ */
+export interface PluginCapabilities {
+    /** Sign a capability minted now: its `exp` (long on a page a plugin may store or a shared cache
+     *  keeps, else the app's `ttl`) and the `sig` over `message(exp)`. */
+    mint(message: (exp: string) => string): {
+        exp: string;
+        sig: string;
+    };
+    /** Check a request for a capability `mint` made, by its URL's `exp` and `sig` (with `renew=1`, the
+     *  runtime's one retry of an expired one). Refused: the response to answer with, the 403 a region
+     *  request gets. Accepted: headers to send with the answer (a renewal's carry the fresh URL). */
+    open(url: URL, message: (exp: string) => string): CapabilityOpened;
+}
+/** What `capability.open` decided. */
+export type CapabilityOpened = {
+    ok: true;
+    headers: Record<string, string>;
+} | {
+    ok: false;
+    response: Response;
+};
+/** One request, as one plugin sees it. */
+export interface RequestContext<Options = undefined, State = undefined> {
+    /** Kit's own event, untouched. */
+    readonly event: RequestEvent;
+    /** The decoded pathname. */
+    readonly path: string;
+    /** This plugin's per-request state, from its `state()`. */
+    readonly state: State;
+    readonly options: Options;
+    readonly app: ServerApp<Options>;
+    /** The request's shared facts. */
+    readonly facts: RequestFacts;
+    /** This request's value for a key this plugin claimed inside Kit's `config` page option
+     *  (`b.routeConfig(key)`: `export const config = { <key>: … }` on a Kit page or layout, merged the
+     *  way Kit merges it, or a programmatic router's `config`), or `undefined` when nothing declares it. */
+    routeConfig(key: string): unknown;
+    /** Render one signed hole in place, with this request's event (its cookies ride in): the hole's
+     *  HTML, or null when it cannot render now (the stored fallback stays, the browser fetches). */
+    renderHole(endpoint: string): Promise<string | null>;
+    /** Name the first reason this render is per-visitor (later reasons do not replace it). */
+    perVisitor(reason: string): void;
+}
+type MaybePromise<T> = T | Promise<T>;
+/** A request as an AROUND hook sees it: before anything is decided about it. */
+export interface HandleContext<Options = undefined> {
+    /** Kit's own event, untouched. */
+    readonly event: RequestEvent;
+    readonly options: Options;
+    readonly app: ServerApp<Options>;
+}
+/** A plugin's server half: lifecycle hooks plus any shared hooks it implements. */
+export type ServerPlugin<Options = undefined, State = undefined> = Partial<ServerHooks> & {
+    /** Once, when the server starts. */
+    setup?(app: ServerApp<Options>): void;
+    /** Fresh per-request state, handed back on `ctx.state`. */
+    state?(): State;
+    /**
+     * AROUND — the whole request, shaped like Kit's `handle`: `next()` runs the rest (the later plugins'
+     * `handle`, then ogygia) and returns its response; return it, or your own. The first plugin's is the
+     * outermost. `next(options)` passes Kit `resolve()` options: a `transformPageChunk` sees the finished
+     * document, after ogygia's own. Most plugins want the stages below instead; this is for what must
+     * wrap everything (a profiler timing the render, serving its own UI).
+     */
+    handle?(ctx: HandleContext<Options>, next: (options?: ResolveOptions) => Promise<Response>): MaybePromise<Response>;
+    /** FIRST — every request, before anything else in the handle (above the page / hole split).
+     *  A Response answers it. */
+    request?(ctx: RequestContext<Options, State>): MaybePromise<void | Response>;
+    /** FIRST — a PAGE request (not a hole, not a page-facts lookup), before Kit renders it. A
+     *  Response answers it (a stored copy). */
+    page?(ctx: RequestContext<Options, State>): MaybePromise<void | Response>;
+    /** SEQUENTIAL — the page's response, before it streams out. A Response replaces it. */
+    response?(ctx: RequestContext<Options, State>, response: Response): MaybePromise<void | Response>;
+    /** PARALLEL — the request's end, always (an answered, failed or streamed request included). Must
+     *  not throw. Work it leaves running that must finish (a send) it returns: the platform's
+     *  `waitUntil` keeps it alive past the response when there is one, and otherwise it runs on by
+     *  itself (a long-running server keeps it alive). The response never waits for it. A failure in
+     *  it never fails the request: say what went wrong yourself. */
+    done?(ctx: RequestContext<Options, State>): void | Promise<void>;
+};
+/** Typed identity: a plugin's server half. */
+export declare function defineServer<Options = undefined, State = undefined>(plugin: ServerPlugin<Options, State>): ServerPlugin<Options, State>;
+/** Stamped into a document served FROM a store (not the render that just happened): the browser
+ *  runtime then treats `render: 'live'` lakes as stale on first mount and revalidates them. */
+export declare const STORED_DOCUMENT_META = "<meta name=\"ogygia-stored\" content=\"hit\">";
+/** A region value holding finished HTML (rendered as-is, no island); and `region(Component, props)`
+ *  itself (the same as `ogygia`'s, without loading the whole front door). */
+export { og_html_region as htmlRegion, region } from '../region.ts';
+/** A programmatic router (a `routes()` table answering inside the handle) joins the route-config
+ *  lookup: for a pathname it claims, its matcher answers the route's merged `config`
+ *  (`ctx.routeConfig(key)`). Keyed: registering the same key again REPLACES the stale matcher (dev
+ *  re-evaluates the table). */
+export { register_route_config as registerRouteConfig } from './routes.ts';
+export type { RouteConfig, RouteConfigMatcher } from './routes.ts';
+/** Arm THIS request's late-region capture before a render that will deliver late chunks: a
+ *  `<Region of={promise}>` then registers its promise and wraps its placeholder in a slot. */
+export { open_late_scope as openLateScope } from '../late-region-registry.ts';
+/** Drain THIS request's registered late regions (after the render): `{ id, promise }` per slot, or
+ *  null when none registered. Draining clears the list. */
+export { take_late_regions as takeLateRegions } from '../late-region-registry.ts';
+export type { LateRegion } from '../late-region-registry.ts';
+/** The late wire: `lateSlot(id, html)` is the swappable slot, `lateChunk(id, html)` one later state
+ *  for it, `LATE_BOOT_SCRIPT` the inline head script that swaps chunks in as the document parses. */
+export { late_slot as lateSlot, late_chunk as lateChunk, LATE_BOOT_SCRIPT } from '../server/late-wire.ts';
+import type { DeferredRegion } from '../region.ts';
+/** A deferred region value whose HTML the browser fetches from `url` (a capability the plugin minted,
+ *  `''` for an inert one). HTML only: whatever islands the answer carries wake themselves. */
+export declare function deferredRegion(id: string, url: string): DeferredRegion;
