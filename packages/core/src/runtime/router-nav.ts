@@ -1106,15 +1106,20 @@ function merge_head(new_head: HTMLHeadElement) {
 	// destination page lost its `ogygia-region{display:block}` and the layout collapsed
 	// (e2e/context, "Context after SPA navigation"). `anchor` is the head's first child BEFORE this
 	// merge, so the new sheets land above everything old and keep their own order.
-	const anchor = current.firstChild;
+	let anchor = current.firstChild;
 	for (const node of Array.from(new_head.children)) {
 		if (is_dangerous_head_node(node)) continue;
 		const key = head_node_key(node);
 		const existing = current_nodes.get(key);
-		// Kit FOUC bag: always refresh content (same key every page, different CSS).
+		// Kit FOUC bag: always refresh content (same key every page, different CSS). The new bag goes
+		// in first, then the old one comes out. After one navigation the old bag is the head's first
+		// child, so it is `anchor` itself: what comes after it goes where it was.
 		if (key === 'STYLE:data-sveltekit') {
-			existing?.remove();
 			install_head_style(node, current, anchor);
+			if (existing) {
+				if (existing === anchor) anchor = existing.nextSibling;
+				existing.remove();
+			}
 			continue;
 		}
 		if (existing) continue;
