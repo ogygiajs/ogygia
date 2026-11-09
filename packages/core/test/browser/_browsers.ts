@@ -29,12 +29,13 @@ export const it_with_named_import_failures: typeof it =
 
 /**
  * A simulation that writes browser history thousands of times in seconds. WebKit throws on more
- * than 100 history writes per 10 s (a page's budget, shared by every test file in it). The runtime
- * writes at most two per navigation, and none on a back or forward step, so a real page never
- * reaches it; the router's own history tests run in WebKit too.
+ * than 100 history writes per 10 s, and Firefox throws too past its own budget ("The operation is
+ * insecure"): a page's budget, shared by every test file in it. The runtime writes at most two per
+ * navigation, and none on a back or forward step, so a real page never reaches it; the router's
+ * own history tests run in both.
  */
 export const it_with_history_unthrottled: typeof it =
-	ENGINE !== 'webkit' ? it : (it.skip as typeof it);
+	ENGINE === 'chromium' ? it : (it.skip as typeof it);
 
 /**
  * A test of the Layout Instability API (`PerformanceObserver` type `layout-shift`): Chromium only.

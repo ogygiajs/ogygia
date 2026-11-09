@@ -66,13 +66,18 @@ export function retry_url(url: string, attempt: number): string {
 
 /** The status of the response the browser's resource timing holds for `url` (0 where the browser does
  *  not say), or `null` when none came: a download that failed (or no timing for it). */
-function response_of(url: string): number | null {
+export function response_of(url: string): number | null {
 	if (typeof performance === 'undefined' || typeof performance.getEntriesByName !== 'function')
 		return null;
 	let status: number | null = null;
 	for (const e of performance.getEntriesByName(url, 'resource')) {
 		const t = e as PerformanceResourceTiming & { responseStatus?: number };
-		if (t.responseStart > 0) status = t.responseStatus ?? 0;
+		// An engine that reports the status says 0 for a download that got no response (Firefox
+		// gives a dropped one a response start too); one that does not (WebKit) is read by its
+		// response start alone.
+		if (typeof t.responseStatus === 'number') {
+			if (t.responseStatus > 0) status = t.responseStatus;
+		} else if (t.responseStart > 0) status = 0;
 	}
 	return status;
 }

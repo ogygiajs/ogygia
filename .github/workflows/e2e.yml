@@ -24,11 +24,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # Node 22: adapter-vercel rejects unpinned bleeding-edge Node; 22 is a supported runtime.
           node-version: 22
@@ -46,7 +46,7 @@ jobs:
 
       # turbo's local cache: a package whose inputs did not change replays its build and check
       - name: Turbo cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .turbo/cache
           key: turbo-${{ runner.os }}-check-${{ github.sha }}
@@ -64,7 +64,7 @@ jobs:
         run: echo "version=$(pnpm exec playwright --version | sed 's/Version //')" >> "$GITHUB_OUTPUT"
 
       - name: Playwright browser cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
@@ -104,11 +104,11 @@ jobs:
       matrix:
         browser: [firefox, webkit, firefox-stable]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -117,7 +117,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Turbo cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .turbo/cache
           key: turbo-${{ runner.os }}-browsers-${{ matrix.browser }}-${{ github.sha }}
@@ -132,7 +132,7 @@ jobs:
 
       - name: Playwright browser cache
         if: matrix.browser != 'firefox-stable'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
@@ -175,17 +175,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check out the base branch beside it
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           path: .size-base
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -245,17 +245,17 @@ jobs:
       TEST: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
     steps:
       - if: env.TEST == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # a pull request runs only the suites its changes reach (`turbo --affected` diffs against
           # the base branch, so it needs the history)
           fetch-depth: 0
 
       - if: env.TEST == 'true'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - if: env.TEST == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -274,7 +274,7 @@ jobs:
       # did not change replays from it
       - if: env.TEST == 'true'
         name: Turbo cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .turbo/cache
           key: turbo-${{ runner.os }}-e2e-${{ matrix.slice.id }}-${{ matrix.browser }}-${{ github.sha }}
@@ -293,7 +293,7 @@ jobs:
 
       - if: env.TEST == 'true'
         name: Playwright browser cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
@@ -332,7 +332,7 @@ jobs:
       # Traces (retained on failure) + the html report, for a red run.
       - if: env.TEST == 'true' && failure()
         name: Upload Playwright report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-${{ matrix.slice.id }}-${{ matrix.browser }}
           path: |
