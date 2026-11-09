@@ -7,7 +7,7 @@
 // `route.abort`). Its own file: the refresh's load is module state.
 import { afterEach, expect } from 'vitest';
 import { commands } from 'vitest/browser';
-import { it_with_network_routes } from './_browsers.ts';
+import { it_with_named_import_failures } from './_browsers.ts';
 import { boot } from '../../src/runtime/core.ts';
 import * as mpa_nav from '../../src/runtime/nav-handle.ts';
 
@@ -23,7 +23,7 @@ const scope = globalThis as unknown as Record<symbol, Record<string, unknown> | 
 
 afterEach(() => commands.keep_downloads('/src/runtime/router-nav.ts'));
 
-it_with_network_routes(
+it_with_named_import_failures(
 	'without the router, a refresh whose code failed to download loads it on the next refresh',
 	async () => {
 		delete scope[NAV];

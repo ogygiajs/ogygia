@@ -24,14 +24,31 @@ import { flights, machine, STALE } from '@ogygia/machine';
 /** The URL in a failed dynamic import's message: Chromium "Failed to fetch dynamically imported
  *  module: <url>", Firefox "error loading dynamically imported module: <url>". */
 const FAILED_IMPORT_RE = /dynamically imported module:?\s+(\S+)/i;
+/** WebKit's (Safari's) failed import, which names no URL: "Importing a module script failed." */
+const WEBKIT_IMPORT_FAILED_RE = /^importing a module script failed\.?$/i;
 
-/** The URL a failed dynamic import names, if it names one we can load again (http(s), this origin). */
-export function failed_import_url(error: unknown): string | null {
+/** Whether `error` is a dynamic import that failed to load (any engine's wording), not an error the
+ *  module threw as it ran. */
+export function is_failed_import(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+	return FAILED_IMPORT_RE.test(message) || WEBKIT_IMPORT_FAILED_RE.test(message);
+}
+
+/**
+ * The URL a failed dynamic import names, if it names one we can load again (http(s), this origin).
+ * WebKit names none: there `known`, the file the caller imported, is it (#383).
+ */
+export function failed_import_url(error: unknown, known?: string): string | null {
 	const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
 	const match = FAILED_IMPORT_RE.exec(message);
-	if (!match) return null;
+	const named = match
+		? match[1]
+		: known !== undefined && WEBKIT_IMPORT_FAILED_RE.test(message)
+			? known
+			: null;
+	if (named === null) return null;
 	try {
-		const url = new URL(match[1], typeof location !== 'undefined' ? location.href : undefined);
+		const url = new URL(named, typeof location !== 'undefined' ? location.href : undefined);
 		if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
 		if (typeof location !== 'undefined' && url.origin !== location.origin) return null;
 		return url.href;
@@ -79,7 +96,10 @@ export function on_reload_needed(say: (url: string, error: unknown) => void): vo
  */
 export function import_again<T>(
 	load: () => Promise<T>,
-	fresh: (url: string) => Promise<unknown> = (url) => import(/* @vite-ignore */ url)
+	fresh: (url: string) => Promise<unknown> = (url) => import(/* @vite-ignore */ url),
+	/** The file `load` imports, when the caller knows it: what a failure that names no URL (WebKit)
+	 *  failed to load. */
+	known?: string
 ): () => Promise<T> {
 	const file = file_definition.create();
 	return () => {
@@ -105,7 +125,7 @@ export function import_again<T>(
 			});
 		} else {
 			run = load().catch((error: unknown) => {
-				const url = failed_import_url(error);
+				const url = failed_import_url(error, known);
 				// (a failure that names no URL: the next call loads the same way again)
 				if (url !== null) file.move('fresh', 'failed', { url, attempt: 0 });
 				throw error;
@@ -159,10 +179,14 @@ const file_loads = flights({
 	name: 'island file',
 	run: (url: string) => {
 		let again = file_loaders.get(url);
-		if (!again) file_loaders.set(url, (again = import_again(() => import(/* @vite-ignore */ url))));
+		if (!again)
+			file_loaders.set(
+				url,
+				(again = import_again(() => import(/* @vite-ignore */ url), undefined, url))
+			);
 		const load = again;
 		return load().catch((error: unknown) => {
-			const failed = failed_import_url(error);
+			const failed = failed_import_url(error, url);
 			if (failed !== null && response_of(failed) === null) return load();
 			throw error;
 		});

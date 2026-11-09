@@ -10,7 +10,7 @@ import {
 } from '@ogygia/machine';
 import { backoff_after } from '@ogygia/machine/internal/policy';
 import { frameAddress } from '../frame.ts';
-import { import_again, on_reload_needed } from './import-again.ts';
+import { import_again, is_failed_import, on_reload_needed } from './import-again.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
 // off in a build where no region streams HTML, and the bundler drops the element's fetch / apply /
 // morph / renew path with it — that path works on the element's own state, so it cannot be a
@@ -136,11 +136,6 @@ const SSR_SNAPSHOT_MAX = 1 << 19;
  *  instead of a DOM a swapped-in foreign runtime may have already mutated. See region_fragment. */
 const PRISTINE_SSR = Symbol('ogygia.pristine-ssr');
 type PristineHost = { [PRISTINE_SSR]?: string };
-
-/** A dynamic-import failure of the island ENTRY (network/stale), not a hydration throw. The browser
- *  message is `Failed to fetch dynamically imported module: <url>` across engines. */
-const ENTRY_FETCH_FAILED_RE =
-	/failed to fetch dynamically imported module|error loading dynamically imported module/i;
 
 // A real `.css` asset href (vs a dev MODULE url masquerading as a region-css sheet) — see
 // apply_dev_head_region_css.
@@ -1745,9 +1740,9 @@ class OgygiaRegion extends HTMLElement {
 			// means Vite re-optimized deps and rotated the optimizer hash, so this already-loaded tab
 			// is importing dep URLs that no longer exist — a reload picks up the new graph (the dev
 			// bridge carries `@vite/client`, so Vite's own full-reload does this on the next signal).
-			const msg = (err as { message?: string })?.message ?? '';
+			// (each engine words it its own way: is_failed_import knows them all, WebKit's too, #383)
 			const entry = this.getAttribute('entry');
-			if (ENTRY_FETCH_FAILED_RE.test(msg)) {
+			if (is_failed_import(err)) {
 				if (import.meta.env.DEV) {
 					console.error(new OgygiaError('island_load_failed_stale_deps', { entry }), err);
 					void recover_from_stale_deps(entry); // ok: dev only, never rejects (its failure leaves the error above)

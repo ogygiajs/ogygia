@@ -19,6 +19,15 @@ export const ENGINE: string = server.browser;
 export const it_with_network_routes: typeof it = PLAYWRIGHT ? it : (it.skip as typeof it);
 
 /**
+ * A test that recovers a runtime lazy chunk (a bundler-resolved `import()`) after a failed download.
+ * WebKit names no URL on a failed import (no message URL, no resource-timing entry) and keeps the
+ * module failed, so nothing at runtime knows which file to ask for again: tracked in #385 (the
+ * build has to hand each lazy loader its file). Runs with the network routes, outside WebKit.
+ */
+export const it_with_named_import_failures: typeof it =
+	PLAYWRIGHT && ENGINE !== 'webkit' ? it : (it.skip as typeof it);
+
+/**
  * A test of the Layout Instability API (`PerformanceObserver` type `layout-shift`): Chromium only.
  * Firefox and WebKit do not report layout shifts, so there is nothing to observe there.
  */
