@@ -142,17 +142,28 @@ test('an answer still waiting for its stylesheet keeps its roots while another a
 	expect(hosts.map((h) => h.shadowRoot!.adoptedStyleSheets.length)).toEqual([1, 1]);
 });
 
-test('a host upgraded before the restore reached it is left as served, and says so', async () => {
-	await served('<demo-card class="own"> late </demo-card>');
+test('a host upgraded before the restore reached it keeps its own root; the light DOM is put back, the server’s tree dropped, and it says so', async () => {
+	const inner = ' late <i>ok</i>';
+	await served(`<demo-card class="own">${inner}</demo-card>`);
 	const host = document.querySelector('demo-card')!;
-	host.attachShadow({ mode: 'open' }); // what a component constructor does on upgrade
+	// what a component constructor does on upgrade: its own root, its own render
+	const own = host.attachShadow({ mode: 'open' });
+	own.innerHTML = '<b>Card title</b><slot></slot>';
 	let late = '';
 	document.addEventListener('ogygia:restore-late', (e) => (late = (e as CustomEvent).detail.host), {
 		once: true
 	});
-	expect(restore(document)).toBe(0);
+	restore(document);
 	expect(late).toBe('0');
-	expect(host.shadowRoot!.childNodes.length).toBe(0);
+	// the component's root is left as it made it
+	expect(host.shadowRoot).toBe(own);
+	expect(own.innerHTML).toBe('<b>Card title</b><slot></slot>');
+	// the light DOM is Svelte's again: the server's rendered tree is not slotted beside the root's
+	// own render (it would show twice)
+	expect(host.innerHTML).toBe(serialized(inner));
+	expect(host.querySelector('b')).toBeNull();
+	expect(host.getAttribute('class')).toBe('own sc-demo-card-h');
+	expect([...host.attributes].map((a) => a.name).filter((n) => n.startsWith('og-'))).toEqual([]);
 });
 
 test('dev: the check compares each restored host with Svelte’s children, and names the first difference', async () => {

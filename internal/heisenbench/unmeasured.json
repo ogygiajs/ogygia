@@ -161,6 +161,22 @@
 			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/rules.test.ts"
 		},
 		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_parse_upgraded > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/inert-parse.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_parse_upgraded > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/inert-parse.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > restore_late > details",
+			"reason": "a message's wording, constant text; said in packages/core/test/browser/inert-parse.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > restore_late > text",
+			"reason": "a message's wording (one tag name), constant text; said in packages/core/test/browser/inert-parse.test.ts"
+		},
+		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_old_page_open > details",
 			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/rules.test.ts"
 		},
@@ -203,6 +219,14 @@
 		{
 			"id": "packages/core/src/rules.ts > Rules > say",
 			"reason": "the rules registry (dev and e2e builds only): its checks are closures over module state; proven in packages/core/test/browser/rules.test.ts and packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > note_parse",
+			"reason": "browser only, dev and e2e builds: walks one parsed fragment (DOM nodes, not cloneable) for a built custom element, linear in its elements; proven in packages/core/test/browser/inert-parse.test.ts and read at the end of every e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > no_parse_upgraded",
+			"reason": "browser only, dev and e2e builds: the rule's answer from what note_parse found (a short list), constant work; proven in packages/core/test/browser/inert-parse.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/rules.ts > check_soon",

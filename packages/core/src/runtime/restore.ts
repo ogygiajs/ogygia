@@ -19,8 +19,11 @@
  * insertion and on an incoming page before a router swap.
  *
  * A host that already has a shadow root when it is reached was upgraded first — the restore came
- * too late. It is left as served and reported (`ogygia:restore-late` on the host), never restored into
- * a root the component's own constructor made (that tree would render twice).
+ * too late. The root is the component's own and is left to it; the light DOM still goes back to
+ * Svelte's form, and the server's rendered copy is dropped (slotted beside the component's own
+ * render it would show twice). It is reported (`ogygia:restore-late` on the host, the log, and
+ * `restore_late` in every build). Answers are parsed inert (./parse-html.ts, #382), so this is the
+ * page-load case: a component runtime that upgraded first.
  */
 export function restore(root: Document | DocumentFragment | Element): number {
 	const doc: Document = (root as Node).ownerDocument ?? (root as Document);
@@ -366,34 +369,38 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		const host = hosts[x] as HTMLElement;
 		const k = host.getAttribute('og-h')!;
 		const keys = (host.getAttribute('og-shadow') ?? '').split(' ').filter(Boolean);
-		if (host.shadowRoot) {
-			// upgraded before the restore reached it: leave it as served, say so
+		// Upgraded before the restore reached it (a component runtime ran first): the root its
+		// constructor made is the component's, and it renders there. The light DOM still goes back to
+		// Svelte's form below, and the server's rendered copy is dropped instead of moved into a root:
+		// slotted beside the component's own render, it would show twice. Said, never silent.
+		const late = host.shadowRoot !== null;
+		const shadow: ShadowRoot | null = late ? null : host.attachShadow({ mode: 'open' });
+		if (late) {
 			host.dispatchEvent(
 				new CustomEvent('ogygia:restore-late', { bubbles: true, detail: { host: k } })
 			);
 			log('late', host);
-			continue;
 		}
-		const shadow = host.attachShadow({ mode: 'open' });
 		// A root attached in a document without a browsing context (an answer's inert fragment, an
 		// incoming page) gets no custom element registry, and keeps none after the insertion: nothing
 		// inside it would upgrade. `restore_adopt()` initializes it once its host is in the page.
-		if (!live) (W.__og_init ??= []).push(shadow);
+		if (shadow && !live) (W.__og_init ??= []).push(shadow);
 		const own: CSSStyleSheet[] = [];
 		// (a DOM without adoptable sheets — jsdom has the constructor but no adoptedStyleSheets — gets a
 		// <style> per root, like a browser without constructable sheets)
-		const adoptable = Array.isArray(shadow.adoptedStyleSheets);
-		for (const key of keys) {
-			const s = sheet_for(key);
-			if (!s) continue;
-			if (s.sheet && adoptable) own.push(s.sheet);
-			else {
-				const style = doc.createElement('style');
-				style.textContent = s.css;
-				shadow.appendChild(style);
+		const adoptable = shadow !== null && Array.isArray(shadow.adoptedStyleSheets);
+		if (shadow)
+			for (const key of keys) {
+				const s = sheet_for(key);
+				if (!s) continue;
+				if (s.sheet && adoptable) own.push(s.sheet);
+				else {
+					const style = doc.createElement('style');
+					style.textContent = s.css;
+					shadow.appendChild(style);
+				}
 			}
-		}
-		if (own.length) {
+		if (shadow && own.length) {
 			if (live) shadow.adoptedStyleSheets = [...shadow.adoptedStyleSheets, ...own];
 			else {
 				// (on the root too: a morph that copies the host carries it to the copy's root)
@@ -419,8 +426,12 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		}
 		children.sort((a, b) => a.i - b.i);
 		const mine = new Set(children.map((c) => c.node));
-		// everything else directly under the host is the rendered tree
-		for (const n of Array.from(host.childNodes)) if (!mine.has(n)) shadow.appendChild(n);
+		// everything else directly under the host is the rendered tree: into the root, or (late) gone
+		for (const n of Array.from(host.childNodes))
+			if (!mine.has(n)) {
+				if (shadow) shadow.appendChild(n);
+				else n.remove();
+			}
 		// Svelte's children are the RENDER's (ownership.ts `render_made`): a later morph may remove one
 		// the render stops producing; what the element's runtime adds beside them stays its own
 		const made = (W.__og_rendered ??= new WeakSet());
@@ -442,7 +453,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		host.removeAttribute('og-shadow');
 		host.removeAttribute('og-keep');
 		verify(host, k);
-		restored++;
+		if (!late) restored++;
 	}
 	return restored;
 }
