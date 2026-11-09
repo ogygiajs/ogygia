@@ -377,7 +377,7 @@ let page_world: import('@ogygia/machine').World | undefined;
  *  in `page_world`: a move of it drops them all, a fetch in flight is aborted, and a navigation that
  *  waited on it fetches again. */
 const pages = (): Pages =>
-	(page_flights ??= boot_link().flights<PageAsk>()({
+	(page_flights ??= boot_link().flights.keyed<PageAsk>()({
 		name: 'router pages',
 		key: ['href'],
 		ignore: { purpose: 'a navigation joins the prefetch out for its address: how, not what' },

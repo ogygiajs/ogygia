@@ -147,18 +147,25 @@ const pages = flights({
 });
 const page = await pages.get('/docs', { signal }); // joins the fetch already out for /docs
 if (page === STALE) return; // dropped, or this caller left
+
+// keyed by some fields of an object input: run reads only those, and those `ignore` names
+const checkouts = flights.keyed<Spec>()({
+	key: ['repo', 'ref'],
+	ignore: { depth: 'how much history to fetch, not which files' },
+	run: ({ repo, ref, depth }, signal) => checkout(repo, ref, depth, signal)
+});
 ```
 
-|                                  |                                                                                                                |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `run(input, signal)`             | The work. Starts inside the `get` that finds no flight and no kept answer; that caller's input is the one run. |
-| `key(input)`                     | Which inputs are the same flight. Default: the input itself.                                                   |
-| `keep`                           | How long an answer stays, ms (or made from the answer). `0` keeps nothing. Default: for as long as it lives.   |
-| `max` / `weigh(answer)`          | The most total weight kept (default weight 1: a count); the least recently used go first.                      |
-| `retries`                        | Tries again at once, inside one flight, before it fails.                                                       |
-| `get(input, { signal, fresh })`  | Joins, gives the kept answer, or starts a flight. `STALE` when it was dropped or this caller left.             |
-| `peek(key)`                      | What the key holds now (`flying`, or `kept` with its answer and when it landed), without starting anything.    |
-| `drop(key \| (key, entry) => …)` | Takes kept answers out and ends flights in progress: their callers get `STALE`, nothing they answer is kept.   |
+|                                  |                                                                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `run(input, signal)`             | The work. Starts inside the `get` that finds no flight and no kept answer; that caller's input is the one run.  |
+| `flights.keyed<I>()({ key })`    | The keyed form: inputs with the same `key` fields are the same flight. Default (`flights()`): the input itself. |
+| `keep`                           | How long an answer stays, ms (or made from the answer). `0` keeps nothing. Default: for as long as it lives.    |
+| `max` / `weigh(answer)`          | The most total weight kept (default weight 1: a count); the least recently used go first.                       |
+| `retries`                        | Tries again at once, inside one flight, before it fails.                                                        |
+| `get(input, { signal, fresh })`  | Joins, gives the kept answer, or starts a flight. `STALE` when it was dropped or this caller left.              |
+| `peek(key)`                      | What the key holds now (`flying`, or `kept` with its answer and when it landed), without starting anything.     |
+| `drop(key \| (key, entry) => …)` | Takes kept answers out and ends flights in progress: their callers get `STALE`, nothing they answer is kept.    |
 
 - **A failure is never kept.** Every caller of a failed flight gets the failure, and the next `get` starts a new one. A failing key costs one try per wave of callers, not one per caller.
 - **The last caller out stops the work.** A caller with a `signal` that aborts gets `STALE` at once; the flight's own signal aborts only when every caller has left. A caller with no signal holds it until it lands.

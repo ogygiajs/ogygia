@@ -13,7 +13,7 @@
  *   const core = flights({ run: () => import('./hydrate-core.ts'), retry: download }); // one key
  *   const mod = await core.get();
  *
- *   const checkouts = flights<Spec>()({            // an object input, keyed by some of its fields
+ *   const checkouts = flights.keyed<Spec>()({      // an object input, keyed by some of its fields
  *     key: ['owner', 'repo', 'ref', 'sub'],
  *     ignore: { depth: 'how much history to fetch, not which files' },
  *     run: ({ owner, repo, ref, sub, depth }, signal) => checkout(owner, repo, ref, sub, depth, signal)
@@ -91,7 +91,7 @@ interface FlightsCommon<R, V, W> {
  *  itself), or of one key when it takes none. */
 export interface FlightsOptions<I, V, W = never> extends FlightsCommon<I, V, W> {}
 
-/** A flights over an object input whose key is some of its fields (`flights<I>()({ key, … })`):
+/** A flights over an object input whose key is some of its fields (`flights.keyed<I>()({ key, … })`):
  *  `run` reads only the fields its key names, and those `ignore` names with the reason it may. */
 export interface KeyedFlightsOptions<
 	I,
@@ -277,7 +277,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 			ignore?: Record<PropertyKey, string>;
 		}
 	) {
-		if (typeof o.run !== 'function') throw bad_option('run', typeof o.run, 'a function');
+		if (typeof o?.run !== 'function') throw bad_option('run', typeof o?.run, 'a function');
 		this._fields = null;
 		this._keys = null;
 		if (o.key !== undefined) {
@@ -623,7 +623,7 @@ function heard_move(
 	f._moved(keys);
 }
 
-/** Makes a keyed flights over input `I` (`flights<I>()({ key, ignore?, run, … })`). */
+/** Makes a keyed flights over input `I` (`flights.keyed<I>()({ key, ignore?, run, … })`). */
 export type KeyedFlights<I> = <
 	const F extends keyof I,
 	G extends Exclude<keyof I, F> = never,
@@ -633,16 +633,23 @@ export type KeyedFlights<I> = <
 	options: KeyedFlightsOptions<I, F, G, V, W>
 ) => Flights<I, Fresh<Awaited<V>>, Pick<I, F>>;
 
-/** Keyed shared async work (see the module's comment). With no options, a maker of a flights over
- *  object input `I` keyed by some of its fields: `flights<Ask>()({ key: ['href'], run })`. */
-export function flights<I extends object>(): KeyedFlights<I>;
-export function flights<I = void, V = unknown, W = never>(
+function make_flights<I = void, V = unknown, W = never>(
 	options: FlightsOptions<I, V, W>
-): Flights<I, Fresh<Awaited<V>>, I>;
-export function flights(options?: object): unknown {
-	if (options === undefined) return keyed;
-	return new Flown(options as FlightsOptions<unknown, unknown, unknown>);
+): Flights<I, Fresh<Awaited<V>>, I> {
+	return new Flown(options as FlightsOptions<unknown, unknown, unknown>) as never;
 }
+
+/** Keyed shared async work (see the module's comment). `flights.keyed<I>()` is its keyed form: a
+ *  maker of a flights over object input `I` keyed by some of its fields,
+ *  `flights.keyed<Ask>()({ key: ['href'], run })`. */
+export const flights: {
+	<I = void, V = unknown, W = never>(
+		options: FlightsOptions<I, V, W>
+	): Flights<I, Fresh<Awaited<V>>, I>;
+	keyed<I extends object>(): KeyedFlights<I>;
+} = /* @__PURE__ */ Object.assign(make_flights, {
+	keyed: <I extends object>(): KeyedFlights<I> => keyed as KeyedFlights<I>
+});
 
 function keyed(options: KeyedFlightsOptions<object, never, never, unknown>): unknown {
 	if (typeof options !== 'object' || options === null || options.key === undefined)
