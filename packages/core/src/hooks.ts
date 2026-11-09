@@ -85,6 +85,7 @@ import { expiry_refusal, note_cache_control } from './server/shared-cache.ts';
 import { app_lifetime } from './server/region-endpoint.ts';
 import { render_cache_key, cached_render, type RenderKey } from './server/render-cache.ts';
 import { render as render_policy } from './policies.ts';
+import { install_server_rules } from './server/rules.ts';
 import { B64Url } from './server/payload.ts';
 import { REF_WIRE_KEY, ref_reviver } from './ref.ts';
 import { plugins as plugin_entries } from 'virtual:ogygia/server-plugins';
@@ -235,6 +236,11 @@ const MAX_REGION_BODY = 2_000_000;
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 const DEVTOOLS_LAZY =
 	typeof __OGYGIA_DEVTOOLS_LAZY__ !== 'undefined' ? __OGYGIA_DEVTOOLS_LAZY__ : false;
+// the server's rules (./server/rules.ts): checked after each response in dev and in a build made with
+// OGYGIA_RULES=1; folds out of any other build
+const RULES =
+	import.meta.env.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
+if (RULES) install_server_rules();
 /** High-res clock for server-realm devtools timestamps. */
 const dt_now = () =>
 	typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();

@@ -221,6 +221,9 @@ declare const __OGYGIA_SERVER_DELTA__: boolean;
 declare const __OGYGIA_DEVTOOLS__: boolean;
 /** a build with devtools on: launcher only; the dock and the page measuring start once opened */
 declare const __OGYGIA_DEVTOOLS_LAZY__: boolean;
+/** ogygia's rules on itself are built in (`OGYGIA_RULES=1` at build time: the e2e suites'; always on
+ *  in dev). Off, every `if (RULES) …` folds out and no rule ships (src/rules.ts). */
+declare const __OGYGIA_RULES__: boolean;
 /** the profiler's browser half ships (the profiler or devtools is configured); otherwise every
  *  `if (BEACON) …` folds out and runtime/beacon.ts leaves the bundle */
 declare const __OGYGIA_BEACON__: boolean;

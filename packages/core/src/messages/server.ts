@@ -229,6 +229,23 @@ export const SERVER_WARNINGS = {
 			its visitor leaves. One of those cleanups threw. The response was not affected. The error
 			follows the message.
 		`
+	},
+	rule_request_scope_open: {
+		text: (a: { detail: string }): string =>
+			`rule broken, a request's work ends with its response: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e builds only (a rule ogygia checks on itself). The work a request starts (its
+			timers, streams, fetches) is let go once its response ends. A response ended with its
+			request's work still held, which leaks with every request: an ogygia bug, please report it.
+		`
+	},
+	rule_flight_kept_failure: {
+		text: (a: { detail: string }): string => `rule broken, no shared work keeps a failure: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e builds only (a rule ogygia checks on itself). Shared work (a render, a fetch
+			that callers join) keeps its answer for the next caller, but never a failure: the next
+			caller tries again. One kept an error as its answer, so every later caller gets it.
+		`
 	}
 };
 

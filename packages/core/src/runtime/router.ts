@@ -23,6 +23,11 @@ import { runtime_session } from './session.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
 import { report_thrown } from '../report-thrown.ts';
 import { download } from '../policies.ts';
+import { watch_router } from './rules.ts';
+
+// the runtime's rules (./rules.ts): dev, and a build made with OGYGIA_RULES=1; folds out elsewhere
+const RULES =
+	import.meta.env.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 const WS = /\s+/;
 
@@ -582,6 +587,7 @@ export class SpaRouter {
 		this.#started = true;
 		// the entry the browser is on is the router's from now on (its page is the one on screen)
 		this.history.start();
+		if (RULES) watch_router(this);
 		// What the server sent `<body>`, before any island wakes and mounts something into it (a
 		// popover's portal): a navigation replaces the server's part only (ownership.ts).
 		const body = document.body;

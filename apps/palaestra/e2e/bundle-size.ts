@@ -135,6 +135,7 @@ async function measure(marks: RuntimeMarks): Promise<Pick<Row, 'boot' | 'total' 
 				'import.meta.env.DEV': 'false',
 				'import.meta.env.MODE': '"production"',
 				__OGYGIA_DEVTOOLS__: 'false', // off by default — user apps never ship it
+				__OGYGIA_RULES__: 'false', // ogygia's rules on itself: dev and e2e builds only, never shipped
 				__OGYGIA_CONTINUITY_FORMS__: 'true', // form continuity on by default (gated by the profile's marks)
 				__OGYGIA_SERVER_DELTA__: 'false' // server-delta nav is opt-in
 			}

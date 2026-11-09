@@ -26,6 +26,12 @@
 import { scope, type Scope } from '@ogygia/machine';
 import { current_request } from './facts.ts';
 import { warn } from '../messages/server.ts';
+import { note_response_end } from '../server/rules.ts';
+
+// the server's rules (../server/rules.ts): dev, and a build made with OGYGIA_RULES=1; folds out
+// of any other build
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 type Entry = { owner: Scope; locals: Map<object, unknown> | null };
 type Slot = { by_request: WeakMap<Request, Entry> };
@@ -118,11 +124,13 @@ export function own_response(owner: Scope, response: Response, request: Request)
 	const body = response.body;
 	if (body === null || owner.closed) {
 		end_request_scope(owner);
+		if (RULES) note_response_end(owner);
 		return response;
 	}
 	if (body_unread(request, response)) {
 		body.cancel().catch(noop); // ok: the body is dropped unread, so a failed cancel has nothing to stop
 		end_request_scope(owner);
+		if (RULES) note_response_end(owner);
 		return response;
 	}
 	const reader = body.getReader();
@@ -135,16 +143,19 @@ export function own_response(owner: Scope, response: Response, request: Request)
 					step = await reader.read();
 				} catch (error) {
 					end_request_scope(owner);
+					if (RULES) note_response_end(owner);
 					controller.error(error);
 					return;
 				}
 				if (step.done) {
 					controller.close();
 					end_request_scope(owner);
+					if (RULES) note_response_end(owner);
 				} else controller.enqueue(step.value);
 			},
 			cancel() {
 				end_request_scope(owner);
+				if (RULES) note_response_end(owner);
 			}
 		},
 		{ highWaterMark: 0 }

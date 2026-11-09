@@ -60,6 +60,7 @@ import {
 } from './region-machines.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
 import { download, region_fetch } from '../policies.ts';
+import { install_rules, note_mount, note_unmount } from './rules.ts';
 import { PAGE_FACTS_SELECTOR } from '../page-facts-script.ts';
 import { link_boot } from './boot-link.ts';
 import {
@@ -111,6 +112,10 @@ const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS_
 // the profiler's browser half: only where the profiler or devtools can read it (a plain import of
 // dist/ without the define keeps it). Every `if (BEACON) beacon_…()` folds out otherwise.
 const BEACON = typeof __OGYGIA_BEACON__ !== 'undefined' ? __OGYGIA_BEACON__ : true;
+// the runtime's rules (./rules.ts): in dev, and in a build made with OGYGIA_RULES=1 (e2e). Every
+// `if (RULES) …` folds out of any other build, and the rules with it.
+const RULES =
+	import.meta.env.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 /** Above this many characters an island keeps no server copy (its hydration falls back to
  *  Svelte's own recovery on a mismatch) — a bound on memory, not a behaviour anyone tunes. */
@@ -1556,6 +1561,7 @@ class OgygiaRegion extends HTMLElement {
 			this.#ssr_html = null; // awake (or not ours): the server copy has done its job
 			this.#unwatch();
 			if (!this.#app) return; // not ours (Kit-hydrated page) or torn out mid-hydrate
+			if (RULES) note_mount(this);
 			const t_done = now_ms();
 			// (Svelte's `hydrate()` runs `$effect` and onMount in a microtask it queued during the call; one
 			// awaited now runs after it — mounted means they ran)
@@ -1824,6 +1830,7 @@ class OgygiaRegion extends HTMLElement {
 		if (this.#app) {
 			this.#app.dispose();
 			this.#app = null;
+			if (RULES) note_unmount(this);
 		}
 		this.#scheduled = false;
 	}
@@ -1883,6 +1890,8 @@ export function boot(
 ): void {
 	// which ogygia this page runs: `window.__ogygia.v` (./disclose-version.ts)
 	disclose_version();
+	// the runtime's rules, checked on itself (dev: after moves; e2e: `__ogygia_rules()`)
+	if (RULES) install_rules(import.meta.env.DEV);
 	// (The navigation handle island code reaches the runtime through is a feature now: `mpa-nav`
 	// publishes the MPA one, the router's install replaces it — ./nav-handle.ts.)
 	// The head the server sent is the page's (session.ts: who owns each node in <head>). No island
