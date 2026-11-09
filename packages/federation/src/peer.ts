@@ -132,7 +132,10 @@ export class PeerHandle implements Peer {
 		}
 	}
 
-	/** Transport: a mutation document — bypasses and invalidates the cache. */
+	/** Transport: a mutation document — bypasses and invalidates the cache. A mutation is out from
+	 *  its start to its end, and the upstream may answer a read in that span from before it or after
+	 *  it: the sources move at both ends, so a read out at its start reads again, and nothing read
+	 *  while it was out is kept past its end (#331). */
 	async postDoc(
 		path: string,
 		search: string,
@@ -142,13 +145,17 @@ export class PeerHandle implements Peer {
 		traceparent?: string
 	): Promise<FragmentDocument> {
 		this.#sources.bump();
-		return this.#raw_doc(
-			path,
-			search,
-			{ method: 'POST', headers: { 'content-type': content_type, origin: this.origin }, body },
-			claims,
-			traceparent
-		);
+		try {
+			return await this.#raw_doc(
+				path,
+				search,
+				{ method: 'POST', headers: { 'content-type': content_type, origin: this.origin }, body },
+				claims,
+				traceparent
+			);
+		} finally {
+			this.#sources.bump();
+		}
 	}
 
 	/** Transport: a raw widget document. */

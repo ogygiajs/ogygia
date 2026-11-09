@@ -71,8 +71,13 @@ describe('a peer read is one flight per key (#294)', () => {
 		expect(out).toHaveLength(3); // the read, the POST, the read again
 		out[1].answer('posted', []);
 		await post;
+		await tick();
+		// the read again went out while the POST was: it may be answered from before it, so once the
+		// POST ends it is read once more (#331)
+		expect(out).toHaveLength(4);
 		out[0].answer('before', []);
-		out[2].answer('after', []);
+		out[2].answer('during', []);
+		out[3].answer('after', []);
 		expect((await read).body).toBe('after');
 	});
 
