@@ -4685,9 +4685,9 @@ class Profiler {
 		this.#page_waiting++;
 		const wait = scope(current_request_scope() ?? undefined);
 		try {
-			const until = Date.now() + PAGE_WAITS_FOR_BACKGROUND_MS;
-			while (this.#holder.now.kind === 'background' && Date.now() < until && !wait.closed)
-				await pause(wait, 50);
+			// the recorder leaving `background` (the holder's next move), or the deadline: no poll
+			wait.timeout(() => wait.close(), PAGE_WAITS_FOR_BACKGROUND_MS);
+			await wait.task(() => this.#holder.wait('free'));
 		} finally {
 			wait.close();
 			this.#page_waiting--;

@@ -10,7 +10,9 @@
  * is known, else the identity (on the dev server, the module itself; in a build, a name, no file).
  */
 import { import_file } from './import-again.ts';
-import { flights, STALE } from '@ogygia/machine';
+import { flights, scope, STALE } from '@ogygia/machine';
+import { backoff_after } from '@ogygia/machine/internal/policy';
+import { rollover } from '../policies.ts';
 
 /** absolute identity → absolute location */
 const locations = new Map<string, string>();
@@ -194,9 +196,6 @@ function is_gone(url: string): Promise<boolean> {
 	);
 }
 
-/** How long a recovery waits before each ask of the current map: a rollover settles in seconds. */
-const RECOVERY_WAITS = [0, 1000, 3000, 9000];
-
 /**
  * The current build's file for a build's identity whose file just failed to load. A deploy's rollover
  * is exactly when this is asked, so an answer that cannot be the current one is asked again while it
@@ -206,13 +205,22 @@ const RECOVERY_WAITS = [0, 1000, 3000, 9000];
  */
 async function recover_location(entry: string, failed: string): Promise<string | null> {
 	let current: string | null | undefined;
-	for (const wait of RECOVERY_WAITS) {
-		// oxlint-disable-next-line ogygia/owned-effects -- a pause inside one file's load, which every page that wakes the island shares (a kept island wakes on the next page too): it ends itself in seconds and holds nothing
-		if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
-		current = await current_location(entry);
-		if (current === undefined) continue;
-		if (current !== failed || !(await is_gone(failed))) break;
-		current_maps.drop(current_map_file(absolute(entry))!);
+	// (the asks' waits are this load's own: it ends itself in seconds, and every page that wakes the
+	// island shares it, so no page's visit owns it)
+	const waits = scope();
+	try {
+		for (let n = 1; n <= rollover.attempts; n++) {
+			if (n > 1) {
+				const wait = backoff_after(rollover, n - 1);
+				await waits.task(() => new Promise<void>((resolve) => waits.timeout(resolve, wait)));
+			}
+			current = await current_location(entry);
+			if (current === undefined) continue;
+			if (current !== failed || !(await is_gone(failed))) break;
+			current_maps.drop(current_map_file(absolute(entry))!);
+		}
+	} finally {
+		waits.close();
 	}
 	return current ?? null;
 }

@@ -17,6 +17,7 @@ import {
 } from '@ogygia/core/insights';
 import { region_name_by_fp } from './regions.ts';
 import { snapshot } from '@ogygia/core/events';
+import { scope, type Scope } from '@ogygia/machine';
 import { ensure_region_names } from './names.ts';
 import { TESTING_ENGINE_VERSION } from '@ogygia/core/insights';
 import { nearest_attr } from '@ogygia/core/internal/instruments';
@@ -294,6 +295,16 @@ export async function record_stop(blocked: BlockedNavigation[] = []): Promise<
 /** Resolves when no island is mid-hydration and nothing woke for `quiet` ms (or `timeout` passed). */
 export async function settled(quiet = 300, timeout = 10_000): Promise<boolean> {
 	const until = performance.now() + timeout;
+	// (its poll steps' timers: let go as it answers)
+	const steps = scope();
+	try {
+		return await settle_poll(steps, quiet, until);
+	} finally {
+		steps.close();
+	}
+}
+
+async function settle_poll(steps: Scope, quiet: number, until: number): Promise<boolean> {
 	for (;;) {
 		const ev = snapshot();
 		const started = new Set<string>();
@@ -313,7 +324,6 @@ export async function settled(quiet = 300, timeout = 10_000): Promise<boolean> {
 		if (!started.size && performance.now() - last >= quiet && document.readyState === 'complete')
 			return true;
 		if (performance.now() > until) return false;
-		// oxlint-disable-next-line ogygia/owned-effects -- a one-shot poll step inside the caller's own await, which ends with it
-		await new Promise((r) => setTimeout(r, 50));
+		await steps.task(() => new Promise<void>((r) => steps.timeout(r, 50)));
 	}
 }

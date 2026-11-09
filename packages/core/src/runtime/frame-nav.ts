@@ -292,36 +292,44 @@ export function join_batch(endpoint: string): Promise<void> {
 			queueMicrotask(() => {
 				const list = queued!;
 				queued = null;
-				const fresh: string[] = [];
-				const seen = new Set<string>();
-				// A `load` hole's request already started during the HTML parse (Region.svelte's
-				// `<link rel="preload" as="fetch">`): its own fetch takes that response — batching it
-				// would render it twice. Compared as resolved URLs: the page pins a region's endpoint
-				// root-absolute while the link keeps the text it was rendered with (relative, under a base).
-				const hinted = new Set<string>();
-				for (const l of document.querySelectorAll<HTMLLinkElement>(
-					'link[rel="preload"][as="fetch"]'
-				))
-					if (l.href) hinted.add(l.href);
-				for (const e of list) {
-					const a = frameAddress(e);
-					if (
-						seen.has(a) ||
-						(hinted.size && hinted.has(new URL(e, document.baseURI).href)) ||
-						!is_idle(a)
-					)
-						continue;
-					seen.add(a);
-					fresh.push(e);
+				// (every hole that joined waits on this: it resolves however the gathering goes, and a
+				// hole the batch does not take runs its own fetch)
+				try {
+					gather(list);
+				} finally {
+					resolve();
 				}
-				// (reserve happens synchronously inside streamFrames, before this resolves)
-				if (fresh.length >= 2)
-					for (let i = 0; i < fresh.length; i += MAX_BATCH)
-						void streamFrames(fresh.slice(i, i + MAX_BATCH), 'page'); // ok: a batch says its own failure, and its holes fall back to their own fetch
-				resolve();
 			})
 		);
 	}
 	queued.push(endpoint);
 	return flushed;
+}
+
+/** The holes that joined in one task: the ones a batch can carry go out in batches of MAX_BATCH. */
+function gather(list: string[]): void {
+	const fresh: string[] = [];
+	const seen = new Set<string>();
+	// A `load` hole's request already started during the HTML parse (Region.svelte's
+	// `<link rel="preload" as="fetch">`): its own fetch takes that response — batching it
+	// would render it twice. Compared as resolved URLs: the page pins a region's endpoint
+	// root-absolute while the link keeps the text it was rendered with (relative, under a base).
+	const hinted = new Set<string>();
+	for (const l of document.querySelectorAll<HTMLLinkElement>('link[rel="preload"][as="fetch"]'))
+		if (l.href) hinted.add(l.href);
+	for (const e of list) {
+		const a = frameAddress(e);
+		if (
+			seen.has(a) ||
+			(hinted.size && hinted.has(new URL(e, document.baseURI).href)) ||
+			!is_idle(a)
+		)
+			continue;
+		seen.add(a);
+		fresh.push(e);
+	}
+	// (reserve happens synchronously inside streamFrames, before this resolves)
+	if (fresh.length >= 2)
+		for (let i = 0; i < fresh.length; i += MAX_BATCH)
+			void streamFrames(fresh.slice(i, i + MAX_BATCH), 'page'); // ok: a batch says its own failure, and its holes fall back to their own fetch
 }
