@@ -34,6 +34,14 @@
 		"./internal/policy": {
 			"types": "./dist/policy.d.ts",
 			"default": "./src/policy.ts"
+		},
+		"./internal/registry": {
+			"types": "./dist/registry.d.ts",
+			"default": "./src/registry.ts"
+		},
+		"./internal/cache": {
+			"types": "./dist/cache.d.ts",
+			"default": "./src/cache.ts"
 		}
 	},
 	"publishConfig": {
@@ -49,6 +57,14 @@
 			"./internal/policy": {
 				"types": "./dist/policy.d.ts",
 				"default": "./dist/policy.js"
+			},
+			"./internal/registry": {
+				"types": "./dist/registry.d.ts",
+				"default": "./dist/registry.js"
+			},
+			"./internal/cache": {
+				"types": "./dist/cache.d.ts",
+				"default": "./dist/cache.js"
 			}
 		},
 		"access": "public"
