@@ -20,9 +20,9 @@ Releases are automated (`.github/workflows/release.yml`, the Changesets GitHub A
   release: right after a publish, and after any merge that leaves no pending changeset. So a docs or
   site change goes live by itself, while one merged behind an unreleased package change waits for
   that release. Nobody pushes to it.
-- `lts-0.8` keeps the 0.8.x line for patches. It releases from its own branch under the npm tag
-  `lts-0.8` (`pnpm add ogygia@lts-0.8`), so a patch never takes `latest` from the current line.
-  (npm refuses a tag that reads as a version range, like `0.8`.)
+- `lts-0.12` keeps the 0.12.x line for patches. It releases from its own branch under the npm tag
+  `lts-0.12` (`pnpm add ogygia@lts-0.12`), so a patch never takes `latest` from the current line.
+  (npm refuses a tag that reads as a version range, like `0.12`.)
 
 A PR into `main` merges by itself once CI is green when it carries the `ship` label
 (`.github/workflows/ship.yml`); removing the label cancels.
