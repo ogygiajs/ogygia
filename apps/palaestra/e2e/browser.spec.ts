@@ -154,8 +154,10 @@ test.describe('hydration, load/idle/visible/media, devalue, SPA', () => {
 		);
 		check('spa: no full page load event fired', fullReload === false);
 
-		// nav back home via SPA, stamp still same
+		// nav back home via SPA, stamp still same. (/about has a counter too: wait for the address,
+		// which the router writes when the page goes in, #310, not at the click.)
 		await page.click('nav a[href="/"]');
+		await page.waitForURL((u) => u.pathname === '/', { timeout: 3000 });
 		await page.waitForSelector('[data-counter]', { timeout: 3000 });
 		const marker3 = await document_stamp(page);
 		check('spa: back to home, stamp still persisted', marker1 === marker3);

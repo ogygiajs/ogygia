@@ -267,10 +267,14 @@ test.describe('the router fetches a page the way the browser fetches a document'
 	});
 });
 
-test.describe('a link the browser never replaces the page for works every time (#266)', () => {
+// (#297) and none of them adds a history entry: the router writes an entry when a page goes in,
+// never before its fetch, so Back goes to the page before. A download sent as HTML is one too: its
+// `Content-Disposition: attachment` makes it a file, whatever its type, never a page to swap in.
+test.describe('a link the browser never replaces the page for works every time (#266, #297)', () => {
 	for (const [link, path, what, file] of [
 		['[data-download]', '/router-links/export.csv', 'a file download', 'export.csv'],
-		['[data-no-content]', '/router-links/no-content', 'a 204', null]
+		['[data-no-content]', '/router-links/no-content', 'a 204', null],
+		['[data-download-html]', '/router-links/export.html', 'a download sent as HTML', 'report.html']
 	] as const) {
 		test(`${what}, clicked twice: the browser gets it each time and the page stays`, async ({
 			page
@@ -283,8 +287,11 @@ test.describe('a link the browser never replaces the page for works every time (
 			});
 			const downloads: string[] = [];
 			page.on('download', (d) => downloads.push(d.suggestedFilename()));
+			// a page before this one, for Back to go to
+			await page.goto('/router-history', { waitUntil: 'networkidle' });
 			await open(page);
 			const stamp = await stamp_document(page);
+			const entries = await page.evaluate(() => history.length);
 			for (const n of [1, 2]) {
 				await page.locator(link).click();
 				await expect
@@ -319,6 +326,15 @@ test.describe('a link the browser never replaces the page for works every time (
 			);
 			check('at the page', new URL(page.url()).pathname === '/router-links', page.url());
 			await expect(page.locator('[data-router-links]')).toBeVisible();
+			const now = await page.evaluate(() => history.length);
+			check('no history entry for either click', now === entries, `${entries} → ${now}`);
+			await page.goBack();
+			await expect(page.locator('[data-history-a]')).toBeVisible({ timeout: 10_000 });
+			check(
+				'Back goes to the page before',
+				new URL(page.url()).pathname === '/router-history',
+				page.url()
+			);
 		});
 	}
 });

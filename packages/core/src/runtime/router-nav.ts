@@ -28,7 +28,7 @@ import {
 	page_seed_of,
 	prepare_spa_document
 } from './seeds.ts';
-import type { SpaRouter } from './router.ts';
+import type { HistoryEntry, HistoryMove, SpaRouter } from './router.ts';
 import { spa_html_cacheable } from './spa-cacheable.ts';
 import { pin_region_urls } from './entry-locations.ts';
 import { emit as dt_emit } from '../events/bus.ts';
@@ -57,10 +57,7 @@ const register_island_graph = (text: string, base: string) =>
 const yield_task = () => boot_link().yield_task();
 /** What a machine's task answers once its visit is left (the boot's `@ogygia/machine`). */
 const is_stale = (v: unknown): v is Stale => v === boot_link().STALE;
-const document_key = (url: URL) => router_link().document_key(url);
 const jump_to_hash = (hash: string) => router_link().jump_to_hash(hash);
-const push_state = (state: unknown, url: string) => router_link().push_state(state, url);
-const replace_state = (state: unknown, url?: string) => router_link().replace_state(state, url);
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
@@ -174,6 +171,8 @@ const PAGE_CACHE_MAX_ENTRIES = 32;
 const PAGE_CACHE_MAX_BYTES = 4_000_000; // ~4MB of UTF-16-ish HTML
 /** Cap on waiting for a destination stylesheet to load before the body swap (cold-cache FOUC guard). */
 const STYLESHEET_WAIT_MS = 2_000;
+/** A `Content-Disposition` that makes a response a file to save. */
+const ATTACHMENT = /^\s*attachment\b/i;
 /** Kit remote-function POSTs live under `…/_app/remote/…` (or custom `appDir`). */
 const REMOTE_MUTATION_PATH = /\/remote(?:\/|$|\?)/;
 /** An `<ogygia-region>` open tag's attributes (shared `g` regex — reset `lastIndex` per scan). */
@@ -489,6 +488,10 @@ async function run_page_fetch({ href, purpose }: PageAsk, signal: AbortSignal): 
 		} else res = await go();
 		const ct = res.headers.get('content-type') || '';
 		if (!ct.includes('text/html')) return { page: null, cacheable: false };
+		// A file to save, whatever its type (a report sent as HTML): never a page to swap in; the
+		// browser saves it and keeps the page on screen (#297).
+		if (ATTACHMENT.test(res.headers.get('content-disposition') || ''))
+			return { page: null, cacheable: false };
 		// where it landed: `navigate()` corrects the address bar it pushed BEFORE the fetch from
 		// this, or the old URL would sit over the redirected content
 		const url = res.redirected && res.url ? res.url : href;
@@ -588,6 +591,8 @@ type Built = {
 	fetched: number;
 	styled: number;
 	reconciled: boolean;
+	/** the commit wrote its history entry (a commit that fails after it hands that entry off) */
+	written: boolean;
 };
 
 // NOTE: the library does NO script processing. Scripts inserted via a client-side body swap do
@@ -600,12 +605,13 @@ export async function navigate(
 	from: URL,
 	{
 		push = true,
-		pop_scroll = null,
+		pop,
 		type = 'link',
 		replace = false
 	}: {
 		push?: boolean;
-		pop_scroll?: { x: number; y: number } | null;
+		/** the entry a back or forward step is on (./router.ts `RouterHistory`) */
+		pop?: HistoryEntry;
 		type?: string;
 		replace?: boolean;
 	} = {},
@@ -643,27 +649,22 @@ export async function navigate(
 		if (session().visit !== next) next.scope.close(); // (swapped in: the visit is the page's)
 	});
 
-	// Update history SYNCHRONOUSLY (before any await) so the URL is correct and
-	// races between overlapping navigations can't drop the pushState.
-	if (replace) {
-		replace_state({ ...history.state, ogygia: true }, url.href);
-	} else if (push) {
-		// save outgoing scroll into the current entry, then push the new URL
-		replace_state({ ...history.state, scroll: { x: scrollX, y: scrollY } });
-		push_state({ ogygia: true }, url.href);
-	}
+	// HISTORY is written when the page goes in (the commit), never before its fetch (#310): until
+	// then the address bar and the router's history are the page on screen, and a navigation that
+	// brings no page (a download, a 204, one called off) leaves no entry behind (#297).
+	const move: HistoryMove = pop ? 'pop' : push && !replace ? 'push' : 'replace';
 
 	// HAND-OFFS: a response the router will not render (or no response) goes back to the browser as
 	// a navigation to the address the visitor CLICKED — never to where our fetch was redirected. The
 	// browser then makes its own document request and follows its own redirects, so the visitor lands
 	// exactly where a navigation without the router would have; a redirect seen by a fetch is a fact
-	// about that fetch. The entry written above is handed back with it: the browser's document
-	// REPLACES it, so the visit is one entry, and one the router's page does not share (#259:
-	// ./router.ts `hand_off`). A hand-off ends this visit: the navigation is the browser's now, and
-	// one the browser keeps the page on screen for (a download, a 204) must not stay in flight (#266).
-	// A navigation that fails part way (its devalue does not load, its swap throws) goes to the
-	// browser too, its error said: never left in flight, never finished as if it went in (#276).
-	const hand_off = (error?: unknown) => r.hand_off(url, from, mine, error);
+	// about that fetch. Its entry is the browser's (./router.ts `hand_off`). A hand-off ends this
+	// visit: the navigation is the browser's now, and one the browser keeps the page on screen for (a
+	// download, a 204) must not stay in flight (#266). A navigation that fails part way (its devalue
+	// does not load, its swap throws) goes to the browser too, its error said: never left in flight,
+	// never finished as if it went in (#276).
+	const hand_off = (error?: unknown, written = false) =>
+		r.hand_off(url, mine, written ? 'replace' : move, error);
 
 	// A back/forward restore re-fetches (we hold no DOM snapshot); mark it so the server can skip
 	// side effects the visitor already triggered on the first visit. A plain click is `nav`.
@@ -757,7 +758,7 @@ export async function navigate(
 		// The transition starts in a task of its own: everything above is a finished task by then, and
 		// the frame it captures is not the one that parsed 2 MB of HTML.
 		await yield_task();
-		return { doc, dest, use_vt, sheets, fetched, styled, reconciled: false };
+		return { doc, dest, use_vt, sheets, fetched, styled, reconciled: false, written: false };
 	};
 
 	// ── THE COMMIT: the DOM in one synchronous step — head, seeds, body, title ──
@@ -768,8 +769,13 @@ export async function navigate(
 		// page's head and data into this one (#202). It ends with the page it refreshes (#268).
 		const { soft } = boot_link();
 		if (soft.now.kind === 'refreshing') soft.go('idle');
-		// A redirect REPLACES the intermediate URL (browser semantics), so the back button skips it.
-		if (dest !== url) replace_state({ ...history.state, ogygia: true }, dest.href);
+		// the page being left (the router's history moves on below)
+		const left = r.current_url;
+		// THE ENTRY, written now (#310): a new one (the one left keeps where its page was), the one on
+		// screen at its new address, or the one a back or forward step is on. At the address the page
+		// belongs to: a redirect's intermediate URL is never an entry, as in a browser.
+		r.history.commit(dest, move, pop);
+		built.written = true;
 		// Reconcile in place unless a region lives where a body morph cannot reach it (a shadow
 		// root — counted, not walked), or an author opted the page out on either side.
 		const reconcile =
@@ -788,9 +794,7 @@ export async function navigate(
 		for (const sheet of built.sheets) apply_sheet(sheet);
 		// CONTINUITY: snapshot the LEAVING page's changed island form fields (session-scoped) so
 		// returning to it restores what the visitor was mid-typing. Read the old body now.
-		if (slots.forms.enabled && r.current_url) {
-			slots.forms.snapshot(document.body, r.current_url.pathname);
-		}
+		if (slots.forms.enabled) slots.forms.snapshot(document.body, left.pathname);
 		// Clear session state BEFORE body connect so new regions never see the previous page; then
 		// seed the shared page store + remote seeds from the new doc (the parse preflight made) —
 		// `$app/state` page.url/params/data update reactively inside KEPT islands, and every island
@@ -836,10 +840,6 @@ export async function navigate(
 		finish_spa_document();
 		// CONTINUITY: restore fields the visitor left on THIS page in a prior visit (this session).
 		if (slots.forms.enabled) slots.forms.restore(url.pathname);
-		// From here on, `dest` is the address the page on screen belongs to (== `url` unless a
-		// server redirect moved it).
-		r.doc_key = document_key(dest);
-		r.current_url = dest;
 		// LIFECYCLE: the INCOMING page's DOM is in place (islands may still be waking on their
 		// own schedules — this is the DOM milestone, not a hydration barrier).
 		document.dispatchEvent(new Event('og:after-swap'));
@@ -890,7 +890,7 @@ export async function navigate(
 	} else {
 		swap();
 	}
-	if (out.failed) return hand_off(out.failed.error);
+	if (out.failed) return hand_off(out.failed.error, built.written);
 	if (r.nav.now !== mine) return;
 
 	// applied: a later same-address click is a refresh, not a duplicate
@@ -918,15 +918,17 @@ export async function navigate(
 			vt: !!(built.use_vt && document.startViewTransition)
 		});
 
-	// Instant after a body swap — CSS smooth must not animate programmatic post-nav scroll.
+	// Instant after a body swap — CSS smooth must not animate programmatic post-nav scroll. A back
+	// or forward step puts its page where the visitor left it, however it was left (#270).
+	const scroll = pop?.scroll;
 	if (replace) {
 		// same-URL replace navigate — keep current scroll
-	} else if (pop_scroll) {
+	} else if (scroll) {
 		const html_el = document.documentElement;
 		const prev = html_el.style.scrollBehavior;
 		html_el.style.scrollBehavior = 'auto';
 		try {
-			window.scrollTo(pop_scroll.x, pop_scroll.y);
+			window.scrollTo(scroll.x, scroll.y);
 		} finally {
 			html_el.style.scrollBehavior = prev;
 		}
@@ -936,9 +938,9 @@ export async function navigate(
 
 	// ACCESSIBILITY (scroll has settled): announce the new page to screen readers, then reset
 	// keyboard focus to the top of it — the two things a full navigation gives for free and a body
-	// swap does not.
+	// swap does not. A back or forward step gives focus back to what had it, when it is still there.
 	announce(dest);
-	reset_focus(dest.hash);
+	reset_focus(dest.hash, pop?.focus ?? null);
 
 	r.run_after(from, dest, type);
 	// LIFECYCLE: the navigation is COMPLETE (head merged, body in place, scroll settled) — the
@@ -1039,9 +1041,11 @@ function announce(dest: URL) {
  * does this natively; a body swap does not). SvelteKit's algorithm: a `[autofocus]` element wins;
  * else a `#hash` target; else focus falls back to `<body>` (made momentarily focusable). The one
  * ogygia twist: a control INSIDE kept/persisted chrome (`data-ogygia-keep` / `data-persist`) that
- * survived the nav is left focused — the visitor is still using that persistent widget.
+ * survived the nav is left focused — the visitor is still using that persistent widget. A back or
+ * forward step first gives focus back to the element (`kept`, by id) that had it when its entry
+ * was left (./router.ts `RouterHistory`).
  */
-function reset_focus(hash: string) {
+function reset_focus(hash: string, kept: string | null = null) {
 	const active = document.activeElement as HTMLElement | null;
 	if (
 		active &&
@@ -1052,6 +1056,9 @@ function reset_focus(hash: string) {
 		return; // focus is on surviving persistent chrome — don't yank it to the top
 	}
 
+	// back or forward to a page whose entry kept the element that had focus when it was left
+	const was = kept ? document.getElementById(kept) : null;
+	if (was) return focus_reset(was);
 	if (hash) {
 		const id = decodeURIComponent(hash.slice(1));
 		const target = id ? document.getElementById(id) : null;

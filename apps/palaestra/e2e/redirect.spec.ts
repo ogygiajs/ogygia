@@ -21,10 +21,10 @@ test.describe('SPA navigation into a server redirect', () => {
 		await page.goto('/', { waitUntil: 'domcontentloaded' });
 		await page.waitForSelector('meta[name="ogygia-router"]', { state: 'attached' });
 		// Wait until the router has actually STARTED before clicking — `start()` seeds
-		// `history.state.ogygia = true` once its click listener is installed, so this is the reliable
-		// ready signal (a fixed sleep races the runtime boot under load).
+		// `history.state.ogygia` (the entry's id) once its click listener is installed, so this is the
+		// reliable ready signal (a fixed sleep races the runtime boot under load).
 		await page.waitForFunction(
-			() => (history.state as { ogygia?: boolean } | null)?.ogygia === true,
+			() => typeof (history.state as { ogygia?: string } | null)?.ogygia === 'string',
 			{ timeout: 8000 }
 		);
 
@@ -39,8 +39,8 @@ test.describe('SPA navigation into a server redirect', () => {
 			a.click();
 		});
 
-		// The address bar settles on the REDIRECT TARGET, not the requested `/dashboard`. The click
-		// pushes `/dashboard` synchronously; the router then follows the redirect and corrects it.
+		// The address bar settles on the REDIRECT TARGET, not the requested `/dashboard`: the router
+		// writes the entry when the page goes in, at the address the page belongs to.
 		await page.waitForFunction(() => location.pathname === '/dashboard/orders', { timeout: 8000 });
 		const path = await page.evaluate(() => location.pathname);
 		check('address bar corrected to the redirect target', path === '/dashboard/orders', path);
@@ -78,7 +78,7 @@ test.describe('SPA navigation into a server redirect', () => {
 	}) => {
 		await page.goto('/', { waitUntil: 'domcontentloaded' });
 		await page.waitForFunction(
-			() => (history.state as { ogygia?: boolean } | null)?.ogygia === true,
+			() => typeof (history.state as { ogygia?: string } | null)?.ogygia === 'string',
 			{ timeout: 8000 }
 		);
 
