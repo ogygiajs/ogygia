@@ -74,6 +74,7 @@ import {
 	yield_task
 } from './schedule.ts';
 import { once_visible } from './observe.ts';
+import { sheet_of, type RegionSheet } from './region-sheets.ts';
 import { preload_island_graph } from './island-graph-preload.ts';
 import { fetch_priority_of, LoadSlot, viewport_class, type LoadClass } from './load-scheduler.ts';
 import { connected_regions } from './connected.ts';
@@ -411,39 +412,28 @@ export function region_fragment(html: string): { frag: DocumentFragment; ready: 
 				l as HTMLLinkElement
 			])
 		);
-		// Resolve on load OR error (a broken sheet must not wedge the paint) so the caller can await
-		// the stylesheet before swapping the HTML in — no flash of unstyled server-picked content.
-		// The listeners are the page visit's, and let go once the sheet is in.
-		const until_loaded = (l: HTMLLinkElement) =>
-			new Promise<void>((resolve) => {
-				const done = () => {
-					off_load();
-					off_error();
-					resolve();
-				};
-				const off_load = page.on(l, 'load', done);
-				const off_error = page.on(l, 'error', done);
-				// Attach-then-check closes the race where the sheet finished between our lookup and the
-				// listener registration (`sheet` is set synchronously with the load event).
-				if (l.sheet) done();
-			});
+		// The caller awaits the stylesheet before swapping the HTML in: no flash of unstyled
+		// server-picked content. Its download ends loaded or failed (a broken sheet must not wedge the
+		// paint), and every answer that carries it waits on the SAME download (a frame morph and an
+		// applyLive of one ticket hoist side by side), or a later one paints unstyled mid-download.
+		const until_settled = (sheet: RegionSheet) => sheet.wait('loaded').then(() => undefined);
 		for (const link of links) {
 			const href = link.getAttribute('href');
 			link.remove();
 			if (!href) continue;
 			const present = existing.get(href);
 			if (present) {
-				// Already in the document — but "present" is not "loaded". A concurrent applier (frame
-				// morph vs applyLive of the same ticket) hoists first and awaits; every later applier
-				// must await the SAME in-flight sheet, or it paints unstyled mid-download.
-				if (!present.sheet) pending.push(until_loaded(present));
-				continue;
+				const sheet = sheet_of(present);
+				if (sheet.now.kind === 'loading') pending.push(until_settled(sheet));
+				// failed: it never loads, so ask again, with a fresh link in its place
+				if (sheet.now.kind !== 'failed') continue;
+				present.remove();
 			}
 			const clone = document.createElement('link');
 			clone.rel = 'stylesheet';
 			clone.href = href;
 			clone.setAttribute('data-ogygia-region-css', '');
-			pending.push(until_loaded(clone));
+			pending.push(until_settled(sheet_of(clone)));
 			existing.set(href, clone);
 			runtime_session.claim_page_head(clone);
 			document.head.appendChild(clone);
