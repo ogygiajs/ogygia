@@ -111,8 +111,8 @@ export interface Scope {
 	adopt<D extends Disposable | AsyncDisposable>(disposable: D): D;
 	/**
 	 * Closes it: its children, then its signal, then what it holds and its cleanups (newest first).
-	 * Safe to call twice. Throws what the cleanups threw (an AggregateError for more than one), once
-	 * all have run. An async disposal that fails is reported, as it has nobody to throw to: use
+	 * Safe to call twice. Throws what the cleanups (or the releases of what it holds) threw (an
+	 * AggregateError for more than one), once all have run. An async disposal that fails is reported, as it has nobody to throw to: use
 	 * `await using` (or `[Symbol.asyncDispose]()`) to wait for them and get their errors.
 	 */
 	close(): void;
@@ -329,9 +329,18 @@ class Scoped implements Scope {
 			}
 		}
 		this._abort?.abort();
+		// (a release that throws, an `off` of a target that is gone, is one more error: the others
+		// and the cleanups still run)
 		const held = this._held;
 		this._held = null;
-		if (held !== null) for (const release of held) release();
+		if (held !== null)
+			for (const release of held) {
+				try {
+					release();
+				} catch (error) {
+					(errors ??= []).push(error);
+				}
+			}
 		const defers = this._defers;
 		this._defers = null;
 		if (defers !== null) {
