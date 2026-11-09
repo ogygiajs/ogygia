@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { outbox, policy, type Policy } from '../src/index.ts';
-import { backoff_after } from '../src/policy.ts';
+import { outbox, policy, STALE, type Policy } from '../src/index.ts';
+import { backoff_after, under_policy } from '../src/policy.ts';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -140,6 +140,31 @@ describe('put', () => {
 		expect(give_up).toHaveBeenCalledOnce();
 	});
 
+	it('an id that is not a string or a finite number names nothing: not sent, said, false (#350)', async () => {
+		const give_up = vi.fn();
+		const send = vi.fn(() => wait(10));
+		const box = outbox<{ id?: unknown }>({
+			send,
+			id: (x) => x.id as string,
+			giveUp: give_up
+		});
+		// (each would have joined the first one's send while it was out)
+		const puts = [box.put({}), box.put({}), box.put({ id: NaN }), box.put({ id: Infinity })];
+		const good = box.put({ id: 'a' });
+		expect(await Promise.all(puts)).toEqual([false, false, false, false]);
+		expect(await good).toBe(true);
+		expect(send).toHaveBeenCalledOnce();
+		expect(give_up).toHaveBeenCalledTimes(4);
+		expect(String(give_up.mock.calls[0][1])).toContain('machine_bad_option');
+	});
+
+	it('ids 1 and "1" are two sends', async () => {
+		const send = vi.fn(() => wait(5));
+		const box = outbox<{ id: string | number }>({ send, id: (x) => x.id });
+		await Promise.all([box.put({ id: 1 }), box.put({ id: '1' }), box.put({ id: 1 })]);
+		expect(send).toHaveBeenCalledTimes(2);
+	});
+
 	it('a giveUp that throws is printed with the code', async () => {
 		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 		const box = outbox({
@@ -172,6 +197,22 @@ describe('waitUntil', () => {
 		expect(applied).toBe(false);
 		await kept[0];
 		expect(applied).toBe(true);
+	});
+
+	it('puts that join one send each hand it over, and each settles when that one send ends', async () => {
+		const kept: Promise<unknown>[] = [];
+		const send = vi.fn(() => wait(20));
+		const box = outbox({
+			send,
+			id: (n: { id: string }) => n.id,
+			retry: quick(),
+			waitUntil: (work) => kept.push(work)
+		});
+		const first = box.put({ id: 'x' });
+		const joined = box.put({ id: 'x' });
+		expect(kept).toEqual([first, joined]);
+		expect(await Promise.all(kept)).toEqual([true, true]);
+		expect(send).toHaveBeenCalledOnce();
 	});
 
 	it('a platform that refuses it does not stop the send, and put does not throw', async () => {
@@ -250,6 +291,25 @@ describe('id', () => {
 });
 
 describe('inOrder', () => {
+	it('a put of an id still queued joins it: one send, in its place in line', async () => {
+		const seen: string[] = [];
+		const box = outbox<{ id: string; v: number }>({
+			send: async (x) => {
+				seen.push(`${x.id}${x.v}`);
+				await wait(10);
+			},
+			id: (x) => x.id,
+			retry: quick(),
+			inOrder: true
+		});
+		const a = box.put({ id: 'a', v: 1 }); // (out)
+		const b = box.put({ id: 'b', v: 1 }); // (queued behind a)
+		const b_again = box.put({ id: 'b', v: 2 }); // (joins the queued b: the first put is the one sent)
+		const c = box.put({ id: 'c', v: 1 });
+		expect(await Promise.all([a, b, b_again, c])).toEqual([true, true, true, true]);
+		expect(seen).toEqual(['a1', 'b1', 'c1']);
+	});
+
 	it('one send at a time, in put order, a failing one tried again before the next goes', async () => {
 		const seen: string[] = [];
 		let first_fails = true;
@@ -373,6 +433,42 @@ describe('policy', () => {
 		expect(backoff_after(p, 1, 0)).toBe(1000);
 		expect(backoff_after(p, 1, 1)).toBe(500);
 		expect(backoff_after(p, 1, 0.5)).toBe(750);
+	});
+
+	it('a wait is always a number of 0 to the timer limit: before the first try, and after very many (#359)', () => {
+		const list = policy({ backoff: [200, 1000], jitter: 0 });
+		const doubling = policy({ backoff: 100, jitter: 0 });
+		const none = policy({ backoff: 0, jitter: 0 });
+		// (a count from 0: the first wait, as for 1)
+		expect(backoff_after(list, 0)).toBe(200);
+		expect(backoff_after(doubling, 0)).toBe(100);
+		// (2^5000 is Infinity: capped, and 0 stays 0, never 0 * Infinity)
+		expect(backoff_after(doubling, 5000)).toBe(2_147_483_647);
+		expect(backoff_after(none, 5000)).toBe(0);
+		// jitter 1 can cut a wait to nothing, never below
+		expect(backoff_after(policy({ backoff: [1000], jitter: 1 }), 1, 1)).toBe(0);
+	});
+
+	it('out of time before the next wait ends is a TimeoutError with the last error in it (#359)', async () => {
+		const p = quick({ attempts: 5, backoff: 500, deadline: 100 });
+		const error = await under_policy(p, () => Promise.reject(new Error('down'))).catch((e) => e);
+		expect((error as DOMException).name).toBe('TimeoutError');
+		expect((error as DOMException).message).toContain('down');
+	});
+
+	it('the caller leaving and the deadline in the same turn: whichever came first says how it ended', async () => {
+		const p = quick({ attempts: 1, deadline: 20 });
+		const never = () => new Promise<never>(() => {});
+		// the caller's abort first (its timer was set before the deadline's)
+		const first = new AbortController();
+		setTimeout(() => first.abort(), 20);
+		await expect(under_policy(p, never, first.signal)).resolves.toBe(STALE);
+		// the deadline first (the caller's timer set after it, for the same moment)
+		const second = new AbortController();
+		const out = under_policy(p, never, second.signal);
+		setTimeout(() => second.abort(), 20);
+		const error = await out.catch((e) => e);
+		expect((error as DOMException).name).toBe('TimeoutError');
 	});
 
 	it('the outbox refuses a send that is not a function', () => {

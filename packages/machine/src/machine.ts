@@ -252,16 +252,18 @@ function reach_of(def: Def, from: string): Set<string> {
 	let reach = def.reach;
 	if (reach === null) {
 		reach = def.reach = new Map();
-		for (const start in def.steps) {
+		// (over the linked states, as a move walks them: a step naming no state, which a production
+		// build keeps, leads nowhere)
+		for (const start of def.nodes.values()) {
 			const seen = new Set<string>();
-			const queue = [...def.steps[start]];
+			const queue = [...start.next];
 			while (queue.length > 0) {
-				const kind = queue.pop() as string;
-				if (seen.has(kind)) continue;
-				seen.add(kind);
-				for (const next of def.steps[kind]) if (!seen.has(next)) queue.push(next);
+				const node = queue.pop() as Node;
+				if (seen.has(node.kind)) continue;
+				seen.add(node.kind);
+				for (const next of node.next) if (!seen.has(next.kind)) queue.push(next);
 			}
-			reach.set(start, seen);
+			reach.set(start.kind, seen);
 		}
 	}
 	return reach.get(from) as Set<string>;
@@ -506,14 +508,14 @@ function define(config: {
 	if (initial === undefined)
 		throw machine_error('machine_unknown_state', { name, state: config.initial, where: 'initial' });
 	const def: Def = { name, initial, steps: Object.freeze(steps), nodes, reach: null };
-	if (DEV) check(def);
 	// link each state to the states it steps to (a production build skips a name that is not a
-	// state, which dev refused above: the move to it is then refused like any other)
+	// state, which dev refuses below: the move to it is then refused like any other)
 	for (const node of nodes.values())
 		for (const to of steps[node.kind]) {
 			const target = nodes.get(to);
 			if (target !== undefined && !node.next.includes(target)) node.next.push(target);
 		}
+	if (DEV) check(def);
 	// each state's own timeout: refused in every build when it is not one of the state's steps, or
 	// its time is not a time (a timer set from a bad definition would fire a move nobody allowed)
 	for (const [kind, timeout] of Object.entries(config.after ?? {})) {
@@ -573,13 +575,14 @@ function paths_of(def: Def): string[][] {
 	const queue = [def.initial.kind];
 	while (queue.length > 0) {
 		const kind = queue.shift() as string;
-		for (const to of def.steps[kind])
+		for (const { kind: to } of (def.nodes.get(kind) as Node).next)
 			if (!way.has(to)) {
 				way.set(to, [...(way.get(kind) as string[]), to]);
 				queue.push(to);
 			}
 	}
 	const out: string[][] = [];
-	for (const [kind, path] of way) for (const to of def.steps[kind]) out.push([...path, to]);
+	for (const [kind, path] of way)
+		for (const { kind: to } of (def.nodes.get(kind) as Node).next) out.push([...path, to]);
 	return out;
 }

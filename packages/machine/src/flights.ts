@@ -25,13 +25,14 @@
  *   so work that reads a field its key leaves out does not compile, unless `ignore` names that field
  *   with the reason (the input of the call that started the flight is then the one that runs).
  *   `peek` and `drop` name a keyed flights' keys by those fields too (`peek({ href })`). The fields
- *   are spelled into one string one way everywhere: a string by its text, an object by identity.
+ *   are spelled into one string one way everywhere: a string by its text, an object by identity
+ *   (a field left out and one set to `undefined` are one key; `1` and `'1'` are two).
  * - A failure (after the tries its `retry` policy gives, inside the one flight) fails every caller
  *   that joined it, and is never kept: the next `get` starts a new flight. A failing key costs one
  *   round of tries per wave of callers, not one per caller.
  * - `keep` is how long an answer stays (ms: a number, or made from the answer; 0 keeps nothing,
  *   the default keeps it for as long as the flights lives). `max` caps the total `weigh` of what is
- *   kept: the least recently used go first.
+ *   kept: past it, the expired go first, then the least recently used.
  * - `drop` takes kept answers out and ends the flights in progress: their signal aborts, every
  *   caller that joined them gets `STALE`, and nothing they answer is kept.
  * - A caller may bring a `signal`: when it aborts, that caller alone gets `STALE` at once, and the
@@ -71,7 +72,7 @@ interface FlightsCommon<R, V, W> {
 	 *  `Infinity`. */
 	max?: number;
 	/** An answer's weight against `max` (bytes, say). Default 1: `max` then counts answers. An
-	 *  answer heavier than `max` is not kept. */
+	 *  answer heavier than `max`, or with a weight below 0 or not a number, is not kept. */
 	weigh?: (answer: Awaited<V>, input: R) => number;
 	/** How a failed run is tried again, inside one flight, before it fails (`policy()`): its tries,
 	 *  the waits between them (none when 0: the next try runs at once) and its deadline. Default:
@@ -186,10 +187,24 @@ function attempt<I, V>(
 	return under_policy(retry, (s) => run(input, s), signal);
 }
 
-/** Ids for the objects (and symbols) a key holds: a key field compares by identity. */
-const object_ids = new WeakMap<object, number>();
-const symbol_ids = new Map<symbol, number>();
+/** Ids for the objects (and symbols) a key holds: a key field compares by identity. Held weakly:
+ *  an object or a symbol made per request is freed once nothing else holds it. */
+const weak_ids = new WeakMap<WeakKey, number>();
+/** A runtime that cannot hold a symbol weakly (no symbols as WeakMap keys) holds them here. */
+let symbol_ids: Map<symbol, number> | null = null;
 let next_id = 0;
+
+function id_of(v: object | symbol): number {
+	let id = weak_ids.get(v as WeakKey) ?? symbol_ids?.get(v as symbol);
+	if (id !== undefined) return id;
+	id = next_id++;
+	try {
+		weak_ids.set(v as WeakKey, id);
+	} catch {
+		(symbol_ids ??= new Map()).set(v as symbol, id);
+	}
+	return id;
+}
 
 /** One field of a key, spelled so that two different values never spell one string: a string is
  *  its length, then itself; any other value its kind, then itself, then `;`. */
@@ -206,17 +221,13 @@ function key_part(v: unknown): string {
 		case 'undefined':
 			return 'u;';
 		case 'symbol': {
-			let id = symbol_ids.get(v);
-			if (id === undefined) symbol_ids.set(v, (id = next_id++));
-			return 'y' + id + ';';
+			// a registered symbol is one per name for good (`Symbol.for`): spelled by its name
+			const name = Symbol.keyFor(v);
+			if (name !== undefined) return 'Y' + name.length + ':' + name;
+			return 'y' + id_of(v) + ';';
 		}
-		default: {
-			if (v === null) return 'z;';
-			const o = v as object;
-			let id = object_ids.get(o);
-			if (id === undefined) object_ids.set(o, (id = next_id++));
-			return 'o' + id + ';';
-		}
+		default:
+			return v === null ? 'z;' : 'o' + id_of(v as object) + ';';
 	}
 }
 
@@ -306,7 +317,8 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		this._world = o.world;
 		this._touches = o.touches as ((answer: V) => Iterable<unknown>) | undefined;
 		if (o.world !== undefined) {
-			const unwatch = watch_world(o.world, (keys) => this._moved(keys));
+			// (heard for itself, held weakly: a flights nobody holds is collected, its world forgets it)
+			const unwatch = watch_world(o.world, this, heard_move);
 			if (unwatch === null) throw bad_option('world', typeof o.world, 'a world from world()');
 			this._unwatch = unwatch;
 		}
@@ -422,7 +434,15 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 	_fly(key: unknown, m: Entry | undefined, input: I, prior: Kept | null): [Entry, Flight] {
 		if (this._expires) this._sweep(Date.now());
 		const stamp = this._world === undefined ? 0 : this._world.stamp();
-		const flight: Flight = { shared: STALE_NOW, holders: 0, pinned: false, stamp };
+		// the shared answer is there before the run starts: a run that gets its own key (before it
+		// returns) joins this flight (#354)
+		let resolve!: (answer: unknown) => void;
+		let reject!: (error: unknown) => void;
+		const shared = new Promise<unknown>((res, rej) => {
+			resolve = res;
+			reject = rej;
+		});
+		const flight: Flight = { shared, holders: 0, pinned: false, stamp };
 		let entry: Entry;
 		if (m !== undefined && this._entries.get(key) === m) {
 			entry = m;
@@ -441,33 +461,48 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		const visit = entry.now;
 		const run = this._run;
 		const retry = this._retry;
-		const work = entry.scope.task((signal) => attempt(run, input, signal, retry));
-		flight.shared = work.then(
-			(answer) => {
-				if (answer === STALE || entry.now !== visit) return STALE;
-				let current: boolean;
-				try {
-					current = this._current(flight, answer as V);
-				} catch (error) {
-					this._back(key, entry, prior);
-					throw error;
-				}
-				// its world moved while it was out: made from facts that are gone, so no caller has it
-				if (!current) {
-					this._back(key, entry, prior);
-					return STALE;
-				}
-				this._land(key, entry, input, answer as V, prior, flight.shared);
-				return answer;
-			},
-			(error: unknown) => {
-				if (entry.now !== visit) return STALE;
+		const landed = (answer: unknown): unknown => {
+			if (answer === STALE || entry.now !== visit) return STALE;
+			let current: boolean;
+			try {
+				current = this._current(flight, answer as V);
+			} catch (error) {
 				this._back(key, entry, prior);
 				throw error;
 			}
-		);
+			// its world moved while it was out: made from facts that are gone, so no caller has it
+			if (!current) {
+				this._back(key, entry, prior);
+				return STALE;
+			}
+			this._land(key, entry, input, answer as V, prior, shared);
+			return answer;
+		};
+		const failed = (error: unknown): unknown => {
+			if (entry.now !== visit) return STALE;
+			this._back(key, entry, prior);
+			throw error;
+		};
 		// (the callers handle its failure; this one is the flights' own, so it is never unhandled)
-		flight.shared.then(undefined, noop);
+		shared.then(undefined, noop);
+		entry.scope
+			.task((signal) => attempt(run, input, signal, retry))
+			.then(
+				(answer) => {
+					try {
+						resolve(landed(answer));
+					} catch (error) {
+						reject(error);
+					}
+				},
+				(error: unknown) => {
+					try {
+						resolve(failed(error));
+					} catch (thrown) {
+						reject(thrown);
+					}
+				}
+			);
 		return [entry, flight];
 	}
 
@@ -489,7 +524,8 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 			this._back(key, m, prior);
 			throw error;
 		}
-		if (!(ms > 0) || !(weight <= this._max)) return this._back(key, m, prior);
+		// (a weight below 0, or not a number, would lower the total and let `max` cap nothing)
+		if (!(ms > 0) || !(weight >= 0 && weight <= this._max)) return this._back(key, m, prior);
 		const at = Date.now();
 		this._weight += weight - (prior?.weight ?? 0);
 		m.go('kept', { answer, at, until: ms === Infinity ? Infinity : at + ms, weight, promise });
@@ -562,11 +598,22 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 	}
 
 	_evict(): void {
+		if (this._weight <= this._max) return;
+		// the expired go first: no caller gets them any more, so no live answer goes for them
+		if (this._expires) this._sweep(Date.now());
 		for (const [key, m] of this._entries) {
 			if (this._weight <= this._max) return;
 			if (m.now.kind === 'kept') this._remove(key, m);
 		}
 	}
+}
+
+/** A flights hears its world move (a function of its own: it holds no flights). */
+function heard_move(
+	f: { _moved(keys: ReadonlySet<unknown> | null): void },
+	keys: ReadonlySet<unknown> | null
+): void {
+	f._moved(keys);
 }
 
 /** Makes a keyed flights over input `I` (`flights<I>()({ key, ignore?, run, … })`). */

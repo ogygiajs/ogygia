@@ -111,8 +111,8 @@ export interface Scope {
 	adopt<D extends Disposable | AsyncDisposable>(disposable: D): D;
 	/**
 	 * Closes it: its children, then its signal, then what it holds and its cleanups (newest first).
-	 * Safe to call twice. Throws what the cleanups threw (an AggregateError for more than one), once
-	 * all have run. An async disposal that fails is reported, as it has nobody to throw to: use
+	 * Safe to call twice. Throws what the cleanups (or the releases of what it holds) threw (an
+	 * AggregateError for more than one), once all have run. An async disposal that fails is reported, as it has nobody to throw to: use
 	 * `await using` (or `[Symbol.asyncDispose]()`) to wait for them and get their errors.
 	 */
 	close(): void;
@@ -162,6 +162,8 @@ class Scoped implements Scope {
 	/** Async disposals started by close, and whether a caller waits for them. */
 	_settling: Promise<unknown>[] | null = null;
 	_awaited = false;
+	/** Its close is running (a cleanup that adopts goes with the close's own disposals). */
+	_closing = false;
 
 	constructor(parent: Scoped | null, machine: string | null) {
 		this._parent = parent;
@@ -207,14 +209,24 @@ class Scoped implements Scope {
 		if (this._closed) return noop;
 		if ('addEventListener' in target) {
 			const t = target as unknown as EventTarget;
-			const fn = listener as unknown as EventListener;
+			const heard = listener as unknown as EventListener;
+			// a once listener that fired is gone from the target: it lets go of itself, as a fired
+			// timer does, so a long-lived scope does not pile them up
+			let release: () => void = noop;
+			const fn: EventListener =
+				typeof options === 'object' && options.once === true
+					? function (this: EventTarget, event) {
+							release();
+							heard.call(this, event);
+						}
+					: heard;
 			t.addEventListener(type, fn, options);
 			// (removed by its capture alone, as an object: Node's EventTarget does not match a bare
 			// `true` on removal, and would keep a capture listener)
 			const capture = {
 				capture: typeof options === 'boolean' ? options : options?.capture === true
 			};
-			return this._hold(() => t.removeEventListener(type, fn, capture));
+			return (release = this._hold(() => t.removeEventListener(type, fn, capture)));
 		}
 		const e = target as unknown as {
 			on(type: string, fn: unknown): unknown;
@@ -268,6 +280,12 @@ class Scoped implements Scope {
 		} catch (error) {
 			out = Promise.reject(error);
 		}
+		// (work that closed its own scope before it returned, by moving its machine on: the abort
+		// came before anyone could listen for it)
+		if (this._closed) {
+			Promise.resolve(out).then(noop, noop);
+			return Promise.resolve(STALE);
+		}
 		return new Promise((resolve, reject) => {
 			// settles the moment the scope closes, even when `work` ignores its signal and never does
 			const on_close = () => resolve(STALE);
@@ -301,18 +319,27 @@ class Scoped implements Scope {
 	adopt<D extends Disposable | AsyncDisposable>(disposable: D): D {
 		const d = disposable as Partial<Disposable & AsyncDisposable>;
 		if (typeof d[DISPOSE] === 'function') this.defer(() => (d[DISPOSE] as () => void).call(d));
-		else if (typeof d[ASYNC_DISPOSE] === 'function')
-			this.defer(() => {
-				const done = Promise.resolve((d[ASYNC_DISPOSE] as () => Promise<void>).call(d));
-				(this._settling ??= []).push(done);
-			});
-		else throw machine_error('machine_not_disposable', { value: typeof disposable });
+		else if (typeof d[ASYNC_DISPOSE] === 'function') {
+			const dispose = () => Promise.resolve((d[ASYNC_DISPOSE] as () => Promise<void>).call(d));
+			// closed already (late work): its close has looked at its disposals, so this one is said
+			// here. One adopted by a cleanup of its own close still goes with the close's own.
+			if (this._closed && !this._closing) this._said(dispose());
+			else this.defer(() => void (this._settling ??= []).push(dispose()));
+		} else throw machine_error('machine_not_disposable', { value: typeof disposable });
 		return disposable;
+	}
+
+	/** An async disposal nobody waits for: its failure is said with the code. */
+	_said(done: Promise<unknown>): void {
+		done.then(undefined, (error: unknown) =>
+			report('machine_dispose_failed', { owner: this._label }, error)
+		);
 	}
 
 	close(): void {
 		if (this._closed) return;
 		this._closed = true;
+		this._closing = true;
 		this._parent?._children?.delete(this);
 		this._parent = null;
 		let errors: unknown[] | null = null;
@@ -329,9 +356,18 @@ class Scoped implements Scope {
 			}
 		}
 		this._abort?.abort();
+		// (a release that throws, an `off` of a target that is gone, is one more error: the others
+		// and the cleanups still run)
 		const held = this._held;
 		this._held = null;
-		if (held !== null) for (const release of held) release();
+		if (held !== null)
+			for (const release of held) {
+				try {
+					release();
+				} catch (error) {
+					(errors ??= []).push(error);
+				}
+			}
 		const defers = this._defers;
 		this._defers = null;
 		if (defers !== null) {
@@ -343,11 +379,9 @@ class Scoped implements Scope {
 				}
 			}
 		}
+		this._closing = false;
 		if (this._settling !== null && !this._awaited)
-			for (const done of this._settling)
-				done.then(undefined, (error: unknown) =>
-					report('machine_dispose_failed', { owner: this._label }, error)
-				);
+			for (const done of this._settling) this._said(done);
 		if (errors !== null)
 			throw errors.length === 1
 				? errors[0]

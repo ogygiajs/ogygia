@@ -158,6 +158,11 @@ describe('after: a state that ends on its own', () => {
 		await vi.advanceTimersByTimeAsync(10);
 		expect(m.now.kind).toBe('a');
 		expect(error).toHaveBeenCalledOnce();
+		// this visit has no timeout left: it does not try again, and a move by hand still works
+		expect(vi.getTimerCount()).toBe(0);
+		await vi.advanceTimersByTimeAsync(1_000);
+		expect(error).toHaveBeenCalledOnce();
+		expect(m.go('b', { n: 1 })).toBe(true);
 	});
 
 	it('a cleanup that throws during the timed step is reported, and the step is still taken', async () => {

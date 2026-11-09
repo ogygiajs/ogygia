@@ -11,7 +11,7 @@
  * machine's `retrying` state) reads its waits from one (`backoff_after`).
  */
 import { machine_error } from './messages.ts';
-import { MAX_TIMEOUT_MS, scope } from './scope.ts';
+import { MAX_TIMEOUT_MS, scope, type Scope } from './scope.ts';
 import { STALE, type Stale } from './stale.ts';
 
 export interface Policy {
@@ -76,10 +76,14 @@ const STANDARD: Policy = Object.freeze({
 export const policy: { (p?: Partial<Policy>): Policy; readonly standard: Policy } =
 	/* @__PURE__ */ Object.assign(make_policy, { standard: STANDARD });
 
-/** The wait before try `n + 1`, once try `n` (1 for the first) failed. `random` is 0 to 1. */
+/** The wait before try `n + 1`, once try `n` (1 for the first; 0 counts as 1) failed: a number of
+ *  0 to the timer limit, however many tries. `random` is 0 to 1. */
 export function backoff_after(p: Policy, n: number, random: number = Math.random()): number {
 	const b = p.backoff;
-	const base = typeof b === 'number' ? b * 2 ** (n - 1) : b[Math.min(n, b.length) - 1];
+	const tries = Math.max(1, n);
+	// (0 doubles to 0 forever: never 0 * 2^n, which is NaN once 2^n is Infinity)
+	const base =
+		typeof b === 'number' ? (b === 0 ? 0 : b * 2 ** (tries - 1)) : b[Math.min(tries, b.length) - 1];
 	return Math.min(MAX_TIMEOUT_MS, Math.round(base * (1 - p.jitter * random)));
 }
 
@@ -90,6 +94,16 @@ export function out_of_time(deadline: number, error: unknown): DOMException {
 			(error === undefined ? '' : ` (last: ${String(error)})`),
 		'TimeoutError'
 	);
+}
+
+/**
+ * A timer of the tries that keeps a Node process alive, unlike a scope's own: the work between two
+ * tries is still work out, as a try in flight is (whose socket holds the process). Without it a
+ * process with nothing else to do exits in the wait, and the send is neither done nor given up.
+ */
+function alive(tries: Scope, fn: () => void, ms: number): void {
+	const timer = setTimeout(fn, ms);
+	tries.defer(() => clearTimeout(timer));
 }
 
 /**
@@ -109,7 +123,7 @@ export async function under_policy<T>(
 	let left = false;
 	if (signal !== undefined) tries.on(signal, 'abort', () => ((left = true), tries.close()));
 	const started = p.deadline === Infinity ? 0 : Date.now();
-	if (p.deadline !== Infinity) tries.timeout(() => tries.close(), p.deadline);
+	if (p.deadline !== Infinity) alive(tries, () => tries.close(), p.deadline);
 	let error: unknown = undefined;
 	try {
 		for (let n = 1; ; n++) {
@@ -123,10 +137,11 @@ export async function under_policy<T>(
 			if (tries.closed) throw out_of_time(p.deadline, error);
 			if (n >= p.attempts) throw error;
 			const wait = backoff_after(p, n);
-			// (a wait that ends past the deadline is a try that would only be aborted)
-			if (p.deadline !== Infinity && Date.now() - started + wait >= p.deadline) throw error;
+			// (a wait that ends past the deadline is a try that would only be aborted: out of time)
+			if (p.deadline !== Infinity && Date.now() - started + wait >= p.deadline)
+				throw out_of_time(p.deadline, error);
 			if (wait > 0) {
-				await tries.task(() => new Promise<void>((r) => tries.timeout(r, wait)));
+				await tries.task(() => new Promise<void>((r) => alive(tries, r, wait)));
 				if (left) return STALE;
 				if (tries.closed) throw out_of_time(p.deadline, error);
 			}

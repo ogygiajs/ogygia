@@ -30,8 +30,18 @@
 /** The most keys a keyed world remembers moves for; an older key's move folds into the floor. */
 export const KEYS_KEPT = 4096;
 
-/** Hears each move of a world: the keys it moved, or `null` when the whole world did. */
-type Watcher<K> = (keys: ReadonlySet<K> | null) => void;
+/** Hears each move of a world for `owner`: the keys it moved, or `null` when the whole world did. */
+type Hear<K, O> = (owner: O, keys: ReadonlySet<K> | null) => void;
+
+/** One who hears a world, held weakly: a world outlives what is made in it (a flights per request
+ *  on a module's world), and must not keep it. */
+type Watcher<K> = { owner: WeakRef<object>; hear: Hear<K, object> };
+
+/** Takes a watcher out of its world once its owner is collected. */
+const forget = /* @__PURE__ */ new FinalizationRegistry<{
+	watchers: Set<Watcher<never>>;
+	watcher: Watcher<never>;
+}>(({ watchers, watcher }) => watchers.delete(watcher));
 
 export interface World<K = never> {
 	/** The world now: what data made now is stamped with. */
@@ -69,7 +79,7 @@ class Stamped<K> implements World<K> {
 		if (keys === undefined) {
 			this._floor = ++this._at;
 			this._moved.clear();
-			for (const watcher of this._watchers) watcher(null);
+			this._tell(null);
 			return;
 		}
 		const moved = new Set(keys);
@@ -86,17 +96,42 @@ class Stamped<K> implements World<K> {
 			this._floor = last;
 			map.delete(key);
 		}
-		for (const watcher of this._watchers) watcher(moved);
+		this._tell(moved);
+	}
+
+	/** Tells each watcher whose owner is still here of a move. */
+	_tell(keys: ReadonlySet<K> | null): void {
+		for (const watcher of this._watchers) {
+			const owner = watcher.owner.deref();
+			if (owner === undefined) this._watchers.delete(watcher);
+			else watcher.hear(owner, keys);
+		}
 	}
 }
 
-/** Hears each move of `w` until the returned function is called: what the package's own primitives
- *  use (flights drops what a move touches). `null`: not a world `world()` made, so not heard. */
-export function watch_world<K>(w: World<K>, watcher: Watcher<K>): (() => void) | null {
+/** Hears each move of `w` for `owner` until the returned function is called, or until `owner` is
+ *  collected (the world holds it weakly; `hear` must not hold it either): what the package's own
+ *  primitives use (flights drops what a move touches). `null`: not a world `world()` made, so not
+ *  heard. */
+export function watch_world<K, O extends object>(
+	w: World<K>,
+	owner: O,
+	hear: Hear<K, O>
+): (() => void) | null {
 	if (!(w instanceof Stamped)) return null;
 	const watchers = (w as Stamped<K>)._watchers;
+	const watcher: Watcher<K> = { owner: new WeakRef(owner), hear: hear as Hear<K, object> };
 	watchers.add(watcher);
-	return () => watchers.delete(watcher);
+	const token = {};
+	forget.register(
+		owner,
+		{ watchers: watchers as Set<Watcher<never>>, watcher: watcher as Watcher<never> },
+		token
+	);
+	return () => {
+		watchers.delete(watcher);
+		forget.unregister(token);
+	};
 }
 
 /** A world of one stamp (see the module's comment); `world.keyed()` makes one moved per key. */

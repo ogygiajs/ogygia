@@ -85,6 +85,28 @@ describe('close', () => {
 		}
 	});
 
+	it('a release that throws does not stop the other releases or the cleanups (#346)', async () => {
+		const s = scope();
+		const bad = emitter();
+		bad.off = () => {
+			throw new Error('off');
+		};
+		const good = new EventTarget();
+		const heard = vi.fn();
+		const ticks = vi.fn();
+		const cleanup = vi.fn();
+		s.on(bad, 'x', () => {});
+		s.on(good, 'x', heard);
+		s.every(ticks, 1);
+		s.defer(cleanup);
+		expect(() => s.close()).toThrow('off');
+		good.dispatchEvent(new Event('x'));
+		await wait(10);
+		expect(heard).not.toHaveBeenCalled();
+		expect(ticks).not.toHaveBeenCalled();
+		expect(cleanup).toHaveBeenCalledOnce();
+	});
+
 	it('works with `using`', () => {
 		const cleanup = vi.fn();
 		{
@@ -131,6 +153,32 @@ describe('children', () => {
 		const cleanup = vi.fn();
 		child.defer(cleanup);
 		expect(cleanup).toHaveBeenCalledOnce();
+	});
+
+	it('a cleanup that gives the closing scope more work gets the closed behaviour', async () => {
+		const s = scope();
+		const target = new EventTarget();
+		const heard = vi.fn();
+		const work = vi.fn(() => 'ran');
+		const late = vi.fn();
+		let child!: ReturnType<typeof scope>;
+		let task!: Promise<unknown>;
+		s.defer(() => {
+			child = s.child();
+			task = s.task(work);
+			s.on(target, 'ping', heard);
+			s.timeout(late, 0);
+			s.defer(late);
+		});
+		s.close();
+		expect(child.closed).toBe(true);
+		expect(await task).toBe(STALE);
+		expect(work).not.toHaveBeenCalled();
+		target.dispatchEvent(new Event('ping'));
+		expect(heard).not.toHaveBeenCalled();
+		expect(late).toHaveBeenCalledOnce(); // (the defer, at once; the timer never set)
+		await wait(5);
+		expect(late).toHaveBeenCalledOnce();
 	});
 
 	it('what a child throws is thrown by the parent’s close, after its own cleanups ran', () => {
@@ -211,6 +259,25 @@ describe('on', () => {
 		expect(once).toHaveBeenCalledOnce();
 		expect(early).toHaveBeenCalledOnce();
 		s.close();
+	});
+
+	it('a once listener that fired lets go of itself: a long-lived scope does not pile them up (#348)', () => {
+		const target = new EventTarget();
+		const s = scope();
+		const heard = vi.fn();
+		for (let i = 0; i < 50; i++) {
+			s.on(target, 'ping', heard, { once: true });
+			target.dispatchEvent(new Event('ping'));
+		}
+		expect(heard).toHaveBeenCalledTimes(50);
+		const held = (s as unknown as { _held: Set<unknown> | null })._held;
+		expect(held?.size ?? 0).toBe(0);
+		// (one that has not fired yet is still held, and goes with the scope)
+		const late = vi.fn();
+		s.on(target, 'ping', late, { once: true });
+		s.close();
+		target.dispatchEvent(new Event('ping'));
+		expect(late).not.toHaveBeenCalled();
 	});
 
 	it('listens on a Node-style emitter (on / off)', () => {
@@ -407,6 +474,41 @@ describe('watch and adopt', () => {
 		s.adopt(d);
 		expect(d[Symbol.dispose]).toHaveBeenCalledOnce();
 	});
+
+	it('an async disposal adopted by a closed scope runs at once, is said when it fails, and is not kept (#347)', async () => {
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const unhandled = vi.fn();
+		const on_node = typeof process !== 'undefined' && typeof process.on === 'function';
+		if (on_node) process.on('unhandledRejection', unhandled);
+		else window.addEventListener('unhandledrejection', unhandled);
+		try {
+			const s = scope();
+			s.close();
+			// (a stopped machine's scope is the one closed scope every stopped machine shares)
+			const m = machine<{ on: {} }>()({ name: 'gone', initial: 'on', steps: { on: [] } }).create();
+			m.stop();
+			const shared = m.scope as unknown as { _settling: unknown[] | null };
+			const before = shared._settling?.length ?? 0;
+			const failing = () => ({
+				[Symbol.asyncDispose]: vi.fn(() => Promise.reject(new Error('late')))
+			});
+			const a = failing();
+			const b = failing();
+			s.adopt(a);
+			m.scope.adopt(b);
+			expect(a[Symbol.asyncDispose]).toHaveBeenCalledOnce();
+			expect(b[Symbol.asyncDispose]).toHaveBeenCalledOnce();
+			await wait(20);
+			expect(unhandled).not.toHaveBeenCalled();
+			expect(error).toHaveBeenCalledTimes(2);
+			expect(String(error.mock.calls[0][0])).toContain('machine_dispose_failed');
+			expect(shared._settling?.length ?? 0).toBe(before);
+		} finally {
+			if (on_node) process.off('unhandledRejection', unhandled);
+			else window.removeEventListener('unhandledrejection', unhandled);
+			error.mockRestore();
+		}
+	});
 });
 
 describe('task', () => {
@@ -423,6 +525,25 @@ describe('task', () => {
 		s.close();
 		expect(signal.aborted).toBe(true);
 		await expect(out).resolves.toBe(STALE);
+	});
+
+	it('work that closes its own scope before it returns still settles with STALE (#349)', async () => {
+		const s = scope();
+		const out = s.task(() => {
+			s.close();
+			return new Promise<string>(() => {}); // (ignores its signal: never settles)
+		});
+		const hang = new Promise((r) => setTimeout(() => r('hangs'), 50));
+		await expect(Promise.race([out, hang])).resolves.toBe(STALE);
+
+		// a machine's visit: the work moves the machine out of the state it runs in
+		const m = machine<{ a: {}; b: {} }>()({
+			name: 'self',
+			initial: 'a',
+			steps: { a: ['b'], b: [] }
+		}).create();
+		const moved = m.scope.task(() => (m.go('b'), new Promise<never>(() => {})));
+		await expect(Promise.race([moved, hang])).resolves.toBe(STALE);
 	});
 
 	it('an answer or a failure after the scope closed is STALE', async () => {

@@ -169,8 +169,16 @@
 			"reason": "the retry loop wiring (a timer, a caller signal, the try under a scope): timing work; proven in packages/machine/test/flights.test.ts and packages/machine/test/outbox.test.ts"
 		},
 		{
-			"id": "packages/machine/src/policy.ts > under_policy > timeout:0~10b94e",
-			"reason": "the retry loop wiring (a timer, a caller signal, the try under a scope): timing work; proven in packages/machine/test/flights.test.ts and packages/machine/test/outbox.test.ts"
+			"id": "packages/machine/src/policy.ts > under_policy > alive:1~10b94e",
+			"reason": "the retry loop wiring (a timer that keeps the process alive, for the deadline): timing work; proven in packages/machine/test/outbox.test.ts and packages/machine/test/process.node.test.ts"
+		},
+		{
+			"id": "packages/machine/src/scope.ts > Scoped > on > fn",
+			"reason": "a once listener firing: lets go of itself and calls the listener with the event (a DOM Event, not replayable), constant work; proven in packages/machine/test/scope.test.ts"
+		},
+		{
+			"id": "packages/machine/src/world.ts > FinalizationRegistry:0~d08e61",
+			"reason": "runs when the garbage collector frees a flights: one Set delete, never on a timeline a bench can drive; proven in packages/machine/test/process.node.test.ts"
 		},
 		{
 			"id": "packages/tooling/src/e2e/index.ts > extend:0~aecd13 > page",
@@ -869,19 +877,23 @@
 			"reason": "runs once at module load: makes the one closed mailbox, constant work"
 		},
 		{
-			"id": "packages/core/src/runtime/mailbox.ts > Box > _start > then:1~409c47",
-			"reason": "a handler that rejected: ends its turn and throws the failure on, constant work; proven in packages/core/test/mailbox.test.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/mailbox.ts > Box > get closed",
 			"reason": "a constant field read; proven in packages/core/test/mailbox.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/mailbox.ts > Box > wait > Promise:0~0d2dcd > then:1~4ff304",
+			"id": "packages/core/src/runtime/mailbox.ts > Held > get closed",
+			"reason": "a constant field read through the turn to its box; proven in packages/core/test/mailbox.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/mailbox.ts > Box > _back_in",
+			"reason": "a handler given its turn back takes in its other waits: a walk of the queue of one element (its own events, a handful), its jobs hold closures (not cloneable); proven in packages/core/test/mailbox.test.ts and packages/core/test/browser/mailbox.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/mailbox.ts > Box > _wait > Promise:0~7eabb8 > then:1~4ff304",
 			"reason": "a wait whose work rejected: comes back in its turn to throw it there, constant work; proven in packages/core/test/mailbox.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/mailbox.ts > Box > wait > Promise:0~0d2dcd > then:1~4ff304 > back:0~aaf251",
+			"id": "packages/core/src/runtime/mailbox.ts > Box > _wait > Promise:0~7eabb8 > then:1~4ff304 > back:0~aaf251",
 			"reason": "the same, as it gets its turn back, constant work; proven in packages/core/test/mailbox.test.ts"
 		},
 		{

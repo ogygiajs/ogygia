@@ -68,4 +68,27 @@ describe('production', () => {
 		const m = light.create();
 		await expect((m.wait as (k: string) => Promise<unknown>)('nope')).resolves.toBe(STALE);
 	});
+
+	it('a step to a state that does not exist is skipped by wait() and paths() too, not a throw (#358)', async () => {
+		const { STALE } = await import('../src/index.ts');
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		// (`zz`: a misspelled step dev refuses; production keeps the definition)
+		const loose = machine<{ a: {}; b: {}; c: {} }>()({
+			name: 'misspelled',
+			initial: 'a',
+			steps: { a: ['b'], b: ['zz' as 'c', 'c'], c: [] }
+		});
+		const m = loose.create();
+		const reached = m.wait('c');
+		m.go('b');
+		const never = m.wait('a'); // (no step leads back to a)
+		expect((m.go as (to: string) => boolean)('zz')).toBe(false);
+		m.go('c');
+		await expect(reached).resolves.toEqual({ kind: 'c' });
+		await expect(never).resolves.toBe(STALE);
+		expect(loose.paths()).toEqual([
+			['a', 'b'],
+			['a', 'b', 'c']
+		]);
+	});
 });

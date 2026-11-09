@@ -177,6 +177,131 @@ describe('mailbox', () => {
 		expect(seen).toEqual(['next']);
 	});
 
+	it('a handler waiting on two things at once lets one event in, not two at once (#341)', async () => {
+		const box = mailbox(scope());
+		let on = 0;
+		let most = 0;
+		const busy = async () => {
+			most = Math.max(most, ++on);
+			await later(null, 20);
+			on--;
+		};
+		const a = box.ask(async (turn) => {
+			box.post(busy);
+			box.post(busy);
+			await Promise.all([turn.wait(later(1, 5)), turn.wait(later(2, 5))]);
+			// (back in its turn: nothing else of the element runs beside it)
+			most = Math.max(most, ++on);
+			on--;
+		});
+		await a;
+		await later(null, 60);
+		expect(most).toBe(1);
+	});
+
+	it('a wait from outside any turn ends nobody’s turn (#341)', async () => {
+		const box = mailbox(scope());
+		const seen: string[] = [];
+		let open!: () => void;
+		const gate = new Promise<void>((r) => (open = r));
+		const a = box.ask(async () => {
+			seen.push('a holds');
+			await gate; // (a plain await: a keeps its turn)
+			seen.push('a ends');
+		});
+		box.post(() => seen.push('b'));
+		// (a callback that outlived its turn, or a caller with the box: not the one holding it)
+		const outside = box.wait(later('x'));
+		expect(seen).toEqual(['a holds']);
+		expect(await outside).toBe('x');
+		expect(seen).toEqual(['a holds']);
+		open();
+		await a;
+		await Promise.resolve();
+		expect(seen).toEqual(['a holds', 'a ends', 'b']);
+	});
+
+	it('a wait from a handler whose turn already ended ends nobody’s turn (#341)', async () => {
+		const box = mailbox(scope());
+		const seen: string[] = [];
+		let late!: Turn;
+		box.post((turn) => {
+			late = turn; // (kept past its turn: a timer of the handler, say)
+		});
+		let open!: () => void;
+		const gate = new Promise<void>((r) => (open = r));
+		const b = box.ask(async () => {
+			seen.push('b holds');
+			await gate;
+			seen.push('b ends');
+		});
+		box.post(() => seen.push('c'));
+		expect(await late.wait(later('x'))).toBe('x');
+		expect(seen).toEqual(['b holds']);
+		open();
+		await b;
+		await Promise.resolve();
+		expect(seen).toEqual(['b holds', 'b ends', 'c']);
+	});
+
+	it('runs a long run of sync events queued in one turn, on a flat stack (#342)', () => {
+		const box = mailbox(scope());
+		let n = 0;
+		box.post(() => {
+			for (let i = 0; i < 50_000; i++) box.post(() => n++);
+		});
+		expect(n).toBe(50_000);
+		// (and the box is idle after: the next one runs at once)
+		box.post(() => n++);
+		expect(n).toBe(50_001);
+	});
+
+	it('work that settles after the box closed changes nothing: the box stays closed and idle', async () => {
+		const life = scope();
+		const box = mailbox(life);
+		let done!: () => void;
+		let failed!: (e: unknown) => void;
+		const waits: Promise<unknown>[] = [];
+		box.post((turn) => void waits.push(turn.wait(new Promise<void>((r) => (done = r)))));
+		box.post((turn) => void waits.push(turn.wait(new Promise<void>((_, r) => (failed = r)))));
+		life.close();
+		done();
+		failed(new Error('late'));
+		expect(await Promise.all(waits)).toEqual([STALE, STALE]);
+		const seen: string[] = [];
+		box.post(() => seen.push('after'));
+		expect(seen).toEqual([]);
+		expect(await box.ask(() => 'never')).toBe(STALE);
+	});
+
+	it('a handler that never settles holds the box until its owner closes', async () => {
+		const life = scope();
+		const box = mailbox(life);
+		box.post(() => new Promise<never>(() => {}));
+		const next = vi.fn(() => 'ran');
+		const asked = box.ask(next);
+		await later(null, 10);
+		expect(next).not.toHaveBeenCalled(); // (by design: a turn ends when its handler waits or ends)
+		life.close();
+		expect(await asked).toBe(STALE);
+		expect(next).not.toHaveBeenCalled();
+	});
+
+	it('an ask whose handler waits, then sees its element leave: STALE for the asker too', async () => {
+		const life = scope();
+		const box = mailbox(life);
+		const after = vi.fn();
+		const asked = box.ask(async (turn) => {
+			const v = await turn.wait(new Promise<never>(() => {}));
+			if (v === STALE) return STALE;
+			after();
+			return 'on';
+		});
+		life.close();
+		expect(await asked).toBe(STALE);
+		expect(after).not.toHaveBeenCalled();
+	});
+
 	it('is closed for an owner already closed', async () => {
 		const life = scope();
 		life.close();

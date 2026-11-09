@@ -71,6 +71,27 @@ describe('a world', () => {
 		expect(w.fresh(mid, [-1])).toBe(true);
 		expect(w.fresh(mid, [0])).toBe(false);
 	});
+
+	it('one move of more than KEYS_KEPT keys folds into the floor: out of date for every key, never fresh by mistake', () => {
+		const w = world.keyed<number>();
+		const before = w.stamp();
+		const many = Array.from({ length: KEYS_KEPT + 500 }, (_, i) => i);
+		w.bump(many);
+		const moved = (w as unknown as { _moved: Map<number, number> })._moved;
+		expect(moved.size).toBeLessThanOrEqual(KEYS_KEPT);
+		for (const key of [0, KEYS_KEPT + 499, -1]) expect(w.fresh(before, [key])).toBe(false);
+		const after = w.stamp();
+		for (const key of [0, KEYS_KEPT + 499, -1]) expect(w.fresh(after, [key])).toBe(true);
+	});
+
+	it('a stamp from the future is never fresh', () => {
+		const w = world();
+		expect(w.fresh(w.stamp() + 1)).toBe(false);
+		const keyed = world.keyed<string>();
+		keyed.bump(['a']);
+		expect(keyed.fresh(keyed.stamp() + 1, ['b'])).toBe(false);
+		expect(keyed.fresh(keyed.stamp() + 1)).toBe(false);
+	});
 });
 
 describe('flights in a world', () => {
