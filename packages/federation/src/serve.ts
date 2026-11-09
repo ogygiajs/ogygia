@@ -7,12 +7,14 @@
  * handle owns all of it, so a `federate()` in hooks.server.ts is the whole wiring.
  */
 import { version } from '$app/env';
+import { machine } from '@ogygia/machine';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { ServerApp } from '@ogygia/core/plugin';
 import { current_federation } from './registry.ts';
 import { begin_source_capture, broadcast_thaw } from './federate.ts';
 import { set_hole_signer } from './hole.ts';
 import { fed_app } from './app.ts';
+import { warn } from './messages.ts';
 import {
 	verify_signed_request,
 	attach_claims,
@@ -63,17 +65,83 @@ export function install_federation(app: ServerApp): void {
 // broadcasts a thaw-all so every consumer drops the stored pages that baked its now-stale assets.
 // A store plugin keeps the last build it saw (the shared `lastBuild` hook; on a shared store only a
 // changed `version` fires). No store plugin: nothing remembers a build, nothing fires.
-let deploy_checked = false;
-async function maybe_deploy_thaw(fed: Federation): Promise<void> {
-	if (deploy_checked || fed.deploy !== 'auto') return;
-	deploy_checked = true;
-	if (!fed.expose && fed.widgets.size === 0) return; // only producers matter
+//
+// Its lifecycle, one machine: not checked yet (or a check to try again, with the time a request may,
+// and the thaw OWED, if one was found due: its notice and the peers that have not taken it),
+// checking (requests meanwhile join it), done. The store answers once, at the first check: the
+// instance that sees the new build first moves the marker, and it alone owes the thaw from then on,
+// so the other instances of the app never thaw the peers again. An owed thaw goes again, under the
+// same id, only to the peers that missed it, for DEPLOY_THAW_ROUNDS checks; then a warning names
+// who never took it (their stored pages keep the old build until their TTL). It once flipped to done
+// before the work and was never tried again: one store blip at the first request after a deploy, and
+// consumers kept pages with stale asset hashes until TTL (#198).
+/** A thaw found due: its notice id, the peers that have not taken it, and the rounds sent so far. */
+type Owed = { id: string; peers: ReadonlySet<string>; rounds: number };
+
+const deploy_thaw = machine<{
+	unchecked: { after: number; owed: Owed | null };
+	checking: { run: Promise<void> };
+	done: {};
+}>()({
+	name: 'deploy thaw',
+	initial: 'unchecked',
+	steps: { unchecked: ['checking'], checking: ['done', 'unchecked'], done: [] }
+});
+
+/** A check to try again is tried by a request at least this long after the last. */
+const DEPLOY_RETRY_MS = 30_000;
+/** How many rounds an owed thaw is sent to the peers that missed it before it is given up. */
+export const DEPLOY_THAW_ROUNDS = 10;
+
+let deploy = deploy_thaw.create({ after: 0, owed: null });
+
+/** Tests: forget the deploy thaw's state (a fresh boot). */
+export function reset_deploy_thaw_for_tests(): void {
+	deploy = deploy_thaw.create({ after: 0, owed: null });
+}
+
+/** The deploy check for this request: start it, join the one running, or nothing (done, or one to
+ *  try again that is not due yet). */
+export function deploy_thaw_check(fed: Federation): Promise<void> {
+	if (fed.deploy !== 'auto') return Promise.resolve();
+	const s = deploy.now;
+	if (s.kind === 'checking') return s.run;
+	if (s.kind === 'done' || Date.now() < s.after) return Promise.resolve();
+	const run = check_deploy(fed, s.owed).then(checked);
+	deploy.move('unchecked', 'checking', { run });
+	return run;
+}
+
+/** What a check leaves: done, or a check to try again (with the thaw still owed, if one is). */
+type Checked = { done: true } | { done: false; owed: Owed | null };
+
+/** A check ended: done, or tried again by a request after DEPLOY_RETRY_MS. */
+function checked(c: Checked): void {
+	if (c.done) deploy.move('checking', 'done');
+	else deploy.move('checking', 'unchecked', { after: Date.now() + DEPLOY_RETRY_MS, owed: c.owed });
+}
+
+/** One check (it never throws). `owed`: the thaw an earlier check found due, still owed. */
+async function check_deploy(fed: Federation, owed: Owed | null): Promise<Checked> {
+	if (!fed.expose && fed.widgets.size === 0) return { done: true }; // only producers matter
+	const app = fed_app();
+	if (!app) return { done: true };
 	try {
-		const seen = await fed_app()?.ask.lastBuild(version);
-		if (seen !== undefined && seen !== version)
-			await broadcast_thaw(fed, { id: crypto.randomUUID(), hop: 0, tags: 'all' });
+		if (!owed) {
+			// (throws when the store cannot answer: a check to try again, not "no store")
+			const seen = await app.ask.lastBuild(version);
+			if (seen === undefined || seen === version) return { done: true };
+			owed = { id: crypto.randomUUID(), peers: new Set(fed.peers.keys()), rounds: 0 };
+		}
+		const missed = await broadcast_thaw(fed, { id: owed.id, hop: 0, tags: 'all' }, owed.peers);
+		if (missed.size === 0) return { done: true };
+		const rounds = owed.rounds + 1;
+		if (rounds < DEPLOY_THAW_ROUNDS)
+			return { done: false, owed: { id: owed.id, peers: missed, rounds } };
+		warn('federation_deploy_thaw_undelivered', { peers: [...missed].join(', '), rounds });
+		return { done: true };
 	} catch {
-		/* store unavailable — deploy-thaw is best-effort, the TTL backstop still holds */
+		return { done: false, owed };
 	}
 }
 
@@ -85,7 +153,7 @@ export async function serve_federation(event: RequestEvent): Promise<Response | 
 	const path = url.pathname;
 
 	if (path.endsWith(FRAGMENT_ROUTES_PATH)) {
-		void maybe_deploy_thaw(fed);
+		void deploy_thaw_check(fed);
 		return serve_expose(fed, event);
 	}
 	if (path.endsWith(HOLE_PATH)) return serve_hole(fed, event);
@@ -95,7 +163,7 @@ export async function serve_federation(event: RequestEvent): Promise<Response | 
 	if (frag_at !== -1) {
 		const name = path.slice(frag_at + FRAGMENT_BASE.length);
 		if (name && !name.includes('/')) {
-			void maybe_deploy_thaw(fed);
+			void deploy_thaw_check(fed);
 			return serve_widget(fed, event, name);
 		}
 	}
