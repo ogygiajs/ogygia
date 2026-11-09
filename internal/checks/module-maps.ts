@@ -8,6 +8,9 @@
 //     line or the line before). The check proves the "never grown": a `.set` / `.add` / `.push` /
 //     `.unshift` / `.splice` on it, or a write to an index of it, anywhere in the module, is an error.
 //
+// Both are `const`: a module-level `let` holding a collection is growth (it is reassigned:
+// `x = [...x, o]`, `x = new Map(x)`, `x ||= …`), marked or not.
+//
 // One owned by a scope does not live at module level: it is made inside its owner (the scope's
 // function, the class), which this check does not flag. A comment claiming ownership is no pass.
 // A mark with no reason does not count. `WeakMap` / `WeakSet` hold nothing alive and pass. Parsed
@@ -36,7 +39,7 @@ export type Finding = {
 	line: number;
 	name: string;
 	/** What it is: an unowned Map / Set / growing array, or a static table the module grows. */
-	kind: 'Map' | 'Set' | 'array' | 'static-grown';
+	kind: 'Map' | 'Set' | 'array' | 'static-grown' | 'let';
 	fix: string;
 };
 
@@ -47,6 +50,17 @@ const FIX =
 const FIX_GROWN =
 	"a '// static:' table is never grown after its initializer: make it a cache(), or move it into " +
 	'its owner';
+
+const FIX_LET =
+	'a module-level let holding a collection grows by reassignment (x = [...x, o], new Map(x), ' +
+	"x.concat(...)): make it a const cache(), move it into its owner, or, for a fixed table, a const '// static: <why>'";
+
+/** A module-level initializer that holds a collection: an array literal, or a new Map / Set. */
+function is_collection(init: Node | null | undefined): boolean {
+	if (!init) return false;
+	if (init.type === 'ArrayExpression') return true;
+	return grows(init) !== null;
+}
 
 /** A `// static: <reason>` mark with a reason. */
 const MARK_RE = /^\s*static:\s*\S/;
@@ -145,11 +159,16 @@ export function find_unowned(file: string, source: string): Finding[] {
 		if (s.type === 'ExportNamedDeclaration' && s.declaration) s = s.declaration as Node;
 		if (s.type !== 'VariableDeclaration') continue;
 		for (const d of s.declarations as Node[]) {
-			const kind = grows(d.init as Node | null);
-			if (kind === null) continue;
 			const line = line_of(d.start);
 			const id = d.id as Node;
 			const name = id.type === 'Identifier' ? String(id.name) : '(pattern)';
+			// a let is reassigned: a collection in one grows, marked or not (a static table is const)
+			if (s.kind === 'let' && is_collection(d.init as Node | null)) {
+				out.push({ file, line, name, kind: 'let', fix: FIX_LET });
+				continue;
+			}
+			const kind = grows(d.init as Node | null);
+			if (kind === null) continue;
 			if (marked.has(line) || marked.has(line - 1) || marked.has(line_of(s.start) - 1)) {
 				statics.add(name);
 				continue;
