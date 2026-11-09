@@ -25,40 +25,24 @@ export type MarkAttrs = Record<string, string | number | boolean>;
 
 // THE PAGE'S BEACON, not a copy of it: importing runtime/beacon here bundled the whole beacon into
 // every island that marks (11.8 KB of its own on top of the runtime's copy, which the island then
-// handed its marks to anyway). The runtime's beacon puts itself on this global as it loads; a mark
-// made before it is there waits for it (a few seconds at most), and a page without one drops it.
+// handed its marks to anyway). The runtime's beacon puts itself on this global as it loads. A mark
+// made before it is there waits on a second global (`ogygia.beacon.waiting`, 400 at most), which the
+// beacon takes as it loads, however late: no timer, no giving up. A page without a beacon keeps
+// them there, unread.
 const BEACON_KEY = Symbol.for('ogygia.beacon');
+const WAITING_KEY = Symbol.for('ogygia.beacon.waiting');
 type MarkArgs = [name: string, ms: number, attrs: MarkAttrs | undefined, t0: number];
-const page_beacon = (): { beacon_mark: (...a: MarkArgs) => void } | undefined =>
-	(globalThis as Record<symbol, { beacon_mark: (...a: MarkArgs) => void } | undefined>)[BEACON_KEY];
-const waiting: MarkArgs[] = [];
-let retrying = false;
+type PageGlobals = {
+	[BEACON_KEY]?: { beacon_mark: (...a: MarkArgs) => void };
+	[WAITING_KEY]?: MarkArgs[];
+};
 function beacon_mark(...args: MarkArgs): void {
 	if (typeof document === 'undefined') return;
-	const b = page_beacon();
-	if (b) {
-		for (const w of waiting.splice(0)) b.beacon_mark(...w);
-		b.beacon_mark(...args);
-		return;
-	}
+	const g = globalThis as PageGlobals;
+	const b = g[BEACON_KEY];
+	if (b) return b.beacon_mark(...args);
+	const waiting = (g[WAITING_KEY] ??= []);
 	if (waiting.length < 400) waiting.push(args);
-	if (retrying) return;
-	retrying = true;
-	let tries = 0;
-	const retry = () => {
-		const later = page_beacon();
-		if (later) {
-			retrying = false;
-			for (const w of waiting.splice(0)) later.beacon_mark(...w);
-			// oxlint-disable-next-line ogygia/owned-effects -- the document's one wait for its beacon (`retrying`), at most 40 tries: it ends itself, and the marks it holds are the document's
-		} else if (++tries < 40) setTimeout(retry, 250);
-		else {
-			retrying = false;
-			waiting.length = 0;
-		}
-	};
-	// oxlint-disable-next-line ogygia/owned-effects -- the first try of the document's one wait for its beacon (see above)
-	setTimeout(retry, 250);
 }
 
 const now = () =>
