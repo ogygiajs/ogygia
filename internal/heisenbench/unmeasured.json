@@ -57,6 +57,10 @@
 			"reason": "reads one header off a Response (not cloneable), constant work"
 		},
 		{
+			"id": "packages/devtools/src/devtools/page.ts > install_page_hook > addEventListener:1~7a7038",
+			"reason": "browser only: the document's pageshow handler (a back-forward cache restore) clears one flag, constant work; proven by packages/devtools/e2e/devtools.spec.ts in WebKit (#408)"
+		},
+		{
 			"id": "packages/devtools/src/devtools/page.ts > flights:0~93c4d1 > run",
 			"reason": "fetches the dev server's pre-bundle metadata (network IO, not recorded); its names are prebundled_names', measured on its own; proven in packages/devtools/test/devtools-page-asks.test.ts"
 		},
