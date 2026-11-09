@@ -601,6 +601,10 @@
 			"reason": "browser only: the current entry's pathname and search, constant work; proven in apps/palaestra/e2e/router-history.spec.ts and router-race.spec.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/router.ts > named",
+			"reason": "browser only: history.state with the entry id merged in, one spread of the app's state, constant work; proven in packages/core/test/browser/router-history-state.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/router.ts > RouterHistory > get current",
 			"reason": "browser only: the current entry, made from location on first read, constant work; proven in apps/palaestra/e2e/router-history.spec.ts"
 		},
@@ -1695,6 +1699,10 @@
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #sink_post",
 			"reason": "one fetch to the sink and its answer (network, not recorded), constant work; proven in packages/devtools/test/profiler.test.ts (the sink tests)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #sink_flush > then:0~ef057c",
+			"reason": "a sink post ended: clears the post out and asks for the next one when rows waited, constant work (the profiler instance does not replay); proven in packages/devtools/test/profiler.test.ts (the sink tests)"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > outbox:0~f383a4 > giveUp",
