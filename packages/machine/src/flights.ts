@@ -51,7 +51,7 @@
  * its place) is what aborts the work and turns its answer into STALE. `observe()` hears every
  * flight's moves, under the flights' `name`.
  */
-import { cache, type Cache, type EvictWhy } from './cache.ts';
+import { cache, IN_USE, type Cache, type EvictWhy, type InternalCacheOptions } from './cache.ts';
 import { machine, type Machine } from './machine.ts';
 import { machine_error } from './messages.ts';
 import { under_policy, type Policy } from './policy.ts';
@@ -320,7 +320,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		// (one try with no deadline needs no policy: the run is the flight's work as it is)
 		this._retry =
 			retry === null || (retry.attempts <= 1 && retry.deadline === Infinity) ? null : retry;
-		this._kept = cache<unknown, Entry>({
+		const kept: InternalCacheOptions<unknown, Entry> = {
 			name: o.name ?? 'flights',
 			max,
 			weigh: (m) => held_of(m)?.weight ?? 0,
@@ -328,10 +328,11 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 				const k = held_of(m);
 				return k === null || k.until === Infinity ? Infinity : k.until - Date.now();
 			},
-			on_evict: (key, m, why) => this._let_go(key, m, why),
+			onEvict: (key, m, why) => this._let_go(key, m, why),
 			// (an answer kept beside a refresh still out stays until the refresh lands)
-			in_use: (m) => m.now.kind === 'flying'
-		});
+			[IN_USE]: (m) => m.now.kind === 'flying'
+		};
+		this._kept = cache<unknown, Entry>(kept);
 		this._world = o.world;
 		this._touches = o.touches as ((answer: V) => Iterable<unknown>) | undefined;
 		if (o.world !== undefined) {

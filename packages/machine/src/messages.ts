@@ -178,9 +178,9 @@ export const MACHINE_ERRORS: MachineErrors = {
 		text: (a: { name: string; why: string }): string =>
 			`${a.name}: an eviction notice (${a.why}) threw.`,
 		details: (): string =>
-			"A `cache()`'s `on_evict` threw while it heard a value leave. The value had already left: " +
+			"A `cache()`'s `onEvict` threw while it heard a value leave. The value had already left: " +
 			'the cache goes on, and the notices after it still run. Its error follows this message. ' +
-			'Catch inside `on_evict` when a cleanup can fail.'
+			'Catch inside `onEvict` when a cleanup can fail.'
 	}
 };
 

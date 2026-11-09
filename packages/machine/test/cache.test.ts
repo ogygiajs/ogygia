@@ -1,13 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cache, MachineError, scope, world, type EvictWhy } from '../src/index.ts';
+import { IN_USE, type InternalCacheOptions } from '../src/cache.ts';
 import { DISPOSE } from './_dispose.ts';
 
 /** A cache's notices, as `key:value:why`. */
 function noted() {
 	const seen: string[] = [];
-	const on_evict = (key: unknown, value: unknown, why: EvictWhy) =>
+	const onEvict = (key: unknown, value: unknown, why: EvictWhy) =>
 		seen.push(`${String(key)}:${String(value)}:${why}`);
-	return { seen, on_evict };
+	return { seen, onEvict };
 }
 
 afterEach(() => {
@@ -27,7 +28,7 @@ describe('cache: bounded', () => {
 
 	it('past max, the least recently used goes first, and a get is a use', () => {
 		const n = noted();
-		const c = cache<string, number>({ max: 2, on_evict: n.on_evict });
+		const c = cache<string, number>({ max: 2, onEvict: n.onEvict });
 		c.set('a', 1);
 		c.set('b', 2);
 		expect(c.get('a')).toBe(1); // a is used: b is now the oldest
@@ -51,7 +52,7 @@ describe('cache: bounded', () => {
 
 	it('weigh counts against max: as many go as it takes, oldest first', () => {
 		const n = noted();
-		const c = cache<string, string>({ max: 10, weigh: (v) => v.length, on_evict: n.on_evict });
+		const c = cache<string, string>({ max: 10, weigh: (v) => v.length, onEvict: n.onEvict });
 		c.set('a', 'xxxx');
 		c.set('b', 'xxxx');
 		expect(c.weight).toBe(8);
@@ -64,11 +65,13 @@ describe('cache: bounded', () => {
 	it('a value in use counts against max but does not go for size: the next oldest goes', () => {
 		const n = noted();
 		const busy = new Set(['a']);
-		const c = cache<string, number>({
+		// (the package's own option: flights passes it, the public shape does not have it)
+		const options: InternalCacheOptions<string, number> = {
 			max: 2,
-			in_use: (_v, k) => busy.has(k),
-			on_evict: n.on_evict
-		});
+			[IN_USE]: (_v, k) => busy.has(k),
+			onEvict: n.onEvict
+		};
+		const c = cache<string, number>(options);
 		c.set('a', 1);
 		c.set('b', 2);
 		c.set('c', 3);
@@ -93,7 +96,7 @@ describe('cache: ages', () => {
 	it('keep is how long a value stays; one past its age is gone, noticed as age', () => {
 		vi.useFakeTimers();
 		const n = noted();
-		const c = cache<string, number>({ max: 10, keep: 1000, on_evict: n.on_evict });
+		const c = cache<string, number>({ max: 10, keep: 1000, onEvict: n.onEvict });
 		c.set('a', 1);
 		vi.advanceTimersByTime(999);
 		expect(c.get('a')).toBe(1);
@@ -128,7 +131,7 @@ describe('cache: ages', () => {
 		const c = cache<string, number>({
 			max: 2,
 			keep: (v) => (v === 1 ? 100 : Infinity),
-			on_evict: n.on_evict
+			onEvict: n.onEvict
 		});
 		c.set('old', 1);
 		c.set('b', 2);
@@ -142,7 +145,7 @@ describe('cache: ages', () => {
 describe('cache: the eviction notice', () => {
 	it('a delete and a replace are noticed as delete; a clear notices each, oldest first', () => {
 		const n = noted();
-		const c = cache<string, number>({ max: 10, on_evict: n.on_evict });
+		const c = cache<string, number>({ max: 10, onEvict: n.onEvict });
 		c.set('a', 1);
 		c.set('b', 2);
 		c.set('a', 3);
@@ -159,7 +162,7 @@ describe('cache: the eviction notice', () => {
 		const c = cache<string, number>({
 			name: 'thrower',
 			max: 1,
-			on_evict: () => {
+			onEvict: () => {
 				throw new Error('cleanup broke');
 			}
 		});
@@ -175,8 +178,8 @@ describe('cache: the eviction notice', () => {
 		const n = noted();
 		const c: ReturnType<typeof cache<string, number>> = cache<string, number>({
 			max: 2,
-			on_evict: (key, value, why) => {
-				n.on_evict(key, value, why);
+			onEvict: (key, value, why) => {
+				n.onEvict(key, value, why);
 				if (key === 'a') c.set('a2', 10); // put back under a new key: evicts the oldest again
 				if (key === 'b') c.delete('c');
 			}
@@ -193,7 +196,7 @@ describe('cache: owned', () => {
 	it('its owner ending ends it: every value noticed as end, oldest first, and nothing kept after', () => {
 		const n = noted();
 		const owner = scope();
-		const c = cache<string, number>({ max: 10, owner, on_evict: n.on_evict });
+		const c = cache<string, number>({ max: 10, owner, onEvict: n.onEvict });
 		c.set('a', 1);
 		c.set('b', 2);
 		owner.close();
@@ -206,7 +209,7 @@ describe('cache: owned', () => {
 	it('with no owner it ends when disposed (a scope can adopt it)', () => {
 		const n = noted();
 		const owner = scope();
-		const c = owner.adopt(cache<string, number>({ max: 10, on_evict: n.on_evict }));
+		const c = owner.adopt(cache<string, number>({ max: 10, onEvict: n.onEvict }));
 		c.set('a', 1);
 		owner.close();
 		expect(n.seen).toEqual(['a:1:end']);

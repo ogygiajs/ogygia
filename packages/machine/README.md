@@ -179,7 +179,7 @@ const pages = cache<string, Page>({
 	weigh: (page) => page.html.length * 2, // default 1: `max` then counts values
 	keep: 60_000, // ms a value stays (or made from the value and key)
 	owner: request, // a scope: its end ends the cache
-	on_evict: (href, page, why) => page.stream?.cancel() // 'age' | 'size' | 'delete' | 'end'
+	onEvict: (href, page, why) => page.stream?.cancel() // 'age' | 'size' | 'delete' | 'end'
 });
 pages.set('/docs', page);
 pages.get('/docs'); // a use: the least recently used go first past `max`
@@ -189,8 +189,7 @@ pages.get('/docs'); // a use: the least recently used go first past `max`
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `max` / `weigh(value, key)`             | The most total weight it keeps. Past it, the expired go first, then the least recently used.                  |
 | `keep`                                  | How long a value stays, ms (or made from the value and key). `0` keeps nothing. Default `Infinity`.           |
-| `on_evict(key, value, why)`             | Hears each value that leaves, after it left, in order: `'age'`, `'size'`, `'delete'` (or replaced), `'end'`.  |
-| `in_use(value, key)`                    | A value in use counts against `max` but does not go for size.                                                 |
+| `onEvict(key, value, why)`              | Hears each value that leaves, after it left, in order: `'age'`, `'size'`, `'delete'` (or replaced), `'end'`.  |
 | `owner`                                 | The scope it lives in. Its end ends the cache, and every value is heard `'end'`.                              |
 | `world`                                 | Values carry the stamp they were made at (`set(key, value, { stamp })`): an older one never replaces a newer. |
 | `get` / `peek`                          | The value: `get` is a use, `peek` is not.                                                                     |

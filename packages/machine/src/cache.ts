@@ -6,7 +6,7 @@
  *     weigh: (html) => html.length,            // default 1: max then counts values
  *     keep: 60_000,                            // ms a value stays (or made from the value and key)
  *     owner: request,                          // a scope: its end ends the cache
- *     on_evict: (href, html, why) => {}        // 'age' | 'size' | 'delete' | 'end'
+ *     onEvict: (href, html, why) => {}         // 'age' | 'size' | 'delete' | 'end'
  *   });
  *   pages.set('/docs', html);
  *   pages.get('/docs'); // a use: the least recently used go first past max
@@ -17,7 +17,7 @@
  *   more) is not kept: `set` says `false`, and what the key held stays.
  * - `keep`: how long a value stays, in ms (default `Infinity`; 0 keeps nothing). The ages are kept
  *   by one timer of the cache's own scope, for the value due first.
- * - `on_evict(key, value, why)` hears every value that goes, after the cache let it go, in the order
+ * - `onEvict(key, value, why)` hears every value that goes, after the cache let it go, in the order
  *   they went: 'age' (past its keep), 'size' (past max), 'delete' (`delete`, `clear`, or a `set`
  *   that replaced it), 'end' (the owner ended, or the cache was disposed). A notice that throws is
  *   reported (`machine_evict_failed`) and the others still run. A `set` or `delete` inside a notice
@@ -46,10 +46,7 @@ export interface CacheOptions<K, V> {
 	 *  Default `Infinity`. */
 	keep?: number | ((value: V, key: K) => number);
 	/** Hears each value that leaves, after it left (see the module's comment). */
-	on_evict?: (key: K, value: V, why: EvictWhy) => void;
-	/** A value in use now: it counts against `max`, but does not go for size (the next least
-	 *  recently used goes instead). A flights' answer kept beside a refresh still out is one. */
-	in_use?: (value: V, key: K) => boolean;
+	onEvict?: (key: K, value: V, why: EvictWhy) => void;
 	/** The scope it lives in: when it ends, the cache ends, and every value is noticed 'end'. */
 	owner?: Scope;
 	/** The world its values are made in: a value made before the one a key holds never replaces it. */
@@ -87,6 +84,18 @@ export interface Cache<K, V> {
 
 type Held<V> = { value: V; weight: number; until: number; stamp: number };
 
+/**
+ * The package's own option, not the public shape: a value in use now counts against `max` but does
+ * not go for size (the next least recently used goes instead). A flights' answer kept beside a
+ * refresh still out is one. Not exported from the package.
+ */
+export const IN_USE: unique symbol = Symbol('ogygia.cache.in_use');
+
+/** The options the package itself may pass (./flights.ts). */
+export type InternalCacheOptions<K, V> = CacheOptions<K, V> & {
+	[IN_USE]?: (value: V, key: K) => boolean;
+};
+
 class Store<K, V> implements Cache<K, V> {
 	_name: string;
 	_max: number;
@@ -118,8 +127,8 @@ class Store<K, V> implements Cache<K, V> {
 		this._max = max;
 		this._weigh = o.weigh;
 		this._keep = keep;
-		this._on_evict = o.on_evict;
-		this._in_use = o.in_use;
+		this._on_evict = o.onEvict;
+		this._in_use = (o as InternalCacheOptions<K, V>)[IN_USE];
 		this._world = o.world as World<unknown> | undefined;
 		this._scope = o.owner === undefined ? scope() : o.owner.child();
 		this._scope.defer(() => this._end());

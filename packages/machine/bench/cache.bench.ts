@@ -42,7 +42,7 @@ bench(
 	'cache: evict with a notice per value (a clear)',
 	({ c }) => {
 		let heard = 0;
-		const noticed = cache<string, number>({ max: Infinity, on_evict: () => void heard++ });
+		const noticed = cache<string, number>({ max: Infinity, onEvict: () => void heard++ });
 		for (const [k, v] of c.entries()) noticed.set(k, v);
 		noticed.clear();
 		return heard;
