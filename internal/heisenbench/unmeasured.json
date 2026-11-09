@@ -1,6 +1,34 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/runtime/entry-locations.ts > recover_location > task:0~d0bd46",
+			"reason": "one rollover wait on the recovery's own scope timer (seconds, a deploy's rollover only), constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/entry-locations.ts > recover_location > task:0~d0bd46 > Promise:0~1ca359",
+			"reason": "one rollover wait on the recovery's own scope timer (seconds, a deploy's rollover only), constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-nav.ts > gather",
+			"reason": "the holes of one task sorted into batches: a DOM read and the frame store (not recorded), linear in the holes that joined; run by packages/core/test/browser/hole-batch.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > schedule_evict > timeout:0~981b61",
+			"reason": "an idle entry's linger ending on a real timer (not replayable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/testing-engine.ts > settle_poll",
+			"reason": "polls the page's event snapshot until it is quiet (a live page, not recorded); linear in the snapshot's events per step"
+		},
+		{
+			"id": "packages/devtools/src/devtools/testing-engine.ts > settle_poll > task:0~f49529",
+			"reason": "one 50 ms poll step on the settle's own scope timer, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/testing-engine.ts > settle_poll > task:0~f49529 > Promise:0~3d75bd",
+			"reason": "one 50 ms poll step on the settle's own scope timer, constant work"
+		},
+		{
 			"id": "packages/content/src/markdown/shiki.ts > normalize_shiki > named",
 			"reason": "names an unnamed theme object for Shiki: a spread of a theme object, constant work; proven in packages/content/test/shiki-highlighters.test.ts"
 		},
