@@ -137,7 +137,7 @@
 			"reason": "the fallback store getter when the store module failed to load: a constant undefined"
 		},
 		{
-			"id": "packages/core/src/runtime/wire-classes.ts > load > flights:0 > run",
+			"id": "packages/core/src/runtime/wire-classes.ts > flights:0",
 			"reason": "browser only: yields a task, then the dynamic import of a transportable class's chunk; its download, failure and retry are proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
 		{
@@ -565,12 +565,88 @@
 			"reason": "browser only: a dynamic import() of an island's file through its loader; proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts (#261)"
 		},
 		{
-			"id": "packages/core/src/runtime/import-again.ts > import_file > catch:0~66e4c1",
-			"reason": "browser only: the island file's immediate retry after a dropped download (reads resource timing); proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts (#261)"
+			"id": "packages/core/src/runtime/import-again.ts > flights:0",
+			"reason": "browser only: an island file's one load at a time (the dynamic import() of its URL, and the immediate retry under a fresh URL after a dropped download); proven in packages/core/test/browser/import-file-one-retry.test.ts (#271) and apps/palaestra/e2e/lazy-chunk-retry.spec.ts (#261)"
 		},
 		{
-			"id": "packages/core/src/runtime/import-again.ts > import_file > import_again:0~16418e",
-			"reason": "browser only: the dynamic import() of an island's file URL; import_again itself runs in packages/core/bench/runtime.bench.ts with a stand-in"
+			"id": "packages/core/src/runtime/entry-locations.ts > flights:0",
+			"reason": "browser only: the reads of this build's location map and the current build's ogygia.json (fetch), kept once read; proven in packages/core/test/browser/entry-location-map.test.ts and entry-location-rollover.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-page-thread.svelte.ts > flights:0",
+			"reason": "browser only: the wait for Kit to apply its page (a global accessor and a Svelte effect root), once per wait; proven in packages/core/test/browser/kit-page-thread.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > flights:0",
+			"reason": "browser only: the critical-resources wait, once per document; proven in packages/core/test/browser/load-scheduler.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > until_critical",
+			"reason": "browser only: waits for the page's critical resources' load/error events, the first input or the cap, once per document; proven in packages/core/test/browser/load-scheduler.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > reset_load_scheduler > drop:0",
+			"reason": "a test seam: drops the critical wait, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/schedule.ts > flights:0",
+			"reason": "browser only: the document-painted gate, once per document; proven in packages/core/test/browser/document-painted-gate.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/schedule.ts > until_painted",
+			"reason": "browser only: DOMContentLoaded, then one frame (requestAnimationFrame), once per document; proven in packages/core/test/browser/document-painted-gate.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/schedule.ts > reset_document_painted > drop:0",
+			"reason": "a test seam: drops the painted gate, constant work"
+		},
+		{
+			"id": "packages/core/src/server/render-page.ts > prepare_render_page > flights:0",
+			"reason": "a request's page-facts look-up (event.fetch of the page, a RequestEvent nothing can clone), once per request; run by packages/core/test/render-page.test.ts"
+		},
+		{
+			"id": "packages/cli/src/mcp.ts > flights:0",
+			"reason": "loads the app's @ogygia/devtools/report (module IO from the app's install); the retry after a failed load is proven in a real node process by packages/cli/test/mcp-report-load.test.ts (#295)"
+		},
+		{
+			"id": "packages/cli/src/mcp.ts > load_profiler_reading > catch:0",
+			"reason": "a failed load of the report reading: a constant null"
+		},
+		{
+			"id": "packages/content/src/site/search.ts > create_search > search > map:0",
+			"reason": "a scope's collections (live handles, not cloneable) to their tags, constant work per collection; run by the search tests in packages/content/test/site.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/ledger-dom.ts > read_parts > flights:0",
+			"reason": "browser only: the dock's fetch of one runtime file's text, once per read; proven in packages/devtools/e2e/devtools.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/ledger-dom.ts > read_parts > text",
+			"reason": "browser only: a runtime file's text from its flight, or empty when it failed, constant work; proven in packages/devtools/e2e/devtools.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/names.ts > flights:0",
+			"reason": "browser only: the islands' names from the build or the dev server's meta endpoint (fetch), once per page; proven in packages/devtools/e2e/devtools.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/names.ts > ensure_region_names",
+			"reason": "browser only: waits for the names' flight, a failure read as hashes, constant work; proven in packages/devtools/e2e/devtools.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/embedded-maps.ts > flights:0",
+			"reason": "the dynamic import of virtual:ogygia/profiler-maps (and its gunzip), module IO once per process; run by the profiler tests"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > flights:0",
+			"reason": "the profiler's one-time setup (node:async_hooks, the network capture) and its .svelte file list (fs), once per instance; run by the profiler tests with a real inspector session"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > constructor > flights:0",
+			"reason": "the durable store's init, a driver's IO, once per success; proven in packages/devtools/test/profiler-store-init-retry.test.ts (#289)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #store_ready",
+			"reason": "waits for the store's init flight (a live store object), constant work; proven in packages/devtools/test/profiler-store-init-retry.test.ts (#289)"
 		},
 		{
 			"id": "packages/core/src/runtime/import-again.ts > say_reload_needed",
@@ -623,6 +699,90 @@
 		{
 			"id": "packages/config/src/vitest.ts > stub_aliases",
 			"reason": "the repo's unit-test config: lists core's test stubs on disk once per test run"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > pages",
+			"reason": "browser only: the router's page flights (made once from the boot link; key, keep and weigh are one-liners over a fetched page); proven in packages/core/test/browser/page-flights.test.ts and prefetch-owner.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > run_page_fetch",
+			"reason": "browser only: one page fetch (window.fetch, the load scheduler's slot for a prefetch); proven in packages/core/test/browser/page-flights.test.ts and prefetch-owner.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > bust_page_cache",
+			"reason": "browser only: drops every page flight (a one-line predicate); proven in packages/core/test/browser/page-flights.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > navigate > drop:0",
+			"reason": "browser only: a navigation drops the page it used (a one-line predicate over a flights entry); navigate runs in apps/palaestra e2e"
+		},
+		{
+			"id": "packages/federation/src/peer.ts > PeerHandle > drop > drop:0",
+			"reason": "a one-line predicate over a flights entry (kept and sharing a thawed tag); run by packages/federation/test/peer-flights.test.ts, not replayable as a closure"
+		},
+		{
+			"id": "packages/federation/src/peer.ts > PeerHandle > postDoc > drop:0",
+			"reason": "a constant predicate (a mutation drops every read); run by packages/federation/test/peer-flights.test.ts"
+		},
+		{
+			"id": "packages/federation/src/peer.ts > noop",
+			"reason": "the empty handler for a background refresh's failure (the next stale read tries again): no work"
+		},
+		{
+			"id": "packages/content/src/site/search-worker.ts > flights:0~bef8c7 > run",
+			"reason": "worker only: downloads the index (fetch) and builds the Orama engine over it; run by packages/content/test/search-client.test.ts against a stubbed fetch"
+		},
+		{
+			"id": "packages/content/src/site/search-worker.ts > index_now",
+			"reason": "worker only: hands out the index flight (its answer is the built engine, not cloneable), constant work; run by packages/content/test/search-client.test.ts"
+		},
+		{
+			"id": "packages/content/src/site/search-worker.ts > onmessage > drop:0~8b94d4",
+			"reason": "a constant predicate (a new load drops every index): no work"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > _reset > drop:0~8b94d4",
+			"reason": "a constant predicate in the test/HMR reset (drops every frame flight): no work"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > Flight > _fly",
+			"reason": "keeps the flight's signal and hands back its outcome promise (not cloneable), constant work; run by packages/postrender/test/postrender.test.ts and e2e S21/S23"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > Flight > constructor",
+			"reason": "makes one outcome promise for a flight, constant work; run by packages/postrender/test/postrender.test.ts"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > Flight > constructor > Promise:0~2e2844",
+			"reason": "keeps the outcome promise's resolver, constant work"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > Flight > get stale",
+			"reason": "two field reads (settled, its signal aborted), constant work; run by packages/postrender/test/postrender.test.ts"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > Flight > settle",
+			"reason": "settles a flight once, constant work; run by packages/postrender/test/postrender.test.ts and e2e S20-S23"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > enter_flight",
+			"reason": "one peek and one get of the render flights (its answer is a Flight or a promise, not cloneable), constant work; run by packages/postrender/test/postrender.test.ts and the e2e stampede S9/S23"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > flights:0~3e13ef > key",
+			"reason": "a field read (the flight's path): no work"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > flights:0~3e13ef > run",
+			"reason": "calls the flight's _fly, constant work"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > reset_for_tests > drop:0~8b94d4",
+			"reason": "a constant predicate in the test reset (drops every render flight): no work"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > stale_flights > drop:0~2bdcbc",
+			"reason": "one comparison or one in_subtree check per render in flight (in_subtree is measured on its own); run by packages/postrender/test/postrender.test.ts"
 		}
 	]
 }

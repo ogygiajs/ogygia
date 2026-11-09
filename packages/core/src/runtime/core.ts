@@ -1217,7 +1217,7 @@ class OgygiaRegion extends HTMLElement {
 	/**
 	 * Fetch `endpoint` HTML into the store; the store's write swaps it in (#apply). One visit to the
 	 * hole's `fetching`: it ends when the fetch does (idle), when it failed (`retrying`, `failed`), or
-	 * when the region leaves the page (its stake in the shared fetch given back). A failure leaves the
+	 * when the region leaves the page (it leaves the shared fetch). A failure leaves the
 	 * answer as it was, so a reconnect, a remount or the retry can try again — a transient network
 	 * error never kills the hole for good.
 	 * A deferred hole reuses the browser's `<link rel="preload">` response; an swr REVALIDATE must
@@ -1262,15 +1262,15 @@ class OgygiaRegion extends HTMLElement {
 		}
 		// Network went to the STORE, not the DOM: the write notified our subscriber, which is the
 		// single apply path (a twin may have applied before us: then this was a no-op). STALE, or a
-		// visit already over: the region left the page meanwhile, and gave its stake back.
+		// visit already over: the region left the page meanwhile, and left the fetch.
 		if (html !== STALE && this.#hole.now === mine) this.#hole.go('idle');
 	}
 
 	/**
 	 * The network side of one visit to `fetching`, through the frame store: N regions with the same
 	 * address ⇒ one request, and a stale response can't overwrite a newer one (the store tickets at
-	 * request time). `signal` is the visit's: leaving it (the region left the page) gives back THIS
-	 * region's stake, never a twin's — the shared fetch is aborted only once its last stake left.
+	 * request time). `signal` is the visit's: leaving it (the region left the page) lets THIS region
+	 * go (`STALE`), never a twin — the shared fetch is aborted only once its last caller left.
 	 */
 	async #ensure_frame(
 		frames: FrameOps,
@@ -1278,7 +1278,7 @@ class OgygiaRegion extends HTMLElement {
 		address: string,
 		revalidate: boolean,
 		signal: AbortSignal
-	): Promise<string> {
+	): Promise<string | Stale> {
 		// A first fetch joins the holes starting with it in ONE batch request (frame-nav.ts
 		// `join_batch`) — not a cacheable hole (`ttl`: its GET is the browser cache's to answer) and
 		// not an expired capability (only its own GET renews it).
@@ -1287,12 +1287,7 @@ class OgygiaRegion extends HTMLElement {
 		const fetcher = this.#frame_fetcher(endpoint, revalidate, () =>
 			this.#visitor ? 'user' : viewport_class(this)
 		);
-		const run = (): Promise<string> => {
-			if (signal.aborted) return Promise.resolve('');
-			const stake = frames.ensure(address, fetcher, { force: revalidate });
-			signal.addEventListener('abort', () => frames.abandon(stake), { once: true });
-			return stake;
-		};
+		const run = () => frames.ensure(address, fetcher, { force: revalidate, signal });
 		try {
 			return await run();
 		} catch (err) {
@@ -1692,7 +1687,7 @@ class OgygiaRegion extends HTMLElement {
 	 * apply its page before it hydrates — `null` (no await) once applied. The wait lives in the lazy
 	 * hydrate core (it observes Kit's reactive page, i.e. it needs Svelte), so it never reaches the boot.
 	 */
-	#kit_page_ready(core: HydrateCore): Promise<void> | null {
+	#kit_page_ready(core: HydrateCore): Promise<unknown> | null {
 		if (!kit_hydrates_page() || !ours_on_kit_document(this)) return null;
 		return core.kit_page_thread();
 	}
@@ -1779,8 +1774,8 @@ class OgygiaRegion extends HTMLElement {
 		// subscription
 		if (this.#live.now.kind !== 'idle') this.#live.go('idle');
 		// The hole's fetch and the island's wake go back to rest: leaving their states drops every
-		// schedule listener armed in them, calls off a retry it waited for, and gives back this
-		// region's own stake in a shared fetch (aborted only if it was the last one). The answer
+		// schedule listener armed in them, calls off a retry it waited for, and takes this region
+		// out of a shared fetch (aborted only if it was the last one in it). The answer
 		// stays: a region put back keeps what it showed.
 		if (this.#hole.now.kind !== 'idle') this.#hole.go('idle');
 		if (this.#wake.now.kind !== 'cold') this.#wake.go('cold');

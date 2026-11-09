@@ -14,7 +14,7 @@
  * two module instances (src beside dist), and both must see the same runtime.
  */
 import type { RequestEvent } from '@sveltejs/kit';
-import { machine, STALE, type Machine } from '@ogygia/machine';
+import { flights, type Stale } from '@ogygia/machine';
 import type {
 	PostrenderEntry,
 	PostrenderPutOptions,
@@ -97,6 +97,7 @@ export function reset_for_tests(): void {
 	slot.handled = new WeakMap();
 	slot.fallback = null;
 	warned_replica_blindspot = false;
+	renders.drop(() => true);
 }
 
 // ── cross-app thaw (federation) ──────────────────────────────────────────────────────────────
@@ -171,70 +172,84 @@ export async function store_evict(runtime: Runtime, key: string): Promise<void> 
 
 // ── single-flight ──────────────────────────────────────────────────────────────────────────────
 // The stampede law (the harness DEFINES it): N concurrent cold requests for an ELIGIBLE page =
-// ONE render. The first request registers its flight; joiners await the outcome. `stored: null`
+// ONE render. The first request opens the page's flight; joiners await the outcome. `stored: null`
 // means the flight rendered but the page proved ineligible — joiners then render themselves
 // (correct: ineligible pages are per-request by definition).
 
 export type FlightOutcome = { stored: PostrenderEntry | null };
 
 /**
- * ONE FLIGHT, one machine (`@ogygia/machine`): rendering, stale (an invalidation landed while it
- * rendered: what it read may be the page from before the publish), done (with what it stored, or
- * null: joiners then render themselves). It settles exactly once, however its request ends (the
- * plugin's `done` settles one nothing else did), and only ever leaves the registry as itself. It
- * was a promise and two loose flags: a request a later plugin answered left it pending forever, and
- * a publish during a render stored the old page (#194).
+ * One page's render, opened by the request that renders it: that request settles it exactly once,
+ * however it ends (the plugin's `done` settles one nothing else did), with what it stored, or null.
+ * An invalidation that would have evicted its page ends it while it renders (`stale`: what it read
+ * may be the page from before the publish): it is not stored, and the requests that joined it are
+ * let go at once to ask again (#194).
  */
-type FlightStates = { rendering: {}; stale: {}; done: FlightOutcome };
-const flight_steps = { rendering: ['stale', 'done'], stale: ['done'], done: [] } as const;
-const flight_def = machine<FlightStates>()({
+export class Flight {
+	readonly key: string;
+	readonly outcome: Promise<FlightOutcome>;
+	#settle!: (outcome: FlightOutcome) => void;
+	#settled = false;
+	/** the flight's own signal: it aborts when an invalidation ends the flight */
+	#signal: AbortSignal | null = null;
+
+	constructor(key: string) {
+		this.key = key;
+		this.outcome = new Promise((settle) => (this.#settle = settle));
+	}
+
+	/** An invalidation ended it while it rendered. */
+	get stale(): boolean {
+		return !this.#settled && this.#signal?.aborted === true;
+	}
+
+	/** Settle it (once: a second settle does nothing). */
+	settle(outcome: FlightOutcome): void {
+		if (this.#settled) return;
+		this.#settled = true;
+		this.#settle(outcome);
+	}
+
+	/** The flight's work: its outcome, once its request settles it. */
+	_fly(signal: AbortSignal): Promise<FlightOutcome> {
+		this.#signal = signal;
+		return this.outcome;
+	}
+}
+
+/** The renders in progress, one per page: nothing is kept (the store keeps what they stored). The
+ *  request that opens one holds it until it settles it. */
+const renders = flights<Flight, Promise<FlightOutcome>, string>({
 	name: 'postrender flight',
-	initial: 'rendering',
-	steps: flight_steps
+	key: (flight) => flight.key,
+	keep: 0,
+	run: (flight, signal) => flight._fly(signal)
 });
 
-/** A flight: its request holds it, joiners wait on it. */
-export type Flight = Machine<FlightStates, typeof flight_steps>;
-
-const inflight = new Map<string, Flight>();
-
-/** The outcome of the flight for `key` in progress, once it is done; null when there is none. */
-export function join_flight(key: string): Promise<FlightOutcome> | null {
-	const flight = inflight.get(key);
-	if (!flight) return null;
-	return flight
-		.wait('done')
-		.then((s): FlightOutcome => (s === STALE ? { stored: null } : { stored: s.stored }));
-}
-
-/** Open the flight for `key`: its request's to settle (settle_flight), however that request ends. */
-export function begin_flight(key: string): Flight {
-	const flight = flight_def.create();
-	inflight.set(key, flight);
-	return flight;
-}
-
-/** Settle `flight` (once: a second settle does nothing), and take it out of the registry if it is
- *  still the one there (never a newer flight opened for the same key after it). */
-export function settle_flight(key: string, flight: Flight, outcome: FlightOutcome): void {
-	if (flight.now.kind === 'done') return;
-	flight.go('done', outcome);
-	if (inflight.get(key) === flight) inflight.delete(key);
+/** The render of `key` in progress: join it (its outcome, `STALE` when an invalidation ended it),
+ *  or, with none out, open it (`opened`: this request renders the page, and settles it however it
+ *  ends). */
+export function enter_flight(
+	key: string
+): { opened: Flight } | { joined: Promise<FlightOutcome | Stale> } {
+	const flight = new Flight(key);
+	const opens = renders.peek(key) === undefined;
+	const outcome = renders.get(flight);
+	return opens ? { opened: flight } : { joined: outcome };
 }
 
 /** The pages an invalidation evicts: one URL, a prefix's subtree (normalized), or every page (a
  *  tag names pages by what they read, and a render's receipts are not all in until it ends). */
 type Evicts = { url: string } | { prefix: string } | 'all';
 
-/** An invalidation is starting: a flight still rendering a page it evicts may have read what it
- *  changes. A flight is stale when the invalidation would have evicted its page, had it been
- *  stored; the others go on and store. */
+/** An invalidation is starting: a render still out for a page it evicts may have read what it
+ *  changes. It ends the renders whose page it would have evicted, had it been stored; the others go
+ *  on and store. */
 function stale_flights(evicts: Evicts): void {
-	for (const [key, flight] of inflight) {
-		const hit =
-			evicts === 'all' || ('url' in evicts ? key === evicts.url : in_subtree(key, evicts.prefix));
-		if (hit) flight.move('rendering', 'stale');
-	}
+	renders.drop(
+		(key) =>
+			evicts === 'all' || ('url' in evicts ? key === evicts.url : in_subtree(key, evicts.prefix))
+	);
 }
 
 // ── invalidation fan-out ───────────────────────────────────────────────────────────────────────

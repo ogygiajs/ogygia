@@ -175,6 +175,7 @@ export async function* until_drained(
 	take: () => ReadonlyArray<{ id: string; promise: Promise<unknown> }> | null
 ): AsyncGenerator<LateChunk> {
 	const sources: AsyncGenerator<LateChunk>[] = [];
+	// oxlint-disable-next-line ogygia/no-promise-cache -- not a cache: each source's one pending next(), raced and replaced as each lands
 	const nexts = new Map<number, Promise<{ i: number; r: IteratorResult<LateChunk> }>>();
 	const add = (source: AsyncGenerator<LateChunk>) => {
 		const i = sources.push(source) - 1;

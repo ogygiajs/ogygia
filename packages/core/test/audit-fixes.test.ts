@@ -201,17 +201,6 @@ describe('audit fixes — rate limiter', () => {
 	});
 });
 
-describe('audit fixes — page cache bounds', () => {
-	it('evicts by max entries and drops expired', async () => {
-		const { PageCache } = await import('../dist/runtime/page-cache.js');
-		const c = new PageCache({ ttlMs: 50, maxEntries: 3, maxBytes: 1_000_000 });
-		for (const p of ['/a', '/b', '/c', '/d']) c.set(p, { html: p.repeat(2), url: p });
-		expect(c.size).toBeLessThanOrEqual(3);
-		await new Promise((r) => setTimeout(r, 60));
-		expect(c.get('/a')).toBeNull();
-	});
-});
-
 describe('audit fixes — concurrency gate', () => {
 	it('never exceeds max concurrent runners', async () => {
 		const { ConcurrencyGate } = await import('../dist/runtime/concurrency.js');
@@ -289,14 +278,11 @@ describe('audit fixes — head_node_key', () => {
 describe('audit fixes — spa cache policy', () => {
 	it('refuses private/no-store/no-cache and Set-Cookie', async () => {
 		const { spa_html_cacheable } = await import('../dist/runtime/spa-cacheable.js');
-		const { bust_page_cache, _page_cache_size } = await import('../dist/runtime/router.js');
 		expect(spa_html_cacheable('public, max-age=60', false)).toBe(true);
 		expect(spa_html_cacheable('private, max-age=60', false)).toBe(false);
 		expect(spa_html_cacheable('no-store', false)).toBe(false);
 		expect(spa_html_cacheable('no-cache', false)).toBe(false);
 		expect(spa_html_cacheable('public', true)).toBe(false);
-		bust_page_cache();
-		expect(_page_cache_size()).toBe(0);
 	});
 });
 

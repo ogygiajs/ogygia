@@ -312,6 +312,7 @@ declare module '@sveltejs/kit/internal/server' {
 	}
 	export interface RequestRemoteState {
 		implicit: Map<RemoteInternals, Record<string, () => Promise<unknown>>> | null;
+		// oxlint-disable-next-line ogygia/no-promise-cache -- the shape of SvelteKit's own per-request remote state, declared, not ours to change
 		data: Map<RemoteInternals, Record<string, Promise<unknown>>> | null;
 	}
 	export interface RequestState {

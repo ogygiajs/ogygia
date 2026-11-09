@@ -17,6 +17,7 @@ import type { Heading, LinkRef } from '../index.ts';
 import { href_of, OUTLINE_TOKEN, type Collection, type Outline } from './outline.ts';
 import { is_dimensioned } from './dimensions.ts';
 import { OgygiaError } from '../messages/runtime.ts';
+import { flights, STALE } from '@ogygia/machine';
 
 // ── regexes
 const FRONTMATTER_BLOCK_RE = /^﻿?---\r?\n[\s\S]*?\r?\n---\r?\n?/;
@@ -341,10 +342,17 @@ export function create_search(ol: Outline, engine: SearchEngine): SearchBrain {
 	// one materialization of the outline: a new one (the content changed) builds the index again. A
 	// failed build is never kept. (It was built once, ever: a page a live source added was never
 	// found, and one failed build failed every search, #193.)
-	const cache = new Map<string, { index: Promise<SearchIndex>; from: unknown }>();
+	const indexes = flights({
+		name: 'content search index',
+		run: async (i: { scope_id: string; from: unknown; in: Collection[] | undefined }) => {
+			await engine.init?.();
+			return { index: await engine.build(await build_docs(ol, i.in)), from: i.from };
+		},
+		key: (i) => i.scope_id
+	});
 	const token = (ol as { [OUTLINE_TOKEN]?: () => unknown })[OUTLINE_TOKEN];
 
-	return async (q, opts = {}) => {
+	const search: SearchBrain = async (q, opts = {}) => {
 		const query = q.trim();
 		if (!query) return [];
 		const limit = opts.limit ?? 10;
@@ -352,21 +360,18 @@ export function create_search(ol: Outline, engine: SearchEngine): SearchBrain {
 		const scope_id = opts.in ? opts.in.map((c) => scope_tag(c)).join(',') : '*';
 		// (an outline this package did not make has no token: built once, as before)
 		const from = token ? await token.call(ol) : null;
-		let built = cache.get(scope_id);
-		if (!built || built.from !== from) {
-			const index = (async () => {
-				await engine.init?.();
-				return engine.build(await build_docs(ol, opts.in));
-			})();
-			const mine = { index, from };
-			built = mine;
-			cache.set(scope_id, mine);
-			index.catch(() => {
-				if (cache.get(scope_id) === mine) cache.delete(scope_id);
-			});
-		}
-		return (await built.index).query(query, { limit, base });
+		const input = { scope_id, from, in: opts.in };
+		const kept = indexes.peek(scope_id);
+		let built = await indexes.get(input, {
+			fresh: kept?.kind === 'kept' && kept.answer.from !== from
+		});
+		// (one that was out for an older materialization: built again from this one)
+		if (built !== STALE && built.from !== from) built = await indexes.get(input, { fresh: true });
+		// (a newer query's build took its place meanwhile: that one answers)
+		if (built === STALE) return search(q, opts);
+		return built.index.query(query, { limit, base });
 	};
+	return search;
 }
 
 // Identity tags for scope memo keys (WeakMap-backed counter; no naming registry).

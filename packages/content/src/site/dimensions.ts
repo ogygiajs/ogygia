@@ -29,6 +29,7 @@ import {
 } from './outline.ts';
 import type { NavRef, NavTree } from './types.ts';
 import { OgygiaError } from '../messages/runtime.ts';
+import { flights, STALE } from '@ogygia/machine';
 
 // ── regexes
 const EDGE_SLASHES_G = /^\/+|\/+$/g;
@@ -99,7 +100,17 @@ class Dimensions implements Dimensioned {
 	readonly #spec: DimensionsSpec;
 	readonly #names: string[];
 	/** One memoized Outline per distinct coordinate — woven on first touch. */
-	readonly #cache = new Map<string, Promise<Outline>>();
+	// A failure is never kept: the coordinate's next page builds its outline again (one source blip
+	// once broke every page of a language until a restart, #192). A resolve that throws at once fails
+	// like one that rejects.
+	readonly #cache = flights({
+		name: 'content dimension outline',
+		run: async (full: Coordinate): Promise<Outline> => {
+			const r = await this.#spec.resolve(full);
+			return is_outline(r) ? r : outline(r as OutlineSpec);
+		},
+		key: (full) => this.#key(full)
+	});
 
 	constructor(spec: DimensionsSpec) {
 		this.#spec = spec;
@@ -149,25 +160,12 @@ class Dimensions implements Dimensioned {
 		return this.#names.map((n) => coord[n] ?? this.#def(n)).join('\0');
 	}
 
-	#outline_for(coord: Coordinate): Promise<Outline> {
-		const key = this.#key(coord);
-		let p = this.#cache.get(key);
-		if (!p) {
-			const full: Coordinate = {};
-			for (const n of this.#names) full[n] = coord[n] ?? this.#def(n);
-			// (a resolve that throws at once fails like one that rejects: kept out of the cache)
-			const built = Promise.resolve()
-				.then(() => this.#spec.resolve(full))
-				.then((r) => (is_outline(r) ? r : outline(r as OutlineSpec)));
-			p = built;
-			this.#cache.set(key, built);
-			// a failure is never kept: the coordinate's next page builds its outline again (one source
-			// blip once broke every page of a language until a restart, #192)
-			built.catch(() => {
-				if (this.#cache.get(key) === built) this.#cache.delete(key);
-			});
-		}
-		return p;
+	async #outline_for(coord: Coordinate): Promise<Outline> {
+		const full: Coordinate = {};
+		for (const n of this.#names) full[n] = coord[n] ?? this.#def(n);
+		const built = await this.#cache.get(full);
+		// (nothing drops a coordinate's outline, so it is never STALE; were it, it is built again)
+		return built === STALE ? this.#outline_for(coord) : built;
 	}
 
 	/** The coordinate with every fallback-enabled axis reset to its default (the fallback source). */

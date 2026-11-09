@@ -653,6 +653,40 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		);
 	});
 
+	test('S23 a publish lands while two requests wait on the render: they share one new render, and it is stored', async () => {
+		const slug = 'slow-joined';
+		const path = `/fr/fr/c/${slug}`;
+		const before = (await renders())[path] ?? 0;
+		const page = (r: Response) => r.text().then((html) => ({ html, via: via(r) }));
+		// the first cold request renders (600 ms after it read v1); two more join its flight
+		const first = fetch(origin + path).then(page);
+		await new Promise((r) => setTimeout(r, 100));
+		const joined = [fetch(origin + path).then(page), fetch(origin + path).then(page)];
+		await new Promise((r) => setTimeout(r, 100));
+		// the editor publishes v2 while it renders: what the waiting requests would get is the old page
+		const pub = await fetch(origin + '/api/publish', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ slug })
+		});
+		check('S23: published', pub.ok);
+		const [a, b] = await Promise.all(joined);
+		await first;
+		check(
+			'S23: both waiting requests got v2',
+			a.html.includes(`content of ${slug} v2`) && b.html.includes(`content of ${slug} v2`)
+		);
+		check(
+			'S23: they shared one new render (two renders in all, not one per request)',
+			((await renders())[path] ?? 0) - before === 2,
+			String(((await renders())[path] ?? 0) - before)
+		);
+		const after = await fetch(origin + path);
+		const html = await after.text();
+		check('S23: the new render was stored', via(after) === 'hit', via(after));
+		check('S23: …as v2', html.includes(`content of ${slug} v2`));
+	});
+
 	test('S22 a form post on another page while the page renders: the render is still stored', async () => {
 		const path = '/fr/fr/c/slow-busy';
 		const before = (await renders())[path] ?? 0;

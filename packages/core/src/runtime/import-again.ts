@@ -16,8 +16,10 @@
  * help, so the loader stops asking, and the page says once that it needs a reload.
  *
  * A leaf: the boot and island-side code (devalue's lane, the entry locations) import it, so it
- * imports nothing; the boot hands it its message (`on_reload_needed`).
+ * imports nothing of the boot (only `@ogygia/machine`, which the boot runs on); the boot hands it
+ * its message (`on_reload_needed`).
  */
+import { flights, STALE } from '@ogygia/machine';
 
 /** The URL in a failed dynamic import's message: Chromium "Failed to fetch dynamically imported
  *  module: <url>", Firefox "error loading dynamically imported module: <url>". */
@@ -115,8 +117,25 @@ export function import_again<T>(
 	};
 }
 
-/** Each file's loader, by URL (an island's own file: its load, and the warm ahead of it). */
-const file_loads = new Map<string, () => Promise<unknown>>();
+/** Each file's loader, by URL (an island's own file: its load, and the warm ahead of it): what it
+ *  asks for next (the file, or a fresh URL after a failed download). */
+const file_loaders = new Map<string, () => Promise<unknown>>();
+
+/** One load of each file at a time, kept once it lands: loads of one file that fail together share
+ *  one retry, so a failure gets one fresh URL and the module runs once (#271). */
+const file_loads = flights({
+	name: 'island file',
+	run: (url: string) => {
+		let again = file_loaders.get(url);
+		if (!again) file_loaders.set(url, (again = import_again(() => import(/* @vite-ignore */ url))));
+		const load = again;
+		return load().catch((error: unknown) => {
+			const failed = failed_import_url(error);
+			if (failed !== null && response_of(failed) === null) return load();
+			throw error;
+		});
+	}
+});
 
 /**
  * The module at `url` (an island's own file), through {@link import_again}: a download that fails is
@@ -126,12 +145,6 @@ const file_loads = new Map<string, () => Promise<unknown>>();
  * own recovery (./entry-locations.ts, the current build's file) is what helps there.
  */
 export function import_file<T>(url: string): Promise<T> {
-	let load = file_loads.get(url);
-	if (!load) file_loads.set(url, (load = import_again(() => import(/* @vite-ignore */ url))));
-	const again = load;
-	return again().catch((error: unknown) => {
-		const failed = failed_import_url(error);
-		if (failed !== null && response_of(failed) === null) return again();
-		throw error;
-	}) as Promise<T>;
+	// (nothing drops a file's load, so it is never STALE; were it, it is asked for again)
+	return file_loads.get(url).then((m) => (m === STALE ? import_file<T>(url) : (m as T)));
 }

@@ -9,6 +9,7 @@ import { byte_ledger, type Ledger } from './bytes.ts';
 import { dynamic_imports, static_imports } from '@ogygia/core/insights';
 import { all_regions, region_name } from './regions.ts';
 import { tool_fetch, tool_made } from '@ogygia/core/internal/instruments';
+import { flights, STALE } from '@ogygia/machine';
 
 const abs = (href: string | null | undefined): string | null => {
 	if (!href) return null;
@@ -56,17 +57,17 @@ function runtime_parts(src: string): RuntimeParts | null {
 	return parts.read;
 }
 async function read_parts(src: string): Promise<RuntimeParts> {
-	const cache = new Map<string, Promise<string>>();
-	const text = (u: string): Promise<string> => {
-		let t = cache.get(u);
-		if (!t) {
-			t = tool_fetch(u, { cache: 'force-cache' })
-				.then((r) => (r.ok ? r.text() : ''))
-				.catch(() => '');
-			cache.set(u, t);
-		}
-		return t;
-	};
+	// each file once for this read; one the network failed reads as empty and is fetched again by the
+	// next ask
+	const texts = flights({
+		name: 'devtools runtime parts',
+		run: (u: string) => tool_fetch(u, { cache: 'force-cache' }).then((r) => (r.ok ? r.text() : ''))
+	});
+	const text = (u: string): Promise<string> =>
+		texts.get(u).then(
+			(t) => (t === STALE ? '' : t),
+			() => ''
+		);
 	const self = import.meta.url;
 	const roots = new Map<string, Set<string>>();
 	const dock: string[] = [];

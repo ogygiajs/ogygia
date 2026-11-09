@@ -36,6 +36,7 @@
  * click long after boot) — the caller skips the await entirely.
  */
 import { warn } from '../messages/lazy.ts';
+import { flights } from '@ogygia/machine';
 
 const KIT_PAGE_KEY = Symbol.for('ogygia.kit-page');
 /** Kit constructs its `$app/state` page with this status; `initialize()` replaces it with the real one. */
@@ -43,8 +44,6 @@ const KIT_PRE_START_STATUS = -1;
 
 type Global = Record<symbol, unknown>;
 type Bridge = { page?: { status?: number } } | null | undefined;
-
-let pending: Promise<void> | null = null;
 
 function bridge_of(): Bridge {
 	return (globalThis as unknown as Global)[KIT_PAGE_KEY] as Bridge;
@@ -68,26 +67,34 @@ function page_applied(bridge: Bridge): boolean {
  */
 const DEV_STILL_WAITING_MS = 5000;
 
-export function kit_page_thread(): Promise<void> | null {
+export function kit_page_thread(): Promise<unknown> | null {
 	if (page_applied(bridge_of())) return null;
-	return (pending ??= new Promise<void>((resolve) => {
-		let slow: ReturnType<typeof setTimeout> | null = null;
-		if (import.meta.env.DEV) {
-			slow = setTimeout(() => {
-				warn('kit_page_waiting', {
-					seconds: DEV_STILL_WAITING_MS / 1000,
-					booted: bridge_of() != null
-				});
-			}, DEV_STILL_WAITING_MS);
-		}
-		const done = () => {
-			if (slow !== null) clearTimeout(slow);
-			pending = null;
-			resolve();
-		};
-		await_bridge((bridge) => await_applied(bridge, done));
-	}));
+	return pending.get();
 }
+
+/** The wait, shared by every island asking while Kit has not applied its page; kept for nothing
+ *  (keep 0): once it lands, the fast path above answers. */
+const pending = flights({
+	name: 'kit page thread',
+	run: () =>
+		new Promise<void>((resolve) => {
+			let slow: ReturnType<typeof setTimeout> | null = null;
+			if (import.meta.env.DEV) {
+				slow = setTimeout(() => {
+					warn('kit_page_waiting', {
+						seconds: DEV_STILL_WAITING_MS / 1000,
+						booted: bridge_of() != null
+					});
+				}, DEV_STILL_WAITING_MS);
+			}
+			const done = () => {
+				if (slow !== null) clearTimeout(slow);
+				resolve();
+			};
+			await_bridge((bridge) => await_applied(bridge, done));
+		}),
+	keep: 0
+});
 
 /** Moment 1: the symbol is assigned. Calls back synchronously if it already is. */
 function await_bridge(cb: (bridge: Bridge) => void): void {

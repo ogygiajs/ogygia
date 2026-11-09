@@ -7,10 +7,33 @@
  * Messages out: { type: 'ready' } | { type: 'error', message } (the index failed to load)
  *             | { type: 'result', id, hits } | { type: 'error', id, message } (that query failed)
  */
+import { flights, STALE } from '@ogygia/machine';
 import { orama_engine, type SearchIndex } from './search.ts';
 import { OgygiaError } from '../messages/runtime.ts';
 
-let index_p: Promise<SearchIndex> | null = null;
+/** The index, by the url it is built from: one download shared by the queries waiting on it. A
+ *  failed one is not kept, so the next query downloads it again. */
+const indexes = flights({
+	name: 'content search worker index',
+	run: async (url: string): Promise<SearchIndex> => {
+		const res = await fetch(url);
+		if (!res.ok) {
+			throw new OgygiaError('content_search_index_fetch_failed', { url, status: res.status });
+		}
+		const docs = await res.json();
+		const engine = orama_engine();
+		await engine.init?.();
+		return engine.build(docs);
+	}
+});
+/** The url the last `load` named: the index queries are answered from. */
+let index_url: string | null = null;
+
+/** The index of `index_url` (a newer `load` dropped the one this waited on: then that one's). */
+async function index_now(url: string): Promise<SearchIndex> {
+	const index = await indexes.get(url);
+	return index === STALE ? index_now(index_url ?? url) : index;
+}
 
 self.onmessage = async (e: MessageEvent) => {
 	const msg = e.data as {
@@ -23,21 +46,11 @@ self.onmessage = async (e: MessageEvent) => {
 	};
 
 	if (msg.type === 'load' && msg.url) {
-		index_p = (async () => {
-			const res = await fetch(msg.url!);
-			if (!res.ok) {
-				throw new OgygiaError('content_search_index_fetch_failed', {
-					url: msg.url!,
-					status: res.status
-				});
-			}
-			const docs = await res.json();
-			const engine = orama_engine();
-			await engine.init?.();
-			return engine.build(docs);
-		})();
+		// a new index: the one before (and its download, if still out) goes
+		indexes.drop(() => true);
+		index_url = msg.url;
 		try {
-			await index_p;
+			await index_now(msg.url);
 			(self as unknown as Worker).postMessage({ type: 'ready' });
 		} catch (err) {
 			(self as unknown as Worker).postMessage({
@@ -48,9 +61,9 @@ self.onmessage = async (e: MessageEvent) => {
 		return;
 	}
 
-	if (msg.type === 'query' && index_p) {
+	if (msg.type === 'query' && index_url) {
 		try {
-			const index = await index_p;
+			const index = await index_now(index_url);
 			const hits = await index.query(msg.q ?? '', { limit: msg.limit ?? 10, base: msg.base ?? '' });
 			(self as unknown as Worker).postMessage({ type: 'result', id: msg.id, hits });
 		} catch (err) {

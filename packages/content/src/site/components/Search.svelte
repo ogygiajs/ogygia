@@ -1,3 +1,16 @@
+<script lang="ts" module>
+	import { flights, STALE } from '@ogygia/machine';
+	import { import_again } from '@ogygia/core/internal/instruments';
+
+	/** The heavy half's download, once for the page: kept once it lands, and a failed one is asked for
+	 *  again under a fresh URL (the browser keeps a failed module URL failed). */
+	const palette = flights({
+		name: 'search palette',
+		run: import_again(() => import('./SearchPalette.svelte')),
+		retries: 1
+	});
+</script>
+
 <script lang="ts">
 	/**
 	 * Full-text search — the ⌘K command palette. THIS component is the LIGHT half: the SSR'd trigger
@@ -49,15 +62,30 @@
 	// svelte-ignore state_referenced_locally
 	let open = $state(mode === 'inline');
 	let Palette = $state<typeof SearchPaletteT | null>(null);
+	/** An open asked for while the palette loads: a second Ctrl/Cmd+K meanwhile takes it back (#279). */
+	let opening = false;
 
-	/** First intent: pull the heavy half (Bits + worker + index all start from its mount). */
-	async function wake_palette() {
-		Palette ??= (await import('./SearchPalette.svelte')).default;
+	/** First intent: pull the heavy half (Bits + worker + index all start from its mount). Whether it
+	 *  is in: a failed download is not kept, so the next intent asks for it again (#272). */
+	async function wake_palette(): Promise<boolean> {
+		if (Palette) return true;
+		try {
+			// (nothing drops the palette's load, so it is never STALE)
+			const m = await palette.get();
+			if (m === STALE) return false;
+			Palette = m.default;
+			return true;
+		} catch {
+			return false;
+		}
 	}
 
-	async function open_palette() {
-		await wake_palette();
-		open = true;
+	async function open_palette(): Promise<boolean> {
+		opening = true;
+		const loaded = await wake_palette();
+		if (loaded && opening) open = true;
+		opening = false;
+		return loaded;
 	}
 
 	onMount(() => {
@@ -76,8 +104,9 @@
 			if ((e.metaKey || e.ctrlKey) && k === 'k') {
 				e.preventDefault();
 				if (open) open = false;
+				else if (opening) opening = false;
 				else void open_palette();
-			} else if (k === '/' && !typing && !open) {
+			} else if (k === '/' && !typing && !open && !opening) {
 				e.preventDefault();
 				void open_palette();
 			}
@@ -96,7 +125,10 @@
 		onfocus={() => void wake_palette()}
 		onclick={(e) => {
 			e.preventDefault();
-			void open_palette();
+			// the palette could not load: the link's own page, as without JS
+			void open_palette().then((loaded) => {
+				if (!loaded) location.assign(search_action);
+			});
 		}}
 	>
 		<svg

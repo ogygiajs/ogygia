@@ -2,8 +2,10 @@
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["typescript", "unicorn", "oxc"],
 	"categories": { "correctness": "error" },
+	"jsPlugins": ["./internal/lint/plugin.ts"],
 	"rules": {
-		"typescript/no-explicit-any": "error"
+		"typescript/no-explicit-any": "error",
+		"ogygia/no-promise-cache": "error"
 	},
 	"ignorePatterns": [
 		"**/dist/**",

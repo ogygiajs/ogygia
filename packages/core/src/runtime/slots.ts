@@ -9,6 +9,7 @@
  *
  * This is the single wiring mechanism — there is no service locator and no per-feature setter.
  */
+import type { Stale } from '@ogygia/machine';
 import type { Frame } from '../frame.ts';
 import { is_frozen } from './region-attrs.ts';
 
@@ -99,7 +100,7 @@ export type PageOps = {
 	/** the `page.data` a seed reference in island props resolves against */
 	seed_data_of(doc: Document): unknown;
 	/** on a Kit-hydrated document: the wait for Kit to apply its page (`null` once applied) */
-	kit_page_thread(): Promise<void> | null;
+	kit_page_thread(): Promise<unknown> | null;
 };
 
 /**
@@ -109,13 +110,12 @@ export type PageOps = {
  */
 export type FrameOps = {
 	subscribe(a: string, cb: (f: Frame) => void): () => void;
+	/** `STALE` when its `signal` aborted: only that caller leaves the fetch. */
 	ensure(
 		a: string,
 		fetcher: (signal: AbortSignal) => Promise<string>,
-		opts?: { force?: boolean }
-	): Promise<string>;
-	/** Give back the stake an `ensure` returned: only that caller leaves the fetch. */
-	abandon(stake: Promise<string>): void;
+		opts?: { force?: boolean; signal?: AbortSignal }
+	): Promise<string | Stale>;
 	/** A renewal answered a fresh capability for this address; and the one it answered, if any. */
 	renew(a: string, fresh: string): void;
 	renewal(a: string): string | null;
@@ -190,6 +190,8 @@ export type BootLink = {
 	warn: typeof import('../messages/core.ts').warn;
 	/** what a machine's task answers once its visit is left (`@ogygia/machine`, which the boot runs on) */
 	STALE: typeof import('@ogygia/machine').STALE;
+	/** keyed shared async work (`@ogygia/machine`): the router's page fetches */
+	flights: typeof import('@ogygia/machine').flights;
 	/** the page's soft refresh (./soft-refresh.ts): `invalidateAll`, with the router or without it */
 	soft: import('./soft-refresh.ts').SoftRefresh;
 };
