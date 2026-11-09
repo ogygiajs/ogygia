@@ -22,8 +22,8 @@
  */
 import { DEV } from 'esm-env';
 import { machine_error, report, warn_once } from './messages.ts';
-import { cache } from './cache.ts';
-import { CLOSED, is_time, MAX_TIMEOUT_MS, visit_scope, type Scope } from './scope.ts';
+import { registry } from './registry.ts';
+import { CLOSED, is_time, MAX_TIMEOUT_MS, scope, visit_scope, type Scope } from './scope.ts';
 import { STALE, type Stale } from './stale.ts';
 
 export { STALE, type Stale };
@@ -184,26 +184,27 @@ export type Observer = (
 	machine: AnyMachine
 ) => void;
 
-/** Who watches every move, in the order they started: each kept until its own stop. (No bound:
- *  each is a caller's, and its stop lets it go; a watcher is devtools or a test.) */
-const observers = cache<Observer, true>({ name: 'observers', max: Infinity });
+/** Who watches every move, in the order they started: each held until its stop (never evicted). */
+const observers = registry<Observer>();
 
 /**
  * Watches every machine's moves (devtools, tests). Returns the function that stops watching. An
  * observer that throws is reported and does not break the move.
  */
 export function observe(observer: Observer): () => void {
-	observers.set(observer, true);
-	return () => {
-		observers.delete(observer);
-	};
+	// (its owner is the watch itself: the caller holds no scope to hand in, and its stop is the
+	// watch's end)
+	const watch = scope();
+	observers.add(observer, watch);
+	return () => watch.close();
 }
 
 function notify(name: string, from: State, to: State | null, machine: AnyMachine): void {
-	const list = observers.entries();
+	// (the watchers at the move: one that stops another during the move does not cut it off)
+	const list = [...observers];
 	for (let i = 0; i < list.length; i++) {
 		try {
-			list[i]![0](name, from, to, machine);
+			list[i]!(name, from, to, machine);
 		} catch (error) {
 			report('machine_observer_failed', { name }, error);
 		}
