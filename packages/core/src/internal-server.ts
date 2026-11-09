@@ -16,7 +16,7 @@ export {
 	record_request_stats,
 	request_stats_of,
 	set_batch_hole_listener,
-	set_request_stats_detail,
+	hold_request_stats_detail,
 	want_request_stats,
 	type BatchHoleStats,
 	type HoleRequestStats,

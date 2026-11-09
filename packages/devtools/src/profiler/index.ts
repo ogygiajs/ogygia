@@ -237,7 +237,7 @@ import {
 	request_scope,
 	request_stats_of,
 	set_batch_hole_listener,
-	set_request_stats_detail,
+	hold_request_stats_detail,
 	type BatchHoleStats
 } from '@ogygia/core/internal/server';
 import {
@@ -1721,9 +1721,9 @@ class Profiler {
 
 		let heap_head: HeapNode | null = null;
 		// DETAIL from ogygia's handle (per-island rows, the seed explainer, hole notes) costs a little
-		// per region — asked for only while this window records (server/request-stats.ts). Counted, so
-		// turned on right at the `try` whose `finally` turns it off: every on has its off
-		set_request_stats_detail(true);
+		// per region — asked for only while this window records (server/request-stats.ts): this
+		// window's own hold, taken right at the `try` whose `finally` lets go of it
+		const release_detail = hold_request_stats_detail();
 		this.#window_nets.add(window_net);
 		// capture the calling stack of each outbound I/O call for the duration of
 		// the window (off otherwise — it costs a stack per call)
@@ -1871,7 +1871,7 @@ class Profiler {
 			histogram.disable();
 			disown_spans(window_spans);
 			span_als.disable(); // the recording's own nesting store: gone with the window
-			set_request_stats_detail(false);
+			release_detail();
 			netmod?.set_stack_capture(owner, false);
 			io_rec?.stop();
 			try {

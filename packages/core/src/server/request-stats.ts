@@ -9,7 +9,7 @@
  * WeakMap — the record dies with the request, nothing is deleted, and the two modules never
  * import each other (hooks.ts imports the profiler lazily; the profiler must not import hooks).
  *
- * DETAIL is opt-in (`set_request_stats_detail`): the profiler turns it on for the length of a
+ * DETAIL is opt-in (`hold_request_stats_detail`): the profiler holds it on for the length of a
  * recording, and only then does the handle spend anything on the per-island rows, the seed
  * explainer and the hole notes below. Off, a request pays one WeakMap write of the totals.
  */
@@ -207,18 +207,26 @@ export function record_batch_hole_stats(request: Request, s: BatchHoleStats): vo
 }
 
 /**
- * The profiler turns detail on for a recording; off, the handle records totals only. COUNTED, not a
- * switch: the flag is the process's, while a recorder lock is one profiler instance's — and two can
- * live at once (the dev server re-runs the app's hooks on an edit and `ogygia.handle()` builds a new
- * profiler, while the old one's sample and trap timers still record). The first window to end then
- * turned detail off under the other's render: its report kept no island rows ("islands 1, rows 0")
- * and named its islands by their files. On while any window records.
+ * The profiler asks for detail for a recording; with nobody asking, the handle records totals only.
+ * HELD, not a switch: the flag is the process's, while a recorder lock is one profiler instance's —
+ * and two can live at once (the dev server re-runs the app's hooks on an edit and `ogygia.handle()`
+ * builds a new profiler, while the old one's sample and trap timers still record). The first window
+ * to end once turned detail off under the other's render: its report kept no island rows ("islands
+ * 1, rows 0") and named its islands by their files. On while any hold stands; each hold is its
+ * caller's, and its release lets go of that hold only, once (a second call does nothing), so an
+ * extra "off" can never end someone else's.
  */
-export function set_request_stats_detail(on: boolean): void {
-	detail_depth = on ? detail_depth + 1 : Math.max(0, detail_depth - 1);
-	detailed = detail_depth > 0;
+export function hold_request_stats_detail(): () => void {
+	const hold = {};
+	detail_holds.add(hold);
+	detailed = true;
+	return () => {
+		if (!detail_holds.delete(hold)) return;
+		detailed = detail_holds.size > 0;
+	};
 }
-let detail_depth = 0;
+/** Who asked for detail, each until its own release. */
+const detail_holds = new Set<object>();
 
 export function request_stats_detailed(): boolean {
 	return detailed;
