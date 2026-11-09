@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { outbox, policy, type Policy } from '../src/index.ts';
-import { backoff_after } from '../src/policy.ts';
+import { backoff_after, under_policy } from '../src/policy.ts';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -398,6 +398,27 @@ describe('policy', () => {
 		expect(backoff_after(p, 1, 0)).toBe(1000);
 		expect(backoff_after(p, 1, 1)).toBe(500);
 		expect(backoff_after(p, 1, 0.5)).toBe(750);
+	});
+
+	it('a wait is always a number of 0 to the timer limit: before the first try, and after very many (#359)', () => {
+		const list = policy({ backoff: [200, 1000], jitter: 0 });
+		const doubling = policy({ backoff: 100, jitter: 0 });
+		const none = policy({ backoff: 0, jitter: 0 });
+		// (a count from 0: the first wait, as for 1)
+		expect(backoff_after(list, 0)).toBe(200);
+		expect(backoff_after(doubling, 0)).toBe(100);
+		// (2^5000 is Infinity: capped, and 0 stays 0, never 0 * Infinity)
+		expect(backoff_after(doubling, 5000)).toBe(2_147_483_647);
+		expect(backoff_after(none, 5000)).toBe(0);
+		// jitter 1 can cut a wait to nothing, never below
+		expect(backoff_after(policy({ backoff: [1000], jitter: 1 }), 1, 1)).toBe(0);
+	});
+
+	it('out of time before the next wait ends is a TimeoutError with the last error in it (#359)', async () => {
+		const p = quick({ attempts: 5, backoff: 500, deadline: 100 });
+		const error = await under_policy(p, () => Promise.reject(new Error('down'))).catch((e) => e);
+		expect((error as DOMException).name).toBe('TimeoutError');
+		expect((error as DOMException).message).toContain('down');
 	});
 
 	it('the outbox refuses a send that is not a function', () => {
