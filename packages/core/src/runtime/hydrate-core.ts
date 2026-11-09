@@ -21,6 +21,7 @@ import { parse_sidecar_text } from './wire-format.ts';
 import { is_deferred, ours_on_kit_document, region_ssr_truncated } from './region-attrs.ts';
 import { boot_link, slots, type LiftedLake } from './slots.ts';
 import { report_thrown } from '../report-thrown.ts';
+import type { HeadMark } from './session.ts';
 import { keep_host_classes, note_host_classes } from './host-classes.ts';
 import { install as install_hydrate_features } from 'virtual:ogygia/hydrate-features';
 import { emit as dt_emit } from '../events/bus.ts';
@@ -707,9 +708,11 @@ export function hydrate_island(
 	// The head as it stands before this island renders into it: whatever the hydrate adds is the
 	// island's own (runtime/session.ts — who owns each node in <head>). The step is synchronous, so
 	// nothing else writes the head in between.
-	// (elements only: ownership is only ever asked of elements — the head's comments, two per island's
-	// head block, made this copy grow as islands × head nodes)
-	const head_before: ReadonlySet<Node> = new Set(document.head.children);
+	// (noted as it happens, not by copying the head: a copy per island grew as islands × head; only
+	// where the record is made, a non-Kit document — a csr=true page's head is Kit's)
+	// (made inside the try, so its observer always stops: the lift and the repair below touch only
+	// the region, never the head)
+	let head_mark: HeadMark | null = null;
 	let lifted: LiftedLake[] | null = slots.lakes.lift(region);
 	const drift =
 		ssr_html !== null && touched && region.isConnected
@@ -717,6 +720,7 @@ export function hydrate_island(
 			: { repaired: false, reason: null, conflict: null };
 	const repaired = drift.repaired;
 	try {
+		head_mark = kit_hydrates_page() ? null : boot_link().runtime_session.mark_head();
 		if (!region.isConnected) return null;
 		// FOREIGN-MUTATION DETECTOR (arm): a successful hydration CLAIMS the server-rendered nodes —
 		// they stay in the region. Svelte 5's mismatch recovery instead silently discards them and
@@ -890,9 +894,10 @@ export function hydrate_island(
 		// server's JSON-LD / meta / inline style / preload, and the page title once the island renders
 		// its own, reactive one). Only where that re-render path ran: a non-Kit document; a csr=true
 		// page's head is Kit's.
-		if (!kit_hydrates_page()) boot_link().runtime_session.record_island_head(head_before);
+		if (head_mark) boot_link().runtime_session.record_island_head(head_mark);
 		return out;
 	} finally {
+		head_mark?.stop();
 		// If hydrate threw after lift, put lake DOM back so the page isn't permanently blank.
 		if (lifted) slots.lakes.restore(region, lifted);
 	}
