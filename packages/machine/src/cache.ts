@@ -177,7 +177,8 @@ class Store<K, V> implements Cache<K, V> {
 		if (old !== undefined) {
 			this._held.delete(key);
 			this._weight -= old.weight;
-			this._due.push([key, old.value, old.until <= now ? 'age' : 'delete']);
+			// (a replace, whatever the old value's age: the key goes on holding a value)
+			this._due.push([key, old.value, 'delete']);
 		}
 		const until = ms === Infinity ? Infinity : now + ms;
 		this._held.set(key, { value, weight, until, stamp });
