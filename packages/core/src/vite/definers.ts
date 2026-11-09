@@ -1,8 +1,8 @@
 /**
  * DEFINER CALLS, MARKED (dev). A plugin names the calls that define things for the life of the
  * module that makes them (`b.definers('@ogygia/content', ['content'])`, `['flag']` for flags). In
- * each server module that calls one, a line at the top asks for the module's run (`define_run(id)`
- * in @ogygia/machine's internal registry, once per evaluation of the module), and each such call
+ * each server module that calls one, a line at the top asks for the module's run (`defineRun(id)`
+ * from @ogygia/machine, once per evaluation of the module), and each such call
  * goes through the wrapper it returns, so what the call defines is owned by that run. A module's next
  * run ends its last one: a definition the new code makes again is set again, one deleted from the
  * code is gone. Inert in a build (nothing is marked: definitions live as long as the process).

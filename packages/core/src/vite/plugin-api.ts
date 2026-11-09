@@ -118,7 +118,7 @@ export interface BuildContext {
 	/** Calls that define things for the life of the module making them (`content`, `flag`): exported
 	 *  as `names` from `module`. In dev each such call in a server module is marked with its module's
 	 *  run (./definers.ts), so a definition deleted from the code leaves when the module reloads; the
-	 *  definer reads the run with `defining()` (@ogygia/machine/internal/registry). */
+	 *  definer reads the run with `defining()` from @ogygia/machine. */
 	definers(module: string, names: readonly string[]): void;
 	/** Compile core's EVENT emits in, browser and server (`ogygia/events`: island wakes, server renders,
 	 *  hub mints, navigations) — off, every emit folds away. `lazy`: measure only once a viewer opens a

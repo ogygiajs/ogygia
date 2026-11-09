@@ -19,8 +19,7 @@ import { fnv1a32, type StandardSchemaV1 } from '@ogygia/core/plugin/utils';
 import { flags_app } from './app.ts';
 import { warn } from './messages.ts';
 import { source_answered, source_failed, source_mark, source_reset } from './source-health.ts';
-import { machine, outbox, policy } from '@ogygia/machine';
-import { defining, keyed_registry, module_life } from '@ogygia/machine/internal/registry';
+import { defining, machine, moduleLife, outbox, policy, registry } from '@ogygia/machine';
 
 export type CtxLike = {
 	request: Request;
@@ -244,7 +243,7 @@ export function flush_exposures(): Promise<void> | undefined {
 /** Every constructed flag self-registers here — the complete name list a source is asked for, and
  *  the set federation auto-carries. Import your flags (route modules do this at startup; on plain
  *  Kit, `import './flags'` in hooks.server.ts to prime the source from the first request). */
-const _registry = keyed_registry<string, Definition>();
+const _registry = registry.keyed<string, Definition>();
 
 /** A flag as defined: what a source is asked about, and the layer it is a member of. */
 type Definition = { query: FlagQuery; layer: string | undefined };
@@ -252,7 +251,7 @@ type Definition = { query: FlagQuery; layer: string | undefined };
 /** Who owns a definition made outside a marked call (a build, or a test calling flag() itself):
  *  this module's life, which is the process's in a build. In dev, core marks each flag() call with
  *  the run of the module making it (`b.definers()`), and that run owns it instead (`defining()`). */
-const DEFINED_HERE = module_life((import.meta as { hot?: { dispose(cb: () => void): void } }).hot);
+const DEFINED_HERE = moduleLife((import.meta as { hot?: { dispose(cb: () => void): void } }).hot);
 
 /**
  * Resolve the source ONCE per request over every registered flag, caching decisions on the

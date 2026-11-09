@@ -11,6 +11,7 @@
 import type { ContentRef, ContentRelations, Entry, RefEntry, SchemaLike } from './index.ts';
 import type { GroupMeta, Source, SourceEntry, SourceRef } from './source.ts';
 import {
+	defining,
 	flights,
 	machine,
 	policy,
@@ -20,7 +21,6 @@ import {
 	type World
 } from '@ogygia/machine';
 import { backoff_after } from '@ogygia/machine/internal/policy';
-import { defining } from '@ogygia/machine/internal/registry';
 import { GRAPH } from './graph.ts';
 import { parseSchema } from './schema.ts';
 import { OgygiaError } from './messages/runtime.ts';

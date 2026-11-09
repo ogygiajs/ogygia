@@ -192,6 +192,7 @@ pages.get('/docs'); // a use: the least recently used go first past `max`
 | `onEvict(key, value, why)`              | Hears each value that leaves, after it left, in order: `'age'`, `'size'`, `'delete'` (or replaced), `'end'`.  |
 | `owner`                                 | The scope it lives in. Its end ends the cache, and every value is heard `'end'`.                              |
 | `world`                                 | Values carry the stamp they were made at (`set(key, value, { stamp })`): an older one never replaces a newer. |
+| `pinned(value, key)`                    | A value in use now: it counts against `max` but never goes for size; the next least recently used goes.       |
 | `get` / `peek`                          | The value: `get` is a use, `peek` is not.                                                                     |
 | `set` / `delete` / `clear`              | `set` says `false` when it did not keep the value (too heavy, kept 0 ms, older, or ended).                    |
 | `has` / `size` / `weight` / `entries()` | What it holds now, least recently used first.                                                                 |
@@ -200,6 +201,63 @@ pages.get('/docs'); // a use: the least recently used go first past `max`
 - **One timer.** The ages are kept by one timer of the cache's scope, set for the value due first, sweeping at most once a second (a read past a value's age finds nothing at once all the same).
 - **Notices never break it.** A notice that throws is reported (`machine_evict_failed`) and the rest still run. A `set` or `delete` inside a notice is a normal call: what it lets go is heard after the notices already due.
 - A cache is `Disposable`: with no `owner`, a scope can `adopt` it.
+
+## Registries
+
+A cache holds values made again on demand; a registry holds things that are alive: a watcher, a module, a definition. Nothing in it is ever evicted. An entry leaves when its owner ends, or when the removal `add` gave back runs.
+
+```ts
+import { registry } from '@ogygia/machine';
+
+const watchers = registry<Watcher>();
+const stop = watchers.add(watcher, visit); // gone with the visit, or at `stop()`
+for (const w of watchers) w(event); // in add order
+```
+
+A keyed registry holds definitions by name. Each one is owned by the run of the module that defined it, so a dev reload ends what that run defined: a definition deleted from the code is gone, one kept is set again by the new run.
+
+```ts
+import { registry, moduleLife } from '@ogygia/machine';
+
+const shapes = registry.keyed<string, Shape>();
+const life = moduleLife(import.meta.hot); // ends at the module's reload; the process, in production
+shapes.set('circle', circle, life);
+shapes.get('circle');
+```
+
+|                                           |                                                                                            |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `registry().add(entry, owner)`            | Holds `entry` while `owner` (a scope) is open; returns its removal. Each add is one entry. |
+| `registry.keyed().set(key, value, owner)` | Holds `value` under `key` while `owner` is open, replacing what the key held.              |
+| `get` / `has` / `entries()` / `values()`  | The definitions, in the order they were last set.                                          |
+| `moduleLife(hot)`                         | A scope for one run of a module: its `import.meta.hot` dispose ends it.                    |
+| `size` / iteration                        | What it holds now, in add order.                                                           |
+
+- **Owned, never evicted.** Adding or setting with an owner that already ended is refused: nothing is held, and the removal is a no-op.
+- **Only its own.** An owner's end takes only what it holds: a key set again by another owner stays.
+- **Walk-safe.** An entry removed while the registry is walked is not walked after.
+
+### Definer calls
+
+A plugin's definer (`content()`, `flag()`) owns what it defines by the run of the module that called it. In dev, ogygia's transform marks each such call: `defineRun(id)` runs at the top of the module, once per evaluation, and its calls go through the wrapper it returns. The definer reads that run with `defining()`.
+
+```ts
+import { defining, moduleLife, registry } from '@ogygia/machine';
+
+const shapes = registry.keyed<string, Shape>();
+const here = moduleLife(import.meta.hot);
+export function shape(name: string, s: Shape) {
+	shapes.set(name, s, defining() ?? here); // a marked call: the calling module's run
+}
+```
+
+|                 |                                                                                                                       |
+| --------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `defineRun(id)` | The module `id`'s new run: ends its last run (and what it defined), returns the wrapper its definer calls go through. |
+| `defining()`    | The module run whose marked call is running now, or `null` (a build, or an unmarked call).                            |
+
+- **A module's next run ends its last one.** A definition the new code makes again is set again; one deleted from the code is gone.
+- **Inert in a build.** Nothing is marked, so definitions live as long as the process.
 
 ## Outbox
 

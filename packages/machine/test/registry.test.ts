@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scope } from '../src/index.ts';
-import { defining, define_run, keyed_registry, module_life, registry } from '../src/registry.ts';
+import { defineRun, defining, moduleLife, registry, scope } from '../src/index.ts';
 
 describe('registry: live entries, each owned', () => {
 	it('iterates in add order', () => {
@@ -69,7 +68,7 @@ describe('registry: live entries, each owned', () => {
 
 describe('keyed registry: definitions by name, each owned by its defining module', () => {
 	it('a definition is found by its key; one set again under its key replaces the old', () => {
-		const defs = keyed_registry<string, number>();
+		const defs = registry.keyed<string, number>();
 		const mod = scope();
 		defs.set('a', 1, mod);
 		defs.set('b', 2, mod);
@@ -83,23 +82,23 @@ describe('keyed registry: definitions by name, each owned by its defining module
 	});
 
 	it("a module's reload ends its definitions: one deleted from its code is gone, one kept is set again", () => {
-		const defs = keyed_registry<string, string>();
+		const defs = registry.keyed<string, string>();
 		const hot = { dispose: (cb: () => void) => (dispose = cb) };
 		let dispose = () => {};
 		// the module's first run defines two
-		const first = module_life(hot);
+		const first = moduleLife(hot);
 		defs.set('kept', 'v1', first);
 		defs.set('deleted', 'v1', first);
 		// a dev reload: its old run ends, its new run defines one of them
 		dispose();
-		const second = module_life(hot);
+		const second = moduleLife(hot);
 		defs.set('kept', 'v2', second);
 		expect([...defs.entries()]).toEqual([['kept', 'v2']]);
 		expect(defs.has('deleted')).toBe(false);
 	});
 
 	it('another module cannot take a definition away by ending: only its own go', () => {
-		const defs = keyed_registry<string, string>();
+		const defs = registry.keyed<string, string>();
 		const one = scope();
 		const two = scope();
 		defs.set('x', 'one', one);
@@ -111,12 +110,12 @@ describe('keyed registry: definitions by name, each owned by its defining module
 	});
 
 	it('with no hot module (production) the module lives as long as the process', () => {
-		const life = module_life(undefined);
+		const life = moduleLife(undefined);
 		expect(life.closed).toBe(false);
 	});
 
 	it('setting with an owner that already ended is refused', () => {
-		const defs = keyed_registry<string, number>();
+		const defs = registry.keyed<string, number>();
 		const gone = scope();
 		gone.close();
 		defs.set('a', 1, gone);
@@ -126,7 +125,7 @@ describe('keyed registry: definitions by name, each owned by its defining module
 
 describe('definer calls: each module run owns what it defines', () => {
 	it('inside a marked call, defining() is the run; outside, null', () => {
-		const run = define_run('/app/a.ts');
+		const run = defineRun('/app/a.ts');
 		let seen: unknown = 'unset';
 		run(() => (seen = defining()))();
 		expect(seen).not.toBeNull();
@@ -134,27 +133,27 @@ describe('definer calls: each module run owns what it defines', () => {
 	});
 
 	it("a module's next run ends its last one: a definition the new run does not make is gone", () => {
-		const defs = keyed_registry<string, number>();
+		const defs = registry.keyed<string, number>();
 		const define = (key: string, v: number) => defs.set(key, v, defining()!);
-		const first = define_run('/app/flags.ts');
+		const first = defineRun('/app/flags.ts');
 		first(define)('kept', 1);
 		first(define)('deleted', 1);
-		const second = define_run('/app/flags.ts');
+		const second = defineRun('/app/flags.ts');
 		second(define)('kept', 2);
 		expect([...defs.entries()]).toEqual([['kept', 2]]);
 	});
 
 	it("another module's run does not end this one's", () => {
-		const defs = keyed_registry<string, number>();
+		const defs = registry.keyed<string, number>();
 		const define = (key: string, v: number) => defs.set(key, v, defining()!);
-		define_run('/app/a.ts')(define)('a', 1);
-		define_run('/app/b.ts')(define)('b', 1);
+		defineRun('/app/a.ts')(define)('a', 1);
+		defineRun('/app/b.ts')(define)('b', 1);
 		expect(defs.has('a')).toBe(true);
 	});
 
 	it('defining() is restored after a nested call and after a throw', () => {
-		const outer = define_run('/app/outer.ts');
-		const inner = define_run('/app/inner.ts');
+		const outer = defineRun('/app/outer.ts');
+		const inner = defineRun('/app/inner.ts');
 		let in_outer: unknown = null;
 		outer(() => {
 			try {
