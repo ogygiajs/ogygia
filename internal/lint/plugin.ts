@@ -161,6 +161,16 @@ function has_signal(options: unknown): boolean {
 	);
 }
 
+/** An observer made as the argument of a `.watch(…)` call (`s.watch(new IntersectionObserver(…))`):
+ *  the scope disconnects it. */
+function watched(n: Node): boolean {
+	const parent = n.parent as Node | undefined;
+	if (parent?.type !== 'CallExpression' || !(parent.arguments as unknown[]).includes(n))
+		return false;
+	const c = called(parent);
+	return c !== null && c.member && c.name === 'watch';
+}
+
 const MESSAGE_OWNED =
 	'A bare listener, timer, observer or stream with no cancel outlives whatever started it: give it an owner (scope() from @ogygia/machine: s.on, s.timeout, s.every, s.watch; a stream whose cancel closes its scope).';
 
@@ -169,8 +179,8 @@ const MESSAGE_OWNED =
  * region, a page visit, a component, a machine's visit), which lets them go together, exactly once.
  * Refused: `addEventListener` with no `signal`, `setTimeout` / `setInterval` /
  * `requestAnimationFrame` / `requestIdleCallback`, a `new` Mutation / Intersection / Resize /
- * Performance observer, and a `new ReadableStream({…})` with no `cancel`. One that lives as long as
- * the process or the document says so on the line before it.
+ * Performance observer outside a scope's `watch(…)`, and a `new ReadableStream({…})` with no
+ * `cancel`. One that lives as long as the process or the document says so on the line before it.
  */
 const owned_effects = {
 	meta: {
@@ -192,7 +202,8 @@ const owned_effects = {
 			NewExpression(node: Node) {
 				const callee = node.callee as Node;
 				const name = callee?.type === 'Identifier' ? (callee as { name: string }).name : '';
-				if (OBSERVERS.has(name)) context.report({ node, message: MESSAGE_OWNED });
+				// (made right inside a scope's `watch(…)`: owned)
+				if (OBSERVERS.has(name) && !watched(node)) context.report({ node, message: MESSAGE_OWNED });
 				else if (name === 'ReadableStream') {
 					const source = (node.arguments as Node[])[0];
 					const cancels =

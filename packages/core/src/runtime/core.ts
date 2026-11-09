@@ -197,7 +197,7 @@ const hydrate_core = flights({
  *  those keys shows the new values; before any island woke, the first hydrate absorbs them. */
 function absorb_page_facts_now(): void {
 	// (facts cross in devalue's lane)
-	if (runtime_session.page_facts.length && loaded_core)
+	if (runtime_session.visit.facts.length && loaded_core)
 		// (devalue failed to download: the facts stay queued, and the next wake's load absorbs them)
 		void load_devalue().then(
 			() => loaded_core?.seed_page_once(),
@@ -209,7 +209,7 @@ function absorb_page_facts_now(): void {
  *  document (a props sidecar, the page seed) or page facts an answer queued. Started beside the
  *  hydrate core, so it adds no hop; a page of JSON-lane scripts never downloads it. */
 function devalue_for_wake(): Promise<unknown> | undefined {
-	if (runtime_session.page_facts.length || document_needs_devalue()) return load_devalue();
+	if (runtime_session.visit.facts.length || document_needs_devalue()) return load_devalue();
 }
 
 /**
@@ -369,11 +369,13 @@ export function region_fragment(html: string): { frag: DocumentFragment; ready: 
 	const frag = parse_region_html(html);
 	devalue_lane_stale();
 	// THE PAGE AN ANSWER RENDERED FOR (server/render-page.ts): the `page.data` its islands read, as the
-	// server looked it up. Queued for the hydrate of those islands (seeds.ts), never left in the DOM.
-	// (one per render root: a region rendered inside a hole carries its own)
+	// server looked it up. Queued on the page's visit for the hydrate of those islands (seeds.ts),
+	// never left in the DOM, and never handed to the next page (#269). (one per render root: a region
+	// rendered inside a hole carries its own)
+	const { facts: queued, scope: page } = runtime_session.visit;
 	for (const facts of frag.querySelectorAll(PAGE_FACTS_SELECTOR)) {
 		facts.remove();
-		runtime_session.page_facts.push(facts.textContent ?? '');
+		queued.push(facts.textContent ?? '');
 	}
 	const links = frag.querySelectorAll('link[data-ogygia-region-css]');
 	const pending: Array<Promise<void>> = [];
@@ -408,13 +410,19 @@ export function region_fragment(html: string): { frag: DocumentFragment; ready: 
 		);
 		// Resolve on load OR error (a broken sheet must not wedge the paint) so the caller can await
 		// the stylesheet before swapping the HTML in — no flash of unstyled server-picked content.
+		// The listeners are the page visit's, and let go once the sheet is in.
 		const until_loaded = (l: HTMLLinkElement) =>
 			new Promise<void>((resolve) => {
-				l.addEventListener('load', () => resolve(), { once: true });
-				l.addEventListener('error', () => resolve(), { once: true });
+				const done = () => {
+					off_load();
+					off_error();
+					resolve();
+				};
+				const off_load = page.on(l, 'load', done);
+				const off_error = page.on(l, 'error', done);
 				// Attach-then-check closes the race where the sheet finished between our lookup and the
 				// listener registration (`sheet` is set synchronously with the load event).
-				if (l.sheet) resolve();
+				if (l.sheet) done();
 			});
 		for (const link of links) {
 			const href = link.getAttribute('href');
@@ -469,12 +477,21 @@ export function region_fragment(html: string): { frag: DocumentFragment; ready: 
 	}
 	// Cap the wait so a genuinely hung stylesheet eventually paints (unstyled) rather than blocking
 	// forever — generous, because the caller shows a placeholder meanwhile, so a slow-link stylesheet
-	// (seconds on 4G) should still win the race and paint styled.
+	// (seconds on 4G) should still win the race and paint styled. The wait is the page visit's: the
+	// page left, it ends at once (the answer it held is for a page no longer on screen).
 	const ready = pending.length
-		? Promise.race([
-				Promise.all(pending).then(() => undefined),
-				new Promise<void>((r) => setTimeout(r, 5000))
-			])
+		? page
+				.task(
+					() =>
+						new Promise<void>((resolve) => {
+							const cancel = page.timeout(resolve, 5000);
+							void Promise.all(pending).then(() => {
+								cancel();
+								resolve();
+							});
+						})
+				)
+				.then(() => undefined)
 		: Promise.resolve();
 	// The app's transform reshaped the answer: restore it first — before the pristine copies below,
 	// before the morph, before any upgrade (the fragment is inert: nothing upgrades in it)

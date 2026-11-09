@@ -975,6 +975,74 @@
 		{
 			"id": "packages/testing/src/index.ts > undo > adopt:0~4056a1 > [computed]",
 			"reason": "puts an undo on an owner (a scope, not cloneable), constant work; proven in packages/testing/test/testing-primitives.test.ts (#291)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > region_fragment > task:0~4796da",
+			"reason": "the wait for a region answer's sheets on the page visit (a scope and live link elements, not cloneable), constant work per answer; run in the browser suite (packages/core/test/browser)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > region_fragment > task:0~4796da > Promise:0~c03b66",
+			"reason": "the wait for a region answer's sheets on the page visit (a scope and live link elements, not cloneable), constant work per answer; run in the browser suite (packages/core/test/browser)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > region_fragment > task:0~4796da > Promise:0~c03b66 > then:0~54bc50",
+			"reason": "the wait for a region answer's sheets on the page visit (a scope and live link elements, not cloneable), constant work per answer; run in the browser suite (packages/core/test/browser)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > region_fragment > until_loaded > Promise:0~0b1fbf > done",
+			"reason": "lets go of a sheet's two listeners on the page visit (a live link element, not cloneable), constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-nav.ts > streamFrames > defer:0~95f179",
+			"reason": "cancels the batch body's reader when the batch's owner closes (a live stream reader, not cloneable), constant work; proven in packages/core/test/browser/batch-stream-owner.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-nav.ts > streamFrames > defer:0~95f179 > catch:0~a1b2d0",
+			"reason": "cancels the batch body's reader when the batch's owner closes (a live stream reader, not cloneable), constant work; proven in packages/core/test/browser/batch-stream-owner.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frames.ts > install > frames > stream",
+			"reason": "hands a navigation's batch to streamFrames with its page visit's scope (not cloneable), one call"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > focus_reset > on:2~5c0ef7",
+			"reason": "the focus reset's blur on the page visit (a live element and a scope, not cloneable), constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > navigate > defer:0~313340",
+			"reason": "ends the next page's visit when a navigation ends without its swap, and takes out its early sheets (a scope and live head nodes, not cloneable), linear in the sheets; proven in packages/core/test/browser/nav-called-off-sheets.test.ts (#267)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > preload_stylesheets > Promise:0~4881be > then:0~54bc50",
+			"reason": "the navigation's wait for the next page's sheets (a scope and live link elements, not cloneable), constant work; proven in packages/core/test/browser/nav-called-off-sheets.test.ts (#267)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > preload_stylesheets > Promise:0~729314 > on:2~155ee3",
+			"reason": "the navigation's wait for the next page's sheets (a scope and live link elements, not cloneable), constant work; proven in packages/core/test/browser/nav-called-off-sheets.test.ts (#267)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > preload_stylesheets > Promise:0~729314 > on:2~155ee3#2",
+			"reason": "the navigation's wait for the next page's sheets (a scope and live link elements, not cloneable), constant work; proven in packages/core/test/browser/nav-called-off-sheets.test.ts (#267)"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > scan_preload_links > on_idle:1~3fa4ff",
+			"reason": "the router's preload scan in idle time on the page visit (the live document's anchors and an observer, not cloneable), linear in the marked anchors"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > scan_preload_links > on_idle:1~3fa4ff > IntersectionObserver:0~a9d7c5",
+			"reason": "the viewport observer's callback (live intersection entries, not cloneable), linear in the entries"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > on_idle > run",
+			"reason": "runs an idle callback once and cancels its twin timer (scope timers, not cloneable), constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/session.ts > RuntimeSession > get visit",
+			"reason": "returns a field, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/session.ts > RuntimeSession > next_visit",
+			"reason": "makes a page visit record (a scope and an empty list), constant work; run by packages/core/test/browser/nav-called-off-sheets.test.ts"
 		}
 	]
 }

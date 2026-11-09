@@ -11,7 +11,7 @@
  * merge, body reconcile, seeds, a11y) is ./router-nav.ts, loaded on the first prefetch or
  * intercepted click. A visitor who never leaves the page never downloads it.
  */
-import { flights, STALE, type Stale } from '@ogygia/machine';
+import { flights, STALE, type Scope, type Stale } from '@ogygia/machine';
 import { import_again } from './import-again.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
 import { create_navigation, type Navigation } from './navigation.ts';
@@ -19,6 +19,7 @@ import { slots } from './slots.ts';
 import { publish_nav } from './nav-handle.ts';
 import { nearest_attr } from './nearest-attr.ts';
 import { record_server_body } from './ownership.ts';
+import { runtime_session } from './session.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
 
 const WS = /\s+/;
@@ -204,10 +205,16 @@ export function jump_to_hash(hash: string): void {
 	}
 }
 
-/** Run `fn` when the browser is idle (bounded), else soon. */
-function on_idle(fn: () => void, timeout = 1000) {
-	if (typeof requestIdleCallback === 'function') requestIdleCallback(fn, { timeout });
-	else setTimeout(fn, 50);
+/** Run `fn` once, when the browser is idle or after `cap` ms, whichever is first, unless `page` (a
+ *  page visit's scope) ends first. */
+function on_idle(page: Scope, fn: () => void, cap = 1000) {
+	const run = () => {
+		idle();
+		capped();
+		fn();
+	};
+	const idle = page.timeout(run, 'idle');
+	const capped = page.timeout(run, cap);
 }
 
 /**
@@ -266,8 +273,6 @@ export class SpaRouter {
 	 * clicks `document` will not hear (`#on_anchor_click`).
 	 */
 	#taken = new WeakMap<HTMLAnchorElement, string>();
-	#viewport_io: IntersectionObserver | null = null;
-	#viewport_seen = new WeakSet<Element>();
 	/** pathname+search of the document currently in the DOM (hash ignored). */
 	doc_key = '';
 	/**
@@ -485,10 +490,12 @@ export class SpaRouter {
 		const body = document.body;
 		if (body) record_server_body(body, body, Array.from(body.childNodes));
 
+		// oxlint-disable-next-line ogygia/owned-effects -- the router's click delegation, installed once (`#started`): it lives as long as the document
 		document.addEventListener('click', (event) => this.#on_click(event, anchor_of(event)));
 
 		this.#install_prefetch();
 
+		// oxlint-disable-next-line ogygia/owned-effects -- the router's back/forward, installed once (`#started`): it lives as long as the document
 		window.addEventListener('popstate', () => {
 			const url = new URL(location.href);
 			// Hash-only back/forward on the same document — browser already updated the URL;
@@ -572,6 +579,7 @@ export class SpaRouter {
 	/** The router took a click on `anchor` to `url`: from now on the anchor hears its own clicks too. */
 	#take(anchor: HTMLAnchorElement, url: URL): void {
 		if (!this.#taken.has(anchor)) {
+			// oxlint-disable-next-line ogygia/owned-effects -- the anchor's own, for its life: a kept anchor needs it on the next page too, and it goes with the anchor (an owner of its own is the region element's work)
 			anchor.addEventListener('click', (event) => this.#on_anchor_click(event, anchor));
 		}
 		this.#taken.set(anchor, url.href);
@@ -642,6 +650,7 @@ export class SpaRouter {
 	#install_prefetch() {
 		// hover -> warm links whose trigger is hover-or-eager (rank <= 2). `mouseover` fires for
 		// every element the pointer crosses: bail on the one `closest('a')` before ranking anything.
+		// oxlint-disable-next-line ogygia/owned-effects -- the router's hover delegation, installed once at start: it lives as long as the document
 		document.addEventListener(
 			'mouseover',
 			(event) => {
@@ -655,47 +664,42 @@ export class SpaRouter {
 			const anchor = anchor_of(event);
 			if (anchor && this.#preload_rank(anchor) <= PRELOAD_RANK.tap) this.#warm_anchor(anchor);
 		};
+		// oxlint-disable-next-line ogygia/owned-effects -- the router's press delegation, installed once at start: it lives as long as the document
 		document.addEventListener('mousedown', on_press, { passive: true });
+		// oxlint-disable-next-line ogygia/owned-effects -- the router's press delegation, installed once at start: it lives as long as the document
 		document.addEventListener('touchstart', on_press, { passive: true });
 
 		this.scan_preload_links();
-	}
-
-	/** After start + every navigation: drop detached IO targets, then re-observe the live body. */
-	#reset_viewport_io() {
-		this.#viewport_io?.disconnect();
-		this.#viewport_seen = new WeakSet();
-		this.#viewport_io = new IntersectionObserver(
-			(entries) => {
-				for (const e of entries) {
-					if (e.isIntersecting) {
-						this.#viewport_io!.unobserve(e.target);
-						this.#warm_anchor(e.target);
-					}
-				}
-			},
-			{ rootMargin: '0px' }
-		);
 	}
 
 	/**
 	 * After start + every navigation, in IDLE: eager links warm now; viewport links get observed.
 	 * Only anchors under a preload-marked element are read — an unmarked anchor has no trigger. Idle,
 	 * because the scan competes with the freshly swapped page's own islands for the main thread and
-	 * a warm is speculation by definition.
+	 * a warm is speculation by definition. The scan and its observer are the page visit's
+	 * (./session.ts `PageVisit`): the next page's swap disconnects it, so the anchors of a page left
+	 * behind are never held, and a scan still waiting for idle time when its page is left never runs.
 	 */
 	scan_preload_links(): void {
-		on_idle(() => {
-			// P-IO: recreate observer so detached anchors from the previous body are not retained.
-			this.#reset_viewport_io();
-			if (!this.#viewport_io) return;
+		const page = runtime_session.visit.scope;
+		on_idle(page, () => {
+			const io = page.watch(
+				new IntersectionObserver(
+					(entries) => {
+						for (const e of entries) {
+							if (e.isIntersecting) {
+								io.unobserve(e.target);
+								this.#warm_anchor(e.target);
+							}
+						}
+					},
+					{ rootMargin: '0px' }
+				)
+			);
 			for (const anchor of Array.from(document.querySelectorAll(PRELOAD_MARKED_ANCHORS))) {
 				const rank = this.#preload_rank(anchor);
 				if (rank === PRELOAD_RANK.eager) this.#warm_anchor(anchor);
-				else if (rank === PRELOAD_RANK.viewport && !this.#viewport_seen.has(anchor)) {
-					this.#viewport_seen.add(anchor);
-					this.#viewport_io.observe(anchor);
-				}
+				else if (rank === PRELOAD_RANK.viewport) io.observe(anchor);
 			}
 		});
 	}
@@ -868,6 +872,7 @@ export function install(): void {
 		document.dispatchEvent(new Event('og:page-load'));
 	};
 	if (document.readyState === 'loading') {
+		// oxlint-disable-next-line ogygia/owned-effects -- the router's start, once, when the document is parsed: the document's own event
 		document.addEventListener('DOMContentLoaded', start, { once: true });
 	} else {
 		start();

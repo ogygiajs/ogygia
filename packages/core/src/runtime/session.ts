@@ -1,7 +1,9 @@
 /**
- * Document-scoped runtime session: lake caches, seed flags, kit-page probe, server-island gate.
- * Cleared on SPA body swap via `reset()` so connecting regions never see the previous page.
+ * Document-scoped runtime session: lake caches, seed flags, kit-page probe, server-island gate, and
+ * the page visit. Cleared on SPA body swap via `reset()` so connecting regions never see the previous
+ * page.
  */
+import { scope, type Scope } from '@ogygia/machine';
 import { ConcurrencyGate } from './concurrency.ts';
 import { FROZEN_SELECTOR } from './region-attrs.ts';
 
@@ -42,6 +44,29 @@ export type LakeCacheEntry = {
  * copy could unstyle the page for a frame; a doubled sheet is harmless).
  */
 const STYLESHEET_REL_RE = /(?:^|\s)stylesheet(?:\s|$)/i;
+
+/**
+ * THE PAGE VISIT: one per page the visitor is on, the document load, then each page a navigation
+ * swaps in. It ends when the next page's swap takes over (`RuntimeSession.reset`). What the page
+ * holds is its own and goes with it: on `scope`, its listeners, timers, observers and streams (the
+ * router's link scan, the batch of its holes, the waits for the sheets its answers bring); in
+ * `facts`, what its answers brought for its next hydrate.
+ *
+ * A navigation makes the visit of the page it brings before its swap (`RuntimeSession.next_visit`):
+ * what it starts for that page early, the batch of its holes, is that visit's. A navigation that
+ * ends without its swap (called off, taken over, given to the browser) ends that visit, never the
+ * page's (./router-nav.ts `navigate`).
+ */
+export type PageVisit = {
+	/** Closed when the visit ends. */
+	readonly scope: Scope;
+	/** The page facts answers rendered with (server/render-page.ts), queued at the answer seam
+	 *  (`region_fragment`) for the next hydrate to merge into the page store (seeds.ts). This page's
+	 *  only: the next page's visit starts with none (#269). */
+	readonly facts: string[];
+};
+
+const page_visit = (): PageVisit => ({ scope: scope(), facts: [] });
 
 /** What one island's hydrate step put in `<head>` ({@link RuntimeSession.mark_head}). */
 export interface HeadMark {
@@ -105,6 +130,7 @@ export class RuntimeSession {
 		// (records the browser hands the callback before the step reads them are kept: the step is
 		// synchronous, so none should be, but a lost record would be a node of the island's missed)
 		const delivered: MutationRecord[] = [];
+		// oxlint-disable-next-line ogygia/owned-effects -- the hydrate step's own: the mark it hands back disconnects it (`added`, `stop`)
 		const watch = new MutationObserver((records) => delivered.push(...records));
 		watch.observe(head, { childList: true });
 		return {
@@ -160,9 +186,18 @@ export class RuntimeSession {
 	readonly settled_lakes: WeakSet<Element> = new WeakSet<Element>();
 	readonly initialized_lakes: Set<string> = new Set<string>();
 	readonly server_gate: ConcurrencyGate = new ConcurrencyGate(3);
-	/** The page facts answers rendered with (server/render-page.ts), queued at the answer seam
-	 *  (`region_fragment`) for the next hydrate to merge into the page store (seeds.ts). */
-	readonly page_facts: string[] = [];
+
+	#visit: PageVisit = page_visit();
+	/** The visit of the page on screen (see {@link PageVisit}). */
+	get visit(): PageVisit {
+		return this.#visit;
+	}
+
+	/** The visit of the page a navigation brings, made before its swap: the navigation's (it ends
+	 *  it when there is no swap) until `reset(next)` makes it the page. */
+	next_visit(): PageVisit {
+		return page_visit();
+	}
 
 	#remote_seeded = false;
 	#page_seeded = false;
@@ -209,12 +244,17 @@ export class RuntimeSession {
 		}
 	}
 
-	reset(): void {
+	/** The next page takes over (its visit, made by its navigation; a new one when none is given),
+	 *  and the visit of the page it replaces ends. */
+	reset(next: PageVisit = page_visit()): void {
+		const left = this.#visit;
+		this.#visit = next;
 		this.#kit_page = undefined;
 		this.#remote_seeded = false;
 		this.#page_seeded = false;
 		this.lake_cache.clear();
 		this.initialized_lakes.clear();
+		if (left !== next) left.scope.close();
 	}
 }
 

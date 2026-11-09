@@ -18,7 +18,7 @@ export function install(): void {
 		ensure,
 		renew,
 		renewal,
-		stream: streamFrames,
+		stream: (endpoints, visit) => streamFrames(endpoints, 'nav', visit),
 		join: join_batch,
 		batch_times
 	};

@@ -123,9 +123,10 @@ export type FrameOps = {
 	 * SINGLE-FLIGHT NAVIGATION: batch a page's signed deferred endpoints into the store as one streamed response. Lives
 	 * on the seam (not a static router import) so an app with `router` but no deferred/live/lake region
 	 * — hence no `frames` feature — never bundles the frame store. The router optional-chains this: no
-	 * frames feature ⇒ no `render="defer"` holes to batch ⇒ the call never fires anyway.
+	 * frames feature ⇒ no `render="defer"` holes to batch ⇒ the call never fires anyway. `visit`: the
+	 * scope of the page the holes are for (./session.ts `PageVisit`); the batch stops when it ends.
 	 */
-	stream(endpoints: string[]): Promise<void>;
+	stream(endpoints: string[], visit: import('@ogygia/machine').Scope): Promise<void>;
 	/** Holes that start fetching in the same task go out as one batch (frame-nav.ts `join_batch`);
 	 *  await it, then `ensure` joins the batch's reservation. */
 	join?(endpoint: string): Promise<void>;
