@@ -162,6 +162,51 @@ export async function* late_region_chunks(
 	}
 }
 
+/**
+ * Every late chunk of the document, until nothing new registers. A chunk bakes its region as its
+ * promise settles, and a region baked there may hold a `<Region of={promise}>` of its own: it
+ * registers then, after the document's list was taken. So after each chunk the request's late
+ * regions are taken again (`take`), and whatever registered joins as one more source, in
+ * completion order with the rest. It ends only when every source ended and a last take finds
+ * none: no slot is left that nothing fills.
+ */
+export async function* until_drained(
+	first: AsyncGenerator<LateChunk>,
+	take: () => ReadonlyArray<{ id: string; promise: Promise<unknown> }> | null
+): AsyncGenerator<LateChunk> {
+	const sources: AsyncGenerator<LateChunk>[] = [];
+	const nexts = new Map<number, Promise<{ i: number; r: IteratorResult<LateChunk> }>>();
+	const add = (source: AsyncGenerator<LateChunk>) => {
+		const i = sources.push(source) - 1;
+		nexts.set(
+			i,
+			source.next().then((r) => ({ i, r }))
+		);
+	};
+	const take_more = () => {
+		const more = take();
+		if (more?.length) add(late_region_chunks(more));
+	};
+	add(first);
+	for (;;) {
+		if (nexts.size === 0) {
+			take_more();
+			if (nexts.size === 0) return;
+		}
+		const { i, r } = await Promise.race(nexts.values());
+		if (r.done) {
+			nexts.delete(i);
+			continue;
+		}
+		nexts.set(
+			i,
+			sources[i].next().then((res) => ({ i, r: res }))
+		);
+		yield r.value;
+		take_more();
+	}
+}
+
 /** Interleave chunk sources by READINESS (a page generator + the late-region pool run together;
  *  whichever has a chunk ready streams next). Ends when every source ends. */
 export async function* merge_chunks(

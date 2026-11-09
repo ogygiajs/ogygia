@@ -5,6 +5,7 @@
 import path from 'node:path';
 import { parse } from 'svelte/compiler';
 import { bench } from '@bench/heisenbench/bench';
+import { BarrelIndex, type Host } from '../src/compiler/debarrel/barrel.ts';
 import { analyze_exports, analyze_imports } from '../src/compiler/debarrel/parse.ts';
 import { collect_flag_sites } from '../src/compiler/flags.ts';
 import { collectFreeIdentifiers } from '../src/compiler/free-vars.ts';
@@ -173,6 +174,67 @@ bench(
 	{
 		setup: () => ({ source: flags_module(20) }),
 		scale: (_ctx, k) => ({ source: flags_module(20 * k) })
+	}
+);
+
+/** `barrels` barrels of five leaves each under one top barrel, as in-memory files, and the host the
+ *  barrel index reads them through (a relative resolve, every module a candidate). */
+function barrel_tree(barrels: number) {
+	const files = new Map<string, string>();
+	for (let b = 0; b < barrels; b++) {
+		for (let l = 0; l < 5; l++)
+			files.set(`/app/lib/b${b}/l${l}.ts`, `export const n${b}_${l} = ${l};`);
+		files.set(
+			`/app/lib/b${b}/index.ts`,
+			Array.from({ length: 5 }, (_, l) => `export * from './l${l}';`).join('\n')
+		);
+	}
+	files.set(
+		'/app/lib/index.ts',
+		Array.from({ length: barrels }, (_, b) => `export * from './b${b}';`).join('\n')
+	);
+	// a barrel whose re-export cannot resolve at all (the host throws): its build fails
+	files.set('/app/lib/broken.ts', `export { x } from './throws';`);
+	const host: Host = {
+		read: (id) => files.get(id) ?? null,
+		resolve: async (spec, importer) => {
+			if (spec === './throws') throw new Error('the resolver failed');
+			const base = path.posix.join(path.posix.dirname(importer), spec);
+			return files.has(`${base}.ts`)
+				? `${base}.ts`
+				: files.has(`${base}/index.ts`)
+					? `${base}/index.ts`
+					: null;
+		},
+		candidate: () => true,
+		forced: () => false,
+		kept: () => false,
+		follow_packages: false
+	};
+	return { files, host };
+}
+
+// One build per barrel however many ask; an edit to a barrel while its map is being built drops that
+// build (its callers build again), and an edit to a leaf after drops the kept maps that walked it.
+bench(
+	'the barrel index: every barrel asked at once, built once; an edit during and after the builds',
+	async ({ barrels, host }) => {
+		const index = new BarrelIndex(host);
+		const asks: Promise<unknown>[] = [];
+		for (let k = 0; k < barrels * 3; k++)
+			asks.push(
+				index.map(k % 3 === 0 ? '/app/lib/index.ts' : `/app/lib/b${k % barrels}/index.ts`, 'x')
+			);
+		index.invalidate('/app/lib/b0/index.ts');
+		await Promise.all(asks);
+		index.invalidate('/app/lib/b1/l1.ts');
+		const top = await index.map('/app/lib/index.ts', 'x');
+		const broken = await index.map('/app/lib/broken.ts', 'x').catch(() => null);
+		return (top?.entries.size ?? 0) + (broken === null ? 0 : 1);
+	},
+	{
+		setup: () => ({ barrels: 10, ...barrel_tree(10) }),
+		scale: (_ctx, k) => ({ barrels: 10 * k, ...barrel_tree(10 * k) })
 	}
 );
 

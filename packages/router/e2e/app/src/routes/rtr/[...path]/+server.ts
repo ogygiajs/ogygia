@@ -8,6 +8,7 @@ import { region } from 'ogygia';
 // would mint nothing (the round-1 catalog rule); the mark gives the region its identity + CSS.
 import StreamPayload from '$lib/rtr/StreamPayload.svelte' with { region: 'raw' };
 import StreamRegion from '$lib/rtr/StreamRegion.svelte';
+import StreamNested from '$lib/rtr/StreamNested.svelte' with { region: 'raw' };
 import Shell from '$lib/rtr/Shell.svelte';
 import Inner from '$lib/rtr/Inner.svelte';
 import Home from '$lib/rtr/Home.svelte';
@@ -42,6 +43,20 @@ const app = routes(
 				pending: (async () => {
 					await new Promise((r) => setTimeout(r, 150)); // a pretend slow upstream
 					return region(StreamPayload, { data: { title: 'late region' } });
+				})()
+			})
+		}),
+		// A LATE REGION THAT HOLDS ANOTHER: the outer resolves to a region whose own <Region of>
+		// waits on a second promise; both stream down the same response.
+		'/stream-region-nested': page(StreamRegion, {
+			load: () => ({
+				pending: (async () => {
+					await new Promise((r) => setTimeout(r, 100));
+					const inner = (async () => {
+						await new Promise((r) => setTimeout(r, 100));
+						return region(StreamPayload, { data: { title: 'inner late region' } });
+					})();
+					return region(StreamNested, { data: { inner } });
 				})()
 			})
 		}),
