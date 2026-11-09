@@ -6,7 +6,7 @@
 //
 // The download fails for real, at the network (the `drop_downloads` command), once. The built
 // runtime's path: in dev the sheet is a module, imported instead of linked.
-import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, expect, vi } from 'vitest';
 import { commands } from 'vitest/browser';
 import { it_with_network_routes } from './_browsers.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';

@@ -5,7 +5,7 @@
 //
 // Two sheets, for real: one loads at once (a `data:` sheet that sets a custom property on `<html>`),
 // one is held at the network (the `hold_downloads` command), so the navigation is still waiting.
-import { afterEach, beforeEach, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect } from 'vitest';
 import { commands } from 'vitest/browser';
 import { it_with_network_routes } from './_browsers.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';

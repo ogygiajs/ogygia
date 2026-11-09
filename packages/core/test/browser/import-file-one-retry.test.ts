@@ -6,7 +6,7 @@
 //
 // The download fails for real, at the network (the `drop_downloads` command: Playwright's
 // `route.abort`).
-import { afterEach, expect, test } from 'vitest';
+import { afterEach, expect } from 'vitest';
 import { commands } from 'vitest/browser';
 import { it_with_network_routes } from './_browsers.ts';
 import { import_file } from '../../src/runtime/import-again.ts';

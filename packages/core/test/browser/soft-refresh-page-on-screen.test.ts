@@ -2,7 +2,7 @@
 // success) re-reads the page's head and data in place. Started while a navigation to the next page
 // waits (here on that page's stylesheet, held at the network for real), it must refresh the page
 // still on screen: never fetch the next page and merge its title, head and page data into this one.
-import { afterEach, beforeEach, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect } from 'vitest';
 import { commands } from 'vitest/browser';
 import { it_with_network_routes } from './_browsers.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';
