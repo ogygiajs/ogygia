@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { scope } from '../src/index.ts';
-import { registry } from '../src/registry.ts';
+import { keyed_registry, module_life, registry } from '../src/registry.ts';
 
 describe('registry: live entries, each owned', () => {
 	it('iterates in add order', () => {
@@ -64,5 +64,62 @@ describe('registry: live entries, each owned', () => {
 			if (v === 'a') removes[1]!();
 		}
 		expect(seen).toEqual(['a', 'c']);
+	});
+});
+
+describe('keyed registry: definitions by name, each owned by its defining module', () => {
+	it('a definition is found by its key; one set again under its key replaces the old', () => {
+		const defs = keyed_registry<string, number>();
+		const mod = scope();
+		defs.set('a', 1, mod);
+		defs.set('b', 2, mod);
+		defs.set('a', 3, mod);
+		expect(defs.get('a')).toBe(3);
+		expect([...defs.entries()]).toEqual([
+			['b', 2],
+			['a', 3]
+		]);
+		expect(defs.size).toBe(2);
+	});
+
+	it("a module's reload ends its definitions: one deleted from its code is gone, one kept is set again", () => {
+		const defs = keyed_registry<string, string>();
+		const hot = { dispose: (cb: () => void) => (dispose = cb) };
+		let dispose = () => {};
+		// the module's first run defines two
+		const first = module_life(hot);
+		defs.set('kept', 'v1', first);
+		defs.set('deleted', 'v1', first);
+		// a dev reload: its old run ends, its new run defines one of them
+		dispose();
+		const second = module_life(hot);
+		defs.set('kept', 'v2', second);
+		expect([...defs.entries()]).toEqual([['kept', 'v2']]);
+		expect(defs.has('deleted')).toBe(false);
+	});
+
+	it('another module cannot take a definition away by ending: only its own go', () => {
+		const defs = keyed_registry<string, string>();
+		const one = scope();
+		const two = scope();
+		defs.set('x', 'one', one);
+		defs.set('x', 'two', two); // (redefined elsewhere: the later one holds it)
+		one.close();
+		expect(defs.get('x')).toBe('two');
+		two.close();
+		expect(defs.get('x')).toBeUndefined();
+	});
+
+	it('with no hot module (production) the module lives as long as the process', () => {
+		const life = module_life(undefined);
+		expect(life.closed).toBe(false);
+	});
+
+	it('setting with an owner that already ended is refused', () => {
+		const defs = keyed_registry<string, number>();
+		const gone = scope();
+		gone.close();
+		defs.set('a', 1, gone);
+		expect(defs.has('a')).toBe(false);
 	});
 });
