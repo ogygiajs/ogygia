@@ -116,27 +116,27 @@ describe('a schedule that fires after its region left starts nothing (#335)', ()
 	});
 });
 
+/** Once `ready()` holds, as the element's DOM or its machines move: on what it waits for, never a
+ *  timer (a step that keeps time passing starves what the run waits for between its turns). */
+const until = (el: HTMLElement, ready: () => boolean) => () =>
+	new Promise<void>((resolve) => {
+		if (ready()) return resolve();
+		const dom = new MutationObserver(() => ready() && done());
+		const off = observe(() => queueMicrotask(() => ready() && done()));
+		const done = () => {
+			dom.disconnect();
+			off();
+			resolve();
+		};
+		dom.observe(el, { childList: true, subtree: true });
+	});
+
 describe('a hole put back after its answer left the frame store (#336)', () => {
 	const steps = (el: HTMLElement, wait_awake: boolean): SimStep[] => [
 		['it comes onto the page', () => document.body.append(el)],
 		[
 			wait_awake ? 'its island wakes' : 'its answer is in',
-			// (on what it waits for, never a timer: a step that keeps time passing starves what the run
-			// waits for between its turns)
-			() =>
-				new Promise<void>((resolve) => {
-					const ready = () =>
-						wait_awake ? now.wake === 'awake' : el.querySelector('button') !== null;
-					if (ready()) return resolve();
-					const dom = new MutationObserver(() => ready() && done());
-					const off = observe(() => queueMicrotask(() => ready() && done()));
-					const done = () => {
-						dom.disconnect();
-						off();
-						resolve();
-					};
-					dom.observe(el, { childList: true, subtree: true });
-				}),
+			until(el, () => (wait_awake ? now.wake === 'awake' : el.querySelector('button') !== null)),
 			'then'
 		],
 		['it leaves', () => el.remove(), 'then'],
@@ -161,6 +161,8 @@ describe('a hole put back after its answer left the frame store (#336)', () => {
 				rules(sim, el);
 				await sim.play([
 					...steps(el, false),
+					// (a visitor's click is a task of its own: it comes once the island catches input again)
+					['its island waits for a visitor', until(el, () => now.wake === 'armed'), 'then'],
 					[
 						'a visitor clicks it',
 						() => {
@@ -183,6 +185,40 @@ describe('a hole put back after its answer left the frame store (#336)', () => {
 				const el = hole();
 				rules(sim, el);
 				await sim.play(steps(el, true));
+			},
+			RUNS
+		);
+	});
+});
+
+describe('a hole’s island that wakes on a visitor, its answer on another schedule (#338)', () => {
+	it('wakes on the visitor’s click', async () => {
+		await simulate.check(
+			[],
+			async (sim) => {
+				start(sim);
+				const el = hole('interaction');
+				sim.finally('its island is awake', () =>
+					now.wake === 'awake' ? null : `its wake is ${now.wake}`
+				);
+				// (its props start it at 0: the one click, replayed once onto the live island)
+				sim.finally('the click reached it', () =>
+					el.querySelector('[data-testid="count"]')?.textContent === '1'
+						? null
+						: `its count is ${el.querySelector('[data-testid="count"]')?.textContent}`
+				);
+				await sim.play([
+					['it comes onto the page', () => document.body.append(el)],
+					['its island waits for a visitor', until(el, () => now.wake === 'armed'), 'then'],
+					[
+						'a visitor clicks it',
+						() => {
+							const b = el.querySelector('button')!;
+							b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+							b.click();
+						}
+					]
+				]);
 			},
 			RUNS
 		);
