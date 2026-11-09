@@ -238,3 +238,141 @@ test('a single start still goes out at once (no yield before the first)', async 
 	await Promise.resolve();
 	expect(started).toBe(true);
 });
+
+// ── the order a drain keeps ──────────────────────────────────────────────────────────────────────
+// A drain reads every queued class once and goes by class, then in the order asked (it was a sort
+// of the whole queue on every drain). These pin the order and the moments the classes are read.
+
+type Cls = 'user' | 'visible' | 'ahead' | 'speculative';
+
+/** Fills the background window with downloads that never end on their own. */
+async function fill_window(): Promise<Array<() => void>> {
+	const hold: Array<() => void> = [];
+	for (let i = 0; i < BACKGROUND_WINDOW; i++)
+		void new LoadSlot({ kind: 'content', cls: 'ahead' }).ready.then((r) => hold.push(r));
+	await tick();
+	expect(hold.length).toBe(BACKGROUND_WINDOW);
+	return hold;
+}
+
+test('the gate opening starts each class in the order asked, whatever order the classes came in', async () => {
+	const hero = pending_hero();
+	const started: string[] = [];
+	const releases: Array<() => void> = [];
+	const ask = (label: string, cls: Cls | (() => Cls)) =>
+		void new LoadSlot({ kind: 'code', cls, label }).ready.then((release) => {
+			started.push(label);
+			releases.push(release);
+		});
+	ask('s1', 'speculative');
+	ask('a1', () => 'ahead');
+	ask('v1', 'visible');
+	ask('s2', () => 'speculative');
+	ask('a2', 'ahead');
+	ask('v2', () => 'visible');
+	ask('a3', 'ahead');
+	await tick(50);
+	expect(started).toEqual([]);
+	hero.dispatchEvent(new Event('load'));
+	await tick();
+	expect(started).toEqual(['v1', 'v2', 'a1', 'a2', 'a3']);
+	releases[2](); // a1's: the window lets the first speculative in
+	await tick();
+	expect(started.at(-1)).toBe('s1');
+	releases[3]();
+	await tick();
+	expect(started.at(-1)).toBe('s2');
+	for (const r of releases) r();
+});
+
+test('a class that changed with no event is read at the next drain, whatever asked for it', async () => {
+	await critical_settled();
+	const hold = await fill_window();
+	let cls: Cls = 'ahead';
+	const started: string[] = [];
+	void new LoadSlot({ kind: 'code', cls: () => cls, label: 'g' }).ready.then(() =>
+		started.push('g')
+	);
+	await tick();
+	cls = 'visible'; // a layout shift: no scroll, nothing tells the queue
+	await tick();
+	expect(started).toEqual([]);
+	// an unrelated ask drains the queue: the class is read again, and the window does not apply
+	void new LoadSlot({ kind: 'content', cls: 'speculative', label: 'x' }).ready.then(() =>
+		started.push('x')
+	);
+	await tick();
+	expect(started).toEqual(['g']);
+	for (const r of hold) r();
+});
+
+test('a class a holder’s start-up changes is read again in the same drain', async () => {
+	await critical_settled();
+	const hold = await fill_window();
+	let cls: Cls = 'ahead';
+	const started: string[] = [];
+	void new LoadSlot({ kind: 'code', cls: () => cls, label: 'g' }).ready.then(() =>
+		started.push('g')
+	);
+	// a guess that waits for the window; the visitor then wants it (its holder already waits)
+	const u = new LoadSlot({ kind: 'content', cls: 'speculative', label: 'u' });
+	void u.ready.then(() => {
+		started.push('u');
+		cls = 'visible'; // what the visitor's page adds moves the other one on screen
+	});
+	await tick();
+	expect(started).toEqual([]);
+	u.promote('user');
+	await tick();
+	expect(started).toEqual(['u', 'g']);
+	for (const r of hold) r();
+});
+
+test('a slot asked for while a drain starts others goes in that drain, after the rest, in the order asked', async () => {
+	const hero = pending_hero();
+	const started: string[] = [];
+	const releases: Array<() => void> = [];
+	const ask = (label: string, cls: Cls, then?: () => void) =>
+		void new LoadSlot({ kind: 'code', cls, label }).ready.then((release) => {
+			started.push(label);
+			releases.push(release);
+			then?.();
+		});
+	// island code waits for the critical image; when it arrives, its start-up asks for two more
+	ask('v1', 'visible', () => {
+		ask('a', 'ahead');
+		ask('v2', 'visible');
+	});
+	await tick(50);
+	expect(started).toEqual([]);
+	hero.dispatchEvent(new Event('load'));
+	await tick();
+	// (the next drain would put `v2` first; the one running reaches them in the order asked)
+	expect(started).toEqual(['v1', 'a', 'v2']);
+	for (const r of releases) r();
+});
+
+test('the scroll watch ends in the frame that starts the last queued slot', async () => {
+	await critical_settled();
+	const hold = await fill_window();
+	let cls: Cls = 'ahead';
+	let started = false;
+	void new LoadSlot({ kind: 'code', cls: () => cls }).ready.then(() => (started = true));
+	await tick();
+	const removed: string[] = [];
+	const remove = window.removeEventListener;
+	window.removeEventListener = function (this: Window, ...args: Parameters<typeof remove>) {
+		removed.push(String(args[0]));
+		return remove.apply(this, args);
+	} as typeof remove;
+	try {
+		cls = 'visible';
+		dispatchEvent(new Event('scroll'));
+		await tick(40);
+	} finally {
+		window.removeEventListener = remove;
+	}
+	expect(started).toBe(true);
+	expect(removed).toContain('scroll');
+	for (const r of hold) r();
+});
