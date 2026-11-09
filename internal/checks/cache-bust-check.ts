@@ -32,6 +32,17 @@ import { spawn, execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
+// Chromium only: what it proves is the build's file names, which one engine's disk cache shows,
+// and its interaction case reads the profiler's in-page sampler (the JS Self-Profiling API), which
+// only Chromium has. An engine job (OGYGIA_BROWSERS without chromium) installs no Chromium.
+const engines = process.env.OGYGIA_BROWSERS?.split(',')
+	.map((b) => b.trim())
+	.filter(Boolean);
+if (engines?.length && !engines.includes('chromium')) {
+	console.log(`the cache check runs in Chromium only; skipped for ${engines.join(', ')}`);
+	process.exit(0);
+}
+
 const repo = path.resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const app = path.join(repo, 'packages/devtools/e2e/app');
 const version_file = path.join(app, 'src/lib/dtcache/version.ts');
