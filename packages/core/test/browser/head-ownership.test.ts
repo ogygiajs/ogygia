@@ -24,14 +24,82 @@ beforeEach(() => {
 
 /** What an island's fresh `<svelte:head>` render appends: the same content, live. */
 function island_renders(html: string): Element[] {
-	const before = new Set(document.head.childNodes);
+	const mark = s.mark_head();
 	const tpl = document.createElement('template');
 	tpl.innerHTML = html;
 	const added = Array.from(tpl.content.children);
 	document.head.append(...added);
-	s.record_island_head(before);
+	s.record_island_head(mark);
 	return added;
 }
+
+/** What a scan of the head before and after finds the step added (the record's old way). */
+function scanned(step: () => void): Element[] {
+	const before = new Set<Node>(document.head.children);
+	step();
+	return Array.from(document.head.children).filter((n) => !before.has(n));
+}
+
+/** What the mark finds, with the observer and without it. */
+function marked(step: () => void, observer: boolean): Element[] {
+	const saved = globalThis.MutationObserver;
+	if (!observer) delete (globalThis as { MutationObserver?: unknown }).MutationObserver;
+	try {
+		const mark = s.mark_head();
+		step();
+		return mark.added();
+	} finally {
+		globalThis.MutationObserver = saved;
+	}
+}
+
+test('the mark finds what a scan of the head finds, in head order', () => {
+	const make = (html: string) => {
+		const tpl = document.createElement('template');
+		tpl.innerHTML = html;
+		return tpl.content.firstElementChild!;
+	};
+	const steps: Array<() => void> = [
+		() => {},
+		() => document.head.append(make('<meta name="a">'), make('<meta name="b">')),
+		// an element put before the head's others, one in the middle, one at the end
+		() => {
+			document.head.prepend(make('<meta name="first">'));
+			document.head.children[3].after(make('<meta name="middle">'));
+			document.head.append(make('<meta name="last">'));
+		},
+		// added after a later one: head order, not insertion order
+		() => {
+			const end = make('<meta name="end">');
+			document.head.append(end);
+			end.before(make('<meta name="before-end">'));
+		},
+		// one of the head's own elements moved, another removed and put back: not added
+		() => {
+			document.head.append(document.head.children[1]);
+			const style = document.head.querySelector('style')!;
+			style.remove();
+			document.head.append(style);
+		},
+		// added, then removed again in the same step: not there at the end
+		() => {
+			const gone = make('<meta name="gone">');
+			document.head.append(gone);
+			gone.remove();
+		},
+		// text and comments are not elements
+		() => document.head.append(document.createTextNode('x'), document.createComment('c'))
+	];
+	for (const [i, step] of steps.entries()) {
+		for (const observer of [true, false]) {
+			document.head.innerHTML = SERVER_HEAD;
+			const want = scanned(step).map((e) => e.outerHTML);
+			document.head.innerHTML = SERVER_HEAD;
+			const got = marked(step, observer).map((e) => e.outerHTML);
+			expect(got, `step ${i}, observer ${observer}`).toEqual(want);
+		}
+	}
+});
 
 test('the island’s live copy stays, the page’s identical copies go', () => {
 	const live = island_renders(

@@ -285,6 +285,11 @@ function running_at_each<S extends { t0: number; t1: number; category: string }>
 	return out;
 }
 
+/**
+ * Each pause of a profiled window charged to the allocations before it, and each allocator to
+ * the pause time it caused.
+ * @heisenbench n log n in input
+ */
 export function attribute_gc(input: {
 	slices: AllocSlice[];
 	events: GcEvent[];
@@ -320,6 +325,26 @@ export function attribute_gc(input: {
 		return d ? `${d.name}|${d.url}|${d.line}|${d.caller ?? ''}|${d.component ?? ''}` : k;
 	};
 	const first_key: Record<string, string> = {};
+	// the reads that have a length, by start, and the latest end among each one and those before
+	// it: the reads a stretch can touch are found by two binary searches instead of a pass over
+	// every read for every pause
+	const by_t0 = slices
+		.map((s, i) => ({ s, i }))
+		.filter(({ s }) => s.t1 - s.t0 > 0)
+		.sort((a, b) => a.s.t0 - b.s.t0 || a.i - b.i);
+	const reach: number[] = [];
+	for (const { s } of by_t0) reach.push(Math.max(reach[reach.length - 1] ?? -Infinity, s.t1));
+	const read_in_order = by_t0.every((x, j) => j === 0 || by_t0[j - 1].i < x.i);
+	const first_where = (holds: (j: number) => boolean) => {
+		let lo = 0;
+		let hi = by_t0.length;
+		while (lo < hi) {
+			const mid = (lo + hi) >>> 1;
+			if (holds(mid)) hi = mid;
+			else lo = mid + 1;
+		}
+		return lo;
+	};
 	// bytes allocated over a stretch [from, to]: each read charged by how much of it the stretch
 	// covers (a read is the resolution; a pause inside it gets that share of the read's bytes)
 	const between = (
@@ -328,7 +353,17 @@ export function attribute_gc(input: {
 	): { app: Record<string, number>; profiler_bytes: number } => {
 		const acc: Record<string, number> = {};
 		let profiler_bytes = 0;
-		for (const s of slices) {
+		// an empty stretch covers no part of any read
+		if (!(from < to)) return { app: acc, profiler_bytes };
+		// no read before the first that reaches past `from` ends after it, and none from the first
+		// that starts at `to` starts before it; the rest are charged in the order they were read
+		const hits: number[] = [];
+		const end = first_where((j) => by_t0[j].s.t0 >= to);
+		for (let j = first_where((j) => reach[j] > from); j < end; j++)
+			if (by_t0[j].s.t1 > from) hits.push(by_t0[j].i);
+		if (!read_in_order) hits.sort((a, b) => a - b);
+		for (const i of hits) {
+			const s = slices[i];
 			const len = s.t1 - s.t0;
 			if (len <= 0 || s.t1 <= from || s.t0 > to) continue;
 			const w = Math.max(0, Math.min(1, (Math.min(s.t1, to) - Math.max(s.t0, from)) / len));
