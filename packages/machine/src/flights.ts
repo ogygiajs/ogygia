@@ -31,7 +31,7 @@
  *   round of tries per wave of callers, not one per caller.
  * - `keep` is how long an answer stays (ms: a number, or made from the answer; 0 keeps nothing,
  *   the default keeps it for as long as the flights lives). `max` caps the total `weigh` of what is
- *   kept: the least recently used go first.
+ *   kept: past it, the expired go first, then the least recently used.
  * - `drop` takes kept answers out and ends the flights in progress: their signal aborts, every
  *   caller that joined them gets `STALE`, and nothing they answer is kept.
  * - A caller may bring a `signal`: when it aborts, that caller alone gets `STALE` at once, and the
@@ -587,6 +587,9 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 	}
 
 	_evict(): void {
+		if (this._weight <= this._max) return;
+		// the expired go first: no caller gets them any more, so no live answer goes for them
+		if (this._expires) this._sweep(Date.now());
 		for (const [key, m] of this._entries) {
 			if (this._weight <= this._max) return;
 			if (m.now.kind === 'kept') this._remove(key, m);
