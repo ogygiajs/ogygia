@@ -1,9 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import MagicString from 'magic-string';
 import type { ModuleNode, Plugin, ViteDevServer } from 'vite';
 import { scope, type Scope } from '@ogygia/machine';
-import { parse_module } from '@ogygia/core/internal/compiler-browser';
 
 const BACKSLASH = /\\/g;
 const REMOTE_FILE = /\.remote\.(ts|js|mts|mjs)$/;
@@ -42,99 +40,6 @@ export function invalidateModuleTree(server: ViteDevServer, entry: ModuleNode | 
 function is_remote_module(id: string) {
 	const bare = id.split('?')[0].replace(BACKSLASH, '/');
 	return REMOTE_FILE.test(bare);
-}
-
-/** The module that exports `content()`, as an app imports it. */
-const CONTENT_MODULE = '@ogygia/content';
-/** What a marked module calls its run's wrapper (see {@link mark_content_calls}). */
-const RUN = '__og_content_run';
-
-/** The ESTree nodes {@link mark_content_calls} reads (as Vite's parser gives them). */
-type Node = { type: string; start: number; end: number; [key: string]: unknown };
-type Named = { name?: string; value?: string };
-
-/** Each node under `node`, depth first. */
-function* nodes(node: unknown): Generator<Node> {
-	if (Array.isArray(node)) {
-		for (const child of node) yield* nodes(child);
-		return;
-	}
-	if (!node || typeof node !== 'object' || typeof (node as Node).type !== 'string') return;
-	yield node as Node;
-	for (const key in node) if (key !== 'type') yield* nodes((node as Node)[key]);
-}
-
-/**
- * Dev (#247): mark a server module's `content()` calls with the module and its run. A line at the
- * top asks the content graph for this run of the module (`module_run(id)`, once per run: each
- * evaluation of the module runs it again), and each call of the `content` it imports from
- * `@ogygia/content` (by name, or through a namespace) goes through what that returns, so the
- * collection knows which run of which module builds it. A collection a newer run builds replaces
- * the ones older runs built, so each edit leaves one, not one more. Null when the module calls no
- * `content()`.
- */
-export function mark_content_calls(
-	code: string,
-	id: string
-): { code: string; map: ReturnType<MagicString['generateMap']> } | null {
-	// (core's one parser seam: the oxc parser, TypeScript and byte offsets as written; a module that
-	// does not parse, mid-edit, is left alone)
-	const { program, ok } = parse_module(code, id);
-	if (!ok) return null;
-	const named = new Set<string>();
-	const namespaces = new Set<string>();
-	for (const node of nodes(program)) {
-		if (node.type !== 'ImportDeclaration') continue;
-		if ((node.source as Named).value !== CONTENT_MODULE) continue;
-		for (const s of node.specifiers as Node[]) {
-			const local = (s.local as Named).name!;
-			if (s.type === 'ImportNamespaceSpecifier') namespaces.add(local);
-			else if (s.type === 'ImportSpecifier') {
-				const imported = s.imported as Named;
-				if ((imported.name ?? imported.value) === 'content') named.add(local);
-			}
-		}
-	}
-	if (!named.size && !namespaces.size) return null;
-	const s = new MagicString(code);
-	let marked = 0;
-	for (const node of nodes(program)) {
-		if (node.type !== 'CallExpression') continue;
-		const callee = node.callee as Node;
-		const calls =
-			callee.type === 'Identifier'
-				? named.has((callee as Named).name!)
-				: callee.type === 'MemberExpression' &&
-					!callee.computed &&
-					(callee.object as Node).type === 'Identifier' &&
-					namespaces.has((callee.object as Node as Named).name!) &&
-					(callee.property as Node as Named).name === 'content';
-		if (!calls) continue;
-		s.appendLeft(callee.start, `${RUN}(`).prependRight(callee.end, ')');
-		marked++;
-	}
-	if (!marked) return null;
-	s.prepend(
-		`const ${RUN} = globalThis[Symbol.for('ogygia.content.graph')]?.module_run?.(${JSON.stringify(id)}) ?? ((build) => build);\n`
-	);
-	return { code: s.toString(), map: s.generateMap({ hires: 'boundary', source: id }) };
-}
-
-/**
- * Content module runs (one of the `content()` plugin's Vite plugins), dev only: in each server
- * module, every `content()` call names the run of the module that makes it, so a newer run's
- * collection replaces an older run's (#247). A normal-order plugin: it sees plain JS (TypeScript
- * already stripped) with its imports still as written. Inert in a build.
- */
-export function content_runs(): Plugin {
-	return {
-		name: 'ogygia:content-runs',
-		apply: 'serve',
-		transform(code, id, options) {
-			if (!options?.ssr || !code.includes(CONTENT_MODULE)) return null;
-			return mark_content_calls(code, id);
-		}
-	};
 }
 
 /**
