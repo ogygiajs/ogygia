@@ -22,6 +22,7 @@ import type {
 	ProfilerSummary,
 	ProfilerVisitRecord
 } from './index.ts';
+import { once } from '@ogygia/machine';
 import { MAX_VISITS_PER_KEY } from './visits.ts';
 
 /** The subset of a Redis client this store uses — node-redis and ioredis both satisfy it (their
@@ -113,7 +114,10 @@ export class RedisStore implements ProfilerStore {
 	#R: string;
 	#RZ: string;
 	#V: string;
-	#c: RedisLike | null = null;
+	/** the client, made once: two first calls share it, and a failure to make it is not kept */
+	#connect: () => Promise<RedisLike>;
+	/** the client made, for `close` */
+	#made: RedisLike | null = null;
 
 	constructor(client: RedisLike | string, opts: { ttlSeconds?: number; prefix?: string } = {}) {
 		const prefix = opts.prefix ?? 'og:';
@@ -122,6 +126,7 @@ export class RedisStore implements ProfilerStore {
 		this.#R = `${prefix}report:`;
 		this.#RZ = `${prefix}reports`;
 		this.#V = `${prefix}visit:`;
+		this.#connect = this.#connector();
 	}
 
 	async init(): Promise<void> {
@@ -215,14 +220,21 @@ export class RedisStore implements ProfilerStore {
 	}
 
 	async close(): Promise<void> {
-		await (this.#c as unknown as { quit?: () => Promise<void>; disconnect?: () => void })
+		const made = this.#made;
+		this.#made = null;
+		// (the next call connects again)
+		this.#connect = this.#connector();
+		await (made as unknown as { quit?: () => Promise<void>; disconnect?: () => void })
 			?.quit?.()
 			.catch(() => {});
-		this.#c = null;
 	}
 
-	async #need(): Promise<RedisLike> {
-		return (this.#c ??= await resolve(this.#client));
+	#connector(): () => Promise<RedisLike> {
+		return once(async () => (this.#made = await resolve(this.#client)));
+	}
+
+	#need(): Promise<RedisLike> {
+		return this.#connect();
 	}
 
 	#VZ(page: string): string {

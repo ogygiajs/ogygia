@@ -6504,11 +6504,12 @@ describe('the deep pictures on the host: visits, keep, the byte strip, nested tr
 		}) as typeof fetch;
 		const wrapped = wrap_event_fetch(fake);
 		await wrapped('http://up/x', { headers: { accept: 'text/plain' } });
-		set_stack_capture(true);
+		const recording = {};
+		set_stack_capture(recording, true);
 		try {
 			await wrapped('http://up/x', { headers: { accept: 'text/plain' } });
 		} finally {
-			set_stack_capture(false);
+			set_stack_capture(recording, false);
 		}
 		expect(seen).toEqual([null, '1']);
 	});

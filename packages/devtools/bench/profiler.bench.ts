@@ -11,6 +11,10 @@ import { doc_diff } from '../src/profiler/doc-diff.ts';
 import { attribute_gc, type AllocSite } from '../src/profiler/gc.ts';
 import { find_wait_patterns, type WaitCall } from '../src/profiler/patterns.ts';
 import { constant_work, hoist_plan, key_sources } from '../src/profiler/source-scan.ts';
+import { drop_answers, keep_answers, set_stack_capture } from '../src/profiler/net.ts';
+import { PostgresStore } from '../src/profiler/storage/postgres.ts';
+import { RedisStore } from '../src/profiler/storage/redis.ts';
+import type { ProfilerRecord } from '../src/profiler/storage/index.ts';
 
 const APP = 'file:///srv/app/build/server/chunks';
 const SVELTE = 'file:///srv/app/node_modules/svelte/src/internal/server';
@@ -293,4 +297,87 @@ bench(
 		setup: () => ({ source: helper_module(10) }),
 		scale: (_ctx, k) => ({ source: helper_module(10 * k) })
 	}
+);
+
+// Recordings that overlap (two profilers in one dev process) each turn their own asks on and off:
+// every on is matched by its off, so the switches end where they started.
+bench(
+	'the network layer’s switches: overlapping recordings turn their own stacks and kept answers on and off',
+	({ n }) => {
+		const owners = Array.from({ length: n }, () => ({}));
+		for (const o of owners) {
+			set_stack_capture(o, true);
+			keep_answers(o, true);
+		}
+		let off = 0;
+		for (const o of owners) {
+			keep_answers(o, false);
+			set_stack_capture(o, false);
+			drop_answers(o);
+			off++;
+		}
+		return off;
+	},
+	{ setup: () => ({ n: 50 }), scale: (_ctx, k) => ({ n: 50 * k }) }
+);
+
+/** A Postgres client that answers every query with no rows. */
+function pg_client() {
+	return { query: async (_text: string) => ({ rows: [] as Record<string, unknown>[] }) };
+}
+
+/** A node-redis client over two in-memory maps. */
+function redis_client() {
+	const kv = new Map<string, string>();
+	const z = new Map<string, Map<string, number>>();
+	const zset = (k: string) => z.get(k) ?? z.set(k, new Map()).get(k)!;
+	return {
+		set: async (k: string, v: string) => void kv.set(k, v),
+		get: async (k: string) => kv.get(k) ?? null,
+		del: async (k: string | string[]) => {
+			for (const x of Array.isArray(k) ? k : [k]) kv.delete(x);
+		},
+		zAdd: async (k: string, m: { score: number; value: string }) =>
+			void zset(k).set(m.value, m.score),
+		zRem: async (k: string, m: string | string[]) => {
+			for (const x of Array.isArray(m) ? m : [m]) zset(k).delete(x);
+		},
+		zRange: async (k: string, a: number, b: number, o?: { REV: true }) => {
+			const members = [...zset(k)].sort((x, y) => x[1] - y[1]).map(([m]) => m);
+			if (o?.REV) members.reverse();
+			const end = b < 0 ? members.length + b : b;
+			return members.slice(Math.max(0, a), Math.max(0, end + 1));
+		},
+		zCard: async (k: string) => zset(k).size,
+		quit: async () => undefined
+	};
+}
+
+const report = (i: number): ProfilerRecord => ({
+	id: `r${i}`,
+	created: i,
+	page: `/p${i % 5}`,
+	trigger: 'page',
+	label: `/p${i % 5}`,
+	median: i,
+	dump: '{}'
+});
+
+// Each store connects and sets up once (two first calls share it), then writes and reads reports.
+bench(
+	'the Postgres and Redis stores over in-memory clients: one setup, then reports written and listed',
+	async ({ n }) => {
+		const pg = new PostgresStore(pg_client());
+		const redis = new RedisStore(redis_client());
+		await Promise.all([pg.init(), pg.init(), redis.init(), redis.init()]);
+		for (let i = 0; i < n; i++) {
+			await pg.putReport(report(i));
+			await redis.putReport(report(i));
+		}
+		const listed = (await pg.listReports(10)).length + (await redis.listReports(10)).length;
+		await pg.close();
+		await redis.close();
+		return listed;
+	},
+	{ setup: () => ({ n: 20 }), scale: (_ctx, k) => ({ n: 20 * k }) }
 );

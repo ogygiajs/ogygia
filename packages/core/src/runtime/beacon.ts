@@ -17,6 +17,7 @@
  * here runs on the hydration path itself: samples are batched and sent on idle or when the page
  * hides.
  */
+import { machine } from '@ogygia/machine';
 import { hole_copy_of } from './hash.ts';
 import type { RegionRefusal } from './region-endpoint-url.ts';
 import { tool_made } from '../tool-fetches.ts';
@@ -127,8 +128,8 @@ export function beacon_mark(
 // WEB VITALS for the page (the same visit the islands report from): TTFB from navigation timing,
 // FCP / LCP from the paint entries, CLS as the summed unexpected shifts, INP as the longest
 // interaction — observed with buffered observers so a late start still sees the early entries,
-// sent once when the page hides (LCP and CLS are final only then). Best-effort: a browser without
-// an entry type just leaves that field out.
+// sent when the page hides (LCP and CLS are final only then), with the visit (`visit_state`).
+// Best-effort: a browser without an entry type just leaves that field out.
 interface Vitals {
 	ttfb?: number;
 	fcp?: number;
@@ -137,7 +138,6 @@ interface Vitals {
 	inp?: number;
 }
 let vitals: Vitals | null = null;
-let vitals_sent = false;
 
 // THE VISIT: everything else the browser measured, kept here until the page hides
 const ISLAND_SEL = 'ogygia-region[data-og-fp]';
@@ -619,7 +619,19 @@ let lcp_el: Element | null = null;
 let lcp_region: Element | null = null;
 /** an island's markup as the server sent it and after it hydrated — the browser store only */
 let snapshots: Snapshot[] = [];
-let visit_sent = false;
+
+/**
+ * THE VISIT'S STATE. A hide sends the vitals and the visit (`sent`), but the visit is not over:
+ * coming back to the tab, or a back/forward cache restore, opens it again (`reopened`), and what
+ * happens after (a navigation, a worse interaction, a shift) goes out again, with the next hide.
+ * A second hide with no return in between sends nothing more.
+ */
+const visit_machine = machine<{ open: {}; sent: {}; reopened: {} }>()({
+	name: 'beacon-visit',
+	initial: 'open',
+	steps: { open: ['sent'], sent: ['reopened'], reopened: ['sent'] }
+});
+let visit_state = visit_machine.create();
 const SNAPSHOT_CAP = 24_000;
 const MAX_SNAPSHOTS = 40;
 
@@ -1069,8 +1081,7 @@ function send(body: string, slim?: () => string): void {
 }
 
 function flush_vitals(): void {
-	if (vitals_sent || !vitals || !Object.keys(vitals).length) return;
-	vitals_sent = true;
+	if (!vitals || !Object.keys(vitals).length) return;
 	// `at` = this visit (its navigation start): the copy inside the visit and this one fold into one
 	send(JSON.stringify({ page: visit_page(), at: Math.round(performance.timeOrigin), vitals }));
 }
@@ -1852,12 +1863,13 @@ function visit_page(): string {
 	return landing_page ?? '/';
 }
 
+/** The visit so far; `final`: the hide's (the page may come back: `visit_state`). Nothing while
+ *  the page is hidden after its hide sent it. */
 function flush_visit(final: boolean): void {
-	if (visit_sent) return;
+	if (visit_state.now.kind === 'sent') return;
 	const visit = build_visit();
 	if (!visit) return;
 	if (final) {
-		visit_sent = true;
 		// the islands' final markup, for the browser store's third moment
 		for (const s of snapshots) {
 			const el = document.querySelector(`ogygia-region[data-og-fp="${s.fp}"]`);
@@ -2563,7 +2575,7 @@ let resend_timer: ReturnType<typeof setTimeout> | null = null;
 let resends = 0;
 const RESEND_MAX = 8;
 function resend_soon(): void {
-	if (!endpoint() || visit_sent || resends >= RESEND_MAX) return;
+	if (!endpoint() || visit_state.now.kind === 'sent' || resends >= RESEND_MAX) return;
 	if (resend_timer) clearTimeout(resend_timer);
 	resend_timer = setTimeout(() => {
 		resend_timer = null;
@@ -2624,13 +2636,26 @@ function on_hide(): void {
 	leaving = true;
 	try {
 		flush();
-		flush_vitals();
-		flush_visit(true);
+		// (once each time the page is shown: a second hide with no return in between sends no more)
+		if (visit_state.now.kind !== 'sent') {
+			// the visit's re-send waiting to go is this one's copy: it is not sent after it
+			if (resend_timer) clearTimeout(resend_timer);
+			resend_timer = null;
+			flush_vitals();
+			flush_visit(true);
+			visit_state.go('sent');
+		}
 	} finally {
 		leaving = false;
 	}
 	void flush_cpu(true);
 	void stop_interaction_cpu(true);
+}
+
+/** the page is shown again (back to its tab, or restored from the back/forward cache): the visit
+ *  goes on, and the next hide sends it again */
+function on_show(): void {
+	visit_state.move('sent', 'reopened');
 }
 
 function schedule(): void {
@@ -2640,11 +2665,11 @@ function schedule(): void {
 		listening = true;
 		observe_vitals();
 		start_cpu();
-		document.addEventListener(
-			'visibilitychange',
-			() => document.visibilityState === 'hidden' && on_hide()
+		document.addEventListener('visibilitychange', () =>
+			document.visibilityState === 'hidden' ? on_hide() : on_show()
 		);
 		addEventListener('pagehide', on_hide);
+		addEventListener('pageshow', (e) => e.persisted && on_show());
 	}
 	const idle = (
 		globalThis as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void }
@@ -2907,7 +2932,6 @@ export function _reset_beacon(): void {
 	marks = [];
 	scheduled = false;
 	vitals = null;
-	vitals_sent = false;
 	cpu = null;
 	cpu_sent = false;
 	cpu_kept = [];
@@ -2955,7 +2979,10 @@ export function _reset_beacon(): void {
 	visit_paints = {};
 	lcp_el = lcp_region = null;
 	snapshots = [];
-	visit_sent = false;
+	visit_state.stop();
+	visit_state = visit_machine.create();
+	if (resend_timer) clearTimeout(resend_timer);
+	resend_timer = null;
 	early_visit_done = false;
 	resends = 0;
 }

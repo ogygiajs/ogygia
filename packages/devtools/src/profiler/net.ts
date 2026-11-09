@@ -171,9 +171,16 @@ export function parse_server_timing(header: string | null | undefined): ServerTi
 const NET_STATE = Symbol.for('ogygia.profiler.net-state');
 const shared = ((globalThis as Record<symbol, unknown>)[NET_STATE] ??= { stacks: false }) as {
 	stacks: boolean;
+	owners?: Set<object>;
 };
-export function set_stack_capture(on: boolean): void {
-	shared.stacks = on;
+/** Turns `owner`'s ask for call stacks on or off. They are captured while any recording asks, so
+ *  the first of two overlapping recordings to end (two profilers in one dev process) never turns
+ *  them off under the other. */
+export function set_stack_capture(owner: object, on: boolean): void {
+	const owners = (shared.owners ??= new Set());
+	if (on) owners.add(owner);
+	else owners.delete(owner);
+	shared.stacks = owners.size > 0;
 }
 
 // The profiler's own module files (frames.ts): registered at load so a caller lookup skips them
@@ -282,21 +289,34 @@ const kept = new Map<string, { status: number; headers: [string, string][]; body
 /** each GET's FIRST answer in the recording too: against the last, what changed between renders */
 const kept_first = new Map<string, Uint8Array>();
 
-/** start (clearing what was kept) or stop keeping answers */
-export function keep_answers(on: boolean): void {
-	keep_bodies = on;
-	if (on) {
-		kept.clear();
-		kept_first.clear();
-		kept_bytes = 0;
-	}
-}
+/** The recordings keeping answers now, and the ones still reading what was kept (a recording stops
+ *  keeping after its timed renders, and reads them in its keep-the-answers renders after). Each
+ *  recording turns only its own on and off: one that ends never stops or drops another's. */
+const keepers = new Set<object>();
+const readers = new Set<object>();
 
-/** drop every kept answer */
-export function drop_answers(): void {
+function clear_kept(): void {
 	kept.clear();
 	kept_first.clear();
 	kept_bytes = 0;
+}
+
+/** `owner` starts (the first recording to start clears what was kept) or stops keeping answers */
+export function keep_answers(owner: object, on: boolean): void {
+	if (on) {
+		if (readers.size === 0) clear_kept();
+		keepers.add(owner);
+		readers.add(owner);
+	} else keepers.delete(owner);
+	keep_bodies = keepers.size > 0;
+}
+
+/** `owner` is done with the kept answers: dropped once no recording reads them */
+export function drop_answers(owner: object): void {
+	keepers.delete(owner);
+	readers.delete(owner);
+	keep_bodies = keepers.size > 0;
+	if (readers.size === 0) clear_kept();
 }
 
 /**
