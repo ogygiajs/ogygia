@@ -11,7 +11,8 @@
  *   pages.set('/docs', html);
  *   pages.get('/docs'); // a use: the least recently used go first past max
  *
- * - `max` has no default: a cache with no bound is written out (`max: Infinity`), never assumed.
+ * - `max` has no default, and is a finite number: a cache is bounded (`Infinity` throws in dev; in
+ *   production the cache is refused, keeps nothing, and `machine_bad_option` is printed).
  *   Past it, the expired go first ('age'), then the least recently used ('size'). A `get` is a use,
  *   a `peek` is not. A value heavier than `max` (or whose weight or age is not a number of 0 or
  *   more) is not kept: `set` says `false`, and what the key held stays.
@@ -28,6 +29,7 @@
  *   { stamp })`, default the world now), and a value made before the one a key holds never
  *   replaces it.
  */
+import { DEV } from 'esm-env';
 import { machine_error, report } from './messages.ts';
 import { DISPOSE, MAX_TIMEOUT_MS, scope, type Scope } from './scope.ts';
 import type { World } from './world.ts';
@@ -38,7 +40,7 @@ export type EvictWhy = 'age' | 'size' | 'delete' | 'end';
 export interface CacheOptions<K, V> {
 	/** Names the cache in messages. Default `cache`. */
 	name?: string;
-	/** The most total weight it keeps. Required: `Infinity` is a choice written out. */
+	/** The most total weight it keeps: a finite number more than 0. Required. */
 	max: number;
 	/** A value's weight against `max` (bytes, say). Default 1: `max` then counts values. */
 	weigh?: (value: V, key: K) => number;
@@ -122,9 +124,17 @@ class Store<K, V> implements Cache<K, V> {
 
 	constructor(o: CacheOptions<K, V>) {
 		if (typeof o !== 'object' || o === null) throw bad('max', String(o), 'a number more than 0');
-		const max = o.max;
-		if (!(typeof max === 'number' && max > 0))
-			throw bad('max', String(max), 'a number more than 0 (`Infinity` for no bound, written out)');
+		// a bound is a finite number more than 0: Infinity is no bound. In dev it throws; in production
+		// the cache is refused (it keeps nothing) and the code is printed
+		let max = o.max;
+		let refused = false;
+		if (!(typeof max === 'number' && max > 0 && Number.isFinite(max))) {
+			const args = { option: 'max', value: String(max), rule: 'a finite number more than 0' };
+			if (DEV) throw machine_error('machine_bad_option', args);
+			report('machine_bad_option', args);
+			max = 1;
+			refused = true;
+		}
 		const keep = o.keep ?? Infinity;
 		if (typeof keep !== 'function' && !(typeof keep === 'number' && keep >= 0))
 			throw bad('keep', String(keep), 'a time in ms of 0 or more, or a function that makes one');
@@ -137,6 +147,7 @@ class Store<K, V> implements Cache<K, V> {
 		this._world = o.world as World<unknown> | undefined;
 		this._scope = o.owner === undefined ? scope() : o.owner.child();
 		this._scope.defer(() => this._end());
+		if (refused) this._scope.close();
 	}
 
 	get size(): number {
