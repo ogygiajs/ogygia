@@ -1009,6 +1009,10 @@
 			"reason": "a test seam: drops the critical wait, constant work"
 		},
 		{
+			"id": "packages/core/src/runtime/schedule.ts > register_region > defer:0~d7202d",
+			"reason": "browser only: a region's lifetime ends and stops its viewport snapshot if it is still the same one (an IntersectionObserver release), constant work; proven in packages/core/test/browser/region-orderings.test.ts and hole-lifecycle.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/schedule.ts > until_painted",
 			"reason": "browser only: DOMContentLoaded, then one frame (requestAnimationFrame), once per document; proven in packages/core/test/browser/document-painted-gate.test.ts"
 		},
