@@ -684,49 +684,71 @@ function is_hex_id(s: string): boolean {
 	return true;
 }
 
-/** Bytes per asset URL, measured once per process. */
-type UrlWeights = Map<string, number | null>;
-export const url_weights = (): UrlWeights => new Map();
+/** A report's fetch of one of the app's files, through the app (`signal`: the weigh gave up). */
+type FetchUrl = (url: string, signal?: AbortSignal) => Promise<Response>;
+/** What one weigh is handed: the URL (its key), and the fetch of the report that asked. */
+type WeighAsk = { url: string; fetch_url: FetchUrl };
+/** Bytes per asset URL (`null`: the file is not there), measured once per process: a hashed
+ *  asset never changes. */
+type UrlWeights = Flights<WeighAsk, number | null, Pick<WeighAsk, 'url'>>;
+
+/** A status that says the file is not there for good: a client error, but not a timeout or a
+ *  rate limit (408, 429), which say "not now". */
+const gone_for_good = (status: number): boolean =>
+	status >= 400 && status < 500 && status !== 408 && status !== 429;
+
+/** The process's URL weights: an answer (bytes, or a file that is not there) is kept; a failure
+ *  (a 5xx, a timeout, the network) is not, so the next report asks again. Reports weighing the
+ *  same file at once share one fetch. */
+export const url_weights = (): UrlWeights =>
+	flights<WeighAsk>()({
+		name: 'profiler url weights',
+		key: ['url'],
+		ignore: { fetch_url: 'every report fetches the same hashed file through the app' },
+		run: async ({ url, fetch_url }, signal) => {
+			const res = await fetch_url(url, signal);
+			if (!res.ok) {
+				void res.body?.cancel().catch(noop); // ok: only the status is read
+				if (gone_for_good(res.status)) return null;
+				throw new Error(`status ${res.status}`);
+			}
+			const len = Number(res.headers.get('content-length'));
+			// content-length is the wire size; the body's own length is the decoded size — the
+			// bytes the browser parses. Read it when it is not already known to be identity.
+			const enc = res.headers.get('content-encoding');
+			if (!enc && Number.isFinite(len) && len > 0) {
+				void res.body?.cancel().catch(noop); // ok: the length is known
+				return len;
+			}
+			return (await res.arrayBuffer()).byteLength;
+		}
+	});
 
 /** GET each URL through the app's own fetch and count its bytes — the JS weight of an island's
- *  closure. Cached per process (immutable hashed assets), a handful at a time, capped in time so
- *  a slow static host can never hold a report hostage. */
+ *  closure. Kept per process (`url_weights`), a handful at a time, capped in time so a slow static
+ *  host can never hold a report hostage: a URL not weighed within the budget is left out. */
 export async function weigh_urls(
 	urls: Iterable<string>,
-	fetch_url: (url: string) => Promise<Response>,
-	cache: UrlWeights,
+	fetch_url: FetchUrl,
+	weights: UrlWeights,
 	budget_ms = 4000
 ): Promise<Record<string, number>> {
-	const todo = [...new Set(urls)].filter((u) => u && !cache.has(u));
-	const deadline = Date.now() + budget_ms;
+	const todo = [...new Set(urls)].filter((u) => u);
+	const budget = AbortSignal.timeout(budget_ms);
+	const out: Record<string, number> = {};
 	let i = 0;
 	const worker = async () => {
-		while (i < todo.length && Date.now() < deadline) {
-			const u = todo[i++];
+		while (i < todo.length && !budget.aborted) {
+			const url = todo[i++];
 			try {
-				const res = await with_timeout(fetch_url(u), Math.max(200, deadline - Date.now()), 'weigh');
-				if (!res.ok) {
-					cache.set(u, null);
-					continue;
-				}
-				const len = Number(res.headers.get('content-length'));
-				// content-length is the wire size; the body's own length is the decoded size — the
-				// bytes the browser parses. Read it when it is not already known to be identity.
-				const enc = res.headers.get('content-encoding');
-				const bytes =
-					!enc && Number.isFinite(len) && len > 0 ? len : (await res.arrayBuffer()).byteLength;
-				cache.set(u, bytes);
+				const bytes = await weights.get({ url, fetch_url }, { signal: budget });
+				if (typeof bytes === 'number') out[url] = bytes;
 			} catch {
-				cache.set(u, null);
+				// ok: not weighed this time (a 5xx, the network); left out, and the next report asks again
 			}
 		}
 	};
 	await Promise.all(Array.from({ length: Math.min(6, todo.length) }, worker));
-	const out: Record<string, number> = {};
-	for (const u of new Set(urls)) {
-		const b = cache.get(u);
-		if (typeof b === 'number') out[u] = b;
-	}
 	return out;
 }
 
@@ -2193,7 +2215,7 @@ class Profiler {
 			| 'instance'
 		>,
 		/** page mode on a built app: the app's own fetch, to weigh the islands' JS closures */
-		fetch_url?: (url: string) => Promise<Response>
+		fetch_url?: FetchUrl
 	): Promise<string> {
 		// THE PROFILER'S OWN REQUESTS are not the app's calls: its UI keeping the previous report
 		// (`GET /__profiler/report/<id>.dump`) while this one records read as two failed app calls
@@ -5365,15 +5387,16 @@ class Profiler {
 			mem_mark('after the coverage render');
 			// the app's own fetch answers a hashed asset on adapter-node (it reads the file); a
 			// preview / static host serves it over the wire instead, so fall back to the origin
-			const app_fetch = async (u: string): Promise<Response> => {
+			const app_fetch = async (u: string, signal?: AbortSignal): Promise<Response> => {
 				try {
-					const r = await event.fetch(u, { headers: { 'x-og-profiler-internal': '1' } });
+					const r = await event.fetch(u, { headers: { 'x-og-profiler-internal': '1' }, signal });
 					if (r.ok) return r;
 				} catch {
 					// ok: not answered internally; the origin is asked below
 				}
 				return fetch(new URL(u, event.url.origin), {
-					headers: { 'x-og-profiler-internal': '1' }
+					headers: { 'x-og-profiler-internal': '1' },
+					signal
 				});
 			};
 			const id = await this.#finish_report(
