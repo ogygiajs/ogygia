@@ -186,10 +186,24 @@ function attempt<I, V>(
 	return under_policy(retry, (s) => run(input, s), signal);
 }
 
-/** Ids for the objects (and symbols) a key holds: a key field compares by identity. */
-const object_ids = new WeakMap<object, number>();
-const symbol_ids = new Map<symbol, number>();
+/** Ids for the objects (and symbols) a key holds: a key field compares by identity. Held weakly:
+ *  an object or a symbol made per request is freed once nothing else holds it. */
+const weak_ids = new WeakMap<WeakKey, number>();
+/** A runtime that cannot hold a symbol weakly (no symbols as WeakMap keys) holds them here. */
+let symbol_ids: Map<symbol, number> | null = null;
 let next_id = 0;
+
+function id_of(v: object | symbol): number {
+	let id = weak_ids.get(v as WeakKey) ?? symbol_ids?.get(v as symbol);
+	if (id !== undefined) return id;
+	id = next_id++;
+	try {
+		weak_ids.set(v as WeakKey, id);
+	} catch {
+		(symbol_ids ??= new Map()).set(v as symbol, id);
+	}
+	return id;
+}
 
 /** One field of a key, spelled so that two different values never spell one string: a string is
  *  its length, then itself; any other value its kind, then itself, then `;`. */
@@ -206,17 +220,13 @@ function key_part(v: unknown): string {
 		case 'undefined':
 			return 'u;';
 		case 'symbol': {
-			let id = symbol_ids.get(v);
-			if (id === undefined) symbol_ids.set(v, (id = next_id++));
-			return 'y' + id + ';';
+			// a registered symbol is one per name for good (`Symbol.for`): spelled by its name
+			const name = Symbol.keyFor(v);
+			if (name !== undefined) return 'Y' + name.length + ':' + name;
+			return 'y' + id_of(v) + ';';
 		}
-		default: {
-			if (v === null) return 'z;';
-			const o = v as object;
-			let id = object_ids.get(o);
-			if (id === undefined) object_ids.set(o, (id = next_id++));
-			return 'o' + id + ';';
-		}
+		default:
+			return v === null ? 'z;' : 'o' + id_of(v as object) + ';';
 	}
 }
 
