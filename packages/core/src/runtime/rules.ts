@@ -10,6 +10,8 @@
  *   its listeners, timers, streams).
  * - `rule_failure_uncoded`: no failure leaves ogygia without a code: an uncaught ogygia error names
  *   its code's page, and a `STALE` never escapes as a rejection.
+ * - `rule_parse_upgraded`: a parsed answer is inert (./parse-html.ts, #382): no element of it was
+ *   built by a component's constructor before the restore reached it.
  *
  * Each area tells this module what it holds (`note_mount`, `note_visit`, `watch_router`) only when
  * rules are on (`RULES`): every call site folds out of a build without them.
@@ -22,7 +24,8 @@ type RuntimeRule =
 	| 'rule_region_mounted_twice'
 	| 'rule_address_bar_drift'
 	| 'rule_old_page_open'
-	| 'rule_failure_uncoded';
+	| 'rule_failure_uncoded'
+	| 'rule_parse_upgraded';
 
 /** The runtime's rules. */
 export const runtime_rules: Rules<RuntimeRule> = /* @__PURE__ */ new Rules<RuntimeRule>();
@@ -126,6 +129,32 @@ function failure(reason: unknown): void {
 
 const no_failure_uncoded = (): string | null => (uncoded.length === 0 ? null : uncoded.join('; '));
 
+// ── a parsed answer is inert ──
+
+/** What parses built that they should not have, as found (a few). */
+const parsed_built: string[] = [];
+
+/** The rule's ear on every parse (./parse-html.ts calls it): an element of the parsed fragment that
+ *  a component's constructor built (a defined name, an instance of its definition). */
+function note_parse(fragment: DocumentFragment): void {
+	if (parsed_built.length >= 10 || typeof customElements === 'undefined') return;
+	const roots: Node[] = [fragment];
+	for (let q = 0; q < roots.length; q++) {
+		const walk = document.createTreeWalker(roots[q], 1 /* SHOW_ELEMENT */);
+		for (let n = walk.nextNode() as Element | null; n; n = walk.nextNode() as Element | null) {
+			if (n.shadowRoot) roots.push(n.shadowRoot);
+			const ctor = customElements.get(n.localName);
+			if (ctor !== undefined && n instanceof ctor) {
+				parsed_built.push(`<${n.localName}> was built while its answer parsed`);
+				return;
+			}
+		}
+	}
+}
+
+const no_parse_upgraded = (): string | null =>
+	parsed_built.length === 0 ? null : parsed_built.join('; ');
+
 // ── the runner ──
 
 let installed = false;
@@ -150,6 +179,8 @@ export function install_rules(dev: boolean): void {
 	runtime_rules.add('rule_region_mounted_twice', one_mount_per_region);
 	runtime_rules.add('rule_old_page_open', no_old_page_open);
 	runtime_rules.add('rule_failure_uncoded', no_failure_uncoded);
+	runtime_rules.add('rule_parse_upgraded', no_parse_upgraded);
+	(globalThis as { __og_parsed?: (f: DocumentFragment) => void }).__og_parsed = note_parse;
 	(globalThis as { __ogygia_rules?: () => BrokenRule[] }).__ogygia_rules = () =>
 		runtime_rules.broken();
 	// oxlint-disable-next-line ogygia/owned-effects -- the rules' ear for failures nobody caught, installed once: it lives as long as the document

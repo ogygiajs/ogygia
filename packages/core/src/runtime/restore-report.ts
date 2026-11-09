@@ -4,22 +4,31 @@
  * and the beacon read it too). The boot reports what the document's own run recorded, and wraps
  * `window.__og_restore` so every later run — a hole answer, a router swap — reports its own.
  */
-import { OgygiaError } from '../messages/core.ts';
+import { OgygiaError, warn } from '../messages/core.ts';
 
 type RestoreWindow = {
 	__og_restore?: (root: ParentNode) => number;
-	__og_restore_log?: { kind: 'late' | 'mismatch'; diff?: string }[];
+	__og_restore_log?: { kind: 'late' | 'mismatch'; host?: string; diff?: string }[];
 };
 
 let reported = 0;
+/** The element names a late restore was said for on this page (once each). */
+const late_said = new Set<string>();
 
 function report(): void {
 	const log = (window as RestoreWindow).__og_restore_log;
 	if (!log) return;
+	// (a log made anew, a test's: start from its top)
+	if (reported > log.length) reported = 0;
 	for (; reported < log.length; reported++) {
 		const entry = log[reported];
 		if (entry.kind === 'mismatch' && entry.diff)
 			console.error(new OgygiaError('restore_markup_broken', { diff: entry.diff }));
+		// in every build: a late host loses nothing now, but it shows a part of the page late (#382)
+		else if (entry.kind === 'late' && entry.host && !late_said.has(entry.host)) {
+			late_said.add(entry.host);
+			warn('restore_late', { host: entry.host });
+		}
 	}
 }
 

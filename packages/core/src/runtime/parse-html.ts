@@ -13,13 +13,24 @@
  * swap-then-blank-then-paint flicker). "Unsafe" means only "no sanitizer"; a region body is our own
  * signed, same-origin SSR (HOLE-TRUST), so it is exactly as trusted as the page itself.
  *
- * NOTE the parse happens in a `<template>`'s inert content, so custom elements do NOT upgrade here
- * (no `connectedCallback`) — attaching a declarative shadow root is a parse step, not an upgrade. That
- * is what `repair_if_drifted` needs: the server copy stays inert, but its light-DOM sequence is now
- * DSD-consistent with a live region whose hosts already carry shadow roots.
+ * INERT BY CONSTRUCTION (#382). The parse runs in a document with no browsing context (one per
+ * runtime, made on first use): it has no custom element registry, so nothing in the answer is built
+ * by a component's constructor before the restore (./restore.ts) puts it in shape, in any engine.
+ * A page-owned `<template>` was inert by a browser detail only: Firefox 159 (scoped registries)
+ * builds custom elements while one parses with `setHTMLUnsafe`, so a host had its constructor's
+ * root before the restore reached it. Attaching a declarative shadow root is a parse step, not an
+ * upgrade: it still happens here. The fragment's nodes belong to that document until they are
+ * inserted (insertion adopts them; they upgrade at connect, constructor then `connectedCallback`,
+ * a declarative root kept). `repair_if_drifted` needs this too: the server copy stays inert, and its
+ * light-DOM sequence is DSD-consistent with a live region whose hosts already carry shadow roots.
+ *
+ * (`Document.parseHTMLUnsafe` would also parse without a registry, but makes a whole document per
+ * call; one shared document and its template is the cheaper of the two.)
+ *
+ * In dev and e2e every parse is checked (`rule_parse_upgraded`, ./rules.ts): nothing built.
  */
 export function parse_region_html(html: string): DocumentFragment {
-	const tpl = document.createElement('template');
+	const tpl = inert_document().createElement('template');
 	const set_html_unsafe = (tpl as { setHTMLUnsafe?: (h: string) => void }).setHTMLUnsafe;
 	if (typeof set_html_unsafe === 'function') {
 		set_html_unsafe.call(tpl, html);
@@ -27,7 +38,19 @@ export function parse_region_html(html: string): DocumentFragment {
 		tpl.innerHTML = html;
 		attach_declarative_shadows(tpl.content);
 	}
+	(globalThis as { __og_parsed?: (f: DocumentFragment) => void }).__og_parsed?.(tpl.content);
 	return tpl.content;
+}
+
+let inert: Document | null = null;
+/** The runtime's one document with no browsing context, made on first use. (A DOM with no
+ *  `document.implementation`, a server-side DOM a bench runs on, parses in the page's own: it has
+ *  no custom elements to build.) */
+function inert_document(): Document {
+	return (inert ??=
+		typeof document.implementation?.createHTMLDocument === 'function'
+			? document.implementation.createHTMLDocument('')
+			: document);
 }
 
 /** The spec's declarative-shadow-DOM attach step, for engines that render DSD on first parse but predate
