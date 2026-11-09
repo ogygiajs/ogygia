@@ -462,8 +462,8 @@ export async function weigh_assets(opts: WeighOptions): Promise<PageAssets> {
 			if (w === undefined) {
 				const got = await weigh_one(r, opts, deadline, origin);
 				if ('miss' in got) {
-					// (a file that answered an error is that for good; a timeout or the budget is not)
-					if (got.miss.startsWith('status ')) opts.cache.set(r.url, null);
+					// (a file that is not there is that for good; a 5xx, a timeout or the budget is not)
+					if (got.gone) opts.cache.set(r.url, null);
 					miss(r.url, got.miss);
 					continue;
 				}
@@ -792,7 +792,16 @@ function byte_length(s: string): number {
 }
 
 /** Why a file could not be weighed. */
-type Miss = { miss: string };
+type Miss = {
+	miss: string;
+	/** The file is not there for good (a client error, not 408 or 429): no report asks again. */
+	gone?: true;
+};
+
+/** A status that says the file is not there for good: a client error, but not a timeout or a
+ *  rate limit (408, 429), which say "not now", as a 5xx does. */
+const gone_for_good = (status: number): boolean =>
+	status >= 400 && status < 500 && status !== 408 && status !== 429;
 
 async function weigh_one(
 	r: AssetRef,
@@ -810,7 +819,10 @@ async function weigh_one(
 			new Promise<null>((ok) => wait.timeout(() => ok(null), left))
 		]).finally(() => wait.close());
 		if (!res) return { miss: 'timeout' };
-		if (!res.ok) return { miss: `status ${res.status}` };
+		if (!res.ok)
+			return gone_for_good(res.status)
+				? { miss: `status ${res.status}`, gone: true }
+				: { miss: `status ${res.status}` };
 		const enc = res.headers.get('content-encoding');
 		const len = Number(res.headers.get('content-length'));
 		const buf = new Uint8Array(await res.arrayBuffer());
