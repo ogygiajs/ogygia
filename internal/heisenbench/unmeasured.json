@@ -339,6 +339,26 @@
 		{
 			"id": "packages/core/src/hooks.ts > OgygiaHandle > render_batch > batch_stream:1~4b5cdf",
 			"reason": "the handle's one-line hand-off of a batch call (and the stream's signal) to #render_capability; the handle runs only inside a Kit server build, and batch_stream itself is benched (packages/core/bench/server.bench.ts)"
+		},
+		{
+			"id": "packages/content/src/markdown/index.ts > ogygiaPreprocess > once:0~374c51",
+			"reason": "starts mdsvex (a dynamic import, then its instance) once and keeps it; mdsvex reaches @ogygia/core's built compiler, which a bench run does not load (see packages/content/bench/markdown.bench.ts); its failed start and retry are proven in packages/content/test/markdown-start.test.ts"
+		},
+		{
+			"id": "packages/content/src/markdown/shiki.ts > get_highlighter > highlighter > once:0~6db43e",
+			"reason": "starts the Shiki highlighter (a dynamic import, grammars and Shiki's WASM engine) once and keeps it: module IO a measuring window refuses; its failed start and retry are proven in packages/content/test/markdown-start.test.ts"
+		},
+		{
+			"id": "packages/content/src/markdown/shiki.ts > get_highlighter > highlighter > once:0~6db43e > then:0~a452b6",
+			"reason": "hands the loaded Shiki module to createHighlighter: Shiki's WASM engine, which a measuring window refuses; proven in packages/content/test/markdown-start.test.ts"
+		},
+		{
+			"id": "packages/content/src/vite/hmr.ts > content_runs",
+			"reason": "makes the dev plugin object (a name, apply and a transform hook), constant work; its transform's work is mark_content_calls, benched in packages/content/bench/lifecycle.bench.ts"
+		},
+		{
+			"id": "packages/content/src/vite/hmr.ts > content_runs > transform",
+			"reason": "Vite's dev transform hook: skips a client module or one that does not name @ogygia/content, else hands it to mark_content_calls (benched in packages/content/bench/lifecycle.bench.ts); proven against a real Vite dev server in packages/content/test/dev-reload.test.ts"
 		}
 	]
 }

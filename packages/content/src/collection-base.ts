@@ -10,7 +10,8 @@
  */
 import type { ContentRef, ContentRelations, Entry, RefEntry, SchemaLike } from './index.ts';
 import type { GroupMeta, Source, SourceEntry, SourceRef } from './source.ts';
-import { once } from '@ogygia/machine';
+import { machine, once } from '@ogygia/machine';
+import { GRAPH, type ModuleRun } from './graph.ts';
 import { parseSchema } from './schema.ts';
 import { OgygiaError } from './messages/runtime.ts';
 
@@ -28,17 +29,29 @@ type LiveConnection = {
 /** A failure seen elsewhere (where it is reported), on a promise nothing else awaits. */
 function ignore(): void {}
 
-// ── content graph registry ───────────────────────────────────────────────────
+/** Ends a live connection's changes (a source unsubscribes in its iterator's `return()`). */
+function close(changes: AsyncIterator<unknown>): unknown {
+	return changes.return?.();
+}
 
 /**
- * Every `Collection` registers here so relations resolve across collections and backlinks invert.
- * Build/server-side metadata — not per-request state.
+ * A collection's life. `idle` until a read needs its catalog; `running` from then: its start (the
+ * first full read with the live connection, kept once it succeeds), and the live connection it
+ * follows. `disposed` once a newer run of its module (an edit, in dev) built the collection that
+ * replaces it: leaving `running` closed its connection and cleared its retry, and it is out of the
+ * graph (#247). A module that kept it across runs may read it again: back to `idle`, in the graph.
  */
-const GRAPH: { all: Set<Collection<Record<string, unknown>>> } = ((
-	globalThis as Record<symbol, unknown>
-)[Symbol.for('ogygia.content.graph')] ??= { all: new Set() }) as {
-	all: Set<Collection<Record<string, unknown>>>;
-};
+const collection_life = machine<{
+	idle: {};
+	running: { start: () => Promise<void> };
+	disposed: {};
+}>()({
+	name: 'content-collection',
+	initial: 'idle',
+	steps: { idle: ['running', 'disposed'], running: ['disposed'], disposed: ['idle'] }
+});
+type CollectionLife = ReturnType<typeof collection_life.create>;
+type Running = Extract<CollectionLife['now'], { kind: 'running' }>;
 
 /** Back-pointer from a public handle to its underlying `Collection` (relations resolve through it). */
 export const COLLECTION: unique symbol = Symbol.for('ogygia.content.collection');
@@ -106,17 +119,24 @@ export class Collection<
 	#relationNames: string[] = [];
 	#relationsResolved = false;
 
-	/** The source's `init`, and the first full read with the live connection: each runs once, and a
-	 *  failure is never kept (one source outage once broke the collection until a restart, #189). */
+	/** The source's `init`, and (in `running`) the first full read with the live connection: each
+	 *  runs once, and a failure is never kept (one source outage once broke the collection until a
+	 *  restart, #189). */
 	readonly #init = once(async () => {
 		await this.#source.init?.();
 	});
-	readonly #start = once(() => this.#begin());
+	readonly #life: CollectionLife = collection_life.create();
+	/** Dev: the module run that built this collection (null outside the dev server). */
+	readonly #built_in: ModuleRun | null;
 	/** The live connection, while it is open: one per collection. A read that fails leaves it open
 	 *  (an async iterator's `return()` waits behind its pull, so it cannot be closed while the source
 	 *  is quiet), and the next read listens on it again instead of opening another. */
 	#connection: LiveConnection | null = null;
+	/** The wait before a dropped connection is opened again, while one is pending. */
+	#retry: ReturnType<typeof setTimeout> | null = null;
 	#version = 0;
+	/** How many times it was disposed: a watcher started before the last one has ended. */
+	#disposals = 0;
 	readonly #waiters = new Set<() => void>();
 	#backlinkIndex: Map<string, RefEntry[]> | null = null;
 	#backlinkKey: string | null = null;
@@ -131,7 +151,51 @@ export class Collection<
 		this.#schema =
 			opts.schema == null ? [] : Array.isArray(opts.schema) ? opts.schema : [opts.schema];
 		this.#visible = opts.filter ?? (() => true);
+		// Dev: the module run whose content() call builds it (the dev plugin marks each call, see
+		// graph.ts). It replaces the collections older runs of that module built.
+		const built_in = GRAPH.building ?? null;
+		this.#built_in = built_in;
+		if (built_in)
+			for (const older of GRAPH.all)
+				if (older instanceof Collection && older.#replaced_by(built_in)) older.#dispose();
 		GRAPH.all.add(this as unknown as Collection<Record<string, unknown>>);
+	}
+
+	/** Built by an older run of the module `run` is a run of. */
+	#replaced_by(run: ModuleRun): boolean {
+		const mine = this.#built_in;
+		return mine !== null && mine.module === run.module && mine.run < run.run;
+	}
+
+	/**
+	 * Dev: a newer run of this collection's module built the one that replaces it. It stops
+	 * following its source (the live connection closed, a pending retry cleared) and leaves the
+	 * graph. Reading it again (its module kept it) puts it back, and starts it again.
+	 */
+	#dispose(): void {
+		if (this.#life.now.kind === 'disposed') return;
+		this.#life.go('disposed');
+		GRAPH.all.delete(this as unknown as Collection<Record<string, unknown>>);
+		// its watchers end (see watchChanges)
+		this.#disposals++;
+		for (const wake of this.#waiters) wake();
+	}
+
+	/** A disposed collection read again: back in the graph, to start when its catalog is needed. */
+	#awake(): void {
+		if (this.#life.move('disposed', 'idle'))
+			GRAPH.all.add(this as unknown as Collection<Record<string, unknown>>);
+	}
+
+	/** Leaving `running`: the live connection closed (its pull may never answer: nothing waits on
+	 *  it), the pending retry cleared. */
+	#stop_following(): void {
+		const connection = this.#connection;
+		this.#connection = null;
+		if (this.#retry !== null) clearTimeout(this.#retry);
+		this.#retry = null;
+		const changes = connection?.changes;
+		if (changes) void Promise.resolve(changes).then(close).catch(ignore);
 	}
 
 	/** Supply the collection's own handle for the `relations: (self) => …` callback. */
@@ -184,10 +248,13 @@ export class Collection<
 
 	/** Each new catalog version, from `from` on (default: the version now). Pass the version of the
 	 *  snapshot already handed out, so a change made while it was being used is yielded at once
-	 *  (taking the version on the first pull missed it, #191). */
+	 *  (taking the version on the first pull missed it, #191). It ends once the collection is
+	 *  disposed: a replaced collection changes no more, so a live remote streaming it ends instead of
+	 *  waiting forever (#247). */
 	async *watchChanges(from?: number): AsyncGenerator<number> {
 		let seen = from ?? this.#version;
-		while (true) {
+		const disposals = this.#disposals;
+		while (this.#disposals === disposals) {
 			if (this.#version !== seen) {
 				seen = this.#version;
 				yield seen;
@@ -278,12 +345,14 @@ export class Collection<
 		this.#notify();
 	}
 
-	/** The source started, read in full, and (a live source) followed. */
-	async #begin(): Promise<void> {
+	/** The source started, read in full, and (a live source) followed for as long as the collection
+	 *  stays in this visit to `running`. */
+	async #begin(visit: Running): Promise<void> {
 		await this.#init();
 		// the live connection opens BEFORE the first read starts: a source that announces a change
 		// only to whoever listens at that moment would tell nobody about one made during the read (#191)
-		await (this.#source.live ? this.#follow(() => this.#reload(), 0) : this.#reload());
+		const follow = this.#source.live && this.#life.now === visit;
+		await (follow ? this.#follow(visit, () => this.#reload(), 0) : this.#reload());
 	}
 
 	/**
@@ -293,10 +362,17 @@ export class Collection<
 	 * that doubles, reading the whole source again first (what changed meanwhile has no event). A
 	 * connection that ends (the source says there is nothing more) is not.
 	 */
-	#follow(read: () => Promise<void>, attempt: number, reconnecting = false): Promise<void> {
+	#follow(
+		visit: Running,
+		read: () => Promise<void>,
+		attempt: number,
+		reconnecting = false
+	): Promise<void> {
 		const connection = this.#connect();
 		// the read starts only now: the connection is already listening
 		const ready = read();
+		// (once the collection left this visit, its connection is closed: nothing more applies)
+		const following = () => this.#life.now === visit;
 		void (async () => {
 			try {
 				await ready;
@@ -304,16 +380,17 @@ export class Collection<
 				// The connection stays open for the next read (this.#connection). A reconnect's read
 				// failed (the source is still down): try again after a longer wait. The FIRST read
 				// failing fails the start instead, and the next read starts it (and this) again.
-				if (reconnecting) {
+				if (reconnecting && following()) {
 					console.error(new OgygiaError('content_live_source_failed'), err);
-					this.#reconnect(attempt);
+					this.#reconnect(visit, attempt);
 				}
 				return;
 			}
 			let failures = attempt;
 			try {
-				while (true) {
+				while (following()) {
 					const step = await connection.pending;
+					if (!following()) return;
 					if (step.done) {
 						this.#connection = null;
 						return;
@@ -325,12 +402,13 @@ export class Collection<
 						console.error(new OgygiaError('content_live_change_failed'), err);
 					}
 					// (a pull that answered came from the iterator `live()` returned)
-					connection.pending = connection.changes!.next();
+					if (following()) connection.pending = connection.changes!.next();
 				}
 			} catch (err) {
+				if (!following()) return;
 				this.#connection = null;
 				console.error(new OgygiaError('content_live_source_failed'), err);
-				this.#reconnect(failures);
+				this.#reconnect(visit, failures);
 			}
 		})();
 		return ready;
@@ -351,13 +429,16 @@ export class Collection<
 		return (this.#connection = { changes, pending });
 	}
 
-	/** Open a dropped connection again after its wait, reading the whole source again first. */
-	#reconnect(attempt: number): void {
+	/** Open a dropped connection again after its wait, reading the whole source again first. The
+	 *  wait is the visit's: leaving `running` clears it. */
+	#reconnect(visit: Running, attempt: number): void {
 		const wait = Math.min(LIVE_RETRY_FIRST_MS * 2 ** attempt, LIVE_RETRY_LAST_MS);
 		const timer = setTimeout(() => {
+			this.#retry = null;
 			// (a failed read is reported, and retried, by #follow; the connection listens first)
-			void this.#follow(() => this.#reload(true), attempt + 1, true).catch(ignore);
+			void this.#follow(visit, () => this.#reload(true), attempt + 1, true).catch(ignore);
 		}, wait);
+		this.#retry = timer;
 		// (a server shutting down does not wait for a reconnect)
 		(timer as { unref?: () => void }).unref?.();
 	}
@@ -369,8 +450,14 @@ export class Collection<
 		else await this.#reload(true);
 	}
 
-	async #loaded(): Promise<void> {
-		await this.#start();
+	/** The catalog, loaded: the start of this visit to `running` (entered on the first read). */
+	#loaded(): Promise<void> {
+		this.#awake();
+		if (this.#life.now.kind !== 'running') {
+			this.#life.go('running', { start: once(() => this.#begin(this.#life.now as Running)) });
+			this.#life.onLeave(() => this.#stop_following());
+		}
+		return (this.#life.now as Running).start();
 	}
 
 	async ready(): Promise<ContentRef<Data, Meta>[]> {
@@ -498,6 +585,7 @@ export class Collection<
 	async get(id: string, ctx: ReadContext = {}): Promise<Entry<Data, Meta> | null> {
 		if (!this.#hasGraph()) {
 			// On-demand: a graph-less collection needs no catalog — fetch ONE full record.
+			this.#awake();
 			await this.#init();
 			let ref = this.#catalog.get(id) ?? null;
 			const full = await this.#source.get(id);

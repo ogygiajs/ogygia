@@ -17,6 +17,7 @@
 import type { MdsvexOptions } from 'mdsvex';
 import type { PreprocessorGroup, Processed } from 'svelte/compiler';
 import { BuildCache, content_css_key } from '@ogygia/core/internal/compiler-browser';
+import { once } from '@ogygia/machine';
 import { bridge } from '../bridge.ts';
 import { RegionStore } from '../region-store.ts';
 import { remarkHeadingId } from './remark-heading-id.ts';
@@ -464,10 +465,12 @@ export function ogygiaPreprocess(options?: MarkdownOptions): PreprocessorGroup {
 	if (rehype_chain.length) mdsvex_opts.rehypePlugins = rehype_chain;
 	if (layout !== undefined) mdsvex_opts.layout = layout;
 
-	// Construct mdsvex lazily and once. The config above needs no mdsvex; only the instance does.
-	let md_p: Promise<PreprocessorGroup> | null = null;
-	const get_md = (): Promise<PreprocessorGroup> =>
-		(md_p ??= load_mdsvex().then((mdsvex) => mdsvex(mdsvex_opts) as PreprocessorGroup));
+	// Construct mdsvex lazily and once. The config above needs no mdsvex; only the instance does. A
+	// start that fails (mdsvex or a plugin that failed to load) is not kept: the next page starts
+	// it again (#248).
+	const get_md = once(
+		async (): Promise<PreprocessorGroup> => (await load_mdsvex())(mdsvex_opts) as PreprocessorGroup
+	);
 
 	// Compose ogygia's marked-import transform AFTER mdsvex so islands authored inside `.svx` / `.md`
 	// (`import X from '…' with { wake | render | region }`) become real islands. It runs on the

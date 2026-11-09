@@ -121,6 +121,7 @@
 		"@ogygia/machine": "workspace:^",
 		"@orama/orama": "^3.1.18",
 		"bits-ui": "catalog:",
+		"magic-string": "catalog:",
 		"mdsvex": "catalog:"
 	},
 	"devDependencies": {

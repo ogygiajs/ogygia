@@ -13,6 +13,7 @@ const DOUBLE_QUOTE_G = /"/g;
  */
 
 import type { ShikiTransformer } from 'shiki';
+import { once } from '@ogygia/machine';
 import { render_fence, default_pipeline, type CodePipeline } from './code-render.ts';
 import { fence_key, fence_cache_get, fence_cache_set } from './fence-cache.ts';
 import type { SerializedRegion } from '../region-store.ts';
@@ -125,8 +126,10 @@ export type ResolvedShiki = {
 };
 
 let active: ResolvedShiki | null = null;
-let highlighter_p: Promise<Highlighter> | null = null;
-let highlighter_key = '';
+/** The highlighter for one set of themes and languages: started on first use and kept, but never a
+ *  failed start (a grammar that failed to load), which the next highlight tries again (#248). A
+ *  highlight with other themes or languages starts its own in its place. */
+let highlighter: { key: string; get: () => Promise<Highlighter> } | null = null;
 
 export function normalize_shiki(options: MarkdownShikiOptions = {}): ResolvedShiki {
 	const themes = options.themes ?? DEFAULT_THEMES;
@@ -152,8 +155,7 @@ export function normalize_shiki(options: MarkdownShikiOptions = {}): ResolvedShi
 
 export function configure_shiki(options: MarkdownShikiOptions = {}): ResolvedShiki {
 	active = normalize_shiki(options);
-	highlighter_p = null;
-	highlighter_key = '';
+	highlighter = null;
 	return active;
 }
 
@@ -167,16 +169,19 @@ function theme_key(cfg: ResolvedShiki) {
 
 function get_highlighter(cfg: ResolvedShiki) {
 	const key = theme_key(cfg);
-	if (highlighter_key !== key) {
-		highlighter_p = null;
-		highlighter_key = key;
-	}
-	return (highlighter_p ??= import('shiki').then(({ createHighlighter }) =>
-		createHighlighter({
-			themes: [cfg.themes.light as never, cfg.themes.dark as never],
-			langs: cfg.langs
-		})
-	));
+	if (highlighter?.key !== key)
+		highlighter = {
+			key,
+			get: once(() =>
+				import('shiki').then(({ createHighlighter }) =>
+					createHighlighter({
+						themes: [cfg.themes.light as never, cfg.themes.dark as never],
+						langs: cfg.langs
+					})
+				)
+			)
+		};
+	return highlighter.get();
 }
 
 export function wrap_html(html: string, wrapperClass: string | false): string {

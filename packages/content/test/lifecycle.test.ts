@@ -1,9 +1,9 @@
 // A content collection's lifecycle, and the caches built on it (#189-#193): a failure is never kept,
 // a live source keeps going past a bad update and a dropped connection, a change made while the
 // first value is built is never missed, and the site's search follows the content.
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as v from 'valibot';
-import { content, type Source, type SourceEntry } from '../src/index.ts';
+import { content, folder, json, type Source, type SourceEntry } from '../src/index.ts';
 import { withRemotes } from '../src/server.ts';
 import { site as siteRaw } from '../src/site/site.ts';
 import { dimensions } from '../src/site/dimensions.ts';
@@ -371,5 +371,129 @@ describe('a live edit that breaks the outline keeps the last good one', () => {
 		const docs = content({ schema, loader: source });
 		const s = siteRaw({ outline: outline([{ label: 'Start', items: pick(docs, 'install') }]) });
 		await expect(s.nav()).rejects.toThrow(/unplaced entr/);
+	});
+});
+
+describe('a folder sidecar that fails to load once is loaded again (#246)', () => {
+	/** A folder over a lazy glob (each file a thunk, as `import.meta.glob` without `eager` gives):
+	 *  the section's `+meta.json` fails to load the first `fails` times. */
+	function lazy_folder(fails: number) {
+		const loads = { meta: 0 };
+		const map = {
+			'content/docs/00-guide/+meta.json': async () => {
+				loads.meta++;
+				if (fails-- > 0) throw new Error('sidecar failed to load');
+				return { default: { label: 'The guide' } };
+			},
+			'content/docs/00-guide/00-intro/+doc.svx': async () => ({ title: 'Intro' }),
+			'content/docs/01-api/00-reference/+doc.svx': async () => ({ title: 'Reference' })
+		};
+		return { docs: content({ loader: folder(map, { format: json }), schema }), loads };
+	}
+
+	it('the collection: the next read loads it', async () => {
+		const { docs } = lazy_folder(1);
+		await expect(docs.refs()).rejects.toThrow('sidecar failed to load');
+		expect((await docs.refs()).map((e) => e.id)).toEqual(['guide/intro', 'api/reference']);
+	});
+
+	it('its groups: the next read has the label', async () => {
+		const { docs } = lazy_folder(1);
+		await expect(docs.groups()).rejects.toThrow('sidecar failed to load');
+		expect((await docs.groups()).get('guide')).toEqual({ label: 'The guide' });
+	});
+
+	it('once loaded, the sidecars are kept: readers share the one load', async () => {
+		const { docs, loads } = lazy_folder(0);
+		await Promise.all([docs.refs(), docs.groups(), docs.groups()]);
+		await docs.groups();
+		expect(loads.meta).toBe(1);
+	});
+});
+
+describe('a collection a newer run of its module replaces stops following (#247)', () => {
+	// What the content dev plugin's mark does in a module run: the run asks the graph for its
+	// wrapper, and the module's content() calls go through it. (A real dev server drives it in
+	// dev-reload.test.ts; here each named run is one run of the same module, to reach the retry
+	// timer.)
+	const graph = (globalThis as Record<symbol, unknown>)[Symbol.for('ogygia.content.graph')] as {
+		module_run: (module: string) => <F extends (...a: never[]) => unknown>(build: F) => F;
+	};
+	let runs = new Map<string, ReturnType<typeof graph.module_run>>();
+	beforeEach(() => {
+		runs = new Map();
+	});
+	const in_run = <T>(r: string, build: () => T): T => {
+		let wrap = runs.get(r);
+		if (!wrap) runs.set(r, (wrap = graph.module_run('/app/src/lib/docs.server.ts')));
+		return wrap(build)();
+	};
+
+	it('its live connection: a change after it was replaced is not read', async () => {
+		const old = liveSource([row('a', 'A')]);
+		const reads = vi.spyOn(old.source, 'refs');
+		const first = in_run('1', () => content({ schema, loader: old.source }));
+		await first.refs();
+		await settle();
+		const current = liveSource([row('a', 'A')]);
+		in_run('2', () => content({ schema, loader: current.source }));
+		old.push(row('b', 'B'));
+		await settle();
+		expect(reads).toHaveBeenCalledOnce(); // the first read only
+	});
+
+	it('its retry: a dropped connection is not opened again once it was replaced', async () => {
+		vi.useFakeTimers();
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		const old = liveSource([row('a', 'A')]);
+		old.ctl.live_drops = 1;
+		const first = in_run('1', () => content({ schema, loader: old.source }));
+		await first.refs();
+		await vi.advanceTimersByTimeAsync(0); // the connection dropped: a retry waits
+		in_run('2', () => content({ schema, loader: liveSource([row('a', 'A')]).source }));
+		await vi.advanceTimersByTimeAsync(120_000);
+		expect(old.ctl.subscribed).toBe(1);
+	});
+
+	it('the module kept it: read again, it follows again', async () => {
+		const kept = liveSource([row('a', 'A')]);
+		const c = in_run('1', () => content({ schema, loader: kept.source }));
+		await c.refs();
+		in_run('2', () => content({ schema, loader: liveSource([row('a', 'A')]).source }));
+		await settle();
+		expect((await c.refs()).map((e) => e.id)).toEqual(['a']);
+		kept.push(row('b', 'B'));
+		await settle();
+		expect((await c.refs()).map((e) => e.id)).toEqual(['a', 'b']);
+	});
+
+	it('a live list streaming it ends once it was replaced, and so does a live get', async () => {
+		const old = liveSource([row('a', 'A')]);
+		const c = in_run('1', () => content({ schema, loader: old.source }));
+		const remotes = withRemotes(c);
+		const list = (await remotes.live.list({ map: (e) => e.id })()) as unknown as AsyncGenerator;
+		const one = (await remotes.live.get({ map: (e) => e.id })('a')) as unknown as AsyncGenerator;
+		expect((await list.next()).value).toEqual(['a']);
+		expect((await one.next()).value).toBe('a');
+		const next = [list.next(), one.next()]; // pages stream them across the edit
+		in_run('2', () => content({ schema, loader: liveSource([row('a', 'A')]).source }));
+		const steps = await Promise.race([
+			Promise.all(next),
+			new Promise<'hangs'>((r) => setTimeout(() => r('hangs'), 300))
+		]);
+		expect(steps).toEqual([
+			{ done: true, value: undefined },
+			{ done: true, value: undefined }
+		]);
+	});
+
+	it('a collection the same run builds replaces nothing', async () => {
+		const one = liveSource([row('a', 'A')]);
+		const a = in_run('1', () => content({ schema, loader: one.source }));
+		await a.refs();
+		in_run('1', () => content({ schema, loader: liveSource([]).source }));
+		one.push(row('b', 'B'));
+		await settle();
+		expect((await a.refs()).map((e) => e.id)).toEqual(['a', 'b']);
 	});
 });
