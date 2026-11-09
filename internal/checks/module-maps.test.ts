@@ -102,6 +102,34 @@ test('a WeakMap, a WeakSet, and maps made inside functions are not module-level 
 	);
 });
 
+test('a module-level let holding a collection is growth (it is reassigned), unless it is a cache()', () => {
+	assert.deepEqual(
+		names(
+			[
+				'let observers: readonly Function[] = [];',
+				'// static: a fixed list',
+				'let FIXED = ["a", "b"];',
+				'let seen = new Map([["a", 1]]);',
+				'let found = new Set(["x"]);',
+				'let pages = cache({ max: 10 });',
+				'let count = 0;',
+				'let name: string | null = null;',
+				'function on(o) { observers = [...observers, o]; seen = new Map(seen); FIXED = FIXED.concat(o); found ||= new Set(); }'
+			].join('\n')
+		),
+		['1:observers:let', '3:FIXED:let', '4:seen:let', '5:found:let']
+	);
+});
+
+test('a static table must be const', () => {
+	const [f] = find_unowned(
+		'x.ts',
+		['// static: the codes', 'let CODES = new Set(["a"]);'].join('\n')
+	);
+	assert.equal(f?.kind, 'let');
+	assert.match(f!.fix, /const/);
+});
+
 test('each finding says the fix', () => {
 	const [f] = find_unowned('x.ts', 'const seen = new Map();');
 	assert.match(f!.fix, /cache\(\)/);
