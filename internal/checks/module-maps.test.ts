@@ -43,16 +43,48 @@ test("a fixed table marked '// static: <reason>' is allowed; a mark with no reas
 	);
 });
 
-test("one owned by a scope, marked '// owned: <scope>', is allowed", () => {
+test('a comment claiming ownership is no pass: one owned by a scope lives in its owner', () => {
 	assert.deepEqual(
 		names(
 			[
 				'// owned: the page visit clears it (visit.scope.defer)',
-				'const per_visit = new Map();'
+				'const per_visit = new Map();',
+				'class Session { #seen = new Map(); }',
+				'function visit(scope) { const per_visit = new Map(); scope.defer(() => per_visit.clear()); }'
 			].join('\n')
 		),
-		[]
+		['2:per_visit:Map']
 	);
+});
+
+test('a static table that the module grows is an error, by its write', () => {
+	const found = find_unowned(
+		'x.ts',
+		[
+			'// static: the codes',
+			'const CODES = new Set(["a"]);',
+			'// static: the limits',
+			'const LIMITS = new Map();',
+			'// static: the queue',
+			'const QUEUE = [];',
+			'// static: by index',
+			'const SLOTS = [];',
+			'function later(k) { CODES.add(k); LIMITS.set(k, 1); QUEUE.push(k); SLOTS[k] = 1; }',
+			'// static: read only',
+			'const READ = new Set(["x"]);',
+			'const has = (k) => READ.has(k);'
+		].join('\n')
+	);
+	assert.deepEqual(
+		found.map((f) => `${f.line}:${f.name}:${f.kind}`),
+		[
+			'9:CODES:static-grown',
+			'9:LIMITS:static-grown',
+			'9:QUEUE:static-grown',
+			'9:SLOTS:static-grown'
+		]
+	);
+	assert.match(found[0]!.fix, /static/);
 });
 
 test('a WeakMap, a WeakSet, and maps made inside functions are not module-level growth', () => {
@@ -74,4 +106,6 @@ test('each finding says the fix', () => {
 	const [f] = find_unowned('x.ts', 'const seen = new Map();');
 	assert.match(f!.fix, /cache\(\)/);
 	assert.match(f!.fix, /\/\/ static:/);
+	assert.match(f!.fix, /owner/);
+	assert.doesNotMatch(f!.fix, /\/\/ owned:/);
 });
