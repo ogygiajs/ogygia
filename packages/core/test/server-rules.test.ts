@@ -55,5 +55,9 @@ describe('server rules', () => {
 		expect(server_rules.broken()).toEqual([
 			{ code: 'rule_flight_kept_failure', detail: '"probe keeps" kept TypeError: kept' }
 		]);
+		// once that answer is no longer kept, nothing keeps a failure: the rule holds again, so the
+		// next check (the next response, a simulated run) sees only its own breaks
+		keeps.drop(undefined);
+		expect(server_rules.broken()).toEqual([]);
 	});
 });
