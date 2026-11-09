@@ -94,7 +94,8 @@ const SWEEP_MS = 1000;
  * not go for size (the next least recently used goes instead). A flights' answer kept beside a
  * refresh still out is one. Not exported from the package.
  */
-export const IN_USE: unique symbol = Symbol('ogygia.cache.in_use');
+// (registered: the package's internal entry and its index are built apart, one symbol for both)
+export const IN_USE: unique symbol = Symbol.for('ogygia.cache.in_use');
 
 /** The options the package itself may pass (./flights.ts). */
 export type InternalCacheOptions<K, V> = CacheOptions<K, V> & {
