@@ -87,7 +87,11 @@ class Box implements Mailbox {
 	/** The turn on now (null: idle). */
 	_holder: Held | null = null;
 	_closed = false;
+	/** The jobs in line, from `_head` on (taken by index: a long queue is not shifted job by job). */
 	_queue: Job[] | null = null;
+	_head = 0;
+	/** The loop that hands out turns is running (`_end_turn`). */
+	_draining = false;
 	/** The waits out, to end with `STALE` when the box closes. */
 	_waiting: Set<(value: Stale) => void> | null = null;
 
@@ -190,44 +194,72 @@ class Box implements Mailbox {
 		if (this._holder === held) this._end_turn();
 	}
 
-	/** The turn on now ends: the next job, if any, gets its turn. */
+	/**
+	 * The turn on now ends: the jobs queued get their turns, one after the other, until one holds
+	 * on (it waits on a plain await) or none is left. One loop, on a flat stack: a sync handler that
+	 * ends inside it only frees the turn, and the loop goes on with the next (#342).
+	 */
 	_end_turn(): void {
 		this._holder = null;
-		const next = this._queue?.shift();
-		if (next === undefined) return;
-		if (next.resume !== null) {
-			// (a handler that ended meanwhile takes no turn: it would never give it back)
-			if (next.held._ended) {
-				next.resume();
-				return this._end_turn();
-			}
-			this._holder = next.held;
-			next.resume();
-			// its other waits that came back meanwhile come back into this turn of its own (a handler
-			// on two waits at once would else hold the turn for the one still in the queue)
-			const queue = this._queue as Job[];
-			let kept = 0;
-			for (let i = 0; i < queue.length; i++) {
-				const job = queue[i];
-				if (job.held === next.held) job.resume();
-				else queue[kept++] = job;
-			}
-			queue.length = kept;
-			return;
-		}
+		if (this._draining) return; // (the loop below is running: it takes the next)
+		this._draining = true;
 		try {
-			this._start(next.start);
-		} catch (error) {
-			// a queued handler that threw: nobody waits on its stack (the turn before it ended), so it
-			// is the page's, as an event listener's throw is
-			report_thrown(error);
+			while (this._holder === null) {
+				const next = this._next();
+				if (next === undefined) return;
+				if (next.resume === null) {
+					try {
+						this._start(next.start);
+					} catch (error) {
+						// a queued handler that threw: nobody waits on its stack (the turn before it ended),
+						// so it is the page's, as an event listener's throw is
+						report_thrown(error);
+					}
+					continue;
+				}
+				// (a handler that ended meanwhile takes no turn: it would never give it back)
+				if (next.held._ended) {
+					next.resume();
+					continue;
+				}
+				this._holder = next.held;
+				next.resume();
+				this._back_in(next.held);
+			}
+		} finally {
+			this._draining = false;
 		}
+	}
+
+	/** The next job in line, or none (the queue then goes). */
+	_next(): Job | undefined {
+		const queue = this._queue;
+		if (queue === null) return undefined;
+		if (this._head < queue.length) return queue[this._head++];
+		this._queue = null;
+		this._head = 0;
+		return undefined;
+	}
+
+	/** `held` has its turn back: its other waits that came back meanwhile come back into it (a
+	 *  handler on two waits at once would else hold the turn for the one still in the queue). */
+	_back_in(held: Held): void {
+		const queue = this._queue;
+		if (queue === null) return;
+		let kept = this._head;
+		for (let i = this._head; i < queue.length; i++) {
+			const job = queue[i];
+			if (job.held === held) job.resume();
+			else queue[kept++] = job;
+		}
+		queue.length = kept;
 	}
 
 	_close(): void {
 		if (this._closed) return;
 		this._closed = true;
 		this._queue = null;
+		this._head = 0;
 		const waiting = this._waiting;
 		this._waiting = null;
 		if (waiting !== null) for (const stale of waiting) stale(STALE);
