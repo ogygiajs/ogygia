@@ -3,7 +3,7 @@
  * collections and backlinks invert: build/server-side metadata, not per-request state. It is one
  * global, shared by every copy of this package a process loads (the app's, and the dev plugin's).
  */
-import { registry, type Registry } from '@ogygia/machine/internal/registry';
+import { registry, type Registry } from '@ogygia/machine';
 import type { Collection } from './collection-base.ts';
 
 /** Which run of which module built a collection (dev only). */

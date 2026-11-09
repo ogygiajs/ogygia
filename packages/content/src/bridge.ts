@@ -11,8 +11,7 @@
  * plain module singleton can be two instances across that boundary (the config may bundle the package
  * or externalize it), so the bridge lives on a `Symbol.for` global slot shared by the whole process.
  */
-import type { Scope } from '@ogygia/machine';
-import { registry, type Registry } from '@ogygia/machine/internal/registry';
+import { registry, type Registry, type Scope } from '@ogygia/machine';
 
 export type ContentBridge = {
 	/** Rewrite marked imports in already-preprocessed svelte + register the islands (`b.markup()`'s
