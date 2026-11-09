@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { scope, stage, STALE } from '../src/index.ts';
+import { machine, scope, stage, STALE, type Staging } from '../src/index.ts';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -204,5 +204,108 @@ describe('failures', () => {
 		expect(() => stage(scope(), { build: () => 1, commit: null as never })).toThrow(
 			/machine_bad_option/
 		);
+	});
+});
+
+describe('a commit in progress', () => {
+	it('a commit that closes its owner keeps what it committed (#343)', async () => {
+		// a navigation: the stage belongs to the visit, and switching the page in moves the machine
+		// on, which closes that visit
+		const nav = machine<{ loading: {}; shown: {} }>()({
+			name: 'nav',
+			initial: 'loading',
+			steps: { loading: ['shown'], shown: [] }
+		}).create();
+		const page = live();
+		const next = stage(nav.scope, {
+			build: ({ discard }) => {
+				page.log.push('sheet in');
+				discard(() => page.log.push('sheet out'));
+				return 'new';
+			},
+			commit: (built) => {
+				page.value = built;
+				nav.go('shown');
+			}
+		});
+		await next.ready;
+		expect(next.commit()).toBe(true);
+		expect(nav.now.kind).toBe('shown');
+		expect(page.value).toBe('new');
+		expect(page.log).toEqual(['sheet in']);
+	});
+
+	it('a commit that closes its owner and then throws still puts everything back', async () => {
+		const owner = scope();
+		const page = live();
+		const next = stage(owner, {
+			build: ({ discard }) => {
+				discard(() => page.log.push('discard'));
+				return 'new';
+			},
+			commit: (built, undo) => {
+				page.value = built;
+				undo(() => (page.value = 'old'));
+				owner.close();
+				throw new Error('half way');
+			}
+		});
+		await next.ready;
+		expect(() => next.commit()).toThrow('half way');
+		expect(page.value).toBe('old');
+		expect(page.log).toEqual(['discard']);
+	});
+});
+
+describe('after the commit', () => {
+	it('a discard step given after the commit is dropped, not run (#344)', async () => {
+		const owner = scope();
+		const page = live();
+		let staging!: Staging;
+		const next = stage(owner, {
+			build: (s) => ((staging = s), 'new'),
+			commit: (built) => {
+				page.value = built;
+			}
+		});
+		await next.ready;
+		expect(next.commit()).toBe(true);
+		const late = vi.fn(() => (page.value = 'old'));
+		staging.discard(late);
+		owner.close();
+		expect(late).not.toHaveBeenCalled();
+		expect(page.value).toBe('new');
+	});
+
+	it('a discard step given after a discard runs at once', async () => {
+		const owner = scope();
+		let staging!: Staging;
+		const next = stage(owner, { build: (s) => ((staging = s), 'new'), commit: () => {} });
+		await next.ready;
+		owner.close();
+		const late = vi.fn();
+		staging.discard(late);
+		expect(late).toHaveBeenCalledOnce();
+	});
+
+	it('a stage that committed or was discarded leaves nothing on its owner (#345)', async () => {
+		const owner = scope();
+		const held = owner as unknown as { _defers: unknown[] | null; _children: Set<unknown> | null };
+		for (let i = 0; i < 50; i++) {
+			const next = stage(owner, { build: () => i, commit: () => {} });
+			await next.ready;
+			next.commit();
+		}
+		for (let i = 0; i < 50; i++) {
+			const failed = stage(owner, {
+				build: () => {
+					throw new Error('no');
+				},
+				commit: () => {}
+			});
+			await failed.ready.catch(() => {});
+		}
+		expect((held._defers?.length ?? 0) + (held._children?.size ?? 0)).toBe(0);
+		owner.close();
 	});
 });
