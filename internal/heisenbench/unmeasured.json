@@ -1041,6 +1041,10 @@
 			"reason": "the e2e harness: runs in the page (an Error's name and message), constant work"
 		},
 		{
+			"id": "packages/tooling/src/e2e/browsers.ts > unused_fetch_preloads",
+			"reason": "the e2e harness: the extra hole requests the running engine adds (one name read), inside Playwright"
+		},
+		{
 			"id": "packages/tooling/src/e2e/browsers.ts > needs_js_self_profiling",
 			"reason": "the e2e harness: skips a Chromium-only spec in the other engines (one name read), inside Playwright"
 		},
