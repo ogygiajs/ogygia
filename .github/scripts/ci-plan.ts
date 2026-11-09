@@ -56,7 +56,9 @@ const BROWSER_JOBS = ['firefox', 'webkit', 'firefox-stable'] as const;
 
 const env = process.env;
 const pull_request = env.EVENT === 'pull_request';
-const base = env.BASE_REF ? `origin/${env.BASE_REF}` : 'origin/main';
+// (the base commit itself: a stacked PR's `base_ref` was seen to read `main` on CI, its base sha
+// was right)
+const base = env.BASE_SHA || (env.BASE_REF ? `origin/${env.BASE_REF}` : 'origin/main');
 const out: Record<string, string> = {};
 const summary: string[] = ['### CI plan', ''];
 

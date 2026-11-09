@@ -70,7 +70,7 @@ jobs:
         env:
           E2E_SHARD: ${{ inputs.shard }}
           OGYGIA_BROWSERS: ${{ inputs.browser }}
-          TURBO_SCM_BASE: origin/${{ github.base_ref || 'main' }}
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'origin/main' }}
 
       # Bun runtime dimension — the adapter e2e suite runs the node-server output under bun too.
       - if: inputs.adapters && steps.plan.outputs.skip != 'true'
@@ -114,7 +114,7 @@ jobs:
         env:
           E2E_SHARD: ${{ inputs.shard }}
           OGYGIA_BROWSERS: ${{ inputs.browser }}
-          TURBO_SCM_BASE: origin/${{ github.base_ref || 'main' }}
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'origin/main' }}
           OGYGIA_E2E_WRANGLER: ${{ inputs.adapters && '1' || '' }}
           # Stable CI-only signing key so the warn-path probe's production build is silent (locally
           # this comes from apps/palaestra/.env, which is gitignored). NOT a production secret —
