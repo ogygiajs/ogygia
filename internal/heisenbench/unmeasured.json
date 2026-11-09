@@ -1041,6 +1041,18 @@
 			"reason": "the e2e harness: runs in the page (an Error's name and message), constant work"
 		},
 		{
+			"id": "packages/tooling/src/e2e/browsers.ts > page_errors",
+			"reason": "the e2e harness: a page's error listener installed (one name read), inside Playwright"
+		},
+		{
+			"id": "packages/tooling/src/e2e/browsers.ts > page_errors > on:1~8842b6",
+			"reason": "the e2e harness: one page error kept or left out (one regex test), constant work, inside Playwright"
+		},
+		{
+			"id": "packages/tooling/src/e2e/browsers.ts > shares_report_links",
+			"reason": "the e2e harness: whether the running engine shares report links (one name read), inside Playwright"
+		},
+		{
 			"id": "packages/tooling/src/e2e/browsers.ts > needs_js_self_profiling",
 			"reason": "the e2e harness: skips a Chromium-only spec in the other engines (one name read), inside Playwright"
 		},
