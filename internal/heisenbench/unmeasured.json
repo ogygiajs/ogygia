@@ -1093,6 +1093,18 @@
 			"reason": "browser only: an island file's one load at a time (the dynamic import() of its URL, and the immediate retry under a fresh URL after a dropped download); proven in packages/core/test/browser/import-file-one-retry.test.ts (#271) and apps/palaestra/e2e/lazy-chunk-retry.spec.ts (#261)"
 		},
 		{
+			"id": "packages/core/src/runtime/import-again.ts > next_task",
+			"reason": "browser only: one task's wait on its own scope timer before a failed island file's timing entry is read again (an engine that rejects first), constant work; proven in packages/core/test/browser/import-response.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > next_task > Promise:0~456fb6",
+			"reason": "browser only: one task's wait on its own scope timer before a failed island file's timing entry is read again (an engine that rejects first), constant work; proven in packages/core/test/browser/import-response.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > next_task > Promise:0~456fb6 > timeout:0~26bbc7",
+			"reason": "browser only: one task's wait on its own scope timer before a failed island file's timing entry is read again (an engine that rejects first), constant work; proven in packages/core/test/browser/import-response.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/entry-locations.ts > flights:0",
 			"reason": "browser only: the reads of this build's location map and the current build's ogygia.json (fetch), kept once read; proven in packages/core/test/browser/entry-location-map.test.ts and entry-location-rollover.test.ts"
 		},
