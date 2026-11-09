@@ -29,6 +29,37 @@ export function needs_js_self_profiling(page: Page): void {
 	);
 }
 
+/** WebKit's console line for a fetch that failed at the network (a connection the server dropped,
+ *  a request the page's navigation cancelled), whatever the origin. */
+const WEBKIT_NETWORK_FAILURE_RE = /^Fetch API cannot load \S+ due to access control checks\.$/;
+
+/**
+ * The page's uncaught errors, as they come. Playwright's WebKit reports WebKit's own console line
+ * for a fetch that failed at the network ("Fetch API cannot load … due to access control checks.")
+ * as a page error even when the page handles the rejection; Chromium and Firefox reject the fetch
+ * and say nothing. That line is left out in WebKit, so a spec that expects no page errors holds the
+ * page to the same bar in every engine.
+ */
+export function page_errors(page: Page): string[] {
+	const webkit = page.context().browser()?.browserType().name() === 'webkit';
+	const errors: string[] = [];
+	page.on('pageerror', (e) => {
+		// (the stack's first line is the whole console line: the message alone is cut at its `http:`)
+		const line = (e.stack ?? '').split('\n')[0] ?? '';
+		if (!(webkit && WEBKIT_NETWORK_FAILURE_RE.test(line))) errors.push(e.message);
+	});
+	return errors;
+}
+
+/**
+ * Whether the profiler offers its report share link in this engine. WebKit caps a URL far below
+ * what a report's link carries, so the report page disables the button there
+ * (profiler/ui/ShareLink.svelte: "share the .ogp file"); Chromium and Firefox take it.
+ */
+export function shares_report_links(page: Page): boolean {
+	return page.context().browser()?.browserType().name() !== 'webkit';
+}
+
 /** Skips the running test outside Chromium: it drives the Chrome DevTools Protocol (CPU and
  *  network throttling), which Firefox and WebKit do not speak. */
 export function needs_cdp(page: Page): void {
