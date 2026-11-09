@@ -84,6 +84,9 @@ export interface Cache<K, V> {
 
 type Held<V> = { value: V; weight: number; until: number; stamp: number };
 
+/** The least time between two sweeps of the ages, in ms. */
+const SWEEP_MS = 1000;
+
 /**
  * The package's own option, not the public shape: a value in use now counts against `max` but does
  * not go for size (the next least recently used goes instead). A flights' answer kept beside a
@@ -111,6 +114,8 @@ class Store<K, V> implements Cache<K, V> {
 	/** The age timer's stop, and when it fires (`Infinity`: none set). */
 	_stop_timer: () => void = () => {};
 	_timer_at = Infinity;
+	/** When the timer last swept (`-Infinity`: never). */
+	_swept_at = -Infinity;
 	/** Notices due, and whether they are being told (a notice's own set or delete queues behind). */
 	_due: Array<[K, V, EvictWhy]> = [];
 	_telling = false;
@@ -184,7 +189,9 @@ class Store<K, V> implements Cache<K, V> {
 		this._held.set(key, { value, weight, until, stamp });
 		this._weight += weight;
 		if (this._weight > this._max) this._evict(now);
-		if (until < this._timer_at) this._arm(now);
+		// (the new value due before the timer: the timer moves to it, no walk of the others)
+		const due = Math.max(until, this._swept_at + SWEEP_MS);
+		if (due < this._timer_at) this._set_timer(due, now);
 		this._tell();
 		return true;
 	}
@@ -254,16 +261,26 @@ class Store<K, V> implements Cache<K, V> {
 		let next = Infinity;
 		for (const h of this._held.values()) if (h.until < next) next = h.until;
 		if (next === Infinity || this._scope.closed) return;
-		this._timer_at = next;
+		// (a sweep walks every value: at most one a second, however spread the ages are. A read
+		// past a value's age finds nothing all the same.)
+		this._set_timer(Math.max(next, this._swept_at + SWEEP_MS), now);
+	}
+
+	/** The age timer, set to fire at `at`. */
+	_set_timer(at: number, now: number): void {
+		this._stop_timer();
+		if (this._scope.closed) return;
+		this._timer_at = at;
 		this._stop_timer = this._scope.timeout(
 			() => {
 				this._timer_at = Infinity;
-				const at = Date.now();
-				this._sweep(at);
-				this._arm(at);
+				const fired = Date.now();
+				this._swept_at = fired;
+				this._sweep(fired);
+				this._arm(fired);
 				this._tell();
 			},
-			Math.min(Math.max(next - now, 0), MAX_TIMEOUT_MS)
+			Math.min(Math.max(this._timer_at - now, 0), MAX_TIMEOUT_MS)
 		);
 	}
 

@@ -197,7 +197,7 @@ pages.get('/docs'); // a use: the least recently used go first past `max`
 | `has` / `size` / `weight` / `entries()` | What it holds now, least recently used first.                                                                 |
 
 - **No unbounded default.** A cache with no `max` does not compile, and throws `machine_bad_option`.
-- **One timer.** The ages are kept by one timer of the cache's scope, set for the value due first.
+- **One timer.** The ages are kept by one timer of the cache's scope, set for the value due first, sweeping at most once a second (a read past a value's age finds nothing at once all the same).
 - **Notices never break it.** A notice that throws is reported (`machine_evict_failed`) and the rest still run. A `set` or `delete` inside a notice is a normal call: what it lets go is heard after the notices already due.
 - A cache is `Disposable`: with no `owner`, a scope can `adopt` it.
 
