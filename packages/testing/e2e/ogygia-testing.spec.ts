@@ -132,7 +132,8 @@ test('record() across a full page load: one session, both pages', async ({ page,
 		await page.locator('[data-ds="slow"]').click();
 		await page.waitForTimeout(400);
 		await page.goto('/dt-lab'); // a full document load mid-session (not the router)
-		await page.waitForTimeout(2500);
+		// its islands woken (the broken one failed), however long that takes on a loaded runner
+		await ogygia.settled({ quiet: 300, timeout: 15_000 });
 		await page.locator('[data-dt="healthy"] button').click();
 	});
 	expect(session.counts.pages).toBe(2);
@@ -164,8 +165,14 @@ test('record({ blockNavigation }): a click that would load another document is h
 				a.setAttribute('data-leave', '');
 				document.body.append(a);
 			});
+			// the recording ends once the load is held, not after a fixed time: behind the slow click's
+			// long task a loaded runner starts the load late, and a load that starts after the actions
+			// end is no longer held (the page leaves)
+			const held = page.waitForRequest(
+				(r) => r.isNavigationRequest() && new URL(r.url()).pathname === '/dt-lab'
+			);
 			await page.locator('[data-leave]').click();
-			await page.waitForTimeout(500);
+			await held;
 		},
 		{ blockNavigation: true }
 	);
@@ -242,8 +249,14 @@ test('a router navigation handed to the browser and held back leaves page() on t
 				a.setAttribute('data-to-kit', '');
 				document.body.append(a);
 			});
+			// the recording ends once the browser's load is held, not after a fixed time: the router
+			// first fetches the page (slow on a loaded dev server), and a load handed over after the
+			// actions end is no longer held
+			const held = page.waitForRequest(
+				(r) => r.isNavigationRequest() && new URL(r.url()).pathname === '/head-budget-kit'
+			);
 			await page.locator('[data-to-kit]').click();
-			await page.waitForTimeout(1500);
+			await held;
 		},
 		{ blockNavigation: true }
 	);
