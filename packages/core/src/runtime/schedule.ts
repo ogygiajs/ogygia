@@ -23,7 +23,7 @@
  * first one.
  */
 import { observe } from './observe.ts';
-import { flights, type Scope, type Stale } from '@ogygia/machine';
+import { flights, machine, type Scope, type Stale } from '@ogygia/machine';
 
 type Turn = { el: Element; order: number; queued_at: number; resolve: () => void };
 
@@ -33,7 +33,25 @@ const SNAPSHOT_WAIT_MS = 48;
 const HOLD_FOR_VIEWPORT_MS = 1000;
 
 const pending: Turn[] = [];
-let draining = false;
+/**
+ * The drain, as a machine:
+ *
+ *   idle ─ queued ─ idle            a drain waits for its task (`yield_task`), then runs
+ *       ╲ waiting{at} ╱             a drain waits for a time: the snapshot, or a viewport island
+ *
+ * `waiting` owns its timer (its visit's scope), so leaving it drops the timer: a drain queued
+ * meanwhile runs sooner and works out the waits again, and a sooner wait replaces a later one
+ * (#236). One state in place of the `draining` flag beside a `wait_timer` and its `wait_at`.
+ */
+const drainer = machine<{ idle: {}; queued: {}; waiting: { at: number } }>()({
+	name: 'hydrate-drain',
+	initial: 'idle',
+	steps: {
+		idle: ['queued', 'waiting'],
+		queued: ['idle'],
+		waiting: ['queued', 'waiting']
+	}
+}).create();
 /** Connect-order stamp per region — document order at upgrade, insertion order after a morph. */
 const order_of = new WeakMap<Element, number>();
 let next_order = 0;
@@ -43,9 +61,6 @@ const in_viewport = new WeakMap<Element, boolean>();
 const snapshot_of = new WeakMap<Element, Scope>();
 /** Regions whose hydrate has STARTED (module in flight) and not yet taken its turn. */
 const loading = new Set<Element>();
-let wait_timer: ReturnType<typeof setTimeout> | null = null;
-/** When the timer fires (`now()` time), while one is set. */
-let wait_at = 0;
 
 /**
  * Yield to the event loop: resolves in a NEW task, so whatever ran before is a finished task and
@@ -257,33 +272,24 @@ function now(): number {
 }
 
 function schedule_drain(): void {
-	if (draining) return;
-	draining = true;
+	if (drainer.now.kind === 'queued') return;
+	drainer.go('queued');
 	yield_task().then(drain);
 }
 
-/** Re-drain after `ms`. One timer at a time, and it is the EARLIEST: a sooner wait replaces a later
+/** Re-drain after `ms`. One wait at a time, and it is the EARLIEST: a sooner wait replaces a later
  *  one (a short snapshot wait set during a long hold), a later one rides the sooner. */
 function drain_after(ms: number): void {
 	const at = now() + Math.max(1, ms);
-	if (wait_timer) {
-		if (wait_at <= at) return;
-		clearTimeout(wait_timer);
-	}
-	wait_at = at;
-	// oxlint-disable-next-line ogygia/owned-effects -- the process's one scheduler re-drain (`wait_timer`, the earliest wins): the queue it drains is every region's
-	wait_timer = setTimeout(
-		() => {
-			wait_timer = null;
-			schedule_drain();
-		},
-		Math.max(1, ms)
-	);
+	const s = drainer.now;
+	if (s.kind === 'waiting' && s.at <= at) return;
+	drainer.go('waiting', { at });
+	drainer.scope.timeout(schedule_drain, Math.max(1, ms));
 }
 
 /** One turn per call: pick the best pending region, hand it its task; the next pick after a yield. */
 function drain(): void {
-	draining = false;
+	drainer.go('idle');
 	if (!pending.length) return;
 	const t = now();
 	const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
@@ -326,5 +332,5 @@ function drain(): void {
 
 /** Test seam: is a hydration turn queued or being drained right now? */
 export function schedule_idle(): boolean {
-	return pending.length === 0 && !draining;
+	return pending.length === 0 && drainer.now.kind !== 'queued';
 }
