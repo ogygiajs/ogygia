@@ -94,6 +94,33 @@ describe('import_again', () => {
 		expect(fresh).not.toHaveBeenCalled();
 	});
 
+	it('when the failure names no URL (Safari) but the caller knows the file, asks for it under a new URL (#383)', async () => {
+		vi.stubGlobal('location', new URL('https://shop.test/cart'));
+		const file = 'https://shop.test/_app/immutable/entry/island.js';
+		const asked: string[] = [];
+		const fresh = vi.fn(async (url: string) => {
+			asked.push(url);
+			return 'island';
+		});
+		const load = import_again(() => Promise.reject(SAFARI), fresh, file);
+		await expect(load()).rejects.toBe(SAFARI);
+		await expect(load()).resolves.toBe('island');
+		expect(asked).toEqual([file + '?og-retry=1']);
+		vi.unstubAllGlobals();
+	});
+
+	it('a known file whose module threw (not a download) is not asked for again (#383)', async () => {
+		vi.stubGlobal('location', new URL('https://shop.test/cart'));
+		const fresh = vi.fn();
+		const thrown = new TypeError('undefined is not a function');
+		const plain = vi.fn<() => Promise<string>>().mockRejectedValue(thrown);
+		const load = import_again(plain, fresh, 'https://shop.test/_app/immutable/entry/island.js');
+		await expect(load()).rejects.toBe(thrown);
+		await expect(load()).rejects.toBe(thrown);
+		expect(fresh).not.toHaveBeenCalled();
+		vi.unstubAllGlobals();
+	});
+
 	it('with flights({ retry: download }): one dropped download is invisible to the caller', async () => {
 		vi.stubGlobal('location', new URL('https://shop.test/cart'));
 		const core = flights({
