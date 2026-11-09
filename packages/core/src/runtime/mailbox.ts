@@ -147,14 +147,20 @@ class Box implements Mailbox {
 			waiting.add(stale);
 			const back = (go: () => void) => {
 				// (the box closed: it already heard STALE)
-				if (this._closed || !waiting.delete(stale)) return;
+				if (this._closed || !waiting.has(stale)) return;
+				// (it stays among the waits until it runs: a box that closes while it is queued ends it
+				// with STALE, #373)
+				const resume = () => {
+					waiting.delete(stale);
+					go();
+				};
 				// (no turn to come back to: nobody's wait, its handler ended, or it holds the turn now)
-				if (held === null || held._ended || this._holder === held) go();
+				if (held === null || held._ended || this._holder === held) resume();
 				else if (this._holder !== null)
-					(this._queue ??= []).push({ start: null, held, resume: go });
+					(this._queue ??= []).push({ start: null, held, resume });
 				else {
 					this._holder = held;
-					go();
+					resume();
 				}
 			};
 			Promise.resolve(work).then(

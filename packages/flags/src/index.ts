@@ -260,10 +260,15 @@ export function prime_flags(c: CtxLike): Promise<void> {
 		set_prime(c, { kind: 'resolved', map: {} });
 		return Promise.resolve();
 	}
-	// claimed before the first await: a second prime of this request waits on this one
-	const done = ask_source(c, _source);
-	set_prime(c, { kind: 'priming', done });
-	return done;
+	// claimed before the source is asked: a second prime of this request waits on this one, and a
+	// source that fails at once writes `resolved` over the claim, never under it (#374)
+	const claim: { kind: 'priming'; done: Promise<void> } = {
+		kind: 'priming',
+		done: Promise.resolve()
+	};
+	set_prime(c, claim);
+	claim.done = ask_source(c, _source);
+	return claim.done;
 }
 
 async function ask_source(c: CtxLike, source: NonNullable<typeof _source>): Promise<void> {
