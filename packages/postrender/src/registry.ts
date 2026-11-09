@@ -14,6 +14,7 @@
  * two module instances (src beside dist), and both must see the same runtime.
  */
 import type { RequestEvent } from '@sveltejs/kit';
+import { machine, STALE, type Machine } from '@ogygia/machine';
 import type {
 	PostrenderEntry,
 	PostrenderPutOptions,
@@ -22,7 +23,7 @@ import type {
 	EdgeAdapter
 } from './types.ts';
 import { MemoryStore } from './memory-store.ts';
-import { normalize_prefix } from './key.ts';
+import { in_subtree, normalize_prefix } from './key.ts';
 import type { DevtoolsEventInput } from '@ogygia/core/plugin';
 import { sourceTag } from '@ogygia/core/plugin/utils';
 import { postrender_app } from './app.ts';
@@ -112,6 +113,7 @@ export async function invalidate_tags(
 	tags: readonly string[],
 	runtime: Runtime = current_runtime()
 ): Promise<string[]> {
+	stale_flights('all');
 	const { store, edges } = runtime;
 	const evict_by_tag = store.evictByTag?.bind(store);
 	if (!evict_by_tag) {
@@ -158,6 +160,15 @@ export async function store_put(
 	}
 }
 
+/** Take `key` out of the origin store (a broken store never fails a render). */
+export async function store_evict(runtime: Runtime, key: string): Promise<void> {
+	try {
+		await runtime.store.evict(key);
+	} catch {
+		/* a broken store must never 500 a render */
+	}
+}
+
 // ── single-flight ──────────────────────────────────────────────────────────────────────────────
 // The stampede law (the harness DEFINES it): N concurrent cold requests for an ELIGIBLE page =
 // ONE render. The first request registers its flight; joiners await the outcome. `stored: null`
@@ -165,22 +176,65 @@ export async function store_put(
 // (correct: ineligible pages are per-request by definition).
 
 export type FlightOutcome = { stored: PostrenderEntry | null };
-const inflight = new Map<string, Promise<FlightOutcome>>();
 
+/**
+ * ONE FLIGHT, one machine (`@ogygia/machine`): rendering, stale (an invalidation landed while it
+ * rendered: what it read may be the page from before the publish), done (with what it stored, or
+ * null: joiners then render themselves). It settles exactly once, however its request ends (the
+ * plugin's `done` settles one nothing else did), and only ever leaves the registry as itself. It
+ * was a promise and two loose flags: a request a later plugin answered left it pending forever, and
+ * a publish during a render stored the old page (#194).
+ */
+type FlightStates = { rendering: {}; stale: {}; done: FlightOutcome };
+const flight_steps = { rendering: ['stale', 'done'], stale: ['done'], done: [] } as const;
+const flight_def = machine<FlightStates>()({
+	name: 'postrender flight',
+	initial: 'rendering',
+	steps: flight_steps
+});
+
+/** A flight: its request holds it, joiners wait on it. */
+export type Flight = Machine<FlightStates, typeof flight_steps>;
+
+const inflight = new Map<string, Flight>();
+
+/** The outcome of the flight for `key` in progress, once it is done; null when there is none. */
 export function join_flight(key: string): Promise<FlightOutcome> | null {
-	return inflight.get(key) ?? null;
+	const flight = inflight.get(key);
+	if (!flight) return null;
+	return flight
+		.wait('done')
+		.then((s): FlightOutcome => (s === STALE ? { stored: null } : { stored: s.stored }));
 }
 
-export function begin_flight(key: string): (outcome: FlightOutcome) => void {
-	let settle!: (outcome: FlightOutcome) => void;
-	const flight = new Promise<FlightOutcome>((res) => {
-		settle = res;
-	});
+/** Open the flight for `key`: its request's to settle (settle_flight), however that request ends. */
+export function begin_flight(key: string): Flight {
+	const flight = flight_def.create();
 	inflight.set(key, flight);
-	return (outcome) => {
-		inflight.delete(key);
-		settle(outcome);
-	};
+	return flight;
+}
+
+/** Settle `flight` (once: a second settle does nothing), and take it out of the registry if it is
+ *  still the one there (never a newer flight opened for the same key after it). */
+export function settle_flight(key: string, flight: Flight, outcome: FlightOutcome): void {
+	if (flight.now.kind === 'done') return;
+	flight.go('done', outcome);
+	if (inflight.get(key) === flight) inflight.delete(key);
+}
+
+/** The pages an invalidation evicts: one URL, a prefix's subtree (normalized), or every page (a
+ *  tag names pages by what they read, and a render's receipts are not all in until it ends). */
+type Evicts = { url: string } | { prefix: string } | 'all';
+
+/** An invalidation is starting: a flight still rendering a page it evicts may have read what it
+ *  changes. A flight is stale when the invalidation would have evicted its page, had it been
+ *  stored; the others go on and store. */
+function stale_flights(evicts: Evicts): void {
+	for (const [key, flight] of inflight) {
+		const hit =
+			evicts === 'all' || ('url' in evicts ? key === evicts.url : in_subtree(key, evicts.prefix));
+		if (hit) flight.move('rendering', 'stale');
+	}
 }
 
 // ── invalidation fan-out ───────────────────────────────────────────────────────────────────────
@@ -228,6 +282,7 @@ type SourceFn = (...args: never[]) => unknown;
  */
 export async function invalidate(target: string | SourceFn, args?: unknown[]): Promise<void> {
 	if (typeof target === 'string') {
+		stale_flights({ url: target });
 		record({ domain: 'server', name: 'server.postrender', op: 'invalidate', url: target });
 		const { store, edges } = current_runtime();
 		const jobs = [store_job(`evict ${target}`, () => store.evict(target))];
@@ -241,7 +296,7 @@ export async function invalidate(target: string | SourceFn, args?: unknown[]): P
 	if (!tag) {
 		throw new OgygiaError('postrender_invalidate_not_source');
 	}
-	await invalidate_tags([tag]);
+	await invalidate_tags([tag]); // (which stales the flights)
 	// peers file the pages that baked a fragment which read this source under `r:<me>:<tag>`
 	notify_thaw([tag]);
 }
@@ -251,6 +306,7 @@ export async function invalidate(target: string | SourceFn, args?: unknown[]): P
  *  Cloudflare: prefix purge). */
 export async function invalidateWhere(filter: { prefix: string }): Promise<void> {
 	const prefix = normalize_prefix(filter.prefix);
+	stale_flights({ prefix });
 	record({ domain: 'server', name: 'server.postrender', op: 'invalidate-where', url: prefix });
 	const { store, edges } = current_runtime();
 	const jobs = [store_job(`evict prefix ${prefix}`, () => store.evictWhere({ prefix }))];
@@ -264,6 +320,7 @@ export async function invalidateWhere(filter: { prefix: string }): Promise<void>
 /** Action self-evict: a successful non-GET on a page URL evicts that URL (origin only — the
  *  edge copy follows via its s-maxage or the app's explicit invalidate; fire-and-forget). */
 export function self_evict(runtime: Runtime, pathname: string): void {
+	stale_flights({ url: pathname });
 	record({ domain: 'server', name: 'server.postrender', op: 'self-evict', url: pathname });
 	void runtime.store.evict(pathname).catch(() => {});
 }

@@ -15,9 +15,11 @@ import {
 	store_put,
 	join_flight,
 	begin_flight,
+	settle_flight,
 	invalidate,
 	invalidateWhere,
-	invalidate_tags
+	invalidate_tags,
+	self_evict
 } from '../src/registry.ts';
 import server from '../src/server.ts';
 import { observe_event } from '../src/observe.ts';
@@ -256,14 +258,69 @@ describe('postrender/registry', () => {
 	afterEach(() => reset_for_tests());
 
 	it('single-flight: joiners see the first render’s outcome', async () => {
-		const settle = begin_flight('/hot/');
+		const flight = begin_flight('/hot/');
 		const join = join_flight('/hot/');
 		expect(join).not.toBeNull();
 		const entry = page_entry();
-		settle({ stored: entry });
+		settle_flight('/hot/', flight, { stored: entry });
 		expect((await join!).stored).toBe(entry);
 		// the flight is gone once settled
 		expect(join_flight('/hot/')).toBeNull();
+	});
+
+	it('single-flight: a flight settles once, and a late settle never ends a newer flight (#194)', async () => {
+		const first = begin_flight('/hot/');
+		const joined_first = join_flight('/hot/')!;
+		settle_flight('/hot/', first, { stored: null }); // the request that opened it ended (its `done`)
+		const second = begin_flight('/hot/');
+		const joined_second = join_flight('/hot/')!;
+		settle_flight('/hot/', first, { stored: page_entry() }); // a late, second settle of the old flight
+		expect((await joined_first).stored).toBeNull(); // settled once, with the first outcome
+		expect(second.now.kind).toBe('rendering'); // the newer flight is still open …
+		expect(join_flight('/hot/')).not.toBeNull(); // … and still the one joiners find
+		const entry = page_entry();
+		settle_flight('/hot/', second, { stored: entry });
+		expect((await joined_second).stored).toBe(entry);
+		expect(join_flight('/hot/')).toBeNull();
+	});
+
+	it('single-flight: an invalidation turns stale the flights of the pages it evicts, and only those (#194)', async () => {
+		// a flight is stale when the invalidation would have evicted its page, had it been stored
+		const a = begin_flight('/a/');
+		const fr = begin_flight('/fr/fr/x');
+		const fright = begin_flight('/fr/fright');
+		const b = begin_flight('/b/');
+		const done = begin_flight('/done/');
+		settle_flight('/done/', done, { stored: null });
+
+		await invalidate('/somewhere-else/'); // evicts one other page: no flight here renders it
+		expect([a, fr, fright, b].map((f) => f.now.kind)).toEqual(Array(4).fill('rendering'));
+
+		await invalidate('/a/');
+		expect(a.now.kind).toBe('stale');
+		expect(fr.now.kind).toBe('rendering');
+
+		await invalidateWhere({ prefix: '/fr/fr/' }); // the subtree, never `/fr/fright`
+		expect(fr.now.kind).toBe('stale');
+		expect(fright.now.kind).toBe('rendering');
+
+		self_evict(current_runtime(), '/b/'); // a form post on /b/ evicts /b/
+		expect(b.now.kind).toBe('stale');
+		expect(fright.now.kind).toBe('rendering');
+
+		// a tag names pages by what they read, and a render's receipts are not all in until it ends:
+		// every flight still rendering may carry it
+		await invalidate_tags(['r:promo']);
+		expect(fright.now.kind).toBe('stale');
+		expect(done.now.kind).toBe('done'); // a settled one stays as it was
+		for (const [key, f] of [
+			['/a/', a],
+			['/fr/fr/x', fr],
+			['/fr/fright', fright],
+			['/b/', b]
+		] as const)
+			settle_flight(key, f, { stored: null });
+		expect(a.now.kind).toBe('done');
 	});
 
 	it('store failures never throw through store_get/put', async () => {
