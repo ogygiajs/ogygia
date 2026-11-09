@@ -22,8 +22,13 @@
  *   handler that waits gets `STALE` from its wait, at once: it stops at its next await. Anything
  *   posted after is dropped too. A move (out and back in one task) is no leaving: the owner stays.
  *
+ * - Each handler is handed a turn of its own, so only the handler holding the turn ends it by
+ *   waiting. A wait from anyone else (a second wait of a handler already waiting, a timer it left
+ *   behind after it ended, `box.wait` from outside any turn) ends nobody's turn (#341).
+ *
  * Speed: an event posted to an idle box runs at once, on the caller's stack, with nothing allocated
- * but its closure; the queue is made the first time an event has to wait for one.
+ * but its closure and its turn (one small object); the queue is made the first time an event has
+ * to wait for one.
  */
 import { STALE, type Scope, type Stale } from '@ogygia/machine';
 import { report_thrown } from '../report-thrown.ts';
@@ -46,14 +51,41 @@ export interface Mailbox extends Turn {
 	post(handler: (turn: Turn) => unknown): void;
 	/** {@link post}, and what the handler gave back: its value, or `STALE` when it was dropped. */
 	ask<R>(handler: (turn: Turn) => R): Promise<Awaited<R> | Stale>;
+	/** A wait from outside any turn: `work`'s value, or `STALE` once the element left. It ends
+	 *  nobody's turn and takes none. */
+	wait<T>(work: PromiseLike<T> | T): Promise<T | Stale>;
+}
+
+/**
+ * One handler's turn: what the handler is handed, and waits with. Each handler has its own, so the
+ * box knows whose wait it is: only the one holding the turn ends it by waiting (#341).
+ */
+class Held implements Turn {
+	_box: Box;
+	/** Its handler ended: a wait of its own after that (a timer it left) takes no turn. */
+	_ended = false;
+
+	constructor(box: Box) {
+		this._box = box;
+	}
+
+	get closed(): boolean {
+		return this._box._closed;
+	}
+
+	wait<T>(work: PromiseLike<T> | T): Promise<T | Stale> {
+		return this._box._wait(this, work);
+	}
 }
 
 /** A queued event (a handler to start) or a handler's return from its wait (to resume). */
-type Job = { start: (turn: Turn) => unknown; resume: null } | { start: null; resume: () => void };
+type Job =
+	| { start: (turn: Turn) => unknown; held: null; resume: null }
+	| { start: null; held: Held; resume: () => void };
 
 class Box implements Mailbox {
-	/** A turn is on. */
-	_busy = false;
+	/** The turn on now (null: idle). */
+	_holder: Held | null = null;
 	_closed = false;
 	_queue: Job[] | null = null;
 	/** The waits out, to end with `STALE` when the box closes. */
@@ -65,7 +97,8 @@ class Box implements Mailbox {
 
 	post(handler: (turn: Turn) => unknown): void {
 		if (this._closed) return;
-		if (this._busy) (this._queue ??= []).push({ start: handler, resume: null });
+		if (this._holder !== null)
+			(this._queue ??= []).push({ start: handler, held: null, resume: null });
 		else this._start(handler);
 	}
 
@@ -91,18 +124,32 @@ class Box implements Mailbox {
 		});
 	}
 
+	/** A wait from outside any turn (whoever holds the box): it ends no turn, and comes back with
+	 *  none. */
 	wait<T>(work: PromiseLike<T> | T): Promise<T | Stale> {
-		this._end_turn();
+		return this._wait(null, work);
+	}
+
+	/** `held`'s wait: when it holds the turn, the turn ends while `work` settles, and it queues for
+	 *  one again. A wait of nobody's turn (`null`, a handler that ended, a second wait of a handler
+	 *  already waiting) ends no turn: it waits, and takes the turn only when its handler would
+	 *  otherwise go on without one. */
+	_wait<T>(held: Held | null, work: PromiseLike<T> | T): Promise<T | Stale> {
+		if (held !== null && this._holder === held) this._end_turn();
 		if (this._closed) return Promise.resolve(STALE);
 		return new Promise<T | Stale>((resolve, reject) => {
 			const waiting = (this._waiting ??= new Set());
 			const stale = resolve as (value: Stale) => void;
 			waiting.add(stale);
 			const back = (go: () => void) => {
-				if (!waiting.delete(stale)) return; // (the box closed: it already heard STALE)
-				if (this._busy) (this._queue ??= []).push({ start: null, resume: go });
+				// (the box closed: it already heard STALE)
+				if (this._closed || !waiting.delete(stale)) return;
+				// (no turn to come back to: nobody's wait, its handler ended, or it holds the turn now)
+				if (held === null || held._ended || this._holder === held) go();
+				else if (this._holder !== null)
+					(this._queue ??= []).push({ start: null, held, resume: go });
 				else {
-					this._busy = true;
+					this._holder = held;
 					go();
 				}
 			};
@@ -116,35 +163,56 @@ class Box implements Mailbox {
 	/** A handler starts its turn; its turn ends when it waits or ends. One that throws throws to
 	 *  whoever posted it, as a direct call would. */
 	_start(handler: (turn: Turn) => unknown): void {
-		this._busy = true;
+		const held = new Held(this);
+		this._holder = held;
 		let out: unknown;
 		try {
-			out = handler(this);
+			out = handler(held);
 		} catch (error) {
-			this._end_turn();
+			this._ended(held);
 			throw error;
 		}
 		if (out != null && typeof (out as PromiseLike<unknown>).then === 'function') {
 			// (its failure stays as loud as a direct call's: the turn ends, and it is thrown on, unheard)
 			(out as PromiseLike<unknown>).then(
-				() => this._end_turn(),
+				() => this._ended(held),
 				(error: unknown) => {
-					this._end_turn();
+					this._ended(held);
 					throw error;
 				}
 			);
-		} else this._end_turn();
+		} else this._ended(held);
+	}
+
+	/** `held`'s handler ended: its turn too, if it holds it. */
+	_ended(held: Held): void {
+		held._ended = true;
+		if (this._holder === held) this._end_turn();
 	}
 
 	/** The turn on now ends: the next job, if any, gets its turn. */
 	_end_turn(): void {
-		if (!this._busy) return;
-		this._busy = false;
+		this._holder = null;
 		const next = this._queue?.shift();
 		if (next === undefined) return;
 		if (next.resume !== null) {
-			this._busy = true;
+			// (a handler that ended meanwhile takes no turn: it would never give it back)
+			if (next.held._ended) {
+				next.resume();
+				return this._end_turn();
+			}
+			this._holder = next.held;
 			next.resume();
+			// its other waits that came back meanwhile come back into this turn of its own (a handler
+			// on two waits at once would else hold the turn for the one still in the queue)
+			const queue = this._queue as Job[];
+			let kept = 0;
+			for (let i = 0; i < queue.length; i++) {
+				const job = queue[i];
+				if (job.held === next.held) job.resume();
+				else queue[kept++] = job;
+			}
+			queue.length = kept;
 			return;
 		}
 		try {
