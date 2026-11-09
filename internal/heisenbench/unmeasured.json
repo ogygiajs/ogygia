@@ -1117,6 +1117,10 @@
 			"reason": "one fetch to the sink and its answer (network, not recorded), constant work; proven in packages/devtools/test/profiler.test.ts (the sink tests)"
 		},
 		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #sink_flush > then:0~ef057c",
+			"reason": "a sink post ended: clears the post out and asks for the next one when rows waited, constant work (the profiler instance does not replay); proven in packages/devtools/test/profiler.test.ts (the sink tests)"
+		},
+		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > outbox:0~f383a4 > giveUp",
 			"reason": "keeps a given-up post's outcome and says it once, constant work"
 		},
