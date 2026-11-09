@@ -1,0 +1,116 @@
+// A HOLE THAT LOADS AT ONCE IS ASKED FOR ONCE (#404). The page's head starts each `load` hole's
+// request during the parse (early-holes.ts: one data block, one constant script), and the runtime
+// takes that request over as the address's one flight in the frame store: the hole's own wake joins
+// it, a batch leaves it out, and one nobody joins goes with the page's visit.
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { scope } from '@ogygia/machine';
+import { EARLY_HOLES_ID, EARLY_HOLES_SCRIPT } from '../../src/early-holes.ts';
+import { adopt_early_holes } from '../../src/runtime/early-holes.ts';
+import { join_batch } from '../../src/runtime/frame-nav.ts';
+import { _reset, ensure } from '../../src/runtime/frame-store.ts';
+import { frameAddress } from '../../src/frame.ts';
+import { done_parcel } from '../../src/server/stream-regions.ts';
+
+const ep = (sig: string) => `./__ogygia__?id=bbbbbbbbbbbb&props=${sig}&exp=9999999999&sig=${sig}`;
+
+/** What the head does during the parse: the data block, then the constant script. */
+function start_early(endpoints: string[]) {
+	const data = document.createElement('script');
+	data.type = 'application/json';
+	data.id = EARLY_HOLES_ID;
+	data.textContent = JSON.stringify(endpoints);
+	document.head.append(data);
+	const run = document.createElement('script');
+	run.textContent = EARLY_HOLES_SCRIPT;
+	document.head.append(run);
+	data.remove();
+	run.remove();
+}
+
+/** The network: each GET answers its own `sig`, a POST (a batch) answers nothing. */
+function stub_network() {
+	const asked: { url: string; method: string }[] = [];
+	const cancelled: string[] = [];
+	vi.spyOn(window, 'fetch').mockImplementation(async (input, init) => {
+		const url = String(input instanceof Request ? input.url : input);
+		asked.push({ url, method: init?.method ?? 'GET' });
+		await new Promise((r) => setTimeout(r, 20));
+		if (init?.method === 'POST') return new Response(done_parcel(), { status: 200 });
+		const sig = new URL(url, location.href).searchParams.get('sig');
+		const body = new ReadableStream({
+			start(c) {
+				c.enqueue(new TextEncoder().encode(`<p>${sig}</p>`));
+				c.close();
+			},
+			cancel() {
+				cancelled.push(sig ?? '');
+			}
+		});
+		return new Response(body, { status: 200, headers: { 'content-type': 'text/html' } });
+	});
+	return { asked, cancelled };
+}
+
+afterEach(() => {
+	vi.restoreAllMocks();
+	_reset();
+});
+
+describe('a hole the page started early', () => {
+	it('is the flight at its address: its wake joins it, nothing asks again', async () => {
+		const { asked } = stub_network();
+		start_early([ep('e1')]);
+		const visit = scope();
+		adopt_early_holes(visit);
+		const own = vi.fn(async () => 'own');
+		expect(await ensure(frameAddress(ep('e1')), own)).toBe('<p>e1</p>');
+		expect(own).not.toHaveBeenCalled();
+		expect(asked).toHaveLength(1);
+		visit.close();
+	});
+
+	it('started under a relative endpoint, matches the hole whose endpoint is root-absolute', async () => {
+		const { asked } = stub_network();
+		start_early([ep('r1')]);
+		const visit = scope();
+		adopt_early_holes(visit);
+		const pinned = new URL(ep('r1'), location.href);
+		const own = vi.fn(async () => 'own');
+		expect(await ensure(frameAddress(pinned.pathname + pinned.search), own)).toBe('<p>r1</p>');
+		expect(own).not.toHaveBeenCalled();
+		expect(asked).toHaveLength(1);
+		visit.close();
+	});
+
+	it('is left out of a batch: the other hole goes alone, no POST', async () => {
+		const { asked } = stub_network();
+		start_early([ep('b1')]);
+		const visit = scope();
+		adopt_early_holes(visit);
+		await Promise.all([join_batch(ep('b1')), join_batch(ep('b2'))]);
+		expect(asked.filter((a) => a.method === 'POST')).toEqual([]);
+		visit.close();
+	});
+
+	it('is taken over once: a second adoption finds nothing to take', async () => {
+		const { asked } = stub_network();
+		start_early([ep('o1')]);
+		const first = scope();
+		const second = scope();
+		adopt_early_holes(first);
+		adopt_early_holes(second);
+		second.close();
+		expect(await ensure(frameAddress(ep('o1')), async () => 'own')).toBe('<p>o1</p>');
+		expect(asked).toHaveLength(1);
+		first.close();
+	});
+
+	it('that nobody joins goes with the page visit, its download cancelled', async () => {
+		const { cancelled } = stub_network();
+		start_early([ep('d1')]);
+		const visit = scope();
+		adopt_early_holes(visit);
+		visit.close();
+		await expect.poll(() => cancelled).toEqual(['d1']);
+	});
+});
