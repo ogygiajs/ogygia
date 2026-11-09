@@ -8,6 +8,7 @@
 // runtime's path: in dev the sheet is a module, imported instead of linked.
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { commands } from 'vitest/browser';
+import { it_with_network_routes } from './_browsers.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { region_fragment } from '../../src/runtime/core.ts';
 
@@ -39,24 +40,30 @@ afterEach(async () => {
 	probe.remove();
 });
 
-test('an answer after a failed region sheet fetches it again, and paints styled without the 5 s wait', async () => {
-	await commands.drop_downloads(SHEET, 1);
-	// the first answer: its sheet fails at the network, and the answer paints anyway, unstyled
-	await region_fragment(answer).ready;
-	expect(sheets()).toHaveLength(1);
-	expect(getComputedStyle(probe).color).not.toBe(GREEN);
-	// the next answer with the same sheet asks for it again, and paints once it is in
-	const t0 = performance.now();
-	await region_fragment(answer).ready;
-	expect(performance.now() - t0).toBeLessThan(2_000);
-	expect(sheets()).toHaveLength(1);
-	expect(getComputedStyle(probe).color).toBe(GREEN);
-});
+it_with_network_routes(
+	'an answer after a failed region sheet fetches it again, and paints styled without the 5 s wait',
+	async () => {
+		await commands.drop_downloads(SHEET, 1);
+		// the first answer: its sheet fails at the network, and the answer paints anyway, unstyled
+		await region_fragment(answer).ready;
+		expect(sheets()).toHaveLength(1);
+		expect(getComputedStyle(probe).color).not.toBe(GREEN);
+		// the next answer with the same sheet asks for it again, and paints once it is in
+		const t0 = performance.now();
+		await region_fragment(answer).ready;
+		expect(performance.now() - t0).toBeLessThan(2_000);
+		expect(sheets()).toHaveLength(1);
+		expect(getComputedStyle(probe).color).toBe(GREEN);
+	}
+);
 
-test('answers that find the sheet still loading wait on that same download', async () => {
-	const first = region_fragment(answer).ready;
-	const second = region_fragment(answer).ready;
-	await Promise.all([first, second]);
-	expect(sheets()).toHaveLength(1);
-	expect(getComputedStyle(probe).color).toBe(GREEN);
-});
+it_with_network_routes(
+	'answers that find the sheet still loading wait on that same download',
+	async () => {
+		const first = region_fragment(answer).ready;
+		const second = region_fragment(answer).ready;
+		await Promise.all([first, second]);
+		expect(sheets()).toHaveLength(1);
+		expect(getComputedStyle(probe).color).toBe(GREEN);
+	}
+);

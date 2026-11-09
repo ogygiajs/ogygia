@@ -12,6 +12,7 @@
 // attribute recorded — across layouts where the region sits in block flow, inline flow, and around a
 // percentage-sized hero with content below it.
 import { expect, inject, test } from 'vitest';
+import { it_with_layout_shift } from './_browsers.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 
 const REGION = 'ogygia-region[entry$="Counter.svelte"]';
@@ -88,7 +89,9 @@ const LAYOUTS: Array<{ name: string; style: string; page: (island: string) => st
 	}
 ];
 
-test('control: the layout-shift observer reports a real shift', async () => {
+// (the shift count below is Chromium's: the other engines report no layout shifts, so there the
+// layouts' frame-by-frame position and style checks are the proof)
+it_with_layout_shift('control: the layout-shift observer reports a real shift', async () => {
 	document.body.innerHTML =
 		'<div style="width:800px"><p id="t" style="height:300px;margin:0">x</p></div>';
 	await frames(3);
