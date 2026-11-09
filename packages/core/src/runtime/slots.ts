@@ -174,6 +174,10 @@ export type BootLink = {
 	/** the runtime's messages (../messages/core.ts), as a lazy chunk throws and logs them (../messages/lazy.ts) */
 	OgygiaError: typeof import('../messages/core.ts').OgygiaError;
 	warn: typeof import('../messages/core.ts').warn;
+	/** what a machine's task answers once its visit is left (`@ogygia/machine`, which the boot runs on) */
+	STALE: typeof import('@ogygia/machine').STALE;
+	/** the page's soft refresh (./soft-refresh.ts): `invalidateAll`, with the router or without it */
+	soft: import('./soft-refresh.ts').SoftRefresh;
 };
 export type RouterLink = {
 	document_key: typeof import('./router.ts').document_key;

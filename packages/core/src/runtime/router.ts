@@ -12,6 +12,7 @@
  * intercepted click. A visitor who never leaves the page never downloads it.
  */
 import { kit_hydrates_page } from './kit-boot.ts';
+import { create_navigation, type Navigation } from './navigation.ts';
 import { slots } from './slots.ts';
 import { publish_nav } from './nav-handle.ts';
 import { nearest_attr } from './nearest-attr.ts';
@@ -214,7 +215,12 @@ let loaded_nav: Nav | null = null;
 function nav(): Promise<Nav> {
 	// Link what the navigation chunk uses from this module right where the chunk is loaded
 	// (./slots.ts `BootLink`: it never imports this module, or both would be split out of the runtime).
-	slots.router_link ??= { document_key, jump_to_hash, push_state, replace_state };
+	slots.router_link ??= {
+		document_key,
+		jump_to_hash,
+		push_state,
+		replace_state
+	};
 	if (!nav_promise)
 		nav_promise = import('./router-nav.ts').then(
 			(m) => (loaded_nav = m),
@@ -230,12 +236,20 @@ export class SpaRouter {
 	#started = false;
 	#before_hooks = new Set<BeforeNavigateCallback>();
 	#after_hooks = new Set<AfterNavigateCallback>();
-	/** href of the navigation in flight (set before the fetch, cleared when applied or aborted) */
-	nav_target: string | null = null;
-	/** The in-flight navigation's cancel handle: router-nav bumps `nav_gen` and sets `nav_abort` for
-	 *  each navigation it starts, and stops at its next step once `nav_gen` moved on. */
-	nav_gen = 0;
-	nav_abort: AbortController | null = null;
+	/**
+	 * THE NAVIGATION, one machine (./navigation.ts): idle, claimed (the click, while the navigation
+	 * chunk loads), loading (its fetch through its swap), settling (swapped: the last steps run). A
+	 * new click is a new visit, so whatever the old one still had in flight sees it is not current
+	 * (`nav.now !== mine`) and stops, and its fetch is aborted. It was three fields kept by hand; two
+	 * clicks during the first chunk load once held the same generation and the last one was lost.
+	 */
+	readonly nav: Navigation = create_navigation();
+
+	/** href of the navigation in flight (claimed or loading; cleared once it applied or ended) */
+	get nav_target(): string | null {
+		const s = this.nav.now;
+		return s.kind === 'claimed' || s.kind === 'loading' ? s.href : null;
+	}
 	#viewport_io: IntersectionObserver | null = null;
 	#viewport_seen = new WeakSet<Element>();
 	/** pathname+search of the document currently in the DOM (hash ignored). */
@@ -278,11 +292,7 @@ export class SpaRouter {
 	 * swapping left the URL on the old page and `/plain` in the DOM).
 	 */
 	supersede(): void {
-		if (this.nav_target === null && this.nav_abort === null) return;
-		this.nav_gen++;
-		this.nav_abort?.abort();
-		this.nav_abort = null;
-		this.nav_target = null;
+		if (this.nav.now.kind !== 'idle') this.nav.go('idle');
 	}
 
 	bust_page_cache(): void {
@@ -297,7 +307,7 @@ export class SpaRouter {
 		href: string,
 		signal?: AbortSignal,
 		purpose?: 'nav' | 'prefetch' | 'history'
-	): Promise<string | null> {
+	): Promise<import('./page-cache.ts').FetchedPage | null> {
 		return nav().then((n) => n.fetch_page(href, signal, purpose));
 	}
 
@@ -330,26 +340,31 @@ export class SpaRouter {
 			return;
 		}
 
+		// The guards first: a `beforeNavigate` that cancels means this navigation never starts, so it
+		// must never claim — a claim takes over (and aborts) the navigation already in flight.
+		if (!this.run_before(from, url, type)) return;
+
 		// Claim the address NOW, before the navigation chunk loads: a web-component link re-dispatches
 		// the visitor's click on its inner `<a>` a few ms later, and that second click must see this
 		// navigation in flight (the click listener swallows it) instead of starting — and aborting
-		// this one with — a second fetch. router-nav clears the claim when the navigation applies,
-		// is aborted, or is cancelled by a beforeNavigate hook.
-		this.nav_target = url.href;
-		const gen = this.nav_gen;
+		// this one with — a second fetch. A claim is a new visit of the navigation: one made while
+		// another is in flight (its chunk still loading, its page still out) takes over from it, so the
+		// newest click wins (#203).
+		this.nav.go('claimed', { href: url.href });
+		const mine = this.nav.now;
 		let n: Nav;
 		try {
 			n = await nav();
 		} catch {
 			// The navigation code could not load (offline, a deploy removed the chunk): the link must
 			// still work — let the browser navigate.
-			if (this.nav_target === url.href) this.nav_target = null;
+			if (this.nav.now === mine) this.nav.go('idle');
 			location.href = url.href;
 			return;
 		}
 		// superseded while the navigation code loaded
-		if (gen !== this.nav_gen) return;
-		return n.navigate(this, url, from, opts);
+		if (this.nav.now !== mine) return;
+		return n.navigate(this, url, from, opts, mine);
 	}
 
 	goto(
