@@ -14,9 +14,11 @@ import {
 	flights,
 	machine,
 	policy,
+	scope,
 	world,
 	type Flights,
 	type Policy,
+	type Scope,
 	type World
 } from '@ogygia/machine';
 import { backoff_after } from '@ogygia/machine/internal/policy';
@@ -155,6 +157,9 @@ export class Collection<
 		}
 	});
 	readonly #life: CollectionLife = collection_life.create();
+	/** Its time in the graph: from when it joins (made, or read again after a dispose) until it is
+	 *  disposed. The graph holds it under this scope. */
+	#in_graph: Scope = scope();
 	/** Dev: the module run that built this collection (null outside the dev server). */
 	readonly #built_in: ModuleRun | null;
 	/** The live connection, while it is open: one per collection. A read that fails leaves it open
@@ -189,7 +194,7 @@ export class Collection<
 		if (built_in)
 			for (const older of GRAPH.all)
 				if (older instanceof Collection && older.#replaced_by(built_in)) older.#dispose();
-		GRAPH.all.add(this as unknown as Collection<Record<string, unknown>>);
+		GRAPH.all.add(this as unknown as Collection<Record<string, unknown>>, this.#in_graph);
 	}
 
 	/** Built by an older run of the module `run` is a run of. */
@@ -206,7 +211,7 @@ export class Collection<
 	#dispose(): void {
 		if (this.#life.now.kind === 'disposed') return;
 		this.#life.go('disposed');
-		GRAPH.all.delete(this as unknown as Collection<Record<string, unknown>>);
+		this.#in_graph.close(); // (it leaves the graph)
 		// its watchers end (see watchChanges)
 		this.#disposals++;
 		for (const wake of this.#waiters) wake();
@@ -214,8 +219,10 @@ export class Collection<
 
 	/** A disposed collection read again: back in the graph, to start when its catalog is needed. */
 	#awake(): void {
-		if (this.#life.move('disposed', 'idle'))
-			GRAPH.all.add(this as unknown as Collection<Record<string, unknown>>);
+		if (this.#life.move('disposed', 'idle')) {
+			this.#in_graph = scope();
+			GRAPH.all.add(this as unknown as Collection<Record<string, unknown>>, this.#in_graph);
+		}
 	}
 
 	/** Leaving `running`: the live connection closed (its pull may never answer: nothing waits on
