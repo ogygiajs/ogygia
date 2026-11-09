@@ -188,6 +188,26 @@ describe('weigh_assets', () => {
 		});
 		expect(calls).toBe(0);
 	});
+
+	test('a file the host could not answer now (a 5xx, a rate limit) is weighed again by the next report; a 404 is not', async () => {
+		const html = '<script src="/busy.js"></script><script src="/gone.js"></script>';
+		const hits: Record<string, number> = {};
+		const fetch_url = async (u: string) => {
+			const path = new URL(u, 'http://x/page').pathname;
+			hits[path] = (hits[path] ?? 0) + 1;
+			if (path === '/gone.js') return new Response('no', { status: 404 });
+			return hits[path] === 1
+				? new Response('busy', { status: 503 })
+				: new Response('b'.repeat(50));
+		};
+		const cache = new Map<string, Weight | null>();
+		const first = await weigh_assets({ html, page_url: 'http://x/page', fetch_url, cache });
+		expect(first.missed.map((u) => new URL(u).pathname).sort()).toEqual(['/busy.js', '/gone.js']);
+		const second = await weigh_assets({ html, page_url: 'http://x/page', fetch_url, cache });
+		expect(second.assets.map((a) => new URL(a.url).pathname)).toEqual(['/busy.js']);
+		expect(second.totals.js).toBe(50);
+		expect(hits).toEqual({ '/busy.js': 2, '/gone.js': 1 });
+	});
 });
 
 describe('runtime_scripts', () => {
