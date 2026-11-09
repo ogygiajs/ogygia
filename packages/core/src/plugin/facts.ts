@@ -69,14 +69,19 @@ export function set_current_request(fn: (() => Request | undefined) | null): voi
 	slot.current = fn;
 }
 
+/** The Request the running code belongs to, or undefined outside one (the client, a test). */
+export function current_request(): Request | undefined {
+	try {
+		return slot.current?.();
+	} catch {
+		return undefined;
+	}
+}
+
 /** The facts of the request the running code belongs to, or null outside one (the client, a test). */
 export function current_facts(): RequestFacts | null {
-	try {
-		const request = slot.current?.();
-		return request ? facts_of(request) : null;
-	} catch {
-		return null;
-	}
+	const request = current_request();
+	return request ? facts_of(request) : null;
 }
 
 /** Name the first reason a render is per-visitor (later reasons do not replace it). */

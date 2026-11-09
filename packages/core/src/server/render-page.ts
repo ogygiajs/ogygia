@@ -20,7 +20,8 @@
  */
 import type { RequestEvent } from '@sveltejs/kit';
 import * as devalue from 'devalue';
-import { flights, type Flights } from '@ogygia/machine';
+import { flights, type Scope } from '@ogygia/machine';
+import { request_local } from '../plugin/request-scope.ts';
 import { islands_endpoint } from './endpoint.ts';
 import type { KitPage } from './kit-context.ts';
 import type { PageSnapshot } from '../page-seed-registry.ts';
@@ -64,9 +65,38 @@ export function page_url_of(event: RequestEvent): URL {
 	return event.url;
 }
 
-/** Each request's look-up of its page's facts: once per request, a failed one not kept. */
-const looked_up = new WeakMap<Request, Flights<void, void>>();
-const facts_of = new WeakMap<Request, PageFacts>();
+/** What one look-up of a request's page reads. */
+type LookUp = {
+	page: URL;
+	fetch: (input: string, init?: RequestInit) => Promise<Response>;
+	decoders: Record<string, (v: unknown) => unknown>;
+};
+/** The one look-up a request has. */
+const ONCE = 0;
+
+/**
+ * Each request's look-up of its page's facts, a flight of one key the request owns: looked up once
+ * per request (a failed one is not kept), its answer the page's facts (null: unavailable), its
+ * streamed reader let go when the request ends.
+ */
+const looked_up = request_local((owner: Scope) =>
+	flights<LookUp, Promise<PageFacts | null>, typeof ONCE>({
+		name: 'page facts',
+		key: () => ONCE,
+		run: ({ page, fetch, decoders }) =>
+			look_up_page(page, fetch, decoders, owner).then((facts) => {
+				if (!('miss' in facts)) return facts;
+				warn?.(line('outside_page_data_unavailable', { path: page.pathname, miss: facts.miss }));
+				return null;
+			})
+	})
+);
+
+/** The page's facts this request looked up, or undefined. */
+function facts_of(request: Request): PageFacts | undefined {
+	const entry = looked_up(request).peek(ONCE);
+	return entry?.kind === 'kept' ? (entry.answer ?? undefined) : undefined;
+}
 
 /**
  * Before an async render root starts: in a request rendering FOR a page, that page's facts, looked
@@ -81,28 +111,14 @@ export function prepare_render_page(
 ): Promise<void> | void {
 	if (!event || !renders_for_a_page(event)) return;
 	if (!(reads_data ?? (event as { isRemoteRequest?: boolean }).isRemoteRequest === true)) return;
-	const request = event.request;
 	const page = page_url_of(event);
 	if (page === event.url) return;
-	let look_up = looked_up.get(request);
-	if (!look_up) {
-		const decoders: Record<string, (v: unknown) => unknown> = {};
-		for (const name in transport ?? {}) decoders[name] = transport![name].decode;
-		look_up = flights({
-			name: 'page facts',
-			run: () =>
-				look_up_page(page, event.fetch, decoders).then((facts) => {
-					if ('miss' in facts)
-						warn?.(
-							line('outside_page_data_unavailable', { path: page.pathname, miss: facts.miss })
-						);
-					else facts_of.set(request, facts);
-				})
-		});
-		looked_up.set(request, look_up);
-	}
-	// (its callers only wait: nothing drops it, so it never answers STALE)
-	return look_up.get().then(() => {});
+	const look_up = looked_up(event.request);
+	if (look_up.peek(ONCE)?.kind === 'kept') return;
+	const decoders: Record<string, (v: unknown) => unknown> = {};
+	for (const name in transport ?? {}) decoders[name] = transport![name].decode;
+	// (STALE only once the request has ended: the render goes on without the facts)
+	return look_up.get({ page, fetch: event.fetch, decoders }).then(() => {});
 }
 
 /**
@@ -116,7 +132,7 @@ export function render_page(
 	if (!snapshot && !event) return null;
 	if (event && renders_for_a_page(event)) {
 		// FOR A PAGE: the Referer's page — its looked-up facts, else its url alone
-		const facts = facts_of.get(event.request);
+		const facts = facts_of(event.request);
 		return {
 			url: facts?.url ?? page_url_of(event),
 			params: facts?.params ?? {},
@@ -192,7 +208,7 @@ export function render_page_version(
 	if (!event) return '';
 	const known = versions.get(event.request);
 	if (known !== undefined) return known;
-	const data = renders_for_a_page(event) ? facts_of.get(event.request)?.data : snapshot?.data;
+	const data = renders_for_a_page(event) ? facts_of(event.request)?.data : snapshot?.data;
 	let v = '';
 	if (data && typeof data === 'object') {
 		try {
@@ -243,7 +259,7 @@ export function render_page_facts_script(
 	transport: Transport | undefined
 ): string {
 	if (!event || !renders_for_a_page(event)) return '';
-	const facts = facts_of.get(event.request);
+	const facts = facts_of(event.request);
 	const keys = asks_of.get(event.request);
 	if (!facts || !keys) return '';
 	const encoders: Record<string, (v: unknown) => unknown> = {};

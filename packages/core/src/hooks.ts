@@ -25,6 +25,7 @@ import type { Handle } from './kit-handle.ts';
 import { try_get_request_store } from '@sveltejs/kit/internal/server';
 import type { RequestState } from '@sveltejs/kit/internal/server';
 import * as devalue from 'devalue';
+import type { Scope } from '@ogygia/machine';
 // (the islands' loaders come through `load_islands()`, a dynamic import — link/server-manifest.ts)
 import {
 	load_islands,
@@ -95,6 +96,7 @@ import {
 	type RequestFacts
 } from './plugin/facts.ts';
 import { around, end_request, request_contexts, start_app_plugins } from './plugin/server.ts';
+import { end_request_scope, own_response, request_scope } from './plugin/request-scope.ts';
 // PULL-registration at decode time (idempotent; no import-time side effects).
 import { register_wire_kind } from './live-transport.ts';
 import { register_store_kind, register_derived_kind } from './store-transport.ts';
@@ -749,6 +751,22 @@ function page_ctx_script(bag: RequestBag | undefined): string {
  *  document now, and stays as `__og_restore` / `__og_restore_adopt` for hole answers and router swaps. */
 const RESTORER_SCRIPT = `<script data-og-restore>(function(){var r=${restore.toString()};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()</script>`;
 
+/** `inner` with the request's owner around it: made before `inner` runs, ended with its response
+ *  (or at once when it throws). */
+function owned(inner: Handle): Handle {
+	return async (input) => {
+		const owner = request_scope(input.event.request);
+		let response: Response;
+		try {
+			response = await inner(input);
+		} catch (error) {
+			end_request_scope(owner);
+			throw error;
+		}
+		return own_response(owner, response);
+	};
+}
+
 class OgygiaHandle {
 	readonly #endpoint: string;
 	readonly #speculation_rules: string;
@@ -790,7 +808,10 @@ class OgygiaHandle {
 
 	// The public handle: the plugins' `handle` hooks (a profiler timing the render and serving its UI)
 	// nested around the core, first plugin outermost — with zero hooks wiring. None: the core itself.
-	handle: Handle = around(plugins, (input) => this.#core(input));
+	// THE REQUEST'S OWNER (plugin/request-scope.ts) is made here, outermost, so every plugin's hook
+	// and the core run under it, and ends with the response (its body read or cancelled) or when the
+	// visitor leaves, whichever is first.
+	handle: Handle = owned(around(plugins, (input) => this.#core(input)));
 
 	#core: Handle = async ({ event, resolve }) => {
 		const path = decode_pathname(event.url.pathname);
@@ -981,6 +1002,7 @@ class OgygiaHandle {
 			// settles. Only set when the request could consume a stream (see `inject_client_seeds`).
 			if (bag.deferred && bag.deferred.length) {
 				return this.stream_page_deferred(
+					request_scope(event.request),
 					response,
 					bag.deferred,
 					bag.defer_next_id,
@@ -1041,8 +1063,10 @@ class OgygiaHandle {
 		}
 		const calls = parsed.filter((e): e is string => typeof e === 'string').slice(0, MAX_BATCH);
 		// (the stream's signal aborts when the visitor leaves: the holes not rendered yet never are)
-		const stream = batch_stream(calls, (endpoint, signal) =>
-			this.#render_capability(endpoint, event, true, signal)
+		const stream = batch_stream(
+			calls,
+			(endpoint, signal) => this.#render_capability(endpoint, event, true, signal),
+			request_scope(event.request)
 		);
 
 		return region_response(stream, {
@@ -1537,8 +1561,12 @@ class OgygiaHandle {
 	 * `__sveltekit_<hash> is not defined` never reaches the browser, and (3) emit one
 	 * `<script>__ogygia_page_resolve(id, ok, value)</script>` per promise AS IT SETTLES — completion
 	 * order, non-blocking. Each island's `{#await page.data.x}` flips pending → resolved live.
+	 *
+	 * The stream is the request's (`request`, its owner): the visitor leaving, or the body cancelled,
+	 * stops Kit's reader and drops what settles after.
 	 */
 	stream_page_deferred(
+		request: Scope,
 		response: Response,
 		deferred: Deferred[],
 		initial_next_id: number,
@@ -1548,6 +1576,8 @@ class OgygiaHandle {
 		if (!source) return response;
 		const reader = source.getReader();
 		const encoder = new TextEncoder();
+		const owner = request.child();
+		owner.defer(() => void reader.cancel().catch(() => {}));
 		const stream = new ReadableStream<Uint8Array>({
 			async start(controller) {
 				// 1. Forward Kit's document through `</body></html>` (one enqueue in practice). Kit streams
@@ -1600,6 +1630,7 @@ class OgygiaHandle {
 					}
 				};
 				const push = (id: number, ok: boolean, value: unknown) => {
+					if (owner.closed) return; // the visitor left
 					try {
 						controller.enqueue(
 							encoder.encode(resolve_script(PAGE_DEFER_GLOBAL, id, { ok, value }, reducers))
@@ -1630,7 +1661,7 @@ class OgygiaHandle {
 				maybe_close();
 			},
 			cancel() {
-				reader.cancel().catch(() => {});
+				owner.close();
 			}
 		});
 		const headers = new Headers(response.headers);

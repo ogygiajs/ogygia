@@ -13,7 +13,11 @@
  *   or a hung upstream (renders that never end) would hold every slot and take every hole down.
  * - A call's `signal` aborting while it waits takes it out of the queue: a body nobody waits on any
  *   more never starts, and never holds a slot.
+ *
+ * Each call owns its timers and its listener on `signal` (a scope): they are let go the moment the
+ * call settles, whichever way.
  */
+import { scope, type Scope } from '@ogygia/machine';
 
 export interface GateOptions {
 	/** The call answers within this long: the wait for a slot and the run together. */
@@ -45,35 +49,40 @@ export class ConcurrencyGate {
 		const { deadline_ms, signal } = options;
 		if (signal?.aborted) throw signal.reason;
 		const deadline = deadline_ms === undefined ? Infinity : Date.now() + deadline_ms;
-		await this.#enter(deadline, signal);
-		// (handed a slot in the same step the signal aborted: the slot goes on, the body never starts)
-		if (signal?.aborted) {
-			this.#leave();
-			throw signal.reason;
-		}
-		let body: Promise<T>;
+		const call = scope();
 		try {
-			body = fn();
-		} catch (error) {
-			body = Promise.reject(error);
-		}
-		// the slot is this body's until it ends, or until it is abandoned at the deadline; it is given
-		// back exactly once either way
-		let holds = true;
-		const end = () => {
-			if (holds) {
-				holds = false;
+			await this.#enter(deadline, signal, call);
+			// (handed a slot in the same step the signal aborted: the slot goes on, the body never starts)
+			if (signal?.aborted) {
 				this.#leave();
-			} else this.#abandoned--;
-		};
-		body.then(end, end);
-		if (deadline === Infinity) return body;
-		return within(body, deadline - Date.now(), () => {
-			if (!holds) return;
-			holds = false;
-			this.#abandoned++;
-			this.#leave();
-		});
+				throw signal.reason;
+			}
+			let body: Promise<T>;
+			try {
+				body = fn();
+			} catch (error) {
+				body = Promise.reject(error);
+			}
+			// the slot is this body's until it ends, or until it is abandoned at the deadline; it is given
+			// back exactly once either way
+			let holds = true;
+			const end = () => {
+				if (holds) {
+					holds = false;
+					this.#leave();
+				} else this.#abandoned--;
+			};
+			body.then(end, end);
+			if (deadline === Infinity) return await body;
+			return await within(call, body, deadline - Date.now(), () => {
+				if (!holds) return;
+				holds = false;
+				this.#abandoned++;
+				this.#leave();
+			});
+		} finally {
+			call.close();
+		}
 	}
 
 	/** Bodies running that someone waits on (the limit counts these). */
@@ -93,17 +102,15 @@ export class ConcurrencyGate {
 
 	/** A slot: at once when one is free, else in turn (or the deadline passes, or the signal aborts,
 	 *  first). */
-	#enter(deadline: number, signal: AbortSignal | undefined): Promise<void> {
+	#enter(deadline: number, signal: AbortSignal | undefined, call: Scope): Promise<void> {
 		if (this.#active < this.#limit) {
 			this.#active++;
 			return Promise.resolve();
 		}
 		return new Promise<void>((resolve, reject) => {
-			let timer: ReturnType<typeof setTimeout> | undefined;
-			const settle = () => {
-				if (timer !== undefined) clearTimeout(timer);
-				signal?.removeEventListener('abort', on_abort);
-			};
+			// (the wait's own: let go once it ends, before the body runs)
+			const wait = call.child();
+			const settle = () => wait.close();
 			// out of the queue at once: with every slot held by bodies that never end, no `#leave`
 			// would ever come to drop it, and the queue would grow by the request rate
 			const give_up = (error: unknown) => {
@@ -113,7 +120,6 @@ export class ConcurrencyGate {
 				if (at !== -1) this.#wait.splice(at, 1);
 				reject(error);
 			};
-			const on_abort = () => give_up(signal?.reason);
 			const waiter: Waiter = {
 				gave_up: false,
 				deadline,
@@ -124,8 +130,8 @@ export class ConcurrencyGate {
 				}
 			};
 			if (deadline !== Infinity)
-				timer = setTimeout(() => give_up(new Error(WAIT_TIMEOUT)), deadline - Date.now());
-			signal?.addEventListener('abort', on_abort, { once: true });
+				wait.timeout(() => give_up(new Error(WAIT_TIMEOUT)), timer_ms(deadline - Date.now()));
+			if (signal) wait.on(signal, 'abort', () => give_up(signal.reason));
 			this.#wait.push(waiter);
 		});
 	}
@@ -147,24 +153,22 @@ export function is_run_timeout(error: unknown): boolean {
 	return error instanceof Error && error.message === RUN_TIMEOUT;
 }
 
-/** `work`, or the run timeout after `ms` (`on_timeout` first; the timer cleared either way). */
-function within<T>(work: Promise<T>, ms: number, on_timeout: () => void): Promise<T> {
+/** `work`, or the run timeout after `ms` (`on_timeout` first). The timer is the call's: it goes
+ *  when the call settles. */
+function within<T>(call: Scope, work: Promise<T>, ms: number, on_timeout: () => void): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
-		const timer = setTimeout(() => {
+		call.timeout(() => {
 			on_timeout();
 			reject(new Error(RUN_TIMEOUT));
-		}, ms);
-		work.then(
-			(value) => {
-				clearTimeout(timer);
-				resolve(value);
-			},
-			(error: unknown) => {
-				clearTimeout(timer);
-				reject(error);
-			}
-		);
+		}, timer_ms(ms));
+		work.then(resolve, reject);
 	});
+}
+
+/** A delay a timer can hold: a deadline already past is now, and one past the longest a timer
+ *  holds (2^31 - 1 ms) waits that long. */
+function timer_ms(ms: number): number {
+	return Math.min(2_147_483_647, Math.max(0, ms));
 }
 
 /** Max concurrent region SSR renders per process (CPU amp under valid MAC). */

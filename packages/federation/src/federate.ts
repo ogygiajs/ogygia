@@ -139,7 +139,9 @@ async function post_thaw(fed: Federation, peer: Peer, body: ArrayBuffer): Promis
 	return false;
 }
 
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const sleep = (ms: number) =>
+	// oxlint-disable-next-line ogygia/owned-effects -- a thaw notice is the app's, not a request's: its retries go on after the request that caused it ended
+	new Promise<void>((r) => setTimeout(r, ms));
 
 // re-exported so the handle (which holds the region secret) can read the registration
 export { current_federation };

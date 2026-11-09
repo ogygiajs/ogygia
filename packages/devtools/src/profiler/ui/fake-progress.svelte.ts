@@ -4,11 +4,18 @@
  * report — the profile endpoint just works until it's done — so this is a timed illusion, the standard
  * "something is happening" reassurance bar. Call `start()` when the request goes out, `finish()` when
  * it resolves (it awaits one paint at 100% before returning), `fail()` on error.
+ *
+ * Its timers belong to it (a scope): the view that shows it disposes it when it unmounts, and every
+ * timer goes with it, mid-run or not.
  */
+import { scope, STALE, type Scope } from '@ogygia/machine';
+
 export class FakeProgress {
 	#value = $state(0);
 	#running = $state(false);
-	#timer: ReturnType<typeof setInterval> | undefined;
+	readonly #owner = scope();
+	/** The run's ticking, while one runs. */
+	#run: Scope | null = null;
 
 	get value(): number {
 		return this.#value;
@@ -19,24 +26,37 @@ export class FakeProgress {
 	}
 
 	start(): void {
-		clearInterval(this.#timer);
+		this.#stop();
+		if (this.#owner.closed) return;
 		this.#value = 0;
 		this.#running = true;
-		this.#timer = setInterval(() => this.#tick(), 170);
+		this.#run = this.#owner.child();
+		this.#run.every(() => this.#tick(), 170);
 	}
 
 	async finish(): Promise<void> {
-		clearInterval(this.#timer);
+		this.#stop();
 		this.#value = 100;
 		// let the 100% frame paint before the caller swaps the view
-		await new Promise((r) => setTimeout(r, 420));
-		this.#running = false;
+		const owner = this.#owner;
+		const painted = await owner.task(() => new Promise<void>((r) => owner.timeout(r, 420)));
+		if (painted !== STALE) this.#running = false;
 	}
 
 	fail(): void {
-		clearInterval(this.#timer);
+		this.#stop();
 		this.#running = false;
 		this.#value = 0;
+	}
+
+	/** Lets go of every timer, for good (the view unmounted). */
+	[Symbol.dispose](): void {
+		this.#owner.close();
+	}
+
+	#stop(): void {
+		this.#run?.close();
+		this.#run = null;
 	}
 
 	#tick(): void {

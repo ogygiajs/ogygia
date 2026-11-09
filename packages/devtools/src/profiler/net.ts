@@ -9,6 +9,7 @@
  */
 
 import type { AsyncLocalStorage } from 'node:async_hooks';
+import type { Scope } from '@ogygia/machine';
 import { may_be_chunk, module_category, module_lookup } from './module-map.ts';
 
 // ── regexes
@@ -168,10 +169,21 @@ export function parse_server_timing(header: string | null | undefined): ServerTi
 // ONE SWITCH FOR EVERY COPY OF THIS MODULE: the dev server can evaluate it again (a reload, a dep
 // re-optimise) while the first copy's fetch wrapper stays installed — "still ours", so not wrapped
 // again — and that wrapper read its own copy's switch, never turned on: every call lost its caller.
+// THE SAME FOR THE SINK: a patch reads the live profiler's emit at each call, never the one it was
+// installed with, so after the hooks run again (a new profiler, a new AsyncLocalStorage) the calls
+// reach the new one; and http is wrapped once per process, however many copies install (#285).
 const NET_STATE = Symbol.for('ogygia.profiler.net-state');
 const shared = ((globalThis as Record<symbol, unknown>)[NET_STATE] ??= { stacks: false }) as {
 	stacks: boolean;
 	owners?: Set<object>;
+	/** the live profiler's sink: the request's context's `on_net`, else its fallback */
+	emit?: Emit | null;
+	/** the current request's kept-answer lookup (its context's `answer`) */
+	answer?: ((method: string, url: string) => Response | undefined) | null;
+	/** the current request's owner (its context's `owner`) */
+	owner?: (() => Scope | undefined) | null;
+	/** `http` / `https` are wrapped (once per process) */
+	http_patched?: boolean;
 };
 /** Turns `owner`'s ask for call stacks on or off. They are captured while any recording asks, so
  *  the first of two overlapping recordings to end (two profilers in one dev process) never turns
@@ -266,16 +278,17 @@ export interface NetContext {
 	/** the profiler's what-if render: an answer kept from the timed renders, for a call this request
 	 *  makes (`GET <url>`), instead of making it — undefined = make the call */
 	answer?(method: string, url: string): Response | undefined;
+	/** the request's owner: what the capture reads for a call this request makes (the copy of its
+	 *  body it counts) is let go when the request ends */
+	owner?: Scope;
 }
 
 type Emit = (call: NetCall) => void;
 
-let installed = false;
-// The active emit sink, kept module-level so `ensure_fetch_patched` can RE-wrap `globalThis.fetch` with
-// the same sink after something replaces it.
-let net_emit: Emit | null = null;
-/** the current request's kept-answer lookup (its context's `answer`), set by install */
-let net_answer: ((method: string, url: string) => Response | undefined) | null = null;
+/** A call goes to the live profiler (nowhere before one installed). */
+function emit(call: NetCall): void {
+	shared.emit?.(call);
+}
 
 // KEPT ANSWERS: while the profiler asks, the body of every GET that answered 2xx, by `GET <url>`
 // (the last one wins), so a later render can be served them from memory — "keep the services'
@@ -356,14 +369,16 @@ const OG_FETCH_PATCH = Symbol.for('ogygia.profiler.net.fetch-patch');
 /**
  * Install the patches. `fallback` receives calls made outside any request
  * context (startup work, background jobs) so window recordings still see them.
- * Idempotent: a second call just re-asserts the fetch patch (see `ensure_fetch_patched`).
+ * A second call makes its own storage and fallback the live ones, and re-asserts the fetch patch
+ * (see `ensure_fetch_patched`).
  */
 export async function install_net_capture(
 	als: AsyncLocalStorage<NetContext>,
 	fallback: Emit
 ): Promise<void> {
-	net_answer = (method, url) => als.getStore()?.answer?.(method, url);
-	net_emit = (call: NetCall) => {
+	shared.answer = (method, url) => als.getStore()?.answer?.(method, url);
+	shared.owner = () => als.getStore()?.owner;
+	shared.emit = (call: NetCall) => {
 		const ctx = als.getStore();
 		if (ctx) {
 			call.route = ctx.route;
@@ -373,14 +388,10 @@ export async function install_net_capture(
 			fallback(call);
 		}
 	};
-
-	if (installed) {
-		ensure_fetch_patched();
-		return;
-	}
-	installed = true;
-	patch_fetch(net_emit);
-	await patch_http(net_emit);
+	patch_fetch();
+	if (shared.http_patched) return;
+	shared.http_patched = true;
+	await patch_http();
 }
 
 /**
@@ -392,12 +403,7 @@ export async function install_net_capture(
  * call every request/run.
  */
 export function ensure_fetch_patched(): void {
-	if (!net_emit) return;
-	const cur = globalThis.fetch as
-		| (typeof globalThis.fetch & { [OG_FETCH_PATCH]?: boolean })
-		| undefined;
-	if (typeof cur === 'function' && cur[OG_FETCH_PATCH]) return; // still ours
-	patch_fetch(net_emit);
+	if (shared.emit) patch_fetch();
 }
 
 // ---------------------------------------------------------------------------
@@ -421,13 +427,13 @@ function host_of(url: string): string {
 	}
 }
 
-function patch_fetch(emit: Emit): void {
+function patch_fetch(): void {
 	const orig = globalThis.fetch as
 		| (typeof globalThis.fetch & { [OG_FETCH_PATCH]?: boolean })
 		| undefined;
 	if (typeof orig !== 'function') return;
 	if (orig[OG_FETCH_PATCH]) return; // the live fetch is already our wrapper — don't wrap it again
-	globalThis.fetch = wrap_fetch(orig, emit);
+	globalThis.fetch = wrap_fetch(orig);
 }
 
 /**
@@ -438,12 +444,12 @@ function patch_fetch(emit: Emit): void {
  */
 export function wrap_event_fetch<F extends typeof globalThis.fetch>(f: F): F {
 	if (
-		!net_emit ||
+		!shared.emit ||
 		typeof f !== 'function' ||
 		(f as F & { [OG_FETCH_PATCH]?: boolean })[OG_FETCH_PATCH]
 	)
 		return f;
-	return wrap_fetch(f, net_emit) as F;
+	return wrap_fetch(f) as F;
 }
 
 // ── nested traces ────────────────────────────────────────────────────────────────────────────
@@ -508,8 +514,8 @@ export function decode_trace(h: string | null | undefined): UpstreamTrace | unde
 }
 
 /** The recording wrapper around a fetch-shaped function: one NetCall per call, timed to headers
- *  and body, the caller captured while a recording runs. */
-function wrap_fetch(orig: typeof globalThis.fetch, emit: Emit): typeof globalThis.fetch {
+ *  and body, the caller captured while a recording runs, handed to the live profiler. */
+function wrap_fetch(orig: typeof globalThis.fetch): typeof globalThis.fetch {
 	const patched = async function fetch(
 		input: RequestInfo | URL,
 		init?: RequestInit
@@ -524,7 +530,7 @@ function wrap_fetch(orig: typeof globalThis.fetch, emit: Emit): typeof globalThi
 					: ((input as Request)?.url ?? '');
 		const method = init?.method ?? ((input as Request)?.method || 'GET');
 		// the what-if render: this call's answer, kept from the timed renders, served from memory
-		const canned = net_answer?.(method.toUpperCase(), url);
+		const canned = shared.answer?.(method.toUpperCase(), url);
 		if (canned) return canned;
 		const call: NetCall = {
 			start: performance.now(),
@@ -584,7 +590,7 @@ function wrap_fetch(orig: typeof globalThis.fetch, emit: Emit): typeof globalThi
 			if (trace) call.trace = trace;
 			// Robust DECODED size: count a cloned body stream. Works however the app reads the original
 			// (json/text/stream) and with no content-length (chunked / dev servers) — no more dashes.
-			count_decoded(res, call);
+			count_decoded(res, call, shared.owner?.());
 			wrap_body(res, call);
 			return res;
 		} catch (e) {
@@ -684,8 +690,10 @@ function capture_req_payload(init: RequestInit | undefined, call: NetCall): void
 const BODY_HASH_MAX = 4 * 1024 * 1024;
 
 /** Count the DECODED response body size by draining a CLONE in the background (the original is left
- *  untouched). Sets `call.bytes` when done — the render finishes first, so it's ready by report time. */
-function count_decoded(res: Response, call: NetCall): void {
+ *  untouched). Sets `call.bytes` when done — the render finishes first, so it's ready by report time.
+ *  The clone is the request's (`owner`): when the request ends it is let go, so a body that never
+ *  ends is not read for good. */
+function count_decoded(res: Response, call: NetCall, owner: Scope | undefined): void {
 	let clone: Response;
 	try {
 		clone = res.clone();
@@ -701,6 +709,7 @@ function count_decoded(res: Response, call: NetCall): void {
 	void (async () => {
 		try {
 			const reader = stream.getReader();
+			owner?.defer(() => void reader.cancel().catch(() => {}));
 			let total = 0;
 			let parts: Uint8Array[] | null = keep ? [] : null;
 			// a fingerprint of the body (FNV-1a over its first BODY_HASH_MAX bytes, and its length):
@@ -753,7 +762,7 @@ function count_decoded(res: Response, call: NetCall): void {
 
 // ---------------------------------------------------------------------------
 
-async function patch_http(emit: Emit): Promise<void> {
+async function patch_http(): Promise<void> {
 	for (const proto of ['http', 'https'] as const) {
 		let mod: Record<string, unknown>;
 		try {
@@ -767,13 +776,13 @@ async function patch_http(emit: Emit): Promise<void> {
 		try {
 			mod.request = function (...args: unknown[]) {
 				const req = orig_request.apply(this, args);
-				instrument_client_request(req, args, proto, emit);
+				instrument_client_request(req, args, proto);
 				return req;
 			};
 			if (typeof orig_get === 'function') {
 				mod.get = function (...args: unknown[]) {
 					const req = orig_get.apply(this, args);
-					instrument_client_request(req, args, proto, emit);
+					instrument_client_request(req, args, proto);
 					return req;
 				};
 			}
@@ -783,12 +792,7 @@ async function patch_http(emit: Emit): Promise<void> {
 	}
 }
 
-function instrument_client_request(
-	req: unknown,
-	args: unknown[],
-	proto: 'http' | 'https',
-	emit: Emit
-): void {
+function instrument_client_request(req: unknown, args: unknown[], proto: 'http' | 'https'): void {
 	const r = req as {
 		on?: (ev: string, cb: (arg?: unknown) => void) => void;
 		method?: string;

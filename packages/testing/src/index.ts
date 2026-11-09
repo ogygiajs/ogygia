@@ -61,6 +61,7 @@ import type {
 	PlaywrightWorkerArgs,
 	PlaywrightWorkerOptions
 } from '@playwright/test';
+import { scope, type Scope } from '@ogygia/machine';
 import { OgygiaError, warn } from './messages.ts';
 
 // ── the reports (plain JSON, as the page hands them over) ──
@@ -268,6 +269,11 @@ const wire_pat = (p: string | RegExp | undefined) =>
 /** "Older engine" said once per site and version for the whole process (a CI run opens hundreds of pages). */
 const warned_engines = new Set<string>();
 
+/** `step` runs when `owner` ends (awaited by `await owner[Symbol.asyncDispose]()`). */
+function undo(owner: Scope, step: () => Promise<unknown>): void {
+	owner.adopt({ [Symbol.asyncDispose]: async () => void (await step()) });
+}
+
 /** The primitives over any driver. */
 export class Ogygia {
 	/** every report taken so far, in order */
@@ -325,63 +331,97 @@ export class Ogygia {
 			accept: 'application/json',
 			...(options.profilerKey ? { 'x-profiler-key': options.profilerKey } : {})
 		};
-		// the server window first (a 409: another recording holds the recorder — wait for it). A window
-		// that cannot start leaves the session whole, with `server: { error }`
-		let window_id: { header: string; id: string } | null = null;
-		let untag: (() => Promise<void>) | null = null;
+		// WHAT IT STARTS IS UNDONE FROM THE MOMENT IT STARTS, however it ends (#291): each start puts its
+		// undo on an owner, and the owners end in order once the actions are done or anything throws —
+		// the navigation blocker (it lists what it held), the page's recording (it is handed that list),
+		// then the server window (its request tags, its stop)
+		const nav = scope();
+		const page = scope();
+		const server_side = scope();
+		const out: {
+			blocked: { url: string; t: number | null }[];
+			r: Omit<OgygiaSessionReport, 'kind'> | null;
+			stop_error: unknown;
+			stopped: { status: number; body: string } | null;
+		} = { blocked: [], r: null, stop_error: undefined, stopped: null };
 		let server_error: string | null = null;
-		if (ropts?.server) {
-			for (let tries = 0; ; tries++) {
-				const s = await this.#post(`${b}/window/start`, headers);
-				if (s.status === 200) {
-					const j = JSON.parse(s.body) as { id?: string; header?: string };
-					if (j.id && j.header) window_id = { header: j.header, id: j.id };
-					break;
-				}
-				if (s.status !== 409 || tries >= 30) {
-					server_error = `the profiler could not start a window (${s.status}): ${s.body.slice(0, 200)}`;
-					break;
-				}
-				await this.#wait(2000);
-			}
-			// each request of the session carries the window's id, so every instance of a serverless
-			// deployment attributes it (the profiler gathers them from its store at stop)
-			if (window_id && driver.tagRequests)
-				untag = await driver.tagRequests(window_id.header, window_id.id);
-		}
-		if (ropts?.blockNavigation && !driver.blockNavigation)
-			throw new Error(
-				'record(…, { blockNavigation: true }) needs a driver with `blockNavigation()` (withOgygia’s Playwright driver has one)'
-			);
-		const blocker = ropts?.blockNavigation ? await driver.blockNavigation!() : null;
-		await this.#call('record_start');
 		let failed = false;
 		let failure: unknown;
+		const undo_errors: unknown[] = [];
 		try {
-			await actions();
-			await this.#wait(600); // the last entries (a paint, a late request) land
-		} catch (e) {
-			failed = true;
-			failure = e;
-		}
-		const blocked = blocker ? await blocker.stop() : [];
-		// The recording lives in the page. If the actions took it to another document that has no
-		// testing API (another site, a page without devtools), it is gone: say THAT, with the actions'
-		// own error as the cause — never the "serve with devtools" of a page that never had it.
-		let r: Omit<OgygiaSessionReport, 'kind'> | null = null;
-		let stop_error: unknown;
-		try {
-			r = await this.#call<Omit<OgygiaSessionReport, 'kind'> | null>('record_stop', blocked);
-		} catch (e) {
-			stop_error = e;
-		}
-		let server: OgygiaSessionReport['server'];
-		if (untag) await untag().catch(() => {});
-		if (ropts?.server && !server_error) {
-			const s = await this.#post(`${b}/window/stop`, {
-				...headers,
-				...(window_id ? { [window_id.header]: window_id.id } : {})
+			// the server window first (a 409: another recording holds the recorder — wait for it). A
+			// window that cannot start leaves the session whole, with `server: { error }`
+			if (ropts?.server) {
+				let window_id: { header: string; id: string } | null = null;
+				for (let tries = 0; ; tries++) {
+					const s = await this.#post(`${b}/window/start`, headers);
+					if (s.status === 200) {
+						const j = JSON.parse(s.body) as { id?: string; header?: string };
+						if (j.id && j.header) window_id = { header: j.header, id: j.id };
+						const id = window_id;
+						undo(server_side, async () => {
+							out.stopped = await this.#post(`${b}/window/stop`, {
+								...headers,
+								...(id ? { [id.header]: id.id } : {})
+							});
+						});
+						break;
+					}
+					if (s.status !== 409 || tries >= 30) {
+						server_error = `the profiler could not start a window (${s.status}): ${s.body.slice(0, 200)}`;
+						break;
+					}
+					await this.#wait(2000);
+				}
+				// each request of the session carries the window's id, so every instance of a serverless
+				// deployment attributes it (the profiler gathers them from its store at stop)
+				if (window_id && driver.tagRequests) {
+					const untag = await driver.tagRequests(window_id.header, window_id.id);
+					undo(server_side, () => untag().catch(() => {}));
+				}
+			}
+			if (ropts?.blockNavigation && !driver.blockNavigation)
+				throw new Error(
+					'record(…, { blockNavigation: true }) needs a driver with `blockNavigation()` (withOgygia’s Playwright driver has one)'
+				);
+			if (ropts?.blockNavigation) {
+				const blocker = await driver.blockNavigation!();
+				undo(nav, async () => {
+					out.blocked = await blocker.stop();
+				});
+			}
+			await this.#call('record_start');
+			// The recording lives in the page. If the actions took it to another document that has no
+			// testing API (another site, a page without devtools), it is gone: say THAT, with the
+			// actions' own error as the cause — never the "serve with devtools" of a page that never had it.
+			undo(page, async () => {
+				try {
+					out.r = await this.#call<Omit<OgygiaSessionReport, 'kind'> | null>(
+						'record_stop',
+						out.blocked
+					);
+				} catch (e) {
+					out.stop_error = e;
+				}
 			});
+			try {
+				await actions();
+				await this.#wait(600); // the last entries (a paint, a late request) land
+			} catch (e) {
+				failed = true;
+				failure = e;
+			}
+		} finally {
+			for (const owner of [nav, page, server_side])
+				await owner[Symbol.asyncDispose]().catch((error: unknown) => void undo_errors.push(error));
+		}
+		// (an undo that failed, once nothing else did: the blocker or the window could not be stopped.
+		// When the actions failed, theirs is the error the test reports, below.)
+		if (undo_errors.length && !failed) throw undo_errors[0];
+		const r = out.r;
+		let server: OgygiaSessionReport['server'];
+		if (ropts?.server && !server_error && out.stopped) {
+			const s = out.stopped;
 			if (s.status === 200) {
 				const json = JSON.parse(s.body) as Record<string, unknown>;
 				server = {
@@ -397,12 +437,12 @@ export class Ogygia {
 			throw new Error(
 				'the recording was lost: the page went to another document while it ran' +
 					(now ? ` (it is now at ${now})` : '') +
-					(stop_error !== undefined
+					(out.stop_error !== undefined
 						? ', and that document has no ogygia testing API to finish it'
 						: '') +
 					(failed ? '. The actions failed too: see `cause`' : '') +
 					'. To keep the page, record with `{ blockNavigation: true }`.',
-				{ cause: failed ? failure : stop_error }
+				{ cause: failed ? failure : out.stop_error }
 			);
 		}
 		if (failed) throw failure;
@@ -410,7 +450,7 @@ export class Ogygia {
 		const old = r as Partial<OgygiaSessionReport> & Omit<OgygiaSessionReport, 'kind'>;
 		const navigations =
 			old.navigations ??
-			blocked.map((n) => ({ url: n.url, t: n.t, after: null, island: null, approx: true }));
+			out.blocked.map((n) => ({ url: n.url, t: n.t, after: null, island: null, approx: true }));
 		const findings = old.findings.map((f) => ({ ...f, names: f.names ?? [] }));
 		if (!old.navigations)
 			for (const n of navigations)
@@ -473,7 +513,9 @@ export class Ogygia {
 
 	#wait(ms: number): Promise<void> {
 		const driver = this.#driver;
-		return driver.wait ? driver.wait(ms) : new Promise<void>((r) => setTimeout(r, ms));
+		if (driver.wait) return driver.wait(ms);
+		// oxlint-disable-next-line ogygia/owned-effects -- a pause the test's own process awaits: it ends itself, and holds nothing past it
+		return new Promise<void>((r) => setTimeout(r, ms));
 	}
 
 	/** `driver.evaluate`, typed at the call site: `fn` goes to the driver as is (it runs in the

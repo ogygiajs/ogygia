@@ -8,6 +8,7 @@
  *   import { ofrep } from '@ogygia/flags/openfeature';
  *   decide({ source: ofrep({ url: 'http://flagd:8016' }) });
  */
+import { request_scope } from '@ogygia/core/internal/server';
 import type { FlagSource, FlagQuery, Resolved, CtxLike } from './index.ts';
 
 // ── regexes
@@ -52,7 +53,8 @@ export function ofrep(opts: OfrepOptions): FlagSource {
 				method: 'POST',
 				headers: { 'content-type': 'application/json', ...opts.headers },
 				body: JSON.stringify({ context: ctx_of(c) }),
-				signal: AbortSignal.timeout(timeout)
+				// (or the request ending first: nobody reads the answer then)
+				signal: AbortSignal.any([AbortSignal.timeout(timeout), request_scope(c.request).signal])
 			});
 			if (!res.ok) return out; // whole endpoint down → all native
 			const body = (await res.json()) as { flags?: OfrepFlag[] };

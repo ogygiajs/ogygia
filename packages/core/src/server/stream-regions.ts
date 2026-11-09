@@ -12,7 +12,7 @@
  *
  * No I/O and no Kit (the batch stream is handed its render), so it stays unit-testable.
  */
-import { machine, STALE } from '@ogygia/machine';
+import { machine, STALE, type Scope } from '@ogygia/machine';
 
 /** Sentinel slot appended once a batch finishes, so waiting regions know it is complete. */
 const STREAM_DONE_SLOT = '__ogygia_done__';
@@ -61,14 +61,16 @@ const batch_def = machine<BatchStates>()({
 /**
  * The batch's frame stream: every call renders at once, and each answer goes out as its parcel the
  * moment it settles, whatever the order; the done sentinel ends it. `render` is handed the batch's
- * signal: it aborts when the stream is cancelled.
+ * signal: it aborts when the stream is cancelled, or when `owner` (the request's) ends first.
  */
 export function batch_stream(
 	calls: readonly string[],
-	render: (endpoint: string, signal: AbortSignal) => Promise<BatchAnswer>
+	render: (endpoint: string, signal: AbortSignal) => Promise<BatchAnswer>,
+	owner?: Scope
 ): ReadableStream<Uint8Array> {
 	const encoder = new TextEncoder();
 	const batch = batch_def.create();
+	owner?.defer(() => void batch.move('streaming', 'cancelled'));
 	return new ReadableStream<Uint8Array>({
 		async start(controller) {
 			const streaming = batch.now;

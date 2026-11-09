@@ -7,6 +7,7 @@
 	 * parent frame, so the devtools tab can offer "open in new tab".
 	 */
 	import { onMount } from 'svelte';
+	import { scope, STALE } from '@ogygia/machine';
 	import { FakeProgress } from './fake-progress.svelte.ts';
 	import { put_report } from './store.ts';
 
@@ -29,6 +30,8 @@
 	const QUEUE_MAX_MS = 120_000;
 
 	const p = new FakeProgress();
+	/** The view's own work (its request, the queue's waits): let go when it unmounts. */
+	const owner = scope();
 	let phase = $state('Starting the profiler…');
 	let error = $state('');
 	let done_ogp = $state(false);
@@ -37,13 +40,15 @@
 
 	/** Fetch /page, polling while any worker we reach is busy. Returns the first non-409 response, or the
 	 *  last 409 if we waited past QUEUE_MAX_MS (the caller surfaces that as an error). */
-	async function fetch_page(url: string): Promise<Response> {
+	async function fetch_page(url: string): Promise<Response | null> {
 		const started = Date.now();
 		for (;;) {
 			queued = false;
 			p.start();
 			phase = `Rendering ${path} ${runs}× and sampling the server…`;
-			const res = await fetch(url);
+			const res = await owner.task((signal) => fetch(url, { signal }));
+			// (the view is gone: the request and the queue end with it)
+			if (res === STALE) return null;
 			if (res.status !== 409) return res;
 			// busy — enter/stay in the queue
 			if (Date.now() - started > QUEUE_MAX_MS) return res;
@@ -52,7 +57,8 @@
 			const delay = Number.isFinite(retry_after) && retry_after > 0 ? retry_after : QUEUE_POLL_MS;
 			waited_s = Math.round((Date.now() - started) / 1000);
 			phase = 'In queue — a profile is already running. Waiting for a free worker…';
-			await new Promise((r) => setTimeout(r, delay));
+			const waited = await owner.task(() => new Promise<void>((r) => owner.timeout(r, delay)));
+			if (waited === STALE) return null;
 		}
 	}
 
@@ -64,6 +70,7 @@
 			const res = await fetch_page(
 				`${base}/page?p=${encodeURIComponent(path)}&runs=${runs}${suffix}`
 			);
+			if (!res) return;
 			if (!res.ok) throw new Error(String(res.status));
 			if (format === 'ogp') {
 				const blob = await res.blob();
@@ -115,7 +122,14 @@
 		}
 	}
 
-	onMount(run);
+	onMount(() => {
+		void run();
+		// unmounted (mid-run or in the queue): its request, its queue's waits and its bar's timers go
+		return () => {
+			owner.close();
+			p[Symbol.dispose]();
+		};
+	});
 </script>
 
 <div class="run">

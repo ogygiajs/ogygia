@@ -11,6 +11,7 @@
  * imports, bounded in time and count). The score (score.ts) reads the totals.
  */
 
+import { scope } from '@ogygia/machine';
 import { find_unscoped, type UnscopedStyles } from '../unscoped-css.ts';
 
 export type AssetKind = 'script' | 'style' | 'font' | 'image' | 'other';
@@ -802,10 +803,12 @@ async function weigh_one(
 	const left = deadline - Date.now();
 	if (left < 100) return { miss: 'budget' };
 	try {
+		// (the race's timer is this file's: cleared the moment the file answers)
+		const wait = scope();
 		const res = await Promise.race([
 			opts.fetch_url(r.url.startsWith(origin) ? r.url.slice(origin.length) || '/' : r.url),
-			new Promise<null>((ok) => setTimeout(() => ok(null), left))
-		]);
+			new Promise<null>((ok) => wait.timeout(() => ok(null), left))
+		]).finally(() => wait.close());
 		if (!res) return { miss: 'timeout' };
 		if (!res.ok) return { miss: `status ${res.status}` };
 		const enc = res.headers.get('content-encoding');

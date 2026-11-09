@@ -232,7 +232,9 @@ import { label_call, phase_of_frame } from './timeline.ts';
 import { gzip_large } from './compress.ts';
 import { io_kind, mark_left_each_run } from './async-io.ts';
 import {
+	current_request_scope,
 	hole_stats_of,
+	request_scope,
 	request_stats_of,
 	set_batch_hole_listener,
 	set_request_stats_detail,
@@ -248,7 +250,16 @@ import {
 	islandPageWhy
 } from 'virtual:ogygia/island-deps';
 import { set_span_recorder, type SpanAttrs, type SpanRecord, type SpanRecorder } from './span.ts';
-import { flights, lock, machine, STALE, type Flights, type LockToken } from '@ogygia/machine';
+import {
+	flights,
+	lock,
+	machine,
+	scope,
+	STALE,
+	type Flights,
+	type LockToken,
+	type Scope
+} from '@ogygia/machine';
 import { register_profiler_file } from './frames.ts';
 
 // The span recorder's `begin` lives in this file: skip its frame when finding a span's caller.
@@ -1400,7 +1411,7 @@ class Profiler {
 	}
 
 	/** An attributed request's context: its own calls (capped), each also offered to the window. */
-	#request_ctx(entry: RequestEntry): Ctx {
+	#request_ctx(entry: RequestEntry, owner: Scope): Ctx {
 		const collect_window = (call: NetCall) => this.#collect_window(call);
 		return {
 			entry,
@@ -1408,6 +1419,7 @@ class Profiler {
 			spans: [],
 			route: entry.route,
 			path: entry.path,
+			owner,
 			on_net(call) {
 				if (this.net.length < MAX_NET_PER_REQUEST) this.net.push(call);
 				collect_window(call);
@@ -4501,15 +4513,18 @@ class Profiler {
 
 	/** A page profile or a window waits (a few seconds at most) for a background window (the trap,
 	 *  the sampler, a started window) to give the recorder back. The trap and the sampler do not
-	 *  start again while one waits. */
+	 *  start again while one waits. The wait is its request's: once the request ends, it waits no
+	 *  more. */
 	async #wait_for_background(): Promise<void> {
 		if (this.#holder.now.kind !== 'background') return;
 		this.#page_waiting++;
+		const wait = scope(current_request_scope() ?? undefined);
 		try {
 			const until = Date.now() + PAGE_WAITS_FOR_BACKGROUND_MS;
-			while (this.#holder.now.kind === 'background' && Date.now() < until)
-				await new Promise((r) => setTimeout(r, 50));
+			while (this.#holder.now.kind === 'background' && Date.now() < until && !wait.closed)
+				await pause(wait, 50);
 		} finally {
+			wait.close();
 			this.#page_waiting--;
 		}
 	}
@@ -5403,7 +5418,11 @@ class Profiler {
 				200,
 				Math.min(PERSIST_WAIT_MS, request_deadline - Date.now() - 2_000)
 			);
-			await Promise.race([this.#persist(s), new Promise((r) => setTimeout(r, persist_wait))]);
+			// (the bound's timer is the request's, and goes the moment the write lands)
+			const bound = scope(current_request_scope() ?? undefined);
+			await Promise.race([this.#persist(s), pause(bound, persist_wait)]).finally(() =>
+				bound.close()
+			);
 			// `keep`: the run page asks for the report's dump in the answer so the BROWSER keeps it
 			// (IndexedDB) — on an ephemeral host the instance that rendered it is gone before the
 			// report page is opened, and a persistent one may restart
@@ -6669,7 +6688,9 @@ class Profiler {
 		// (a background window — the trap, the sampler — never opens a per-request context: the
 		// request is matched to the window by time instead, so the site pays the sampler only)
 		const attribute = !!this.#als && (this.dev || this.#recording_active() || header_profile);
-		const ctx: Ctx | null = attribute ? this.#request_ctx(entry) : null;
+		const ctx: Ctx | null = attribute
+			? this.#request_ctx(entry, request_scope(event.request))
+			: null;
 		// THE KEEP-THE-ANSWERS RENDER: the profiler's own render, marked with this recording's token,
 		// is served the kept answers for the calls that answered the same in every timed render
 		const answers = this.#answers;
@@ -7055,12 +7076,17 @@ function clamp(n: number, lo: number, hi: number): number {
  *  is left to settle on its own — the caller has already moved on. */
 function with_timeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 	if (!Number.isFinite(ms) || ms <= 0) return p;
-	let timer: ReturnType<typeof setTimeout>;
-	const timeout = new Promise<never>((_, reject) => {
-		timer = setTimeout(() => reject(new Error(label)), ms);
-		timer.unref?.();
-	});
-	return Promise.race([p.finally(() => clearTimeout(timer)), timeout]);
+	// (the race's own timer: it goes the moment `p` settles)
+	const race = scope();
+	const timeout = new Promise<never>((_, reject) =>
+		race.timeout(() => reject(new Error(label)), Math.min(ms, 2_147_483_647))
+	);
+	return Promise.race([p.finally(() => race.close()), timeout]);
+}
+
+/** Settles after `ms`, or at once when `owner` ends (its timer goes with it). */
+function pause(owner: Scope, ms: number): Promise<unknown> {
+	return owner.task(() => new Promise<void>((r) => owner.timeout(r, ms)));
 }
 
 /** OGYGIA_PROFILER_DEBUG: the process's memory at a step of a recording (what the profiler itself
