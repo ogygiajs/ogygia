@@ -49,6 +49,7 @@ const dim = color.dim;
 // ── argv ─────────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2);
 const command = argv[0];
+// static: the command line's flags, read once when the command starts
 const flags = new Set(argv.slice(1).filter((a) => a.startsWith('-')));
 
 if (
