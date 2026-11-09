@@ -64,6 +64,10 @@ type Entry = {
 /** Entries with no subscribers linger this long (ms) so quick remounts / SPA swaps reuse content. */
 const EVICT_TTL = 60_000;
 
+/** The most addresses the store keeps: past it the least recently used idle one goes (a bound or
+ *  fetched one never does). A page binds a few dozen; a long session's idle ones are what goes. */
+const MAX_ADDRESSES = 2000;
+
 type FrameFlights = Flights<FrameAsk, string, Pick<FrameAsk, 'a'>>;
 
 /** The store: its entries, its fetches in flight and its world, in one scope. */
@@ -94,10 +98,11 @@ function make_store(): Store {
 	const life = scope();
 	const entries = cache<string, Entry>({
 		name: 'frames',
-		// (bounded by time, not size: an entry nothing binds or fetches lingers EVICT_TTL; a bound one
-		// is the page's, as long as its region is there)
-		max: Infinity,
+		// (an entry nothing binds or fetches lingers EVICT_TTL, and past MAX_ADDRESSES the least
+		// recently used of those goes; a bound or fetched one is in use, never let go for size)
+		max: MAX_ADDRESSES,
 		keep: (_e, a) => (live(a) ? Infinity : EVICT_TTL),
+		pinned: (_e, a) => live(a),
 		owner: life,
 		onEvict: (a, e, why) => {
 			// the store ends: a binder joined to a reservation must not hang

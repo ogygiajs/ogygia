@@ -219,6 +219,20 @@ describe('frame-store: eviction (no leak)', () => {
 		expect(frames.peek('/warm')?.html).toBe('seeded');
 	});
 
+	it('the store keeps at most 2000 addresses, but never lets a bound or fetched one go', () => {
+		const seen: string[] = [];
+		frames.subscribe('/bound', (f) => seen.push(f.html));
+		frames.write({ a: '/bound', v: frames.stamp(), html: 'kept' });
+		void frames.ensure('/fetching', deferred().fetcher);
+		for (let i = 0; i < 2100; i++) frames.write({ a: '/idle' + i, v: frames.stamp(), html: 'x' });
+		expect(frames.peek('/bound')?.html).toBe('kept'); // bound: never evicted
+		expect(frames.is_idle('/fetching')).toBe(false); // its fetch is still out
+		expect(frames.peek('/idle0')).toBeNull(); // the oldest idle ones went
+		expect(frames.peek('/idle2099')?.html).toBe('x');
+		frames.write({ a: '/bound', v: frames.stamp(), html: 'again' });
+		expect(seen).toEqual(['kept', 'again']);
+	});
+
 	it('a subscribed address is NOT evicted by its own writes', () => {
 		vi.useFakeTimers();
 		frames.subscribe('/live', () => {});
