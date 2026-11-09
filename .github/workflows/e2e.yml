@@ -79,12 +79,92 @@ jobs:
       # ten at once on this 4-core runner starved them into timeouts.
       - name: Type-check (build:lib, every package's check)
         run: pnpm run check --concurrency=2
+        # (the browser projects in Chromium here; the other engines in the `browsers` jobs, beside it)
+        env:
+          OGYGIA_BROWSERS: chromium
 
       # the bench files (packages/*/bench, run by Heisenbench in ogygiajs/bench): their private-function
       # types written from Heisenbench at the ref internal/heisenbench pins, then type-checked like the tests are,
       # against the libraries the step above built
       - name: Type-check the bench files
         run: pnpm run check:bench
+
+  # The browser test projects (core, content, machine) in the engines beside Chromium (which the
+  # `check` job runs): Playwright's Firefox and WebKit, and Firefox as released (WebdriverIO and
+  # geckodriver: Playwright's Firefox build can lag the release, and #382 showed in the release).
+  # One job per engine, at the same time as `check`, so wall time stays about the same. All required.
+  # Playwright's WebKit is the engine behind Safari, not Safari itself.
+  browsers:
+    name: browsers (${{ matrix.browser }})
+    if: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [firefox, webkit, firefox-stable]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-browsers-${{ matrix.browser }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-browsers-${{ matrix.browser }}-
+            turbo-${{ runner.os }}-
+
+      - name: Playwright version
+        if: matrix.browser != 'firefox-stable'
+        id: playwright
+        run: echo "version=$(pnpm exec playwright --version | sed 's/Version //')" >> "$GITHUB_OUTPUT"
+
+      - name: Playwright browser cache
+        if: matrix.browser != 'firefox-stable'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
+
+      # WebKit needs system libraries the runner image lacks: --with-deps here
+      - name: Install Playwright ${{ matrix.browser }}
+        if: matrix.browser != 'firefox-stable'
+        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+
+      # the released Firefox (the runner's own is replaced by the latest release); geckodriver is
+      # fetched by webdriverio when the run starts
+      - name: Install Firefox (release)
+        if: matrix.browser == 'firefox-stable'
+        id: firefox
+        uses: browser-actions/setup-firefox@v1
+        with:
+          firefox-version: latest
+
+      - name: Build the libraries
+        run: pnpm run build:lib
+
+      - name: Browser tests (core, content, machine)
+        run: |
+          for pkg in machine content core; do
+            echo "::group::$pkg"
+            (cd packages/$pkg && pnpm exec vitest run --project browser) || failed=1
+            echo "::endgroup::"
+          done
+          exit ${failed:-0}
+        env:
+          OGYGIA_BROWSERS: ${{ matrix.browser }}
+          OGYGIA_FIREFOX: ${{ steps.firefox.outputs.firefox-path }}
 
   # The runtime's size against the PR's base branch, both measured here with this PR's tool
   # (apps/palaestra/e2e/bundle-size.ts: per page kind, brotli, as a production browser build ships it).
@@ -137,14 +217,18 @@ jobs:
           exit 1
 
   e2e:
-    name: e2e (${{ matrix.name }})
+    # (Chromium's jobs keep their names, `e2e (core 1/3)`…; the other engines add theirs)
+    name: e2e (${{ matrix.slice.name }}${{ matrix.browser != 'chromium' && format(', {0}', matrix.browser) || '' }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       # one red slice must not cancel the others: the whole picture in one run
       fail-fast: false
       matrix:
-        include:
+        # every slice in every engine, side by side: Playwright's WebKit is the engine behind
+        # Safari, not Safari itself
+        browser: [chromium, firefox, webkit]
+        slice:
           # core's suite (apps/palaestra/e2e), the longest, in three Playwright shards (split by spec
           # file); it holds the adapter suite, so bun and wrangler are its alone
           - { name: core 1/3, id: core-1, filter: --filter=palaestra, shard: 1/3, adapters: true }
@@ -177,7 +261,7 @@ jobs:
           cache: pnpm
 
       # Bun runtime dimension — the adapter e2e suite runs the node-server output under bun too.
-      - if: env.TEST == 'true' && matrix.adapters
+      - if: env.TEST == 'true' && matrix.slice.adapters
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -193,9 +277,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .turbo/cache
-          key: turbo-${{ runner.os }}-e2e-${{ matrix.id }}-${{ github.sha }}
+          key: turbo-${{ runner.os }}-e2e-${{ matrix.slice.id }}-${{ matrix.browser }}-${{ github.sha }}
           restore-keys: |
-            turbo-${{ runner.os }}-e2e-${{ matrix.id }}-
+            turbo-${{ runner.os }}-e2e-${{ matrix.slice.id }}-${{ matrix.browser }}-
             turbo-${{ runner.os }}-
 
       # Playwright's Chromium, cached per Playwright version: a hit downloads nothing. No `--with-deps`:
@@ -212,15 +296,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
 
+      # (Chromium's system libraries are on the image; WebKit's and Firefox's need --with-deps)
       - if: env.TEST == 'true'
-        name: Install Playwright Chromium
-        run: pnpm exec playwright install chromium
+        name: Install Playwright ${{ matrix.browser }}
+        run: pnpm exec playwright install ${{ matrix.browser != 'chromium' && '--with-deps' || '' }} ${{ matrix.browser }}
 
       # wrangler (Cloudflare workerd) is fetched on demand by the suite via npx; warm it so the
       # cloudflare adapter boots the real Workers runtime instead of skipping.
-      - if: env.TEST == 'true' && matrix.adapters
+      - if: env.TEST == 'true' && matrix.slice.adapters
         name: Warm wrangler
         run: npx --yes wrangler --version
 
@@ -233,11 +318,12 @@ jobs:
         name: Run the e2e suites
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then affected=--affected; fi
-          pnpm turbo run e2e --concurrency=1 ${{ matrix.filter }} $affected
+          pnpm turbo run e2e --concurrency=1 ${{ matrix.slice.filter }} $affected
         env:
-          E2E_SHARD: ${{ matrix.shard }}
+          E2E_SHARD: ${{ matrix.slice.shard }}
+          OGYGIA_BROWSERS: ${{ matrix.browser }}
           TURBO_SCM_BASE: origin/${{ github.base_ref || 'main' }}
-          OGYGIA_E2E_WRANGLER: ${{ matrix.adapters && '1' || '' }}
+          OGYGIA_E2E_WRANGLER: ${{ matrix.slice.adapters && '1' || '' }}
           # Stable CI-only signing key so the warn-path probe's production build is silent (locally
           # this comes from apps/palaestra/.env, which is gitignored). NOT a production secret —
           # the Vercel deploy sets its own OGYGIA_SECRET.
@@ -248,7 +334,7 @@ jobs:
         name: Upload Playwright report
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-${{ matrix.id }}
+          name: playwright-report-${{ matrix.slice.id }}-${{ matrix.browser }}
           path: |
             **/playwright-report/
             **/test-results/

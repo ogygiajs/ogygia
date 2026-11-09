@@ -20,6 +20,11 @@ on:
 
 permissions: {}
 
+# The tests these jobs record run their browser projects in Chromium only (the engine this workflow
+# installs); the other engines run in e2e.yml's `browsers` jobs.
+env:
+  OGYGIA_BROWSERS: chromium
+
 jobs:
   request:
     if: >-

@@ -15,6 +15,7 @@
 // Usage: pnpm exec playwright test wake-early-click
 import type { Browser, Page } from '@playwright/test';
 import { test, check } from '@ogygia/tooling/e2e';
+import { needs_cdp } from '@ogygia/tooling/e2e/browsers.ts';
 
 const RUNS = 10;
 
@@ -38,6 +39,7 @@ function watch_clicks(): void {
 
 /** A slow phone: 6x CPU slowdown, DevTools' Slow 4G. */
 async function slow_phone(page: Page): Promise<void> {
+	needs_cdp(page);
 	const cdp = await page.context().newCDPSession(page);
 	await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 });
 	await cdp.send('Network.enable');

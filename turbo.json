@@ -9,6 +9,7 @@
 		"check": {
 			"dependsOn": ["^build"],
 			"inputs": ["$TURBO_DEFAULT$", "!e2e/app/**"],
+			"env": ["OGYGIA_BROWSERS"],
 			"outputs": []
 		},
 		"test": {
@@ -20,7 +21,7 @@
 			"dependsOn": ["^build"],
 			"outputs": [],
 			"cache": true,
-			"env": ["E2E_NO_BUILD", "E2E_SHARD"],
+			"env": ["E2E_NO_BUILD", "E2E_SHARD", "OGYGIA_BROWSERS"],
 			"passThroughEnv": [
 				"OGYGIA_*",
 				"CI",

@@ -15,6 +15,10 @@ permissions:
   contents: read
   issues: write
 
+# Upstream's breakage, in the one engine this workflow installs (Chromium); the others are e2e.yml's.
+env:
+  OGYGIA_BROWSERS: chromium
+
 jobs:
   upstream:
     name: upstream (SvelteKit ${{ matrix.kit }} on ${{ matrix.ref }})
