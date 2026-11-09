@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { scope } from '../src/index.ts';
-import { keyed_registry, module_life, registry } from '../src/registry.ts';
+import { defining, define_run, keyed_registry, module_life, registry } from '../src/registry.ts';
 
 describe('registry: live entries, each owned', () => {
 	it('iterates in add order', () => {
@@ -121,5 +121,52 @@ describe('keyed registry: definitions by name, each owned by its defining module
 		gone.close();
 		defs.set('a', 1, gone);
 		expect(defs.has('a')).toBe(false);
+	});
+});
+
+describe('definer calls: each module run owns what it defines', () => {
+	it('inside a marked call, defining() is the run; outside, null', () => {
+		const run = define_run('/app/a.ts');
+		let seen: unknown = 'unset';
+		run(() => (seen = defining()))();
+		expect(seen).not.toBeNull();
+		expect(defining()).toBeNull();
+	});
+
+	it("a module's next run ends its last one: a definition the new run does not make is gone", () => {
+		const defs = keyed_registry<string, number>();
+		const define = (key: string, v: number) => defs.set(key, v, defining()!);
+		const first = define_run('/app/flags.ts');
+		first(define)('kept', 1);
+		first(define)('deleted', 1);
+		const second = define_run('/app/flags.ts');
+		second(define)('kept', 2);
+		expect([...defs.entries()]).toEqual([['kept', 2]]);
+	});
+
+	it("another module's run does not end this one's", () => {
+		const defs = keyed_registry<string, number>();
+		const define = (key: string, v: number) => defs.set(key, v, defining()!);
+		define_run('/app/a.ts')(define)('a', 1);
+		define_run('/app/b.ts')(define)('b', 1);
+		expect(defs.has('a')).toBe(true);
+	});
+
+	it('defining() is restored after a nested call and after a throw', () => {
+		const outer = define_run('/app/outer.ts');
+		const inner = define_run('/app/inner.ts');
+		let in_outer: unknown = null;
+		outer(() => {
+			try {
+				inner(() => {
+					throw new Error('x');
+				})();
+			} catch {
+				// ok: the throw is the test's
+			}
+			in_outer = defining();
+		})();
+		expect(in_outer).not.toBeNull();
+		expect(defining()).toBeNull();
 	});
 });
