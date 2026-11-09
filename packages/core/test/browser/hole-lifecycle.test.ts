@@ -5,7 +5,7 @@
 // visitor's wake that failed is told so.
 import { afterEach, beforeEach, expect, inject, test, vi } from 'vitest';
 import { bootDev } from '../../src/runtime/full.ts';
-import { _reset, ticket, write } from '../../src/runtime/frame-store.ts';
+import { _reset, stamp, write } from '../../src/runtime/frame-store.ts';
 import { frameAddress } from '../../src/frame.ts';
 
 const COUNTER = '/test/browser/fixtures/Counter.svelte';
@@ -69,7 +69,7 @@ test('a kept fallback that later gets a real answer is not kept any more, and it
 	await expect.poll(() => el.hasAttribute('data-og-kept'), { timeout: 5_000 }).toBe(true);
 	// a write at its address (a command that returned the region, a refresh) brings a real answer
 	const a = frameAddress(E);
-	write({ a, v: ticket(a), html: counter() });
+	write({ a, v: stamp(), html: counter() });
 	await expect.poll(() => el.querySelector('button') !== null, { timeout: 5_000 }).toBe(true);
 	expect(el.hasAttribute('data-og-kept'), 'no longer the kept fallback').toBe(false);
 	await expect
@@ -109,7 +109,7 @@ test('a refetch that failed does not mark the hole’s first answer a refresh', 
 	const hole = live.querySelector('ogygia-region')!;
 	// then its answer arrives at the new address: the hole's FIRST answer
 	const a = frameAddress(E2);
-	write({ a, v: ticket(a), html: '<p data-testid="served">served</p>' });
+	write({ a, v: stamp(), html: '<p data-testid="served">served</p>' });
 	await expect
 		.poll(() => hole.querySelector('[data-testid="served"]') !== null, { timeout: 5_000 })
 		.toBe(true);

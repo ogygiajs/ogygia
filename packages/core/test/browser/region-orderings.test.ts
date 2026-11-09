@@ -10,7 +10,7 @@
 import { beforeAll, beforeEach, describe, it } from 'vitest';
 import { simulate, type Sim, type SimStep } from '@ogygia/config/sim';
 import { observe } from '@ogygia/machine';
-import { _reset, ticket, write } from '../../src/runtime/frame-store.ts';
+import { _reset, stamp, write } from '../../src/runtime/frame-store.ts';
 import { frameAddress } from '../../src/frame.ts';
 import {
 	COUNTER,
@@ -101,7 +101,7 @@ describe('a schedule that fires after its region left starts nothing (#335)', ()
 							() =>
 								write({
 									a: frameAddress(ENDPOINT),
-									v: ticket(frameAddress(ENDPOINT)),
+									v: stamp(),
 									html: counter_html()
 								})
 						],
@@ -248,7 +248,7 @@ describe('a live region put back goes on in its last tick’s mode (#337)', () =
 						'a static tick',
 						() => {
 							const html = '<p data-n="1">one</p>';
-							write({ a, v: ticket(a), html });
+							write({ a, v: stamp(), html });
 							return el.applyLive({ id: 'order-live', module: '', props: {}, html, url: LIVE_URL });
 						},
 						'then'
@@ -256,10 +256,7 @@ describe('a live region put back goes on in its last tick’s mode (#337)', () =
 					['it leaves', () => el.remove(), 'then'],
 					['a moment passes', passes(100), 'then'],
 					['it is put back', () => document.body.append(el), 'then'],
-					[
-						'a write at its address',
-						() => write({ a, v: ticket(a), html: '<p data-n="2">two</p>' })
-					]
+					['a write at its address', () => write({ a, v: stamp(), html: '<p data-n="2">two</p>' })]
 				]);
 			},
 			RUNS

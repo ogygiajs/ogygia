@@ -17,7 +17,7 @@
 import { afterAll, afterEach, beforeAll, describe, it } from 'vitest';
 import { fc, simulate, type Sim } from '@ogygia/config/sim';
 import { observe } from '@ogygia/machine';
-import { _reset, ticket, write } from '../../src/runtime/frame-store.ts';
+import { _reset, stamp, write } from '../../src/runtime/frame-store.ts';
 import { frameAddress } from '../../src/frame.ts';
 import { KEEP_FALLBACK_HTML } from '../../src/keep-fallback-marker.ts';
 import {
@@ -236,7 +236,7 @@ describe('one region element, simulated', () => {
 								target?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
 								target?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 							} else if (s.kind === 'write')
-								write({ a, v: ticket(a), html: s.keep ? KEEP_FALLBACK_HTML : counter_html() });
+								write({ a, v: stamp(), html: s.keep ? KEEP_FALLBACK_HTML : counter_html() });
 							else return new Promise((r) => setTimeout(r, s.kind === 'wait' ? 2000 : 61_000));
 						}
 					])
@@ -311,7 +311,7 @@ describe('one region element, simulated', () => {
 								// (an out-of-band write: a static region shows it, an interactive one does not)
 								const n = ++tick_n;
 								if (last === 'static') newest = n;
-								write({ a, v: ticket(a), html: `<p data-tick="${n}">static ${n}</p>` });
+								write({ a, v: stamp(), html: `<p data-tick="${n}">static ${n}</p>` });
 								return;
 							}
 							if (!el.isConnected) return;
@@ -320,7 +320,7 @@ describe('one region element, simulated', () => {
 								last = 'static';
 								newest = n;
 								const html = `<p data-tick="${n}">static ${n}</p>`;
-								write({ a, v: ticket(a), html });
+								write({ a, v: stamp(), html });
 								return el.applyLive({ id: 'sim-live', module: '', props: {}, html, url: LIVE_URL });
 							}
 							last = 'interactive';
