@@ -16,7 +16,7 @@ test('a module-level Map, Set or empty array is refused, by line and name', () =
 				'let queue: string[] = [];'
 			].join('\n')
 		),
-		['1:seen:Map', '2:ids:Set', '3:queue:array']
+		['1:seen:Map', '2:ids:Set', '3:queue:let']
 	);
 });
 
