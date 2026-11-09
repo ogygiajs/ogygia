@@ -77,6 +77,33 @@ function page_visit(): PageVisit {
 	return visit;
 }
 
+/** What one island's hydrate step put in `<head>` ({@link RuntimeSession.mark_head}). */
+export interface HeadMark {
+	/** The head's elements now that were not its children when the mark was made, in head order. */
+	added(): Element[];
+	/** Stop noting (a step that ended without a record). */
+	stop(): void;
+}
+
+/**
+ * The head's element children that a step added, from its child-list records: a node's first
+ * record says whether it was a child before the step (removed first: it was; added first: it was
+ * not), and it counts only if it is still a child at the end.
+ */
+function added_children(head: Element, records: MutationRecord[]): Element[] {
+	const was_child = new Map<Node, boolean>();
+	for (const r of records) {
+		for (const n of r.removedNodes) if (!was_child.has(n)) was_child.set(n, true);
+		for (const n of r.addedNodes) if (!was_child.has(n)) was_child.set(n, false);
+	}
+	const out: Element[] = [];
+	for (const [n, was] of was_child)
+		if (!was && n.nodeType === 1 && n.parentNode === head) out.push(n as Element);
+	// (head order: what a scan of the head would have found)
+	if (out.length > 1) out.sort((a, b) => (a.compareDocumentPosition(b) & 4 ? -1 : 1));
+	return out;
+}
+
 export class RuntimeSession {
 	/** Page-owned head nodes (see above). Survives `reset()`: it is the document's, not a page's. */
 	readonly page_head: WeakSet<Node> = new WeakSet<Node>();
@@ -94,12 +121,43 @@ export class RuntimeSession {
 		for (const n of document.head.children) this.page_head.add(n);
 	}
 
-	/** After an island's hydrate: the head elements it added (not in `before`, not page-owned) are
-	 *  that island's; then retire the page's copies of them. */
-	record_island_head(before: ReadonlySet<Node>): void {
+	/**
+	 * Before an island's hydrate step: start noting what lands in `<head>`. A MutationObserver on the
+	 * head's own children, read synchronously when the step ends, so the record costs what the island
+	 * added, not the whole head (a copy of the head per island grew as islands × head). Without
+	 * MutationObserver: the head's elements, copied.
+	 */
+	mark_head(): HeadMark {
+		const head = document.head;
+		if (typeof MutationObserver === 'undefined') {
+			const before = new Set<Node>(head.children);
+			return {
+				added: () => Array.from(head.children).filter((n) => !before.has(n)),
+				stop: () => {}
+			};
+		}
+		// (records the browser hands the callback before the step reads them are kept: the step is
+		// synchronous, so none should be, but a lost record would be a node of the island's missed)
+		const delivered: MutationRecord[] = [];
+		// oxlint-disable-next-line ogygia/owned-effects -- the hydrate step's own: the mark it hands back disconnects it (`added`, `stop`)
+		const watch = new MutationObserver((records) => delivered.push(...records));
+		watch.observe(head, { childList: true });
+		return {
+			added: () => {
+				const records = delivered.concat(watch.takeRecords());
+				watch.disconnect();
+				return added_children(head, records);
+			},
+			stop: () => watch.disconnect()
+		};
+	}
+
+	/** After an island's hydrate: the head elements it added (not there before the step, not
+	 *  page-owned) are that island's; then retire the page's copies of them. */
+	record_island_head(mark: HeadMark): void {
 		let added = false;
-		for (const n of document.head.children) {
-			if (!before.has(n) && !this.page_head.has(n)) {
+		for (const n of mark.added()) {
+			if (!this.page_head.has(n)) {
 				this.island_head.add(n);
 				added = true;
 			}
