@@ -684,13 +684,17 @@ function is_hex_id(s: string): boolean {
 	return true;
 }
 
+/** Bytes per asset URL, measured once per process. */
+type UrlWeights = Map<string, number | null>;
+export const url_weights = (): UrlWeights => new Map();
+
 /** GET each URL through the app's own fetch and count its bytes — the JS weight of an island's
  *  closure. Cached per process (immutable hashed assets), a handful at a time, capped in time so
  *  a slow static host can never hold a report hostage. */
-async function weigh_urls(
+export async function weigh_urls(
 	urls: Iterable<string>,
 	fetch_url: (url: string) => Promise<Response>,
-	cache: Map<string, number | null>,
+	cache: UrlWeights,
 	budget_ms = 4000
 ): Promise<Record<string, number>> {
 	const todo = [...new Set(urls)].filter((u) => u && !cache.has(u));
@@ -1187,7 +1191,7 @@ class Profiler {
 	/** why the background loops are off on this host (serverless), when they are */
 	#background_note: string | null = null;
 	/** bytes per asset URL, measured once per process */
-	readonly #weights = new Map<string, number | null>();
+	readonly #weights = url_weights();
 	/** every page asset weighed so far (hashed assets never change): page-assets.ts */
 	readonly #asset_weights = new Map<string, Weight | null>();
 	readonly #background_net: NetCall[] = [];
