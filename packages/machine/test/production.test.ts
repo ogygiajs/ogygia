@@ -4,7 +4,20 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('esm-env', () => ({ DEV: false, BROWSER: true, NODE: false }));
 
-const { machine } = await import('../src/index.ts');
+const { cache, machine } = await import('../src/index.ts');
+
+describe('production: a cache with no bound', () => {
+	afterEach(() => vi.restoreAllMocks());
+
+	it('is refused, not thrown: it keeps nothing, and the code is printed', () => {
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const c = cache<string, number>({ max: Infinity });
+		expect(c.set('a', 1)).toBe(false);
+		expect(c.get('a')).toBeUndefined();
+		expect(error).toHaveBeenCalledOnce();
+		expect(String(error.mock.calls[0]![0])).toContain('machine_bad_option');
+	});
+});
 
 const light = machine<{ red: {}; green: { since: number }; off: {} }>()({
 	name: 'light',

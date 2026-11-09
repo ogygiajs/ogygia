@@ -22,8 +22,16 @@ describe('cache: bounded', () => {
 		expect(() => cache({ max: 0 })).toThrow(MachineError);
 		expect(() => cache({ max: -1 })).toThrow(MachineError);
 		expect(() => cache({ max: Number.NaN })).toThrow(MachineError);
-		// unbounded is a choice written out
-		expect(() => cache({ max: Infinity })).not.toThrow();
+		// a bound is a number: Infinity is no bound
+		expect(() => cache({ max: Infinity })).toThrow(MachineError);
+	});
+
+	it('flights keeps at most 1000 answers by default, the least recently used out first', async () => {
+		const pages = flights({ run: async (k: number) => k });
+		for (let k = 0; k <= 1000; k++) await pages.get(k);
+		expect(pages.peek(0)).toBeUndefined();
+		expect(pages.peek(1)).toMatchObject({ kind: 'kept', answer: 1 });
+		expect(pages.peek(1000)).toMatchObject({ kind: 'kept', answer: 1000 });
 	});
 
 	it('past max, the least recently used goes first, and a get is a use', () => {
