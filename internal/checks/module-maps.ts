@@ -5,8 +5,8 @@
 //
 //   - a `cache()` (@ogygia/machine): bounded, owned, and it says what it lets go. Its bound is a
 //     number: a literal `max: Infinity` is refused anywhere in the module;
-//   - a `registry()` (@ogygia/machine/internal/registry): live entries, each owned by a scope and
-//     gone with it, never evicted (watchers, modules);
+//   - a `registry()` or `registry.keyed()` (@ogygia/machine): live entries, each owned by a scope
+//     and gone with it, never evicted (watchers, modules, definitions);
 //   - a fixed table, filled by its initializer and never grown, marked `// static: <why>` (on its
 //     line or the line before). The check proves the "never grown": a `.set` / `.add` / `.push` /
 //     `.unshift` / `.splice` on it, or a write to an index of it, anywhere in the module, is an error.
