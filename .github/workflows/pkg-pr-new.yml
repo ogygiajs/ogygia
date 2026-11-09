@@ -19,6 +19,11 @@ env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
 
+# A new push to a PR cancels that PR's older runs (branch pushes and manual runs never are)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   publish:
     # a version PR (changeset-release/*) publishes for real once merged: no preview to try first
