@@ -192,3 +192,35 @@ export function claimRuntimeEmit(): boolean {
 		return false;
 	}
 }
+
+const early_holes = new WeakMap<object, Set<string>>();
+
+/**
+ * Note a top-level `defer: 'load'` hole's endpoint for this request: the head starts its request
+ * during the parse (early-holes.ts), written once by the handle or `document()`, which take the
+ * list. Identical holes share one endpoint, and one request. Client / no-request: nothing to note.
+ */
+export function note_early_hole(endpoint: string): void {
+	try {
+		const event = getRequestEvent() as object;
+		let seen = early_holes.get(event);
+		if (!seen) early_holes.set(event, (seen = new Set()));
+		seen.add(endpoint);
+	} catch {
+		// ok: no request (the client, a build step): no head to start it from
+	}
+}
+
+/** This request's noted `load` hole endpoints, taken once (the head that writes them). */
+export function take_early_holes(): string[] {
+	let event: object;
+	try {
+		event = getRequestEvent() as object;
+	} catch {
+		return []; // ok: no request, so no hole of it was noted
+	}
+	const seen = early_holes.get(event);
+	if (!seen) return [];
+	early_holes.delete(event);
+	return [...seen];
+}

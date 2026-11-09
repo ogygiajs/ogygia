@@ -2478,37 +2478,6 @@ describe('analyze_page', () => {
 			'modulepreload'
 		);
 		expect(codes(analyze_page(page(), [], [], 2000))).not.toContain('preload-unused');
-		// ogygia's own hole preload, refetched by Safari: the two match — the browser's choice, not the markup
-		// (known by the runtime's ask, `hole`, not the path: `handle({ endpoint })` moves it)
-		const hole = (browser?: string) =>
-			analyze_page(
-				page({
-					...(browser ? { browser } : {}),
-					visit: {
-						preload_misses: [
-							{
-								...miss(
-									'https://a.test/_server/api/__ogygia__?id=97f7&props=W3&sig=9d',
-									'fetch',
-									'anonymous',
-									574
-								),
-								hole: true as const
-							}
-						]
-					}
-				}),
-				[],
-				[],
-				2000
-			).findings.find((x) => x.code === 'preload-unused')!;
-		const s = hole('Safari 26');
-		expect(s.fix).toContain(
-			'Ogygia\'s own hole preload and its runtime\'s fetch match (crossorigin="anonymous", credentials same-origin); Safari 26 never hands a fetch preload to a later fetch()'
-		);
-		expect(s.fix).toContain("Nothing in the page's markup to change");
-		expect(s.fix).not.toContain('must match exactly');
-		expect(hole().fix).not.toContain('Safari');
 		// the app's own fetch preload in Safari: never reused whatever its attributes — no crossorigin
 		// advice (which cannot help), the inline-script way instead; in Chromium the attribute advice stands
 		const app = (browser?: string) =>

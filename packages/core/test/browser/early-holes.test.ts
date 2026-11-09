@@ -4,7 +4,7 @@
 // it, a batch leaves it out, and one nobody joins goes with the page's visit.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { scope } from '@ogygia/machine';
-import { EARLY_HOLES_ID, EARLY_HOLES_SCRIPT } from '../../src/early-holes.ts';
+import { early_holes_head } from '../../src/early-holes-head.ts';
 import { adopt_early_holes } from '../../src/runtime/early-holes.ts';
 import { join_batch } from '../../src/runtime/frame-nav.ts';
 import { _reset, ensure } from '../../src/runtime/frame-store.ts';
@@ -13,18 +13,22 @@ import { done_parcel } from '../../src/server/stream-regions.ts';
 
 const ep = (sig: string) => `./__ogygia__?id=bbbbbbbbbbbb&props=${sig}&exp=9999999999&sig=${sig}`;
 
-/** What the head does during the parse: the data block, then the constant script. */
+/** What the head does during the parse: the tags the server writes, each run as the parser would
+ *  (a script element inserted with its text runs it; one parsed from markup would not). */
 function start_early(endpoints: string[]) {
-	const data = document.createElement('script');
-	data.type = 'application/json';
-	data.id = EARLY_HOLES_ID;
-	data.textContent = JSON.stringify(endpoints);
-	document.head.append(data);
-	const run = document.createElement('script');
-	run.textContent = EARLY_HOLES_SCRIPT;
-	document.head.append(run);
-	data.remove();
-	run.remove();
+	const parsed = new DOMParser().parseFromString(
+		`<head>${early_holes_head(endpoints)}</head>`,
+		'text/html'
+	);
+	const placed: HTMLScriptElement[] = [];
+	for (const from of parsed.head.querySelectorAll('script')) {
+		const s = document.createElement('script');
+		for (const a of from.attributes) s.setAttribute(a.name, a.value);
+		s.textContent = from.textContent;
+		document.head.append(s);
+		placed.push(s);
+	}
+	for (const s of placed) s.remove();
 }
 
 /** The network: each GET answers its own `sig`, a POST (a batch) answers nothing. */

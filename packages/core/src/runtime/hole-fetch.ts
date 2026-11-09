@@ -26,16 +26,24 @@ export type HoleFetch = {
 	signal?: AbortSignal;
 	/** A renewal answered this fresh capability for the hole. */
 	renewed?: (fresh: string) => void;
+	/** The request the page's head already started for this endpoint (../early-holes.ts), read in
+	 *  place of a new one. Started without a signal: leaving cancels its download here. */
+	early?: Promise<Response>;
 };
 
 export async function fetch_hole(endpoint: string, opts: HoleFetch = {}): Promise<string> {
 	const { revalidate = false, priority = 'auto', signal } = opts;
-	let res = await fetch(endpoint, {
-		credentials: 'same-origin',
-		cache: revalidate ? 'no-store' : 'default',
-		priority,
-		signal
-	} as RequestInit);
+	let res = await (opts.early ??
+		fetch(endpoint, {
+			credentials: 'same-origin',
+			cache: revalidate ? 'no-store' : 'default',
+			priority,
+			signal
+		} as RequestInit));
+	if (opts.early && signal?.aborted) {
+		void res.body?.cancel().catch(() => {}); // ok: a download nobody waits for, dropped
+		throw signal.reason;
+	}
 	// An EXPIRED capability (its document outlived it in a cache): renew once. The handle re-signs an
 	// anonymous hole it minted itself and answers with the hole AND the fresh capability.
 	if (res.status === 403 && capability_expired(endpoint)) {

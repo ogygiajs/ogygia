@@ -120,7 +120,9 @@ import {
 	runtime_first
 } from './server/head-presence.ts';
 import { locate, assemble } from './server/document-assembly.ts';
-import { error_route_is_csr_true, route_is_csr_true } from './context.ts';
+import { error_route_is_csr_true, route_is_csr_true, take_early_holes } from './context.ts';
+import { early_holes_head } from './early-holes-head.ts';
+import { add_early_holes_csp, with_early_holes_meta_csp } from './server/early-holes-csp.ts';
 import { merge_seed_ask, shape_page_data, type SeedKeys } from './server/seed-shape.ts';
 import { html_has_kit_bootstrap } from './runtime/kit-boot.ts';
 import {
@@ -261,6 +263,9 @@ const dt_now = () =>
 type RequestBag = {
 	ctx: Map<string, unknown>;
 	page: PageSnapshot | null;
+	/** The `load` hole endpoints this page's head started early (early-holes.ts): its response's
+	 *  policy then needs the early start's hash. */
+	early_holes?: string[];
 	/** Some region on the page reads `$page` on the client (Region.svelte × `islandReadsPage`), so
 	 *  the `application/ogygia-page` seed must ship. The snapshot itself is recorded regardless. */
 	seed_wanted: boolean;
@@ -945,6 +950,13 @@ class OgygiaHandle {
 					)
 			});
 			if (devtools_personal) mark_personal(response);
+			// the early start's script under the response's policy (server/early-holes-csp.ts)
+			if (bag.early_holes?.length)
+				try {
+					add_early_holes_csp(response.headers);
+				} catch {
+					// ok: immutable headers: the platform's policy is the app's to allow the script in
+				}
 			// with an app transform a router-fetched page is rendered as an answer (`#transform_document`):
 			// a shared cache must keep the two forms apart
 			if (this.#transform && (response.headers.get('content-type') ?? '').includes('text/html'))
@@ -1133,6 +1145,13 @@ class OgygiaHandle {
 		const t_start = performance.now();
 		const spans = locate(html);
 		const head = spans.head_end === -1 ? null : html.slice(0, spans.head_end);
+		// THE EARLY START (early-holes.ts): the requests of this page's `load` holes start during the
+		// parse, from one data block and one constant script in the chunk that carries `</head>`. A
+		// policy that would block the script gets its hash: a <meta> one here, a header after `resolve`.
+		const early = head === null ? [] : take_early_holes();
+		if (early.length && bag) bag.early_holes = early;
+		const early_head = early_holes_head(early);
+		const with_early_csp = (h: string): string => (early.length ? with_early_holes_meta_csp(h) : h);
 
 		// csr=true page — Kit serializes its own remotes and hydrates the whole tree; skip seeds. A
 		// build-time ROUTE FACT (context.ts, the PAGE-CSR invariant), never a scan of the document;
@@ -1150,7 +1169,7 @@ class OgygiaHandle {
 			if (head !== null) {
 				// Stamp the fact for the runtime (it boots here only for the regions inside lakes, and
 				// reads this meta instead of scanning inline scripts for Kit's bootstrap).
-				head_inject = CSR_META;
+				head_inject = CSR_META + early_head;
 				// The ogygia runtime never mounts the devtools dock here (Kit owns the page). When
 				// devtools is compiled in (`devtools_boot_url` is non-empty only then, dev-only), inject a
 				// standalone dock boot so the launcher is on EVERY dev page — on this csr=true page it
@@ -1181,7 +1200,7 @@ class OgygiaHandle {
 			if (head === null && !tail) return html;
 			// The runtime an island inside a lake emitted goes before the head's JavaScript here too
 			// (see the csr=false path below): its regions keep their server markup from the first connect.
-			const ordered = head === null ? null : runtime_first(head, null);
+			const ordered = head === null ? null : with_early_csp(runtime_first(head, null));
 			return assemble(html, spans, ordered === head ? null : ordered, head_inject, tail);
 		}
 
@@ -1206,7 +1225,7 @@ class OgygiaHandle {
 		let head_out: string | null = null;
 		// (the route fact for the runtime and the router: a csr=false document says so, and the
 		// browser reads one meta instead of probing every inline script for Kit's bootstrap)
-		let head_inject = head !== null ? CSR_FALSE_META : '';
+		let head_inject = head !== null ? CSR_FALSE_META + early_head : '';
 		if (head !== null) {
 			// Dedupe the region-emitted modulepreload hints (each island instance emits its own dep
 			// block, so shared deps repeat) and the stylesheet links (a layout's real-wrapper island is
@@ -1234,7 +1253,7 @@ class OgygiaHandle {
 				router_enabled && runtime_url && !page_declares_runtime_script(probe)
 					? runtime_bootstrap(asset)
 					: null;
-			const ordered = runtime_first(probe, runtime_tag);
+			const ordered = with_early_csp(runtime_first(probe, runtime_tag));
 			if (ordered !== probe) head_out = ordered;
 			// The DEV bridge is NOT gated on the router — it carries `@vite/client`, and Vite's own
 			// full-reload recovery must reach EVERY csr=false page. A dep re-optimization rotates the

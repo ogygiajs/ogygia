@@ -171,7 +171,6 @@ export interface Visit {
 		as: string;
 		crossorigin: string | null;
 		vary?: string;
-		hole?: true;
 	}[];
 	/** the `@font-face` rules behind the fonts it fetched: family, font-display, the fetched files */
 	font_faces?: { family: string; display: string; urls: string[] }[];
@@ -601,8 +600,7 @@ export function parse_visit(page: unknown, raw: unknown): Visit | null {
 			type,
 			bytes,
 			as: str(m.as, 20) ?? '',
-			crossorigin: typeof m.crossorigin === 'string' ? m.crossorigin.slice(0, 20) : null,
-			...(m.hole === true ? { hole: true as const } : {})
+			crossorigin: typeof m.crossorigin === 'string' ? m.crossorigin.slice(0, 20) : null
 		});
 	}
 	if (preload_misses.length) visit.preload_misses = preload_misses;

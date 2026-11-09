@@ -2,7 +2,7 @@
 // hash is a constant, and a policy that would block it gets that hash added, nothing else changed.
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { EARLY_HOLES_SCRIPT } from '../src/early-holes.ts';
+import { early_holes_head } from '../src/early-holes-head.ts';
 import {
 	EARLY_HOLES_SOURCE,
 	with_early_holes_csp,
@@ -10,11 +10,24 @@ import {
 } from '../src/server/early-holes-csp.ts';
 
 const H = EARLY_HOLES_SOURCE;
+const SCRIPT_BODY_G = /<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g;
 
 describe('the early start script under a CSP', () => {
-	it("its source is the sha256 of the script's bytes", () => {
-		const digest = createHash('sha256').update(EARLY_HOLES_SCRIPT, 'utf8').digest('base64');
-		expect(H).toBe(`'sha256-${digest}'`);
+	it('its hash is of the exact text the head emits for it, on any page', () => {
+		for (const endpoints of [['./__ogygia__?id=a&sig=1'], ['/x?id=b', '/x?id=c&props=W10']]) {
+			const tags = [...early_holes_head(endpoints).matchAll(SCRIPT_BODY_G)];
+			expect(tags).toHaveLength(2);
+			const run = tags[1]![0];
+			expect(run.startsWith('<script>')).toBe(true);
+			const digest = createHash('sha256').update(tags[1]![1]!, 'utf8').digest('base64');
+			expect(H).toBe(`'sha256-${digest}'`);
+		}
+	});
+
+	it('its data block is JSON, which no policy needs a hash for', () => {
+		expect(early_holes_head(['/x?id=a'])).toMatch(
+			/^<script type="application\/json" id="ogygia-early-holes">\["\/x\?id=a"\]<\/script>/
+		);
 	});
 
 	it('no policy: nothing to add', () => {
