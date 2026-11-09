@@ -156,8 +156,7 @@ class Box implements Mailbox {
 				};
 				// (no turn to come back to: nobody's wait, its handler ended, or it holds the turn now)
 				if (held === null || held._ended || this._holder === held) resume();
-				else if (this._holder !== null)
-					(this._queue ??= []).push({ start: null, held, resume });
+				else if (this._holder !== null) (this._queue ??= []).push({ start: null, held, resume });
 				else {
 					this._holder = held;
 					resume();
