@@ -130,6 +130,7 @@ export class RuntimeSession {
 		// (records the browser hands the callback before the step reads them are kept: the step is
 		// synchronous, so none should be, but a lost record would be a node of the island's missed)
 		const delivered: MutationRecord[] = [];
+		// oxlint-disable-next-line ogygia/owned-effects -- the hydrate step's own: the mark it hands back disconnects it (`added`, `stop`)
 		const watch = new MutationObserver((records) => delivered.push(...records));
 		watch.observe(head, { childList: true });
 		return {

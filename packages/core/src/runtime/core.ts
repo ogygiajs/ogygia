@@ -225,6 +225,7 @@ function document_needs_devalue(): boolean {
 	if (doc_needs_devalue === null) {
 		if (!devalue_swap_armed) {
 			devalue_swap_armed = true;
+			// oxlint-disable-next-line ogygia/owned-effects -- the devalue-lane answer's reset on each page swap, installed once (`devalue_swap_armed`): it lives as long as the document
 			document.addEventListener('og:after-swap', devalue_lane_stale);
 		}
 		doc_needs_devalue = needs_devalue(document);
