@@ -386,7 +386,8 @@ describe('content preset dispatch (v3 config surface)', () => {
 			islandBridge.contentPresets = saved.contentPresets;
 			islandBridge.scan = saved.scan;
 		}
-	});
+		// (two full preprocess pipelines, cold: 2.5 to 3.7 s on CI, past 5 s on a loaded runner)
+	}, 30_000);
 
 	it('unknown preset on a variant errors listing the configured names', async () => {
 		const { bridge: islandBridge } = await import('../src/bridge.ts');
