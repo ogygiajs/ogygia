@@ -19,7 +19,19 @@
  * imports nothing of the boot (only `@ogygia/machine`, which the boot runs on); the boot hands it
  * its message (`on_reload_needed`).
  */
-import { flights, machine, STALE } from '@ogygia/machine';
+import { flights, machine, scope, STALE } from '@ogygia/machine';
+
+/** One task from now: the engine's own queued work (a resource-timing entry) runs first. Its own
+ *  scope: it ends itself, and no page's visit owns a file's load. */
+function next_task(): Promise<void> {
+	const wait = scope();
+	return new Promise<void>((resolve) =>
+		wait.timeout(() => {
+			wait.close();
+			resolve();
+		}, 0)
+	);
+}
 
 /** The URL in a failed dynamic import's message: Chromium "Failed to fetch dynamically imported
  *  module: <url>", Firefox "error loading dynamically imported module: <url>". */
@@ -190,9 +202,13 @@ const file_loads = flights({
 				(again = import_again(() => import(/* @vite-ignore */ url), undefined, url))
 			);
 		const load = again;
-		return load().catch((error: unknown) => {
+		return load().catch(async (error: unknown) => {
 			const failed = failed_import_url(error, url);
-			if (failed !== null && response_of(failed) === null) return load();
+			if (failed === null) throw error;
+			// (an engine can reject the import before the response's timing entry is in the timeline:
+			// Firefox on a loaded machine. One task later it is there, when the server answered.)
+			if (response_of(failed) === null) await next_task();
+			if (response_of(failed) === null) return load();
 			throw error;
 		});
 	}

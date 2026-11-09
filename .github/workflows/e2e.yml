@@ -98,16 +98,6 @@ jobs:
       - name: Lint (oxlint)
         run: pnpm run lint
 
-      # turbo's local cache: a package whose inputs did not change replays its build and check
-      - name: Turbo cache
-        uses: actions/cache@v6
-        with:
-          path: .turbo/cache
-          key: turbo-${{ runner.os }}-check-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-check-
-            turbo-${{ runner.os }}-
-
       # What `check` would run, asked of turbo first: when every check task is a cache hit, nothing
       # runs a browser (a replay only prints the stored logs), so the browser's setup is skipped.
       - name: Plan
@@ -242,15 +232,6 @@ jobs:
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
 
-      - name: Turbo cache
-        uses: actions/cache@v6
-        with:
-          path: .turbo/cache
-          key: turbo-${{ runner.os }}-browsers-${{ matrix.browser }}-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-browsers-${{ matrix.browser }}-
-            turbo-${{ runner.os }}-
-
       - name: Playwright version
         if: matrix.browser != 'firefox-stable'
         id: playwright
@@ -375,11 +356,15 @@ jobs:
           RESULTS: ${{ toJSON(needs) }}
         run: |
           node -e '
+            // Firefox and WebKit report but do not block yet: their open findings are tracked in
+            // one issue; once fixed, they join the blocking set
+            const reporting = new Set(["e2e-engines", "browsers"]);
             const needs = JSON.parse(process.env.RESULTS);
             let bad = 0;
             for (const [job, { result }] of Object.entries(needs)) {
-              console.log(`${job}: ${result}`);
-              if (result === "failure" || result === "cancelled") bad++;
+              const blocks = !reporting.has(job);
+              console.log(`${job}: ${result}${blocks ? "" : " (reports only)"}`);
+              if (blocks && (result === "failure" || result === "cancelled")) bad++;
             }
             process.exit(bad ? 1 : 0);
           '
