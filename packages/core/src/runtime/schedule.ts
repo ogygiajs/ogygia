@@ -64,6 +64,8 @@ const loading = new Set<Element>();
 /** The loading regions the snapshot says intersect the viewport (what a hold waits for). */
 const loading_vis = new Set<Element>();
 let wait_timer: ReturnType<typeof setTimeout> | null = null;
+/** When the timer fires (`now()` time), while one is set. */
+let wait_at = 0;
 
 /** Keep `loading_vis` in step after `el`'s loading state or snapshot changed. */
 function sync_loading(el: Element): void {
@@ -348,9 +350,15 @@ function schedule_drain(): void {
 	yield_task().then(drain);
 }
 
-/** Re-drain after `ms` (one timer at a time — the earliest wait wins, later ones ride it). */
+/** Re-drain after `ms`. One timer at a time, and it is the EARLIEST: a sooner wait replaces a later
+ *  one (a short snapshot wait set during a long hold), a later one rides the sooner. */
 function drain_after(ms: number): void {
-	if (wait_timer) return;
+	const at = now() + Math.max(1, ms);
+	if (wait_timer) {
+		if (wait_at <= at) return;
+		clearTimeout(wait_timer);
+	}
+	wait_at = at;
 	wait_timer = setTimeout(
 		() => {
 			wait_timer = null;

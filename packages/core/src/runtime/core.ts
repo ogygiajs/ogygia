@@ -49,10 +49,12 @@ import {
 	create_answer,
 	create_hole,
 	create_live,
+	create_paint,
 	create_wake,
 	type Answer,
 	type Hole,
 	type Live,
+	type Paint,
 	type Wake
 } from './region-machines.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
@@ -546,6 +548,9 @@ class OgygiaRegion extends HTMLElement {
 	#live_ready = false;
 	/** Its mode, tick by tick: static (subscribed to the store), hydrating, live (./region-machines.ts). */
 	#live: Live = create_live();
+	/** The frame that paints next: each frame waits for its sheets in a visit of its own, and only
+	 *  the newest paints (./region-machines.ts). */
+	#paint: Paint = create_paint();
 	/** The props of the latest same-module tick that came while its island hydrated: pushed once live. */
 	#live_props: Record<string, unknown> | null = null;
 	/** A static live region's subscription to its address, while it is static. */
@@ -939,14 +944,15 @@ class OgygiaRegion extends HTMLElement {
 	/**
 	 * The capture outlives the schedule it was armed with: it stays while the island wakes (a click
 	 * meanwhile is queued, and replayed once the island is live), so leaving `armed` for `waking` hands
-	 * its disarm on to `waking`, and leaving that (awake, failed, or the region gone) disarms it.
+	 * its disarm on to `waking`, and leaving that (awake, failed, or the region gone) disarms it. Gone
+	 * (out of the document), its visit is over: the clicks it queued go with it.
 	 */
-	#hold_capture(disarm: void | (() => void)): void {
+	#hold_capture(disarm: void | ((over?: boolean) => void)): void {
 		if (typeof disarm !== 'function') return;
 		const wake = this.#wake;
 		const hold = () => {
 			if (wake.now.kind === 'waking') wake.onLeave(hold);
-			else disarm();
+			else disarm(!this.isConnected);
 		};
 		wake.onLeave(hold);
 	}
@@ -1038,6 +1044,19 @@ class OgygiaRegion extends HTMLElement {
 		if (hole === 'armed' || hole === 'retrying' || hole === 'failed') this.#hole.go('idle');
 	}
 
+	/** A frame landed: it starts its paint visit (a frame still waiting for its sheets is older, and
+	 *  its visit is over). Returns the visit, to check after the wait. */
+	#paint_next(): Paint['now'] {
+		this.#paint.go('painting');
+		return this.#paint.now;
+	}
+
+	/** The frame of visit `painting` paints now: nothing is waiting any more, unless a newer frame
+	 *  already started (a listener of this paint wrote one). */
+	#painted(painting: Paint['now']): void {
+		if (this.#paint.now === painting) this.#paint.go('idle');
+	}
+
 	/**
 	 * THE single apply path. A frame's HTML lands here from any source (own fetch, stream parcel,
 	 * navigation batch, mutation). First arrival hydrates the hole; a later arrival at a newer
@@ -1047,9 +1066,12 @@ class OgygiaRegion extends HTMLElement {
 	 */
 	async #apply(html: string) {
 		if (!this.isConnected) return;
+		// The newest frame: one still waiting for its sheets is older, and never paints over this one.
+		const painting = this.#paint_next();
 		// The hole answered "the fallback is right" (`keepFallback()` on the server — a 204, or the
 		// marker parcel in a batch): keep what the page rendered, mark the region done, wake nothing.
 		if (html === KEEP_FALLBACK_HTML) {
+			this.#painted(painting);
 			this.#answered('kept');
 			if (!is_awake(this)) this.setAttribute('data-hydrated', '');
 			this.setAttribute('data-og-kept', '');
@@ -1063,7 +1085,9 @@ class OgygiaRegion extends HTMLElement {
 		const revalidate = is_frozen(this) || this.#answer.now.kind === 'answered';
 		const { frag, ready } = region_fragment(html);
 		await ready; // let the server-picked component's stylesheet load before painting (no FOUC)
-		if (!this.isConnected) return;
+		// (a newer frame came meanwhile: it paints, this one never does)
+		if (!this.isConnected || this.#paint.now !== painting) return;
+		this.#painted(painting);
 		slots.lakes.settle_in(frag);
 		slots.lakes.mark_frozen_settled(this);
 		// A hole's answer swaps over its fallback — which may already be LIVE, on ANY schedule, not just
@@ -1141,15 +1165,17 @@ class OgygiaRegion extends HTMLElement {
 			this.dispatchEvent(new CustomEvent('ogygia:live', { bubbles: true }));
 			return;
 		}
-		const mine = this.#live.now;
+		const painting = this.#paint_next();
 		const { frag, ready } = region_fragment(html);
 		// Wait for the component's stylesheet before painting. On first paint the region's placeholder
 		// CHILDREN stay visible meanwhile; on a later morph the OLD content stays — either way no flash
 		// of unstyled or missing content. An already-loaded sheet resolves instantly, so live ticks
 		// (query.live breathing) stay fast.
 		await ready;
-		// (an interactive tick took over meanwhile: its island is not morphed over)
-		if (!this.isConnected || this.#live.now !== mine) return;
+		// (a newer tick came meanwhile, static or interactive: it paints, this one never does, and an
+		// island an interactive tick brought is not morphed over)
+		if (!this.isConnected || this.#paint.now !== painting) return;
+		this.#painted(painting);
 		slots.lakes.settle_in(frag);
 		if (!this.#live_ready) {
 			this.replaceChildren(frag);
@@ -1503,6 +1529,9 @@ class OgygiaRegion extends HTMLElement {
 				});
 			this.dispatchEvent(new CustomEvent('ogygia:hydrated', { bubbles: true }));
 		} catch (err) {
+			// A run whose visit is over fails quietly: the region left while it loaded, and what stands
+			// now (the region put back) is a new visit, which loads, fails or wakes on its own.
+			if (this.#wake.now !== mine) return;
 			failure = { error: err };
 			// (a failed island stops being watched; its copy, if kept, counts as changed from here)
 			if (this.#watching) mark_region_changed(this);
@@ -1537,11 +1566,12 @@ class OgygiaRegion extends HTMLElement {
 				console.error(new OgygiaError('island_hydrate_failed', { entry }), err);
 			}
 		} finally {
-			hydrate_settled(this);
 			// live (or failed, or not ours): leaving `waking` disarms the capture — its clicks are its own
 			// from here (a click it already queued is still replayed by the wake that queued it). Not
-			// when the visit is over already: the region left the page, and its teardown moved it.
+			// when the visit is over already: the region left the page, and its teardown moved it and
+			// took it out of the scheduler (the scheduler's mark, if any, is the new visit's).
 			if (this.#wake.now === mine) {
+				hydrate_settled(this);
 				if (failure) this.#wake.go('failed', failure);
 				else this.#wake.go(this.#app ? 'awake' : 'cold');
 			}
@@ -1625,6 +1655,7 @@ class OgygiaRegion extends HTMLElement {
 		// tick's hydrate before it mounts.)
 		this.#live.go('hydrating', { module: desc.module });
 		const mine = this.#live.now;
+		const painting = this.#paint_next();
 		this.#live_props = null;
 		this.#live_ready = true;
 		// createContextualFragment — signed same-origin HTML trust boundary (HOLE-TRUST). The HTML is
@@ -1632,6 +1663,7 @@ class OgygiaRegion extends HTMLElement {
 		const { frag, ready } = region_fragment(desc.html);
 		await ready; // stylesheet before paint — an interactive held region has CSS too (no FOUC)
 		if (!this.isConnected || this.#live.now !== mine) return;
+		this.#painted(painting);
 		slots.lakes.settle_in(frag);
 		this.replaceChildren(frag);
 		restore_adopt_sheets();

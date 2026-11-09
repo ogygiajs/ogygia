@@ -27,20 +27,25 @@ export type FrameFetcher = (signal: AbortSignal) => Promise<string>;
  *  a parallel subscriber set. Fetch orchestration (ticket, inflight, reserve, evict) stays here. */
 const frame_id = (a: string): string => 'frame:' + a;
 
-type Inflight = {
-	ticket: number;
+/** What callers wait on at an address: a fetch, or a batch's reservation. */
+type Shared = {
 	promise: Promise<string>;
-	controller: AbortController;
 	/** The stakes `ensure()` handed out in it, one per caller: the last one abandoned aborts a fetch
 	 *  (counted per caller, not per address: a twin leaving gives up only its own). */
 	stakes: Set<Promise<string>>;
-	/**
-	 * Set ONLY for a reservation (an address whose content is arriving via an external batch stream,
-	 * not a fetch this store started). `write()` calls `settle` when the frame lands; `release()` calls
-	 * `fail` when the batch ends without one. Absent for a real fetch inflight.
-	 */
-	settle?: (html: string) => void;
-	fail?: (err: unknown) => void;
+};
+
+/** A fetch this store started. */
+type Inflight = Shared & { ticket: number; controller: AbortController };
+
+/**
+ * An address whose content is arriving via an external batch stream, not a fetch this store
+ * started. It is the batch's: ANY frame written at the address (the batch's part, or a forced fetch
+ * that landed first) settles it, and `release()` fails it when the batch ends with no frame there.
+ */
+type Reservation = Shared & {
+	settle: (html: string) => void;
+	fail: (err: unknown) => void;
 };
 
 type Entry = {
@@ -49,7 +54,11 @@ type Entry = {
 	html: string | null;
 	/** Monotonic ticket source — every fetch START takes the next ticket. */
 	seq: number;
+	/** The store's own fetch at this address. A forced one (a refresh) replaces the one before. */
 	inflight: Inflight | null;
+	/** A batch's reservation, beside any fetch: a forced fetch never takes its place, so whoever
+	 *  joined it is always settled — by the first frame written here, or by the batch's end. */
+	reserved: Reservation | null;
 	evict: ReturnType<typeof setTimeout> | null;
 	/** The fresh capability a renewal at this address answered (an expired one is re-signed once):
 	 *  the address's, so every element bound here moves onto it, not only the one that fetched. */
@@ -74,7 +83,7 @@ const entries: Map<string, Entry> = store_host[GLOBAL_KEY] ?? (store_host[GLOBAL
 function entry(a: string): Entry {
 	let e = entries.get(a);
 	if (!e) {
-		e = { v: 0, html: null, seq: 0, inflight: null, evict: null, renewed: null };
+		e = { v: 0, html: null, seq: 0, inflight: null, reserved: null, evict: null, renewed: null };
 		entries.set(a, e);
 	}
 	return e;
@@ -90,11 +99,12 @@ function entry(a: string): Entry {
  * to trigger eviction.
  */
 function schedule_evict(a: string, e: Entry): void {
-	if (watcher_count(frame_id(a)) > 0 || e.inflight) return; // still live — keep it
+	if (watcher_count(frame_id(a)) > 0 || e.inflight || e.reserved) return; // still live — keep it
 	if (e.evict) clearTimeout(e.evict);
 	e.evict = setTimeout(() => {
 		const cur = entries.get(a);
-		if (cur === e && watcher_count(frame_id(a)) === 0 && !cur.inflight) entries.delete(a);
+		if (cur === e && watcher_count(frame_id(a)) === 0 && !cur.inflight && !cur.reserved)
+			entries.delete(a);
 	}, EVICT_TTL);
 }
 
@@ -117,7 +127,7 @@ export function renewal(a: string): string | null {
 /** Nothing applied and nothing in flight at this address (a batch may take it on). */
 export function is_idle(a: string): boolean {
 	const e = entries.get(a);
-	return !e || (e.html == null && !e.inflight);
+	return !e || (e.html == null && !e.inflight && !e.reserved);
 }
 
 /** Next request ticket for an address. External channels (streaming, mutations) use this too. */
@@ -135,11 +145,12 @@ export function write(f: Frame): boolean {
 	if (f.v > e.seq) e.seq = f.v; // foreign ticket (streamed/mutation frame) — keep seq monotonic
 	e.v = f.v;
 	e.html = f.html;
-	// Fulfil a batch reservation: a binder that joined via ensure() unblocks, and no per-region fetch
-	// ever starts. The subscription (set in the binder) is what actually paints — settle just unblocks.
-	const held = e.inflight;
-	if (held?.settle) {
-		e.inflight = null;
+	// Fulfil a batch reservation, whoever wrote the frame (the batch, or a forced fetch that landed
+	// first): a binder that joined via ensure() unblocks, and no per-region fetch ever starts. The
+	// subscription (set in the binder) is what actually paints — settle just unblocks.
+	const held = e.reserved;
+	if (held) {
+		e.reserved = null;
 		held.settle(f.html);
 	}
 	notify(frame_id(f.a), f); // region binders subscribe through the hub (watch), not a local set
@@ -157,7 +168,7 @@ export function write(f: Frame): boolean {
  */
 export function reserve(a: string): void {
 	const e = entry(a);
-	if (e.html != null || e.inflight) return;
+	if (e.html != null || e.inflight || e.reserved) return;
 	if (e.evict) {
 		clearTimeout(e.evict);
 		e.evict = null;
@@ -169,25 +180,19 @@ export function reserve(a: string): void {
 		fail = rej;
 	});
 	promise.catch(() => {}); // an unclaimed reservation must never surface as an unhandled rejection
-	e.inflight = {
-		ticket: ticket(a),
-		promise,
-		controller: new AbortController(),
-		stakes: new Set(),
-		settle,
-		fail
-	};
+	e.reserved = { promise, stakes: new Set(), settle, fail };
 }
 
 /**
- * Fail an unfulfilled reservation (the batch ended and no frame carried this address). Joined binders
- * reject out of `ensure()` and retry with their own fetch. No-op once content has arrived.
+ * Fail an unfulfilled reservation (the batch ended and no frame was written at this address, by it
+ * or by anyone). Joined binders reject out of `ensure()` and retry with their own fetch. No-op once
+ * a frame has landed (it settled the reservation).
  */
 export function release(a: string): void {
 	const e = entries.get(a);
-	const held = e?.inflight;
-	if (!e || !held?.fail || e.html != null) return;
-	e.inflight = null;
+	const held = e?.reserved;
+	if (!e || !held) return;
+	e.reserved = null;
 	const miss = new Error('ogygia batch: no frame for ' + a);
 	miss.name = BATCH_MISS;
 	held.fail(miss);
@@ -224,11 +229,11 @@ export function subscribe(a: string, cb: (f: Frame) => void): () => void {
  *  go at once when it abandons. */
 const stakes = new WeakMap<
 	Promise<string>,
-	{ a: string; flight: Inflight; drop: (err: unknown) => void }
+	{ a: string; flight: Inflight | Reservation; drop: (err: unknown) => void }
 >();
 
 /** A caller's own stake in `flight`: settles with it, unless the caller abandons it first. */
-function stake_in(a: string, flight: Inflight): Promise<string> {
+function stake_in(a: string, flight: Inflight | Reservation): Promise<string> {
 	let drop!: (err: unknown) => void;
 	const mine = new Promise<string>((resolve, reject) => {
 		drop = reject;
@@ -260,6 +265,9 @@ export function ensure(
 	const e = entry(a);
 	if (!opts.force) {
 		if (e.html != null) return Promise.resolve(e.html);
+		// a batch's reservation first: any frame written here settles it, and its batch's end lets
+		// its joiners go to a fetch of their own (or to a forced fetch still out by then)
+		if (e.reserved) return stake_in(a, e.reserved);
 		if (e.inflight) return stake_in(a, e.inflight);
 	}
 	const controller = new AbortController();
@@ -299,7 +307,7 @@ export function abandon(held: Promise<string>): void {
 	const { a, flight } = s;
 	flight.stakes.delete(held);
 	s.drop(new DOMException('the caller left', 'AbortError'));
-	if (flight.stakes.size > 0 || flight.settle) return;
+	if (flight.stakes.size > 0 || !('controller' in flight)) return;
 	const e = entries.get(a);
 	if (e?.inflight === flight) e.inflight = null;
 	flight.controller.abort();
@@ -309,7 +317,7 @@ export function abandon(held: Promise<string>): void {
 export function _reset(): void {
 	for (const e of entries.values()) {
 		if (e.evict) clearTimeout(e.evict);
-		e.inflight?.fail?.(new Error('reset')); // reject any joined reservation waiters (no hung promises)
+		e.reserved?.fail(new Error('reset')); // reject any joined reservation waiters (no hung promises)
 		e.inflight?.controller.abort();
 	}
 	entries.clear();

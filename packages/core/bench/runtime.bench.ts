@@ -22,6 +22,7 @@ import {
 	create_answer,
 	create_hole,
 	create_live,
+	create_paint,
 	create_wake
 } from '../src/runtime/region-machines.ts';
 import * as frames from '../src/runtime/frame-store.ts';
@@ -261,7 +262,17 @@ bench(
 			live.go('hydrating', { module: 'b' });
 			live.go('idle');
 		}
-		return left;
+		// frames that wait for their sheets: a newer one takes over the older one's visit
+		let painted = 0;
+		for (let i = 0; i < n / 4; i++) {
+			const paint = create_paint();
+			paint.go('painting');
+			const older = paint.now;
+			paint.go('painting');
+			if (paint.now !== older) painted++;
+			paint.go('idle');
+		}
+		return left + painted;
 	},
 	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
 );
@@ -284,6 +295,19 @@ bench(
 				settled.push(
 					leaving.catch(() => ''),
 					twin
+				);
+				continue;
+			}
+			if (i % 4 === 2) {
+				// a batch reserved it, a copy joined, and a refresh (forced) came: the batch ends without
+				// its part every other time, and the copy goes to a fetch of its own
+				frames.reserve(a);
+				const joined = frames.ensure(a, fetcher);
+				const refresh = frames.ensure(a, fetcher, { force: true });
+				if (i % 8 === 2) frames.release(a);
+				settled.push(
+					joined.catch(() => frames.ensure(a, fetcher)),
+					refresh
 				);
 				continue;
 			}

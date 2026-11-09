@@ -122,15 +122,30 @@ export type QueuedClick = {
 	init: MouseEventInit;
 };
 
-/** One armed region's state — what its own capture listeners used to close over. */
+/**
+ * One arming of a region — what its own capture listeners used to close over. Each arming is its
+ * own: a region put back after it left arms a new one, and only the arming that holds the region's
+ * entry may delete it. `state`: `armed` (waiting for a visitor), `woken` (its wake is out, its clicks
+ * queue), `over` (disarmed while woken because the region left: its wake's end replays nothing).
+ */
 type Armed = {
 	region: Element;
 	warm: () => void;
 	fire: () => Promise<void> | void;
-	woken: boolean;
+	state: 'armed' | 'woken' | 'over';
 	warmed: boolean;
 	queued: QueuedClick[];
 };
+
+/**
+ * Ends an arming: its entry goes, if it is still the region's (a newer arming's stays). `over`: the
+ * region left the page while it was woken — the visit that queued its clicks is over, and they go
+ * with it (the region that comes back is server markup of a new visit, with a capture of its own).
+ */
+function disarm(a: Armed, over: boolean): void {
+	if (armed.get(a.region) === a) armed.delete(a.region);
+	if (over && a.state === 'woken') a.state = 'over';
+}
 
 const armed = new Map<Element, Armed>();
 let installed = false;
@@ -228,8 +243,8 @@ function wake(a: Armed, e: Event): void {
 			});
 		}
 	}
-	if (a.woken) return;
-	a.woken = true;
+	if (a.state !== 'armed') return;
+	a.state = 'woken';
 	// what woke it, for `hydratedBy()` (hydration-info.ts): a visitor did — its first click is a replay,
 	// whatever schedule the island had
 	region.setAttribute('data-og-woke', 'interaction');
@@ -240,17 +255,18 @@ function wake(a: Armed, e: Event): void {
 	const active_addr =
 		active instanceof Element && region.contains(active) ? element_address(region, active) : null;
 
-	const disarm = () => armed.delete(region);
 	Promise.all([replay(), Promise.resolve(a.fire())]).then(
 		([r]) => {
-			disarm();
+			if (a.state === 'over') return;
+			disarm(a, false);
 			r.after_wake(region, fields, active_addr, queued);
 		},
 		(err) => {
+			if (a.state === 'over') return;
 			// Hydration FAILED (chunk 404, network drop). Disarm so the region stops canceling
 			// clicks — native behavior (links, form posts, checkboxes) must keep working on the
 			// dead-but-real HTML. Replay the swallowed clicks so the failed one still acts.
-			disarm();
+			disarm(a, false);
 			// (the replay half itself may be what failed: asked for again; if it fails again the
 			// clicks are lost, and said so, never left as an unhandled rejection)
 			replay().then(
@@ -268,18 +284,19 @@ function wake(a: Armed, e: Event): void {
  * @param region the `<ogygia-region>` element
  * @param warm   prefetch the island module (no hydrate) — wired to the pointer entering the region
  * @param fire   begin hydration; resolves when the island is live
- * @returns disarm() — forget the region (disconnected before any interaction)
+ * @returns disarm(over?) — end this arming (the island is live or failed, or the region left
+ *          before any interaction); `over`: the region left while it was woken, so its queued clicks
+ *          are dropped instead of replayed
  */
 export function arm_interaction(
 	region: Element,
 	warm: () => void,
 	fire: () => Promise<void> | void
-): () => void {
-	armed.set(region, { region, warm, fire, woken: false, warmed: false, queued: [] });
+): (over?: boolean) => void {
+	const a: Armed = { region, warm, fire, state: 'armed', warmed: false, queued: [] };
+	armed.set(region, a);
 	install_listeners();
 	// (the replay half loads when a pointer reaches an armed island or input lands — not at arm: every
 	// scheduled island arms, and a page nobody touches before its islands wake fetches none of it)
-	return () => {
-		armed.delete(region);
-	};
+	return (over = false) => disarm(a, over);
 }

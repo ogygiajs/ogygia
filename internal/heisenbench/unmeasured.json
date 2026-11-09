@@ -45,6 +45,18 @@
 			"reason": "browser only: the dynamic import of the interaction replay chunk; proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/form-continuity.ts > close_restore",
+			"reason": "browser only: ends the open form restore window (one machine move), constant work; proven in apps/palaestra/e2e/continuity.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/form-continuity.ts > arm_form_restore > onLeave:0~395c45",
+			"reason": "browser only: the restore window closing removes its two document listeners, constant work; proven in apps/palaestra/e2e/continuity.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/interaction.ts > disarm",
+			"reason": "browser only: ends one arming of the interaction capture (an owner-checked map delete and a state field), constant work; proven in packages/core/test/browser/interaction-rearm.test.ts and interaction-delegated.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/interaction.ts > wake > then:1 > then:1",
 			"reason": "browser only: the replay chunk failed to load again after a failed wake: reports it, constant work"
 		},
@@ -79,6 +91,14 @@
 		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #answered",
 			"reason": "browser only: the custom element's answer landing (two machine moves), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #paint_next",
+			"reason": "browser only: a frame starts its visit of the element's paint machine (one move), constant work; the machine runs in packages/core/bench/runtime.bench.ts, the element in packages/core/test/browser/frame-paint-order.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #painted",
+			"reason": "browser only: a frame that paints ends its visit of the element's paint machine (one owner-checked move), constant work; the machine runs in packages/core/bench/runtime.bench.ts, the element in packages/core/test/browser/frame-paint-order.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #arm_phase2",

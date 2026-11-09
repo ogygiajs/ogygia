@@ -9,6 +9,7 @@
  *
  * Only DIFFS are stored (default → nothing), bounded page count, so this stays cheap.
  */
+import { machine } from '@ogygia/machine';
 import { element_address, resolve_address } from './interaction.ts';
 import { slots } from './slots.ts';
 
@@ -34,10 +35,33 @@ type FieldRec = {
 /** pathKey → the fields a visitor changed on that page (in this tab session). */
 const store = new Map<string, FieldRec[]>();
 
+/** How long a page's restore listens for its islands' hydrations (they have all hydrated by
+ *  then, or never will). */
+const RESTORE_WINDOW_MS = 5000;
+
+/**
+ * THE RESTORE WINDOW, one per page visit: `open` while a page's saved fields wait for its islands
+ * to hydrate. It closes on its own after RESTORE_WINDOW_MS, when the page is left (the next
+ * navigation's snapshot), or when another page's restore opens; leaving `open` removes its
+ * listeners, so a page's values never reach the next page's islands.
+ */
+const restore_window = machine<{ idle: {}; open: {} }>()({
+	name: 'form-restore',
+	initial: 'idle',
+	steps: { idle: ['open'], open: ['idle'] },
+	after: { open: { ms: RESTORE_WINDOW_MS, to: 'idle' } }
+}).create();
+
+/** The page being left (or another page's restore opening) ends the open window. */
+function close_restore(): void {
+	if (restore_window.now.kind === 'open') restore_window.go('idle');
+}
+
 const is_checkable = (f: HTMLInputElement) => f.type === 'checkbox' || f.type === 'radio';
 
 /** Snapshot changed island fields in `root` under `pathKey`. Call BEFORE the body is swapped out. */
 export function snapshot_forms(root: ParentNode, pathKey: string): void {
+	close_restore(); // the page is left: its restore is over
 	const regions = Array.from(root.querySelectorAll('ogygia-region'));
 	const recs: FieldRec[] = [];
 	regions.forEach((region, ri) => {
@@ -94,10 +118,11 @@ function apply_region(region: Element, ri: number, recs: FieldRec[]): void {
 
 /**
  * Arm restoration for `pathKey` on the freshly-connected page. Restores already-hydrated islands
- * immediately and hooks `ogygia:hydrated` for those still waking. Auto-detaches after a short
- * window (the page's islands have all hydrated by then, or never will).
+ * immediately and hooks `ogygia:hydrated` for those still waking, for this page's restore window
+ * (see `restore_window`).
  */
 export function arm_form_restore(pathKey: string): void {
+	close_restore(); // (one window at a time: a page before this one's is over)
 	const recs = store.get(pathKey);
 	if (!recs) return;
 	// The page's regions read ONCE per arming (a read per hydrated island made each navigation
@@ -120,10 +145,11 @@ export function arm_form_restore(pathKey: string): void {
 	};
 	// (a hole's answer can put regions anywhere, shifting the indices: read the list again after one)
 	const on_answer = () => (regions = Array.from(document.querySelectorAll('ogygia-region')));
+	restore_window.go('open');
 	document.addEventListener('ogygia:hydrated', on_hydrated, true);
 	document.addEventListener('ogygia:server', on_answer, true);
-	setTimeout(() => {
+	restore_window.onLeave(() => {
 		document.removeEventListener('ogygia:hydrated', on_hydrated, true);
 		document.removeEventListener('ogygia:server', on_answer, true);
-	}, 5000);
+	});
 }
