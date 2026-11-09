@@ -9,6 +9,7 @@
 // This is Ryan's test made concrete: request new server-component data on navigation, flush part of
 // the response, let the rest come in as the server's async settles.
 // ─────────────────────────────────────────────────────────────────────────────
+import { machine, STALE } from '@ogygia/machine';
 import { frameAddress } from '../frame.ts';
 import { is_idle, reserve, release, ticket, write } from './frame-store.ts';
 import { emit as dt_emit } from '../events/bus.ts';
@@ -74,6 +75,32 @@ export function read_parcel(buf: string, from: number): Parcel | null {
 	return { slot, html: buf.slice(start, start + len), end };
 }
 
+/** A batch stream quiet this long is given up, and the holes still waiting on it fetch on their own.
+ *  Long on purpose: the server sends a hole's part only once that hole has rendered, so a few quiet
+ *  seconds are a slow render, not a dead stream. */
+const STALL_MS = 10_000;
+
+/**
+ * A BATCH STREAM'S LIFE, one machine: `sending` (the POST, until its answer starts), `reading` (each
+ * read that brings bytes is a new visit, so the quiet time starts again), `ended`. Quiet for
+ * STALL_MS in either, it steps to `stalled` on its own: the request is aborted and every reservation
+ * it did not fill is released, as at any other end.
+ */
+const batch_stream = machine<{ sending: {}; reading: {}; stalled: {}; ended: {} }>()({
+	name: 'batch-stream',
+	initial: 'sending',
+	steps: {
+		sending: ['reading', 'stalled', 'ended'],
+		reading: ['reading', 'stalled', 'ended'],
+		stalled: [],
+		ended: []
+	},
+	after: {
+		sending: { ms: STALL_MS, to: 'stalled' },
+		reading: { ms: STALL_MS, to: 'stalled' }
+	}
+});
+
 function sigOf(endpoint: string): string | null {
 	const q = endpoint.indexOf('?');
 	return q === -1 ? null : new URLSearchParams(endpoint.slice(q + 1)).get('sig');
@@ -125,19 +152,28 @@ export async function streamFrames(
 	let status = 0;
 	let refused: 'redirected' | 'document' | undefined;
 	let final_url: string | undefined;
+	const stream = batch_stream.create();
+	// (given up: the request and its body stop; the reservations are released below)
+	const controller = new AbortController();
+	void stream.wait('stalled').then((s) => s !== STALE && controller.abort());
 
 	try {
-		let res: Response;
+		let res: Response | typeof STALE;
 		try {
-			res = await fetch(path, {
-				method: 'POST',
-				credentials: 'same-origin',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify(endpoints)
-			});
+			res = await stream.task(() =>
+				fetch(path, {
+					method: 'POST',
+					credentials: 'same-origin',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify(endpoints),
+					signal: controller.signal
+				})
+			);
 		} catch {
 			return; // network error — release() in finally lets bound regions fall back to their own fetch
 		}
+		if (res === STALE) return; // no answer at all for STALL_MS
+		stream.go('reading');
 		status = res.status;
 		if ((DEVTOOLS || BEACON) && res.redirected) {
 			refused = 'redirected';
@@ -150,8 +186,15 @@ export async function streamFrames(
 		let buffer = '';
 		let parcels = false;
 		for (;;) {
-			const { done, value } = await reader.read();
+			const read = await stream.task(() => reader.read());
+			if (read === STALE) {
+				// quiet for STALL_MS: the holes it still owes fetch on their own
+				void reader.cancel().catch(() => {});
+				return;
+			}
+			const { done, value } = read;
 			if (done) break;
+			stream.go('reading'); // bytes: the quiet time starts again
 			buffer += decoder.decode(value, { stream: true });
 			let consumed = 0;
 			for (let p = read_parcel(buffer, 0); p; p = read_parcel(buffer, consumed)) {
@@ -186,8 +229,10 @@ export async function streamFrames(
 			final_url = res.url;
 		}
 	} finally {
-		// Any address the batch never delivered (dropped/forged/errored) has its reservation failed, so a
-		// bound binder retries with its own fetch. release() is a no-op once the frame has landed.
+		stream.stop();
+		// Any address the batch never delivered (dropped/forged/errored/stalled) has its reservation
+		// failed, so a bound binder retries with its own fetch. release() is a no-op once the frame has
+		// landed.
 		for (const a of reserved) release(a);
 		// a batch that did not carry all its holes: the profiler's report says what answered (each
 		// hole then fetched on its own)

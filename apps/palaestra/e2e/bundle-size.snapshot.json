@@ -1,82 +1,82 @@
 {
   "Static content": {
     "boot": {
-      "raw": 92427,
-      "brotli": 27877
+      "raw": 95744,
+      "brotli": 28824
     },
     "total": {
-      "raw": 128532,
-      "brotli": 37953
+      "raw": 131849,
+      "brotli": 39032
     }
   },
   "Interactive": {
     "boot": {
-      "raw": 92427,
-      "brotli": 27877
+      "raw": 95744,
+      "brotli": 28824
     },
     "total": {
-      "raw": 128532,
-      "brotli": 37953
+      "raw": 131849,
+      "brotli": 39032
     }
   },
   "Forms": {
     "boot": {
-      "raw": 94049,
-      "brotli": 28236
+      "raw": 97366,
+      "brotli": 29206
     },
     "total": {
-      "raw": 130154,
-      "brotli": 38332
+      "raw": 133471,
+      "brotli": 39333
     }
   },
   "SPA router": {
     "boot": {
-      "raw": 111348,
-      "brotli": 32760
+      "raw": 114663,
+      "brotli": 33763
     },
     "total": {
-      "raw": 158002,
-      "brotli": 45288
+      "raw": 161317,
+      "brotli": 46326
     }
   },
   "Frozen regions": {
     "boot": {
-      "raw": 99372,
-      "brotli": 29634
+      "raw": 103667,
+      "brotli": 30913
     },
     "total": {
-      "raw": 134487,
-      "brotli": 39434
+      "raw": 138782,
+      "brotli": 40776
     }
   },
   "Live regions": {
     "boot": {
-      "raw": 105791,
-      "brotli": 31645
+      "raw": 109998,
+      "brotli": 32896
     },
     "total": {
-      "raw": 141896,
-      "brotli": 41771
+      "raw": 146103,
+      "brotli": 43112
     }
   },
   "Context": {
     "boot": {
-      "raw": 92427,
-      "brotli": 27877
+      "raw": 95744,
+      "brotli": 28824
     },
     "total": {
-      "raw": 128532,
-      "brotli": 37953
+      "raw": 131849,
+      "brotli": 39032
     }
   },
   "Everything": {
     "boot": {
-      "raw": 121999,
-      "brotli": 35562
+      "raw": 126296,
+      "brotli": 36908
     },
     "total": {
-      "raw": 168653,
-      "brotli": 48127
+      "raw": 172950,
+      "brotli": 49351
     }
   }
 }

@@ -38,7 +38,12 @@ export type LakeOps = {
 	restore(parent: Element, lifted: LiftedLake[]): void;
 	settle_in(root: ParentNode): void;
 	mark_frozen_settled(region: HTMLElement): void;
-	after_html_swap(region: HTMLElement, opts: { revalidate?: boolean }): void;
+	/** After an answer swapped into `region`: a lake that settled wakes the regions waiting on it. */
+	after_html_swap(
+		region: HTMLElement,
+		opts: { revalidate?: boolean },
+		wake_children: () => void
+	): void;
 	after_fetch_exhausted(
 		region: HTMLElement,
 		opts: { revalidate?: boolean },
@@ -104,7 +109,11 @@ export type FrameOps = {
 		fetcher: (signal: AbortSignal) => Promise<string>,
 		opts?: { force?: boolean }
 	): Promise<string>;
-	abandon(a: string): void;
+	/** Give back the stake an `ensure` returned: only that caller leaves the fetch. */
+	abandon(stake: Promise<string>): void;
+	/** A renewal answered a fresh capability for this address; and the one it answered, if any. */
+	renew(a: string, fresh: string): void;
+	renewal(a: string): string | null;
 	/**
 	 * SINGLE-FLIGHT NAVIGATION: batch a page's signed deferred endpoints into the store as one streamed response. Lives
 	 * on the seam (not a static router import) so an app with `router` but no deferred/live/lake region

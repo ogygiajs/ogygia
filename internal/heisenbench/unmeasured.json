@@ -73,6 +73,102 @@
 			"reason": "the request's end: settles its open flight, constant work (needs the real plugin loop); proven in packages/postrender/e2e/postrender.spec.ts S20"
 		},
 		{
+			"id": "packages/core/src/runtime/core.ts > sleep",
+			"reason": "browser only: a hole's retry delay (a timer its visit to `retrying` can call off), constant work; proven in packages/core/test/browser/hole-twins.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #answered",
+			"reason": "browser only: the custom element's answer landing (two machine moves), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #arm_phase2",
+			"reason": "browser only: arms a deferred client island's wake once its answer is in, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hole_armed",
+			"reason": "browser only: puts the hole's fetch machine in `armed`, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #bind",
+			"reason": "browser only: binds the element to its frame-store address (one subscription), constant work; proven in packages/core/test/browser/hole-twins.test.ts and hole-renewal.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #ensure_frame",
+			"reason": "browser only: the element's network side of a fetch (batch join, its stake in the shared fetch, given back when it leaves); proven in packages/core/test/browser/hole-twins.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fetch_failed",
+			"reason": "browser only: a failed hole fetch's report and retry wait, constant work; proven in packages/core/test/browser/hole-twins.test.ts and hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fetch_html > task:0",
+			"reason": "browser only: the hole's fetch as a task of its `fetching` visit, constant work besides the fetch; proven in packages/core/test/browser/hole-twins.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fetch_region > run:0 > fetch_hole:1 > renewed",
+			"reason": "browser only: a renewal's fresh capability handed to the frame store, constant work; proven in packages/core/test/browser/hole-renewal.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #apply > after_html_swap:2",
+			"reason": "browser only: a settled lake wakes the regions that waited on it (one DOM walk); proven in packages/core/test/browser/lake-swr-remount.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #arm > arm_on_demand:1",
+			"reason": "browser only: an on-demand hole's intent fires its fetch, constant work; proven in packages/core/test/browser/deferred-endpoint.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #arm > onLeave:0",
+			"reason": "browser only: forgets an on-demand hole's arm when its fetch machine leaves `armed`, constant work; proven in packages/core/test/browser/deferred-endpoint.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #on_idle > onLeave:0",
+			"reason": "browser only: cancels an idle schedule's callback when its machine leaves `armed`, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #on_media > onLeave:0",
+			"reason": "browser only: removes a media schedule's listener when its machine leaves `armed`, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #by_visitor",
+			"reason": "browser only: the wake the interaction capture awaits (rejects when the island failed to wake), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hold_capture",
+			"reason": "browser only: hands the interaction capture's disarm from `armed` to `waking`, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts and interaction-delegated.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > applyLive > onLeave:0",
+			"reason": "browser only: drops a static live region's subscription when an interactive tick takes over, constant work; proven in packages/core/test/browser/live-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #live_hydrate > ours",
+			"reason": "browser only: is this still the live region's hydrating visit, constant work; proven in packages/core/test/browser/live-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #live_hydrate > onLeave:0",
+			"reason": "browser only: disposes a live region's island when it leaves `live`, constant work besides Svelte's unmount; proven in packages/core/test/browser/live-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/hole-fetch.ts > fetch_hole",
+			"reason": "browser only: a hole's network fetch and the reading of its answer (204, redirect, document, renewal); proven in packages/core/test/browser/preload-hole.test.ts, hole-renewal.test.ts and deferred-endpoint.test.ts"
+		},
+		{
+			"id": "packages/core/src/preload.ts > preload > ensure:1 > fetch_hole:1 > renewed",
+			"reason": "browser only: a preloaded hole's renewed capability handed to the frame store, constant work; the same renewal is proven in packages/core/test/browser/hole-renewal.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-nav.ts > streamFrames > task:0",
+			"reason": "browser only: the batch POST and each streamed read as tasks of the batch machine's visit, constant work besides the network; proven in packages/core/test/browser/frame-stream-stall.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-nav.ts > streamFrames > then:0",
+			"reason": "browser only: aborts a batch stream that stalled, constant work; proven in packages/core/test/browser/frame-stream-stall.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-nav.ts > streamFrames > catch:0",
+			"reason": "browser only: a stalled stream's reader cancel that failed, a constant no-op"
+		},
+		{
 			"id": "packages/core/src/runtime/router-nav.ts > navigate > task:0",
 			"reason": "browser only: the navigation's page fetch, run as a task of its visit (a newer click aborts it); proven in apps/palaestra/e2e/router-ownership.spec.ts and router-race.spec.ts"
 		},
@@ -91,6 +187,18 @@
 		{
 			"id": "packages/postrender/src/server.ts > defineServer:0 > response > settle",
 			"reason": "settles the request's own flight (needs a live request context), constant work; proven in packages/postrender/e2e/postrender.spec.ts S20 and S21"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fire_hydrate > ran",
+			"reason": "browser only: forgets a hydration run once it ended, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate_ran",
+			"reason": "browser only: forgets a hydration run unless a newer visit's took its place, constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate > gone",
+			"reason": "browser only: is the hydration still its visit's (connected, the wake unchanged), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
 		}
 	]
 }

@@ -13,7 +13,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { REGION_BRAND } from './region-brand.ts';
 import { frameAddress } from './frame.ts';
-import { ensure } from './runtime/frame-store.ts';
+import { ensure, renew } from './runtime/frame-store.ts';
+import { fetch_hole } from './runtime/hole-fetch.ts';
 
 export function preload(region: unknown): void {
 	if (typeof document === 'undefined') return; // client-only warm (the store is inert on the server)
@@ -22,9 +23,10 @@ export function preload(region: unknown): void {
 	const url = typeof r.url === 'string' ? r.url : '';
 	if (!url || r.html != null) return; // inline/dual (no url), or the HTML is already baked in — no hole
 	const address = frameAddress(url);
-	void ensure(address, async (signal) => {
-		const res = await fetch(url, { credentials: 'same-origin', signal });
-		if (!res.ok) throw new Error('status ' + res.status);
-		return res.text();
-	}).catch(() => {}); // a failed warm is harmless — the bound region falls back to its own fetch
+	// The hole's own fetch (runtime/hole-fetch.ts), so the store holds what the element would have
+	// stored: a 204 is the keep-fallback marker, a page or a redirect is refused (nothing stored), and
+	// a renewed capability is the address's.
+	void ensure(address, (signal) =>
+		fetch_hole(url, { signal, renewed: (fresh) => renew(address, fresh) })
+	).catch(() => {}); // a failed warm is harmless — the bound region falls back to its own fetch
 }
