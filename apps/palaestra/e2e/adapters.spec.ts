@@ -284,6 +284,10 @@ function setup(): string {
 async function status(url: string): Promise<number> {
 	try {
 		const r = await fetch(url);
+		// Read the body to its end: on Node 22, a runtime file's body left unread while the static
+		// server closed the connection made fetch (undici) throw `assert(!this.paused)` out of the
+		// test, which ended it before the browser check.
+		await r.arrayBuffer();
 		return r.status;
 	} catch {
 		return 0;
