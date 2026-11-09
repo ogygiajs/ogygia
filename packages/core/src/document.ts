@@ -66,7 +66,7 @@ export interface DocumentOptions {
 	lang?: string;
 	/** Seed for `$app/state` inside islands (`page.data`/`params`/`url`, `route.id`, `form`). The router
 	 *  passes it so islands on a rendered page read `$page` just like on a Kit-served page. Promises in
-	 *  `data`/`form` aren't streamed here — a non-serializable leaf drops that one field. */
+	 *  `data`/`form` aren't streamed here — a non-serializable leaf is left out where it sits. */
 	pageState?: {
 		url?: { href?: string };
 		params?: Record<string, string | undefined>;
