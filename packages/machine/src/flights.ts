@@ -71,7 +71,7 @@ interface FlightsCommon<R, V, W> {
 	 *  `Infinity`. */
 	max?: number;
 	/** An answer's weight against `max` (bytes, say). Default 1: `max` then counts answers. An
-	 *  answer heavier than `max` is not kept. */
+	 *  answer heavier than `max`, or with a weight below 0 or not a number, is not kept. */
 	weigh?: (answer: Awaited<V>, input: R) => number;
 	/** How a failed run is tried again, inside one flight, before it fails (`policy()`): its tries,
 	 *  the waits between them (none when 0: the next try runs at once) and its deadline. Default:
@@ -513,7 +513,8 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 			this._back(key, m, prior);
 			throw error;
 		}
-		if (!(ms > 0) || !(weight <= this._max)) return this._back(key, m, prior);
+		// (a weight below 0, or not a number, would lower the total and let `max` cap nothing)
+		if (!(ms > 0) || !(weight >= 0 && weight <= this._max)) return this._back(key, m, prior);
 		const at = Date.now();
 		this._weight += weight - (prior?.weight ?? 0);
 		m.go('kept', { answer, at, until: ms === Infinity ? Infinity : at + ms, weight, promise });
