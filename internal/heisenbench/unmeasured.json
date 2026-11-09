@@ -889,11 +889,11 @@
 			"reason": "a handler given its turn back takes in its other waits: a walk of the queue of one element (its own events, a handful), its jobs hold closures (not cloneable); proven in packages/core/test/mailbox.test.ts and packages/core/test/browser/mailbox.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/mailbox.ts > Box > _wait > Promise:0~4d611d > then:1~4ff304",
+			"id": "packages/core/src/runtime/mailbox.ts > Box > _wait > Promise:0~7eabb8 > then:1~4ff304",
 			"reason": "a wait whose work rejected: comes back in its turn to throw it there, constant work; proven in packages/core/test/mailbox.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/mailbox.ts > Box > _wait > Promise:0~4d611d > then:1~4ff304 > back:0~aaf251",
+			"id": "packages/core/src/runtime/mailbox.ts > Box > _wait > Promise:0~7eabb8 > then:1~4ff304 > back:0~aaf251",
 			"reason": "the same, as it gets its turn back, constant work; proven in packages/core/test/mailbox.test.ts"
 		},
 		{
