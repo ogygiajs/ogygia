@@ -481,6 +481,9 @@ importers:
       '@ogygia/flags':
         specifier: workspace:*
         version: link:../../packages/flags
+      '@ogygia/machine':
+        specifier: workspace:*
+        version: link:../../packages/machine
       '@ogygia/postrender':
         specifier: workspace:*
         version: link:../../packages/postrender
@@ -871,6 +874,8 @@ importers:
       ogygia:
         specifier: workspace:*
         version: link:../../packages/ogygia
+
+  internal/heisenbench: {}
 
   internal/kit-sources:
     devDependencies:
@@ -1300,6 +1305,40 @@ importers:
       '@typescript/native':
         specifier: catalog:tsgo
         version: typescript@7.0.2
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+
+  packages/machine:
+    dependencies:
+      esm-env:
+        specifier: 'catalog:'
+        version: 1.2.2
+    devDependencies:
+      '@ogygia/tooling':
+        specifier: workspace:*
+        version: link:../tooling
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.2
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
+      '@vitest/browser':
+        specifier: 4.1.12
+        version: 4.1.12(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
+      '@vitest/browser-playwright':
+        specifier: 4.1.12
+        version: 4.1.12(playwright@1.62.1)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
+      playwright:
+        specifier: 'catalog:'
+        version: 1.62.1
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)

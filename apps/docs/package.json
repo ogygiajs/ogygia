@@ -47,6 +47,7 @@
 		"@ogygia/devtools": "workspace:*",
 		"@ogygia/federation": "workspace:*",
 		"@ogygia/flags": "workspace:*",
+		"@ogygia/machine": "workspace:*",
 		"@ogygia/postrender": "workspace:*",
 		"@ogygia/router": "workspace:*",
 		"@ogygia/testing": "workspace:*",
