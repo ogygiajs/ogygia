@@ -31,13 +31,13 @@ jobs:
           # kit3 is the SvelteKit-3-only line (#133)
           - { kit: 3, ref: kit3, kit_spec: 'latest' }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ matrix.ref }}
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # Node 22: adapter-vercel rejects unpinned bleeding-edge Node; 22 is a supported runtime.
           node-version: 22
@@ -54,7 +54,7 @@ jobs:
       # turbo's local cache: a package whose inputs did not change replays its build and check (the
       # upstream leg moves the lockfile, so its tasks hash differently and run fresh)
       - name: Turbo cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .turbo/cache
           key: turbo-${{ runner.os }}-${{ github.workflow }}-kit${{ matrix.kit }}-${{ matrix.ref }}-${{ github.sha }}
@@ -69,7 +69,7 @@ jobs:
         run: echo "version=$(pnpm exec playwright --version | sed 's/Version //')" >> "$GITHUB_OUTPUT"
 
       - name: Playwright browser cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}

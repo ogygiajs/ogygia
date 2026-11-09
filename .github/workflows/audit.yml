@@ -35,6 +35,11 @@ permissions:
   pull-requests: write
   issues: write
 
+# a new push to a pull request cancels that pull request's older run; a push or schedule never does
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   audit:
     # a version PR (changeset-release/*) changes only version fields, never a dependency
@@ -42,13 +47,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 26
 
       # the dependency tree the report classifies by (`pnpm list`); no build, no install scripts
       - run: pnpm install --frozen-lockfile --ignore-scripts
