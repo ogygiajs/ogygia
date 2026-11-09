@@ -32,7 +32,7 @@ const frame_id = (a: string): string => 'frame:' + a;
 /** What a flight at an address runs: the store's own fetch, or a batch's part arriving through an
  *  external stream (the batch's promise, settled by the frame written there or failed by the
  *  batch's end). The input of the call that started the flight is the one that runs. */
-type FrameAsk = { a: string; fetcher: FrameFetcher } | { a: string; batch: Promise<string> };
+type FrameAsk = { a: string; work: FrameFetcher | Promise<string> };
 
 type Entry = {
 	/** Version of the applied content (0 = nothing applied yet). */
@@ -61,21 +61,24 @@ const EVICT_TTL = 60_000;
 // copies). Falls back to plain values off-DOM (SSR / unit tests).
 const GLOBAL_KEY = '__ogygia_frames__';
 const FLIGHTS_KEY = '__ogygia_frame_flights__';
+type FrameFlights = Flights<FrameAsk, string, Pick<FrameAsk, 'a'>>;
 type FramesHost = {
 	[GLOBAL_KEY]?: Map<string, Entry>;
-	[FLIGHTS_KEY]?: Flights<FrameAsk, string, string>;
+	[FLIGHTS_KEY]?: FrameFlights;
 };
 const store_host = (typeof globalThis !== 'undefined' ? globalThis : {}) as FramesHost;
 const entries: Map<string, Entry> = (store_host[GLOBAL_KEY] ??= new Map());
 
 /** The fetches in flight, one per address, shared by every caller of it. Nothing is kept: the
  *  versioned store holds what landed. A flight's work aborts once its last caller left. */
-function frame_flights(): Flights<FrameAsk, string, string> {
-	return (store_host[FLIGHTS_KEY] ??= flights<FrameAsk, Promise<string>, string>({
+function frame_flights(): FrameFlights {
+	return (store_host[FLIGHTS_KEY] ??= flights<FrameAsk>()({
 		name: 'frames',
-		key: (ask) => ask.a,
+		key: ['a'],
+		ignore: { work: 'one flight per address: a fetch or a batch part out there is joined' },
 		keep: 0,
-		run: (ask, signal) => ('batch' in ask ? ask.batch : fetch_frame(ask.a, ask.fetcher, signal))
+		run: ({ a, work }, signal): Promise<string> =>
+			typeof work === 'function' ? fetch_frame(a, work, signal) : work
 	}));
 }
 
@@ -89,7 +92,7 @@ async function fetch_frame(a: string, fetcher: FrameFetcher, signal: AbortSignal
 }
 
 /** A fetch or a batch's part is out at this address. */
-const flying = (a: string): boolean => store_host[FLIGHTS_KEY]?.peek(a) !== undefined;
+const flying = (a: string): boolean => store_host[FLIGHTS_KEY]?.peek({ a }) !== undefined;
 
 function entry(a: string): Entry {
 	let e = entries.get(a);
@@ -189,7 +192,7 @@ export function reserve(a: string): void {
 	});
 	batch.catch(() => {}); // ok: a part no flight waits on (a forced fetch took its place) is not unhandled
 	const settled = () => schedule_evict(a, e);
-	frame_flights().get({ a, batch }).then(settled, settled);
+	frame_flights().get({ a, work: batch }).then(settled, settled);
 }
 
 /**
@@ -261,7 +264,7 @@ export async function ensure(
 	try {
 		for (;;) {
 			if (!fresh && e.html != null) return e.html;
-			const html = await f.get({ a, fetcher }, { signal, fresh });
+			const html = await f.get({ a, work: fetcher }, { signal, fresh });
 			// STALE: this caller left, the store was reset, or a forced fetch took the place of the
 			// one it waited on: then it asks again (and joins that one)
 			if (html !== STALE || signal?.aborted || frame_flights() !== f) return html;

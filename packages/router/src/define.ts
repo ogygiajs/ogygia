@@ -67,15 +67,16 @@ export interface LoadDef<
 /** Per-request loads, hidden on ctx: one flight per LoadDef, kept for the request once it lands; a
  *  failed one is not kept, so a later `await other_load(c)` in the same request runs it again. The
  *  request owns them: once it ends, they are let go, and a load asked for then is refused. */
-type LoadIn = { def: LoadDef; run: (c: Ctx) => unknown; c: Ctx };
-type LoadMemo = Flights<LoadIn, unknown, LoadDef>;
+type LoadIn = { def: LoadDef; c: Ctx };
+type LoadMemo = Flights<LoadIn, unknown, Pick<LoadIn, 'def'>>;
 function memo_of(c: Ctx): LoadMemo {
 	const holder = c as { __ogloads?: LoadMemo };
 	if (holder.__ogloads) return holder.__ogloads;
-	const memo = flights({
+	const memo = flights<LoadIn>()({
 		name: 'router load',
-		run: (i: LoadIn) => i.run(i.c),
-		key: (i: LoadIn) => i.def
+		key: ['def'],
+		ignore: { c: 'the request this memo is made for: one per request' },
+		run: (i) => i.def.run(i.c)
 	});
 	request_scope(c.request).adopt(memo);
 	return (holder.__ogloads = memo);
@@ -101,7 +102,7 @@ export function load(
 	const fn = ((c: Ctx) =>
 		// (STALE only once the request has ended: nobody waits on the load any more)
 		memo_of(c)
-			.get({ def: fn as LoadDef, run, c })
+			.get({ def: fn as LoadDef, c })
 			.then((v) =>
 				v === STALE ? Promise.reject(request_scope(c.request).signal.reason) : v
 			)) as LoadDef<unknown, string>;

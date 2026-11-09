@@ -109,12 +109,8 @@
 			"reason": "browser only: a recording's stop from its flight, constant work; proven in packages/devtools/e2e/devtools.spec.ts"
 		},
 		{
-			"id": "packages/devtools/src/server.ts > flights:0 > run",
+			"id": "packages/devtools/src/server.ts > call:0~12b7f7 > run",
 			"reason": "once per process: the profiler's dynamic import and construction, nothing to repeat; proven in packages/devtools/test/profiler-mount-once.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/server.ts > flights:0 > key",
-			"reason": "the one profiler mount's constant key; proven in packages/devtools/test/profiler-mount-once.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/server.ts > mount > then:0",
@@ -125,11 +121,11 @@
 			"reason": "a failed mount: a constant null, once per wave of requests; proven in packages/devtools/test/profiler-mount-once.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/server.ts > flights:0 > run > catch:0",
+			"id": "packages/devtools/src/server.ts > call:0~12b7f7 > run > catch:0~494ff5",
 			"reason": "the profiler's store module failed to load: a constant fallback, once per process"
 		},
 		{
-			"id": "packages/devtools/src/server.ts > flights:0 > run > catch:0 > getProfilerStore",
+			"id": "packages/devtools/src/server.ts > call:0~12b7f7 > run > catch:0~494ff5 > getProfilerStore",
 			"reason": "the fallback store getter when the store module failed to load: a constant undefined"
 		},
 		{
@@ -323,10 +319,6 @@
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > preload_stylesheets > discard:0~b6b485",
 			"reason": "browser only: takes one live link element out of the head, constant work; proven in packages/core/test/browser/nav-called-off-sheets.test.ts (#267)"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > navigate > build > drop:0~bca4cb",
-			"reason": "browser only: a navigation drops the page it used (a one-line predicate over a flights entry); navigate runs in apps/palaestra e2e"
 		},
 		{
 			"id": "packages/machine/src/stage.ts > Staged > constructor > then:1~344a2f",
@@ -905,19 +897,11 @@
 			"reason": "reads the request's kept page facts (a Request, not cloneable), constant work; run by packages/core/test/render-page.test.ts"
 		},
 		{
-			"id": "packages/core/src/server/render-page.ts > request_local:0~74ae29",
+			"id": "packages/core/src/server/render-page.ts > request_local:0~4ff58e > call:0~cb82dd > run",
 			"reason": "the request's page-facts look-up (event.fetch of the page, a RequestEvent nothing can clone), once per request; run by packages/core/test/render-page.test.ts"
 		},
 		{
-			"id": "packages/core/src/server/render-page.ts > request_local:0~74ae29 > flights:0~3f13e1 > key",
-			"reason": "the request's page-facts look-up (event.fetch of the page, a RequestEvent nothing can clone), once per request; run by packages/core/test/render-page.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/render-page.ts > request_local:0~74ae29 > flights:0~3f13e1 > run",
-			"reason": "the request's page-facts look-up (event.fetch of the page, a RequestEvent nothing can clone), once per request; run by packages/core/test/render-page.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/render-page.ts > request_local:0~74ae29 > flights:0~3f13e1 > run > then:0~14e8e7",
+			"id": "packages/core/src/server/render-page.ts > request_local:0~4ff58e > call:0~cb82dd > run > then:0~14e8e7",
 			"reason": "the request's page-facts look-up (event.fetch of the page, a RequestEvent nothing can clone), once per request; run by packages/core/test/render-page.test.ts"
 		},
 		{
@@ -1205,8 +1189,8 @@
 			"reason": "applies a signed notice through the store's shared hook and passes it on over the network (not recorded); proven in packages/federation/test/thaw-receive.test.ts"
 		},
 		{
-			"id": "packages/federation/src/serve.ts > flights:0~0a0ef5 > key",
-			"reason": "reads a notice's id field, constant work"
+			"id": "packages/content/src/macros/git.ts > slug_part > replace:1~2b6f2b",
+			"reason": "escapes one character of a git spec's slug part, constant work; run by packages/content/test/loaders.test.ts"
 		},
 		{
 			"id": "packages/flags/src/index.ts > outbox:0~82c77f > giveUp",

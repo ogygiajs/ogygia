@@ -103,13 +103,14 @@ class Dimensions implements Dimensioned {
 	// A failure is never kept: the coordinate's next page builds its outline again (one source blip
 	// once broke every page of a language until a restart, #192). A resolve that throws at once fails
 	// like one that rejects.
-	readonly #cache = flights({
+	readonly #cache = flights<{ key: string; full: Coordinate }>()({
 		name: 'content dimension outline',
-		run: async (full: Coordinate): Promise<Outline> => {
+		key: ['key'],
+		ignore: { full: 'the key spells it: every axis, in order' },
+		run: async ({ full }): Promise<Outline> => {
 			const r = await this.#spec.resolve(full);
 			return is_outline(r) ? r : outline(r as OutlineSpec);
-		},
-		key: (full) => this.#key(full)
+		}
 	});
 
 	constructor(spec: DimensionsSpec) {
@@ -163,7 +164,7 @@ class Dimensions implements Dimensioned {
 	async #outline_for(coord: Coordinate): Promise<Outline> {
 		const full: Coordinate = {};
 		for (const n of this.#names) full[n] = coord[n] ?? this.#def(n);
-		const built = await this.#cache.get(full);
+		const built = await this.#cache.get({ key: this.#key(full), full });
 		// (nothing drops a coordinate's outline, so it is never STALE; were it, it is built again)
 		return built === STALE ? this.#outline_for(coord) : built;
 	}

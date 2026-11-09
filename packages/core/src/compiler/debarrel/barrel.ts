@@ -77,10 +77,11 @@ interface Walk<Caller> {
 }
 
 /** What a barrel's flight does: build its map (`shape`: the module, parsed; `walk`: the walk that
- *  asked), or answer that it is not a barrel we rewrite (`null`). */
-type BuildAsk<Caller> =
-	| { id: string; shape: ModuleShape; walk: Walk<Caller> }
-	| { id: string; shape: null };
+ *  asked), or answer that it is not a barrel we rewrite (`build: null`). */
+type BuildAsk<Caller> = {
+	id: string;
+	build: { shape: ModuleShape; walk: Walk<Caller> } | null;
+};
 
 /** One index caches the maps its callers' walks built, so every caller of one index must resolve
  *  alike: the Vite plugin keeps one index per environment (a leaf may resolve to another file for
@@ -90,11 +91,16 @@ export class BarrelIndex<Caller = void> {
 	/** One build per barrel: its map is kept until an edit to the barrel or to one of its deps
 	 *  (null: not a barrel we rewrite); a provisional map, or one that lacks a ring's names, is
 	 *  served to the callers of its build, not kept. */
-	#barrels = flights<BuildAsk<Caller>, Promise<ExportMap | null>, string>({
+	#barrels = flights<BuildAsk<Caller>>()({
 		name: 'debarrel-barrel',
-		key: (ask) => ask.id,
-		keep: (map) => (map !== null && (map.provisional || map.cycles.size > 0) ? 0 : Infinity),
-		run: async (ask) => (ask.shape === null ? null : this.#build_of(ask.id, ask.shape, ask.walk))
+		key: ['id'],
+		ignore: {
+			build:
+				'what the ask that starts the flight found of the file: a barrel is built once, as that caller resolves'
+		},
+		run: async ({ id, build }): Promise<ExportMap | null> =>
+			build === null ? null : this.#build_of(id, build.shape, build.walk),
+		keep: (map) => (map !== null && (map.provisional || map.cycles.size > 0) ? 0 : Infinity)
 	});
 	/** The map each build in flight has met so far (its deps among it), for `invalidate`. */
 	#building = new Map<string, ExportMap>();
@@ -109,7 +115,7 @@ export class BarrelIndex<Caller = void> {
 	invalidate(id: string): void {
 		const clean = id.replace(STRIP_QUERY_RE, '');
 		this.#shapes.delete(clean);
-		this.#barrels.drop((k, entry) => {
+		this.#barrels.drop(({ id: k }, entry) => {
 			if (k === clean) return true;
 			const map = entry.kind === 'kept' ? entry.answer : this.#building.get(k);
 			return map != null && map.deps.has(clean);
@@ -150,10 +156,10 @@ export class BarrelIndex<Caller = void> {
 	/** What a caller of `map()` asks for: the barrel's build, or (it is not one) null. Only the ask
 	 *  that starts the barrel's flight runs; a built or building barrel is not looked at again. */
 	#ask(id: string, spec: string, caller: Caller): BuildAsk<Caller> {
-		if (this.#barrels.peek(id) !== undefined) return { id, shape: null };
+		if (this.#barrels.peek({ id }) !== undefined) return { id, build: null };
 		const shape = this.shape(id);
-		if (!shape || (!shape.pure && !this.#host.forced(id, spec))) return { id, shape: null };
-		return { id, shape, walk: { stack: new Set(), caller } };
+		if (!shape || (!shape.pure && !this.#host.forced(id, spec))) return { id, build: null };
+		return { id, build: { shape, walk: { stack: new Set(), caller } } };
 	}
 
 	/** One build of `id` (a barrel's flight): kept once built unless provisional; STALE to its
@@ -267,7 +273,7 @@ export class BarrelIndex<Caller = void> {
 	 */
 	async #through(id: string, parent: ExportMap, walk: Walk<Caller>): Promise<ExportMap | null> {
 		if (this.#host.kept(id, id)) return null;
-		const s = this.#barrels.peek(id);
+		const s = this.#barrels.peek({ id });
 		if (s?.kind === 'kept') {
 			const m = s.answer;
 			if (m) for (const d of m.deps) parent.deps.add(d);
@@ -286,7 +292,7 @@ export class BarrelIndex<Caller = void> {
 		}
 		const shape = this.shape(id);
 		if (!shape || !shape.pure) return null;
-		const built = await this.#barrels.get({ id, shape, walk });
+		const built = await this.#barrels.get({ id, build: { shape, walk } });
 		// an edit dropped the nested build mid-walk: its names stay on the parent, served once
 		if (built === STALE) {
 			parent.provisional = true;

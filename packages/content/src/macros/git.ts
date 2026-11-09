@@ -28,7 +28,7 @@ export type GitSpec = { owner: string; repo: string; ref: string; sub: string };
 
 const SPEC_RE = /^([^/\s]+)\/([^@:\s]+)(?:@([^:\s]+))?(?::(.+))?$/;
 const EDGE_SLASHES_G = /^\/+|\/+$/g;
-const NON_SLUG_CHARS_G = /[^\w.-]/g;
+const NON_SLUG_CHARS_G = /[^a-zA-Z0-9.-]/gu;
 
 /** Parse `owner/repo[@ref][:path]` → its parts. Default ref `HEAD`, default sub `''`. Throws on garbage. */
 export function parse_git_spec(spec: string): GitSpec {
@@ -42,9 +42,16 @@ export function parse_git_spec(spec: string): GitSpec {
 	};
 }
 
-/** Stable cache slug for a spec (ref-agnostic — the checkout is updated in place, lock pins the sha). */
+/** A slug part: plain letters, digits, `.` and `-` stay, every other character is `_<hex>_`, so a
+ *  part never holds the `~` that joins them and two different parts never spell one slug. */
+const slug_part = (part: string): string =>
+	part.replace(NON_SLUG_CHARS_G, (c) => '_' + c.codePointAt(0)!.toString(16) + '_');
+
+/** The cache slug of a spec: its whole spec (owner, repo, ref, sub), the inputs a checkout is made
+ *  from. Its checkout and its locked sha live under it, so two loaders on one repo with another
+ *  branch or folder never share one (#288). */
 export function git_slug(s: GitSpec): string {
-	return `${s.owner}-${s.repo}`.replace(NON_SLUG_CHARS_G, '_');
+	return [s.owner, s.repo, s.ref, s.sub].map(slug_part).join('~');
 }
 
 /** Absolute checkout dir for a spec — the `content` cache namespace + slug. Throws when the build
@@ -68,7 +75,7 @@ export function git_glob_pattern(s: GitSpec, ext = 'md'): string {
 	return `${base}/**/*.${ext}`;
 }
 
-// ── resolved shas: one `git` cache entry per repo slug. Lives WITH the checkouts in the shared
+// ── resolved shas: one `git` cache entry per spec slug. Lives WITH the checkouts in the shared
 // build cache, so build platforms that cache node_modules keep the pin AND the corpus together — a
 // warm CI build fetches nothing. It's cache, not committed intent: absent entry → re-resolve the
 // ref. To PIN a build hermetically, put the sha in the spec (`owner/repo@<sha>:path`). ──

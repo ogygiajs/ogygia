@@ -491,8 +491,10 @@ export function ogygiaPreprocess(options?: MarkdownOptions): PreprocessorGroup {
 			let doc_key: string | null = null;
 			if (isContent) {
 				await Promise.all(pipeline.variants.map((g) => g.ready?.()));
-				const base_name = path.replace(BACKSLASH_G, '/').split('/').pop() ?? '';
-				doc_key = docs_store.key([doc_sig(), base_name, input.content]);
+				// keyed by what the cached code embeds: the CSS key (`content_css_key`, the src-relative
+				// path, whose last part is the base name the source line reads), so a moved file with the
+				// same content is compiled again, never handed the old path's CSS key (#292)
+				doc_key = docs_store.key([doc_sig(), content_css_key(path), input.content]);
 				const hit = doc_cache.get(doc_key);
 				if (hit) return { code: hit.code, map: undefined, dependencies: hit.deps };
 			}

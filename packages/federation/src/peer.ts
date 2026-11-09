@@ -30,11 +30,12 @@ const cacheable = (doc: FragmentDocument): boolean => !doc.location && doc.statu
 
 /** What a read of path+search+claims asks for. */
 interface Read {
-	key: string;
 	path: string;
 	search: string;
-	claims?: Claims;
-	traceparent?: string;
+	/** The claims, spelled (empty: none). */
+	claims_key: string;
+	claims: Claims | undefined;
+	traceparent: string | undefined;
 }
 
 /** A read's answer: the document, with the fragment's source tags so a thaw notice can drop
@@ -69,7 +70,7 @@ export class PeerHandle implements Peer {
 	 *  move of the sources drops what it touches: a kept document that carries a moved tag, and a
 	 *  fetch out whose answer does once it lands (a thaw cannot tell an answer's tags before then, so
 	 *  a fetch for other tags goes on, #294). A caller of a dropped flight reads again. */
-	#docs: Flights<Read, Fetched, string>;
+	#docs: Flights<Read, Fetched, Pick<Read, 'path' | 'search' | 'claims_key'>>;
 
 	constructor(name: string, cfg: PeerConfig, me: string, sign_key?: string) {
 		this.#origins = Array.isArray(cfg.origin) ? cfg.origin : [cfg.origin];
@@ -77,13 +78,17 @@ export class PeerHandle implements Peer {
 		this.#sign_key = sign_key;
 		this.#timeout = cfg.timeout ?? 5000;
 		const ttl = (this.#ttl = cfg.cache?.ttl ?? 0);
-		this.#docs = flights<Read, Promise<Fetched>, string, string>({
+		this.#docs = flights<Read>()({
 			name: 'federation peer documents',
-			key: (read: Read) => read.key,
-			run: (read: Read, signal) => this.#fetch_read(read, signal),
+			key: ['path', 'search', 'claims_key'],
+			ignore: {
+				claims: 'claims_key spells them',
+				traceparent: 'the trace of the read that started it: how it is traced, not what is read'
+			},
+			run: (read, signal) => this.#fetch_read(read, signal),
 			world: this.#sources,
-			touches: (answer: Fetched) => answer.tags,
-			keep: (answer: Fetched) => (ttl > 0 && cacheable(answer.doc) ? Infinity : 0),
+			touches: (answer) => answer.tags,
+			keep: (answer) => (ttl > 0 && cacheable(answer.doc) ? Infinity : 0),
 			max: cfg.cache?.max ?? 500
 		});
 		this.name = name;
@@ -98,8 +103,9 @@ export class PeerHandle implements Peer {
 		claims?: Claims,
 		traceparent?: string
 	): Promise<FragmentDocument> {
-		const key = path + '?' + search + '\0' + (claims ? JSON.stringify(claims) : '');
-		const read: Read = { key, path, search, claims, traceparent };
+		const claims_key = claims ? JSON.stringify(claims) : '';
+		const read: Read = { path, search, claims_key, claims, traceparent };
+		const key = { path, search, claims_key };
 		const docs = this.#docs;
 		// the request reading it: once it ends it waits no more, and once every request waiting on
 		// a fetch has ended, the fetch is aborted

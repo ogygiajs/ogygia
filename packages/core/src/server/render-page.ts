@@ -71,8 +71,8 @@ type LookUp = {
 	fetch: (input: string, init?: RequestInit) => Promise<Response>;
 	decoders: Record<string, (v: unknown) => unknown>;
 };
-/** The one look-up a request has. */
-const ONCE = 0;
+/** Why a page-facts look-up's inputs are not its key: a request has one look-up. */
+const ONE_PER_REQUEST = 'a request has one look-up';
 
 /**
  * Each request's look-up of its page's facts, a flight of one key the request owns: looked up once
@@ -80,10 +80,12 @@ const ONCE = 0;
  * streamed reader let go when the request ends.
  */
 const looked_up = request_local((owner: Scope) =>
-	flights<LookUp, Promise<PageFacts | null>, typeof ONCE>({
+	flights<LookUp>()({
 		name: 'page facts',
-		key: () => ONCE,
-		run: ({ page, fetch, decoders }) =>
+		// one look-up: the request owns this flights, and its page, fetch and decoders are its own
+		key: [],
+		ignore: { page: ONE_PER_REQUEST, fetch: ONE_PER_REQUEST, decoders: ONE_PER_REQUEST },
+		run: ({ page, fetch, decoders }): Promise<PageFacts | null> =>
 			look_up_page(page, fetch, decoders, owner).then((facts) => {
 				if (!('miss' in facts)) return facts;
 				warn?.(line('outside_page_data_unavailable', { path: page.pathname, miss: facts.miss }));
@@ -94,7 +96,7 @@ const looked_up = request_local((owner: Scope) =>
 
 /** The page's facts this request looked up, or undefined. */
 function facts_of(request: Request): PageFacts | undefined {
-	const entry = looked_up(request).peek(ONCE);
+	const entry = looked_up(request).peek({});
 	return entry?.kind === 'kept' ? (entry.answer ?? undefined) : undefined;
 }
 
@@ -114,7 +116,7 @@ export function prepare_render_page(
 	const page = page_url_of(event);
 	if (page === event.url) return;
 	const look_up = looked_up(event.request);
-	if (look_up.peek(ONCE)?.kind === 'kept') return;
+	if (look_up.peek({})?.kind === 'kept') return;
 	const decoders: Record<string, (v: unknown) => unknown> = {};
 	for (const name in transport ?? {}) decoders[name] = transport![name].decode;
 	// (STALE only once the request has ended: the render goes on without the facts)
