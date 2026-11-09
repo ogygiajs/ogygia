@@ -447,6 +447,8 @@ export class SeedIndex {
 	// Size buckets for structure matching, built on the first ask; hashes memoised per seed node.
 	#by_bytes: Map<number, object[]> | null = null;
 	#hash_memo = new Map<object, { hash: string; bytes: number } | null>();
+	// Per size bucket: how many of its nodes are hashed (in bucket order), and each hash's first node.
+	#by_hash = new Map<number, { hashed: number; first: Map<string, object> }>();
 
 	/** The index of `data`, cached per `data` object: one index per request, however many islands
 	 *  ask. */
@@ -525,6 +527,29 @@ export class SeedIndex {
 		return this.#by_bytes.get(bytes) ?? EMPTY_NODES;
 	}
 
+	/**
+	 * The first seed node of exactly this byte estimate whose structural hash is `hash` (bucket
+	 * order, as `candidates(bytes).find(...)` gives it), in one map lookup. The bucket is hashed in
+	 * order only as far as an ask needs, each hash keeping its first node, so the many same-sized
+	 * records of a list cost one hash each however many props nodes ask.
+	 */
+	match(bytes: number, hash: string): object | undefined {
+		const bucket = this.candidates(bytes);
+		if (bucket.length === 0) return undefined;
+		let at = this.#by_hash.get(bytes);
+		if (at === undefined) this.#by_hash.set(bytes, (at = { hashed: 0, first: new Map() }));
+		const hit = at.first.get(hash);
+		if (hit !== undefined) return hit;
+		while (at.hashed < bucket.length) {
+			const node = bucket[at.hashed++];
+			const h = this.hash_of(node);
+			if (h === null || at.first.has(h)) continue;
+			at.first.set(h, node);
+			if (h === hash) return node;
+		}
+		return undefined;
+	}
+
 	/** Structural hash of an indexed seed node, memoised for the request. */
 	hash_of(node: object): string | null {
 		return this.#memo === null
@@ -550,6 +575,7 @@ export interface SeedRefPlan {
  * ride inside the reference), and neither is anything under a node below `min_bytes` (no child
  * of it can be referenced). The props' own measures come from the request memo, so the plan adds
  * no walk of its own beyond the pointer lookups.
+ * @heisenbench linear in props
  */
 export function plan_seed_refs(index: SeedIndex, props: unknown, min_bytes = 96): SeedRefPlan {
 	const matched = new WeakMap<object, SeedPath>();
@@ -573,13 +599,10 @@ export function plan_seed_refs(index: SeedIndex, props: unknown, min_bytes = 96)
 			const p = memo.get(v) ?? measure(v, memo);
 			const bytes = bytes_of(p);
 			if (bytes < min_bytes) return; // nothing below can be referenced either
-			if (p & F_REF) {
-				const cands = index.candidates(bytes);
-				if (cands.length) {
-					const h = hash_subtree(v, hashed, new Set())?.hash ?? null;
-					const cand = h ? cands.find((c) => index.hash_of(c) === h) : undefined;
-					if (cand && deep_equal_plain(cand, v)) return hit(v, index.path(cand)!);
-				}
+			if (p & F_REF && index.candidates(bytes).length) {
+				const h = hash_subtree(v, hashed, new Set())?.hash ?? null;
+				const cand = h ? index.match(bytes, h) : undefined;
+				if (cand && deep_equal_plain(cand, v)) return hit(v, index.path(cand)!);
 			}
 			if (Array.isArray(v)) for (const item of v) visit(item);
 			else for (const key in v) visit((v as Record<string, unknown>)[key]);
