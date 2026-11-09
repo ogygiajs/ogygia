@@ -115,6 +115,27 @@ describe('plan_seed_refs', () => {
 		expect(r(near.meta)).toEqual(['catalog', 'blocks', 1, 'meta']);
 	});
 
+	it('many same-sized records, copied: each copy matches its own record, in any ask order', () => {
+		const items = Array.from({ length: 60 }, (_, i) => big(`item-${String(i).padStart(3, '0')}`));
+		const list = { page: { items } };
+		const index = SeedIndex.of(list);
+		const picks = [45, 3, 3, 59, 0, 17].map((i) => clone(items[i]));
+		const { reducer: r, count } = plan_seed_refs(index, { picks });
+		expect(count).toBe(picks.length);
+		expect(picks.map((p) => r(p))).toEqual([45, 3, 3, 59, 0, 17].map((i) => ['page', 'items', i]));
+	});
+
+	it('two equal seed records: a copy matches the first one in key order', () => {
+		const twin = big('twin');
+		const list = { page: { a: clone(twin), b: clone(twin), c: big('else') } };
+		const index = SeedIndex.of(list);
+		const props = { x: clone(twin), y: clone(twin), z: clone(list.page.c) };
+		const { reducer: r } = plan_seed_refs(index, props);
+		expect(r(props.x)).toEqual(['page', 'a']);
+		expect(r(props.y)).toEqual(['page', 'a']);
+		expect(r(props.z)).toEqual(['page', 'c']);
+	});
+
 	it('a value the seed does not have, or one below the threshold, is never referenced', () => {
 		const props = { fresh: big('fresh'), small: { a: 1 } };
 		const { reducer: r, count } = plan_seed_refs(idx, props);
