@@ -1,7 +1,6 @@
 /**
- * A registry of live entries, each owned (INTERNAL: `@ogygia/machine/internal/registry`, not part
- * of the package's public surface). What a cache is for values made again on demand, a registry is
- * for things that are alive: a watcher, a module, a collection. Nothing in it is ever evicted; an
+ * A registry of live entries, each owned. What a cache is for values made again on demand, a
+ * registry is for things that are alive: a watcher, a module, a collection. Nothing in it is ever evicted; an
  * entry leaves when its owner ends, or when the removal `add` returned runs.
  *
  *   const watchers = registry<Watcher>();
@@ -46,15 +45,14 @@ class Held<T> implements Registry<T> {
 	}
 }
 
-/** A registry of live entries, each owned by a scope (see the module's comment). */
-export function registry<T>(): Registry<T> {
+function make_registry<T>(): Registry<T> {
 	return new Held<T>();
 }
 
 /**
  * A registry of definitions by key: `set(key, value, owner)` holds `value` under `key` while
  * `owner` is open, replacing what the key held. The owner is the defining module's life
- * ({@link module_life}), so a module's reload ends its definitions: one deleted from its code is
+ * ({@link moduleLife}), so a module's reload ends its definitions: one deleted from its code is
  * gone, one kept is set again by its new run. Another owner's end never takes a definition it does
  * not hold. Setting with an ended owner is refused.
  */
@@ -109,17 +107,19 @@ class Keyed<K, V> implements KeyedRegistry<K, V> {
 	}
 }
 
-/** A keyed registry of definitions (see {@link KeyedRegistry}). */
-export function keyed_registry<K, V>(): KeyedRegistry<K, V> {
-	return new Keyed<K, V>();
-}
+/** A registry of live entries, each owned by a scope (see the module's comment). `registry.keyed()`
+ *  is its keyed form, for definitions by name (see {@link KeyedRegistry}). */
+export const registry: { <T>(): Registry<T>; keyed<K, V>(): KeyedRegistry<K, V> } =
+	/* @__PURE__ */ Object.assign(make_registry, {
+		keyed: <K, V>(): KeyedRegistry<K, V> => new Keyed<K, V>()
+	});
 
 /**
  * A defining module's life: pass the module's `import.meta.hot` (dev). Its HMR dispose ends the
  * scope, so what the module defined leaves on reload. With no hot module (production) the scope
  * lives as long as the process.
  */
-export function module_life(hot: { dispose(cb: () => void): void } | undefined): Scope {
+export function moduleLife(hot: { dispose(cb: () => void): void } | undefined): Scope {
 	const life = scope();
 	hot?.dispose(() => life.close());
 	return life;

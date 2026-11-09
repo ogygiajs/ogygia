@@ -53,6 +53,9 @@ export interface CacheOptions<K, V> {
 	owner?: Scope;
 	/** The world its values are made in: a value made before the one a key holds never replaces it. */
 	world?: World<never> | World<unknown>;
+	/** A value in use now: it counts against `max`, but is never let go for size (the next least
+	 *  recently used goes instead). Bound or still-loading values, say. */
+	pinned?: (value: V, key: K) => boolean;
 }
 
 export interface SetOptions {
@@ -88,19 +91,6 @@ type Held<V> = { value: V; weight: number; until: number; stamp: number };
 
 /** The least time between two sweeps of the ages, in ms. */
 const SWEEP_MS = 1000;
-
-/**
- * The package's own option, not the public shape: a value in use now counts against `max` but does
- * not go for size (the next least recently used goes instead). A flights' answer kept beside a
- * refresh still out is one. Not exported from the package.
- */
-// (registered: the package's internal entry and its index are built apart, one symbol for both)
-export const IN_USE: unique symbol = Symbol.for('ogygia.cache.in_use');
-
-/** The options the package itself may pass (./flights.ts). */
-export type InternalCacheOptions<K, V> = CacheOptions<K, V> & {
-	[IN_USE]?: (value: V, key: K) => boolean;
-};
 
 class Store<K, V> implements Cache<K, V> {
 	_name: string;
@@ -144,7 +134,7 @@ class Store<K, V> implements Cache<K, V> {
 		this._weigh = o.weigh;
 		this._keep = keep;
 		this._on_evict = o.onEvict;
-		this._in_use = (o as InternalCacheOptions<K, V>)[IN_USE];
+		this._in_use = o.pinned;
 		this._world = o.world as World<unknown> | undefined;
 		this._scope = o.owner === undefined ? scope() : o.owner.child();
 		this._scope.defer(() => this._end());
