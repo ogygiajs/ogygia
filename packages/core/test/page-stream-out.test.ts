@@ -1,0 +1,78 @@
+/**
+ * The streamed page's tail: Kit's document is forwarded, then one resolve script per `$page.data`
+ * promise as it settles, and the stream closes once all have. A promise whose value cannot be staged
+ * (a getter that throws as the value is walked for nested promises) is that promise's failure: its
+ * island's `{#await}` gets the error, the other promises still stream, the stream still closes, and
+ * nothing is left as an unhandled rejection. Real streams, read to their end.
+ */
+import { afterEach, expect, it } from 'vitest';
+import { scope } from '@ogygia/machine';
+import { stream_page_deferred } from '../src/server/page-stream.ts';
+
+const kit_document = () =>
+	new Response(
+		new ReadableStream<Uint8Array>({
+			start(c) {
+				c.enqueue(new TextEncoder().encode('<html><body><p>page</p></body></html>'));
+				c.close();
+			}
+		}),
+		{ headers: { 'content-type': 'text/html' } }
+	);
+
+/** The response's whole body, or `null` when it does not close within `ms`. */
+async function read_all(res: Response, ms: number): Promise<string | null> {
+	const reader = res.body!.getReader();
+	const decoder = new TextDecoder();
+	let text = '';
+	const end = Date.now() + ms;
+	for (;;) {
+		const left = end - Date.now();
+		if (left <= 0) {
+			void reader.cancel();
+			return null;
+		}
+		const timer = new Promise<'late'>((r) => setTimeout(() => r('late'), left));
+		const got = await Promise.race([reader.read(), timer]);
+		if (got === 'late') {
+			void reader.cancel();
+			return null;
+		}
+		if (got.done) return text;
+		text += decoder.decode(got.value, { stream: true });
+	}
+}
+
+const unhandled: unknown[] = [];
+const on_unhandled = (reason: unknown) => void unhandled.push(reason);
+process.on('unhandledRejection', on_unhandled);
+afterEach(() => {
+	unhandled.length = 0;
+});
+
+it('a value whose staging throws fails its own promise; the rest stream and the stream closes', async () => {
+	const request = scope();
+	const bad = {
+		get broken(): never {
+			throw new Error('a getter that throws');
+		}
+	};
+	const res = stream_page_deferred(
+		request,
+		kit_document(),
+		[
+			{ id: 0, promise: Promise.resolve(bad) },
+			{ id: 1, promise: new Promise((r) => setTimeout(() => r('later'), 20)) }
+		],
+		2
+	);
+	const body = await read_all(res, 2000);
+	await new Promise((r) => setTimeout(r, 20));
+	expect(body).not.toBeNull();
+	expect(body).toContain('</body></html>');
+	expect(body).toMatch(/__ogygia_page_resolve\(0,false,/);
+	expect(body).toContain('a getter that throws');
+	expect(body).toMatch(/__ogygia_page_resolve\(1,true,/);
+	expect(unhandled).toEqual([]);
+	request.close();
+});

@@ -97,7 +97,8 @@ function owner(): BeaconApi | null {
 	return o === self_api ? null : o;
 }
 // (on the page as it loads, not at its first call: `ogygia/profiler/client` finds the page's copy on
-// the global rather than bundling one of its own into the island that marks)
+// the global rather than bundling one of its own into the island that marks). The copy that owns
+// the page takes the marks made before it loaded (at the end of the module).
 if (typeof document !== 'undefined') owner();
 
 export function beacon_mark(
@@ -3044,3 +3045,13 @@ if (
 	!supports('longtask')
 )
 	watch_frame_gaps();
+
+// THE MARKS MADE BEFORE THE BEACON LOADED: `ogygia/profiler/client` leaves them waiting on the page
+// (`ogygia.beacon.waiting`), however late the beacon comes; the copy that owns the page takes them.
+const WAITING_KEY = Symbol.for('ogygia.beacon.waiting');
+if (typeof document !== 'undefined' && owner() === null) {
+	const g = globalThis as { [WAITING_KEY]?: Parameters<typeof beacon_mark>[] };
+	const waiting = g[WAITING_KEY];
+	delete g[WAITING_KEY];
+	if (waiting) for (const args of waiting) beacon_mark(...args);
+}

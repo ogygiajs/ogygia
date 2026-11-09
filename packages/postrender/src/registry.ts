@@ -14,7 +14,7 @@
  * two module instances (src beside dist), and both must see the same runtime.
  */
 import type { RequestEvent } from '@sveltejs/kit';
-import { flights, outbox, policy, type Stale } from '@ogygia/machine';
+import { flights, machine, outbox, policy, type Stale } from '@ogygia/machine';
 import type {
 	PostrenderEntry,
 	PostrenderPutOptions,
@@ -97,7 +97,7 @@ export function reset_for_tests(): void {
 	slot.handled = new WeakMap();
 	slot.fallback = null;
 	warned_replica_blindspot = false;
-	store_failing = false;
+	store_health = health_def.create();
 	renders.drop(() => true);
 	writes.clear();
 }
@@ -157,12 +157,28 @@ export async function evict_tags(
 
 // A store down never fails a render, and is said: once per failing streak (postrender_store_failed),
 // again only after a store call worked, so an outage does not fill the log.
-let store_failing = false;
+//
+// The store's health is `ok` or `failing`, and every failure is a new `failing` visit: the visit a
+// call starts in is its mark. A call that answers ends the streak only when the visit is still that
+// one, nothing failed since it started; a slow call that was out when the store went down, and
+// answers after, leaves the streak be.
+const health_def = machine<{ ok: {}; failing: {} }>()({
+	name: 'postrender store',
+	initial: 'ok',
+	steps: { ok: ['failing'], failing: ['failing', 'ok'] }
+});
+let store_health = health_def.create();
+type Health = typeof store_health.now;
 
 function store_failed(op: string, key: string, error: unknown): void {
-	if (store_failing) return;
-	store_failing = true;
-	warn('postrender_store_failed', { op, key }, error);
+	const was = store_health.now.kind;
+	store_health.go('failing');
+	if (was === 'ok') warn('postrender_store_failed', { op, key }, error);
+}
+
+/** A store call that started in `mark` answered: the streak ends, unless a call failed since. */
+function store_answered(mark: Health): void {
+	if (store_health.now === mark && mark.kind === 'failing') store_health.go('ok');
 }
 
 /** `work` against the store: its failure is said and answered `fallback`. */
@@ -172,9 +188,10 @@ async function guarded<T>(
 	work: () => Promise<T>,
 	fallback: T
 ): Promise<T> {
+	const mark = store_health.now;
 	try {
 		const out = await work();
-		store_failing = false;
+		store_answered(mark);
 		return out;
 	} catch (error) {
 		store_failed(op, key, error);
@@ -221,7 +238,8 @@ export async function store_render(
 	try {
 		await store_put(runtime, key, entry, options);
 		if (!flight.stale) return true;
-		if (await self_evicts.put({ runtime, key })) store_failing = false;
+		const mark = store_health.now;
+		if (await self_evicts.put({ runtime, key })) store_answered(mark);
 		return false;
 	} finally {
 		writes.delete(write);
@@ -421,5 +439,6 @@ const self_evicts = outbox<Evict>({
 export async function self_evict(runtime: Runtime, pathname: string): Promise<void> {
 	stale_flights({ url: pathname });
 	record({ domain: 'server', name: 'server.postrender', op: 'self-evict', url: pathname });
-	if (await self_evicts.put({ runtime, key: pathname })) store_failing = false;
+	const mark = store_health.now;
+	if (await self_evicts.put({ runtime, key: pathname })) store_answered(mark);
 }

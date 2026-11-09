@@ -10,7 +10,27 @@
 	 * `installation-code-2`), and the link button copies the full `#`-anchored URL and jumps to it — the
 	 * same "grab a link to exactly this" affordance the heading anchors give.
 	 */
-	import { scope, type Scope } from '@ogygia/machine';
+	import { machine, scope, type Scope } from '@ogygia/machine';
+
+	/** A button's tick after a copy: `ticked` for 1.5 s, then `idle` again. A copy while ticked starts
+	 *  the time again (a new visit). The tick's look is set as a visit starts and undone as it ends. */
+	const tick_def = machine<{ idle: {}; ticked: {} }>()({
+		name: 'code copy tick',
+		initial: 'idle',
+		steps: { idle: ['ticked'], ticked: ['ticked', 'idle'] },
+		after: { ticked: { ms: 1500, to: 'idle' } }
+	});
+
+	/** One button's tick: call it after each copy. It ends itself (the machine's own time), so it
+	 *  stays working when the chrome unmounts and the block it enhanced stays. */
+	function ticker(show: () => void, hide: () => void): () => void {
+		const tick = tick_def.create();
+		return () => {
+			tick.go('ticked');
+			show();
+			tick.scope.defer(hide);
+		};
+	}
 
 	// ── regexes
 	const WS_G = /\s+/g;
@@ -118,22 +138,21 @@
 			// (the buttons are the block's, as long as it is: they stay working when the chrome unmounts
 			// and a block it enhanced stays, so their listeners and their tick's reset are theirs, not
 			// the chrome's)
+			const link_ticked = ticker(
+				() => {
+					link.setAttribute('data-linked', '1');
+					link.innerHTML = CHECK;
+				},
+				() => {
+					link.removeAttribute('data-linked');
+					link.innerHTML = LINK;
+				}
+			);
 			// oxlint-disable-next-line ogygia/owned-effects -- on the button it made, which it lives and goes with
 			link.addEventListener('click', () => {
 				focus_target(pre as HTMLElement); // land the reader's eye on the block (ring clears on blur)
 				const url = `${location.origin}${location.pathname}#${id}`;
-				navigator.clipboard?.writeText(url).then(
-					() => {
-						link.setAttribute('data-linked', '1');
-						link.innerHTML = CHECK;
-						// oxlint-disable-next-line ogygia/owned-effects -- the button's own tick, which ends itself
-						setTimeout(() => {
-							link.removeAttribute('data-linked');
-							link.innerHTML = LINK;
-						}, 1500);
-					},
-					() => {}
-				); // ok: the clipboard refused (no permission); the link stays as it was
+				navigator.clipboard?.writeText(url).then(link_ticked, () => {}); // ok: the clipboard refused (no permission); the link stays as it was
 			});
 
 			// Copy the code text.
@@ -142,20 +161,21 @@
 			btn.className = 'og-copy';
 			btn.setAttribute('aria-label', 'Copy code');
 			btn.innerHTML = COPY;
+			const copy_ticked = ticker(
+				() => {
+					pre.setAttribute('data-copied', '1');
+					btn.innerHTML = CHECK;
+				},
+				() => {
+					pre.removeAttribute('data-copied');
+					btn.innerHTML = COPY;
+				}
+			);
 			// oxlint-disable-next-line ogygia/owned-effects -- on the button it made, which it lives and goes with
 			btn.addEventListener('click', () => {
 				const code = pre.querySelector('code') || pre;
 				const text = (code as HTMLElement).innerText || code.textContent || '';
-				if (!navigator.clipboard) return;
-				navigator.clipboard.writeText(text).then(() => {
-					pre.setAttribute('data-copied', '1');
-					btn.innerHTML = CHECK;
-					// oxlint-disable-next-line ogygia/owned-effects -- the button's own tick, which ends itself
-					setTimeout(() => {
-						pre.removeAttribute('data-copied');
-						btn.innerHTML = COPY;
-					}, 1500);
-				});
+				navigator.clipboard?.writeText(text).then(copy_ticked, () => {}); // ok: the clipboard refused (no permission); the button stays as it was
 			});
 
 			actions.appendChild(link);

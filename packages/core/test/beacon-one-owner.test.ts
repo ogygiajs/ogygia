@@ -55,18 +55,17 @@ test('the second copy hands its marks and hydrations to the first', async () => 
 test("ogygia/profiler/client carries no beacon of its own: its marks reach the page's, and an early one waits for it", async () => {
 	const key = Symbol.for('ogygia.beacon');
 	const store = globalThis as Record<symbol, unknown>;
-	const got: unknown[][] = [];
 	// @ts-expect-error a query makes a fresh module instance
 	const { mark } = await import('../../devtools/src/profiler/client.ts?fresh=1');
 	delete store[key];
-	// before any runtime: held
+	// before any runtime: held on the page, however long the runtime takes
 	mark.start('early').end();
-	expect(got).toEqual([]);
-	// the page's beacon arrives: the held mark goes to it on the next retry, a new one at once
-	store[key] = { beacon_mark: (...a: unknown[]) => got.push(a) };
-	await vi.advanceTimersByTimeAsync(300);
-	expect(got.map((a) => a[0])).toEqual(['early']);
+	await vi.advanceTimersByTimeAsync(60_000);
+	// the page's beacon loads: it takes the held mark as it does, and a new one goes to it at once
+	// @ts-expect-error a query makes a fresh module instance
+	const beacon: Beacon = await import('../src/runtime/beacon.ts?copy=late');
+	expect(beacon._beacon_state().marks).toBe(1);
 	mark.start('late').end();
-	expect(got.map((a) => a[0])).toEqual(['early', 'late']);
-	delete store[key];
+	expect(beacon._beacon_state().marks).toBe(2);
+	beacon._reset_beacon();
 });

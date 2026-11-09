@@ -12,6 +12,7 @@
 	 * the rest of devtools, so the profiler answers without a key.
 	 */
 	import { onMount } from 'svelte';
+	import { scope } from '@ogygia/machine';
 	import { run_profile, profile_for, profiles_version } from './profile-store.ts';
 	import { page_anchors } from './profile-anchors.ts';
 	import { highlight, clear_highlight } from './highlight.ts';
@@ -27,13 +28,18 @@
 	let error = $state('');
 	let bump = $state(0); // a new profile landed
 
+	/** The tab's profiles (their requests, their waits for a busy profiler): end with the tab. */
+	const owner = scope();
 	onMount(() => {
 		path = location.pathname;
 		// Probe: a mounted profiler answers its base (200/redirect); an un-mounted one 404s.
 		fetch(BASE, { method: 'GET', redirect: 'manual' })
 			.then((r) => (available = r.status !== 404))
 			.catch(() => (available = false));
-		return () => clear_highlight(); // leaving the tab takes the boxes off the page
+		return () => {
+			clear_highlight(); // leaving the tab takes the boxes off the page
+			owner.close();
+		};
 	});
 
 	const prof = $derived.by(() => {
@@ -57,7 +63,7 @@
 		started = performance.now();
 		const p = path.startsWith('/') ? path : '/' + path;
 		try {
-			await run_profile(p, runs, BASE);
+			if ((await run_profile(p, runs, BASE, owner)) === null) return; // the tab was left
 			bump++;
 		} catch (e) {
 			error = `The profile failed: ${e instanceof Error ? e.message : String(e)}`;

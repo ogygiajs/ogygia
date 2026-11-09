@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { scope } from '@ogygia/machine';
 import { slim_profile, island_row, run_profile } from '../src/devtools/profile-store.ts';
 
 const report = {
@@ -237,7 +238,7 @@ describe('run_profile when the profiler refuses', () => {
 		globalThis.fetch = (async () =>
 			new Response(JSON.stringify({ error: said }), { status: 503 })) as typeof fetch;
 		try {
-			await expect(run_profile('/hell')).rejects.toThrow(said);
+			await expect(run_profile('/hell', 3, '/__profiler', scope())).rejects.toThrow(said);
 		} finally {
 			globalThis.fetch = real;
 		}
@@ -249,7 +250,7 @@ describe('run_profile when the profiler refuses', () => {
 				status: 400
 			})) as typeof fetch;
 		try {
-			await expect(run_profile('x')).rejects.toThrow(
+			await expect(run_profile('x', 3, '/__profiler', scope())).rejects.toThrow(
 				'the profiler answered 400: Give a path on this site, like /docs/overview.'
 			);
 		} finally {

@@ -14,6 +14,7 @@ const DOUBLE_QUOTE_G = /"/g;
 
 import type { ShikiTransformer } from 'shiki';
 import { flights, STALE, type Flights } from '@ogygia/machine';
+import { createHash } from '@ogygia/core/internal/compiler-browser';
 import { render_fence, default_pipeline, type CodePipeline } from './code-render.ts';
 import { fence_key, fence_cache_get, fence_cache_set } from './fence-cache.ts';
 import type { SerializedRegion } from '../region-store.ts';
@@ -126,21 +127,82 @@ export type ResolvedShiki = {
 };
 
 let active: ResolvedShiki | null = null;
+
+/** The highlighters kept at once: a site has one config, a few at most (a snippet's, an explicit
+ *  `highlight()`'s); past it the least recently used goes. */
+const MAX_HIGHLIGHTERS = 4;
+
+/** What a highlighter is made from: its key (`theme_key`), and a config with that key. */
+type HighlighterAsk = { key: string; cfg: ResolvedShiki };
+
 /** The highlighter for one set of themes and languages: started on first use and kept, but never a
- *  failed start (a grammar that failed to load), which the next highlight tries again (#248). A
- *  highlight with other themes or languages starts its own in its place. */
-let highlighter: { key: string; start: Flights<void, Highlighter> } | null = null;
+ *  failed start (a grammar that failed to load), which the next highlight tries again (#248). Each
+ *  set has its own (a few kept at once): a snippet, or a highlight with another config, uses the one
+ *  made for its set, and a highlighter let go is disposed (`let_go`). */
+const highlighters: Flights<
+	HighlighterAsk,
+	Highlighter,
+	Pick<HighlighterAsk, 'key'>
+> = flights<HighlighterAsk>()({
+	name: 'shiki highlighter',
+	key: ['key'],
+	ignore: { cfg: 'every config with one key has the same themes and languages' },
+	max: MAX_HIGHLIGHTERS,
+	run: ({ cfg }) =>
+		import('shiki').then(({ createHighlighter }) =>
+			createHighlighter({
+				themes: [cfg.themes.light as never, cfg.themes.dark as never],
+				langs: cfg.langs
+			})
+		)
+});
+
+/** The highlighters handed out, by their key: one the flights no longer keeps is disposed. */
+const handed = new Map<Highlighter, string>();
+
+/** Disposes the highlighters the flights let go (the least recently used, past the cap). */
+function let_go(): void {
+	for (const [h, key] of handed) {
+		const e = highlighters.peek({ key });
+		if (e?.kind === 'kept' && e.answer === h) continue;
+		handed.delete(h);
+		h.dispose();
+	}
+}
+
+/** A theme object's name for Shiki: its own, or (it has none) one made from its contents, so two
+ *  unnamed themes are two names. */
+function theme_name(theme: unknown, fallback: string): string {
+	if (typeof theme === 'string') return theme;
+	const name = (theme as { name?: string }).name;
+	return name === undefined ? `${fallback}-${theme_hash(theme)}` : String(name);
+}
+
+/** A theme object's contents, hashed: its colors tell it apart, not its name. */
+function theme_hash(theme: unknown): string {
+	return createHash('sha256').update(JSON.stringify(theme)).digest('hex').slice(0, 16);
+}
+
+/** A theme as the key names it: a bundled one by its name, an object by its name and contents (an
+ *  object edited in place keeps its name and is another theme). */
+function theme_id(theme: unknown, name: string): string {
+	return typeof theme === 'string' ? name : `${name}#${theme_hash(theme)}`;
+}
 
 export function normalize_shiki(options: MarkdownShikiOptions = {}): ResolvedShiki {
-	const themes = options.themes ?? DEFAULT_THEMES;
-	const lightName =
-		typeof themes.light === 'string'
-			? themes.light
-			: String((themes.light as { name?: string }).name ?? 'light');
-	const darkName =
-		typeof themes.dark === 'string'
-			? themes.dark
-			: String((themes.dark as { name?: string }).name ?? 'dark');
+	const given = options.themes ?? DEFAULT_THEMES;
+	const lightName = theme_name(given.light, 'light');
+	const darkName = theme_name(given.dark, 'dark');
+	// (an unnamed object is handed to Shiki under the name made for it)
+	const named = (theme: unknown, name: string) =>
+		typeof theme === 'string' || (theme as { name?: string }).name !== undefined
+			? theme
+			: { ...(theme as object), name };
+	const themes = {
+		...given,
+		light: named(given.light, lightName),
+		dark: named(given.dark, darkName)
+	} as MarkdownThemePair;
 
 	return {
 		themes,
@@ -155,7 +217,6 @@ export function normalize_shiki(options: MarkdownShikiOptions = {}): ResolvedShi
 
 export function configure_shiki(options: MarkdownShikiOptions = {}): ResolvedShiki {
 	active = normalize_shiki(options);
-	highlighter = null;
 	return active;
 }
 
@@ -164,26 +225,17 @@ export function get_shiki_config(): ResolvedShiki | null {
 }
 
 function theme_key(cfg: ResolvedShiki) {
-	return `${cfg.lightName}|${cfg.darkName}|${cfg.langs.join(',')}`;
+	const light = theme_id(cfg.themes.light, cfg.lightName);
+	const dark = theme_id(cfg.themes.dark, cfg.darkName);
+	return `${light}|${dark}|${cfg.langs.join(',')}`;
 }
 
-function get_highlighter(cfg: ResolvedShiki) {
+async function get_highlighter(cfg: ResolvedShiki) {
 	const key = theme_key(cfg);
-	if (highlighter?.key !== key)
-		highlighter = {
-			key,
-			start: flights({
-				name: 'shiki highlighter',
-				run: () =>
-					import('shiki').then(({ createHighlighter }) =>
-						createHighlighter({
-							themes: [cfg.themes.light as never, cfg.themes.dark as never],
-							langs: cfg.langs
-						})
-					)
-			})
-		};
-	return highlighter.start.get();
+	const h = await highlighters.get({ key, cfg });
+	if (h !== STALE) handed.set(h, key);
+	let_go();
+	return h;
 }
 
 export function wrap_html(html: string, wrapperClass: string | false): string {

@@ -5,6 +5,8 @@
  * hundreds of KB; the dock needs the score, the forecast, the findings, the islands, the top
  * components and the calls. The slim copy also survives a reload (sessionStorage, best effort).
  */
+import { STALE, type Scope } from '@ogygia/machine';
+import { fetch_when_free } from '../profiler/busy.ts';
 
 export interface SlimIsland {
 	name: string;
@@ -99,44 +101,40 @@ export interface SlimProfile {
 
 /**
  * Profile a same-origin path on the server, now (the profiler's `/page?format=json`; a 409 = the
- * recorder is busy: wait and ask again). Stores the slim copy and returns it.
+ * recorder is busy: wait and ask again, `fetch_when_free`). Stores the slim copy and returns it;
+ * `null` once `owner` (the tab that asked) ended first.
  */
 export async function run_profile(
 	path: string,
-	runs = 3,
-	base = '/__profiler'
-): Promise<SlimProfile> {
+	runs: number,
+	base: string,
+	owner: Scope
+): Promise<SlimProfile | null> {
 	const url = `${base}/page?p=${encodeURIComponent(path)}&runs=${runs}&format=json`;
-	for (let tries = 0; tries < 30; tries++) {
-		const r = await fetch(url, { headers: { accept: 'application/json' } });
-		if (r.status === 409) {
-			// oxlint-disable-next-line ogygia/owned-effects -- a one-shot wait inside the caller's own await, which ends with it
-			await new Promise((ok) => setTimeout(ok, 2000));
-			continue;
+	const r = await fetch_when_free(owner, url, { headers: { accept: 'application/json' } });
+	if (r === STALE) return null;
+	if (r.status === 409) throw new Error('another profile kept the recorder busy for two minutes');
+	if (!r.ok) {
+		// (its words, not its JSON: the profiler answers `{ "error": "…" }` — a heap too full to
+		// profile says what to do, and the sentence is the point)
+		const text = await r.text();
+		let said = text;
+		try {
+			const j = JSON.parse(text) as { error?: unknown; message?: unknown };
+			said =
+				typeof j.error === 'string' ? j.error : typeof j.message === 'string' ? j.message : text;
+		} catch {
+			// ok: not JSON: the text itself is said
 		}
-		if (!r.ok) {
-			// (its words, not its JSON: the profiler answers `{ "error": "…" }` — a heap too full to
-			// profile says what to do, and the sentence is the point)
-			const text = await r.text();
-			let said = text;
-			try {
-				const j = JSON.parse(text) as { error?: unknown; message?: unknown };
-				said =
-					typeof j.error === 'string' ? j.error : typeof j.message === 'string' ? j.message : text;
-			} catch {
-				// ok: not JSON: the text itself is said
-			}
-			throw new Error(
-				r.status === 503
-					? said.slice(0, 600)
-					: `the profiler answered ${r.status}: ${said.slice(0, 300)}`
-			);
-		}
-		const p = slim_profile(await r.json());
-		set_profile(p);
-		return p;
+		throw new Error(
+			r.status === 503
+				? said.slice(0, 600)
+				: `the profiler answered ${r.status}: ${said.slice(0, 300)}`
+		);
 	}
-	throw new Error('another profile kept the recorder busy for a minute');
+	const p = slim_profile(await r.json());
+	set_profile(p);
+	return p;
 }
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);

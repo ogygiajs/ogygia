@@ -106,6 +106,20 @@ export const DEVTOOLS_WARNINGS = {
 			carries an \`idempotency-key\` header: a sink that stored a post already can answer ok
 			for its copy.
 		`
+	},
+	devtools_profiler_background_stopped: {
+		text: (a: { loop: string }): string =>
+			`the profiler's ${a.loop} stopped: a background window failed:`,
+		details: (): string => prose`
+			The trap (\`trap\`) and the always-on sampler (\`sample\`) record short windows in the
+			background with the process's inspector. One of those windows failed (the error follows
+			the message): most often the inspector is held by another debugger, or the host has none.
+			That loop records no more windows in this process; the dashboard says so under "In the
+			background", with what the trap caught before it stopped.
+
+			Detach the other debugger and restart the server, or turn \`trap\` / \`sample\` off on this
+			host.
+		`
 	}
 };
 

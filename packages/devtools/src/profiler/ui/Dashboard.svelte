@@ -154,9 +154,8 @@
 		{#if trap}
 			<p class="hint">
 				<b>Catch the slow one:</b>
-				{trap.armed ? 'armed' : 'done'} — a coarse sampler runs in {Math.round(
-					trap.window_ms / 1000
-				)} s windows and keeps the window when a request crosses <b>{trap.over} ms</b>. Caught {trap.caught}
+				{trap.state} — a coarse sampler runs in {Math.round(trap.window_ms / 1000)} s windows and keeps
+				the window when a request crosses <b>{trap.over} ms</b>. Caught {trap.caught}
 				of {trap.keep}.{#if trap.caught}
 					The reports are in the list below, labelled "caught".{/if}
 			</p>

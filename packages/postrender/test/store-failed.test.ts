@@ -54,4 +54,28 @@ describe('a store that is down', () => {
 		await store_put(runtime, '/a/', entry, { ttl: 60, tags: [] });
 		expect(said()).toHaveLength(2);
 	});
+
+	it('a call that started before the outage and answers after it does not end the streak', async () => {
+		// a slow read out when the store goes down answers late; the store is still down
+		let answer_slow!: () => void;
+		const slow = new Promise<void>((r) => (answer_slow = r));
+		let calls = 0;
+		const flaky: PostrenderStore = {
+			...store,
+			get: async () => {
+				if (++calls === 1) {
+					await slow;
+					return null;
+				}
+				throw new Error('store down');
+			}
+		};
+		const runtime = install({ store: flaky });
+		const late = store_get(runtime, '/slow/');
+		expect(await store_get(runtime, '/a/')).toBeNull(); // the outage: said
+		answer_slow();
+		await late;
+		expect(await store_get(runtime, '/b/')).toBeNull(); // the same outage
+		expect(said()).toHaveLength(1);
+	});
 });

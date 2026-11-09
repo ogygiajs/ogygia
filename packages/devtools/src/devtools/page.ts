@@ -7,6 +7,7 @@
 import { beacon_page, hole_request_times, is_headless } from '@ogygia/core/internal/instruments';
 import { tool_fetch } from '@ogygia/core/internal/instruments';
 import { snapshot } from '@ogygia/core/events';
+import { flights, type Flights } from '@ogygia/machine';
 import { page_ledger } from './ledger-dom.ts';
 import {
 	all_regions,
@@ -245,32 +246,43 @@ function shown_under_media(el: Element): string | null {
 /** THE DEV SERVER'S PRE-BUNDLED PACKAGES, read once from its `.vite/deps/_metadata.json` (the folder of
  *  a pre-bundled script the page loaded — no guess at the app's base): the names its `optimized` keys
  *  belong to. Null until read; never off the dev server, nor on a page that loaded no pre-bundled file. */
-let prebundled: string[] | null = null;
-let prebundled_asked = false;
-function prebundled_packages(script_urls: readonly string[]): string[] | null {
-	if (!import.meta.env.DEV || prebundled_asked) return prebundled;
+const prebundled = flights({
+	name: 'devtools prebundled packages',
+	run: async (dir: string, signal): Promise<string[]> => {
+		const r = await tool_fetch(dir + '_metadata.json', { signal });
+		// (a server error is "not now": asked again; any other miss is no metadata, for good)
+		if (r.status >= 500) throw new Error(`status ${r.status}`);
+		const m = (r.ok ? await r.json() : null) as { optimized?: Record<string, unknown> } | null;
+		return prebundled_names(Object.keys(m?.optimized ?? {}));
+	}
+});
+export function prebundled_packages(script_urls: readonly string[]): string[] | null {
+	if (!import.meta.env.DEV) return null;
 	const one = script_urls.find((u) => u.includes('/node_modules/.vite/deps/'));
 	if (!one) return null;
-	prebundled_asked = true;
-	const dir = one.slice(0, one.indexOf('/node_modules/.vite/deps/') + 25);
-	void tool_fetch(dir + '_metadata.json')
-		.then((r) => (r.ok ? r.json() : null))
-		.then((m: { optimized?: Record<string, unknown> } | null) => {
-			prebundled = prebundled_names(Object.keys(m?.optimized ?? {}));
-		})
-		.catch(() => {}); // ok: no metadata: no prebundled names, the finding is left out
-	return null;
+	return asked(prebundled, one.slice(0, one.indexOf('/node_modules/.vite/deps/') + 25));
 }
 
 /** A FILE THE BROWSER DOWNLOADED AGAIN: its answer's `Vary` header, asked once per URL with a HEAD
  *  (a tool's request, out of every measurement). Null until it is in, or when the answer has none. */
-const varies = new Map<string, string | null>();
-function vary_of(url: string): string | null {
-	if (varies.has(url)) return varies.get(url) ?? null;
-	varies.set(url, null);
-	void tool_fetch(url, { method: 'HEAD', cache: 'no-store' })
-		.then((r) => varies.set(url, r.headers.get('vary')))
-		.catch(() => {}); // ok: no answer: no Vary to show (null)
+const varies = flights({
+	name: 'devtools vary',
+	run: (url: string, signal) =>
+		tool_fetch(url, { method: 'HEAD', cache: 'no-store', signal }).then((r) =>
+			r.headers.get('vary')
+		)
+});
+export function vary_of(url: string): string | null {
+	return asked(varies, url);
+}
+
+/** What the dev server answered for `key`, read without waiting: the kept answer, or null while it
+ *  is asked (the first read starts the ask). An answer is kept for the session; a failed ask is not,
+ *  so a later read asks again. */
+function asked<V>(f: Flights<string, V>, key: string): V | null {
+	const e = f.peek(key);
+	if (e?.kind === 'kept') return e.answer;
+	if (e === undefined) f.get(key).catch(() => {}); // ok: not answered this time; the next read asks again
 	return null;
 }
 

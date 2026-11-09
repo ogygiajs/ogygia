@@ -282,6 +282,7 @@ const SINK_POLICY = /* @__PURE__ */ policy({
 const SINK_TRY_MS = 5000;
 const error_text = (error: unknown): string =>
 	error instanceof Error ? error.message : String(error);
+const noop = (): void => {};
 
 // The span recorder's `begin` lives in this file: skip its frame when finding a span's caller.
 register_profiler_file();
@@ -429,7 +430,9 @@ export interface TrapStatus {
 	window_ms: number;
 	caught: number;
 	keep: number;
-	armed: boolean;
+	/** `armed`: it waits for or takes its next window; `stopped`: a window failed (the dashboard's
+	 *  note says why); `done`: it kept all it was asked to, or is not armed yet */
+	state: 'armed' | 'done' | 'stopped';
 }
 
 /** One visit's web vitals from the runtime's beacon (ms; CLS unitless). */
@@ -683,45 +686,71 @@ function is_hex_id(s: string): boolean {
 	return true;
 }
 
+/** A report's fetch of one of the app's files, through the app (`signal`: the weigh gave up). */
+type FetchUrl = (url: string, signal?: AbortSignal) => Promise<Response>;
+/** What one weigh is handed: the URL (its key), and the fetch of the report that asked. */
+type WeighAsk = { url: string; fetch_url: FetchUrl };
+/** Bytes per asset URL (`null`: the file is not there), measured once per process: a hashed
+ *  asset never changes. */
+type UrlWeights = Flights<WeighAsk, number | null, Pick<WeighAsk, 'url'>>;
+
+/** A status that says the file is not there for good: a client error, but not a timeout or a
+ *  rate limit (408, 429), which say "not now". */
+const gone_for_good = (status: number): boolean =>
+	status >= 400 && status < 500 && status !== 408 && status !== 429;
+
+/** The process's URL weights: an answer (bytes, or a file that is not there) is kept; a failure
+ *  (a 5xx, a timeout, the network) is not, so the next report asks again. Reports weighing the
+ *  same file at once share one fetch. */
+export const url_weights = (): UrlWeights =>
+	flights<WeighAsk>()({
+		name: 'profiler url weights',
+		key: ['url'],
+		ignore: { fetch_url: 'every report fetches the same hashed file through the app' },
+		run: async ({ url, fetch_url }, signal) => {
+			const res = await fetch_url(url, signal);
+			if (!res.ok) {
+				void res.body?.cancel().catch(noop); // ok: only the status is read
+				if (gone_for_good(res.status)) return null;
+				throw new Error(`status ${res.status}`);
+			}
+			const len = Number(res.headers.get('content-length'));
+			// content-length is the wire size; the body's own length is the decoded size — the
+			// bytes the browser parses. Read it when it is not already known to be identity.
+			const enc = res.headers.get('content-encoding');
+			if (!enc && Number.isFinite(len) && len > 0) {
+				void res.body?.cancel().catch(noop); // ok: the length is known
+				return len;
+			}
+			return (await res.arrayBuffer()).byteLength;
+		}
+	});
+
 /** GET each URL through the app's own fetch and count its bytes — the JS weight of an island's
- *  closure. Cached per process (immutable hashed assets), a handful at a time, capped in time so
- *  a slow static host can never hold a report hostage. */
-async function weigh_urls(
+ *  closure. Kept per process (`url_weights`), a handful at a time, capped in time so a slow static
+ *  host can never hold a report hostage: a URL not weighed within the budget is left out. */
+export async function weigh_urls(
 	urls: Iterable<string>,
-	fetch_url: (url: string) => Promise<Response>,
-	cache: Map<string, number | null>,
+	fetch_url: FetchUrl,
+	weights: UrlWeights,
 	budget_ms = 4000
 ): Promise<Record<string, number>> {
-	const todo = [...new Set(urls)].filter((u) => u && !cache.has(u));
-	const deadline = Date.now() + budget_ms;
+	const todo = [...new Set(urls)].filter((u) => u);
+	const budget = AbortSignal.timeout(budget_ms);
+	const out: Record<string, number> = {};
 	let i = 0;
 	const worker = async () => {
-		while (i < todo.length && Date.now() < deadline) {
-			const u = todo[i++];
+		while (i < todo.length && !budget.aborted) {
+			const url = todo[i++];
 			try {
-				const res = await with_timeout(fetch_url(u), Math.max(200, deadline - Date.now()), 'weigh');
-				if (!res.ok) {
-					cache.set(u, null);
-					continue;
-				}
-				const len = Number(res.headers.get('content-length'));
-				// content-length is the wire size; the body's own length is the decoded size — the
-				// bytes the browser parses. Read it when it is not already known to be identity.
-				const enc = res.headers.get('content-encoding');
-				const bytes =
-					!enc && Number.isFinite(len) && len > 0 ? len : (await res.arrayBuffer()).byteLength;
-				cache.set(u, bytes);
+				const bytes = await weights.get({ url, fetch_url }, { signal: budget });
+				if (typeof bytes === 'number') out[url] = bytes;
 			} catch {
-				cache.set(u, null);
+				// ok: not weighed this time (a 5xx, the network); left out, and the next report asks again
 			}
 		}
 	};
 	await Promise.all(Array.from({ length: Math.min(6, todo.length) }, worker));
-	const out: Record<string, number> = {};
-	for (const u of new Set(urls)) {
-		const b = cache.get(u);
-		if (typeof b === 'number') out[u] = b;
-	}
 	return out;
 }
 
@@ -928,6 +957,46 @@ const window_machine = machine<{
 	steps: { idle: ['recording'], recording: ['stopping', 'idle'], stopping: ['idle'] },
 	after: { recording: { ms: WINDOW_MAX_MS, to: 'idle' } }
 });
+
+/**
+ * One background loop (the trap, the always-on sampler): waiting for its next window (the visit
+ * owns the timer), taking one, or ended. `caught` is what it kept so far (the trap's slow requests;
+ * the sampler keeps none). It ends `done` (the trap kept all it was asked to), `refused` (a window
+ * failed: the inspector refused it), or `retired` (a newer profiler took the process over).
+ */
+const loop_machine = machine<{
+	idle: {};
+	scheduled: { caught: number };
+	capturing: { caught: number };
+	done: { caught: number };
+	refused: { caught: number; error: string };
+	retired: { caught: number };
+}>()({
+	name: 'profiler-background-loop',
+	initial: 'idle',
+	steps: {
+		idle: ['scheduled', 'retired'],
+		scheduled: ['scheduled', 'capturing', 'retired'],
+		capturing: ['scheduled', 'done', 'refused', 'retired'],
+		done: ['retired'],
+		refused: ['retired'],
+		retired: []
+	}
+});
+type Loop = ReturnType<typeof loop_machine.create>;
+
+const caught_of = (loop: Loop): number => {
+	const s = loop.now;
+	return s.kind === 'idle' ? 0 : s.caught;
+};
+
+/** The trap as the dashboard shows it: waiting for or taking a window, stopped by a refusal, or
+ *  not running (done, or not armed yet). */
+function trap_state(loop: Loop): TrapStatus['state'] {
+	const kind = loop.now.kind;
+	if (kind === 'scheduled' || kind === 'capturing') return 'armed';
+	return kind === 'refused' ? 'stopped' : 'done';
+}
 
 /** The span recorders of the windows recording now, newest last. Spans go to the newest; a window
  *  that ends hands them back to the one before it, never to nothing while another still records
@@ -1137,14 +1206,16 @@ class Profiler {
 		waitUntil: (work) => devtools_app()?.keepAlive(work)
 	});
 	#sink_last: { at: number; ok: boolean; rows: number; error?: string } | null = null;
-	#trap_caught = 0;
-	#trap_timer: (() => void) | null = null;
+	/** the trap's loop (see `loop_machine`) */
+	readonly #trap_loop: Loop = loop_machine.create();
 	readonly #sample: ProfilerOptions['sample'] | null;
 	readonly #sampled: SampledWindow[] = [];
-	#sample_timer: (() => void) | null = null;
+	/** the always-on sampler's loop */
+	readonly #sample_loop: Loop = loop_machine.create();
+	/** why the background loops are off on this host (serverless), when they are */
 	#background_note: string | null = null;
 	/** bytes per asset URL, measured once per process */
-	readonly #weights = new Map<string, number | null>();
+	readonly #weights = url_weights();
 	/** every page asset weighed so far (hashed assets never change): page-assets.ts */
 	readonly #asset_weights = new Map<string, Weight | null>();
 	readonly #background_net: NetCall[] = [];
@@ -1266,7 +1337,9 @@ class Profiler {
 	/** Stand down: the background timers stop (a sink sends what it holds first). */
 	#retire(): void {
 		const sinking = this.#sink_timer !== null;
-		this.#trap_timer = this.#sample_timer = this.#sink_timer = null;
+		this.#sink_timer = null;
+		for (const loop of [this.#trap_loop, this.#sample_loop])
+			if (loop.now.kind !== 'retired') loop.go('retired', { caught: caught_of(loop) });
 		this.#background.close();
 		if (sinking) void this.#sink_flush(); // ok: a flush never rejects (its failure is kept for the site view)
 	}
@@ -1290,33 +1363,57 @@ class Profiler {
 				'trap / sampling are off on this serverless host (an instance lives for one request).';
 			return;
 		}
-		if (this.#trap && !this.#trap_timer) this.#schedule_trap(1000);
-		if (this.#sample && !this.#sample_timer)
-			this.#schedule_sample((this.#sample.every ?? 60) * 1000);
+		if (this.#trap && this.#trap_loop.now.kind === 'idle')
+			this.#schedule(this.#trap_loop, () => this.#trap_cycle(), 1000);
+		if (this.#sample && this.#sample_loop.now.kind === 'idle')
+			this.#schedule(
+				this.#sample_loop,
+				() => this.#sample_cycle(),
+				(this.#sample.every ?? 60) * 1000
+			);
 	}
 
-	#schedule_trap(delay_ms: number): void {
-		if (this.#background.closed) return;
-		this.#trap_timer = this.#background.timeout(() => void this.#trap_cycle(), delay_ms); // ok: a cycle catches its own failure
+	/** The loop's next window, `delay_ms` from now: a timer of that wait's own visit. */
+	#schedule(loop: Loop, cycle: () => Promise<void>, delay_ms: number): void {
+		const s = loop.now;
+		if (s.kind !== 'idle' && s.kind !== 'scheduled' && s.kind !== 'capturing') return;
+		loop.go('scheduled', { caught: caught_of(loop) });
+		loop.scope.timeout(() => void cycle(), delay_ms); // ok: a cycle catches its own failure
 	}
 
-	#schedule_sample(delay_ms: number): void {
-		if (this.#background.closed) return;
-		this.#sample_timer = this.#background.timeout(() => void this.#sample_cycle(), delay_ms); // ok: a cycle catches its own failure
+	/** A window failed: the loop stops, and says why (on the dashboard, and once as a message). */
+	#refused(loop: Loop, name: string, caught: number, error: unknown): void {
+		if (!loop.move('capturing', 'refused', { caught, error: error_text(error) })) return;
+		warn('devtools_profiler_background_stopped', { loop: name }, error);
+	}
+
+	/** The background loops that stopped, and why the loops are off, when they are: one note. */
+	#background_notes(): string | null {
+		const notes: string[] = [];
+		if (this.#background_note !== null) notes.push(this.#background_note);
+		const t = this.#trap_loop.now;
+		if (t.kind === 'refused') notes.push(`the trap stopped: ${t.error}.`);
+		const s = this.#sample_loop.now;
+		if (s.kind === 'refused') notes.push(`always-on sampling stopped: ${s.error}.`);
+		return notes.length === 0 ? null : notes.join(' ');
 	}
 
 	/** One rolling trap window: sample coarsely, then keep the window only if a request in it blew
 	 *  past the threshold. The slowest such request is the report's request; the timeline is its. */
 	async #trap_cycle(): Promise<void> {
 		const t = this.#trap!;
-		this.#trap_timer = null;
+		const loop = this.#trap_loop;
+		const s = loop.now;
+		if (s.kind !== 'scheduled') return;
 		if (this.#superseded()) return this.#retire();
 		const keep = t.keep ?? 3;
-		if (this.#trap_caught >= keep) return;
+		const again = (ms: number) => this.#schedule(loop, () => this.#trap_cycle(), ms);
 		// a page profile is waiting for the recorder: let it have it, come back after
-		if (this.#page_waiting) return this.#schedule_trap(1000);
+		if (this.#page_waiting) return again(1000);
 		const token = this.#take('background');
-		if (token === null) return this.#schedule_trap(2000); // a recording is on — later
+		if (token === null) return again(2000); // a recording is on — later
+		loop.go('capturing', { caught: s.caught });
+		let caught = s.caught;
 		try {
 			const window_ms = t.window ?? 5000;
 			const cap = await this.#capture_window(
@@ -1359,27 +1456,31 @@ class Profiler {
 					});
 					void this.#sink_flush(); // ok: a flush never rejects (its failure is kept for the site view)
 				}
-				this.#trap_caught++;
+				caught++;
 			}
-		} catch {
+		} catch (error) {
 			// the inspector refused (another debugger, an unsupported host): stop trying
-			this.#trap_caught = keep;
+			return this.#refused(loop, 'trap', caught, error);
 		} finally {
 			this.#free(token);
 		}
-		if (this.#trap_caught < keep) this.#schedule_trap(1000);
+		if (caught >= keep) loop.move('capturing', 'done', { caught });
+		else again(1000);
 	}
 
 	/** One always-on sample: a short coarse window folded into the rolling hot-functions table. */
 	async #sample_cycle(): Promise<void> {
 		const s = this.#sample!;
-		this.#sample_timer = null;
+		const loop = this.#sample_loop;
+		if (loop.now.kind !== 'scheduled') return;
 		if (this.#superseded()) return this.#retire();
 		const every_ms = (s.every ?? 60) * 1000;
-		if (this.#page_waiting) return this.#schedule_sample(Math.min(every_ms, 2000));
+		const again = (ms: number) => this.#schedule(loop, () => this.#sample_cycle(), ms);
+		if (this.#page_waiting) return again(Math.min(every_ms, 2000));
 		// (a background window too: no per-request context)
 		const token = this.#take('background');
-		if (token === null) return this.#schedule_sample(Math.min(every_ms, 5000));
+		if (token === null) return again(Math.min(every_ms, 5000));
+		loop.go('capturing', { caught: 0 });
 		try {
 			const window_ms = s.window ?? 2000;
 			const cap = await this.#capture_window(
@@ -1415,13 +1516,13 @@ class Profiler {
 						.map((f) => ({ name: f.name, file: f.url, self_ms: f.self_ms, category: f.category }))
 				});
 			}
-		} catch {
+		} catch (error) {
 			// unsupported host: stop
-			return;
+			return this.#refused(loop, 'always-on sampler', 0, error);
 		} finally {
 			this.#free(token);
 		}
-		this.#schedule_sample(every_ms);
+		again(every_ms);
 	}
 
 	/** The always-on table: every kept window folded, hot functions by summed self time. */
@@ -2116,7 +2217,7 @@ class Profiler {
 			| 'instance'
 		>,
 		/** page mode on a built app: the app's own fetch, to weigh the islands' JS closures */
-		fetch_url?: (url: string) => Promise<Response>
+		fetch_url?: FetchUrl
 	): Promise<string> {
 		// THE PROFILER'S OWN REQUESTS are not the app's calls: its UI keeping the previous report
 		// (`GET /__profiler/report/<id>.dump`) while this one records read as two failed app calls
@@ -4403,13 +4504,13 @@ class Profiler {
 				? {
 						over: this.#trap.over,
 						window_ms: this.#trap.window ?? 5000,
-						caught: this.#trap_caught,
+						caught: caught_of(this.#trap_loop),
 						keep: this.#trap.keep ?? 3,
-						armed: !!this.#trap_timer || this.#holder.now.kind === 'background'
+						state: trap_state(this.#trap_loop)
 					}
 				: null,
 			sampled: this.#sampled_summary(),
-			background_note: this.#background_note
+			background_note: this.#background_notes()
 		};
 	}
 
@@ -5288,15 +5389,16 @@ class Profiler {
 			mem_mark('after the coverage render');
 			// the app's own fetch answers a hashed asset on adapter-node (it reads the file); a
 			// preview / static host serves it over the wire instead, so fall back to the origin
-			const app_fetch = async (u: string): Promise<Response> => {
+			const app_fetch = async (u: string, signal?: AbortSignal): Promise<Response> => {
 				try {
-					const r = await event.fetch(u, { headers: { 'x-og-profiler-internal': '1' } });
+					const r = await event.fetch(u, { headers: { 'x-og-profiler-internal': '1' }, signal });
 					if (r.ok) return r;
 				} catch {
 					// ok: not answered internally; the origin is asked below
 				}
 				return fetch(new URL(u, event.url.origin), {
-					headers: { 'x-og-profiler-internal': '1' }
+					headers: { 'x-og-profiler-internal': '1' },
+					signal
 				});
 			};
 			const id = await this.#finish_report(

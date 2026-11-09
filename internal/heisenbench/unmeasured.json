@@ -1,6 +1,158 @@
 {
 	"exempt": [
 		{
+			"id": "packages/content/src/markdown/shiki.ts > normalize_shiki > named",
+			"reason": "names an unnamed theme object for Shiki: a spread of a theme object, constant work; proven in packages/content/test/shiki-highlighters.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > has_body_close > at_bytes",
+			"reason": "seven byte compares at one offset (constant work), moved as it was from hooks.ts; the search around it runs per streamed chunk in packages/core/test/page-stream-out.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred",
+			"reason": "wraps a Response's body in a ReadableStream owned by the request's scope (not cloneable), constant work; proven in packages/core/test/page-stream-out.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > cancel",
+			"reason": "the stream's cancel closes its owner: constant work"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start",
+			"reason": "forwards Kit's document and streams each promise's script as it settles: a live stream and promises (not recorded); its work per chunk is has_body_close's, per promise resolve_script's; proven in packages/core/test/page-stream-out.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start > <anonymous>~c8a149",
+			"reason": "reads Kit's dead tail to its end and drops it: a live stream reader (not recorded), one read per chunk"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start > maybe_close",
+			"reason": "closes the stream once nothing is pending: a stream controller (not replayable), constant work"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start > push",
+			"reason": "enqueues one promise's script on the stream controller (not replayable); its work is resolve_script's"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start > settled",
+			"reason": "one promise settled: its push and the count down, on the stream controller (not replayable), constant work; proven in packages/core/test/page-stream-out.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start > stream_one",
+			"reason": "attaches its handlers to one promise (not cloneable), constant work"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start > stream_one > then:0~cfd0a7",
+			"reason": "stages one settled value for the stream (stage_deferred's work, measured on its own) on the stream controller (not replayable); proven in packages/core/test/page-stream-out.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start > stream_one > then:1~0cd750",
+			"reason": "a rejected promise settled as a failure: constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/page.ts > asked",
+			"reason": "reads a flights' kept answer or starts its ask (a flights, not cloneable), constant work; proven in packages/devtools/test/devtools-page-asks.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/page.ts > asked > catch:0~a1b2d0",
+			"reason": "a failed ask, left for the next read to ask again: nothing"
+		},
+		{
+			"id": "packages/devtools/src/devtools/page.ts > flights:0~7c898a > run",
+			"reason": "a HEAD request to the dev server for a file's Vary header (network IO, not cloneable); proven in packages/devtools/test/devtools-page-asks.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/page.ts > flights:0~7c898a > run > then:0~f4abe6",
+			"reason": "reads one header off a Response (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/page.ts > flights:0~93c4d1 > run",
+			"reason": "fetches the dev server's pre-bundle metadata (network IO, not recorded); its names are prebundled_names', measured on its own; proven in packages/devtools/test/devtools-page-asks.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_WARNINGS > devtools_profiler_background_stopped > details",
+			"reason": "a message's wording, constant text; said in packages/devtools/test/profiler-background-refused.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_WARNINGS > devtools_profiler_background_stopped > text",
+			"reason": "a message's wording, constant text; said in packages/devtools/test/profiler-background-refused.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/busy.ts > busy_wait",
+			"reason": "reads one header off a Response (not cloneable), constant work; proven in packages/devtools/test/devtools-profile-busy.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/busy.ts > fetch_when_free",
+			"reason": "network requests and waits owned by the caller's scope (not recorded), one ask per busy answer; proven in packages/devtools/test/devtools-profile-busy.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/busy.ts > fetch_when_free > catch:0~a1b2d0",
+			"reason": "a busy answer's body let go: nothing"
+		},
+		{
+			"id": "packages/devtools/src/profiler/busy.ts > fetch_when_free > task:0~8118eb",
+			"reason": "one fetch with the scope's signal (network IO, not cloneable)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/busy.ts > fetch_when_free > task:0~bb5156",
+			"reason": "one wait on the scope's timer (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/busy.ts > fetch_when_free > task:0~bb5156 > Promise:0~d34e61",
+			"reason": "one wait on the scope's timer (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #arm_background > schedule:1~04d26d",
+			"reason": "hands the trap's cycle to its loop's timer: a profiler instance (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #arm_background > schedule:1~844acf",
+			"reason": "hands the sampler's cycle to its loop's timer: a profiler instance (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #background_notes",
+			"reason": "reads the two loops' states into one note: a profiler instance (not cloneable), constant work; proven in packages/devtools/test/profiler-background-refused.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #refused",
+			"reason": "moves a loop to refused and says it once: a machine and a message (not replayable), constant work; proven in packages/devtools/test/profiler-background-refused.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #sample_cycle > again",
+			"reason": "schedules the sampler's next cycle: a machine move and a timer (not replayable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #sample_cycle > again > schedule:1~844acf",
+			"reason": "hands the sampler's cycle to its loop's timer (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #trap_cycle > again",
+			"reason": "schedules the trap's next cycle: a machine move and a timer (not replayable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #trap_cycle > again > schedule:1~04d26d",
+			"reason": "hands the trap's cycle to its loop's timer (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > caught_of",
+			"reason": "reads one field of a loop machine's state (not replayable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > gone_for_good",
+			"reason": "three compares on a status (constant work); proven in packages/devtools/test/profiler-weigh-urls.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > trap_state",
+			"reason": "reads a loop machine's state kind (not replayable), constant work; proven in packages/devtools/test/profiler-background-refused.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > url_weights",
+			"reason": "makes the process's flights of URL weights (not cloneable), constant work; proven in packages/devtools/test/profiler-weigh-urls.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > url_weights > call:0~ec9e31 > run",
+			"reason": "fetches one asset through the app and counts its bytes (network IO, not recorded); proven in packages/devtools/test/profiler-weigh-urls.test.ts"
+		},
+		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_address_bar_drift > details",
 			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/rules.test.ts"
 		},
@@ -713,11 +865,11 @@
 			"reason": "starts mdsvex (a dynamic import, then its instance) once and keeps it; mdsvex reaches @ogygia/core's built compiler, which a bench run does not load (see packages/content/bench/markdown.bench.ts); its failed start and retry are proven in packages/content/test/markdown-start.test.ts"
 		},
 		{
-			"id": "packages/content/src/markdown/shiki.ts > get_highlighter > highlighter > flights:0 > run",
-			"reason": "starts the Shiki highlighter (a dynamic import, grammars and Shiki's WASM engine) once and keeps it: module IO a measuring window refuses; its failed start and retry are proven in packages/content/test/markdown-start.test.ts"
+			"id": "packages/content/src/markdown/shiki.ts > call:0~7e49c8 > run",
+			"reason": "starts the Shiki highlighter (a dynamic import, grammars and Shiki's WASM engine) once per set of themes and languages and keeps it: module IO a measuring window refuses; its failed start and retry are proven in packages/content/test/markdown-start.test.ts, its reuse in packages/content/test/shiki-highlighters.test.ts"
 		},
 		{
-			"id": "packages/content/src/markdown/shiki.ts > get_highlighter > highlighter > flights:0 > run > then:0",
+			"id": "packages/content/src/markdown/shiki.ts > call:0~7e49c8 > run > then:0~a452b6",
 			"reason": "hands the loaded Shiki module to createHighlighter: Shiki's WASM engine, which a measuring window refuses; proven in packages/content/test/markdown-start.test.ts"
 		},
 		{
@@ -1389,11 +1541,11 @@
 			"reason": "a constant predicate in the test reset (drops every render flight): no work"
 		},
 		{
-			"id": "packages/core/src/hooks.ts > OgygiaHandle > stream_page_deferred > defer:0~95f179",
+			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > defer:0~95f179",
 			"reason": "the streamed page's Kit reader is cancelled when the request ends: a cancel when its owner ends, constant work"
 		},
 		{
-			"id": "packages/core/src/hooks.ts > OgygiaHandle > stream_page_deferred > defer:0~95f179 > catch:0~a1b2d0",
+			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > defer:0~95f179 > catch:0~a1b2d0",
 			"reason": "the streamed page's Kit reader is cancelled when the request ends: a cancel when its owner ends, constant work"
 		},
 		{
@@ -1637,12 +1789,12 @@
 			"reason": "the window wait's end (one scope close), constant work"
 		},
 		{
-			"id": "packages/devtools/src/profiler/index.ts > Profiler > #schedule_sample > timeout:0~0436bb",
-			"reason": "the sampler's next cycle firing on a real timer (not replayable); the cycle records with the inspector"
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #schedule > timeout:0~900efb",
+			"reason": "a background loop's next cycle firing on a real timer of its scheduled visit (not replayable); the cycle records with the inspector"
 		},
 		{
-			"id": "packages/devtools/src/profiler/index.ts > Profiler > #schedule_trap > timeout:0~a44037",
-			"reason": "the trap's next cycle firing on a real timer (not replayable); the cycle records with the inspector"
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #schedule",
+			"reason": "moves a background loop to scheduled and sets its visit's timer: a profiler instance (not cloneable), constant work; proven in packages/devtools/test/profiler-background-refused.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > constructor > every:0~cfcd21",
