@@ -19,6 +19,8 @@ export default defineConfig({
 				test: {
 					name: 'browser',
 					include: ['test/**/*.test.ts'],
+					// (a real Node process of its own: node only)
+					exclude: ['test/**/*.node.test.ts'],
 					browser: {
 						enabled: true,
 						headless: true,
