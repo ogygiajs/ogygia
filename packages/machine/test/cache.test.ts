@@ -116,6 +116,25 @@ describe('cache: ages', () => {
 		expect([...c.entries()].map(([k]) => k)).toEqual(['long']);
 	});
 
+	it('ages are swept at most once a second: a value due soon after a sweep goes with the next (reads are exact)', () => {
+		vi.useFakeTimers();
+		const n = noted();
+		const c = cache<string, number>({
+			max: 10,
+			keep: (v) => v,
+			onEvict: n.onEvict
+		});
+		c.set('a', 1000);
+		c.set('b', 1500);
+		vi.advanceTimersByTime(1000);
+		expect(n.seen).toEqual(['a:1000:age']);
+		vi.advanceTimersByTime(500); // b is past its age: a read says so, the sweep has not run yet
+		expect(c.has('b')).toBe(false);
+		expect(n.seen).toEqual(['a:1000:age']);
+		vi.advanceTimersByTime(500);
+		expect(n.seen).toEqual(['a:1000:age', 'b:1500:age']);
+	});
+
 	it('one timer for all the ages, owned by the cache', () => {
 		vi.useFakeTimers();
 		const c = cache<string, number>({ max: 10, keep: 1000 });
