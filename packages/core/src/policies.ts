@@ -39,3 +39,12 @@ export const render: Policy = policy({ attempts: 1, backoff: 0, jitter: 0, deadl
  *  only once it has rendered, so a few quiet seconds are a slow render, not a dead stream; the
  *  `render` deadline bounds each render, so a stream quiet for as long is dead. */
 export const stream: Policy = policy({ attempts: 1, backoff: 0, jitter: 0, deadline: 10_000 });
+
+/** An island file's recovery during a deploy's rollover: the current build's map asked at once,
+ *  then after 1, 3 and 9 s while it settles (a rollover settles in seconds). */
+export const rollover: Policy = policy({
+	attempts: 4,
+	backoff: [1000, 3000, 9000],
+	jitter: 0,
+	deadline: Infinity
+});
