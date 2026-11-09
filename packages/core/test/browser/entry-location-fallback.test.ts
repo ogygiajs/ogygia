@@ -4,7 +4,7 @@
 // Counter island from setup.ts; its identity is a build's name (no file), its location a file that
 // 404s, and the fixture map points the identity at the working module.
 import { expect, inject, test } from 'vitest';
-import { page } from 'vitest/browser';
+import { page, server } from 'vitest/browser';
 import { bootDev } from '../../src/runtime/full.ts';
 
 const IDENTITY = '/test/browser/fixtures/ogygia/og-region.000000000aa5.js';
@@ -26,7 +26,12 @@ test('the location 404s: the island wakes on the current build’s file', async 
 	await expect.element(page.getByTestId('count')).toHaveTextContent('3');
 	await page.getByRole('button', { name: 'add' }).click();
 	await expect.element(page.getByTestId('count')).toHaveTextContent('4');
-	expect(requested('chunks/Gone1234.js')).toHaveLength(1);
+	// the 404 is never asked for again under a fresh URL (the server answered for it); Firefox may
+	// fetch it twice when the import starts while its modulepreload is still out (it does not join
+	// the two loads, Chromium and WebKit do)
+	const gone = requested('chunks/Gone1234.js');
+	expect(gone.filter((r) => r.name.includes('og-retry'))).toHaveLength(0);
+	expect(gone.length).toBeLessThanOrEqual(server.browser === 'firefox' ? 2 : 1);
 	expect(requested('fixtures/ogygia.json')).toHaveLength(1);
 	expect(requested('og-region.000000000aa5.js')).toHaveLength(0);
 });
