@@ -69,7 +69,7 @@ export type PageVisit = {
 
 // the runtime's rules (./rules.ts): dev, and a build made with OGYGIA_RULES=1; folds out elsewhere
 const RULES =
-	import.meta.env.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 function page_visit(): PageVisit {
 	const visit: PageVisit = { scope: scope(), facts: [] };
