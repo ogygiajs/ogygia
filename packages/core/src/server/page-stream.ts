@@ -7,7 +7,8 @@
  * stream a `<script>__ogygia_page_resolve(id, ok, encoded)</script>` chunk that resolves it live.
  */
 import { stringify } from 'devalue';
-import { PAGE_DEFER_KEY, PAGE_SETTLED_KEY } from '../page-defer.ts';
+import type { Scope } from '@ogygia/machine';
+import { PAGE_DEFER_GLOBAL, PAGE_DEFER_KEY, PAGE_SETTLED_KEY } from '../page-defer.ts';
 import { escape_script_text } from '../escape.ts';
 
 // Bounds runaway recursion on a pathological/cyclic PLAIN structure only — promises are handled
@@ -153,4 +154,144 @@ export function normalize_error(err: unknown): { message: string } {
 	if (err && typeof err === 'object' && 'message' in err)
 		return { message: String((err as { message: unknown }).message) };
 	return { message: String(err) };
+}
+
+/** `</body>` as bytes (ASCII: the same in every UTF-8 document). */
+const BODY_CLOSE_BYTES = [60, 47, 98, 111, 100, 121, 62];
+
+/** Does `</body>` end in `chunk` — searched backwards from its end, where it sits — or straddle the
+ *  boundary with the previous chunk's last bytes (`carry`, at most 6)? No decode. */
+function has_body_close(carry: Uint8Array, chunk: Uint8Array): boolean {
+	const at_bytes = (buf: Uint8Array, i: number) => {
+		for (let k = 0; k < 7; k++) if (buf[i + k] !== BODY_CLOSE_BYTES[k]) return false;
+		return true;
+	};
+	for (let i = chunk.lastIndexOf(60); i !== -1; i = i === 0 ? -1 : chunk.lastIndexOf(60, i - 1))
+		if (at_bytes(chunk, i)) return true;
+	if (!carry.length) return false;
+	// the seam: the carry, then the chunk's first bytes
+	const seam = new Uint8Array(carry.length + Math.min(6, chunk.length));
+	seam.set(carry);
+	seam.set(chunk.subarray(0, seam.length - carry.length), carry.length);
+	for (let i = 0; i + 7 <= seam.length; i++) if (at_bytes(seam, i)) return true;
+	return false;
+}
+
+/**
+ * Stream the captured `$page.data` promises into islands (csr=false, real browser load). The
+ * document — carrying the pending seed + resolve-global bootstrap — is already built by `resolve`;
+ * here we (1) forward it, (2) DRAIN Kit's own dead csr=false resolve tail so its
+ * `__sveltekit_<hash> is not defined` never reaches the browser, and (3) emit one
+ * `<script>__ogygia_page_resolve(id, ok, value)</script>` per promise AS IT SETTLES — completion
+ * order, non-blocking. Each island's `{#await page.data.x}` flips pending → resolved live.
+ *
+ * The stream is the request's (`request`, its owner): the visitor leaving, or the body cancelled,
+ * stops Kit's reader and drops what settles after.
+ */
+export function stream_page_deferred(
+	request: Scope,
+	response: Response,
+	deferred: Deferred[],
+	initial_next_id: number,
+	reducers?: Record<string, (v: unknown) => unknown>
+): Response {
+	const source = response.body;
+	if (!source) return response;
+	const reader = source.getReader();
+	const encoder = new TextEncoder();
+	const owner = request.child();
+	owner.defer(() => void reader.cancel().catch(() => {})); // ok: the request ended; a failed cancel of its source has nothing left to stop
+	const stream = new ReadableStream<Uint8Array>({
+		async start(controller) {
+			// 1. Forward Kit's document through `</body></html>` (one enqueue in practice). Kit streams
+			//    its (dead) resolve scripts only AFTER this, as separate chunks. Carry the last six
+			//    decoded characters across reads so a `</body>` split over a chunk boundary is still
+			//    detected — never the whole document (a second 2.6 MB copy, rescanned per chunk).
+			// (searched as BYTES, backwards from the chunk's end, where `</body>` sits: decoding a whole
+			// document just to look at its last bytes was a 2.4 MB string per streamed page)
+			let carry: Uint8Array = new Uint8Array(0);
+			try {
+				for (;;) {
+					const { value, done } = await reader.read();
+					if (done) break;
+					controller.enqueue(value);
+					if (has_body_close(carry, value)) break;
+					carry = value.length >= 6 ? value.subarray(value.length - 6) : value;
+				}
+			} catch {
+				// ok: Kit's stream broke; the resolution streaming below still runs
+			}
+			// 2. Read + discard Kit's dead resolve tail so it never reaches the client and Kit's own
+			//    stream closes cleanly (best-effort, runs alongside our resolution streaming).
+			void (async () => {
+				try {
+					for (;;) {
+						const { done } = await reader.read();
+						if (done) break;
+					}
+				} catch {
+					// ok: Kit's dead tail is discarded; a read that fails has nothing left to discard
+				}
+			})(); // ok: never rejects, its body is caught
+			// 3. Our resolve script per promise, streamed as each settles; close once all have.
+			//    A promise may RESOLVE to a value that itself holds promises (Kit re-defers those
+			//    recursively). We mirror it: re-stage each settled value, stream the staged value
+			//    (nested markers and all), and stream those nested promises too — ids continue past
+			//    the initial set. `pending` grows as nested promises appear, so the stream stays open
+			//    until the whole tree has settled. `next_id` is the initial contiguous count.
+			let pending = deferred.length;
+			let next_id = initial_next_id;
+			let closed = false;
+			const maybe_close = () => {
+				if (pending === 0 && !closed) {
+					closed = true;
+					try {
+						controller.close();
+					} catch {
+						// ok: already closed (the visitor left), which is what this was for
+					}
+				}
+			};
+			const push = (id: number, ok: boolean, value: unknown) => {
+				if (owner.closed) return; // the visitor left
+				try {
+					controller.enqueue(
+						encoder.encode(resolve_script(PAGE_DEFER_GLOBAL, id, { ok, value }, reducers))
+					);
+				} catch {
+					// ok: the client is gone and the stream closed; nobody reads this script
+				}
+			};
+			const stream_one = (id: number, promise: PromiseLike<unknown>) => {
+				Promise.resolve(promise).then(
+					(value) => {
+						const { staged, deferred: nested, next_id: after } = stage_deferred(value, next_id);
+						next_id = after;
+						push(id, true, staged);
+						pending += nested.length;
+						for (const n of nested) stream_one(n.id, n.promise);
+						pending -= 1;
+						maybe_close();
+					},
+					(error) => {
+						push(id, false, error);
+						pending -= 1;
+						maybe_close();
+					}
+				);
+			};
+			for (const { id, promise } of deferred) stream_one(id, promise);
+			maybe_close();
+		},
+		cancel() {
+			owner.close();
+		}
+	});
+	const headers = new Headers(response.headers);
+	headers.delete('content-length');
+	return new Response(stream, {
+		status: response.status,
+		statusText: response.statusText,
+		headers
+	});
 }
