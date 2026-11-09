@@ -232,7 +232,8 @@ test('a router navigation handed to the browser and held back leaves page() on t
 	await ogygia.record(
 		async () => {
 			// a link the router takes (no reload attribute) to a csr=true page: it starts a navigation,
-			// pushes the address, then hands the load to the browser, which the test holds back
+			// then hands the load to the browser (with the address of the page on screen, #259), which
+			// the test holds back
 			await page.evaluate(() => {
 				const a = Object.assign(document.createElement('a'), {
 					href: '/head-budget-kit',
@@ -248,8 +249,8 @@ test('a router navigation handed to the browser and held back leaves page() on t
 	);
 	expect(
 		await page.evaluate(() => location.pathname),
-		'the router took the link (it pushed the address)'
-	).toBe('/head-budget-kit');
+		'the router handed the link to the browser on the page on screen (#259)'
+	).toBe('/dt-session');
 	await ogygia.settled({ quiet: 500, timeout: 15_000 });
 	const later = await ogygia.page();
 	const hyd = await ogygia.hydration();
