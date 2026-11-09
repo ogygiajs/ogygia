@@ -9,6 +9,7 @@
  * through `island_module_url` (region-endpoint-url.ts), which asks here first: the location once one
  * is known, else the identity (on the dev server, the module itself; in a build, a name, no file).
  */
+import { import_file } from './import-again.ts';
 
 /** absolute identity → absolute location */
 const locations = new Map<string, string>();
@@ -238,7 +239,8 @@ export function import_entry<T>(
 }
 
 function load_entry<T>(entry: string, url: string): Promise<T> {
-	const loaded = import(/* @vite-ignore */ url) as Promise<T>;
+	// (through its file's loader: a dropped download is asked for again, never the failed URL — #261)
+	const loaded = import_file<T>(url);
 	return loaded.catch(async (error: unknown) => {
 		// a build's identity is a name: the current build's map names its file. Any other identity
 		// (the dev server's module) is a file itself, fetched fresh past the cache that failed.
@@ -247,7 +249,7 @@ function load_entry<T>(entry: string, url: string): Promise<T> {
 			? await recover_location(entry, failed)
 			: absolute(entry);
 		if (!current || current === failed) throw error;
-		const retry = import(/* @vite-ignore */ current) as Promise<T>;
+		const retry = import_file<T>(current);
 		// said out loud: the page's HTML is one build, this island's code the current one (devtools'
 		// timeline, and the beacon — the Page tab and the profiler name it)
 		const report = (recovered: boolean) => fallback_reporter?.({ entry, src: url, recovered });

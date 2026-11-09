@@ -11,10 +11,18 @@
 //   3. A web-component link that re-dispatches the visitor's click on its inner `<a>` starts ONE
 //      navigation, not two (the second used to abort the first and fetch again).
 //   4. A beforeNavigate cancel does not leave that swallow armed: the next click navigates.
-// The foreign server and the web component are faked by the test (page.route / an init script).
+//   5. The same with the anchor in the component's SHADOW ROOT (#263), where the re-dispatched click
+//      may never reach `document`: a click event that is not composed stays in the shadow tree, and
+//      a click on an anchor the swap took out of the page reaches no document at all. The browser
+//      followed the link itself: a full load, after a router click it had already prevented.
+//   6. A link the browser never replaces the page for (a file download, a 204) works every time
+//      (#266). The router's fetch gets no page and hands the link to the browser, which keeps the
+//      page on screen: no swap ever ended that navigation, and every later click on the link joined
+//      it and was swallowed.
+// The foreign server and the web components are faked by the test (page.route / an init script).
 // Usage: pnpm exec playwright test router-document-fetch
 import type { Page, Request } from '@playwright/test';
-import { test, check } from '@ogygia/tooling/e2e';
+import { test, check, expect, stamp_document, document_stamp } from '@ogygia/tooling/e2e';
 
 /** What Chromium sends for a top-level document navigation. */
 const DOCUMENT_ACCEPT = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
@@ -43,6 +51,38 @@ const RELINK = () => {
 				this.addEventListener('click', (e) => {
 					if (!e.isTrusted) return;
 					setTimeout(() => this.querySelector('a')?.click(), 5);
+				});
+			}
+		}
+	);
+};
+
+/** How the shadow-root link re-dispatches the visitor's click on its inner `<a>`. */
+type Redispatch = 'event' | 'click';
+
+/** A link component whose `<a>` is in its shadow root. On the visitor's (trusted) click it clicks
+ *  its inner anchor again: `event` — a new click event a few ms later, not composed (it stays in the
+ *  shadow tree); `click` — the anchor's `.click()`, after an animation (by then the router's swap
+ *  has taken the component out of the page). */
+const SHADOW_RELINK = (how: Redispatch) => {
+	customElements.define(
+		'x-shadow-relink',
+		class extends HTMLElement {
+			connectedCallback() {
+				if (this.shadowRoot) return;
+				const root = this.attachShadow({ mode: 'open' });
+				const a = document.createElement('a');
+				a.href = this.getAttribute('href') ?? '';
+				a.textContent = 'about (shadow-root link)';
+				root.append(a);
+				a.addEventListener('click', (e) => {
+					if (!e.isTrusted) return;
+					if (how === 'event')
+						setTimeout(
+							() => a.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })),
+							5
+						);
+					else setTimeout(() => a.click(), 400);
 				});
 			}
 		}
@@ -159,6 +199,44 @@ test.describe('the router fetches a page the way the browser fetches a document'
 		check('exactly one history entry', (await page.evaluate(() => history.length)) === before + 1);
 	});
 
+	for (const [how, what] of [
+		['event', 'a click event that stays in its shadow tree, a few ms later'],
+		['click', 'its anchor’s .click(), after the swap took it out of the page']
+	] as const) {
+		test(`a shadow-root link that re-dispatches its click (${what}): one router navigation, no full load`, async ({
+			page
+		}) => {
+			await page.addInitScript(SHADOW_RELINK, how);
+			const reqs = spa_requests(page);
+			const documents: string[] = [];
+			page.on('request', (r) => {
+				if (r.resourceType() === 'document') documents.push(new URL(r.url()).pathname);
+			});
+			await open(page);
+			const stamp = await stamp_document(page);
+			const before = await page.evaluate(() => history.length);
+			const n0 = reqs.length;
+			await page.locator('[data-shadow-relink] >> a').click();
+			await page.waitForSelector('#about-heading', { timeout: 10_000 });
+			// past the component's re-dispatch (5 ms, or 400 ms) and what it would start
+			await page.waitForTimeout(1200);
+			check(
+				'no full load: the document is the one the click started on',
+				(await document_stamp(page)) === stamp
+			);
+			check('no document request for the page', !documents.includes('/about'), documents.join(','));
+			const navs = reqs
+				.slice(n0)
+				.filter((r) => new URL(r.url()).pathname === '/about' && !r.headers()['x-ogygia-purpose']);
+			check('exactly one navigation fetch', navs.length === 1, String(navs.length));
+			check('at the page', new URL(page.url()).pathname === '/about', page.url());
+			check(
+				'exactly one history entry',
+				(await page.evaluate(() => history.length)) === before + 1
+			);
+		});
+	}
+
 	test('a beforeNavigate cancel does not leave the link swallowed', async ({ page }) => {
 		await open(page);
 		await page.evaluate(() => {
@@ -187,4 +265,60 @@ test.describe('the router fetches a page the way the browser fetches a document'
 			page.url()
 		);
 	});
+});
+
+test.describe('a link the browser never replaces the page for works every time (#266)', () => {
+	for (const [link, path, what, file] of [
+		['[data-download]', '/router-links/export.csv', 'a file download', 'export.csv'],
+		['[data-no-content]', '/router-links/no-content', 'a 204', null]
+	] as const) {
+		test(`${what}, clicked twice: the browser gets it each time and the page stays`, async ({
+			page
+		}) => {
+			// the browser's own requests for the link (the router's fetch carries `x-ogygia-spa`)
+			const asked: string[] = [];
+			page.on('request', (r) => {
+				if (new URL(r.url()).pathname === path && !r.headers()['x-ogygia-spa'])
+					asked.push(r.resourceType());
+			});
+			const downloads: string[] = [];
+			page.on('download', (d) => downloads.push(d.suggestedFilename()));
+			await open(page);
+			const stamp = await stamp_document(page);
+			for (const n of [1, 2]) {
+				await page.locator(link).click();
+				await expect
+					.poll(() => asked.length, {
+						message: `click ${n}: the browser asked for ${path}`,
+						timeout: 5_000
+					})
+					.toBe(n);
+				if (file)
+					await expect
+						.poll(() => downloads.length, {
+							message: `click ${n}: the file downloaded`,
+							timeout: 5_000
+						})
+						.toBe(n);
+				// past the browser's answer: nothing else comes of the click
+				await page.waitForTimeout(300);
+			}
+			check(
+				'each was a document navigation',
+				asked.every((t) => t === 'document'),
+				asked.join()
+			);
+			if (file)
+				check(
+					'both downloads are the file',
+					downloads.every((f) => f === file)
+				);
+			check(
+				'the page stayed: the document is the one the clicks started on',
+				(await document_stamp(page)) === stamp
+			);
+			check('at the page', new URL(page.url()).pathname === '/router-links', page.url());
+			await expect(page.locator('[data-router-links]')).toBeVisible();
+		});
+	}
 });

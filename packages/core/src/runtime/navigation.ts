@@ -11,6 +11,10 @@
  * - settling {href}: swapped; scroll, focus and the after hooks run. A same-address click now is a
  *   refresh, not a duplicate.
  *
+ * A navigation the router gives the browser (./router.ts `hand_off`) is idle at once: it is the
+ * browser's now, and one the browser keeps the page on screen for (a download, a 204) has no swap
+ * to end it.
+ *
  * Each claim is a new visit, and a visit's state value is its own object: code that awaited checks
  * `nav.now === mine` to know it is still the navigation, in place of a hand-kept generation.
  *

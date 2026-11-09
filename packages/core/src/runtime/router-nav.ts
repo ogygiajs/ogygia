@@ -615,6 +615,16 @@ export async function navigate(
 		push_state({ ogygia: true }, url.href);
 	}
 
+	// HAND-OFFS: a response the router will not render (or no response) goes back to the browser as
+	// a navigation to the address the visitor CLICKED — never to where our fetch was redirected. The
+	// browser then makes its own document request and follows its own redirects, so the visitor lands
+	// exactly where a navigation without the router would have; a redirect seen by a fetch is a fact
+	// about that fetch. The entry written above is handed back with it: the browser's document
+	// REPLACES it, so the visit is one entry, and one the router's page does not share (#259:
+	// ./router.ts `hand_off`). A hand-off ends this visit: the navigation is the browser's now, and
+	// one the browser keeps the page on screen for (a download, a 204) must not stay in flight (#266).
+	const hand_off = () => r.hand_off(url, from, mine);
+
 	// A back/forward restore re-fetches (we hold no DOM snapshot); mark it so the server can skip
 	// side effects the visitor already triggered on the first visit. A plain click is `nav`.
 	const purpose: NavPurpose = type === 'popstate' ? 'history' : 'nav';
@@ -625,14 +635,10 @@ export async function navigate(
 		if (is_stale(fetched)) return; // a newer navigation took over (and aborted this fetch)
 		page = fetched;
 	} catch {
-		location.href = url.href;
-		return;
+		return hand_off();
 	}
 	if (r.nav.now !== mine) return;
-	if (page == null) {
-		location.href = url.href;
-		return;
-	}
+	if (page == null) return hand_off();
 	const { html } = page;
 	nav_fetched = performance.now();
 	page_cache.delete(url.href); // one-shot; always fresh on real navigation
@@ -650,14 +656,6 @@ export async function navigate(
 		}
 	}
 
-	// HAND-OFFS: a response the router will not render goes back to the browser as a navigation to
-	// the address the visitor CLICKED — never to where our fetch was redirected. The browser then
-	// makes its own document request and follows its own redirects, so the visitor lands exactly
-	// where a navigation without the router would have; a redirect seen by a fetch is a fact about
-	// that fetch. (`url` is already the current history entry, so this replaces it: no extra entry.)
-	const hand_off = () => {
-		location.href = url.href;
-	};
 	// A cross-origin landing can't be a body swap.
 	if (dest.origin !== location.origin) return hand_off();
 

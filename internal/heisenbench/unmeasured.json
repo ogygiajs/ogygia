@@ -521,6 +521,54 @@
 			"reason": "the e2e harness: sends a signal to the server's process group (one syscall); proven in packages/tooling/test/servers.test.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate > catch:0~a1b2d0",
+			"reason": "a constant no-op: a visitor's replay chunk that failed to load reports itself (interaction.ts); the wait is proven in apps/palaestra/e2e/wake-early-click.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > boot > on_reload_needed:0~c56e54",
+			"reason": "browser only: logs chunk_reload_needed once per page (one console.error); proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > import_file",
+			"reason": "browser only: a dynamic import() of an island's file through its loader; proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts (#261)"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > import_file > catch:0~66e4c1",
+			"reason": "browser only: the island file's immediate retry after a dropped download (reads resource timing); proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts (#261)"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > import_file > import_again:0~16418e",
+			"reason": "browser only: the dynamic import() of an island's file URL; import_again itself runs in packages/core/bench/runtime.bench.ts with a stand-in"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > say_reload_needed",
+			"reason": "a constant no-op: the default message before the boot hands over its own (on_reload_needed, benched in packages/core/bench/runtime.bench.ts)"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > hand_off",
+			"reason": "browser only: ends the visit, then one history replace and a document navigation; proven in apps/palaestra/e2e/mixed.spec.ts (#259) and router-document-fetch.spec.ts (#266: a download and a 204 link, clicked twice)"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > #on_click",
+			"reason": "browser only: the router's click handling on a live document (prevents and navigates); proven in apps/palaestra/e2e/router-document-fetch.spec.ts, router-race.spec.ts and mixed.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > #joins",
+			"reason": "browser only: a few comparisons on the click's address and the navigation in flight; proven in apps/palaestra/e2e/router-document-fetch.spec.ts (#263)"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > #take",
+			"reason": "browser only: one listener per anchor the router took a click from (a WeakMap write); proven in apps/palaestra/e2e/router-document-fetch.spec.ts (#263)"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > #take > addEventListener:1~cc94d6",
+			"reason": "browser only: an anchor's own click listener, forwarding to #on_anchor_click; proven in apps/palaestra/e2e/router-document-fetch.spec.ts (#263)"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > #on_anchor_click",
+			"reason": "browser only: decides whether the click reaches document (two DOM reads); proven in apps/palaestra/e2e/router-document-fetch.spec.ts (#263)"
+		},
+		{
 			"id": "packages/config/src/tsdown.ts > library",
 			"reason": "the repo's build config (private, not shipped), moved unchanged from packages/tooling: tsdown runs it once per package build; every package's dist is the proof"
 		},

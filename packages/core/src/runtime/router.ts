@@ -248,11 +248,22 @@ export class SpaRouter {
 	 */
 	readonly nav: Navigation = create_navigation();
 
-	/** href of the navigation in flight (claimed or loading; cleared once it applied or ended) */
+	/** href of the router's navigation in flight (claimed or loading; cleared once it applied,
+	 *  ended, or went to the browser: `hand_off`) */
 	get nav_target(): string | null {
 		const s = this.nav.now;
 		return s.kind === 'claimed' || s.kind === 'loading' ? s.href : null;
 	}
+	/**
+	 * The anchors whose click the router took (prevented, and navigated), and the address it took each
+	 * to. A link component clicks its inner `<a>` again after the visitor's click, and that second
+	 * click may never reach the router's `document` listener: a click event that is not composed
+	 * stays in the component's shadow tree, and an anchor the swap took out of the page is in no
+	 * document. The browser then followed the link itself, a full load after a click the router had
+	 * already prevented (#263). So an anchor the router took a click from listens itself, for the
+	 * clicks `document` will not hear (`#on_anchor_click`).
+	 */
+	#taken = new WeakMap<HTMLAnchorElement, string>();
 	#viewport_io: IntersectionObserver | null = null;
 	#viewport_seen = new WeakSet<Element>();
 	/** pathname+search of the document currently in the DOM (hash ignored). */
@@ -296,6 +307,37 @@ export class SpaRouter {
 	 */
 	supersede(): void {
 		if (this.nav.now.kind !== 'idle') this.nav.go('idle');
+	}
+
+	/**
+	 * GIVE `visit`'s NAVIGATION TO THE BROWSER — a page the router will not render (a csr=true Kit
+	 * page, a page that is not ogygia's, another build), or one it could not fetch or load its code
+	 * for: a document navigation to `url`, from the document on screen (`from`).
+	 *
+	 * It ENDS the visit, on every path: from here on the navigation is the browser's, never the
+	 * router's in flight. The browser may well keep this page on screen (a file download, a 204, a
+	 * body it does not show), and then nothing else ends it: left `loading`, every later click on the
+	 * link joined it and was swallowed (#266). A visit already left (a newer click took over, or back
+	 * to the page on screen) hands nothing off: the browser never goes where the visitor no longer is.
+	 *
+	 * When the history entry already has `url` (the router pushed it for the click, or back/forward
+	 * stepped to it), a browser navigation to it RELOADS that entry: the new document took the entry
+	 * over, the router's state with it, and the router page's entry beside it became the new
+	 * document's too. Back was then a step inside the new document, which loads nothing: from a
+	 * csr=true page the address changed and the Kit page stayed (#259). So the entry first gets back
+	 * the address of the document on screen, and the browser's navigation REPLACES it: one entry for
+	 * the visit, holding a document of its own. Otherwise (nothing written yet) it is a plain
+	 * navigation, a new entry.
+	 */
+	hand_off(url: URL, from: URL, visit: Navigation['now']): void {
+		if (this.nav.now !== visit) return;
+		this.nav.go('idle');
+		if (location.href !== url.href) {
+			location.href = url.href;
+			return;
+		}
+		replace_state(history.state, from.href);
+		location.replace(url.href);
 	}
 
 	bust_page_cache(): void {
@@ -355,8 +397,9 @@ export class SpaRouter {
 
 		// Claim the address NOW, before the navigation chunk loads: a web-component link re-dispatches
 		// the visitor's click on its inner `<a>` a few ms later, and that second click must see this
-		// navigation in flight (the click listener swallows it) instead of starting — and aborting
-		// this one with — a second fetch. A claim is a new visit of the navigation: one made while
+		// navigation in flight (it joins it: `#joins`) instead of starting — and aborting this one
+		// with — a second fetch. (A re-dispatch `document` never hears is heard on the anchor itself:
+		// `#take`.) A claim is a new visit of the navigation: one made while
 		// another is in flight (its chunk still loading, its page still out) takes over from it, so the
 		// newest click wins (#203).
 		this.nav.go('claimed', { href: url.href });
@@ -367,9 +410,7 @@ export class SpaRouter {
 		} catch {
 			// The navigation code could not load (offline, a deploy removed the chunk): the link must
 			// still work — let the browser navigate.
-			if (this.nav.now === mine) this.nav.go('idle');
-			location.href = url.href;
-			return;
+			return this.hand_off(url, from, mine);
 		}
 		// superseded while the navigation code loaded
 		if (this.nav.now !== mine) return;
@@ -445,45 +486,7 @@ export class SpaRouter {
 		const body = document.body;
 		if (body) record_server_body(body, body, Array.from(body.childNodes));
 
-		document.addEventListener('click', (event) => {
-			const anchor = anchor_of(event);
-			const url = this.#should_intercept(event, anchor);
-			if (!url) return;
-			// Already navigating there (a web-component link re-dispatching the visitor's click on its
-			// inner `<a>`, or a double click): one navigation, not a second that aborts the first.
-			if (this.nav_target === url.href) {
-				event.preventDefault();
-				return;
-			}
-			// Same document: a hash jump is the browser's; anything else must never reload —
-			// see `same_document_link` (the re-dispatched click of a design-system link, or a real
-			// click on the current page, which refreshes in place).
-			if (same_document(url, new URL(location.href))) {
-				const kind = same_document_link(url, new URL(location.href), this.nav_target);
-				if (kind === 'hash') {
-					// A fragment link. If it names a real element, the browser scrolls there — leave it
-					// (native is direct and correct). If it does NOT (an app-managed fragment, e.g. a
-					// table that opens a row keyed by the hash), the browser would scroll to the TOP of
-					// the page for the unmatched fragment — so take it over: update the URL and fire
-					// hashchange for the app's listeners, without the top jump.
-					if (!hash_target_exists(url.hash)) {
-						event.preventDefault();
-						if (location.hash !== url.hash) {
-							push_state(history.state || {}, url.href);
-							window.dispatchEvent(
-								new HashChangeEvent('hashchange', { oldURL: location.href, newURL: url.href })
-							);
-						}
-					}
-					return;
-				}
-				event.preventDefault();
-				if (kind === 'refresh') this.navigate(url, { push: false, replace: true });
-				return;
-			}
-			event.preventDefault();
-			this.navigate(url, { push: true });
-		});
+		document.addEventListener('click', (event) => this.#on_click(event, anchor_of(event)));
 
 		this.#install_prefetch();
 
@@ -504,6 +507,87 @@ export class SpaRouter {
 
 		// seed initial history entry so scroll is restored on the first back
 		replace_state({ ...history.state, ogygia: true });
+	}
+
+	/** A click on `anchor`: the router's, or the browser's. A click it prevents always ends in a
+	 *  navigation, the one it starts or the one it joins. */
+	#on_click(event: MouseEvent, anchor: HTMLAnchorElement | null): void {
+		const url = this.#should_intercept(event, anchor);
+		if (!url || !anchor) return;
+		// A click that joins a navigation the router already has: one navigation, not a second that
+		// aborts the first, and never the browser's own load of the same address.
+		if (this.#joins(event, anchor, url)) {
+			event.preventDefault();
+			return;
+		}
+		// Same document: a hash jump is the browser's; anything else must never reload —
+		// see `same_document_link` (a real click on the current page refreshes in place).
+		if (same_document(url, new URL(location.href))) {
+			const kind = same_document_link(url, new URL(location.href), this.nav_target);
+			if (kind === 'hash') {
+				// A fragment link. If it names a real element, the browser scrolls there — leave it
+				// (native is direct and correct). If it does NOT (an app-managed fragment, e.g. a
+				// table that opens a row keyed by the hash), the browser would scroll to the TOP of
+				// the page for the unmatched fragment — so take it over: update the URL and fire
+				// hashchange for the app's listeners, without the top jump.
+				if (!hash_target_exists(url.hash)) {
+					event.preventDefault();
+					if (location.hash !== url.hash) {
+						push_state(history.state || {}, url.href);
+						window.dispatchEvent(
+							new HashChangeEvent('hashchange', { oldURL: location.href, newURL: url.href })
+						);
+					}
+				}
+				return;
+			}
+			event.preventDefault();
+			this.#take(anchor, url);
+			if (kind === 'refresh') this.navigate(url, { push: false, replace: true });
+			return;
+		}
+		event.preventDefault();
+		this.#take(anchor, url);
+		this.navigate(url, { push: true });
+	}
+
+	/**
+	 * Does this click join a navigation the router already has? Its own in flight to the click's
+	 * address (a double click, or a link component re-dispatching the visitor's click on its inner
+	 * `<a>`): never one it gave the browser (`hand_off` ends that visit), so a link to a download is
+	 * a new navigation each time; or
+	 * the one this very anchor started, to the page now on screen, when the click is a re-dispatch
+	 * (untrusted: the component's, never the visitor's — a visitor's click on a link to the page they
+	 * are on refreshes it).
+	 */
+	#joins(event: MouseEvent, anchor: HTMLAnchorElement, url: URL): boolean {
+		if (this.nav_target === url.href) return true;
+		return (
+			!event.isTrusted &&
+			this.#taken.get(anchor) === url.href &&
+			!!this.current_url &&
+			same_document(url, this.current_url)
+		);
+	}
+
+	/** The router took a click on `anchor` to `url`: from now on the anchor hears its own clicks too. */
+	#take(anchor: HTMLAnchorElement, url: URL): void {
+		if (!this.#taken.has(anchor)) {
+			anchor.addEventListener('click', (event) => this.#on_anchor_click(event, anchor));
+		}
+		this.#taken.set(anchor, url.href);
+	}
+
+	/**
+	 * A click on an anchor the router took a click from, heard on the anchor itself. One that reaches
+	 * `document` is the document listener's (a component on the way may still prevent it); one that
+	 * cannot — not composed and inside a shadow tree, or on an anchor that is in no document — is
+	 * handled here, the same way.
+	 */
+	#on_anchor_click(event: MouseEvent, anchor: HTMLAnchorElement): void {
+		const reaches_document =
+			anchor.isConnected && (event.composed || anchor.getRootNode() === document);
+		if (!reaches_document) this.#on_click(event, anchor);
 	}
 
 	#should_intercept(event: MouseEvent, anchor: HTMLAnchorElement | null) {

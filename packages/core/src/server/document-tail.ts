@@ -83,6 +83,9 @@ export function modulepreload_tag(href: string): string {
 	return '<link rel="modulepreload" href="' + href + '" fetchpriority="low">';
 }
 
+/** The runtime script's `onerror`: its message code's link (messages/core.ts `runtime_load_failed`). */
+const RUNTIME_LOAD_FAILED = "console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')";
+
 /**
  * The runtime bootstrap: its module script, then a `modulepreload` for each of its static imports
  * (the build's handoff — the few chunks the runtime shares with the rest of the app, e.g. Vite's
@@ -92,6 +95,12 @@ export function modulepreload_tag(href: string): string {
  * them. `data-ogygia-runtime-dep` keeps them attached to the script when the handle moves it
  * (head-presence.ts `runtime_first`). `locations`: the build's location map, which the runtime reads
  * for a load that arrives with an identity alone (runtime/entry-locations.ts).
+ *
+ * The runtime cannot say that it failed to load: when its file or one of its static imports fails to
+ * download, none of it runs, every island stays server markup, and nothing of ogygia's was logged
+ * (#262). The script element's own `error` event fires then (a module graph that failed to fetch),
+ * so the tag says it: the code's link, the way a production build prints every message. (A strict
+ * CSP without inline handlers blocks it, and the browser's own error stands, as before.)
  */
 export function runtime_bootstrap_tags(
 	src: string,
@@ -103,6 +112,8 @@ export function runtime_bootstrap_tags(
 		(locations ? ' data-og-locations="' + locations + '"' : '') +
 		' src="' +
 		src +
+		'" onerror="' +
+		RUNTIME_LOAD_FAILED +
 		'"></script>';
 	for (const dep of deps)
 		html += '<link rel="modulepreload" href="' + dep + '" data-ogygia-runtime-dep>';

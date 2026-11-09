@@ -1,4 +1,4 @@
-// LAZY CHUNKS THAT FAIL (#201, #237, #238). The runtime loads its lazy pieces (the hydrate core,
+// LAZY CHUNKS THAT FAIL (#201, #237, #238, #261, #262). The runtime loads its lazy pieces (the hydrate core,
 // devalue, the interaction replay, a transportable class's module, the router's navigation) on the
 // first use that needs each. On a flaky mobile network that first download can fail. It must never
 // break every later use in the tab: a dropped download is tried again, and a use after a failed one
@@ -28,21 +28,30 @@ const CHUNKS = {
 	navigation: 'x-ogygia-known',
 	/** a transportable class's lazy load (runtime/wire-classes.ts): the small chunk that re-exports
 	 *  it, the one its loader imports (the class itself sits in a chunk the page's own node shares) */
-	'class module': /export\{\w+ as RetryStamp\}from/
+	'class module': /export\{\w+ as RetryStamp\}from/,
+	/** Svelte's client runtime: a static import of the hydrate core and of every island's code */
+	svelte: 'svelte.dev/e/'
 } as const;
 
 type Chunk = keyof typeof CHUNKS;
 
-/** Drops the first `times` downloads of `chunk`. Returns how many were dropped and served. */
-async function drop(page: Page, chunk: Chunk, times: number) {
+/** Drops the first `times` downloads of `chunk` (or of the file whose path ends with `file`).
+ *  Returns how many were dropped and served. */
+async function drop(page: Page, chunk: Chunk | { file: string }, times: number) {
 	const seen = { dropped: 0, served: 0 };
-	const mark = CHUNKS[chunk];
+	const mark = typeof chunk === 'string' ? CHUNKS[chunk] : null;
+	const is_it = (path: string, body: string) =>
+		typeof chunk !== 'string'
+			? path.endsWith(chunk.file)
+			: typeof mark === 'string'
+				? body.includes(mark)
+				: mark!.test(body);
 	await page.route(
 		(url) => url.pathname.endsWith('.js'),
 		async (route) => {
 			const response = await route.fetch();
 			const body = await response.text();
-			if (typeof mark === 'string' ? body.includes(mark) : mark.test(body)) {
+			if (is_it(new URL(route.request().url()).pathname, body)) {
 				if (seen.dropped < times) {
 					seen.dropped++;
 					return route.abort('failed');
@@ -320,5 +329,112 @@ test.describe('the navigation chunk that fails once is loaded again (#238)', () 
 		);
 		check('the click swapped the page in place (no full load)', same_doc);
 		check('then served', seen.served >= 1, JSON.stringify(seen));
+	});
+});
+
+/** The file an island's region loads (its `src`), read off the page's server HTML. */
+async function island_file(page: Page, path: string, wake: string): Promise<string> {
+	const html = await (await page.request.get(path)).text();
+	const src = new RegExp(`<ogygia-region [^>]*wake="${wake}"[^>]*\\ssrc="([^"]+)"`).exec(html)?.[1];
+	if (!src) throw new Error(`no ${wake} region with a src on ${path}`);
+	return src.slice(src.lastIndexOf('/'));
+}
+
+/** Every request for a `.js` file the page makes: its file name and its retry mark. */
+function js_requests(page: Page): string[] {
+	const out: string[] = [];
+	page.on('request', (r) => {
+		const u = new URL(r.url());
+		if (u.pathname.endsWith('.js'))
+			out.push(u.pathname.slice(u.pathname.lastIndexOf('/') + 1) + u.search);
+	});
+	return out;
+}
+
+// AN ISLAND'S OWN FILE (#261): the lazy runtime chunks above are asked for again under a fresh URL,
+// and an island's own entry file must be too. It went through a plain import(): one dropped
+// download, and the island never woke for the rest of the tab (the browser keeps the failed URL).
+test.describe('an island’s own file that fails once is loaded again (#261)', () => {
+	test('dropped once: the island wakes on the retry, and so does the next island of that file', async ({
+		page
+	}) => {
+		const thrown = errors(page);
+		const logged: string[] = [];
+		page.on('console', (m) => m.type() === 'error' && logged.push(m.text()));
+		const file = await island_file(page, '/lazy-retry', 'visible');
+		const seen = await drop(page, { file }, 1);
+		await page.goto('/lazy-retry');
+		check('the near island hydrated', await hydrated(page, 'near', 8000));
+		check('it counts', await counts(page, 'near'));
+		await page.locator('[data-dated-counter="far"]').scrollIntoViewIfNeeded();
+		check('the far island (same file) hydrated', await hydrated(page, 'far', 8000));
+		check(
+			'the island’s file was dropped once, then loaded',
+			seen.dropped === 1 && seen.served >= 1,
+			JSON.stringify(seen)
+		);
+		check(
+			'no island_load_failed',
+			!logged.some((t) => t.includes('island_load_failed')),
+			logged.join('\n')
+		);
+		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
+	});
+});
+
+// A FAILED DEPENDENCY (#262). When a static import of a lazy chunk fails, the browser's error names
+// the chunk, not the dependency, and the dependency stays failed in the module map: the chunk under
+// a fresh URL fails again the same way, however often it is asked for (the runtime asked `og-retry=1`,
+// `2`, … on every later wake, each failing). After one retry that fails although the chunk itself
+// came, asking again cannot help: the runtime says once that the page needs a reload, and asks no more.
+// And a failed file in the RUNTIME's own static graph (it never runs, so no island wakes) is said too.
+test.describe('a lazy chunk whose dependency fails says a reload is needed (#262)', () => {
+	test('Svelte’s shared chunk dropped: one retry each, then one reload message, nothing more asked', async ({
+		page
+	}) => {
+		const thrown = errors(page);
+		const logged: string[] = [];
+		page.on('console', (m) => m.type() === 'error' && logged.push(m.text()));
+		const asked = js_requests(page);
+		const seen = await drop(page, 'svelte', 1);
+		await page.goto('/lazy-retry');
+		await expect.poll(() => logged.some((t) => t.includes('island_load_failed'))).toBe(true);
+		const retried_at_first_wake = asked.filter((r) => r.includes('og-retry=')).length;
+		// later wakes, in the same tab: the far island, then a click on the interaction island
+		await page.locator('[data-dated-counter="far"]').scrollIntoViewIfNeeded();
+		await page.waitForTimeout(1000);
+		await page.locator('[data-i-btn]').click();
+		await page.waitForTimeout(1000);
+		const retries = asked.filter((r) => r.includes('og-retry='));
+		check('Svelte’s chunk was dropped', seen.dropped === 1, JSON.stringify(seen));
+		check('the first wake retried its chunks once', retried_at_first_wake > 0, retries.join(', '));
+		check(
+			'never a second retry of a chunk (og-retry=2)',
+			!retries.some((r) => r.includes('og-retry=2')),
+			retries.join(', ')
+		);
+		check(
+			'each chunk asked for again once at most',
+			new Set(retries.map((r) => r.split('?')[0])).size === retries.length,
+			retries.join(', ')
+		);
+		const reload = logged.filter((t) => t.includes('chunk_reload_needed'));
+		check('one message says the page needs a reload', reload.length === 1, logged.join('\n'));
+		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
+	});
+
+	test('a file of the runtime’s own static graph dropped: the page says so', async ({ page }) => {
+		const logged: string[] = [];
+		page.on('console', (m) => m.type() === 'error' && logged.push(m.text()));
+		const html = await (await page.request.get('/lazy-retry')).text();
+		const dep = /<link rel="modulepreload" href="([^"]+)" data-ogygia-runtime-dep>/.exec(html)?.[1];
+		check('the runtime has a static dependency to drop', !!dep, html.slice(0, 300));
+		const seen = await drop(page, { file: dep!.slice(dep!.lastIndexOf('/')) }, 1);
+		await page.goto('/lazy-retry');
+		await expect
+			.poll(() => logged.some((t) => t.includes('runtime_load_failed')), { timeout: 5000 })
+			.toBe(true);
+		check('the dependency was dropped', seen.dropped === 1, JSON.stringify(seen));
+		check('no island woke', (await page.locator('ogygia-region[data-hydrated]').count()) === 0);
 	});
 });
