@@ -1,26 +1,26 @@
 /**
- * ONE REGION ELEMENT'S MAILBOX (#322): its events handled one at a time, in the order they came. A
- * connect, a schedule firing, an answer landing, a live tick, a fetch or a retry ending, a wake's
- * next step: each is a TURN of the element's mailbox, and no two turns of one element run at once.
+ * A MAILBOX: one owner's events handled one at a time, in the order they came. Each event is a
+ * TURN, and no two turns of one mailbox run at once. In ogygia each region element has one (#322):
+ * a connect, a schedule firing, an answer landing, a live tick, a fetch or a retry ending, a wake's
+ * next step.
  *
- *   const box = mailbox(life);              // the element's lifetime in the page owns it
- *   box.post((turn) => this.#apply(html, turn));
+ *   const box = mailbox(life);              // the owner's lifetime owns it
+ *   box.post((turn) => apply(html, turn));
  *
- *   async #apply(html, turn) {
- *     ...                                   // its turn: no other event of the element runs here
- *     if ((await turn.wait(ready)) === STALE) return; // the element left the page meanwhile
+ *   async function apply(html, turn) {
+ *     ...                                   // its turn: no other event of the box runs here
+ *     if ((await turn.wait(ready)) === STALE) return; // the owner closed meanwhile
  *     ...                                   // its turn again, after the events that came meanwhile
  *   }
  *
  * - A handler's turn lasts until it waits (`turn.wait`) or ends. Waiting lets the next event in; once
  *   what it waits for settles, the handler queues for a turn again, behind the events that came
- *   meanwhile. So two handlers on one element never see each other's half-done step. (A plain
- *   `await` in a handler keeps the turn across it: nothing else of the element runs until it is back.)
- * - An event that comes during a turn (a store write that notifies the element while it binds, a
+ *   meanwhile. So two handlers never see each other's half-done step. (A plain `await` in a handler
+ *   keeps the turn across it: nothing else of the box runs until it is back.)
+ * - An event that comes during a turn (a store write that notifies the owner while it binds, a
  *   listener of an event the turn dispatched) runs after the turn, never inside it.
- * - The element leaving the page (the owner closing) closes it: the queued events are dropped, and a
- *   handler that waits gets `STALE` from its wait, at once: it stops at its next await. Anything
- *   posted after is dropped too. A move (out and back in one task) is no leaving: the owner stays.
+ * - The owner closing closes it: the queued events are dropped, and a handler that waits gets
+ *   `STALE` from its wait, at once: it stops at its next await. Anything posted after is dropped too.
  *
  * - Each handler is handed a turn of its own, so only the handler holding the turn ends it by
  *   waiting. A wait from anyone else (a second wait of a handler already waiting, a timer it left
@@ -30,30 +30,35 @@
  * but its closure and its turn (one small object); the queue is made the first time an event has
  * to wait for one.
  */
-import { STALE, type Scope, type Stale } from '@ogygia/machine';
-import { report_thrown } from '../report-thrown.ts';
+import { report_thrown } from './messages.ts';
+import type { Scope } from './scope.ts';
+import { STALE, whole, type Fresh, type Stale } from './stale.ts';
 
 /** The handler's side of its turn. */
 export interface Turn {
-	/** The element left the page: every wait from here is `STALE`. */
+	/** The owner closed: every wait from here is `STALE`. */
 	readonly closed: boolean;
 	/**
 	 * Ends the turn while `work` settles, then waits for a turn again (in order, behind what came
-	 * meanwhile): `work`'s value, or `STALE` once the element left (at once, without waiting for
-	 * `work`). A rejection is thrown back in the handler's turn, unless the element left.
+	 * meanwhile): `work`'s value, or `STALE` once the owner closed (at once, without waiting for
+	 * `work`). A rejection is thrown back in the handler's turn, unless the owner closed. `work`
+	 * that gives `STALE`, or an array with `STALE` in it (a `Promise.all` with a stale part), gives
+	 * `STALE`: if anything it waited on is stale, the whole wait is.
 	 */
-	wait<T>(work: PromiseLike<T> | T): Promise<T | Stale>;
+	wait<T>(work: PromiseLike<T> | T): Promise<Fresh<T> | Stale>;
 }
 
 export interface Mailbox extends Turn {
 	/** Runs `handler` in its turn: now when the box is idle, else after what is ahead of it.
-	 *  Dropped once the box closed. */
+	 *  Dropped once the box closed. A handler that throws when it runs at once throws to the
+	 *  poster; one that ran later is reported (`machine_mailbox_handler_failed`). */
 	post(handler: (turn: Turn) => unknown): void;
-	/** {@link post}, and what the handler gave back: its value, or `STALE` when it was dropped. */
-	ask<R>(handler: (turn: Turn) => R): Promise<Awaited<R> | Stale>;
-	/** A wait from outside any turn: `work`'s value, or `STALE` once the element left. It ends
+	/** {@link post}, and what the handler gave back: its value, or `STALE` when it was dropped (or
+	 *  it gave `STALE`, or an array with `STALE` in it). */
+	ask<R>(handler: (turn: Turn) => R): Promise<Fresh<Awaited<R>> | Stale>;
+	/** A wait from outside any turn: `work`'s value, or `STALE` once the owner closed. It ends
 	 *  nobody's turn and takes none. */
-	wait<T>(work: PromiseLike<T> | T): Promise<T | Stale>;
+	wait<T>(work: PromiseLike<T> | T): Promise<Fresh<T> | Stale>;
 }
 
 /**
@@ -73,7 +78,7 @@ class Held implements Turn {
 		return this._box._closed;
 	}
 
-	wait<T>(work: PromiseLike<T> | T): Promise<T | Stale> {
+	wait<T>(work: PromiseLike<T> | T): Promise<Fresh<T> | Stale> {
 		return this._box._wait(this, work);
 	}
 }
@@ -106,7 +111,7 @@ class Box implements Mailbox {
 		else this._start(handler);
 	}
 
-	ask<R>(handler: (turn: Turn) => R): Promise<Awaited<R> | Stale> {
+	ask<R>(handler: (turn: Turn) => R): Promise<Fresh<Awaited<R>> | Stale> {
 		return new Promise((resolve, reject) => {
 			if (this._closed) return resolve(STALE);
 			const stale = resolve as (value: Stale) => void;
@@ -121,7 +126,7 @@ class Box implements Mailbox {
 					return reject(error);
 				}
 				// (the asker hears the handler's failure: the box's own chain never rejects)
-				return Promise.resolve(out).then(resolve as (value: Awaited<R>) => void, reject);
+				return Promise.resolve(out).then((value) => resolve(whole(value)), reject);
 			});
 			// (queued: dropped by the box closing first, its asker hears STALE)
 			if (!started) (this._waiting ??= new Set()).add(stale);
@@ -130,7 +135,7 @@ class Box implements Mailbox {
 
 	/** A wait from outside any turn (whoever holds the box): it ends no turn, and comes back with
 	 *  none. */
-	wait<T>(work: PromiseLike<T> | T): Promise<T | Stale> {
+	wait<T>(work: PromiseLike<T> | T): Promise<Fresh<T> | Stale> {
 		return this._wait(null, work);
 	}
 
@@ -138,10 +143,10 @@ class Box implements Mailbox {
 	 *  one again. A wait of nobody's turn (`null`, a handler that ended, a second wait of a handler
 	 *  already waiting) ends no turn: it waits, and takes the turn only when its handler would
 	 *  otherwise go on without one. */
-	_wait<T>(held: Held | null, work: PromiseLike<T> | T): Promise<T | Stale> {
+	_wait<T>(held: Held | null, work: PromiseLike<T> | T): Promise<Fresh<T> | Stale> {
 		if (held !== null && this._holder === held) this._end_turn();
 		if (this._closed) return Promise.resolve(STALE);
-		return new Promise<T | Stale>((resolve, reject) => {
+		return new Promise<Fresh<T> | Stale>((resolve, reject) => {
 			const waiting = (this._waiting ??= new Set());
 			const stale = resolve as (value: Stale) => void;
 			waiting.add(stale);
@@ -163,7 +168,7 @@ class Box implements Mailbox {
 				}
 			};
 			Promise.resolve(work).then(
-				(value) => back(() => resolve(value)),
+				(value) => back(() => resolve(whole(value as T))),
 				(error: unknown) => back(() => reject(error))
 			);
 		});
@@ -218,7 +223,7 @@ class Box implements Mailbox {
 					} catch (error) {
 						// a queued handler that threw: nobody waits on its stack (the turn before it ended),
 						// so it is the page's, as an event listener's throw is
-						report_thrown(error);
+						report_thrown('machine_mailbox_handler_failed', {}, error);
 					}
 					continue;
 				}
@@ -271,8 +276,8 @@ class Box implements Mailbox {
 	}
 }
 
-/** A box already closed: what an element holds before its first connect and after it left. */
-export const CLOSED_BOX: Mailbox = /* @__PURE__ */ (() => {
+/** The box of every owner already closed: every post dropped, every wait `STALE`. */
+const CLOSED_BOX: Mailbox = /* @__PURE__ */ (() => {
 	const box = new Box();
 	box._closed = true;
 	return box;

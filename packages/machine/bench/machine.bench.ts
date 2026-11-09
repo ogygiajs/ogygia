@@ -7,6 +7,7 @@ import {
 	flights,
 	lock,
 	machine,
+	mailbox,
 	observe,
 	outbox,
 	policy,
@@ -525,6 +526,67 @@ bench(
 		return granted;
 	},
 	{ setup: () => ({ n: 150 }), scale: (_ctx, k) => ({ n: 150 * k }) }
+);
+
+bench(
+	'mailbox: owners post, ask and wait; events queue behind waits; a long queue drains in one turn; a quarter close mid-wait',
+	async ({ n }) => {
+		let ran = 0;
+		const asks: Promise<unknown>[] = [];
+		for (let i = 0; i < n; i++) {
+			const life = scope();
+			const box = mailbox(life);
+			// idle box: runs at once
+			box.post(() => void ran++);
+			// a handler that waits twice, letting queued events in each time
+			asks.push(
+				box.ask(async (turn) => {
+					if ((await turn.wait(Promise.resolve(i))) === STALE) return;
+					if ((await turn.wait([i, Promise.resolve(i)])) === STALE) return;
+					ran++;
+				})
+			);
+			// queued behind the wait, plus a run of re-entrant posts from one turn
+			box.post(() => {
+				for (let k = 0; k < 8; k++) box.post(() => void ran++);
+			});
+			// a wait from outside any turn, and one more ask
+			asks.push(
+				box.wait(Promise.resolve(i)),
+				box.ask(() => ran++)
+			);
+			if (i % 4 === 0) queueMicrotask(() => life.close());
+		}
+		await Promise.all(asks);
+		return ran;
+	},
+	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
+);
+
+bench(
+	'mailbox: a queued handler that throws is reported, and the box goes on',
+	({ n }) => {
+		const page = globalThis as { reportError?: (e: unknown) => void };
+		const kept = page.reportError;
+		const said = console.error;
+		let heard = 0;
+		page.reportError = () => void heard++;
+		console.error = () => {};
+		try {
+			const box = mailbox(scope());
+			box.post(() => {
+				for (let i = 0; i < n; i++)
+					box.post(() => {
+						if (i % 2 === 0) throw new Error('queued');
+					});
+			});
+		} finally {
+			page.reportError = kept;
+			console.error = said;
+		}
+		return heard;
+	},
+	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
 );
 
 const timed = machine<{ idle: {}; fetching: { attempt: number }; failed: { attempt: number } }>()({

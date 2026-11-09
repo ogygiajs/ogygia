@@ -1,9 +1,8 @@
-// A REGION ELEMENT'S MAILBOX (src/runtime/mailbox.ts, #322): its events one at a time, in the order
-// they came; a wait lets the next one in and comes back behind it; the owner closing drops what is
-// queued and ends every wait with STALE at once.
+// A MAILBOX (src/mailbox.ts; a region element's, #322): its events one at a time, in the order they
+// came; a wait lets the next one in and comes back behind it; the owner closing drops what is queued
+// and ends every wait with STALE at once. Real timers, in node and in a real browser.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { scope, STALE } from '@ogygia/machine';
-import { CLOSED_BOX, mailbox, type Turn } from '../src/runtime/mailbox.ts';
+import { mailbox, scope, STALE, type Turn } from '../src/index.ts';
 
 const later = <T>(value: T, ms = 1) => new Promise<T>((r) => setTimeout(() => r(value), ms));
 
@@ -108,6 +107,38 @@ describe('mailbox', () => {
 		expect(seen).toEqual(['queued', 'a back']);
 	});
 
+	it('runs events in the order they were posted, across waits', async () => {
+		const box = mailbox(scope());
+		const seen: number[] = [];
+		const asks: Promise<unknown>[] = [];
+		for (let i = 0; i < 5; i++)
+			asks.push(
+				box.ask(async (turn) => {
+					seen.push(i);
+					await turn.wait(later(null, 5 - i));
+					seen.push(10 + i);
+				})
+			);
+		await Promise.all(asks);
+		// (each started in order; each came back once its own wait settled and the turn was free)
+		expect(seen.slice(0, 5)).toEqual([0, 1, 2, 3, 4]);
+		expect(seen.slice(5).sort()).toEqual([10, 11, 12, 13, 14]);
+	});
+
+	it('ask() gives the handler’s value, sync or async, in its turn', async () => {
+		const box = mailbox(scope());
+		expect(await box.ask(() => 1)).toBe(1);
+		expect(await box.ask(async (turn) => String(await turn.wait(later('two'))) + '!')).toBe('two!');
+		const seen: string[] = [];
+		box.post(async (turn) => {
+			seen.push('a');
+			await turn.wait(later(null, 5));
+			seen.push('a back');
+		});
+		// (asked while a waits: it runs in the turn a let go)
+		expect(await box.ask(() => (seen.push('asked'), seen.length))).toBe(2);
+	});
+
 	it('tells an asker whose event was dropped STALE', async () => {
 		const life = scope();
 		const box = mailbox(life);
@@ -148,6 +179,7 @@ describe('mailbox', () => {
 	it('reports a queued handler that throws, and goes on with the next', () => {
 		const report = vi.fn();
 		vi.stubGlobal('reportError', report);
+		const said = vi.spyOn(console, 'error').mockImplementation(() => {});
 		try {
 			const box = mailbox(scope());
 			const seen: string[] = [];
@@ -159,10 +191,51 @@ describe('mailbox', () => {
 			});
 			expect(report).toHaveBeenCalledOnce();
 			expect(String(report.mock.calls[0][0])).toContain('queued');
+			expect(String(said.mock.calls[0][0])).toContain('machine_mailbox_handler_failed');
 			expect(seen).toEqual(['after']);
 		} finally {
 			vi.unstubAllGlobals();
 		}
+	});
+
+	it('with no page error handler, a queued handler’s throw follows its code', () => {
+		vi.stubGlobal('reportError', undefined);
+		const said = vi.spyOn(console, 'error').mockImplementation(() => {});
+		try {
+			const box = mailbox(scope());
+			box.post(() => {
+				box.post(() => {
+					throw new Error('queued');
+				});
+			});
+			expect(said).toHaveBeenCalledOnce();
+			expect(String(said.mock.calls[0][0])).toContain('machine_mailbox_handler_failed');
+			expect(String(said.mock.calls[0][1])).toContain('queued');
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it('a timer of a handler that waits after its turn ended takes nobody’s turn (#341)', async () => {
+		const box = mailbox(scope());
+		const seen: string[] = [];
+		box.post((turn) => {
+			setTimeout(() => void turn.wait(later(null)), 0);
+		});
+		let open!: () => void;
+		const gate = new Promise<void>((r) => (open = r));
+		const b = box.ask(async () => {
+			seen.push('b holds');
+			await gate;
+			seen.push('b ends');
+		});
+		box.post(() => seen.push('c'));
+		await later(null, 20);
+		expect(seen).toEqual(['b holds']);
+		open();
+		await b;
+		await Promise.resolve();
+		expect(seen).toEqual(['b holds', 'b ends', 'c']);
 	});
 
 	it('throws a sync failure to its poster when it runs at once', () => {
@@ -305,8 +378,11 @@ describe('mailbox', () => {
 	it('is closed for an owner already closed', async () => {
 		const life = scope();
 		life.close();
-		expect(mailbox(life)).toBe(CLOSED_BOX);
-		expect(await CLOSED_BOX.wait(Promise.resolve(1))).toBe(STALE);
+		const box = mailbox(life);
+		expect(box.closed).toBe(true);
+		expect(box).toBe(mailbox(life)); // (one closed box for every closed owner)
+		expect(await box.wait(Promise.resolve(1))).toBe(STALE);
+		expect(await box.ask(() => 1)).toBe(STALE);
 	});
 
 	it('a wait whose work settled while another handler held the turn hears STALE when the box closes', async () => {

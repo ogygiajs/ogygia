@@ -32,6 +32,8 @@
  * and waits are one scope's: the deadline closes it, which aborts the try out and ends the wait.
  */
 import { flights, type Flights } from './flights.ts';
+import { mailbox, type Mailbox } from './mailbox.ts';
+import { scope } from './scope.ts';
 import { machine_error, report } from './messages.ts';
 import { policy, under_policy, type Policy } from './policy.ts';
 
@@ -86,10 +88,9 @@ class Box<T> implements Outbox<T> {
 	_give_up: ((item: T, error: unknown) => void) | undefined;
 	_wait_until: ((work: Promise<unknown>) => void) | undefined;
 	_flights: Flights<Put<T>, boolean, Pick<Put<T>, 'key'>>;
-	_in_order: boolean;
-	/** In order: the last send put (it never rejects), and how many are put and not ended. */
-	_tail: Promise<unknown> = Promise.resolve();
-	_ahead = 0;
+	/** In order: its sends, one turn each (a send holds its turn until it ends); else null. It lives
+	 *  as long as the outbox: its owner never closes. */
+	_box: Mailbox | null;
 
 	constructor(o: OutboxOptions<T>) {
 		if (typeof o.send !== 'function')
@@ -104,25 +105,19 @@ class Box<T> implements Outbox<T> {
 		this._retry = o.retry ?? policy.standard;
 		this._give_up = o.giveUp;
 		this._wait_until = o.waitUntil;
-		this._in_order = o.inOrder === true;
+		this._box = o.inOrder === true ? mailbox(scope()) : null;
 		this._flights = flights<Put<T>>()({
 			name: this._name,
 			key: ['key'],
 			ignore: { item: 'one send per id: a put of an id still out joins the send of the first' },
 			keep: 0,
-			run: (p) => (this._in_order ? this._next(p.item) : this._deliver(p.item))
+			// in order: the send starts now when none is ahead of it, else once the last one put ends
+			// (never STALE: its box never closes)
+			run: (p) =>
+				this._box === null
+					? this._deliver(p.item)
+					: (this._box.ask(() => this._deliver(p.item)) as Promise<boolean>)
 		});
-	}
-
-	/** In order: the send starts now when none is ahead of it, else once the last one put ends. */
-	_next(item: T): Promise<boolean> {
-		const mine =
-			this._ahead === 0 ? this._deliver(item) : this._tail.then(() => this._deliver(item));
-		this._ahead++;
-		this._tail = mine.then(() => {
-			this._ahead--;
-		});
-		return mine;
 	}
 
 	put(item: T): Promise<boolean> {

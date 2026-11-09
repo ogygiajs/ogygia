@@ -115,6 +115,16 @@ page.close(); // listeners off, timers cleared, observers disconnected, the fetc
 | `adopt(disposable)`           | Disposes it on close (`Symbol.dispose` or `Symbol.asyncDispose`).                                      |
 | `close()`                     | Children first, then the signal, then the rest. Safe twice. Throws what cleanups threw, after all ran. |
 
+**A stale part makes the whole wait stale.** A wait (`task`, a mailbox's `turn.wait` / `wait` / `ask`, a flights `run`, `stage().ready`) gives `STALE` when what it waited on is `STALE`, or an array with `STALE` among its items. So hand it the whole `Promise.all`, and one check covers every slot:
+
+```ts
+const both = await page.task(() => Promise.all([load_module(), pages.get(href)]));
+if (both === STALE) return; // the page was left, or the page fetch was dropped
+const [mod, html] = both; // neither is STALE (the type says so too: `Fresh<T>`)
+```
+
+It looks one level deep: an object holding a `STALE` is not seen, so build objects after the check. The repo's lint rule `ogygia/stale-whole` refuses a STALE-returning call left in an array that no wait checks.
+
 A closed scope lets go of anything given to it at once: a cleanup runs, an observer disconnects, a listener or timer is never set, a task is `STALE` without running. So code that runs after its owner ended cannot leave anything behind. A scope is `Disposable`: `using s = scope()` closes it at the end of the block, and `await using` also waits for async disposals (a plain `close()` reports one that fails: [machine_dispose_failed](https://ogygiajs.dev/e/machine_dispose_failed)). Timers never keep a server process alive: their owner does.
 
 ## Flights
@@ -244,6 +254,41 @@ sources.bump(['post:12']); // kept docs that read post 12 go; the rest stay
 - **A stamp only moves forward.** `bump()` puts every stamp before it out of date; on a keyed world, `bump(keys)` only those that read `keys`, and `fresh(stamp, keys)` asks about those keys alone.
 - **Flights take a world.** A move is a `drop` of what it touches, and an answer whose world moved while it was out is `STALE` for every caller that joined it, never kept. With `touches`, a flight with nothing kept yet goes on through a move of other keys, and is judged by its answer when it lands.
 - A keyed world remembers the moves of its newest 4096 keys; an older one folds into a floor that puts every stamp before it out of date. It errs one way: data may be made again that was still good, never kept when it was not.
+
+## Mailboxes
+
+A mailbox runs one owner's events one at a time, in the order they came. Each event is a turn. A handler keeps its turn until it waits with `turn.wait()` or ends, so no two handlers see each other's half-done step. In ogygia each region element has one: its connect, a frame landing, a live tick and its wake's steps are turns of it.
+
+```ts
+import { mailbox, scope, STALE } from '@ogygia/machine';
+
+const life = scope();
+const box = mailbox(life); // open while `life` is
+
+box.post(async (turn) => {
+	// its turn: nothing else of the box runs here
+	const html = await turn.wait(fetch_html()); // the next event runs meanwhile
+	if (html === STALE) return; // the owner closed meanwhile
+	apply(html); // its turn again, behind what came meanwhile
+});
+const n = await box.ask(() => count()); // post, and get the handler's value (STALE when dropped)
+```
+
+|                   |                                                                                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mailbox(owner)`  | A new mailbox, open while `owner` (a scope) is.                                                                                                        |
+| `post(handler)`   | Runs `handler(turn)` now when the box is idle (on the caller's stack), else after what is ahead of it.                                                 |
+| `ask(handler)`    | `post`, and the handler's value: rejects with its error, `STALE` when it was dropped.                                                                  |
+| `turn.wait(work)` | Ends the turn while `work` settles, then queues for a turn again: `work`'s value, or `STALE` once the owner closed. Rejections throw back in the turn. |
+| `wait(work)`      | A wait from outside any turn: ends nobody's turn.                                                                                                      |
+| `closed`          | The owner closed.                                                                                                                                      |
+
+- **A post during a turn runs after it**, never inside it (a listener of an event the turn dispatched, a store write that notifies the owner).
+- **A plain `await` keeps the turn.** Only `turn.wait` lets the next event in.
+- **Closing drops the queue.** Queued events never run, every wait gives `STALE` at once, and later posts are dropped.
+- **A queued handler that throws** is reported ([machine_mailbox_handler_failed](https://ogygiajs.dev/e/machine_mailbox_handler_failed)) and the box goes on. One that runs at once throws to its poster.
+
+A mailbox orders events; a [lock](#locks) is held across many events by an owner with a token, and can be taken from a stuck one.
 
 ## Locks
 

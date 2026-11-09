@@ -4,6 +4,7 @@ import { describe, expectTypeOf, it } from 'vitest';
 import {
 	flights,
 	lock,
+	mailbox,
 	machine,
 	scope,
 	STALE,
@@ -291,6 +292,44 @@ describe('types', () => {
 		compile_only(() => {
 			// @ts-expect-error: a plain number is not a token
 			l.free(1);
+		});
+	});
+
+	it('a stale part makes the whole wait stale: past the check, no slot is Stale (#378)', () => {
+		const pages = flights({ run: (href: string) => Promise.resolve(href.length) });
+		const s = scope();
+		compile_only(async () => {
+			const both = await s.task(() => Promise.all([Promise.resolve('module'), pages.get('/')]));
+			if (both === STALE) return;
+			const [a, b] = both;
+			expectTypeOf(a).toEqualTypeOf<string>();
+			expectTypeOf(b).toEqualTypeOf<number>();
+
+			const box = mailbox(s);
+			box.post(async (turn) => {
+				const got = await turn.wait(Promise.all([pages.get('/a'), pages.get('/b')]));
+				if (got === STALE) return;
+				expectTypeOf(got).toEqualTypeOf<[number, number]>();
+			});
+			const asked = await box.ask(() => Promise.all([pages.get('/'), 1]));
+			if (asked === STALE) return;
+			expectTypeOf(asked).toEqualTypeOf<[number, number]>();
+
+			const one = await s.task(() => pages.get('/'));
+			if (one === STALE) return;
+			expectTypeOf(one).toEqualTypeOf<number>();
+
+			// (one level deep: an object keeps its Stale)
+			const obj = await s.task(async (): Promise<{ page: number | Stale }> => ({
+				page: await pages.get('/')
+			}));
+			if (obj === STALE) return;
+			expectTypeOf(obj.page).toEqualTypeOf<number | Stale>();
+
+			// a plain array of maybe-stale values
+			const many = await s.task(() => Promise.all(['/a', '/b'].map((h) => pages.get(h))));
+			if (many === STALE) return;
+			expectTypeOf(many).toEqualTypeOf<number[]>();
 		});
 	});
 });

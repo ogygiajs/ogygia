@@ -1053,28 +1053,28 @@
 			"reason": "the e2e harness: sends a signal to the server's process group (one syscall); proven in packages/tooling/test/servers.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/mailbox.ts > <anonymous>~371caf",
+			"id": "packages/machine/src/mailbox.ts > <anonymous>~371caf",
 			"reason": "runs once at module load: makes the one closed mailbox, constant work"
 		},
 		{
-			"id": "packages/core/src/runtime/mailbox.ts > Box > get closed",
-			"reason": "a constant field read; proven in packages/core/test/mailbox.test.ts"
+			"id": "packages/machine/src/mailbox.ts > Box > get closed",
+			"reason": "a constant field read; proven in packages/machine/test/mailbox.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/mailbox.ts > Held > get closed",
-			"reason": "a constant field read through the turn to its box; proven in packages/core/test/mailbox.test.ts"
+			"id": "packages/machine/src/mailbox.ts > Held > get closed",
+			"reason": "a constant field read through the turn to its box; proven in packages/machine/test/mailbox.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/mailbox.ts > Box > _back_in",
-			"reason": "a handler given its turn back takes in its other waits: a walk of the queue of one element (its own events, a handful), its jobs hold closures (not cloneable); proven in packages/core/test/mailbox.test.ts and packages/core/test/browser/mailbox.test.ts"
+			"id": "packages/machine/src/mailbox.ts > Box > _start > then:1~388c15",
+			"reason": "an async handler posted with post() rejected: its turn ends and the rejection is thrown on unheard (an unhandled rejection, as a direct call's would be), constant work; a bench or test would leave an unhandled rejection behind"
 		},
 		{
-			"id": "packages/core/src/runtime/mailbox.ts > Box > _wait > Promise:0~7eabb8 > then:1~4ff304",
-			"reason": "a wait whose work rejected: comes back in its turn to throw it there, constant work; proven in packages/core/test/mailbox.test.ts"
+			"id": "packages/machine/src/mailbox.ts > Box > _wait > Promise:0~cf99be > then:1~4ff304",
+			"reason": "a wait whose work rejected: comes back in its turn to throw it there, constant work; proven in packages/machine/test/mailbox.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/mailbox.ts > Box > _wait > Promise:0~7eabb8 > then:1~4ff304 > back:0~aaf251",
-			"reason": "the same, as it gets its turn back, constant work; proven in packages/core/test/mailbox.test.ts"
+			"id": "packages/machine/src/mailbox.ts > Box > _wait > Promise:0~cf99be > then:1~4ff304 > back:0~aaf251",
+			"reason": "the same, as it gets its turn back, constant work; proven in packages/machine/test/mailbox.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/core.ts > boot > on_reload_needed:0~c56e54",
