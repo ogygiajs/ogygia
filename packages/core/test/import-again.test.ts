@@ -3,7 +3,12 @@
 // lazy-chunk-retry spec; this pins the URL reading and the attempt sequence.
 import { describe, expect, it, vi } from 'vitest';
 import { flights } from '@ogygia/machine';
-import { failed_import_url, import_again, retry_url } from '../src/runtime/import-again.ts';
+import {
+	failed_import_url,
+	import_again,
+	is_failed_import,
+	retry_url
+} from '../src/runtime/import-again.ts';
 import { download } from '../src/policies.ts';
 
 const CHROMIUM = new TypeError(
@@ -20,6 +25,14 @@ describe('failed_import_url', () => {
 		expect(failed_import_url(CHROMIUM)).toBe('https://shop.test/_app/immutable/chunks/DmQpvhkC.js');
 		expect(failed_import_url(FIREFOX)).toBe('https://shop.test/_app/immutable/chunks/DmQpvhkC.js');
 		vi.unstubAllGlobals();
+	});
+
+	it('tells a failed load from a module that threw, in every engine’s wording (#383)', () => {
+		expect(is_failed_import(CHROMIUM)).toBe(true);
+		expect(is_failed_import(FIREFOX)).toBe(true);
+		expect(is_failed_import(SAFARI)).toBe(true);
+		expect(is_failed_import(new TypeError('undefined is not a function'))).toBe(false);
+		expect(is_failed_import(undefined)).toBe(false);
 	});
 
 	it('names none for Safari, an evaluation error, another origin or a non-http URL', () => {
