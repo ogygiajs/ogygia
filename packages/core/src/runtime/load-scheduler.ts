@@ -45,6 +45,7 @@ export const CRITICAL_CAP_MS = 2500;
 export const BACKGROUND_WINDOW = 3;
 
 const RANK: Record<LoadClass, number> = { user: 0, visible: 1, ahead: 2, speculative: 3 };
+const CLASSES: readonly LoadClass[] = ['user', 'visible', 'ahead', 'speculative'];
 
 /** The fetch priority a class downloads at (`fetch(…, { priority })`, `<link fetchpriority>`). */
 export function fetch_priority_of(cls: LoadClass): 'high' | 'auto' | 'low' {
@@ -224,9 +225,11 @@ function until_critical(): Promise<void> {
 
 // ── the queue ───────────────────────────────────────────────────────────────────────────────────
 
+/** The slots waiting, in the order they were asked for (a pass takes out the ones it started when
+ *  it ends; `waiting` counts the rest at any moment). */
 const queue: LoadSlot[] = [];
+let waiting = 0;
 let in_flight_background = 0;
-let next_order = 0;
 /** The scroll watch while a queued download waits (its listener and its frame): closed once the
  *  queue is empty. */
 let scroll_watch: Scope | null = null;
@@ -240,8 +243,9 @@ export class LoadSlot {
 	readonly kind: LoadKind;
 	readonly label: string | undefined;
 	readonly queued_at: number = now();
-	readonly order: number = next_order++;
 	readonly ready: Promise<() => void>;
+	/** Still in the queue: a drain takes it out when it starts. */
+	queued = true;
 	#read: () => LoadClass;
 	#forced: LoadClass | null = null;
 	#resolve!: (release: () => void) => void;
@@ -252,6 +256,7 @@ export class LoadSlot {
 		this.#read = typeof o.cls === 'function' ? o.cls : () => o.cls as LoadClass;
 		this.ready = new Promise<() => void>((r) => (this.#resolve = r));
 		queue.push(this);
+		waiting++;
 		if (typeof o.cls === 'function') watch_scroll();
 		if (!critical_done() && waits_for_critical(this.kind, this.cls())) void critical_settled(); // ok: the critical wait only waits on timers and resources' events; it never rejects
 		drain();
@@ -324,7 +329,7 @@ function drain(): void {
 		if (kind === 'draining') drainer.go('again');
 		return;
 	}
-	if (!queue.length) return;
+	if (!waiting) return;
 	drainer.go('draining');
 	const mine = drainer;
 	void drain_queue().finally(() => {
@@ -335,38 +340,63 @@ function drain(): void {
 	}); // ok: a drain only hands out slots and yields; it never rejects
 }
 
+/**
+ * One pass goes through the queue by class, then in the order asked, and then through the slots
+ * asked for while it ran, in the order asked. The queue is kept in the order asked, so reading each
+ * class once and putting the slot in its class's list is that order (a sort compared two classes per
+ * step, every pass: passes × queue × log queue reads on a page whose downloads each end a pass).
+ *
+ * @heisenbench linear
+ */
 async function drain_queue(): Promise<void> {
 	let until = now() + START_BUDGET_MS;
 	for (;;) {
 		// (a drain asked for until now is this round)
 		if (drainer.now.kind === 'again') drainer.go('draining');
-		queue.sort((a, b) => RANK[a.cls()] - RANK[b.cls()] || a.order - b.order);
+		const asked = queue.length;
+		const by_class: LoadSlot[][] = [[], [], [], []];
+		for (let i = 0; i < asked; i++) by_class[RANK[queue[i].cls()]].push(queue[i]);
+		// nothing has run since the classes were read; after a start its holder has, so they are read again
+		let ran = false;
+		let started = false;
 		let yielded = false;
-		for (let i = 0; i < queue.length;) {
-			const e = queue[i];
-			const cls = e.cls();
-			if (!critical_done() && waits_for_critical(e.kind, cls)) {
-				i++;
-				continue;
-			}
-			const background = cls === 'ahead' || cls === 'speculative';
-			if (background && in_flight_background >= BACKGROUND_WINDOW) {
-				i++;
-				continue;
-			}
-			queue.splice(i, 1);
-			e.start(cls, background);
-			// the holder's continuation (its synchronous start-up) runs in this microtask turn
-			await Promise.resolve();
-			if (now() >= until) {
-				await yield_task();
-				until = now() + START_BUDGET_MS;
-				yielded = true;
-				break; // classes may have moved (scroll, promote) while the page had the thread
+		pass: for (let r = 0; r <= 4; r++) {
+			const list = r < 4 ? by_class[r] : queue;
+			for (let i = r < 4 ? 0 : asked; i < list.length; i++) {
+				const e = list[i];
+				if (!e.queued) continue; // (the test seam emptied the queue while the pass waited)
+				const cls = r < 4 && !ran ? CLASSES[r] : e.cls();
+				if (!critical_done() && waits_for_critical(e.kind, cls)) continue;
+				const background = cls === 'ahead' || cls === 'speculative';
+				if (background && in_flight_background >= BACKGROUND_WINDOW) continue;
+				e.queued = false;
+				waiting--;
+				started = true;
+				e.start(cls, background);
+				// the holder's continuation (its synchronous start-up) runs in this microtask turn
+				await Promise.resolve();
+				ran = true;
+				if (now() >= until) {
+					leave_queue();
+					await yield_task();
+					until = now() + START_BUDGET_MS;
+					yielded = true;
+					break pass; // classes may have moved (scroll, promote) while the page had the thread
+				}
 			}
 		}
-		if (!yielded && drainer.now.kind !== 'again') return;
+		if (!yielded) {
+			if (started) leave_queue();
+			if (drainer.now.kind !== 'again') return;
+		}
 	}
+}
+
+/** The started slots out of the queue, the rest kept in the order asked. */
+function leave_queue(): void {
+	let w = 0;
+	for (let i = 0; i < queue.length; i++) if (queue[i].queued) queue[w++] = queue[i];
+	queue.length = w;
 }
 
 /** While a queued download's class can change with the viewport, re-drain on scroll (one frame). */
@@ -380,7 +410,7 @@ function watch_scroll(): void {
 		watch.timeout(() => {
 			framed = false;
 			drain();
-			if (!queue.length) {
+			if (!waiting) {
 				watch.close();
 				scroll_watch = null;
 			}
@@ -395,7 +425,9 @@ function now(): number {
 
 /** Test seam: a fresh document. */
 export function reset_load_scheduler(): void {
+	for (const s of queue) s.queued = false;
 	queue.length = 0;
+	waiting = 0;
 	in_flight_background = 0;
 	drainer.stop();
 	drainer = drain_definition.create();

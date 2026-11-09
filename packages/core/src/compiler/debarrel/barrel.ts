@@ -95,7 +95,8 @@ export class BarrelIndex<Caller = void> {
 		name: 'debarrel-barrel',
 		key: ['id'],
 		ignore: {
-			build: 'what the ask that starts the flight found of the file: a barrel is built once, as that caller resolves'
+			build:
+				'what the ask that starts the flight found of the file: a barrel is built once, as that caller resolves'
 		},
 		run: async ({ id, build }): Promise<ExportMap | null> =>
 			build === null ? null : this.#build_of(id, build.shape, build.walk),
