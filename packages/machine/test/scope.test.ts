@@ -499,6 +499,22 @@ describe('task', () => {
 		await expect(out).resolves.toBe(STALE);
 	});
 
+	it('work that closes its own scope before it returns still settles with STALE (#349)', async () => {
+		const s = scope();
+		const out = s.task(() => {
+			s.close();
+			return new Promise<string>(() => {}); // (ignores its signal: never settles)
+		});
+		const hang = new Promise((r) => setTimeout(() => r('hangs'), 50));
+		await expect(Promise.race([out, hang])).resolves.toBe(STALE);
+
+		// a machine's visit: the work moves the machine out of the state it runs in
+		const m = machine<{ a: {}; b: {} }>()({ name: 'self', initial: 'a', steps: { a: ['b'], b: [] } })
+			.create();
+		const moved = m.scope.task(() => (m.go('b'), new Promise<never>(() => {})));
+		await expect(Promise.race([moved, hang])).resolves.toBe(STALE);
+	});
+
 	it('an answer or a failure after the scope closed is STALE', async () => {
 		const s = scope();
 		let finish!: (v: string) => void;
