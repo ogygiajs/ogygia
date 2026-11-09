@@ -162,6 +162,8 @@ class Scoped implements Scope {
 	/** Async disposals started by close, and whether a caller waits for them. */
 	_settling: Promise<unknown>[] | null = null;
 	_awaited = false;
+	/** Its close is running (a cleanup that adopts goes with the close's own disposals). */
+	_closing = false;
 
 	constructor(parent: Scoped | null, machine: string | null) {
 		this._parent = parent;
@@ -301,18 +303,27 @@ class Scoped implements Scope {
 	adopt<D extends Disposable | AsyncDisposable>(disposable: D): D {
 		const d = disposable as Partial<Disposable & AsyncDisposable>;
 		if (typeof d[DISPOSE] === 'function') this.defer(() => (d[DISPOSE] as () => void).call(d));
-		else if (typeof d[ASYNC_DISPOSE] === 'function')
-			this.defer(() => {
-				const done = Promise.resolve((d[ASYNC_DISPOSE] as () => Promise<void>).call(d));
-				(this._settling ??= []).push(done);
-			});
-		else throw machine_error('machine_not_disposable', { value: typeof disposable });
+		else if (typeof d[ASYNC_DISPOSE] === 'function') {
+			const dispose = () => Promise.resolve((d[ASYNC_DISPOSE] as () => Promise<void>).call(d));
+			// closed already (late work): its close has looked at its disposals, so this one is said
+			// here. One adopted by a cleanup of its own close still goes with the close's own.
+			if (this._closed && !this._closing) this._said(dispose());
+			else this.defer(() => void (this._settling ??= []).push(dispose()));
+		} else throw machine_error('machine_not_disposable', { value: typeof disposable });
 		return disposable;
+	}
+
+	/** An async disposal nobody waits for: its failure is said with the code. */
+	_said(done: Promise<unknown>): void {
+		done.then(undefined, (error: unknown) =>
+			report('machine_dispose_failed', { owner: this._label }, error)
+		);
 	}
 
 	close(): void {
 		if (this._closed) return;
 		this._closed = true;
+		this._closing = true;
 		this._parent?._children?.delete(this);
 		this._parent = null;
 		let errors: unknown[] | null = null;
@@ -352,11 +363,8 @@ class Scoped implements Scope {
 				}
 			}
 		}
-		if (this._settling !== null && !this._awaited)
-			for (const done of this._settling)
-				done.then(undefined, (error: unknown) =>
-					report('machine_dispose_failed', { owner: this._label }, error)
-				);
+		this._closing = false;
+		if (this._settling !== null && !this._awaited) for (const done of this._settling) this._said(done);
 		if (errors !== null)
 			throw errors.length === 1
 				? errors[0]
