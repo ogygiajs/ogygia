@@ -262,22 +262,29 @@ export function stream_page_deferred(
 					// ok: the client is gone and the stream closed; nobody reads this script
 				}
 			};
+			// One promise settled, either way: its script is out, and it no longer holds the stream.
+			const settled = (id: number, ok: boolean, value: unknown) => {
+				push(id, ok, value);
+				pending -= 1;
+				maybe_close();
+			};
 			const stream_one = (id: number, promise: PromiseLike<unknown>) => {
 				Promise.resolve(promise).then(
 					(value) => {
-						const { staged, deferred: nested, next_id: after } = stage_deferred(value, next_id);
-						next_id = after;
-						push(id, true, staged);
-						pending += nested.length;
-						for (const n of nested) stream_one(n.id, n.promise);
-						pending -= 1;
-						maybe_close();
+						// a value that cannot be staged (a getter that throws as it is walked) is this
+						// promise's failure, not a stream that never closes (#367)
+						let staged: ReturnType<typeof stage_deferred>;
+						try {
+							staged = stage_deferred(value, next_id);
+						} catch (error) {
+							return settled(id, false, error);
+						}
+						next_id = staged.next_id;
+						pending += staged.deferred.length;
+						for (const n of staged.deferred) stream_one(n.id, n.promise);
+						settled(id, true, staged.staged);
 					},
-					(error) => {
-						push(id, false, error);
-						pending -= 1;
-						maybe_close();
-					}
+					(error) => settled(id, false, error)
 				);
 			};
 			for (const { id, promise } of deferred) stream_one(id, promise);
