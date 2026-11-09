@@ -268,6 +268,8 @@ import { devtools_app } from '../app.ts';
 
 /** One post of sink rows: its id (the sink may drop a copy by it), its NDJSON, and its row count. */
 type SinkPost = { id: string; body: string; rows: number };
+/** A sink post out: settles once it (and the post of the rows read meanwhile, when `again`) ended. */
+type SinkOut = { again: boolean; done: Promise<void> };
 /** How a sink post is tried again: a sink restarting is ridden out, and a sink that is down costs
  *  each post 30 s at most, so the posts after it are not held long. */
 const SINK_POLICY = /* @__PURE__ */ policy({
@@ -280,7 +282,6 @@ const SINK_POLICY = /* @__PURE__ */ policy({
 const SINK_TRY_MS = 5000;
 const error_text = (error: unknown): string =>
 	error instanceof Error ? error.message : String(error);
-const noop = (): void => {};
 
 // The span recorder's `begin` lives in this file: skip its frame when finding a span's caller.
 register_profiler_file();
@@ -6971,13 +6972,20 @@ class Profiler {
 	}
 
 	// ── the sink ─────────────────────────────────────────────────────────────────────────────
-	/** Hand the buffered rows to the sink's outbox as one post, now (it goes after the posts before
-	 *  it). Settles once that post was taken or given up; never rejects. */
+	/** Hand the buffered rows to the sink's outbox as one post, now. While a post is out, the rows
+	 *  wait in the buffer (capped: it drops the oldest when full) and go in one post once it ends,
+	 *  never a post per tick queued behind a sink that is down (#376). Settles once the rows asked
+	 *  for were taken or given up; never rejects. */
 	#sink_flush(): Promise<void> {
 		// (a superseded profiler sends what it holds this once, then its timer stops)
 		if (this.#sink_timer && this.#superseded()) {
 			this.#sink_timer();
 			this.#sink_timer = null;
+		}
+		const out = this.#sink_out;
+		if (out !== null) {
+			out.again = true;
+			return out.done;
 		}
 		if (!this.#sink_url || !this.#sink.size) return Promise.resolve();
 		const rows = this.#sink.size;
@@ -6986,8 +6994,17 @@ class Profiler {
 			body: this.#sink.drain(),
 			rows
 		};
-		return this.#sink_posts.put(post).then(noop);
+		const posting: SinkOut = { again: false, done: Promise.resolve() };
+		this.#sink_out = posting;
+		posting.done = this.#sink_posts.put(post).then(() => {
+			this.#sink_out = null;
+			// (rows read while it was out, asked for meanwhile: the next post)
+			if (posting.again) return this.#sink_flush();
+		});
+		return posting.done;
 	}
+	/** The post out now, and whether a flush asked for the rows read meanwhile. */
+	#sink_out: SinkOut | null = null;
 
 	/** Each post's id: this profiler's run, and its count. */
 	readonly #sink_run = Math.random().toString(36).slice(2, 10);

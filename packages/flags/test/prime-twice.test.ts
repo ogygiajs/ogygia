@@ -40,3 +40,26 @@ describe('a second prime of a request while the first waits', () => {
 		expect(f(c)).toBe(false); // the source's answer, not the native rule
 	});
 });
+
+describe('a source that throws before it awaits anything', () => {
+	it('leaves the request resolved (empty), never priming for good', async () => {
+		decide({
+			source: () => {
+				throw new Error('vendor down');
+			}
+		});
+		flag('prime-sync-throw', 100);
+		const url = 'http://s/y';
+		const c = {
+			request: new Request(url),
+			url: new URL(url),
+			cookies: { get: () => undefined }
+		};
+		await prime_flags(c);
+		// (the request's source answer, where the flags keep it)
+		const prime = (c.request as unknown as Record<symbol, { kind: string }>)[
+			Symbol.for('ogygia.flags.resolved.v2')
+		];
+		expect(prime.kind).toBe('resolved');
+	});
+});
