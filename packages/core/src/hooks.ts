@@ -239,7 +239,7 @@ const DEVTOOLS_LAZY =
 // the server's rules (./server/rules.ts): checked after each response in dev and in a build made with
 // OGYGIA_RULES=1; folds out of any other build
 const RULES =
-	import.meta.env.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 if (RULES) install_server_rules();
 /** High-res clock for server-realm devtools timestamps. */
 const dt_now = () =>
