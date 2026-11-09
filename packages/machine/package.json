@@ -34,6 +34,10 @@
 		"./internal/policy": {
 			"types": "./dist/policy.d.ts",
 			"default": "./src/policy.ts"
+		},
+		"./internal/registry": {
+			"types": "./dist/registry.d.ts",
+			"default": "./src/registry.ts"
 		}
 	},
 	"publishConfig": {
@@ -49,6 +53,10 @@
 			"./internal/policy": {
 				"types": "./dist/policy.d.ts",
 				"default": "./dist/policy.js"
+			},
+			"./internal/registry": {
+				"types": "./dist/registry.d.ts",
+				"default": "./dist/registry.js"
 			}
 		},
 		"access": "public"
