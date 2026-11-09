@@ -235,6 +235,25 @@ describe('on', () => {
 		s.close();
 	});
 
+	it('a once listener that fired lets go of itself: a long-lived scope does not pile them up (#348)', () => {
+		const target = new EventTarget();
+		const s = scope();
+		const heard = vi.fn();
+		for (let i = 0; i < 50; i++) {
+			s.on(target, 'ping', heard, { once: true });
+			target.dispatchEvent(new Event('ping'));
+		}
+		expect(heard).toHaveBeenCalledTimes(50);
+		const held = (s as unknown as { _held: Set<unknown> | null })._held;
+		expect(held?.size ?? 0).toBe(0);
+		// (one that has not fired yet is still held, and goes with the scope)
+		const late = vi.fn();
+		s.on(target, 'ping', late, { once: true });
+		s.close();
+		target.dispatchEvent(new Event('ping'));
+		expect(late).not.toHaveBeenCalled();
+	});
+
 	it('listens on a Node-style emitter (on / off)', () => {
 		const e = emitter();
 		const s = scope();
