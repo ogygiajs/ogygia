@@ -164,8 +164,10 @@ describe('one key (what once() was)', () => {
 			expect(() => flights({ run: () => 1, retry })).toThrow(/machine_bad_option/);
 		for (const keep of [-1, Number.NaN, '5' as unknown as number])
 			expect(() => flights({ run: () => 1, keep })).toThrow(/`keep` must be a time in ms/);
-		for (const max of [0, -1, Number.NaN])
-			expect(() => flights({ run: () => 1, max })).toThrow(/`max` must be more than 0/);
+		for (const max of [0, -1, Number.NaN, Infinity])
+			expect(() => flights({ run: () => 1, max })).toThrow(
+				/`max` must be a finite number more than 0/
+			);
 		expect(() => flights({ run: 'no' as never })).toThrow(/`run` must be a function/);
 	});
 

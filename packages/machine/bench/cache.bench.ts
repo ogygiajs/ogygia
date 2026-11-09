@@ -33,8 +33,8 @@ bench(
 		return found;
 	},
 	{
-		setup: () => filled(200, Infinity),
-		scale: (_ctx, k) => filled(200 * k, Infinity)
+		setup: () => filled(200, 200),
+		scale: (_ctx, k) => filled(200 * k, 200 * k)
 	}
 );
 
@@ -42,13 +42,16 @@ bench(
 	'cache: evict with a notice per value (a clear)',
 	({ c }) => {
 		let heard = 0;
-		const noticed = cache<string, number>({ max: Infinity, onEvict: () => void heard++ });
+		const noticed = cache<string, number>({
+			max: c.size + 1,
+			onEvict: () => void heard++
+		});
 		for (const [k, v] of c.entries()) noticed.set(k, v);
 		noticed.clear();
 		return heard;
 	},
 	{
-		setup: () => filled(200, Infinity),
-		scale: (_ctx, k) => filled(200 * k, Infinity)
+		setup: () => filled(200, 200),
+		scale: (_ctx, k) => filled(200 * k, 200 * k)
 	}
 );

@@ -1,0 +1,87 @@
+/**
+ * The `virtual:ogygia/*` id vocabulary — every virtual module id the compiler mints or serves, the
+ * `\0`-prefix resolver, and the per-island entry-id naming. Pure string constants + naming functions,
+ * no state: the shared vocabulary the driver's resolve/emit dispatch and the linker key on.
+ */
+export declare const V_RUNTIME_URL = "virtual:ogygia/runtime-url";
+export declare const V_MANIFEST = "virtual:ogygia/manifest";
+export declare const V_RUNTIME = "virtual:ogygia-runtime";
+/** Generated sticky entry — static-imports only the features selected from build marks. */
+export declare const V_RUNTIME_ENTRY = "virtual:ogygia/runtime-entry";
+/** Generated hydrate-phase feature module — imported statically by the hydrate core (link/runtime-entry.ts). */
+export declare const V_HYDRATE_FEATURES = "virtual:ogygia/hydrate-features";
+/** Generated build-time constants for code the always-on core gates in place (link/runtime-entry.ts
+ *  `generateRuntimeFlagsSource`): the bundler inlines them and drops what they switch off. */
+export declare const V_RUNTIME_FLAGS = "virtual:ogygia/runtime-flags";
+export declare const V_DEV_HMR = "virtual:ogygia/dev-hmr";
+export declare const V_DEV_HMR_URL = "virtual:ogygia/dev-hmr-url";
+export declare const V_DEVTOOLS_BOOT = "virtual:ogygia/devtools-boot";
+export declare const V_DEVTOOLS_BOOT_URL = "virtual:ogygia/devtools-boot-url";
+export declare const V_DEVTOOLS_META = "virtual:ogygia/devtools-meta";
+export declare const V_ISLAND_DEPS = "virtual:ogygia/island-deps";
+export declare const V_FN_MANIFEST = "virtual:ogygia/fn-manifest";
+export declare const V_SECRET = "virtual:ogygia/secret";
+export declare const V_SIGN = "virtual:ogygia/sign";
+export declare const V_RATE_LIMIT = "virtual:ogygia/rate-limit";
+/** The app's plugins' SERVER halves, statically imported in plugin order.
+ *  SERVER only; the client gets an empty list. */
+export declare const V_SERVER_PLUGINS = "virtual:ogygia/server-plugins";
+/** THE PROFILER'S MAPS, carried as code: the server build's module map and every server chunk's
+ *  sourcemap, written into this module's chunk after the build (a file read by path does not survive
+ *  an adapter that traces imports or re-bundles; an import does). Imported only by the profiler, only
+ *  when it resolves a frame. Build + SSR + profiler on: the placeholder below, filled in closeBundle */
+export declare const V_PROFILER_MAPS = "virtual:ogygia/profiler-maps";
+/** the string the maps module exports until the build fills it (build-time only: never in runtime code,
+ *  so the one literal in the output is the one to replace) */
+export declare const PROFILER_MAPS_PLACEHOLDER = "__ogygia_profiler_maps_placeholder__";
+/** the filled maps payload's mark: gzipped JSON, base64 (vite/profiler-maps.ts writes it, the
+ *  profiler's embedded-maps reads it) */
+export declare const PROFILER_MAPS_GZ_PREFIX = "gz:";
+export declare const V_SESSION_COOKIE = "virtual:ogygia/session-cookie";
+export declare const V_REGION_TTL = "virtual:ogygia/region-ttl";
+export declare const V_ROUTER_CONFIG = "virtual:ogygia/router-config";
+/** Generated component→CSS registrations for the SERVER router — the module that makes a router
+ *  page's `<style>` reach the document (see link/router-css.ts). SSR-only, imported by `ogygia/plugin/css`. */
+export declare const V_ROUTER_CSS = "virtual:ogygia/router-css";
+export declare const V_SERVER_MANIFEST = "virtual:ogygia/server-manifest";
+/** The server islands' loaders (`id → () => import(entry)`), reached only through the manifest's
+ *  `load_islands()` — see link/server-manifest.ts for why they live one dynamic import away. */
+export declare const V_SERVER_ISLANDS = "virtual:ogygia/server-islands";
+export declare const V_REQUEST_EVENT = "virtual:ogygia/request-event";
+/** SSR-only map of csr=true route ids — lets Region degrade a csr=false layout's islands to inline
+ *  when the LEAF page is csr=true (Kit hydrates the whole document). Client leg is an empty set;
+ *  the client uses `kit_hydrates_page()` for the identical signal. */
+export declare const V_ROUTE_CSR = "virtual:ogygia/route-csr";
+export declare const V_REGION_ENDPOINT = "virtual:ogygia/region-endpoint";
+export declare const V_KIT_WIRE = "virtual:ogygia/kit-wire";
+export declare const V_TRANSPORT = "virtual:ogygia/transport";
+/** The app's Kit `transport` hook (`ogygia.transport`), generated per-app: the codec cluster when the
+ *  app crosses regions/wired-values over the wire, an empty map for a pure-island app (no dead codecs). */
+export declare const V_KIT_TRANSPORT = "virtual:ogygia/kit-transport";
+export declare const V_TRANSPORTABLES = "virtual:ogygia/transportables";
+/** What an island entry imports for the transportable codecs: the SERVER's eager registration (the
+ *  region endpoint decodes signed props of any island); empty in the browser, where the runtime
+ *  loads an island's classes from `V_TRANSPORTABLES`' lazy map. */
+export declare const V_TRANSPORTABLES_EAGER = "virtual:ogygia/transportables-eager";
+/** Every Kit page route id → the keys plugins claim inside Kit's `config` page option, merged
+ *  (`b.routeConfig`). SERVER only (empty on the client; the route list never ships to the browser). */
+export declare const V_ROUTE_CONFIG = "virtual:ogygia/route-config";
+/** Resolve a virtual id to its `\0`-prefixed resolved form (Vite/rollup convention). */
+export declare const RESOLVED: (id: string) => string;
+/** Virtual island ENTRY module id — JS re-export of the real component (not a thin .svelte). */
+export declare const islandVirtualId: (iid: string) => string;
+/**
+ * Region-binding module id. A `with { region: 'raw' }` import is rewritten to import this JS
+ * module, whose source is leg-split by the plugin `load` hook: the SSR leg carries the server
+ * signer (so `region()` can mint a capability), the client leg is metadata-only (no server
+ * code crosses into the browser bundle).
+ */
+export declare const regionBindingVirtualId: (iid: string) => string;
+/**
+ * The wake island wrapper's CLIENT-leg component source — the leg-split twin of the wrapper: the SSR
+ * wrapper imports the island entry (it must render), the client wrapper imports THIS, a module that
+ * imports the entry only when the document rendered the island (emit.ts `lazy_entry_source`). It is
+ * how a csr=true host's page graph stops at the wrapper, the same rule the csr=false registry stub
+ * applies one level up: what a page ships is decided by what it RENDERED, never by its import graph.
+ */
+export declare const lazyEntryVirtualId: (iid: string) => string;
