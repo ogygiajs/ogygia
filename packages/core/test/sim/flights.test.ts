@@ -205,7 +205,8 @@ describe('flights, simulated', () => {
 									() => {
 										disposed = true;
 										runs_at_dispose = runs.length;
-										f[Symbol.dispose]();
+										// (the registered symbol where the engine has none: WebKit, as the package does)
+										f[Symbol.dispose ?? (Symbol.for('Symbol.dispose') as typeof Symbol.dispose)]();
 									}
 								];
 						}

@@ -21,21 +21,16 @@ function stub_aliases(): Record<string, string> {
 
 /**
  * A browser the browser projects run in: Playwright's three engines (`chromium`, `firefox`, its
- * own Firefox build, `webkit`), or a real installed browser through WebDriver: `safari` (Safari,
- * safaridriver, a macOS job) and `firefox-stable` (Firefox as released, geckodriver), which a
- * Playwright engine build can lag behind.
+ * own Firefox build, `webkit`), or `firefox-stable`: Firefox as released, through WebdriverIO and
+ * geckodriver (a Playwright engine build can lag behind the release).
  */
-export type TestBrowser = 'chromium' | 'firefox' | 'webkit' | 'safari' | 'firefox-stable';
+export type TestBrowser = 'chromium' | 'firefox' | 'webkit' | 'firefox-stable';
 const ENGINES: readonly TestBrowser[] = ['chromium', 'firefox', 'webkit'];
-const REAL: Readonly<Record<string, 'safari' | 'firefox'>> = {
-	safari: 'safari',
-	'firefox-stable': 'firefox'
-};
 
 /**
  * The browsers this run's browser projects use: `OGYGIA_BROWSERS` (a comma list, as CI runs one
- * per job), else Playwright's three engines. A real browser (`safari`, `firefox-stable`) runs on
- * its own, since a project has one provider.
+ * per job), else Playwright's three engines. `firefox-stable` runs on its own, since a project has
+ * one provider.
  */
 export function test_browsers(): TestBrowser[] {
 	const asked = process.env.OGYGIA_BROWSERS?.split(',')
@@ -43,18 +38,16 @@ export function test_browsers(): TestBrowser[] {
 		.filter(Boolean);
 	if (!asked?.length) return [...ENGINES];
 	for (const b of asked)
-		if (!(b in REAL) && !ENGINES.includes(b as TestBrowser))
-			throw new Error(
-				`OGYGIA_BROWSERS: "${b}" is not chromium, firefox, webkit, safari or firefox-stable`
-			);
-	if (asked.some((b) => b in REAL) && asked.length > 1)
-		throw new Error('OGYGIA_BROWSERS: a real browser runs on its own (its own WebDriver provider)');
+		if (b !== 'firefox-stable' && !ENGINES.includes(b as TestBrowser))
+			throw new Error(`OGYGIA_BROWSERS: "${b}" is not chromium, firefox, webkit or firefox-stable`);
+	if (asked.includes('firefox-stable') && asked.length > 1)
+		throw new Error('OGYGIA_BROWSERS: firefox-stable runs on its own (its own WebDriver provider)');
 	return asked as TestBrowser[];
 }
 
 /**
- * A browser project's `provider` and `instances` for this run (see {@link test_browsers}):
- * Playwright for its engines, WebdriverIO for a real browser.
+ * A browser project's `provider`, `instances` and `headless` for this run (see
+ * {@link test_browsers}): Playwright for its engines, WebdriverIO for the released Firefox.
  */
 export async function browser_runs(): Promise<{
 	provider: NonNullable<NonNullable<ViteUserConfig['test']>['browser']>['provider'];
@@ -62,20 +55,7 @@ export async function browser_runs(): Promise<{
 	headless: boolean;
 }> {
 	const browsers = test_browsers();
-	const real = REAL[browsers[0]];
-	if (real === 'safari') {
-		const driver = safaridriver();
-		if (driver === null)
-			throw new Error(
-				'OGYGIA_BROWSERS=safari: real Safari runs only on macOS, through safaridriver ' +
-					`(none found on ${process.platform}). Run the other browsers here.`
-			);
-		console.log(`[browsers] Safari through ${driver}`);
-		const { webdriverio } = await import('@vitest/browser-webdriverio');
-		// (Safari has no headless mode: the macOS job runs it windowed)
-		return { provider: webdriverio(), instances: [{ browser: 'safari' }], headless: false };
-	}
-	if (real === 'firefox') {
+	if (browsers[0] === 'firefox-stable') {
 		const binary = firefox_binary();
 		console.log(
 			binary === null
@@ -133,18 +113,6 @@ function firefox_version(binary: string): string {
 	}
 }
 
-/** safaridriver, on macOS (it ships with Safari), else null. */
-export function safaridriver(): string | null {
-	if (process.platform !== 'darwin') return null;
-	for (const p of [
-		'/System/Cryptexes/App/usr/bin/safaridriver',
-		'/usr/bin/safaridriver',
-		on_path('safaridriver')
-	])
-		if (p && existsSync(p)) return p;
-	return null;
-}
-
 /** A command's path on PATH, or null. */
 function on_path(name: string): string | null {
 	try {
@@ -155,7 +123,7 @@ function on_path(name: string): string | null {
 }
 
 /** Whether this run drives the browser through Playwright (its network routes). */
-export const playwright_run = (): boolean => !(test_browsers()[0] in REAL);
+export const playwright_run = (): boolean => test_browsers()[0] !== 'firefox-stable';
 
 /**
  * The unit-test setup every ogygia plugin package shares: node environment, the Svelte plugin (core's

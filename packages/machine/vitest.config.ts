@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 import { browser_runs, pluginTests } from '@ogygia/config/vitest';
 
 // Every test runs in node (the server and the compiler use machines) and in real browsers (the
-// runtime does): Chromium, Firefox and WebKit, or real Safari (`OGYGIA_BROWSERS`), so no host's
+// runtime does): Chromium, Firefox and WebKit, or the released Firefox (`OGYGIA_BROWSERS`), so no host's
 // timers, AbortSignal or promise order is taken on faith.
 const base = pluginTests();
 const browsers = await browser_runs();

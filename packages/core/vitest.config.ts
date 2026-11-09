@@ -161,7 +161,7 @@ export default defineConfig({
 						enabled: true,
 						headless: true,
 						...(await browser_runs()),
-						// (network routes are Playwright's: real Safari runs without them, and the tests
+						// (network routes are Playwright's: real Firefox runs without them, and the tests
 						// that need them say so, test/browser/_browsers.ts)
 						...(playwright_run()
 							? { commands: { drop_downloads, hold_downloads, keep_downloads } }

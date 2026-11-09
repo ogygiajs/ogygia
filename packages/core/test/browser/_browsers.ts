@@ -4,17 +4,17 @@
 import { it } from 'vitest';
 import { server } from 'vitest/browser';
 
-/** The run drives the browser through Playwright (its three engines), not WebDriver (real Safari,
- *  real Firefox). */
+/** The run drives the browser through Playwright (its three engines), not WebDriver (the released
+ *  Firefox). */
 export const PLAYWRIGHT: boolean = server.provider === 'playwright';
 
-/** The engine: `chromium`, `firefox`, `webkit` (Playwright) or `safari` / `firefox` (WebDriver). */
+/** The engine: `chromium`, `firefox` or `webkit`. */
 export const ENGINE: string = server.browser;
 
 /**
  * A test that drops or holds real downloads through Playwright's network routes (the
  * `drop_downloads` / `hold_downloads` / `keep_downloads` commands). It runs in Playwright's
- * Chromium, Firefox and WebKit; a WebDriver run (real Safari, real Firefox) has no network routes.
+ * Chromium, Firefox and WebKit; the WebDriver run (the released Firefox) has no network routes.
  */
 export const it_with_network_routes: typeof it = PLAYWRIGHT ? it : (it.skip as typeof it);
 
@@ -26,6 +26,15 @@ export const it_with_network_routes: typeof it = PLAYWRIGHT ? it : (it.skip as t
  */
 export const it_with_named_import_failures: typeof it =
 	PLAYWRIGHT && ENGINE !== 'webkit' ? it : (it.skip as typeof it);
+
+/**
+ * A simulation that writes browser history thousands of times in seconds. WebKit throws on more
+ * than 100 history writes per 10 s (a page's budget, shared by every test file in it). The runtime
+ * writes at most two per navigation, and none on a back or forward step, so a real page never
+ * reaches it; the router's own history tests run in WebKit too.
+ */
+export const it_with_history_unthrottled: typeof it =
+	ENGINE !== 'webkit' ? it : (it.skip as typeof it);
 
 /**
  * A test of the Layout Instability API (`PerformanceObserver` type `layout-shift`): Chromium only.
