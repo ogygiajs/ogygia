@@ -177,6 +177,85 @@ describe('mailbox', () => {
 		expect(seen).toEqual(['next']);
 	});
 
+	it('a handler waiting on two things at once lets one event in, not two at once (#341)', async () => {
+		const box = mailbox(scope());
+		let on = 0;
+		let most = 0;
+		const busy = async () => {
+			most = Math.max(most, ++on);
+			await later(null, 20);
+			on--;
+		};
+		const a = box.ask(async (turn) => {
+			box.post(busy);
+			box.post(busy);
+			await Promise.all([turn.wait(later(1, 5)), turn.wait(later(2, 5))]);
+			// (back in its turn: nothing else of the element runs beside it)
+			most = Math.max(most, ++on);
+			on--;
+		});
+		await a;
+		await later(null, 60);
+		expect(most).toBe(1);
+	});
+
+	it('a wait from outside any turn ends nobody’s turn (#341)', async () => {
+		const box = mailbox(scope());
+		const seen: string[] = [];
+		let open!: () => void;
+		const gate = new Promise<void>((r) => (open = r));
+		const a = box.ask(async () => {
+			seen.push('a holds');
+			await gate; // (a plain await: a keeps its turn)
+			seen.push('a ends');
+		});
+		box.post(() => seen.push('b'));
+		// (a callback that outlived its turn, or a caller with the box: not the one holding it)
+		const outside = box.wait(later('x'));
+		expect(seen).toEqual(['a holds']);
+		expect(await outside).toBe('x');
+		expect(seen).toEqual(['a holds']);
+		open();
+		await a;
+		await Promise.resolve();
+		expect(seen).toEqual(['a holds', 'a ends', 'b']);
+	});
+
+	it('a wait from a handler whose turn already ended ends nobody’s turn (#341)', async () => {
+		const box = mailbox(scope());
+		const seen: string[] = [];
+		let late!: Turn;
+		box.post((turn) => {
+			late = turn; // (kept past its turn: a timer of the handler, say)
+		});
+		let open!: () => void;
+		const gate = new Promise<void>((r) => (open = r));
+		const b = box.ask(async () => {
+			seen.push('b holds');
+			await gate;
+			seen.push('b ends');
+		});
+		box.post(() => seen.push('c'));
+		expect(await late.wait(later('x'))).toBe('x');
+		expect(seen).toEqual(['b holds']);
+		open();
+		await b;
+		await Promise.resolve();
+		expect(seen).toEqual(['b holds', 'b ends', 'c']);
+	});
+
+	it('runs a long run of sync events queued in one turn, on a flat stack (#342)', () => {
+		const box = mailbox(scope());
+		let n = 0;
+		box.post(() => {
+			for (let i = 0; i < 50_000; i++) box.post(() => n++);
+		});
+		expect(n).toBe(50_000);
+		// (and the box is idle after: the next one runs at once)
+		box.post(() => n++);
+		expect(n).toBe(50_001);
+	});
+
 	it('is closed for an owner already closed', async () => {
 		const life = scope();
 		life.close();
