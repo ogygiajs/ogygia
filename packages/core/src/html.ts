@@ -149,15 +149,19 @@ const brace = (c: string) => (c === '{' ? '&#123;' : '&#125;');
 /**
  * Markup written into a Svelte template (a `.svelte` / `.svx` source, read by Svelte's compiler):
  * `html`, and every placed value's `{` and `}` as `&#123;` / `&#125;`, so text an author wrote never
- * becomes an expression at compile time. An `Html` value is placed as is, as by `html`.
+ * becomes an expression at compile time. An `Html` value between tags is placed as is, as by `html`;
+ * one inside a tag (an `attr()`, or markup in a quoted attribute) has its braces escaped too.
  */
 export function svelte_html(parts: TemplateStringsArray, ...values: HtmlValue[]): Html {
 	const at = places_of(parts);
 	let out = parts[0]!;
 	for (let i = 0; i < values.length; i++) {
 		const v = values[i];
-		const placed = place(v, at[i]!);
-		out += (v instanceof Html ? placed : placed.replace(BRACES_G, brace)) + parts[i + 1]!;
+		const where = at[i]!;
+		const placed = place(v, where);
+		// (markup between tags is placed as is; anything inside a tag, attr() included, is escaped)
+		const kept = v instanceof Html && where === TEXT;
+		out += (kept ? placed : placed.replace(BRACES_G, brace)) + parts[i + 1]!;
 	}
 	return new Html(MADE_HERE, out);
 }
