@@ -12,6 +12,7 @@ import {
 	critical_outcome,
 	critical_settled,
 	fetch_priority_of,
+	HOLE_WINDOW,
 	LoadSlot,
 	preload_urls,
 	reset_load_scheduler,
@@ -201,6 +202,34 @@ test('background work shares a window; ahead goes before speculative; release le
 	releases[1]();
 	await tick();
 	expect(started.at(-1)).toBe('s4');
+});
+
+test('hole answers share a window of their own, whatever their class: a 4th starts the moment one lands', async () => {
+	await critical_settled();
+	const started: string[] = [];
+	const releases = new Map<string, () => void>();
+	const ask = (label: string, cls: 'user' | 'visible') =>
+		void new LoadSlot({ kind: 'content', cls, label, window: 'holes' }).ready.then((release) => {
+			started.push(label);
+			releases.set(label, release);
+		});
+	ask('h1', 'visible');
+	ask('h2', 'visible');
+	ask('h3', 'visible');
+	ask('h4', 'user');
+	ask('h5', 'visible');
+	await tick();
+	expect(started).toEqual(['h1', 'h2', 'h3'].slice(0, HOLE_WINDOW));
+	releases.get('h2')!();
+	await tick();
+	expect(started).toEqual(['h1', 'h2', 'h3', 'h4']);
+	// a release given twice frees one place, not two
+	releases.get('h2')!();
+	await tick();
+	expect(started).toEqual(['h1', 'h2', 'h3', 'h4']);
+	releases.get('h1')!();
+	await tick();
+	expect(started).toEqual(['h1', 'h2', 'h3', 'h4', 'h5']);
 });
 
 test('a queued download follows the viewport, and a more urgent join of its flight lifts it', async () => {
