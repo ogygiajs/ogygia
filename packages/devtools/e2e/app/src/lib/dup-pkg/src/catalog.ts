@@ -208,7 +208,7 @@ export const CATALOG: readonly { sku: string; title: string; blurb: string }[] =
 export function search_catalog(q: string): { sku: string; title: string }[] {
 	const words = q.toLowerCase().split(' ').filter(Boolean);
 	return CATALOG.filter((r) => {
-		const text = (r.title + ' ' + r.blurb).toLowerCase();
+		const text = `${r.title} ${r.blurb}`.toLowerCase();
 		return words.every((w) => text.includes(w));
 	}).map((r) => ({ sku: r.sku, title: r.title }));
 }

@@ -57,7 +57,7 @@ export function props_preview(props: unknown, max = 80): string {
 	try {
 		const s = JSON.stringify(props, (_k, v) => (typeof v === 'bigint' ? String(v) : v));
 		if (!s || s === '{}' || s === '[]') return '';
-		return s.length > max ? s.slice(0, max - 1) + '…' : s;
+		return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 	} catch {
 		return '';
 	}
@@ -80,7 +80,7 @@ export interface IslandMeta {
  * tags: one string per hint, built once here, never parsed back out of markup.
  */
 export function modulepreload_tag(href: string): string {
-	return '<link rel="modulepreload" href="' + href + '" fetchpriority="low">';
+	return `<link rel="modulepreload" href="${href}" fetchpriority="low">`;
 }
 
 /** The runtime script's `onerror`: its message code's link (messages/core.ts `runtime_load_failed`). */
@@ -107,16 +107,9 @@ export function runtime_bootstrap_tags(
 	deps: readonly string[],
 	locations: string | null = null
 ): string {
-	let html =
-		'<script type="module" data-ogygia-runtime' +
-		(locations ? ' data-og-locations="' + locations + '"' : '') +
-		' src="' +
-		src +
-		'" onerror="' +
-		RUNTIME_LOAD_FAILED +
-		'"></script>';
+	let html = `<script type="module" data-ogygia-runtime${locations ? ` data-og-locations="${locations}"` : ''} src="${src}" onerror="${RUNTIME_LOAD_FAILED}">\x3C/script>`;
 	for (const dep of deps)
-		html += '<link rel="modulepreload" href="' + dep + '" data-ogygia-runtime-dep>';
+		html = `${html}<link rel="modulepreload" href="${dep}" data-ogygia-runtime-dep>`;
 	return html;
 }
 
@@ -130,13 +123,7 @@ export function island_graph_script(
 	locations?: ReadonlyMap<string, string> | null
 ): string {
 	if (graph.size === 0 && !locations?.size) return '';
-	return (
-		'<script type="application/json" ' +
-		ISLAND_GRAPH_ATTR +
-		'>' +
-		escape_script_text(encode_island_graph(graph, locations ?? undefined)) +
-		'</script>'
-	);
+	return `<script type="application/json" ${ISLAND_GRAPH_ATTR}>${escape_script_text(encode_island_graph(graph, locations ?? undefined))}\x3C/script>`;
 }
 
 /** The holes record (`hole()`), read by runtime/hole-facts.ts. */

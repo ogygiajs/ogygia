@@ -93,7 +93,7 @@ export function build_llms(tree: NavTree, origin: string, opts: LlmsOptions = {}
 		lines.push('');
 	}
 
-	return lines.join('\n').replace(EXCESS_BLANK_LINES_G, '\n\n').trimEnd() + '\n';
+	return `${lines.join('\n').replace(EXCESS_BLANK_LINES_G, '\n\n').trimEnd()}\n`;
 }
 
 // ── RSS — the blog genre's emission ──────────────────────────────────────────────
@@ -125,7 +125,7 @@ export function build_rss(origin: string, opts: RssOptions): string {
 				`\t\t\t<link>${xml_escape(url)}</link>`,
 				`\t\t\t<guid isPermaLink="true">${xml_escape(url)}</guid>`,
 				...(p.description ? [`\t\t\t<description>${xml_escape(p.description)}</description>`] : []),
-				`\t\t\t<pubDate>${new Date(p.date + 'T00:00:00Z').toUTCString()}</pubDate>`,
+				`\t\t\t<pubDate>${new Date(`${p.date}T00:00:00Z`).toUTCString()}</pubDate>`,
 				`\t\t</item>`
 			].join('\n');
 		})

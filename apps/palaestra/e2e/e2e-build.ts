@@ -28,7 +28,7 @@ const WARN_RE = /ogygiajs\.dev\/e\/build_key_prerender/;
 
 /** Fail the whole run: print why, then a non-zero exit so `&& vite preview` never starts. */
 function fail(message: string, extra?: string): never {
-	if (extra) process.stdout.write(extra.endsWith('\n') ? extra : extra + '\n');
+	if (extra) process.stdout.write(extra.endsWith('\n') ? extra : `${extra}\n`);
 	console.error(`\n✗ e2e build: ${message}`);
 	process.exit(1);
 }

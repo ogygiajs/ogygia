@@ -57,11 +57,7 @@ test('a pre-id document (attribute only) still finds its keyed sidecar and hydra
 });
 
 test('an adjacent (fingerprint-less) sidecar is the next sibling past <link> hints', () => {
-	document.body.innerHTML =
-		'<ogygia-region wake="load" entry="/x.js"></ogygia-region>' +
-		'<link rel="modulepreload" href="/x.js">' +
-		'<script type="application/ogygia-props" data-ogygia-props>{}</script>' +
-		'<ogygia-region wake="load" entry="/y.js"></ogygia-region><p>no sidecar</p>';
+	document.body.innerHTML = `<ogygia-region wake="load" entry="/x.js"></ogygia-region><link rel="modulepreload" href="/x.js"><script type="application/ogygia-props" data-ogygia-props>{}\x3C/script><ogygia-region wake="load" entry="/y.js"></ogygia-region><p>no sidecar</p>`;
 	const [x, y] = document.querySelectorAll('ogygia-region');
 	expect(props_sidecar_of(x)?.textContent).toBe('{}');
 	expect(props_sidecar_of(y)).toBeNull();
@@ -133,20 +129,18 @@ test('the csr fact: the meta decides when present; the inline-script probe only 
 });
 
 test('one IntersectionObserver per rootMargin, shared by every element; once_visible fires once', async () => {
-	document.body.innerHTML =
-		'<div id="a" style="height:20px"></div><div id="b" style="height:20px"></div>' +
-		'<div id="c" style="position:absolute;top:9000px;height:20px"></div>';
+	document.body.innerHTML = `<div id="a" style="height:20px"></div><div id="b" style="height:20px"></div><div id="c" style="position:absolute;top:9000px;height:20px"></div>`;
 	const before = observer_count();
 	const seen: string[] = [];
-	const stop_a = observe(document.getElementById('a')!, '0px', (i) => seen.push('a:' + i));
-	const stop_b = observe(document.getElementById('b')!, '0px', (i) => seen.push('b:' + i));
+	const stop_a = observe(document.getElementById('a')!, '0px', (i) => seen.push(`a:${i}`));
+	const stop_b = observe(document.getElementById('b')!, '0px', (i) => seen.push(`b:${i}`));
 	expect(observer_count()).toBe(
 		before + (before === 0 ? 1 : 0) || before + 1 - (before > 0 ? 1 : 0)
 	);
 	const with_zero = observer_count();
-	observe(document.getElementById('c')!, '200px', (i) => seen.push('c:' + i));
+	observe(document.getElementById('c')!, '200px', (i) => seen.push(`c:${i}`));
 	expect(observer_count()).toBe(with_zero + 1); // a distinct margin → one more observer
-	observe(document.getElementById('c')!, '200px', (i) => seen.push('c2:' + i));
+	observe(document.getElementById('c')!, '200px', (i) => seen.push(`c2:${i}`));
 	expect(observer_count()).toBe(with_zero + 1); // same margin → shared (both callbacks kept)
 	await expect
 		.poll(() => seen.filter((s) => s.startsWith('a') || s.startsWith('b')).length)

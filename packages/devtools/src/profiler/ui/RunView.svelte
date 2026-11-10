@@ -109,10 +109,7 @@
 			p.fail();
 			queued = false;
 			const code = e instanceof Error ? e.message : 'error';
-			error =
-				`Profiling failed (${code}). If the page is slow, the host's request timeout may have cut it ` +
-				`off — try fewer renders, or tick the .ogp download and open it via Import. If a run got ` +
-				`stuck, hit Reset on the dashboard.`;
+			error = `Profiling failed (${code}). If the page is slow, the host's request timeout may have cut it off — try fewer renders, or tick the .ogp download and open it via Import. If a run got stuck, hit Reset on the dashboard.`;
 		}
 	}
 

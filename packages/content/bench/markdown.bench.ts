@@ -39,7 +39,7 @@ const WORDS = [
 function sentence(i: number, words: number): string {
 	let s = '';
 	for (let w = 0; w < words; w++) s += (w ? ' ' : '') + WORDS[(i * 7 + w * 3) % WORDS.length];
-	return s[0].toUpperCase() + s.slice(1) + '.';
+	return `${s[0].toUpperCase() + s.slice(1)}.`;
 }
 
 /** One docs page: `sections` `##` sections, each with subsections, prose, a fence, and a group. */
@@ -48,7 +48,7 @@ function doc_page(n: number, sections: number): string {
 		'---',
 		`title: Page ${n}: regions and islands`,
 		`summary: ${sentence(n, 24)}`,
-		'order: ' + n,
+		`order: ${n}`,
 		'draft: false',
 		'tags: [regions, islands, "server render"]',
 		'related:',
@@ -103,7 +103,7 @@ function doc_page(n: number, sections: number): string {
 			lines.push('', `::: warning A note on section ${s}`, sentence(s, 60), ':::');
 		}
 	}
-	return lines.join('\n') + '\n';
+	return `${lines.join('\n')}\n`;
 }
 
 /** A docs site: `count` pages of a few sections each (`k` times as many sections per page). */

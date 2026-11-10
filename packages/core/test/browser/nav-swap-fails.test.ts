@@ -20,8 +20,7 @@ const g = globalThis as { __og_restore_adopt?: () => void };
 function serve(marker: 'plain' | 'on') {
 	window.fetch = async () =>
 		new Response(
-			`<!doctype html><html><head><meta name="ogygia-router" content="${marker}">` +
-				'<title>next</title></head><body><p>next</p></body></html>',
+			`<!doctype html><html><head><meta name="ogygia-router" content="${marker}"><title>next</title></head><body><p>next</p></body></html>`,
 			{ status: 200, headers: { 'content-type': 'text/html' } }
 		);
 }

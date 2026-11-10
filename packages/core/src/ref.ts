@@ -129,7 +129,7 @@ export function register_kind(kind: RefKind): void {
 function mint_id(): string {
 	const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
 	if (c?.randomUUID) return c.randomUUID();
-	return 'r' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+	return `r${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
 }
 
 /**

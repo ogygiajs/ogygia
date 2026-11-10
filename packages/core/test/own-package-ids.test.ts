@@ -37,7 +37,7 @@ describe('own-package ids', () => {
 
 describe('dep-scan entries', () => {
 	test("ogygia's own islands are never an entry — on either separator", () => {
-		expect(scan_entry_pattern(PKG_ROOT_ID + 'dist/profiler/ui/Compare.svelte')).toBeNull();
+		expect(scan_entry_pattern(`${PKG_ROOT_ID}dist/profiler/ui/Compare.svelte`)).toBeNull();
 		const win_root = id_dir('C:\\dev\\node_modules\\ogygia');
 		expect(
 			scan_entry_pattern(

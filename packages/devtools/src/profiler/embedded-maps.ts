@@ -70,7 +70,7 @@ export function embedded_key(path: string): string | undefined {
 		const app = p.lastIndexOf('/', imm - 1);
 		if (app === -1) return undefined;
 		const q = p.indexOf('?', imm);
-		return 'client/' + p.slice(app + 1, q === -1 ? undefined : q);
+		return `client/${p.slice(app + 1, q === -1 ? undefined : q)}`;
 	}
 	// the app root this chunk path sits under: an absolute source path is the app's only below it
 	const kit = p.lastIndexOf('/.svelte-kit/', at);
@@ -83,9 +83,9 @@ const roots = new Set<string>();
 
 /** where the maps' relative sources are resolved from: the chunk's folder under a stand-in root */
 const VIRTUAL_ROOT = '/ROOT';
-const VIRTUAL_OUTPUT = VIRTUAL_ROOT + '/.svelte-kit/output/';
-const VIRTUAL_SERVER = VIRTUAL_OUTPUT + 'server/';
-const VIRTUAL_SRC = VIRTUAL_ROOT + '/src/';
+const VIRTUAL_OUTPUT = `${VIRTUAL_ROOT}/.svelte-kit/output/`;
+const VIRTUAL_SERVER = `${VIRTUAL_OUTPUT}server/`;
+const VIRTUAL_SRC = `${VIRTUAL_ROOT}/src/`;
 
 /** `a/b/../c/./d` → `a/c/d` (posix, absolute input) */
 function normalize(p: string): string {
@@ -95,7 +95,7 @@ function normalize(p: string): string {
 		if (part === '..') out.pop();
 		else out.push(part);
 	}
-	return '/' + out.join('/');
+	return `/${out.join('/')}`;
 }
 
 /** the build's map of a chunk, by its path: the text the build wrote, or undefined */
@@ -129,7 +129,7 @@ export function embedded_source(file: string): string | undefined {
 	else if (f.startsWith('/')) {
 		// only under an app root: another package's `src/` is not the app's
 		for (const r of [...roots, cwd()]) {
-			if (r && f.startsWith(r + '/src/')) {
+			if (r && f.startsWith(`${r}/src/`)) {
 				rel = f.slice(r.length + 5);
 				break;
 			}

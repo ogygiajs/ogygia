@@ -19,14 +19,12 @@
 
 	const is_abs = (p: string) => p.startsWith('/') || /^[A-Za-z]:[\\/]/.test(p);
 	const location = $derived(
-		f.path ? f.path + (f.line > 0 ? ':' + f.line + (f.col > 0 ? ':' + f.col : '') : '') : ''
+		f.path ? f.path + (f.line > 0 ? `:${f.line}${f.col > 0 ? `:${f.col}` : ''}` : '') : ''
 	);
 	// An absolute path (a dev server, a sourcemapped build on the same machine) opens in the editor.
 	const editor_href = $derived(
 		f.path && is_abs(f.path)
-			? 'vscode://file/' +
-					f.path +
-					(f.line > 0 ? ':' + f.line + (f.col > 0 ? ':' + f.col : '') : '')
+			? `vscode://file/${f.path}${f.line > 0 ? `:${f.line}${f.col > 0 ? `:${f.col}` : ''}` : ''}`
 			: ''
 	);
 	const stacks = $derived(f.stacks ?? []);

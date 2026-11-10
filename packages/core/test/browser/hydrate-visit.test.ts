@@ -41,7 +41,7 @@ async function loading(name: string): Promise<void> {
 }
 
 test('a region put back while its island loads mounts it once', async () => {
-	document.body.innerHTML = island(SLOW + '?once');
+	document.body.innerHTML = island(`${SLOW}?once`);
 	const el = document.querySelector<HTMLElement>('ogygia-region')!;
 	const ssr_button = el.querySelector('button')!;
 	let hydrated = 0;
@@ -71,7 +71,7 @@ test('an old run’s failure leaves the new visit alone', async () => {
 	el.addEventListener('ogygia:hydrated', () => hydrated++);
 	bootDev();
 	await loading('slow-fail-entry.ts');
-	await out_and_back(el, () => el.setAttribute('entry', SLOW + '?fresh'));
+	await out_and_back(el, () => el.setAttribute('entry', `${SLOW}?fresh`));
 	await expect
 		.poll(() => el.hasAttribute('data-hydrated'), {
 			timeout: 5_000,

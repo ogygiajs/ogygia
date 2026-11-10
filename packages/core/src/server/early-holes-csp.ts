@@ -41,7 +41,7 @@ function with_hash(policy: string): string {
 		if (lower.length === 1 && lower[0] === "'none'") return policy;
 		if (lower.includes("'unsafe-inline'") && !sources.some((s) => NONCE_OR_HASH_RE.test(s)))
 			return policy;
-		parts[at] = parts[at]!.replace(/\s*$/, '') + ' ' + EARLY_HOLES_SOURCE;
+		parts[at] = `${parts[at]!.replace(/\s*$/, '')} ${EARLY_HOLES_SOURCE}`;
 		return parts.join(';');
 	}
 	return policy;

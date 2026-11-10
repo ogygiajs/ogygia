@@ -25,7 +25,7 @@ test.describe('REGRESSION: content body (.svx) ships + applies its own scoped CS
 	test('SSR: the content body emits its own CSS as <link data-ogygia-region-css> (og-content.*.css)', async ({
 		baseURL
 	}) => {
-		const res = await fetch(baseURL + '/content-css');
+		const res = await fetch(`${baseURL}/content-css`);
 		const html = await res.text();
 		check('/content-css returns 200', res.status === 200);
 		check('/content-css SSR renders the content body', CONTENT_CSS_PROBE_RE.test(html));

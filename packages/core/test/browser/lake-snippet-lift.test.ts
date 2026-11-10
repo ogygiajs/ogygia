@@ -8,12 +8,7 @@ import { lift, restore } from '../../src/runtime/lakes.ts';
 import { runtime_session } from '../../src/runtime/session.ts';
 
 test('a live snippet’s lake is left in place by its host’s lift and settled by its restore', () => {
-	document.body.innerHTML =
-		'<ogygia-region wake="load" data-host>' +
-		'<ogygia-region wake="none" entry="own"><p data-own>own</p><!----></ogygia-region>' +
-		'<ogygia-snippet style="display:contents"><ogygia-region wake="none" entry="live"><p data-live>live</p><!----></ogygia-region></ogygia-snippet>' +
-		'<ogygia-snippet data-og-static style="display:contents"><ogygia-region wake="none" entry="frozen"><p data-frozen>frozen</p></ogygia-region></ogygia-snippet>' +
-		'</ogygia-region>';
+	document.body.innerHTML = `<ogygia-region wake="load" data-host><ogygia-region wake="none" entry="own"><p data-own>own</p><!----></ogygia-region><ogygia-snippet style="display:contents"><ogygia-region wake="none" entry="live"><p data-live>live</p><!----></ogygia-region></ogygia-snippet><ogygia-snippet data-og-static style="display:contents"><ogygia-region wake="none" entry="frozen"><p data-frozen>frozen</p></ogygia-region></ogygia-snippet></ogygia-region>`;
 	const host = document.querySelector('[data-host]')!;
 	const live_lake = document.querySelector('[entry="live"]')!;
 	const live_html = live_lake.innerHTML;

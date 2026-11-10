@@ -1000,7 +1000,7 @@ describe('find_wait_patterns', () => {
 			ms: 50,
 			target: 'GET x',
 			at,
-			scope: '/p' + i
+			scope: `/p${i}`
 		}));
 		expect(find_wait_patterns({ calls: pages, source })).toEqual([]);
 	});
@@ -1010,7 +1010,7 @@ describe('pattern_deltas', () => {
 	const pat = (kind: string, cost: number, lib?: string) =>
 		({
 			kind,
-			title: kind + (lib ? ' ' + lib : ''),
+			title: kind + (lib ? ` ${lib}` : ''),
 			fix: '',
 			sites: [{ libs: lib ? [lib] : undefined }],
 			cost_ms: cost,

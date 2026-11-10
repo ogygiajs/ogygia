@@ -121,7 +121,7 @@ describe('island closure walk follows app aliases', () => {
 
 	test('a RegExp alias (Kit’s shape for `key/*`) is followed too', () => {
 		const { compiler, program } = make_compiler([
-			{ find: /^\$boot\/(.+)$/, replacement: path.join(root, 'src/lib/boot') + '/$1' }
+			{ find: /^\$boot\/(.+)$/, replacement: `${path.join(root, 'src/lib/boot')}/$1` }
 		]);
 		compiler.prescan();
 		expect(program.island_graph.has(path.join(root, 'src/lib/boot/read-page.ts'))).toBe(true);

@@ -59,7 +59,7 @@ export function attr_sites(
 		if (!opens.length && l.slice(0, at).includes('<')) continue;
 		out.push({
 			line: i + 1,
-			code: l.trim().length > 140 ? l.trim().slice(0, 139) + '…' : l.trim()
+			code: l.trim().length > 140 ? `${l.trim().slice(0, 139)}…` : l.trim()
 		});
 	}
 	return out;
@@ -126,7 +126,7 @@ function parse(piece: string): { tag: string; attrs: Map<string, string>; text: 
 	return { tag, attrs, text: close === -1 ? '' : piece.slice(close + 1) };
 }
 
-const clip = (s: string) => (s.length > 60 ? s.slice(0, 59) + '…' : s);
+const clip = (s: string) => (s.length > 60 ? `${s.slice(0, 59)}…` : s);
 
 /**
  * The two documents' differences, grouped. `island_of(entry)` names an island by its entry URL (the

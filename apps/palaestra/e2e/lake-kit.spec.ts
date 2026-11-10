@@ -57,7 +57,7 @@ test.describe('lake under Kit hydration — csr=true page under a lake-chrome la
 	test('SSR: the csr=true page carries the lake as ONE frozen region, real regions inside, runtime shipped', async ({
 		baseURL
 	}) => {
-		const html = await (await fetch(baseURL + '/lake-kit/kit/')).text();
+		const html = await (await fetch(`${baseURL}/lake-kit/kit/`)).text();
 		check('lake emitted as a frozen region element', LAKE_RE.test(html));
 		check('lake HTML rendered inside it', LAKE_STATIC_RE.test(html));
 		check(
@@ -93,7 +93,7 @@ test.describe('lake under Kit hydration — csr=true page under a lake-chrome la
 		const warns: string[] = [];
 		page.on('pageerror', (e) => errs.push(e.message));
 		page.on('console', (m) => {
-			if (m.type() === 'error') errs.push('console: ' + m.text());
+			if (m.type() === 'error') errs.push(`console: ${m.text()}`);
 			if (m.type() === 'warning') warns.push(m.text());
 		});
 		await page.goto('/lake-kit/kit/', { waitUntil: 'networkidle' });
@@ -179,7 +179,7 @@ test.describe('lake under Kit hydration — csr=true page under a lake-chrome la
 		page,
 		baseURL
 	}) => {
-		const html = await (await fetch(baseURL + '/lake-kit/')).text();
+		const html = await (await fetch(`${baseURL}/lake-kit/`)).text();
 		check(
 			'csr=false: shell lake renders bare (no frozen region element)',
 			!/wake="none"/.test(html)

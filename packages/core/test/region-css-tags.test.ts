@@ -7,18 +7,9 @@ import { region_css_tags } from '../src/server/html-scan.ts';
 
 describe('region_css_tags', () => {
 	it('keeps both forms in head order; drops everything else', () => {
-		const head =
-			'<script type="module" data-ogygia-runtime src="/r.js"></script>' +
-			'<link rel="stylesheet" href="/a.css" data-ogygia-region-css>' +
-			'<link rel="modulepreload" href="/x.js">' +
-			'<style data-ogygia-region-css="/b.css">.b.svelte-1{color:red}</style>' +
-			'<style>.unrelated{}</style>' +
-			'<meta name="ogygia-kit-island" content="/e.js">' +
-			'<link rel="stylesheet" data-ogygia-region-css href="/c.css">';
+		const head = `<script type="module" data-ogygia-runtime src="/r.js">\x3C/script><link rel="stylesheet" href="/a.css" data-ogygia-region-css><link rel="modulepreload" href="/x.js"><style data-ogygia-region-css="/b.css">.b.svelte-1{color:red}</style><style>.unrelated{}</style><meta name="ogygia-kit-island" content="/e.js"><link rel="stylesheet" data-ogygia-region-css href="/c.css">`;
 		expect(region_css_tags(head)).toBe(
-			'<link rel="stylesheet" href="/a.css" data-ogygia-region-css>' +
-				'<style data-ogygia-region-css="/b.css">.b.svelte-1{color:red}</style>' +
-				'<link rel="stylesheet" data-ogygia-region-css href="/c.css">'
+			`<link rel="stylesheet" href="/a.css" data-ogygia-region-css><style data-ogygia-region-css="/b.css">.b.svelte-1{color:red}</style><link rel="stylesheet" data-ogygia-region-css href="/c.css">`
 		);
 	});
 

@@ -20,11 +20,11 @@ test.describe('Provide + drop-in setContext + createContext: DOM-bridged, live a
 		const errors: string[] = [];
 		page.on('pageerror', (e) => errors.push(e.message));
 		page.on('console', (m) => {
-			if (m.type() === 'error') errors.push('console: ' + m.text());
+			if (m.type() === 'error') errors.push(`console: ${m.text()}`);
 		});
 
 		// ---------- SSR of the matrix page ----------
-		const raw = await (await fetch(baseURL + '/context')).text();
+		const raw = await (await fetch(`${baseURL}/context`)).text();
 		check('SSR: provider emits <ogygia-provide> with values', PROVIDE_TAG_RE.test(raw));
 		check('SSR: context value serialized into the DOM', raw.includes('data-ogygia-provide'));
 		const ssrLoad = raw.match(SSR_LOAD_COUNT_RE)?.[1];
@@ -166,7 +166,7 @@ test.describe('Provide + drop-in setContext + createContext: DOM-bridged, live a
 	});
 
 	test('Island inside a frozen lake reads the page provider', async ({ page, baseURL }) => {
-		const lakeRaw = await (await fetch(baseURL + '/context/lake')).text();
+		const lakeRaw = await (await fetch(`${baseURL}/context/lake`)).text();
 		const ssrLake = lakeRaw.match(SSR_LAKE_COUNT_RE)?.[1];
 		check('lake SSR: island-in-lake reads context (7)', ssrLake === '7', `count=${ssrLake}`);
 		const lerrs: string[] = [];
@@ -225,7 +225,7 @@ test.describe('Provide + drop-in setContext + createContext: DOM-bridged, live a
 	// `<script data-ogygia-provide-page>` marker; child islands read it via UNCHANGED raw
 	// getContext('key') across the island-root split. This is the zero-template-change adoption path.
 	test('Drop-in setContext bridge (import swap, no <Provide>)', async ({ page, baseURL }) => {
-		const sraw = await (await fetch(baseURL + '/ctx-setcontext')).text();
+		const sraw = await (await fetch(`${baseURL}/ctx-setcontext`)).text();
 		check('setContext SSR: page-level marker emitted', PROVIDE_PAGE_RE.test(sraw));
 		const ssrTheme = sraw.match(SSR_SETCTX_THEME_RE)?.[1];
 		check('setContext SSR: island reads context (midnight)', ssrTheme === 'midnight', ssrTheme);
@@ -274,7 +274,7 @@ test.describe('Provide + drop-in setContext + createContext: DOM-bridged, live a
 		page,
 		baseURL
 	}) => {
-		const kraw = await (await fetch(baseURL + '/ctx-setcontext-kit')).text();
+		const kraw = await (await fetch(`${baseURL}/ctx-setcontext-kit`)).text();
 		check('csr=true SSR: page-level marker emitted', PROVIDE_PAGE_RE.test(kraw));
 		check(
 			'csr=true SSR: host-only key not in the marker',
@@ -310,7 +310,7 @@ test.describe('Provide + drop-in setContext + createContext: DOM-bridged, live a
 		check('csr=true: no page errors', kerrs.length === 0, kerrs.join(' | '));
 
 		// No island ogygia wakes on the page: Kit hydrates everything, no marker ships.
-		const plain = await (await fetch(baseURL + '/ctx-setcontext-kit/plain')).text();
+		const plain = await (await fetch(`${baseURL}/ctx-setcontext-kit/plain`)).text();
 		check('csr=true, Kit-only page: no marker', !PROVIDE_PAGE_RE.test(plain));
 	});
 });

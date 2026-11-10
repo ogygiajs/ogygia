@@ -174,7 +174,7 @@ test.describe('client query+args+refresh, command, live', () => {
 		const remoteReqs: string[] = [];
 		page.on('request', (r) => {
 			const u = r.url();
-			if (REMOTE_PATH_RE.test(u)) remoteReqs.push(r.method() + ' ' + u.split('/_app/remote/')[1]);
+			if (REMOTE_PATH_RE.test(u)) remoteReqs.push(`${r.method()} ${u.split('/_app/remote/')[1]}`);
 		});
 		await page.goto('/remote-batch', { waitUntil: 'domcontentloaded' });
 		await page

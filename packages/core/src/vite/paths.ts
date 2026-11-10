@@ -36,7 +36,7 @@ export function real_posix(p: string): string {
  *  backslashes and Vite's ids do not. */
 export function id_dir(p: string): string {
 	const posix = real_posix(p);
-	return posix.endsWith('/') ? posix : posix + '/';
+	return posix.endsWith('/') ? posix : `${posix}/`;
 }
 
 /** THE own-package test: every module id inside this package starts with this. Every check of "is
@@ -81,8 +81,8 @@ const OG_HAS_SRC = fs.existsSync(path.join(PKG_ROOT, 'src/internal.ts'));
  *  can load the src one and the dist one both): its LateIsland import is the awaiting one where the
  *  app runs Svelte's async mode (late-island.ts). */
 export const OGYGIA_REGION_MODULES: ReadonlySet<string> = new Set([
-	PKG_ROOT_ID + 'src/Region.svelte',
-	PKG_ROOT_ID + 'dist/Region.svelte'
+	`${PKG_ROOT_ID}src/Region.svelte`,
+	`${PKG_ROOT_ID}dist/Region.svelte`
 ]);
 export const OGYGIA_INJECTED_FILES: Record<string, string> = OG_HAS_SRC
 	? {

@@ -308,9 +308,7 @@ describe('the runtime bootstrap (server/entry-location.ts), shared by every docu
 		set_island_deps({ '/og-runtime.js': ['/chunks/Shared.js'] });
 		const html = runtime_bootstrap();
 		expect(html).toContain(
-			'<script type="module" data-ogygia-runtime src="/chunks/Rt.js" onerror="' +
-				"console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')" +
-				'"></script>'
+			`<script type="module" data-ogygia-runtime src="/chunks/Rt.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')">\x3C/script>`
 		);
 		expect(html).toContain(
 			'<link rel="modulepreload" href="/chunks/Shared.js" data-ogygia-runtime-dep>'
@@ -325,7 +323,7 @@ describe('the runtime bootstrap (server/entry-location.ts), shared by every docu
 	it('the base / assets prefix applies to the location and every preload', () => {
 		set_entry_locations({ '/og-runtime.js': '/chunks/Rt.js' });
 		set_island_deps({ '/og-runtime.js': ['/chunks/Shared.js'] });
-		const html = runtime_bootstrap((u) => 'https://cdn.test' + u);
+		const html = runtime_bootstrap((u) => `https://cdn.test${u}`);
 		expect(html).toContain('src="https://cdn.test/chunks/Rt.js"');
 		expect(html).toContain('href="https://cdn.test/chunks/Shared.js"');
 	});
@@ -518,7 +516,7 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 			'_app/immutable/og-locations.H.json',
 			'_app/ogygia.json'
 		]);
-		expect(compiler.location_map_url).toBe('/' + files[0].fileName);
+		expect(compiler.location_map_url).toBe(`/${files[0].fileName}`);
 		const pairs = Object.entries(JSON.parse(files[0].source) as Record<string, string>);
 		expect(pairs).toHaveLength(2); // the two islands (the runtime loads by its script's own src)
 		for (const [identity, hashed] of pairs) {

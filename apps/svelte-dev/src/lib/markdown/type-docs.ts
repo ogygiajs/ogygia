@@ -144,7 +144,7 @@ function members_of(
 	return out;
 }
 
-const fence = (code: string) => '```ts\n' + code + '\n```';
+const fence = (code: string) => `\`\`\`ts\n${code}\n\`\`\``;
 
 /**
  * JSDoc prose flows into mdsvex → the SVELTE parser. A bare `<svelte:boundary>`-style sequence in
@@ -238,8 +238,7 @@ export async function render_module(module_id: string): Promise<string | null> {
 	if (!exports.length) return null;
 
 	const names = exports.map((e) => e.name).sort((a, b) => a.localeCompare(b));
-	const summary =
-		'```js\nimport {\n\t' + names.join(',\n\t') + "\n} from '" + module_id + "';\n```";
+	const summary = `\`\`\`js\nimport {\n\t${names.join(',\n\t')}\n} from '${module_id}';\n\`\`\``;
 	return [summary, '', ...exports.map(render_export)].join('\n');
 }
 

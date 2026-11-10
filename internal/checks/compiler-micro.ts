@@ -58,7 +58,7 @@ const nest = (d: number) => {
 	return `<script>\n\timport C from '$lib/C.svelte' with { wake: 'load' };\n\timport Wrap from '$lib/Wrap.svelte' with { wake: 'visible' };\n</script>\n${inner}`;
 };
 const content = (kb: number) =>
-	`<script>\n\timport C from '$lib/C.svelte' with { wake: 'load' };\n</script>\n<C start={0} />\n${('lorem ipsum dolor sit amet '.repeat(30) + '\n\n').repeat(Math.ceil((kb * 1024) / 850))}`;
+	`<script>\n\timport C from '$lib/C.svelte' with { wake: 'load' };\n</script>\n<C start={0} />\n${`${'lorem ipsum dolor sit amet '.repeat(30)}\n\n`.repeat(Math.ceil((kb * 1024) / 850))}`;
 
 console.log('\x1b[1m\x1b[36m▸ compiler micro-stress — transformHost on pathological inputs\x1b[0m');
 let detAll = true;

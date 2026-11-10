@@ -56,7 +56,7 @@ export function heisenbench_record(): Array<{
 			m.heisenbench_record_plugin({
 				targets,
 				root: REPO_ROOT,
-				on_skipped: (s) => appendFileSync(skipped_file, s.map((x) => x.id + '\n').join(''))
+				on_skipped: (s) => appendFileSync(skipped_file, s.map((x) => `${x.id}\n`).join(''))
 			})
 		));
 	return [

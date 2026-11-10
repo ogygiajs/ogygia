@@ -65,13 +65,10 @@ test('an interaction island edited while asleep hydrates from its server markup 
 		const attrs = (root: ParentNode) =>
 			[...root.querySelectorAll('*')].map(
 				(e) =>
-					e.tagName +
-					'[' +
-					[...e.attributes]
-						.map((a) => a.name + '=' + a.value)
+					`${e.tagName}[${[...e.attributes]
+						.map((a) => `${a.name}=${a.value}`)
 						.sort()
-						.join(' ') +
-					']'
+						.join(' ')}]`
 			);
 		expect(attrs(region), 'every element keeps exactly its server attributes').toEqual(
 			attrs(holder.content.querySelector('ogygia-region')!)

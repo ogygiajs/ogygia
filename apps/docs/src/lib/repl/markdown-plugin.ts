@@ -45,7 +45,7 @@ function config_signature(md: ReplMarkdownConfig | null): string {
 		code?.transformers
 			?.map((t) => (t && typeof t === 'object' ? (t.name ?? '?') : '?'))
 			.join(',') ?? '';
-	return JSON.stringify(rest) + '|' + names;
+	return `${JSON.stringify(rest)}|${names}`;
 }
 
 /** Configure the content pipeline from a parsed workspace config (null → REPL defaults). Idempotent per

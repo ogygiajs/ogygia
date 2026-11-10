@@ -19,7 +19,7 @@ const ok = (label: string, cond: unknown, detail = '') => {
 		console.log(`  ✓ ${label}`);
 	} else {
 		fail++;
-		console.log(`  ✗ ${label}${detail ? '  — ' + detail : ''}`);
+		console.log(`  ✗ ${label}${detail ? `  — ${detail}` : ''}`);
 	}
 };
 
@@ -39,7 +39,7 @@ async function bundle(md: string, extraFiles: Record<string, string> = {}) {
 	const resolve = (id: string) => {
 		if (files[id] != null) return id;
 		if (id.startsWith('$lib/')) {
-			const k = '/repl/src/lib/' + id.slice(5);
+			const k = `/repl/src/lib/${id.slice(5)}`;
 			if (files[k] != null) return k;
 		}
 		const base = id.split('/').pop();

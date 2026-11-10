@@ -194,7 +194,7 @@ async function serve_expose(fed: Federation, event: RequestEvent): Promise<Respo
 	const path = url.searchParams.get('path') ?? '/';
 	const search = url.searchParams.get('search') ?? '';
 	const target = new URL(
-		fed.base + (path.startsWith('/') ? path : '/' + path) + search,
+		fed.base + (path.startsWith('/') ? path : `/${path}`) + search,
 		url.origin
 	);
 

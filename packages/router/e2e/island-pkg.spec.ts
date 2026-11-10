@@ -22,13 +22,13 @@ const ELEVEN_RE = /11/;
 
 test.describe('ogygia.files: dependency-declared compile surface — package-internal islands + distributed routes + .ts-table marks compile and hydrate', () => {
 	test('SSR: all three surfaces render server HTML', async ({ baseURL }) => {
-		const host = await (await fetch(baseURL + '/island-pkg')).text();
+		const host = await (await fetch(`${baseURL}/island-pkg`)).text();
 		check('SSR: package panel rendered (plain app import)', PKG_PANEL_RE.test(host));
 		check('SSR: island inside package component present', PKG_ISLAND_RE.test(host));
-		const pkg_page = await (await fetch(baseURL + '/rtr/pkg')).text();
+		const pkg_page = await (await fetch(`${baseURL}/rtr/pkg`)).text();
 		check('SSR: shipped route renders through app router', PKG_PAGE_RE.test(pkg_page));
 		check('SSR: shipped route load ran', FROM_PKG_RE.test(pkg_page));
-		const board = await (await fetch(baseURL + '/rtr/pkg/board')).text();
+		const board = await (await fetch(`${baseURL}/rtr/pkg/board`)).text();
 		check('SSR: .ts-table marked page renders', PKG_BOARD_RE.test(board));
 	});
 
@@ -38,7 +38,7 @@ test.describe('ogygia.files: dependency-declared compile surface — package-int
 		const errors: string[] = [];
 		page.on('pageerror', (e) => errors.push(e.message));
 		page.on('console', (m) => {
-			if (m.type() === 'error') errors.push('console: ' + m.text());
+			if (m.type() === 'error') errors.push(`console: ${m.text()}`);
 		});
 
 		// 1) library-internal island hydrates on the app page

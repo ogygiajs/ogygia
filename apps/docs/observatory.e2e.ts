@@ -13,7 +13,7 @@ const ok = (label, cond, detail = '') => {
 		console.log(`  ✓ ${label}`);
 	} else {
 		fail++;
-		console.log(`  ✗ ${label}${detail ? '  — ' + detail : ''}`);
+		console.log(`  ✗ ${label}${detail ? `  — ${detail}` : ''}`);
 	}
 };
 
@@ -29,7 +29,7 @@ async function until(page, fn, arg, ms = 30000, step = 250) {
 	return v;
 }
 const setSrc = (page, src) => page.evaluate((s) => window.__OBS_SOURCE.set(s), src);
-const S = (s) => s.replace(/<SCRIPT>/g, '<scr' + 'ipt>').replace(/<\/SCRIPT>/g, '</scr' + 'ipt>');
+const S = (s) => s.replace(/<SCRIPT>/g, `<script>`).replace(/<\/SCRIPT>/g, `\x3C/script>`);
 
 async function main() {
 	const browser = await chromium.launch();
@@ -174,7 +174,7 @@ async function main() {
 	ok('recovers after a syntax error', !!recovered);
 
 	// 5. URL state round-trip (share link)
-	const marker = 'RT_' + Math.random().toString(36).slice(2, 8);
+	const marker = `RT_${Math.random().toString(36).slice(2, 8)}`;
 	await setSrc(page, `<h1>${marker}</h1>`);
 	await page.waitForTimeout(1400); // hash debounce (400ms) + margin
 	const hash = await page.evaluate(() => location.hash);
@@ -497,9 +497,7 @@ async function main() {
 	const cfgNotes = await until(page, () => {
 		const rows = [...document.querySelectorAll('[data-obs-config-note]')].map(
 			(n) =>
-				(n.getAttribute('data-obs-config-note') || '') +
-				'|' +
-				(n.querySelector('.cn-msg')?.textContent || '')
+				`${n.getAttribute('data-obs-config-note') || ''}|${n.querySelector('.cn-msg')?.textContent || ''}`
 		);
 		return rows.length >= 3 ? rows : null;
 	});
@@ -554,9 +552,7 @@ async function main() {
 	const consoleRows = await until(page, () => {
 		const rows = [...document.querySelectorAll('[data-obs-console-row]')].map(
 			(r) =>
-				(r.getAttribute('data-obs-console-row') || '') +
-				'|' +
-				(r.querySelector('.oc-text')?.textContent || '')
+				`${r.getAttribute('data-obs-console-row') || ''}|${r.querySelector('.oc-text')?.textContent || ''}`
 		);
 		return rows.length >= 2 ? rows : null;
 	});

@@ -124,7 +124,7 @@ function mask_ids(s: string): string {
 	let last = 0;
 	for (let i = 0; i + 36 <= s.length; i++) {
 		if (s.charCodeAt(i + 8) !== 45 || !is_mint_id(s.slice(i, i + 36))) continue;
-		out += s.slice(last, i) + '<id>';
+		out = `${out}${s.slice(last, i)}<id>`;
 		last = i + 36;
 		i += 35;
 	}
@@ -140,7 +140,7 @@ function first_path(
 	if (is_mint_id(a) && is_mint_id(b)) return null;
 	const clip = (v: unknown) => {
 		const s = JSON.stringify(v) ?? String(v);
-		return s.length > 60 ? s.slice(0, 60) + '…' : s;
+		return s.length > 60 ? `${s.slice(0, 60)}…` : s;
 	};
 	if (
 		a &&

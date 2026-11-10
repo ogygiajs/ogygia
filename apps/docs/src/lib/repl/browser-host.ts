@@ -226,11 +226,11 @@ export function make_repl_host(get_files: () => Record<string, string>): Compile
 			.replace(/^repl\/?/, '')
 			.replace(/\/+$/, '');
 	const is_dir = (files: Record<string, string>, k: string) =>
-		k === '' || Object.keys(files).some((f) => f.startsWith(k + '/'));
+		k === '' || Object.keys(files).some((f) => f.startsWith(`${k}/`));
 	const fs = {
 		readFileSync(p: string): string {
 			const v = get_files()[key(p)];
-			if (v == null) throw new Error('ENOENT: ' + p);
+			if (v == null) throw new Error(`ENOENT: ${p}`);
 			return v;
 		},
 		existsSync(p: string): boolean {
@@ -241,7 +241,7 @@ export function make_repl_host(get_files: () => Record<string, string>): Compile
 		readdirSync(p: string, opts?: { withFileTypes?: boolean }): unknown[] {
 			const files = get_files();
 			const k = key(p);
-			const prefix = k ? k + '/' : '';
+			const prefix = k ? `${k}/` : '';
 			const names = new Set<string>();
 			for (const f of Object.keys(files)) {
 				if (prefix && !f.startsWith(prefix)) continue;
@@ -263,7 +263,7 @@ export function make_repl_host(get_files: () => Record<string, string>): Compile
 			const k = key(p);
 			const file = files[k];
 			const dir = file == null && k !== '' && is_dir(files, k);
-			if (file == null && !dir) throw new Error('ENOENT: ' + p);
+			if (file == null && !dir) throw new Error(`ENOENT: ${p}`);
 			return {
 				isFile: () => file != null,
 				isDirectory: () => dir,

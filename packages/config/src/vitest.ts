@@ -13,8 +13,8 @@ function stub_aliases(): Record<string, string> {
 	const out: Record<string, string> = {};
 	for (const file of readdirSync(STUBS)) {
 		const name = file.replace(/\.ts$/, '');
-		if (name.startsWith('app-')) out['$app/' + name.slice(4)] = STUBS + file;
-		else if (name.startsWith('virtual-')) out['virtual:ogygia/' + name.slice(8)] = STUBS + file;
+		if (name.startsWith('app-')) out[`$app/${name.slice(4)}`] = STUBS + file;
+		else if (name.startsWith('virtual-')) out[`virtual:ogygia/${name.slice(8)}`] = STUBS + file;
 	}
 	return out;
 }

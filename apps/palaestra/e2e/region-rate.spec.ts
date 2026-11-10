@@ -7,10 +7,10 @@ test.describe('forged-MAC flood → all 403, budget intact', () => {
 	test('a forged flood is all 403, never 429, and a valid request still serves after it', async ({
 		baseURL
 	}) => {
-		const res = await fetch(baseURL + '/server');
+		const res = await fetch(`${baseURL}/server`);
 		const html = await res.text();
 		const m = html.match(ENDPOINT_ATTR_RE);
-		const endpoint = m ? new URL(m[1].replace(AMP_ENTITY_G_RE, '&'), baseURL + '/server').href : '';
+		const endpoint = m ? new URL(m[1].replace(AMP_ENTITY_G_RE, '&'), `${baseURL}/server`).href : '';
 		check('have signed endpoint', !!endpoint);
 
 		const forged = new URL(endpoint);

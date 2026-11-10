@@ -104,7 +104,7 @@ beforeAll(() => {
 	let barrel = '';
 	for (let i = 0; i < FAN; i++) {
 		write(`src/lib/fan/m${i}.ts`, `import { c } from '../chain/c0';\nexport const m${i} = c;\n`);
-		barrel += `export * from './fan/m${i}';\n`;
+		barrel = `${barrel}export * from './fan/m${i}';\n`;
 	}
 	write('src/lib/barrel.ts', barrel);
 	for (let d = 0; d < DEPTH; d++) {

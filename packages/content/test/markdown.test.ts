@@ -374,7 +374,7 @@ describe('content preset dispatch (v3 config surface)', () => {
 			expect(plain.code).not.toContain('preset-wrap');
 
 			const variant = (await pp.markup?.({
-				content: doc + '\n<!--og_preset:pg-->',
+				content: `${doc}\n<!--og_preset:pg-->`,
 				filename: '/x/a.md'
 			})) as { code: string };
 			expect(variant.code).toContain('preset-wrap');

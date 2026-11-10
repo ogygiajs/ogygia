@@ -16,12 +16,12 @@ afterEach(() => f?.dispose());
 
 const ctx = (root: string): Parameters<typeof transformTsRegions>[2] => ({
 	root,
-	libDir: root + '/lib',
+	libDir: `${root}/lib`,
 	pathModule: path,
 	dev: false,
 	virtualPathFor: (_host: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
 	wrapperPathFor: (_host: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
-	devUrlFor: (p: string) => '/@id/' + p,
+	devUrlFor: (p: string) => `/@id/${p}`,
 	visibleMargin: '0px',
 	importKeys: undefined,
 	idSalt: ''

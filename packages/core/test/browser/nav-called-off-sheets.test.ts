@@ -26,9 +26,7 @@ beforeEach(() => {
 	link_boot();
 	window.fetch = async () =>
 		new Response(
-			'<!doctype html><html><head><meta name="ogygia-router" content="plain">' +
-				`<link rel="stylesheet" href="${SHEET}"><title>next</title></head>` +
-				'<body><p>next</p></body></html>',
+			`<!doctype html><html><head><meta name="ogygia-router" content="plain"><link rel="stylesheet" href="${SHEET}"><title>next</title></head><body><p>next</p></body></html>`,
 			{ status: 200, headers: { 'content-type': 'text/html' } }
 		);
 });

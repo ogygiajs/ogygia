@@ -55,10 +55,7 @@ export function with_devalue(fn: (d: Devalue) => void, tried = 0): void {
 }
 
 /** Every side-channel a read may parse with devalue: props sidecars, the page seed, page facts. */
-const DEVALUE_LANE_SELECTOR =
-	'script[data-ogygia-props]:not([data-og-format="json"]),' +
-	'script[type="application/ogygia-page"]:not([data-og-format="json"]),' +
-	'script[type="application/ogygia-page-facts"]';
+const DEVALUE_LANE_SELECTOR = `script[data-ogygia-props]:not([data-og-format="json"]),script[type="application/ogygia-page"]:not([data-og-format="json"]),script[type="application/ogygia-page-facts"]`;
 
 /** Does this document (or fragment) hold a script only devalue can read? */
 export function needs_devalue(root: ParentNode): boolean {

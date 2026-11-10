@@ -80,7 +80,7 @@ test('the address bar and the history model: checked once no navigation is out',
 	nav.now = { kind: 'loading' }; // a navigation out: the bar moves at its commit
 	expect(rules()).toEqual([]);
 	nav.now = { kind: 'idle' };
-	entry.url = new URL(location.href + '#a-fragment'); // a fragment is the same page
+	entry.url = new URL(`${location.href}#a-fragment`); // a fragment is the same page
 	expect(rules()).toEqual([]);
 	history.replaceState({ ogygia: 'doc.2' }, '');
 	expect(rules()[0]?.detail).toBe('the address bar is on entry doc.2, the history model on doc.1');

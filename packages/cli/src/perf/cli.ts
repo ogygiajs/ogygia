@@ -92,7 +92,7 @@ export async function runPerf(argv: string[]): Promise<number> {
 	const md = arg(argv, '--md');
 	if (md)
 		writeFileSync(md, markdown(v, { title: label ? `Performance (${label})` : 'Performance' }));
-	process.stdout.write(summary(v) + '\n');
+	process.stdout.write(`${summary(v)}\n`);
 	if (out) process.stdout.write(`snapshot: ${out}${md ? ` · comment: ${md}` : ''}\n`);
 	return v.ok || has(argv, '--no-fail') ? 0 : 1;
 }
@@ -193,7 +193,7 @@ export async function serve(
 	const m = server_machine.create();
 	let output = '';
 	const keep = (chunk: Buffer | string) => {
-		output = (output + String(chunk)).slice(-OUTPUT_CHARS);
+		output = `${output}${String(chunk)}`.slice(-OUTPUT_CHARS);
 	};
 	const tail = () => output.split('\n').slice(-OUTPUT_LINES).join('\n').trim();
 	const child = spawn(cmd, {

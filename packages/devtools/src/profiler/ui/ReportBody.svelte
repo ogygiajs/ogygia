@@ -356,30 +356,29 @@
 
 	const stats = $derived.by(() => {
 		const out: { value: string; label: string }[] = [
-			{ value: fmt_ms(meta.duration_ms) + ' ms', label: 'window' },
-			{ value: busy_pct.toFixed(0) + '%', label: 'CPU busy' },
+			{ value: `${fmt_ms(meta.duration_ms)} ms`, label: 'window' },
+			{ value: `${busy_pct.toFixed(0)}%`, label: 'CPU busy' },
 			{
-				value: net.length ? fmt_ms(net_total) + ' ms' : '0',
+				value: net.length ? `${fmt_ms(net_total)} ms` : '0',
 				label: `network (${net.length} calls)`
 			},
 			// per render, the unit of the render time and the lines (the window holds every run)
 			{
-				value:
-					fmt_ms((extras.gc_attr ? extras.gc_attr.summary.total_ms : a.gc_ms) / renders) + ' ms',
+				value: `${fmt_ms((extras.gc_attr ? extras.gc_attr.summary.total_ms : a.gc_ms) / renders)} ms`,
 				label: renders > 1 ? 'garbage collection per render' : 'garbage collection'
 			},
 			{ value: String(meta.requests.length), label: 'requests in window' }
 		];
 		if (extras.gc)
 			out.push({
-				value: fmt_ms(extras.gc.max_ms) + ' ms',
+				value: `${fmt_ms(extras.gc.max_ms)} ms`,
 				label: `GC pause max (${extras.gc.count})`
 			});
 		if (meta.loop_delay)
-			out.push({ value: fmt_ms(meta.loop_delay.p99) + ' ms', label: 'loop delay p99' });
+			out.push({ value: `${fmt_ms(meta.loop_delay.p99)} ms`, label: 'loop delay p99' });
 		if (meta.elu_percent !== undefined)
-			out.push({ value: meta.elu_percent.toFixed(0) + '%', label: 'event loop use' });
-		if (meta.rss_mb !== undefined) out.push({ value: meta.rss_mb + ' MB', label: 'memory (rss)' });
+			out.push({ value: `${meta.elu_percent.toFixed(0)}%`, label: 'event loop use' });
+		if (meta.rss_mb !== undefined) out.push({ value: `${meta.rss_mb} MB`, label: 'memory (rss)' });
 		out.push({ value: String(a.sample_count), label: 'samples' });
 		if (meta.overhead && meta.overhead.cpu_ms + meta.overhead.gc_ms > 0)
 			out.push({
@@ -490,7 +489,7 @@
 	// THE FUNCTIONS TABLE: the 80 with the most self time, plus every function another part of the
 	// report links to (`#fn=<key>`). A slow pattern's line, a path's middle frame or a leak's maker
 	// often has little self time; without its row the link opened nothing (43 of 67 on a heavy page).
-	const fn_key = (f: { key?: string; name: string; url?: string }) => f.key ?? f.name + ' ' + f.url;
+	const fn_key = (f: { key?: string; name: string; url?: string }) => f.key ?? `${f.name} ${f.url}`;
 	const linked = $derived.by(() => {
 		const out = new Set<string>();
 		for (const f of findings) if (f.anchor?.startsWith('fn:')) out.add(f.anchor.slice(3));

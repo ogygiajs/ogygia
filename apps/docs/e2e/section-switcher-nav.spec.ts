@@ -38,7 +38,7 @@ test.beforeAll(async () => {
 			'127.0.0.1'
 		],
 		cwd: root,
-		url: base + '/docs/start/overview',
+		url: `${base}/docs/start/overview`,
 		timeout_ms: 180_000
 	});
 });
@@ -66,7 +66,7 @@ async function navigates(page: Page, path: string, act: () => Promise<void>) {
 	});
 	await act();
 	await page.evaluate(() => (window as unknown as { __e2e_nav?: Promise<void> }).__e2e_nav);
-	await expect(page).toHaveURL(new RegExp(path + '$'));
+	await expect(page).toHaveURL(new RegExp(`${path}$`));
 	await expect(page.locator(TRIGGER)).toHaveCount(1);
 }
 
@@ -81,7 +81,7 @@ test('the section switcher opens after every client-side navigation, inside a se
 	page
 }) => {
 	test.setTimeout(3 * 60_000);
-	await page.goto(base + '/docs/start/overview');
+	await page.goto(`${base}/docs/start/overview`);
 	await expect(page.locator(TRIGGER)).toHaveCount(1, { timeout: 60_000 });
 	await opens(page);
 
@@ -107,7 +107,7 @@ test('loaded on a section page, the switcher still opens after a navigation insi
 	page
 }) => {
 	test.setTimeout(3 * 60_000);
-	await page.goto(base + '/docs/core/overview');
+	await page.goto(`${base}/docs/core/overview`);
 	await expect(page.locator(TRIGGER)).toHaveCount(1, { timeout: 60_000 });
 	await sidebar_nav(page, 'Writing a plugin', '/docs/core/plugins');
 	await opens(page);

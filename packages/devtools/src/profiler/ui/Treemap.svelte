@@ -141,7 +141,7 @@
 					ctx.beginPath();
 					ctx.rect(c.x + 2, c.y, c.w - 4, 14);
 					ctx.clip();
-					ctx.fillText(node.label + ' · ' + node.value + ' ms', c.x + 4, c.y + 11);
+					ctx.fillText(`${node.label} · ${node.value} ms`, c.x + 4, c.y + 11);
 					ctx.restore();
 				}
 				const inner = squarify(
@@ -156,7 +156,7 @@
 					const op = 0.55 + Math.min(0.4, (leaf.pct ?? 0) / 40);
 					box(ic.x, ic.y, ic.w, ic.h, leaf.color, op);
 					if (ic.w > 46 && ic.h > 14)
-						label(ic.x, ic.y, ic.w, leaf.label, ic.h > 26 ? leaf.value + ' ms' : '');
+						label(ic.x, ic.y, ic.w, leaf.label, ic.h > 26 ? `${leaf.value} ms` : '');
 					rects.push({ x: ic.x, y: ic.y, w: ic.w, h: ic.h, node: leaf, zoom: node });
 				}
 				rects.push({ x: c.x, y: c.y, w: c.w, h: 15, node, zoom: node });
@@ -174,7 +174,7 @@
 					if (c.h > 28) {
 						ctx.font = '9px ui-monospace,monospace';
 						ctx.globalAlpha = 0.8;
-						ctx.fillText(node.value + ' ms', c.x + 4, c.y + 24);
+						ctx.fillText(`${node.value} ms`, c.x + 4, c.y + 24);
 						ctx.globalAlpha = 1;
 					}
 					ctx.restore();

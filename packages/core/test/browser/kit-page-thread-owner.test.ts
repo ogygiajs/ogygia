@@ -30,11 +30,7 @@ Object.defineProperty(globalThis, KIT_PAGE_KEY, {
 
 /** Kit's document with our lake + idle island in it, not booted by Kit yet. */
 function kit_document(): HTMLElement {
-	document.body.innerHTML =
-		'<script>__sveltekit_lab = {};</script>' +
-		'<div data-mount>' +
-		inject_html('lake_page_reader_ssr_b64') +
-		'</div>';
+	document.body.innerHTML = `<script>__sveltekit_lab = {};\x3C/script><div data-mount>${inject_html('lake_page_reader_ssr_b64')}</div>`;
 	const island = document.querySelector(ISLAND) as HTMLElement;
 	expect(island, 'the fixture is the lake + idle island shape').not.toBeNull();
 	return island;

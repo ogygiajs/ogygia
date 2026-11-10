@@ -1223,7 +1223,7 @@ export function constant_work(
 			for (const x of t) open += x === '{' ? 1 : x === '}' ? -1 : 0;
 			while (open > 0 && end + 1 < T.length) {
 				end++;
-				text += '\n' + lines[end];
+				text = `${text}\n${lines[end]}`;
 				for (const x of T[end]) {
 					all.push(x);
 					open += x === '{' ? 1 : x === '}' ? -1 : 0;
@@ -1427,7 +1427,7 @@ export function constant_work(
 			let text = lines[i];
 			const all = [...t];
 			for (let j = i + 1; open > 0 && j < body1; j++) {
-				text += '\n' + lines[j];
+				text = `${text}\n${lines[j]}`;
 				for (const x of T[j]) {
 					all.push(x);
 					open +=
@@ -1711,7 +1711,7 @@ export function load_inputs(source: string): string[] | null {
 			if (arrow === -1 || all[arrow - 1] !== ')') {
 				// `async event => …`: one bare parameter
 				return arrow > 0 && is_id_start((all[arrow - 1] ?? '').charCodeAt(0))
-					? ['*' + all[arrow - 1]]
+					? [`*${all[arrow - 1]}`]
 					: [];
 			}
 			let back = 0;
@@ -1729,7 +1729,7 @@ export function load_inputs(source: string): string[] | null {
 				if (--d === 0) break;
 			}
 			// the whole event taken as one parameter (`(event) =>`): it may read anything — `*event`
-			else if (d === 1 && is_id_start(x.charCodeAt(0)) && all[k - 1] === '(') names.push('*' + x);
+			else if (d === 1 && is_id_start(x.charCodeAt(0)) && all[k - 1] === '(') names.push(`*${x}`);
 			// a field taken from the event: a name in key position (`{ url, locals: { user } }`)
 			else if (
 				d === 2 &&

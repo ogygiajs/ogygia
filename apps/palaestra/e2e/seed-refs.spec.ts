@@ -23,8 +23,8 @@ const REF = 'OgygiaSeedRef';
 
 test.describe('SEED REFERENCES: props point into the seed instead of copying it', () => {
 	test('SSR: seeded page → references; no-seed twin → full copies', async ({ baseURL }) => {
-		const seeded = await (await fetch(baseURL + '/seed-refs')).text();
-		const twin = await (await fetch(baseURL + '/seed-refs/noseed')).text();
+		const seeded = await (await fetch(`${baseURL}/seed-refs`)).text();
+		const twin = await (await fetch(`${baseURL}/seed-refs/noseed`)).text();
 		check('seeded page is csr=false', !KIT_MARKER_RE.test(seeded));
 
 		const sidecars = [...seeded.matchAll(SIDECAR_G)].map((m) => m[1]);

@@ -118,7 +118,7 @@ describe('import_again', () => {
 		const load = import_again(() => Promise.reject(SAFARI), fresh, file);
 		await expect(load()).rejects.toBe(SAFARI);
 		await expect(load()).resolves.toBe('island');
-		expect(asked).toEqual([file + '?og-retry=1']);
+		expect(asked).toEqual([`${file}?og-retry=1`]);
 		vi.unstubAllGlobals();
 	});
 

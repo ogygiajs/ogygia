@@ -86,8 +86,8 @@ const compiles = (code: string, name: string, generate: 'server' | 'client') =>
 
 describe('a byte-order-marked component', () => {
 	test('strip_bom takes off exactly one leading mark', () => {
-		expect(strip_bom(BOM + 'a')).toBe('a');
-		expect(strip_bom('a' + BOM)).toBe('a' + BOM);
+		expect(strip_bom(`${BOM}a`)).toBe('a');
+		expect(strip_bom(`a${BOM}`)).toBe(`a${BOM}`);
 		expect(strip_bom('a')).toBe('a');
 	});
 

@@ -65,14 +65,14 @@ function render(
 		if (close === -1) return out + html.slice(at);
 		let host = html.slice(open + tag.length + 1, gt);
 		if (/ og-h="/.test(host)) {
-			host += ` og-shadow="${tag}.shadow" og-keep="data-rendered"`;
+			host = `${host} og-shadow="${tag}.shadow" og-keep="data-rendered"`;
 			used.add(`${tag}.shadow`);
 		}
 		host = /\sclass="/.test(host)
 			? host.replace(/\sclass="([^"]*)"/, ` class="$1 sc-${tag}-h"`)
-			: host + ` class="sc-${tag}-h"`;
-		host += ' data-rendered=""';
-		out += html.slice(at, open) + `<${tag}${host}>` + tree(html.slice(gt + 1, close)) + `</${tag}>`;
+			: `${host} class="sc-${tag}-h"`;
+		host = `${host} data-rendered=""`;
+		out = `${out}${html.slice(at, open)}<${tag}${host}>${tree(html.slice(gt + 1, close))}</${tag}>`;
 		at = close + tag.length + 3;
 	}
 }

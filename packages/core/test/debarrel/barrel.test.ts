@@ -196,9 +196,9 @@ describe('where the walk stops', () => {
 		});
 		const i = f.index({
 			resolve: async (spec, importer) =>
-				spec.endsWith('?raw') ? f.id('lib/leaf.ts') + '?raw' : f.host().resolve(spec, importer)
+				spec.endsWith('?raw') ? `${f.id('lib/leaf.ts')}?raw` : f.host().resolve(spec, importer)
 		});
-		expect(await i.map(f.id('lib/index.ts') + '?raw', '$lib')).toBeNull();
+		expect(await i.map(`${f.id('lib/index.ts')}?raw`, '$lib')).toBeNull();
 		const m = (await i.map(f.id('lib/index.ts'), '$lib'))!;
 		expect(m.entries.get('l')).toEqual(leaf(f, 'lib/leaf.ts', 'l'));
 		expect(m.entries.has('raw')).toBe(false);

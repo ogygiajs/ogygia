@@ -137,19 +137,19 @@ export function stamp_region_keys(root: ParentNode): void {
 		// a NON-kept region keys by props-fingerprint (patch when its inputs change).
 		const keep = el.getAttribute('data-ogygia-keep');
 		if (keep !== null) {
-			el.setAttribute(RECONCILE_KEY, 'k ' + keep);
+			el.setAttribute(RECONCILE_KEY, `k ${keep}`);
 		} else if (el.hasAttribute('data-persist')) {
-			el.setAttribute(RECONCILE_KEY, 'p ' + region_signature(el));
+			el.setAttribute(RECONCILE_KEY, `p ${region_signature(el)}`);
 		} else {
 			// One identity: the 64-bit fingerprint alone. It already hashes entry + endpoint + props,
 			// so the old signature+fp encoded entry twice — the fp is the whole key now, and 64 bits
 			// makes a cross-slot collision a non-risk.
-			el.setAttribute(RECONCILE_KEY, 'r ' + region_props_fp(el));
+			el.setAttribute(RECONCILE_KEY, `r ${region_props_fp(el)}`);
 		}
 	}
 	for (const el of root.querySelectorAll('[data-ogygia-keep]')) {
 		if (el.getAttribute(RECONCILE_KEY) !== null || el.id !== '') continue;
-		el.setAttribute(RECONCILE_KEY, 'k ' + (el.getAttribute('data-ogygia-keep') ?? ''));
+		el.setAttribute(RECONCILE_KEY, `k ${el.getAttribute('data-ogygia-keep') ?? ''}`);
 	}
 }
 

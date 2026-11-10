@@ -403,11 +403,11 @@ export function page_score(inp: ScoreInputs): PageScore {
 			score: s,
 			weight: 10,
 			value: resp.map((p) => p.t).join(' · '),
-			note:
-				(s >= 90
+			note: `${
+				s >= 90
 					? 'The main thread stayed free to answer input in the visits measured.'
-					: 'Long tasks held the main thread in the visits measured: input waited. Less JS at start, and lighter hydration, free it.') +
-				' (Measured on the machine that visited: a slower phone pays more for the same JS — which JS at start scores.)',
+					: 'Long tasks held the main thread in the visits measured: input waited. Less JS at start, and lighter hydration, free it.'
+			} (Measured on the machine that visited: a slower phone pays more for the same JS — which JS at start scores.)`,
 			detail: resp.map((p) => `${p.t} → ${p.s}`)
 		});
 	} else

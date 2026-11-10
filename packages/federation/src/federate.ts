@@ -136,7 +136,7 @@ function thaw_outbox(name: string, say: boolean): Outbox<Thaw> {
 	return outbox<Thaw>({
 		name,
 		send: post_thaw,
-		id: (t) => t.id + '\n' + t.peer_name,
+		id: (t) => `${t.id}\n${t.peer_name}`,
 		retry: PEER_POLICY,
 		// (a peer that never took it keeps its stored copy until it expires)
 		giveUp: say

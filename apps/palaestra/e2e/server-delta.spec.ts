@@ -30,10 +30,10 @@ test.describe('server-delta nav: shared island skipped server-side on SPA nav, k
 
 		// ── the server SKIPS the shared island when told the client has it ───────────
 		const full = await (
-			await context.request.get(baseURL + '/delta/b', { headers: { 'x-ogygia-spa': '1' } })
+			await context.request.get(`${baseURL}/delta/b`, { headers: { 'x-ogygia-spa': '1' } })
 		).text();
 		const delta = await (
-			await context.request.get(baseURL + '/delta/b', {
+			await context.request.get(`${baseURL}/delta/b`, {
 				headers: { 'x-ogygia-spa': '1', 'x-ogygia-known': known }
 			})
 		).text();

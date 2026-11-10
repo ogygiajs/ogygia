@@ -9,7 +9,7 @@ import { ONE_RE } from '@ogygia/tooling/e2e/re.ts';
 test.describe('streamed pages (yield regions): flush-before-slow-yield timing, template chunks, late island wakes on adoption, SPA-swap twin', () => {
 	// 1) WIRE truth: the raw response carries skeleton BEFORE payload, payload inside a template
 	test('wire: skeleton before payload, payload inside an inert template', async ({ baseURL }) => {
-		const raw = await (await fetch(baseURL + '/rtr/stream')).text();
+		const raw = await (await fetch(`${baseURL}/rtr/stream`)).text();
 		const i_skel = raw.indexOf('data-stream-skeleton');
 		const i_tpl = raw.indexOf('<template data-og-late');
 		const i_payload = raw.indexOf('data-stream-payload');
@@ -42,7 +42,7 @@ test.describe('streamed pages (yield regions): flush-before-slow-yield timing, t
 		const t0 = performance.now();
 		// identity: a compressing middleware (vite preview, some CDNs) buffers while it gzips,
 		// which would collapse the very timing this section proves — measure the raw stream
-		const res = await fetch(baseURL + '/rtr/stream', {
+		const res = await fetch(`${baseURL}/rtr/stream`, {
 			headers: { 'accept-encoding': 'identity' }
 		});
 		const reader = res.body!.getReader();
@@ -69,7 +69,7 @@ test.describe('streamed pages (yield regions): flush-before-slow-yield timing, t
 	test('late regions: a load promise-of-region resolves down the SAME response', async ({
 		baseURL
 	}) => {
-		const raw = await (await fetch(baseURL + '/rtr/stream-region')).text();
+		const raw = await (await fetch(`${baseURL}/rtr/stream-region`)).text();
 		const i_skel = raw.indexOf('data-region-skeleton');
 		const i_slot = raw.indexOf('og-late-slot');
 		const i_tpl = raw.indexOf('<template data-og-late="r');
@@ -89,7 +89,7 @@ test.describe('streamed pages (yield regions): flush-before-slow-yield timing, t
 		baseURL,
 		page
 	}) => {
-		const raw = await (await fetch(baseURL + '/rtr/stream-region-nested')).text();
+		const raw = await (await fetch(`${baseURL}/rtr/stream-region-nested`)).text();
 		const slots = [...raw.matchAll(/<og-late-slot data-og-slot="(r\d+)"/g)].map((m) => m[1]);
 		const filled = [...raw.matchAll(/<template data-og-late="(r\d+)"/g)].map((m) => m[1]);
 		check(
@@ -125,7 +125,7 @@ test.describe('streamed pages (yield regions): flush-before-slow-yield timing, t
 		const errors: string[] = [];
 		page.on('pageerror', (e) => errors.push(e.message));
 		page.on('console', (m) => {
-			if (m.type() === 'error') errors.push('console: ' + m.text());
+			if (m.type() === 'error') errors.push(`console: ${m.text()}`);
 		});
 		// A streamed page holds the connection open for its late chunks, so `networkidle` never
 		// fires — wait for the initial document, then the explicit settle below (as the script did).

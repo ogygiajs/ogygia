@@ -13,9 +13,9 @@
 	const when = (ms: number) => new Date(ms).toLocaleString();
 	const fmt = (n: number, unit: string) =>
 		unit === 'ms'
-			? fmt_ms(n) + ' ms'
+			? `${fmt_ms(n)} ms`
 			: unit === 'KB'
-				? Math.round(n) + ' KB'
+				? `${Math.round(n)} KB`
 				: String(Math.round(n));
 	const sign = (d: number, unit: string) =>
 		(d > 0 ? '+' : '') + (unit === 'ms' ? fmt_ms(d) : Math.round(d));
@@ -29,7 +29,7 @@
 	);
 	const fns = $derived(cmp.functions.filter((r) => Math.abs(r.d_self) >= 0.05).slice(0, 40));
 	const mb = (b: number) =>
-		!b ? '—' : b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.round(b / 1024) + ' KB';
+		!b ? '—' : b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`;
 </script>
 
 <h1>Compare <small>{cmp.a.label} → {cmp.b.label}</small></h1>

@@ -108,9 +108,7 @@ describe('router_css_module — the generated virtual', () => {
 
 	it('dev: inlines compiled scoped css (transitively, through child components)', async () => {
 		const files: Record<string, string> = {
-			'/app/src/lib/Shell.svelte':
-				`<script>import Badge from './Badge.svelte';</script>` +
-				`<div class="shell"><Badge/></div><style>.shell { color: red; }</style>`,
+			'/app/src/lib/Shell.svelte': `<script>import Badge from './Badge.svelte';\x3C/script><div class="shell"><Badge/></div><style>.shell { color: red; }</style>`,
 			'/app/src/lib/Badge.svelte': `<b class="badge">!</b><style>.badge { color: blue; }</style>`
 		};
 		const src = await router_css_module(['/app/src/lib/Shell.svelte'], {

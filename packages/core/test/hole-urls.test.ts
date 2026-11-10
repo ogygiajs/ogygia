@@ -39,16 +39,12 @@ describe('absolutize_hole_html', () => {
 	});
 
 	it('leaves absolute and foreign (federation) entries alone', () => {
-		const html =
-			'<ogygia-region entry="/_app/immutable/a.js"></ogygia-region>' +
-			'<ogygia-region entry="https://cms.example.com/_app/immutable/b.js"></ogygia-region>';
+		const html = `<ogygia-region entry="/_app/immutable/a.js"></ogygia-region><ogygia-region entry="https://cms.example.com/_app/immutable/b.js"></ogygia-region>`;
 		expect(absolutize_hole_html(html, base)).toBe(html);
 	});
 
 	it('rewrites region-css link hrefs and nothing else in the markup', () => {
-		const html =
-			'<link rel="stylesheet" href="./_app/immutable/assets/hole.css" data-ogygia-region-css>' +
-			'<a href="./relative-link/">keep</a><img src="./img.png">';
+		const html = `<link rel="stylesheet" href="./_app/immutable/assets/hole.css" data-ogygia-region-css><a href="./relative-link/">keep</a><img src="./img.png">`;
 		const out = absolutize_hole_html(html, base);
 		expect(out).toContain('href="/_app/immutable/assets/hole.css" data-ogygia-region-css');
 		expect(out).toContain('<a href="./relative-link/">keep</a><img src="./img.png">');

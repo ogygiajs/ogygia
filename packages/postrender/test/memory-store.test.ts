@@ -8,7 +8,7 @@ import { MemoryStore } from '../src/memory-store.ts';
 describe('postrender memory store is byte-bounded', () => {
 	it('a run of multi-MB pages stays under the budget; the newest survive', async () => {
 		const store = new MemoryStore(1000, 5_000_000);
-		const html = '<html>' + 'y'.repeat(2_000_000) + '</html>';
+		const html = `<html>${'y'.repeat(2_000_000)}</html>`;
 		for (let i = 0; i < 6; i++) {
 			await store.put(`/p${i}/`, { kind: 'page', html, headers: {}, created: 0 }, { ttl: 60 });
 		}

@@ -229,7 +229,7 @@ export function props_sidecar(
 	// it is keyed by attribute only; the runtime finds it as the region's next sibling.
 	return (
 		'<script type="application/ogygia-props" data-ogygia-props' +
-		(fp ? `="${fp}"` + (place === 'tail' ? ` id="og-props-${fp}"` : '') : '') +
+		(fp ? `="${fp}"${place === 'tail' ? ` id="og-props-${fp}"` : ''}` : '') +
 		(w.json ? ` ${WIRE_FORMAT_ATTR}="${WIRE_FORMAT_JSON}"` : '') +
 		// (the transportable classes the browser loads before it decodes these props)
 		(wire_modules.length

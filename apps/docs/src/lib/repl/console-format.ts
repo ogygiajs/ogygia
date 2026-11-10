@@ -12,7 +12,7 @@ const MAX_ITEMS = 100; // don't render a million-element array inline
 const MAX_STRING = 800;
 
 function q(s: string): string {
-	const str = s.length > MAX_STRING ? s.slice(0, MAX_STRING) + '…' : s;
+	const str = s.length > MAX_STRING ? `${s.slice(0, MAX_STRING)}…` : s;
 	return JSON.stringify(str);
 }
 
@@ -26,7 +26,7 @@ export function inspect(v: unknown, seen: WeakSet<object> = new WeakSet(), depth
 		case 'boolean':
 			return String(v);
 		case 'bigint':
-			return String(v) + 'n';
+			return `${String(v)}n`;
 		case 'symbol':
 			return v.toString();
 		case 'undefined':
@@ -64,19 +64,19 @@ export function inspect(v: unknown, seen: WeakSet<object> = new WeakSet(), depth
 			if (v.length === 0) return '[]';
 			const items = v.slice(0, MAX_ITEMS).map((x) => inspect(x, seen, depth + 1));
 			if (v.length > MAX_ITEMS) items.push(`… ${v.length - MAX_ITEMS} more`);
-			return '[ ' + items.join(', ') + ' ]';
+			return `[ ${items.join(', ')} ]`;
 		}
 		if (v instanceof Map) {
 			if (v.size === 0) return 'Map(0) {}';
 			const items = [...v]
 				.slice(0, MAX_ITEMS)
 				.map(([k, val]) => `${inspect(k, seen, depth + 1)} => ${inspect(val, seen, depth + 1)}`);
-			return `Map(${v.size}) { ` + items.join(', ') + ' }';
+			return `Map(${v.size}) { ${items.join(', ')} }`;
 		}
 		if (v instanceof Set) {
 			if (v.size === 0) return 'Set(0) {}';
 			const items = [...v].slice(0, MAX_ITEMS).map((x) => inspect(x, seen, depth + 1));
-			return `Set(${v.size}) { ` + items.join(', ') + ' }';
+			return `Set(${v.size}) { ${items.join(', ')} }`;
 		}
 		if (ArrayBuffer.isView(v) && !(v instanceof DataView)) {
 			const ta = v as unknown as {
@@ -91,16 +91,16 @@ export function inspect(v: unknown, seen: WeakSet<object> = new WeakSet(), depth
 		// plain object / class instance
 		const ctor = (obj as { constructor?: { name?: string } }).constructor;
 		const name = ctor?.name;
-		const prefix = name && name !== 'Object' ? name + ' ' : '';
+		const prefix = name && name !== 'Object' ? `${name} ` : '';
 		const keys = Object.keys(obj);
-		if (keys.length === 0) return prefix ? prefix + '{}' : '{}';
+		if (keys.length === 0) return prefix ? `${prefix}{}` : '{}';
 		const shown = keys.slice(0, MAX_ITEMS);
 		const body = shown.map(
 			(k) =>
 				`${IDENT.test(k) ? k : q(k)}: ${inspect((obj as Record<string, unknown>)[k], seen, depth + 1)}`
 		);
 		if (keys.length > MAX_ITEMS) body.push(`… ${keys.length - MAX_ITEMS} more`);
-		return prefix + '{ ' + body.join(', ') + ' }';
+		return `${prefix}{ ${body.join(', ')} }`;
 	} catch {
 		return String(v);
 	} finally {

@@ -684,7 +684,7 @@ export const BUILD_WARNINGS = {
 			`  Fix: keep the collection in a server-only module (or a .remote.ts) and feed islands DATA (refs) via props or a remote, never the collection itself.\n` +
 			a.modules
 				.split('\n')
-				.map((m) => '    ' + m)
+				.map((m) => `    ${m}`)
 				.join('\n') +
 			(a.count > 5 ? '\n    …' : ''),
 		details: (): string => prose`
@@ -863,8 +863,7 @@ export const BUILD_WARNINGS = {
 	},
 	page_seed_report: {
 		text: (a: { islands: number; pinned: number; keys: number; unpinned: number }): string =>
-			`page seed: ${a.islands} island${a.islands === 1 ? '' : 's'} read page.data — ` +
-			`${a.pinned} pinned to ${a.keys} key${a.keys === 1 ? '' : 's'}, ${a.unpinned} ship all of it`,
+			`page seed: ${a.islands} island${a.islands === 1 ? '' : 's'} read page.data — ${a.pinned} pinned to ${a.keys} key${a.keys === 1 ? '' : 's'}, ${a.unpinned} ship all of it`,
 		details: (): string => prose`
 			An island that reads \`page.data\` gets a copy of it in the page. When the build can see
 			which keys it reads, the island is pinned to them and only those ship. When it cannot (the
@@ -884,8 +883,7 @@ export const BUILD_WARNINGS = {
 			barrels: string;
 			seconds: string;
 		}): string =>
-			`barrels: ${a.importers} of ${a.files} files rewritten — ${a.imports} barrel imports → leaves ` +
-			`(${a.names} names), ${a.barrels} barrels bypassed, ${a.seconds} s first to last transform`,
+			`barrels: ${a.importers} of ${a.files} files rewritten — ${a.imports} barrel imports → leaves (${a.names} names), ${a.barrels} barrels bypassed, ${a.seconds} s first to last transform`,
 		details: (): string => prose`
 			ogygia rewrote imports from index files (barrels) to the files that define each name, so
 			an island ships only what it uses. The report counts the rewrites and lists the barrels

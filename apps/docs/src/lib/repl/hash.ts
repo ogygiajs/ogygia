@@ -55,13 +55,13 @@ export async function encode_hash(w: Workspace): Promise<string> {
 	const bytes = new TextEncoder().encode(
 		JSON.stringify({ f: w.files, a: w.active, t: w.tab, m: w.mode, c: w.cursor })
 	);
-	if (typeof CompressionStream === 'undefined') return '#' + b64url_encode(bytes);
+	if (typeof CompressionStream === 'undefined') return `#${b64url_encode(bytes)}`;
 	const gz = new Uint8Array(
 		await new Response(
 			new Blob([bytes as BlobPart]).stream().pipeThrough(new CompressionStream('gzip'))
 		).arrayBuffer()
 	);
-	return '#' + b64url_encode(gz);
+	return `#${b64url_encode(gz)}`;
 }
 
 export async function decode_hash(hash: string): Promise<Workspace | null> {

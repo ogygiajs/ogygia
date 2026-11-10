@@ -59,9 +59,9 @@ describe('stub id + source', () => {
 	test('round-trips the names through the id; source declares each as undefined', () => {
 		const id = registry_stub_id('src/lib/registry.ts', ['factory', 'default', 'blocks', 'blocks']);
 		expect(is_registry_stub_id(id)).toBe(true);
-		expect(is_registry_stub_id('\0' + id)).toBe(true);
+		expect(is_registry_stub_id(`\0${id}`)).toBe(true);
 		expect(is_registry_stub_id('virtual:ogygia/island/x.js')).toBe(false);
-		expect(registry_stub_names('\0' + id)).toEqual(['blocks', 'default', 'factory']);
+		expect(registry_stub_names(`\0${id}`)).toEqual(['blocks', 'default', 'factory']);
 		const src = registry_stub_source(registry_stub_names(id));
 		expect(src).toBe(
 			'export const blocks = undefined;\nexport default undefined;\nexport const factory = undefined;\n'

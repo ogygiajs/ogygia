@@ -498,7 +498,7 @@ class PropMutationGuard {
 	#warned = new Set<string>();
 
 	#warn(entry: string, prop_path: string) {
-		const key = entry + '' + prop_path;
+		const key = `${entry}${prop_path}`;
 		if (this.#warned.has(key)) return;
 		this.#warned.add(key);
 		warn('prop_mutation', { prop: prop_path, entry });

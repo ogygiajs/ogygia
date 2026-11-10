@@ -42,10 +42,10 @@ afterEach(() => {
 describe('region_css_tag', () => {
 	it('inlines a kept sheet as <style> keyed by the resolved href, links the rest', () => {
 		set_inline_css({ [TINY_CSS]: '.t{color:red}' });
-		expect(region_css_tag(TINY_CSS, '/base' + TINY_CSS)).toBe(
+		expect(region_css_tag(TINY_CSS, `/base${TINY_CSS}`)).toBe(
 			'<style data-ogygia-region-css="/base/islands/tiny.css">.t{color:red}</style>'
 		);
-		expect(region_css_tag(BIG_CSS, '/base' + BIG_CSS)).toBe(
+		expect(region_css_tag(BIG_CSS, `/base${BIG_CSS}`)).toBe(
 			'<link rel="stylesheet" href="/base/islands/big.css" data-ogygia-region-css>'
 		);
 	});

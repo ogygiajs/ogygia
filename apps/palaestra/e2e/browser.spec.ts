@@ -31,7 +31,7 @@ test.describe('hydration, load/idle/visible/media, devalue, SPA', () => {
 		check(
 			'home: visible island NOT hydrated before scroll',
 			(await visIsland.getAttribute('data-hydrated')) === null,
-			'hydrated=' + JSON.stringify(await visIsland.getAttribute('data-hydrated'))
+			`hydrated=${JSON.stringify(await visIsland.getAttribute('data-hydrated'))}`
 		);
 
 		// devalue revival: click reveals a client-computed value; island must be hydrated

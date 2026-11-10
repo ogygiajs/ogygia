@@ -21,7 +21,7 @@ type Steps = Record<string, string[]>;
 
 /** Random steps over `n` states, every state reachable from s0 (a random tree, then extra edges). */
 function random_steps(rand: () => number, n: number): Steps {
-	const names = Array.from({ length: n }, (_, i) => 's' + i);
+	const names = Array.from({ length: n }, (_, i) => `s${i}`);
 	const steps: Steps = Object.fromEntries(names.map((s) => [s, []]));
 	for (let i = 1; i < n; i++) steps[names[Math.floor(rand() * i)]].push(names[i]);
 	const extra = Math.floor(rand() * n * 2);
@@ -64,7 +64,7 @@ async function run(seed: number): Promise<void> {
 	const steps = random_steps(rand, n);
 	const names = Object.keys(steps);
 	const def = machine<Record<string, {}>>()({
-		name: 'r' + seed,
+		name: `r${seed}`,
 		initial: 's0',
 		steps
 	} as never) as {
@@ -79,7 +79,7 @@ async function run(seed: number): Promise<void> {
 	const moves: string[] = [];
 	const heard: string[] = [];
 	const off = observe((name, from, to) => {
-		if (name === 'r' + seed) heard.push(`${from.kind}>${to?.kind ?? '#'}`);
+		if (name === `r${seed}`) heard.push(`${from.kind}>${to?.kind ?? '#'}`);
 	});
 	type Cleanup = { visit: number; runs: number };
 	const cleanups: Cleanup[] = [];

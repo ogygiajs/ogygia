@@ -34,7 +34,7 @@ const DATE_FMT = new Intl.DateTimeFormat('en-US', {
 	day: 'numeric'
 });
 function pretty_date(iso: string): string {
-	const d = new Date(iso + 'T00:00:00');
+	const d = new Date(`${iso}T00:00:00`);
 	return Number.isNaN(+d) ? iso : DATE_FMT.format(d);
 }
 

@@ -44,7 +44,7 @@ test.describe('HEAD BUDGET (csr=true): a Kit page links only what it renders, Ki
 	test('SSR: Kit boots, no runtime, no region tags; stylesheets carry the rendered islands only; one stamp each', async ({
 		baseURL
 	}) => {
-		const res = await fetch(baseURL + '/head-budget-kit');
+		const res = await fetch(`${baseURL}/head-budget-kit`);
 		const html = await res.text();
 		check('/head-budget-kit returns 200', res.status === 200);
 		check('csr=true: Kit bootstrap present', KIT_MARKER_RE.test(html));
@@ -70,11 +70,11 @@ test.describe('HEAD BUDGET (csr=true): a Kit page links only what it renders, Ki
 		let css = '';
 		for (const href of sheets) {
 			const r = await fetch(new URL(href, baseURL).href);
-			css += (await r.text()) + '\n';
+			css = `${css}${await r.text()}\n`;
 		}
 		// The region-css channel's other shape: a rendered island's sheet under the palaestra's
 		// `kit.inlineStyleThreshold` is a `<style data-ogygia-region-css>` in the head, not a link.
-		for (const m of html.matchAll(INLINE_REGION_STYLE_G)) css += m[1] + '\n';
+		for (const m of html.matchAll(INLINE_REGION_STYLE_G)) css = `${css}${m[1]}\n`;
 		const has = (tok: string) => new RegExp(`${tok}(?![a-z])`).test(css);
 		for (const tok of RENDERED)
 			check(`rendered island CSS is linked (${tok})`, has(tok), `sheets: ${sheets.join(', ')}`);

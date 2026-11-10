@@ -10,7 +10,7 @@
 	const path = $derived(decodeURIComponent(page.url.pathname));
 	const topic = $derived(topicFromPath(path));
 	const groups = $derived(
-		(await nav(topic === 'svelte' ? '' : topic + '/'))
+		(await nav(topic === 'svelte' ? '' : `${topic}/`))
 			.filter((n): n is NavGroup => n.kind === 'group')
 			.map((g) => ({
 				label: g.label,

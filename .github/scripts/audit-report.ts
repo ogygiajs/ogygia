@@ -237,18 +237,18 @@ function table(kind) {
 				: '',
 			kind === 'dependency' && row.direct_in.size ? range_note(row) : ''
 		].filter(Boolean);
-		out += `| \`${row.name}\` | ${worst(row)} | ${advisories} | ${[...row.installed].join(', ')} | ${cell(routes.slice(0, 4).join('<br>'))}${routes.length > 4 ? `<br>(+${routes.length - 4} more)` : ''} | ${cell(notes.join('; '))} |\n`;
+		out = `${out}| \`${row.name}\` | ${worst(row)} | ${advisories} | ${[...row.installed].join(', ')} | ${cell(routes.slice(0, 4).join('<br>'))}${routes.length > 4 ? `<br>(+${routes.length - 4} more)` : ''} | ${cell(notes.join('; '))} |\n`;
 	}
 	return out;
 }
 
 const names = published.map((p) => `\`${p.name}\``).join(', ');
 let md = `## Dependency audit: the published packages at ${published[0]?.version ?? '?'}\n\n`;
-md += `Covers ${names}. Checked against the npm advisory database (\`pnpm audit\`). "Locked here" is this repository's lockfile; an app installing a package resolves its own versions within the ranges. "How it arrives" names the package that brings it.\n\n`;
-md += `### Dependencies (installed with a package)\n\n${table('dependency')}\n`;
-md += `### Peer dependencies (installed and updated by the app)\n\n${table('peer')}\n`;
-md += `<details><summary>Dev dependencies: this repository's tooling, never installed by an app (${groups.dev.size} ${groups.dev.size === 1 ? 'package' : 'packages'})</summary>\n\n${table('dev')}\n</details>\n\n`;
+md = `${md}Covers ${names}. Checked against the npm advisory database (\`pnpm audit\`). "Locked here" is this repository's lockfile; an app installing a package resolves its own versions within the ranges. "How it arrives" names the package that brings it.\n\n`;
+md = `${md}### Dependencies (installed with a package)\n\n${table('dependency')}\n`;
+md = `${md}### Peer dependencies (installed and updated by the app)\n\n${table('peer')}\n`;
+md = `${md}<details><summary>Dev dependencies: this repository's tooling, never installed by an app (${groups.dev.size} ${groups.dev.size === 1 ? 'package' : 'packages'})</summary>\n\n${table('dev')}\n</details>\n\n`;
 if (elsewhere)
-	md += `${elsewhere} more ${elsewhere === 1 ? 'advisory is' : 'advisories are'} only in this repository's demo apps and internal tools, which are not part of any published package.\n`;
+	md = `${md}${elsewhere} more ${elsewhere === 1 ? 'advisory is' : 'advisories are'} only in this repository's demo apps and internal tools, which are not part of any published package.\n`;
 process.stdout.write(md);
 process.exit(failing ? 1 : 0);

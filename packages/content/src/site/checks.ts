@@ -123,7 +123,7 @@ export function links(opts: LinkOptions = {}): Check {
 				continue; // external — not ours to judge
 			} else if (href.startsWith('/')) {
 				let rest: string;
-				if (b && (href === b || href.startsWith(b + '/'))) rest = href.slice(b.length);
+				if (b && (href === b || href.startsWith(`${b}/`))) rest = href.slice(b.length);
 				else if (!b) rest = href;
 				else continue; // absolute but outside the mount — the app's business
 				const [p, f] = rest.split('#');

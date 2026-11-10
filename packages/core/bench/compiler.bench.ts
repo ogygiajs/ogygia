@@ -31,7 +31,7 @@ function host_ctx(ssr: boolean): HostCtx {
 		dev: false,
 		virtualPathFor: (_host: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
 		wrapperPathFor: (_host: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
-		devUrlFor: (p: string) => '/@id/' + p,
+		devUrlFor: (p: string) => `/@id/${p}`,
 		visibleMargin: '0px',
 		presets: {}
 	};
@@ -41,16 +41,16 @@ function host_ctx(ssr: boolean): HostCtx {
 function route_page(islands: number): string {
 	let script = `<script lang="ts">\n\timport Header from '$lib/Header.svelte';\n\timport { page } from '$app/state';\n\timport { format } from '$lib/format';\n`;
 	for (let i = 0; i < islands; i++) {
-		script += `\timport Block${i} from '$lib/blocks/Block${i}.svelte' with { wake: '${WAKES[i % 4]}' };\n`;
+		script = `${script}\timport Block${i} from '$lib/blocks/Block${i}.svelte' with { wake: '${WAKES[i % 4]}' };\n`;
 	}
-	script += `\tlet { data } = $props();\n\tlet total = $derived(data.rows.reduce((n, r) => n + r.price, 0));\n\tfunction label(i: number): string {\n\t\treturn 'Row ' + i;\n\t}\n</script>\n\n`;
+	script = `${script}\tlet { data } = $props();\n\tlet total = $derived(data.rows.reduce((n, r) => n + r.price, 0));\n\tfunction label(i: number): string {\n\t\treturn 'Row ' + i;\n\t}\n</script>\n\n`;
 	let markup = `<Header title={data.title} />\n<main>\n`;
 	for (let i = 0; i < islands; i++) {
-		markup += `\t<section class="block">\n\t\t<h2>{label(${i})}</h2>\n\t\t<Block${i} rows={data.blocks[${i}].rows} title={data.blocks[${i}].title} locale={page.data.locale}>\n`;
-		markup += `\t\t\t{#snippet footer(row)}<p>{format(row.price)} {total}</p>{/snippet}\n`;
-		markup += `\t\t\t{#each data.blocks[${i}].tags as tag (tag)}<span>{tag}</span>{/each}\n\t\t</Block${i}>\n\t</section>\n`;
+		markup = `${markup}\t<section class="block">\n\t\t<h2>{label(${i})}</h2>\n\t\t<Block${i} rows={data.blocks[${i}].rows} title={data.blocks[${i}].title} locale={page.data.locale}>\n`;
+		markup = `${markup}\t\t\t{#snippet footer(row)}<p>{format(row.price)} {total}</p>{/snippet}\n`;
+		markup = `${markup}\t\t\t{#each data.blocks[${i}].tags as tag (tag)}<span>{tag}</span>{/each}\n\t\t</Block${i}>\n\t</section>\n`;
 	}
-	return script + markup + '</main>\n';
+	return `${script + markup}</main>\n`;
 }
 
 bench(
@@ -86,7 +86,7 @@ bench(
 		setup: () => {
 			let body = '';
 			for (let i = 0; i < 60; i++) {
-				body += `\tconst v${i} = page.data.section${i % 15}?.items?.[${i}]?.title ?? page.data.fallback;\n`;
+				body = `${body}\tconst v${i} = page.data.section${i % 15}?.items?.[${i}]?.title ?? page.data.fallback;\n`;
 			}
 			return {
 				source: `<script lang="ts">\n\timport { page } from '$app/state';\n${body}</script>\n{#each page.data.list as item}<p>{item.name} {page.data.user?.name}</p>{/each}\n`
@@ -162,7 +162,7 @@ bench(
 function flags_module(flags: number): string {
 	let src = `import { flag } from '@ogygia/flags';\nimport { format } from '$lib/format';\n\n`;
 	for (let i = 0; i < flags; i++)
-		src += `export const flag${i} = flag('flag-${i}', { a: 50, b: 50 });\nexport const label${i} = format('label ${i}');\n\n`;
+		src = `${src}export const flag${i} = flag('flag-${i}', { a: 50, b: 50 });\nexport const label${i} = format('label ${i}');\n\n`;
 	return src;
 }
 

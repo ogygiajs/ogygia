@@ -49,7 +49,7 @@ const KIND_LABEL: Record<ApiExport['kind'], string> = {
 };
 
 function fence(code: string): string {
-	return '```ts\n' + code.trim() + '\n```';
+	return `\`\`\`ts\n${code.trim()}\n\`\`\``;
 }
 
 function section(e: ApiExport): string {

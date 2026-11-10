@@ -23,7 +23,7 @@ test.describe('deferred holes on a csr=true page Kit rebuilds in the browser', (
 	test('SSR: every hole carries its address and identity; the tail records the facts outside Kit’s root', async ({
 		baseURL
 	}) => {
-		const html = await (await fetch(baseURL + '/hole-kit-rebuild/')).text();
+		const html = await (await fetch(`${baseURL}/hole-kit-rebuild/`)).text();
 		const holes = html.match(HOLE_TAG_G) || [];
 		check(
 			'three holes on the page (a shared component keeps its marks on a csr=true page)',
@@ -60,7 +60,7 @@ test.describe('deferred holes on a csr=true page Kit rebuilds in the browser', (
 		const warns: string[] = [];
 		page.on('pageerror', (e) => errs.push(e.message));
 		page.on('console', (m) => {
-			if (m.type() === 'error') errs.push('console: ' + m.text());
+			if (m.type() === 'error') errs.push(`console: ${m.text()}`);
 			if (m.type() === 'warning') warns.push(m.text());
 		});
 		await page.goto('/hole-kit-rebuild/', { waitUntil: 'networkidle' });

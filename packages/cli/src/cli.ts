@@ -207,7 +207,7 @@ function addOgygiaDep(pf: Preflight, markdown: boolean): void {
 		if (cli_missing)
 			pf.pkg.devDependencies = { ...pf.pkg.devDependencies, '@ogygia/cli': `^${version}` };
 		const indent = JSON_INDENT_RE.exec(pf.pkgRaw)?.[1] ?? '\t';
-		saveFile(cwd, 'package.json', JSON.stringify(pf.pkg, null, indent) + '\n');
+		saveFile(cwd, 'package.json', `${JSON.stringify(pf.pkg, null, indent)}\n`);
 	}
 }
 
@@ -477,7 +477,7 @@ async function ai_install(): Promise<void> {
 	cfg.mcpServers = cfg.mcpServers ?? {};
 	const already = 'ogygia' in cfg.mcpServers;
 	cfg.mcpServers.ogygia = { command: 'npx', args: ['ogygia', 'mcp'] };
-	writeFileSync(abs, JSON.stringify(cfg, null, '\t') + '\n');
+	writeFileSync(abs, `${JSON.stringify(cfg, null, '\t')}\n`);
 	stdout.write(
 		`  ${ok('✓')} ${rel} ${dim(already ? '(ogygia server updated)' : '(ogygia server added)')}\n`
 	);
@@ -703,8 +703,7 @@ export const prerender = true;
 				: false;
 		if (!proceed) {
 			die(
-				`${strong(layoutRel)} already exists. Re-run with ${accent('--force')} to overwrite it, ` +
-					`or ${accent('--layout <path>')} to write the shell somewhere else.`
+				`${strong(layoutRel)} already exists. Re-run with ${accent('--force')} to overwrite it, or ${accent('--layout <path>')} to write the shell somewhere else.`
 			);
 		}
 		place(layoutRel, layoutBody, true);

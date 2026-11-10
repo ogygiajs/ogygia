@@ -38,7 +38,7 @@ let is_dev = false;
 
 test.describe('prerendered page + server-island hole', () => {
 	test.beforeAll(async ({ baseURL }) => {
-		const res = await fetch(baseURL + '/static');
+		const res = await fetch(`${baseURL}/static`);
 		ssr_status = res.status;
 		ssr_html = await res.text();
 		is_dev =
@@ -80,7 +80,7 @@ test.describe('prerendered page + server-island hole', () => {
 			const endpoint = file.match(ENDPOINT_ATTR_RE)?.[1]?.replace(AMP_ENTITY_G_RE, '&');
 			if (endpoint) {
 				// endpoint is document-relative (`./__ogygia__?…`) — resolve like the browser would.
-				const holeRes = await fetch(new URL(endpoint, baseURL + '/'));
+				const holeRes = await fetch(new URL(endpoint, `${baseURL}/`));
 				check(
 					'PPR: baked capability verifies (hole endpoint 200)',
 					holeRes.status === 200,
@@ -117,7 +117,7 @@ test.describe('prerendered page + server-island hole', () => {
 			);
 			const endpoint = swrRegion.match(ENDPOINT_ATTR_RE)?.[1]?.replace(AMP_ENTITY_G_RE, '&');
 			if (endpoint) {
-				const res = await fetch(new URL(endpoint, baseURL + '/'));
+				const res = await fetch(new URL(endpoint, `${baseURL}/`));
 				check(
 					'PPR lake: baked capability verifies (endpoint 200)',
 					res.status === 200,

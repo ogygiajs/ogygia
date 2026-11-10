@@ -216,9 +216,9 @@ export function make_region_binding(opts: {
 	// The runtime `<ogygia-region>` fetches on mount (`when: 'load'`) and wakes on the resolved schedule.
 	// Fetch timing is the consumer's own `{#if}` — a held region has no render axis.
 	let meta = `__ogRegion: ${JSON.stringify(opts.iid)}, __module: ${JSON.stringify(opts.moduleUrl)}`;
-	if (opts.hydrate) meta += `, __hydrate: ${JSON.stringify(opts.hydrate)}`;
+	if (opts.hydrate) meta = `${meta}, __hydrate: ${JSON.stringify(opts.hydrate)}`;
 	if (opts.hydrate && opts.hydrateMargin != null)
-		meta += `, __hydrateMargin: ${JSON.stringify(opts.hydrateMargin)}`;
+		meta = `${meta}, __hydrateMargin: ${JSON.stringify(opts.hydrateMargin)}`;
 	return {
 		id: opts.iid,
 		virtualPath: opts.entryPath,
@@ -270,9 +270,9 @@ function wrapper_attach_binding(opts: {
 	exportName?: string;
 }) {
 	let meta = `__ogRegion: ${JSON.stringify(opts.iid)}, __module: ${JSON.stringify(opts.moduleUrl)}`;
-	if (opts.hydrate) meta += `, __hydrate: ${JSON.stringify(opts.hydrate)}`;
+	if (opts.hydrate) meta = `${meta}, __hydrate: ${JSON.stringify(opts.hydrate)}`;
 	if (opts.hydrate && opts.hydrateMargin != null)
-		meta += `, __hydrateMargin: ${JSON.stringify(opts.hydrateMargin)}`;
+		meta = `${meta}, __hydrateMargin: ${JSON.stringify(opts.hydrateMargin)}`;
 	return {
 		ssr:
 			`import __OgygiaWrap from ${JSON.stringify(opts.wrapperPath)};\n` +
@@ -423,19 +423,22 @@ export function server_wrapper_source(
 	// Stitching mark — the emitted hole carries `stitch="serve"` (postrender's serve path fills it at
 	// origin on every serve) or `stitch="edge"` (postrender's capture rewrites it into an ESI include
 	// the CDN fills; the shell stays edge-cached). See packages/postrender/src/stitch.ts.
-	if (options?.stitch) server_attrs += ` __stitch={${JSON.stringify(options.stitch)}}`;
+	if (options?.stitch)
+		server_attrs = `${server_attrs} __stitch={${JSON.stringify(options.stitch)}}`;
 	// The warm schedule — the emitted hole carries `prefetch="idle"` etc.; the runtime arms it next
 	// to `when` and fills the frame store early, the swap still waits for `when`.
-	if (options?.prefetch) server_attrs += ` __prefetch={${JSON.stringify(options.prefetch)}}`;
-	if (options?.margin != null) server_attrs += ` __margin={${JSON.stringify(options.margin)}}`;
+	if (options?.prefetch)
+		server_attrs = `${server_attrs} __prefetch={${JSON.stringify(options.prefetch)}}`;
+	if (options?.margin != null)
+		server_attrs = `${server_attrs} __margin={${JSON.stringify(options.margin)}}`;
 	// Signed at mint into the hole's endpoint → the handle answers `private, max-age=cacheTtlSec`.
 	if (options?.cacheTtlSec != null)
-		server_attrs += ` __cacheTtl={${JSON.stringify(options.cacheTtlSec)}}`;
+		server_attrs = `${server_attrs} __cacheTtl={${JSON.stringify(options.cacheTtlSec)}}`;
 	if (deferred_hydrate) {
-		server_attrs += ` __hydrate={${JSON.stringify(options.hydrate)}}`;
-		server_attrs += ` __module={${JSON.stringify(module_url)}}`;
+		server_attrs = `${server_attrs} __hydrate={${JSON.stringify(options.hydrate)}}`;
+		server_attrs = `${server_attrs} __module={${JSON.stringify(module_url)}}`;
 		if (options.hydrateMargin != null) {
-			server_attrs += ` __hydrateMargin={${JSON.stringify(options.hydrateMargin)}}`;
+			server_attrs = `${server_attrs} __hydrateMargin={${JSON.stringify(options.hydrateMargin)}}`;
 		}
 	}
 	return (
@@ -470,11 +473,11 @@ export function lake_wrapper_source(
 	const needs_endpoint = remount === 'swr';
 	const when = options?.when || (needs_endpoint ? 'load' : undefined);
 	let attrs = `__entry={${JSON.stringify(iid)}} __remount={${JSON.stringify(remount)}}`;
-	if (options?.maxAgeMs != null) attrs += ` __maxAge={${JSON.stringify(options.maxAgeMs)}}`;
-	if (options?.onExpire) attrs += ` __onExpire={${JSON.stringify(options.onExpire)}}`;
+	if (options?.maxAgeMs != null) attrs = `${attrs} __maxAge={${JSON.stringify(options.maxAgeMs)}}`;
+	if (options?.onExpire) attrs = `${attrs} __onExpire={${JSON.stringify(options.onExpire)}}`;
 	if (needs_endpoint) {
-		attrs += ` __when={${JSON.stringify(when || 'load')}} __props={__props}`;
-		if (options?.margin != null) attrs += ` __margin={${JSON.stringify(options.margin)}}`;
+		attrs = `${attrs} __when={${JSON.stringify(when || 'load')}} __props={__props}`;
+		if (options?.margin != null) attrs = `${attrs} __margin={${JSON.stringify(options.margin)}}`;
 	}
 	return (
 		`<script${lang}>\n` +
@@ -555,7 +558,7 @@ export function rewrite_lake_import_to_placeholder(
 			const named = kept.length
 				? `import { ${kept.join(', ')} } from ${JSON.stringify(from)};`
 				: '';
-			return `import ${local} from ${ph};${named ? '\n\t' + named : ''}`;
+			return `import ${local} from ${ph};${named ? `\n\t${named}` : ''}`;
 		}
 	);
 	return src;

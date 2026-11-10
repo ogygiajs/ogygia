@@ -74,9 +74,7 @@ const hasDOM = typeof document !== 'undefined';
 
 	it('stamps regions with signature:fingerprint and keep-chrome by keep name', () => {
 		const b = body(
-			'<ogygia-region entry="./a.js" wake="load"></ogygia-region>' +
-				'<script data-ogygia-props type="application/json">["p",1]</script>' +
-				'<div data-ogygia-keep="side"></div>'
+			`<ogygia-region entry="./a.js" wake="load"></ogygia-region><script data-ogygia-props type="application/json">["p",1]\x3C/script><div data-ogygia-keep="side"></div>`
 		);
 		stamp_region_keys(b);
 		const region = b.querySelector('ogygia-region')!;
@@ -89,9 +87,7 @@ const hasDOM = typeof document !== 'undefined';
 		// The page pass moves island props after the content; the region still fingerprints by its
 		// props text, found by key — not by the (absent) next sibling.
 		const b = body(
-			'<ogygia-region entry="./a.js" data-og-fp="0123456789abcdef"></ogygia-region>' +
-				'<p>lots of content</p>' +
-				'<script type="application/ogygia-props" data-ogygia-props="0123456789abcdef">["p",1]</script>'
+			`<ogygia-region entry="./a.js" data-og-fp="0123456789abcdef"></ogygia-region><p>lots of content</p><script type="application/ogygia-props" data-ogygia-props="0123456789abcdef">["p",1]\x3C/script>`
 		);
 		const region = b.querySelector('ogygia-region')!;
 		expect(region_props_text(region)).toBe('["p",1]');
@@ -101,9 +97,7 @@ const hasDOM = typeof document !== 'undefined';
 
 	it('an unkeyed adjacent sidecar still resolves (holes, tickets, router documents)', () => {
 		const b = body(
-			'<ogygia-region entry="./a.js"></ogygia-region>' +
-				'<link rel="stylesheet" href="/x.css">' +
-				'<script type="application/ogygia-props" data-ogygia-props>["p",2]</script>'
+			`<ogygia-region entry="./a.js"></ogygia-region><link rel="stylesheet" href="/x.css"><script type="application/ogygia-props" data-ogygia-props>["p",2]\x3C/script>`
 		);
 		expect(region_props_text(b.querySelector('ogygia-region')!)).toBe('["p",2]');
 	});
@@ -117,8 +111,7 @@ const hasDOM = typeof document !== 'undefined';
 	it('a KEEP (same props) gets the same key across two renders; a PATCH (changed props) differs', () => {
 		const mk = (seed: string) =>
 			body(
-				'<ogygia-region entry="./a.js"></ogygia-region>' +
-					`<script data-ogygia-props type="application/json">${seed}</script>`
+				`<ogygia-region entry="./a.js"></ogygia-region><script data-ogygia-props type="application/json">${seed}\x3C/script>`
 			);
 		const a = mk('["p",1]');
 		const b = mk('["p",1]');

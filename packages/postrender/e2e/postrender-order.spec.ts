@@ -26,7 +26,7 @@ function serve_build(hooks: string, port: number): Promise<SpawnedServer> {
 		args: ['build/index.js'],
 		cwd: dir,
 		env: { PORT: String(port), ORIGIN: origin, POSTRENDER_HOOKS: hooks },
-		url: origin + '/api/state',
+		url: `${origin}/api/state`,
 		ready: (res) => res.ok
 	});
 }
@@ -37,9 +37,9 @@ test.describe('POSTRENDER handle order: misordered = dev error / production warn
 		const origin = `http://127.0.0.1:${port}`;
 		const srv = await serve_build('misordered', port);
 		try {
-			const r1 = await fetch(origin + '/fr/fr/c/order');
-			const r2 = await fetch(origin + '/fr/fr/c/order');
-			await fetch(origin + '/fr/fr/c/other');
+			const r1 = await fetch(`${origin}/fr/fr/c/order`);
+			const r2 = await fetch(`${origin}/fr/fr/c/order`);
+			await fetch(`${origin}/fr/fr/c/other`);
 			check('prod misordered: the page still answers', r1.status === 200, String(r1.status));
 			check(
 				'prod misordered: stored, then served from the handle’s store',
@@ -62,8 +62,8 @@ test.describe('POSTRENDER handle order: misordered = dev error / production warn
 		const origin = `http://127.0.0.1:${port}`;
 		const srv = await serve_build('missing', port);
 		try {
-			const r1 = await fetch(origin + '/fr/fr/c/order');
-			const r2 = await fetch(origin + '/fr/fr/c/order');
+			const r1 = await fetch(`${origin}/fr/fr/c/order`);
+			const r2 = await fetch(`${origin}/fr/fr/c/order`);
 			check(
 				'prod missing: stored, then served from the memory default',
 				via(r1) === 'stored' && via(r2) === 'hit',
@@ -88,11 +88,11 @@ test.describe('POSTRENDER handle order: misordered = dev error / production warn
 			args: ['--dir', dir, 'dev', '--port', String(port), '--strictPort', '--host', '127.0.0.1'],
 			cwd: dir,
 			env: { POSTRENDER_HOOKS: 'misordered' },
-			url: base + '/api/state',
+			url: `${base}/api/state`,
 			timeout_ms: 120_000
 		});
 		try {
-			const res = await fetch(base + '/fr/fr/c/order');
+			const res = await fetch(`${base}/fr/fr/c/order`);
 			check('dev misordered: the page request fails (500)', res.status === 500, String(res.status));
 			const log = srv.logs.join('');
 			check(

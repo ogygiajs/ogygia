@@ -134,7 +134,7 @@ export function debarrel(
 			if (o.packages.length && matches_any(o.packages, id, spec)) return true;
 			if (o.force.length && matches_any(o.force, id, spec)) return true;
 			// default: any project module that is not a dependency — purity decides the rest
-			return !NODE_MODULES_RE.test(id) && id.startsWith(root + '/');
+			return !NODE_MODULES_RE.test(id) && id.startsWith(`${root}/`);
 		},
 		forced: (id, spec) => o.force.length > 0 && matches_any(o.force, id, spec),
 		kept: (id, spec) => o.keep.length > 0 && matches_any(o.keep, id, spec),
@@ -239,7 +239,7 @@ export function debarrel(
 }
 
 function short(id: string, root: string): string {
-	return id.startsWith(root + '/') ? id.slice(root.length + 1) : id;
+	return id.startsWith(`${root}/`) ? id.slice(root.length + 1) : id;
 }
 
 const n = (v: number) => v.toLocaleString('en-US');

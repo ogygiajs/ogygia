@@ -242,7 +242,7 @@ function literal_value(node: AstNode | null): unknown {
  * value is a build error: it is read at build time, so ogygia could not honour it.
  */
 export function read_route_config(file: string, keys: readonly string[]): Record<string, unknown> {
-	const memo = file + '\0' + keys.join(',');
+	const memo = `${file}\0${keys.join(',')}`;
 	let out = _config_of_file.get(memo);
 	if (!out) _config_of_file.set(memo, (out = read_route_config_uncached(file, keys)));
 	return out;
@@ -338,7 +338,7 @@ export function errorCsrTrueRouteIds(routesDir: string): string[] {
 	for (const page of pageLeaves(routesDir)) {
 		if (own_chain_csr_false(page, routesDir, true)) continue;
 		const rel = path.relative(routesDir, path.dirname(page));
-		const raw = '/' + (rel ? rel.split(path.sep).join('/') : '');
+		const raw = `/${rel ? rel.split(path.sep).join('/') : ''}`;
 		ids.add(normalize_route_id(raw));
 	}
 	return [...ids];
@@ -473,7 +473,7 @@ export function normalize_route_id(id: string): string {
 		.split('/')
 		.filter(Boolean)
 		.filter((s) => !(s.startsWith('(') && s.endsWith(')')));
-	return '/' + segs.join('/');
+	return `/${segs.join('/')}`;
 }
 
 /**
@@ -489,7 +489,7 @@ export function csrTrueRouteIds(routesDir: string): string[] {
 	for (const [dir, is_false] of page_worlds(routesDir)) {
 		if (is_false) continue; // Kit does NOT hydrate → keep islands
 		const rel = path.relative(routesDir, dir);
-		const raw = '/' + (rel ? rel.split(path.sep).join('/') : '');
+		const raw = `/${rel ? rel.split(path.sep).join('/') : ''}`;
 		ids.add(normalize_route_id(raw));
 	}
 	return [...ids];
@@ -550,7 +550,7 @@ function own_chain_config(
 /** A page directory's Kit `route.id`, group-stripped (`normalize_route_id`). */
 function page_route_id(dir: string, routesDir: string): string {
 	const rel = path.relative(routesDir, dir);
-	return normalize_route_id('/' + (rel ? rel.split(path.sep).join('/') : ''));
+	return normalize_route_id(`/${rel ? rel.split(path.sep).join('/') : ''}`);
 }
 
 /** Every page route id (group-stripped) → its merged config, claimed keys only. A key no level sets
@@ -559,7 +559,7 @@ export function page_route_config(
 	routesDir: string,
 	keys: readonly string[]
 ): Record<string, Record<string, unknown>> {
-	const memo = routesDir + '\0' + keys.join(',');
+	const memo = `${routesDir}\0${keys.join(',')}`;
 	let m = _page_config.get(memo);
 	if (!m) {
 		m = {};

@@ -34,7 +34,7 @@ afterEach(() => {
 });
 
 function make_event(path: string): RequestEvent {
-	const url = new URL('http://localhost' + path);
+	const url = new URL(`http://localhost${path}`);
 	return {
 		url,
 		request: new Request(url),

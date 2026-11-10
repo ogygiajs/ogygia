@@ -48,7 +48,7 @@ const short_call = (label: string) => {
 	const m = /^([A-Z]+) (?:https?:\/\/)?([^/?#]+)?(\/[^?#\s]*)?/.exec(label);
 	if (!m) return label.slice(0, 60);
 	const path = m[3] ?? '/';
-	return `${m[1]} ${path.length > 40 ? '…' + path.slice(-38) : path}`;
+	return `${m[1]} ${path.length > 40 ? `…${path.slice(-38)}` : path}`;
 };
 
 export function build_river(input: RiverInput): River {

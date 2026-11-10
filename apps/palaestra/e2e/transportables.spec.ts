@@ -179,7 +179,7 @@ test.describe('static [ogygia.wire] codec: cross-island live object, no leak, al
 
 		// SSR seed: the server builds `new SharedCounter('demo', 5)` and passes it to two islands.
 		// Both render 5 from the wire snapshot — no flicker, no empty first paint.
-		const raw = await (await fetch(baseURL + '/transportable')).text();
+		const raw = await (await fetch(`${baseURL}/transportable`)).text();
 		const ssr = raw.match(SSR_COUNT_RE)?.[1];
 		check('SSR: server-built instance seeds islands (renders 5)', ssr === '5', `count=${ssr}`);
 

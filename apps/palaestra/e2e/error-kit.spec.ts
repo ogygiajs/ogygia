@@ -56,7 +56,7 @@ for (const [path, status] of [
 			page.on('pageerror', (e) => errs.push(e.message));
 			page.on('console', (m) => {
 				if (m.type() === 'error' && !DOCUMENT_STATUS_LOG_RE.test(m.text()))
-					errs.push('console: ' + m.text());
+					errs.push(`console: ${m.text()}`);
 				if (m.type() === 'warning') warns.push(m.text());
 			});
 			await page.goto(path, { waitUntil: 'networkidle' });
@@ -112,7 +112,7 @@ test('control: the csr=false page under the SAME layout stays client-off — lak
 	page,
 	baseURL
 }) => {
-	const html = await (await fetch(baseURL + '/error-kit/')).text();
+	const html = await (await fetch(`${baseURL}/error-kit/`)).text();
 	check('no Kit bootstrap', !KIT_BOOT_RE.test(html));
 	check('no csr meta', !CSR_META_RE.test(html));
 	check('lake renders bare (no frozen region element)', !/wake="none"/.test(html));

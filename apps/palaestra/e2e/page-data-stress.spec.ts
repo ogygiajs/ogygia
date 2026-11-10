@@ -32,7 +32,7 @@ test.describe('ADVERSARIAL streaming: rejection/:catch, nested-promise recursion
 	test('settle path: no crash on a rejected load promise, SETTLED markers, no streaming bootstrap', async ({
 		baseURL
 	}) => {
-		const { status, body } = await raw(baseURL + '/page-data-stress', { accept: 'text/html' }); // no Sec-Fetch-Mode
+		const { status, body } = await raw(`${baseURL}/page-data-stress`, { accept: 'text/html' }); // no Sec-Fetch-Mode
 		check(
 			'settle path: render did NOT crash on a rejected load promise',
 			status === 200,
@@ -60,7 +60,7 @@ test.describe('ADVERSARIAL streaming: rejection/:catch, nested-promise recursion
 		const errors: string[] = [];
 		page.on('pageerror', (e) => errors.push(e.message));
 		page.on('console', (m) => {
-			if (m.type() === 'error') errors.push('console: ' + m.text());
+			if (m.type() === 'error') errors.push(`console: ${m.text()}`);
 		});
 		await page.goto('/page-data-stress', { waitUntil: 'networkidle' });
 		await page.waitForTimeout(250);

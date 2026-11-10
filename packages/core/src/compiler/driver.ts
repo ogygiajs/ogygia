@@ -232,7 +232,7 @@ export function app_shim_for(source: string, shims: Record<string, string>): str
 	let name = source.slice(at + KIT_RUNTIME_APP.length);
 	if (name.endsWith('/index.js')) name = name.slice(0, -'/index.js'.length);
 	else if (name.endsWith('.js')) name = name.slice(0, -'.js'.length);
-	return shims['$app/' + name] ?? null;
+	return shims[`$app/${name}`] ?? null;
 }
 /** Manifest path for a flag site: package-relative for declared surfaces, root-relative else. */
 function flag_site_file(
@@ -802,7 +802,7 @@ export class Compiler {
 				}
 			}
 			for (const ext of ISLAND_DEP_EXTS.slice(1)) {
-				const idx = path.join(base, 'index' + ext);
+				const idx = path.join(base, `index${ext}`);
 				try {
 					if (fs.statSync(idx).isFile()) return idx;
 				} catch {
@@ -985,7 +985,7 @@ export class Compiler {
 			this.runtime_entry_ref = emitFile({
 				type: 'chunk',
 				id: V_RUNTIME_ENTRY,
-				name: RUNTIME_ENTRY_NAME + (feat ? '-' + feat : '')
+				name: RUNTIME_ENTRY_NAME + (feat ? `-${feat}` : '')
 			});
 		}
 		const { region_kinds, by_id, emitted_island_chunks, registry } = this.program;
@@ -1026,7 +1026,7 @@ export class Compiler {
 	} {
 		const islands = new Map<string, string>();
 		const locations: Record<string, string> = {};
-		const served = (file: string) => (file.startsWith('/') ? file : '/' + file);
+		const served = (file: string) => (file.startsWith('/') ? file : `/${file}`);
 		for (const [rid, ref] of this.island_entry_refs) {
 			const file = get_file_name(ref);
 			const identity = this.island_public_url(rid);
@@ -1065,7 +1065,7 @@ export class Compiler {
 		const ours =
 			chunk_name.startsWith(ISLAND_ENTRY_NAME_PREFIX) ||
 			chunk_name === RUNTIME_ENTRY_NAME ||
-			chunk_name.startsWith(RUNTIME_ENTRY_NAME + '-');
+			chunk_name.startsWith(`${RUNTIME_ENTRY_NAME}-`);
 		if (!ours) return null;
 		return `${this.#ctx!.app_dir}/immutable/[name].[hash].js`;
 	}
@@ -1083,7 +1083,7 @@ export class Compiler {
 		const files = location_map_files(ctx.app_dir, pairs, (source) =>
 			createHash('sha256').update(source).digest('hex').slice(0, 12)
 		);
-		this.location_map_url = files.length ? '/' + files[0].fileName : null;
+		this.location_map_url = files.length ? `/${files[0].fileName}` : null;
 		return files;
 	}
 
@@ -1128,7 +1128,7 @@ export class Compiler {
 			// Ensure prescan ran so `runtime_feature_hash` matches the client emit's stable name (both
 			// legs prescan the same source → same feature set → same name).
 			if (!is_dev) this.prescan();
-			const url = is_dev ? '/@id/__x00__' + V_RUNTIME : this.runtime_chunk_url();
+			const url = is_dev ? `/@id/__x00__${V_RUNTIME}` : this.runtime_chunk_url();
 			return `export default ${JSON.stringify(url)};`;
 		}
 		if (id === RESOLVED(V_FN_MANIFEST)) {
@@ -1146,7 +1146,7 @@ export class Compiler {
 					.join('\n');
 			const bridge = `import { __register_fn } from 'ogygia/internal';\nglobalThis.__og_reg_fn = __register_fn;\n`;
 			if (is_dev) return bridge + regs();
-			return bridge + `/*__OGYGIA_FN_MANIFEST__*/`;
+			return `${bridge}/*__OGYGIA_FN_MANIFEST__*/`;
 		}
 		if (id === RESOLVED(V_RUNTIME_ENTRY)) {
 			// Ensure every host was walked (marks complete) before selecting features.
@@ -1210,7 +1210,7 @@ export class Compiler {
 			// Empty in build/preview; vite-dev URL during `vite dev`. Consumed by wrappers
 			// compiled by the app's Vite (not pre-frozen like a package-level import.meta.env).
 			if (!is_dev) return `export default '';`;
-			return `export default ${JSON.stringify('/@id/__x00__' + V_DEV_HMR)};`;
+			return `export default ${JSON.stringify(`/@id/__x00__${V_DEV_HMR}`)};`;
 		}
 		if (id === RESOLVED(V_DEVTOOLS_BOOT)) {
 			// The plugins' browser halves on a csr=true (Kit-owned) page: the ogygia runtime never boots
@@ -1243,7 +1243,7 @@ export class Compiler {
 			// The served URL the handle injects on csr=true pages. Empty in build/preview and with no
 			// plugin's client realm; the vite-dev `/@id/` URL otherwise (dev only).
 			if (!ctx.client_plugins.length || !is_dev) return `export default '';`;
-			return `export default ${JSON.stringify('/@id/__x00__' + V_DEVTOOLS_BOOT)};`;
+			return `export default ${JSON.stringify(`/@id/__x00__${V_DEVTOOLS_BOOT}`)};`;
 		}
 		if (id === RESOLVED(V_ISLAND_DEPS)) {
 			return island_deps_module(ssr, is_dev, path.relative(ctx.root, kit_dirs(ctx.root).out_dir));
@@ -1390,7 +1390,7 @@ export class Compiler {
 			// SSR keeps the real Kit modules (correct server-rendered page.data).
 			if (!ssr) {
 				src = src.replace(APP_SHIM_IMPORT, (_m: string, _q: string, name: string) =>
-					JSON.stringify(ctx.app_shims['$app/' + name])
+					JSON.stringify(ctx.app_shims[`$app/${name}`])
 				);
 				// LAKES: swap each lake import for the render-nothing placeholder so the lake
 				// component's JS is excluded from this island's client chunk. Handles default
@@ -1636,7 +1636,7 @@ export class Compiler {
 	): Promise<string | null> {
 		// One resolution per (importer, specifier) per build: resolution is deterministic within a
 		// build, and every csr=false host and every walked module asks again otherwise.
-		const memo_key = strip_id(importer) + '\n' + source;
+		const memo_key = `${strip_id(importer)}\n${source}`;
 		const memo = this.#resolve_memo.get(memo_key);
 		if (memo !== undefined) return memo;
 		const target = await this.#resolve_local_script_uncached(source, importer, resolve);
@@ -1967,7 +1967,7 @@ export class Compiler {
 			(id_n.endsWith('.svelte') || SCRIPT_MODULE_RE.test(id_n))
 		) {
 			const rewritten = out.replace(APP_SHIM_IMPORT, (_m: string, _q: string, name: string) =>
-				JSON.stringify(ctx.app_shims['$app/' + name])
+				JSON.stringify(ctx.app_shims[`$app/${name}`])
 			);
 			if (rewritten !== out) {
 				out = rewritten;

@@ -30,7 +30,7 @@ type Manifest = {
 
 const pkg_root = path.resolve(process.argv[2] ?? path.join(import.meta.dirname, '..'));
 const fail: string[] = [];
-const note = (m: string) => process.stdout.write(m + '\n');
+const note = (m: string) => process.stdout.write(`${m}\n`);
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'ogygia-verify-'));
 const tarballs: string[] = [];
 
@@ -230,7 +230,7 @@ for (const t of tarballs) fs.rmSync(t, { force: true });
 
 if (fail.length) {
 	note(`\n✗ ${name}: package verification FAILED:`);
-	for (const f of fail) note('  · ' + f);
+	for (const f of fail) note(`  · ${f}`);
 	process.exit(1);
 }
 note(`\n✓ ${name} verified — ${Object.keys(exports).length} exports ship, resolve, and type-check`);

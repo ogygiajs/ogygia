@@ -33,7 +33,7 @@ export type IslandHazard = Hazard & { file: string };
  *  said the same by the profiler's report and the devtools' Page tab */
 export function hazard_words(lines: readonly IslandHazard[]): string {
 	const one = (h: IslandHazard) => {
-		const code = h.code.length > 70 ? h.code.slice(0, 69) + '…' : h.code;
+		const code = h.code.length > 70 ? `${h.code.slice(0, 69)}…` : h.code;
 		const where = `${h.file.split('/').pop()}:${h.line} (\`${code}\`)`;
 		return h.kind === 'await'
 			? `${where} awaits at the top of its script: the browser runs it again, and another answer draws another tree`

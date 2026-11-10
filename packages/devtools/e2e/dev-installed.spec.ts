@@ -208,7 +208,7 @@ test.describe('dev: an installed (not linked) ogygia runs as one copy in the bro
 			'the page loads ogygia’s runtime and its slots from ogygia’s own files',
 			own.some((p) => p.endsWith('/runtime/slots.js')) &&
 				own.some((p) => p.endsWith('/runtime/hydrate-core.js')),
-			own.length + ' files'
+			`${own.length} files`
 		);
 		check(
 			'each ogygia file once',
@@ -224,7 +224,7 @@ test.describe('dev: an installed (not linked) ogygia runs as one copy in the bro
 			.filter(
 				([id, m]) =>
 					['ogygia', '@ogygia/core'].some(
-						(n) => id === n || id.startsWith(n + '/') || id.endsWith(' > ' + n)
+						(n) => id === n || id.startsWith(`${n}/`) || id.endsWith(` > ${n}`)
 					) ||
 					(m.src ?? '').includes('/node_modules/ogygia/') ||
 					(m.src ?? '').includes('/node_modules/@ogygia/core/')

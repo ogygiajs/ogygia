@@ -108,7 +108,7 @@ test.describe('dev HMR venues under csr=false (docs app): page/layout shell full
 				'127.0.0.1'
 			],
 			cwd: root,
-			url: base + '/',
+			url: `${base}/`,
 			timeout_ms: 120_000
 		});
 	});
@@ -118,7 +118,7 @@ test.describe('dev HMR venues under csr=false (docs app): page/layout shell full
 	test('five venues: +page.svelte, +layout.svelte, SideNav.svelte, toc-items.ts, app.css', async ({
 		page
 	}) => {
-		await page.goto(base + '/', { waitUntil: 'networkidle', timeout: 30000 });
+		await page.goto(`${base}/`, { waitUntil: 'networkidle', timeout: 30000 });
 		await sleep(1500);
 
 		const bridge = await page.evaluate(() => ({

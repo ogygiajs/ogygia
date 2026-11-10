@@ -186,8 +186,8 @@ describe('batch / resolve_batch (hub v2 phase B)', () => {
 		resolve({ k: 'test-counter', i: 'b1', d: { v: 1 } }, 'page');
 		resolve({ k: 'test-counter', i: 'b2', d: { v: 1 } }, 'page');
 		const order: string[] = [];
-		const o1 = watch('b1', (l) => order.push('b1=' + (l as { v: number }).v));
-		const o2 = watch('b2', (l) => order.push('b2=' + (l as { v: number }).v));
+		const o1 = watch('b1', (l) => order.push(`b1=${(l as { v: number }).v}`));
+		const o2 = watch('b2', (l) => order.push(`b2=${(l as { v: number }).v}`));
 
 		resolve_batch(
 			[

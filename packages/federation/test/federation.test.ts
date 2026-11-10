@@ -262,9 +262,7 @@ describe('lift_document — an app’s full HTML → the wire shape', () => {
 				'/_app/ogygia/og-region.bbbbbbbbbbbb.js': '/_app/immutable/og-region.bbbbbbbbbbbb.X1.js'
 			}
 		};
-		const body =
-			'<ogygia-region entry="/_app/ogygia/og-region.aaaaaaaaaaaa.js"></ogygia-region>' +
-			`<script type="application/json" data-ogygia-graph>${JSON.stringify(graph)}</script>`;
+		const body = `<ogygia-region entry="/_app/ogygia/og-region.aaaaaaaaaaaa.js"></ogygia-region><script type="application/json" data-ogygia-graph>${JSON.stringify(graph)}\x3C/script>`;
 		const d = lift_document(`<html><head></head><body>${body}</body></html>`, 'http://cms.test');
 		const json = /data-ogygia-graph>([^<]*)</.exec(d.body)![1];
 		expect(JSON.parse(json)).toEqual({

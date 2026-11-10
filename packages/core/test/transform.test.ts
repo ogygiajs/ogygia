@@ -42,7 +42,7 @@ function makeCtx(overrides: Partial<HostCtx> = {}): HostCtx {
 		dev: false,
 		virtualPathFor: (_hostId: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
 		wrapperPathFor: (_hostId: string, iid: string) => wrapperVirtualId(iid),
-		devUrlFor: (p: string) => '/@id/' + p,
+		devUrlFor: (p: string) => `/@id/${p}`,
 		visibleMargin: '0px',
 		presets: {},
 		...overrides
@@ -126,10 +126,10 @@ describe('strategyKey / regionIdentity dedupe', () => {
 describe('foucCssVirtualId', () => {
 	test('builds .js virtual FOUC CSS ids (encoded path)', () => {
 		expect(foucCssVirtualId('src/lib/SideNav.svelte')).toBe(
-			'virtual:ogygia/fouc-css/' + encodeURIComponent('src/lib/SideNav.svelte') + '.js'
+			`virtual:ogygia/fouc-css/${encodeURIComponent('src/lib/SideNav.svelte')}.js`
 		);
 		expect(foucCssVirtualId('src\\routes\\A.svelte')).toBe(
-			'virtual:ogygia/fouc-css/' + encodeURIComponent('src/routes/A.svelte') + '.js'
+			`virtual:ogygia/fouc-css/${encodeURIComponent('src/routes/A.svelte')}.js`
 		);
 		expect(foucCssVirtualId('src/lib/SideNav.svelte').endsWith('.js')).toBe(true);
 	});
@@ -759,14 +759,14 @@ describe('cross-island children (runtime slot crossing)', () => {
 	});
 
 	test('host values referenced by children need no capture wiring (server closure renders them)', () => {
-		const r = run(wrap(LOAD + '\nconst who = "Ada";', '<C><p>{who}</p></C>'))!;
+		const r = run(wrap(`${LOAD}\nconst who = "Ada";`, '<C><p>{who}</p></C>'))!;
 		expect(r.code).not.toMatch(/__ogFv/);
 		expect(r.code).toMatch(/<p>\{who\}<\/p>/);
 	});
 
 	test('a nested marked island inside children keeps its OWN region (wakes independently)', () => {
 		const r = run(
-			wrap(LOAD + `\nimport B from './B.svelte' with { wake: 'load' };`, '<C><B start={5} /></C>')
+			wrap(`${LOAD}\nimport B from './B.svelte' with { wake: 'load' };`, '<C><B start={5} /></C>')
 		)!;
 		expect(r.islands).toHaveLength(2);
 		expect(r.code).toMatch(/<B start=\{5\} \/>/);
@@ -1046,7 +1046,7 @@ describe('package-specifier island marks', () => {
 
 	test('children at the call site stay put — the package island crosses them at runtime', () => {
 		const src = wrap(
-			PKG + `\nimport { Tab } from 'ogygia/content';`,
+			`${PKG}\nimport { Tab } from 'ogygia/content';`,
 			`<TabGroup group="install"><Tab label="npm"><p>x</p></Tab></TabGroup>`
 		);
 		const r = run(src)!;
@@ -1082,7 +1082,7 @@ describe('package-specifier island marks', () => {
 		const src = (host: string) =>
 			transformHost(
 				wrap(
-					PKG + `\nimport { Tab } from 'ogygia/content';`,
+					`${PKG}\nimport { Tab } from 'ogygia/content';`,
 					`<TabGroup group="pm"><Tab label="npm"><p>i</p></Tab></TabGroup>`
 				),
 				host,

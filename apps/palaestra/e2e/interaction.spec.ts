@@ -24,7 +24,7 @@ test.describe("wake:'interaction' — cold until used, click replay, typing surv
 	// hook needs none (only testInfo), so the empty pattern must stay.
 	// oxlint-disable-next-line no-empty-pattern
 	test.beforeAll(async ({}, testInfo) => {
-		raw = await (await fetch(testInfo.project.use.baseURL + '/interaction')).text();
+		raw = await (await fetch(`${testInfo.project.use.baseURL}/interaction`)).text();
 		interaction_entry = raw.match(INTERACTION_ENTRY_RE)?.[1] ?? '';
 		interaction_file = raw.match(INTERACTION_SRC_RE)?.[1] ?? interaction_entry;
 	});
@@ -194,11 +194,11 @@ test.describe("wake:'interaction' — cold until used, click replay, typing surv
 		const entryFile = interaction_file.split('/').pop() ?? '@@none@@';
 		const stableFile = interaction_entry.split('/').pop() ?? '@@none@@';
 		await page.route(
-			(url) => url.pathname.endsWith('/' + entryFile),
+			(url) => url.pathname.endsWith(`/${entryFile}`),
 			(r) => r.abort()
 		);
 		await page.route(
-			(url) => url.pathname.endsWith('/' + stableFile),
+			(url) => url.pathname.endsWith(`/${stableFile}`),
 			(r) => r.abort()
 		);
 		await page.goto('/interaction', { waitUntil: 'networkidle' });

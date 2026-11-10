@@ -15,7 +15,7 @@ function make_event(
 	path: string,
 	init: { method?: string; headers?: Record<string, string> } = {}
 ) {
-	const url = new URL('http://localhost' + path);
+	const url = new URL(`http://localhost${path}`);
 	return {
 		url,
 		request: new Request(url, { method: init.method ?? 'GET', headers: init.headers ?? {} }),

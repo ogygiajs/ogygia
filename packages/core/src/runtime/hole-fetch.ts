@@ -73,7 +73,7 @@ export async function read_hole(
 	// A refused capability is deterministic (its key, its MAC, its id): no retry would differ.
 	if (res.status === 403)
 		throw new RegionAnswerRefused('forbidden', res.url || endpoint, deny_of(res, endpoint));
-	if (!res.ok) throw new Error('status ' + res.status);
+	if (!res.ok) throw new Error(`status ${res.status}`);
 	// 204: the hole said keepFallback() — the page's fallback stands, nothing to swap.
 	if (res.status === 204) return KEEP_FALLBACK_HTML;
 	const text = await res.text();

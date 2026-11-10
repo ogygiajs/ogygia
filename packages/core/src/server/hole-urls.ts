@@ -41,7 +41,7 @@ function resolve_attr(value: string, base: URL): string {
 
 /** Rewrite `name="…"` in `tag` (a word boundary before `name`; every occurrence, or the first). */
 function rewrite_attr(tag: string, name: string, base: URL, all: boolean): string {
-	const needle = name + '="';
+	const needle = `${name}="`;
 	let out = '';
 	let pos = 0;
 	for (let at = tag.indexOf(needle); at !== -1; at = tag.indexOf(needle, at + needle.length)) {
@@ -88,7 +88,7 @@ export function absolutize_hole_html(html: string, base: URL): string {
 		else if (tag.indexOf(REGION_CSS_ATTR) !== -1)
 			next = link
 				? rewrite_attr(tag, 'href', base, false)
-				: tag.indexOf(REGION_CSS_ATTR + '="') !== -1
+				: tag.indexOf(`${REGION_CSS_ATTR}="`) !== -1
 					? rewrite_attr(tag, REGION_CSS_ATTR, base, false)
 					: tag;
 		if (next !== tag) {

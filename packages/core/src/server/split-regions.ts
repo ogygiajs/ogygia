@@ -424,7 +424,7 @@ export function liftRegions(html: string): LiftResult {
 		const innerHtml = html.slice(span.innerStart, span.innerEnd);
 		const closeTag = html.slice(span.innerEnd, span.end);
 		const index = regions.length;
-		shell += html.slice(cursor, span.start) + `<${LIFT_TAG} data-i="${index}"></${LIFT_TAG}>`;
+		shell = `${shell}${html.slice(cursor, span.start)}<${LIFT_TAG} data-i="${index}"></${LIFT_TAG}>`;
 		regions.push(make_region(span.kind, span.attrs, openTag, innerHtml, closeTag, index));
 		cursor = span.end;
 	}

@@ -14,7 +14,7 @@ test('a baked region on a Kit-hydrated page hydrates cleanly, and every island i
 	page,
 	baseURL
 }) => {
-	const raw = await (await fetch(baseURL + '/baked-kit')).text();
+	const raw = await (await fetch(`${baseURL}/baked-kit`)).text();
 	check(
 		'SSR: the region is baked into the page',
 		raw.includes('data-og-baked') && raw.includes('data-bk-title')

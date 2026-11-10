@@ -27,7 +27,7 @@ describe('scanner fallback — when the AST bails on an unparseable tail', () =>
 	it('loaders: fallback finds the call after an unparseable tail, string marker ignored', () => {
 		const src = [
 			`const doc = "import.meta.og.loader.json('fake')";`,
-			`const a = import.meta.og.loader.json('./x/*.json');` + BROKEN
+			`const a = import.meta.og.loader.json('./x/*.json');${BROKEN}`
 		].join('\n');
 		const { code } = rewrite_loaders(src, '/x.ts');
 		expect(code).toContain(`__og_json(import.meta.glob("./x/*.json", { eager: false }))`);
@@ -35,7 +35,7 @@ describe('scanner fallback — when the AST bails on an unparseable tail', () =>
 	});
 
 	it('loaders: a git spec with regex opts survives the fallback path', () => {
-		const src = `const s = import.meta.og.loader.git('o/r:docs', { page: /\\.md$/ });` + BROKEN;
+		const src = `const s = import.meta.og.loader.git('o/r:docs', { page: /\\.md$/ });${BROKEN}`;
 		const { specs } = rewrite_loaders(src, '/x.ts');
 		expect(specs[0]).toMatchObject({ owner: 'o', repo: 'r', sub: 'docs' });
 	});

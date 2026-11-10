@@ -45,12 +45,12 @@ function render(html: string, tag: string, tree: (inner: string) => string): str
 		const inner = html.slice(gt + 1, close);
 		const planned = / og-h="/.test(attrs);
 		let host = attrs;
-		if (planned) host += ` og-shadow="${tag}.shadow" og-keep="data-title"`;
+		if (planned) host = `${host} og-shadow="${tag}.shadow" og-keep="data-title"`;
 		host = /\sclass="/.test(host)
 			? host.replace(/\sclass="([^"]*)"/, ` class="$1 sc-${tag}-h"`)
-			: host + ` class="sc-${tag}-h"`;
-		host += ' data-title="Card"';
-		out += html.slice(at, open) + `<${tag}${host}>` + tree(inner) + `</${tag}>`;
+			: `${host} class="sc-${tag}-h"`;
+		host = `${host} data-title="Card"`;
+		out = `${out}${html.slice(at, open)}<${tag}${host}>${tree(inner)}</${tag}>`;
 		at = close + tag.length + 3;
 	}
 }

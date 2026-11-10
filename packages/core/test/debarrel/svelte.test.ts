@@ -101,9 +101,7 @@ describe('rewrite_svelte', () => {
 		const out = blank_styles(src);
 		expect(out.length).toBe(src.length);
 		expect(out).toContain(`const s = '<style>x{}</style>';`);
-		expect(out).toContain(
-			'<STYLE lang="scss">\n' + ' '.repeat('.a-#{$i} {}'.length) + '\n</STYLE>'
-		);
+		expect(out).toContain(`<STYLE lang="scss">\n${' '.repeat('.a-#{$i} {}'.length)}\n</STYLE>`);
 		expect(out).toContain('<styles-not>keep</styles-not>');
 	});
 

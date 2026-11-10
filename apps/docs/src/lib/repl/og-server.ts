@@ -71,16 +71,14 @@ function render_driver_island(r: ServerRenderer, p: Record<string, unknown>, mod
 		// A server island: the runtime fetches the HTML from its endpoint. The preview serves the inline
 		// SSR as the fallback (a full defer flow needs the fetch intercept — increment 2).
 		r.push(
-			`<ogygia-region render="defer" when="${esc_attr(wake === 'none' ? 'load' : wake)}" ` +
-				`data-og-fp="${fp}" data-obs-real-island data-obs-driver>`
+			`<ogygia-region render="defer" when="${esc_attr(wake === 'none' ? 'load' : wake)}" data-og-fp="${fp}" data-obs-real-island data-obs-driver>`
 		);
 		if (typeof comp === 'function') comp(r, inner);
 		r.push(`</ogygia-region>`);
 		return;
 	}
 	r.push(
-		`<ogygia-slot><ogygia-region entry="${esc_attr('__ISLAND__:' + id)}" wake="${esc_attr(wake)}" ` +
-			`data-og-fp="${fp}" data-obs-real-island data-obs-driver>`
+		`<ogygia-slot><ogygia-region entry="${esc_attr(`__ISLAND__:${id}`)}" wake="${esc_attr(wake)}" data-og-fp="${fp}" data-obs-real-island data-obs-driver>`
 	);
 	if (typeof comp === 'function') comp(r, inner);
 	r.push(`</ogygia-region><script data-ogygia-props>${esc_script(payload)}</script></ogygia-slot>`);

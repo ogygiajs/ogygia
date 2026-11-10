@@ -181,5 +181,5 @@ export async function router_css_module(
 			`register_router_css(__OgRcss${i}, () => islandCss(${JSON.stringify(key)}).map((h) => ({ key: h, href: base + h })));`
 		);
 	}
-	return lines.join('\n') + '\n';
+	return `${lines.join('\n')}\n`;
 }

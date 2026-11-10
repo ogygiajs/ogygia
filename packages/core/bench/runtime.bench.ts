@@ -201,8 +201,8 @@ bench(
 function list(keys: number[]): string {
 	let out = '<ul class="results">';
 	for (const k of keys)
-		out += `<li data-key="r${k}"><a href="/p/${k}">Result ${k}</a><span class="price">${(k * 13) % 997}</span></li>`;
-	return out + '</ul>';
+		out = `${out}<li data-key="r${k}"><a href="/p/${k}">Result ${k}</a><span class="price">${(k * 13) % 997}</span></li>`;
+	return `${out}</ul>`;
 }
 
 bench(

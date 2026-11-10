@@ -19,7 +19,7 @@ describe('RegionStore', () => {
 		expect(store.get(key)).toBeNull();
 		store.set(key, { html: '<h1>hello</h1>' });
 		expect(store.get(key)).toEqual({ html: '<h1>hello</h1>' });
-		expect(fs.existsSync(path.join(tmp, 'docs', key + '.json'))).toBe(true);
+		expect(fs.existsSync(path.join(tmp, 'docs', `${key}.json`))).toBe(true);
 	});
 
 	it('addresses are stable, input-sensitive, and version-sensitive', () => {

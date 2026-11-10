@@ -36,10 +36,7 @@ export interface AkamaiConfig {
 function edgegrid_timestamp(): string {
 	const d = new Date();
 	const pad = (n: number) => String(n).padStart(2, '0');
-	return (
-		`${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}` +
-		`T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}+0000`
-	);
+	return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}+0000`;
 }
 
 const b64_hmac = (key: string | Buffer, data: string) =>
@@ -85,9 +82,7 @@ export class AkamaiEdge implements EdgeAdapter {
 		const payload = JSON.stringify(body);
 		const timestamp = edgegrid_timestamp();
 		const nonce = randomUUID();
-		const auth_prefix =
-			`EG1-HMAC-SHA256 client_token=${config.clientToken};` +
-			`access_token=${config.accessToken};timestamp=${timestamp};nonce=${nonce};`;
+		const auth_prefix = `EG1-HMAC-SHA256 client_token=${config.clientToken};access_token=${config.accessToken};timestamp=${timestamp};nonce=${nonce};`;
 		const url = new URL(this.#api_base + path);
 		// Canonical data: METHOD \t scheme \t host \t path+query \t canonical-headers \t content-hash \t auth
 		const data_to_sign = [

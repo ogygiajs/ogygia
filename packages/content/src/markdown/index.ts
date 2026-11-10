@@ -240,7 +240,7 @@ function transform_islands(content: string, filename: string): string | null {
 function source_line(filename: string): string | null {
 	const base = filename.replace(BACKSLASH_G, '/').split('/').pop() ?? '';
 	if (!base) return null;
-	return `export const __ogygia_source = () => import(${JSON.stringify('./' + base + '?raw')}).then((m) => m.default);`;
+	return `export const __ogygia_source = () => import(${JSON.stringify(`./${base}?raw`)}).then((m) => m.default);`;
 }
 
 /** Inject module-script lines (a `source` export, a slot import) into the compiled module. */
@@ -252,9 +252,9 @@ function inject_module(code: string, lines: string[]): string {
 	const open = MODULE_SCRIPT_OPEN_RE.exec(code);
 	if (open) {
 		const at = open.index + open[0].length;
-		return code.slice(0, at) + '\n' + block + code.slice(at);
+		return `${code.slice(0, at)}\n${block}${code.slice(at)}`;
 	}
-	return `<script context="module">\n${block}\n</script>\n` + code;
+	return `<script context="module">\n${block}\n\x3C/script>\n${code}`;
 }
 
 /**
@@ -414,7 +414,7 @@ export function ogygiaPreprocess(options?: MarkdownOptions): PreprocessorGroup {
 			cfg.transformers.map((t) => t.name ?? '?').join(','),
 			`m${pipeline.meta.length}`,
 			// variant cache_keys are dynamic (a getter that includes the loaded TS version) — read late
-			pipeline.variants.map((g) => g.pref.name + ':' + (g.cache_key ?? '')).join(','),
+			pipeline.variants.map((g) => `${g.pref.name}:${g.cache_key ?? ''}`).join(','),
 			code?.cacheSalt ?? ''
 		].join('\0');
 

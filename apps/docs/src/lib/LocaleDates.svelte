@@ -17,7 +17,7 @@
 		});
 		const root = anchor.closest('.og-doc') ?? document;
 		for (const t of root.querySelectorAll('time.release-date[datetime]')) {
-			const d = new Date((t.getAttribute('datetime') ?? '') + 'T00:00:00');
+			const d = new Date(`${t.getAttribute('datetime') ?? ''}T00:00:00`);
 			if (!Number.isNaN(+d)) t.textContent = fmt.format(d);
 		}
 	}

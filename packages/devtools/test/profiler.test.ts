@@ -231,8 +231,8 @@ describe('analyze', () => {
 			timeDeltas: [1000, 1000, 1000, 1000]
 		};
 		const counts = {
-			['traverse' + NUL + 'file:///app/a.js']: 100,
-			['traverse' + NUL + 'file:///app/b.js']: 700
+			[`traverse${NUL}file:///app/a.js`]: 100,
+			[`traverse${NUL}file:///app/b.js`]: 700
 		};
 		const a = analyze(dup, undefined, counts);
 		const traverses = a.functions.filter((f) => f.name === 'traverse');
@@ -4196,7 +4196,7 @@ describe('the accuracy round: hot lines, server-timing, call paths, cold start, 
 		const url = rec.headers.get('location')!;
 		const json = await (
 			await handle({
-				event: make_event(url.replace('http://localhost', '') + '.json'),
+				event: make_event(`${url.replace('http://localhost', '')}.json`),
 				resolve: async () => new Response('no')
 			})
 		).json();
@@ -4236,7 +4236,7 @@ describe('the accuracy round: hot lines, server-timing, call paths, cold start, 
 		const url = rec.headers.get('location')!;
 		const json = await (
 			await handle({
-				event: make_event(url.replace('http://localhost', '') + '.json'),
+				event: make_event(`${url.replace('http://localhost', '')}.json`),
 				resolve: async () => new Response('no')
 			})
 		).json();
@@ -4270,7 +4270,7 @@ describe('the accuracy round: hot lines, server-timing, call paths, cold start, 
 			const url = res.headers.get('x-profile-report')!;
 			const json = await (
 				await handle({
-					event: make_event(url + '.json', { 'x-profiler-key': 'prof-key' }),
+					event: make_event(`${url}.json`, { 'x-profiler-key': 'prof-key' }),
 					resolve: async () => new Response('no')
 				})
 			).json();
@@ -4974,7 +4974,7 @@ describe('the browser CPU profile and the request replay', () => {
 		});
 		const rt = '/app/.svelte-kit/output/client/_app/immutable/chunks/rt.js';
 		const resolver = sourcemap_resolver((p) =>
-			p === file + '.map' ? map : p === rt + '.map' ? rt_map : undefined
+			p === `${file}.map` ? map : p === `${rt}.map` ? rt_map : undefined
 		);
 		const trace = {
 			resources: [file, rt],
@@ -5136,7 +5136,7 @@ describe('the browser CPU profile and the request replay', () => {
 		const url = rec.headers.get('location')!;
 		const json = await (
 			await handle({
-				event: make_event(url.replace('http://localhost', '') + '.json'),
+				event: make_event(`${url.replace('http://localhost', '')}.json`),
 				resolve: async () => new Response('no')
 			})
 		).json();
@@ -5169,7 +5169,7 @@ describe('the browser CPU profile and the request replay', () => {
 		const url = rec.headers.get('location')!;
 		const json = await (
 			await handle({
-				event: make_event(url.replace('http://localhost', '') + '.json'),
+				event: make_event(`${url.replace('http://localhost', '')}.json`),
 				resolve: async () => new Response('no')
 			})
 		).json();
@@ -5214,7 +5214,7 @@ describe('the browser CPU profile and the request replay', () => {
 		expect(res.status).toBe(303);
 		const again = await (
 			await handle({
-				event: make_event(res.headers.get('location')!.replace('http://localhost', '') + '.json'),
+				event: make_event(`${res.headers.get('location')!.replace('http://localhost', '')}.json`),
 				resolve: async () => new Response('no')
 			})
 		).json();
@@ -5229,7 +5229,7 @@ describe('the browser CPU profile and the request replay', () => {
 		// the report links it
 		const first = await (
 			await handle({
-				event: make_event(report_url + '.json'),
+				event: make_event(`${report_url}.json`),
 				resolve: async () => new Response('no')
 			})
 		).json();
@@ -5405,7 +5405,7 @@ describe('span + tag (ogygia/profiler)', () => {
 				]
 			}
 		);
-		expect(t.segments.map((s) => `${s.kind}:${s.label}${s.within ? ' @' + s.within : ''}`)).toEqual(
+		expect(t.segments.map((s) => `${s.kind}:${s.label}${s.within ? ` @${s.within}` : ''}`)).toEqual(
 			[
 				'wait:in db.rows @db.rows',
 				'wait:GET api/x @db.rows',
@@ -5611,8 +5611,7 @@ describe('span + tag (ogygia/profiler)', () => {
 		expect(repeats[1].fix).toMatch(/batch/);
 		// forty at once over 100 ms: each one's fair part is 2.5 ms, not its 100 ms start-to-end
 		expect(repeats[0].message).toBe(
-			'ds.render ran 20 times in one render (processTags (lib/ds.ts:9)), up to 40 at once, and together they took 50.0 ms. ' +
-				"Each one's part of that is about 2.50 ms; its own start to end (100 ms) is mostly waiting its turn behind the others."
+			`ds.render ran 20 times in one render (processTags (lib/ds.ts:9)), up to 40 at once, and together they took 50.0 ms. Each one's part of that is about 2.50 ms; its own start to end (100 ms) is mostly waiting its turn behind the others.`
 		);
 		expect(repeats[0].fix).toMatch(/already overlap/);
 		const rows = span_rows(spans);
@@ -5707,10 +5706,7 @@ describe('standalone HTML export', () => {
 			'/_app/immutable/chunks/b.js': 'export const y=2;',
 			'/_app/immutable/og-region.island.js': 'import{y}from"./chunks/b.js";export default y;'
 		};
-		const html =
-			'<html><head><link rel="stylesheet" href="../../_app/immutable/assets/report.css"><link rel="modulepreload" href="../../_app/immutable/chunks/a.js">' +
-			'<script type="module" data-ogygia-runtime src="/_app/immutable/og-runtime.abc.js"></script></head>' +
-			'<body><ogygia-region entry="../../_app/immutable/og-region.island.js" wake="load">hi</ogygia-region></body></html>';
+		const html = `<html><head><link rel="stylesheet" href="../../_app/immutable/assets/report.css"><link rel="modulepreload" href="../../_app/immutable/chunks/a.js"><script type="module" data-ogygia-runtime src="/_app/immutable/og-runtime.abc.js">\x3C/script></head><body><ogygia-region entry="../../_app/immutable/og-region.island.js" wake="load">hi</ogygia-region></body></html>`;
 		const out = await build_standalone(html, {
 			page_url: 'http://h/__profiler/report/abc',
 			load: async (url) => files[new URL(url).pathname] ?? null
@@ -5752,9 +5748,7 @@ describe('standalone HTML export', () => {
 			'/_app/immutable/og-region.aaaaaaaaaaaa.X1y2.js': 'export default 1;'
 		};
 		const asked: string[] = [];
-		const html =
-			'<html><head><script type="module" data-ogygia-runtime src="/_app/immutable/og-runtime.abc.js"></script></head>' +
-			'<body><ogygia-region entry="/_app/ogygia/og-region.aaaaaaaaaaaa.js" wake="load" src="/_app/immutable/og-region.aaaaaaaaaaaa.X1y2.js">hi</ogygia-region></body></html>';
+		const html = `<html><head><script type="module" data-ogygia-runtime src="/_app/immutable/og-runtime.abc.js">\x3C/script></head><body><ogygia-region entry="/_app/ogygia/og-region.aaaaaaaaaaaa.js" wake="load" src="/_app/immutable/og-region.aaaaaaaaaaaa.X1y2.js">hi</ogygia-region></body></html>`;
 		const out = await build_standalone(html, {
 			page_url: 'http://h/__profiler/report/abc',
 			load: async (url) => (asked.push(new URL(url).pathname), files[new URL(url).pathname] ?? null)
@@ -5984,7 +5978,7 @@ describe('analyze_heap', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function make_event(path: string, headers: Record<string, string> = {}): RequestEvent {
-	const url = new URL('http://localhost' + path);
+	const url = new URL(`http://localhost${path}`);
 	return {
 		url,
 		request: new Request(url, { headers }),
@@ -6242,7 +6236,7 @@ describe('profiler handle', () => {
 		expect(ok.status).toBe(204);
 		const json = await (
 			await handle({
-				event: make_event(report_url + '.json'),
+				event: make_event(`${report_url}.json`),
 				resolve: async () => new Response('no')
 			})
 		).json();
@@ -6391,7 +6385,7 @@ describe('the deep pictures on the host: visits, keep, the byte strip, nested tr
 		const url = rec.headers.get('location')!;
 		const json = await (
 			await handle({
-				event: make_event(url.replace('http://localhost', '') + '.json'),
+				event: make_event(`${url.replace('http://localhost', '')}.json`),
 				resolve: async () => new Response('no')
 			})
 		).json();
@@ -6414,11 +6408,7 @@ describe('the deep pictures on the host: visits, keep, the byte strip, nested tr
 
 	it('/page?format=keep answers the dump for the browser to keep, with the byte strip of the rendered document', async () => {
 		const handle = profiler({ secret: 'prof-key' });
-		const doc =
-			'<!doctype html><html><head><title>d</title><style>.x{}</style></head><body><p>hi</p>' +
-			'<ogygia-region data-og-fp="0000aaaa1111bbbb" entry="/_app/x.js"><b>i</b></ogygia-region>' +
-			'<script type="application/ogygia-page">{"data":{"products":[1,2,3],"flags":{"a":true}}}</script>' +
-			'<script type="application/ogygia-props" data-ogygia-props>[]</script></body></html>';
+		const doc = `<!doctype html><html><head><title>d</title><style>.x{}</style></head><body><p>hi</p><ogygia-region data-og-fp="0000aaaa1111bbbb" entry="/_app/x.js"><b>i</b></ogygia-region><script type="application/ogygia-page">{"data":{"products":[1,2,3],"flags":{"a":true}}}\x3C/script><script type="application/ogygia-props" data-ogygia-props>[]\x3C/script></body></html>`;
 		// the page profile renders through event.fetch (Kit's internal render), not resolve
 		const ev = make_event('/__profiler/page?p=/deep&runs=2&cold=0&format=keep');
 		(ev as { fetch: unknown }).fetch = async () =>
@@ -6711,7 +6701,7 @@ describe('a visit posted in halves', () => {
 		});
 		const dump = await (
 			await handle({
-				event: make_event(rec.headers.get('location')!.replace('http://localhost', '') + '.dump'),
+				event: make_event(`${rec.headers.get('location')!.replace('http://localhost', '')}.dump`),
 				resolve: async () => new Response('no')
 			})
 		).json();
@@ -6729,7 +6719,7 @@ describe('a visit posted in halves', () => {
 		});
 		const json = await (
 			await handle({
-				event: make_event(rec2.headers.get('location')!.replace('http://localhost', '') + '.json'),
+				event: make_event(`${rec2.headers.get('location')!.replace('http://localhost', '')}.json`),
 				resolve: async () => new Response('no')
 			})
 		).json();
@@ -6747,7 +6737,7 @@ describe('who caused the GC, on the host', () => {
 				// (a zero-filled array, then mapped: two allocations per chunk, with `map` on the stack)
 				const chunk = Array.from({ length: 1024 * 128 }, () => 0).map((_, j) => ({
 					j,
-					s: 'x' + j
+					s: `x${j}`
 				}));
 				n += chunk.length;
 			}
@@ -6763,7 +6753,7 @@ describe('who caused the GC, on the host', () => {
 		const rec = await handle({ event: ev, resolve: async () => new Response('no') });
 		const json = await (
 			await handle({
-				event: make_event(rec.headers.get('location')!.replace('http://localhost', '') + '.json'),
+				event: make_event(`${rec.headers.get('location')!.replace('http://localhost', '')}.json`),
 				resolve: async () => new Response('no')
 			})
 		).json();
@@ -6829,12 +6819,12 @@ describe('the profiler’s own cost is taken out', () => {
 		const ev = make_event('/__profiler/page?p=/o&runs=2&cold=0');
 		(ev as { fetch: unknown }).fetch = async () => {
 			const junk = Array.from({ length: 200_000 }, (_, i) => ({ i }));
-			return new Response('<html>' + junk.length + '</html>');
+			return new Response(`<html>${junk.length}</html>`);
 		};
 		const rec = await handle({ event: ev, resolve: async () => new Response('no') });
 		const json = await (
 			await handle({
-				event: make_event(rec.headers.get('location')!.replace('http://localhost', '') + '.json'),
+				event: make_event(`${rec.headers.get('location')!.replace('http://localhost', '')}.json`),
 				resolve: async () => new Response('no')
 			})
 		).json();
@@ -6970,14 +6960,14 @@ describe('more from the same snapshot, on the host', () => {
 		const ev = make_event('/__profiler/page?p=/keep&runs=2&cold=0');
 		(ev as { fetch: unknown }).fetch = async () => {
 			for (let i = 0; i < 2000; i++) await Promise.resolve(i); // a small promise storm
-			const rows = Array.from({ length: 20_000 }, (_, i) => ({ i, s: 'row ' + i }));
+			const rows = Array.from({ length: 20_000 }, (_, i) => ({ i, s: `row ${i}` }));
 			kept.push(rows); // ~1 MB kept per render
-			return new Response('<html>' + rows.length + '</html>');
+			return new Response(`<html>${rows.length}</html>`);
 		};
 		const rec = await handle({ event: ev, resolve: async () => new Response('no') });
 		const json = await (
 			await handle({
-				event: make_event(rec.headers.get('location')!.replace('http://localhost', '') + '.json'),
+				event: make_event(`${rec.headers.get('location')!.replace('http://localhost', '')}.json`),
 				resolve: async () => new Response('no')
 			})
 		).json();

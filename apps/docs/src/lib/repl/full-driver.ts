@@ -283,7 +283,7 @@ export class ReplDriver {
 		host_rel: string
 	): Promise<DriverResult> {
 		this.#files = files;
-		const host_id = '/repl/' + host_rel.replace(/^\/+/, '');
+		const host_id = `/repl/${host_rel.replace(/^\/+/, '')}`;
 		const src = files[host_rel] ?? '';
 		// the REPL writes no bundle: an emitted island entry gets no reference id
 		const emitFile = () => '';
@@ -339,7 +339,7 @@ export class ReplDriver {
 		host_rel: string
 	): Promise<{ ssr: string | null; regions: DriverRegion[]; error?: string }> {
 		this.#files = files;
-		const host_id = '/repl/' + host_rel.replace(/^\/+/, '');
+		const host_id = `/repl/${host_rel.replace(/^\/+/, '')}`;
 		const src = files[host_rel] ?? '';
 		try {
 			const compiler = new Compiler(new Program({ forms: true, router: true }), {

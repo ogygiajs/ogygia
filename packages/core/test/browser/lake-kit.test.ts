@@ -30,11 +30,7 @@ test('Kit hydration adopts the lake verbatim; the island inside wakes on the run
 	try {
 		// Kit's bootstrap (the inline `__sveltekit_… =` assignment) is what marks a document as
 		// Kit-hydrated on the client, for Region's `is_csr` and the runtime's guards alike.
-		document.body.innerHTML =
-			'<script>__sveltekit_lab = {};</script>' +
-			'<div data-mount>' +
-			inject_html('lake_kit_ssr_b64') +
-			'</div>';
+		document.body.innerHTML = `<script>__sveltekit_lab = {};\x3C/script><div data-mount>${inject_html('lake_kit_ssr_b64')}</div>`;
 		const mount = document.querySelector('[data-mount]') as HTMLElement;
 		const lake = document.querySelector(LAKE);
 		const frozen = document.querySelector('[data-frozen]');
@@ -78,11 +74,7 @@ test('Kit hydration adopts the lake verbatim; the island inside wakes on the run
 // SSR children when the lake first connected, so the fresh vacant element repaints from that copy,
 // and the island authored inside reconnects and wakes again.
 test('a lake re-created empty after a Kit hydration failure is repainted from its server HTML; its island wakes again', async () => {
-	document.body.innerHTML =
-		'<script>__sveltekit_lab = {};</script>' +
-		'<div data-mount>' +
-		inject_html('lake_kit_ssr_b64') +
-		'</div>';
+	document.body.innerHTML = `<script>__sveltekit_lab = {};\x3C/script><div data-mount>${inject_html('lake_kit_ssr_b64')}</div>`;
 	const mount = document.querySelector('[data-mount]') as HTMLElement;
 	const lake_id = document.querySelector(LAKE)!.getAttribute('entry')!;
 	const app = hydrate(LakeKitHost, { target: mount });

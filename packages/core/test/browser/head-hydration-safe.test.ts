@@ -15,14 +15,7 @@ const HASH = 'svelte-1abc23';
  *  Svelte SSR emitted (`<!--HASH-->` …content… `<!---->`), and — since this is what actually breaks —
  *  a foreign node a third party injected INTO that block's range after SSR. */
 function seed_head(): void {
-	document.head.innerHTML =
-		'<meta charset="utf-8">' +
-		`<!--${HASH}-->` +
-		'<link rel="preload" href="/hero.avif" as="image">' +
-		'<script data-foreign-inject>/* a monitoring / design-system inject landed here */</script>' +
-		'<!---->' +
-		'<!-- a lone third-party comment, not a svelte marker -->' +
-		'<title>Page</title>';
+	document.head.innerHTML = `<meta charset="utf-8"><!--${HASH}--><link rel="preload" href="/hero.avif" as="image"><script data-foreign-inject>/* a monitoring / design-system inject landed here */\x3C/script><!----><!-- a lone third-party comment, not a svelte marker --><title>Page</title>`;
 }
 
 const head_comments = () =>

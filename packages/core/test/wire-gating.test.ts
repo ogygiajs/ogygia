@@ -44,7 +44,7 @@ const ctx = {
 	dev: false,
 	virtualPathFor: (_h: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
 	wrapperPathFor: (_h: string, iid: string) => wrapperVirtualId(iid),
-	devUrlFor: (p: string) => '/@id/' + p,
+	devUrlFor: (p: string) => `/@id/${p}`,
 	visibleMargin: '0px',
 	presets: {},
 	importKeys: normalize_import_keys(undefined),

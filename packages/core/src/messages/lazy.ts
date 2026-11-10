@@ -13,7 +13,7 @@ type Own = { OgygiaError: typeof CoreError; warn: typeof core_warn };
 const own = (): Own | undefined =>
 	slots.boot ??
 	(globalThis as unknown as Record<symbol, Own | undefined>)[Symbol.for('ogygia.messages')];
-const link = (code: string) => '[ogygia] https://ogygiajs.dev/e/' + code;
+const link = (code: string) => `[ogygia] https://ogygiajs.dev/e/${code}`;
 
 export const OgygiaError: typeof CoreError = function (code: string, a?: unknown) {
 	const m = own();

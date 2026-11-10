@@ -23,7 +23,7 @@ test.describe('batch frame stream: one response, a frame per call (nav OOO)', ()
 		baseURL
 	}) => {
 		// A page with multiple distinct deferred regions (different props ⇒ different calls).
-		const html = await (await fetch(baseURL + '/frame-batch')).text();
+		const html = await (await fetch(`${baseURL}/frame-batch`)).text();
 		const endpoints = [
 			...new Set([...html.matchAll(REGION_ENDPOINT_G_RE)].map((m) => unentity(m[1])))
 		];
@@ -33,8 +33,7 @@ test.describe('batch frame stream: one response, a frame per call (nav OOO)', ()
 
 		const q = endpoints[0].indexOf('?');
 		// Endpoints are page-relative ("./__ogygia__?…"); make an absolute path for node fetch.
-		const path =
-			'/' + (q === -1 ? endpoints[0] : endpoints[0].slice(0, q)).replace(LEADING_DOTS_RE, '');
+		const path = `/${(q === -1 ? endpoints[0] : endpoints[0].slice(0, q)).replace(LEADING_DOTS_RE, '')}`;
 
 		const res = await fetch(baseURL + path, {
 			method: 'POST',

@@ -68,7 +68,7 @@ export async function run_browser_macros(
 	// The plugins' macros (content's `code` / `md`: an inline pure-HTML region baked through the app's
 	// own Shiki fence + mdsvex pipeline). Same order as the build's pipeline.
 	for (const macro of macros) {
-		if (!out.includes('import.meta.og.' + macro.name)) continue;
+		if (!out.includes(`import.meta.og.${macro.name}`)) continue;
 		const rewritten = await macro.handler(out, { id, rel: id, root: '/', markupExts: MARKUP_EXTS });
 		if (rewritten !== out) {
 			out = rewritten;

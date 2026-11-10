@@ -55,7 +55,7 @@ const ctx = {
 	dev: false,
 	virtualPathFor: (_h: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
 	wrapperPathFor: (_h: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
-	devUrlFor: (p: string) => '/@id/' + p,
+	devUrlFor: (p: string) => `/@id/${p}`,
 	visibleMargin: '0px',
 	presets: {}
 };

@@ -309,7 +309,7 @@ export function phase_of_stack(frames: FrameInfo[], hooks?: ReadonlyMap<string, 
 
 /** does `url` name a file whose stem is `stem` (`…/ds-ssr.ts`, `…/ds-ssr.js`, `ds-ssr.ts`)? */
 function is_in_file(url: string, stem: string): boolean {
-	const at = url.lastIndexOf(stem + '.');
+	const at = url.lastIndexOf(`${stem}.`);
 	if (at === -1) return false;
 	const before = url.charCodeAt(at - 1);
 	return at === 0 || before === 47 /* / */ || before === 92; /* \ */
@@ -985,7 +985,7 @@ export function coalesce(
 		>();
 		const kind_ms = { cpu: 0, wait: 0, gap: 0 };
 		for (const s of list) {
-			const k = s.kind + '\0' + s.label;
+			const k = `${s.kind}\0${s.label}`;
 			const e = by.get(k) ?? { label: s.label, kind: s.kind, ms: 0, seg: s };
 			e.ms += len(s);
 			by.set(k, e);
@@ -1067,10 +1067,10 @@ export function coalesce(
 export function label_call(method: string, url: string): string {
 	try {
 		const u = new URL(url);
-		const p = u.pathname.length > 40 ? u.pathname.slice(0, 37) + '…' : u.pathname;
+		const p = u.pathname.length > 40 ? `${u.pathname.slice(0, 37)}…` : u.pathname;
 		return `${method} ${u.host}${p}`;
 	} catch {
-		return `${method} ${url.length > 48 ? url.slice(0, 45) + '…' : url}`;
+		return `${method} ${url.length > 48 ? `${url.slice(0, 45)}…` : url}`;
 	}
 }
 

@@ -13,7 +13,7 @@
 	});
 
 	const pretty = (iso: string) =>
-		new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US', {
+		new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-US', {
 			month: 'short',
 			day: 'numeric',
 			timeZone: 'UTC'

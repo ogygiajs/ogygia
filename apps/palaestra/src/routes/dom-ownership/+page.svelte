@@ -5,12 +5,7 @@
 	import Search from '$lib/ownership/Search.svelte' with { wake: 'interaction' };
 
 	// (the closing tag is split so it does not end this component's own <script> block)
-	const define_widget =
-		'<script>addEventListener("load",()=>setTimeout(()=>customElements.define("x-guided-e2e",class extends HTMLElement{' +
-		'connectedCallback(){if(this.querySelector(":scope>.p"))return;' +
-		'this.prepend(Object.assign(document.createElement("div"),{className:"p"}));' +
-		'this.append(Object.assign(document.createElement("div"),{className:"q"}));}}),50));</' +
-		'script>';
+	const define_widget = `<script>addEventListener("load",()=>setTimeout(()=>customElements.define("x-guided-e2e",class extends HTMLElement{connectedCallback(){if(this.querySelector(":scope>.p"))return;this.prepend(Object.assign(document.createElement("div"),{className:"p"}));this.append(Object.assign(document.createElement("div"),{className:"q"}));}}),50));\x3C/script>`;
 </script>
 
 <svelte:head>{@html define_widget}</svelte:head>

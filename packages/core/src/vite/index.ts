@@ -513,7 +513,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					page_files = resolved.page_modules.files.map(real_posix);
 					for (const p of resolved.files)
 						if (!pkg_scan.some((s) => s.name === p.name)) {
-							plugin_file_roots.push(real_posix(p.root) + '/');
+							plugin_file_roots.push(`${real_posix(p.root)}/`);
 							pkg_scan.push({
 								name: p.name,
 								root: real_posix(p.root),
@@ -1053,7 +1053,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// time, so any style-bearing source change must invalidate it — the next SSR re-emits
 				// with fresh css. Cheap (module-graph lookup), so no root-membership check.
 				if (STYLE_BEARING_FILE_RE.test(file)) {
-					const mod = server.moduleGraph.getModuleById('\0' + V_ROUTER_CSS);
+					const mod = server.moduleGraph.getModuleById(`\0${V_ROUTER_CSS}`);
 					if (mod) server.moduleGraph.invalidateModule(mod);
 				}
 
@@ -1063,7 +1063,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				//    join event instead; each open page joins ONLY css its own route scope imports, so the
 				//    `(docs)` and `playground` sub-apps can never paint each other in dev.
 				if (DEV_CSS_FILE_RE.test(file) && !file.includes('/node_modules/')) {
-					const src_prefix = path.join(root, 'src') + path.sep;
+					const src_prefix = `${path.join(root, 'src')}${path.sep}`;
 					if (path.normalize(file).startsWith(src_prefix)) {
 						const envs = (
 							server as unknown as {
@@ -1084,7 +1084,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 								envs?.ssr?.moduleGraph,
 								client_graph
 							]);
-							const web_path = '/' + path.relative(root, file).split(path.sep).join('/');
+							const web_path = `/${path.relative(root, file).split(path.sep).join('/')}`;
 							server.ws.send({
 								type: 'custom',
 								event: 'ogygia:css',
@@ -1406,7 +1406,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						const manifest = flags_manifest(program.flag_sites);
 						fs.writeFileSync(
 							path.join(dir, 'flags-manifest.json'),
-							JSON.stringify(manifest, null, '\t') + '\n'
+							`${JSON.stringify(manifest, null, '\t')}\n`
 						);
 						console.log(line('flags_manifest_written', { count: manifest.names.length }));
 					} catch {
@@ -1476,7 +1476,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				for (const [key, ref] of router_css_refs) {
 					try {
 						const file = this.getFileName(ref);
-						map.css[key] = [file.startsWith('/') ? file : '/' + file];
+						map.css[key] = [file.startsWith('/') ? file : `/${file}`];
 					} catch {
 						// ok: an asset the bundle dropped: the page goes unstyled rather than link a 404
 					}
@@ -1489,7 +1489,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					try {
 						const file = this.getFileName(ref);
 						const key = compiler.island_public_url(iid);
-						(map.css[key] ??= []).push(file.startsWith('/') ? file : '/' + file);
+						(map.css[key] ??= []).push(file.startsWith('/') ? file : `/${file}`);
 					} catch {
 						// ok: an asset the bundle dropped: the hole goes unstyled rather than link a 404
 					}
@@ -1504,7 +1504,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				for (const [key, ref] of content_css_refs) {
 					try {
 						const file = this.getFileName(ref);
-						content_css[key] = [file.startsWith('/') ? file : '/' + file];
+						content_css[key] = [file.startsWith('/') ? file : `/${file}`];
 					} catch {
 						// ok: an asset the bundle dropped: the body goes unstyled rather than link a 404
 					}
@@ -1555,7 +1555,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							}
 						}
 						if (found.length)
-							barrels['/' + (chunk.fileName || key)] = found
+							barrels[`/${chunk.fileName || key}`] = found
 								.sort((a, b) => b.fanout - a.fanout)
 								.slice(0, 3);
 					}

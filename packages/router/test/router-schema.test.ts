@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { routes, page, POST, type StandardSchemaV1 } from '../src/index.ts';
 import type { Component } from 'svelte';
 
-const req = (path: string, init?: RequestInit) => new Request('http://x' + path, init);
+const req = (path: string, init?: RequestInit) => new Request(`http://x${path}`, init);
 
 /** `{ n: number }` coerced — body values arrive parsed; a bad `n` yields issues. */
 const NumBody: StandardSchemaV1<{ n: number }> = {

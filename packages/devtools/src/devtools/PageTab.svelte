@@ -113,12 +113,12 @@
 
 	const kb = (/** @type {number} */ n) =>
 		n < 1024
-			? n + ' B'
+			? `${n} B`
 			: n < 1048576
-				? (n / 1024).toFixed(1) + ' KB'
-				: (n / 1048576).toFixed(2) + ' MB';
+				? `${(n / 1024).toFixed(1)} KB`
+				: `${(n / 1048576).toFixed(2)} MB`;
 	const ms = (/** @type {number} */ n) =>
-		n >= 1000 ? (n / 1000).toFixed(2) + ' s' : Math.round(n) + ' ms';
+		n >= 1000 ? `${(n / 1000).toFixed(2)} s` : `${Math.round(n)} ms`;
 
 	function el_of(/** @type {string} */ fp) {
 		return document.querySelector(`ogygia-region[data-og-fp="${fp}"]`);

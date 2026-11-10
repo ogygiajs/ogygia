@@ -77,7 +77,7 @@ export const V_TRANSPORTABLES_EAGER = 'virtual:ogygia/transportables-eager';
 export const V_ROUTE_CONFIG = 'virtual:ogygia/route-config';
 
 /** Resolve a virtual id to its `\0`-prefixed resolved form (Vite/rollup convention). */
-export const RESOLVED = (id: string): string => '\0' + id;
+export const RESOLVED = (id: string): string => `\0${id}`;
 
 /** Virtual island ENTRY module id — JS re-export of the real component (not a thin .svelte). */
 export const islandVirtualId = (iid: string) => `virtual:ogygia/island/${iid}.js`;

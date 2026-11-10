@@ -97,7 +97,7 @@ let pressed = 0;
 // as an unhandled "Failed to fetch", and the profiler never got the page's browser side)
 {
 	const e0 = errors.length;
-	await page.goto(base + '/dt-many', { waitUntil: 'load' });
+	await page.goto(`${base}/dt-many`, { waitUntil: 'load' });
 	await page.waitForTimeout(2500);
 	const timing = await page.evaluate(async (tabs) => {
 		const root = () => document.querySelector('[data-ogygia-devtools-host]')?.shadowRoot;

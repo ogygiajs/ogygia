@@ -25,7 +25,7 @@ describe('island_host_loaded', () => {
 	it('emits an island whose host the server leg transformed', () => {
 		expect(island_host_loaded(join(root, 'src/routes/+page.svelte'), loaded)).toBe(true);
 		// ids may carry a query / be unnormalised — same key rule as the registry
-		expect(island_host_loaded(join(root, 'src/lib/Host.svelte') + '?og-region', loaded)).toBe(true);
+		expect(island_host_loaded(`${join(root, 'src/lib/Host.svelte')}?og-region`, loaded)).toBe(true);
 	});
 
 	it('skips an island whose host nothing in the server bundle imports', () => {

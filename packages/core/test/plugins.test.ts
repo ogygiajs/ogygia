@@ -119,7 +119,7 @@ describe('realms, named by the plugin', () => {
 			resolve_plugins([def({ name: '@ogygia/flags', server: './server.ts' })], APP, true)
 		).toThrow(/is not a file/);
 		expect(() =>
-			resolve_plugins([def({ name: '@ogygia/flags', server: FLAGS_SERVER + '.nope' })], APP, true)
+			resolve_plugins([def({ name: '@ogygia/flags', server: `${FLAGS_SERVER}.nope` })], APP, true)
 		).toThrow(/is not a file/);
 		expect(() => check_plugins([{ name: 'a', server: 1 }])).toThrow(/module location/);
 	});
@@ -206,7 +206,7 @@ describe('shared hooks — notify / ask', () => {
 		const seen: string[][] = [];
 		const leave_a = register_hooks({ invalidate: (tags: string[]) => void seen.push(tags) });
 		const leave_b = register_hooks({
-			invalidate: (tags: string[]) => void seen.push(tags.map((t) => t + '!')),
+			invalidate: (tags: string[]) => void seen.push(tags.map((t) => `${t}!`)),
 			lastBuild: () => 'v1'
 		});
 		const leave_c = register_hooks({ lastBuild: () => 'v2' });

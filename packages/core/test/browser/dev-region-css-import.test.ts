@@ -16,17 +16,13 @@ const MARKER_MODULE = '/test/browser/fixtures/dev-css-marker.ts';
 // cache hit re-runs no side effect). Each test that must observe "imported or not" mints its own
 // fresh module; the `tag` comment makes the url unique.
 const marker_module = (tag: string) =>
-	'data:text/javascript,' +
-	encodeURIComponent(
+	`data:text/javascript,${encodeURIComponent(
 		`/* ${tag} */ document.documentElement.setAttribute('data-og-dev-css-marker', '1');`
-	);
+	)}`;
 
-const MODULE =
-	'data:text/javascript,' +
-	encodeURIComponent(
-		"const s=document.createElement('style');s.setAttribute('data-og-dev-probe','');" +
-			"s.textContent='.og-dev-probe{color:rgb(0, 128, 0)}';document.head.appendChild(s);"
-	);
+const MODULE = `data:text/javascript,${encodeURIComponent(
+	`const s=document.createElement('style');s.setAttribute('data-og-dev-probe','');s.textContent='.og-dev-probe{color:rgb(0, 128, 0)}';document.head.appendChild(s);`
+)}`;
 
 function css_link(href: string): void {
 	const l = document.createElement('link');

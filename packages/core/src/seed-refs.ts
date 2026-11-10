@@ -82,8 +82,8 @@ const leaf_text = (v: unknown): string =>
 		: v === null
 			? 'n'
 			: v instanceof Date
-				? 'd' + v.getTime()
-				: typeof v + ':' + String(v);
+				? `d${v.getTime()}`
+				: `${typeof v}:${String(v)}`;
 
 /**
  * Post-order structural hash + byte estimate of a plain subtree. `null` when the subtree is not
@@ -114,7 +114,7 @@ function hash_subtree(
 				ok = false;
 				break;
 			}
-			acc += '|' + h.hash;
+			acc = `${acc}|${h.hash}`;
 			bytes += h.bytes + 1;
 		}
 	} else {
@@ -124,7 +124,7 @@ function hash_subtree(
 				ok = false;
 				break;
 			}
-			acc += '|' + key + '=' + h.hash;
+			acc = `${acc}|${key}=${h.hash}`;
 			bytes += key.length + h.bytes + 3;
 		}
 	}

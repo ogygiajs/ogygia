@@ -269,7 +269,7 @@ describe('compare: hydration, session counts, vitals', () => {
 		({
 			kind: 'hydration',
 			measured: true,
-			islands: islands.map((i, n) => ({ fp: 'f' + n, wake: 'load', reason: '', diff: null, ...i }))
+			islands: islands.map((i, n) => ({ fp: `f${n}`, wake: 'load', reason: '', diff: null, ...i }))
 		}) as unknown as OgygiaReport;
 	const sess = (counts: Record<string, number>) =>
 		({

@@ -112,7 +112,7 @@ function build_ctx(ssr: boolean, route_csr = false) {
 		dev: true,
 		virtualPathFor: (_host: string, iid: string) => islandVirtualId(iid),
 		wrapperPathFor: (_host: string, iid: string) => wrapperVirtualId(iid),
-		devUrlFor: (virtual: string) => '/@id/' + virtual,
+		devUrlFor: (virtual: string) => `/@id/${virtual}`,
 		visibleMargin: undefined,
 		presets: {},
 		importKeys: undefined,
@@ -219,10 +219,7 @@ const fail = (s: string): ToolResult => ({ content: [{ type: 'text', text: s }],
 const TOOLS = [
 	{
 		name: 'ogygia_compile',
-		description:
-			'Compile a Svelte component through the real ogygia transform (as it runs at build). Returns the ' +
-			'island map (which imports became islands, with their render/wake dials and real ids) and the ' +
-			'rewritten host module. Use this to see exactly what ogygia does to a component.',
+		description: `Compile a Svelte component through the real ogygia transform (as it runs at build). Returns the island map (which imports became islands, with their render/wake dials and real ids) and the rewritten host module. Use this to see exactly what ogygia does to a component.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -239,9 +236,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_islands',
-		description:
-			'The island map only (no rewritten code): each marked import → its primitive (island / lake / ' +
-			'server island / live / held region), its render+wake dials, and its build id. The fast overview.',
+		description: `The island map only (no rewritten code): each marked import → its primitive (island / lake / server island / live / held region), its render+wake dials, and its build id. The fast overview.`,
 		inputSchema: {
 			type: 'object',
 			properties: { source: { type: 'string', description: 'The .svelte component source.' } },
@@ -250,10 +245,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_check',
-		description:
-			'Check a component against ogygia rules. Runs the real transform and reports any [ogygia] build ' +
-			'error it raises (writing to captured host state, illegal nesting, a non-literal macro argument, an ' +
-			'island dynamic-import, …). Use this to validate a component an AI wrote before trusting it.',
+		description: `Check a component against ogygia rules. Runs the real transform and reports any [ogygia] build error it raises (writing to captured host state, illegal nesting, a non-literal macro argument, an island dynamic-import, …). Use this to validate a component an AI wrote before trusting it.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -264,9 +256,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_explain',
-		description:
-			'Explain, in prose, what happens to each marked component at runtime: where its HTML comes from, ' +
-			'when (or whether) its JS runs, and how its props cross the island boundary. The teaching view.',
+		description: `Explain, in prose, what happens to each marked component at runtime: where its HTML comes from, when (or whether) its JS runs, and how its props cross the island boundary. The teaching view.`,
 		inputSchema: {
 			type: 'object',
 			properties: { source: { type: 'string', description: 'The .svelte component source.' } },
@@ -275,16 +265,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_debug',
-		description:
-			'Debug a REAL running page. Loads a URL of your running ogygia app in a headless browser, lets its ' +
-			'islands hydrate (scrolls to trigger `visible` islands; optionally clicks a selector to trigger an ' +
-			'`interaction` one), then returns the ACTUAL runtime story per island from the devtools event bus: ' +
-			'SSR → wire → connected → woke → hydrated (with timings), plus anomalies (SSR’d-but-never-connected, ' +
-			'hydration failures), and for an app with a server transform any host the restore reached too late or ' +
-			'could not put back exactly. Requires `devtools()` from `@ogygia/devtools/vite` listed beside `ogygia()` ' +
-			'in the app’s vite.config (its dock on, the default) and Playwright installed. On the dev server the ' +
-			'stream is always on; on a build, add `?og-devtools=on` to the URL so the server’s half of the story ' +
-			'is in it too. Use this to see what really happened instead of reasoning from source.',
+		description: `Debug a REAL running page. Loads a URL of your running ogygia app in a headless browser, lets its islands hydrate (scrolls to trigger \`visible\` islands; optionally clicks a selector to trigger an \`interaction\` one), then returns the ACTUAL runtime story per island from the devtools event bus: SSR → wire → connected → woke → hydrated (with timings), plus anomalies (SSR’d-but-never-connected, hydration failures), and for an app with a server transform any host the restore reached too late or could not put back exactly. Requires \`devtools()\` from \`@ogygia/devtools/vite\` listed beside \`ogygia()\` in the app’s vite.config (its dock on, the default) and Playwright installed. On the dev server the stream is always on; on a build, add \`?og-devtools=on\` to the URL so the server’s half of the story is in it too. Use this to see what really happened instead of reasoning from source.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -310,17 +291,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_profile',
-		description:
-			'Profile the SERVER-SIDE render of a route — runs the whole thing itself, nothing to download. ' +
-			'ASK THE USER which URL to profile before calling (they prefer to name the host): a full URL like ' +
-			'`http://localhost:5173/fr/fr` (local) or `https://app.com/fr/fr` (remote). Pass it as `url`. ' +
-			'A bare path is accepted too, but then the tool just asks you for the URL (and lists any local ' +
-			'server it can see). Records N renders and returns a digest: verdict (compute- vs io-bound), render ' +
-			'p50, CPU findings, time-by-category, hottest functions + components (Svelte names each after its ' +
-			'file), network, heap. Clears a stale session (auto /reset + retry); leaves a live recording alone and says the profiler is busy. Requires the profiler ' +
-			'turned on: `devtools({ profiler: true })` from `@ogygia/devtools/vite` in the app’s vite.config ' +
-			'(the tool tells you how if missing). Prod build = real numbers; dev ' +
-			'is indicative (the digest says which). For a report you already downloaded, use ogygia_profile_open.',
+		description: `Profile the SERVER-SIDE render of a route — runs the whole thing itself, nothing to download. ASK THE USER which URL to profile before calling (they prefer to name the host): a full URL like \`http://localhost:5173/fr/fr\` (local) or \`https://app.com/fr/fr\` (remote). Pass it as \`url\`. A bare path is accepted too, but then the tool just asks you for the URL (and lists any local server it can see). Records N renders and returns a digest: verdict (compute- vs io-bound), render p50, CPU findings, time-by-category, hottest functions + components (Svelte names each after its file), network, heap. Clears a stale session (auto /reset + retry); leaves a live recording alone and says the profiler is busy. Requires the profiler turned on: \`devtools({ profiler: true })\` from \`@ogygia/devtools/vite\` in the app’s vite.config (the tool tells you how if missing). Prod build = real numbers; dev is indicative (the digest says which). For a report you already downloaded, use ogygia_profile_open.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -350,14 +321,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_profile_open',
-		description:
-			'Open a downloaded `.ogp` profile and return the same digest as ogygia_profile — verdict, render ' +
-			'p50, CPU findings, time-by-category, hottest functions + components, network, heap. A `.ogp` is the ' +
-			'encrypted trace you download when a live report can’t be kept (serverless/Amplify evict it, or the ' +
-			'browser can’t render it). It decrypts entirely from the FILE — no running server, no profiler ' +
-			'login. The file is AES-encrypted with the key it was exported with; pass that as `key`. If you don’t ' +
-			'have it, ask the user for the export key and retry. That key is the ONLY thing needed — it is not ' +
-			'the app’s profiler secret, and holding the file + its key already authorizes reading it.',
+		description: `Open a downloaded \`.ogp\` profile and return the same digest as ogygia_profile — verdict, render p50, CPU findings, time-by-category, hottest functions + components, network, heap. A \`.ogp\` is the encrypted trace you download when a live report can’t be kept (serverless/Amplify evict it, or the browser can’t render it). It decrypts entirely from the FILE — no running server, no profiler login. The file is AES-encrypted with the key it was exported with; pass that as \`key\`. If you don’t have it, ask the user for the export key and retry. That key is the ONLY thing needed — it is not the app’s profiler secret, and holding the file + its key already authorizes reading it.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -376,12 +340,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_scan',
-		description:
-			'Scan a WHOLE ogygia project: walks a directory for .svelte files, runs the real transform on each, ' +
-			'and returns the entire island architecture (every island / lake / server island / held region, by ' +
-			'file, with its render+wake dials) PLUS a lint pass — hard [ogygia] errors and soft anti-patterns the ' +
-			'transform allows (island-in-island, wake:none+deferred, interaction+deferred). Use it to understand or ' +
-			'audit a real app, not one snippet.',
+		description: `Scan a WHOLE ogygia project: walks a directory for .svelte files, runs the real transform on each, and returns the entire island architecture (every island / lake / server island / held region, by file, with its render+wake dials) PLUS a lint pass — hard [ogygia] errors and soft anti-patterns the transform allows (island-in-island, wake:none+deferred, interaction+deferred). Use it to understand or audit a real app, not one snippet.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -395,12 +354,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_observatory',
-		description:
-			'Bundle one or more files into a shareable, CLIENT-ONLY ogygia Observatory link so the user can see ' +
-			'their code compiled + running live in the browser (island map, byte ledger, wire, hydrating preview). ' +
-			'The files are gzip-packed into the URL # fragment, which browsers never send to a server — nothing ' +
-			'hits any server. Great for showing the user how one of their real pages becomes islands. Pass `files` ' +
-			'(a map of filename → source; App.svelte is the entry) or a single `source`.',
+		description: `Bundle one or more files into a shareable, CLIENT-ONLY ogygia Observatory link so the user can see their code compiled + running live in the browser (island map, byte ledger, wire, hydrating preview). The files are gzip-packed into the URL # fragment, which browsers never send to a server — nothing hits any server. Great for showing the user how one of their real pages becomes islands. Pass \`files\` (a map of filename → source; App.svelte is the entry) or a single \`source\`.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -425,11 +379,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_flags',
-		description:
-			'Inventory every flag() call site in a project — the same AST collector the build ' +
-			'uses (real import bindings from ogygia, renames + namespaces included, literal names only). ' +
-			'Live-scans src/, and diffs against the last build manifest (node_modules/.ogygia/flags-manifest.json) ' +
-			'when present. Use it to audit rollouts, find dead flags, or list what ?og-exp can override.',
+		description: `Inventory every flag() call site in a project — the same AST collector the build uses (real import bindings from ogygia, renames + namespaces included, literal names only). Live-scans src/, and diffs against the last build manifest (node_modules/.ogygia/flags-manifest.json) when present. Use it to audit rollouts, find dead flags, or list what ?og-exp can override.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -443,11 +393,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_fragment',
-		description:
-			'Probe a federated ogygia app origin. Reports whether its fragment endpoint verifies signatures ' +
-			'(an unsigned request should get 401 — a 200 means the endpoint is OPEN) and fetches the unsigned ' +
-			'__catalog widget manifest (names + props, plus the typed-stub command). Use it BEFORE writing ' +
-			'mount(peer) / peer.page() / peer.widget() code against a peer, or to sanity-check an exposed app in review.',
+		description: `Probe a federated ogygia app origin. Reports whether its fragment endpoint verifies signatures (an unsigned request should get 401 — a 200 means the endpoint is OPEN) and fetches the unsigned __catalog widget manifest (names + props, plus the typed-stub command). Use it BEFORE writing mount(peer) / peer.page() / peer.widget() code against a peer, or to sanity-check an exposed app in review.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -775,9 +721,7 @@ async function tool_debug(args: Attrs): Promise<ToolResult> {
 		);
 		if (!has_hook)
 			return fail(
-				`${url} loaded, but window.__ogygia_devtools is absent — the app runs without the devtools. List them beside ` +
-					`ogygia() in vite.config (\`import { devtools } from '@ogygia/devtools/vite'\`, then ` +
-					`\`plugins: [ogygia(), devtools(), sveltekit()]\`, the dock left on), restart the dev server or rebuild, then retry.`
+				`${url} loaded, but window.__ogygia_devtools is absent — the app runs without the devtools. List them beside ogygia() in vite.config (\`import { devtools } from '@ogygia/devtools/vite'\`, then \`plugins: [ogygia(), devtools(), sveltekit()]\`, the dock left on), restart the dev server or rebuild, then retry.`
 			);
 		await page.waitForTimeout(wait);
 		if (do_scroll) {
@@ -1426,14 +1370,14 @@ export function render_profile(
 			? `Run order skews this: both ran on one server after renders that kept ${sn.order.kept_mb} MB alive each; restart between profiles to compare.`
 			: sn.same
 				? `No real change since the last profile (${sn.a_ms} → ${sn.b_ms}ms, within the runs' own spread).`
-				: `${sn.b_ms !== undefined && sn.a_ms !== undefined ? `${sn.b_ms - sn.a_ms > 0 ? '+' : ''}${Math.round((sn.b_ms - sn.a_ms) * 10) / 10}ms since the last profile (${sn.a_ms} → ${sn.b_ms}ms)` : 'Since the last profile'}${sn.moved.length ? ', mostly:\n' + sn.moved.map((m) => `- ${m.status} ${m.path[m.path.length - 1]}${m.at && m.kind !== 'line' ? ` @ ${m.at}` : ''}: ${m.d_ms > 0 ? '+' : ''}${m.d_ms}ms`).join('\n') : '.'}${sn.fix_check ? `\nThe fixed patterns promised ~${sn.fix_check.predicted_ms}ms; the render moved ${sn.fix_check.measured_ms}ms (${sn.fix_check.verdict}).` : ''}`;
+				: `${sn.b_ms !== undefined && sn.a_ms !== undefined ? `${sn.b_ms - sn.a_ms > 0 ? '+' : ''}${Math.round((sn.b_ms - sn.a_ms) * 10) / 10}ms since the last profile (${sn.a_ms} → ${sn.b_ms}ms)` : 'Since the last profile'}${sn.moved.length ? `, mostly:\n${sn.moved.map((m) => `- ${m.status} ${m.path[m.path.length - 1]}${m.at && m.kind !== 'line' ? ` @ ${m.at}` : ''}: ${m.d_ms > 0 ? '+' : ''}${m.d_ms}ms`).join('\n')}` : '.'}${sn.fix_check ? `\nThe fixed patterns promised ~${sn.fix_check.predicted_ms}ms; the render moved ${sn.fix_check.measured_ms}ms (${sn.fix_check.verdict}).` : ''}`;
 	return (
 		head +
 		dev_note +
 		(since
 			? `\n\n## Since your last profile of this page\n${since}` +
 				(sn?.score && sn.score.a !== sn.score.b
-					? `\nScore ${sn.score.a} → ${sn.score.b} (${sn.score.a_grade} → ${sn.score.b_grade})${sn.score.moved.length ? ': ' + sn.score.moved.map((m) => `${m.label} ${m.a} → ${m.b}`).join(', ') : ''}.`
+					? `\nScore ${sn.score.a} → ${sn.score.b} (${sn.score.a_grade} → ${sn.score.b_grade})${sn.score.moved.length ? `: ${sn.score.moved.map((m) => `${m.label} ${m.a} → ${m.b}`).join(', ')}` : ''}.`
 					: '')
 			: '') +
 		// the forecast heads the plan (said once); an older report's plain sum stays with the patterns
@@ -1550,7 +1494,7 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		origin = u.origin;
 		route = u.pathname + u.search;
 	} else {
-		route = raw.startsWith('/') ? raw : '/' + raw;
+		route = raw.startsWith('/') ? raw : `/${raw}`;
 		if (explicit_origin) {
 			origin = explicit_origin;
 		} else {
@@ -1593,7 +1537,7 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 	}
 
 	const record_once = () => {
-		const rec = new URL(origin + profiler_base + '/page');
+		const rec = new URL(`${origin + profiler_base}/page`);
 		rec.searchParams.set('p', route);
 		rec.searchParams.set('format', 'json');
 		rec.searchParams.set('runs', String(runs));
@@ -1624,7 +1568,7 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		const holder = await busy_holder(res);
 		if (holder?.stale !== true) return fail(busy_message(origin, holder));
 		try {
-			const reset = new URL(origin + profiler_base + '/reset');
+			const reset = new URL(`${origin + profiler_base}/reset`);
 			const reset_h: Record<string, string> = key ? { 'x-profiler-key': key } : {};
 			await fetch_timeout(reset, { redirect: 'manual', headers: reset_h }, 5000);
 			res = await record_once();
@@ -1690,7 +1634,7 @@ async function tool_profile_open(args: Attrs): Promise<ToolResult> {
 	report.links = undefined; // the source server is gone — its report URLs would 404
 	const node = (dump.meta as { node?: string }).node;
 	return text(
-		`> Imported from \`${file}\`${node ? ` · Node ${node}` : ''}\n\n` + render_profile('', report)
+		`> Imported from \`${file}\`${node ? ` · Node ${node}` : ''}\n\n${render_profile('', report)}`
 	);
 }
 
@@ -1817,7 +1761,7 @@ function tool_scan(args: Attrs): ToolResult {
 		try {
 			const r = transformHost(
 				source,
-				'/' + rel(f).replace(BACKSLASH_G, '/'),
+				`/${rel(f).replace(BACKSLASH_G, '/')}`,
 				build_ctx(true)
 			) as HostResult;
 			for (const isl of r?.islands ?? [])
@@ -1954,9 +1898,7 @@ function tool_flags(args: Attrs): ToolResult {
 
 	if (!live.flags.length && !manifest)
 		return text(
-			`No flag() call sites under ${dir}/src (${files.length} file(s) scanned), and no ` +
-				`build manifest. Flags are defined with \`flag('name', …)\` from '@ogygia/flags' ` +
-				`— literal names only (a dynamic first argument is invisible to the inventory).`
+			`No flag() call sites under ${dir}/src (${files.length} file(s) scanned), and no build manifest. Flags are defined with \`flag('name', …)\` from '@ogygia/flags' — literal names only (a dynamic first argument is invisible to the inventory).`
 		);
 
 	const by_name = new Map<string, FlagSite[]>();
@@ -2090,10 +2032,10 @@ type Rpc = {
 };
 
 function send(msg: Record<string, unknown>): void {
-	process.stdout.write(JSON.stringify(msg) + '\n');
+	process.stdout.write(`${JSON.stringify(msg)}\n`);
 }
 function log(...parts: unknown[]): void {
-	process.stderr.write('[ogygia mcp] ' + parts.map(String).join(' ') + '\n');
+	process.stderr.write(`[ogygia mcp] ${parts.map(String).join(' ')}\n`);
 }
 
 function handle(msg: Rpc): void {

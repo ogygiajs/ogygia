@@ -38,7 +38,7 @@ export function dedent(first: string | TemplateStringsArray, ...values: unknown[
 		const open = flat.indexOf(SLOT, at);
 		if (open === -1) return out + flat.slice(at);
 		const close = flat.indexOf(SLOT, open + 1);
-		out += flat.slice(at, open) + String(values[Number(flat.slice(open + 1, close))]);
+		out = `${out}${flat.slice(at, open)}${String(values[Number(flat.slice(open + 1, close))])}`;
 		at = close + 1;
 	}
 }

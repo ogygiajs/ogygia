@@ -269,7 +269,7 @@ function build_ctx(ssr: boolean, routeCsr: boolean = false) {
 		dev: true,
 		virtualPathFor: (_hostId: string, iid: string) => islandVirtualId(iid),
 		wrapperPathFor: (_hostId: string, iid: string) => wrapperVirtualId(iid),
-		devUrlFor: (virtualPath: string) => '/@id/' + virtualPath,
+		devUrlFor: (virtualPath: string) => `/@id/${virtualPath}`,
 		visibleMargin: undefined,
 		presets: {},
 		importKeys: undefined,
@@ -320,7 +320,7 @@ function analyze_marks(source: string): {
 			(node.specifiers as Array<{ local?: { name?: string } }>)?.[0]?.local?.name ?? '?';
 		const component = (node.source as { value: string }).value;
 		const strategy = resolve_strategy(attrs);
-		const id = fallback_id(component + ' ' + JSON.stringify(attrs));
+		const id = fallback_id(`${component} ${JSON.stringify(attrs)}`);
 		islands.push({ local, component, attrs, strategy, id });
 		edits.push({
 			start: node.start as number,
@@ -847,10 +847,7 @@ function real_island_render(
 			// `keep: 'name'` → the REAL data-ogygia-keep, so the runtime sets up the keep-host on hydrate
 			// and reconcile_body matches + relocates the LIVE island across a nav (its state survives).
 			const keepAttr = info.keep ? ` data-ogygia-keep="${escAttr(info.keep)}"` : '';
-			const region =
-				`<ogygia-slot><ogygia-region entry="${escAttr('__ISLAND__:' + info.name)}" wake="${escAttr(wake)}" ` +
-				`data-og-fp="${fp}" data-obs-real-island data-name="${escAttr(info.name)}"${keepAttr}>${ssr}</ogygia-region>` +
-				`<script data-ogygia-props>${escScript(payload)}</script></ogygia-slot>`;
+			const region = `<ogygia-slot><ogygia-region entry="${escAttr(`__ISLAND__:${info.name}`)}" wake="${escAttr(wake)}" data-og-fp="${fp}" data-obs-real-island data-name="${escAttr(info.name)}"${keepAttr}>${ssr}</ogygia-region><script data-ogygia-props>${escScript(payload)}\x3C/script></ogygia-slot>`;
 			html = html.replace(`<!--OBS_ISLAND:${idx}-->`, region);
 		}
 
@@ -869,10 +866,7 @@ function real_island_render(
 			const when = info.wake || 'load';
 			// endpoint is a same-origin path (passes is_allowed_region_endpoint); the fetch intercept
 			// serves deferredHtml[idx]. The fallback shows until the fetch lands (real server-island UX).
-			const region =
-				`<ogygia-region render="defer" when="${escAttr(when)}" endpoint="/__obs_defer/${idx}" ` +
-				`data-og-fp="${fp}" data-obs-real-island data-obs-deferred data-name="${escAttr(info.name)}">` +
-				`<span class="obs-fallback">loading ${escAttr(info.name.replace(/\.svelte$/, ''))}…</span></ogygia-region>`;
+			const region = `<ogygia-region render="defer" when="${escAttr(when)}" endpoint="/__obs_defer/${idx}" data-og-fp="${fp}" data-obs-real-island data-obs-deferred data-name="${escAttr(info.name)}"><span class="obs-fallback">loading ${escAttr(info.name.replace(/\.svelte$/, ''))}…</span></ogygia-region>`;
 			html = html.replace(`<!--OBS_DEFER:${idx}-->`, region);
 		}
 
@@ -888,9 +882,7 @@ function real_island_render(
 			}
 			const fp = `obsfp_live_${info.name.replace(/[^\w]/g, '')}_${idx}`;
 			liveOut.push({ fp, file: info.name, name: info.name });
-			const region =
-				`<ogygia-region live data-og-fp="${fp}" data-obs-real-island data-obs-live data-name="${escAttr(info.name)}">` +
-				`${body}</ogygia-region>`;
+			const region = `<ogygia-region live data-og-fp="${fp}" data-obs-real-island data-obs-live data-name="${escAttr(info.name)}">${body}</ogygia-region>`;
 			html = html.replace(`<!--OBS_LIVE:${idx}-->`, region);
 		}
 
@@ -945,7 +937,7 @@ async function macro_files(files: Record<string, string>): Promise<Record<string
 		try {
 			const { code, touched } = await run_browser_macros(
 				src,
-				'/repl/' + name.replace(/^\/+/, ''),
+				`/repl/${name.replace(/^\/+/, '')}`,
 				macros
 			);
 			if (touched) {
@@ -971,7 +963,7 @@ async function content_svelte_view(
 	for (const [name, code] of Object.entries(files)) {
 		if (!MD_MODULE.test(name)) continue;
 		try {
-			out[name] = await to_svelte(code, '/repl/' + name.replace(/^\/+/, ''));
+			out[name] = await to_svelte(code, `/repl/${name.replace(/^\/+/, '')}`);
 		} catch (e) {
 			// A markdown compile error surfaces as a normal svelte-compile error downstream — leave a stub
 			// component so `rendered` still resolves (and the error shows) instead of crashing analyze.

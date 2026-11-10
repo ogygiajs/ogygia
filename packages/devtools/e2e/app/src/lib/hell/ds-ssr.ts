@@ -103,7 +103,7 @@ function findIonTags(html: string): { start: number; end: number; tag: string }[
 			i = start + 5;
 			continue;
 		}
-		const close = '</ion-' + name + '>';
+		const close = `</ion-${name}>`;
 		const close_at = html.indexOf(close, open_end + 1);
 		if (close_at === -1) {
 			i = start + 5;
@@ -121,8 +121,8 @@ function renameTags(html: string, from: string, to: string): string {
 	const out: string[] = [];
 	let last = 0;
 	let i = 0;
-	const open = '<' + from;
-	const close = '</' + from;
+	const open = `<${from}`;
+	const close = `</${from}`;
 	for (;;) {
 		const a = html.indexOf(open, i);
 		const b = html.indexOf(close, i);
@@ -133,7 +133,7 @@ function renameTags(html: string, from: string, to: string): string {
 		const c = html.charCodeAt(after);
 		// a tag boundary only: `<templatex` is not `<template`
 		if (c === 62 || c === 32 || c === 9 || c === 10 || c === 47) {
-			out.push(html.slice(last, at), closing ? '</' + to : '<' + to);
+			out.push(html.slice(last, at), closing ? `</${to}` : `<${to}`);
 			last = after;
 		}
 		i = after;

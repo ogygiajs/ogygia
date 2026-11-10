@@ -99,10 +99,6 @@ export async function render_fence(
 				`<button type="button" class="og-variant-btn" data-pref="${esc(pref.name)}" data-pref-set="${esc(v.value)}"${v.value === pref.default ? ' data-default' : ''}>${esc(v.label)}</button>`
 		)
 		.join('');
-	const html =
-		`<div class="og-code" data-pref="${esc(pref.name)}"${file ? ` data-file="${esc(file)}"` : ''}>` +
-		`<div class="og-code-controls" role="tablist">${controls}</div>` +
-		panels +
-		`</div>`;
+	const html = `<div class="og-code" data-pref="${esc(pref.name)}"${file ? ` data-file="${esc(file)}"` : ''}><div class="og-code-controls" role="tablist">${controls}</div>${panels}</div>`;
 	return { html, count: rendered.length, source: fence.source, ...(file ? { file } : {}) };
 }

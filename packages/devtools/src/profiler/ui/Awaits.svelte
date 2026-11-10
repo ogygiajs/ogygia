@@ -44,7 +44,7 @@
 	const color = (kind: string) => (kind === 'net' ? '#6ca8e0' : '#e0a06f');
 	const short = (s: string, px: number) => {
 		const max = Math.max(3, Math.floor(px / 6.6));
-		return s.length > max ? s.slice(0, max - 1) + '…' : s;
+		return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 	};
 	let tip = $state<{ text: string; x: number; y: number } | null>(null);
 	const show = (text: string, ev: MouseEvent) => (tip = { text, x: ev.clientX, y: ev.clientY });

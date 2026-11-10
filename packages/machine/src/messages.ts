@@ -46,16 +46,13 @@ export const MACHINE_ERRORS: MachineErrors = {
 		text: (a: { name: string; state: string; where: string }): string =>
 			`machine ${a.name}: "${a.state}" (${a.where}) is not one of its states.`,
 		details: (): string =>
-			'A machine definition named a state that is not a key of its `steps`: as `initial`, as a ' +
-			"target in a state's list, or in `wait()`. Every state is a key of `steps`, a final state " +
-			'with an empty list (`done: []`).'
+			`A machine definition named a state that is not a key of its \`steps\`: as \`initial\`, as a target in a state's list, or in \`wait()\`. Every state is a key of \`steps\`, a final state with an empty list (\`done: []\`).`
 	},
 	machine_unreachable_state: {
 		text: (a: { name: string; state: string; initial: string }): string =>
 			`machine ${a.name}: state "${a.state}" can never be reached from "${a.initial}".`,
 		details: (): string =>
-			"No chain of steps leads from the machine's `initial` state to this state, so nothing can " +
-			'ever enter it. Add a step that leads to it, or remove it.'
+			`No chain of steps leads from the machine's \`initial\` state to this state, so nothing can ever enter it. Add a step that leads to it, or remove it.`
 	},
 	machine_duplicate_step: {
 		text: (a: { name: string; from: string; to: string }): string =>
@@ -66,41 +63,31 @@ export const MACHINE_ERRORS: MachineErrors = {
 		text: (a: { name: string; state: string }): string =>
 			`machine ${a.name}: the data for "${a.state}" has a \`kind\` field.`,
 		details: (): string =>
-			"A state's `kind` is its name, set by the machine. Its data cannot carry its own `kind`. " +
-			'Rename the field.'
+			`A state's \`kind\` is its name, set by the machine. Its data cannot carry its own \`kind\`. Rename the field.`
 	},
 	machine_bad_option: {
 		text: (a: { option: string; value: string; rule: string }): string =>
 			`machine: \`${a.option}\` must be ${a.rule} (got ${a.value}).`,
 		details: (): string =>
-			'An option was given a value it cannot take. `retries` counts tries: a whole number of 0 ' +
-			'or more. A flights `keep` is milliseconds: 0 or more, `Infinity` for as long as the ' +
-			'flights lives. A flights `max` is the most weight it keeps: more than 0.'
+			`An option was given a value it cannot take. \`retries\` counts tries: a whole number of 0 or more. A flights \`keep\` is milliseconds: 0 or more, \`Infinity\` for as long as the flights lives. A flights \`max\` is the most weight it keeps: more than 0.`
 	},
 	machine_bad_time: {
 		text: (a: { where: string; ms: string }): string =>
 			`machine: ${a.where} was given ${a.ms}, not a time of 0 to 2147483647 ms.`,
 		details: (): string =>
-			"A scope's `timeout()` takes milliseconds, `'frame'` or `'idle'`, and `every()` takes " +
-			'milliseconds: a number of 0 to 2^31 - 1 (about 24.8 days). Node and browsers run a timer ' +
-			'with a longer, negative or non-number delay after 1 ms, so it is refused instead.'
+			`A scope's \`timeout()\` takes milliseconds, \`'frame'\` or \`'idle'\`, and \`every()\` takes milliseconds: a number of 0 to 2^31 - 1 (about 24.8 days). Node and browsers run a timer with a longer, negative or non-number delay after 1 ms, so it is refused instead.`
 	},
 	machine_not_disposable: {
 		text: (a: { value: string }): string =>
 			`machine: a scope cannot adopt this ${a.value}: it has no Symbol.dispose or Symbol.asyncDispose.`,
 		details: (): string =>
-			'`adopt()` takes what disposes itself: an object with a `[Symbol.dispose]()` or ' +
-			'`[Symbol.asyncDispose]()` method (a flights, a scope, a lock holder). For anything else, ' +
-			'hand the scope its release: `defer(() => x.close())`, `watch(observer)` for an observer.'
+			`\`adopt()\` takes what disposes itself: an object with a \`[Symbol.dispose]()\` or \`[Symbol.asyncDispose]()\` method (a flights, a scope, a lock holder). For anything else, hand the scope its release: \`defer(() => x.close())\`, \`watch(observer)\` for an observer.`
 	},
 	machine_dispose_failed: {
 		text: (a: { owner: string }): string =>
 			`machine: an async disposal of a ${a.owner} failed after it closed.`,
 		details: (): string =>
-			'A scope closed with `close()` (or `using`) and something it adopted disposes itself ' +
-			'asynchronously (`Symbol.asyncDispose`); that disposal rejected. The error follows the ' +
-			'message. Nobody waited for it, so it is said here: close with `await using` or ' +
-			'`await s[Symbol.asyncDispose]()` to wait for such disposals and get their errors.'
+			`A scope closed with \`close()\` (or \`using\`) and something it adopted disposes itself asynchronously (\`Symbol.asyncDispose\`); that disposal rejected. The error follows the message. Nobody waited for it, so it is said here: close with \`await using\` or \`await s[Symbol.asyncDispose]()\` to wait for such disposals and get their errors.`
 	},
 	machine_bad_timeout: {
 		text: (a: { name: string; state: string; problem: string }): string =>
@@ -117,32 +104,25 @@ export const MACHINE_ERRORS: MachineErrors = {
 		text: (a: { name: string; state: string; ms: string }): string =>
 			`machine ${a.name}: the timeout of "${a.state}" made ${a.ms}, not a time of 0 to 2147483647 ms; the state does not end on its own this time.`,
 		details: (): string =>
-			'A state in `after` whose `ms` is a function made a value no timer can hold: not a number, ' +
-			'negative, or longer than 2^31 - 1 ms (about 24.8 days). Node and browsers would run such a ' +
-			'timer after 1 ms and end the state at once, so this visit to the state gets no timeout ' +
-			'instead. Make the function return a time in range (clamp it).'
+			`A state in \`after\` whose \`ms\` is a function made a value no timer can hold: not a number, negative, or longer than 2^31 - 1 ms (about 24.8 days). Node and browsers would run such a timer after 1 ms and end the state at once, so this visit to the state gets no timeout instead. Make the function return a time in range (clamp it).`
 	},
 	machine_timeout_failed: {
 		text: (a: { name: string; state: string }): string =>
 			`machine ${a.name}: the timeout of "${a.state}" threw while making its time; the state does not end on its own this time.`,
 		details: (): string =>
-			'A state in `after` whose `ms` is a function threw when the machine entered the state. The ' +
-			'error follows the message. This visit to the state gets no timeout; fix the function.'
+			`A state in \`after\` whose \`ms\` is a function threw when the machine entered the state. The error follows the message. This visit to the state gets no timeout; fix the function.`
 	},
 	machine_timed_step_failed: {
 		text: (a: { name: string; from: string; to: string }): string =>
 			`machine ${a.name}: the timed step from "${a.from}" to "${a.to}" failed.`,
 		details: (): string =>
-			"A state's timeout came, and taking its step failed: its `data` function threw (the " +
-			'machine stays where it is), or a cleanup of the state it left threw (the step was taken). ' +
-			'The error follows the message. A timer has no caller to throw to, so it is said here.'
+			`A state's timeout came, and taking its step failed: its \`data\` function threw (the machine stays where it is), or a cleanup of the state it left threw (the step was taken). The error follows the message. A timer has no caller to throw to, so it is said here.`
 	},
 	machine_observer_failed: {
 		text: (a: { name: string }): string =>
 			`machine ${a.name}: an observer threw while hearing a move.`,
 		details: (): string =>
-			'A function given to `observe()` threw. The error follows the message. The move itself is ' +
-			'done, and the other observers still heard it.'
+			`A function given to \`observe()\` threw. The error follows the message. The move itself is done, and the other observers still heard it.`
 	},
 	machine_outbox_gave_up: {
 		text: (a: { name: string }): string =>
@@ -158,10 +138,7 @@ export const MACHINE_ERRORS: MachineErrors = {
 		text: (a: { name: string }): string =>
 			`stage ${a.name}: a step that gives back a change threw.`,
 		details: (): string =>
-			'A `stage()` gives back what it changed when it does not commit (its `discard` steps) or ' +
-			'when its commit throws part way (its `undo` steps). One of those steps threw. The error ' +
-			'follows the message. The other steps still ran; whatever this step should have put back ' +
-			'may still be in place.'
+			`A \`stage()\` gives back what it changed when it does not commit (its \`discard\` steps) or when its commit throws part way (its \`undo\` steps). One of those steps threw. The error follows the message. The other steps still ran; whatever this step should have put back may still be in place.`
 	},
 	machine_mailbox_handler_failed: {
 		text: (): string => 'mailbox: a handler that waited for its turn threw.',
@@ -185,7 +162,7 @@ function line(code: string, a: Record<string, string>): string {
 	const params = new URLSearchParams();
 	for (const name in a) if (a[name] !== '') params.set(name, a[name].slice(0, 300));
 	const query = params.toString();
-	const link = 'https://ogygiajs.dev/e/' + code + (query ? '?' + query : '');
+	const link = `https://ogygiajs.dev/e/${code}${query ? `?${query}` : ''}`;
 	// dev and the server word it; a production browser bundle prints the link alone. The test sits
 	// here, where it is used, so a bundler folds it and drops the tables with it.
 	const entry =
@@ -194,7 +171,7 @@ function line(code: string, a: Record<string, string>): string {
 					| Entry<Record<string, string>>
 					| undefined)
 			: undefined;
-	return entry ? '[ogygia] ' + entry.text(a) + '\n' + link : '[ogygia] ' + link;
+	return entry ? `[ogygia] ${entry.text(a)}\n${link}` : `[ogygia] ${link}`;
 }
 
 /** A machine error: `code` names its page. */

@@ -325,7 +325,7 @@ export function fence_config_key(
 		String(cfg.wrapperClass),
 		cfg.transformers.map((t) => t.name ?? '?').join(','),
 		`m${pipe.meta.length}`,
-		pipe.variants.map((g) => g.pref.name + ':' + (g.cache_key ?? '')).join(',')
+		pipe.variants.map((g) => `${g.pref.name}:${g.cache_key ?? ''}`).join(',')
 	];
 }
 
@@ -400,9 +400,9 @@ export async function render_code_region(
 		// Single variant: stamp `data-lang` + id + the pipeline's `file` (chrome draws the filename
 		// bar from `attr(data-file)`) on the `<pre>` — a fence with none stays byte-identical.
 		let attrs = '';
-		if (lang && lang !== 'text') attrs += `data-lang="${lang}" `;
-		if (id) attrs += `id="${id}" `;
-		if (file) attrs += `data-file="${file.replace(DOUBLE_QUOTE_G, '&quot;')}" `;
+		if (lang && lang !== 'text') attrs = `${attrs}data-lang="${lang}" `;
+		if (id) attrs = `${attrs}id="${id}" `;
+		if (file) attrs = `${attrs}data-file="${file.replace(DOUBLE_QUOTE_G, '&quot;')}" `;
 		const tagged = attrs ? html.replace('<pre ', `<pre ${attrs}`) : html;
 		plain = wrap_html(tagged, cfg.wrapperClass);
 	}

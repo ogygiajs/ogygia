@@ -12,11 +12,11 @@ const ok = (label: string, cond: unknown, detail = '') => {
 		console.log(`  ✓ ${label}`);
 	} else {
 		fail++;
-		console.log(`  ✗ ${label}${detail ? '  — ' + detail : ''}`);
+		console.log(`  ✗ ${label}${detail ? `  — ${detail}` : ''}`);
 	}
 };
 const eq = (label: string, got: unknown, want: unknown) =>
-	ok(label + `  (→ ${JSON.stringify(got)})`, got === want, `wanted ${JSON.stringify(want)}`);
+	ok(`${label}  (→ ${JSON.stringify(got)})`, got === want, `wanted ${JSON.stringify(want)}`);
 
 console.log('resolve-file\n');
 

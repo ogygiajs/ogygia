@@ -189,12 +189,10 @@ function fake_valkey(): ValkeyLike & { data: Map<string, string>; expiry: Map<st
 			// single-page cursor; honor MATCH with the same glob subset the adapter emits
 			const match = String(args[args.indexOf('MATCH') + 1]);
 			const re = new RegExp(
-				'^' +
-					match
-						.replace(/[.+^${}()|[\]]/g, '\\$&')
-						.replace(/\\\\([*?[\]\\])/g, (_, c) => '\\' + c)
-						.replace(/\*/g, '.*') +
-					'$'
+				`^${match
+					.replace(/[.+^${}()|[\]]/g, '\\$&')
+					.replace(/\\\\([*?[\]\\])/g, (_, c) => `\\${c}`)
+					.replace(/\*/g, '.*')}$`
 			);
 			return ['0', [...data.keys()].filter((k) => re.test(k))] as unknown;
 		}
@@ -562,7 +560,7 @@ describe('postrender/stitch', () => {
 
 	it('handles NESTED regions inside the fallback (balanced, not lazy)', () => {
 		const inner = `<ogygia-region entry="x" wake="load">island</ogygia-region>`;
-		const html = hole('/e?a=1', `<p>fb</p>${inner}`) + '<footer>after</footer>';
+		const html = `${hole('/e?a=1', `<p>fb</p>${inner}`)}<footer>after</footer>`;
 		const holes = find_stitch_holes(html);
 		expect(holes).toHaveLength(1);
 		expect(html.slice(holes[0].end)).toBe('<footer>after</footer>');

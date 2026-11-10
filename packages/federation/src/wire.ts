@@ -272,7 +272,7 @@ const ASSET_EXT_RE = /\.(js|css|woff2?)(\?|$)/;
 function pin_asset(value: string, origin: string): string {
 	if (ABSOLUTE_RE.test(value)) return value;
 	if (!ASSET_PATH_RE.test(value) && !ASSET_EXT_RE.test(value)) return value;
-	return new URL(value, origin + '/').href;
+	return new URL(value, `${origin}/`).href;
 }
 
 const GRAPH_SCRIPT_RE =
@@ -349,7 +349,7 @@ export function lift_document(html: string, origin: string): Omit<FragmentDocume
 		),
 		...(head_meta ? { head: head_meta } : {}),
 		body: absolutize(html.match(BODY_RE)?.[1] ?? html, origin),
-		...(runtime_src ? { runtime: new URL(runtime_src, origin + '/').href } : {})
+		...(runtime_src ? { runtime: new URL(runtime_src, `${origin}/`).href } : {})
 	};
 }
 

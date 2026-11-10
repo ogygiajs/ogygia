@@ -62,11 +62,11 @@ export function compile(pattern: string): CompiledPattern {
 				);
 			}
 			params.push({ name: m[1], rest: true });
-			rx += '(?:/(.*))?';
+			rx = `${rx}(?:/(.*))?`;
 			digits.push(0);
 		} else if ((m = seg.match(OPTIONAL))) {
 			params.push({ name: m[1], optional: true });
-			rx += '(?:/([^/]+))?';
+			rx = `${rx}(?:/([^/]+))?`;
 			digits.push(1);
 		} else {
 			// A normal segment: static text, a bare [param], OR a MIX (Kit allows `[id].json`,
@@ -83,7 +83,7 @@ export function compile(pattern: string): CompiledPattern {
 					inner += escape_re(pre);
 					has_static = true;
 				}
-				inner += '([^/]+)';
+				inner = `${inner}([^/]+)`;
 				params.push({ name: g[1] });
 				has_param = true;
 				last = INNER_PARAM.lastIndex;
@@ -104,7 +104,7 @@ export function compile(pattern: string): CompiledPattern {
 	});
 
 	if (rx === '') rx = '/?'; // root '/'
-	const regex = new RegExp('^' + rx + '/?$');
+	const regex = new RegExp(`^${rx}/?$`);
 
 	// score: pack per-segment digits big-endian (base-5), then favour more segments. Static-heavy,
 	// longer patterns sort first — '/docs/new' > '/docs/[slug]' > '/[...all]', and '[id].json' > '[id]'.

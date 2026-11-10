@@ -31,7 +31,7 @@ const ISLAND_RE = /virtual:ogygia\/island\/([0-9a-f]+)\.js/;
 
 /** Shared framework / prebundled deps — pruned so per-island totals reflect app code, not Svelte. */
 function is_framework(mod: ByteGraphModule): boolean {
-	const s = (mod.file || '') + '\n' + (mod.url || mod.id || '');
+	const s = `${mod.file || ''}\n${mod.url || mod.id || ''}`;
 	const u = mod.url || mod.id || '';
 	return (
 		s.includes('node_modules') ||

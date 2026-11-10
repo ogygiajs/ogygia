@@ -12,7 +12,7 @@ const ok = (label: string, cond: unknown, detail = '') => {
 		console.log(`  ✓ ${label}`);
 	} else {
 		fail++;
-		console.log(`  ✗ ${label}${detail ? '  — ' + detail : ''}`);
+		console.log(`  ✗ ${label}${detail ? `  — ${detail}` : ''}`);
 	}
 };
 

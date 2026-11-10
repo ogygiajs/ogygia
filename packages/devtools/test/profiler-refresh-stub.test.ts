@@ -16,7 +16,7 @@ test('the build’s redirect stub: the path it sends the visitor to', () => {
 	expect(refresh_target(`<META HTTP-EQUIV="refresh" CONTENT="0;url=${origin}/x">`, origin)).toBe(
 		'/x'
 	);
-	expect(refresh_target('<meta http-equiv="refresh" content="0;url=docs">', origin + '/')).toBe(
+	expect(refresh_target('<meta http-equiv="refresh" content="0;url=docs">', `${origin}/`)).toBe(
 		'/docs'
 	);
 });

@@ -94,7 +94,7 @@ export function alloc_timeline(input: AllocInput): AllocTimeline | undefined {
 			const ov = Math.min(seg.t1, t1) - Math.max(seg.t0, t0);
 			if (ov <= 0) continue;
 			cpu += ov;
-			const k = seg.label + '\0' + (seg.file ?? '');
+			const k = `${seg.label}\0${seg.file ?? ''}`;
 			const hit = by.get(k);
 			if (hit) hit.ms += ov;
 			else

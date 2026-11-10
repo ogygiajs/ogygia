@@ -103,7 +103,7 @@ export function svelte(options: SvelteOptions = {}) {
 				writeFileSync(
 					scratch,
 					JSON.stringify({
-						extends: './' + rel_to(root, base),
+						extends: `./${rel_to(root, base)}`,
 						compilerOptions: { isolatedDeclarations: false }
 					})
 				);
@@ -115,7 +115,7 @@ export function svelte(options: SvelteOptions = {}) {
 					...(existsSync(scratch) ? { tsconfig: DTS_TSCONFIG } : {})
 				});
 				for (const file of globSync('**/*.svelte', { cwd: src })) {
-					const rel = rel_to(src, join(src, file)) + '.d.ts';
+					const rel = `${rel_to(src, join(src, file))}.d.ts`;
 					const from = join(tmp, rel);
 					if (!existsSync(from)) continue;
 					const to = join(out, rel);

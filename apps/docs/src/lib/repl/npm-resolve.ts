@@ -105,7 +105,7 @@ export function resolve_exports(
 ): string | null {
 	if (exports == null) return null;
 	const key =
-		subpath === '.' || subpath === '' ? '.' : './' + subpath.replace(LEADING_DOTSLASH, '');
+		subpath === '.' || subpath === '' ? '.' : `./${subpath.replace(LEADING_DOTSLASH, '')}`;
 	// String / array shorthand → the root target.
 	if (typeof exports === 'string' || Array.isArray(exports)) {
 		return key === '.' ? resolve_conditions(exports, conditions) : null;
@@ -153,7 +153,7 @@ export function apply_browser_map(browser: BrowserField, file: string): string {
 	const norm = file.replace(LEADING_DOTSLASH, '');
 	for (const [from, to] of Object.entries(browser)) {
 		const f = from.replace(LEADING_DOTSLASH, '');
-		if (f === norm || f === file || './' + f === file) {
+		if (f === norm || f === file || `./${f}` === file) {
 			return to === false ? BROWSER_STUB : to;
 		}
 	}
@@ -179,7 +179,7 @@ export function resolve_entry(
 		// packages ship files outside their exports map).
 	}
 	if (has_sub) {
-		return apply_browser_map(pkg.browser as BrowserField, './' + subpath).replace(
+		return apply_browser_map(pkg.browser as BrowserField, `./${subpath}`).replace(
 			LEADING_DOTSLASH,
 			''
 		);
@@ -200,7 +200,7 @@ export function resolve_entry(
 			module_field.replace(LEADING_DOTSLASH, '')
 		);
 	const main = str(pkg.main) || 'index.js';
-	const mapped = apply_browser_map(browser, main.startsWith('./') ? main : './' + main);
+	const mapped = apply_browser_map(browser, main.startsWith('./') ? main : `./${main}`);
 	return mapped.replace(LEADING_DOTSLASH, '');
 }
 
@@ -216,7 +216,7 @@ export function extension_candidates(path: string): string[] {
 	if (!has_ext) {
 		for (const ext of ['.mjs', '.js', '.cjs', '.json']) out.push(path + ext);
 		for (const ext of ['.mjs', '.js', '.cjs', '.json'])
-			out.push(path.replace(TRAILING_SLASH, '') + '/index' + ext);
+			out.push(`${path.replace(TRAILING_SLASH, '')}/index${ext}`);
 	}
 	return [...new Set(out)];
 }

@@ -26,7 +26,7 @@ export interface UpstashConfig {
 
 /** Escape glob-active characters so a literal pathname can ride a SCAN MATCH pattern. */
 function glob_escape(value: string): string {
-	return value.replace(GLOB_ACTIVE_G, (c) => '\\' + c);
+	return value.replace(GLOB_ACTIVE_G, (c) => `\\${c}`);
 }
 
 export class UpstashStore implements PostrenderStore {
@@ -70,7 +70,7 @@ export class UpstashStore implements PostrenderStore {
 
 	async evictWhere({ prefix }: { prefix: string }): Promise<void> {
 		const p = normalize_prefix(prefix);
-		const pattern = glob_escape(KEY_NS + subtree_prefix(p)) + '*';
+		const pattern = `${glob_escape(KEY_NS + subtree_prefix(p))}*`;
 		let cursor = '0';
 		do {
 			const reply = await this.#command<[string, string[]]>([

@@ -27,9 +27,7 @@ test('an inlined sheet in a hole answer is hoisted into <head> once, and styles 
 			u.includes('001') ? A : B
 		);
 	};
-	document.body.innerHTML =
-		`<ogygia-region render="defer" when="load" endpoint="${A}"><p data-fallback>a</p></ogygia-region>` +
-		`<ogygia-region render="defer" when="load" endpoint="${B}"><p data-fallback>b</p></ogygia-region>`;
+	document.body.innerHTML = `<ogygia-region render="defer" when="load" endpoint="${A}"><p data-fallback>a</p></ogygia-region><ogygia-region render="defer" when="load" endpoint="${B}"><p data-fallback>b</p></ogygia-region>`;
 	try {
 		bootDev();
 		await expect

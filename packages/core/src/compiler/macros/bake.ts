@@ -200,7 +200,7 @@ function bake_plugin(
 				let mapped: string | null = null;
 				if (typeof find === 'string') {
 					if (source === find) mapped = replacement;
-					else if (source.startsWith(find + '/'))
+					else if (source.startsWith(`${find}/`))
 						mapped = path.join(replacement, source.slice(find.length + 1));
 				} else if (find.test(source)) {
 					mapped = source.replace(find, replacement);
@@ -351,7 +351,7 @@ export async function rewrite_bake(
 
 	// Content hash: module id + the exact eval entry (imports + fns) → address the bundle & re-bake
 	// only when inputs change.
-	const hash = hash_of(id + '\0' + entry_code);
+	const hash = hash_of(`${id}\0${entry_code}`);
 
 	let results: unknown[];
 	try {

@@ -22,30 +22,30 @@ export function strategyKey(mark: {
 	const o = mark.options || {};
 	if (mark.strategy === 'server') {
 		let k = `defer:${o.when ?? 'load'}`;
-		if (o.margin != null) k += `:margin:${o.margin}`;
+		if (o.margin != null) k = `${k}:margin:${o.margin}`;
 		// Cache TTL is baked into the wrapper (it signs the endpoint), so it MUST fingerprint the
 		// wrapper — else a cached hole (maxAge) dedupes onto a plain no-store wrapper of the same
 		// component+schedule and silently loses its `ttl`.
-		if (o.cacheTtlSec != null) k += `:ttl:${o.cacheTtlSec}`;
+		if (o.cacheTtlSec != null) k = `${k}:ttl:${o.cacheTtlSec}`;
 		// The stitch MODE is baked into the wrapper (it emits the hole's `stitch="serve|edge"`), so it
 		// MUST fingerprint the wrapper — else a `stitch: 'edge'` hole dedupes onto the `'serve'`
 		// wrapper of the same component+schedule (or vice versa) and the whole page flips mode.
-		if (o.stitch) k += `:stitch:${o.stitch}`;
+		if (o.stitch) k = `${k}:stitch:${o.stitch}`;
 		// The warm schedule is part of the wrapper: the same component placed once with an idle
 		// prefetch and once without must not dedupe onto one region (the attribute is emitted).
-		if (o.prefetch) k += `:prefetch:${o.prefetch}`;
+		if (o.prefetch) k = `${k}:prefetch:${o.prefetch}`;
 		if (o.hydrate) {
-			k += `+hydrate:${o.hydrate}`;
-			if (o.hydrateMargin != null) k += `:hmargin:${o.hydrateMargin}`;
+			k = `${k}+hydrate:${o.hydrate}`;
+			if (o.hydrateMargin != null) k = `${k}:hmargin:${o.hydrateMargin}`;
 		}
 		return k;
 	}
 	if (mark.strategy === 'lake') {
 		let k = `lake:${o.remount || 'cache'}`;
-		if (o.when) k += `:when:${o.when}`;
-		if (o.maxAgeMs != null) k += `:maxAge:${o.maxAgeMs}`;
-		if (o.onExpire) k += `:onExpire:${o.onExpire}`;
-		if (o.margin != null) k += `:margin:${o.margin}`;
+		if (o.when) k = `${k}:when:${o.when}`;
+		if (o.maxAgeMs != null) k = `${k}:maxAge:${o.maxAgeMs}`;
+		if (o.onExpire) k = `${k}:onExpire:${o.onExpire}`;
+		if (o.margin != null) k = `${k}:margin:${o.margin}`;
 		return k;
 	}
 	// A held region (a marked import handed to `region()`, not placed) is a server-chosen island minted
@@ -55,15 +55,15 @@ export function strategyKey(mark: {
 	// always ships a client chunk (it MIGHT be woken; `region:raw` bakes no schedule → set at the call).
 	if (mark.strategy === 'held') {
 		let k = `region:${o.hydrate || 'raw'}`;
-		if (o.hydrateMargin != null) k += `:hmargin:${o.hydrateMargin}`;
+		if (o.hydrateMargin != null) k = `${k}:hmargin:${o.hydrateMargin}`;
 		return k;
 	}
 	let k = `hydrate:${mark.strategy}`;
-	if (o.margin != null) k += `:margin:${o.margin}`;
+	if (o.margin != null) k = `${k}:margin:${o.margin}`;
 	// `keep` (continuity name) is baked into the wrapper (`__keep=…`), so it MUST split the wrapper —
 	// two same-component+schedule imports with different keep names need distinct wrappers, else the
 	// second inherits the first's relocation slot (like `margin`, above).
-	if (o.keep != null) k += `:keep:${o.keep}`;
+	if (o.keep != null) k = `${k}:keep:${o.keep}`;
 	return k;
 }
 

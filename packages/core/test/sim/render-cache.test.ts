@@ -86,8 +86,7 @@ describe('the region render cache, simulated', () => {
 									leave.signal
 								).then(
 									(html) => (c.got = html ?? 'null'),
-									(e: unknown) =>
-										(c.got = 'failed: ' + (e instanceof Error ? e.message : String(e)))
+									(e: unknown) => (c.got = `failed: ${e instanceof Error ? e.message : String(e)}`)
 								);
 							}
 						]);

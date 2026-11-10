@@ -162,7 +162,7 @@ function ctx_field(
 		context: {
 			start: got.start,
 			lines: got.lines.map((l) =>
-				l.length > CONTEXT_COLS ? l.slice(0, CONTEXT_COLS - 1) + '…' : l
+				l.length > CONTEXT_COLS ? `${l.slice(0, CONTEXT_COLS - 1)}…` : l
 			)
 		}
 	};
@@ -349,7 +349,7 @@ export function find_same_answers(input: {
 	const groups = new Map<string, WaitCall[]>();
 	for (const c of input.calls) {
 		if (!c.exact || !input.stable.has(c.exact) || !c.at || c.ms < 0) continue;
-		const k = c.target + '\0' + c.at.path + ':' + c.at.line;
+		const k = `${c.target}\0${c.at.path}:${c.at.line}`;
 		(groups.get(k) ?? groups.set(k, []).get(k)!).push(c);
 	}
 	if (!groups.size) return undefined;
@@ -382,14 +382,14 @@ export function find_same_answers(input: {
 		const at = g[0].at!;
 		const code = input.source?.(at.path, at.line, at.line)?.lines[0]?.trim() ?? '';
 		const asked = new Map<string, { path: string; line: number }>();
-		for (const c of g) if (c.outer) asked.set(c.outer.path + ':' + c.outer.line, c.outer);
+		for (const c of g) if (c.outer) asked.set(`${c.outer.path}:${c.outer.line}`, c.outer);
 		const via: CallSite[] = [...asked.values()].slice(0, VIA_MAX).map((o) => {
 			const oc = input.source?.(o.path, o.line, o.line)?.lines[0]?.trim() ?? '';
 			return {
 				path: o.path,
 				file: short_file(o.path),
 				line: o.line,
-				code: oc.length > 140 ? oc.slice(0, 139) + '…' : oc,
+				code: oc.length > 140 ? `${oc.slice(0, 139)}…` : oc,
 				in_loop: false
 			};
 		});
@@ -397,7 +397,7 @@ export function find_same_answers(input: {
 			path: at.path,
 			file: short_file(at.path),
 			line: at.line,
-			code: code.length > 140 ? code.slice(0, 139) + '…' : code,
+			code: code.length > 140 ? `${code.slice(0, 139)}…` : code,
 			cpu_ms: 0,
 			alloc_bytes: 0,
 			gc_ms: 0,
@@ -426,7 +426,7 @@ export function find_same_answers(input: {
 	const personal = sites.filter((s) => s.personal).length;
 	// (a row is a kind of request at a line: one helper line fetching eleven endpoints is eleven rows,
 	// and "12 places" said twelve lines where there were two)
-	const lines = new Set(sites.map((s) => s.path + ':' + s.line)).size;
+	const lines = new Set(sites.map((s) => `${s.path}:${s.line}`)).size;
 	const where =
 		sites.length < 2
 			? ''
@@ -461,11 +461,11 @@ export function find_same_answers(input: {
 	return {
 		kind: 'same-answer',
 		title: `The same answer is fetched on every render${where}`,
-		fix:
-			'Every render asked for this and got the same bytes back each time: nothing it depends on changed between requests. Cache it across requests (a module-level cache with a time limit, the platform’s data cache, or a CDN in front of the API), refreshed on a schedule or when the data changes. If it must be fresh, ask the API for a cheaper “has it changed” check (ETag, If-None-Match) instead of the whole answer.' +
-			(personal
+		fix: `Every render asked for this and got the same bytes back each time: nothing it depends on changed between requests. Cache it across requests (a module-level cache with a time limit, the platform’s data cache, or a CDN in front of the API), refreshed on a schedule or when the data changes. If it must be fresh, ask the API for a cheaper “has it changed” check (ETag, If-None-Match) instead of the whole answer.${
+			personal
 				? ` ${personal === sites.length ? 'These requests' : `${personal} of these requests`} carried who is asking (a cookie or an authorization header), and the recording rendered as one user: cache ${personal === sites.length ? 'them' : 'those'} per user, keyed by the session, never for everyone.`
-				: ''),
+				: ''
+		}`,
 		example: {
 			before:
 				'export async function load({ fetch }) {\n\tconst config = await (await fetch(API + "/config")).json();',
@@ -476,7 +476,7 @@ export function find_same_answers(input: {
 		cost_ms: r2(cost),
 		alloc_bytes: 0,
 		save_ms: r2(save),
-		evidence: `${top.target} answered the same ${top.answer_bytes !== undefined ? fmt_mb(top.answer_bytes) + ' ' : ''}in every render${top.personal ? ' (as the one user this recording rendered as)' : ''}, ${r2(top.wait_ms ?? 0)} ms of waiting each time${more}`,
+		evidence: `${top.target} answered the same ${top.answer_bytes !== undefined ? `${fmt_mb(top.answer_bytes)} ` : ''}in every render${top.personal ? ' (as the one user this recording rendered as)' : ''}, ${r2(top.wait_ms ?? 0)} ms of waiting each time${more}`,
 		wait: true
 	};
 }
@@ -532,7 +532,7 @@ function call_sites_of(
 				path: caller.path,
 				file: caller.url,
 				line,
-				code: code.length > 140 ? code.slice(0, 139) + '…' : code,
+				code: code.length > 140 ? `${code.slice(0, 139)}…` : code,
 				fn: caller.key,
 				in_loop: loop_from(body.lines.slice(0, i + 1), caller.path.endsWith('.svelte')) >= 0
 			});
@@ -1497,7 +1497,7 @@ export function counted_sync_io(
 						path: f.path,
 						file: f.file,
 						line: i + 1,
-						code: code.length > 140 ? code.slice(0, 139) + '…' : code,
+						code: code.length > 140 ? `${code.slice(0, 139)}…` : code,
 						...(fn ? { fn_name: fn } : {}),
 						cpu_ms: 0,
 						alloc_bytes: 0,
@@ -1549,12 +1549,12 @@ export function find_patterns(input: PatternInput): Pattern[] {
 	for (const f of input.functions) fns.set(f.key, f);
 	/** the function a memory-only line belongs to: its `at` line is where that function starts */
 	const starts = new Map<string, FrameStat>();
-	for (const f of input.functions) if (f.path && f.line > 0) starts.set(f.path + '\0' + f.line, f);
+	for (const f of input.functions) if (f.path && f.line > 0) starts.set(`${f.path}\0${f.line}`, f);
 	/** a function by the `file:line` its callers' stack frames name it with */
 	const by_loc = new Map<string, FrameStat>();
 	for (const f of input.functions)
-		if (f.url && f.line > 0 && !by_loc.has(f.url + ':' + f.line))
-			by_loc.set(f.url + ':' + f.line, f);
+		if (f.url && f.line > 0 && !by_loc.has(`${f.url}:${f.line}`))
+			by_loc.set(`${f.url}:${f.line}`, f);
 	/** per file, the start lines of its functions, highest first */
 	const starts_in = new Map<string, number[]>();
 	for (const f of input.functions) {
@@ -1596,7 +1596,7 @@ export function find_patterns(input: PatternInput): Pattern[] {
 	const moved = new Set<PatternSite>();
 	for (const l of input.ledger) {
 		if (!l.code) continue;
-		const f = (l.fn ? fns.get(l.fn) : undefined) ?? starts.get(l.path + '\0' + l.line);
+		const f = (l.fn ? fns.get(l.fn) : undefined) ?? starts.get(`${l.path}\0${l.line}`);
 		const svelte = l.path.endsWith('.svelte');
 		// a COMPILED component's line (a build without sourcemaps: the module map says the chunk line
 		// is a .svelte module's, inside a function): its instance script, which runs on every render —
@@ -1665,7 +1665,7 @@ export function find_patterns(input: PatternInput): Pattern[] {
 			)
 				break;
 			const group =
-				rule.kind === 'library-per-item' ? rule.kind + '\0' + (ctx.lib_names[0] ?? '') : rule.kind;
+				rule.kind === 'library-per-item' ? `${rule.kind}\0${ctx.lib_names[0] ?? ''}` : rule.kind;
 			let e = found.get(group);
 			if (!e) found.set(group, (e = { rule, sites: [] }));
 			// (a line already named from inside another line's loop or callee is not listed twice)
@@ -1950,9 +1950,9 @@ function evidence_of(sites: readonly PatternSite[], renders = 1): string {
 			(a, b) => b.cpu_ms + b.gc_ms + (b.lib_ms ?? 0) - (a.cpu_ms + a.gc_ms + (a.lib_ms ?? 0))
 		)[0];
 	let s = parts.join(', ');
-	if (s && renders > 1) s += ` over ${renders} renders`;
+	if (s && renders > 1) s = `${s} over ${renders} renders`;
 	if (counted)
-		s += `${s ? '; ' : ''}${counted.fn_name} ran ${counted.calls} times${renders > 1 ? ' in one render' : ''}`;
+		s = `${s}${s ? '; ' : ''}${counted.fn_name} ran ${counted.calls} times${renders > 1 ? ' in one render' : ''}`;
 	return s;
 }
 
@@ -2070,7 +2070,7 @@ export function find_wait_patterns(input: WaitInput): Pattern[] {
 	const groups = new Map<string, WaitCall[]>();
 	for (const c of input.calls) {
 		if (!c.at || c.at.line <= 0 || c.ms < 0) continue;
-		const k = c.at.path + '\0' + c.at.line + '\0' + (c.scope ?? '');
+		const k = `${c.at.path}\0${c.at.line}\0${c.scope ?? ''}`;
 		const g = groups.get(k);
 		if (g) g.push(c);
 		else groups.set(k, [c]);
@@ -2088,7 +2088,7 @@ export function find_wait_patterns(input: WaitInput): Pattern[] {
 		const pa = a.outer ?? a.at;
 		const pb = b.outer ?? b.at;
 		if (!input.source || !pa || !pb || pa.path !== pb.path) return false;
-		const k = pa.path + '\0' + pa.line + '\0' + pb.line;
+		const k = `${pa.path}\0${pa.line}\0${pb.line}`;
 		let v = needs_memo.get(k);
 		if (v === undefined)
 			needs_memo.set(
@@ -2137,7 +2137,7 @@ export function find_wait_patterns(input: WaitInput): Pattern[] {
 			// on two lines (`await get('a'); await get('b')`) are a chain at two calls already; a loop
 			// needs three to be sure
 			const outers = new Map<string, { path: string; line: number }>();
-			for (const c of best) if (c.outer) outers.set(c.outer.path + ':' + c.outer.line, c.outer);
+			for (const c of best) if (c.outer) outers.set(`${c.outer.path}:${c.outer.line}`, c.outer);
 			const min = outers.size >= 2 ? 2 : CHAIN_MIN;
 			if (best.length < min || wait < CHAIN_MIN_MS) continue;
 			const at = best[0].at!;
@@ -2154,7 +2154,7 @@ export function find_wait_patterns(input: WaitInput): Pattern[] {
 					path: o.path,
 					file: short_file(o.path),
 					line: o.line,
-					code: oc.length > 140 ? oc.slice(0, 139) + '…' : oc,
+					code: oc.length > 140 ? `${oc.slice(0, 139)}…` : oc,
 					in_loop: loop_at(o)
 				};
 			});
@@ -2173,7 +2173,7 @@ export function find_wait_patterns(input: WaitInput): Pattern[] {
 				path: at.path,
 				file: short_file(at.path),
 				line: at.line,
-				code: code.length > 140 ? code.slice(0, 139) + '…' : code,
+				code: code.length > 140 ? `${code.slice(0, 139)}…` : code,
 				cpu_ms: 0,
 				alloc_bytes: 0,
 				gc_ms: 0,
@@ -2246,7 +2246,7 @@ function find_stragglers(input: WaitInput): Pattern | undefined {
 	for (const c of input.calls) {
 		const p = c.outer ?? c.at;
 		if (!p || c.ms < 0) continue;
-		const k = p.path + '\0' + p.line + '\0' + (c.scope ?? '');
+		const k = `${p.path}\0${p.line}\0${c.scope ?? ''}`;
 		(by_line.get(k) ?? by_line.set(k, []).get(k)!).push(c);
 	}
 	const sites: PatternSite[] = [];
@@ -2273,7 +2273,7 @@ function find_stragglers(input: WaitInput): Pattern | undefined {
 				path: p.path,
 				file: short_file(p.path),
 				line: p.line,
-				code: code.length > 140 ? code.slice(0, 139) + '…' : code,
+				code: code.length > 140 ? `${code.slice(0, 139)}…` : code,
 				cpu_ms: 0,
 				alloc_bytes: 0,
 				gc_ms: 0,
@@ -2320,7 +2320,7 @@ function find_repeats(input: WaitInput): Pattern | undefined {
 	const groups = new Map<string, WaitCall[]>();
 	for (const c of input.calls) {
 		if (!c.exact || !c.at || c.ms < 0) continue;
-		const k = c.exact + '\0' + (c.scope ?? '');
+		const k = `${c.exact}\0${c.scope ?? ''}`;
 		const g = groups.get(k);
 		if (g) g.push(c);
 		else groups.set(k, [c]);
@@ -2335,7 +2335,7 @@ function find_repeats(input: WaitInput): Pattern | undefined {
 		const asked = new Map<string, { path: string; line: number }>();
 		for (const c of g) {
 			const p = c.outer ?? c.at!;
-			asked.set(p.path + ':' + p.line, p);
+			asked.set(`${p.path}:${p.line}`, p);
 		}
 		const at = g[0].at!;
 		const code = input.source?.(at.path, at.line, at.line)?.lines[0]?.trim() ?? '';
@@ -2345,7 +2345,7 @@ function find_repeats(input: WaitInput): Pattern | undefined {
 				path: o.path,
 				file: short_file(o.path),
 				line: o.line,
-				code: oc.length > 140 ? oc.slice(0, 139) + '…' : oc,
+				code: oc.length > 140 ? `${oc.slice(0, 139)}…` : oc,
 				in_loop: false
 			};
 		});
@@ -2353,7 +2353,7 @@ function find_repeats(input: WaitInput): Pattern | undefined {
 			path: at.path,
 			file: short_file(at.path),
 			line: at.line,
-			code: code.length > 140 ? code.slice(0, 139) + '…' : code,
+			code: code.length > 140 ? `${code.slice(0, 139)}…` : code,
 			cpu_ms: 0,
 			alloc_bytes: 0,
 			gc_ms: 0,
@@ -2957,14 +2957,14 @@ function find_definition(
 		else if (spec.startsWith('$lib/')) {
 			const src = path.lastIndexOf('/src/');
 			if (src === -1) return undefined;
-			target = path.slice(0, src + 5) + 'lib/' + spec.slice(5);
+			target = `${path.slice(0, src + 5)}lib/${spec.slice(5)}`;
 		} else return undefined;
 		for (const p of [
 			target,
-			target + '.ts',
-			target + '.js',
-			target + '/index.ts',
-			target + '/index.js'
+			`${target}.ts`,
+			`${target}.js`,
+			`${target}/index.ts`,
+			`${target}/index.js`
 		]) {
 			const line = in_file(p);
 			if (line) return { path: p, line };
@@ -3035,7 +3035,7 @@ function look_inside(
 						rule,
 						path,
 						line: built?.line ?? start + i,
-						code: said.length > 140 ? said.slice(0, 139) + '…' : said,
+						code: said.length > 140 ? `${said.slice(0, 139)}…` : said,
 						via
 					};
 				}
@@ -3188,7 +3188,7 @@ export function find_cold_caches(input: ColdCacheInput): Pattern | undefined {
 			path: f.path,
 			file: f.url || short_file(f.path),
 			line: get_line,
-			code: code.length > 140 ? code.slice(0, 139) + '…' : code,
+			code: code.length > 140 ? `${code.slice(0, 139)}…` : code,
 			fn: f.key,
 			fn_name: f.name,
 			cpu_ms: f.total_ms,

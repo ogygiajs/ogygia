@@ -31,6 +31,6 @@ export async function render_region_html(
 	const r = await render(component, { props, context });
 	let own = '';
 	for (const href of islandCss(module_url))
-		own += '<link rel="stylesheet" href="' + href + '" ' + REGION_CSS_ATTR + '>';
+		own = `${own}<link rel="stylesheet" href="${href}" ${REGION_CSS_ATTR}>`;
 	return own + region_css_tags(r.head) + r.body + kit_page_facts_tail();
 }

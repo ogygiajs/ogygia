@@ -32,9 +32,7 @@ export function unscoped_finding(list: readonly UnscopedStyles[]): {
 	const one = list.length === 1;
 	return {
 		code: 'css-unscoped',
-		message:
-			`${names.join(', ')}${list.length > 4 ? ` and ${list.length - 4} more` : ''}: ${one ? 'its' : 'their'} styles shipped without the component's scope, so every rule in them applies to the whole page. ` +
-			`A \`.row\` or \`.bar\` in ${one ? 'it' : 'them'} restyles any element with that class, in any component. The build could not compile ${one ? 'it' : 'them'} and fell back to the raw style ${one ? 'body' : 'bodies'}.`,
+		message: `${names.join(', ')}${list.length > 4 ? ` and ${list.length - 4} more` : ''}: ${one ? 'its' : 'their'} styles shipped without the component's scope, so every rule in them applies to the whole page. A \`.row\` or \`.bar\` in ${one ? 'it' : 'them'} restyles any element with that class, in any component. The build could not compile ${one ? 'it' : 'them'} and fell back to the raw style ${one ? 'body' : 'bodies'}.`,
 		fix: `The build log has a line "scoped CSS for … could not be compiled" with the full reason. Usually a style language the build cannot read here (scss and sass are compiled; less and stylus are not) or markup the compiler rejects. Fix that and rebuild.`
 	};
 }

@@ -71,7 +71,7 @@ export function dev_or_prerender(): boolean {
 }
 
 function line(table: MessageTableShape | null, code: string, a: unknown): string {
-	let link = 'https://ogygiajs.dev/e/' + code;
+	let link = `https://ogygiajs.dev/e/${code}`;
 	if (a && typeof a === 'object') {
 		const params = new URLSearchParams();
 		for (const name in a) {
@@ -79,10 +79,10 @@ function line(table: MessageTableShape | null, code: string, a: unknown): string
 			if (value != null && value !== '') params.set(name, String(value).slice(0, 300));
 		}
 		const query = params.toString();
-		if (query) link += '?' + query;
+		if (query) link = `${link}?${query}`;
 	}
 	const entry = table && (table[code] as MessageEntry<unknown> | undefined);
-	return entry ? '[ogygia] ' + entry.text(a) + '\n' + link : '[ogygia] ' + link;
+	return entry ? `[ogygia] ${entry.text(a)}\n${link}` : `[ogygia] ${link}`;
 }
 
 /**

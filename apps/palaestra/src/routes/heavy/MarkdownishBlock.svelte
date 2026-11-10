@@ -9,8 +9,8 @@
 	// svelte-ignore state_referenced_locally
 	for (let p = 0; p < paragraphs; p++) {
 		let line = '';
-		for (let w = 0; w < 40; w++) line += words[(p * 7 + w * 13) % words.length] + ' ';
-		doc += `## Section ${p}\n${line}**bold** and _em_ and \`code\`\n\n`;
+		for (let w = 0; w < 40; w++) line = `${line}${words[(p * 7 + w * 13) % words.length]} `;
+		doc = `${doc}## Section ${p}\n${line}**bold** and _em_ and \`code\`\n\n`;
 	}
 
 	// several passes of regex replacement — the expensive part

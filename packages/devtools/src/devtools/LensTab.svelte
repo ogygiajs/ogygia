@@ -19,7 +19,7 @@
 		picking = $bindable(false)
 	} = $props();
 
-	const kb = (n) => (n < 1024 ? n + ' B' : (n / 1024).toFixed(1) + ' KB');
+	const kb = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`);
 
 	const regions = $derived.by(() => {
 		void tick; // refresh with the panel tick

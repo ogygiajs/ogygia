@@ -600,7 +600,7 @@ function as_template(context: FixContext, top: Node, ops: Node[]): string {
 		// the operands before the first string, as `+` adds them: one `${…}`
 		let prefix = top;
 		for (let i = ops.length - 1; i >= first; i--) prefix = prefix.left as Node;
-		out += `\${${context.sourceCode.getText(prefix as Ranged)}}`;
+		out = `${out}\${${context.sourceCode.getText(prefix as Ranged)}}`;
 	}
 	for (let i = Math.max(first, 0); i < ops.length; i++) out += part(context, ops[i]!);
 	// ('</' + 'script>' is split on purpose: in a .svelte or HTML script block a whole one closes it;

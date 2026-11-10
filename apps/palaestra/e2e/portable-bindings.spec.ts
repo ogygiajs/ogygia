@@ -56,7 +56,7 @@ const make_ctx = () => ({
 	dev: false,
 	virtualPathFor: (_h: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
 	wrapperPathFor: (_h: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
-	devUrlFor: (p: string) => '/@id/' + p,
+	devUrlFor: (p: string) => `/@id/${p}`,
 	visibleMargin: '0px',
 	presets: {}
 });
@@ -420,7 +420,7 @@ export const registry = [RawX, WakeX, LoadY, WakeX2];
 				);
 				const portableNode = [...appCode.matchAll(PORTABLE_NODE_RE)].map((m) => m[1])[0];
 				if (portableNode) {
-					const pf = fs.readdirSync(nodesDir).find((n) => n.startsWith(portableNode + '.'));
+					const pf = fs.readdirSync(nodesDir).find((n) => n.startsWith(`${portableNode}.`));
 					const pcode = pf ? fs.readFileSync(path.join(nodesDir, pf), 'utf-8') : '';
 					check(
 						'build: portable (csr=false) node has no island static import',
@@ -437,10 +437,7 @@ export const registry = [RawX, WakeX, LoadY, WakeX2];
 					js: Record<string, string[]>;
 					css: Record<string, string[]>;
 				};
-				const portableEntry =
-					'/_app/ogygia/og-region.' +
-					(counterFacades[0]?.match(OG_REGION_HASH_RE)?.[1] ?? '') +
-					'.js';
+				const portableEntry = `/_app/ogygia/og-region.${counterFacades[0]?.match(OG_REGION_HASH_RE)?.[1] ?? ''}.js`;
 				// Presence of deps handoff proves generateBundle walked Rolldown OutputChunk.imports.
 				// Shape is `{ js: { entry: [...] }, css: { entry: [...] } }`.
 				const jsKeys = Object.keys(deps.js ?? {});

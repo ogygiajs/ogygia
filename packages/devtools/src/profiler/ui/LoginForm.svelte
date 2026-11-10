@@ -13,7 +13,7 @@
 		ev.preventDefault();
 		wrong = false;
 		try {
-			const r = await fetch(base + '/login', {
+			const r = await fetch(`${base}/login`, {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ key, next })

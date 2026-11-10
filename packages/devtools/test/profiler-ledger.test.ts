@@ -150,7 +150,7 @@ describe('line ledger', () => {
 		// the profile: attachBrands and matches were inlined into load; all 90 ms landed on line 5
 		const functions = [
 			fn({
-				key: 'load ' + path,
+				key: `load ${path}`,
 				name: 'load',
 				path,
 				line: 2,
@@ -197,7 +197,7 @@ describe('line ledger', () => {
 		] as unknown as GcMaker[];
 		expect(build_ledger({ functions: [], makers })).toEqual([]);
 		const many = Array.from({ length: 60 }, (_, i) =>
-			fn({ key: 'f' + i, name: 'f' + i, path: '/a/src/x.ts', lines: [{ line: i + 1, ms: i + 1 }] })
+			fn({ key: `f${i}`, name: `f${i}`, path: '/a/src/x.ts', lines: [{ line: i + 1, ms: i + 1 }] })
 		);
 		const out = build_ledger({ functions: many, limit: 5 });
 		expect(out).toHaveLength(5);

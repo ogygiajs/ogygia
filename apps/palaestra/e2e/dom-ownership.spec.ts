@@ -16,7 +16,7 @@ import { test, check } from '@ogygia/tooling/e2e';
 
 test.describe('DOM OWNERSHIP: a widget’s own nodes survive the wake', () => {
 	test('SSR: both widget hosts carry the compiler’s opaque stamp', async ({ baseURL }) => {
-		const html = await (await fetch(baseURL + '/dom-ownership')).text();
+		const html = await (await fetch(`${baseURL}/dom-ownership`)).text();
 		check(
 			'{@html} host stamped',
 			/<div class="widget-host[^"]*"[^>]*data-og-opaque|<div data-og-opaque[^>]*class="widget-host/.test(

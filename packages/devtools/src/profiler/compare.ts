@@ -167,7 +167,7 @@ export function line_deltas(
 	ra = 1,
 	rb = 1
 ): LineDelta[] {
-	const key = (l: LedgerLine) => l.file + '\0' + (l.code ?? `#${l.line}`);
+	const key = (l: LedgerLine) => `${l.file}\0${l.code ?? `#${l.line}`}`;
 	const cost = (l: LedgerLine, r: number) => ({
 		ms: round2((l.cpu_ms + l.lib_ms) / r),
 		bytes: Math.round(l.alloc_bytes / r),
@@ -555,7 +555,7 @@ export interface PatternDelta {
 
 /** what makes two reports' patterns the same one: its kind, and for a library call the library */
 const pattern_key = (p: Pattern) =>
-	p.kind + '\0' + (p.kind === 'library-per-item' ? (p.sites[0]?.libs?.[0] ?? '') : '');
+	`${p.kind}\0${p.kind === 'library-per-item' ? (p.sites[0]?.libs?.[0] ?? '') : ''}`;
 
 export function pattern_deltas(
 	a: readonly Pattern[] = [],

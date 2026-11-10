@@ -105,7 +105,7 @@
 			const file = entryAttr.slice('__ISLAND__:'.length);
 			if (modules[file] == null) continue;
 			const Comp = eval_client(modules[file], require, sc).default;
-			const key = 'k' + Math.random().toString(36).slice(2);
+			const key = `k${Math.random().toString(36).slice(2)}`;
 			store[key] = Comp;
 			const blob = URL.createObjectURL(
 				new Blob([`export default window.__OBS_ISLANDS__[${JSON.stringify(key)}]`], {
@@ -294,7 +294,7 @@
 					module: '',
 					props: {},
 					html: node.innerHTML,
-					url: '/__obs_live/' + fp
+					url: `/__obs_live/${fp}`
 				});
 			}
 		}
@@ -364,7 +364,7 @@
 						module: '',
 						props: {},
 						html: d.html,
-						url: '/__obs_live/' + d.fp
+						url: `/__obs_live/${d.fp}`
 					});
 			}
 		};

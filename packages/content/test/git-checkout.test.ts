@@ -56,7 +56,7 @@ beforeAll(() => {
 	fs.mkdirSync(path.dirname(mirror), { recursive: true });
 	git(['clone', '-q', '--bare', work, mirror], tmp);
 	git(['config', 'uploadpack.allowFilter', 'true'], mirror);
-	base_url = 'file://' + path.join(tmp, 'mirror');
+	base_url = `file://${path.join(tmp, 'mirror')}`;
 	root = path.join(tmp, 'app');
 	fs.mkdirSync(root);
 	__set_build_cache_root(undefined);

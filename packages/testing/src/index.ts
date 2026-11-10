@@ -437,13 +437,11 @@ export class Ogygia {
 		if (!r) {
 			const now = await this.#in_page(() => location.href, null).catch(() => null); // ok: only words the error thrown below
 			throw new Error(
-				'the recording was lost: the page went to another document while it ran' +
-					(now ? ` (it is now at ${now})` : '') +
-					(out.stop_error !== undefined
+				`the recording was lost: the page went to another document while it ran${now ? ` (it is now at ${now})` : ''}${
+					out.stop_error !== undefined
 						? ', and that document has no ogygia testing API to finish it'
-						: '') +
-					(failed ? '. The actions failed too: see `cause`' : '') +
-					'. To keep the page, record with `{ blockNavigation: true }`.',
+						: ''
+				}${failed ? '. The actions failed too: see `cause`' : ''}. To keep the page, record with \`{ blockNavigation: true }\`.`,
 				{ cause: failed ? failure : out.stop_error }
 			);
 		}
@@ -646,7 +644,7 @@ export function playwrightDriver(
 			// (the page's own origin only: a header on another site's request would make it preflight)
 			const tag = async (route: Route) => {
 				const req = route.request();
-				if (!req.url().startsWith(origin + '/')) return route.fallback();
+				if (!req.url().startsWith(`${origin}/`)) return route.fallback();
 				await route.fallback({ headers: { ...(await req.allHeaders()), [header]: value } });
 			};
 			await page.route('**/*', tag);
@@ -1301,7 +1299,7 @@ export function toMarkdown(diffs: RunDiff[]): string {
 			);
 		for (const v of d.vitals ?? [])
 			out.push(
-				`  - ${v.key.toUpperCase()} ${v.key === 'cls' ? v.base : Math.round(v.base) + ' ms'} → ${v.key === 'cls' ? v.head : Math.round(v.head) + ' ms'}`
+				`  - ${v.key.toUpperCase()} ${v.key === 'cls' ? v.base : `${Math.round(v.base)} ms`} → ${v.key === 'cls' ? v.head : `${Math.round(v.head)} ms`}`
 			);
 		for (const s of d.session ?? [])
 			out.push(

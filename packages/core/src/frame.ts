@@ -35,5 +35,5 @@ export function frameAddress(endpoint: string): string {
 	const props = params.get('props');
 	// the page facts a hole renders from name it too (server/render-page.ts): new facts, new address
 	const pv = params.get('pv');
-	return id != null ? `${id}|${props ?? ''}${pv ? '|' + pv : ''}` : endpoint.slice(0, q);
+	return id != null ? `${id}|${props ?? ''}${pv ? `|${pv}` : ''}` : endpoint.slice(0, q);
 }

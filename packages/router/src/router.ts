@@ -195,11 +195,11 @@ export function routes<const T extends KeyedTable<T>>(
 		for (const l of leaf.def.layouts) merged = { ...merged, ...l.config };
 		config_of.set(leaf.pattern, { ...merged, ...leaf.def.config });
 	}
-	register_route_config(base + '|' + leaves.map((l) => l.pattern).join(','), (pathname) => {
+	register_route_config(`${base}|${leaves.map((l) => l.pattern).join(',')}`, (pathname) => {
 		let path = pathname;
 		if (base) {
 			if (path === base) path = '/';
-			else if (path.startsWith(base + '/')) path = path.slice(base.length);
+			else if (path.startsWith(`${base}/`)) path = path.slice(base.length);
 			else return undefined; // not under our base → not ours
 		}
 		path = canonical_slash(path, slash) ?? path;
@@ -215,7 +215,7 @@ export function routes<const T extends KeyedTable<T>>(
 		let path = url.pathname;
 		if (base) {
 			if (path === base) path = '/';
-			else if (path.startsWith(base + '/')) path = path.slice(base.length);
+			else if (path.startsWith(`${base}/`)) path = path.slice(base.length);
 			else return null; // not under our base → not ours
 		}
 
@@ -640,7 +640,7 @@ function canonical_slash(path: string, mode: 'ignore' | 'never' | 'always'): str
 	if (mode === 'ignore' || path === '/') return null;
 	const has = path.endsWith('/');
 	if (mode === 'never' && has) return path.replace(TRAILING_SLASH, '') || '/';
-	if (mode === 'always' && !has) return path + '/';
+	if (mode === 'always' && !has) return `${path}/`;
 	return null;
 }
 

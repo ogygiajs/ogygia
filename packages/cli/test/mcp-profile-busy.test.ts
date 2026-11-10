@@ -60,17 +60,17 @@ afterEach(async () => {
 });
 
 const start_window = async () => {
-	const res = await fetch(origin + '/__profiler/window/start', { method: 'POST' });
+	const res = await fetch(`${origin}/__profiler/window/start`, { method: 'POST' });
 	expect(res.status).toBe(200);
 	return ((await res.json()) as { id: string }).id;
 };
 const stop_window = (id: string) =>
-	fetch(origin + '/__profiler/window/stop', { method: 'POST', headers: { 'x-og-window': id } });
+	fetch(`${origin}/__profiler/window/stop`, { method: 'POST', headers: { 'x-og-window': id } });
 
 describe('ogygia_profile while another recording holds the profiler', () => {
 	it('leaves a live window alone and says the profiler is busy', async () => {
 		const id = await start_window();
-		const out = await dispatch_tool('ogygia_profile', { url: origin + '/p', runs: 1 });
+		const out = await dispatch_tool('ogygia_profile', { url: `${origin}/p`, runs: 1 });
 		const said = out.content.map((c) => c.text).join('\n');
 		expect.soft(out.isError).toBe(true);
 		expect.soft(said).toMatch(/busy/i);
@@ -108,7 +108,7 @@ describe('ogygia_profile while another recording holds the profiler', () => {
 		await new Promise<void>((r) => stale.listen(0, '127.0.0.1', r));
 		try {
 			const at = `http://127.0.0.1:${(stale.address() as AddressInfo).port}`;
-			await dispatch_tool('ogygia_profile', { url: at + '/p', runs: 1 });
+			await dispatch_tool('ogygia_profile', { url: `${at}/p`, runs: 1 });
 			expect(asked.filter((p) => p !== '/__profiler')).toEqual([
 				'/__profiler/page',
 				'/__profiler/reset',

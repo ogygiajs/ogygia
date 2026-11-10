@@ -18,7 +18,7 @@ const DOLLAR_COUNTRY_RE = /\$country/;
 
 test.describe('REGRESSION: $store reads in a crossing snippet hoist as VALUE snapshots (no verbatim $-identifier in the synth)', () => {
 	test('SSR', async ({ baseURL }) => {
-		const raw = await (await fetch(baseURL + '/store-snippet')).text();
+		const raw = await (await fetch(`${baseURL}/store-snippet`)).text();
 		check(
 			'SSR: page built + served (the regression WAS a build failure)',
 			DATA_STATIC_RE.test(raw)
@@ -44,7 +44,7 @@ test.describe('REGRESSION: $store reads in a crossing snippet hoist as VALUE sna
 		const errors: string[] = [];
 		page.on('pageerror', (e) => errors.push(e.message));
 		page.on('console', (m) => {
-			if (m.type() === 'error') errors.push('console: ' + m.text());
+			if (m.type() === 'error') errors.push(`console: ${m.text()}`);
 		});
 		await page.goto('/store-snippet', { waitUntil: 'networkidle' });
 		await page.waitForTimeout(250);

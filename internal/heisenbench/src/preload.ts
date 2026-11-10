@@ -14,8 +14,8 @@ const VIRTUAL = 'virtual:ogygia/';
 const APP = '$app/';
 
 function stub_name(specifier: string): string | null {
-	if (specifier.startsWith(VIRTUAL)) return 'virtual-' + specifier.slice(VIRTUAL.length);
-	if (specifier.startsWith(APP)) return 'app-' + specifier.slice(APP.length);
+	if (specifier.startsWith(VIRTUAL)) return `virtual-${specifier.slice(VIRTUAL.length)}`;
+	if (specifier.startsWith(APP)) return `app-${specifier.slice(APP.length)}`;
 	return null;
 }
 

@@ -12,7 +12,7 @@ vi.mock('virtual:ogygia/server-manifest', () => ({
 	island_render: { rnd123: 'c0ffee0c0ffe' }
 }));
 vi.mock('virtual:ogygia/sign', () => ({
-	sign: (_k: string, m: string) => 'sig' + m.length,
+	sign: (_k: string, m: string) => `sig${m.length}`,
 	region_mac_message: (...parts: unknown[]) => parts.join('|')
 }));
 
@@ -24,7 +24,7 @@ const { mpaSpeculationRules } = await import('../src/compiler/link/speculation.t
 
 afterEach(() => configure_islands_endpoint(undefined));
 
-const at = (path: string) => ({ url: new URL('https://a.test' + path) }) as never;
+const at = (path: string) => ({ url: new URL(`https://a.test${path}`) }) as never;
 
 describe('the islands endpoint', () => {
 	it('defaults to /__ogygia__, for the handler and the mint alike', () => {
@@ -55,7 +55,7 @@ describe('the islands endpoint', () => {
 		// (the mocked sign hashes the message by length: the render identity is part of it)
 		const sig = new URL(url, 'http://x').searchParams.get('sig');
 		expect(sig).toBe(
-			'sig' +
+			`sig${
 				[
 					'rnd123',
 					new URL(url, 'http://x').searchParams.get('exp'),
@@ -64,6 +64,7 @@ describe('the islands endpoint', () => {
 					'',
 					'c0ffee0c0ffe'
 				].join('|').length
+			}`
 		);
 	});
 

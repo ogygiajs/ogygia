@@ -47,13 +47,13 @@ server.stderr.on('data', (d) => (server_out += d));
 const base = `http://127.0.0.1:${PORT}`;
 for (let i = 0; i < 100; i++) {
 	try {
-		await fetch(base + '/bench-cms/plain');
+		await fetch(`${base}/bench-cms/plain`);
 		break;
 	} catch {
 		await new Promise((r) => setTimeout(r, 200));
 	}
 	if (i === 99) {
-		console.error('server never came up\n' + server_out);
+		console.error(`server never came up\n${server_out}`);
 		process.exit(1);
 	}
 }
@@ -132,7 +132,7 @@ for (const f of profiles) {
 		const url = n.callFrame.url || '';
 		total += us;
 		const file = url
-			? url.replace(/^file:\/\//, '').replace(root + '/', '')
+			? url.replace(/^file:\/\//, '').replace(`${root}/`, '')
 			: `(${n.callFrame.functionName || 'native'})`;
 		const short = file.replace(/.*node_modules\//, 'nm:').replace(/\?.*$/, '');
 		self_by_file.set(short, (self_by_file.get(short) ?? 0) + us / 1000);

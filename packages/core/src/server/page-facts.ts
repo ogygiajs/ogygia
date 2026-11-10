@@ -38,8 +38,8 @@ export function data_url_of(page: URL): string {
 	u.hash = '';
 	const p = page.pathname;
 	u.pathname = p.endsWith('.html')
-		? p.slice(0, -5) + '.html__data.json'
-		: (p.endsWith('/') ? p.slice(0, -1) : p) + '/__data.json';
+		? `${p.slice(0, -5)}.html__data.json`
+		: `${p.endsWith('/') ? p.slice(0, -1) : p}/__data.json`;
 	if (p.endsWith('/')) u.searchParams.append('x-sveltekit-trailing-slash', '1');
 	return u.href;
 }

@@ -30,7 +30,7 @@ function event(
 	parsed?: string,
 	init: RequestInit = {}
 ): RequestEvent {
-	const url = new URL('http://localhost' + path);
+	const url = new URL(`http://localhost${path}`);
 	const headers = new Headers(init.headers);
 	if (cookie != null) headers.set('cookie', cookie);
 	return {

@@ -115,7 +115,7 @@ export async function build_standalone(html: string, opts: StandaloneOptions): P
 	for (const m of html.matchAll(MODULE_SCRIPT_RE)) {
 		scripts.push({
 			tag: m[0],
-			attrs: (m[1] + ' ' + m[3]).replace(/\s+/g, ' ').trim(),
+			attrs: `${m[1]} ${m[3]}`.replace(/\s+/g, ' ').trim(),
 			url: new URL(m[2], base)
 		});
 	}
@@ -156,7 +156,7 @@ export async function build_standalone(html: string, opts: StandaloneOptions): P
 	const imports: Record<string, string> = {};
 	for (const [key, code] of chunks) {
 		if (!code) continue;
-		imports[key] = 'data:text/javascript;base64,' + Buffer.from(code, 'utf8').toString('base64');
+		imports[key] = `data:text/javascript;base64,${Buffer.from(code, 'utf8').toString('base64')}`;
 	}
 	const map = `<script type="importmap">${JSON.stringify({ imports }).replaceAll('</script', '<\\/script')}</script>`;
 	const note = `<!-- ogygia profiler · standalone report · ${Object.keys(imports).length} chunks inlined${missing.length ? ` · missing: ${missing.join(', ')}` : ''} -->`;

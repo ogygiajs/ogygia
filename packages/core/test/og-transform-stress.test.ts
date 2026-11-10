@@ -157,7 +157,7 @@ describe('scanner fallback — when the AST bails on an unparseable tail', () =>
 		const src = [
 			`// mention import.meta.og.wire() in a comment`,
 			`const doc = "static wire = import.meta.og.wire({})";`,
-			`class C { static wire = import.meta.og.wire(${CODEC}); }` + BROKEN
+			`class C { static wire = import.meta.og.wire(${CODEC}); }${BROKEN}`
 		].join('\n');
 		const out = rewrite_wire(src, '/x.ts', MARKUP);
 		expect(out).toContain(`static [${WIRE_EXPR}] = ${CODEC}`);
@@ -303,7 +303,7 @@ describe('robustness — never throws a low-level error, only build-voice or cle
 	const junk = [
 		'{{{{{{',
 		'static wire = import.meta.og.wire(', // truncated
-		'class C { static wire = import.meta.og.wire(' + CODEC, // unbalanced tail
+		`class C { static wire = import.meta.og.wire(${CODEC}`, // unbalanced tail
 		'import.meta.og',
 		'import.meta.og.',
 		'\0\0\0 import.meta.og.wire',

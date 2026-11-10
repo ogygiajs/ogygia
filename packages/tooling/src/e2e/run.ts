@@ -306,8 +306,7 @@ async function main() {
 	}
 
 	console.log(
-		`▸ ${suites.length} suites in ${plan_lanes.length} lanes` +
-			(Object.keys(timings).length ? '' : ' (first run: balanced by test count)')
+		`▸ ${suites.length} suites in ${plan_lanes.length} lanes${Object.keys(timings).length ? '' : ' (first run: balanced by test count)'}`
 	);
 	const totals: Totals = { passed: 0, failed: 0, flaky: 0, skipped: 0 };
 	const fresh: Record<string, number> = {};
@@ -355,7 +354,7 @@ async function main() {
 		})
 	);
 
-	writeFileSync(TIMINGS, JSON.stringify({ ...timings, ...fresh }, null, '\t') + '\n');
+	writeFileSync(TIMINGS, `${JSON.stringify({ ...timings, ...fresh }, null, '\t')}\n`);
 	console.log(
 		`\n${failures.length ? '✗' : '✓'} ${totals.passed} passed, ${totals.failed} failed, ` +
 			`${totals.flaky} flaky, ${totals.skipped} skipped in ${fmt(Date.now() - started)}`

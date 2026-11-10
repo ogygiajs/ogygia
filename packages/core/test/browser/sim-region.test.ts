@@ -70,7 +70,7 @@ function note(what: string): void {
 	if (!EXPLORE) return;
 	trail.push(what);
 	for (const [name, kind] of Object.entries(now))
-		if (BUSY[name]?.includes(kind) && !what.startsWith(name + ' ')) {
+		if (BUSY[name]?.includes(kind) && !what.startsWith(`${name} `)) {
 			const key = `${what} | while ${name} ${kind}`;
 			seen.set(key, (seen.get(key) ?? 0) + 1);
 		}

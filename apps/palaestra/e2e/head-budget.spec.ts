@@ -52,9 +52,9 @@ async function page_css(page_url: string, html: string, sheets: string[]): Promi
 	let css = '';
 	for (const href of sheets) {
 		const r = await fetch(new URL(href, page_url).href);
-		css += (await r.text()) + '\n';
+		css = `${css}${await r.text()}\n`;
 	}
-	for (const m of html.matchAll(INLINE_STYLE_G)) css += m[1] + '\n';
+	for (const m of html.matchAll(INLINE_STYLE_G)) css = `${css}${m[1]}\n`;
 	return css;
 }
 /** Whole-token match: `hbtoken-d` must not match inside `hbtoken-direct`. */
@@ -64,7 +64,7 @@ test.describe('HEAD BUDGET: a csr=false page links only what it renders', () => 
 	test('SSR: linked stylesheets carry the rendered islands only, within budget', async ({
 		baseURL
 	}) => {
-		const res = await fetch(baseURL + '/head-budget');
+		const res = await fetch(`${baseURL}/head-budget`);
 		const html = await res.text();
 		check('/head-budget returns 200', res.status === 200);
 		check('/head-budget ships NO Kit bootstrap (csr=false)', !KIT_MARKER_RE.test(html));
@@ -83,7 +83,7 @@ test.describe('HEAD BUDGET: a csr=false page links only what it renders', () => 
 			preloads.join('\n')
 		);
 		// Fetch every linked sheet, add every inline sheet, and grep the tokens.
-		const css = await page_css(baseURL + '/head-budget', html, sheets);
+		const css = await page_css(`${baseURL}/head-budget`, html, sheets);
 		const has = (tok: string) => has_token(css, tok);
 		for (const tok of RENDERED)
 			check(`rendered island CSS is linked (${tok})`, has(tok), `sheets: ${sheets.join(', ')}`);
@@ -110,11 +110,11 @@ test.describe('HEAD BUDGET: a csr=false page links only what it renders', () => 
 	test('SSR: a registry behind a plain helper module gets the same treatment', async ({
 		baseURL
 	}) => {
-		const res = await fetch(baseURL + '/head-budget/via-factory');
+		const res = await fetch(`${baseURL}/head-budget/via-factory`);
 		const html = await res.text();
 		check('/head-budget/via-factory returns 200', res.status === 200);
 		const sheets = (html.match(STYLESHEET_LINK_G) ?? []).map((t) => t.match(HREF_RE)?.[1] ?? '');
-		const css = await page_css(baseURL + '/head-budget/via-factory', html, sheets);
+		const css = await page_css(`${baseURL}/head-budget/via-factory`, html, sheets);
 		check('rendered registry block CSS is linked (hbtoken-a)', has_token(css, 'hbtoken-a'));
 		for (const tok of ['hbtoken-b', 'hbtoken-c', 'hbtoken-d', 'hbtoken-e', 'hbtoken-f'])
 			check(`unrendered mark CSS is NOT linked behind the helper (${tok})`, !has_token(css, tok));

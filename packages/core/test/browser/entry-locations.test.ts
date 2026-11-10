@@ -109,14 +109,14 @@ describe('import_entry: the location, then the current build’s, once', () => {
 
 	test('a known location is what gets imported', async () => {
 		const identity = '/test/browser/fixtures/entry-identity.ts?t=1';
-		note_entry_location(identity, LOCATED + '?t=1');
+		note_entry_location(identity, `${LOCATED}?t=1`);
 		const m = await import_entry<{ default: string }>(identity);
 		expect(m.default).toBe('located');
 		expect(requested('entry-identity.ts?t=1')).toHaveLength(0);
 	});
 
 	test('the location failing, the current build’s map names the file to load (a page that outlived its build)', async () => {
-		const identity = BUILD + '000000000aa1.js';
+		const identity = `${BUILD}000000000aa1.js`;
 		note_entry_location(identity, '/test/browser/fixtures/gone-Aa11Bb22.js');
 		const m = await import_entry<{ default: string }>(identity);
 		expect(m.default).toBe('current');
@@ -125,14 +125,14 @@ describe('import_entry: the location, then the current build’s, once', () => {
 	});
 
 	test('no location anywhere on the page: the current build’s, without a failed load first', async () => {
-		const m = await import_entry<{ default: string }>(BUILD + '000000000aa2.js');
+		const m = await import_entry<{ default: string }>(`${BUILD}000000000aa2.js`);
 		expect(m.default).toBe('current');
 		expect(requested('og-region.000000000aa2.js')).toHaveLength(0);
 		expect(requested(CURRENT_MAP)).toHaveLength(1); // read once for the document
 	});
 
 	test('not a build’s identity (the dev server’s module), its location failing: the module itself', async () => {
-		const identity = IDENTITY + '?t=3';
+		const identity = `${IDENTITY}?t=3`;
 		note_entry_location(identity, '/test/browser/fixtures/gone-Qq11Rr22.js');
 		const m = await import_entry<{ default: string }>(identity);
 		expect(m.default).toBe('identity');
@@ -146,7 +146,7 @@ describe('import_entry: the location, then the current build’s, once', () => {
 	});
 
 	test('both gone: one try at the current build’s file, then the error stands (never a loop)', async () => {
-		const identity = BUILD + '000000000aa3.js';
+		const identity = `${BUILD}000000000aa3.js`;
 		note_entry_location(identity, '/test/browser/fixtures/gone-Gg77Hh88.js');
 		await expect(import_entry(identity)).rejects.toThrow();
 		expect(requested('gone-Gg77Hh88.js')).toHaveLength(1);
@@ -154,9 +154,9 @@ describe('import_entry: the location, then the current build’s, once', () => {
 	});
 
 	test('an explicit url wins over the map (the caller already resolved it)', async () => {
-		const identity = IDENTITY + '?t=5';
+		const identity = `${IDENTITY}?t=5`;
 		note_entry_location(identity, '/test/browser/fixtures/gone-Ii99Jj00.js');
-		const m = await import_entry<{ default: string }>(identity, LOCATED + '?t=5');
+		const m = await import_entry<{ default: string }>(identity, `${LOCATED}?t=5`);
 		expect(m.default).toBe('located');
 	});
 });
@@ -179,8 +179,8 @@ describe('a fallback is reported (the runtime wires devtools and the beacon to i
 		});
 		expect(reports[1]).toMatchObject({ entry: bad, recovered: false });
 		// a load that worked reports nothing
-		const fine = IDENTITY + '?t=8';
-		note_entry_location(fine, LOCATED + '?t=8');
+		const fine = `${IDENTITY}?t=8`;
+		note_entry_location(fine, `${LOCATED}?t=8`);
 		await import_entry(fine);
 		await new Promise((r) => setTimeout(r, 50));
 		expect(reports).toHaveLength(2);
@@ -189,13 +189,13 @@ describe('a fallback is reported (the runtime wires devtools and the beacon to i
 
 describe('the warmer goes to the location', () => {
 	test('warming an identity fetches its location, and dedupes by it', async () => {
-		const identity = IDENTITY + '?t=6';
-		note_entry_location(identity, LOCATED + '?t=6');
+		const identity = `${IDENTITY}?t=6`;
+		note_entry_location(identity, `${LOCATED}?t=6`);
 		warm_island_module(identity);
 		await expect.poll(() => requested('entry-located.ts?t=6').length, { timeout: 5000 }).toBe(1);
 		expect(requested('entry-identity.ts?t=6')).toHaveLength(0);
 		expect(is_warmed_module(identity)).toBe(true);
-		expect(is_warmed_module(LOCATED + '?t=6')).toBe(true);
+		expect(is_warmed_module(`${LOCATED}?t=6`)).toBe(true);
 		warm_island_module(identity);
 		await new Promise((r) => setTimeout(r, 100));
 		expect(requested('entry-located.ts?t=6')).toHaveLength(1);

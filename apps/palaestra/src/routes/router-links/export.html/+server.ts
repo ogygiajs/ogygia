@@ -3,8 +3,7 @@
 // carries the router's marker, as a report rendered by the app's own layout would.
 export const GET = () =>
 	new Response(
-		'<!doctype html><html><head><meta name="ogygia-router"><title>report</title></head>' +
-			'<body><h1 data-report>report</h1></body></html>',
+		`<!doctype html><html><head><meta name="ogygia-router"><title>report</title></head><body><h1 data-report>report</h1></body></html>`,
 		{
 			headers: {
 				'content-type': 'text/html; charset=utf-8',

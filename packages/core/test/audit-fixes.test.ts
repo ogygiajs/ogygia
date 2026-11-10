@@ -22,7 +22,7 @@ function makeCtx(overrides: Partial<HostCtx> = {}): HostCtx {
 		virtualPathFor: (_hostId: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
 		// the transform's own fallback when a caller omits it
 		wrapperPathFor: (_hostId: string, iid: string) => wrapperVirtualId(iid),
-		devUrlFor: (p: string) => '/@id/' + p,
+		devUrlFor: (p: string) => `/@id/${p}`,
 		visibleMargin: '0px',
 		presets: {},
 		idSalt: '',

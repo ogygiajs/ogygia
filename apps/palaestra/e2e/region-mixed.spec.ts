@@ -21,7 +21,7 @@ import { FAVICON_RE } from '@ogygia/tooling/e2e/re.ts';
 async function probe(page: Page, pathname: string, live?: string) {
 	const errors: string[] = [];
 	page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-	page.on('pageerror', (e) => errors.push('PAGEERROR ' + e.message));
+	page.on('pageerror', (e) => errors.push(`PAGEERROR ${e.message}`));
 	await page.goto(pathname, { waitUntil: 'networkidle', timeout: 60000 });
 	await page.waitForSelector('[data-region-inside]', { timeout: 8000 }).catch(() => {});
 	const widget = page.locator('[data-inner-widget]');

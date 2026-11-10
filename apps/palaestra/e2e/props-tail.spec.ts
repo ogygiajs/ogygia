@@ -26,7 +26,7 @@ const FP_ATTR = /data-og-fp="([0-9a-f]+)"/;
 
 test.describe('PROPS TAIL: island props ride at the end of the body, keyed by fingerprint', () => {
 	test('SSR: no adjacent sidecars; all keyed, after the content, deduped', async ({ baseURL }) => {
-		const res = await fetch(baseURL + '/props-tail');
+		const res = await fetch(`${baseURL}/props-tail`);
 		const html = await res.text();
 		check('/props-tail returns 200', res.status === 200);
 		check('csr=false (no Kit bootstrap)', !KIT_MARKER_RE.test(html));

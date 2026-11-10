@@ -21,8 +21,7 @@ beforeEach(() => {
 	window.reportError = () => {};
 	window.fetch = async () =>
 		new Response(
-			'<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>next</title>' +
-				'</head><body><p>next</p><script type="application/ogygia-page">[{}]</script></body></html>',
+			`<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>next</title></head><body><p>next</p><script type="application/ogygia-page">[{}]\x3C/script></body></html>`,
 			{ status: 200, headers: { 'content-type': 'text/html' } }
 		);
 });

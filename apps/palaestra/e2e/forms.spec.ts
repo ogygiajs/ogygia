@@ -15,7 +15,7 @@ const SIGNED_RE = /Signed via remote form/;
 test.describe('classic form actions (no-JS + JS)', () => {
 	// ---------------------------------------------------------------- NO-JS ------
 	test('no-JS: plain form, fail(400) re-render, 303 post-redirect-get', async ({ baseURL }) => {
-		const res = await fetch(baseURL + '/forms');
+		const res = await fetch(`${baseURL}/forms`);
 		const html = await res.text();
 		check(
 			'/forms renders the plain form (no JS)',
@@ -24,7 +24,7 @@ test.describe('classic form actions (no-JS + JS)', () => {
 		check('/forms shows seed entry', SEED_ENTRY_RE.test(html));
 
 		// invalid submit -> fail(400) re-render with the error
-		const bad = await fetch(baseURL + '/forms?/add', {
+		const bad = await fetch(`${baseURL}/forms?/add`, {
 			method: 'POST',
 			headers: {
 				'content-type': 'application/x-www-form-urlencoded',
@@ -41,8 +41,8 @@ test.describe('classic form actions (no-JS + JS)', () => {
 		);
 
 		// valid submit -> 303 post-redirect-get
-		const unique = 'noscript-' + Date.now();
-		const okRes = await fetch(baseURL + '/forms?/add', {
+		const unique = `noscript-${Date.now()}`;
+		const okRes = await fetch(`${baseURL}/forms?/add`, {
 			method: 'POST',
 			headers: {
 				'content-type': 'application/x-www-form-urlencoded',
@@ -62,8 +62,8 @@ test.describe('classic form actions (no-JS + JS)', () => {
 			(okRes.headers.get('location') || '').includes('/forms?ok=1')
 		);
 
-		const after = await (await fetch(baseURL + '/forms?ok=1')).text();
-		check('no-JS submitted entry now listed', after.includes('Grace: ' + unique));
+		const after = await (await fetch(`${baseURL}/forms?ok=1`)).text();
+		check('no-JS submitted entry now listed', after.includes(`Grace: ${unique}`));
 		check('no-JS success message shown after redirect', FORM_OK_RE.test(after));
 	});
 
@@ -81,7 +81,7 @@ test.describe('classic form actions (no-JS + JS)', () => {
 		);
 		const markerBefore = await stamp_document(page);
 
-		const unique = 'js-' + Date.now();
+		const unique = `js-${Date.now()}`;
 		await page.fill('[data-input-name]', 'Ada2');
 		await page.fill('[data-input-message]', unique);
 		await Promise.all([
@@ -140,7 +140,7 @@ test.describe('classic form actions (no-JS + JS)', () => {
 		);
 		// valid submit -> result, NO reload (enhanced)
 		const m1 = await stamp_document(page);
-		const uniq = 'rf-' + Date.now();
+		const uniq = `rf-${Date.now()}`;
 		await page.fill('[data-rf-name]', 'Ada');
 		await page.fill('[data-rf-message]', uniq);
 		await page.click('[data-rf-submit]');

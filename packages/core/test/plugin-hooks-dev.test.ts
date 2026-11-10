@@ -82,9 +82,9 @@ async function start(): Promise<{
 	// the plugin list the build makes (`virtual:ogygia/server-plugins`), as the compiler emits it
 	const plugin_list: Plugin = {
 		name: 'server-plugins',
-		resolveId: (id) => (id === V ? '\0' + V : undefined),
+		resolveId: (id) => (id === V ? `\0${V}` : undefined),
 		load: (id) =>
-			id === '\0' + V
+			id === `\0${V}`
 				? server_plugins_module(true, [
 						{
 							name: 'answering',

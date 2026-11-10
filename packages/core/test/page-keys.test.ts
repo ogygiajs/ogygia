@@ -430,10 +430,10 @@ describe('follow_pending_page_calls', () => {
 	};
 	const resolve = async (spec: string, importer: string) => {
 		if (spec.startsWith('@app/common'))
-			return { id: '/pkg/common/' + (spec.split('/')[2] ?? 'utils') + '.ts' };
+			return { id: `/pkg/common/${spec.split('/')[2] ?? 'utils'}.ts` };
 		if (spec.startsWith('./')) {
 			const dir = importer.replace(/[^/]+$/, '');
-			return { id: dir + spec.slice(2) + '.ts' };
+			return { id: `${dir + spec.slice(2)}.ts` };
 		}
 		return null;
 	};

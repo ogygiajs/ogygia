@@ -80,7 +80,7 @@ export function heisenbench_dir(): string {
 		if (!has_commit(clone, pin.ref)) run('git', ['fetch', '--quiet', 'origin', pin.ref], clone);
 		run('git', ['checkout', '--quiet', '--force', pin.ref], clone);
 		run('pnpm', ['install', '--frozen-lockfile', '--filter', 'heisenbench'], clone);
-		writeFileSync(stamp, pin.ref + '\n');
+		writeFileSync(stamp, `${pin.ref}\n`);
 	}
 	return join(clone, 'packages', 'heisenbench');
 }

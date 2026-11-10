@@ -123,7 +123,7 @@ describe('redis store', () => {
 		it(`${flavour}: prune keeps the newest, and visits are capped per page`, async () => {
 			const f = fake(flavour);
 			const s = new RedisStore(f.client as never);
-			for (let i = 0; i < 5; i++) await s.putReport(rec('r' + i, i));
+			for (let i = 0; i < 5; i++) await s.putReport(rec(`r${i}`, i));
 			await s.prune!(2);
 			expect((await s.listReports()).map((r) => r.id)).toEqual(['r4', 'r3']);
 			expect(f.kv.has('og:report:r0')).toBe(false);

@@ -37,7 +37,7 @@ export function props_sidecar_of(region: Element): HTMLScriptElement | null {
 	// The region's own tree: the live document, a foreign (fetched) document, or a shadow root.
 	const root = region.getRootNode() as Document | ShadowRoot | Element;
 	if (fp && 'getElementById' in root) {
-		const keyed = root.getElementById('og-props-' + fp); // the TAIL's (the only one with an id)
+		const keyed = root.getElementById(`og-props-${fp}`); // the TAIL's (the only one with an id)
 		if (keyed) return keyed as HTMLScriptElement;
 	}
 	// ADJACENT: the region's own next sibling — keyed by attribute only (an adjacent sidecar never

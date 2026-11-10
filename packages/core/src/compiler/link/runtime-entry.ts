@@ -258,7 +258,7 @@ export function generateRuntimeEntrySource(
 			: ']);'
 	);
 	// Side effects only: the entry boots and exports nothing (no consumer ever read an export).
-	return { code: lines.join('\n') + '\n', features };
+	return { code: `${lines.join('\n')}\n`, features };
 }
 
 /**
@@ -285,7 +285,7 @@ export function generateHydrateFeaturesSource(
 	lines.push('export function install() {');
 	for (const id of features) lines.push(`  ${to_alias(id)}.install();`);
 	lines.push('}');
-	return { code: lines.join('\n') + '\n', features };
+	return { code: `${lines.join('\n')}\n`, features };
 }
 
 /**

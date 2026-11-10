@@ -24,11 +24,7 @@ const HELD = '/soft-refresh-next.css';
 const NEXT = '/soft-refresh-next';
 
 const page = (title: string, who: string, extra = '') =>
-	'<!doctype html><html><head><meta name="ogygia-router" content="plain">' +
-	`<meta name="soft-page" content="${who}">${extra}<title>${title}</title></head>` +
-	`<body><p>${who}</p><script type="application/ogygia-page" data-og-format="json">` +
-	JSON.stringify({ url: new URL(who === 'a' ? home : NEXT, home).href, data: { who } }) +
-	'</script></body></html>';
+	`<!doctype html><html><head><meta name="ogygia-router" content="plain"><meta name="soft-page" content="${who}">${extra}<title>${title}</title></head><body><p>${who}</p><script type="application/ogygia-page" data-og-format="json">${JSON.stringify({ url: new URL(who === 'a' ? home : NEXT, home).href, data: { who } })}\x3C/script></body></html>`;
 
 const asked: string[] = [];
 

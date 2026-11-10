@@ -66,7 +66,7 @@ export function discover_package_files(app_root: string): PackageScan[] {
 			if (GLOB_MAGIC_RE.test(entry)) {
 				for (const m of globSync(entry, { cwd: root, absolute: true, dot: false })) {
 					// same escape rule as bare paths — `../…/**` must not widen the surface
-					if (!posix(m).startsWith(posix(root) + '/')) continue;
+					if (!posix(m).startsWith(`${posix(root)}/`)) continue;
 					try {
 						files.add(posix(fs.realpathSync(m)));
 					} catch {

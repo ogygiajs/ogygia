@@ -66,9 +66,9 @@ async function start(
 	let left = failures;
 	const registry: Plugin = {
 		name: 'router-css-registry',
-		resolveId: (id) => (id === V ? '\0' + V : undefined),
+		resolveId: (id) => (id === V ? `\0${V}` : undefined),
 		async load(id) {
-			if (id !== '\0' + V) return;
+			if (id !== `\0${V}`) return;
 			if (left-- > 0) throw new Error('the registry failed to emit');
 			return router_css_module([path.join(root, 'src/Shell.svelte')], {
 				root,
@@ -80,7 +80,7 @@ async function start(
 		// what the ogygia plugin does on a style-bearing edit (vite/index.ts handleHotUpdate)
 		handleHotUpdate({ file, server }) {
 			if (!/\.(svelte|css)$/.test(file)) return;
-			const mod = server.moduleGraph.getModuleById('\0' + V);
+			const mod = server.moduleGraph.getModuleById(`\0${V}`);
 			if (mod) server.moduleGraph.invalidateModule(mod);
 		}
 	};

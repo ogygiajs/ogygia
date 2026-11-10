@@ -10,10 +10,7 @@ const parse = (head: string) =>
 
 test('every URL of a fetched head is resolved against the page it came from', () => {
 	const doc = parse(
-		'<link rel="stylesheet" href="../../_app/a.css">' +
-			'<link rel="preload" as="image" imagesrcset="../i-1.png 1x, ../i-2.png 2x,">' +
-			'<script type="module" src="../_app/s.js"></script>' +
-			'<link rel="icon" href="https://cdn.example.com/f.ico">'
+		`<link rel="stylesheet" href="../../_app/a.css"><link rel="preload" as="image" imagesrcset="../i-1.png 1x, ../i-2.png 2x,"><script type="module" src="../_app/s.js">\x3C/script><link rel="icon" href="https://cdn.example.com/f.ico">`
 	);
 	resolve_head_urls(doc.head, new URL('https://example.com/a/e/'));
 	const [sheet, preload, script, icon] = doc.head.children;
@@ -28,8 +25,7 @@ test('every URL of a fetched head is resolved against the page it came from', ()
 test('an empty URL attribute stays empty: it names no file, not the page', () => {
 	// (the browser ignores an empty href/src; resolved, it would fetch the page as a sheet)
 	const doc = parse(
-		'<link rel="stylesheet" href=""><script src=" "></script>' +
-			'<link rel="preload" as="image" imagesrcset="">'
+		`<link rel="stylesheet" href=""><script src=" ">\x3C/script><link rel="preload" as="image" imagesrcset="">`
 	);
 	resolve_head_urls(doc.head, new URL('https://example.com/a/e/'));
 	const [sheet, script, preload] = doc.head.children;
@@ -42,13 +38,11 @@ test('a candidate URL with a comma inside it stays one URL', () => {
 	// (a comma separates candidates only after whitespace, or at the end of a URL; an image CDN's
 	// transform path and a data: URL hold commas of their own)
 	const doc = parse(
-		'<link rel="preload" as="image" imagesrcset="https://cdn.example.com/w_100,h_100/a.png 1x, ' +
-			'../w_200,h_200/a.png 2x,data:image/gif;base64,R0lGOD 3x">'
+		`<link rel="preload" as="image" imagesrcset="https://cdn.example.com/w_100,h_100/a.png 1x, ../w_200,h_200/a.png 2x,data:image/gif;base64,R0lGOD 3x">`
 	);
 	resolve_head_urls(doc.head, new URL('https://example.com/a/e/'));
 	expect(doc.head.firstElementChild!.getAttribute('imagesrcset')).toBe(
-		'https://cdn.example.com/w_100,h_100/a.png 1x, https://example.com/a/w_200,h_200/a.png 2x, ' +
-			'data:image/gif;base64,R0lGOD 3x'
+		`https://cdn.example.com/w_100,h_100/a.png 1x, https://example.com/a/w_200,h_200/a.png 2x, data:image/gif;base64,R0lGOD 3x`
 	);
 });
 

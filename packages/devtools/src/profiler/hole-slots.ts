@@ -133,10 +133,7 @@ export function hole_slots(ring: readonly RequestEntry[]): HoleSlots | null {
 		const held = holders.length
 			? ` The slots were held mostly by ${holders.map((r) => `${r.name} (${Math.round(r.slot_share * 100)}% of slot time, ${fmt(r.render_ms)} a render)`).join(', ')}.`
 			: '';
-		summary =
-			`${queued} of ${rendered} hole render${rendered === 1 ? '' : 's'} waited for a render slot, ${fmt(queued_mean_ms)} on average (the worst ${fmt(Math.max(...rows.map((r) => r.queue_max_ms)))}).` +
-			held +
-			` A server process renders ${REGION_RENDER_CONCURRENCY} holes at a time, and each holds its slot while it awaits its data: make the slow ones answer sooner (a maxAge, faster data).`;
+		summary = `${queued} of ${rendered} hole render${rendered === 1 ? '' : 's'} waited for a render slot, ${fmt(queued_mean_ms)} on average (the worst ${fmt(Math.max(...rows.map((r) => r.queue_max_ms)))}).${held} A server process renders ${REGION_RENDER_CONCURRENCY} holes at a time, and each holds its slot while it awaits its data: make the slow ones answer sooner (a maxAge, faster data).`;
 	}
 	return { rows, slots: REGION_RENDER_CONCURRENCY, rendered, queued, queued_mean_ms, summary };
 }

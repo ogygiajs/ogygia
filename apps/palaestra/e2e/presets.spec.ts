@@ -39,7 +39,7 @@ const base_ctx = {
 	dev: false,
 	virtualPathFor: (_hostId: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
 	wrapperPathFor: (_hostId: string, iid: string) => wrapperVirtualId(iid),
-	devUrlFor: (p: string) => '/@id/' + p,
+	devUrlFor: (p: string) => `/@id/${p}`,
 	visibleMargin: '0px',
 	presets: {
 		chart: { wake: 'visible', margin: '200px' },
@@ -54,7 +54,7 @@ const wrap_src = (r: ReturnType<typeof run>) => r?.islands?.[0]?.wrapperSource ?
 function expect_error(label: string, src: string, re: RegExp) {
 	try {
 		run(src);
-		check(label + ' (throws)', false, 'no error thrown');
+		check(`${label} (throws)`, false, 'no error thrown');
 	} catch (e) {
 		check(label, re.test((e as Error).message), (e as Error).message.slice(0, 90));
 	}

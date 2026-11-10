@@ -96,7 +96,7 @@ benches.forEach((file, i) => {
 
 // 2. every function, and the ones no bench ran
 const list = join(out, 'files.txt');
-writeFileSync(list, source_files(null).join('\n') + '\n');
+writeFileSync(list, `${source_files(null).join('\n')}\n`);
 const targets = join(out, 'targets.json');
 const inventory = join(out, 'inventory.json');
 heisenbench_cli([
@@ -167,7 +167,7 @@ const gate_args = [
 const skipped = join(records, 'skipped.txt');
 if (existsSync(skipped)) {
 	const ids = [...new Set(readFileSync(skipped, 'utf8').split('\n').filter(Boolean))].sort();
-	writeFileSync(join(out, 'skipped.json'), JSON.stringify(ids) + '\n');
+	writeFileSync(join(out, 'skipped.json'), `${JSON.stringify(ids)}\n`);
 	gate_args.push('--skipped', join(out, 'skipped.json'));
 }
 if (values.base) {
@@ -179,7 +179,7 @@ if (values.base) {
 	});
 	execFileSync('tar', ['-x', '-C', base_root], { input: tar });
 	const base_list = join(out, 'base-files.txt');
-	writeFileSync(base_list, files.join('\n') + '\n');
+	writeFileSync(base_list, `${files.join('\n')}\n`);
 	const base_inventory = join(out, 'base-inventory.json');
 	heisenbench_cli(['inventory', '--list', base_list, '--root', base_root, '--out', base_inventory]);
 	gate_args.push('--base-inventory', base_inventory);

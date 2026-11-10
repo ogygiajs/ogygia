@@ -149,7 +149,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		const r = el.getAttribute('og-r');
 		const custom =
 			el.localName.indexOf('-') !== -1 &&
-			(' ' + (el.getAttribute('og-keep') ?? '') + ' ').indexOf(' class ') === -1;
+			` ${el.getAttribute('og-keep') ?? ''} `.indexOf(' class ') === -1;
 		let svelte_class: string | null | undefined;
 		if (r) {
 			try {
@@ -160,7 +160,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 						svelte_class = v;
 						const own = new Set((v ?? '').split(' '));
 						let theirs = '';
-						for (const t of Array.from(el.classList)) if (!own.has(t)) theirs += ' ' + t;
+						for (const t of Array.from(el.classList)) if (!own.has(t)) theirs = `${theirs} ${t}`;
 						const merged = ((v ?? '') + theirs).trim();
 						if (merged) el.setAttribute('class', merged);
 						else el.removeAttribute('class');

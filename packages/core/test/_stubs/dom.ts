@@ -396,7 +396,7 @@ class DomElement extends DomNode {
 		let s = '';
 		for (let n = this._first; n; n = n._next) {
 			if (n.nodeType === 1) s += (n as DomElement).outerHTML;
-			else if (n.nodeType === 8) s += `<!--${n.nodeValue}-->`;
+			else if (n.nodeType === 8) s = `${s}<!--${n.nodeValue}-->`;
 			else s += n.nodeValue;
 		}
 		return s;
@@ -502,7 +502,7 @@ function compile(selector: string): (e: DomElement) => boolean {
 			at = re.lastIndex;
 		}
 		if (at !== part.length || head[0].length + attrs.length === 0)
-			throw new Error('dom shim: unsupported selector ' + part);
+			throw new Error(`dom shim: unsupported selector ${part}`);
 		// (an HTML element's localName is lower case already; the tag is checked first, as a browser's
 		// matcher does, so most elements cost one comparison)
 		return (e: DomElement) => {

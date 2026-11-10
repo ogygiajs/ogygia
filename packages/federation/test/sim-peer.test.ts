@@ -151,7 +151,7 @@ describe('a federation peer, simulated', () => {
 									`${p}: ${d.body}, upstream ${version[p]}`
 								);
 						},
-						(e: unknown) => (r.got = 'failed: ' + String((e as { status?: number })?.status ?? e))
+						(e: unknown) => (r.got = `failed: ${String((e as { status?: number })?.status ?? e)}`)
 					);
 				};
 				const play: Array<readonly [string, () => unknown]> = [];

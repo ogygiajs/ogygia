@@ -12,7 +12,7 @@ const ok = (label: string, cond: unknown, detail = '') => {
 		console.log(`  ✓ ${label}`);
 	} else {
 		fail++;
-		console.log(`  ✗ ${label}${detail ? '  — ' + detail : ''}`);
+		console.log(`  ✗ ${label}${detail ? `  — ${detail}` : ''}`);
 	}
 };
 const b64url = (obj: unknown) =>
@@ -67,7 +67,7 @@ console.log('hash codec\n');
 // ── uncompressed fallback (no gzip magic) is auto-detected ──
 {
 	const back = await decode_hash(
-		'#' + b64url({ f: { 'Good.svelte': '<h1>ok</h1>' }, a: 'Good.svelte' })
+		`#${b64url({ f: { 'Good.svelte': '<h1>ok</h1>' }, a: 'Good.svelte' })}`
 	);
 	ok(
 		'reads an uncompressed base64url payload (no gzip magic)',
@@ -77,7 +77,7 @@ console.log('hash codec\n');
 
 // ── legacy bare-map shape (very old links) ──
 {
-	const back = await decode_hash('#' + b64url({ 'App.svelte': '<h1>legacy</h1>' }));
+	const back = await decode_hash(`#${b64url({ 'App.svelte': '<h1>legacy</h1>' })}`);
 	ok(
 		'reads the legacy bare file-map shape',
 		back && back.files['App.svelte'] === '<h1>legacy</h1>'
@@ -87,7 +87,7 @@ console.log('hash codec\n');
 // ── legacy `files=` uri-encoded links ──
 {
 	const back = await decode_hash(
-		'#files=' + encodeURIComponent(JSON.stringify({ 'App.svelte': '<h1>f</h1>' }))
+		`#files=${encodeURIComponent(JSON.stringify({ 'App.svelte': '<h1>f</h1>' }))}`
 	);
 	ok('reads a legacy files= uri-encoded link', back && back.files['App.svelte'] === '<h1>f</h1>');
 }
@@ -110,7 +110,7 @@ console.log('hash codec\n');
 			JSON.stringify(sanitize_files(7)) === '{}'
 	);
 	const many: Record<string, string> = {};
-	for (let i = 0; i < 1000; i++) many['f' + i] = 'x';
+	for (let i = 0; i < 1000; i++) many[`f${i}`] = 'x';
 	ok('sanitize caps the file count (<=400)', Object.keys(sanitize_files(many)).length === 400);
 	const big = { a: 'x'.repeat(5_000_000), b: 'kept-nope' };
 	const capped = sanitize_files(big);
@@ -120,7 +120,7 @@ console.log('hash codec\n');
 // ── a crafted link with a non-string file is sanitized, not trusted ──
 {
 	const back = await decode_hash(
-		'#' + b64url({ f: { 'Bad.svelte': 42, 'Good.svelte': '<h1>ok</h1>' }, a: 'Good.svelte' })
+		`#${b64url({ f: { 'Bad.svelte': 42, 'Good.svelte': '<h1>ok</h1>' }, a: 'Good.svelte' })}`
 	);
 	ok(
 		'crafted link: non-string file dropped, good file kept',
@@ -133,9 +133,9 @@ console.log('hash codec\n');
 {
 	ok(
 		'all-invalid file map decodes to null',
-		(await decode_hash('#' + b64url({ f: { x: 1, y: {} } }))) === null
+		(await decode_hash(`#${b64url({ f: { x: 1, y: {} } })}`)) === null
 	);
-	ok('empty object decodes to null', (await decode_hash('#' + b64url({}))) === null);
+	ok('empty object decodes to null', (await decode_hash(`#${b64url({})}`)) === null);
 }
 
 // ── malformed / hostile strings never throw, return null ──
@@ -143,10 +143,10 @@ console.log('hash codec\n');
 	const junk = [
 		'#',
 		'#@@@not-base64@@@',
-		'#' + Buffer.from('not json at all', 'utf8').toString('base64'),
+		`#${Buffer.from('not json at all', 'utf8').toString('base64')}`,
 		'#code=zzzz-not-gzip',
 		'#files=%ZZbad',
-		'#' + b64url([1, 2, 3])
+		`#${b64url([1, 2, 3])}`
 	];
 	let survived = true;
 	for (const j of junk) {

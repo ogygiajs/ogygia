@@ -223,8 +223,8 @@ test.describe('devtools (dev server, OGYGIA_DEVTOOLS=1): events, panel tabs, pag
 		const settle = () =>
 			page.evaluate(() =>
 				(window as DtWindow).__ogygia_testing.settled(50, 5000).then(
-					(v) => 'ok: ' + v,
-					(e: unknown) => 'failed: ' + String(e)
+					(v) => `ok: ${v}`,
+					(e: unknown) => `failed: ${String(e)}`
 				)
 			);
 		const first = await settle();

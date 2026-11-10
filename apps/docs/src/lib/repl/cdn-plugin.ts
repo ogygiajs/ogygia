@@ -112,7 +112,7 @@ const BINARY_ASSET =
 export function css_inject_module(css: string, href: string): string {
 	return (
 		`const css = ${JSON.stringify(css)};\n` +
-		`const key = ${JSON.stringify('repl-css:' + href)};\n` +
+		`const key = ${JSON.stringify(`repl-css:${href}`)};\n` +
 		`if (typeof document !== 'undefined' && !document.querySelector('style[data-repl-css=' + JSON.stringify(key) + ']')) {\n` +
 		`  const s = document.createElement('style'); s.setAttribute('data-repl-css', key); s.textContent = css; document.head.appendChild(s);\n` +
 		`}\nexport default css;`
@@ -136,7 +136,7 @@ function to_base64(bytes: Uint8Array): string {
  *  .Instance` (the `@rollup/plugin-wasm` convention). Decoding is written to run in node AND the browser
  *  (Buffer or atob). Exported for reuse/tests. */
 export function wasm_module(base64: string, as_url: boolean): string {
-	if (as_url) return `export default ${JSON.stringify('data:application/wasm;base64,' + base64)};`;
+	if (as_url) return `export default ${JSON.stringify(`data:application/wasm;base64,${base64}`)};`;
 	return (
 		`const b64 = ${JSON.stringify(base64)};\n` +
 		`const bytes = typeof Buffer !== 'undefined'\n` +
@@ -205,7 +205,7 @@ export function cdnPlugin(opts: CdnPluginOptions = {}): RolldownPlugin {
 	/** Fetch a binary asset (a `.wasm`) as base64 — separate cache key so it never collides with the same
 	 *  URL fetched as text. Returns null (→ inert stub) on failure/timeout. */
 	function fetch_bytes_base64(url: string): Promise<string | null> {
-		return cached_fetch('\0bytes:' + url, async (signal) => {
+		return cached_fetch(`\0bytes:${url}`, async (signal) => {
 			try {
 				const res = await fetchFn(url, signal ? { signal } : undefined);
 				if (!res.ok) return null;
@@ -216,9 +216,9 @@ export function cdnPlugin(opts: CdnPluginOptions = {}): RolldownPlugin {
 		});
 	}
 	async function fetch_pkg(name: string, version: string): Promise<Record<string, unknown> | null> {
-		const key = name + '@' + (version || 'latest');
+		const key = `${name}@${version || 'latest'}`;
 		if (pkg_cache.has(key)) return pkg_cache.get(key)!;
-		const url = CDN + name + (version ? '@' + version : '') + '/package.json';
+		const url = `${CDN + name + (version ? `@${version}` : '')}/package.json`;
 		const txt = await fetch_text(url);
 		let pkg: Record<string, unknown> | null = null;
 		try {
@@ -231,7 +231,7 @@ export function cdnPlugin(opts: CdnPluginOptions = {}): RolldownPlugin {
 	}
 	/** Fetch the first existing candidate URL for a package-relative path (extension resolution). */
 	async function resolve_existing(base: string, rel: string): Promise<string | null> {
-		for (const cand of extension_candidates(rel.startsWith('./') ? rel : './' + rel)) {
+		for (const cand of extension_candidates(rel.startsWith('./') ? rel : `./${rel}`)) {
 			const url = new URL(cand, base).href;
 			if ((await fetch_text(url)) != null) return url;
 		}
@@ -246,7 +246,7 @@ export function cdnPlugin(opts: CdnPluginOptions = {}): RolldownPlugin {
 			// node builtins → a browser POLYFILL package when one exists (buffer/events/path/…), else stub.
 			if (is_node_builtin(id)) {
 				const shim = NODE_POLYFILLS[id.replace(/^node:/, '')];
-				if (!shim) return BROWSER_STUB + ':' + id;
+				if (!shim) return `${BROWSER_STUB}:${id}`;
 				id = shim; // fall through to bare-package resolution with the polyfill's name
 			}
 			// native addons (`.node`) + binary media/fonts → inert stub (in ANY specifier form: bare
@@ -254,7 +254,7 @@ export function cdnPlugin(opts: CdnPluginOptions = {}): RolldownPlugin {
 			// real loader (load() inlines the bytes). Never fetched, never crash the build.
 			if (NATIVE_ASSET.test(id) || BINARY_ASSET.test(id)) {
 				if (NATIVE_ASSET.test(id)) opts.onMissing?.(id);
-				return BROWSER_STUB + ':' + id;
+				return `${BROWSER_STUB}:${id}`;
 			}
 			// already an absolute CDN/URL (a transitive dep jsdelivr wrote) → keep, load() fetches it.
 			if (HTTP_URL.test(id)) return id;
@@ -270,16 +270,16 @@ export function cdnPlugin(opts: CdnPluginOptions = {}): RolldownPlugin {
 				const owner = CDN_PKG_URL.exec(importer);
 				if (owner) {
 					const [, oname, over] = owner;
-					const obase = CDN + oname + (over ? '@' + over : '') + '/';
+					const obase = `${CDN + oname + (over ? `@${over}` : '')}/`;
 					if (abs.startsWith(obase)) {
-						const rel = './' + abs.slice(obase.length);
+						const rel = `./${abs.slice(obase.length)}`;
 						const opkg = await fetch_pkg(oname, over || '');
 						const browser = opkg?.browser as string | Record<string, string | false> | undefined;
 						if (browser && typeof browser === 'object') {
 							// Match the target as-written and with a `.js` appended (extensionless imports).
-							for (const cand of rel.endsWith('.js') ? [rel] : [rel, rel + '.js']) {
+							for (const cand of rel.endsWith('.js') ? [rel] : [rel, `${rel}.js`]) {
 								const mapped = apply_browser_map(browser, cand);
-								if (mapped === BROWSER_STUB) return BROWSER_STUB + ':' + id;
+								if (mapped === BROWSER_STUB) return `${BROWSER_STUB}:${id}`;
 								if (mapped !== cand)
 									return (await resolve_existing(obase, mapped)) ?? new URL(mapped, obase).href;
 							}
@@ -295,16 +295,16 @@ export function cdnPlugin(opts: CdnPluginOptions = {}): RolldownPlugin {
 				const pkg = await fetch_pkg(name, version);
 				if (!pkg) {
 					opts.onMissing?.(id);
-					return BROWSER_STUB + ':' + id; // unknown package → inert stub, keeps the build alive
+					return `${BROWSER_STUB}:${id}`; // unknown package → inert stub, keeps the build alive
 				}
 				const rel = resolve_entry(pkg, subpath);
-				if (rel === BROWSER_STUB) return BROWSER_STUB + ':' + id;
+				if (rel === BROWSER_STUB) return `${BROWSER_STUB}:${id}`;
 				const ver = (pkg.version as string) || version || '';
-				const base = CDN + name + (ver ? '@' + ver : '') + '/';
+				const base = `${CDN + name + (ver ? `@${ver}` : '')}/`;
 				const url = await resolve_existing(base, rel);
 				if (!url) {
 					opts.onMissing?.(id);
-					return BROWSER_STUB + ':' + id;
+					return `${BROWSER_STUB}:${id}`;
 				}
 				opts.onPackage?.(name, ver, url);
 				return url;

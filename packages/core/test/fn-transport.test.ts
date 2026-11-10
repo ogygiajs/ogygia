@@ -51,7 +51,7 @@ describe('fn kind (og.$ runtime half)', () => {
 	});
 
 	it('registry MISS + source on the wire → rebuilt from the payload (the prod fallback)', () => {
-		__register_fn('test/z#$0', (p: string) => () => 'ok:' + p);
+		__register_fn('test/z#$0', (p: string) => () => `ok:${p}`);
 		const payload = enc(fn_handle('test/z#$0', ['a']));
 		// a bundle that never loaded the generated module: ghost tag, but the source rides along
 		const forged = payload.replaceAll('test/z#$0', 'test/zz#$missing');

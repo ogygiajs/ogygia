@@ -92,7 +92,7 @@ export function source_line(file: string, line: number | null): number | null | 
 	if (hit) return hit[line] || null;
 	if (!pending.has(file) && typeof fetch === 'function') {
 		pending.add(file);
-		tool_fetch('/' + file)
+		tool_fetch(`/${file}`)
 			.then((r) => (r.ok ? r.text() : ''))
 			.then((t) => ready.set(file, t ? parse(t, file) : null))
 			.catch(() => ready.set(file, null))

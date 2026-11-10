@@ -31,7 +31,7 @@ export function configure_islands_endpoint(path: string | undefined): void {
 		? DEFAULT_ISLANDS_ENDPOINT
 		: path.startsWith('/')
 			? path
-			: '/' + path;
+			: `/${path}`;
 }
 
 /** Max b64url props blob accepted by the region handle (and refused at mint time). */
