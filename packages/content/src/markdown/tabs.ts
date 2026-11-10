@@ -37,6 +37,7 @@
  * unclosed fence runs to the block end (and is closed synthetically so the emitted markdown stays
  * well-formed), a fence with no `[label]` falls back to `Tab N`, an empty block emits nothing.
  */
+import { html } from '@ogygia/core/plugin/utils';
 
 const OPEN_CODE = /^\s*:::\s*code-group\b[ \t]*(.*?)\s*$/;
 const OPEN_TABS = /^\s*:::\s*tabs\b[ \t]*(.*?)\s*$/;
@@ -47,17 +48,6 @@ const FENCE = /^(\s*)(`{3,}|~{3,})(.*)$/;
 const TAB_OPENER_RE = /(^|\n)\s*:::\s*(code-group|tabs)\b/;
 const LINE_BREAK_RE = /\r\n|\r|\n/;
 const BRACKET_LABEL_RE = /\[([^\]]*)\]/;
-const AMP_G = /&/g;
-const DOUBLE_QUOTE_G = /"/g;
-const LT_G = /</g;
-const GT_G = />/g;
-
-const attr = (s: string) =>
-	s
-		.replace(AMP_G, '&amp;')
-		.replace(DOUBLE_QUOTE_G, '&quot;')
-		.replace(LT_G, '&lt;')
-		.replace(GT_G, '&gt;');
 
 /** An open fence's identity: its char (` or ~) and length, so we only close on a matching-or-longer run. */
 type Fence = { char: string; len: number };
@@ -251,9 +241,9 @@ function parse_tabs(body: string[]): ParsedTab[] {
 function emit(out: string[], group: string, tabs: ParsedTab[]): void {
 	// No `labels` prop: the island reads each label from the frozen panel's own `data-label` (set by
 	// `<Tab label>`), so nothing needs to cross as a separate serializable list.
-	out.push('', `<TabGroup group="${attr(group)}">`, '');
+	out.push('', String(html`<TabGroup group="${group}">`), '');
 	for (const t of tabs) {
-		out.push(`<Tab label="${attr(t.label)}">`, '', ...trim_blanks(t.body), '', '</Tab>');
+		out.push(String(html`<Tab label="${t.label}">`), '', ...trim_blanks(t.body), '', '</Tab>');
 	}
 	out.push('', '</TabGroup>', '');
 }

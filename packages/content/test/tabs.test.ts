@@ -246,8 +246,7 @@ describe('escaping', () => {
 		const code = run(src);
 		expect(code).toContain('&quot;');
 		expect(code).toContain('&lt;');
-		expect(code).toContain('&gt;');
-		expect(code).toContain('&amp;');
+		expect(code).toContain('&amp;'); // (`>` needs no escape inside a quoted attribute: core html)
 		expect(code).not.toMatch(/label="a"b/); // the raw quote must not break the attribute
 	});
 });
