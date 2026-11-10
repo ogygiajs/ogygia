@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { keyedRegistry, registry, scope } from '../src/index.ts';
+import { registry, scope } from '../src/index.ts';
 
 describe('registry: live entries, each owned', () => {
 	it('iterates in add order', () => {
@@ -68,7 +68,7 @@ describe('registry: live entries, each owned', () => {
 
 describe('keyed registry: definitions by name, each owned by its defining module', () => {
 	it('a definition is found by its key; one set again under its key replaces the old', () => {
-		const defs = keyedRegistry<string, number>();
+		const defs = registry.keyed<string, number>();
 		const mod = scope();
 		defs.set('a', 1, mod);
 		defs.set('b', 2, mod);
@@ -82,7 +82,7 @@ describe('keyed registry: definitions by name, each owned by its defining module
 	});
 
 	it("an owner's end ends its definitions: one not set again is gone, one set again stays", () => {
-		const defs = keyedRegistry<string, string>();
+		const defs = registry.keyed<string, string>();
 		// a module's first run defines two
 		const first = scope();
 		defs.set('kept', 'v1', first);
@@ -96,7 +96,7 @@ describe('keyed registry: definitions by name, each owned by its defining module
 	});
 
 	it('another module cannot take a definition away by ending: only its own go', () => {
-		const defs = keyedRegistry<string, string>();
+		const defs = registry.keyed<string, string>();
 		const one = scope();
 		const two = scope();
 		defs.set('x', 'one', one);
@@ -108,7 +108,7 @@ describe('keyed registry: definitions by name, each owned by its defining module
 	});
 
 	it('setting with an owner that already ended is refused', () => {
-		const defs = keyedRegistry<string, number>();
+		const defs = registry.keyed<string, number>();
 		const gone = scope();
 		gone.close();
 		defs.set('a', 1, gone);

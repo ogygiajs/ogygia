@@ -2,7 +2,7 @@
 // and let go (each by its removal, or all at once when their owner ends); and the keyed form's
 // definitions set, set again by a module's next run, read, and walked.
 import { bench } from '@bench/heisenbench/bench';
-import { keyedRegistry, registry, scope } from '../src/index.ts';
+import { registry, scope } from '../src/index.ts';
 
 const keys = (n: number): string[] => Array.from({ length: n }, (_, i) => 'def/' + i);
 
@@ -26,9 +26,9 @@ bench(
 );
 
 bench(
-	'keyedRegistry: a run sets every definition, the next run sets them again, then reads and walks',
+	'registry.keyed: a run sets every definition, the next run sets them again, then reads and walks',
 	(ks) => {
-		const defs = keyedRegistry<string, number>();
+		const defs = registry.keyed<string, number>();
 		const first = scope();
 		for (let i = 0; i < ks.length; i++) defs.set(ks[i]!, i, first);
 		// the module's next run: the old run ends, each definition is set again under the new one
