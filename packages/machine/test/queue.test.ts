@@ -309,6 +309,25 @@ describe('owner', () => {
 	});
 });
 
+describe("the queue's owner", () => {
+	it('closing it settles every waiting job STALE, and a job added after is STALE at once', async () => {
+		const owner = scope();
+		const q = queue<string>({ max: 1, owner });
+		const t = track(q);
+		void t.add('first');
+		const a = t.add('a');
+		const b = t.add('b');
+		owner.close();
+		expect(await a).toBe(STALE);
+		expect(await b).toBe(STALE);
+		expect(q.waiting).toBe(0);
+		expect(await t.add('late')).toBe(STALE);
+		t.release('first');
+		await macrotask();
+		expect(t.started).toEqual(['first']);
+	});
+});
+
 describe('options', () => {
 	it('a bad max, budget or priority is refused with machine_bad_option', () => {
 		expect(() => queue({ max: 0 })).toThrow(/machine_bad_option/);
