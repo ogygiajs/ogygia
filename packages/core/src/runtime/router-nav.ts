@@ -224,7 +224,8 @@ export function resolve_head_urls(head: HTMLHeadElement, page: URL): void {
 	for (const el of head.querySelectorAll('[href],[src],[imagesrcset],[srcset]')) {
 		for (const attr of HEAD_URL_ATTRS) {
 			const value = el.getAttribute(attr);
-			if (value === null) continue;
+			// (an empty one names no file: the browser ignores it; resolved, it would name the page)
+			if (value === null || value.trim() === '') continue;
 			try {
 				el.setAttribute(attr, new URL(value, page).href);
 			} catch {
@@ -233,7 +234,7 @@ export function resolve_head_urls(head: HTMLHeadElement, page: URL): void {
 		}
 		for (const attr of HEAD_SRCSET_ATTRS) {
 			const value = el.getAttribute(attr);
-			if (value !== null) el.setAttribute(attr, resolve_srcset(value, page));
+			if (value !== null && value.trim() !== '') el.setAttribute(attr, resolve_srcset(value, page));
 		}
 	}
 }
