@@ -478,13 +478,12 @@ export function flag(
 
 	const bucket = (c: CtxLike): string => {
 		// every READ (fresh or memoized) is a per-visitor read: an A/B'd page must never be stored as
-		// ONE variant for everyone (a store plugin reads the fact). Priming deliberately does not
-		// report: it touches cookies on every request whether or not the page reads a flag.
+		// ONE variant for everyone, nor a cached hole kept as one (the render's read set, #434). Priming
+		// deliberately does not report: it touches cookies on every request whether or not the page
+		// reads a flag.
 		const app = flags_app();
-		if (app) {
-			const facts = app.facts(c.request);
-			if (facts.perVisitor === null) facts.perVisitor = `flag:${name}`;
-		} else if (!BROWSER && !_unstarted_warned) {
+		if (app) app.perVisitor(c.request, `flag:${name}`);
+		else if (!BROWSER && !_unstarted_warned) {
 			// read on a server where the plugin never started: nothing reports the read, so a store
 			// plugin could keep ONE variant of an A/B'd page for everyone. Say it once, loudly.
 			_unstarted_warned = true;

@@ -5,11 +5,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { inRequest, startPlugin } from '@ogygia/core/plugin/testing';
-import {
-	cached_render,
-	render_cache_clear,
-	render_cache_key
-} from '@ogygia/core/internal/server';
+import { cached_render, render_cache_clear, render_cache_key } from '@ogygia/core/internal/server';
 import server from '../src/server.ts';
 import { flag } from '../src/index.ts';
 
