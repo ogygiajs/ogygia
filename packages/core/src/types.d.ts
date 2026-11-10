@@ -1,17 +1,6 @@
 // Ambient declarations for the library's own build-time virtual modules and the Kit modules it
 // references. These make `tsc --noEmit` clean; they are not shipped (excluded from tsdown entry).
 
-declare module 'virtual:ogygia/manifest' {
-	export const dev: boolean;
-	/**
-	 * Legacy empty stub. Hydrate islands load via `<ogygia-region entry>` module URLs;
-	 * this map is no longer populated.
-	 */
-	export const regions: Record<
-		string,
-		{ kind: 'hydrate' | 'defer' | 'lake'; load?: () => Promise<{ default: unknown }> }
-	>;
-}
 declare module 'virtual:ogygia/region-endpoint' {
 	export function makeRegionEndpoint(entry: string, props?: Record<string, unknown>): string;
 	/** @param ttl response cache max-age in seconds (`0`/absent = no-store). Signed into the URL. */

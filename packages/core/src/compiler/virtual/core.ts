@@ -338,6 +338,27 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 	}),
 	virtual.request<CoreApp>({
 		realm: 'server',
+		id: 'region-endpoint',
+		alias: 'virtual:ogygia/region-endpoint',
+		// Region's minting (lake endpoints, server islands, fingerprints, a hole's CSS). The browser leg
+		// mints nothing: lakes reuse the endpoint the SSR restore cached, and the runtime fetches holes.
+		module: ({ ctx }) => ctx.region_endpoint_module,
+		exports: [
+			'makeRegionEndpoint',
+			'mintServerIsland',
+			'known_region_fps',
+			'islandFingerprint',
+			'holeCss'
+		],
+		client: () =>
+			`export function makeRegionEndpoint(_entry, _props) { return ''; }\n` +
+			`export function mintServerIsland(_entry, _props, _ttl) { return ''; }\n` +
+			`export function known_region_fps() { return new Set(); }\n` +
+			`export function islandFingerprint(_entry, _canonical) { return ''; }\n` +
+			`export function holeCss(_entry) { return []; }`
+	}),
+	virtual.request<CoreApp>({
+		realm: 'server',
 		id: 'kit-wire',
 		alias: 'virtual:ogygia/kit-wire',
 		// Kit's OWN wire protocol (its transport-aware devalue codec), deep-imported by absolute path
