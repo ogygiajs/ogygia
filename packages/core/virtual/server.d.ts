@@ -185,7 +185,7 @@ declare module 'ogygia:server/region-endpoint' {
 	/** @param ttl response cache max-age in seconds (`0`/absent = no-store). Signed into the URL. */
 	export function mintServerIsland(entry: string, props: Record<string, unknown>, ttl?: number): string;
 	/** the region fingerprints the page already holds (a server-only nav signal) */
-	export function known_region_fps(): Set<string>;
+	export function known_region_fps(): ReadonlySet<string>;
 	/** the island `data-og-fp` over its module URL + canonical props text; '' on the client */
 	export function islandFingerprint(entry: string, canonical: string): string;
 	/** a hole's own stylesheet hrefs (by region id), for a render that inlines it; [] on the client */
@@ -196,7 +196,7 @@ declare module 'virtual:ogygia/region-endpoint' {
 	/** @param ttl response cache max-age in seconds (`0`/absent = no-store). Signed into the URL. */
 	export function mintServerIsland(entry: string, props: Record<string, unknown>, ttl?: number): string;
 	/** the region fingerprints the page already holds (a server-only nav signal) */
-	export function known_region_fps(): Set<string>;
+	export function known_region_fps(): ReadonlySet<string>;
 	/** the island `data-og-fp` over its module URL + canonical props text; '' on the client */
 	export function islandFingerprint(entry: string, canonical: string): string;
 	/** a hole's own stylesheet hrefs (by region id), for a render that inlines it; [] on the client */
