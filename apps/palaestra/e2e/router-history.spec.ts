@@ -65,6 +65,44 @@ test.describe('the router’s history behaves as a plain site’s', () => {
 		await expect.poll(() => scroll_y(page), { timeout: 3_000 }).toBe(2500);
 	});
 
+	// #452: the scroll was put back at once, before a region above it had its height: it landed
+	// short by that height (1200 → 1091 with a 109 px header in Chromium and Firefox).
+	for (const step of ['Back', 'Forward'] as const) {
+		test(`#452 ${step} lands exactly where the page was left when a region above it is sized late`, async ({
+			page
+		}) => {
+			const late_live = () =>
+				page.locator('ogygia-region[data-hydrated]:has([data-late-top])').waitFor();
+			if (step === 'Back') {
+				// left by a click: Back returns to it
+				await open(page, '/router-history/late');
+				await late_live();
+				await scroll_to(page, 1200);
+				await page.evaluate(() =>
+					(document.querySelector('[data-late-to-a]') as HTMLElement).click()
+				);
+				await expect(page.locator('[data-history-a]')).toBeVisible();
+				await page.goBack();
+			} else {
+				// left by a Back: Forward returns to it
+				await open(page, '/router-history');
+				await page.locator('[data-to-late]').click();
+				await late_live();
+				await scroll_to(page, 1200);
+				await page.goBack();
+				await expect(page.locator('[data-history-a]')).toBeVisible();
+				await page.goForward();
+			}
+			await expect(page.locator('[data-history-late]')).toBeVisible();
+			await late_live();
+			// (past the frames its height lands in)
+			await page.evaluate(
+				() => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 300)))
+			);
+			expect(await scroll_y(page)).toBe(1200);
+		});
+	}
+
 	test('#282 Back between two app-managed fragments keeps the scroll', async ({ page }) => {
 		await open(page, '/router-history/fragments');
 		await scroll_to(page, 600);
