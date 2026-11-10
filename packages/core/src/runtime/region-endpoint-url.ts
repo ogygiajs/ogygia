@@ -1,7 +1,7 @@
 import { preload_island_graph } from './island-graph-preload.ts';
 import { LoadSlot } from './load-scheduler.ts';
 import { class_at, fetch_priority_of, PRIORITY, type LoadClass } from './load-class.ts';
-import { flights, type Flights } from '@ogygia/machine';
+import { flights, STALE, type Flights } from '@ogygia/machine';
 import { entry_location } from './entry-locations.ts';
 import { import_file } from './import-again.ts';
 
@@ -209,11 +209,19 @@ const make_warms = () =>
 				// (through the file's loader the island's own load uses: a warm that failed leaves the load a
 				// fresh URL to ask, not the failed one — #261)
 				return await import_file(url);
+			} catch {
+				return STALE; // ok: a warm that failed is not kept (STALE); the island's own load asks again and says its failure
 			} finally {
 				release();
 			}
 		}
 	});
+
+/** Test seam: forget every warm (a fresh document). */
+export function reset_island_warms(): void {
+	warm_flights?.drop(() => true);
+	warm_flights = undefined;
+}
 
 /** The warmer's key: the resolved module as an absolute URL (a location arrives absolute, an href
  *  off a page root-relative — the same file must be one key). */
@@ -235,12 +243,8 @@ export function warm_island_module(
 	if (!url) return;
 	// a build's identity with no known location names no file: the load finds it (import_entry)
 	if (!entry_location(entry, base) && url.includes('/ogygia/og-region.')) return;
-	warms()
-		.get({ key: warm_key(url), entry, base, url }, { priority: PRIORITY[cls] })
-		.catch(noop); // ok: a warm that failed is not kept; the island's own load asks again and says its failure
+	void warms().get({ key: warm_key(url), entry, base, url }, { priority: PRIORITY[cls] }); // ok: a warm that failed answers STALE, never rejects: nothing to hear
 }
-
-const noop = (): void => {};
 
 /** Has this island module already been warmed (or imported through the warmer)? `entry` resolves
  *  the way `warm_island_module` resolves it; `base` for an href read off a foreign document. */
