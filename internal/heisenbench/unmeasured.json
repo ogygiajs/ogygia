@@ -1,6 +1,26 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll",
+			"reason": "browser only: a Back or Forward's scroll restore and its hold (one child scope, four listeners, a timer, one ResizeObserver), constant work; router-history e2e runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll > put",
+			"reason": "browser only: one scrollTo when the position moved, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll > on:2~0f2971",
+			"reason": "browser only: the visitor's input ends the hold (one scope close)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll > on:2~641bd9",
+			"reason": "browser only: a scroll elsewhere ends the hold (one comparison, one scope close)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll > timeout:0~0f2971",
+			"reason": "browser only: the hold's cap ends it (one scope close)"
+		},
+		{
 			"id": "packages/core/src/runtime/entry-locations.ts > recover_location > task:0~d0bd46",
 			"reason": "one rollover wait on the recovery's own scope timer (seconds, a deploy's rollover only), constant work"
 		},
