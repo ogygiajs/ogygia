@@ -326,7 +326,8 @@ class QueueImpl<J> implements Queue<J> {
 		this.#armed_at = Infinity;
 		const now = this.#now();
 		let next = Infinity;
-		for (const t of [...this.#list]) {
+		for (const t of this.#list.slice()) {
+			// (a copy: one that gives up leaves the list)
 			if (!t.waiting || t.deadline === Infinity) continue;
 			if (t.deadline <= now) this.#gone(t);
 			else if (t.deadline < next) next = t.deadline;
