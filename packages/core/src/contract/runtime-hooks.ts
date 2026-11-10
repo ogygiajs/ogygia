@@ -99,6 +99,18 @@ export interface WarningEvent {
 	readonly t: number;
 }
 
+/** How the critical-resources wait ended: they `arrived` (or failed), the visitor's first `input`,
+ *  the `cap`, or `none` were pending. */
+export type CriticalOutcome = 'arrived' | 'input' | 'cap' | 'none';
+
+/** The critical-resources wait settled: the region downloads it held back may start. */
+export interface CriticalSettledEvent {
+	readonly outcome: CriticalOutcome;
+	/** how many critical resources it waited on */
+	readonly resources: number;
+	readonly waitedMs: number;
+}
+
 /** The runtime's moments a plugin's browser half can subscribe to (`defineClient({ hooks })`). */
 export interface RuntimeHooks {
 	regionMount(e: RegionMountEvent): void;
@@ -110,6 +122,7 @@ export interface RuntimeHooks {
 	holeBatchMissed(e: HoleBatchMissedEvent): void;
 	entryFallback(e: EntryFallbackEvent): void;
 	navigated(e: NavigatedEvent): void;
+	criticalSettled(e: CriticalSettledEvent): void;
 	warning(e: WarningEvent): void;
 }
 
@@ -126,5 +139,6 @@ export const RUNTIME_HOOK_CONSTANTS: { readonly [K in RuntimeHookName]: string }
 	holeBatchMissed: '__OGYGIA_HOOK_HOLE_BATCH_MISSED__',
 	entryFallback: '__OGYGIA_HOOK_ENTRY_FALLBACK__',
 	navigated: '__OGYGIA_HOOK_NAVIGATED__',
+	criticalSettled: '__OGYGIA_HOOK_CRITICAL_SETTLED__',
 	warning: '__OGYGIA_HOOK_WARNING__'
 };

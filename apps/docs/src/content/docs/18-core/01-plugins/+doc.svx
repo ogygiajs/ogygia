@@ -195,6 +195,7 @@ export default defineClient({
 | `holeBatchMissed` | A batch request carried fewer holes than it was sent for.                                                                         |
 | `entryFallback`   | A region's file was gone, and its fresh identity loaded instead.                                                                  |
 | `navigated`       | An in-app navigation finished, with its timings.                                                                                  |
+| `criticalSettled` | The wait for the page's critical resources ended: how, how many it waited on, and for how long.                                   |
 | `warning`         | Dev only: a Svelte hydration warning.                                                                                             |
 
 The rules every hook follows:

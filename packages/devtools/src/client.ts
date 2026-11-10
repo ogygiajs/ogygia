@@ -12,6 +12,7 @@ import {
 	leftover_island_gone
 } from './devtools/leftovers.ts';
 import {
+	beacon_critical,
 	beacon_entry_fallback,
 	beacon_failed,
 	beacon_hole_answered,
@@ -61,6 +62,9 @@ const client: ClientPlugin = defineClient({
 		},
 		navigated(n) {
 			beacon_nav(n);
+		},
+		criticalSettled(e) {
+			beacon_critical(e);
 		},
 		warning(w) {
 			beacon_warning(w);

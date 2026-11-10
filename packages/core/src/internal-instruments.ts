@@ -15,7 +15,6 @@ export {
 	type AttrChange
 } from './contract/markup-text.ts';
 export { hole_copy_of } from './contract/hash.ts';
-export { critical_outcome, type CriticalOutcome } from './runtime/load-scheduler.ts';
 export { devtools_switched_on } from './insights/switch.ts';
 export { metered } from './runtime/own-cost.ts';
 export { props_sidecar_of } from './runtime/sidecar.ts';

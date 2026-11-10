@@ -31,6 +31,8 @@ export const HOOK_ENTRY_FALLBACK: boolean =
 	typeof __OGYGIA_HOOK_ENTRY_FALLBACK__ !== 'undefined' ? __OGYGIA_HOOK_ENTRY_FALLBACK__ : true;
 export const HOOK_NAVIGATED: boolean =
 	typeof __OGYGIA_HOOK_NAVIGATED__ !== 'undefined' ? __OGYGIA_HOOK_NAVIGATED__ : true;
+export const HOOK_CRITICAL_SETTLED: boolean =
+	typeof __OGYGIA_HOOK_CRITICAL_SETTLED__ !== 'undefined' ? __OGYGIA_HOOK_CRITICAL_SETTLED__ : true;
 export const HOOK_WARNING: boolean =
 	typeof __OGYGIA_HOOK_WARNING__ !== 'undefined' ? __OGYGIA_HOOK_WARNING__ : true;
 
@@ -90,6 +92,7 @@ export function boot_client_plugins(list: readonly ClientRealm[], kit_page: bool
 		HOOK_HOLE_BATCH_MISSED ||
 		HOOK_ENTRY_FALLBACK ||
 		HOOK_NAVIGATED ||
+		HOOK_CRITICAL_SETTLED ||
 		HOOK_WARNING
 	) {
 		const h: Partial<RuntimeHooks> = {};
@@ -102,6 +105,7 @@ export function boot_client_plugins(list: readonly ClientRealm[], kit_page: bool
 		if (HOOK_HOLE_BATCH_MISSED) h.holeBatchMissed = joined(list, 'holeBatchMissed');
 		if (HOOK_ENTRY_FALLBACK) h.entryFallback = joined(list, 'entryFallback');
 		if (HOOK_NAVIGATED) h.navigated = joined(list, 'navigated');
+		if (HOOK_CRITICAL_SETTLED) h.criticalSettled = joined(list, 'criticalSettled');
 		if (HOOK_WARNING) h.warning = joined(list, 'warning');
 		slots.hooks = h;
 	}

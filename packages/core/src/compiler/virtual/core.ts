@@ -685,6 +685,8 @@ export const hook_hole_batch_missed: Constant = hook_gate('holeBatchMissed');
 export const hook_entry_fallback: Constant = hook_gate('entryFallback');
 /** a plugin's browser half subscribes to `navigated` */
 export const hook_navigated: Constant = hook_gate('navigated');
+/** a plugin's browser half subscribes to `criticalSettled` */
+export const hook_critical_settled: Constant = hook_gate('criticalSettled');
 /** a plugin's browser half subscribes to `warning` */
 export const hook_warning: Constant = hook_gate('warning');
 
@@ -721,6 +723,7 @@ export const CORE_CONSTANTS: readonly Constant<boolean | number | string | null>
 	hook_hole_batch_missed,
 	hook_entry_fallback,
 	hook_navigated,
+	hook_critical_settled,
 	hook_warning,
 	kit_major,
 	version,

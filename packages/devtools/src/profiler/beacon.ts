@@ -21,7 +21,6 @@ import { machine } from '@ogygia/machine';
 import {
 	attr_changes,
 	charge,
-	critical_outcome,
 	devtools_switched_on,
 	hole_copy_of,
 	metered,
@@ -29,10 +28,11 @@ import {
 	tool_made,
 	without_comments,
 	without_runtime_marks,
-	type AttrChange,
-	type CriticalOutcome
+	type AttrChange
 } from '@ogygia/core/internal/instruments';
 import type {
+	CriticalOutcome,
+	CriticalSettledEvent,
 	EntryFallbackEvent,
 	HoleRefusal,
 	NavigatedEvent,
@@ -105,6 +105,7 @@ interface BeaconApi {
 	beacon_hole_batch_missed?: typeof beacon_hole_batch_missed;
 	beacon_entry_fallback?: typeof beacon_entry_fallback;
 	beacon_nav?: typeof beacon_nav;
+	beacon_critical?: typeof beacon_critical;
 }
 type PageGlobals = { [BEACON_KEY]?: BeaconApi };
 let self_api: BeaconApi | undefined;
@@ -122,7 +123,8 @@ function owner(): BeaconApi | null {
 		beacon_hole_answered,
 		beacon_hole_batch_missed,
 		beacon_entry_fallback,
-		beacon_nav
+		beacon_nav,
+		beacon_critical
 	} satisfies Required<BeaconApi>;
 	const o = ((globalThis as PageGlobals)[BEACON_KEY] ??= self_api);
 	return o === self_api ? null : o;
@@ -429,6 +431,13 @@ export function hole_request_times(
 let visit_holes_answered: HoleAnswered[] = [];
 
 let visit_entry_fallbacks: EntryFallbackEvent[] = [];
+let critical_held: { outcome: CriticalOutcome; resources: number; waited_ms: number } | null = null;
+/** The load scheduler's critical wait settled: how long it held ogygia's downloads, for the visit. */
+export function beacon_critical(e: CriticalSettledEvent): void {
+	const o = owner();
+	if (o) return o.beacon_critical?.(e);
+	critical_held = { outcome: e.outcome, resources: e.resources, waited_ms: e.waitedMs };
+}
 export function beacon_entry_fallback(f: EntryFallbackEvent): void {
 	const o = owner();
 	if (o) return o.beacon_entry_fallback?.(f);
@@ -1671,7 +1680,7 @@ function build_visit_now(): Record<string, unknown> | null {
 			...(lcp_el && !lcp_el.isConnected && lcp_region?.isConnected
 				? { lcp_replaced: true as const }
 				: {}),
-			...(critical_outcome() ? { held: critical_outcome()! } : {})
+			...(critical_held ? { held: critical_held } : {})
 		},
 		resources,
 		...(all_n > resources.length
@@ -2832,6 +2841,7 @@ export function _reset_beacon(): void {
 	visit_holes_answered = [];
 	visit_hole_batches = [];
 	visit_entry_fallbacks = [];
+	critical_held = null;
 	holes_answered_els = new WeakSet();
 	visit_marks = [];
 	visit_paints = {};

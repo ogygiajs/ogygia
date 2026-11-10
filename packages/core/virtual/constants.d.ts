@@ -7,6 +7,7 @@ declare const __OGYGIA_CONTINUITY_FORMS__: import('../dist/compiler/virtual/tabl
 declare const __OGYGIA_DEV_HMR_URL__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').dev_hmr_url>;
 declare const __OGYGIA_DEVTOOLS__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').devtools_gate>;
 declare const __OGYGIA_DEVTOOLS_LAZY__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').devtools_lazy>;
+declare const __OGYGIA_HOOK_CRITICAL_SETTLED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_critical_settled>;
 declare const __OGYGIA_HOOK_ENTRY_FALLBACK__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_entry_fallback>;
 declare const __OGYGIA_HOOK_HOLE_ANSWERED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_hole_answered>;
 declare const __OGYGIA_HOOK_HOLE_BATCH_MISSED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_hole_batch_missed>;

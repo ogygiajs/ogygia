@@ -20,6 +20,8 @@
 import type { RuntimeHooks } from '../contract/runtime-hooks.ts';
 
 export type {
+	CriticalOutcome,
+	CriticalSettledEvent,
 	EntryFallbackEvent,
 	HoleAnsweredEvent,
 	HoleBatchMissedEvent,
