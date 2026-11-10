@@ -17,6 +17,7 @@
 			"@ogygia/cli",
 			"@ogygia/router",
 			"@ogygia/machine",
+			"@ogygia/barrels",
 			"@ogygia/insights"
 		]
 	],
