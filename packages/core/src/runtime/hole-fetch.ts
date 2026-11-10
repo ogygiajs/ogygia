@@ -28,22 +28,37 @@ export type HoleFetch = {
 	renewed?: (fresh: string) => void;
 };
 
+/** A hole's fetch: its request started ({@link start_hole}), its answer read ({@link read_hole}). */
 export async function fetch_hole(endpoint: string, opts: HoleFetch = {}): Promise<string> {
-	const { revalidate = false, priority = 'auto', signal } = opts;
-	let res = await fetch(endpoint, {
+	return read_hole(endpoint, start_hole(endpoint, opts), opts);
+}
+
+/** The request for a hole's HTML (the page's head starts a `load` hole's the same way:
+ *  ../early-holes.ts). */
+export function start_hole(
+	endpoint: string,
+	{ revalidate = false, priority = 'auto', signal }: HoleFetch = {}
+): Promise<Response> {
+	return fetch(endpoint, {
 		credentials: 'same-origin',
 		cache: revalidate ? 'no-store' : 'default',
 		priority,
 		signal
 	} as RequestInit);
+}
+
+/** A hole's answer, read: whatever lands at an address is read this one way, whoever started its
+ *  request. */
+export async function read_hole(
+	endpoint: string,
+	response: Promise<Response>,
+	opts: Pick<HoleFetch, 'signal' | 'renewed'> = {}
+): Promise<string> {
+	let res = await response;
 	// An EXPIRED capability (its document outlived it in a cache): renew once. The handle re-signs an
 	// anonymous hole it minted itself and answers with the hole AND the fresh capability.
 	if (res.status === 403 && capability_expired(endpoint)) {
-		res = await fetch(renewal_url(endpoint), {
-			credentials: 'same-origin',
-			cache: 'no-store',
-			signal
-		});
+		res = await start_hole(renewal_url(endpoint), { revalidate: true, signal: opts.signal });
 		const fresh = res.ok ? res.headers.get('x-ogygia-capability') : null;
 		if (fresh && is_allowed_region_endpoint(fresh)) opts.renewed?.(fresh);
 	}

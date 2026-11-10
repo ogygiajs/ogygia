@@ -1,7 +1,7 @@
 // Defer TIMING variants (task 3): a server-island hole fetches its HTML on a schedule —
-// 'load' (immediate + preload) | 'idle' (requestIdleCallback) | 'visible' (IntersectionObserver) |
-// media query — reusing the same scheduler as hydrate timing. Asserts:
-//   - exactly ONE preload <link> is emitted (only 'load' preloads);
+// 'load' (immediate, started early in the head) | 'idle' (requestIdleCallback) | 'visible'
+// (IntersectionObserver) | media query — reusing the same scheduler as hydrate timing. Asserts:
+//   - the head's early start lists exactly ONE hole (only 'load' starts early);
 //   - 'load' / 'idle' / 'media' holes fetch + fill without scrolling;
 //   - the 'visible' hole does NOT fetch until scrolled into view (network assertion), then fills.
 // Usage: pnpm exec playwright test defer-timing
@@ -25,12 +25,14 @@ test.describe('server-island fetch timing load/idle/visible/media', () => {
 
 		await page.goto('/defer-timing', { waitUntil: 'domcontentloaded' });
 
-		// --- preload: only the 'load' variant emits a preload hint ---
-		const preloads = await page.$$eval('link[rel="preload"][as="fetch"]', (els) => els.length);
+		// --- early start: only the 'load' variant's request starts during the parse ---
+		const early = await page.$eval('#ogygia-early-holes', (el) =>
+			JSON.parse(el.textContent ?? '[]')
+		);
 		check(
-			'exactly one preload <link> (only fill:load preloads)',
-			preloads === 1,
-			`count=${preloads}`
+			'the early start lists exactly one hole (only fill:load starts early)',
+			early.length === 1,
+			`count=${early.length}`
 		);
 
 		// Server-island hole id per section. A STATIC deferred hole (no client module) carries `entry=""`

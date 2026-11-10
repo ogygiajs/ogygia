@@ -16,7 +16,7 @@ import * as content from '@ogygia/content/internal/messages';
 import * as devtools from '@ogygia/devtools/internal/messages';
 import * as federation from '@ogygia/federation/internal/messages';
 import * as flags from '@ogygia/flags/internal/messages';
-import * as machine from '@ogygia/machine/internal/messages';
+import * as machine from '@ogygia/machine';
 import * as postrender from '@ogygia/postrender/internal/messages';
 import * as testing from '@ogygia/testing/internal/messages';
 import * as cli from '@ogygia/cli/internal/messages';

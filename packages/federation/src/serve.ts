@@ -7,8 +7,7 @@
  * handle owns all of it, so a `federate()` in hooks.server.ts is the whole wiring.
  */
 import { version } from '$app/env';
-import { flights, machine, policy, type Policy } from '@ogygia/machine';
-import { backoff_after } from '@ogygia/machine/internal/policy';
+import { backoffAfter, flights, machine, policy, type Policy } from '@ogygia/machine';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { ServerApp } from '@ogygia/core/plugin';
 import { current_federation } from './registry.ts';
@@ -100,7 +99,7 @@ const DEPLOY_THAW_POLICY: Policy = policy({
 	deadline: Infinity
 });
 /** A check to try again is tried by a request at least this long after the last. */
-const DEPLOY_RETRY_MS = backoff_after(DEPLOY_THAW_POLICY, 1);
+const DEPLOY_RETRY_MS = backoffAfter(DEPLOY_THAW_POLICY, 1);
 /** How many rounds an owed thaw is sent to the peers that missed it before it is given up. */
 export const DEPLOY_THAW_ROUNDS: number = DEPLOY_THAW_POLICY.attempts;
 
@@ -377,7 +376,7 @@ type Received = {
  * and one after is dropped. Ids are kept 10 minutes, the newest 10 000 at most.
  */
 const SAME_NOTICE = 'an id names one notice: a copy of it is that notice again';
-const applied_notices = flights<Received>()({
+const applied_notices = flights.keyed<Received>()({
 	name: 'federation thaws applied',
 	key: ['id'],
 	ignore: {
