@@ -17,9 +17,10 @@
  *   `max` do. `add` resolves then, with a `release` to call once the work is done (once: a second
  *   call does nothing). A release hands its place to the next job in the same step: a job added
  *   meanwhile queues behind it instead of starting beside it.
- * - `start(job, started)`, when given, starts each job in the drain's own step (`add` resolves a
- *   microtask later). A promise it returns is waited for before the next start: the job's own
- *   start-up. One that throws is reported (machine_queue_start_failed) and the drain goes on.
+ * - `push` queues a job with no promise: the queue's `start` and `stale` hear it instead.
+ * - `start(job, started)`, when given, starts each job in the drain's own step. A promise it
+ *   returns is waited for before the next start: the job's own start-up. One that throws is
+ *   reported (machine_queue_start_failed) and the drain goes on.
  * - The most urgent starts first: the highest `priority`, then the order added. A getter is read
  *   again at each drain, and after a job's start ran. A job that serves a flight (`flight`) is at
  *   least at the flight's priority, and a caller raising the flight drains the queue: the job moves
@@ -30,7 +31,8 @@
  *   that added.
  * - `deadline` (by `now`): a job still waiting then settles `STALE` and never starts (one whose
  *   deadline came is passed over even before its timer runs).
- * - `owner`: its scope closing settles a waiting job `STALE`, and gives a started one's place back.
+ * - A job's `owner` closing settles it `STALE` while it waits, and gives its place back once it
+ *   started. The queue's `owner` closing settles every waiting job `STALE`, and any added after.
  *
  * One drain runs at a time: one asked for while it runs goes round once more when it is done.
  */
@@ -52,6 +54,8 @@ export interface QueueOptions<J> {
 	admit?: (job: J, priority: number) => boolean;
 	/** Starts a job, in the drain's step. A promise it returns is waited for before the next start. */
 	start?: (job: J, started: Started) => void | PromiseLike<unknown>;
+	/** Hears a job that settles `STALE` (its owner closed, or its deadline came) before it started. */
+	stale?: (job: J) => void;
 	/** How long (ms) a drain starts jobs before it gives the thread back with `pause`. */
 	budget?: number;
 	/** Gives the thread back: calls `resume` in a new task. Needed by `budget` and `deferred`. */
@@ -82,8 +86,10 @@ export interface Started {
 }
 
 export interface Queue<J> {
-	/** Resolves once `job` starts, or with `STALE` if its owner closed or its deadline came first. */
+	/** Resolves once `job` starts, or with `STALE` if an owner closed or its deadline came first. */
 	add(job: J, options?: AddOptions): Promise<Started | Stale>;
+	/** Queues `job` with no promise: the queue's `start` and `stale` hear it. */
+	push(job: J, options?: AddOptions): void;
 	/** Looks again: what `admit` or a priority getter reads has changed. */
 	drain(): void;
 	/** Jobs waiting to start. */
@@ -98,7 +104,7 @@ const drain_definition = machine<{ idle: {}; draining: {}; again: {} }>()({
 	steps: { idle: ['draining'], draining: ['idle', 'again'], again: ['idle', 'draining'] }
 });
 
-/** What a pass hands its driver: give the thread back, or wait for a job's start-up. */
+/** What a paced pass hands its driver: give the thread back, or wait for a job's start-up. */
 const PAUSE = Symbol('pause');
 type Wait = typeof PAUSE | PromiseLike<unknown>;
 
@@ -116,11 +122,11 @@ class Ticket<J> implements Started {
 	/** Its owner's link and its deadline timer (`null`: neither). */
 	life: Scope | null = null;
 	cancel_deadline: (() => void) | null = null;
-	#asked: number | (() => number);
-	#flight: InFlight | null;
-	#q: QueueImpl<J>;
-	#resolve!: (s: Started | Stale) => void;
-	readonly started: Promise<Started | Stale>;
+	/** What `add` resolves (`null`: pushed, nobody awaits it). */
+	resolve: ((s: Started | Stale) => void) | null = null;
+	readonly #asked: number | (() => number);
+	readonly #flight: InFlight | null;
+	readonly #q: QueueImpl<J>;
 
 	constructor(q: QueueImpl<J>, job: J, o: AddOptions) {
 		this.#q = q;
@@ -128,7 +134,6 @@ class Ticket<J> implements Started {
 		this.#asked = o.priority ?? 0;
 		this.#flight = o.flight ?? null;
 		this.deadline = o.deadline ?? Infinity;
-		this.started = new Promise((r) => (this.#resolve = r));
 	}
 
 	/** Its priority now: what it was asked at, or its flight's when that is higher. */
@@ -137,21 +142,6 @@ class Ticket<J> implements Started {
 		const p = typeof asked === 'number' ? asked : asked();
 		const flight = this.#flight;
 		return flight !== null && flight.priority > p ? flight.priority : p;
-	}
-
-	start(priority: number, holds: boolean): void {
-		this.waiting = false;
-		this.running = true;
-		this.priority = priority;
-		this.holds = holds;
-		this.cancel_deadline?.();
-		this.#resolve(this);
-	}
-
-	give_up(): void {
-		this.waiting = false;
-		this.life?.close();
-		this.#resolve(STALE);
 	}
 
 	release(): void {
@@ -168,6 +158,7 @@ class QueueImpl<J> implements Queue<J> {
 	readonly #holds: ((priority: number, job: J) => boolean) | null;
 	readonly #admit: ((job: J, priority: number) => boolean) | null;
 	readonly #start: ((job: J, started: Started) => void | PromiseLike<unknown>) | null;
+	readonly #stale: ((job: J) => void) | null;
 	readonly #budget: number;
 	readonly #pause: ((resume: () => void) => void) | null;
 	readonly #deferred: boolean;
@@ -178,7 +169,7 @@ class QueueImpl<J> implements Queue<J> {
 	#waiting = 0;
 	#holding = 0;
 	readonly #drain = drain_definition.create();
-	/** The drain's passes while one runs: resumed after a pause or a start-up. */
+	/** A paced drain's passes while it runs: resumed after a pause or a start-up. */
 	#passes: Generator<Wait, void> | null = null;
 	readonly #step = (): void => this.#run();
 
@@ -188,6 +179,7 @@ class QueueImpl<J> implements Queue<J> {
 		this.#holds = o.holds ?? null;
 		this.#admit = o.admit ?? null;
 		this.#start = o.start ?? null;
+		this.#stale = o.stale ?? null;
 		this.#budget = o.budget ?? Infinity;
 		this.#pause = o.pause ?? null;
 		this.#deferred = o.deferred === true;
@@ -195,11 +187,7 @@ class QueueImpl<J> implements Queue<J> {
 		this.#owner = o.owner ?? null;
 		this.#owner?.defer(() => {
 			const list = this.#list;
-			for (let i = 0; i < list.length; i++)
-				if (list[i].waiting) {
-					this.#waiting--;
-					list[i].give_up();
-				}
+			for (let i = 0; i < list.length; i++) if (list[i].waiting) this.#give_up(list[i]);
 			list.length = 0;
 		});
 	}
@@ -213,28 +201,17 @@ class QueueImpl<J> implements Queue<J> {
 	}
 
 	add(job: J, o: AddOptions = {}): Promise<Started | Stale> {
-		const p = o.priority;
-		if (p !== undefined && typeof p !== 'function' && !Number.isFinite(p))
-			throw bad_option('priority', p, 'a finite number or a function');
-		if (o.owner?.closed || this.#owner?.closed) return Promise.resolve(STALE);
-		const t = new Ticket(this, job, o);
-		if (o.owner !== undefined || t.deadline !== Infinity) {
-			const life = (t.life = o.owner?.child() ?? scope());
-			life.defer(() => this.#gone(t));
-			if (t.deadline !== Infinity)
-				t.cancel_deadline = life.timeout(
-					() => life.close(),
-					Math.min(MAX_TIMEOUT_MS, Math.max(0, t.deadline - this.#now()))
-				);
-		}
-		this.#list.push(t);
-		this.#waiting++;
-		// a caller joined its flight at a higher priority: still waiting, it may start now
-		o.flight?.onRaise(() => {
-			if (t.waiting) this.drain();
-		});
-		this.drain();
-		return t.started;
+		const t = this.#ticket(job, o);
+		if (t === null) return Promise.resolve(STALE);
+		const started = new Promise<Started | Stale>((resolve) => (t.resolve = resolve));
+		this.#enqueue(t, o);
+		return started;
+	}
+
+	push(job: J, o: AddOptions = {}): void {
+		const t = this.#ticket(job, o);
+		if (t === null) this.#stale?.(job);
+		else this.#enqueue(t, o);
 	}
 
 	drain(): void {
@@ -246,7 +223,12 @@ class QueueImpl<J> implements Queue<J> {
 		}
 		if (!this.#waiting) return;
 		d.go('draining');
-		this.#passes = this.#pass();
+		if (this.#budget === Infinity && !this.#deferred) {
+			this.#passes_now();
+			d.go('idle');
+			return;
+		}
+		this.#passes = this.#paced();
 		this.#run();
 	}
 
@@ -257,16 +239,54 @@ class QueueImpl<J> implements Queue<J> {
 		this.drain();
 	}
 
+	/** A ticket for `job`, or `null` when an owner is already closed (it is `STALE` at once). */
+	#ticket(job: J, o: AddOptions): Ticket<J> | null {
+		const p = o.priority;
+		if (p !== undefined && typeof p !== 'function' && !Number.isFinite(p))
+			throw bad_option('priority', p, 'a finite number or a function');
+		if (o.owner?.closed || this.#owner?.closed) return null;
+		return new Ticket(this, job, o);
+	}
+
+	#enqueue(t: Ticket<J>, o: AddOptions): void {
+		this.#list.push(t);
+		this.#waiting++;
+		this.drain();
+		// (made only for one still waiting or running: most start at once, and many end at once too)
+		const deadline = t.waiting && t.deadline !== Infinity;
+		if (deadline || (o.owner !== undefined && (t.waiting || t.running))) {
+			const life = (t.life = o.owner?.child() ?? scope());
+			life.defer(() => this.#gone(t));
+			if (deadline)
+				t.cancel_deadline = life.timeout(
+					() => life.close(),
+					Math.min(MAX_TIMEOUT_MS, Math.max(0, t.deadline - this.#now()))
+				);
+		}
+		// a caller joined its flight at a higher priority: still waiting, it may start now
+		if (t.waiting)
+			o.flight?.onRaise(() => {
+				if (t.waiting) this.drain();
+			});
+	}
+
 	/** Its owner closed, or its deadline came: waiting, it settles STALE; started, it is released. */
 	#gone(t: Ticket<J>): void {
 		if (t.running) return t.release();
 		if (!t.waiting) return;
-		this.#waiting--;
-		t.give_up();
+		this.#give_up(t);
 		if (this.#drain.now.kind === 'idle') this.#compact();
 	}
 
-	/** Runs the drain's passes until they end, pause, or wait for a job's start-up. */
+	#give_up(t: Ticket<J>): void {
+		t.waiting = false;
+		this.#waiting--;
+		t.life?.close();
+		if (t.resolve !== null) t.resolve(STALE);
+		else this.#stale?.(t.job);
+	}
+
+	/** Runs a paced drain's passes until they end, pause, or wait for a job's start-up. */
 	#run(): void {
 		const r = this.#passes!.next();
 		if (r.done) {
@@ -277,34 +297,59 @@ class QueueImpl<J> implements Queue<J> {
 		else void r.value.then(this.#step, this.#step);
 	}
 
+	/** The drain, at once: passes until none was asked for while one ran. */
+	#passes_now(): void {
+		const d = this.#drain;
+		const all_hold = this.#holds === null;
+		for (;;) {
+			if (d.now.kind === 'again') d.go('draining');
+			if (!(all_hold && this.#holding >= this.#max)) {
+				const asked = this.#list.length;
+				const groups = this.#ordered(asked);
+				let ran = false;
+				pass: for (let g = 0; g <= groups.length; g++) {
+					const tail = g === groups.length;
+					const list = tail ? this.#list : groups[g];
+					const end = tail || list !== this.#list ? list.length : asked;
+					for (let i = tail ? asked : 0; i < end; i++) {
+						if (all_hold && this.#holding >= this.#max) break pass;
+						const t = list[i];
+						if (this.#try(t, ran || tail ? t.read() : t.priority) === false) continue;
+						if (this.#start !== null) ran = true;
+					}
+				}
+				this.#compact();
+			}
+			if (d.now.kind !== 'again') return;
+		}
+	}
+
 	/**
-	 * The drain: a pass goes through the waiting jobs by priority (each read once, grouped by value),
-	 * then the jobs added while it ran, in the order added. Once a job's start ran, priorities are
-	 * read again. Past the budget it pauses, and the next pass begins (priorities may have moved
+	 * The paced drain: a pass goes through the waiting jobs by priority (each read once, grouped by
+	 * value), then the jobs added while it ran, in the order added. Once a job's start ran, priorities
+	 * are read again. Past the budget it pauses, and the next pass begins (priorities may have moved
 	 * while the page had the thread). A drain asked for while it ran is one more pass.
 	 *
 	 * @heisenbench linear
 	 */
-	*#pass(): Generator<Wait, void> {
+	*#paced(): Generator<Wait, void> {
 		const d = this.#drain;
 		const all_hold = this.#holds === null;
-		const paced = this.#budget !== Infinity;
 		if (this.#deferred) yield PAUSE;
-		let until = paced ? this.#now() + this.#budget : Infinity;
+		let until = this.#now() + this.#budget;
 		for (;;) {
 			if (d.now.kind === 'again') d.go('draining');
 			let started = false;
 			let paused = false;
-			// (with every job holding a place, a full queue starts nothing this pass)
 			if (!(all_hold && this.#holding >= this.#max)) {
 				const asked = this.#list.length;
-				const groups = this.#ordered();
-				groups.push(this.#list); // then the ones added while it ran
+				const groups = this.#ordered(asked);
 				let ran = false;
-				pass: for (let g = 0; g < groups.length; g++) {
-					const list = groups[g];
-					const tail = g === groups.length - 1;
-					for (let i = tail ? asked : 0; i < list.length; i++) {
+				pass: for (let g = 0; g <= groups.length; g++) {
+					const tail = g === groups.length;
+					const list = tail ? this.#list : groups[g];
+					const end = tail || list !== this.#list ? list.length : asked;
+					for (let i = tail ? asked : 0; i < end; i++) {
 						if (all_hold && this.#holding >= this.#max) break pass;
 						const t = list[i];
 						const hop = this.#try(t, ran || tail ? t.read() : t.priority);
@@ -312,7 +357,7 @@ class QueueImpl<J> implements Queue<J> {
 						started = true;
 						if (hop !== true) yield hop; // its start-up runs now
 						if (hop !== true || this.#start !== null) ran = true;
-						if (paced && this.#now() >= until) {
+						if (this.#now() >= until) {
 							this.#compact();
 							yield PAUSE;
 							until = this.#now() + this.#budget;
@@ -329,18 +374,37 @@ class QueueImpl<J> implements Queue<J> {
 		}
 	}
 
-	/** The waiting tickets by priority (highest first), then the order added: each read once, and
+	/** The first `asked` tickets by priority (highest first), then the order added: each waiting
+	 *  one's priority read once. All at one priority (the common case), the list itself; else
 	 *  grouped by value (a sort of the few distinct priorities, not of the queue). */
-	#ordered(): Ticket<J>[][] {
-		const groups = new Map<number, Ticket<J>[]>(); // (one per pass, not module-level)
-		for (const t of this.#list) {
+	#ordered(asked: number): Ticket<J>[][] {
+		const list = this.#list;
+		let first = 0;
+		let one = true;
+		let any = false;
+		for (let i = 0; i < asked; i++) {
+			const t = list[i];
 			if (!t.waiting) continue;
 			const p = (t.priority = t.read());
-			const g = groups.get(p);
-			if (g) g.push(t);
-			else groups.set(p, [t]);
+			if (!any) {
+				any = true;
+				first = p;
+			} else if (p !== first) one = false;
 		}
-		return [...groups.keys()].sort((a, b) => b - a).map((p) => groups.get(p)!);
+		if (one) return [list];
+		const keys: number[] = [];
+		const groups: Ticket<J>[][] = [];
+		for (let i = 0; i < asked; i++) {
+			const t = list[i];
+			if (!t.waiting) continue;
+			const at = keys.indexOf(t.priority); // (a handful of distinct priorities)
+			if (at === -1) {
+				keys.push(t.priority);
+				groups.push([t]);
+			} else groups[at].push(t);
+		}
+		const order = keys.map((_, i) => i).sort((a, b) => keys[b] - keys[a]);
+		return order.map((i) => groups[i]);
 	}
 
 	/** Starts `t` if its queue lets it now: `false` when it did not, else `true`, or the promise
@@ -348,8 +412,7 @@ class QueueImpl<J> implements Queue<J> {
 	#try(t: Ticket<J>, priority: number): boolean | PromiseLike<unknown> {
 		if (!t.waiting) return false;
 		if (t.deadline !== Infinity && t.deadline <= this.#now()) {
-			this.#waiting--;
-			t.give_up();
+			this.#give_up(t);
 			return false;
 		}
 		if (this.#admit !== null && !this.#admit(t.job, priority)) return false;
@@ -357,7 +420,12 @@ class QueueImpl<J> implements Queue<J> {
 		if (holds && this.#holding >= this.#max) return false;
 		if (holds) this.#holding++;
 		this.#waiting--;
-		t.start(priority, holds);
+		t.waiting = false;
+		t.running = true;
+		t.priority = priority;
+		t.holds = holds;
+		t.cancel_deadline?.();
+		t.resolve?.(t);
 		const start = this.#start;
 		if (start === null) return true;
 		try {

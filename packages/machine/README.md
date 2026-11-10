@@ -216,8 +216,11 @@ try {
 | `admit(job, priority)`                            | Whether a waiting job may start now. `drain()` looks again once what it reads changed.                                                                    |
 | `start(job, started)`                             | Starts each job in the drain's own step. A promise it returns (its start-up) is waited for before the next.                                               |
 | `budget` / `pause(resume)` / `deferred`           | A drain gives the thread back after `budget` ms of starts, and goes on when `pause` calls `resume` in a new task; `deferred` begins every drain that way. |
+| `stale(job)`                                      | Hears a job that settles `STALE` before it started.                                                                                                       |
 | `now`                                             | The clock for `budget` and `deadline`. Default `performance.now()`.                                                                                       |
+| `owner`                                           | The queue's scope: closing it settles every waiting job `STALE`, and any added after.                                                                     |
 | `add(job, { priority, flight, deadline, owner })` | Resolves with `{ priority, release }` once the job starts, or `STALE`.                                                                                    |
+| `push(job, options)`                              | The same, with no promise: `start` and `stale` hear the job.                                                                                              |
 
 - **The most urgent goes first.** The highest `priority`, then the order added. A getter is read again at each drain. A job that serves a flight is at least at the flight's priority, and a raise of the flight drains the queue, so the job moves up while it waits.
 - **A place is handed on, never free in between.** A release starts the next job in the same step, so a job added meanwhile queues behind it. A release is given back once, however often it is called.
