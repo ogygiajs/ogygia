@@ -1,6 +1,5 @@
 // Holes that start fetching in the same task go out as ONE batch POST (runtime/frame-nav.ts
-// `join_batch`); a lone hole and a hole whose request the HTML already started (its parse-time
-// `<link rel="preload" as="fetch">`) do not.
+// `join_batch`); a lone hole does not (one whose request the page's head started: early-holes.test.ts).
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { join_batch } from '../../src/runtime/frame-nav.ts';
 import { _reset, ensure, peek } from '../../src/runtime/frame-store.ts';
@@ -24,7 +23,6 @@ function stub_batch(answer: (calls: string[]) => string) {
 afterEach(() => {
 	vi.restoreAllMocks();
 	_reset();
-	for (const l of document.head.querySelectorAll('link[data-test-hint]')) l.remove();
 });
 
 describe('join_batch', () => {
@@ -54,39 +52,6 @@ describe('join_batch', () => {
 	it('a lone hole goes on its own', async () => {
 		const { posts } = stub_batch(() => done_parcel());
 		await join_batch(ep('solo'));
-		expect(posts).toEqual([]);
-	});
-
-	it('a hole whose request the HTML started is left out', async () => {
-		const { posts } = stub_batch(() => done_parcel());
-		const link = document.createElement('link');
-		link.rel = 'preload';
-		link.as = 'fetch';
-		link.setAttribute('href', ep('h1'));
-		link.setAttribute('data-test-hint', '');
-		document.head.append(link);
-		await Promise.all([join_batch(ep('h1')), join_batch(ep('h2'))]);
-		expect(posts).toEqual([]); // one left: it goes alone
-	});
-
-	it('a preload whose href is relative still matches the pinned root-absolute endpoint', async () => {
-		// REGRESSION (field report on 0069b94b): the page pins a region's endpoint root-absolute while
-		// the link kept its relative text, the strings never matched, and the hole went in the batch
-		// beside its own preload: its HTML downloaded twice
-		const { posts } = stub_batch(() => done_parcel());
-		const pinned = new URL(ep('r1'), location.href);
-		const dir = location.pathname.slice(0, location.pathname.lastIndexOf('/') + 1);
-		let rel = '';
-		for (let i = 1; i < dir.split('/').length - 1; i++) rel += '../';
-		const link = document.createElement('link');
-		link.rel = 'preload';
-		link.as = 'fetch';
-		link.setAttribute('href', (rel || './') + pinned.pathname.slice(1) + pinned.search);
-		link.setAttribute('data-test-hint', '');
-		document.head.append(link);
-		expect(link.getAttribute('href')).not.toBe(ep('r1'));
-		expect(link.href).toBe(pinned.href);
-		await Promise.all([join_batch(ep('r1')), join_batch(ep('r2'))]);
 		expect(posts).toEqual([]);
 	});
 
