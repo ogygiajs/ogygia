@@ -1,6 +1,18 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/server/region-endpoint.ts > hole_css",
+			"reason": "a map lookup and a handoff read (holeCss before the region rename, unmeasured on that base); its handoff read is region_css's, which the request benches run"
+		},
+		{
+			"id": "packages/core/src/server/region-endpoint.ts > make_region_endpoint",
+			"reason": "signs with the process's key and the request's session (hidden state; makeRegionEndpoint before the region rename, unmeasured on that base); the signing it wraps is sign's, benched"
+		},
+		{
+			"id": "packages/core/src/server/region-endpoint.ts > mint_server_region",
+			"reason": "signs with the process's key and the request's session (hidden state; mintServerIsland before the region rename, unmeasured on that base); the signing it wraps is sign's, benched"
+		},
+		{
 			"id": "packages/core/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:3~e7ea15",
 			"reason": "the server manifest's dev URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
 		},
