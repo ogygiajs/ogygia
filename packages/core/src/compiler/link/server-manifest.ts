@@ -17,6 +17,23 @@ import type { Program } from '../program.ts';
 import { V_SERVER_ISLANDS } from '../ids.ts';
 import { dedent } from '../dedent.ts';
 
+/** The server manifest module's declarations (the virtual table's per-realm `.d.ts`). */
+export const SERVER_MANIFEST_TYPES: string = `/** The server islands' loaders, one dynamic import away (link/server-manifest.ts says why). */
+export function load_islands(): Promise<typeof import('${V_SERVER_ISLANDS}')>;
+/** Server-island id → its built client-chunk URL (the key \`islandCss()\` is keyed by). Its keys are
+ *  the server islands this build has. */
+export const island_url: Record<string, string>;
+/** Server-island id → its component name (\`SlowHole\`), where the component file is known. */
+export const island_name: Record<string, string>;
+/** Server-island id → its render identity (the component it renders), signed into its capabilities. */
+export const island_render: Record<string, string>;
+/** Render identity → a server-island id of this build that renders it: answers a capability minted
+ *  by another build, whose id this one does not have. */
+export const render_island: Record<string, string>;
+/** Server-island id → its server tree reads \`page.data\` (the build's answer); \`null\` in dev:
+ *  unknown, so every hole looks its page up. */
+export const island_reads_page_data: Record<string, boolean> | null;`;
+
 /** The SERVER-island ids the manifest carries right now (deferred / server-picked regions). */
 export function server_island_ids(program: Program): string[] {
 	const ids: string[] = [];

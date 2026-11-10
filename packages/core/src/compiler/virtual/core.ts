@@ -9,7 +9,7 @@ import {
 	generateRuntimeEntrySource,
 	generateRuntimeFlagsSource
 } from '../link/runtime-entry.ts';
-import { island_deps_module } from '../link/island-deps.ts';
+import { island_deps_module, ISLAND_DEPS_TYPES } from '../link/island-deps.ts';
 import { router_css_module } from '../link/router-css.ts';
 import { server_plugins_module, route_config_module, sign_client_source } from '../link/caps.ts';
 import { csrTrueRouteIds, errorCsrTrueRouteIds, rootLayoutCsrTrue } from '../kit.ts';
@@ -21,7 +21,8 @@ import {
 import {
 	server_manifest_module,
 	server_islands_module,
-	server_island_ids
+	server_island_ids,
+	SERVER_MANIFEST_TYPES
 } from '../link/server-manifest.ts';
 import {
 	REGISTRY_STUB_PREFIX,
@@ -48,6 +49,10 @@ export interface CoreApp {
 	/** dev: the server-island ids a server manifest was just emitted with */
 	note_server_ids(ids: Set<string>): void;
 }
+
+/** a Kit transport hook's codecs, by type name (declared inside each module that exports one) */
+const CODEC_MAP =
+	'type CodecMap = Record<string, { encode: (v: unknown) => unknown; decode: (v: unknown) => unknown }>;';
 
 const BACKSLASH_G = /\\/g;
 const posix = (p: string): string => p.replace(BACKSLASH_G, '/');
@@ -143,6 +148,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'runtime-url',
 		alias: 'virtual:ogygia/runtime-url',
+		types: `const url: string;\nexport default url;`,
 		// The runtime's IDENTITY — dev: its dev URL; build: its stable URL (the hashed file is looked up
 		// at render time through the build handoff). Prescan first, so the feature hash matches the
 		// client emit's stable name (both legs prescan the same source).
@@ -174,6 +180,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'boot',
 		id: 'runtime-flags',
 		alias: 'virtual:ogygia/runtime-flags',
+		types: `/** the \`frames\` feature is in the build: some region streams HTML */\nexport const FRAMES: boolean;`,
 		load(app) {
 			// Dev runs the kitchen-sink boot: every flag on, like every feature.
 			if (!app.ctx.is_build) return generateRuntimeFlagsSource({}, true);
@@ -185,6 +192,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'boot',
 		id: 'hydrate-features',
 		alias: 'virtual:ogygia/hydrate-features',
+		types: `/** installs the hydrate-phase features the app's marks selected */\nexport function install(): void;`,
 		load(app) {
 			const { ctx, program } = app;
 			// The hydrate core's feature phase, from the same marks as the boot entry. Dev runs the
@@ -220,6 +228,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'dev-hmr-url',
 		alias: 'virtual:ogygia/dev-hmr-url',
+		types: `const url: string;\nexport default url;`,
 		// '' in build/preview; the dev URL during `vite dev`
 		from: ({ ctx }) => ({ default: ctx.is_dev ? dev_url('virtual:ogygia/dev-hmr') : '' })
 	}),
@@ -249,6 +258,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'boot',
 		id: 'devtools-meta',
 		alias: 'virtual:ogygia/devtools-meta',
+		types: `/** island id → component name (a build; empty on the dev server) */\nexport const names: Record<string, string>;`,
 		// a build: every island's component name, from the prescan (the dev server serves them live)
 		from(app) {
 			if (app.ctx.is_dev) return { names: {} };
@@ -260,6 +270,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'devtools-boot-url',
 		alias: 'virtual:ogygia/devtools-boot-url',
+		types: `const url: string;\nexport default url;`,
 		// the dev URL the handle injects on csr=true pages; '' in build/preview and with no client realm
 		from: ({ ctx }) => ({
 			default:
@@ -270,6 +281,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'island-deps',
 		alias: 'virtual:ogygia/island-deps',
+		types: ISLAND_DEPS_TYPES,
 		load: ({ ctx }, { ssr }) =>
 			island_deps_module(ssr, ctx.is_dev, path.relative(ctx.root, kit_dirs(ctx.root).out_dir))
 	}),
@@ -277,6 +289,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'boot',
 		id: 'transport',
 		alias: 'virtual:ogygia/transport',
+		types: `${CODEC_MAP}\nexport const transport: CodecMap;\nexport const encoders: Record<string, (v: unknown) => unknown>;\nexport const decoders: Record<string, (v: unknown) => unknown>;`,
 		load: (_app, leg) =>
 			transport_module(leg.universalHooks, leg.ssr ? null : (leg.kitCodec ?? null))
 	}),
@@ -284,6 +297,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'region',
 		id: 'kit-transport',
 		alias: 'virtual:ogygia/kit-transport',
+		types: `${CODEC_MAP}\nexport const transport: CodecMap;`,
 		// `ogygia.transport`: the codec cluster only when the app crosses a region or wired value over
 		// Kit's wire; an empty map for a pure-island app (transport.js sits one level above runtime/)
 		load({ ctx, program }) {
@@ -311,6 +325,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'secret',
 		alias: 'virtual:ogygia/secret',
+		types: `/** this build's random key material (server leg; '' on the client) */\nexport const buildKey: string;\n/** the build saw an \`OGYGIA_SECRET\` (its region ids are salted from it) */\nexport const buildHadSecret: boolean;`,
 		watch: ['options'],
 		// the build's key material, and whether the build had an `OGYGIA_SECRET` (its ids are salted)
 		from: ({ ctx }, { ssr }) =>
@@ -322,6 +337,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'sign',
 		alias: 'virtual:ogygia/sign',
+		types: `export function sign(secret: string, message: string): string;\nexport function verify(secret: string, message: string, sig: string): boolean;\nexport function region_mac_message(id: string, exp: number | string, props: string, session?: string, ttl?: number | string, render?: string): string;`,
 		module: ({ ctx }) => ctx.hmac_module,
 		exports: ['sign', 'verify', 'region_mac_message'],
 		client: () => sign_client_source()
@@ -330,6 +346,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'request-event',
 		alias: 'virtual:ogygia/request-event',
+		types: `export function getRequestEvent(): {\n\tcookies: { get: (name: string) => string | undefined };\n\trequest: Request;\n\t[key: string]: unknown;\n};`,
 		module: () => '$app/server',
 		exports: ['getRequestEvent'],
 		// (the message is written in whole: the stub imports nothing)
@@ -340,6 +357,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'kit-wire',
 		alias: 'virtual:ogygia/kit-wire',
+		types: `export function stringify_remote_arg(value: unknown, transport: unknown): string;\nexport function stringify_command_arg(value: unknown, transport: unknown): Promise<string>;\nexport function create_remote_key(id: string, payload: string): string;`,
 		// Kit's OWN wire protocol (its transport-aware devalue codec), deep-imported by absolute path
 		module: ({ ctx }) => ctx.kit_wire_path,
 		exports: ['stringify_remote_arg', 'stringify_command_arg', 'create_remote_key']
@@ -348,6 +366,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'rate-limit',
 		alias: 'virtual:ogygia/rate-limit',
+		types: `/** \`max: 0\` disables. Baked from \`ogygia({ rateLimit })\`. */\nexport const rateLimit: { max: number; windowMs: number };`,
 		watch: ['options'],
 		from: ({ ctx }, { ssr }) => ({ rateLimit: ssr ? ctx.rate_limit : { max: 0, windowMs: 60000 } })
 	}),
@@ -355,6 +374,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'server-plugins',
 		alias: 'virtual:ogygia/server-plugins',
+		types: `/** the server halves of the plugins listed beside \`ogygia()\`, in plugin order (the client: none) */\nexport const plugins: readonly { name: string; options: unknown; server: object }[];`,
 		watch: ['plugins'],
 		load: ({ ctx }, { ssr }) => server_plugins_module(ssr, ctx.server_plugins)
 	}),
@@ -362,6 +382,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'profiler-maps',
 		alias: 'virtual:ogygia/profiler-maps',
+		types: `/** the server build's module map and chunk sourcemaps as one string (filled after the build), or\n *  null outside a profiler-on server build */\nconst maps: string | null;\nexport default maps;`,
 		// a placeholder the build fills with the maps (vite/profiler-maps.ts); anything else: none
 		from: ({ ctx }, { ssr }) => ({
 			default: ssr && ctx.is_build && ctx.measure ? PROFILER_MAPS_PLACEHOLDER : null
@@ -371,6 +392,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'router-config',
 		alias: 'virtual:ogygia/router-config',
+		types: `/** the SPA router is on (default), or off: \`ogygia({ router: false })\` */\nexport const enabled: boolean;\n/** navigations use the View Transitions API: \`ogygia({ router: { viewTransitions } })\` */\nexport const viewTransitions: boolean;`,
 		watch: ['options'],
 		from: ({ ctx }) => ({
 			enabled: ctx.router_enabled,
@@ -381,6 +403,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'session-cookie',
 		alias: 'virtual:ogygia/session-cookie',
+		types: `/** the cookie name sealed into the region MAC, or '' (\`ogygia({ sessionCookie })\`) */\nexport const sessionCookie: string;`,
 		watch: ['options'],
 		from: ({ ctx }, { ssr }) => ({ sessionCookie: ssr ? ctx.session_cookie : '' })
 	}),
@@ -388,6 +411,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'region-ttl',
 		alias: 'virtual:ogygia/region-ttl',
+		types: `/** capability URL TTL in seconds (\`ogygia({ ttl })\`, default 3600) */\nexport const regionTtl: number;\n/** seconds after expiry an anonymous capability still renews (\`ogygia({ maxPageAge })\`) */\nexport const renewWindow: number;`,
 		watch: ['options'],
 		from: ({ ctx }, { ssr }) =>
 			ssr
@@ -398,6 +422,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'route-csr',
 		alias: 'virtual:ogygia/route-csr',
+		types: `/** route ids (group-stripped) whose effective csr is true */\nexport const csr_true_routes: ReadonlySet<string>;\n/** route ids whose ERROR render is hydrated (the layouts' csr; the page's option ignored) */\nexport const error_csr_true_routes: ReadonlySet<string>;\n/** the routeless error render: the root layout's own csr (Kit's default \`true\`) */\nexport const root_layout_csr_true: boolean;`,
 		watch: ['routes'],
 		// the csr=true route ids (a csr=false layout's islands degrade to inline under a csr=true leaf);
 		// the client reads the same signal from `kit_hydrates_page()`
@@ -422,6 +447,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'route-config',
 		alias: 'virtual:ogygia/route-config',
+		types: `/** every Kit page route id → the keys plugins claim inside its \`config\` page option, merged */\nexport const route_config: Record<string, Record<string, unknown>>;`,
 		watch: ['routes', 'plugins'],
 		load: ({ ctx }, { ssr }) =>
 			route_config_module(ssr, kit_dirs(ctx.root).routes_dir, ctx.route_config)
@@ -430,6 +456,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'server-manifest',
 		alias: 'virtual:ogygia/server-manifest',
+		types: SERVER_MANIFEST_TYPES,
 		watch: ['regions'],
 		// filled in dev AND build (the client's would be from URLs)
 		load(app, { ssr }) {
@@ -449,6 +476,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'server',
 		id: 'server-islands',
 		alias: 'virtual:ogygia/server-islands',
+		types: `/** server-island id → its loader */\nexport const islands: Record<string, () => Promise<{ default: unknown }>>;`,
 		watch: ['regions'],
 		load(app, { ssr }) {
 			if (ssr) app.prescan();
@@ -470,6 +498,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		realm: 'boot',
 		id: 'transportables',
 		alias: 'virtual:ogygia/transportables',
+		types: `/** client: a transportable class module's tag path → its lazy import (server: empty, eager) */\nexport const wire_loaders: Record<string, () => Promise<unknown>>;\n/** client: the app sends wired values through Kit's transport — every class loads with every island */\nexport const wire_all: boolean;`,
 		// transportable-class modules: eager on the server, lazy loaders on the client (tag paths are
 		// root-relative, as the registration writes them)
 		load(app, { ssr }) {

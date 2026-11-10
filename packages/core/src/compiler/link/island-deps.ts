@@ -671,6 +671,60 @@ export function islandDepsHandoffPath(out_dir: string): string {
  * `out_dir_rel` — Kit's `outDir` relative to the app root (`.svelte-kit` by default) — is the cwd
  * fallback for adapter-node / preview run from the app root.
  */
+/** The island-deps module's declarations (the virtual table's per-realm `.d.ts` is made of them). */
+export const ISLAND_DEPS_TYPES = `/** Public URLs of hashed dependency chunks for a hydrate island entry (\`/_app/immutable/…\`). */
+export function islandDeps(entry: string): string[];
+/** WAKE ADVISOR: what the island's own components do (handlers, \`$state\`, \`$effect\`, \`bind:\`,
+ *  \`use:\` counts over its closure), from the build; \`null\` when the handoff has no facts. */
+export function islandInteractivity(entry: string): {
+	handlers: number;
+	state: number;
+	effects: number;
+	binds: number;
+	actions: number;
+	files: number;
+} | null;
+/** WHAT IS INSIDE a hashed client chunk (an \`islandDeps()\` href): a short readable list of its
+ *  source modules — app files first, then packages; \`null\` when the handoff has none (dev). */
+export function chunkContents(href: string): string[] | null;
+/** a chunk's heaviest named modules with their rendered bytes (profiler builds only) */
+export function chunkHeavy(href: string): { total: number; top: { name: string; bytes: number }[] } | null;
+/** the modules the build shipped as two copies (one package file by two paths), each copy's chunk
+ *  and its bytes (profiler builds only; null when none) */
+export function chunkDuplicates(): { name: string; copies: { file: string; bytes: number; from?: string }[] }[] | null;
+/** the re-export barrels a chunk still holds, with how many modules each brings (profiler builds only) */
+export function chunkBarrels(href: string): { name: string; fanout: number }[] | null;
+/** an island entry's components' lines that draw differently in the browser (the build's scan) */
+export function islandHazards(entry: string): { file: string; line: number; code: string; kind: 'await' | 'browser'; reads?: string }[] | null;
+/** Public URLs of the CSS assets an island entry (+ its dep chunks) owns — carried with a region
+ *  response so a server-picked component styles a page that never imported it. */
+export function islandCss(entry: string): string[];
+/** Public URLs of the CSS a content page's own components own (by content id). */
+export function contentCss(id: string): string[];
+/** INLINE REGION CSS: the text of a region CSS asset (an \`islandCss()\` / \`contentCss()\` href) the
+ *  build kept under Kit's \`inlineStyleThreshold\`, so the render emits it as a \`<style>\` instead of
+ *  a blocking \`<link>\`. \`null\` = link it (over the threshold, no threshold, dev). */
+export function islandCssInline(href: string): string | null;
+/** Does this island entry's client code read \`$page\`? Decides whether the page seed ships.
+ *  Fail-open: true in dev and for an entry the build handoff does not know. */
+export function islandReadsPage(entry: string): boolean;
+/** SEED SHAPING: the top-level \`page.data\` keys this island entry's client code reads, so the
+ *  handle ships only those. \`null\` = ship all: dev, an entry the handoff does not know, or a
+ *  closure whose reads could not be pinned to literal keys. */
+export function islandPageKeys(entry: string): string[] | null;
+/** why an island ships all of page.data: the modules whose reads the build could not pin */
+export function islandPageWhy(entry: string): { file: string; line: number | null; why: string }[] | null;
+/** The Kit remote-function modules (by id-hash) an island entry's client code can call. Fail-open:
+ *  \`null\` ("may call anything") in dev and for an entry the build handoff does not know. */
+export function islandRemotes(entry: string): string[] | null;
+/** og.$ hoisted factories (tag → self-contained source) for the page-inline registration script —
+ *  prod SSR only; null in dev/client (dev uses the fn-manifest module). */
+export function fnManifest(): Record<string, string> | null;
+/** An entry's identity (its stable URL) → the content-hashed file it is served from; \`null\`: none known. */
+export function entryLocation(identity: string): string | null;
+/** The build's location map file (base-less served path), or \`null\`: none built. */
+export function locationMap(): string | null;`;
+
 /** A CSS text that would close its own `<style>` cannot be inlined — link it instead. */
 const STYLE_CLOSE_RE = /<\/style/i;
 

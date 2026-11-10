@@ -52,6 +52,9 @@ interface Base {
 	/** the specifier it had before realms were in the name (resolves the same; step 5 drops them) */
 	alias?: string;
 	watch?: readonly Watch[];
+	/** the module's declarations, as a `.d.ts` body (absent: it exports nothing, it only runs); the
+	 *  per-realm `.d.ts` files are generated from them (scripts/virtual-types.ts) */
+	types?: string;
 }
 
 export interface ValueEntry<A> extends Base {
