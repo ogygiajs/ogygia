@@ -27,6 +27,7 @@ import type { Plugin as VitePlugin } from 'vite';
 import type { ExportMap, Policy } from '../compiler/exports/index.ts';
 import type { ServerRealm } from '../compiler/link/caps.ts';
 import type { CompileEventInput } from '../contract/events.ts';
+import type { BarrelLeftReason } from '../contract/barrels.ts';
 import { OgygiaError } from '../compiler/messages.ts';
 
 /** Where `definePlugin` puts the definition on the Vite plugin it returns. A registered symbol, so a
@@ -159,6 +160,8 @@ export interface BuildContext {
 	 *  that `import.meta.og.asRegion(X)` reads). A transform that rewrites imports leaves them as
 	 *  written, so the region the prescan keys on the raw import is the region the transform sees. */
 	pinnedImports(code: string): (decl: PinnedDecl) => boolean;
+	/** The app's regions as the build knows them now, for a tool that names or weighs them. */
+	readonly regions: RegionsSeam;
 	/** The app's root directory. */
 	readonly root: string;
 	/** `vite dev` (true) or `vite build` (false). */
@@ -274,9 +277,19 @@ export interface ResolvedPlugins {
 }
 
 /** What core hands every plugin's build context: the export index and the pinned-import check. */
+/** The live region table (read at call time, so it is complete once the app's islands are known). */
+export interface RegionsSeam {
+	/** island id → its component's name */
+	names(): Record<string, string>;
+	/** Why `barrels()` left the barrel at `file` as these modules import it (none: it was rewritten,
+	 *  or no rewrite was asked for). */
+	barrelWhy(file: string, importers: Iterable<string>): BarrelLeftReason[];
+}
+
 export interface BuildSeams {
 	exports: ExportsSeam;
 	pinned_imports(code: string): (decl: PinnedDecl) => boolean;
+	regions: RegionsSeam;
 }
 
 const MACRO_NAME_RE = /^[a-z][A-Za-z0-9]*$/;
@@ -301,6 +314,14 @@ const NO_SEAMS: BuildSeams = {
 	},
 	pinned_imports: () => {
 		throw new Error('resolve_plugins: no pinned imports without ogygia()');
+	},
+	regions: {
+		names: () => {
+			throw new Error('resolve_plugins: no region table without ogygia()');
+		},
+		barrelWhy: () => {
+			throw new Error('resolve_plugins: no region table without ogygia()');
+		}
 	}
 };
 
@@ -403,6 +424,7 @@ export function resolve_plugins(
 			dev,
 			exports: seams.exports,
 			pinnedImports: seams.pinned_imports,
+			regions: seams.regions,
 			transform(t) {
 				out.transforms.push(t);
 			},

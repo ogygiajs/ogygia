@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { island_subgraph_bytes, type ByteGraphModule } from '../dist/compiler/dev/region-bytes.js';
+import { island_subgraph_bytes, type ByteGraphModule } from '../src/build/region-bytes.ts';
 
 /** Build a mock Vite dev-graph node. `code` sets `transformResult.code`; `imports` the downward edges. */
 function mod(
