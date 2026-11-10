@@ -60,6 +60,8 @@ export interface QueueOptions<J> {
 	deferred?: boolean;
 	/** The clock for `budget` and `deadline` (ms): `performance.now()` when left out. */
 	now?: () => number;
+	/** The queue's owner: closing it settles every waiting job `STALE` (and any added after). */
+	owner?: Scope;
 }
 
 export interface AddOptions {
@@ -170,6 +172,7 @@ class QueueImpl<J> implements Queue<J> {
 	readonly #pause: ((resume: () => void) => void) | null;
 	readonly #deferred: boolean;
 	readonly #now: () => number;
+	readonly #owner: Scope | null;
 	/** Waiting tickets, in the order added (a drain takes out the ones it started). */
 	readonly #list: Ticket<J>[] = [];
 	#waiting = 0;
@@ -189,6 +192,16 @@ class QueueImpl<J> implements Queue<J> {
 		this.#pause = o.pause ?? null;
 		this.#deferred = o.deferred === true;
 		this.#now = o.now ?? clock;
+		this.#owner = o.owner ?? null;
+		this.#owner?.defer(() => {
+			const list = this.#list;
+			for (let i = 0; i < list.length; i++)
+				if (list[i].waiting) {
+					this.#waiting--;
+					list[i].give_up();
+				}
+			list.length = 0;
+		});
 	}
 
 	get waiting(): number {
@@ -203,7 +216,7 @@ class QueueImpl<J> implements Queue<J> {
 		const p = o.priority;
 		if (p !== undefined && typeof p !== 'function' && !Number.isFinite(p))
 			throw bad_option('priority', p, 'a finite number or a function');
-		if (o.owner?.closed) return Promise.resolve(STALE);
+		if (o.owner?.closed || this.#owner?.closed) return Promise.resolve(STALE);
 		const t = new Ticket(this, job, o);
 		if (o.owner !== undefined || t.deadline !== Infinity) {
 			const life = (t.life = o.owner?.child() ?? scope());
