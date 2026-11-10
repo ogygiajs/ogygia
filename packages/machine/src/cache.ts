@@ -187,13 +187,11 @@ class Store<K, V> implements Cache<K, V> {
 			this._tell();
 			return false;
 		}
-		// (read again: making room may have let an expired one go, noticed 'age')
-		const replaced = this._held.get(key);
-		if (replaced !== undefined) {
+		if (old !== undefined) {
 			this._held.delete(key);
-			this._weight -= replaced.weight;
+			this._weight -= old.weight;
 			// (a replace, whatever the old value's age: the key goes on holding a value)
-			this._due.push([key, replaced.value, 'delete']);
+			this._due.push([key, old.value, 'delete']);
 		}
 		const until = ms === Infinity ? Infinity : now + ms;
 		this._held.set(key, { value, weight, until, stamp });
@@ -240,10 +238,10 @@ class Store<K, V> implements Cache<K, V> {
 		return undefined;
 	}
 
-	/** Lets every value past its age go. */
-	_sweep(now: number): void {
+	/** Lets every value past its age go (but `except`'s, which a set is replacing). */
+	_sweep(now: number, except?: K): void {
 		for (const [key, h] of this._held) {
-			if (h.until > now) continue;
+			if (h.until > now || (except !== undefined && key === except)) continue;
 			this._held.delete(key);
 			this._weight -= h.weight;
 			this._due.push([key, h.value, 'age']);
@@ -255,11 +253,12 @@ class Store<K, V> implements Cache<K, V> {
 	 *  size and the answer is `false`. */
 	_room(now: number, key: K, weight: number): boolean {
 		const held = this._held.get(key);
-		let over = this._weight - (held === undefined ? 0 : held.weight) + weight - this._max;
+		const room = this._max - weight + (held === undefined ? 0 : held.weight);
+		let over = this._weight - room;
 		if (over <= 0) return true;
-		this._sweep(now);
-		const swept = this._held.get(key);
-		over = this._weight - (swept === undefined ? 0 : swept.weight) + weight - this._max;
+		// (not `key`'s own: the set replaces it, whatever its age, noticed 'delete')
+		this._sweep(now, key);
+		over = this._weight - room;
 		if (over <= 0) return true;
 		const in_use = this._in_use;
 		const go: K[] = [];
