@@ -4,6 +4,7 @@
  * global, shared by every copy of this package a process loads (the app's, and the dev plugin's).
  */
 import type { Collection } from './collection-base.ts';
+import { slot } from '@ogygia/machine';
 
 /** Which run of which module built a collection (dev only). */
 export type ModuleRun = {
@@ -26,9 +27,7 @@ export type ContentGraph = {
 	module_run?: (module: string) => <F extends (...args: never[]) => unknown>(build: F) => F;
 };
 
-export const GRAPH: ContentGraph = ((globalThis as Record<symbol, unknown>)[
-	Symbol.for('ogygia.content.graph')
-] ??= { all: new Set() }) as ContentGraph;
+export const GRAPH: ContentGraph = slot<ContentGraph>('ogygia.content.graph', 1, () => ({ all: new Set() }));
 
 let runs = 0;
 GRAPH.module_run ??= (module) => {

@@ -6,16 +6,13 @@
  * (dev re-evaluation of the module that owns it) REPLACES the previous one.
  */
 import type { Federation } from './types.ts';
-
-const SLOT = Symbol.for('ogygia.federation');
+import { slot as shared } from '@ogygia/machine';
 
 interface Slot {
 	current: Federation | null;
 }
 
-const slot: Slot = ((globalThis as unknown as Record<symbol, Slot | undefined>)[SLOT] ??= {
-	current: null
-});
+const slot = shared<Slot>('ogygia.federation', 1, () => ({ current: null }));
 
 export function set_federation(f: Federation | null): void {
 	slot.current = f;

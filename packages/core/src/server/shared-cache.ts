@@ -21,6 +21,7 @@
  * their own evaluation of this module — a module-local map would split the seam.
  */
 import { PRERENDER_REGION_TTL_SEC } from './endpoint.ts';
+import { slot as shared } from '@ogygia/machine';
 
 /** The default for how long after expiry a capability can still be renewed
  *  (`maxPageAge`): the longest a stale document is expected to live in a shared cache (a
@@ -116,10 +117,7 @@ export function expiry_refusal(
 interface Slot {
 	by_request: WeakMap<Request, number>;
 }
-const SLOT_KEY = Symbol.for('ogygia.shared-cache');
-const slot: Slot = ((globalThis as unknown as Record<symbol, Slot>)[SLOT_KEY] ??= {
-	by_request: new WeakMap()
-});
+const slot = shared<Slot>('ogygia.shared-cache', 1, () => ({ by_request: new WeakMap() }));
 
 /** The handle: a load set `cache-control` on this page request. */
 export function note_cache_control(request: Request, cache_control: string): void {

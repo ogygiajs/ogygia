@@ -12,6 +12,8 @@
  * of this file (src beside dist, a dual install), and a fact written through one must be read
  * through the other.
  */
+import { slot as shared } from '@ogygia/machine';
+
 export interface RequestFacts {
 	/** This render MAY be stored and served to others later (a plugin decided so before the render):
 	 *  the holes it mints get prerender-grade capabilities, and data-source receipts are kept. */
@@ -38,12 +40,10 @@ interface FactsSlot {
 	/** core (hooks.ts): the Request of the code running now, through Kit's request store */
 	current: (() => Request | undefined) | null;
 }
-const slot: FactsSlot = ((globalThis as Record<symbol, FactsSlot | undefined>)[
-	Symbol.for('ogygia.facts.v2')
-] ??= {
+const slot = shared<FactsSlot>('ogygia.facts.v2', 2, () => ({
 	by_request: new WeakMap(),
 	current: null
-});
+}));
 
 /** This request's facts (made on first touch). */
 export function facts_of(request: Request): RequestFacts {
