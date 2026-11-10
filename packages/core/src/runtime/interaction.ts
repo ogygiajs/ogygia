@@ -42,7 +42,9 @@
  * pointer reaches an armed island or input lands — off the boot path, ahead of the replay.
  */
 
-import { flights, STALE, type Scope, type Stale } from '@ogygia/machine';
+import { flights, registry, STALE, type Scope, type Stale } from '@ogygia/machine';
+
+const noop = (): void => {};
 import { import_again } from './import-again.ts';
 import { slots } from './slots.ts';
 import { warm_island_module } from './region-endpoint-url.ts';
@@ -146,6 +148,8 @@ type Armed = {
 	state: 'armed' | 'woken' | 'over';
 	warmed: boolean;
 	queued: QueuedClick[];
+	/** Takes its entry out (only its own: a newer arming of the region holds another). */
+	forget: () => void;
 };
 
 /**
@@ -154,11 +158,12 @@ type Armed = {
  * with it (the region that comes back is server markup of a new visit, with a capture of its own).
  */
 function disarm(a: Armed, over: boolean): void {
-	if (armed.get(a.region) === a) armed.delete(a.region);
+	a.forget();
 	if (over && a.state === 'woken') a.state = 'over';
 }
 
-const armed = new Map<Element, Armed>();
+/** Each armed region's arming, held by the region's lifetime in the page (it goes with it). */
+const armed = registry.keyed<Element, Armed>();
 let installed = false;
 
 /** THE REPLAY HALF, loaded once, when the first region arms. A download that fails is tried again
@@ -314,8 +319,17 @@ export function arm_interaction(
 	fire: WakeFn,
 	owner: Scope
 ): (over?: boolean) => void {
-	const a: Armed = { region, warm, fire, owner, state: 'armed', warmed: false, queued: [] };
-	armed.set(region, a);
+	const a: Armed = {
+		region,
+		warm,
+		fire,
+		owner,
+		state: 'armed',
+		warmed: false,
+		queued: [],
+		forget: noop
+	};
+	a.forget = armed.set(region, a, owner);
 	install_listeners();
 	// (the replay half loads when a pointer reaches an armed island or input lands — not at arm: every
 	// scheduled island arms, and a page nobody touches before its islands wake fetches none of it)
