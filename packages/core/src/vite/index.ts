@@ -105,15 +105,6 @@ import { CompileCtx, type PackageScan } from '../compiler/ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
 import { flags_manifest } from '../compiler/flags.ts';
-import {
-	V_KIT_WIRE,
-	V_ROUTER_CSS,
-	V_ROUTE_CSR,
-	V_ROUTE_CONFIG,
-	RESOLVED,
-	V_SERVER_MANIFEST,
-	V_SERVER_ISLANDS
-} from '../compiler/ids.ts';
 
 // Kit's generated CLIENT app entry — Kit 2 dev serves `generated/client/app.js` and the build inputs
 // `generated/client-optimized/app.js`; Kit 3 nests both under `generated/dev/` and `generated/build/`
@@ -164,7 +155,6 @@ import {
 	KIT_REMOTE_STATE,
 	HMAC_MODULE,
 	RUNTIME_DIR,
-	REGION_ENDPOINT_MODULE,
 	RUNTIME_HASH,
 	OGYGIA_VERSION
 } from './paths.ts';
@@ -785,7 +775,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						runtime_dir: RUNTIME_DIR,
 						runtime_hash: RUNTIME_HASH,
 						hmac_module: HMAC_MODULE,
-						region_endpoint_module: REGION_ENDPOINT_MODULE,
+						kit_wire_path,
 						client_binding_stub_file: CLIENT_BINDING_STUB_FILE,
 						app_shims: APP_SHIMS,
 						is_build,
@@ -1001,11 +991,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// with the runtime withheld = dead chrome (hit at a consumer after toggling `csr`).
 				if (is_dev && ROUTE_HOST_OR_OPTION_RE.test(id)) {
 					clear_route_csr_cache();
-					if (vite_server) {
-						invalidate_module_id(vite_server, RESOLVED(V_ROUTE_CSR));
-						// a plugin's key inside `export const config` add/flip changes the baked values too
-						invalidate_module_id(vite_server, RESOLVED(V_ROUTE_CONFIG));
-					}
+					// (a plugin's key inside `export const config` add/flip changes the baked values too)
+					if (vite_server)
+						for (const mid of compiler.watching('routes')) invalidate_module_id(vite_server, mid);
 				}
 				// Unlink often skips handleHotUpdate; drop islands that still import the deleted file.
 				if (!is_dev || change.event !== 'delete' || !vite_server) return;
@@ -1052,10 +1040,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// Server-router CSS: the dev `virtual:ogygia/router-css` INLINES compiled css at emit
 				// time, so any style-bearing source change must invalidate it — the next SSR re-emits
 				// with fresh css. Cheap (module-graph lookup), so no root-membership check.
-				if (STYLE_BEARING_FILE_RE.test(file)) {
-					const mod = server.moduleGraph.getModuleById('\0' + V_ROUTER_CSS);
-					if (mod) server.moduleGraph.invalidateModule(mod);
-				}
+				if (STYLE_BEARING_FILE_RE.test(file))
+					for (const mid of compiler.watching('styles')) invalidate_module_id(server, mid);
 
 				// SCOPED soft CSS HMR. App css joins the browser graph LAZILY (see dev_hmr_client_source):
 				//  - already joined on a client → fall through to Vite's normal CSS update (soft);
@@ -1115,9 +1101,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			async resolveId(source, importer, options) {
-				// deep-import Kit's own wire helpers by absolute path (bypasses the exports map)
-				if (source === V_KIT_WIRE && kit_wire_path) return kit_wire_path;
-
 				// ogygia's OWN injected imports (`ogygia/internal` / `…/server`, written by the transform into
 				// a host or a generated island module) resolve to ogygia's own files DIRECTLY (see
 				// OGYGIA_INJECTED_FILES) — never via `this.resolve` (unreliable off a synthetic importer, can
@@ -1251,10 +1234,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// DEV: a host edit dropped its server islands from the manifest the handle already
 				// re-imported (empty of them); this transform just registered them again — invalidate the
 				// manifest once more so the NEXT endpoint request sees the ids (driver: server_manifest_stale).
-				if (is_dev && vite_server && compiler.server_manifest_stale()) {
-					invalidate_module_id(vite_server, RESOLVED(V_SERVER_MANIFEST));
-					invalidate_module_id(vite_server, RESOLVED(V_SERVER_ISLANDS));
-				}
+				if (is_dev && vite_server && compiler.server_manifest_stale())
+					for (const mid of compiler.watching('regions')) invalidate_module_id(vite_server, mid);
 				// DEV: an island this transform registered (a file added while the server runs) pulled
 				// modules into the island world that the server may already hold transformed for a
 				// non-island importer — with Kit's real `$app/*`, which never boots on a csr=false page.

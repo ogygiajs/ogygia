@@ -604,6 +604,21 @@ export const BUILD_ERRORS = {
 			resolved from the app's root.
 		`
 	},
+	virtual_unknown: {
+		text: (a: { id: string }): string => `\`${a.id}\` is not a module ogygia serves.`,
+		details: (): string => prose`
+			An import names a module in ogygia's namespace (\`ogygia:…\`) that no part of ogygia
+			declares. Check the spelling against the modules the realm offers. If a plugin should
+			serve it, check that the plugin is listed beside \`ogygia()\` in vite.config.
+		`
+	},
+	virtual_duplicate: {
+		text: (a: { id: string }): string => `\`${a.id}\` is declared twice.`,
+		details: (): string => prose`
+			Two declarations claim the same virtual module. Each module is declared once, by the part
+			of ogygia (or the plugin) that knows its value. ${BUG}
+		`
+	},
 	request_event_server_only: {
 		text: (): string => 'getRequestEvent is server-only',
 		details: (): string => prose`

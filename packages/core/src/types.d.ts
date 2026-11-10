@@ -1,32 +1,6 @@
 // Ambient declarations for the library's own build-time virtual modules and the Kit modules it
 // references. These make `tsc --noEmit` clean; they are not shipped (excluded from tsdown entry).
 
-declare module 'virtual:ogygia/manifest' {
-	export const dev: boolean;
-	/**
-	 * Legacy empty stub. Hydrate islands load via `<ogygia-region entry>` module URLs;
-	 * this map is no longer populated.
-	 */
-	export const regions: Record<
-		string,
-		{ kind: 'hydrate' | 'defer' | 'lake'; load?: () => Promise<{ default: unknown }> }
-	>;
-}
-declare module 'virtual:ogygia/region-endpoint' {
-	export function makeRegionEndpoint(entry: string, props?: Record<string, unknown>): string;
-	/** @param ttl response cache max-age in seconds (`0`/absent = no-store). Signed into the URL. */
-	export function mintServerIsland(
-		entry: string,
-		props: Record<string, unknown>,
-		ttl?: number
-	): string;
-	/** The island `data-og-fp` over its module URL + canonical props text (server/fingerprint.ts);
-	 *  `''` on the client, which only ever reads the attribute. */
-	export function islandFingerprint(entry: string, canonical: string): string;
-	/** A hole's own stylesheet hrefs (by region id), for a render that inlines it in the page;
-	 *  `[]` on the client. */
-	export function holeCss(entry: string): string[];
-}
 declare module 'virtual:ogygia/server-manifest' {
 	/** The server islands' loaders, one dynamic import away (link/server-manifest.ts says why). */
 	export function load_islands(): Promise<typeof import('virtual:ogygia/server-islands')>;
