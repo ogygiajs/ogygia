@@ -61,7 +61,7 @@ import type {
 	PlaywrightWorkerArgs,
 	PlaywrightWorkerOptions
 } from '@playwright/test';
-import { scope, type Scope } from '@ogygia/machine';
+import { clock, scope, type Scope } from '@ogygia/machine';
 import { OgygiaError, warn } from './messages.ts';
 
 // ── the reports (plain JSON, as the page hands them over) ──
@@ -527,14 +527,14 @@ export class Ogygia {
 	}
 
 	async #call<T>(name: string, ...args: unknown[]): Promise<T> {
-		const until = Date.now() + (this.#options.timeout ?? 15_000);
+		const until = clock.mono() + (this.#options.timeout ?? 15_000);
 		while (
 			!(await this.#in_page(
 				() => !!(window as { __ogygia_testing?: unknown }).__ogygia_testing,
 				null
 			))
 		) {
-			if (Date.now() > until) throw new OgygiaError('testing_api_absent');
+			if (clock.mono() > until) throw new OgygiaError('testing_api_absent');
 			await this.#wait(100);
 		}
 		const out = (await this.#in_page(
@@ -628,6 +628,7 @@ export function playwrightDriver(
 			const hold = async (route: Route) => {
 				const req = route.request();
 				if (!req.isNavigationRequest() || req.frame() !== page.mainFrame()) return route.fallback();
+				// wall: against the page's own epoch origin (performance.timeOrigin)
 				const nav = { url: req.url(), t: origin === null ? null : Math.round(Date.now() - origin) };
 				held.push(nav);
 				opts.onNavigationHeld?.(nav);

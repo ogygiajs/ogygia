@@ -6,6 +6,8 @@
  * good and bad ends are measured first to set the bar, and a commit counts as bad only when it is
  * over the bar by the margin.
  */
+import { clock } from '@ogygia/machine';
+
 export interface BisectStep {
 	sha: string;
 	/** the metric measured at that commit (null: could not build / measure — skipped) */
@@ -71,14 +73,19 @@ export async function bisect(opts: BisectOptions): Promise<BisectResult> {
 		}
 		if (pick === -1) break; // everything between is unmeasurable
 		const sha = commits[pick];
-		const t = Date.now();
+		const t = clock.mono();
 		let value: number | null = null;
 		try {
 			value = await opts.measure(sha);
 		} catch {
 			value = null;
 		}
-		const step: BisectStep = { sha, value, bad: value !== null && value > bar, ms: Date.now() - t };
+		const step: BisectStep = {
+			sha,
+			value,
+			bad: value !== null && value > bar,
+			ms: clock.mono() - t
+		};
 		steps.push(step);
 		opts.on_step?.(step);
 		if (value === null) {

@@ -70,6 +70,7 @@ export class CloudFrontEdge implements EdgeAdapter {
 		const body =
 			`<?xml version="1.0" encoding="UTF-8"?>` +
 			`<InvalidationBatch xmlns="http://cloudfront.amazonaws.com/doc/${API_VERSION}/">` +
+			// wall: a reference unique across processes
 			`<CallerReference>og-${Date.now()}-${Math.floor(Math.random() * 1e6)}</CallerReference>` +
 			`<Paths><Quantity>${paths.length}</Quantity><Items>${items}</Items></Paths>` +
 			`</InvalidationBatch>`;

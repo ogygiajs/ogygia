@@ -36,7 +36,7 @@ export function plugin_capabilities(name: string, signer: CapabilitySigner): Plu
 			const params = url.searchParams;
 			const exp = params.get('exp') ?? '';
 			const renewal = params.get('renew') === '1';
-			const now = Math.floor(Date.now() / 1000);
+			const now = Math.floor(Date.now() / 1000); // wall: against the signed epoch `exp`
 			const refused = expiry_refusal(exp, now, renewal, lifetime.renew_window);
 			if (refused) return { ok: false, response: signer.deny(refused) };
 			if (!signer.verify(scoped(message(exp)), params.get('sig') ?? ''))

@@ -7,6 +7,7 @@
 import type { PostrenderEntry, PostrenderPutOptions, PostrenderStore } from './types.ts';
 import { in_subtree, normalize_prefix } from './key.ts';
 import { SizedLru } from '@ogygia/core/plugin/utils';
+import { clock } from '@ogygia/machine';
 
 /** Resident budget for stored pages (a stored page can be multi-MB; a count alone bounds nothing). */
 const DEFAULT_MAX_BYTES = 64 * 1024 * 1024;
@@ -27,11 +28,11 @@ export class MemoryStore implements PostrenderStore {
 	}
 
 	async get(key: string): Promise<PostrenderEntry | null> {
-		return this.#entries.get(key, Date.now());
+		return this.#entries.get(key, clock.mono());
 	}
 
 	async put(key: string, entry: PostrenderEntry, options: PostrenderPutOptions): Promise<void> {
-		this.#entries.set(key, entry, entry_bytes(entry), Date.now() + options.ttl * 1000);
+		this.#entries.set(key, entry, entry_bytes(entry), clock.mono() + options.ttl * 1000);
 		for (const tag of options.tags ?? []) {
 			let set = this.#tag_index.get(tag);
 			if (!set) this.#tag_index.set(tag, (set = new Set()));
@@ -66,7 +67,7 @@ export class MemoryStore implements PostrenderStore {
 
 	async size(): Promise<number> {
 		// Sweep expired so harness counts reflect live entries only.
-		this.#entries.sweep(Date.now());
+		this.#entries.sweep(clock.mono());
 		return this.#entries.size;
 	}
 }

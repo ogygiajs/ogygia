@@ -42,7 +42,7 @@ export interface CapabilityLifetime {
 }
 
 export function capability_lifetime(app: LifetimeSettings): CapabilityLifetime {
-	const now_sec = () => Math.floor(Date.now() / 1000);
+	const now_sec = () => Math.floor(Date.now() / 1000); // wall: epoch expiries signed into URLs
 	return {
 		mint_expiry(session) {
 			const stored = app.building || current_facts()?.storable === true;
