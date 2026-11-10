@@ -10,6 +10,7 @@
  * own (./runtime.ts).
  */
 import { define_messages, prose, type MessagesOf } from '@ogygia/core/internal/messages';
+import { dedent } from '@ogygia/core/internal/compiler-browser';
 
 /** The errors: `throw new OgygiaError(code, args)`. */
 export const CONTENT_BUILD_ERRORS = {
@@ -256,15 +257,15 @@ export const CONTENT_BUILD_WARNINGS = {
 		`
 	},
 	content_leaked_to_client: {
-		text: (a: { count: number; chunk: string; modules: string }): string =>
-			`content leaked into the CLIENT bundle: ${a.count} corpus module(s) (.svx/.md) shipped to the browser (in chunk '${a.chunk}').\n` +
-			`  A content() collection was imported into client-shipped code — usually an island — which drags its eager import.meta.glob (every doc) in.\n` +
-			`  Fix: keep the collection in a server-only module (or a .remote.ts) and feed islands DATA (refs) via props or a remote, never the collection itself.\n` +
-			a.modules
+		text: (a: { count: number; chunk: string; modules: string }): string => dedent`
+			content leaked into the CLIENT bundle: ${a.count} corpus module(s) (.svx/.md) shipped to the browser (in chunk '${a.chunk}').
+			  A content() collection was imported into client-shipped code — usually an island — which drags its eager import.meta.glob (every doc) in.
+			  Fix: keep the collection in a server-only module (or a .remote.ts) and feed islands DATA (refs) via props or a remote, never the collection itself.
+			${a.modules
 				.split('\n')
-				.map((m) => '    ' + m)
-				.join('\n') +
-			(a.count > 5 ? '\n    …' : ''),
+				.map((m) => `    ${m}`)
+				.join('\n')}${a.count > 5 ? '\n    …' : ''}
+		`,
 		details: (): string => prose`
 			Documents of a content collection ended up in the browser bundle. A collection imports
 			every document it holds, so importing it into an island ships all of them.
