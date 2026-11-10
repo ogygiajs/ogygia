@@ -11,13 +11,12 @@ export type CodecMap = Record<
 	{ encode: (v: unknown) => unknown; decode: (v: unknown) => unknown }
 >;
 
-/** What the build learned about each region's client code, read at render time from its handoff.
- *  (Its function names are the module's existing exports; they say island, and rename with them.) */
+/** What the build learned about each region's client code, read at render time from its handoff. */
 export interface RegionDepsModule {
 	/** Public URLs of hashed dependency chunks for a hydrate island entry (`/_app/immutable/…`). */
-	islandDeps(entry: string): string[];
+	region_deps(entry: string): string[];
 	/** WAKE ADVISOR: what the island's own components do, from the build; `null` without facts. */
-	islandInteractivity(entry: string): {
+	region_interactivity(entry: string): {
 		handlers: number;
 		state: number;
 		effects: number;
@@ -26,62 +25,62 @@ export interface RegionDepsModule {
 		files: number;
 	} | null;
 	/** a hashed client chunk's source modules, app files first; `null` when the handoff has none */
-	chunkContents(href: string): string[] | null;
+	chunk_contents(href: string): string[] | null;
 	/** a chunk's heaviest named modules with their rendered bytes (profiler builds only) */
-	chunkHeavy(href: string): { total: number; top: { name: string; bytes: number }[] } | null;
+	chunk_heavy(href: string): { total: number; top: { name: string; bytes: number }[] } | null;
 	/** the modules the build shipped as two copies, each copy's chunk and bytes (profiler builds) */
-	chunkDuplicates():
+	chunk_duplicates():
 		| { name: string; copies: { file: string; bytes: number; from?: string }[] }[]
 		| null;
 	/** the re-export barrels a chunk still holds, with how many modules each brings (profiler builds) */
-	chunkBarrels(href: string): { name: string; fanout: number }[] | null;
+	chunk_barrels(href: string): { name: string; fanout: number }[] | null;
 	/** an island's components' lines that draw differently in the browser (the build's scan) */
-	islandHazards(
+	region_hazards(
 		entry: string
 	):
 		| { file: string; line: number; code: string; kind: 'await' | 'browser'; reads?: string }[]
 		| null;
 	/** Public URLs of the CSS assets an island entry (+ its dep chunks) owns. */
-	islandCss(entry: string): string[];
+	region_css(entry: string): string[];
 	/** Public URLs of the CSS a content page's own components own (by content id). */
-	contentCss(id: string): string[];
+	content_css(id: string): string[];
 	/** The text of a region CSS asset the build kept under Kit's `inlineStyleThreshold`; `null` = link it. */
-	islandCssInline(href: string): string | null;
+	region_css_inline(href: string): string | null;
 	/** The island's client code reads `$page` (fail-open: true in dev and for an unknown entry). */
-	islandReadsPage(entry: string): boolean;
+	region_reads_page(entry: string): boolean;
 	/** The top-level `page.data` keys the island's client code reads; `null` = ship all. */
-	islandPageKeys(entry: string): string[] | null;
+	region_page_keys(entry: string): string[] | null;
 	/** why an island ships all of page.data: the modules whose reads the build could not pin */
-	islandPageWhy(entry: string): { file: string; line: number | null; why: string }[] | null;
+	region_page_why(entry: string): { file: string; line: number | null; why: string }[] | null;
 	/** The Kit remote-function modules (by id-hash) the island can call; `null` = may call anything. */
-	islandRemotes(entry: string): string[] | null;
+	region_remotes(entry: string): string[] | null;
 	/** og.$ hoisted factories (tag → source) for the page-inline registration; prod SSR only. */
-	fnManifest(): Record<string, string> | null;
+	fn_manifest(): Record<string, string> | null;
 	/** An entry's identity (its stable URL) → the content-hashed file it is served from. */
-	entryLocation(identity: string): string | null;
+	entry_location(identity: string): string | null;
 	/** The build's location map file (base-less served path), or `null`: none built. */
-	locationMap(): string | null;
+	location_map(): string | null;
 }
 
 /** The server islands this build has, and how to reach each one. */
 export interface ServerManifestModule {
 	/** The server islands' loaders, one dynamic import away (link/server-manifest.ts says why). */
-	load_islands(): Promise<ServerRegionsModule>;
-	/** Server-island id → its built client-chunk URL (the key `islandCss()` is keyed by). */
-	island_url: Record<string, string>;
+	load_server_regions(): Promise<ServerRegionsModule>;
+	/** Server-island id → its built client-chunk URL (the key `region_css()` is keyed by). */
+	region_url: Record<string, string>;
 	/** Server-island id → its component name, where the component file is known. */
-	island_name: Record<string, string>;
+	region_name: Record<string, string>;
 	/** Server-island id → its render identity (the component it renders), signed into its capabilities. */
-	island_render: Record<string, string>;
+	region_render: Record<string, string>;
 	/** Render identity → a server-island id of this build that renders it. */
-	render_island: Record<string, string>;
+	render_region: Record<string, string>;
 	/** Server-island id → its server tree reads `page.data`; `null` in dev (unknown). */
-	island_reads_page_data: Record<string, boolean> | null;
+	region_reads_page_data: Record<string, boolean> | null;
 }
 
 export interface ServerRegionsModule {
 	/** server-region id → its loader */
-	islands: Record<string, () => Promise<{ default: unknown }>>;
+	regions: Record<string, () => Promise<{ default: unknown }>>;
 }
 
 export interface TransportModule {

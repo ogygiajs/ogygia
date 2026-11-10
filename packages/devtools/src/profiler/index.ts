@@ -243,13 +243,13 @@ import {
 	type BatchHoleStats
 } from '@ogygia/core/internal/server';
 import {
-	chunk_barrels as chunkBarrels,
-	chunk_contents as chunkContents,
-	chunk_duplicates as chunkDuplicates,
-	chunk_heavy as chunkHeavy,
-	region_hazards as islandHazards,
-	region_page_keys as islandPageKeys,
-	region_page_why as islandPageWhy
+	chunk_barrels,
+	chunk_contents,
+	chunk_duplicates,
+	chunk_heavy,
+	region_hazards,
+	region_page_keys,
+	region_page_why
 } from 'ogygia:server';
 import { set_span_recorder, type SpanAttrs, type SpanRecord, type SpanRecorder } from './span.ts';
 import {
@@ -2552,11 +2552,11 @@ class Profiler {
 			// the readable source list behind each hashed chunk (the build's handoff), and its
 			// heaviest modules with their rendered bytes
 			for (const u of new Set(urls)) {
-				const inside = chunkContents(u);
+				const inside = chunk_contents(u);
 				if (inside?.length) (contents ??= {})[u] = inside;
-				const h = chunkHeavy(u);
+				const h = chunk_heavy(u);
 				if (h?.top.length) (heavy ??= {})[u] = h;
-				const b = chunkBarrels(u);
+				const b = chunk_barrels(u);
 				if (b?.length) (barrels ??= {})[u] = b;
 			}
 			// WHAT DRAWS DIFFERENTLY IN THE BROWSER: each island's own components — the lines a mismatch
@@ -2564,7 +2564,7 @@ class Profiler {
 			// rendering). The build scanned them (the site kit's too); an older build's handoff has
 			// none, and the app's `.svelte` files in its chunks are read and scanned here instead
 			for (const r of island_rows_of(meta)) {
-				const built = islandHazards(r.entry);
+				const built = region_hazards(r.entry);
 				if (built?.length) (hazards ??= {})[r.entry] = built;
 			}
 			if (contents) {
@@ -3163,7 +3163,7 @@ class Profiler {
 			if (dev) keys = dev.keys === 'all' ? null : (dev.keys ?? []);
 			else
 				try {
-					keys = islandPageKeys(r.entry);
+					keys = region_page_keys(r.entry);
 				} catch {
 					keys = null;
 				}
@@ -4110,7 +4110,7 @@ class Profiler {
 				if (seed_stats.whole_by.includes(name)) keys.push('*');
 			} else {
 				try {
-					keys = islandPageKeys(r.entry);
+					keys = region_page_keys(r.entry);
 				} catch {
 					keys = undefined;
 				}
@@ -4151,7 +4151,7 @@ class Profiler {
 				// helper it imports, a shared component), with the line — that is the line to fix
 				if (!whole_line) {
 					const whys = [
-						...(islandPageWhy(r.entry) ?? []),
+						...(region_page_why(r.entry) ?? []),
 						// (the dev server's answer names absolute files)
 						...(dev?.why ?? []).map((w) => ({ ...w, file: app_relative(w.file) ?? w.file }))
 					];
@@ -5539,7 +5539,7 @@ class Profiler {
 								try {
 									const path = new URL(u).pathname;
 									const rel = app_asset_rel(path);
-									return chunkContents(rel ? '/' + rel : path);
+									return chunk_contents(rel ? '/' + rel : path);
 								} catch {
 									return null;
 								}
@@ -6234,7 +6234,7 @@ class Profiler {
 						.at(-1)
 				: undefined;
 		// (the modules the build shipped twice: the report names the ones this page loads both copies of)
-		const dupes = chunkDuplicates();
+		const dupes = chunk_duplicates();
 		return {
 			...(visit ? { visit } : {}),
 			...(other_screen_visit ? { other_screen_visit } : {}),
@@ -6435,7 +6435,7 @@ class Profiler {
 			// the handoff keys chunks by their served path; a rewritten local file still carries it
 			const rel = app_asset_rel(path);
 			if (rel) path = '/' + rel;
-			const inside = chunkContents(path);
+			const inside = chunk_contents(path);
 			if (inside) {
 				if (inside.every((s) => s === 'svelte runtime')) return 'svelte';
 				// a chunk with none of the app's own files in it (runtimes, packages) is a dependency,
@@ -6464,7 +6464,7 @@ class Profiler {
 			const rel = app_asset_rel(p);
 			return rel ? '/' + rel : p;
 		};
-		const renamer = chunk_component_renamer((p) => chunkContents(served(p)));
+		const renamer = chunk_component_renamer((p) => chunk_contents(served(p)));
 		const run = (p: CpuProfile) => analyze(p, resolver, undefined, undefined, renamer, url_hint);
 		// AN INTERACTION'S TRACE: only its two spans are read, and the load's analysis stays as it was
 		if (interaction) {

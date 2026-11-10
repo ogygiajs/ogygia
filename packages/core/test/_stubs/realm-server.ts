@@ -5,33 +5,33 @@
 export { runtime_url } from 'ogygia:server/runtime-url';
 export { devtools_boot_url } from 'ogygia:server/devtools-boot-url';
 export {
-	islandDeps as region_deps,
-	islandInteractivity as region_interactivity,
-	chunkContents as chunk_contents,
-	chunkHeavy as chunk_heavy,
-	chunkDuplicates as chunk_duplicates,
-	chunkBarrels as chunk_barrels,
-	islandHazards as region_hazards,
-	islandCss as region_css,
-	contentCss as content_css,
-	islandCssInline as region_css_inline,
-	islandReadsPage as region_reads_page,
-	islandPageKeys as region_page_keys,
-	islandPageWhy as region_page_why,
-	islandRemotes as region_remotes,
-	fnManifest as fn_manifest,
-	entryLocation as entry_location,
-	locationMap as location_map
+	region_deps,
+	region_interactivity,
+	chunk_contents,
+	chunk_heavy,
+	chunk_duplicates,
+	chunk_barrels,
+	region_hazards,
+	region_css,
+	content_css,
+	region_css_inline,
+	region_reads_page,
+	region_page_keys,
+	region_page_why,
+	region_remotes,
+	fn_manifest,
+	entry_location,
+	location_map
 } from 'ogygia:server/region-deps';
 export { build_key, build_had_secret } from 'ogygia:server/secret';
 export { sign, verify, region_mac_message } from 'ogygia:server/sign';
 export { getRequestEvent as get_request_event } from 'ogygia:server/request-event';
 export {
-	makeRegionEndpoint as make_region_endpoint,
-	mintServerIsland as mint_server_region,
+	make_region_endpoint,
+	mint_server_region,
 	known_region_fps,
-	islandFingerprint as region_fingerprint,
-	holeCss as hole_css
+	region_fingerprint,
+	hole_css
 } from 'ogygia:server/region-endpoint';
 export {
 	stringify_remote_arg,
@@ -51,10 +51,10 @@ export {
 } from 'ogygia:server/route-csr';
 export { route_config } from 'ogygia:server/route-config';
 export {
-	load_islands as load_server_regions,
-	island_url as region_url,
-	island_name as region_name,
-	island_render as region_render,
-	render_island as render_region,
-	island_reads_page_data as region_reads_page_data
+	load_server_regions,
+	region_url,
+	region_name,
+	region_render,
+	render_region,
+	region_reads_page_data
 } from 'ogygia:server/server-manifest';

@@ -59,7 +59,7 @@ describe('the virtual modules’ declarations', () => {
 			`export { sign, verify, region_mac_message } from '../dist/server/hmac.js';`
 		);
 		expect(realm).toContain(
-			`export const region_css: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['islandCss'];`
+			`export const region_css: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['region_css'];`
 		);
 	});
 

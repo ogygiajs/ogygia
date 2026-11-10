@@ -21,7 +21,7 @@ import {
 } from '../link/transport.ts';
 import {
 	server_manifest_module,
-	server_islands_module,
+	server_regions_module,
 	server_island_ids
 } from '../link/server-manifest.ts';
 import { registry_stub_names, registry_stub_source } from '../link/registry-stub.ts';
@@ -326,25 +326,24 @@ export const devtools_boot_url: Value<{ devtools_boot_url: string }> = virtual.v
 export const region_deps: Family<RegionDepsModule> = virtual.family({
 	realm: 'server',
 	id: 'region-deps',
-	// (the generated module's own names still say island; the realm module names them region)
 	exports: {
-		region_deps: 'islandDeps',
-		region_interactivity: 'islandInteractivity',
-		chunk_contents: 'chunkContents',
-		chunk_heavy: 'chunkHeavy',
-		chunk_duplicates: 'chunkDuplicates',
-		chunk_barrels: 'chunkBarrels',
-		region_hazards: 'islandHazards',
-		region_css: 'islandCss',
-		content_css: 'contentCss',
-		region_css_inline: 'islandCssInline',
-		region_reads_page: 'islandReadsPage',
-		region_page_keys: 'islandPageKeys',
-		region_page_why: 'islandPageWhy',
-		region_remotes: 'islandRemotes',
-		fn_manifest: 'fnManifest',
-		entry_location: 'entryLocation',
-		location_map: 'locationMap'
+		region_deps: 'region_deps',
+		region_interactivity: 'region_interactivity',
+		chunk_contents: 'chunk_contents',
+		chunk_heavy: 'chunk_heavy',
+		chunk_duplicates: 'chunk_duplicates',
+		chunk_barrels: 'chunk_barrels',
+		region_hazards: 'region_hazards',
+		region_css: 'region_css',
+		content_css: 'content_css',
+		region_css_inline: 'region_css_inline',
+		region_reads_page: 'region_reads_page',
+		region_page_keys: 'region_page_keys',
+		region_page_why: 'region_page_why',
+		region_remotes: 'region_remotes',
+		fn_manifest: 'fn_manifest',
+		entry_location: 'entry_location',
+		location_map: 'location_map'
 	},
 	load: ({ ctx }: CoreApp, { ssr }) =>
 		island_deps_module(ssr, ctx.is_dev, path.relative(ctx.root, kit_dirs(ctx.root).out_dir))
@@ -399,11 +398,11 @@ export const region_endpoint: RequestEntry<CoreApp> = virtual.request({
 	// mints nothing: lakes reuse the endpoint the SSR restore cached, and the runtime fetches holes.
 	module: { core: 'server/region-endpoint' },
 	exports: {
-		make_region_endpoint: 'makeRegionEndpoint',
-		mint_server_region: 'mintServerIsland',
+		make_region_endpoint: 'make_region_endpoint',
+		mint_server_region: 'mint_server_region',
 		known_region_fps: 'known_region_fps',
-		region_fingerprint: 'islandFingerprint',
-		hole_css: 'holeCss'
+		region_fingerprint: 'region_fingerprint',
+		hole_css: 'hole_css'
 	}
 });
 
@@ -529,12 +528,12 @@ export const server_manifest: Family<ServerManifestModule> = virtual.family({
 	realm: 'server',
 	id: 'server-manifest',
 	exports: {
-		load_server_regions: 'load_islands',
-		region_url: 'island_url',
-		region_name: 'island_name',
-		region_render: 'island_render',
-		render_region: 'render_island',
-		region_reads_page_data: 'island_reads_page_data'
+		load_server_regions: 'load_server_regions',
+		region_url: 'region_url',
+		region_name: 'region_name',
+		region_render: 'region_render',
+		render_region: 'render_region',
+		region_reads_page_data: 'region_reads_page_data'
 	},
 	watch: ['regions'],
 	// filled in dev AND build (the client's would be from URLs)
@@ -558,7 +557,7 @@ export const server_regions: Family<ServerRegionsModule> = virtual.family({
 	watch: ['regions'],
 	load(app: CoreApp, { ssr }) {
 		if (ssr) app.prescan();
-		return server_islands_module(ssr, app.program);
+		return server_regions_module(ssr, app.program);
 	}
 });
 

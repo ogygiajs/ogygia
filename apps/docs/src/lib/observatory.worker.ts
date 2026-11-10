@@ -347,7 +347,7 @@ function eval_module(
 ): Record<string, unknown> {
 	// A named-import list → a valid destructuring list: `a, b as c` → `a, b: c` (ES `import {b as c}`
 	// aliases to `b`, but object destructuring renames with `:`). The driver's generated modules use
-	// renamed imports (`import { makeRegionEndpoint as __ogRegionSign }`).
+	// renamed imports (`import { make_region_endpoint as __ogRegionSign }`).
 	const names = (list: string) =>
 		list
 			.split(',')
@@ -1348,12 +1348,12 @@ async function driver_render(
 		// The region signer / server-island minter — inert in the preview (no signed endpoints).
 		if (spec === 'ogygia/internal/server')
 			return {
-				makeRegionEndpoint: () => '',
-				mintServerIsland: () => '',
+				make_region_endpoint: () => '',
+				mint_server_region: () => '',
 				known_region_fps: () => new Set()
 			};
 		if (spec === 'ogygia:server/region-deps')
-			return { islandCss: () => '', islandDeps: () => [], contentCss: () => '' };
+			return { region_css: () => '', region_deps: () => [], content_css: () => '' };
 		// A driver-generated region/wrapper/island virtual module → eval its real generated source.
 		const reg = regionByVpath.get(spec);
 		if (reg) {

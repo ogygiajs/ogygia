@@ -1,54 +1,46 @@
-// Test stub for `ogygia:server/region-deps` (real one is minted by the Vite plugin): the three
-// per-entry lookups Region.svelte reads while it emits its island graph and CSS — empty in unit tests.
-// `islandDeps(entry)` — the build's per-entry chunk closure. A test sets it with `set_island_deps(...)`.
-let island_deps: Record<string, string[]> = {};
-export const islandDeps = (entry: string): string[] => island_deps[entry] ?? [];
+// Test stub for `ogygia:server/region-deps` (real one is minted by the Vite plugin): the per-entry
+// lookups Region.svelte reads while it emits its graph and CSS — empty in unit tests. Each `set_*`
+// sets what one lookup answers.
+let deps_by_entry: Record<string, string[]> = {};
+export const region_deps = (entry: string): string[] => deps_by_entry[entry] ?? [];
 export function set_island_deps(map: Record<string, string[]>) {
-	island_deps = map;
+	deps_by_entry = map;
 }
-// `islandCss(entry)` — the build's per-entry CSS hrefs. A test sets them with `set_island_css(...)`.
-let island_css: Record<string, string[]> = {};
-export const islandCss = (entry: string): string[] => island_css[entry] ?? [];
+let css_by_entry: Record<string, string[]> = {};
+export const region_css = (entry: string): string[] => css_by_entry[entry] ?? [];
 export function set_island_css(map: Record<string, string[]>) {
-	island_css = map;
+	css_by_entry = map;
 }
-export const contentCss = (_id: string): string[] => [];
-// `islandCssInline(href)` — the text of a region CSS asset the build kept under Kit's
-// `inlineStyleThreshold` (null = link it). A test sets the map with `set_inline_css(...)`.
+export const content_css = (_id: string): string[] => [];
+// (null = link it)
 let inline_css: Record<string, string> = {};
-export const islandCssInline = (href: string): string | null =>
+export const region_css_inline = (href: string): string | null =>
 	typeof inline_css[href] === 'string' ? inline_css[href] : null;
 export function set_inline_css(map: Record<string, string>) {
 	inline_css = map;
 }
-// `islandReadsPage(entry)` — the build's per-entry "reads `$page`" flag (fail-open true). A test
-// flips it with `set_reads_page(...)` to check that Region records the page snapshot only for
-// islands whose client code reads it.
+// (fail-open true)
 let reads_page = true;
-export const islandReadsPage = (_entry: string): boolean => reads_page;
+export const region_reads_page = (_entry: string): boolean => reads_page;
 export function set_reads_page(v: boolean) {
 	reads_page = v;
 }
-// `islandPageKeys(entry)` — the build's per-entry `page.data` keys the island reads (fail-open
-// null = ship all). A test sets it with `set_page_keys(...)`.
+// (fail-open null = ship all)
 let page_keys: string[] | null = null;
-export const islandPageKeys = (_entry: string): string[] | null => page_keys;
+export const region_page_keys = (_entry: string): string[] | null => page_keys;
 export function set_page_keys(v: string[] | null) {
 	page_keys = v;
 }
-export const islandPageWhy = (
+export const region_page_why = (
 	_entry: string
 ): { file: string; line: number | null; why: string }[] | null => null;
-// `islandRemotes(entry)` — the build's per-entry list of callable remote id-hashes (fail-open
-// null). A test sets it with `set_island_remotes(...)` to check what Region records per region.
-let island_remotes: string[] | null = null;
-export const islandRemotes = (_entry: string): string[] | null => island_remotes;
+// (fail-open null = may call anything)
+let remotes: string[] | null = null;
+export const region_remotes = (_entry: string): string[] | null => remotes;
 export function set_island_remotes(v: string[] | null) {
-	island_remotes = v;
+	remotes = v;
 }
-// `islandInteractivity(entry)` — the build's per-entry component facts (handlers, $state…) for the
-// profiler's wake advisor; null when the handoff has none.
-export const islandInteractivity = (
+export const region_interactivity = (
 	_entry: string
 ): {
 	handlers: number;
@@ -58,50 +50,42 @@ export const islandInteractivity = (
 	actions: number;
 	files: number;
 } | null => null;
-// `chunkContents(href)` — the readable source list of a hashed client chunk; null when unknown.
-// A test sets the map with `set_chunk_contents(...)`.
-let chunk_contents: Record<string, string[]> = {};
-export const chunkContents = (href: string): string[] | null => chunk_contents[href] ?? null;
+let contents_by_chunk: Record<string, string[]> = {};
+export const chunk_contents = (href: string): string[] | null => contents_by_chunk[href] ?? null;
 export function set_chunk_contents(map: Record<string, string[]>) {
-	chunk_contents = map;
+	contents_by_chunk = map;
 }
-// `entryLocation(identity)` — the content-hashed file an entry is served from; null when unknown.
-// A test sets the map with `set_entry_locations(...)`.
 let entry_locations: Record<string, string> = {};
-export const entryLocation = (identity: string): string | null => entry_locations[identity] ?? null;
+export const entry_location = (identity: string): string | null =>
+	entry_locations[identity] ?? null;
 export function set_entry_locations(map: Record<string, string>) {
 	entry_locations = map;
 }
-// `locationMap()` — the build's location map file (base-less served path); null when none.
-let location_map: string | null = null;
-export const locationMap = (): string | null => location_map;
+let map_file: string | null = null;
+export const location_map = (): string | null => map_file;
 export function set_location_map(file: string | null) {
-	location_map = file;
+	map_file = file;
 }
-// `chunkHeavy(href)` — a chunk's rendered total and heaviest named modules; null when unknown.
-let chunk_heavy: Record<string, { total: number; top: { name: string; bytes: number }[] }> = {};
-export const chunkHeavy = (
+let heavy_by_chunk: Record<string, { total: number; top: { name: string; bytes: number }[] }> = {};
+export const chunk_heavy = (
 	href: string
-): { total: number; top: { name: string; bytes: number }[] } | null => chunk_heavy[href] ?? null;
-export function set_chunk_heavy(map: typeof chunk_heavy) {
-	chunk_heavy = map;
+): { total: number; top: { name: string; bytes: number }[] } | null => heavy_by_chunk[href] ?? null;
+export function set_chunk_heavy(map: typeof heavy_by_chunk) {
+	heavy_by_chunk = map;
 }
-// `chunkBarrels(href)` — the re-export barrels a chunk still holds; null when unknown.
-let chunk_barrels: Record<string, { name: string; fanout: number }[]> = {};
-export const chunkBarrels = (href: string): { name: string; fanout: number }[] | null =>
-	chunk_barrels[href] ?? null;
-export function set_chunk_barrels(map: typeof chunk_barrels) {
-	chunk_barrels = map;
+let barrels_by_chunk: Record<string, { name: string; fanout: number }[]> = {};
+export const chunk_barrels = (href: string): { name: string; fanout: number }[] | null =>
+	barrels_by_chunk[href] ?? null;
+export function set_chunk_barrels(map: typeof barrels_by_chunk) {
+	barrels_by_chunk = map;
 }
-// `chunkDuplicates()` — the modules the build shipped twice; null when none.
 let chunk_dupes:
 	| { name: string; copies: { file: string; bytes: number; from?: string }[] }[]
 	| null = null;
-export const chunkDuplicates = () => chunk_dupes;
+export const chunk_duplicates = () => chunk_dupes;
 export function set_chunk_dupes(v: typeof chunk_dupes) {
 	chunk_dupes = v;
 }
-// `islandHazards(entry)` — an island's lines that draw differently in the browser; null when unknown.
 type StubHazard = {
 	file: string;
 	line: number;
@@ -109,11 +93,11 @@ type StubHazard = {
 	kind: 'await' | 'browser';
 	reads?: string;
 };
-let island_hazards: Record<string, StubHazard[]> = {};
-export const islandHazards = (entry: string): StubHazard[] | null => island_hazards[entry] ?? null;
-export function set_island_hazards(map: typeof island_hazards) {
-	island_hazards = map;
+let hazards_by_entry: Record<string, StubHazard[]> = {};
+export const region_hazards = (entry: string): StubHazard[] | null =>
+	hazards_by_entry[entry] ?? null;
+export function set_island_hazards(map: typeof hazards_by_entry) {
+	hazards_by_entry = map;
 }
-// `fnManifest()` — the build's `og.$` fn tag → module map; null in a graph with no build (hooks.ts
-// reads it; Vite's alias lets a missing export through, plain Node's linker does not).
-export const fnManifest = (): Record<string, string> | null => null;
+// (hooks.ts reads it; Vite's alias lets a missing export through, plain Node's linker does not)
+export const fn_manifest = (): Record<string, string> | null => null;

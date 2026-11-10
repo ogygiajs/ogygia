@@ -169,7 +169,7 @@ export async function router_css_module(
 	// `base` was page-relative during SSR on Kit 2: a router navigation carries these links into a
 	// page at another depth). The raw handoff href is the claim key, so a held region linking the
 	// same sheet dedupes against us.
-	lines.push(`import { islandCss } from 'ogygia:server/region-deps';`);
+	lines.push(`import { region_css } from 'ogygia:server/region-deps';`);
 	lines.push(
 		`const base = typeof __SVELTEKIT_PATHS_BASE__ !== 'undefined' ? __SVELTEKIT_PATHS_BASE__ : '';`
 	);
@@ -178,7 +178,7 @@ export async function router_css_module(
 		const key = router_css_key(opts.root, abs);
 		lines.push(`import __OgRcss${i} from ${JSON.stringify(abs)};`);
 		lines.push(
-			`register_router_css(__OgRcss${i}, () => islandCss(${JSON.stringify(key)}).map((h) => ({ key: h, href: base + h })));`
+			`register_router_css(__OgRcss${i}, () => region_css(${JSON.stringify(key)}).map((h) => ({ key: h, href: base + h })));`
 		);
 	}
 	return lines.join('\n') + '\n';

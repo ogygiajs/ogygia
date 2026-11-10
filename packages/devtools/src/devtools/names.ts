@@ -6,14 +6,14 @@
  * network, not an answer) is not kept: the next ask fetches again.
  */
 import { flights } from '@ogygia/machine';
-import { region_names as built_names } from 'ogygia:boot';
+import { region_names } from 'ogygia:boot';
 
 const loading = flights({
 	name: 'devtools region names',
 	run: async () => {
 		if (typeof window === 'undefined') return;
-		if (built_names && Object.keys(built_names).length) {
-			window.__ogygia_region_names = { ...built_names, ...window.__ogygia_region_names };
+		if (region_names && Object.keys(region_names).length) {
+			window.__ogygia_region_names = { ...region_names, ...window.__ogygia_region_names };
 			return;
 		}
 		const r = await fetch('/__ogygia_devtools_meta');
