@@ -86,6 +86,31 @@ describe('cache: bounded', () => {
 		expect(n.seen).toEqual(['b:2:size', 'a:1:size']);
 	});
 
+	it('a set that only pinned values could make room for is not kept: it says false, nothing goes, and the old one stays', () => {
+		const n = noted();
+		const c = cache<string, number>({ max: 2, pinned: (_v, k) => k !== 'c', onEvict: n.onEvict });
+		c.set('a', 1);
+		c.set('b', 2);
+		expect(c.set('c', 3)).toBe(false);
+		expect(c.get('c')).toBe(undefined);
+		expect(n.seen).toEqual([]);
+		// a replace too heavy for the room the unpinned leave: the key keeps its value
+		const d = cache<string, number>({
+			max: 2,
+			weigh: (v) => (v >= 100 ? 2 : 1),
+			pinned: (_v, k) => k === 'a',
+			onEvict: n.onEvict
+		});
+		d.set('a', 1);
+		d.set('c', 30);
+		expect(d.set('c', 300)).toBe(false);
+		expect(d.get('c')).toBe(30);
+		expect(n.seen).toEqual([]);
+		// room the unpinned can make is made: the least recently used goes
+		d.set('b', 2);
+		expect(n.seen).toEqual(['c:30:size']);
+	});
+
 	it('a value heavier than max, or with a bad weight, is not kept, and the old one stays', () => {
 		const c = cache<string, number>({ max: 5, weigh: (v) => v });
 		c.set('a', 2);
