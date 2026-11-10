@@ -3,7 +3,6 @@
 // id, so a suite's `vi.mock('virtual:ogygia/<name>')` still reaches what the realm module exports.
 // test/virtual-table.test.ts checks it exports every name the table gives the realm.
 export { runtimeUrl } from 'virtual:ogygia/runtime-url';
-export { devHmrUrl } from 'virtual:ogygia/dev-hmr-url';
 export { devtoolsBootUrl } from 'virtual:ogygia/devtools-boot-url';
 export {
 	islandDeps as regionDeps,

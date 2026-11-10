@@ -132,8 +132,10 @@ export class VirtualTable<A> {
 	 * declares fails here with `virtual_unknown`.
 	 */
 	resolve(source: string, env?: Env): string | undefined {
-		// (an id already resolved is the bundler's)
-		if (source.startsWith('\0')) return undefined;
+		// an id already resolved resolves to itself (the bundler may resolve a barrel's resolved
+		// import again), when it is the table's
+		if (source.startsWith('\0'))
+			return this.#realm_of(source) || this.#by_resolved.has(source) ? source : undefined;
 		const realm = this.#realm_of(source);
 		if (realm) {
 			if (env) check_realm(source, realm, env);

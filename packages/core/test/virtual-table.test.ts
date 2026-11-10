@@ -43,8 +43,32 @@ describe('the virtual-module table', () => {
 		// a package file re-exporting from ogygia:server: the bundler resolved its import, then asked
 		// again with the resolved id, and the server bundle kept "\0ogygia:server" as an outside import
 		expect(table.resolve(RESOLVED('ogygia:server'))).toBe(RESOLVED('ogygia:server'));
-		expect(table.resolve(RESOLVED('virtual:ogygia/secret'))).toBe(RESOLVED('virtual:ogygia/secret'));
+		expect(table.resolve(RESOLVED('virtual:ogygia/secret'))).toBe(
+			RESOLVED('virtual:ogygia/secret')
+		);
 		expect(table.resolve(RESOLVED('some-plugin-id'))).toBeUndefined();
+	});
+
+	it('refuses a module of a realm the leg may not import, with virtual_wrong_realm', () => {
+		const browser = { ssr: false, dev: false };
+		const server = { ssr: true, dev: false };
+		expect(() => table.resolve('ogygia:server', browser)).toThrow(/virtual_wrong_realm/);
+		expect(() => table.resolve('virtual:ogygia/secret', browser)).toThrow(/virtual_wrong_realm/);
+		expect(() => table.resolve('ogygia:boot', server)).toThrow(/virtual_wrong_realm/);
+		expect(() => table.resolve('virtual:ogygia/dev-hmr', server)).toThrow(/virtual_wrong_realm/);
+		expect(table.resolve('virtual:ogygia/dev-hmr', { ssr: false, dev: true })).toBeTruthy();
+		expect(table.resolve('ogygia:region', browser)).toBe(RESOLVED('ogygia:region'));
+		expect(table.resolve('ogygia:region', server)).toBe(RESOLVED('ogygia:region'));
+	});
+
+	it('finds a module a leg’s output may not hold, however it got in', () => {
+		const ids = [RESOLVED('virtual:ogygia/secret'), RESOLVED('virtual:ogygia/transport'), '/a.js'];
+		expect(table.misplaced(ids, { ssr: false, dev: false })).toEqual([
+			[RESOLVED('virtual:ogygia/secret'), 'server']
+		]);
+		expect(table.misplaced(ids, { ssr: true, dev: false })).toEqual([
+			[RESOLVED('virtual:ogygia/transport'), 'boot']
+		]);
 	});
 
 	it('fails an undeclared id in the namespace with virtual_unknown', () => {
