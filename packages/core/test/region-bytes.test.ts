@@ -45,6 +45,35 @@ describe('island_subgraph_bytes', () => {
 		expect(out.abc123.top?.[0].file).toBe('src/lib/Busy.svelte');
 	});
 
+	it('a barrel row says why the barrel pass left it, joined by the barrel file and its importers', () => {
+		const leaves = Array.from({ length: 8 }, (_, i) =>
+			mod(`/src/lib/ui/Part${i}.svelte`, 'p'.repeat(300))
+		);
+		const barrel = mod(
+			'/src/lib/ui/index.ts',
+			'e'.repeat(8 * 60),
+			leaves,
+			'/app/src/lib/ui/index.ts'
+		);
+		const comp = mod(
+			'/src/lib/Toolbar.svelte',
+			'y'.repeat(200),
+			[barrel],
+			'/app/src/lib/Toolbar.svelte'
+		);
+		barrel.importers = [comp];
+		const entry = mod('/@id/ogygia:region/entry/abc123.js', 'glue', [comp]);
+		const asked: [string, string[]][] = [];
+		const out = island_subgraph_bytes([entry], undefined, (file, importers) => {
+			asked.push([file, [...importers]]);
+			return file === '/app/src/lib/ui/index.ts' ? ['impure'] : [];
+		});
+		expect(out.abc123.barrels).toEqual([
+			{ file: 'src/lib/ui/index.ts', fanout: 8, why: ['impure'] }
+		]);
+		expect(asked).toEqual([['/app/src/lib/ui/index.ts', ['/app/src/lib/Toolbar.svelte']]]);
+	});
+
 	it("its components' lines that draw differently in the browser, read from their sources on disk", () => {
 		const clock = {
 			...mod('/src/lib/Clock.svelte', 'compiled'),

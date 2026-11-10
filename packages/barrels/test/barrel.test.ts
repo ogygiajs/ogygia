@@ -155,25 +155,29 @@ describe('nesting — barrels of barrels', () => {
 });
 
 describe('where the walk stops', () => {
-	it('an impure module is not a barrel unless forced; forced keeps own names as own', async () => {
+	it('an impure module is left (said why) unless forced; forced keeps own names as own', async () => {
 		f = fixture({
 			'lib/leaf.ts': 'export const l = 1;',
 			'lib/index.ts': `export { l } from './leaf';\nexport const store = createStore();`
 		});
-		expect(await f.index().map(f.id('lib/index.ts'), '$lib')).toBeNull();
+		expect(await f.index().map(f.id('lib/index.ts'), '$lib')).toMatchObject({ left: 'impure' });
 		const forced = (await f.index({ forced: () => true }).map(f.id('lib/index.ts'), '$lib'))!;
 		expect(forced.pure).toBe(false);
 		expect(forced.entries.get('l')).toEqual(leaf(f, 'lib/leaf.ts', 'l'));
 		expect(forced.entries.get('store')).toBe('own');
 	});
 
-	it('kept beats everything; a non-candidate is never mapped', async () => {
+	it('kept beats everything; a non-candidate is never walked; each map says why it is left', async () => {
 		f = fixture({
 			'lib/leaf.ts': 'export const l = 1;',
 			'lib/index.ts': `export { l } from './leaf';`
 		});
-		expect(await f.index({ kept: () => true }).map(f.id('lib/index.ts'), '$lib')).toBeNull();
-		expect(await f.index({ candidate: () => false }).map(f.id('lib/index.ts'), '$lib')).toBeNull();
+		expect(await f.index({ kept: () => true }).map(f.id('lib/index.ts'), '$lib')).toMatchObject({
+			left: 'kept'
+		});
+		expect(
+			await f.index({ candidate: () => false }).map(f.id('lib/index.ts'), '$lib')
+		).toMatchObject({ left: 'outside-project' });
 	});
 
 	it('a kept module in the MIDDLE of a chain is the leaf (the walk does not look through it)', async () => {

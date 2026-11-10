@@ -126,20 +126,39 @@ describe('the export index: one graph, a policy per caller', () => {
 			'/app/lib/index.ts': `export { l } from './leaf';\nexport const store = make();`,
 			'/app/lib/leaf.ts': 'export const l = 1;'
 		});
-		expect(await g.index.map('/app/lib/index.ts', '$lib', EVERY_BARREL)).toBeNull();
+		const left = await g.index.map('/app/lib/index.ts', '$lib', EVERY_BARREL);
+		expect(left).toMatchObject({ left: 'impure', pure: false });
+		expect(left!.entries.size).toBe(0);
 		const forced = await g.index.map('/app/lib/index.ts', '$lib', policy({ forced: () => true }));
 		expect(forced!.pure).toBe(false);
+		expect(forced!.left).toBeNull();
 		expect(forced!.entries.get('l')).toEqual({ id: '/app/lib/leaf.ts', name: 'l' });
 	});
 
-	it('answers null to a policy that does not take the module as a candidate', async () => {
+	it('says why a barrel is left: kept by the policy, or not a candidate (outside the project)', async () => {
 		const g = graph({
 			'/app/lib/index.ts': `export { l } from './leaf';`,
 			'/app/lib/leaf.ts': 'export const l = 1;'
 		});
 		const refuses = policy({ candidate: () => false });
-		expect(await g.index.map('/app/lib/index.ts', '$lib', refuses)).toBeNull();
-		expect(await g.index.map('/app/lib/index.ts', '$lib', EVERY_BARREL)).not.toBeNull();
+		expect(await g.index.map('/app/lib/index.ts', '$lib', refuses)).toMatchObject({
+			left: 'outside-project'
+		});
+		const keeps = policy({ kept: () => true });
+		expect(await g.index.map('/app/lib/index.ts', '$lib', keeps)).toMatchObject({ left: 'kept' });
+		expect((await g.index.map('/app/lib/index.ts', '$lib', EVERY_BARREL))!.left).toBeNull();
+	});
+
+	it('a module that re-exports nothing is no barrel: null whatever the policy says of it', async () => {
+		const g = graph({
+			'/app/lib/util.ts': 'export function util() {}\nglobalThis.x = 1;',
+			'/app/lib/plain.ts': 'export const p = 1;'
+		});
+		expect(await g.index.map('/app/lib/util.ts', './util', EVERY_BARREL)).toBeNull();
+		const refuses = policy({ candidate: () => false });
+		expect(await g.index.map('/app/lib/plain.ts', './plain', refuses)).toBeNull();
+		const keeps = policy({ kept: () => true });
+		expect(await g.index.map('/app/lib/plain.ts', './plain', keeps)).toBeNull();
 	});
 
 	it('re-parses only the edited file, and keeps its resolutions', async () => {
