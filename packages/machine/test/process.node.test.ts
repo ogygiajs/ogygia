@@ -2,6 +2,7 @@
 // what it can collect. Each case runs in a process of its own (`node`, type stripping), so its
 // event loop and its garbage are its own. Node only: the browser project leaves this file out.
 import { execFileSync } from 'node:child_process';
+import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -24,5 +25,21 @@ describe('a Node process', () => {
 
 	it('frees a symbol a keyed flights spelled into a key, once nothing holds it (#357)', () => {
 		expect(run('symbol-keys-freed.ts', ['--expose-gc'])).toBe('freed');
+	});
+
+	it('loads any module of the package first: no import cycle runs a module before its classes', () => {
+		const dir = fileURLToPath(new URL('../src/', import.meta.url));
+		for (const file of readdirSync(dir).filter((f) => f.endsWith('.ts'))) {
+			const loaded = execFileSync(
+				process.execPath,
+				[
+					'--input-type=module',
+					'-e',
+					`await import(${JSON.stringify(dir + file)}); console.log('loaded')`
+				],
+				{ encoding: 'utf8', timeout: 20_000 }
+			).trim();
+			expect(loaded, file).toBe('loaded');
+		}
 	});
 });

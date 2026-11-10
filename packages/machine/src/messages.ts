@@ -6,7 +6,6 @@
  * alone (the page words it from the link's arguments).
  */
 import { BROWSER, DEV } from 'esm-env';
-import { cache } from './cache.ts';
 
 type Entry<A> = { text: (a: A) => string; details: () => string };
 
@@ -241,14 +240,26 @@ export function report_thrown<C extends keyof Errors>(code: C, a: ArgsOf<C>, cau
 	page(cause);
 }
 
-/** The warnings said, so each is said once: the most recent 256 (one said long ago may be said
- *  again, never one per move). */
-const warned = cache<string, true>({ name: 'warn_once', max: 256 });
+/** The warnings said, so each is said once: up to {@link Said.MAX}, then it starts over (one said
+ *  long ago may be said again, never one per move). Not a `cache()`: every other module of the
+ *  package imports this one, cache.ts and scope.ts included, so it imports none of them (a cycle
+ *  would run a module before its classes). */
+class Said {
+	static readonly MAX = 256;
+	readonly lines = new Set<string>();
+	/** Whether `text` is new (and now said). */
+	first(text: string): boolean {
+		if (this.lines.has(text)) return false;
+		if (this.lines.size >= Said.MAX) this.lines.clear();
+		this.lines.add(text);
+		return true;
+	}
+}
+const warned = new Said();
 
 /** Prints `code` once for each distinct set of arguments. */
 export function warn_once<C extends keyof Errors>(code: C, a: ArgsOf<C>): void {
 	const text = line(code, a);
-	if (warned.get(text)) return;
-	warned.set(text, true);
+	if (!warned.first(text)) return;
 	console.warn(text);
 }
