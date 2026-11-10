@@ -15,7 +15,8 @@
  *   production the cache is refused, keeps nothing, and `machine_bad_option` is printed).
  *   Past it, the expired go first ('age'), then the least recently used ('size'). A `get` is a use,
  *   a `peek` is not. A value heavier than `max` (or whose weight or age is not a number of 0 or
- *   more) is not kept: `set` says `false`, and what the key held stays.
+ *   more), or one only pinned values could make room for, is not kept: `set` says `false`, nothing
+ *   goes for size, and what the key held stays.
  * - `keep`: how long a value stays, in ms (default `Infinity`; 0 keeps nothing). The ages are kept
  *   by one timer of the cache's own scope, for the value due first.
  * - `onEvict(key, value, why)` hears every value that goes, after the cache let it go, in the order
@@ -70,8 +71,9 @@ export interface Cache<K, V> {
 	peek(key: K): V | undefined;
 	/** `key` holds a value (not past its age). */
 	has(key: K): boolean;
-	/** Keeps `value` for `key`: `false` when it was not kept (too heavy, kept for 0 ms, made before
-	 *  what the key holds, or the cache ended), and then what the key held stays. */
+	/** Keeps `value` for `key`: `false` when it was not kept (too heavy, room only pinned values
+	 *  could make, kept for 0 ms, made before what the key holds, or the cache ended), and then
+	 *  what the key held stays. */
 	set(key: K, value: V, options?: SetOptions): boolean;
 	/** Lets `key` go (noticed 'delete'): whether it held a value. */
 	delete(key: K): boolean;
@@ -181,16 +183,21 @@ class Store<K, V> implements Cache<K, V> {
 		const ms = typeof this._keep === 'function' ? this._keep(value, key) : this._keep;
 		const weight = this._weigh === undefined ? 1 : this._weigh(value, key);
 		if (!(ms > 0) || !(weight >= 0 && weight <= this._max)) return false;
-		if (old !== undefined) {
+		if (!this._room(now, key, weight)) {
+			this._tell();
+			return false;
+		}
+		// (read again: making room may have let an expired one go, noticed 'age')
+		const replaced = this._held.get(key);
+		if (replaced !== undefined) {
 			this._held.delete(key);
-			this._weight -= old.weight;
+			this._weight -= replaced.weight;
 			// (a replace, whatever the old value's age: the key goes on holding a value)
-			this._due.push([key, old.value, 'delete']);
+			this._due.push([key, replaced.value, 'delete']);
 		}
 		const until = ms === Infinity ? Infinity : now + ms;
 		this._held.set(key, { value, weight, until, stamp });
 		this._weight += weight;
-		if (this._weight > this._max) this._evict(now);
 		// (the new value due before the timer: the timer moves to it, no walk of the others)
 		const due = Math.max(until, this._swept_at + SWEEP_MS);
 		if (due < this._timer_at) this._set_timer(due, now);
@@ -243,17 +250,33 @@ class Store<K, V> implements Cache<K, V> {
 		}
 	}
 
-	/** Past max: the expired go first, then the least recently used. */
-	_evict(now: number): void {
+	/** Room for `weight` in place of what `key` holds: past max, the expired go first, then the
+	 *  least recently used that are not pinned. When those cannot make the room, none goes for
+	 *  size and the answer is `false`. */
+	_room(now: number, key: K, weight: number): boolean {
+		const held = this._held.get(key);
+		let over = this._weight - (held === undefined ? 0 : held.weight) + weight - this._max;
+		if (over <= 0) return true;
 		this._sweep(now);
+		const swept = this._held.get(key);
+		over = this._weight - (swept === undefined ? 0 : swept.weight) + weight - this._max;
+		if (over <= 0) return true;
 		const in_use = this._in_use;
-		for (const [key, h] of this._held) {
-			if (this._weight <= this._max) return;
-			if (in_use !== undefined && in_use(h.value, key)) continue;
-			this._held.delete(key);
-			this._weight -= h.weight;
-			this._due.push([key, h.value, 'size']);
+		const go: K[] = [];
+		for (const [k, h] of this._held) {
+			if (k === key || (in_use !== undefined && in_use(h.value, k))) continue;
+			go.push(k);
+			over -= h.weight;
+			if (over <= 0) break;
 		}
+		if (over > 0) return false;
+		for (const k of go) {
+			const h = this._held.get(k)!;
+			this._held.delete(k);
+			this._weight -= h.weight;
+			this._due.push([k, h.value, 'size']);
+		}
+		return true;
 	}
 
 	/** The one age timer, for the value due first. */
