@@ -2151,6 +2151,62 @@
 		{
 			"id": "packages/flags/src/index.ts > set_prime",
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
+		},
+		{
+			"id": "packages/content/src/collection-base.ts > Collection > constructor > defer:0~2dc470",
+			"reason": "dev only: a collection's module ran again, so the old collection is disposed; one call, constant work of its own"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > definers_plugin",
+			"reason": "dev only: builds one Vite plugin object (functions, not cloneable), once per server, constant work"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > definers_plugin > transform",
+			"reason": "dev only: a Vite transform hook (the plugin context, not replayable); a substring test per module, then mark_definer_calls"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > definers_plugin > transform > some:0~b700ad",
+			"reason": "dev only: one substring test per declared definer module, linear in the definers (a handful)"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > mark_definer_calls > find:0~96804f",
+			"reason": "dev only: matches one import's source against the declared definer modules, linear in the definers (a handful)"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > nodes",
+			"reason": "dev only: a generator over a parsed module's AST (not recorded), linear in its nodes; run by packages/core/test/definers.test.ts through mark_definer_calls"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > definers_plugin:0~db4cb5",
+			"reason": "dev only: hands the plugins' definer list to the dev transform, constant work"
+		},
+		{
+			"id": "packages/core/src/vite/plugin-api.ts > resolve_plugins > build:0~e195ce > definers",
+			"reason": "build time: records one plugin's definer module and names, constant work per plugin"
+		},
+		{
+			"id": "packages/flags/src/vite.ts > flags > definePlugin:0~de4de4 > build",
+			"reason": "build time: declares the flags definer through the plugin builder (not cloneable), constant work"
+		},
+		{
+			"id": "packages/machine/src/registry.ts > defineRun",
+			"reason": "dev only: a module's new run ends the run before it and returns its wrapper (a function, not cloneable), constant work of its own"
+		},
+		{
+			"id": "packages/machine/src/registry.ts > defineRun > <anonymous>~bc014d",
+			"reason": "dev only: the wrapper for one definer call (a function, not cloneable), constant work"
+		},
+		{
+			"id": "packages/machine/src/registry.ts > defineRun > <anonymous>~bc014d > <anonymous>~90dfa6",
+			"reason": "dev only: runs one definer call under its module's run and puts the outer run back, constant work of its own"
+		},
+		{
+			"id": "packages/machine/src/registry.ts > defining",
+			"reason": "reads the process-wide defining host on globalThis (hidden state), constant work"
+		},
+		{
+			"id": "packages/machine/src/registry.ts > defining_host",
+			"reason": "reads or makes the process-wide defining host on globalThis (not cloneable), constant work"
 		}
 	]
 }
