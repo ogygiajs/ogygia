@@ -9,7 +9,9 @@ import { Program } from '../src/compiler/program.ts';
 import { CompileCtx, type CompileCtxInit } from '../src/compiler/ctx.ts';
 import { set_host, type HostFs } from '../src/compiler/host.ts';
 import { normalize_import_keys } from '../src/compiler/region/transform.ts';
+import * as core from '../src/compiler/virtual/core.ts';
 import { CORE_VIRTUALS, core_path } from '../src/compiler/virtual/core.ts';
+import { CORE_ENTRIES_PATH, virtual_types } from '../src/compiler/virtual/types.ts';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
 import { specifier, virtual } from '../src/compiler/virtual/table.ts';
 
@@ -176,3 +178,6 @@ bench('virtual modules: a table built, an undeclared id and a duplicate refused'
 	}
 	return refused + (table.claims('virtual:ogygia/island/a.js') ? 1 : 0);
 });
+
+bench('virtual types: each realm’s .d.ts, generated off the table', () =>
+	Object.values(virtual_types(core, CORE_ENTRIES_PATH)).reduce((n, text) => n + text.length, 0));
