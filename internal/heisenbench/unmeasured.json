@@ -13,10 +13,6 @@
 			"reason": "one file read for the server router's CSS, a pass-through to the host fs (the router-css generator's own tests read real routes)"
 		},
 		{
-			"id": "packages/core/src/compiler/virtual/core.ts > family:0~628209 > load > transportables_module:2~781e25",
-			"reason": "the eager codecs' path mapper: the server leg imports every class and never maps a path, so it never runs"
-		},
-		{
 			"id": "packages/core/src/messages/build.ts > BUILD_ERRORS > virtual_unknown > details",
 			"reason": "a message table entry: wording only"
 		},

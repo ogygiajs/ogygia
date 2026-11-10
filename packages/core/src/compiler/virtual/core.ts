@@ -15,7 +15,8 @@ import { server_plugins_module, route_config_module, sign_client_source } from '
 import { csrTrueRouteIds, errorCsrTrueRouteIds, rootLayoutCsrTrue } from '../kit.ts';
 import {
 	transport_module,
-	transportables_module,
+	transportables_server_module,
+	transportables_client_module,
 	kit_transport_module
 } from '../link/transport.ts';
 import {
@@ -484,7 +485,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		load(app, { ssr }) {
 			if (!ssr) return 'export {};\n';
 			app.prescan();
-			return transportables_module(app.program.transportable_modules, true, (abs) => abs);
+			return transportables_server_module(app.program.transportable_modules);
 		}
 	}),
 	virtual.family<CoreApp>({
@@ -496,9 +497,9 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		load(app, { ssr }) {
 			app.prescan();
 			const { ctx, program } = app;
-			return transportables_module(
+			if (ssr) return transportables_server_module(program.transportable_modules);
+			return transportables_client_module(
 				program.transportable_modules,
-				!!ssr,
 				(abs) => path.relative(ctx.root, abs).split(path.sep).join('/'),
 				program.crosses_wire
 			);
