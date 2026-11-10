@@ -10,7 +10,9 @@ import { PeerHandle } from '../src/peer.ts';
 import { federate } from '../src/federate.ts';
 import { mount } from '../src/mount.ts';
 import { mint_hole, set_hole_signer } from '../src/hole.ts';
-import { sign_headers, verify_signed_request, lift_document } from '../src/wire.ts';
+import { sign_headers, verify_signed_request, lift_document, moved_card } from '../src/wire.ts';
+import { fc } from '@ogygia/config/sim';
+import { decodeText } from '@ogygia/core/plugin/utils';
 import { set_federation } from '../src/registry.ts';
 import { install_federation, serve_federation } from '../src/serve.ts';
 import { fed_app } from '../src/app.ts';
@@ -250,6 +252,29 @@ describe('lift_document — an app’s full HTML → the wire shape', () => {
 		expect(d.head).not.toContain('charset');
 		expect(d.head).not.toContain('viewport');
 		expect(d.body).toContain('entry="http://cms.test/_app/immutable/i.js"');
+	});
+
+	it('any title and redirect target round-trip: lifted plain, escaped once, never markup', () => {
+		const nasty = fc.string({
+			unit: fc.constantFrom('"', "'", '<', '>', '&', '=', ' ', '/', 'a', ';', '#'),
+			maxLength: 24
+		});
+		fc.assert(
+			fc.property(nasty, (s) => {
+				// a title as Svelte writes it (`&` and `<` escaped), lifted back to the text itself
+				const written = s.replaceAll('&', '&amp;').replaceAll('<', '&lt;');
+				const lifted = lift_document(
+					`<html><head><title>${written}</title></head><body></body></html>`,
+					'http://cms.test'
+				).title;
+				expect(lifted).toBe(s);
+				const card = String(moved_card('data-og-moved', 'section', s));
+				const href =
+					/^<p data-og-moved>This section moved\. <a href="([^"]*)">Continue<\/a><\/p>$/.exec(card);
+				expect(href).not.toBeNull();
+				expect(decodeText(href![1]!)).toBe(s);
+			})
+		);
 	});
 
 	it('lifts the title as plain text, its entities decoded (the shell escapes it once, #436)', () => {
