@@ -125,7 +125,9 @@ describe('the tables', () => {
 		const unknown: string[] = [];
 		const codes = new Set(Object.keys(TABLES));
 		for (const f of files(SRC)) {
-			if (f.includes(`${path.sep}messages${path.sep}`)) continue;
+			// (the tables and the machine that words them: messages/, and the two that moved by side)
+			if (f.includes(`${path.sep}messages${path.sep}`) || f.endsWith(`${path.sep}messages.ts`))
+				continue;
 			const src = fs.readFileSync(f, 'utf8');
 			for (const m of src.matchAll(/(['"`])\[ogygia\] ([^'"`]*)/g)) {
 				const link = m[2].match(/^https:\/\/ogygiajs\.dev\/e\/([a-z_]+)/);
