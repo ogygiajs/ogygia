@@ -182,9 +182,11 @@ export class ExportIndex<Caller = void> implements Dependent {
 	}
 
 	changed(id: string, change: Change): void {
-		// a file added or removed can change what any specifier resolves to; an edit cannot
-		if (change !== 'update') this.#resolved.drop(() => true);
-		for (const walk of this.#walks.values()) walk.changed(id);
+		// a file added or removed can change what any specifier resolves to, and so any map (one that
+		// could not resolve the new file never listed it); an edit changes only the maps that read it
+		const any = change !== 'update';
+		if (any) this.#resolved.drop(() => true);
+		for (const walk of this.#walks.values()) walk.changed(id, any);
 	}
 }
 
@@ -228,11 +230,11 @@ class Walk<Caller> {
 		this.#policy = policy;
 	}
 
-	/** Drop every cached map that depends on `id` (slashed), and every build in flight that has met
-	 *  it so far (one it meets later reads the file as it is now). */
-	changed(id: string): void {
+	/** Drop every cached map that depends on `id` (slashed), or every map at all (`any`), and every
+	 *  build in flight that has met it so far (one it meets later reads the file as it is now). */
+	changed(id: string, any: boolean): void {
 		this.#barrels.drop(({ id: k }, entry) => {
-			if (slashed(k) === id) return true;
+			if (any || slashed(k) === id) return true;
 			const map = entry.kind === 'kept' ? entry.answer : this.#building.get(k);
 			if (map == null) return false;
 			if (map.deps.has(id)) return true;
