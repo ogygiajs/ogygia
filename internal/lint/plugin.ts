@@ -709,6 +709,71 @@ const no_string_concat = {
 	}
 };
 
+/**
+ * `ogygia/prefer-dedent`: text of several lines is written as lines, in one `dedent` template
+ * (`dedent.inline` for text that ends up on one line). It flags a string or template literal with
+ * two or more `\n` escapes, and an array of string pieces joined with `'\n'`. No fix: a hand
+ * conversion proves its bytes the same.
+ */
+const MESSAGE_DEDENT =
+	'Write text of several lines as its lines, in one `dedent` template (core compiler/dedent.ts; `dedent.inline` for one line written as a block).';
+
+/** How many `\n` escapes a literal's source text holds (an escaped backslash before `n` is not one). */
+function newline_escapes(raw: string): number {
+	let n = 0;
+	for (let i = 0; i < raw.length; i++) {
+		if (raw[i] !== '\\') continue;
+		if (raw[i + 1] === 'n') n++;
+		i++;
+	}
+	return n;
+}
+
+const is_text_piece = (e: Node): boolean => {
+	const n = unwrap(e);
+	return (n.type === 'Literal' && typeof n.value === 'string') || n.type === 'TemplateLiteral';
+};
+
+const prefer_dedent = {
+	meta: {
+		type: 'suggestion',
+		docs: { description: 'Text of several lines is one dedent template.' }
+	},
+	create(context: FixContext) {
+		const text = (n: Node) => context.sourceCode.getText(n as Ranged);
+		return {
+			Literal(node: Node) {
+				if (typeof node.value !== 'string') return;
+				if (newline_escapes(text(node)) >= 2) context.report({ node, message: MESSAGE_DEDENT });
+			},
+			TemplateLiteral(node: Node) {
+				// (a tagged template is its tag's text: `dedent` itself, `html`, a regex builder)
+				if ((node.parent as Node | undefined)?.type === 'TaggedTemplateExpression') return;
+				let n = 0;
+				for (const q of node.quasis as Node[]) n += newline_escapes(text(q));
+				if (n >= 2) context.report({ node, message: MESSAGE_DEDENT });
+			},
+			CallExpression(node: Node) {
+				const callee = node.callee as Node;
+				if (callee.type !== 'MemberExpression') return;
+				if ((callee.property as { name?: string })?.name !== 'join') return;
+				const arg = (node.arguments as Node[])[0];
+				if (
+					!arg ||
+					unwrap(arg).type !== 'Literal' ||
+					(unwrap(arg) as { value?: unknown }).value !== '\n'
+				)
+					return;
+				const array = unwrap(callee.object as Node);
+				if (array.type !== 'ArrayExpression') return;
+				const elements = (array.elements as (Node | null)[]).filter((e): e is Node => e !== null);
+				if (elements.length >= 2 && elements.every(is_text_piece))
+					context.report({ node, message: MESSAGE_DEDENT });
+			}
+		};
+	}
+};
+
 export default {
 	meta: { name: 'ogygia' },
 	rules: {
@@ -716,6 +781,7 @@ export default {
 		'owned-effects': owned_effects,
 		'no-silent-failures': no_silent_failures,
 		'stale-whole': stale_whole,
-		'no-string-concat': no_string_concat
+		'no-string-concat': no_string_concat,
+		'prefer-dedent': prefer_dedent
 	}
 };

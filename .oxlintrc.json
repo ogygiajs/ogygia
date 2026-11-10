@@ -9,7 +9,8 @@
 		"ogygia/owned-effects": "error",
 		"ogygia/no-silent-failures": "error",
 		"ogygia/stale-whole": "error",
-		"ogygia/no-string-concat": "error"
+		"ogygia/no-string-concat": "error",
+		"ogygia/prefer-dedent": "error"
 	},
 	"ignorePatterns": [
 		"**/dist/**",
