@@ -14,13 +14,11 @@ const table = new VirtualTable<null>(
 		virtual.value({
 			realm: 'boot',
 			id: 'a',
-			exports: ['alpha'],
 			from: () => ({ alpha: 1 })
 		}),
 		virtual.value({
 			realm: 'boot',
 			id: 'b',
-			exports: ['beta'],
 			from: () => ({ beta: 2 })
 		}),
 		virtual.family<null, { gamma(): number }>({
@@ -30,7 +28,8 @@ const table = new VirtualTable<null>(
 			load: () => 'export function gamma() { return 3; }'
 		})
 	],
-	() => ''
+	() => '',
+	{ 'ogygia:boot/a': ['alpha'], 'ogygia:boot/b': ['beta'] }
 );
 
 /** The app: two entries sharing one name, each with one of its own, and a lazy third. */

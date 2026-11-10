@@ -25,8 +25,9 @@ import {
 	wrapperVirtualId
 } from '../src/compiler/ids.ts';
 import { BUILD_ERRORS } from '../src/messages/build.ts';
+import { CORE_VALUE_NAMES } from '../src/compiler/virtual/value-names.ts';
 
-const table = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path);
+const table = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path, CORE_VALUE_NAMES);
 const app = (ctx: Partial<CoreApp['ctx']>): CoreApp => ({ ctx }) as unknown as CoreApp;
 const leg = (ssr: boolean): Leg => ({ ssr, universalHooks: null });
 
@@ -138,8 +139,9 @@ describe('the virtual-module table', () => {
 	});
 
 	it('refuses two declarations of one module with virtual_duplicate', () => {
-		const a = virtual.value({ realm: 'server', id: 'x', exports: [], from: () => ({}) });
-		expect(() => new VirtualTable([a, a], core_path)).toThrow(/virtual_duplicate/);
+		const a = virtual.value({ realm: 'server', id: 'x', from: () => ({}) });
+		const names = { 'ogygia:server/x': [] };
+		expect(() => new VirtualTable([a, a], core_path, names)).toThrow(/virtual_duplicate/);
 	});
 
 	it('writes a value as module source (JSON, with each Set as a Set)', () => {
@@ -206,9 +208,10 @@ describe('the virtual-module table', () => {
 	});
 
 	it('refuses two entries that give their realm one name', () => {
-		const a = virtual.value({ realm: 'server', id: 'a', exports: ['x'], from: () => ({ x: 1 }) });
-		const b = virtual.value({ realm: 'server', id: 'b', exports: ['x'], from: () => ({ x: 2 }) });
-		expect(() => new VirtualTable([a, b], core_path)).toThrow(/virtual_duplicate/);
+		const a = virtual.value({ realm: 'server', id: 'a', from: () => ({ x: 1 }) });
+		const b = virtual.value({ realm: 'server', id: 'b', from: () => ({ x: 2 }) });
+		const names = { 'ogygia:server/a': ['x'], 'ogygia:server/b': ['x'] };
+		expect(() => new VirtualTable([a, b], core_path, names)).toThrow(/virtual_duplicate/);
 	});
 
 	it('stubs every realm export for the unit tests (test/_stubs/realm-<realm>.ts)', () => {

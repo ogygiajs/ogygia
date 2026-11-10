@@ -15,6 +15,8 @@
  *   constant  an on/off switch, a `define` (not a module), so dead code folds out
  */
 
+import { OgygiaError } from '../../messages/build.ts';
+
 /** Where a virtual module may run. */
 export type Realm = 'server' | 'boot' | 'region' | 'dev';
 
@@ -56,13 +58,17 @@ interface Base {
 }
 
 /** A value module: `from` returns its data (JSON, plus `Set`), and the module has one named export
- *  per name in `exports` (never a default), which is also its name in the realm module. The
- *  generated `.d.ts` types each one off the entry, `ValueOf<typeof entry>['name']`. */
+ *  per key of it (never a default), which is also its name in the realm module. The keys are read
+ *  off a probe run at core build time ({@link ValueNames}); the generated `.d.ts` types each one off
+ *  the entry, `ValueOf<typeof entry>['name']`. */
 export interface ValueEntry<A, T extends object = Record<string, unknown>> extends Base {
 	kind: 'value';
-	exports: readonly (keyof T & string)[];
 	from(app: A, leg: Leg): T;
 }
+
+/** Each value entry's export names, by specifier: generated at core build time from a probe run of
+ *  its `from` (./value-names.ts), so the realm module knows them without running it. */
+export type ValueNames = Readonly<Record<string, readonly string[]>>;
 
 /** Where a request module's functions live: one of core's own modules (by its path under `src/`,
  *  no extension), or a package's. The generated `.d.ts` re-exports that module's own types. */
@@ -104,9 +110,16 @@ export type ValueOf<E extends { from: (...a: never[]) => unknown }> = Awaited<
 export type ModuleOf<E extends { shape?: unknown }> = NonNullable<E['shape']>;
 
 /** An entry's names in its realm module → its module's own names (none: it is not re-exported). */
-export function realm_exports(e: ModuleEntry<unknown>): [string, string][] {
-	if (e.kind === 'value') return e.exports.map((n: string) => [n, n]);
+export function realm_exports(e: ModuleEntry<unknown>, names: ValueNames): [string, string][] {
+	if (e.kind === 'value') return value_names(e, names).map((n) => [n, n]);
 	return Object.entries(e.exports ?? {});
+}
+
+/** A value entry's export names; one with none generated fails with `virtual_names_stale`. */
+export function value_names(e: ValueEntry<unknown, object>, names: ValueNames): readonly string[] {
+	const list = names[specifier_of(e)];
+	if (!list) throw new OgygiaError('virtual_names_stale', { id: specifier_of(e) });
+	return list;
 }
 
 /** A switch: a `define` the bundler inlines, so the code it gates folds out. Read at config time

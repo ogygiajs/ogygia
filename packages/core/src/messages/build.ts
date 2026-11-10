@@ -628,6 +628,15 @@ export const BUILD_ERRORS = {
 			Two declarations claim the same virtual module. Each module is declared once, by the part
 			of ogygia (or the plugin) that knows its value. ${BUG}
 		`
+	},
+	virtual_names_stale: {
+		text: (a: { id: string }): string =>
+			`\`${a.id}\` exports other names than the ones generated for it.`,
+		details: (): string => prose`
+			A value module's export names are read off its declaration when ogygia is built, so its
+			realm module knows them without running it. This one now returns other names: the
+			generated list is stale. Run \`node packages/core/scripts/virtual-types.ts\`. ${BUG}
+		`
 	}
 };
 

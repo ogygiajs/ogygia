@@ -49,6 +49,7 @@ import {
 	type ConstantEntry,
 	type Entry,
 	type FamilyEntry,
+	type Leg,
 	type RequestEntry,
 	type ValueEntry
 } from './table.ts';
@@ -224,7 +225,6 @@ export const hydrate_features: Family<HydrateFeaturesModule> = virtual.family({
 export const devtools_meta: Value<{ region_names: Record<string, string> }> = virtual.value({
 	realm: 'boot',
 	id: 'devtools-meta',
-	exports: ['region_names'],
 	// a build: every region's component name, from the prescan (the dev server serves them live)
 	from(app: CoreApp) {
 		if (app.ctx.is_dev) return { region_names: {} };
@@ -298,7 +298,6 @@ export const devtools_boot: Family = virtual.family({
 export const runtime_url: Value<{ runtime_url: string }> = virtual.value({
 	realm: 'server',
 	id: 'runtime-url',
-	exports: ['runtime_url'],
 	// The runtime's IDENTITY — dev: its dev URL; build: its stable URL (the hashed file is looked up
 	// at render time through the build handoff). Prescan first, so the feature hash matches the
 	// client emit's stable name (both legs prescan the same source).
@@ -316,7 +315,6 @@ export const DEV_HMR_URL: string = dev_url(key(hmr));
 export const devtools_boot_url: Value<{ devtools_boot_url: string }> = virtual.value({
 	realm: 'server',
 	id: 'devtools-boot-url',
-	exports: ['devtools_boot_url'],
 	// the dev URL the handle injects on csr=true pages; '' in build/preview and with no client realm
 	from: ({ ctx }: CoreApp) => ({
 		devtools_boot_url: ctx.client_plugins.length && ctx.is_dev ? dev_url(key(devtools_boot)) : ''
@@ -368,7 +366,6 @@ export const router_css: Family = virtual.family({
 export const secret: Value<{ build_key: string; build_had_secret: boolean }> = virtual.value({
 	realm: 'server',
 	id: 'secret',
-	exports: ['build_key', 'build_had_secret'],
 	watch: ['options'],
 	// the build's key material, and whether the build had an `OGYGIA_SECRET` (its ids are salted)
 	from: ({ ctx }: CoreApp, { ssr }) =>
@@ -424,7 +421,6 @@ export const kit_wire: Family<KitWireModule> = virtual.family({
 export const rate_limit: Value<{ rate_limit: { max: number; windowMs: number } }> = virtual.value({
 	realm: 'server',
 	id: 'rate-limit',
-	exports: ['rate_limit'],
 	watch: ['options'],
 	// `max: 0` disables (`ogygia({ rateLimit })`)
 	from: ({ ctx }: CoreApp, { ssr }) => ({
@@ -443,7 +439,6 @@ export const server_plugins: Family<ServerPluginsModule> = virtual.family({
 export const profiler_maps: Value<{ profiler_maps: string | null }> = virtual.value({
 	realm: 'server',
 	id: 'profiler-maps',
-	exports: ['profiler_maps'],
 	// a placeholder the build fills with the maps (vite/profiler-maps.ts); anything else: none
 	from: ({ ctx }: CoreApp, { ssr }) => ({
 		profiler_maps: ssr && ctx.is_build && ctx.measure ? PROFILER_MAPS_PLACEHOLDER : null
@@ -454,7 +449,6 @@ export const router_config: Value<{ router_enabled: boolean; view_transitions: b
 	virtual.value({
 		realm: 'server',
 		id: 'router-config',
-		exports: ['router_enabled', 'view_transitions'],
 		watch: ['options'],
 		from: ({ ctx }: CoreApp) => ({
 			router_enabled: ctx.router_enabled,
@@ -465,7 +459,6 @@ export const router_config: Value<{ router_enabled: boolean; view_transitions: b
 export const session_cookie: Value<{ session_cookie: string }> = virtual.value({
 	realm: 'server',
 	id: 'session-cookie',
-	exports: ['session_cookie'],
 	watch: ['options'],
 	// the cookie name sealed into the region MAC, or '' (`ogygia({ sessionCookie })`)
 	from: ({ ctx }: CoreApp, { ssr }) => ({ session_cookie: ssr ? ctx.session_cookie : '' })
@@ -474,7 +467,6 @@ export const session_cookie: Value<{ session_cookie: string }> = virtual.value({
 export const region_ttl: Value<{ region_ttl: number; renew_window: number }> = virtual.value({
 	realm: 'server',
 	id: 'region-ttl',
-	exports: ['region_ttl', 'renew_window'],
 	watch: ['options'],
 	from: ({ ctx }: CoreApp, { ssr }) =>
 		ssr
@@ -495,7 +487,6 @@ export interface RouteCsr {
 export const route_csr: Value<RouteCsr> = virtual.value<CoreApp, RouteCsr>({
 	realm: 'server',
 	id: 'route-csr',
-	exports: ['csr_true_routes', 'error_csr_true_routes', 'root_layout_csr_true'],
 	watch: ['routes'],
 	// the client reads the same signal from `kit_hydrates_page()`
 	from({ ctx }: CoreApp, { ssr }) {
@@ -700,6 +691,13 @@ export const CORE_CONSTANTS: readonly Constant<boolean | number | string | null>
 /** The `define` map of core's constants, from the resolved options. */
 export const core_defines = (input: ConstantInput): Record<string, string> =>
 	defines(CORE_CONSTANTS, input);
+
+/** The session the value entries' names are probed with at core build time (types.ts
+ *  `probe_value_names`): the dev server, no plugins, the browser leg, so no `from` reads disk. */
+export const CORE_PROBE: { app: CoreApp; leg: Leg } = {
+	app: { ctx: { is_dev: true, is_build: false, client_plugins: [] } } as unknown as CoreApp,
+	leg: { ssr: false, universalHooks: null }
+};
 
 /** Core's entries, in the table's order. */
 export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [

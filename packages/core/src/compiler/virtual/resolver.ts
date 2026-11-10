@@ -8,7 +8,9 @@ import {
 	specifier_of,
 	write_value,
 	realm_exports,
+	value_names,
 	type Realm,
+	type ValueNames,
 	type Entry,
 	type FamilyEntry,
 	type Leg,
@@ -58,8 +60,16 @@ export class VirtualTable<A> {
 	/** a core module (its path under `src/`, no extension) → the built file the bundler imports */
 	readonly #core_path: (app: A, module: string) => string;
 
-	constructor(entries: readonly Entry<A>[], core_path: (app: A, module: string) => string) {
+	/** each value entry's export names (generated: ./value-names.ts) */
+	readonly #names: ValueNames;
+
+	constructor(
+		entries: readonly Entry<A>[],
+		core_path: (app: A, module: string) => string,
+		names: ValueNames
+	) {
 		this.#core_path = core_path;
+		this.#names = names;
 		for (const e of entries) {
 			// (a constant is a define, not a module: not the table's to resolve)
 			if (e.kind === 'constant') continue;
@@ -73,7 +83,7 @@ export class VirtualTable<A> {
 			}
 			// the realm module: every entry's names, each once in its realm
 			const names = (this.#realms[e.realm] ??= new Map());
-			for (const [name, own] of realm_exports(e)) {
+			for (const [name, own] of realm_exports(e, this.#names)) {
 				if (names.has(name))
 					throw new OgygiaError('virtual_duplicate', { id: `${e.realm}:${name}` });
 				names.set(name, [own, specifier_of(e)]);
@@ -167,9 +177,12 @@ export class VirtualTable<A> {
 		if (e) {
 			if (e.kind === 'value') {
 				const data = e.from(app, leg) as Record<string, unknown>;
-				return e.exports
-					.map((name) => `export const ${name} = ${write_value(data[name])};`)
-					.join('\n');
+				const names = value_names(e, this.#names);
+				// the live keys must be the generated ones (test/virtual-types.test.ts keeps them so)
+				const keys = Object.keys(data);
+				if (keys.length !== names.length || keys.some((k) => !names.includes(k)))
+					throw new OgygiaError('virtual_names_stale', { id: specifier_of(e) });
+				return names.map((name) => `export const ${name} = ${write_value(data[name])};`).join('\n');
 			}
 			if (e.kind === 'request') {
 				const from = 'core' in e.module ? this.#core_path(app, e.module.core) : e.module.package;
@@ -250,7 +263,7 @@ export class VirtualTable<A> {
 	side_effect_free(id: string): boolean {
 		if (this.#realm_of(id)) return true;
 		const e = this.#by_resolved.get(id);
-		return e !== undefined && realm_exports(e).length > 0;
+		return e !== undefined && realm_exports(e, this.#names).length > 0;
 	}
 
 	/** The resolved ids of every module that watches `what`: what a dev change to it invalidates. */
