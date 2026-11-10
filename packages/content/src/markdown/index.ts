@@ -47,7 +47,6 @@ export { diff_markers } from './diff.ts';
 export { inline_markers } from './inline-markers.ts';
 export type { InlineMarkerOptions } from './inline-markers.ts';
 export type { Fence, MetaParser, VariantGenerator, Variant } from './code.ts';
-export { snippet_macros, type SnippetMacro } from '../macros/snippets.ts';
 
 // ── regexes
 const BACKSLASH_G = /\\/g;
