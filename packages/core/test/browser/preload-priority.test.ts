@@ -8,7 +8,11 @@ import {
 	reset_island_graph
 } from '../../src/runtime/island-graph-preload.ts';
 import { warm_island_module } from '../../src/runtime/region-endpoint-url.ts';
-import { reset_load_scheduler } from '../../src/runtime/load-scheduler.ts';
+import {
+	BACKGROUND_WINDOW,
+	LoadSlot,
+	reset_load_scheduler
+} from '../../src/runtime/load-scheduler.ts';
 import { reset_document_painted } from '../../src/runtime/schedule.ts';
 import { island_graph_script } from '../../src/server/document-tail.ts';
 
@@ -49,16 +53,26 @@ test('a click wake raises it to high, and a later guess never lowers it', () => 
 	expect(priorities()).toEqual(['high', 'high']);
 });
 
+test('a download lifted to a class is never lowered by a later, lesser join', () => {
+	const slot = new LoadSlot({ kind: 'code', cls: 'speculative' });
+	slot.promote('user');
+	slot.promote('ahead');
+	expect(slot.cls()).toBe('user');
+});
+
 test('a hover joins a prefetch warm still queued: the warm starts now, at the visitor priority', async () => {
-	// the page's critical image has not arrived: a speculative download waits for it
-	const hero = document.createElement('img');
-	hero.setAttribute('fetchpriority', 'high');
-	Object.defineProperty(hero, 'complete', { configurable: true, get: () => false });
-	document.body.append(hero);
+	// the background window is full: a speculative download waits its turn
+	await Promise.all(
+		Array.from(
+			{ length: BACKGROUND_WINDOW },
+			() => new LoadSlot({ kind: 'code', cls: 'speculative' }).ready
+		)
+	);
 	const entry = '/test/browser/fixtures/entry-current.ts?t=437';
-	warm_island_module(entry); // a page prefetch's warm: speculative, queued behind the hero
+	warm_island_module(entry); // a page prefetch's warm: speculative, queued behind the window
 	await new Promise((r) => setTimeout(r, 50));
-	expect(requested('entry-current.ts?t=437')).toHaveLength(0);
+	// (the dev server serves it as `entry-current.ts?import&t=437`)
+	expect(requested('t=437')).toHaveLength(0);
 	warm_island_module(entry, undefined, 'user'); // the visitor reaches for it
-	await expect.poll(() => requested('entry-current.ts?t=437').length, { timeout: 3000 }).toBe(1);
+	await expect.poll(() => requested('t=437').length, { timeout: 3000 }).toBe(1);
 });
