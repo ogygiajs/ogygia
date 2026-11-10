@@ -2463,6 +2463,30 @@
 		{
 			"id": "packages/devtools/src/vite.ts > devtools > dev_meta_plugin:0~479109",
 			"reason": "dev only: hands the build's regions seam to the dev meta plugin, constant work"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > closeBundle",
+			"reason": "build only: Vite's closeBundle hook, once per build leg, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins",
+			"reason": "build only: makes the two map plugin objects, once per build, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > closeBundle > handler",
+			"reason": "build only: fills the maps module once per server build (files on disk, not recorded); its work is fill_profiler_maps"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > configResolved",
+			"reason": "build only: reads three fields of Vite's resolved config, once per build, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > writeBundle",
+			"reason": "build only: writes the server leg's module map beside its chunks (files on disk, not recorded); its work is write_module_map"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > server_sourcemaps_plugin:0~8b94d4",
+			"reason": "build only: the hidden-sourcemaps switch, always on in a build with the profiler, constant work"
 		}
 	]
 }
