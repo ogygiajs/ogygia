@@ -52,7 +52,6 @@
 		"@vitest/browser": "catalog:",
 		"@vitest/browser-playwright": "catalog:",
 		"playwright": "catalog:",
-		"rolldown": "catalog:",
 		"tsdown": "catalog:",
 		"typescript": "catalog:",
 		"vitest": "catalog:"
