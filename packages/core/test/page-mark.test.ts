@@ -84,7 +84,11 @@ describe('page mark', () => {
 	test('an island importing only Svelte, local helpers and assets reads no page', () => {
 		const marks = marks_for(
 			script(
-				`\timport { untrack } from 'svelte';\n\timport { fly } from 'svelte/transition';\n\timport { n } from './helper';\n\timport './island.css';\n\timport { dev } from '$app/environment';`
+				`	import { untrack } from 'svelte';
+	import { fly } from 'svelte/transition';
+	import { n } from './helper';
+	import './island.css';
+	import { dev } from '$app/environment';`
 			),
 			{ 'src/lib/helper.ts': `export const n = 1;\n`, 'src/lib/island.css': `p {}\n` }
 		);

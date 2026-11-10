@@ -748,7 +748,13 @@ const is_text_piece = (e: Node): boolean => {
 const VALUE_MARK = '\u0001';
 /** Text a conversion leaves alone: a control character it cannot write as itself. (Script and
  *  preformatted text convert like any other: the proof keeps their bytes.) */
-const LEAVE_TEXT_RE = /[\0-\b\v-\x1f\x7f]/;
+function leave_text(s: string): boolean {
+	for (let i = 0; i < s.length; i++) {
+		const c = s.charCodeAt(i);
+		if ((c < 0x20 && c !== 0x09 && c !== 0x0a) || c === 0x7f) return true;
+	}
+	return false;
+}
 /** In a .svelte or HTML file, a template holding `</script` would close its own script block. */
 const CLOSE_SCRIPT_RE = /<\/script/i;
 const EDGE_NEWLINES_G = /^\n+|\n+$/g;
@@ -807,7 +813,7 @@ function dedent_fix(
 	values: string[]
 ): { text: string; needs_import: boolean } | null {
 	const plain = cooked.replaceAll(VALUE_MARK, '');
-	if (LEAVE_TEXT_RE.test(plain)) return null;
+	if (leave_text(plain)) return null;
 	if (/\.(svelte|html)$/.test(context.filename ?? '') && CLOSE_SCRIPT_RE.test(plain)) return null;
 	// the newlines at each end are written outside the template (dedent trims blank edges)
 	const lead_n = /^\n*/.exec(cooked)![0].length;
@@ -831,7 +837,7 @@ function dedent_fix(
 	// the proof: the real dedent over the same template (values as marks) gives the body back
 	const strings: string[] = [];
 	const marks: string[] = [];
-	const full = `\n${lines.map((l) => (l === '' ? '' : `${inner}${l}`)).join('\n')}\n${indent}`;
+	const full = ['', ...lines.map((l) => (l === '' ? '' : `${inner}${l}`)), indent].join('\n');
 	let at = 0;
 	for (const m of full.matchAll(value_at)) {
 		strings.push(full.slice(at, m.index));
@@ -841,7 +847,7 @@ function dedent_fix(
 	strings.push(full.slice(at));
 	const tsa = Object.assign([...strings], { raw: strings }) as unknown as TemplateStringsArray;
 	if (dedent(tsa, ...marks) !== body) return null;
-	const template = `dedent\`\n${raw}\n${indent}\``;
+	const template = ['dedent`', raw, `${indent}\``].join('\n');
 	const text = lead || tail ? `\`${lead}\${${template}}${tail}\`` : template;
 	return { text, needs_import: true };
 }
@@ -900,16 +906,31 @@ const prefer_dedent = {
 		const report = (node: Node, cooked: string | null, values: string[]) => {
 			// (newlines only at its edges: one line of text, set apart; no block to write)
 			if (cooked !== null && !cooked.replace(EDGE_NEWLINES_G, '').includes('\n')) return;
+			// (text left as it is: CRLF or control characters a template cannot write as themselves,
+			// and a closing script tag inside a .svelte or HTML script block)
+			if (cooked !== null) {
+				const plain = cooked.replaceAll(VALUE_MARK, '');
+				if (leave_text(plain)) return;
+				if (/\.(svelte|html)$/.test(file) && CLOSE_SCRIPT_RE.test(plain)) return;
+			}
+			if (cooked === null) {
+				context.report({ node, message: MESSAGE_DEDENT });
+				return;
+			}
 			const parent = node.parent as Node | undefined;
-			const fixable =
-				cooked !== null &&
-				source !== null &&
-				!KEEP_PARENTS.has(parent?.type ?? '') &&
-				!(parent?.type === 'Property' && parent.key === node) &&
-				!(parent?.type === 'PropertyDefinition' && parent.key === node) &&
-				!concat_kept(node);
-			const fix = fixable ? dedent_fix(context, node as Ranged, cooked, values) : null;
-			if (!fix) {
+			// (a key, a type or a specifier cannot be a template; a script() body ships as written)
+			if (
+				KEEP_PARENTS.has(parent?.type ?? '') ||
+				(parent?.type === 'Property' && parent.key === node) ||
+				(parent?.type === 'PropertyDefinition' && parent.key === node) ||
+				concat_kept(node)
+			)
+				return;
+			// text no dedent template gives back exactly (an indent of its own, a line of only
+			// spaces) is left as it is
+			const fix = dedent_fix(context, node as Ranged, cooked, values);
+			if (!fix) return;
+			if (source === null) {
 				context.report({ node, message: MESSAGE_DEDENT });
 				return;
 			}

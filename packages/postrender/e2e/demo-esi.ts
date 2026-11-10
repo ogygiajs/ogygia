@@ -90,7 +90,9 @@ try {
 	kv('surrogate-control', o1.headers.get('surrogate-control'));
 	kv('etag', o1.headers.get('etag'));
 	say(
-		`   the hole in the stored bytes:\n     ${snippet(o1_html, '<esi:remove>')}\n     ${snippet(o1_html, '<esi:include')}`
+		`   the hole in the stored bytes:
+     ${snippet(o1_html, '<esi:remove>')}
+     ${snippet(o1_html, '<esi:include')}`
 	);
 	say(
 		`   ${ok(o1.headers.get('x-ogygia-postrender') === 'stored')} stored ONCE, edge-cacheable, ESI announced`

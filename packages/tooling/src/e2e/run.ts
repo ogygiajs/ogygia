@@ -298,7 +298,10 @@ async function main() {
 		prebuilds.set(
 			suite.dir,
 			run_process(cmd, join(REPO, cwd), process.env, log).then((code) => {
-				if (code !== 0) console.log(`✗ build ${suite.name} failed\n${tail(log)}\n  log: ${log}`);
+				if (code !== 0)
+					console.log(`✗ build ${suite.name} failed
+${tail(log)}
+  log: ${log}`);
 				else console.log(`  built ${suite.name} (${fmt(Date.now() - t0)})`);
 				return code === 0;
 			})
@@ -348,7 +351,9 @@ async function main() {
 				if (code === 0) console.log(`  ✓ ${label}  ${fmt(ms)}  (lane ${lane})`);
 				else {
 					failures.push(`${label}: ${log}`);
-					console.log(`  ✗ ${label}  ${fmt(ms)}  (lane ${lane})\n${tail(log)}\n  log: ${log}`);
+					console.log(`  ✗ ${label}  ${fmt(ms)}  (lane ${lane})
+${tail(log)}
+  log: ${log}`);
 				}
 			}
 		})

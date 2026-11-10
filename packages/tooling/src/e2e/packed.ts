@@ -53,6 +53,9 @@ export function use_packed(app: string, packed: PackedOgygia): void {
 		throw new Error(`${ws} already has overrides: merge them by hand`);
 	writeFileSync(
 		ws,
-		`${before}${before && !before.endsWith('\n') ? '\n' : ''}overrides:\n  '@ogygia/core': 'file:${packed.core}'\n  '@ogygia/machine': 'file:${packed.machine}'\n`
+		`${before}${before && !before.endsWith('\n') ? '\n' : ''}overrides:
+  '@ogygia/core': 'file:${packed.core}'
+  '@ogygia/machine': 'file:${packed.machine}'
+`
 	);
 }

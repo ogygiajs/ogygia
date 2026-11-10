@@ -220,8 +220,9 @@ function table(kind) {
 		(x, y) => rank(worst(x)) - rank(worst(y)) || x.name.localeCompare(y.name)
 	);
 	if (list.length === 0) return '_None._\n';
-	let out =
-		'| Package | Severity | Advisories | Locked here | How it arrives | Notes |\n|---|---|---|---|---|---|\n';
+	let out = `| Package | Severity | Advisories | Locked here | How it arrives | Notes |
+|---|---|---|---|---|---|
+`;
 	for (const row of list) {
 		const advisories = [...row.advisories.values()]
 			.sort((x, y) => rank(x.severity) - rank(y.severity))
@@ -245,9 +246,19 @@ function table(kind) {
 const names = published.map((p) => `\`${p.name}\``).join(', ');
 let md = `## Dependency audit: the published packages at ${published[0]?.version ?? '?'}\n\n`;
 md = `${md}Covers ${names}. Checked against the npm advisory database (\`pnpm audit\`). "Locked here" is this repository's lockfile; an app installing a package resolves its own versions within the ranges. "How it arrives" names the package that brings it.\n\n`;
-md = `${md}### Dependencies (installed with a package)\n\n${table('dependency')}\n`;
-md = `${md}### Peer dependencies (installed and updated by the app)\n\n${table('peer')}\n`;
-md = `${md}<details><summary>Dev dependencies: this repository's tooling, never installed by an app (${groups.dev.size} ${groups.dev.size === 1 ? 'package' : 'packages'})</summary>\n\n${table('dev')}\n</details>\n\n`;
+const dev_count = `${groups.dev.size} ${groups.dev.size === 1 ? 'package' : 'packages'}`;
+md = `${md}### Dependencies (installed with a package)
+
+${table('dependency')}
+### Peer dependencies (installed and updated by the app)
+
+${table('peer')}
+<details><summary>Dev dependencies: this repository's tooling, never installed by an app (${dev_count})</summary>
+
+${table('dev')}
+</details>
+
+`;
 if (elsewhere)
 	md = `${md}${elsewhere} more ${elsewhere === 1 ? 'advisory is' : 'advisories are'} only in this repository's demo apps and internal tools, which are not part of any published package.\n`;
 process.stdout.write(md);

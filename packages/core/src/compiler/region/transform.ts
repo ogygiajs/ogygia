@@ -2462,11 +2462,16 @@ class FileCompilation {
 					`
 					: markup;
 				const imports = cleaned_imports.map((imp) => `\t${imp}\n`).join('');
+				// (each line indented one tab inside the entry's <script>, so the template is flush left)
 				const props_decl = prop_names.length
-					? `\t// svelte-ignore state_referenced_locally\n\tlet { ${prop_names.join(', ')} } = $props();\n`
+					? `	// svelte-ignore state_referenced_locally
+	let { ${prop_names.join(', ')} } = $props();
+`
 					: '';
 				const args_decl = snip_params.length
-					? `\t// svelte-ignore state_referenced_locally\n\tconst [${params_src}] = __ogArgs;\n`
+					? `	// svelte-ignore state_referenced_locally
+	const [${params_src}] = __ogArgs;
+`
 					: '';
 				const style = host_style_src ? `${host_style_src}\n` : '';
 				const script = dedent`

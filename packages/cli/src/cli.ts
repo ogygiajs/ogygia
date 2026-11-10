@@ -372,9 +372,10 @@ function wireOgygia(pf: Preflight, markdown: boolean, asyncCompiler = false): vo
 	//  in case a build is ever hard-killed before cleanup.)
 	editFile('.gitignore', (c) => {
 		if (c.includes('.ogygia-keep-client')) return c;
-		const line =
-			'# ogygia build-time keep-client route (auto-removed; only survives a crashed build)\n**/.ogygia-keep-client/\n';
-		return c.trim() ? c.replace(TRAILING_LFS_RE, '\n\n') + line : line;
+		const line = `# ogygia build-time keep-client route (auto-removed; only survives a crashed build)
+**/.ogygia-keep-client/
+`;
+		return c.trim() ? `${c.replace(TRAILING_LFS_RE, '\n\n')}${line}` : line;
 	});
 
 	// 5. Ambient types — one reference line so `svelte-check` / `tsc` resolve the `virtual:ogygia/*`

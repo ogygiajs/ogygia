@@ -20,7 +20,9 @@ const eq = (label: string, got: unknown, want: unknown) => {
 		pass++;
 	} else {
 		fail++;
-		console.log(`  ✗ ${label}\n      got:  ${g}\n      want: ${w}`);
+		console.log(`  ✗ ${label}
+      got:  ${g}
+      want: ${w}`);
 	}
 };
 const group = (name: string) => console.log(`\n${name}`);

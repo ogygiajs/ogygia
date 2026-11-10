@@ -10,7 +10,9 @@ const eq = (label: string, got: unknown, want: unknown) => {
 		console.log(`  ✓ ${label}`);
 	} else {
 		fail++;
-		console.log(`  ✗ ${label}\n      got:  ${got}\n      want: ${want}`);
+		console.log(`  ✗ ${label}
+      got:  ${got}
+      want: ${want}`);
 	}
 };
 const has = (label: string, got: unknown, sub: string) => {

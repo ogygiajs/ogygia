@@ -429,7 +429,9 @@ export function server_wrapper_source(
 		}
 	}
 	const component_imports = component
-		? `\timport __OgygiaEntry from ${JSON.stringify(entryPath)};\n\t${component_import_line('__OgygiaCss', componentPath, exportName)}\n`
+		? `	import __OgygiaEntry from ${JSON.stringify(entryPath)};
+	${component_import_line('__OgygiaCss', componentPath, exportName)}
+`
 		: '';
 	const component_attrs = component ? `__component={__OgygiaEntry} __css={__OgygiaCss} ` : '';
 	return `<script${lang}>
