@@ -49,12 +49,14 @@
 		"check": "tsc -p . && tsc -p test && vitest run",
 		"test": "vitest run"
 	},
+	"dependencies": {
+		"magic-string": "catalog:"
+	},
 	"devDependencies": {
 		"@ogygia/config": "workspace:*",
 		"@ogygia/core": "workspace:*",
 		"@sveltejs/vite-plugin-svelte": "catalog:",
 		"@typescript/native": "catalog:tsgo",
-		"magic-string": "catalog:",
 		"svelte": "catalog:",
 		"tsdown": "catalog:",
 		"typescript": "catalog:",
