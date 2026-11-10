@@ -16,7 +16,8 @@
 			"@ogygia/testing",
 			"@ogygia/cli",
 			"@ogygia/router",
-			"@ogygia/machine"
+			"@ogygia/machine",
+			"@ogygia/barrels"
 		]
 	],
 	"format": "auto",
