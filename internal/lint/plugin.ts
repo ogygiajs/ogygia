@@ -803,12 +803,12 @@ function dedent_fix(
 	values: string[]
 ): { text: string; needs_import: boolean } | null {
 	if (LEAVE_TEXT_RE.test(cooked.replaceAll(VALUE_MARK, ''))) return null;
-	// one newline at each end is written outside the template (dedent trims blank edges)
-	let body = cooked;
-	const lead = body.startsWith('\n') ? '\\n' : '';
-	if (lead) body = body.slice(1);
-	const tail = body.endsWith('\n') ? '\\n' : '';
-	if (tail) body = body.slice(0, -1);
+	// the newlines at each end are written outside the template (dedent trims blank edges)
+	const lead_n = /^\n*/.exec(cooked)![0].length;
+	const tail_n = /\n*$/.exec(cooked.slice(lead_n))![0].length;
+	const body = cooked.slice(lead_n, cooked.length - tail_n);
+	const lead = '\\n'.repeat(lead_n);
+	const tail = '\\n'.repeat(tail_n);
 	if (body === '' || !body.includes('\n')) return null;
 	const line_text = context.sourceCode.lines[node.loc.start.line - 1] ?? '';
 	const indent = /^[\t ]*/.exec(line_text)![0];
