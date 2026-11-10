@@ -224,19 +224,19 @@ for (const w of watchers) w(event); // in add order
 A keyed registry holds definitions by name, each owned by a scope: the run of the module that defined it, so a dev reload ends what that run defined. A definition deleted from the code is gone; one kept is set again by the new run.
 
 ```ts
-import { registry } from '@ogygia/machine';
+import { keyedRegistry } from '@ogygia/machine';
 
-const shapes = registry.keyed<string, Shape>();
+const shapes = keyedRegistry<string, Shape>();
 shapes.set('circle', circle, run); // gone when `run` ends, unless set again by another owner
 shapes.get('circle');
 ```
 
-|                                           |                                                                                            |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `registry().add(entry, owner)`            | Holds `entry` while `owner` (a scope) is open; returns its removal. Each add is one entry. |
-| `registry.keyed().set(key, value, owner)` | Holds `value` under `key` while `owner` is open, replacing what the key held.              |
-| `get` / `has` / `entries()` / `values()`  | The definitions, in the order they were last set.                                          |
-| `size` / iteration                        | What it holds now, in add order.                                                           |
+|                                          |                                                                                            |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `registry().add(entry, owner)`           | Holds `entry` while `owner` (a scope) is open; returns its removal. Each add is one entry. |
+| `keyedRegistry().set(key, value, owner)` | Holds `value` under `key` while `owner` is open, replacing what the key held.              |
+| `get` / `has` / `entries()` / `values()` | The definitions, in the order they were last set.                                          |
+| `size` / iteration                       | What it holds now, in add order.                                                           |
 
 - **Owned, never evicted.** Adding or setting with an owner that already ended is refused: nothing is held, and the removal is a no-op.
 - **Only its own.** An owner's end takes only what it holds: a key set again by another owner stays.
