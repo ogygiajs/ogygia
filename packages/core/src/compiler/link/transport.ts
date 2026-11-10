@@ -97,26 +97,27 @@ export function source_crosses_wire(src: string): boolean {
  *   app. It exports `wire_loaders`, a class module's tag path (root-relative, the part of a tag
  *   before `#`) → a lazy import; the runtime loads just the ones an island's props carry (the server
  *   stamps them on its props sidecar) before it decodes them.
- * `modules` is the Program's set of transportable module paths (absolute); `rel` makes a tag path.
+ * `modules` is the Program's set of transportable module paths (absolute).
  */
-export function transportables_module(
+export function transportables_server_module(modules: Iterable<string>): string {
+	const imports: string[] = [];
+	for (const abs of modules) imports.push(`import ${JSON.stringify(abs)};`);
+	return dedent`
+		${imports.join('\n')}
+
+		export const wire_loaders = {};
+		export const wire_all = false;
+	`;
+}
+
+/** The CLIENT leg of {@link transportables_server_module}'s module; `rel` makes a tag path. */
+export function transportables_client_module(
 	modules: Iterable<string>,
-	ssr: boolean,
 	rel: (abs: string) => string,
 	/** the app sends wired values through Kit's `transport` (remote functions, loads): those decode
 	 *  synchronously, whenever they arrive — every class must be in before any island wakes */
 	crosses_wire = false
 ): string {
-	if (ssr) {
-		const imports: string[] = [];
-		for (const abs of modules) imports.push(`import ${JSON.stringify(abs)};`);
-		return dedent`
-			${imports.join('\n')}
-
-			export const wire_loaders = {};
-			export const wire_all = false;
-		`;
-	}
 	const entries: string[] = [];
 	for (const abs of modules)
 		entries.push(`${JSON.stringify(rel(abs))}: () => import(${JSON.stringify(abs)})`);
