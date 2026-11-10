@@ -62,7 +62,7 @@
 	import { document_tail, island_graph_script, modulepreload_tag } from './server/document-tail.ts';
 	import { plan_props_wire, props_sidecar } from './server/props-wire.ts';
 	import { region_css_tag } from './server/region-css.ts';
-	import { escape_amp, escape_amp_quot, escape_attr } from './escape.ts';
+	import { escape_amp_quot, escape_attr } from './escape.ts';
 	import { warn } from './messages/island.ts';
 	import {
 		isNested,
@@ -74,7 +74,8 @@
 		documentIsCsrTrue,
 		claimRuntimeEmit,
 		claim_region_css,
-		claim_kit_island
+		claim_kit_island,
+		note_early_hole
 	} from './context.ts';
 	import {
 		prepare_region_props,
@@ -811,16 +812,13 @@
 			? []
 			: graph_hrefs(__module, server_region_entry, null)
 	);
-	const server_fetch_preload = $derived.by(() => {
-		// Only `defer: 'load'`: start the endpoint fetch during HTML parse (warms the per-hole load).
-		if (nested || building || __defer !== 'load' || !server_endpoint) return '';
-		const href_attr = escape_amp(server_endpoint);
-		return (
-			LT + 'link rel="preload" as="fetch" crossorigin="anonymous" href="' + href_attr + '"' + GT
-		);
-	});
-	// The fetch preload STAYS in the head: it starts the hole's content request during the HTML parse
-	// (content, not island code). The island graph rides the tail.
+	// Only `defer: 'load'`: its request starts during the HTML parse, from the head's early start
+	// (early-holes.ts), which the handle or `document()` writes once for every such hole. The island
+	// graph rides the tail.
+	if (typeof window === 'undefined' && is_server && !nested && !building)
+		untrack(() => {
+			if (__defer === 'load' && server_endpoint) note_early_hole(server_endpoint);
+		});
 	const server_graph_tail =
 		!!tail &&
 		untrack(() => {
@@ -828,10 +826,9 @@
 			return true;
 		});
 	const server_preload = $derived(
-		server_fetch_preload +
-			(server_graph_tail || !server_graph_hrefs.length
-				? ''
-				: island_graph_script(new Map([[server_region_entry, server_graph_hrefs]])))
+		server_graph_tail || !server_graph_hrefs.length
+			? ''
+			: island_graph_script(new Map([[server_region_entry, server_graph_hrefs]]))
 	);
 
 	// ───────────────────────────────────────────────────────────── lake branch ──

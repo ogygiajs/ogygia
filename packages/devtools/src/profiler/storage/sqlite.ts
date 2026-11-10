@@ -120,12 +120,13 @@ export class SqliteStore implements ProfilerStore {
 				'INSERT INTO visits (key,page,at,visit) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET at=excluded.at,visit=excluded.visit'
 			)
 			.run(rec.key, rec.page, rec.at, rec.visit);
-		// the newest MAX_VISITS_PER_KEY per key (what a server window reads back)
+		// the newest MAX_VISITS_PER_KEY per key (what a server window reads back): only the rows past
+		// them, found by walking the (page, at) index, never the whole kept set (#400)
 		this.#need()
 			.prepare(
-				'DELETE FROM visits WHERE page = ? AND key NOT IN (SELECT key FROM visits WHERE page = ? ORDER BY at DESC LIMIT ?)'
+				'DELETE FROM visits WHERE key IN (SELECT key FROM visits WHERE page = ? ORDER BY at DESC LIMIT -1 OFFSET ?)'
 			)
-			.run(rec.page, rec.page, MAX_VISITS_PER_KEY);
+			.run(rec.page, MAX_VISITS_PER_KEY);
 	}
 
 	listVisits(page: string, limit = 10): ProfilerVisitRecord[] {
