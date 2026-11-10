@@ -29,8 +29,10 @@ export type PageKeys = ReadonlySet<string> | 'all';
  *  this analysis, so the source still names them. */
 const PAGE_SPECIFIER_RE = /^\$app\/(?:state|stores)$/;
 /** The page fields that are never shaped — reading them commits nothing about `data`. */
+// static: Kit's page fields that are not load data
 const SAFE_FIELDS = new Set(['url', 'params', 'route', 'status', 'error', 'form', 'state']);
 /** Keys the walker never descends into (positions, back-references). */
+// static: the AST node keys the walk never descends into
 const SKIP_KEYS = new Set([
 	'start',
 	'end',
@@ -220,6 +222,7 @@ function line_of(code: string, offset: number): number {
 
 /** Climb out of the wrappers TypeScript and the parsers put around an expression without
  *  changing what it is: `(page as any)`, `page!`, `page satisfies T`, `(page)`, an optional chain. */
+// static: the AST node types that wrap an expression without changing what it reads
 const WRAPPERS = new Set([
 	'TSAsExpression',
 	'TSNonNullExpression',
@@ -279,6 +282,7 @@ export function parse_roots(code: string, id: string, kind: 'svelte' | 'script')
 // ── the analysis ───────────────────────────────────────────────────────────────────────────────
 
 /** Function-like nodes: the scopes an alias lives in. */
+// static: the AST node types that open a scope
 const SCOPE_TYPES = new Set([
 	'FunctionDeclaration',
 	'FunctionExpression',
