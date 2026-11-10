@@ -1635,7 +1635,8 @@ class Profiler {
 	#recording_active(): boolean {
 		// (by its start too: a process frozen mid-profile and thawed may answer before its timer runs)
 		const s = this.#holder.now;
-		return s.kind === 'recording' && clock.mono() - s.since < RECORDING_MAX_MS;
+		// wall: a frozen process's monotonic clock does not advance, and the freeze is what this catches
+		return s.kind === 'recording' && Date.now() - s.since < RECORDING_MAX_MS;
 	}
 
 	/** Take the recorder without waiting: its token if it was free (now ours), null if busy. Recordings
@@ -1648,7 +1649,7 @@ class Profiler {
 	#take(kind: 'background' | 'recording'): LockToken | null {
 		const token = this.#recorder.take();
 		if (token === null) return null;
-		this.#holder.go(kind, { token, since: clock.mono() });
+		this.#holder.go(kind, { token, since: Date.now() }); // wall: read across a freeze (above)
 		// (leaving it, to `cut` or `free`, detaches the attribution context)
 		this.#holder.scope.defer(() => this.#release_als());
 		return token;
@@ -1668,7 +1669,7 @@ class Profiler {
 				? null
 				: {
 						kind: this.#win.now.kind !== 'idle' ? 'window' : s.kind,
-						age_ms: clock.mono() - s.since,
+						age_ms: Date.now() - s.since, // wall: `since` is a wall time (a freeze counts)
 						stale: s.kind === 'cut' || (s.kind === 'recording' && !this.#recording_active())
 					};
 		return new Response(JSON.stringify({ busy: true, message, holder }), {
