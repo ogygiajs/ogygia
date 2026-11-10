@@ -135,6 +135,7 @@
 	},
 	"dependencies": {
 		"@neodrag/svelte": "catalog:",
+		"@ogygia/insights": "workspace:^",
 		"@ogygia/machine": "workspace:^",
 		"@ogygia/router": "workspace:^",
 		"devalue": "catalog:"

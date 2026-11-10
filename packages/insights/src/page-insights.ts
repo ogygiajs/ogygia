@@ -10,18 +10,20 @@
  * none (the lab page's decoys hold that line).
  */
 import {
+	hazard_fix,
+	hazard_words,
 	without_comments as strip_comments,
-	without_runtime_marks
-} from '../contract/markup-text.ts';
-import type { RegionRefusal } from '../runtime/region-endpoint-url.ts';
-import { hazard_fix, hazard_words, type IslandHazard } from './hydration-hazards.ts';
+	without_runtime_marks,
+	OWN_PACKAGE_NAMES,
+	REGION_RENDER_CONCURRENCY,
+	type IslandHazard,
+	type RegionRefusal
+} from '@ogygia/core/internal/instruments';
 import { barrel_left_fix, barrel_left_words, type IslandBarrel } from './barrel-left.ts';
-import { OWN_PACKAGE_NAMES } from '../contract/own-package.ts';
 
 /** markup as a visitor's eyes compare it: no comments (Svelte's re-anchored block markers), no
  *  marks the runtime itself set on the regions inside */
 const without_comments = (html: string): string => without_runtime_marks(strip_comments(html));
-import { REGION_RENDER_CONCURRENCY } from '../runtime/concurrency.ts';
 import { fn_label, fn_label as label_of, type CpuFn, type CpuSummary } from './cpu.ts';
 import { third_party, third_party_findings, type ThirdParty } from './third-party.ts';
 

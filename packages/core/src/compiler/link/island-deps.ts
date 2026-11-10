@@ -7,7 +7,7 @@
 import { path } from '../host.ts';
 import { dedent } from '../dedent.ts';
 import { merge_page_keys, type PageKeys } from './page-keys.ts';
-import { hydration_hazards, type IslandHazard } from '../../insights/hydration-hazards.ts';
+import { hydration_hazards, type IslandHazard } from '../../contract/hydration-hazards.ts';
 import { OWN_FILE_RE, OWN_PACKAGE_NAMES } from '../../contract/own-package.ts';
 import { is_generated_specifier } from '../virtual/table.ts';
 

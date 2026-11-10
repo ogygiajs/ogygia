@@ -12,7 +12,7 @@
  */
 
 import { scope } from '@ogygia/machine';
-import { find_unscoped, type UnscopedStyles } from '../contract/unscoped-css.ts';
+import { find_unscoped, type UnscopedStyles } from '@ogygia/core/internal/instruments';
 
 export type AssetKind = 'script' | 'style' | 'font' | 'image' | 'other';
 

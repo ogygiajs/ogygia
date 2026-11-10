@@ -22,7 +22,7 @@ import type {
 	SessionNav,
 	SessionRequest,
 	SessionShift
-} from '@ogygia/core/insights';
+} from '@ogygia/insights';
 
 export type {
 	SessionClick,
@@ -32,7 +32,7 @@ export type {
 	SessionNav,
 	SessionRequest,
 	SessionShift
-} from '@ogygia/core/insights';
+} from '@ogygia/insights';
 
 const CLICKABLE =
 	'a[href],button,input,select,textarea,label,summary,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[role="checkbox"],[role="switch"],[role="option"],[onclick],[tabindex]:not([tabindex="-1"])';

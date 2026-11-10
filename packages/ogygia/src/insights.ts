@@ -1,1 +1,1 @@
-export * from '@ogygia/core/insights';
+export * from '@ogygia/insights';

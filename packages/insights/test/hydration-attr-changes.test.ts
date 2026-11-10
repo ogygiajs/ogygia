@@ -2,8 +2,8 @@
 // setting its own as it upgrades, an empty inline style) or markup (text or elements differ). And a
 // test can leave chosen attribute changes out.
 import { describe, it, expect } from 'vitest';
-import { attr_changes } from '../src/contract/markup-text.ts';
-import { apply_attr_rules } from '../src/insights/attr-rules.ts';
+import { attr_changes } from '@ogygia/core/internal/instruments';
+import { apply_attr_rules } from '../src/attr-rules.ts';
 
 describe('attr_changes', () => {
 	it('each attribute a custom element set, added, removed or changed', () => {

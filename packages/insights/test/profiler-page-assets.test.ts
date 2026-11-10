@@ -9,7 +9,7 @@ import {
 	weigh_assets,
 	runtime_scripts,
 	type Weight
-} from '../src/insights/page-assets.ts';
+} from '../src/page-assets.ts';
 
 const KIT_PAGE = `<!doctype html><html><head>
 <link href="./_app/immutable/assets/0.abc.css" rel="stylesheet">

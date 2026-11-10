@@ -19,7 +19,7 @@ import {
 	type BarrelLeftReason,
 	type IslandBarrel,
 	type IslandHazard
-} from '@ogygia/core/insights';
+} from '@ogygia/insights';
 import { region_family } from '@ogygia/core/internal/compiler-ids';
 import { OGYGIA_SCHEME, OWN_FILE_RE } from '@ogygia/core/internal/compiler';
 

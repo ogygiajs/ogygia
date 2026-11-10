@@ -16,7 +16,7 @@ import {
 	region_props_sidecar,
 	region_transitive
 } from './regions.ts';
-import { fp_compare, type FpDrift, type KeptIsland } from '@ogygia/core/insights';
+import { fp_compare, type FpDrift, type KeptIsland } from '@ogygia/insights';
 import {
 	leftover_state,
 	owned_leftovers,
@@ -87,10 +87,10 @@ import {
 	type PageReport,
 	type RegionFact,
 	type ServerProfileBrief
-} from '@ogygia/core/insights';
+} from '@ogygia/insights';
 import { profile_for } from './profile-store.ts';
 import type { BeaconPage } from '../profiler/beacon.ts';
-import { analyze_cpu, is_trace, type CpuSummary } from '@ogygia/core/insights';
+import { analyze_cpu, is_trace, type CpuSummary } from '@ogygia/insights';
 import { with_source_lines } from './source-lines.ts';
 import { since_load, type LoadSnapshot, type SinceLoad } from './since-load.ts';
 import { PAGE_DEFER_KEY, PAGE_DEFER_REGISTRY_KEY } from '@ogygia/core/internal/instruments';
@@ -1078,7 +1078,7 @@ declare global {
 	interface Window {
 		__ogygia_page?: () => PageView | null;
 		/** the Record tab's last session report (tests read what the tab shows) */
-		__ogygia_session?: import('@ogygia/core/insights').SessionReport;
+		__ogygia_session?: import('@ogygia/insights').SessionReport;
 		/** the Page tab's styles check, run fresh (tests read what the tab shows) */
 		__ogygia_styles?: () => Promise<{
 			report: import('./styles.ts').StylesReport;

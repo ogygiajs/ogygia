@@ -3,11 +3,10 @@
  * pass told the build (`compile.barrel.left`), and what to do about each. The dock's finding and the
  * profiler's both say it.
  */
-import type { BarrelLeftReason } from '../contract/barrels.ts';
+import type { BarrelLeftReason } from '@ogygia/core/internal/instruments';
 
 export type { BarrelLeftReason };
-export type { IslandBarrel } from '../contract/barrels.ts';
-export type { ChunkBarrel } from '../contract/virtual-modules.ts';
+export type { ChunkBarrel, IslandBarrel } from '@ogygia/core/internal/instruments';
 
 const WORDS: Record<BarrelLeftReason, string> = {
 	impure: 'it runs code of its own besides its re-exports',

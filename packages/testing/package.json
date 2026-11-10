@@ -54,6 +54,7 @@
 		"e2e": "playwright test"
 	},
 	"dependencies": {
+		"@ogygia/insights": "workspace:^",
 		"@ogygia/machine": "workspace:^"
 	},
 	"devDependencies": {

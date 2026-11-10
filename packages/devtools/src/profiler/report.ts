@@ -21,17 +21,17 @@ import {
 	lcp_rivals,
 	vital_parts,
 	type HeldOpen
-} from '@ogygia/core/insights';
-import { fp_compare } from '@ogygia/core/insights';
+} from '@ogygia/insights';
+import { fp_compare } from '@ogygia/insights';
 import {
 	barrel_left_fix,
 	barrel_left_words,
 	type BarrelLeftReason,
 	type ChunkBarrel
-} from '@ogygia/core/insights';
+} from '@ogygia/insights';
 import type { ClientWindows, InteractionCpu } from './client-windows.ts';
 import type { ByteStrip } from './byte-strip.ts';
-import { runtime_scripts, type PageAssets, type RuntimeScripts } from '@ogygia/core/insights';
+import { runtime_scripts, type PageAssets, type RuntimeScripts } from '@ogygia/insights';
 import { unscoped_finding } from '@ogygia/core/internal/instruments';
 import type { River } from './river.ts';
 import type { GcAttribution } from './gc.ts';
@@ -68,7 +68,7 @@ import type {
 	OgygiaRequestStats
 } from '@ogygia/core/internal/server';
 import type { SpanRecord } from './span.ts';
-import { TESTING_ENGINE_VERSION } from '@ogygia/core/insights';
+import { TESTING_ENGINE_VERSION } from '@ogygia/insights';
 
 export type { OgygiaRequestStats, SpanRecord, HoleRequestStats, IslandStat };
 
@@ -495,7 +495,7 @@ export interface GcSummary {
 }
 
 /** a line of an island's own component that draws differently in the browser, with its file */
-import { hazard_words, hazard_fix, type IslandHazard } from '@ogygia/core/insights';
+import { hazard_words, hazard_fix, type IslandHazard } from '@ogygia/insights';
 export type { IslandHazard };
 export { hazard_words, hazard_fix };
 
@@ -4678,7 +4678,7 @@ type ReportJsonAssets = {
 		lazy?: boolean | undefined;
 		blocking?: boolean | undefined;
 		url: string;
-		kind: import('@ogygia/core/insights').AssetKind;
+		kind: import('@ogygia/insights').AssetKind;
 		via:
 			| 'script'
 			| 'img'
