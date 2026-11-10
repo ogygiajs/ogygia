@@ -155,6 +155,7 @@ import {
 	KIT_REMOTE_STATE,
 	HMAC_MODULE,
 	RUNTIME_DIR,
+	REGION_ENDPOINT_MODULE,
 	RUNTIME_HASH,
 	OGYGIA_VERSION
 } from './paths.ts';
@@ -775,6 +776,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						runtime_dir: RUNTIME_DIR,
 						runtime_hash: RUNTIME_HASH,
 						hmac_module: HMAC_MODULE,
+						region_endpoint_module: REGION_ENDPOINT_MODULE,
 						kit_wire_path,
 						client_binding_stub_file: CLIENT_BINDING_STUB_FILE,
 						app_shims: APP_SHIMS,

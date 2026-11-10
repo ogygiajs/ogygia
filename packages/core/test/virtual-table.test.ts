@@ -4,6 +4,9 @@
  * are one module, and a dev change invalidates exactly the entries that watch it.
  */
 import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
 import { CORE_VIRTUALS, type CoreApp } from '../src/compiler/virtual/core.ts';
 import { virtual, write_exports, type Leg } from '../src/compiler/virtual/table.ts';
@@ -17,6 +20,23 @@ describe('the virtual-module table', () => {
 	it('resolves a realm-named specifier and its legacy alias to the same module', () => {
 		expect(table.resolve('ogygia:server/secret')).toBe(RESOLVED('virtual:ogygia/secret'));
 		expect(table.resolve('virtual:ogygia/secret')).toBe(RESOLVED('virtual:ogygia/secret'));
+	});
+
+	it('declares every virtual module the packages’ source imports', () => {
+		const root = fileURLToPath(new URL('../../', import.meta.url));
+		const files = fs
+			.globSync('*/src/**/*.{ts,js,svelte}', { cwd: root })
+			.filter((f) => !f.includes('/compiler/'));
+		const ids = new Set<string>();
+		for (const f of files) {
+			const src = fs.readFileSync(path.join(root, f), 'latin1');
+			for (const m of src.matchAll(
+				/(?:from|import)\s*\(?\s*['"]((?:virtual:ogygia|ogygia:)[^'"]+)['"]/g
+			))
+				ids.add(m[1]);
+		}
+		expect(ids.size).toBeGreaterThan(10);
+		for (const id of ids) expect(() => table.resolve(id), id).not.toThrow();
 	});
 
 	it('fails an undeclared id in the namespace with virtual_unknown', () => {

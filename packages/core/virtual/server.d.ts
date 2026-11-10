@@ -180,6 +180,29 @@ declare module 'virtual:ogygia/request-event' {
 	};
 }
 
+declare module 'ogygia:server/region-endpoint' {
+	export function makeRegionEndpoint(entry: string, props?: Record<string, unknown>): string;
+	/** @param ttl response cache max-age in seconds (`0`/absent = no-store). Signed into the URL. */
+	export function mintServerIsland(entry: string, props: Record<string, unknown>, ttl?: number): string;
+	/** the region fingerprints the page already holds (a server-only nav signal) */
+	export function known_region_fps(): Set<string>;
+	/** the island `data-og-fp` over its module URL + canonical props text; '' on the client */
+	export function islandFingerprint(entry: string, canonical: string): string;
+	/** a hole's own stylesheet hrefs (by region id), for a render that inlines it; [] on the client */
+	export function holeCss(entry: string): string[];
+}
+declare module 'virtual:ogygia/region-endpoint' {
+	export function makeRegionEndpoint(entry: string, props?: Record<string, unknown>): string;
+	/** @param ttl response cache max-age in seconds (`0`/absent = no-store). Signed into the URL. */
+	export function mintServerIsland(entry: string, props: Record<string, unknown>, ttl?: number): string;
+	/** the region fingerprints the page already holds (a server-only nav signal) */
+	export function known_region_fps(): Set<string>;
+	/** the island `data-og-fp` over its module URL + canonical props text; '' on the client */
+	export function islandFingerprint(entry: string, canonical: string): string;
+	/** a hole's own stylesheet hrefs (by region id), for a render that inlines it; [] on the client */
+	export function holeCss(entry: string): string[];
+}
+
 declare module 'ogygia:server/kit-wire' {
 	export function stringify_remote_arg(value: unknown, transport: unknown): string;
 	export function stringify_command_arg(value: unknown, transport: unknown): Promise<string>;

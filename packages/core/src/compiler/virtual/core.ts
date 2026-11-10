@@ -355,6 +355,28 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 	}),
 	virtual.request<CoreApp>({
 		realm: 'server',
+		id: 'region-endpoint',
+		alias: 'virtual:ogygia/region-endpoint',
+		types: `export function makeRegionEndpoint(entry: string, props?: Record<string, unknown>): string;\n/** @param ttl response cache max-age in seconds (\`0\`/absent = no-store). Signed into the URL. */\nexport function mintServerIsland(entry: string, props: Record<string, unknown>, ttl?: number): string;\n/** the region fingerprints the page already holds (a server-only nav signal) */\nexport function known_region_fps(): Set<string>;\n/** the island \`data-og-fp\` over its module URL + canonical props text; '' on the client */\nexport function islandFingerprint(entry: string, canonical: string): string;\n/** a hole's own stylesheet hrefs (by region id), for a render that inlines it; [] on the client */\nexport function holeCss(entry: string): string[];`,
+		// Region's minting (lake endpoints, server islands, fingerprints, a hole's CSS). The browser leg
+		// mints nothing: lakes reuse the endpoint the SSR restore cached, and the runtime fetches holes.
+		module: ({ ctx }) => ctx.region_endpoint_module,
+		exports: [
+			'makeRegionEndpoint',
+			'mintServerIsland',
+			'known_region_fps',
+			'islandFingerprint',
+			'holeCss'
+		],
+		client: () =>
+			`export function makeRegionEndpoint(_entry, _props) { return ''; }\n` +
+			`export function mintServerIsland(_entry, _props, _ttl) { return ''; }\n` +
+			`export function known_region_fps() { return new Set(); }\n` +
+			`export function islandFingerprint(_entry, _canonical) { return ''; }\n` +
+			`export function holeCss(_entry) { return []; }`
+	}),
+	virtual.request<CoreApp>({
+		realm: 'server',
 		id: 'kit-wire',
 		alias: 'virtual:ogygia/kit-wire',
 		types: `export function stringify_remote_arg(value: unknown, transport: unknown): string;\nexport function stringify_command_arg(value: unknown, transport: unknown): Promise<string>;\nexport function create_remote_key(id: string, payload: string): string;`,
