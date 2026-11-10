@@ -10,7 +10,8 @@
  * LEAF module: no feature imports (usable from the `$app/navigation` shim without dragging the
  * router graph). List rules (not document rules) so each hint targets exactly the asked URL.
  */
-const hinted = new Set<string>();
+import { cache } from '@ogygia/machine';
+const hinted = cache<string, true>({ name: 'speculation hints', max: 512 });
 
 export function speculate_url(url: string | URL, kind: 'prefetch' | 'prerender'): void {
 	if (typeof document === 'undefined') return;
@@ -25,7 +26,7 @@ export function speculate_url(url: string | URL, kind: 'prefetch' | 'prerender')
 	const href = target.pathname + target.search;
 	const key = kind + '\0' + href;
 	if (hinted.has(key)) return;
-	hinted.add(key);
+	hinted.set(key, true);
 	const script = document.createElement('script');
 	script.type = 'speculationrules';
 	script.setAttribute('data-ogygia-speculate-hint', '');

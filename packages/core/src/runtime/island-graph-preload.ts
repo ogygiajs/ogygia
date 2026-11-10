@@ -20,6 +20,7 @@ import {
 	decode_island_locations
 } from '../island-graph.ts';
 import { note_entry_location } from './entry-locations.ts';
+import { cache, type Cache } from '@ogygia/machine';
 import { runtime_session } from './session.ts';
 
 const GRAPH_SELECTOR = `script[${ISLAND_GRAPH_ATTR}]`;
@@ -28,10 +29,13 @@ const MODULEPRELOAD_SELECTOR = 'link[rel="modulepreload"]';
 export const GRAPH_PRELOAD_ATTR = 'data-ogygia-graph-preload';
 
 /** entry URL (absolute) → its chunk URLs (absolute). */
-const graph = new Map<string, string[]>();
+const graph = cache<string, string[]>({ name: 'island graph', max: 5000 });
 let read_scripts = new WeakSet<Element>();
-/** Chunk URLs (absolute) already linked — ours, or a modulepreload the HTML carried. */
-let linked: Set<string> | null = null;
+/** Chunk URLs (absolute) already linked — ours, or a modulepreload the HTML carried (read from the
+ *  document once, `linked_read`). Past the bound the least recently joined goes: linked again, the
+ *  browser reuses the fetch. */
+const linked = cache<string, true>({ name: 'linked chunks', max: 20_000 });
+let linked_read = false;
 
 function absolute(href: string, base: string): string | null {
 	try {
@@ -65,12 +69,12 @@ function read_document_graphs(): void {
 	}
 }
 
-function linked_set(): Set<string> {
-	if (linked) return linked;
-	linked = new Set();
+function linked_set(): Cache<string, true> {
+	if (linked_read) return linked;
+	linked_read = true;
 	for (const l of document.querySelectorAll(MODULEPRELOAD_SELECTOR)) {
 		const url = absolute(l.getAttribute('href') ?? '', location.href);
-		if (url) linked.add(url);
+		if (url) linked.set(url, true);
 	}
 	return linked;
 }
@@ -93,8 +97,8 @@ export function preload_island_graph(
 	if (!hrefs || hrefs.length === 0) return;
 	const seen = linked_set();
 	for (const href of hrefs) {
-		if (seen.has(href)) continue;
-		seen.add(href);
+		if (seen.get(href)) continue;
+		seen.set(href, true);
 		const link = document.createElement('link');
 		link.rel = 'modulepreload';
 		// the load class's priority (load-scheduler.ts); the island's `import()` reuses this in-flight fetch
@@ -110,5 +114,6 @@ export function preload_island_graph(
 export function reset_island_graph(): void {
 	graph.clear();
 	read_scripts = new WeakSet();
-	linked = null;
+	linked.clear();
+	linked_read = false;
 }

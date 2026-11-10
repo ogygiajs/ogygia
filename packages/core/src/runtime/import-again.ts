@@ -19,7 +19,7 @@
  * imports nothing of the boot (only `@ogygia/machine`, which the boot runs on); the boot hands it
  * its message (`on_reload_needed`).
  */
-import { flights, machine, scope, STALE } from '@ogygia/machine';
+import { cache, flights, machine, scope, STALE } from '@ogygia/machine';
 
 /** One task from now: the engine's own queued work (a resource-timing entry) runs first. Its own
  *  scope: it ends itself, and no page's visit owns a file's load. */
@@ -187,8 +187,13 @@ const file_definition = machine<{
 });
 
 /** Each file's loader, by URL (an island's own file: its load, and the warm ahead of it): what it
- *  asks for next (the file, or a fresh URL after a failed download). */
-const file_loaders = new Map<string, () => Promise<unknown>>();
+ *  asks for next (the file, or a fresh URL after a failed download). The files this document's
+ *  islands came from; past the bound the least recently loaded goes (its next load starts fresh,
+ *  and the browser's module map still holds what it loaded). */
+const file_loaders = cache<string, () => Promise<unknown>>({
+	name: 'island file loaders',
+	max: 2000
+});
 
 /** One load of each file at a time, kept once it lands: loads of one file that fail together share
  *  one retry, so a failure gets one fresh URL and the module runs once (#271). */

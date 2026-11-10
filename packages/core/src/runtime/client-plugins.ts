@@ -8,11 +8,14 @@ import type { ClientPlugin } from '../plugin/client.ts';
 export const CLIENT_PLUGINS: boolean =
 	typeof __OGYGIA_CLIENT_PLUGINS__ !== 'undefined' ? __OGYGIA_CLIENT_PLUGINS__ : false;
 
-let plugins: readonly ClientPlugin[] = [];
+/** No plugins (before the boot, or an app with none). */
+const NO_PLUGINS: readonly ClientPlugin[] = Object.freeze([]);
+/** The app's plugins, as the boot handed them (one list per document: the build's, never grown). */
+let booted: { readonly plugins: readonly ClientPlugin[] } = { plugins: NO_PLUGINS };
 
 /** Boot each plugin's browser half (the runtime's boot, or a Kit-owned page's). */
 export function boot_client_plugins(list: readonly ClientPlugin[], kit_page: boolean): void {
-	plugins = list;
+	booted = { plugins: list };
 	for (const p of list) p.boot?.({ kitPage: kit_page });
 }
 
@@ -21,7 +24,7 @@ export function client_region_mount(el: Element): void {
 	const entry = el.getAttribute('entry');
 	if (!entry) return;
 	let urls: string[] | undefined;
-	for (const p of plugins) {
+	for (const p of booted.plugins) {
 		if (!p.regionMount) continue;
 		urls ??= region_urls(el, entry);
 		p.regionMount(el, { entry, urls });
@@ -30,7 +33,7 @@ export function client_region_mount(el: Element): void {
 
 /** A region's component left the page. */
 export function client_region_unmount(el: Element, entry: string): void {
-	for (const p of plugins) p.regionUnmount?.(el, { entry });
+	for (const p of booted.plugins) p.regionUnmount?.(el, { entry });
 }
 
 function region_urls(el: Element, entry: string): string[] {

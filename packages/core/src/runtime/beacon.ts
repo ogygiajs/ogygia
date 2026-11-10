@@ -38,8 +38,64 @@ interface Sample {
 	reason?: string;
 }
 
+/**
+ * WHAT THE BEACON COLLECTS for the document, in one record (made anew only by a test's reset).
+ * Each list is capped where it grows (the island samples and marks sent in batches of 400, the
+ * visit's lists at a few dozen, the resources at MAX_SEEN_RESOURCES, the CPU traces at 5), and the
+ * failed islands' maps hold one row per island of the page.
+ */
+class Collected {
+	/** the islands' samples waiting to be sent */
+	readonly queue: Sample[] = [];
+	/** the app's own marks waiting to be sent (`mark()` from ogygia/profiler/client) */
+	readonly marks: Mark[] = [];
+	readonly visit_islands: VisitIslandRec[] = [];
+	readonly visit_firsts: { fp: string; t: number; type: string }[] = [];
+	/** the last inputs, any target (a ring): which island something touched while it hydrated */
+	readonly recent_inputs: { t: number; el: WeakRef<Element>; type: string }[] = [];
+	readonly visit_shifts: Shift[] = [];
+	readonly visit_longtasks: { t: number; ms: number }[] = [];
+	/** main-thread ms per script */
+	readonly visit_scripts = new Map<string, { ms: number; count: number }>();
+	/** scripts that forced style and layout (5 ms or more), each with its window on the page's clock */
+	readonly visit_forced: { start: number; end: number; ms: number; url: string; fn: string }[] = [];
+	/** long frames (50 ms or more) that began while the page scrolled, with their two biggest scripts */
+	readonly visit_scroll_jank: {
+		start: number;
+		ms: number;
+		scripts: { url: string; fn: string; invoker: string; ms: number }[];
+	}[] = [];
+	/** when the page scrolled lately (at most one stamp per 50 ms, the last 200) */
+	readonly scroll_times: number[] = [];
+	readonly visit_frames: Frame[] = [];
+	/** Svelte's hydration warnings (dev) */
+	readonly visit_warnings: {
+		code: string;
+		message: string;
+		file?: string;
+		fp?: string;
+		t: number;
+	}[] = [];
+	readonly visit_holes_failed: HoleFailed[] = [];
+	readonly visit_hole_batches: HoleBatchMiss[] = [];
+	readonly visit_holes_answered: HoleAnswered[] = [];
+	readonly visit_entry_fallbacks: EntryFallback[] = [];
+	/** the asks for each hole's HTML (200 at most) */
+	readonly hole_fetches = new Map<string, number>();
+	readonly visit_marks: { name: string; ms: number; t0?: number }[] = [];
+	readonly snapshots: Snapshot[] = [];
+	readonly seen_resources: PerformanceResourceTiming[] = [];
+	/** the kept CPU traces, newest first (5 at most) */
+	cpu_kept: CpuKept[] = [];
+	/** each failed island's message, span and turn, by fingerprint */
+	readonly failed_fps = new Map<string, string>();
+	readonly failed_spans = new Map<string, [number, number]>();
+	readonly failed_turns = new Map<string, number>();
+	readonly visit_navs: NavOut[] = [];
+}
+let C = new Collected();
+
 let target: string | null | undefined;
-let queue: Sample[] = [];
 let scheduled = false;
 let listening = false;
 
@@ -51,7 +107,6 @@ interface Mark {
 	t0?: number;
 	attrs?: Record<string, string | number | boolean>;
 }
-let marks: Mark[] = [];
 
 // ONE BEACON A PAGE. Two copies of this module can land on one page: two apps' runtimes (a
 // federated page), or an island reaching `ogygia/profiler/client` through another build of the
@@ -110,15 +165,15 @@ export function beacon_mark(
 	const o = owner();
 	if (o) return o.beacon_mark(name, ms, attrs, t0);
 	if (!collecting() || !name) return;
-	if (visit_marks.length >= 400) return;
-	if (endpoint() && marks.length < 400)
-		marks.push({
+	if (C.visit_marks.length >= 400) return;
+	if (endpoint() && C.marks.length < 400)
+		C.marks.push({
 			name: String(name).slice(0, 120),
 			ms: Math.max(0, Math.round(ms * 100) / 100),
 			...(t0 !== undefined ? { t0: Math.round(t0 * 100) / 100 } : {}),
 			...(attrs ? { attrs } : {})
 		});
-	visit_marks.push({
+	C.visit_marks.push({
 		name: String(name).slice(0, 120),
 		ms: Math.max(0, Math.round(ms * 100) / 100),
 		...(t0 !== undefined ? { t0: Math.round(t0 * 100) / 100 } : {})
@@ -180,11 +235,6 @@ interface Shift {
 	from?: [number, number, number, number];
 	to?: [number, number, number, number];
 }
-let visit_islands: VisitIslandRec[] = [];
-let visit_firsts: { fp: string; t: number; type: string }[] = [];
-/** the last inputs, any target (a ring): which island something touched while it hydrated */
-const recent_inputs: { t: number; el: WeakRef<Element>; type: string }[] = [];
-
 /** One attribute that differs between the server's markup and the island's after hydrate. */
 export interface AttrChange {
 	tag: string;
@@ -270,24 +320,11 @@ export function attr_changes(a: string, b: string): AttrChange[] | null {
 	}
 	return out;
 }
-let visit_shifts: Shift[] = [];
-let visit_longtasks: { t: number; ms: number }[] = [];
 /** the long tasks are frames drawn late (a browser with no long-task timing): see watch_frame_gaps */
 let longtasks_from_frames = false;
-/** main-thread ms per script URL (query off), from long animation frames */
-let visit_scripts = new Map<string, { ms: number; count: number }>();
-/** scripts that forced style and layout (5 ms or more), each with its window on the page's clock */
-let visit_forced: { start: number; end: number; ms: number; url: string; fn: string }[] = [];
-/** long frames (50 ms or more) that began while the page scrolled, with their two biggest scripts */
-let visit_scroll_jank: {
-	start: number;
-	ms: number;
-	scripts: { url: string; fn: string; invoker: string; ms: number }[];
-}[] = [];
-/** when the page scrolled lately (at most one stamp per 50 ms, the last 200): the long frames are
- *  delivered after the fact, so each is matched to the scrolls around its own start */
-let scroll_times: number[] = [];
-const scrolled_near = (t: number) => scroll_times.some((s) => s >= t - 150 && s <= t + 50);
+/** a long frame began while the page scrolled: the long frames are delivered after the fact, so
+ *  each is matched to the scrolls around its own start (`C.scroll_times`) */
+const scrolled_near = (t: number) => C.scroll_times.some((s) => s >= t - 150 && s <= t + 50);
 /** THE SLOWEST INTERACTION (the one INP reports), split the way the browser times it: the wait
  *  before its handlers ran, the handlers, and the paint after. `target`: what was clicked, told
  *  briefly; `fp`: the island it was in */
@@ -319,11 +356,8 @@ interface Frame {
 		forced?: number;
 	}[];
 }
-let visit_frames: Frame[] = [];
 const MAX_FRAMES = 40;
 /** Svelte's hydration warnings (dev): the server and the browser disagreed, Svelte kept the server's */
-let visit_warnings: { code: string; message: string; file?: string; fp?: string; t: number }[] = [];
-
 export function beacon_warning(w: {
 	code: string;
 	message: string;
@@ -334,8 +368,8 @@ export function beacon_warning(w: {
 	const o = owner();
 	if (o) return o.beacon_warning(w);
 	if (!collecting()) return;
-	if (!make_room(visit_warnings, 50, (x) => x.t)) return;
-	visit_warnings.push(w);
+	if (!make_room(C.visit_warnings, 50, (x) => x.t)) return;
+	C.visit_warnings.push(w);
 	if (early_visit_done) resend_soon();
 }
 /** holes whose answer never came (no retry after): the profiler names them like the devtools do */
@@ -350,20 +384,21 @@ export interface HoleFailed {
 	attempts: number;
 	t: number;
 }
-let visit_holes_failed: HoleFailed[] = [];
 export function beacon_hole_failed(h: HoleFailed): void {
 	const o = owner();
 	if (o) return o.beacon_hole_failed(h);
 	if (
 		!collecting() ||
-		visit_holes_failed.length >= 30 ||
-		visit_holes_failed.some((x) => x.id === h.id)
+		C.visit_holes_failed.length >= 30 ||
+		C.visit_holes_failed.some((x) => x.id === h.id)
 	)
 		return;
-	visit_holes_failed.push(h);
+	C.visit_holes_failed.push(h);
 	if (early_visit_done) resend_soon();
 }
+// static: font file extensions
 const FONT_EXT = new Set(['woff', 'woff2', 'ttf', 'otf']);
+// static: image file extensions
 const IMG_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg']);
 const LINK_AS: Record<string, string> = {
 	style: 'css',
@@ -428,7 +463,6 @@ export interface HoleBatchMiss {
 	/** the holes' island ids */
 	ids: string[];
 }
-let visit_hole_batches: HoleBatchMiss[] = [];
 
 /** The restorer's log (runtime/restore.ts `__og_restore_log`): its late and mismatched hosts. */
 function restore_log(): {
@@ -458,7 +492,7 @@ export function beacon_hole_batch_missed(
 ): void {
 	const o = owner();
 	if (o) return o.beacon_hole_batch_missed?.(m);
-	if (!collecting() || visit_hole_batches.length >= 10) return;
+	if (!collecting() || C.visit_hole_batches.length >= 10) return;
 	const ids: string[] = [];
 	for (const e of m.endpoints.slice(0, 32)) {
 		try {
@@ -467,7 +501,7 @@ export function beacon_hole_batch_missed(
 			ids.push('');
 		}
 	}
-	visit_hole_batches.push({
+	C.visit_hole_batches.push({
 		sent: m.sent,
 		delivered: m.delivered,
 		status: m.status,
@@ -512,7 +546,6 @@ export function hole_request_times(
 	}
 	return null;
 }
-let visit_holes_answered: HoleAnswered[] = [];
 
 /** An island whose LOCATION failed to load and fell back to its identity fetched fresh
  *  (runtime/entry-locations.ts): the page came from a build whose files are gone. */
@@ -524,35 +557,32 @@ export interface EntryFallback {
 	/** the fresh identity loaded (false: that failed too) */
 	recovered: boolean;
 }
-let visit_entry_fallbacks: EntryFallback[] = [];
 export function beacon_entry_fallback(f: EntryFallback): void {
 	const o = owner();
 	if (o) return o.beacon_entry_fallback?.(f);
 	if (
 		!collecting() ||
-		visit_entry_fallbacks.length >= 20 ||
-		visit_entry_fallbacks.some((x) => x.entry === f.entry)
+		C.visit_entry_fallbacks.length >= 20 ||
+		C.visit_entry_fallbacks.some((x) => x.entry === f.entry)
 	)
 		return;
-	visit_entry_fallbacks.push({
+	C.visit_entry_fallbacks.push({
 		entry: f.entry.slice(0, 300),
 		src: f.src.slice(0, 300),
 		recovered: f.recovered
 	});
 	if (early_visit_done) resend_soon();
 }
-/** each hole URL (absolute) → how many times the runtime asked the network for it */
-let hole_fetches = new Map<string, number>();
 /** The runtime asks for a hole's HTML (each ask, retries and re-asks included): what lets a
  *  preload followed by a download read as used-then-asked-again, not as a preload the browser could
  *  not use. */
 export function beacon_hole_fetched(endpoint: string): void {
 	const o = owner();
 	if (o) return o.beacon_hole_fetched?.(endpoint);
-	if (!collecting() || hole_fetches.size >= 200) return;
+	if (!collecting() || C.hole_fetches.size >= 200) return;
 	try {
 		const url = new URL(endpoint, location.href).href;
-		hole_fetches.set(url, (hole_fetches.get(url) ?? 0) + 1);
+		C.hole_fetches.set(url, (C.hole_fetches.get(url) ?? 0) + 1);
 	} catch {
 		// ok: not a URL, so not a file the page loaded
 	}
@@ -568,7 +598,7 @@ export function beacon_hole_answered(
 	const o = owner();
 	// (an older owning copy has no such entry: stay quiet)
 	if (o) return o.beacon_hole_answered?.(el, start, batch);
-	if (!collecting() || visit_holes_answered.length >= 30) return;
+	if (!collecting() || C.visit_holes_answered.length >= 30) return;
 	let id = '';
 	try {
 		id = new URL(el.getAttribute('endpoint') ?? '', location.href).searchParams.get('id') ?? '';
@@ -588,10 +618,10 @@ export function beacon_hole_answered(
 				batch: batch.size
 			}
 		: hole_request_times(el.getAttribute('endpoint') ?? '', performance.now());
-	visit_holes_answered.push({
+	C.visit_holes_answered.push({
 		id,
 		// its place in this visit's list: the early message and the final one fold by it
-		n: visit_holes_answered.length,
+		n: C.visit_holes_answered.length,
 		start: Math.round(start),
 		t: Math.round(performance.now()),
 		below_fold: rect.top + scrollY > innerHeight,
@@ -601,7 +631,6 @@ export function beacon_hole_answered(
 	});
 	if (early_visit_done) resend_soon();
 }
-let visit_marks: { name: string; ms: number; t0?: number }[] = [];
 let visit_paints: {
 	fcp?: number;
 	lcp?: number;
@@ -618,9 +647,6 @@ let visit_paints: {
  *  its island is still there: an in-app navigation away takes both, and replaces nothing */
 let lcp_el: Element | null = null;
 let lcp_region: Element | null = null;
-/** an island's markup as the server sent it and after it hydrated — the browser store only */
-let snapshots: Snapshot[] = [];
-
 /**
  * THE VISIT'S STATE. A hide sends the vitals and the visit (`sent`), but the visit is not over:
  * coming back to the tab, or a back/forward cache restore, opens it again (`reopened`), and what
@@ -692,8 +718,7 @@ function describe_target(node: Node | null | undefined): string {
 const rect_of = (r: DOMRectReadOnly | undefined): [number, number, number, number] | undefined =>
 	r ? [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)] : undefined;
 
-/** every resource entry the observer saw (the browser's own buffer stops at 250 by default) */
-let seen_resources: PerformanceResourceTiming[] = [];
+/** every resource entry the observer saw, at most (the browser's own buffer stops at 250 by default) */
 const MAX_SEEN_RESOURCES = 3000;
 /** the files a visit lists one by one (the rest are in its totals by type) */
 const MAX_DETAIL_RESOURCES = 200;
@@ -703,6 +728,7 @@ const MAX_REFETCHED = 40;
 const UNCOMPRESSED_MIN = 4096;
 const MAX_UNCOMPRESSED = 10;
 /** extensions that compress well (text, and wasm), whatever fetched them */
+// static: the text file extensions a server compresses
 const TEXT_EXT = new Set([
 	'js',
 	'mjs',
@@ -758,8 +784,8 @@ function observe_vitals(): void {
 	}
 	observe('resource', (entries) => {
 		for (const e of entries)
-			if (seen_resources.length < MAX_SEEN_RESOURCES)
-				seen_resources.push(e as PerformanceResourceTiming);
+			if (C.seen_resources.length < MAX_SEEN_RESOURCES)
+				C.seen_resources.push(e as PerformanceResourceTiming);
 	});
 	observe('largest-contentful-paint', (entries) => {
 		const last = entries[entries.length - 1] as
@@ -800,11 +826,11 @@ function observe_vitals(): void {
 		})[]) {
 			if (e.hadRecentInput || typeof e.value !== 'number') continue;
 			cls += e.value;
-			if (make_room(visit_shifts, 60, (s) => s.t)) {
+			if (make_room(C.visit_shifts, 60, (s) => s.t)) {
 				const src = e.sources?.[0];
 				// (the element that moved, told briefly, for a shift outside any island: `p "Lorem…"`)
 				const tag = src?.node ? describe_target(src.node) : '';
-				visit_shifts.push({
+				C.visit_shifts.push({
 					t: r2(e.startTime),
 					value: Math.round(e.value * 10000) / 10000,
 					...(src?.node ? { fp: fp_of(src.node) } : {}),
@@ -869,8 +895,8 @@ function observe_vitals(): void {
 	});
 	observe('longtask', (entries) => {
 		for (const e of entries)
-			if (make_room(visit_longtasks, 100, (l) => l.t))
-				visit_longtasks.push({ t: r2(e.startTime), ms: r2(e.duration) });
+			if (make_room(C.visit_longtasks, 100, (l) => l.t))
+				C.visit_longtasks.push({ t: r2(e.startTime), ms: r2(e.duration) });
 	});
 	if (!supports('longtask')) watch_frame_gaps();
 	// WHICH SCRIPT held the main thread, from the page's start (buffered): the long animation frames
@@ -900,9 +926,9 @@ function observe_vitals(): void {
 			if (
 				e.duration >= 50 &&
 				scrolled_near(e.startTime) &&
-				make_room(visit_scroll_jank, 20, (j) => j.start)
+				make_room(C.visit_scroll_jank, 20, (j) => j.start)
 			) {
-				visit_scroll_jank.push({
+				C.visit_scroll_jank.push({
 					start: r2(e.startTime),
 					ms: r2(e.duration),
 					scripts: (e.scripts ?? [])
@@ -920,10 +946,10 @@ function observe_vitals(): void {
 			for (const s of e.scripts ?? [])
 				if (
 					(s.forcedStyleAndLayoutDuration ?? 0) >= 5 &&
-					make_room(visit_forced, 30, (f) => f.start)
+					make_room(C.visit_forced, 30, (f) => f.start)
 				) {
 					const start = s.startTime ?? e.startTime;
-					visit_forced.push({
+					C.visit_forced.push({
 						start: r2(start),
 						end: r2(start + (s.duration ?? 0)),
 						ms: r2(s.forcedStyleAndLayoutDuration ?? 0),
@@ -932,7 +958,7 @@ function observe_vitals(): void {
 					});
 				}
 			// each frame, kept briefly, with its scripts: what an interaction waited behind or ran
-			visit_frames.push({
+			C.visit_frames.push({
 				start: r2(e.startTime),
 				end: r2(e.startTime + e.duration),
 				scripts: (e.scripts ?? []).slice(0, 8).map((s) => ({
@@ -947,17 +973,18 @@ function observe_vitals(): void {
 						: {})
 				}))
 			});
-			if (visit_frames.length > MAX_FRAMES) visit_frames.shift();
+			if (C.visit_frames.length > MAX_FRAMES) C.visit_frames.shift();
 			for (const s of e.scripts ?? []) {
 				const url = s.sourceURL ?? '';
 				if (!url || !(s.duration && s.duration > 0)) continue;
 				const q = url.indexOf('?');
 				const key = (q === -1 ? url : url.slice(0, q)).slice(0, 300);
-				const cur = visit_scripts.get(key);
+				const cur = C.visit_scripts.get(key);
 				if (cur) {
 					cur.ms += s.duration;
 					cur.count++;
-				} else if (visit_scripts.size < 100) visit_scripts.set(key, { ms: s.duration, count: 1 });
+				} else if (C.visit_scripts.size < 100)
+					C.visit_scripts.set(key, { ms: s.duration, count: 1 });
 			}
 		}
 	});
@@ -965,8 +992,8 @@ function observe_vitals(): void {
 	// is flagged (beacon_hydrated)
 	const note_input = (type: string) => (ev: Event) => {
 		if (!(ev.target instanceof Element)) return;
-		recent_inputs.push({ t: performance.now(), el: new WeakRef(ev.target), type });
-		if (recent_inputs.length > 64) recent_inputs.shift();
+		C.recent_inputs.push({ t: performance.now(), el: new WeakRef(ev.target), type });
+		if (C.recent_inputs.length > 64) C.recent_inputs.shift();
 	};
 	try {
 		for (const type of ['pointerover', 'pointerdown', 'keydown', 'focusin'] as const)
@@ -985,7 +1012,7 @@ function observe_vitals(): void {
 		// that waited behind a long hydrate task still landed before the island was awake
 		const at =
 			ev.timeStamp > 0 && ev.timeStamp <= performance.now() ? ev.timeStamp : performance.now();
-		visit_firsts.push({ fp, t: r2(at), type });
+		C.visit_firsts.push({ fp, t: r2(at), type });
 	};
 	try {
 		// oxlint-disable-next-line ogygia/owned-effects -- the visit's first press per island, watched once with the vitals (`vitals`), as long as the document
@@ -998,9 +1025,9 @@ function observe_vitals(): void {
 			'scroll',
 			() => {
 				const t = performance.now();
-				if (scroll_times.length && t - scroll_times[scroll_times.length - 1] < 50) return;
-				scroll_times.push(t);
-				if (scroll_times.length > 200) scroll_times.shift();
+				if (C.scroll_times.length && t - C.scroll_times[C.scroll_times.length - 1] < 50) return;
+				C.scroll_times.push(t);
+				if (C.scroll_times.length > 200) C.scroll_times.shift();
 			},
 			{ capture: true, passive: true }
 		);
@@ -1131,7 +1158,7 @@ function interaction_with_scripts(i: Interaction): Interaction & {
 		phase: 'delay' | 'handler' | 'paint';
 		forced?: number;
 	}[] = [];
-	for (const f of visit_frames) {
+	for (const f of C.visit_frames) {
 		if (f.end < i.t || f.start > end) continue;
 		for (const s of f.scripts) {
 			// (a script that ended before the input landed is not in the way; one that runs through it is)
@@ -1557,8 +1584,8 @@ function build_visit_now(): Record<string, unknown> | null {
 	const raw_seen = new Set<string>();
 	try {
 		// the observer's list (it saw past the browser's buffer), else the buffer
-		const listed = seen_resources.length
-			? seen_resources
+		const listed = C.seen_resources.length
+			? C.seen_resources
 			: (performance.getEntriesByType('resource') as PerformanceResourceTiming[]);
 		// (not the profiler's requests, nor the devtools' own reads of the page's files)
 		const all = listed.filter((r) => !r.name.includes('/__profiler/') && !tool_made(r));
@@ -1616,7 +1643,7 @@ function build_visit_now(): Record<string, unknown> | null {
 			// (the runtime asked for a hole more often than the network served it: the preload WAS
 			// used, and the download is the runtime's own second ask — a hole fetched again after
 			// Kit rebuilt the page, a retry)
-			if (downloads.length < (hole_fetches.get(url) ?? 0)) continue;
+			if (downloads.length < (C.hole_fetches.get(url) ?? 0)) continue;
 			if (pre && again)
 				preload_misses.push({
 					url: url.slice(0, 500),
@@ -1625,7 +1652,7 @@ function build_visit_now(): Record<string, unknown> | null {
 					as: link_as.get(url) ?? '',
 					crossorigin: link_co.get(url) ?? null,
 					// a hole the runtime asked for (its preload is ogygia's own): known by the ask, not the path
-					...(hole_fetches.has(url) ? { hole: true as const } : {})
+					...(C.hole_fetches.has(url) ? { hole: true as const } : {})
 				});
 		}
 		// CONTENT-NAMED FILES FETCHED AGAIN: a file under `/immutable/` is named by its content, so a
@@ -1806,35 +1833,35 @@ function build_visit_now(): Record<string, unknown> | null {
 		// (sent empty too: "the browser looked and found none" is what lets the profiler drop its
 		// guess from the HTML)
 		...(unsized ? { images_unsized: unsized } : {}),
-		...(visit_forced.length ? { forced_layout: visit_forced.slice() } : {}),
-		...(visit_scroll_jank.length ? { scroll_jank: visit_scroll_jank.slice() } : {}),
+		...(C.visit_forced.length ? { forced_layout: C.visit_forced.slice() } : {}),
+		...(C.visit_scroll_jank.length ? { scroll_jank: C.visit_scroll_jank.slice() } : {}),
 		...(refetched.length ? { refetched } : {}),
-		...(visit_navs.length ? { navs: visit_navs.slice() } : {}),
-		longtasks: visit_longtasks,
+		...(C.visit_navs.length ? { navs: C.visit_navs.slice() } : {}),
+		longtasks: C.visit_longtasks,
 		...(longtasks_from_frames ? { longtasks_from: 'frames' } : {}),
 		...(island_boxes ? { shifts_from: 'boxes' } : {}),
-		islands: visit_islands,
-		firsts: visit_firsts,
-		shifts: visit_shifts,
+		islands: C.visit_islands,
+		firsts: C.visit_firsts,
+		shifts: C.visit_shifts,
 		...(visit_interaction ? { interaction: interaction_with_scripts(visit_interaction) } : {}),
-		...(visit_scripts.size
+		...(C.visit_scripts.size
 			? {
-					scripts: [...visit_scripts]
+					scripts: [...C.visit_scripts]
 						.map(([url, s]) => ({ url, ms: r2(s.ms), count: s.count }))
 						.sort((a, b) => b.ms - a.ms)
 						.slice(0, 50)
 				}
 			: {}),
 		regions: visit_regions(),
-		...(visit_warnings.length ? { warnings: visit_warnings.slice() } : {}),
-		...(visit_holes_failed.length ? { holes_failed: visit_holes_failed.slice() } : {}),
-		...(visit_holes_answered.length ? { holes_answered: visit_holes_answered.slice() } : {}),
-		...(visit_hole_batches.length ? { hole_batches: visit_hole_batches.slice() } : {}),
+		...(C.visit_warnings.length ? { warnings: C.visit_warnings.slice() } : {}),
+		...(C.visit_holes_failed.length ? { holes_failed: C.visit_holes_failed.slice() } : {}),
+		...(C.visit_holes_answered.length ? { holes_answered: C.visit_holes_answered.slice() } : {}),
+		...(C.visit_hole_batches.length ? { hole_batches: C.visit_hole_batches.slice() } : {}),
 		// a server transform's restore that went wrong (runtime/restore.ts keeps the log: it ran
 		// while the page parsed)
 		...restore_log(),
-		...(visit_entry_fallbacks.length ? { entry_fallbacks: visit_entry_fallbacks.slice() } : {}),
-		...(visit_marks.length ? { marks: visit_marks } : {}),
+		...(C.visit_entry_fallbacks.length ? { entry_fallbacks: C.visit_entry_fallbacks.slice() } : {}),
+		...(C.visit_marks.length ? { marks: C.visit_marks } : {}),
 		// the vitals so far, in every visit message (the early one, the final one): a visit whose
 		// hide-time vitals message never left still reports them
 		...(vitals && Object.keys(vitals).length ? { vitals: { ...vitals } } : {}),
@@ -1876,7 +1903,7 @@ function flush_visit(final: boolean): void {
 	if (!visit) return;
 	if (final) {
 		// the islands' final markup, for the browser store's third moment
-		for (const s of snapshots) {
+		for (const s of C.snapshots) {
 			const el = document.querySelector(`ogygia-region[data-og-fp="${s.fp}"]`);
 			if (el) {
 				// (a windowed snapshot: the same window of the markup without comments or runtime marks)
@@ -1908,7 +1935,7 @@ function flush_visit(final: boolean): void {
 		page: visit_page(),
 		at: visit.at as number,
 		visit,
-		snapshots
+		snapshots: C.snapshots
 	}); // ok: never rejects (a browser store it cannot open keeps nothing)
 }
 
@@ -2003,8 +2030,6 @@ interface SelfProfiler {
 let cpu: SelfProfiler | null = null;
 let cpu_sent = false;
 const CPU_WINDOW_MS = 8000;
-/** devtools: the load trace, and any recording started from the Page tab, kept in the page */
-let cpu_kept: CpuKept[] = [];
 /** a kept trace; an interaction's carries its spans (the wait, the handlers) */
 export interface CpuKept {
 	trace: unknown;
@@ -2035,9 +2060,6 @@ function make_profiler(): SelfProfiler | null {
 	}
 }
 
-/** islands that failed to hydrate (never `data-hydrated`), with the error: the CPU window does not
- *  wait for them, and the visit reports them */
-const failed_fps = new Map<string, string>();
 /** THE IN-APP NAVIGATIONS (the router's body swaps), each on the page's clock: its start, the page
  *  fetched, its stylesheets in, the swap committed. A slow one is a cost the document's own timing
  *  never shows; the islands the new page woke are in the visit's island list, after `swapped`. */
@@ -2061,12 +2083,11 @@ type NavOut = Omit<NavRec, 'href'> & {
 	bytes?: number;
 	prefetched?: true;
 };
-let visit_navs: NavOut[] = [];
 export function beacon_nav(n: NavRec): void {
 	const o = owner();
 	// (an older owning copy has no such entry: stay quiet)
 	if (o) return o.beacon_nav?.(n);
-	if (!collecting() || visit_navs.length >= 20) return;
+	if (!collecting() || C.visit_navs.length >= 20) return;
 	let split: Pick<NavOut, 'server' | 'download' | 'bytes' | 'prefetched'> = {};
 	try {
 		// the page request: the latest fetch of that address that was done by the time it arrived
@@ -2097,9 +2118,9 @@ export function beacon_nav(n: NavRec): void {
 	}
 	if (first_nav_t === undefined) {
 		first_nav_t = n.t;
-		snapshot_firsts = snapshots.length;
+		snapshot_firsts = C.snapshots.length;
 	}
-	visit_navs.push({
+	C.visit_navs.push({
 		from: n.from.slice(0, 300),
 		to: n.to.slice(0, 300),
 		type: (n.type || 'link').slice(0, 20),
@@ -2118,14 +2139,12 @@ export function beacon_failed(el: Element, message?: string, since?: number, tur
 	if (!collecting()) return;
 	const fp = el.getAttribute('data-og-fp');
 	if (!fp) return;
-	failed_fps.set(fp, (message ?? '').slice(0, 300));
+	C.failed_fps.set(fp, (message ?? '').slice(0, 300));
 	// its wake → now: it was loading (and held the turns of islands below the fold) meanwhile
-	if (typeof since === 'number') failed_spans.set(fp, [r2(since), r2(performance.now())]);
+	if (typeof since === 'number') C.failed_spans.set(fp, [r2(since), r2(performance.now())]);
 	// its hydrate step → now: it held the thread, as a hydrating island does
-	if (typeof turn === 'number') failed_turns.set(fp, r2(turn));
+	if (typeof turn === 'number') C.failed_turns.set(fp, r2(turn));
 }
-const failed_spans = new Map<string, [number, number]>();
-const failed_turns = new Map<string, number>();
 
 const MEASURED_TYPES = [
 	'layout-shift',
@@ -2224,9 +2243,9 @@ function box_shift(
 		Math.round(
 			((seen * Math.min(after.width, vw)) / (vh * vw)) * (moved / Math.max(vw, vh)) * 10000
 		) / 10000;
-	if (value < 0.0001 || !make_room(visit_shifts, 60, (s) => s.t)) return now;
+	if (value < 0.0001 || !make_room(C.visit_shifts, 60, (s) => s.t)) return now;
 	const tag = describe_target(el);
-	visit_shifts.push({
+	C.visit_shifts.push({
 		t: r2(t),
 		value,
 		fp,
@@ -2277,8 +2296,8 @@ function watch_frame_gaps(): void {
 		if (document.visibilityState !== 'visible') last = 0;
 		else {
 			const late = last ? now - last - FRAME_MS : 0;
-			if (late > STALL_MS && make_room(visit_longtasks, 100, (l) => l.t))
-				visit_longtasks.push({ t: r2(last + FRAME_MS), ms: r2(late) });
+			if (late > STALL_MS && make_room(C.visit_longtasks, 100, (l) => l.t))
+				C.visit_longtasks.push({ t: r2(last + FRAME_MS), ms: r2(late) });
 			last = now;
 		}
 		const nav = performance.getEntriesByType('navigation')[0] as
@@ -2325,7 +2344,7 @@ function visit_regions(): Record<string, unknown>[] {
 						break;
 					}
 				}
-			const failed = failed_fps.get(fp);
+			const failed = C.failed_fps.get(fp);
 			out.push({
 				fp,
 				...(el.getAttribute('entry') ? { entry: el.getAttribute('entry')! } : {}),
@@ -2335,8 +2354,8 @@ function visit_regions(): Record<string, unknown>[] {
 				...(failed !== undefined
 					? {
 							failed,
-							...(failed_spans.has(fp) ? { failed_span: failed_spans.get(fp) } : {}),
-							...(failed_turns.has(fp) ? { failed_turn: failed_turns.get(fp) } : {})
+							...(C.failed_spans.has(fp) ? { failed_span: C.failed_spans.get(fp) } : {}),
+							...(C.failed_turns.has(fp) ? { failed_turn: C.failed_turns.get(fp) } : {})
 						}
 					: {}),
 				top: Math.round(box.top + sy),
@@ -2366,7 +2385,7 @@ function start_cpu(): void {
 	cpu_started_at = performance.now();
 	const check = () => {
 		const now = performance.now();
-		const last = visit_islands.length ? visit_islands[visit_islands.length - 1].done : 0;
+		const last = C.visit_islands.length ? C.visit_islands[C.visit_islands.length - 1].done : 0;
 		// still waking: one woke a moment ago, or one that wakes at load has not yet (a loaded
 		// machine can be that slow — stopping now would sample the page without its hydration)
 		let waiting = false;
@@ -2374,7 +2393,7 @@ function start_cpu(): void {
 			for (const el of document.querySelectorAll(
 				'ogygia-region[data-og-fp]:not([data-hydrated]):not([wake]):not([render="defer"]), ogygia-region[data-og-fp][wake="load"]:not([data-hydrated])'
 			))
-				if (!failed_fps.has(el.getAttribute('data-og-fp') ?? '')) {
+				if (!C.failed_fps.has(el.getAttribute('data-og-fp') ?? '')) {
 					waiting = true;
 					break;
 				}
@@ -2402,9 +2421,9 @@ async function flush_cpu(hiding: boolean): Promise<void> {
 		return;
 	}
 	if (DEVTOOLS && trace)
-		cpu_kept = [
+		C.cpu_kept = [
 			{ trace, from: cpu_started_at, to: performance.now(), label: 'page load' },
-			...cpu_kept.slice(0, 4)
+			...C.cpu_kept.slice(0, 4)
 		];
 	// the load is sampled: now wait, sampling, for a slow interaction (never while hiding)
 	if (!hiding) start_interaction_cpu();
@@ -2494,9 +2513,9 @@ async function stop_interaction_cpu(hiding: boolean): Promise<void> {
 		};
 	}
 	if (DEVTOOLS)
-		cpu_kept = [
+		C.cpu_kept = [
 			{ trace, from: caught.wait[0], to: caught.handler[1], label: 'interaction', spans: caught },
-			...cpu_kept.slice(0, 4)
+			...C.cpu_kept.slice(0, 4)
 		];
 	const url = endpoint();
 	if (!url) return;
@@ -2545,9 +2564,9 @@ let first_nav_t: number | undefined;
 /** how many snapshots the first page took (a snapshot has no time of its own) */
 let snapshot_firsts = 0;
 function snapshot_room(): boolean {
-	if (snapshots.length < MAX_SNAPSHOTS) return true;
-	if (first_nav_t === undefined || snapshots.length <= snapshot_firsts) return false;
-	snapshots.splice(snapshot_firsts, 1);
+	if (C.snapshots.length < MAX_SNAPSHOTS) return true;
+	if (first_nav_t === undefined || C.snapshots.length <= snapshot_firsts) return false;
+	C.snapshots.splice(snapshot_firsts, 1);
 	return true;
 }
 function make_room<T>(list: T[], cap: number, t_of: (x: T) => number): boolean {
@@ -2600,13 +2619,13 @@ function flush(): void {
 }
 function flush_now(): void {
 	scheduled = false;
-	if (queue.length || marks.length) {
+	if (C.queue.length || C.marks.length) {
 		// (sendBeacon sends `text/plain` without a preflight; the profiler parses the body as JSON)
 		send(
 			JSON.stringify({
 				page: location.pathname,
-				...(queue.length ? { islands: queue.splice(0, 400) } : {}),
-				...(marks.length ? { marks: marks.splice(0, 400) } : {})
+				...(C.queue.length ? { islands: C.queue.splice(0, 400) } : {}),
+				...(C.marks.length ? { marks: C.marks.splice(0, 400) } : {})
 			})
 		);
 	}
@@ -2741,10 +2760,10 @@ function island_record(
 				...(reason ? { reason } : {})
 			}
 		: null;
-	if (sent) queue.push(sent);
+	if (sent) C.queue.push(sent);
 	let changed: boolean | undefined;
 	let attrs: AttrChange[] | null = null;
-	const room = make_room(visit_islands, 400, (i) => i.t0);
+	const room = make_room(C.visit_islands, 400, (i) => i.t0);
 	if (typeof ssr_html === 'string' && room) {
 		const now = el.innerHTML;
 		// compared without comments: hydration re-anchors Svelte's block markers (`<!--[-->`), which
@@ -2757,14 +2776,14 @@ function island_record(
 			changed = a !== b;
 			if (changed) {
 				attrs = attr_changes(a, b);
-				if (snapshot_room()) snapshots.push(snapshot_of(fp, ssr_html, now, a, b));
+				if (snapshot_room()) C.snapshots.push(snapshot_of(fp, ssr_html, now, a, b));
 			}
 		} else changed = false;
 	}
 	// input on it while it hydrated (between its wake and done)
 	let input: string | undefined;
-	for (let k = recent_inputs.length - 1; k >= 0; k--) {
-		const x = recent_inputs[k];
+	for (let k = C.recent_inputs.length - 1; k >= 0; k--) {
+		const x = C.recent_inputs[k];
 		if (x.t < t0) break;
 		const target = x.el.deref();
 		if (x.t <= t_done && target && el.contains(target)) {
@@ -2804,7 +2823,7 @@ function island_record(
 				...(markers ? { markers } : {})
 			}
 		: null;
-	if (rec) visit_islands.push(rec);
+	if (rec) C.visit_islands.push(rec);
 	// ITS EFFECTS: Svelte's `hydrate()` leaves `$effect`s (and onMount) to a microtask it queued
 	// during the call, so they run after `done` — a heavy one (a measure, a subscription) was nobody's
 	// time. A microtask queued now runs after that flush: when the island's own work really ended
@@ -2891,7 +2910,7 @@ export async function beacon_record_cpu(ms: number, label: string): Promise<bool
 	await new Promise((ok) => setTimeout(ok, Math.max(200, Math.min(30_000, ms))));
 	try {
 		const trace = await p.stop();
-		cpu_kept = [{ trace, from, to: performance.now(), label }, ...cpu_kept.slice(0, 4)];
+		C.cpu_kept = [{ trace, from, to: performance.now(), label }, ...C.cpu_kept.slice(0, 4)];
 		return true;
 	} catch {
 		return false;
@@ -2925,18 +2944,18 @@ export function beacon_page(): BeaconPage | null {
 	return {
 		vitals: { ...vitals },
 		visit: build_visit(),
-		islands: visit_islands.slice(),
-		firsts: visit_firsts.slice(),
-		shifts: visit_shifts.slice(),
-		longtasks: visit_longtasks.slice(),
+		islands: C.visit_islands.slice(),
+		firsts: C.visit_firsts.slice(),
+		shifts: C.visit_shifts.slice(),
+		longtasks: C.visit_longtasks.slice(),
 		...(longtasks_from_frames ? { longtasks_from: 'frames' as const } : {}),
 		...(island_boxes ? { shifts_from: 'boxes' as const } : {}),
-		marks: visit_marks.slice(),
-		snapshots: snapshots.slice(),
+		marks: C.visit_marks.slice(),
+		snapshots: C.snapshots.slice(),
 		cpu: {
-			state: cpu ? 'recording' : cpu_kept.length ? 'done' : 'off',
+			state: cpu ? 'recording' : C.cpu_kept.length ? 'done' : 'off',
 			off: cpu_off,
-			traces: cpu_kept.slice()
+			traces: C.cpu_kept.slice()
 		}
 	};
 }
@@ -2946,13 +2965,11 @@ export function _reset_beacon(): void {
 	const g = globalThis as Record<symbol, BeaconApi | undefined>;
 	if (!self_api || g[BEACON_KEY] === self_api) delete g[BEACON_KEY];
 	target = undefined;
-	queue = [];
-	marks = [];
+	C = new Collected();
 	scheduled = false;
 	vitals = null;
 	cpu = null;
 	cpu_sent = false;
-	cpu_kept = [];
 	cpu_off = null;
 	icpu = null;
 	if (icpu_timer) clearTimeout(icpu_timer);
@@ -2960,43 +2977,21 @@ export function _reset_beacon(): void {
 	icpu_done = false;
 	icpu_caught = null;
 	opted = undefined;
-	failed_fps.clear();
-	failed_spans.clear();
-	failed_turns.clear();
-	visit_navs = [];
 	first_nav_t = undefined;
 	snapshot_firsts = 0;
 	landing_page = null;
-	seen_resources = [];
 	faces_memo = null;
 	dom_memo = null;
 	preloads_memo = null;
-	visit_islands = [];
-	visit_firsts = [];
-	visit_shifts = [];
-	visit_longtasks = [];
 	longtasks_from_frames = false;
 	island_boxes = null;
 	keepalive_queued = 0;
-	visit_scripts = new Map();
-	visit_forced = [];
-	visit_scroll_jank = [];
-	scroll_times = [];
 	visit_interaction = null;
 	visit_interaction_id = 0;
 	visit_interaction_span = null;
-	visit_frames = [];
-	visit_warnings = [];
-	visit_holes_failed = [];
-	visit_holes_answered = [];
-	visit_hole_batches = [];
-	visit_entry_fallbacks = [];
 	holes_answered_els = new WeakSet();
-	hole_fetches = new Map();
-	visit_marks = [];
 	visit_paints = {};
 	lcp_el = lcp_region = null;
-	snapshots = [];
 	visit_state.stop();
 	visit_state = visit_machine.create();
 	resend_timer = null;
@@ -3014,10 +3009,10 @@ export function _beacon_state(): {
 } {
 	return {
 		target,
-		queued: queue.length,
-		marks: marks.length,
+		queued: C.queue.length,
+		marks: C.marks.length,
 		scheduled,
-		snapshots: snapshots.length
+		snapshots: C.snapshots.length
 	};
 }
 

@@ -18,8 +18,21 @@ export interface SvelteWarning {
 
 let tapped = false;
 let hydrating: Element | null = null;
-const kept: SvelteWarning[] = [];
-const listeners: ((w: SvelteWarning) => void)[] = [];
+/** The page's Svelte hydration warnings, as the console tap heard them: the first
+ *  {@link WarningLog.MAX}, and who hears each as it comes. */
+class WarningLog {
+	static readonly MAX = 100;
+	readonly kept: SvelteWarning[] = [];
+	readonly listeners: ((w: SvelteWarning) => void)[] = [];
+	/** Keeps `w` and tells the listeners (`false`: the log is full, nothing kept or told). */
+	add(w: SvelteWarning): boolean {
+		if (this.kept.length >= WarningLog.MAX) return false;
+		this.kept.push(w);
+		for (const cb of this.listeners) cb(w);
+		return true;
+	}
+}
+const log = new WarningLog();
 
 /** core.ts marks the island whose hydrate step is running. Svelte raises some warnings as the
  *  step's effects flush (a microtask after it returns): the mark holds until the task ends, and
@@ -35,11 +48,11 @@ export function set_hydrating(el: Element, owner: Scope): void {
 }
 
 export function svelte_warnings(): SvelteWarning[] {
-	return kept.slice();
+	return log.kept.slice();
 }
 
 export function on_svelte_warning(cb: (w: SvelteWarning) => void): void {
-	listeners.push(cb);
+	log.listeners.push(cb);
 }
 
 /** `%c[svelte] code\n%cmessage …` → the parts (null: not a Svelte hydration warning). */
@@ -81,15 +94,9 @@ export function tap_svelte_warnings(): void {
 			const first = args[0];
 			if (typeof first === 'string' && first.includes('[svelte] hydration')) {
 				const p = parse_svelte_warning(args.filter((a) => typeof a === 'string').join('\n'));
-				if (p && kept.length < 100) {
+				if (p) {
 					const fp = hydrating?.getAttribute('data-og-fp') ?? undefined;
-					const w: SvelteWarning = {
-						...p,
-						...(fp ? { fp } : {}),
-						t: Math.round(performance.now() * 10) / 10
-					};
-					kept.push(w);
-					for (const cb of listeners) cb(w);
+					log.add({ ...p, ...(fp ? { fp } : {}), t: Math.round(performance.now() * 10) / 10 });
 				}
 			}
 		} catch {

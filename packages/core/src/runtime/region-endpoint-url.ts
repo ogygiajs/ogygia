@@ -2,6 +2,7 @@ import { preload_island_graph } from './island-graph-preload.ts';
 import { fetch_priority_of, LoadSlot, type LoadClass } from './load-scheduler.ts';
 import { entry_location } from './entry-locations.ts';
 import { import_file } from './import-again.ts';
+import { cache } from '@ogygia/machine';
 
 /** Hoisted (hot paths — connectedCallback/hydrate run per region); shared with core's
  *  foreign-origin checks. */
@@ -161,12 +162,12 @@ export function island_module_url(entry: string, base?: string): string {
 	if (hit !== undefined) return hit;
 	const resolved = new URL(entry, b);
 	const out = resolved.pathname + resolved.search + resolved.hash;
-	if (module_urls.size > 4000) module_urls.clear();
 	module_urls.set(key, out);
 	return out;
 }
-/** A relative entry resolved against its document, by base + entry (asked on every wake and warm). */
-const module_urls = new Map<string, string>();
+/** A relative entry resolved against its document, by base + entry (asked on every wake and warm;
+ *  the least recently asked go first). */
+const module_urls = cache<string, string>({ name: 'island module urls', max: 4000 });
 
 // ── the ONE island-module warmer ─────────────────────────────────────────────
 // Every "get this island's JS into the module cache before it's needed" call site funnels here:
@@ -174,7 +175,7 @@ const module_urls = new Map<string, string>();
 // feature's pointerenter warm. One URL-level dedupe set replaces three inconsistent schemes
 // (`import()` is idempotent, but re-parsing the specifier on every hover isn't free). A failed
 // warm un-marks the URL so the real wake — or a later warm — retries; warming is never fatal.
-const warmed_modules = new Set<string>();
+const warmed_modules = cache<string, true>({ name: 'warmed island modules', max: 4000 });
 
 /** The warmer's key: the resolved module as an absolute URL (a location arrives absolute, an href
  *  off a page root-relative — the same file must be one key). */
@@ -198,7 +199,7 @@ export function warm_island_module(
 	if (!entry_location(entry, base) && url.includes('/ogygia/og-region.')) return;
 	const key = warm_key(url);
 	if (warmed_modules.has(key)) return;
-	warmed_modules.add(key);
+	warmed_modules.set(key, true);
 	// a warm is the load scheduler's to time (load-scheduler.ts): a hover is the visitor's, a page
 	// prefetch's warm is speculative
 	void new LoadSlot({ kind: 'code', cls, label: entry }).ready.then((release) => {
