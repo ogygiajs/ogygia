@@ -987,6 +987,9 @@ export const SCROLL_HOLD_MS = 1500;
  * CSS `scroll-behavior: smooth` must not animate a programmatic restore.
  */
 function hold_scroll(to: { x: number; y: number }, visit: Scope): void {
+	/** Where the last put-back left the page: the saved position, or, on a page still too short to
+	 *  reach it, the bottom the browser clamped it to. */
+	let at = { x: scrollX, y: scrollY };
 	const put = () => {
 		if (scrollX === to.x && scrollY === to.y) return;
 		const html_el = document.documentElement;
@@ -997,6 +1000,7 @@ function hold_scroll(to: { x: number; y: number }, visit: Scope): void {
 		} finally {
 			html_el.style.scrollBehavior = prev;
 		}
+		at = { x: scrollX, y: scrollY };
 	};
 	put();
 	if (visit.closed) return;
@@ -1012,7 +1016,9 @@ function hold_scroll(to: { x: number; y: number }, visit: Scope): void {
 		window,
 		'scroll',
 		() => {
-			if (scrollX !== to.x || scrollY !== to.y) hold.close();
+			// (where a put-back left it, clamped or not, is the hold's own scroll)
+			const ours = (scrollX === to.x && scrollY === to.y) || (scrollX === at.x && scrollY === at.y);
+			if (!ours) hold.close();
 		},
 		{ passive: true }
 	);
