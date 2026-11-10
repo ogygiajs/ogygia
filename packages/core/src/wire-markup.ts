@@ -11,8 +11,9 @@
  *   comment is skipped, and a tag name matches whole.
  */
 
-/** Who writes a marker: the page's protocol, or the devtools and profiler UI. */
-export type MarkOwner = 'page' | 'devtools';
+/** Who writes a marker: the page's protocol, the devtools and profiler UI, or the docs site's
+ *  Observatory (its render stubs). */
+export type MarkOwner = 'page' | 'devtools' | 'docs';
 
 /** One declared marker. */
 export interface Mark {
@@ -112,6 +113,7 @@ export const MARK: Readonly<Record<string, Mark>> = {
 	standIns: { attr: 'data-og-stand-ins', by: 'page' },
 	static: { attr: 'data-og-static', by: 'page' },
 	stitched: { attr: 'data-og-stitched', by: 'page' },
+	stub: { attr: 'data-og-stub', by: 'docs' },
 	tab: { attr: 'data-og-tab', by: 'devtools' },
 	vitals: { attr: 'data-og-vitals', by: 'devtools' },
 	win: { attr: 'data-og-win', by: 'devtools' },
