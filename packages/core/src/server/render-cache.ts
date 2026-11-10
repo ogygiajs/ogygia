@@ -48,7 +48,7 @@ type Ask = RenderKey & {
 	ttl: number;
 };
 
-const renders = flights<Ask>()({
+const renders = flights.keyed<Ask>()({
 	name: 'render cache',
 	key: ['id', 'payload', 'session', 'page'],
 	ignore: {

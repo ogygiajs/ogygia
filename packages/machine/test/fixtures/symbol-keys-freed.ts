@@ -4,7 +4,7 @@
 import { flights } from '../../src/index.ts';
 
 const gc = (globalThis as { gc?: () => void }).gc!;
-const asks = flights<{ who: symbol }>()({ key: ['who'], run: async () => 1, keep: 0 });
+const asks = flights.keyed<{ who: symbol }>()({ key: ['who'], run: async () => 1, keep: 0 });
 let refs: WeakRef<symbol>[] = [];
 async function one(): Promise<void> {
 	const who = Symbol('request');
