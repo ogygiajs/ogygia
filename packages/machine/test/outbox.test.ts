@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { outbox, policy, STALE, type Policy } from '../src/index.ts';
-import { backoff_after, under_policy } from '../src/policy.ts';
+import { backoffAfter, under_policy } from '../src/policy.ts';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -423,16 +423,16 @@ describe('policy', () => {
 
 	it('a list backs off by its entries (the last repeats); a number doubles', () => {
 		const list = policy({ backoff: [200, 1000], jitter: 0 });
-		expect([1, 2, 3, 4].map((n) => backoff_after(list, n))).toEqual([200, 1000, 1000, 1000]);
+		expect([1, 2, 3, 4].map((n) => backoffAfter(list, n))).toEqual([200, 1000, 1000, 1000]);
 		const doubling = policy({ backoff: 100, jitter: 0 });
-		expect([1, 2, 3].map((n) => backoff_after(doubling, n))).toEqual([100, 200, 400]);
+		expect([1, 2, 3].map((n) => backoffAfter(doubling, n))).toEqual([100, 200, 400]);
 	});
 
 	it('jitter cuts a wait by up to its share', () => {
 		const p = policy({ backoff: [1000], jitter: 0.5 });
-		expect(backoff_after(p, 1, 0)).toBe(1000);
-		expect(backoff_after(p, 1, 1)).toBe(500);
-		expect(backoff_after(p, 1, 0.5)).toBe(750);
+		expect(backoffAfter(p, 1, 0)).toBe(1000);
+		expect(backoffAfter(p, 1, 1)).toBe(500);
+		expect(backoffAfter(p, 1, 0.5)).toBe(750);
 	});
 
 	it('a wait is always a number of 0 to the timer limit: before the first try, and after very many (#359)', () => {
@@ -440,13 +440,13 @@ describe('policy', () => {
 		const doubling = policy({ backoff: 100, jitter: 0 });
 		const none = policy({ backoff: 0, jitter: 0 });
 		// (a count from 0: the first wait, as for 1)
-		expect(backoff_after(list, 0)).toBe(200);
-		expect(backoff_after(doubling, 0)).toBe(100);
+		expect(backoffAfter(list, 0)).toBe(200);
+		expect(backoffAfter(doubling, 0)).toBe(100);
 		// (2^5000 is Infinity: capped, and 0 stays 0, never 0 * Infinity)
-		expect(backoff_after(doubling, 5000)).toBe(2_147_483_647);
-		expect(backoff_after(none, 5000)).toBe(0);
+		expect(backoffAfter(doubling, 5000)).toBe(2_147_483_647);
+		expect(backoffAfter(none, 5000)).toBe(0);
 		// jitter 1 can cut a wait to nothing, never below
-		expect(backoff_after(policy({ backoff: [1000], jitter: 1 }), 1, 1)).toBe(0);
+		expect(backoffAfter(policy({ backoff: [1000], jitter: 1 }), 1, 1)).toBe(0);
 	});
 
 	it('out of time before the next wait ends is a TimeoutError with the last error in it (#359)', async () => {

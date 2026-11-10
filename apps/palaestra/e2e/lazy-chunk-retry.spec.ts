@@ -13,8 +13,29 @@
 // runtime asks for a failed lazy chunk again under a fresh URL (runtime/import-again.ts). A failed
 // chunk SHARED with others (imported statically) cannot be asked for again at all.
 // Usage: pnpm exec playwright test lazy-chunk-retry
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type ConsoleMessage, type Page } from '@playwright/test';
 import { check, replayed_once } from '@ogygia/tooling/e2e';
+import { console_text } from '@ogygia/tooling/e2e/browsers.ts';
+
+/** Keeps an error message's own text in every engine (Firefox's console text of an Error is its
+ *  class, without the message code the tests look for). */
+function log_error(m: ConsoleMessage, logged: string[]): void {
+	if (m.type() !== 'error') return;
+	const read = console_text(m).then((t) => void logged.push(t));
+	let pending = reading.get(logged);
+	if (!pending) reading.set(logged, (pending = []));
+	pending.push(read);
+}
+
+/** The console reads still out for each list (`console_text` awaits the page for each argument). */
+const reading = new WeakMap<string[], Promise<void>[]>();
+
+/** Every error the page logged so far is in `logged`: a check that reads it once (not a poll) waits
+ *  for the reads still out first. */
+async function all_logged(logged: string[]): Promise<string[]> {
+	await Promise.all(reading.get(logged) ?? []);
+	return logged;
+}
 
 /** What only each chunk carries in a production build. */
 const CHUNKS = {
@@ -110,7 +131,7 @@ test.describe('lazy chunks that fail once are loaded again (#201)', () => {
 	}) => {
 		const thrown = errors(page);
 		const logged: string[] = [];
-		page.on('console', (m) => m.type() === 'error' && logged.push(m.text()));
+		page.on('console', (m) => log_error(m, logged));
 		const seen = await drop(page, 'hydrate core', 2);
 		await page.goto('/lazy-retry');
 		// the near island's wake gives up after its retry: its HTML stays, dead but real
@@ -137,7 +158,7 @@ test.describe('lazy chunks that fail once are loaded again (#201)', () => {
 	}) => {
 		const thrown = errors(page);
 		const logged: string[] = [];
-		page.on('console', (m) => m.type() === 'error' && logged.push(m.text()));
+		page.on('console', (m) => log_error(m, logged));
 		const seen = await drop(page, 'devalue', 1);
 		await page.goto('/lazy-retry');
 		await expect.poll(() => seen.dropped).toBe(1);
@@ -226,7 +247,7 @@ test.describe('a class module that fails once is loaded again (#237)', () => {
 	}) => {
 		const thrown = errors(page);
 		const logged: string[] = [];
-		page.on('console', (m) => m.type() === 'error' && logged.push(m.text()));
+		page.on('console', (m) => log_error(m, logged));
 		const seen = await drop(page, 'class module', 2);
 		await page.goto('/lazy-retry-class');
 		// the near island's decode had no class: it says which, and its HTML stays
@@ -360,7 +381,7 @@ test.describe('an island’s own file that fails once is loaded again (#261)', (
 	}) => {
 		const thrown = errors(page);
 		const logged: string[] = [];
-		page.on('console', (m) => m.type() === 'error' && logged.push(m.text()));
+		page.on('console', (m) => log_error(m, logged));
 		const file = await island_file(page, '/lazy-retry', 'visible');
 		const seen = await drop(page, { file }, 1);
 		await page.goto('/lazy-retry');
@@ -373,6 +394,7 @@ test.describe('an island’s own file that fails once is loaded again (#261)', (
 			seen.dropped === 1 && seen.served >= 1,
 			JSON.stringify(seen)
 		);
+		await all_logged(logged);
 		check(
 			'no island_load_failed',
 			!logged.some((t) => t.includes('island_load_failed')),
@@ -394,7 +416,7 @@ test.describe('a lazy chunk whose dependency fails says a reload is needed (#262
 	}) => {
 		const thrown = errors(page);
 		const logged: string[] = [];
-		page.on('console', (m) => m.type() === 'error' && logged.push(m.text()));
+		page.on('console', (m) => log_error(m, logged));
 		const asked = js_requests(page);
 		const seen = await drop(page, 'svelte', 1);
 		await page.goto('/lazy-retry');
@@ -418,14 +440,14 @@ test.describe('a lazy chunk whose dependency fails says a reload is needed (#262
 			new Set(retries.map((r) => r.split('?')[0])).size === retries.length,
 			retries.join(', ')
 		);
-		const reload = logged.filter((t) => t.includes('chunk_reload_needed'));
+		const reload = (await all_logged(logged)).filter((t) => t.includes('chunk_reload_needed'));
 		check('one message says the page needs a reload', reload.length === 1, logged.join('\n'));
 		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
 	});
 
 	test('a file of the runtime’s own static graph dropped: the page says so', async ({ page }) => {
 		const logged: string[] = [];
-		page.on('console', (m) => m.type() === 'error' && logged.push(m.text()));
+		page.on('console', (m) => log_error(m, logged));
 		const html = await (await page.request.get('/lazy-retry')).text();
 		const dep = /<link rel="modulepreload" href="([^"]+)" data-ogygia-runtime-dep>/.exec(html)?.[1];
 		check('the runtime has a static dependency to drop', !!dep, html.slice(0, 300));
