@@ -101,6 +101,7 @@ import { ssr_hosts_handoff_path, parse_ssr_hosts } from '../compiler/link/emit-g
 import { router_css_key } from '../compiler/link/router-css.ts';
 import { Program, strip_id } from '../compiler/program.ts';
 import { Compiler } from '../compiler/driver.ts';
+import { DEV_HMR_URL } from '../compiler/virtual/core.ts';
 import { CompileCtx, type PackageScan } from '../compiler/ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
@@ -635,7 +636,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							// slash (2) or without (3) — kit-paths.ts, where a runtime probe guessed wrong in builds
 							__OGYGIA_KIT_MAJOR__: JSON.stringify(kit_major(path.resolve(userConfig.root ?? '.'))),
 							// the installed ogygia's version, which the page's runtime discloses (`window.__ogygia.v`)
-							__OGYGIA_VERSION__: JSON.stringify(OGYGIA_VERSION)
+							__OGYGIA_VERSION__: JSON.stringify(OGYGIA_VERSION),
+							// the dev server's soft-HMR bridge (the `dev` realm's module), by its served URL;
+							// '' in a build, so the bridge's script and its import fold out
+							__OGYGIA_DEV_HMR_URL__: JSON.stringify(env.command === 'serve' ? DEV_HMR_URL : '')
 						},
 						server: {
 							fs: {

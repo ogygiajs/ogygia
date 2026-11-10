@@ -34,7 +34,7 @@ import {
 	router_enabled,
 	view_transitions as router_view_transitions
 } from 'ogygia:server';
-import { dev_hmr_url } from 'ogygia:region';
+import { dev_hmr_url } from './dev-hmr-url.ts';
 import { runtime_bootstrap } from './server/entry-location.ts';
 import { current_facts } from './plugin/facts.ts';
 import { try_get_request_store } from '@sveltejs/kit/internal/server';

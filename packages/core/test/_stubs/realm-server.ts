@@ -39,6 +39,7 @@ export {
 	create_remote_key
 } from 'virtual:ogygia/kit-wire';
 export { rate_limit } from 'virtual:ogygia/rate-limit';
+export { profiler_maps } from 'virtual:ogygia/profiler-maps';
 export { plugins as server_plugins } from 'virtual:ogygia/server-plugins';
 export { router_enabled, view_transitions } from 'virtual:ogygia/router-config';
 export { session_cookie } from 'virtual:ogygia/session-cookie';

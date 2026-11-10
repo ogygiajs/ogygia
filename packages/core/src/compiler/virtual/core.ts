@@ -322,15 +322,9 @@ export const runtime_url: Value<{ runtime_url: string }> = virtual.value({
 	}
 });
 
-// region, not server: Region writes it into a page it renders on either side
-export const dev_hmr_url: Value<{ dev_hmr_url: string }> = virtual.value({
-	realm: 'region',
-	id: 'dev-hmr-url',
-	alias: 'virtual:ogygia/dev-hmr-url',
-	exports: ['dev_hmr_url'],
-	// '' in build/preview; the dev URL during `vite dev`
-	from: ({ ctx }: CoreApp) => ({ dev_hmr_url: ctx.is_dev ? dev_url(key(hmr)) : '' })
-});
+/** The dev HMR bridge's served URL: the dev server's `__OGYGIA_DEV_HMR_URL__` (`''` in a build, so
+ *  the script that loads it folds out of every leg: src/dev-hmr-url.ts). */
+export const DEV_HMR_URL: string = dev_url(key(hmr));
 
 export const devtools_boot_url: Value<{ devtools_boot_url: string }> = virtual.value({
 	realm: 'server',
@@ -470,10 +464,8 @@ export const server_plugins: Family<ServerPluginsModule> = virtual.family({
 	load: ({ ctx }: CoreApp, { ssr }) => server_plugins_module(ssr, ctx.server_plugins)
 });
 
-// region, not server: the profiler's lazy import sits in code both legs carry; it is null in the
-// browser (no maps there)
 export const profiler_maps: Value<{ profiler_maps: string | null }> = virtual.value({
-	realm: 'region',
+	realm: 'server',
 	id: 'profiler-maps',
 	alias: 'virtual:ogygia/profiler-maps',
 	exports: ['profiler_maps'],
@@ -668,7 +660,6 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 	hmr,
 	devtools_boot,
 	runtime_url,
-	dev_hmr_url,
 	devtools_boot_url,
 	region_deps,
 	router_css,

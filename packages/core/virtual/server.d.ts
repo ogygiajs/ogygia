@@ -8,6 +8,7 @@ export const devtools_boot_url: import('../dist/compiler/virtual/table.js').Valu
 export const stringify_remote_arg: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_wire>['stringify_remote_arg'];
 export const stringify_command_arg: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_wire>['stringify_command_arg'];
 export const create_remote_key: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_wire>['create_remote_key'];
+export const profiler_maps: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').profiler_maps>['profiler_maps'];
 export const rate_limit: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').rate_limit>['rate_limit'];
 export const region_deps: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['islandDeps'];
 export const region_interactivity: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['islandInteractivity'];
@@ -62,6 +63,12 @@ export = module;
 declare module 'virtual:ogygia/kit-wire' {
 const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_wire>;
 export = module;
+}
+declare module 'ogygia:server/profiler-maps' {
+export const profiler_maps: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').profiler_maps>['profiler_maps'];
+}
+declare module 'virtual:ogygia/profiler-maps' {
+export const profiler_maps: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').profiler_maps>['profiler_maps'];
 }
 declare module 'ogygia:server/rate-limit' {
 export const rate_limit: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').rate_limit>['rate_limit'];

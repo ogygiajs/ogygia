@@ -11,7 +11,7 @@ import { heisenbench_record } from '../../../internal/heisenbench/src/record.ts'
 const STUBS = fileURLToPath(new URL('../../core/test/_stubs/', import.meta.url));
 
 /** A module code imports by its own id, not through its realm module (it loads lazily). */
-const OWN_ID_STUBS: Record<string, string> = { 'ogygia:region/profiler-maps': 'profiler-maps' };
+const OWN_ID_STUBS: Record<string, string> = { 'ogygia:server/profiler-maps': 'profiler-maps' };
 
 const exact = (id: string): RegExp => new RegExp('^' + id.replace(/[$/]/g, '\\$&') + '$');
 

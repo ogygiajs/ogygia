@@ -34,7 +34,7 @@
 		kit_request_event
 	} from './server/kit-context.ts';
 	import { stringify } from 'devalue';
-	import { dev_hmr_url as hmrUrl } from 'ogygia:region';
+	import { dev_hmr_url as hmrUrl } from './dev-hmr-url.ts';
 	// the server's half of the render; in the browser, its stand-ins (region-server.browser.ts)
 	import {
 		region_deps as islandDeps,

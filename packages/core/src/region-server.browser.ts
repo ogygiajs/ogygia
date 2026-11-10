@@ -5,7 +5,6 @@
  * the server's HTML already carries every hint, link and address, so each reader answers "none".
  */
 import type * as Server from './region-server.ts';
-import { OgygiaError } from './messages/core.ts';
 
 const none = (): null => null;
 const empty = (): string[] => [];
@@ -25,8 +24,10 @@ export const mint_server_region: typeof Server.mint_server_region = blank;
 export const known_region_fps: typeof Server.known_region_fps = () => new Set();
 export const region_fingerprint: typeof Server.region_fingerprint = blank;
 export const hole_css: typeof Server.hole_css = empty;
+// (the link alone, as a production message prints: importing the message tables here would add a
+// module to every page that renders a region in the browser, and move its chunks)
 export const get_request_event: typeof Server.get_request_event = () => {
-	throw new OgygiaError('request_event_server_only');
+	throw new Error('[ogygia] https://ogygiajs.dev/e/request_event_server_only');
 };
 // csr=true routes: the browser reads the same signal from `kit_hydrates_page()`
 export const csr_true_routes: typeof Server.csr_true_routes = new Set();
