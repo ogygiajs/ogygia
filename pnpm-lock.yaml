@@ -958,6 +958,10 @@ importers:
   internal/repro-subpkg: {}
 
   packages/barrels:
+    dependencies:
+      magic-string:
+        specifier: 'catalog:'
+        version: 1.4.5
     devDependencies:
       '@ogygia/config':
         specifier: workspace:*
@@ -971,9 +975,6 @@ importers:
       '@typescript/native':
         specifier: catalog:tsgo
         version: typescript@7.0.2
-      magic-string:
-        specifier: 'catalog:'
-        version: 1.4.5
       svelte:
         specifier: 'catalog:'
         version: 5.56.8
