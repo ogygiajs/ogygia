@@ -2175,6 +2175,14 @@
 		{
 			"id": "packages/flags/src/index.ts > set_prime",
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/embedded-maps.ts > embedded_source > map:0~31820d",
+			"reason": "profiler only: lists the known app roots for one source path, linear in the roots (one per app)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > keeping",
+			"reason": "profiler only: reads the module's kept-answers state (hidden state), constant work"
 		}
 	]
 }
