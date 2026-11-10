@@ -155,7 +155,7 @@ describe('admit', () => {
 });
 
 describe('budget', () => {
-	it('a drain gives the thread back after its budget, and goes on when the pause resumes it', () => {
+	it('a drain gives the thread back after its budget, and goes on when the pause resumes it', async () => {
 		let clock = 0;
 		let open = false;
 		const pauses: Array<() => void> = [];
@@ -174,7 +174,8 @@ describe('budget', () => {
 		});
 		for (const j of ['a', 'b', 'c', 'd']) void q.add(j);
 		open = true;
-		q.drain();
+		q.drain(); // (the drain that found the gate shut ends a microtask later: it goes round again)
+		await Promise.resolve();
 		expect(seen).toEqual(['a', 'b']); // 12 ms: past the budget, it paused
 		expect(pauses.length).toBe(1);
 		pauses.shift()!(); // the new task: it goes on in it, at once
