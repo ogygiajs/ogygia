@@ -63,12 +63,16 @@ describe('the virtual-module table', () => {
 	});
 
 	it('finds a module a leg’s output may not hold, however it got in', () => {
-		const ids = [RESOLVED('virtual:ogygia/secret'), RESOLVED('virtual:ogygia/transport'), '/a.js'];
+		const ids = [
+			RESOLVED('virtual:ogygia/secret'),
+			RESOLVED('virtual:ogygia/runtime-flags'),
+			'/a.js'
+		];
 		expect(table.misplaced(ids, { ssr: false, dev: false })).toEqual([
 			[RESOLVED('virtual:ogygia/secret'), 'server']
 		]);
 		expect(table.misplaced(ids, { ssr: true, dev: false })).toEqual([
-			[RESOLVED('virtual:ogygia/transport'), 'boot']
+			[RESOLVED('virtual:ogygia/runtime-flags'), 'boot']
 		]);
 	});
 

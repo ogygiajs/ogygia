@@ -241,8 +241,9 @@ export const devtools_meta: Value<{ region_names: Record<string, string> }> = vi
 	}
 });
 
+// region, not boot: the app's codecs, on the server leg too (its render encodes with them)
 export const transport: Family<TransportModule> = virtual.family({
-	realm: 'boot',
+	realm: 'region',
 	id: 'transport',
 	alias: 'virtual:ogygia/transport',
 	exports: { transport: 'transport', encoders: 'encoders', decoders: 'decoders' },
@@ -250,8 +251,9 @@ export const transport: Family<TransportModule> = virtual.family({
 		transport_module(leg.universalHooks, leg.ssr ? null : (leg.kitCodec ?? null))
 });
 
+// region, not boot: eager on the server leg, lazy loaders in the browser
 export const transportables: Family<TransportablesModule> = virtual.family({
-	realm: 'boot',
+	realm: 'region',
 	id: 'transportables',
 	alias: 'virtual:ogygia/transportables',
 	exports: { wire_loaders: 'wire_loaders', wire_all: 'wire_all' },
@@ -468,8 +470,10 @@ export const server_plugins: Family<ServerPluginsModule> = virtual.family({
 	load: ({ ctx }: CoreApp, { ssr }) => server_plugins_module(ssr, ctx.server_plugins)
 });
 
+// region, not server: the profiler's lazy import sits in code both legs carry; it is null in the
+// browser (no maps there)
 export const profiler_maps: Value<{ profiler_maps: string | null }> = virtual.value({
-	realm: 'server',
+	realm: 'region',
 	id: 'profiler-maps',
 	alias: 'virtual:ogygia/profiler-maps',
 	exports: ['profiler_maps'],

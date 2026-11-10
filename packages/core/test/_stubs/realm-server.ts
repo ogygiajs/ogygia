@@ -40,7 +40,6 @@ export {
 } from 'virtual:ogygia/kit-wire';
 export { rate_limit } from 'virtual:ogygia/rate-limit';
 export { plugins as server_plugins } from 'virtual:ogygia/server-plugins';
-export { profiler_maps } from 'virtual:ogygia/profiler-maps';
 export { router_enabled, view_transitions } from 'virtual:ogygia/router-config';
 export { session_cookie } from 'virtual:ogygia/session-cookie';
 export { region_ttl, renew_window } from 'virtual:ogygia/region-ttl';
