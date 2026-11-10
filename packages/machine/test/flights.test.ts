@@ -546,6 +546,28 @@ describe('keep, max and weigh', () => {
 		expect(weight).toBe(1);
 	});
 
+	it('a refresh that lands past its prior’s age, into a full cache no sweep has reached yet, is kept', async () => {
+		let now = 1_000_000;
+		vi.spyOn(Date, 'now').mockImplementation(() => now);
+		const d = deferred<string>();
+		let round = 0;
+		const pages = flights({
+			run: (k: string) => (k === '/a' && round++ === 1 ? d.promise : Promise.resolve(k)),
+			keep: 1000,
+			weigh: (answer: string) => answer.length,
+			max: 7
+		});
+		await pages.get('/a');
+		await pages.get('/b');
+		const refresh = pages.get('/a', { fresh: true });
+		// both answers pass their age while the refresh is out; the cache's sweep has not run
+		now += 2000;
+		d.resolve('/a new');
+		expect(await refresh).toBe('/a new');
+		expect(pages.peek('/a')).toMatchObject({ kind: 'kept', answer: '/a new', flying: false });
+		expect((pages as unknown as { _weight: number })._weight).toBe('/a new'.length);
+	});
+
 	it('a keep or weigh that throws fails the flight and keeps nothing', async () => {
 		const pages = flights({
 			run: async () => 'x',
