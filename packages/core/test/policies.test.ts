@@ -3,12 +3,12 @@
  * before they were named: no behavior moved with them.
  */
 import { describe, expect, it } from 'vitest';
-import { backoff_after } from '@ogygia/machine/internal/policy';
+import { backoffAfter } from '@ogygia/machine';
 import * as policies from '../src/policies.ts';
 
 /** The waits a policy gives between its tries, the jitter's random at its worst. */
 const waits = (p: (typeof policies)[keyof typeof policies], random: number) =>
-	Array.from({ length: p.attempts - 1 }, (_, i) => backoff_after(p, i + 1, random));
+	Array.from({ length: p.attempts - 1 }, (_, i) => backoffAfter(p, i + 1, random));
 
 describe('named policies keep the old numbers', () => {
 	it('every one is jitter-free, so its waits are exact', () => {
