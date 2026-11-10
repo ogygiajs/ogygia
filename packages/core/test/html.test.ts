@@ -59,6 +59,14 @@ describe('html', () => {
 			'<a href="about:invalid#unsafe">x</a>'
 		);
 		expect(String(attr('src', ' \tDATA:text/html,x'))).toBe(' src="about:invalid#unsafe"');
+		// a URL parser drops tab, LF and CR anywhere in it, the scheme included
+		for (const url of [
+			'java\tscript:alert(1)',
+			'jav\nascript:x',
+			'javascript\r:x',
+			'j\ta\nv\rascript:x'
+		])
+			expect(String(html`<a href="${url}">x</a>`)).toBe('<a href="about:invalid#unsafe">x</a>');
 		expect(String(html`<a href="${'/next?a=1&b=2'}">x</a>`)).toBe(
 			'<a href="/next?a=1&amp;b=2">x</a>'
 		);
