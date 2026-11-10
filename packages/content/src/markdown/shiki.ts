@@ -393,7 +393,8 @@ export async function render_code_region(
 	if (count > 1) {
 		// Multi-variant container: stamp the permalink id on the outer `<div class="og-code">`.
 		const tagged = id
-			? html.replace('<div class="og-code"', `<div${attr('id', id)} class="og-code"`)
+			? // (a function: the value is placed as written, `$` patterns in it never expanded)
+				html.replace('<div class="og-code"', () => `<div${attr('id', id)} class="og-code"`)
 			: html;
 		plain = wrap_html(tagged, cfg.wrapperClass);
 	} else {
@@ -401,7 +402,7 @@ export async function render_code_region(
 		// bar from `attr(data-file)`) on the `<pre>` — a fence with none stays byte-identical. Each is
 		// author text, escaped as an attribute value (#435).
 		const attrs = `${attr('data-lang', lang && lang !== 'text' ? lang : null)}${attr('id', id)}${attr('data-file', file || null)}`;
-		const tagged = attrs ? html.replace('<pre ', `<pre${attrs} `) : html;
+		const tagged = attrs ? html.replace('<pre ', () => `<pre${attrs} `) : html;
 		plain = wrap_html(tagged, cfg.wrapperClass);
 	}
 	const out: SerializedRegion = { html: plain };

@@ -8,7 +8,7 @@ import { attr, decode_text, html, Html, trusted_html } from '../src/html.ts';
 
 /** Strings made mostly of the characters that matter here. */
 const nasty = fc.string({
-	unit: fc.constantFrom('"', "'", '<', '>', '&', '=', ' ', '/', 'a', 'x', ';', '#', '\n'),
+	unit: fc.constantFrom('"', "'", '<', '>', '&', '=', ' ', '/', 'a', 'x', ';', '#', '\n', '$', '`'),
 	maxLength: 24
 });
 
