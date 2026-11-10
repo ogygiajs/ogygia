@@ -157,7 +157,9 @@ export function decide(opts: DecideOptions): void {
  *
  * Server only: a browser bundle never sends exposures, and drops the queue.
  */
-type QueueStates = { idle: {}; buffering: {} };
+/** `buffering` holds what the next batch takes: the queue is its visit's, made with it and handed
+ *  to the outbox when it ends. */
+type QueueStates = { idle: {}; buffering: { queue: ExposureEvent[] } };
 const queue_steps = { idle: ['buffering'], buffering: ['idle'] } as const;
 const queue_def = /* @__PURE__ */ machine<QueueStates>()({
 	name: 'flags exposures',
@@ -165,8 +167,6 @@ const queue_def = /* @__PURE__ */ machine<QueueStates>()({
 	steps: queue_steps
 });
 const _exposures = /* @__PURE__ */ queue_def.create();
-/** What the next batch takes. */
-let _queue: ExposureEvent[] = [];
 /** The last batch was given up: the next one given up is not said again until one is taken. */
 let _sink_failing = false;
 /** The last batch put, until it settles: the request's end waits for it (the outbox sends in
@@ -201,13 +201,17 @@ const _batches = /* @__PURE__ */ outbox<ExposureEvent[]>({
 
 function emit_exposure(e: ExposureEvent): void {
 	if (BROWSER || !_exposure) return;
-	_queue.push(e);
-	if (_queue.length >= _batch.max) {
-		void send(); // ok: send never rejects (a sink failure is said as flags_exposure_failed)
+	const now = _exposures.now;
+	if (now.kind === 'buffering') {
+		now.queue.push(e);
+		if (now.queue.length >= _batch.max) void send(); // ok: send never rejects (a sink failure is said as flags_exposure_failed)
 		return;
 	}
-	if (_exposures.now.kind === 'buffering') return;
-	_exposures.go('buffering');
+	_exposures.go('buffering', { queue: [e] });
+	if (_batch.max <= 1) {
+		void send(); // ok: send never rejects
+		return;
+	}
 	// the age cap, for this visit of `buffering` only: a send or a flush clears it
 	// oxlint-disable-next-line ogygia/owned-effects -- the buffering visit's (its scope clears it, below), but a bare timer: it holds the process open until the queued exposures are sent, which a scope's timer does not
 	const timer = setTimeout(() => void send(), _batch.ms); // ok: send never rejects
@@ -217,8 +221,8 @@ function emit_exposure(e: ExposureEvent): void {
 /** Everything queued, as one batch into the outbox now (buffering → idle). Settles once the sink
  *  took it or it was given up; never rejects. */
 function send(): Promise<void> {
-	const batch = _queue;
-	_queue = [];
+	const now = _exposures.now;
+	const batch = now.kind === 'buffering' ? now.queue : [];
 	_exposures.move('buffering', 'idle');
 	const sent = _batches.put(batch).then(() => {
 		if (_last_sent === sent) _last_sent = null;
@@ -234,7 +238,7 @@ function send(): Promise<void> {
  * is never a request's problem.
  */
 export function flush_exposures(): Promise<void> | undefined {
-	if (_queue.length > 0) return send();
+	if (_exposures.now.kind === 'buffering') return send();
 	return _last_sent ?? undefined;
 }
 
