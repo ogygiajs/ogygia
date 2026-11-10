@@ -25,6 +25,20 @@ test('every URL of a fetched head is resolved against the page it came from', ()
 	expect(icon.getAttribute('href')).toBe('https://cdn.example.com/f.ico');
 });
 
+test('a candidate URL with a comma inside it stays one URL', () => {
+	// (a comma separates candidates only after whitespace, or at the end of a URL; an image CDN's
+	// transform path and a data: URL hold commas of their own)
+	const doc = parse(
+		'<link rel="preload" as="image" imagesrcset="https://cdn.example.com/w_100,h_100/a.png 1x, ' +
+			'../w_200,h_200/a.png 2x,data:image/gif;base64,R0lGOD 3x">'
+	);
+	resolve_head_urls(doc.head, new URL('https://example.com/a/e/'));
+	expect(doc.head.firstElementChild!.getAttribute('imagesrcset')).toBe(
+		'https://cdn.example.com/w_100,h_100/a.png 1x, https://example.com/a/w_200,h_200/a.png 2x, ' +
+			'data:image/gif;base64,R0lGOD 3x'
+	);
+});
+
 test('one file linked page-relative from two depths is one head node', () => {
 	const deep = parse('<link rel="stylesheet" href="../../../_app/x.css">');
 	const shallow = parse('<link rel="stylesheet" href="../_app/x.css">');
