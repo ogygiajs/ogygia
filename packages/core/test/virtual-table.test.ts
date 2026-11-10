@@ -5,10 +5,16 @@
  */
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
-import { CORE_VIRTUALS, core_path, type CoreApp } from '../src/compiler/virtual/core.ts';
+import {
+	CORE_PARTS,
+	CORE_VIRTUALS,
+	core_path,
+	type CoreApp
+} from '../src/compiler/virtual/core.ts';
 import { virtual, write_value, type Leg } from '../src/compiler/virtual/table.ts';
 import {
 	RESOLVED,
@@ -27,7 +33,7 @@ import {
 import { BUILD_ERRORS } from '../src/messages/build.ts';
 import { CORE_VALUE_NAMES } from '../src/compiler/virtual/value-names.ts';
 
-const table = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path, CORE_VALUE_NAMES);
+const table = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path, CORE_VALUE_NAMES, CORE_PARTS);
 const app = (ctx: Partial<CoreApp['ctx']>): CoreApp => ({ ctx }) as unknown as CoreApp;
 const leg = (ssr: boolean): Leg => ({ ssr, universalHooks: null });
 
@@ -141,7 +147,9 @@ describe('the virtual-module table', () => {
 	it('refuses two declarations of one module with virtual_duplicate', () => {
 		const a = virtual.value({ realm: 'server', id: 'x', from: () => ({}) });
 		const names = { 'ogygia:server/x': [] };
-		expect(() => new VirtualTable([a, a], core_path, names)).toThrow(/virtual_duplicate/);
+		expect(() => new VirtualTable([a, a], core_path, names, CORE_PARTS)).toThrow(
+			/virtual_duplicate/
+		);
 	});
 
 	it('writes a value as module source (JSON, with each Set as a Set)', () => {
@@ -211,7 +219,9 @@ describe('the virtual-module table', () => {
 		const a = virtual.value({ realm: 'server', id: 'a', from: () => ({ x: 1 }) });
 		const b = virtual.value({ realm: 'server', id: 'b', from: () => ({ x: 2 }) });
 		const names = { 'ogygia:server/a': ['x'], 'ogygia:server/b': ['x'] };
-		expect(() => new VirtualTable([a, b], core_path, names)).toThrow(/virtual_duplicate/);
+		expect(() => new VirtualTable([a, b], core_path, names, CORE_PARTS)).toThrow(
+			/virtual_duplicate/
+		);
 	});
 
 	it('stubs every realm export for the unit tests (test/_stubs/realm-<realm>.ts)', () => {
@@ -224,15 +234,29 @@ describe('the virtual-module table', () => {
 		}
 	});
 
-	it('invalidates exactly the modules that watch a change', () => {
-		expect(table.watching('regions').sort()).toEqual([
-			RESOLVED('ogygia:server/server-manifest'),
-			RESOLVED('ogygia:server/server-regions')
-		]);
-		expect(table.watching('routes').sort()).toEqual([
+	it('reloads core’s route modules on a route change, and its plugin list on a plugin change', () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-reads-'));
+		fs.mkdirSync(path.join(root, 'src/routes'), { recursive: true });
+		const core_app = {
+			ctx: { root, is_dev: true },
+			routes_dir: () => path.join(root, 'src/routes'),
+			plugins: () => ({ server: [], client: [], route_config: [] })
+		} as unknown as CoreApp;
+		const fresh = () => {
+			const t = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path, CORE_VALUE_NAMES, CORE_PARTS);
+			for (const id of ['route-csr', 'route-config', 'server-plugins', 'rate-limit'])
+				t.load(RESOLVED('ogygia:server/' + id), core_app, leg(true));
+			return t;
+		};
+		expect(fresh().bump('routes').sort()).toEqual([
 			RESOLVED('ogygia:server/route-config'),
 			RESOLVED('ogygia:server/route-csr')
 		]);
-		expect(table.watching('styles')).toEqual([RESOLVED('ogygia:server/router-css')]);
+		expect(fresh().bump('plugins').sort()).toEqual([
+			RESOLVED('ogygia:server/route-config'),
+			RESOLVED('ogygia:server/server-plugins')
+		]);
+		expect(fresh().bump('regions')).toEqual([]);
+		fs.rmSync(root, { recursive: true, force: true });
 	});
 });

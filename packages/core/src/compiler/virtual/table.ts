@@ -20,8 +20,12 @@ import { OgygiaError } from '../../messages/build.ts';
 /** Where a virtual module may run. */
 export type Realm = 'server' | 'boot' | 'region' | 'dev';
 
-/** What a module depends on in dev: a change to one of them invalidates every entry watching it. */
-export type Watch = 'options' | 'regions' | 'routes' | 'plugins' | 'styles';
+/** A part of the session a module's `from`/`load` can read. The table records which parts each
+ *  load read (through {@link Parts}); a dev change to a part reloads exactly those modules. */
+export type Part = 'options' | 'regions' | 'routes' | 'plugins' | 'styles';
+
+/** The session's fields → the part each one is (`null`: read freely, never a reason to reload). */
+export type Parts<A> = Readonly<Record<keyof A & string, Part | null>>;
 
 /** The prefix every realm-named specifier starts with. */
 export const OGYGIA_SCHEME = 'ogygia:';
@@ -54,7 +58,6 @@ interface Base {
 	realm: Realm;
 	/** the name under the realm: `secret` is `ogygia:server/secret` */
 	id: string;
-	watch?: readonly Watch[];
 }
 
 /** A value module: `from` returns its data (JSON, plus `Set`), and the module has one named export

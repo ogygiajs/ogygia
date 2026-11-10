@@ -29,7 +29,8 @@ const table = new VirtualTable<null>(
 		})
 	],
 	() => '',
-	{ 'ogygia:boot/a': ['alpha'], 'ogygia:boot/b': ['beta'] }
+	{ 'ogygia:boot/a': ['alpha'], 'ogygia:boot/b': ['beta'] },
+	{}
 );
 
 /** The app: two entries sharing one name, each with one of its own, and a lazy third. */

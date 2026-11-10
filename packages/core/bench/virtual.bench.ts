@@ -11,6 +11,7 @@ import { set_host, type HostFs } from '../src/compiler/host.ts';
 import { normalize_import_keys } from '../src/compiler/region/transform.ts';
 import * as core from '../src/compiler/virtual/core.ts';
 import {
+	CORE_PARTS,
 	CORE_VIRTUALS,
 	core_defines,
 	core_path,
@@ -166,8 +167,8 @@ bench(
 			ids.push(stub as string, `${root}/src/routes/+page.svelte`);
 			if (!is_dev) for (const ssr of [true, false]) bytes += c.misplaced_modules(ids, ssr).length;
 			bytes += c.split_realm_imports(IMPORTS)?.length ?? 0;
-			for (const w of ['regions', 'routes', 'styles', 'options', 'plugins'] as const)
-				bytes += c.watching(w).length;
+			for (const part of ['regions', 'routes', 'styles', 'options', 'plugins'] as const)
+				bytes += c.changed(part).length;
 		}
 		return bytes;
 	},
@@ -181,7 +182,7 @@ bench(
 
 bench('virtual modules: a table built, an undeclared id and a duplicate refused', () => {
 	let refused = 0;
-	const table = new VirtualTable(CORE_VIRTUALS, core_path, CORE_VALUE_NAMES);
+	const table = new VirtualTable(CORE_VIRTUALS, core_path, CORE_VALUE_NAMES, CORE_PARTS);
 	for (const id of ['ogygia:region/nope/x.js', 'ogygia:server/nope']) {
 		try {
 			table.resolve(id);
@@ -192,7 +193,7 @@ bench('virtual modules: a table built, an undeclared id and a duplicate refused'
 	const a = virtual.value({ realm: 'server', id: 'x', from: () => ({}) });
 	const b = virtual.constant({ id: '__X__', from: () => true });
 	try {
-		new VirtualTable([a, a, b], core_path, { 'ogygia:server/x': [] });
+		new VirtualTable([a, a, b], core_path, { 'ogygia:server/x': [] }, CORE_PARTS);
 	} catch {
 		refused++;
 	}

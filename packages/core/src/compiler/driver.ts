@@ -59,8 +59,14 @@ import { server_island_ids, PAGE_DATA_READS_TOKEN } from './link/server-manifest
 import { same_module_path, island_vpaths_affected_by_file } from './dev/hmr.ts';
 import { VirtualTable } from './virtual/resolver.ts';
 import { CORE_VALUE_NAMES } from './virtual/value-names.ts';
-import { CORE_VIRTUALS, core_path, type CoreApp } from './virtual/core.ts';
-import type { Leg, Watch } from './virtual/table.ts';
+import {
+	CORE_PARTS,
+	CORE_VIRTUALS,
+	core_path,
+	type CoreApp,
+	type CorePlugins
+} from './virtual/core.ts';
+import type { Leg, Part } from './virtual/table.ts';
 import { strip_id, host_key } from './program.ts';
 import { mentions_page_store, page_data_keys_answer } from './link/page-keys.ts';
 import {
@@ -241,7 +247,25 @@ export class Compiler implements CoreApp {
 		return this.#ctx!;
 	}
 	/** Every virtual module this session serves (./virtual/table.ts). */
-	readonly #virtuals = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path, CORE_VALUE_NAMES);
+	readonly #virtuals = new VirtualTable<CoreApp>(
+		CORE_VIRTUALS,
+		core_path,
+		CORE_VALUE_NAMES,
+		CORE_PARTS
+	);
+	/** The app's Kit routes directory (a virtual module that reads it reloads on a route change). */
+	routes_dir(): string {
+		return kit_dirs(this.#ctx!.root).routes_dir;
+	}
+	/** The plugins listed beside `ogygia()`. */
+	plugins(): CorePlugins {
+		const ctx = this.#ctx!;
+		return {
+			server: ctx.server_plugins,
+			client: ctx.client_plugins,
+			route_config: ctx.route_config
+		};
+	}
 	/** The modules of one leg's built output that its realms may not hold (./virtual/resolver.ts). */
 	misplaced_modules(module_ids: Iterable<string>, ssr: boolean): [string, string][] {
 		return this.#virtuals.misplaced(module_ids, { ssr, dev: false });
@@ -250,9 +274,10 @@ export class Compiler implements CoreApp {
 	split_realm_imports(code: string): string | null {
 		return this.#virtuals.split_realm_imports(code);
 	}
-	/** The resolved ids of the virtual modules a dev change to `what` invalidates. */
-	watching(what: Watch): string[] {
-		return this.#virtuals.watching(what);
+	/** A dev change to a part of the session: the resolved ids of the virtual modules whose last load
+	 *  read it, for the caller to invalidate. */
+	changed(part: Part): string[] {
+		return this.#virtuals.bump(part);
 	}
 
 	constructor(program: Program, profiler: Profiler) {
@@ -1761,7 +1786,7 @@ export class Compiler implements CoreApp {
 		if (affected.size === 0) return false;
 
 		for (const vpath of affected) invalidate(vpath);
-		for (const id of this.#virtuals.watching('regions')) invalidate(id);
+		for (const id of this.#virtuals.bump('regions')) invalidate(id);
 		return true;
 	}
 }
