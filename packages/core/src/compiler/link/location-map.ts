@@ -45,7 +45,8 @@ export function location_map_files(
 	pairs: Iterable<readonly [string, string]>,
 	hash: (source: string) => string
 ): { fileName: string; source: string }[] {
-	const list = [...pairs];
+	// by identity: the bundler emits entries in no stable order, and the hash names the file (#490)
+	const list = [...pairs].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 	if (!list.length) return [];
 	const hashed_dir = `${app_dir}/immutable`;
 	const hashed_source = map_source(hashed_dir + '/og-locations.json', list);

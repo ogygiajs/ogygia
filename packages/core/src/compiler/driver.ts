@@ -1027,7 +1027,9 @@ export class Compiler {
 		const islands = new Map<string, string>();
 		const locations: Record<string, string> = {};
 		const served = (file: string) => (file.startsWith('/') ? file : '/' + file);
-		for (const [rid, ref] of this.island_entry_refs) {
+		// by island id: the bundler emits entries in no stable order, and the handoff is output (#490)
+		const refs = [...this.island_entry_refs].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+		for (const [rid, ref] of refs) {
 			const file = get_file_name(ref);
 			const identity = this.island_public_url(rid);
 			islands.set(file, identity);
