@@ -2343,6 +2343,42 @@
 		{
 			"id": "packages/federation/src/messages.ts > FEDERATION_ERRORS > shared_state_not_plain > text",
 			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_WARNINGS > content_leaked_to_client > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_WARNINGS > content_leaked_to_client > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_WARNINGS > content_leaked_to_client > text > map:0~63a78f",
+			"reason": "a message table entry: wording only (indents at most five module lines)"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > content_leaks",
+			"reason": "build only: makes one Vite plugin object, once per build; proven in packages/content/test/content-leaks.test.ts"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > content_leaks > configResolved",
+			"reason": "build only: reads three config fields, once per build"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > content_leaks > writeBundle",
+			"reason": "build only: once per client build, off the request and boot paths; proven in packages/content/test/content-leaks.test.ts"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > filter:0~eec9a0",
+			"reason": "build only: two regex tests per module id of a finished client bundle, once per build"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > flatMap:0~b437c4",
+			"reason": "build only: runs only when the build is already warning about a leak"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > warn:1~cd9197 > map:0~a95637",
+			"reason": "build only: relative paths of at most five leaked modules, inside the warning"
 		}
 	]
 }
