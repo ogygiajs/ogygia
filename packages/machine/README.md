@@ -189,43 +189,36 @@ Each key's entry is a machine (`flying`, `kept`, `gone`), so `observe()` hears e
 
 ## Queues
 
-Work that waits for room: a job starts when its queue lets it, the most urgent first, and gives its place back when it is done.
+Work that waits for room: at most `max` jobs hold a place at once, first come, first served.
 
 ```ts
-import { queue, STALE } from '@ogygia/machine';
+import { queue } from '@ogygia/machine';
 
-const downloads = queue<Download>({
-	max: 3, // at most three hold a place
-	holds: (priority) => priority < 2, // urgent ones start past the cap
-	admit: (d, priority) => page_ready || priority >= 2, // a gate: a refused job keeps its place
-	budget: 16, // a drain starts jobs for 16 ms, then gives the thread back
-	pause: (resume) => void yield_task().then(resume)
+const renders = queue<Call>({
+	max: 4,
+	start: (call) => call.enter(), // its turn, in the step its place came free
+	stale: (call) => call.gone() // its deadline came, it was cancelled, or the owner closed
 });
-const s = await downloads.add(d, { priority: () => class_of(d), flight, owner: visit.scope });
-if (s === STALE) return; // its owner closed, or its deadline came
-try {
-	await fetch(d.url);
-} finally {
-	s.release();
-}
+renders.push(call, Date.now() + 5_000);
+signal.addEventListener('abort', () => renders.cancel(call));
+// once the call's work is done:
+renders.release();
 ```
 
-|                                                   |                                                                                                                                                           |
-| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `max` / `holds(priority, job)`                    | The most jobs holding a place at once; which jobs hold one (default: every job).                                                                          |
-| `admit(job, priority)`                            | Whether a waiting job may start now. `drain()` looks again once what it reads changed.                                                                    |
-| `start(job, started)`                             | Starts each job in the drain's own step. A promise it returns (its start-up) is waited for before the next.                                               |
-| `budget` / `pause(resume)` / `deferred`           | A drain gives the thread back after `budget` ms of starts, and goes on when `pause` calls `resume` in a new task; `deferred` begins every drain that way. |
-| `stale(job)`                                      | Hears a job that settles `STALE` before it started.                                                                                                       |
-| `now`                                             | The clock for `budget` and `deadline`. Default `performance.now()`.                                                                                       |
-| `owner`                                           | The queue's scope: closing it settles every waiting job `STALE`, and any added after.                                                                     |
-| `add(job, { priority, flight, deadline, owner })` | Resolves with `{ priority, release }` once the job starts, or `STALE`.                                                                                    |
-| `push(job, options)`                              | The same, with no promise: `start` and `stale` hear the job. Returns its cancel (a waiting job settles `STALE`; a started one is untouched).              |
+|                       |                                                                                              |
+| --------------------- | -------------------------------------------------------------------------------------------- |
+| `max`                 | The most jobs holding a place at once.                                                       |
+| `start(job)`          | Starts a job; its place is its until `release()`.                                            |
+| `stale(job)`          | Hears a job that will never start: its deadline came, it was cancelled, or the owner closed. |
+| `now`                 | The clock deadlines are read on. Default `performance.now()`.                                |
+| `owner`               | Closing it makes every waiting job stale, and any pushed after.                              |
+| `push(job, deadline)` | Queues a job, to start in turn or be stale at its deadline.                                  |
+| `cancel(job)`         | A waiting job leaves at once, stale; a started one is untouched.                             |
+| `release()`           | A started job's work is done: its place goes to the next job, in this step.                  |
 
-- **The most urgent goes first.** The highest `priority`, then the order added. A getter is read again at each drain. A job that serves a flight is at least at the flight's priority, and a raise of the flight drains the queue, so the job moves up while it waits.
-- **A place is handed on, never free in between.** A release starts the next job in the same step, so a job added meanwhile queues behind it. A release is given back once, however often it is called.
-- **A wait never hangs.** A job still waiting at its `deadline` settles `STALE` and never starts. Its `owner` closing settles it `STALE` while it waits, and gives its place back once it started.
-- **One drain at a time.** A drain asked for while one runs makes the running one go round again. Under a `budget`, each started job's start (and the start-up it returns) runs before the budget is read again. A `start` that throws is reported ([machine_queue_start_failed](https://ogygiajs.dev/e/machine_queue_start_failed)) and the jobs after it still start.
+- **A place is handed on, never free in between.** A release starts the next job in the same step, so a job pushed meanwhile queues behind it. A `start` that pushes, cancels or releases is safe inside the drain.
+- **A wait never hangs.** A job still waiting at its deadline is stale and never starts; one whose deadline came is passed over at a release even before the timer runs. The deadlines share one timer, at the earliest one waiting, gone once none waits.
+- **No record per job.** The queue keeps the jobs themselves, in the order pushed. A `start` that throws is reported ([machine_queue_start_failed](https://ogygiajs.dev/e/machine_queue_start_failed)) and the jobs after it still start.
 
 ## Outbox
 

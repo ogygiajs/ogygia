@@ -16,7 +16,6 @@ import {
 	stage,
 	STALE,
 	world,
-	type InFlight,
 	type LockToken,
 	type Scope,
 	type Stage
@@ -368,56 +367,30 @@ bench(
 );
 
 bench(
-	'queue: downloads by priority under a window of 3 (urgent ones past it), each released as it lands',
-	async ({ n }) => {
-		const q = queue<number>({ max: 3, holds: (p) => p < 2 });
-		const out: Promise<unknown>[] = [];
-		for (let i = 0; i < n; i++)
-			out.push(
-				q.add(i, { priority: i % 4 }).then(async (s) => {
-					if (s === STALE) return;
-					await Promise.resolve(); // the download
-					s.release();
-				})
-			);
-		await Promise.all(out);
-		return q.holding + q.waiting;
-	},
-	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
-);
-
-bench(
-	'queue: a paced drain (a budget, a pause each slice) with getters read again and a flight raised',
+	'queue: renders through four places, some past their deadline, some cancelled, each released as it ends',
 	async ({ n }) => {
 		let clock = 0;
-		let flight!: InFlight;
-		const warm = flights({
-			keep: 0,
-			run: (_k: 'x', _signal, f) => ((flight = f), new Promise<number>(() => {}))
-		});
-		void warm.get('x', { priority: 0 });
+		let started = 0;
+		let stale = 0;
 		const q = queue<number>({
-			max: 3,
-			holds: (p) => p < 2,
-			budget: 8,
+			max: 4,
 			now: () => clock,
-			pause: (resume) => void Promise.resolve().then(resume)
-		});
-		const out: Promise<unknown>[] = [];
-		for (let i = 0; i < n; i++) {
-			const p = i % 4;
-			out.push(
-				q.add(i, i % 50 === 0 ? { priority: 0, flight } : { priority: () => p }).then(async (s) => {
-					if (s === STALE) return;
+			start: (job) => {
+				started++;
+				void Promise.resolve().then(() => {
 					clock++;
-					await Promise.resolve();
-					s.release();
-				})
-			);
-			if (i === n >> 1) void warm.get('x', { priority: 3 });
+					q.release(); // the render ends
+				});
+				void job;
+			},
+			stale: () => void stale++
+		});
+		for (let i = 0; i < n; i++) {
+			q.push(i, i % 7 === 0 ? clock + 20 : undefined);
+			if (i % 11 === 0) q.cancel(i);
 		}
-		await Promise.all(out);
-		return q.holding + q.waiting;
+		while (q.waiting) await Promise.resolve();
+		return started + stale;
 	},
 	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
 );
