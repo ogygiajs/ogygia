@@ -172,7 +172,7 @@ describe('the virtual-module table', () => {
 		expect(id).toBe(RESOLVED('ogygia:server'));
 		const src = table.load(id, app({}), leg(true)) as string;
 		expect(src).toContain('export { region_ttl, renew_window } from "ogygia:server/region-ttl";');
-		expect(src).toContain('islandCss as region_css');
+		expect(src).toContain('region_css');
 		expect(src).not.toContain('export default');
 		// a request's real module may import the realm module back: every value is evaluated first
 		const lines = src.split('\n');
@@ -194,7 +194,7 @@ describe('the virtual-module table', () => {
 		].join('\n');
 		expect(table.split_realm_imports(code)).toBe(
 			[
-				`import { region_ttl } from 'ogygia:server/region-ttl'; import { islandCss as css } from 'ogygia:server/region-deps'; import { sign } from 'ogygia:server/sign';`,
+				`import { region_ttl } from 'ogygia:server/region-ttl'; import { region_css as css } from 'ogygia:server/region-deps'; import { sign } from 'ogygia:server/sign';`,
 				`export { transport } from "ogygia:region/kit-transport";`,
 				`import type { X } from 'ogygia:server';`,
 				`import * as all from 'ogygia:boot';`

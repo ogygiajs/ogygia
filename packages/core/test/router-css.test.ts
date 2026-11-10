@@ -89,7 +89,7 @@ describe('router_css_module — the generated virtual', () => {
 		).toBe('export {};\n');
 	});
 
-	it("prod: registers each root with a handoff thunk (islandCss key + Kit's configured base)", async () => {
+	it("prod: registers each root with a handoff thunk (region_css key + Kit's configured base)", async () => {
 		const src = await router_css_module(['/app/src/lib/Shell.svelte'], {
 			root: ROOT,
 			lib_dir: LIB,
@@ -97,7 +97,7 @@ describe('router_css_module — the generated virtual', () => {
 			read_file: () => null
 		});
 		expect(src).toContain(`import __OgRcss0 from "/app/src/lib/Shell.svelte";`);
-		expect(src).toContain(`islandCss("rcss:src/lib/Shell.svelte")`);
+		expect(src).toContain(`region_css("rcss:src/lib/Shell.svelte")`);
 		expect(src).toContain(`from 'ogygia:server/region-deps'`);
 		// (Kit's build define, root-absolute: `$app/paths` has no `base` on Kit 3, and Kit 2's was
 		// page-relative during SSR — a router navigation carries these links to another depth)
@@ -123,7 +123,7 @@ describe('router_css_module — the generated virtual', () => {
 		expect(src).toContain('.badge'); // the CHILD's css rides the root's registration
 		expect(src).toContain('rcss-dev:src/lib/Shell.svelte');
 		expect(src).toContain('rcss-dev:src/lib/Badge.svelte');
-		expect(src).not.toContain('islandCss'); // dev never touches the build handoff
+		expect(src).not.toContain('region_css'); // dev never touches the build handoff
 		// STRUCTURAL: the dev virtual must be pure data — a component import here would weld the whole
 		// router-page tree into graph territory SvelteKit's dev css collector can crawl from any page,
 		// leaking router stylesheets into unrelated pages (seen in the wild via the profiler's UI).

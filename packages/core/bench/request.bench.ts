@@ -21,7 +21,7 @@ import { record_page } from '../src/page-seed-registry.ts';
 import { facts_of } from '../src/plugin/facts.ts';
 import { SeedIndex, json_culprit, plan_seed_refs } from '../src/seed-refs.ts';
 import { DocumentTail, document_tail } from '../src/server/document-tail.ts';
-import { island_fingerprint } from '../src/server/fingerprint.ts';
+import { region_fingerprint } from '../src/server/fingerprint.ts';
 import {
 	__heisenbench as page_stream,
 	settle_deferred,
@@ -196,7 +196,7 @@ function render_island(
 	record_page({ data, form: null, error: null, status: 200 }, ask, remotes, entry);
 	const tail = document_tail()!;
 	const wire = plan_props_wire(props, entry);
-	const fp = island_fingerprint(entry, wire.canonical);
+	const fp = region_fingerprint(entry, wire.canonical);
 	tail.props(fp, wire, { entry, name: 'Block', module_url: entry, wake: 'visible' });
 	const hrefs = tail.graph_of(entry) ?? graph;
 	tail.graph(entry, hrefs, fp, entry);

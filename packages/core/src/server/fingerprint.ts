@@ -19,6 +19,6 @@
  */
 import { createHash } from 'node:crypto';
 
-export function island_fingerprint(entry: string, canonical: string): string {
+export function region_fingerprint(entry: string, canonical: string): string {
 	return createHash('sha1').update(entry).update(' ').update(canonical).digest('hex').slice(0, 16);
 }
