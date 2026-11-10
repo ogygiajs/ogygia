@@ -25,6 +25,7 @@ import { get, writable, derived } from 'svelte/store';
 import { wire } from './live-transport.ts';
 import { register_kind, mint, resolve, type Ref } from './ref.ts';
 import { OgygiaError, warn } from './messages/island.ts';
+import { cache } from '@ogygia/machine';
 
 /** Brand on an `og_derived` store: the RECIPE (sources + formula) it was made from. */
 const DERIVED_BRAND = Symbol.for('ogygia.derived');
@@ -152,6 +153,7 @@ export function register_store_kind(): void {
 	});
 }
 
+// static: one family
 const STORE_ONLY = new Set(['store']);
 
 /**
@@ -186,7 +188,7 @@ export function revive_store(payload: StorePayload, remember: boolean): unknown 
  */
 /** Tags already warned about non-store products — once per tag, not once per call (a hot
  *  SSR path would otherwise warn on every request). */
-const warned_unbranded = new Set<string>();
+const warned_unbranded = cache<string, true>({ name: 'warned unbranded stores', max: 1000 });
 
 export function __og_store<F extends (...args: never[]) => object>(tag: string, factory: F): F {
 	// decode side: factory(seed), branded so a revived store can cross a FURTHER boundary
@@ -200,7 +202,7 @@ export function __og_store<F extends (...args: never[]) => object>(tag: string, 
 		const product = factory(...args);
 		if (product === null || typeof product !== 'object') {
 			if (!warned_unbranded.has(tag) && typeof console !== 'undefined') {
-				warned_unbranded.add(tag);
+				warned_unbranded.set(tag, true);
 				warn('store_factory_unbranded', { tag, got: type_of(product) });
 			}
 			return product;

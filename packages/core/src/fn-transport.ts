@@ -129,6 +129,7 @@ export function register_fn_kind(): void {
 		}
 	});
 }
+// static: one family
 const FN_ONLY = new Set(['fn']);
 
 /** Devalue reducer (legacy-shaped wrapper, mirrors the other kinds). */

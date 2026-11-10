@@ -177,6 +177,7 @@ export type ScriptOptions<A extends unknown[] = unknown[]> =
 	| SpeculationScript;
 
 /** The payload and option keys — everything else in the object is an attribute. */
+// static: the reserved names
 const RESERVED = new Set([
 	'run',
 	'args',

@@ -34,13 +34,25 @@ export interface BoundaryPolicy {
 	allow?: readonly string[];
 	deny?: readonly string[];
 }
-let policy: { allow: Set<string>; deny: Set<string> } = { allow: new Set(), deny: new Set() };
+/** The process's policy: the names the app configured, replaced by each `configure_boundary`. */
+class BoundarySettings {
+	readonly allow = new Set<string>();
+	readonly deny = new Set<string>();
+	configure(p: BoundaryPolicy): void {
+		this.allow.clear();
+		this.deny.clear();
+		for (const name of p.allow ?? []) this.allow.add(name);
+		for (const name of p.deny ?? []) this.deny.add(name);
+	}
+}
+const policy = new BoundarySettings();
 export function configure_boundary(p: BoundaryPolicy): void {
-	policy = { allow: new Set(p.allow ?? []), deny: new Set(p.deny ?? []) };
+	policy.configure(p);
 }
 const secret_like = (name: string): boolean =>
 	!policy.allow.has(name) && (policy.deny.has(name) || SECRET_KEY_RE.test(name));
 
+// static: a store's own methods
 const STORE_BUILTINS = new Set(['subscribe', 'set', 'update']);
 
 function is_dom(v: object): boolean {

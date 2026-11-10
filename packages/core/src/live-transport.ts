@@ -172,6 +172,7 @@ export function register_wire_kind(): void {
 	});
 }
 
+// static: one family
 const WIRE_ONLY = new Set(['wire']);
 
 /**

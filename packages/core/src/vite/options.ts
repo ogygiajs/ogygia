@@ -202,6 +202,7 @@ export function assert_no_legacy_options(options: OgygiaOptions): void {
 	}
 }
 
+// static: the keys a region preset takes
 const REGION_PRESET_KEYS = new Set([
 	'render',
 	'wake',

@@ -123,14 +123,28 @@ export function subscribe_page(fn: () => void): () => void {
 // The once-set lives on `globalThis` for the same reason `page_state` does (PAGE-STATE-SINGLETON):
 // `vite dev` evaluates this module more than once per document, and a module-local set printed
 // the same island twice.
-const WARNED_FOREIGN_KEY = Symbol.for('ogygia.foreign-page-warned');
-const warned_foreign_entries: Set<string> = ((
-	globalThis as unknown as Record<symbol, Set<string> | undefined>
-)[WARNED_FOREIGN_KEY] ??= new Set<string>());
+// (.v2: the slot holds a capped record now; a copy of another version keeps its own)
+const WARNED_FOREIGN_KEY = Symbol.for('ogygia.foreign-page-warned.v2');
+/** The islands a foreign page read was said for (an island-side module: it imports nothing of the
+ *  boot, so a record of its own, capped: past the cap a read is said again, never held). */
+class WarnedReads {
+	static readonly MAX = 1000;
+	readonly entries = new Set<string>();
+	has(entry: string): boolean {
+		return this.entries.has(entry);
+	}
+	set(entry: string, _said: true): void {
+		if (this.entries.size >= WarnedReads.MAX) this.entries.clear();
+		this.entries.add(entry);
+	}
+}
+const warned_foreign_entries: WarnedReads = ((
+	globalThis as unknown as Record<symbol, WarnedReads | undefined>
+)[WARNED_FOREIGN_KEY] ??= new WarnedReads());
 export function warn_foreign_page_read(expr: string): void {
 	if (!import.meta.env.DEV) return;
 	const f = foreign_hydrate();
 	if (!f || warned_foreign_entries.has(f.entry)) return;
-	warned_foreign_entries.add(f.entry);
+	warned_foreign_entries.set(f.entry, true);
 	warn('foreign_page_read', { expr, entry: f.entry, origin: f.origin });
 }
