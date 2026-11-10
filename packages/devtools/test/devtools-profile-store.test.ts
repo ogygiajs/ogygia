@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { scope } from '@ogygia/machine';
-import { slim_profile, island_row, run_profile } from '../src/devtools/profile-store.ts';
+import {
+	slim_profile,
+	island_row,
+	run_profile,
+	set_profile,
+	profile_for
+} from '../src/devtools/profile-store.ts';
 
 const report = {
 	id: 'abc123',
@@ -256,5 +262,15 @@ describe('run_profile when the profiler refuses', () => {
 		} finally {
 			globalThis.fetch = real;
 		}
+	});
+});
+
+describe('the profile store is bounded (#413)', () => {
+	it('keeps the most recently profiled pages, not one per page a tab ever profiled', () => {
+		const p = slim_profile(report);
+		// a long session: a profile per page of a large site, one after another
+		for (let i = 0; i < 500; i++) set_profile({ ...p, page: '/p/' + i, at: i });
+		expect(profile_for('/p/499'), 'the newest is kept').not.toBeNull();
+		expect(profile_for('/p/0'), 'the oldest went once the store was full').toBeNull();
 	});
 });
