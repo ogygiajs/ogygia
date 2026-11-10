@@ -16,6 +16,7 @@ import type { RequestEvent } from '@sveltejs/kit';
 
 /** Personalization-bearing request headers: reading one during an eligible render disqualifies
  *  the page. Everything else (host, sec-fetch-*, accept-encoding, …) is delivery plumbing. */
+// static: a fixed list of header names
 const DISQUALIFYING_HEADERS = new Set([
 	'cookie',
 	'authorization',

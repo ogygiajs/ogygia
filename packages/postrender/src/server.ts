@@ -24,7 +24,7 @@ import {
 	type RequestContext,
 	type ServerPlugin
 } from '@ogygia/core/plugin';
-import { STALE } from '@ogygia/machine';
+import { cache, STALE } from '@ogygia/machine';
 import {
 	current_runtime,
 	enter_flight,
@@ -210,7 +210,7 @@ function stamp_no_store(response: Response): void {
 
 /** DEV teaching leg: the verdict runs but never stores/serves. Eligible → a `would-store`
  *  header to read in the network panel; refused → ONE console note per path naming the read. */
-const dev_noted_paths = new Set<string>();
+const dev_noted_paths = cache<string, true>({ name: 'postrender dev notes', max: 500 });
 function dev_postrender_note(response: Response, ctx: Ctx, obs: Observation): void {
 	const refusal =
 		obs.disqualified_by ??
@@ -229,8 +229,9 @@ function dev_postrender_note(response: Response, ctx: Ctx, obs: Observation): vo
 		}
 		return;
 	}
-	if (dev_noted_paths.has(ctx.path)) return;
-	dev_noted_paths.add(ctx.path);
+	// (once per path, for the latest 500 paths: a dev session's pages)
+	if (dev_noted_paths.get(ctx.path)) return;
+	dev_noted_paths.set(ctx.path, true);
 	warn('postrender_stays_per_request', { path: ctx.path, refusal });
 }
 
