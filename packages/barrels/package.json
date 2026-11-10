@@ -1,7 +1,6 @@
 {
 	"name": "@ogygia/barrels",
-	"version": "0.0.0",
-	"private": true,
+	"version": "0.13.0",
 	"description": "Barrel imports become leaf imports at transform time, for ogygia apps",
 	"keywords": [
 		"barrels",
@@ -50,12 +49,14 @@
 		"check": "tsc -p . && tsc -p test && vitest run",
 		"test": "vitest run"
 	},
+	"dependencies": {
+		"magic-string": "catalog:"
+	},
 	"devDependencies": {
 		"@ogygia/config": "workspace:*",
 		"@ogygia/core": "workspace:*",
 		"@sveltejs/vite-plugin-svelte": "catalog:",
 		"@typescript/native": "catalog:tsgo",
-		"magic-string": "catalog:",
 		"svelte": "catalog:",
 		"tsdown": "catalog:",
 		"typescript": "catalog:",
