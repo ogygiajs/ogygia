@@ -297,16 +297,14 @@ async function ask_source(c: CtxLike, source: NonNullable<typeof _source>): Prom
 
 function resolved_for(c: CtxLike, name: string): Decision | undefined {
 	const p = prime_of(c);
-	if (p === undefined && _source && !_unprimed_warned) {
+	if (p === undefined && _source)
 		// a source is configured but nothing primed this request: the plugin is not in the app's list,
 		// so every read silently ignores the source. Say it once.
-		_unprimed_warned = true;
-		warn('flags_source_unprimed');
-	}
+		_said.once('flags_source_unprimed', () => warn('flags_source_unprimed'));
 	return p?.kind === 'resolved' ? p.map[name] : undefined;
 }
-let _unprimed_warned = false;
-let _unstarted_warned = false;
+/** The setup mistakes, each said once for the process. */
+const _said = say({ max: 2 });
 
 /** Record the decided variant as a request fact: federation carries the set as signed claims. */
 function record_assigned(c: CtxLike, name: string, variant: string): void {
@@ -482,11 +480,10 @@ export function flag(
 		if (app) {
 			const facts = app.facts(c.request);
 			if (facts.perVisitor === null) facts.perVisitor = `flag:${name}`;
-		} else if (!BROWSER && !_unstarted_warned) {
+		} else if (!BROWSER) {
 			// read on a server where the plugin never started: nothing reports the read, so a store
 			// plugin could keep ONE variant of an A/B'd page for everyone. Say it once, loudly.
-			_unstarted_warned = true;
-			warn('flags_plugin_not_running');
+			_said.once('flags_plugin_not_running', () => warn('flags_plugin_not_running'));
 		}
 		const cached = memo.get(c.request);
 		if (cached !== undefined) return cached;
