@@ -21,7 +21,7 @@ describe('a queue raise during its drain, simulated', () => {
 					max: 1,
 					budget: 0, // every start ends a slice: the drain pauses after each
 					now: () => clock,
-					pause: () => s.schedule(Promise.resolve(), 'the drain pauses')
+					pause: (resume) => void s.schedule(Promise.resolve(), 'the drain pauses').then(resume)
 				});
 				let flight!: InFlight;
 				const warm = flights({

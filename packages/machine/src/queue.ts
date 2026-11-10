@@ -6,7 +6,8 @@
  *     max: 3,                                   // at most three hold a place at once
  *     holds: (priority) => priority < 2,        // urgent ones start past the cap
  *     admit: (d, priority) => gate_open || priority >= 2,
- *     budget: 16, pause: yield_task             // start-up work yields after 16 ms
+ *     budget: 16,                               // a drain starts jobs for 16 ms, then pauses
+ *     pause: (resume) => void yield_task().then(resume)
  *   });
  *   const s = await downloads.add(d, { priority: () => class_of(d), flight, owner });
  *   if (s === STALE) return;                    // its owner closed, or its deadline came
@@ -16,13 +17,17 @@
  *   `max` do. `add` resolves then, with a `release` to call once the work is done (once: a second
  *   call does nothing). A release hands its place to the next job in the same step: a job added
  *   meanwhile queues behind it instead of starting beside it.
+ * - `start(job, started)`, when given, starts each job in the drain's own step (`add` resolves a
+ *   microtask later). A promise it returns is waited for before the next start: the job's own
+ *   start-up. One that throws is reported (machine_queue_start_failed) and the drain goes on.
  * - The most urgent starts first: the highest `priority`, then the order added. A getter is read
- *   again at each drain. A job that serves a flight (`flight`) is at least at the flight's priority,
- *   and a caller raising the flight drains the queue: the job moves up while it waits.
+ *   again at each drain, and after a job's start ran. A job that serves a flight (`flight`) is at
+ *   least at the flight's priority, and a caller raising the flight drains the queue: the job moves
+ *   up while it waits.
  * - `drain()` looks again: something `admit` or a priority getter reads changed.
- * - `budget` (ms): a drain gives the thread back after starting jobs for this long (`pause`, a new
- *   task), and goes on after it. Each job's own start-up runs before the budget is read again.
- *   `deferred`: a drain begins with a pause, never in the step that added.
+ * - `budget` (ms): a drain gives the thread back after starting jobs for this long (`pause`), and
+ *   goes on when `pause` calls it back. `deferred`: a drain begins with a pause, never in the step
+ *   that added.
  * - `deadline` (by `now`): a job still waiting then settles `STALE` and never starts (one whose
  *   deadline came is passed over even before its timer runs).
  * - `owner`: its scope closing settles a waiting job `STALE`, and gives a started one's place back.
@@ -30,7 +35,7 @@
  * One drain runs at a time: one asked for while it runs goes round once more when it is done.
  */
 import { machine } from './machine.ts';
-import { machine_error } from './messages.ts';
+import { machine_error, report_thrown } from './messages.ts';
 import type { InFlight } from './flights.ts';
 import { MAX_TIMEOUT_MS, scope, type Scope } from './scope.ts';
 import { STALE, type Stale } from './stale.ts';
@@ -45,11 +50,13 @@ export interface QueueOptions<J> {
 	holds?: (priority: number, job: J) => boolean;
 	/** Whether a waiting job may start now. One it refuses keeps its place; `drain()` looks again. */
 	admit?: (job: J, priority: number) => boolean;
+	/** Starts a job, in the drain's step. A promise it returns is waited for before the next start. */
+	start?: (job: J, started: Started) => void | PromiseLike<unknown>;
 	/** How long (ms) a drain starts jobs before it gives the thread back with `pause`. */
 	budget?: number;
-	/** How a drain gives the thread back: resolves in a new task. Needed by `budget` and `deferred`. */
-	pause?: () => Promise<unknown>;
-	/** A drain begins after a `pause`, never in the step that added. */
+	/** Gives the thread back: calls `resume` in a new task. Needed by `budget` and `deferred`. */
+	pause?: (resume: () => void) => void;
+	/** A drain begins with a `pause`, never in the step that added. */
 	deferred?: boolean;
 	/** The clock for `budget` and `deadline` (ms): `performance.now()` when left out. */
 	now?: () => number;
@@ -88,6 +95,10 @@ const drain_definition = machine<{ idle: {}; draining: {}; again: {} }>()({
 	initial: 'idle',
 	steps: { idle: ['draining'], draining: ['idle', 'again'], again: ['idle', 'draining'] }
 });
+
+/** What a pass hands its driver: give the thread back, or wait for a job's start-up. */
+const PAUSE = Symbol('pause');
+type Wait = typeof PAUSE | PromiseLike<unknown>;
 
 /** A job's place in the queue. */
 class Ticket<J> implements Started {
@@ -150,23 +161,30 @@ class Ticket<J> implements Started {
 }
 
 class QueueImpl<J> implements Queue<J> {
+	readonly #name: string;
 	readonly #max: number;
 	readonly #holds: ((priority: number, job: J) => boolean) | null;
 	readonly #admit: ((job: J, priority: number) => boolean) | null;
+	readonly #start: ((job: J, started: Started) => void | PromiseLike<unknown>) | null;
 	readonly #budget: number;
-	readonly #pause: (() => Promise<unknown>) | null;
+	readonly #pause: ((resume: () => void) => void) | null;
 	readonly #deferred: boolean;
 	readonly #now: () => number;
 	/** Waiting tickets, in the order added (a drain takes out the ones it started). */
-	#list: Ticket<J>[] = [];
+	readonly #list: Ticket<J>[] = [];
 	#waiting = 0;
 	#holding = 0;
 	readonly #drain = drain_definition.create();
+	/** The drain's passes while one runs: resumed after a pause or a start-up. */
+	#passes: Generator<Wait, void> | null = null;
+	readonly #step = (): void => this.#run();
 
 	constructor(o: QueueOptions<J>) {
+		this.#name = o.name ?? 'queue';
 		this.#max = o.max ?? Infinity;
 		this.#holds = o.holds ?? null;
 		this.#admit = o.admit ?? null;
+		this.#start = o.start ?? null;
 		this.#budget = o.budget ?? Infinity;
 		this.#pause = o.pause ?? null;
 		this.#deferred = o.deferred === true;
@@ -215,21 +233,8 @@ class QueueImpl<J> implements Queue<J> {
 		}
 		if (!this.#waiting) return;
 		d.go('draining');
-		if (this.#budget === Infinity && !this.#deferred) {
-			// every start at once: a release hands its place on in the same step
-			const again = (): boolean => d.now.kind === 'again'; // (read after the pass ran)
-			do {
-				if (again()) d.go('draining');
-				this.#pass_now();
-			} while (again());
-			d.go('idle');
-			return;
-		}
-		void this.#pass_paced().finally(() => {
-			const again = d.now.kind === 'again';
-			d.go('idle');
-			if (again) this.drain();
-		}); // ok: a pass only starts jobs and pauses; it never rejects
+		this.#passes = this.#pass();
+		this.#run();
 	}
 
 	/** A started ticket gave its place back. */
@@ -248,6 +253,69 @@ class QueueImpl<J> implements Queue<J> {
 		if (this.#drain.now.kind === 'idle') this.#compact();
 	}
 
+	/** Runs the drain's passes until they end, pause, or wait for a job's start-up. */
+	#run(): void {
+		const r = this.#passes!.next();
+		if (r.done) {
+			this.#passes = null;
+			this.#drain.go('idle');
+		} else if (r.value === PAUSE) this.#pause!(this.#step);
+		// ok: a start-up that fails is its job's; the drain goes on either way
+		else void r.value.then(this.#step, this.#step);
+	}
+
+	/**
+	 * The drain: a pass goes through the waiting jobs by priority (each read once, grouped by value),
+	 * then the jobs added while it ran, in the order added. Once a job's start ran, priorities are
+	 * read again. Past the budget it pauses, and the next pass begins (priorities may have moved
+	 * while the page had the thread). A drain asked for while it ran is one more pass.
+	 *
+	 * @heisenbench linear
+	 */
+	*#pass(): Generator<Wait, void> {
+		const d = this.#drain;
+		const all_hold = this.#holds === null;
+		const paced = this.#budget !== Infinity;
+		if (this.#deferred) yield PAUSE;
+		let until = paced ? this.#now() + this.#budget : Infinity;
+		for (;;) {
+			if (d.now.kind === 'again') d.go('draining');
+			let started = false;
+			let paused = false;
+			// (with every job holding a place, a full queue starts nothing this pass)
+			if (!(all_hold && this.#holding >= this.#max)) {
+				const asked = this.#list.length;
+				const groups = this.#ordered();
+				groups.push(this.#list); // then the ones added while it ran
+				let ran = false;
+				pass: for (let g = 0; g < groups.length; g++) {
+					const list = groups[g];
+					const tail = g === groups.length - 1;
+					for (let i = tail ? asked : 0; i < list.length; i++) {
+						if (all_hold && this.#holding >= this.#max) break pass;
+						const t = list[i];
+						const hop = this.#try(t, ran || tail ? t.read() : t.priority);
+						if (hop === false) continue;
+						started = true;
+						if (hop !== true) yield hop; // its start-up runs now
+						if (hop !== true || this.#start !== null) ran = true;
+						if (paced && this.#now() >= until) {
+							this.#compact();
+							yield PAUSE;
+							until = this.#now() + this.#budget;
+							paused = true;
+							break pass;
+						}
+					}
+				}
+			}
+			if (!paused) {
+				if (started) this.#compact();
+				if (d.now.kind !== 'again') return;
+			}
+		}
+	}
+
 	/** The waiting tickets by priority (highest first), then the order added: each read once, and
 	 *  grouped by value (a sort of the few distinct priorities, not of the queue). */
 	#ordered(): Ticket<J>[][] {
@@ -262,8 +330,9 @@ class QueueImpl<J> implements Queue<J> {
 		return [...groups.keys()].sort((a, b) => b - a).map((p) => groups.get(p)!);
 	}
 
-	/** Starts `t` if its queue lets it now: whether it started. */
-	#try(t: Ticket<J>, priority: number): boolean {
+	/** Starts `t` if its queue lets it now: `false` when it did not, else `true`, or the promise
+	 *  its start returned (its start-up, waited for before the next start). */
+	#try(t: Ticket<J>, priority: number): boolean | PromiseLike<unknown> {
 		if (!t.waiting) return false;
 		if (t.deadline !== Infinity && t.deadline <= this.#now()) {
 			this.#waiting--;
@@ -276,63 +345,14 @@ class QueueImpl<J> implements Queue<J> {
 		if (holds) this.#holding++;
 		this.#waiting--;
 		t.start(priority, holds);
-		return true;
-	}
-
-	/** One pass, every start in this step. */
-	#pass_now(): void {
-		// (with every job holding a place, a full queue starts nothing more this pass)
-		const all_hold = this.#holds === null;
-		if (all_hold && this.#holding >= this.#max) return;
-		pass: for (const group of this.#ordered())
-			for (const t of group) {
-				if (all_hold && this.#holding >= this.#max) break pass;
-				this.#try(t, t.priority);
-			}
-		this.#compact();
-	}
-
-	/**
-	 * Passes that let each started job's own start-up run (a microtask) before the next start, and
-	 * give the thread back past the budget. A pass goes through the queue by priority, then the jobs
-	 * added while it ran, in the order added. Once a job has run, priorities are read again.
-	 *
-	 * @heisenbench linear
-	 */
-	async #pass_paced(): Promise<void> {
-		const d = this.#drain;
-		if (this.#deferred) await this.#pause!();
-		let until = this.#now() + this.#budget;
-		for (;;) {
-			if (d.now.kind === 'again') d.go('draining');
-			const asked = this.#list.length;
-			const groups = this.#ordered();
-			groups.push(this.#list); // then the ones added while it ran
-			let ran = false;
-			let started = false;
-			let paused = false;
-			pass: for (let g = 0; g < groups.length; g++) {
-				const list = groups[g];
-				const tail = g === groups.length - 1;
-				for (let i = tail ? asked : 0; i < list.length; i++) {
-					const t = list[i];
-					if (!this.#try(t, ran || tail ? t.read() : t.priority)) continue;
-					started = true;
-					await Promise.resolve(); // its start-up runs now
-					ran = true;
-					if (this.#now() >= until) {
-						this.#compact();
-						await this.#pause!();
-						until = this.#now() + this.#budget;
-						paused = true;
-						break pass; // priorities may have moved while the page had the thread
-					}
-				}
-			}
-			if (!paused) {
-				if (started) this.#compact();
-				if (d.now.kind !== 'again') return;
-			}
+		const start = this.#start;
+		if (start === null) return true;
+		try {
+			const up = start(t.job, t);
+			return up != null && typeof up.then === 'function' ? up : true;
+		} catch (error) {
+			report_thrown('machine_queue_start_failed', { name: this.#name }, error);
+			return true;
 		}
 	}
 
@@ -356,7 +376,7 @@ export function queue<J>(options: QueueOptions<J> = {}): Queue<J> {
 		throw bad_option(
 			'pause',
 			pause,
-			'a function that resolves in a new task, with budget or deferred'
+			'a function that calls its resume in a new task, with budget or deferred'
 		);
 	return new QueueImpl(options);
 }

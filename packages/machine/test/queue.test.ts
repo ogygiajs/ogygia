@@ -155,46 +155,98 @@ describe('admit', () => {
 });
 
 describe('budget', () => {
-	it('a drain gives the thread back after its budget, and goes on after the pause', async () => {
+	it('a drain gives the thread back after its budget, and goes on when the pause resumes it', () => {
 		let clock = 0;
+		let open = false;
 		const pauses: Array<() => void> = [];
-		const q = queue<string>({
-			budget: 10,
-			now: () => clock,
-			pause: () => new Promise<void>((r) => pauses.push(r))
-		});
-		// each job's own start-up (6 ms) runs before the budget is read again
 		const seen: string[] = [];
-		for (const j of ['a', 'b', 'c', 'd'])
-			void q.add(j).then((s) => {
-				if (s === STALE) return;
+		const q = queue<string>({
+			admit: () => open,
+			// each job's start (6 ms of work) runs in the drain's step
+			start: (j, s) => {
 				seen.push(j);
 				clock += 6;
 				s.release();
-			});
-		await macrotask();
+			},
+			budget: 10,
+			now: () => clock,
+			pause: (resume) => pauses.push(resume)
+		});
+		for (const j of ['a', 'b', 'c', 'd']) void q.add(j);
+		open = true;
+		q.drain();
 		expect(seen).toEqual(['a', 'b']); // 12 ms: past the budget, it paused
 		expect(pauses.length).toBe(1);
-		pauses.shift()!();
-		await macrotask();
+		pauses.shift()!(); // the new task: it goes on in it, at once
 		expect(seen).toEqual(['a', 'b', 'c', 'd']);
 	});
 
-	it('deferred: a drain begins after a pause, never in the step that added', async () => {
+	it("a start's promise is its start-up: waited for, and counted, before the next start", async () => {
+		let clock = 0;
 		const pauses: Array<() => void> = [];
+		const seen: string[] = [];
 		const q = queue<string>({
-			deferred: true,
-			pause: () => new Promise<void>((r) => pauses.push(r))
+			start: (j) =>
+				Promise.resolve().then(() => {
+					seen.push(j);
+					clock += 6;
+				}),
+			budget: 10,
+			now: () => clock,
+			pause: (resume) => pauses.push(resume)
 		});
-		const t = track(q);
-		void t.add('a');
-		void t.add('b');
+		for (const j of ['a', 'b', 'c']) void q.add(j);
 		await macrotask();
-		expect(t.started).toEqual([]);
-		expect(pauses.length).toBe(1); // one pause for both
+		expect(seen).toEqual(['a', 'b']);
+		expect(pauses.length).toBe(1);
 		pauses.shift()!();
 		await macrotask();
-		expect(t.started).toEqual(['a', 'b']);
+		expect(seen).toEqual(['a', 'b', 'c']);
+	});
+
+	it('a start that throws is reported, and the jobs after it still start', () => {
+		const said = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const page = globalThis as { reportError?: (e: unknown) => void };
+		const own = page.reportError;
+		const reported: unknown[] = [];
+		page.reportError = (e) => reported.push(e);
+		try {
+			const seen: string[] = [];
+			const q = queue<string>({
+				name: 'starts',
+				start: (j) => {
+					if (j === 'bad') throw new Error('boom');
+					seen.push(j);
+				}
+			});
+			void q.add('bad');
+			void q.add('good');
+			expect(seen).toEqual(['good']);
+			expect(String(said.mock.calls[0]?.[0])).toContain('machine_queue_start_failed');
+			expect(reported).toHaveLength(1);
+		} finally {
+			page.reportError = own;
+			said.mockRestore();
+		}
+	});
+
+	it('deferred: a drain begins after a pause, and runs every job waiting in that task', () => {
+		const pauses: Array<() => void> = [];
+		const seen: string[] = [];
+		const q = queue<string>({
+			holds: () => false,
+			start: (j) => void seen.push(j),
+			deferred: true,
+			pause: (resume) => pauses.push(resume)
+		});
+		void q.add('a');
+		void q.add('b');
+		expect(seen).toEqual([]);
+		expect(pauses.length).toBe(1); // one pause for both
+		pauses.shift()!();
+		expect(seen).toEqual(['a', 'b']);
+		void q.add('c'); // drained: a new pause
+		expect(pauses.length).toBe(1);
 	});
 });
 

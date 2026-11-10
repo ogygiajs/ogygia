@@ -401,7 +401,7 @@ bench(
 			holds: (p) => p < 2,
 			budget: 8,
 			now: () => clock,
-			pause: () => Promise.resolve()
+			pause: (resume) => void Promise.resolve().then(resume)
 		});
 		const out: Promise<unknown>[] = [];
 		for (let i = 0; i < n; i++) {

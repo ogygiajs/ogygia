@@ -29,6 +29,7 @@ export type MachineErrors = {
 	machine_stage_step_failed: Entry<{ name: string }>;
 	machine_mailbox_handler_failed: Entry<Record<string, never>>;
 	machine_flight_raise_failed: Entry<{ name: string }>;
+	machine_queue_start_failed: Entry<{ name: string }>;
 };
 
 /** The errors: thrown in dev (and tests), where a wrong move is a bug to fix now. */
@@ -184,6 +185,16 @@ export const MACHINE_ERRORS: MachineErrors = {
 			"(`reportError`: the console and `window.onerror`), as an event listener's would. The " +
 			'flight is raised all the same, and its other listeners still hear it.\n\n' +
 			'Catch inside the listener to handle it there.'
+	},
+	machine_queue_start_failed: {
+		text: (a: { name: string }): string =>
+			`queue ${a.name}: a job's \`start\` threw as the drain started it.`,
+		details: (): string =>
+			'A `queue()` started a job with its `start` option, and it threw. The job is the one at ' +
+			"fault, so the drain is not stopped: the error goes to the page's error handler " +
+			'(`reportError`: the console and `window.onerror`), as a task would, and the jobs after it ' +
+			'still start. The job counts as started: release its place when its work is done.\n\n' +
+			'Catch inside `start` to handle it there.'
 	}
 };
 

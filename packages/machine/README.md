@@ -199,7 +199,7 @@ const downloads = queue<Download>({
 	holds: (priority) => priority < 2, // urgent ones start past the cap
 	admit: (d, priority) => page_ready || priority >= 2, // a gate: a refused job keeps its place
 	budget: 16, // a drain starts jobs for 16 ms, then gives the thread back
-	pause: yield_task
+	pause: (resume) => void yield_task().then(resume)
 });
 const s = await downloads.add(d, { priority: () => class_of(d), flight, owner: visit.scope });
 if (s === STALE) return; // its owner closed, or its deadline came
@@ -210,18 +210,19 @@ try {
 }
 ```
 
-|                                                   |                                                                                                              |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `max` / `holds(priority, job)`                    | The most jobs holding a place at once; which jobs hold one (default: every job).                             |
-| `admit(job, priority)`                            | Whether a waiting job may start now. `drain()` looks again once what it reads changed.                       |
-| `budget` / `pause` / `deferred`                   | A drain gives the thread back (`pause`) after `budget` ms of starts; `deferred` begins every drain that way. |
-| `now`                                             | The clock for `budget` and `deadline`. Default `performance.now()`.                                          |
-| `add(job, { priority, flight, deadline, owner })` | Resolves with `{ priority, release }` once the job starts, or `STALE`.                                       |
+|                                                   |                                                                                                                                                           |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max` / `holds(priority, job)`                    | The most jobs holding a place at once; which jobs hold one (default: every job).                                                                          |
+| `admit(job, priority)`                            | Whether a waiting job may start now. `drain()` looks again once what it reads changed.                                                                    |
+| `start(job, started)`                             | Starts each job in the drain's own step. A promise it returns (its start-up) is waited for before the next.                                               |
+| `budget` / `pause(resume)` / `deferred`           | A drain gives the thread back after `budget` ms of starts, and goes on when `pause` calls `resume` in a new task; `deferred` begins every drain that way. |
+| `now`                                             | The clock for `budget` and `deadline`. Default `performance.now()`.                                                                                       |
+| `add(job, { priority, flight, deadline, owner })` | Resolves with `{ priority, release }` once the job starts, or `STALE`.                                                                                    |
 
 - **The most urgent goes first.** The highest `priority`, then the order added. A getter is read again at each drain. A job that serves a flight is at least at the flight's priority, and a raise of the flight drains the queue, so the job moves up while it waits.
 - **A place is handed on, never free in between.** A release starts the next job in the same step, so a job added meanwhile queues behind it. A release is given back once, however often it is called.
 - **A wait never hangs.** A job still waiting at its `deadline` settles `STALE` and never starts. Its `owner` closing settles it `STALE` while it waits, and gives its place back once it started.
-- **One drain at a time.** A drain asked for while one runs makes the running one go round again. Under a `budget`, each started job's own start-up runs before the budget is read again.
+- **One drain at a time.** A drain asked for while one runs makes the running one go round again. Under a `budget`, each started job's start (and the start-up it returns) runs before the budget is read again. A `start` that throws is reported ([machine_queue_start_failed](https://ogygiajs.dev/e/machine_queue_start_failed)) and the jobs after it still start.
 
 ## Outbox
 
