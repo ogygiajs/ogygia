@@ -199,7 +199,7 @@ bench('virtual modules: a table built, an undeclared id and a duplicate refused'
 	}
 	// a value module without generated names, and its message as the docs page words it
 	try {
-		new VirtualTable([a], core_path, {});
+		new VirtualTable([a], core_path, {}, CORE_PARTS);
 	} catch (e) {
 		refused += String(e).length > 0 ? 1 : 0;
 	}
