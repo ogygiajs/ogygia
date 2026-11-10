@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { transform_tabs, has_tabs } from '../src/markdown/tabs.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 /** Backtick fence helper — keeps the test source readable (no escaping a wall of backticks). */
 const F = '```';
@@ -31,15 +32,32 @@ describe('has_tabs gate', () => {
 		expect(has_tabs('::: code-group')).toBe(true);
 		expect(has_tabs('::: tabs')).toBe(true);
 		expect(has_tabs('  ::: tabs foo')).toBe(true);
-		expect(has_tabs('text\n::: code-group\n')).toBe(true);
+		expect(
+			has_tabs(
+				`${dedent`
+			text
+			::: code-group
+		`}\n`
+			)
+		).toBe(true);
 	});
 	it('ignores unrelated content', () => {
 		expect(has_tabs('just prose')).toBe(false);
-		expect(has_tabs('::: tip\nhi\n:::')).toBe(false);
+		expect(
+			has_tabs(dedent`
+			::: tip
+			hi
+			:::
+		`)
+		).toBe(false);
 		expect(has_tabs('the word tabs and code-group in prose')).toBe(false);
 	});
 	it('does not fire the pass when absent (identity + used=false)', () => {
-		const src = 'no tabs here\n\n## Heading\n';
+		const src = `${dedent`
+			no tabs here
+
+			## Heading
+		`}\n`;
 		const r = transform_tabs(src);
 		expect(r.used).toBe(false);
 		expect(r.code).toBe(src);
@@ -117,7 +135,11 @@ describe('code-group — grouping / sync', () => {
 		const block = [`::: code-group`, `${F}b [npm]`, 'x', F, `${F}b [pnpm]`, 'y', F, ':::'].join(
 			'\n'
 		);
-		const src = `${block}\n\n${block}`;
+		const src = dedent`
+			${block}
+
+			${block}
+		`;
 		const groups = [...run(src).matchAll(/<TabGroup group="([^"]*)">/g)].map((m) => m[1]);
 		expect(groups).toEqual(['cg:npm~pnpm', 'cg:npm~pnpm']);
 	});
@@ -182,7 +204,11 @@ describe('tabs — basics', () => {
 describe('tabs — grouping', () => {
 	it('auto-numbers independent groups per block', () => {
 		const b = ['::: tabs', '== A', 'x', '== B', 'y', ':::'].join('\n');
-		const src = `${b}\n\n${b}`;
+		const src = dedent`
+			${b}
+
+			${b}
+		`;
 		const groups = [...run(src).matchAll(/<TabGroup group="([^"]*)">/g)].map((m) => m[1]);
 		expect(groups).toEqual(['tabs0', 'tabs1']);
 	});
@@ -356,11 +382,35 @@ describe('has_tabs — prose false positives stay false', () => {
 		expect(has_tabs('you gain the ability to import a code-group helper')).toBe(false);
 		expect(has_tabs('tabs vs spaces is an eternal debate')).toBe(false);
 		expect(has_tabs('see :::tip for admonitions')).toBe(false); // no keyword
-		expect(has_tabs('::: warning\nnot a tab group\n:::')).toBe(false);
+		expect(
+			has_tabs(dedent`
+			::: warning
+			not a tab group
+			:::
+		`)
+		).toBe(false);
 	});
 	it('fires on a real opener even when buried mid-document', () => {
-		expect(has_tabs('# Title\n\nintro\n\n::: code-group\n')).toBe(true);
-		expect(has_tabs('a\nb\n\t::: tabs custom\n')).toBe(true);
+		expect(
+			has_tabs(
+				`${dedent`
+			# Title
+
+			intro
+
+			::: code-group
+		`}\n`
+			)
+		).toBe(true);
+		expect(
+			has_tabs(
+				`${dedent`
+			a
+			b
+				::: tabs custom
+		`}\n`
+			)
+		).toBe(true);
 	});
 	it('fires on a CRLF-terminated opener', () => {
 		expect(has_tabs('lead\r\n::: tabs\r\n')).toBe(true);
@@ -424,7 +474,13 @@ describe('grouping — cross-block sync & isolation', () => {
 	it('different label sets get different code-group keys', () => {
 		const a = [`::: code-group`, `${F}b [npm]`, 'x', F, `${F}b [pnpm]`, 'y', F, ':::'].join('\n');
 		const b = [`::: code-group`, `${F}b [deno]`, 'z', F, ':::'].join('\n');
-		expect(groups(`${a}\n\n${b}`)).toEqual(['cg:npm~pnpm', 'cg:deno']);
+		expect(
+			groups(dedent`
+			${a}
+
+			${b}
+		`)
+		).toEqual(['cg:npm~pnpm', 'cg:deno']);
 	});
 	it('an explicit name overrides the label-set key', () => {
 		const src = [`::: code-group shared`, `${F}b [npm]`, 'x', F, ':::'].join('\n');
@@ -433,7 +489,15 @@ describe('grouping — cross-block sync & isolation', () => {
 	it('tabs blocks keep independent auto groups even when interleaved with code-groups', () => {
 		const t = ['::: tabs', '== A', 'x', ':::'].join('\n');
 		const c = [`::: code-group`, `${F}b [npm]`, 'y', F, ':::'].join('\n');
-		expect(groups(`${t}\n\n${c}\n\n${t}`)).toEqual(['tabs0', 'cg:npm', 'tabs1']);
+		expect(
+			groups(dedent`
+			${t}
+
+			${c}
+
+			${t}
+		`)
+		).toEqual(['tabs0', 'cg:npm', 'tabs1']);
 	});
 });
 

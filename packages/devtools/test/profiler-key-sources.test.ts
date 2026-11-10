@@ -13,6 +13,7 @@ import {
 	promise_all_rewrite
 } from '../src/profiler/source-scan.ts';
 import { tag_fills, unread_rows, type DrillNode } from '../src/profiler/drill.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 // Which lines of a load feed each key it returns: a wait on one of them was for that key.
 
@@ -139,13 +140,39 @@ describe('constant_work', () => {
 			"import { PRODUCTS, validate } from '$lib/data';",
 			'const seen = new Map();',
 			'let count = 0;',
-			"function readManifest() {\n\treturn readFileSync('m.json', 'utf8').length;\n}",
-			'function viaHelper() {\n\treturn readManifest() + 1;\n}',
+			dedent`
+				function readManifest() {
+					return readFileSync('m.json', 'utf8').length;
+				}
+			`,
+			dedent`
+				function viaHelper() {
+					return readManifest() + 1;
+				}
+			`,
 			'const stamp = () => Date.now();',
-			'function roll() {\n\treturn Math.random();\n}',
-			'function bump() {\n\tcount++;\n\treturn count;\n}',
-			'function note(x) {\n\tseen.set(x, 1);\n\treturn x;\n}',
-			'function pure(x) {\n\treturn validate(x).length;\n}',
+			dedent`
+				function roll() {
+					return Math.random();
+				}
+			`,
+			dedent`
+				function bump() {
+					count++;
+					return count;
+				}
+			`,
+			dedent`
+				function note(x) {
+					seen.set(x, 1);
+					return x;
+				}
+			`,
+			dedent`
+				function pure(x) {
+					return validate(x).length;
+				}
+			`,
 			'export const load = async () => {',
 			'\tconst a = readManifest();',
 			'\tconst b = viaHelper();',
@@ -163,9 +190,17 @@ describe('constant_work', () => {
 	it('review fixes: a per-call name imported over several lines; a helper with no braces; a load name that shadows the module', () => {
 		// the per-call function sits on a continuation line of the import
 		const multi = [
-			"import {\n\trandomUUID\n} from 'node:crypto';",
+			dedent`
+				import {
+					randomUUID
+				} from 'node:crypto';
+			`,
 			"import { PRODUCTS } from '$lib/data';",
-			'function makeId(p) {\n\treturn p.id + randomUUID();\n}',
+			dedent`
+				function makeId(p) {
+					return p.id + randomUUID();
+				}
+			`,
 			'export const load = async () => {',
 			'\tconst ids = PRODUCTS.map((p) => makeId(p));',
 			'\treturn { ids };',
@@ -258,7 +293,16 @@ describe('constant_work', () => {
 		expect(hoist_plan([imp, 'function valid() {}', ...load].join('\n'))).toBeNull();
 		expect(
 			hoist_plan(
-				["import {\n\tvalidate,\n\tPRODUCTS,\n\tvalid\n} from '$lib/data';", ...load].join('\n')
+				[
+					dedent`
+					import {
+						validate,
+						PRODUCTS,
+						valid
+					} from '$lib/data';
+				`,
+					...load
+				].join('\n')
 			)
 		).toBeNull();
 		// a `const loading` before the load is not the load
@@ -284,8 +328,16 @@ describe('constant_work', () => {
 		expect(
 			constant_work(
 				src.replace(
-					"validate(\n\t\turl.searchParams.get('q')\n\t)",
-					"String(\n\t\turl.searchParams.get('q')\n\t)"
+					dedent`
+						validate(
+								url.searchParams.get('q')
+							)
+					`,
+					dedent`
+						String(
+								url.searchParams.get('q')
+							)
+					`
 				)
 			)
 		).toEqual([{ line: 3, names: ['valid'], calls: ['validate'] }]);
@@ -385,7 +437,12 @@ describe('source reads: the review cases', () => {
 		// an expression body has no block: nothing, not the next function in the file
 		expect(
 			key_sources(
-				'export const load = () => ({ a: 1 });\nfunction other() {\n\treturn { b: 2 };\n}'
+				dedent`
+					export const load = () => ({ a: 1 });
+					function other() {
+						return { b: 2 };
+					}
+				`
 			)
 		).toBeNull();
 	});
@@ -451,7 +508,12 @@ describe('formatter_rewrite', () => {
 				ts: true
 			})!.after
 		).toBe(
-			"// at the top of the file (built once):\nconst RELATIVE_TIME_FORMAT = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });\n// the line:\n\tconst rtf = RELATIVE_TIME_FORMAT;"
+			dedent`
+				// at the top of the file (built once):
+				const RELATIVE_TIME_FORMAT = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+				// the line:
+					const rtf = RELATIVE_TIME_FORMAT;
+			`
 		);
 	});
 	it('arguments that read variables: a cached factory, called in place of `new Intl.X(`', () => {
@@ -515,7 +577,13 @@ describe('formatter_rewrite', () => {
 			{ ts: false }
 		)!;
 		expect(two.after).toBe(
-			"// at the top of the file (built once):\nconst NUMBER_FORMAT = new Intl.NumberFormat('en');\nconst NUMBER_FORMAT_2 = new Intl.NumberFormat('de');\n// the line:\n\tconst p = [NUMBER_FORMAT, NUMBER_FORMAT_2];"
+			dedent`
+				// at the top of the file (built once):
+				const NUMBER_FORMAT = new Intl.NumberFormat('en');
+				const NUMBER_FORMAT_2 = new Intl.NumberFormat('de');
+				// the line:
+					const p = [NUMBER_FORMAT, NUMBER_FORMAT_2];
+			`
 		);
 		expect(
 			formatter_rewrite("\tconst s = 'new Intl.NumberFormat()';", { ts: false })
@@ -530,7 +598,11 @@ describe('formatter_rewrite', () => {
 		expect(b.after).toContain("const COLLATOR_3 = new Intl.Collator('fr');");
 		const c = formatter_rewrite("\treturn x.localeCompare(y, 'de');", { ts: false, taken, made })!;
 		expect(c.after).toBe(
-			'// uses COLLATOR_2, added by the change above\n// the line:\n\treturn COLLATOR_2.compare(x, y);'
+			dedent`
+				// uses COLLATOR_2, added by the change above
+				// the line:
+					return COLLATOR_2.compare(x, y);
+			`
 		);
 	});
 	it('factory types: a locale list type, required options where Intl requires them; no factory for Locale', () => {
@@ -644,7 +716,12 @@ describe('load_inputs', () => {
 			load_inputs('export const load: PageServerLoad = async ({ url, fetch }) => {\n};')
 		).toEqual(['url', 'fetch']);
 		expect(
-			load_inputs('export async function load({\n\tcookies,\n\tlocals: { user }\n}) {}')
+			load_inputs(dedent`
+				export async function load({
+					cookies,
+					locals: { user }
+				}) {}
+			`)
 		).toEqual(['cookies', 'locals']);
 		// the whole event in one name: it may read anything
 		expect(
@@ -655,7 +732,11 @@ describe('load_inputs', () => {
 		// wrapped for `satisfies`: the arrow's own parameters, not `async`
 		expect(
 			load_inputs(
-				'export const load = (async ({ url }) => {\n\treturn {};\n}) satisfies PageServerLoad;'
+				dedent`
+					export const load = (async ({ url }) => {
+						return {};
+					}) satisfies PageServerLoad;
+				`
 			)
 		).toEqual(['url']);
 		expect(load_inputs('export const load = async event => ({});')).toEqual(['*event']);
@@ -684,7 +765,13 @@ describe('parent_use', () => {
 		// used right away: nothing waited for nothing
 		expect(
 			parent_use(
-				'export const load = async ({ parent }) => {\n\tconst { user } = await parent();\n\tconst x = await get(user.id);\n\treturn { x };\n};'
+				dedent`
+					export const load = async ({ parent }) => {
+						const { user } = await parent();
+						const x = await get(user.id);
+						return { x };
+					};
+				`
 			)
 		).toMatchObject({ first_use: 3, awaits_before_use: 0 });
 		expect(parent_use('export const load = async () => ({ a: 1 });')).toBeNull();

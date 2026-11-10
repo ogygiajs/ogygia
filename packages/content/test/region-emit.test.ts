@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { try_region_emit, unescape_svelte } from '../src/markdown/region-emit.ts';
 import { escape_svelte, fence_embed } from '../src/markdown/shiki.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 /** A compiled-module skeleton: module script (metadata) + template markup. */
 const mod = (template: string, script = `export const metadata = {"title":"X"};`) =>
@@ -26,7 +27,12 @@ describe('try_region_emit', () => {
 			`<pre class="shiki"><code>function load() { return { user }; }</code></pre>`
 		);
 		const out = try_region_emit(
-			mod(`<h2 id="a">Title</h2>\n<p>prose</p>\n${fence}\n<p>after</p>`),
+			mod(dedent`
+				<h2 id="a">Title</h2>
+				<p>prose</p>
+				${fence}
+				<p>after</p>
+			`),
 			[]
 		);
 		expect(out).not.toBeNull();

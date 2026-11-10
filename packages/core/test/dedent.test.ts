@@ -10,7 +10,12 @@ describe('dedent', () => {
 			first ${1}
 			  second
 			${block}
-		`).toBe('first 1\n  second\na\n  b');
+		`).toBe(dedent`
+			first 1
+			  second
+			a
+			  b
+		`);
 	});
 });
 

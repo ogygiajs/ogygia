@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { cdnPlugin } from './cdn-plugin.ts';
 import { sveltePlugin } from './svelte-plugin.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 let pass = 0;
 let fail = 0;
@@ -124,7 +125,11 @@ async function main() {
 	try {
 		const m = await withNet(
 			run(
-				`import confetti from 'canvas-confetti';\nexport const t = typeof confetti;\nexport const hasReset = typeof confetti.reset;`
+				dedent`
+					import confetti from 'canvas-confetti';
+					export const t = typeof confetti;
+					export const hasReset = typeof confetti.reset;
+				`
 			)
 		);
 		ok('CJS default export (canvas-confetti)', m.t === 'function', `typeof=${m.t}`);
@@ -139,7 +144,12 @@ async function main() {
 	try {
 		const m = await withNet(
 			run(
-				`import { nanoid, customAlphabet } from 'nanoid';\nexport const a = typeof nanoid;\nexport const b = typeof customAlphabet;\nexport const id = nanoid();`
+				dedent`
+					import { nanoid, customAlphabet } from 'nanoid';
+					export const a = typeof nanoid;
+					export const b = typeof customAlphabet;
+					export const id = nanoid();
+				`
 			)
 		);
 		ok('ESM named exports (nanoid)', m.a === 'function' && m.b === 'function');
@@ -158,7 +168,11 @@ async function main() {
 	try {
 		const m = await withNet(
 			run(
-				`import { debounce, cloneDeep } from 'lodash-es';\nexport const a = typeof debounce;\nexport const b = typeof cloneDeep;`
+				dedent`
+					import { debounce, cloneDeep } from 'lodash-es';
+					export const a = typeof debounce;
+					export const b = typeof cloneDeep;
+				`
 			)
 		);
 		ok('ESM barrel named imports (lodash-es)', m.a === 'function' && m.b === 'function');
@@ -184,7 +198,11 @@ async function main() {
 	try {
 		const m = await withNet(
 			run(
-				`import { computePosition, autoUpdate } from '@floating-ui/dom';\nexport const a = typeof computePosition;\nexport const b = typeof autoUpdate;`
+				dedent`
+					import { computePosition, autoUpdate } from '@floating-ui/dom';
+					export const a = typeof computePosition;
+					export const b = typeof autoUpdate;
+				`
 			)
 		);
 		ok(
@@ -213,7 +231,12 @@ async function main() {
 	try {
 		const code = await withNet(
 			bundle(
-				`import { mount } from 'svelte';\nimport confetti from 'canvas-confetti';\nexport { mount };\nexport const t = typeof confetti;`
+				dedent`
+					import { mount } from 'svelte';
+					import confetti from 'canvas-confetti';
+					export { mount };
+					export const t = typeof confetti;
+				`
 			)
 		);
 		const importsSvelte = /from\s*["']svelte["']/.test(code);
@@ -265,7 +288,14 @@ async function main() {
 	try {
 		const m = await withNet(
 			run(
-				`import fs from 'fs';\nimport path from 'node:path';\nimport { Buffer } from 'buffer';\nexport const fsType = typeof fs;\nexport const joined = path.join('a', 'b');\nexport const enc = Buffer.from('hi').toString('base64');`
+				dedent`
+					import fs from 'fs';
+					import path from 'node:path';
+					import { Buffer } from 'buffer';
+					export const fsType = typeof fs;
+					export const joined = path.join('a', 'b');
+					export const enc = Buffer.from('hi').toString('base64');
+				`
 			)
 		);
 		ok('unpolyfillable builtin (fs) → inert stub', m.fsType === 'object');
@@ -487,7 +517,12 @@ async function main() {
 		const FILES: Record<string, string> = {
 			'bmap-pkg/package.json': PKG,
 			'bmap-pkg@1.0.0/package.json': PKG,
-			'bmap-pkg@1.0.0/index.js': `import x from './node.js';\nimport y from './fslib.js';\nexport const v = x;\nexport const stub = y;`,
+			'bmap-pkg@1.0.0/index.js': dedent`
+				import x from './node.js';
+				import y from './fslib.js';
+				export const v = x;
+				export const stub = y;
+			`,
 			'bmap-pkg@1.0.0/browser.js': `export default 'BROWSER';`,
 			'bmap-pkg@1.0.0/node.js': `export default 'NODE';`,
 			'bmap-pkg@1.0.0/fslib.js': `export default 'REALFS';`
@@ -500,7 +535,11 @@ async function main() {
 				: { ok: false, text: async () => null, arrayBuffer: async () => new ArrayBuffer(0) };
 		};
 		const { code } = await bundleWith(
-			`import { v, stub } from 'bmap-pkg';\nexport const version = v;\nexport const stubType = typeof stub;`,
+			dedent`
+				import { v, stub } from 'bmap-pkg';
+				export const version = v;
+				export const stubType = typeof stub;
+			`,
 			bmapFetch
 		);
 		const m = await importCode(code);

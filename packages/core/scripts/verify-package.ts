@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { dedent } from '../src/compiler/dedent.ts';
 
 /** A subpath's condition map (`types` / `svelte` / `default` → file); every export here is flat. */
 type Conditions = Record<string, string>;
@@ -184,7 +185,10 @@ const references = ambient_subpaths
 const type_imports = type_subpaths
 	.map(([sp], i) => `import type * as _${i} from '${name}${sp.slice(1)}';`)
 	.join('\n');
-const consumer = `${references}\n${type_imports}\n`;
+const consumer = `${dedent`
+	${references}
+	${type_imports}
+`}\n`;
 fs.writeFileSync(path.join(root, 'consumer.ts'), consumer);
 fs.writeFileSync(
 	path.join(root, 'tsconfig.verify.json'),

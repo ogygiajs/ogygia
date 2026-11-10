@@ -8,6 +8,7 @@ import {
 	clear_route_csr_cache
 } from '../src/compiler/kit.ts';
 import { route_config, set_page_route_config, clear_route_config } from '../src/plugin/routes.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ROUTE CONFIG in Kit's file world — the keys a plugin claims inside Kit's own `config` page option
@@ -84,7 +85,10 @@ describe('read_route_config — export shapes', () => {
 	});
 
 	it('nothing is stripped: the route module stays exactly what Kit reads', () => {
-		const src = 'export const config = { postrender: false };\nexport const load = () => ({});\n';
+		const src = `${dedent`
+			export const config = { postrender: false };
+			export const load = () => ({});
+		`}\n`;
 		const dir = routes({ 'a/+page.ts': src });
 		read_route_config(join(dir, 'a/+page.ts'), KEYS);
 		expect(readFileSync(join(dir, 'a/+page.ts'), 'utf8')).toBe(src);

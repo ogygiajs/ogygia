@@ -10,6 +10,7 @@ import {
 	type PageKeys,
 	type PendingCall
 } from '../src/compiler/link/page-keys.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 const ts = (code: string) => {
 	const r = page_data_keys(code, '/app/x.ts', 'script');
@@ -292,7 +293,11 @@ describe('page_data_keys — the demented cases', () => {
 	it('a reason names the construct and the line', async () => {
 		const { page_data_keys_answer } = await import('../src/compiler/link/page-keys.ts');
 		const a = page_data_keys_answer(
-			`import { page } from '$app/state';\nconst a = 1;\nexport const x = helper(page.data);`,
+			dedent`
+				import { page } from '$app/state';
+				const a = 1;
+				export const x = helper(page.data);
+			`,
 			'/app/x.ts',
 			'script'
 		);
@@ -315,24 +320,40 @@ describe('page_data_keys — call following', () => {
 	it('a helper of the same module is followed: its parameter is the page inside it', async () => {
 		expect(
 			ts(
-				`import { page } from '$app/state';\nfunction getParams(p) { return p.url.searchParams.get('q'); }\nexport const q = getParams(page);`
+				dedent`
+					import { page } from '$app/state';
+					function getParams(p) { return p.url.searchParams.get('q'); }
+					export const q = getParams(page);
+				`
 			)
 		).toEqual([]);
 		expect(
 			ts(
-				`import { page } from '$app/state';\nconst pick = (p) => p.data.chosen;\nexport const c = pick(page);`
+				dedent`
+					import { page } from '$app/state';
+					const pick = (p) => p.data.chosen;
+					export const c = pick(page);
+				`
 			)
 		).toEqual(['chosen']);
 		expect(
 			ts(
-				`import { page } from '$app/state';\nfunction leak(p) { return send(p); }\nexport const c = leak(page);`
+				dedent`
+					import { page } from '$app/state';
+					function leak(p) { return send(p); }
+					export const c = leak(page);
+				`
 			)
 		).toBe('all');
 	});
 	it('an imported helper is recorded as pending, the rest of the module still pinned', async () => {
 		const { page_data_keys_answer } = await import('../src/compiler/link/page-keys.ts');
 		const a = page_data_keys_answer(
-			`import { page } from '$app/state';\nimport { getParams } from '@app/common/utils';\nexport const p = getParams(page); export const l = page.data._locale;`,
+			dedent`
+				import { page } from '$app/state';
+				import { getParams } from '@app/common/utils';
+				export const p = getParams(page); export const l = page.data._locale;
+			`,
 			'/app/x.ts',
 			'script'
 		);
@@ -421,7 +442,11 @@ describe('page_data_keys — call following', () => {
 // ── the bundle-time half: resolve + summarize, through barrels, with a fake fs ────────────────
 describe('follow_pending_page_calls', () => {
 	const files: Record<string, string> = {
-		'/pkg/common/utils.ts': `export * from './misc';\nexport { getParams } from './routing';\nexport { url } from './url';`,
+		'/pkg/common/utils.ts': dedent`
+			export * from './misc';
+			export { getParams } from './routing';
+			export { url } from './url';
+		`,
 		'/pkg/common/routing.ts': `export function getParams(page) { const q = page.url.searchParams; return q.get('x'); }`,
 		'/pkg/common/url.ts': `export const url = (p) => p.data.origin + p.url.pathname;`,
 		'/pkg/common/misc.ts': `export const other = 1;`,

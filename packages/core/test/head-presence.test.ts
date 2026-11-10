@@ -6,6 +6,7 @@ import {
 	page_declares_speculation_rules,
 	runtime_first
 } from '../src/server/head-presence.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The `handle()` transform skips injecting a head tag the page already carries. These predicates
@@ -42,7 +43,13 @@ describe('page_declares_router_meta', () => {
 	it('is TRUE regardless of attribute order or quote style', () => {
 		expect(page_declares_router_meta('<meta content="plain" name="ogygia-router">')).toBe(true);
 		expect(page_declares_router_meta("<meta name='ogygia-router' content='vt'>")).toBe(true);
-		expect(page_declares_router_meta('<meta\n  name="ogygia-router"\n  content="vt">')).toBe(true);
+		expect(
+			page_declares_router_meta(dedent`
+			<meta
+			  name="ogygia-router"
+			  content="vt">
+		`)
+		).toBe(true);
 	});
 
 	it('is FALSE with no mention at all', () => {

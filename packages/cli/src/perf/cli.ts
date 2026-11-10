@@ -21,6 +21,7 @@ import { measure, type PerfSnapshot } from './measure.ts';
 import { verdict, type Budget } from './compare.ts';
 import { markdown, summary } from './report.ts';
 import { bisect } from './bisect.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 function arg(argv: string[], name: string): string | undefined {
 	const i = argv.indexOf(name);
@@ -371,7 +372,10 @@ export async function runBisect(argv: string[]): Promise<number> {
 			encoding: 'utf8'
 		}).trim();
 		process.stdout.write(
-			`\nfirst bad commit: ${result.culprit.slice(0, 7)} — ${subject}\n${result.last_good ? `last good: ${result.last_good.slice(0, 7)}\n` : ''}bar: ${result.bar.toFixed(1)} ms · ${result.steps.length} steps${result.skipped.length ? ` · skipped ${result.skipped.length}` : ''}\n`
+			`\n${dedent`
+				first bad commit: ${result.culprit.slice(0, 7)} — ${subject}
+				${result.last_good ? `last good: ${result.last_good.slice(0, 7)}\n` : ''}bar: ${result.bar.toFixed(1)} ms · ${result.steps.length} steps${result.skipped.length ? ` · skipped ${result.skipped.length}` : ''}
+			`}\n`
 		);
 		return 0;
 	} finally {

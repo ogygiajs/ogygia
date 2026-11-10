@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import type { Page } from '@playwright/test';
 import { test, check, sleep, REPO as root } from '@ogygia/tooling/e2e';
 import { spawn_server, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const docs = fileURLToPath(new URL('..', import.meta.url));
 const PORT = 5174;
@@ -29,7 +30,10 @@ const MARK_B = 'HMR_VENUE_MARK_B';
 const TOC_A = 'Features';
 const TOC_B = 'HMRFeaturesX';
 const CSS_A = '/* HMR_CSS_A */';
-const CSS_B = '/* HMR_CSS_B */\nhtml { --hmr-probe: 1; }\n';
+const CSS_B = `${dedent`
+	/* HMR_CSS_B */
+	html { --hmr-probe: 1; }
+`}\n`;
 
 function with_backup(file: string, mutator: (s: string) => string) {
 	const orig = fs.readFileSync(file, 'utf8');

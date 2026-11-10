@@ -45,7 +45,13 @@ describe('fouc-css collector', () => {
 	test('a package barrel and a local barrel: the names taken, and only those', async () => {
 		const files: Record<string, string> = {
 			'/app/src/lib/Menu.svelte': `<script lang="ts">import { KitPanel, type KitProps } from '@kit/ui/components';\nimport { LocalBadge } from './bits/index';\n</script>\n<KitPanel /><LocalBadge />`,
-			'/kit/components.ts': `import KitPanel from './src/KitPanel.svelte';\nexport { KitPanel };\nexport { default as KitUnused } from './src/KitUnused.svelte';\nexport * from './more';\nexport type KitProps = { a: number };`,
+			'/kit/components.ts': dedent`
+				import KitPanel from './src/KitPanel.svelte';
+				export { KitPanel };
+				export { default as KitUnused } from './src/KitUnused.svelte';
+				export * from './more';
+				export type KitProps = { a: number };
+			`,
 			'/kit/more.ts': `export { default as KitDeep } from './src/KitDeep.svelte';`,
 			'/kit/src/KitPanel.svelte': `<div class="p"></div><style>.p { color: red }</style>`,
 			'/kit/src/KitUnused.svelte': `<div class="u"></div><style>.u { color: red }</style>`,
@@ -79,7 +85,11 @@ describe('fouc-css collector', () => {
 	test('a module with code of its own brings every component it imports', async () => {
 		const files: Record<string, string> = {
 			'/app/src/lib/Page.svelte': `<script>import { pick } from './pick';\n</script>{pick()}`,
-			'/app/src/lib/pick.ts': `import A from './A.svelte';\nimport B from './B.svelte';\nexport const pick = () => (Math.random() > 0.5 ? A : B);`,
+			'/app/src/lib/pick.ts': dedent`
+				import A from './A.svelte';
+				import B from './B.svelte';
+				export const pick = () => (Math.random() > 0.5 ? A : B);
+			`,
 			'/app/src/lib/A.svelte': `<i class="a"></i><style>.a { color: red }</style>`,
 			'/app/src/lib/B.svelte': `<i class="b"></i><style>.b { color: red }</style>`
 		};

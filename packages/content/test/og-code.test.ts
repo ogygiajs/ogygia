@@ -13,10 +13,19 @@ const echo = async (c: CodeCall) =>
 describe('dedent', () => {
 	it('strips common leading indentation and trims blank first/last lines', () => {
 		const input = '\n\t\t\tconst x = 1;\n\t\t\tif (x) {\n\t\t\t\treturn x;\n\t\t\t}\n\t\t\t';
-		expect(dedent(input)).toBe('const x = 1;\nif (x) {\n\treturn x;\n}');
+		expect(dedent(input)).toBe(dedent`
+			const x = 1;
+			if (x) {
+				return x;
+			}
+		`);
 	});
 	it('blank lines do not constrain the common indent', () => {
-		expect(dedent('\n    a\n\n    b\n')).toBe('a\n\nb');
+		expect(dedent('\n    a\n\n    b\n')).toBe(dedent`
+			a
+
+			b
+		`);
 	});
 	it('leaves already-flush text alone', () => {
 		expect(dedent('a\nb')).toBe('a\nb');

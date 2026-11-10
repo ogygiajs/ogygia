@@ -2474,7 +2474,11 @@ class FileCompilation {
 						import 'virtual:ogygia/transportables-eager';
 					${imports}${props_decl}${args_decl}</script>
 				`;
-				const synth = `${script}\n${carried}${body_src}\n${style}`;
+				const synth = dedent`
+					${script}
+					${carried}${body_src}
+					${style}
+				`;
 				islands_by_id.set(iid, {
 					id: iid,
 					virtualPath: entryPath,

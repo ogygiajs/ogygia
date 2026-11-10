@@ -6,6 +6,7 @@
  */
 
 /** lines `from`..`to` of a source (1-based, inclusive), untrimmed */
+import { dedent } from '@ogygia/core/plugin/utils';
 export type SourceReader = (
 	path: string,
 	from: number,
@@ -2073,7 +2074,14 @@ export function formatter_rewrite(
 		...(tops.length ? [`// ${where}:`, ...tops] : []),
 		...(reused.size ? [`// uses ${[...reused].join(', ')}, added by the change above`] : [])
 	];
-	return { before: line, after: `${head.join('\n')}\n// the line:\n${changed}` };
+	return {
+		before: line,
+		after: dedent`
+		${head.join('\n')}
+		// the line:
+		${changed}
+	`
+	};
 }
 
 export interface FormatterRewriteOptions {

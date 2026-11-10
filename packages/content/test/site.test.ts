@@ -17,6 +17,7 @@ const mint_site = (
 import { remarkLinks } from '../src/markdown/remark-links.ts';
 import { rehypeOverrides, SLOT_TAG } from '../src/markdown/rehype-overrides.ts';
 import { build_docs, orama_engine, split_sections, strip_prose } from '../src/site/search.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 type Meta = { headings: Heading[] };
 
@@ -98,14 +99,26 @@ function searchable() {
 				data: { title: 'Install' },
 				meta: { headings: [{ depth: 2, id: 'setup', text: 'Setup' }] },
 				source: async () =>
-					'# Install\n\nGet started fast.\n\n## Setup\n\nRun the installer with npm.'
+					dedent`
+						# Install
+
+						Get started fast.
+
+						## Setup
+
+						Run the installer with npm.
+					`
 			},
 			{
 				id: 'regions/held',
 				filePath: 'content/docs/01-regions/00-held/+doc.svx',
 				data: { title: 'Held regions' },
 				meta: { headings: [] },
-				source: async () => '# Held\n\nServer chosen islands.'
+				source: async () => dedent`
+					# Held
+
+					Server chosen islands.
+				`
 			}
 		]),
 		schema: docSchema
@@ -402,7 +415,15 @@ describe('emissions — raw markdown (from entry.source)', () => {
 					filePath: 'content/docs/00-start/00-install/+doc.svx',
 					data: { title: 'Install' },
 					meta: { headings: [] },
-					source: async () => '---\ntitle: Install\n---\n\n# Install\n\nRun the installer.'
+					source: async () => dedent`
+						---
+						title: Install
+						---
+
+						# Install
+
+						Run the installer.
+					`
 				},
 				{
 					id: 'data-state/stores',
@@ -418,7 +439,11 @@ describe('emissions — raw markdown (from entry.source)', () => {
 		const emit = mint_site(sourced()).emit.raw();
 		const res = await emit.GET({ params: { slug: 'start/install' } });
 		expect(res.headers.get('content-type')).toBe('text/markdown; charset=utf-8');
-		expect(await res.text()).toBe('# Install\n\nRun the installer.');
+		expect(await res.text()).toBe(dedent`
+			# Install
+
+			Run the installer.
+		`);
 	});
 
 	it('keeps frontmatter when asked', async () => {
@@ -602,8 +627,19 @@ describe('search — projection', () => {
 	});
 
 	it('split_sections chunks by heading, aligned to collected headings', () => {
-		const source =
-			'# Install\n\nLead text.\n\n## Setup\n\nRun the installer.\n\n## Usage\n\nUse it well.';
+		const source = dedent`
+				# Install
+
+				Lead text.
+
+				## Setup
+
+				Run the installer.
+
+				## Usage
+
+				Use it well.
+			`;
 		const headings = [
 			{ depth: 2 as const, id: 'setup', text: 'Setup' },
 			{ depth: 2 as const, id: 'usage', text: 'Usage' }
@@ -667,7 +703,11 @@ describe('search — engine + brain (Orama)', () => {
 					filePath: 'other/00-z/+doc.svx',
 					data: { title: 'Z' },
 					meta: { headings: [] },
-					source: async () => '# Z\n\nnothing here'
+					source: async () => dedent`
+						# Z
+
+						nothing here
+					`
 				}
 			]),
 			schema: docSchema

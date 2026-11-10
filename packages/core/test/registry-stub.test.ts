@@ -14,6 +14,7 @@ import {
 	static_script_specs,
 	REGISTRY_CLIENT_QUERY
 } from '../src/compiler/link/registry-stub.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 const REGISTRY = `
 import Hero from './Hero.svelte' with { wake: 'visible' };
@@ -64,7 +65,11 @@ describe('stub id + source', () => {
 		expect(registry_stub_names(`\0${id}`)).toEqual(['blocks', 'default', 'factory']);
 		const src = registry_stub_source(registry_stub_names(id));
 		expect(src).toBe(
-			'export const blocks = undefined;\nexport default undefined;\nexport const factory = undefined;\n'
+			`${dedent`
+				export const blocks = undefined;
+				export default undefined;
+				export const factory = undefined;
+			`}\n`
 		);
 	});
 	test('no names → an empty module', () => {

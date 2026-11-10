@@ -479,7 +479,13 @@ function tool_islands(args: Attrs): ToolResult {
 		id: i.id
 	}));
 	return text(
-		`${out.islands.length} marked region(s)\n\n\`\`\`json\n${JSON.stringify(structured, null, 2)}\n\`\`\``
+		dedent`
+			${out.islands.length} marked region(s)
+
+			\`\`\`json
+			${JSON.stringify(structured, null, 2)}
+			\`\`\`
+		`
 	);
 }
 
@@ -490,14 +496,22 @@ function tool_check(args: Attrs): ToolResult {
 		compile(source, 'App.svelte', true, false);
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : String(e);
-		return text(`❌ FAILS ogygia rules\n\n${msg}`);
+		return text(dedent`
+			❌ FAILS ogygia rules
+
+			${msg}
+		`);
 	}
 	// The client leg can raise its own errors (captured writes surface there); run it too.
 	try {
 		compile(source, 'App.svelte', false, false);
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : String(e);
-		return text(`❌ FAILS ogygia rules (client leg)\n\n${msg}`);
+		return text(dedent`
+			❌ FAILS ogygia rules (client leg)
+
+			${msg}
+		`);
 	}
 	return text('✅ passes ogygia rules — the transform accepts this component.');
 }
@@ -533,7 +547,11 @@ function tool_explain(args: Attrs): ToolResult {
 			: '';
 		return `• ${i.component}: an island. Its own hydration root; JS wakes on ${wake}. Props cross by value (devalue) — functions never cross, captured host state is a snapshot.${keep}`;
 	});
-	return text(`How this page behaves at runtime:\n\n${lines.join('\n')}`);
+	return text(dedent`
+		How this page behaves at runtime:
+
+		${lines.join('\n')}
+	`);
 }
 
 // ── ogygia_debug — the RUNTIME half: drive a headless browser over a real page ─────────────────────
@@ -651,12 +669,22 @@ function render_story(url: string, events: DtEvent[]): string {
 	const navigated = navs.length
 		? ` · ${navs.filter((n) => n.name === 'nav.finish').length} navigation(s)`
 		: '';
-	const header = `# Runtime story — ${url}\n\n${by_fp.size} island(s) · ${events.length} events${booted}${navigated}`;
+	const header = dedent`
+		# Runtime story — ${url}
+
+		${by_fp.size} island(s) · ${events.length} events${booted}${navigated}
+	`;
 
 	const verdict = warnings.length
 		? `## ⚠️ Warnings (${warnings.length})\n${warnings.map((w) => `- ${w}`).join('\n')}`
 		: '## ✅ No lifecycle anomalies detected.';
-	return `${header}\n\n${blocks.join('\n\n')}\n\n${verdict}`;
+	return dedent`
+		${header}
+
+		${blocks.join('\n\n')}
+
+		${verdict}
+	`;
 }
 
 /** What the page's restorer said (an app with `ogygia.handle({ transform })`), or '' when nothing. */
@@ -1131,7 +1159,16 @@ function render_patterns(r: ProfileReport): string {
 									: '';
 					// the change, written out: replace these lines with this
 					const rw = s.rewrite
-						? `\n      Change at ${s.rewrite.file}:${s.rewrite.line}, replace:\n\`\`\`\n${s.rewrite.before}\n\`\`\`\n      with:\n\`\`\`\n${s.rewrite.after}\n\`\`\``
+						? `\n${dedent`
+							      Change at ${s.rewrite.file}:${s.rewrite.line}, replace:
+							\`\`\`
+							${s.rewrite.before}
+							\`\`\`
+							      with:
+							\`\`\`
+							${s.rewrite.after}
+							\`\`\`
+						`}`
 						: '';
 					const loc = s.module ? `${s.module} (built ${s.file}:${s.line})` : `${s.file}:${s.line}`;
 					return `\n   - ${loc}: \`${s.code ?? ''}\`${said}${via}${rw}`;
@@ -1144,7 +1181,11 @@ function render_patterns(r: ProfileReport): string {
 			const example = p.example?.after
 				? `\n   Example: \`${p.example.before ?? ''}\` → \`${(p.example.after ?? '').split('\n').join(' ')}\``
 				: '';
-			return `${i + 1}. **${p.title}**${save}\n   ${p.evidence ?? ''}${sites}\n   Fix: ${p.fix ?? ''}${example}`;
+			return dedent`
+				${i + 1}. **${p.title}**${save}
+				   ${p.evidence ?? ''}${sites}
+				   Fix: ${p.fix ?? ''}${example}
+			`;
 		})
 		.join('\n');
 }
@@ -1282,7 +1323,11 @@ export function render_profile(
 			? ` · CPU busy ${per(s.busy_ms)}ms per render (${s.busy_pct}% of the window)`
 			: '';
 	const rss = s.rss_mb != null ? ` · RSS ${s.rss_mb} MB` : '';
-	const head = `# SSR profile — ${target}${runs.length ? ` · ${runs.length} run(s)` : ''}\n\n**${s.verdict ?? 'profiled'}** · render p50 ~${median(runs).toFixed(2)}ms${run_list}${busy}${rss}`;
+	const head = dedent`
+		# SSR profile — ${target}${runs.length ? ` · ${runs.length} run(s)` : ''}
+
+		**${s.verdict ?? 'profiled'}** · render p50 ~${median(runs).toFixed(2)}ms${run_list}${busy}${rss}
+	`;
 
 	// In dev, profiler instrumentation dominates the window — say so, so the numbers aren't over-read.
 	const prof_overhead = (r.budget ?? []).find((b) => b.category === 'profiler');
@@ -1646,7 +1691,11 @@ async function tool_profile_open(args: Attrs): Promise<ToolResult> {
 	report.links = undefined; // the source server is gone — its report URLs would 404
 	const node = (dump.meta as { node?: string }).node;
 	return text(
-		`> Imported from \`${file}\`${node ? ` · Node ${node}` : ''}\n\n${render_profile('', report)}`
+		dedent`
+			> Imported from \`${file}\`${node ? ` · Node ${node}` : ''}
+
+			${render_profile('', report)}
+		`
 	);
 }
 
@@ -1681,7 +1730,11 @@ function tool_observatory(args: Attrs): ToolResult {
 		);
 	if (!names.some((n) => n.endsWith('.svelte')))
 		return text(
-			`⚠️ No .svelte file given — the Observatory renders a Svelte component (App.svelte is the entry). Add one.\n\nFiles: ${names.join(', ')}`
+			dedent`
+				⚠️ No .svelte file given — the Observatory renders a Svelte component (App.svelte is the entry). Add one.
+
+				Files: ${names.join(', ')}
+			`
 		);
 
 	const base = String(args.base ?? DEFAULT_OBSERVATORY);
@@ -1996,7 +2049,11 @@ async function tool_fragment(args: Attrs): Promise<ToolResult> {
 				.map((n) => `- \`${n}(${(manifest.widgets?.[n]?.props ?? []).join(', ')})\``)
 				.join('\n');
 			widgets_block = names.length
-				? `${listed}\n\nTyped stubs: \`npx ogygia fragments ${origin} --out src/lib/widgets.ts\` (add \`--check\` in CI to fail on drift).`
+				? dedent`
+					${listed}
+
+					Typed stubs: \`npx ogygia fragments ${origin} --out src/lib/widgets.ts\` (add \`--check\` in CI to fail on drift).
+				`
 				: 'Catalog mounted, zero widgets declared.';
 		} catch {
 			widgets_block = '__catalog returned non-JSON — not an ogygia widget catalog.';

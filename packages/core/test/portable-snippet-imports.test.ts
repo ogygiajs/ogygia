@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { transformHost } from '../src/compiler/region/transform.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 const ctx = {
 	root: '/app',
@@ -46,8 +47,14 @@ describe('portable snippet — captured imports from one statement', () => {
 			.find((s?: string) => !!s && s.includes('./helpers'));
 		expect(synth, 'expected a portable-snippet synth that captures ./helpers').toBeTruthy();
 		const count = (synth!.match(/from '\.\/helpers'/g) || []).length;
-		expect(count, `the ./helpers import must appear once; got ${count}\n---\n${synth}\n---`).toBe(
-			1
-		);
+		expect(
+			count,
+			dedent`
+			the ./helpers import must appear once; got ${count}
+			---
+			${synth}
+			---
+		`
+		).toBe(1);
 	});
 });

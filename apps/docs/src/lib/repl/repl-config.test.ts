@@ -1,6 +1,7 @@
 // Unit coverage for the REPL's vite.config parser — extracting the safe `content({ markdown })` (or the
 // older `ogygia({ content: { markdown } })`) options and degrading gracefully on imports / unknowns / malformed input. Run: `node repl-config.test.ts`.
 import { parse_config_markdown, parse_config, extract_call_object } from './repl-config.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 let pass = 0;
 let fail = 0;
@@ -28,7 +29,21 @@ ok(
 );
 ok(
 	'extract: whitespace/newlines before {',
-	extract_call_object('ogygia(\n  {\n a: 1\n }\n)', 'ogygia') === '{\n a: 1\n }'
+	extract_call_object(
+		dedent`
+		ogygia(
+		  {
+		 a: 1
+		 }
+		)
+	`,
+		'ogygia'
+	) ===
+		dedent`
+		{
+		 a: 1
+		 }
+	`
 );
 ok('extract: no call → null', extract_call_object('export default {}', 'ogygia') === null);
 ok(

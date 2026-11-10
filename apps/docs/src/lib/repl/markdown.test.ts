@@ -8,6 +8,7 @@ import { make_browser_host } from './browser-host.ts';
 import { configure_content, md_to_svelte, markdownPlugin } from './markdown-plugin.ts';
 import { sveltePlugin } from './svelte-plugin.ts';
 import { cdnPlugin } from './cdn-plugin.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 set_host(make_browser_host());
 
@@ -75,7 +76,16 @@ async function main() {
 
 	// frontmatter → metadata export
 	{
-		const src = await svelteFor(`---\ntitle: Hello\ntags: [a, b]\n---\n\n# Body\n`);
+		const src = await svelteFor(
+			`${dedent`
+			---
+			title: Hello
+			tags: [a, b]
+			---
+
+			# Body
+		`}\n`
+		);
 		ok(
 			'frontmatter → metadata export',
 			/export const metadata/.test(src) && /"title":"Hello"/.test(src)
@@ -98,7 +108,13 @@ async function main() {
 		['note', 'info'],
 		['caution', 'warning']
 	]) {
-		const src = await svelteFor(`::: ${kind}\nbody\n:::\n`);
+		const src = await svelteFor(
+			`${dedent`
+			::: ${kind}
+			body
+			:::
+		`}\n`
+		);
 		ok(
 			`admonition ::: ${kind} → og-admonition-${cls} (no import)`,
 			new RegExp(`og-admonition-${cls}`).test(src) && !/from '@?ogygia/.test(src)
@@ -106,25 +122,55 @@ async function main() {
 	}
 	// collapsible details admonition (with title)
 	{
-		const src = await svelteFor(`::: details Click me\nhidden\n:::\n`);
+		const src = await svelteFor(
+			`${dedent`
+			::: details Click me
+			hidden
+			:::
+		`}\n`
+		);
 		ok('::: details → <details> with summary', /<details/.test(src) && /Click me/.test(src));
 	}
 	// shiki fences (js + ts), highlighted
 	{
-		const src = await svelteFor('```js\nconst x = 1;\n```\n');
+		const src = await svelteFor(
+			`${dedent`
+			\`\`\`js
+			const x = 1;
+			\`\`\`
+		`}\n`
+		);
 		ok('js fence → shiki highlight', /class="[^"]*shiki/.test(src) && /const/.test(src));
-		const ts = await svelteFor('```ts\nconst n: number = 1;\n```\n');
+		const ts = await svelteFor(
+			`${dedent`
+			\`\`\`ts
+			const n: number = 1;
+			\`\`\`
+		`}\n`
+		);
 		ok('ts fence → shiki highlight', /class="[^"]*shiki/.test(ts));
 	}
 	// table
 	{
-		const src = await svelteFor(`| a | b |\n| - | - |\n| 1 | 2 |\n`);
+		const src = await svelteFor(
+			`${dedent`
+			| a | b |
+			| - | - |
+			| 1 | 2 |
+		`}\n`
+		);
 		ok('markdown table → <table>', /<table/.test(src));
 	}
 	// diff fences: the `+++ `/`--- ` line dialect (enabled to match the docs site's pipeline)
 	{
 		const src = await svelteFor(
-			'```js\nconst keep = 1;\n+++ const added = 2;\n--- const removed = 3;\n```\n'
+			`${dedent`
+				\`\`\`js
+				const keep = 1;
+				+++ const added = 2;
+				--- const removed = 3;
+				\`\`\`
+			`}\n`
 		);
 		ok(
 			'diff fence → og-has-diff + add/remove classes',
@@ -133,7 +179,13 @@ async function main() {
 	}
 	// inline diff marks: `+++x+++` / `---x---`
 	{
-		const src = await svelteFor('```js\nconst x = +++added+++ 1;\n```\n');
+		const src = await svelteFor(
+			`${dedent`
+			\`\`\`js
+			const x = +++added+++ 1;
+			\`\`\`
+		`}\n`
+		);
 		ok('inline diff → og-mark(-add)', /og-mark/.test(src));
 	}
 	// inline: bold, link, inline code
@@ -151,7 +203,16 @@ async function main() {
 	}
 	// tabs / code-group inject the ogygia island wrappers (kept external, passthrough at mount)
 	{
-		const src = await svelteFor(`::: tabs\n== A\nfoo\n== B\nbar\n:::\n`);
+		const src = await svelteFor(
+			`${dedent`
+			::: tabs
+			== A
+			foo
+			== B
+			bar
+			:::
+		`}\n`
+		);
 		ok(
 			'::: tabs → TabGroup/Tab from @ogygia/content',
 			/import \{ TabGroup, Tab \} from '@ogygia\/content'/.test(src) && /<TabGroup/.test(src)
@@ -160,9 +221,23 @@ async function main() {
 	// resilience: empty + frontmatter-only + a lone heading all produce valid, compilable svelte
 	for (const [label, md] of [
 		['empty', ''],
-		['frontmatter-only', '---\ntitle: T\n---\n'],
+		[
+			'frontmatter-only',
+			`${dedent`
+			---
+			title: T
+			---
+		`}\n`
+		],
 		['heading-only', '# H\n'],
-		['html-in-md', '<div>raw</div>\n\n# After\n']
+		[
+			'html-in-md',
+			`${dedent`
+			<div>raw</div>
+
+			# After
+		`}\n`
+		]
 	]) {
 		try {
 			await compiles(md);
@@ -174,7 +249,19 @@ async function main() {
 
 	// full bundle: a content entry bundles to a mountable CJS module with the rendered markup inlined
 	{
-		const code = await bundle(`# Live\n\n::: tip\nhi\n:::\n\n\`\`\`js\nconst a=1;\n\`\`\`\n`);
+		const code = await bundle(
+			`${dedent`
+			# Live
+
+			::: tip
+			hi
+			:::
+
+			\`\`\`js
+			const a=1;
+			\`\`\`
+		`}\n`
+		);
 		ok(
 			'full bundle: mountable module with admonition + shiki inlined',
 			code.length > 0 && /og-admonition/.test(code) && /shiki/.test(code)
@@ -182,7 +269,16 @@ async function main() {
 	}
 	// full bundle with tabs keeps @ogygia/content external (require, not CDN-fetched)
 	{
-		const code = await bundle(`::: tabs\n== A\naaa\n== B\nbbb\n:::\n`);
+		const code = await bundle(
+			`${dedent`
+			::: tabs
+			== A
+			aaa
+			== B
+			bbb
+			:::
+		`}\n`
+		);
 		ok(
 			'full bundle: tabs keep @ogygia/content external (require, not fetched)',
 			/require\(["']@ogygia\/content["']\)/.test(code)
@@ -204,7 +300,13 @@ async function main() {
 	{
 		configure_content({ themes: { light: 'github-light' } });
 		try {
-			const src = await svelteFor('```ts\nconst a = 1;\n```\n');
+			const src = await svelteFor(
+				`${dedent`
+				\`\`\`ts
+				const a = 1;
+				\`\`\`
+			`}\n`
+			);
 			ok('one-sided theme pair: a fence still highlights', /shiki/.test(src));
 		} catch (e) {
 			ok('one-sided theme pair: a fence still highlights', false, (e as Error).message);

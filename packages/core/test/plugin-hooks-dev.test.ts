@@ -18,6 +18,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { server_plugins_module } from '../src/compiler/link/caps.ts';
 import { ask, notify } from '../src/plugin/hooks.ts';
 import { edit as dev_edit } from './_dev-edit.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 const own = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const V = 'virtual:ogygia/server-plugins';
@@ -77,7 +78,10 @@ async function start(): Promise<{
 	write('plugins/quiet.server.ts', quiet);
 	write(
 		'src/hooks.server.ts',
-		`import { handle as ogygia } from ${JSON.stringify(own('../src/hooks.ts'))};\nexport const handle = ogygia();\n`
+		`${dedent`
+			import { handle as ogygia } from ${JSON.stringify(own('../src/hooks.ts'))};
+			export const handle = ogygia();
+		`}\n`
 	);
 	// the plugin list the build makes (`virtual:ogygia/server-plugins`), as the compiler emits it
 	const plugin_list: Plugin = {

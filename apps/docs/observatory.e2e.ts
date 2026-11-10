@@ -3,6 +3,7 @@
 // state, and resilience. Assumes a dev server on http://localhost:5273 (`pnpm dev --port 5273`).
 // Run: `node observatory.e2e.ts`.
 import { chromium } from 'playwright';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const URL = process.env.OBS_URL || 'http://localhost:5273/observatory';
 let pass = 0;
@@ -447,14 +448,35 @@ async function main() {
 		/Markdown, live/.test(document.querySelector('[data-obs-preview]')?.textContent || '')
 	);
 	// editing the markdown recompiles live
-	await setSrc(page, S(`# Edited heading RT\n\nplain prose paragraph.\n`));
+	await setSrc(
+		page,
+		S(
+			`${dedent`
+		# Edited heading RT
+
+		plain prose paragraph.
+	`}\n`
+		)
+	);
 	const mdEdited = await until(page, () =>
 		/Edited heading RT/.test(document.querySelector('[data-obs-preview]')?.textContent || '')
 	);
 	ok('markdown recompiles on edit', !!mdEdited);
 	// `::: tabs` / `::: code-group` inject ogygia island wrappers — the live mount can't run the island
 	// region bridge, so they must degrade to a children passthrough (content shown), NEVER crash to empty.
-	await setSrc(page, `# Tabs\n\n::: tabs\n== One\nTAB ONE BODY\n== Two\nTAB TWO BODY\n:::\n`);
+	await setSrc(
+		page,
+		`${dedent`
+		# Tabs
+
+		::: tabs
+		== One
+		TAB ONE BODY
+		== Two
+		TAB TWO BODY
+		:::
+	`}\n`
+	);
 	const tabsShown = await until(page, () => {
 		const t = document.querySelector('[data-obs-preview]')?.textContent || '';
 		return /Tabs/.test(t) && /TAB ONE BODY/.test(t);
@@ -463,7 +485,16 @@ async function main() {
 
 	// 9b. the workspace vite.config.ts reconfigures the markdown pipeline live — turn `containers` off and
 	// the `::: tip` stops transforming into an admonition (configure ogygia as a real project does).
-	await setSrc(page, `# Cfg\n\n::: tip\ncallout body\n:::\n`);
+	await setSrc(
+		page,
+		`${dedent`
+		# Cfg
+
+		::: tip
+		callout body
+		:::
+	`}\n`
+	);
 	await until(page, () => !!document.querySelector('[data-obs-preview] .og-admonition'));
 	await page.evaluate(() => {
 		const f = [...document.querySelectorAll('[data-obs-file]')].find((x) =>
@@ -524,7 +555,13 @@ async function main() {
 	// no separate CSS pipeline). Distinctive colour so a computed-style check is unambiguous.
 	await setSrc(
 		page,
-		`<div class="obx">STYLED_BOX</div>\n\n<style>\n  .obx { background: rgb(200, 50, 50); padding: 16px; }\n</style>`
+		dedent`
+			<div class="obx">STYLED_BOX</div>
+
+			<style>
+			  .obx { background: rgb(200, 50, 50); padding: 16px; }
+			</style>
+		`
 	);
 	await until(page, () =>
 		document.querySelector('[data-obs-preview]')?.textContent?.includes('STYLED_BOX')

@@ -13,6 +13,7 @@ import { CompileCtx, type CompileCtxInit, type PackageScan } from '../src/compil
 import { Compiler } from '../src/compiler/driver.ts';
 import { Program } from '../src/compiler/program.ts';
 import { normalize_import_keys, type ImportKeys } from '../src/compiler/region/transform.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 let app: string;
 
@@ -207,7 +208,10 @@ describe('undeclared-marks warning', () => {
 		return compiler;
 	};
 	const noop_emit = () => '';
-	const marked = `import W from './W.svelte' with { wake: 'load' };\nexport const t = W;\n`;
+	const marked = `${dedent`
+		import W from './W.svelte' with { wake: 'load' };
+		export const t = W;
+	`}\n`;
 
 	it('a dependency .ts with marks but NO declaration warns loudly (was silent death)', async () => {
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});

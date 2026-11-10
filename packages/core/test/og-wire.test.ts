@@ -10,13 +10,18 @@ import {
 	moduleHasTransportable,
 	appendTransportRegistrations
 } from '../src/compiler/content/transportables.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 const MARKUP = ['.svelte'] as const;
 const CODEC = `{ encode: (c) => c.v, decode: (v) => new C(v) }`;
 
 describe('rewrite_wire — the strict compile construct', () => {
 	it('consumes the member and mints the symbol key', () => {
-		const src = `export class C {\n\tstatic wire = import.meta.og.wire(${CODEC});\n}`;
+		const src = dedent`
+			export class C {
+				static wire = import.meta.og.wire(${CODEC});
+			}
+		`;
 		const out = rewrite_wire(src, '/app/src/lib/c.svelte.ts', MARKUP);
 		expect(out).toContain(`static [${WIRE_EXPR}] = ${CODEC};`);
 		expect(out).not.toContain('import.meta.og.wire');

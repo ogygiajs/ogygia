@@ -10,6 +10,7 @@ import {
 } from '../src/profiler/ledger.ts';
 import type { GcMaker } from '../src/profiler/gc.ts';
 import type { RetainedSite } from '../src/profiler/insights.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE LINE LEDGER: every cost the profiler measured, joined on the app line a person edits.
@@ -370,7 +371,12 @@ describe('line ledger', () => {
 		const map = JSON.stringify({
 			version: 3,
 			sources: ['../src/lib/fmt.ts'],
-			sourcesContent: ['const a = 1;\nexport const b = a + 1;\n'],
+			sourcesContent: [
+				`${dedent`
+				const a = 1;
+				export const b = a + 1;
+			`}\n`
+			],
 			names: [],
 			mappings: 'AAAA'
 		});

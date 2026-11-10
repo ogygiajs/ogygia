@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { rewrite_bake } from '../src/compiler/macros/bake.ts';
 import { __set_build_cache_root } from '../src/build-cache.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 __set_build_cache_root(fs.mkdtempSync(path.join(os.tmpdir(), 'og-bake-cache-')));
 const NO_ALIAS = { alias: [], root: '/app' };
@@ -24,8 +25,11 @@ describe('rewrite_bake — validation (no execution)', () => {
 		expect(await rewrite_bake(src, '/app/x.ts', NO_ALIAS)).toBe(src);
 	});
 	it('ignores the marker inside a comment or string', async () => {
-		const src =
-			'// import.meta.og.bake(() => 1)\nconst s = "import.meta.og.bake(x)";\nexport const y = 2;';
+		const src = dedent`
+				// import.meta.og.bake(() => 1)
+				const s = "import.meta.og.bake(x)";
+				export const y = 2;
+			`;
 		expect(await rewrite_bake(src, '/app/x.ts', NO_ALIAS)).toBe(src);
 	});
 });

@@ -29,6 +29,7 @@ import {
 	wrapper_aliases,
 	type SourceReader
 } from './source-scan.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 export type PatternKind =
 	| 'formatter-per-call'
@@ -447,8 +448,11 @@ export function find_same_answers(input: {
 			example: {
 				before:
 					'const catalog = await (await fetch(API + "/catalog")).json(); // { items, generatedAt }',
-				after:
-					'let cached, at = 0;\nif (Date.now() - at > 60_000) (cached = await (await fetch(API + "/catalog")).json()), (at = Date.now());\nconst catalog = { ...cached, generatedAt: new Date().toISOString() };'
+				after: dedent`
+						let cached, at = 0;
+						if (Date.now() - at > 60_000) (cached = await (await fetch(API + "/catalog")).json()), (at = Date.now());
+						const catalog = { ...cached, generatedAt: new Date().toISOString() };
+					`
 			},
 			sites,
 			cost_ms: r2(cost),
@@ -469,8 +473,11 @@ export function find_same_answers(input: {
 		example: {
 			before:
 				'export async function load({ fetch }) {\n\tconst config = await (await fetch(API + "/config")).json();',
-			after:
-				'let config_at = 0, config;\nexport async function load({ fetch }) {\n\tif (Date.now() - config_at > 60_000) (config = await (await fetch(API + "/config")).json()), (config_at = Date.now());'
+			after: dedent`
+					let config_at = 0, config;
+					export async function load({ fetch }) {
+						if (Date.now() - config_at > 60_000) (config = await (await fetch(API + "/config")).json()), (config_at = Date.now());
+				`
 		},
 		sites,
 		cost_ms: r2(cost),
@@ -1123,8 +1130,11 @@ const RULES: Rule[] = [
 		fix: 'Building an Intl formatter is slow; using one is fast. Make it once per locale and reuse it, for example in a Map keyed by locale and options.',
 		example: {
 			before: 'return new Intl.NumberFormat(locale, opts).format(n);',
-			after:
-				'const fmts = new Map();\nconst fmt = (locale) => fmts.get(locale) ?? fmts.set(locale, new Intl.NumberFormat(locale, opts)).get(locale);\nreturn fmt(locale).format(n);'
+			after: dedent`
+					const fmts = new Map();
+					const fmt = (locale) => fmts.get(locale) ?? fmts.set(locale, new Intl.NumberFormat(locale, opts)).get(locale);
+					return fmt(locale).format(n);
+				`
 		},
 		// the build itself, a locale method (builds one inside), or the first USE of a formatter the
 		// same function just built: V8 often charges the construction to the line that uses it
@@ -1380,8 +1390,12 @@ const RULES: Rule[] = [
 		fix: 'Each await on a timer (setImmediate, setTimeout, nextTick) hands the thread back and waits to be scheduled again, once per item. If the loop must yield, yield every few hundred items, or do the work in one pass.',
 		example: {
 			before: 'for (let i = 0; i < n; i++) await new Promise((r) => setImmediate(r));',
-			after:
-				'for (let i = 0; i < n; i++) {\n\twork(i);\n\tif (i % 500 === 499) await new Promise((r) => setImmediate(r));\n}'
+			after: dedent`
+					for (let i = 0; i < n; i++) {
+						work(i);
+						if (i % 500 === 499) await new Promise((r) => setImmediate(r));
+					}
+				`
 		},
 		match: (t, c) =>
 			c.loop && c.cpu_ms >= 1 && (!!calls_fn(t, YIELDS) || has_member(t, 'process', 'nextTick'))
@@ -1400,8 +1414,11 @@ const RULES: Rule[] = [
 		fix: 'Every call pays the library’s full cost again. If many items share the same input, cache the result by input. If the library can take them all at once, call it once for the whole batch. Skip items that do not need it.',
 		example: {
 			before: 'await Promise.all(tags.map((tag) => render(tag)));',
-			after:
-				'const cache = new Map();\nconst once = (tag) => cache.get(tag) ?? cache.set(tag, render(tag)).get(tag);\nawait Promise.all(tags.map(once));'
+			after: dedent`
+					const cache = new Map();
+					const once = (tag) => cache.get(tag) ?? cache.set(tag, render(tag)).get(tag);
+					await Promise.all(tags.map(once));
+				`
 		},
 		// (Node's own functions — a timer, a socket write — are the runtime, not a library to batch or
 		// cache: `await new Promise((r) => setTimeout(r, ms))` is not "a library per item")
@@ -1892,16 +1909,30 @@ function kept_pattern(input: PatternInput): Pattern | undefined {
 			: 'Something outside the render still points at what these lines make: a module-level Map or array that only grows, a cache with no size limit or a key that never hits, a listener or timer holding a closure, or a global regex keeping its last input. Bound the cache (a max size, least-recently-used out), key it so it hits, or keep the value inside the request. One check before you fix: a cache or log that HAS a size limit and is still filling shows here too, and stops growing once full; send the page a few hundred requests and see whether memory levels off.',
 		example: lib
 			? {
-					before:
-						'export function render(html) {\n\tconst engine = createEngine(); // a new one, and its registry, every call\n\treturn engine.render(html);\n}',
-					after:
-						'const engine = createEngine(); // made once, reused\nexport function render(html) {\n\treturn engine.render(html);\n}'
+					before: dedent`
+							export function render(html) {
+								const engine = createEngine(); // a new one, and its registry, every call
+								return engine.render(html);
+							}
+						`,
+					after: dedent`
+							const engine = createEngine(); // made once, reused
+							export function render(html) {
+								return engine.render(html);
+							}
+						`
 				}
 			: {
 					before:
 						'const seen = new Map(); // module scope\nexport function load({ url }) { seen.set(url.href, bigResult); … }',
-					after:
-						'const seen = new Map();\nconst MAX = 500;\nfunction remember(k, v) {\n\tif (seen.size >= MAX) seen.delete(seen.keys().next().value);\n\tseen.set(k, v);\n}'
+					after: dedent`
+							const seen = new Map();
+							const MAX = 500;
+							function remember(k, v) {
+								if (seen.size >= MAX) seen.delete(seen.keys().next().value);
+								seen.set(k, v);
+							}
+						`
 				},
 		sites,
 		cost_ms: 0,
@@ -2739,8 +2770,11 @@ export function same_document_pattern(input: {
 		fix: `Every profiled render returned the same document byte for byte, and nothing it reads belongs to the visitor. Let a cache serve it instead of rendering it.${first} ${first ? 'set' : 'Set'} Cache-Control with s-maxage (a CDN keeps it per URL; stale-while-revalidate refreshes it in the background), or store the page with ogygia's postrender. Only a change in its data needs a new render. (A \`handle\` hook that reads cookies and changes the page would make it per visitor: the loads cannot show that, so check yours first.)`,
 		example: {
 			before: 'export const load = async ({ fetch }) => { … }',
-			after:
-				"export const load = async ({ fetch, setHeaders }) => {\n\tsetHeaders({ 'cache-control': 'public, s-maxage=60, stale-while-revalidate=300' });\n\t…"
+			after: dedent`
+					export const load = async ({ fetch, setHeaders }) => {
+						setHeaders({ 'cache-control': 'public, s-maxage=60, stale-while-revalidate=300' });
+						…
+				`
 		},
 		sites: [
 			{

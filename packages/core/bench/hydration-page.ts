@@ -17,6 +17,7 @@
 import { DomElement, document, el, frag, type DomNode } from '../test/_stubs/dom.ts';
 import { ISLAND_GRAPH_ATTR, encode_island_graph } from '../src/island-graph.ts';
 import { block, header, island_entry } from './fixtures.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 const chunk_of = (i: number): string => `/_app/immutable/chunks/c${i}.js`;
 
@@ -114,10 +115,18 @@ const fp = (i: number): string => (i * 2654435761 + 977).toString(16).slice(-8).
 
 /** One block island's server markup: a card of rows inside Svelte's anchor pair, with whitespace. */
 function block_html(i: number, rows: number): string {
-	let inner = `<!--[--><section class="block b${i}">\n\t<h2>Block ${i}</h2>\n\t<ul>`;
+	let inner = dedent`
+		<!--[--><section class="block b${i}">
+			<h2>Block ${i}</h2>
+			<ul>
+	`;
 	for (let r = 0; r < rows; r++)
 		inner = `${inner}\n\t\t<li data-sku="SKU-${i}-${r}"><a href="/p/${i}/${r}">Row ${r}</a> <span>${(i * 7 + r) % 97}</span></li>`;
-	return `${inner}\n\t</ul>\n</section><!--]-->`;
+	return dedent`
+		${inner}
+			</ul>
+		</section><!--]-->
+	`;
 }
 
 /** The header island: a nav of menus, a search box and an account menu. */
@@ -207,7 +216,11 @@ export function cms_page(blocks: number, rows = 6, edit = true): PageRegion[] {
 		});
 	}
 	parts.push({
-		html: '<!--[--><footer>\n\t<p>Footer</p>\n</footer><!--]-->',
+		html: dedent`
+			<!--[--><footer>
+				<p>Footer</p>
+			</footer><!--]-->
+		`,
 		wake: 'idle',
 		entry: island_entry(30),
 		props: JSON.stringify({ year: 2026, links: ['a', 'b', 'c'] })

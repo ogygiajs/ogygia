@@ -33,7 +33,12 @@ const LOADERS: Array<[string, Load]> = [
 ];
 
 const shell = (color: string) =>
-	`<header class="top">shell</header>\n<style>\n\t.top { color: ${color}; }\n</style>\n`;
+	`${dedent`
+		<header class="top">shell</header>
+		<style>
+			.top { color: ${color}; }
+		</style>
+	`}\n`;
 
 let server: ViteDevServer | null = null;
 let root = '';

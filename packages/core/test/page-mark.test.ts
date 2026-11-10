@@ -9,6 +9,7 @@ import path from 'node:path';
 import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
 import { resolveFeatures } from '../dist/compiler/link/runtime-entry.js';
 import { partial_ctx_init } from './_compile-ctx.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 const roots: string[] = [];
 afterEach(() => {
@@ -84,7 +85,10 @@ describe('page mark', () => {
 
 	test('`$app/state` anywhere in the closure is a reader', () => {
 		const marks = marks_for(script(`\timport { read } from './helper';`), {
-			'src/lib/helper.ts': `import { page } from '$app/state';\nexport const read = () => page.data;\n`
+			'src/lib/helper.ts': `${dedent`
+				import { page } from '$app/state';
+				export const read = () => page.data;
+			`}\n`
 		});
 		expect(marks.page).toBe(true);
 		expect(resolveFeatures(marks)).toEqual(expect.arrayContaining(['page', 'mpa-nav']));

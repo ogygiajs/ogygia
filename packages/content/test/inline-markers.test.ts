@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { highlight } from '../src/markdown/shiki.ts';
 import { inline_markers } from '../src/markdown/inline-markers.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The `+++added+++` / `---removed---` INLINE dialect (svelte.dev's span-level marks),
@@ -26,7 +27,15 @@ describe('inline_markers', () => {
 	});
 
 	it('a --- alone on its line is never a marker (frontmatter / hr shown in a fence)', async () => {
-		const html = await highlight('---\ntitle: hi\n---', 'js', OPTS);
+		const html = await highlight(
+			dedent`
+			---
+			title: hi
+			---
+		`,
+			'js',
+			OPTS
+		);
 		expect(html).not.toContain('og-mark');
 		expect(html.match(/---/g)!.length).toBeGreaterThanOrEqual(2);
 	});

@@ -14,6 +14,7 @@ import { auto_brand_stores, rewrite_store } from '../src/compiler/macros/store.t
 import { stamp_opaque } from '../src/compiler/ownership-stamps.ts';
 import { transformHost } from '../src/compiler/region/transform.ts';
 import { HOST_CTX_DEFAULTS } from '../test/_host-ctx.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 type HostCtx = Parameters<typeof transformHost>[2];
 
@@ -44,11 +45,22 @@ function route_page(islands: number): string {
 		script = `${script}\timport Block${i} from '$lib/blocks/Block${i}.svelte' with { wake: '${WAKES[i % 4]}' };\n`;
 	}
 	script = `${script}\tlet { data } = $props();\n\tlet total = $derived(data.rows.reduce((n, r) => n + r.price, 0));\n\tfunction label(i: number): string {\n\t\treturn 'Row ' + i;\n\t}\n</script>\n\n`;
-	let markup = `<Header title={data.title} />\n<main>\n`;
+	let markup = `${dedent`
+		<Header title={data.title} />
+		<main>
+	`}\n`;
 	for (let i = 0; i < islands; i++) {
-		markup = `${markup}\t<section class="block">\n\t\t<h2>{label(${i})}</h2>\n\t\t<Block${i} rows={data.blocks[${i}].rows} title={data.blocks[${i}].title} locale={page.data.locale}>\n`;
+		markup = `${dedent`
+			${markup}	<section class="block">
+					<h2>{label(${i})}</h2>
+					<Block${i} rows={data.blocks[${i}].rows} title={data.blocks[${i}].title} locale={page.data.locale}>
+		`}\n`;
 		markup = `${markup}\t\t\t{#snippet footer(row)}<p>{format(row.price)} {total}</p>{/snippet}\n`;
-		markup = `${markup}\t\t\t{#each data.blocks[${i}].tags as tag (tag)}<span>{tag}</span>{/each}\n\t\t</Block${i}>\n\t</section>\n`;
+		markup = `${dedent`
+			${markup}			{#each data.blocks[${i}].tags as tag (tag)}<span>{tag}</span>{/each}
+					</Block${i}>
+				</section>
+		`}\n`;
 	}
 	return `${script + markup}</main>\n`;
 }
@@ -130,7 +142,10 @@ bench(
 				src +=
 					i % 3 === 0
 						? `export const cart${i} = import.meta.og.store((seed = []) => ({ subscribe: writable(seed).subscribe, seed }));\n`
-						: `export const count${i} = writable(${i});\nexport const doubled${i} = derived(count${i}, (n) => n * 2);\n`;
+						: `${dedent`
+							export const count${i} = writable(${i});
+							export const doubled${i} = derived(count${i}, (n) => n * 2);
+						`}\n`;
 			}
 			return { source: src };
 		}
@@ -151,7 +166,10 @@ bench(
 						? `export { default as Widget${i} } from './widgets/Widget${i}.svelte';\n`
 						: i % 3 === 1
 							? `export * from './utils/util${i}.ts';\n`
-							: `import { helper${i} } from './helpers/h${i}.ts';\nexport const use${i} = (x: number) => helper${i}(x) + ${i};\n`;
+							: `${dedent`
+								import { helper${i} } from './helpers/h${i}.ts';
+								export const use${i} = (x: number) => helper${i}(x) + ${i};
+							`}\n`;
 			}
 			return { source: src };
 		}

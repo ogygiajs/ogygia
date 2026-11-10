@@ -43,6 +43,7 @@ vi.mock('virtual:ogygia/profiler-maps', () => ({
 }));
 import { module_imports, route_imports } from '../../devtools/src/profiler/route-imports.ts';
 import { sourcemap_resolver } from '../../devtools/src/profiler/analyze.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 // The profiler's maps travel inside the code, so any adapter ships them; a map that points at another
 // built file is followed one step further.
@@ -51,7 +52,11 @@ describe('fill_profiler_maps', () => {
 	it("writes the module map and every chunk's map into the placeholder, and nothing else changes", () => {
 		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'og-maps-'));
 		fs.mkdirSync(path.join(dir, 'chunks'));
-		const lib = '//#region src/lib/a.ts\nfunction a() {}\n//#endregion\n';
+		const lib = `${dedent`
+			//#region src/lib/a.ts
+			function a() {}
+			//#endregion
+		`}\n`;
 		fs.writeFileSync(path.join(dir, 'chunks/a.js'), lib);
 		// the server output sits at <root>/out; the map names the app file, a package, and data
 		fs.writeFileSync(
@@ -68,7 +73,10 @@ describe('fill_profiler_maps', () => {
 			path.join(dir, 'chunks/data.js.map'),
 			JSON.stringify({ version: 3, sources: ['../../src/d.json'], mappings: 'AAAA' })
 		);
-		const maps_code = `var maps = "${PROFILER_MAPS_PLACEHOLDER}";\nexport { maps as default };\n`;
+		const maps_code = `${dedent`
+			var maps = "${PROFILER_MAPS_PLACEHOLDER}";
+			export { maps as default };
+		`}\n`;
 		fs.writeFileSync(path.join(dir, 'chunks/profiler-maps.js'), maps_code);
 		const bundle = {
 			'chunks/a.js': {
@@ -132,7 +140,10 @@ describe('fill_profiler_maps', () => {
 				mappings: 'AAAA'
 			})
 		);
-		const maps_code = `var maps = "${PROFILER_MAPS_PLACEHOLDER}";\nexport { maps as default };\n`;
+		const maps_code = `${dedent`
+			var maps = "${PROFILER_MAPS_PLACEHOLDER}";
+			export { maps as default };
+		`}\n`;
 		fs.writeFileSync(path.join(dir, 'chunks/profiler-maps.js'), maps_code);
 		const bundle = {
 			'chunks/profiler-maps.js': {

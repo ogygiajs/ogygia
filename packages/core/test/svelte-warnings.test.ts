@@ -3,9 +3,13 @@
 import { expect, test } from 'vitest';
 import { parse_svelte_warning } from '../src/runtime/svelte-warnings.ts';
 import { analyze_page } from '../src/insights/page-insights.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
-const line =
-	'%c[svelte] hydration_html_changed\n%cThe value of an `{@html ...}` block in /​Users/​me/​app/​src/​Card.svelte changed between server and client renders. The client value will be ignored in favour of the server value\nhttps://svelte.dev/e/hydration_html_changed';
+const line = dedent`
+		%c[svelte] hydration_html_changed
+		%cThe value of an \`{@html ...}\` block in /​Users/​me/​app/​src/​Card.svelte changed between server and client renders. The client value will be ignored in favour of the server value
+		https://svelte.dev/e/hydration_html_changed
+	`;
 
 test('a hydration warning: code, message, the component file', () => {
 	const w = parse_svelte_warning(line)!;

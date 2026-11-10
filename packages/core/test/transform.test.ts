@@ -232,7 +232,11 @@ describe('portable binding rewrite', () => {
 	test('two static usages + dynamic + second import same path → ONE island entry', () => {
 		const r = run(
 			wrap(
-				`import A from './A.svelte' with { wake: 'load' };\nimport B from './A.svelte' with { wake: 'load' };\nconst dyn = A;`,
+				dedent`
+					import A from './A.svelte' with { wake: 'load' };
+					import B from './A.svelte' with { wake: 'load' };
+					const dyn = A;
+				`,
 				'<A n={1} /><A n={2} /><svelte:component this={dyn} n={3} /><B n={4} />'
 			)
 		)!;
@@ -753,7 +757,16 @@ describe('cross-island children (runtime slot crossing)', () => {
 	});
 
 	test('many call sites with different children share the ONE island', () => {
-		const r = run(wrap(LOAD, '<C><p>a</p></C>\n<C><p>b</p></C>\n<C><p>a</p></C>'))!;
+		const r = run(
+			wrap(
+				LOAD,
+				dedent`
+			<C><p>a</p></C>
+			<C><p>b</p></C>
+			<C><p>a</p></C>
+		`
+			)
+		)!;
 		expect(r.islands).toHaveLength(1);
 		// no synthetic per-usage bindings — every usage keeps the real import
 		expect(r.code).not.toMatch(/__og\d/);

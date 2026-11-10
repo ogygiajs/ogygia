@@ -1,15 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { build_module_map } from '../src/vite/module-map.ts';
 import { module_category } from '../../devtools/src/profiler/module-map.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 // A build without sourcemaps leaves only chunk names: the module map says which source module is
 // at which lines of each server chunk, so a frame is filed by what it is.
 
 describe('build_module_map', () => {
 	it('each module at its lines of the chunk, ids relative to the root, queries dropped', () => {
-		const a = 'function a() {\n\treturn 1;\n}\n';
+		const a = `${dedent`
+			function a() {
+				return 1;
+			}
+		`}\n`;
 		const b = 'export function b() {}\n';
-		const code = `import x from './x.js';\n${a}\n${b}export { a };\n`;
+		const code = `${dedent`
+			import x from './x.js';
+			${a}
+			${b}export { a };
+		`}\n`;
 		const map = build_module_map(
 			{
 				'chunks/lib.js': {
@@ -42,7 +51,10 @@ describe('build_module_map', () => {
 describe('build_module_map: a module starting with a newline', () => {
 	it('the modules after it keep their lines', () => {
 		const a = '\nconst a = 1;\n';
-		const b = 'const b = 2;\nconst c = 3;\n';
+		const b = `${dedent`
+			const b = 2;
+			const c = 3;
+		`}\n`;
 		const code = `// head\n${a}${b}`;
 		const map = build_module_map(
 			{
@@ -66,12 +78,28 @@ describe('build_module_map: a module starting with a newline', () => {
 describe('build_module_map: a module whose imports the bundler dropped', () => {
 	it('is found by its first solid line, and the modules after it keep their lines', () => {
 		// the modules' own code opens with imports; the chunk has them hoisted away
-		const a =
-			"import { x } from './x.js';\nimport { y } from './y.js';\nexport function respond(event) {\n\treturn render_page(event, options);\n}\n";
-		const b =
-			"import { z } from './z.js';\nexport function render_page(event, options) {\n\treturn new Response('ok');\n}\n";
-		const code =
-			"import { x, y, z } from './shared.js';\nexport function respond(event) {\n\treturn render_page(event, options);\n}\nexport function render_page(event, options) {\n\treturn new Response('ok');\n}\n";
+		const a = `${dedent`
+				import { x } from './x.js';
+				import { y } from './y.js';
+				export function respond(event) {
+					return render_page(event, options);
+				}
+			`}\n`;
+		const b = `${dedent`
+				import { z } from './z.js';
+				export function render_page(event, options) {
+					return new Response('ok');
+				}
+			`}\n`;
+		const code = `${dedent`
+				import { x, y, z } from './shared.js';
+				export function respond(event) {
+					return render_page(event, options);
+				}
+				export function render_page(event, options) {
+					return new Response('ok');
+				}
+			`}\n`;
 		const map = build_module_map(
 			{
 				'index.js': {

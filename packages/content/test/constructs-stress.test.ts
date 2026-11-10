@@ -12,6 +12,7 @@ import { rewrite_code, type CodeCall } from '../src/macros/code.ts';
 import { rewrite_regions } from '../src/macros/regions.ts';
 import { rewrite_loaders } from '../src/macros/loaders.ts';
 import { __set_build_cache_root, run_browser_macros } from '@ogygia/core/internal/compiler-browser';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const MARKUP = ['.svelte'] as const;
 const echo = async (c: CodeCall) =>
@@ -86,7 +87,11 @@ describe('code/md — byte-offset integrity under multi-byte unicode', () => {
 	beforeAll(() => __set_build_cache_root(fs.mkdtempSync(path.join(os.tmpdir(), 'og-off-'))));
 
 	it('code() with emoji prose before it splices correctly', async () => {
-		const src = `const flag = "🚩🚩";\nconst x = import.meta.og.code("const y = 1;", "ts");\nconst tail = "🔥";`;
+		const src = dedent`
+			const flag = "🚩🚩";
+			const x = import.meta.og.code("const y = 1;", "ts");
+			const tail = "🔥";
+		`;
 		const out = await rewrite_code(src, '/x.ts', MARKUP, echo);
 		expect(out).toContain(`const flag = "🚩🚩";`);
 		expect(out).toContain(`const tail = "🔥";`);

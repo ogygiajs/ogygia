@@ -32,6 +32,7 @@ import { appendFileSync, existsSync, writeFileSync, readFileSync } from 'node:fs
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { dedent } from 'ogygia/plugin/utils';
 
 const repo = fileURLToPath(new URL('../../..', import.meta.url));
 const huge = process.argv.includes('--huge');
@@ -184,8 +185,12 @@ console.log(
 
 // ── record ───────────────────────────────────────────────────────────────────
 const file = path.join(repo, 'internal/notes/perf-checkpoints.md');
-const header =
-	'\n## scale\n\n| label | hosts | islands | content entries | transform ms | hosts/s | build+ids ms | get µs | backlink µs | entries ms | heap MB |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n';
+const header = `\n${dedent`
+		## scale
+
+		| label | hosts | islands | content entries | transform ms | hosts/s | build+ids ms | get µs | backlink µs | entries ms | heap MB |
+		| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+	`}\n`;
 if (!existsSync(file)) writeFileSync(file, '# ogygia perf checkpoints\n');
 const hasScaleSection = existsSync(file) && readFileSync(file, 'utf-8').includes('## scale');
 if (!hasScaleSection) appendFileSync(file, header);

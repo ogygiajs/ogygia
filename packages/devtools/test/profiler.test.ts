@@ -87,6 +87,7 @@ import {
 	client_dir_candidates,
 	client_file_finder
 } from '../src/profiler/client-files.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 // The profiler reads dev-vs-prod from `detect_dev()` (a compile-time constant under Vite). Mock it
 // through a switch so ONE test can run the production request path (idle requests unattributed).
@@ -7044,8 +7045,11 @@ describe('paths: the owner is a named place', () => {
 describe('route_prerendered: the nearest `export const prerender` decides', () => {
 	const files: Record<string, string> = {
 		'routes/+layout.ts': 'export const prerender = false;',
-		'routes/docs/[...slug]/+page.server.ts':
-			"import x from 'y';\nexport const prerender = true;\nexport const load = x;",
+		'routes/docs/[...slug]/+page.server.ts': dedent`
+				import x from 'y';
+				export const prerender = true;
+				export const load = x;
+			`,
 		'routes/blog/+layout.ts': "export const prerender = 'auto';",
 		'routes/blog/[slug]/+page.ts': 'export const load = () => ({});',
 		'routes/app/+page.server.ts': 'export const load = () => ({});'

@@ -1145,7 +1145,10 @@ export class Compiler {
 				[...this.dollar_hoists.entries()]
 					.map(([tag, src]) => `globalThis.__og_reg_fn(${JSON.stringify(tag)}, (${src}));`)
 					.join('\n');
-			const bridge = `import { __register_fn } from 'ogygia/internal';\nglobalThis.__og_reg_fn = __register_fn;\n`;
+			const bridge = `${dedent`
+				import { __register_fn } from 'ogygia/internal';
+				globalThis.__og_reg_fn = __register_fn;
+			`}\n`;
 			if (is_dev) return bridge + regs();
 			return `${bridge}/*__OGYGIA_FN_MANIFEST__*/`;
 		}
@@ -1197,7 +1200,11 @@ export class Compiler {
 			{
 				const ch = client_hooks_boot(ctx);
 				const cp = client_plugins_boot(ctx);
-				return `import { bootDev } from 'ogygia/runtime';\n${ch.imports}${cp.imports}bootDev(${cp.list});\n${ch.call}`;
+				return dedent`
+					import { bootDev } from 'ogygia/runtime';
+					${ch.imports}${cp.imports}bootDev(${cp.list});
+					${ch.call}
+				`;
 			}
 		}
 		if (id === RESOLVED(V_DEV_HMR)) {

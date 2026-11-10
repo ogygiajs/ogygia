@@ -26,6 +26,7 @@
 	import { og_html_region, __og_$, __og_store, __og_boundary } from 'ogygia/internal';
 	import './observatory-canvas.css'; // gentle, overridable native-element defaults (.og-canvas), shared with the iframe
 	import type { Analysis, Island } from './observatory.worker';
+	import { dedent } from '@ogygia/core/plugin/utils';
 	// svelte forbids STATIC `svelte/internal/*` imports in app code; load it at runtime for the linker.
 
 	// Regexes at script top level (created once for this singleton island, never per call).
@@ -311,7 +312,14 @@ export default {
 		},
 		counter: {
 			'src/routes/+layout.ts': LAYOUT_CSR,
-			'src/routes/+page.svelte': `<scr${''}ipt>\n  import Counter from '$lib/Counter.svelte' with { wake: 'load' };\n</scr${''}ipt>\n\n<h1>Hello</h1>\n<Counter start={0} />`,
+			'src/routes/+page.svelte': dedent`
+				<scr${''}ipt>
+				  import Counter from '$lib/Counter.svelte' with { wake: 'load' };
+				</scr${''}ipt>
+
+				<h1>Hello</h1>
+				<Counter start={0} />
+			`,
 			'src/lib/Counter.svelte': FILES_DEMO['Counter.svelte']
 		},
 		'server island': {

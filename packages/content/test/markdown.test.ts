@@ -7,6 +7,7 @@ import {
 	remarkHeadingId,
 	wrap_html
 } from '../src/markdown/index.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 describe('markdown preset', () => {
 	it('exposes .svx / .md extensions', () => {
@@ -89,7 +90,14 @@ describe('code dialect — shiki transformers passthrough', () => {
 			}
 		};
 		const pp = ogygiaPreprocess({ code: { transformers: [stamp] } });
-		const out = await pp.markup?.({ content: '```ts\nconst a = 1;\n```', filename: '/x/page.md' });
+		const out = await pp.markup?.({
+			content: dedent`
+			\`\`\`ts
+			const a = 1;
+			\`\`\`
+		`,
+			filename: '/x/page.md'
+		});
 		expect((out as { code: string }).code).toContain('data-tx="on"');
 	});
 
@@ -105,7 +113,14 @@ describe('code dialect — shiki transformers passthrough', () => {
 					: null
 		};
 		const pp = ogygiaPreprocess({ code: { variants: [casing as never] } });
-		const out = await pp.markup?.({ content: '```bash\necho hi\n```', filename: '/x/page.md' });
+		const out = await pp.markup?.({
+			content: dedent`
+			\`\`\`bash
+			echo hi
+			\`\`\`
+		`,
+			filename: '/x/page.md'
+		});
 		const c = (out as { code: string }).code; // inside {@html `...`}; only backtick/backslash/${ are escaped, not "
 		expect(c).toContain('class="og-code"');
 		expect(c).toContain('data-pref="case"');
@@ -129,7 +144,14 @@ describe('code dialect — shiki transformers passthrough', () => {
 					: null
 		};
 		const pp = ogygiaPreprocess({ code: { variants: [casing as never] } });
-		const out = await pp.markup?.({ content: '```ts\nconst a = 1;\n```', filename: '/x/page.md' });
+		const out = await pp.markup?.({
+			content: dedent`
+			\`\`\`ts
+			const a = 1;
+			\`\`\`
+		`,
+			filename: '/x/page.md'
+		});
 		expect((out as { code: string }).code).not.toContain('og-code');
 		expect((out as { code: string }).code).toContain('data-lang="ts"');
 	});
@@ -147,7 +169,11 @@ describe('code dialect — shiki transformers passthrough', () => {
 		};
 		const pp = ogygiaPreprocess({ code: { transformers: [echo] } });
 		const out = await pp.markup?.({
-			content: '```js {1,3}\nconst a = 1;\n```',
+			content: dedent`
+				\`\`\`js {1,3}
+				const a = 1;
+				\`\`\`
+			`,
 			filename: '/x/page.md'
 		});
 		expect((out as { code: string }).code).toContain('data-raw="{1,3}"');
@@ -287,7 +313,11 @@ describe('tab component injection (plain barrel)', () => {
 	});
 
 	it('does not inject when no tab syntax is used', async () => {
-		const code = await render('# Plain page\n\nNo tabs here.');
+		const code = await render(dedent`
+			# Plain page
+
+			No tabs here.
+		`);
 		expect(code).not.toContain(INJECTED);
 	});
 
@@ -367,7 +397,13 @@ describe('content preset dispatch (v3 config surface)', () => {
 			islandBridge.markdownConfig = { wrapperClass: 'default-wrap' };
 			islandBridge.contentPresets = { pg: { markdown: { wrapperClass: 'preset-wrap' } } };
 			const pp = ogygiaPresetPreprocess();
-			const doc = '# Hi\n\n```js\nlet a = 1;\n```\n';
+			const doc = `${dedent`
+				# Hi
+
+				\`\`\`js
+				let a = 1;
+				\`\`\`
+			`}\n`;
 
 			const plain = (await pp.markup?.({ content: doc, filename: '/x/a.md' })) as { code: string };
 			expect(plain.code).toContain('default-wrap');

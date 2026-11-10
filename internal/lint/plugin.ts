@@ -773,7 +773,7 @@ function dedent_source(file: string): string | null {
 		return rel.startsWith('.') ? rel : `./${rel}`;
 	}
 	if (/\/packages\/(machine|tooling|config|tsdown-plugin-svelte)\//.test(f)) return null;
-	if (/\/packages\/cli\/src\/cli\.ts$/.test(f)) return null;
+	if (f.endsWith('/packages/cli/src/cli.ts')) return null;
 	// (a package that reaches core: its package.json names @ogygia/core or ogygia)
 	let dir = path.posix.dirname(f);
 	for (;;) {

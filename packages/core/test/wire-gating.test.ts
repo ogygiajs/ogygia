@@ -35,6 +35,7 @@ import {
 } from '../src/compiler/region/transform.ts';
 import { Program } from '../src/compiler/program.ts';
 import { resolveFeatures } from '../src/compiler/link/runtime-entry.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 const ctx = {
 	root: '/app',
@@ -103,7 +104,10 @@ describe('wire gating — the four detection legs', () => {
 
 	it('.ts-minted hydrate regions (the factory-registry pattern) → wire', () => {
 		const marks = marks_for(
-			`import Card from './Card.svelte' with { wake: 'visible' };\nexport const blocks = { card: Card };\n`,
+			`${dedent`
+				import Card from './Card.svelte' with { wake: 'visible' };
+				export const blocks = { card: Card };
+			`}\n`,
 			'/app/src/lib/registry.ts'
 		);
 		expect(marks.wire).toBe(true);
@@ -130,7 +134,10 @@ describe('wire gating — the four detection legs', () => {
 
 	it('EXCLUDE: a .ts registry of raw (held) regions stays lean — the blocks pattern', () => {
 		const marks = marks_for(
-			`import Card from './Card.svelte' with { region: 'raw' };\nexport const blocks = { card: Card };\n`,
+			`${dedent`
+				import Card from './Card.svelte' with { region: 'raw' };
+				export const blocks = { card: Card };
+			`}\n`,
 			'/app/src/lib/blocks.ts'
 		);
 		expect(marks.wire).not.toBe(true);
@@ -138,7 +145,10 @@ describe('wire gating — the four detection legs', () => {
 
 	it('EXCLUDE: a .ts registry of deferred (server) islands stays lean', () => {
 		const marks = marks_for(
-			`import Late from './Late.svelte' with { render: 'deferred' };\nexport const blocks = { late: Late };\n`,
+			`${dedent`
+				import Late from './Late.svelte' with { render: 'deferred' };
+				export const blocks = { late: Late };
+			`}\n`,
 			'/app/src/lib/server-blocks.ts'
 		);
 		expect(marks.wire).not.toBe(true);

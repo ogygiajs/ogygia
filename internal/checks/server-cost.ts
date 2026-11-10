@@ -8,6 +8,7 @@ import { spawn, execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const REQUESTS = Number(process.argv[2] ?? 300);
 const CONC = Number(process.argv[3] ?? 4);
@@ -146,7 +147,10 @@ const top = (m, n, filter = () => true) =>
 		.sort((a, b) => b[1] - a[1])
 		.slice(0, n);
 console.log(
-	`\nCPU profile: ${profiles.length} file(s), ${Math.round(total / 1000)} ms sampled\n  self time by file (top 25):`
+	`\n${dedent`
+		CPU profile: ${profiles.length} file(s), ${Math.round(total / 1000)} ms sampled
+		  self time by file (top 25):
+	`}`
 );
 for (const [k, v] of top(self_by_file, 25))
 	console.log(`   ${String(Math.round(v)).padStart(7)} ms  ${k}`);

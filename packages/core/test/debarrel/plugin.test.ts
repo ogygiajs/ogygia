@@ -18,6 +18,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { fixture, type Fixture } from './_fixture.ts';
 import { debarrel } from '../../src/compiler/debarrel/plugin.ts';
 import { ogygia } from '../../src/vite/index.ts';
+import { dedent } from '../../src/compiler/dedent.ts';
 
 let f: Fixture;
 afterEach(() => f?.dispose());
@@ -25,13 +26,23 @@ afterEach(() => f?.dispose());
 const app = (): Record<string, string> => ({
 	'package.json': JSON.stringify({ name: 'app', type: 'module' }),
 	'index.html': `<script type="module" src="/src/main.ts"></script>`,
-	'src/main.ts': `import { Button, util } from '$lib';\nimport { pkgLeaf } from '@scope/ui';\nimport App from './App.svelte';\nconsole.log(Button, util, pkgLeaf, App);`,
+	'src/main.ts': dedent`
+		import { Button, util } from '$lib';
+		import { pkgLeaf } from '@scope/ui';
+		import App from './App.svelte';
+		console.log(Button, util, pkgLeaf, App);
+	`,
 	'src/App.svelte': `<script lang="ts">\n\timport { Card } from '$lib';\n</script>\n<Card />`,
 	'lib/Button.svelte': '<button>b</button>',
 	'lib/Card.svelte': '<div>c</div>',
 	'lib/Unused.svelte': '<div>never imported: must not be in the graph</div>',
 	'lib/util.ts': 'export function util() { return "util-marker"; }',
-	'lib/index.ts': `export { default as Button } from './Button.svelte';\nexport { default as Card } from './Card.svelte';\nexport { default as Unused } from './Unused.svelte';\nexport { util } from './util';`,
+	'lib/index.ts': dedent`
+		export { default as Button } from './Button.svelte';
+		export { default as Card } from './Card.svelte';
+		export { default as Unused } from './Unused.svelte';
+		export { util } from './util';
+	`,
 	'node_modules/@scope/ui/package.json': JSON.stringify({
 		name: '@scope/ui',
 		type: 'module',
@@ -208,8 +219,11 @@ describe('vite build', () => {
 		for (let i = 0; i < 12; i++) {
 			files[`lib/b${i}/leaf.ts`] = `export const v${i} = ${i};`;
 			files[`lib/b${i}/index.ts`] = `export { v${i} } from './leaf';`;
-			files['src/main.ts'] =
-				`${files['src/main.ts']}\nimport { v${i} } from '$lib/b${i}';\nconsole.log(v${i});`;
+			files['src/main.ts'] = dedent`
+					${files['src/main.ts']}
+					import { v${i} } from '$lib/b${i}';
+					console.log(v${i});
+				`;
 		}
 		f = fixture(files);
 		const lines: string[] = [];
@@ -404,7 +418,11 @@ describe('ogygia({ barrels }) wiring', () => {
 		f = fixture({
 			'lib/util.ts': 'export const util = 1;',
 			'lib/index.ts': `export { util } from './util';`,
-			'src/app.ts': `import { Action } from 'svelte/action';\nimport { util } from '$lib';\nimport { deep } from '@vendor/pkg/src/types';`
+			'src/app.ts': dedent`
+				import { Action } from 'svelte/action';
+				import { util } from '$lib';
+				import { deep } from '@vendor/pkg/src/types';
+			`
 		});
 		const plugin = debarrel(true);
 		const transform = plugin.transform as (
@@ -429,7 +447,11 @@ describe('ogygia({ barrels }) wiring', () => {
 		});
 		const out = await transform.call(ctx, f.read('src/app.ts'), f.id('src/app.ts'));
 		expect(out!.code).toBe(
-			`import { Action } from 'svelte/action';\nimport { util } from '${f.id('lib/util.ts')}';\nimport { deep } from '@vendor/pkg/src/types';`
+			dedent`
+				import { Action } from 'svelte/action';
+				import { util } from '${f.id('lib/util.ts')}';
+				import { deep } from '@vendor/pkg/src/types';
+			`
 		);
 	});
 });

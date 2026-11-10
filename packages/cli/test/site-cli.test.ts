@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 // Black-box suite for `ogygia site init`. It drives the REAL CLI (the source, run by Node's native
 // TS support) against throwaway fixture projects on disk, so it exercises argv parsing, the sv-utils
@@ -317,7 +318,13 @@ describe('site init — re-runs', () => {
 	});
 
 	it('keeps the user’s own content instead of writing starter pages', () => {
-		const mine = '---\ntitle: Mine\n---\n\n# Mine\n';
+		const mine = `${dedent`
+			---
+			title: Mine
+			---
+
+			# Mine
+		`}\n`;
 		const dir = svelteConfigProject({ 'src/content/docs/mine.svx': mine });
 		const { status } = run(dir, ['init', '-y', '--no-install']);
 		expect(status).toBe(0);

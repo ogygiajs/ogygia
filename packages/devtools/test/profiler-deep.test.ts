@@ -25,6 +25,7 @@ import {
 } from '../src/profiler/gc.ts';
 import { analyze } from '../src/profiler/analyze.ts';
 import { sync_io, memo_candidates, simulate_awaits } from '../src/profiler/insights.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 describe('byte strip', () => {
 	const doc = `<!doctype html><html><head><title>x</title><script data-ogygia-runtime src="/r.js">\x3C/script><style>.a{}</style><link rel="stylesheet" href="/a/b.css"></head><body><p>hi</p><ogygia-region data-og-fp="0000aaaa1111bbbb" entry="/_app/x.js"><div><template shadowrootmode="open"><b>ds</b></template><script>inner()\x3C/script></div></ogygia-region><template shadowrootmode="open"><i>loose</i></template><script type="application/ogygia-page">{"data":{"a":1}}\x3C/script><script type="application/ogygia-props" data-ogygia-props>[]\x3C/script><script type="application/ogygia-holes" data-ogygia-holes>{}\x3C/script><script src="/_app/start.js" type="module">\x3C/script></body></html>`;
@@ -276,12 +277,22 @@ describe('data river', () => {
 	it('load_return_keys reads the object literals a load returns; spreads and non-literals are unknown', () => {
 		expect(
 			load_return_keys(
-				`export async function load({ fetch }) {\n  const a = await fetch('/x');\n  return { products: await a.json(), 'total': 3, "flags": f, count };\n}`
+				dedent`
+					export async function load({ fetch }) {
+					  const a = await fetch('/x');
+					  return { products: await a.json(), 'total': 3, "flags": f, count };
+					}
+				`
 			)
 		).toEqual(['products', 'total', 'flags', 'count']);
 		expect(
 			load_return_keys(
-				`export const load = async () => {\n if (x) return { a: 1 };\n return ({ b: { nested: 1 }, c: [1,2] });\n}`
+				dedent`
+					export const load = async () => {
+					 if (x) return { a: 1 };
+					 return ({ b: { nested: 1 }, c: [1,2] });
+					}
+				`
 			)
 		).toEqual(['a', 'b', 'c']);
 		expect(
@@ -465,7 +476,12 @@ describe('sink', () => {
 		});
 		expect(b.size).toBeLessThan(21);
 		const text = b.drain();
-		const rows = parse_sink(`${text}\n{bad json\n`);
+		const rows = parse_sink(
+			`${dedent`
+			${text}
+			{bad json
+		`}\n`
+		);
 		expect(rows.some((r) => r.k === 'win')).toBe(true);
 		expect(rows.every((r) => r.k === 'req' || r.k === 'win')).toBe(true);
 		expect(b.size).toBe(0);

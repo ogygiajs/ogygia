@@ -5,6 +5,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { fixture, type Fixture } from './_fixture.ts';
+import { dedent } from '../../src/compiler/dedent.ts';
 
 let f: Fixture;
 afterEach(() => f?.dispose());
@@ -73,7 +74,14 @@ describe('rewrite_svelte', () => {
 	it('a <style lang="scss"> the CSS parser rejects no longer skips the file; the style stays byte-identical', async () => {
 		// `#{$i}` and `@for` threw css_expected_identifier in Svelte's parser, and the whole file was
 		// skipped: its barrel imports stayed, and its island shipped the whole barrel
-		const style = `<style lang="scss">\n@for $i from 1 through 3 {\n\t:global(.ql-indent-#{$i}) { padding-left: #{$i * 3}em; }\n}\n@each $k in a, b { .x-#{$k} { color: red } }\n</style>`;
+		const style = dedent`
+			<style lang="scss">
+			@for $i from 1 through 3 {
+				:global(.ql-indent-#{$i}) { padding-left: #{$i * 3}em; }
+			}
+			@each $k in a, b { .x-#{$k} { color: red } }
+			</style>
+		`;
 		f = fixture({
 			...lib(),
 			'src/App.svelte': `<script>\n\timport { Button, util } from '$lib';\n</script>\n\n<Button>{util}</Button>\n${style}\n`
@@ -85,7 +93,11 @@ describe('rewrite_svelte', () => {
 	});
 
 	it('a script AFTER the style block is rewritten at the right place (the blanking keeps every offset)', async () => {
-		const style = `<style lang="scss">\n.a { .b-#{$x} { color: red } }\n</style>`;
+		const style = dedent`
+			<style lang="scss">
+			.a { .b-#{$x} { color: red } }
+			</style>
+		`;
 		f = fixture({
 			...lib(),
 			'src/App.svelte': `${style}\n<script lang="ts">\n\timport { util } from '$lib';\n\tconst label = '<style>not css</style>';\n</script>\n<p>{util}{label}</p>`
@@ -101,7 +113,11 @@ describe('rewrite_svelte', () => {
 		const out = blank_styles(src);
 		expect(out.length).toBe(src.length);
 		expect(out).toContain(`const s = '<style>x{}</style>';`);
-		expect(out).toContain(`<STYLE lang="scss">\n${' '.repeat('.a-#{$i} {}'.length)}\n</STYLE>`);
+		expect(out).toContain(dedent`
+			<STYLE lang="scss">
+			${' '.repeat('.a-#{$i} {}'.length)}
+			</STYLE>
+		`);
 		expect(out).toContain('<styles-not>keep</styles-not>');
 	});
 

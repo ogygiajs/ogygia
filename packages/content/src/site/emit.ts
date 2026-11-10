@@ -8,6 +8,7 @@
  * retain — it stores compiled bodies. That waits on a raw-source companion; it is not here yet.)
  */
 import type { NavItem, NavLeaf, NavTree } from './types.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 // ── regexes
 const FRONTMATTER_BLOCK_RE = /^﻿?---\r?\n[\s\S]*?\r?\n---\r?\n?/;
@@ -42,7 +43,12 @@ export function build_sitemap(tree: NavTree, origin: string): string {
 	const urls = leaves_of(tree)
 		.map((l) => `  <url><loc>${xml_escape(origin + l.href)}</loc></url>`)
 		.join('\n');
-	return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+	return `${dedent`
+		<?xml version="1.0" encoding="UTF-8"?>
+		<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+		${urls}
+		</urlset>
+	`}\n`;
 }
 
 /** One `- [title](url): summary` line for a leaf or link. */

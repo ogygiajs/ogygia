@@ -354,7 +354,10 @@ export async function rewrite_bake(
 			return r;
 		}
 	`;
-	const entry_code = `${imports}\n${run}\n`;
+	const entry_code = `${dedent`
+		${imports}
+		${run}
+	`}\n`;
 
 	// Content hash: module id + the exact eval entry (imports + fns) → address the bundle & re-bake
 	// only when inputs change.

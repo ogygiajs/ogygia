@@ -10,6 +10,7 @@ import path from 'node:path';
 import { fixture, type Fixture } from './_fixture.ts';
 import { transformTsRegions, asRegionLocals } from '../../src/compiler/region/transform.ts';
 import { ogygia } from '../../src/vite/index.ts';
+import { dedent } from '../../src/compiler/dedent.ts';
 
 let f: Fixture;
 afterEach(() => f?.dispose());
@@ -33,11 +34,20 @@ describe('debarrel + import.meta.og.asRegion', () => {
 			'lib/A.svelte': '<h1>A</h1>',
 			'lib/B.svelte': '<p>B</p>',
 			'lib/index.ts': `export { default as A } from './A.svelte';\nexport { default as B } from './B.svelte';`,
-			'src/registry.ts': `import { A, B } from '$lib';\nconst ARegion = import.meta.og.asRegion(A, { wake: 'visible' });\nexport const registry = [ARegion, B];`
+			'src/registry.ts': dedent`
+				import { A, B } from '$lib';
+				const ARegion = import.meta.og.asRegion(A, { wake: 'visible' });
+				export const registry = [ARegion, B];
+			`
 		});
 		const rewritten = (await f.rewrite('src/registry.ts'))!;
 		expect(rewritten).toBe(
-			`import A from '${f.id('lib/A.svelte')}';\nimport B from '${f.id('lib/B.svelte')}';\nconst ARegion = import.meta.og.asRegion(A, { wake: 'visible' });\nexport const registry = [ARegion, B];`
+			dedent`
+				import A from '${f.id('lib/A.svelte')}';
+				import B from '${f.id('lib/B.svelte')}';
+				const ARegion = import.meta.og.asRegion(A, { wake: 'visible' });
+				export const registry = [ARegion, B];
+			`
 		);
 		const r = transformTsRegions(rewritten, f.id('src/registry.ts'), ctx(f.root));
 		expect(r).not.toBeNull();
@@ -59,7 +69,11 @@ describe('debarrel + import.meta.og.asRegion', () => {
 		f = fixture({
 			'lib/A.svelte': '<h1>A</h1>',
 			'lib/index.ts': `export { default as A } from './A.svelte';`,
-			'src/registry.ts': `import { A } from '$lib';\nconst ARegion = import.meta.og.asRegion(A, { wake: 'load' });\nexport const registry = [ARegion];`
+			'src/registry.ts': dedent`
+				import { A } from '$lib';
+				const ARegion = import.meta.og.asRegion(A, { wake: 'load' });
+				export const registry = [ARegion];
+			`
 		});
 		const r = transformTsRegions(f.read('src/registry.ts'), f.id('src/registry.ts'), ctx(f.root));
 		expect(r!.islands).toHaveLength(1);
@@ -75,13 +89,27 @@ describe('debarrel + import.meta.og.asRegion', () => {
 			'lib/A.svelte': '<h1>A</h1>',
 			'lib/B.svelte': '<p>B</p>',
 			'lib/util.ts': 'export const util = 1;',
-			'lib/index.ts': `export { default as A } from './A.svelte';\nexport { default as B } from './B.svelte';\nexport { util } from './util';`,
-			'src/registry.ts': `import { A, B } from '$lib';\nimport { util } from '$lib';\nconst ARegion = import.meta.og.asRegion(A, { wake: 'visible' });\nexport const registry = [ARegion, B, util];`
+			'lib/index.ts': dedent`
+				export { default as A } from './A.svelte';
+				export { default as B } from './B.svelte';
+				export { util } from './util';
+			`,
+			'src/registry.ts': dedent`
+				import { A, B } from '$lib';
+				import { util } from '$lib';
+				const ARegion = import.meta.og.asRegion(A, { wake: 'visible' });
+				export const registry = [ARegion, B, util];
+			`
 		});
 		const skip = (decl: { specs: { local: string }[] }) =>
 			decl.specs.some((s) => asRegionLocals(f.read('src/registry.ts')).has(s.local));
 		expect(await f.rewrite('src/registry.ts', undefined, { skip })).toBe(
-			`import { A, B } from '$lib';\nimport { util } from '${f.id('lib/util.ts')}';\nconst ARegion = import.meta.og.asRegion(A, { wake: 'visible' });\nexport const registry = [ARegion, B, util];`
+			dedent`
+				import { A, B } from '$lib';
+				import { util } from '${f.id('lib/util.ts')}';
+				const ARegion = import.meta.og.asRegion(A, { wake: 'visible' });
+				export const registry = [ARegion, B, util];
+			`
 		);
 		// and the island id is the one the prescan computes from the raw file
 		const raw = transformTsRegions(f.read('src/registry.ts'), f.id('src/registry.ts'), ctx(f.root));
@@ -95,7 +123,12 @@ describe('debarrel + import.meta.og.asRegion', () => {
 			'lib/A.svelte': '<h1>A</h1>',
 			'lib/util.ts': 'export const util = 1;',
 			'lib/index.ts': `export { default as A } from './A.svelte';\nexport { util } from './util';`,
-			'src/registry.ts': `import { A } from '$lib';\nimport { util } from '$lib';\nexport const R = import.meta.og.asRegion(A, { wake: 'load' });\nexport const u = util;`
+			'src/registry.ts': dedent`
+				import { A } from '$lib';
+				import { util } from '$lib';
+				export const R = import.meta.og.asRegion(A, { wake: 'load' });
+				export const u = util;
+			`
 		});
 		const plugin = ogygia({ barrels: true })[0];
 		const transform = plugin.transform as (
@@ -118,7 +151,12 @@ describe('debarrel + import.meta.og.asRegion', () => {
 		});
 		const out = await transform.call(ctx_, f.read('src/registry.ts'), f.id('src/registry.ts'));
 		expect(out!.code).toBe(
-			`import { A } from '$lib';\nimport { util } from '${f.id('lib/util.ts')}';\nexport const R = import.meta.og.asRegion(A, { wake: 'load' });\nexport const u = util;`
+			dedent`
+				import { A } from '$lib';
+				import { util } from '${f.id('lib/util.ts')}';
+				export const R = import.meta.og.asRegion(A, { wake: 'load' });
+				export const u = util;
+			`
 		);
 	});
 

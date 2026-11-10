@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { rewrite_wire, WIRE_EXPR } from '../src/compiler/macros/wire.ts';
 import { og_js_regions } from '../src/compiler/parse/scan.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 const MARKUP = ['.svelte'] as const;
 const CODEC = `{ encode: (c) => c.v, decode: (v) => new C(v) }`;
@@ -121,7 +122,12 @@ describe('wire — demented shapes that must still WORK', () => {
 	});
 
 	it('the codec spans many lines with nested braces and a trailing comma', () => {
-		const codec = `{\n\tencode: (c) => ({ a: c.a, b: { deep: c.b } }),\n\tdecode: (d) => new C(d),\n}`;
+		const codec = dedent`
+			{
+				encode: (c) => ({ a: c.a, b: { deep: c.b } }),
+				decode: (d) => new C(d),
+			}
+		`;
 		const out = rewrite_wire(
 			`class C { static wire = import.meta.og.wire(${codec}); }`,
 			'/x.ts',
