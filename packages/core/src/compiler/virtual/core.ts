@@ -656,10 +656,11 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 	fn_manifest,
 	runtime_entry,
 	runtime_flags,
-	hydrate_features,
 	devtools_meta,
 	transport,
 	transportables,
+	// (after the boot values: its features import the runtime, which reads them back)
+	hydrate_features,
 	hmr,
 	devtools_boot,
 	runtime_url,
