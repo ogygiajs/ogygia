@@ -5,7 +5,7 @@
  * (./slots.ts `BootLink` explains why). Core calls this at boot, before any lazy chunk can load; a
  * test that imports a lazy module without booting calls it too. Idempotent.
  */
-import { flights, stage, STALE, world } from '@ogygia/machine';
+import { flights, noop, stage, STALE, world } from '@ogygia/machine';
 import { slots } from './slots.ts';
 import { create_soft_refresh } from './soft-refresh.ts';
 import { KitBoot, kit_hydrates_page } from './kit-boot.ts';
@@ -37,7 +37,7 @@ import { OgygiaError, warn } from '../messages/core.ts';
 // (the profiler's browser half ships only where something reads it: see `__OGYGIA_BEACON__`; a
 // plain import of dist/ without the define keeps it)
 const BEACON = typeof __OGYGIA_BEACON__ !== 'undefined' ? __OGYGIA_BEACON__ : true;
-const no_beacon_nav: typeof beacon_nav = () => {};
+const no_beacon_nav: typeof beacon_nav = noop;
 
 export function link_boot(): void {
 	slots.boot ??= {

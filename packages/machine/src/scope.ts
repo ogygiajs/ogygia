@@ -23,6 +23,7 @@
  * first time they are needed. A scope nothing was given to costs one small object.
  */
 import { machine_error, report } from './messages.ts';
+import { noop } from './noop.ts';
 import { STALE, whole, type Fresh, type Stale } from './stale.ts';
 
 // (a runtime without the explicit-resource-management symbols gets the registered ones, as the
@@ -144,8 +145,6 @@ function unref(timer: Timer): Timer {
 	(timer as { unref?: () => void }).unref?.();
 	return timer;
 }
-
-const noop = (): void => {};
 
 /**
  * Every scope is one of these. Fields are plain (`_`), not `#private`: a machine reads and writes

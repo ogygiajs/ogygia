@@ -53,6 +53,7 @@
  */
 import { machine, type Machine } from './machine.ts';
 import { machine_error } from './messages.ts';
+import { noop } from './noop.ts';
 import { under_policy, type Policy } from './policy.ts';
 import { DISPOSE } from './scope.ts';
 import { STALE, type Fresh, type Stale } from './stale.ts';
@@ -173,7 +174,6 @@ const entry_steps = {
 type Entry = Machine<EntryStates, typeof entry_steps>;
 
 const STALE_NOW: Promise<Stale> = Promise.resolve(STALE);
-const noop = (): void => {};
 const FLYING: FlightEntry<never> = Object.freeze({ kind: 'flying' });
 
 /** One flight's work: one run, or the runs its policy gives (`STALE` once the flight is left). */
