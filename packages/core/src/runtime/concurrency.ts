@@ -17,7 +17,7 @@
  * Each call owns its timers and its listener on `signal` (a scope): they are let go the moment the
  * call settles, whichever way.
  */
-import { queue, scope, type Queue, type Scope, type Started } from '@ogygia/machine';
+import { queue, scope, type Queue, type Scope } from '@ogygia/machine';
 
 export interface GateOptions {
 	/** The call answers within this long: the wait for a slot and the run together. */
@@ -43,8 +43,8 @@ export class ConcurrencyGate {
 		const limit = Math.max(1, max);
 		this.#slots = queue<Waiter>({
 			name: 'render gate',
-			max: Number.isFinite(limit) ? Math.ceil(limit) : undefined,
-			start: (w, s) => w.enter(s),
+			max: Number.isFinite(limit) ? Math.ceil(limit) : Number.MAX_SAFE_INTEGER,
+			start: (w) => w.enter(),
 			stale: (w) => w.gone(),
 			now: Date.now
 		});
@@ -56,7 +56,8 @@ export class ConcurrencyGate {
 		const deadline = deadline_ms === undefined ? Infinity : Date.now() + deadline_ms;
 		const call = scope();
 		try {
-			const slot = await this.#enter(deadline, signal, call);
+			await this.#enter(deadline, signal, call);
+			const slot = () => this.#slots.release();
 			// (handed a slot in the same step the signal aborted: the slot goes on, the body never starts)
 			if (signal?.aborted) {
 				slot();
@@ -106,29 +107,28 @@ export class ConcurrencyGate {
 	}
 
 	/** A slot: at once when one is free, else in turn (or the deadline passes, or the signal aborts,
-	 *  first). Resolves with the slot's release. A waiter that gives up leaves the queue at once: with
-	 *  every slot held by bodies that never end, nothing else would drop it, and the queue would grow
-	 *  by the request rate. */
-	#enter(deadline: number, signal: AbortSignal | undefined, call: Scope): Promise<() => void> {
+	 *  first). A waiter that gives up leaves the queue at once: with every slot held by bodies that
+	 *  never end, nothing else would drop it, and the queue would grow by the request rate. */
+	#enter(deadline: number, signal: AbortSignal | undefined, call: Scope): Promise<void> {
 		return new Promise((resolve, reject) => {
 			let entered = false;
 			const waiter: Waiter = {
-				enter: (s) => {
+				enter: () => {
 					entered = true;
-					resolve(() => s.release());
+					resolve();
 				},
 				gone: () => reject(signal?.aborted ? signal.reason : new Error(WAIT_TIMEOUT))
 			};
 			// (its deadline is the queue's: passed over at a release, settled by the queue's timer)
-			const cancel = this.#slots.push(waiter, deadline === Infinity ? undefined : { deadline });
+			this.#slots.push(waiter, deadline);
 			// still waiting when nobody waits on it any more: it leaves at once (once in, a body runs on)
-			if (signal && !entered) call.on(signal, 'abort', cancel);
+			if (signal && !entered) call.on(signal, 'abort', () => this.#slots.cancel(waiter));
 		});
 	}
 }
 
 /** A call waiting for a slot: `enter` once handed one, `gone` once it gave up. */
-type Waiter = { enter: (s: Started) => void; gone: () => void };
+type Waiter = { enter: () => void; gone: () => void };
 
 /** Whether `error` is a call's run timeout: its body ran past the deadline and was abandoned. */
 export function is_run_timeout(error: unknown): boolean {

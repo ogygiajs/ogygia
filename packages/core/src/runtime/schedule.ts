@@ -23,7 +23,7 @@
  * first one.
  */
 import { watch_viewport } from './viewport.ts';
-import { flights, machine, queue, type Scope, type Stale } from '@ogygia/machine';
+import { flights, machine, type Scope, type Stale } from '@ogygia/machine';
 
 type Turn = {
 	el: Element;
@@ -179,23 +179,34 @@ export function yield_task(): Promise<void> {
  * Holding island code back until the page has painted is `after_document_painted`'s job.
  */
 export function background_start(fn: () => void): void {
-	background.push(fn);
+	// ONE background task drains every start queued meanwhile (a task per island: each hydrate turn
+	// outranked the next island's start, so its import began late); it yields past a time budget
+	background_queue.push(fn);
+	if (!background_armed) {
+		background_armed = true;
+		post_background(drain_background);
+	}
 }
 
+const background_queue: (() => void)[] = [];
+let background_armed = false;
 /** a drain yields to the page after this long, and continues in a new background task */
 const BACKGROUND_BUDGET_MS = 30;
 
-/** ONE background task drains every start queued meanwhile (a task per island: each hydrate turn
- *  outranked the next island's start, so its import began late); it yields past a time budget. A
- *  start holds no place: nothing caps them. */
-const background = queue<() => void>({
-	name: 'background starts',
-	holds: () => false,
-	start: (fn) => fn(),
-	budget: BACKGROUND_BUDGET_MS,
-	deferred: true,
-	pause: post_background
-});
+function drain_background(): void {
+	const until = performance.now() + BACKGROUND_BUDGET_MS;
+	let i = 0;
+	try {
+		while (i < background_queue.length) {
+			background_queue[i++]();
+			if (performance.now() >= until) break;
+		}
+	} finally {
+		background_queue.splice(0, i);
+		if (background_queue.length) post_background(drain_background);
+		else background_armed = false;
+	}
+}
 
 function post_background(fn: () => void): void {
 	const s = (
@@ -211,7 +222,7 @@ function post_background(fn: () => void): void {
 			// ok: an invalid-priority throw (an older postTask); the fallback below runs it
 		}
 	}
-	// oxlint-disable-next-line ogygia/owned-effects -- the process's one background drain (its queue's one pause at a time), one task: it ends itself, and a start queued in it belongs to whoever queued it
+	// oxlint-disable-next-line ogygia/owned-effects -- the process's one background drain (`background_armed`), one task: it ends itself, and a start queued in it belongs to whoever queued it
 	setTimeout(fn, 0);
 }
 

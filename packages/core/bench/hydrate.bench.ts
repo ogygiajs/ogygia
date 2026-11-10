@@ -131,7 +131,7 @@ bench('region element: a 250-block page boots and its islands wake', boot_page, 
 // asked the whole document whether a devalue-lane script is in it (devalue-lane.ts `needs_devalue`):
 // islands × the page's elements. The document is asked once now, and again only when markup comes in.
 // And every download that ended sorted the whole load queue again, comparing two classes per step
-// (load-scheduler.ts, now its `queue()`: drains × queue × log queue, cubic in the page); a drain reads
+// (load-scheduler.ts `drain_queue`: drains × queue × log queue, cubic in the page); a drain reads
 // each class once now, so it is linear in the queue (its `@heisenbench` contract).
 bench('region element: a page boots and wakes as it grows', boot_page, {
 	setup: () => booted_page(5),
