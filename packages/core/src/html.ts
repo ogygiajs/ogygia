@@ -136,7 +136,7 @@ function place(value: HtmlValue, at: Place): string {
 }
 
 /** HTML from a template, each value escaped for where it sits (see the module's comment). */
-export function html(parts: TemplateStringsArray, ...values: HtmlValue[]): Html {
+function html_tag(parts: TemplateStringsArray, ...values: HtmlValue[]): Html {
 	const at = places_of(parts);
 	let out = parts[0]!;
 	for (let i = 0; i < values.length; i++) out += place(values[i], at[i]!) + parts[i + 1]!;
@@ -152,7 +152,7 @@ const brace = (c: string) => (c === '{' ? '&#123;' : '&#125;');
  * becomes an expression at compile time. An `Html` value between tags is placed as is, as by `html`;
  * one inside a tag (an `attr()`, or markup in a quoted attribute) has its braces escaped too.
  */
-export function svelte_html(parts: TemplateStringsArray, ...values: HtmlValue[]): Html {
+function svelte_html(parts: TemplateStringsArray, ...values: HtmlValue[]): Html {
 	const at = places_of(parts);
 	let out = parts[0]!;
 	for (let i = 0; i < values.length; i++) {
@@ -165,6 +165,13 @@ export function svelte_html(parts: TemplateStringsArray, ...values: HtmlValue[])
 	}
 	return new Html(MADE_HERE, out);
 }
+
+/** HTML from a template, each value escaped for where it sits (see the module's comment).
+ *  `html.svelte` is the same for markup written into a Svelte template. */
+export const html: {
+	(parts: TemplateStringsArray, ...values: HtmlValue[]): Html;
+	svelte(parts: TemplateStringsArray, ...values: HtmlValue[]): Html;
+} = /* @__PURE__ */ Object.assign(html_tag, { svelte: svelte_html });
 
 const NOTHING = /* @__PURE__ */ new Html(MADE_HERE, '');
 

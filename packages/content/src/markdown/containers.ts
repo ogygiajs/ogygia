@@ -14,7 +14,7 @@
  * `:::` inside a code block is untouched.
  */
 // (the title is written into the .svx source: Svelte markup, braces escaped too: #469)
-import { svelteHtml as html } from '@ogygia/core/plugin/utils';
+import { html } from '@ogygia/core/plugin/utils';
 
 const LABELS: Record<string, string> = {
 	tip: 'TIP',
@@ -87,14 +87,14 @@ export function transform_containers(src: string): string {
 					out.push(
 						'',
 						`<details class="og-admonition og-admonition-details">`,
-						String(html`<summary class="og-admonition-title">${title}</summary>`),
+						String(html.svelte`<summary class="og-admonition-title">${title}</summary>`),
 						''
 					);
 				} else {
 					out.push(
 						'',
 						`<div class="og-admonition og-admonition-${kind}" role="note">`,
-						String(html`<p class="og-admonition-title">${title}</p>`),
+						String(html.svelte`<p class="og-admonition-title">${title}</p>`),
 						''
 					);
 				}

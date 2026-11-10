@@ -38,7 +38,7 @@
  * well-formed), a fence with no `[label]` falls back to `Tab N`, an empty block emits nothing.
  */
 // (labels and groups are written into the .svx source: Svelte markup, braces escaped too: #469)
-import { svelteHtml as html } from '@ogygia/core/plugin/utils';
+import { html } from '@ogygia/core/plugin/utils';
 
 const OPEN_CODE = /^\s*:::\s*code-group\b[ \t]*(.*?)\s*$/;
 const OPEN_TABS = /^\s*:::\s*tabs\b[ \t]*(.*?)\s*$/;
@@ -242,9 +242,15 @@ function parse_tabs(body: string[]): ParsedTab[] {
 function emit(out: string[], group: string, tabs: ParsedTab[]): void {
 	// No `labels` prop: the island reads each label from the frozen panel's own `data-label` (set by
 	// `<Tab label>`), so nothing needs to cross as a separate serializable list.
-	out.push('', String(html`<TabGroup group="${group}">`), '');
+	out.push('', String(html.svelte`<TabGroup group="${group}">`), '');
 	for (const t of tabs) {
-		out.push(String(html`<Tab label="${t.label}">`), '', ...trim_blanks(t.body), '', '</Tab>');
+		out.push(
+			String(html.svelte`<Tab label="${t.label}">`),
+			'',
+			...trim_blanks(t.body),
+			'',
+			'</Tab>'
+		);
 	}
 	out.push('', '</TabGroup>', '');
 }

@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { fc } from '@ogygia/config/sim';
-import { attr, decode_text, html, Html, svelte_html, trusted_html } from '../src/html.ts';
+import { attr, decode_text, html, Html, trusted_html } from '../src/html.ts';
 
 /** Strings made mostly of the characters that matter here. */
 const nasty = fc.string({
@@ -93,23 +93,23 @@ describe('html', () => {
 	});
 });
 
-describe('svelte_html (text written into Svelte markup, #469)', () => {
+describe('html.svelte (text written into Svelte markup, #469)', () => {
 	it('escapes { and } in text and in attributes, as well as what html escapes', () => {
-		expect(String(svelte_html`<p class="t">${'Use {x} & <b>'}</p>`)).toBe(
+		expect(String(html.svelte`<p class="t">${'Use {x} & <b>'}</p>`)).toBe(
 			'<p class="t">Use &#123;x&#125; &amp; &lt;b&gt;</p>'
 		);
-		expect(String(svelte_html`<Tab label="${'{count}"'}">`)).toBe(
+		expect(String(html.svelte`<Tab label="${'{count}"'}">`)).toBe(
 			'<Tab label="&#123;count&#125;&quot;">'
 		);
 	});
 
 	it('an Html value inside a tag (attr(), or one in a quoted attribute) has its braces escaped too', () => {
-		expect(String(svelte_html`<Tab${attr('label', '{count}')}>`)).toBe(
+		expect(String(html.svelte`<Tab${attr('label', '{count}')}>`)).toBe(
 			'<Tab label="&#123;count&#125;">'
 		);
-		expect(String(svelte_html`<Tab label="${html`<b>{x}</b>`}">`)).not.toMatch(/[{}]/);
+		expect(String(html.svelte`<Tab label="${html`<b>{x}</b>`}">`)).not.toMatch(/[{}]/);
 		// between tags, markup made elsewhere is placed as is
-		expect(String(svelte_html`<p>${trusted_html('<b>ok</b>', 'test')}</p>`)).toBe(
+		expect(String(html.svelte`<p>${trusted_html('<b>ok</b>', 'test')}</p>`)).toBe(
 			'<p><b>ok</b></p>'
 		);
 	});
@@ -119,7 +119,7 @@ describe('svelte_html (text written into Svelte markup, #469)', () => {
 			fc.property(
 				fc.string({ unit: fc.constantFrom('{', '}', '"', '<', '&', 'a'), maxLength: 16 }),
 				(s) => {
-					const out = String(svelte_html`<p title="${s}">${s}</p>`);
+					const out = String(html.svelte`<p title="${s}">${s}</p>`);
 					expect(/[{}]/.test(out)).toBe(false);
 					expect(decode_text(out.slice(out.indexOf('>') + 1, out.lastIndexOf('<')))).toBe(s);
 				}
