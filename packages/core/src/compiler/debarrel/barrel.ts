@@ -91,7 +91,7 @@ export class BarrelIndex<Caller = void> {
 	/** One build per barrel: its map is kept until an edit to the barrel or to one of its deps
 	 *  (null: not a barrel we rewrite); a provisional map, or one that lacks a ring's names, is
 	 *  served to the callers of its build, not kept. */
-	#barrels = flights<BuildAsk<Caller>>()({
+	#barrels = flights.keyed<BuildAsk<Caller>>()({
 		name: 'debarrel-barrel',
 		key: ['id'],
 		ignore: {
