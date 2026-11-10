@@ -15,7 +15,7 @@
  * it wakes. Pure over the nodes it's handed; reads, never mutates.
  */
 import { hydration_hazards, type IslandHazard } from '../../insights/hydration-hazards.ts';
-import type { BarrelLeftReason } from '../exports/left.ts';
+import type { BarrelLeftReason, IslandBarrel } from '../../contract/barrels.ts';
 import { OWN_FILE_RE } from '../../own-package.ts';
 import { region_family } from '../ids.ts';
 import { OGYGIA_SCHEME } from '../virtual/table.ts';
@@ -181,14 +181,6 @@ export interface IslandBytes {
 	barrels?: IslandBarrel[];
 	/** its components' lines that draw differently in the browser (a top-level await, a browser-only value) */
 	hazards?: IslandHazard[];
-}
-
-/** A barrel an island still imports whole: its file, the app modules behind it, and why the barrel
- *  pass left it (when it said). */
-export interface IslandBarrel {
-	file: string;
-	fanout: number;
-	why?: BarrelLeftReason[];
 }
 
 /** a barrel re-exports at least this many app modules… */

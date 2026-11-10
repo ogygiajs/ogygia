@@ -83,7 +83,7 @@ interface Window {
 			bytes: number;
 			modules: number;
 			top?: { file: string; bytes: number }[];
-			barrels?: import('./compiler/dev/region-bytes.ts').IslandBarrel[];
+			barrels?: import('./contract/barrels.ts').IslandBarrel[];
 		}
 	>;
 }
