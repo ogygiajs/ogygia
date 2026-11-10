@@ -3300,11 +3300,10 @@ class Profiler {
 			if (!on_path || on_path.save_ms >= p.save_ms * 0.8) continue;
 			p.naive_save_ms = p.save_ms;
 			p.save_ms = on_path.save_ms;
-			p.evidence += `. Started together they would save ${p.naive_save_ms} ms of waiting, but only about ${on_path.save_ms} ms comes off the render${
-				on_path.bound_by
-					? `: ${on_path.bound_by} runs about as long beside them and still sets the end`
-					: ': other work runs as long beside them'
-			}`;
+			const bound = on_path.bound_by
+				? `: ${on_path.bound_by} runs about as long beside them and still sets the end`
+				: ': other work runs as long beside them';
+			p.evidence = `${p.evidence}. Started together they would save ${p.naive_save_ms} ms of waiting, but only about ${on_path.save_ms} ms comes off the render${bound}`;
 		}
 		patterns.push(...waits);
 		// the same answer every render: the GETs that returned identical bytes in each profiled run

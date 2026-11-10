@@ -18,6 +18,7 @@ import {
 	foucCssVirtualId
 } from '../dist/compiler/region/transform.js';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 const ROOT = '/app';
 const HOST = '/app/src/routes/+page.svelte';
@@ -1145,9 +1146,11 @@ describe('asRegion macro (import.meta.og.asRegion)', () => {
 
 	test('identity keys on source#exportName: two named exports of ONE barrel → two islands', () => {
 		const r = asr(
-			`import { Header, Footer } from '@acme/ui';\n` +
-				`const H = import.meta.og.asRegion(Header, { wake: 'load' });\n` +
-				`const F = import.meta.og.asRegion(Footer, { wake: 'visible' });`,
+			dedent`
+				import { Header, Footer } from '@acme/ui';
+				const H = import.meta.og.asRegion(Header, { wake: 'load' });
+				const F = import.meta.og.asRegion(Footer, { wake: 'visible' });
+			`,
 			'<H /><F />'
 		);
 		expect(r.islands).toHaveLength(2);

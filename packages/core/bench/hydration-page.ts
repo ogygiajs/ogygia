@@ -125,10 +125,10 @@ function header_html(menus: number): string {
 	let inner = '<!--[--><header class="site">\n\t<nav>';
 	for (let m = 0; m < menus; m++)
 		inner = `${inner}\n\t\t<div class="menu"><button type="button">Menu ${m}</button> <ul><li><a href="/m/${m}/a">A</a></li> <li><a href="/m/${m}/b">B</a></li></ul></div>`;
-	return (
-		inner +
-		'\n\t</nav>\n\t<form role="search"><input name="q"> <button>Go</button></form>\n</header><!--]-->'
-	);
+	return `${inner}
+	</nav>
+	<form role="search"><input name="q"> <button>Go</button></form>
+</header><!--]-->`;
 }
 
 /** Where an island's code is (`src`, the location the server names): the stand-in island module,

@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import path from 'node:path';
+import { dedent } from '../src/compiler/dedent.ts';
 import {
 	buildFoucCssModuleSource,
 	collectFoucCssReachable,
@@ -97,8 +98,11 @@ describe('fouc-css collector', () => {
 		// rule (a header lake once lost its `:global(x-web-header.scrolled-top)` height reservation).
 		const css = compileFoucScopedCss(
 			'/app/src/lib/Header.svelte',
-			`<script>import { s } from './s.js';</script>\n<p>{$s}</p>\n` +
-				`<style>@media (min-width: 1025px) { :global(x-web-header.scrolled-top:not(.client-mounted)) { min-height: 161px } }</style>`
+			dedent`
+				<script>import { s } from './s.js';</script>
+				<p>{$s}</p>
+				<style>@media (min-width: 1025px) { :global(x-web-header.scrolled-top:not(.client-mounted)) { min-height: 161px } }</style>
+			`
 		);
 		expect(css).not.toContain(':global(');
 		expect(css).toContain('x-web-header.scrolled-top:not(.client-mounted)');

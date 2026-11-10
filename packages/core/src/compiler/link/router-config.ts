@@ -12,8 +12,5 @@ export function router_config_module(
 	router_enabled: boolean,
 	router_view_transitions: boolean
 ): string {
-	return (
-		`export const enabled = ${router_enabled};\n` +
-		`export const viewTransitions = ${router_view_transitions};`
-	);
+	return `export const enabled = ${router_enabled};\nexport const viewTransitions = ${router_view_transitions};`;
 }

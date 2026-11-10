@@ -166,20 +166,14 @@ describe('scanner fallback — when the AST bails on an unparseable tail', () =>
 	});
 
 	it('wire: a marker inside a REGEX literal is not rewritten by the fallback', () => {
-		const src =
-			`const re = /static wire = import.meta.og.wire/g;\nclass C { static wire = import.meta.og.wire(${CODEC}); }` +
-			BROKEN;
+		const src = `const re = /static wire = import.meta.og.wire/g;\nclass C { static wire = import.meta.og.wire(${CODEC}); }${BROKEN}`;
 		const out = rewrite_wire(src, '/x.ts', MARKUP);
 		expect(out).toContain(`const re = /static wire = import.meta.og.wire/g;`); // regex untouched
 		expect(out).toContain(`static [${WIRE_EXPR}] = ${CODEC}`);
 	});
 
 	it('wire: a marker at a template-literal boundary is not rewritten by the fallback', () => {
-		const src =
-			'const t = `x static wire = import.meta.og.wire() y`;\nclass C { static wire = import.meta.og.wire(' +
-			CODEC +
-			'); }' +
-			BROKEN;
+		const src = `const t = \`x static wire = import.meta.og.wire() y\`;\nclass C { static wire = import.meta.og.wire(${CODEC}); }${BROKEN}`;
 		const out = rewrite_wire(src, '/x.ts', MARKUP);
 		expect(out).toContain('const t = `x static wire = import.meta.og.wire() y`;');
 		expect(out).toContain(`static [${WIRE_EXPR}] = ${CODEC}`);

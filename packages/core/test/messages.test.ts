@@ -97,8 +97,7 @@ describe('a server bundle: worded in dev and while prerendering', () => {
 			);
 			g[key] = true;
 			expect(new server.OgygiaError('handle_secret_too_short', { min: 32 }).message).toBe(
-				'[ogygia] handle({ secret }) is too short for production (need ≥32 UTF-8 bytes).\n' +
-					'https://ogygiajs.dev/e/handle_secret_too_short?min=32'
+				`[ogygia] handle({ secret }) is too short for production (need ≥32 UTF-8 bytes).\nhttps://ogygiajs.dev/e/handle_secret_too_short?min=32`
 			);
 		} finally {
 			g[key] = before;

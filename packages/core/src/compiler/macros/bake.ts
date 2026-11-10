@@ -16,6 +16,7 @@
  * violations surface as build-voice errors naming the file and line. Node-only.
  */
 import { fs, path } from '../host.ts';
+import { dedent } from '../dedent.ts';
 import { pathToFileURL } from 'node:url';
 import { uneval } from 'devalue';
 import { og_member } from './wire.ts';
@@ -343,11 +344,17 @@ export async function rewrite_bake(
 	// The eval entry: only the imports the bake fns actually use (so a `.svelte`'s component imports
 	// never enter the Node bundle), then a `__run` that awaits every bake fn in order.
 	const runners = found.calls.map((c, i) => `		r[${i}] = await (${c.fn})();`).join('\n');
-	const entry_code =
-		eval_imports(found.imports, found.calls)
-			.map((i) => i.text)
-			.join('\n') +
-		`\nexport async function __run() {\n\tconst r = [];\n${runners}\n\treturn r;\n}\n`;
+	const imports = eval_imports(found.imports, found.calls)
+		.map((i) => i.text)
+		.join('\n');
+	const run = dedent`
+		export async function __run() {
+			const r = [];
+		${runners}
+			return r;
+		}
+	`;
+	const entry_code = `${imports}\n${run}\n`;
 
 	// Content hash: module id + the exact eval entry (imports + fns) → address the bundle & re-bake
 	// only when inputs change.

@@ -20,6 +20,7 @@ import { observe } from '@ogygia/machine';
 import { _reset, ticket, write } from '../../src/runtime/frame-store.ts';
 import { frameAddress } from '../../src/frame.ts';
 import { KEEP_FALLBACK_HTML } from '../../src/keep-fallback-marker.ts';
+import { dedent } from '../../src/compiler/dedent.ts';
 import {
 	COUNTER,
 	LABEL,
@@ -140,12 +141,15 @@ afterAll(() => {
 	off_observe?.();
 	if (!EXPLORE) return;
 	const list = [...seen].sort((a, b) => b[1] - a[1]);
-	throw new Error(
-		'EXPLORED\nORDERINGS\n' +
-			list.map(([k, n]) => `${n}\t${k}`).join('\n') +
-			'\nBROKEN\n' +
-			[...broke].map(([k, run]) => `${k}\n    ${run}`).join('\n')
-	);
+	const orderings = list.map(([k, n]) => `${n}\t${k}`).join('\n');
+	const broken = [...broke].map(([k, run]) => `${k}\n    ${run}`).join('\n');
+	throw new Error(dedent`
+		EXPLORED
+		ORDERINGS
+		${orderings}
+		BROKEN
+		${broken}
+	`);
 });
 afterEach(() => {
 	document.body.innerHTML = '';

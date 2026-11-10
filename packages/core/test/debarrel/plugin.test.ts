@@ -208,7 +208,8 @@ describe('vite build', () => {
 		for (let i = 0; i < 12; i++) {
 			files[`lib/b${i}/leaf.ts`] = `export const v${i} = ${i};`;
 			files[`lib/b${i}/index.ts`] = `export { v${i} } from './leaf';`;
-			files['src/main.ts'] += `\nimport { v${i} } from '$lib/b${i}';\nconsole.log(v${i});`;
+			files['src/main.ts'] =
+				`${files['src/main.ts']}\nimport { v${i} } from '$lib/b${i}';\nconsole.log(v${i});`;
 		}
 		f = fixture(files);
 		const lines: string[] = [];

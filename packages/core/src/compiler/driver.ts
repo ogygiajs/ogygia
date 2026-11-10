@@ -11,6 +11,7 @@
  */
 import { fs, path, createHash, dir_entries } from './host.ts';
 import { fnv1a32 } from '../runtime/hash.ts';
+import { dedent } from './dedent.ts';
 // `performance` is a global in both Node (≥16) and the browser — no import, so the driver graph loads
 // in the browser compiler (Observatory REPL) without pulling node:perf_hooks.
 const performance = globalThis.performance;
@@ -1219,19 +1220,23 @@ export class Compiler {
 			// says why the island tools are absent). Empty with no client realm (never injected then).
 			if (!ctx.client_plugins.length) return `export {}`;
 			const cp = client_plugins_boot(ctx);
-			return (
-				// the dev server hands `define`s (the plugins' gates among them) to the page as globals from
-				// Vite's env module: it must run before they read them. Kit's own client (which loads it)
-				// comes later in the page, and a gate read before it saw "off"
-				(is_dev ? `import '/@vite/env';\n` : '') +
-				cp.imports +
-				`import { boot_client_plugins } from ${JSON.stringify(`${ctx.runtime_dir}/client-plugins.js`.replace(BACKSLASH_G, '/'))};\n` +
-				// the beacon's observers from boot: vitals, resources, long tasks, the CPU sampler (the
-				// browser buffers most of it, but the sampler and interaction timing start here)
-				`import { beacon_watch } from ${JSON.stringify(`${ctx.runtime_dir}/beacon.js`.replace(BACKSLASH_G, '/'))};\n` +
-				`beacon_watch();\n` +
-				`boot_client_plugins(${cp.list}, true);\n`
+			// the dev server hands `define`s (the plugins' gates among them) to the page as globals from
+			// Vite's env module: it must run before they read them. Kit's own client (which loads it)
+			// comes later in the page, and a gate read before it saw "off"
+			const env = is_dev ? `import '/@vite/env';\n` : '';
+			const plugins_url = JSON.stringify(
+				`${ctx.runtime_dir}/client-plugins.js`.replace(BACKSLASH_G, '/')
 			);
+			const beacon_url = JSON.stringify(`${ctx.runtime_dir}/beacon.js`.replace(BACKSLASH_G, '/'));
+			// the beacon's observers from boot: vitals, resources, long tasks, the CPU sampler (the
+			// browser buffers most of it, but the sampler and interaction timing start here)
+			const boot = dedent`
+				import { boot_client_plugins } from ${plugins_url};
+				import { beacon_watch } from ${beacon_url};
+				beacon_watch();
+				boot_client_plugins(${cp.list}, true);
+			`;
+			return `${env}${cp.imports}${boot}\n`;
 		}
 		if (id === RESOLVED(V_DEVTOOLS_META)) {
 			// a build: every island's component name, from the prescan (the dev server serves them live)
@@ -1292,18 +1297,16 @@ export class Compiler {
 			// endpoint cached from the first SSR restore, and server islands never mint on the client
 			// (the runtime fetches the endpoint). Routing minting through this client-stubbed virtual is
 			// what lets one `Region` live in the main `ogygia` graph without leaking `$app/server`.
+			// (the client also sees no known fingerprints (a server-only nav signal), mints no
+			// `data-og-fp` (a native digest on the server), and links no hole stylesheets)
 			if (!ssr) {
-				return (
-					`export function makeRegionEndpoint(_entry, _props) { return ''; }\n` +
-					`export function mintServerIsland(_entry, _props, _ttl) { return ''; }\n` +
-					// The known-fingerprints set is a server-only nav signal; the client always sees empty.
-					`export function known_region_fps() { return new Set(); }\n` +
-					// An island's `data-og-fp` is minted on the server only (a native digest); the
-					// client reads the attribute and never computes one.
-					`export function islandFingerprint(_entry, _canonical) { return ''; }\n` +
-					// A hole's stylesheets are linked by the server render; the client links none.
-					`export function holeCss(_entry) { return []; }`
-				);
+				return dedent`
+					export function makeRegionEndpoint(_entry, _props) { return ''; }
+					export function mintServerIsland(_entry, _props, _ttl) { return ''; }
+					export function known_region_fps() { return new Set(); }
+					export function islandFingerprint(_entry, _canonical) { return ''; }
+					export function holeCss(_entry) { return []; }
+				`;
 			}
 			return `export { makeRegionEndpoint, mintServerIsland, known_region_fps, islandFingerprint, holeCss } from ${JSON.stringify(ctx.region_endpoint_module)};`;
 		}

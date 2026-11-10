@@ -178,13 +178,13 @@ const ambient_subpaths = Object.entries(exports).filter(([sp, val]) => {
 // A namespace type-import that FAILS to resolve is a compile error (TS2307/2306); one that resolves
 // is silent (unused type-only imports aren't flagged). So the imports alone are the assertion. A
 // reference that fails to resolve is TS2688.
-const consumer =
-	ambient_subpaths.map(([sp]) => `/// <reference types="${name}${sp.slice(1)}" />`).join('\n') +
-	'\n' +
-	type_subpaths
-		.map(([sp], i) => `import type * as _${i} from '${name}${sp.slice(1)}';`)
-		.join('\n') +
-	'\n';
+const references = ambient_subpaths
+	.map(([sp]) => `/// <reference types="${name}${sp.slice(1)}" />`)
+	.join('\n');
+const type_imports = type_subpaths
+	.map(([sp], i) => `import type * as _${i} from '${name}${sp.slice(1)}';`)
+	.join('\n');
+const consumer = `${references}\n${type_imports}\n`;
 fs.writeFileSync(path.join(root, 'consumer.ts'), consumer);
 fs.writeFileSync(
 	path.join(root, 'tsconfig.verify.json'),

@@ -356,8 +356,7 @@ async function main() {
 
 	writeFileSync(TIMINGS, `${JSON.stringify({ ...timings, ...fresh }, null, '\t')}\n`);
 	console.log(
-		`\n${failures.length ? '✗' : '✓'} ${totals.passed} passed, ${totals.failed} failed, ` +
-			`${totals.flaky} flaky, ${totals.skipped} skipped in ${fmt(Date.now() - started)}`
+		`\n${failures.length ? '✗' : '✓'} ${totals.passed} passed, ${totals.failed} failed, ${totals.flaky} flaky, ${totals.skipped} skipped in ${fmt(Date.now() - started)}`
 	);
 	for (const f of failures) console.log(`  ✗ ${f}`);
 	process.exit(failures.length ? 1 : 0);

@@ -79,9 +79,7 @@ describe('cannot be fooled by tag-like text', () => {
 	});
 
 	it('ignores tag-like text inside a <script> body', () => {
-		const html =
-			`<script>const s = "</ogygia-region>"; // never a real close\n</script>` +
-			`<ogygia-region wake="none">lake</ogygia-region>`;
+		const html = `<script>const s = "</ogygia-region>"; // never a real close\n</script><ogygia-region wake="none">lake</ogygia-region>`;
 		expect(kinds(html)).toEqual(['lake']);
 	});
 
@@ -118,11 +116,8 @@ describe('cannot be fooled by tag-like text', () => {
 
 describe('nesting', () => {
 	it('yields a login island nested inside a header lake so the caller can protect it', () => {
-		const html =
-			`<ogygia-region wake="none">` + // header lake
-			`  <nav>menu</nav>` +
-			`  <ogygia-region entry="/login.js" wake="interaction"><button>login</button></ogygia-region>` +
-			`</ogygia-region>`;
+		// a header lake
+		const html = `<ogygia-region wake="none">  <nav>menu</nav>  <ogygia-region entry="/login.js" wake="interaction"><button>login</button></ogygia-region></ogygia-region>`;
 		const all = [...scanRegions(html)];
 		// post-order: the nested island closes first, then the lake
 		expect(all.map((r) => r.kind)).toEqual(['island', 'lake']);

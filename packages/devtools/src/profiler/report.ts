@@ -1257,18 +1257,18 @@ export function derive_findings(a: Analysis, meta: ReportMeta, extras: ReportExt
 	if (tl) {
 		const parts = tl.phases
 			.filter((p) => p.cpu_ms + p.wait_ms >= tl.window_ms * 0.03)
-			.map(
-				(p) =>
-					`${PHASE_LABEL[p.phase]} ${fmt_ms(p.cpu_ms)} ms` +
-					(p.wait_ms >= 0.5 ? ` + ${fmt_ms(p.wait_ms)} ms waiting` : '') +
-					// whose CPU a big part was: "hooks 259 ms (processDsTags 150 ms, render2 (@acme/ui) 80 ms)"
-					(p.top?.length && p.cpu_ms >= tl.window_ms * 0.1
+			.map((p) => {
+				const waiting = p.wait_ms >= 0.5 ? ` + ${fmt_ms(p.wait_ms)} ms waiting` : '';
+				// whose CPU a big part was: "hooks 259 ms (processDsTags 150 ms, render2 (@acme/ui) 80 ms)"
+				const whose =
+					p.top?.length && p.cpu_ms >= tl.window_ms * 0.1
 						? ` (${p.top
 								.slice(0, 2)
 								.map((o) => `${o.label} ${fmt_ms(o.ms)} ms`)
 								.join(', ')})`
-						: '')
-			);
+						: '';
+				return `${PHASE_LABEL[p.phase]} ${fmt_ms(p.cpu_ms)} ms${waiting}${whose}`;
+			});
 		if (parts.length) {
 			info(
 				'phases',
@@ -2465,7 +2465,7 @@ export function derive_findings(a: Analysis, meta: ReportMeta, extras: ReportExt
 			);
 			const lines = [...entries].flatMap((e) => extras.hazards?.[e] ?? []);
 			if (lines.length) {
-				mc.message += ` ${hazard_words(lines)}`;
+				mc.message = `${mc.message} ${hazard_words(lines)}`;
 				mc.fix = `${hazard_fix(lines)} ${mc.fix ?? ''}`.trim();
 				mc.file ??= lines[0].file;
 				mc.line ??= lines[0].line;
@@ -3352,12 +3352,12 @@ function kit_findings(a: Analysis, meta: ReportMeta, info: Say, warn: Say): void
 					: '';
 		warn(
 			'parent-chain',
-			`${c.page} started only after ${c.layout} finished (${fmt_ms(c.serial_ms)} ms later)` +
-				// the source saying `await parent()` is as good as seeing its frame
-				(c.explicit || u
+			// the source saying `await parent()` is as good as seeing its frame
+			`${c.page} started only after ${c.layout} finished (${fmt_ms(c.serial_ms)} ms later)${
+				c.explicit || u
 					? ' — it awaits parent().'
-					: ' — Kit runs a page load and its layout loads together unless the page awaits parent().') +
-				used,
+					: ' — Kit runs a page load and its layout loads together unless the page awaits parent().'
+			}${used}`,
 			{
 				fix:
 					u && u.first_use !== null && u.awaits_before_use > 0
@@ -3900,12 +3900,13 @@ function accuracy_findings(
 		} else {
 			info(
 				'browser-vitals',
-				`The browser measured TTFB ${v.ttfb === null ? '—' : `${fmt_ms(v.ttfb)} ms`}, LCP ${fmt_ms(v.lcp)} ms${v.cls !== null ? `, CLS ${v.cls}` : ''}${v.inp !== null ? `, INP ${fmt_ms(v.inp)} ms` : ''} over ${v.n} visit${v.n === 1 ? '' : 's'}.` +
-					// (the latest visit loaded with the devtools dock open, its first paint right after the dock's:
-					// the paints may be the dock's own — see dock-in-paint)
-					(dock_skewed(extras.visit)
+				// (the latest visit loaded with the devtools dock open, its first paint right after the dock's:
+				// the paints may be the dock's own — see dock-in-paint)
+				`The browser measured TTFB ${v.ttfb === null ? '—' : `${fmt_ms(v.ttfb)} ms`}, LCP ${fmt_ms(v.lcp)} ms${v.cls !== null ? `, CLS ${v.cls}` : ''}${v.inp !== null ? `, INP ${fmt_ms(v.inp)} ms` : ''} over ${v.n} visit${v.n === 1 ? '' : 's'}.${
+					dock_skewed(extras.visit)
 						? ' The latest visit loaded with the devtools dock open, and its paints may be the dock’s: read the paints from a visit with the dock closed.'
-						: '')
+						: ''
+				}`
 			);
 		}
 	}

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import { dedent } from '../compiler/dedent.ts';
 import { isMainThread } from 'node:worker_threads';
 import { loadEnv, type Plugin, type Rolldown, type ViteDevServer } from 'vite';
 import type { PreprocessorGroup } from 'svelte/compiler';
@@ -136,11 +137,11 @@ const ROUTE_HOST_OR_OPTION_RE = /[\\/]\+(page|layout)(\.server)?\.(svelte|js|ts)
 // this document navigates through Kit's router, never through the ogygia one — which, on a document
 // it does not own, could only fall back to a full load (a customer's green-band chips inside a live
 // island reloaded the whole account page on every click).
-const KIT_PAGE_THREAD =
-	`\nimport { page as __og_kit_page, navigating as __og_kit_nav } from '$app/state';\n` +
-	`import * as __og_kit_navigation from '$app/navigation';\n` +
-	`globalThis[Symbol.for('ogygia.kit-page')] = ` +
-	`{ page: __og_kit_page, navigating: __og_kit_nav, navigation: __og_kit_navigation };\n`;
+const KIT_PAGE_THREAD = `\n${dedent`
+	import { page as __og_kit_page, navigating as __og_kit_nav } from '$app/state';
+	import * as __og_kit_navigation from '$app/navigation';
+	globalThis[Symbol.for('ogygia.kit-page')] = { page: __og_kit_page, navigating: __og_kit_nav, navigation: __og_kit_navigation };
+`}\n`;
 // Which ogygia a csr=true page runs, on `window.__ogygia.v` — Kit runs that page, and the ogygia
 // runtime boots there only for what Kit cannot do (a deferred region, a lake); a page with neither
 // runs no ogygia runtime, so Kit's entry discloses it too. Where the runtime does boot, it adds the
@@ -1035,14 +1036,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						d ^= __outHash.get(k)!;
 						d = Math.imul(d, 0x01000193) >>> 0;
 					}
-					console.error(
-						'\n[ogygia-prof] ' +
-							JSON.stringify({
-								...__prof,
-								transformDigest: (d >>> 0).toString(16),
-								transformFiles: keys.length
-							})
-					);
+					const summary = JSON.stringify({
+						...__prof,
+						transformDigest: (d >>> 0).toString(16),
+						transformFiles: keys.length
+					});
+					console.error(`\n[ogygia-prof] ${summary}`);
 				}
 			},
 			handleHotUpdate({ file, server }) {

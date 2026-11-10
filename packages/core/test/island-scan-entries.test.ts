@@ -15,6 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
 import { partial_ctx_init } from './_compile-ctx.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 let root = '';
 
@@ -24,12 +25,14 @@ const CRAWL_FINDINGS_RE = /analytics-sdk|chart-lib|lake-only-dep|server-only-db/
 const files: Record<string, string> = {
 	'src/routes/+layout.ts': 'export const csr = false;\n',
 	// A hydrate island, a lake, and a server (defer) island — only the FIRST is client code.
-	'src/routes/+page.svelte':
-		`<script>\n` +
-		`\timport Widget from '$lib/Widget.svelte' with { wake: 'visible' };\n` +
-		`\timport Frozen from '$lib/Frozen.svelte' with { wake: 'none' };\n` +
-		`\timport Greeting from '$lib/Greeting.svelte' with { render: 'deferred' };\n` +
-		`</script>\n<Widget /><Frozen /><Greeting />\n`,
+	'src/routes/+page.svelte': `${dedent`
+		<script>
+			import Widget from '$lib/Widget.svelte' with { wake: 'visible' };
+			import Frozen from '$lib/Frozen.svelte' with { wake: 'none' };
+			import Greeting from '$lib/Greeting.svelte' with { render: 'deferred' };
+		</script>
+		<Widget /><Frozen /><Greeting />
+	`}\n`,
 	'src/lib/Widget.svelte': `<script>\n\timport { track } from 'analytics-sdk';\n</script>\n<p>{track()}</p>\n`,
 	'src/lib/Frozen.svelte': `<script>\n\timport { heavy } from 'lake-only-dep';\n</script>\n<p>{heavy()}</p>\n`,
 	'src/lib/Greeting.svelte': `<script>\n\timport { db } from 'server-only-db';\n</script>\n<p>{db()}</p>\n`,

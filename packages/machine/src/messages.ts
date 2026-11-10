@@ -36,11 +36,11 @@ export const MACHINE_ERRORS: MachineErrors = {
 		text: (a: { name: string; from: string; to: string }): string =>
 			`machine ${a.name}: cannot go from "${a.from}" to "${a.to}" (not in its steps).`,
 		details: (): string =>
-			'A machine was asked to go to a state its steps do not allow from the state it is in. ' +
-			'Each state lists where it can go next (`steps`), and a move outside that list is refused.\n\n' +
-			'In dev and tests the move throws. In production it is refused: the machine stays where it ' +
-			'is, `go()` returns `false`, and this is printed once per machine, state and target.\n\n' +
-			'Either add the target to the state in `steps`, or fix the code that moved it.'
+			`A machine was asked to go to a state its steps do not allow from the state it is in. Each state lists where it can go next (\`steps\`), and a move outside that list is refused.
+
+In dev and tests the move throws. In production it is refused: the machine stays where it is, \`go()\` returns \`false\`, and this is printed once per machine, state and target.
+
+Either add the target to the state in \`steps\`, or fix the code that moved it.`
 	},
 	machine_unknown_state: {
 		text: (a: { name: string; state: string; where: string }): string =>
@@ -93,12 +93,11 @@ export const MACHINE_ERRORS: MachineErrors = {
 		text: (a: { name: string; state: string; problem: string }): string =>
 			`machine ${a.name}: the timeout of "${a.state}" cannot be used: ${a.problem}.`,
 		details: (): string =>
-			'A state in `after` ends on its own: still in it after `ms`, the machine takes the step `to`. ' +
-			'`to` must be one of that state’s own `steps` (the timed step is a move like any other), and ' +
-			'`ms` a number of 0 or more, or a function that makes one from the state’s value.\n\n' +
-			'This is refused in every build: a timer set from it would fire a move the steps do not allow.\n\n' +
-			'A timer holds at most 2^31 - 1 ms (about 24.8 days); Node and browsers run a longer delay ' +
-			'after 1 ms, so a longer `ms` is refused too.'
+			`A state in \`after\` ends on its own: still in it after \`ms\`, the machine takes the step \`to\`. \`to\` must be one of that state’s own \`steps\` (the timed step is a move like any other), and \`ms\` a number of 0 or more, or a function that makes one from the state’s value.
+
+This is refused in every build: a timer set from it would fire a move the steps do not allow.
+
+A timer holds at most 2^31 - 1 ms (about 24.8 days); Node and browsers run a longer delay after 1 ms, so a longer \`ms\` is refused too.`
 	},
 	machine_timeout_not_a_time: {
 		text: (a: { name: string; state: string; ms: string }): string =>
@@ -128,11 +127,9 @@ export const MACHINE_ERRORS: MachineErrors = {
 		text: (a: { name: string }): string =>
 			`outbox ${a.name}: a send ran out of tries, so it is given up.`,
 		details: (): string =>
-			'An `outbox()` tried a send as many times as its `retry` policy allows (or until its ' +
-			'deadline), and every try failed. The last error follows the message. Nothing of it is ' +
-			'kept: the work it carried did not happen.\n\n' +
-			'Give the outbox a `giveUp` to say it in your own words, or to keep the work somewhere ' +
-			'it survives. A `giveUp` that throws is said here too.'
+			`An \`outbox()\` tried a send as many times as its \`retry\` policy allows (or until its deadline), and every try failed. The last error follows the message. Nothing of it is kept: the work it carried did not happen.
+
+Give the outbox a \`giveUp\` to say it in your own words, or to keep the work somewhere it survives. A \`giveUp\` that throws is said here too.`
 	},
 	machine_stage_step_failed: {
 		text: (a: { name: string }): string =>
@@ -143,12 +140,9 @@ export const MACHINE_ERRORS: MachineErrors = {
 	machine_mailbox_handler_failed: {
 		text: (): string => 'mailbox: a handler that waited for its turn threw.',
 		details: (): string =>
-			'A `mailbox()` handler threw while it ran in its turn, after events ahead of it. Nobody ' +
-			'waits on its stack (it was posted earlier, by someone who has moved on), so its error ' +
-			"goes to the page's error handler (`reportError`: the console and `window.onerror`), as an " +
-			"event listener's would, and the box goes on with the next event.\n\n" +
-			'A handler that runs at once (posted to an idle box) throws to its poster instead, and one ' +
-			"posted with `ask()` rejects its asker's promise. Catch inside the handler to handle it there."
+			`A \`mailbox()\` handler threw while it ran in its turn, after events ahead of it. Nobody waits on its stack (it was posted earlier, by someone who has moved on), so its error goes to the page's error handler (\`reportError\`: the console and \`window.onerror\`), as an event listener's would, and the box goes on with the next event.
+
+A handler that runs at once (posted to an idle box) throws to its poster instead, and one posted with \`ask()\` rejects its asker's promise. Catch inside the handler to handle it there.`
 	}
 };
 

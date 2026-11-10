@@ -27,6 +27,7 @@
  *     `claim_region_css` (deduped with held-region links), and hands `document()` the head tags.
  */
 import { fs, path } from '../host.ts';
+import { dedent } from '../dedent.ts';
 import {
 	collectFoucCssReachable,
 	compileFoucScopedCss,
@@ -156,10 +157,13 @@ export async function router_css_module(
 				rel.startsWith('..') || path.isAbsolute(rel) ? [abs_key] : [abs_key, JSON.stringify(rel)];
 			assignments.push(`m[${keys.join('] = m[')}] = ${JSON.stringify(entries)};`);
 		}
-		return (
-			`import { register_router_css_paths } from 'ogygia/internal/register';\n` +
-			`const m = {};\n${assignments.join('\n')}\nregister_router_css_paths(m);\n`
-		);
+		const source = dedent`
+			import { register_router_css_paths } from 'ogygia/internal/register';
+			const m = {};
+			${assignments.join('\n')}
+			register_router_css_paths(m);
+		`;
+		return `${source}\n`;
 	}
 
 	// PROD: hrefs resolve lazily from the island-deps handoff (written by the client leg, read at

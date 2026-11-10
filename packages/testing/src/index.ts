@@ -908,8 +908,9 @@ export const ogygiaMatchers = {
 			message: () =>
 				pass
 					? 'expected ogygia findings, found none'
-					: `expected no ogygia findings${opts.severity ? ` at ${opts.severity} or above` : ''}, found ${list.length}:\n` +
-						list.map((f) => `  - [${f.severity}] ${f.code}: ${f.message}`).join('\n')
+					: `expected no ogygia findings${opts.severity ? ` at ${opts.severity} or above` : ''}, found ${list.length}:\n${list
+							.map((f) => `  - [${f.severity}] ${f.code}: ${f.message}`)
+							.join('\n')}`
 		};
 	},
 	/** Every line of the budget met (see {@link Budget}: page, session and profile lines). */
@@ -920,10 +921,9 @@ export const ogygiaMatchers = {
 			name: 'toMeetBudget',
 			message: () =>
 				bad.length
-					? `ogygia budget missed (${received.kind}):\n` +
-						bad
+					? `ogygia budget missed (${received.kind}):\n${bad
 							.map((l) => `  - ${l.key}: ${l.measured ?? 'not measured'} (budget ${l.limit})`)
-							.join('\n')
+							.join('\n')}`
 					: 'expected the ogygia budget to be missed, it was met'
 		};
 	},
@@ -955,8 +955,7 @@ export const ogygiaMatchers = {
 			name: 'toHydrateCleanly',
 			message: () =>
 				bad.length
-					? 'islands that did not hydrate cleanly:\n' +
-						bad
+					? `islands that did not hydrate cleanly:\n${bad
 							.map((i) => {
 								const first = i.diff?.hunks[0]?.ops
 									.filter((o) => o.op !== 'same')
@@ -965,7 +964,7 @@ export const ogygiaMatchers = {
 									.join(' ');
 								return `  - ${i.name}: ${i.status}${i.reason ? ` (${i.reason})` : ''}${first ? ` — ${first}` : ''}`;
 							})
-							.join('\n')
+							.join('\n')}`
 					: 'expected an island to hydrate badly, all were clean'
 		};
 	}

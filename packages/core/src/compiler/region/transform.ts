@@ -1,6 +1,7 @@
 import { parse } from 'svelte/compiler';
 import MagicString from 'magic-string';
 import type { SourceMap } from 'magic-string';
+import { dedent } from '../dedent.ts';
 import type { IslandDescriptor } from '../program.ts';
 import { createHash } from '../host.ts';
 import { foucCssVirtualId } from '../fouc-css.ts';
@@ -2451,25 +2452,29 @@ class FileCompilation {
 				// on a customer page), so a body that opens with one keeps its snippet around it — the
 				// same scope it was authored in, rendered once.
 				const wrapped = body.some((n: SvelteNode) => n.type === 'ConstTag');
-				const template =
-					(carried_src ? `${carried_src}\n` : '') +
-					(wrapped
-						? `{#snippet __og_body()}\n${markup}\n{/snippet}\n{@render __og_body()}`
-						: markup);
-				const synth =
-					`<script${lang}>\n` +
-					`\timport 'virtual:ogygia/transportables-eager';\n` +
-					cleaned_imports.map((imp) => `\t${imp}\n`).join('') +
-					(prop_names.length
-						? `\t// svelte-ignore state_referenced_locally\n\tlet { ${prop_names.join(', ')} } = $props();\n`
-						: '') +
-					(snip_params.length
-						? `\t// svelte-ignore state_referenced_locally\n\tconst [${params_src}] = __ogArgs;\n`
-						: '') +
-					`</script>\n` +
-					template +
-					'\n' +
-					(host_style_src ? `${host_style_src}\n` : '');
+				const carried = carried_src ? `${carried_src}\n` : '';
+				const body_src = wrapped
+					? dedent`
+						{#snippet __og_body()}
+						${markup}
+						{/snippet}
+						{@render __og_body()}
+					`
+					: markup;
+				const imports = cleaned_imports.map((imp) => `\t${imp}\n`).join('');
+				const props_decl = prop_names.length
+					? `\t// svelte-ignore state_referenced_locally\n\tlet { ${prop_names.join(', ')} } = $props();\n`
+					: '';
+				const args_decl = snip_params.length
+					? `\t// svelte-ignore state_referenced_locally\n\tconst [${params_src}] = __ogArgs;\n`
+					: '';
+				const style = host_style_src ? `${host_style_src}\n` : '';
+				const script = dedent`
+					<script${lang}>
+						import 'virtual:ogygia/transportables-eager';
+					${imports}${props_decl}${args_decl}</script>
+				`;
+				const synth = `${script}\n${carried}${body_src}\n${style}`;
 				islands_by_id.set(iid, {
 					id: iid,
 					virtualPath: entryPath,
@@ -2527,10 +2532,8 @@ class FileCompilation {
 		{
 			let head = '';
 			if (portable_emitted) {
-				head +=
-					`import { og_portable as ${OG_PORTABLE} } from 'ogygia/internal';\n` +
-					portable_imports.join('\n') +
-					'\n';
+				const helper = `import { og_portable as ${OG_PORTABLE} } from 'ogygia/internal';`;
+				head = `${head}${[helper, ...portable_imports].join('\n')}\n`;
 			}
 			if (head) {
 				if (ast.instance) s.appendLeft(ast.instance.content.start, `\n${head}`);

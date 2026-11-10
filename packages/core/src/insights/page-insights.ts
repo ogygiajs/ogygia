@@ -2221,22 +2221,20 @@ export function analyze_page(
 			code: 'preload-unused',
 			severity: 'warn',
 			message: `${list(misses.map((m) => `${file(m.url)} (${kb(m.bytes)})`))} ${misses.length === 1 ? 'was' : 'were'} preloaded, then downloaded again: the browser could not use the preload${misses.length === 1 ? '' : 's'}, and the page paid ${kb(wasted)} twice.`,
-			fix:
-				`${[...new Set(misses.map(why))].map((w) => w[0].toUpperCase() + w.slice(1)).join('. ')}.` +
+			fix: `${[...new Set(misses.map(why))].map((w) => w[0].toUpperCase() + w.slice(1)).join('. ')}.${[
 				// (what to do, once per cause present)
-				[
-					misses.some(safari_fetch)
-						? ' No attribute changes a fetch preload in Safari: to start the request early there too, begin it in an inline script and hand its promise to the code that reads it — or drop the preload where Safari is most of the traffic.'
-						: '',
-					misses.some(safari_font)
-						? page.dev
-							? " For the fonts: a build drops the dev server's habits (its CSS linked, its files answered by the host), so check whether the host also answers fonts with Vary: Origin and whether a stylesheet naming them is added by script."
-							: ' For the fonts: answer them without `Vary: Origin` (a font is the same whoever asks; a CORS header alone does not need it), or name them in a stylesheet the HTML links.'
-						: '',
-					misses.some((m) => !safari_fetch(m) && !safari_font(m))
-						? ' The preload and the request must match exactly, or the browser fetches the file again.'
-						: ''
-				].join(''),
+				misses.some(safari_fetch)
+					? ' No attribute changes a fetch preload in Safari: to start the request early there too, begin it in an inline script and hand its promise to the code that reads it — or drop the preload where Safari is most of the traffic.'
+					: '',
+				misses.some(safari_font)
+					? page.dev
+						? " For the fonts: a build drops the dev server's habits (its CSS linked, its files answered by the host), so check whether the host also answers fonts with Vary: Origin and whether a stylesheet naming them is added by script."
+						: ' For the fonts: answer them without `Vary: Origin` (a font is the same whoever asks; a CORS header alone does not need it), or name them in a stylesheet the HTML links.'
+					: '',
+				misses.some((m) => !safari_fetch(m) && !safari_font(m))
+					? ' The preload and the request must match exactly, or the browser fetches the file again.'
+					: ''
+			].join('')}`,
 			fps: []
 		});
 	}
@@ -2369,16 +2367,17 @@ export function analyze_page(
 		findings.push({
 			code: 'slow-navigation',
 			severity: ms >= SLOW_NAV_WARN_MS ? 'warn' : 'info',
-			message:
-				`The in-app navigation to ${n.to} took ${Math.round(ms)} ms before the new page showed: ${parts.map((p) => p.text).join(', ')}.` +
-				(top.key === 'fetch' && !heavy_page ? server_sentence : '') +
+			message: [
+				`The in-app navigation to ${n.to} took ${Math.round(ms)} ms before the new page showed: ${parts.map((p) => p.text).join(', ')}.`,
+				top.key === 'fetch' && !heavy_page ? server_sentence : '',
 				// (devtools: the profiler's last run of the page it went to, when its request log is not here)
-				(top.key === 'fetch' && !heavy_page && !srv && page.server_profiles
+				top.key === 'fetch' && !heavy_page && !srv && page.server_profiles
 					? server_says(page.server_profiles[n.to.split('?')[0]]).replace('this page', 'that page')
-					: '') +
-				(woke.length
+					: '',
+				woke.length
 					? ` Then ${woke.length === 1 ? 'its island woke' : `${woke.length} islands woke`} over ${Math.round(Math.max(0, wake_end - n.swapped))} ms${heaviest && heaviest.ms >= 20 ? ` (${heaviest.name} ${Math.round(heaviest.ms)} ms to hydrate)` : ''}.`
-					: ''),
+					: ''
+			].join(''),
 			fix:
 				top.key === 'fetch' && heavy_page
 					? `The page itself is the wait: ${n.bytes ? `${kb_of(n.bytes)} of HTML` : 'its HTML'} took longer to download than the server took to answer. Send less (render below-the-fold parts later, trim repeated markup and inline data), and make sure it is compressed.`

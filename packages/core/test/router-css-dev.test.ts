@@ -18,6 +18,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createServer, type Plugin, type RunnableDevEnvironment, type ViteDevServer } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { router_css_module } from '../src/compiler/link/router-css.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 const own = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const V = 'virtual:ogygia/router-css';
@@ -59,9 +60,11 @@ async function start(
 	// a router page module: renders the shell and asks for its head tags
 	write(
 		'src/page.ts',
-		`import Shell from './Shell.svelte';\n` +
-			`import { componentCssHead } from ${JSON.stringify(own('../src/plugin/css.ts'))};\n` +
-			`export const head = () => componentCssHead([Shell]);\n`
+		`${dedent`
+			import Shell from './Shell.svelte';
+			import { componentCssHead } from ${JSON.stringify(own('../src/plugin/css.ts'))};
+			export const head = () => componentCssHead([Shell]);
+		`}\n`
 	);
 	let left = failures;
 	const registry: Plugin = {
