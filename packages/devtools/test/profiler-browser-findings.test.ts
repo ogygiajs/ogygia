@@ -351,6 +351,8 @@ test('the inline beacon names a preload the browser downloaded again (a Kit page
 	}
 	const perf = {
 		timeOrigin: 0,
+		now: () => 0,
+		getEntriesByName: () => [],
 		getEntriesByType: (t: string) =>
 			t === 'navigation'
 				? [{ requestStart: 1, responseStart: 5, responseEnd: 9 }]
@@ -360,7 +362,6 @@ test('the inline beacon names a preload the browser downloaded again (a Kit page
 		setResourceTimingBufferSize() {}
 	};
 	const run = new Function(
-		'window',
 		'document',
 		'performance',
 		'PerformanceObserver',
@@ -373,7 +374,6 @@ test('the inline beacon names a preload the browser downloaded again (a Kit page
 		BEACON_STANDALONE_JS
 	);
 	run(
-		{},
 		doc,
 		perf,
 		PO,
@@ -384,8 +384,8 @@ test('the inline beacon names a preload the browser downloaded again (a Kit page
 		() => {},
 		() => Promise.resolve()
 	);
-	listeners.DOMContentLoaded();
 	listeners.visibilitychange();
+	(globalThis as unknown as Record<symbol, { stop(): void }>)[Symbol.for('ogygia.beacon')].stop();
 	const visit = sent.map((b) => JSON.parse(b)).find((b) => b.visit)!.visit;
 	expect(visit.preload_misses).toEqual([
 		{ url: font, type: 'font', bytes: 20_300, as: 'font', crossorigin: null }

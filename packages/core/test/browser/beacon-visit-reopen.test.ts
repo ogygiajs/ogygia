@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, expect, inject, test } from 'vitest';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset_beacon, beacon_nav } from '../../../devtools/src/profiler/beacon.ts';
+import { _restart_page_beacon } from '../../../devtools/src/profiler/beacon-standalone.ts';
 import devtools_client from '../../../devtools/src/client.ts';
 
 const inject_html = () => decodeURIComponent(escape(atob(inject('counter_json_lane_ssr_b64'))));
@@ -34,6 +35,7 @@ beforeEach(async () => {
 	meta.name = 'ogygia-profiler-beacon';
 	meta.content = '/__profiler/beacon';
 	document.head.appendChild(meta);
+	_restart_page_beacon();
 	sent = [];
 	navigator.sendBeacon = ((_url: string, body: string) => {
 		sent.push(JSON.parse(body) as Body);

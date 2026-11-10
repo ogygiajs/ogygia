@@ -28,7 +28,7 @@ const DOCK = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : 
 
 const client: ClientPlugin = defineClient({
 	boot({ kitPage }) {
-		install_beacon();
+		install_beacon(DOCK);
 		if (!DOCK) return;
 		// one mounted Svelte app (launcher + tabbed window), starting hidden (Alt+O); a pure bus/DOM consumer
 		install_devtools_ui(kitPage ? { csr_true: true } : undefined);

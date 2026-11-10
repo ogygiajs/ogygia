@@ -5,6 +5,7 @@
 import { expect, inject, test } from 'vitest';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset_beacon, _beacon_state } from '../../../devtools/src/profiler/beacon.ts';
+import { _restart_page_beacon } from '../../../devtools/src/profiler/beacon-standalone.ts';
 import devtools_client from '../../../devtools/src/client.ts';
 
 const devtools = [{ name: '@ogygia/devtools', client: devtools_client }];
@@ -22,6 +23,7 @@ test('a fingerprinted island reports its hydration timing to the profiler beacon
 	meta.name = 'ogygia-profiler-beacon';
 	meta.content = '/__profiler/beacon';
 	document.head.appendChild(meta);
+	_restart_page_beacon();
 	const sent: { url: string; body: string }[] = [];
 	const orig = navigator.sendBeacon;
 	navigator.sendBeacon = ((url: string, body: string) => {
@@ -137,6 +139,7 @@ test('islands without a fingerprint (a standalone render) queue nothing', async 
 	meta.name = 'ogygia-profiler-beacon';
 	meta.content = '/__profiler/beacon';
 	document.head.appendChild(meta);
+	_restart_page_beacon();
 	try {
 		document.body.innerHTML = inject_html('heavy_schedule_ssr_b64');
 		const total = document.querySelectorAll('ogygia-region').length;
