@@ -15,7 +15,9 @@ concurrency:
 
 jobs:
   review:
+    # (a PR stacked on another branch is reviewed when its stack reaches main)
     if: >-
+      github.event.pull_request.base.ref == 'main' &&
       !github.event.pull_request.draft &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !startsWith(github.head_ref, 'changeset-release/')

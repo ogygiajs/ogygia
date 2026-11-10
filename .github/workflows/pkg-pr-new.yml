@@ -46,7 +46,10 @@ concurrency:
 jobs:
   publish:
     # a version PR (changeset-release/*) publishes for real once merged: no preview to try first
-    if: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
+    # (and a PR stacked on another branch publishes when its stack reaches main)
+    if: >-
+      ${{ !startsWith(github.head_ref, 'changeset-release/') && (github.event_name != 'pull_request' ||
+      github.event.pull_request.base.ref == 'main') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

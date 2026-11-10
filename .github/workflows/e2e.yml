@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # the nightly run: Firefox and WebKit over main (a pull request runs them only with `engines`)
+  schedule:
+    - cron: '30 21 * * *'
 
 # A STAGED JOB GRAPH: the expensive jobs run only when needed, and only after the cheap ones pass.
 #
@@ -12,6 +15,10 @@ on:
 #         │                                   └─ browsers (Firefox, WebKit, released Firefox)
 #         └─ size
 #   ci ok: after all of them; THE required check
+#
+# Firefox and WebKit (`e2e-engines`, `browsers`) run on a push to main, the nightly schedule and a
+# manual run; a pull request runs them only when it carries the `engines` label (added before a
+# push: the label alone starts no run). They report and do not block, so `ci ok` passes without them.
 #
 # `plan` asks turbo (`--dry=json`, `--affected` on a pull request) which tasks this push leaves to
 # run (.github/scripts/ci-plan.ts): a job, or an e2e slice, with nothing to run is left out, and a
@@ -188,7 +195,8 @@ jobs:
     needs: [plan, check, e2e-chromium]
     if: >-
       ${{ !cancelled() && needs.plan.outputs.e2e_engines != '[]' && needs.check.result != 'failure' &&
-      needs.e2e-chromium.result != 'failure' }}
+      needs.e2e-chromium.result != 'failure' && (github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'engines')) }}
     strategy:
       fail-fast: false
       matrix:
@@ -212,7 +220,8 @@ jobs:
     needs: [plan, check, e2e-chromium]
     if: >-
       ${{ !cancelled() && needs.plan.outputs.browsers != '[]' && needs.check.result != 'failure' &&
-      needs.e2e-chromium.result != 'failure' }}
+      needs.e2e-chromium.result != 'failure' && (github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'engines')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:

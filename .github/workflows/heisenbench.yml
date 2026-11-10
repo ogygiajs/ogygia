@@ -40,7 +40,9 @@ env:
 
 jobs:
   request:
+    # (a PR stacked on another branch is measured when its stack reaches main)
     if: >-
+      github.event.pull_request.base.ref == 'main' &&
       !github.event.pull_request.draft &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !startsWith(github.head_ref, 'changeset-release/')
@@ -69,6 +71,7 @@ jobs:
   # what was unmeasured before is listed in the job summary, not failed.
   unmeasured:
     if: >-
+      github.event.pull_request.base.ref == 'main' &&
       !github.event.pull_request.draft &&
       !startsWith(github.head_ref, 'changeset-release/')
     runs-on: ubuntu-latest
