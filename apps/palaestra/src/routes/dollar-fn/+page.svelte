@@ -7,7 +7,7 @@
 	const tax = 0.19; // local capture — becomes a bound param of the hoisted factory
 	setContext(
 		'fmt',
-		import.meta.og.$((n: number) => `x${(n * (1 + tax)).toFixed(2)}`)
+		import.meta.og.$((n: number) => 'x' + (n * (1 + tax)).toFixed(2))
 	);
 </script>
 

@@ -627,7 +627,8 @@ const is_import_meta_url = (e: Node | undefined): boolean =>
 /**
  * Where `+` stays: a bundler reads a template literal in `import(…)` and in
  * `new URL(…, import.meta.url)` as a glob of files, so a string there keeps its shape; and a
- * function handed to `script()` ships as its own source text, whose bytes are the page's.
+ * function handed to `script()` or `import.meta.og.$()` ships as its own source text, whose bytes
+ * are the page's.
  */
 function concat_kept(node: Node): boolean {
 	let child: Node = node;
@@ -649,7 +650,7 @@ function concat_kept(node: Node): boolean {
 					: callee.type === 'MemberExpression'
 						? (callee.property as { name?: string })?.name
 						: undefined;
-			if (name === 'script') return true;
+			if (name === 'script' || name === '$') return true;
 		}
 		child = n;
 		n = n.parent as Node | undefined;
