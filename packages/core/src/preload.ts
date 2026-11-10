@@ -15,6 +15,7 @@ import { REGION_BRAND } from './region-brand.ts';
 import { frameAddress } from './frame.ts';
 import { ensure, renew } from './runtime/frame-store.ts';
 import { fetch_hole } from './runtime/hole-fetch.ts';
+import { PRIORITY } from './runtime/load-class.ts';
 
 export function preload(region: unknown): void {
 	if (typeof document === 'undefined') return; // client-only warm (the store is inert on the server)
@@ -26,7 +27,10 @@ export function preload(region: unknown): void {
 	// The hole's own fetch (runtime/hole-fetch.ts), so the store holds what the element would have
 	// stored: a 204 is the keep-fallback marker, a page or a redirect is refused (nothing stored), and
 	// a renewed capability is the address's.
-	void ensure(address, (signal) =>
-		fetch_hole(url, { signal, renewed: (fresh) => renew(address, fresh) })
+	// (the app asked for it now: a warm the region's own `prefetch` has waiting is raised to it)
+	void ensure(
+		address,
+		(signal) => fetch_hole(url, { signal, renewed: (fresh) => renew(address, fresh) }),
+		{ priority: PRIORITY.user }
 	).catch(() => {}); // ok: a failed warm is harmless; the bound region falls back to its own fetch, which says its failure
 }

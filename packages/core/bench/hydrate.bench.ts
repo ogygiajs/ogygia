@@ -48,7 +48,9 @@ import {
 	install as install_interaction
 } from '../src/runtime/interaction.ts';
 import { once_visible } from '../src/runtime/observe.ts';
-import { scope } from '@ogygia/machine';
+import { flights, scope } from '@ogygia/machine';
+import { LoadSlot, reset_load_scheduler } from '../src/runtime/load-scheduler.ts';
+import { class_at, PRIORITY } from '../src/runtime/load-class.ts';
 import {
 	background_start,
 	hydrate_settled,
@@ -345,6 +347,51 @@ bench(
 	'background drain: 250 wake starts queued in one task',
 	({ regions }) => drain_starts(regions),
 	{ setup: () => ({ regions: cms_page(250) }) }
+);
+
+/**
+ * Shared downloads raised by their joins (load-scheduler.ts `LoadSlot` on a flight): a page prefetch
+ * warms `n` downloads as guesses, queued behind the background window; a visitor then needs every
+ * third one (it joins as `user`) and every third is scrolled into view (`visible`). A raised slot
+ * drains at its new class. Ends when every download had its turn.
+ */
+function raised_downloads(n: number): Promise<number> {
+	const downloads = flights({
+		name: 'downloads',
+		keep: 0,
+		run: async (i: number, _signal, flight) => {
+			const slot = new LoadSlot({
+				kind: 'content',
+				cls: class_at(flight.priority),
+				label: 'd' + i,
+				flight
+			});
+			const release = await slot.ready;
+			await Promise.resolve();
+			release();
+			return slot.cls();
+		}
+	});
+	const out: Promise<unknown>[] = [];
+	for (let i = 0; i < n; i++) out.push(downloads.get(i, { priority: PRIORITY.speculative }));
+	for (let i = 0; i < n; i += 3) out.push(downloads.get(i, { priority: PRIORITY.user }));
+	for (let i = 1; i < n; i += 3) out.push(downloads.get(i, { priority: PRIORITY.visible }));
+	return Promise.all(out).then((all) => all.length);
+}
+
+bench(
+	'load scheduler: guesses raised by the visitor joins, as the page grows',
+	({ n }) => raised_downloads(n),
+	{
+		setup: () => {
+			reset_load_scheduler();
+			return { n: 30 };
+		},
+		scale: (_ctx, k) => {
+			reset_load_scheduler();
+			return { n: 30 * k };
+		}
+	}
 );
 
 bench('background drain: wake starts as the page grows', ({ regions }) => drain_starts(regions), {
