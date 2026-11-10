@@ -57,7 +57,13 @@ describe('max', () => {
 		void t.add('low 2', { priority: 0 });
 		void t.add('high', { priority: 2 });
 		await macrotask();
-		expect(t.started).toEqual(['high', 'low 1']);
+		expect(t.started).toEqual(['low 1', 'high']); // low 2 waits for low 1's place
+		t.release('high');
+		await macrotask();
+		expect(t.started).toEqual(['low 1', 'high']);
+		t.release('low 1');
+		await macrotask();
+		expect(t.started).toEqual(['low 1', 'high', 'low 2']);
 	});
 });
 

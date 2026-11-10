@@ -11,10 +11,12 @@ import {
 	observe,
 	outbox,
 	policy,
+	queue,
 	scope,
 	stage,
 	STALE,
 	world,
+	type InFlight,
 	type LockToken,
 	type Scope,
 	type Stage
@@ -361,6 +363,61 @@ bench(
 		for (const land of landed) land();
 		await Promise.all(out);
 		return heard;
+	},
+	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
+);
+
+bench(
+	'queue: downloads by priority under a window of 3 (urgent ones past it), each released as it lands',
+	async ({ n }) => {
+		const q = queue<number>({ max: 3, holds: (p) => p < 2 });
+		const out: Promise<unknown>[] = [];
+		for (let i = 0; i < n; i++)
+			out.push(
+				q.add(i, { priority: i % 4 }).then(async (s) => {
+					if (s === STALE) return;
+					await Promise.resolve(); // the download
+					s.release();
+				})
+			);
+		await Promise.all(out);
+		return q.holding + q.waiting;
+	},
+	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
+);
+
+bench(
+	'queue: a paced drain (a budget, a pause each slice) with getters read again and a flight raised',
+	async ({ n }) => {
+		let clock = 0;
+		let flight!: InFlight;
+		const warm = flights({
+			keep: 0,
+			run: (_k: 'x', _signal, f) => ((flight = f), new Promise<number>(() => {}))
+		});
+		void warm.get('x', { priority: 0 });
+		const q = queue<number>({
+			max: 3,
+			holds: (p) => p < 2,
+			budget: 8,
+			now: () => clock,
+			pause: () => Promise.resolve()
+		});
+		const out: Promise<unknown>[] = [];
+		for (let i = 0; i < n; i++) {
+			const p = i % 4;
+			out.push(
+				q.add(i, i % 50 === 0 ? { priority: 0, flight } : { priority: () => p }).then(async (s) => {
+					if (s === STALE) return;
+					clock++;
+					await Promise.resolve();
+					s.release();
+				})
+			);
+			if (i === n >> 1) void warm.get('x', { priority: 3 });
+		}
+		await Promise.all(out);
+		return q.holding + q.waiting;
 	},
 	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
 );

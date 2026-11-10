@@ -187,6 +187,42 @@ await chunks.get(url, { priority: 2 }); // the visitor needs it: the guess is ra
 
 Each key's entry is a machine (`flying`, `kept`, `gone`), so `observe()` hears every flight's moves under the flights' `name`.
 
+## Queues
+
+Work that waits for room: a job starts when its queue lets it, the most urgent first, and gives its place back when it is done.
+
+```ts
+import { queue, STALE } from '@ogygia/machine';
+
+const downloads = queue<Download>({
+	max: 3, // at most three hold a place
+	holds: (priority) => priority < 2, // urgent ones start past the cap
+	admit: (d, priority) => page_ready || priority >= 2, // a gate: a refused job keeps its place
+	budget: 16, // a drain starts jobs for 16 ms, then gives the thread back
+	pause: yield_task
+});
+const s = await downloads.add(d, { priority: () => class_of(d), flight, owner: visit.scope });
+if (s === STALE) return; // its owner closed, or its deadline came
+try {
+	await fetch(d.url);
+} finally {
+	s.release();
+}
+```
+
+|                                                   |                                                                                                              |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `max` / `holds(priority, job)`                    | The most jobs holding a place at once; which jobs hold one (default: every job).                             |
+| `admit(job, priority)`                            | Whether a waiting job may start now. `drain()` looks again once what it reads changed.                       |
+| `budget` / `pause` / `deferred`                   | A drain gives the thread back (`pause`) after `budget` ms of starts; `deferred` begins every drain that way. |
+| `now`                                             | The clock for `budget` and `deadline`. Default `performance.now()`.                                          |
+| `add(job, { priority, flight, deadline, owner })` | Resolves with `{ priority, release }` once the job starts, or `STALE`.                                       |
+
+- **The most urgent goes first.** The highest `priority`, then the order added. A getter is read again at each drain. A job that serves a flight is at least at the flight's priority, and a raise of the flight drains the queue, so the job moves up while it waits.
+- **A place is handed on, never free in between.** A release starts the next job in the same step, so a job added meanwhile queues behind it. A release is given back once, however often it is called.
+- **A wait never hangs.** A job still waiting at its `deadline` settles `STALE` and never starts. Its `owner` closing settles it `STALE` while it waits, and gives its place back once it started.
+- **One drain at a time.** A drain asked for while one runs makes the running one go round again. Under a `budget`, each started job's own start-up runs before the budget is read again.
+
 ## Outbox
 
 Work that must happen after the response (a notice to a peer, a batch of events to a sink) goes through one place that keeps it alive, tries it again, sends it once, and calls it done only when the other side applied it.
