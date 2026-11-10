@@ -369,7 +369,6 @@ export const CLIENT_BINDING_STUB = 'virtual:ogygia/client-binding-stub';
 export { strategyKey, regionIdentity, regionId };
 export { regionBindingVirtualId };
 
-
 /**
  * Is `node` the member expression `import.meta.og.<prop>` (the macro namespace head)? Used to spot an
  * `import.meta.og.asRegion(…)` call — the macro alternative to a `with { wake }` region import.

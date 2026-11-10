@@ -2129,6 +2129,22 @@
 			"reason": "awaits the app's flag source (an async call out, not recorded), linear in the registered flags; proven in packages/flags/test/prime-twice.test.ts and packages/flags/test/source-failed.test.ts"
 		},
 		{
+			"id": "packages/core/src/trigger.ts > on_schedule",
+			"reason": "hands a callback to one of four schedule arms (functions, not cloneable), one parse and one branch, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > on_frozen_connect > on_schedule:2~6d0320",
+			"reason": "browser only: a stored page's swr lake revalidates on its schedule, one fetch call, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > on_frozen_connect > on_schedule:2~6d0320#2",
+			"reason": "browser only: a cached lake revalidates on its schedule, one fetch call, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > on_frozen_connect > on_schedule:2~6d0320#3",
+			"reason": "browser only: a cached lake revalidates on its schedule, one fetch call, constant work"
+		},
+		{
 			"id": "packages/flags/src/index.ts > set_prime",
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
 		}
