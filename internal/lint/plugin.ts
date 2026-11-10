@@ -345,12 +345,20 @@ function receiver_of(call: Node): string | null {
 	return null;
 }
 
-/** Is `e` a `flights(…)` (or `flights<I>()(…)`) call? */
+/** Is `e` a `flights(…)` (or `flights.keyed<I>()(…)`) call? */
 function makes_flights(e: unknown): boolean {
 	let n = e as Node | undefined;
 	while (n?.type === 'CallExpression') {
 		const callee = n.callee as Node;
 		if (callee.type === 'Identifier') return (callee as { name: string }).name === 'flights';
+		if (callee.type === 'MemberExpression') {
+			const obj = callee.object as Node;
+			return (
+				obj.type === 'Identifier' &&
+				(obj as { name: string }).name === 'flights' &&
+				(callee.property as { name?: string }).name === 'keyed'
+			);
+		}
 		n = callee;
 	}
 	return false;
