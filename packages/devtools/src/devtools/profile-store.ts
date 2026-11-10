@@ -5,7 +5,7 @@
  * hundreds of KB; the dock needs the score, the forecast, the findings, the islands, the top
  * components and the calls. The slim copy also survives a reload (sessionStorage, best effort).
  */
-import { STALE, type Scope } from '@ogygia/machine';
+import { cache, STALE, type Scope } from '@ogygia/machine';
 import { fetch_when_free } from '../profiler/busy.ts';
 
 export interface SlimIsland {
@@ -393,7 +393,11 @@ export function island_row(
 
 // ── the store: one slim profile per page path, plus a change counter the tabs read on their tick ──
 const KEY = 'ogygia:devtools:profiles:v1';
-const by_page = new Map<string, SlimProfile>();
+/** Pages whose profile the dock keeps in memory (the least recently set or read go first); the
+ *  newest {@link STORED} of them survive a reload. */
+const PAGES_MAX = 64;
+const STORED = 8;
+const by_page = cache<string, SlimProfile>({ name: 'devtools profiles', max: PAGES_MAX });
 let loaded = false;
 let version = 0;
 
@@ -414,8 +418,12 @@ export function set_profile(p: SlimProfile): void {
 	by_page.set(p.page, p);
 	version++;
 	try {
-		// newest 8 pages
-		const list = [...by_page.values()].sort((a, b) => b.at - a.at).slice(0, 8);
+		// newest STORED pages
+		const list = by_page
+			.entries()
+			.map(([, profile]) => profile)
+			.sort((a, b) => b.at - a.at)
+			.slice(0, STORED);
 		sessionStorage.setItem(KEY, JSON.stringify(list));
 	} catch {
 		// ok: no storage: memory only
