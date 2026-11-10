@@ -554,7 +554,7 @@ describe('keep, max and weigh', () => {
 		const pages = flights({
 			run: (k: string) => (k === '/a' && round++ === 1 ? d.promise : Promise.resolve(k)),
 			keep: 1000,
-			weigh: (answer: string) => answer.length,
+			weigh: (answer) => answer.length,
 			max: 7
 		});
 		await pages.get('/a');
