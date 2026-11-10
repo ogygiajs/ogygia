@@ -2175,6 +2175,38 @@
 		{
 			"id": "packages/flags/src/index.ts > set_prime",
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > arm_on_demand > set:1~0b08c2",
+			"reason": "browser only: an on-demand region's one firing (forgets its entry, then fires), constant work of its own"
+		},
+		{
+			"id": "packages/core/src/runtime/interaction.ts > noop",
+			"reason": "an empty function, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > queued_prefetch",
+			"reason": "browser only: makes the queued-prefetch cache once and returns it, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > warmed_pages",
+			"reason": "browser only: makes the warmed-pages cache once and returns it, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/schedule.ts > TaskHops > constructor",
+			"reason": "browser only, where scheduler.yield() is missing: one MessageChannel per document, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/schedule.ts > TaskHops > constructor > onmessage",
+			"reason": "browser only, where scheduler.yield() is missing: lands the oldest hop, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/schedule.ts > TaskHops > hop",
+			"reason": "browser only, where scheduler.yield() is missing: queues one hop and posts one message, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/svelte-warnings.ts > WarningLog > add",
+			"reason": "browser only: keeps one Svelte hydration warning (at most 100) and tells its listeners, linear in the listeners (a devtools panel or none)"
 		}
 	]
 }
