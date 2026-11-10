@@ -135,12 +135,18 @@ class Ticket<J> implements Started {
 	constructor(q: QueueImpl<J>, job: J, o: AddOptions | undefined) {
 		this.#q = q;
 		this.job = job;
-		const p = o?.priority;
+		if (o === undefined) {
+			this.#asked = this.#flight = null;
+			this.dynamic = false;
+			this.deadline = Infinity;
+			return;
+		}
+		const p = o.priority;
 		this.#asked = typeof p === 'function' ? p : null;
 		if (typeof p === 'number') this.priority = p;
-		this.#flight = o?.flight ?? null;
+		this.#flight = o.flight ?? null;
 		this.dynamic = this.#asked !== null || this.#flight !== null;
-		this.deadline = o?.deadline ?? Infinity;
+		this.deadline = o.deadline ?? Infinity;
 	}
 
 	/** Its priority now: what it was asked at, or its flight's when that is higher. */
@@ -303,12 +309,7 @@ class QueueImpl<J> implements Queue<J> {
 		if (t.running) return t.release();
 		if (!t.waiting) return;
 		this.#give_up(t);
-		// out of the list at once (a drain running takes it out as it ends)
-		if (this.#drain.now.kind === 'idle') {
-			const list = this.#list;
-			const at = list.indexOf(t);
-			if (at !== -1) list.splice(at, 1);
-		}
+		if (this.#drain.now.kind === 'idle') this.#compact(); // (a drain running compacts as it ends)
 	}
 
 	/** The deadlines' timer goes off at `at` (the earliest waiting deadline). */
@@ -512,9 +513,13 @@ class QueueImpl<J> implements Queue<J> {
 		}
 	}
 
-	/** The tickets no longer waiting out of the list, the rest kept in the order added. */
+	/** The tickets no longer waiting out of the list, the rest kept in the order added: once they
+	 *  are as many as the waiting ones (each pass skips them meanwhile), so a ticket that leaves
+	 *  costs its share of one compaction. */
 	#compact(): void {
 		const list = this.#list;
+		const left = list.length - this.#waiting;
+		if (left === 0 || left * 2 <= list.length) return;
 		// the common case: the ones that left are the first ones (taken in order)
 		let k = 0;
 		while (k < list.length && !list[k].waiting) k++;
