@@ -18,6 +18,7 @@ on:
       - 'packages/ogygia/**'
       - 'packages/core/**'
       - 'packages/flags/**'
+      - 'packages/barrels/**'
       - 'packages/postrender/**'
       - 'packages/federation/**'
       - 'packages/content/**'
@@ -86,7 +87,7 @@ jobs:
           npx --yes pkg-pr-new publish --pnpm --packageManager=pnpm
           './packages/ogygia' './packages/core' './packages/flags' './packages/postrender'
           './packages/federation' './packages/content' './packages/devtools' './packages/router'
-          './packages/testing' './packages/cli' './packages/machine'
+          './packages/testing' './packages/cli' './packages/machine' './packages/barrels'
 
       # Ask ogygiajs/bench to measure what was just published (it installs this commit's build
       # from pkg.pr.new). A PR commit is requested by the pull_request run only (the push run of the
