@@ -220,7 +220,7 @@ try {
 | `now`                                             | The clock for `budget` and `deadline`. Default `performance.now()`.                                                                                       |
 | `owner`                                           | The queue's scope: closing it settles every waiting job `STALE`, and any added after.                                                                     |
 | `add(job, { priority, flight, deadline, owner })` | Resolves with `{ priority, release }` once the job starts, or `STALE`.                                                                                    |
-| `push(job, options)`                              | The same, with no promise: `start` and `stale` hear the job.                                                                                              |
+| `push(job, options)`                              | The same, with no promise: `start` and `stale` hear the job. Returns its cancel (a waiting job settles `STALE`; a started one is untouched).              |
 
 - **The most urgent goes first.** The highest `priority`, then the order added. A getter is read again at each drain. A job that serves a flight is at least at the flight's priority, and a raise of the flight drains the queue, so the job moves up while it waits.
 - **A place is handed on, never free in between.** A release starts the next job in the same step, so a job added meanwhile queues behind it. A release is given back once, however often it is called.

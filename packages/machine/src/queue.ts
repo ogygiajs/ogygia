@@ -88,8 +88,9 @@ export interface Started {
 export interface Queue<J> {
 	/** Resolves once `job` starts, or with `STALE` if an owner closed or its deadline came first. */
 	add(job: J, options?: AddOptions): Promise<Started | Stale>;
-	/** Queues `job` with no promise: the queue's `start` and `stale` hear it. */
-	push(job: J, options?: AddOptions): void;
+	/** Queues `job` with no promise: the queue's `start` and `stale` hear it. Returns its cancel:
+	 *  still waiting, it settles `STALE` (`stale` hears it); started, it does nothing. */
+	push(job: J, options?: AddOptions): () => void;
 	/** Looks again: what `admit` or a priority getter reads has changed. */
 	drain(): void;
 	/** Jobs waiting to start. */
@@ -121,9 +122,8 @@ class Ticket<J> implements Started {
 	holds = false;
 	priority = 0;
 	readonly deadline: number;
-	/** Its owner's link and its deadline timer (`null`: neither). */
+	/** Its owner's link (`null`: none). */
 	life: Scope | null = null;
-	cancel_deadline: (() => void) | null = null;
 	/** What `add` resolves (`null`: pushed, nobody awaits it). */
 	resolve: ((s: Started | Stale) => void) | null = null;
 	/** Its priority can move (a getter, or a flight): read again at each drain. */
@@ -182,6 +182,12 @@ class QueueImpl<J> implements Queue<J> {
 	 *  queue empties): while it holds and none can move, the list is already in order. */
 	#level = NaN;
 	readonly #drain = drain_definition.create();
+	/** The deadlines' one timer, at the earliest one waiting (made at the first deadline). */
+	#timers: Scope | null = null;
+	#armed_at = Infinity;
+	#disarm: (() => void) | null = null;
+	/** Waiting tickets with a deadline (counted from when they were found waiting). */
+	#deadlines = 0;
 	/** A paced drain's passes while it runs: resumed after a pause or a start-up. */
 	#passes: Generator<Wait, void> | null = null;
 	readonly #step = (): void => this.#run();
@@ -221,10 +227,16 @@ class QueueImpl<J> implements Queue<J> {
 		return started;
 	}
 
-	push(job: J, o?: AddOptions): void {
+	push(job: J, o?: AddOptions): () => void {
 		const t = this.#ticket(job, o);
-		if (t === null) this.#stale?.(job);
-		else this.#enqueue(t, o);
+		if (t === null) {
+			this.#stale?.(job);
+			return noop;
+		}
+		this.#enqueue(t, o);
+		return () => {
+			if (t.waiting) this.#gone(t);
+		};
 	}
 
 	drain(): void {
@@ -270,18 +282,14 @@ class QueueImpl<J> implements Queue<J> {
 		else if (this.#waiting === 0) this.#level = t.priority;
 		else if (t.priority !== this.#level) this.#level = NaN;
 		this.#waiting++;
+		if (t.deadline !== Infinity) this.#deadlines++;
 		this.drain();
 		if (o === undefined) return;
+		if (t.waiting && t.deadline < this.#armed_at) this.#arm(t.deadline);
 		// (made only for one still waiting or running: most start at once, and many end at once too)
-		const deadline = t.waiting && t.deadline !== Infinity;
-		if (deadline || (o.owner !== undefined && (t.waiting || t.running))) {
-			const life = (t.life = o.owner?.child() ?? scope());
+		if (o.owner !== undefined && (t.waiting || t.running)) {
+			const life = (t.life = o.owner.child());
 			life.defer(() => this.#gone(t));
-			if (deadline)
-				t.cancel_deadline = life.timeout(
-					() => life.close(),
-					Math.min(MAX_TIMEOUT_MS, Math.max(0, t.deadline - this.#now()))
-				);
 		}
 		// a caller joined its flight at a higher priority: still waiting, it may start now
 		if (t.waiting)
@@ -295,7 +303,35 @@ class QueueImpl<J> implements Queue<J> {
 		if (t.running) return t.release();
 		if (!t.waiting) return;
 		this.#give_up(t);
-		if (this.#drain.now.kind === 'idle') this.#compact();
+		// out of the list at once (a drain running takes it out as it ends)
+		if (this.#drain.now.kind === 'idle') {
+			const list = this.#list;
+			const at = list.indexOf(t);
+			if (at !== -1) list.splice(at, 1);
+		}
+	}
+
+	/** The deadlines' timer goes off at `at` (the earliest waiting deadline). */
+	#arm(at: number): void {
+		this.#disarm?.();
+		this.#armed_at = at;
+		const timers = (this.#timers ??= this.#owner?.child() ?? scope());
+		const ms = Math.min(MAX_TIMEOUT_MS, Math.max(0, at - this.#now()));
+		this.#disarm = timers.timeout(() => this.#expire(), ms);
+	}
+
+	/** The deadlines that came: those jobs settle STALE; the timer goes on to the next one. */
+	#expire(): void {
+		this.#disarm = null;
+		this.#armed_at = Infinity;
+		const now = this.#now();
+		let next = Infinity;
+		for (const t of [...this.#list]) {
+			if (!t.waiting || t.deadline === Infinity) continue;
+			if (t.deadline <= now) this.#gone(t);
+			else if (t.deadline < next) next = t.deadline;
+		}
+		if (next !== Infinity) this.#arm(next);
 	}
 
 	#give_up(t: Ticket<J>): void {
@@ -310,6 +346,12 @@ class QueueImpl<J> implements Queue<J> {
 		t.waiting = false;
 		this.#waiting--;
 		if (t.dynamic) this.#dynamic--;
+		// the last deadline waiting left: the timer goes
+		if (t.deadline !== Infinity && --this.#deadlines === 0 && this.#disarm !== null) {
+			this.#disarm();
+			this.#disarm = null;
+			this.#armed_at = Infinity;
+		}
 	}
 
 	/** Runs a paced drain's passes until they end, pause, or wait for a job's start-up. */
@@ -457,7 +499,6 @@ class QueueImpl<J> implements Queue<J> {
 		t.running = true;
 		t.priority = priority;
 		t.holds = holds;
-		t.cancel_deadline?.();
 		t.resolve?.(t);
 		const start = this.#start;
 		if (start === null) return true;
@@ -501,6 +542,8 @@ export function queue<J>(options: QueueOptions<J> = {}): Queue<J> {
 		);
 	return new QueueImpl(options);
 }
+
+function noop(): void {}
 
 function clock(): number {
 	return typeof performance !== 'undefined' ? performance.now() : Date.now();

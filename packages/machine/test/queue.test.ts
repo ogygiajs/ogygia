@@ -328,6 +328,38 @@ describe('push', () => {
 	});
 });
 
+describe('cancel', () => {
+	it("push's cancel settles the job STALE while it waits, and does nothing once it started", () => {
+		const heard: string[] = [];
+		const q = queue<string>({
+			max: 1,
+			start: (j) => void heard.push(`start ${j}`),
+			stale: (j) => void heard.push(`stale ${j}`)
+		});
+		const first = q.push('first');
+		const second = q.push('second');
+		second();
+		expect(q.waiting).toBe(0);
+		first();
+		expect(heard).toEqual(['start first', 'stale second']);
+	});
+
+	it('many deadlines share one timer, and each settles at its own time', async () => {
+		vi.useFakeTimers();
+		const q = queue<string>({ max: 1, now: () => Date.now() });
+		const t = track(q);
+		void t.add('first');
+		const late = [30, 10, 20].map((ms) => t.add(`${ms}`, { deadline: Date.now() + ms }));
+		const settled: string[] = [];
+		late.forEach((p, i) => void p.then((s) => s === STALE && settled.push(['30', '10', '20'][i])));
+		await vi.advanceTimersByTimeAsync(15);
+		expect(settled).toEqual(['10']);
+		await vi.advanceTimersByTimeAsync(20);
+		expect(settled).toEqual(['10', '20', '30']);
+		expect(vi.getTimerCount()).toBe(0);
+	});
+});
+
 describe("the queue's owner", () => {
 	it('closing it settles every waiting job STALE, and a job added after is STALE at once', async () => {
 		const owner = scope();
