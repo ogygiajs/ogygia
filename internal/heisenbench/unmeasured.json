@@ -77,6 +77,10 @@
 			"reason": "reads one header off a Response (not cloneable), constant work"
 		},
 		{
+			"id": "packages/devtools/src/devtools/page.ts > install_page_hook > addEventListener:1~7a7038",
+			"reason": "browser only: the document's pageshow handler (a back-forward cache restore) clears one flag, constant work; proven by packages/devtools/e2e/devtools.spec.ts in WebKit (#408)"
+		},
+		{
 			"id": "packages/devtools/src/devtools/page.ts > flights:0~93c4d1 > run",
 			"reason": "fetches the dev server's pre-bundle metadata (network IO, not recorded); its names are prebundled_names', measured on its own; proven in packages/devtools/test/devtools-page-asks.test.ts"
 		},
@@ -693,6 +697,82 @@
 			"reason": "browser only: a hole's network fetch and the reading of its answer (204, redirect, document, renewal); proven in packages/core/test/browser/preload-hole.test.ts, hole-renewal.test.ts and deferred-endpoint.test.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/hole-fetch.ts > start_hole",
+			"reason": "browser only: a hole's network request (one fetch call), constant work; proven in packages/core/test/browser/preload-hole.test.ts and early-holes.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/hole-fetch.ts > read_hole",
+			"reason": "browser only: the reading of a hole's answer (a Response: 204, redirect, document, renewal), linear in the answer's text; proven in packages/core/test/browser/hole-renewal.test.ts, deferred-endpoint.test.ts and early-holes.test.ts"
+		},
+		{
+			"id": "packages/core/src/early-holes.ts > start_early_holes",
+			"reason": "browser only: the head's early start (inline, before the runtime): one fetch per load hole, linear in the holes; proven in packages/core/test/browser/early-holes.test.ts and apps/palaestra/e2e/hole-early-start.spec.ts"
+		},
+		{
+			"id": "packages/core/src/early-holes.ts > start_early_holes > catch:0~a1b2d0",
+			"reason": "browser only: the early start's rejection park (a no-op), constant work; proven in packages/core/test/browser/early-holes.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes",
+			"reason": "browser only: the frames feature takes the head's early requests over at boot, linear in the load holes; proven in packages/core/test/browser/early-holes.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > catch:0~5fe629",
+			"reason": "browser only: an early flight's failure, held at its address when it is a refusal, constant work; proven in packages/core/test/browser/early-holes.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > ensure:1~1117e8",
+			"reason": "browser only: an early flight's work (the parked response read through read_hole), linear in the answer; proven in packages/core/test/browser/early-holes.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > ensure:1~1117e8 > on:2~6c2793",
+			"reason": "browser only: the flight's abort cancels the parked request (one abort call), constant work; proven in packages/core/test/browser/early-holes.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > ensure:1~1117e8 > read_hole:2~58a925 > renewed",
+			"reason": "browser only: a renewed capability handed to the address (one store write), constant work; proven by the renewal path in packages/core/test/browser/hole-renewal.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > hold_refusal",
+			"reason": "browser only: one field set when an early flight was refused, constant work; proven in packages/core/test/browser/early-holes.test.ts"
+		},
+		{
+			"id": "packages/core/src/context.ts > note_early_hole",
+			"reason": "server render: one Set add per load hole under the request (getRequestEvent, not recorded), constant work; proven in apps/palaestra/e2e/hole-early-start.spec.ts and server-islands.spec.ts"
+		},
+		{
+			"id": "packages/core/src/server/early-holes-csp.ts > add_early_holes_csp",
+			"reason": "a response's two CSP headers read and set (Headers, not cloneable), linear in the policy; proven in packages/core/test/early-holes-csp.test.ts through with_early_holes_csp"
+		},
+		{
+			"id": "packages/core/src/server/early-holes-csp.ts > with_early_holes_csp",
+			"reason": "reads the module's constant script hash (hidden state by design: computed once at startup), linear in the policy; proven in packages/core/test/early-holes-csp.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/early-holes-csp.ts > with_early_holes_meta_csp",
+			"reason": "one regex replace over the head, linear in it, reading the constant hash; proven in packages/core/test/early-holes-csp.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/early-holes-csp.ts > with_early_holes_meta_csp > replace:1~33c0d8",
+			"reason": "one meta policy rewritten through with_early_holes_csp, linear in it; proven in packages/core/test/early-holes-csp.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/early-holes-csp.ts > with_hash",
+			"reason": "one policy's directives split and the hash added, linear in the policy, reading the constant hash; proven in packages/core/test/early-holes-csp.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/early-holes-csp.ts > with_hash > map:0~060e5e",
+			"reason": "one source lower-cased, constant work; proven in packages/core/test/early-holes-csp.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/early-holes-csp.ts > with_hash > map:0~7e326c",
+			"reason": "one directive's name read, constant work; proven in packages/core/test/early-holes-csp.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/early-holes-csp.ts > with_hash > some:0~a1ce32",
+			"reason": "one source tested for a nonce or hash, constant work; proven in packages/core/test/early-holes-csp.test.ts"
+		},
+		{
 			"id": "packages/core/src/preload.ts > preload > ensure:1 > fetch_hole:1 > renewed",
 			"reason": "browser only: a preloaded hole's renewed capability handed to the frame store, constant work; the same renewal is proven in packages/core/test/browser/hole-renewal.test.ts"
 		},
@@ -1061,6 +1141,18 @@
 			"reason": "the e2e harness: runs in the page (an Error's name and message), constant work"
 		},
 		{
+			"id": "packages/tooling/src/e2e/browsers.ts > page_errors",
+			"reason": "the e2e harness: a page's error listener installed (one name read), inside Playwright"
+		},
+		{
+			"id": "packages/tooling/src/e2e/browsers.ts > page_errors > on:1~8842b6",
+			"reason": "the e2e harness: one page error kept or left out (one regex test), constant work, inside Playwright"
+		},
+		{
+			"id": "packages/tooling/src/e2e/browsers.ts > shares_report_links",
+			"reason": "the e2e harness: whether the running engine shares report links (one name read), inside Playwright"
+		},
+		{
 			"id": "packages/tooling/src/e2e/browsers.ts > needs_js_self_profiling",
 			"reason": "the e2e harness: skips a Chromium-only spec in the other engines (one name read), inside Playwright"
 		},
@@ -1111,6 +1203,26 @@
 		{
 			"id": "packages/core/src/runtime/import-again.ts > flights:0",
 			"reason": "browser only: an island file's one load at a time (the dynamic import() of its URL, and the immediate retry under a fresh URL after a dropped download); proven in packages/core/test/browser/import-file-one-retry.test.ts (#271) and apps/palaestra/e2e/lazy-chunk-retry.spec.ts (#261)"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > entries_landed",
+			"reason": "browser only: waits (a PerformanceObserver, at most 1 s on its own scope timer) for a failed island file's timing entry, constant work; proven in packages/core/test/browser/import-response.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > entries_landed > Promise:0~3dc0a8",
+			"reason": "browser only: waits (a PerformanceObserver, at most 1 s on its own scope timer) for a failed island file's timing entry, constant work; proven in packages/core/test/browser/import-response.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > entries_landed > Promise:0~3dc0a8 > PerformanceObserver:0~0c8732",
+			"reason": "browser only: the observer's callback, linear in the timeline entries it is handed; proven in packages/core/test/browser/import-response.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > entries_landed > Promise:0~3dc0a8 > done",
+			"reason": "browser only: closes the wait's scope and settles it, constant work; proven in packages/core/test/browser/import-response.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > entries_landed > Promise:0~3dc0a8 > timeout:0~e9cbf4",
+			"reason": "browser only: the wait's 1 s bound on its own scope timer, constant work; proven in packages/core/test/browser/import-response.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/entry-locations.ts > flights:0",

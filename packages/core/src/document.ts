@@ -38,6 +38,9 @@ import { open_ask_scope, read_seed_ask, record_page } from './page-seed-registry
 import { shape_page_data } from './server/seed-shape.ts';
 
 import { escape_text } from './escape.ts';
+import { take_early_holes } from './context.ts';
+import { early_holes_head } from './early-holes-head.ts';
+import { add_early_holes_csp, with_early_holes_meta_csp } from './server/early-holes-csp.ts';
 const TITLE_TAG_RE = /<title[\s>]/i;
 import dev_hmr_url from 'virtual:ogygia/dev-hmr-url';
 import {
@@ -162,6 +165,9 @@ export async function document(
 	if (dev_hmr_url && !page_declares_dev_hmr_script(head_so_far())) {
 		head.push(`<script type="module" data-ogygia-dev-hmr src="${dev_hmr_url}"></script>`);
 	}
+	// THE EARLY START (early-holes.ts): this document's `load` holes asked for during the parse
+	const early = take_early_holes();
+	head.push(early_holes_head(early));
 	// Page-state seed (`$app/state` inside islands) — the same `application/ogygia-page` side-channel the
 	// handle injects for a Kit page, built here from the caller's snapshot (router-rendered pages).
 	// SEED ONLY WHEN READ, ONLY WHAT IS READ — the law a Kit page's seed follows: the regions rendered
@@ -200,7 +206,9 @@ export async function document(
 	const html =
 		`<!doctype html>\n<html lang="${escape_text(options.lang ?? 'en')}">` +
 		`<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">` +
-		runtime_first(head.join(''), null) +
+		(early.length
+			? with_early_holes_meta_csp(runtime_first(head.join(''), null))
+			: runtime_first(head.join(''), null)) +
 		`</head><body>${r.body}</body></html>`;
 
 	const headers = new Headers({ 'content-type': 'text/html; charset=utf-8' });
@@ -212,5 +220,7 @@ export async function document(
 	if (options.headers) {
 		for (const [k, v] of new Headers(options.headers)) headers.set(k, v);
 	}
+	// (the early start's script under the caller's policy: server/early-holes-csp.ts)
+	if (early.length) add_early_holes_csp(headers);
 	return new Response(html, { status: options.status ?? 200, headers });
 }

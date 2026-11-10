@@ -21,7 +21,7 @@ import {
 } from '../src/index.ts';
 import { KEYS_KEPT } from '../src/world.ts';
 import { MACHINE_ERRORS, machine_error, report } from '../src/messages.ts';
-import { backoff_after } from '../src/policy.ts';
+import { backoffAfter } from '../src/policy.ts';
 
 /** A lazy chunk's one more try, at once (core's `download` policy). */
 const ONE_MORE_TRY = policy({ attempts: 2, backoff: 0, jitter: 0, deadline: Infinity });
@@ -670,7 +670,7 @@ bench(
 				backoff: i % 2 ? 50 : [10, 100, 1000],
 				jitter: 0.2
 			});
-			for (let t = 1; t < p.attempts; t++) total += backoff_after(p, t, 0.5);
+			for (let t = 1; t < p.attempts; t++) total += backoffAfter(p, t, 0.5);
 		}
 		return total;
 	},

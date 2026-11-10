@@ -27,7 +27,7 @@ let mounted: Handle | null = null;
 /** The process's one profiler mount: the first requests that arrive together share it. A mount
  *  that fails (an edge runtime without node:inspector, a dev server mid-edit) is not kept, so the
  *  next request tries again. */
-const mounting = flights<{ options: ProfilerOptions }>()({
+const mounting = flights.keyed<{ options: ProfilerOptions }>()({
 	name: 'profiler mount',
 	key: [],
 	ignore: {
