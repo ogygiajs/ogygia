@@ -2379,6 +2379,46 @@
 		{
 			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > warn:1~cd9197 > map:0~a95637",
 			"reason": "build only: relative paths of at most five leaked modules, inside the warning"
+		},
+		{
+			"id": "packages/core/src/server/request-stats.ts > set_request_stats_sink",
+			"reason": "sets one module slot, once per profiler setup (constant work)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > install_request_stats",
+			"reason": "sets core's stats sink, once per profiler setup (constant work)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_of",
+			"reason": "one WeakMap read keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > hole_stats_of",
+			"reason": "one WeakMap read keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > set_batch_hole_listener",
+			"reason": "stores one listener function (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > page",
+			"reason": "one WeakMap write keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > hole",
+			"reason": "one WeakMap write keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > batchHole",
+			"reason": "hands one record to the recording profiler's listener, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > wantsBatchHoles",
+			"reason": "reads one module slot (process state), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > detailed",
+			"reason": "reads the size of a module-level set (process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
 		}
 	]
 }
