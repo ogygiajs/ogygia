@@ -2335,6 +2335,14 @@
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > page_relative_resolved",
 			"reason": "browser only: one URL resolved against a fetched page (reads location.origin), constant work"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_ERRORS > shared_state_not_plain > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_ERRORS > shared_state_not_plain > text",
+			"reason": "a message table entry: wording only"
 		}
 	]
 }
