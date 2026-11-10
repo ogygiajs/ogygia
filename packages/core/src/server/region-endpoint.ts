@@ -34,6 +34,7 @@ export function holeCss(entry: string): string[] {
 }
 
 /** Same families as encode_region_props — one seam law for island props. */
+// static: the prop families that cross the wire
 const PROP_FAMILIES = new Set(['wire', 'store', 'snippet', 'fn', 'derived']);
 
 /** The request being rendered (null off-request: prerender, a test). */
@@ -72,6 +73,7 @@ function region_session(): string {
  * A missing/oversized header is always the SAFE full render — this is a pure optimization signal.
  */
 const KNOWN_FPS = new WeakMap<object, Set<string>>();
+// static: the empty answer, shared and never written
 const EMPTY_FPS: ReadonlySet<string> = new Set();
 export function known_region_fps(): ReadonlySet<string> {
 	let event;

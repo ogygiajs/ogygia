@@ -9,9 +9,13 @@
  * Each area tells this module what it holds (`note_response_end`) only when rules are on: every call
  * site folds out of a build without them.
  */
-import { observe, type AnyMachine, type Scope } from '@ogygia/machine';
+import { cache, observe, type AnyMachine, type Scope } from '@ogygia/machine';
 import { Rules } from '../rules.ts';
 import { warn } from '../messages/server.ts';
+
+/** What the rules track at once, at most (a server in dev, a simulated run): far past one
+ *  process's requests in flight. One past it is not checked, never held. */
+const RULE_ROWS_MAX = 10_000;
 
 type ServerRule = 'rule_request_scope_open' | 'rule_flight_kept_failure';
 
@@ -19,19 +23,19 @@ type ServerRule = 'rule_request_scope_open' | 'rule_flight_kept_failure';
 export const server_rules: Rules<ServerRule> = /* @__PURE__ */ new Rules<ServerRule>();
 
 /** Request scopes whose response has ended, until a check sees them closed. */
-const ended = new Set<Scope>();
+const ended = cache<Scope, true>({ name: 'ended request scopes', max: RULE_ROWS_MAX });
 
 /** A response ended (its body read to the end, cancelled, or none): its request's scope must be
  *  closed by the time the next check runs. */
 export function note_response_end(owner: Scope): void {
 	if (!installed) return;
-	ended.add(owner);
+	ended.set(owner, true);
 	check_soon();
 }
 
 function request_scopes_closed(): string | null {
 	let open = 0;
-	for (const owner of ended) {
+	for (const [owner] of ended.entries()) {
 		if (owner.closed) ended.delete(owner);
 		else open++;
 	}
@@ -41,11 +45,18 @@ function request_scopes_closed(): string | null {
 /** The flights' entries that keep an error as their answer now, each with what it keeps. An entry
  *  leaves when it moves on (dropped, or a fresh answer kept): the rule is about what is kept now, so
  *  a check (a simulated run, the next response in dev) sees its own breaks, not an earlier one's. */
-const kept_failures = new Map<AnyMachine, string>();
+const kept_failures = cache<AnyMachine, string>({
+	name: 'kept flight failures',
+	max: RULE_ROWS_MAX
+});
 
 function no_kept_failure(): string | null {
 	if (kept_failures.size === 0) return null;
-	return [...kept_failures.values()].slice(0, 10).join('; ');
+	return kept_failures
+		.entries()
+		.slice(0, 10)
+		.map(([, said]) => said)
+		.join('; ');
 }
 
 let installed = false;

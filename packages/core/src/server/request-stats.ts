@@ -13,6 +13,7 @@
  * recording, and only then does the handle spend anything on the per-island rows, the seed
  * explainer and the hole notes below. Off, a request pays one WeakMap write of the totals.
  */
+import { registry, scope, type Scope } from '@ogygia/machine';
 
 /** One island's row in the report's Islands table. */
 export interface IslandStat {
@@ -150,7 +151,6 @@ export interface HoleRequestStats {
 
 const stats = new WeakMap<Request, OgygiaRequestStats>();
 const hole_stats = new WeakMap<Request, HoleRequestStats>();
-let detailed = false;
 let wanted = false;
 
 /** A reader of these stats is installed (the profiler, from `@ogygia/devtools`): the handle records
@@ -216,18 +216,14 @@ export function record_batch_hole_stats(request: Request, s: BatchHoleStats): vo
  * caller's, and its release lets go of that hold only, once (a second call does nothing), so an
  * extra "off" can never end someone else's.
  */
-export function hold_request_stats_detail(): () => void {
-	const hold = {};
-	detail_holds.add(hold);
-	detailed = true;
-	return () => {
-		if (!detail_holds.delete(hold)) return;
-		detailed = detail_holds.size > 0;
-	};
+export function hold_request_stats_detail(owner: Scope = process_holds): () => void {
+	return detail_holds.add({}, owner);
 }
-/** Who asked for detail, each until its own release. */
-const detail_holds = new Set<object>();
+/** Who asked for detail, each until its own release (or its owner's end: by default the process's,
+ *  for a caller that lets go itself). */
+const detail_holds = registry<object>();
+const process_holds = scope();
 
 export function request_stats_detailed(): boolean {
-	return detailed;
+	return detail_holds.size > 0;
 }
