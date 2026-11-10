@@ -37,7 +37,6 @@ import {
 	machine,
 	queue,
 	scope,
-	STALE,
 	type InFlight,
 	type Queue,
 	type Scope,
@@ -253,11 +252,9 @@ export class LoadSlot {
 		if (o.el) this.unwatch = watch_viewport(o.el, '0px', drain);
 		if (!critical_done() && waits_for_critical(this.kind, this.cls())) void critical_settled(); // ok: the critical wait only waits on timers and resources' events; it never rejects
 		// (a caller joining its flight at a higher class drains the queue: it moves up while queued)
-		const read = this.#read;
-		const flight = this.#flight ?? undefined;
-		const queued = loads.add(this, { priority: () => PRIORITY[read()], flight });
-		// a fresh document (its owner closed): it never starts
-		void queued.then((s) => s === STALE && this.unwatch()); // ok: add never rejects
+		const cls = o.cls;
+		const priority = typeof cls === 'function' ? () => PRIORITY[cls()] : PRIORITY[cls];
+		loads.push(this, { priority, flight: o.flight });
 	}
 
 	/** Its class now: the getter's, or its flight's when that is more urgent. */
@@ -316,6 +313,7 @@ function make_loads(owner: Scope): Queue<LoadSlot> {
 		holds: (p) => p <= PRIORITY.ahead,
 		admit: (slot, p) => critical_done() || !waits_for_critical(slot.kind, class_at(p)),
 		start: (slot, s) => slot.start(s),
+		stale: (slot) => slot.unwatch(), // a fresh document (its owner closed): it never starts
 		budget: START_BUDGET_MS,
 		pause: (resume) => void yield_task().then(resume), // ok: a yield never rejects
 		now,

@@ -179,7 +179,7 @@ export function yield_task(): Promise<void> {
  * Holding island code back until the page has painted is `after_document_painted`'s job.
  */
 export function background_start(fn: () => void): void {
-	void background.add(fn); // ok: a start has no owner and no deadline: it never settles STALE
+	background.push(fn);
 }
 
 /** a drain yields to the page after this long, and continues in a new background task */
