@@ -948,14 +948,7 @@ export async function navigate(
 	if (replace) {
 		// same-URL replace navigate — keep current scroll
 	} else if (scroll) {
-		const html_el = document.documentElement;
-		const prev = html_el.style.scrollBehavior;
-		html_el.style.scrollBehavior = 'auto';
-		try {
-			window.scrollTo(scroll.x, scroll.y);
-		} finally {
-			html_el.style.scrollBehavior = prev;
-		}
+		hold_scroll(scroll, next.scope);
 	} else {
 		jump_to_hash(dest.hash);
 	}
@@ -977,6 +970,54 @@ export async function navigate(
 	if (r.nav.now === settled) r.nav.go('idle');
 	// new <body> -> re-evaluate eager/viewport preload links on the freshly-swapped page
 	r.scan_preload_links();
+}
+
+/** How long a Back or Forward keeps its page where the visitor left it while the page lays out. */
+export const SCROLL_HOLD_MS = 1500;
+
+/**
+ * A Back or Forward puts its page where the visitor left it (#270), and KEEPS it there while the
+ * page lays out (#452). The scroll goes back right after the swap, before every region has its
+ * height: a header that sizes once it wakes grew above the saved position afterwards, and the page
+ * landed off by that height (the browser's scroll anchoring moved it with the growth). So the
+ * position is held: each time the page's size changes it is put back, until the visitor scrolls,
+ * clicks or types themselves, {@link SCROLL_HOLD_MS} pass, or the page's visit ends (`visit`: a
+ * newer navigation takes over), or a scroll that is not a layout change (the app's own `scrollTo`)
+ * moves it elsewhere. Instant, never smooth:
+ * CSS `scroll-behavior: smooth` must not animate a programmatic restore.
+ */
+function hold_scroll(to: { x: number; y: number }, visit: Scope): void {
+	const put = () => {
+		if (scrollX === to.x && scrollY === to.y) return;
+		const html_el = document.documentElement;
+		const prev = html_el.style.scrollBehavior;
+		html_el.style.scrollBehavior = 'auto';
+		try {
+			window.scrollTo(to.x, to.y);
+		} finally {
+			html_el.style.scrollBehavior = prev;
+		}
+	};
+	put();
+	if (visit.closed) return;
+	const hold = visit.child();
+	hold.timeout(() => hold.close(), SCROLL_HOLD_MS);
+	// the visitor moves the page: from then on where it sits is theirs
+	for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const)
+		hold.on(window, type, () => hold.close(), { capture: true, passive: true, once: true });
+	// a scroll that left it elsewhere (the app's own `scrollTo`): its scroll is not held back. One the
+	// browser made with a layout change (scroll anchoring) is put back by the observer below in that
+	// frame, before its scroll event is heard
+	hold.on(
+		window,
+		'scroll',
+		() => {
+			if (scrollX !== to.x || scrollY !== to.y) hold.close();
+		},
+		{ passive: true }
+	);
+	if (typeof ResizeObserver !== 'undefined')
+		hold.watch(new ResizeObserver(put)).observe(document.documentElement);
 }
 
 /**
