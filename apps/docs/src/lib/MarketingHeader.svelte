@@ -19,7 +19,6 @@
 		<div class="mkt-search"><HomeSearch /></div>
 		<nav class="mkt-links" aria-label="Primary">
 			<a href="/docs/start/install">Docs</a>
-			<a href="/observatory">Observatory</a>
 			<a href="/playground/getting-started/installation">Playground</a>
 			<Theme />
 			<a

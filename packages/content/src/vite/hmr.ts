@@ -3,7 +3,7 @@ import path from 'node:path';
 import MagicString from 'magic-string';
 import type { ModuleNode, Plugin, ViteDevServer } from 'vite';
 import { scope, type Scope } from '@ogygia/machine';
-import { parse_module } from '@ogygia/core/internal/compiler-browser';
+import { parse_module } from '@ogygia/core/internal/compiler';
 
 const BACKSLASH = /\\/g;
 const REMOTE_FILE = /\.remote\.(ts|js|mts|mjs)$/;

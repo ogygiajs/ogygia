@@ -14,7 +14,7 @@ const DOUBLE_QUOTE_G = /"/g;
 
 import type { ShikiTransformer } from 'shiki';
 import { flights, STALE, type Flights } from '@ogygia/machine';
-import { createHash } from '@ogygia/core/internal/compiler-browser';
+import { createHash } from 'node:crypto';
 import { render_fence, default_pipeline, type CodePipeline } from './code-render.ts';
 import { fence_key, fence_cache_get, fence_cache_set } from './fence-cache.ts';
 import type { SerializedRegion } from '../region-store.ts';

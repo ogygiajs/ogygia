@@ -91,7 +91,6 @@ over guessing** what the transform (or the running app) does:
   user how if it is missing. Profile a PROD build for real numbers (dev is dominated by Vite + instrument cost).
 - `ogygia_profile_open({ file })` — open a downloaded `.ogp` profiler report and return the same digest as
   `ogygia_profile` (for reports a user hands you).
-- `ogygia_observatory({ files })` — bundle the user's files into a CLIENT-ONLY Observatory link (gzip-packed into the URL # fragment, which browsers never send to a server) so they can SEE their code compiled + running live in the browser. Great for showing how one of their real pages becomes islands.
 - `ogygia_scan({ dir })` — scan a WHOLE project: every island/lake/server-island by file, plus a lint pass (hard `[ogygia]` errors + soft anti-patterns: island-in-island). Use it to understand or audit a real app, not one snippet.
 - `ogygia_flags({ dir })` — inventory every `flag()` call site: reads the build manifest (`node_modules/.ogygia/flags-manifest.json`) when present, else live-scans the source with the real AST collector. Names, file:line, drift vs the last build — use it to audit rollouts and find dead flags.
 - `ogygia_fragment({ origin })` — probe a federated app: fetches its unsigned `__catalog` widget manifest (names + props) and reports whether the fragment endpoint verifies signatures (401 without a signature = signed, 200 = OPEN). Use it when wiring a shell to a peer, before writing `mount(peer)` / `peer.page()` / `peer.widget()` code.

@@ -127,14 +127,6 @@
 		},
 		"./types": {
 			"types": "./ambient.d.ts"
-		},
-		"./internal/compiler-browser": {
-			"types": "./dist/compiler/browser.d.ts",
-			"default": "./dist/compiler/browser.js"
-		},
-		"./internal/compiler-browser-full": {
-			"types": "./dist/compiler/browser-full.d.ts",
-			"default": "./dist/compiler/browser-full.js"
 		}
 	},
 	"publishConfig": {
@@ -245,14 +237,6 @@
 			},
 			"./types": {
 				"types": "./ambient.d.ts"
-			},
-			"./internal/compiler-browser": {
-				"types": "./dist/compiler/browser.d.ts",
-				"default": "./dist/compiler/browser.js"
-			},
-			"./internal/compiler-browser-full": {
-				"types": "./dist/compiler/browser-full.d.ts",
-				"default": "./dist/compiler/browser-full.js"
 			}
 		},
 		"access": "public"

@@ -19,9 +19,8 @@
  * rides the shared {@link BuildCache} (`node_modules/.ogygia/<namespace>/`), so build platforms that
  * cache `node_modules` keep every baked region across builds.
  */
-// createHash via the compiler HOST SEAM (defaults to Node; a browser installs a JS sha impl) so the
-// content/markdown pipeline runs in the Observatory REPL with no node:crypto. Vite plugin unchanged.
-import { createHash, BuildCache } from '@ogygia/core/internal/compiler-browser';
+import { createHash } from 'node:crypto';
+import { BuildCache } from '@ogygia/core/internal/compiler';
 // (the producer's own version is part of every address: a release that changes what a region emits —
 // an import specifier, a wrapper — must never be served an older release's bake)
 import pkg from '../package.json' with { type: 'json' };

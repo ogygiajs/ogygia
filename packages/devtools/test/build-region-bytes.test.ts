@@ -139,7 +139,7 @@ describe('island_subgraph_bytes', () => {
 
 	it('prunes the shared transportables registry (would otherwise drag in the whole app)', () => {
 		// The real bug: the island entry imports `ogygia:region/transportables`, which imports every
-		// transportable-defining module app-wide (an 80 KB snippets file, the Observatory driver, …).
+		// transportable-defining module app-wide (an 80 KB snippets file, …).
 		const snippets = mod('/src/lib/code/snippets.ts', 'B'.repeat(80000));
 		const registry = mod('/@id/ogygia:region/transportables', 'reg', [snippets]);
 		const comp = mod('/src/lib/Counter.svelte', 'y'.repeat(200));

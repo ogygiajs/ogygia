@@ -23,8 +23,7 @@
  * Exposed to consumers as `ogygia/internal/compiler` (internal, not a stable public API).
  */
 export * from './region/transform.ts';
-// The parser DI seam — a browser build (the Observatory) injects rolldown-browser's oxc here.
-export { set_parser, type RawParse } from './parse/oxc.ts';
+export { set_parser, parse_module, type RawParse } from './parse/oxc.ts';
 export * from './fouc-css.ts';
 export * from './free-vars.ts';
 export { Compiler, type Profiler } from './driver.ts';
@@ -50,3 +49,17 @@ export { OGYGIA_SCHEME } from './virtual/table.ts';
 export { OWN_FILE_RE } from '../contract/own-package.ts';
 // the build's message tables, for the docs' `ogygiajs.dev/e` pages
 export { BUILD_ERRORS, BUILD_WARNINGS } from './messages.ts';
+// The building blocks of an `import.meta.og.*` macro, for first-party plugins' macros (content's
+// `code` / `md` / `loader` / `regions` / `git`): the call scanner, the member matcher, the build cache.
+export {
+	find_og_calls,
+	split_first_string,
+	og_js_regions,
+	is_js_module,
+	type OgCall,
+	type JsRegion
+} from './parse/scan.ts';
+export { og_member } from './macros/wire.ts';
+export { BuildCache, configure_build_cache, __set_build_cache_root } from './build-cache.ts';
+export { content_css_key } from '../contract/content.ts';
+export { dedent } from './dedent.ts';
