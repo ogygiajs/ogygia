@@ -16,6 +16,8 @@
  */
 
 import { OgygiaError } from '../../messages/build.ts';
+import type { ExportIndex } from '../exports/index.ts';
+import type { WalkResolve } from '../fouc-css.ts';
 
 /** Where a virtual module may run. */
 export type Realm = 'server' | 'boot' | 'region' | 'dev';
@@ -48,6 +50,8 @@ export interface Leg {
 	universalHooks: string | null;
 	/** the bundler's resolver */
 	resolve?: (spec: string, importer: string) => Promise<string | null>;
+	/** `resolve`'s export index (compiler/exports/), for a walk through barrels */
+	exports?: ExportIndex<WalkResolve>;
 	/** Kit 3's own codec module (`#app/internal/transport`), when the app's Kit has one */
 	kitCodec?: string | null;
 }

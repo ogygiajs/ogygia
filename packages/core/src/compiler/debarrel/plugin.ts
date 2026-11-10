@@ -19,9 +19,9 @@
  * app's Vite knows), and `this.addWatchFile` so an edit to a barrel re-transforms the importers
  * that no longer import it.
  */
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { searchForWorkspaceRoot, type Plugin } from 'vite';
-import { BarrelIndex, type ExportMap, type Host } from '../exports/index.ts';
+import { ExportIndex, Shapes, type ExportMap, type Policy } from '../exports/index.ts';
 import { matches_any, normalize_options, type DebarrelOptions } from './options.ts';
 import { rewrite_module, type RewritePolicy } from './rewrite.ts';
 import { rewrite_svelte } from './svelte.ts';
@@ -53,6 +53,8 @@ export interface DebarrelInternal {
 	 *  `import.meta.og.asRegion(X)`): a declaration binding one of them is never rewritten, so
 	 *  the id the compiler's prescan derives from the raw source is the id the transform sees. */
 	skip_locals?: (code: string) => ReadonlySet<string>;
+	/** The app's module shapes (ogygia's, shared with its CSS walk); without it, the plugin's own. */
+	shapes?: Shapes;
 }
 
 export function debarrel(
@@ -72,7 +74,6 @@ export function debarrel(
 	let root = process.cwd().replace(BACKSLASH_G, '/');
 	let log: (msg: string) => void = (msg) => console.log(msg);
 	let command: 'build' | 'serve' = 'serve';
-	const mtimes = new Map<string, number>();
 	// The report: what the pass did in this build leg (reset after each print — Kit runs several).
 	const fresh_report = () => ({
 		files: 0,
@@ -93,43 +94,42 @@ export function debarrel(
 	// One index per ENVIRONMENT: a dev server shares this plugin between the client and the server,
 	// and a leaf can resolve to another file for each (`browser` / `node` conditions), so a map one
 	// built must never answer the other. Resolution goes through the transform that asked, its own
-	// `resolve` handed down every walk (`skipSelf` keeps us out of our own hook). Reads are the file
-	// system with an mtime check: a changed barrel drops its cached shape and every map that
-	// depended on it, in every index.
-	const indexes = new Map<string, BarrelIndex<Resolver>>();
-	const index_of = (environment: string): BarrelIndex<Resolver> => {
-		let index = indexes.get(environment);
-		if (index === undefined) indexes.set(environment, (index = new BarrelIndex(host)));
-		return index;
-	};
-	const invalidate = (id: string) => {
-		for (const index of indexes.values()) index.invalidate(id);
-	};
-	const host: Host<Resolver> = {
-		read(id) {
+	// `resolve` handed down every walk (`skipSelf` keeps us out of our own hook). The shapes are the
+	// app's (one parse per file): an edit drops a file's shape and every map that depended on it, in
+	// every index.
+	const shapes =
+		internal.shapes ??
+		new Shapes((id) => {
 			try {
-				const st = statSync(id);
-				const prev = mtimes.get(id);
-				if (prev !== undefined && prev !== st.mtimeMs) invalidate(id);
-				mtimes.set(id, st.mtimeMs);
 				return strip_bom(readFileSync(id, 'utf8'));
 			} catch {
 				return null;
 			}
-		},
-		async resolve(spec, importer, caller) {
-			// Vite THROWS for a specifier it cannot resolve from this importer (a strict pnpm layout, a
-			// deep import into a package's `src`). Unresolvable = not a barrel: the import stays as
-			// written and the bundler reports it — or not, if the import was a type.
-			let r: Awaited<ReturnType<Resolver['resolve']>>;
-			try {
-				r = await caller.resolve(spec, importer, { skipSelf: true });
-			} catch {
-				return null;
-			}
-			if (!r || r.external) return null;
-			return r.id.replace(BACKSLASH_G, '/');
-		},
+		});
+	const resolve = async (
+		spec: string,
+		importer: string,
+		caller: Resolver
+	): Promise<string | null> => {
+		// Vite THROWS for a specifier it cannot resolve from this importer (a strict pnpm layout, a
+		// deep import into a package's `src`). Unresolvable = not a barrel: the import stays as
+		// written and the bundler reports it — or not, if the import was a type.
+		let r: Awaited<ReturnType<Resolver['resolve']>>;
+		try {
+			r = await caller.resolve(spec, importer, { skipSelf: true });
+		} catch {
+			return null;
+		}
+		if (!r || r.external) return null;
+		return r.id.replace(BACKSLASH_G, '/');
+	};
+	const indexes = new Map<string, ExportIndex<Resolver>>();
+	const index_of = (environment: string): ExportIndex<Resolver> => {
+		let index = indexes.get(environment);
+		if (index === undefined) indexes.set(environment, (index = new ExportIndex(resolve, shapes)));
+		return index;
+	};
+	const barrels: Policy = {
 		candidate(id, spec) {
 			if (o.packages.length && matches_any(o.packages, id, spec)) return true;
 			if (o.force.length && matches_any(o.force, id, spec)) return true;
@@ -176,9 +176,10 @@ export function debarrel(
 			const importer = id.replace(QUERY_RE, '');
 			const seen: ExportMap[] = [];
 			const lookup = async (spec: string): Promise<ExportMap | null> => {
-				const resolved = await host.resolve(spec, importer, caller);
+				// (the importer's own specifier, fresh each transform, as the bundler resolves it now)
+				const resolved = await resolve(spec, importer, caller);
 				if (!resolved) return null;
-				const map = await index.map(resolved, spec, caller);
+				const map = await index.map(resolved, spec, barrels, caller);
 				if (map) seen.push(map);
 				return map;
 			};
@@ -225,8 +226,8 @@ export function debarrel(
 					);
 			return { code: result.code, map: result.map };
 		},
-		watchChange(id) {
-			invalidate(id.replace(BACKSLASH_G, '/'));
+		watchChange(id, change) {
+			shapes.invalidate(id, change.event);
 		},
 		// The report, once per build leg (Kit builds client then server; each gets its own). Dev
 		// prints nothing here — `debug` narrates rewrites as they happen.

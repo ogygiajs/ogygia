@@ -78,8 +78,12 @@ import {
 	foucRelFromId,
 	isFoucCssId,
 	isFoucScopedId,
-	svelteHasStyle
+	svelteHasStyle,
+	through_caller,
+	type WalkResolve
 } from '../compiler/fouc-css.ts';
+import { ExportIndex, Shapes } from '../compiler/exports/index.ts';
+import { strip_bom } from '../compiler/bom.ts';
 
 import { preprocess_component_for_css } from './style-preprocess.ts';
 import {
@@ -282,8 +286,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	// `own`: the root's source when it is not the file on disk (a content module's post-mdsvex Svelte);
 	// the root's own CSS is then the caller's. `skip`: files whose CSS ships some other way.
 	const compiled_css = new Map<string, string | null>();
-	const tree_css_walk = (ctx: Parameters<typeof bundler_resolve>[0]) => {
+	const tree_css_walk = (
+		ctx: Parameters<typeof bundler_resolve>[0] & { environment: { name: string } }
+	) => {
 		const walk_resolve = bundler_resolve(ctx);
+		const exports = css_walk_index(ctx.environment.name);
 		return async (
 			abs: string,
 			opts: { own?: string; skip?: (abs: string) => boolean } = {}
@@ -295,7 +302,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				libDir,
 				readFile: own == null ? readFile : (p: string) => (p === abs ? own : readFile(p)),
 				alias: resolve_alias,
-				resolve: walk_resolve
+				resolve: walk_resolve,
+				exports
 			})) {
 				if ((own != null && e.abs === abs) || skip?.(e.abs)) continue;
 				let css = compiled_css.get(e.abs);
@@ -380,6 +388,21 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		}
 	};
 
+	// The app's module shapes, each parsed once (compiler/exports/): the CSS walk's indexes and the
+	// debarrel pass's read the same ones. An index is per resolver: the CSS walk resolves past this
+	// plugin, debarrel through it, so they share parses, never resolutions.
+	const shapes = new Shapes((abs) => {
+		const code = readFile(abs);
+		return code == null ? null : strip_bom(code);
+	});
+	const css_walk_indexes = new Map<string, ExportIndex<WalkResolve>>();
+	const css_walk_index = (environment: string): ExportIndex<WalkResolve> => {
+		let index = css_walk_indexes.get(environment);
+		if (index === undefined)
+			css_walk_indexes.set(environment, (index = new ExportIndex(through_caller, shapes)));
+		return index;
+	};
+
 	const __prof = {
 		transformMs: 0,
 		transformN: 0,
@@ -458,7 +481,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			? [
 					debarrel(options.barrels, {
 						skip_attribute_keys: Object.values(import_keys),
-						skip_locals: asRegionLocals
+						skip_locals: asRegionLocals,
+						shapes
 					})
 				]
 			: []),
@@ -970,6 +994,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			watchChange(id, change) {
+				// before anything re-emits: a module's parse, and what every export index built from it
+				shapes.invalidate(id, change.event);
 				// A route add/remove/rename or a `csr` export flip changes the csr topology → drop the
 				// memoized answers AND re-run the baked `ogygia:server/route-csr` module. The second
 				// half is load-bearing: context.ts imports `csr_true_routes` through the SSR module
@@ -1195,6 +1221,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					ssr,
 					universalHooks: universal_hooks,
 					resolve: bundler_resolve(this),
+					exports: css_walk_index(this.environment.name),
 					kitCodec: kit_transport_init
 				});
 			},
