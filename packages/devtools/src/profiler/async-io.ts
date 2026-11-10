@@ -47,6 +47,7 @@ export interface IoOp {
 
 // I/O primitives worth timing. PROMISE is excluded (far too many, and it is CPU
 // scheduling, not I/O). HTTP/TLS are excluded — the fetch/http patch owns them.
+// static: a fixed list of async resource types
 const TRACK = new Set([
 	'Timeout',
 	'Immediate',

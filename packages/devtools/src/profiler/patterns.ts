@@ -606,6 +606,7 @@ function literal_length(t: readonly string[]): boolean {
 }
 
 /** names a fixed table's builder may use without depending on the call: builtins */
+// static: a fixed list of builtins
 const GLOBALS: ReadonlySet<string> = new Set([
 	'Math',
 	'String',
@@ -689,6 +690,7 @@ function built_on_miss(t: readonly string[]): boolean {
 }
 
 /** calls whose answer is text: added with `+=`, they grow a string */
+// static: a fixed list of calls
 const TEXT_CALLS: ReadonlySet<string> = new Set([
 	'String',
 	'join',
@@ -754,6 +756,7 @@ function has_member(t: readonly string[], obj: string, prop: string): boolean {
 	return false;
 }
 
+// static: a fixed list of array methods
 const LOOP_METHODS: ReadonlySet<string> = new Set([
 	'forEach',
 	'map',
@@ -854,6 +857,7 @@ function in_module_script(lines: readonly string[]): boolean {
 
 // ── the patterns ─────────────────────────────────────────────────────────────
 
+// static: a fixed list of constructors
 const INTL: ReadonlySet<string> = new Set([
 	'NumberFormat',
 	'DateTimeFormat',
@@ -864,12 +868,14 @@ const INTL: ReadonlySet<string> = new Set([
 	'Segmenter',
 	'DisplayNames'
 ]);
+// static: a fixed list of methods
 const LOCALE_METHODS: ReadonlySet<string> = new Set([
 	'toLocaleString',
 	'toLocaleDateString',
 	'toLocaleTimeString',
 	'localeCompare'
 ]);
+// static: a fixed list of methods
 const RESCAN: ReadonlySet<string> = new Set([
 	'replace',
 	'replaceAll',
@@ -887,6 +893,7 @@ const RESCAN: ReadonlySet<string> = new Set([
 	'toLowerCase',
 	'toUpperCase'
 ]);
+// static: a fixed list of methods
 const STRING_REBUILD: ReadonlySet<string> = new Set([
 	'replace',
 	'replaceAll',
@@ -894,6 +901,7 @@ const STRING_REBUILD: ReadonlySet<string> = new Set([
 	'substring',
 	'concat'
 ]);
+// static: a fixed list of methods
 const LOOKUP: ReadonlySet<string> = new Set([
 	'find',
 	'findIndex',
@@ -903,8 +911,11 @@ const LOOKUP: ReadonlySet<string> = new Set([
 	'includes',
 	'some'
 ]);
+// static: a fixed list of constructors
 const COLLECTIONS: ReadonlySet<string> = new Set(['Map', 'Set', 'WeakMap']);
+// static: a fixed list of methods
 const SORT: ReadonlySet<string> = new Set(['sort', 'toSorted']);
+// static: a fixed list of calls
 const SYNC_IO: ReadonlySet<string> = new Set([
 	'readFileSync',
 	'writeFileSync',
@@ -917,9 +928,13 @@ const SYNC_IO: ReadonlySet<string> = new Set([
 	'accessSync',
 	'realpathSync'
 ]);
+// static: a fixed list of constructors
 const REGEXP: ReadonlySet<string> = new Set(['RegExp']);
+// static: a fixed list of constructors
 const DATE: ReadonlySet<string> = new Set(['Date']);
+// static: a fixed list of calls
 const CLONE: ReadonlySet<string> = new Set(['structuredClone', 'cloneDeep']);
+// static: a fixed list of calls
 const YIELDS: ReadonlySet<string> = new Set(['setImmediate', 'setTimeout', 'queueMicrotask']);
 
 interface Rule {
@@ -1021,6 +1036,7 @@ function regexp_locals(
 }
 /** (a check, whose own ticks are the build's: a `replace` or a `split` with it makes new text, work
  *  that stays after the fix — its line is not moved) */
+// static: a fixed list of methods
 const REGEXP_USE: ReadonlySet<string> = new Set(['test', 'exec']);
 /** the RegExp the same function built that this line checks with: `re.test(s)`, `re.exec(s)` — V8
  *  often charges a `new RegExp` to its first use, the line below it */
@@ -1048,6 +1064,7 @@ function text_locals(body: readonly string[]): Set<string> {
 	}
 	return out;
 }
+// static: a fixed list of methods
 const INTL_USE: ReadonlySet<string> = new Set([
 	'format',
 	'formatToParts',
@@ -1089,6 +1106,7 @@ function locale_call_with_args(t: readonly string[]): boolean {
 	return false;
 }
 
+// static: a fixed list of methods
 const DATE_FORMAT_CALLS: ReadonlySet<string> = new Set([
 	'format',
 	'formatToParts',
@@ -1523,6 +1541,7 @@ export function counted_sync_io(
 		evidence: `${said.map((n) => `${n} ×${sync.get(n)}`).join(', ')} per render (V8's call counts): too quick for the CPU sampler here, under a millisecond, but each call stops every other request on this server until the disk answers.`
 	};
 }
+// static: a fixed list of keywords
 const BLOCK_WORDS: ReadonlySet<string> = new Set([
 	'if',
 	'for',
@@ -1533,6 +1552,7 @@ const BLOCK_WORDS: ReadonlySet<string> = new Set([
 	'return'
 ]);
 /** the *Sync calls V8's coverage counts under their own names (in Node's `node:` modules) */
+// static: a fixed list of calls
 const COUNTED_SYNC: ReadonlySet<string> = new Set([
 	...SYNC_IO,
 	'appendFileSync',
@@ -2887,6 +2907,7 @@ export function late_island_pattern(items: readonly LateIslandWait[]): Pattern |
 
 // ── one level in: inlined callees and loop bodies ─────────────────────────────
 
+// static: a fixed list of keywords
 const NOT_CALLS: ReadonlySet<string> = new Set([
 	'if',
 	'for',
