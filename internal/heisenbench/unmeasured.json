@@ -2131,6 +2131,10 @@
 		{
 			"id": "packages/flags/src/index.ts > set_prime",
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/link/location-map.ts > by_key",
+			"reason": "build time: one comparison of two keys, a sort's callback (not recorded), constant work; proven in packages/core/test/entry-locations.test.ts"
 		}
 	]
 }
