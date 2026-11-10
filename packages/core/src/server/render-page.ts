@@ -226,6 +226,8 @@ export function render_page_version(
 }
 
 /** 32-bit FNV-1a, base36: a version tag, not a security boundary (the same tags as before #484). */
+// hash: 32 bits on purpose: it only tags a version (a collision costs one missed re-render, never
+// wrong content), and a wider tag would re-tag every hole on deploy for no correctness gain
 const fnv1a = (text: string): string => bucket32(text).toString(36);
 
 const asks_of = new WeakMap<Request, SeedKeys>();
