@@ -14,7 +14,7 @@
  */
 import { createSubscriber } from 'svelte/reactivity';
 import { parse, stringify } from 'devalue';
-import { OgygiaError } from './messages/island.ts';
+import { OgygiaError } from './messages.ts';
 
 interface Entry {
 	value: unknown;
@@ -65,6 +65,19 @@ function snapshot<T>(name: string, value: T): T {
 	}
 }
 
+/**
+ * One page-wide value that islands from separate builds share. Every build's copy of the class
+ * meets at one page store under the same name. Read and write `.current`; values must be plain
+ * data (devalue-serializable). A server can seed the opening value with
+ * `<script type="application/json" data-og-shared="<name>">`, and plain scripts can join through
+ * `globalThis.ogygia.shared(name)`.
+ *
+ * @example
+ * ```ts
+ * import { SharedState } from '@ogygia/federation/shared';
+ * export const cart = new SharedState('cart', { items: [] as string[] });
+ * ```
+ */
 export class SharedState<T extends object> {
 	#name: string;
 	#subscribe: () => void;

@@ -116,7 +116,7 @@ Each island is its own hydration root. Props cross by **value** (devalue), never
      });
    }
    ```
-   Must be a top-level `export class`. Liveness is identity: every island holding the prop reunites into the same instance; `$state` inside is reactive across all of them. Server never memoizes (no cross-request leaks) — make the instance per request. Related live primitives: `og_derived` (a derived whose recipe crosses and re-derives against the reunified live sources on the far side) and `SharedState` (cross-fragment shared page store, server-seedable) — both from `'ogygia'`, see docs 03-data-state.
+   Must be a top-level `export class`. Liveness is identity: every island holding the prop reunites into the same instance; `$state` inside is reactive across all of them. Server never memoizes (no cross-request leaks) — make the instance per request. Related live primitives: `og_derived` (a derived whose recipe crosses and re-derives against the reunified live sources on the far side) from `'ogygia'`, and `SharedState` (cross-fragment shared page store, server-seedable) from `'@ogygia/federation/shared'`; see docs 03-data-state.
 5. **Context**: Svelte's tree-`setContext` can't reach inside islands on the client (separate roots). ogygia bridges via the DOM:
    - Drop-in: swap `import { setContext } from 'svelte'` → `from 'ogygia'` in a csr=false layout; string-keyed values reach child islands, read with **unchanged `getContext('key')`**. Flat page root.
    - Scoped: `<Provide values={{ theme: 'dark' }}>…</Provide>` wraps a subtree (array form merges entries, falsy skipped). Shadows the page root on the same key.
