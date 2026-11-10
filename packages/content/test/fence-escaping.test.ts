@@ -34,7 +34,7 @@ describe('a fence that tries to break out of an attribute', () => {
 
 	it('any language, id and file name stay inside their attributes and read back as themselves', async () => {
 		const word = fc.string({
-			unit: fc.constantFrom('"', "'", '<', '>', '&', '=', '/', 'a', 'x', ';', '#'),
+			unit: fc.constantFrom('"', "'", '<', '>', '&', '=', '/', 'a', 'x', ';', '#', '$', '`'),
 			minLength: 1,
 			maxLength: 16
 		});
@@ -55,6 +55,11 @@ describe('a fence that tries to break out of an attribute', () => {
 			}),
 			{ numRuns: 40 }
 		);
+	});
+
+	it('a `$` pattern in the language or id is placed as written, never expanded', async () => {
+		const { html } = await render("ts$'", "ogygia-code-id=x$'$&");
+		expect(html).toContain(`data-lang="ts$'" id="x$'$&amp;" class=`);
 	});
 
 	it("a file name's markup characters are escaped in data-file, as in any attribute", async () => {
