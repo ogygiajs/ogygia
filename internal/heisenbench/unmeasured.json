@@ -1009,8 +1009,48 @@
 			"reason": "the debarrel plugin's barrel index for one environment (a Map get or create, over the plugin's closure: not replayable); the index's work is benched in packages/core/bench/compiler.bench.ts; proven against a real Vite dev server in packages/core/test/debarrel/plugin.test.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > invalidate",
-			"reason": "an edit handed to every environment's barrel index (a loop over the plugin's closure: not replayable); BarrelIndex.invalidate is benched in packages/core/bench/compiler.bench.ts; proven against a real Vite dev server in packages/core/test/debarrel/plugin.test.ts"
+			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > Shapes:0~35b8f6",
+			"reason": "the standalone plugin's file read for its shapes (a BOM-stripped readFileSync over the plugin's closure: not replayable); proven against a real Vite dev server in packages/core/test/debarrel/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > resolve",
+			"reason": "one specifier through the transform's own this.resolve (a live Vite plugin context, not recorded); proven against a real Vite dev server in packages/core/test/debarrel/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > barrels > candidate",
+			"reason": "the plugin's barrel policy over its options and root (the plugin's closure: not replayable), constant work; the policies are proven in packages/core/test/exports-index.test.ts and packages/core/test/debarrel/barrel.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > barrels > forced",
+			"reason": "the plugin's barrel policy over its options (the plugin's closure: not replayable), constant work; the policies are proven in packages/core/test/exports-index.test.ts and packages/core/test/debarrel/barrel.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > barrels > kept",
+			"reason": "the plugin's barrel policy over its options (the plugin's closure: not replayable), constant work; the policies are proven in packages/core/test/exports-index.test.ts and packages/core/test/debarrel/barrel.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/exports/index.ts > EVERY_BARREL > forced",
+			"reason": "a constant answer (false) of the allow-everything policy"
+		},
+		{
+			"id": "packages/core/src/compiler/exports/parse.ts > attribute_keys > map:0~781359",
+			"reason": "one attribute node to its key name (an oxc AST node: not replayable), constant work; the parse is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > Shapes:0~f72d16",
+			"reason": "the app's file read for its shared shapes (a BOM-stripped read over the plugin's closure: not replayable); the shapes are benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/fouc-css.ts > through_caller",
+			"reason": "hands one specifier to the walk's resolver (a function argument: not cloneable); proven in packages/core/test/exports-index.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/fouc-css.ts > collectFoucCssReachable > Shapes:0~3bebf5",
+			"reason": "the walk's own file read for a fresh index's shapes (a pass-through to the caller's reader: not replayable); proven in packages/core/test/exports-index.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > css_walk_index",
+			"reason": "the CSS walk's export index for one environment (a Map get or create over the plugin's closure), constant work; the index's work is benched in packages/core/bench/compiler.bench.ts"
 		},
 		{
 			"id": "packages/cli/src/perf/cli.ts > group_alive",
