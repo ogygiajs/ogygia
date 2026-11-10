@@ -283,6 +283,25 @@ describe('route config', () => {
 	});
 });
 
+describe("a plugin's warnings", () => {
+	it('are said once each, and 10,000 distinct ones keep at most 1024 (#438)', () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			const { app } = startPlugin(defineServer({}), { name: 'warns' });
+			app.warn('the store is down');
+			app.warn('the store is down');
+			expect(warn).toHaveBeenCalledTimes(1);
+			for (let i = 0; i < 10_000; i++) app.warn(`no page at /p/${i}`);
+			expect(warn).toHaveBeenCalledTimes(10_001);
+			// the oldest was let go: said again
+			app.warn('no page at /p/0');
+			expect(warn).toHaveBeenCalledTimes(10_002);
+		} finally {
+			warn.mockRestore();
+		}
+	});
+});
+
 describe('startPlugin — a server realm without a server', () => {
 	it('runs setup, registers shared hooks, and hands out request contexts', async () => {
 		const calls: string[] = [];
