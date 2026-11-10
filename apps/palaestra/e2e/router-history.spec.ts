@@ -103,6 +103,26 @@ test.describe('the router’s history behaves as a plain site’s', () => {
 		});
 	}
 
+	test('#452 Back lands exactly where the page was left when the page is too short to reach it at the swap', async ({
+		page
+	}) => {
+		const tall_live = () =>
+			page.locator('ogygia-region[data-hydrated]:has([data-late-tall])').waitFor();
+		await open(page, '/router-history/late-tall');
+		await tall_live();
+		await scroll_to(page, 1200);
+		await page.evaluate(() =>
+			(document.querySelector('[data-late-tall-to-a]') as HTMLElement).click()
+		);
+		await expect(page.locator('[data-history-a]')).toBeVisible();
+		// (the put-back is clamped to the short page: that clamp must not end the hold)
+		await page.goBack();
+		await expect(page.locator('[data-history-late-tall]')).toBeVisible();
+		await tall_live();
+		await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 300))));
+		expect(await scroll_y(page)).toBe(1200);
+	});
+
 	test('#282 Back between two app-managed fragments keeps the scroll', async ({ page }) => {
 		await open(page, '/router-history/fragments');
 		await scroll_to(page, 600);
