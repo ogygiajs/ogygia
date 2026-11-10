@@ -156,21 +156,34 @@ const checkouts = flights.keyed<Spec>()({
 });
 ```
 
-|                                  |                                                                                                                 |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `run(input, signal)`             | The work. Starts inside the `get` that finds no flight and no kept answer; that caller's input is the one run.  |
-| `flights.keyed<I>()({ key })`    | The keyed form: inputs with the same `key` fields are the same flight. Default (`flights()`): the input itself. |
-| `keep`                           | How long an answer stays, ms (or made from the answer). `0` keeps nothing. Default: for as long as it lives.    |
-| `max` / `weigh(answer)`          | The most total weight kept (default weight 1: a count); the least recently used go first.                       |
-| `retries`                        | Tries again at once, inside one flight, before it fails.                                                        |
-| `get(input, { signal, fresh })`  | Joins, gives the kept answer, or starts a flight. `STALE` when it was dropped or this caller left.              |
-| `peek(key)`                      | What the key holds now (`flying`, or `kept` with its answer and when it landed), without starting anything.     |
-| `drop(key \| (key, entry) => …)` | Takes kept answers out and ends flights in progress: their callers get `STALE`, nothing they answer is kept.    |
+|                                           |                                                                                                                 |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `run(input, signal, flight)`              | The work. Starts inside the `get` that finds no flight and no kept answer; that caller's input is the one run.  |
+| `flights.keyed<I>()({ key })`             | The keyed form: inputs with the same `key` fields are the same flight. Default (`flights()`): the input itself. |
+| `keep`                                    | How long an answer stays, ms (or made from the answer). `0` keeps nothing. Default: for as long as it lives.    |
+| `max` / `weigh(answer)`                   | The most total weight kept (default weight 1: a count); the least recently used go first.                       |
+| `retries`                                 | Tries again at once, inside one flight, before it fails.                                                        |
+| `get(input, { signal, fresh, priority })` | Joins, gives the kept answer, or starts a flight. `STALE` when it was dropped or this caller left.              |
+| `peek(key)`                               | What the key holds now (`flying`, or `kept` with its answer and when it landed), without starting anything.     |
+| `drop(key \| (key, entry) => …)`          | Takes kept answers out and ends flights in progress: their callers get `STALE`, nothing they answer is kept.    |
 
 - **A failure is never kept.** Every caller of a failed flight gets the failure, and the next `get` starts a new one. A failing key costs one try per wave of callers, not one per caller.
 - **The last caller out stops the work.** A caller with a `signal` that aborts gets `STALE` at once; the flight's own signal aborts only when every caller has left. A caller with no signal holds it until it lands.
 - **`fresh` revalidates.** It starts a new flight beside the kept answer, which stays (and `peek` shows it) until the new one lands, and stays when the new one fails or is not kept. A flight already out is ended, so an answer from before a change cannot land after it.
+- **The caller who needs it most sets the pace.** A `get` may say its `priority` (higher is sooner, default 0). A flight is at the highest priority of the callers that joined it: a join with a higher one raises it, a lower one never lowers it, and a caller that leaves does not take its raise back. The run reads `flight.priority` and hears each raise through `flight.onRaise(p => …)`, so it can lift its own work where the platform lets it: a download still queued, a `fetchpriority` not sent yet. A listener that throws is reported ([machine_flight_raise_failed](https://ogygiajs.dev/e/machine_flight_raise_failed)); the join goes on.
 - A flights is `Disposable`: a scope can `adopt` it, and closing the scope ends its flights.
+
+```ts
+const chunks = flights({
+	run: (url: string, signal, flight) => {
+		const link = preload(url, flight.priority);
+		flight.onRaise((p) => (link.fetchPriority = p > 1 ? 'high' : 'auto'));
+		return loaded(link, signal);
+	}
+});
+void chunks.get(url, { priority: 0 }); // a guess
+await chunks.get(url, { priority: 2 }); // the visitor needs it: the guess is raised
+```
 
 Each key's entry is a machine (`flying`, `kept`, `gone`), so `observe()` hears every flight's moves under the flights' `name`.
 

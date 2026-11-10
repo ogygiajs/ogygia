@@ -145,9 +145,9 @@ describe('a flight priority, simulated', () => {
 				});
 				const warm = f.get('chunk', { priority: 0 }); // the speculative warm
 				// the visitor's join comes when the scheduler picks it: before or after the landing
-				const joined = s.schedule(Promise.resolve(), 'the visitor joins').then(() =>
-					f.get('chunk', { priority: 3 })
-				);
+				const joined = s
+					.schedule(Promise.resolve(), 'the visitor joins')
+					.then(() => f.get('chunk', { priority: 3 }));
 				await s.waitAll();
 				expect(await warm).toBe('module');
 				const join = await joined;
