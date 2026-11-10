@@ -1,9 +1,20 @@
 // The `ogygia:dev/…` modules. GENERATED from the virtual-module table
-// (packages/core/src/compiler/virtual/core.ts): change an entry's `types` there, then run
-// `node packages/core/scripts/virtual-types.ts`. A test fails while this file is stale.
+// (packages/core/src/compiler/virtual/core.ts) by `node packages/core/scripts/virtual-types.ts`;
+// every type is read off the code (see src/compiler/virtual/types.ts). Do not edit.
 
-declare module 'ogygia:dev/hmr' {}
-declare module 'virtual:ogygia/dev-hmr' {}
-
-declare module 'ogygia:dev/devtools-boot' {}
-declare module 'virtual:ogygia/devtools-boot' {}
+declare module 'ogygia:dev/devtools-boot' {
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').devtools_boot>;
+export = module;
+}
+declare module 'virtual:ogygia/devtools-boot' {
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').devtools_boot>;
+export = module;
+}
+declare module 'ogygia:dev/hmr' {
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').hmr>;
+export = module;
+}
+declare module 'virtual:ogygia/dev-hmr' {
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').hmr>;
+export = module;
+}

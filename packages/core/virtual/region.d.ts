@@ -1,15 +1,20 @@
 // The `ogygia:region/…` modules. GENERATED from the virtual-module table
-// (packages/core/src/compiler/virtual/core.ts): change an entry's `types` there, then run
-// `node packages/core/scripts/virtual-types.ts`. A test fails while this file is stale.
+// (packages/core/src/compiler/virtual/core.ts) by `node packages/core/scripts/virtual-types.ts`;
+// every type is read off the code (see src/compiler/virtual/types.ts). Do not edit.
 
 declare module 'ogygia:region/kit-transport' {
-	type CodecMap = Record<string, { encode: (v: unknown) => unknown; decode: (v: unknown) => unknown }>;
-	export const transport: CodecMap;
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_transport>;
+export = module;
 }
 declare module 'virtual:ogygia/kit-transport' {
-	type CodecMap = Record<string, { encode: (v: unknown) => unknown; decode: (v: unknown) => unknown }>;
-	export const transport: CodecMap;
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_transport>;
+export = module;
 }
-
-declare module 'ogygia:region/transportables-eager' {}
-declare module 'virtual:ogygia/transportables-eager' {}
+declare module 'ogygia:region/transportables-eager' {
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').transportables_eager>;
+export = module;
+}
+declare module 'virtual:ogygia/transportables-eager' {
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').transportables_eager>;
+export = module;
+}

@@ -1,351 +1,158 @@
 // The `ogygia:server/…` modules. GENERATED from the virtual-module table
-// (packages/core/src/compiler/virtual/core.ts): change an entry's `types` there, then run
-// `node packages/core/scripts/virtual-types.ts`. A test fails while this file is stale.
-
-declare module 'ogygia:server/runtime-url' {
-	const url: string;
-	export default url;
-}
-declare module 'virtual:ogygia/runtime-url' {
-	const url: string;
-	export default url;
-}
+// (packages/core/src/compiler/virtual/core.ts) by `node packages/core/scripts/virtual-types.ts`;
+// every type is read off the code (see src/compiler/virtual/types.ts). Do not edit.
 
 declare module 'ogygia:server/dev-hmr-url' {
-	const url: string;
-	export default url;
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').dev_hmr_url>;
+export default value;
 }
 declare module 'virtual:ogygia/dev-hmr-url' {
-	const url: string;
-	export default url;
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').dev_hmr_url>;
+export default value;
 }
-
 declare module 'ogygia:server/devtools-boot-url' {
-	const url: string;
-	export default url;
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').devtools_boot_url>;
+export default value;
 }
 declare module 'virtual:ogygia/devtools-boot-url' {
-	const url: string;
-	export default url;
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').devtools_boot_url>;
+export default value;
 }
-
-declare module 'ogygia:server/island-deps' {
-	/** Public URLs of hashed dependency chunks for a hydrate island entry (`/_app/immutable/…`). */
-	export function islandDeps(entry: string): string[];
-	/** WAKE ADVISOR: what the island's own components do (handlers, `$state`, `$effect`, `bind:`,
-	 *  `use:` counts over its closure), from the build; `null` when the handoff has no facts. */
-	export function islandInteractivity(entry: string): {
-		handlers: number;
-		state: number;
-		effects: number;
-		binds: number;
-		actions: number;
-		files: number;
-	} | null;
-	/** WHAT IS INSIDE a hashed client chunk (an `islandDeps()` href): a short readable list of its
-	 *  source modules — app files first, then packages; `null` when the handoff has none (dev). */
-	export function chunkContents(href: string): string[] | null;
-	/** a chunk's heaviest named modules with their rendered bytes (profiler builds only) */
-	export function chunkHeavy(href: string): { total: number; top: { name: string; bytes: number }[] } | null;
-	/** the modules the build shipped as two copies (one package file by two paths), each copy's chunk
-	 *  and its bytes (profiler builds only; null when none) */
-	export function chunkDuplicates(): { name: string; copies: { file: string; bytes: number; from?: string }[] }[] | null;
-	/** the re-export barrels a chunk still holds, with how many modules each brings (profiler builds only) */
-	export function chunkBarrels(href: string): { name: string; fanout: number }[] | null;
-	/** an island entry's components' lines that draw differently in the browser (the build's scan) */
-	export function islandHazards(entry: string): { file: string; line: number; code: string; kind: 'await' | 'browser'; reads?: string }[] | null;
-	/** Public URLs of the CSS assets an island entry (+ its dep chunks) owns — carried with a region
-	 *  response so a server-picked component styles a page that never imported it. */
-	export function islandCss(entry: string): string[];
-	/** Public URLs of the CSS a content page's own components own (by content id). */
-	export function contentCss(id: string): string[];
-	/** INLINE REGION CSS: the text of a region CSS asset (an `islandCss()` / `contentCss()` href) the
-	 *  build kept under Kit's `inlineStyleThreshold`, so the render emits it as a `<style>` instead of
-	 *  a blocking `<link>`. `null` = link it (over the threshold, no threshold, dev). */
-	export function islandCssInline(href: string): string | null;
-	/** Does this island entry's client code read `$page`? Decides whether the page seed ships.
-	 *  Fail-open: true in dev and for an entry the build handoff does not know. */
-	export function islandReadsPage(entry: string): boolean;
-	/** SEED SHAPING: the top-level `page.data` keys this island entry's client code reads, so the
-	 *  handle ships only those. `null` = ship all: dev, an entry the handoff does not know, or a
-	 *  closure whose reads could not be pinned to literal keys. */
-	export function islandPageKeys(entry: string): string[] | null;
-	/** why an island ships all of page.data: the modules whose reads the build could not pin */
-	export function islandPageWhy(entry: string): { file: string; line: number | null; why: string }[] | null;
-	/** The Kit remote-function modules (by id-hash) an island entry's client code can call. Fail-open:
-	 *  `null` ("may call anything") in dev and for an entry the build handoff does not know. */
-	export function islandRemotes(entry: string): string[] | null;
-	/** og.$ hoisted factories (tag → self-contained source) for the page-inline registration script —
-	 *  prod SSR only; null in dev/client (dev uses the fn-manifest module). */
-	export function fnManifest(): Record<string, string> | null;
-	/** An entry's identity (its stable URL) → the content-hashed file it is served from; `null`: none known. */
-	export function entryLocation(identity: string): string | null;
-	/** The build's location map file (base-less served path), or `null`: none built. */
-	export function locationMap(): string | null;
-}
-declare module 'virtual:ogygia/island-deps' {
-	/** Public URLs of hashed dependency chunks for a hydrate island entry (`/_app/immutable/…`). */
-	export function islandDeps(entry: string): string[];
-	/** WAKE ADVISOR: what the island's own components do (handlers, `$state`, `$effect`, `bind:`,
-	 *  `use:` counts over its closure), from the build; `null` when the handoff has no facts. */
-	export function islandInteractivity(entry: string): {
-		handlers: number;
-		state: number;
-		effects: number;
-		binds: number;
-		actions: number;
-		files: number;
-	} | null;
-	/** WHAT IS INSIDE a hashed client chunk (an `islandDeps()` href): a short readable list of its
-	 *  source modules — app files first, then packages; `null` when the handoff has none (dev). */
-	export function chunkContents(href: string): string[] | null;
-	/** a chunk's heaviest named modules with their rendered bytes (profiler builds only) */
-	export function chunkHeavy(href: string): { total: number; top: { name: string; bytes: number }[] } | null;
-	/** the modules the build shipped as two copies (one package file by two paths), each copy's chunk
-	 *  and its bytes (profiler builds only; null when none) */
-	export function chunkDuplicates(): { name: string; copies: { file: string; bytes: number; from?: string }[] }[] | null;
-	/** the re-export barrels a chunk still holds, with how many modules each brings (profiler builds only) */
-	export function chunkBarrels(href: string): { name: string; fanout: number }[] | null;
-	/** an island entry's components' lines that draw differently in the browser (the build's scan) */
-	export function islandHazards(entry: string): { file: string; line: number; code: string; kind: 'await' | 'browser'; reads?: string }[] | null;
-	/** Public URLs of the CSS assets an island entry (+ its dep chunks) owns — carried with a region
-	 *  response so a server-picked component styles a page that never imported it. */
-	export function islandCss(entry: string): string[];
-	/** Public URLs of the CSS a content page's own components own (by content id). */
-	export function contentCss(id: string): string[];
-	/** INLINE REGION CSS: the text of a region CSS asset (an `islandCss()` / `contentCss()` href) the
-	 *  build kept under Kit's `inlineStyleThreshold`, so the render emits it as a `<style>` instead of
-	 *  a blocking `<link>`. `null` = link it (over the threshold, no threshold, dev). */
-	export function islandCssInline(href: string): string | null;
-	/** Does this island entry's client code read `$page`? Decides whether the page seed ships.
-	 *  Fail-open: true in dev and for an entry the build handoff does not know. */
-	export function islandReadsPage(entry: string): boolean;
-	/** SEED SHAPING: the top-level `page.data` keys this island entry's client code reads, so the
-	 *  handle ships only those. `null` = ship all: dev, an entry the handoff does not know, or a
-	 *  closure whose reads could not be pinned to literal keys. */
-	export function islandPageKeys(entry: string): string[] | null;
-	/** why an island ships all of page.data: the modules whose reads the build could not pin */
-	export function islandPageWhy(entry: string): { file: string; line: number | null; why: string }[] | null;
-	/** The Kit remote-function modules (by id-hash) an island entry's client code can call. Fail-open:
-	 *  `null` ("may call anything") in dev and for an entry the build handoff does not know. */
-	export function islandRemotes(entry: string): string[] | null;
-	/** og.$ hoisted factories (tag → self-contained source) for the page-inline registration script —
-	 *  prod SSR only; null in dev/client (dev uses the fn-manifest module). */
-	export function fnManifest(): Record<string, string> | null;
-	/** An entry's identity (its stable URL) → the content-hashed file it is served from; `null`: none known. */
-	export function entryLocation(identity: string): string | null;
-	/** The build's location map file (base-less served path), or `null`: none built. */
-	export function locationMap(): string | null;
-}
-
-declare module 'ogygia:server/router-css' {}
-declare module 'virtual:ogygia/router-css' {}
-
-declare module 'ogygia:server/secret' {
-	/** this build's random key material (server leg; '' on the client) */
-	export const buildKey: string;
-	/** the build saw an `OGYGIA_SECRET` (its region ids are salted from it) */
-	export const buildHadSecret: boolean;
-}
-declare module 'virtual:ogygia/secret' {
-	/** this build's random key material (server leg; '' on the client) */
-	export const buildKey: string;
-	/** the build saw an `OGYGIA_SECRET` (its region ids are salted from it) */
-	export const buildHadSecret: boolean;
-}
-
-declare module 'ogygia:server/sign' {
-	export function sign(secret: string, message: string): string;
-	export function verify(secret: string, message: string, sig: string): boolean;
-	export function region_mac_message(id: string, exp: number | string, props: string, session?: string, ttl?: number | string, render?: string): string;
-}
-declare module 'virtual:ogygia/sign' {
-	export function sign(secret: string, message: string): string;
-	export function verify(secret: string, message: string, sig: string): boolean;
-	export function region_mac_message(id: string, exp: number | string, props: string, session?: string, ttl?: number | string, render?: string): string;
-}
-
-declare module 'ogygia:server/request-event' {
-	export function getRequestEvent(): {
-		cookies: { get: (name: string) => string | undefined };
-		request: Request;
-		[key: string]: unknown;
-	};
-}
-declare module 'virtual:ogygia/request-event' {
-	export function getRequestEvent(): {
-		cookies: { get: (name: string) => string | undefined };
-		request: Request;
-		[key: string]: unknown;
-	};
-}
-
-declare module 'ogygia:server/region-endpoint' {
-	export function makeRegionEndpoint(entry: string, props?: Record<string, unknown>): string;
-	/** @param ttl response cache max-age in seconds (`0`/absent = no-store). Signed into the URL. */
-	export function mintServerIsland(entry: string, props: Record<string, unknown>, ttl?: number): string;
-	/** the region fingerprints the page already holds (a server-only nav signal) */
-	export function known_region_fps(): ReadonlySet<string>;
-	/** the island `data-og-fp` over its module URL + canonical props text; '' on the client */
-	export function islandFingerprint(entry: string, canonical: string): string;
-	/** a hole's own stylesheet hrefs (by region id), for a render that inlines it; [] on the client */
-	export function holeCss(entry: string): string[];
-}
-declare module 'virtual:ogygia/region-endpoint' {
-	export function makeRegionEndpoint(entry: string, props?: Record<string, unknown>): string;
-	/** @param ttl response cache max-age in seconds (`0`/absent = no-store). Signed into the URL. */
-	export function mintServerIsland(entry: string, props: Record<string, unknown>, ttl?: number): string;
-	/** the region fingerprints the page already holds (a server-only nav signal) */
-	export function known_region_fps(): ReadonlySet<string>;
-	/** the island `data-og-fp` over its module URL + canonical props text; '' on the client */
-	export function islandFingerprint(entry: string, canonical: string): string;
-	/** a hole's own stylesheet hrefs (by region id), for a render that inlines it; [] on the client */
-	export function holeCss(entry: string): string[];
-}
-
 declare module 'ogygia:server/kit-wire' {
-	export function stringify_remote_arg(value: unknown, transport: unknown): string;
-	export function stringify_command_arg(value: unknown, transport: unknown): Promise<string>;
-	export function create_remote_key(id: string, payload: string): string;
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_wire>;
+export = module;
 }
 declare module 'virtual:ogygia/kit-wire' {
-	export function stringify_remote_arg(value: unknown, transport: unknown): string;
-	export function stringify_command_arg(value: unknown, transport: unknown): Promise<string>;
-	export function create_remote_key(id: string, payload: string): string;
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_wire>;
+export = module;
 }
-
-declare module 'ogygia:server/rate-limit' {
-	/** `max: 0` disables. Baked from `ogygia({ rateLimit })`. */
-	export const rateLimit: { max: number; windowMs: number };
-}
-declare module 'virtual:ogygia/rate-limit' {
-	/** `max: 0` disables. Baked from `ogygia({ rateLimit })`. */
-	export const rateLimit: { max: number; windowMs: number };
-}
-
-declare module 'ogygia:server/server-plugins' {
-	/** the server halves of the plugins listed beside `ogygia()`, in plugin order (the client: none) */
-	export const plugins: readonly { name: string; options: unknown; server: object }[];
-}
-declare module 'virtual:ogygia/server-plugins' {
-	/** the server halves of the plugins listed beside `ogygia()`, in plugin order (the client: none) */
-	export const plugins: readonly { name: string; options: unknown; server: object }[];
-}
-
 declare module 'ogygia:server/profiler-maps' {
-	/** the server build's module map and chunk sourcemaps as one string (filled after the build), or
-	 *  null outside a profiler-on server build */
-	const maps: string | null;
-	export default maps;
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').profiler_maps>;
+export default value;
 }
 declare module 'virtual:ogygia/profiler-maps' {
-	/** the server build's module map and chunk sourcemaps as one string (filled after the build), or
-	 *  null outside a profiler-on server build */
-	const maps: string | null;
-	export default maps;
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').profiler_maps>;
+export default value;
 }
-
-declare module 'ogygia:server/router-config' {
-	/** the SPA router is on (default), or off: `ogygia({ router: false })` */
-	export const enabled: boolean;
-	/** navigations use the View Transitions API: `ogygia({ router: { viewTransitions } })` */
-	export const viewTransitions: boolean;
+declare module 'ogygia:server/rate-limit' {
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').rate_limit>;
+export default value;
 }
-declare module 'virtual:ogygia/router-config' {
-	/** the SPA router is on (default), or off: `ogygia({ router: false })` */
-	export const enabled: boolean;
-	/** navigations use the View Transitions API: `ogygia({ router: { viewTransitions } })` */
-	export const viewTransitions: boolean;
+declare module 'virtual:ogygia/rate-limit' {
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').rate_limit>;
+export default value;
 }
-
-declare module 'ogygia:server/session-cookie' {
-	/** the cookie name sealed into the region MAC, or '' (`ogygia({ sessionCookie })`) */
-	export const sessionCookie: string;
+declare module 'ogygia:server/region-deps' {
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>;
+export = module;
 }
-declare module 'virtual:ogygia/session-cookie' {
-	/** the cookie name sealed into the region MAC, or '' (`ogygia({ sessionCookie })`) */
-	export const sessionCookie: string;
+declare module 'virtual:ogygia/island-deps' {
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>;
+export = module;
 }
-
+declare module 'ogygia:server/region-endpoint' {
+export { makeRegionEndpoint, mintServerIsland, known_region_fps, islandFingerprint, holeCss } from '../dist/server/region-endpoint.js';
+}
+declare module 'virtual:ogygia/region-endpoint' {
+export { makeRegionEndpoint, mintServerIsland, known_region_fps, islandFingerprint, holeCss } from '../dist/server/region-endpoint.js';
+}
 declare module 'ogygia:server/region-ttl' {
-	/** capability URL TTL in seconds (`ogygia({ ttl })`, default 3600) */
-	export const regionTtl: number;
-	/** seconds after expiry an anonymous capability still renews (`ogygia({ maxPageAge })`) */
-	export const renewWindow: number;
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').region_ttl>;
+export default value;
 }
 declare module 'virtual:ogygia/region-ttl' {
-	/** capability URL TTL in seconds (`ogygia({ ttl })`, default 3600) */
-	export const regionTtl: number;
-	/** seconds after expiry an anonymous capability still renews (`ogygia({ maxPageAge })`) */
-	export const renewWindow: number;
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').region_ttl>;
+export default value;
 }
-
-declare module 'ogygia:server/route-csr' {
-	/** route ids (group-stripped) whose effective csr is true */
-	export const csr_true_routes: ReadonlySet<string>;
-	/** route ids whose ERROR render is hydrated (the layouts' csr; the page's option ignored) */
-	export const error_csr_true_routes: ReadonlySet<string>;
-	/** the routeless error render: the root layout's own csr (Kit's default `true`) */
-	export const root_layout_csr_true: boolean;
+declare module 'ogygia:server/request-event' {
+export { getRequestEvent } from '$app/server';
 }
-declare module 'virtual:ogygia/route-csr' {
-	/** route ids (group-stripped) whose effective csr is true */
-	export const csr_true_routes: ReadonlySet<string>;
-	/** route ids whose ERROR render is hydrated (the layouts' csr; the page's option ignored) */
-	export const error_csr_true_routes: ReadonlySet<string>;
-	/** the routeless error render: the root layout's own csr (Kit's default `true`) */
-	export const root_layout_csr_true: boolean;
+declare module 'virtual:ogygia/request-event' {
+export { getRequestEvent } from '$app/server';
 }
-
 declare module 'ogygia:server/route-config' {
-	/** every Kit page route id → the keys plugins claim inside its `config` page option, merged */
-	export const route_config: Record<string, Record<string, unknown>>;
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').route_config>;
+export = module;
 }
 declare module 'virtual:ogygia/route-config' {
-	/** every Kit page route id → the keys plugins claim inside its `config` page option, merged */
-	export const route_config: Record<string, Record<string, unknown>>;
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').route_config>;
+export = module;
 }
-
+declare module 'ogygia:server/route-csr' {
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').route_csr>;
+export default value;
+}
+declare module 'virtual:ogygia/route-csr' {
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').route_csr>;
+export default value;
+}
+declare module 'ogygia:server/router-config' {
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').router_config>;
+export default value;
+}
+declare module 'virtual:ogygia/router-config' {
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').router_config>;
+export default value;
+}
+declare module 'ogygia:server/router-css' {
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').router_css>;
+export = module;
+}
+declare module 'virtual:ogygia/router-css' {
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').router_css>;
+export = module;
+}
+declare module 'ogygia:server/runtime-url' {
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').runtime_url>;
+export default value;
+}
+declare module 'virtual:ogygia/runtime-url' {
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').runtime_url>;
+export default value;
+}
+declare module 'ogygia:server/secret' {
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').secret>;
+export default value;
+}
+declare module 'virtual:ogygia/secret' {
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').secret>;
+export default value;
+}
 declare module 'ogygia:server/server-manifest' {
-	/** The server islands' loaders, one dynamic import away (link/server-manifest.ts says why). */
-	export function load_islands(): Promise<typeof import('virtual:ogygia/server-islands')>;
-	/** Server-island id → its built client-chunk URL (the key `islandCss()` is keyed by). Its keys are
-	 *  the server islands this build has. */
-	export const island_url: Record<string, string>;
-	/** Server-island id → its component name (`SlowHole`), where the component file is known. */
-	export const island_name: Record<string, string>;
-	/** Server-island id → its render identity (the component it renders), signed into its capabilities. */
-	export const island_render: Record<string, string>;
-	/** Render identity → a server-island id of this build that renders it: answers a capability minted
-	 *  by another build, whose id this one does not have. */
-	export const render_island: Record<string, string>;
-	/** Server-island id → its server tree reads `page.data` (the build's answer); `null` in dev:
-	 *  unknown, so every hole looks its page up. */
-	export const island_reads_page_data: Record<string, boolean> | null;
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_manifest>;
+export = module;
 }
 declare module 'virtual:ogygia/server-manifest' {
-	/** The server islands' loaders, one dynamic import away (link/server-manifest.ts says why). */
-	export function load_islands(): Promise<typeof import('virtual:ogygia/server-islands')>;
-	/** Server-island id → its built client-chunk URL (the key `islandCss()` is keyed by). Its keys are
-	 *  the server islands this build has. */
-	export const island_url: Record<string, string>;
-	/** Server-island id → its component name (`SlowHole`), where the component file is known. */
-	export const island_name: Record<string, string>;
-	/** Server-island id → its render identity (the component it renders), signed into its capabilities. */
-	export const island_render: Record<string, string>;
-	/** Render identity → a server-island id of this build that renders it: answers a capability minted
-	 *  by another build, whose id this one does not have. */
-	export const render_island: Record<string, string>;
-	/** Server-island id → its server tree reads `page.data` (the build's answer); `null` in dev:
-	 *  unknown, so every hole looks its page up. */
-	export const island_reads_page_data: Record<string, boolean> | null;
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_manifest>;
+export = module;
 }
-
-declare module 'ogygia:server/server-islands' {
-	/** server-island id → its loader */
-	export const islands: Record<string, () => Promise<{ default: unknown }>>;
+declare module 'ogygia:server/server-plugins' {
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_plugins>;
+export = module;
+}
+declare module 'virtual:ogygia/server-plugins' {
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_plugins>;
+export = module;
+}
+declare module 'ogygia:server/server-regions' {
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_regions>;
+export = module;
 }
 declare module 'virtual:ogygia/server-islands' {
-	/** server-island id → its loader */
-	export const islands: Record<string, () => Promise<{ default: unknown }>>;
+const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_regions>;
+export = module;
+}
+declare module 'ogygia:server/session-cookie' {
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').session_cookie>;
+export default value;
+}
+declare module 'virtual:ogygia/session-cookie' {
+const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').session_cookie>;
+export default value;
+}
+declare module 'ogygia:server/sign' {
+export { sign, verify, region_mac_message } from '../dist/server/hmac.js';
+}
+declare module 'virtual:ogygia/sign' {
+export { sign, verify, region_mac_message } from '../dist/server/hmac.js';
 }

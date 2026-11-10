@@ -1,2 +1,2 @@
-export const enabled = true;
-export const viewTransitions = false;
+// Test stub for `virtual:ogygia/router-config`: the router on, no view transitions.
+export default { enabled: true, viewTransitions: false };

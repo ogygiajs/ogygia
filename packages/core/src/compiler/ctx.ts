@@ -111,8 +111,6 @@ export interface CompileCtxInit {
 	/** Package-internal absolute paths the emit inlines into generated virtual sources. */
 	runtime_dir: string;
 	runtime_hash: string;
-	hmac_module: string;
-	region_endpoint_module: string;
 	/** Kit's internal wire-protocol module (deep-imported by absolute path), or null: none found. */
 	kit_wire_path?: string | null;
 	client_binding_stub_file: string;
@@ -156,8 +154,6 @@ export class CompileCtx {
 	readonly client_hooks: string | null;
 	readonly runtime_dir: string;
 	readonly runtime_hash: string;
-	readonly hmac_module: string;
-	readonly region_endpoint_module: string;
 	readonly kit_wire_path: string | null;
 	readonly client_binding_stub_file: string;
 	readonly app_shims: Record<string, string>;
@@ -205,8 +201,6 @@ export class CompileCtx {
 		this.client_hooks = init.client_hooks ?? null;
 		this.runtime_dir = init.runtime_dir;
 		this.runtime_hash = init.runtime_hash;
-		this.hmac_module = init.hmac_module;
-		this.region_endpoint_module = init.region_endpoint_module;
 		this.kit_wire_path = init.kit_wire_path ?? null;
 		this.client_binding_stub_file = init.client_binding_stub_file;
 		this.app_shims = init.app_shims;

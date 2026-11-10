@@ -43,10 +43,7 @@ import { early_holes_head } from './early-holes-head.ts';
 import { add_early_holes_csp, with_early_holes_meta_csp } from './server/early-holes-csp.ts';
 const TITLE_TAG_RE = /<title[\s>]/i;
 import dev_hmr_url from 'virtual:ogygia/dev-hmr-url';
-import {
-	enabled as router_enabled,
-	viewTransitions as router_view_transitions
-} from 'virtual:ogygia/router-config';
+import router_config from 'virtual:ogygia/router-config';
 import {
 	page_declares_router_meta,
 	page_declares_runtime_script,
@@ -155,8 +152,10 @@ export async function document(
 	// The same three injections the handle makes into a Kit page, presence-checked the same way
 	// (head-presence guards against prose false-matches). The runtime bootstrap is unconditional —
 	// a document with islands needs it with or without the SPA router.
-	if (router_enabled && !page_declares_router_meta(head_so_far())) {
-		head.push(`<meta name="ogygia-router" content="${router_view_transitions ? 'vt' : 'plain'}">`);
+	if (router_config.enabled && !page_declares_router_meta(head_so_far())) {
+		head.push(
+			`<meta name="ogygia-router" content="${router_config.viewTransitions ? 'vt' : 'plain'}">`
+		);
 	}
 	if (runtime_url && !page_declares_runtime_script(head_so_far())) {
 		// (its location, with its static imports' preloads — the same bootstrap a Kit page gets)

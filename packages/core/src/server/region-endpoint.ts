@@ -3,8 +3,8 @@
  * Used by Region's lake branch for `render: 'live'`. Client build gets a stub that returns ''.
  */
 import { signing_key } from './signing-key.ts';
-import { sessionCookie } from 'virtual:ogygia/session-cookie';
-import { regionTtl, renewWindow } from 'virtual:ogygia/region-ttl';
+import sessionCookie from 'virtual:ogygia/session-cookie';
+import region_ttl from 'virtual:ogygia/region-ttl';
 import { sign, region_mac_message } from 'virtual:ogygia/sign';
 // (`resolve('/__ogygia__')` reads the same on Kit 2, which wants the leading slash, and Kit 3, which
 // takes it as a route ID with no params — the same pathname)
@@ -49,8 +49,8 @@ function current_request(): Request | null {
  *  plugins' `app.capability`, which the handle hands it) expires and renews by this one rule. */
 export const app_lifetime: CapabilityLifetime = capability_lifetime({
 	building,
-	region_ttl: regionTtl,
-	renew_window: renewWindow,
+	region_ttl: region_ttl.regionTtl,
+	renew_window: region_ttl.renewWindow,
 	request: current_request
 });
 

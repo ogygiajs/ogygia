@@ -40,9 +40,6 @@ export interface Leg {
 	kitCodec?: string | null;
 }
 
-/** A value module's exports: JSON, plus `Set` (written as `new Set([…])`). */
-export type Exports = Record<string, unknown>;
-
 type Source = string | Promise<string>;
 
 interface Base {
@@ -52,35 +49,48 @@ interface Base {
 	/** the specifier it had before realms were in the name (resolves the same; step 5 drops them) */
 	alias?: string;
 	watch?: readonly Watch[];
-	/** the module's declarations, as a `.d.ts` body (absent: it exports nothing, it only runs); the
-	 *  per-realm `.d.ts` files are generated from them (scripts/virtual-types.ts) */
-	types?: string;
 }
 
-export interface ValueEntry<A> extends Base {
+/** A value module: its default export is what `from` returns (JSON, plus `Set`), and its type is
+ *  `from`'s return type (the generated `.d.ts` reads it off the entry: {@link ValueOf}). */
+export interface ValueEntry<A, T = unknown> extends Base {
 	kind: 'value';
-	from(app: A, leg: Leg): Exports;
+	from(app: A, leg: Leg): T;
 }
+
+/** Where a request module's functions live: one of core's own modules (by its path under `src/`,
+ *  no extension), or a package's. The generated `.d.ts` re-exports that module's own types. */
+export type RequestModule = { core: string } | { package: string };
 
 export interface RequestEntry<A> extends Base {
 	kind: 'request';
 	realm: 'server';
-	/** the module the functions come from (absolute path or a package id); `null`: not available */
-	module(app: A): string | null;
+	module: RequestModule;
 	/** the functions it re-exports */
 	exports: readonly string[];
 	/** what the browser leg gets until the resolve check keeps server modules off it */
 	client?(app: A): string;
 }
 
-export interface FamilyEntry<A> extends Base {
+/** A generated-code module. `M` is what it exports (an interface in `contract/`): the generated
+ *  `.d.ts` reads it off the entry ({@link ModuleOf}); the entry carries it as a type only. */
+export interface FamilyEntry<A, M = Record<never, never>> extends Base {
 	kind: 'family';
 	/** with `parse`, the entry is a prefix (`id` ends in `/`) and `parse` reads the rest; without it,
 	 *  the entry is the one module named `id` */
 	parse?(rest: string): string | null;
 	/** the module's source; `undefined`: not this table's to load (the driver's registry is) */
 	load?(app: A, leg: Leg, rest: string): Source | null;
+	/** (type only: never set) */
+	readonly exports?: M;
 }
+
+/** A value entry's module type: what its `from` returns. */
+export type ValueOf<E extends { from: (...a: never[]) => unknown }> = Awaited<
+	ReturnType<E['from']>
+>;
+/** A family entry's module type: the contract interface it declares. */
+export type ModuleOf<E extends { exports?: unknown }> = NonNullable<E['exports']>;
 
 export interface ConstantEntry<A> {
 	kind: 'constant';
@@ -89,31 +99,29 @@ export interface ConstantEntry<A> {
 	from(app: A): boolean | number | string | null;
 }
 
-export type ModuleEntry<A> = ValueEntry<A> | RequestEntry<A> | FamilyEntry<A>;
+// (`any`: an entry of any session or shape is one of the table's; the shapes are read per entry)
+// oxlint-disable-next-line typescript/no-explicit-any
+export type ModuleEntry<A> = ValueEntry<A, any> | RequestEntry<A> | FamilyEntry<A, any>;
 export type Entry<A> = ModuleEntry<A> | ConstantEntry<A>;
 
 /** The constructors. Each returns its argument, kind set, so a declaration reads as data. */
 export const virtual = {
-	value: <A>(e: Omit<ValueEntry<A>, 'kind'>): ValueEntry<A> => ({ kind: 'value', ...e }),
+	value: <A, T>(e: Omit<ValueEntry<A, T>, 'kind'>): ValueEntry<A, T> => ({ kind: 'value', ...e }),
 	request: <A>(e: Omit<RequestEntry<A>, 'kind'>): RequestEntry<A> => ({ kind: 'request', ...e }),
-	family: <A>(e: Omit<FamilyEntry<A>, 'kind'>): FamilyEntry<A> => ({ kind: 'family', ...e }),
+	family: <A, M = Record<never, never>>(e: Omit<FamilyEntry<A, M>, 'kind'>): FamilyEntry<A, M> => ({
+		kind: 'family',
+		...e
+	}),
 	constant: <A>(e: Omit<ConstantEntry<A>, 'kind'>): ConstantEntry<A> => ({ kind: 'constant', ...e })
 };
 
-const write_value = (v: unknown): string =>
-	v instanceof Set
-		? v.size
-			? `new Set(${JSON.stringify([...v])})`
-			: 'new Set()'
-		: JSON.stringify(v);
-
-/** A value entry's module source: one `export const` per key (`default` is the default export). */
-export function write_exports(exports: Exports): string {
-	return Object.entries(exports)
-		.map(([k, v]) =>
-			k === 'default'
-				? `export default ${write_value(v)};`
-				: `export const ${k} = ${write_value(v)};`
-		)
-		.join('\n');
+/** A value as module source: JSON, with each `Set` written as `new Set([…])`. */
+export function write_value(v: unknown): string {
+	if (v instanceof Set) return v.size ? `new Set(${JSON.stringify([...v])})` : 'new Set()';
+	if (Array.isArray(v)) return `[${v.map(write_value).join(', ')}]`;
+	if (v !== null && typeof v === 'object')
+		return `{ ${Object.entries(v)
+			.map(([k, x]) => `${JSON.stringify(k)}: ${write_value(x)}`)
+			.join(', ')} }`;
+	return JSON.stringify(v);
 }

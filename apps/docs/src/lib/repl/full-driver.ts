@@ -61,8 +61,6 @@ function repl_ctx(macros: ReplMacros): CompileCtx {
 		router_view_transitions: true,
 		runtime_dir: '/node_modules/ogygia/dist/runtime',
 		runtime_hash: 'repl',
-		hmac_module: 'ogygia/internal/server',
-		region_endpoint_module: 'ogygia/internal/server',
 		client_binding_stub_file: '/node_modules/ogygia/dist/runtime/client-binding-stub.js',
 		app_shims: {},
 		is_build: false,

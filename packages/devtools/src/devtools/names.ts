@@ -6,7 +6,7 @@
  * network, not an answer) is not kept: the next ask fetches again.
  */
 import { flights } from '@ogygia/machine';
-import { names as built_names } from 'virtual:ogygia/devtools-meta';
+import built_names from 'virtual:ogygia/devtools-meta';
 
 const loading = flights({
 	name: 'devtools region names',

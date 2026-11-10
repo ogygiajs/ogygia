@@ -8,7 +8,7 @@ import {
 	LEGACY_PREFIX,
 	OGYGIA_SCHEME,
 	specifier,
-	write_exports,
+	write_value,
 	type ConstantEntry,
 	type Entry,
 	type FamilyEntry,
@@ -36,8 +36,11 @@ export class VirtualTable<A> {
 	/** prefix → its family (prefixes never nest) */
 	readonly #prefixes: [string, FamilyEntry<A>][] = [];
 	readonly constants: readonly ConstantEntry<A>[];
+	/** a core module (its path under `src/`, no extension) → the built file the bundler imports */
+	readonly #core_path: (app: A, module: string) => string;
 
-	constructor(entries: readonly Entry<A>[]) {
+	constructor(entries: readonly Entry<A>[], core_path: (app: A, module: string) => string) {
+		this.#core_path = core_path;
 		const constants: ConstantEntry<A>[] = [];
 		for (const e of entries) {
 			if (e.kind === 'constant') {
@@ -93,13 +96,11 @@ export class VirtualTable<A> {
 	load(id: string, app: A, leg: Leg): string | Promise<string> | null {
 		const e = this.#by_resolved.get(id);
 		if (e) {
-			if (e.kind === 'value') return write_exports(e.from(app, leg));
+			if (e.kind === 'value') return `export default ${write_value(e.from(app, leg))};`;
 			if (e.kind === 'request') {
 				if (!leg.ssr && e.client) return e.client(app);
-				const module = e.module(app);
-				return module === null
-					? null
-					: `export { ${e.exports.join(', ')} } from ${JSON.stringify(module)};`;
+				const from = 'core' in e.module ? this.#core_path(app, e.module.core) : e.module.package;
+				return `export { ${e.exports.join(', ')} } from ${JSON.stringify(from)};`;
 			}
 			return e.load?.(app, leg, '') ?? null;
 		}

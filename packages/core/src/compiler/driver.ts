@@ -58,7 +58,7 @@ import { source_crosses_wire } from './link/transport.ts';
 import { server_island_ids, PAGE_DATA_READS_TOKEN } from './link/server-manifest.ts';
 import { same_module_path, island_vpaths_affected_by_file } from './dev/hmr.ts';
 import { VirtualTable } from './virtual/resolver.ts';
-import { CORE_VIRTUALS, type CoreApp } from './virtual/core.ts';
+import { CORE_VIRTUALS, core_path, type CoreApp } from './virtual/core.ts';
 import type { Leg, Watch } from './virtual/table.ts';
 import { strip_id, host_key } from './program.ts';
 import { mentions_page_store, page_data_keys_answer } from './link/page-keys.ts';
@@ -239,7 +239,7 @@ export class Compiler implements CoreApp {
 		return this.#ctx!;
 	}
 	/** Every virtual module this session serves (./virtual/table.ts). */
-	readonly #virtuals = new VirtualTable<CoreApp>(CORE_VIRTUALS);
+	readonly #virtuals = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path);
 	/** The resolved ids of the virtual modules a dev change to `what` invalidates. */
 	watching(what: Watch): string[] {
 		return this.#virtuals.watching(what);

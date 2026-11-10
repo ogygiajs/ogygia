@@ -8,11 +8,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
-import { CORE_VIRTUALS, type CoreApp } from '../src/compiler/virtual/core.ts';
-import { virtual, write_exports, type Leg } from '../src/compiler/virtual/table.ts';
+import { CORE_VIRTUALS, core_path, type CoreApp } from '../src/compiler/virtual/core.ts';
+import { virtual, write_value, type Leg } from '../src/compiler/virtual/table.ts';
 import { RESOLVED } from '../src/compiler/ids.ts';
 
-const table = new VirtualTable<CoreApp>(CORE_VIRTUALS);
+const table = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path);
 const app = (ctx: Partial<CoreApp['ctx']>): CoreApp => ({ ctx }) as unknown as CoreApp;
 const leg = (ssr: boolean): Leg => ({ ssr, universalHooks: null });
 
@@ -65,20 +65,32 @@ describe('the virtual-module table', () => {
 
 	it('refuses two declarations of one module with virtual_duplicate', () => {
 		const a = virtual.value({ realm: 'server', id: 'x', from: () => ({}) });
-		expect(() => new VirtualTable([a, a])).toThrow(/virtual_duplicate/);
+		expect(() => new VirtualTable([a, a], core_path)).toThrow(/virtual_duplicate/);
 	});
 
-	it('writes a value module from its data (a Set, and the default export)', () => {
-		expect(write_exports({ a: 1, s: new Set(['x']), default: 'u' })).toBe(
-			'export const a = 1;\nexport const s = new Set(["x"]);\nexport default "u";'
+	it('writes a value as module source (JSON, with each Set as a Set)', () => {
+		expect(write_value({ a: 1, s: new Set(['x']), e: new Set(), l: ['u'] })).toBe(
+			'{ "a": 1, "s": new Set(["x"]), "e": new Set(), "l": ["u"] }'
 		);
 	});
 
 	it('reaches the server (and never the browser) with the region ttl', () => {
 		const id = table.resolve('virtual:ogygia/region-ttl')!;
 		const ctx = { region_ttl: 3600, renew_window: 2592000 };
-		expect(table.load(id, app(ctx), leg(true))).toContain('export const renewWindow = 2592000;');
-		expect(table.load(id, app(ctx), leg(false))).toContain('export const renewWindow = 0;');
+		expect(table.load(id, app(ctx), leg(true))).toBe(
+			'export default { "regionTtl": 3600, "renewWindow": 2592000 };'
+		);
+		expect(table.load(id, app(ctx), leg(false))).toBe(
+			'export default { "regionTtl": 3600, "renewWindow": 0 };'
+		);
+	});
+
+	it('writes a request module as a re-export of the built core module', () => {
+		const id = table.resolve('virtual:ogygia/sign')!;
+		const ctx = { runtime_dir: '/pkg/dist/runtime' };
+		expect(table.load(id, app(ctx), leg(true))).toBe(
+			'export { sign, verify, region_mac_message } from "/pkg/dist/server/hmac.js";'
+		);
 	});
 
 	it('invalidates exactly the modules that watch a change', () => {

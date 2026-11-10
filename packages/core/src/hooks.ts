@@ -37,12 +37,9 @@ import { islandCss, fnManifest } from 'virtual:ogygia/island-deps';
 import { create_remote_key } from 'virtual:ogygia/kit-wire';
 import { REGION_BRAND } from './region-brand.ts';
 import { signing_key, configure_signing_secret } from './server/signing-key.ts';
-import { rateLimit as rate_limit_cfg } from 'virtual:ogygia/rate-limit';
-import { sessionCookie as session_cookie } from 'virtual:ogygia/session-cookie';
-import {
-	enabled as router_enabled,
-	viewTransitions as router_view_transitions
-} from 'virtual:ogygia/router-config';
+import rate_limit_cfg from 'virtual:ogygia/rate-limit';
+import session_cookie from 'virtual:ogygia/session-cookie';
+import router_config from 'virtual:ogygia/router-config';
 import { mpaSpeculationRules } from './compiler/link/speculation.ts';
 import { route_config } from 'virtual:ogygia/route-config';
 import { set_page_route_config } from './plugin/routes.ts';
@@ -203,6 +200,8 @@ import { mark_personal } from './server/personal-response.ts';
 import { OgygiaError, warn } from './messages/server.ts';
 import { ERRORS, WARNINGS } from './messages/core.ts';
 import { define_messages, dev_or_prerender } from './messages/define.ts';
+
+const { enabled: router_enabled, viewTransitions: router_view_transitions } = router_config;
 
 // A prerender words every message, the link after it (messages/define.ts `dev_or_prerender`).
 (globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.prerendering')] = building;
