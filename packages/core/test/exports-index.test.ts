@@ -3,6 +3,11 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { EVERY_BARREL, ExportIndex, Shapes, type Policy } from '../src/compiler/exports/index.ts';
+import {
+	collectFoucCssReachable,
+	through_caller,
+	type WalkResolve
+} from '../src/compiler/fouc-css.ts';
 
 function graph(files: Record<string, string>) {
 	const reads = new Map<string, number>();
@@ -28,6 +33,40 @@ function graph(files: Record<string, string>) {
 }
 
 const policy = (p: Partial<Policy>): Policy => ({ ...EVERY_BARREL, ...p });
+
+describe('the CSS walk over an export index', () => {
+	const files: Record<string, string> = {
+		'/app/src/lib/A.svelte': `<script>import { Badge } from './bits';</script><Badge />`,
+		'/app/src/lib/B.svelte': `<script>import { Badge } from './bits';</script><Badge />`,
+		'/app/src/lib/bits/index.ts': `export { default as Badge } from './Badge.svelte';\nexport { default as Unused } from './Unused.svelte';`,
+		'/app/src/lib/bits/Badge.svelte': `<b class="b"></b><style>.b { color: red }</style>`,
+		'/app/src/lib/bits/Unused.svelte': `<b class="u"></b><style>.u { color: red }</style>`
+	};
+
+	it('walks every root through one parse of a shared barrel', async () => {
+		const g = graph(files);
+		const walk_index = new ExportIndex<WalkResolve>(through_caller, g.shapes);
+		const opts = {
+			root: '/app',
+			libDir: '/app/src/lib',
+			readFile: (p: string) => files[p] ?? null
+		};
+		const reached = [];
+		for (const root of ['/app/src/lib/A.svelte', '/app/src/lib/B.svelte'])
+			reached.push(
+				(await collectFoucCssReachable(root, { ...opts, exports: walk_index })).map((e) => e.abs)
+			);
+		expect(reached).toEqual([
+			['/app/src/lib/bits/Badge.svelte'],
+			['/app/src/lib/bits/Badge.svelte']
+		]);
+		expect(g.reads.get('/app/src/lib/bits/index.ts'), 'the barrel parsed once').toBe(1);
+		// without an index the walk makes its own, with the same answer
+		expect(
+			(await collectFoucCssReachable('/app/src/lib/A.svelte', opts)).map((e) => e.abs)
+		).toEqual(['/app/src/lib/bits/Badge.svelte']);
+	});
+});
 
 describe('the export index: one graph, a policy per caller', () => {
 	it('parses each module and resolves each specifier once across policies', async () => {
