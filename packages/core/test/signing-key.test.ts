@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const build = vi.hoisted(() => ({ buildKey: 'build-random-key', buildHadSecret: false }));
-vi.mock('virtual:ogygia/secret', () => ({ default: build }));
+vi.mock('virtual:ogygia/secret', () => build);
 vi.mock('virtual:ogygia/sign', () => ({
 	sign: (k: string, m: string) => Buffer.from(`${k}:${m}`).toString('base64url'),
 	region_mac_message: (...parts: unknown[]) => parts.join('|')

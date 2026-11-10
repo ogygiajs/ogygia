@@ -18,16 +18,16 @@ describe('the virtual modules’ declarations', () => {
 		}
 	});
 
-	it('type each module from its code, never by hand', () => {
-		const all = Object.values(want).join('\n');
-		expect(all).toContain(
-			`const value: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').secret>;`
+	it('type each realm export from its code, never by hand', () => {
+		const realm = want.server.split(`declare module 'ogygia:server' {`)[1].split('\n}')[0];
+		expect(realm).toContain(
+			`export const regionTtl: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').region_ttl>['regionTtl'];`
 		);
-		expect(all).toContain(
-			`export { sign, verify, region_mac_message } from '../dist/server/hmac.js';`
+		expect(realm).toContain(
+			`export { sign, verify, region_mac_message as regionMacMessage } from '../dist/server/hmac.js';`
 		);
-		expect(all).toContain(
-			`const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>;`
+		expect(realm).toContain(
+			`export const regionCss: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['islandCss'];`
 		);
 	});
 

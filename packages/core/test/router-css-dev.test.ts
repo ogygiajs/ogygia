@@ -20,7 +20,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { router_css_module } from '../src/compiler/link/router-css.ts';
 
 const own = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
-const V = 'virtual:ogygia/router-css';
+const V = 'ogygia:server/router-css';
 
 type Load = (srv: ViteDevServer, url: string) => Promise<Record<string, unknown>>;
 const LOADERS: Array<[string, Load]> = [
@@ -93,8 +93,9 @@ async function start(
 			alias: [
 				{ find: /^ogygia\/internal\/register$/, replacement: own('../src/internal-register.ts') },
 				{ find: /^\$app\/(.*)$/, replacement: own('./_stubs/app-$1.ts') },
+				{ find: /^ogygia:(server|boot|region|dev)$/, replacement: own('./_stubs/realm-$1.ts') },
 				{
-					find: /^virtual:ogygia\/(?!router-css$)(.*)$/,
+					find: /^virtual:ogygia\/(.*)$/,
 					replacement: own('./_stubs/virtual-$1.ts')
 				}
 			]

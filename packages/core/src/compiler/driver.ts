@@ -995,7 +995,10 @@ export class Compiler implements CoreApp {
 	 * the adapter owns only the FOUC-css virtuals (they carry a Vite `moduleType`) and the Vite build
 	 * value threaded in here (the `universalHooks` path).
 	 */
-	emit(id: string, leg: Leg): string | Promise<string> | null {
+	emit(
+		id: string,
+		leg: Leg
+	): string | { code: string; moduleSideEffects: false } | Promise<string> | null {
 		const ctx = this.#ctx!;
 		const program = this.program;
 		const { ssr } = leg;
@@ -1004,7 +1007,12 @@ export class Compiler implements CoreApp {
 		if (registry_client) return this.#registry_client_emit(registry_client);
 
 		const declared = this.#virtuals.load(id, this, leg);
-		if (declared !== null) return declared;
+		if (declared !== null) {
+			// (a module of definitions only: unused, the bundler drops it and what it imports)
+			if (typeof declared === 'string' && this.#virtuals.side_effect_free(id))
+				return { code: declared, moduleSideEffects: false };
+			return declared;
+		}
 
 		const srcEntry = program.registry.get(id);
 		if (srcEntry && srcEntry.role === 'region') {

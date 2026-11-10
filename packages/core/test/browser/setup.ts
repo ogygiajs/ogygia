@@ -21,7 +21,7 @@ import HoleKitHost from './fixtures/HoleKitHost.svelte';
 import LakePageReaderHost from './fixtures/LakePageReaderHost.svelte';
 import { set_page, reset_page } from '../../src/shims/page-store.svelte.ts';
 import { set_request_event_stub } from '../_stubs/virtual-request-event.ts';
-import { csr_true_routes } from '../_stubs/virtual-route-csr.ts';
+import { csrTrueRoutes as csr_true_routes } from '../_stubs/virtual-route-csr.ts';
 
 const COUNTER = '/test/browser/fixtures/Counter.svelte';
 const HEAVY = '/test/browser/fixtures/Heavy.svelte';

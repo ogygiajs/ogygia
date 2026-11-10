@@ -37,7 +37,7 @@ import {
 } from '../src/server/request-stats.ts';
 import { merge_seed_ask, shape_page_data, type SeedAsk } from '../src/server/seed-shape.ts';
 import { set_island_deps } from '../test/_stubs/virtual-island-deps.ts';
-import { csr_true_routes } from '../test/_stubs/virtual-route-csr.ts';
+import { csrTrueRoutes as csr_true_routes } from '../test/_stubs/virtual-route-csr.ts';
 import {
 	content_data,
 	content_document,

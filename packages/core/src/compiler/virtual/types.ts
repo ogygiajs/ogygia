@@ -2,17 +2,25 @@
  * The per-realm `.d.ts` files of the virtual-module table. Nothing in them is typed by hand: each
  * declaration points TypeScript at the code that knows the module.
  *
- *   value    its default export is `ValueOf<typeof entry>`: what the entry's `from` returns
- *   request  re-exports the functions from the real module, so its own types are the types
- *   family   `ModuleOf<typeof entry>`: the `contract/` interface the entry is typed with
+ *   value    `ValueOf<typeof entry>['name']`: what the entry's `from` returns
+ *   request  re-exported from the real module, so its own types are the types
+ *   family   `ModuleOf<typeof entry>['name']`: the `contract/` interface the entry is typed with
  *
- * The files sit at `packages/core/virtual/`, beside `dist/`, and point into the built package (the
- * same place in the workspace and in the published one). `scripts/virtual-types.ts` writes them; a
- * test fails while they are stale. An entry's alias is declared from the same entry, until step 5
- * of #486 drops the aliases.
+ * Each file declares its realm module (`ogygia:server`: every entry's names), and each entry's own
+ * id (its realm-named one and its alias, by the module's own names) for the code that imports a
+ * module by id: a module that only runs, a lazy one. The files sit at `packages/core/virtual/`,
+ * beside `dist/`, and point into the built package (the same place in the workspace and in the
+ * published one). `scripts/virtual-types.ts` writes them; a test fails while they are stale.
  */
 import { dedent } from '../dedent.ts';
-import { specifier, type Entry, type ModuleEntry, type Realm } from './table.ts';
+import {
+	OGYGIA_SCHEME,
+	realm_exports,
+	specifier,
+	type Entry,
+	type ModuleEntry,
+	type Realm
+} from './table.ts';
 
 export const REALMS: readonly Realm[] = ['server', 'boot', 'region', 'dev'];
 
@@ -22,19 +30,29 @@ const TABLE = `import('${DIST}/compiler/virtual/table.js')`;
 /** Core's entries, built (./core.ts). */
 export const CORE_ENTRIES_PATH: string = `${DIST}/compiler/virtual/core.js`;
 
-/** One module's declaration body, by the entry's kind; `entries` is the module the entry is
- *  exported from (its built path), `name` its export name there. */
-function body(e: ModuleEntry<unknown>, entries: string, name: string): string {
-	const entry = `typeof import('${entries}').${name}`;
-	if (e.kind === 'value')
-		return dedent`
-			const value: ${TABLE}.ValueOf<${entry}>;
-			export default value;
-		`;
+const request_from = (e: ModuleEntry<unknown> & { kind: 'request' }): string =>
+	'core' in e.module ? `${DIST}/${e.module.core}.js` : e.module.package;
+
+/** An entry's lines in its realm module: each name it gives the realm, typed off the entry. */
+function realm_lines(e: ModuleEntry<unknown>, entry: string): string[] {
+	const names = realm_exports(e);
+	if (names.length === 0) return [];
 	if (e.kind === 'request') {
-		const from = 'core' in e.module ? `${DIST}/${e.module.core}.js` : e.module.package;
-		return `export { ${e.exports.join(', ')} } from '${from}';`;
+		const list = names.map(([name, own]) => (own === name ? name : `${own} as ${name}`));
+		return [`export { ${list.join(', ')} } from '${request_from(e)}';`];
 	}
+	const of = e.kind === 'value' ? 'ValueOf' : 'ModuleOf';
+	return names.map(([name, own]) => `export const ${name}: ${TABLE}.${of}<${entry}>['${own}'];`);
+}
+
+/** An entry's own module, by its own names. */
+function own_body(e: ModuleEntry<unknown>, entry: string): string {
+	if (e.kind === 'value')
+		return e.exports
+			.map((n: string) => `export const ${n}: ${TABLE}.ValueOf<${entry}>['${n}'];`)
+			.join('\n');
+	if (e.kind === 'request')
+		return `export { ${[...new Set(Object.values(e.exports))].join(', ')} } from '${request_from(e)}';`;
 	return dedent`
 		const module: ${TABLE}.ModuleOf<${entry}>;
 		export = module;
@@ -58,23 +76,32 @@ export function virtual_types<A>(
 	entries_path: string
 ): Record<Realm, string> {
 	const out = {} as Record<Realm, string>;
+	// (by export name: a module namespace's key order depends on the loader)
+	const sorted = Object.entries(entries).sort(([a], [b]) => (a < b ? -1 : 1));
 	for (const realm of REALMS) {
-		let text = dedent`
-			// The \`ogygia:${realm}/…\` modules. GENERATED from the virtual-module table
-			// (packages/core/src/compiler/virtual/core.ts) by \`node packages/core/scripts/virtual-types.ts\`;
-			// every type is read off the code (see src/compiler/virtual/types.ts). Do not edit.
-		`;
-		text += '\n\n';
-		// (by export name: a module namespace's key order depends on the loader)
-		for (const [name, value] of Object.entries(entries).sort(([a], [b]) => (a < b ? -1 : 1))) {
+		const realm_module: string[] = [];
+		let own = '';
+		for (const [name, value] of sorted) {
 			const e = value as Entry<A>;
 			if (typeof e !== 'object' || e === null || !('kind' in e) || e.kind === 'constant') continue;
 			if (e.realm !== realm || (e.kind === 'family' && (e.parse || !e.load))) continue;
-			const b = body(e as ModuleEntry<unknown>, entries_path, name);
-			text += declare(specifier(realm, e.id), b);
-			if (e.alias) text += declare(e.alias, b);
+			const entry = `typeof import('${entries_path}').${name}`;
+			const m = e as ModuleEntry<unknown>;
+			realm_module.push(...realm_lines(m, entry));
+			const b = own_body(m, entry);
+			own += declare(specifier(realm, m.id), b);
+			if (m.alias) own += declare(m.alias, b);
 		}
-		out[realm] = text;
+		out[realm] =
+			dedent`
+				// The \`ogygia:${realm}\` module and its entries' own ids. GENERATED from the virtual-module
+				// table (packages/core/src/compiler/virtual/core.ts) by
+				// \`node packages/core/scripts/virtual-types.ts\`; every type is read off the code (see
+				// src/compiler/virtual/types.ts). Do not edit.
+			` +
+			'\n\n' +
+			declare(OGYGIA_SCHEME + realm, realm_module.join('\n')) +
+			own;
 	}
 	return out;
 }

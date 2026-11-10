@@ -26,7 +26,7 @@ const STYLE_CLOSE_G = /<\/style/gi;
 // importer): that run reads the edited registry.
 const registry = flights({
 	name: 'router-css registry',
-	run: () => import('virtual:ogygia/router-css')
+	run: () => import('ogygia:server/router-css')
 });
 let warned_inactive = false;
 

@@ -245,10 +245,10 @@ import {
 	chunkContents,
 	chunkDuplicates,
 	chunkHeavy,
-	islandHazards,
-	islandPageKeys,
-	islandPageWhy
-} from 'virtual:ogygia/island-deps';
+	regionHazards as islandHazards,
+	regionPageKeys as islandPageKeys,
+	regionPageWhy as islandPageWhy
+} from 'ogygia:server';
 import { set_span_recorder, type SpanAttrs, type SpanRecord, type SpanRecorder } from './span.ts';
 import {
 	flights,

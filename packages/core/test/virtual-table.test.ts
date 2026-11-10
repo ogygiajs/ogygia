@@ -35,7 +35,7 @@ describe('the virtual-module table', () => {
 			))
 				ids.add(m[1]);
 		}
-		expect(ids.size).toBeGreaterThan(10);
+		expect(ids.has('ogygia:server') && ids.has('ogygia:boot')).toBe(true);
 		for (const id of ids) expect(() => table.resolve(id), id).not.toThrow();
 	});
 
@@ -64,7 +64,7 @@ describe('the virtual-module table', () => {
 	});
 
 	it('refuses two declarations of one module with virtual_duplicate', () => {
-		const a = virtual.value({ realm: 'server', id: 'x', from: () => ({}) });
+		const a = virtual.value({ realm: 'server', id: 'x', exports: [], from: () => ({}) });
 		expect(() => new VirtualTable([a, a], core_path)).toThrow(/virtual_duplicate/);
 	});
 
@@ -78,10 +78,10 @@ describe('the virtual-module table', () => {
 		const id = table.resolve('virtual:ogygia/region-ttl')!;
 		const ctx = { region_ttl: 3600, renew_window: 2592000 };
 		expect(table.load(id, app(ctx), leg(true))).toBe(
-			'export default { "regionTtl": 3600, "renewWindow": 2592000 };'
+			'export const regionTtl = 3600;\nexport const renewWindow = 2592000;'
 		);
 		expect(table.load(id, app(ctx), leg(false))).toBe(
-			'export default { "regionTtl": 3600, "renewWindow": 0 };'
+			'export const regionTtl = 3600;\nexport const renewWindow = 0;'
 		);
 	});
 
@@ -91,6 +91,40 @@ describe('the virtual-module table', () => {
 		expect(table.load(id, app(ctx), leg(true))).toBe(
 			'export { sign, verify, region_mac_message } from "/pkg/dist/server/hmac.js";'
 		);
+	});
+
+	it('serves each realm as one module of named re-exports, values first', () => {
+		const id = table.resolve('ogygia:server')!;
+		expect(id).toBe(RESOLVED('ogygia:server'));
+		const src = table.load(id, app({}), leg(true)) as string;
+		expect(src).toContain('export { regionTtl, renewWindow } from "virtual:ogygia/region-ttl";');
+		expect(src).toContain('islandCss as regionCss');
+		expect(src).not.toContain('export default');
+		// a request's real module may import the realm module back: every value is evaluated first
+		const lines = src.split('\n');
+		const last_value = lines.findLastIndex((l) => l.includes('region-ttl'));
+		expect(lines.findIndex((l) => l.includes('virtual:ogygia/sign'))).toBeGreaterThan(last_value);
+		expect(table.side_effect_free(id)).toBe(true);
+		// a module that only runs is never in its realm module
+		expect(table.load(table.resolve('ogygia:boot')!, app({}), leg(false))).not.toContain(
+			'runtime-entry'
+		);
+	});
+
+	it('refuses two entries that give their realm one name', () => {
+		const a = virtual.value({ realm: 'server', id: 'a', exports: ['x'], from: () => ({ x: 1 }) });
+		const b = virtual.value({ realm: 'server', id: 'b', exports: ['x'], from: () => ({ x: 2 }) });
+		expect(() => new VirtualTable([a, b], core_path)).toThrow(/virtual_duplicate/);
+	});
+
+	it('stubs every realm export for the unit tests (test/_stubs/realm-<realm>.ts)', () => {
+		for (const realm of ['server', 'boot', 'region'] as const) {
+			const src = table.load(table.resolve(`ogygia:${realm}`)!, app({}), leg(true)) as string;
+			const names = [...src.matchAll(/(?:\{ |, )(?:\w+ as )?(\w+)/g)].map((m) => m[1]);
+			const stub = fs.readFileSync(new URL(`./_stubs/realm-${realm}.ts`, import.meta.url), 'utf8');
+			for (const name of names)
+				expect(stub, `${realm}: ${name}`).toMatch(new RegExp(`\\b${name}\\b`));
+		}
 	});
 
 	it('invalidates exactly the modules that watch a change', () => {

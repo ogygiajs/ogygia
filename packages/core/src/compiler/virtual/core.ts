@@ -69,7 +69,7 @@ export interface CoreApp {
 	note_server_ids(ids: Set<string>): void;
 }
 
-type Value<T> = ValueEntry<CoreApp, T>;
+type Value<T extends object> = ValueEntry<CoreApp, T>;
 type Family<M = Record<never, never>> = FamilyEntry<CoreApp, M>;
 
 const BACKSLASH_G = /\\/g;
@@ -192,6 +192,7 @@ export const runtime_flags: Family<RuntimeFlagsModule> = virtual.family({
 	realm: 'boot',
 	id: 'runtime-flags',
 	alias: 'virtual:ogygia/runtime-flags',
+	exports: { FRAMES: 'FRAMES' },
 	load(app: CoreApp) {
 		// Dev runs the kitchen-sink boot: every flag on, like every feature.
 		if (!app.ctx.is_build) return generateRuntimeFlagsSource({}, true);
@@ -204,6 +205,7 @@ export const hydrate_features: Family<HydrateFeaturesModule> = virtual.family({
 	realm: 'boot',
 	id: 'hydrate-features',
 	alias: 'virtual:ogygia/hydrate-features',
+	exports: { installHydrateFeatures: 'install' },
 	load(app: CoreApp) {
 		const { ctx, program } = app;
 		// The hydrate core's feature phase, from the same marks as the boot entry. Dev runs the
@@ -227,15 +229,16 @@ export const hydrate_features: Family<HydrateFeaturesModule> = virtual.family({
 	}
 });
 
-export const devtools_meta: Value<Record<string, string>> = virtual.value({
+export const devtools_meta: Value<{ regionNames: Record<string, string> }> = virtual.value({
 	realm: 'boot',
 	id: 'devtools-meta',
 	alias: 'virtual:ogygia/devtools-meta',
+	exports: ['regionNames'],
 	// a build: every region's component name, from the prescan (the dev server serves them live)
 	from(app: CoreApp) {
-		if (app.ctx.is_dev) return {};
+		if (app.ctx.is_dev) return { regionNames: {} };
 		app.prescan();
-		return app.region_names();
+		return { regionNames: app.region_names() };
 	}
 });
 
@@ -243,6 +246,7 @@ export const transport: Family<TransportModule> = virtual.family({
 	realm: 'boot',
 	id: 'transport',
 	alias: 'virtual:ogygia/transport',
+	exports: { transport: 'transport', encoders: 'encoders', decoders: 'decoders' },
 	load: (_app: CoreApp, leg) =>
 		transport_module(leg.universalHooks, leg.ssr ? null : (leg.kitCodec ?? null))
 });
@@ -251,6 +255,7 @@ export const transportables: Family<TransportablesModule> = virtual.family({
 	realm: 'boot',
 	id: 'transportables',
 	alias: 'virtual:ogygia/transportables',
+	exports: { wireLoaders: 'wire_loaders', wireAll: 'wire_all' },
 	// transportable-class modules: eager on the server, lazy loaders on the client (tag paths are
 	// root-relative, as the registration writes them)
 	load(app: CoreApp, { ssr }) {
@@ -301,41 +306,65 @@ export const devtools_boot: Family = virtual.family({
 
 // ── server ──────────────────────────────────────────────────────────────────────────────────
 
-export const runtime_url: Value<string> = virtual.value({
+export const runtime_url: Value<{ runtimeUrl: string }> = virtual.value({
 	realm: 'server',
 	id: 'runtime-url',
 	alias: 'virtual:ogygia/runtime-url',
+	exports: ['runtimeUrl'],
 	// The runtime's IDENTITY — dev: its dev URL; build: its stable URL (the hashed file is looked up
 	// at render time through the build handoff). Prescan first, so the feature hash matches the
 	// client emit's stable name (both legs prescan the same source).
 	from(app: CoreApp) {
-		if (app.ctx.is_dev) return dev_url(key(runtime));
+		if (app.ctx.is_dev) return { runtimeUrl: dev_url(key(runtime)) };
 		app.prescan();
-		return app.runtime_chunk_url();
+		return { runtimeUrl: app.runtime_chunk_url() };
 	}
 });
 
-export const dev_hmr_url: Value<string> = virtual.value({
+export const dev_hmr_url: Value<{ devHmrUrl: string }> = virtual.value({
 	realm: 'server',
 	id: 'dev-hmr-url',
 	alias: 'virtual:ogygia/dev-hmr-url',
+	exports: ['devHmrUrl'],
 	// '' in build/preview; the dev URL during `vite dev`
-	from: ({ ctx }: CoreApp) => (ctx.is_dev ? dev_url(key(hmr)) : '')
+	from: ({ ctx }: CoreApp) => ({ devHmrUrl: ctx.is_dev ? dev_url(key(hmr)) : '' })
 });
 
-export const devtools_boot_url: Value<string> = virtual.value({
+export const devtools_boot_url: Value<{ devtoolsBootUrl: string }> = virtual.value({
 	realm: 'server',
 	id: 'devtools-boot-url',
 	alias: 'virtual:ogygia/devtools-boot-url',
+	exports: ['devtoolsBootUrl'],
 	// the dev URL the handle injects on csr=true pages; '' in build/preview and with no client realm
-	from: ({ ctx }: CoreApp) =>
-		ctx.client_plugins.length && ctx.is_dev ? dev_url(key(devtools_boot)) : ''
+	from: ({ ctx }: CoreApp) => ({
+		devtoolsBootUrl: ctx.client_plugins.length && ctx.is_dev ? dev_url(key(devtools_boot)) : ''
+	})
 });
 
 export const region_deps: Family<RegionDepsModule> = virtual.family({
 	realm: 'server',
 	id: 'region-deps',
 	alias: 'virtual:ogygia/island-deps',
+	// (the generated module's own names still say island; the realm module names them region)
+	exports: {
+		regionDeps: 'islandDeps',
+		regionInteractivity: 'islandInteractivity',
+		chunkContents: 'chunkContents',
+		chunkHeavy: 'chunkHeavy',
+		chunkDuplicates: 'chunkDuplicates',
+		chunkBarrels: 'chunkBarrels',
+		regionHazards: 'islandHazards',
+		regionCss: 'islandCss',
+		contentCss: 'contentCss',
+		regionCssInline: 'islandCssInline',
+		regionReadsPage: 'islandReadsPage',
+		regionPageKeys: 'islandPageKeys',
+		regionPageWhy: 'islandPageWhy',
+		regionRemotes: 'islandRemotes',
+		fnManifest: 'fnManifest',
+		entryLocation: 'entryLocation',
+		locationMap: 'locationMap'
+	},
 	load: ({ ctx }: CoreApp, { ssr }) =>
 		island_deps_module(ssr, ctx.is_dev, path.relative(ctx.root, kit_dirs(ctx.root).out_dir))
 });
@@ -361,6 +390,7 @@ export const secret: Value<{ buildKey: string; buildHadSecret: boolean }> = virt
 	realm: 'server',
 	id: 'secret',
 	alias: 'virtual:ogygia/secret',
+	exports: ['buildKey', 'buildHadSecret'],
 	watch: ['options'],
 	// the build's key material, and whether the build had an `OGYGIA_SECRET` (its ids are salted)
 	from: ({ ctx }: CoreApp, { ssr }) =>
@@ -374,7 +404,7 @@ export const sign: RequestEntry<CoreApp> = virtual.request({
 	id: 'sign',
 	alias: 'virtual:ogygia/sign',
 	module: { core: 'server/hmac' },
-	exports: ['sign', 'verify', 'region_mac_message'],
+	exports: { sign: 'sign', verify: 'verify', regionMacMessage: 'region_mac_message' },
 	client: () => sign_client_source()
 });
 
@@ -383,7 +413,7 @@ export const request_event: RequestEntry<CoreApp> = virtual.request({
 	id: 'request-event',
 	alias: 'virtual:ogygia/request-event',
 	module: { package: '$app/server' },
-	exports: ['getRequestEvent'],
+	exports: { getRequestEvent: 'getRequestEvent' },
 	// (the message is written in whole: the stub imports nothing)
 	client: () =>
 		`export function getRequestEvent() { throw new Error(${JSON.stringify(line('request_event_server_only'))}); }`
@@ -396,13 +426,13 @@ export const region_endpoint: RequestEntry<CoreApp> = virtual.request({
 	// Region's minting (lake endpoints, server regions, fingerprints, a hole's CSS). The browser leg
 	// mints nothing: lakes reuse the endpoint the SSR restore cached, and the runtime fetches holes.
 	module: { core: 'server/region-endpoint' },
-	exports: [
-		'makeRegionEndpoint',
-		'mintServerIsland',
-		'known_region_fps',
-		'islandFingerprint',
-		'holeCss'
-	],
+	exports: {
+		makeRegionEndpoint: 'makeRegionEndpoint',
+		mintServerRegion: 'mintServerIsland',
+		knownRegionFps: 'known_region_fps',
+		regionFingerprint: 'islandFingerprint',
+		holeCss: 'holeCss'
+	},
 	client: () =>
 		`export function makeRegionEndpoint(_entry, _props) { return ''; }\n` +
 		`export function mintServerIsland(_entry, _props, _ttl) { return ''; }\n` +
@@ -416,62 +446,77 @@ export const kit_wire: Family<KitWireModule> = virtual.family({
 	id: 'kit-wire',
 	alias: 'virtual:ogygia/kit-wire',
 	// Kit's OWN wire protocol (its transport-aware devalue codec), deep-imported by absolute path
+	exports: {
+		stringifyRemoteArg: 'stringify_remote_arg',
+		stringifyCommandArg: 'stringify_command_arg',
+		createRemoteKey: 'create_remote_key'
+	},
 	load: ({ ctx }: CoreApp) =>
 		ctx.kit_wire_path === null
 			? null
 			: `export { stringify_remote_arg, stringify_command_arg, create_remote_key } from ${JSON.stringify(ctx.kit_wire_path)};`
 });
 
-export const rate_limit: Value<{ max: number; windowMs: number }> = virtual.value({
+export const rate_limit: Value<{ rateLimit: { max: number; windowMs: number } }> = virtual.value({
 	realm: 'server',
 	id: 'rate-limit',
 	alias: 'virtual:ogygia/rate-limit',
+	exports: ['rateLimit'],
 	watch: ['options'],
 	// `max: 0` disables (`ogygia({ rateLimit })`)
-	from: ({ ctx }: CoreApp, { ssr }) => (ssr ? ctx.rate_limit : { max: 0, windowMs: 60000 })
+	from: ({ ctx }: CoreApp, { ssr }) => ({
+		rateLimit: ssr ? ctx.rate_limit : { max: 0, windowMs: 60000 }
+	})
 });
 
 export const server_plugins: Family<ServerPluginsModule> = virtual.family({
 	realm: 'server',
 	id: 'server-plugins',
 	alias: 'virtual:ogygia/server-plugins',
+	exports: { serverPlugins: 'plugins' },
 	watch: ['plugins'],
 	load: ({ ctx }: CoreApp, { ssr }) => server_plugins_module(ssr, ctx.server_plugins)
 });
 
-export const profiler_maps: Value<string | null> = virtual.value({
+export const profiler_maps: Value<{ profilerMaps: string | null }> = virtual.value({
 	realm: 'server',
 	id: 'profiler-maps',
 	alias: 'virtual:ogygia/profiler-maps',
+	exports: ['profilerMaps'],
 	// a placeholder the build fills with the maps (vite/profiler-maps.ts); anything else: none
-	from: ({ ctx }: CoreApp, { ssr }) =>
-		ssr && ctx.is_build && ctx.measure ? PROFILER_MAPS_PLACEHOLDER : null
-});
-
-export const router_config: Value<{ enabled: boolean; viewTransitions: boolean }> = virtual.value({
-	realm: 'server',
-	id: 'router-config',
-	alias: 'virtual:ogygia/router-config',
-	watch: ['options'],
-	from: ({ ctx }: CoreApp) => ({
-		enabled: ctx.router_enabled,
-		viewTransitions: ctx.router_view_transitions
+	from: ({ ctx }: CoreApp, { ssr }) => ({
+		profilerMaps: ssr && ctx.is_build && ctx.measure ? PROFILER_MAPS_PLACEHOLDER : null
 	})
 });
 
-export const session_cookie: Value<string> = virtual.value({
+export const router_config: Value<{ routerEnabled: boolean; viewTransitions: boolean }> =
+	virtual.value({
+		realm: 'server',
+		id: 'router-config',
+		alias: 'virtual:ogygia/router-config',
+		exports: ['routerEnabled', 'viewTransitions'],
+		watch: ['options'],
+		from: ({ ctx }: CoreApp) => ({
+			routerEnabled: ctx.router_enabled,
+			viewTransitions: ctx.router_view_transitions
+		})
+	});
+
+export const session_cookie: Value<{ sessionCookie: string }> = virtual.value({
 	realm: 'server',
 	id: 'session-cookie',
 	alias: 'virtual:ogygia/session-cookie',
+	exports: ['sessionCookie'],
 	watch: ['options'],
 	// the cookie name sealed into the region MAC, or ''
-	from: ({ ctx }: CoreApp, { ssr }) => (ssr ? ctx.session_cookie : '')
+	from: ({ ctx }: CoreApp, { ssr }) => ({ sessionCookie: ssr ? ctx.session_cookie : '' })
 });
 
 export const region_ttl: Value<{ regionTtl: number; renewWindow: number }> = virtual.value({
 	realm: 'server',
 	id: 'region-ttl',
 	alias: 'virtual:ogygia/region-ttl',
+	exports: ['regionTtl', 'renewWindow'],
 	watch: ['options'],
 	from: ({ ctx }: CoreApp, { ssr }) =>
 		ssr
@@ -482,32 +527,29 @@ export const region_ttl: Value<{ regionTtl: number; renewWindow: number }> = vir
 /** The csr=true routes, so a csr=false layout's regions degrade to inline under a csr=true leaf. */
 export interface RouteCsr {
 	/** route ids (group-stripped) whose effective csr is true */
-	csr_true_routes: ReadonlySet<string>;
+	csrTrueRoutes: ReadonlySet<string>;
 	/** route ids whose ERROR render is hydrated (the layouts' csr; the page's option ignored) */
-	error_csr_true_routes: ReadonlySet<string>;
+	errorCsrTrueRoutes: ReadonlySet<string>;
 	/** the routeless error render: the root layout's own csr (Kit's default `true`) */
-	root_layout_csr_true: boolean;
+	rootLayoutCsrTrue: boolean;
 }
 
-export const route_csr: Value<RouteCsr> = virtual.value({
+export const route_csr: Value<RouteCsr> = virtual.value<CoreApp, RouteCsr>({
 	realm: 'server',
 	id: 'route-csr',
 	alias: 'virtual:ogygia/route-csr',
+	exports: ['csrTrueRoutes', 'errorCsrTrueRoutes', 'rootLayoutCsrTrue'],
 	watch: ['routes'],
 	// the client reads the same signal from `kit_hydrates_page()`
 	from({ ctx }: CoreApp, { ssr }) {
 		if (!ssr)
-			return {
-				csr_true_routes: new Set(),
-				error_csr_true_routes: new Set(),
-				root_layout_csr_true: true
-			};
+			return { csrTrueRoutes: new Set(), errorCsrTrueRoutes: new Set(), rootLayoutCsrTrue: true };
 		const routes = kit_dirs(ctx.root).routes_dir;
 		return {
-			csr_true_routes: new Set(csrTrueRouteIds(routes)),
+			csrTrueRoutes: new Set(csrTrueRouteIds(routes)),
 			// Kit renders a route's error page with its LAYOUT branch only
-			error_csr_true_routes: new Set(errorCsrTrueRouteIds(routes)),
-			root_layout_csr_true: rootLayoutCsrTrue(routes)
+			errorCsrTrueRoutes: new Set(errorCsrTrueRouteIds(routes)),
+			rootLayoutCsrTrue: rootLayoutCsrTrue(routes)
 		};
 	}
 });
@@ -516,6 +558,7 @@ export const route_config: Family<RouteConfigModule> = virtual.family({
 	realm: 'server',
 	id: 'route-config',
 	alias: 'virtual:ogygia/route-config',
+	exports: { routeConfig: 'route_config' },
 	watch: ['routes', 'plugins'],
 	load: ({ ctx }: CoreApp, { ssr }) =>
 		route_config_module(ssr, kit_dirs(ctx.root).routes_dir, ctx.route_config)
@@ -525,6 +568,14 @@ export const server_manifest: Family<ServerManifestModule> = virtual.family({
 	realm: 'server',
 	id: 'server-manifest',
 	alias: 'virtual:ogygia/server-manifest',
+	exports: {
+		loadServerRegions: 'load_islands',
+		regionUrl: 'island_url',
+		regionName: 'island_name',
+		regionRender: 'island_render',
+		renderRegion: 'render_island',
+		regionReadsPageData: 'island_reads_page_data'
+	},
 	watch: ['regions'],
 	// filled in dev AND build (the client's would be from URLs)
 	load(app: CoreApp, { ssr }) {
@@ -558,6 +609,7 @@ export const kit_transport: Family<KitTransportModule> = virtual.family({
 	realm: 'region',
 	id: 'kit-transport',
 	alias: 'virtual:ogygia/kit-transport',
+	exports: { kitTransport: 'transport' },
 	// `ogygia.transport`: the codec cluster only when the app crosses a region or wired value over
 	// Kit's wire; an empty map for an app of plain regions (transport.js sits one level above runtime/)
 	load({ ctx, program }: CoreApp) {

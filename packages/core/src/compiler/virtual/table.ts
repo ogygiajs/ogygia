@@ -51,10 +51,12 @@ interface Base {
 	watch?: readonly Watch[];
 }
 
-/** A value module: its default export is what `from` returns (JSON, plus `Set`), and its type is
- *  `from`'s return type (the generated `.d.ts` reads it off the entry: {@link ValueOf}). */
-export interface ValueEntry<A, T = unknown> extends Base {
+/** A value module: `from` returns its data (JSON, plus `Set`), and the module has one named export
+ *  per name in `exports` (never a default), which is also its name in the realm module. The
+ *  generated `.d.ts` types each one off the entry, `ValueOf<typeof entry>['name']`. */
+export interface ValueEntry<A, T extends object = Record<string, unknown>> extends Base {
 	kind: 'value';
+	exports: readonly (keyof T & string)[];
 	from(app: A, leg: Leg): T;
 }
 
@@ -62,18 +64,22 @@ export interface ValueEntry<A, T = unknown> extends Base {
  *  no extension), or a package's. The generated `.d.ts` re-exports that module's own types. */
 export type RequestModule = { core: string } | { package: string };
 
+/** A module's names in its realm module → its own export names. */
+export type RealmExports<K extends string = string> = Readonly<Record<string, K>>;
+
 export interface RequestEntry<A> extends Base {
 	kind: 'request';
 	realm: 'server';
 	module: RequestModule;
-	/** the functions it re-exports */
-	exports: readonly string[];
+	/** the functions it re-exports, by their name in the realm module */
+	exports: RealmExports;
 	/** what the browser leg gets until the resolve check keeps server modules off it */
 	client?(app: A): string;
 }
 
 /** A generated-code module. `M` is what it exports (an interface in `contract/`): the generated
- *  `.d.ts` reads it off the entry ({@link ModuleOf}); the entry carries it as a type only. */
+ *  `.d.ts` reads it off the entry ({@link ModuleOf}); the entry carries it as a type only. A module
+ *  without `exports` only runs: it keeps its own id, and the realm module never imports it. */
 export interface FamilyEntry<A, M = Record<never, never>> extends Base {
 	kind: 'family';
 	/** with `parse`, the entry is a prefix (`id` ends in `/`) and `parse` reads the rest; without it,
@@ -81,8 +87,10 @@ export interface FamilyEntry<A, M = Record<never, never>> extends Base {
 	parse?(rest: string): string | null;
 	/** the module's source; `undefined`: not this table's to load (the driver's registry is) */
 	load?(app: A, leg: Leg, rest: string): Source | null;
+	/** what the realm module re-exports from it, by its name there */
+	exports?: RealmExports<keyof M & string>;
 	/** (type only: never set) */
-	readonly exports?: M;
+	readonly shape?: M;
 }
 
 /** A value entry's module type: what its `from` returns. */
@@ -90,7 +98,13 @@ export type ValueOf<E extends { from: (...a: never[]) => unknown }> = Awaited<
 	ReturnType<E['from']>
 >;
 /** A family entry's module type: the contract interface it declares. */
-export type ModuleOf<E extends { exports?: unknown }> = NonNullable<E['exports']>;
+export type ModuleOf<E extends { shape?: unknown }> = NonNullable<E['shape']>;
+
+/** An entry's names in its realm module → its module's own names (none: it is not re-exported). */
+export function realm_exports(e: ModuleEntry<unknown>): [string, string][] {
+	if (e.kind === 'value') return e.exports.map((n: string) => [n, n]);
+	return Object.entries(e.exports ?? {});
+}
 
 export interface ConstantEntry<A> {
 	kind: 'constant';
@@ -106,7 +120,10 @@ export type Entry<A> = ModuleEntry<A> | ConstantEntry<A>;
 
 /** The constructors. Each returns its argument, kind set, so a declaration reads as data. */
 export const virtual = {
-	value: <A, T>(e: Omit<ValueEntry<A, T>, 'kind'>): ValueEntry<A, T> => ({ kind: 'value', ...e }),
+	value: <A, T extends object>(e: Omit<ValueEntry<A, T>, 'kind'>): ValueEntry<A, T> => ({
+		kind: 'value',
+		...e
+	}),
 	request: <A>(e: Omit<RequestEntry<A>, 'kind'>): RequestEntry<A> => ({ kind: 'request', ...e }),
 	family: <A, M = Record<never, never>>(e: Omit<FamilyEntry<A, M>, 'kind'>): FamilyEntry<A, M> => ({
 		kind: 'family',

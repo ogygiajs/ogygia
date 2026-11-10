@@ -28,9 +28,10 @@ export function load_embedded_maps(): Promise<EmbeddedMaps | null> {
 const loaded = flights({
 	name: 'profiler embedded maps',
 	run: () =>
-		import('virtual:ogygia/profiler-maps')
+		// (its own id, not the realm module: the maps are their own chunk, loaded only here)
+		import('ogygia:server/profiler-maps')
 			.then(async (m) => {
-				let raw = (m as { default?: unknown }).default;
+				let raw: unknown = m.profilerMaps;
 				if (typeof raw === 'string' && raw.startsWith(GZ_PREFIX)) {
 					const zlib = await import('node:zlib');
 					raw = zlib
