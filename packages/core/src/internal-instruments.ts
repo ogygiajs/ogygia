@@ -43,7 +43,7 @@ export { metered } from './runtime/own-cost.ts';
 export { props_sidecar_of } from './runtime/sidecar.ts';
 export { import_again } from './runtime/import-again.ts';
 export { download } from './policies.ts';
-export { PAGE_SEED_SELECTOR } from './runtime/seeds.ts';
+export { PAGE_SEED_SELECTOR } from './page-facts-script.ts';
 export { paint_blocker } from './runtime/render-blocking.ts';
 export type { RegionRefusal } from './runtime/region-endpoint-url.ts';
 export { charge, own_cost } from './runtime/own-cost.ts';
