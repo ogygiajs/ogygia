@@ -268,7 +268,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 	}),
 	virtual.family<CoreApp>({
 		realm: 'server',
-		id: 'island-deps',
+		id: 'region-deps',
 		alias: 'virtual:ogygia/island-deps',
 		load: ({ ctx }, { ssr }) =>
 			island_deps_module(ssr, ctx.is_dev, path.relative(ctx.root, kit_dirs(ctx.root).out_dir))
@@ -468,7 +468,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 	}),
 	virtual.family<CoreApp>({
 		realm: 'server',
-		id: 'server-islands',
+		id: 'server-regions',
 		alias: 'virtual:ogygia/server-islands',
 		watch: ['regions'],
 		load(app, { ssr }) {
@@ -515,12 +515,22 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 		load: (_app, _leg, rest) => registry_stub_source(registry_stub_names(rest))
 	}),
 	// …and the families the driver resolves and loads itself, off its registry (declared here so the
-	// namespace is complete)
-	...(['island/', 'region/', 'lazy/', 'wrapper/', 'fouc-css/', 'fouc-scoped/'] as const).map((id) =>
+	// namespace is complete): a region's entry, its binding, its lazy client leg, its wrapper, and
+	// its CSS-only FOUC graph
+	...(
+		[
+			['region-entry/', 'island/'],
+			['region/', 'region/'],
+			['region-lazy/', 'lazy/'],
+			['region-wrapper/', 'wrapper/'],
+			['fouc-css/', 'fouc-css/'],
+			['fouc-scoped/', 'fouc-scoped/']
+		] as const
+	).map(([id, old]) =>
 		virtual.family<CoreApp>({
 			realm: 'region',
 			id,
-			alias: `virtual:ogygia/${id}`,
+			alias: `virtual:ogygia/${old}`,
 			parse: (rest) => rest
 		})
 	),
