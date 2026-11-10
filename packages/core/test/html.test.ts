@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { fc } from '@ogygia/config/sim';
-import { attr, decode_text, html, Html, trusted_html } from '../src/html.ts';
+import { attr, decode_text, html, Html, svelte_html, trusted_html } from '../src/html.ts';
 
 /** Strings made mostly of the characters that matter here. */
 const nasty = fc.string({
@@ -90,6 +90,30 @@ describe('html', () => {
 			'<div class="og-code" data-pref="pm">'
 		);
 		expect(html`${0}${null}${undefined}${false}` + '').toBe('0');
+	});
+});
+
+describe('svelte_html (text written into Svelte markup, #469)', () => {
+	it('escapes { and } in text and in attributes, as well as what html escapes', () => {
+		expect(String(svelte_html`<p class="t">${'Use {x} & <b>'}</p>`)).toBe(
+			'<p class="t">Use &#123;x&#125; &amp; &lt;b&gt;</p>'
+		);
+		expect(String(svelte_html`<Tab label="${'{count}"'}">`)).toBe(
+			'<Tab label="&#123;count&#125;&quot;">'
+		);
+	});
+
+	it('no placed value ever holds a brace, and it reads back as itself', () => {
+		fc.assert(
+			fc.property(
+				fc.string({ unit: fc.constantFrom('{', '}', '"', '<', '&', 'a'), maxLength: 16 }),
+				(s) => {
+					const out = String(svelte_html`<p title="${s}">${s}</p>`);
+					expect(/[{}]/.test(out)).toBe(false);
+					expect(decode_text(out.slice(out.indexOf('>') + 1, out.lastIndexOf('<')))).toBe(s);
+				}
+			)
+		);
 	});
 });
 
