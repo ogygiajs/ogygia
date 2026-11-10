@@ -51,6 +51,7 @@ import {
 	type PluginDefinition,
 	type ResolvedPlugins
 } from './plugin-api.ts';
+import { definers_plugin } from './definers.ts';
 import type { ServerRealm } from '../compiler/link/caps.ts';
 import { assert_no_legacy_options, validate_region_presets, resolve_options } from './options.ts';
 import {
@@ -222,6 +223,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let foreign_hydrate = false;
 	let macros: ResolvedPlugins['macros'] = [];
 	let markup: ResolvedPlugins['markup'] = [];
+	let definers: ResolvedPlugins['definers'] = [];
 	const import_keys = normalize_import_keys(options.importKeys);
 	// What the plugins asked of the build (their `build` hooks, run in `config` below): the build's
 	// measurement data (`b.measure()`, the profiler) and core's event emits (`b.events()`, devtools).
@@ -458,6 +460,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	};
 
 	return [
+		// dev: the plugins' definer calls marked with their module's run (./definers.ts); a
+		// normal-order transform, so its place here among the pre-enforced ones does not matter
+		definers_plugin(() => definers),
 		// `ogygia({ barrels })` — the debarrel pass, FIRST in the array so the region transform below
 		// sees leaf imports. It leaves alone every import that carries an island identity: one with
 		// a region mark (the app's configured attribute keys) and one whose binding feeds
@@ -504,7 +509,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						route_config,
 						foreign_hydrate,
 						macros,
-						markup
+						markup,
+						definers
 					} = resolved);
 					measure = resolved.measure;
 					devtools_effective = resolved.events !== false;

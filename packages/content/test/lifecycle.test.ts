@@ -3,6 +3,7 @@
 // first value is built is never missed, and the site's search follows the content.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as v from 'valibot';
+import { defineRun } from '@ogygia/machine';
 import { content, folder, json, type Source, type SourceEntry } from '../src/index.ts';
 import { withRemotes } from '../src/server.ts';
 import { site as siteRaw } from '../src/site/site.ts';
@@ -458,20 +459,17 @@ describe('a folder sidecar that fails to load once is loaded again (#246)', () =
 });
 
 describe('a collection a newer run of its module replaces stops following (#247)', () => {
-	// What the content dev plugin's mark does in a module run: the run asks the graph for its
-	// wrapper, and the module's content() calls go through it. (A real dev server drives it in
-	// dev-reload.test.ts; here each named run is one run of the same module, to reach the retry
+	// What core's definer marking does in a module run: the run asks for its wrapper
+	// (`defineRun`), and the module's content() calls go through it. (A real dev server drives it
+	// in dev-reload.test.ts; here each named run is one run of the same module, to reach the retry
 	// timer.)
-	const graph = (globalThis as Record<symbol, unknown>)[Symbol.for('ogygia.content.graph')] as {
-		module_run: (module: string) => <F extends (...a: never[]) => unknown>(build: F) => F;
-	};
-	let runs = new Map<string, ReturnType<typeof graph.module_run>>();
+	let runs = new Map<string, ReturnType<typeof defineRun>>();
 	beforeEach(() => {
 		runs = new Map();
 	});
 	const in_run = <T>(r: string, build: () => T): T => {
 		let wrap = runs.get(r);
-		if (!wrap) runs.set(r, (wrap = graph.module_run('/app/src/lib/docs.server.ts')));
+		if (!wrap) runs.set(r, (wrap = defineRun('/app/src/lib/docs.server.ts')));
 		return wrap(build)();
 	};
 

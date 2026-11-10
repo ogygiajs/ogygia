@@ -235,6 +235,28 @@ shapes.get('circle');
 - **Only its own.** An owner's end takes only what it holds: a key set again by another owner stays.
 - **Walk-safe.** An entry removed while the registry is walked is not walked after.
 
+### Definer calls
+
+A plugin's definer (`content()`, `flag()`) owns what it defines by the run of the module that called it. In dev, ogygia's transform marks each such call: `defineRun(id)` runs at the top of the module, once per evaluation, and its calls go through the wrapper it returns. The definer reads that run with `defining()`.
+
+```ts
+import { defining, registry, scope } from '@ogygia/machine';
+
+const shapes = registry.keyed<string, Shape>();
+const here = scope(); // an unmarked call (a build): as long as `shapes`
+export function shape(name: string, s: Shape) {
+	shapes.set(name, s, defining() ?? here); // a marked call: the calling module's run
+}
+```
+
+|                 |                                                                                                                       |
+| --------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `defineRun(id)` | The module `id`'s new run: ends its last run (and what it defined), returns the wrapper its definer calls go through. |
+| `defining()`    | The module run whose marked call is running now, or `null` (a build, or an unmarked call).                            |
+
+- **A module's next run ends its last one.** A definition the new code makes again is set again; one deleted from the code is gone.
+- **Inert in a build.** Nothing is marked, so definitions live as long as the process.
+
 ## Outbox
 
 Work that must happen after the response (a notice to a peer, a batch of events to a sink) goes through one place that keeps it alive, tries it again, sends it once, and calls it done only when the other side applied it.
