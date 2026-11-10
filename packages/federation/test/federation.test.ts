@@ -252,6 +252,14 @@ describe('lift_document — an app’s full HTML → the wire shape', () => {
 		expect(d.body).toContain('entry="http://cms.test/_app/immutable/i.js"');
 	});
 
+	it('lifts the title as plain text, its entities decoded (the shell escapes it once, #436)', () => {
+		const d = lift_document(
+			'<html><head><title>Tom &amp; Jerry &lt;3 &#39;99 &#x263A;</title></head><body></body></html>',
+			'http://cms.test'
+		);
+		expect(d.title).toBe("Tom & Jerry <3 '99 ☺");
+	});
+
 	// the island graph is data, not attributes: its chunks, entry keys and snippet locations resolve
 	// against the shell's page unless they are pinned to the remote too
 	it('pins the island graph to the remote: chunks, entry keys, snippet locations', () => {
@@ -467,6 +475,16 @@ describe('deferred remote holes — the lifetime and renewal of a local hole', (
 		expect(Number(fresh.searchParams.get('exp'))).toBeGreaterThan(now_sec());
 		expect((await ask_hole(fresh))!.status).toBe(200);
 		now.mockRestore();
+	});
+
+	it("a peer's redirect target is escaped into the moved card's href (#439)", async () => {
+		vi.stubGlobal(
+			'fetch',
+			async () => new Response(doc_json({ status: 303, location: '/next?a=1&b="x"><img src=x>' }))
+		);
+		const html = await (await ask_hole(await mint()))!.text();
+		expect(html).toContain('href="/next?a=1&amp;b=&quot;x&quot;>&lt;img src=x>"');
+		expect(html).not.toContain('<img');
 	});
 
 	it('refuses a forged hole and a renewal of one that has not expired', async () => {
