@@ -460,9 +460,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	};
 
 	return [
-		// dev: the plugins' definer calls marked with their module's run (./definers.ts); a
-		// normal-order transform, so its place here among the pre-enforced ones does not matter
-		definers_plugin(() => definers),
 		// `ogygia({ barrels })` — the debarrel pass, FIRST in the array so the region transform below
 		// sees leaf imports. It leaves alone every import that carries an island identity: one with
 		// a region mark (the app's configured attribute keys) and one whose binding feeds
@@ -477,6 +474,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					})
 				]
 			: []),
+		// dev: the plugins' definer calls marked with their module's run (./definers.ts); a
+		// normal-order transform, so its place here among the pre-enforced ones does not matter (after
+		// the debarrel pass, which the array keeps first)
+		definers_plugin(() => definers),
 		{
 			name: 'ogygia',
 			enforce: 'pre',
