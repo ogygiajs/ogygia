@@ -226,11 +226,8 @@ export function resolve_head_urls(head: HTMLHeadElement, page: URL): void {
 			const value = el.getAttribute(attr);
 			// (an empty one names no file: the browser ignores it; resolved, it would name the page)
 			if (value === null || value.trim() === '') continue;
-			try {
-				el.setAttribute(attr, new URL(value, page).href);
-			} catch {
-				// ok: not a URL (left as written: the browser ignores it the same way on either page)
-			}
+			const resolved = page_relative_resolved(value, page);
+			if (resolved !== value) el.setAttribute(attr, resolved);
 		}
 		for (const attr of HEAD_SRCSET_ATTRS) {
 			const value = el.getAttribute(attr);
@@ -260,15 +257,29 @@ function resolve_srcset(value: string, page: URL): string {
 			while (i < value.length && value[i] !== ',') i++;
 			descriptor = value.slice(from, i).trim();
 		}
-		let resolved = url;
-		try {
-			resolved = new URL(url, page).href;
-		} catch {
-			// ok: not a URL: left as written
-		}
+		const resolved = page_relative_resolved(url, page);
 		out.push(descriptor ? resolved + ' ' + descriptor : resolved);
 	}
 	return out.join(', ');
+}
+
+/** Only a page-relative URL names a different file on another page: a root-relative (`/x`),
+ *  protocol-relative (`//x`) or absolute one names the same file anywhere. */
+const NOT_PAGE_RELATIVE = /^(?:[a-z][a-z0-9+.-]*:|\/)/i;
+
+/**
+ * `value` resolved against `page` when it is page-relative, written root-relative on this origin
+ * (`../../_app/x.css` on `/a/e/` → `/_app/x.css`), so a node keeps the form the app's own selectors
+ * and the head merge expect; anything else as written.
+ */
+function page_relative_resolved(value: string, page: URL): string {
+	if (NOT_PAGE_RELATIVE.test(value)) return value;
+	try {
+		const url = new URL(value, page);
+		return url.origin === location.origin ? url.pathname + url.search + url.hash : url.href;
+	} catch {
+		return value; // ok: not a URL (left as written: the browser ignores it the same way on either page)
+	}
 }
 
 /** Stable-ish head node identity without serializing full outerHTML when possible. */
