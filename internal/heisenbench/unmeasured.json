@@ -2195,6 +2195,10 @@
 		{
 			"id": "packages/flags/src/index.ts > set_prime",
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
+		},
+		{
+			"id": "packages/content/src/markdown/shiki.ts > cache:0~7f893a > onEvict",
+			"reason": "disposes one highlighter past the cap (a Shiki object, never ran in tests: the cap is never reached), constant work of its own"
 		}
 	]
 }
