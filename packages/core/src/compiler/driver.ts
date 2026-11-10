@@ -44,7 +44,7 @@ import {
 	svelteModuleHasTransportable,
 	appendSvelteModuleRegistrations,
 	appendTransportRegistrations
-} from './content/transportables.ts';
+} from './transportables.ts';
 import {
 	rewrite_lake_import_to_placeholder,
 	APP_SHIM_IMPORT,
