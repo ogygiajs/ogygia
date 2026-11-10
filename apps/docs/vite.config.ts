@@ -1,5 +1,7 @@
-import { execFileSync } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { ogygia } from 'ogygia/vite';
@@ -11,6 +13,7 @@ import wasm from 'vite-plugin-wasm';
 import { observatoryNodeShims } from './observatory-node-shims';
 import { load_ogygia_themes } from './src/lib/code/shiki-themes.ts';
 import { remarkChangelog } from './src/lib/remark-changelog.ts';
+import { release_dates } from './src/lib/releases/dates.ts';
 import {
 	expandApi,
 	expandApiCacheKey,
@@ -57,32 +60,30 @@ const crossOriginIsolation = (): Plugin => {
 	};
 };
 
-// The Releases pages' dates: each release tag's date (`<package>@<version>`, and the older `v<version>`
-// tags of `ogygia`), read from git once at build into `virtual:release-dates`. A checkout without tags
-// (a shallow clone) gives no dates, and the pages show none.
+// The Releases pages' dates, once at build into `virtual:release-dates`: when npm published each
+// version (the registry's `time`, fetched once per package and kept in Vite's cache dir, so dev does
+// not fetch again), the release tags' dates when the registry is out of reach (src/lib/releases/dates.ts).
 const releaseDates = (): Plugin => {
 	const ID = 'virtual:release-dates';
+	let cache_dir = '';
+	/** The published packages: each with a changelog, not private. */
+	const published = (): string[] => {
+		const root = fileURLToPath(new URL('../../packages/', import.meta.url));
+		const names: string[] = [];
+		for (const dir of readdirSync(root)) {
+			if (!existsSync(path.join(root, dir, 'CHANGELOG.md'))) continue;
+			const pkg = JSON.parse(readFileSync(path.join(root, dir, 'package.json'), 'utf8'));
+			if (!pkg.private) names.push(pkg.name);
+		}
+		return names;
+	};
 	return {
 		name: 'docs-release-dates',
+		configResolved: (config) => void (cache_dir = config.cacheDir),
 		resolveId: (id) => (id === ID ? '\0' + ID : null),
-		load(id) {
+		async load(id) {
 			if (id !== '\0' + ID) return null;
-			const dates: Record<string, string> = {};
-			try {
-				const out = execFileSync(
-					'git',
-					['for-each-ref', '--format=%(refname:strip=2) %(creatordate:short)', 'refs/tags'],
-					{ encoding: 'utf8' }
-				);
-				for (const line of out.split('\n')) {
-					const [tag, date] = line.split(' ');
-					if (!tag || !date) continue;
-					dates[tag.startsWith('v') ? `ogygia@${tag.slice(1)}` : tag] = date;
-				}
-			} catch {
-				// ok: no git or no tags here (a shallow clone): the pages show no dates
-			}
-			return `export default ${JSON.stringify(dates)};`;
+			return `export default ${JSON.stringify(await release_dates(published(), cache_dir))};`;
 		}
 	};
 };
