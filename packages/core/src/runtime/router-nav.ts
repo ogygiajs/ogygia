@@ -240,20 +240,34 @@ export function resolve_head_urls(head: HTMLHeadElement, page: URL): void {
 
 /** A candidate list (`a.png 1x, b.png 2x`) with each URL resolved against `page`. */
 function resolve_srcset(value: string, page: URL): string {
-	return value
-		.split(',')
-		.map((part) => part.trim())
-		.filter((candidate) => candidate !== '')
-		.map((candidate) => {
-			let end = 0;
-			while (end < candidate.length && candidate.charCodeAt(end) > 32) end++; // up to the descriptor
-			try {
-				return new URL(candidate.slice(0, end), page).href + candidate.slice(end);
-			} catch {
-				return candidate; // (not a URL: left as written)
-			}
-		})
-		.join(', ');
+	// Read as the HTML spec reads a srcset: a comma separates candidates only between them (after
+	// whitespace, or at the end of a URL); a comma inside a URL is the URL's (an image CDN's
+	// transform path, a data: URL).
+	const out: string[] = [];
+	const space = (c: number) => c <= 32;
+	let i = 0;
+	while (i < value.length) {
+		while (i < value.length && (space(value.charCodeAt(i)) || value[i] === ',')) i++;
+		if (i >= value.length) break;
+		const start = i;
+		while (i < value.length && !space(value.charCodeAt(i))) i++;
+		let url = value.slice(start, i);
+		let descriptor = '';
+		if (url.endsWith(',')) url = url.replace(/,+$/, '');
+		else {
+			const from = i;
+			while (i < value.length && value[i] !== ',') i++;
+			descriptor = value.slice(from, i).trim();
+		}
+		let resolved = url;
+		try {
+			resolved = new URL(url, page).href;
+		} catch {
+			// ok: not a URL: left as written
+		}
+		out.push(descriptor ? resolved + ' ' + descriptor : resolved);
+	}
+	return out.join(', ');
 }
 
 /** Stable-ish head node identity without serializing full outerHTML when possible. */
