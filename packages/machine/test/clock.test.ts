@@ -48,6 +48,9 @@ describe('a wall-clock step moves no duration', () => {
 			for (let i = 0; i < 6; i++) {
 				// forward or back, by up to two hours
 				step_wall(Math.round((rand() * 2 - 1) * 7_200_000));
+				expect(Number.isFinite(clock.wall()), `seed ${seed}, step ${i}: the wall clock reads`).toBe(
+					true
+				);
 				expect(pages.peek('a')?.kind, `seed ${seed}, step ${i}`).toBe('kept');
 				await pages.get('a');
 			}
