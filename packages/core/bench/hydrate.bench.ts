@@ -52,6 +52,11 @@ import { flights, scope } from '@ogygia/machine';
 import { LoadSlot, reset_load_scheduler } from '../src/runtime/load-scheduler.ts';
 import { class_at, PRIORITY } from '../src/runtime/load-class.ts';
 import {
+	is_warmed_module,
+	reset_island_warms,
+	warm_island_module
+} from '../src/runtime/region-endpoint-url.ts';
+import {
 	background_start,
 	hydrate_settled,
 	hydrate_started,
@@ -392,6 +397,27 @@ bench(
 			return { n: 30 * k };
 		}
 	}
+);
+
+/**
+ * The module warmer (region-endpoint-url.ts, one warm per module on the flights' priority): a page
+ * prefetch warms every island of the next page as a guess, and the visitor then reaches for every
+ * fourth one (a `user` warm joins and raises it). The modules are loaded ahead of the window, as the
+ * booted page's are. Ends when the warms had their turns.
+ */
+async function warm_page(srcs: string[]): Promise<number> {
+	reset_island_warms();
+	reset_load_scheduler();
+	for (const src of srcs) warm_island_module(src);
+	for (let i = 0; i < srcs.length; i += 4) warm_island_module(srcs[i], undefined, 'user');
+	await new Promise((r) => setTimeout(r, 10_000));
+	return srcs.filter((src) => is_warmed_module(src)).length;
+}
+
+bench(
+	'island warm: a prefetch warms a page of islands, the visitor reaches for some',
+	() => warm_page(ISLAND_SRCS),
+	{ setup: () => Promise.all(ISLAND_SRCS.map((src) => import_entry(src, src))).then(() => ({})) }
 );
 
 bench('background drain: wake starts as the page grows', ({ regions }) => drain_starts(regions), {
