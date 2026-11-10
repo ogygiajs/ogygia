@@ -21,7 +21,7 @@ export interface Mark {
 }
 
 /** Every marker, once. */
-export const MARK = {
+export const MARK: Readonly<Record<string, Mark>> = {
 	baked: { attr: 'data-og-baked', by: 'page' },
 	box: { attr: 'data-og-box', by: 'devtools' },
 	cpu: { attr: 'data-og-cpu', by: 'devtools' },
@@ -140,7 +140,7 @@ export const MARK = {
 	ogygiaSlot: { attr: 'data-ogygia-slot', by: 'page' },
 	ogygiaSpeculate: { attr: 'data-ogygia-speculate', by: 'page' },
 	ogygiaSpeculateHint: { attr: 'data-ogygia-speculate-hint', by: 'page' }
-} as const satisfies Record<string, Mark>;
+};
 
 // static: every declared marker's name, made once from MARK
 const DECLARED: ReadonlySet<string> = new Set(Object.values(MARK).map((m) => m.attr));
