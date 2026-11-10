@@ -39,6 +39,14 @@ describe('the virtual-module table', () => {
 		for (const id of ids) expect(() => table.resolve(id), id).not.toThrow();
 	});
 
+	it('resolves an id it already resolved to itself (a barrel’s import, resolved again in SSR)', () => {
+		// a package file re-exporting from ogygia:server: the bundler resolved its import, then asked
+		// again with the resolved id, and the server bundle kept "\0ogygia:server" as an outside import
+		expect(table.resolve(RESOLVED('ogygia:server'))).toBe(RESOLVED('ogygia:server'));
+		expect(table.resolve(RESOLVED('virtual:ogygia/secret'))).toBe(RESOLVED('virtual:ogygia/secret'));
+		expect(table.resolve(RESOLVED('some-plugin-id'))).toBeUndefined();
+	});
+
 	it('fails an undeclared id in the namespace with virtual_unknown', () => {
 		expect(() => table.resolve('virtual:ogygia/no-such-module')).toThrow(/virtual_unknown/);
 		expect(() => table.resolve('ogygia:server/no-such-module')).toThrow(/virtual_unknown/);
