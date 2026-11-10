@@ -106,7 +106,7 @@ const failed_spans = new Map<string, [number, number]>();
 const failed_turns = new Map<string, number>();
 let island_boxes: WeakMap<Element, { top: number; height: number }> | null = null;
 
-type NavOut = Omit<NavigatedEvent, 'href'> & {
+type NavOut = Omit<NavigatedEvent, 'href' | 'reconciled'> & {
 	server?: number;
 	download?: number;
 	bytes?: number;

@@ -12,11 +12,15 @@ declare const __OGYGIA_HOOK_ENTRY_FALLBACK__: import('../dist/compiler/virtual/t
 declare const __OGYGIA_HOOK_HOLE_ANSWERED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_hole_answered>;
 declare const __OGYGIA_HOOK_HOLE_BATCH_MISSED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_hole_batch_missed>;
 declare const __OGYGIA_HOOK_HOLE_FAILED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_hole_failed>;
+declare const __OGYGIA_HOOK_LOAD_STARTED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_load_started>;
+declare const __OGYGIA_HOOK_NAV_STARTED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_nav_started>;
 declare const __OGYGIA_HOOK_NAVIGATED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_navigated>;
 declare const __OGYGIA_HOOK_REGION_FAILED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_region_failed>;
 declare const __OGYGIA_HOOK_REGION_HYDRATED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_region_hydrated>;
+declare const __OGYGIA_HOOK_REGION_MISMATCHED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_region_mismatched>;
 declare const __OGYGIA_HOOK_REGION_MOUNT__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_region_mount>;
 declare const __OGYGIA_HOOK_REGION_UNMOUNT__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_region_unmount>;
+declare const __OGYGIA_HOOK_REGION_WOKE__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_region_woke>;
 declare const __OGYGIA_HOOK_WARNING__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_warning>;
 declare const __OGYGIA_KIT_MAJOR__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').kit_major>;
 declare const __OGYGIA_RULES__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').rules_gate>;
