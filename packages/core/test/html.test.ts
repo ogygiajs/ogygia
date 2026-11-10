@@ -103,6 +103,17 @@ describe('svelte_html (text written into Svelte markup, #469)', () => {
 		);
 	});
 
+	it('an Html value inside a tag (attr(), or one in a quoted attribute) has its braces escaped too', () => {
+		expect(String(svelte_html`<Tab${attr('label', '{count}')}>`)).toBe(
+			'<Tab label="&#123;count&#125;">'
+		);
+		expect(String(svelte_html`<Tab label="${html`<b>{x}</b>`}">`)).not.toMatch(/[{}]/);
+		// between tags, markup made elsewhere is placed as is
+		expect(String(svelte_html`<p>${trusted_html('<b>ok</b>', 'test')}</p>`)).toBe(
+			'<p><b>ok</b></p>'
+		);
+	});
+
 	it('no placed value ever holds a brace, and it reads back as itself', () => {
 		fc.assert(
 			fc.property(
