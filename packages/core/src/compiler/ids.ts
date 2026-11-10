@@ -64,5 +64,4 @@ export const regionBindingVirtualId = (iid: string): string =>
 export const lazyEntryVirtualId = (iid: string): string => `${region_family('lazy')}${iid}.js`;
 
 /** The wake region wrapper's component id. */
-export const wrapperVirtualId = (iid: string): string =>
-	`${region_family('wrapper')}${iid}.svelte`;
+export const wrapperVirtualId = (iid: string): string => `${region_family('wrapper')}${iid}.svelte`;

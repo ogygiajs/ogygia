@@ -99,15 +99,13 @@ function compiler(root: string, is_dev: boolean): Compiler {
 	return c;
 }
 
-/** Every module id the table answers, by its realm-named specifier and its alias. */
+/** Every module id the table answers, by its realm-named specifier. */
 const SPECIFIERS = [
 	'ogygia:server',
 	'ogygia:boot',
 	'ogygia:region',
 	...CORE_VIRTUALS.flatMap((e) =>
-		e.kind === 'constant' || (e.kind === 'family' && e.parse)
-			? []
-			: [specifier(e.realm, e.id), ...(e.alias ? [e.alias] : [])]
+		e.kind === 'constant' || (e.kind === 'family' && e.parse) ? [] : [specifier(e.realm, e.id)]
 	)
 ];
 /** A module's realm imports, as an app's code writes them. */
@@ -135,7 +133,7 @@ bench(
 			}
 			// a family member by its prefix
 			const stub = await c.resolve_id(
-				'virtual:ogygia/registry-stub/a.js?names=default,b',
+				'ogygia:region/registry-stub/a.js?names=default,b',
 				undefined,
 				{
 					ssr: false,
@@ -160,7 +158,7 @@ bench(
 bench('virtual modules: a table built, an undeclared id and a duplicate refused', () => {
 	let refused = 0;
 	const table = new VirtualTable(CORE_VIRTUALS, core_path);
-	for (const id of ['virtual:ogygia/nope', 'ogygia:server/nope']) {
+	for (const id of ['ogygia:region/nope/x.js', 'ogygia:server/nope']) {
 		try {
 			table.resolve(id);
 		} catch {
@@ -174,5 +172,5 @@ bench('virtual modules: a table built, an undeclared id and a duplicate refused'
 	} catch {
 		refused++;
 	}
-	return refused + (table.claims('virtual:ogygia/island/a.js') ? 1 : 0);
+	return refused + (table.claims('ogygia:region/entry/a.js') ? 1 : 0);
 });

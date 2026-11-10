@@ -30,8 +30,8 @@ function makeCtx(overrides: Partial<HostCtx> = {}): HostCtx {
 		readFile: () => null,
 		pathModule: path,
 		dev: false,
-		virtualPathFor: (_hostId: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
-		wrapperPathFor: (_hostId: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
+		virtualPathFor: (_hostId: string, iid: string) => `ogygia:region/entry/${iid}.js`,
+		wrapperPathFor: (_hostId: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
 		devUrlFor: (p: string) => '/@id/' + p,
 		visibleMargin: '0px',
 		presets: {},
@@ -233,7 +233,7 @@ export const page = D;`;
 		expect(String(isl.wrapperSource)).toContain('OgygiaRegion__Wrapper __mode="server"');
 		expect(String(isl.wrapperSource)).toContain('ogygiaFallback');
 		// placed as `<D/>` the wrapper must emit the hole — so the import points at the wrapper, not a binding
-		expect(r!.code).toContain('virtual:ogygia/wrapper/');
+		expect(r!.code).toContain('ogygia:region/wrapper/');
 	});
 
 	test('render: deferred takes `fetch` as its timing (+ margin on visible)', () => {

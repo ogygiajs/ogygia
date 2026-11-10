@@ -1,6 +1,6 @@
 /**
  * Server-router component CSS (link/router-css.ts): the closure walker that finds every `.svelte` a
- * router module can reach (barrels included), and the generated `virtual:ogygia/router-css` source
+ * router module can reach (barrels included), and the generated `ogygia:server/router-css` source
  * for both modes. The runtime registry (router-css.ts) is exercised through the same shapes the
  * virtual emits. End-to-end (build → handoff → linked page) is covered by the router's e2e suite (packages/router/e2e).
  */
@@ -98,7 +98,7 @@ describe('router_css_module — the generated virtual', () => {
 		});
 		expect(src).toContain(`import __OgRcss0 from "/app/src/lib/Shell.svelte";`);
 		expect(src).toContain(`islandCss("rcss:src/lib/Shell.svelte")`);
-		expect(src).toContain(`from 'virtual:ogygia/island-deps'`);
+		expect(src).toContain(`from 'ogygia:server/region-deps'`);
 		// (Kit's build define, root-absolute: `$app/paths` has no `base` on Kit 3, and Kit 2's was
 		// page-relative during SSR — a router navigation carries these links to another depth)
 		expect(src).not.toContain(`'$app/paths'`);

@@ -2180,12 +2180,7 @@ class Profiler {
 				// markup is not its source text: the chunk line stays), not generated code
 				(chunk, line) => {
 					const id = this.#module_find(chunk, line);
-					if (
-						!id ||
-						id.startsWith('\0') ||
-						id.startsWith('virtual:') ||
-						id.startsWith('ogygia:')
-					)
+					if (!id || id.startsWith('\0') || id.startsWith('virtual:') || id.startsWith('ogygia:'))
 						return undefined;
 					if (id.startsWith('src/')) {
 						if (!SCRIPT_MODULE_EXTS.some((e) => id.endsWith(e))) return undefined;

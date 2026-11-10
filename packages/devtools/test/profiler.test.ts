@@ -80,8 +80,8 @@ import {
 	waiting_rows
 } from '../src/profiler/ui/report-data.ts';
 import type { RequestEvent } from '@sveltejs/kit';
-// (core's stub, the file `virtual:ogygia/island-deps` is aliased to — pluginTests())
-import { set_chunk_contents } from '../../core/test/_stubs/virtual-island-deps.ts';
+// (core's stub, the file `ogygia:server/region-deps` is aliased to — pluginTests())
+import { set_chunk_contents } from '../../core/test/_stubs/server.region-deps.ts';
 import {
 	app_asset_rel,
 	client_dir_candidates,

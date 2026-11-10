@@ -25,7 +25,7 @@ export default defineConfig({
 			// rewrote `import { Ticker } from '$lib/barrel'` fed to `asRegion(Ticker)` into a leaf import,
 			// the transform minted a different island id from the one the prescan derived from the raw
 			// file, and the server manifest imported a virtual entry nobody registered ("Rolldown failed
-			// to resolve import virtual:ogygia/island/<id>.js from virtual:ogygia/server-manifest"). The
+			// to resolve import ogygia:region/entry/<id>.js from ogygia:server/server-manifest"). The
 			// /as-region and /ts-registry fixtures are that shape; with this on, the build is the test.
 			barrels: true,
 			// Opt IN to server-delta nav (off by default) so e2e/server-delta.ts exercises the protocol:

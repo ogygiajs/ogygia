@@ -82,7 +82,7 @@ describe('the server manifest maps render identities', () => {
 			() => ''
 		);
 		expect(manifest).toContain(
-			`export const load_islands = () => import("virtual:ogygia/server-islands");`
+			`export const load_islands = () => import("ogygia:server/server-regions");`
 		);
 		expect(manifest).not.toContain('import("virtual:aaaaaaaaaaaa")');
 		expect(server_islands_module(true, p)).toContain(

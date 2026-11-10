@@ -30,7 +30,7 @@ import {
 import { DocumentTail, island_graph_script } from '../src/server/document-tail.ts';
 import { entry_src, runtime_bootstrap } from '../src/server/entry-location.ts';
 import { plan_props_wire } from '../src/server/props-wire.ts';
-import { set_entry_locations, set_island_deps } from './_stubs/virtual-island-deps.ts';
+import { set_entry_locations, set_island_deps } from './_stubs/server.region-deps.ts';
 import Region from '../src/Region.svelte';
 import Tiny from './_fixtures/Tiny.svelte';
 import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';

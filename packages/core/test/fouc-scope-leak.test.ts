@@ -1,6 +1,6 @@
 /**
  * REGRESSION: a lake's (and island's) component-scoped CSS must ship SCOPED (`.x.svelte-<hash>`), never
- * global (`.x`). The client CSS handoff for a `wake:'none'` region is `virtual:ogygia/fouc-scoped/<rel>.css`,
+ * global (`.x`). The client CSS handoff for a `wake:'none'` region is `ogygia:region/fouc-scoped/<rel>.css`,
  * served by compiling the component's scoped CSS. The bug: that path compiled the RAW source with the
  * `<script>` stripped and no preprocessor, so a `<style lang="scss">` component (Svelte can't parse scss)
  * or a template that references a store/script name (compile throws once the script is gone) fell back to

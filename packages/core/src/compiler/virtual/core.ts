@@ -24,10 +24,7 @@ import {
 	server_islands_module,
 	server_island_ids
 } from '../link/server-manifest.ts';
-import {
-	registry_stub_names,
-	registry_stub_source
-} from '../link/registry-stub.ts';
+import { registry_stub_names, registry_stub_source } from '../link/registry-stub.ts';
 import { dev_hmr_client_source } from '../dev/dev-hmr.ts';
 import { PROFILER_MAPS_PLACEHOLDER, REGION_FAMILY } from '../ids.ts';
 import type { CompileCtx } from '../ctx.ts';
