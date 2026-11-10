@@ -12,7 +12,7 @@ const R = {
 	heavy: 'http://127.0.0.1:4183/src/lib/dtlab/Heavy.svelte?t=1',
 	svelte: 'http://127.0.0.1:4183/node_modules/.vite/deps/svelte_internal_client.js?v=abc',
 	runtime: 'http://127.0.0.1:4183/@fs/Users/x/sk/packages/ogygia/src/runtime/core.ts',
-	beacon: 'http://127.0.0.1:4183/@fs/Users/x/sk/packages/ogygia/src/runtime/beacon.ts',
+	beacon: 'http://127.0.0.1:4183/@fs/Users/x/sk/packages/devtools/src/profiler/beacon.ts',
 	lib: 'http://127.0.0.1:4183/node_modules/.vite/deps/@codemirror_view.js?v=1'
 };
 
@@ -74,6 +74,9 @@ describe('clean_file / kind_of', () => {
 		).toBe('devtools');
 		expect(
 			kind_of('http://127.0.0.1:4183/node_modules/@ogygia/core/dist/insights/cpu.js', PAGE)
+		).toBe('devtools');
+		expect(
+			kind_of('http://127.0.0.1:4183/node_modules/@ogygia/devtools/dist/profiler/beacon.js', PAGE)
 		).toBe('devtools');
 		expect(kind_of('', PAGE)).toBe('browser');
 	});

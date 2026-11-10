@@ -4,7 +4,8 @@
  * the Hydration tab and the testing API (`window.__ogygia_testing.hydration()`).
  */
 import { snapshot } from '@ogygia/core/events';
-import { beacon_page, type AttrChange } from '@ogygia/core/internal/instruments';
+import type { AttrChange } from '@ogygia/core/internal/instruments';
+import { beacon_page } from '../profiler/beacon.ts';
 import { all_regions, region_name } from './regions.ts';
 import { html_diff, type HtmlDiff } from '@ogygia/core/insights';
 import type { HydrationStatus } from '@ogygia/core/insights';

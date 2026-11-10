@@ -26,7 +26,8 @@ import { apply_attr_rules, type AttrRule } from '@ogygia/core/insights';
 import { testing_lean } from '@ogygia/core/insights';
 import type { PageFinding, PageReport } from '@ogygia/core/insights';
 import type { CpuSummary } from '@ogygia/core/insights';
-import type { BeaconPage, AttrChange } from '@ogygia/core/internal/instruments';
+import type { AttrChange } from '@ogygia/core/internal/instruments';
+import type { BeaconPage } from '../profiler/beacon.ts';
 
 type EngineStamp = { version: number; lean: boolean };
 type HydrationIsland = ReturnType<typeof hydration_report>['islands'][number];

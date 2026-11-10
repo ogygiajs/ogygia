@@ -3,7 +3,11 @@
 // without the tag nothing is queued or sent.
 import { expect, test } from 'vitest';
 import { mark } from '../../../devtools/src/profiler/client.ts';
-import { _reset_beacon, _beacon_state, beacon_mark } from '../../src/runtime/beacon.ts';
+import {
+	_reset_beacon,
+	_beacon_state,
+	beacon_mark
+} from '../../../devtools/src/profiler/beacon.ts';
 
 function with_tag(): { meta: HTMLMetaElement; sent: string[]; restore: () => void } {
 	_reset_beacon();

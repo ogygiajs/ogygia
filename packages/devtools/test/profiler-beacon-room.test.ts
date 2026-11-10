@@ -1,4 +1,4 @@
-// A full list of the visit makes room for the page in view (runtime/beacon.ts `make_room`): after
+// A full list of the visit makes room for the page in view (profiler/beacon.ts `make_room`): after
 // the document's first in-app navigation, the oldest of the LATER pages' entries goes — never the
 // first page's (the profiler's report is about that one). One 320-island page once left every
 // later page with no islands at all, and the Page tab found nothing there.
@@ -31,7 +31,7 @@ const island = (fp: string) =>
 	}) as unknown as Element;
 
 test('the page in view gets room; the first page keeps all of its own', async () => {
-	const b = await import('../src/runtime/beacon.ts');
+	const b = await import('../src/profiler/beacon.ts');
 	b._reset_beacon();
 	for (let i = 0; i < 10; i++) b.beacon_hydrated(island(`first${i}`), 1, 2, 3);
 	b.beacon_nav({
@@ -55,7 +55,7 @@ test('the page in view gets room; the first page keeps all of its own', async ()
 });
 
 test('before any navigation a full list keeps the first ones (the profiler’s page)', async () => {
-	const b = await import('../src/runtime/beacon.ts');
+	const b = await import('../src/profiler/beacon.ts');
 	b._reset_beacon();
 	for (let i = 0; i < 400; i++) b.beacon_hydrated(island(`first${i}`), 1, 2, 3);
 	b.beacon_hydrated(island('late'), 500, 501, 502);

@@ -10,7 +10,7 @@ import { fs } from './host.ts';
 import { strip_bom } from './bom.ts';
 import { islandVirtualId } from './ids.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
-import type { ServerRealm } from './link/caps.ts';
+import type { ClientRealmFile, ServerRealm } from './link/caps.ts';
 import type { PluginMacro } from './macros/pipeline.ts';
 import {
 	islandChunkFileName,
@@ -59,9 +59,9 @@ export interface CompileCtxInit {
 	/** The server halves of the app's plugins (module path + options), in app order — baked into
 	 *  `ogygia:server/server-plugins`. Optional (default none). */
 	server_plugins?: readonly ServerRealm[];
-	/** The browser halves of the app's plugins (absolute module paths), in app order —
+	/** The browser halves of the app's plugins (name, absolute module path), in app order —
 	 *  imported by the runtime's boot. Optional (default none). */
-	client_plugins?: readonly string[];
+	client_plugins?: readonly ClientRealmFile[];
 	/** The keys the plugins claim inside Kit's `config` page option (`b.routeConfig`) — read from the
 	 *  route files and baked into `ogygia:server/route-config`. Optional (default none). */
 	route_config?: readonly string[];
@@ -133,7 +133,7 @@ export class CompileCtx {
 	readonly page_files: readonly string[];
 	readonly measure: boolean;
 	readonly server_plugins: readonly ServerRealm[];
-	readonly client_plugins: readonly string[];
+	readonly client_plugins: readonly ClientRealmFile[];
 	readonly route_config: readonly string[];
 	readonly foreign_hydrate: boolean;
 	readonly is_dev: boolean;

@@ -1,36 +1,119 @@
 /**
  * The plugins' browser halves, as the runtime calls them (`ogygia/plugin/client`). The boot entry
- * hands them over; every call site sits behind the `__OGYGIA_CLIENT_PLUGINS__` gate, so a build with
- * none folds them away.
+ * hands them over; every call site sits behind its gate (`__OGYGIA_CLIENT_PLUGINS__` for `boot`, one
+ * `__OGYGIA_HOOK_*__` per runtime hook), so a build where no plugin subscribes folds them away.
  */
 import type { ClientPlugin } from '../plugin/client.ts';
+import type { RuntimeHookName, RuntimeHooks } from '../contract/runtime-hooks.ts';
+import { slots } from './slots.ts';
+import { OgygiaError } from '../messages/core.ts';
 
 export const CLIENT_PLUGINS: boolean =
 	typeof __OGYGIA_CLIENT_PLUGINS__ !== 'undefined' ? __OGYGIA_CLIENT_PLUGINS__ : false;
 
-let plugins: readonly ClientPlugin[] = [];
+export const HOOK_REGION_MOUNT: boolean =
+	typeof __OGYGIA_HOOK_REGION_MOUNT__ !== 'undefined' ? __OGYGIA_HOOK_REGION_MOUNT__ : true;
+export const HOOK_REGION_UNMOUNT: boolean =
+	typeof __OGYGIA_HOOK_REGION_UNMOUNT__ !== 'undefined' ? __OGYGIA_HOOK_REGION_UNMOUNT__ : true;
+export const HOOK_REGION_HYDRATED: boolean =
+	typeof __OGYGIA_HOOK_REGION_HYDRATED__ !== 'undefined' ? __OGYGIA_HOOK_REGION_HYDRATED__ : true;
+export const HOOK_REGION_FAILED: boolean =
+	typeof __OGYGIA_HOOK_REGION_FAILED__ !== 'undefined' ? __OGYGIA_HOOK_REGION_FAILED__ : true;
+export const HOOK_HOLE_ANSWERED: boolean =
+	typeof __OGYGIA_HOOK_HOLE_ANSWERED__ !== 'undefined' ? __OGYGIA_HOOK_HOLE_ANSWERED__ : true;
+export const HOOK_HOLE_FAILED: boolean =
+	typeof __OGYGIA_HOOK_HOLE_FAILED__ !== 'undefined' ? __OGYGIA_HOOK_HOLE_FAILED__ : true;
+export const HOOK_HOLE_BATCH_MISSED: boolean =
+	typeof __OGYGIA_HOOK_HOLE_BATCH_MISSED__ !== 'undefined'
+		? __OGYGIA_HOOK_HOLE_BATCH_MISSED__
+		: true;
+export const HOOK_ENTRY_FALLBACK: boolean =
+	typeof __OGYGIA_HOOK_ENTRY_FALLBACK__ !== 'undefined' ? __OGYGIA_HOOK_ENTRY_FALLBACK__ : true;
+export const HOOK_NAVIGATED: boolean =
+	typeof __OGYGIA_HOOK_NAVIGATED__ !== 'undefined' ? __OGYGIA_HOOK_NAVIGATED__ : true;
+export const HOOK_WARNING: boolean =
+	typeof __OGYGIA_HOOK_WARNING__ !== 'undefined' ? __OGYGIA_HOOK_WARNING__ : true;
 
-/** Boot each plugin's browser half (the runtime's boot, or a Kit-owned page's). */
-export function boot_client_plugins(list: readonly ClientPlugin[], kit_page: boolean): void {
-	plugins = list;
-	for (const p of list) p.boot?.({ kitPage: kit_page });
+/** A plugin's browser half, with the plugin's name, as the boot entry hands it over. */
+export interface ClientRealm {
+	readonly name: string;
+	readonly client: ClientPlugin;
+}
+
+type Payload<K extends RuntimeHookName> = Parameters<RuntimeHooks[K]>[0];
+
+/**
+ * The hook as the runtime calls it, built once at boot: every subscriber in plugin order, each call
+ * wrapped so a throw or a rejected promise is reported once per plugin and stops nothing else.
+ * Undefined with no subscriber.
+ */
+function joined<K extends RuntimeHookName>(
+	list: readonly ClientRealm[],
+	name: K
+): RuntimeHooks[K] | undefined {
+	const subscribers: { plugin: string; f: (e: Payload<K>) => unknown }[] = [];
+	for (const { name: plugin, client } of list) {
+		const f = client.hooks?.[name] as ((e: Payload<K>) => unknown) | undefined;
+		if (f) subscribers.push({ plugin, f });
+	}
+	if (!subscribers.length) return undefined;
+	const failed = new Set<string>();
+	const report = (plugin: string, err: unknown) => {
+		if (failed.has(plugin)) return;
+		failed.add(plugin);
+		console.error(new OgygiaError('client_hook_failed', { plugin, hook: name }), err);
+	};
+	return ((e: Payload<K>) => {
+		if (import.meta.env.DEV) Object.freeze(e);
+		for (const { plugin, f } of subscribers) {
+			try {
+				const out = f(e);
+				if (typeof (out as PromiseLike<unknown> | undefined)?.then === 'function')
+					Promise.resolve(out).catch((err: unknown) => report(plugin, err));
+			} catch (err) {
+				report(plugin, err);
+			}
+		}
+	}) as RuntimeHooks[K];
+}
+
+/** Subscribe each plugin's hooks, then boot each plugin's browser half (the runtime's boot, or a
+ *  Kit-owned page's). */
+export function boot_client_plugins(list: readonly ClientRealm[], kit_page: boolean): void {
+	if (
+		HOOK_REGION_MOUNT ||
+		HOOK_REGION_UNMOUNT ||
+		HOOK_REGION_HYDRATED ||
+		HOOK_REGION_FAILED ||
+		HOOK_HOLE_ANSWERED ||
+		HOOK_HOLE_FAILED ||
+		HOOK_HOLE_BATCH_MISSED ||
+		HOOK_ENTRY_FALLBACK ||
+		HOOK_NAVIGATED ||
+		HOOK_WARNING
+	) {
+		const h: Partial<RuntimeHooks> = {};
+		if (HOOK_REGION_MOUNT) h.regionMount = joined(list, 'regionMount');
+		if (HOOK_REGION_UNMOUNT) h.regionUnmount = joined(list, 'regionUnmount');
+		if (HOOK_REGION_HYDRATED) h.regionHydrated = joined(list, 'regionHydrated');
+		if (HOOK_REGION_FAILED) h.regionFailed = joined(list, 'regionFailed');
+		if (HOOK_HOLE_ANSWERED) h.holeAnswered = joined(list, 'holeAnswered');
+		if (HOOK_HOLE_FAILED) h.holeFailed = joined(list, 'holeFailed');
+		if (HOOK_HOLE_BATCH_MISSED) h.holeBatchMissed = joined(list, 'holeBatchMissed');
+		if (HOOK_ENTRY_FALLBACK) h.entryFallback = joined(list, 'entryFallback');
+		if (HOOK_NAVIGATED) h.navigated = joined(list, 'navigated');
+		if (HOOK_WARNING) h.warning = joined(list, 'warning');
+		slots.hooks = h;
+	}
+	for (const { client } of list) client.boot?.({ kitPage: kit_page });
 }
 
 /** A region's component started in the browser: its entry, and the files it runs from. */
 export function client_region_mount(el: Element): void {
+	const mount = slots.hooks?.regionMount;
 	const entry = el.getAttribute('entry');
-	if (!entry) return;
-	let urls: string[] | undefined;
-	for (const p of plugins) {
-		if (!p.regionMount) continue;
-		urls ??= region_urls(el, entry);
-		p.regionMount(el, { entry, urls });
-	}
-}
-
-/** A region's component left the page. */
-export function client_region_unmount(el: Element, entry: string): void {
-	for (const p of plugins) p.regionUnmount?.(el, { entry });
+	if (!mount || !entry) return;
+	mount({ el, entry, urls: region_urls(el, entry) });
 }
 
 function region_urls(el: Element, entry: string): string[] {

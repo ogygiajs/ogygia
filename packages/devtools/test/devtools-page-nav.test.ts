@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import { since_nav } from '../src/devtools/page.ts';
 import { analyze_page } from '@ogygia/core/insights';
-import type { BeaconPage } from '@ogygia/core/internal/instruments';
+import type { BeaconPage } from '../src/profiler/beacon.ts';
 
 const page: BeaconPage = {
 	vitals: { lcp: 5000, fcp: 400, ttfb: 90 },

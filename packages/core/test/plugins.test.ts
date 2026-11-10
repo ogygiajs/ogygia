@@ -3,10 +3,13 @@
  * generated `ogygia:server/server-plugins`, shared hooks, facts, route config, and the test starter.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
 	check_plugins,
+	client_hook_names,
 	definePlugin,
 	find_plugins,
 	PLUGIN,
@@ -109,7 +112,34 @@ describe('realms, named by the plugin', () => {
 		});
 		const out = resolve_plugins([plugin], APP, true);
 		expect(out.servers).toEqual([{ name: '@ogygia/flags', module: posix, options: { x: 1 } }]);
-		expect(out.clients).toEqual([posix]);
+		expect(out.clients).toEqual([{ name: '@ogygia/flags', module: posix }]);
+	});
+	it('the runtime hooks a client realm subscribes to are read from its file, and nothing else passes', () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'og-client-hooks-'));
+		const file = (name: string, code: string) => {
+			const f = path.join(dir, name);
+			fs.writeFileSync(f, code);
+			return f;
+		};
+		const plain = file(
+			'plain.ts',
+			`import { defineClient } from 'ogygia/plugin/client';\nexport default defineClient({ boot() {}, hooks: { regionHydrated(e) {}, 'navigated': () => {} } });\n`
+		);
+		const held = file(
+			'held.ts',
+			`const client: ClientPlugin = defineClient({ hooks: { holeFailed() {} } });\nexport default client;\n`
+		);
+		const none = file('none.ts', `export default defineClient({ boot() {} });\n`);
+		const spread = file('spread.ts', `export default defineClient({ hooks: { ...more } });\n`);
+		const unknown = file(
+			'unknown.ts',
+			`export default defineClient({ hooks: { regionHydratd() {} } });\n`
+		);
+		expect(client_hook_names('p', plain)).toEqual(['regionHydrated', 'navigated']);
+		expect(client_hook_names('p', held)).toEqual(['holeFailed']);
+		expect(client_hook_names('p', none)).toEqual([]);
+		expect(() => client_hook_names('p', spread)).toThrow(/plugin_client_hooks_unread|cannot read/);
+		expect(() => client_hook_names('p', unknown)).toThrow(/regionHydratd/);
 	});
 	it('no realm named, none wired: a package export called `./server` means nothing', () => {
 		const out = resolve_plugins([def({ name: '@ogygia/flags' })], APP, true);

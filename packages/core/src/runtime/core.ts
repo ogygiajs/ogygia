@@ -88,15 +88,6 @@ import { fetch_priority_of, LoadSlot, viewport_class, type LoadClass } from './l
 import { connected_regions } from './connected.ts';
 import { restore_props_sidecar } from './sidecar.ts';
 import { hole_facts_of } from './hole-facts.ts';
-import {
-	beacon_hydrated,
-	beacon_watch,
-	beacon_failed,
-	beacon_warning,
-	beacon_hole_failed,
-	beacon_hole_answered,
-	beacon_entry_fallback
-} from './beacon.ts';
 import { set_hydrating, tap_svelte_warnings, on_svelte_warning } from './svelte-warnings.ts';
 import type { IslandHandle, IslandModule } from './hydrate-core.ts';
 import { emit as dt_emit } from '../events/bus.ts';
@@ -106,11 +97,18 @@ import {
 } from '../events/sinks.ts';
 import {
 	CLIENT_PLUGINS,
+	HOOK_ENTRY_FALLBACK,
+	HOOK_HOLE_ANSWERED,
+	HOOK_HOLE_FAILED,
+	HOOK_REGION_FAILED,
+	HOOK_REGION_HYDRATED,
+	HOOK_REGION_MOUNT,
+	HOOK_REGION_UNMOUNT,
+	HOOK_WARNING,
 	boot_client_plugins,
-	client_region_mount,
-	client_region_unmount
+	client_region_mount
 } from './client-plugins.ts';
-import type { ClientPlugin } from '../plugin/client.ts';
+import type { ClientRealm } from './client-plugins.ts';
 import { OgygiaError, warn, line } from '../messages/core.ts';
 import { report_restores } from './restore-report.ts';
 import { disclose_version } from './disclose-version.ts';
@@ -118,9 +116,6 @@ import { disclose_version } from './disclose-version.ts';
 // DEVTOOLS gate — module-local const from the Vite `define` (the proven DCE pattern): when off, every
 // `if (DEVTOOLS) dt_emit({…})` folds to `if (false)` and the whole devtools graph tree-shakes away.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
-// the profiler's browser half: only where the profiler or devtools can read it (a plain import of
-// dist/ without the define keeps it). Every `if (BEACON) beacon_…()` folds out otherwise.
-const BEACON = typeof __OGYGIA_BEACON__ !== 'undefined' ? __OGYGIA_BEACON__ : true;
 // the runtime's rules (./rules.ts): in dev, and in a build made with OGYGIA_RULES=1 (e2e). Every
 // `if (RULES) …` folds out of any other build, and the rules with it.
 const RULES =
@@ -1273,13 +1268,14 @@ class OgygiaRegion extends HTMLElement {
 		// (a lake this settled wakes the regions inside that waited on it: morphed in place, nothing
 		// reconnects them)
 		slots.lakes.after_html_swap(this, { revalidate }, () => this.#wake_waiting_regions());
-		if (BEACON && !revalidate && this.#fetch_started) {
+		if (HOOK_HOLE_ANSWERED && slots.hooks?.holeAnswered && !revalidate && this.#fetch_started) {
 			const ep = this.getAttribute('endpoint');
-			beacon_hole_answered(
-				this,
-				this.#fetch_started,
-				ep ? slots.frames?.batch_times?.(ep) : undefined
-			);
+			const batch = ep ? slots.frames?.batch_times?.(ep) : undefined;
+			slots.hooks.holeAnswered({
+				el: this,
+				start: this.#fetch_started,
+				...(batch ? { batch } : {})
+			});
 		}
 		if (DEVTOOLS)
 			dt_emit({
@@ -1481,7 +1477,7 @@ class OgygiaRegion extends HTMLElement {
 		}
 		const final = refused || !this.isConnected || attempts >= region_fetch.attempts;
 		// the profiler's browser half: the hole that kept its fallback, by its island id
-		if (final) {
+		if (HOOK_HOLE_FAILED && final && slots.hooks?.holeFailed) {
 			let id = '';
 			let final_path: string | undefined;
 			try {
@@ -1490,11 +1486,11 @@ class OgygiaRegion extends HTMLElement {
 			} catch {
 				// ok: an endpoint URL that was fetched parses; the message goes without its id if not
 			}
-			if (BEACON && id)
-				beacon_hole_failed({
+			if (id)
+				slots.hooks.holeFailed?.({
 					id,
 					reason: refused ? err.reason : 'error',
-					...(final_path ? { final_path } : {}),
+					...(final_path ? { finalPath: final_path } : {}),
 					...(refused
 						? {}
 						: {
@@ -1618,7 +1614,7 @@ class OgygiaRegion extends HTMLElement {
 		/** when its hydrate step began: a failed step held the thread from here (the reports count it busy) */
 		let t_turn: number | undefined;
 		if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'region.hydrate.start', ...dt_ids(this) });
-		if (CLIENT_PLUGINS) client_region_mount(this);
+		if (HOOK_REGION_MOUNT) client_region_mount(this);
 		try {
 			// wait for full parse so the end-of-body props sidecars (and the seed) are in the DOM. On an
 			// SPA swap (and any post-load hydrate) the document is already parsed, so skip the await
@@ -1704,7 +1700,15 @@ class OgygiaRegion extends HTMLElement {
 			// are, so `data-hydrated` and the event wait for them. Its own timings stay its own.
 			if (gone(await turn.wait(snippets_settled(this, visit))) || !this.#app) return;
 			this.setAttribute('data-hydrated', '');
-			if (BEACON) beacon_hydrated(this, t0, t_loaded, t_done, ssr_html, t_turn); // the profiler's browser half (no-op without its tag)
+			if (HOOK_REGION_HYDRATED)
+				slots.hooks?.regionHydrated?.({
+					el: this,
+					t0,
+					tLoaded: t_loaded,
+					tTurn: t_turn,
+					tDone: t_done,
+					ssrHtml: ssr_html
+				});
 			if (DEVTOOLS)
 				dt_emit({
 					domain: 'runtime',
@@ -1721,9 +1725,13 @@ class OgygiaRegion extends HTMLElement {
 			// (a failed island stops being watched; its copy, if kept, counts as changed from here)
 			if (this.#watching) mark_region_changed(this);
 			this.#unwatch();
-			// the beacon's CPU window stops waiting for this one, and the visit reports it (no-op without it)
-			if (BEACON)
-				beacon_failed(this, (err as { message?: string })?.message ?? String(err), t0, t_turn);
+			if (HOOK_REGION_FAILED)
+				slots.hooks?.regionFailed?.({
+					el: this,
+					message: (err as { message?: string })?.message ?? String(err),
+					since: t0,
+					turn: t_turn
+				});
 			if (DEVTOOLS)
 				dt_emit({
 					domain: 'runtime',
@@ -1930,13 +1938,14 @@ class OgygiaRegion extends HTMLElement {
 			}
 			if (!ours()) return;
 			if (!ours(await turn.wait(this.#kit_page_ready(core, this.#live.scope)))) return;
-			if (CLIENT_PLUGINS) client_region_mount(this);
+			if (HOOK_REGION_MOUNT) client_region_mount(this);
 			const app = core.hydrate_live(this, entry, mod, props);
 			if (!app) return;
 			this.#live.go('live', { module, app });
 			// (leaving `live` — a static tick, another module, the region gone — disposes it)
 			this.#live.scope.defer(() => {
-				if (CLIENT_PLUGINS) client_region_unmount(this, this.getAttribute('entry') ?? '');
+				if (HOOK_REGION_UNMOUNT)
+					slots.hooks?.regionUnmount?.({ el: this, entry: this.getAttribute('entry') ?? '' });
 				app.dispose();
 			});
 			const pending = this.#live_props;
@@ -1976,7 +1985,8 @@ class OgygiaRegion extends HTMLElement {
 		// sleep ends with its lifetime, below)
 		if (this.#watching) mark_region_changed(this);
 		// Out past the task it left in: the island is gone (a move came back before the microtask).
-		if (CLIENT_PLUGINS && this.#app) client_region_unmount(this, this.getAttribute('entry') ?? '');
+		if (HOOK_REGION_UNMOUNT && this.#app)
+			slots.hooks?.regionUnmount?.({ el: this, entry: this.getAttribute('entry') ?? '' });
 		// a live region: leaving its mode disposes its island (the plugins told) or drops its
 		// subscription
 		if (this.#live.now.kind !== 'idle') this.#live.go('idle');
@@ -2051,7 +2061,7 @@ function apply_dev_head_region_css(): void {
 
 export function boot(
 	installers: Array<() => void> = [],
-	client_plugins: readonly ClientPlugin[] = []
+	client_plugins: readonly ClientRealm[] = []
 ): void {
 	// which ogygia this page runs: `window.__ogygia.v` (./disclose-version.ts)
 	disclose_version();
@@ -2079,7 +2089,7 @@ export function boot(
 	// the devtools timeline and the beacon hear it (entry-locations.ts imports neither)
 	on_entry_fallback((report) => {
 		if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'entry.fallback', ...report });
-		if (BEACON) beacon_entry_fallback(report);
+		if (HOOK_ENTRY_FALLBACK) slots.hooks?.entryFallback?.(report);
 	});
 	// A chunk whose dependency failed: no retry loads it, the page needs a reload (#262; said once,
 	// import-again.ts imports nothing)
@@ -2089,17 +2099,12 @@ export function boot(
 
 	if (import.meta.env.DEV) apply_dev_head_region_css();
 
-	// THE BEACON from boot (the profiler's own visit, or the devtools Page tab): vitals, shifts, long
-	// tasks, first clicks and the CPU sampler start before any island wakes — a page whose islands
-	// never wake, or that has none, still reports. One querySelector and out without the tag.
-	if (BEACON) beacon_watch();
-
 	// DEV: Svelte's hydration warnings (the server and the browser disagreed; Svelte kept the
 	// server's value, so only the console knew) reach the devtools and the profiler's browser half
 	if (import.meta.env.DEV) {
 		tap_svelte_warnings();
 		on_svelte_warning((w) => {
-			if (BEACON) beacon_warning(w);
+			if (HOOK_WARNING) slots.hooks?.warning?.(w);
 			if (DEVTOOLS)
 				dt_emit({
 					domain: 'runtime',

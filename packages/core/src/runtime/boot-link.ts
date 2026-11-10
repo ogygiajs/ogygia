@@ -22,7 +22,6 @@ import { runtime_session } from './session.ts';
 import { regions_in_shadow } from './connected.ts';
 import { release_sheets } from './region-sheets.ts';
 import { yield_task } from './schedule.ts';
-import { beacon_nav } from './beacon.ts';
 import {
 	is_self_owned,
 	record_server_body,
@@ -33,11 +32,6 @@ import {
 import { LoadSlot } from './load-scheduler.ts';
 import { load_devalue, devalue, with_devalue, needs_devalue } from './devalue-lane.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
-
-// (the profiler's browser half ships only where something reads it: see `__OGYGIA_BEACON__`; a
-// plain import of dist/ without the define keeps it)
-const BEACON = typeof __OGYGIA_BEACON__ !== 'undefined' ? __OGYGIA_BEACON__ : true;
-const no_beacon_nav: typeof beacon_nav = () => {};
 
 export function link_boot(): void {
 	slots.boot ??= {
@@ -54,7 +48,6 @@ export function link_boot(): void {
 		regions_in_shadow,
 		release_sheets,
 		yield_task,
-		beacon_nav: BEACON ? beacon_nav : no_beacon_nav,
 		walk_enters,
 		is_self_owned,
 		record_server_body,

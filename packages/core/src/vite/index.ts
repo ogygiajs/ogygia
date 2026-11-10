@@ -6,6 +6,7 @@ import { loadEnv, type Plugin, type Rolldown, type ViteDevServer } from 'vite';
 import type { PreprocessorGroup } from 'svelte/compiler';
 import { configure_build_cache } from '../compiler/build-cache.ts';
 import { content_css_key } from '../contract/content.ts';
+import type { RuntimeHookName } from '../contract/runtime-hooks.ts';
 import { island_sourcemaps_plugin } from './sourcemaps.ts';
 import { install_dev_client_maps, install_dev_maps, install_dev_page_keys } from './dev-maps.ts';
 import {
@@ -64,7 +65,7 @@ import {
 	type TransformStage
 } from './plugin-api.ts';
 import MagicString from 'magic-string';
-import type { ServerRealm } from '../compiler/link/caps.ts';
+import type { ClientRealmFile, ServerRealm } from '../compiler/link/caps.ts';
 import { assert_no_legacy_options, validate_region_presets, resolve_options } from './options.ts';
 import {
 	clientBuildWillSkip,
@@ -224,7 +225,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	// the list, the root and the mode are known). Standalone has no handle to wire them into.
 	let app_plugins: PluginDefinition[] = [];
 	let server_plugins: ServerRealm[] = [];
-	let client_plugins: string[] = [];
+	let client_plugins: ClientRealmFile[] = [];
+	let runtime_hooks: RuntimeHookName[] = [];
 	let route_config: string[] = [];
 	let foreign_hydrate = false;
 	let macros: ResolvedPlugins['macros'] = [];
@@ -600,6 +602,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					({
 						servers: server_plugins,
 						clients: client_plugins,
+						client_hooks: runtime_hooks,
 						route_config,
 						foreign_hydrate,
 						macros,
@@ -729,8 +732,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							devtools: devtools_effective,
 							devtools_lazy,
 							rules: process.env.OGYGIA_RULES === '1',
-							beacon: measure || devtools_effective,
 							client_plugins: client_plugins.length > 0,
+							hooks: runtime_hooks,
 							kit_major: kit_major(path.resolve(userConfig.root ?? '.')),
 							version: OGYGIA_VERSION,
 							dev_server: env.command === 'serve'
