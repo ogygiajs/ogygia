@@ -21,16 +21,35 @@
  */
 import { cache, flights, machine, scope, STALE } from '@ogygia/machine';
 
-/** One task from now: the engine's own queued work (a resource-timing entry) runs first. Its own
- *  scope: it ends itself, and no page's visit owns a file's load. */
-function next_task(): Promise<void> {
+/** How long a failed import waits for its file's timing entry before it reads as "no response". */
+const ENTRY_WAIT_MS = 1000;
+
+/**
+ * The resource-timing entries for `url` once the browser has one, or none after
+ * {@link ENTRY_WAIT_MS}. An engine can reject a failed import before the entry lands, and later
+ * than one task: Firefox on a loaded machine. Chromium and Firefox give every download an entry (a
+ * dropped one too, with a status of 0); WebKit gives a dropped one none, so only there the wait
+ * runs out. Its own scope: it ends itself, and no page's visit owns a file's load.
+ */
+function entries_landed(url: string): Promise<readonly PerformanceEntry[]> {
+	if (typeof PerformanceObserver === 'undefined') return Promise.resolve([]);
 	const wait = scope();
-	return new Promise<void>((resolve) =>
-		wait.timeout(() => {
+	return new Promise<readonly PerformanceEntry[]>((resolve) => {
+		const done = (entries: readonly PerformanceEntry[]) => {
 			wait.close();
-			resolve();
-		}, 0)
-	);
+			resolve(entries);
+		};
+		// (buffered: an entry already in the timeline is delivered at once)
+		wait
+			.watch(
+				new PerformanceObserver((list) => {
+					const entries = list.getEntriesByName(url);
+					if (entries.length > 0) done(entries);
+				})
+			)
+			.observe({ type: 'resource', buffered: true });
+		wait.timeout(() => done([]), ENTRY_WAIT_MS);
+	});
 }
 
 /** The URL in a failed dynamic import's message: Chromium "Failed to fetch dynamically imported
@@ -81,8 +100,13 @@ export function retry_url(url: string, attempt: number): string {
 export function response_of(url: string): number | null {
 	if (typeof performance === 'undefined' || typeof performance.getEntriesByName !== 'function')
 		return null;
+	return status_of(performance.getEntriesByName(url, 'resource'));
+}
+
+/** {@link response_of}, read from `entries` (one file's resource-timing entries). */
+function status_of(entries: readonly PerformanceEntry[]): number | null {
 	let status: number | null = null;
-	for (const e of performance.getEntriesByName(url, 'resource')) {
+	for (const e of entries) {
 		const t = e as PerformanceResourceTiming & { responseStatus?: number };
 		// An engine that reports the status says 0 for a download that got no response (Firefox
 		// gives a dropped one a response start too); one that does not (WebKit) is read by its
@@ -211,9 +235,9 @@ const file_loads = flights({
 			const failed = failed_import_url(error, url);
 			if (failed === null) throw error;
 			// (an engine can reject the import before the response's timing entry is in the timeline:
-			// Firefox on a loaded machine. One task later it is there, when the server answered.)
-			if (response_of(failed) === null) await next_task();
-			if (response_of(failed) === null) return load();
+			// Firefox on a loaded machine, by more than one task)
+			const status = response_of(failed) ?? status_of(await entries_landed(failed));
+			if (status === null) return load();
 			throw error;
 		});
 	}

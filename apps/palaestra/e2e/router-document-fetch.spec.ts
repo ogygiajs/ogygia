@@ -160,10 +160,11 @@ test.describe('the router fetches a page the way the browser fetches a document'
 		// Only the router's fetch is redirected (a server keying on its own header): the browser's
 		// own request for the clicked address must be what the visitor ends up on.
 		// The redirect target is a real non-ogygia document (routes/router-links/elsewhere/+server.ts):
-		// the router's fetch lands on it and hands off.
+		// the router's fetch lands on it and hands off. The redirect is the server's own
+		// (routes/router-links/to-elsewhere): Playwright's WebKit cannot fulfill a route with a 3xx.
 		await page.route(FOREIGN, (route) =>
 			route.request().headers()['x-ogygia-spa']
-				? route.fulfill({ status: 302, headers: { location: '/router-links/elsewhere' } })
+				? route.continue({ url: new URL('/router-links/to-elsewhere', route.request().url()).href })
 				: route.fulfill({ status: 200, contentType: 'text/html', body: FOREIGN_HTML })
 		);
 		await open(page);

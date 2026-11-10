@@ -311,21 +311,11 @@ export function join_batch(endpoint: string): Promise<void> {
 function gather(list: string[]): void {
 	const fresh: string[] = [];
 	const seen = new Set<string>();
-	// A `load` hole's request already started during the HTML parse (Region.svelte's
-	// `<link rel="preload" as="fetch">`): its own fetch takes that response — batching it
-	// would render it twice. Compared as resolved URLs: the page pins a region's endpoint
-	// root-absolute while the link keeps the text it was rendered with (relative, under a base).
-	const hinted = new Set<string>();
-	for (const l of document.querySelectorAll<HTMLLinkElement>('link[rel="preload"][as="fetch"]'))
-		if (l.href) hinted.add(l.href);
+	// (a hole whose request the page's head started is in flight at its address, so not idle:
+	// ./early-holes.ts)
 	for (const e of list) {
 		const a = frameAddress(e);
-		if (
-			seen.has(a) ||
-			(hinted.size && hinted.has(new URL(e, document.baseURI).href)) ||
-			!is_idle(a)
-		)
-			continue;
+		if (seen.has(a) || !is_idle(a)) continue;
 		seen.add(a);
 		fresh.push(e);
 	}
