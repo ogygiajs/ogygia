@@ -116,7 +116,6 @@ import type { ClientPlugin } from '../plugin/client.ts';
 import { OgygiaError, warn, line } from '../messages/core.ts';
 import { report_restores } from './restore-report.ts';
 import { disclose_version } from './disclose-version.ts';
-import { ConcurrencyGate } from './concurrency.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (the proven DCE pattern): when off, every
 // `if (DEVTOOLS) dt_emit({…})` folds to `if (false)` and the whole devtools graph tree-shakes away.
@@ -142,11 +141,6 @@ type PristineHost = { [PRISTINE_SSR]?: string };
 // A real `.css` asset href (vs a dev MODULE url masquerading as a region-css sheet) — see
 // apply_dev_head_region_css.
 const CSS_ASSET_HREF_RE = /\.css(\?|$)/;
-
-/** The hole requests the page runs at once. The boot's own, not the session's: island-side code
- *  reads the session, and its gate's `queue()` would split a file off the boot
- *  (apps/palaestra/e2e/lazy-chunks.spec.ts). */
-const server_gate = new ConcurrencyGate(3);
 
 /** The island's server markup to hydrate against later (#ssr_html), or `null` when there is
  *  nothing worth keeping: no children, or more than SSR_SNAPSHOT_MAX characters. */
@@ -930,11 +924,18 @@ class OgygiaRegion extends HTMLElement {
 		return async (signal, flight) => {
 			// HTML is content: on screen it never waits for the page's critical resources; off screen it
 			// is background work (load-scheduler.ts). Every caller of the address shares this fetch, so
-			// it goes at the most urgent one's class (its flight's). The server gate still caps what one
+			// it goes at the most urgent one's class (its flight's). The holes window caps what one
 			// page asks of the origin at once.
 			// (a class that follows this hole's place on screen is re-read as it moves)
 			const el = typeof cls === 'function' ? this : undefined;
-			const slot = new LoadSlot({ kind: 'content', cls, label: endpoint, el, flight });
+			const slot = new LoadSlot({
+				kind: 'content',
+				cls,
+				label: endpoint,
+				el,
+				flight,
+				window: 'holes'
+			});
 			const release = await slot.ready;
 			try {
 				return await this.#fetch_region(
@@ -955,16 +956,14 @@ class OgygiaRegion extends HTMLElement {
 		priority: 'high' | 'auto' | 'low',
 		signal: AbortSignal
 	) {
-		return server_gate.run(() => {
-			// (./hole-fetch.ts: the same read of the answer `preload()` makes. A renewed capability is
-			// the address's, kept in the store: every element bound there adopts it — #adopt_renewed)
-			const address = frameAddress(endpoint);
-			return fetch_hole(endpoint, {
-				revalidate,
-				priority,
-				signal,
-				renewed: (fresh) => slots.frames?.renew(address, fresh)
-			});
+		// (./hole-fetch.ts: the same read of the answer `preload()` makes. A renewed capability is
+		// the address's, kept in the store: every element bound there adopts it — #adopt_renewed)
+		const address = frameAddress(endpoint);
+		return fetch_hole(endpoint, {
+			revalidate,
+			priority,
+			signal,
+			renewed: (fresh) => slots.frames?.renew(address, fresh)
 		});
 	}
 
