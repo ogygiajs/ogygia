@@ -9,7 +9,7 @@ import { scope } from '@ogygia/machine';
 import Devtools from './Devtools.svelte';
 import { install_page_hook } from './page.ts';
 import { set_highlight_root } from './highlight.ts';
-import { regionNames as built_names } from 'ogygia:boot';
+import { region_names as built_names } from 'ogygia:boot';
 
 /** Mounts the dock into `root`. Returns its teardown: the app (its Alt+O listener and timers with
  *  it) unmounted and its observers off. */

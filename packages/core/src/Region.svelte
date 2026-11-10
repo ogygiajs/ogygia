@@ -35,20 +35,20 @@
 	} from './server/kit-context.ts';
 	import { stringify } from 'devalue';
 	import {
-		devHmrUrl as hmrUrl,
-		regionDeps as islandDeps,
-		regionCss as islandCss,
-		contentCss,
-		regionReadsPage as islandReadsPage,
-		regionPageKeys as islandPageKeys,
-		regionRemotes as islandRemotes,
-		regionInteractivity as islandInteractivity,
-		entryLocation,
-		makeRegionEndpoint,
-		mintServerRegion as mintServerIsland,
-		knownRegionFps as known_region_fps,
-		regionFingerprint as islandFingerprint,
-		holeCss
+		dev_hmr_url as hmrUrl,
+		region_deps as islandDeps,
+		region_css as islandCss,
+		content_css as contentCss,
+		region_reads_page as islandReadsPage,
+		region_page_keys as islandPageKeys,
+		region_remotes as islandRemotes,
+		region_interactivity as islandInteractivity,
+		entry_location as entryLocation,
+		make_region_endpoint as makeRegionEndpoint,
+		mint_server_region as mintServerIsland,
+		known_region_fps,
+		region_fingerprint as islandFingerprint,
+		hole_css as holeCss
 	} from 'ogygia:server';
 	import { runtime_bootstrap } from './server/entry-location.ts';
 	import { fingerprint_of, hole_copy_of } from './runtime/hash.ts';

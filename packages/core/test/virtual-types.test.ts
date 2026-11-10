@@ -21,13 +21,13 @@ describe('the virtual modules’ declarations', () => {
 	it('type each realm export from its code, never by hand', () => {
 		const realm = want.server.split(`declare module 'ogygia:server' {`)[1].split('\n}')[0];
 		expect(realm).toContain(
-			`export const regionTtl: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').region_ttl>['regionTtl'];`
+			`export const region_ttl: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').region_ttl>['region_ttl'];`
 		);
 		expect(realm).toContain(
-			`export { sign, verify, region_mac_message as regionMacMessage } from '../dist/server/hmac.js';`
+			`export { sign, verify, region_mac_message } from '../dist/server/hmac.js';`
 		);
 		expect(realm).toContain(
-			`export const regionCss: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['islandCss'];`
+			`export const region_css: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['islandCss'];`
 		);
 	});
 

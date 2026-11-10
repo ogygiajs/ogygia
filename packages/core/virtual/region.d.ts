@@ -4,7 +4,7 @@
 // src/compiler/virtual/types.ts). Do not edit.
 
 declare module 'ogygia:region' {
-export const kitTransport: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_transport>['transport'];
+export const kit_transport: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_transport>['transport'];
 }
 declare module 'ogygia:region/kit-transport' {
 const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_transport>;

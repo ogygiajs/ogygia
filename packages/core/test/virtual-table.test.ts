@@ -86,10 +86,10 @@ describe('the virtual-module table', () => {
 		const id = table.resolve('virtual:ogygia/region-ttl')!;
 		const ctx = { region_ttl: 3600, renew_window: 2592000 };
 		expect(table.load(id, app(ctx), leg(true))).toBe(
-			'export const regionTtl = 3600;\nexport const renewWindow = 2592000;'
+			'export const region_ttl = 3600;\nexport const renew_window = 2592000;'
 		);
 		expect(table.load(id, app(ctx), leg(false))).toBe(
-			'export const regionTtl = 3600;\nexport const renewWindow = 0;'
+			'export const region_ttl = 3600;\nexport const renew_window = 0;'
 		);
 	});
 
@@ -105,8 +105,8 @@ describe('the virtual-module table', () => {
 		const id = table.resolve('ogygia:server')!;
 		expect(id).toBe(RESOLVED('ogygia:server'));
 		const src = table.load(id, app({}), leg(true)) as string;
-		expect(src).toContain('export { regionTtl, renewWindow } from "virtual:ogygia/region-ttl";');
-		expect(src).toContain('islandCss as regionCss');
+		expect(src).toContain('export { region_ttl, renew_window } from "virtual:ogygia/region-ttl";');
+		expect(src).toContain('islandCss as region_css');
 		expect(src).not.toContain('export default');
 		// a request's real module may import the realm module back: every value is evaluated first
 		const lines = src.split('\n');
@@ -121,14 +121,14 @@ describe('the virtual-module table', () => {
 
 	it('imports a realm module’s names from the entries that have them', () => {
 		const code = [
-			`import { regionTtl, regionCss as css, sign } from 'ogygia:server';`,
-			`export { kitTransport as transport } from "ogygia:region";`,
+			`import { region_ttl, region_css as css, sign } from 'ogygia:server';`,
+			`export { kit_transport as transport } from "ogygia:region";`,
 			`import type { X } from 'ogygia:server';`,
 			`import * as all from 'ogygia:boot';`
 		].join('\n');
 		expect(table.split_realm_imports(code)).toBe(
 			[
-				`import { regionTtl } from 'virtual:ogygia/region-ttl'; import { islandCss as css } from 'virtual:ogygia/island-deps'; import { sign } from 'virtual:ogygia/sign';`,
+				`import { region_ttl } from 'virtual:ogygia/region-ttl'; import { islandCss as css } from 'virtual:ogygia/island-deps'; import { sign } from 'virtual:ogygia/sign';`,
 				`export { transport } from "virtual:ogygia/kit-transport";`,
 				`import type { X } from 'ogygia:server';`,
 				`import * as all from 'ogygia:boot';`

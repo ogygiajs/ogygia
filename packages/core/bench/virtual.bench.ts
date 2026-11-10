@@ -111,9 +111,9 @@ const SPECIFIERS = [
 	)
 ];
 /** A module's realm imports, as an app's code writes them. */
-const IMPORTS = `import { regionTtl, renewWindow, sign, regionCss as css } from 'ogygia:server';
+const IMPORTS = `import { region_ttl, renew_window, sign, region_css as css } from 'ogygia:server';
 import { FRAMES, transport } from 'ogygia:boot';
-export { kitTransport as transport } from 'ogygia:region';`;
+export { kit_transport as transport } from 'ogygia:region';`;
 const size = (out: string | { code: string } | null): number =>
 	out === null ? 0 : typeof out === 'string' ? out.length : out.code.length;
 

@@ -12,10 +12,10 @@
  * browser finds the current file through the build's location maps (compiler/link/location-map.ts).
  */
 import {
-	runtimeUrl as runtime_url,
-	entryLocation,
-	regionDeps as islandDeps,
-	locationMap
+	runtime_url,
+	entry_location as entryLocation,
+	region_deps as islandDeps,
+	location_map as locationMap
 } from 'ogygia:server';
 import { runtime_bootstrap_tags } from './document-tail.ts';
 

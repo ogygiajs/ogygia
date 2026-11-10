@@ -18,7 +18,7 @@ import {
 // a build's embedded maps: the app's own file, a workspace package's `src/` (reached by `../`), a
 // dependency
 vi.mock('ogygia:server/profiler-maps', () => ({
-	profilerMaps: JSON.stringify({
+	profiler_maps: JSON.stringify({
 		v: 1,
 		modules: {},
 		maps: {

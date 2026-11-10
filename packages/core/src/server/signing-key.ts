@@ -14,7 +14,7 @@
  * instead of an opaque 403: the page and its islands endpoint came from different deployments (a CDN
  * routing them to two backends, HTML cached across a key change).
  */
-import { buildKey, buildHadSecret, sign } from 'ogygia:server';
+import { build_key as buildKey, build_had_secret as buildHadSecret, sign } from 'ogygia:server';
 import { building } from '$app/env';
 import { OgygiaError, warn } from '../messages/server.ts';
 

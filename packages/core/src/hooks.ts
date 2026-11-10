@@ -27,23 +27,23 @@ import type { RequestState } from '@sveltejs/kit/internal/server';
 import * as devalue from 'devalue';
 // (the islands' loaders come through `load_islands()`, a dynamic import — link/server-manifest.ts)
 import {
-	loadServerRegions as load_islands,
-	regionUrl as island_url,
-	regionName as island_name,
-	regionReadsPageData as island_reads_page_data,
-	renderRegion as render_island,
-	regionCss as islandCss,
-	fnManifest,
-	createRemoteKey as create_remote_key,
-	rateLimit as rate_limit_cfg,
-	sessionCookie as session_cookie,
-	routerEnabled as router_enabled,
-	viewTransitions as router_view_transitions,
-	routeConfig as route_config,
-	runtimeUrl as runtime_url,
-	devHmrUrl as dev_hmr_url,
-	devtoolsBootUrl as devtools_boot_url,
-	serverPlugins as plugin_entries
+	load_server_regions as load_islands,
+	region_url as island_url,
+	region_name as island_name,
+	region_reads_page_data as island_reads_page_data,
+	render_region as render_island,
+	region_css as islandCss,
+	fn_manifest as fnManifest,
+	create_remote_key,
+	rate_limit as rate_limit_cfg,
+	session_cookie,
+	router_enabled,
+	view_transitions as router_view_transitions,
+	route_config,
+	runtime_url,
+	dev_hmr_url,
+	devtools_boot_url,
+	server_plugins as plugin_entries
 } from 'ogygia:server';
 import { REGION_BRAND } from './region-brand.ts';
 import { signing_key, configure_signing_secret } from './server/signing-key.ts';

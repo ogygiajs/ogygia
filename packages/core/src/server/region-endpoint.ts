@@ -4,15 +4,15 @@
  */
 import { signing_key } from './signing-key.ts';
 import {
-	sessionCookie,
-	regionTtl,
-	renewWindow,
+	session_cookie as sessionCookie,
+	region_ttl as regionTtl,
+	renew_window as renewWindow,
 	sign,
-	regionMacMessage as region_mac_message,
-	getRequestEvent,
-	regionUrl as island_url,
-	regionRender as island_render,
-	regionCss as islandCss
+	region_mac_message,
+	get_request_event as getRequestEvent,
+	region_url as island_url,
+	region_render as island_render,
+	region_css as islandCss
 } from 'ogygia:server';
 // (`resolve('/__ogygia__')` reads the same on Kit 2, which wants the leading slash, and Kit 3, which
 // takes it as a route ID with no params — the same pathname)
