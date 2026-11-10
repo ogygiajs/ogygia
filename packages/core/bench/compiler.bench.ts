@@ -5,8 +5,8 @@
 import path from 'node:path';
 import { parse } from 'svelte/compiler';
 import { bench } from '@bench/heisenbench/bench';
-import { BarrelIndex, type Host } from '../src/compiler/debarrel/barrel.ts';
-import { analyze_exports, analyze_imports } from '../src/compiler/debarrel/parse.ts';
+import { BarrelIndex, type Host } from '../src/compiler/exports/index.ts';
+import { analyze_exports, analyze_imports } from '../src/compiler/exports/parse.ts';
 import { collect_flag_sites } from '../src/compiler/flags.ts';
 import { collectFreeIdentifiers } from '../src/compiler/free-vars.ts';
 import { page_data_keys_answer } from '../src/compiler/link/page-keys.ts';
