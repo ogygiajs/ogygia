@@ -342,7 +342,11 @@ export function create_search(ol: Outline, engine: SearchEngine): SearchBrain {
 	// one materialization of the outline: a new one (the content changed) builds the index again. A
 	// failed build is never kept. (It was built once, ever: a page a live source added was never
 	// found, and one failed build failed every search, #193.)
-	const indexes = flights<{ scope_id: string; from: unknown; in: Collection[] | undefined }>()({
+	const indexes = flights.keyed<{
+		scope_id: string;
+		from: unknown;
+		in: Collection[] | undefined;
+	}>()({
 		name: 'content search index',
 		key: ['scope_id'],
 		ignore: {

@@ -123,7 +123,11 @@ test.describe('deferred holes on a csr=true page Kit rebuilds in the browser', (
 			'and it has not fetched-and-swapped on its own (still on demand)',
 			(await page.locator('[data-rebuild-on-demand] [data-server-greeting]').count()) === 0
 		);
-		await trigger.hover();
+		// the pointer onto the trigger, without waiting on it after: the move itself wakes the hole,
+		// whose answer replaces the trigger (Firefox and WebKit swap it before Playwright's hover
+		// would finish its checks, and the hover then waits on a trigger that is gone)
+		const box = (await trigger.boundingBox())!;
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 		await page.waitForSelector('[data-rebuild-on-demand] [data-server-greeting]', {
 			timeout: 10_000
 		});
