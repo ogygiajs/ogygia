@@ -58,7 +58,7 @@ describe('a source that throws before it awaits anything', () => {
 		await prime_flags(c);
 		// (the request's source answer, where the flags keep it)
 		const prime = (c.request as unknown as Record<symbol, { kind: string }>)[
-			Symbol.for('ogygia.flags.resolved.v2')
+			Symbol.for('ogygia.flags.resolved')
 		];
 		expect(prime.kind).toBe('resolved');
 	});

@@ -171,7 +171,7 @@ export function recordColumns(rec: ProfilerRecord): ProfilerSummary {
  * The profiler reads this when it mounts and every finished report is written there. Call it before
  * the profiler handles its first request; a later call is ignored (the instance already mounted).
  */
-const STORE_SLOT = Symbol.for('ogygia.profiler.store.v1');
+const STORE_SLOT = Symbol.for('ogygia.profiler.store');
 export function setProfilerStore(store: ProfilerStore): void {
 	(globalThis as unknown as Record<symbol, ProfilerStore>)[STORE_SLOT] = store;
 }

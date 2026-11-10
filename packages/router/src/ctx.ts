@@ -13,7 +13,7 @@ import { json_response, redirect_response } from './respond.ts';
 export type Visitor = Record<string, unknown> & { sub?: string };
 
 /** Signature-bound claims attached by the federation handle after verification (fragment federation). */
-const CLAIMS = Symbol.for('ogygia.claims.v1');
+const CLAIMS = Symbol.for('ogygia.claims');
 
 export interface Ctx<
 	P = Record<string, string | undefined>,

@@ -31,9 +31,9 @@ export type CtxLike = {
 };
 
 /** Written by an upstream shell's identity hop (the fragment feature); absent = the tier is skipped. */
-const CLAIMS = Symbol.for('ogygia.claims.v1');
+const CLAIMS = Symbol.for('ogygia.claims');
 /** Per-request source resolution, cached on the Request (GC'd with it): its {@link Prime}. */
-const RESOLVED = Symbol.for('ogygia.flags.resolved.v2');
+const RESOLVED = Symbol.for('ogygia.flags.resolved');
 
 type Decision = { variant: string; value?: unknown };
 /**

@@ -11,6 +11,8 @@
  * plain module singleton can be two instances across that boundary (the config may bundle the package
  * or externalize it), so the bridge lives on a `Symbol.for` global slot shared by the whole process.
  */
+import { slot } from '@ogygia/machine';
+
 export type ContentBridge = {
 	/** Rewrite marked imports in already-preprocessed svelte + register the islands (`b.markup()`'s
 	 *  transform). The code, or null when nothing changed / ogygia isn't configured yet. */
@@ -39,12 +41,14 @@ export type ContentBridge = {
 	contentModules: Map<string, string>;
 };
 
-const KEY = Symbol.for('ogygia.content-bridge.v1');
-const g = globalThis as unknown as Record<symbol, ContentBridge>;
-export const bridge: ContentBridge = (g[KEY] ??= {
-	transform: null,
-	scan: null,
-	markdownConfig: null,
-	contentPresets: null,
-	contentModules: new Map<string, string>()
+export const bridge: ContentBridge = slot<ContentBridge>({
+	name: 'ogygia.content-bridge',
+	version: 1,
+	make: () => ({
+		transform: null,
+		scan: null,
+		markdownConfig: null,
+		contentPresets: null,
+		contentModules: new Map<string, string>()
+	})
 });

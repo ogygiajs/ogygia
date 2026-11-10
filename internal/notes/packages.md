@@ -332,7 +332,7 @@ Core rename goes LAST: many build paths key off the package name `ogygia`.
     blocks (scanner, parser, host fs/path/hash, build cache, content CSS key) come from
     `ogygia/internal/compiler-browser` — host-seamed, so they run in node AND the Observatory.
     `prebaked_region` joins `ogygia/internal`.
-  - CONTENT owns: its bridge (`Symbol.for('ogygia.content-bridge.v1')`: markdown config, presets, the
+  - CONTENT owns: its bridge (the `ogygia.content-bridge` slot: markdown config, presets, the
     transform, scan, style sources), the preset tagging pre-transform, the collection-placement and
     loader-in-component warnings, dev HMR. `content({ markdown, presets, watchDirs, hmrDebounceMs })`
     from `@ogygia/content/vite`, plus the svelte config's `preprocess()` / `extensions()` there.

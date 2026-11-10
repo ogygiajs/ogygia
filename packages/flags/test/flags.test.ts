@@ -22,7 +22,7 @@ import server from '../src/server.ts';
 const { app } = startPlugin(server, { name: '@ogygia/flags' });
 const assigned_buckets = (request: Request) => app.facts(request).assignments;
 
-const CLAIMS = Symbol.for('ogygia.claims.v1');
+const CLAIMS = Symbol.for('ogygia.claims');
 
 // overrides are DEV-gated; open them so tests don't depend on the runner's esm-env DEV resolution.
 beforeEach(() => decide({ overrides: () => true, source: undefined, exposure: undefined }));

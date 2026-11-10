@@ -14,7 +14,7 @@
  * two module instances (src beside dist), and both must see the same runtime.
  */
 import type { RequestEvent } from '@sveltejs/kit';
-import { flights, machine, outbox, policy, type Stale } from '@ogygia/machine';
+import { flights, machine, outbox, policy, slot as shared, type Stale } from '@ogygia/machine';
 import type {
 	PostrenderEntry,
 	PostrenderPutOptions,
@@ -45,9 +45,11 @@ interface Slot {
 	/** the memory store used while no handle exists */
 	fallback: Runtime | null;
 }
-const slot: Slot = ((globalThis as Record<symbol, Slot | undefined>)[
-	Symbol.for('ogygia.postrender.v1')
-] ??= { installed: null, handled: new WeakMap(), fallback: null });
+const slot = shared<Slot>({
+	name: 'ogygia.postrender',
+	version: 1,
+	make: () => ({ installed: null, handled: new WeakMap(), fallback: null })
+});
 
 /** A server event into the current request's devtools stream (a no-op unless devtools is on). */
 function record(event: DevtoolsEventInput): void {
