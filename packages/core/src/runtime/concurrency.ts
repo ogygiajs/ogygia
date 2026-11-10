@@ -57,10 +57,10 @@ export class ConcurrencyGate {
 		const call = scope();
 		try {
 			await this.#enter(deadline, signal, call);
-			const slot = () => this.#slots.release();
+			const slots = this.#slots;
 			// (handed a slot in the same step the signal aborted: the slot goes on, the body never starts)
 			if (signal?.aborted) {
-				slot();
+				slots.release();
 				throw signal.reason;
 			}
 			let body: Promise<T>;
@@ -75,7 +75,7 @@ export class ConcurrencyGate {
 			const end = () => {
 				if (holds) {
 					holds = false;
-					slot();
+					slots.release();
 				} else this.#abandoned--;
 			};
 			body.then(end, end);
@@ -84,7 +84,7 @@ export class ConcurrencyGate {
 				if (!holds) return;
 				holds = false;
 				this.#abandoned++;
-				slot();
+				slots.release();
 			});
 		} finally {
 			call.close();
