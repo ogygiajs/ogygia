@@ -463,7 +463,9 @@ class Run implements Sim {
 		if (typeof performance !== 'undefined') {
 			const perf = performance as { now: () => number };
 			const was_perf_now = perf.now;
-			const perf_base = was_perf_now.call(performance);
+			// (whole ms, as `Date.now`: a deadline taken on it and read back lands on the run's own tick,
+			// never a float's rounding past it)
+			const perf_base = Math.floor(was_perf_now.call(performance));
 			perf.now = () => perf_base + this._clock;
 			this._restore.push(() => (perf.now = was_perf_now));
 		}

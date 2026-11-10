@@ -13,7 +13,10 @@ import {
 import { ConcurrencyGate } from '../src/runtime/concurrency.ts';
 
 beforeEach(() => render_cache_clear());
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+	vi.useRealTimers();
+	vi.restoreAllMocks();
+});
 
 /** Renders `html` for `key` through the cache (kept for `ttl` seconds). */
 const put = (key: RenderKey, html: string, ttl: number) => cached_render(() => html, { key, ttl });
@@ -22,6 +25,8 @@ const k = (id: string) => render_cache_key(id, 'p', '');
 const at = (ms: number) => {
 	vi.useFakeTimers({ toFake: ['Date'] });
 	vi.setSystemTime(ms);
+	// the TTL is a duration: it is read on the monotonic clock (machine `clock.mono`, #472)
+	vi.spyOn(performance, 'now').mockReturnValue(ms);
 };
 
 describe('render_cache_key', () => {

@@ -17,7 +17,7 @@
  * Each call owns its timers and its listener on `signal` (a scope): they are let go the moment the
  * call settles, whichever way.
  */
-import { scope, type Scope } from '@ogygia/machine';
+import { clock, scope, type Scope } from '@ogygia/machine';
 
 export interface GateOptions {
 	/** The call answers within this long: the wait for a slot and the run together. */
@@ -48,7 +48,7 @@ export class ConcurrencyGate {
 	async run<T>(fn: () => Promise<T>, options: GateOptions = {}): Promise<T> {
 		const { deadline_ms, signal } = options;
 		if (signal?.aborted) throw signal.reason;
-		const deadline = deadline_ms === undefined ? Infinity : Date.now() + deadline_ms;
+		const deadline = deadline_ms === undefined ? Infinity : clock.mono() + deadline_ms;
 		const call = scope();
 		try {
 			await this.#enter(deadline, signal, call);
@@ -74,7 +74,7 @@ export class ConcurrencyGate {
 			};
 			body.then(end, end);
 			if (deadline === Infinity) return await body;
-			return await within(call, body, deadline - Date.now(), () => {
+			return await within(call, body, deadline - clock.mono(), () => {
 				if (!holds) return;
 				holds = false;
 				this.#abandoned++;
@@ -130,7 +130,7 @@ export class ConcurrencyGate {
 				}
 			};
 			if (deadline !== Infinity)
-				wait.timeout(() => give_up(new Error(WAIT_TIMEOUT)), timer_ms(deadline - Date.now()));
+				wait.timeout(() => give_up(new Error(WAIT_TIMEOUT)), timer_ms(deadline - clock.mono()));
 			if (signal) wait.on(signal, 'abort', () => give_up(signal.reason));
 			this.#wait.push(waiter);
 		});
@@ -140,7 +140,7 @@ export class ConcurrencyGate {
 	 *  waiter whose deadline has come is passed over even before its timer runs: handed a slot, it
 	 *  would only start a body nobody waits on.) */
 	#leave(): void {
-		const now = Date.now();
+		const now = clock.mono();
 		let next = this.#wait.shift();
 		while (next && (next.gave_up || next.deadline <= now)) next = this.#wait.shift();
 		if (next) next.enter();
