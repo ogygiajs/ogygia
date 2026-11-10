@@ -78,7 +78,7 @@ export class PeerHandle implements Peer {
 		this.#sign_key = sign_key;
 		this.#timeout = cfg.timeout ?? 5000;
 		const ttl = (this.#ttl = cfg.cache?.ttl ?? 0);
-		this.#docs = flights<Read>()({
+		this.#docs = flights.keyed<Read>()({
 			name: 'federation peer documents',
 			key: ['path', 'search', 'claims_key'],
 			ignore: {

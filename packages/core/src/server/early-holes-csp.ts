@@ -1,0 +1,81 @@
+/**
+ * THE EARLY START'S SCRIPT UNDER A CONTENT SECURITY POLICY (../early-holes.ts). Its bytes never
+ * change, so its `'sha256-…'` source is computed once, here. A policy that would block an inline
+ * script gets that one source added to the directive that rules script elements:
+ * `script-src-elem`, else `script-src`, else `default-src`. Nothing else in the policy changes:
+ *
+ *   - no such directive: inline scripts are not restricted, nothing to add;
+ *   - `'none'`: no script runs, ours neither;
+ *   - `'unsafe-inline'` with no nonce or hash: inline scripts run already, and adding a hash would
+ *     switch `'unsafe-inline'` off for every other one;
+ *   - a nonce or `'strict-dynamic'` policy: a hash is a valid source beside both.
+ *
+ * Server-only (node:crypto).
+ */
+import { createHash } from 'node:crypto';
+import { EARLY_HOLES_TAG } from '../early-holes-head.ts';
+
+/** The text between a tag's `<script…>` and `</script>`: what a CSP hash covers. */
+export function script_text(tag: string): string {
+	return tag.slice(tag.indexOf('>') + 1, tag.lastIndexOf('</script>'));
+}
+
+/** The script's hash source, as a policy lists it: of the exact text the head carries, once. */
+export const EARLY_HOLES_SOURCE: string = `'sha256-${createHash('sha256').update(script_text(EARLY_HOLES_TAG), 'utf8').digest('base64')}'`;
+
+/** The directives that rule an inline `<script>`, the most specific first. */
+const SCRIPT_DIRECTIVES = ['script-src-elem', 'script-src', 'default-src'] as const;
+const NONCE_OR_HASH_RE = /^'(?:nonce|sha256|sha384|sha512)-/i;
+const WHITESPACE_RE = /\s+/;
+
+/** One serialized policy (`directive sources; …`) with the hash where an inline script needs it. */
+function with_hash(policy: string): string {
+	const parts = policy.split(';');
+	const names = parts.map((p) => p.trim().split(WHITESPACE_RE)[0]?.toLowerCase() ?? '');
+	for (const directive of SCRIPT_DIRECTIVES) {
+		const at = names.indexOf(directive);
+		if (at === -1) continue;
+		const sources = parts[at]!.trim().split(WHITESPACE_RE).slice(1);
+		const lower = sources.map((s) => s.toLowerCase());
+		if (sources.includes(EARLY_HOLES_SOURCE)) return policy;
+		if (lower.length === 1 && lower[0] === "'none'") return policy;
+		if (lower.includes("'unsafe-inline'") && !sources.some((s) => NONCE_OR_HASH_RE.test(s)))
+			return policy;
+		parts[at] = parts[at]!.replace(/\s*$/, '') + ' ' + EARLY_HOLES_SOURCE;
+		return parts.join(';');
+	}
+	return policy;
+}
+
+/**
+ * A `Content-Security-Policy` (or `-Report-Only`) header value with the early start's hash where its
+ * script would be blocked. A header can carry several policies, comma-separated: each is checked.
+ */
+export function with_early_holes_csp(header: string): string {
+	if (!header) return header;
+	return header.split(',').map(with_hash).join(',');
+}
+
+const META_CSP_G =
+	/(<meta\b[^>]*\bhttp-equiv\s*=\s*["']?content-security-policy["']?[^>]*\bcontent\s*=\s*")([^"]*)(")/gi;
+
+/** A head's `<meta http-equiv="content-security-policy">` policies, each with the hash where its
+ *  script would be blocked. A head with none comes back as itself. */
+export function with_early_holes_meta_csp(head: string): string {
+	return head.replace(
+		META_CSP_G,
+		(_m, open: string, policy: string, close: string) => open + with_early_holes_csp(policy) + close
+	);
+}
+
+const CSP_HEADERS = ['content-security-policy', 'content-security-policy-report-only'] as const;
+
+/** A response's CSP headers (enforced and report-only), each with the hash where it is needed. */
+export function add_early_holes_csp(headers: Headers): void {
+	for (const name of CSP_HEADERS) {
+		const value = headers.get(name);
+		if (!value) continue;
+		const next = with_early_holes_csp(value);
+		if (next !== value) headers.set(name, next);
+	}
+}

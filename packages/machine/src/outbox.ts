@@ -106,7 +106,7 @@ class Box<T> implements Outbox<T> {
 		this._give_up = o.giveUp;
 		this._wait_until = o.waitUntil;
 		this._box = o.inOrder === true ? mailbox(scope()) : null;
-		this._flights = flights<Put<T>>()({
+		this._flights = flights.keyed<Put<T>>()({
 			name: this._name,
 			key: ['key'],
 			ignore: { item: 'one send per id: a put of an id still out joins the send of the first' },

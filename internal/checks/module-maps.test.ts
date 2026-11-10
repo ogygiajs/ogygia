@@ -43,6 +43,20 @@ test("a fixed table marked '// static: <reason>' is allowed; a mark with no reas
 	);
 });
 
+test('a trailing mark is its own line only: the declaration after it is not marked by it', () => {
+	assert.deepEqual(
+		names(
+			[
+				'const LIMITS = new Map([["a", 1]]); // static: three fixed limits',
+				'const seen = new Map();',
+				'let x = 1; // static: not a table',
+				'const also = new Set();'
+			].join('\n')
+		),
+		['2:seen:Map', '4:also:Set']
+	);
+});
+
 test('a comment claiming ownership is no pass: one owned by a scope lives in its owner', () => {
 	assert.deepEqual(
 		names(
