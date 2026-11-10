@@ -1,15 +1,17 @@
 /**
  * `import { A, B } from 'barrel'; const ARegion = import.meta.og.asRegion(A)` keeps working with the
- * pass on: debarrel runs first and turns the named barrel import into a default import of the leaf
+ * pass on: barrels() runs first and turns the named barrel import into a default import of the leaf
  * file, which is exactly the form `asRegion` already accepts. The island then points at the leaf
- * (one chunk for A), not at the barrel. The pipeline here is the real one — the debarrel rewrite,
+ * (one chunk for A), not at the barrel. The pipeline here is the real one — the barrel rewrite,
  * then the compiler's `.ts` region transform on its output.
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import path from 'node:path';
 import { fixture, type Fixture } from './_fixture.ts';
-import { transformTsRegions, asRegionLocals } from '../../src/compiler/region/transform.ts';
-import { ogygia } from '../../src/vite/index.ts';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { transformTsRegions, asRegionLocals } from '@ogygia/core/internal/compiler';
+import { ogygia } from '@ogygia/core/vite';
+import { barrels } from '../src/index.ts';
 
 let f: Fixture;
 afterEach(() => f?.dispose());
@@ -27,7 +29,7 @@ const ctx = (root: string): Parameters<typeof transformTsRegions>[2] => ({
 	idSalt: ''
 });
 
-describe('debarrel + import.meta.og.asRegion', () => {
+describe('barrels + import.meta.og.asRegion', () => {
 	it('the CORE alone (no ogygia policy) would rewrite an asRegion import to the leaf — which is exactly why ogygia tells it not to (next test)', async () => {
 		f = fixture({
 			'lib/A.svelte': '<h1>A</h1>',
@@ -67,7 +69,7 @@ describe('debarrel + import.meta.og.asRegion', () => {
 	});
 
 	it('INSIDE ogygia the import feeding asRegion is left alone: the prescan keys the island on the raw import, the transform must see the same one', async () => {
-		// REGRESSION (customer build, 2026-09-15): with `barrels: true` the transform saw
+		// REGRESSION (customer build, 2026-09-15): with the pass on the transform saw
 		// `import A from '…/A.svelte'` where the prescan (raw source) saw `import { A } from '$lib'` —
 		// two island ids, and the server manifest imported a virtual entry nobody registered:
 		// "Rolldown failed to resolve import ogygia:region/entry/<id>.js from ogygia:server/server-manifest".
@@ -90,35 +92,26 @@ describe('debarrel + import.meta.og.asRegion', () => {
 		expect(after!.islands[0].id).toBe(raw!.islands[0].id);
 	});
 
-	it('the wired plugin (ogygia({ barrels })) applies that rule end to end', async () => {
+	it('barrels() beside ogygia() applies that rule end to end', { timeout: 30_000 }, async () => {
 		f = fixture({
 			'lib/A.svelte': '<h1>A</h1>',
 			'lib/util.ts': 'export const util = 1;',
 			'lib/index.ts': `export { default as A } from './A.svelte';\nexport { util } from './util';`,
-			'src/registry.ts': `import { A } from '$lib';\nimport { util } from '$lib';\nexport const R = import.meta.og.asRegion(A, { wake: 'load' });\nexport const u = util;`
+			'src/registry.ts': `import { A } from '$lib';\nimport { util } from '$lib';\nconst R = import.meta.og.asRegion(A, { wake: 'load' });\nexport const u = [R, util];`
 		});
-		const plugin = ogygia({ barrels: true })[0];
-		const transform = plugin.transform as (
-			this: unknown,
-			code: string,
-			id: string
-		) => Promise<{ code: string } | null>;
-		const ctx_ = {
-			resolve: async (spec: string, importer: string) => {
-				const id = await f.host().resolve(spec, importer);
-				return id ? { id } : null;
+		const out = await f.source_stage(
+			{
+				root: f.root,
+				logLevel: 'silent',
+				configFile: false,
+				resolve: { alias: { $lib: f.id('lib') } },
+				optimizeDeps: { noDiscovery: true, include: [] },
+				plugins: [ogygia(), barrels(), svelte({ configFile: false })]
 			},
-			addWatchFile() {},
-			environment: { name: 'client' }
-		};
-		(plugin.configResolved as (c: unknown) => void)({
-			root: f.root,
-			command: 'build',
-			logger: { info() {} }
-		});
-		const out = await transform.call(ctx_, f.read('src/registry.ts'), f.id('src/registry.ts'));
-		expect(out!.code).toBe(
-			`import { A } from '$lib';\nimport { util } from '${f.id('lib/util.ts')}';\nexport const R = import.meta.og.asRegion(A, { wake: 'load' });\nexport const u = util;`
+			'src/registry.ts'
+		);
+		expect(out).toBe(
+			`import { A } from '$lib';\nimport { util } from '${f.id('lib/util.ts')}';\nconst R = import.meta.og.asRegion(A, { wake: 'load' });\nexport const u = [R, util];`
 		);
 	});
 

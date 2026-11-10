@@ -40,6 +40,12 @@ describe('legacy option renames — errors with the new spelling, never silent a
 			/plugins: \[ogygia\(\), flags\(\), sveltekit\(\)\]/
 		);
 	});
+	it('rejects barrels (now the @ogygia/barrels plugin), any value', () => {
+		for (const barrels of [true, false, { keep: ['x'] }])
+			expect(() => ogygia({ barrels } as never)).toThrow(
+				/plugins: \[ogygia\(\), barrels\(\), sveltekit\(\)\]/
+			);
+	});
 });
 
 describe('ttl — the capability lifetime', () => {

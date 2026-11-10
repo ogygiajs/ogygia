@@ -427,6 +427,21 @@ export const BUILD_ERRORS = {
 			ignored, so nothing silently stops working. The message says what replaced it.
 		`
 	},
+	barrels_option_removed: {
+		text: (): string => prose`
+			\`ogygia({ barrels })\` is gone: the barrel rewrite is a plugin now. Install
+			\`@ogygia/barrels\` and list \`barrels({ … })\` (from \`@ogygia/barrels\`) beside
+			\`ogygia()\` in vite.config \`plugins\`, \`plugins: [ogygia(), barrels(), sveltekit()]\`.
+		`,
+		details: (): string => prose`
+			The \`barrels\` option of \`ogygia()\` was passed. The pass that turns barrel imports into
+			leaf imports moved to its own plugin, \`barrels()\` from \`@ogygia/barrels\`, which takes
+			the same options. The standalone \`debarrel()\` from \`ogygia/vite\` is gone with it.
+
+			Remove the option and list \`barrels()\` beside \`ogygia()\` in vite.config
+			\`plugins\`.
+		`
+	},
 	preset_empty: {
 		text: (a: { name: string }): string =>
 			`presets.${a.name} is empty — a preset with nothing is a mistake.`,
@@ -795,15 +810,6 @@ export const BUILD_WARNINGS = {
 			with \`$\` inside the snippet, or share live state with a wired class.
 		`
 	},
-	barrels_component_skipped: {
-		text: (a: { file: string; reason: string; at: string }): string =>
-			`barrels: skipped ${a.file}: ${a.reason}${a.at ? ` at ${a.at}` : ''} — its imports stay on their barrels`,
-		details: (): string => prose`
-			ogygia rewrites imports from an index file (a barrel) to the files that define them, so
-			an island ships only what it uses. It could not parse this component, so its imports
-			stay as written and its island ships each barrel whole.
-		`
-	},
 	sass_missing: {
 		text: (): string =>
 			'a server-rendered component has `<style lang="scss">` but neither `sass-embedded` nor `sass` is installed — its hole/router CSS ships unprocessed',
@@ -898,43 +904,6 @@ export const BUILD_WARNINGS = {
 
 			The lines below the report name the modules that made an island ship everything, with
 			the reason. Read the keys you need by name there, and the copy shrinks.
-		`
-	},
-	barrels_report: {
-		text: (a: {
-			importers: string;
-			files: string;
-			imports: string;
-			names: string;
-			barrels: string;
-			seconds: string;
-		}): string =>
-			`barrels: ${a.importers} of ${a.files} files rewritten — ${a.imports} barrel imports → leaves ` +
-			`(${a.names} names), ${a.barrels} barrels bypassed, ${a.seconds} s first to last transform`,
-		details: (): string => prose`
-			ogygia rewrote imports from index files (barrels) to the files that define each name, so
-			an island ships only what it uses. The report counts the rewrites and lists the barrels
-			that were bypassed the most, with how many files imported through each.
-
-			\`barrels: { report: 'all' }\` lists every barrel, \`report: false\` turns the report off,
-			and \`debug: true\` prints each rewrite as it happens.
-		`
-	},
-	barrels_report_none: {
-		text: (a: { files: string; seconds: string }): string =>
-			`barrels: ${a.files} files scanned, no barrel imports to rewrite (${a.seconds} s)`,
-		details: (): string => prose`
-			ogygia looked for imports through index files (barrels) to rewrite to the files that
-			define each name, and found none. Nothing to do.
-		`
-	},
-	barrels_rewrite: {
-		text: (a: { file: string; names: string; barrel: string; leaves: string }): string =>
-			`barrels: ${a.file}: ${a.names} ← ${a.barrel} → ${a.leaves}`,
-		details: (): string => prose`
-			With \`barrels: { debug: true }\`, ogygia prints each import it rewrites: the names,
-			the index file (barrel) they were imported through, and the files that define them,
-			which the import now points at.
 		`
 	}
 };

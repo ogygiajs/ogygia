@@ -17,19 +17,18 @@ import {
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import MagicString from 'magic-string';
+import { createServer, type InlineConfig, type Plugin } from 'vite';
 import {
 	ExportIndex,
 	Shapes,
 	type Change,
 	type ExportMap,
 	type Policy
-} from '../../src/compiler/exports/index.ts';
-import {
-	rewrite_module,
-	type Lookup,
-	type RewritePolicy
-} from '../../src/compiler/debarrel/rewrite.ts';
-import { rewrite_svelte } from '../../src/compiler/debarrel/svelte.ts';
+} from '@ogygia/core/internal/compiler';
+import { rewrite_imports, type Lookup, type RewritePolicy } from '../src/rewrite.ts';
+import { rewrite_svelte } from '../src/svelte.ts';
 
 /** A test's host: the reads, the resolver, and the barrel policy. */
 export interface Host extends Policy {
@@ -58,6 +57,9 @@ export interface Fixture {
 	/** rewrite a fixture file (JS/TS/Svelte) through a fresh index; returns the code or null */
 	rewrite(rel: string, overrides?: HostOverrides, policy?: RewritePolicy): Promise<string | null>;
 	lookup(index: TestIndex, importer: string): Lookup;
+	/** what ogygia's `source` stage made of a fixture file in a dev server of `cfg` (whose first
+	 *  plugin entry is `ogygia()`): the code the region transform is handed */
+	source_stage(cfg: InlineConfig, rel: string): Promise<string>;
 	dispose(): void;
 }
 
@@ -75,13 +77,11 @@ const EXTS = [
 	'/index.js'
 ];
 const BACKSLASH_G = /\\/g;
+const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url));
 
 export function fixture(files: Record<string, string>): Fixture {
 	// realpath: macOS's tmpdir is a symlink (`/var` → `/private/var`) and the bundler reports real ids
-	const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'debarrel-'))).replace(
-		BACKSLASH_G,
-		'/'
-	);
+	const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'barrels-'))).replace(BACKSLASH_G, '/');
 	const id = (rel: string) => path.posix.join(root, rel);
 	const write = (rel: string, content: string) => {
 		const abs = id(rel);
@@ -93,8 +93,10 @@ export function fixture(files: Record<string, string>): Fixture {
 	// A real Vite build of the fixture compiles `.svelte` files, whose output imports `svelte/…`:
 	// link the workspace's svelte into the fixture so bare imports resolve from the temp root.
 	const svelte_dir = path.dirname(createRequire(import.meta.url).resolve('svelte/package.json'));
-	mkdirSync(id('node_modules'), { recursive: true });
+	mkdirSync(id('node_modules/@ogygia'), { recursive: true });
 	symlinkSync(svelte_dir, id('node_modules/svelte'), 'dir');
+	// ogygia() finds a listed plugin by its package, resolved from the app
+	symlinkSync(PACKAGE_DIR, id('node_modules/@ogygia/barrels'), 'dir');
 
 	const resolve_file = (base: string): string | null => {
 		for (const ext of EXTS) {
@@ -194,10 +196,37 @@ export function fixture(files: Record<string, string>): Fixture {
 			const i = make_index(overrides);
 			const importer = id(rel);
 			const code = readFileSync(importer, 'utf8');
-			const r = importer.endsWith('.svelte')
-				? await rewrite_svelte(code, importer, lookup(i, importer), policy)
-				: await rewrite_module(code, importer, lookup(i, importer), policy);
-			return r ? r.code : null;
+			const ms = new MagicString(code);
+			const moves = importer.endsWith('.svelte')
+				? await rewrite_svelte(code, importer, lookup(i, importer), ms, policy)
+				: await rewrite_imports(code, importer, lookup(i, importer), ms, 0, policy);
+			return moves.length ? ms.toString() : null;
+		},
+		async source_stage(cfg, rel) {
+			let seen = '';
+			const probe: Plugin = {
+				name: 'probe',
+				enforce: 'pre',
+				transform(code, module_id) {
+					if (module_id === id(rel)) seen = code;
+				}
+			};
+			const [own, ...rest] = cfg.plugins ?? [];
+			const plugins = [...(own as Plugin[])];
+			plugins.splice(plugins.findIndex((p) => p.name === 'ogygia:source') + 1, 0, probe);
+			const server = await createServer({
+				...cfg,
+				plugins: [plugins, ...rest],
+				// (ogygia() lists its own `server.fs.allow`; Kit adds the app's, so a test does)
+				server: { middlewareMode: true, hmr: false, fs: { allow: [root] } }
+			});
+			try {
+				// ok: a later plugin may fail on the module; only the source stage's output is read
+				await server.transformRequest('/' + rel).catch(() => null);
+			} finally {
+				await server.close();
+			}
+			return seen;
 		},
 		dispose: () => rmSync(root, { recursive: true, force: true })
 	};

@@ -1,20 +1,19 @@
 /**
- * `ogygia({ barrels })` — what counts as a barrel, which importers get rewritten, what to keep.
+ * `barrels(options)`: what counts as a barrel, which importers get rewritten, what to keep.
  *
  * A BARREL is a module whose exports are re-exports of other modules: `index.ts` files, a package's
  * `components.ts`, `export * from` fan-outs. Importing one name from it drags the whole graph in: in
  * dev every module behind it is transformed and served, in build the chunk graph follows the import
  * graph before tree-shaking, and a package that is not `sideEffects: false` keeps all of it. The
- * debarrel pass replaces `import { A } from 'barrel'` with `import A from '<leaf of A>'` at
+ * barrels pass replaces `import { A } from 'barrel'` with `import A from '<leaf of A>'` at
  * transform time, so the graph is the leaves the file actually uses.
  *
- * This pass is independent of islands: it does not read or write region marks. An import that
- * carries ogygia attributes (`with { wake }` …) is left exactly as written — a barrel binding is
- * marked through `asRegion` / a mark in the barrel, as before.
+ * An import that carries a region's identity (a region mark, or a binding `asRegion` reads) is left
+ * exactly as written: ogygia pins it (`b.pinnedImports`).
  */
 export type Matcher = string | RegExp | ((id: string) => boolean);
 
-export interface DebarrelOptions {
+export interface BarrelsOptions {
 	/**
 	 * DEPENDENCIES whose barrels may be bypassed too. The project's own modules need no listing:
 	 * every file outside `node_modules` is a candidate, and purity decides (a barrel is PURE when
@@ -61,7 +60,7 @@ export interface NormalizedOptions {
 	debug: boolean;
 }
 
-export function normalize_options(o: DebarrelOptions | true = {}): NormalizedOptions {
+export function normalize_options(o: BarrelsOptions | true = {}): NormalizedOptions {
 	const opts = o === true ? {} : o;
 	return {
 		packages: opts.packages ?? [],

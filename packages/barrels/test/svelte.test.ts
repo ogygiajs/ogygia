@@ -4,7 +4,9 @@
  * template string, a component with no script, a syntax error, a region-marked import.
  */
 import { afterEach, describe, expect, it } from 'vitest';
+import MagicString from 'magic-string';
 import { fixture, type Fixture } from './_fixture.ts';
+import { rewrite_svelte } from '../src/svelte.ts';
 
 let f: Fixture;
 afterEach(() => f?.dispose());
@@ -95,29 +97,18 @@ describe('rewrite_svelte', () => {
 		);
 	});
 
-	it('blank_styles: only style content, newlines kept, a <style> string inside a script untouched', async () => {
-		const { blank_styles } = await import('../../src/compiler/debarrel/svelte.ts');
-		const src = `<script>const s = '<style>x{}</style>';</script>\n<STYLE lang="scss">\n.a-#{$i} {}\n</STYLE>\n<styles-not>keep</styles-not>`;
-		const out = blank_styles(src);
-		expect(out.length).toBe(src.length);
-		expect(out).toContain(`const s = '<style>x{}</style>';`);
-		expect(out).toContain(
-			'<STYLE lang="scss">\n' + ' '.repeat('.a-#{$i} {}'.length) + '\n</STYLE>'
-		);
-		expect(out).toContain('<styles-not>keep</styles-not>');
-	});
-
 	it('a component that still cannot be parsed is reported (code and position), never skipped in silence', async () => {
-		const { rewrite_svelte } = await import('../../src/compiler/debarrel/svelte.ts');
+		const code = `<script>import { A } from './barrel';</script>\n<div>\n<p>{unclosed</p>`;
 		const why: { code: string; line?: number }[] = [];
 		const r = await rewrite_svelte(
-			`<script>import { A } from './barrel';</script>\n<div>\n<p>{unclosed</p>`,
+			code,
 			'/x/Broken.svelte',
 			async () => null,
+			new MagicString(code),
 			{},
 			(w) => why.push(w)
 		);
-		expect(r).toBeNull();
+		expect(r).toEqual([]);
 		expect(why).toHaveLength(1);
 		expect(why[0].code).toBeTruthy();
 		expect(why[0].line).toBeGreaterThan(1);
