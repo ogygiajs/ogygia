@@ -14,6 +14,10 @@
  * before it: `// oxlint-disable-next-line ogygia/no-promise-cache -- <why>`.
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
+import { dedent } from '../../packages/core/src/compiler/dedent.ts';
+
 type Node = { type: string; [key: string]: unknown };
 type Context = {
 	filename?: string;
@@ -527,13 +531,18 @@ const stale_whole = {
  * comment, is reported with the `dedent` hint and left for a hand fix.
  */
 type Ranged = Node & { range: [number, number]; loc: Located['loc'] };
+type Fixer = {
+	replaceText(node: Ranged, text: string): unknown;
+	insertTextAfter(node: Ranged, text: string): unknown;
+	insertTextBefore(node: Ranged, text: string): unknown;
+};
 type FixContext = Context & {
-	sourceCode: { getText(node: Ranged): string; getCommentsInside(node: Ranged): unknown[] };
-	report(d: {
-		node: Node;
-		message: string;
-		fix?: (fixer: { replaceText(node: Ranged, text: string): unknown }) => unknown;
-	}): void;
+	sourceCode: {
+		getText(node: Ranged): string;
+		getCommentsInside(node: Ranged): unknown[];
+		readonly lines: string[];
+	};
+	report(d: { node: Node; message: string; fix?: (fixer: Fixer) => unknown }): void;
 };
 
 const MESSAGE_CONCAT = 'Build the string with a template literal, not `+`.';
@@ -734,24 +743,196 @@ const is_text_piece = (e: Node): boolean => {
 	return (n.type === 'Literal' && typeof n.value === 'string') || n.type === 'TemplateLiteral';
 };
 
+/** A value's stand-in while the fixer proves a conversion (a character no text holds). */
+const VALUE_MARK = '\u0001';
+/** Text a conversion leaves alone: a script, preformatted text, or a control character it cannot
+ *  write as itself. */
+const LEAVE_TEXT_RE = /<\/?(script|pre|textarea)\b|[\0-\b\v-\x1f\x7f]/i;
+/** A node whose string cannot become a template: a key, a type, a module specifier. */
+const KEEP_PARENTS = new Set([
+	'ImportDeclaration',
+	'ExportNamedDeclaration',
+	'ExportAllDeclaration',
+	'ImportExpression',
+	'TSLiteralType',
+	'TSEnumMember',
+	'TSExternalModuleReference',
+	'TSModuleDeclaration',
+	'ImportAttribute'
+]);
+
+/** Where `dedent` comes from for a file, or null where it must not be imported (a package core
+ *  depends on, or the CLI that runs before an app has core). */
+function dedent_source(file: string): string | null {
+	const f = file.replaceAll('\\', '/');
+	const core = f.indexOf('/packages/core/');
+	if (core !== -1) {
+		const from = path.posix.dirname(f);
+		const to = `${f.slice(0, core)}/packages/core/src/compiler/dedent.ts`;
+		const rel = path.posix.relative(from, to);
+		return rel.startsWith('.') ? rel : `./${rel}`;
+	}
+	if (/\/packages\/(machine|tooling|config|tsdown-plugin-svelte)\//.test(f)) return null;
+	if (/\/packages\/cli\/src\/cli\.ts$/.test(f)) return null;
+	// (a package that reaches core: its package.json names @ogygia/core or ogygia)
+	let dir = path.posix.dirname(f);
+	for (;;) {
+		const pkg = `${dir}/package.json`;
+		if (fs.existsSync(pkg)) {
+			const json = JSON.parse(fs.readFileSync(pkg, 'utf8')) as Record<
+				string,
+				Record<string, string>
+			>;
+			const deps = { ...json.dependencies, ...json.devDependencies, ...json.peerDependencies };
+			if ('@ogygia/core' in deps) return '@ogygia/core/plugin/utils';
+			if ('ogygia' in deps) return 'ogygia/plugin/utils';
+			return null;
+		}
+		const up = path.posix.dirname(dir);
+		if (up === dir) return null;
+		dir = up;
+	}
+}
+
+/** The fix for a literal of several lines, as a `dedent` template, or null when the real `dedent`
+ *  does not give back the literal's exact text. `cooked`: its text, values as `VALUE_MARK<i>`. */
+function dedent_fix(
+	context: FixContext,
+	node: Ranged,
+	cooked: string,
+	values: string[]
+): { text: string; needs_import: boolean } | null {
+	if (LEAVE_TEXT_RE.test(cooked.replaceAll(VALUE_MARK, ''))) return null;
+	// one newline at each end is written outside the template (dedent trims blank edges)
+	let body = cooked;
+	const lead = body.startsWith('\n') ? '\\n' : '';
+	if (lead) body = body.slice(1);
+	const tail = body.endsWith('\n') ? '\\n' : '';
+	if (tail) body = body.slice(0, -1);
+	if (body === '' || !body.includes('\n')) return null;
+	const line_text = context.sourceCode.lines[node.loc.start.line - 1] ?? '';
+	const indent = /^[\t ]*/.exec(line_text)![0];
+	const inner = `${indent}\t`;
+	const escape = (s: string) => s.replace(/\\|`|\$\{/g, (m) => `\\${m}`);
+	const lines = body.split('\n');
+	// the source of the template, values back in place
+	const value_at = new RegExp(`${VALUE_MARK}(\\d+)${VALUE_MARK}`, 'g');
+	const raw = lines
+		.map((l) =>
+			l === '' ? '' : `${inner}${escape(l).replace(value_at, (_, i) => `\${${values[Number(i)]}}`)}`
+		)
+		.join('\n');
+	// the proof: the real dedent over the same template (values as marks) gives the body back
+	const strings: string[] = [];
+	const marks: string[] = [];
+	const full = `\n${lines.map((l) => (l === '' ? '' : `${inner}${l}`)).join('\n')}\n${indent}`;
+	let at = 0;
+	for (const m of full.matchAll(value_at)) {
+		strings.push(full.slice(at, m.index));
+		marks.push(m[0]);
+		at = m.index! + m[0].length;
+	}
+	strings.push(full.slice(at));
+	const tsa = Object.assign([...strings], { raw: strings }) as unknown as TemplateStringsArray;
+	if (dedent(tsa, ...marks) !== body) return null;
+	const template = `dedent\`\n${raw}\n${indent}\``;
+	const text = lead || tail ? `\`${lead}\${${template}}${tail}\`` : template;
+	return { text, needs_import: true };
+}
+
+/** Whether the module already has a binding named `dedent`. */
+function has_dedent(program: Node): boolean {
+	for (const s of program.body as Node[]) {
+		if (s.type === 'ImportDeclaration')
+			for (const spec of s.specifiers as Node[])
+				if ((spec.local as { name?: string }).name === 'dedent') return true;
+		if (s.type === 'FunctionDeclaration' && (s.id as { name?: string })?.name === 'dedent')
+			return true;
+		if (s.type === 'VariableDeclaration')
+			for (const d of s.declarations as Node[])
+				if ((d.id as { name?: string }).name === 'dedent') return true;
+	}
+	return false;
+}
+
+const program_of = (n: Node): Node => {
+	let p = n;
+	while (p.parent) p = p.parent as Node;
+	return p;
+};
+
 const prefer_dedent = {
 	meta: {
 		type: 'suggestion',
+		fixable: 'code',
 		docs: { description: 'Text of several lines is one dedent template.' }
 	},
 	create(context: FixContext) {
 		const text = (n: Node) => context.sourceCode.getText(n as Ranged);
+		const file = (context.filename ?? context.getFilename?.() ?? '').replaceAll('\\', '/');
+		const source = dedent_source(file);
+		const report = (node: Node, cooked: string | null, values: string[]) => {
+			const parent = node.parent as Node | undefined;
+			const fixable =
+				cooked !== null &&
+				source !== null &&
+				!KEEP_PARENTS.has(parent?.type ?? '') &&
+				!(parent?.type === 'Property' && parent.key === node) &&
+				!(parent?.type === 'PropertyDefinition' && parent.key === node) &&
+				!concat_kept(node);
+			const fix = fixable ? dedent_fix(context, node as Ranged, cooked, values) : null;
+			if (!fix) {
+				context.report({ node, message: MESSAGE_DEDENT });
+				return;
+			}
+			const program = program_of(node);
+			context.report({
+				node,
+				message: MESSAGE_DEDENT,
+				fix: (fixer) => {
+					const out = [fixer.replaceText(node as Ranged, fix.text)];
+					if (!has_dedent(program)) {
+						const imports = (program.body as Node[]).filter((s) => s.type === 'ImportDeclaration');
+						const last = imports[imports.length - 1] as Ranged | undefined;
+						const line = `import { dedent } from '${source}';`;
+						out.push(
+							last
+								? fixer.insertTextAfter(last, `\n${line}`)
+								: fixer.insertTextBefore(program as Ranged, `${line}\n`)
+						);
+					}
+					return out;
+				}
+			});
+		};
 		return {
 			Literal(node: Node) {
 				if (typeof node.value !== 'string') return;
-				if (newline_escapes(text(node)) >= 2) context.report({ node, message: MESSAGE_DEDENT });
+				if (newline_escapes(text(node)) < 2) return;
+				report(node, node.value.includes(VALUE_MARK) ? null : node.value, []);
 			},
 			TemplateLiteral(node: Node) {
 				// (a tagged template is its tag's text: `dedent` itself, `html`, a regex builder)
 				if ((node.parent as Node | undefined)?.type === 'TaggedTemplateExpression') return;
 				let n = 0;
 				for (const q of node.quasis as Node[]) n += newline_escapes(text(q));
-				if (n >= 2) context.report({ node, message: MESSAGE_DEDENT });
+				if (n < 2) return;
+				const quasis = node.quasis as { value: { cooked: string | null } }[];
+				const expressions = node.expressions as Node[];
+				let cooked: string | null = '';
+				for (let i = 0; i < quasis.length; i++) {
+					const c = quasis[i]!.value.cooked;
+					if (c === null || c.includes(VALUE_MARK)) {
+						cooked = null;
+						break;
+					}
+					cooked = `${cooked}${c}${i < expressions.length ? `${VALUE_MARK}${i}${VALUE_MARK}` : ''}`;
+				}
+				report(
+					node,
+					cooked,
+					expressions.map((e) => text(e))
+				);
 			},
 			CallExpression(node: Node) {
 				const callee = node.callee as Node;
