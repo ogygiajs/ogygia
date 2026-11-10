@@ -1,8 +1,8 @@
 /**
- * `virtual:ogygia/server-manifest` emitter — the SERVER islands' data the `ogygiaHandle()` handle
+ * `ogygia:server/server-manifest` emitter — the SERVER islands' data the `ogygiaHandle()` handle
  * reads (id → CSS-key url, so a server-picked (held) hole can ship its scoped CSS with its response;
  * names; render identities) and `load_islands()`, the one dynamic import of
- * `virtual:ogygia/server-islands`, which holds each island's loader. Populated in BOTH dev and build
+ * `ogygia:server/server-regions`, which holds each island's loader. Populated in BOTH dev and build
  * (unlike the client manifest, which dev fills from URLs); the client build gets empty maps. A
  * whole-program emitter: it reads the Program's descriptor registry.
  *
@@ -14,7 +14,7 @@
  * they are two away, whatever the chunking (rolldown 1.2.16 regrouped it and exposed exactly this).
  */
 import type { Program } from '../program.ts';
-import { V_SERVER_ISLANDS } from '../ids.ts';
+import { V_SERVER_REGIONS } from '../ids.ts';
 import { dedent } from '../dedent.ts';
 
 /** The SERVER-island ids the manifest carries right now (deferred / server-picked regions). */
@@ -74,7 +74,7 @@ export function server_manifest_module(
 	}
 	const entries = [...by_render].map(([r, iid]) => `${JSON.stringify(r)}: ${JSON.stringify(iid)}`);
 	return dedent`
-		export const load_islands = () => import(${JSON.stringify(V_SERVER_ISLANDS)});
+		export const load_islands = () => import(${JSON.stringify(V_SERVER_REGIONS)});
 
 		export const island_url = {
 			${urls.join(',\n\t')}
@@ -99,7 +99,7 @@ export function server_manifest_module(
 	`;
 }
 
-/** `virtual:ogygia/server-islands`: each SERVER island's loader, `id → () => import(entry)` (empty on
+/** `ogygia:server/server-regions`: each SERVER island's loader, `id → () => import(entry)` (empty on
  *  the client). Imported only by the manifest's `load_islands()` — never statically. */
 export function server_islands_module(ssr: boolean, program: Program): string {
 	const entries: string[] = [];

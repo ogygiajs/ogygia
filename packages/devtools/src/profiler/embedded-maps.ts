@@ -1,7 +1,7 @@
 /**
  * THE MAPS THE BUILD WROTE INTO THE CODE (vite/profiler-maps.ts), read back: the module map and
  * every server chunk's sourcemap, by chunk file relative to the server output. Loaded once, on the
- * first resolve, from `virtual:ogygia/profiler-maps` — a dynamic import, so it ships with whatever
+ * first resolve, from `ogygia:server/profiler-maps` — a dynamic import, so it ships with whatever
  * the adapter ships and costs a request nothing. Null outside a profiler-on server build.
  */
 

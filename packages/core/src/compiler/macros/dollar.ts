@@ -13,7 +13,7 @@
  * bound function — the host renders with a real closure; if it crosses a boundary, the fn kind
  * ships `{t: tag, d: bound}` and the far side rebinds. The factory is SELF-CONTAINED by
  * construction (see capture law), so the same factory text is also collected for the
- * `virtual:ogygia/fn-manifest` module the client runtime imports — every factory registers
+ * `ogygia:boot/fn-manifest` module the client runtime imports — every factory registers
  * before any island hydrates, and calls stay synchronous.
  *
  * CAPTURE LAW (v1): a free identifier inside the marked function becomes a BOUND PARAMETER —

@@ -118,7 +118,7 @@ export class Program {
 
 	/** PAGE MODULES (`b.pageModules()`: importers of a page specifier such as `'@ogygia/router'`, plus
 	 *  files named directly — server-router definition sites) + every walked
-	 *  module's import specifiers — the build data `virtual:ogygia/router-css` computes its
+	 *  module's import specifiers — the build data `ogygia:server/router-css` computes its
 	 *  component closure from (see link/router-css.ts). Filled during the prescan walk. */
 	readonly router_modules: Set<string> = new Set();
 	readonly module_specs: Map<string, string[]> = new Map();
@@ -141,7 +141,7 @@ export class Program {
 	/** App crosses a held region / transportable value through Kit's `transport` hook — a `.remote.*`
 	 *  file, or a `region`/`site`/content import (loads & remotes that carry regions or wired values).
 	 *  Set during the prescan walk; with `runtime_marks.wire` it decides whether `ogygia.transport`
-	 *  (the generated `virtual:ogygia/kit-transport`) carries the codec cluster or is an empty map. */
+	 *  (the generated `ogygia:region/kit-transport`) carries the codec cluster or is an empty map. */
 	crosses_wire = false;
 
 	/** Island code can reach Kit's page world (`$app/state` and kin, or something the island-closure

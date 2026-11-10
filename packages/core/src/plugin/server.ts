@@ -14,7 +14,7 @@ import { plugin_capabilities, type CapabilitySigner } from './capability.ts';
 import { record_server_event } from '../events/server-registry.ts';
 import { warn } from '../messages/server.ts';
 
-/** One plugin's server half as the build lists it (`virtual:ogygia/server-plugins`). */
+/** One plugin's server half as the build lists it (`ogygia:server/server-plugins`). */
 export interface ServerPluginEntry {
 	name: string;
 	options: unknown;

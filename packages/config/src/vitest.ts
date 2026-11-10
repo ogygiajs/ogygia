@@ -5,32 +5,30 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import type { ViteUserConfig } from 'vitest/config';
 import { heisenbench_record } from '../../../internal/heisenbench/src/record.ts';
 
-/** Core's test stubs: `app-<name>.ts` stands in for `$app/<name>`, `virtual-<name>.ts` for
- *  `virtual:ogygia/<name>`, `realm-<realm>.ts` for the realm module `ogygia:<realm>`
+/** Core's test stubs: `app-<name>.ts` stands in for `$app/<name>`, `realm-<realm>.ts` for the
+ *  realm module `ogygia:<realm>`, `<realm>.<id>.ts` for its entry `ogygia:<realm>/<id>`
  *  (packages/core/test/_stubs). */
 const STUBS = fileURLToPath(new URL('../../core/test/_stubs/', import.meta.url));
 
-/** A module code imports by its own id, not through its realm module (it loads lazily). */
-const OWN_ID_STUBS: Record<string, string> = { 'ogygia:server/profiler-maps': 'profiler-maps' };
+const ENTRY_STUB = /^(server|boot|region|dev)\.(.+)$/;
 
-const exact = (id: string): RegExp => new RegExp('^' + id.replace(/[$/]/g, '\\$&') + '$');
+const exact = (id: string): RegExp => new RegExp('^' + id.replace(/[$/.]/g, '\\$&') + '$');
 
 /** The stubs as exact-match aliases (a realm module's id is a prefix of its entries' ids). */
 export function stub_aliases(): { find: RegExp; replacement: string }[] {
 	const out: { find: RegExp; replacement: string }[] = [];
 	for (const file of readdirSync(STUBS)) {
 		const name = file.replace(/\.ts$/, '');
+		const entry = ENTRY_STUB.exec(name);
 		const id = name.startsWith('app-')
 			? '$app/' + name.slice(4)
-			: name.startsWith('virtual-')
-				? 'virtual:ogygia/' + name.slice(8)
-				: name.startsWith('realm-')
-					? 'ogygia:' + name.slice(6)
+			: name.startsWith('realm-')
+				? 'ogygia:' + name.slice(6)
+				: entry
+					? `ogygia:${entry[1]}/${entry[2]}`
 					: null;
 		if (id) out.push({ find: exact(id), replacement: STUBS + file });
 	}
-	for (const [id, name] of Object.entries(OWN_ID_STUBS))
-		out.push({ find: exact(id), replacement: `${STUBS}virtual-${name}.ts` });
 	return out;
 }
 

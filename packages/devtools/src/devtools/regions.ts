@@ -81,7 +81,7 @@ export function short_chunk(url: string | null): string {
 	return b.length > 24 ? b.slice(0, 23) + '…' : b;
 }
 
-/** The island id from an entry URL, or '': `<id>` in the dev server's `virtual:ogygia/island/<id>.js`
+/** The island id from an entry URL, or '': `<id>` in the dev server's `ogygia:region/entry/<id>.js`
  *  and in a build's `og-region.<id>.js` (the name maps key the bare id — with the prefix left on, every
  *  tab in a build showed hashes). */
 export function island_id(entry: string | null | undefined): string {
@@ -93,7 +93,7 @@ const BUILT_PREFIX = 'og-region.';
 
 /**
  * The compiler's `island id → component name` map (dev-only), published on `window` by the
- * `virtual:ogygia/devtools-names` side-effect module the runtime/devtools boot pulls in. Empty off a
+ * devtools boot from `ogygia:boot/devtools-meta`. Empty off a
  * devtools build. Lets every tab label a region "Counter" instead of a hashed entry.
  */
 export function region_names(): Record<string, string> {

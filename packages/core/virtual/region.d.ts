@@ -15,15 +15,7 @@ declare module 'ogygia:region/kit-transport' {
 const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_transport>;
 export = module;
 }
-declare module 'virtual:ogygia/kit-transport' {
-const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_transport>;
-export = module;
-}
 declare module 'ogygia:region/transport' {
-const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').transport>;
-export = module;
-}
-declare module 'virtual:ogygia/transport' {
 const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').transport>;
 export = module;
 }
@@ -31,15 +23,7 @@ declare module 'ogygia:region/transportables' {
 const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').transportables>;
 export = module;
 }
-declare module 'virtual:ogygia/transportables' {
-const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').transportables>;
-export = module;
-}
 declare module 'ogygia:region/transportables-eager' {
-const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').transportables_eager>;
-export = module;
-}
-declare module 'virtual:ogygia/transportables-eager' {
 const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').transportables_eager>;
 export = module;
 }

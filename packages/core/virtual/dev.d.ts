@@ -10,15 +10,7 @@ declare module 'ogygia:dev/devtools-boot' {
 const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').devtools_boot>;
 export = module;
 }
-declare module 'virtual:ogygia/devtools-boot' {
-const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').devtools_boot>;
-export = module;
-}
 declare module 'ogygia:dev/hmr' {
-const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').hmr>;
-export = module;
-}
-declare module 'virtual:ogygia/dev-hmr' {
 const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').hmr>;
 export = module;
 }

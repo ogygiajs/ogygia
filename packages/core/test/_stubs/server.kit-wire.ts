@@ -1,4 +1,4 @@
-// Test stub for `virtual:ogygia/kit-wire` (real one re-exports Kit's internal wire helpers,
+// Test stub for `ogygia:server/kit-wire` (real one re-exports Kit's internal wire helpers,
 // resolved by the Vite plugin). Mirrors Kit's `id/payload` join shape closely enough for units.
 export function create_remote_key(id: string, payload: string): string {
 	return `${id}/${payload}`;

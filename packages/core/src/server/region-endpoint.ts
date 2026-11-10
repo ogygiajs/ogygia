@@ -137,7 +137,7 @@ export function mint_region_capability(entry: string, payload: string, ttl = 0):
  * Server-island mint: encode `props` (devalue + wire codec), enforce the size cap (THROW — a server
  * island with oversized/non-serializable props is an author bug the handle would reject anyway), and
  * sign. The one place `Region.svelte`'s `__mode: 'server'` branch signs its hole; routed through the
- * `virtual:ogygia/region-endpoint` virtual so the client build stubs it to `''` (server islands never
+ * `ogygia:server/region-endpoint` virtual so the client build stubs it to `''` (server islands never
  * mint on the client — the runtime fetches the endpoint). Mirrors the old `ServerIsland.svelte`.
  */
 export function mintServerIsland(entry: string, props: Record<string, unknown>, ttl = 0): string {

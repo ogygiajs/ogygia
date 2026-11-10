@@ -1,4 +1,4 @@
-// Test stub for `virtual:ogygia/region-endpoint` (real one is the client/SSR-split module the
+// Test stub for `ogygia:server/region-endpoint` (real one is the client/SSR-split module the
 // Vite plugin mints). Unit tests only need the graph to load; nothing signs endpoints, and no SPA
 // navigation ever reports known region fingerprints.
 export const makeRegionEndpoint = () => '';

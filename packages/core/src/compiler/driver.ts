@@ -73,7 +73,8 @@ import {
 import { island_host_loaded } from './link/emit-gate.ts';
 import { stamp_opaque } from './ownership-stamps.ts';
 import { strip_bom } from './bom.ts';
-import { RESOLVED, V_RUNTIME_ENTRY } from './ids.ts';
+import { RESOLVED, V_RUNTIME_ENTRY, region_family } from './ids.ts';
+import { is_generated_specifier } from './virtual/table.ts';
 import { OgygiaError, warn } from '../messages/build.ts';
 import type { Program, RegisterResult } from './program.ts';
 import type { CompileCtx } from './ctx.ts';
@@ -111,9 +112,9 @@ const COMPONENT_EXT_RE = /\.(svelte|js|ts)$/;
  *  beside its component (kit.ts `is_route_component`). */
 const ROUTE_HOST_FILE_RE = /^\+(page|layout)\.(ts|js|mjs)$/;
 /** The real binding modules a host imports for a marked region (ids.ts `regionBindingVirtualId`,
- *  transform.ts `wrapperVirtualId`). */
-const REGION_BINDING_PREFIX = 'virtual:ogygia/region/';
-const WRAPPER_PREFIX = 'virtual:ogygia/wrapper/';
+ *  `wrapperVirtualId`). */
+const REGION_BINDING_PREFIX = region_family('binding');
+const WRAPPER_PREFIX = region_family('wrapper');
 /** A `.ts`/`.js` module that can be a region registry (a minted `.ts` region host). */
 const TS_REGISTRY_EXT_RE = /\.(ts|js|mjs)$/;
 /** A Svelte rune module (`.svelte.ts` / `.svelte.js`). */
@@ -209,7 +210,7 @@ export class Compiler implements CoreApp {
 	#scanned = false;
 
 	/**
-	 * DEV: the server-island ids the last emitted `virtual:ogygia/server-manifest` carried. A HOST edit
+	 * DEV: the server-island ids the last emitted `ogygia:server/server-manifest` carried. A HOST edit
 	 * drops its islands' rows (`invalidate_for_file`) and invalidates the manifest; Kit re-imports the
 	 * handle BEFORE the page transform re-registers them, so that manifest is emitted WITHOUT the ids —
 	 * and nothing re-invalidated it afterwards: every hole answered 403 until a restart. The adapter
@@ -266,7 +267,7 @@ export class Compiler implements CoreApp {
 	/**
 	 * Devtools: the `island id → component name` map, read at call time off the live registry (so a
 	 * dev-server middleware serves a COMPLETE, current map — no stale virtual-module snapshot). Keys
-	 * are the island id (`<hash>` in `virtual:ogygia/island/<hash>.js`); values the component's
+	 * are the island id (`<hash>` in `ogygia:region/entry/<hash>.js`); values the component's
 	 * basename. A held/generated island with no source file is skipped (the tab keeps its short hash).
 	 */
 	region_names(): Record<string, string> {
@@ -329,7 +330,7 @@ export class Compiler implements CoreApp {
 	 */
 	/**
 	 * The REAL source file a module derives from. A real file is its own origin. A generated entry
-	 * (a portable-snippet synth, re-processed under its `virtual:ogygia/island/<iid>.svelte` id)
+	 * (a portable-snippet synth, re-processed under its `ogygia:region/entry/<iid>.svelte` id)
 	 * resolves through the registry's `hostPath` — transitively, so an entry minted while re-processing
 	 * another entry still lands on the file the outermost slice was cut from. This is the ONE rule
 	 * `resolve_id` already applies to an entry's plain imports; threading it into the transform keeps
@@ -743,7 +744,7 @@ export class Compiler implements CoreApp {
 					if (!PAGE_FREE_APP_MODULES.has(spec)) this.program.island_reads_page = true;
 					continue;
 				}
-				if (spec.startsWith('$env/') || spec.startsWith('virtual:')) continue;
+				if (spec.startsWith('$env/') || is_generated_specifier(spec)) continue;
 				const dep = resolve_dep(spec, norm);
 				if (dep) walk(dep);
 				// A package or an import this walk cannot resolve may read the page; Svelte and assets cannot.
@@ -1129,7 +1130,7 @@ export class Compiler implements CoreApp {
 			if (shim) return shim;
 		}
 
-		// Portable wrappers import `virtual:ogygia/island/<id>` (and hosts import wrappers).
+		// Portable wrappers import `ogygia:region/entry/<id>` (and hosts import wrappers).
 		// Resolve those BEFORE the "relative to hostPath" branch — that branch uses skipSelf
 		// and would bypass this handler, failing to resolve virtual entry ids.
 		if (is_island_path(source)) {
@@ -1165,7 +1166,7 @@ export class Compiler implements CoreApp {
 				!resolved &&
 				!source.startsWith('.') &&
 				!source.startsWith('\0') &&
-				!source.startsWith('virtual:') &&
+				!is_generated_specifier(source) &&
 				!path.isAbsolute(source)
 			) {
 				throw new OgygiaError('island_import_unresolved', {
@@ -1210,7 +1211,7 @@ export class Compiler implements CoreApp {
 	): Promise<string | null> {
 		const ctx = this.#ctx!;
 		if (ssr || ctx.is_dev || !ctx.is_build || !importer) return null;
-		if (source.startsWith('\0') || source.startsWith('virtual:') || source.startsWith('$app/'))
+		if (source.startsWith('\0') || is_generated_specifier(source) || source.startsWith('$app/'))
 			return null;
 		if (registry_client_path(importer) == null && !this.#is_csr_false_route_host(importer))
 			return null;
