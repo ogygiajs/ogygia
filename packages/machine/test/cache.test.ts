@@ -111,6 +111,25 @@ describe('cache: bounded', () => {
 		expect(n.seen).toEqual(['c:30:size']);
 	});
 
+	it('a set that must make room replaces the key’s own value past its age: noticed as a replace, never as its age', () => {
+		let now = 1_000_000;
+		vi.spyOn(Date, 'now').mockImplementation(() => now);
+		const n = noted();
+		const c = cache<string, number>({
+			max: 2,
+			keep: 1000,
+			weigh: (v) => (v >= 10 ? 2 : 1),
+			onEvict: n.onEvict
+		});
+		c.set('a', 1);
+		c.set('b', 2);
+		now += 2000; // both past their age, no sweep yet
+		// a heavier value for `a`: room is made, `b` goes for its age, `a`'s old value is replaced
+		expect(c.set('a', 10)).toBe(true);
+		expect(n.seen).toEqual(['b:2:age', 'a:1:delete']);
+		expect(c.get('a')).toBe(10);
+	});
+
 	it('a value heavier than max, or with a bad weight, is not kept, and the old one stays', () => {
 		const c = cache<string, number>({ max: 5, weigh: (v) => v });
 		c.set('a', 2);
