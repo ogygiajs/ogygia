@@ -9,11 +9,15 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
+// the real wall clock, taken before any spy: a spy that called `Date.now` would call itself
+const REAL_NOW = Date.now.bind(Date);
+let wall_offset = 0;
+
 /** Steps the wall clock by `ms` from now on, leaving the monotonic clock alone. */
 function step_wall(ms: number): void {
-	const real = Date.now.bind(Date);
-	const prior = vi.isMockFunction(Date.now) ? (Date.now as () => number) : real;
-	vi.spyOn(Date, 'now').mockImplementation(() => prior() + ms);
+	if (!vi.isMockFunction(Date.now)) wall_offset = 0;
+	wall_offset += ms;
+	vi.spyOn(Date, 'now').mockImplementation(() => REAL_NOW() + wall_offset);
 }
 
 /** mulberry32: a small seeded generator, so a failing seed replays exactly. */
