@@ -9,7 +9,7 @@ import { Program } from '../src/compiler/program.ts';
 import { CompileCtx, type CompileCtxInit } from '../src/compiler/ctx.ts';
 import { set_host, type HostFs } from '../src/compiler/host.ts';
 import { normalize_import_keys } from '../src/compiler/region/transform.ts';
-import { CORE_VIRTUALS } from '../src/compiler/virtual/core.ts';
+import { CORE_VIRTUALS, core_path } from '../src/compiler/virtual/core.ts';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
 import { specifier, virtual } from '../src/compiler/virtual/table.ts';
 
@@ -84,8 +84,6 @@ function compiler(root: string, is_dev: boolean): Compiler {
 		router_view_transitions: false,
 		runtime_dir: '/nowhere/ogygia/dist/runtime',
 		runtime_hash: 'h',
-		hmac_module: '/nowhere/ogygia/dist/server/hmac.js',
-		region_endpoint_module: '/nowhere/ogygia/dist/server/region-endpoint.js',
 		kit_wire_path: '/nowhere/kit/shared.js',
 		client_binding_stub_file: '/nowhere/stub.js',
 		app_shims: {},
@@ -99,11 +97,22 @@ function compiler(root: string, is_dev: boolean): Compiler {
 }
 
 /** Every module id the table answers, by its realm-named specifier and its alias. */
-const SPECIFIERS = CORE_VIRTUALS.flatMap((e) =>
-	e.kind === 'constant' || (e.kind === 'family' && e.parse)
-		? []
-		: [specifier(e.realm, e.id), ...(e.alias ? [e.alias] : [])]
-);
+const SPECIFIERS = [
+	'ogygia:server',
+	'ogygia:boot',
+	'ogygia:region',
+	...CORE_VIRTUALS.flatMap((e) =>
+		e.kind === 'constant' || (e.kind === 'family' && e.parse)
+			? []
+			: [specifier(e.realm, e.id), ...(e.alias ? [e.alias] : [])]
+	)
+];
+/** A module's realm imports, as an app's code writes them. */
+const IMPORTS = `import { regionTtl, renewWindow, sign, regionCss as css } from 'ogygia:server';
+import { FRAMES, transport } from 'ogygia:boot';
+export { kitTransport as transport } from 'ogygia:region';`;
+const size = (out: string | { code: string } | null): number =>
+	out === null ? 0 : typeof out === 'string' ? out.length : out.code.length;
 
 bench(
 	'virtual modules: every id resolved and loaded, both legs, a build and the dev server',
@@ -118,8 +127,7 @@ bench(
 				});
 				if (typeof id !== 'string' || !id.startsWith('\0')) continue;
 				for (const ssr of [true, false]) {
-					const out = await c.emit(id, { ssr, universalHooks: null, resolve: async () => null });
-					bytes += out?.length ?? 0;
+					bytes += size(await c.emit(id, { ssr, universalHooks: null, resolve: async () => null }));
 				}
 			}
 			// a family member by its prefix
@@ -131,7 +139,8 @@ bench(
 					resolve: async () => null
 				}
 			);
-			bytes += ((await c.emit(stub as string, { ssr: false, universalHooks: null })) ?? '').length;
+			bytes += size(await c.emit(stub as string, { ssr: false, universalHooks: null }));
+			bytes += c.split_realm_imports(IMPORTS)?.length ?? 0;
 			for (const w of ['regions', 'routes', 'styles', 'options', 'plugins'] as const)
 				bytes += c.watching(w).length;
 		}
@@ -147,7 +156,7 @@ bench(
 
 bench('virtual modules: a table built, an undeclared id and a duplicate refused', () => {
 	let refused = 0;
-	const table = new VirtualTable(CORE_VIRTUALS);
+	const table = new VirtualTable(CORE_VIRTUALS, core_path);
 	for (const id of ['virtual:ogygia/nope', 'ogygia:server/nope']) {
 		try {
 			table.resolve(id);
@@ -155,10 +164,10 @@ bench('virtual modules: a table built, an undeclared id and a duplicate refused'
 			refused++;
 		}
 	}
-	const a = virtual.value({ realm: 'server', id: 'x', from: () => ({}) });
+	const a = virtual.value({ realm: 'server', id: 'x', exports: [], from: () => ({}) });
 	const b = virtual.constant({ id: '__X__', from: () => true });
 	try {
-		new VirtualTable([a, a, b]);
+		new VirtualTable([a, a, b], core_path);
 	} catch {
 		refused++;
 	}
