@@ -4,6 +4,7 @@
 // Joined, a visitor's fetch used to wait out the guess's turn behind every other guess on the page;
 // it now raises the flight it joins, so the queued fetch starts at once.
 import { afterEach, beforeEach, expect, test } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset } from '../../src/runtime/frame-store.ts';
 import {
@@ -22,6 +23,14 @@ let held: (() => void)[] = [];
 
 beforeEach(async () => {
 	document.body.innerHTML = '';
+	// the real pointer away from the fixture: content that appears under a resting cursor gets a
+	// trusted `pointerover`, and an on-demand hole would fetch before the test's own hover
+	// (deferred-endpoint.test.ts `park_pointer`)
+	const corner = document.createElement('div');
+	corner.style.cssText = 'position:fixed;right:24px;bottom:24px;width:24px;height:24px';
+	document.body.append(corner);
+	await userEvent.hover(corner);
+	corner.remove();
 	reset_load_scheduler();
 	reset_document_painted();
 	asked.length = 0;
