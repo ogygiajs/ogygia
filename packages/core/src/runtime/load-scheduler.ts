@@ -32,9 +32,20 @@
  */
 import { after_document_painted, yield_task } from './schedule.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
-import { flights, machine, type InFlight, type Stale } from '@ogygia/machine';
+import {
+	flights,
+	machine,
+	queue,
+	scope,
+	STALE,
+	type InFlight,
+	type Queue,
+	type Scope,
+	type Stale,
+	type Started
+} from '@ogygia/machine';
 import { emit as dt_emit } from '../events/bus.ts';
-import { class_at, CLASSES, PRIORITY, type LoadClass } from './load-class.ts';
+import { class_at, PRIORITY, type LoadClass } from './load-class.ts';
 import { on_screen, watch_viewport } from './viewport.ts';
 
 export { fetch_priority_of, type LoadClass } from './load-class.ts';
@@ -207,12 +218,6 @@ function until_critical(): Promise<void> {
 
 // ── the queue ───────────────────────────────────────────────────────────────────────────────────
 
-/** The slots waiting, in the order they were asked for (a pass takes out the ones it started when
- *  it ends; `waiting` counts the rest at any moment). */
-const queue: LoadSlot[] = [];
-let waiting = 0;
-let in_flight_background = 0;
-
 /**
  * A queued download: asking for one queues it. `ready` resolves with a `release` to call when the
  * download is done (settled, success or not). `cls` may be a getter, re-read whenever the queue
@@ -226,8 +231,6 @@ export class LoadSlot {
 	readonly label: string | undefined;
 	readonly queued_at: number = now();
 	readonly ready: Promise<() => void>;
-	/** Still in the queue: a drain takes it out when it starts. */
-	queued = true;
 	#read: () => LoadClass;
 	#flight: InFlight | null;
 	#resolve!: (release: () => void) => void;
@@ -246,16 +249,15 @@ export class LoadSlot {
 		this.#read = typeof o.cls === 'function' ? o.cls : () => o.cls as LoadClass;
 		this.#flight = o.flight ?? null;
 		this.ready = new Promise<() => void>((r) => (this.#resolve = r));
-		queue.push(this);
-		waiting++;
 		// its element moved on or off screen: its class may have moved with it
 		if (o.el) this.unwatch = watch_viewport(o.el, '0px', drain);
-		// a caller joined the flight at a higher class: still queued, it drains at that class now
-		this.#flight?.onRaise(() => {
-			if (this.queued) drain();
-		});
 		if (!critical_done() && waits_for_critical(this.kind, this.cls())) void critical_settled(); // ok: the critical wait only waits on timers and resources' events; it never rejects
-		drain();
+		// (a caller joining its flight at a higher class drains the queue: it moves up while queued)
+		const read = this.#read;
+		const flight = this.#flight ?? undefined;
+		const queued = loads.add(this, { priority: () => PRIORITY[read()], flight });
+		// a fresh document (its owner closed): it never starts
+		void queued.then((s) => s === STALE && this.unwatch()); // ok: add never rejects
 	}
 
 	/** Its class now: the getter's, or its flight's when that is more urgent. */
@@ -265,12 +267,11 @@ export class LoadSlot {
 		return flight !== null && flight.priority > PRIORITY[c] ? class_at(flight.priority) : c;
 	}
 
-	/** Out of the queue: the holder's `ready` resolves, counted in the background window when it
-	 *  is one of the guesses. */
-	start(cls: LoadClass, background: boolean): void {
+	/** Out of the queue, at the class it started at: the holder's `ready` resolves. What it returns
+	 *  lets the holder's own start-up run before the next start. */
+	start(s: Started): Promise<void> {
 		this.unwatch();
-		if (background) in_flight_background++;
-		let released = false;
+		const cls = class_at(s.priority);
 		if (DEVTOOLS)
 			dt_emit({
 				domain: 'runtime',
@@ -280,12 +281,8 @@ export class LoadSlot {
 				label: this.label,
 				waited_ms: Math.round(now() - this.queued_at)
 			});
-		this.#resolve(() => {
-			if (released) return;
-			released = true;
-			if (background) in_flight_background--;
-			drain();
-		});
+		this.#resolve(() => s.release());
+		return Promise.resolve();
 	}
 }
 
@@ -302,92 +299,34 @@ function waits_for_critical(kind: LoadKind, cls: LoadClass): boolean {
  * task (52 ms on a 4×-throttled runner). After this much work in one task the drain yields.
  */
 const START_BUDGET_MS = 16;
-/**
- * The queue's drain, as a machine: `idle`, `draining`, or `again` (a drain was asked for while one
- * ran: the one running goes round once more, and asks again when it is done). One state in place of
- * `draining` beside `drain_again`.
- */
-const drain_definition = machine<{ idle: {}; draining: {}; again: {} }>()({
-	name: 'load-drain',
-	initial: 'idle',
-	steps: { idle: ['draining'], draining: ['idle', 'again'], again: ['idle', 'draining'] }
-});
-let drainer = drain_definition.create();
 
+/** The document's loads: closing it (a test's fresh document) settles every queued slot. */
+let documents = scope();
+
+/**
+ * The queue (@ogygia/machine `queue()`): by class, then in the order asked; only the guesses
+ * (`ahead`, `speculative`) count in the background window; one that waits for the critical
+ * resources keeps its place until the gate opens; past {@link START_BUDGET_MS} the drain yields a
+ * task, and each start's holder runs its own start-up before the next start.
+ */
+function make_loads(owner: Scope): Queue<LoadSlot> {
+	return queue<LoadSlot>({
+		name: 'loads',
+		max: BACKGROUND_WINDOW,
+		holds: (p) => p <= PRIORITY.ahead,
+		admit: (slot, p) => critical_done() || !waits_for_critical(slot.kind, class_at(p)),
+		start: (slot, s) => slot.start(s),
+		budget: START_BUDGET_MS,
+		pause: (resume) => void yield_task().then(resume), // ok: a yield never rejects
+		now,
+		owner
+	});
+}
+let loads = make_loads(documents);
+
+/** The queue looks again: an element moved on or off screen, or the gate opened. */
 function drain(): void {
-	const kind = drainer.now.kind;
-	if (kind !== 'idle') {
-		if (kind === 'draining') drainer.go('again');
-		return;
-	}
-	if (!waiting) return;
-	drainer.go('draining');
-	const mine = drainer;
-	void drain_queue().finally(() => {
-		if (drainer !== mine) return; // (a test's reset: a fresh document)
-		const again = drainer.now.kind === 'again';
-		drainer.go('idle');
-		if (again) drain();
-	}); // ok: a drain only hands out slots and yields; it never rejects
-}
-
-/**
- * One pass goes through the queue by class, then in the order asked, and then through the slots
- * asked for while it ran, in the order asked. The queue is kept in the order asked, so reading each
- * class once and putting the slot in its class's list is that order (a sort compared two classes per
- * step, every pass: passes × queue × log queue reads on a page whose downloads each end a pass).
- *
- * @heisenbench linear
- */
-async function drain_queue(): Promise<void> {
-	let until = now() + START_BUDGET_MS;
-	for (;;) {
-		// (a drain asked for until now is this round)
-		if (drainer.now.kind === 'again') drainer.go('draining');
-		const asked = queue.length;
-		const by_class: LoadSlot[][] = [[], [], [], []];
-		for (let i = 0; i < asked; i++) by_class[3 - PRIORITY[queue[i].cls()]].push(queue[i]);
-		// nothing has run since the classes were read; after a start its holder has, so they are read again
-		let ran = false;
-		let started = false;
-		let yielded = false;
-		pass: for (let r = 0; r <= 4; r++) {
-			const list = r < 4 ? by_class[r] : queue;
-			for (let i = r < 4 ? 0 : asked; i < list.length; i++) {
-				const e = list[i];
-				if (!e.queued) continue; // (the test seam emptied the queue while the pass waited)
-				const cls = r < 4 && !ran ? CLASSES[r] : e.cls();
-				if (!critical_done() && waits_for_critical(e.kind, cls)) continue;
-				const background = cls === 'ahead' || cls === 'speculative';
-				if (background && in_flight_background >= BACKGROUND_WINDOW) continue;
-				e.queued = false;
-				waiting--;
-				started = true;
-				e.start(cls, background);
-				// the holder's continuation (its synchronous start-up) runs in this microtask turn
-				await Promise.resolve();
-				ran = true;
-				if (now() >= until) {
-					leave_queue();
-					await yield_task();
-					until = now() + START_BUDGET_MS;
-					yielded = true;
-					break pass; // classes may have moved (scroll, promote) while the page had the thread
-				}
-			}
-		}
-		if (!yielded) {
-			if (started) leave_queue();
-			if (drainer.now.kind !== 'again') return;
-		}
-	}
-}
-
-/** The started slots out of the queue, the rest kept in the order asked. */
-function leave_queue(): void {
-	let w = 0;
-	for (let i = 0; i < queue.length; i++) if (queue[i].queued) queue[w++] = queue[i];
-	queue.length = w;
+	loads.drain();
 }
 
 function noop(): void {}
@@ -398,15 +337,9 @@ function now(): number {
 
 /** Test seam: a fresh document. */
 export function reset_load_scheduler(): void {
-	for (const s of queue) {
-		s.queued = false;
-		s.unwatch();
-	}
-	queue.length = 0;
-	waiting = 0;
-	in_flight_background = 0;
-	drainer.stop();
-	drainer = drain_definition.create();
+	documents.close(); // (every queued slot stops watching its element, and never starts)
+	documents = scope();
+	loads = make_loads(documents);
 	critical.drop(() => true);
 	gate.stop();
 	gate = gate_definition.create();
