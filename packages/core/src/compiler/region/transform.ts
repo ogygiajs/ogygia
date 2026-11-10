@@ -19,13 +19,14 @@ import type { SvelteNode, HostImport, RegionMark } from './ir.ts';
 import type * as NodePath from 'node:path';
 import { blank_styles } from '../blank-styles.ts';
 import { OgygiaError, warn } from '../../messages/build.ts';
+import { cache } from '@ogygia/machine';
 
 /** A host the parser still cannot read keeps its region imports as plain imports (no island):
  *  said once per file, never skipped in silence. The Svelte compiler reports the error itself. */
-const warned_unparsed = new Set<string>();
+const warned_unparsed = cache<string, true>({ name: 'warned unparsed hosts', max: 10_000 });
 function warn_unparsed(id: string, err: unknown): void {
 	if (warned_unparsed.has(id)) return;
-	warned_unparsed.add(id);
+	warned_unparsed.set(id, true);
 	const e = err as { code?: string; start?: { line?: number; column?: number }; message?: string };
 	warn('region_host_skipped', {
 		file: id,
@@ -171,15 +172,18 @@ export type ImportKeys = {
 };
 
 /** The three delivery modes the `render` attribute accepts. */
+// static: the region `render` modes
 const RENDER_MODES = new Set(['static', 'deferred', 'live']);
 
 const JS_IDENT = /^[A-Za-z_$][\w$]*$/;
 
 // ── store-crossing detection (portable snippets) ────────────────────────────────────────────
 /** Store constructor callees marking a host declaration as store-like (best-effort signal). */
+// static: svelte/store's constructors
 const STORE_CTORS = new Set(['writable', 'readable', 'derived', 'toStore', 'fromStore']);
 /** `$name` subscription reads anywhere in a file (heuristic store signal; runes filtered out). */
 const STORE_SUB_RE = /\$([A-Za-z_][\w$]*)/g;
+// static: Svelte's runes
 const RUNE_NAMES = new Set(['state', 'derived', 'effect', 'props', 'bindable', 'inspect', 'host']);
 /** 1-based `line:col` for an offset — trace addresses in store-crossing warnings (cold path). */
 function line_col(src: string, offset: number): string {
@@ -194,21 +198,24 @@ function line_col(src: string, offset: number): string {
 	return `${line}:${offset - last}`;
 }
 /** Once per key for the process — the ssr AND client passes both transform the same host. */
-const store_warned = new Set<string>();
+const store_warned = cache<string, true>({ name: 'warned store captures', max: 10_000 });
 function warn_once(key: string, say: () => void): void {
 	if (store_warned.has(key)) return;
-	store_warned.add(key);
+	store_warned.set(key, true);
 	say();
 }
 
 // Invariant per-build — hoisted to module scope so they aren't reallocated on every transformHost.
+// static: the wake schedules a region names
 const KNOWN_STRATEGIES = new Set(['load', 'idle', 'visible']);
 // `interaction` on an island: first pointer/key/focus inside the region wakes it (with click
 // replay). On a deferred region it is an ON-DEMAND hole: the first hover/focus/touch/key inside
 // fetches the HTML, which is morphed in (the runtime's #on_demand). `none` is never a fetch timing.
+// static: the wake schedules, and `interaction`
 const HYDRATE_STRATEGIES = new Set([...KNOWN_STRATEGIES, 'interaction']);
 const DEFER_STRATEGIES = HYDRATE_STRATEGIES;
 /** Inline attribute keys accepted after normalization (canonical internal names). */
+// static: the import attribute keys a region takes
 const ATTR_SCHEMA = new Set(['hydrate', 'defer', 'margin', 'keep', 'stitch', 'prefetch']);
 /** A deferred hole's `prefetch` schedule: the warm happens on one of these (never `interaction`,
  *  which is the swap — `wake`'s job — and never `none`, which is no schedule). */
@@ -586,9 +593,12 @@ function script_lang_attr(scriptNode: SvelteNode) {
 	return '';
 }
 
+// static: the `remount` shorthands
 const REMOUNT_SHORTHANDS = new Set(['cache', 'empty', 'swr']);
+// static: what `remount.onExpire` takes
 const REMOUNT_ON_EXPIRE = new Set(['empty', 'fetch']);
 /** Schedule keywords shared by `hydrate`, `defer` and `remount.revalidate`. */
+// static: the schedule keywords a `when` takes (anything else is a media query)
 const SCHEDULE_KEYWORDS = new Set(['load', 'idle', 'visible']);
 
 /**
@@ -741,6 +751,7 @@ function parse_remount(raw: unknown, err: OptErr, names: string) {
  * Svelte 5 event attributes (`onclick`, …) that cannot cross devalue for remount:swr.
  * Deliberately NOT `/^on[a-z]+$/` — that falsely rejects data props like `online={x}`.
  */
+// static: Svelte's event attributes
 const SWR_EVENT_ATTR = new Set([
 	'onclick',
 	'ondblclick',

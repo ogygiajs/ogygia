@@ -10,6 +10,7 @@
  * recomputes on its own; the linker's `unregister_host` deliberately does NOT clear it.
  */
 import { fs, path, createHash, dir_entries } from './host.ts';
+import { cache } from '@ogygia/machine';
 import { fnv1a32 } from '../runtime/hash.ts';
 // `performance` is a global in both Node (≥16) and the browser — no import, so the driver graph loads
 // in the browser compiler (Observatory REPL) without pulling node:perf_hooks.
@@ -201,6 +202,7 @@ const IMPORT_SPEC_G =
 // code can make without reaching Kit's page world. Everything else under `$app/`, any package but
 // Svelte, and anything the walk cannot resolve or read counts as a reader: over-inclusion ships the
 // page seed's runtime for nothing, a miss would leave an island's `page.data` empty.
+// static: the two `$app/` modules that never read Kit's page
 const PAGE_FREE_APP_MODULES = new Set(['$app/environment', '$app/paths']);
 const ASSET_EXTS =
 	'css|scss|sass|less|styl|pcss|postcss|json|svg|png|jpe?g|gif|webp|avif|ico|bmp|woff2?|ttf|otf|eot|txt|wasm|mp4|webm|mp3|wav';
@@ -255,10 +257,13 @@ const fnv = fnv1a32;
 /** Once per module id: a dependency file carries ogygia marks but its package declares no
  *  `ogygia.files` — the marks are then silently inert (a `with { }` attribute is valid syntax,
  *  it just never rewrites), which is the worst way to fail. Say it loudly, once. */
-const warned_undeclared = new Set<string>();
+const warned_undeclared = cache<string, true>({
+	name: 'warned undeclared package marks',
+	max: 10_000
+});
 function warn_undeclared_pkg_marks(id: string): void {
 	if (warned_undeclared.has(id)) return;
-	warned_undeclared.add(id);
+	warned_undeclared.set(id, true);
 	warn('package_marks_undeclared', { file: id });
 }
 
@@ -271,7 +276,10 @@ function warn_undeclared_pkg_marks(id: string): void {
  * prebuilt `runtime_dir`); this repo's workspace points it at `src/runtime` (`.ts` files). Null
  * when it cannot be read (then `runtime_dir` stands). Once per runtime dir.
  */
-const dev_runtimes = new Map<string, { dir: string; ts: boolean } | null>();
+const dev_runtimes = cache<string, { dir: string; ts: boolean } | null>({
+	name: 'dev runtimes',
+	max: 64
+});
 function dev_runtime_of(runtime_dir: string): { dir: string; ts: boolean } | null {
 	if (dev_runtimes.has(runtime_dir)) return dev_runtimes.get(runtime_dir)!;
 	let out: { dir: string; ts: boolean } | null = null;

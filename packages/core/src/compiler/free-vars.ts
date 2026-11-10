@@ -18,6 +18,7 @@ import type { SvelteNode } from './region/ir.ts';
  * nothing. The transform turns a mutated capture into a precise error.
  */
 
+// static: the AST node types that open a function scope
 const FUNCTION_TYPES = new Set([
 	'FunctionDeclaration',
 	'FunctionExpression',
