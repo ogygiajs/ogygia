@@ -1,10 +1,10 @@
-// THE SHARED INTERSECTION OBSERVER (runtime/observe.ts), in a real browser. The hydration
+// THE ONE VIEWPORT TRACKER (runtime/viewport.ts), in a real browser. The hydration
 // scheduler's viewport snapshot and a `wake:'visible'` island both watch the island at the default
 // margin; with one callback per element the wake replaced the snapshot, and every visible island
 // then sat out the scheduler's whole 48 ms snapshot wait (62–84 ms late on a scroll, with nothing
 // ahead of it). Both must hear every change, and one leaving must not silence the other.
 import { expect, test } from 'vitest';
-import { observe, once_visible } from '../../src/runtime/observe.ts';
+import { once_on_screen, watch_viewport } from '../../src/runtime/viewport.ts';
 import { hydrate_turn, register_region, unregister_region } from '../../src/runtime/schedule.ts';
 import { scope } from '@ogygia/machine';
 
@@ -20,8 +20,8 @@ test('two watchers of one element at one margin both hear it; one stopping leave
 	const el = box();
 	const a: boolean[] = [];
 	const b: boolean[] = [];
-	const stop_a = observe(el, '0px', (v) => a.push(v));
-	const stop_b = observe(el, '0px', (v) => b.push(v));
+	const stop_a = watch_viewport(el, '0px', (v) => a.push(v));
+	const stop_b = watch_viewport(el, '0px', (v) => b.push(v));
 	await settle();
 	expect(a).toEqual([true]);
 	expect(b).toEqual([true]);
@@ -37,11 +37,11 @@ test('two watchers of one element at one margin both hear it; one stopping leave
 test('a watcher that joins late gets the last known state (the browser will not report it again)', async () => {
 	const el = box();
 	const first: boolean[] = [];
-	const stop = observe(el, '0px', (v) => first.push(v));
+	const stop = watch_viewport(el, '0px', (v) => first.push(v));
 	await settle();
 	expect(first).toEqual([true]);
 	let fired = false;
-	const stop_visible = once_visible(el, '0px', () => (fired = true));
+	const stop_visible = once_on_screen(el, '0px', () => (fired = true));
 	await settle();
 	expect(fired).toBe(true); // already on screen: it wakes, and does not wait for a change
 	stop();
@@ -53,7 +53,7 @@ test('a visible island woken on screen gets its turn without the 48 ms snapshot 
 	const el = box();
 	register_region(el, scope()); // the scheduler's snapshot (at connect)
 	let woke_at = 0;
-	once_visible(el, '0px', () => (woke_at = performance.now())); // the island's wake, same margin
+	once_on_screen(el, '0px', () => (woke_at = performance.now())); // the island's wake, same margin
 	await expect.poll(() => woke_at > 0).toBe(true);
 	// the turn itself (the poll above checks every 50 ms: time from the ask, not the wake)
 	const asked = performance.now();

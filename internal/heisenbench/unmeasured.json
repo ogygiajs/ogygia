@@ -1901,10 +1901,6 @@
 			"reason": "browser only: the visit's re-send firing 1.5 s after a late change (one flush_visit), constant work of its own"
 		},
 		{
-			"id": "packages/core/src/runtime/load-scheduler.ts > watch_scroll > on_scroll > timeout:0~791980",
-			"reason": "browser only: a scroll's frame runs one drain of the queue and closes the watch once it is empty; constant work of its own"
-		},
-		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #pause",
 			"reason": "a background window's wait (over the profiler instance: not cloneable), one child scope and one timer, constant work; run by the profiler's trap and sample tests"
 		},
