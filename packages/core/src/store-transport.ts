@@ -184,13 +184,10 @@ export function revive_store(payload: StorePayload, remember: boolean): unknown 
  * tag, so encode ships the tag instead of the generic one and decode rebuilds THROUGH the
  * factory — custom methods survive the wire.
  */
-/** Tags already warned about non-store products — once per tag, not once per call (a hot
- *  SSR path would otherwise warn on every request). Bounded by the code: one per `__og_store` tag,
- *  like the factory registry. Not `say()`: this module is island-side, and an island chunk that
- *  imports `say` splits it into a boot file of its own (apps/palaestra/e2e/lazy-chunks.spec.ts). */
-const warned_unbranded = new Set<string>();
-
 export function __og_store<F extends (...args: never[]) => object>(tag: string, factory: F): F {
+	// once per store, not per call (a hot SSR path would warn on every request); held here, not
+	// in a machine say(): island-side code importing one splits the boot (e2e/lazy-chunks.spec.ts)
+	let warned = false;
 	// decode side: factory(seed), branded so a revived store can cross a FURTHER boundary
 	__register_store_factory(tag, (seed: unknown) =>
 		mark_store((factory as unknown as (...a: unknown[]) => object)(seed), tag)
@@ -201,8 +198,8 @@ export function __og_store<F extends (...args: never[]) => object>(tag: string, 
 	return ((...args: never[]) => {
 		const product = factory(...args);
 		if (product === null || typeof product !== 'object') {
-			if (!warned_unbranded.has(tag) && typeof console !== 'undefined') {
-				warned_unbranded.add(tag);
+			if (!warned && typeof console !== 'undefined') {
+				warned = true;
 				warn('store_factory_unbranded', { tag, got: type_of(product) });
 			}
 			return product;
