@@ -1005,28 +1005,76 @@
 			"reason": "the dynamic import of the generated ogygia:server/router-css, which resolves only under the app's Vite pipeline; its failed read and the read after it are proven against a real Vite dev server in packages/core/test/router-css-dev.test.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > index_of",
-			"reason": "the debarrel plugin's barrel index for one environment (a Map get or create, over the plugin's closure: not replayable); the index's work is benched in packages/core/bench/compiler.bench.ts; proven against a real Vite dev server in packages/core/test/debarrel/plugin.test.ts"
+			"id": "packages/barrels/src/index.ts > barrels > log",
+			"reason": "the console fallback before configResolved hands the plugin Vite's logger (never reached in a build: configResolved runs first); the logger path is benched in packages/barrels/bench/barrels.bench.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > Shapes:0~35b8f6",
-			"reason": "the standalone plugin's file read for its shapes (a BOM-stripped readFileSync over the plugin's closure: not replayable); proven against a real Vite dev server in packages/core/test/debarrel/plugin.test.ts"
+			"id": "packages/barrels/src/rewrite.ts > quote > replace:1~5719f3",
+			"reason": "the escape callback of one character (a table lookup, constant work); quote's escapes are proven in packages/barrels/test/rewrite.test.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > resolve",
-			"reason": "one specifier through the transform's own this.resolve (a live Vite plugin context, not recorded); proven against a real Vite dev server in packages/core/test/debarrel/plugin.test.ts"
+			"id": "packages/core/src/messages/build.ts > BUILD_ERRORS > barrels_option_removed > details",
+			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > barrels > candidate",
-			"reason": "the plugin's barrel policy over its options and root (the plugin's closure: not replayable), constant work; the policies are proven in packages/core/test/exports-index.test.ts and packages/core/test/debarrel/barrel.test.ts"
+			"id": "packages/core/src/messages/build.ts > BUILD_ERRORS > barrels_option_removed > text",
+			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > barrels > forced",
-			"reason": "the plugin's barrel policy over its options (the plugin's closure: not replayable), constant work; the policies are proven in packages/core/test/exports-index.test.ts and packages/core/test/debarrel/barrel.test.ts"
+			"id": "packages/core/src/vite/index.ts > ogygia > seams > exports > map",
+			"reason": "a plugin's export index for one environment (a Map get or create over ogygia()'s closure: not replayable); the index's work is benched in packages/core/bench/compiler.bench.ts; proven through barrels() against a real Vite dev server in packages/barrels/test/plugin.test.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > barrels > kept",
-			"reason": "the plugin's barrel policy over its options (the plugin's closure: not replayable), constant work; the policies are proven in packages/core/test/exports-index.test.ts and packages/core/test/debarrel/barrel.test.ts"
+			"id": "packages/core/src/vite/index.ts > ogygia > seams > exports > map > ExportIndex:0~b7ee02",
+			"reason": "the index's resolver: the transformed module's own resolve (a live Vite plugin context, not recorded); proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports",
+			"reason": "the app's import keys and asRegion locals over ogygia()'s closure (not replayable); asRegionLocals is benched with the region transform; proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad",
+			"reason": "one declaration against the pinned keys and locals (constant work over ogygia()'s closure); proven in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~d4dbd6",
+			"reason": "one specifier's local against the asRegion locals (a Set has); proven in packages/barrels/test/as-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~e91cb2",
+			"reason": "one attribute key against the app's import keys (a Set has); proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > stage_host",
+			"reason": "builds one Vite plugin object per stage (constant work, over ogygia()'s closure); the stage's transforms are benched in packages/barrels/bench/barrels.bench.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform",
+			"reason": "a live Vite transform hook (its this.resolve and this.addWatchFile are the plugin context, not recorded); a stage's work is the plugins' transforms, benched in packages/barrels/bench/barrels.bench.ts; proven against a real Vite dev server and build in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform > filter:0~18c7ef",
+			"reason": "each stage transform's own filter on the module id (constant work per plugin); proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform > t > resolve",
+			"reason": "one specifier through the host's this.resolve (a live Vite plugin context, not recorded); its throw and external cases are proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform > t > watch",
+			"reason": "the host's this.addWatchFile (a live Vite plugin context, not recorded); proven by the barrel-edit case in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/plugin-api.ts > NO_SEAMS > exports > map",
+			"reason": "a constant rejection for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/plugin-api.ts > NO_SEAMS > pinned_imports",
+			"reason": "a constant throw for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/plugin-api.ts > resolve_plugins > build:0~4ffc6b > transform",
+			"reason": "one push of a plugin's stage transform (a function: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
 		},
 		{
 			"id": "packages/core/src/compiler/exports/index.ts > EVERY_BARREL > forced",
