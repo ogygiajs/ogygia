@@ -19,10 +19,15 @@ type Shared = {
 	last: WeakMap<Element, boolean>;
 };
 
-const observers = new Map<string, Shared>();
+/** The document's observers, one per distinct root margin (a handful: the margins the app names),
+ *  each living as long as the document. */
+class Observers {
+	readonly by_margin = new Map<string, Shared>();
+}
+const O = new Observers();
 
 function shared(rootMargin: string): Shared {
-	let s = observers.get(rootMargin);
+	let s = O.by_margin.get(rootMargin);
 	if (!s) {
 		const callbacks = new WeakMap<Element, Set<Callback>>();
 		const last = new WeakMap<Element, boolean>();
@@ -39,7 +44,7 @@ function shared(rootMargin: string): Shared {
 			{ rootMargin }
 		);
 		s = { io, callbacks, last };
-		observers.set(rootMargin, s);
+		O.by_margin.set(rootMargin, s);
 	}
 	return s;
 }
@@ -74,7 +79,7 @@ export function observe(el: Element, rootMargin: string, cb: Callback): () => vo
 
 /** Test seam: how many observers exist (one per distinct rootMargin, ever). */
 export function observer_count(): number {
-	return observers.size;
+	return O.by_margin.size;
 }
 
 /** Observe until the FIRST time `el` intersects, then fire once and stop. */
