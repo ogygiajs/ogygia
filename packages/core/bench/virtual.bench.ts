@@ -18,7 +18,7 @@ import {
 } from '../src/compiler/virtual/core.ts';
 import { CORE_ENTRIES_PATH, constant_types, virtual_types } from '../src/compiler/virtual/types.ts';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
-import { specifier, virtual } from '../src/compiler/virtual/table.ts';
+import { specifier, virtual, type Realm } from '../src/compiler/virtual/table.ts';
 
 const ROOT = '/app';
 
@@ -106,13 +106,15 @@ function compiler(root: string, is_dev: boolean): Compiler {
 	return c;
 }
 
-/** Every module id the table answers, by its realm-named specifier. */
-const SPECIFIERS = [
-	'ogygia:server',
-	'ogygia:boot',
-	'ogygia:region',
-	...CORE_VIRTUALS.flatMap((e) =>
-		e.kind === 'constant' || (e.kind === 'family' && e.parse) ? [] : [specifier(e.realm, e.id)]
+/** Every module id the table answers, by its realm-named specifier, with its realm. */
+const SPECIFIERS: [string, Realm][] = [
+	['ogygia:server', 'server'],
+	['ogygia:boot', 'boot'],
+	['ogygia:region', 'region'],
+	...CORE_VIRTUALS.flatMap((e): [string, Realm][] =>
+		e.kind === 'constant' || (e.kind === 'family' && e.parse)
+			? []
+			: [[specifier(e.realm, e.id), e.realm]]
 	)
 ];
 /** A module's realm imports, as an app's code writes them. */
@@ -128,9 +130,11 @@ bench(
 		let bytes = 0;
 		for (const is_dev of [false, true]) {
 			const c = compiler(root, is_dev);
-			for (const source of SPECIFIERS) {
+			for (const [source, realm] of SPECIFIERS) {
+				// resolved on a leg its realm may be imported from (the realm check refuses the others)
+				if (realm === 'dev' && !is_dev) continue;
 				const id = await c.resolve_id(source, undefined, {
-					ssr: true,
+					ssr: realm === 'server' || realm === 'region',
 					resolve: async () => null
 				});
 				if (typeof id !== 'string' || !id.startsWith('\0')) continue;
