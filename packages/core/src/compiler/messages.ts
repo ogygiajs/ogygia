@@ -717,24 +717,6 @@ export const BUILD_WARNINGS = {
 			\`ogygia\`. The island keeps reading it with \`getContext\`.
 		`
 	},
-	content_leaked_to_client: {
-		text: (a: { count: number; chunk: string; modules: string }): string =>
-			`content leaked into the CLIENT bundle: ${a.count} corpus module(s) (.svx/.md) shipped to the browser (in chunk '${a.chunk}').\n` +
-			`  A content() collection was imported into client-shipped code — usually an island — which drags its eager import.meta.glob (every doc) in.\n` +
-			`  Fix: keep the collection in a server-only module (or a .remote.ts) and feed islands DATA (refs) via props or a remote, never the collection itself.\n` +
-			a.modules
-				.split('\n')
-				.map((m) => '    ' + m)
-				.join('\n') +
-			(a.count > 5 ? '\n    …' : ''),
-		details: (): string => prose`
-			Documents of a content collection ended up in the browser bundle. A collection imports
-			every document it holds, so importing it into an island ships all of them.
-
-			Keep the collection in server-only code (a \`+page.server.ts\`, a \`.remote.ts\`) and
-			pass islands the data they need, as props or from a remote function.
-		`
-	},
 	region_host_skipped: {
 		text: (a: { file: string; reason: string; at: string }): string =>
 			`regions: skipped ${a.file}: ${a.reason}${a.at ? ` at ${a.at}` : ''} — its region imports stay plain imports`,
