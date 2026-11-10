@@ -6,8 +6,8 @@ import { test, check } from '@ogygia/tooling/e2e';
 import {
 	AMP_ENTITY_G_RE,
 	ENDPOINT_ATTR_RE,
+	EARLY_HOLES_RE,
 	KIT_MARKER_RE,
-	PRELOAD_FETCH_RE,
 	REGION_DEFER_G_RE,
 	VITE_CLIENT_RE,
 	VITE_FS_RE,
@@ -17,8 +17,7 @@ import {
 const REGION_WHEN_RE = /<ogygia-region\b[^>]*\bwhen="/;
 const LOADING_GREETING_RE = /loading greeting/;
 const HELLO_ADA_OR_STRANGER_RE = /Hello, (Ada|stranger)/;
-const PRELOAD_FETCH_ANON_RE = /rel="preload" as="fetch" crossorigin="anonymous"/;
-const PRELOAD_HREF_OGYGIA_RE = /href="[^"]*__ogygia__/;
+const PRELOAD_LINK_RE = /rel="preload" as="fetch"/;
 const IMMUTABLE_JS_RE = /_app\/immutable\/[^"']*\.js/g;
 const NODES_13_JS_RE = /nodes\/13[^"']*\.js/;
 const SERVER_GREETING_CHUNK_RE = /server-greeting/;
@@ -65,7 +64,7 @@ test.describe('defer fallback/endpoint/HMAC/cookie/CSS', () => {
 	});
 
 	// ---------------------------------------------------------------- fetch/SSR --
-	test('SSR: one deferred hole with fallback + preload, no Kit bootstrap, no component JS', () => {
+	test('SSR: one deferred hole with fallback + early start, no Kit bootstrap, no component JS', () => {
 		const html = server_html;
 		check('/server returns 200', server_status === 200);
 		check('/server has exactly one deferred region', count(html, REGION_DEFER_G_RE) === 1);
@@ -75,14 +74,18 @@ test.describe('defer fallback/endpoint/HMAC/cookie/CSS', () => {
 			'/server does NOT render the component at page-SSR (no "Hello," yet)',
 			!HELLO_ADA_OR_STRANGER_RE.test(html)
 		);
-		check('/server preload hint present (rel=preload as=fetch)', PRELOAD_FETCH_RE.test(html));
+		const early = EARLY_HOLES_RE.exec(html);
+		check('/server early start present (the head lists the load hole)', !!early);
 		check(
-			'/server preload uses crossorigin=anonymous (matches fetch credentials: same-origin)',
-			PRELOAD_FETCH_ANON_RE.test(html)
+			'/server early start lists the island endpoint, once',
+			early !== null &&
+				(JSON.parse(early[1]!) as string[]).length === 1 &&
+				(JSON.parse(early[1]!) as string[])[0]!.includes('__ogygia__'),
+			early?.[1] ?? ''
 		);
 		check(
-			'/server preload points at the island endpoint (raw-emoji path)',
-			PRELOAD_HREF_OGYGIA_RE.test(html)
+			'/server has no fetch preload (never reused in WebKit, #404)',
+			!PRELOAD_LINK_RE.test(html)
 		);
 		check('/server ships NO Kit bootstrap (csr=false)', !KIT_MARKER_RE.test(html));
 		// The "zero component JS" guarantee is a production-build property. In dev, Vite injects
@@ -237,7 +240,7 @@ test.describe('defer fallback/endpoint/HMAC/cookie/CSS', () => {
 
 	// --------------------------------------------------------------- browser -----
 	// (1) direct load: fallback -> swapped content, cookie personalization, CSS applied,
-	//     and exactly ONE server render (preload is reused, no double-fetch).
+	//     and exactly ONE server render (the early start is taken over, no double-fetch).
 	test('browser: direct load swaps fallback → personalized island, CSS applied, ONE server render', async ({
 		page,
 		context,
@@ -294,7 +297,7 @@ test.describe('defer fallback/endpoint/HMAC/cookie/CSS', () => {
 
 		await page.waitForTimeout(300);
 		check(
-			'no double server render (preload reused, 1 render)',
+			'no double server render (the early start taken over, 1 render)',
 			renderStamps.size === 1,
 			`${renderStamps.size} renders`
 		);

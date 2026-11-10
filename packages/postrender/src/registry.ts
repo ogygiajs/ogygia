@@ -301,7 +301,7 @@ export class Flight {
 
 /** The renders in progress, one per page: nothing is kept (the store keeps what they stored). The
  *  request that opens one holds it until it settles it. */
-const renders = flights<Flight>()({
+const renders = flights.keyed<Flight>()({
 	name: 'postrender flight',
 	key: ['key'],
 	ignore: { _fly: 'the request that opens a page render runs it: the others join it' },

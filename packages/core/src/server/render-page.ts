@@ -80,7 +80,7 @@ const ONE_PER_REQUEST = 'a request has one look-up';
  * streamed reader let go when the request ends.
  */
 const looked_up = request_local((owner: Scope) =>
-	flights<LookUp>()({
+	flights.keyed<LookUp>()({
 		name: 'page facts',
 		// one look-up: the request owns this flights, and its page, fetch and decoders are its own
 		key: [],
