@@ -1,8 +1,9 @@
 /**
- * The BROWSER half of `devtools()` (its `client`): the profiler's beacon, the dock's launcher, and
- * the leftovers watch (what a region's component leaves running after it leaves the page). With the dock off
- * (`devtools({ dock: false })`, core's events not compiled in) the dock's parts fold to nothing.
- * The beacon hears the runtime through its hooks; so do the dock's readers (devtools/hook-record.ts).
+ * The BROWSER half of `devtools()` with the dock on: the profiler's beacon (client-beacon.ts), the
+ * dock's launcher, the leftovers watch (what a region's component leaves running after it leaves the
+ * page), and the record of runtime hook calls the dock's readers read (devtools/hook-record.ts).
+ * `devtools({ dock: false })` registers client-beacon.ts instead, so its build keeps the beacon's
+ * hooks alone.
  */
 import { defineClient, type ClientPlugin } from '@ogygia/core/plugin/client';
 import { install_devtools_ui } from './devtools/ui.ts';
@@ -15,22 +16,21 @@ import { record_hook } from './devtools/hook-record.ts';
 import {
 	beacon_critical,
 	beacon_entry_fallback,
-	beacon_failed,
-	beacon_hole_answered,
-	beacon_hole_batch_missed,
-	beacon_hole_failed,
-	beacon_hydrated,
 	beacon_nav,
 	beacon_warning,
 	install_beacon
 } from './profiler/beacon.ts';
-
-const DOCK = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
+import {
+	on_hole_answered,
+	on_hole_batch_missed,
+	on_hole_failed,
+	on_region_failed,
+	on_region_hydrated
+} from './client-beacon.ts';
 
 const client: ClientPlugin = defineClient({
 	boot({ kitPage }) {
-		install_beacon(DOCK);
-		if (!DOCK) return;
+		install_beacon(true);
 		// one mounted Svelte app (launcher + tabbed window), starting hidden (Alt+O); a pure bus/DOM consumer
 		install_devtools_ui(kitPage ? { csr_true: true } : undefined);
 		// watched from before the first island wakes (a Kit page has no ogygia islands)
@@ -38,63 +38,59 @@ const client: ClientPlugin = defineClient({
 	},
 	hooks: {
 		regionMount(e) {
-			if (!DOCK) return;
 			record_hook('regionMount', e);
 			leftover_island_seen(e.el, e.entry, [...e.urls]);
 		},
 		regionUnmount(e) {
-			if (!DOCK) return;
 			record_hook('regionUnmount', e);
 			leftover_island_gone(e.el, e.entry);
 		},
 		regionHydrated(e) {
-			if (DOCK) record_hook('regionHydrated', e);
-			beacon_hydrated(e.el, e.t0, e.tLoaded, e.tDone, e.ssrHtml, e.tTurn);
+			record_hook('regionHydrated', e);
+			on_region_hydrated(e);
 		},
 		regionFailed(e) {
-			if (DOCK) record_hook('regionFailed', e);
-			beacon_failed(e.el, e.message, e.since, e.turn);
+			record_hook('regionFailed', e);
+			on_region_failed(e);
 		},
 		regionWoke(e) {
-			if (DOCK) record_hook('regionWoke', e);
+			record_hook('regionWoke', e);
 		},
 		regionMismatched(e) {
-			if (DOCK) record_hook('regionMismatched', e);
+			record_hook('regionMismatched', e);
 		},
 		holeAnswered(e) {
-			if (DOCK) record_hook('holeAnswered', e);
-			beacon_hole_answered(e.el, e.start, e.batch);
+			record_hook('holeAnswered', e);
+			on_hole_answered(e);
 		},
 		holeFailed(e) {
-			if (DOCK) record_hook('holeFailed', e);
-			const { el: _el, finalPath, ...h } = e;
-			beacon_hole_failed({ ...h, ...(finalPath ? { final_path: finalPath } : {}) });
+			record_hook('holeFailed', e);
+			on_hole_failed(e);
 		},
 		holeBatchMissed(e) {
-			if (DOCK) record_hook('holeBatchMissed', e);
-			const { finalUrl, ...m } = e;
-			beacon_hole_batch_missed({ ...m, ...(finalUrl ? { final_url: finalUrl } : {}) });
+			record_hook('holeBatchMissed', e);
+			on_hole_batch_missed(e);
 		},
 		entryFallback(e) {
-			if (DOCK) record_hook('entryFallback', e);
+			record_hook('entryFallback', e);
 			beacon_entry_fallback(e);
 		},
 		navStarted(e) {
-			if (DOCK) record_hook('navStarted', e);
+			record_hook('navStarted', e);
 		},
 		navigated(e) {
-			if (DOCK) record_hook('navigated', e);
+			record_hook('navigated', e);
 			beacon_nav(e);
 		},
 		criticalSettled(e) {
-			if (DOCK) record_hook('criticalSettled', e);
+			record_hook('criticalSettled', e);
 			beacon_critical(e);
 		},
 		loadStarted(e) {
-			if (DOCK) record_hook('loadStarted', e);
+			record_hook('loadStarted', e);
 		},
 		warning(e) {
-			if (DOCK) record_hook('warning', e);
+			record_hook('warning', e);
 			beacon_warning(e);
 		}
 	}

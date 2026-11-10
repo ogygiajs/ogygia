@@ -27,7 +27,8 @@ describe('the hook record', () => {
 		const heard: string[] = [];
 		const stop = on_hook((e) => heard.push(e.hook));
 		vi.resetModules();
-		const other = await import('../src/devtools/hook-record.ts?copy');
+		const other = await import('../src/devtools/hook-record.ts');
+		expect(other.record_hook).not.toBe(record_hook);
 		other.record_hook('navStarted', { from: '/', to: '/b', type: 'link' });
 		expect(hook_entries().map((e) => e.hook)).toEqual(['navStarted']);
 		stop();
