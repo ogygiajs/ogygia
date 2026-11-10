@@ -101,7 +101,7 @@ import { ssr_hosts_handoff_path, parse_ssr_hosts } from '../compiler/link/emit-g
 import { router_css_key } from '../compiler/link/router-css.ts';
 import { Program, strip_id } from '../compiler/program.ts';
 import { Compiler } from '../compiler/driver.ts';
-import { DEV_HMR_URL } from '../compiler/virtual/core.ts';
+import { core_defines } from '../compiler/virtual/core.ts';
 import { CompileCtx, type PackageScan } from '../compiler/ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
@@ -613,34 +613,19 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						},
 						// CONTINUITY config → compile-time constants the client runtime reads (typeof-guarded,
 						// so a plain node import of dist/ without these defined falls back to defaults).
-						define: {
-							__OGYGIA_CONTINUITY_FORMS__: JSON.stringify(continuity_forms),
-							__OGYGIA_SERVER_DELTA__: JSON.stringify(server_delta),
-							// The event-layer gate — off unless a plugin asked (`b.events()`: devtools). When false, every
-							// `if (DEVTOOLS) emit({…})` folds out and the bus tree-shakes away.
-							__OGYGIA_DEVTOOLS__: JSON.stringify(devtools_effective),
-							// a BUILD with devtools on: the dock and the page measuring wait until
-							// someone opens it (a cookie remembers that for the next loads)
-							__OGYGIA_DEVTOOLS_LAZY__: JSON.stringify(devtools_lazy),
-							// ogygia's rules on itself (src/rules.ts), in a build: only one made for e2e
-							// (`OGYGIA_RULES=1`), which reads them at the end of each test. Dev has them always.
-							__OGYGIA_RULES__: JSON.stringify(process.env.OGYGIA_RULES === '1'),
-							// the profiler's browser half (runtime/beacon.ts) ships only to an app that
-							// can read it: the profiler configured, or devtools. Everywhere else every
-							// `if (BEACON) …` folds out and the module leaves the boot (a quarter of it)
-							__OGYGIA_BEACON__: JSON.stringify(measure || devtools_effective),
-							// a plugin's browser half is in the boot (`<plugin>/client`): the runtime calls its
-							// hooks; none, and every call folds out
-							__OGYGIA_CLIENT_PLUGINS__: JSON.stringify(client_plugins.length > 0),
-							// the app's Kit major: whether Kit's `asset()` takes a path with its leading
-							// slash (2) or without (3) — kit-paths.ts, where a runtime probe guessed wrong in builds
-							__OGYGIA_KIT_MAJOR__: JSON.stringify(kit_major(path.resolve(userConfig.root ?? '.'))),
-							// the installed ogygia's version, which the page's runtime discloses (`window.__ogygia.v`)
-							__OGYGIA_VERSION__: JSON.stringify(OGYGIA_VERSION),
-							// the dev server's soft-HMR bridge (the `dev` realm's module), by its served URL;
-							// '' in a build, so the bridge's script and its import fold out
-							__OGYGIA_DEV_HMR_URL__: JSON.stringify(env.command === 'serve' ? DEV_HMR_URL : '')
-						},
+						// the switches (compiler/virtual/core.ts: the table's constants)
+						define: core_defines({
+							continuity_forms,
+							server_delta,
+							devtools: devtools_effective,
+							devtools_lazy,
+							rules: process.env.OGYGIA_RULES === '1',
+							beacon: measure || devtools_effective,
+							client_plugins: client_plugins.length > 0,
+							kit_major: kit_major(path.resolve(userConfig.root ?? '.')),
+							version: OGYGIA_VERSION,
+							dev_server: env.command === 'serve'
+						}),
 						server: {
 							fs: {
 								allow: [PKG_ROOT]

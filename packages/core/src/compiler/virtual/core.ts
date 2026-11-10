@@ -48,6 +48,8 @@ import type {
 } from '../../contract/virtual-modules.ts';
 import {
 	virtual,
+	defines,
+	type ConstantEntry,
 	type Entry,
 	type FamilyEntry,
 	type RequestEntry,
@@ -645,6 +647,97 @@ export const client_binding_stub: Family = virtual.family({
 	id: 'client-binding-stub',
 	alias: 'virtual:ogygia/client-binding-stub'
 });
+
+// ── constants: the switches, as `define`s (read at config time, from the resolved options) ──
+
+/** What core's switches read: the plugin's options, resolved at config time. */
+export interface ConstantInput {
+	continuity_forms: boolean;
+	server_delta: boolean;
+	devtools: boolean;
+	devtools_lazy: boolean;
+	rules: boolean;
+	beacon: boolean;
+	client_plugins: boolean;
+	kit_major: number | null;
+	version: string;
+	dev_server: boolean;
+}
+type Constant<T extends boolean | number | string | null = boolean> = ConstantEntry<
+	ConstantInput,
+	T
+>;
+
+/** form continuity is on (`router: { forms }`) */
+export const continuity_forms: Constant = virtual.constant({
+	id: '__OGYGIA_CONTINUITY_FORMS__',
+	from: (o: ConstantInput) => o.continuity_forms
+});
+/** server-delta navigation is on (`router.serverDelta`, default off) */
+export const server_delta: Constant = virtual.constant({
+	id: '__OGYGIA_SERVER_DELTA__',
+	from: (o: ConstantInput) => o.server_delta
+});
+/** the event layer: off unless a plugin asked (`b.events()`); off, every `if (DEVTOOLS) emit(…)`
+ *  folds out and the bus tree-shakes away */
+export const devtools_gate: Constant = virtual.constant({
+	id: '__OGYGIA_DEVTOOLS__',
+	from: (o: ConstantInput) => o.devtools
+});
+/** a build with devtools on: the dock and the page measuring wait until someone opens it */
+export const devtools_lazy: Constant = virtual.constant({
+	id: '__OGYGIA_DEVTOOLS_LAZY__',
+	from: (o: ConstantInput) => o.devtools_lazy
+});
+/** ogygia's rules on itself, in a build made for e2e (`OGYGIA_RULES=1`); dev has them always */
+export const rules_gate: Constant = virtual.constant({
+	id: '__OGYGIA_RULES__',
+	from: (o: ConstantInput) => o.rules
+});
+/** the profiler's browser half ships (the profiler or devtools is configured); otherwise every
+ *  `if (BEACON) …` folds out */
+export const beacon_gate: Constant = virtual.constant({
+	id: '__OGYGIA_BEACON__',
+	from: (o: ConstantInput) => o.beacon
+});
+/** a plugin's browser half is in the boot: the runtime calls its hooks */
+export const client_plugins_gate: Constant = virtual.constant({
+	id: '__OGYGIA_CLIENT_PLUGINS__',
+	from: (o: ConstantInput) => o.client_plugins
+});
+/** the app's Kit major (2, 3), or null when none was found (kit-paths.ts) */
+export const kit_major: Constant<number | null> = virtual.constant({
+	id: '__OGYGIA_KIT_MAJOR__',
+	from: (o: ConstantInput) => o.kit_major
+});
+/** the installed ogygia's version, which the runtime discloses (`window.__ogygia.v`) */
+export const version: Constant<string> = virtual.constant({
+	id: '__OGYGIA_VERSION__',
+	from: (o: ConstantInput) => o.version
+});
+/** the dev HMR bridge's served URL on the dev server; '' in a build, so its script folds out */
+export const dev_hmr_url: Constant<string> = virtual.constant({
+	id: '__OGYGIA_DEV_HMR_URL__',
+	from: (o: ConstantInput) => (o.dev_server ? DEV_HMR_URL : '')
+});
+
+/** Core's constants. */
+export const CORE_CONSTANTS: readonly Constant<boolean | number | string | null>[] = [
+	continuity_forms,
+	server_delta,
+	devtools_gate,
+	devtools_lazy,
+	rules_gate,
+	beacon_gate,
+	client_plugins_gate,
+	kit_major,
+	version,
+	dev_hmr_url
+];
+
+/** The `define` map of core's constants, from the resolved options. */
+export const core_defines = (input: ConstantInput): Record<string, string> =>
+	defines(CORE_CONSTANTS, input);
 
 /** Core's entries, in the table's order. */
 export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [

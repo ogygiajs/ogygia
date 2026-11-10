@@ -11,7 +11,6 @@ import {
 	write_value,
 	realm_exports,
 	type Realm,
-	type ConstantEntry,
 	type Entry,
 	type FamilyEntry,
 	type Leg,
@@ -65,18 +64,14 @@ export class VirtualTable<A> {
 	readonly #by_resolved = new Map<string, ModuleEntry<A>>();
 	/** prefix → its family (prefixes never nest) */
 	readonly #prefixes: [string, FamilyEntry<A>][] = [];
-	readonly constants: readonly ConstantEntry<A>[];
 	/** a core module (its path under `src/`, no extension) → the built file the bundler imports */
 	readonly #core_path: (app: A, module: string) => string;
 
 	constructor(entries: readonly Entry<A>[], core_path: (app: A, module: string) => string) {
 		this.#core_path = core_path;
-		const constants: ConstantEntry<A>[] = [];
 		for (const e of entries) {
-			if (e.kind === 'constant') {
-				constants.push(e);
-				continue;
-			}
+			// (a constant is a define, not a module: not the table's to resolve)
+			if (e.kind === 'constant') continue;
 			for (const name of names_of(e)) {
 				const taken = this.#single.has(name) || this.#prefixes.some(([p]) => p === name);
 				if (taken) throw new OgygiaError('virtual_duplicate', { id: name });
@@ -92,7 +87,6 @@ export class VirtualTable<A> {
 				names.set(name, [own, key_of(e)]);
 			}
 		}
-		this.constants = constants;
 	}
 
 	/** realm → its realm module's names → [the entry module's own name, the entry module's id] */
