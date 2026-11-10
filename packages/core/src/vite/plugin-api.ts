@@ -208,6 +208,7 @@ export interface ResolvedPlugins {
 
 const MACRO_NAME_RE = /^[a-z][A-Za-z0-9]*$/;
 /** core's own `import.meta.og.*` constructs: a plugin may never claim one */
+// static: the macros core defines
 const CORE_MACROS = new Set(['wire', '$', 'source', 'store', 'bake']);
 
 function order(plugins: readonly PluginDefinition[]): PluginDefinition[] {
