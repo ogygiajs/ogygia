@@ -6,6 +6,7 @@
  * the host's instance. Works with node `rolldown` (tests) and `@rolldown/browser` (the worker).
  */
 import type { Plugin } from '@rolldown/browser';
+import { dedent } from '@ogygia/core/plugin/utils';
 import {
 	parse_specifier,
 	resolve_entry,
@@ -110,13 +111,14 @@ const BINARY_ASSET =
 /** A `.css` import → a JS module that injects the stylesheet (rolldown can't parse CSS as JS). Idempotent
  *  per href so a re-mount doesn't stack duplicate <style> tags. Exported for the workspace loader too. */
 export function css_inject_module(css: string, href: string): string {
-	return (
-		`const css = ${JSON.stringify(css)};\n` +
-		`const key = ${JSON.stringify(`repl-css:${href}`)};\n` +
-		`if (typeof document !== 'undefined' && !document.querySelector('style[data-repl-css=' + JSON.stringify(key) + ']')) {\n` +
-		`  const s = document.createElement('style'); s.setAttribute('data-repl-css', key); s.textContent = css; document.head.appendChild(s);\n` +
-		`}\nexport default css;`
-	);
+	return dedent`
+		const css = ${JSON.stringify(css)};
+		const key = ${JSON.stringify(`repl-css:${href}`)};
+		if (typeof document !== 'undefined' && !document.querySelector('style[data-repl-css=' + JSON.stringify(key) + ']')) {
+		  const s = document.createElement('style'); s.setAttribute('data-repl-css', key); s.textContent = css; document.head.appendChild(s);
+		}
+		export default css;
+	`;
 }
 
 /** Base64-encode bytes in BOTH node (tests) and a browser worker (no Buffer) — chunked so a big module
@@ -137,15 +139,15 @@ function to_base64(bytes: Uint8Array): string {
  *  (Buffer or atob). Exported for reuse/tests. */
 export function wasm_module(base64: string, as_url: boolean): string {
 	if (as_url) return `export default ${JSON.stringify(`data:application/wasm;base64,${base64}`)};`;
-	return (
-		`const b64 = ${JSON.stringify(base64)};\n` +
-		`const bytes = typeof Buffer !== 'undefined'\n` +
-		`  ? Buffer.from(b64, 'base64')\n` +
-		`  : Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));\n` +
-		`export default function init(imports) {\n` +
-		`  return WebAssembly.instantiate(bytes, imports || {}).then((r) => r.instance);\n` +
-		`}\n`
-	);
+	// (one template: the module ends in a newline, which dedent would trim)
+	return `const b64 = ${JSON.stringify(base64)};
+const bytes = typeof Buffer !== 'undefined'
+  ? Buffer.from(b64, 'base64')
+  : Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+export default function init(imports) {
+  return WebAssembly.instantiate(bytes, imports || {}).then((r) => r.instance);
+}
+`;
 }
 
 type RolldownPlugin = Plugin;

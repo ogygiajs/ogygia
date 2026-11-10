@@ -207,14 +207,10 @@ if (!quick) {
 	]);
 }
 
-console.log(
-	'\n' +
-		results
-			.map(
-				(r) =>
-					`${r.ok ? '✓' : '✗'} ${r.name.padEnd(48)} ${String(r.s).padStart(4)} s${r.ok ? '' : `\n    ${r.bad.join('\n    ')}`}`
-			)
-			.join('\n')
+const lines = results.map(
+	(r) =>
+		`${r.ok ? '✓' : '✗'} ${r.name.padEnd(48)} ${String(r.s).padStart(4)} s${r.ok ? '' : `\n    ${r.bad.join('\n    ')}`}`
 );
+console.log(`\n${lines.join('\n')}`);
 console.log(`logs: ${logs}`);
 process.exit(results.every((r) => r.ok) ? 0 : 1);

@@ -29,6 +29,7 @@ import {
 	flags_manifest,
 	type FlagSite
 } from '@ogygia/core/internal/compiler';
+import { dedent } from '@ogygia/core/plugin/utils';
 import { line } from './messages.ts';
 
 /** The profiler's report reading (`@ogygia/devtools/report`), as these tools use it: loaded from the
@@ -441,12 +442,22 @@ function tool_compile(args: Attrs): ToolResult {
 		null,
 		2
 	);
-	return text(
-		`# ogygia transform — ${filename}${csr ? ' (csr=true leg)' : ''}\n\n` +
-			`## Island map (${out.islands.length})\n${map}\n\n` +
-			`## Structured\n\`\`\`json\n${structured}\n\`\`\`\n\n` +
-			`## Rewritten host module\n\`\`\`js\n${out.code}\n\`\`\``
-	);
+	return text(dedent`
+		# ogygia transform — ${filename}${csr ? ' (csr=true leg)' : ''}
+
+		## Island map (${out.islands.length})
+		${map}
+
+		## Structured
+		\`\`\`json
+		${structured}
+		\`\`\`
+
+		## Rewritten host module
+		\`\`\`js
+		${out.code}
+		\`\`\`
+	`);
 }
 
 function tool_islands(args: Attrs): ToolResult {
@@ -634,20 +645,18 @@ function render_story(url: string, events: DtEvent[]): string {
 
 	const boot = global.find((e) => e.name === 'runtime.boot');
 	const navs = global.filter((e) => e.name.startsWith('nav.'));
-	const header =
-		`# Runtime story — ${url}\n\n` +
-		`${by_fp.size} island(s) · ${events.length} events` +
-		(boot
-			? ` · runtime booted (${(boot.installers as string[] | undefined)?.join(', ') || 'installers ran'})`
-			: '') +
-		(navs.length ? ` · ${navs.filter((n) => n.name === 'nav.finish').length} navigation(s)` : '');
+	const booted = boot
+		? ` · runtime booted (${(boot.installers as string[] | undefined)?.join(', ') || 'installers ran'})`
+		: '';
+	const navigated = navs.length
+		? ` · ${navs.filter((n) => n.name === 'nav.finish').length} navigation(s)`
+		: '';
+	const header = `# Runtime story — ${url}\n\n${by_fp.size} island(s) · ${events.length} events${booted}${navigated}`;
 
-	return (
-		`${header}\n\n${blocks.join('\n\n')}` +
-		(warnings.length
-			? `\n\n## ⚠️ Warnings (${warnings.length})\n${warnings.map((w) => `- ${w}`).join('\n')}`
-			: '\n\n## ✅ No lifecycle anomalies detected.')
-	);
+	const verdict = warnings.length
+		? `## ⚠️ Warnings (${warnings.length})\n${warnings.map((w) => `- ${w}`).join('\n')}`
+		: '## ✅ No lifecycle anomalies detected.';
+	return `${header}\n\n${blocks.join('\n\n')}\n\n${verdict}`;
 }
 
 /** What the page's restorer said (an app with `ogygia.handle({ transform })`), or '' when nothing. */
@@ -1267,14 +1276,13 @@ export function render_profile(
 	// here is one render's worth.
 	const n = Math.max(1, runs.length);
 	const per = (ms: number | undefined) => Math.round(((ms ?? 0) / n) * 100) / 100;
-	const head =
-		`# SSR profile — ${target}${runs.length ? ` · ${runs.length} run(s)` : ''}\n\n` +
-		`**${s.verdict ?? 'profiled'}** · render p50 ~${median(runs).toFixed(2)}ms` +
-		(runs.length ? ` (runs: ${runs.join(', ')})` : '') +
-		(s.busy_ms != null
+	const run_list = runs.length ? ` (runs: ${runs.join(', ')})` : '';
+	const busy =
+		s.busy_ms != null
 			? ` · CPU busy ${per(s.busy_ms)}ms per render (${s.busy_pct}% of the window)`
-			: '') +
-		(s.rss_mb != null ? ` · RSS ${s.rss_mb} MB` : '');
+			: '';
+	const rss = s.rss_mb != null ? ` · RSS ${s.rss_mb} MB` : '';
+	const head = `# SSR profile — ${target}${runs.length ? ` · ${runs.length} run(s)` : ''}\n\n**${s.verdict ?? 'profiled'}** · render p50 ~${median(runs).toFixed(2)}ms${run_list}${busy}${rss}`;
 
 	// In dev, profiler instrumentation dominates the window — say so, so the numbers aren't over-read.
 	const prof_overhead = (r.budget ?? []).find((b) => b.category === 'profiler');
@@ -1371,44 +1379,44 @@ export function render_profile(
 			: sn.same
 				? `No real change since the last profile (${sn.a_ms} → ${sn.b_ms}ms, within the runs' own spread).`
 				: `${sn.b_ms !== undefined && sn.a_ms !== undefined ? `${sn.b_ms - sn.a_ms > 0 ? '+' : ''}${Math.round((sn.b_ms - sn.a_ms) * 10) / 10}ms since the last profile (${sn.a_ms} → ${sn.b_ms}ms)` : 'Since the last profile'}${sn.moved.length ? `, mostly:\n${sn.moved.map((m) => `- ${m.status} ${m.path[m.path.length - 1]}${m.at && m.kind !== 'line' ? ` @ ${m.at}` : ''}: ${m.d_ms > 0 ? '+' : ''}${m.d_ms}ms`).join('\n')}` : '.'}${sn.fix_check ? `\nThe fixed patterns promised ~${sn.fix_check.predicted_ms}ms; the render moved ${sn.fix_check.measured_ms}ms (${sn.fix_check.verdict}).` : ''}`;
-	return (
-		head +
-		dev_note +
-		(since
-			? `\n\n## Since your last profile of this page\n${since}` +
-				(sn?.score && sn.score.a !== sn.score.b
-					? `\nScore ${sn.score.a} → ${sn.score.b} (${sn.score.a_grade} → ${sn.score.b_grade})${sn.score.moved.length ? `: ${sn.score.moved.map((m) => `${m.label} ${m.a} → ${m.b}`).join(', ')}` : ''}.`
-					: '')
-			: '') +
+	const score =
+		sn?.score && sn.score.a !== sn.score.b
+			? `\nScore ${sn.score.a} → ${sn.score.b} (${sn.score.a_grade} → ${sn.score.b_grade})${sn.score.moved.length ? `: ${sn.score.moved.map((m) => `${m.label} ${m.a} → ${m.b}`).join(', ')}` : ''}.`
+			: '';
+	const shared = r.shared?.length
+		? `\n\n## These fixes make other pages faster too\n${r.shared
+				.map(
+					(f) =>
+						`- \`${f.where}:${f.line}\` (${f.title}): ${f.pages.map((p) => `${p.page} ~${Math.round(p.ms * 10) / 10}ms`).join(', ')}; ~${Math.round(f.total_ms * 10) / 10}ms per render in all`
+				)
+				.join('\n')}`
+		: '';
+	return [
+		head,
+		dev_note,
+		since ? `\n\n## Since your last profile of this page\n${since}${score}` : '',
 		// the forecast heads the plan (said once); an older report's plain sum stays with the patterns
-		(plan
+		plan
 			? `\n\n## Do this, in order (each: where to edit, and what it is worth)\n${fc ? forecast_line : ''}${plan}`
-			: '') +
+			: '',
 		// the same slow line on other profiled pages: fixed once, all of them faster
-		(r.shared?.length
-			? `\n\n## These fixes make other pages faster too\n${r.shared
-					.map(
-						(f) =>
-							`- \`${f.where}:${f.line}\` (${f.title}): ${f.pages.map((p) => `${p.page} ~${Math.round(p.ms * 10) / 10}ms`).join(', ')}; ~${Math.round(f.total_ms * 10) / 10}ms per render in all`
-					)
-					.join('\n')}`
-			: '') +
-		(patterns
+		shared,
+		patterns
 			? `\n\n## Slow patterns (fix these first)\n${plan && fc ? render_patterns(r) : patterns}`
-			: '') +
-		(r.drill
+			: '',
+		r.drill
 			? `\n\n## Where one render went (${r.drill.ms}ms, down to the line; every level adds up)\n${render_drill(r.drill)}`
-			: '') +
-		(ledger ? `\n\n## The exact lines (your code, costliest first, per render)\n${ledger}` : '') +
-		(findings ? `\n\n## Findings\n${findings}` : '') +
-		(budget ? `\n\n## ${budget_title}\n${budget}` : '') +
-		(hot ? `\n\n## Hottest functions (self ms per render)\n${hot}` : '') +
-		(comps
+			: '',
+		ledger ? `\n\n## The exact lines (your code, costliest first, per render)\n${ledger}` : '',
+		findings ? `\n\n## Findings\n${findings}` : '',
+		budget ? `\n\n## ${budget_title}\n${budget}` : '',
+		hot ? `\n\n## Hottest functions (self ms per render)\n${hot}` : '',
+		comps
 			? `\n\n## Components (self ms per render; ×N = renders of it in one page render)\n${comps}`
-			: '') +
-		`\n\n## Network: ${net_line}  ·  Memory: ${mem_line}` +
+			: '',
+		`\n\n## Network: ${net_line}  ·  Memory: ${mem_line}`,
 		links
-	);
+	].join('');
 }
 
 /** Record an SSR profile of a route on the running app + return the digested findings. */
@@ -1445,11 +1453,14 @@ async function find_local_profiler(base: string, key: string): Promise<string[]>
 	return (await Promise.all(probes)).filter((o): o is string => !!o);
 }
 
-const NOT_MOUNTED = (base: string, where: string) =>
-	`The profiler is not mounted at ${base} on ${where}. Install @ogygia/devtools and turn it on in vite.config.ts:\n\n` +
-	`  import { devtools } from '@ogygia/devtools/vite';\n` +
-	`  plugins: [ogygia(), devtools({ profiler: true /* or { secret, path, … } */ }), sveltekit()]\n\n` +
-	`ogygia.handle() mounts it for you — no hooks wiring needed. Restart the server, then retry.`;
+const NOT_MOUNTED = (base: string, where: string) => dedent`
+	The profiler is not mounted at ${base} on ${where}. Install @ogygia/devtools and turn it on in vite.config.ts:
+
+	  import { devtools } from '@ogygia/devtools/vite';
+	  plugins: [ogygia(), devtools({ profiler: true /* or { secret, path, … } */ }), sveltekit()]
+
+	ogygia.handle() mounts it for you — no hooks wiring needed. Restart the server, then retry.
+`;
 
 /** Who holds the profiler's recorder, as its 409 says (devtools profiler `#busy`). */
 type BusyHolder = { kind: string; age_ms: number; stale: boolean };
@@ -1502,10 +1513,11 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 			const suggest = hits.length
 				? `\n\nRunning locally right now with the profiler mounted — reply with one to use it:\n${hits.map((h) => `  • ${h}${route}`).join('\n')}`
 				: `\n\n(No local server with the profiler is up — start \`vite dev\` / \`vite preview\`, or give a remote URL.)`;
-			return fail(
-				`Which URL should I profile \`${route}\` on? Ask the user, then call ogygia_profile again with the full \`url\`.\n\n` +
-					`Local looks like http://localhost:5173${route}; remote like https://your-app.com${route}.${suggest}`
-			);
+			return fail(dedent`
+				Which URL should I profile \`${route}\` on? Ask the user, then call ogygia_profile again with the full \`url\`.
+
+				Local looks like http://localhost:5173${route}; remote like https://your-app.com${route}.${suggest}
+			`);
 		}
 	}
 
@@ -1678,11 +1690,14 @@ function tool_observatory(args: Attrs): ToolResult {
 		url.length > 8000
 			? `\n\n⚠️ The link is ${url.length} chars — some tools truncate very long URLs. Trim to the files that matter if it breaks.`
 			: '';
-	return text(
-		`Open this in the ogygia Observatory to see ${names.length === 1 ? 'this component' : `these ${names.length} files`} compiled live — the island map, byte ledger, wire payloads, and a real hydrating preview:\n\n` +
-			`${url}\n\n` +
-			`🔒 Client-only: the code is packed into the URL's **# fragment**, which browsers NEVER send to a server — nothing here touches ogygia's (or anyone's) servers. It compiles entirely in your browser.${long}`
-	);
+	const what = names.length === 1 ? 'this component' : `these ${names.length} files`;
+	return text(dedent`
+		Open this in the ogygia Observatory to see ${what} compiled live — the island map, byte ledger, wire payloads, and a real hydrating preview:
+
+		${url}
+
+		🔒 Client-only: the code is packed into the URL's **# fragment**, which browsers NEVER send to a server — nothing here touches ogygia's (or anyone's) servers. It compiles entirely in your browser.${long}
+	`);
 }
 
 // ── ogygia_scan — walk a real project, map every island + lint the whole codebase ──────────────────
@@ -1824,23 +1839,24 @@ function tool_scan(args: Attrs): ToolResult {
 		.join(' · ');
 	const errs = violations.filter((v) => v.severity === 'error');
 	const warns = violations.filter((v) => v.severity === 'warn');
+	const vio_lines = [...errs, ...warns]
+		.map((v) => `- ${v.severity === 'error' ? '❌' : '⚠️'} ${v.file}: ${v.msg}`)
+		.join('\n');
 	const vio_block = violations.length
-		? `\n\n## ⚠️ Findings (${violations.length})\n` +
-			[...errs, ...warns]
-				.map((v) => `- ${v.severity === 'error' ? '❌' : '⚠️'} ${v.file}: ${v.msg}`)
-				.join('\n')
+		? `\n\n## ⚠️ Findings (${violations.length})\n${vio_lines}`
 		: `\n\n## ✅ No rule violations across ${files.length} files.`;
 
 	const preset_note = preset_marks
 		? `\n\n> ${preset_marks} import(s) use a \`preset\` — resolved from your \`ogygia({ presets })\` config at build, not checked here.`
 		: '';
-	return text(
-		`# ogygia scan — ${dir}\n\n` +
-			`${islands.length} marked region(s) across ${by_file.size} file(s) (${files.length} .svelte scanned) · ${kind_summary}\n\n` +
-			`## Island map\n${map_lines}` +
-			vio_block +
-			preset_note
-	);
+	return text(dedent`
+		# ogygia scan — ${dir}
+
+		${islands.length} marked region(s) across ${by_file.size} file(s) (${files.length} .svelte scanned) · ${kind_summary}
+
+		## Island map
+		${map_lines}${vio_block}${preset_note}
+	`);
 }
 
 // ── flags: the build's own AST collector, run live over src/ ─────────────────────────────────
@@ -1920,13 +1936,15 @@ function tool_flags(args: Attrs): ToolResult {
 			? `\n\n> ⚠️ In the last build's manifest but NOT in source now (deleted or renamed since): ${stale.join(', ')}. Rebuild to refresh.`
 			: `\n\n> Matches the last build's manifest.`;
 
-	return text(
-		`# ogygia flags — ${dir}\n\n` +
-			`${live.names.length} flag(s) · ${live.flags.length} call site(s) across ${files.length} scanned file(s)\n\n` +
-			site_lines +
-			manifest_note +
-			`\n\n> Override in dev: \`?og-exp=<name>:<variant>\` (repeat or comma-separate). Prod honors overrides only behind \`decide({ overrides })\`.`
-	);
+	return text(dedent`
+		# ogygia flags — ${dir}
+
+		${live.names.length} flag(s) · ${live.flags.length} call site(s) across ${files.length} scanned file(s)
+
+		${site_lines}${manifest_note}
+
+		> Override in dev: \`?og-exp=<name>:<variant>\` (repeat or comma-separate). Prod honors overrides only behind \`decide({ overrides })\`.
+	`);
 }
 
 // ── fragment: probe a federation MFE origin ──────────────────────────────────────────────────
@@ -1974,22 +1992,25 @@ async function tool_fragment(args: Attrs): Promise<ToolResult> {
 				widgets?: Record<string, { props?: string[] }>;
 			};
 			const names = manifest.names ?? [];
+			const listed = names
+				.map((n) => `- \`${n}(${(manifest.widgets?.[n]?.props ?? []).join(', ')})\``)
+				.join('\n');
 			widgets_block = names.length
-				? names
-						.map((n) => `- \`${n}(${(manifest.widgets?.[n]?.props ?? []).join(', ')})\``)
-						.join('\n') +
-					`\n\nTyped stubs: \`npx ogygia fragments ${origin} --out src/lib/widgets.ts\` (add \`--check\` in CI to fail on drift).`
+				? `${listed}\n\nTyped stubs: \`npx ogygia fragments ${origin} --out src/lib/widgets.ts\` (add \`--check\` in CI to fail on drift).`
 				: 'Catalog mounted, zero widgets declared.';
 		} catch {
 			widgets_block = '__catalog returned non-JSON — not an ogygia widget catalog.';
 		}
 	}
 
-	return text(
-		`# ogygia fragment probe — ${origin}\n\n` +
-			`- routes endpoint (\`/og/fragment/page\`): ${posture}\n\n` +
-			`## Widgets (\`__catalog\`)\n${widgets_block}`
-	);
+	return text(dedent`
+		# ogygia fragment probe — ${origin}
+
+		- routes endpoint (\`/og/fragment/page\`): ${posture}
+
+		## Widgets (\`__catalog\`)
+		${widgets_block}
+	`);
 }
 
 /** Run one tool, as the server does for a `tools/call`. @internal Exported for tests. */

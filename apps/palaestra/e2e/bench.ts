@@ -135,19 +135,24 @@ const file = path.join(repo, 'internal/notes/perf-checkpoints.md');
 if (!existsSync(file)) {
 	writeFileSync(
 		file,
-		'# ogygia perf checkpoints\n\n' +
-			'transformHost µs/call (lower better) · runtime chunk gzip B · docs cold build s. Recorded by `node apps/palaestra/e2e/bench.ts <label>`.\n\n' +
-			'| label | heavy µs | children µs | plain µs | docs rt gz | pg rt gz | docs build s |\n' +
-			'| --- | --- | --- | --- | --- | --- | --- |\n'
+		`# ogygia perf checkpoints
+
+transformHost µs/call (lower better) · runtime chunk gzip B · docs cold build s. Recorded by \`node apps/palaestra/e2e/bench.ts <label>\`.
+
+| label | heavy µs | children µs | plain µs | docs rt gz | pg rt gz | docs build s |
+| --- | --- | --- | --- | --- | --- | --- |
+`
 	);
 }
-const row =
-	`| ${label} ` +
-	`| ${(mHeavy * 1000).toFixed(1)} ` +
-	`| ${(mChildren * 1000).toFixed(1)} ` +
-	`| ${(mPlain * 1000).toFixed(1)} ` +
-	`| ${docsRt ? docsRt.gz : '-'} ` +
-	`| ${pgRt ? pgRt.gz : '-'} ` +
-	`| ${docsBuildMs ? (docsBuildMs / 1000).toFixed(2) : '-'} |\n`;
+const cells = [
+	label,
+	(mHeavy * 1000).toFixed(1),
+	(mChildren * 1000).toFixed(1),
+	(mPlain * 1000).toFixed(1),
+	docsRt ? docsRt.gz : '-',
+	pgRt ? pgRt.gz : '-',
+	docsBuildMs ? (docsBuildMs / 1000).toFixed(2) : '-'
+];
+const row = `| ${cells.join(' | ')} |\n`;
 appendFileSync(file, row);
 console.log(`\n✓ checkpoint '${label}' appended to internal/notes/perf-checkpoints.md\n`);
