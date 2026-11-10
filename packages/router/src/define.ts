@@ -72,7 +72,7 @@ type LoadMemo = Flights<LoadIn, unknown, Pick<LoadIn, 'def'>>;
 function memo_of(c: Ctx): LoadMemo {
 	const holder = c as { __ogloads?: LoadMemo };
 	if (holder.__ogloads) return holder.__ogloads;
-	const memo = flights<LoadIn>()({
+	const memo = flights.keyed<LoadIn>()({
 		name: 'router load',
 		key: ['def'],
 		ignore: { c: 'the request this memo is made for: one per request' },

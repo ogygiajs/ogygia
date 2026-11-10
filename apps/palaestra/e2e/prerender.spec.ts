@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { test, check } from '@ogygia/tooling/e2e';
 import {
 	AMP_ENTITY_G_RE,
+	EARLY_HOLES_RE,
 	KIT_MARKER_RE,
-	PRELOAD_FETCH_RE,
 	VITE_CLIENT_RE,
 	VITE_FS_RE,
 	VITE_ID_RE
@@ -73,12 +73,9 @@ test.describe('prerendered page + server-island hole', () => {
 			const exp = Number(file.match(ENDPOINT_EXP_RE)?.[1] ?? 0);
 			const yearOut = Math.floor(Date.now() / 1000) + 365 * 24 * 3600;
 			check('PPR: baked capability is long-lived (exp > 1y out)', exp > yearOut, `exp=${exp}`);
-			// No preload hint in the static file — Kit's prerender crawler follows <link href>, so a
-			// baked preload would make the build crawl the region endpoint itself (429s the build).
-			check(
-				'PPR: prerendered file omits the fetch preload hint (crawler-safe)',
-				!PRELOAD_FETCH_RE.test(file)
-			);
+			// No early start in the static file: its baked capability is a build's, and the hole's own
+			// wake asks for it (a prerender never starts a request for the visitor)
+			check('PPR: prerendered file carries no early start', !EARLY_HOLES_RE.test(file));
 			// And the baked capability actually verifies against the running server (same build).
 			const endpoint = file.match(ENDPOINT_ATTR_RE)?.[1]?.replace(AMP_ENTITY_G_RE, '&');
 			if (endpoint) {
