@@ -2297,12 +2297,12 @@
 			"reason": "browser only: hands the head merge's unlisted sheets to the boot's release_sheets (live elements, not cloneable), one call; proven in apps/palaestra/e2e/hole-kept-sheet.spec.ts (#275)"
 		},
 		{
-			"id": "packages/core/src/server/request-stats.ts > hold_request_stats_detail",
-			"reason": "returns a release closure (a function, not cloneable), constant work; proven in packages/core/test/request-stats-detail.test.ts"
+			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail",
+			"reason": "returns a release closure (a function, not cloneable), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
 		},
 		{
-			"id": "packages/core/src/server/request-stats.ts > hold_request_stats_detail > <anonymous>~4ba179",
-			"reason": "lets go of one hold in a module-level set (not replayable: process state), constant work; proven in packages/core/test/request-stats-detail.test.ts"
+			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail > <anonymous>~4ba179",
+			"reason": "lets go of one hold in a module-level set (not replayable: process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #busy",

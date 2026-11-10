@@ -1,11 +1,14 @@
 /**
- * DETAIL IS HELD (server/request-stats.ts): two profilers can record at once in one process (the
+ * DETAIL IS HELD (profiler/request-stats.ts): two profilers can record at once in one process (the
  * dev server re-runs the app's hooks on an edit: a new profiler, while the old one's timers still
  * record). The first window to end must not turn detail off under the other, and a window's own
  * release lets go of its hold only, once.
  */
 import { describe, it, expect } from 'vitest';
-import { hold_request_stats_detail, request_stats_detailed } from '../src/server/request-stats.ts';
+import { hold_request_stats_detail, request_stats_store } from '../src/profiler/request-stats.ts';
+
+/** what core's handle asks before it spends on the per-island rows */
+const request_stats_detailed = () => request_stats_store.detailed();
 
 describe('hold_request_stats_detail', () => {
 	it('stays on while any window holds it; overlapping windows end in any order', () => {
