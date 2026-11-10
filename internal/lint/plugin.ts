@@ -871,6 +871,26 @@ const prefer_dedent = {
 		const text = (n: Node) => context.sourceCode.getText(n as Ranged);
 		const file = (context.filename ?? context.getFilename?.() ?? '').replaceAll('\\', '/');
 		const source = dedent_source(file);
+		/** A string or template literal's text, each value as a mark (its source pushed to
+		 *  `values`), or null when it cannot be read as text. */
+		const cooked_text = (n: Node, values: string[]): string | null => {
+			if (n.type === 'Literal')
+				return typeof n.value === 'string' && !n.value.includes(VALUE_MARK) ? n.value : null;
+			if (n.type !== 'TemplateLiteral') return null;
+			const quasis = n.quasis as { value: { cooked: string | null } }[];
+			const expressions = n.expressions as Node[];
+			let out = '';
+			for (let i = 0; i < quasis.length; i++) {
+				const c = quasis[i]!.value.cooked;
+				if (c === null || c.includes(VALUE_MARK)) return null;
+				out = `${out}${c}`;
+				if (i < expressions.length) {
+					out = `${out}${VALUE_MARK}${values.length}${VALUE_MARK}`;
+					values.push(text(expressions[i]!));
+				}
+			}
+			return out;
+		};
 		const report = (node: Node, cooked: string | null, values: string[]) => {
 			const parent = node.parent as Node | undefined;
 			const fixable =
@@ -917,22 +937,8 @@ const prefer_dedent = {
 				let n = 0;
 				for (const q of node.quasis as Node[]) n += newline_escapes(text(q));
 				if (n < 2) return;
-				const quasis = node.quasis as { value: { cooked: string | null } }[];
-				const expressions = node.expressions as Node[];
-				let cooked: string | null = '';
-				for (let i = 0; i < quasis.length; i++) {
-					const c = quasis[i]!.value.cooked;
-					if (c === null || c.includes(VALUE_MARK)) {
-						cooked = null;
-						break;
-					}
-					cooked = `${cooked}${c}${i < expressions.length ? `${VALUE_MARK}${i}${VALUE_MARK}` : ''}`;
-				}
-				report(
-					node,
-					cooked,
-					expressions.map((e) => text(e))
-				);
+				const values: string[] = [];
+				report(node, cooked_text(node, values), values);
 			},
 			CallExpression(node: Node) {
 				const callee = node.callee as Node;
@@ -948,8 +954,19 @@ const prefer_dedent = {
 				const array = unwrap(callee.object as Node);
 				if (array.type !== 'ArrayExpression') return;
 				const elements = (array.elements as (Node | null)[]).filter((e): e is Node => e !== null);
-				if (elements.length >= 2 && elements.every(is_text_piece))
-					context.report({ node, message: MESSAGE_DEDENT });
+				if (elements.length < 2 || !elements.every(is_text_piece)) return;
+				// the pieces joined as `join` joins them, as one text
+				const values: string[] = [];
+				let cooked: string | null = '';
+				for (const e of elements) {
+					const piece = cooked_text(unwrap(e), values);
+					if (piece === null) {
+						cooked = null;
+						break;
+					}
+					cooked = cooked === '' && e === elements[0] ? piece : `${cooked}\n${piece}`;
+				}
+				report(node, cooked, values);
 			}
 		};
 	}
