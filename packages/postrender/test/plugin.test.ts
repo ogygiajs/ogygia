@@ -48,7 +48,8 @@ describe('postrender() — the vite value', () => {
 			events: () => {},
 			measure: () => {},
 			files: () => {},
-			pageModules: () => {}
+			pageModules: () => {},
+			definers: () => {}
 		});
 		expect(keys).toEqual(['postrender']);
 	});
