@@ -57,6 +57,56 @@ describe('max', () => {
 	});
 });
 
+describe('a stale hook that pushes or releases', () => {
+	it('mid-expiry: every expired job is stale once, none skipped, after the list is compacted under it', async () => {
+		vi.useFakeTimers();
+		const log: string[] = [];
+		const q: ReturnType<typeof queue<string>> = queue<string>({
+			max: 1,
+			now: () => Date.now(),
+			start: (job) => void log.push(job),
+			stale: (job) => {
+				log.push(`stale ${job}`);
+				q.release(); // the holder's work ends as a waiter gives up: the next one starts
+			}
+		});
+		// 40 started and released: the front of the list is long enough to be compacted
+		for (let i = 0; i < 40; i++) {
+			q.push(`s${i}`);
+			q.release();
+		}
+		q.push('holder');
+		for (const j of ['a', 'b', 'c']) q.push(j, Date.now() + 10);
+		q.push('after');
+		await vi.advanceTimersByTimeAsync(20);
+		const stale = log.filter((l) => l.startsWith('stale'));
+		expect(stale).toEqual(['stale a', 'stale b', 'stale c']);
+		expect(log.at(-1)).toBe('after');
+	});
+
+	it('when the owner closes: every waiting job is stale once', () => {
+		const owner = scope();
+		const log: string[] = [];
+		const q: ReturnType<typeof queue<string>> = queue<string>({
+			max: 1,
+			owner,
+			start: (job) => void log.push(job),
+			stale: (job) => {
+				log.push(`stale ${job}`);
+				q.release();
+			}
+		});
+		for (let i = 0; i < 40; i++) {
+			q.push(`s${i}`);
+			q.release();
+		}
+		q.push('holder');
+		for (const j of ['a', 'b', 'c']) q.push(j);
+		owner.close();
+		expect(log.filter((l) => l.startsWith('stale'))).toEqual(['stale a', 'stale b', 'stale c']);
+	});
+});
+
 describe('deadline', () => {
 	it('a job still waiting at its deadline is stale and never starts', async () => {
 		vi.useFakeTimers();
