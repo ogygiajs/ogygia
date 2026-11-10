@@ -84,10 +84,7 @@ class QueueImpl<J> implements Queue<J> {
 		this.#stale = o.stale ?? null;
 		this.#now = o.now ?? clock;
 		this.#owner = o.owner ?? null;
-		this.#owner?.defer(() => {
-			const jobs = this.#jobs;
-			for (let i = this.#head; i < jobs.length; i++) if (jobs[i] !== GONE) this.#leave(i);
-		});
+		this.#owner?.defer(() => this.#leave_where(() => true));
 	}
 
 	get waiting(): number {
@@ -121,6 +118,7 @@ class QueueImpl<J> implements Queue<J> {
 
 	/** Starts jobs from the front while there is room. */
 	#drain(): void {
+		if (this.#owner?.closed) return; // (its waiting jobs are stale: none starts)
 		while (this.#holding < this.#max && this.#head < this.#jobs.length) {
 			const at = this.#head++;
 			const job = this.#jobs[at];
@@ -176,16 +174,27 @@ class QueueImpl<J> implements Queue<J> {
 		this.#disarm = null;
 		this.#armed_at = Infinity;
 		const now = this.#now();
+		this.#leave_where((deadline) => deadline <= now);
 		let next = Infinity;
 		const jobs = this.#jobs;
-		for (let i = this.#head; i < jobs.length; i++) {
-			if (jobs[i] === GONE) continue;
-			const d = this.#deadlines[i];
-			if (d <= now) this.#leave(i);
-			else if (d < next) next = d;
-		}
+		for (let i = this.#head; i < jobs.length; i++)
+			if (jobs[i] !== GONE && this.#deadlines[i] < next) next = this.#deadlines[i];
 		if (next !== Infinity) this.#arm(next);
 		this.#compact();
+	}
+
+	/** The waiting jobs `test` picks (by deadline) leave, stale. They are picked first and each is
+	 *  found again as it leaves: a `stale` that pushes or releases may compact the list under it. */
+	#leave_where(test: (deadline: number) => boolean): void {
+		const picked: J[] = []; // (one per call)
+		for (let i = this.#head; i < this.#jobs.length; i++) {
+			const job = this.#jobs[i];
+			if (job !== GONE && test(this.#deadlines[i])) picked.push(job);
+		}
+		for (const job of picked) {
+			const at = this.#jobs.indexOf(job, this.#head);
+			if (at !== -1) this.#leave(at);
+		}
 	}
 
 	/** The started and gone front of the list out, once it is the larger part. */
