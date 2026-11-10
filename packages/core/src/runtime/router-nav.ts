@@ -986,7 +986,7 @@ export const SCROLL_HOLD_MS = 1500;
  * moves it elsewhere. Instant, never smooth:
  * CSS `scroll-behavior: smooth` must not animate a programmatic restore.
  */
-function hold_scroll(to: { x: number; y: number }, visit: Scope): void {
+export function hold_scroll(to: { x: number; y: number }, visit: Scope): void {
 	/** Where the last put-back left the page: the saved position, or, on a page still too short to
 	 *  reach it, the bottom the browser clamped it to. */
 	let at = { x: scrollX, y: scrollY };
