@@ -15,7 +15,7 @@ import zlib from 'node:zlib';
 import {
 	PROFILER_MAPS_PLACEHOLDER,
 	PROFILER_MAPS_GZ_PREFIX as GZ_PREFIX
-} from '../compiler/ids.ts';
+} from '@ogygia/core/internal/compiler-ids';
 import { build_module_map } from './module-map.ts';
 import { client_maps_stash } from './server-sourcemaps.ts';
 
@@ -81,7 +81,7 @@ export function fill_profiler_maps(
 		if (slim !== undefined) maps[c.fileName] = slim;
 	}
 	// THE BROWSER'S CHUNKS: the client build moved its hidden maps off the served output into the
-	// stash (vite/server-sourcemaps.ts). The ones for chunks that carry the app's own code are kept,
+	// stash (server-sourcemaps.ts). The ones for chunks that carry the app's own code are kept,
 	// under `client/<app dir>/immutable/…` (how the profiler keys a browser frame, whether it names a
 	// local file or the URL: embedded-maps.ts); a runtime's or a package's chunk is left out (its
 	// names are what the build already tells). The stash is removed either way.

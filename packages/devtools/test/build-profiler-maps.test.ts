@@ -3,17 +3,17 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { fill_profiler_maps } from '../src/vite/profiler-maps.ts';
+import { fill_profiler_maps } from '../src/build/profiler-maps.ts';
 import {
 	PROFILER_MAPS_PLACEHOLDER,
 	PROFILER_MAPS_GZ_PREFIX as GZ_PREFIX
-} from '../src/compiler/ids.ts';
+} from '@ogygia/core/internal/compiler-ids';
 import {
 	embedded_files,
 	embedded_key,
 	embedded_source,
 	load_embedded_maps
-} from '../../devtools/src/profiler/embedded-maps.ts';
+} from '../src/profiler/embedded-maps.ts';
 
 // a build's embedded maps: the app's own file, a workspace package's `src/` (reached by `../`), a
 // dependency
@@ -41,8 +41,8 @@ vi.mock('ogygia:server/profiler-maps', () => ({
 		}
 	})
 }));
-import { module_imports, route_imports } from '../../devtools/src/profiler/route-imports.ts';
-import { sourcemap_resolver } from '../../devtools/src/profiler/analyze.ts';
+import { module_imports, route_imports } from '../src/profiler/route-imports.ts';
+import { sourcemap_resolver } from '../src/profiler/analyze.ts';
 
 // The profiler's maps travel inside the code, so any adapter ships them; a map that points at another
 // built file is followed one step further.
