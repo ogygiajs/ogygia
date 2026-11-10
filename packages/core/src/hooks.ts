@@ -41,10 +41,10 @@ import {
 	viewTransitions as router_view_transitions,
 	routeConfig as route_config,
 	runtimeUrl as runtime_url,
-	devHmrUrl as dev_hmr_url,
 	devtoolsBootUrl as devtools_boot_url,
 	serverPlugins as plugin_entries
 } from 'ogygia:server';
+import { devHmrUrl as dev_hmr_url } from 'ogygia:region';
 import { REGION_BRAND } from './region-brand.ts';
 import { signing_key, configure_signing_secret } from './server/signing-key.ts';
 import { mpaSpeculationRules } from './compiler/link/speculation.ts';

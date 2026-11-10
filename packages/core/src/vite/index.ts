@@ -1352,6 +1352,22 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			async writeBundle(_options, bundle) {
 				const server_leg = server_leg_of(this);
+				// THE BUNDLE CHECK: no table module of a realm this leg may not hold, however it got in
+				// (a re-export past the resolve check included)
+				if (is_build) {
+					const ids: string[] = [];
+					for (const item of Object.values(bundle))
+						if (item.type === 'chunk') ids.push(...item.moduleIds);
+					const [wrong] = compiler.misplaced_modules(ids, server_leg);
+					if (wrong)
+						this.error(
+							new OgygiaError('virtual_wrong_realm', {
+								id: wrong[0].replace('\0', ''),
+								realm: wrong[1],
+								leg: server_leg ? 'server' : 'browser'
+							})
+						);
+				}
 				// THE MODULE MAP (server build, profiler on): which source module sits at which lines of
 				// each server chunk. A build without sourcemaps — the normal one — leaves the profiler only
 				// chunk names (`chunks/frames.js`): with this it still tells its own code, ogygia's and a

@@ -5,7 +5,7 @@ import {
 	csrTrueRoutes as csr_true_routes,
 	errorCsrTrueRoutes as error_csr_true_routes,
 	rootLayoutCsrTrue as root_layout_csr_true
-} from 'ogygia:server';
+} from '#region-server';
 import { kit_hydrates_page } from './runtime/kit-boot.ts';
 
 // The nested-island mark (same `Symbol.for` rule as the keys below) is a leaf: nested.ts says why.

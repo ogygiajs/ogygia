@@ -13,7 +13,7 @@ import {
 } from '../link/runtime-entry.ts';
 import { island_deps_module } from '../link/island-deps.ts';
 import { router_css_module } from '../link/router-css.ts';
-import { server_plugins_module, route_config_module, sign_client_source } from '../link/caps.ts';
+import { server_plugins_module, route_config_module } from '../link/caps.ts';
 import {
 	transport_module,
 	transportables_module,
@@ -31,7 +31,6 @@ import {
 } from '../link/registry-stub.ts';
 import { dev_hmr_client_source } from '../dev/dev-hmr.ts';
 import { PROFILER_MAPS_PLACEHOLDER } from '../ids.ts';
-import { line } from '../../messages/build.ts';
 import type { CompileCtx } from '../ctx.ts';
 import type { Program } from '../program.ts';
 import type {
@@ -321,8 +320,9 @@ export const runtime_url: Value<{ runtimeUrl: string }> = virtual.value({
 	}
 });
 
+// region, not server: Region writes it into a page it renders on either side
 export const dev_hmr_url: Value<{ devHmrUrl: string }> = virtual.value({
-	realm: 'server',
+	realm: 'region',
 	id: 'dev-hmr-url',
 	alias: 'virtual:ogygia/dev-hmr-url',
 	exports: ['devHmrUrl'],
@@ -404,8 +404,7 @@ export const sign: RequestEntry<CoreApp> = virtual.request({
 	id: 'sign',
 	alias: 'virtual:ogygia/sign',
 	module: { core: 'server/hmac' },
-	exports: { sign: 'sign', verify: 'verify', regionMacMessage: 'region_mac_message' },
-	client: () => sign_client_source()
+	exports: { sign: 'sign', verify: 'verify', regionMacMessage: 'region_mac_message' }
 });
 
 export const request_event: RequestEntry<CoreApp> = virtual.request({
@@ -413,10 +412,7 @@ export const request_event: RequestEntry<CoreApp> = virtual.request({
 	id: 'request-event',
 	alias: 'virtual:ogygia/request-event',
 	module: { package: '$app/server' },
-	exports: { getRequestEvent: 'getRequestEvent' },
-	// (the message is written in whole: the stub imports nothing)
-	client: () =>
-		`export function getRequestEvent() { throw new Error(${JSON.stringify(line('request_event_server_only'))}); }`
+	exports: { getRequestEvent: 'getRequestEvent' }
 });
 
 export const region_endpoint: RequestEntry<CoreApp> = virtual.request({
@@ -432,13 +428,7 @@ export const region_endpoint: RequestEntry<CoreApp> = virtual.request({
 		knownRegionFps: 'known_region_fps',
 		regionFingerprint: 'islandFingerprint',
 		holeCss: 'holeCss'
-	},
-	client: () =>
-		`export function makeRegionEndpoint(_entry, _props) { return ''; }\n` +
-		`export function mintServerIsland(_entry, _props, _ttl) { return ''; }\n` +
-		`export function known_region_fps() { return new Set(); }\n` +
-		`export function islandFingerprint(_entry, _canonical) { return ''; }\n` +
-		`export function holeCss(_entry) { return []; }`
+	}
 });
 
 export const kit_wire: Family<KitWireModule> = virtual.family({

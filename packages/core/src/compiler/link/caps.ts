@@ -1,34 +1,11 @@
 /**
  * The generated server modules of the signed-capability family that are code, not data (the virtual
- * table, ../virtual/core.ts, declares them; the data ones are values there): the browser leg of
- * `sign`, the plugins' server halves, and the route config.
+ * table, ../virtual/core.ts, declares them; the data ones are values there): the plugins' server
+ * halves, and the route config.
  */
 
 import { page_route_config } from '../kit.ts';
 import { dedent } from '../dedent.ts';
-
-/**
- * `sign`'s browser leg: the browser never mints (its secret is ''), but still needs
- * `region_mac_message`, the length-prefixed canonical form the runtime compares against.
- */
-export function sign_client_source(): string {
-	return dedent`
-		export function sign(_secret, _message) {
-			return '';
-		}
-
-		export function verify(_secret, _message, _sig) {
-			return false;
-		}
-
-		export function region_mac_message(id, exp, props, session = '', ttl = '', render = '') {
-			const enc = new TextEncoder();
-			const lp = (s) => enc.encode(String(s)).byteLength + ':' + String(s);
-			const v1 = lp(id) + '|' + lp(exp) + '|' + lp(props) + '|' + lp(session) + '|' + lp(ttl);
-			return render === '' ? 'v1|' + v1 : 'v2|' + v1 + '|' + lp(render);
-		}
-	`;
-}
 
 /**
  * `server-plugins` — SERVER only: each plugin's server half, one static import per plugin, in the

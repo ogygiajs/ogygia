@@ -73,8 +73,6 @@ export interface RequestEntry<A> extends Base {
 	module: RequestModule;
 	/** the functions it re-exports, by their name in the realm module */
 	exports: RealmExports;
-	/** what the browser leg gets until the resolve check keeps server modules off it */
-	client?(app: A): string;
 }
 
 /** A generated-code module. `M` is what it exports (an interface in `contract/`): the generated

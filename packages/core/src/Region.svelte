@@ -34,8 +34,9 @@
 		kit_request_event
 	} from './server/kit-context.ts';
 	import { stringify } from 'devalue';
+	import { devHmrUrl as hmrUrl } from 'ogygia:region';
+	// the server's half of the render; in the browser, its stand-ins (region-server.browser.ts)
 	import {
-		devHmrUrl as hmrUrl,
 		regionDeps as islandDeps,
 		regionCss as islandCss,
 		contentCss,
@@ -48,9 +49,10 @@
 		mintServerRegion as mintServerIsland,
 		knownRegionFps as known_region_fps,
 		regionFingerprint as islandFingerprint,
-		holeCss
-	} from 'ogygia:server';
-	import { runtime_bootstrap } from './server/entry-location.ts';
+		holeCss,
+		runtime_bootstrap,
+		region_css_tag
+	} from '#region-server';
 	import { fingerprint_of, hole_copy_of } from './runtime/hash.ts';
 	// Kit's `asset()`, taking ogygia's base-less `/…` URLs on Kit 2 and Kit 3 alike (kit-paths.ts)
 	import { kit_asset as asset } from './kit-paths.ts';
@@ -59,7 +61,6 @@
 	import { record_page } from './page-seed-registry.ts';
 	import { document_tail, island_graph_script, modulepreload_tag } from './server/document-tail.ts';
 	import { plan_props_wire, props_sidecar } from './server/props-wire.ts';
-	import { region_css_tag } from './server/region-css.ts';
 	import { escape_amp_quot, escape_attr } from './escape.ts';
 	import { warn } from './messages/island.ts';
 	import {

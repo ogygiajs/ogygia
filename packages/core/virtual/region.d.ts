@@ -4,7 +4,14 @@
 // src/compiler/virtual/types.ts). Do not edit.
 
 declare module 'ogygia:region' {
+export const devHmrUrl: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').dev_hmr_url>['devHmrUrl'];
 export const kitTransport: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_transport>['transport'];
+}
+declare module 'ogygia:region/dev-hmr-url' {
+export const devHmrUrl: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').dev_hmr_url>['devHmrUrl'];
+}
+declare module 'virtual:ogygia/dev-hmr-url' {
+export const devHmrUrl: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').dev_hmr_url>['devHmrUrl'];
 }
 declare module 'ogygia:region/kit-transport' {
 const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_transport>;
