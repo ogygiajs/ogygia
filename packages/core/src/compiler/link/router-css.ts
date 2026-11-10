@@ -30,8 +30,10 @@ import { fs, path } from '../host.ts';
 import {
 	collectFoucCssReachable,
 	compileFoucScopedCss,
-	resolveFoucImportSpec
+	resolveFoucImportSpec,
+	type WalkResolve
 } from '../fouc-css.ts';
+import type { ExportIndex } from '../exports/index.ts';
 
 const PATH_SEP = /[/\\]/;
 const SVELTE_RE = /\.svelte$/;
@@ -108,6 +110,8 @@ export async function router_css_module(
 		read_file: (p: string) => string | null;
 		/** the bundler's resolver, for the dev tree-CSS walk (compiler/fouc-css.ts) */
 		resolve?: (spec: string, importer: string) => Promise<string | null>;
+		/** `resolve`'s export index */
+		exports?: ExportIndex<WalkResolve>;
 	}
 ): Promise<string> {
 	if (roots.length === 0) return 'export {};\n';
@@ -127,6 +131,7 @@ export async function router_css_module(
 			const entries: Array<{ key: string; css: string }> = [];
 			for (const e of await collectFoucCssReachable(abs, {
 				resolve: opts.resolve,
+				exports: opts.exports,
 				root: opts.root,
 				libDir: opts.lib_dir,
 				readFile: opts.read_file
