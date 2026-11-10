@@ -20,6 +20,14 @@ describe('the barrel-left table', () => {
 		expect(t.why('/app/lib/index.ts', ['/app/src/Fine.svelte'])).toEqual([]);
 	});
 
+	it("a dependency's barrel is not explained by an unparsable importer (the pass never rewrites into it unasked)", () => {
+		const t = barrel_left_table();
+		t.record('/app/src/Broken.svelte', null, 'unparsable');
+		expect(
+			t.why('/app/node_modules/svelte/src/index-client.js', ['/app/src/Broken.svelte'])
+		).toEqual([]);
+	});
+
 	it('a module transformed again forgets what it said before', () => {
 		const t = barrel_left_table();
 		t.record('/app/src/A.svelte', '/app/lib/index.ts', 'pinned');
