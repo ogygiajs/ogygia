@@ -188,9 +188,10 @@ export class Collection<
 		this.#visible = opts.filter ?? (() => true);
 		// Dev: the run of the module whose content() call builds it (core marks each call: `content` is
 		// this plugin's definer). The module's next run ends it, and the collection with it: the new
-		// run builds the one that replaces it, and one deleted from the code is gone.
-		defining()?.defer(() => this.#dispose());
+		// run builds the one that replaces it, and one deleted from the code is gone. In the graph
+		// first: a run already ended disposes it at once, which takes it out again (lifecycle.test.ts).
 		GRAPH.all.add(this as unknown as Collection<Record<string, unknown>>, this.#in_graph);
+		defining()?.defer(() => this.#dispose());
 	}
 
 	/**

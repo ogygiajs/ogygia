@@ -6,6 +6,8 @@ import * as v from 'valibot';
 import { defineRun } from '@ogygia/machine';
 import { content, folder, json, type Source, type SourceEntry } from '../src/index.ts';
 import { withRemotes } from '../src/server.ts';
+import { GRAPH } from '../src/graph.ts';
+import { COLLECTION } from '../src/collection-base.ts';
 import { site as siteRaw } from '../src/site/site.ts';
 import { dimensions } from '../src/site/dimensions.ts';
 import { outline, pick } from '../src/site/outline.ts';
@@ -529,6 +531,18 @@ describe('a collection a newer run of its module replaces stops following (#247)
 			{ done: true, value: undefined },
 			{ done: true, value: undefined }
 		]);
+	});
+
+	it('one an ended run builds later (a lazy content() call) is out of the graph until read', async () => {
+		const run_1 = defineRun('/app/src/lib/lazy.server.ts');
+		const lazy = run_1(() => content({ schema, loader: liveSource([row('a', 'A')]).source }));
+		defineRun('/app/src/lib/lazy.server.ts'); // the module ran again: run 1 ended
+		const c = lazy();
+		const in_graph = () =>
+			[...GRAPH.all].includes((c as unknown as Record<symbol, never>)[COLLECTION]);
+		expect(in_graph()).toBe(false);
+		expect((await c.refs()).map((e) => e.id)).toEqual(['a']);
+		expect(in_graph()).toBe(true);
 	});
 
 	it('a collection the same run builds replaces nothing', async () => {
