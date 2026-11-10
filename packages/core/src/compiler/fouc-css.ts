@@ -18,8 +18,8 @@ import { compile, parse } from 'svelte/compiler';
 import { walk } from 'estree-walker';
 import { unscoped_marker } from '../unscoped-css.ts';
 import { blank_styles } from './blank-styles.ts';
-import { BarrelIndex } from './debarrel/barrel.ts';
-import { analyze_exports, analyze_imports } from './debarrel/parse.ts';
+import { BarrelIndex } from './exports/index.ts';
+import { analyze_exports, analyze_imports } from './exports/parse.ts';
 import { warn } from '../messages/build.ts';
 import { region_family } from './ids.ts';
 

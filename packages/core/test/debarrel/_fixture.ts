@@ -17,7 +17,7 @@ import {
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { BarrelIndex, type Host } from '../../src/compiler/debarrel/barrel.ts';
+import { BarrelIndex, type Host } from '../../src/compiler/exports/index.ts';
 import {
 	rewrite_module,
 	type Lookup,

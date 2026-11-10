@@ -21,7 +21,7 @@
  */
 import { readFileSync, statSync } from 'node:fs';
 import { searchForWorkspaceRoot, type Plugin } from 'vite';
-import { BarrelIndex, type ExportMap, type Host } from './barrel.ts';
+import { BarrelIndex, type ExportMap, type Host } from '../exports/index.ts';
 import { matches_any, normalize_options, type DebarrelOptions } from './options.ts';
 import { rewrite_module, type RewritePolicy } from './rewrite.ts';
 import { rewrite_svelte } from './svelte.ts';
