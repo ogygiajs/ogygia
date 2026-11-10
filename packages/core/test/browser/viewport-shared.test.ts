@@ -85,3 +85,45 @@ test('a region with no box of its own follows what it renders, through a swap of
 	stop();
 	region.remove();
 });
+
+test('a child pushed out of the ones that stand for a box-less region is let go, and none is held after the watch', async () => {
+	const region = document.createElement('div');
+	region.style.display = 'contents';
+	for (let i = 0; i < 20; i++) {
+		const p = document.createElement('p');
+		p.textContent = 'row ' + i;
+		p.style.margin = '0';
+		region.append(p);
+	}
+	document.body.append(region);
+	const observed = new Set<Element>();
+	const observe = IntersectionObserver.prototype.observe;
+	const unobserve = IntersectionObserver.prototype.unobserve;
+	IntersectionObserver.prototype.observe = function (this: IntersectionObserver, t: Element) {
+		observed.add(t);
+		return observe.call(this, t);
+	};
+	IntersectionObserver.prototype.unobserve = function (this: IntersectionObserver, t: Element) {
+		observed.delete(t);
+		return unobserve.call(this, t);
+	};
+	try {
+		const stop = watch_viewport(region, '0px', () => {});
+		await settle();
+		const sixteenth = region.children[15];
+		expect(observed.has(sixteenth), 'the 16th child stands for the region').toBe(true);
+		// a child goes in at the top: the 16th is now the 17th, past the ones that stand for it
+		const top = document.createElement('p');
+		top.style.margin = '0';
+		top.textContent = 'new top row';
+		region.prepend(top);
+		await settle();
+		expect(observed.has(sixteenth), 'pushed out of the first 16: no longer watched').toBe(false);
+		stop();
+		expect([...observed], 'nothing is held after the last watcher stops').toEqual([]);
+	} finally {
+		IntersectionObserver.prototype.observe = observe;
+		IntersectionObserver.prototype.unobserve = unobserve;
+		region.remove();
+	}
+});
