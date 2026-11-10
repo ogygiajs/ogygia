@@ -16,7 +16,7 @@ import {
 	core_path,
 	type ConstantInput
 } from '../src/compiler/virtual/core.ts';
-import { CORE_ENTRIES_PATH, constant_types } from '../src/compiler/virtual/types.ts';
+import { CORE_ENTRIES_PATH, constant_types, virtual_types } from '../src/compiler/virtual/types.ts';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
 import { specifier, virtual } from '../src/compiler/virtual/table.ts';
 
@@ -213,3 +213,6 @@ bench('virtual constants: the define map of two option sets, and their generated
 	for (const input of [base, on]) n += Object.keys(core_defines(input)).length;
 	return n + constant_types(core, CORE_ENTRIES_PATH).length;
 });
+
+bench('virtual types: each realm’s .d.ts, generated off the table', () =>
+	Object.values(virtual_types(core, CORE_ENTRIES_PATH)).reduce((n, text) => n + text.length, 0));
