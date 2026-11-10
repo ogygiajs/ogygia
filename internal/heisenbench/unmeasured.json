@@ -13,6 +13,14 @@
 			"reason": "one file read for the server router's CSS, a pass-through to the host fs (the router-css generator's own tests read real routes)"
 		},
 		{
+			"id": "packages/core/src/messages/build.ts > BUILD_ERRORS > virtual_unknown > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/build.ts > BUILD_ERRORS > virtual_duplicate > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
 			"id": "packages/core/src/compiler/virtual/core.ts > map:0~fa4377",
 			"reason": "declares the six driver-resolved families once, as core.ts loads; constant, never per build"
 		},
