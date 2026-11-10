@@ -26,6 +26,7 @@ import type MagicString from 'magic-string';
 import type { Plugin as VitePlugin } from 'vite';
 import type { ExportMap, Policy } from '../compiler/exports/index.ts';
 import type { ServerRealm } from '../compiler/link/caps.ts';
+import type { CompileEventInput } from '../events/schema.ts';
 import { OgygiaError } from '../messages/build.ts';
 
 /** Where `definePlugin` puts the definition on the Vite plugin it returns. A registered symbol, so a
@@ -114,7 +115,16 @@ export interface TransformContext {
 	resolve(spec: string, importer: string): Promise<string | null>;
 	/** Re-transform this module when `file` changes (dev). */
 	watch(file: string): void;
+	/** Tell the build what the transform did to this module (it is the event's importer): read back
+	 *  by the findings, and forgotten when the module is transformed again. */
+	emit(event: TransformEvent): void;
 }
+
+/** What a stage transform tells the build about the module it transformed. */
+export type TransformEvent = Omit<
+	Extract<CompileEventInput, { name: 'compile.barrel.left' }>,
+	'importer'
+>;
 
 /** A transform at a stage around the region transform: ordering is the stage, not list position. */
 export interface StageTransform {

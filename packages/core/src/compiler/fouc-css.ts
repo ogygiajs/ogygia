@@ -290,7 +290,7 @@ export async function collectFoucCssReachable(
 		for (const n of wanted) done.add(n);
 		// a barrel: each name to its leaf (only the names taken)
 		const map = await barrels.map(abs, spec, EVERY_BARREL, resolve);
-		if (map && !wanted.includes(ALL)) {
+		if (map && map.left === null && !wanted.includes(ALL)) {
 			const own: string[] = [];
 			for (const n of wanted) {
 				const entry = map.entries.get(n);

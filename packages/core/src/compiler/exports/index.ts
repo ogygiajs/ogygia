@@ -69,8 +69,8 @@ export interface ExportMap {
 	entries: Map<string, Entry>;
 	/** pure barrel → the import can be dropped once every name moved; impure → kept for effects */
 	pure: boolean;
-	/** rewriting allowed at all (candidate, and pure or forced, and not kept) */
-	rewritable: boolean;
+	/** null: a barrel the policy goes through; else why it does not (`entries` is then empty) */
+	left: null | 'impure' | 'kept' | 'outside-project';
 	/** some names could not be seen (a star into the unparsable): unknown names stay on the barrel */
 	opaque: boolean;
 	/** every module this map depends on: a change to any of them invalidates the map */
@@ -246,13 +246,31 @@ class Walk<Caller> {
 	async map(id: string, spec: string, caller: Caller): Promise<ExportMap | null> {
 		const clean = id.replace(STRIP_QUERY_RE, '');
 		if (clean !== id) return null; // `?raw`, `?url`, a virtual query: never a barrel
-		if (this.#policy.kept(clean, spec)) return null;
-		if (!this.#policy.candidate(clean, spec)) return null;
+		if (this.#policy.kept(clean, spec)) return this.#left(clean, 'kept');
+		if (!this.#policy.candidate(clean, spec)) return this.#left(clean, 'outside-project');
 		// (again while an edit drops the build it waited on: the next one reads the files as they are)
 		for (;;) {
 			const got = await this.#barrels.get(this.#ask(clean, spec, caller));
-			if (got !== STALE) return got;
+			// (null from a parsed module: impure and not forced)
+			if (got !== STALE) return got ?? this.#left(clean, 'impure');
 		}
+	}
+
+	/** The answer for a barrel this policy does not go through: a map that says why, or null when the
+	 *  module re-exports nothing (it is no barrel, nothing to say) or cannot be parsed. */
+	#left(id: string, left: NonNullable<ExportMap['left']>): ExportMap | null {
+		const shape = this.#index.shapes.get(id);
+		if (!shape || !shape.exports.some((e) => e.kind !== 'own')) return null;
+		return {
+			id,
+			entries: new Map(),
+			pure: shape.pure,
+			left,
+			opaque: false,
+			deps: new Set([id]),
+			provisional: false,
+			cycles: new Set()
+		};
 	}
 
 	/** What a caller of `map()` asks for: the barrel's build, or (it is not one) null. Only the ask
@@ -275,7 +293,7 @@ class Walk<Caller> {
 			id,
 			entries: new Map(),
 			pure: shape.pure,
-			rewritable: true,
+			left: null,
 			opaque: false,
 			deps: new Set([id]),
 			provisional: false,

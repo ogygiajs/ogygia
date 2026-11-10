@@ -265,8 +265,9 @@ describe('where the walk stops', () => {
 		});
 		const spec = '@scope/ui/components';
 		const id = f.id('node_modules/@scope/ui/components.js');
-		expect(await f.index().map(id, spec)).toBeNull();
+		expect(await f.index().map(id, spec)).toMatchObject({ left: 'outside-project' });
 		const m = (await f.index({ packages: ['@scope/ui'] }).map(id, spec))!;
+		expect(m.left).toBeNull();
 		expect(m.entries.get('Button')).toEqual({
 			id: f.id('node_modules/@scope/ui/Button.svelte'),
 			name: 'default'

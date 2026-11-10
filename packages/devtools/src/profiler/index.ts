@@ -229,7 +229,7 @@ import {
 	vitals_moved,
 	type Since
 } from './compare.ts';
-import { engine_of, vital_parts, type PageInput } from '@ogygia/core/insights';
+import { engine_of, vital_parts, type ChunkBarrel, type PageInput } from '@ogygia/core/insights';
 import { label_call, phase_of_frame } from './timeline.ts';
 import { gzip_large } from './compress.ts';
 import { io_kind, mark_left_each_run } from './async-io.ts';
@@ -487,7 +487,7 @@ export interface StoredReport {
 	/** what is inside each of those chunks (the build's handoff), for the same hrefs */
 	contents?: Record<string, string[]>;
 	heavy?: Record<string, { total: number; top: { name: string; bytes: number }[] }>;
-	barrels?: Record<string, { name: string; fanout: number }[]>;
+	barrels?: Record<string, ChunkBarrel[]>;
 	/** each island entry's lines that draw differently in the browser (its own `.svelte` sources) */
 	hazards?: Record<string, IslandHazard[]>;
 	/** browser hydration timings carried by an uploaded dump (a live report joins the ring instead) */
@@ -2543,7 +2543,7 @@ class Profiler {
 		let heavy:
 			| Record<string, { total: number; top: { name: string; bytes: number }[] }>
 			| undefined;
-		let barrels: Record<string, { name: string; fanout: number }[]> | undefined;
+		let barrels: Record<string, ChunkBarrel[]> | undefined;
 		let hazards: Record<string, IslandHazard[]> | undefined;
 		if (fetch_url && !this.dev) {
 			const urls: string[] = [];
