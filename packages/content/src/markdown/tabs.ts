@@ -37,7 +37,8 @@
  * unclosed fence runs to the block end (and is closed synthetically so the emitted markdown stays
  * well-formed), a fence with no `[label]` falls back to `Tab N`, an empty block emits nothing.
  */
-import { html } from '@ogygia/core/plugin/utils';
+// (labels and groups are written into the .svx source: Svelte markup, braces escaped too: #469)
+import { svelteHtml as html } from '@ogygia/core/plugin/utils';
 
 const OPEN_CODE = /^\s*:::\s*code-group\b[ \t]*(.*?)\s*$/;
 const OPEN_TABS = /^\s*:::\s*tabs\b[ \t]*(.*?)\s*$/;

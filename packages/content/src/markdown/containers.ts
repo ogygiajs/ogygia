@@ -13,7 +13,8 @@
  * around the inner content so Markdown still renders inside. Fenced code is skipped, so a literal
  * `:::` inside a code block is untouched.
  */
-import { html } from '@ogygia/core/plugin/utils';
+// (the title is written into the .svx source: Svelte markup, braces escaped too: #469)
+import { svelteHtml as html } from '@ogygia/core/plugin/utils';
 
 const LABELS: Record<string, string> = {
 	tip: 'TIP',

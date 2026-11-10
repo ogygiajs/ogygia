@@ -143,6 +143,25 @@ export function html(parts: TemplateStringsArray, ...values: HtmlValue[]): Html 
 	return new Html(MADE_HERE, out);
 }
 
+const BRACES_G = /[{}]/g;
+const brace = (c: string) => (c === '{' ? '&#123;' : '&#125;');
+
+/**
+ * Markup written into a Svelte template (a `.svelte` / `.svx` source, read by Svelte's compiler):
+ * `html`, and every placed value's `{` and `}` as `&#123;` / `&#125;`, so text an author wrote never
+ * becomes an expression at compile time. An `Html` value is placed as is, as by `html`.
+ */
+export function svelte_html(parts: TemplateStringsArray, ...values: HtmlValue[]): Html {
+	const at = places_of(parts);
+	let out = parts[0]!;
+	for (let i = 0; i < values.length; i++) {
+		const v = values[i];
+		const placed = place(v, at[i]!);
+		out += (v instanceof Html ? placed : placed.replace(BRACES_G, brace)) + parts[i + 1]!;
+	}
+	return new Html(MADE_HERE, out);
+}
+
 const NOTHING = /* @__PURE__ */ new Html(MADE_HERE, '');
 
 /** One attribute with its leading space, ` name="value"`: the value escaped (and checked, for a URL
