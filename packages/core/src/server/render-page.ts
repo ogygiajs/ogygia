@@ -29,6 +29,7 @@ import { look_up_page, type PageFacts } from './page-facts.ts';
 import { merge_seed_ask, shape_page_data, type SeedAsk, type SeedKeys } from './seed-shape.ts';
 import { PAGE_FACTS_SCRIPT_TYPE } from '../page-facts-script.ts';
 import { line } from '../messages/server.ts';
+import { bucket32 } from '../runtime/hash.ts';
 
 type Transport = Record<
 	string,
@@ -224,15 +225,8 @@ export function render_page_version(
 	return v;
 }
 
-/** 32-bit FNV-1a, base36: a version tag, not a security boundary. */
-function fnv1a(text: string): string {
-	let h = 0x811c9dc5;
-	for (let i = 0; i < text.length; i++) {
-		h ^= text.charCodeAt(i);
-		h = Math.imul(h, 0x01000193);
-	}
-	return (h >>> 0).toString(36);
-}
+/** 32-bit FNV-1a, base36: a version tag, not a security boundary (the same tags as before #484). */
+const fnv1a = (text: string): string => bucket32(text).toString(36);
 
 const asks_of = new WeakMap<Request, SeedKeys>();
 
