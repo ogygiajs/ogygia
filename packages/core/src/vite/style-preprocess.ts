@@ -11,7 +11,7 @@
  */
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { warn } from '../messages/build.ts';
+import { warn } from '../compiler/messages.ts';
 
 const STYLE_BLOCK_G = /<style\b([^>]*)>([\s\S]*?)<\/style>/gi;
 const SCRIPT_BLOCK_G = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;

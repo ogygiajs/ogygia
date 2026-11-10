@@ -19,7 +19,7 @@ import {
 import type { SvelteNode, HostImport, RegionMark } from './ir.ts';
 import type * as NodePath from 'node:path';
 import { blank_styles } from '../blank-styles.ts';
-import { OgygiaError, warn } from '../../messages/build.ts';
+import { OgygiaError, warn } from '../messages.ts';
 
 /** A host the parser still cannot read keeps its region imports as plain imports (no island):
  *  said once per file, never skipped in silence. The Svelte compiler reports the error itself. */

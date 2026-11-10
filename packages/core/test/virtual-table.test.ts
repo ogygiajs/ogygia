@@ -30,7 +30,7 @@ import {
 	region_family,
 	wrapperVirtualId
 } from '../src/compiler/ids.ts';
-import { BUILD_ERRORS } from '../src/messages/build.ts';
+import { BUILD_ERRORS } from '../src/compiler/messages.ts';
 import { CORE_VALUE_NAMES } from '../src/compiler/virtual/value-names.ts';
 
 const table = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path, CORE_VALUE_NAMES, CORE_PARTS);

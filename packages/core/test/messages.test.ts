@@ -4,12 +4,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { define_messages } from '../src/messages/define.ts';
+import { define_messages } from '../src/contract/messages.ts';
 import { ERRORS, WARNINGS, OgygiaError, warn } from '../src/messages/core.ts';
-import { prose } from '../src/messages/prose.ts';
+import { prose } from '../src/contract/prose.ts';
 import { SERVER_ERRORS, SERVER_WARNINGS } from '../src/messages/server.ts';
-import { BUILD_ERRORS, BUILD_WARNINGS } from '../src/messages/build.ts';
-import type { MessageEntry } from '../src/messages/define.ts';
+import { BUILD_ERRORS, BUILD_WARNINGS } from '../src/compiler/messages.ts';
+import type { MessageEntry } from '../src/contract/messages.ts';
 
 const TABLES: Record<string, MessageEntry<never>> = {
 	...ERRORS,
@@ -84,7 +84,7 @@ describe('OgygiaError and warn', () => {
 
 describe('a server bundle: worded in dev and while prerendering', () => {
 	it('a production server prints the link alone; a prerender, the wording and the link', async () => {
-		const { dev_or_prerender } = await import('../src/messages/define.ts');
+		const { dev_or_prerender } = await import('../src/contract/messages.ts');
 		vi.stubEnv('DEV', false);
 		const key = Symbol.for('ogygia.prerendering');
 		const g = globalThis as unknown as Record<symbol, unknown>;

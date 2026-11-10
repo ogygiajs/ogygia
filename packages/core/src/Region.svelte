@@ -53,7 +53,7 @@
 		runtime_bootstrap,
 		region_css_tag
 	} from '#region-server';
-	import { fingerprint_of, hole_copy_of } from './runtime/hash.ts';
+	import { fingerprint_of, hole_copy_of } from './contract/hash.ts';
 	// Kit's `asset()`, taking ogygia's base-less `/…` URLs on Kit 2 and Kit 3 alike (kit-paths.ts)
 	import { kit_asset } from './kit-paths.ts';
 	import { building } from '$app/env';
@@ -692,7 +692,7 @@
 			: ''
 	);
 	// The hole's IDENTITY — the fingerprint of its region id + canonical props, the same function on
-	// both legs (runtime/hash.ts), so the client leg computes the SAME value the server emitted. The
+	// both legs (contract/hash.ts), so the client leg computes the SAME value the server emitted. The
 	// runtime keys the server-minted facts (endpoint, props sidecar) on it: when Kit gives up
 	// hydrating a client-on document and mounts it fresh, the client leg renders this hole again
 	// with NO address (it cannot mint), and the runtime hands the SSR facts back by identity — never

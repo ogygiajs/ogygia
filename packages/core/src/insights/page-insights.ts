@@ -13,7 +13,7 @@ import { without_comments as strip_comments, without_runtime_marks } from '../ru
 import type { RegionRefusal } from '../runtime/region-endpoint-url.ts';
 import { hazard_fix, hazard_words, type IslandHazard } from './hydration-hazards.ts';
 import { barrel_left_fix, barrel_left_words, type IslandBarrel } from './barrel-left.ts';
-import { OWN_PACKAGE_NAMES } from '../own-package.ts';
+import { OWN_PACKAGE_NAMES } from '../contract/own-package.ts';
 
 /** markup as a visitor's eyes compare it: no comments (Svelte's re-anchored block markers), no
  *  marks the runtime itself set on the regions inside */

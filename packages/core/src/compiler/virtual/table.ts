@@ -15,7 +15,7 @@
  *   constant  an on/off switch, a `define` (not a module), so dead code folds out
  */
 
-import { OgygiaError } from '../../messages/build.ts';
+import { OgygiaError } from '../messages.ts';
 import type { ExportIndex } from '../exports/index.ts';
 import type { WalkResolve } from '../fouc-css.ts';
 

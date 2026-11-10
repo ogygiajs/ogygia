@@ -1,7 +1,7 @@
 /**
  * THE ONE RESOLVER over the virtual-module table (./table.ts): a specifier → the resolved id, a resolved id → its source, and a dev change → the modules it invalidates.
  */
-import { OgygiaError } from '../../messages/build.ts';
+import { OgygiaError } from '../messages.ts';
 import { RESOLVED } from '../ids.ts';
 import {
 	OGYGIA_SCHEME,

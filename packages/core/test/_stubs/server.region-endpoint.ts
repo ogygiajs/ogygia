@@ -1,7 +1,7 @@
 // Test stub for `ogygia:server/region-endpoint` (real one is the client/SSR-split module the
 // Vite plugin mints). Unit tests only need the graph to load; nothing signs endpoints, and no SPA
 // navigation ever reports known region fingerprints.
-import { fingerprint_of } from '../../src/runtime/hash.ts';
+import { fingerprint_of } from '../../src/contract/hash.ts';
 export const make_region_endpoint = () => '';
 export const mint_server_region = () => '';
 export const known_region_fps = (): ReadonlySet<string> => new Set();

@@ -13,7 +13,7 @@ import {
 	WIRE_FORMAT_JSON
 } from '../src/server/props-wire.ts';
 import { analyze, SeedIndex, SEED_REF_KEY, seed_ref_reviver } from '../src/seed-refs.ts';
-import { fingerprint_of } from '../src/runtime/hash.ts';
+import { fingerprint_of } from '../src/contract/hash.ts';
 import { region_fingerprint } from '../src/server/fingerprint.ts';
 
 describe('region_fingerprint · the server-minted data-og-fp', () => {

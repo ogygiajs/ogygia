@@ -7,7 +7,7 @@
  */
 import { fs, path, dir_entries } from '../host.ts';
 import { islandDepsHandoffPath } from './island-deps.ts';
-import { warn, line } from '../../messages/build.ts';
+import { warn, line } from '../messages.ts';
 
 const CORPUS_RE = /\.(svx|md)(\?|$)/;
 /** A `?…type=style…` / `lang.css` sub-import id — a CSS face, never a corpus JS leak. */

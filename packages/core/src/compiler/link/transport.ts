@@ -1,4 +1,4 @@
-import { OWN_SPECIFIER_SOURCE } from '../../own-package.ts';
+import { OWN_SPECIFIER_SOURCE } from '../../contract/own-package.ts';
 import { dedent } from '../dedent.ts';
 
 /**
