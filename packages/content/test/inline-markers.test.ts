@@ -58,4 +58,17 @@ describe('inline_markers', () => {
 		const opens = html.match(/class="og-mark og-mark-add"/g) ?? [];
 		expect(opens.length).toBeGreaterThanOrEqual(2);
 	});
+
+	it('removed content is text: markup in it is escaped, never live HTML (#396)', async () => {
+		const html = await highlight('---<a href="..." data-x="off">---', 'svelte', OPTS);
+		expect(html).toContain('og-mark-remove');
+		expect(html).not.toContain('<a href');
+		expect(html).toContain('&lt;a href');
+	});
+
+	it('removed content keeps a $ pattern as written (#396)', async () => {
+		const html = await highlight('let x = ---"$\'" + "$&"--- 1;', 'js', OPTS);
+		expect(html).toContain("$'");
+		expect(html).toContain('$&amp;');
+	});
 });

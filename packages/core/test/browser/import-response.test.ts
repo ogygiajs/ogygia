@@ -5,7 +5,7 @@
 // response" in every one (Firefox gives it a response start, with a status of 0).
 import { afterEach, expect, it, vi } from 'vitest';
 import { commands } from 'vitest/browser';
-import { it_with_network_routes } from './_browsers.ts';
+import { PLAYWRIGHT, it_with_network_routes } from './_browsers.ts';
 import { import_file, response_of } from '../../src/runtime/import-again.ts';
 
 declare module 'vitest/browser' {
@@ -15,7 +15,10 @@ declare module 'vitest/browser' {
 	}
 }
 
-afterEach(() => commands.keep_downloads('/fixtures/entry-current.ts'));
+// (the network-route commands exist under Playwright only: the WebDriver run has none to undo)
+afterEach(async () => {
+	if (PLAYWRIGHT) await commands.keep_downloads('/fixtures/entry-current.ts');
+});
 
 it_with_network_routes('a download dropped at the network reads as no response', async () => {
 	await commands.drop_downloads('/fixtures/entry-current.ts', 1);
@@ -49,5 +52,28 @@ it('a file whose timing entry lands after its failed import is not asked again (
 	const asked = performance
 		.getEntriesByType('resource')
 		.filter((e) => e.name.includes('Late404.js'));
+	expect(asked.filter((e) => e.name.includes('og-retry'))).toHaveLength(0);
+});
+
+it('a file whose timing entry lands well after its failed import is not asked again (more than one task)', async () => {
+	const url = new URL('./fixtures/chunks/Later404.js', import.meta.url).href;
+	// the timeline holds no entry for it for a while after the import rejects (a loaded machine)
+	const real = performance.getEntriesByName.bind(performance);
+	let since = 0;
+	const spy = vi
+		.spyOn(performance, 'getEntriesByName')
+		.mockImplementation((name: string, type?: string) => {
+			if (name !== url) return real(name, type);
+			since ||= performance.now();
+			return performance.now() - since < 200 ? [] : real(name, type);
+		});
+	try {
+		await expect(import_file(url)).rejects.toBeTruthy();
+	} finally {
+		spy.mockRestore();
+	}
+	const asked = performance
+		.getEntriesByType('resource')
+		.filter((e) => e.name.includes('Later404.js'));
 	expect(asked.filter((e) => e.name.includes('og-retry'))).toHaveLength(0);
 });

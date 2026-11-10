@@ -8,7 +8,7 @@
  * written, not on the first failure in production. Name it for what it protects (`peer`, `store`,
  * `sink`): its numbers are then tuned in one place, with their reason beside them. The outbox and
  * `flights({ retry })` run their tries under one (`under_policy`); work with tries of its own (a
- * machine's `retrying` state) reads its waits from one (`backoff_after`).
+ * machine's `retrying` state) reads its waits from one (`backoffAfter`).
  */
 import { machine_error } from './messages.ts';
 import { MAX_TIMEOUT_MS, scope, type Scope } from './scope.ts';
@@ -78,7 +78,7 @@ export const policy: { (p?: Partial<Policy>): Policy; readonly standard: Policy 
 
 /** The wait before try `n + 1`, once try `n` (1 for the first; 0 counts as 1) failed: a number of
  *  0 to the timer limit, however many tries. `random` is 0 to 1. */
-export function backoff_after(p: Policy, n: number, random: number = Math.random()): number {
+export function backoffAfter(p: Policy, n: number, random: number = Math.random()): number {
 	const b = p.backoff;
 	const tries = Math.max(1, n);
 	// (0 doubles to 0 forever: never 0 * 2^n, which is NaN once 2^n is Infinity)
@@ -136,7 +136,7 @@ export async function under_policy<T>(
 			if (left) return STALE;
 			if (tries.closed) throw out_of_time(p.deadline, error);
 			if (n >= p.attempts) throw error;
-			const wait = backoff_after(p, n);
+			const wait = backoffAfter(p, n);
 			// (a wait that ends past the deadline is a try that would only be aborted: out of time)
 			if (p.deadline !== Infinity && Date.now() - started + wait >= p.deadline)
 				throw out_of_time(p.deadline, error);

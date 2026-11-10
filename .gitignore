@@ -9,6 +9,14 @@ node_modules/
 /apps/palaestra/build/
 /apps/docs/build/
 dist/
+# declarations a type check emits beside the source: a package's d.ts is built into dist. The
+# hand-written ones are kept by name.
+/packages/*/src/**/*.d.ts
+!/packages/content/src/app-server.d.ts
+!/packages/core/src/types.d.ts
+!/packages/devtools/src/ambient.d.ts
+!/packages/federation/src/ambient.d.ts
+!/packages/postrender/src/ambient.d.ts
 # (a planted duplicate module: the devtools lab imports one package by its src and its dist path —
 # the dist copy IS the fixture)
 !/packages/devtools/e2e/app/src/lib/dup-pkg/dist/
