@@ -69,7 +69,7 @@ export type Fallback<P = unknown> = P & { ogygiaFallback?: import('svelte').Snip
 // app never bundles the ~9 kB of decoders it can't use. The virtual re-exports the real `ogygiaTransport`
 // from './transport.ts' by absolute path; the barrel deliberately does NOT re-export it directly (that
 // would be a second, ungated path to the codec cluster for `import * as ogygia`).
-export { kitTransport as transport } from 'ogygia:region';
+export { kit_transport as transport } from 'ogygia:region';
 
 // Transportable state — a class crosses island boundaries as a prop by declaring
 // `static wire = import.meta.og.wire({ encode, decode })`. Same instance across islands stays one

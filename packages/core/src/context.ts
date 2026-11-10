@@ -1,10 +1,10 @@
 import { getContext, setContext } from 'svelte';
 import { BROWSER } from 'esm-env';
 import {
-	getRequestEvent,
-	csrTrueRoutes as csr_true_routes,
-	errorCsrTrueRoutes as error_csr_true_routes,
-	rootLayoutCsrTrue as root_layout_csr_true
+	get_request_event as getRequestEvent,
+	csr_true_routes,
+	error_csr_true_routes,
+	root_layout_csr_true
 } from '#region-server';
 import { kit_hydrates_page } from './runtime/kit-boot.ts';
 

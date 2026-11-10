@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { set_request_event_stub } from './_stubs/virtual-request-event.ts';
-import { csrTrueRoutes as csr_true_routes } from './_stubs/virtual-route-csr.ts';
+import { csr_true_routes } from './_stubs/virtual-route-csr.ts';
 import { isOgygiaPage } from '../src/context.ts';
 
 /** Simulate one request on a route, its leaf page csr=true or not, and read `isOgygiaPage()`. */

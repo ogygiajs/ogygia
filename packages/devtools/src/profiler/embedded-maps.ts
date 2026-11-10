@@ -31,7 +31,7 @@ const loaded = flights({
 		// (its own id, not the realm module: the maps are their own chunk, loaded only here)
 		import('ogygia:server/profiler-maps')
 			.then(async (m) => {
-				let raw: unknown = m.profilerMaps;
+				let raw: unknown = m.profiler_maps;
 				if (typeof raw === 'string' && raw.startsWith(GZ_PREFIX)) {
 					const zlib = await import('node:zlib');
 					raw = zlib

@@ -30,11 +30,11 @@ import { page_seed_reducers } from './server/page-stream.ts';
 import { analyze } from './seed-refs.ts';
 import { WIRE_FORMAT_ATTR, WIRE_FORMAT_JSON } from './server/props-wire.ts';
 import {
-	runtimeUrl as runtime_url,
-	routerEnabled as router_enabled,
-	viewTransitions as router_view_transitions
+	runtime_url,
+	router_enabled,
+	view_transitions as router_view_transitions
 } from 'ogygia:server';
-import { devHmrUrl as dev_hmr_url } from 'ogygia:region';
+import { dev_hmr_url } from 'ogygia:region';
 import { runtime_bootstrap } from './server/entry-location.ts';
 import { current_facts } from './plugin/facts.ts';
 import { try_get_request_store } from '@sveltejs/kit/internal/server';

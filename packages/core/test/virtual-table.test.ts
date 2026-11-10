@@ -11,6 +11,7 @@ import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
 import { CORE_VIRTUALS, core_path, type CoreApp } from '../src/compiler/virtual/core.ts';
 import { virtual, write_value, type Leg } from '../src/compiler/virtual/table.ts';
 import { RESOLVED } from '../src/compiler/ids.ts';
+import { BUILD_ERRORS } from '../src/messages/build.ts';
 
 const table = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path);
 const app = (ctx: Partial<CoreApp['ctx']>): CoreApp => ({ ctx }) as unknown as CoreApp;
@@ -71,6 +72,21 @@ describe('the virtual-module table', () => {
 		]);
 	});
 
+	it('words the table’s messages, and their pages', () => {
+		for (const code of ['virtual_unknown', 'virtual_duplicate'] as const) {
+			expect(BUILD_ERRORS[code].text({ id: 'ogygia:server/x' })).toContain('ogygia:server/x');
+			expect(BUILD_ERRORS[code].details().length).toBeGreaterThan(40);
+		}
+		expect(
+			BUILD_ERRORS.virtual_wrong_realm.text({
+				id: 'ogygia:server',
+				realm: 'server',
+				leg: 'browser'
+			})
+		).toContain('browser');
+		expect(BUILD_ERRORS.virtual_wrong_realm.details().length).toBeGreaterThan(40);
+	});
+
 	it('fails an undeclared id in the namespace with virtual_unknown', () => {
 		expect(() => table.resolve('virtual:ogygia/no-such-module')).toThrow(/virtual_unknown/);
 		expect(() => table.resolve('ogygia:server/no-such-module')).toThrow(/virtual_unknown/);
@@ -110,10 +126,10 @@ describe('the virtual-module table', () => {
 		const id = table.resolve('virtual:ogygia/region-ttl')!;
 		const ctx = { region_ttl: 3600, renew_window: 2592000 };
 		expect(table.load(id, app(ctx), leg(true))).toBe(
-			'export const regionTtl = 3600;\nexport const renewWindow = 2592000;'
+			'export const region_ttl = 3600;\nexport const renew_window = 2592000;'
 		);
 		expect(table.load(id, app(ctx), leg(false))).toBe(
-			'export const regionTtl = 3600;\nexport const renewWindow = 0;'
+			'export const region_ttl = 3600;\nexport const renew_window = 0;'
 		);
 	});
 
@@ -129,8 +145,8 @@ describe('the virtual-module table', () => {
 		const id = table.resolve('ogygia:server')!;
 		expect(id).toBe(RESOLVED('ogygia:server'));
 		const src = table.load(id, app({}), leg(true)) as string;
-		expect(src).toContain('export { regionTtl, renewWindow } from "virtual:ogygia/region-ttl";');
-		expect(src).toContain('islandCss as regionCss');
+		expect(src).toContain('export { region_ttl, renew_window } from "virtual:ogygia/region-ttl";');
+		expect(src).toContain('islandCss as region_css');
 		expect(src).not.toContain('export default');
 		// a request's real module may import the realm module back: every value is evaluated first
 		const lines = src.split('\n');
@@ -145,14 +161,14 @@ describe('the virtual-module table', () => {
 
 	it('imports a realm module’s names from the entries that have them', () => {
 		const code = [
-			`import { regionTtl, regionCss as css, sign } from 'ogygia:server';`,
-			`export { kitTransport as transport } from "ogygia:region";`,
+			`import { region_ttl, region_css as css, sign } from 'ogygia:server';`,
+			`export { kit_transport as transport } from "ogygia:region";`,
 			`import type { X } from 'ogygia:server';`,
 			`import * as all from 'ogygia:boot';`
 		].join('\n');
 		expect(table.split_realm_imports(code)).toBe(
 			[
-				`import { regionTtl } from 'virtual:ogygia/region-ttl'; import { islandCss as css } from 'virtual:ogygia/island-deps'; import { sign } from 'virtual:ogygia/sign';`,
+				`import { region_ttl } from 'virtual:ogygia/region-ttl'; import { islandCss as css } from 'virtual:ogygia/island-deps'; import { sign } from 'virtual:ogygia/sign';`,
 				`export { transport } from "virtual:ogygia/kit-transport";`,
 				`import type { X } from 'ogygia:server';`,
 				`import * as all from 'ogygia:boot';`
