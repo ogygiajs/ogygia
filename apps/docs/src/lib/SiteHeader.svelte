@@ -30,6 +30,7 @@
 			<nav class="site-links" aria-label="Primary">
 				<a href="/docs/start/install">Docs</a>
 				<a href="/observatory">Observatory</a>
+				<a href="/releases">Releases</a>
 				<a href="/playground/getting-started/installation">Playground</a>
 			</nav>
 			<Theme />

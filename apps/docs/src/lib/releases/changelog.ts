@@ -30,7 +30,8 @@ export type VersionGroup = {
 	releases: Release[];
 };
 
-const VERSION = /^##\s+\[?\s*(\d+\.\d+\.\d+(?:-[\w.]+)?)\s*\]?(?:\s*[—–-]\s*(\d{4}-\d{2}-\d{2}))?\s*$/;
+const VERSION =
+	/^##\s+\[?\s*(\d+\.\d+\.\d+(?:-[\w.]+)?)\s*\]?(?:\s*[—–-]\s*(\d{4}-\d{2}-\d{2}))?\s*$/;
 const SECTION = /^###\s+(.+?)\s*$/;
 const ITEM = /^[-*]\s+(.*)$/;
 const DEP_LINE = /^\s+[-*]\s+(\S+@\S+)\s*$/;
@@ -92,7 +93,8 @@ export function read_changelog(pkg: string, markdown: string): Release[] {
 		}
 		// a wrapped line goes on with the item above it
 		const last = group?.lines.at(-1);
-		if (last && line.startsWith('  ') && line.trim() && !in_deps) last.html += ' ' + inline(line.trim());
+		if (last && line.startsWith('  ') && line.trim() && !in_deps)
+			last.html += ' ' + inline(line.trim());
 	}
 	for (const r of out) r.groups = r.groups.filter((g) => g.lines.length > 0);
 	return out;
@@ -158,9 +160,7 @@ function inline(md: string): string {
 			const link = read_link(md, i);
 			if (link) {
 				const text = inline(link.text);
-				out += /^https?:\/\//.test(link.href)
-					? `<a href="${escape(link.href)}">${text}</a>`
-					: text;
+				out += /^https?:\/\//.test(link.href) ? `<a href="${escape(link.href)}">${text}</a>` : text;
 				i = link.end;
 				continue;
 			}

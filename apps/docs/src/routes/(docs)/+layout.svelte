@@ -32,13 +32,17 @@
 	// The Observatory: the SAME site top-nav (MarketingHeader) as the homepage, then the full-viewport
 	// REPL fills the rest (the REPL carries its own secondary toolbar).
 	const isObservatory = page.url.pathname.startsWith('/observatory');
+	// Releases: the shared header, then its own page (its package list is its sidebar).
+	const isReleases =
+		page.url.pathname === '/releases' || page.url.pathname.startsWith('/releases/');
 	// Breadcrumb after the wordmark: `ogygia │ Docs` / `ogygia │ Observatory`; nothing on the homepage.
 	const section = isHome ? null : isObservatory ? 'Observatory' : 'Docs';
 
 	// The leak-free shell bundle (nav + switcher) — docs pages only. Skipped on the homepage (no
 	// sidebar) and bare canvases, which also saves the nav-tree fetch there. csr=false → every nav is
 	// a fresh SSR pass, so a top-level await is current per page.
-	const fullMeta = bare || isHome || isObservatory ? null : await meta(page.params.slug ?? '');
+	const fullMeta =
+		bare || isHome || isObservatory || isReleases ? null : await meta(page.params.slug ?? '');
 	// One section per package: the sidebar (and the mobile sheet) show the current section's part
 	// of the one nav tree; the switcher at the top of the sidebar moves between sections.
 	const docSection = sectionOf(page.params.slug ?? '');
@@ -85,6 +89,11 @@
 	<!-- Shared site header (same as home + docs), then the full-viewport REPL fills the rest. -->
 	<div class="obs-page" data-sveltekit-preload-data="hover">
 		<SiteHeader section="Observatory" />
+		{@render children()}
+	</div>
+{:else if isReleases}
+	<div class="home-page" data-sveltekit-preload-data="hover">
+		<SiteHeader section="Releases" />
 		{@render children()}
 	</div>
 {:else if isHome}

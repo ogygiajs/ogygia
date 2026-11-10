@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
@@ -52,6 +53,36 @@ const crossOriginIsolation = (): Plugin => {
 		},
 		configurePreviewServer(server) {
 			server.middlewares.use(headers as never);
+		}
+	};
+};
+
+// The Releases pages' dates: each release tag's date (`<package>@<version>`, and the older `v<version>`
+// tags of `ogygia`), read from git once at build into `virtual:release-dates`. A checkout without tags
+// (a shallow clone) gives no dates, and the pages show none.
+const releaseDates = (): Plugin => {
+	const ID = 'virtual:release-dates';
+	return {
+		name: 'docs-release-dates',
+		resolveId: (id) => (id === ID ? '\0' + ID : null),
+		load(id) {
+			if (id !== '\0' + ID) return null;
+			const dates: Record<string, string> = {};
+			try {
+				const out = execFileSync(
+					'git',
+					['for-each-ref', '--format=%(refname:strip=2) %(creatordate:short)', 'refs/tags'],
+					{ encoding: 'utf8' }
+				);
+				for (const line of out.split('\n')) {
+					const [tag, date] = line.split(' ');
+					if (!tag || !date) continue;
+					dates[tag.startsWith('v') ? `ogygia@${tag.slice(1)}` : tag] = date;
+				}
+			} catch {
+				// ok: no git or no tags here (a shallow clone): the pages show no dates
+			}
+			return `export default ${JSON.stringify(dates)};`;
 		}
 	};
 };
@@ -144,6 +175,7 @@ export default defineConfig(({ command }) => ({
 		// /observatory routes, and the WASM asset loader. Before ogygia() (enforce:'pre' also orders them).
 		observatoryNodeShims(),
 		crossOriginIsolation(),
+		releaseDates(),
 		wasm(),
 		ogygia({
 			visible: { margin: '120px' },
