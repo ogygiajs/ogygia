@@ -11,6 +11,7 @@ import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
 import { CORE_VIRTUALS, core_path, type CoreApp } from '../src/compiler/virtual/core.ts';
 import { virtual, write_value, type Leg } from '../src/compiler/virtual/table.ts';
 import { RESOLVED } from '../src/compiler/ids.ts';
+import { BUILD_ERRORS } from '../src/messages/build.ts';
 
 const table = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path);
 const app = (ctx: Partial<CoreApp['ctx']>): CoreApp => ({ ctx }) as unknown as CoreApp;
@@ -37,6 +38,13 @@ describe('the virtual-module table', () => {
 		}
 		expect(ids.has('ogygia:server') && ids.has('ogygia:boot')).toBe(true);
 		for (const id of ids) expect(() => table.resolve(id), id).not.toThrow();
+	});
+
+	it('words the table’s messages, and their pages', () => {
+		for (const code of ['virtual_unknown', 'virtual_duplicate'] as const) {
+			expect(BUILD_ERRORS[code].text({ id: 'ogygia:server/x' })).toContain('ogygia:server/x');
+			expect(BUILD_ERRORS[code].details().length).toBeGreaterThan(40);
+		}
 	});
 
 	it('fails an undeclared id in the namespace with virtual_unknown', () => {
