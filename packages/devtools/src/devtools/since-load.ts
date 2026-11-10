@@ -44,8 +44,10 @@ export interface SinceLoad {
 }
 
 /** findings a dev server's first compile of the page can raise on its own (its islands' code arrives late) */
+// static: a fixed list of finding codes
 const COMPILE_BORNE = new Set(['late-interactive', 'slow-module', 'queued']);
 /** …and, when the PAGE compiled on its request, everything that waited on its first byte */
+// static: a fixed list of finding codes
 const PAGE_COMPILE_BORNE = new Set([
 	...COMPILE_BORNE,
 	'slow-ttfb',
