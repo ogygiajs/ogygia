@@ -3,6 +3,7 @@
  * collections and backlinks invert: build/server-side metadata, not per-request state. It is one
  * global, shared by every copy of this package a process loads (the app's, and the dev plugin's).
  */
+import { registry, type Registry } from '@ogygia/machine';
 import type { Collection } from './collection-base.ts';
 
 /** Which run of which module built a collection (dev only). */
@@ -14,7 +15,9 @@ export type ModuleRun = {
 };
 
 export type ContentGraph = {
-	all: Set<Collection<Record<string, unknown>>>;
+	/** The collections in the graph: each held while it is not disposed (its own scope, see
+	 *  collection-base.ts), never evicted. */
+	all: Registry<Collection<Record<string, unknown>>>;
 	/** The module run whose `content()` call is building a collection right now (dev only). */
 	building?: ModuleRun;
 	/**
@@ -28,7 +31,7 @@ export type ContentGraph = {
 
 export const GRAPH: ContentGraph = ((globalThis as Record<symbol, unknown>)[
 	Symbol.for('ogygia.content.graph')
-] ??= { all: new Set() }) as ContentGraph;
+] ??= { all: registry() }) as ContentGraph;
 
 let runs = 0;
 GRAPH.module_run ??= (module) => {
