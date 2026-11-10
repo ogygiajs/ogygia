@@ -117,4 +117,33 @@ describe('the export index: one graph, a policy per caller', () => {
 		expect(g.reads.get('/app/lib/leaf.ts'), 'the untouched leaf is parsed once').toBe(1);
 		expect(g.resolves.get('/app/lib/index.ts ./leaf'), 'an edit does not re-resolve').toBe(1);
 	});
+
+	it('a file added in dev reaches a barrel that re-exported it before it existed', async () => {
+		const g = graph({
+			'/app/lib/index.ts': `export { l } from './leaf';\nexport { m } from './more';`,
+			'/app/lib/leaf.ts': 'export const l = 1;'
+		});
+		expect((await g.index.map('/app/lib/index.ts', '$lib', EVERY_BARREL))!.opaque).toBe(true);
+		g.files['/app/lib/more.ts'] = 'export const m = 1;';
+		g.shapes.invalidate('/app/lib/more.ts', 'create');
+		const after = (await g.index.map('/app/lib/index.ts', '$lib', EVERY_BARREL))!;
+		expect(after.opaque).toBe(false);
+		expect(after.entries.get('m')).toEqual({ id: '/app/lib/more.ts', name: 'm' });
+	});
+
+	it('a file deleted in dev leaves no barrel pointing at it', async () => {
+		const g = graph({
+			'/app/lib/index.ts': `export * from './mid';`,
+			'/app/lib/mid.ts': `export { l } from './leaf';`,
+			'/app/lib/leaf.ts': 'export const l = 1;'
+		});
+		expect(
+			(await g.index.map('/app/lib/index.ts', '$lib', EVERY_BARREL))!.entries.get('l')
+		).toEqual({ id: '/app/lib/leaf.ts', name: 'l' });
+		delete g.files['/app/lib/leaf.ts'];
+		g.shapes.invalidate('/app/lib/leaf.ts', 'delete');
+		const after = (await g.index.map('/app/lib/index.ts', '$lib', EVERY_BARREL))!;
+		expect(after.entries.has('l')).toBe(false);
+		expect(after.opaque).toBe(true);
+	});
 });
