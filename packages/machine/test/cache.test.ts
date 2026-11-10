@@ -86,6 +86,50 @@ describe('cache: bounded', () => {
 		expect(n.seen).toEqual(['b:2:size', 'a:1:size']);
 	});
 
+	it('a set that only pinned values could make room for is not kept: it says false, nothing goes, and the old one stays', () => {
+		const n = noted();
+		const c = cache<string, number>({ max: 2, pinned: (_v, k) => k !== 'c', onEvict: n.onEvict });
+		c.set('a', 1);
+		c.set('b', 2);
+		expect(c.set('c', 3)).toBe(false);
+		expect(c.get('c')).toBe(undefined);
+		expect(n.seen).toEqual([]);
+		// a replace too heavy for the room the unpinned leave: the key keeps its value
+		const d = cache<string, number>({
+			max: 2,
+			weigh: (v) => (v >= 100 ? 2 : 1),
+			pinned: (_v, k) => k === 'a',
+			onEvict: n.onEvict
+		});
+		d.set('a', 1);
+		d.set('c', 30);
+		expect(d.set('c', 300)).toBe(false);
+		expect(d.get('c')).toBe(30);
+		expect(n.seen).toEqual([]);
+		// room the unpinned can make is made: the least recently used goes
+		d.set('b', 2);
+		expect(n.seen).toEqual(['c:30:size']);
+	});
+
+	it('a set that must make room replaces the key’s own value past its age: noticed as a replace, never as its age', () => {
+		let now = 1_000_000;
+		vi.spyOn(Date, 'now').mockImplementation(() => now);
+		const n = noted();
+		const c = cache<string, number>({
+			max: 2,
+			keep: 1000,
+			weigh: (v) => (v >= 10 ? 2 : 1),
+			onEvict: n.onEvict
+		});
+		c.set('a', 1);
+		c.set('b', 2);
+		now += 2000; // both past their age, no sweep yet
+		// a heavier value for `a`: room is made, `b` goes for its age, `a`'s old value is replaced
+		expect(c.set('a', 10)).toBe(true);
+		expect(n.seen).toEqual(['b:2:age', 'a:1:delete']);
+		expect(c.get('a')).toBe(10);
+	});
+
 	it('a value heavier than max, or with a bad weight, is not kept, and the old one stays', () => {
 		const c = cache<string, number>({ max: 5, weigh: (v) => v });
 		c.set('a', 2);
