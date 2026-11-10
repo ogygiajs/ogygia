@@ -42,6 +42,7 @@ export type {
 	MarkupRegions,
 	TransformStage,
 	TransformContext,
+	TransformEvent,
 	StageTransform,
 	ExportsSeam,
 	PinnedDecl
@@ -94,6 +95,13 @@ import {
 	type WalkResolve
 } from '../compiler/fouc-css.ts';
 import { ExportIndex, Shapes } from '../compiler/exports/index.ts';
+import {
+	BARREL_LEFT_REASONS,
+	barrel_left_table,
+	type BarrelLeftReason,
+	type BarrelLeftTable
+} from '../compiler/exports/left.ts';
+import type { ChunkBarrel } from '../contract/virtual-modules.ts';
 import { strip_bom } from '../compiler/bom.ts';
 
 import { preprocess_component_for_css } from './style-preprocess.ts';
@@ -434,6 +442,24 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				(locals.size > 0 && decl.specs.some((s) => locals.has(s.local)));
 		}
 	};
+	// Why a barrel stayed (`t.emit`), per environment and stage (a stage's run forgets only its own
+	// earlier word on the module): what the findings read back for a barrel an island still imports
+	// whole. Cleared at each build leg's end and when the dev server closes.
+	const barrels_left = new Map<string, BarrelLeftTable>();
+	const barrels_left_of = (environment: string, stage: TransformStage): BarrelLeftTable => {
+		const key = `${environment}:${stage}`;
+		let table = barrels_left.get(key);
+		if (table === undefined) barrels_left.set(key, (table = barrel_left_table()));
+		return table;
+	};
+	/** Why the browser's `barrel` stayed, by every stage. */
+	const barrel_why = (barrel: string, importers: Iterable<string>): BarrelLeftReason[] => {
+		const ids = [...importers];
+		const found = new Set<BarrelLeftReason>();
+		for (const stage of ['source', 'post'] as const)
+			for (const r of barrels_left.get(`client:${stage}`)?.why(barrel, ids) ?? []) found.add(r);
+		return BARREL_LEFT_REASONS.filter((r) => found.has(r));
+	};
 	// A stage's host: runs the plugins' transforms of `stage` over one MagicString of the module, so
 	// the stage is one result and one map wherever the app lists the plugins
 	const stage_host = (stage: TransformStage): Plugin => ({
@@ -442,6 +468,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		async transform(raw, id) {
 			const mine = stage_transforms.filter((s) => s.stage === stage && (s.filter?.(id) ?? true));
 			if (mine.length === 0) return null;
+			const left = barrels_left_of(this.environment.name, stage);
+			left.forget(id);
 			// edits land by parser offsets: no byte-order mark in front of them (compiler/bom.ts)
 			const code = strip_bom(raw);
 			const edit = new MagicString(code);
@@ -459,7 +487,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					}
 					return r && !r.external ? r.id.replace(BACKSLASH_G, '/') : null;
 				},
-				watch: (file) => this.addWatchFile(file)
+				watch: (file) => this.addWatchFile(file),
+				emit: (e) => left.record(id, e.barrel, e.reason)
 			};
 			for (const s of mine) await s.transform(t);
 			return edit.hasChanged()
@@ -1048,7 +1077,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						}
 						return sources.get(file);
 					};
-					const bytes = client_modules ? island_subgraph_bytes(client_modules as never, read) : {};
+					const bytes = client_modules
+						? island_subgraph_bytes(client_modules as never, read, barrel_why)
+						: {};
 					res.setHeader('content-type', 'application/json');
 					res.end(JSON.stringify({ names: compiler.region_names(), bytes }));
 				});
@@ -1416,6 +1447,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				order: 'pre',
 				sequential: true,
 				handler() {
+					// (each build leg's end, and the dev server closing: its word on barrels is done)
+					barrels_left.clear();
 					if (!maps_pending) return;
 					const { dir, bundle } = maps_pending;
 					maps_pending = null;
@@ -1609,11 +1642,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// code of its own and many modules behind it — a re-export index the barrel pass left
 				// (it has side effects, or the pass is off), so everything it re-exports ships with the
 				// island. The bundler's own module info decides; only with a profiler, like `contents`.
-				const barrels: Record<string, { name: string; fanout: number }[]> = {};
+				const barrels: Record<string, ChunkBarrel[]> = {};
 				if (measure) {
 					for (const [key, chunk] of Object.entries(bundle)) {
 						if (chunk.type !== 'chunk') continue;
-						const found: { name: string; fanout: number }[] = [];
+						const found: ChunkBarrel[] = [];
 						for (const id of chunk.moduleIds ?? []) {
 							if (id.startsWith('\0')) continue;
 							// (a component uses what it imports — a small one composing seven children is no
@@ -1626,7 +1659,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							const own = info.code?.length ?? Infinity;
 							if (fanout >= 6 && own <= fanout * 160) {
 								const name = summarize_chunk_contents([id], 1, 1)[0];
-								if (name) found.push({ name, fanout });
+								const why = barrel_why(id, info.importers);
+								if (name) found.push(why.length ? { name, fanout, why } : { name, fanout });
 							}
 						}
 						if (found.length)

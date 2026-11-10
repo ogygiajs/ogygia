@@ -7,7 +7,7 @@ import { snapshot } from '@ogygia/core/events';
 import { props_sidecar_of } from '@ogygia/core/internal/instruments';
 import { tool_made } from '@ogygia/core/internal/instruments';
 import type { DevtoolsEvent } from '@ogygia/core/events';
-import type { IslandHazard } from '@ogygia/core/insights';
+import type { IslandBarrel, IslandHazard } from '@ogygia/core/insights';
 
 // ── regexes
 const JS_EXT_RE = /\.js$/;
@@ -115,7 +115,7 @@ export function region_transitive(entry: string | null | undefined): {
 	bytes: number;
 	modules: number;
 	top?: { file: string; bytes: number }[];
-	barrels?: { file: string; fanout: number }[];
+	barrels?: IslandBarrel[];
 	hazards?: IslandHazard[];
 } | null {
 	const id = island_id(entry);

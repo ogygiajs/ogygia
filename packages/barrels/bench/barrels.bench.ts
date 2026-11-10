@@ -100,7 +100,8 @@ bench(
 					edit,
 					environment: 'client',
 					resolve: (s, importer) => a.resolve(s, importer),
-					watch: () => {}
+					watch: () => {},
+					emit: () => {}
 				});
 				if (edit.hasChanged()) edits++;
 			}
