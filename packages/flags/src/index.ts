@@ -19,7 +19,7 @@ import { fnv1a32, type StandardSchemaV1 } from '@ogygia/core/plugin/utils';
 import { flags_app } from './app.ts';
 import { warn } from './messages.ts';
 import { source_answered, source_failed, source_mark, source_reset } from './source-health.ts';
-import { machine, outbox, policy } from '@ogygia/machine';
+import { machine, outbox, policy, say } from '@ogygia/machine';
 
 export type CtxLike = {
 	request: Request;
@@ -167,8 +167,8 @@ const queue_def = /* @__PURE__ */ machine<QueueStates>()({
 const _exposures = /* @__PURE__ */ queue_def.create();
 /** What the next batch takes. */
 let _queue: ExposureEvent[] = [];
-/** The last batch was given up: the next one given up is not said again until one is taken. */
-let _sink_failing = false;
+/** A batch given up is said once per failing streak: the next is not said until one is taken. */
+const _sink = /* @__PURE__ */ say({ max: 1 });
 /** The last batch put, until it settles: the request's end waits for it (the outbox sends in
  *  order, so every batch before it has settled by then). */
 let _last_sent: Promise<void> | null = null;
@@ -187,14 +187,12 @@ const _batches = /* @__PURE__ */ outbox<ExposureEvent[]>({
 	name: 'flags exposures',
 	send: async (batch) => {
 		await _exposure?.(batch);
-		_sink_failing = false;
+		_sink.ok('sink');
 	},
 	retry: EXPOSURE_POLICY,
 	inOrder: true,
 	giveUp: (_batch, error) => {
-		if (_sink_failing) return;
-		_sink_failing = true;
-		warn('flags_exposure_failed', error);
+		_sink.once('sink', () => warn('flags_exposure_failed', error));
 	},
 	waitUntil: (work) => flags_app()?.keepAlive(work)
 });
