@@ -111,6 +111,26 @@ describe('the virtual-module table', () => {
 		);
 	});
 
+	it('imports a realm module’s names from the entries that have them', () => {
+		const code = [
+			`import { regionTtl, regionCss as css, sign } from 'ogygia:server';`,
+			`export { kitTransport as transport } from "ogygia:region";`,
+			`import type { X } from 'ogygia:server';`,
+			`import * as all from 'ogygia:boot';`
+		].join('\n');
+		expect(table.split_realm_imports(code)).toBe(
+			[
+				`import { regionTtl } from 'virtual:ogygia/region-ttl'; import { islandCss as css } from 'virtual:ogygia/island-deps'; import { sign } from 'virtual:ogygia/sign';`,
+				`export { transport } from "virtual:ogygia/kit-transport";`,
+				`import type { X } from 'ogygia:server';`,
+				`import * as all from 'ogygia:boot';`
+			].join('\n')
+		);
+		expect(table.split_realm_imports(`import { x } from './a.ts';`)).toBeNull();
+		// a name the realm module does not have stays, for the bundler to refuse
+		expect(table.split_realm_imports(`import { nope } from 'ogygia:server';`)).toBeNull();
+	});
+
 	it('refuses two entries that give their realm one name', () => {
 		const a = virtual.value({ realm: 'server', id: 'a', exports: ['x'], from: () => ({ x: 1 }) });
 		const b = virtual.value({ realm: 'server', id: 'b', exports: ['x'], from: () => ({ x: 2 }) });

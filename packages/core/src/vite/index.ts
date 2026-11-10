@@ -1220,6 +1220,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				if (!options?.ssr && KIT_CLIENT_APP_RE.test(id)) {
 					source += KIT_PAGE_THREAD + KIT_DISCLOSE_VERSION;
 				}
+				// a realm module's names, imported from the entries that have them (the graph a page
+				// ships is the names it uses: compiler/virtual/resolver.ts `split_realm_imports`)
+				source = compiler.split_realm_imports(source) ?? source;
 
 				// The whole per-file pass — content-preset tag ▸ macros ▸ host-island transform ▸ ts-region
 				// mint ▸ $app shim — is the driver's; `this.emitFile` (the one Vite primitive it needs, for

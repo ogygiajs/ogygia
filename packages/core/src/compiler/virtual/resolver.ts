@@ -26,6 +26,10 @@ const names_of = (e: ModuleEntry<unknown>): string[] =>
 /** The id the bundler keys an entry's module by (the alias while one exists: the output does not move). */
 const key_of = (e: ModuleEntry<unknown>): string => e.alias ?? specifier(e.realm, e.id);
 
+/** A static named import of a realm module (`import { a, b as c } from 'ogygia:server'`). */
+const REALM_IMPORT_G =
+	/\b(import|export)\s*\{([^}]*)\}\s*from\s*(['"])ogygia:(server|boot|region|dev)\3;?/g;
+
 /** Is this specifier in ogygia's virtual namespace (the realm-named one or the legacy one)? */
 export const is_virtual_specifier = (source: string): boolean =>
 	source.startsWith(OGYGIA_SCHEME) || source.startsWith(LEGACY_PREFIX);
@@ -160,6 +164,42 @@ export class VirtualTable<A> {
 				return family.load(app, leg, bare.slice(prefix.length));
 		}
 		return null;
+	}
+
+	/**
+	 * A module's named imports of a realm module, rewritten to import each name from the entry
+	 * module that has it: `import { regionTtl, sign } from 'ogygia:server'` becomes one import per
+	 * entry. The realm module is the API; the bundler's graph keeps one edge per entry, so what a
+	 * page ships (its chunks and their contents) is decided by the names it uses, never by the realm
+	 * module's other entries. `null`: nothing to rewrite. (`import *` keeps the realm module.)
+	 */
+	split_realm_imports(code: string): string | null {
+		if (!code.includes(OGYGIA_SCHEME)) return null;
+		let changed = false;
+		const out = code.replace(
+			REALM_IMPORT_G,
+			(whole, kw: string, list: string, quote: string, realm: string) => {
+				const names = this.#realms[realm as Realm];
+				if (!names) return whole;
+				const by_module = new Map<string, string[]>();
+				for (const part of list.split(',')) {
+					const spec = part.trim();
+					if (!spec) continue;
+					const [name, local = name] = spec.split(/\s+as\s+/);
+					const found = names.get(name);
+					if (!found) return whole; // the bundler's error: the realm module has no such name
+					const [own, module] = found;
+					const list_for = by_module.get(module) ?? [];
+					list_for.push(own === local ? own : `${own} as ${local}`);
+					by_module.set(module, list_for);
+				}
+				changed = true;
+				return [...by_module]
+					.map(([module, l]) => `${kw} { ${l.join(', ')} } from ${quote}${module}${quote};`)
+					.join(' ');
+			}
+		);
+		return changed ? out : null;
 	}
 
 	/** Is the module only definitions (a realm module, or an entry it re-exports from)? The bundler

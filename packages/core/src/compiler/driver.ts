@@ -240,6 +240,10 @@ export class Compiler implements CoreApp {
 	}
 	/** Every virtual module this session serves (./virtual/table.ts). */
 	readonly #virtuals = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path);
+	/** A module's named imports of a realm module, per entry (./virtual/resolver.ts). */
+	split_realm_imports(code: string): string | null {
+		return this.#virtuals.split_realm_imports(code);
+	}
 	/** The resolved ids of the virtual modules a dev change to `what` invalidates. */
 	watching(what: Watch): string[] {
 		return this.#virtuals.watching(what);
