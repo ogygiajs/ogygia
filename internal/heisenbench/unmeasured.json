@@ -2199,6 +2199,14 @@
 		{
 			"id": "packages/content/src/markdown/shiki.ts > cache:0~7f893a > onEvict",
 			"reason": "disposes one highlighter past the cap (a Shiki object, never ran in tests: the cap is never reached), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/profiler/embedded-maps.ts > embedded_source > map:0~31820d",
+			"reason": "profiler only: lists the known app roots for one source path, linear in the roots (one per app)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > keeping",
+			"reason": "profiler only: reads the module's kept-answers state (hidden state), constant work"
 		}
 	]
 }
