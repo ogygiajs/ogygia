@@ -10,6 +10,7 @@ import { BARREL_LEFT_REASONS, type BarrelLeftReason } from '../../contract/barre
 export const BARREL_LEFT_CAP = 2000;
 
 const QUERY_RE = /[?#].*$/;
+const NODE_MODULES_RE = /[\\/]node_modules[\\/]/;
 const clean = (id: string): string => id.replace(QUERY_RE, '');
 
 export interface BarrelLeftTable {
@@ -67,7 +68,8 @@ export function barrel_left_table(cap: number = BARREL_LEFT_CAP): BarrelLeftTabl
 			const found = new Set<BarrelLeftReason>();
 			for (const reasons of by_barrel.get(clean(barrel))?.values() ?? [])
 				for (const r of reasons) found.add(r);
-			if (unparsable.size > 0)
+			// (a dependency's barrel is rewritten only when the app lists it: it gets its own word)
+			if (unparsable.size > 0 && !NODE_MODULES_RE.test(barrel))
 				for (const i of importers)
 					if (unparsable.has(clean(i))) {
 						found.add('unparsable');
