@@ -721,7 +721,8 @@ const no_string_concat = {
 /**
  * `ogygia/prefer-dedent`: text of several lines is written as lines, in one `dedent` template
  * (`dedent.inline` for text that ends up on one line). It flags a string or template literal with
- * two or more `\n` escapes, and an array of string pieces joined with `'\n'`. No fix: a hand
+ * two or more `\n` escapes, and an array of string pieces joined with `'\n'` (not one line of text
+ * with newlines only at its edges). No fix: a hand
  * conversion proves its bytes the same.
  */
 const MESSAGE_DEDENT =
@@ -745,9 +746,12 @@ const is_text_piece = (e: Node): boolean => {
 
 /** A value's stand-in while the fixer proves a conversion (a character no text holds). */
 const VALUE_MARK = '\u0001';
-/** Text a conversion leaves alone: a script, preformatted text, or a control character it cannot
- *  write as itself. */
-const LEAVE_TEXT_RE = /<\/?(script|pre|textarea)\b|[\0-\b\v-\x1f\x7f]/i;
+/** Text a conversion leaves alone: a control character it cannot write as itself. (Script and
+ *  preformatted text convert like any other: the proof keeps their bytes.) */
+const LEAVE_TEXT_RE = /[\0-\b\v-\x1f\x7f]/;
+/** In a .svelte or HTML file, a template holding `</script` would close its own script block. */
+const CLOSE_SCRIPT_RE = /<\/script/i;
+const EDGE_NEWLINES_G = /^\n+|\n+$/g;
 /** A node whose string cannot become a template: a key, a type, a module specifier. */
 const KEEP_PARENTS = new Set([
 	'ImportDeclaration',
@@ -802,7 +806,9 @@ function dedent_fix(
 	cooked: string,
 	values: string[]
 ): { text: string; needs_import: boolean } | null {
-	if (LEAVE_TEXT_RE.test(cooked.replaceAll(VALUE_MARK, ''))) return null;
+	const plain = cooked.replaceAll(VALUE_MARK, '');
+	if (LEAVE_TEXT_RE.test(plain)) return null;
+	if (/\.(svelte|html)$/.test(context.filename ?? '') && CLOSE_SCRIPT_RE.test(plain)) return null;
 	// the newlines at each end are written outside the template (dedent trims blank edges)
 	const lead_n = /^\n*/.exec(cooked)![0].length;
 	const tail_n = /\n*$/.exec(cooked.slice(lead_n))![0].length;
@@ -892,6 +898,8 @@ const prefer_dedent = {
 			return out;
 		};
 		const report = (node: Node, cooked: string | null, values: string[]) => {
+			// (newlines only at its edges: one line of text, set apart; no block to write)
+			if (cooked !== null && !cooked.replace(EDGE_NEWLINES_G, '').includes('\n')) return;
 			const parent = node.parent as Node | undefined;
 			const fixable =
 				cooked !== null &&
