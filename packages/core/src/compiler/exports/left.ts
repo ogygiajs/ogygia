@@ -4,25 +4,7 @@
  * why. Each module's entries are its LATEST transform's: a module transformed again forgets what it
  * said before. Bounded: a new barrel past the cap is not recorded (the finding then says no reason).
  */
-
-/** Every reason, in the order a finding lists them. */
-export const BARREL_LEFT_REASONS = [
-	'impure',
-	'kept',
-	'outside-project',
-	'opaque',
-	'own',
-	'ambiguous',
-	'pinned',
-	'namespace',
-	'unparsable'
-] as const;
-
-/** Why an import stayed on its barrel: the barrel runs code of its own, the app keeps it, it lies
- *  outside the project, it hides names behind a module that cannot be read, it defines the name
- *  itself, it has two homes for the name, the import carries a region's identity, the import takes
- *  it whole, or the importer could not be parsed. */
-export type BarrelLeftReason = (typeof BARREL_LEFT_REASONS)[number];
+import { BARREL_LEFT_REASONS, type BarrelLeftReason } from '../../contract/barrels.ts';
 
 /** How many barrels (and unparsable importers) one leg's table holds. */
 export const BARREL_LEFT_CAP = 2000;

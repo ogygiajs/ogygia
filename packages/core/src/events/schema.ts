@@ -18,7 +18,7 @@
  * the TS field names stay terse. Domains mirror the note's Schema-v1 table.
  */
 
-import type { BarrelLeftReason } from '../compiler/exports/left.ts';
+import type { BarrelLeftReason } from '../contract/barrels.ts';
 
 /** Bump only on a breaking shape change; a trace stamps this so a reader can gate on it. */
 export const DEVTOOLS_SCHEMA_VERSION = 1;

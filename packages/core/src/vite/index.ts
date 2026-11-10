@@ -95,12 +95,8 @@ import {
 	type WalkResolve
 } from '../compiler/fouc-css.ts';
 import { ExportIndex, Shapes } from '../compiler/exports/index.ts';
-import {
-	BARREL_LEFT_REASONS,
-	barrel_left_table,
-	type BarrelLeftReason,
-	type BarrelLeftTable
-} from '../compiler/exports/left.ts';
+import { barrel_left_table, type BarrelLeftTable } from '../compiler/exports/left.ts';
+import { BARREL_LEFT_REASONS, type BarrelLeftReason } from '../contract/barrels.ts';
 import type { ChunkBarrel } from '../contract/virtual-modules.ts';
 import { strip_bom } from '../compiler/bom.ts';
 

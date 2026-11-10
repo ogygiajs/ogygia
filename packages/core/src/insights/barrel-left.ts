@@ -3,10 +3,10 @@
  * pass told the build (`compile.barrel.left`), and what to do about each. The dock's finding and the
  * profiler's both say it.
  */
-import type { BarrelLeftReason } from '../compiler/exports/left.ts';
+import type { BarrelLeftReason } from '../contract/barrels.ts';
 
 export type { BarrelLeftReason };
-export type { IslandBarrel } from '../compiler/dev/region-bytes.ts';
+export type { IslandBarrel } from '../contract/barrels.ts';
 export type { ChunkBarrel } from '../contract/virtual-modules.ts';
 
 const WORDS: Record<BarrelLeftReason, string> = {

@@ -4,7 +4,7 @@
  * `.d.ts` files point at these; the code that imports a module reads its types from here.
  */
 import type { ServerPluginEntry } from '../plugin/server.ts';
-import type { BarrelLeftReason } from '../compiler/exports/left.ts';
+import type { BarrelLeftReason } from './barrels.ts';
 
 /** A re-export barrel a chunk still holds: its name, the modules it brings, and why the barrel pass
  *  left it (when it said). */
