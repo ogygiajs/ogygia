@@ -178,9 +178,15 @@ bench(
 
 /** A module declaring `flags` flags, each among a few lines of other code. */
 function flags_module(flags: number): string {
-	let src = `import { flag } from '@ogygia/flags';\nimport { format } from '$lib/format';\n\n`;
+	let src = `${dedent`
+		import { flag } from '@ogygia/flags';
+		import { format } from '$lib/format';
+	`}\n\n`;
 	for (let i = 0; i < flags; i++)
-		src = `${src}export const flag${i} = flag('flag-${i}', { a: 50, b: 50 });\nexport const label${i} = format('label ${i}');\n\n`;
+		src = `${dedent`
+			${src}export const flag${i} = flag('flag-${i}', { a: 50, b: 50 });
+			export const label${i} = format('label ${i}');
+		`}\n\n`;
 	return src;
 }
 

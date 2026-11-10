@@ -123,18 +123,18 @@ describe('build_module_map: a module whose imports the bundler dropped', () => {
 
 describe("build_module_map: the bundler's own region markers", () => {
 	it('each //#region … //#endregion is a module at exactly those lines', () => {
-		const code = [
-			"import { x } from './shared.js';",
-			'//#region ../../node_modules/.pnpm/@sveltejs+kit@2/node_modules/@sveltejs/kit/src/runtime/server/respond.js',
-			'function respond() {',
-			'\treturn 1;',
-			'}',
-			'//#endregion',
-			'//#region src/lib/Card.svelte',
-			'function Card($$renderer) {}',
-			'//#endregion',
-			'export { respond, Card };'
-		].join('\n');
+		const code = dedent`
+			import { x } from './shared.js';
+			//#region ../../node_modules/.pnpm/@sveltejs+kit@2/node_modules/@sveltejs/kit/src/runtime/server/respond.js
+			function respond() {
+				return 1;
+			}
+			//#endregion
+			//#region src/lib/Card.svelte
+			function Card($$renderer) {}
+			//#endregion
+			export { respond, Card };
+		`;
 		const map = build_module_map(
 			{
 				'index.js': {
@@ -155,14 +155,14 @@ describe("build_module_map: the bundler's own region markers", () => {
 
 describe("build_module_map: the app's own folding comments inside a module", () => {
 	it('a //#region that names no module is not a module, and does not end the real one early', () => {
-		const code = [
-			'//#region src/lib/a.ts',
-			'//#region Helpers',
-			'function h() {}',
-			'//#endregion',
-			'function a() {}',
-			'//#endregion'
-		].join('\n');
+		const code = dedent`
+			//#region src/lib/a.ts
+			//#region Helpers
+			function h() {}
+			//#endregion
+			function a() {}
+			//#endregion
+		`;
 		const map = build_module_map(
 			{
 				'x.js': {

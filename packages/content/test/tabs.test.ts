@@ -167,7 +167,12 @@ describe('code-group — fence robustness', () => {
 		expect(run(src)).toContain(`${F}js`);
 	});
 	it('tolerates an unclosed fence (runs to block end)', () => {
-		const src = [`::: code-group`, `${F}bash [npm]`, 'npm i', ':::'].join('\n');
+		const src = dedent`
+			::: code-group
+			${F}bash [npm]
+			npm i
+			:::
+		`;
 		expect(transform_tabs(src).used).toBe(true);
 		expect(labels(src)).toEqual(['npm']);
 	});
@@ -179,14 +184,14 @@ describe('code-group — fence robustness', () => {
 });
 
 describe('tabs — basics', () => {
-	const src = [
-		'::: tabs',
-		'== macOS',
-		'brew install node',
-		'== Linux',
-		'apt install node',
-		':::'
-	].join('\n');
+	const src = dedent`
+		::: tabs
+		== macOS
+		brew install node
+		== Linux
+		apt install node
+		:::
+	`;
 	it('emits one Tab per == marker', () => {
 		expect(labels(src)).toEqual(['macOS', 'Linux']);
 	});
@@ -195,7 +200,13 @@ describe('tabs — basics', () => {
 		expect(run(src)).toContain('apt install node');
 	});
 	it('drops content before the first == marker', () => {
-		const s = ['::: tabs', 'preamble', '== A', 'body', ':::'].join('\n');
+		const s = dedent`
+			::: tabs
+			preamble
+			== A
+			body
+			:::
+		`;
 		expect(run(s)).not.toContain('preamble');
 		expect(labels(s)).toEqual(['A']);
 	});
@@ -203,7 +214,14 @@ describe('tabs — basics', () => {
 
 describe('tabs — grouping', () => {
 	it('auto-numbers independent groups per block', () => {
-		const b = ['::: tabs', '== A', 'x', '== B', 'y', ':::'].join('\n');
+		const b = dedent`
+			::: tabs
+			== A
+			x
+			== B
+			y
+			:::
+		`;
 		const src = dedent`
 			${b}
 
@@ -213,7 +231,12 @@ describe('tabs — grouping', () => {
 		expect(groups).toEqual(['tabs0', 'tabs1']);
 	});
 	it('honours an explicit group name', () => {
-		const src = ['::: tabs install', '== A', 'x', ':::'].join('\n');
+		const src = dedent`
+			::: tabs install
+			== A
+			x
+			:::
+		`;
 		expect(group(src)).toBe('install');
 	});
 });
@@ -305,17 +328,27 @@ describe('multiple & mixed blocks', () => {
 
 describe('malformed / edge cases (never throws, always valid)', () => {
 	it('an empty code-group emits nothing and is not "used"', () => {
-		const src = ['::: code-group', ':::'].join('\n');
+		const src = dedent`
+			::: code-group
+			:::
+		`;
 		const r = transform_tabs(src);
 		expect(r.used).toBe(false);
 		expect(r.code).not.toContain('<TabGroup');
 	});
 	it('an empty tabs block emits nothing', () => {
-		const src = ['::: tabs', ':::'].join('\n');
+		const src = dedent`
+			::: tabs
+			:::
+		`;
 		expect(transform_tabs(src).used).toBe(false);
 	});
 	it('tolerates an unclosed block (runs to EOF)', () => {
-		const src = ['::: tabs', '== A', 'body without a closing marker'].join('\n');
+		const src = dedent`
+			::: tabs
+			== A
+			body without a closing marker
+		`;
 		expect(transform_tabs(src).used).toBe(true);
 		expect(labels(src)).toEqual(['A']);
 	});
@@ -328,7 +361,13 @@ describe('malformed / edge cases (never throws, always valid)', () => {
 		expect(labels(src)).toEqual(['npm']);
 	});
 	it('does not treat "==" with no space as a marker', () => {
-		const src = ['::: tabs', '==NoSpace', '== Real', 'x', ':::'].join('\n');
+		const src = dedent`
+			::: tabs
+			==NoSpace
+			== Real
+			x
+			:::
+		`;
 		expect(labels(src)).toEqual(['Real']);
 	});
 	it('is a no-op on empty input', () => {
@@ -451,19 +490,37 @@ describe('well-formed output', () => {
 		expect(fences_balanced(run(src))).toBe(true);
 	});
 	it('synthesizes a closer for an unclosed code-group fence', () => {
-		const src = [`::: code-group`, `${F}bash [npm]`, 'npm i', ':::'].join('\n');
+		const src = dedent`
+			::: code-group
+			${F}bash [npm]
+			npm i
+			:::
+		`;
 		const code = run(src);
 		expect(labels(src)).toEqual(['npm']);
 		expect(fences_balanced(code)).toBe(true);
 	});
 	it('synthesizes a closer for an unclosed fence inside a tabs body', () => {
-		const src = ['::: tabs', '== A', `${F}sh`, 'echo hi', ':::'].join('\n');
+		const src = dedent`
+			::: tabs
+			== A
+			${F}sh
+			echo hi
+			:::
+		`;
 		const code = run(src);
 		expect(labels(src)).toEqual(['A']);
 		expect(fences_balanced(code)).toBe(true);
 	});
 	it('wraps each tab in exactly one <Tab>…</Tab>', () => {
-		const src = ['::: tabs', '== A', 'x', '== B', 'y', ':::'].join('\n');
+		const src = dedent`
+			::: tabs
+			== A
+			x
+			== B
+			y
+			:::
+		`;
 		const code = run(src);
 		expect(code.match(/<Tab /g)).toHaveLength(2);
 		expect(code.match(/<\/Tab>/g)).toHaveLength(2);
@@ -487,7 +544,12 @@ describe('grouping — cross-block sync & isolation', () => {
 		expect(group(src)).toBe('shared');
 	});
 	it('tabs blocks keep independent auto groups even when interleaved with code-groups', () => {
-		const t = ['::: tabs', '== A', 'x', ':::'].join('\n');
+		const t = dedent`
+			::: tabs
+			== A
+			x
+			:::
+		`;
 		const c = [`::: code-group`, `${F}b [npm]`, 'y', F, ':::'].join('\n');
 		expect(
 			groups(dedent`

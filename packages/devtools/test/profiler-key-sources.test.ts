@@ -91,24 +91,24 @@ describe('key_sources', () => {
 
 describe('constant_work', () => {
 	it('load lines that read only the module: computed the same on every request', () => {
-		const src = [
-			"import { PRODUCTS } from '$lib/data';",
-			"import { validate, attach, matches, rank } from '$lib/catalog';",
-			'const cache = new Map();',
-			'const LIMIT = 10;',
-			'export const load = async ({ url }) => {',
-			"\tconst term = url.searchParams.get('q');",
-			'\tconst valid = validate(PRODUCTS);',
-			'\tconst joined = attach(valid, LIMIT);',
-			'\tconst hits = joined.filter((p) => matches(p, term));',
-			'\tconst now = Date.now();',
-			"\tconst hit = cache.get('x');",
-			'\tconst ranked = rank(valid);',
-			'\tconst again = rank(hits);',
-			'\tconst live = await fetch(PRODUCTS[0].url);',
-			'\treturn { hits, now, hit, ranked, again, live };',
-			'};'
-		].join('\n');
+		const src = dedent`
+			import { PRODUCTS } from '$lib/data';
+			import { validate, attach, matches, rank } from '$lib/catalog';
+			const cache = new Map();
+			const LIMIT = 10;
+			export const load = async ({ url }) => {
+				const term = url.searchParams.get('q');
+				const valid = validate(PRODUCTS);
+				const joined = attach(valid, LIMIT);
+				const hits = joined.filter((p) => matches(p, term));
+				const now = Date.now();
+				const hit = cache.get('x');
+				const ranked = rank(valid);
+				const again = rank(hits);
+				const live = await fetch(PRODUCTS[0].url);
+				return { hits, now, hit, ranked, again, live };
+			};
+		`;
 		expect(constant_work(src)).toEqual([
 			{ line: 7, names: ['valid'], calls: ['validate'] },
 			{ line: 8, names: ['joined'], calls: ['attach'] },
@@ -118,19 +118,19 @@ describe('constant_work', () => {
 	});
 
 	it("a per-call module's value (node:crypto, $app/server) is never the same every request", () => {
-		const src = [
-			"import { randomUUID } from 'node:crypto';",
-			"import { hrtime } from 'process';",
-			"import { getRequestEvent } from '$app/server';",
-			"import { validate, PRODUCTS } from '$lib/data';",
-			'export const load = async () => {',
-			'\tconst nonce = randomUUID();',
-			'\tconst t = hrtime();',
-			'\tconst ev = getRequestEvent();',
-			'\tconst valid = validate(PRODUCTS);',
-			'\treturn { nonce, t, ev, valid };',
-			'};'
-		].join('\n');
+		const src = dedent`
+			import { randomUUID } from 'node:crypto';
+			import { hrtime } from 'process';
+			import { getRequestEvent } from '$app/server';
+			import { validate, PRODUCTS } from '$lib/data';
+			export const load = async () => {
+				const nonce = randomUUID();
+				const t = hrtime();
+				const ev = getRequestEvent();
+				const valid = validate(PRODUCTS);
+				return { nonce, t, ev, valid };
+			};
+		`;
 		expect(constant_work(src)).toEqual([{ line: 9, names: ['valid'], calls: ['validate'] }]);
 	});
 
@@ -209,62 +209,63 @@ describe('constant_work', () => {
 		expect(constant_work(multi)).toEqual([]);
 		expect(hoist_plan(multi)).toBeNull();
 		// a clock read on the line after the arrow
-		const arrow = [
-			"import { PRODUCTS } from '$lib/data';",
-			'const stamp = () =>\n\tDate.now();',
-			'const tag = (p) => ({ ...p, at: stamp() });',
-			'export const load = async () => {',
-			'\tconst tagged = PRODUCTS.map(tag);',
-			'\treturn { tagged };',
-			'};'
-		].join('\n');
+		const arrow = dedent`
+			import { PRODUCTS } from '$lib/data';
+			const stamp = () =>
+				Date.now();
+			const tag = (p) => ({ ...p, at: stamp() });
+			export const load = async () => {
+				const tagged = PRODUCTS.map(tag);
+				return { tagged };
+			};
+		`;
 		expect(constant_work(arrow)).toEqual([]);
 		// `products` here is the request's rows, not the imported fixture
-		const shadow = [
-			"import { products, sortAll } from './fixtures';",
-			'export const load = async ({ locals }) => {',
-			'\tconst products = await locals.db.all();',
-			'\tconst sorted = sortAll(products);',
-			'\treturn { sorted };',
-			'};'
-		].join('\n');
+		const shadow = dedent`
+			import { products, sortAll } from './fixtures';
+			export const load = async ({ locals }) => {
+				const products = await locals.db.all();
+				const sorted = sortAll(products);
+				return { sorted };
+			};
+		`;
 		expect(constant_work(shadow)).toEqual([]);
 	});
 
 	it('a value the load changes afterwards is its own, and so is what it was made from', () => {
-		const src = [
-			"import { DEFAULTS, PRODUCTS, validate, rank } from '$lib/data';",
-			'export const load = async ({ locals }) => {',
-			'\tconst state = structuredClone(DEFAULTS);',
-			'\tstate.user.name = locals.name;',
-			'\tconst list = validate(PRODUCTS);',
-			'\tconst alias = list;',
-			'\talias.push(locals.extra);',
-			'\tconst ranked = rank(PRODUCTS);',
-			'\tranked.sort((a, b) => a.n - b.n);',
-			'\tconst counts = validate(DEFAULTS);',
-			'\tcounts.n++;',
-			'\tconst kept = validate(DEFAULTS);',
-			'\tObject.assign(kept, locals);',
-			'\tconst safe = rank(DEFAULTS);',
-			'\treturn { state, alias, ranked, counts, kept, safe };',
-			'};'
-		].join('\n');
+		const src = dedent`
+			import { DEFAULTS, PRODUCTS, validate, rank } from '$lib/data';
+			export const load = async ({ locals }) => {
+				const state = structuredClone(DEFAULTS);
+				state.user.name = locals.name;
+				const list = validate(PRODUCTS);
+				const alias = list;
+				alias.push(locals.extra);
+				const ranked = rank(PRODUCTS);
+				ranked.sort((a, b) => a.n - b.n);
+				const counts = validate(DEFAULTS);
+				counts.n++;
+				const kept = validate(DEFAULTS);
+				Object.assign(kept, locals);
+				const safe = rank(DEFAULTS);
+				return { state, alias, ranked, counts, kept, safe };
+			};
+		`;
 		// (`rank` also runs on line 8, which stays: its time is not all this line's)
 		expect(constant_work(src)).toEqual([{ line: 14, names: ['safe'], calls: [] }]);
 	});
 
 	it('hoist_plan: the costly lines and what they read, placed above the load', () => {
-		const src = [
-			"import { validate, attach, PRODUCTS } from '$lib/data';",
-			'const LIMIT = 10;',
-			'export const load = async ({ url }) => {',
-			'\tconst unused = PRODUCTS;',
-			'\tconst valid = validate(PRODUCTS);',
-			'\tconst joined = attach(valid, LIMIT);',
-			"\treturn { joined, q: url.searchParams.get('q'), unused };",
-			'};'
-		].join('\n');
+		const src = dedent`
+			import { validate, attach, PRODUCTS } from '$lib/data';
+			const LIMIT = 10;
+			export const load = async ({ url }) => {
+				const unused = PRODUCTS;
+				const valid = validate(PRODUCTS);
+				const joined = attach(valid, LIMIT);
+				return { joined, q: url.searchParams.get('q'), unused };
+			};
+		`;
 		expect(hoist_plan(src)).toEqual({
 			above: 3,
 			stmts: [
@@ -310,19 +311,19 @@ describe('constant_work', () => {
 	});
 
 	it('a statement wrapped over several lines is read whole', () => {
-		const src = [
-			"import { validate, PRODUCTS } from '$lib/data';",
-			'export const load = async ({ url }) => {',
-			'\tconst valid = validate(',
-			'\t\tPRODUCTS,',
-			'\t\t{ strict: true }',
-			'\t);',
-			'\tconst hits = validate(',
-			"\t\turl.searchParams.get('q')",
-			'\t);',
-			'\treturn { valid, hits };',
-			'};'
-		].join('\n');
+		const src = dedent`
+			import { validate, PRODUCTS } from '$lib/data';
+			export const load = async ({ url }) => {
+				const valid = validate(
+					PRODUCTS,
+					{ strict: true }
+				);
+				const hits = validate(
+					url.searchParams.get('q')
+				);
+				return { valid, hits };
+			};
+		`;
 		// `validate` also runs on a per-request statement (7-9): not counted as this line's cost
 		expect(constant_work(src)).toEqual([{ line: 3, names: ['valid'], calls: [] }]);
 		expect(
@@ -344,16 +345,16 @@ describe('constant_work', () => {
 	});
 
 	it('a value written straight into the return counts too; an object key is not a read', () => {
-		const src = [
-			"import { span } from 'ogygia/profiler';",
-			"import { catalog } from '$lib/data';",
-			'export const load = async ({ url }) => {',
-			'\treturn {',
-			"\t\tcatalog: span('cms.catalog', () => catalog(), (c) => ({ rows: c.products.length })),",
-			"\t\tq: url.searchParams.get('q')",
-			'\t};',
-			'};'
-		].join('\n');
+		const src = dedent`
+			import { span } from 'ogygia/profiler';
+			import { catalog } from '$lib/data';
+			export const load = async ({ url }) => {
+				return {
+					catalog: span('cms.catalog', () => catalog(), (c) => ({ rows: c.products.length })),
+					q: url.searchParams.get('q')
+				};
+			};
+		`;
 		expect(constant_work(src)).toEqual([
 			{ line: 5, names: ['catalog'], calls: ['span', 'catalog'] }
 		]);
@@ -411,28 +412,28 @@ describe('late_island_keys', () => {
 
 describe('source reads: the review cases', () => {
 	it("a helper's local is not a module value: a line reading the request stays per request", () => {
-		const src = [
-			"import { parse } from './p';",
-			'function helper() {',
-			'\tconst id = 1;',
-			'\treturn id;',
-			'}',
-			'export const load = async ({ params }) => {',
-			'\tconst { id } = params;',
-			'\tconst item = parse(id);',
-			'\treturn { item };',
-			'};'
-		].join('\n');
+		const src = dedent`
+			import { parse } from './p';
+			function helper() {
+				const id = 1;
+				return id;
+			}
+			export const load = async ({ params }) => {
+				const { id } = params;
+				const item = parse(id);
+				return { item };
+			};
+		`;
 		expect(constant_work(src)).toEqual([]);
 	});
 
 	it("a return type's braces are the type's, not the body", () => {
-		const src = [
-			'export async function load({ params }): Promise<{ a: string }> {',
-			'\tconst a = params.a;',
-			'\treturn { a };',
-			'}'
-		].join('\n');
+		const src = dedent`
+			export async function load({ params }): Promise<{ a: string }> {
+				const a = params.a;
+				return { a };
+			}
+		`;
 		expect(key_sources(src)?.get('a')).toEqual([2, 3]);
 		// an expression body has no block: nothing, not the next function in the file
 		expect(
@@ -448,14 +449,14 @@ describe('source reads: the review cases', () => {
 	});
 
 	it('a `let` declared with no value, then assigned in branches', () => {
-		const src = [
-			'export const load = async ({ url }) => {',
-			'\tlet user;',
-			'\tif (url.x) user = await getA();',
-			'\telse user = await getB();',
-			'\treturn { user };',
-			'};'
-		].join('\n');
+		const src = dedent`
+			export const load = async ({ url }) => {
+				let user;
+				if (url.x) user = await getA();
+				else user = await getB();
+				return { user };
+			};
+		`;
 		expect(key_sources(src)?.get('user')).toEqual([2, 3, 4, 5]);
 	});
 
@@ -745,17 +746,17 @@ describe('load_inputs', () => {
 
 describe('parent_use', () => {
 	it('what the page took from parent(), and the first line that reads it', () => {
-		const src = [
-			'export const load = async ({ parent }) => {',
-			'\tconst { session } = await parent();',
-			"\tconst pricing = await get('pricing');",
-			"\tconst stock = await get('stock');",
-			'\treturn {',
-			'\t\tpricing,',
-			'\t\tsession',
-			'\t};',
-			'};'
-		].join('\n');
+		const src = dedent`
+			export const load = async ({ parent }) => {
+				const { session } = await parent();
+				const pricing = await get('pricing');
+				const stock = await get('stock');
+				return {
+					pricing,
+					session
+				};
+			};
+		`;
 		expect(parent_use(src)).toEqual({
 			line: 2,
 			names: ['session'],

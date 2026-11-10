@@ -242,25 +242,25 @@ describe('embedded_source', () => {
 describe('a chunk with no map', () => {
 	it("the module map's script module at the line, its lines found by their text", () => {
 		const files: Record<string, string> = {
-			'/app/.svelte-kit/output/server/chunks/a.js': [
-				"import { x } from './b.js';", // 1
-				'//#region src/lib/load.ts', // 2
-				'async function load() {', // 3
-				'\tconst a = await get("a");', // 4
-				'\tconst b = await get("b");', // 5
-				'\treturn { a, b };', // 6
-				'}', // 7
-				'//#endregion' // 8
-			].join('\n'),
-			'/app/src/lib/load.ts': [
-				"import { get } from './get';", // 1
-				'', // 2
-				'export async function load(): Promise<Data> {', // 3: changed by the build
-				"\tconst a = await get('a');", // 4
-				"\tconst b = await get('b');", // 5
-				'\treturn { a, b };', // 6
-				'}' // 7
-			].join('\n')
+			'/app/.svelte-kit/output/server/chunks/a.js': dedent`
+				import { x } from './b.js';
+				//#region src/lib/load.ts
+				async function load() {
+					const a = await get("a");
+					const b = await get("b");
+					return { a, b };
+				}
+				//#endregion
+			`,
+			'/app/src/lib/load.ts': dedent`
+				import { get } from './get';
+
+				export async function load(): Promise<Data> {
+					const a = await get('a');
+					const b = await get('b');
+					return { a, b };
+				}
+			`
 		};
 		const r = sourcemap_resolver(
 			(p) => files[p],
@@ -300,36 +300,36 @@ describe('a chunk with no map: what a build does to lines', () => {
 	it('types stripped, two lines folded into one, one line wrapped over five', () => {
 		const chunk = '/app/.svelte-kit/output/server/entries/pages/p/_page.server.ts.js';
 		const files: Record<string, string> = {
-			[chunk]: [
-				'//#region src/routes/p/+page.server.ts', // 1
-				'var prerender = false;', // 2
-				'async function get(origin, name, ms) {', // 3
-				'\treturn (await fetch(`${origin}/api/${name}?ms=${ms}`)).json();', // 4
-				'}', // 5
-				'var load = async ({ url, fetch }) => {', // 6
-				'\tconst [nav, crumbs, recs] = await Promise.all([', // 7
-				'\t\tget(url.origin, "nav", 10),', // 8
-				'\t\tget(url.origin, "recs-slow", 80)', // 9
-				'\t]);', // 10
-				'\treturn {', // 11
-				'\t\tnav,', // 12
-				'\t\trecs', // 13
-				'\t};', // 14
-				'};', // 15
-				'//#endregion' // 16
-			].join('\n'),
-			'/app/src/routes/p/+page.server.ts': [
-				"import type { PageServerLoad } from './$types';", // 1
-				'export const prerender = false;', // 2
-				'async function get(origin: string, name: string, ms: number): Promise<{ name: string }> {', // 3
-				'\tconst res = await fetch(`${origin}/api/${name}?ms=${ms}`);', // 4
-				'\treturn res.json();', // 5
-				'}', // 6
-				'export const load: PageServerLoad = async ({ url, fetch }) => {', // 7
-				"\tconst [nav, crumbs, recs] = await Promise.all([get(url.origin, 'nav', 10), get(url.origin, 'recs-slow', 80)]); // one line", // 8
-				'\treturn { nav, recs };', // 9
-				'};' // 10
-			].join('\n')
+			[chunk]: dedent`
+				//#region src/routes/p/+page.server.ts
+				var prerender = false;
+				async function get(origin, name, ms) {
+					return (await fetch(\`\${origin}/api/\${name}?ms=\${ms}\`)).json();
+				}
+				var load = async ({ url, fetch }) => {
+					const [nav, crumbs, recs] = await Promise.all([
+						get(url.origin, "nav", 10),
+						get(url.origin, "recs-slow", 80)
+					]);
+					return {
+						nav,
+						recs
+					};
+				};
+				//#endregion
+			`,
+			'/app/src/routes/p/+page.server.ts': dedent`
+				import type { PageServerLoad } from './$types';
+				export const prerender = false;
+				async function get(origin: string, name: string, ms: number): Promise<{ name: string }> {
+					const res = await fetch(\`\${origin}/api/\${name}?ms=\${ms}\`);
+					return res.json();
+				}
+				export const load: PageServerLoad = async ({ url, fetch }) => {
+					const [nav, crumbs, recs] = await Promise.all([get(url.origin, 'nav', 10), get(url.origin, 'recs-slow', 80)]); // one line
+					return { nav, recs };
+				};
+			`
 		};
 		const r = sourcemap_resolver(
 			(p) => files[p],
@@ -342,17 +342,17 @@ describe('a chunk with no map: what a build does to lines', () => {
 
 describe('module_imports', () => {
 	it("a server file's $lib and relative script imports, resolved, with the files each may be; packages and components left out", () => {
-		const src = [
-			"import { readFileSync } from 'node:fs';",
-			"import { readFlags } from '$lib/latecomer/flags';",
-			'import {',
-			'\ta,',
-			'\tb',
-			"} from '../shared/util.js';",
-			"import Card from './Card.svelte';",
-			"export { c } from './c.ts';",
-			"const x = 'not/an/import';"
-		].join('\n');
+		const src = dedent`
+			import { readFileSync } from 'node:fs';
+			import { readFlags } from '$lib/latecomer/flags';
+			import {
+				a,
+				b
+			} from '../shared/util.js';
+			import Card from './Card.svelte';
+			export { c } from './c.ts';
+			const x = 'not/an/import';
+		`;
 		expect(module_imports('routes/p/+page.server.ts', src)).toEqual([
 			'lib/latecomer/flags.ts',
 			'lib/latecomer/flags.js',

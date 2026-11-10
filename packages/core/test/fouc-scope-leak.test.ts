@@ -16,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compileFoucScopedCss } from '../src/compiler/fouc-css.ts';
 import { preprocess_component_for_css } from '../src/vite/style-preprocess.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 // The ogygia package root — where `sass-embedded` (a devDependency) resolves, the way the real plugin
 // resolves sass from the app root.
@@ -32,10 +33,10 @@ const STORE_REF = [
 ].join('\n');
 
 // scss-only syntax ($var) — svelte.compile can't read scss, so it threw too.
-const SCSS = [
-	`<div class="breadcrumb-header-inner"><span class="green-header">x</span></div>`,
-	`<style lang="scss">$w: 100%; .breadcrumb-header-inner{width:$w;display:flex} .green-header{color:green}</style>`
-].join('\n');
+const SCSS = dedent`
+	<div class="breadcrumb-header-inner"><span class="green-header">x</span></div>
+	<style lang="scss">$w: 100%; .breadcrumb-header-inner{width:$w;display:flex} .green-header{color:green}</style>
+`;
 
 describe('fouc-scoped CSS: a lake/island keeps Svelte scoping and never leaks global', () => {
 	it('a bare compile (no keepScript) of a store-referencing component is scoped too', () => {

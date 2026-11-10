@@ -72,11 +72,11 @@ describe('code/md — demented shapes that must WORK', () => {
 	});
 
 	it('the whole family markers appearing together, only code/md rewrite here', async () => {
-		const src = [
-			'const a = import.meta.og.code("x", "ts");',
-			'const b = import.meta.og.md("# hi");',
-			'const c = import.meta.og.wire;' // not ours to touch in rewrite_code
-		].join('\n');
+		const src = dedent`
+			const a = import.meta.og.code("x", "ts");
+			const b = import.meta.og.md("# hi");
+			const c = import.meta.og.wire;
+		`;
 		const out = await rewrite_code(src, '/x.ts', MARKUP, echo);
 		expect((out.match(/__og_html_region\(/g) ?? []).length).toBe(2);
 		expect(out).toContain('import.meta.og.wire'); // left for the wire pass

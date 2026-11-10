@@ -37,12 +37,12 @@ describe('dedent', () => {
 
 describe('rewrite_code', () => {
 	it('bakes a template-literal snippet, dedents it, and inlines og_html_region', async () => {
-		const src = [
-			'const ex = import.meta.og.code(`',
-			'\tconst a = 1;',
-			'\tconst b = 2;',
-			'`, "ts");'
-		].join('\n');
+		const src = dedent`
+			const ex = import.meta.og.code(\`
+				const a = 1;
+				const b = 2;
+			\`, "ts");
+		`;
 		const out = await rewrite_code(src, '/app/x.ts', MARKUP, echo);
 		expect(out).toContain(`import { og_html_region as __og_html_region } from 'ogygia/internal';`);
 		expect(out).toContain('__og_html_region(');
@@ -91,11 +91,11 @@ describe('rewrite_code', () => {
 	});
 
 	it('ignores the marker in a comment or string', async () => {
-		const src = [
-			'// import.meta.og.code("fake", "ts")',
-			'const doc = "import.meta.og.code(1)";',
-			'const real = import.meta.og.code("z", "ts");'
-		].join('\n');
+		const src = dedent`
+			// import.meta.og.code("fake", "ts")
+			const doc = "import.meta.og.code(1)";
+			const real = import.meta.og.code("z", "ts");
+		`;
 		const out = await rewrite_code(src, '/app/x.ts', MARKUP, echo);
 		expect((out.match(/__og_html_region\(/g) ?? []).length).toBe(1);
 		expect(out).toContain('// import.meta.og.code("fake", "ts")');
@@ -117,12 +117,12 @@ describe('rewrite_code', () => {
 
 describe('rewrite_code — md()', () => {
 	it('bakes a markdown string (dedented) and inlines og_html_region', async () => {
-		const src = [
-			'const doc = import.meta.og.md(`',
-			'\t# Title',
-			'\tsome **bold** prose',
-			'`);'
-		].join('\n');
+		const src = dedent`
+			const doc = import.meta.og.md(\`
+				# Title
+				some **bold** prose
+			\`);
+		`;
 		const out = await rewrite_code(src, '/app/x.ts', MARKUP, echo);
 		expect(out).toContain(`import { og_html_region as __og_html_region } from 'ogygia/internal';`);
 		expect(out).toContain('__og_html_region(');

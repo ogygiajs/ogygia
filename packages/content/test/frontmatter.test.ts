@@ -359,21 +359,21 @@ describe('parse_yaml — dates stay strings', () => {
 
 describe('parse_yaml — adversarial mixes', () => {
 	it('maps and sequences deeply mixed', () => {
-		const src = [
-			'title: My Post',
-			'draft: false',
-			'author:',
-			'  name: Ada',
-			'  links:',
-			'    - https://a.example',
-			'    - https://b.example',
-			'tags: [js, "ya:ml", yes]',
-			'meta:',
-			'  - key: k1',
-			'    vals: [1, 2]',
-			'  - key: k2',
-			'    vals: []'
-		].join('\n');
+		const src = dedent`
+			title: My Post
+			draft: false
+			author:
+			  name: Ada
+			  links:
+			    - https://a.example
+			    - https://b.example
+			tags: [js, "ya:ml", yes]
+			meta:
+			  - key: k1
+			    vals: [1, 2]
+			  - key: k2
+			    vals: []
+		`;
 		expect(parse_yaml(src)).toEqual({
 			title: 'My Post',
 			draft: false,

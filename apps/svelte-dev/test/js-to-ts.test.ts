@@ -315,27 +315,27 @@ describe('fence claiming', () => {
 // ── the exact state-management page fence (the reported bug, end to end) ────────
 
 describe('the state-management regression fence', () => {
-	const source = [
-		`let user;`,
-		``,
-		`/** @type {import('./$types').PageServerLoad} */`,
-		`export function load() {`,
-		`\treturn { user };`,
-		`}`,
-		``,
-		`/** @satisfies {import('./$types').Actions} */`,
-		`export const actions = {`,
-		`\tdefault: async ({ request }) => {`,
-		`\t\tconst data = await request.formData();`,
-		``,
-		`\t\t// NEVER DO THIS!`,
-		`\t\tuser = {`,
-		`\t\t\tname: data.get('name'),`,
-		`\t\t\tembarrassingSecret: data.get('secret')`,
-		`\t\t};`,
-		`\t}`,
-		`}`
-	].join('\n');
+	const source = dedent`
+		let user;
+
+		/** @type {import('./$types').PageServerLoad} */
+		export function load() {
+			return { user };
+		}
+
+		/** @satisfies {import('./$types').Actions} */
+		export const actions = {
+			default: async ({ request }) => {
+				const data = await request.formData();
+
+				// NEVER DO THIS!
+				user = {
+					name: data.get('name'),
+					embarrassingSecret: data.get('secret')
+				};
+			}
+		}
+	`;
 
 	it('claims the fence and produces the svelte.dev TS shape', () => {
 		const out = ts_of(source);

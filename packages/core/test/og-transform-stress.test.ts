@@ -160,11 +160,11 @@ describe('scanner fallback — when the AST bails on an unparseable tail', () =>
 	const BROKEN = '\nconst broken = (';
 
 	it('wire: still rewrites the valid member, comment/string markers untouched', () => {
-		const src = [
-			`// mention import.meta.og.wire() in a comment`,
-			`const doc = "static wire = import.meta.og.wire({})";`,
-			`class C { static wire = import.meta.og.wire(${CODEC}); }${BROKEN}`
-		].join('\n');
+		const src = dedent`
+			// mention import.meta.og.wire() in a comment
+			const doc = "static wire = import.meta.og.wire({})";
+			class C { static wire = import.meta.og.wire(${CODEC}); }${BROKEN}
+		`;
 		const out = rewrite_wire(src, '/x.ts', MARKUP);
 		expect(out).toContain(`static [${WIRE_EXPR}] = ${CODEC}`);
 		expect(out).toContain(`// mention import.meta.og.wire() in a comment`);

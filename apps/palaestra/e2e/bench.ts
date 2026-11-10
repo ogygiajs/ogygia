@@ -22,6 +22,7 @@ import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import path from 'node:path';
+import { dedent } from 'ogygia/plugin/utils';
 
 const repo = fileURLToPath(new URL('../../..', import.meta.url));
 const label = process.argv[2] || 'unlabeled';
@@ -47,15 +48,15 @@ const wrap = (imports: string, markup: string) => `<script>\n${imports}\n</scrip
 
 // (A) island-heavy host: 6 imports across strategies + a couple usages each
 const heavy = wrap(
-	[
-		`import A from '$lib/A.svelte' with { wake: 'load' };`,
-		`import B from '$lib/B.svelte' with { wake: 'visible' };`,
-		`import C from '$lib/C.svelte' with { wake: 'idle' };`,
-		`import D from '$lib/D.svelte' with { wake: 'interaction' };`,
-		`import E from '$lib/E.svelte' with { render: 'deferred' };`,
-		`import F from '$lib/F.svelte' with { render: 'deferred', fetch: 'visible' };`,
-		`const items = [1,2,3];`
-	].join('\n'),
+	dedent`
+		import A from '$lib/A.svelte' with { wake: 'load' };
+		import B from '$lib/B.svelte' with { wake: 'visible' };
+		import C from '$lib/C.svelte' with { wake: 'idle' };
+		import D from '$lib/D.svelte' with { wake: 'interaction' };
+		import E from '$lib/E.svelte' with { render: 'deferred' };
+		import F from '$lib/F.svelte' with { render: 'deferred', fetch: 'visible' };
+		const items = [1,2,3];
+	`,
 	`<A n={1}/><A n={2}/><B/><C/><D/>{#each items as i}<E name={i}/>{/each}<F/>`
 );
 

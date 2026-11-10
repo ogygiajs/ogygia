@@ -392,27 +392,27 @@ describe('line ledger', () => {
 	});
 
 	it('a map with no mappings (a plugin broke the chain) still resolves by the line’s own text, inside its region', () => {
-		const source = [
-			"import { query } from '$app/server';",
-			'',
-			'export const stock = query(async () => {',
-			"\tconst res = await fetch('/api/stock');",
-			'\tconst j = (await res.json()) as { n: number };',
-			"\tawait log('done');",
-			'\treturn j.n;',
-			'});'
-		].join('\n');
-		const out = [
-			'import { n as query } from "./remote.js";',
-			'//#region src/lib/stock.remote.ts',
-			'var stock = query(async () => {',
-			'\tconst j = await (await fetch("/api/stock")).json();',
-			'\tawait log("done");',
-			'\treturn j.n;',
-			'});',
-			'init_remote_functions(exports, "src/lib/stock.remote.ts");',
-			'//#endregion'
-		].join('\n');
+		const source = dedent`
+			import { query } from '$app/server';
+
+			export const stock = query(async () => {
+				const res = await fetch('/api/stock');
+				const j = (await res.json()) as { n: number };
+				await log('done');
+				return j.n;
+			});
+		`;
+		const out = dedent`
+			import { n as query } from "./remote.js";
+			//#region src/lib/stock.remote.ts
+			var stock = query(async () => {
+				const j = await (await fetch("/api/stock")).json();
+				await log("done");
+				return j.n;
+			});
+			init_remote_functions(exports, "src/lib/stock.remote.ts");
+			//#endregion
+		`;
 		const map = JSON.stringify({
 			version: 3,
 			sources: ['../../src/lib/stock.remote.ts'],

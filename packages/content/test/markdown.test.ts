@@ -217,7 +217,15 @@ describe('prose dialect — remark/rehype passthrough', () => {
 
 describe('scoped heading ids', () => {
 	it('joins the ancestor path for auto-slugged headings', async () => {
-		const code = await render(['# A', '', '## B', '', '### C', '', '## D'].join('\n'));
+		const code = await render(dedent`
+			# A
+
+			## B
+
+			### C
+
+			## D
+		`);
 		expect(code).toContain('<h1 id="a">');
 		expect(code).toContain('id="a-b"');
 		expect(code).toContain('id="a-b-c"');
@@ -227,7 +235,15 @@ describe('scoped heading ids', () => {
 	});
 
 	it('metadata.headings carries the SAME scoped ids', async () => {
-		const code = await render(['# A', '', '## B', '', '### C', '', '## D'].join('\n'));
+		const code = await render(dedent`
+			# A
+
+			## B
+
+			### C
+
+			## D
+		`);
 		const { headings } = metadataOf(code);
 		// h1 is outside the default collect range (min 2) but still scopes its descendants.
 		expect(headings).toEqual([
@@ -238,21 +254,35 @@ describe('scoped heading ids', () => {
 	});
 
 	it('keeps an explicit {#id} verbatim and scopes its children under it', async () => {
-		const code = await render(['## Setup {#install}', '', '### Step'].join('\n'));
+		const code = await render(dedent`
+			## Setup {#install}
+
+			### Step
+		`);
 		expect(code).toContain('id="install"'); // verbatim, NOT the `setup` slug, NOT prefixed
 		expect(code).not.toContain('id="setup"');
 		expect(code).toContain('id="install-step"'); // child scopes under the explicit id
 	});
 
 	it('de-dupes colliding scoped ids with a numeric suffix', async () => {
-		const code = await render(['# A', '', '## B', '', '## B'].join('\n'));
+		const code = await render(dedent`
+			# A
+
+			## B
+
+			## B
+		`);
 		expect(code).toContain('id="a-b"');
 		expect(code).toContain('id="a-b-1"');
 	});
 });
 
 describe('code-block ids', () => {
-	const FENCE = ['```ts', 'const x = 1;', '```'].join('\n');
+	const FENCE = dedent`
+		\`\`\`ts
+		const x = 1;
+		\`\`\`
+	`;
 
 	it('stamps a scoped `slug-code-<hash>` id onto the <pre> in the SSR HTML', async () => {
 		const code = await render(['## Install', '', FENCE].join('\n'));
@@ -291,16 +321,16 @@ describe('tab component injection (plain barrel)', () => {
 	// TabGroup is a plain, overridable wrapper (its internal island carries the `wake`), so the injected
 	// import is an ordinary barrel — no island mark, no `ogygia/content/tab-group` specifier, no upgrade.
 	const INJECTED = `import { TabGroup, Tab } from '@ogygia/content';`;
-	const CODE_GROUP = [
-		'::: code-group',
-		'```bash [npm]',
-		'npm i ogygia',
-		'```',
-		'```bash [pnpm]',
-		'pnpm add ogygia',
-		'```',
-		':::'
-	].join('\n');
+	const CODE_GROUP = dedent`
+		::: code-group
+		\`\`\`bash [npm]
+		npm i ogygia
+		\`\`\`
+		\`\`\`bash [pnpm]
+		pnpm add ogygia
+		\`\`\`
+		:::
+	`;
 
 	it('::: code-group injects the plain TabGroup + Tab barrel import', async () => {
 		const code = await render(['# T', '', CODE_GROUP].join('\n'));

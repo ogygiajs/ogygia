@@ -41,11 +41,11 @@ describe('rewrite_wire — the strict compile construct', () => {
 	});
 
 	it('AST path: a marker in a comment or string is NOT rewritten (and not judged as misuse)', () => {
-		const src = [
-			`// docs mention import.meta.og.wire() here`,
-			`const s = "import.meta.og.wire()";`,
-			`export class C { static wire = import.meta.og.wire(${CODEC}); }`
-		].join('\n');
+		const src = dedent`
+			// docs mention import.meta.og.wire() here
+			const s = "import.meta.og.wire()";
+			export class C { static wire = import.meta.og.wire(${CODEC}); }
+		`;
 		const out = rewrite_wire(src, '/app/x.ts', MARKUP);
 		expect(out).toContain(`// docs mention import.meta.og.wire() here`);
 		expect(out).toContain(`const s = "import.meta.og.wire()";`);
@@ -59,10 +59,10 @@ describe('rewrite_wire — the strict compile construct', () => {
 	});
 
 	it('scanner fallback (unparseable source) still rewrites the legal member', () => {
-		const src = [
-			`class C { static wire = import.meta.og.wire(${CODEC}); }`,
-			`const broken = (`
-		].join('\n');
+		const src = dedent`
+			class C { static wire = import.meta.og.wire(${CODEC}); }
+			const broken = (
+		`;
 		expect(rewrite_wire(src, '/app/x.ts', MARKUP)).toContain(`static [${WIRE_EXPR}] = ${CODEC};`);
 	});
 

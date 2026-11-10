@@ -26,23 +26,23 @@ function svelteConfigProject(extra: Record<string, string> = {}): string {
 			type: 'module',
 			devDependencies: { '@sveltejs/kit': '^2.70.0', svelte: '^5.0.0', vite: '^8.0.0' }
 		}),
-		'svelte.config.js': [
-			"import adapter from '@sveltejs/adapter-node';",
-			"import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';",
-			'',
-			'const config = {',
-			'\tpreprocess: vitePreprocess(),',
-			'\tkit: { adapter: adapter() }',
-			'};',
-			'',
-			'export default config;'
-		].join('\n'),
-		'vite.config.ts': [
-			"import { sveltekit } from '@sveltejs/kit/vite';",
-			"import { defineConfig } from 'vite';",
-			'',
-			'export default defineConfig({ plugins: [sveltekit()] });'
-		].join('\n'),
+		'svelte.config.js': dedent`
+			import adapter from '@sveltejs/adapter-node';
+			import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+
+			const config = {
+				preprocess: vitePreprocess(),
+				kit: { adapter: adapter() }
+			};
+
+			export default config;
+		`,
+		'vite.config.ts': dedent`
+			import { sveltekit } from '@sveltejs/kit/vite';
+			import { defineConfig } from 'vite';
+
+			export default defineConfig({ plugins: [sveltekit()] });
+		`,
 		'tsconfig.json': '{ "extends": "./.svelte-kit/tsconfig.json" }',
 		...extra
 	});
@@ -56,12 +56,12 @@ function viteConfigProject(extra: Record<string, string> = {}): string {
 			type: 'module',
 			devDependencies: { '@sveltejs/kit': '^2.70.0', svelte: '^5.0.0', vite: '^8.0.0' }
 		}),
-		'vite.config.ts': [
-			"import { sveltekit } from '@sveltejs/kit/vite';",
-			"import { defineConfig } from 'vite';",
-			'',
-			'export default defineConfig({ plugins: [sveltekit({ adapter: undefined })] });'
-		].join('\n'),
+		'vite.config.ts': dedent`
+			import { sveltekit } from '@sveltejs/kit/vite';
+			import { defineConfig } from 'vite';
+
+			export default defineConfig({ plugins: [sveltekit({ adapter: undefined })] });
+		`,
 		'tsconfig.json': '{ "extends": "./.svelte-kit/tsconfig.json" }',
 		...extra
 	});

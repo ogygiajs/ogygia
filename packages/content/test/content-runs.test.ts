@@ -2,21 +2,22 @@
 // @ogygia/content goes through the module run's wrapper, asked for once at the top of the module.
 import { describe, expect, it } from 'vitest';
 import { mark_content_calls } from '../src/vite/hmr.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const mark = (code: string) => mark_content_calls(code, '/app/src/lib/docs.server.ts');
 
 describe('mark_content_calls', () => {
 	it('marks a named, a renamed and a namespace content() call, and asks for the run once', () => {
 		const out = mark(
-			[
-				`import { content, folder } from '@ogygia/content';`,
-				`import { content as collection } from '@ogygia/content';`,
-				`import * as c from '@ogygia/content';`,
-				`export const a = content({ loader: folder({}) });`,
-				`export const b = collection({ loader: folder({}) });`,
-				`export const n = c.content({ loader: c.folder({}) });`,
-				`export const lazy = () => content({ loader: folder({}) });`
-			].join('\n')
+			dedent`
+				import { content, folder } from '@ogygia/content';
+				import { content as collection } from '@ogygia/content';
+				import * as c from '@ogygia/content';
+				export const a = content({ loader: folder({}) });
+				export const b = collection({ loader: folder({}) });
+				export const n = c.content({ loader: c.folder({}) });
+				export const lazy = () => content({ loader: folder({}) });
+			`
 		)!;
 		expect(out.code.match(/module_run\?\.\("\/app\/src\/lib\/docs\.server\.ts"\)/g)).toHaveLength(
 			1

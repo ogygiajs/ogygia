@@ -697,7 +697,10 @@ function restore_section(
 			? `- a host (#${e.detail.host ?? '?'}) already had a shadow root when the restore reached it: something upgraded it first (a module script before the restorer, or an insertion ogygia did not make). It was left as served, so its island will heal or re-render.`
 			: `- the transform broke hydration markup: ${e.detail.diff ?? `<${e.detail.host ?? '?'}>`}. Carry every og-* mark along, and render og-h hosts only by their plan (<slot> wrappers, og-shadow, og-keep).`
 	);
-	return `\n\n## ⚠️ Server transform (${events.length})\n${lines.join('\n')}`;
+	return `\n\n${dedent`
+		## ⚠️ Server transform (${events.length})
+		${lines.join('\n')}
+	`}`;
 }
 
 /** Load a REAL page in a headless browser, let its islands hydrate, and read the devtools stream. */
@@ -1429,35 +1432,75 @@ export function render_profile(
 			? `\nScore ${sn.score.a} → ${sn.score.b} (${sn.score.a_grade} → ${sn.score.b_grade})${sn.score.moved.length ? `: ${sn.score.moved.map((m) => `${m.label} ${m.a} → ${m.b}`).join(', ')}` : ''}.`
 			: '';
 	const shared = r.shared?.length
-		? `\n\n## These fixes make other pages faster too\n${r.shared
+		? `\n\n${dedent`
+			## These fixes make other pages faster too
+			${r.shared
 				.map(
 					(f) =>
 						`- \`${f.where}:${f.line}\` (${f.title}): ${f.pages.map((p) => `${p.page} ~${Math.round(p.ms * 10) / 10}ms`).join(', ')}; ~${Math.round(f.total_ms * 10) / 10}ms per render in all`
 				)
-				.join('\n')}`
+				.join('\n')}
+		`}`
 		: '';
 	return [
 		head,
 		dev_note,
-		since ? `\n\n## Since your last profile of this page\n${since}${score}` : '',
+		since
+			? `\n\n${dedent`
+			## Since your last profile of this page
+			${since}${score}
+		`}`
+			: '',
 		// the forecast heads the plan (said once); an older report's plain sum stays with the patterns
 		plan
-			? `\n\n## Do this, in order (each: where to edit, and what it is worth)\n${fc ? forecast_line : ''}${plan}`
+			? `\n\n${dedent`
+				## Do this, in order (each: where to edit, and what it is worth)
+				${fc ? forecast_line : ''}${plan}
+			`}`
 			: '',
 		// the same slow line on other profiled pages: fixed once, all of them faster
 		shared,
 		patterns
-			? `\n\n## Slow patterns (fix these first)\n${plan && fc ? render_patterns(r) : patterns}`
+			? `\n\n${dedent`
+				## Slow patterns (fix these first)
+				${plan && fc ? render_patterns(r) : patterns}
+			`}`
 			: '',
 		r.drill
-			? `\n\n## Where one render went (${r.drill.ms}ms, down to the line; every level adds up)\n${render_drill(r.drill)}`
+			? `\n\n${dedent`
+				## Where one render went (${r.drill.ms}ms, down to the line; every level adds up)
+				${render_drill(r.drill)}
+			`}`
 			: '',
-		ledger ? `\n\n## The exact lines (your code, costliest first, per render)\n${ledger}` : '',
-		findings ? `\n\n## Findings\n${findings}` : '',
-		budget ? `\n\n## ${budget_title}\n${budget}` : '',
-		hot ? `\n\n## Hottest functions (self ms per render)\n${hot}` : '',
+		ledger
+			? `\n\n${dedent`
+			## The exact lines (your code, costliest first, per render)
+			${ledger}
+		`}`
+			: '',
+		findings
+			? `\n\n${dedent`
+			## Findings
+			${findings}
+		`}`
+			: '',
+		budget
+			? `\n\n${dedent`
+			## ${budget_title}
+			${budget}
+		`}`
+			: '',
+		hot
+			? `\n\n${dedent`
+			## Hottest functions (self ms per render)
+			${hot}
+		`}`
+			: '',
 		comps
-			? `\n\n## Components (self ms per render; ×N = renders of it in one page render)\n${comps}`
+			? `\n\n${dedent`
+				## Components (self ms per render; ×N = renders of it in one page render)
+				${comps}
+			`}`
 			: '',
 		`\n\n## Network: ${net_line}  ·  Memory: ${mem_line}`,
 		links
@@ -1556,7 +1599,10 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		} else {
 			const hits = await find_local_profiler(profiler_base, key);
 			const suggest = hits.length
-				? `\n\nRunning locally right now with the profiler mounted — reply with one to use it:\n${hits.map((h) => `  • ${h}${route}`).join('\n')}`
+				? `\n\n${dedent`
+					Running locally right now with the profiler mounted — reply with one to use it:
+					${hits.map((h) => `  • ${h}${route}`).join('\n')}
+				`}`
 				: `\n\n(No local server with the profiler is up — start \`vite dev\` / \`vite preview\`, or give a remote URL.)`;
 			return fail(dedent`
 				Which URL should I profile \`${route}\` on? Ask the user, then call ogygia_profile again with the full \`url\`.
@@ -1896,7 +1942,10 @@ function tool_scan(args: Attrs): ToolResult {
 		.map((v) => `- ${v.severity === 'error' ? '❌' : '⚠️'} ${v.file}: ${v.msg}`)
 		.join('\n');
 	const vio_block = violations.length
-		? `\n\n## ⚠️ Findings (${violations.length})\n${vio_lines}`
+		? `\n\n${dedent`
+			## ⚠️ Findings (${violations.length})
+			${vio_lines}
+		`}`
 		: `\n\n## ✅ No rule violations across ${files.length} files.`;
 
 	const preset_note = preset_marks

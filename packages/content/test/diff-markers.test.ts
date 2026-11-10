@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { highlight } from '../src/markdown/shiki.ts';
 import { diff_markers } from '../src/markdown/diff.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The `+++` / `---` fence dialect (svelte.dev's "change this code" prose form):
@@ -12,7 +13,12 @@ const OPTS = { transformers: [diff_markers()] };
 describe('diff_markers', () => {
 	it('strips the markers and classes the lines', async () => {
 		const html = await highlight(
-			['let a = 1;', '--- export let count;', '+++ let { count } = $props();', 'a++;'].join('\n'),
+			dedent`
+				let a = 1;
+				--- export let count;
+				+++ let { count } = $props();
+				a++;
+			`,
 			'js',
 			OPTS
 		);
@@ -33,7 +39,14 @@ describe('diff_markers', () => {
 	});
 
 	it('a bare marker marks an added/removed EMPTY line', async () => {
-		const html = await highlight(['let a;', '+++'].join('\n'), 'js', OPTS);
+		const html = await highlight(
+			dedent`
+			let a;
+			+++
+		`,
+			'js',
+			OPTS
+		);
 		expect(html).toContain('og-diff-add');
 		expect(html).not.toContain('+++');
 	});
@@ -45,7 +58,15 @@ describe('diff_markers', () => {
 	});
 
 	it('skips languages where a leading --- is real syntax (yaml)', async () => {
-		const html = await highlight(['---', 'title: hi', '---'].join('\n'), 'yaml', OPTS);
+		const html = await highlight(
+			dedent`
+			---
+			title: hi
+			---
+		`,
+			'yaml',
+			OPTS
+		);
 		expect(html).not.toContain('og-diff');
 		// the separators survive untouched
 		expect(html.match(/---/g)!.length).toBeGreaterThanOrEqual(2);

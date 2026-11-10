@@ -1986,15 +1986,15 @@ export function formatter_rewrite(
 				`factory|${ctor}`,
 				snake,
 				(n) =>
-					[
-						`const ${n}_cache = new Map${types.map}();`,
-						`function ${n}(locale${types.loc}, options${types.opt}) {`,
-						`\tconst key = \`\${String(locale)}|\${JSON.stringify(options)}\`;`,
-						`\tlet f = ${n}_cache.get(key);`,
-						`\tif (!f) ${n}_cache.set(key, (f = new Intl.${ctor}(locale, options)));`,
-						`\treturn f;`,
-						`}`
-					].join('\n'),
+					dedent`
+						const ${n}_cache = new Map${types.map}();
+						function ${n}(locale${types.loc}, options${types.opt}) {
+							const key = \`\${String(locale)}|\${JSON.stringify(options)}\`;
+							let f = ${n}_cache.get(key);
+							if (!f) ${n}_cache.set(key, (f = new Intl.${ctor}(locale, options)));
+							return f;
+						}
+					`,
 				(n) => [`${n}_cache`]
 			);
 			edits.push({ start: at, end: args.end, text: `${name}(${args.inner})` });

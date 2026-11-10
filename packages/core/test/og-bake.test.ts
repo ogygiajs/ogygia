@@ -51,11 +51,11 @@ describe('rewrite_bake — real build-time evaluation', () => {
 	const opts = () => ({ alias: [], root: dir });
 
 	it('executes an imported fn at build and inlines its devalue-serialized result (Date survives)', async () => {
-		const src = [
-			`import { buildNav } from './data';`,
-			`const nav = import.meta.og.bake(() => buildNav());`,
-			`export { nav };`
-		].join('\n');
+		const src = dedent`
+			import { buildNav } from './data';
+			const nav = import.meta.og.bake(() => buildNav());
+			export { nav };
+		`;
 		const out = await rewrite_bake(src, path.join(dir, 'mod.ts'), opts());
 		expect(out).not.toContain('import.meta.og.bake');
 		expect(out.replace(/\s/g, '')).toContain('items:["home","about"]');
@@ -69,23 +69,23 @@ describe('rewrite_bake — real build-time evaluation', () => {
 	});
 
 	it('drops an import that only fed a baked fn (ship the answer, not the computation)', async () => {
-		const src = [
-			`import { buildNav } from './data';`,
-			`const nav = import.meta.og.bake(() => buildNav().count);`,
-			`export { nav };`
-		].join('\n');
+		const src = dedent`
+			import { buildNav } from './data';
+			const nav = import.meta.og.bake(() => buildNav().count);
+			export { nav };
+		`;
 		const out = await rewrite_bake(src, path.join(dir, 'mod.ts'), opts());
 		expect(out).not.toContain(`import { buildNav }`); // dead after baking → removed
 		expect(out).toContain('const nav = (2)');
 	});
 
 	it('KEEPS an import still used outside the baked fn', async () => {
-		const src = [
-			`import { buildNav, HELPER_ONLY } from './data';`,
-			`const nav = import.meta.og.bake(() => buildNav().count);`,
-			`export const extra = HELPER_ONLY;`, // still used → import must stay
-			`export { nav };`
-		].join('\n');
+		const src = dedent`
+			import { buildNav, HELPER_ONLY } from './data';
+			const nav = import.meta.og.bake(() => buildNav().count);
+			export const extra = HELPER_ONLY;
+			export { nav };
+		`;
 		const out = await rewrite_bake(src, path.join(dir, 'mod.ts'), opts());
 		expect(out).toContain(`import { buildNav, HELPER_ONLY } from './data';`);
 		expect(out).toContain('const nav = (2)');

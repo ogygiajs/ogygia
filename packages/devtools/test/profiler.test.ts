@@ -5034,18 +5034,18 @@ describe('the browser CPU profile and the request replay', () => {
 	});
 
 	it('name_at_source: the function name written in the original source at a mapped position', () => {
-		const src = [
-			'export function template_effect(fn, sync = []) {', // 1
-			'\tflatten(blockers, sync, async, (values) => {', // 2
-			'function create_effect(type, fn) {', // 3
-			'\t#preload_attr(el, name) {', // 4
-			'\tstatic async load(x) {', // 5
-			'const format_price = (n) => n.toFixed(2);', // 6
-			'\tonclick: async () => {', // 7
-			'\tif (x) {', // 8
-			'export default function () {}', // 9
-			'\tget value() { return 1; }' // 10
-		].join('\n');
+		const src = dedent`
+			export function template_effect(fn, sync = []) {
+				flatten(blockers, sync, async, (values) => {
+			function create_effect(type, fn) {
+				#preload_attr(el, name) {
+				static async load(x) {
+			const format_price = (n) => n.toFixed(2);
+				onclick: async () => {
+				if (x) {
+			export default function () {}
+				get value() { return 1; }
+		`;
 		const r = sourcemap_resolver((p) => (p === '/src/a.js' ? src : undefined));
 		expect(r.name_at_source('/src/a.js', 1, 1)).toBe('template_effect');
 		expect(r.name_at_source('/src/a.js', 1, 8)).toBe('template_effect'); // at `function`
