@@ -37,13 +37,15 @@ export class ConcurrencyGate {
 	/** The slots (@ogygia/machine `queue()`, first come first served): a freed slot is handed to the
 	 *  next call in the same step, and a call whose deadline came is passed over. */
 	readonly #slots: Queue<Waiter>;
+	readonly #limit: number;
 	#abandoned = 0;
 
 	constructor(max: number) {
 		const limit = Math.max(1, max);
+		this.#limit = Number.isFinite(limit) ? Math.ceil(limit) : Number.MAX_SAFE_INTEGER;
 		this.#slots = queue<Waiter>({
 			name: 'render gate',
-			max: Number.isFinite(limit) ? Math.ceil(limit) : Number.MAX_SAFE_INTEGER,
+			max: this.#limit,
 			start: (w) => w.enter(),
 			stale: (w) => w.gone(),
 			now: Date.now
@@ -120,7 +122,11 @@ export class ConcurrencyGate {
 				gone: () => reject(signal?.aborted ? signal.reason : new Error(WAIT_TIMEOUT))
 			};
 			// (its deadline is the queue's: passed over at a release, settled by the queue's timer)
-			this.#slots.push(waiter, deadline);
+			// a free slot is taken whatever the deadline (a due one is the body's run timeout, as before):
+			// the queue's deadline is only for a call that waits
+			const slots = this.#slots;
+			const free = slots.waiting === 0 && slots.holding < this.#limit;
+			slots.push(waiter, free ? undefined : deadline);
 			// still waiting when nobody waits on it any more: it leaves at once (once in, a body runs on)
 			if (signal && !entered) call.on(signal, 'abort', () => this.#slots.cancel(waiter));
 		});
