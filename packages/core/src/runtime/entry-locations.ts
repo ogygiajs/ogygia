@@ -10,8 +10,7 @@
  * is known, else the identity (on the dev server, the module itself; in a build, a name, no file).
  */
 import { import_file } from './import-again.ts';
-import { cache, flights, scope, STALE } from '@ogygia/machine';
-import { backoff_after } from '@ogygia/machine/internal/policy';
+import { backoffAfter, cache, flights, scope, STALE } from '@ogygia/machine';
 import { rollover } from '../policies.ts';
 
 /** absolute identity → absolute location: the islands of the pages this document has seen (a build
@@ -211,7 +210,7 @@ async function recover_location(entry: string, failed: string): Promise<string |
 	try {
 		for (let n = 1; n <= rollover.attempts; n++) {
 			if (n > 1) {
-				const wait = backoff_after(rollover, n - 1);
+				const wait = backoffAfter(rollover, n - 1);
 				await waits.task(() => new Promise<void>((resolve) => waits.timeout(resolve, wait)));
 			}
 			current = await current_location(entry);

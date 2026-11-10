@@ -147,18 +147,25 @@ const pages = flights({
 });
 const page = await pages.get('/docs', { signal }); // joins the fetch already out for /docs
 if (page === STALE) return; // dropped, or this caller left
+
+// keyed by some fields of an object input: run reads only those, and those `ignore` names
+const checkouts = flights.keyed<Spec>()({
+	key: ['repo', 'ref'],
+	ignore: { depth: 'how much history to fetch, not which files' },
+	run: ({ repo, ref, depth }, signal) => checkout(repo, ref, depth, signal)
+});
 ```
 
-|                                  |                                                                                                                |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `run(input, signal)`             | The work. Starts inside the `get` that finds no flight and no kept answer; that caller's input is the one run. |
-| `key(input)`                     | Which inputs are the same flight. Default: the input itself.                                                   |
-| `keep`                           | How long an answer stays, ms (or made from the answer). `0` keeps nothing. Default: for as long as it lives.   |
-| `max` / `weigh(answer)`          | The most total weight kept (default 1000, weight 1: a count); the least recently used go first.                |
-| `retries`                        | Tries again at once, inside one flight, before it fails.                                                       |
-| `get(input, { signal, fresh })`  | Joins, gives the kept answer, or starts a flight. `STALE` when it was dropped or this caller left.             |
-| `peek(key)`                      | What the key holds now (`flying`, or `kept` with its answer and when it landed), without starting anything.    |
-| `drop(key \| (key, entry) => …)` | Takes kept answers out and ends flights in progress: their callers get `STALE`, nothing they answer is kept.   |
+|                                  |                                                                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `run(input, signal)`             | The work. Starts inside the `get` that finds no flight and no kept answer; that caller's input is the one run.  |
+| `flights.keyed<I>()({ key })`    | The keyed form: inputs with the same `key` fields are the same flight. Default (`flights()`): the input itself. |
+| `keep`                           | How long an answer stays, ms (or made from the answer). `0` keeps nothing. Default: for as long as it lives.    |
+| `max` / `weigh(answer)`          | The most total weight kept (default 1000, weight 1: a count); the least recently used go first.                 |
+| `retries`                        | Tries again at once, inside one flight, before it fails.                                                        |
+| `get(input, { signal, fresh })`  | Joins, gives the kept answer, or starts a flight. `STALE` when it was dropped or this caller left.              |
+| `peek(key)`                      | What the key holds now (`flying`, or `kept` with its answer and when it landed), without starting anything.     |
+| `drop(key \| (key, entry) => …)` | Takes kept answers out and ends flights in progress: their callers get `STALE`, nothing they answer is kept.    |
 
 - **A failure is never kept.** Every caller of a failed flight gets the failure, and the next `get` starts a new one. A failing key costs one try per wave of callers, not one per caller.
 - **The last caller out stops the work.** A caller with a `signal` that aborts gets `STALE` at once; the flight's own signal aborts only when every caller has left. A caller with no signal holds it until it lands.
@@ -293,6 +300,11 @@ const done = await thaws.put(evict); // true once applied, false once given up (
 
 - **Done means applied.** The receiver applies the work first and records its id after. A failed apply answers an error and is tried again; a second copy of an applied one is dropped.
 - **A policy is data.** `policy({ attempts, backoff, jitter, deadline })` is checked where it is written and frozen. `backoff` is a list of waits (the last repeats) or one number that doubles. Name each one for what it protects, so its numbers live in one place.
+- **`backoffAfter(policy, n, random?)`** is the wait before try `n + 1` once try `n` failed, for code that runs its own tries by a policy: `0` up to the timer limit, spread by `jitter` (`random` is 0 to 1, default `Math.random()`).
+
+## Messages
+
+Every error and warning the package prints has a code and a page at `https://ogygiajs.dev/e/<code>`. `MACHINE_ERRORS` and `MACHINE_WARNINGS` are the tables they come from, by code: each entry's text and page.
 
 ## Staged changes
 

@@ -4,6 +4,7 @@
 // hydrating; hydratedBy() reports 'interaction'.
 // Usage: pnpm exec playwright test interaction
 import { test, check } from '@ogygia/tooling/e2e';
+import { console_text } from '@ogygia/tooling/e2e/browsers.ts';
 
 const WAKE_INTERACTION_RE = /ogygia-region[^>]*wake="interaction"/;
 const INTERACTION_ENTRY_RE = /ogygia-region entry="([^"]+)"[^>]*wake="interaction"/;
@@ -74,6 +75,22 @@ test.describe("wake:'interaction' — cold until used, click replay, typing surv
 		);
 
 		// ---------- first click wakes + replays (counts exactly once) ----------
+		// Whether the island was still waking when the browser's own click fired: its press wakes it,
+		// and a warmed island can be live before the click lands (Firefox and WebKit space a click's
+		// events out more than Chromium does). Waking: the click is replayed, untrusted. Live: it
+		// lands natively, trusted. Either way it counts once.
+		await page.evaluate(() => {
+			const w = window as Window & { __click_while_waking?: boolean };
+			window.addEventListener(
+				'click',
+				(e) => {
+					if (!e.isTrusted || w.__click_while_waking !== undefined) return;
+					w.__click_while_waking =
+						document.querySelector('ogygia-region[wake="interaction"][data-hydrated]') === null;
+				},
+				{ capture: true }
+			);
+		});
 		await page.locator('[data-i-btn]').click();
 		await page.waitForTimeout(300);
 		check(
@@ -85,9 +102,14 @@ test.describe("wake:'interaction' — cold until used, click replay, typing surv
 			(await page.locator('[data-i-count]').innerText()) === '1',
 			`count=${await page.locator('[data-i-count]').innerText()}`
 		);
+		const while_waking = await page.evaluate(
+			() => (window as Window & { __click_while_waking?: boolean }).__click_while_waking
+		);
+		const trusted = await page.locator('[data-i-trusted]').innerText();
 		check(
-			'click: replayed event is untrusted (documented semantics)',
-			(await page.locator('[data-i-trusted]').innerText()) === 'false'
+			'click: replayed while waking is untrusted, landed live is trusted (documented semantics)',
+			typeof while_waking === 'boolean' && trusted === (while_waking ? 'false' : 'true'),
+			`while waking: ${while_waking}, trusted: ${trusted}`
 		);
 		check(
 			'click: hydratedBy() === interaction',
@@ -160,8 +182,11 @@ test.describe("wake:'interaction' — cold until used, click replay, typing surv
 		page
 	}) => {
 		const consoleErrs: string[] = [];
+		// (each read awaits the page: the check below waits for the reads still out)
+		const reads: Promise<void>[] = [];
 		page.on('console', (m) => {
-			if (m.type() === 'error') consoleErrs.push(m.text());
+			// (the message's own text in every engine: Firefox's console text of an Error is its class)
+			if (m.type() === 'error') reads.push(console_text(m).then((t) => void consoleErrs.push(t)));
 		});
 		// Block the island's file (under any retry mark: a dropped download is asked for again under a
 		// fresh URL) AND its stable name (the fallback a lost location takes) → the wake's import
@@ -186,6 +211,7 @@ test.describe("wake:'interaction' — cold until used, click replay, typing surv
 		// The chunk was aborted, so this is an ENTRY-FETCH failure, not a hydrate throw — the runtime
 		// distinguishes them (dev names the Vite re-optimize cause; here it's a real abort). #hydrate
 		// catches it, logs, and the wake path disarms on the fulfilled branch.
+		await Promise.all(reads);
 		check(
 			'failure: error logged, region left static',
 			// (a production build: the message is its code's link — messages/core.ts)

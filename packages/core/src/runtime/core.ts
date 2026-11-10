@@ -1,4 +1,5 @@
 import {
+	backoffAfter,
 	flights,
 	mailbox,
 	registry,
@@ -9,7 +10,6 @@ import {
 	type Stale,
 	type Turn
 } from '@ogygia/machine';
-import { backoff_after } from '@ogygia/machine/internal/policy';
 import { frameAddress } from '../frame.ts';
 import { import_again, is_failed_import, on_reload_needed } from './import-again.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
@@ -96,8 +96,7 @@ import {
 	beacon_warning,
 	beacon_hole_failed,
 	beacon_hole_answered,
-	beacon_entry_fallback,
-	beacon_hole_fetched
+	beacon_entry_fallback
 } from './beacon.ts';
 import { set_hydrating, tap_svelte_warnings, on_svelte_warning } from './svelte-warnings.ts';
 import type { IslandHandle, IslandModule } from './hydrate-core.ts';
@@ -952,7 +951,6 @@ class OgygiaRegion extends HTMLElement {
 		signal: AbortSignal
 	) {
 		return runtime_session.server_gate.run(() => {
-			if (BEACON) beacon_hole_fetched(endpoint);
 			// (./hole-fetch.ts: the same read of the answer `preload()` makes. A renewed capability is
 			// the address's, kept in the store: every element bound there adopts it — #adopt_renewed)
 			const address = frameAddress(endpoint);
@@ -1553,7 +1551,7 @@ class OgygiaRegion extends HTMLElement {
 			}
 			this.#hole.go('retrying', { attempts, revalidate });
 			const retrying = this.#hole.scope;
-			const wait = backoff_after(region_fetch, attempts);
+			const wait = backoffAfter(region_fetch, attempts);
 			const waited = await turn.wait(
 				retrying.task(() => new Promise<void>((resolve) => retrying.timeout(resolve, wait)))
 			);

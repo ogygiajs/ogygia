@@ -704,7 +704,7 @@ const gone_for_good = (status: number): boolean =>
  *  (a 5xx, a timeout, the network) is not, so the next report asks again. Reports weighing the
  *  same file at once share one fetch. */
 export const url_weights = (): UrlWeights =>
-	flights<WeighAsk>()({
+	flights.keyed<WeighAsk>()({
 		name: 'profiler url weights',
 		key: ['url'],
 		ignore: { fetch_url: 'every report fetches the same hashed file through the app' },

@@ -80,8 +80,6 @@ class Collected {
 	readonly visit_hole_batches: HoleBatchMiss[] = [];
 	readonly visit_holes_answered: HoleAnswered[] = [];
 	readonly visit_entry_fallbacks: EntryFallback[] = [];
-	/** the asks for each hole's HTML (200 at most) */
-	readonly hole_fetches = new Map<string, number>();
 	readonly visit_marks: { name: string; ms: number; t0?: number }[] = [];
 	readonly snapshots: Snapshot[] = [];
 	readonly seen_resources: PerformanceResourceTiming[] = [];
@@ -126,7 +124,6 @@ interface BeaconApi {
 	beacon_hole_answered?: typeof beacon_hole_answered;
 	beacon_hole_batch_missed?: typeof beacon_hole_batch_missed;
 	beacon_entry_fallback?: typeof beacon_entry_fallback;
-	beacon_hole_fetched?: typeof beacon_hole_fetched;
 	beacon_nav?: typeof beacon_nav;
 }
 let self_api: BeaconApi | undefined;
@@ -144,7 +141,6 @@ function owner(): BeaconApi | null {
 		beacon_hole_answered,
 		beacon_hole_batch_missed,
 		beacon_entry_fallback,
-		beacon_hole_fetched,
 		beacon_nav
 	};
 	const g = globalThis as Record<symbol, BeaconApi | undefined>;
@@ -572,20 +568,6 @@ export function beacon_entry_fallback(f: EntryFallback): void {
 		recovered: f.recovered
 	});
 	if (early_visit_done) resend_soon();
-}
-/** The runtime asks for a hole's HTML (each ask, retries and re-asks included): what lets a
- *  preload followed by a download read as used-then-asked-again, not as a preload the browser could
- *  not use. */
-export function beacon_hole_fetched(endpoint: string): void {
-	const o = owner();
-	if (o) return o.beacon_hole_fetched?.(endpoint);
-	if (!collecting() || C.hole_fetches.size >= 200) return;
-	try {
-		const url = new URL(endpoint, location.href).href;
-		C.hole_fetches.set(url, (C.hole_fetches.get(url) ?? 0) + 1);
-	} catch {
-		// ok: not a URL, so not a file the page loaded
-	}
 }
 let holes_answered_els = new WeakSet<Element>();
 /** A hole's first answer landed: the profiler weighs how long its fallback held the first screen.
@@ -1562,7 +1544,6 @@ function build_visit_now(): Record<string, unknown> | null {
 		bytes: number;
 		as: string;
 		crossorigin: string | null;
-		hole?: true;
 	}[] = [];
 	const type_of = (r: PerformanceResourceTiming): string =>
 		resource_type(ext_of(r.name), r.initiatorType, link_as.get(r.name));
@@ -1640,19 +1621,13 @@ function build_visit_now(): Record<string, unknown> | null {
 					?.responseStatus ?? 0) >= 400
 			)
 				continue;
-			// (the runtime asked for a hole more often than the network served it: the preload WAS
-			// used, and the download is the runtime's own second ask — a hole fetched again after
-			// Kit rebuilt the page, a retry)
-			if (downloads.length < (C.hole_fetches.get(url) ?? 0)) continue;
 			if (pre && again)
 				preload_misses.push({
 					url: url.slice(0, 500),
 					type: type_of(pre),
 					bytes: again.transferSize,
 					as: link_as.get(url) ?? '',
-					crossorigin: link_co.get(url) ?? null,
-					// a hole the runtime asked for (its preload is ogygia's own): known by the ask, not the path
-					...(C.hole_fetches.has(url) ? { hole: true as const } : {})
+					crossorigin: link_co.get(url) ?? null
 				});
 		}
 		// CONTENT-NAMED FILES FETCHED AGAIN: a file under `/immutable/` is named by its content, so a

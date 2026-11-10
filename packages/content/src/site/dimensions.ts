@@ -103,7 +103,7 @@ class Dimensions implements Dimensioned {
 	// A failure is never kept: the coordinate's next page builds its outline again (one source blip
 	// once broke every page of a language until a restart, #192). A resolve that throws at once fails
 	// like one that rejects.
-	readonly #cache = flights<{ key: string; full: Coordinate }>()({
+	readonly #cache = flights.keyed<{ key: string; full: Coordinate }>()({
 		name: 'content dimension outline',
 		key: ['key'],
 		ignore: { full: 'the key spells it: every axis, in order' },
