@@ -30,6 +30,8 @@ type Seen = { crosses: boolean; w: number; h: number };
 const DEPTH = 3;
 /** How many children of each level stand in for it. */
 const WIDTH = 16;
+/** No children followed. */
+const NONE: readonly Element[] = [];
 
 /** The children that stand in for an element with no area of its own. */
 function stand_ins(el: Element): Element[] {
@@ -67,6 +69,8 @@ class Tracker {
 	readonly seen = new WeakMap<Element, Seen>();
 	/** Each observed target: the watched elements whose decision it is part of (none: unobserved). */
 	readonly part_of = new WeakMap<Element, Set<Element>>();
+	/** A target with no area: the children it follows for each watched element, as picked. */
+	readonly followed = new WeakMap<Element, Map<Element, readonly Element[]>>();
 	/** The watched elements: who hears each, and its state as last decided. */
 	readonly heard = new Map<Element, Set<Heard>>();
 	readonly decided = new WeakMap<Element, boolean>();
@@ -89,14 +93,9 @@ class Tracker {
 		for (const r of records) {
 			const part = this.part_of.get(r.target as Element);
 			if (!part) continue;
-			for (const watched of part) {
-				touched.add(watched);
-				// what it rendered before: no longer part of the decision
-				for (const n of r.removedNodes)
-					if (this.part_of.get(n as Element)?.has(watched))
-						this.#follow(n as Element, watched, 0, false);
-			}
+			for (const watched of part) touched.add(watched);
 		}
+		// (each settles by following its children again: what it rendered before is let go there)
 		for (const el of touched) this.#settle(el);
 	}
 
@@ -144,7 +143,9 @@ class Tracker {
 	/**
 	 * Keep what `watched`'s decision reads observed (`keep`), or let all of it go: `target`, and,
 	 * while it reported no area, the children standing in for it, a level at a time (picked again as
-	 * they change: the content it renders was swapped). A target no longer among them lets go.
+	 * they change: the content it renders was swapped). What it lets go is what it RECORDED following
+	 * (`followed`), never the children re-read now: a child pushed out of the first few, or taken
+	 * out, is let go all the same.
 	 */
 	#follow(target: Element, watched: Element, depth: number, keep: boolean): void {
 		const s = this.seen.get(target);
@@ -154,10 +155,16 @@ class Tracker {
 			(this.#swaps ??= this.owner.watch(
 				new MutationObserver((records) => this.#swapped(records))
 			)).observe(target, { childList: true });
-		for (const c of stand_ins(target)) {
-			if (deeper) this.#observe(c, watched);
-			if (this.part_of.get(c)?.has(watched)) this.#follow(c, watched, depth - 1, deeper);
-		}
+		let by = this.followed.get(target);
+		const had = by?.get(watched) ?? NONE;
+		const now = deeper ? stand_ins(target) : NONE;
+		for (const c of now) this.#observe(c, watched);
+		for (const c of had) if (!now.includes(c)) this.#follow(c, watched, 0, false);
+		for (const c of now) this.#follow(c, watched, depth - 1, true);
+		if (now.length) {
+			if (!by) this.followed.set(target, (by = new Map()));
+			by.set(watched, now);
+		} else if (by?.delete(watched) && by.size === 0) this.followed.delete(target);
 		if (!keep) this.#unobserve(target, watched);
 	}
 
