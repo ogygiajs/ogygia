@@ -9,7 +9,11 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
-import { needs_js_self_profiling } from '@ogygia/tooling/e2e/browsers.ts';
+import {
+	needs_js_self_profiling,
+	page_errors,
+	shares_report_links
+} from '@ogygia/tooling/e2e/browsers.ts';
 
 const PORT = port(3101);
 const ORIGIN = `http://localhost:${PORT}`;
@@ -52,8 +56,9 @@ test.describe('profiler on a serverless host', () => {
 	});
 
 	test('every report action works after the recording instance is gone', async ({ page }) => {
-		const errors: string[] = [];
-		page.on('pageerror', (e) => errors.push(e.message));
+		// (an instance killed under the open page fails its requests: WebKit's line for that is no
+		// page error, page_errors leaves it out)
+		const errors = page_errors(page);
 		await fresh_instance();
 		const report = await record(page, 'p=/inferno&runs=2');
 		const id = report.split('/').pop()!;
@@ -94,20 +99,24 @@ test.describe('profiler on a serverless host', () => {
 		});
 		expect(back.status()).toBe(200);
 
-		await page.getByRole('button', { name: /share/i }).first().click();
-		await page.locator('input[type=password]').fill('pw-e2e');
-		await page.locator('form button').last().click();
-		await expect(page.locator('input[readonly]').first()).toHaveValue(
-			new RegExp(`/report/${id}#.{100,}`),
-			{ timeout: 15_000 }
-		);
+		const share = page.getByRole('button', { name: /share/i }).first();
+		if (shares_report_links(page)) {
+			await share.click();
+			await page.locator('input[type=password]').fill('pw-e2e');
+			await page.locator('form button').last().click();
+			await expect(page.locator('input[readonly]').first()).toHaveValue(
+				new RegExp(`/report/${id}#.{100,}`),
+				{ timeout: 15_000 }
+			);
+		} else await expect(share, 'the share link is off where it cannot open').toBeDisabled();
 
 		expect(errors).toEqual([]);
 	});
 
 	test('pick your fixes: the checklist recounts the forecast in the browser', async ({ page }) => {
-		const errors: string[] = [];
-		page.on('pageerror', (e) => errors.push(e.message));
+		// (an instance killed under the open page fails its requests: WebKit's line for that is no
+		// page error, page_errors leaves it out)
+		const errors = page_errors(page);
 		await fresh_instance();
 		await record(page, 'p=/inferno&runs=2');
 		const box = page.locator('details.whatif-box');
@@ -222,8 +231,9 @@ test.describe('profiler on a serverless host', () => {
 	test('profile again & compare renders from this browser when no instance holds either report', async ({
 		page
 	}) => {
-		const errors: string[] = [];
-		page.on('pageerror', (e) => errors.push(e.message));
+		// (an instance killed under the open page fails its requests: WebKit's line for that is no
+		// page error, page_errors leaves it out)
+		const errors = page_errors(page);
 		await fresh_instance();
 		const a = (await record(page, 'p=/inferno&runs=2')).split('/').pop()!;
 		const compare = await record(page, `p=/inferno&runs=2&against=${a}`);

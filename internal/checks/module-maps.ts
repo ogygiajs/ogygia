@@ -151,10 +151,17 @@ function grows(init: Node | null | undefined): Finding['kind'] | null {
 export function find_unowned(file: string, source: string): Finding[] {
 	const { program, comments } = parseSync(file, source);
 	const line_of = (at: number): number => source.slice(0, at).split('\n').length;
-	// each line's marks (a line comment on it)
+	// each line's marks (a line comment on it), and the lines whose mark stands alone (nothing
+	// before it on its line): only those mark the declaration on the line after
 	const marked = new Set<number>(); // (one per run of the check, not module-level)
-	for (const c of comments)
-		if (c.type === 'Line' && MARK_RE.test(c.value)) marked.add(line_of(c.start));
+	const alone = new Set<number>(); // (same)
+	for (const c of comments) {
+		if (c.type !== 'Line' || !MARK_RE.test(c.value)) continue;
+		const line = line_of(c.start);
+		marked.add(line);
+		if (source.slice(source.lastIndexOf('\n', c.start - 1) + 1, c.start).trim() === '')
+			alone.add(line);
+	}
 	const out: Finding[] = [];
 	// the marked fixed tables, by name: the module must never grow them
 	const statics = new Set<string>(); // (one per file the check reads, not module-level)
@@ -172,7 +179,7 @@ export function find_unowned(file: string, source: string): Finding[] {
 			}
 			const kind = grows(d.init as Node | null);
 			if (kind === null) continue;
-			if (marked.has(line) || marked.has(line - 1) || marked.has(line_of(s.start) - 1)) {
+			if (marked.has(line) || alone.has(line - 1) || alone.has(line_of(s.start) - 1)) {
 				statics.add(name);
 				continue;
 			}

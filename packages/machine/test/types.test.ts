@@ -234,7 +234,7 @@ describe('types', () => {
 			>();
 		});
 		type Ask = { href: string; n: number; by: string };
-		const keyed = flights<Ask>()({
+		const keyed = flights.keyed<Ask>()({
 			key: ['href', 'n'],
 			ignore: { by: 'who asked, not what is fetched' },
 			run: (i) => {
@@ -254,19 +254,19 @@ describe('types', () => {
 			void pages.get();
 			// @ts-expect-error: a key is named by its fields
 			keyed.peek('/a');
-			flights<Ask>()({
+			flights.keyed<Ask>()({
 				key: ['href'],
 				// @ts-expect-error: run reads a field its key leaves out
 				run: (i) => i.n
 			});
-			flights<Ask>()({
+			flights.keyed<Ask>()({
 				key: ['href'],
 				// @ts-expect-error: a field cannot be both in the key and ignored
 				ignore: { href: 'twice' },
 				run: (i) => i.href
 			});
 			// @ts-expect-error: a field the input does not have
-			flights<Ask>()({ key: ['nope'], run: () => 0 });
+			flights.keyed<Ask>()({ key: ['nope'], run: () => 0 });
 			// @ts-expect-error: an unkeyed flights takes no key: its input is its key
 			flights({ run: (i: Ask) => i.n, key: ['href'] });
 		});

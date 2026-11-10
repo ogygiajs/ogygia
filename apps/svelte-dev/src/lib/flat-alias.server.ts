@@ -11,6 +11,7 @@
  * name) are dropped with a warning — svelte.dev serves these corpora flat, so it cannot happen today.
  */
 import { docs } from './site.server';
+import { moved_leaf, moved_leaves } from './moved-pages';
 
 const TOPIC = /^(kit|cli|ai)\//;
 const AMBIGUOUS = Symbol('ambiguous');
@@ -61,7 +62,11 @@ export async function resolve_flat(
 	if (TOPICS.has(leaf)) return { root: leaf as 'svelte' | 'kit' | 'cli' | 'ai' };
 	let topic: string = 'svelte';
 	for (const seg of segments.slice(0, -1)) if (TOPICS.has(seg)) topic = seg;
-	const hit = (await leaf_index()).get(`${topic}\0${leaf}`);
+	const index = await leaf_index();
+	const moved = moved_leaf(topic, leaf);
+	const hit =
+		index.get(`${topic}\0${leaf}`) ??
+		(moved === null ? undefined : index.get(`${topic}\0${moved}`));
 	return typeof hit === 'string' && hit !== slug ? hit : null;
 }
 
@@ -69,11 +74,18 @@ export async function resolve_flat(
  *  prerender entries for redirect stubs, so direct visits work even on static hosting. */
 export async function flat_entries(): Promise<Array<{ slug: string }>> {
 	const out: Array<{ slug: string }> = [];
-	for (const [key, canonical] of await leaf_index()) {
+	const index = await leaf_index();
+	for (const [key, canonical] of index) {
 		if (typeof canonical !== 'string') continue;
 		const [topic, leaf] = key.split('\0') as [string, string];
 		const spelled = topic === 'svelte' ? [leaf, `svelte/${leaf}`] : [`${topic}/${leaf}`];
 		for (const s of spelled) if (s !== canonical) out.push({ slug: s });
+	}
+	// a moved page's old address, where no page has that leaf any more and its new home exists
+	for (const [topic, leaf] of moved_leaves()) {
+		const s = topic === 'svelte' ? leaf : `${topic}/${leaf}`;
+		if (typeof (await resolve_flat(s)) === 'string' && !index.has(`${topic}\0${leaf}`))
+			out.push({ slug: s });
 	}
 	return out;
 }
