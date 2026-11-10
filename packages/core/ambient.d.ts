@@ -28,6 +28,13 @@ declare module 'virtual:ogygia/island-deps' {
 	/** An entry's identity (its stable URL) → the content-hashed file it is served from; `null`: none known. */
 	export function entryLocation(identity: string): string | null;
 }
+declare module 'virtual:ogygia/manifest' {
+	export const dev: boolean;
+	export const regions: Record<
+		string,
+		{ kind: 'hydrate' | 'defer' | 'lake'; load?: () => Promise<{ default: unknown }> }
+	>;
+}
 declare module 'virtual:ogygia/server-manifest' {
 	/** The server islands' loaders, one dynamic import away. */
 	export function load_islands(): Promise<typeof import('virtual:ogygia/server-islands')>;
@@ -40,6 +47,14 @@ declare module 'virtual:ogygia/server-manifest' {
 }
 declare module 'virtual:ogygia/server-islands' {
 	export const islands: Record<string, () => Promise<{ default: unknown }>>;
+}
+declare module 'virtual:ogygia/region-endpoint' {
+	export function makeRegionEndpoint(entry: string, props?: Record<string, unknown>): string;
+	export function mintServerIsland(
+		entry: string,
+		props: Record<string, unknown>,
+		ttl?: number
+	): string;
 }
 declare module 'virtual:ogygia/secret' {
 	export const buildKey: string;
