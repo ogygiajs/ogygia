@@ -33,6 +33,14 @@
 			"reason": "names an unnamed theme object for Shiki: a spread of a theme object, constant work; proven in packages/content/test/shiki-highlighters.test.ts"
 		},
 		{
+			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~7326ff",
+			"reason": "the replacement for the multi-variant id attribute: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
+		},
+		{
+			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~ca1204",
+			"reason": "the replacement for the pre's attributes: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
+		},
+		{
 			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > cancel",
 			"reason": "the stream's cancel closes its owner: constant work"
 		},

@@ -65,6 +65,7 @@ const URL_ATTRS: ReadonlySet<string> = new Set([
 ]);
 // oxlint-disable-next-line no-control-regex -- leading control characters a browser skips in a URL
 const UNSAFE_URL = /^[\s\u0000-\u001f]*(?:javascript|vbscript|data)\s*:/i;
+const URL_DROPPED = /[\t\n\r]/g;
 const ATTR_NAME = /^[a-zA-Z_:][a-zA-Z0-9_:.-]*$/;
 const NAME_BEFORE_QUOTE = /([^\s"'<>/=]+)\s*=\s*$/;
 const TAG_START = /[a-zA-Z/!?]/;
@@ -105,9 +106,10 @@ function escape_single(s: string): string {
 	return escape_attr(s).replaceAll("'", '&#39;');
 }
 
-/** A URL attribute's value: one a browser would run instead of follow is refused. */
+/** A URL attribute's value: one a browser would run instead of follow is refused. (Read as the URL
+ *  parser reads it: tab, LF and CR are dropped anywhere in it, the scheme included.) */
 function safe_url(s: string): string {
-	return UNSAFE_URL.test(s) ? 'about:invalid#unsafe' : s;
+	return UNSAFE_URL.test(s.replace(URL_DROPPED, '')) ? 'about:invalid#unsafe' : s;
 }
 
 /** One value of `html`, as it is placed. */
