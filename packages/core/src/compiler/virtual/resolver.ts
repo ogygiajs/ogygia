@@ -9,14 +9,16 @@ import {
 	write_value,
 	realm_exports,
 	value_names,
+	type Part,
+	type Parts,
 	type Realm,
 	type ValueNames,
 	type Entry,
 	type FamilyEntry,
 	type Leg,
-	type ModuleEntry,
-	type Watch
+	type ModuleEntry
 } from './table.ts';
+import { world, type World } from '@ogygia/machine';
 
 /** A static named import of a realm module (`import { a, b as c } from 'ogygia:server'`). */
 const REALM_IMPORT_G =
@@ -62,14 +64,22 @@ export class VirtualTable<A> {
 
 	/** each value entry's export names (generated: ./value-names.ts) */
 	readonly #names: ValueNames;
+	/** the session's fields → the part each one is */
+	readonly #parts: Parts<A>;
+	/** one stamp per part, moved by a dev change to it */
+	readonly #stamps: World<Part> = world.keyed<Part>();
+	/** resolved id → what its last load read, and when (bounded by the modules the table serves) */
+	readonly #reads = new Map<string, { stamp: number; reads: ReadonlySet<Part> }>();
 
 	constructor(
 		entries: readonly Entry<A>[],
 		core_path: (app: A, module: string) => string,
-		names: ValueNames
+		names: ValueNames,
+		parts: Parts<A>
 	) {
 		this.#core_path = core_path;
 		this.#names = names;
+		this.#parts = parts;
 		for (const e of entries) {
 			// (a constant is a define, not a module: not the table's to resolve)
 			if (e.kind === 'constant') continue;
@@ -169,8 +179,33 @@ export class VirtualTable<A> {
 		return undefined;
 	}
 
-	/** A resolved id → its module source; `null`: not a module this table loads. */
+	/** A resolved id → its module source; `null`: not a module this table loads. Records the session
+	 *  parts the load read, for {@link bump}. */
 	load(id: string, app: A, leg: Leg): string | Promise<string> | null {
+		const reads = new Set<Part>();
+		// (recorded before it runs: a bump while an async load is in flight names it too)
+		this.#reads.set(id, { stamp: this.#stamps.stamp(), reads });
+		const out = this.#load(id, tracked(app, this.#parts, reads), leg);
+		if (out === null) this.#reads.delete(id);
+		return out;
+	}
+
+	/**
+	 * A dev change to `part`: every module whose last load read it, which the caller invalidates.
+	 * Each is named once; its next load records its reads afresh.
+	 */
+	bump(part: Part): string[] {
+		this.#stamps.bump([part]);
+		const out: string[] = [];
+		for (const [id, { stamp, reads }] of this.#reads) {
+			if (this.#stamps.fresh(stamp, reads)) continue;
+			out.push(id);
+			this.#reads.delete(id);
+		}
+		return out;
+	}
+
+	#load(id: string, app: A, leg: Leg): string | Promise<string> | null {
 		const realm = this.#realm_of(id);
 		if (realm) return this.#realm_source(realm);
 		const e = this.#by_resolved.get(id);
@@ -265,11 +300,18 @@ export class VirtualTable<A> {
 		const e = this.#by_resolved.get(id);
 		return e !== undefined && realm_exports(e, this.#names).length > 0;
 	}
+}
 
-	/** The resolved ids of every module that watches `what`: what a dev change to it invalidates. */
-	watching(what: Watch): string[] {
-		const out: string[] = [];
-		for (const [id, e] of this.#by_resolved) if (e.watch?.includes(what)) out.push(id);
-		return out;
-	}
+/** `app` as a module's load sees it: reading a field that is a part adds the part to `reads`. A
+ *  method runs on the session itself (its private fields are its own). */
+function tracked<A>(app: A, parts: Parts<A>, reads: Set<Part>): A {
+	if (typeof app !== 'object' || app === null) return app;
+	return new Proxy(app, {
+		get(target, key) {
+			const part = typeof key === 'string' ? parts[key as keyof A & string] : undefined;
+			if (part) reads.add(part);
+			const v: unknown = Reflect.get(target, key);
+			return typeof v === 'function' ? v.bind(target) : v;
+		}
+	});
 }

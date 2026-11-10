@@ -980,7 +980,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					clear_route_csr_cache();
 					// (a plugin's key inside `export const config` add/flip changes the baked values too)
 					if (vite_server)
-						for (const mid of compiler.watching('routes')) invalidate_module_id(vite_server, mid);
+						for (const mid of compiler.changed('routes')) invalidate_module_id(vite_server, mid);
 				}
 				// Unlink often skips handleHotUpdate; drop islands that still import the deleted file.
 				if (!is_dev || change.event !== 'delete' || !vite_server) return;
@@ -1028,7 +1028,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// time, so any style-bearing source change must invalidate it — the next SSR re-emits
 				// with fresh css. Cheap (module-graph lookup), so no root-membership check.
 				if (STYLE_BEARING_FILE_RE.test(file))
-					for (const mid of compiler.watching('styles')) invalidate_module_id(server, mid);
+					for (const mid of compiler.changed('styles')) invalidate_module_id(server, mid);
 
 				// SCOPED soft CSS HMR. App css joins the browser graph LAZILY (see dev_hmr_client_source):
 				//  - already joined on a client → fall through to Vite's normal CSS update (soft);
@@ -1225,7 +1225,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// re-imported (empty of them); this transform just registered them again — invalidate the
 				// manifest once more so the NEXT endpoint request sees the ids (driver: server_manifest_stale).
 				if (is_dev && vite_server && compiler.server_manifest_stale())
-					for (const mid of compiler.watching('regions')) invalidate_module_id(vite_server, mid);
+					for (const mid of compiler.changed('regions')) invalidate_module_id(vite_server, mid);
 				// DEV: an island this transform registered (a file added while the server runs) pulled
 				// modules into the island world that the server may already hold transformed for a
 				// non-island importer — with Kit's real `$app/*`, which never boots on a csr=false page.

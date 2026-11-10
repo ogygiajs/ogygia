@@ -27,17 +27,15 @@ describe('the virtual modules’ declarations', () => {
 		expect(CORE_VALUE_NAMES).toEqual(names);
 		const file = new URL('../src/compiler/virtual/value-names.ts', import.meta.url);
 		// (the committed file is formatted; the names, quotes aside, are the generated ones)
-		expect(squash(fs.readFileSync(file, 'utf8'))).toBe(
-			squash(value_names_source(names))
-		);
+		expect(squash(fs.readFileSync(file, 'utf8'))).toBe(squash(value_names_source(names)));
 	});
 
 	it('refuse a value module whose names were not generated, or whose live names moved', () => {
 		const e = virtual.value({ realm: 'server', id: 'v', from: () => ({ a: 1, b: 2 }) });
-		const stale = new VirtualTable<null>([e], () => '', { 'ogygia:server/v': ['a'] });
+		const stale = new VirtualTable<null>([e], () => '', { 'ogygia:server/v': ['a'] }, {});
 		const leg = { ssr: true, universalHooks: null };
 		expect(() => stale.load('\0ogygia:server/v', null, leg)).toThrow(/virtual_names_stale/);
-		expect(() => new VirtualTable<null>([e], () => '', {})).toThrow(/virtual_names_stale/);
+		expect(() => new VirtualTable<null>([e], () => '', {}, {})).toThrow(/virtual_names_stale/);
 	});
 
 	it('are the ones the table generates (run scripts/virtual-types.ts after changing an entry)', () => {
