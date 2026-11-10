@@ -157,13 +157,20 @@ test.describe('holes outlive a CDN-cached document', () => {
 		const live = await hole_endpoint(baseURL!, '/server');
 		const lp = new URL(live).searchParams;
 		const expired = new URL(signed_at(live, now() - 2 * 3600)).searchParams;
-		// Serve /server as a cache would have kept it: the same document, its hole minted 2h+ ago.
+		// Serve /server as a cache would have kept it: the same document, its hole minted 2h+ ago,
+		// everywhere the document names it (the hole's attribute, and the head's early start, whose
+		// JSON writes `&` as itself)
 		await page.route(`${baseURL}/server`, async (route) => {
 			const res = await route.fetch();
-			const html = (await res.text()).replaceAll(
-				`exp=${lp.get('exp')}&amp;sig=${lp.get('sig')}`,
-				`exp=${expired.get('exp')}&amp;sig=${expired.get('sig')}`
-			);
+			const html = (await res.text())
+				.replaceAll(
+					`exp=${lp.get('exp')}&amp;sig=${lp.get('sig')}`,
+					`exp=${expired.get('exp')}&amp;sig=${expired.get('sig')}`
+				)
+				.replaceAll(
+					`exp=${lp.get('exp')}&sig=${lp.get('sig')}`,
+					`exp=${expired.get('exp')}&sig=${expired.get('sig')}`
+				);
 			await route.fulfill({ response: res, body: html });
 		});
 		const hole_statuses: string[] = [];
