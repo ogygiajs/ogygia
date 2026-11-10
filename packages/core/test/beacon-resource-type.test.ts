@@ -6,7 +6,7 @@ describe('resource_type: what a file counts as', () => {
 		// a modulepreload (Chromium says `other`; a link initiator must not turn it into CSS either)
 		expect(resource_type('js', 'link', 'script')).toBe('script');
 		expect(resource_type('', 'link', 'script')).toBe('script');
-		// a hole's preload (`as="fetch"`, no extension): its HTML answer
+		// a fetch preload (`as="fetch"`, no extension): an API answer
 		expect(resource_type('', 'link', 'fetch')).toBe('fetch');
 		expect(resource_type('woff2', 'link', 'font')).toBe('font');
 		expect(resource_type('', 'link', 'image')).toBe('img');

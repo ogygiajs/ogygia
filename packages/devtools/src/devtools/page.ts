@@ -278,11 +278,12 @@ export function vary_of(url: string): string | null {
 
 /** What the dev server answered for `key`, read without waiting: the kept answer, or null while it
  *  is asked (the first read starts the ask). An answer is kept for the session; a failed ask is not,
- *  so a later read asks again. */
+ *  so a later read asks again. A read while the document goes (the `pagehide` save) asks nothing: the
+ *  request could not land, and WebKit says the cancelled fetch as a page error. */
 function asked<V>(f: Flights<string, V>, key: string): V | null {
 	const e = f.peek(key);
 	if (e?.kind === 'kept') return e.answer;
-	if (e === undefined) f.get(key).catch(() => {}); // ok: not answered this time; the next read asks again
+	if (e === undefined && !leaving) f.get(key).catch(() => {}); // ok: not answered this time; the next read asks again
 	return null;
 }
 
@@ -1112,6 +1113,7 @@ export function install_page_hook(): void {
 		hooked_hide = true;
 		// oxlint-disable-next-line ogygia/owned-effects -- the document's, installed once: it saves the page as the document goes
 		addEventListener('pagehide', () => {
+			leaving = true;
 			try {
 				const v = read_page();
 				if (v && !v.nav)
@@ -1120,12 +1122,19 @@ export function install_page_hook(): void {
 				// ok: no storage: the next load compares nothing
 			}
 		});
+		// (a page the back-forward cache brings back is here again: its reads ask as before)
+		// oxlint-disable-next-line ogygia/owned-effects -- the document's, installed once beside its pagehide
+		addEventListener('pageshow', () => {
+			leaving = false;
+		});
 	}
 }
 
 // ── since your last load ──
 const LOAD_KEY = 'ogygia:devtools:load:';
 let hooked_hide = false;
+/** The document is going (`pagehide`, until a `pageshow` brings it back): reads ask the server nothing. */
+let leaving = false;
 /** the previous load's picture of THIS page, read once per document (before this load overwrites it) */
 let prev_load: LoadSnapshot | null | undefined;
 function previous_load(): LoadSnapshot | null {
