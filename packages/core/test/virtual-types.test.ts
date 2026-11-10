@@ -27,9 +27,7 @@ describe('the virtual modules’ declarations', () => {
 		expect(CORE_VALUE_NAMES).toEqual(names);
 		const file = new URL('../src/compiler/virtual/value-names.ts', import.meta.url);
 		// (the committed file is formatted; the names, quotes aside, are the generated ones)
-		expect(squash(fs.readFileSync(file, 'utf8'))).toBe(
-			squash(value_names_source(names))
-		);
+		expect(squash(fs.readFileSync(file, 'utf8'))).toBe(squash(value_names_source(names)));
 	});
 
 	it('refuse a value module whose names were not generated, or whose live names moved', () => {

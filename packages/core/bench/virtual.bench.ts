@@ -25,6 +25,7 @@ import {
 } from '../src/compiler/virtual/types.ts';
 import { CORE_VALUE_NAMES } from '../src/compiler/virtual/value-names.ts';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
+import { BUILD_ERRORS } from '../src/messages/build.ts';
 import { specifier, virtual } from '../src/compiler/virtual/table.ts';
 
 const ROOT = '/app';
@@ -186,6 +187,14 @@ bench('virtual modules: a table built, an undeclared id and a duplicate refused'
 	} catch {
 		refused++;
 	}
+	// a value module without generated names, and its message as the docs page words it
+	try {
+		new VirtualTable([a], core_path, {});
+	} catch (e) {
+		refused += String(e).length > 0 ? 1 : 0;
+	}
+	refused += BUILD_ERRORS.virtual_names_stale.details().length;
+	refused += BUILD_ERRORS.virtual_names_stale.text({ id: 'ogygia:server/x' }).length;
 	return refused + (table.claims('ogygia:region/entry/a.js') ? 1 : 0);
 });
 

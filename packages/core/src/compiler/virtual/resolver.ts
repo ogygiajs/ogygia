@@ -180,8 +180,9 @@ export class VirtualTable<A> {
 				const names = value_names(e, this.#names);
 				// the live keys must be the generated ones (test/virtual-types.test.ts keeps them so)
 				const keys = Object.keys(data);
-				if (keys.length !== names.length || keys.some((k) => !names.includes(k)))
-					throw new OgygiaError('virtual_names_stale', { id: specifier_of(e) });
+				let same = keys.length === names.length;
+				for (const k of keys) same &&= names.includes(k);
+				if (!same) throw new OgygiaError('virtual_names_stale', { id: specifier_of(e) });
 				return names.map((name) => `export const ${name} = ${write_value(data[name])};`).join('\n');
 			}
 			if (e.kind === 'request') {

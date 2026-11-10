@@ -100,7 +100,7 @@ describe('the virtual-module table', () => {
 	});
 
 	it('words the table’s messages, and their pages', () => {
-		for (const code of ['virtual_unknown', 'virtual_duplicate'] as const) {
+		for (const code of ['virtual_unknown', 'virtual_duplicate', 'virtual_names_stale'] as const) {
 			expect(BUILD_ERRORS[code].text({ id: 'ogygia:server/x' })).toContain('ogygia:server/x');
 			expect(BUILD_ERRORS[code].details().length).toBeGreaterThan(40);
 		}
