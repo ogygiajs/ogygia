@@ -207,7 +207,7 @@ describe('keyed', () => {
 
 	it('`key` names the fields that are one flight; the input that started it is the one that runs', async () => {
 		const run = vi.fn(async (i: { href: string; by: string }) => i.by);
-		const pages = flights<{ href: string; by: string }>()({
+		const pages = flights.keyed<{ href: string; by: string }>()({
 			key: ['href'],
 			ignore: { by: 'who asked, not what is fetched' },
 			run
@@ -223,7 +223,7 @@ describe('keyed', () => {
 	it('two inputs that differ in any key field never share an answer', async () => {
 		type Spec = { owner: string; repo: string; ref: string; sub: string };
 		const run = vi.fn(async (s: Spec) => `${s.owner}/${s.repo}@${s.ref}:${s.sub}`);
-		const checkouts = flights<Spec>()({ key: ['owner', 'repo', 'ref', 'sub'], run });
+		const checkouts = flights.keyed<Spec>()({ key: ['owner', 'repo', 'ref', 'sub'], run });
 		const base: Spec = { owner: 'a', repo: 'b', ref: 'main', sub: 'docs' };
 		const inputs: Spec[] = [base];
 		for (const field of ['owner', 'repo', 'ref', 'sub'] as const) {
@@ -242,7 +242,7 @@ describe('keyed', () => {
 	it('a key field compares objects by identity, and keeps every kind of value apart', async () => {
 		type In = { v: unknown };
 		const run = vi.fn(async (i: In) => i.v);
-		const vs = flights<In>()({ key: ['v'], run });
+		const vs = flights.keyed<In>()({ key: ['v'], run });
 		const o = {};
 		const values = [o, {}, 1, '1', 1n, true, 'true', null, 'null', undefined, 'u;', Symbol('s')];
 		for (const v of values) await vs.get({ v });
@@ -255,7 +255,7 @@ describe('keyed', () => {
 	it('a missing key field and one that is undefined are one key; a registered symbol is one by its name', async () => {
 		type In = { v?: unknown };
 		const run = vi.fn(async (i: In) => String(i.v));
-		const vs = flights<In>()({ key: ['v'], run });
+		const vs = flights.keyed<In>()({ key: ['v'], run });
 		await vs.get({});
 		await vs.get({ v: undefined });
 		expect(run).toHaveBeenCalledOnce();
@@ -268,7 +268,7 @@ describe('keyed', () => {
 
 	it('drop by key fields, or by a predicate over them (never over the rest of the input)', async () => {
 		type Ask = { href: string; purpose: string };
-		const pages = flights<Ask>()({
+		const pages = flights.keyed<Ask>()({
 			key: ['href'],
 			ignore: { purpose: 'how it is fetched, not what' },
 			run: async (a) => a.href
@@ -285,7 +285,7 @@ describe('keyed', () => {
 
 	it('a keyed flights refuses a key it cannot use, where it is written', () => {
 		const run = async () => 0;
-		const make = flights<{ a: string; b: string }>();
+		const make = flights.keyed<{ a: string; b: string }>();
 		expect(() => make({ key: ['a', 'a'], run })).toThrow(MachineError);
 		expect(() => make({ key: ['a'], ignore: { a: 'twice' } as never, run })).toThrow(MachineError);
 		expect(() => make({ key: ['a'], ignore: { b: ' ' }, run })).toThrow(MachineError);

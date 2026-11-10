@@ -11,6 +11,7 @@
 import type { ContentRef, ContentRelations, Entry, RefEntry, SchemaLike } from './index.ts';
 import type { GroupMeta, Source, SourceEntry, SourceRef } from './source.ts';
 import {
+	backoffAfter,
 	defining,
 	flights,
 	machine,
@@ -20,7 +21,6 @@ import {
 	type Policy,
 	type World
 } from '@ogygia/machine';
-import { backoff_after } from '@ogygia/machine/internal/policy';
 import { GRAPH } from './graph.ts';
 import { parseSchema } from './schema.ts';
 import { OgygiaError } from './messages/runtime.ts';
@@ -453,7 +453,7 @@ export class Collection<
 	/** Open a dropped connection again after its wait, reading the whole source again first. The
 	 *  wait is the visit's: leaving `running` clears it. */
 	#reconnect(visit: Running, attempt: number): void {
-		const wait = backoff_after(LIVE_RECONNECT, attempt + 1);
+		const wait = backoffAfter(LIVE_RECONNECT, attempt + 1);
 		// (only ever called in that visit; a server shutting down does not wait for a reconnect)
 		this.#life.scope.timeout(() => {
 			// (a failed read is reported, and retried, by #follow; the connection listens first)
