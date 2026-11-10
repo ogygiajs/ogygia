@@ -977,14 +977,6 @@
 			"reason": "hands the loaded Shiki module to createHighlighter: Shiki's WASM engine, which a measuring window refuses; proven in packages/content/test/markdown-start.test.ts"
 		},
 		{
-			"id": "packages/content/src/vite/hmr.ts > content_runs",
-			"reason": "makes the dev plugin object (a name, apply and a transform hook), constant work; its transform's work is mark_content_calls, benched in packages/content/bench/lifecycle.bench.ts"
-		},
-		{
-			"id": "packages/content/src/vite/hmr.ts > content_runs > transform",
-			"reason": "Vite's dev transform hook: skips a client module or one that does not name @ogygia/content, else hands it to mark_content_calls (benched in packages/content/bench/lifecycle.bench.ts); proven against a real Vite dev server in packages/content/test/dev-reload.test.ts"
-		},
-		{
 			"id": "packages/core/src/hooks.ts > start_app_plugins:1~7cbc84 > sign",
 			"reason": "the handle module's signer for its plugins' apps: one call of sign() with the app's region key, which only the handle module's start has (a one-line hand-off, constant work over the HMAC)"
 		},
