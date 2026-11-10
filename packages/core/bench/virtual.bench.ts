@@ -125,6 +125,7 @@ bench(
 		let bytes = 0;
 		for (const is_dev of [false, true]) {
 			const c = compiler(root, is_dev);
+			const ids: string[] = [];
 			for (const [source, realm] of SPECIFIERS) {
 				// resolved on a leg its realm may be imported from (the realm check refuses the others)
 				if (realm === 'dev' && !is_dev) continue;
@@ -133,6 +134,7 @@ bench(
 					resolve: async () => null
 				});
 				if (typeof id !== 'string' || !id.startsWith('\0')) continue;
+				ids.push(id);
 				for (const ssr of [true, false]) {
 					bytes += size(await c.emit(id, { ssr, universalHooks: null, resolve: async () => null }));
 				}
@@ -147,6 +149,9 @@ bench(
 				}
 			);
 			bytes += size(await c.emit(stub as string, { ssr: false, universalHooks: null }));
+			// the bundle check over each leg's output: table modules, a family member, an app file
+			ids.push(stub as string, `${root}/src/routes/+page.svelte`);
+			if (!is_dev) for (const ssr of [true, false]) bytes += c.misplaced_modules(ids, ssr).length;
 			bytes += c.split_realm_imports(IMPORTS)?.length ?? 0;
 			for (const w of ['regions', 'routes', 'styles', 'options', 'plugins'] as const)
 				bytes += c.watching(w).length;
