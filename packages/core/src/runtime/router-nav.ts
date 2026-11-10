@@ -194,6 +194,94 @@ export function tag_attr(attrs: string, name: string): string | null {
 const ISLAND_GRAPH_SCRIPT_G =
 	/<script type="application\/json" data-ogygia-graph>([^<]*)<\/script>/g;
 
+/** A node's URL attribute as the address it names: resolved against the page the node belongs to
+ *  (a live node's, the document; a fetched page's, its own address, set by `resolve_head_urls`).
+ *  `../a.css` on `/x/y` and `/a.css` are one file, so one key. Empty when absent. */
+function url_of(node: Element, attr: string): string {
+	const value = node.getAttribute(attr);
+	if (!value) return '';
+	try {
+		return new URL(value, node.baseURI).href;
+	} catch {
+		return value; // (not a URL: compared as written)
+	}
+}
+
+/** The head attributes that hold URLs, each fetched by the browser once a node is in the page. */
+const HEAD_URL_ATTRS = ['href', 'src'] as const;
+/** The head attributes that hold candidate lists (`url descriptor, url descriptor`). */
+const HEAD_SRCSET_ATTRS = ['imagesrcset', 'srcset'] as const;
+
+/**
+ * A fetched page's head URLs belong to ITS address (#449). Kit links a page's assets page-relative
+ * (`../../_app/immutable/assets/x.css`), and the next page's nodes go into the live document while
+ * the address bar still shows the page being left: its sheets are loaded before the commit (#267,
+ * #325). Copied as written, each resolved against the page on screen. Every URL of the parsed head
+ * is made absolute against `page` once, right after the parse, so every copy of a node (staged,
+ * merged) names the file its page means.
+ */
+export function resolve_head_urls(head: HTMLHeadElement, page: URL): void {
+	for (const el of head.querySelectorAll('[href],[src],[imagesrcset],[srcset]')) {
+		for (const attr of HEAD_URL_ATTRS) {
+			const value = el.getAttribute(attr);
+			// (an empty one names no file: the browser ignores it; resolved, it would name the page)
+			if (value === null || value.trim() === '') continue;
+			const resolved = page_relative_resolved(value, page);
+			if (resolved !== value) el.setAttribute(attr, resolved);
+		}
+		for (const attr of HEAD_SRCSET_ATTRS) {
+			const value = el.getAttribute(attr);
+			if (value !== null && value.trim() !== '') el.setAttribute(attr, resolve_srcset(value, page));
+		}
+	}
+}
+
+/** A candidate list (`a.png 1x, b.png 2x`) with each URL resolved against `page`. */
+function resolve_srcset(value: string, page: URL): string {
+	// Read as the HTML spec reads a srcset: a comma separates candidates only between them (after
+	// whitespace, or at the end of a URL); a comma inside a URL is the URL's (an image CDN's
+	// transform path, a data: URL).
+	const out: string[] = [];
+	const space = (c: number) => c <= 32;
+	let i = 0;
+	while (i < value.length) {
+		while (i < value.length && (space(value.charCodeAt(i)) || value[i] === ',')) i++;
+		if (i >= value.length) break;
+		const start = i;
+		while (i < value.length && !space(value.charCodeAt(i))) i++;
+		let url = value.slice(start, i);
+		let descriptor = '';
+		if (url.endsWith(',')) url = url.replace(/,+$/, '');
+		else {
+			const from = i;
+			while (i < value.length && value[i] !== ',') i++;
+			descriptor = value.slice(from, i).trim();
+		}
+		const resolved = page_relative_resolved(url, page);
+		out.push(descriptor ? resolved + ' ' + descriptor : resolved);
+	}
+	return out.join(', ');
+}
+
+/** Only a page-relative URL names a different file on another page: a root-relative (`/x`),
+ *  protocol-relative (`//x`) or absolute one names the same file anywhere. */
+const NOT_PAGE_RELATIVE = /^(?:[a-z][a-z0-9+.-]*:|\/)/i;
+
+/**
+ * `value` resolved against `page` when it is page-relative, written root-relative on this origin
+ * (`../../_app/x.css` on `/a/e/` → `/_app/x.css`), so a node keeps the form the app's own selectors
+ * and the head merge expect; anything else as written.
+ */
+function page_relative_resolved(value: string, page: URL): string {
+	if (NOT_PAGE_RELATIVE.test(value)) return value;
+	try {
+		const url = new URL(value, page);
+		return url.origin === location.origin ? url.pathname + url.search + url.hash : url.href;
+	} catch {
+		return value; // ok: not a URL (left as written: the browser ignores it the same way on either page)
+	}
+}
+
 /** Stable-ish head node identity without serializing full outerHTML when possible. */
 export function head_node_key(node: Element): string {
 	const tag = node.tagName;
@@ -210,9 +298,9 @@ export function head_node_key(node: Element): string {
 			return `META:${node.outerHTML}`;
 		}
 		case 'LINK':
-			return `LINK:${node.getAttribute('rel') || ''}:${node.getAttribute('href') || ''}:${node.getAttribute('as') || ''}`;
+			return `LINK:${node.getAttribute('rel') || ''}:${url_of(node, 'href')}:${node.getAttribute('as') || ''}`;
 		case 'SCRIPT': {
-			const src = node.getAttribute('src');
+			const src = url_of(node, 'src');
 			if (src) return `SCRIPT:src:${src}:${node.getAttribute('type') || ''}`;
 			const type = node.getAttribute('type') || '';
 			const text = node.textContent || '';
@@ -719,6 +807,8 @@ export async function navigate(
 
 		// ── TASK ONE: parse + facts + preflight — no live DOM change ──
 		const doc = new DOMParser().parseFromString(html, 'text/html');
+		// (its head's URLs are its address's, not the page on screen's: #449)
+		resolve_head_urls(doc.head, dest);
 
 		// csr=true Kit pages boot via inline/module scripts that cloneNode will NOT execute.
 		// Hand off to a full navigation instead of a half-broken SPA swap (BRK-HEAD). Read off the
@@ -1014,6 +1104,8 @@ export async function invalidate_all(on_screen?: URL | null): Promise<void> {
 			const fetched = await fetch_page(url.href, signal);
 			if (fetched === null || signal.aborted) return null;
 			const doc = new DOMParser().parseFromString(fetched.html, 'text/html');
+			// (its head's URLs are its address's: #449)
+			resolve_head_urls(doc.head, new URL(fetched.url, url));
 			if (KitBoot.document_has(doc) || !doc.querySelector('meta[name="ogygia-router"]'))
 				return null;
 			await devalue_for(doc);
