@@ -466,7 +466,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				watch: (file) => this.addWatchFile(file)
 			};
 			for (const s of mine) await s.transform(t);
-			return edit.hasChanged() ? { code: edit.toString(), map: edit.generateMap({ hires: true }) } : null;
+			return edit.hasChanged()
+				? { code: edit.toString(), map: edit.generateMap({ hires: true }) }
+				: null;
 		}
 	});
 	const css_walk_indexes = new Map<string, ExportIndex<WalkResolve>>();
