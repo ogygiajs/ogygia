@@ -12,8 +12,10 @@ on:
   # a pull request: once per push (a push to a PR's branch no longer publishes a second time), and
   # only when a published package's files (or what builds them) changed
   pull_request:
-    # ready_for_review: a draft gets no benchmark run, so one starts when it leaves draft
-    types: [opened, synchronize, reopened, ready_for_review]
+    # ready_for_review: a draft gets no benchmark run, so one starts when it leaves draft. A PR
+    # publishes when it carries or earns `ci:preview` (or `ci:full`, .github/scripts/ci-labels.ts): a
+    # PR into main earns it. Adding the label publishes at once.
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
     paths:
       - 'packages/ogygia/**'
       - 'packages/core/**'
@@ -41,15 +43,47 @@ env:
 # A new push to a PR cancels that PR's older runs (branch pushes and manual runs never are)
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action != 'labeled' }}
 
 jobs:
-  publish:
-    # a version PR (changeset-release/*) publishes for real once merged: no preview to try first
-    # (and a PR stacked on another branch publishes when its stack reaches main)
+  # Whether this run publishes: always off a pull request; on one, when it carries or earns
+  # `ci:preview` (a label event for any other label publishes nothing). A version PR
+  # (changeset-release/*) publishes for real once merged: no preview to try first.
+  gate:
     if: >-
-      ${{ !startsWith(github.head_ref, 'changeset-release/') && (github.event_name != 'pull_request' ||
-      github.event.pull_request.base.ref == 'main') }}
+      ${{ !startsWith(github.head_ref, 'changeset-release/') && (github.event.action != 'labeled' ||
+      github.event.label.name == 'ci:preview' || github.event.label.name == 'ci:full') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Gate
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ] || node .github/scripts/ci-labels.ts --has ci:preview; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
