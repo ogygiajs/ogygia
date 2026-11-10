@@ -9,20 +9,21 @@
  * element: the scheduler's snapshot and a `visible` wake both watch an island at `0px`, and one
  * leaving does not silence the other.
  *
- * ONE RULE for an element with no box of its own. A region whose content is out of flow (a
- * `position: fixed` button) or that is `display: contents` has no area, and where such a box sits
- * says nothing (`display: contents` reports 0,0). So when an element reports no area, what it renders
- * decides: its first children are watched for it (bounded: the first few levels, the first few
- * children of each), and it is on screen when one of them is. An element with no area and nothing of
- * its own on screen still counts when it crosses with a line of its own (an empty hole at the fold).
- * The load scheduler used this rule (by measuring) while the observers watched the region's own box,
- * so a fixed button on screen downloaded as `visible` and never woke.
+ * ONE RULE (`decide`) for an element with no box of its own. A region whose content is out of flow
+ * (a `position: fixed` button) or that is `display: contents` has no area, and where such a box sits
+ * says nothing (`display: contents` reports 0,0). So what it renders decides: its first children
+ * (bounded: the first few levels, the first few children of each), and it is on screen when one of
+ * them is. With no area and nothing of its own on screen, a line of its own still counts (an empty
+ * hole at the fold). The observers read the rule off their reports (each such element's children are
+ * watched for it); a read before any report measures. The load scheduler measured with this rule while
+ * the observers watched the region's own box, so a fixed button on screen downloaded as `visible` and
+ * never woke.
  */
 import { scope, type Scope } from '@ogygia/machine';
 
 /** Hears an element's on-screen state: once known, then on every change. */
 type Heard = (on: boolean) => void;
-/** What a watched target last reported: crossing the root (with its margin), and its size. */
+/** An element as last seen: crossing the root (with its margin), and its size. */
 type Seen = { crosses: boolean; w: number; h: number };
 
 /** How many levels down an element with no area of its own is decided by what it renders. */
@@ -30,26 +31,73 @@ const DEPTH = 3;
 /** How many children of each level stand in for it. */
 const WIDTH = 16;
 
+/** The children that stand in for an element with no area of its own. */
+function stand_ins(el: Element): Element[] {
+	const out: Element[] = [];
+	for (let c = el.firstElementChild; c && out.length < WIDTH; c = c.nextElementSibling) out.push(c);
+	return out;
+}
+
+/** On screen, by the rule, from what `read` says of each element (`undefined`: not seen yet). */
+function decide(
+	el: Element,
+	depth: number,
+	read: (el: Element) => Seen | undefined
+): boolean | undefined {
+	const s = read(el);
+	if (!s) return undefined;
+	if (s.w > 0 && s.h > 0) return s.crosses;
+	if (depth > 0) {
+		let pending = false;
+		for (const c of stand_ins(el)) {
+			const on = decide(c, depth - 1, read);
+			if (on) return true;
+			if (on === undefined) pending = true;
+		}
+		if (pending) return undefined;
+	}
+	// nothing it renders is on screen: a line of its own still counts (an empty hole at the fold)
+	return s.crosses && (s.w > 0 || s.h > 0);
+}
+
 /** One margin's observer and what it knows. */
 class Tracker {
 	readonly io: IntersectionObserver;
 	/** Each observed target's last report. */
 	readonly seen = new WeakMap<Element, Seen>();
-	/** How many reasons each target is observed for (a watched element, a stand-in for one). */
-	readonly observed = new WeakMap<Element, number>();
+	/** Each observed target: the watched elements whose decision it is part of (none: unobserved). */
+	readonly part_of = new WeakMap<Element, Set<Element>>();
 	/** The watched elements: who hears each, and its state as last decided. */
 	readonly heard = new Map<Element, Set<Heard>>();
 	readonly decided = new WeakMap<Element, boolean>();
-	/** A target with no area: the children standing in for it, and the watched elements whose
-	 *  decision they are part of. */
-	readonly stand_ins = new WeakMap<Element, Element[]>();
-	readonly part_of = new WeakMap<Element, Set<Element>>();
+	readonly read = (el: Element): Seen | undefined => this.seen.get(el);
+	readonly owner: Scope;
+	/** Hears the children of a target with no area change (its content swapped): an observer
+	 *  reports a target only when its own intersection changes, never what replaced it. Made when a
+	 *  target with no area is first followed. */
+	#swaps: MutationObserver | null = null;
 
 	constructor(root_margin: string, owner: Scope) {
-		// oxlint-disable-next-line ogygia/owned-effects -- the margin's one observer, owned by the tracker's scope (`owner.watch` disconnects it)
+		this.owner = owner;
 		this.io = owner.watch(
 			new IntersectionObserver((entries) => this.#report(entries), { rootMargin: root_margin })
 		);
+	}
+
+	#swapped(records: MutationRecord[]): void {
+		const touched = new Set<Element>();
+		for (const r of records) {
+			const part = this.part_of.get(r.target as Element);
+			if (!part) continue;
+			for (const watched of part) {
+				touched.add(watched);
+				// what it rendered before: no longer part of the decision
+				for (const n of r.removedNodes)
+					if (this.part_of.get(n as Element)?.has(watched))
+						this.#follow(n as Element, watched, 0, false);
+			}
+		}
+		for (const el of touched) this.#settle(el);
 	}
 
 	watch(el: Element, heard: Heard): () => void {
@@ -66,104 +114,81 @@ class Tracker {
 			queueMicrotask(() => {
 				if (this.heard.get(el)?.has(heard)) heard(known);
 			});
+		// (observed already, as what another watched element renders: its report is in, none comes)
+		else if (this.seen.has(el)) queueMicrotask(() => this.#settle(el));
 		return () => {
 			const now = this.heard.get(el);
 			if (!now?.delete(heard) || now.size) return;
 			this.heard.delete(el);
 			this.decided.delete(el);
-			this.#unobserve(el, el);
+			this.#follow(el, el, DEPTH, false);
 		};
-	}
-
-	/** `el`'s state as last decided, if it is watched and decided. */
-	known(el: Element): boolean | undefined {
-		return this.decided.get(el);
 	}
 
 	/** Observe `target` as part of `watched`'s decision. */
 	#observe(target: Element, watched: Element): void {
 		let part = this.part_of.get(target);
 		if (!part) this.part_of.set(target, (part = new Set()));
-		if (part.has(watched)) return;
+		if (!part.size) this.io.observe(target);
 		part.add(watched);
-		const n = this.observed.get(target) ?? 0;
-		this.observed.set(target, n + 1);
-		if (n === 0) this.io.observe(target);
 	}
 
-	/** `target` is no longer part of `watched`'s decision (nor are the children standing in for it). */
 	#unobserve(target: Element, watched: Element): void {
 		const part = this.part_of.get(target);
-		if (!part?.delete(watched)) return;
-		for (const c of this.stand_ins.get(target) ?? []) this.#unobserve(c, watched);
-		if (!part.size) this.part_of.delete(target);
-		const n = (this.observed.get(target) ?? 1) - 1;
-		if (n > 0) {
-			this.observed.set(target, n);
-			return;
-		}
-		this.observed.delete(target);
+		if (!part?.delete(watched) || part.size) return;
+		this.part_of.delete(target);
 		this.seen.delete(target);
-		this.stand_ins.delete(target);
 		this.io.unobserve(target);
+	}
+
+	/**
+	 * Keep what `watched`'s decision reads observed (`keep`), or let all of it go: `target`, and,
+	 * while it reported no area, the children standing in for it, a level at a time (picked again as
+	 * they change: the content it renders was swapped). A target no longer among them lets go.
+	 */
+	#follow(target: Element, watched: Element, depth: number, keep: boolean): void {
+		const s = this.seen.get(target);
+		const deeper = keep && depth > 0 && s !== undefined && !(s.w > 0 && s.h > 0);
+		// (observing a target again is a no-op; one no longer followed is heard and ignored)
+		if (deeper)
+			(this.#swaps ??= this.owner.watch(
+				new MutationObserver((records) => this.#swapped(records))
+			)).observe(target, { childList: true });
+		for (const c of stand_ins(target)) {
+			if (deeper) this.#observe(c, watched);
+			if (this.part_of.get(c)?.has(watched)) this.#follow(c, watched, depth - 1, deeper);
+		}
+		if (!keep) this.#unobserve(target, watched);
 	}
 
 	#report(entries: IntersectionObserverEntry[]): void {
 		const touched = new Set<Element>();
 		for (const e of entries) {
 			const t = e.target;
+			const part = this.part_of.get(t);
+			if (!part) continue;
+			for (const watched of part) touched.add(watched);
+			// what a watched element rendered left the page (its content was swapped): let it go
+			if (!t.isConnected && !this.heard.has(t)) {
+				for (const watched of Array.from(part)) this.#follow(t, watched, 0, false);
+				continue;
+			}
 			const r = e.boundingClientRect;
 			this.seen.set(t, { crosses: e.isIntersecting, w: r.width, h: r.height });
-			for (const watched of this.part_of.get(t) ?? []) touched.add(watched);
 		}
-		for (const el of touched) {
-			if (!this.heard.has(el)) continue;
-			this.#pick_stand_ins(el, el, DEPTH);
-			const on = this.#decide(el, DEPTH);
-			if (on === undefined || on === this.decided.get(el)) continue;
-			this.decided.set(el, on);
-			// (a copy: a watcher may stop while it hears)
-			for (const heard of Array.from(this.heard.get(el)!)) heard(on);
-		}
+		for (const el of touched) this.#settle(el);
 	}
 
-	/** Under `watched`, a target that reported no area has its first children watched for it (and
-	 *  picked again when one of them left the page: the content it renders was swapped). */
-	#pick_stand_ins(target: Element, watched: Element, depth: number): void {
-		const s = this.seen.get(target);
-		if (!s || (s.w > 0 && s.h > 0) || depth === 0) return;
-		const had = this.stand_ins.get(target);
-		if (had?.every((c) => c.isConnected && c.parentElement === target)) {
-			for (const c of had) {
-				this.#observe(c, watched); // (picked for another watched element first: this one's too)
-				this.#pick_stand_ins(c, watched, depth - 1);
-			}
-			return;
-		}
-		for (const c of had ?? []) this.#unobserve(c, watched);
-		const picked: Element[] = [];
-		for (let c = target.firstElementChild; c && picked.length < WIDTH; c = c.nextElementSibling)
-			picked.push(c);
-		this.stand_ins.set(target, picked);
-		for (const c of picked) this.#observe(c, watched);
-	}
-
-	/** On screen (`undefined`: a target it depends on has not reported yet). */
-	#decide(target: Element, depth: number): boolean | undefined {
-		const s = this.seen.get(target);
-		if (!s) return undefined;
-		if (s.w > 0 && s.h > 0) return s.crosses;
-		if (depth > 0) {
-			let pending = false;
-			for (const c of this.stand_ins.get(target) ?? []) {
-				const on = this.#decide(c, depth - 1);
-				if (on === true) return true;
-				if (on === undefined) pending = true;
-			}
-			if (pending) return undefined;
-		}
-		// nothing it renders is on screen: a line of its own still counts (an empty hole at the fold)
-		return s.crosses && (s.w > 0 || s.h > 0);
+	/** Decide a watched element again, and tell its watchers when that changed it. */
+	#settle(el: Element): void {
+		const set = this.heard.get(el);
+		if (!set) return;
+		this.#follow(el, el, DEPTH, true);
+		const on = decide(el, DEPTH, this.read);
+		if (on === undefined || on === this.decided.get(el)) return;
+		this.decided.set(el, on);
+		// (a copy: a watcher may stop while it hears)
+		for (const heard of Array.from(set)) heard(on);
 	}
 }
 
@@ -171,19 +196,15 @@ class Tracker {
 let trackers = new Map<string, Tracker>();
 let owner: Scope | null = null;
 
-function tracker(root_margin: string): Tracker {
-	let t = trackers.get(root_margin);
-	if (!t) trackers.set(root_margin, (t = new Tracker(root_margin, (owner ??= scope()))));
-	return t;
-}
-
 /**
  * Watch whether `el` is on screen (the root grown by `root_margin`): `heard` gets its state once it
  * is known, then every change, until the returned stop is called. A watcher that joins late gets the
  * state known at once.
  */
 export function watch_viewport(el: Element, root_margin: string, heard: Heard): () => void {
-	return tracker(root_margin).watch(el, heard);
+	let t = trackers.get(root_margin);
+	if (!t) trackers.set(root_margin, (t = new Tracker(root_margin, (owner ??= scope()))));
+	return t.watch(el, heard);
 }
 
 /** Watch until the FIRST time `el` is on screen, then fire once and stop. */
@@ -196,26 +217,21 @@ export function once_on_screen(el: Element, root_margin: string, fire: () => voi
 	return stop;
 }
 
-/**
- * Is `el` on screen now? What the tracker last decided when something watches it, else measured
- * by the same rule (its box, or, with no area of its own, what it renders).
- */
+/** Is `el` on screen now? What the tracker last decided when something watches it, else measured
+ *  by the same rule. */
 export function on_screen(el: Element): boolean {
 	if (typeof innerHeight === 'undefined' || !el.isConnected) return false;
-	return trackers.get('0px')?.known(el) ?? measured(el, DEPTH);
+	return trackers.get('0px')?.decided.get(el) ?? decide(el, DEPTH, measure) === true;
 }
 
-function measured(el: Element, depth: number): boolean {
+/** An element as its box is now, against the viewport. */
+function measure(el: Element): Seen {
 	const r = el.getBoundingClientRect();
-	const crosses = r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
-	if (r.width > 0 && r.height > 0) return crosses;
-	if (depth > 0) {
-		let seen = 0;
-		for (let c = el.firstElementChild; c && seen < WIDTH; c = c.nextElementSibling, seen++)
-			if (measured(c, depth - 1)) return true;
-	}
-	// nothing it renders is on screen: a line of its own still counts (an empty hole at the fold)
-	return crosses && (r.width > 0 || r.height > 0);
+	return {
+		crosses: r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth,
+		w: r.width,
+		h: r.height
+	};
 }
 
 /** Test seam: how many observers exist (one per distinct root margin). */

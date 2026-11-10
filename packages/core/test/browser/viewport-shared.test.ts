@@ -63,3 +63,25 @@ test('a visible island woken on screen gets its turn without the 48 ms snapshot 
 	unregister_region(el);
 	el.remove();
 });
+
+test('a region with no box of its own follows what it renders, through a swap of its content', async () => {
+	const region = document.createElement('div');
+	region.style.display = 'contents';
+	region.innerHTML = `<p style="position:absolute;top:${innerHeight + 500}px;margin:0">far</p>`;
+	document.body.append(region);
+	const heard: boolean[] = [];
+	const stop = watch_viewport(region, '0px', (on) => heard.push(on));
+	await settle();
+	expect(heard).toEqual([false]);
+	// its answer swaps in: what it renders now is on screen
+	region.innerHTML = '<p style="margin:0">near</p>';
+	await expect.poll(() => heard.at(-1), { timeout: 2_000 }).toBe(true);
+	// a later watcher of a child it renders hears that child's own state at once
+	const child: boolean[] = [];
+	const stop_child = watch_viewport(region.firstElementChild!, '0px', (on) => child.push(on));
+	await settle();
+	expect(child).toEqual([true]);
+	stop_child();
+	stop();
+	region.remove();
+});
