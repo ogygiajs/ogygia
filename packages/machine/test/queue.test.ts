@@ -309,6 +309,24 @@ describe('owner', () => {
 	});
 });
 
+describe('push', () => {
+	it('queues a job with no promise: its start and stale hooks hear it', () => {
+		const owner = scope();
+		const heard: string[] = [];
+		const q = queue<string>({
+			max: 1,
+			owner,
+			start: (j, s) => void heard.push(`start ${j} at ${s.priority}`),
+			stale: (j) => void heard.push(`stale ${j}`)
+		});
+		q.push('a', { priority: 2 });
+		q.push('b');
+		expect(heard).toEqual(['start a at 2']);
+		owner.close();
+		expect(heard).toEqual(['start a at 2', 'stale b']);
+	});
+});
+
 describe("the queue's owner", () => {
 	it('closing it settles every waiting job STALE, and a job added after is STALE at once', async () => {
 		const owner = scope();
