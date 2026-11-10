@@ -25,6 +25,19 @@ test('every URL of a fetched head is resolved against the page it came from', ()
 	expect(icon.getAttribute('href')).toBe('https://cdn.example.com/f.ico');
 });
 
+test('an empty URL attribute stays empty: it names no file, not the page', () => {
+	// (the browser ignores an empty href/src; resolved, it would fetch the page as a sheet)
+	const doc = parse(
+		'<link rel="stylesheet" href=""><script src=" "></script>' +
+			'<link rel="preload" as="image" imagesrcset="">'
+	);
+	resolve_head_urls(doc.head, new URL('https://example.com/a/e/'));
+	const [sheet, script, preload] = doc.head.children;
+	expect(sheet.getAttribute('href')).toBe('');
+	expect(script.getAttribute('src')).toBe(' ');
+	expect(preload.getAttribute('imagesrcset')).toBe('');
+});
+
 test('a candidate URL with a comma inside it stays one URL', () => {
 	// (a comma separates candidates only after whitespace, or at the end of a URL; an image CDN's
 	// transform path and a data: URL hold commas of their own)
