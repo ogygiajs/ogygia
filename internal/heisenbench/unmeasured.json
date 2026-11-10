@@ -1,6 +1,14 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/runtime/region-endpoint-url.ts > make_warms > call:0~93991a > run > onRaise:0~1a69dd",
+			"reason": "browser only: a more urgent warm joins one whose import is already on the wire, and its graph links are raised (one preload_island_graph call, measured by its own bench)"
+		},
+		{
+			"id": "packages/core/src/runtime/region-endpoint-url.ts > reset_island_warms > drop:0~8b94d4",
+			"reason": "test seam: the predicate that drops every warm, constant work"
+		},
+		{
 			"id": "packages/core/src/runtime/entry-locations.ts > recover_location > task:0~d0bd46",
 			"reason": "one rollover wait on the recovery's own scope timer (seconds, a deploy's rollover only), constant work"
 		},
