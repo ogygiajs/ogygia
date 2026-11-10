@@ -5,8 +5,9 @@
  * own protocol, `devtools` for the devtools and profiler UI.
  *
  * - A `data-og*` name a package spells is in `MARK` (test/wire-markup.test.ts reads the sources).
- * - A page carries no marker `MARK` does not declare (`unknown_markers`, the runtime rule
- *   `rule_markup_known` in dev and e2e).
+ * - A page carries no ogygia marker `MARK` does not declare (`unknown_markers`, the runtime rule
+ *   `rule_markup_known` in dev and e2e). An app's own `data-og-*` (Open Graph tooling, say) is
+ *   the app's: the rule reads `data-og-*` only on `ogygia-*` elements.
  * - `tags()` reads tags the way a browser does: quoted values may hold `>` and the other quote, a
  *   comment is skipped, and a tag name matches whole.
  */

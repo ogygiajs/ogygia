@@ -12,8 +12,9 @@
  *   its code's page, and a `STALE` never escapes as a rejection.
  * - `rule_parse_upgraded`: a parsed answer is inert (./parse-html.ts, #382): no element of it was
  *   built by a component's constructor before the restore reached it.
- * - `rule_markup_known`: every `data-og*` marker on the page is declared in `MARK`
- *   (../wire-markup.ts, #479): a renamed or misspelled marker is caught, not read as missing.
+ * - `rule_markup_known`: every ogygia marker on the page (`data-ogygia-*`, and `data-og-*` on an
+ *   `ogygia-*` element) is declared in `MARK` (../wire-markup.ts, #479): a renamed or misspelled
+ *   marker is caught, not read as missing. An app's own `data-og-*` is left alone.
  *
  * Each area tells this module what it holds (`note_mount`, `note_visit`, `watch_router`) only when
  * rules are on (`RULES`): every call site folds out of a build without them.
@@ -66,12 +67,18 @@ function one_mount_per_region(): string | null {
 
 // ── every marker on the page is declared ──
 
-/** The page's `data-og*` markers that `MARK` (../wire-markup.ts) does not declare. */
+/** The page's markers that `MARK` (../wire-markup.ts) does not declare: any `data-ogygia-*` (that
+ *  namespace is ogygia's), and a `data-og-*` on an `ogygia-*` element. `data-og-` elsewhere may be
+ *  the app's own (Open Graph tooling, say); ogygia's spellings of it are held to `MARK` by
+ *  test/wire-markup.test.ts, which reads the sources. */
 function markup_known(): string | null {
 	if (typeof document === 'undefined') return null;
 	const names = new Set<string>(); // (one per check)
-	for (const el of document.querySelectorAll('*'))
-		for (const name of el.getAttributeNames()) if (name.startsWith('data-og')) names.add(name);
+	for (const el of document.querySelectorAll('*')) {
+		const own = el.localName.startsWith('ogygia-');
+		for (const name of el.getAttributeNames())
+			if (name.startsWith('data-ogygia-') || (own && name.startsWith('data-og-'))) names.add(name);
+	}
 	const unknown = unknown_markers(names);
 	return unknown.length ? `the page carries undeclared markers: ${unknown.join(', ')}` : null;
 }
