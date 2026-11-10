@@ -1,6 +1,30 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/runtime/import-again.ts > heard",
+			"reason": "browser only: one resource entry the loader's observer heard, recorded in a bounded map, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > response_landed",
+			"reason": "a failed import's wait for its file's entry (a scope, one timer): constant work, on a failure only; run by import-again.test.ts and the lazy-chunk-retry e2e"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > response_landed > Promise:0~7305f1",
+			"reason": "the wait's promise executor: registers one waiter and one timer, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > response_landed > Promise:0~7305f1 > defer:0~eaf5d9",
+			"reason": "the wait's cleanup: takes its waiter out, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > response_landed > Promise:0~7305f1 > done",
+			"reason": "the wait settles: closes its scope and resolves, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > response_landed > Promise:0~7305f1 > timeout:0~317c93",
+			"reason": "the wait runs out (a dropped download in WebKit): resolves null, constant work"
+		},
+		{
 			"id": "packages/core/src/runtime/router-nav.ts > resolve_head_urls",
 			"reason": "browser only: a fetched page's parsed head (DOMParser), linear in its URL attributes (a few dozen); head-urls.test.ts runs it in three engines"
 		},
