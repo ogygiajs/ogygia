@@ -11,11 +11,11 @@ import type { ServerApp } from '@ogygia/core/plugin';
 import type { PostrenderServerOptions } from './server.ts';
 import { slot as shared } from '@ogygia/machine';
 
-const slot = shared<{ app: ServerApp<PostrenderServerOptions> | null }>(
-	'ogygia.postrender.app.v1',
-	1,
-	() => ({ app: null })
-);
+const slot = shared<{ app: ServerApp<PostrenderServerOptions> | null }>({
+	name: 'ogygia.postrender.app',
+	version: 1,
+	make: () => ({ app: null })
+});
 
 export function set_postrender_app(app: ServerApp<PostrenderServerOptions> | null): void {
 	slot.app = app;

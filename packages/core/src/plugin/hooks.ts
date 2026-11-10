@@ -30,7 +30,7 @@ export interface ServerHooks {
 type AnyFn = (...args: unknown[]) => unknown;
 type Impl = Record<string, unknown>;
 
-const implementations = shared<Impl[]>('ogygia.server-hooks.v1', 1, () => []);
+const implementations = shared<Impl[]>({ name: 'ogygia.server-hooks', version: 1, make: () => [] });
 
 /** Core only: a set of hook implementations joins (a plugin's server half, or core's own). Keyed by
  *  identity; returns the leave. */

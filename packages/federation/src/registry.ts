@@ -12,7 +12,11 @@ interface Slot {
 	current: Federation | null;
 }
 
-const slot = shared<Slot>('ogygia.federation', 1, () => ({ current: null }));
+const slot = shared<Slot>({
+	name: 'ogygia.federation',
+	version: 1,
+	make: () => ({ current: null })
+});
 
 export function set_federation(f: Federation | null): void {
 	slot.current = f;

@@ -27,7 +27,11 @@ export type ContentGraph = {
 	module_run?: (module: string) => <F extends (...args: never[]) => unknown>(build: F) => F;
 };
 
-export const GRAPH: ContentGraph = slot<ContentGraph>('ogygia.content.graph', 1, () => ({ all: new Set() }));
+export const GRAPH: ContentGraph = slot<ContentGraph>({
+	name: 'ogygia.content.graph',
+	version: 1,
+	make: () => ({ all: new Set() })
+});
 
 let runs = 0;
 GRAPH.module_run ??= (module) => {

@@ -38,7 +38,7 @@ export {
 	type When
 } from './scope.ts';
 export { lock, type Lock, type LockToken } from './lock.ts';
-export { slot } from './slot.ts';
+export { slot, type SlotOptions } from './slot.ts';
 export { mailbox, type Mailbox, type Turn } from './mailbox.ts';
 export type { Fresh } from './stale.ts';
 export { outbox, type Outbox, type OutboxOptions } from './outbox.ts';

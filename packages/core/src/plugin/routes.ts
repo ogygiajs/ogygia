@@ -28,10 +28,11 @@ interface RoutesSlot {
 	/** route id (group-stripped) → the claimed keys of its merged config, for every Kit page route */
 	pages: Map<string, RouteConfig>;
 }
-const slot = shared<RoutesSlot>('ogygia.route-config.v1', 1, () => ({
-	routers: new Map(),
-	pages: new Map()
-}));
+const slot = shared<RoutesSlot>({
+	name: 'ogygia.route-config',
+	version: 1,
+	make: () => ({ routers: new Map(), pages: new Map() })
+});
 
 /** A `routes()` table joins (keyed: dev re-evaluates hooks.server.ts and calls `routes()` again; a
  *  matcher with the same key REPLACES its stale twin instead of shadowing it). */

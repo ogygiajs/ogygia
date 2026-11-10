@@ -53,7 +53,11 @@ interface Slots {
 	render_page?: RenderPagePort | null;
 }
 
-const slots = shared<Slots>('ogygia.kit-context', 1, () => ({ reader: null, event_reader: null }));
+const slots = shared<Slots>({
+	name: 'ogygia.kit-context',
+	version: 1,
+	make: () => ({ reader: null, event_reader: null })
+});
 
 /** hooks.ts installs the request-scoped reader (page snapshot + live event). */
 export function set_kit_page_reader(fn: Reader | null): void {

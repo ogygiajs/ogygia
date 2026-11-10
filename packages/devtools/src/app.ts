@@ -9,9 +9,11 @@
 import type { ServerApp } from '@ogygia/core/plugin';
 import { slot as shared } from '@ogygia/machine';
 
-const slot = shared<{ app: ServerApp<unknown> | null }>('ogygia.devtools.app.v1', 1, () => ({
-	app: null
-}));
+const slot = shared<{ app: ServerApp<unknown> | null }>({
+	name: 'ogygia.devtools.app',
+	version: 1,
+	make: () => ({ app: null })
+});
 
 export function set_devtools_app(app: ServerApp<unknown> | null): void {
 	slot.app = app;

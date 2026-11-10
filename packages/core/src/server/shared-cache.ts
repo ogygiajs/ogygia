@@ -117,7 +117,11 @@ export function expiry_refusal(
 interface Slot {
 	by_request: WeakMap<Request, number>;
 }
-const slot = shared<Slot>('ogygia.shared-cache', 1, () => ({ by_request: new WeakMap() }));
+const slot = shared<Slot>({
+	name: 'ogygia.shared-cache',
+	version: 1,
+	make: () => ({ by_request: new WeakMap() })
+});
 
 /** The handle: a load set `cache-control` on this page request. */
 export function note_cache_control(request: Request, cache_control: string): void {

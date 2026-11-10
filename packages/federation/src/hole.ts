@@ -26,7 +26,11 @@ export type HoleSigner = (spec: {
 interface HoleSlot {
 	signer: HoleSigner | null;
 }
-const slot = shared<HoleSlot>('ogygia.federation.hole', 1, () => ({ signer: null }));
+const slot = shared<HoleSlot>({
+	name: 'ogygia.federation.hole',
+	version: 1,
+	make: () => ({ signer: null })
+});
 
 /** hooks.ts installs the signer once (it holds the region secret). */
 export function set_hole_signer(fn: HoleSigner | null): void {

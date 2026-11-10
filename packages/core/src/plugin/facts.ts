@@ -40,10 +40,11 @@ interface FactsSlot {
 	/** core (hooks.ts): the Request of the code running now, through Kit's request store */
 	current: (() => Request | undefined) | null;
 }
-const slot = shared<FactsSlot>('ogygia.facts.v2', 2, () => ({
-	by_request: new WeakMap(),
-	current: null
-}));
+const slot = shared<FactsSlot>({
+	name: 'ogygia.facts',
+	version: 2,
+	make: () => ({ by_request: new WeakMap(), current: null })
+});
 
 /** This request's facts (made on first touch). */
 export function facts_of(request: Request): RequestFacts {
