@@ -17,6 +17,10 @@
 			"reason": "browser only: a late watcher of an element observed for another gets its decision in a microtask, constant work"
 		},
 		{
+			"id": "packages/core/src/runtime/viewport.ts > stand_ins",
+			"reason": "browser only: the children of a box-less region, at most 16 (WIDTH); viewport-shared.test.ts runs it in three engines"
+		},
+		{
 			"id": "packages/core/src/runtime/viewport.ts > measure",
 			"reason": "browser only: one getBoundingClientRect read against the viewport, constant work (node has no layout)"
 		},
