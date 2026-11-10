@@ -26,11 +26,11 @@ const SCOPE_HASH = /\.svelte-[a-z0-9]+/i;
 
 // A template that reads a STORE from an imported name — stripping the script (the old default) makes
 // svelte.compile throw, so the CSS fell back to unscoped bodies.
-const STORE_REF = [
-	`<script>import { open } from './state.js';</script>`,
-	`<div class="breadcrumb-header-inner">{$open}</div>`,
-	`<style>.breadcrumb-header-inner{display:flex;width:100%;max-width:1424px;margin:auto}</style>`
-].join('\n');
+const STORE_REF = dedent`
+	<script>import { open } from './state.js';</script>
+	<div class="breadcrumb-header-inner">{$open}</div>
+	<style>.breadcrumb-header-inner{display:flex;width:100%;max-width:1424px;margin:auto}</style>
+`;
 
 // scss-only syntax ($var) — svelte.compile can't read scss, so it threw too.
 const SCSS = dedent`
@@ -78,11 +78,11 @@ describe('fouc-scoped CSS: a lake/island keeps Svelte scoping and never leaks gl
 		// the script's TS was stripped and its lang="ts" dropped with it, so a typed arrow in the
 		// template threw "Unexpected token" and the whole component's CSS shipped global (found on the
 		// profiler's report page: a ledger's `.bar` rule dimmed the timeline's `.bar`)
-		const TS_MARKUP = [
-			`<script lang="ts">type Row = { n: number }; let { rows }: { rows: Row[] } = $props();</script>`,
-			`<span class="bar">{rows.map((r: Row) => r.n).join(',')}</span>`,
-			`<style>.bar{position:absolute;height:2px}</style>`
-		].join('\n');
+		const TS_MARKUP = dedent`
+			<script lang="ts">type Row = { n: number }; let { rows }: { rows: Row[] } = $props();</script>
+			<span class="bar">{rows.map((r: Row) => r.n).join(',')}</span>
+			<style>.bar{position:absolute;height:2px}</style>
+		`;
 		const pre = await preprocess_component_for_css(TS_MARKUP, abs, pkg_root);
 		const css = compileFoucScopedCss(abs, pre, { keepScript: true });
 		expect(css).toMatch(/\.bar\.svelte-[a-z0-9]+/i);

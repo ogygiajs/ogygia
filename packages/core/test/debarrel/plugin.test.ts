@@ -32,7 +32,12 @@ const app = (): Record<string, string> => ({
 		import App from './App.svelte';
 		console.log(Button, util, pkgLeaf, App);
 	`,
-	'src/App.svelte': `<script lang="ts">\n\timport { Card } from '$lib';\n</script>\n<Card />`,
+	'src/App.svelte': dedent`
+		<script lang="ts">
+			import { Card } from '$lib';
+		</script>
+		<Card />
+	`,
 	'lib/Button.svelte': '<button>b</button>',
 	'lib/Card.svelte': '<div>c</div>',
 	'lib/Unused.svelte': '<div>never imported: must not be in the graph</div>',
@@ -98,7 +103,16 @@ describe('which ids are importers', () => {
 		// <style> was reported "skipped" (3,233 false warnings in one production build)
 		f = fixture({
 			...app(),
-			'src/App.svelte': `<script lang="ts">\n\timport { Card } from '$lib';\n</script>\n<Card />\n<p class="x">x</p>\n<style>\n\t.x { color: red }\n</style>`
+			'src/App.svelte': dedent`
+				<script lang="ts">
+					import { Card } from '$lib';
+				</script>
+				<Card />
+				<p class="x">x</p>
+				<style>
+					.x { color: red }
+				</style>
+			`
 		});
 		const cfg = config(f);
 		cfg.plugins = [cfg.plugins[0], svelte({ configFile: false, emitCss: true })];

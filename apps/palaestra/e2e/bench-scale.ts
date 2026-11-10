@@ -91,7 +91,12 @@ function makeHost(): string {
 		else if (kind === 1) usages.push(`<${local} n={1} /><${local} n={2} />`);
 		else usages.push(`{#each rows as r}<${local} v={r} />{/each}`);
 	}
-	return `<script>\n${imports.join('\n')}\n</script>\n${usages.join('\n')}`;
+	return dedent`
+		<script>
+		${imports.join('\n')}
+		</script>
+		${usages.join('\n')}
+	`;
 }
 
 console.log(

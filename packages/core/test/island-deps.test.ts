@@ -16,6 +16,7 @@ import {
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { dedent } from '../src/compiler/dedent.ts';
 
 /** A generated module, loaded as the server would load it. */
 async function load_module(src: string) {
@@ -308,10 +309,18 @@ describe('collectIslandDepModulepreloads', () => {
 
 		test("the lines that draw differently in the browser: the app's and the site kit's, never another package's", () => {
 			const src: Record<string, string> = {
-				'/app/src/lib/Clock.svelte':
-					"<script>\n\tconst where = typeof window === 'undefined' ? 'server' : 'browser';\n</script>\n<p>{where}</p>",
-				'/app/node_modules/ogygia/dist/content/site/components/Sidebar.svelte':
-					'<script>\n\tlet { site } = $props();\n\tconst tree = await site.nav();\n</script>',
+				'/app/src/lib/Clock.svelte': dedent`
+						<script>
+							const where = typeof window === 'undefined' ? 'server' : 'browser';
+						</script>
+						<p>{where}</p>
+					`,
+				'/app/node_modules/ogygia/dist/content/site/components/Sidebar.svelte': dedent`
+						<script>
+							let { site } = $props();
+							const tree = await site.nav();
+						</script>
+					`,
 				'/app/node_modules/lib/Widget.svelte': '<p>{Date.now()}</p>'
 			};
 			const b = {

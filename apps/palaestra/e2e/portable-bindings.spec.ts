@@ -14,6 +14,7 @@ import {
 } from '../../../packages/core/dist/compiler/region/transform.js';
 import { test, check } from '@ogygia/tooling/e2e';
 import { WRAPPER_VIRTUAL_RE } from '@ogygia/tooling/e2e/re.ts';
+import { dedent } from 'ogygia/plugin/utils';
 
 const repo = fileURLToPath(new URL('../../..', import.meta.url));
 
@@ -188,7 +189,12 @@ export const registry = [RawX, WakeX, LoadY, WakeX2];
 
 		// A `.ts` held+crossable `wake:` island is DISTINCT from a `.svelte` PLACED island of the same
 		// component+schedule — one carries a server endpoint (`held:*`), the other does not (`hydrate:*`).
-		const svelteHost = `<script>\nimport X from '$lib/X.svelte' with { wake: 'visible' };\n</script>\n<X />`;
+		const svelteHost = dedent`
+			<script>
+			import X from '$lib/X.svelte' with { wake: 'visible' };
+			</script>
+			<X />
+		`;
 		const rh = transformHost(svelteHost, '/app/src/routes/+page.svelte', ctx)!;
 		check(
 			'transform(.ts↔.svelte): a .ts held wake island ≠ a .svelte placed island (endpoint vs none)',

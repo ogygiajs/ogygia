@@ -185,7 +185,10 @@ describe('site init — vite.config project', () => {
 
 // ── layout safety ───────────────────────────────────────────────────────────
 describe('site init — existing layout', () => {
-	const CUSTOM = '<script>/* my precious layout */</script>\n<slot />\n';
+	const CUSTOM = `${dedent`
+		<script>/* my precious layout */</script>
+		<slot />
+	`}\n`;
 
 	it('never clobbers an existing layout without --force (and says why)', () => {
 		const dir = svelteConfigProject({ 'src/routes/+layout.svelte': CUSTOM });
@@ -205,15 +208,15 @@ describe('site init — existing layout', () => {
 	});
 
 	it('recognises an existing ogygia shell as redeemable and keeps it (no --force needed)', () => {
-		const shell = [
-			'<script lang="ts">',
-			"\timport DocsShell from '@ogygia/content/docs-shell';",
-			"\timport { site } from '$lib/docs';",
-			'\tlet { children } = $props();',
-			'</script>',
-			'',
-			'<DocsShell {site} base="" title="My Edited Title">{@render children()}</DocsShell>'
-		].join('\n');
+		const shell = dedent`
+			<script lang="ts">
+				import DocsShell from '@ogygia/content/docs-shell';
+				import { site } from '$lib/docs';
+				let { children } = $props();
+			</script>
+
+			<DocsShell {site} base="" title="My Edited Title">{@render children()}</DocsShell>
+		`;
 		const dir = svelteConfigProject({ 'src/routes/+layout.svelte': shell });
 		const { status, out } = run(dir, ['init', '-y', '--no-install']);
 		expect(status).toBe(0);

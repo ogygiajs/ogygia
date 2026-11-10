@@ -87,7 +87,13 @@ describe('context_string_keys — follows the getContext/setContext import bindi
 	});
 
 	it('reads inside a Svelte component <script>', () => {
-		const src = `<script>\n  import { getContext } from 'svelte';\n  const first = getContext('headingContext')?.firstId;\n</script>\n<h1>{first}</h1>`;
+		const src = dedent`
+			<script>
+			  import { getContext } from 'svelte';
+			  const first = getContext('headingContext')?.firstId;
+			</script>
+			<h1>{first}</h1>
+		`;
 		expect(svelteReads(src)).toEqual(['headingContext']);
 	});
 

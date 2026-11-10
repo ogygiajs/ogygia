@@ -353,13 +353,13 @@ describe('tab component injection (plain barrel)', () => {
 
 	it("leaves an author's `import { TabGroup, Tab } from 'ogygia/content'` untouched (no upgrade)", async () => {
 		const code = await render(
-			[
-				'<script>',
-				"\timport { TabGroup, Tab } from '@ogygia/content';",
-				'</script>',
-				'',
-				'<TabGroup group="pm"><Tab label="npm">hi</Tab></TabGroup>'
-			].join('\n')
+			dedent`
+				<script>
+					import { TabGroup, Tab } from '@ogygia/content';
+				</script>
+
+				<TabGroup group="pm"><Tab label="npm">hi</Tab></TabGroup>
+			`
 		);
 		// TabGroup is a plain component — the author import stays a plain barrel, never split or marked
 		expect(code).toMatch(/import \{ TabGroup, Tab \} from '@ogygia\/content';/);
@@ -385,28 +385,28 @@ describe('tab component injection (plain barrel)', () => {
 
 	it('an import inside a fenced code SAMPLE is not treated as a real import (Shiki escapes it)', async () => {
 		const code = await render(
-			[
-				'# T',
-				'',
-				'```svelte',
-				'<script>',
-				"\timport { TabGroup, Tab } from '@ogygia/content';",
-				'</script>',
-				'```'
-			].join('\n')
+			dedent`
+				# T
+
+				\`\`\`svelte
+				<script>
+					import { TabGroup, Tab } from '@ogygia/content';
+				</script>
+				\`\`\`
+			`
 		);
 		expect(code).not.toContain('ogygia/content/tab-group');
 	});
 
 	it('leaves sibling barrel specifiers untouched (no split)', async () => {
 		const code = await render(
-			[
-				'<script>',
-				"\timport { Doc, TabGroup, Tab } from '@ogygia/content';",
-				'</script>',
-				'',
-				'<TabGroup group="pm"><Tab label="npm">hi</Tab></TabGroup>'
-			].join('\n')
+			dedent`
+				<script>
+					import { Doc, TabGroup, Tab } from '@ogygia/content';
+				</script>
+
+				<TabGroup group="pm"><Tab label="npm">hi</Tab></TabGroup>
+			`
 		);
 		expect(code).toMatch(/import \{ Doc, TabGroup, Tab \} from '@ogygia\/content';/);
 		expect(code).not.toContain('ogygia/content/tab-group');

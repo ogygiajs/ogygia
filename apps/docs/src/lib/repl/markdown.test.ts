@@ -288,7 +288,15 @@ async function main() {
 	{
 		const counter = `<script>let { start = 0 } = $props(); let n = $state(start);</script>\n<button onclick={() => n++}>c {n}</button>`;
 		const code = await bundle(
-			`<script>\n  import Counter from '$lib/Counter.svelte' with { wake: 'load' };\n</script>\n\n# With island\n\n<Counter start={2} />\n`,
+			`${dedent`
+				<script>
+				  import Counter from '$lib/Counter.svelte' with { wake: 'load' };
+				</script>
+
+				# With island
+
+				<Counter start={2} />
+			`}\n`,
 			{ '/repl/src/lib/Counter.svelte': counter }
 		);
 		ok(

@@ -363,19 +363,19 @@ describe('constant_work', () => {
 
 describe('each_blocks', () => {
 	it('the loops in markup, the key each walks, and the components inside (nested too)', () => {
-		const svelte = [
-			'<script>let { data } = $props();</script>',
-			'<div class="grid">',
-			'\t{#each data.results as p, i (p.id)}',
-			'\t\t<ResultCard {p} rank={i} />',
-			'\t\t{#each p.tags as t}<Tag {t} />{/each}',
-			'\t{/each}',
-			'</div>',
-			'{#each page.data.crumbs as c}<Crumb {c} />{/each}',
-			'{#each [1, 2] as n}<span>{n}</span>{/each}',
-			'<script>const products = data.catalog.products.map((p) => ({ ...p }));</script>',
-			'{#each products as p}<Card {p} />{/each}'
-		].join('\n');
+		const svelte = dedent`
+			<script>let { data } = $props();</script>
+			<div class="grid">
+				{#each data.results as p, i (p.id)}
+					<ResultCard {p} rank={i} />
+					{#each p.tags as t}<Tag {t} />{/each}
+				{/each}
+			</div>
+			{#each page.data.crumbs as c}<Crumb {c} />{/each}
+			{#each [1, 2] as n}<span>{n}</span>{/each}
+			<script>const products = data.catalog.products.map((p) => ({ ...p }));</script>
+			{#each products as p}<Card {p} />{/each}
+		`;
 		expect(each_blocks(svelte)).toEqual([
 			{ line: 3, key: 'results', components: ['ResultCard', 'Tag'] },
 			{ line: 5, components: ['Tag'] },
@@ -389,19 +389,19 @@ describe('each_blocks', () => {
 
 describe('late_island_keys', () => {
 	it('keys used only as props of islands that wake late', () => {
-		const svelte = [
-			'<script lang="ts">',
-			"\timport Reviews from './Reviews.svelte' with { wake: 'visible' };",
-			"\timport Price from './Price.svelte' with { wake: 'load' };",
-			"\timport Chart from './Chart.svelte' with { render: 'deferred', fetch: 'visible' };",
-			'\tlet { data } = $props();',
-			'\tconst n = data.count + 1;',
-			'</script>',
-			'<h1>{data.title}</h1>',
-			'<Price price={data.price} />',
-			'<Reviews reviews={data.reviews} count={data.count} />',
-			'<Chart points={data.points} />'
-		].join('\n');
+		const svelte = dedent`
+			<script lang="ts">
+				import Reviews from './Reviews.svelte' with { wake: 'visible' };
+				import Price from './Price.svelte' with { wake: 'load' };
+				import Chart from './Chart.svelte' with { render: 'deferred', fetch: 'visible' };
+				let { data } = $props();
+				const n = data.count + 1;
+			</script>
+			<h1>{data.title}</h1>
+			<Price price={data.price} />
+			<Reviews reviews={data.reviews} count={data.count} />
+			<Chart points={data.points} />
+		`;
 		// title: the page's own markup; price: an eager island; count: the script reads it too;
 		// points: its island is already deferred
 		expect(late_island_keys(svelte)).toEqual([
@@ -461,13 +461,13 @@ describe('source reads: the review cases', () => {
 	});
 
 	it('page.data.x is the page’s data; post.data.x is not', () => {
-		const svelte = [
-			'<script>',
-			"\timport R from './R.svelte' with { wake: 'visible' };",
-			'</script>',
-			'<p>{page.data.reviews.length}</p>',
-			'<R reviews={data.reviews} />'
-		].join('\n');
+		const svelte = dedent`
+			<script>
+				import R from './R.svelte' with { wake: 'visible' };
+			</script>
+			<p>{page.data.reviews.length}</p>
+			<R reviews={data.reviews} />
+		`;
 		// (without the page.data read it would be the late island's alone)
 		expect(
 			late_island_keys(svelte.replace('<p>{page.data.reviews.length}</p>', '<p>hi</p>'))
@@ -480,14 +480,14 @@ describe('source reads: the review cases', () => {
 	});
 
 	it('a prop on the second line of a multi-line island tag is the island’s', () => {
-		const svelte = [
-			'<script>',
-			"\timport R from './R.svelte' with { wake: 'visible' };",
-			'</script>',
-			'<R',
-			'\treviews={data.reviews}',
-			'/>'
-		].join('\n');
+		const svelte = dedent`
+			<script>
+				import R from './R.svelte' with { wake: 'visible' };
+			</script>
+			<R
+				reviews={data.reviews}
+			/>
+		`;
 		expect(late_island_keys(svelte)).toEqual([
 			{ key: 'reviews', island: 'R', wake: 'visible', line: 5 }
 		]);

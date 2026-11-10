@@ -120,7 +120,13 @@ async function main() {
 	await setSrc(
 		page,
 		S(
-			`<SCRIPT>\n  import { nanoid } from 'nanoid';\n  let id = $state(nanoid());\n</SCRIPT>\n<button onclick={() => id = nanoid()}>id {id}</button>`
+			dedent`
+				<SCRIPT>
+				  import { nanoid } from 'nanoid';
+				  let id = $state(nanoid());
+				</SCRIPT>
+				<button onclick={() => id = nanoid()}>id {id}</button>
+			`
 		)
 	);
 	const cdn = await until(page, () => {
@@ -139,7 +145,12 @@ async function main() {
 	await setSrc(
 		page,
 		S(
-			`<SCRIPT>\n  import Heart from '@lucide/svelte/icons/heart';\n</SCRIPT>\n<Heart size={30} color="crimson" />`
+			dedent`
+				<SCRIPT>
+				  import Heart from '@lucide/svelte/icons/heart';
+				</SCRIPT>
+				<Heart size={30} color="crimson" />
+			`
 		)
 	);
 	const svg = await until(
@@ -149,7 +160,15 @@ async function main() {
 	ok('CDN svelte component (lucide icon) renders svg', svg === 'crimson', `stroke=${svg}`);
 
 	// 4. a syntax error mid-edit doesn't crash the island; recovery works
-	await setSrc(page, S(`<SCRIPT>\n let x = ;;;broken(\n</SCRIPT>\n<h1>{x}`));
+	await setSrc(
+		page,
+		S(dedent`
+		<SCRIPT>
+		 let x = ;;;broken(
+		</SCRIPT>
+		<h1>{x}
+	`)
+	);
 	await page.waitForTimeout(1500);
 	const alive = await page.evaluate(
 		() => !!document.querySelector('[data-observatory]') && !!window.__OBS_SOURCE
@@ -167,7 +186,12 @@ async function main() {
 	);
 	await setSrc(
 		page,
-		S(`<SCRIPT>\n let n = $state(7);\n</SCRIPT>\n<button onclick={() => n++}>n {n}</button>`)
+		S(dedent`
+			<SCRIPT>
+			 let n = $state(7);
+			</SCRIPT>
+			<button onclick={() => n++}>n {n}</button>
+		`)
 	);
 	const recovered = await until(page, () =>
 		/n 7/.test(document.querySelector('[data-obs-preview]')?.textContent || '')
@@ -580,7 +604,13 @@ async function main() {
 	await setSrc(
 		page,
 		S(
-			`<SCRIPT>\n console.log('mounted', { a: 1, xs: [1, 2] });\n console.error('kaboom', new Map([['k', 1]]));\n</SCRIPT>\n<h1>CONSOLE_TEST</h1>`
+			dedent`
+				<SCRIPT>
+				 console.log('mounted', { a: 1, xs: [1, 2] });
+				 console.error('kaboom', new Map([['k', 1]]));
+				</SCRIPT>
+				<h1>CONSOLE_TEST</h1>
+			`
 		)
 	);
 	await until(page, () =>

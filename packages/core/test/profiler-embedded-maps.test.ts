@@ -371,8 +371,16 @@ describe('module_imports', () => {
 describe('route_imports', () => {
 	it('an import spread over lines', () => {
 		const files: Record<string, string> = {
-			'routes/a/+page.svelte':
-				"<script>\n\timport Ticker from\n\t\t'$lib/a/Ticker.svelte';\n\timport {\n\t\tx\n\t} from '$lib/b/Other.svelte';\n</script>\n<p>see $lib/c/Ticker.svelte'</p>"
+			'routes/a/+page.svelte': dedent`
+					<script>
+						import Ticker from
+							'$lib/a/Ticker.svelte';
+						import {
+							x
+						} from '$lib/b/Other.svelte';
+					</script>
+					<p>see $lib/c/Ticker.svelte'</p>
+				`
 		};
 		expect([...route_imports(Object.keys(files), (f) => files[f], 'Ticker')]).toEqual([
 			'lib/a/Ticker.svelte'
@@ -384,8 +392,12 @@ describe('route_imports', () => {
 
 	it('the same-named component the route imports', () => {
 		const files: Record<string, string> = {
-			'routes/hell/+page.svelte':
-				"<script>\n\timport PriceTicker from '$lib/hell/PriceTicker.svelte' with { wake: 'load' };\n\timport Card from './Card.svelte';\n</script>"
+			'routes/hell/+page.svelte': dedent`
+					<script>
+						import PriceTicker from '$lib/hell/PriceTicker.svelte' with { wake: 'load' };
+						import Card from './Card.svelte';
+					</script>
+				`
 		};
 		expect([...route_imports(Object.keys(files), (f) => files[f], 'PriceTicker')]).toEqual([
 			'lib/hell/PriceTicker.svelte'

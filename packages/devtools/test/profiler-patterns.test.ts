@@ -310,14 +310,14 @@ describe('find_patterns', () => {
 			category: 'component',
 			calls: 60
 		});
-		const src = [
-			'<script module>',
-			'\tconst M = Object.fromEntries(Array.from({ length: 60 }, (_, i) => [i, i]));',
-			'</script>',
-			'<script>',
-			'\tconst T = Object.fromEntries(Array.from({ length: 60 }, (_, i) => [i, i]));',
-			'</script>'
-		].join('\n');
+		const src = dedent`
+			<script module>
+				const M = Object.fromEntries(Array.from({ length: 60 }, (_, i) => [i, i]));
+			</script>
+			<script>
+				const T = Object.fromEntries(Array.from({ length: 60 }, (_, i) => [i, i]));
+			</script>
+		`;
 		const code = 'const T = Object.fromEntries(Array.from({ length: 60 }, (_, i) => [i, i]));';
 		const hit = find_patterns({
 			ledger: [row({ path: icon, line: 5, code, fn: 'C:Icon', cpu_ms: 14, alloc_bytes: 26e6 })],
@@ -1534,12 +1534,12 @@ describe('inferno round: context fixes', () => {
 				return out;
 			}
 		`,
-		'/app/src/lib/Card.svelte': [
-			'<script>',
-			'\t// a fixed table (belongs in <script module>)',
-			'\tconst ICONS = Object.fromEntries(Array.from({ length: 400 }, (_, i) => [`i${i}`, `M${i}`]));',
-			'</script>'
-		].join('\n'),
+		'/app/src/lib/Card.svelte': dedent`
+			<script>
+				// a fixed table (belongs in <script module>)
+				const ICONS = Object.fromEntries(Array.from({ length: 400 }, (_, i) => [\`i\${i}\`, \`M\${i}\`]));
+			</script>
+		`,
 		'/app/src/lib/search.ts': dedent`
 			export function matches(p, term) {
 				const re = new RegExp(escape(term), 'i');

@@ -35,6 +35,7 @@ import Region from '../src/Region.svelte';
 import Tiny from './_fixtures/Tiny.svelte';
 import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
 import { partial_ctx_init } from './_compile-ctx.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 const region = Region as unknown as Component<Record<string, unknown>>;
 const GRAPH_RE = /<script type="application\/json" data-ogygia-graph>([^<]*)<\/script>/;
@@ -383,7 +384,13 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 		root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-entry-emit-'));
 		const files: Record<string, string> = {
 			'src/routes/+layout.ts': 'export const csr = false;\n',
-			'src/routes/+page.svelte': `<script>\n\timport Widget from '$lib/Widget.svelte' with { wake: 'visible' };\n\timport Chart from '$lib/Chart.svelte' with { wake: 'idle' };\n</script>\n<Widget /><Chart />\n`,
+			'src/routes/+page.svelte': `${dedent`
+				<script>
+					import Widget from '$lib/Widget.svelte' with { wake: 'visible' };
+					import Chart from '$lib/Chart.svelte' with { wake: 'idle' };
+				</script>
+				<Widget /><Chart />
+			`}\n`,
 			'src/lib/Widget.svelte': `<p>w</p>\n`,
 			'src/lib/Chart.svelte': `<p>c</p>\n`
 		};

@@ -129,7 +129,11 @@ beforeAll(() => {
 	}
 	write(
 		'src/routes/fan/+page.svelte',
-		`<script>\n\timport * as b from '$lib/barrel';\n</script>\n`
+		`${dedent`
+			<script>
+				import * as b from '$lib/barrel';
+			</script>
+		`}\n`
 	);
 
 	// (2) a registry behind a plain helper
@@ -142,7 +146,11 @@ beforeAll(() => {
 	);
 	write(
 		'src/routes/helper/+page.svelte',
-		`<script>\n\timport { pick } from '$lib/factory';\n</script>\n`
+		`${dedent`
+			<script>
+				import { pick } from '$lib/factory';
+			</script>
+		`}\n`
 	);
 
 	// (3) cycles: a → b → a with b → registry; x → y → x reaching nothing

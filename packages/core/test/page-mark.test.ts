@@ -21,7 +21,12 @@ function marks_for(island: string, extra: Record<string, string> = {}, init: obj
 	roots.push(root);
 	const files: Record<string, string> = {
 		'src/routes/+layout.ts': 'export const csr = false;\n',
-		'src/routes/+page.svelte': `<script>\n\timport Island from '$lib/Island.svelte' with { wake: 'load' };\n</script>\n<Island />\n`,
+		'src/routes/+page.svelte': `${dedent`
+			<script>
+				import Island from '$lib/Island.svelte' with { wake: 'load' };
+			</script>
+			<Island />
+		`}\n`,
 		'src/lib/Island.svelte': island,
 		...extra
 	};
@@ -67,7 +72,13 @@ function marks_for(island: string, extra: Record<string, string> = {}, init: obj
 	return program.runtime_marks;
 }
 
-const script = (imports: string) => `<script>\n${imports}\n</script>\n<button>x</button>\n`;
+const script = (imports: string) =>
+	`${dedent`
+	<script>
+	${imports}
+	</script>
+	<button>x</button>
+`}\n`;
 
 describe('page mark', () => {
 	test('an island importing only Svelte, local helpers and assets reads no page', () => {

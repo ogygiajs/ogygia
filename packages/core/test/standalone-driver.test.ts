@@ -51,7 +51,12 @@ function make_compiler() {
 describe('standalone driver (no Vite)', () => {
 	test('Compiler.transform rewrites a marked host island and reports it', () => {
 		const { compiler } = make_compiler();
-		const src = `<script>\nimport TabGroup from 'some-pkg/tabs' with { wake: 'load' };\n</script>\n<TabGroup />`;
+		const src = dedent`
+			<script>
+			import TabGroup from 'some-pkg/tabs' with { wake: 'load' };
+			</script>
+			<TabGroup />
+		`;
 		const result = compiler.transform(src, `${ROOT}/src/lib/Widget.svelte`, { ssr: true }) as {
 			code: string;
 			islands: unknown[];
@@ -72,7 +77,13 @@ describe('standalone driver (no Vite)', () => {
 			@for $i from 1 through 3 { :global(.ql-indent-#{$i}) { padding-left: #{$i * 3}em; } }
 			</style>
 		`;
-		const src = `<script>\nimport TabGroup from 'some-pkg/tabs' with { wake: 'load' };\n</script>\n<TabGroup />\n${style}`;
+		const src = dedent`
+			<script>
+			import TabGroup from 'some-pkg/tabs' with { wake: 'load' };
+			</script>
+			<TabGroup />
+			${style}
+		`;
 		const result = compiler.transform(src, `${ROOT}/src/lib/ScssHost.svelte`, { ssr: true }) as {
 			code: string;
 			islands: unknown[];
@@ -84,7 +95,12 @@ describe('standalone driver (no Vite)', () => {
 
 	test('Compiler.transform is memoized (same source → same result object)', () => {
 		const { compiler } = make_compiler();
-		const src = `<script>\nimport TabGroup from 'some-pkg/tabs' with { wake: 'load' };\n</script>\n<TabGroup />`;
+		const src = dedent`
+			<script>
+			import TabGroup from 'some-pkg/tabs' with { wake: 'load' };
+			</script>
+			<TabGroup />
+		`;
 		const id = `${ROOT}/src/lib/Widget.svelte`;
 		const a = compiler.transform(src, id, { ssr: true });
 		const b = compiler.transform(src, id, { ssr: true });

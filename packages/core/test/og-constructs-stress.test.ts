@@ -134,14 +134,14 @@ describe('bake in .svelte — component import excluded from the eval bundle', (
 	afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 
 	it('the .svelte component import stays out of the Node eval; the bake still resolves its data', async () => {
-		const src = [
-			`<script lang="ts">`,
-			`import Widget from './Widget.svelte';`, // used in markup, NOT in bake → excluded from eval
-			`import { NUMS } from './nums';`, // used in bake → enters eval
-			`const total = import.meta.og.bake(() => NUMS.reduce((a, b) => a + b, 0));`,
-			`</script>`,
-			`<Widget n={total} />`
-		].join('\n');
+		const src = dedent`
+			<script lang="ts">
+			import Widget from './Widget.svelte';
+			import { NUMS } from './nums';
+			const total = import.meta.og.bake(() => NUMS.reduce((a, b) => a + b, 0));
+			</script>
+			<Widget n={total} />
+		`;
 		const out = await rewrite_bake(src, path.join(dir, 'C.svelte'), { alias: [], root: dir });
 		expect(out).toContain('const total = (6)'); // 1+2+3, bake resolved through the data import
 		expect(out).toContain(`import Widget from './Widget.svelte';`); // component import kept (used in markup)

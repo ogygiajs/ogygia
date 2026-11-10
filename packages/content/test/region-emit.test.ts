@@ -5,7 +5,12 @@ import { dedent } from '@ogygia/core/plugin/utils';
 
 /** A compiled-module skeleton: module script (metadata) + template markup. */
 const mod = (template: string, script = `export const metadata = {"title":"X"};`) =>
-	`<script context="module">\n${script}\n</script>\n${template}`;
+	dedent`
+		<script context="module">
+		${script}
+		</script>
+		${template}
+	`;
 
 describe('unescape_svelte', () => {
 	it('is the exact inverse of escape_svelte', () => {

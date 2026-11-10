@@ -2541,7 +2541,13 @@ class FileCompilation {
 			}
 			if (head) {
 				if (ast.instance) s.appendLeft(ast.instance.content.start, `\n${head}`);
-				else s.prepend(`<script${lang}>\n${head}</script>\n`);
+				else
+					s.prepend(
+						`${dedent`
+					<script${lang}>
+					${head}</script>
+				`}\n`
+					);
 			}
 		}
 

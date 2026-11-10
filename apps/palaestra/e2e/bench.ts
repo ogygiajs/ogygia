@@ -44,7 +44,12 @@ const ctx = {
 const HOST = '/app/src/routes/+page.svelte';
 
 // ---- representative host sources ----
-const wrap = (imports: string, markup: string) => `<script>\n${imports}\n</script>\n${markup}`;
+const wrap = (imports: string, markup: string) => dedent`
+	<script>
+	${imports}
+	</script>
+	${markup}
+`;
 
 // (A) island-heavy host: 6 imports across strategies + a couple usages each
 const heavy = wrap(

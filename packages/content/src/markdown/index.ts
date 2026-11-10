@@ -42,6 +42,7 @@ import type { ShikiTransformer } from 'shiki';
 import type { MetaParser, VariantGenerator } from './code.ts';
 import { default_pipeline } from './code-render.ts';
 import { OgygiaError } from '../messages/build.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 export { infostring, slash_meta } from './code.ts';
 export { diff_markers } from './diff.ts';
 export { inline_markers } from './inline-markers.ts';
@@ -254,7 +255,12 @@ function inject_module(code: string, lines: string[]): string {
 		const at = open.index + open[0].length;
 		return `${code.slice(0, at)}\n${block}${code.slice(at)}`;
 	}
-	return `<script context="module">\n${block}\n\x3C/script>\n${code}`;
+	return dedent`
+		<script context="module">
+		${block}
+		</script>
+		${code}
+	`;
 }
 
 /**

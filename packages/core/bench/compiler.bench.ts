@@ -40,11 +40,23 @@ function host_ctx(ssr: boolean): HostCtx {
 
 /** A route component: `islands` island imports, a few plain ones, and markup that uses them all. */
 function route_page(islands: number): string {
-	let script = `<script lang="ts">\n\timport Header from '$lib/Header.svelte';\n\timport { page } from '$app/state';\n\timport { format } from '$lib/format';\n`;
+	let script = `${dedent`
+		<script lang="ts">
+			import Header from '$lib/Header.svelte';
+			import { page } from '$app/state';
+			import { format } from '$lib/format';
+	`}\n`;
 	for (let i = 0; i < islands; i++) {
 		script = `${script}\timport Block${i} from '$lib/blocks/Block${i}.svelte' with { wake: '${WAKES[i % 4]}' };\n`;
 	}
-	script = `${script}\tlet { data } = $props();\n\tlet total = $derived(data.rows.reduce((n, r) => n + r.price, 0));\n\tfunction label(i: number): string {\n\t\treturn 'Row ' + i;\n\t}\n</script>\n\n`;
+	script = `${dedent`
+		${script}	let { data } = $props();
+			let total = $derived(data.rows.reduce((n, r) => n + r.price, 0));
+			function label(i: number): string {
+				return 'Row ' + i;
+			}
+		</script>
+	`}\n\n`;
 	let markup = `${dedent`
 		<Header title={data.title} />
 		<main>
@@ -101,7 +113,12 @@ bench(
 				body = `${body}\tconst v${i} = page.data.section${i % 15}?.items?.[${i}]?.title ?? page.data.fallback;\n`;
 			}
 			return {
-				source: `<script lang="ts">\n\timport { page } from '$app/state';\n${body}</script>\n{#each page.data.list as item}<p>{item.name} {page.data.user?.name}</p>{/each}\n`
+				source: `${dedent`
+					<script lang="ts">
+						import { page } from '$app/state';
+					${body}</script>
+					{#each page.data.list as item}<p>{item.name} {page.data.user?.name}</p>{/each}
+				`}\n`
 			};
 		}
 	}
@@ -112,7 +129,11 @@ bench(
 	({ source }) => stamp_opaque(source, '/app/src/lib/Widgets.svelte')?.length ?? 0,
 	{
 		setup: () => {
-			let markup = '<script lang="ts">\n\tlet { items, html } = $props();\n</script>\n';
+			let markup = `${dedent`
+				<script lang="ts">
+					let { items, html } = $props();
+				</script>
+			`}\n`;
 			for (let i = 0; i < 80; i++) {
 				markup +=
 					i % 4 === 0

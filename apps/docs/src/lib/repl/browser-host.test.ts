@@ -3,6 +3,7 @@
 // Run: `node browser-host.test.ts`.
 import { createHash as nodeCreateHash } from 'node:crypto';
 import { createHash } from './browser-host.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 let pass = 0;
 let fail = 0;
@@ -38,7 +39,12 @@ const fixed = [
 	'a'.repeat(120),
 	'a'.repeat(1000),
 	'héllo wörld — ünïcödé ✨🏝️',
-	'{@const}\n#each\n<script>\n:::tip',
+	dedent`
+		{@const}
+		#each
+		<script>
+		:::tip
+	`,
 	'\0\0\0boundary\0nulls'
 ];
 for (const algo of ['md5', 'sha256']) {

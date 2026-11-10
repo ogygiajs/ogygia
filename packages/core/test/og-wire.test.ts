@@ -29,12 +29,12 @@ describe('rewrite_wire — the strict compile construct', () => {
 	});
 
 	it('rewrites inside a .svelte <script module> block only — markup prose is untouched', () => {
-		const src = [
-			`<script module lang="ts">`,
-			`\texport class C { static wire = import.meta.og.wire(${CODEC}); }`,
-			`</script>`,
-			`<p>the marker import.meta.og.wire() in prose stays literal</p>`
-		].join('\n');
+		const src = dedent`
+			<script module lang="ts">
+				export class C { static wire = import.meta.og.wire(${CODEC}); }
+			</script>
+			<p>the marker import.meta.og.wire() in prose stays literal</p>
+		`;
 		const out = rewrite_wire(src, '/app/src/lib/C.svelte', MARKUP);
 		expect(out).toContain(`static [${WIRE_EXPR}] = ${CODEC};`);
 		expect(out).toContain('<p>the marker import.meta.og.wire() in prose stays literal</p>');

@@ -144,11 +144,11 @@ describe('wire — demented shapes that must still WORK', () => {
 	});
 
 	it('a .svelte with TWO script blocks — only the one with the class rewrites', () => {
-		const src = [
-			`<script module lang="ts">export class C { static wire = import.meta.og.wire(${CODEC}); }</script>`,
-			`<script lang="ts">let { c } = $props();</script>`,
-			`<b>hi</b>`
-		].join('\n');
+		const src = dedent`
+			<script module lang="ts">export class C { static wire = import.meta.og.wire(${CODEC}); }</script>
+			<script lang="ts">let { c } = $props();</script>
+			<b>hi</b>
+		`;
 		const out = rewrite_wire(src, '/C.svelte', MARKUP);
 		expect(out).toContain(WIRE_EXPR);
 		expect(out).toContain('let { c } = $props();');

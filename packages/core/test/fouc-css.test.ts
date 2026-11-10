@@ -25,8 +25,18 @@ describe('fouc-css collector', () => {
 
 	test('walks child .svelte + plain css without emitting component JS', async () => {
 		const files: Record<string, string> = {
-			'/app/src/lib/Hero.svelte': `<script>\nimport Demo from './Demo.svelte';\nimport './x.css';\n</script>\n<Demo />\n`,
-			'/app/src/lib/Demo.svelte': `<script></script>\n<style>.d { color: red }</style>\n<div class="d"></div>\n`,
+			'/app/src/lib/Hero.svelte': `${dedent`
+				<script>
+				import Demo from './Demo.svelte';
+				import './x.css';
+				</script>
+				<Demo />
+			`}\n`,
+			'/app/src/lib/Demo.svelte': `${dedent`
+				<script></script>
+				<style>.d { color: red }</style>
+				<div class="d"></div>
+			`}\n`,
 			'/app/src/lib/x.css': `.x { color: blue }`
 		};
 		const src = await buildFoucCssModuleSource('/app/src/lib/Hero.svelte', {
@@ -44,7 +54,12 @@ describe('fouc-css collector', () => {
 	// `.ts` module was a dead end. The bundler's resolver resolves it; a barrel is followed by name.
 	test('a package barrel and a local barrel: the names taken, and only those', async () => {
 		const files: Record<string, string> = {
-			'/app/src/lib/Menu.svelte': `<script lang="ts">import { KitPanel, type KitProps } from '@kit/ui/components';\nimport { LocalBadge } from './bits/index';\n</script>\n<KitPanel /><LocalBadge />`,
+			'/app/src/lib/Menu.svelte': dedent`
+				<script lang="ts">import { KitPanel, type KitProps } from '@kit/ui/components';
+				import { LocalBadge } from './bits/index';
+				</script>
+				<KitPanel /><LocalBadge />
+			`,
 			'/kit/components.ts': dedent`
 				import KitPanel from './src/KitPanel.svelte';
 				export { KitPanel };
@@ -123,7 +138,11 @@ describe('fouc-css collector', () => {
 		const abs = '/app/src/lib/Side.svelte';
 		const css = compileFoucScopedCss(
 			abs,
-			`<script lang="ts">let x: number = 1;</script>\n<style>.side { display: block }</style>\n<div class="side"></div>\n`
+			`${dedent`
+				<script lang="ts">let x: number = 1;</script>
+				<style>.side { display: block }</style>
+				<div class="side"></div>
+			`}\n`
 		);
 		expect(css).toMatch(/\.side/);
 		expect(css.length).toBeGreaterThan(0);
@@ -131,7 +150,14 @@ describe('fouc-css collector', () => {
 
 	test('listStaticImports reads side-effect css imports and the names taken', () => {
 		const imports = listStaticImports(
-			`<script lang="ts">\nimport '$lib/styles/a.css';\nimport B from './B.svelte';\nimport { C, type T } from './kit';\nimport type { U } from './types';\n</script>\n`,
+			`${dedent`
+				<script lang="ts">
+				import '$lib/styles/a.css';
+				import B from './B.svelte';
+				import { C, type T } from './kit';
+				import type { U } from './types';
+				</script>
+			`}\n`,
 			'/app/src/lib/H.svelte'
 		);
 		const by = new Map(imports.map((i) => [i.source, [...i.names]]));

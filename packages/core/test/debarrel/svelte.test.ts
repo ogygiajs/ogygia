@@ -20,48 +20,115 @@ describe('rewrite_svelte', () => {
 	it('rewrites the instance script and leaves the markup byte-identical', async () => {
 		f = fixture({
 			...lib(),
-			'src/App.svelte': `<script lang="ts">\n\timport { Button, util } from '$lib';\n\tlet n: number = util;\n</script>\n\n<Button>{n}</Button>\n<p>{@html '<script>alert(1)</script>'}</p>\n`
+			'src/App.svelte': `${dedent`
+				<script lang="ts">
+					import { Button, util } from '$lib';
+					let n: number = util;
+				</script>
+
+				<Button>{n}</Button>
+				<p>{@html '<script>alert(1)</script>'}</p>
+			`}\n`
 		});
 		expect(await f.rewrite('src/App.svelte')).toBe(
-			`<script lang="ts">\n\timport Button from '${f.id('lib/Button.svelte')}';\nimport { util } from '${f.id('lib/util.ts')}';\n\tlet n: number = util;\n</script>\n\n<Button>{n}</Button>\n<p>{@html '<script>alert(1)</script>'}</p>\n`
+			`${dedent`
+				<script lang="ts">
+					import Button from '${f.id('lib/Button.svelte')}';
+				import { util } from '${f.id('lib/util.ts')}';
+					let n: number = util;
+				</script>
+
+				<Button>{n}</Button>
+				<p>{@html '<script>alert(1)</script>'}</p>
+			`}\n`
 		);
 	});
 
 	it('rewrites the module script too, and both when present; attributes ride along', async () => {
 		f = fixture({
 			...lib(),
-			'src/App.svelte': `<script module>\n\timport { util } from '$lib';\n\texport const meta = util;\n</script>\n<script>\n\timport { Button } from '$lib' with { type: 'x' };\n</script>\n<Button />`
+			'src/App.svelte': dedent`
+				<script module>
+					import { util } from '$lib';
+					export const meta = util;
+				</script>
+				<script>
+					import { Button } from '$lib' with { type: 'x' };
+				</script>
+				<Button />
+			`
 		});
 		expect(await f.rewrite('src/App.svelte')).toBe(
-			`<script module>\n\timport { util } from '${f.id('lib/util.ts')}';\n\texport const meta = util;\n</script>\n<script>\n\timport Button from '${f.id('lib/Button.svelte')}' with { type: 'x' };\n</script>\n<Button />`
+			dedent`
+				<script module>
+					import { util } from '${f.id('lib/util.ts')}';
+					export const meta = util;
+				</script>
+				<script>
+					import Button from '${f.id('lib/Button.svelte')}' with { type: 'x' };
+				</script>
+				<Button />
+			`
 		);
 	});
 
 	it('a region-marked import in a component is left alone under the skip policy; the unmarked one next to it moves', async () => {
 		f = fixture({
 			...lib(),
-			'src/App.svelte': `<script>\n\timport { Button } from '$lib' with { wake: 'visible' };\n\timport { util } from '$lib';\n</script>\n<Button>{util}</Button>`
+			'src/App.svelte': dedent`
+				<script>
+					import { Button } from '$lib' with { wake: 'visible' };
+					import { util } from '$lib';
+				</script>
+				<Button>{util}</Button>
+			`
 		});
 		const skip = (decl: { attribute_keys: string[] }) => decl.attribute_keys.includes('wake');
 		expect(await f.rewrite('src/App.svelte', undefined, { skip })).toBe(
-			`<script>\n\timport { Button } from '$lib' with { wake: 'visible' };\n\timport { util } from '${f.id('lib/util.ts')}';\n</script>\n<Button>{util}</Button>`
+			dedent`
+				<script>
+					import { Button } from '$lib' with { wake: 'visible' };
+					import { util } from '${f.id('lib/util.ts')}';
+				</script>
+				<Button>{util}</Button>
+			`
 		);
 	});
 
 	it('`lang="ts"` types in the script do not break the parse (satisfies, generics, `as const`)', async () => {
 		f = fixture({
 			...lib(),
-			'src/App.svelte': `<script lang="ts">\n\timport { util, type T } from '$lib';\n\tconst x = { a: 1 } satisfies Record<string, T>;\n\tlet y = $state<T[]>([] as const as T[]);\n</script>`
+			'src/App.svelte': dedent`
+				<script lang="ts">
+					import { util, type T } from '$lib';
+					const x = { a: 1 } satisfies Record<string, T>;
+					let y = $state<T[]>([] as const as T[]);
+				</script>
+			`
 		});
 		expect(await f.rewrite('src/App.svelte')).toBe(
-			`<script lang="ts">\n\timport { util, type T } from '${f.id('lib/util.ts')}';\n\tconst x = { a: 1 } satisfies Record<string, T>;\n\tlet y = $state<T[]>([] as const as T[]);\n</script>`
+			dedent`
+				<script lang="ts">
+					import { util, type T } from '${f.id('lib/util.ts')}';
+					const x = { a: 1 } satisfies Record<string, T>;
+					let y = $state<T[]>([] as const as T[]);
+				</script>
+			`
 		);
 	});
 
 	it('import-looking text in a template string, a comment, and the markup is never rewritten', async () => {
 		f = fixture({
 			...lib(),
-			'src/App.svelte': `<script>\n\timport { util } from '$lib';\n\t// import { Button } from '$lib';\n\tconst s = \`<script>import { Button } from '$lib';\`;\n</script>\n<pre>{s}</pre>\n<p>{@html "<script>import { Button } from '$lib';</script>"}</p>`
+			'src/App.svelte': dedent`
+				<script>
+					import { util } from '$lib';
+					// import { Button } from '$lib';
+					const s = \`<script>import { Button } from '$lib';\`;
+				</script>
+				<pre>{s}</pre>
+				<p>{@html "<script>import { Button } from '$lib';</script>"}</p>
+			`
 		});
 		const out = (await f.rewrite('src/App.svelte'))!;
 		expect(out).toContain(`import { util } from '${f.id('lib/util.ts')}';`);
@@ -84,11 +151,26 @@ describe('rewrite_svelte', () => {
 		`;
 		f = fixture({
 			...lib(),
-			'src/App.svelte': `<script>\n\timport { Button, util } from '$lib';\n</script>\n\n<Button>{util}</Button>\n${style}\n`
+			'src/App.svelte': `${dedent`
+				<script>
+					import { Button, util } from '$lib';
+				</script>
+
+				<Button>{util}</Button>
+				${style}
+			`}\n`
 		});
 		const out = await f.rewrite('src/App.svelte');
 		expect(out).toBe(
-			`<script>\n\timport Button from '${f.id('lib/Button.svelte')}';\nimport { util } from '${f.id('lib/util.ts')}';\n</script>\n\n<Button>{util}</Button>\n${style}\n`
+			`${dedent`
+				<script>
+					import Button from '${f.id('lib/Button.svelte')}';
+				import { util } from '${f.id('lib/util.ts')}';
+				</script>
+
+				<Button>{util}</Button>
+				${style}
+			`}\n`
 		);
 	});
 
@@ -100,16 +182,36 @@ describe('rewrite_svelte', () => {
 		`;
 		f = fixture({
 			...lib(),
-			'src/App.svelte': `${style}\n<script lang="ts">\n\timport { util } from '$lib';\n\tconst label = '<style>not css</style>';\n</script>\n<p>{util}{label}</p>`
+			'src/App.svelte': dedent`
+				${style}
+				<script lang="ts">
+					import { util } from '$lib';
+					const label = '<style>not css</style>';
+				</script>
+				<p>{util}{label}</p>
+			`
 		});
 		expect(await f.rewrite('src/App.svelte')).toBe(
-			`${style}\n<script lang="ts">\n\timport { util } from '${f.id('lib/util.ts')}';\n\tconst label = '<style>not css</style>';\n</script>\n<p>{util}{label}</p>`
+			dedent`
+				${style}
+				<script lang="ts">
+					import { util } from '${f.id('lib/util.ts')}';
+					const label = '<style>not css</style>';
+				</script>
+				<p>{util}{label}</p>
+			`
 		);
 	});
 
 	it('blank_styles: only style content, newlines kept, a <style> string inside a script untouched', async () => {
 		const { blank_styles } = await import('../../src/compiler/debarrel/svelte.ts');
-		const src = `<script>const s = '<style>x{}</style>';</script>\n<STYLE lang="scss">\n.a-#{$i} {}\n</STYLE>\n<styles-not>keep</styles-not>`;
+		const src = dedent`
+			<script>const s = '<style>x{}</style>';</script>
+			<STYLE lang="scss">
+			.a-#{$i} {}
+			</STYLE>
+			<styles-not>keep</styles-not>
+		`;
 		const out = blank_styles(src);
 		expect(out.length).toBe(src.length);
 		expect(out).toContain(`const s = '<style>x{}</style>';`);
@@ -125,7 +227,11 @@ describe('rewrite_svelte', () => {
 		const { rewrite_svelte } = await import('../../src/compiler/debarrel/svelte.ts');
 		const why: { code: string; line?: number }[] = [];
 		const r = await rewrite_svelte(
-			`<script>import { A } from './barrel';</script>\n<div>\n<p>{unclosed</p>`,
+			dedent`
+				<script>import { A } from './barrel';</script>
+				<div>
+				<p>{unclosed</p>
+			`,
 			'/x/Broken.svelte',
 			async () => null,
 			{},

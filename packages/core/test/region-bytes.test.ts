@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { island_subgraph_bytes, type ByteGraphModule } from '../dist/compiler/dev/region-bytes.js';
+import { dedent } from '../src/compiler/dedent.ts';
 
 /** Build a mock Vite dev-graph node. `code` sets `transformResult.code`; `imports` the downward edges. */
 function mod(
@@ -52,8 +53,12 @@ describe('island_subgraph_bytes', () => {
 		};
 		const entry = mod('/@id/virtual:ogygia/island/abc123.js', 'glue', [clock]);
 		const src: Record<string, string> = {
-			'/app/src/lib/Clock.svelte':
-				"<script>\n\tconst where = typeof window === 'undefined' ? 'server' : 'browser';\n</script>\n<p>{where}</p>"
+			'/app/src/lib/Clock.svelte': dedent`
+					<script>
+						const where = typeof window === 'undefined' ? 'server' : 'browser';
+					</script>
+					<p>{where}</p>
+				`
 		};
 		expect(island_subgraph_bytes([entry], (f) => src[f]).abc123.hazards).toEqual([
 			{
@@ -75,8 +80,12 @@ describe('island_subgraph_bytes', () => {
 		};
 		const entry = mod('/@id/virtual:ogygia/island/abc123.js', 'glue', [sidebar]);
 		const src: Record<string, string> = {
-			'/repo/packages/ogygia/dist/content/site/components/Sidebar.svelte':
-				'<script>\n\tlet { site } = $props();\n\tconst tree = await site.nav();\n</script>'
+			'/repo/packages/ogygia/dist/content/site/components/Sidebar.svelte': dedent`
+					<script>
+						let { site } = $props();
+						const tree = await site.nav();
+					</script>
+				`
 		};
 		const out = island_subgraph_bytes([entry], (f) => src[f]).abc123;
 		expect(out.bytes).toBe(0);

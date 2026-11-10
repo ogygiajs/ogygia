@@ -33,14 +33,39 @@ const files: Record<string, string> = {
 		</script>
 		<Widget /><Frozen /><Greeting />
 	`}\n`,
-	'src/lib/Widget.svelte': `<script>\n\timport { track } from 'analytics-sdk';\n</script>\n<p>{track()}</p>\n`,
-	'src/lib/Frozen.svelte': `<script>\n\timport { heavy } from 'lake-only-dep';\n</script>\n<p>{heavy()}</p>\n`,
-	'src/lib/Greeting.svelte': `<script>\n\timport { db } from 'server-only-db';\n</script>\n<p>{db()}</p>\n`,
+	'src/lib/Widget.svelte': `${dedent`
+		<script>
+			import { track } from 'analytics-sdk';
+		</script>
+		<p>{track()}</p>
+	`}\n`,
+	'src/lib/Frozen.svelte': `${dedent`
+		<script>
+			import { heavy } from 'lake-only-dep';
+		</script>
+		<p>{heavy()}</p>
+	`}\n`,
+	'src/lib/Greeting.svelte': `${dedent`
+		<script>
+			import { db } from 'server-only-db';
+		</script>
+		<p>{db()}</p>
+	`}\n`,
 	// A second hydrate island placed from a host that is NOT a route file — the registry / glob shape
 	// Kit's own `routes/**/+*` entries never reach. Its host lives in a route GROUP directory, whose
 	// parentheses are glob syntax to the scanner and must be escaped by the adapter.
-	'src/lib/(group)/Host.svelte': `<script>\n\timport Chart from './Chart.svelte' with { wake: 'idle' };\n</script>\n<Chart />\n`,
-	'src/lib/(group)/Chart.svelte': `<script>\n\timport { draw } from 'chart-lib';\n</script>\n<p>{draw()}</p>\n`
+	'src/lib/(group)/Host.svelte': `${dedent`
+		<script>
+			import Chart from './Chart.svelte' with { wake: 'idle' };
+		</script>
+		<Chart />
+	`}\n`,
+	'src/lib/(group)/Chart.svelte': `${dedent`
+		<script>
+			import { draw } from 'chart-lib';
+		</script>
+		<p>{draw()}</p>
+	`}\n`
 };
 
 function make_compiler() {

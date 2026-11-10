@@ -57,7 +57,12 @@ function run(src: string, ctx = makeCtx()): Result | null {
 }
 
 function wrap(imports: string, markup: string): string {
-	return `<script>\n${imports}\n</script>\n${markup}`;
+	return dedent`
+		<script>
+		${imports}
+		</script>
+		${markup}
+	`;
 }
 
 function expectThrows(fn: () => unknown, re: RegExp): string {

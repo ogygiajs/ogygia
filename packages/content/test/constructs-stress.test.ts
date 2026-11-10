@@ -174,11 +174,11 @@ describe('.svelte multi-script-block interactions', () => {
 
 	it('a <script module> wire class AND a <script> code() call both rewrite, blocks independent', async () => {
 		const CODEC = `{ encode: (c) => c.v, decode: (v) => new W(v) }`;
-		const src = [
-			`<script module lang="ts">export class W { static wire = import.meta.og.wire(${CODEC}); }</script>`,
-			`<script lang="ts">const snip = import.meta.og.code("const x = 1;", "ts");</script>`,
-			`<div>{snip}</div>`
-		].join('\n');
+		const src = dedent`
+			<script module lang="ts">export class W { static wire = import.meta.og.wire(${CODEC}); }</script>
+			<script lang="ts">const snip = import.meta.og.code("const x = 1;", "ts");</script>
+			<div>{snip}</div>
+		`;
 		// core's own module-macro pass (wire) first, then the content plugin's code macro
 		const { code: wired } = await run_browser_macros(src, '/C.svelte');
 		expect(wired).toContain("Symbol.for('ogygia.wire')");
@@ -189,10 +189,10 @@ describe('.svelte multi-script-block interactions', () => {
 	});
 
 	it('a DECOY string that looks like a call in another block is not rewritten', async () => {
-		const src = [
-			`<script module>const decoy = "const y = import.meta.og.code('x','ts')";</script>`,
-			`<script>const real = import.meta.og.code("a", "ts");</script>`
-		].join('\n');
+		const src = dedent`
+			<script module>const decoy = "const y = import.meta.og.code('x','ts')";</script>
+			<script>const real = import.meta.og.code("a", "ts");</script>
+		`;
 		const out = await rewrite_code(src, '/C.svelte', MARKUP, echo);
 		expect(out).toContain(`const decoy = "const y = import.meta.og.code('x','ts')"`); // decoy intact
 		expect((out.match(/__og_html_region\(/g) ?? []).length).toBe(1); // only the real one

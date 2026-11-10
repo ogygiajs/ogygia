@@ -289,14 +289,25 @@ describe('fence claiming', () => {
 	});
 
 	it('every plain-script svelte fence gets a lang="ts" variant (svelte.dev rule)', () => {
-		const src = `<script>\n\tlet count = 0;\n</script>\n\n<button>{count}</button>`;
+		const src = dedent`
+			<script>
+				let count = 0;
+			</script>
+
+			<button>{count}</button>
+		`;
 		const out = ts_of(src, 'svelte');
 		expect(out).toContain(`<script lang="ts">`);
 		expect(out).toContain(`let count = 0;`);
 	});
 
 	it('converts JSDoc inside a svelte script block', () => {
-		const src = `<script>\n\t/** @type {import('./$types').PageProps} */\n\tlet { data } = $props();\n</script>`;
+		const src = dedent`
+			<script>
+				/** @type {import('./$types').PageProps} */
+				let { data } = $props();
+			</script>
+		`;
 		const out = ts_of(src, 'svelte');
 		expect(out).toContain(`<script lang="ts">`);
 		expect(out).toContain(`let { data }: PageProps = $props();`);
@@ -304,7 +315,16 @@ describe('fence claiming', () => {
 	});
 
 	it('leaves a TS-authored svelte fence alone', () => {
-		expect(ts_of(`<script lang="ts">\n\tlet a: number = 1;\n</script>`, 'svelte')).toBeNull();
+		expect(
+			ts_of(
+				dedent`
+			<script lang="ts">
+				let a: number = 1;
+			</script>
+		`,
+				'svelte'
+			)
+		).toBeNull();
 	});
 
 	it('leaves a svelte fence with no script alone', () => {

@@ -51,7 +51,11 @@ describe('og.store transform', () => {
 	});
 
 	it('works in a .svelte script block; no marker → same reference', () => {
-		const sv = `<script>\n\tconst s = import.meta.og.store((v) => ({ subscribe: () => {}, v }));\n</script>`;
+		const sv = dedent`
+			<script>
+				const s = import.meta.og.store((v) => ({ subscribe: () => {}, v }));
+			</script>
+		`;
 		expect(rewrite_store(sv, 'src/X.svelte', 'src/X.svelte', SVELTE)).toContain(
 			`__og_store("src/X.svelte#store0"`
 		);

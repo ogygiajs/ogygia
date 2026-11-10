@@ -621,8 +621,21 @@ describe('link audit', () => {
 
 describe('search — projection', () => {
 	it('strip_prose removes frontmatter, code, tags, markdown syntax', () => {
-		const src =
-			'---\ntitle: X\n---\n\n<script>let a=1;</script>\n\n# Heading\n\nSome **bold** and `code` and [a link](/x).\n\n```ts\nconst y = 2;\n```\n';
+		const src = `${dedent`
+				---
+				title: X
+				---
+
+				<script>let a=1;</script>
+
+				# Heading
+
+				Some **bold** and \`code\` and [a link](/x).
+
+				\`\`\`ts
+				const y = 2;
+				\`\`\`
+			`}\n`;
 		expect(strip_prose(src)).toBe('Heading Some bold and code and a link.');
 	});
 

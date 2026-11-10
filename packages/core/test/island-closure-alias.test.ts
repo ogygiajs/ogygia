@@ -16,8 +16,19 @@ let root = '';
 
 const files: Record<string, string> = {
 	'src/routes/+layout.ts': 'export const csr = false;\n',
-	'src/routes/+page.svelte': `<script>\n\timport Reader from '$lib/Reader.svelte' with { wake: 'load' };\n</script>\n<Reader />\n`,
-	'src/lib/Reader.svelte': `<script>\n\timport { page_name } from '$boot/read-page';\n\timport { relative_helper } from './relative-helper';\n</script>\n<p>{page_name()} {relative_helper()}</p>\n`,
+	'src/routes/+page.svelte': `${dedent`
+		<script>
+			import Reader from '$lib/Reader.svelte' with { wake: 'load' };
+		</script>
+		<Reader />
+	`}\n`,
+	'src/lib/Reader.svelte': `${dedent`
+		<script>
+			import { page_name } from '$boot/read-page';
+			import { relative_helper } from './relative-helper';
+		</script>
+		<p>{page_name()} {relative_helper()}</p>
+	`}\n`,
 	'src/lib/relative-helper.ts': `export const relative_helper = () => 'r';\n`,
 	'src/lib/boot/read-page.ts': `${dedent`
 		import { page } from '$app/state';

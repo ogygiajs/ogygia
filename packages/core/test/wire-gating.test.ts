@@ -57,7 +57,12 @@ const ctx = {
 };
 
 const HOST = '/app/src/routes/+page.svelte';
-const wrap = (imports: string, markup: string) => `<script>\n${imports}\n</script>\n${markup}`;
+const wrap = (imports: string, markup: string) => dedent`
+	<script>
+	${imports}
+	</script>
+	${markup}
+`;
 
 function marks_for(source: string, hostId = HOST) {
 	const program = new Program({ forms: false, router: false });

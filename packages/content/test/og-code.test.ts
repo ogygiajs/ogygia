@@ -59,12 +59,12 @@ describe('rewrite_code', () => {
 	});
 
 	it('works inside a .svelte <script> block; the import lands at the block top; prose untouched', async () => {
-		const src = [
-			'<script>',
-			'const ex = import.meta.og.code("y", "js");',
-			'</script>',
-			'<p>import.meta.og.code() in prose stays literal</p>'
-		].join('\n');
+		const src = dedent`
+			<script>
+			const ex = import.meta.og.code("y", "js");
+			</script>
+			<p>import.meta.og.code() in prose stays literal</p>
+		`;
 		const out = await rewrite_code(src, '/app/C.svelte', MARKUP, echo);
 		expect(out).toContain(`import { og_html_region as __og_html_region } from 'ogygia/internal';`);
 		expect(out).toContain('__og_html_region(');

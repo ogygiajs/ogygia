@@ -5,6 +5,7 @@ import { rewrite_lake_import_to_placeholder } from '../dist/vite/index.js';
 import { RateLimiter } from '../dist/server/rate-limit.js';
 import { sign, verify, region_mac_message } from '../dist/server/hmac.js';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
+import { dedent } from '../src/compiler/dedent.ts';
 
 const ROOT = '/app';
 const HOST = '/app/src/routes/+page.svelte';
@@ -31,7 +32,12 @@ function makeCtx(overrides: Partial<HostCtx> = {}): HostCtx {
 }
 
 function wrap(imports: string, markup: string) {
-	return `<script>\n${imports}\n</script>\n${markup}`;
+	return dedent`
+		<script>
+		${imports}
+		</script>
+		${markup}
+	`;
 }
 
 function run(src: string, ctx = makeCtx()) {

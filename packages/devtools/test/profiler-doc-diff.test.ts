@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { attr_sites, doc_diff } from '../src/profiler/doc-diff.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 // What changes between two renders of one page, grouped by what it is.
 
@@ -37,17 +38,17 @@ describe('doc_diff', () => {
 	});
 
 	it('where your markup sets a changing attribute, on the tags the diff saw it on', () => {
-		const src = [
-			'<script>let { m } = $props();</script>',
-			'<aside data-track={m.track}><h5>{m.title}</h5></aside>',
-			'<section data-track={m.other}>not a tag the diff saw</section>',
-			'<a',
-			'\thref="/x"',
-			'\tdata-track={id}',
-			'>link</a>',
-			'<a data-track="static">fixed</a>',
-			'<article data-track={x}>`<a` is not the start of `<article`</article>'
-		].join('\n');
+		const src = dedent`
+			<script>let { m } = $props();</script>
+			<aside data-track={m.track}><h5>{m.title}</h5></aside>
+			<section data-track={m.other}>not a tag the diff saw</section>
+			<a
+				href="/x"
+				data-track={id}
+			>link</a>
+			<a data-track="static">fixed</a>
+			<article data-track={x}>\`<a\` is not the start of \`<article\`</article>
+		`;
 		expect(attr_sites(src, 'data-track', ['aside', 'a'])).toEqual([
 			{ line: 2, code: '<aside data-track={m.track}><h5>{m.title}</h5></aside>' },
 			// a multi-line tag's attribute line

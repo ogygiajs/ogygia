@@ -12,6 +12,7 @@ import {
 import { CTX_EXTRA } from './_ctx-extra.ts';
 import path from 'node:path';
 import { test, check } from '@ogygia/tooling/e2e';
+import { dedent } from 'ogygia/plugin/utils';
 
 const OGYGIA_RE = /ogygia/i;
 const MUTATION_WARN_RE = /mutat|snapshot|prox/i;
@@ -31,7 +32,12 @@ const baseCtx = {
 	presets: {}
 };
 const HOST = '/app/src/routes/+page.svelte';
-const wrap = (imp: string, usage: string) => `<script>\n${imp}\n</script>\n${usage}`;
+const wrap = (imp: string, usage: string) => dedent`
+	<script>
+	${imp}
+	</script>
+	${usage}
+`;
 const run = (src: string) => transformHost(src, HOST, baseCtx);
 const IMP = `import C from './C.svelte' with { wake: 'load' };`;
 
