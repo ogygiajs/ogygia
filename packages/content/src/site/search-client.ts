@@ -1,16 +1,6 @@
-/**
- * Client-side search — a Web Worker over the prerendered `search.json`, so queries run on-device and
- * instantaneously (no network per keystroke, no server index build). This is the fast path the
- * `<Search>` brick and bespoke chrome (a custom sidebar) both use; the `remotes(site).search` remote
- * is the OTHER path, for dynamic sites where the corpus must stay server-side.
- *
- * Browser-only (instantiates a `Worker`). Build once (fetch + index), then `query()` is a worker
- * round-trip — sub-millisecond for docs-scale corpora.
- */
 import { machine, STALE } from '@ogygia/machine';
 import type { SearchHit } from './search.ts';
 
-// ── regexes
 const TRAILING_SLASHES_RE = /\/+$/;
 
 export type SearchClientOptions = {
@@ -23,11 +13,6 @@ export type SearchClientOptions = {
 	limit?: number;
 };
 
-/**
- * The client's lifecycle: its index loading, ready, failed (the index did not load, or the worker
- * crashed) or destroyed. Every query is answered or rejected in each of them: a failed query, a
- * failed load, a crash or `destroy()` once left queries waiting forever (#207).
- */
 const lifecycle = machine<{
 	loading: {};
 	ready: {};
@@ -47,9 +32,14 @@ const lifecycle = machine<{
 type Waiting = { resolve: (hits: SearchHit[]) => void; reject: (error: Error) => void };
 
 /**
- * The headless search handle for bespoke chrome — `const s = new SearchClient({ base: '/docs' })`,
- * then `s.query(q)`. One argument, convention-first. (The `<Search>` brick uses this internally;
- * inside a `<Shell>` it needs no arguments at all.)
+ * On-device search: a Web Worker over the prerendered `search.json` (`site.emit.search()`), fetched
+ * and indexed once, so a query costs no network. `const s = new SearchClient({ base: '/docs' })`,
+ * then `s.query(q)`. The `<Search>` brick uses it (inside a `<Shell>` with no arguments). Browser
+ * only: it starts a `Worker`. A dynamic site whose corpus stays on the server uses
+ * `remotes(site).search` instead.
+ *
+ * Every query is answered or rejected: a failed query, a failed load, a worker crash and
+ * `destroy()` each reject what waits (#207).
  */
 export class SearchClient {
 	/** Resolves once the index is fetched + built (rejects on load failure, a crash, or `destroy()`). */
@@ -69,11 +59,9 @@ export class SearchClient {
 			type: 'module'
 		}));
 
-		// ready settles when the machine gets there, or as soon as it never can
 		this.ready = this.#state.wait('ready').then((s) => {
 			if (s === STALE) throw this.#error();
 		});
-		// (a load failure reaches every query too: nobody has to listen to `ready`)
 		this.ready.catch(() => {}); // ok: the same failure rejects every query, which the palette shows
 
 		worker.onmessage = (e: MessageEvent) => {
@@ -85,8 +73,7 @@ export class SearchClient {
 			else if (m.type === 'error')
 				this.#fail(new Error(m.message ?? 'search index failed to load'));
 		};
-		// A worker-level crash (module failed to load/parse) never sends a message — surface it so the
-		// palette shows *why* instead of hanging on "loading" forever.
+		// @why a worker that fails to start sends no message: only onerror can reject what waits (test: test/search-client.test.ts › the worker crashes: waiting queries and later ones are rejected)
 		worker.onerror = (e: ErrorEvent) => {
 			this.#fail(new Error(e.message || `search worker failed to start (${url})`));
 		};
@@ -107,7 +94,6 @@ export class SearchClient {
 
 	/** Terminate the worker: waiting queries, and later ones, are rejected. */
 	destroy(): void {
-		// (twice is once: a manual destroy, then the palette's unmount; `destroyed` steps nowhere)
 		if (this.#state.now.kind === 'destroyed') return;
 		this.#state.go('destroyed');
 		this.#worker.terminate();

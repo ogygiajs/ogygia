@@ -1,29 +1,9 @@
-/**
- * Server-only remote layer for an ogygia site. The ONLY ogygia module that imports `$app/server`, so
- * it must be used from a `.remote.ts` (Kit guarantees those run on the server). Mirrors
- * `withRemotes()` from `@ogygia/content/server`: the browser-safe `site()` defines the site once;
- * `remotes(site)` mints the wire access.
- *
- * ```ts
- * // docs.remote.ts
- * import { remotes } from '@ogygia/content/server';
- * import { site } from './docs';
- * export const { nav, search } = remotes(site, { base: '/docs' });
- * ```
- *
- * Two remotes:
- *  - `nav` — the nav tree, PRERENDERED (one static artifact, hrefs baked for the mount).
- *  - `search` — the ON-DEMAND search brain over the wire (query mode). The server builds a lazy
- *    in-memory index the first time it's called; the client never receives the corpus. This is the
- *    dynamic-site path — distinct from the prerendered `search.json` + worker (the static path).
- */
 import { prerender, query } from '$app/server';
 import type { ContentMode } from '../server.ts';
 import type { Site, SiteMeta } from './site.ts';
 import type { SearchHit } from './search.ts';
 import type { PageView, NavTree } from './types.ts';
 
-/** Minimal Standard Schema string validator (avoids a valibot dep in the library). */
 const string_arg = {
 	['~standard']: {
 		version: 1 as const,
@@ -35,7 +15,6 @@ const string_arg = {
 	}
 };
 
-/** Standard Schema: `string | undefined` — for remotes whose argument is optional (`nav()`). */
 const optional_string_arg = {
 	['~standard']: {
 		version: 1 as const,
@@ -66,8 +45,20 @@ export type SiteRemotes = {
 };
 
 /**
- * Mint a site's Kit remotes. `base` is the mount prefix (baked into `nav` hrefs and `search` hit
- * hrefs); default `''` (root mount).
+ * Mint a site's Kit remotes: the browser-safe `site()` defines the site once, `remotes(site)` mints
+ * its wire access (as `withRemotes()` does for a collection). It imports `$app/server`, so call it
+ * from a `.remote.ts`.
+ *
+ * ```ts
+ * // docs.remote.ts
+ * import { remotes } from '@ogygia/content/server';
+ * import { docs } from './docs';
+ * export const { nav, meta, search, page } = remotes(docs, { base: '/docs' });
+ * ```
+ *
+ * `base` is the mount prefix (baked into `nav` hrefs and `search` hit hrefs); default `''` (root
+ * mount). `nav` and `meta` take a slug that names the `dimensions()` coordinate; none is the default
+ * one. `page` crosses without the entry's server-only `source` reader, its body awaited (rendered).
  *
  * `modes` picks each remote's wire mode (the same dial as `withRemotes`): **`prerender`** (default
  * for `nav` + `doc` — static payloads, required when the awaiting pages prerender; `dynamic: true`
@@ -80,21 +71,16 @@ export function remotes(
 ): SiteRemotes {
 	const base = opts.base ?? '';
 	const mode = { nav: opts.modes?.nav ?? 'prerender', page: opts.modes?.page ?? 'prerender' };
-	// The slug argument selects the dimension coordinate; absent / '' = the default coordinate —
-	// so ONE remote serves every topic/version/locale tree.
 	const nav_fn = (slug?: string) => site.nav(slug ? { base, slug } : { base });
-	// `source` is a lazy server-only reader (a function — not wire data); drop it. The body IS wire
-	// data once AWAITED: awaiting bakes its SSR HTML, and the transport ships it as an HTML-only
-	// ticket (inline body) or a signed ticket with markup (dual). Same-pass SSR still renders the
-	// component directly — the baked HTML is for the wire crossing.
 	const doc_fn = async (slug: string) => {
 		const view = await site.page(slug, { base });
 		if (!view) return null;
+		// @why `source` is a server-only reader (a function), never wire data (test: test/site-reads.test.ts › a page crosses without its source reader, and with its body awaited)
 		const { source: _source, ...entry } = view.entry as typeof view.entry & { source?: unknown };
+		// @why awaiting the body bakes its SSR HTML, which the transport ships as a ticket (test: test/site-reads.test.ts › a page crosses without its source reader, and with its body awaited)
 		const body = entry.body ? await entry.body : undefined;
 		return { ...view, entry: { ...entry, ...(body ? { body } : {}) } };
 	};
-	// The shell bundle for a slug — one payload the leak-free layout feeds to `<Shell {meta}>`.
 	const meta_fn = (slug?: string) => site.meta(slug ? { base, slug } : { base });
 	return {
 		nav: (mode.nav === 'query'
