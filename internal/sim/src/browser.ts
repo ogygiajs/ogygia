@@ -274,6 +274,19 @@ export class Browsers {
 		// so what a left document's code still says is told apart from the shown one's)
 		const page_console = w.console;
 		const own = Object.create(page_console) as Record<string, (...a: unknown[]) => void>;
+		// (every other method runs on the page's console itself: happy-dom's reads its own private
+		// fields, and called on this one it threw, `Cannot read private member #printer`, the first
+		// time an island logged on a press)
+		for (
+			let p: object | null = page_console;
+			p !== null && p !== Object.prototype;
+			p = Object.getPrototypeOf(p)
+		)
+			for (const key of Object.getOwnPropertyNames(p)) {
+				const f = (page_console as Record<string, unknown>)[key];
+				if (key !== 'constructor' && typeof f === 'function' && !Object.hasOwn(own, key))
+					own[key] = (...args: unknown[]) => f.apply(page_console, args);
+			}
 		for (const level of ['error', 'warn'] as const) {
 			own[level] = (...args: unknown[]) => {
 				if (!shown()) return;
