@@ -697,8 +697,10 @@ export class Leaks {
 	readonly #samples = new Map<string, Array<Record<string, number>>>();
 	/** Each tab's last sample's key: the same key twice running is one visit. */
 	readonly #at = new Map<string, string>();
-	/** Notes `tab`'s sample now; what grew, if it has grown visit after visit. */
-	check(tab: Tab): Broken | null {
+	/** Notes `tab`'s sample now; what grew, if it has grown visit after visit. `pressed`: the
+	 *  visitor pressed in this document, so an island may hold more of their own (a list they
+	 *  added to): its elements are theirs, and only what is held (listeners, timers) is judged. */
+	check(tab: Tab, pressed = false): Broken | null {
 		const url = tab.page.mainFrame.url;
 		if (!url.startsWith('http')) return null;
 		const key = `${tab.realm} ${url.split('#')[0]}`;
@@ -727,7 +729,8 @@ export class Leaks {
 					i === 0 || s[field] - less * s.explained > run[i - 1][field] - less * run[i - 1].explained
 			);
 		let known = false;
-		for (const field of ['listeners', 'intervals', 'observers', 'head', 'elements']) {
+		const fields = ['listeners', 'intervals', 'observers', 'head', 'elements'];
+		for (const field of pressed ? fields.slice(0, -1) : fields) {
 			if (!grew(field)) continue;
 			// (head nodes a filed bug explains are set aside: if then it does not grow, it is known)
 			if ((field === 'head' || field === 'elements') && !grew(field, 1)) {

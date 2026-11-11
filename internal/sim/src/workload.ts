@@ -10,6 +10,7 @@ import type { World } from './world.ts';
 
 export type Action =
 	| { kind: 'click'; tab: number; nth: number }
+	| { kind: 'press'; tab: number; nth: number }
 	| { kind: 'goto'; tab: number; path: string }
 	| { kind: 'back' | 'forward' | 'reload'; tab: number }
 	| { kind: 'open'; path: string }
@@ -20,6 +21,8 @@ export function describe(a: Action): string {
 	switch (a.kind) {
 		case 'click':
 			return `tab ${a.tab}: click link #${a.nth}`;
+		case 'press':
+			return `tab ${a.tab}: press button #${a.nth}`;
 		case 'goto':
 			return `tab ${a.tab}: go to ${a.path}`;
 		case 'open':
@@ -44,11 +47,22 @@ export function links(tab: Tab, origin: string): HTMLAnchorElement[] {
 	}) as HTMLAnchorElement[];
 }
 
+/** The buttons in a tab's regions, in document order: what a visitor presses in an island, woken
+ *  or not yet (a press before its code came is replayed once it wakes). */
+export function buttons(tab: Tab): HTMLButtonElement[] {
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	// (not a form's: a submit is a navigation of its own)
+	return [...doc.querySelectorAll('ogygia-region button')].filter(
+		(b) => !(b as HTMLButtonElement).disabled && (b as HTMLButtonElement).form === null
+	) as HTMLButtonElement[];
+}
+
 /** The seed's next action for a world with `tabs` tabs. */
 export function next_action(rng: Rng, tabs: number, paths: readonly string[]): Action {
 	const tab = rng.int(Math.max(1, tabs));
 	return rng.weighted<Action>([
 		[{ kind: 'click', tab, nth: rng.int(1000) }, 8],
+		[{ kind: 'press', tab, nth: rng.int(1000) }, 4],
 		[{ kind: 'goto', tab, path: rng.pick(paths) }, 2],
 		[{ kind: 'back', tab }, 2],
 		[{ kind: 'forward', tab }, 1],
@@ -77,6 +91,20 @@ export async function act(
 			// (the trace names the link, so a shrunk repro can click it by its address)
 			world.loop.note(`${tab.name} clicks ${link.getAttribute('href')}`);
 			link.click();
+			await world.quiesce();
+			return;
+		}
+		case 'press': {
+			if (tab === undefined) return;
+			const found = buttons(tab);
+			if (found.length === 0) return;
+			const button = found[a.nth % found.length];
+			const region = button.closest('ogygia-region');
+			// (the trace names the button by its region and text, so a shrunk repro can find it)
+			world.loop.note(
+				`${tab.name} presses "${(button.textContent ?? '').trim().slice(0, 40)}" in ${region?.getAttribute('entry') ?? '?'}`
+			);
+			button.click();
 			await world.quiesce();
 			return;
 		}
