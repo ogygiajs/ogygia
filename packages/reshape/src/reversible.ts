@@ -19,13 +19,13 @@
  *      in a `<p>`, …) where the render introduced the tag or the element it would close become
  *      `<og-as tag="…">` stand-ins. `data-og-head` assets move into `<head>` (a document), deduped.
  *
- * The browser half (runtime/restore.ts) attaches each planned host's shadow root, moves the rendered
+ * The browser half (./restore.ts) attaches each planned host's shadow root, moves the rendered
  * tree into it, and puts Svelte's children back — before anything snapshots or hydrates.
  *
  * Pure string work over one tokenizer pass each (indexOf-driven, no regex, no DOM): it runs on every
  * response of an app that configures a transform.
  */
-import { escape_amp_quot } from '../escape.ts';
+import { escapeAttr as escape_amp_quot } from '@ogygia/core/plugin/utils';
 
 // ─── tokenizer ─────────────────────────────────────────────────────────────────────────────────────
 
@@ -1184,7 +1184,7 @@ export function localizeMarks(html: string): { html: string; back: (rendered: st
 
 /**
  * The whole server round trip for one piece of markup: mark → the app's transform → settle. Kit-free
- * (exported from `ogygia/markup` for tests that harvest markup and run a transform over it).
+ * (exported from `@ogygia/reshape` for tests that harvest markup and run a transform over it).
  */
 export async function transformMarkup(
 	html: string,
