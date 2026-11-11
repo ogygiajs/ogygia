@@ -53,7 +53,7 @@ export function session_names(s: SessionData, now: (fp: string) => string): (fp:
 }
 
 /** A page's part of a session, saved on page hide so the next document picks the session up. */
-interface SavedPart {
+export interface SavedPart {
 	origin: number;
 	data: SessionData;
 }
@@ -114,8 +114,8 @@ function merge_parts(parts: SavedPart[], current: SessionData): SessionData {
 	};
 }
 
-/** On a devtools boot: a session a previous page was recording goes on here. */
-export function resume_session_if_any(): boolean {
+/** The parts a previous page saved, taken (so no other copy of this module resumes them too). */
+export function take_saved_session(): SavedPart[] | null {
 	let parts: SavedPart[] | null = null;
 	try {
 		const raw = sessionStorage.getItem(SAVED_KEY);
@@ -124,9 +124,20 @@ export function resume_session_if_any(): boolean {
 	} catch {
 		parts = null;
 	}
-	if (!parts?.length || active) return false;
+	return parts?.length ? parts : null;
+}
+
+/** A session the parts of earlier pages began goes on here (needs the document's body). */
+export function resume_session(parts: SavedPart[]): boolean {
+	if (active) return false;
 	start_session(parts);
 	return true;
+}
+
+/** On a devtools boot: a session a previous page was recording goes on here. */
+export function resume_session_if_any(): boolean {
+	const parts = take_saved_session();
+	return parts ? resume_session(parts) : false;
 }
 
 /** Was a session saved by the page before (without resuming it). */

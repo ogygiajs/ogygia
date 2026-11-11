@@ -9,6 +9,8 @@ import { recorded_realm } from './hook-entries.ts';
 import { hydration_json, page_json, record_start, record_stop, settled } from './testing-engine.ts';
 import type { OgygiaTestingApi } from './ui.ts';
 import { charge } from '@ogygia/core/internal/instruments';
+import { scope } from '@ogygia/machine';
+import { resume_session, take_saved_session } from './session.ts';
 
 /** When the script began, before its bundled modules ran (the build's banner sets it). */
 declare const __og_engine_t0: number | undefined;
@@ -28,4 +30,17 @@ if (typeof window !== 'undefined' && !window.__ogygia_testing) {
 		settled: (quiet, timeout) => settled(quiet, timeout)
 	};
 	window.__ogygia_testing = api;
+	// @why this engine answers record_stop, so a session the page before saved goes on in its copy, taken before the dock's copy can (test: ogygia-testing e2e › record() across a full page load)
+	const saved = take_saved_session();
+	if (saved) {
+		if (document.readyState !== 'loading') resume_session(saved);
+		else {
+			// (the page owns it: the scope ends once the body is there and the session goes on)
+			const s = scope();
+			s.on(document, 'DOMContentLoaded', () => {
+				s[Symbol.dispose]();
+				resume_session(saved);
+			});
+		}
+	}
 }
