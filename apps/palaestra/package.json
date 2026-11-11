@@ -12,6 +12,7 @@
 	},
 	"dependencies": {
 		"@ogygia/barrels": "workspace:*",
+		"@ogygia/reshape": "workspace:*",
 		"@rolldown/browser": "catalog:",
 		"devalue": "catalog:",
 		"ogygia": "workspace:*",
