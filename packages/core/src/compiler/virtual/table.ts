@@ -105,17 +105,37 @@ export function realm_exports(e: ModuleEntry<unknown>): [string, string][] {
 	return Object.entries(e.exports ?? {});
 }
 
-export interface ConstantEntry<A> {
+/** A switch: a `define` the bundler inlines, so the code it gates folds out. Read at config time
+ *  from `I` (the resolved options), not from a compile session: it is no module. The generated
+ *  `.d.ts` declares its global as `ConstOf<typeof entry>`. */
+export interface ConstantEntry<I, T extends boolean | number | string | null = boolean> {
 	kind: 'constant';
 	/** the `define` name */
 	id: string;
-	from(app: A): boolean | number | string | null;
+	from(input: I): T;
+}
+
+/** A constant entry's type: what its `from` returns. */
+export type ConstOf<E extends { from: (...a: never[]) => unknown }> = ReturnType<E['from']>;
+
+/** The `define` map of a set of constants. */
+export function defines<I>(
+	// (`any`: each constant's own value type; the map is strings)
+	// oxlint-disable-next-line typescript/no-explicit-any
+	constants: readonly ConstantEntry<I, any>[],
+	input: I
+): Record<string, string> {
+	const out: Record<string, string> = {};
+	for (const c of constants) out[c.id] = JSON.stringify(c.from(input));
+	return out;
 }
 
 // (`any`: an entry of any session or shape is one of the table's; the shapes are read per entry)
 // oxlint-disable-next-line typescript/no-explicit-any
 export type ModuleEntry<A> = ValueEntry<A, any> | RequestEntry<A> | FamilyEntry<A, any>;
-export type Entry<A> = ModuleEntry<A> | ConstantEntry<A>;
+// (a constant is no module: its own list, read at config time; ../virtual/core.ts CORE_CONSTANTS)
+// oxlint-disable-next-line typescript/no-explicit-any
+export type Entry<A> = ModuleEntry<A> | ConstantEntry<any, any>;
 
 /** The constructors. Each returns its argument, kind set, so a declaration reads as data. */
 export const virtual = {
@@ -128,7 +148,9 @@ export const virtual = {
 		kind: 'family',
 		...e
 	}),
-	constant: <A>(e: Omit<ConstantEntry<A>, 'kind'>): ConstantEntry<A> => ({ kind: 'constant', ...e })
+	constant: <I, T extends boolean | number | string | null>(
+		e: Omit<ConstantEntry<I, T>, 'kind'>
+	): ConstantEntry<I, T> => ({ kind: 'constant', ...e })
 };
 
 /** A value as module source: JSON, with each `Set` written as `new Set([…])`. */

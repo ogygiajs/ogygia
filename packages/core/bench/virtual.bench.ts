@@ -10,8 +10,13 @@ import { CompileCtx, type CompileCtxInit } from '../src/compiler/ctx.ts';
 import { set_host, type HostFs } from '../src/compiler/host.ts';
 import { normalize_import_keys } from '../src/compiler/region/transform.ts';
 import * as core from '../src/compiler/virtual/core.ts';
-import { CORE_VIRTUALS, core_path } from '../src/compiler/virtual/core.ts';
-import { CORE_ENTRIES_PATH, virtual_types } from '../src/compiler/virtual/types.ts';
+import {
+	CORE_VIRTUALS,
+	core_defines,
+	core_path,
+	type ConstantInput
+} from '../src/compiler/virtual/core.ts';
+import { CORE_ENTRIES_PATH, constant_types, virtual_types } from '../src/compiler/virtual/types.ts';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
 import { specifier, virtual, type Realm } from '../src/compiler/virtual/table.ts';
 
@@ -184,6 +189,36 @@ bench('virtual modules: a table built, an undeclared id and a duplicate refused'
 		refused++;
 	}
 	return refused + (table.claims('virtual:ogygia/island/a.js') ? 1 : 0);
+});
+
+bench('virtual constants: the define map of two option sets, and their generated globals', () => {
+	const base: ConstantInput = {
+		continuity_forms: false,
+		server_delta: false,
+		devtools: false,
+		devtools_lazy: false,
+		rules: false,
+		beacon: false,
+		client_plugins: false,
+		kit_major: null,
+		version: '0.0.0',
+		dev_server: false
+	};
+	const on: ConstantInput = {
+		continuity_forms: true,
+		server_delta: true,
+		devtools: true,
+		devtools_lazy: true,
+		rules: true,
+		beacon: true,
+		client_plugins: true,
+		kit_major: 3,
+		version: '1.2.3',
+		dev_server: true
+	};
+	let n = 0;
+	for (const input of [base, on]) n += Object.keys(core_defines(input)).length;
+	return n + constant_types(core, CORE_ENTRIES_PATH).length;
 });
 
 bench('virtual types: each realm’s .d.ts, generated off the table', () =>

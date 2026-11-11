@@ -9,6 +9,7 @@
 /// <reference path="./virtual/boot.d.ts" />
 /// <reference path="./virtual/region.d.ts" />
 /// <reference path="./virtual/dev.d.ts" />
+/// <reference path="./virtual/constants.d.ts" />
 // oxlint-enable typescript/triple-slash-reference
 
 // ── the `import.meta.og` compile surface ─────────────────────────────────────────────

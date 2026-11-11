@@ -5,14 +5,8 @@
 // oxlint-disable typescript/triple-slash-reference -- ambient module declarations are global: an import would make this file a module
 /// <reference path="../../core/virtual/server.d.ts" />
 /// <reference path="../../core/virtual/boot.d.ts" />
+/// <reference path="../../core/virtual/constants.d.ts" />
 // oxlint-enable typescript/triple-slash-reference
-
-/** DEVTOOLS event layer gate (Vite `define`; default OFF — see `ogygia({ devtools })`). */
-declare const __OGYGIA_DEVTOOLS__: boolean;
-/** a build with devtools on: launcher only; the dock and the page measuring start once opened */
-declare const __OGYGIA_DEVTOOLS_LAZY__: boolean;
-/** the profiler's browser half ships (the profiler or devtools is configured) */
-declare const __OGYGIA_BEACON__: boolean;
 
 interface Window {
 	// Dev-only devtools maps the dock fetches from the plugin's `/__ogygia_devtools_meta` middleware.

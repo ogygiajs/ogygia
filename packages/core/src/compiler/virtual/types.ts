@@ -66,6 +66,28 @@ const declare = (name: string, text: string): string =>
 		}
 	` + '\n';
 
+/** The constants' globals (`declare const __OGYGIA_X__`), each typed `ConstOf<typeof entry>`. */
+export function constant_types(entries: Record<string, unknown>, entries_path: string): string {
+	const lines: string[] = [];
+	for (const [name, value] of Object.entries(entries).sort(([a], [b]) => (a < b ? -1 : 1))) {
+		const e = value as { kind?: string; id?: string };
+		if (typeof e !== 'object' || e === null || e.kind !== 'constant') continue;
+		lines.push(
+			`declare const ${e.id}: ${TABLE}.ConstOf<typeof import('${entries_path}').${name}>;`
+		);
+	}
+	return (
+		dedent`
+			// ogygia's switches, the \`define\`s its build inlines. GENERATED from the virtual-module
+			// table's constants (packages/core/src/compiler/virtual/core.ts) by
+			// \`node packages/core/scripts/virtual-types.ts\`. Do not edit.
+		` +
+		'\n\n' +
+		lines.join('\n') +
+		'\n'
+	);
+}
+
 /**
  * The `.d.ts` text of each realm. `entries` is the module that exports the table's entries, by
  * export name (`entries_path`: its built path, relative to the generated files). A prefix family

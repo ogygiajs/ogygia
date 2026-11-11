@@ -7,31 +7,8 @@
 /// <reference path="../virtual/boot.d.ts" />
 /// <reference path="../virtual/region.d.ts" />
 /// <reference path="../virtual/dev.d.ts" />
+/// <reference path="../virtual/constants.d.ts" />
 // oxlint-enable typescript/triple-slash-reference
-
-/** CONTINUITY compile-time constants (Vite `define`; typeof-guarded so node dist import is safe). */
-declare const __OGYGIA_CONTINUITY_FORMS__: boolean;
-/** SERVER-DELTA NAV opt-in (Vite `define`; default OFF — see `router.serverDelta`). */
-declare const __OGYGIA_SERVER_DELTA__: boolean;
-/** DEVTOOLS event layer gate (Vite `define`; default OFF — see `ogygia({ devtools })`). When off,
- *  every `if (DEVTOOLS) emit({…})` folds to `if (false)` and the whole bus tree-shakes away. */
-declare const __OGYGIA_DEVTOOLS__: boolean;
-/** a build with devtools on: launcher only; the dock and the page measuring start once opened */
-declare const __OGYGIA_DEVTOOLS_LAZY__: boolean;
-/** ogygia's rules on itself are built in (`OGYGIA_RULES=1` at build time: the e2e suites'; always on
- *  in dev). Off, every `if (RULES) …` folds out and no rule ships (src/rules.ts). */
-declare const __OGYGIA_RULES__: boolean;
-/** the profiler's browser half ships (the profiler or devtools is configured); otherwise every
- *  `if (BEACON) …` folds out and runtime/beacon.ts leaves the bundle */
-declare const __OGYGIA_BEACON__: boolean;
-/** a plugin's browser half (`<plugin>/client`) is in the boot: the runtime calls its hooks */
-declare const __OGYGIA_CLIENT_PLUGINS__: boolean;
-/** The app's Kit major version (2, 3), or null when the plugin found none (kit-paths.ts). */
-declare const __OGYGIA_KIT_MAJOR__: number | null;
-/** The installed ogygia's version, which the runtime discloses (runtime/disclose-version.ts). */
-declare const __OGYGIA_VERSION__: string;
-/** The dev HMR bridge's served URL on the dev server; '' in a build (src/dev-hmr-url.ts). */
-declare const __OGYGIA_DEV_HMR_URL__: string;
 
 declare module '$app/paths' {
 	export const base: string;
