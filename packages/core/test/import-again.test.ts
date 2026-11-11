@@ -3,7 +3,12 @@
 // lazy-chunk-retry spec; this pins the URL reading and the attempt sequence.
 import { describe, expect, it, vi } from 'vitest';
 import { flights } from '@ogygia/machine';
-import { import_again, is_failed_import, retry_url } from '../src/runtime/import-again.ts';
+import {
+	import_again,
+	is_failed_import,
+	on_reload_needed,
+	retry_url
+} from '../src/runtime/import-again.ts';
 import { download } from '../src/policies.ts';
 
 const CHROMIUM = new TypeError(
@@ -168,6 +173,45 @@ describe('import_again', () => {
 			vi.useRealTimers();
 		}
 		expect(asked).toEqual([`${file}?og-retry=1`, `${file}?og-retry=2`]);
+	});
+
+	it('the page says it needs a reload exactly once, however many retries fail with their own file loaded', async () => {
+		const said: string[] = [];
+		on_reload_needed((url) => said.push(url));
+		// (every retry's own file came: a 200 in the timeline, so each failure is a dependency's)
+		const entries = vi
+			.spyOn(performance, 'getEntriesByName')
+			.mockImplementation(
+				(name) =>
+					(name.includes('og-retry')
+						? [{ responseStatus: 200, responseStart: 1 }]
+						: []) as unknown as PerformanceEntryList
+			);
+		try {
+			const dep = (url: string) =>
+				new TypeError(`Failed to fetch dynamically imported module: ${url}`);
+			const loaders = ['a.js', 'b.js', 'c.js'].map((name) => {
+				const file = `https://shop.test/_app/immutable/chunks/${name}`;
+				return import_again(
+					() => Promise.reject(dep(file)),
+					async (url: string) => {
+						throw dep(url);
+					},
+					file
+				);
+			});
+			for (const load of loaders) {
+				await expect(load()).rejects.toThrow(TypeError);
+				await expect(load()).rejects.toThrow('og-retry=1');
+				// (the verdict landed: stuck now, every later call fails at once)
+				await expect(load()).rejects.toThrow('og-retry=1');
+				await expect(load()).rejects.toThrow('og-retry=1');
+			}
+			expect(said).toEqual(['https://shop.test/_app/immutable/chunks/a.js?og-retry=1']);
+		} finally {
+			entries.mockRestore();
+			on_reload_needed(() => {});
+		}
 	});
 
 	it('a known file whose module threw (not a download) is not asked for again (#383)', async () => {
