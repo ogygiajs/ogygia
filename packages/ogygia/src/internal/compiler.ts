@@ -1,1 +1,1 @@
-export * from '@ogygia/core/internal/compiler';
+export * from '@ogygia/compiler';

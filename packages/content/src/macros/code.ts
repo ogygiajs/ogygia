@@ -25,7 +25,7 @@ import {
 	dedent,
 	parse_module,
 	type JsRegion
-} from '@ogygia/core/internal/compiler';
+} from '@ogygia/compiler';
 import { OgygiaError } from '../messages/build.ts';
 
 // Both snippet constructs share this transform: `code(source, lang, meta?)` and `md(text)` each bake

@@ -228,6 +228,7 @@
 		"verify:package": "node ../core/scripts/verify-package.ts ."
 	},
 	"dependencies": {
+		"@ogygia/compiler": "workspace:*",
 		"@ogygia/core": "workspace:*",
 		"@ogygia/insights": "workspace:*"
 	},

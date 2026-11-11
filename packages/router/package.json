@@ -66,6 +66,7 @@
 		"@ogygia/machine": "workspace:^"
 	},
 	"devDependencies": {
+		"@ogygia/compiler": "workspace:*",
 		"@ogygia/config": "workspace:*",
 		"@ogygia/core": "workspace:*",
 		"@ogygia/tooling": "workspace:*",
@@ -82,6 +83,7 @@
 		"vitest": "catalog:"
 	},
 	"peerDependencies": {
+		"@ogygia/compiler": "workspace:^",
 		"@ogygia/core": "workspace:^",
 		"@sveltejs/kit": "catalog:peers",
 		"svelte": "catalog:peers"

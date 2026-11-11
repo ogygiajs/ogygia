@@ -33,7 +33,7 @@ The plugin API is public so that you can read how the packages work, but it is f
 A plugin is a Vite plugin made with `definePlugin`, and the server half it names runs inside the app's `ogygia.handle()`. Its `name` is the package name, and it must resolve from the app:
 
 ```ts title=src/vite.ts
-import { definePlugin } from '@ogygia/core/vite';
+import { definePlugin } from '@ogygia/compiler/vite';
 
 export function poweredBy() {
   return definePlugin({

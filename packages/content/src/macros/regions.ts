@@ -21,7 +21,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { find_og_calls, split_first_string } from '@ogygia/core/internal/compiler';
+import { find_og_calls, split_first_string } from '@ogygia/compiler';
 import { OgygiaError } from '../messages/build.ts';
 
 // ── regexes

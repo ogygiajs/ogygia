@@ -6,13 +6,13 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import MagicString from 'magic-string';
-import { ExportIndex, Shapes } from '@ogygia/core/internal/compiler';
+import { ExportIndex, Shapes } from '@ogygia/compiler';
 import type {
 	BuildContext,
 	PluginDefinition,
 	StageTransform,
 	TransformEvent
-} from '@ogygia/core/vite';
+} from '@ogygia/compiler/vite';
 import { fixture, type Fixture } from './_fixture.ts';
 import { barrels, type BarrelsOptions } from '../src/index.ts';
 

@@ -10,7 +10,7 @@ import {
 	SERVER_WARNINGS,
 	type MessageEntry
 } from '@ogygia/core/internal/messages';
-import { BUILD_ERRORS, BUILD_WARNINGS } from '@ogygia/core/internal/compiler';
+import { BUILD_ERRORS, BUILD_WARNINGS } from '@ogygia/compiler';
 import * as barrels from '@ogygia/barrels/internal/messages';
 import * as content from '@ogygia/content/internal/messages';
 import * as devtools from '@ogygia/devtools/internal/messages';

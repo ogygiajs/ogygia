@@ -17,7 +17,7 @@ import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { __set_build_cache_root } from '@ogygia/core/internal/compiler';
+import { __set_build_cache_root } from '@ogygia/compiler';
 import { ogygiaPreprocess } from '../src/markdown/index.ts';
 import { bridge } from '../src/bridge.ts';
 

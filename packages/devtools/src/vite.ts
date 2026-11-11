@@ -16,7 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isMainThread } from 'node:worker_threads';
 import type { Plugin as VitePlugin, UserConfig } from 'vite';
-import { definePlugin, type OgygiaPlugin, type RegionsSeam } from '@ogygia/core/vite';
+import { definePlugin, type OgygiaPlugin, type RegionsSeam } from '@ogygia/compiler/vite';
 import type { ProfilerOptions } from './profiler/index.ts';
 import type { DevtoolsServerOptions } from './server.ts';
 import { warn } from './messages/build.ts';

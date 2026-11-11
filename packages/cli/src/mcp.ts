@@ -27,7 +27,7 @@ import {
 	collect_flag_sites,
 	flags_manifest,
 	type FlagSite
-} from '@ogygia/core/internal/compiler';
+} from '@ogygia/compiler';
 import { line } from './messages.ts';
 
 /** The profiler's report reading (`@ogygia/devtools/report`), as these tools use it: loaded from the

@@ -20,7 +20,7 @@
  * cache `node_modules` keep every baked region across builds.
  */
 import { createHash } from 'node:crypto';
-import { BuildCache } from '@ogygia/core/internal/compiler';
+import { BuildCache } from '@ogygia/compiler';
 // (the producer's own version is part of every address: a release that changes what a region emits —
 // an import specifier, a wrapper — must never be served an older release's bake)
 import pkg from '../package.json' with { type: 'json' };

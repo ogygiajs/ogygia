@@ -20,8 +20,8 @@ import {
 	type IslandBarrel,
 	type IslandHazard
 } from '@ogygia/insights';
-import { region_family } from '@ogygia/core/internal/compiler-ids';
-import { OGYGIA_SCHEME, OWN_FILE_RE } from '@ogygia/core/internal/compiler';
+import { region_family } from '@ogygia/compiler/ids';
+import { OGYGIA_SCHEME, OWN_FILE_RE } from '@ogygia/compiler';
 
 /** Structural shape of a Vite dev module-graph node (the fields the byte walk reads). */
 export type ByteGraphModule = {

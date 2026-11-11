@@ -16,7 +16,7 @@
 
 import type { MdsvexOptions } from 'mdsvex';
 import type { PreprocessorGroup, Processed } from 'svelte/compiler';
-import { BuildCache, content_css_key } from '@ogygia/core/internal/compiler';
+import { BuildCache, content_css_key } from '@ogygia/compiler';
 import { flights, STALE } from '@ogygia/machine';
 import { bridge } from '../bridge.ts';
 import { RegionStore } from '../region-store.ts';
