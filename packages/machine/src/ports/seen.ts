@@ -5,4 +5,6 @@ export const observer = (
 	callback: IntersectionObserverCallback,
 	options?: IntersectionObserverInit
 ): IntersectionObserver | null =>
-	realm.IntersectionObserver === undefined ? null : new realm.IntersectionObserver(callback, options);
+	realm.IntersectionObserver === undefined
+		? null
+		: new realm.IntersectionObserver(callback, options);

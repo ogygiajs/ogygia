@@ -131,7 +131,6 @@ export function is_time(ms: unknown): ms is number {
 	return typeof ms === 'number' && Number.isFinite(ms) && ms >= 0 && ms <= MAX_TIMEOUT_MS;
 }
 
-
 const noop = (): void => {};
 
 /**
