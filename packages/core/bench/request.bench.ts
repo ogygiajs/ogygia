@@ -59,7 +59,6 @@ const { with_request_store } = kit_server as unknown as {
 
 type Handle = InstanceType<typeof hooks.OgygiaHandle>;
 type Bag = NonNullable<Parameters<Handle['inject_client_seeds']>[3]>;
-type Transform = NonNullable<ConstructorParameters<typeof hooks.OgygiaHandle>[0]>['transform'];
 
 interface Request_ {
 	handle: Handle;
@@ -86,8 +85,6 @@ interface PageOptions {
 	function_leaf?: boolean;
 	/** remote queries resolved during the render, two of them callable by the page's islands */
 	remotes?: boolean;
-	/** the app's server transform (`handle({ transform })`) */
-	transform?: Transform;
 }
 
 const CSR_FALSE_ROUTE = '/[...path]';
@@ -252,7 +249,7 @@ function content_request(blocks: number, o: PageOptions = {}): Request_ {
 		bag.ctx.set('locale', { code: 'en', dir: 'ltr', currency: 'USD' });
 		bag.ctx.set('nav', { active: '/', crumbs: ['Home'] });
 	}
-	const handle = new hooks.OgygiaHandle(o.transform ? { transform: o.transform } : {});
+	const handle = new hooks.OgygiaHandle({});
 	return { handle, html: content_document(blocks), state, event, bag };
 }
 
@@ -398,13 +395,6 @@ bench('handle: the CMS page, from resolve to the last byte sent', through_handle
 bench('handle: a streamed load, the resolve script sent after the document', through_handle, {
 	setup: () => handled(250, { streamed: true })
 });
-
-bench(
-	'handle: the CMS page through the app’s transform (marked, then settled)',
-	through_handle,
-	// (no `scale`: the marking and settling passes grow with the document in markup.bench.ts)
-	{ setup: () => handled(250, { transform: (html) => html }) }
-);
 
 // THE HELPERS on their own, each on the input its loops walk.
 

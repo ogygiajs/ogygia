@@ -3,12 +3,7 @@
 // fooled by tag-like text the way a regex balance-count is (a `<ogygia-region>` in a CSS comment
 // threw a customer's count off, so their island skip silently stopped applying in dev).
 import { describe, it, expect } from 'vitest';
-import {
-	scanRegions,
-	liftRegions,
-	restoreRegions,
-	type RegionSpan
-} from '../src/server/split-regions.ts';
+import { scanRegions, liftRegions, restoreRegions, type RegionSpan } from '../src/split-regions.ts';
 
 const kinds = (html: string) => [...scanRegions(html)].map((r) => r.kind);
 const one = (html: string): RegionSpan => {
