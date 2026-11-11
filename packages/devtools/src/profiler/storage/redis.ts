@@ -1,21 +1,3 @@
-/**
- * Redis report store — for a fleet that already runs Redis, or a serverless deployment using a
- * hosted Redis (Upstash, ElastiCache). Reports are strings under `<prefix>report:<id>`, a sorted set
- * `<prefix>reports` (score = created ms) drives the list and the LRU prune, and visits mirror that.
- * The prefix defaults to `og:`.
- *
- *   // src/hooks.server.ts
- *   import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
- *   import { RedisStore } from '@ogygia/devtools/profiler/storage/redis';
- *   // pass a connection string (node-redis / ioredis is imported on demand)…
- *   setProfilerStore(new RedisStore('redis://localhost:6379'));
- *   // …or an already-connected client (node-redis or ioredis both work)
- *   setProfilerStore(new RedisStore(myClient));
- *
- * A TTL (seconds) expires reports on their own — handy on a shared instance where you only want the
- * last day of recordings. The index sets drop an expired report's id the next time they are read or
- * pruned, so they do not grow with every report that expired.
- */
 import type {
 	ProfilerStore,
 	ProfilerRecord,
@@ -25,9 +7,6 @@ import type {
 import { flights, STALE, type Flights } from '@ogygia/machine';
 import { MAX_VISITS_PER_KEY } from './visits.ts';
 
-/** The subset of a Redis client this store uses — node-redis and ioredis both satisfy it (their
- *  method names differ in case, and a few calls take options objects on one and arguments on the
- *  other; the flavour is read once, below). */
 interface RedisLike {
 	set(key: string, val: string, ...rest: unknown[]): Promise<unknown>;
 	get(key: string): Promise<string | null>;
@@ -39,7 +18,6 @@ interface RedisLike {
 	connect?(): Promise<void>;
 }
 
-/** node-redis (v4+): camelCase methods, options objects */
 interface NodeRedis {
 	set(key: string, val: string, opts?: { EX: number }): Promise<unknown>;
 	zAdd(key: string, m: { score: number; value: string }): Promise<unknown>;
@@ -48,17 +26,12 @@ interface NodeRedis {
 	zCard(key: string): Promise<number>;
 }
 
-/** reports kept at most, whatever the host prunes to (a store used on its own still has a cap) */
 const MAX_REPORTS = 1000;
 
 async function resolve(client: RedisLike | string): Promise<RedisLike> {
 	if (typeof client !== 'string') return client;
-	// a URL: import node-redis if present, else ioredis. Indirect specifiers so the type checker does
-	// not require these optional peers to be installed (they resolve at runtime only).
 	const nodeRedis = 'redis';
 	const ioRedis = 'ioredis';
-	// (only a node-redis that is not there falls through to ioredis: one that is there and cannot
-	// connect fails with its own error)
 	type NodeRedis = { createClient: (o: { url: string }) => RedisLike };
 	let node_redis: NodeRedis | null = null;
 	try {
@@ -75,8 +48,6 @@ async function resolve(client: RedisLike | string): Promise<RedisLike> {
 	return new mod.default(client);
 }
 
-// THE FLAVOUR, read once from the client's own methods: node-redis has `zAdd`, ioredis `zadd`.
-// (Trying one form and falling back on the error cost ioredis a round trip on every write.)
 const node = (r: RedisLike): NodeRedis | null =>
 	typeof (r as unknown as NodeRedis).zAdd === 'function' ? (r as unknown as NodeRedis) : null;
 const zadd = (r: RedisLike, key: string, score: number, member: string) => {
@@ -103,7 +74,6 @@ const zcard = (r: RedisLike, key: string): Promise<number> => {
 	const n = node(r);
 	return n ? n.zCard(key) : r.zcard!(key);
 };
-/** drop every member but the newest `keep`, with the keys they name */
 const trim = async (r: RedisLike, key: string, item: string, keep: number) => {
 	const stale = await zrange(r, key, 0, -(keep + 1));
 	if (!stale.length) return;
@@ -111,6 +81,24 @@ const trim = async (r: RedisLike, key: string, item: string, keep: number) => {
 	await zrem(r, key, stale);
 };
 
+/**
+ * A report store on Redis, for a fleet that already runs one or a serverless host on a hosted Redis.
+ * Reports are strings under `<prefix>report:<id>`, listed by the sorted set `<prefix>reports`
+ * (scored by `created`); visits are `<prefix>visit:<key>`, listed per page. The prefix defaults to
+ * `og:`. It keeps 1000 reports at most, whatever the host prunes to, and 2000 visits per page.
+ *
+ *   // src/hooks.server.ts
+ *   import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
+ *   import { RedisStore } from '@ogygia/devtools/profiler/storage/redis';
+ *   setProfilerStore(new RedisStore('redis://localhost:6379'));
+ *   // or a client already made (node-redis or ioredis)
+ *   setProfilerStore(new RedisStore(myClient));
+ *
+ * Given a URL, it imports node-redis, or ioredis when node-redis is not installed; a node-redis
+ * that cannot connect fails with its own error. Either client's writes are one call each, in its
+ * own form. `ttlSeconds` expires reports on their own; an expired id leaves its index
+ * the next time the list is read. After `close()`, the next call connects again.
+ */
 export class RedisStore implements ProfilerStore {
 	readonly kind: string = 'redis';
 	#client: RedisLike | string;
@@ -149,7 +137,6 @@ export class RedisStore implements ProfilerStore {
 		};
 		await this.#set_str(r, this.#R + rec.id, JSON.stringify({ summary, dump: rec.dump }));
 		await zadd(r, this.#RZ, rec.created, rec.id);
-		// the store's own cap, whatever the host prunes to: one ZCARD, a trim only past it
 		if ((await zcard(r, this.#RZ)) > MAX_REPORTS) await trim(r, this.#RZ, this.#R, MAX_REPORTS);
 	}
 
@@ -171,7 +158,7 @@ export class RedisStore implements ProfilerStore {
 		for (const id of ids) {
 			const raw = await r.get(this.#R + id);
 			if (!raw) {
-				gone.push(id); // expired (TTL) or deleted elsewhere: its id leaves the index too
+				gone.push(id);
 				continue;
 			}
 			try {
@@ -226,7 +213,6 @@ export class RedisStore implements ProfilerStore {
 	async close(): Promise<void> {
 		const made = this.#made;
 		this.#made = null;
-		// (the next call connects again)
 		this.#connect = this.#connector();
 		await (made as unknown as { quit?: () => Promise<void>; disconnect?: () => void })
 			?.quit?.()
@@ -241,7 +227,6 @@ export class RedisStore implements ProfilerStore {
 	}
 
 	async #need(): Promise<RedisLike> {
-		// (nothing drops a connector, so it is never STALE; were it, the current one is asked)
 		const c = await this.#connect.get();
 		return c === STALE ? this.#need() : c;
 	}

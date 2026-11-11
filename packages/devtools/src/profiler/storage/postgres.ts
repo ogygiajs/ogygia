@@ -1,19 +1,3 @@
-/**
- * Postgres report store — the durable, team-shared backend. Reports go in one `ogygia_reports`
- * table (a `jsonb` dump plus summary columns), visits in `ogygia_visits`. Pass a connection string
- * (the `pg` package is imported on demand) or an already-made `pg` Pool.
- *
- *   // src/hooks.server.ts
- *   import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
- *   import { PostgresStore } from '@ogygia/devtools/profiler/storage/postgres';
- *   setProfilerStore(new PostgresStore(process.env.DATABASE_URL!));
- *   // or reuse your pool:
- *   setProfilerStore(new PostgresStore(myPool));
- *
- * `schema` puts the tables in a named schema; `table` overrides the base name. The dump is stored
- * as `jsonb`, so a hosted dashboard can query inside it (`dump->'meta'->>'page'`) without shipping
- * the whole blob.
- */
 import type {
 	ProfilerStore,
 	ProfilerRecord,
@@ -30,7 +14,6 @@ interface PgLike {
 
 async function resolve(client: PgLike | string): Promise<PgLike> {
 	if (typeof client !== 'string') return client;
-	// indirect specifier so the type checker does not require `pg` to be installed (runtime peer)
 	const pgName = 'pg';
 	const pg = (await import(pgName)) as unknown as {
 		default?: { Pool: new (o: { connectionString: string }) => PgLike };
@@ -41,6 +24,20 @@ async function resolve(client: PgLike | string): Promise<PgLike> {
 	return new Pool({ connectionString: client });
 }
 
+/**
+ * A report store on Postgres, durable and shared by a team. Reports go in `ogygia_reports` (the
+ * dump as `jsonb`, so a dashboard can query inside it, plus summary columns), visits in
+ * `ogygia_visits`, the newest 2000 per page. `schema` puts the tables in a named schema; `table`
+ * replaces the `ogygia` base name. Pass a connection string (`pg` is imported on demand) or a `pg`
+ * Pool already made; after `close()`, the next call opens a new pool.
+ *
+ *   // src/hooks.server.ts
+ *   import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
+ *   import { PostgresStore } from '@ogygia/devtools/profiler/storage/postgres';
+ *   setProfilerStore(new PostgresStore(process.env.DATABASE_URL!));
+ *   // or your own pool
+ *   setProfilerStore(new PostgresStore(myPool));
+ */
 export class PostgresStore implements ProfilerStore {
 	readonly kind: string = 'postgres';
 	#client: PgLike | string;
@@ -127,7 +124,6 @@ export class PostgresStore implements ProfilerStore {
 			`INSERT INTO ${V} (key,page,at,visit) VALUES ($1,$2,$3,$4::jsonb) ON CONFLICT (key) DO UPDATE SET at=EXCLUDED.at,visit=EXCLUDED.visit`,
 			[rec.key, rec.page, rec.at, rec.visit]
 		);
-		// the newest MAX_VISITS_PER_KEY per key (what a server window reads back)
 		await db.query(
 			`DELETE FROM ${V} WHERE page = $1 AND key NOT IN (SELECT key FROM ${V} WHERE page = $1 ORDER BY at DESC LIMIT $2)`,
 			[rec.page, MAX_VISITS_PER_KEY]
@@ -152,7 +148,6 @@ export class PostgresStore implements ProfilerStore {
 	async close(): Promise<void> {
 		const made = this.#made;
 		this.#made = null;
-		// (the next call connects again)
 		this.#connect = this.#connector();
 		await made?.end?.();
 	}

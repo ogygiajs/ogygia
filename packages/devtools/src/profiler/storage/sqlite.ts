@@ -1,15 +1,3 @@
-/**
- * SQLite report store — a file (or `:memory:`). The simplest durable backend: one file, no server,
- * survives a restart. Uses Node's built-in `node:sqlite` (Node 22.5+) when present, else
- * `better-sqlite3` if installed. Both are synchronous, which is fine here: a put is one small
- * insert, a get one indexed lookup, off the request's hot path (a report is written once, after
- * the recording).
- *
- *   // src/hooks.server.ts
- *   import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
- *   import { SqliteStore } from '@ogygia/devtools/profiler/storage/sqlite';
- *   setProfilerStore(new SqliteStore('.ogygia/profiles.db'));
- */
 import { createRequire } from 'node:module';
 import type {
 	ProfilerStore,
@@ -32,9 +20,7 @@ interface SyncStmt {
 	all(...args: unknown[]): unknown[];
 }
 
-/** Open a synchronous sqlite database from whichever driver is installed. */
 function open(filename: string): SyncDb {
-	// make the parent directory (a plain path like `.ogygia/profiles.db` needs `.ogygia` to exist)
 	if (filename !== ':memory:' && !filename.startsWith('file::memory:')) {
 		try {
 			const fs = require('node:fs') as typeof import('node:fs');
@@ -45,9 +31,6 @@ function open(filename: string): SyncDb {
 			// ok: best effort; the open below fails with the real problem
 		}
 	}
-	// node:sqlite (built in) — `new DatabaseSync(path)`, `.exec`, `.prepare().run/get/all`. Only a
-	// driver that is not there falls through: one that is there and cannot open the file throws its
-	// own error.
 	const built_in = load_driver<{ DatabaseSync: new (p: string) => SyncDb }>('node:sqlite');
 	if (built_in) return new built_in.DatabaseSync(filename);
 	const Database = load_driver<new (p: string) => SyncDb>('better-sqlite3');
@@ -57,15 +40,25 @@ function open(filename: string): SyncDb {
 	);
 }
 
-/** A driver module, or null when it is not installed (this runtime has no such module). */
 function load_driver<T>(id: string): T | null {
 	try {
 		return require(id) as T;
 	} catch {
-		return null; // (not installed: the next driver is tried, and none says what to install)
+		return null; // ok: not installed: the next driver is tried, and none says what to install
 	}
 }
 
+/**
+ * A report store in one SQLite file (or `:memory:`): no server, and it survives a restart. It opens
+ * the file with the built-in `node:sqlite`, or `better-sqlite3` when that is not there; a driver
+ * that is there and cannot open the file fails with its own error. It makes the file's folders, and
+ * keeps the newest 2000 visits per page.
+ *
+ *   // src/hooks.server.ts
+ *   import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
+ *   import { SqliteStore } from '@ogygia/devtools/profiler/storage/sqlite';
+ *   setProfilerStore(new SqliteStore('.ogygia/profiles.db'));
+ */
 export class SqliteStore implements ProfilerStore {
 	readonly kind: string = 'sqlite';
 	#filename: string;
@@ -120,8 +113,6 @@ export class SqliteStore implements ProfilerStore {
 				'INSERT INTO visits (key,page,at,visit) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET at=excluded.at,visit=excluded.visit'
 			)
 			.run(rec.key, rec.page, rec.at, rec.visit);
-		// the newest MAX_VISITS_PER_KEY per key (what a server window reads back): only the rows past
-		// them, found by walking the (page, at) index, never the whole kept set (#400)
 		this.#need()
 			.prepare(
 				'DELETE FROM visits WHERE key IN (SELECT key FROM visits WHERE page = ? ORDER BY at DESC LIMIT -1 OFFSET ?)'

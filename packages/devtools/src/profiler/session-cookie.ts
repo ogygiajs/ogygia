@@ -1,9 +1,3 @@
-/**
- * THE PROFILER SESSION COOKIE, read robustly. The profiler's user is often logged into the app they
- * profile, so their browser sends that app's whole cookie jar with every request — session, identity
- * and tracking cookies, easily kilobytes. The session must still be found in it, and when it is not,
- * the reason must be visible (a login that loops with no explanation is the failure this exists for).
- */
 import type { RequestEvent } from '@sveltejs/kit';
 
 export const SESSION_COOKIE = 'og_profiler';
@@ -48,7 +42,12 @@ export function raw_cookie_values(header: string, name: string): string[] {
 	return out;
 }
 
-/** Every candidate session value on a request: Kit's parsed cookie first, then every raw pair. */
+/**
+ * Every candidate session value on a request: Kit's parsed cookie first, then every raw pair once.
+ * The profiler's user is often logged into the app they profile, so the request carries that app's
+ * whole cookie jar; the session is still found behind a stale same-named cookie, or past a
+ * neighbour Kit's parser could not read.
+ */
 export function session_cookie_values(event: RequestEvent): string[] {
 	const out: string[] = [];
 	const parsed = event.cookies.get(SESSION_COOKIE);
