@@ -160,6 +160,16 @@ describe('runtime_first — before all of the page’s JavaScript, not first in 
 		);
 	});
 
+	it('reads rel as a browser does: tokens in any case, so any modulepreload counts', () => {
+		const css = '<link rel="stylesheet" href="/a.css">';
+		for (const rel of ['ModulePreload', 'preload modulepreload']) {
+			const preload = `<link rel="${rel}" href="/_app/start.js">`;
+			expect(runtime_first(head_start + css + preload + design_system + runtime, null)).toBe(
+				head_start + css + runtime + preload + design_system
+			);
+		}
+	});
+
 	it('moves the runtime’s own modulepreload hints WITH it, as one unit', () => {
 		const deps =
 			'<link rel="modulepreload" href="/c/a.js" data-ogygia-runtime-dep>' +
