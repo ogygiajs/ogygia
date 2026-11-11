@@ -30,6 +30,15 @@ export const handle = sequence(
 );
 ```
 
+A transform written in a module of its own takes the `ReshapeTransform` type:
+
+```ts
+import type { ReshapeTransform } from '@ogygia/reshape';
+
+export const render: ReshapeTransform = (html, { kind }) =>
+	renderComponents(html, { fragment: kind === 'region' });
+```
+
 ## Markup helpers
 
 `scanRegions`, `liftRegions`, `restoreRegions`, `transformMarkup`, `localizeMarks`, `checkScript` and `restore` come from `@ogygia/reshape` too. They need no Kit, so they run in a test or in the non-SvelteKit half of a monorepo.

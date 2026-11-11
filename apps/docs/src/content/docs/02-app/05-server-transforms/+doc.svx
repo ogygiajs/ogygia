@@ -42,6 +42,17 @@ export const handle = sequence(
 
 `reshape.handle()` goes before `ogygia.handle()`. A request it does not wrap gets no pass.
 
+To write the transform in a module of its own, type it with `ReshapeTransform`:
+
+```ts
+// src/lib/server/transform.ts
+import type { ReshapeTransform } from '@ogygia/reshape';
+import { renderComponents } from '$lib/server/components';
+
+export const transform: ReshapeTransform = (html, { kind }) =>
+  renderComponents(html, { fragment: kind === 'region' });
+```
+
 The transform runs on:
 
 - **every document**, meaning the chunk that carries `</head>`. A streamed page's tail (the scripts that settle its streamed promises) passes around it untouched, so the page keeps streaming.
