@@ -391,7 +391,8 @@ export class Compiler {
 				resolveAlias: ctx.resolve_alias,
 				pkgRoot: ctx.pkg_root,
 				dollarHoists: this.dollar_hoists,
-				macros: ctx.macros
+				macros: ctx.macros,
+				ownSource: (file) => ctx.is_own_source(file)
 			},
 			this.profiler
 		);
