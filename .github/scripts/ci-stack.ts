@@ -14,17 +14,22 @@ const BENCH_PATHS = [
 	/^packages\/machine\/src\//
 ];
 
+/** The long-lived branches (AGENTS.md "How work lands"): a PR into one is never stacked. */
+const LONG_LIVED = /^(main|latest|lts-.+)$/;
+
 /** A PR into `base` is stacked on another PR. */
 export function is_stacked(base: string): boolean {
-	return !!base && base !== 'main';
+	return !!base && !LONG_LIVED.test(base);
 }
 
 /** The labels a PR into `base` that changes `files` earns. */
 export function labels_for(base: string, files: readonly string[]): string[] {
 	const out = new Set<string>();
 	if (is_stacked(base)) return [];
-	out.add('ci:bench');
-	out.add('ci:preview');
+	if (base === 'main') {
+		out.add('ci:bench');
+		out.add('ci:preview');
+	}
 	if (files.some((f) => ENGINES_PATHS.some((re) => re.test(f)))) out.add('ci:engines');
 	if (files.some((f) => BENCH_PATHS.some((re) => re.test(f)))) out.add('ci:bench');
 	return [...out].sort();
@@ -37,7 +42,7 @@ export function has_label(
 	carried: readonly string[],
 	earned: readonly string[]
 ): boolean {
-	if (is_stacked(base)) return carried.includes('ci:full');
-	const all = new Set([...carried, ...earned]);
+	// (a stacked PR earns nothing, but what its author added by hand still runs)
+	const all = new Set([...carried, ...(is_stacked(base) ? [] : earned)]);
 	return all.has(want) || all.has('ci:full');
 }

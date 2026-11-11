@@ -8,7 +8,7 @@
 //
 // A PR into main gets `ci:bench` and `ci:preview`. A change to the runtime, the router, the morph,
 // hydration or restore gets `ci:engines`; a change to a bench or a hot path gets `ci:bench`. A stacked
-// PR (base not main) earns none and runs them only with `ci:full`: its stack's PR into main runs them. The labels
+// PR (its base is another PR's branch) earns none: its stack's PR into main runs them (ci-stack.ts). The labels
 // a PR carries are its own to add or remove as well; this only adds.
 //
 //   node .github/scripts/ci-labels.ts           print the labels this PR earns
