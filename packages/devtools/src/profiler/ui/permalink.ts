@@ -1,18 +1,3 @@
-/**
- * The `#fragment` permalink codec — a zero-knowledge, zero-infra way to SHARE a profiler report as a
- * URL instead of an `.ogp` file. The whole encrypted report rides in the URL fragment (`…/view#<blob>`),
- * which browsers NEVER send to any server — so the report lives entirely in the link (permanent, no
- * storage) and neither the profiler's server nor anyone else sees the plaintext or the password.
- *
- * BROWSER-NATIVE by necessity (encode runs in the sharer's browser, decode in the recipient's): JS has
- * no Brotli, so this uses **gzip** (`CompressionStream`) + **AES-256-GCM** with a key from **PBKDF2**
- * (Web Crypto — the Node `.ogp` path uses scrypt, which `crypto.subtle` can't do). Slightly larger than
- * the Brotli `.ogp`, but portable to Chrome / Firefox / Safari alike.
- *
- * Layout (pre-base64url):  'OGL1' (4) · salt (16) · iv (12) · AES-GCM ciphertext+tag.
- */
-
-// ── regexes
 const PLUS_G = /\+/g;
 const SLASH_G = /\//g;
 const TRAILING_EQUALS_RE = /=+$/;
@@ -21,14 +6,10 @@ const UNDERSCORE_G = /_/g;
 const IOS_UA_RE = /iP(hone|ad|od)/;
 const SAFARI_UA_RE = /^((?!chrome|chromium|android|crios|fxios|edg).)*safari/i;
 
-const MAGIC = new Uint8Array([0x4f, 0x47, 0x4c, 0x31]); // 'OGL1'
-const PBKDF2_ITERS = 210_000; // OWASP 2023 floor for PBKDF2-SHA256
+const MAGIC = new Uint8Array([0x4f, 0x47, 0x4c, 0x31]);
+const PBKDF2_ITERS = 210_000;
 const subtle = (): SubtleCrypto => globalThis.crypto.subtle;
 
-// lib.dom types `BufferSource` / `BlobPart` as strictly `ArrayBuffer`-backed, but a `Uint8Array` is
-// generically `Uint8Array<ArrayBufferLike>` (which admits `SharedArrayBuffer`). Every array here is
-// plain-`ArrayBuffer`-backed at runtime, so these narrowings are sound — they just satisfy the DOM
-// signatures without threading `<ArrayBuffer>` type params through subarray()/getRandomValues().
 const buf = (u: Uint8Array): BufferSource => u as unknown as BufferSource;
 const part = (u: Uint8Array): BlobPart => u as unknown as BlobPart;
 
@@ -60,7 +41,6 @@ async function derive_key(password: string, salt: Uint8Array, usage: KeyUsage): 
 	);
 }
 
-/** base64url (no padding) — URL-fragment safe (`+/=` → `-_` dropped). */
 function b64url_encode(bytes: Uint8Array): string {
 	let s = '';
 	for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
@@ -74,7 +54,18 @@ function b64url_decode(str: string): Uint8Array {
 	return out;
 }
 
-/** Encrypt a report dump for a permalink: gzip → AES-GCM(PBKDF2(password)) → base64url. */
+/**
+ * Encrypts a report dump into a share link's `#fragment` (`…/view#<blob>`), so a report can be shared
+ * as a URL instead of an `.ogp` file. Browsers never send the fragment to a server: the report lives
+ * in the link alone (no storage), and no server sees the report or the password. Links are permanent,
+ * so the format never changes.
+ *
+ * It runs in browsers (the sharer encodes, the recipient decodes), so it uses what they all have:
+ * gzip (`CompressionStream`, no Brotli in JS), then AES-256-GCM with a PBKDF2-SHA256 key at 210 000
+ * rounds (the OWASP 2023 floor; the Node `.ogp` path uses scrypt, which `crypto.subtle` lacks), then
+ * base64url without padding (no `+`, `/` or `=`). Layout before base64url: `OGL1` (4 bytes), salt (16),
+ * iv (12), ciphertext and tag.
+ */
 export async function encode_permalink(dump: unknown, password: string): Promise<string> {
 	const plain = await gzip(new TextEncoder().encode(JSON.stringify(dump)));
 	const salt = globalThis.crypto.getRandomValues(new Uint8Array(16));
