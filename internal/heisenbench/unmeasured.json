@@ -2261,10 +2261,6 @@
 			"reason": "say(): one setup warning for the process, constant work"
 		},
 		{
-			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~99e237 > app > warn > once:1~c9a4aa",
-			"reason": "prints one warning (console output, not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
 			"id": "packages/flags/src/index.ts > outbox:0~05e47f > giveUp > once:1~de49a5",
 			"reason": "prints one warning (console output, not replayable), constant work"
 		},
@@ -2369,8 +2365,20 @@
 			"reason": "notes a page.data read into the running render's read set and returns the data, constant work"
 		},
 		{
-			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~7ebc22 > app > observeReads",
+			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~7326ff",
+			"reason": "the replacement for the multi-variant id attribute: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
+		},
+		{
+			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~ca1204",
+			"reason": "the replacement for the pre's attributes: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > observeReads",
 			"reason": "forwards a RequestEvent (not cloneable) to observe_reads, constant work; packages/core/bench/server.bench.ts runs observe_reads"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > warn > once:1~c9a4aa",
+			"reason": "prints one warning (console output, not replayable), constant work; proven in packages/core/test/plugins.test.ts"
 		}
 	]
 }
