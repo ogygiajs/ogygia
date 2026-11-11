@@ -52,3 +52,18 @@ test('a preloaded hole answered by a whole page (something in front of the handl
 	expect(el.querySelector('[data-testid="page"]'), 'the page was not swapped in').toBeNull();
 	expect(el.querySelector('[data-testid="fallback"]'), 'the fallback stands').not.toBeNull();
 });
+
+test('a region whose address is another origin is not preloaded: no request goes out', async () => {
+	const calls: string[] = [];
+	window.fetch = async (input) => {
+		calls.push(String(input));
+		return new Response('<p>foreign</p>', { status: 200 });
+	};
+	for (const url of [
+		'https://other.example/__ogygia__?id=preload00003&props=W3t9XQ&exp=9999999999&sig=stub',
+		'//other.example/__ogygia__?id=preload00004&props=W3t9XQ&exp=9999999999&sig=stub'
+	])
+		preload(region_value(url));
+	await new Promise((r) => setTimeout(r, 100));
+	expect(calls).toEqual([]);
+});
