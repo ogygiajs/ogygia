@@ -525,7 +525,7 @@ export async function mpa_equivalent(
  * Read from the page's machine moves (`__ogygia_moves()`, rules on): each machine's last move is
  * its state now (the trace lets the oldest lines go first, so a machine it still lists is current).
  */
-export function stuck(tab: Tab): Broken | null {
+export function stuck(tab: Tab, world?: World): Broken | null {
 	const w = tab.page.mainFrame.window as unknown as { __ogygia_moves?: () => string };
 	const last = new Map<string, string>();
 	for (const line of (w.__ogygia_moves?.() ?? '').split('\n')) {
@@ -536,7 +536,10 @@ export function stuck(tab: Tab): Broken | null {
 	if (held.length === 0) return null;
 	const detail = `${tab.page.mainFrame.url}: at rest, still ${held.map(([id, s]) => `${id} ${s}`).join(', ')}`;
 	// #820: on a page Kit hydrates, Kit's client that never came leaves its islands' wakes waiting
-	if (held.every(([id, s]) => id.startsWith('wake#') && s === 'waking') && kit_never_came(tab))
+	if (
+		held.every(([id, s]) => id.startsWith('wake#') && s === 'waking') &&
+		kit_never_came(tab, world)
+	)
 		return {
 			oracle: 'known',
 			detail: `${detail}: #820 (an island waits for a Kit that never came)`
@@ -544,15 +547,30 @@ export function stuck(tab: Tab): Broken | null {
 	return { oracle: 'stuck', detail };
 }
 
-/** A page Kit hydrates (its start entry is in the document) whose Kit never published its page. */
-function kit_never_came(tab: Tab): boolean {
+/**
+ * A page Kit hydrates (its start entry is in the document) whose Kit never published its page: no
+ * bridge, or a file of the app's code failed to download in this document (Kit's boot imports
+ * many; the bridge may come from one that did load: seed 848, its start entry cut).
+ */
+function kit_never_came(tab: Tab, world?: World): boolean {
 	const w = tab.page.mainFrame.window as unknown as Record<symbol, unknown> & {
 		document: Document;
 	};
 	const kit = [...w.document.querySelectorAll('script, link')].some((e) =>
 		/\/_app\/immutable\/entry\/start\./.test(e.textContent + (e.getAttribute('href') ?? ''))
 	);
-	return kit && w[Symbol.for('ogygia.kit-page')] == null;
+	if (!kit) return false;
+	if (w[Symbol.for('ogygia.kit-page')] == null) return true;
+	return (
+		world !== undefined &&
+		(world.skewed_for(tab.realm) ||
+			world.network.exchanges.some(
+				(e) =>
+					e.from === tab.realm &&
+					new URL(e.url).pathname.startsWith('/_app/immutable/') &&
+					(e.cut || e.lost || e.status === 'offline' || e.status === 'dropped')
+			))
+	);
 }
 
 /** ogygia's own rules, in the page (`__ogygia_rules()`, built in with OGYGIA_RULES=1). */
@@ -571,6 +589,17 @@ export function page_rules(tab: Tab): Broken | null {
  * offline, or a server error)? Such a page may report it, and may differ from a fresh load until
  * it loads again: the oracles excuse what the fault explains, and nothing else.
  */
+/** Does `tab` show the browser's own page for a navigation that failed (nothing of the app: an
+ *  empty document where the page would be)? A back or a link followed while offline. */
+export function error_page(tab: Tab): boolean {
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	return (
+		doc.documentElement.attributes.length === 0 &&
+		(doc.head?.childNodes.length ?? 0) === 0 &&
+		(doc.body?.childNodes.length ?? 0) === 0
+	);
+}
+
 /**
  * Was the document `tab` shows touched only by an outage (its tab offline for a while: requests
  * that failed to fetch, bodies that broke off), and nothing else the network does? Such a page is
@@ -579,7 +608,7 @@ export function page_rules(tab: Tab): Broken | null {
  * (a browser never loads one again), nor one whose own load failed (the browser's error page).
  */
 export function outage_only(world: World, tab: Tab): boolean {
-	if (world.browsers.lacks_a_file(tab.realm)) return false;
+	if (world.browsers.lacks_a_file(tab.realm) || error_page(tab)) return false;
 	let outage = false;
 	let first = true;
 	for (const e of world.network.exchanges) {
@@ -627,11 +656,18 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 export function document_faulted(world: World, tab: Tab): boolean {
 	const own = world.network.exchanges.find((e) => e.from === tab.realm);
 	if (own !== undefined && (own.tampered || own.cut)) return true;
-	// (or the page the router brought in: the last answer for its URL; seed 53, a changed byte in
-	// the /dashboard/orders HTML a client navigation swapped in)
-	const url = tab.page.mainFrame.url.split('#')[0];
-	const brought = world.network.exchanges.findLast((e) => e.from === tab.realm && e.url === url);
-	return brought !== undefined && (brought.tampered || brought.cut);
+	// (or a page the router brought in: any page answer this document had, as the router keeps
+	// what it fetched and swaps it in again on a back, and an error there may leave the address
+	// where it was; seed 53, a changed byte in the /dashboard/orders HTML a client navigation
+	// swapped in; seed 837, a back to / whose changed HTML the router had kept)
+	// (and a back to a page an earlier document of the tab loaded: history shows its HTML again)
+	const here = new URL(tab.page.mainFrame.url).pathname;
+	return world.network.exchanges.some((e) => {
+		if (!(e.tampered || e.cut)) return false;
+		const path = new URL(e.url).pathname;
+		if (e.from === tab.realm) return !path.startsWith('/_app/') && !path.startsWith('/__ogygia__');
+		return e.from.startsWith(`${tab.name}#`) && path === here;
+	});
 }
 
 /** What a page may say when the network failed it: ogygia's coded reports, the network's own
