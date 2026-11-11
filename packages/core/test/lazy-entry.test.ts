@@ -19,8 +19,8 @@ const record = () =>
 	make_wake_island({
 		iid: 'abc123',
 		componentPath: '/app/src/lib/Block.svelte',
-		entryPath: 'virtual:ogygia/island/abc123.js',
-		wrapperPath: 'virtual:ogygia/wrapper/abc123.svelte',
+		entryPath: 'ogygia:region/entry/abc123.js',
+		wrapperPath: 'ogygia:region/wrapper/abc123.svelte',
 		moduleUrl: '/_app/immutable/og-region.abc123.js',
 		strategy: 'visible',
 		options: { margin: '200px' },
@@ -34,23 +34,21 @@ describe('wake island — the wrapper is leg-split, the client leg is lazy', () 
 		const r = record();
 		expect(r.lazyPath).toBe(lazyEntryVirtualId('abc123'));
 		expect(r.wrapperClientSource).toContain(
-			`import __OgygiaEntry, { load as __OgygiaLoad } from "virtual:ogygia/lazy/abc123.js";`
+			`import __OgygiaEntry, { load as __OgygiaLoad } from "ogygia:region/lazy/abc123.js";`
 		);
 		expect(r.wrapperClientSource).not.toContain('Block.svelte');
-		expect(r.wrapperClientSource).not.toContain('virtual:ogygia/island/abc123.js');
+		expect(r.wrapperClientSource).not.toContain('ogygia:region/entry/abc123.js');
 		expect(r.wrapperClientSource).toContain('__component={__OgygiaEntry} __load={__OgygiaLoad}');
 		expect(r.wrapperClientSource).toContain('__entry={"/_app/immutable/og-region.abc123.js"}');
 		expect(r.wrapperClientSource).toContain('<script lang="ts">');
 		// the SSR wrapper is unchanged: it renders, so it imports the entry and the component
-		expect(r.wrapperSource).toContain(
-			'import __OgygiaEntry from "virtual:ogygia/island/abc123.js";'
-		);
+		expect(r.wrapperSource).toContain('import __OgygiaEntry from "ogygia:region/entry/abc123.js";');
 		expect(r.wrapperSource).toContain('Block.svelte');
 	});
 
 	it('the lazy module reads the ONE csr fact + the rendered stamp, top-level-awaits the entry, and exports an on-demand load', () => {
 		const src = lazy_entry_source(
-			'virtual:ogygia/island/abc123.js',
+			'ogygia:region/entry/abc123.js',
 			'/_app/immutable/og-region.abc123.js'
 		);
 		expect(src).toContain(`import { documentIsCsrTrue } from 'ogygia/internal';`);
@@ -58,21 +56,21 @@ describe('wake island — the wrapper is leg-split, the client leg is lazy', () 
 			`document.querySelector("meta[name=\\"ogygia-kit-island\\"][content=\\"/_app/immutable/og-region.abc123.js\\"]")`
 		);
 		expect(src).toContain(
-			`export default documentIsCsrTrue() && !rendered ? undefined : (await import("virtual:ogygia/island/abc123.js")).default;`
+			`export default documentIsCsrTrue() && !rendered ? undefined : (await import("ogygia:region/entry/abc123.js")).default;`
 		);
 		expect(src).toContain(
-			`export const load = () => import("virtual:ogygia/island/abc123.js").then((m) => m.default);`
+			`export const load = () => import("ogygia:region/entry/abc123.js").then((m) => m.default);`
 		);
 		expect(src).not.toMatch(/__sveltekit_/); // no private Kit-page probe of its own
 	});
 
 	it('the lazy id is an ogygia-owned island path (resolved + shimmed like the other glue)', () => {
 		expect(is_island_path(lazyEntryVirtualId('abc123'))).toBe(true);
-		expect(is_island_path('virtual:ogygia/lazy/abc123.js?x')).toBe(true);
+		expect(is_island_path('ogygia:region/lazy/abc123.js?x')).toBe(true);
 	});
 
 	it('a stamp with a quote in the entry cannot break out of the selector', () => {
-		const src = lazy_entry_source('virtual:ogygia/island/q.js', '/x"y.js');
+		const src = lazy_entry_source('ogygia:region/entry/q.js', '/x"y.js');
 		expect(src).toContain(
 			JSON.stringify(`meta[name="ogygia-kit-island"][content=${JSON.stringify('/x"y.js')}]`)
 		);
@@ -81,7 +79,7 @@ describe('wake island — the wrapper is leg-split, the client leg is lazy', () 
 	it('keep + strategy attributes ride the client wrapper exactly as the SSR one', () => {
 		const client = island_wrapper_client_source(
 			'i',
-			'virtual:ogygia/lazy/i.js',
+			'ogygia:region/lazy/i.js',
 			'load',
 			{ keep: 'nav' },
 			'/e.js',
