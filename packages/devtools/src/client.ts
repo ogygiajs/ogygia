@@ -27,9 +27,14 @@ import {
 	on_region_failed,
 	on_region_hydrated
 } from './client-beacon.ts';
+import { standalone_beacon } from './profiler/beacon-standalone.ts';
+
+const LAZY = typeof __OGYGIA_DEVTOOLS_LAZY__ !== 'undefined' ? __OGYGIA_DEVTOOLS_LAZY__ : false;
 
 const client: ClientPlugin = defineClient({
 	boot({ kitPage }) {
+		// @why the dev dock measures every document, and an app without ogygia's handle gets no beacon tag from the server (test: e2e/dev-installed.spec.ts › two copies)
+		if (!LAZY) standalone_beacon();
 		install_beacon(true);
 		// one mounted Svelte app (launcher + tabbed window), starting hidden (Alt+O); a pure bus/DOM consumer
 		install_devtools_ui(kitPage ? { csr_true: true } : undefined);
