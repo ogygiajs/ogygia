@@ -19,6 +19,21 @@ export type Frame = {
 	html: string;
 };
 
+/** The ticket a decoded region value's HTML was written at its address with (transport.ts), kept
+ *  beside the value: a live tick paints its own HTML unless the store holds this write or a newer
+ *  one (runtime/core.ts `#apply_live`). */
+const written = new WeakMap<object, number>();
+
+/** Transport: `value`'s HTML was written to the frame store under ticket `v`. */
+export function mark_written(value: object, v: number): void {
+	written.set(value, v);
+}
+
+/** The ticket `value`'s HTML was written under, or undefined when it never went through the store. */
+export function written_ticket(value: object): number | undefined {
+	return written.get(value);
+}
+
 /**
  * Address of a region: the CALL that produced it — region id + serialized props — NOT the full
  * signed URL. Critically, `exp` and `sig` vary per request (they're time + MAC), so keying on the

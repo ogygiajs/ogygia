@@ -248,8 +248,16 @@ describe('a live region put back goes on in its last tick’s mode (#337)', () =
 						'a static tick',
 						() => {
 							const html = '<p data-n="1">one</p>';
-							write({ a, v: ticket(a), html });
-							return el.applyLive({ id: 'order-live', module: '', props: {}, html, url: LIVE_URL });
+							const written = ticket(a);
+							write({ a, v: written, html });
+							return el.applyLive({
+								id: 'order-live',
+								module: '',
+								props: {},
+								html,
+								url: LIVE_URL,
+								written
+							});
 						},
 						'then'
 					],
@@ -315,17 +323,29 @@ describe('a static live tick reaches its region after a write at its address', (
 					el.querySelector('[data-n="2"]') !== null ? null : `it shows "${el.innerHTML}"`
 				);
 				const html = '<p data-n="1">one</p>';
+				let written = 0;
 				await sim.play([
 					['it comes onto the page', () => document.body.append(el), 'then'],
 					// (the app's transport decodes the tick: its HTML is written at its address)
-					['a static tick is decoded', () => void write({ a, v: ticket(a), html }), 'then'],
+					[
+						'a static tick is decoded',
+						() => void write({ a, v: (written = ticket(a)), html }),
+						'then'
+					],
 					[
 						// (in one step: the store lets an address nobody is bound to go after a minute, and
 						// a tick reaches its region well before that)
 						'a write at its address, then the tick reaches its region',
 						() => {
 							write({ a, v: ticket(a), html: '<p data-n="2">two</p>' });
-							return el.applyLive({ id: 'order-live', module: '', props: {}, html, url: LIVE_URL });
+							return el.applyLive({
+								id: 'order-live',
+								module: '',
+								props: {},
+								html,
+								url: LIVE_URL,
+								written
+							});
 						}
 					]
 				]);
@@ -363,7 +383,10 @@ describe('a static live tick reaches its region after a write at its address', (
 						'then'
 					],
 					// (its HTML never went through the store: the frame there is still the first tick's)
-					['a second tick that wrote nothing', () => el.applyLive(tick(2))]
+					['a second tick that wrote nothing', () => el.applyLive(tick(2)), 'then'],
+					// (bound again, the store hands over the first tick's frame: older than what is shown)
+					['it leaves', () => el.remove(), 'then'],
+					['it is put back', () => document.body.append(el)]
 				]);
 			},
 			RUNS

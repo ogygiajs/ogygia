@@ -326,7 +326,8 @@ describe('one region element, simulated', () => {
 								const html = `<p data-tick="${n}">static ${n}</p>`;
 								// as the app's transport does: the tick's value is decoded (its HTML written
 								// at its address), and its region applies it later
-								write({ a, v: ticket(a), html });
+								const written = ticket(a);
+								write({ a, v: written, html });
 								return reach(() => {
 									last = 'static';
 									return el.applyLive({
@@ -334,7 +335,8 @@ describe('one region element, simulated', () => {
 										module: '',
 										props: {},
 										html,
-										url: LIVE_URL
+										url: LIVE_URL,
+										written
 									});
 								});
 							}

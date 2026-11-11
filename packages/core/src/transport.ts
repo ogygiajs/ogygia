@@ -16,7 +16,7 @@
  * ```
  */
 import { REGION_BRAND } from './region-brand.ts';
-import { frameAddress } from './frame.ts';
+import { frameAddress, mark_written } from './frame.ts';
 import { ticket, write } from './runtime/frame-store.ts';
 import {
 	register_kind,
@@ -113,11 +113,13 @@ function decode_region(raw: EncodedRegion) {
 		// browser); on the server the store is inert. An HTML-ONLY ticket (awaited inline region —
 		// no capability url) has no frame address, so there is nothing to write; it renders where
 		// it's placed instead.
+		let v: number | undefined;
 		if (raw.x != null && raw.u && typeof document !== 'undefined') {
 			const a = frameAddress(raw.u);
-			write({ a, v: ticket(a), html: raw.x });
+			v = ticket(a);
+			write({ a, v, html: raw.x });
 		}
-		return {
+		const value = {
 			[REGION_BRAND]: true,
 			kind: 'deferred' as const,
 			id: raw.i,
@@ -128,6 +130,8 @@ function decode_region(raw: EncodedRegion) {
 			...(raw.g ? { hydrateMargin: raw.g } : {}),
 			...(raw.x != null ? { html: raw.x } : {})
 		};
+		if (v !== undefined) mark_written(value, v);
+		return value;
 	}
 }
 

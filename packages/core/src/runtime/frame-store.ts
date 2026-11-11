@@ -48,8 +48,6 @@ type Entry = {
 	/** Version of the applied content (0 = nothing applied yet). */
 	v: number;
 	html: string | null;
-	/** Monotonic ticket source — every fetch START takes the next ticket. */
-	seq: number;
 	/** A batch's part promised here: ANY frame written at the address (the batch's part, or a forced
 	 *  fetch that landed first) settles it, and `release()` fails it when the batch ends with no
 	 *  frame there. */
@@ -76,13 +74,19 @@ const EVICT_TTL = 60_000;
 // copies). Falls back to plain values off-DOM (SSR / unit tests).
 const GLOBAL_KEY = '__ogygia_frames__';
 const FLIGHTS_KEY = '__ogygia_frame_flights__';
+const CLOCK_KEY = '__ogygia_frame_clock__';
 type FrameFlights = Flights<FrameAsk, string, Pick<FrameAsk, 'a'>>;
 type FramesHost = {
 	[GLOBAL_KEY]?: Map<string, Entry>;
 	[FLIGHTS_KEY]?: FrameFlights;
+	[CLOCK_KEY]?: { n: number };
 };
 const store_host = (typeof globalThis !== 'undefined' ? globalThis : {}) as FramesHost;
 const entries: Map<string, Entry> = (store_host[GLOBAL_KEY] ??= new Map());
+/** The one ticket source, for every address and every life of an entry: an entry let go and made
+ *  again never hands out a ticket an earlier one did, so tickets order across it (a live tick's
+ *  ticket against the frame there: test/browser/region-orderings.test.ts). */
+const clock: { n: number } = (store_host[CLOCK_KEY] ??= { n: 0 });
 
 /** The fetches in flight, one per address, shared by every caller of it. Nothing is kept: the
  *  versioned store holds what landed. A flight's work aborts once its last caller left. */
@@ -112,7 +116,7 @@ const flying = (a: string): boolean => store_host[FLIGHTS_KEY]?.peek({ a }) !== 
 function entry(a: string): Entry {
 	let e = entries.get(a);
 	if (!e) {
-		e = { v: 0, html: null, seq: 0, batch: null, evict: null, renewed: null, refused: null };
+		e = { v: 0, html: null, batch: null, evict: null, renewed: null, refused: null };
 		entries.set(a, e);
 	}
 	return e;
@@ -161,7 +165,8 @@ export function is_idle(a: string): boolean {
 
 /** Next request ticket for an address. External channels (streaming, mutations) use this too. */
 export function ticket(a: string): number {
-	return ++entry(a).seq;
+	entry(a);
+	return ++clock.n;
 }
 
 /**
@@ -171,7 +176,7 @@ export function ticket(a: string): number {
 export function write(f: Frame): boolean {
 	const e = entry(f.a);
 	if (f.v <= e.v) return false; // stale — a newer write already landed
-	if (f.v > e.seq) e.seq = f.v; // foreign ticket (streamed/mutation frame) — keep seq monotonic
+	if (f.v > clock.n) clock.n = f.v; // foreign ticket (streamed/mutation frame) — keep the clock monotonic
 	e.v = f.v;
 	e.html = f.html;
 	e.refused = null;

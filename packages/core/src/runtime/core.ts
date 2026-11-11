@@ -356,6 +356,9 @@ type LiveTick = {
 	url?: string;
 	hydrate?: string;
 	hydrateMargin?: string;
+	/** The ticket its HTML was written at its address with as it was decoded; absent when it never
+	 *  went through the frame store. */
+	written?: number;
 };
 
 /** A download slot (load-scheduler.ts) asked for by a step whose element then left: its turn still
@@ -647,6 +650,9 @@ class OgygiaRegion extends HTMLElement {
 	#live_props: Record<string, unknown> | null = null;
 	/** A static live region's subscription to its address, while it is static. */
 	#live_unsub: (() => void) | null = null;
+	/** The store ticket a static tick that painted its own HTML stands at: frames at or before it are
+	 *  older than what is on screen. */
+	#live_painted = 0;
 	// The two wake targets, bound once per element (not per connect): `#arm` hands them to a
 	// schedule, and `load` calls them straight — no closure built on the connect path. Each returns
 	// its promise: the interaction feature awaits it to know when the island is live (replay).
@@ -1822,7 +1828,7 @@ class OgygiaRegion extends HTMLElement {
 				// (each frame a turn of its own, the one the store hands over as it binds too)
 				const box = this.#box;
 				const off = frames?.subscribe(frameAddress(desc.url), (f) => {
-					box.post((t) => this.#morph_live(f.html, t));
+					box.post((t) => (f.v > this.#live_painted ? this.#morph_live(f.html, t) : undefined));
 				});
 				if (off) {
 					this.#live_unsub = off;
@@ -1832,11 +1838,17 @@ class OgygiaRegion extends HTMLElement {
 					});
 				}
 			}
-			// (a frame at its address is this tick's, written as it was decoded, or a newer write: the
-			// subscription paints it. Only a tick the store holds nothing for paints its own HTML —
-			// test/browser/region-orderings.test.ts)
-			if (!desc.url || !frames?.peek(frameAddress(desc.url)))
+			// The store's ticket order decides: a frame at its address at this tick's own ticket or
+			// later is this tick's write or a newer one, and the subscription paints it. A tick the
+			// store holds no such frame for (its HTML never went through the store, or the frame there
+			// is an earlier tick's) paints its own — test/browser/region-orderings.test.ts
+			// Painted, it stands after every frame the store held then: a frame the subscription hands
+			// over later (as it binds again, put back) paints only if newer than that.
+			const held = desc.url ? frames?.peek(frameAddress(desc.url)) : null;
+			if (!held || desc.written === undefined || held.v < desc.written) {
+				this.#live_painted = Math.max(held?.v ?? 0, desc.written ?? 0);
 				await this.#morph_live(desc.html, turn);
+			}
 			return;
 		}
 
