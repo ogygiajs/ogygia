@@ -1,24 +1,3 @@
-/**
- * `content()` — the ONE way to define a content collection. **Browser-safe** (no `$app/server`), so
- * one definition is importable anywhere: routes, `+page`, islands, `.remote.ts`.
- *
- * Fully inferred — no type annotations. `Data` comes from `schema` (a Standard Schema's output),
- * `Meta` from the source. A self relation uses the `(self) => …` callback so there is no type cycle:
- *
- * ```ts
- * import { content, mdsvex } from '@ogygia/content';
- * export const docs = content({
- *   loader: mdsvex(import.meta.glob('./docs/**\/*.svx')), // Meta = { headings }
- *   schema: docSchema,                                    // Data  = InferOutput<docSchema>
- *   relations: (self) => ({ related: self, author: people })
- * });
- *
- * const entry = (await docs.get(slug)) ?? error(404);     // { data, meta, body, rel, backlinks }
- * ```
- *
- * To mint the Kit remotes that cross the wire (`list` / `live.*`), wrap it with `withRemotes()` from
- * `@ogygia/content/server` inside a `.remote.ts`.
- */
 import type { ContentRef, ContentRelations, Entry, SchemaLike } from './index.ts';
 import type { GroupMeta, Source } from './source.ts';
 import {
@@ -28,7 +7,6 @@ import {
 	type ReadContext
 } from './collection-base.ts';
 
-/** Extract a Standard Schema's output type (valibot / zod / arktype). Falls back to a loose record. */
 type SchemaData<S> = S extends {
 	readonly ['~standard']: { readonly types?: { readonly output: infer O } };
 }
@@ -40,7 +18,6 @@ type SchemaData<S> = S extends {
 /** Schema input: one Standard Schema, or an ARRAY layered left→right (a genre stack + user extras). */
 export type SchemaInput = SchemaLike | SchemaLike[];
 
-/** Merge the output type of a schema OR a tuple of schemas (each layer's fields union). */
 type LayeredData<S> = S extends readonly unknown[]
 	? UnionToIntersection<{ [K in keyof S]: SchemaData<S[K]> }[number]>
 	: SchemaData<S>;
@@ -78,6 +55,28 @@ export interface ContentHandle<
 	groups(): Promise<Map<string, GroupMeta>>;
 }
 
+/**
+ * Define a content collection. It is browser-safe (no `$app/server`), so one definition is
+ * importable anywhere: routes, `+page`, islands, `.remote.ts`.
+ *
+ * Fully inferred: `Data` comes from `schema` (a Standard Schema's output, or every layer of an array
+ * of them), `Meta` from the source. A self relation uses the `(self) => …` callback, so there is no
+ * type cycle:
+ *
+ * ```ts
+ * import { content, markdown } from '@ogygia/content';
+ * export const docs = content({
+ *   loader: markdown(import.meta.glob('./docs/**\/*.svx')), // Meta = { headings, links }
+ *   schema: docSchema,                                      // Data = InferOutput<docSchema>
+ *   relations: (self) => ({ related: self, author: people })
+ * });
+ *
+ * const entry = (await docs.get(slug)) ?? error(404);       // { data, meta, body, rel, backlinks }
+ * ```
+ *
+ * For the Kit remotes that cross the wire (`list`, `live.*`), wrap it with `withRemotes()` from
+ * `@ogygia/content/server` inside a `.remote.ts`.
+ */
 export function content<
 	Meta = Record<string, never>,
 	Schema extends SchemaInput | undefined = undefined,
@@ -102,8 +101,6 @@ export function content<
 		get: (id, ctx) => c.get(id, ctx),
 		groups: () => c.groups()
 	};
-	// Link the handle to its Collection (relations resolve to the instance; `withRemotes()` reaches it),
-	// then hand the collection its own handle so a `relations: (self) => …` callback can resolve.
 	Object.defineProperty(handle, COLLECTION, { value: c, enumerable: false });
 	c.bindSelf(handle);
 	return handle;

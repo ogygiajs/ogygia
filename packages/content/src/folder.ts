@@ -1,19 +1,3 @@
-/**
- * `folder()` — the filesystem-convention preset. One glob of `{+doc.svx,+meta.json}` in, a full
- * {@link Source} out: it splits the map by basename, derives clean ids (shared-prefix strip + `NN-`
- * strip), computes each entry's sibling `order`, exposes `+meta.json` labels through the `groups()`
- * facet, and verifies sibling numbering at first read. The outline then reads `order`/`groups` as DATA
- * and parses no filename.
- *
- * This is the ONLY place `+doc.svx` / `+meta.json` / `NN-` knowledge lives. A CMS never touches it —
- * its loader fills `order`/`groups` from its own fields. Throw a stray file at `folder()` and it errors
- * (catches a too-wide `**\/*` glob before colocated components reach the bundle).
- *
- * ```ts
- * content({ loader: folder(import.meta.glob('../content/docs/**\/{+doc.svx,+meta.json}', { eager: true })) })
- * content({ loader: folder(map, (raw) => blocks(raw, registry)) })   // any format; default markdown
- * ```
- */
 import {
 	numbered,
 	read_meta,
@@ -44,7 +28,6 @@ export type FolderOptions<Meta> = {
 const DEFAULT_PAGE = /\/(\+doc|index)\.[^./]+$/;
 const DEFAULT_META = /\/\+meta\.json$/;
 
-/** Longest shared directory prefix across all keys — pages anchor it, so a lone meta file can't over-strip. */
 function common_prefix(keys: string[]): string {
 	const parts = keys.map(norm);
 	let prefix = parts[0] ? parts[0].slice(0, parts[0].lastIndexOf('/') + 1) : '';
@@ -55,7 +38,6 @@ function common_prefix(keys: string[]): string {
 	return prefix;
 }
 
-/** If Vite wrapped a lone JSON `default` export, unwrap it. */
 function unwrap(value: unknown): Record<string, unknown> {
 	if (value && typeof value === 'object' && !Array.isArray(value)) {
 		const mod = value as Record<string, unknown>;
@@ -66,6 +48,22 @@ function unwrap(value: unknown): Record<string, unknown> {
 	return {};
 }
 
+/**
+ * The filesystem-convention source: one glob of `+doc.svx` pages and `+meta.json` sidecars in, a
+ * full {@link Source} out. Ids drop the shared directory prefix and each segment's `NN-`; each entry
+ * carries its sibling `order`; sidecar labels come out of `groups()`. The outline reads `order` and
+ * `groups` as data and parses no filename, so a CMS fills the same fields from its own.
+ *
+ * A file that is neither a page nor a sidecar throws at once (a too-wide glob would bundle colocated
+ * components). Sibling numbering is checked, and lazy sidecars load, at the first read. A sidecar
+ * pattern wins over a page pattern that also matches, so an `index.md` can label its section with
+ * its frontmatter `title`.
+ *
+ * ```ts
+ * content({ loader: folder(import.meta.glob('../content/docs/**\/{+doc.svx,+meta.json}', { eager: true })) })
+ * content({ loader: folder(map, { format: (raw) => blocks(raw, registry) }) })   // any format; default markdown
+ * ```
+ */
 export function folder<Meta = Record<string, never>>(
 	map: GlobMap,
 	opts: FolderOptions<Meta> = {}
@@ -79,13 +77,9 @@ export function folder<Meta = Record<string, never>>(
 	const rel = (key: string) => norm(key).slice(prefix.length);
 
 	const page_map: GlobMap = {};
-	// A sidecar's clean dir + its (possibly-lazy) module value — loaded on first read, not construction,
-	// so a lazy `import.meta.glob` collection defers even the `+meta.json` reads.
 	const meta_entries: Array<{ dir: string; value: unknown }> = [];
-	// For verification: each directory's raw child segments.
 	const siblings = new Map<string, Set<string>>();
 
-	/** Structural raw segments of a page key: rel path minus the page-file part. */
 	const raw_segments = (key: string) => {
 		const r = rel(key).replace(page_rx, '');
 		return r.split('/').filter(Boolean);
@@ -93,10 +87,6 @@ export function folder<Meta = Record<string, never>>(
 
 	for (const key of Object.keys(map)) {
 		const k = norm(key);
-		// Sidecars are matched BEFORE pages: a file-page convention needs `page: /\.md$/` (so the
-		// filename survives as an id segment), which also matches a section-label `index.md`. Meta-first
-		// lets that `index.md` be the label, not a bodyless junk page. Safe for the `+doc.svx`/`+meta.json`
-		// defaults — those regexes don't overlap, so order can't change their outcome.
 		if (meta_rx && meta_rx.test(k)) {
 			const dir = rel(key)
 				.replace(meta_rx, '')
@@ -107,7 +97,6 @@ export function folder<Meta = Record<string, never>>(
 			meta_entries.push({ dir, value: map[key] });
 		} else if (page_rx.test(k)) {
 			page_map[key] = map[key];
-			// Register each level's sibling set for verify().
 			const segs = raw_segments(key);
 			for (let d = 0; d < segs.length; d++) {
 				const parent = segs.slice(0, d).map(strip_order_prefix).join('/');
@@ -128,10 +117,6 @@ export function folder<Meta = Record<string, never>>(
 			.join('/');
 	const page_order = (key: string): number[] => raw_segments(key).map((s) => conv.segment(s).order);
 
-	// Each directory's `+meta.json` decoration + the clean group path → label map. Resolved on first
-	// read and kept — awaiting sidecar modules (a lazy glob hands us thunks, an eager glob the
-	// modules). A sidecar that fails to load is not kept: the next read (of the entries or the
-	// groups) loads them again (#246).
 	const resolve_meta = flights({
 		name: 'content-folder meta',
 		run: async (): Promise<{
@@ -144,8 +129,6 @@ export function folder<Meta = Record<string, never>>(
 					typeof value === 'function' ? await (value as () => Promise<unknown>)() : value
 				);
 				const deco = read_meta(mod);
-				// An `index.md` sidecar (the svelte.dev convention) is a compiled markdown MODULE — its
-				// frontmatter `title` is the section label ("Template syntax", not the title-cased slug).
 				const fm = (mod as { metadata?: { title?: unknown } }).metadata;
 				if (deco.label === undefined && typeof fm?.title === 'string') deco.label = fm.title;
 				decorations.set(dir, deco);
@@ -158,7 +141,6 @@ export function folder<Meta = Record<string, never>>(
 			return { decorations, group_map };
 		}
 	});
-	// (nothing drops it and no read leaves it, so it never answers STALE: that is the empty answer)
 	const meta = async () => {
 		const got = await resolve_meta.get();
 		return got === STALE
@@ -166,7 +148,6 @@ export function folder<Meta = Record<string, never>>(
 			: got;
 	};
 
-	// Verify sibling numbering once, at first read (build-error voice).
 	const verify = async () => {
 		const { decorations } = await meta();
 		const errors: string[] = [];
@@ -176,7 +157,6 @@ export function folder<Meta = Record<string, never>>(
 			throw new OgygiaError('content_folder_invalid', { issues: errors.join('; ') });
 	};
 
-	// Build the page raw source directly (ids/order baked here), then hand it to the format builder.
 	const load = async (key: string) => {
 		const v = map[key];
 		return typeof v === 'function' ? await (v as () => Promise<unknown>)() : v;

@@ -1,11 +1,3 @@
-/**
- * Built-in source builders. Each wraps a raw record source (a glob, or your API) with a parse step
- * and returns a {@link Source} — so `content({ from: markdown(import.meta.glob(...)) })`. Heavy deps
- * (the `yaml` parser) load lazily in `init()`, so importing these pulls nothing extra and they can
- * all live on `@ogygia/content`.
- *
- * Two typed axes: `data` (authored, schema-validated) and `meta` (format-derived, typed here).
- */
 import type { Component } from 'svelte';
 import type { Heading, LinkRef } from './index.ts';
 import { region } from '@ogygia/core';
@@ -23,7 +15,6 @@ import {
 type Input<V> = GlobMap | RawSource<V>;
 export type BuilderOpts = { id?: (key: string) => string };
 
-/** If Vite wrapped a lone `default` export, unwrap it. */
 function unwrap_default(resolved: unknown): unknown {
 	if (!resolved || typeof resolved !== 'object' || Array.isArray(resolved)) return resolved;
 	const mod = resolved as Record<string, unknown>;
@@ -43,8 +34,6 @@ function as_object(value: unknown, label: string): Record<string, unknown> {
 	return value as Record<string, unknown>;
 }
 
-// ── markdown ────────────────────────────────────────────────────────────────────
-
 /** Meta the markdown source derives: h2–h4 headings (for a TOC) and every markdown link (for the
  *  ogygia link audit), both collected during compile. */
 export type MarkdownMeta = { headings: Heading[]; links: LinkRef[] };
@@ -62,20 +51,11 @@ const markdown_format: Format<unknown, MarkdownMeta> = (resolved, id) => {
 		string,
 		unknown
 	>;
-	// The preprocessor injects a lazy `__ogygia_source` self-import (`() => import(self + '?raw')`)
-	// when it compiles a `.svx` / `.md`. Surface it as the entry's `source`; absent in plain apps.
 	const source =
 		typeof mod.__ogygia_source === 'function'
 			? (mod.__ogygia_source as () => Promise<string>)
 			: undefined;
-	// A SERIALIZED-REGION module (the region emitter): the document HTML was baked at compile time and
-	// rides `__ogygia_region`. The body is a pre-baked inline region — renders like any inline region
-	// (the default export is the thin `{@html}` shell), but awaiting it is a no-op: no svelte/server
-	// render on the wire path, the ticket carries this HTML directly.
 	const baked = (mod.__ogygia_region as { html?: string } | undefined)?.html;
-	// Content-body CSS key baked by the markdown preprocessor when the module has its own scoped
-	// `<style>` — thread it onto the body region so Region.svelte links the client CSS asset the
-	// plugin emitted (the corpus is server-only, so this CSS is on no page stylesheet). Absent → no link.
 	const css_id = typeof mod.__ogygia_css === 'string' ? mod.__ogygia_css : undefined;
 	return {
 		data,
@@ -95,12 +75,16 @@ const markdown_format: Format<unknown, MarkdownMeta> = (resolved, id) => {
 	};
 };
 
-/** `.svx` / `.md` content compiled by the markdown pipeline — body is the component, meta has headings. */
+/**
+ * `.svx` / `.md` content compiled by the markdown pipeline: `data` is the frontmatter, `meta` the
+ * headings and links, `body` the page as a region. A page the region emitter baked to HTML renders
+ * that HTML with no Svelte render; a page with its own `<style>` carries its CSS key on the body, so
+ * the page links that stylesheet. The preprocessor's raw-text import becomes the entry's lazy
+ * `source`.
+ */
 export function markdown(input: Input<unknown>, opts: BuilderOpts = {}): Source<MarkdownMeta> {
 	return defineSource(toRawSource(input, opts), markdown_format);
 }
-
-// ── json ────────────────────────────────────────────────────────────────────
 
 const json_format: Format<unknown> = (resolved, id) => ({
 	data: as_object(unwrap_default(resolved), `json:${id}`)
@@ -110,7 +94,3 @@ const json_format: Format<unknown> = (resolved, id) => ({
 export function json(input: Input<unknown>, opts: BuilderOpts = {}): Source {
 	return defineSource(toRawSource(input, opts), json_format);
 }
-
-// NB: there are no built-in `yaml()` / `raw()` content sources. ogygia's own YAML parser is a
-// frontmatter-only subset (see content/markdown/yaml.ts). A `.yaml` loader, or a raw-string loader
-// (`import.meta.glob(..., { query: '?raw' })` → `{ body }`), is a short recipe — see the content docs.
