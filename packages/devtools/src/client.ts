@@ -34,7 +34,8 @@ import { start_page_beacon } from './page-beacon-start.ts';
 const BEACON_KEY = Symbol.for('ogygia.beacon');
 const LAZY = typeof __OGYGIA_DEVTOOLS_LAZY__ !== 'undefined' ? __OGYGIA_DEVTOOLS_LAZY__ : false;
 
-const client: ClientPlugin = defineClient({
+// (named, so `boot` and each hook keep one id however the rest of this file changes)
+const plugin: ClientPlugin = {
 	boot({ kitPage }) {
 		// @why the dev dock measures every document, and an app without ogygia's handle gets no beacon tag from the server (test: e2e/dev-installed.spec.ts › two copies)
 		if (!LAZY) standalone_beacon();
@@ -105,6 +106,8 @@ const client: ClientPlugin = defineClient({
 			beacon_warning(e);
 		}
 	}
-});
+};
+
+const client: ClientPlugin = defineClient(plugin);
 
 export default client;
