@@ -17,6 +17,9 @@ import type { Network } from './network.ts';
 import { install, message_channel, platform, type RealmOptions } from './platform.ts';
 import type { Rng } from './rng.ts';
 
+/** `SIM_STACKS=1`: a page's uncaught error carries its stack (to triage a seed). */
+const STACKS = process.env.SIM_STACKS === '1';
+
 /** Where a tab's requests go: the world's front door (the CDN, then the servers). */
 export type Route = (request: Request, from: string) => Promise<Response>;
 
@@ -217,7 +220,10 @@ export class Browsers {
 		// settles here, a module linking over a closed window, is the DOM library's, not the app's)
 		const shown = (): boolean => (tab.page.mainFrame.window as unknown) === window;
 		w.addEventListener('error', (e) => {
-			if (shown()) tab.errors.push(`error: ${e.message ?? String(e.error)}`);
+			// (SIM_STACKS=1 says where it was thrown, to triage a seed; off, the trace is unchanged)
+			const stack = STACKS ? `\n${String((e.error as Error | undefined)?.stack)}` : '';
+			// (a thrown value with no `message`, as Kit's HttpError, gives an empty one: say the value)
+			if (shown()) tab.errors.push(`error: ${e.message || String(e.error)}${stack}`);
 		});
 		// a script or stylesheet of this document that failed: happy-dom writes why to the page's
 		// console and fires `error` on the element (which does not bubble: heard while capturing)
@@ -247,7 +253,7 @@ export class Browsers {
 			own[level] = (...args: unknown[]) => {
 				if (!shown()) return;
 				tab.console.push(
-					`${level}: ${args.map((a) => (a instanceof Error || (a as { stack?: string })?.stack ? `${String(a)}\n${(a as Error).stack}` : String(a))).join(' ')}`
+					`${level}: ${args.map((a) => (a instanceof Error || (a as { stack?: string })?.stack ? `${String(a)}\n${(a as Error).stack}` : String(a))).join(' ')}${STACKS ? `\n${new Error('said at').stack}` : ''}`
 				);
 				page_console[level]?.call(page_console, ...args);
 			};

@@ -89,6 +89,22 @@ function make_loader(window: Window): Loader {
 		if (m.status === 'errored') throw m.error;
 		return m;
 	};
+	// a browser fetches a module's whole graph before it links any of it: a download that fails
+	// fails that graph, and its other modules stay unlinked in the map for the next graph. Linking
+	// in V8 while downloads are under way would leave them half linked when one fails (seed 368;
+	// test/modules.test.ts), so every module of the graph is in the map before `link` is called.
+	const fetch_graph = async (root: vm.Module): Promise<void> => {
+		const seen = new Set<vm.Module>([root]);
+		const walk = async (m: vm.Module): Promise<void> => {
+			if (m.status !== 'unlinked') return;
+			const requests = (m as vm.SourceTextModule).moduleRequests;
+			const deps = await Promise.all(
+				requests.map((r) => load(new URL(r.specifier, m.identifier).href))
+			);
+			await Promise.all(deps.filter((d) => !seen.has(d) && seen.add(d)).map(walk));
+		};
+		await walk(root);
+	};
 	// one link and one evaluation per module, however many importers ask at once (a second asker
 	// while the first links would find it neither unlinked nor linked)
 	const readied = new WeakMap<vm.Module, Promise<vm.Module>>();
@@ -99,6 +115,7 @@ function make_loader(window: Window): Loader {
 		if (r === undefined) {
 			r = (async () => {
 				if (m.status === 'unlinked') {
+					await fetch_graph(m);
 					const turn = linking.then(() => (m.status === 'unlinked' ? m.link(linker) : undefined));
 					linking = turn.catch(() => {});
 					await turn;

@@ -50,6 +50,61 @@ describe('KNOWN', () => {
 	it('#807 does not apply when the tab lacks a region the fresh load has', () => {
 		expect(left.applies(page('twin', 'twin'), page('b-only'))).toBe(false);
 	});
+
+	const kept = KNOWN.find((k) => k.issue === 799)!;
+	const head = (sheets: number) =>
+		[
+			'<html>',
+			'  <head>',
+			...Array.from({ length: sheets }, () => [
+				'    <style data-ogygia-region-css="/a.css">',
+				'      ".a{}"'
+			]).flat(),
+			'  <body>'
+		].join('\n');
+
+	it('#799 counts copies: a second copy of the same region sheet is the kept one (seeds 385, 415)', () => {
+		expect(kept.applies(head(2), head(1))).toBe(true);
+		expect(kept.applies(head(1), head(1))).toBe(false);
+		expect(kept.applies(head(1), head(2))).toBe(false);
+	});
+});
+
+describe('page errors', () => {
+	const tab = (errors: string[]) =>
+		({
+			realm: 'tab-1#6',
+			name: 'tab-1',
+			documents: 6,
+			errors,
+			console: [],
+			page: { mainFrame: { url: 'https://app.test/split-brain' } }
+		}) as unknown as Parameters<typeof page_errors>[0];
+	const world = (tampered: string) =>
+		({
+			network: {
+				exchanges: [
+					{
+						id: 1,
+						from: 'tab-1#6',
+						method: 'GET',
+						url: tampered,
+						status: 200,
+						cut: false,
+						tampered: true
+					}
+				]
+			}
+		}) as unknown as Parameters<typeof page_errors>[1];
+	const said = ["error: Cannot read properties of undefined (reading 'toLowerCase')"];
+
+	it('a document whose own HTML was changed on the way may say anything (seed 150)', () => {
+		expect(page_errors(tab(said), world('https://app.test/split-brain'))).toBeNull();
+	});
+
+	it('a changed chunk does not excuse a TypeError', () => {
+		expect(page_errors(tab(said), world('https://app.test/_app/x.js'))?.oracle).toBe('page-errors');
+	});
 });
 
 describe.skipIf(!built)('oracles on the palaestra build', () => {

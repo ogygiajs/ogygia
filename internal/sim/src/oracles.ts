@@ -144,10 +144,17 @@ export const KNOWN: ReadonlyArray<{
 	{
 		issue: 799,
 		what: "a left page's region sheet kept for one navigation",
-		// (the tab holds a region sheet the fresh load does not)
+		// (the tab holds a region sheet the fresh load does not, or one more copy of it: the left
+		// page's lifted sheet beside the next page's own, its href written another way; seeds 385,
+		// 415, /server → /nested, gone with #800's fix)
 		applies: (shown, fresh) => {
-			const there = new Set(region_sheets(fresh));
-			return region_sheets(shown).some((s) => !there.has(s));
+			const there = new Map<string, number>();
+			for (const s of region_sheets(fresh)) there.set(s, (there.get(s) ?? 0) + 1);
+			return region_sheets(shown).some((s) => {
+				const n = there.get(s) ?? 0;
+				there.set(s, n - 1);
+				return n <= 0;
+			});
 		},
 		forgive: (s) => {
 			const h = head_blocks(s);
@@ -289,6 +296,62 @@ function mask(s: string, lines: ReadonlySet<number>): string {
 		.join('\n');
 }
 
+/**
+ * What the server makes anew on each render (a time stamp, a render counter, a fresh id in a
+ * prop), from two fresh loads of one URL: a mask that marks it on any side. A text line that
+ * differs is matched by what the two share around the part that moved (or by its place, when
+ * they share too little to tell it apart); an attribute that differs is marked wherever it is.
+ */
+function per_render(a: string, b: string): (s: string) => string {
+	const [x, y] = [a.split('\n'), b.split('\n')];
+	if (x.length !== y.length) return (s) => s;
+	const texts: Array<{ at: number; head: string; tail: string }> = [];
+	const names = new Set<string>();
+	const attrs = (l: string) =>
+		new Map([...l.matchAll(/ ([\w:-]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
+	for (let i = 0; i < x.length; i++) {
+		if (x[i] === y[i]) continue;
+		if (/^ *"/.test(x[i]) && /^ *"/.test(y[i])) {
+			let h = 0;
+			while (h < x[i].length && x[i][h] === y[i][h]) h++;
+			let t = 0;
+			while (t < x[i].length - h && t < y[i].length - h && x[i].at(-1 - t) === y[i].at(-1 - t)) t++;
+			// (the part that moved is whole words: 1767226040373 and 1767226042373 share digits that
+			// another render's stamp does not)
+			while (h > 0 && /\w/.test(x[i][h - 1])) h--;
+			while (t > 0 && /\w/.test(x[i][x[i].length - t])) t--;
+			texts.push({ at: i, head: x[i].slice(0, h), tail: x[i].slice(x[i].length - t) });
+		} else {
+			const [p, q] = [attrs(x[i]), attrs(y[i])];
+			for (const [k, v] of p) if (q.get(k) !== v) names.add(k);
+		}
+	}
+	const marked = (l: string) => `${/^ */.exec(l)![0]}"<render>"`;
+	return (s) =>
+		s
+			.split('\n')
+			.map((l, i) => {
+				if (/^ *"/.test(l)) {
+					for (const t of texts) {
+						// (the shared part, less its indent and quotes, must say something: 3 characters)
+						const said = t.head.trimStart().slice(1).length + t.tail.slice(0, -1).length;
+						const fits =
+							l.startsWith(t.head) &&
+							l.endsWith(t.tail) &&
+							l.length >= t.head.length + t.tail.length;
+						if (said >= 3 ? fits : i === t.at) return marked(l);
+					}
+					return l;
+				}
+				return names.size === 0
+					? l
+					: l.replace(/ ([\w:-]+)="[^"]*"/g, (m, k: string) =>
+							names.has(k) ? ` ${k}="<render>"` : m
+						);
+			})
+			.join('\n');
+}
+
 /** A normalized DOM's kit-island stamps. */
 function kit_stamps(s: string): string {
 	return head_blocks(s)
@@ -326,6 +389,32 @@ export function first_difference(a: string, b: string, context = 3): string {
 	].join('\n');
 }
 
+/** A hard load of `url` in a new browser with `v`'s cookies, on a network that does not fail it
+ *  (a fault there is no finding about the tab), at rest. */
+async function fresh_load(
+	world: World,
+	v: Visitor,
+	url: string,
+	name: string
+): Promise<{ visitor: Visitor; tab: Tab }> {
+	const visitor = world.visitor(`${v.name}-${name}`);
+	const jar = (b: Visitor) =>
+		(
+			b.browser.defaultContext as unknown as {
+				cookieContainer: {
+					getCookies(u: URL | null, http: boolean): unknown[];
+					addCookies(c: unknown[]): void;
+				};
+			}
+		).cookieContainer;
+	jar(visitor).addCookies(jar(v).getCookies(null, true));
+	const tab = world.tab(visitor);
+	world.network.calm(tab.name);
+	const path = new URL(url);
+	await world.go(tab, 'goto', path.pathname + path.search + path.hash);
+	return { visitor, tab };
+}
+
 /**
  * MPA EQUIVALENCE, the core promise: after any sequence of actions, what a tab shows equals a fresh
  * hard load of its URL by a visitor with the same cookies, once both are at rest. Checked in a new
@@ -341,35 +430,32 @@ export async function mpa_equivalent(
 	const url = tab.page.mainFrame.url;
 	if (!url.startsWith('http')) return null;
 	let shown = view(tab.page.mainFrame.document as unknown as Document);
-	const fresh_visitor = world.visitor(`${v.name}-fresh`);
-	const jar = (b: Visitor) =>
-		(
-			b.browser.defaultContext as unknown as {
-				cookieContainer: {
-					getCookies(u: URL | null, http: boolean): unknown[];
-					addCookies(c: unknown[]): void;
-				};
-			}
-		).cookieContainer;
-	jar(fresh_visitor).addCookies(jar(v).getCookies(null, true));
-	const fresh = world.tab(fresh_visitor);
-	// (the reference is a load the network does not fail: a fault there is no finding about the tab)
-	world.network.calm(fresh.name);
-	const path = new URL(url);
-	await world.go(fresh, 'goto', path.pathname + path.search + path.hash);
-	const loaded = view(fresh.page.mainFrame.document as unknown as Document);
+	const fresh = await fresh_load(world, v, url, 'fresh');
+	const loaded = view(fresh.tab.page.mainFrame.document as unknown as Document);
 	// (a text that changes on its own at rest is time, not state: a ticking clock in an island the
 	// navigation kept has run longer than the fresh load's. Each side is looked at once more a
 	// moment later, and a text line that moved by itself is masked on both: seed 289)
 	await world.loop.run(LIVE_LOOK_MS);
 	const live = new Set([
 		...live_lines(shown, view(tab.page.mainFrame.document as unknown as Document)),
-		...live_lines(loaded, view(fresh.page.mainFrame.document as unknown as Document))
+		...live_lines(loaded, view(fresh.tab.page.mainFrame.document as unknown as Document))
 	]);
-	const again = own_state_out(mask(loaded, live));
-	shown = own_state_out(mask(shown, live));
-	const said = [...fresh.errors, ...fresh.console];
-	await world.browsers.close(fresh_visitor, fresh);
+	let again = mask(loaded, live);
+	shown = mask(shown, live);
+	const said = [...fresh.tab.errors, ...fresh.tab.console];
+	await world.browsers.close(fresh.visitor, fresh.tab);
+	if (first_difference(own_state_out(shown), own_state_out(again)) === '') return null;
+	// (what the server makes anew each render, a stamp, a counter, a fresh id, differs between two
+	// fresh loads as well: it is the render's, not the tab's state. A second fresh load, and what
+	// differs between the two is marked on every side: seeds 107, 188, 268, 280, 326, 340, 477)
+	const second = await fresh_load(world, v, url, 'fresh-2');
+	const render = per_render(
+		loaded,
+		view(second.tab.page.mainFrame.document as unknown as Document)
+	);
+	await world.browsers.close(second.visitor, second.tab);
+	again = own_state_out(render(again));
+	shown = own_state_out(render(shown));
 	const diff = first_difference(shown, again);
 	if (diff === '') return null;
 	// a difference a filed bug explains is that bug, counted apart until its fix lands
@@ -387,9 +473,12 @@ export async function mpa_equivalent(
 			oracle: 'known',
 			detail: `${url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
 		};
+	// (what is left once the filed bugs are set aside: the difference to triage)
+	const left =
+		known.length > 0 ? `with ${known.map((k) => `#${k.issue}`).join(', ')} set aside, ` : '';
 	return {
 		oracle: 'mpa-equivalence',
-		detail: `${url}\n${diff}${said.length ? `\nthe fresh load said:\n${said.join('\n')}` : ''}`
+		detail: `${url}\n${left}${first_difference(a, b)}${said.length ? `\nthe fresh load said:\n${said.join('\n')}` : ''}`
 	};
 }
 
@@ -466,11 +555,21 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 		);
 }
 
+/** Was the HTML of the document `tab` shows changed or cut on its way? */
+export function document_faulted(world: World, tab: Tab): boolean {
+	const url = tab.page.mainFrame.url.split('#')[0];
+	return world.network.exchanges.some(
+		(e) => e.from === tab.realm && e.method === 'GET' && e.url === url && (e.tampered || e.cut)
+	);
+}
+
 /** What a page may say when the network failed it: ogygia's coded reports, the network's own
- *  failures (a script cut midway fails to parse), and Vite's preload helper on a sheet whose
- *  download failed (seeds 65, 425). An uncaught TypeError is never excused. */
+ *  failures (a script cut midway fails to parse), Vite's preload helper on a sheet whose
+ *  download failed (seeds 65, 425), and Kit's remote functions on an answer they cannot read
+ *  ("Invalid query.live response": seed 193, a changed byte in a live query's stream). An uncaught
+ *  TypeError is never excused. */
 const EXPLAINED =
-	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost/;
+	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response/;
 
 /** No uncaught error, unhandled rejection or console error in the page (beyond what a network
  *  fault on this document explains, when `world` is given). */
@@ -478,6 +577,10 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 	// (a fault on the shown document stays its fact: a module whose download was cut fails every
 	// later import of it in that document, as the module map keeps the failure)
 	const excused = world !== undefined && (faulted(world, tab) || faulted(world, tab, since));
+	// (a document whose own HTML was changed or cut on the way is not the page the server sent:
+	// what its scripts then do is the network's, a TypeError too. Seed 150: a flipped byte in
+	// `type="application/ogygia-page"` hid the page data, and the island read a missing field)
+	if (world !== undefined && document_faulted(world, tab)) return null;
 	const errors = [...tab.errors, ...tab.console.filter((l) => l.startsWith('error:'))].filter(
 		(l) => !(excused && EXPLAINED.test(l))
 	);
