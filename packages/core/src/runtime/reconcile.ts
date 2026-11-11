@@ -21,7 +21,7 @@
 
 import { dispose_ids } from '../ref.ts';
 import { boot_link, morph_sync_attributes, slots } from './slots.ts';
-import { region_owned_ids } from './region-ids.ts';
+import { ids_released } from './region-ids.ts';
 import { emit as dt_emit } from '../events/bus.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
@@ -260,19 +260,18 @@ export function reconcile_body(
 	sync_body_attributes(live, next);
 	if (DEVTOOLS) dt_emit_reconcile(live, next);
 	// R3 SELECTIVE DISPOSE: a reconcile keeps matched islands, so it can't blanket-dispose the page
-	// scope. Collect the ids owned by REMOVED regions (live keys absent from next — a patched region
-	// counts here too, its fp-key changed) so we can tear down exactly those after the morph.
+	// scope. Collect the REMOVED regions (live keys absent from next — a patched region counts here
+	// too, its fp-key changed) so we can tear down what only they owned after the morph.
 	const next_keys = new Set<string>();
 	for (const el of next.querySelectorAll('ogygia-region')) {
 		const k = el.getAttribute('data-key');
 		if (k !== null) next_keys.add(k);
 	}
-	const removed_ids: string[] = [];
+	const departed: Element[] = [];
 	for (const el of live.querySelectorAll('ogygia-region')) {
 		const k = el.getAttribute('data-key');
 		if (k !== null && next_keys.has(k)) continue; // kept/matched — its ids survive
-		const set = region_owned_ids(el);
-		if (set !== undefined) for (const id of set) removed_ids.push(id);
+		departed.push(el);
 	}
 	// PROP-PUSH for KEPT regions (the persist contract): a kept region's live island stays mounted,
 	// so morph never delivers the new page's props to it. Before morph discards the incoming nodes,
@@ -285,7 +284,9 @@ export function reconcile_body(
 	renew_server_body(live, next, own);
 	// REMOVED regions are gone from the DOM now — tear down their page-scoped hub instances
 	// (session-aliased continuity instances are skipped inside dispose_ids).
-	if (removed_ids.length > 0) dispose_ids(removed_ids);
+	// An id a kept region also owns (one object shared by two regions) stays with it (#815).
+	const released = ids_released(departed, live);
+	if (released.length > 0) dispose_ids(released);
 }
 
 /**

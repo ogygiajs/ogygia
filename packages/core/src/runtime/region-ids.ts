@@ -2,7 +2,8 @@
  * R3 OWNERSHIP: which page-scoped hub ids each region's island resolved during hydration. The
  * hydrate core installs a resolve-sink (ref-sink.ts `set_resolve_sink`) around each island's sync prop +
  * context decode that funnels ids here, keyed by the region element; the reconciler (a navigation)
- * disposes exactly the ids of REMOVED regions. WeakMap → a removed element's set is GC'd with it.
+ * disposes the ids REMOVED regions owned that no region left on the page owns ({@link ids_released}).
+ * WeakMap → a removed element's set is GC'd with it.
  * Its own module so the boot-time reconciler and the lazily loaded hydrate core share one map
  * without either importing the other.
  */
@@ -17,9 +18,26 @@ export function record_region_id(region: Element, id: string): void {
 	set.add(id);
 }
 
-/** The page ids a region's island owns, or undefined. */
-export function region_owned_ids(region: Element): Set<string> | undefined {
-	return owned_ids.get(region);
+/**
+ * The page ids the `departed` regions owned that no region still in `page` owns: the ones to
+ * dispose. A shared object (a wired instance, a store passed to two regions) is owned by every
+ * region that resolved it, and stays while any of them does (#815).
+ */
+export function ids_released(departed: readonly Element[], page: ParentNode): string[] {
+	const candidates = new Set<string>();
+	for (const el of departed) {
+		const set = owned_ids.get(el);
+		if (set !== undefined) for (const id of set) candidates.add(id);
+	}
+	if (candidates.size === 0) return [];
+	const gone = new Set(departed);
+	for (const el of page.querySelectorAll('ogygia-region')) {
+		// (a departed region the morph reused in place re-mounts: what it owned is not held)
+		if (gone.has(el)) continue;
+		const set = owned_ids.get(el);
+		if (set !== undefined) for (const id of set) candidates.delete(id);
+	}
+	return [...candidates];
 }
 
 /** Run `fn` with the hub's resolve-sink funneling every page id it resolves to `region`'s owned
