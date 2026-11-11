@@ -83,13 +83,15 @@ Security and performance audits should read this before changing trust boundarie
 
 ---
 
-## PRELOAD-CACHE — `private, max-age=30` without `Vary: Cookie`
+## HOLE-CACHE — `no-store` unless the hole opts in; one request per hole
 
-**What:** Region responses are `cache-control: private, max-age=30` so the browser can reuse `<link rel="preload" as="fetch">` for the runtime fetch.
+**What:** A region response is `cache-control: no-store` by default. A hole whose preset sets `maxAge` mints a signed `ttl`, and its answer is `private, max-age=<ttl>` (`hooks.ts`, never on a renewed answer). A `defer: 'load'` hole's request starts in the head during the parse (`early-holes.ts`: one data block, one constant inline script), and the runtime takes that request over as the hole's flight, so each hole is asked for once.
 
-**Why:** Without reuse, every defer hole double-fetches (preload + runtime) and verify suites that assert single render break.
+**Why:** A `<link rel="preload" as="fetch">` used to make the early start, which needed a cacheable answer for the runtime's fetch to reuse. WebKit never hands a preload to a later `fetch()`, so every hole was asked for, and rendered, twice there (#404). The early-holes handoff needs no cache, so holes stay fresh per request.
 
-**Do not:** Default to `no-store` without another way to share preload ↔ runtime. Shared CDNs must not store `private` responses.
+**Do not:** Bring back a preload for the early start. Make an answer cacheable by default, or anything but `private` when a hole opts in (answers are cookie-personalized; shared CDNs must not store them).
+
+**Tests:** `packages/core/test/browser/early-holes.test.ts`.
 
 ---
 
@@ -117,7 +119,7 @@ Security and performance audits should read this before changing trust boundarie
 
 ## LAKE-PLACEHOLDER — no lake JS on the client
 
-**What:** Client build rewrites lake imports to `LakePlaceholder.svelte`; SSR keeps the real component. Runtime lifts/restores SSR DOM around hydrate.
+**What:** Client build rewrites lake imports to the render-nothing `ClientBindingStub.svelte` (`compiler/region/emit.ts` `rewrite_lake_import_to_placeholder`); SSR keeps the real component. Runtime lifts/restores SSR DOM around hydrate.
 
 **Why:** `hydrate: 'none'` means zero lake client JS.
 
@@ -189,12 +191,12 @@ instance maps in `prepare_spa_document` (pre-swap).
 - Strip a layout when ANY page below it is csr=false.
 - Skip `clear_route_csr_cache()` on dev route-topology changes — the watcher covers `+page/+layout(.server).(svelte|js|ts)`.
 
-**Tests:** `packages/ogygia/test/route-csr.test.ts` (declaration forms × chain shapes × layout folds × cache, plus the transform strip/keep seam) and `e2e/deep-csr.ts` (real build of `internal/repro-deep-csr`, browser truth in both worlds).
+**Tests:** `packages/core/test/route-csr.test.ts` (declaration forms × chain shapes × layout folds × cache, plus the transform strip/keep seam) and `apps/palaestra/e2e/deep-csr.spec.ts` (real build of `internal/repro-deep-csr`, browser truth in both worlds).
 
 ---
 
 ## Related docs
 
 - Product vocabulary: [`DESIGN.md`](./DESIGN.md)
-- Public API: docs site + [`packages/ogygia/README.md`](./packages/ogygia/README.md)
+- Public API: docs site + [`packages/ogygia/README.md`](../../packages/ogygia/README.md)
 - Spec / goals: [`SPEC.md`](./SPEC.md)
