@@ -15,12 +15,19 @@
 	"files": [
 		"dist",
 		"README.md",
-		"ambient.d.ts"
+		"ambient.d.ts",
+		"virtual"
 	],
 	"type": "module",
 	"sideEffects": [
 		"**/*.css"
 	],
+	"imports": {
+		"#region-server": {
+			"browser": "./src/region-server.browser.ts",
+			"default": "./src/region-server.ts"
+		}
+	},
 	"exports": {
 		".": {
 			"svelte": "./src/index.ts",
@@ -135,6 +142,13 @@
 		}
 	},
 	"publishConfig": {
+		"imports": {
+			"#region-server": {
+				"types": "./dist/region-server.d.ts",
+				"browser": "./dist/region-server.browser.js",
+				"default": "./dist/region-server.js"
+			}
+		},
 		"exports": {
 			".": {
 				"types": "./dist/index.d.ts",
@@ -252,7 +266,7 @@
 		"access": "public"
 	},
 	"scripts": {
-		"build": "tsdown",
+		"build": "node scripts/virtual-types.ts && tsdown",
 		"test": "vitest run",
 		"test:node": "vitest run --project node",
 		"test:browser": "vitest run --project browser",
@@ -270,6 +284,7 @@
 	},
 	"devDependencies": {
 		"@ogygia/config": "workspace:*",
+		"@ogygia/tooling": "workspace:*",
 		"@ogygia/tsdown-plugin-svelte": "workspace:*",
 		"@sveltejs/kit": "catalog:",
 		"@sveltejs/vite-plugin-svelte": "catalog:",

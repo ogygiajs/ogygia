@@ -1,7 +1,7 @@
 // REGRESSION: a portable snippet (a `{#snippet}` forwarded into a hydrate island) writes its body
 // at the synth entry's template root. A body opening with `{@const}` is legal directly under
 // `{#snippet}` but not at a template root — Svelte refuses the entry:
-//   virtual:ogygia/island/6f13ddda8d9c.svelte:13:4 `{@const}` must be the immediate child of
+//   ogygia:region/entry/6f13ddda8d9c.svelte:13:4 `{@const}` must be the immediate child of
 //   `{#snippet}`, `{#if}`, … (const_tag_invalid_placement)
 // A customer page's snippet opened with a feature-flag const and the build died. Such a body keeps
 // its snippet around it in the synth, rendered once; a body without one is written as before.
@@ -16,14 +16,14 @@ const ctx = {
 	readFile: () => null,
 	pathModule: path,
 	dev: false,
-	virtualPathFor: (_h: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
-	wrapperPathFor: (_h: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
+	virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
+	wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
 	devUrlFor: (p: string) => p,
 	visibleMargin: '200px',
 	presets: {},
 	importKeys: {},
 	idSalt: '',
-	clientBindingStub: 'virtual:ogygia/client-binding-stub',
+	clientBindingStub: 'ogygia:region/client-binding-stub',
 	routeCsr: undefined,
 	linkVirtualIsland: true
 };
@@ -51,7 +51,7 @@ const synth_of = (source: string) =>
 		.find((s?: string) => !!s && s.includes('./flags'))!;
 
 const compiles = (synth: string) =>
-	compile(synth.replace("import 'virtual:ogygia/transportables-eager';", ''), {
+	compile(synth.replace("import 'ogygia:region/transportables-eager';", ''), {
 		filename: 'entry.svelte',
 		generate: 'client'
 	}).js.code;
