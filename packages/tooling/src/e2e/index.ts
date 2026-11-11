@@ -28,19 +28,37 @@ export async function rules(page: Page): Promise<BrokenRule[] | null> {
 	}
 }
 
+/** The page's machine moves, one line each (`visit#3 loading -> answered`), or null where the page
+ *  keeps none (a build made without rules, a page that is not ogygia's, a page already closed). */
+export async function moves(page: Page): Promise<string | null> {
+	try {
+		return await page.evaluate(
+			() => (globalThis as { __ogygia_moves?: () => string }).__ogygia_moves?.() ?? null
+		);
+	} catch {
+		return null; // ok: closed, or navigating away: nothing to read
+	}
+}
+
 /**
  * Playwright's `test`, and at the end of every test that used a page, ogygia's rules on itself: a
  * page that has them (the dev server, a build made with `OGYGIA_RULES=1` such as the palaestra's)
  * must end the test with none broken. A soft assertion: the test's own checks all still report.
+ * A test that failed gets the page's machine moves attached (`machine moves`) and printed.
  *
  * The check rides on `page` itself, which Playwright makes only for a test that asks for it: a test
  * that reads the wire alone (`fetch`, `request`) opens no browser for the rules.
  */
 export const test = base.extend({
-	page: async ({ page }, use) => {
+	page: async ({ page }, use, info) => {
 		await use(page);
 		const broken = await rules(page);
 		if (broken !== null) expect.soft(broken, 'ogygia rules broken at the end').toEqual([]);
+		if (info.status === info.expectedStatus && info.errors.length === 0) return;
+		const log = await moves(page);
+		if (!log) return;
+		await info.attach('machine moves', { body: log, contentType: 'text/plain' });
+		console.error(`machine moves in "${info.title}":\n${log}`);
 	}
 });
 

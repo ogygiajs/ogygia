@@ -124,6 +124,8 @@ jobs:
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      # (runs on pull requests only: it reads the cache and never writes it)
+      TURBO_REMOTE_CACHE_READ_ONLY: true
     steps:
       - uses: actions/checkout@v7
         with:
