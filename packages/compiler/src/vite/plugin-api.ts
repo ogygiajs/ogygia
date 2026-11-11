@@ -386,14 +386,30 @@ export function client_hook_names(plugin: string, file: string): RuntimeHookName
 	const { program } = parse_module(fs.readFileSync(file, 'utf8'), file);
 	if (!program) throw unread();
 	const body = program.body as AstNode[];
+	const consts = new Map<string, AstNode>();
+	for (const s of body)
+		if (s.type === 'VariableDeclaration' && s.kind === 'const')
+			for (const d of s.declarations as AstNode[])
+				if (d.id?.type === 'Identifier' && d.init) consts.set(d.id.name as string, d.init);
+	// what a value is, as written: through casts, parentheses and the module's own `const` names
 	const unwrap = (n: AstNode | null | undefined): AstNode | null | undefined => {
-		while (
-			n &&
-			(n.type === 'TSAsExpression' ||
+		const seen = new Set<string>();
+		while (n) {
+			if (
+				n.type === 'TSAsExpression' ||
 				n.type === 'TSSatisfiesExpression' ||
-				n.type === 'ParenthesizedExpression')
-		)
-			n = n.expression;
+				n.type === 'ParenthesizedExpression'
+			)
+				n = n.expression;
+			else if (
+				n.type === 'Identifier' &&
+				consts.has(n.name as string) &&
+				!seen.has(n.name as string)
+			) {
+				seen.add(n.name as string);
+				n = consts.get(n.name as string);
+			} else break;
+		}
 		return n;
 	};
 	// a bundler writes `export { client as default }` where the source had `export default client`
@@ -405,14 +421,6 @@ export function client_hook_names(plugin: string, file: string): RuntimeHookName
 		(body.find((s) => s.type === 'ExportDefaultDeclaration')?.declaration as AstNode | undefined) ??
 			default_local
 	);
-	if (value?.type === 'Identifier') {
-		const name = value.name as string;
-		const declarator = body
-			.filter((s) => s.type === 'VariableDeclaration' && s.kind === 'const')
-			.flatMap((s) => s.declarations as AstNode[])
-			.find((d) => d.id?.type === 'Identifier' && d.id.name === name);
-		value = unwrap(declarator?.init);
-	}
 	if (value?.type === 'CallExpression') value = unwrap(value.arguments?.[0]);
 	if (value?.type !== 'ObjectExpression') throw unread();
 	const key_of = (p: AstNode): string | null =>

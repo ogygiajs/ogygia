@@ -150,6 +150,32 @@ describe('realms, named by the plugin', () => {
 		);
 		expect(client_hook_names('p', built)).toEqual(['regionHydrated', 'navigated']);
 	});
+	it('a client realm whose plugin object, or its hooks, sit in a named const has its hooks read', () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'og-client-hooks-'));
+		const file = (name: string, code: string) => {
+			const f = path.join(dir, name);
+			fs.writeFileSync(f, code);
+			return f;
+		};
+		const named_plugin = file(
+			'plugin.ts',
+			`const plugin: ClientPlugin = { boot() {}, hooks: { regionMount() {}, warning() {} } };\nconst client = defineClient(plugin);\nexport default client;\n`
+		);
+		const named_hooks = file(
+			'hooks.ts',
+			`const hooks = { holeFailed() {} };\nexport default defineClient({ boot() {}, hooks });\n`
+		);
+		const let_hooks = file(
+			'let.ts',
+			`let hooks = { holeFailed() {} };\nexport default defineClient({ hooks });\n`
+		);
+		expect(client_hook_names('p', named_plugin)).toEqual(['regionMount', 'warning']);
+		expect(client_hook_names('p', named_hooks)).toEqual(['holeFailed']);
+		// (a `let` can be reassigned: what it holds at run time is not what the file says)
+		expect(() => client_hook_names('p', let_hooks)).toThrow(
+			/plugin_client_hooks_unread|cannot read/
+		);
+	});
 	it('no realm named, none wired: a package export called `./server` means nothing', () => {
 		const out = resolve_plugins([def({ name: '@ogygia/flags' })], APP, true);
 		expect(out.servers).toEqual([]);
