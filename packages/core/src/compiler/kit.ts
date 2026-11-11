@@ -114,7 +114,10 @@ export interface KitDirs {
 	out_dir: string;
 }
 export const DEFAULT_KIT_DIRS = { routes: 'src/routes', out: '.svelte-kit' } as const;
-const _kit_dirs = cache<string, KitDirs>({ name: 'kit dirs', max: ROOTS_MAX });
+// (config, not a memo: an evicted root would answer the defaults, so the bound is far past the roots
+// any process configures, one per Vite instance; the owner-scoped fix is tracked in #633)
+const KIT_CONFIG_ROOTS_MAX = 10_000;
+const _kit_dirs = cache<string, KitDirs>({ name: 'kit dirs', max: KIT_CONFIG_ROOTS_MAX });
 
 export function set_kit_dirs(root: string, dirs: KitDirs): void {
 	_kit_dirs.set(root, dirs);
@@ -137,7 +140,7 @@ export function kit_dirs(root: string): KitDirs {
 // app's svelte.config.js by the Vite plugin next to `kit_dirs`; `0` (Kit's default) = never inline.
 const _kit_inline_style_threshold = cache<string, number>({
 	name: 'kit inline style threshold',
-	max: ROOTS_MAX
+	max: KIT_CONFIG_ROOTS_MAX
 });
 
 export function set_kit_inline_style_threshold(root: string, bytes: number): void {
