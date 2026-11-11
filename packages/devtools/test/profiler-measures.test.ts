@@ -139,6 +139,14 @@ describe('profiler: measures', () => {
 		expect(await handle.measures(event('/', `og_profiler_beacon=${old}`))).toBe(false);
 	});
 
+	it('a flag of 64 characters but more bytes (a decoded %C3%A9 each) is refused, not thrown', async () => {
+		dev_switch.dev = false;
+		const handle = profiler({ secret: SECRET });
+		await expect(handle.measures(event('/', `og_profiler_beacon=${'é'.repeat(64)}`))).resolves.toBe(
+			false
+		);
+	});
+
 	it('a flag signed under another secret is not', async () => {
 		dev_switch.dev = false;
 		const { createHmac } = await import('node:crypto');
