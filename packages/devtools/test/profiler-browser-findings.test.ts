@@ -297,13 +297,13 @@ test("a lazy island's code counts at start only when it loaded before the load e
 const tag_code = (tag: string) => tag.slice(tag.indexOf('>') + 1, tag.lastIndexOf('</script>'));
 
 test('the inline beacon for pages without the runtime is one valid script tag', async () => {
-	const { BEACON_STANDALONE_TAG } = await import('../src/profiler/beacon-standalone.ts');
+	const { BEACON_STANDALONE_TAG } = await import('../src/profiler/beacon-tag.ts');
 	expect(BEACON_STANDALONE_TAG.startsWith('<script data-ogygia-beacon>')).toBe(true);
 	expect(() => new Function(tag_code(BEACON_STANDALONE_TAG))).not.toThrow();
 });
 
 test('the inline beacon names a preload the browser downloaded again (a Kit page has no runtime beacon)', async () => {
-	const { BEACON_STANDALONE_TAG } = await import('../src/profiler/beacon-standalone.ts');
+	const { BEACON_STANDALONE_TAG } = await import('../src/profiler/beacon-tag.ts');
 	const BEACON_STANDALONE_JS = tag_code(BEACON_STANDALONE_TAG);
 	const font = 'https://a.test/f.woff2';
 	const res = (
