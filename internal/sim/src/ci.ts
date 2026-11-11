@@ -23,7 +23,14 @@
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+	appendFileSync,
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync
+} from 'node:fs';
 import { join } from 'node:path';
 
 const SIM = join(import.meta.dirname, '..');
@@ -94,8 +101,37 @@ export function signature(f: Pick<Finding, 'oracle' | 'detail'>): string {
 	return createHash('sha1').update(`${f.oracle} ${about}`).digest('hex').slice(0, 10);
 }
 
-/** One batch of seeds through the pool; its findings. */
-function batch(from: number): { findings: Finding[]; seeds: number; steps_per_second: number } {
+/** What one batch's CLI wrote. */
+interface BatchOut {
+	findings?: Finding[];
+	steps_per_second: number;
+	replay_leaks: number[];
+}
+
+/**
+ * A batch's results, or why there are none: the CLI exits 0 (nothing found) or 1 (found something)
+ * having written its file; any other end (a crash, 2 for a missing build, 3 for a hung worker) or no
+ * file means the batch did not run, and its seeds are not counted. (The file is removed before each
+ * batch, so it is never the batch before's.)
+ */
+export function batch_result(
+	status: number | null,
+	signal: string | null,
+	read: () => string | null
+): BatchOut | { failed: string } {
+	if (status !== 0 && status !== 1)
+		return { failed: `the simulator ended with ${signal ?? `exit code ${status}`}` };
+	const text = read();
+	if (text === null) return { failed: 'the simulator wrote no results' };
+	return JSON.parse(text) as BatchOut;
+}
+
+/** One batch of seeds through the pool; its findings, or why it failed. */
+function batch(
+	from: number
+): { findings: Finding[]; seeds: number; steps_per_second: number } | { failed: string } {
+	const file = join(SIM, 'results.json');
+	rmSync(file, { force: true });
 	const r = spawnSync(
 		process.execPath,
 		[
@@ -111,12 +147,11 @@ function batch(from: number): { findings: Finding[]; seeds: number; steps_per_se
 		],
 		{ cwd: SIM, stdio: ['ignore', 'inherit', 'inherit'] }
 	);
-	if (r.error) throw r.error;
-	const out = JSON.parse(readFileSync(join(SIM, 'results.json'), 'utf8')) as {
-		findings?: Finding[];
-		steps_per_second: number;
-		replay_leaks: number[];
-	};
+	if (r.error) return { failed: `the simulator did not start: ${r.error.message}` };
+	const out = batch_result(r.status, r.signal, () =>
+		existsSync(file) ? readFileSync(file, 'utf8') : null
+	);
+	if ('failed' in out) return out;
 	if (out.replay_leaks.length)
 		log(`replay leaks (the simulator's to fix): ${out.replay_leaks.join(', ')}`);
 	return { findings: out.findings ?? [], seeds: BATCH, steps_per_second: out.steps_per_second };
@@ -145,33 +180,83 @@ describe.skipIf(!built)('found: ${sig}', () => {
 `;
 }
 
-/** Pushes `sim/found-<sig>`: this checkout's commit plus the test. */
+/** `text` with every secret in it replaced (a failed command's message names its arguments and
+ *  its output). */
+export function redact(text: string, secrets: readonly (string | undefined)[]): string {
+	for (const s of secrets) if (s) text = text.split(s).join('***');
+	return text;
+}
+
+/** The first of `sim/found-<sig>`, `…-2`, `…-3`, … that is not taken: a signature filed before (its
+ *  issue closed, or the issue failed after the push) keeps its old branch, and the new finding gets
+ *  its own, so a push is always a new branch and never needs to replace one. */
+export function free_branch(sig: string, taken: ReadonlySet<string>): string {
+	const base = `sim/found-${sig}`;
+	if (!taken.has(base)) return base;
+	for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
+}
+
+/** The token reaches git through its environment (an auth header in `GIT_CONFIG_*`), never its
+ *  arguments, so no command line or error carries it. */
+function git_env(): NodeJS.ProcessEnv {
+	if (!env.GH_TOKEN) return env;
+	const basic = Buffer.from(`x-access-token:${env.GH_TOKEN}`).toString('base64');
+	return {
+		...env,
+		GIT_CONFIG_COUNT: '1',
+		GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
+		GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}`
+	};
+}
+
+/** Runs git in the checkout; a failure's message has every secret taken out. */
+function git(...a: string[]): string {
+	try {
+		return execFileSync('git', a, { cwd: ROOT, stdio: 'pipe', env: git_env() }).toString();
+	} catch (error) {
+		const e = error as { message?: string; stderr?: Buffer | string };
+		const said = `${e.message ?? String(error)}\n${e.stderr?.toString() ?? ''}`;
+		const basic = env.GH_TOKEN
+			? Buffer.from(`x-access-token:${env.GH_TOKEN}`).toString('base64')
+			: undefined;
+		throw new Error(redact(`git ${a[0]} failed: ${said}`, [env.GH_TOKEN, basic]));
+	}
+}
+
+/**
+ * Pushes a new `sim/found-<sig>[-n]` branch: this checkout's commit plus the test. The checkout is
+ * back on its commit afterwards, whatever happened, so the next finding's branch starts there too.
+ */
 function push_branch(f: Finding, sig: string): string {
-	const branch = `sim/found-${sig}`;
-	const git = (...a: string[]) => execFileSync('git', a, { cwd: ROOT, stdio: 'pipe' });
-	const head = git('rev-parse', 'HEAD').toString().trim();
-	git('checkout', '-q', '-B', branch, head);
-	const dir = join(SIM, 'test', 'found');
-	mkdirSync(dir, { recursive: true });
-	writeFileSync(join(dir, `${sig}.test.ts`), test_source(f, sig));
-	git('add', join(dir, `${sig}.test.ts`));
-	git(
-		'-c',
-		'user.name=ogygia-dst',
-		'-c',
-		'user.email=dst@users.noreply.github.com',
-		'commit',
-		'-q',
-		'-m',
-		`test(sim): found ${sig}: ${f.oracle} (seed ${f.seed})`
+	const remote = `https://github.com/${REPO}.git`;
+	const taken = new Set(
+		git('ls-remote', '--heads', remote)
+			.split('\n')
+			.map((l) => l.split('refs/heads/')[1])
+			.filter((b): b is string => !!b && b.startsWith(`sim/found-${sig}`))
 	);
-	git(
-		'push',
-		'-q',
-		`https://x-access-token:${env.GH_TOKEN}@github.com/${REPO}.git`,
-		`${branch}:refs/heads/${branch}`
-	);
-	git('checkout', '-q', head);
+	const branch = free_branch(sig, taken);
+	const head = git('rev-parse', 'HEAD').trim();
+	try {
+		git('checkout', '-q', '-B', branch, head);
+		const dir = join(SIM, 'test', 'found');
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(join(dir, `${sig}.test.ts`), test_source(f, sig));
+		git('add', join(dir, `${sig}.test.ts`));
+		git(
+			'-c',
+			'user.name=ogygia-dst',
+			'-c',
+			'user.email=dst@users.noreply.github.com',
+			'commit',
+			'-q',
+			'-m',
+			`test(sim): found ${sig}: ${f.oracle} (seed ${f.seed})`
+		);
+		git('push', '-q', remote, `${branch}:refs/heads/${branch}`);
+	} finally {
+		git('checkout', '-q', '-f', head);
+	}
 	return branch;
 }
 
@@ -204,13 +289,28 @@ function open_issues(): Open[] {
 	}
 }
 
-function file(
-	groups: Map<string, Finding[]>
-): Array<{ sig: string; issue: number | null; repeat: boolean }> {
-	const open = open_issues();
-	const out: Array<{ sig: string; issue: number | null; repeat: boolean }> = [];
-	let made = 0;
+type Filed = { sig: string; issue: number | null; repeat: boolean; error?: string };
+
+/** Files each signature; one that fails is reported with why (secrets taken out), and the others
+ *  are still filed. */
+function file(groups: Map<string, Finding[]>): Filed[] {
+	const out: Filed[] = [];
+	const ask = file_one(open_issues());
 	for (const [sig, list] of groups) {
+		try {
+			out.push(ask(sig, list));
+		} catch (error) {
+			const why = redact(String((error as Error)?.message ?? error), [env.GH_TOKEN]);
+			log(`filing ${sig} failed: ${why.split('\n')[0]}`);
+			out.push({ sig, issue: null, repeat: false, error: why.slice(0, 500) });
+		}
+	}
+	return out;
+}
+
+function file_one(open: Open[]): (sig: string, list: Finding[]) => Filed {
+	let made = 0;
+	return (sig, list) => {
 		const f = list[0];
 		const mark = `dst-signature: ${sig}`;
 		// (an issue a person filed names its signature in a comment)
@@ -233,13 +333,9 @@ function file(
 						.map((x) => x.seed)
 						.join(', ')}).\n\n${mark}`
 				]);
-			out.push({ sig, issue: known.number, repeat: true });
-			continue;
+			return { sig, issue: known.number, repeat: true };
 		}
-		if (!FILE || made >= MAX_NEW) {
-			out.push({ sig, issue: null, repeat: false });
-			continue;
-		}
+		if (!FILE || made >= MAX_NEW) return { sig, issue: null, repeat: false };
 		made++;
 		const branch = push_branch(f, sig);
 		const body = [
@@ -286,9 +382,8 @@ function file(
 			'-b',
 			body
 		]).trim();
-		out.push({ sig, issue: Number(url.split('/').pop()), repeat: false });
-	}
-	return out;
+		return { sig, issue: Number(url.split('/').pop()), repeat: false };
+	};
 }
 
 async function main(): Promise<void> {
@@ -297,13 +392,23 @@ async function main(): Promise<void> {
 	let seeds = 0;
 	let rate = 0;
 	let stopped_early = false;
+	let failed: string | null = null;
 	const all: Finding[] = [];
+	// (a results file is this run's or none: one a run before left is never read as this one's)
+	rmSync(RESULTS, { force: true });
 	while (Date.now() < DEADLINE) {
 		if (!(await neighbourly())) {
 			stopped_early = true;
 			break;
 		}
 		const b = batch(from);
+		// (a batch that did not run ends the run: what ran is still filed and reported, and the job
+		// fails so a person looks)
+		if ('failed' in b) {
+			failed = `seeds ${from} to ${from + BATCH - 1}: ${b.failed}`;
+			log(`batch failed, ${failed}`);
+			break;
+		}
 		from += b.seeds;
 		seeds += b.seeds;
 		rate = b.steps_per_second;
@@ -325,6 +430,7 @@ async function main(): Promise<void> {
 		steps: STEPS,
 		steps_per_second: rate,
 		stopped_early,
+		failed,
 		// (machine (name, state, event) coverage arrives with the coverage-guided search)
 		coverage: null,
 		findings: [...groups].map(([sig, list]) => ({
@@ -332,6 +438,7 @@ async function main(): Promise<void> {
 			oracle: list[0].oracle,
 			seeds: list.map((f) => f.seed),
 			issue: filed.find((x) => x.sig === sig)?.issue ?? null,
+			filing_error: filed.find((x) => x.sig === sig)?.error ?? null,
 			first_line: list[0].detail.split('\n')[0].slice(0, 200)
 		}))
 	};
@@ -344,6 +451,7 @@ async function main(): Promise<void> {
 				'',
 				`${seeds} seeds × ${STEPS} actions in ${results.minutes} min (${rate} loop steps/s)${stopped_early ? ', stopped early to leave the runners to CI' : ''}.`,
 				'',
+				failed ? `**A batch failed** (${failed}): the run stopped there.\n` : '',
 				results.findings.length === 0
 					? 'No new findings.'
 					: [
@@ -351,13 +459,15 @@ async function main(): Promise<void> {
 							'| --- | --- | --- | --- |',
 							...results.findings.map(
 								(f) =>
-									`| ${f.sig} | ${f.oracle} | ${f.seeds.length} (first ${f.seeds[0]}) | ${f.issue ? `#${f.issue}` : 'not filed'} |`
+									`| ${f.sig} | ${f.oracle} | ${f.seeds.length} (first ${f.seeds[0]}) | ${f.issue ? `#${f.issue}` : f.filing_error ? 'filing failed' : 'not filed'} |`
 							)
 						].join('\n'),
 				''
 			].join('\n')
 		);
 	log(`done: ${seeds} seeds, ${groups.size} signatures`);
+	// (a failed batch or filing fails the job, after the results and the summary are written)
+	if (failed || filed.some((x) => x.error)) process.exitCode = 1;
 }
 
 if (import.meta.main) await main();
