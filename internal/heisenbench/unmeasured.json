@@ -2671,6 +2671,54 @@
 		{
 			"id": "packages/core/src/runtime/frame-store.ts > answer_definition",
 			"reason": "builds the stored-answer machine definition (plain data: three states, their steps), once per address entry; its moves are measured by the frame-store bench, the definition itself is not cloneable"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace",
+			"reason": "test and devtools tool, never on a page's path: one observe() subscription and a bounded ring of lines (max, default 500)"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > observe:0~38d8f1",
+			"reason": "test tool: one line formatted and pushed per machine move while a trace is on, oldest dropped past max, constant work per move"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > stop",
+			"reason": "test tool: ends the observe subscription, once"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > lines",
+			"reason": "test tool: a copy of the bounded ring (at most max lines), read when a test fails"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > text",
+			"reason": "test tool: the bounded ring joined, read when a test fails"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > clear",
+			"reason": "test tool: empties the ring, constant work"
+		},
+		{
+			"id": "packages/tooling/src/e2e/index.ts > moves",
+			"reason": "e2e fixture only (never shipped): reads the page's trace text once when a test fails"
+		},
+		{
+			"id": "packages/tooling/src/e2e/index.ts > moves > evaluate:0~b28489",
+			"reason": "e2e fixture only: one page.evaluate reading the trace text in the browser"
+		},
+		{
+			"id": "packages/tooling/src/vitest/trace-setup.ts > beforeEach:0~efb4a4",
+			"reason": "test setup only (never shipped): starts one trace per test"
+		},
+		{
+			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure",
+			"reason": "test setup only (never shipped): registers one onTestFailed per test"
+		},
+		{
+			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure > onTestFailed:0~8bf46a",
+			"reason": "test setup only: prints the trace once when a test fails"
+		},
+		{
+			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure > <anonymous>~1f95d7",
+			"reason": "test setup only: stops the trace at the test's end, once"
 		}
 	]
 }
