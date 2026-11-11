@@ -645,7 +645,7 @@ function why_test_exists(file: string, test: string, test_name: string): boolean
  * directive (`oxlint-disable…` and `@ts-expect-error` with ` -- <reason>`; `svelte-ignore`,
  * `@__PURE__`, `@vite-ignore`, formatter ignores, `/// <reference>` as they are), or a one-line
  * `// @why <fact> (test: <file> › <name>)` directly above its statement, whose test exists.
- * Anything else is a finding. `.d.ts` files are documented like exports and are not read.
+ * A bin's `#!` line is not a comment. Anything else is a finding. `.d.ts` files are documented like exports and are not read.
  */
 const structured_comments = {
 	meta: {
@@ -669,6 +669,7 @@ const structured_comments = {
 				for (const c of comments) {
 					const node = c as unknown as Node;
 					const value = c.value;
+					if (c.range[0] === 0 && text.startsWith('#!')) continue;
 					if (REASONED.test(value)) {
 						if (!/\s--\s+\S/.test(value)) context.report({ node, message: MESSAGE_REASON });
 						continue;
