@@ -18,6 +18,8 @@ import {
 	viewport_class
 } from '../../src/runtime/load-scheduler.ts';
 import { reset_document_painted } from '../../src/runtime/schedule.ts';
+import { PRIORITY } from '../../src/runtime/load-class.ts';
+import { flights } from '@ogygia/machine';
 
 const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
 
@@ -28,6 +30,27 @@ function pending_hero(): HTMLImageElement {
 	Object.defineProperty(img, 'complete', { configurable: true, get: () => false });
 	document.body.appendChild(img);
 	return img;
+}
+
+/** A shared download queued as a guess (a page prefetch): `join` is a caller joining its flight at
+ *  a higher class (a click on the link), which raises it. */
+function queued_guess(label: string): {
+	ready: Promise<() => void>;
+	join: (cls: 'user' | 'visible') => void;
+} {
+	let slot!: LoadSlot;
+	const downloads = flights({
+		run: (_key: string, _signal, flight) => {
+			slot = new LoadSlot({ kind: 'content', cls: 'speculative', label, flight });
+			return slot.ready;
+		}
+	});
+	void downloads.get(label, { priority: PRIORITY.speculative }); // (its run starts inside the get)
+	// (the slot's own turn: its holder's start-up runs in the drain's microtask, as a download's does)
+	return {
+		ready: slot.ready,
+		join: (cls) => void downloads.get(label, { priority: PRIORITY[cls] })
+	};
 }
 
 beforeEach(() => {
@@ -172,7 +195,7 @@ test('background work shares a window; ahead goes before speculative; release le
 	expect(started.at(-1)).toBe('s4');
 });
 
-test('a queued download follows the viewport, and promote() lifts it', async () => {
+test('a queued download follows the viewport, and a more urgent join of its flight lifts it', async () => {
 	await critical_settled();
 	const hold: (() => void)[] = [];
 	for (let i = 0; i < BACKGROUND_WINDOW; i++)
@@ -189,11 +212,11 @@ test('a queued download follows the viewport, and promote() lifts it', async () 
 	expect(started).toBe(true); // scrolled into view: visible code is not windowed
 
 	let promoted = false;
-	const queued = new LoadSlot({ kind: 'content', cls: 'speculative' });
+	const queued = queued_guess('q');
 	void queued.ready.then(() => (promoted = true));
 	await tick();
 	expect(promoted).toBe(false);
-	queued.promote('user');
+	queued.join('user');
 	await tick();
 	expect(promoted).toBe(true);
 	for (const r of hold) r();
@@ -315,14 +338,14 @@ test('a class a holder’s start-up changes is read again in the same drain', as
 		started.push('g')
 	);
 	// a guess that waits for the window; the visitor then wants it (its holder already waits)
-	const u = new LoadSlot({ kind: 'content', cls: 'speculative', label: 'u' });
+	const u = queued_guess('u');
 	void u.ready.then(() => {
 		started.push('u');
 		cls = 'visible'; // what the visitor's page adds moves the other one on screen
 	});
 	await tick();
 	expect(started).toEqual([]);
-	u.promote('user');
+	u.join('user');
 	await tick();
 	expect(started).toEqual(['u', 'g']);
 	for (const r of hold) r();
