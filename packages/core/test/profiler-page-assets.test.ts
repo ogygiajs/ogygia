@@ -10,6 +10,7 @@ import {
 	runtime_scripts,
 	type Weight
 } from '../src/insights/page-assets.ts';
+import { next_tag } from '../src/wire-markup.ts';
 
 const KIT_PAGE = `<!doctype html><html><head>
 <link href="./_app/immutable/assets/0.abc.css" rel="stylesheet">
@@ -59,7 +60,8 @@ describe('scan_assets', () => {
 	});
 
 	test('attributes: quoted, unquoted, valueless, entities', () => {
-		const a = tag_attrs(`<link rel=preload as="script" href='/a.js?x=1&amp;y=2' crossorigin>`);
+		const html = `<link rel=preload as="script" href='/a.js?x=1&amp;y=2' crossorigin>`;
+		const a = tag_attrs(next_tag(html, 'link', 0)!);
 		expect(a.get('rel')).toBe('preload');
 		expect(a.get('href')).toBe('/a.js?x=1&y=2');
 		expect(a.has('crossorigin')).toBe(true);
