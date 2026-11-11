@@ -21,7 +21,7 @@ import { rewrite_store, auto_brand_stores } from './store.ts';
 // never loads bake.js (or rolldown) at all.
 import type { AliasEntry } from './bake.ts';
 import type { Profiler } from '../driver.ts';
-import { OgygiaError } from '../../messages/build.ts';
+import { OgygiaError } from '../messages.ts';
 
 /** A plugin's `import.meta.og.<name>` macro (registered with `b.macro`). */
 export interface PluginMacro {
