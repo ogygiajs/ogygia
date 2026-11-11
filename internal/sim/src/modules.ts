@@ -37,7 +37,8 @@ const unfetched = new WeakSet<object>();
 const download_failed = (error: unknown): boolean =>
 	typeof error === 'object' &&
 	error !== null &&
-	(unfetched.has(error) || /^Failed to perform request/.test(String((error as Error).message)));
+	(unfetched.has(error) ||
+		String((error as Error).message).startsWith('Failed to perform request'));
 
 /** The window's module loader (one per document: modules are per document, as in a browser). */
 function loader_of(window: Window): Loader {

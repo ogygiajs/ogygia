@@ -269,7 +269,8 @@ export class World {
 			}
 		}
 		// (a page: not a file, not the region endpoint; its Kit data is the page's too)
-		if (!path.startsWith('/_app/') && !path.startsWith('/__ogygia__')) this.#page_build.set(from, id);
+		if (!path.startsWith('/_app/') && !path.startsWith('/__ogygia__'))
+			this.#page_build.set(from, id);
 		return id;
 	}
 

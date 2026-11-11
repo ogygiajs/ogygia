@@ -166,12 +166,7 @@ export async function run(
 		// (the network's exchanges since the last check: a fault among them explains what was said)
 		let since = 0;
 		for (let i = 0; i < steps && i < stop_at; i++) {
-			const a = next_action(
-				wr,
-				v.tabs.length,
-				PATHS,
-				world.deployed.length < BUILDS.length - 1
-			);
+			const a = next_action(wr, v.tabs.length, PATHS, world.deployed.length < BUILDS.length - 1);
 			actions.push(a);
 			log.note(`action ${i + 1}: ${describe(a)}`);
 			await act(world, v, a, ORIGIN);
@@ -284,8 +279,7 @@ async function main(): Promise<void> {
 		);
 		process.exit(2);
 	}
-	if (BUILDS.length === 1)
-		console.log('[sim] one build: no deploys (`pnpm sim:builds` makes two)');
+	if (BUILDS.length === 1) console.log('[sim] one build: no deploys (`pnpm sim:builds` makes two)');
 	const started = wall();
 	const pool = new Pool(JOBS);
 	const seeds = Array.from({ length: RUNS }, (_, i) => FIRST + i);
