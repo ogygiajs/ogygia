@@ -124,11 +124,11 @@ export function withRemotes<T extends Record<string, unknown> = Record<string, u
 					Promise.all((await Promise.all(rows.filter(filter).map((e) => c.withGraph(e)))).map(map));
 
 				return query.live(async function* () {
-					const first = await c.ready();
-					// (the version of THIS snapshot: a change made while it is projected and sent is
-					// yielded at the next pull, not missed — #191)
+					await c.ready();
+					// (stamp and snapshot in one synchronous step, so the stamp is THIS snapshot's
+					// version: test/live-stamp.test.ts, #191)
 					const sent = c.version();
-					yield await project(first);
+					yield await project(c.snapshot());
 					for await (const _ of c.watchChanges(sent)) yield await project(c.snapshot());
 				}) as unknown as ListRemote<Out>;
 			},
