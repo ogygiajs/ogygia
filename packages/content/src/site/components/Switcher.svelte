@@ -1,20 +1,13 @@
+<!--
+@component
+Version / locale switcher for a `dimensions()` site: one menu per axis (Bits UI `DropdownMenu`),
+whose options are one radio choice with the current one checked. Choosing one navigates to its
+href with Kit's `goto`. Interactive, so import it as an island (`with { wake: 'load' }`).
+-->
 <script lang="ts">
-	/**
-	 * Version / locale switcher for a `dimensions()` site — one dropdown per axis, in the header. Built
-	 * on Bits UI `DropdownMenu` so it's a REAL menu widget: roving arrow-key nav, typeahead, `Escape` +
-	 * outside-click dismiss, focus return, and `menuitemradio` + `aria-checked` semantics (single choice
-	 * per axis) all come for free. Options carry ogygia-baked hrefs; selecting one routes through the
-	 * ogygia SPA router.
-	 *
-	 * Interactive → use as an ISLAND (the Shell marks it `with { wake: 'load' }`). It re-hydrates per nav,
-	 * so the picker stays live after a body-swap.
-	 */
 	import { DropdownMenu } from 'bits-ui';
 	import type { Switcher } from '../dimensions.ts';
 
-	// Navigate through the island-side navigation shim (the running runtime's navigation handle — the
-	// SPA router when on), imported lazily on select so it never loads during this island's SSR. Never
-	// the router module itself: island code importing a runtime module splits the runtime's boot.
 	async function go(href: string) {
 		const { goto } = await import('$app/navigation');
 		goto(href);
