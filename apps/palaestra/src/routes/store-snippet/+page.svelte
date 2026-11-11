@@ -2,7 +2,7 @@
 	// Store auto-subscriptions inside a snippet that crosses into an island (the example.com CI shape).
 	// `$country` / `$language` are host-scoped sugar: the compiler must capture the subscription
 	// VALUE at the host and rewrite the crossed body — never emit `$country` verbatim into the
-	// runes-mode synth entry (that used to kill the build inside virtual:ogygia/island/…).
+	// runes-mode synth entry (that used to kill the build inside ogygia:region/entry/…).
 	// The nested Bumper island proves the crossed copy still comes ALIVE.
 	import PortableBar from '$lib/PortableBar.svelte' with { wake: 'load' };
 	import Bumper from '$lib/Bumper.svelte' with { wake: 'load' };

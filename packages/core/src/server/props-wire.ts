@@ -37,7 +37,7 @@ import { register_store_kind, register_derived_kind } from '../store-transport.t
 import { register_snippet_kind } from '../region-snippet.ts';
 import { register_fn_kind } from '../fn-transport.ts';
 import { OgygiaError } from '../messages/server.ts';
-import { fingerprint_of } from '../runtime/hash.ts';
+import { fingerprint_of } from '../contract/hash.ts';
 import {
 	analyze,
 	json_culprit,

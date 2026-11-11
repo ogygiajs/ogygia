@@ -15,10 +15,10 @@ describe('fouc-css collector', () => {
 
 	test('foucCssVirtualId normalizes separators', () => {
 		expect(foucCssVirtualId('src/lib/A.svelte')).toBe(
-			'virtual:ogygia/fouc-css/' + encodeURIComponent('src/lib/A.svelte') + '.js'
+			'ogygia:region/fouc-css/' + encodeURIComponent('src/lib/A.svelte') + '.js'
 		);
 		expect(foucScopedVirtualId('src\\lib\\A.svelte')).toBe(
-			'virtual:ogygia/fouc-scoped/' + encodeURIComponent('src/lib/A.svelte') + '.css'
+			'ogygia:region/fouc-scoped/' + encodeURIComponent('src/lib/A.svelte') + '.css'
 		);
 	});
 

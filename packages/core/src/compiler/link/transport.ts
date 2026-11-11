@@ -1,8 +1,8 @@
-import { OWN_SPECIFIER_SOURCE } from '../../own-package.ts';
+import { OWN_SPECIFIER_SOURCE } from '../../contract/own-package.ts';
 import { dedent } from '../dedent.ts';
 
 /**
- * `virtual:ogygia/transport` emitter — re-exports the app's universal `transport` hook (or an empty
+ * `ogygia:region/transport` emitter — re-exports the app's universal `transport` hook (or an empty
  * map) for the client remote wire codec. Universal hooks are isomorphic, so this is client-safe.
  * Pure over the resolved absolute path to the app's universal hooks module (or null).
  */
@@ -40,7 +40,7 @@ export function transport_module(
 }
 
 /**
- * `virtual:ogygia/kit-transport` emitter — the value behind the barrel's `ogygia.transport` (the Kit
+ * `ogygia:region/kit-transport` emitter — the value behind the barrel's `ogygia.transport` (the Kit
  * `transport` hook the app spreads into its universal hooks). GENERATED per-app, not a fixed export:
  * the real `ogygiaTransport` statically pulls the whole codec cluster (wire/store/snippet/fn + region,
  * ~9 kB) since a wired value can nest any other kind. A **pure-island** app crosses NOTHING through
@@ -89,7 +89,7 @@ export function source_crosses_wire(src: string): boolean {
 }
 
 /**
- * `virtual:ogygia/transportables` emitter — where the `[ogygia.wire]` codecs come from, so an island
+ * `ogygia:region/transportables` emitter — where the `[ogygia.wire]` codecs come from, so an island
  * receiving a transportable prop never has to import the class itself. Per leg:
  * - SERVER: side-effect-imports every module that defines a transportable class (the region endpoint
  *   decodes signed props of any island; loaded once per process).
