@@ -30,15 +30,15 @@ describe('region answer headers', () => {
 	});
 
 	it('a missing header, public, s-maxage or another referrer policy is not', () => {
-		for (const h of [
+		const unsafe: Record<string, string>[] = [
 			{ ...SAFE },
 			{ ...SAFE, 'cache-control': 'max-age=60' },
 			{ ...SAFE, 'cache-control': 'public, max-age=60' },
 			{ ...SAFE, 'cache-control': 'private, s-maxage=60' },
 			{ 'cache-control': 'no-store' },
 			{ 'cache-control': 'no-store', 'referrer-policy': 'origin' }
-		])
-			expect(region_answer_unsafe(answer(h))).not.toBeNull();
+		];
+		for (const h of unsafe) expect(region_answer_unsafe(answer(h))).not.toBeNull();
 	});
 });
 
