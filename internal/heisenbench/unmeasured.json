@@ -2251,6 +2251,66 @@
 		{
 			"id": "packages/machine/src/say.ts > say > get size",
 			"reason": "reads a Map's size, constant work; proven in packages/machine/test/say.test.ts"
+		},
+		{
+			"id": "packages/content/src/vite/index.ts > warn_placement > once:1~daa8fe",
+			"reason": "say(): one dev warning a file says once, constant work"
+		},
+		{
+			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > transform > rewrite_svelte:4~85d86d > once:1~fc2896",
+			"reason": "say(): one build warning a skipped component says once, constant work"
+		},
+		{
+			"id": "packages/core/src/compiler/region/transform.ts > say_unparsed",
+			"reason": "the build warning for a host the parser cannot read, said once per file, constant work"
+		},
+		{
+			"id": "packages/core/src/compiler/region/transform.ts > warn_unparsed > once:1~087a4c",
+			"reason": "say(): one build warning per unparsed file, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/css.ts > componentCssHead > once:1~695de0",
+			"reason": "say(): one dev warning for the process, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/hydrate-core.ts > PropMutationGuard > #warn > once:1~6adcde",
+			"reason": "say(): one dev warning per mutated prop path, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > import_again > <anonymous>~106f1d > catch:0~ce98b7 > once:1~b3964f",
+			"reason": "say(): the page's one reload message, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/restore-report.ts > report > once:1~a177c8",
+			"reason": "say(): one warning per late host, constant work"
+		},
+		{
+			"id": "packages/core/src/store-transport.ts > __og_store > <anonymous>~221e3f > once:1~fd8aa8",
+			"reason": "say(): one warning per unbranded store tag, constant work"
+		},
+		{
+			"id": "packages/core/src/vite/style-preprocess.ts > preprocess_component_for_css > once:1~832199",
+			"reason": "say(): one build warning for the process, constant work"
+		},
+		{
+			"id": "packages/flags/src/index.ts > flag > bucket > once:1~0367ec",
+			"reason": "say(): one setup warning for the process, constant work"
+		},
+		{
+			"id": "packages/flags/src/index.ts > resolved_for > once:1~3c5497",
+			"reason": "say(): one setup warning for the process, constant work"
+		},
+		{
+			"id": "packages/flags/src/source-health.ts > source_failed > once:1~64efac",
+			"reason": "say(): one warning per failing streak, constant work"
+		},
+		{
+			"id": "packages/postrender/src/handle.ts > handle > <anonymous>~327efc > once:1~b7e8fe",
+			"reason": "say(): one setup warning for the process, constant work"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > install > once:1~4af86e",
+			"reason": "say(): one setup warning for the process, constant work"
 		}
 	]
 }

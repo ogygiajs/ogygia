@@ -19,7 +19,7 @@ import type { ContentEntry, ContentHandle, Entry } from '../index.ts';
 import type { Crumb, NavItem, NavLeaf, NavRef, NavTree, Resolved } from './types.ts';
 import { title_case } from '../convention.ts';
 import type { GroupMeta } from '../index.ts';
-import { catalog_fresh, catalog_version } from '../collection-base.ts';
+import { catalog_fresh, catalog_loaded, catalog_version } from '../collection-base.ts';
 import { OgygiaError } from '../messages/runtime.ts';
 import { flights, STALE } from '@ogygia/machine';
 
@@ -430,8 +430,9 @@ async function materialize(
 			// The read context flows to the collection filter here — drafts survive under `{ preview }`.
 			// The entries are stamped with the version taken BEFORE the read: an edit that lands while
 			// it runs (its graph waits on a relation target) is newer than them, and the next read
-			// weaves again (#326). Stamped after, they passed for the edit they never saw.
-			const at = catalog_version(c);
+			// weaves again (#326). Stamped after, they passed for the edit they never saw. The stamp
+			// waits for the collection's first load, which moves it without changing anything (#545).
+			const at = await catalog_loaded(c);
 			e = await c.refs(ctx);
 			read.set(c, at);
 			entries_cache.set(c, e);
