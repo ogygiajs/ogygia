@@ -37,7 +37,7 @@ const base_ctx = {
 	readFile: () => null,
 	pathModule: path,
 	dev: false,
-	virtualPathFor: (_hostId: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
+	virtualPathFor: (_hostId: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 	wrapperPathFor: (_hostId: string, iid: string) => wrapperVirtualId(iid),
 	devUrlFor: (p: string) => '/@id/' + p,
 	visibleMargin: '0px',
