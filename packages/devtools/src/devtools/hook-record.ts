@@ -15,7 +15,8 @@ export function record_hook<K extends RuntimeHookName>(
 	hook: K,
 	payload: Parameters<RuntimeHooks[K]>[0]
 ): void {
-	const el = (payload as { el?: Element }).el;
+	// @why the record outlives the regions an in-app navigation removes: it holds them weakly and keeps no server markup (test: devtools-hook-record › holds a region only weakly)
+	const { el, ssrHtml: _markup, ...rest } = payload as { el?: Element; ssrHtml?: unknown };
 	const fp = el?.getAttribute('data-og-fp');
 	const entry = el?.getAttribute('entry');
 	const endpoint = el?.getAttribute('endpoint');
@@ -23,7 +24,8 @@ export function record_hook<K extends RuntimeHookName>(
 		...(fp ? { fp } : {}),
 		...(entry ? { entry } : {}),
 		...(endpoint ? { endpoint } : {}),
-		...payload,
+		...rest,
+		...(el ? { el: new WeakRef(el) } : {}),
 		hook,
 		at: performance.now()
 	} as HookEntry;
