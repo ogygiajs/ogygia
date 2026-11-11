@@ -49,6 +49,9 @@ describe('postrender() — the vite value', () => {
 			measure: () => {},
 			files: () => {},
 			pageModules: () => {},
+			transform: () => {},
+			exports: { map: () => Promise.resolve(null) },
+			pinnedImports: () => () => false,
 			definers: () => {}
 		});
 		expect(keys).toEqual(['postrender']);

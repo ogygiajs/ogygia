@@ -37,7 +37,7 @@ import { kit_render_context, kit_request_event } from './server/kit-context.ts';
 import { islands_endpoint } from './server/endpoint.ts';
 import { PORTABLE_FORM, with_portable_forms } from './portable-form.ts';
 import { analyze } from './seed-refs.ts';
-import { fnv1a, fnv1a32 } from './runtime/hash.ts';
+import { fnv1a, fnv1a32 } from './contract/hash.ts';
 import { import_entry } from './runtime/entry-locations.ts';
 import { OgygiaError } from './messages/island.ts';
 

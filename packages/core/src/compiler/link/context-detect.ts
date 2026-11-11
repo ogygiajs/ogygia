@@ -15,7 +15,7 @@
  * scan there would count an unrelated `getContext`.)
  */
 import { parse_roots } from './page-keys.ts';
-import { OWN_PACKAGE_NAMES, OWN_SPECIFIER_SOURCE } from '../../own-package.ts';
+import { OWN_PACKAGE_NAMES, OWN_SPECIFIER_SOURCE } from '../../contract/own-package.ts';
 import type { AstNode } from '../parse/oxc.ts';
 
 /** Loose AST node — the parser hands ESTree-ish objects; positions/back-refs are skipped by the walk. */
