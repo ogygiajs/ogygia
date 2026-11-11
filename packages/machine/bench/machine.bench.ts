@@ -340,6 +340,32 @@ bench(
 );
 
 bench(
+	'flights: speculative warms joined by visible and user loads (priority raises, heard by the run)',
+	async ({ n }) => {
+		let heard = 0;
+		const landed: (() => void)[] = [];
+		const chunks = flights({
+			name: 'chunks',
+			keep: 0,
+			run: (url: string, _signal, flight) => {
+				flight.onRaise(() => heard++);
+				return new Promise<string>((r) => landed.push(() => r(url)));
+			}
+		});
+		const out: Promise<unknown>[] = [];
+		for (let i = 0; i < n; i++) {
+			const url = `/chunk/${i % 50}`;
+			// a guess, then the joins that need it more (and some that need it less)
+			out.push(chunks.get(url, { priority: i % 4 }));
+		}
+		for (const land of landed) land();
+		await Promise.all(out);
+		return heard;
+	},
+	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
+);
+
+bench(
 	'flights: keyed pages (joins, callers that leave, drops, fresh, keep, max and weigh)',
 	async ({ n }) => {
 		const pages = flights({

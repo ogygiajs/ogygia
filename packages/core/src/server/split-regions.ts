@@ -47,7 +47,8 @@
  * attributes, never light DOM. All three are also exported, Kit-free, from `ogygia/markup`, for the
  * non-SvelteKit half of a monorepo where these SSR passes usually live.
  */
-import { escape_amp_quot } from '../escape.ts';
+// (a value re-emitted into a double-quoted attribute exactly as it was: `<` kept)
+import { escape_amp_quot as escape_attr } from '../escape.ts';
 // (the regex `\s` the attribute rules were written in — wider than the tag scan's HTML whitespace)
 import { is_space as is_re_space } from './html-scan.ts';
 
@@ -430,11 +431,6 @@ export function liftRegions(html: string): LiftResult {
 	}
 	if (regions.length === 0) return { shell: html, regions };
 	return { shell: shell + html.slice(cursor), regions };
-}
-
-/** Escape a value for re-emission inside a double-quoted attribute. */
-function escape_attr(value: string): string {
-	return escape_amp_quot(value);
 }
 
 /** Merge the renderer's `class` marks into the region's opening-tag head, unioning tokens with any

@@ -53,7 +53,7 @@ draft: true
 		expect(body.trim()).toBe('# Hi');
 	});
 
-	it('rejects broken yaml', () => {
+	it('rejects broken yaml as invalid frontmatter, naming what the parser stopped at', () => {
 		expect(() =>
 			parseFrontmatter(
 				`${dedent`
@@ -62,7 +62,7 @@ draft: true
 			---
 		`}\n`
 			)
-		).toThrow(/invalid frontmatter/);
+		).toThrow(/invalid frontmatter YAML: empty mapping key/);
 	});
 });
 

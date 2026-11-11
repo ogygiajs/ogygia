@@ -7,7 +7,7 @@
  */
 import { page, redirect, type PageDef, type ComponentPick, type Ctx } from '@ogygia/router';
 import { fed_app } from './app.ts';
-import { child_traceparent, type Claims, type FragmentDocument } from './wire.ts';
+import { child_traceparent, moved_card, type Claims, type FragmentDocument } from './wire.ts';
 import type { Peer } from './types.ts';
 import { OgygiaError } from './messages.ts';
 
@@ -79,7 +79,7 @@ function mount_fn(
 					child_traceparent(c.request.headers.get('traceparent')).traceparent
 				);
 				if (doc.location) {
-					yield `<p data-og-mount-moved>This page moved. <a href="${doc.location}">Continue</a></p>`;
+					yield String(moved_card('data-og-mount-moved', 'page', doc.location));
 					return;
 				}
 				yield (doc.css?.join('') ?? '') + (doc.head ?? '') + doc.body;

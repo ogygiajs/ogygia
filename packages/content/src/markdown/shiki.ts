@@ -5,7 +5,6 @@ const LEADING_LF = /^\n/;
 const TRAILING_LF = /\n$/;
 const CODE_ID_META_RE = /ogygia-code-id=(\S+)/;
 const CODE_ID_META_STRIP_RE = /\s*ogygia-code-id=\S+/;
-const DOUBLE_QUOTE_G = /"/g;
 
 /**
  * Shiki dual-theme highlighter for markdown fences + remotes.
@@ -15,6 +14,7 @@ const DOUBLE_QUOTE_G = /"/g;
 import type { ShikiTransformer } from 'shiki';
 import { flights, STALE, type Flights } from '@ogygia/machine';
 import { createHash } from '@ogygia/core/internal/compiler-browser';
+import { attr } from '@ogygia/core/plugin/utils';
 import { render_fence, default_pipeline, type CodePipeline } from './code-render.ts';
 import { fence_key, fence_cache_get, fence_cache_set } from './fence-cache.ts';
 import type { SerializedRegion } from '../region-store.ts';
@@ -393,17 +393,16 @@ export async function render_code_region(
 	if (count > 1) {
 		// Multi-variant container: stamp the permalink id on the outer `<div class="og-code">`.
 		const tagged = id
-			? html.replace('<div class="og-code"', `<div id="${id}" class="og-code"`)
+			? // (a function: the value is placed as written, `$` patterns in it never expanded)
+				html.replace('<div class="og-code"', () => `<div${attr('id', id)} class="og-code"`)
 			: html;
 		plain = wrap_html(tagged, cfg.wrapperClass);
 	} else {
 		// Single variant: stamp `data-lang` + id + the pipeline's `file` (chrome draws the filename
-		// bar from `attr(data-file)`) on the `<pre>` — a fence with none stays byte-identical.
-		let attrs = '';
-		if (lang && lang !== 'text') attrs = `${attrs}data-lang="${lang}" `;
-		if (id) attrs = `${attrs}id="${id}" `;
-		if (file) attrs = `${attrs}data-file="${file.replace(DOUBLE_QUOTE_G, '&quot;')}" `;
-		const tagged = attrs ? html.replace('<pre ', `<pre ${attrs}`) : html;
+		// bar from `attr(data-file)`) on the `<pre>` — a fence with none stays byte-identical. Each is
+		// author text, escaped as an attribute value (#435).
+		const attrs = `${attr('data-lang', lang && lang !== 'text' ? lang : null)}${attr('id', id)}${attr('data-file', file || null)}`;
+		const tagged = attrs ? html.replace('<pre ', () => `<pre${attrs} `) : html;
 		plain = wrap_html(tagged, cfg.wrapperClass);
 	}
 	const out: SerializedRegion = { html: plain };

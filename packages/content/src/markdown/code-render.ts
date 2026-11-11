@@ -16,12 +16,7 @@ import {
 	type MetaParser,
 	type VariantGenerator
 } from './code.ts';
-
-// ── regexes
-const AMP_G = /&/g;
-const LT_G = /</g;
-const GT_G = />/g;
-const DOUBLE_QUOTE_G = /"/g;
+import { attr, html, trustedHtml } from '@ogygia/core/plugin/utils';
 
 /** The configured fence pipeline (from `markdown({ code })`). */
 export type CodePipeline = {
@@ -43,13 +38,6 @@ export type FenceRender = {
 	source: string;
 	file?: string;
 };
-
-const esc = (s: string) =>
-	s
-		.replace(AMP_G, '&amp;')
-		.replace(LT_G, '&lt;')
-		.replace(GT_G, '&gt;')
-		.replace(DOUBLE_QUOTE_G, '&quot;');
 
 /**
  * Run the pipeline for one fence. `highlight(source, lang, rawMeta)` produces the Shiki HTML for a
@@ -85,20 +73,27 @@ export async function render_fence(
 	const rendered = await Promise.all(
 		claimed.variants.map(async (v) => ({
 			v,
-			html: await highlight(v.fence.source, v.fence.lang, v.fence.raw_meta)
+			highlighted: trustedHtml(
+				await highlight(v.fence.source, v.fence.lang, v.fence.raw_meta),
+				"the highlighter's own markup"
+			)
 		}))
 	);
 	const panels = rendered
-		.map(({ v, html }) => `<div class="og-variant" data-pref-value="${esc(v.value)}">${html}</div>`)
+		.map(
+			({ v, highlighted }) =>
+				html`<div class="og-variant" data-pref-value="${v.value}">${highlighted}</div>`
+		)
 		.join('');
 	// Inert switcher: one control per value, tagged with the preference name + value. The shell's
 	// delegated handler reads `data-pref`/`data-pref-set` and calls `preference(name).set(value)`.
 	const controls = claimed.variants
 		.map(
 			(v) =>
-				`<button type="button" class="og-variant-btn" data-pref="${esc(pref.name)}" data-pref-set="${esc(v.value)}"${v.value === pref.default ? ' data-default' : ''}>${esc(v.label)}</button>`
+				html`<button type="button" class="og-variant-btn" data-pref="${pref.name}" data-pref-set="${v.value}"${attr('data-default', v.value === pref.default)}>${v.label}</button>`
 		)
 		.join('');
-	const html = `<div class="og-code" data-pref="${esc(pref.name)}"${file ? ` data-file="${esc(file)}"` : ''}><div class="og-code-controls" role="tablist">${controls}</div>${panels}</div>`;
-	return { html, count: rendered.length, source: fence.source, ...(file ? { file } : {}) };
+	const open = html`<div class="og-code" data-pref="${pref.name}"${attr('data-file', file || null)}>`;
+	const out = `${open}<div class="og-code-controls" role="tablist">${controls}</div>${panels}</div>`;
+	return { html: out, count: rendered.length, source: fence.source, ...(file ? { file } : {}) };
 }

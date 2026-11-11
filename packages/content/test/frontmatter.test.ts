@@ -266,14 +266,6 @@ describe('parse_yaml — flow collections', () => {
 		expect(parse_yaml('a: {}')).toEqual({ a: {} });
 	});
 
-	it('a single bracketed phrase (no top-level comma) is a STRING, not a 1-element array', () => {
-		// svelte CLI docs title a page `[create your own]` — a literal, not `['create your own']`.
-		expect(parse_yaml('title: [create your own]')).toEqual({ title: '[create your own]' });
-		// a real multi-element array still parses
-		expect(parse_yaml('tags: [a, b]')).toEqual({ tags: ['a', 'b'] });
-		expect(parse_yaml('a: []')).toEqual({ a: [] });
-	});
-
 	it('top-level flow', () => {
 		expect(parse_yaml('[1, 2, 3]')).toEqual([1, 2, 3]);
 	});

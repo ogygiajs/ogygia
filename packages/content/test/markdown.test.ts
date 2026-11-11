@@ -8,6 +8,9 @@ import {
 	wrap_html
 } from '../src/markdown/index.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
+import { warm_shiki } from './_shiki-warm.ts';
+
+warm_shiki();
 
 describe('markdown preset', () => {
 	it('exposes .svx / .md extensions', () => {

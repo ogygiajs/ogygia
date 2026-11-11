@@ -28,6 +28,7 @@ import { rewrite_svelte } from './svelte.ts';
 import { is_script_request } from '../script-request.ts';
 import { strip_bom } from '../bom.ts';
 import { warn, line } from '../../messages/build.ts';
+import { say } from '@ogygia/machine';
 
 const IMPORTER_RE = /\.(?:[cm]?[jt]sx?|svelte|svelte\.[jt]s)$/;
 
@@ -88,7 +89,7 @@ export function debarrel(
 		skipped: new Set<string>()
 	});
 	let report = fresh_report();
-	const warned = new Set<string>();
+	const warned = say();
 
 	// One index per ENVIRONMENT: a dev server shares this plugin between the client and the server,
 	// and a leaf can resolve to another file for each (`browser` / `node` conditions), so a map one
@@ -188,13 +189,13 @@ export function debarrel(
 						// never in silence: a skipped component keeps every barrel it imports, and its island
 						// ships them whole. Once per file (a dev server re-transforms on every edit).
 						report.skipped.add(importer);
-						if (warned.has(importer)) return;
-						warned.add(importer);
-						warn('barrels_component_skipped', {
-							file: short(importer, root),
-							reason: why.code,
-							at: why.line ? `${why.line}:${why.column ?? 1}` : ''
-						});
+						warned.once(importer, () =>
+							warn('barrels_component_skipped', {
+								file: short(importer, root),
+								reason: why.code,
+								at: why.line ? `${why.line}:${why.column ?? 1}` : ''
+							})
+						);
 					})
 				: await rewrite_module(code, importer, lookup, policy);
 			// The importer no longer imports the barrels it was rewritten away from: watch them (and

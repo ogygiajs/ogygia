@@ -439,13 +439,32 @@ test.describe('devtools (dev server, OGYGIA_DEVTOOLS=1): events, panel tabs, pag
 		check('interaction: NOT woken before use (no wake.fired yet)', !wokeInteractionEarly);
 
 		// ── click wakes it; assert on interaction.replay, not a sleep ─────────────
+		// Whether the island was still waking when the browser's own click fired: the press wakes it,
+		// and it can be live before the click lands (Firefox and WebKit space a click's events out
+		// more than Chromium does). Waking: the click is replayed. Live: it lands natively, and the
+		// replay has none to replay. Either way it counts once (the DOM check below).
+		await page.evaluate(() => {
+			const w = window as Window & { __click_while_waking?: boolean };
+			window.addEventListener(
+				'click',
+				(e) => {
+					if (!e.isTrusted || w.__click_while_waking !== undefined) return;
+					w.__click_while_waking =
+						document.querySelector('ogygia-region[wake="interaction"][data-hydrated]') === null;
+				},
+				{ capture: true }
+			);
+		});
 		await page.locator('[data-i-btn]').click();
 		const replay = await wait_for_event(page, (e) => e.name === 'interaction.replay');
 		check('interaction: interaction.replay arrived after the click', !!replay);
+		const while_waking = await page.evaluate(
+			() => (window as Window & { __click_while_waking?: boolean }).__click_while_waking
+		);
 		check(
-			'interaction: EXACTLY one click replayed (counts once)',
-			replay?.clicks === 1,
-			`clicks=${replay?.clicks}`
+			'interaction: the click replayed once if it came while waking, none if it landed live',
+			typeof while_waking === 'boolean' && replay?.clicks === (while_waking ? 1 : 0),
+			`while waking: ${while_waking}, clicks=${replay?.clicks}`
 		);
 		const interactionHydrated = await wait_for_event(
 			page,

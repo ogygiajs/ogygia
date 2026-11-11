@@ -12,6 +12,12 @@
 		"ogygia/no-string-concat": "error",
 		"ogygia/prefer-dedent": "error"
 	},
+	"overrides": [
+		{
+			"files": ["packages/*/src/**"],
+			"rules": { "no-eval": "error", "no-new-func": "error", "no-implied-eval": "error" }
+		}
+	],
 	"ignorePatterns": [
 		"**/dist/**",
 		"**/build/**",

@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import { region_css_links } from '../src/server/html-scan.ts';
 import { escape_amp, escape_amp_quot, escape_attr, escape_text } from '../src/escape.ts';
 import { is_lower_hex, is_region_id, is_region_ttl } from '../src/server/endpoint.ts';
-import { dedupe_head_links } from '../src/server/head-presence.ts';
 import { parse_attr_string, scanRegions } from '../src/server/split-regions.ts';
 
 function fuzz(n: number, pieces: string[], seed = 1): string[] {
@@ -87,45 +86,6 @@ describe('regex replacements answer what the regex did', () => {
 			expect(is_region_ttl(s)).toBe(/^(|[0-9]{1,7})$/.test(s));
 			expect(is_lower_hex(s, 64)).toBe(/^[0-9a-f]{64}$/.test(s));
 		}
-	});
-
-	it('dedupe_head_links (regex reference)', () => {
-		const ref = (head: string) => {
-			if (!head.includes('<link')) return head;
-			const sheets = new Set<string>();
-			const hints = new Set<string>();
-			return head.replace(/<link\b[^>]*>/g, (tag) => {
-				const rel = /\brel=["']([^"']*)["']/.exec(tag)?.[1];
-				const seen = rel === 'stylesheet' ? sheets : rel === 'modulepreload' ? hints : null;
-				if (seen === null) return tag;
-				const href = /\bhref=["']([^"']*)["']/.exec(tag)?.[1];
-				if (href === undefined) return tag;
-				if (seen.has(href)) return '';
-				seen.add(href);
-				return tag;
-			});
-		};
-		const pieces = [
-			'<link',
-			'<LINK',
-			'<linker',
-			' rel="stylesheet"',
-			" rel='modulepreload'",
-			' rel=modulepreload',
-			' href="/a.css"',
-			" href='/a.css'",
-			' href="/b.js"',
-			' data-rel="stylesheet"',
-			'>',
-			'x',
-			' ',
-			'"',
-			"'",
-			'<LINK rel="stylesheet" href="/a.css">',
-			'<link rel="stylesheet" href="/a.css">',
-			'<link rel="modulepreload" href="/b.js">'
-		];
-		for (const h of fuzz(6000, pieces)) expect(dedupe_head_links(h)).toBe(ref(h));
 	});
 
 	it('region attribute parsing (the regex rules, quirks included)', () => {

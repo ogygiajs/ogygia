@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { highlight } from '../src/markdown/shiki.ts';
 import { inline_markers } from '../src/markdown/inline-markers.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
+import { warm_shiki } from './_shiki-warm.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The `+++added+++` / `---removed---` INLINE dialect (svelte.dev's span-level marks),
@@ -9,6 +10,7 @@ import { dedent } from '@ogygia/core/plugin/utils';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const OPTS = { transformers: [inline_markers()] };
+warm_shiki(OPTS, 'js');
 
 describe('inline_markers', () => {
 	// (the file's first highlight makes Shiki's highlighter: seconds on a loaded CI runner)

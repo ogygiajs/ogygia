@@ -19,7 +19,7 @@ import {
 } from '@ogygia/core/plugin';
 import { componentCssHead as router_css_head } from '@ogygia/core/plugin/css';
 import { request_scope } from '@ogygia/core/internal/server';
-import { escapeText as escape_text, type StandardSchemaV1 } from '@ogygia/core/plugin/utils';
+import { html, type StandardSchemaV1 } from '@ogygia/core/plugin/utils';
 import LayoutChain from './LayoutChain.svelte';
 import RawHtml from './RawHtml.svelte';
 import { compile_all, match_path, fill, type CompiledPattern } from './match.ts';
@@ -430,7 +430,8 @@ export function routes<const T extends KeyedTable<T>>(
 		const css_head =
 			(await router_css_head(html_view ? chain : [...chain, page_component])) +
 			(html_view
-				? (html_view.title ? `<title>${escape_text(html_view.title)}</title>` : '') +
+				? // (the title is plain text: escaped once, here)
+					(html_view.title ? String(html`<title>${html_view.title}</title>`) : '') +
 					(html_view.css?.join('') ?? '') +
 					(html_view.head ?? '')
 				: '');

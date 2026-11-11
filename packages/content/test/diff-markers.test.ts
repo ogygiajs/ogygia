@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { highlight } from '../src/markdown/shiki.ts';
 import { diff_markers } from '../src/markdown/diff.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
+import { warm_shiki } from './_shiki-warm.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The `+++` / `---` fence dialect (svelte.dev's "change this code" prose form):
@@ -9,6 +10,7 @@ import { dedent } from '@ogygia/core/plugin/utils';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const OPTS = { transformers: [diff_markers()] };
+warm_shiki(OPTS, 'js');
 
 describe('diff_markers', () => {
 	it('strips the markers and classes the lines', async () => {

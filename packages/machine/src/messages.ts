@@ -6,6 +6,7 @@
  * alone (the page words it from the link's arguments).
  */
 import { BROWSER, DEV } from 'esm-env';
+import { say, type Say } from './say.ts';
 
 type Entry<A> = { text: (a: A) => string; details: () => string };
 
@@ -28,6 +29,7 @@ export type MachineErrors = {
 	machine_outbox_gave_up: Entry<{ name: string }>;
 	machine_stage_step_failed: Entry<{ name: string }>;
 	machine_mailbox_handler_failed: Entry<Record<string, never>>;
+	machine_flight_raise_failed: Entry<{ name: string }>;
 };
 
 /** The errors: thrown in dev (and tests), where a wrong move is a bug to fix now. */
@@ -69,7 +71,7 @@ Either add the target to the state in \`steps\`, or fix the code that moved it.`
 		text: (a: { option: string; value: string; rule: string }): string =>
 			`machine: \`${a.option}\` must be ${a.rule} (got ${a.value}).`,
 		details: (): string =>
-			`An option was given a value it cannot take. \`retries\` counts tries: a whole number of 0 or more. A flights \`keep\` is milliseconds: 0 or more, \`Infinity\` for as long as the flights lives. A flights \`max\` is the most weight it keeps: more than 0.`
+			`An option was given a value it cannot take. \`retries\` counts tries: a whole number of 0 or more. A flights \`keep\` is milliseconds: 0 or more, \`Infinity\` for as long as the flights lives. A flights \`max\` is the most weight it keeps: more than 0. A \`say()\` \`max\` is the most keys it remembers: a whole number, 1 or more.`
 	},
 	machine_bad_time: {
 		text: (a: { where: string; ms: string }): string =>
@@ -143,6 +145,14 @@ Give the outbox a \`giveUp\` to say it in your own words, or to keep the work so
 			`A \`mailbox()\` handler threw while it ran in its turn, after events ahead of it. Nobody waits on its stack (it was posted earlier, by someone who has moved on), so its error goes to the page's error handler (\`reportError\`: the console and \`window.onerror\`), as an event listener's would, and the box goes on with the next event.
 
 A handler that runs at once (posted to an idle box) throws to its poster instead, and one posted with \`ask()\` rejects its asker's promise. Catch inside the handler to handle it there.`
+	},
+	machine_flight_raise_failed: {
+		text: (a: { name: string }): string =>
+			`flights ${a.name}: a run's \`onRaise\` listener threw when a caller raised its flight.`,
+		details: (): string =>
+			`A \`flights()\` run listened for its flight's priority going up (\`flight.onRaise\`), and the listener threw when a caller joined at a higher priority. The caller that joined is not the one at fault, so it is not failed: the error goes to the page's error handler (\`reportError\`: the console and \`window.onerror\`), as an event listener's would. The flight is raised all the same, and its other listeners still hear it.
+
+Catch inside the listener to handle it there.`
 	}
 };
 
@@ -201,12 +211,12 @@ export function report_thrown<C extends keyof Errors>(code: C, a: ArgsOf<C>, cau
 	page(cause);
 }
 
-const warned = new Set<string>();
+/** The warnings said, by their text (bounded: say.ts). Made on the first warning: say.ts imports
+ *  this module. */
+let warned: Say | null = null;
 
-/** Prints `code` once for each distinct set of arguments. */
+/** Prints `code` once for each distinct set of arguments (of the last 1024 said). */
 export function warn_once<C extends keyof Errors>(code: C, a: ArgsOf<C>): void {
 	const text = line(code, a);
-	if (warned.has(text)) return;
-	warned.add(text);
-	console.warn(text);
+	(warned ??= say()).once(text, () => console.warn(text));
 }

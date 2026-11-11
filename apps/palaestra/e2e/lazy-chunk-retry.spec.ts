@@ -410,39 +410,53 @@ test.describe('an island’s own file that fails once is loaded again (#261)', (
 // `2`, … on every later wake, each failing). After one retry that fails although the chunk itself
 // came, asking again cannot help: the runtime says once that the page needs a reload, and asks no more.
 // And a failed file in the RUNTIME's own static graph (it never runs, so no island wakes) is said too.
+/** Svelte's shared chunk dropped once: each chunk that imports it is asked for again once, then the
+ *  page says once that it needs a reload (#262). */
+async function dropped_shared_chunk(page: Page): Promise<void> {
+	const thrown = errors(page);
+	const logged: string[] = [];
+	page.on('console', (m) => log_error(m, logged));
+	const asked = js_requests(page);
+	const seen = await drop(page, 'svelte', 1);
+	await page.goto('/lazy-retry');
+	await expect.poll(() => logged.some((t) => t.includes('island_load_failed'))).toBe(true);
+	const retried_at_first_wake = asked.filter((r) => r.includes('og-retry=')).length;
+	// later wakes, in the same tab: the far island, then a click on the interaction island
+	await page.locator('[data-dated-counter="far"]').scrollIntoViewIfNeeded();
+	await page.waitForTimeout(1000);
+	await page.locator('[data-i-btn]').click();
+	await page.waitForTimeout(1000);
+	const retries = asked.filter((r) => r.includes('og-retry='));
+	check('Svelte’s chunk was dropped', seen.dropped === 1, JSON.stringify(seen));
+	check('the first wake retried its chunks once', retried_at_first_wake > 0, retries.join(', '));
+	check(
+		'never a second retry of a chunk (og-retry=2)',
+		!retries.some((r) => r.includes('og-retry=2')),
+		retries.join(', ')
+	);
+	check(
+		'each chunk asked for again once at most',
+		new Set(retries.map((r) => r.split('?')[0])).size === retries.length,
+		retries.join(', ')
+	);
+	const reload = (await all_logged(logged)).filter((t) => t.includes('chunk_reload_needed'));
+	check('one message says the page needs a reload', reload.length === 1, logged.join('\n'));
+	check('no uncaught error', thrown.length === 0, thrown.join('\n'));
+}
+
 test.describe('a lazy chunk whose dependency fails says a reload is needed (#262)', () => {
 	test('Svelte’s shared chunk dropped: one retry each, then one reload message, nothing more asked', async ({
 		page
 	}) => {
-		const thrown = errors(page);
-		const logged: string[] = [];
-		page.on('console', (m) => log_error(m, logged));
-		const asked = js_requests(page);
-		const seen = await drop(page, 'svelte', 1);
-		await page.goto('/lazy-retry');
-		await expect.poll(() => logged.some((t) => t.includes('island_load_failed'))).toBe(true);
-		const retried_at_first_wake = asked.filter((r) => r.includes('og-retry=')).length;
-		// later wakes, in the same tab: the far island, then a click on the interaction island
-		await page.locator('[data-dated-counter="far"]').scrollIntoViewIfNeeded();
-		await page.waitForTimeout(1000);
-		await page.locator('[data-i-btn]').click();
-		await page.waitForTimeout(1000);
-		const retries = asked.filter((r) => r.includes('og-retry='));
-		check('Svelte’s chunk was dropped', seen.dropped === 1, JSON.stringify(seen));
-		check('the first wake retried its chunks once', retried_at_first_wake > 0, retries.join(', '));
-		check(
-			'never a second retry of a chunk (og-retry=2)',
-			!retries.some((r) => r.includes('og-retry=2')),
-			retries.join(', ')
-		);
-		check(
-			'each chunk asked for again once at most',
-			new Set(retries.map((r) => r.split('?')[0])).size === retries.length,
-			retries.join(', ')
-		);
-		const reload = (await all_logged(logged)).filter((t) => t.includes('chunk_reload_needed'));
-		check('one message says the page needs a reload', reload.length === 1, logged.join('\n'));
-		check('no uncaught error', thrown.length === 0, thrown.join('\n'));
+		await dropped_shared_chunk(page);
+	});
+
+	// #450: the page's resource timing buffer holds 250 entries by default, and a large page fills it
+	// by the end of its load: nothing later is recorded there. Whether a retry's own file came must
+	// not depend on that shared buffer (here: full after the document's own entry).
+	test('the same, on a page whose resource timing buffer is full', async ({ page }) => {
+		await page.addInitScript(() => performance.setResourceTimingBufferSize(1));
+		await dropped_shared_chunk(page);
 	});
 
 	test('a file of the runtime’s own static graph dropped: the page says so', async ({ page }) => {
