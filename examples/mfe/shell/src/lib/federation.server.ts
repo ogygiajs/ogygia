@@ -13,6 +13,8 @@ export const session = () => ({ sub: 'puru', roles: ['admin'], locale: 'fr' });
 export const { cms, dash } = federate({
 	name: 'shell',
 	key: env.SHELL_SIGNING_KEY,
+	// the host peers sign their notices to the shell for (one made for another app is refused)
+	audience: new URL(env.SHELL_ORIGIN ?? 'http://localhost:5190').host,
 	visitor: () => session(),
 	peers: {
 		// the CMS team's whole app — mounted under /cms/[...rest]; bounded latency + SWR cache
