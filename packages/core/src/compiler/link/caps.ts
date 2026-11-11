@@ -1,75 +1,16 @@
 /**
- * Capability virtual-module emitters — the leg-split sources for the signed-capability family:
- * `virtual:ogygia/secret`, `/sign`, `/rate-limit`, `/session-cookie`, `/region-ttl`. Each is a pure
- * `(ssr, <one resolved config value>) => string`: the SSR leg carries the real signer / baked config,
- * the client leg gets an inert stub (a browser never mints). The driver's `emit` dispatch calls these.
+ * The generated server modules of the signed-capability family that are code, not data (the virtual
+ * table, ../virtual/core.ts, declares them; the data ones are values there): the plugins' server
+ * halves, and the route config.
  */
 
-import {
-	csrTrueRouteIds,
-	errorCsrTrueRouteIds,
-	page_route_config,
-	rootLayoutCsrTrue
-} from '../kit.ts';
+import { page_route_config } from '../kit.ts';
 import { dedent } from '../dedent.ts';
 
 /**
- * `virtual:ogygia/secret` — SERVER only: the per-build random key material and whether the BUILD
- * saw an `OGYGIA_SECRET` (its region ids are salted from it). CLIENT build: empty (never mint in the
- * browser). Which key signs is decided at first use, not here (server/signing-key.ts): the runtime's
- * `OGYGIA_SECRET` when the host sets it — read then, so an env a host fills after module eval still
- * counts — else this build's key.
- */
-export function secret_module(
-	ssr: boolean,
-	build_secret: string,
-	build_had_secret: boolean
-): string {
-	if (!ssr) {
-		return dedent`
-			export const buildKey = '';
-			export const buildHadSecret = false;
-		`;
-	}
-	return dedent`
-		export const buildKey = ${JSON.stringify(build_secret)};
-		export const buildHadSecret = ${build_had_secret};
-	`;
-}
-
-/**
- * `virtual:ogygia/sign` — same split as secret: SSR mints with node:crypto (re-exports the real
- * HMAC module); client never mints (secret is ''), but still needs `region_mac_message` for the
- * length-prefixed canonical form the runtime compares against.
- */
-export function sign_module(ssr: boolean, hmac_module: string): string {
-	if (!ssr) {
-		return dedent`
-			export function sign(_secret, _message) {
-				return '';
-			}
-
-			export function verify(_secret, _message, _sig) {
-				return false;
-			}
-
-			export function region_mac_message(id, exp, props, session = '', ttl = '', render = '') {
-				const enc = new TextEncoder();
-				const lp = (s) => enc.encode(String(s)).byteLength + ':' + String(s);
-				const v1 = lp(id) + '|' + lp(exp) + '|' + lp(props) + '|' + lp(session) + '|' + lp(ttl);
-				return render === '' ? 'v1|' + v1 : 'v2|' + v1 + '|' + lp(render);
-			}
-		`;
-	}
-	return dedent`
-		export { sign, verify, region_mac_message } from ${JSON.stringify(hmac_module)};
-	`;
-}
-
-/**
- * `virtual:ogygia/server-plugins` — SERVER only: each plugin's server half, one static import per
- * plugin, in the order the app listed them. The handle runs their stages straight off this list; an
- * app with no plugins gets an empty one (and the client always does).
+ * `server-plugins` — SERVER only: each plugin's server half, one static import per plugin, in the
+ * order the app listed them. The handle runs their stages straight off this list; an app with no
+ * plugins gets an empty one (and the client always does).
  */
 /** One plugin's server realm, as the build wires it. */
 export interface ServerRealm {
@@ -99,9 +40,9 @@ export function server_plugins_module(ssr: boolean, realms: readonly ServerRealm
 	`;
 }
 
-/** `virtual:ogygia/route-config` — SERVER only: every Kit page route id → the keys the plugins claim
- *  inside Kit's `config` page option, merged the way Kit merges it (a key no level sets is absent).
- *  Empty on the client, and when no plugin claims a key: the route list never ships to the browser. */
+/** `route-config` — SERVER only: every Kit page route id → the keys the plugins claim inside Kit's
+ *  `config` page option, merged the way Kit merges it (a key no level sets is absent). Empty on the
+ *  client, and when no plugin claims a key: the route list never ships to the browser. */
 export function route_config_module(
 	ssr: boolean,
 	routesDir: string,
@@ -109,57 +50,4 @@ export function route_config_module(
 ): string {
 	if (!ssr || keys.length === 0) return `export const route_config = {};`;
 	return `export const route_config = ${JSON.stringify(page_route_config(routesDir, keys))};`;
-}
-
-/** `virtual:ogygia/rate-limit` — SERVER only; the region handle is the only consumer. */
-export function rate_limit_module(
-	ssr: boolean,
-	rate_limit: { max: number; windowMs: number }
-): string {
-	if (!ssr) return `export const rateLimit = { max: 0, windowMs: 60000 };`;
-	return `export const rateLimit = ${JSON.stringify(rate_limit)};`;
-}
-
-/** `virtual:ogygia/session-cookie` — SERVER only; sealed into the region MAC when non-empty. */
-export function session_cookie_module(ssr: boolean, session_cookie: string): string {
-	if (!ssr) return `export const sessionCookie = '';`;
-	return `export const sessionCookie = ${JSON.stringify(session_cookie)};`;
-}
-
-/** `virtual:ogygia/region-ttl` — SERVER only; the capability expiry window for mint, and how long
- *  after expiry an anonymous capability still renews. */
-export function region_ttl_module(ssr: boolean, region_ttl: number, renew_window: number): string {
-	if (!ssr) {
-		return dedent`
-			export const regionTtl = 3600;
-			export const renewWindow = 0;
-		`;
-	}
-	return dedent`
-		export const regionTtl = ${region_ttl};
-		export const renewWindow = ${renew_window};
-	`;
-}
-
-/** `virtual:ogygia/route-csr` — SERVER only: the csr=true route ids, so a csr=false layout's islands
- *  degrade to inline when the LEAF page is csr=true (Kit hydrates the whole document). The CLIENT leg
- *  is an empty set — the client reads the identical signal from `kit_hydrates_page()`, and the route
- *  list never ships to the browser. */
-export function route_csr_module(ssr: boolean, routesDir: string): string {
-	if (!ssr) {
-		return dedent`
-			export const csr_true_routes = new Set();
-			export const error_csr_true_routes = new Set();
-			export const root_layout_csr_true = true;
-		`;
-	}
-	return dedent`
-		export const csr_true_routes = new Set(${JSON.stringify(csrTrueRouteIds(routesDir))});
-
-		// The error-render map beside the page map: Kit renders a route's error page with its LAYOUT
-		// branch only, so a 404 under a csr=false page is hydrated whenever the layouts say so.
-		export const error_csr_true_routes = new Set(${JSON.stringify(errorCsrTrueRouteIds(routesDir))});
-
-		export const root_layout_csr_true = ${rootLayoutCsrTrue(routesDir)};
-	`;
 }
