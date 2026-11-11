@@ -19,36 +19,80 @@
  * imports nothing of the boot (only `@ogygia/machine`, which the boot runs on); the boot hands it
  * its message (`on_reload_needed`).
  */
-import { flights, machine, noop, scope, STALE } from '@ogygia/machine';
+import { flights, machine, noop, say, scope, STALE, type Scope } from '@ogygia/machine';
 
 /** How long a failed import waits for its file's timing entry before it reads as "no response". */
 const ENTRY_WAIT_MS = 1000;
 
+// ── THE PAGE'S DOWNLOADS, AS THE BROWSER REPORTS THEM (#450) ──────────────────────────────────
+// Whether a failed import's own file came is read from the browser's resource timing. The page's
+// shared timeline (`performance.getEntriesByName`) holds 250 entries by default, and a large page
+// fills it by the end of its load: nothing later is recorded there, and every retry read as "no
+// response". An observer hears every entry whether the timeline is full or not, so the loader keeps
+// its own record, from the first loader made (the boot's) on: what each download got.
+
+/** Downloads recorded, at most (the oldest go first): enough for every file a page loads. */
+const RESPONSES_MAX = 2000;
+/** Each download heard: its status (`null`: no response came, a dropped download). */
+const responses = new Map<string, number | null>();
+/** Callers waiting for a download's entry: called with its status when it lands. */
+const landing = new Map<string, Set<(status: number | null) => void>>();
+/** The observer's owner, once it is up (the document's: a file's load outlives any page visit). */
+let timeline: Scope | null = null;
+
+function hear_responses(): void {
+	if (timeline !== null || typeof PerformanceObserver === 'undefined') return;
+	timeline = scope();
+	try {
+		// (buffered: what the timeline already holds is heard at once, then every entry after it)
+		timeline
+			.watch(
+				new PerformanceObserver((list) => {
+					for (const e of list.getEntries()) heard(e.name, status_of([e]));
+				})
+			)
+			.observe({ type: 'resource', buffered: true });
+	} catch {
+		// ok: an engine with no resource entries to observe: nothing is heard, every read is the timeline's
+	}
+}
+
+function heard(url: string, status: number | null): void {
+	// (a response heard for a URL is kept over a later entry with none)
+	const known = responses.get(url);
+	responses.delete(url);
+	responses.set(url, status ?? known ?? null);
+	if (responses.size > RESPONSES_MAX) responses.delete(responses.keys().next().value!);
+	const waiting = landing.get(url);
+	if (!waiting) return;
+	landing.delete(url);
+	for (const done of waiting) done(responses.get(url)!);
+}
+
 /**
- * The resource-timing entries for `url` once the browser has one, or none after
- * {@link ENTRY_WAIT_MS}. An engine can reject a failed import before the entry lands, and later
+ * The status the download of `url` got, once the browser reports it, or `null` after
+ * {@link ENTRY_WAIT_MS}. An engine can reject a failed import before its entry lands, and later
  * than one task: Firefox on a loaded machine. Chromium and Firefox give every download an entry (a
  * dropped one too, with a status of 0); WebKit gives a dropped one none, so only there the wait
  * runs out. Its own scope: it ends itself, and no page's visit owns a file's load.
  */
-function entries_landed(url: string): Promise<readonly PerformanceEntry[]> {
-	if (typeof PerformanceObserver === 'undefined') return Promise.resolve([]);
+function response_landed(url: string): Promise<number | null> {
+	const now = response_of(url);
+	if (now !== null || responses.has(url) || timeline === null) return Promise.resolve(now);
 	const wait = scope();
-	return new Promise<readonly PerformanceEntry[]>((resolve) => {
-		const done = (entries: readonly PerformanceEntry[]) => {
+	return new Promise<number | null>((resolve) => {
+		const done = (status: number | null) => {
 			wait.close();
-			resolve(entries);
+			resolve(status);
 		};
-		// (buffered: an entry already in the timeline is delivered at once)
-		wait
-			.watch(
-				new PerformanceObserver((list) => {
-					const entries = list.getEntriesByName(url);
-					if (entries.length > 0) done(entries);
-				})
-			)
-			.observe({ type: 'resource', buffered: true });
-		wait.timeout(() => done([]), ENTRY_WAIT_MS);
+		let set = landing.get(url);
+		if (!set) landing.set(url, (set = new Set()));
+		set.add(done);
+		wait.defer(() => {
+			const waiting = landing.get(url);
+			if (waiting?.delete(done) && waiting.size === 0) landing.delete(url);
+		});
+		wait.timeout(() => done(null), ENTRY_WAIT_MS);
 	});
 }
 
@@ -95,9 +139,12 @@ export function retry_url(url: string, attempt: number): string {
 	return u.href;
 }
 
-/** The status of the response the browser's resource timing holds for `url` (0 where the browser does
- *  not say), or `null` when none came: a download that failed (or no timing for it). */
+/** The status of the response the browser reported for `url` (0 where the browser does not say), or
+ *  `null` when none came: a download that failed (or no entry for it yet). The loader's own record
+ *  first (it hears a full timeline too), then the page's timeline. */
 export function response_of(url: string): number | null {
+	const heard_status = responses.get(url);
+	if (heard_status != null) return heard_status;
 	if (typeof performance === 'undefined' || typeof performance.getEntriesByName !== 'function')
 		return null;
 	return status_of(performance.getEntriesByName(url, 'resource'));
@@ -120,9 +167,9 @@ function status_of(entries: readonly PerformanceEntry[]): number | null {
 
 /** What the page says when a chunk cannot load until it reloads: the boot's message (./core.ts). */
 let say_reload_needed: (url: string, error: unknown) => void = noop;
-let said = false;
-/** The boot hands over its message for a chunk no retry can load. Said once per page (for the first
- *  such chunk: one reload loads them all). */
+/** Said once per page (for the first such chunk: one reload loads them all). */
+const reload = say({ max: 1 });
+/** The boot hands over its message for a chunk no retry can load. */
 export function on_reload_needed(say: (url: string, error: unknown) => void): void {
 	say_reload_needed = say;
 }
@@ -142,6 +189,7 @@ export function import_again<T>(
 	 *  failed to load. */
 	known?: string
 ): () => Promise<T> {
+	hear_responses();
 	const file = file_definition.create();
 	return () => {
 		const s = file.now;
@@ -153,14 +201,12 @@ export function import_again<T>(
 			const attempt = s.attempt + 1;
 			file.go('failed', { url: s.url, attempt });
 			const url = retry_url(s.url, attempt);
-			run = (fresh(url) as Promise<T>).catch((error: unknown) => {
-				const status = response_of(url);
+			run = (fresh(url) as Promise<T>).catch(async (error: unknown) => {
+				// (its entry may land after the import rejects: Firefox on a loaded machine)
+				const status = await response_landed(url);
 				// its own file came, and it still failed: a dependency's failure, which no URL fixes
 				if (status !== null && status < 400 && file.move('failed', 'stuck', { error })) {
-					if (!said) {
-						said = true;
-						say_reload_needed(url, error);
-					}
+					reload.once('reload', () => say_reload_needed(url, error));
 				}
 				throw error;
 			});
@@ -231,7 +277,7 @@ const file_loads = flights({
 			if (failed === null) throw error;
 			// (an engine can reject the import before the response's timing entry is in the timeline:
 			// Firefox on a loaded machine, by more than one task)
-			const status = response_of(failed) ?? status_of(await entries_landed(failed));
+			const status = await response_landed(failed);
 			if (status === null) return load();
 			throw error;
 		});

@@ -60,6 +60,20 @@ export function shares_report_links(page: Page): boolean {
 	return page.context().browser()?.browserType().name() !== 'webkit';
 }
 
+/**
+ * Skips the running test where a navigation to a file sent as an attachment is not a download:
+ * Playwright's WebKit on Linux shows the file as the page and reports no `download` event, for a
+ * plain `location.href` to it too. Chromium, Firefox and WebKit on macOS (Safari's) download it.
+ */
+export async function needs_attachment_downloads(page: Page): Promise<void> {
+	const engine = page.context().browser()?.browserType().name();
+	const platform = engine === 'webkit' ? await page.evaluate(() => navigator.platform) : '';
+	test.skip(
+		platform.startsWith('Linux'),
+		'needs a navigation to an attachment to download: WebKit on Linux shows it as the page'
+	);
+}
+
 /** Skips the running test outside Chromium: it drives the Chrome DevTools Protocol (CPU and
  *  network throttling), which Firefox and WebKit do not speak. */
 export function needs_cdp(page: Page): void {
