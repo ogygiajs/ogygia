@@ -13,10 +13,14 @@ name: heisenbench
 # The `unmeasured` job runs here, in this repository: it fails a PR that adds a function nothing
 # measures (see the job).
 
+#
+# A PR runs these when it carries or earns `ci:bench` (or `ci:full`, .github/scripts/ci-labels.ts): a
+# PR into main earns it, and so does a change to a bench or a hot path. Adding the label starts them.
+
 on:
   pull_request:
     # ready_for_review: a draft gets no run, so one starts when it leaves draft
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
     # only when runtime or bench code changed: what Heisenbench counts and the gate reads
     paths:
       - 'packages/*/src/**'
@@ -28,10 +32,10 @@ on:
 
 permissions: {}
 
-# A new push to a PR cancels that PR's older runs
+# A new push to a PR cancels that PR's older runs (adding another label does not)
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action != 'labeled' }}
 
 # The tests these jobs record run their browser projects in Chromium only (the engine this workflow
 # installs); the other engines run in e2e.yml's `browsers` jobs.
@@ -39,8 +43,44 @@ env:
   OGYGIA_BROWSERS: chromium
 
 jobs:
-  request:
+  # Whether this PR runs them: it carries or earns `ci:bench` (a label event for any other label
+  # starts nothing). The version PR runs none.
+  gate:
     if: >-
+      ${{ !startsWith(github.head_ref, 'changeset-release/') && (github.event.action != 'labeled' ||
+      github.event.label.name == 'ci:bench' || github.event.label.name == 'ci:full') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Gate
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          if node .github/scripts/ci-labels.ts --has ci:bench; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  request:
+    needs: gate
+    if: >-
+      needs.gate.outputs.run == 'true' &&
       !github.event.pull_request.draft &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !startsWith(github.head_ref, 'changeset-release/')
@@ -68,7 +108,9 @@ jobs:
   # on functions this PR adds with neither (and no exemption in internal/heisenbench/unmeasured.json);
   # what was unmeasured before is listed in the job summary, not failed.
   unmeasured:
+    needs: gate
     if: >-
+      needs.gate.outputs.run == 'true' &&
       !github.event.pull_request.draft &&
       !startsWith(github.head_ref, 'changeset-release/')
     runs-on: ubuntu-latest
