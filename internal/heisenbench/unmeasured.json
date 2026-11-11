@@ -3551,6 +3551,10 @@
 		{
 			"id": "packages/devtools/src/client.ts > plugin > hooks > warning",
 			"reason": "browser only: hands one hook event to beacon_warning, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > boot",
+			"reason": "browser only: the dock's boot, once per page: installs the beacon and, with the dock on, the dock UI and the leftovers watch"
 		}
 	]
 }
