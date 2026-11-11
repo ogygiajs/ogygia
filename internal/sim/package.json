@@ -4,6 +4,8 @@
 	"description": "Deterministic simulation of whole ogygia apps: one seed drives the servers, the tabs, the network, the CDN, deploys and time. Private tooling, never published (internal/notes/dst.md).",
 	"type": "module",
 	"scripts": {
+		"sim": "node --experimental-vm-modules --no-warnings src/cli.ts",
+		"sim:long": "node --experimental-vm-modules --no-warnings src/cli.ts --long",
 		"check": "tsc -p . && vitest run",
 		"test": "vitest run"
 	},

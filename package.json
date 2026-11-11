@@ -33,6 +33,8 @@
 		"format:check": "oxfmt --check .",
 		"lint": "oxlint",
 		"lint:test": "node --test internal/lint/*.test.ts",
+		"sim": "pnpm --filter ogygia-internal-sim sim",
+		"sim:long": "pnpm --filter ogygia-internal-sim sim:long",
 		"ci:test": "node --test .github/scripts/*.test.ts"
 	},
 	"devDependencies": {
