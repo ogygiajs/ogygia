@@ -5,7 +5,8 @@
  * root (fs is the only side effect); the adapter owns only the Vite `this.getFileName` resolution
  * and the trigger.
  */
-import { fs, path, dir_entries } from '../host.ts';
+import fs from 'node:fs';
+import path from 'node:path';
 import { islandDepsHandoffPath } from './island-deps.ts';
 import { line } from '../messages.ts';
 
@@ -51,7 +52,7 @@ export function emit_island_deps_handoff(root: string, json: string, out_dir: st
 		const patch_server = (dir: string) => {
 			let entries;
 			try {
-				entries = dir_entries(dir);
+				entries = fs.readdirSync(dir, { withFileTypes: true });
 			} catch {
 				return;
 			}

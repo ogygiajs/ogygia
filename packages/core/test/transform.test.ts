@@ -3,7 +3,6 @@
 // presets, and csr-independent emit metadata. Runs against built `../dist/compiler/region/transform.js`.
 
 import { describe, test, expect, vi } from 'vitest';
-import path from 'node:path';
 import {
 	transformHost,
 	normalize_import_keys,
@@ -38,7 +37,6 @@ function makeCtx(overrides: Partial<HostCtx> = {}): HostCtx {
 		root: ROOT,
 		libDir: '/app/src/lib',
 		readFile: () => null,
-		pathModule: path,
 		dev: false,
 		virtualPathFor: (_hostId: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 		wrapperPathFor: (_hostId: string, iid: string) => wrapperVirtualId(iid),

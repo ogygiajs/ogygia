@@ -5,7 +5,6 @@
 // — this repo's unit tests stay node-only (no jsdom); DOM helpers are exercised in a real browser.
 
 import { describe, test, expect } from 'vitest';
-import path from 'node:path';
 import { region, isRegion } from '../dist/region.js';
 import { ogygiaTransport } from '../dist/transport.js';
 import { transformHost } from '../dist/compiler/region/transform.js';
@@ -107,7 +106,6 @@ describe('transform — SSR binding renders HTML, client leg stays metadata-only
 			root: '/app',
 			libDir: '/app/src/lib',
 			readFile: () => null,
-			pathModule: path,
 			dev: false,
 			virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 			wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,

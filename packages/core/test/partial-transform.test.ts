@@ -8,7 +8,6 @@
 // Both rewrite the host import to the leg-split binding module. Runs against built `../dist`.
 
 import { describe, test, expect, vi } from 'vitest';
-import path from 'node:path';
 import {
 	transformHost,
 	transformTsRegions,
@@ -28,7 +27,6 @@ function makeCtx(overrides: Partial<HostCtx> = {}): HostCtx {
 		root: ROOT,
 		libDir: '/app/src/lib',
 		readFile: () => null,
-		pathModule: path,
 		dev: false,
 		virtualPathFor: (_hostId: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 		wrapperPathFor: (_hostId: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,

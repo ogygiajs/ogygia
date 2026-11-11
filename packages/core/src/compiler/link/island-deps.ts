@@ -4,7 +4,7 @@
  * island's hashed dependency chunks (Vite's auto graph does not cover `@vite-ignore` `import(entry)`).
  * Pure over the bundle it is handed. Covered by unit tests.
  */
-import { path } from '../host.ts';
+import path from 'node:path';
 import { dedent } from '../dedent.ts';
 import { merge_page_keys, type PageKeys } from './page-keys.ts';
 import { hydration_hazards, type IslandHazard } from '../../contract/hydration-hazards.ts';

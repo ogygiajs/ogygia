@@ -3,10 +3,9 @@
  * derived naming accessors. A plain data holder constructed once the bundler has resolved the build
  * (root / dev / …) and the options are normalized (importKeys / presets / …). It is the config half
  * of the driver's session; the `Compiler` carries it into `transform()` so that phase never reaches
- * back into the Vite adapter — which is what keeps the driver bundler-agnostic (a future REPL feeds
- * a `CompileCtx` + source and gets the same lowering, no Vite in sight).
+ * back into the Vite adapter — which is what keeps the driver bundler-agnostic.
  */
-import { fs } from './host.ts';
+import fs from 'node:fs';
 import { strip_bom } from './bom.ts';
 import { islandVirtualId } from './ids.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
@@ -22,7 +21,7 @@ import {
 
 /** One dependency package's declared compile surface (`"ogygia": { "files": […] }` in ITS
  *  package.json) — produced by the plugin's discovery (`vite/package-files.ts`), consumed here
- *  type-only: the compiler stays browser-host-clean, so the node:fs/glob work lives plugin-side.
+ *  type-only: the node:fs/glob work lives plugin-side.
  *  All paths are posix REALPATHS — Vite resolves ids through symlinks (pnpm), so gate matching
  *  must speak real paths or every check silently misses. */
 export interface PackageScan {
@@ -70,8 +69,7 @@ export interface CompileCtxInit {
 	foreign_hydrate?: boolean;
 	/** Dependency packages that DECLARED their ogygia compile surface (`"ogygia": { "files": […] }`
 	 *  in THEIR package.json) — prescanned + transformed like app source, node_modules gates lifted
-	 *  for exactly these paths. Optional (default none): standalone/browser hosts have no
-	 *  node_modules to declare from. */
+	 *  for exactly these paths. Optional (default none). */
 	pkg_scan?: PackageScan[];
 	/** PAGE MODULES (`b.pageModules()`): modules that render pages outside Kit's routes, whose reachable
 	 *  components get router-css. `page_importers`: a compiled module importing one of these specifiers

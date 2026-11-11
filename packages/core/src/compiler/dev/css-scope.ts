@@ -3,7 +3,7 @@
  * scopes can reach a changed stylesheet, so the soft-CSS-HMR bridge joins a file only on the pages
  * whose sub-app actually owns it. Pure over the graph nodes it is handed; reads, never mutates.
  */
-import { path } from '../host.ts';
+import path from 'node:path';
 import { kit_dirs } from '../kit.ts';
 
 /** Structural shape of a Vite dev module-graph node (the two fields the owner walk reads). */

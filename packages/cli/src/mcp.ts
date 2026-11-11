@@ -103,7 +103,6 @@ function build_ctx(ssr: boolean, route_csr = false) {
 		root: '/repl',
 		libDir: '/repl/src/lib',
 		readFile: () => null,
-		pathModule: path as never,
 		dev: true,
 		virtualPathFor: (_host: string, iid: string) => islandVirtualId(iid),
 		wrapperPathFor: (_host: string, iid: string) => wrapperVirtualId(iid),

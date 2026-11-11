@@ -4,7 +4,8 @@
  * named export typed with what its module exports (a value's data, a family's `contract/`
  * interface): the generated per-realm `.d.ts` reads the types off these exports.
  */
-import { fs, path } from '../host.ts';
+import fs from 'node:fs';
+import path from 'node:path';
 import { kit_dirs, csrTrueRouteIds, errorCsrTrueRouteIds, rootLayoutCsrTrue } from '../kit.ts';
 import {
 	generateHydrateFeaturesSource,

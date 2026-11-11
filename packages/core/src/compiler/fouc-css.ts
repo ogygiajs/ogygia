@@ -13,7 +13,8 @@
  * filename so hashes match SSR.
  */
 
-import { fs, path } from './host.ts';
+import fs from 'node:fs';
+import path from 'node:path';
 import { compile, parse } from 'svelte/compiler';
 import { walk } from 'estree-walker';
 import { unscoped_marker } from '../contract/unscoped-css.ts';

@@ -6,14 +6,12 @@
 // rewrite every body occurrence to the capture's prop name, and WARN that the copy is frozen —
 // the exact failure a consumer hit in CI (commerce-app previewPage page).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import path from 'node:path';
 import { transformHost } from '../src/compiler/region/transform.ts';
 
 const ctx = {
 	root: '/app',
 	libDir: '/app/src/lib',
 	readFile: () => null,
-	pathModule: path,
 	dev: false,
 	virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 	wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,

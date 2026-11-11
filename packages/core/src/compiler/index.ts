@@ -16,14 +16,14 @@
  * The DRIVER SPINE (`Compiler` / `Program` / `CompileCtx`) is the same carve-out one level up: a
  * long-lived, bundler-agnostic compile session (it imports no Vite) that fuses the file-local
  * front-end — `transform` (host islands), `ts_regions`, `macros`, and `prescan` (whole-app island
- * discovery) — over a `Program` (cross-file linker) and a resolved `CompileCtx`. A REPL or any
- * non-Vite host is just a second adapter: build a `CompileCtx`, `configure()` the `Compiler`, and
+ * discovery) — over a `Program` (cross-file linker) and a resolved `CompileCtx`. Any non-Vite host
+ * is just a second adapter: build a `CompileCtx`, `configure()` the `Compiler`, and
  * feed it source. The Vite plugin (`ogygia/vite`) is the reference adapter that drives it.
  *
  * Exposed to consumers as `ogygia/internal/compiler` (internal, not a stable public API).
  */
 export * from './region/transform.ts';
-export { set_parser, parse_module, type RawParse } from './parse/oxc.ts';
+export { parse_module } from './parse/oxc.ts';
 export * from './fouc-css.ts';
 export * from './free-vars.ts';
 export { Compiler, type Profiler } from './driver.ts';

@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import path from 'node:path';
 import { transformHost, islandId, wrapperVirtualId } from '../dist/compiler/region/transform.js';
 import { rewrite_lake_import_to_placeholder } from '../dist/vite/index.js';
 import { RateLimiter } from '../dist/server/rate-limit.js';
@@ -17,7 +16,6 @@ function makeCtx(overrides: Partial<HostCtx> = {}): HostCtx {
 		root: ROOT,
 		libDir: '/app/src/lib',
 		readFile: () => null,
-		pathModule: path,
 		dev: false,
 		virtualPathFor: (_hostId: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 		// the transform's own fallback when a caller omits it

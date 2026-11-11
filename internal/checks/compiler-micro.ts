@@ -16,7 +16,6 @@ const root = path.join(process.cwd(), 'apps/palaestra');
 const ctx: Parameters<typeof transformHost>[2] = {
 	root,
 	libDir: path.join(root, 'src/lib'),
-	pathModule: path,
 	dev: false,
 	ssr: true,
 	linkVirtualIsland: true,
