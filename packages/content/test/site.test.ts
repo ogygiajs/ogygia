@@ -16,7 +16,13 @@ const mint_site = (
 ) => siteRaw({ outline: outlineArg, ...opts });
 import { remarkLinks } from '../src/markdown/remark-links.ts';
 import { rehypeOverrides, SLOT_TAG } from '../src/markdown/rehype-overrides.ts';
-import { build_docs, orama_engine, split_sections, strip_prose } from '../src/site/search.ts';
+import {
+	build_docs,
+	orama_engine,
+	rerank,
+	split_sections,
+	strip_prose
+} from '../src/site/search.ts';
 
 type Meta = { headings: Heading[] };
 
@@ -621,6 +627,28 @@ describe('search — projection', () => {
 		expect(install.find((d) => d.anchor === 'setup')?.id).toBe('start/install#setup');
 		expect(docs.find((d) => d.slug === 'regions/held')?.heading).toBe('');
 	});
+
+	it('a page with two heading-less sections is one document holding both, never two with one id', async () => {
+		// `## Extra` is a heading in the source the collected headings do not list: its section has none
+		const site = mint_site(
+			content({
+				loader: fromArray([
+					{
+						id: 'start/odd',
+						filePath: 'content/docs/00-start/00-odd/+doc.svx',
+						data: { title: 'Odd' },
+						meta: { headings: [] },
+						source: async () => '# Odd\n\nLead text.\n\n## Extra\n\nMore text.'
+					}
+				]),
+				schema: docSchema
+			})
+		);
+		const docs = await build_docs(site.outline);
+		expect(docs.map((d) => d.id)).toEqual(['start/odd']);
+		expect(docs[0].text).toContain('Lead text');
+		expect(docs[0].text).toContain('More text');
+	});
 });
 
 describe('search — engine + brain (Orama)', () => {
@@ -650,6 +678,53 @@ describe('search — engine + brain (Orama)', () => {
 		const hits = await index.query('installer', { limit: 5, base: '/docs' });
 		expect(hits[0].slug).toBe('a');
 		expect(hits[0].href).toBe('/docs/a');
+	});
+
+	it('orama_engine builds and finds two documents that share an id', async () => {
+		const engine = orama_engine();
+		const doc = (text: string) => ({
+			id: 'same',
+			slug: 'same',
+			anchor: '',
+			title: 'Same',
+			section: 'Start',
+			heading: '',
+			text
+		});
+		const index = await engine.build([doc('alpha words'), doc('beta words')]);
+		expect(await index.query('alpha', { limit: 5, base: '' })).toHaveLength(1);
+		expect(await index.query('beta', { limit: 5, base: '' })).toHaveLength(1);
+	});
+
+	it('rerank: a hit whose title carries the query outranks a higher-scored body match', () => {
+		const hit = (title: string, href: string, score: number) => ({
+			href,
+			slug: href,
+			title,
+			section: 'S',
+			heading: '',
+			excerpt: '',
+			score
+		});
+		const ranked = rerank(
+			[hit('Other', '/other', 3), hit('Snippets', '/snippets#use', 1)],
+			'snippet'
+		);
+		expect(ranked.map((h) => h.title)).toEqual(['Snippets', 'Other']);
+	});
+
+	it('rerank: of two hits whose title carries the query, the page itself outranks its section', () => {
+		const hit = (href: string, score: number) => ({
+			href,
+			slug: 'snippets',
+			title: 'Snippets',
+			section: 'S',
+			heading: '',
+			excerpt: '',
+			score
+		});
+		const ranked = rerank([hit('/snippets#more', 1.2), hit('/snippets', 1)], 'snippet');
+		expect(ranked.map((h) => h.href)).toEqual(['/snippets', '/snippets#more']);
 	});
 
 	it('site.search() returns ranked hits with mount-based hrefs; scoping pre-filters', async () => {
