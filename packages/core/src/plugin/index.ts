@@ -22,14 +22,14 @@ import type { RequestEvent } from '@sveltejs/kit';
 import type { ResolveOptions } from '../kit-handle.ts';
 import type { RequestFacts } from './facts.ts';
 import type { Ask, Notify, ServerHooks } from './hooks.ts';
-import type { DevtoolsEventInput } from '../events/schema.ts';
+import type { DevtoolsEventInput } from '../contract/events.ts';
 
 // Kit's handle types, the same on SvelteKit 2 and 3 (kit-handle.ts)
 export type { Handle, ResolveOptions } from '../kit-handle.ts';
 export type { RequestFacts } from './facts.ts';
 export type { Reads } from './reads.ts';
 export type { ServerHooks } from './hooks.ts';
-export type { DevtoolsEventInput } from '../events/schema.ts';
+export type { DevtoolsEventInput } from '../contract/events.ts';
 
 /** The server process, as one plugin sees it (handed to `setup`, and on every `ctx.app`). */
 export interface ServerApp<Options = undefined> {

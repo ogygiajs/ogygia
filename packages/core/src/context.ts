@@ -1,11 +1,11 @@
 import { getContext, setContext } from 'svelte';
 import { BROWSER } from 'esm-env';
-import { getRequestEvent } from 'virtual:ogygia/request-event';
 import {
+	get_request_event,
 	csr_true_routes,
 	error_csr_true_routes,
 	root_layout_csr_true
-} from 'virtual:ogygia/route-csr';
+} from '#region-server';
 import { kit_hydrates_page } from './runtime/kit-boot.ts';
 
 // The nested-island mark (same `Symbol.for` rule as the keys below) is a leaf: nested.ts says why.
@@ -87,7 +87,7 @@ function normalize_route_id(id: string): string {
 export function documentIsCsrTrue(error_render = false): boolean {
 	if (BROWSER) return kit_hydrates_page();
 	try {
-		const event = getRequestEvent() as { route?: { id?: string | null } };
+		const event = get_request_event() as { route?: { id?: string | null } };
 		// An ERROR render (a 404 / 500 page) is Kit's layout-branch decision, not the page's: the
 		// caller (Region) passes what it reads off Kit's page state, and the handle passes the
 		// response status — the same map answers both.
@@ -144,7 +144,7 @@ const kit_island_claimed = new WeakMap<object, Set<string>>();
 export function claim_kit_island(entry: string): boolean {
 	if (!entry) return false;
 	try {
-		const event = getRequestEvent() as object;
+		const event = get_request_event() as object;
 		let seen = kit_island_claimed.get(event);
 		if (!seen) kit_island_claimed.set(event, (seen = new Set()));
 		if (seen.has(entry)) return false;
@@ -165,7 +165,7 @@ export function claim_kit_island(entry: string): boolean {
 export function claim_region_css(hrefs: string[]): string[] {
 	if (!hrefs.length) return [];
 	try {
-		const event = getRequestEvent() as object;
+		const event = get_request_event() as object;
 		let seen = region_css_claimed.get(event);
 		if (!seen) region_css_claimed.set(event, (seen = new Set()));
 		const fresh = hrefs.filter((h) => !seen.has(h));
@@ -184,7 +184,7 @@ export function claim_region_css(hrefs: string[]): string[] {
  */
 export function claimRuntimeEmit(): boolean {
 	try {
-		const event = getRequestEvent() as object;
+		const event = get_request_event() as object;
 		if (runtime_claimed.has(event)) return false;
 		runtime_claimed.set(event, true);
 		return true;
@@ -204,7 +204,7 @@ const early_holes = new WeakMap<Request, Set<string>>();
  */
 export function note_early_hole(endpoint: string): void {
 	try {
-		const { request } = getRequestEvent() as { request: Request };
+		const { request } = get_request_event() as { request: Request };
 		let seen = early_holes.get(request);
 		if (!seen) early_holes.set(request, (seen = new Set()));
 		seen.add(endpoint);
@@ -218,7 +218,7 @@ export function note_early_hole(endpoint: string): void {
 export function take_early_holes(request?: Request): string[] {
 	if (!request)
 		try {
-			request = (getRequestEvent() as { request: Request }).request;
+			request = (get_request_event() as { request: Request }).request;
 		} catch {
 			return []; // ok: no request, so no hole of it was noted
 		}

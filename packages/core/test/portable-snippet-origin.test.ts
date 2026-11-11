@@ -1,9 +1,9 @@
 // REGRESSION: a portable snippet (a `{#snippet}` that crosses into an island) is re-processed as its
-// own entry under a `virtual:ogygia/island/<iid>.svelte` id — that's how a `with { wake }` import
+// own entry under a `ogygia:region/entry/<iid>.svelte` id — that's how a `with { wake }` import
 // inside the snippet body becomes a nested island. A virtual id has no directory, so a RELATIVE
-// specifier carried into that entry used to resolve against `virtual:ogygia/island/` and bake a
+// specifier carried into that entry used to resolve against `ogygia:region/entry/` and bake a
 // cwd-relative phantom into the region module:
-//   UNRESOLVED_IMPORT: Could not resolve '<root>/virtual:ogygia/Inner.svelte' in virtual:ogygia/region/<iid>.js
+//   UNRESOLVED_IMPORT: Could not resolve '<root>/ogygia:region/Inner.svelte' in ogygia:region/binding/<iid>.js
 // The driver's `resolve_id` already rebases an entry's PLAIN imports against the entry's real origin
 // (`hostPath`); the transform now resolves a re-minted MARKED import against that same origin
 // (`HostCtx.originOf`), and every record minted during a re-process stamps that origin as its own
@@ -15,11 +15,11 @@ import path from 'node:path';
 import { transformHost } from '../src/compiler/region/transform.ts';
 
 // ── regexes
-/** Any `<something>/virtual:ogygia/<Name>.svelte` — the phantom path the bug used to bake. */
-const PHANTOM_VIRTUAL_COMPONENT_RE = /\/virtual:ogygia\/[^/]+\.svelte/;
+/** Any `<something>/ogygia:region/<Name>.svelte` — the phantom path the bug used to bake. */
+const PHANTOM_VIRTUAL_COMPONENT_RE = /\/ogygia:region\/[^/]+\.svelte/;
 /** The loud guard: a named `[ogygia]` error citing the virtual host AND the relative specifier. */
 const MISSING_ORIGIN_ERROR_RE =
-	/\[ogygia\] virtual:ogygia\/island\/[^:]+: cannot resolve the relative import '\.\.\/Inner\.svelte' from a generated module/;
+	/\[ogygia\] ogygia:region\/entry\/[^:]+: cannot resolve the relative import '\.\.\/Inner\.svelte' from a generated module/;
 const INNER_G = /Inner/g;
 
 const base_ctx = {
@@ -28,14 +28,14 @@ const base_ctx = {
 	readFile: () => null,
 	pathModule: path,
 	dev: false,
-	virtualPathFor: (_h: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
-	wrapperPathFor: (_h: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
+	virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
+	wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
 	devUrlFor: (p: string) => p,
 	visibleMargin: '200px',
 	presets: {},
 	importKeys: {},
 	idSalt: '',
-	clientBindingStub: 'virtual:ogygia/client-binding-stub',
+	clientBindingStub: 'ogygia:region/client-binding-stub',
 	routeCsr: undefined,
 	linkVirtualIsland: true
 };
@@ -123,7 +123,7 @@ describe('portable snippet — a relative marked import inside the snippet resol
 			component_paths(second),
 			`expected an island whose componentPath is ${REAL_INNER}`
 		).toContain(REAL_INNER);
-		expect(all_sources(second)).not.toContain('virtual:ogygia/Inner.svelte');
+		expect(all_sources(second)).not.toContain('ogygia:region/Inner.svelte');
 		expect(all_sources(second)).not.toMatch(PHANTOM_VIRTUAL_COMPONENT_RE);
 	});
 
@@ -258,7 +258,7 @@ describe('portable snippet — the missing-origin case is LOUD, not a silent pha
 		const first = transformHost(PLAIN_SITE_PARENT, HOST_ID, { ...base_ctx, ssr: true }) as Result;
 		const [entry] = portable_entries(first);
 		expect(entry).toBeTruthy();
-		// No `originOf` at all — the legacy ctx shape. Must not produce `<cwd>/virtual:ogygia/...`.
+		// No `originOf` at all — the legacy ctx shape. Must not produce `<cwd>/ogygia:region/...`.
 		expect(() =>
 			transformHost(entry.source!, entry.virtualPath!, { ...base_ctx, ssr: true })
 		).toThrow(MISSING_ORIGIN_ERROR_RE);
