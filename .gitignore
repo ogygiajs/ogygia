@@ -6,6 +6,7 @@ node_modules/
 .pnpm-store/
 .turbo/
 .svelte-kit/
+.svelte-dts/
 /apps/palaestra/build/
 /apps/docs/build/
 dist/
