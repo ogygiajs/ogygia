@@ -54,7 +54,11 @@ test('a refused or failed region request is no-store', async ({ baseURL }) => {
 		String(put.headers.get('cache-control'))
 	);
 	// (a POST is a batch of holes: one with no list in it is a bad request)
-	const batch = await fetch(endpoint!.split('?')[0]!, { method: 'POST', body: 'not a list' });
+	const batch = await fetch(endpoint!.split('?')[0]!, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: '{"not":"a list"}'
+	});
 	check('a malformed batch is refused (400)', batch.status === 400, String(batch.status));
 	check(
 		'the 400 is no-store',
