@@ -12,11 +12,12 @@ export const OGYGIA_DIR = join(REPO, 'packages', 'ogygia');
 export const CORE_DIR = join(REPO, 'packages', 'core');
 
 /** What `ogygia` pulls in that is released with it (so the registry may not have it yet): core, the
- *  machine core depends on, and the insights `ogygia` depends on. */
+ *  machine core depends on, and the insights and compiler `ogygia` depends on. */
 const RELEASED_WITH: Record<string, string> = {
 	'@ogygia/core': CORE_DIR,
 	'@ogygia/machine': join(REPO, 'packages', 'machine'),
-	'@ogygia/insights': join(REPO, 'packages', 'insights')
+	'@ogygia/insights': join(REPO, 'packages', 'insights'),
+	'@ogygia/compiler': join(REPO, 'packages', 'compiler')
 };
 
 export interface PackedOgygia {
