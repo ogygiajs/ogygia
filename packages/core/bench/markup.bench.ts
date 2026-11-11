@@ -11,6 +11,7 @@ import { mark, settle } from '../src/server/reversible.ts';
 import { liftRegions, restoreRegions, scanRegions } from '../src/server/split-regions.ts';
 import { fake_scoped } from '../test/fixtures/fake-scoped-render.ts';
 import { document, head, hole_answer } from './fixtures.ts';
+import { attr, decode_text, html, trusted_html } from '../src/html.ts';
 
 bench(
 	'scanRegions: every region of a document',
@@ -92,3 +93,28 @@ bench(
 bench('region CSS: the tags a held region carries forward', ({ h }) => region_css_tags(h).length, {
 	setup: () => ({ h: head(40) })
 });
+
+bench(
+	'html: cards built from author text, escaped for where each value sits, and read back',
+	({ rows }) => {
+		let bytes = 0;
+		for (const r of rows) {
+			const card = html`<li${attr('id', r.id)} class="card"><a href="${r.href}">${r.title}</a>${trusted_html('<i>new</i>', 'a constant')}</li>`;
+			bytes += String(card).length + decode_text(card.valueOf()).length;
+		}
+		return bytes;
+	},
+	{
+		setup: () => ({ rows: cards(40) }),
+		scale: (_ctx, k) => ({ rows: cards(40 * k) })
+	}
+);
+
+/** `n` rows of author text, one in three full of the characters that need escaping. */
+function cards(n: number): { id: string; href: string; title: string }[] {
+	return Array.from({ length: n }, (_, i) =>
+		i % 3 === 0
+			? { id: `c"${i}<`, href: `/p?a=${i}&b="x"`, title: `Tom & Jerry <${i}> 'q'` }
+			: { id: `c${i}`, href: `/p/${i}`, title: `Card ${i}` }
+	);
+}

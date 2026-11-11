@@ -49,6 +49,7 @@
 	},
 	"scripts": {
 		"build": "tsdown",
+		"prepublishOnly": "pnpm run build",
 		"check": "tsc -p . && tsc -p test && tsc -p e2e && vitest run",
 		"test": "vitest run",
 		"e2e": "playwright test"
