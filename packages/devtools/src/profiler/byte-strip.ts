@@ -101,6 +101,17 @@ function raw_spans(html: string, name: string, on: (t: FoundTag, end: number) =>
 	}
 }
 
+/** The text of the document's page seed (the first script the strip names `seed`), or null. */
+export function page_seed(html: string): string | null {
+	for (let t = next_tag(html, 'script', 0); t !== null;) {
+		const text = text_of(html, t, 'script');
+		if (text === null) return null;
+		if (script_kind(t).kind === 'seed') return text;
+		t = next_tag(html, 'script', t.end + text.length);
+	}
+	return null;
+}
+
 export function byte_strip(html: string): ByteStrip {
 	const spans: StripSegment[] = [];
 	raw_spans(html, 'script', (t, end) => spans.push({ ...script_kind(t), start: t.start, end }));
