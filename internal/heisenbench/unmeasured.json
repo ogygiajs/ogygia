@@ -2363,6 +2363,14 @@
 		{
 			"id": "packages/core/src/server/page-stream.ts > swap_tracked > walk",
 			"reason": "one node of swap_tracked's walk over a closure (its Map and swap: not cloneable), constant work per node; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
+		},
+		{
+			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > details",
+			"reason": "a message table entry: wording only"
 		}
 	]
 }
