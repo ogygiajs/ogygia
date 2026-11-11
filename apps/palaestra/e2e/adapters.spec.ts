@@ -320,9 +320,19 @@ async function drive(page: Page, base: string, errors: string[]) {
 	const before = (await counter.textContent())?.trim();
 	check('island SSR text', before === 'count 10', JSON.stringify(before));
 
+	// (a `wake: 'load'` island is live only once its code is in, after the load event on a slow
+	// runner: a click before that is not replayed, so wait for its region to be hydrated)
+	await page
+		.locator('ogygia-region[data-hydrated]', { has: counter })
+		.first()
+		.waitFor({ timeout: 15000 });
 	await counter.click();
 	await counter.click();
-	const after = (await counter.textContent())?.trim();
+	let after: string | undefined;
+	await expect
+		.poll(async () => (after = (await counter.textContent())?.trim()), { timeout: 5000 })
+		.toBe('count 12')
+		.catch(() => {}); // ok: the check below names what it read
 	check(
 		'island hydrated & interactive (click increments)',
 		after === 'count 12',

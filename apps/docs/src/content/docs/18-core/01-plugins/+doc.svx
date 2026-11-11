@@ -133,6 +133,8 @@ declare module '@ogygia/core/plugin' {
 | `name` · `options`                             | The plugin's name and its options from vite.config.                                                         |
 | `notify` · `ask`                               | Call the shared hooks (above).                                                                              |
 | `facts(request)` · `current()`                 | A request's facts. `current()` finds the request the running code belongs to (a load, a render), or `null`. |
+| `perVisitor(request, reason)`                  | Say the running render read something per visitor. No cache keeps it for another visitor.                   |
+| `observeReads(event)`                          | From now on, a cookie, personal header or `locals` value the render reads counts as a per-visitor read.     |
 | `sign(message)` · `verify(message, signature)` | The app's region key, as HMAC. The key itself is never handed out.                                          |
 | `capability`                                   | `mint` and `open` a signed URL for an endpoint the plugin serves, with the lifetime and renewal of a hole.  |
 | `devtools(event)`                              | Record an event into the current request's devtools stream. A no-op unless devtools is on for that browser. |
@@ -154,15 +156,15 @@ declare module '@ogygia/core/plugin' {
 
 Facts are what a request has learned so far, shared by every plugin and by core. Whichever code learns a fact writes it and whichever code needs it reads it, without either one importing the other.
 
-| Fact          | Meaning                                                                                                      |
-| ------------- | ------------------------------------------------------------------------------------------------------------ |
-| `storable`    | This render may be stored and served to others later. Its holes get long-lived URLs.                         |
-| `perVisitor`  | The first reason this render is per-visitor (a flag read, a streamed promise, a personal cookie), or `null`. |
-| `streamed`    | The page streams load promises after the document.                                                           |
-| `private`     | The response belongs to one browser (devtools is on for it). Never store or share it.                        |
-| `answerForm`  | An app transform renders this router-fetched page in a form a store keyed by path does not hold.             |
-| `sources`     | Data-source receipts the render filed, collected only once a plugin sets a list here.                        |
-| `assignments` | Every flag decided for this request, name to variant.                                                        |
+| Fact          | Meaning                                                                                                                                   |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `storable`    | This render may be stored and served to others later. Its holes get long-lived URLs.                                                      |
+| `reads`       | What the render read per visitor. `reads.perVisitor` is the first reason (a flag read, a streamed promise, a personal cookie), or `null`. |
+| `streamed`    | The page streams load promises after the document.                                                                                        |
+| `private`     | The response belongs to one browser (devtools is on for it). Never store or share it.                                                     |
+| `answerForm`  | An app transform renders this router-fetched page in a form a store keyed by path does not hold.                                          |
+| `sources`     | Data-source receipts the render filed, collected only once a plugin sets a list here.                                                     |
+| `assignments` | Every flag decided for this request, name to variant.                                                                                     |
 
 A plugin adds facts of its own the same way it adds hooks, with `declare module '@ogygia/core/plugin' { interface RequestFacts { … } }`.
 
