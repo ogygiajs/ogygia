@@ -2713,12 +2713,12 @@ class Profiler {
 	}
 
 	// ---- auth -------------------------------------------------------------
-	/** Is this request's visitor the profiler's logged-in user (its session cookie matches)? The
-	 *  beacon flag alone is a cookie anyone can set; it only spares the check for everyone else. */
+	/** Is this request's visitor the profiler's logged-in user? Its session cookie stays on the
+	 *  profiler's path, so a region request carries only the site-wide beacon flag: the flag's value
+	 *  is signed (`#flag_value`), and a bare `1` anyone can set is not it. */
 	async measures(event: RequestEvent): Promise<boolean> {
 		if (this.dev) return true;
-		if (event.cookies.get('og_profiler_beacon') !== '1') return false;
-		return this.#has_session(event);
+		return this.#flag_ok(event);
 	}
 
 	/** Does the request carry a live session (any of its `og_profiler` values)? Dev: always. */
@@ -2727,6 +2727,23 @@ class Profiler {
 		for (const value of session_cookie_values(event))
 			if (await this.#session_ok(value)) return true;
 		return false;
+	}
+
+	/** The beacon flag's value for a logged-in browser: an HMAC under the secret (none without one). */
+	async #flag_value(): Promise<string | null> {
+		if (!this.secret || !this.#secret_ok) return null;
+		const { createHmac } = await import('node:crypto');
+		return createHmac('sha256', this.secret).update('og-profiler-beacon-flag').digest('hex');
+	}
+
+	/** Does the request carry the signed beacon flag? */
+	async #flag_ok(event: RequestEvent): Promise<boolean> {
+		const sent = event.cookies.get('og_profiler_beacon');
+		if (!sent || sent.length !== 64) return false;
+		const want = await this.#flag_value();
+		if (want === null) return false;
+		const { timingSafeEqual } = await import('node:crypto');
+		return timingSafeEqual(Buffer.from(sent), Buffer.from(want));
 	}
 
 	/** The address a key attempt is charged to (one shared budget where the platform has none). */
@@ -2824,9 +2841,10 @@ class Profiler {
 	 *  "this browser is the profiler's user, put the beacon tag in its documents". The session
 	 *  cookie stays scoped to the profiler's own path (the `/beacon` POST is under it, so the
 	 *  runtime's post still carries the real session). Set with the session, cleared with it. */
-	#beacon_cookie(on: boolean, event: RequestEvent): string {
+	async #beacon_cookie(on: boolean, event: RequestEvent): Promise<string> {
 		const secure = event.url.protocol === 'https:' ? '; Secure' : '';
-		return `og_profiler_beacon=${on ? '1' : ''}; Path=/; HttpOnly; SameSite=Lax${secure}${on ? '' : '; Max-Age=0'}`;
+		const value = on ? ((await this.#flag_value()) ?? '') : '';
+		return `og_profiler_beacon=${value}; Path=/; HttpOnly; SameSite=Lax${secure}${on ? '' : '; Max-Age=0'}`;
 	}
 
 	/**
@@ -2912,11 +2930,12 @@ class Profiler {
 	 *  that keeps one per response must not lose the session for it. */
 	async #flag_cookie(event: RequestEvent, res: Response): Promise<Response> {
 		if (this.dev || !this.secret || res.headers.has('set-cookie')) return res;
-		const flag = event.cookies.get('og_profiler_beacon') === '1';
+		// (a flag from before it was signed, `1`, is not the flag: replaced on the next response)
+		const flag = await this.#flag_ok(event);
 		const session = await this.#has_session(event);
 		if (session === flag) return res;
 		const out = new Response(res.body, res);
-		out.headers.append('set-cookie', this.#beacon_cookie(session, event));
+		out.headers.append('set-cookie', await this.#beacon_cookie(session, event));
 		return out;
 	}
 
@@ -6833,8 +6852,7 @@ class Profiler {
 			return null;
 		if (!this.dev) {
 			const key = event.request.headers.get('x-profiler-key');
-			if (key ? !(await this.#key_ok(key, event)) : event.cookies.get('og_profiler_beacon') !== '1')
-				return null;
+			if (key ? !(await this.#key_ok(key, event)) : !(await this.#flag_ok(event))) return null;
 		}
 		// (with the standalone beacon for a page that never boots the ogygia runtime: a Kit-hydrated
 		// page reports its vitals, long tasks and CPU too — it steps aside when the runtime is there)

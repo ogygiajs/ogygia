@@ -153,6 +153,14 @@
 			"reason": "one map read and a clock read (hidden state), constant work; proven in packages/core/test/audit-fixes.test.ts"
 		},
 		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #flag_value",
+			"reason": "one HMAC under the secret (node:crypto, a profiler instance), constant work; proven in packages/devtools/test/profiler-measures.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #flag_ok",
+			"reason": "reads one cookie of a RequestEvent (not cloneable) and compares in constant time, constant work; proven in packages/devtools/test/profiler-measures.test.ts"
+		},
+		{
 			"id": "packages/devtools/src/profiler/index.ts > profiler > assign:0~28ebd3",
 			"reason": "the profiler's handle: forwards to Profiler.handle (a RequestEvent, not cloneable), one call; the work is Profiler.handle's"
 		},

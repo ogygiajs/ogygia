@@ -50,21 +50,36 @@ describe('profiler: measures', () => {
 		);
 	});
 
-	it('a logged-in user is', async () => {
+	it('a logged-in browser measures with the site-wide flag alone (its session stays on the profiler path)', async () => {
 		dev_switch.dev = false;
 		const handle = profiler({ secret: SECRET });
-		const login = await handle({
-			event: event('/__profiler/login', null, {
+		const run = (e: RequestEvent) => handle({ event: e, resolve: async () => new Response('app') });
+		const login = await run(
+			event('/__profiler/login', null, {
 				method: 'POST',
 				body: JSON.stringify({ key: SECRET, next: '/__profiler' })
-			}),
-			resolve: async () => new Response('app')
-		});
+			})
+		);
 		const token = COOKIE_PAIR_RE.exec(
 			login.headers.getSetCookie().find((c) => c.startsWith('og_profiler='))!
 		)![1];
-		expect(await handle.measures(event('/', `og_profiler_beacon=1; og_profiler=${token}`))).toBe(
-			true
-		);
+		// the next profiler page sets the flag (Path=/): the only profiler cookie a region request carries
+		const page = await run(event('/__profiler', `og_profiler=${token}`));
+		const flag = /^og_profiler_beacon=([^;]*)/.exec(
+			page.headers.getSetCookie().find((c) => c.startsWith('og_profiler_beacon='))!
+		)![1]!;
+		expect(flag).not.toBe('');
+		expect(await handle.measures(event('/__ogygia__', `og_profiler_beacon=${flag}`))).toBe(true);
+		expect(await handle.measures(event('/__ogygia__', 'og_profiler_beacon=1'))).toBe(false);
+	});
+
+	it('a flag signed under another secret is not', async () => {
+		dev_switch.dev = false;
+		const { createHmac } = await import('node:crypto');
+		const other = createHmac('sha256', SECRET + '-other')
+			.update('og-profiler-beacon-flag')
+			.digest('hex');
+		const handle = profiler({ secret: SECRET });
+		expect(await handle.measures(event('/', `og_profiler_beacon=${other}`))).toBe(false);
 	});
 });
