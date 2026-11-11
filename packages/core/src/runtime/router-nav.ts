@@ -32,6 +32,7 @@ import type { HistoryEntry, HistoryMove, SpaRouter } from './router.ts';
 import { spa_html_cacheable } from './spa-cacheable.ts';
 import { pin_region_urls } from './entry-locations.ts';
 import { emit as dt_emit } from '../events/bus.ts';
+import { tags, text_of } from '../wire-markup.ts';
 
 // What this lazy chunk uses from the boot and from the router, handed over through the registry — it
 // never imports a boot module (./slots.ts `BootLink`: a module both import is split out of the runtime
@@ -176,23 +177,6 @@ const STYLESHEET_WAIT_MS = 2_000;
 const ATTACHMENT = /^\s*attachment\b/i;
 /** Kit remote-function POSTs live under `…/_app/remote/…` (or custom `appDir`). */
 const REMOTE_MUTATION_PATH = /\/remote(?:\/|$|\?)/;
-/** An `<ogygia-region>` open tag's attributes (shared `g` regex — reset `lastIndex` per scan). */
-const REGION_OPEN_TAG_G = /<ogygia-region\b([^>]*)>/g;
-
-/** One attribute's value in an open tag's attribute text (our own SSR: `name="value"`, no quotes
- *  inside a value). Null when absent. @internal Exported for unit tests. */
-export function tag_attr(attrs: string, name: string): string | null {
-	const key = ' ' + name + '="';
-	const at = attrs.indexOf(key);
-	if (at === -1) return null;
-	const from = at + key.length;
-	const to = attrs.indexOf('"', from);
-	return to === -1 ? null : attrs.slice(from, to);
-}
-/** The island graph scripts in our own SSR output (island-graph.ts; the JSON is `<`-escaped, so
- *  its text never holds a `<`). */
-const ISLAND_GRAPH_SCRIPT_G =
-	/<script type="application\/json" data-ogygia-graph>([^<]*)<\/script>/g;
 
 /** Stable-ish head node identity without serializing full outerHTML when possible. */
 export function head_node_key(node: Element): string {
@@ -539,21 +523,19 @@ async function run_page_fetch({ href, purpose }: PageAsk, signal: AbortSignal): 
 function warm_modules(href: string, html: string) {
 	if (warmed_pages.has(href)) return;
 	warmed_pages.add(href);
-	// Match `entry="…"` on ogygia-region open tags in our own SSR output (module URLs never contain
-	// a double-quote), collecting the distinct client-island module specifiers. URL-level dedupe +
-	// failure-retry live in the shared warmer (one scheme for router/visible/interaction warms).
-	// The page's island graph first, so each warm below preloads its island's whole graph with it.
-	ISLAND_GRAPH_SCRIPT_G.lastIndex = 0;
-	let g: RegExpExecArray | null;
-	while ((g = ISLAND_GRAPH_SCRIPT_G.exec(html)))
-		register_island_graph(g[1], new URL(href, location.href).href);
+	// URL-level dedupe + failure-retry live in the shared warmer (one scheme for
+	// router/visible/interaction warms). The page's island graph first, so each warm below preloads
+	// its island's whole graph with it.
+	for (const t of tags(html, 'script')) {
+		if (t.attrs.get('type') !== 'application/json' || !t.attrs.has('data-ogygia-graph')) continue;
+		const json = text_of(html, t, 'script');
+		if (json !== null) register_island_graph(json, new URL(href, location.href).href);
+	}
 	// Each region's identity, and its location beside it (the file the warm then fetches)
-	REGION_OPEN_TAG_G.lastIndex = 0; // shared `g` regex — start each scan at 0
-	let m: RegExpExecArray | null;
-	while ((m = REGION_OPEN_TAG_G.exec(html))) {
-		const entry = tag_attr(m[1], 'entry');
+	for (const t of tags(html, 'ogygia-region')) {
+		const entry = t.attrs.get('entry');
 		if (!entry) continue;
-		note_entry_location(entry, tag_attr(m[1], 'src'), href);
+		note_entry_location(entry, t.attrs.get('src') ?? null, href);
 		warm_island_module(entry, href);
 	}
 }

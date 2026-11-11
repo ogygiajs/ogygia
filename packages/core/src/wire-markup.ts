@@ -268,8 +268,10 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	ogygiaSpeculateHint: { attr: 'data-ogygia-speculate-hint', by: 'page' }
 } as const satisfies Record<string, Mark>;
 
-// static: every declared marker's name, made once from MARK
-const DECLARED: ReadonlySet<string> = new Set(Object.values(MARK).map((m) => m.attr));
+// static: every declared marker's name, made once from MARK (pure: a bundle that reads only the
+// tag reader drops it, and MARK with it)
+const DECLARED: ReadonlySet<string> = /* @__PURE__ */ (() =>
+	new Set(Object.values(MARK).map((m) => m.attr)))();
 
 const MARKER = /^data-og(?:ygia)?-/;
 
