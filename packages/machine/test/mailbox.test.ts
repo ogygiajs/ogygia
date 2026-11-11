@@ -154,6 +154,23 @@ describe('mailbox', () => {
 		await held;
 	});
 
+	it('a queued ask that has run leaves the wait list, so a long-lived box does not grow (#564)', async () => {
+		const box = mailbox(scope());
+		for (let i = 0; i < 100; i++) {
+			let release!: () => void;
+			// (held on a plain await, not turn.wait: the ask below is queued, not started)
+			box.post(async () => {
+				await new Promise<void>((r) => (release = r));
+			});
+			const asked = box.ask(() => i);
+			release();
+			expect(await asked).toBe(i);
+			await later(null, 0);
+		}
+		// (an internal look: the list holds only the waits still out)
+		expect((box as unknown as { _waiting: Set<unknown> | null })._waiting?.size ?? 0).toBe(0);
+	});
+
 	it('throws a handler’s failure to its asker, and a wait’s rejection back in the turn', async () => {
 		const box = mailbox(scope());
 		await expect(
