@@ -1,0 +1,19 @@
+{
+	"$schema": "../../node_modules/oxlint/configuration_schema.json",
+	"plugins": [],
+	"categories": {},
+	"jsPlugins": ["./plugin.ts"],
+	"rules": {
+		"ogygia/structured-comments": "warn"
+	},
+	"ignorePatterns": [
+		"**/dist/**",
+		"**/build/**",
+		"**/.svelte-kit/**",
+		"**/.vercel/**",
+		"svelte/**",
+		"kit/**",
+		".heisenbench/**",
+		"packages/*/bench/__heisenbench.d.ts"
+	]
+}

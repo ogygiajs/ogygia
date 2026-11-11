@@ -18,7 +18,7 @@ let out: string;
 try {
 	out = execFileSync(
 		join(root, 'node_modules/.bin/oxlint'),
-		['-f', 'json', '-A', 'all', '-W', 'ogygia/structured-comments', path],
+		['-c', 'internal/lint/comments.oxlintrc.json', '-f', 'json', path],
 		{ cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 }
 	);
 } catch (e) {
