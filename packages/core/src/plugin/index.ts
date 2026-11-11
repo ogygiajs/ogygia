@@ -12,6 +12,7 @@
  *     async page(ctx) { … },                  // FIRST: a Response answers the page request
  *     async response(ctx, res) { … },         // SEQUENTIAL: a Response replaces the page's
  *     done(ctx) { … },                        // PARALLEL: the request's end, always
+ *     pass(event) { … },                      // the app's own pass over the HTML (one plugin's)
  *     invalidate(tags) { … }                  // a SHARED hook: anyone calls app.notify.invalidate()
  *   });
  *
@@ -154,7 +155,25 @@ export type ServerPlugin<Options = undefined, State = undefined> = Partial<Serve
 	 *  itself (a long-running server keeps it alive). The response never waits for it. A failure in
 	 *  it never fails the request: say what went wrong yourself. */
 	done?(ctx: RequestContext<Options, State>): void | Promise<void>;
+	/** The app's own pass over the HTML this request sends (a web-component server render), or
+	 *  nothing when it has none. Asked whenever ogygia needs to know; the first plugin to answer owns
+	 *  it. Sync: a lookup, never work. */
+	pass?(event: RequestEvent): HtmlPass | undefined;
 };
+
+/** An app's own pass over the HTML ogygia sends (`ServerPlugin.pass`). */
+export interface HtmlPass {
+	/** A document: the chunk carrying `</head>` (a streamed tail is never passed). `csr`: Kit
+	 *  hydrates the page; `answer`: the router fetched it, so it is rendered as an answer. Out: the
+	 *  HTML, what goes before `</head>`, and what goes first before `</body>`, in the document's one
+	 *  assembly. */
+	document(
+		html: string,
+		page: { csr: boolean; answer: boolean }
+	): Promise<{ html: string; head: string; body: string }>;
+	/** A region answer (a hole, a batched hole, a lake remount), fully assembled. */
+	region(html: string): Promise<string>;
+}
 
 /** Typed identity: a plugin's server half. */
 export function defineServer<Options = undefined, State = undefined>(
