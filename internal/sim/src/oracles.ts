@@ -634,10 +634,20 @@ export function hydrates_as_sent(tab: Tab, world?: World): Broken | null {
 	if (world !== undefined && document_faulted(world, tab)) return null;
 	const url = tab.page.mainFrame.url;
 	if (UNHYDRATED_BY_DESIGN.some((d) => d.path.test(new URL(url).pathname))) return null;
-	return {
-		oracle: 'ssr-hydrate',
-		detail: `${url}: ${said.map((l) => l.split('\n')[0]).join('\n')}`
-	};
+	const detail = `${url}: ${said.map((l) => l.split('\n')[0]).join('\n')}`;
+	// #831: a region module asked for again (`og-retry`) after a nested island's download failed
+	// stands in for the outer region's module, which then hydrates the wrong component
+	const retried =
+		world !== undefined &&
+		world.network.exchanges.some(
+			(e) => e.from === tab.realm && /\/og-region\.[^/?]+\?og-retry=/.test(e.url)
+		);
+	if (retried)
+		return {
+			oracle: 'known',
+			detail: `${detail}: #831 (a retried import hands back the file its error named)`
+		};
+	return { oracle: 'ssr-hydrate', detail };
 }
 
 /** What a page says because of a filed bug, as KNOWN is for a DOM difference: a seed that says
