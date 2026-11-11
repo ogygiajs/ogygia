@@ -556,12 +556,12 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 		);
 }
 
-/** Was the HTML of the document `tab` shows changed or cut on its way? */
+/** Was the HTML of the document `tab` shows changed or cut on its way? (Its own load is the first
+ *  request of its realm, whatever URL the router has moved it to since: seed 471, a changed byte
+ *  in `/` and a click to /static.) */
 export function document_faulted(world: World, tab: Tab): boolean {
-	const url = tab.page.mainFrame.url.split('#')[0];
-	return world.network.exchanges.some(
-		(e) => e.from === tab.realm && e.method === 'GET' && e.url === url && (e.tampered || e.cut)
-	);
+	const own = world.network.exchanges.find((e) => e.from === tab.realm);
+	return own !== undefined && (own.tampered || own.cut);
 }
 
 /** What a page may say when the network failed it: ogygia's coded reports, the network's own
@@ -615,7 +615,12 @@ const UNHYDRATED = /svelte\.dev\/e\/hydration_mismatch|ogygiajs\.dev\/e\/hydrati
 
 /** Pages of the test app that serve HTML their islands do not hydrate as it is, on purpose, each
  *  with its reason. Never add one for HTML ogygia itself got wrong. */
-const UNHYDRATED_BY_DESIGN: ReadonlyArray<{ path: RegExp; why: string }> = [];
+const UNHYDRATED_BY_DESIGN: ReadonlyArray<{ path: RegExp; why: string }> = [
+	{
+		path: /^\/detector$/,
+		why: "its hooks strip one region's hydration anchors, for the foreign-mutation detector's e2e"
+	}
+];
 
 /**
  * THE SERVER'S HTML IS THE LIVE PAGE: a region hydrates the HTML the server sent as it is. Svelte
