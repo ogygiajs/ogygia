@@ -52,6 +52,30 @@ export interface WorldOptions {
 	/** Files the app's own test harness serves (a Playwright `page.route`), by path: answered at
 	 *  the front door as an empty file of their kind, as the rest of the web is. */
 	supplied?: readonly string[];
+	/** How a deploy goes out (`World.deploy_next`). Default: at once, old files gone, no purge. */
+	rollover?: Rollover;
+}
+
+/**
+ * HOW A DEPLOY GOES OUT, as hosts do it: the new build takes requests, while pages of the old one
+ * stay open in tabs.
+ */
+export interface Rollover {
+	/** ms after a deploy during which a request may still reach the old build (a rolling deploy:
+	 *  old and new servers side by side), each with even odds. 0: at once. */
+	readonly window: number;
+	/** The host keeps every release's content-hashed files (`/_app/immutable/`): an old page's
+	 *  lazy chunk still downloads. Else they are gone with the old build. */
+	readonly old_files: boolean;
+	/** The deploy purges the CDN. */
+	readonly purge: boolean;
+}
+
+/** A deploy that happened. */
+export interface Deployed {
+	readonly at: number;
+	readonly from: string;
+	readonly to: string;
 }
 
 export class World {
@@ -126,7 +150,14 @@ export class World {
 		// a page's (or a server's) uncaught error reaches the host process: it is the run's finding,
 		// not the simulator's crash
 		// (an error from a tab is of the tab's realm: not `instanceof` the host's Error)
-		const uncaught = (error: unknown) => {
+		const uncaught = (error: unknown, promise?: unknown) => {
+			// (a shown document's rejection is that page's: its window hears it, as in a browser)
+			if (
+				typeof promise === 'object' &&
+				promise !== null &&
+				w.browsers.reject_in_page(error, promise as Promise<unknown>)
+			)
+				return;
 			const stack = (error as { stack?: unknown } | null)?.stack;
 			w.uncaught.push(
 				typeof stack === 'string' ? stack.split('\n').slice(0, 6).join('\n') : String(error)
@@ -148,6 +179,57 @@ export class World {
 		};
 		await w.deploy(o.builds[0]);
 		return w;
+	}
+
+	/** The deploys so far, in order. */
+	readonly deployed: Deployed[] = [];
+
+	/** Deploys the build after the live one (`rollover` says how); false when there is none. */
+	async deploy_next(): Promise<boolean> {
+		const at = this.#o.builds.findIndex((b) => b.id === this.live);
+		const next = this.#o.builds[at + 1];
+		if (next === undefined) return false;
+		const from = this.live;
+		await this.deploy(next);
+		this.deployed.push({ at: this.loop.now, from, to: next.id });
+		if (this.#o.rollover?.purge) this.cdn.purge();
+		this.loop.note(
+			`deploy ${from} -> ${next.id} (window ${this.#o.rollover?.window ?? 0} ms, old files ${this.#o.rollover?.old_files ? 'kept' : 'gone'}${this.#o.rollover?.purge ? ', CDN purged' : ''})`
+		);
+		return true;
+	}
+
+	/** Content-hashed files (`/_app/immutable/…`) a request asked a build for that only another
+	 *  build has: an old page's file after its build is gone, or, in a rolling deploy's window, a
+	 *  file of one build asked of the other's servers. The deploy, not the app, failed them. */
+	readonly skewed = new Set<string>();
+
+	/** Whether a deploy failed a download of `path` (`skewed`). */
+	gone(path: string): boolean {
+		return this.skewed.has(path);
+	}
+
+	/** The build a request goes to now: the live one, or during a rolling deploy's window, by even
+	 *  odds, the one before it. A content-hashed file only another build has goes to that build
+	 *  when the host keeps old files. */
+	#build_for(path: string): string {
+		const last = this.deployed.at(-1);
+		let id = this.live;
+		if (
+			last !== undefined &&
+			this.loop.now < last.at + (this.#o.rollover?.window ?? 0) &&
+			this.rng.chance(0.5)
+		)
+			id = last.from;
+		if (this.deployed.length > 0 && path.startsWith('/_app/immutable/')) {
+			const serves = (b: string) => this.servers.get(b)![0].serves(path);
+			const other = serves(id) ? undefined : [...this.servers.keys()].reverse().find(serves);
+			if (other !== undefined) {
+				if (this.#o.rollover?.old_files) id = other;
+				else this.skewed.add(path);
+			}
+		}
+		return id;
 	}
 
 	/** Starts the instances of `build` and sends new requests to it (a deploy, or the first start). */
@@ -188,7 +270,7 @@ export class World {
 			return Promise.resolve(new Response('', { headers: { 'content-type': type } }));
 		}
 		return this.cdn.fetch(request, (r) => {
-			const list = this.servers.get(this.live)!;
+			const list = this.servers.get(this.#build_for(decodeURIComponent(url.pathname)))!;
 			return list[this.rng.int(list.length)].handle(r);
 		});
 	}

@@ -377,6 +377,29 @@ export class Browsers {
 		});
 	}
 
+	/**
+	 * A rejection nobody handled, from a promise of a shown document's realm: the page's, as in a
+	 * browser, which fires `unhandledrejection` on that window (the tab's listener records it, and
+	 * ogygia's rules hear it). A vm context's promise reaches the host's process otherwise. False
+	 * when no shown document made it (the host's, or a document already left).
+	 */
+	reject_in_page(reason: unknown, promise: Promise<unknown>): boolean {
+		for (const v of this.visitors)
+			for (const t of v.tabs) {
+				const w = t.page.mainFrame.window as unknown as {
+					Promise: PromiseConstructor;
+					Event: typeof Event;
+					dispatchEvent(e: Event): boolean;
+				};
+				if (!(promise instanceof w.Promise)) continue;
+				const e = new w.Event('unhandledrejection', { cancelable: true });
+				Object.assign(e, { reason, promise });
+				w.dispatchEvent(e);
+				return true;
+			}
+		return false;
+	}
+
 	#find(window: BrowserWindow): Tab | undefined {
 		// (by page: a window being replaced by a navigation is no longer, or not yet, the main frame's)
 		const page = new WindowBrowserContext(window).getBrowserPage();

@@ -99,6 +99,8 @@ export interface ServerInstance {
 	/** ms its wall clock is off. */
 	readonly skew: number;
 	handle(request: Request): Promise<Response>;
+	/** Whether its build has the static file at `path` (decoded). */
+	serves(path: string): boolean;
 	/** Removes its copy of the build (its modules stay loaded in this process). */
 	stop(): void;
 }
@@ -187,6 +189,7 @@ export async function start_server(
 					return kit.respond(request, { getClientAddress: () => '10.0.0.1', platform: {} });
 				})
 			),
+		serves: (path) => files.client.has(path),
 		stop: () => rmSync(dir, { recursive: true, force: true })
 	};
 	return instance;

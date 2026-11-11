@@ -607,8 +607,24 @@ export function document_faulted(world: World, tab: Tab): boolean {
 const EXPLAINED =
 	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response/;
 
+/** How the browser, or ogygia with its code, says a module or file did not download. */
+const NOT_DOWNLOADED =
+	/ogygiajs\.dev\/e\/|Failed to fetch dynamically imported module|^error: <(script|link)> \S+ failed|Failed to perform request/;
+
+/**
+ * A failure a deploy explains: a page asked for a content-hashed file its build had and the host
+ * no longer serves (the old build's files gone with it), said as the browser says a download
+ * failed, or by ogygia with its code. ogygia's own words without a code are never excused.
+ */
+function deploy_took(world: World, line: string): boolean {
+	if (!NOT_DOWNLOADED.test(line)) return false;
+	for (const m of line.matchAll(/(?:https:\/\/app\.test)?(\/_app\/immutable\/[\w./-]+)/g))
+		if (world.gone(m[1])) return true;
+	return false;
+}
+
 /** No uncaught error, unhandled rejection or console error in the page (beyond what a network
- *  fault on this document explains, when `world` is given). */
+ *  fault on this document explains, or a deploy, when `world` is given). */
 export function page_errors(tab: Tab, world?: World, since?: number): Broken | null {
 	// (a fault on the shown document stays its fact: a module whose download was cut fails every
 	// later import of it in that document, as the module map keeps the failure)
@@ -618,7 +634,7 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 	// `type="application/ogygia-page"` hid the page data, and the island read a missing field)
 	if (world !== undefined && document_faulted(world, tab)) return null;
 	const errors = [...tab.errors, ...tab.console.filter((l) => l.startsWith('error:'))].filter(
-		(l) => !(excused && EXPLAINED.test(l))
+		(l) => !(excused && EXPLAINED.test(l)) && !(world !== undefined && deploy_took(world, l))
 	);
 	if (errors.length === 0) return null;
 	const known = KNOWN_SAID.filter((k) => errors.some((l) => k.said.test(l)));
