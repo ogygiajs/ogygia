@@ -25,6 +25,17 @@ export const FEDERATION_ERRORS = {
 			something that is not a peer. Return one of the peers \`federate({ peers })\` made, for
 			every request the page serves.
 		`
+	},
+	shared_state_not_plain: {
+		text: (a: { name: string; reason: string }): string => prose`
+			SharedState '${a.name}': values must be plain data (devalue-serializable — JSON, Date, Map,
+			Set, BigInt, RegExp). Functions, class instances, and DOM nodes do not cross build
+			boundaries — share facts, not live objects. (${a.reason})
+		`,
+		details: (): string => prose`
+			Shared state crosses between builds as data, so its values must serialize. Share plain
+			facts; keep live objects (functions, class instances, DOM nodes) on one side.
+		`
 	}
 };
 

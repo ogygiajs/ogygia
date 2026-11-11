@@ -104,7 +104,7 @@ export function kind_of(url: string, page_url: string): CodeKind {
 		path.includes('/packages/core/') ||
 		path.includes('/node_modules/ogygia/') ||
 		path.includes('/node_modules/@ogygia/core/') ||
-		path.includes('virtual:ogygia')
+		path.includes('ogygia:')
 	)
 		return 'ogygia';
 	if (path.includes('/node_modules/')) return 'dependency';

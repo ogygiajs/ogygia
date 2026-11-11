@@ -1,7 +1,7 @@
 /**
  * Plugin hooks in dev (#251): a real Vite dev server loads the app's server hooks the way Kit does
  * (the app's `hooks.server.ts` imports `ogygia/server`, core's handle module, which makes the
- * plugins listed in `virtual:ogygia/server-plugins` live), by both loaders an app's server uses
+ * plugins listed in `ogygia:server/server-plugins` live), by both loaders an app's server uses
  * (Kit 2 through `ssrLoadModule`, Kit 3 through the ssr environment's runner).
  *
  * An edit to a plugin's server half (or anything it imports) runs it again, and with it the handle
@@ -20,7 +20,7 @@ import { ask, notify } from '../src/plugin/hooks.ts';
 import { edit as dev_edit } from './_dev-edit.ts';
 
 const own = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
-const V = 'virtual:ogygia/server-plugins';
+const V = 'ogygia:server/server-plugins';
 
 type Load = (srv: ViteDevServer, url: string) => Promise<Record<string, unknown>>;
 const LOADERS: Array<[string, Load]> = [
@@ -34,8 +34,13 @@ const LOADERS: Array<[string, Load]> = [
 const heard = (): string[] =>
 	((globalThis as Record<string, unknown>).__og_hooks_dev_heard ??= []) as string[];
 
+/** The edit of the plugin's body that the plugin's module last ran with. */
+const ran = (): number | undefined =>
+	(globalThis as Record<string, unknown>).__og_hooks_dev_ran as number | undefined;
+
 /** A plugin whose answer and whose notes name the run of its module (`edit` in its body). */
 const answering = `import { edit } from './answering-body.ts';
+globalThis.__og_hooks_dev_ran = edit;
 export default {
 	lastBuild: () => 'answer of run ' + edit,
 	invalidate: () => void globalThis.__og_hooks_dev_heard.push('answering, run ' + edit)
@@ -51,6 +56,7 @@ let server: ViteDevServer | null = null;
 let root = '';
 beforeEach(() => {
 	heard().length = 0;
+	delete (globalThis as Record<string, unknown>).__og_hooks_dev_ran;
 });
 afterEach(async () => {
 	await server?.close();
@@ -79,7 +85,7 @@ async function start(): Promise<{
 		'src/hooks.server.ts',
 		`import { handle as ogygia } from ${JSON.stringify(own('../src/hooks.ts'))};\nexport const handle = ogygia();\n`
 	);
-	// the plugin list the build makes (`virtual:ogygia/server-plugins`), as the compiler emits it
+	// the plugin list the build makes (`ogygia:server/server-plugins`), as the compiler emits it
 	const plugin_list: Plugin = {
 		name: 'server-plugins',
 		resolveId: (id) => (id === V ? '\0' + V : undefined),
@@ -103,9 +109,10 @@ async function start(): Promise<{
 		resolve: {
 			alias: [
 				{ find: /^\$app\/(.*)$/, replacement: own('./_stubs/app-$1.ts') },
+				{ find: /^ogygia:(server|boot|region|dev)$/, replacement: own('./_stubs/realm-$1.ts') },
 				{
-					find: /^virtual:ogygia\/(?!server-plugins$)(.*)$/,
-					replacement: own('./_stubs/virtual-$1.ts')
+					find: /^ogygia:(server|boot|region|dev)\/(?!server-plugins$)([^/]+)$/,
+					replacement: own('./_stubs/$1.$2.ts')
 				}
 			]
 		},
@@ -121,33 +128,35 @@ async function start(): Promise<{
 	return { srv: server, edit: (rel, text) => dev_edit(watcher, path.join(root, rel), text) };
 }
 
-/** The app's hooks as the next request loads them, once an edit has run them again. */
-async function reloaded(
-	load: Load,
-	srv: ViteDevServer,
-	before: Record<string, unknown>
-): Promise<Record<string, unknown>> {
-	const until = Date.now() + 10_000;
+/**
+ * Loads the app's hooks as the next request does, until they have run again with edit `n` of the
+ * plugin's body. A new hooks module alone does not say that: a late watcher report of another file
+ * (macOS reports the fixture's own writes late under load) runs the hooks again before Vite has
+ * invalidated the edited body, and that run still holds the old plugin.
+ */
+async function reloaded(load: Load, srv: ViteDevServer, n: number): Promise<void> {
+	const until = Date.now() + 45_000;
 	while (Date.now() < until) {
-		const mod = await load(srv, '/src/hooks.server.ts');
-		if (mod !== before) return mod;
+		await load(srv, '/src/hooks.server.ts');
+		if (ran() === n) return;
 		await new Promise((r) => setTimeout(r, 25));
 	}
-	throw new Error('the edit never ran the hooks again');
+	throw new Error(`the hooks never ran again with edit ${n} of the plugin`);
 }
 
 describe.each(LOADERS)(
 	'plugin hooks in dev (#251), loaded by %s',
-	{ timeout: 30_000 },
+	{ timeout: 120_000 },
 	(_, load) => {
 		it('two edits of a plugin: only its current run answers and hears; the other plugin hears once', async () => {
 			const { srv, edit } = await start();
-			let hooks = await load(srv, '/src/hooks.server.ts');
+			await load(srv, '/src/hooks.server.ts');
+			expect(ran()).toBe(0);
 			expect(await ask.lastBuild('v')).toBe('answer of run 0');
 
 			for (const n of [1, 2]) {
 				await edit('plugins/answering-body.ts', `export const edit = ${n};\n`);
-				hooks = await reloaded(load, srv, hooks);
+				await reloaded(load, srv, n);
 				expect(await ask.lastBuild('v')).toBe(`answer of run ${n}`);
 			}
 

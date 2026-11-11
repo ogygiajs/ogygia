@@ -8,12 +8,12 @@
 import { defineServer, type Handle, type ServerApp, type ServerPlugin } from '@ogygia/core/plugin';
 import { set_devtools_app } from './app.ts';
 import { want_request_stats } from '@ogygia/core/internal/server';
-import { flights, STALE } from '@ogygia/machine';
+import { flights, say, STALE } from '@ogygia/machine';
 import type { ProfilerOptions } from './profiler/index.ts';
 import { profiler_demand_skip } from './profiler/on-demand.ts';
 import { OgygiaError } from './messages/runtime.ts';
 
-/** What `devtools()` hands its server half (vite.config → `virtual:ogygia/server-plugins`). The
+/** What `devtools()` hands its server half (vite.config → `ogygia:server/server-plugins`). The
  *  profiler's `secret` is here only when the app passed one (then it IS baked into the server build,
  *  on purpose — a serverless host may have no runtime env); left out, the profiler reads
  *  OGYGIA_PROFILER_SECRET at runtime. */
@@ -46,17 +46,16 @@ const mounting = flights.keyed<{ options: ProfilerOptions }>()({
 });
 
 /** a failed mount was said (once for the process: an edge runtime fails every request the same way) */
-let mount_failure_said = false;
+const mount_failure = say({ max: 1 });
 
 async function mount(options: ProfilerOptions): Promise<Handle | null> {
 	// (nothing drops the mount, so it is never STALE)
 	return mounting.get({ options }).then(
 		(m) => (m === STALE ? null : m),
 		(error: unknown) => {
-			if (!mount_failure_said) {
-				mount_failure_said = true;
-				console.error(new OgygiaError('devtools_profiler_mount_failed'), error);
-			}
+			mount_failure.once('mount', () =>
+				console.error(new OgygiaError('devtools_profiler_mount_failed'), error)
+			);
 			return null;
 		}
 	);
