@@ -1,15 +1,14 @@
 <script lang="ts">
 	import PageHead from '$lib/PageHead.svelte';
-	import Bar from '$lib/tests/Bar.svelte';
 	import VersionPicker from '$lib/tests/VersionPicker.svelte';
-	import { KINDS, count, slug_of } from '$lib/tests/data';
+	import { KINDS, count, percent, slug_of } from '$lib/tests/data';
 	import '$lib/tests/tests.css';
 
 	let { data } = $props();
 	const s = $derived(data.summary);
 	const t = $derived(s.totals);
 	const engines = $derived(
-		(['chromium', 'firefox', 'webkit'] as const).map((id) => {
+		(s.engines ?? (['chromium', 'firefox', 'webkit'] as const)).map((id) => {
 			const r = t.byEngine[id];
 			return {
 				id,
@@ -24,12 +23,11 @@
 	const share = (n: number, total: number) => (total ? (n / total) * 100 : 0);
 	const ratio = (test: number, src: number) => (src ? (test / src).toFixed(2) : '–');
 	const day = $derived(s.date.slice(0, 10));
-	const sample = $derived(s.version.includes('sample'));
 </script>
 
 <PageHead
 	title="Tests"
-	description="How ogygia is tested: every test in every release, by kind, by browser engine and by package, with coverage."
+	description="How ogygia is tested: every test in every release, by kind, by browser engine and by package."
 	category="Tests"
 />
 
@@ -49,8 +47,10 @@
 		>
 		<time datetime={s.date}>{day}</time>
 	</div>
-	{#if sample}
-		<p class="sample">Sample data. The real report for each release replaces it.</p>
+	{#if s.e2e === false}
+		<p class="notice">
+			End-to-end suites are not part of this report yet. Their counts start with a later release.
+		</p>
 	{/if}
 
 	<section class="headline" aria-label="Headline numbers">
@@ -125,35 +125,28 @@
 	</div>
 
 	<h2 id="coverage">Coverage</h2>
-	<div class="table-wrap">
-		<table>
-			<tbody>
-				<tr><th scope="row">Lines</th><td class="cov"><Bar value={t.coverage.lines} /></td></tr>
-				<tr
-					><th scope="row">Branches</th><td class="cov"><Bar value={t.coverage.branches} /></td></tr
-				>
-				<tr
-					><th scope="row">Functions</th><td class="cov"><Bar value={t.coverage.functions} /></td
-					></tr
-				>
-				<tr
-					><th scope="row">Statements</th><td class="cov"><Bar value={t.coverage.statements} /></td
-					></tr
-				>
-			</tbody>
-		</table>
-	</div>
+	<ul class="stats">
+		<li><span class="n">{percent(t.coverage.lines)}</span><span class="what">Lines</span></li>
+		<li><span class="n">{percent(t.coverage.branches)}</span><span class="what">Branches</span></li>
+		<li>
+			<span class="n">{percent(t.coverage.functions)}</span><span class="what">Functions</span>
+		</li>
+		<li>
+			<span class="n">{percent(t.coverage.statements)}</span><span class="what">Statements</span>
+		</li>
+	</ul>
 
 	<h2 id="packages">By package</h2>
 	<div class="table-wrap">
 		<table>
-			<caption>Pick a package to see each of its tests and the coverage of each file.</caption>
+			<caption>Pick a package to see each of its tests and its result in each engine.</caption>
 			<thead>
 				<tr>
 					<th scope="col">Package</th>
 					<th scope="col" class="num">Tests</th>
-					<th scope="col">Lines covered</th>
-					<th scope="col">Branches covered</th>
+					<th scope="col" class="num">Lines</th>
+					<th scope="col" class="num">Branches</th>
+					<th scope="col" class="num">Functions</th>
 					<th scope="col" class="num">Test : source</th>
 					<th scope="col" class="num">Failing</th>
 				</tr>
@@ -167,8 +160,9 @@
 							></th
 						>
 						<td class="num">{count(p.tests)}</td>
-						<td class="cov"><Bar value={p.coverage.lines} /></td>
-						<td class="cov"><Bar value={p.coverage.branches} /></td>
+						<td class="num">{percent(p.coverage.lines)}</td>
+						<td class="num">{percent(p.coverage.branches)}</td>
+						<td class="num">{percent(p.coverage.functions)}</td>
 						<td class="num">{ratio(p.testLines, p.srcLines)}</td>
 						<td class="num" class:fails={p.fail > 0}>{count(p.fail)}</td>
 					</tr>

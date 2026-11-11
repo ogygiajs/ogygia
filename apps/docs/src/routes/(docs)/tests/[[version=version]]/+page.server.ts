@@ -1,4 +1,4 @@
-import { summary, versions } from '$lib/tests/data';
+import { summary, versions } from '$lib/tests/report.server';
 import type { EntryGenerator, PageServerLoad } from './$types';
 
 export const prerender = true;

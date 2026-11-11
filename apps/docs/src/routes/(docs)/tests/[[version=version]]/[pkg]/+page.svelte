@@ -1,38 +1,35 @@
 <script lang="ts">
 	import PageHead from '$lib/PageHead.svelte';
-	import Bar from '$lib/tests/Bar.svelte';
 	import VersionPicker from '$lib/tests/VersionPicker.svelte';
 	import TestFilter from '$lib/tests/TestFilter.svelte' with { wake: 'load' };
 	import {
 		ENGINES,
 		KINDS,
 		count,
+		percent,
 		issue_href,
 		issue_label,
 		type Engine,
-		type TestCase
+		type Row
 	} from '$lib/tests/data';
 	import '$lib/tests/tests.css';
 
 	let { data } = $props();
 	const p = $derived(data.pkg);
-	const tests = $derived(data.report.tests);
 	const kind_label = (id: string) => KINDS.find((k) => k.id === id)?.label ?? id;
-	const failed_in = (t: TestCase) =>
-		ENGINES.filter((e) => t.results[e.id] === 'fail').map((e) => e.id);
-	const failures = $derived(tests.filter((t) => failed_in(t).length > 0));
+	const failed_in = (t: Row) => ENGINES.filter((e) => t.results[e.id] === 'fail').map((e) => e.id);
+	const failures = $derived(data.rows.filter((t) => failed_in(t).length > 0));
 	const by_file = $derived.by(() => {
-		const files = new Map<string, TestCase[]>();
-		for (const t of tests) {
+		const files = new Map<string, Row[]>();
+		for (const t of data.rows) {
 			const list = files.get(t.file);
 			if (list) list.push(t);
 			else files.set(t.file, [t]);
 		}
 		return [...files].sort(([a], [b]) => a.localeCompare(b));
 	});
-	const coverage = $derived(
-		[...data.report.coverage.files].sort((a, b) => a.path.localeCompare(b.path))
-	);
+	// Attributes the filter reads, left off when empty to keep a big grid's HTML small.
+	const list_of = (ids: string[]) => (ids.length ? ids.join(' ') : undefined);
 	const engine_label = (id: Engine) => ENGINES.find((e) => e.id === id)!.label;
 	const ratio = $derived(p.srcLines ? (p.testLines / p.srcLines).toFixed(2) : '–');
 	const tests_href = $derived(data.pinned ? `/tests/${data.version}` : '/tests');
@@ -40,7 +37,7 @@
 
 <PageHead
 	title="{data.name} tests"
-	description="Every test of {data.name} {data.version}, its result in each engine, and the coverage of each file."
+	description="Every test of {data.name} {data.version}, its result in each engine, and its coverage."
 	category="Tests"
 />
 
@@ -60,7 +57,9 @@
 	<section class="headline" aria-label="Headline numbers">
 		<div class="stat">
 			<span class="n">{count(p.tests)}</span>
-			<span class="what">tests</span>
+			<span class="what"
+				>test runs ({count(data.rows.length)} tests, each run in Node, the browsers or both)</span
+			>
 		</div>
 		<div class="stat">
 			<span class="n">{ratio}×</span>
@@ -85,6 +84,15 @@
 		</li>
 	</ul>
 
+	<h2 id="coverage">Coverage</h2>
+	<ul class="stats">
+		<li><span class="n">{percent(p.coverage.lines)}</span><span class="what">Lines</span></li>
+		<li><span class="n">{percent(p.coverage.branches)}</span><span class="what">Branches</span></li>
+		<li>
+			<span class="n">{percent(p.coverage.functions)}</span><span class="what">Functions</span>
+		</li>
+	</ul>
+
 	{#if failures.length}
 		<h2 id="failures">Failing</h2>
 		<div class="table-wrap">
@@ -97,7 +105,7 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each failures as t (t.file + t.name)}
+					{#each failures as t, i (i)}
 						<tr>
 							<td>{t.name}<br /><code class="nil">{t.file}</code></td>
 							<td class="fails">{failed_in(t).map(engine_label).join(', ')}</td>
@@ -114,7 +122,10 @@
 	{/if}
 
 	<h2 id="tests">Every test</h2>
-	<TestFilter total={tests.length}>
+	{#if !data.e2e}
+		<p class="note">End-to-end suites are not part of this report yet.</p>
+	{/if}
+	<TestFilter total={data.rows.length}>
 		<div class="table-wrap">
 			<table class="grid">
 				<thead>
@@ -129,29 +140,23 @@
 						<tr class="file"
 							><th scope="rowgroup" colspan={2 + ENGINES.length}><code>{file}</code></th></tr
 						>
-						{#each list as t (t.name)}
+						{#each list as t, i (i)}
 							<tr
-								data-kind={t.kind}
-								data-run={ENGINES.filter((e) => t.results[e.id])
-									.map((e) => e.id)
-									.join(' ')}
-								data-fail={failed_in(t).join(' ')}
-								data-q={`${t.name} ${t.file}`.toLowerCase()}
+								data-kind={t.kinds.join(' ')}
+								data-run={list_of(ENGINES.filter((e) => t.results[e.id]).map((e) => e.id))}
+								data-fail={list_of(failed_in(t))}
 							>
-								<td class="name">
-									{t.name}
-									{#if t.issue}<a class="issue" href={issue_href(t.issue)}>{issue_label(t.issue)}</a
-										>{/if}
-								</td>
-								<td class="kind">{kind_label(t.kind)}</td>
+								<td
+									>{t.name}{#if t.issue}
+										<a class="issue" href={issue_href(t.issue)}>{issue_label(t.issue)}</a>{/if}</td
+								>
+								<td>{t.kinds.map(kind_label).join(', ')}</td>
 								{#each ENGINES as e (e.id)}
 									{@const r = t.results[e.id]}
-									<td class="engine" data-engine={e.label}>
-										{#if r}<span class="res {r}">{r}</span>{:else}<span
-												class="nil"
-												aria-label="not run">·</span
-											>{/if}
-									</td>
+									<td
+										>{#if r}<span class="res {r}">{r}</span>{:else}<span class="nil">not run</span
+											>{/if}</td
+									>
 								{/each}
 							</tr>
 						{/each}
@@ -160,86 +165,4 @@
 			</table>
 		</div>
 	</TestFilter>
-
-	<h2 id="coverage">Coverage by file</h2>
-	<div class="table-wrap">
-		<table>
-			<thead>
-				<tr>
-					<th scope="col">File</th>
-					<th scope="col">Lines</th>
-					<th scope="col">Branches</th>
-					<th scope="col">Functions</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each coverage as f (f.path)}
-					<tr>
-						<th scope="row"><code>{f.path}</code></th>
-						<td class="cov"><Bar value={f.lines} /></td>
-						<td class="cov"><Bar value={f.branches} /></td>
-						<td class="cov"><Bar value={f.functions} /></td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
-	</div>
 </main>
-
-<style>
-	.grid .file th {
-		padding-top: 0.9rem;
-		background: var(--bg-sunken);
-		font-weight: 400;
-		color: var(--text-dim);
-	}
-	.grid .name {
-		min-width: 16rem;
-		line-height: 1.45;
-	}
-	.grid .kind {
-		white-space: nowrap;
-		color: var(--text-dim);
-		font-size: 0.8125rem;
-	}
-	.grid [hidden] {
-		display: none !important;
-	}
-	/* On a phone each test is a card: its name, then its kind and a result per engine. */
-	@media (max-width: 640px) {
-		.grid thead {
-			display: none;
-		}
-		.grid tr[data-kind] {
-			display: grid;
-			grid-template-columns: repeat(4, minmax(0, 1fr));
-			gap: 0.4rem 0.5rem;
-			padding: 0.75rem 1rem;
-			border-bottom: 1px solid var(--line);
-		}
-		.grid tr[data-kind] > td {
-			padding: 0;
-			border: 0;
-		}
-		.grid .name,
-		.grid .kind {
-			grid-column: 1 / -1;
-			min-width: 0;
-		}
-		.grid .engine {
-			display: flex;
-			flex-direction: column;
-			gap: 0.2rem;
-		}
-		.grid .engine::before {
-			content: attr(data-engine);
-			font: 400 0.6875rem/1 var(--font-mono);
-			color: var(--text-faint);
-		}
-	}
-	.issue {
-		margin-left: 0.35rem;
-		font: 400 0.75rem/1 var(--font-mono);
-		white-space: nowrap;
-	}
-</style>

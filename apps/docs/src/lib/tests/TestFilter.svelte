@@ -25,14 +25,16 @@
 		let n = 0;
 		for (const group of root.querySelectorAll<HTMLElement>('tbody[data-file]')) {
 			let any = false;
-			for (const row of group.querySelectorAll<HTMLElement>('tr[data-kind]')) {
+			const file = (group.dataset.file ?? '').toLowerCase();
+			for (const row of group.querySelectorAll<HTMLTableRowElement>('tr[data-kind]')) {
 				const d = row.dataset;
+				const text = `${row.cells[0].textContent ?? ''} ${file}`.toLowerCase();
+				const fails = (d.fail ?? '').split(' ');
 				const hit =
-					(!kind || d.kind === kind) &&
+					(!kind || (d.kind ?? '').split(' ').includes(kind)) &&
 					(!engine || (d.run ?? '').split(' ').includes(engine)) &&
-					(!failing ||
-						(engine ? (d.fail ?? '').split(' ').includes(engine) : (d.fail ?? '') !== '')) &&
-					words.every((w) => (d.q ?? '').includes(w));
+					(!failing || (engine ? fails.includes(engine) : d.fail !== undefined)) &&
+					words.every((w) => text.includes(w));
 				row.hidden = !hit;
 				if (hit) n++;
 				any ||= hit;
