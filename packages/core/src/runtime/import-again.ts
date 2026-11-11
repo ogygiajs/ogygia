@@ -113,6 +113,18 @@ export function is_failed_import(error: unknown): boolean {
 	return FAILED_IMPORT_RE.test(message) || WEBKIT_IMPORT_FAILED_RE.test(message);
 }
 
+/** A loader's file as a URL: against `base` (the loader's module), else the page (an island's entry
+ *  is named as the page names it, root-relative); null when it names no URL. Never throws: it runs
+ *  inside a failed import's handler, whose own error is what the caller hears. */
+function file_url(file: string, base: string | undefined): string | null {
+	try {
+		return new URL(file, base ?? (typeof location !== 'undefined' ? location.href : undefined))
+			.href;
+	} catch {
+		return null; // ok: no URL to ask again under; the loader loads the plain way next time
+	}
+}
+
 /** `url` with its retry mark: a URL the module map has not seen. */
 export function retry_url(url: string, attempt: number): string {
 	const u = new URL(url);
@@ -208,8 +220,8 @@ export function import_again<T>(
 			});
 		} else {
 			run = load().catch((error: unknown) => {
-				if (file != null && is_failed_import(error))
-					state.move('fresh', 'failed', { url: new URL(file, base).href, attempt: 0 });
+				const url = file != null && is_failed_import(error) ? file_url(file, base) : null;
+				if (url !== null) state.move('fresh', 'failed', { url, attempt: 0 });
 				throw error;
 			});
 		}

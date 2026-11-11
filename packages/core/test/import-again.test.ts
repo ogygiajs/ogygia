@@ -214,6 +214,21 @@ describe('import_again', () => {
 		}
 	});
 
+	it('a file given as the page names it (an island entry, root-relative, no base) fails with the import’s own error and is asked for at the page’s origin', async () => {
+		vi.stubGlobal('location', new URL('https://shop.test/cart'));
+		const asked: string[] = [];
+		const fresh = vi.fn(async (url: string) => {
+			asked.push(url);
+			return 'island';
+		});
+		const load = import_again(() => Promise.reject(CHROMIUM), fresh, '/@id/island/a1.js');
+		// (the dev watchdog and the error report read this error: it must stay the failed import)
+		await expect(load()).rejects.toBe(CHROMIUM);
+		await expect(load()).resolves.toBe('island');
+		expect(asked).toEqual(['https://shop.test/@id/island/a1.js?og-retry=1']);
+		vi.unstubAllGlobals();
+	});
+
 	it('a known file whose module threw (not a download) is not asked for again (#383)', async () => {
 		vi.stubGlobal('location', new URL('https://shop.test/cart'));
 		const fresh = vi.fn();
