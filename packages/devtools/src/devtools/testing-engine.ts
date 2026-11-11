@@ -16,7 +16,7 @@ import {
 	type TimelineLane
 } from '@ogygia/insights';
 import { region_name_by_fp } from './regions.ts';
-import { hook_entries } from './hook-record.ts';
+import { hook_entries } from './hook-entries.ts';
 import { scope, type Scope } from '@ogygia/machine';
 import { ensure_region_names } from './names.ts';
 import { TESTING_ENGINE_VERSION } from '@ogygia/insights';

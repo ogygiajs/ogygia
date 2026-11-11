@@ -13,7 +13,7 @@
  */
 import { flights, machine, STALE } from '@ogygia/machine';
 import { all_regions, region_name } from './regions.ts';
-import { on_hook } from './hook-record.ts';
+import { on_hook } from './hook-entries.ts';
 import type {
 	HookEntry,
 	SessionClick,

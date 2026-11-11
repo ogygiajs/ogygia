@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { hook_entries, on_hook, record_hook } from '../src/devtools/hook-record.ts';
+import { record_hook } from '../src/devtools/hook-record.ts';
+import { hook_entries, on_hook } from '../src/devtools/hook-entries.ts';
 
 const RECORD = Symbol.for('ogygia.hook-record');
 const region = (attrs: Record<string, string>, connected = true) =>
@@ -23,7 +24,7 @@ describe('the hook record', () => {
 		expect(typeof e.at).toBe('number');
 	});
 
-	it('every copy of the module shares one record, and a listener hears each call', async () => {
+	it('the writer and the readers, in any copy, share one record, and a listener hears each call', async () => {
 		const heard: string[] = [];
 		const stop = on_hook((e) => heard.push(e.hook));
 		vi.resetModules();

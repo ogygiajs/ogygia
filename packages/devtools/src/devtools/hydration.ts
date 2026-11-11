@@ -3,7 +3,7 @@
  * before-and-after markup (changed), the element (`data-og-recovered`, `data-hydrated`). Shared by
  * the Hydration tab and the testing API (`window.__ogygia_testing.hydration()`).
  */
-import { hook_entries } from './hook-record.ts';
+import { hook_entries } from './hook-entries.ts';
 import type { AttrChange } from '@ogygia/core/internal/instruments';
 import { beacon_page } from '../profiler/beacon.ts';
 import { all_regions, region_name } from './regions.ts';

@@ -6,7 +6,7 @@
  */
 import { beacon_page, hole_request_times, is_headless } from '../profiler/beacon.ts';
 import { tool_fetch } from '@ogygia/core/internal/instruments';
-import { hook_entries } from './hook-record.ts';
+import { hook_entries } from './hook-entries.ts';
 import { flights, type Flights } from '@ogygia/machine';
 import { page_ledger } from './ledger-dom.ts';
 import {
