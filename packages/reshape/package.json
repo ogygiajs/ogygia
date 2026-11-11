@@ -55,8 +55,9 @@
 	},
 	"scripts": {
 		"build": "tsdown",
-		"check": "tsc -p . && tsc -p test && vitest run",
-		"test": "vitest run"
+		"check": "tsc -p . && tsc -p test && tsc -p e2e && vitest run",
+		"test": "vitest run",
+		"e2e": "playwright test"
 	},
 	"dependencies": {
 		"@ogygia/machine": "workspace:^",
@@ -65,6 +66,8 @@
 	"devDependencies": {
 		"@ogygia/config": "workspace:*",
 		"@ogygia/core": "workspace:*",
+		"@ogygia/tooling": "workspace:*",
+		"@playwright/test": "catalog:",
 		"@sveltejs/kit": "catalog:",
 		"@typescript/native": "catalog:tsgo",
 		"@vitest/browser": "catalog:",
