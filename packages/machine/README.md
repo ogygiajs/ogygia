@@ -327,6 +327,20 @@ if (token !== null) try { /* … */ } finally { recorder.free(token); }
 await recorder.acquire(signal); // waits its turn
 ```
 
+## Saying it once
+
+```ts
+import { say } from '@ogygia/machine';
+
+const warnings = say(); // remembers at most 1024 keys ({ max } to change it)
+warnings.once(url, () => console.warn(`no page at ${url}`)); // once per key
+warnings.once('sink', () => console.warn('the sink is down')); // a failure…
+warnings.ok('sink'); // …it works again: the next failure is said again
+```
+
+- **Edge, not level.** A thing is said when it starts, not every time it is still true. One constant key says it once ever; a key from the thing (a URL, an id) says it once per thing; `ok(key)` ends a failing streak.
+- **Bounded.** The least recently said key is let go past `max`, and is said again if it comes back. A long-lived server never grows with every distinct message.
+
 ## Watching
 
 `observe((name, from, to, machine) => …)` hears every move of every machine, flights included (`to` is `null` when one stops). Devtools and tests use it. It costs one check per move while nothing listens.
