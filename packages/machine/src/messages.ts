@@ -29,6 +29,7 @@ export type MachineErrors = {
 	machine_outbox_gave_up: Entry<{ name: string }>;
 	machine_stage_step_failed: Entry<{ name: string }>;
 	machine_mailbox_handler_failed: Entry<Record<string, never>>;
+	machine_flight_raise_failed: Entry<{ name: string }>;
 };
 
 /** The errors: thrown in dev (and tests), where a wrong move is a bug to fix now. */
@@ -174,6 +175,17 @@ export const MACHINE_ERRORS: MachineErrors = {
 			"event listener's would, and the box goes on with the next event.\n\n" +
 			'A handler that runs at once (posted to an idle box) throws to its poster instead, and one ' +
 			"posted with `ask()` rejects its asker's promise. Catch inside the handler to handle it there."
+	},
+	machine_flight_raise_failed: {
+		text: (a: { name: string }): string =>
+			`flights ${a.name}: a run's \`onRaise\` listener threw when a caller raised its flight.`,
+		details: (): string =>
+			"A `flights()` run listened for its flight's priority going up (`flight.onRaise`), and the " +
+			'listener threw when a caller joined at a higher priority. The caller that joined is not ' +
+			"the one at fault, so it is not failed: the error goes to the page's error handler " +
+			"(`reportError`: the console and `window.onerror`), as an event listener's would. The " +
+			'flight is raised all the same, and its other listeners still hear it.\n\n' +
+			'Catch inside the listener to handle it there.'
 	}
 };
 

@@ -2499,6 +2499,14 @@
 		{
 			"id": "packages/reshape/src/vite.ts > reshape",
 			"reason": "the plugin factory: one definePlugin, once per config"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > swap_tracked",
+			"reason": "the fallback walk for a page value too deep or cyclic for the untracked one, handed a swap function (not cloneable); linear in the value, one Map entry per open object; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > swap_tracked > walk",
+			"reason": "one node of swap_tracked's walk over a closure (its Map and swap: not cloneable), constant work per node; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
 		}
 	]
 }

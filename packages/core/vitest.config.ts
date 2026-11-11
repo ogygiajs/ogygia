@@ -3,7 +3,10 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { browser_runs, playwright_run } from '@ogygia/config/vitest';
 import { fileURLToPath } from 'node:url';
 import { heisenbench_record } from '../../internal/heisenbench/src/record.ts';
-import type { BrowserCommand } from 'vitest/node';
+import type { BrowserCommand, BrowserCommandContext } from 'vitest/node';
+import type {} from '@vitest/browser-playwright';
+
+type Frame = Awaited<ReturnType<BrowserCommandContext['frame']>>;
 
 /**
  * The network, for the browser tests (`commands` from `vitest/browser`), by the path each names:
@@ -16,32 +19,44 @@ import type { BrowserCommand } from 'vitest/node';
  *   stylesheet still loading, for real.
  * - `keep_downloads(path)` lifts either, and sends the held requests on.
  *
- * Test files run side by side in one browser page, so each lifts only what it named: lifting every
- * route let one file's held sheet load in the middle of another file's test.
+ * Test files run side by side in one browser page, each in its own frame, so a route touches only
+ * the requests of the frame that named it, and each file lifts only what it named: one file's drop
+ * spent on another file's download of the same module let both tests see the wrong network.
  */
 type Routed = { matches: (url: URL) => boolean; held: Array<() => Promise<void>> };
-const routed = new Map<string, Routed>();
-function route_of(path: string): Routed {
+const routed = new Map<Frame, Map<string, Routed>>();
+async function route_of(ctx: BrowserCommandContext, path: string): Promise<[Routed, Frame]> {
+	const frame = await ctx.frame();
 	const r: Routed = { matches: (url) => url.pathname.endsWith(path), held: [] };
-	routed.set(path, r);
-	return r;
+	let mine = routed.get(frame);
+	if (!mine) routed.set(frame, (mine = new Map()));
+	mine.set(path, r);
+	return [r, frame];
 }
 const drop_downloads: BrowserCommand<[path: string, times: number]> = async (ctx, path, times) => {
+	const [r, frame] = await route_of(ctx, path);
 	let left = times;
-	await ctx.page.route(route_of(path).matches, (route) =>
-		left-- > 0 ? route.abort('failed') : route.continue()
+	await ctx.page.route(r.matches, (route) =>
+		route.request().frame() !== frame
+			? route.fallback()
+			: left-- > 0
+				? route.abort('failed')
+				: route.continue()
 	);
 };
 const hold_downloads: BrowserCommand<[path: string]> = async (ctx, path) => {
-	const r = route_of(path);
-	await ctx.page.route(r.matches, (route) => void r.held.push(() => route.continue()));
+	const [r, frame] = await route_of(ctx, path);
+	await ctx.page.route(r.matches, (route) =>
+		route.request().frame() !== frame ? route.fallback() : void r.held.push(() => route.continue())
+	);
 };
 const keep_downloads: BrowserCommand<[path: string]> = async (ctx, path) => {
-	const r = routed.get(path);
+	const mine = routed.get(await ctx.frame());
+	const r = mine?.get(path);
 	if (!r) return;
-	routed.delete(path);
+	mine!.delete(path);
 	await ctx.page.unroute(r.matches);
-	for (const send of r.held.splice(0)) await send().catch(() => {});
+	for (const send of r.held.splice(0)) await send().catch(() => {}); // ok: a held request whose page closed has no one to answer
 };
 
 // Two projects, one config:
