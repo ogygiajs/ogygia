@@ -28,7 +28,7 @@ works, what is built, and how to add to it.
    - `platform.ts`: a realm's simulated time (epoch + virtual ms + skew), timers, frames (16 ms),
      idle callbacks, randomness, crypto bytes, and a MessageChannel on the loop.
    - `network.ts`: in memory, on the loop, adversarial: delay, reorder, drop, duplicate, cut a body
-     midway, tamper with bytes, offline.
+     midway, tamper with bytes, redirect a region's request to another origin, offline.
    - `server.ts`: a built Kit app (`.svelte-kit/output`) served in process, static files plus
      `Server.respond`. Each instance loads its own copy of the output (its own module graph), placed
      beside the app's output so it resolves the app's dependencies.
@@ -51,6 +51,12 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   process. `test/modules.test.ts` holds both cases (happy-dom's compiler gives `"0   "`, V8 gives
   the live `1` and three URLs). Needs `node --experimental-vm-modules`.
 - It has no MessageChannel: the sim gives each document one on the loop.
+- A module graph is fetched whole before V8 links it (a failed download fails that graph and
+  leaves its other modules usable, as in a browser; `test/modules.test.ts`).
+- Its parser cut a run of text at a bare `>` into two text nodes, and Svelte's hydration found a
+  node left over: a run is one node (`whole_text_runs`, `test/parser.test.ts`).
+- It hands an intercepted answer back as it is: the sim follows a redirect itself, each leg a
+  request on the network, and the answer carries its URL (`test/redirect.test.ts`).
 
 Differences in the DOM engine cancel out for the MPA-equivalence oracle (both sides run in it);
 the real-browser tier reruns interesting seeds in Chromium, Firefox and WebKit.
@@ -80,7 +86,8 @@ host fails), so no run touches the real network.
 Every seed runs twice, the second time in another worker process, and the two traces (every loop
 task, every action, each tab's URL, DOM fingerprint and what it holds, what broke) must be equal
 byte for byte: a difference is a nondeterminism leak, fixed before any finding is trusted.
-`SIM_SITES=1` labels each timer with the code that set it, to find one.
+`SIM_SITES=1` labels each timer with the code that set it, to find one. `SIM_STACKS=1` puts the
+stack of each uncaught error, console warning and console error in what the page said.
 
 ## Running many
 
@@ -101,8 +108,12 @@ A real bug gets a GitHub issue (labels `bug`, `dst`) and a failing test on its o
 
 Write a function (or class) in `internal/sim/src/oracles.ts` that returns `Broken | null`, say in
 its comment what it normalizes away and why, and call it from `cli.ts` (after each action, or at
-rest). Oracles now: page errors and uncaught errors (excused only by a fault on that document),
-ogygia's rules (`__ogygia_rules`), MPA equivalence against an unfaulted fresh load, cache
+rest). Oracles now: page errors and uncaught errors (excused only by a fault on that document;
+anything, when the document's own HTML was changed or cut), ogygia's rules (`__ogygia_rules`), MPA
+equivalence against an unfaulted fresh load (text that moves by itself at rest is masked, and so
+is what differs between two fresh loads: a stamp, a counter, a fresh id the server makes each
+render), a region hydrates the HTML the server sent (`ssr-hydrate`: no `hydration_mismatch`, no
+`hydration_discarded`), no page paints HTML another origin answered (`foreign-html`), cache
 isolation, leaks and bounded memory (a document's listeners, intervals, observers, `<head>`
 children and elements must not grow visit after visit of one URL), every wait settles (`stuck`: at
 rest, no machine is left in a state of work under way, any state whose name ends in `ing`), the
