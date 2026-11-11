@@ -14,6 +14,7 @@ import { route_config } from './routes.ts';
 import { plugin_capabilities, type CapabilitySigner } from './capability.ts';
 import { record_server_event } from '../events/server-registry.ts';
 import { warn } from '../messages/server.ts';
+import { say } from '@ogygia/machine';
 
 /** One plugin's server half as the build lists it (`virtual:ogygia/server-plugins`). */
 export interface ServerPluginEntry {
@@ -40,7 +41,8 @@ export function start_plugins(
 ): { plugins: LivePlugin[]; leave: () => void } {
 	const leaves: Array<() => void> = [];
 	const plugins = entries.map(({ name, options, server }) => {
-		const warned = new Set<string>();
+		// (once per message, of the last 1024 said: a message with a URL in it never grows the server)
+		const warned = say();
 		const app: ServerApp<unknown> = {
 			name,
 			options,
@@ -56,9 +58,7 @@ export function start_plugins(
 			devtools: record_server_event,
 			keepAlive: keep_alive,
 			warn(message) {
-				if (warned.has(message)) return;
-				warned.add(message);
-				console.warn(`[${name}] ${message}`);
+				warned.once(message, () => console.warn(`[${name}] ${message}`));
 			}
 		};
 		leaves.push(register_hooks(server));

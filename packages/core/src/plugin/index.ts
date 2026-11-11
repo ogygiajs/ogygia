@@ -65,7 +65,7 @@ export interface ServerApp<Options = undefined> {
 	 *  to the platform's `waitUntil` when there is one. Outside a request, or on a platform without
 	 *  one, it runs on in the process. Never throws. An outbox's `waitUntil`. */
 	keepAlive(work: Promise<unknown>): void;
-	/** Warn once per message, prefixed with the plugin's name. */
+	/** Warn once per message (of the last 1024 said), prefixed with the plugin's name. */
 	warn(message: string): void;
 }
 
