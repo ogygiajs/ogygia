@@ -47,6 +47,9 @@ dist/
 test-results/
 .vitest-attachments/
 playwright-report/
+playwright-results/
+# Vitest coverage (.github/scripts/test-report.ts writes the tests report's own copy)
+coverage/
 **/__screenshots__/
 # one-off screenshots taken while checking the devtools / profiler UI
 /anchors.png
