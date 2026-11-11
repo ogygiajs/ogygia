@@ -62,6 +62,10 @@ jobs:
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
 
+      # here, not in `check`: a PR that changes only a changeset runs no `check`
+      - name: No major changeset below 1.0
+        run: node .github/scripts/changeset-no-major.ts
+
       - name: Plan
         id: plan
         run: node .github/scripts/ci-plan.ts
