@@ -241,13 +241,18 @@ describe('top-level fences are never touched', () => {
 });
 
 describe('escaping', () => {
+	it('a label or group holding { } stays text: Svelte never reads it as an expression (#469)', () => {
+		const src = [`::: code-group {g}`, `${F}ts [{count}]`, 'x', F, ':::'].join('\n');
+		expect(labels(src)).toEqual(['&#123;count&#125;']);
+		expect(run(src)).not.toMatch(/="[^"]*\{/);
+	});
+
 	it('escapes special characters in labels', () => {
 		const src = [`::: code-group`, `${F}b [a"b<c>&d]`, 'x', F, ':::'].join('\n');
 		const code = run(src);
 		expect(code).toContain('&quot;');
-		expect(code).toContain('&lt;');
-		expect(code).toContain('&gt;');
-		expect(code).toContain('&amp;');
+		// (`>` needs no escape inside a quoted attribute: core html)
+		expect(labels(src)).toEqual(['a&quot;b&lt;c>&amp;d']);
 		expect(code).not.toMatch(/label="a"b/); // the raw quote must not break the attribute
 	});
 });

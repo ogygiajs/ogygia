@@ -19,7 +19,7 @@ import { fnv1a32, type StandardSchemaV1 } from '@ogygia/core/plugin/utils';
 import { flags_app } from './app.ts';
 import { warn } from './messages.ts';
 import { source_answered, source_failed, source_mark, source_reset } from './source-health.ts';
-import { defining, machine, outbox, policy, registry, scope } from '@ogygia/machine';
+import { defining, machine, outbox, policy, registry, say, scope } from '@ogygia/machine';
 
 export type CtxLike = {
 	request: Request;
@@ -167,8 +167,8 @@ const queue_def = /* @__PURE__ */ machine<QueueStates>()({
 const _exposures = /* @__PURE__ */ queue_def.create();
 /** What the next batch takes. */
 let _queue: ExposureEvent[] = [];
-/** The last batch was given up: the next one given up is not said again until one is taken. */
-let _sink_failing = false;
+/** A batch given up is said once per failing streak: the next is not said until one is taken. */
+const _sink = /* @__PURE__ */ say({ max: 1 });
 /** The last batch put, until it settles: the request's end waits for it (the outbox sends in
  *  order, so every batch before it has settled by then). */
 let _last_sent: Promise<void> | null = null;
@@ -187,14 +187,12 @@ const _batches = /* @__PURE__ */ outbox<ExposureEvent[]>({
 	name: 'flags exposures',
 	send: async (batch) => {
 		await _exposure?.(batch);
-		_sink_failing = false;
+		_sink.ok('sink');
 	},
 	retry: EXPOSURE_POLICY,
 	inOrder: true,
 	giveUp: (_batch, error) => {
-		if (_sink_failing) return;
-		_sink_failing = true;
-		warn('flags_exposure_failed', error);
+		_sink.once('sink', () => warn('flags_exposure_failed', error));
 	},
 	waitUntil: (work) => flags_app()?.keepAlive(work)
 });
@@ -309,16 +307,14 @@ async function ask_source(c: CtxLike, source: NonNullable<typeof _source>): Prom
 
 function resolved_for(c: CtxLike, name: string): Decision | undefined {
 	const p = prime_of(c);
-	if (p === undefined && _source && !_unprimed_warned) {
+	if (p === undefined && _source)
 		// a source is configured but nothing primed this request: the plugin is not in the app's list,
 		// so every read silently ignores the source. Say it once.
-		_unprimed_warned = true;
-		warn('flags_source_unprimed');
-	}
+		_said.once('flags_source_unprimed', () => warn('flags_source_unprimed'));
 	return p?.kind === 'resolved' ? p.map[name] : undefined;
 }
-let _unprimed_warned = false;
-let _unstarted_warned = false;
+/** The setup mistakes, each said once for the process. */
+const _said = say({ max: 2 });
 
 /** Record the decided variant as a request fact: federation carries the set as signed claims. */
 function record_assigned(c: CtxLike, name: string, variant: string): void {
@@ -487,17 +483,15 @@ export function flag(
 
 	const bucket = (c: CtxLike): string => {
 		// every READ (fresh or memoized) is a per-visitor read: an A/B'd page must never be stored as
-		// ONE variant for everyone (a store plugin reads the fact). Priming deliberately does not
-		// report: it touches cookies on every request whether or not the page reads a flag.
+		// ONE variant for everyone, nor a cached hole kept as one (the render's read set, #434). Priming
+		// deliberately does not report: it touches cookies on every request whether or not the page
+		// reads a flag.
 		const app = flags_app();
-		if (app) {
-			const facts = app.facts(c.request);
-			if (facts.perVisitor === null) facts.perVisitor = `flag:${name}`;
-		} else if (!BROWSER && !_unstarted_warned) {
+		if (app) app.perVisitor(c.request, `flag:${name}`);
+		else if (!BROWSER) {
 			// read on a server where the plugin never started: nothing reports the read, so a store
 			// plugin could keep ONE variant of an A/B'd page for everyone. Say it once, loudly.
-			_unstarted_warned = true;
-			warn('flags_plugin_not_running');
+			_said.once('flags_plugin_not_running', () => warn('flags_plugin_not_running'));
 		}
 		const cached = memo.get(c.request);
 		if (cached !== undefined) return cached;

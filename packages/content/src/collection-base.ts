@@ -79,6 +79,15 @@ export function catalog_version(collection: unknown): number | null {
 	return to_collection(collection)?.version() ?? null;
 }
 
+/** The catalog version once the collection has loaded: the stamp a read takes before it reads. A
+ *  stamp taken before the first load is moved by that load, which is not a change (#545). */
+export async function catalog_loaded(collection: unknown): Promise<number | null> {
+	const c = to_collection(collection);
+	if (c === undefined) return null;
+	await c.ready();
+	return c.version();
+}
+
 /** Whether what was read from `collection` at `version` (`catalog_version`) is still its catalog:
  *  nothing changed since. */
 export function catalog_fresh(collection: unknown, version: number | null): boolean {
