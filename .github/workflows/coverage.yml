@@ -1,0 +1,93 @@
+name: coverage
+
+# COVERAGE AND TEST RESULTS: every package's unit (node) and browser (Chromium) Vitest projects run
+# once with coverage (.github/scripts/test-report.ts), on a push to main, on a manual run, and on a
+# pull request that carries `ci:coverage` (or `ci:full`). Report only: never part of `ci ok`. It
+# uploads each package's coverage (json-summary + lcov), one merged `coverage-summary.json`
+# (package → lines / branches / functions / statements %), and the tests report's files.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
+
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action != 'labeled' }}
+
+jobs:
+  gate:
+    if: >-
+      ${{ !startsWith(github.head_ref, 'changeset-release/') && !startsWith(github.head_ref, 'chore/tests-report-') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:coverage' || github.event.label.name == 'ci:full') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Gate
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ] || node .github/scripts/ci-labels.ts --has ci:coverage; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  coverage:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build:lib
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run every package's tests with coverage
+        run: node .github/scripts/test-report.ts --out .tests-report/run --engines chromium
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '### Coverage (lines / branches / functions / statements %)'
+            echo
+            echo '| package | lines | branches | functions | statements |'
+            echo '| --- | ---: | ---: | ---: | ---: |'
+            node -e 'const s=require("./.tests-report/run/coverage-summary.json");for(const [p,c] of Object.entries(s))console.log(`| ${p} | ${c.lines} | ${c.branches} | ${c.functions} | ${c.statements} |`)'
+          } >> "$GITHUB_STEP_SUMMARY" || true # ok: no report, nothing to summarise (the run step's own output says why)
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: coverage-${{ github.sha }}
+          path: .tests-report/run/
+          if-no-files-found: ignore
+          retention-days: 30
