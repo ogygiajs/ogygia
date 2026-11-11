@@ -680,6 +680,32 @@ describe('search — engine + brain (Orama)', () => {
 		expect(hits[0].href).toBe('/docs/a');
 	});
 
+	it('orama_engine: a page whose title is the query answers first even when the engine ranks its section above it', async () => {
+		const doc = (anchor: string, heading: string, text: string, title = 'Snippets') => ({
+			id: anchor ? `snippets#${anchor}` : 'snippets',
+			slug: title.toLowerCase(),
+			anchor,
+			title,
+			section: 'Start',
+			heading,
+			text
+		});
+		const index = await orama_engine().build([
+			doc('', '', 'A short intro to the page.'),
+			doc('usage', 'Usage', 'Pass a snippet to the region.'),
+			doc('', 'Props', 'A region takes props.', 'Regions'),
+			doc('', 'Inside', 'A lake holds markup.', 'Lakes')
+		]);
+		// the section scores higher in the engine; only a wider fetch lets rerank see the page
+		expect((await index.query('snippet', { limit: 2, base: '' })).map((h) => h.href)).toEqual([
+			'/snippets',
+			'/snippets#usage'
+		]);
+		expect((await index.query('snippet', { limit: 1, base: '' })).map((h) => h.href)).toEqual([
+			'/snippets'
+		]);
+	});
+
 	it('orama_engine builds and finds two documents that share an id', async () => {
 		const engine = orama_engine();
 		const doc = (text: string) => ({
