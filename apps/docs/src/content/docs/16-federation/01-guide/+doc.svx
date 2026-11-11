@@ -373,7 +373,7 @@ A host that is not an ogygia app calls the producer's endpoints directly. It nee
 | `audience`       | the producer's `audience`, or the host of its `ORIGIN` when it sets none               |
 | `nonce`          | a random hex string, new for every request                                             |
 
-The request carries `x-og-ts` (the `ts`), `x-og-n` (the nonce), `x-og-sig` (the base64 signature) and, when there are claims, `x-og-user` (the same base64 claims). The private key is base64 PKCS#8 DER and the public key is base64 SPKI DER, which is what `npx ogygia keys` prints. In Node, with no ogygia dependency:
+The request carries `x-og-ts` (the `ts`), `x-og-n` (the nonce), `x-og-sig` (the base64 signature) and, when there are claims, `x-og-user` (the same base64 claims). An ogygia peer also sends `x-og-cap`, one token over the same parts with length-prefixed fields; a producer checks a call that carries it by that token alone, and still accepts these headers without it. The private key is base64 PKCS#8 DER and the public key is base64 SPKI DER, which is what `npx ogygia keys` prints. In Node, with no ogygia dependency:
 
 ```ts
 import { createPrivateKey, createHash, randomBytes, sign } from 'node:crypto';
