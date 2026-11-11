@@ -16,7 +16,7 @@
  */
 export { __register_transportable } from './live-transport.ts';
 export { __tag_context } from './context-bridge.ts';
-// The server-router CSS registry — imported by the GENERATED `virtual:ogygia/router-css` (never by
+// The server-router CSS registry — imported by the GENERATED `ogygia:server/router-css` (never by
 // user code). Region-free leaf (a WeakMap module), so it keeps this seam safe in every realm.
 export { register_router_css, register_router_css_paths } from './router-css.ts';
 export { __og_$ } from './fn-transport.ts';

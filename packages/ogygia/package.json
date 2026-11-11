@@ -1,6 +1,6 @@
 {
 	"name": "ogygia",
-	"version": "0.13.0",
+	"version": "0.13.1",
 	"description": "Astro-style SSR islands for SvelteKit (no Kit patches)",
 	"homepage": "https://ogygiajs.dev",
 	"bugs": {
@@ -87,10 +87,6 @@
 		"./server": {
 			"types": "./dist/server.d.ts",
 			"default": "./src/server.ts"
-		},
-		"./markup": {
-			"types": "./dist/markup.d.ts",
-			"default": "./src/markup.ts"
 		},
 		"./plugin": {
 			"types": "./dist/plugin.d.ts",
@@ -196,10 +192,6 @@
 			"./server": {
 				"types": "./dist/server.d.ts",
 				"default": "./dist/server.js"
-			},
-			"./markup": {
-				"types": "./dist/markup.d.ts",
-				"default": "./dist/markup.js"
 			},
 			"./plugin": {
 				"types": "./dist/plugin.d.ts",

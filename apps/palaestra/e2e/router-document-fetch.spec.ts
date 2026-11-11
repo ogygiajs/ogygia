@@ -23,6 +23,7 @@
 // Usage: pnpm exec playwright test router-document-fetch
 import type { Page, Request } from '@playwright/test';
 import { test, check, expect, stamp_document, document_stamp } from '@ogygia/tooling/e2e';
+import { needs_attachment_downloads } from '@ogygia/tooling/e2e/browsers.ts';
 
 /** What Chromium sends for a top-level document navigation. */
 const DOCUMENT_ACCEPT = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
@@ -290,6 +291,7 @@ test.describe('a link the browser never replaces the page for works every time (
 			page.on('download', (d) => downloads.push(d.suggestedFilename()));
 			// a page before this one, for Back to go to
 			await page.goto('/router-history', { waitUntil: 'networkidle' });
+			if (file) await needs_attachment_downloads(page);
 			await open(page);
 			const stamp = await stamp_document(page);
 			const entries = await page.evaluate(() => history.length);
