@@ -83,7 +83,7 @@ interface Window {
 			bytes: number;
 			modules: number;
 			top?: { file: string; bytes: number }[];
-			barrels?: { file: string; fanout: number }[];
+			barrels?: import('./contract/barrels.ts').IslandBarrel[];
 		}
 	>;
 }

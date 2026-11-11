@@ -4,6 +4,15 @@
  * `.d.ts` files point at these; the code that imports a module reads its types from here.
  */
 import type { ServerPluginEntry } from '../plugin/server.ts';
+import type { BarrelLeftReason } from './barrels.ts';
+
+/** A re-export barrel a chunk still holds: its name, the modules it brings, and why the barrel pass
+ *  left it (when it said). */
+export interface ChunkBarrel {
+	name: string;
+	fanout: number;
+	why?: BarrelLeftReason[];
+}
 
 /** A Kit transport hook's codecs, by type name. */
 export type CodecMap = Record<
@@ -33,7 +42,7 @@ export interface RegionDepsModule {
 		| { name: string; copies: { file: string; bytes: number; from?: string }[] }[]
 		| null;
 	/** the re-export barrels a chunk still holds, with how many modules each brings (profiler builds) */
-	chunk_barrels(href: string): { name: string; fanout: number }[] | null;
+	chunk_barrels(href: string): ChunkBarrel[] | null;
 	/** an island's components' lines that draw differently in the browser (the build's scan) */
 	region_hazards(
 		entry: string

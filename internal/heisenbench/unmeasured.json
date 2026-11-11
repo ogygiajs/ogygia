@@ -1033,6 +1033,26 @@
 			"reason": "the app's import keys and asRegion locals over ogygia()'s closure (not replayable); asRegionLocals is benched with the region transform; proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
 		},
 		{
+			"id": "packages/core/src/vite/index.ts > ogygia > barrels_left_of",
+			"reason": "one table per environment and stage in ogygia()'s closure, made once (a map lookup); the table itself is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > barrel_why",
+			"reason": "the client tables' why for one barrel row, over ogygia()'s closure (not replayable), at most two lookups; the join is benched in packages/core/bench/compiler.bench.ts and proven in packages/core/test/barrel-left.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > barrel_why > filter:0~cf3029",
+			"reason": "orders at most nine reasons (constant work); the same filter in the table is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/dev/region-bytes.ts > island_subgraph_bytes > map:0~c49ee0",
+			"reason": "a barrel row's importers to their ids (one property read each), only with the dev server's live module graph; proven in packages/core/test/region-bytes.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/report.ts > ogygia_findings > flatMap:0~283e13",
+			"reason": "the reasons of at most three listed barrels (constant work); proven in packages/devtools/test/profiler.test.ts"
+		},
+		{
 			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad",
 			"reason": "one declaration against the pinned keys and locals (constant work over ogygia()'s closure); proven in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
 		},

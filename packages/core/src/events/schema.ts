@@ -18,6 +18,8 @@
  * the TS field names stay terse. Domains mirror the note's Schema-v1 table.
  */
 
+import type { BarrelLeftReason } from '../contract/barrels.ts';
+
 /** Bump only on a breaking shape change; a trace stamps this so a reader can gate on it. */
 export const DEVTOOLS_SCHEMA_VERSION = 1;
 
@@ -70,6 +72,17 @@ export type CompileEventInput =
 			entry: string;
 			/** Emitted source size (bytes) — a length already in hand at emit. */
 			bytes: number;
+	  }
+	| {
+			domain: 'compile';
+			name: 'compile.barrel.left';
+			/** The module whose import stayed on the barrel (the transformed module's id). */
+			importer: string;
+			/** The barrel's resolved id; null when the importer could not be read at all. */
+			barrel: string | null;
+			/** The imported names that stayed (`*` for a namespace import). */
+			names: string[];
+			reason: BarrelLeftReason;
 	  };
 
 // ── server domain ───────────────────────────────────────────────────────────

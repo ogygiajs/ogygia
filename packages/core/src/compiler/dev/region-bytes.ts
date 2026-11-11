@@ -15,6 +15,7 @@
  * it wakes. Pure over the nodes it's handed; reads, never mutates.
  */
 import { hydration_hazards, type IslandHazard } from '../../insights/hydration-hazards.ts';
+import type { BarrelLeftReason, IslandBarrel } from '../../contract/barrels.ts';
 import { OWN_FILE_RE } from '../../own-package.ts';
 import { region_family } from '../ids.ts';
 import { OGYGIA_SCHEME } from '../virtual/table.ts';
@@ -26,7 +27,11 @@ export type ByteGraphModule = {
 	file?: string | null;
 	transformResult?: { code?: string | null } | null;
 	importedModules?: Iterable<ByteGraphModule>;
+	importers?: Iterable<ByteGraphModule>;
 };
+
+/** Why the barrel pass left a barrel (its file on disk; its importers' ids): its reasons, if any. */
+export type BarrelWhy = (file: string, importers: Iterable<string>) => BarrelLeftReason[];
 
 /** A region entry module — `ogygia:region/entry/<id>.js` (dev url carries the id). */
 const ISLAND_RE = /ogygia:region\/entry\/([0-9a-f]+)\.js/;
@@ -67,7 +72,8 @@ function is_glue(mod: ByteGraphModule): boolean {
 export function island_subgraph_bytes(
 	modules: Iterable<ByteGraphModule>,
 	/** an app `.svelte` file's source, by its path on disk: what draws differently in the browser */
-	read?: (file: string) => string | undefined
+	read?: (file: string) => string | undefined,
+	why?: BarrelWhy
 ): Record<string, IslandBytes> {
 	const out: Record<string, IslandBytes> = {};
 	for (const mod of modules) {
@@ -81,7 +87,7 @@ export function island_subgraph_bytes(
 		let count = 0;
 		let steps = 0;
 		const each: { file: string; bytes: number }[] = [];
-		const barrels: { file: string; fanout: number }[] = [];
+		const barrels: IslandBarrel[] = [];
 		const hazards: IslandHazard[] = [];
 		while (stack.length && steps++ < 20000) {
 			const n = stack.pop()!;
@@ -129,8 +135,16 @@ export function island_subgraph_bytes(
 					fanout >= BARREL_FANOUT &&
 					code.length <= fanout * BARREL_BYTES_PER_EXPORT &&
 					!file.endsWith('.svelte')
-				)
-					barrels.push({ file, fanout });
+				) {
+					const reasons =
+						why && n.file
+							? why(
+									n.file,
+									[...(n.importers ?? [])].map((m) => m.id || m.file || '')
+								)
+							: [];
+					barrels.push(reasons.length ? { file, fanout, why: reasons } : { file, fanout });
+				}
 				// its lines that draw differently in the browser (its source on disk, not the served code)
 				if (read && n.file && file.endsWith('.svelte') && hazards.length < 5) {
 					const src = read(n.file);
@@ -164,7 +178,7 @@ export interface IslandBytes {
 	/** the heaviest modules (served size, heaviest first): what to look at first */
 	top?: { file: string; bytes: number }[];
 	/** re-export barrels still in the island's graph, with how many app modules each drags in */
-	barrels?: { file: string; fanout: number }[];
+	barrels?: IslandBarrel[];
 	/** its components' lines that draw differently in the browser (a top-level await, a browser-only value) */
 	hazards?: IslandHazard[];
 }

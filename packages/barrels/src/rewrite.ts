@@ -13,6 +13,7 @@ import {
 	type ImportSpec,
 	type Leaf
 } from '@ogygia/core/internal/compiler';
+import type { TransformEvent } from '@ogygia/core/vite';
 
 export interface RewriteMove {
 	barrel: string;
@@ -28,6 +29,19 @@ export interface Lookup {
 export interface RewritePolicy {
 	/** Leave this declaration exactly as written (ogygia: an import that carries region marks). */
 	skip?: (decl: ImportDecl) => boolean;
+	/** Told of each import of a barrel that stays on it: the barrel, the names, and why. */
+	left?: (barrel: string, names: string[], reason: LeftReason) => void;
+}
+
+/** Why an import stayed on its barrel, as the rewrite sees it (the importer's own parse failing is
+ *  the Svelte reader's to say). */
+export type LeftReason = Exclude<TransformEvent['reason'], 'unparsable'>;
+
+/** A map with something to bypass: a barrel left whole, or one with a name that lives elsewhere. */
+function is_barrel(map: ExportMap): boolean {
+	if (map.left !== null || map.opaque) return true;
+	for (const e of map.entries.values()) if (typeof e === 'object') return true;
+	return false;
 }
 
 const BAD_IDENT_RE = /[^A-Za-z0-9_$\u0080-\uFFFF]/;
@@ -61,10 +75,29 @@ export async function rewrite_imports(
 	for (const decl of decls) {
 		if (decl.side_effect) continue; // `import 'x'` — the module wants to run, leave it
 		if (decl.type_only) continue; // `import type { … }` is erased: no graph edge to shorten
-		if (decl.specs.some((s) => s.kind === 'namespace')) continue; // `import * as B` — the whole thing, by design
-		if (policy.skip && policy.skip(decl)) continue;
+		// `import * as B` takes the whole thing, by design; a pinned import stays as written
+		const whole = decl.specs.some((s) => s.kind === 'namespace');
+		if (whole || (policy.skip && policy.skip(decl))) {
+			if (!policy.left) continue;
+			const map = await lookup(decl.source);
+			if (map && is_barrel(map))
+				policy.left(
+					map.id,
+					decl.specs.map((s) => (s.kind === 'namespace' ? '*' : s.imported)),
+					whole ? 'namespace' : 'pinned'
+				);
+			continue;
+		}
 		const map = await lookup(decl.source);
-		if (!map || !map.rewritable) continue;
+		if (!map) continue;
+		if (map.left !== null) {
+			policy.left?.(
+				map.id,
+				decl.specs.map((s) => s.imported),
+				map.left
+			);
+			continue;
+		}
 
 		// Group by leaf MODULE: one import line per leaf, each specifier keeping its own leaf name
 		// (`{ a, b as bee }` from one file → `import { a, b as bee }`).
@@ -73,10 +106,14 @@ export async function rewrite_imports(
 			{ id: string; namespace: boolean; items: { spec: ImportSpec; leaf: Leaf }[] }
 		>();
 		const stays: ImportSpec[] = [];
+		const why = new Map<LeftReason, string[]>();
 		for (const spec of decl.specs) {
 			const entry = map.entries.get(spec.imported);
 			if (!entry || entry === 'own' || entry === 'ambiguous') {
 				stays.push(spec);
+				// (a name the barrel does not have, and no part of it is unseen: the importer's mistake)
+				const reason = entry ?? (map.opaque ? 'opaque' : null);
+				if (reason) why.set(reason, [...(why.get(reason) ?? []), spec.imported]);
 				continue;
 			}
 			const namespace = 'namespace' in entry;
@@ -85,6 +122,8 @@ export async function rewrite_imports(
 			group.items.push({ spec, leaf: entry });
 			by_leaf.set(key, group);
 		}
+		if (policy.left && why.size && is_barrel(map))
+			for (const [reason, names] of why) policy.left(map.id, names, reason);
 		if (by_leaf.size === 0) continue;
 
 		const lines: string[] = [];

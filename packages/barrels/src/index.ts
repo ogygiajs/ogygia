@@ -22,7 +22,8 @@ import {
 	definePlugin,
 	type BuildContext,
 	type OgygiaPlugin,
-	type TransformContext
+	type TransformContext,
+	type TransformEvent
 } from '@ogygia/core/vite';
 import { is_script_request, type ExportMap, type Policy } from '@ogygia/core/internal/compiler';
 import { matches_any, normalize_options, type BarrelsOptions } from './options.ts';
@@ -120,10 +121,17 @@ export function barrels(options: BarrelsOptions | true = {}): [OgygiaPlugin, Plu
 			if (map) seen.push(map);
 			return map;
 		};
-		const pinned = { skip: b.pinnedImports(t.code) };
+		// each import left on its barrel is told, so a finding can say why the barrel stayed
+		const left = (barrel: string | null, names: string[], reason: TransformEvent['reason']) =>
+			t.emit({ domain: 'compile', name: 'compile.barrel.left', barrel, names, reason });
+		const rewrite = { skip: b.pinnedImports(t.code), left };
+		const skipped = on_skip(importer);
 		const moves = importer.endsWith('.svelte')
-			? await rewrite_svelte(t.code, importer, lookup, t.edit, pinned, on_skip(importer))
-			: await rewrite_imports(t.code, importer, lookup, t.edit, 0, pinned);
+			? await rewrite_svelte(t.code, importer, lookup, t.edit, rewrite, (why) => {
+					skipped(why);
+					left(null, [], 'unparsable');
+				})
+			: await rewrite_imports(t.code, importer, lookup, t.edit, 0, rewrite);
 		// The importer no longer imports the barrels it was rewritten away from: watch them (and what
 		// their maps depend on) so an edit still re-transforms it in dev. A virtual module is no file.
 		for (const m of seen) for (const d of m.deps) if (!d.includes('\0')) t.watch(d);
