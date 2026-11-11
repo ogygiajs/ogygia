@@ -1,9 +1,13 @@
-// Build a fixture app for its e2e suite: `vite build` in the app's directory. The libraries it
-// depends on are already built — the `e2e` turbo task depends on their `build` (turbo.json). Skipped
-// under E2E_NO_BUILD=1 (reuse the app's existing build).
-//
-//   node <tooling>/src/e2e/build.ts          # the app in the current directory (a webServer command)
-//   globalSetup: <tooling>/src/e2e/build.ts  # the app in `metadata.build` (a suite with no server)
+/**
+ * Build a fixture app for its e2e suite: `vite build` in the app's directory. The libraries it
+ * depends on are already built: the `e2e` turbo task depends on their `build` (turbo.json). Skipped
+ * under E2E_NO_BUILD=1 (reuse the app's existing build).
+ *
+ *   node <tooling>/src/e2e/build.ts          # the app in the current directory (a webServer command)
+ *   globalSetup: <tooling>/src/e2e/build.ts  # the app in `metadata.build` (a suite with no server)
+ *
+ * @packageDocumentation
+ */
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import type { FullConfig } from '@playwright/test';
