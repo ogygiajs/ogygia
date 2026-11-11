@@ -7,7 +7,6 @@
  * and the visit. The runtime's half (beacon.ts) only adds the regions' data through `join`.
  * Payloads: `{page, vitals}`, `{page, visit}`, `{page, cpu}`, `{page, islands, marks}`.
  */
-import { script } from '@ogygia/core';
 import type { AttrChange } from '@ogygia/core/internal/instruments';
 
 /** A layout shift, as the visit lists it. */
@@ -1734,12 +1733,6 @@ export function standalone_beacon(): void {
 		document.addEventListener('DOMContentLoaded', schedule, { once: true });
 	else schedule();
 }
-
-/** The inline tag the profiler and the devtools put in a measured document's head. */
-export const BEACON_STANDALONE_TAG: string = script({
-	run: standalone_beacon,
-	'data-ogygia-beacon': true
-});
 
 /** @internal tests: a fresh page beacon in place of the one there */
 export function _restart_page_beacon(): PageBeacon {
