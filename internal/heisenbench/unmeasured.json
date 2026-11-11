@@ -2513,19 +2513,19 @@
 			"reason": "browser only: renames one field of a hook event for beacon_hole_batch_missed, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~531114 > hooks > regionWoke",
+			"id": "packages/devtools/src/client.ts > defineClient:0~de51c9 > hooks > regionWoke",
 			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~531114 > hooks > regionMismatched",
+			"id": "packages/devtools/src/client.ts > defineClient:0~de51c9 > hooks > regionMismatched",
 			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~531114 > hooks > navStarted",
+			"id": "packages/devtools/src/client.ts > defineClient:0~de51c9 > hooks > navStarted",
 			"reason": "browser only: one record_hook of a hook event, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~531114 > hooks > loadStarted",
+			"id": "packages/devtools/src/client.ts > defineClient:0~de51c9 > hooks > loadStarted",
 			"reason": "browser only: one record_hook of a hook event, constant work of its own"
 		},
 		{
