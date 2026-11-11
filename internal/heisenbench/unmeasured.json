@@ -2627,6 +2627,10 @@
 		{
 			"id": "packages/devtools/src/profiler/beacon.ts > beacon_critical",
 			"reason": "browser only: keeps the critical wait's three numbers for the visit (module state: not replayable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > boot",
+			"reason": "browser only: the dock's boot, once per page: installs the beacon and, with the dock on, the dock UI and the leftovers watch"
 		}
 	]
 }
