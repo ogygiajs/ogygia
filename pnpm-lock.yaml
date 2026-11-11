@@ -1165,6 +1165,9 @@ importers:
       '@ogygia/config':
         specifier: workspace:*
         version: link:../config
+      '@ogygia/tooling':
+        specifier: workspace:*
+        version: link:../tooling
       '@ogygia/tsdown-plugin-svelte':
         specifier: workspace:*
         version: link:../tsdown-plugin-svelte
