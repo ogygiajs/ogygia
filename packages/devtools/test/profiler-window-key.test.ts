@@ -36,3 +36,21 @@ it('a production profiler with no secret writes no request under a window id', a
 	await new Promise((r) => setTimeout(r, 20));
 	expect(put).not.toHaveBeenCalled();
 });
+
+it('a window id signed the old way (a bare HMAC of the nonce, no lifetime) is not taken', async () => {
+	const secret = 'a-profiler-secret-of-32-bytes-ok';
+	const store = new MemoryStore();
+	const put = vi.spyOn(store, 'putVisit');
+	const handle = profiler({ store, secret });
+	const nonce = 'n0nce';
+	const sig = createHmac('sha256', secret)
+		.update('window:' + nonce)
+		.digest('hex')
+		.slice(0, 20);
+	await handle({
+		event: event('/page', { 'x-og-window': `${nonce}.${sig}` }),
+		resolve: async () => new Response('page')
+	});
+	await new Promise((r) => setTimeout(r, 20));
+	expect(put).not.toHaveBeenCalled();
+});
