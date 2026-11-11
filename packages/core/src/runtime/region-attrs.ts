@@ -1,17 +1,3 @@
-/**
- * DOM attribute vocabulary for `<ogygia-region>` (DESIGN.md two axes).
- *
- * - `wake`    — when JS wakes: `none` | `load` | `idle` | `visible` | `interaction` | media query
- * - `render`  — when HTML arrives: omit/`page` | `defer`
- * - `when`    — schedule for `render="defer"` OR `remount="swr"` revalidate
- * - `hydrate-margin` — IntersectionObserver rootMargin for phase-2 `wake="visible"`
- * - `remount` — `{#if}` re-creation of `wake="none"`: `cache` | `empty` | `swr`
- * - `max-age` — client lake-cache TTL in ms (optional)
- * - `on-expire` — past max-age: `empty` | `fetch` (swr default `fetch`, cache default `empty`)
- *
- * No "island" / "lake" attribute names — those are nicknames, not the mechanism.
- */
-
 /** CSS selector for frozen regions (`hydrate: 'none'`). */
 export const FROZEN_SELECTOR = 'ogygia-region[wake="none"]';
 
