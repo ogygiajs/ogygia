@@ -34,7 +34,8 @@ import { start_page_beacon } from './page-beacon-start.ts';
 const BEACON_KEY = Symbol.for('ogygia.beacon');
 const LAZY = typeof __OGYGIA_DEVTOOLS_LAZY__ !== 'undefined' ? __OGYGIA_DEVTOOLS_LAZY__ : false;
 
-const client: ClientPlugin = defineClient({
+// (named, so `boot` and each hook keep one id however the rest of this file changes)
+const plugin: ClientPlugin = {
 	boot({ kitPage }) {
 		record_realm({
 			dev: import.meta.env.DEV,
@@ -109,6 +110,8 @@ const client: ClientPlugin = defineClient({
 			beacon_warning(e);
 		}
 	}
-});
+};
+
+const client: ClientPlugin = defineClient(plugin);
 
 export default client;
