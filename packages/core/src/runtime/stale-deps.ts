@@ -11,8 +11,29 @@
  * A timestamp in `sessionStorage` bounds it to one reload per few seconds, so a genuinely broken
  * entry (200 that keeps failing to import) never loops.
  */
+import { flights } from '@ogygia/machine';
+
 const STALE_DEP_RELOAD_KEY = 'ogygia:dev:dep-reload';
 const STALE_DEP_RELOAD_WINDOW_MS = 6000;
+
+type Ask = { url: string; reload: () => void };
+
+/** One watch per page: the islands that fail together (a stale tab fails them all) join the first
+ *  one's confirm, so the guard is read and written by one run, and the tab reloads once
+ *  (test/browser/stale-deps.test.ts). After it, the guard in `sessionStorage` answers. Made on first
+ *  use: a production build never reaches it, and keeps none of it. */
+const make_watch = () =>
+	flights.keyed<Ask>()({
+		name: 'stale-dep reload',
+		key: [],
+		ignore: {
+			url: 'one reload loads every island: the first failing entry is the one confirmed',
+			reload: 'one tab to reload'
+		},
+		keep: 0,
+		run: ({ url, reload }) => confirm_and_reload(url, reload)
+	});
+let watch: ReturnType<typeof make_watch> | undefined;
 
 /** An island's entry failed to import: confirm at `url` (its module URL) that the entry still
  *  serves, then `reload` the tab. */
@@ -21,6 +42,10 @@ export async function recover_from_stale_deps(
 	reload: () => void = () => location.reload()
 ): Promise<void> {
 	if (!import.meta.env.DEV || typeof location === 'undefined') return;
+	await (watch ??= make_watch()).get({ url, reload });
+}
+
+async function confirm_and_reload(url: string, reload: () => void): Promise<void> {
 	try {
 		const last = Number(sessionStorage.getItem(STALE_DEP_RELOAD_KEY) || 0);
 		// wall: the last reload's time lives in sessionStorage, across page loads
