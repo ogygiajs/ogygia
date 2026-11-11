@@ -336,6 +336,120 @@ describe('outline — build-time safety', () => {
 		const site = mint_site(outline([a, b])); // both mint slug 'dup'
 		await expect(site.nav()).rejects.toThrow(/slug collision/);
 	});
+
+	it('errors on a glob pick that matches nothing', async () => {
+		const docs = docsFixture();
+		const site = mint_site(outline([{ label: 'X', items: pick(docs, 'nothing/**') }, docs]));
+		await expect(site.nav()).rejects.toThrow(/pick pattern 'nothing\/\*\*' matched nothing/);
+	});
+});
+
+describe('outline — placement and addresses', () => {
+	const tiny = (
+		entries: SourceEntry<Meta>[],
+		filter?: (e: { data: { draft?: boolean } }, ctx: Record<string, unknown>) => boolean
+	) =>
+		content({
+			loader: fromArray(entries),
+			schema: v.object({
+				title: v.string(),
+				draft: v.optional(v.boolean(), false),
+				redirect_from: v.optional(v.array(v.string()), [])
+			}),
+			...(filter ? { filter } : {})
+		});
+
+	it('one weave per read context: readers at once share it, a later reader keeps it', async () => {
+		const docs = tiny([page('p', 'x/00-p.json', { title: 'P' })]);
+		const refs = docs.refs.bind(docs);
+		await refs(); // loaded first: a first load moves the collection's version, and the outline weaves again
+		let reads = 0;
+		docs.refs = (ctx) => {
+			reads++;
+			return refs(ctx);
+		};
+		const ol = outline(docs);
+		await Promise.all([ol.addresses(), ol.tree(), ol.addresses({})]);
+		await ol.addresses();
+		expect(reads).toBe(1);
+		await ol.addresses({ preview: true });
+		expect(reads).toBe(2);
+	});
+
+	it('an entry an earlier item placed is skipped by a later pick, not placed twice', async () => {
+		const docs = docsFixture();
+		const ol = outline([
+			{ label: 'First', items: pick(docs, 'start/install') },
+			{ label: 'All start', items: pick(docs, 'start/*') },
+			docs
+		]);
+		expect((await ol.addresses()).filter((a) => a === 'start/install')).toHaveLength(1);
+	});
+
+	it('a link keeps its own href under any mount base', async () => {
+		const tree = await outline([{ label: 'Home', href: '/home' }]).tree('/docs');
+		expect(tree).toEqual([{ kind: 'link', label: 'Home', href: '/home' }]);
+	});
+
+	it("a nested group without a `slug` takes the enclosing group's address policy", async () => {
+		const docs = tiny([page('a/b', 'x/00-a/00-b.json', { title: 'B' })]);
+		const ol = outline([
+			{
+				label: 'Outer',
+				slug: (id) => id.split('/').pop()!,
+				items: [{ label: 'Inner', items: docs }]
+			}
+		]);
+		expect(await ol.addresses()).toEqual(['b']);
+	});
+
+	it('a group base with stray slashes still makes a clean slug', async () => {
+		const docs = tiny([page('p', 'x/00-p.json', { title: 'P' })]);
+		const ol = outline([{ label: 'G', base: 'guide/', items: docs }]);
+		expect(await ol.addresses()).toEqual(['guide/p']);
+	});
+
+	it('a directory with its own page leads its group with that page', async () => {
+		const docs = tiny([
+			page('guide', 'x/00-guide.json', { title: 'Guide' }),
+			page('guide/one', 'x/00-guide/00-one.json', { title: 'One' })
+		]);
+		const tree = await outline(docs).tree();
+		const g = groups(tree)[0];
+		expect(g.items.map((n) => (n.kind === 'leaf' ? n.slug : n.kind))).toEqual([
+			'guide',
+			'guide/one'
+		]);
+	});
+
+	it('siblings follow their order; with no order they go by id', async () => {
+		const docs = tiny([
+			{ id: 'b', filePath: 'b.json', order: [0], data: { title: 'B' }, meta: { headings: [] } },
+			{ id: 'a', filePath: 'a.json', order: [1], data: { title: 'A' }, meta: { headings: [] } },
+			{ id: 'd', filePath: 'd.json', data: { title: 'D' }, meta: { headings: [] } },
+			{ id: 'c', filePath: 'c.json', data: { title: 'C' }, meta: { headings: [] } }
+		]);
+		expect(await outline(docs).addresses()).toEqual(['b', 'a', 'c', 'd']);
+	});
+
+	it("an entry's old address joins its group's base, like its own slug", async () => {
+		const docs = tiny([page('p', 'x/00-p.json', { title: 'P', redirect_from: ['old'] })]);
+		const ol = outline([{ label: 'G', base: 'guide', items: docs }]);
+		expect(await ol.alias('guide/old')).toBe('guide/p');
+	});
+
+	it('the read context reaches the collection filter: a draft is placed only under preview', async () => {
+		const docs = tiny(
+			[
+				page('p', 'x/00-p.json', { title: 'P' }),
+				page('d', 'x/01-d.json', { title: 'D', draft: true })
+			],
+			(e, ctx) => !e.data.draft || ctx.preview === true
+		);
+		const ol = outline(docs);
+		expect(await ol.addresses()).toEqual(['p']);
+		expect(await ol.addresses({ preview: true })).toEqual(['p', 'd']);
+	});
 });
 
 describe('emissions', () => {
