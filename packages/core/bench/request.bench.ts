@@ -31,9 +31,9 @@ import {
 } from '../src/server/page-stream.ts';
 import { plan_props_wire } from '../src/server/props-wire.ts';
 import {
-	hold_request_stats_detail,
 	request_stats_detailed,
-	want_request_stats
+	set_request_stats_sink,
+	type RequestStatsSink
 } from '../src/server/request-stats.ts';
 import { merge_seed_ask, shape_page_data, type SeedAsk } from '../src/server/seed-shape.ts';
 import { set_island_deps } from '../test/_stubs/server.region-deps.ts';
@@ -303,26 +303,27 @@ bench('inject_client_seeds: a streamed load the router fetched, the promise sett
 	setup: () => content_request(250, { streamed: true, navigate: false })
 });
 
-/** The recording case's hold on the stats detail, let go at its teardown. */
-let release_detail: (() => void) | null = null;
+/** A profiler recording, as the handle sees it: a store that keeps nothing and wants detail. */
+const RECORDING: RequestStatsSink = {
+	page: () => {},
+	hole: () => {},
+	batchHole: () => {},
+	wantsBatchHoles: () => false,
+	detailed: () => true
+};
 bench(
 	'inject_client_seeds: the profiler recording (island rows, the seed explainer)',
 	async (r) => (await transform(r)).length,
 	{
 		setup: () => {
-			want_request_stats();
-			release_detail ??= hold_request_stats_detail();
+			set_request_stats_sink(RECORDING);
 			return content_request(250, { rich: true });
 		},
 		scale: (_ctx, k) => {
-			want_request_stats();
-			release_detail ??= hold_request_stats_detail();
+			set_request_stats_sink(RECORDING);
 			return content_request(25 * k, { rich: true });
 		},
-		teardown: () => {
-			release_detail?.();
-			release_detail = null;
-		}
+		teardown: () => set_request_stats_sink(null)
 	}
 );
 

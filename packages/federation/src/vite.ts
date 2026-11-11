@@ -5,7 +5,7 @@
  * foreign-hydrate exports, so a peer's page can host and wake them.
  */
 import type { Plugin as VitePlugin } from 'vite';
-import { definePlugin, type OgygiaPlugin } from '@ogygia/core/vite';
+import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
 
 export function federation(): [OgygiaPlugin, VitePlugin] {
 	return [

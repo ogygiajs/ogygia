@@ -175,9 +175,7 @@ export type BootLink = {
 	/** the region sheets a navigation's head merge left, taken out but for those a region uses */
 	release_sheets: typeof import('./region-sheets.ts').release_sheets;
 	yield_task: typeof import('./schedule.ts').yield_task;
-	/** the router's navigation, timed for the profiler's beacon (a no-op without it) */
-	beacon_nav: typeof import('./beacon.ts').beacon_nav;
-	/** the plugins around Svelte's hydrate over server markup (./client-plugins.ts) */
+	/** the `regionHydrate` subscribers around Svelte's hydrate over server markup (./client-plugins.ts) */
 	region_hydrate: typeof import('./client-plugins.ts').client_region_hydrate;
 	/** the load scheduler's queue (./load-scheduler.ts) */
 	LoadSlot: typeof import('./load-scheduler.ts').LoadSlot;
@@ -246,6 +244,9 @@ export type Slots = {
 	interaction_link: InteractionLink | null;
 	/** Morph's attribute sync, for the navigation's body reconcile. */
 	sync_attributes: typeof import('./morph.ts').sync_attributes | null;
+	/** The runtime hooks the plugins' browser halves subscribe to, set at boot only when one does
+	 *  (./client-plugins.ts). */
+	hooks?: Partial<import('../contract/runtime-hooks.ts').RuntimeHooks>;
 };
 
 /** The live registry. A feature's `install()` assigns its slot; core/router read them. */

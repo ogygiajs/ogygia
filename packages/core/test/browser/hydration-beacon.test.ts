@@ -1,10 +1,14 @@
-// THE HYDRATION BEACON (runtime/beacon.ts) in a real browser: with the profiler's meta tag in the
+// THE HYDRATION BEACON (devtools profiler/beacon.ts) in a real browser: with the profiler's meta tag in the
 // document, an island that wakes reports `{ fp, entry, ms, load }` in ONE batched sendBeacon (on
 // idle / pagehide), keyed by its server-minted fingerprint; an island with no fingerprint (a
 // standalone render) and a page without the tag send nothing.
 import { expect, inject, test } from 'vitest';
 import { bootDev } from '../../src/runtime/full.ts';
-import { _reset_beacon, _beacon_state } from '../../src/runtime/beacon.ts';
+import { _reset_beacon, _beacon_state } from '../../../devtools/src/profiler/beacon.ts';
+import { _restart_page_beacon } from '../../../devtools/src/profiler/beacon-standalone.ts';
+import devtools_client from '../../../devtools/src/client.ts';
+
+const devtools = [{ name: '@ogygia/devtools', client: devtools_client }];
 
 const inject_html = (key: 'counter_json_lane_ssr_b64' | 'heavy_schedule_ssr_b64') =>
 	decodeURIComponent(escape(atob(inject(key))));
@@ -19,6 +23,7 @@ test('a fingerprinted island reports its hydration timing to the profiler beacon
 	meta.name = 'ogygia-profiler-beacon';
 	meta.content = '/__profiler/beacon';
 	document.head.appendChild(meta);
+	_restart_page_beacon();
 	const sent: { url: string; body: string }[] = [];
 	const orig = navigator.sendBeacon;
 	navigator.sendBeacon = ((url: string, body: string) => {
@@ -28,7 +33,7 @@ test('a fingerprinted island reports its hydration timing to the profiler beacon
 	try {
 		// the page-pass shape: the region carries data-og-fp, its sidecar sits at the end of the body
 		document.body.innerHTML = inject_html('counter_json_lane_ssr_b64');
-		bootDev();
+		bootDev(devtools);
 		await expect
 			.poll(() => document.querySelector('ogygia-region[data-og-fp][data-hydrated]') !== null, {
 				timeout: 20_000
@@ -134,12 +139,13 @@ test('islands without a fingerprint (a standalone render) queue nothing', async 
 	meta.name = 'ogygia-profiler-beacon';
 	meta.content = '/__profiler/beacon';
 	document.head.appendChild(meta);
+	_restart_page_beacon();
 	try {
 		document.body.innerHTML = inject_html('heavy_schedule_ssr_b64');
 		const total = document.querySelectorAll('ogygia-region').length;
 		let hydrated = 0;
 		document.addEventListener('ogygia:hydrated', () => hydrated++);
-		bootDev();
+		bootDev(devtools);
 		await expect.poll(() => hydrated, { timeout: 20_000 }).toBe(total);
 		expect(_beacon_state()).toMatchObject({ target: '/__profiler/beacon', queued: 0 });
 	} finally {

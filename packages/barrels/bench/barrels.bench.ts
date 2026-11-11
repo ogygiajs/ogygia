@@ -5,8 +5,8 @@
 import path from 'node:path';
 import MagicString from 'magic-string';
 import { bench } from '@bench/heisenbench/bench';
-import { ExportIndex, Shapes } from '@ogygia/core/internal/compiler';
-import type { BuildContext, PluginDefinition, StageTransform } from '@ogygia/core/vite';
+import { ExportIndex, Shapes } from '@ogygia/compiler';
+import type { BuildContext, PluginDefinition, StageTransform } from '@ogygia/compiler/vite';
 import { barrels } from '../src/index.ts';
 import { BARRELS_WARNINGS } from '../src/messages.ts';
 import { format_report, fresh_report } from '../src/report.ts';

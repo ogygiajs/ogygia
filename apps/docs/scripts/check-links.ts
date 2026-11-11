@@ -36,7 +36,7 @@ const files = new Set(walk(ROOT));
 const unescape = (s: string) => s.replace(ENTITY_RE, (_, e: string) => ENTITIES[e] ?? _);
 
 /** The routes the adapter serves from a function rather than a file (the homepage, the search
- *  page, the Observatory): every `dest` route after the filesystem step, minus the 404 catch-all. */
+ *  page): every `dest` route after the filesystem step, minus the 404 catch-all. */
 type VercelRoute = { src?: string; dest?: string; handle?: string };
 const config = JSON.parse(readFileSync(path.join(ROOT, '../config.json'), 'utf8')) as {
 	routes: VercelRoute[];

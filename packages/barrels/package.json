@@ -55,6 +55,7 @@
 		"magic-string": "catalog:"
 	},
 	"devDependencies": {
+		"@ogygia/compiler": "workspace:*",
 		"@ogygia/config": "workspace:*",
 		"@ogygia/core": "workspace:*",
 		"@sveltejs/vite-plugin-svelte": "catalog:",
@@ -66,6 +67,7 @@
 		"vitest": "catalog:"
 	},
 	"peerDependencies": {
+		"@ogygia/compiler": "workspace:^",
 		"@ogygia/core": "workspace:^",
 		"svelte": "catalog:peers",
 		"vite": "catalog:peers"

@@ -16,8 +16,8 @@ import {
 	type PageInput,
 	type PageReport,
 	type RegionFact
-} from '@ogygia/core/insights';
-import type { CodeKind, CpuFn, CpuSummary } from '@ogygia/core/insights';
+} from '@ogygia/insights';
+import type { CodeKind, CpuFn, CpuSummary } from '@ogygia/insights';
 import type { FrameCategory } from './analyze.ts';
 import type { ClientWindows, InteractionCpu, WindowFn } from './client-windows.ts';
 import type { Visit } from './visit.ts';

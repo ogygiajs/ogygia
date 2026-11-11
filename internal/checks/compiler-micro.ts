@@ -8,7 +8,7 @@
 // depth-18 ≈ 62ms and depth-25 hung. Now O(depth), linear (~1.0×/level). This harness is the
 // regression guard: the nesting per-level factor must stay ≈ 1. Island COUNT is ~O(n^1.7), content
 // is linear — both fine. Caps stay in the safe zone so this never hangs even if a regression lands.
-import { transformHost } from '../../packages/core/dist/compiler/region/transform.js';
+import { transformHost } from '../../packages/compiler/dist/compiler/region/transform.js';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 
@@ -16,7 +16,6 @@ const root = path.join(process.cwd(), 'apps/palaestra');
 const ctx: Parameters<typeof transformHost>[2] = {
 	root,
 	libDir: path.join(root, 'src/lib'),
-	pathModule: path,
 	dev: false,
 	ssr: true,
 	linkVirtualIsland: true,

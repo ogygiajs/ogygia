@@ -4,7 +4,7 @@
 <script module>
 	/** the last session's data + report, kept across tab switches (not across reloads) */
 	let last = $state(
-		/** @type {{ data: import('./session.ts').SessionData; report: import('@ogygia/core/insights').SessionReport } | null} */ (
+		/** @type {{ data: import('./session.ts').SessionData; report: import('@ogygia/insights').SessionReport } | null} */ (
 			null
 		)
 	);
@@ -23,7 +23,7 @@
 	import { flights, scope } from '@ogygia/machine';
 	import { start_session, recording, set_last_session, session_names } from './session.ts';
 	import { run_profile, slim_profile } from './profile-store.ts';
-	import { analyze_session, session_timeline } from '@ogygia/core/insights';
+	import { analyze_session, session_timeline } from '@ogygia/insights';
 	import { region_name_by_fp } from './regions.ts';
 	import { unmeasured } from './page.ts';
 	// (what this browser cannot measure: a session's silence on those is not a clean bill)

@@ -1,15 +1,14 @@
 /**
  * `import.meta.og.code(…)` and `.md(…)` as plugin macros: each call baked through the app's markdown
- * config (Shiki fences, remark/rehype plugins) and inlined as a static region. Browser-safe (the
- * compiler's host seam), so the `content()` plugin registers these in a build and the Observatory REPL
- * hands the same pair to `run_browser_macros`.
+ * config (Shiki fences, remark/rehype plugins) and inlined as a static region. The `content()` plugin
+ * registers these in a build.
  */
 import type { MarkdownOptions } from '../markdown/index.ts';
 import { render_snippet } from '../markdown/snippet.ts';
 import { render_markdown } from '../markdown/render-md.ts';
 import { rewrite_code } from './code.ts';
 
-/** A macro the way ogygia's build (`b.macro`) and `run_browser_macros` take it. */
+/** A macro the way ogygia's build (`b.macro`) takes it. */
 export interface SnippetMacro {
 	name: 'code' | 'md';
 	handler: (code: string, m: { id: string; markupExts: readonly string[] }) => Promise<string>;

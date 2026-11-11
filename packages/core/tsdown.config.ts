@@ -11,8 +11,8 @@ const pkg_root = fileURLToPath(new URL('.', import.meta.url));
 
 // Build the library's JS/TS modules to dist/ with .d.ts, PRESERVING the source module
 // structure (`unbundle`). Structure must stay parallel because:
-//   - the vite plugin resolves sibling modules via `new URL('../runtime/index.js', ...)` /
-//     `../shims/*.js` (fileURLToPath) — those targets must exist at the same relative paths;
+//   - the compiler (@ogygia/compiler) addresses core's built files by path, through
+//     contract/core-files.ts (`dist/runtime`, `dist/shims/*.js`, …);
 //   - the `.svelte` wrappers import `./server/*.js` relatively.
 //
 // The `.svelte` COMPONENTS (with templates) are NOT compiled here — they ship as raw source
@@ -39,8 +39,6 @@ export default defineConfig({
 			'svelte/server',
 			/^@sveltejs\/kit(\/|$)/,
 			'devalue',
-			'magic-string',
-			'estree-walker',
 			'vite',
 			// lazy optional peer of JsToTs — bundling would freeze a store path (it once
 			// resolved to typescript/lib/version.js and shipped a ts with no ScriptTarget)

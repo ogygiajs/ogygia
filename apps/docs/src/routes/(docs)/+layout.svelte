@@ -29,19 +29,15 @@
 	const bare = page.url.pathname.startsWith('/demo/');
 	// The homepage is a marketing page: full-viewport, no docs sidebar — its own slim top-nav instead.
 	const isHome = page.url.pathname === '/';
-	// The Observatory: the SAME site top-nav (MarketingHeader) as the homepage, then the full-viewport
-	// REPL fills the rest (the REPL carries its own secondary toolbar).
-	const isObservatory = page.url.pathname.startsWith('/observatory');
 	// The test report: wide tables, so the homepage's full-width frame rather than the docs sidebar.
 	const isTests = /^\/tests(\/|$)/.test(page.url.pathname);
-	// Breadcrumb after the wordmark: `ogygia │ Docs` / `ogygia │ Observatory`; nothing on the homepage.
-	const section = isHome ? null : isObservatory ? 'Observatory' : isTests ? 'Tests' : 'Docs';
+	// Breadcrumb after the wordmark: `ogygia │ Docs` / `ogygia │ Tests`; nothing on the homepage.
+	const section = isHome ? null : isTests ? 'Tests' : 'Docs';
 
 	// The leak-free shell bundle (nav + switcher) — docs pages only. Skipped on the homepage (no
 	// sidebar) and bare canvases, which also saves the nav-tree fetch there. csr=false → every nav is
 	// a fresh SSR pass, so a top-level await is current per page.
-	const fullMeta =
-		bare || isHome || isObservatory || isTests ? null : await meta(page.params.slug ?? '');
+	const fullMeta = bare || isHome || isTests ? null : await meta(page.params.slug ?? '');
 	// One section per package: the sidebar (and the mobile sheet) show the current section's part
 	// of the one nav tree; the switcher at the top of the sidebar moves between sections.
 	const docSection = sectionOf(page.params.slug ?? '');
@@ -84,12 +80,6 @@
 
 {#if bare}
 	{@render children()}
-{:else if isObservatory}
-	<!-- Shared site header (same as home + docs), then the full-viewport REPL fills the rest. -->
-	<div class="obs-page" data-sveltekit-preload-data="hover">
-		<SiteHeader section="Observatory" />
-		{@render children()}
-	</div>
 {:else if isHome || isTests}
 	<!-- Marketing homepage and the test report: the shared header + full-width content, no docs
 	     sidebar. The header is FIXED, so the content clears its height. -->
@@ -116,25 +106,8 @@
 
 <style>
 	/* The header is fixed (out of flow) so the elastic overscroll can't drag it — the homepage content
-	   clears its height. (Docs clears it via .og-cframe; the Observatory keeps its header in-flow.) */
+	   clears its height. (Docs clears it via .og-cframe.) */
 	:global(.home-page) {
 		padding-top: 3.5rem;
-	}
-
-	/* Observatory page: site header as a top bar (in flow, not sticky), REPL fills the rest. */
-	:global(.obs-page) {
-		height: 100dvh;
-		display: flex;
-		flex-direction: column;
-		overflow: hidden;
-	}
-	:global(.obs-page .site-nav) {
-		position: static;
-	}
-	:global(.obs-page > ogygia-region) {
-		flex: 1;
-		min-height: 0;
-		display: flex;
-		flex-direction: column;
 	}
 </style>

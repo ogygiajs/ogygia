@@ -23,9 +23,9 @@
  */
 export type MarkAttrs = Record<string, string | number | boolean>;
 
-// THE PAGE'S BEACON, not a copy of it: importing runtime/beacon here bundled the whole beacon into
-// every island that marks (11.8 KB of its own on top of the runtime's copy, which the island then
-// handed its marks to anyway). The runtime's beacon puts itself on this global as it loads. A mark
+// THE PAGE'S BEACON, not a copy of it: importing ./beacon.ts here bundled the whole beacon into
+// every island that marks (11.8 KB of its own on top of the boot's copy, which the island then
+// handed its marks to anyway). The boot's beacon claims this global as the page boots. A mark
 // made before it is there waits on a second global (`ogygia.beacon.waiting`, 400 at most), which the
 // beacon takes as it loads, however late: no timer, no giving up. A page without a beacon keeps
 // them there, unread.

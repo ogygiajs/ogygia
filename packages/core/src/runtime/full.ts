@@ -18,11 +18,11 @@ import * as forms from './form-continuity.ts';
 import * as router from './router.ts';
 import * as wire_classes from './wire-classes.ts';
 import * as mpa_nav from './nav-handle.ts';
-import type { ClientPlugin } from '../plugin/client.ts';
+import type { ClientRealm } from './client-plugins.ts';
 
 /** Boot the kitchen-sink runtime (all boot-phase features) with the plugins' browser halves.
  *  Idempotent via {@link ./core.js boot}. */
-export function bootDev(client_plugins: readonly ClientPlugin[] = []): void {
+export function bootDev(client_plugins: readonly ClientRealm[] = []): void {
 	boot(
 		[
 			wire_classes.install,

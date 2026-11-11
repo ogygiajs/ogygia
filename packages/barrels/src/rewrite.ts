@@ -12,8 +12,8 @@ import {
 	type ImportDecl,
 	type ImportSpec,
 	type Leaf
-} from '@ogygia/core/internal/compiler';
-import type { TransformEvent } from '@ogygia/core/vite';
+} from '@ogygia/compiler';
+import type { TransformEvent } from '@ogygia/compiler/vite';
 
 export interface RewriteMove {
 	barrel: string;

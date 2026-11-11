@@ -7,7 +7,7 @@
  */
 import path from 'node:path';
 import type { Plugin as VitePlugin } from 'vite';
-import { is_island_path } from '@ogygia/core/internal/compiler';
+import { is_island_path } from '@ogygia/compiler';
 import { warn } from '../messages/build.ts';
 
 const CORPUS_RE = /\.(svx|md)(\?|$)/;

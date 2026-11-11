@@ -10,14 +10,10 @@
 export { make_region_endpoint } from './server/region-endpoint.ts';
 /** A held region's server render to HTML — the one copy every region binding calls. */
 export { render_region_html } from './server/render-region-html.ts';
-/** What the profiler (`@ogygia/devtools`) reads off a request ogygia served. */
+/** Where the handle hands each request's stats: the profiler's store (`@ogygia/devtools`). */
 export {
-	hole_stats_of,
-	record_request_stats,
-	request_stats_of,
-	set_batch_hole_listener,
-	hold_request_stats_detail,
-	want_request_stats,
+	set_request_stats_sink,
+	type RequestStatsSink,
 	type BatchHoleStats,
 	type HoleRequestStats,
 	type HoleStat,

@@ -136,7 +136,6 @@ Start it from your app's root folder. The tools that take a path resolve it agai
 | `ogygia_profile`      | Profiles the server render of a URL on your running app through the [profiler](/docs/devtools/profiler/recording) and returns a digest of the report.                                      |
 | `ogygia_profile_open` | Opens a downloaded `.ogp` report with its export key and returns the same digest, with no server involved.                                                                                 |
 | `ogygia_scan`         | Runs the transform on every `.svelte` file under a folder (default `src`) and returns the app's whole island layout, with a lint pass.                                                     |
-| `ogygia_observatory`  | Packs one or more files into an Observatory link, so you can see them compiled and running in the browser. The files travel in the URL's fragment, which is never sent to a server.        |
 | `ogygia_flags`        | Lists every `flag()` call site in the project and compares them with the last build's flag manifest.                                                                                       |
 | `ogygia_fragment`     | Checks a federated app's origin: whether its fragment endpoint refuses unsigned requests, and what its widget catalog lists.                                                               |
 

@@ -11,7 +11,7 @@ import {
 	regionIdentity,
 	regionId,
 	CLIENT_BINDING_STUB
-} from '../../../packages/core/dist/compiler/region/transform.js';
+} from '../../../packages/compiler/dist/compiler/region/transform.js';
 import { test, check } from '@ogygia/tooling/e2e';
 import { WRAPPER_VIRTUAL_RE } from '@ogygia/tooling/e2e/re.ts';
 
@@ -52,7 +52,6 @@ const make_ctx = () => ({
 	root: ROOT,
 	libDir: '/app/src/lib',
 	readFile: () => null,
-	pathModule: path,
 	dev: false,
 	virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 	wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,

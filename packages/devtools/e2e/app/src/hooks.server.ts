@@ -88,7 +88,9 @@ export const handle = sequence(
 	gap_front,
 	// (the restore lab: a scoped web-component render as the app's own pass, OGYGIA_RESTORE_LAB=1)
 	restore_lab,
-	ogygiaHandle(),
+	// (LAB_NO_HANDLE=1 at runtime: an app that never added ogygia's handle, so nothing of the
+	// devtools' server half runs: dock-switch.spec.ts)
+	process.env.LAB_NO_HANDLE ? ({ event, resolve }) => resolve(event) : ogygiaHandle(),
 	gap_inside,
 	corrupt_detector_region
 );

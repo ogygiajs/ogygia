@@ -1,5 +1,5 @@
 /**
- * Devtools event schema v1 — the UI-agnostic wire vocabulary the whole Observatory rides on
+ * Devtools event schema v1 — the UI-agnostic wire vocabulary the devtools ride on
  * (internal/notes/devtools.md, Rung 0). Every event is JSON-serializable and keyed on the
  * identities the framework already mints — region fingerprints (`data-og-fp`), island entry ids,
  * hub Ref ids — so a region's compile, server render, wire payload, client wake, and nav-reconcile

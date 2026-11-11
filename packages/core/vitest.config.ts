@@ -99,6 +99,8 @@ export default defineConfig({
 			},
 			{
 				extends: true,
+				// as an app with a plugin's browser half builds: the runtime boots the plugins a test hands it
+				define: { __OGYGIA_CLIENT_PLUGINS__: 'true' },
 				test: {
 					name: 'browser',
 					include: ['test/browser/**/*.test.ts'],
