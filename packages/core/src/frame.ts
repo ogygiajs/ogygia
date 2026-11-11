@@ -45,6 +45,15 @@ export function older_by(f: FrameOrder, than: FrameOrder | null): DropWhy | null
 	return f.v > than.v ? null : 'older request';
 }
 
+/** Where `f` stands once applied over `over` (what was shown): its data version, and the later
+ *  ticket of the two — newer data under an older ticket keeps the ticket order going. */
+export function stands_at(
+	over: FrameOrder | null,
+	f: FrameOrder
+): { v: number; d: number | undefined } {
+	return { v: over !== null && over.v > f.v ? over.v : f.v, d: f.d };
+}
+
 /** The order a decoded region value's HTML was written at its address with (transport.ts), kept
  *  beside the value: a live tick paints its own HTML unless the store holds this write or a newer
  *  one, by the store's one ordering (runtime/core.ts `#apply_live`). */

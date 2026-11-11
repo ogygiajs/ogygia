@@ -115,6 +115,8 @@ export type FrameOps = {
 	subscribe(a: string, cb: (f: Frame) => void): () => void;
 	/** The frame applied at an address, if any. */
 	peek(a: string): (FrameOrder & { html: string }) | null;
+	/** The next request ticket: where an answer arriving now stands at the address. */
+	ticket(a: string): number;
 	/** `STALE` when its `signal` aborted: only that caller leaves the fetch. */
 	ensure(
 		a: string,
