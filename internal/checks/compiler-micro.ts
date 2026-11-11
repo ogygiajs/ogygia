@@ -25,10 +25,10 @@ const ctx: Parameters<typeof transformHost>[2] = {
 	idSalt: 'stress',
 	presets: {},
 	importKeys: { wake: 'wake', render: 'render', preset: 'preset', region: 'region' },
-	clientBindingStub: 'virtual:ogygia/client-binding-stub',
+	clientBindingStub: 'ogygia:region/client-binding-stub',
 	readFile: () => null,
-	virtualPathFor: (iid: string) => `virtual:ogygia/region/${iid}.js`,
-	wrapperPathFor: (_h: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
+	virtualPathFor: (iid: string) => `ogygia:region/binding/${iid}.js`,
+	wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
 	devUrlFor: (p: string) => p
 };
 const digest = (r: unknown) =>

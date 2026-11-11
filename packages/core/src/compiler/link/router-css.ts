@@ -1,5 +1,5 @@
 /**
- * `virtual:ogygia/router-css` — how a SERVER-ROUTER page's `<style>` reaches the document.
+ * `ogygia:server/router-css` — how a SERVER-ROUTER page's `<style>` reaches the document.
  *
  * THE GAP: Kit links a route's stylesheets from its file-derived route manifest. `@ogygia/router`
  * routes are VALUES (`r.page(Home)`) rendered through `document()` — no route, so nothing ever
@@ -30,8 +30,10 @@ import { fs, path } from '../host.ts';
 import {
 	collectFoucCssReachable,
 	compileFoucScopedCss,
-	resolveFoucImportSpec
+	resolveFoucImportSpec,
+	type WalkResolve
 } from '../fouc-css.ts';
+import type { ExportIndex } from '../exports/index.ts';
 
 const PATH_SEP = /[/\\]/;
 const SVELTE_RE = /\.svelte$/;
@@ -96,7 +98,7 @@ export function router_css_roots(
 }
 
 /**
- * Emit the `virtual:ogygia/router-css` source. Empty (`export {}`) when the app has no router
+ * Emit the `ogygia:server/router-css` source. Empty (`export {}`) when the app has no router
  * modules — the router's dynamic import of this virtual then registers nothing, zero cost.
  */
 export async function router_css_module(
@@ -108,6 +110,8 @@ export async function router_css_module(
 		read_file: (p: string) => string | null;
 		/** the bundler's resolver, for the dev tree-CSS walk (compiler/fouc-css.ts) */
 		resolve?: (spec: string, importer: string) => Promise<string | null>;
+		/** `resolve`'s export index */
+		exports?: ExportIndex<WalkResolve>;
 	}
 ): Promise<string> {
 	if (roots.length === 0) return 'export {};\n';
@@ -127,6 +131,7 @@ export async function router_css_module(
 			const entries: Array<{ key: string; css: string }> = [];
 			for (const e of await collectFoucCssReachable(abs, {
 				resolve: opts.resolve,
+				exports: opts.exports,
 				root: opts.root,
 				libDir: opts.lib_dir,
 				readFile: opts.read_file
@@ -169,7 +174,7 @@ export async function router_css_module(
 	// `base` was page-relative during SSR on Kit 2: a router navigation carries these links into a
 	// page at another depth). The raw handoff href is the claim key, so a held region linking the
 	// same sheet dedupes against us.
-	lines.push(`import { islandCss } from 'virtual:ogygia/island-deps';`);
+	lines.push(`import { region_css } from 'ogygia:server/region-deps';`);
 	lines.push(
 		`const base = typeof __SVELTEKIT_PATHS_BASE__ !== 'undefined' ? __SVELTEKIT_PATHS_BASE__ : '';`
 	);
@@ -178,7 +183,7 @@ export async function router_css_module(
 		const key = router_css_key(opts.root, abs);
 		lines.push(`import __OgRcss${i} from ${JSON.stringify(abs)};`);
 		lines.push(
-			`register_router_css(__OgRcss${i}, () => islandCss(${JSON.stringify(key)}).map((h) => ({ key: h, href: base + h })));`
+			`register_router_css(__OgRcss${i}, () => region_css(${JSON.stringify(key)}).map((h) => ({ key: h, href: base + h })));`
 		);
 	}
 	return lines.join('\n') + '\n';
