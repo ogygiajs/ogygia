@@ -183,8 +183,11 @@ test('a click that opens a link elsewhere is never canceled (an untrusted replay
 		a.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ...init }));
 		expect(canceled_by_ogygia, JSON.stringify(init)).toBe(false);
 	}
-	// a plain click is canceled and queued for the replay
-	a.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-	expect(canceled_by_ogygia).toBe(true);
+	// a plain click is canceled and queued for the replay (the link's own listeners hear only that)
+	canceled_by_ogygia = null;
+	const plain = new MouseEvent('click', { bubbles: true, cancelable: true });
+	a.dispatchEvent(plain);
+	expect(plain.defaultPrevented).toBe(true);
+	expect(canceled_by_ogygia, 'the queued click is kept from the link').toBe(null);
 	disarm();
 });
