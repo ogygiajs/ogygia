@@ -12,8 +12,8 @@
  * Absolute (`/…`) and scheme'd (foreign federation entries) values are left alone.
  */
 import { escape_amp } from '../escape.ts';
-import { next_tag, value_at, type FoundTag } from '../wire-markup.ts';
-import { next_mark } from './html-scan.ts';
+import { Needle, next_tag, value_at, type FoundTag } from '../wire-markup.ts';
+import { REGION_CSS_ANY_CASE } from './html-scan.ts';
 
 // The attribute sites ogygia writes URLs into hole HTML: an `<ogygia-region>`'s `entry` / `src` /
 // `endpoint`, a region-css `<link>`'s `href`, an inlined region sheet's `data-ogygia-region-css`
@@ -69,34 +69,29 @@ function splice_value(
 export function absolutize_hole_html(html: string, base: URL): string {
 	const splices: Splice[] = [];
 	// (a relative value holds `./`: a region tag whose span has none is passed without a read)
-	let dot = html.indexOf('./');
-	if (dot === -1) return html;
+	const dot = new Needle(html, './');
+	if (dot.gone) return html;
 	for (
 		let t = next_tag(html, 'ogygia-region', 0);
 		t !== null;
 		t = next_tag(html, 'ogygia-region', t.end)
 	) {
-		if (dot < t.start) {
-			dot = html.indexOf('./', t.start);
-			if (dot === -1) break;
-		}
-		if (dot >= t.end) continue;
+		const held = dot.holds(t);
+		if (dot.gone) break;
+		if (!held) continue;
 		for (const attr of REGION_URL_ATTRS)
 			splice_value(html, t, 'ogygia-region', attr, base, splices);
 	}
 	// region CSS: only a tag whose span holds the attribute's name gets an attribute read
-	let mark = next_mark(html, 0);
 	for (const name of ['link', 'style'] as const) {
-		if (mark === -1) break;
+		const mark = new Needle(html, REGION_CSS_ANY_CASE);
+		if (mark.gone) break;
 		for (let t = next_tag(html, name, 0); t !== null; t = next_tag(html, name, t.end)) {
-			if (mark < t.start) {
-				mark = next_mark(html, t.start);
-				if (mark === -1) break;
-			}
-			if (mark >= t.end || t.attr(REGION_CSS_ATTR) === undefined) continue;
+			const held = mark.holds(t);
+			if (mark.gone) break;
+			if (!held || t.attr(REGION_CSS_ATTR) === undefined) continue;
 			splice_value(html, t, name, name === 'link' ? 'href' : REGION_CSS_ATTR, base, splices);
 		}
-		mark = next_mark(html, 0);
 	}
 	if (splices.length === 0) return html;
 	splices.sort((a, b) => a.at - b.at);

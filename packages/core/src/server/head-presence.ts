@@ -15,19 +15,10 @@
  * `&lt;`, never a bare `<`, so it is not a tag; a tag's attributes end at its own `>` (quotes kept),
  * so a `<script>` whose BODY mentions the attribute (inline JS) can't false-match either.
  */
-import { next_tag, type FoundTag } from '../wire-markup.ts';
+import { Needle, next_tag, type FoundTag } from '../wire-markup.ts';
 
-/** Where `needle` is next from `from`, or -1: a string as spelled, a (global) pattern in any case. */
-function needle_at(html: string, needle: string | RegExp, from: number): number {
-	if (typeof needle === 'string') return html.indexOf(needle, from);
-	needle.lastIndex = from;
-	return needle.exec(html)?.index ?? -1;
-}
-
-/** The first `<name …>` from `from` that carries `needle` in a way `test` accepts, or null. The
- *  needle is what every match spells: a string when `test` compares a value exactly, a global,
- *  case-blind pattern when it reads a name (names are in any case). It is looked for first, so a
- *  head without it reads no tag, and only a tag whose span holds it has its attributes read. */
+/** The first `<name …>` from `from` that carries `needle` (wire-markup.ts `Needle`) in a way `test`
+ *  accepts, or null. A head without the needle reads no tag. */
 function find_tag(
 	html: string,
 	name: string,
@@ -35,14 +26,11 @@ function find_tag(
 	test: (tag: FoundTag) => boolean,
 	from = 0
 ): FoundTag | null {
-	let at = needle_at(html, needle, from);
-	if (at === -1) return null;
+	const held = new Needle(html, needle, from);
+	if (held.gone) return null;
 	for (let t = next_tag(html, name, from); t !== null; t = next_tag(html, name, t.end)) {
-		if (at < t.start) {
-			at = needle_at(html, needle, t.start);
-			if (at === -1) return null;
-		}
-		if (at < t.end && test(t)) return t;
+		if (held.holds(t) && test(t)) return t;
+		if (held.gone) return null;
 	}
 	return null;
 }

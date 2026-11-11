@@ -20,7 +20,7 @@ import {
 	decode_island_graph,
 	decode_island_locations
 } from '../island-graph.ts';
-import { next_tag, text_of } from '../wire-markup.ts';
+import { Needle, next_tag, text_of } from '../wire-markup.ts';
 import { island_graph_script } from './document-tail.ts';
 import { region_css_tags } from './html-scan.ts';
 
@@ -46,18 +46,14 @@ const GRAPH_ANY_CASE = new RegExp(ISLAND_GRAPH_ATTR, 'gi');
 /** One graph script for the answer (or '' when the render's head carries none): every
  *  `script[data-ogygia-graph]`, as the runtime selects them. */
 export function hole_graph_script(head: string, base: URL): string {
-	GRAPH_ANY_CASE.lastIndex = 0;
-	if (!GRAPH_ANY_CASE.test(head)) return '';
-	let mark = GRAPH_ANY_CASE.lastIndex - ISLAND_GRAPH_ATTR.length;
+	const mark = new Needle(head, GRAPH_ANY_CASE);
+	if (mark.gone) return '';
 	const graph = new Map<string, string[]>();
 	const locations = new Map<string, string>();
 	for (let t = next_tag(head, 'script', 0); t !== null; t = next_tag(head, 'script', t.end)) {
-		if (mark < t.start) {
-			GRAPH_ANY_CASE.lastIndex = t.start;
-			if (!GRAPH_ANY_CASE.test(head)) break;
-			mark = GRAPH_ANY_CASE.lastIndex - ISLAND_GRAPH_ATTR.length;
-		}
-		if (mark >= t.end || t.attr(ISLAND_GRAPH_ATTR) === undefined) continue;
+		const held = mark.holds(t);
+		if (mark.gone) break;
+		if (!held || t.attr(ISLAND_GRAPH_ATTR) === undefined) continue;
 		const text = text_of(head, t, 'script');
 		if (text === null) break;
 		for (const [entry, hrefs] of decode_island_graph(text)) {

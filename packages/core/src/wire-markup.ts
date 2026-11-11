@@ -437,6 +437,46 @@ export function* tags(html: string, name: string, from = 0): Generator<FoundTag>
 	for (let t = next_tag(html, name, from); t !== null; t = next_tag(html, name, t.end)) yield t;
 }
 
+/** Where a marker's text sits in `html`, read forward with the tags of one walk: a tag whose span
+ *  does not hold it cannot carry the marker, so `holds()` lets a scan read attributes only where it
+ *  can be. The needle is what every match spells: a string when the caller compares a value exactly,
+ *  a global case-blind pattern when it reads an attribute name (names come in any case). */
+export class Needle {
+	readonly #html: string;
+	readonly #needle: string | RegExp;
+	#at = -1;
+	/** True once the text appears nowhere from the last tag asked about on: no later tag holds it.
+	 *  (A field, not a getter: scans read it once per tag.) */
+	gone = true;
+	constructor(html: string, needle: string | RegExp, from = 0) {
+		this.#html = html;
+		this.#needle = needle;
+		this.#find(from);
+	}
+
+	#find(from: number): void {
+		const needle = this.#needle;
+		let at: number;
+		if (typeof needle === 'string') at = this.#html.indexOf(needle, from);
+		else {
+			needle.lastIndex = from;
+			at = needle.exec(this.#html)?.index ?? -1;
+		}
+		this.#at = at;
+		this.gone = at === -1;
+	}
+
+	/** Whether `tag`'s span holds the text. Ask in document order (the tags of one walk). */
+	holds(tag: FoundTag): boolean {
+		if (this.#at < tag.start) {
+			if (this.gone) return false;
+			this.#find(tag.start);
+			if (this.gone) return false;
+		}
+		return this.#at < tag.end;
+	}
+}
+
 /** The raw text of the element `tag` opens (a `<script>`, `<style>`, `<template>`): up to its first
  *  `</name`, as a browser ends raw text. Null when it never closes. */
 export function text_of(html: string, tag: FoundTag, name: string): string | null {

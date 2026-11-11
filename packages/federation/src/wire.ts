@@ -11,7 +11,7 @@ import {
 	sign as ed_sign,
 	verify as ed_verify
 } from 'node:crypto';
-import { next_tag, text_of, type FoundTag } from '@ogygia/core/internal/server';
+import { Needle, next_tag, text_of, type FoundTag } from '@ogygia/core/internal/server';
 
 // ── paths the handle serves ──────────────────────────────────────────────────────────────────
 /** The exposed route table: `GET|POST|… /og/fragment/page?path=…&search=…`. */
@@ -312,18 +312,14 @@ function pin_graph(json: string, origin: string): string {
 
 /** `html` with the JSON of every `script[data-ogygia-graph]` (as the runtime selects them) pinned. */
 function pin_graphs(html: string, origin: string): string {
-	GRAPH_ANY_CASE.lastIndex = 0;
-	if (!GRAPH_ANY_CASE.test(html)) return html;
-	let mark = GRAPH_ANY_CASE.lastIndex - GRAPH_ATTR.length;
+	const mark = new Needle(html, GRAPH_ANY_CASE);
+	if (mark.gone) return html;
 	let out = '';
 	let pos = 0;
 	for (let t = next_tag(html, 'script', 0); t !== null; t = next_tag(html, 'script', t.end)) {
-		if (mark < t.start) {
-			GRAPH_ANY_CASE.lastIndex = t.start;
-			if (!GRAPH_ANY_CASE.test(html)) break;
-			mark = GRAPH_ANY_CASE.lastIndex - GRAPH_ATTR.length;
-		}
-		if (mark >= t.end || t.attr(GRAPH_ATTR) === undefined) continue;
+		const held = mark.holds(t);
+		if (mark.gone) break;
+		if (!held || t.attr(GRAPH_ATTR) === undefined) continue;
 		const json = text_of(html, t, 'script');
 		if (json === null) break;
 		out += html.slice(pos, t.end) + pin_graph(json, origin);
