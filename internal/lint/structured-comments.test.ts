@@ -93,6 +93,11 @@ test('free comments and block comments are reported; tool directives pass', () =
 	assert.deepEqual(findings({ [A]: src }), { [A]: [1, 3] });
 });
 
+test("a bin's #! line passes; the comments after it are read as usual", () => {
+	const src = ['#!/usr/bin/env node', '// narration', 'export const a = 1;'].join('\n');
+	assert.deepEqual(findings({ [A]: src }), { [A]: [2] });
+});
+
 test('a directive with no reason is reported', () => {
 	const src = ['// oxlint-disable-next-line no-eval', 'export const b = eval("1");'].join('\n');
 	assert.deepEqual(findings({ [A]: src }), { [A]: [1] });
