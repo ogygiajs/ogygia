@@ -534,6 +534,8 @@ const REASONED =
 const FREE =
 	/^\s*(oxlint-enable|eslint-enable|svelte-ignore|[@#]__PURE__|[@#]__NO_SIDE_EFFECTS__|@vite-ignore|oxfmt-ignore|prettier-ignore|\/ <reference )/;
 const WHY = /^ @why (\S.*?) \(test: (\S+) › (.+)\)$/;
+/** TSDoc's file-level block: it documents the module, so it sits before any code. */
+const PACKAGE_DOC = /(^|\s)@packageDocumentation(\s|$)/;
 
 const MESSAGE_FREE =
 	'A comment in package source is JSDoc on an export, a tool directive (`-- <reason>`), or `// @why <fact> (test: <file> › <name>)`. Make this one a test, a rule, a type or clearer code, or delete it (#512).';
@@ -638,7 +640,8 @@ function why_test_exists(file: string, test: string, test_name: string): boolean
 
 /**
  * `ogygia/structured-comments` (#512): in `packages/<pkg>/src`, a comment is one of three shapes:
- * JSDoc on an export (or on a member of an exported class, type or object constant), a tool
+ * JSDoc on an export (or on a member of an exported class, type or object constant, or a
+ * `@packageDocumentation` block before any code), a tool
  * directive (`oxlint-disable…` and `@ts-expect-error` with ` -- <reason>`; `svelte-ignore`,
  * `@__PURE__`, `@vite-ignore`, formatter ignores, `/// <reference>` as they are), or a one-line
  * `// @why <fact> (test: <file> › <name>)` directly above its statement, whose test exists.
@@ -672,6 +675,7 @@ const structured_comments = {
 					}
 					if (FREE.test(value)) continue;
 					if (c.type === 'Block' && value.startsWith('*')) {
+						if (PACKAGE_DOC.test(value) && text.slice(0, c.range[0]).trim() === '') continue;
 						starts ??= documentable(program);
 						const next = text.slice(c.range[1]).search(/\S/);
 						if (next < 0 || !starts.has(c.range[1] + next))

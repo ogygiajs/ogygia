@@ -119,6 +119,37 @@ test('a @why passes only above its statement and when its test exists', () => {
 	assert.deepEqual(findings(files), { [A]: [3, 5, 7, 10] });
 });
 
+test('a @packageDocumentation block passes at the top of a file; anywhere else it is reported', () => {
+	const top = [
+		'/**', // 1
+		' * What this entry holds.', // 2
+		' *', // 3
+		' * @packageDocumentation', // 4
+		' */', // 5
+		"import { x } from './x.ts';", // 6
+		'export { x };' // 7
+	].join('\n');
+	const later = [
+		"import { x } from './x.ts';", // 1
+		'/**', // 2
+		' * @packageDocumentation', // 3
+		' */', // 4
+		'x();' // 5
+	].join('\n');
+	const second = [
+		'// first', // 1
+		'/** @packageDocumentation */', // 2
+		"import { y } from './y.ts';", // 3
+		'y();' // 4
+	].join('\n');
+	const B = 'packages/demo/src/b.ts';
+	const C = 'packages/demo/src/c.ts';
+	assert.deepEqual(findings({ [A]: top, [B]: later, [C]: second }), {
+		[B]: [2],
+		[C]: [1, 2]
+	});
+});
+
 test('.d.ts files and files outside a package src are not read', () => {
 	assert.deepEqual(
 		findings({
