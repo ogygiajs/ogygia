@@ -1,14 +1,3 @@
-/**
- * THE INSTANCE WAS NOT ALONE — the other requests the server answered while the profiled
- * render ran. One Node process has one event loop: every other request's CPU is a turn the
- * render waited for, and that wait sits inside the render's wall time with no frame of its own.
- * This names them, with how long each overlapped the render, so the report can say how much of
- * the wall was the instance being busy with something else. Pure over the request ring.
- *
- * A request's `cpu_ms` is a process-wide delta over its lifetime: when two overlap, each carries
- * some of the other's CPU. The per-request estimate is therefore an UPPER BOUND, capped at the
- * overlap itself, and labelled so.
- */
 import type { RequestEntry } from './report.ts';
 import { islands_endpoint } from '@ogygia/core/internal/server';
 
@@ -68,6 +57,15 @@ export interface ContentionInput {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/**
+ * The other requests the server answered while the profiled render ran. One Node process has one
+ * event loop: another request's CPU is a turn the render waited for, inside its wall time with no
+ * frame of its own. Each is named with how long it overlapped the windows; the busy share counts
+ * time with any of them in flight once. A request's `cpu_ms` is a process-wide delta, so its CPU
+ * in the window is an upper bound, capped at its overlap. A request to the islands endpoint, under
+ * any base, is one of the page's holes. `counts` tallies every request, though `requests` keeps the
+ * 40 heaviest.
+ */
 export function contention(input: ContentionInput): Contention | undefined {
 	const windows = input.windows;
 	if (!windows.length) return undefined;
@@ -75,7 +73,6 @@ export function contention(input: ContentionInput): Contention | undefined {
 	const rows: ContendingRequest[] = [];
 	let overlap_total = 0;
 	let cpu_total = 0;
-	// the union of "another request was in flight" over the windows, for the share
 	const busy: [number, number][] = [];
 	for (const e of input.requests) {
 		if (e.internal || e.pt === undefined) continue;
@@ -92,7 +89,6 @@ export function contention(input: ContentionInput): Contention | undefined {
 			busy.push([Math.max(s, w.start), Math.min(t, w.end)]);
 		}
 		if (overlap <= 0) continue;
-		// its CPU across the overlap, capped by the overlap: an upper bound either way
 		const cpu_max = Math.min(overlap, e.ms > 0 ? e.cpu_ms * (overlap / e.ms) : 0);
 		for (let i = 0; i < windows.length; i++) {
 			const w = windows[i];
@@ -109,8 +105,6 @@ export function contention(input: ContentionInput): Contention | undefined {
 			ms: round2(e.ms),
 			overlap_ms: round2(overlap),
 			cpu_max_ms: round2(cpu_max),
-			// (a hole the handle answered carries its stats; a refused one only its path — the configured
-			// endpoint, matched by suffix as the handle matches it, under any base)
 			kind:
 				e.hole || e.path.endsWith(islands_endpoint())
 					? 'hole'
@@ -123,7 +117,6 @@ export function contention(input: ContentionInput): Contention | undefined {
 	const inflight = (input.own ?? [])
 		.filter((e) => e.internal && typeof e.inflight === 'number')
 		.map((e) => e.inflight);
-	// union length of the busy intervals over the windows' total length
 	busy.sort((a, b) => a[0] - b[0]);
 	let union = 0;
 	let cur: [number, number] | null = null;
@@ -138,8 +131,6 @@ export function contention(input: ContentionInput): Contention | undefined {
 	const total_len = windows.reduce((a, w) => a + Math.max(0, w.end - w.start), 0) || 1;
 	if (!rows.length && !inflight.some((n) => n > 0)) return undefined;
 	rows.sort((a, b) => b.overlap_ms - a.overlap_ms);
-	// the tallies from EVERY row, before the list is cut to 40: a page calling its own server twenty
-	// times a render over three renders has sixty, and counting the cut list said 13
 	const self_rows = rows.filter((r) => r.kind === 'self');
 	return {
 		requests: rows.slice(0, 40),
