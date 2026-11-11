@@ -38,11 +38,13 @@
  * button) is never canceled: the browser does it on the server markup, and an untrusted replay could not.
  *
  * The capture (this module) is what must run synchronously inside the first event. The RESTORE +
- * REPLAY half (./interaction-replay.ts) is only needed once an island has woken, so it loads when a
- * pointer reaches an armed island or input lands — off the boot path, ahead of the replay.
+ * REPLAY half (./interaction-replay.ts) is only needed once an island has woken, so it is off the
+ * boot path: asked for as background work once an island arms (`replay_ahead`), and at once when a
+ * pointer reaches an armed island or input lands.
  */
 
 import { flights, STALE, type Scope, type Stale } from '@ogygia/machine';
+import { LoadSlot } from './load-scheduler.ts';
 import { import_again } from './import-again.ts';
 import { slots } from './slots.ts';
 import { warm_island_module } from './region-endpoint-url.ts';
@@ -318,7 +320,29 @@ export function arm_interaction(
 	const a: Armed = { region, warm, fire, owner, state: 'armed', warmed: false, queued: [] };
 	armed.set(region, a);
 	install_listeners();
-	// (the replay half loads when a pointer reaches an armed island or input lands — not at arm: every
-	// scheduled island arms, and a page nobody touches before its islands wake fetches none of it)
+	replay_ahead();
 	return (over = false) => disarm(a, over);
+}
+
+/** The replay half's warm is queued (one at a time: the first island armed while none is). */
+let replay_queued = false;
+
+/**
+ * THE REPLAY HALF, ASKED FOR AHEAD OF THE VISITOR (#451). A click before wake waits for it (the
+ * island goes live with it, #260); asked for only at that click, on a slow phone it queued behind the
+ * page's other downloads and the wake waited it out. It is background work, timed by the load
+ * scheduler (load-scheduler.ts: after the page's critical resources, in the background window), so
+ * it never delays the hero. When its turn comes with no island left armed (they all woke on their
+ * own, nobody touched one), it is not needed and nothing is fetched.
+ */
+function replay_ahead(): void {
+	if (replay_queued) return;
+	replay_queued = true;
+	void new LoadSlot({ kind: 'code', cls: 'ahead', label: 'interaction replay' }).ready.then(
+		(release) => {
+			replay_queued = false;
+			if (armed.size === 0) return release();
+			replay().then(release, release);
+		}
+	); // ok: a slot's turn never fails; a failed download is asked for again by the press, which says it
 }

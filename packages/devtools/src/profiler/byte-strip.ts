@@ -13,10 +13,10 @@ import {
 	OGYGIA_PROPS,
 	OGYGIA_RUNTIME,
 	read_tag,
-	scanRegions,
 	text_of,
 	type FoundTag
 } from '@ogygia/core/internal/server';
+import { scanRegions } from '@ogygia/reshape';
 
 export type StripKind =
 	| 'head'

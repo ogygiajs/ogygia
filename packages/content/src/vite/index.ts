@@ -25,7 +25,9 @@ import { rewrite_loaders } from '../macros/loaders.ts';
 import { rewrite_regions } from '../macros/regions.ts';
 import { materialize } from '../macros/git.ts';
 import { content_hmr, content_runs, type ContentHmrOptions } from './hmr.ts';
+import { content_leaks } from './leaks.ts';
 import { OgygiaError, warn } from '../messages/build.ts';
+import { say, type Say } from '@ogygia/machine';
 
 export { invalidateModuleTree } from './hmr.ts';
 export type { ContentHmrOptions };
@@ -103,7 +105,13 @@ export function content(options: ContentOptions = {}): [OgygiaPlugin, ...VitePlu
 			}
 		}
 	});
-	return [plugin, content_hmr(hmr), content_runs(), content_checks(() => root, exts)];
+	return [
+		plugin,
+		content_hmr(hmr),
+		content_runs(),
+		content_checks(() => root, exts),
+		content_leaks()
+	];
 }
 
 type ContentBridgePresets = NonNullable<typeof bridge.contentPresets>;
@@ -113,7 +121,7 @@ type ContentBridgePresets = NonNullable<typeof bridge.contentPresets>;
  * and nudge when a collection is defined outside a server-only module.
  */
 function content_checks(get_root: () => string, exts: readonly string[]): VitePlugin {
-	const warned = new Set<string>();
+	const warned = say();
 	return {
 		name: 'ogygia:content-checks',
 		enforce: 'pre',
@@ -148,15 +156,16 @@ function content_checks(get_root: () => string, exts: readonly string[]): VitePl
  * anywhere else, one innocent import from an island or route component can drag the whole corpus
  * (megabytes of compiled markdown) into a client bundle, silently. Warn once per file.
  */
-function warn_placement(root: string, file: string, code: string, warned: Set<string>): void {
-	if (!root || !JS_MODULE_RE.test(file) || warned.has(file)) return;
+function warn_placement(root: string, file: string, code: string, warned: Say): void {
+	if (!root || !JS_MODULE_RE.test(file)) return;
 	// app source only — never library code
 	if (!file.startsWith(path.join(root, 'src') + path.sep)) return;
 	const defines_collection = code.includes('@ogygia/content') && CONTENT_CALL_RE.test(code);
 	if (!defines_collection && !code.includes('import.meta.og.loader.')) return;
 	if (SERVER_MODULE_EXT_RE.test(file) || SERVER_DIR_RE.test(file.slice(root.length))) return;
-	warned.add(file);
-	warn('content_collection_not_server_only', { file: path.relative(root, file) });
+	warned.once(file, () =>
+		warn('content_collection_not_server_only', { file: path.relative(root, file) })
+	);
 }
 
 /**

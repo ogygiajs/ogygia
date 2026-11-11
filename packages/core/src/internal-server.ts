@@ -7,7 +7,7 @@
  * @internal
  */
 /** Signer for deferred regions — SSR-only (the client region binding never imports this). */
-export { makeRegionEndpoint } from './server/region-endpoint.ts';
+export { make_region_endpoint } from './server/region-endpoint.ts';
 /** A held region's server render to HTML — the one copy every region binding calls. */
 export { render_region_html } from './server/render-region-html.ts';
 /** What the profiler (`@ogygia/devtools`) reads off a request ogygia served. */
@@ -27,6 +27,8 @@ export {
 	type SeedKeyStat
 } from './server/request-stats.ts';
 export { mark_personal } from './server/personal-response.ts';
+/** The hole render cache (the endpoint's cached render), for a plugin's tests. */
+export { cached_render, render_cache_clear, render_cache_key } from './server/render-cache.ts';
 /** The owner (a scope) of a server request: what the request starts goes when it ends. */
 export {
 	cleanup_failed,
@@ -35,7 +37,5 @@ export {
 	request_scope
 } from './plugin/request-scope.ts';
 export { islands_endpoint } from './server/endpoint.ts';
-export { scanRegions } from './server/split-regions.ts';
-/** The browser-faithful tag reader, for the HTML passes of the server-side packages. */
 // the page markup's vocabulary and its tag reader
 export * from './wire-markup.ts';

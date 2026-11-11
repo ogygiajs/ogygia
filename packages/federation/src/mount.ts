@@ -7,7 +7,7 @@
  */
 import { page, redirect, type PageDef, type ComponentPick, type Ctx } from '@ogygia/router';
 import { fed_app } from './app.ts';
-import { child_traceparent, type Claims, type FragmentDocument } from './wire.ts';
+import { child_traceparent, moved_card, type Claims, type FragmentDocument } from './wire.ts';
 import type { Peer } from './types.ts';
 import { OgygiaError } from './messages.ts';
 import { OG_MOUNT_FAILED, OG_MOUNT_FALLBACK, OG_MOUNT_MOVED } from '@ogygia/core/internal/server';
@@ -78,7 +78,7 @@ function mount_fn(
 					child_traceparent(c.request.headers.get('traceparent')).traceparent
 				);
 				if (doc.location) {
-					yield `<p ${OG_MOUNT_MOVED}>This page moved. <a href="${doc.location}">Continue</a></p>`;
+					yield String(moved_card(OG_MOUNT_MOVED, 'page', doc.location));
 					return;
 				}
 				yield (doc.css?.join('') ?? '') + (doc.head ?? '') + doc.body;

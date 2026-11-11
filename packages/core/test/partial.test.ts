@@ -17,7 +17,7 @@ describe('region()', () => {
 		// What the transform rewrites `import X with { partial: 'load' }` to on the SSR leg.
 		const binding = {
 			__ogRegion: 'abc123',
-			__module: '/@id/virtual:ogygia/island/abc123.js',
+			__module: '/@id/ogygia:region/entry/abc123.js',
 			__hydrate: 'load',
 			__component: A,
 			__sign: (id: string, props: Record<string, unknown>) =>
@@ -30,7 +30,7 @@ describe('region()', () => {
 			component: A,
 			props: { x: 2 },
 			id: 'abc123',
-			module: '/@id/virtual:ogygia/island/abc123.js',
+			module: '/@id/ogygia:region/entry/abc123.js',
 			hydrate: 'load'
 		});
 	});
@@ -38,7 +38,7 @@ describe('region()', () => {
 	it('throws when a marked binding has no component/signer (client leg)', () => {
 		const clientBinding = {
 			__ogRegion: 'abc123',
-			__module: '/@id/virtual:ogygia/island/abc123.js'
+			__module: '/@id/ogygia:region/entry/abc123.js'
 		} as unknown as Component<{ x: number }>;
 		expect(() => region(clientBinding, { x: 1 })).toThrow(/turned into a region on the server/);
 	});

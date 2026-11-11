@@ -12,13 +12,15 @@
  * of this file (src beside dist, a dual install), and a fact written through one must be read
  * through the other.
  */
+import { note_visitor_read, read_set, type Reads } from './reads.ts';
+
 export interface RequestFacts {
 	/** This render MAY be stored and served to others later (a plugin decided so before the render):
 	 *  the holes it mints get prerender-grade capabilities, and data-source receipts are kept. */
 	storable: boolean;
-	/** The first reason this render is per-visitor (a flag read, a streamed promise, a personal
-	 *  cookie or header a plugin observed), named for the dev note — or null. */
-	perVisitor: string | null;
+	/** What this request's render read that is not the same for every visitor (a flag, a streamed
+	 *  promise, a personal cookie or header): `reads.perVisitor` names the first, or is null. */
+	readonly reads: Reads;
 	/** The page streams load promises after the document. */
 	streamed: boolean;
 	/** The response belongs to one browser (devtools switched on for it): never store or share it. */
@@ -39,7 +41,7 @@ interface FactsSlot {
 	current: (() => Request | undefined) | null;
 }
 const slot: FactsSlot = ((globalThis as Record<symbol, FactsSlot | undefined>)[
-	Symbol.for('ogygia.facts.v2')
+	Symbol.for('ogygia.facts.v3')
 ] ??= {
 	by_request: new WeakMap(),
 	current: null
@@ -53,7 +55,7 @@ export function facts_of(request: Request): RequestFacts {
 			request,
 			(facts = {
 				storable: false,
-				perVisitor: null,
+				reads: read_set(),
 				streamed: false,
 				private: false,
 				answerForm: false,
@@ -84,7 +86,8 @@ export function current_facts(): RequestFacts | null {
 	return request ? facts_of(request) : null;
 }
 
-/** Name the first reason a render is per-visitor (later reasons do not replace it). */
-export function mark_per_visitor(facts: RequestFacts, reason: string): void {
-	if (facts.perVisitor === null) facts.perVisitor = reason;
+/** A per-visitor read by `request`'s code (the first reason names it): into the read set of the
+ *  work running now, and the request's. */
+export function note_per_visitor(request: Request, reason: string): void {
+	note_visitor_read(facts_of(request).reads, reason);
 }

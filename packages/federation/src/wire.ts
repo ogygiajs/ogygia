@@ -14,11 +14,14 @@ import {
 import {
 	Needle,
 	next_tag,
+	OG_MOUNT_MOVED,
+	OG_MOVED,
 	OGYGIA_GRAPH,
 	OGYGIA_RUNTIME,
 	text_of,
 	type FoundTag
 } from '@ogygia/core/internal/server';
+import { attr, decodeText, html, type Html } from '@ogygia/core/plugin/utils';
 
 // ── paths the handle serves ──────────────────────────────────────────────────────────────────
 /** The exposed route table: `GET|POST|… /og/fragment/page?path=…&search=…`. */
@@ -219,6 +222,8 @@ export interface FragmentDocument {
 	status: number;
 	/** 3xx target (already in the answering app's OWN base space, e.g. `/cms/posts/1`). */
 	location?: string;
+	/** The page's title, as plain text (its HTML character references decoded): the shell escapes
+	 *  it once where it places it. */
 	title: string;
 	/** `<link rel="stylesheet">` / `<style>` tags, asset hrefs absolute to the answering origin. */
 	css: string[];
@@ -383,6 +388,16 @@ function carried_meta(t: FoundTag): boolean {
 	);
 }
 
+/** The card a fragment answers with when its peer redirected after the status was sent (a hole,
+ *  a streamed mount): a link to the peer's `location`, escaped into its `href` (#439). */
+export function moved_card(
+	marker: typeof OG_MOVED | typeof OG_MOUNT_MOVED,
+	what: 'section' | 'page',
+	location: string
+): Html {
+	return html`<p${attr(marker, true)}>This ${what} moved. <a href="${location}">Continue</a></p>`;
+}
+
 /** Lift a full HTML document into the wire shape (title, css, head channel, body, runtime). */
 export function lift_document(html: string, origin: string): Omit<FragmentDocument, 'status'> {
 	const head_tag = next_tag(html, 'head', 0);
@@ -419,7 +434,7 @@ export function lift_document(html: string, origin: string): Omit<FragmentDocume
 	const body_tag = next_tag(html, 'body', 0);
 	const body_end = body_tag === null ? -1 : last_body_close(html, body_tag.end);
 	return {
-		title: (title_tag && text_of(head, title_tag, 'title')) ?? '',
+		title: decodeText((title_tag && text_of(head, title_tag, 'title')) ?? ''),
 		css,
 		...(head_meta ? { head: head_meta } : {}),
 		body: absolutize(body_end === -1 ? html : html.slice(body_tag!.end, body_end), origin),

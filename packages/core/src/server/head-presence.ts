@@ -103,13 +103,14 @@ const SPECULATION_TYPE = /^[\t\n\f\r ]*speculationrules[\t\n\f\r ]*$/i;
  * so the 2.6 MB body is never scanned for them.
  */
 export function dedupe_head_links(head: string): string {
-	if (!head.includes('<link')) return head;
+	let t = next_tag(head, 'link', 0);
+	if (t === null) return head;
 	const sheets = new Set<string>();
 	const hints = new Set<string>();
 	// (the kept spans are joined once at the end, and only when a duplicate was dropped)
 	let out: string[] | null = null;
 	let kept = 0;
-	for (let t = next_tag(head, 'link', 0); t !== null; t = next_tag(head, 'link', t.end)) {
+	for (; t !== null; t = next_tag(head, 'link', t.end)) {
 		const rel = t.attr('rel');
 		const seen = rel === 'stylesheet' ? sheets : rel === 'modulepreload' ? hints : null;
 		if (seen === null) continue;
