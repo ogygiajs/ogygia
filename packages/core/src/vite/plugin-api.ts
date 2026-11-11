@@ -393,8 +393,15 @@ export function client_hook_names(plugin: string, file: string): RuntimeHookName
 			n = n.expression;
 		return n;
 	};
+	// a bundler writes `export { client as default }` where the source had `export default client`
+	const default_local = body
+		.filter((s) => s.type === 'ExportNamedDeclaration' && !s.source)
+		.flatMap((s) => s.specifiers as AstNode[])
+		.find((sp) => (sp.exported?.name ?? sp.exported?.value) === 'default')?.local;
 	let value = unwrap(
-		body.find((s) => s.type === 'ExportDefaultDeclaration')?.declaration as AstNode | undefined
+		(body.find((s) => s.type === 'ExportDefaultDeclaration')?.declaration as
+			| AstNode
+			| undefined) ?? default_local
 	);
 	if (value?.type === 'Identifier') {
 		const name = value.name as string;
