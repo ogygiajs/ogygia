@@ -76,7 +76,7 @@ const stamp_cookie: Handle = async ({ event, resolve }) => {
 // The SSR profiler is NOT wired here — `devtools({ profiler })` in vite.config.ts mounts it inside
 // ogygia.handle(). UI at /__profiler (dev = open; prod needs ?key=<OGYGIA_PROFILER_SECRET>).
 const restore_lab: Handle = process.env.OGYGIA_RESTORE_LAB
-	? reshape.handle({ transform: (html) => scoped_render(html) })
+	? reshape.handle((html) => scoped_render(html))
 	: ({ event, resolve }) => resolve(event);
 
 export const handle = sequence(

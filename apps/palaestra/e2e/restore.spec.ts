@@ -1,5 +1,5 @@
-// REVERSIBLE TRANSFORMS, end to end (ogygia.handle({ transform }), server/reversible.ts +
-// runtime/restore.ts): the built palaestra, served with OGYGIA_RESTORE_LAB=1, runs a scoped
+// REVERSIBLE TRANSFORMS, end to end (reshape.handle(transform), @ogygia/reshape's reversible.ts +
+// restore.ts): the built palaestra, served with OGYGIA_RESTORE_LAB=1, runs a scoped
 // web-component render (apps/palaestra/src/lib/restorelab/scoped-render.ts) over every document and
 // region answer. On /restore-lab the island inside a reshaped host must hydrate without a heal and
 // stay interactive, the parser must not split the page's link or <p> around a host's tree, the hole's

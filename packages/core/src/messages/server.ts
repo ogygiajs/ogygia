@@ -27,7 +27,7 @@ export const SERVER_ERRORS = {
 	handle_transform_moved: {
 		text: (): string => prose`
 			handle({ transform }) moved to @ogygia/reshape: list reshape() beside ogygia() in
-			vite.config, and pass the transform to reshape.handle({ transform }), before ogygia.handle()
+			vite.config, and pass the transform to reshape.handle(transform), before ogygia.handle()
 			in sequence().
 		`,
 		details: (): string => prose`
@@ -36,7 +36,7 @@ export const SERVER_ERRORS = {
 
 			In vite.config, list \`reshape()\` (from \`@ogygia/reshape/vite\`) beside \`ogygia()\`. In
 			hooks.server.ts, \`import * as reshape from '@ogygia/reshape'\` and export
-			\`sequence(reshape.handle({ transform }), ogygia.handle())\`. The transform itself is
+			\`sequence(reshape.handle(transform), ogygia.handle())\`. The transform itself is
 			unchanged: \`(html, { kind, csr, event })\` in, HTML out.
 		`
 	},
