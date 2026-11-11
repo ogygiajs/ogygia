@@ -23,7 +23,7 @@ import { boot_link, slots, type LiftedLake } from './slots.ts';
 import { report_thrown } from '../report-thrown.ts';
 import type { HeadMark } from './session.ts';
 import { keep_host_classes, note_host_classes } from './host-classes.ts';
-import { install as install_hydrate_features } from 'virtual:ogygia/hydrate-features';
+import { install_hydrate_features } from 'ogygia:boot';
 import { emit as dt_emit } from '../events/bus.ts';
 import { warn } from '../messages/lazy.ts';
 import { say } from '@ogygia/machine';

@@ -12,7 +12,7 @@ const KIT_ROUTE_FILE = /(?:^|\/)\+(?:page|layout|error|server|hooks)(?:\.|$)/;
 /**
  * Host route shells (`+page` / `+layout` / …) never join the browser module graph under
  * `csr=false`, so Vite's fine-grained HMR for them has no client importer. Force a full reload.
- * Standalone CSS is soft-updated via `virtual:ogygia/dev-hmr` (Vite inject after Kit FOUC).
+ * Standalone CSS is soft-updated via `ogygia:dev/hmr` (Vite inject after Kit FOUC).
  * If that soft path fails, the client bridge listens for `vite:error` and reloads the document.
  *
  * @internal HMR policy helper (also covered by unit tests).
