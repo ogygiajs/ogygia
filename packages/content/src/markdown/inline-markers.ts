@@ -17,6 +17,7 @@
  * left as-is.
  */
 import type { ShikiTransformer } from 'shiki';
+import { escapeText as escape_text } from '@ogygia/core/plugin/utils';
 
 // ── regexes
 const LF_G = /\n/g;
@@ -40,11 +41,6 @@ export type InlineMarkerOptions = {
 	 *  own to match an existing skin (svelte.dev uses `highlight add` / `highlight remove`). */
 	classes?: { add?: string; remove?: string };
 };
-
-/** `text` as HTML text content. */
-function escape_text(text: string): string {
-	return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-}
 
 /** True when the marker at `i` sits alone on its line (only whitespace around it). */
 function alone_on_line(src: string, i: number, len: number): boolean {

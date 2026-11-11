@@ -3,6 +3,7 @@
 // search following the changes, a dimension whose outline fails once, and the on-device search
 // client over a stand-in worker (the browser's Worker is the client's only browser need).
 import { bench } from '@bench/heisenbench/bench';
+import { registry, type Registry } from '@ogygia/machine';
 import * as v from 'valibot';
 // (the site layer reaches the package's own Svelte components, written for experimental.async:
 // Heisenbench compiles them with the package's svelte.config.js)
@@ -17,10 +18,11 @@ import { outline, pick } from '../src/site/outline.ts';
  *  graph read walks all of them: each run starts from an empty graph, or a run would walk the
  *  collections every earlier run made and count more than the one before. */
 function fresh<T>(ctx: T): T {
-	const graph = (globalThis as Record<symbol, { all?: Set<unknown> } | undefined>)[
+	const graph = (globalThis as Record<symbol, { all?: Registry<unknown> } | undefined>)[
 		Symbol.for('ogygia.content.graph')
 	];
-	graph?.all?.clear();
+	// (a registry lets nothing go but by its owners: the run starts with a new, empty one)
+	if (graph) graph.all = registry();
 	return ctx;
 }
 
