@@ -133,10 +133,13 @@ export async function run(
 		old_files: r.chance(0.5),
 		purge: r.chance(0.5)
 	};
+	// and whether the app set a stable secret (most do; without one, a deploy refuses old holes)
+	const secret = r.chance(0.7) ? 'sim-secret' : undefined;
 	const world = await World.make({
 		seed,
 		builds: BUILDS,
 		rollover,
+		secret,
 		faults: new Set(faults),
 		// (an action takes up to its 30 s budget, and a run ends at rest after it: room for all)
 		horizon: (steps + 2) * 60_000,
@@ -145,7 +148,9 @@ export async function run(
 		skew
 	});
 	running = world;
-	world.loop.note(`servers: ${instances}, clocks up to ${skew} ms apart`);
+	world.loop.note(
+		`servers: ${instances}, clocks up to ${skew} ms apart, ${secret ? 'a stable secret' : 'no secret'}`
+	);
 	const actions: Action[] = [];
 	const broken: Broken[] = [];
 	const dirty = new Set<string>();
@@ -230,7 +235,14 @@ export async function run(
 				for (const b of [stuck(t), page_rules(t)])
 					if (b) broken.push({ ...b, detail: `at rest: ${b.detail}` });
 			for (const t of v.tabs) {
-				if (dirty.has(t.name) || pressed.get(t.name) === t.documents || faulted(world, t)) continue;
+				// (a document a deploy failed a download of is degraded as a faulted one is: by the host)
+				if (
+					dirty.has(t.name) ||
+					pressed.get(t.name) === t.documents ||
+					faulted(world, t) ||
+					world.skewed_for(t.realm)
+				)
+					continue;
 				const b = await mpa_equivalent(world, v, t);
 				if (b) broken.push(b);
 			}

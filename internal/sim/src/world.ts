@@ -54,6 +54,10 @@ export interface WorldOptions {
 	supplied?: readonly string[];
 	/** How a deploy goes out (`World.deploy_next`). Default: at once, old files gone, no purge. */
 	rollover?: Rollover;
+	/** The app's `OGYGIA_SECRET`, the same for every build (a stable signing key). Unset, each build
+	 *  signs with its own key, and a page of one build gets its holes refused by another's servers
+	 *  (`x-ogygia-deny: foreign-key`, as ogygia's `secret_missing` warns). */
+	secret?: string;
 }
 
 /**
@@ -110,7 +114,7 @@ export class World {
 			loop: this.loop,
 			rng: this.rng,
 			network: this.network,
-			route: (request) => this.#route(request),
+			route: (request, from) => this.#route(request, from),
 			origin: ORIGIN
 		});
 		this.live = o.builds[0].id;
@@ -145,7 +149,7 @@ export class World {
 		globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
 			const request = new Request(input, init);
 			const from = current_server.getStore()?.name ?? 'server';
-			return w.network.send(from, request, (r) => w.#route(r));
+			return w.network.send(from, request, (r) => w.#route(r, from));
 		};
 		// a page's (or a server's) uncaught error reaches the host process: it is the run's finding,
 		// not the simulator's crash
@@ -169,7 +173,13 @@ export class World {
 		// store, a counter a command bumps) is taken off when the world ends, so the next world in
 		// this process does not start with it (a seed's replay runs after other seeds)
 		const globals = new Set(Reflect.ownKeys(globalThis));
+		// (the world's servers read it as they sign; the host's own is put back at the end)
+		const host_secret = process.env.OGYGIA_SECRET;
+		if (o.secret === undefined) delete process.env.OGYGIA_SECRET;
+		else process.env.OGYGIA_SECRET = o.secret;
 		w.#restore = () => {
+			if (host_secret === undefined) delete process.env.OGYGIA_SECRET;
+			else process.env.OGYGIA_SECRET = host_secret;
 			process.off('unhandledRejection', uncaught);
 			process.off('uncaughtException', uncaught);
 			globalThis.fetch = real_fetch;
@@ -201,18 +211,44 @@ export class World {
 
 	/** Content-hashed files (`/_app/immutable/…`) a request asked a build for that only another
 	 *  build has: an old page's file after its build is gone, or, in a rolling deploy's window, a
-	 *  file of one build asked of the other's servers. The deploy, not the app, failed them. */
-	readonly skewed = new Set<string>();
+	 *  file of one build asked of the other's servers. The deploy, not the app, failed them. By who
+	 *  asked (a realm: a tab's document, `tab-1#2`). */
+	readonly skewed = new Map<string, Set<string>>();
 
-	/** Whether a deploy failed a download of `path` (`skewed`). */
-	gone(path: string): boolean {
-		return this.skewed.has(path);
+	/** The build every request goes to while it is set (`as_of`). */
+	#pinned: string | null = null;
+
+	/** The build that answered each realm's last page request (its document, or the page a client
+	 *  navigation brought in). */
+	readonly #page_build = new Map<string, string>();
+
+	/** The build the page a document shows came from (the live one if it asked none). */
+	build_of(realm: string): string {
+		return this.#page_build.get(realm) ?? this.live;
+	}
+
+	/** Runs `work` with every request sent to `build` (the MPA check's fresh load of an old page
+	 *  asks the build that page is of). */
+	async as_of<T>(build: string, work: () => Promise<T>): Promise<T> {
+		this.#pinned = build;
+		try {
+			return await work();
+		} finally {
+			this.#pinned = null;
+		}
+	}
+
+	/** Whether a deploy failed a download `realm` asked for (`skewed`): a browser names the module
+	 *  it imported, not the dependency of it that failed, so any of the document's counts. */
+	skewed_for(realm: string): boolean {
+		return (this.skewed.get(realm)?.size ?? 0) > 0;
 	}
 
 	/** The build a request goes to now: the live one, or during a rolling deploy's window, by even
 	 *  odds, the one before it. A content-hashed file only another build has goes to that build
 	 *  when the host keeps old files. */
-	#build_for(path: string): string {
+	#build_for(path: string, from: string): string {
+		if (this.#pinned !== null) return this.#pinned;
 		const last = this.deployed.at(-1);
 		let id = this.live;
 		if (
@@ -226,9 +262,14 @@ export class World {
 			const other = serves(id) ? undefined : [...this.servers.keys()].reverse().find(serves);
 			if (other !== undefined) {
 				if (this.#o.rollover?.old_files) id = other;
-				else this.skewed.add(path);
+				else {
+					const list = this.skewed.get(from) ?? new Set<string>();
+					this.skewed.set(from, list.add(path));
+				}
 			}
 		}
+		// (a page: not a file, not the region endpoint; its Kit data is the page's too)
+		if (!path.startsWith('/_app/') && !path.startsWith('/__ogygia__')) this.#page_build.set(from, id);
 		return id;
 	}
 
@@ -249,7 +290,7 @@ export class World {
 	}
 
 	/** A request at the front door: the CDN, then the live build's instance the seed picks. */
-	#route(request: Request): Promise<Response> {
+	#route(request: Request, from = 'server'): Promise<Response> {
 		// another host (a page's third-party script or stylesheet): the rest of the web, which
 		// answers with an empty file of the kind asked for; the app is not tested against it
 		const url = new URL(request.url);
@@ -269,9 +310,19 @@ export class World {
 					: 'text/plain';
 			return Promise.resolve(new Response('', { headers: { 'content-type': type } }));
 		}
-		return this.cdn.fetch(request, (r) => {
-			const list = this.servers.get(this.#build_for(decodeURIComponent(url.pathname)))!;
-			return list[this.rng.int(list.length)].handle(r);
+		// (a load pinned to a build asks its servers, past the CDN: what is cached may be another's)
+		const cdn =
+			this.#pinned === null
+				? this.cdn
+				: { fetch: (r: Request, origin: (r: Request) => Promise<Response>) => origin(r) };
+		return cdn.fetch(request, async (r) => {
+			const list = this.servers.get(this.#build_for(decodeURIComponent(url.pathname), from))!;
+			const answer = await list[this.rng.int(list.length)].handle(r);
+			// (a hole one build signed, refused by another's servers for its key: the deploy's doing
+			// when the app has no stable secret, as ogygia's `secret_missing` says)
+			if (answer.headers.get('x-ogygia-deny') === 'foreign-key' && this.#o.secret === undefined)
+				this.skewed.set(from, (this.skewed.get(from) ?? new Set<string>()).add(url.pathname));
+			return answer;
 		});
 	}
 

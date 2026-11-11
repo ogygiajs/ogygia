@@ -412,7 +412,7 @@ export function first_difference(a: string, b: string, context = 3): string {
 
 /** A hard load of `url` in a new browser with `v`'s cookies, on a network that does not fail it
  *  (a fault there is no finding about the tab), at rest. */
-async function fresh_load(
+async function load_fresh(
 	world: World,
 	v: Visitor,
 	url: string,
@@ -451,6 +451,11 @@ export async function mpa_equivalent(
 	const url = tab.page.mainFrame.url;
 	if (!url.startsWith('http')) return null;
 	let shown = view(tab.page.mainFrame.document as unknown as Document);
+	// (a page a build a deploy replaced answered is compared with a fresh load from that build: an
+	// old page is the old release's, whole)
+	const build = world.build_of(tab.realm);
+	const fresh_load = (w: World, visitor: Visitor, at: string, name: string) =>
+		w.as_of(build, () => load_fresh(w, visitor, at, name));
 	const fresh = await fresh_load(world, v, url, 'fresh');
 	const loaded = view(fresh.tab.page.mainFrame.document as unknown as Document);
 	// (a text that changes on its own at rest is time, not state: a ticking clock in an island the
@@ -612,15 +617,13 @@ const NOT_DOWNLOADED =
 	/ogygiajs\.dev\/e\/|Failed to fetch dynamically imported module|^error: <(script|link)> \S+ failed|Failed to perform request/;
 
 /**
- * A failure a deploy explains: a page asked for a content-hashed file its build had and the host
- * no longer serves (the old build's files gone with it), said as the browser says a download
- * failed, or by ogygia with its code. ogygia's own words without a code are never excused.
+ * A failure a deploy explains: the tab asked a build for a content-hashed file only another build
+ * has (an old page's file after its build is gone, or one build's file asked of the other's
+ * servers in a rolling deploy), said as the browser says a download failed, or by ogygia with its
+ * code. ogygia's own words without a code are never excused.
  */
-function deploy_took(world: World, line: string): boolean {
-	if (!NOT_DOWNLOADED.test(line)) return false;
-	for (const m of line.matchAll(/(?:https:\/\/app\.test)?(\/_app\/immutable\/[\w./-]+)/g))
-		if (world.gone(m[1])) return true;
-	return false;
+function deploy_took(world: World, tab: Tab, line: string): boolean {
+	return NOT_DOWNLOADED.test(line) && world.skewed_for(tab.realm);
 }
 
 /** No uncaught error, unhandled rejection or console error in the page (beyond what a network
@@ -634,7 +637,7 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 	// `type="application/ogygia-page"` hid the page data, and the island read a missing field)
 	if (world !== undefined && document_faulted(world, tab)) return null;
 	const errors = [...tab.errors, ...tab.console.filter((l) => l.startsWith('error:'))].filter(
-		(l) => !(excused && EXPLAINED.test(l)) && !(world !== undefined && deploy_took(world, l))
+		(l) => !(excused && EXPLAINED.test(l)) && !(world !== undefined && deploy_took(world, tab, l))
 	);
 	if (errors.length === 0) return null;
 	const known = KNOWN_SAID.filter((k) => errors.some((l) => k.said.test(l)));
