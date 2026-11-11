@@ -13,6 +13,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync } from 'node:fs';
+import { is_stacked } from './ci-stack.ts';
 
 type Slice = {
 	name: string;
@@ -56,12 +57,10 @@ const BROWSER_JOBS = ['firefox', 'webkit', 'firefox-stable'] as const;
 
 const env = process.env;
 const pull_request = env.EVENT === 'pull_request';
-// A STACKED PR (its base is another PR's branch) runs format, lint, check and size only: its e2e and
-// browser jobs run once, on the stack's integration PR or its top PR into main (or with `ci:full`).
+// (a stacked PR's e2e and browser jobs run once, on its stack's PR into main: ci-stack.ts)
 const stacked =
 	pull_request &&
-	!!env.PR_BASE &&
-	env.PR_BASE !== 'main' &&
+	is_stacked(env.PR_BASE ?? '') &&
 	!(JSON.parse(env.LABELS || '[]') as string[]).includes('ci:full');
 // (the base commit itself: a stacked PR's `base_ref` was seen to read `main` on CI, its base sha
 // was right)
