@@ -1,52 +1,5 @@
-/**
- * ogygia's frontmatter module — a dependency-free parser (no `yaml` npm package), used both by our
- * own `parseFrontmatter` split and directly by mdsvex (wired via its `frontmatter.parse` option) so
- * ALL content frontmatter goes through one code path.
- *
- * It is a FRONTMATTER parser first and a YAML parser second: it does not chase full YAML flow
- * semantics. A brace-wrapped value with no top-level colon (`title: {@const}`, `{#each ...}`) stays
- * the STRING it looks like, not a `{ '@const': null }` mapping — the shape the Svelte docs use.
- *
- * `parse_yaml` takes the text BETWEEN the `---` fences and returns a plain JS value — almost always a
- * `Record<string, unknown>`, but a top-level sequence or scalar is also valid. An empty /
- * whitespace-only source returns `{}` (NOT null).
- *
- * ---------------------------------------------------------------------------
- * SUPPORTED SUBSET (this is a frontmatter parser, not a full YAML engine)
- * ---------------------------------------------------------------------------
- * - Block mappings via indentation nesting (any consistent indent width).
- * - Block sequences: `- item` lines, sequences of maps (`- key: val` + indented
- *   siblings), and nested sequences (`- - x`).
- * - Scalars:
- *     - plain (unquoted) strings
- *     - single-quoted (literal; `''` escapes one quote)
- *     - double-quoted (escapes: \n \t \r \0 \" \\ \/ \b \f \uXXXX)
- * - Typed plain scalars: integers, floats (negative, leading `+`, exponent,
- *   `.5`, `.inf`, `.nan`, hex `0x`, octal `0o`), `true`/`false`, null.
- * - Flow collections on one line: `[a, b, c]` and `{ a: 1, b: two }` (may nest).
- * - Comments: `#` to end of line, but NOT inside quotes or flow scalars, and
- *   only when preceded by whitespace / start-of-line (so `a#b` stays plain).
- * - Block scalars: `|` (literal) and `>` (folded), with indentation stripping.
- *   Chomping / indent indicators (`|-`, `|+`, `>-`, `>2`, ...) are supported.
- * - Quoted KEYS as well as quoted values.
- *
- * ---------------------------------------------------------------------------
- * DELIBERATE OMISSIONS / DIFFERENCES FROM THE `yaml` PACKAGE
- * ---------------------------------------------------------------------------
- * - The "Norway problem": ONLY `true`/`false` (and their `True`/`TRUE` casings)
- *   are booleans. `yes`/`no`/`on`/`off`/`y`/`n` stay STRINGS. This is a
- *   deliberate divergence to avoid `country: no` becoming `false`.
- * - Dates / timestamps are NOT auto-converted to `Date`. ISO date strings stay
- *   STRINGS. The caller's schema layer coerces them if it wants a `Date`.
- * - NOT supported (ignored / treated as plain text): anchors & aliases
- *   (`&`/`*`), tags (`!!`), multi-document `---` separators inside the block,
- *   complex / explicit keys (`? ...`), and merge keys (`<<`).
- *
- * @module
- */
 import { OgygiaError } from '../messages/build.ts';
 
-// ── regexes
 const HEX4_RE = /^[0-9a-fA-F]{4}$/;
 const YAML_INF_RE = /^[-+]?\.(inf|Inf|INF)$/;
 const YAML_NAN_RE = /^\.(nan|NaN|NAN)$/;
@@ -65,7 +18,6 @@ const CRLF_G = /\r\n?/g;
 type Ctx = { lines: string[]; i: number };
 type Cursor = { s: string; i: number };
 
-/** Count leading spaces; throw if a tab is used for indentation. */
 function indent_of(line: string): number {
 	let i = 0;
 	while (i < line.length && line[i] === ' ') i++;
@@ -75,14 +27,12 @@ function indent_of(line: string): number {
 	return i;
 }
 
-/** Leading-space count without the tab guard (used for raw block-scalar lines). */
 function leading_spaces(line: string): number {
 	let i = 0;
 	while (i < line.length && line[i] === ' ') i++;
 	return i;
 }
 
-/** A line that carries no structure: blank, or a full-line `#` comment. */
 function is_skippable(line: string): boolean {
 	const t = line.trim();
 	return t === '' || t[0] === '#';
@@ -92,16 +42,10 @@ function skip_blank_comments(ctx: Ctx): void {
 	while (ctx.i < ctx.lines.length && is_skippable(ctx.lines[ctx.i])) ctx.i++;
 }
 
-/** `- ` sequence entry (dash followed by a space or end-of-line). */
 function is_seq_item(content: string): boolean {
 	return content === '-' || content.startsWith('- ') || content.startsWith('-\t');
 }
 
-/**
- * Find the `:` that separates a block-mapping key from its value: the first
- * top-level colon followed by whitespace or end-of-line, skipping quotes and
- * flow brackets. Returns -1 when the line is not a mapping entry.
- */
 function find_key_colon(s: string): number {
 	let in_s = false;
 	let in_d = false;
@@ -132,11 +76,6 @@ function find_key_colon(s: string): number {
 	return -1;
 }
 
-/**
- * Strip a trailing `# comment` from a single-line value, honouring quotes and
- * flow brackets, and only treating `#` as a comment when it is preceded by
- * whitespace (or starts the string).
- */
 function strip_comment(s: string): string {
 	let in_s = false;
 	let in_d = false;
@@ -166,7 +105,6 @@ function strip_comment(s: string): string {
 	return s;
 }
 
-/** Read a `"..."` scalar starting at `i` (which points at the opening quote). */
 function read_double_quoted(s: string, i: number): { value: string; i: number } {
 	i++;
 	let out = '';
@@ -225,7 +163,6 @@ function read_double_quoted(s: string, i: number): { value: string; i: number } 
 	return { value: out, i };
 }
 
-/** Read a `'...'` scalar starting at `i`; `''` yields a single quote. */
 function read_single_quoted(s: string, i: number): { value: string; i: number } {
 	i++;
 	let out = '';
@@ -245,7 +182,6 @@ function read_single_quoted(s: string, i: number): { value: string; i: number } 
 	return { value: out, i };
 }
 
-/** Coerce a plain (unquoted) scalar to its typed JS value. */
 function parse_plain(text: string): unknown {
 	if (text === '~' || text === 'null' || text === 'Null' || text === 'NULL') return null;
 	if (text === 'true' || text === 'True' || text === 'TRUE') return true;
@@ -275,7 +211,6 @@ function skip_ws(p: Cursor): void {
 	while (p.i < p.s.length && (p.s[p.i] === ' ' || p.s[p.i] === '\t')) p.i++;
 }
 
-/** Read a plain flow token up to a `,`/`]`/`}` (and `:` when reading a key). */
 function read_flow_plain(p: Cursor, is_key: boolean): string {
 	const start = p.i;
 	while (p.i < p.s.length) {
@@ -307,7 +242,7 @@ function read_flow_node(p: Cursor): unknown {
 }
 
 function read_flow_seq(p: Cursor): unknown[] {
-	p.i++; // consume '['
+	p.i++;
 	const arr: unknown[] = [];
 	skip_ws(p);
 	if (p.s[p.i] === ']') {
@@ -337,7 +272,7 @@ function read_flow_seq(p: Cursor): unknown[] {
 }
 
 function read_flow_map(p: Cursor): Record<string, unknown> {
-	p.i++; // consume '{'
+	p.i++;
 	const obj: Record<string, unknown> = {};
 	skip_ws(p);
 	if (p.s[p.i] === '}') {
@@ -388,11 +323,6 @@ function parse_flow(text: string): unknown {
 	return read_flow_node(p);
 }
 
-/** True if a `{…}` is really a mapping — empty (`{}`), or holding a top-level (`depth === 1`) `:` —
- *  as opposed to a brace-wrapped token like `{@const}`. Quotes are skipped. */
-/** A `{…}` is a real mapping only if it's empty or holds a top-level (`depth === 1`) `:`; a `[…]` is
- *  a real sequence only if it's empty or holds a top-level `,`. Otherwise the brace/bracket value is
- *  a plain string (`title: {@const}` / `title: [create your own]`) — frontmatter is text first. */
 function is_flow_collection(text: string, open: '{' | '[', sep: ':' | ','): boolean {
 	const close = open === '{' ? '}' : ']';
 	if (text.slice(text.indexOf(open) + 1, text.lastIndexOf(close)).trim() === '') return true;
@@ -411,13 +341,9 @@ function is_flow_collection(text: string, open: '{' | '[', sep: ':' | ','): bool
 	return false;
 }
 
-/** A single-line value: quoted, flow, or a typed plain scalar. Empty → null. */
 function parse_scalar(text: string): unknown {
 	if (text === '') return null;
 	const c = text[0];
-	// Frontmatter is TEXT first; we don't chase full YAML flow semantics. `{…}` / `[…]` values are only
-	// real collections when they actually hold pairs / multiple items — svelte docs title pages with
-	// `{@const}`, `{#if ...}`, or `[create your own]`, which look like flow but are just the STRING.
 	if (c === '{') return is_flow_collection(text, '{', ':') ? parse_flow(text) : text;
 	if (c === '[') return is_flow_collection(text, '[', ',') ? parse_flow(text) : text;
 	if (c === '"') return read_double_quoted(text, 0).value;
@@ -425,7 +351,6 @@ function parse_scalar(text: string): unknown {
 	return parse_plain(text);
 }
 
-/** A `key` token (may be quoted). Keys are always strings for frontmatter. */
 function parse_key(raw: string): string {
 	const t = raw.trim();
 	if (t[0] === '"') return read_double_quoted(t, 0).value;
@@ -439,11 +364,6 @@ function is_block_scalar_indicator(s: string): boolean {
 	return CHOMP_THEN_INDENT_RE.test(rest) || INDENT_THEN_CHOMP_RE.test(rest);
 }
 
-/**
- * Parse a `|` (literal) or `>` (folded) block scalar. The key/indicator line
- * has already been consumed; `parent_indent` is the column of that key (content
- * must be indented deeper than it).
- */
 function parse_block_scalar(ctx: Ctx, parent_indent: number, header: string): string {
 	const style = header[0];
 	let chomp = '';
@@ -488,8 +408,6 @@ function parse_block_scalar(ctx: Ctx, parent_indent: number, header: string): st
 	if (style === '|') {
 		text = body.join('\n');
 	} else {
-		// Folded: a line break between two non-empty lines folds to a space; each
-		// blank line becomes a newline (and absorbs the surrounding fold).
 		text = '';
 		for (let k = 0; k < body.length; k++) {
 			const cur = body[k];
@@ -506,10 +424,6 @@ function parse_block_scalar(ctx: Ctx, parent_indent: number, header: string): st
 	return text + '\n';
 }
 
-/**
- * Value that follows a `key:` (or `-`) with nothing on the same line: a nested
- * block indented deeper, a sequence at the same column, or null.
- */
 function parse_child(ctx: Ctx, indent: number): unknown {
 	const save = ctx.i;
 	skip_blank_comments(ctx);
@@ -551,7 +465,6 @@ function parse_sequence(ctx: Ctx, indent: number): unknown[] {
 		} else {
 			const leading = rest.length - rest.replace(LEADING_SPACES_RE, '').length;
 			const item_indent = col + 1 + leading;
-			// Blank the dash so the inline content keeps its column, then reparse.
 			ctx.lines[ctx.i] = ' '.repeat(col + 1) + rest;
 			arr.push(parse_block(ctx, item_indent));
 		}
@@ -573,8 +486,6 @@ function parse_mapping(ctx: Ctx, indent: number): Record<string, unknown> {
 		if (kc === -1) break;
 
 		const key = parse_key(content.slice(0, kc));
-		// An empty key (a line that is just `:` or `: : :`) is malformed, not a valid mapping —
-		// surface it so callers reject broken frontmatter instead of silently keying on "".
 		if (key === '') {
 			throw new OgygiaError('content_frontmatter_empty_key', {
 				line: JSON.stringify(line.trim())
@@ -595,7 +506,6 @@ function parse_mapping(ctx: Ctx, indent: number): Record<string, unknown> {
 	return obj;
 }
 
-/** Dispatch a block node at column `indent`: sequence, mapping, or scalar. */
 function parse_block(ctx: Ctx, indent: number): unknown {
 	skip_blank_comments(ctx);
 	const line = ctx.lines[ctx.i];
@@ -611,9 +521,29 @@ function parse_block(ctx: Ctx, indent: number): unknown {
 }
 
 /**
- * Parse a YAML frontmatter block (the text BETWEEN the `---` fences) into a
- * plain JS value. Empty / whitespace-only input returns `{}` (an empty object),
- * never null.
+ * Parse a frontmatter block (the text between the `---` fences) into a plain value: almost always a
+ * mapping, but a top-level sequence or scalar too. Empty or comment-only input gives `{}`, never
+ * null. It has no dependencies, and both `parseFrontmatter` and the markdown preprocessor (mdsvex's
+ * `frontmatter.parse`) read frontmatter through it.
+ *
+ * It is a frontmatter parser first and a YAML parser second. It reads:
+ * - block mappings and sequences at any consistent indent (sequences of maps, `- - x`);
+ * - plain, single-quoted (`''` is one quote) and double-quoted scalars (`\n \t \r \0 \" \\ \/ \b
+ *   \f \uXXXX`), as values and as keys;
+ * - typed plain scalars: integers, floats (sign, exponent, `.5`, `.inf`, `.nan`), hex `0x`, octal
+ *   `0o`, `true`/`false` and `null`/`~` (lower, Title or UPPER case);
+ * - one-line flow collections (`[a, b]`, `{ a: 1 }`, nested);
+ * - `#` comments after whitespace, outside quotes and flow collections (`a#b` stays text);
+ * - block scalars `|` and `>`, with chomping and indent indicators (`|-`, `|+`, `>2`).
+ *
+ * Where it differs from the `yaml` package, on purpose:
+ * - a `{…}` with no top-level `:`, or a `[…]` with no top-level `,`, is the string it looks like
+ *   (`title: {@const}`, `title: [create your own]`, as the Svelte docs title pages);
+ * - only `true`/`false` are booleans (`country: no` stays `'no'`);
+ * - dates stay strings (a schema coerces them);
+ * - anchors, aliases, tags and merge keys stay text, and nothing after an inner `---` is read.
+ *
+ * A tab indent or an empty key throws.
  */
 export function parse_yaml(source: string): unknown {
 	const normalized = source.replace(BOM, '').replace(CRLF_G, '\n');
@@ -634,8 +564,9 @@ export type FrontmatterResult = {
 };
 
 /**
- * Minimal `---` YAML frontmatter split. Body is unused for glob catalogs
- * (Content comes from the Vite module); data is schema-validated.
+ * Split a file into its `---` frontmatter data and its body. With no opening or no closing fence
+ * there is no data and the whole text is the body. A list or scalar block gives no data; a block
+ * `parse_yaml` refuses throws `content_frontmatter_invalid` with the reason.
  */
 export function parseFrontmatter(source: string): FrontmatterResult {
 	const text = source.replace(BOM, '');
