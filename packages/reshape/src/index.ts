@@ -16,7 +16,9 @@
  */
 import type { Handle } from '@ogygia/core/plugin';
 import { OgygiaError } from './messages.ts';
-import { slot, type Transform } from './requests.ts';
+import { slot, type ReshapeTransform } from './requests.ts';
+
+export type { ReshapeTransform };
 
 /**
  * The app's own pass over the HTML ogygia sends, as a Kit handle. Put it before ogygia's, and list
@@ -33,7 +35,7 @@ import { slot, type Transform } from './requests.ts';
  * @param transform - Post-processes the HTML ogygia sends — every document (the chunk carrying
  * `</head>`; a streamed tail passes untouched) and every region answer (a hole, a lake remount) — e.g.
  * a web-component server render. `html` in, `html` out, may be async; it is on the response path, so
- * keep it fast.
+ * keep it fast. Its type is `ReshapeTransform`, for a transform written in a module of its own.
  *
  * It may reshape Svelte-owned markup. ogygia marks the HTML before the call and restores in the
  * browser, before anything hydrates, what the transform moved:
@@ -47,7 +49,7 @@ import { slot, type Transform } from './requests.ts';
  * - everything else `og-*` is ogygia's: carry it along wherever you move a node; it is gone from the
  *   final DOM.
  */
-export function handle(transform: Transform): Handle {
+export function handle(transform: ReshapeTransform): Handle {
 	return ({ event, resolve }) => {
 		// (without the plugin nothing would run the transform: say so on every request instead)
 		if (!slot.live) throw new OgygiaError('reshape_plugin_missing');
