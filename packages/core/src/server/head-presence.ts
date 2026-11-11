@@ -1,4 +1,4 @@
-import { is_word } from './html-scan.ts';
+import { is_html_space } from './html-scan.ts';
 
 const ROUTER_META_RE = /<meta\b[^>]*\bname=["']ogygia-router["']/i;
 const RUNTIME_SCRIPT_RE = /<script\b[^>]*\bdata-ogygia-runtime\b/i;
@@ -30,20 +30,58 @@ export function page_declares_speculation_rules(html: string): boolean {
 	return SPECULATION_RULES_RE.test(html);
 }
 
-function quoted_attr(s: string, from: number, to: number, attr: string): string | undefined {
-	const n = attr.length;
-	for (let i = s.indexOf(attr, from); i !== -1 && i + n + 2 <= to; i = s.indexOf(attr, i + 1)) {
-		if (is_word(s.charCodeAt(i - 1)) || s.charCodeAt(i + n) !== 61) continue;
-		const q = s.charCodeAt(i + n + 1);
-		if (q !== 34 && q !== 39) continue;
-		const start = i + n + 2;
-		let end = start;
-		for (; end < to; end++) {
-			const c = s.charCodeAt(end);
-			if (c === 34 || c === 39) return s.slice(start, end);
-		}
+const LINK_OPEN_G = /<link[\t\n\f\r />]/gi;
+
+const LINK = { rel: undefined as string | undefined, href: undefined as string | undefined };
+
+function name_is(s: string, from: number, name: string): boolean {
+	for (let k = 0; k < name.length; k++) {
+		if ((s.charCodeAt(from + k) | 32) !== name.charCodeAt(k)) return false;
 	}
-	return undefined;
+	return true;
+}
+
+function link_tag_end(s: string, i: number): number {
+	LINK.rel = LINK.href = undefined;
+	const n = s.length;
+	for (;;) {
+		let c = s.charCodeAt(i);
+		while (c === 32 || c === 47 || (c <= 32 && is_html_space(c))) c = s.charCodeAt(++i);
+		if (i >= n) return -1;
+		if (c === 62) return i;
+		const ns = i++;
+		for (; i < n; i++) {
+			c = s.charCodeAt(i);
+			if (c > 62) continue;
+			if (c === 61 || c === 62 || c === 47 || (c <= 32 && is_html_space(c))) break;
+		}
+		const ne = i;
+		while (c <= 32 && is_html_space(c)) c = s.charCodeAt(++i);
+		let vs = i;
+		let ve = i;
+		if (c === 61) {
+			c = s.charCodeAt(++i);
+			while (c <= 32 && is_html_space(c)) c = s.charCodeAt(++i);
+			if (c === 34 || c === 39) {
+				const close = s.indexOf(c === 34 ? '"' : "'", i + 1);
+				if (close === -1) return -1;
+				vs = i + 1;
+				ve = close;
+				i = close + 1;
+			} else {
+				vs = i;
+				for (; i < n; i++) {
+					c = s.charCodeAt(i);
+					if (c === 62 || (c <= 32 && is_html_space(c))) break;
+				}
+				ve = i;
+			}
+		}
+		const len = ne - ns;
+		if (len === 3 && LINK.rel === undefined && name_is(s, ns, 'rel')) LINK.rel = s.slice(vs, ve);
+		else if (len === 4 && LINK.href === undefined && name_is(s, ns, 'href'))
+			LINK.href = s.slice(vs, ve);
+	}
 }
 
 /**
@@ -62,28 +100,28 @@ function quoted_attr(s: string, from: number, to: number, attr: string): string 
  * the document only (everything before `</head>`, tens of KB): the hints and the sheets live there,
  * so the 2.6 MB body is never scanned for them.
  *
- * The scan matches the `<link` tag name whole (not `<linkx`). A `<link` with no `>` after it ends
- * the scan. An attribute is read only as `name=` plus a quote, after a non-word character (#570);
- * a link with no `href` is left alone.
+ * A tag is read as the browser's HTML tokenizer reads it (pinned against the browser's parser by
+ * test/browser/head-links-dedupe-html.test.ts). The tag name is `link` whole, in any case (not
+ * `<link-x>` or `<linker>`). Attribute names fold case; a quoted value ends at the quote that opened
+ * it (a `>` inside it is text); an unquoted one ends at whitespace or `>`; a name with no `=` has the
+ * value `""`; of two same-name attributes the first counts. Values are kept as written: a character
+ * reference is not decoded, so two spellings of one URL both stay. A `<link` with no `>` after it
+ * is not a tag, and ends the scan; a link with no `href` is left alone.
  */
 export function dedupe_head_links(head: string): string {
-	if (!head.includes('<link')) return head;
+	let lt = search_from(LINK_OPEN_G, head, 0);
+	if (lt === -1) return head;
 	const sheets = new Set<string>();
 	const hints = new Set<string>();
 	let out: string[] | null = null;
 	let kept = 0;
-	for (let lt = head.indexOf('<link'), gt = 0; lt !== -1; lt = head.indexOf('<link', gt + 1)) {
-		if (is_word(head.charCodeAt(lt + 5))) {
-			gt = lt;
-			continue;
-		}
-		gt = head.indexOf('>', lt);
+	for (let gt = 0; lt !== -1; lt = search_from(LINK_OPEN_G, head, gt + 1)) {
+		gt = link_tag_end(head, lt + 5);
 		if (gt === -1) break;
-		const from = lt + 5;
-		const rel = quoted_attr(head, from, gt, 'rel');
+		const rel = LINK.rel;
 		const seen = rel === 'stylesheet' ? sheets : rel === 'modulepreload' ? hints : null;
 		if (seen === null) continue;
-		const href = quoted_attr(head, from, gt, 'href');
+		const href = LINK.href;
 		if (href === undefined) continue;
 		if (!seen.has(href)) {
 			seen.add(href);
