@@ -3327,6 +3327,18 @@
 		{
 			"id": "packages/tooling/src/e2e/packed.ts > use_packed > map:0~59ea86",
 			"reason": "e2e tooling: one override line per released-together package (three), run once per suite by apps/palaestra/e2e/adapters.spec.ts and kit3.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/session.ts > take_saved_session",
+			"reason": "browser only: one sessionStorage read and remove (hidden state), once per document; proven by packages/testing/e2e/ogygia-testing.spec.ts (record() across a full page load)"
+		},
+		{
+			"id": "packages/devtools/src/devtools/session.ts > resume_session",
+			"reason": "browser only: starts the recorder on the saved parts (module state, the document's body), once per document; proven by packages/testing/e2e/ogygia-testing.spec.ts (record() across a full page load)"
+		},
+		{
+			"id": "packages/devtools/src/devtools/testing-script.ts > on:2~955b4d",
+			"reason": "browser only: the injected engine's DOMContentLoaded listener, once per document, constant work of its own; proven by packages/testing/e2e/ogygia-testing.spec.ts"
 		}
 	]
 }
