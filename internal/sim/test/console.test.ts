@@ -17,7 +17,7 @@ describe.skipIf(!built)("a document's console", () => {
 		try {
 			const tab = world.tab(world.visitor('alice'));
 			await world.go(tab, 'goto', '/');
-			const button = buttons(tab).find((b) => /^clicked/.test(b.textContent ?? ''))!;
+			const button = buttons(tab).find((b) => (b.textContent ?? '').startsWith('clicked'))!;
 			button.click();
 			await world.quiesce();
 			expect([...tab.errors, ...tab.console.filter((l) => l.startsWith('error:'))]).toEqual([]);
