@@ -1254,10 +1254,10 @@ export class Compiler {
 		if (id === RESOLVED(V_KIT_TRANSPORT)) {
 			// `ogygia.transport` — the codec cluster only when the app crosses a region/wired value over
 			// Kit's wire (wire mark, or a remote/region/content producer); an empty map for a pure-island
-			// app. transport.js sits one level up from the runtime dir (dist/transport.js).
+			// app. The dist dir sits one level up from the runtime dir; the realm picks the transport.
 			const crosses = this.program.runtime_marks.wire === true || this.program.crosses_wire;
-			const transport_spec = `${ctx.runtime_dir}/../transport.js`.replace(BACKSLASH_G, '/');
-			return kit_transport_module(crosses, transport_spec);
+			const dist_dir = `${ctx.runtime_dir}/..`.replace(BACKSLASH_G, '/');
+			return kit_transport_module(crosses, dist_dir, ssr);
 		}
 		if (id === RESOLVED(V_ROUTER_CSS)) {
 			// Server-router component→CSS registrations (link/router-css.ts). `export {}` for apps
