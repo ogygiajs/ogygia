@@ -93,6 +93,19 @@ test('free comments and block comments are reported; tool directives pass', () =
 	assert.deepEqual(findings({ [A]: src }), { [A]: [1, 3] });
 });
 
+test('a JSDoc that is only a type (`@type {…}`, `@satisfies {…}`) passes anywhere; prose beside it does not', () => {
+	const src = [
+		'/** @type {number} */', // 1
+		'let a = 1;', // 2
+		'/** @satisfies {Record<string, number>} */', // 3
+		'const b = { x: 1 };', // 4
+		'/** @type {number} the count */', // 5
+		'let c = a + b.x;', // 6
+		'console.log(c);' // 7
+	].join('\n');
+	assert.deepEqual(findings({ [A]: src }), { [A]: [5] });
+});
+
 test("a bin's #! line passes; the comments after it are read as usual", () => {
 	const src = ['#!/usr/bin/env node', '// narration', 'export const a = 1;'].join('\n');
 	assert.deepEqual(findings({ [A]: src }), { [A]: [2] });
