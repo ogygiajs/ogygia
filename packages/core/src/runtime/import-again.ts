@@ -200,22 +200,22 @@ export function import_again<T>(
 			state.go('failed', { url: s.url, attempt });
 			const url = retry_url(s.url, attempt);
 			run = (fresh(url) as Promise<T>).catch((error: unknown) => {
+				const wait = (verdict?: Promise<void>) => {
+					const now = state.now;
+					if (now.kind === 'failed')
+						state.go('failed', { url: now.url, attempt: now.attempt, verdict });
+				};
 				// Whether its own file came is read once its timing entry lands (Firefox on a loaded
 				// machine: after the import rejects; WebKit gives a dropped download none, so the wait
 				// runs out). The caller hears the failure now; a later call waits for the verdict.
 				const verdict: Promise<void> = response_landed(url).then((status) => {
 					// its own file came, and it still failed: a dependency's failure, which no URL fixes
-					if (status !== null && status < 400 && state.move('failed', 'stuck', { error })) {
+					if (status !== null && status < 400 && state.move('failed', 'stuck', { error }))
 						reload.once('reload', () => say_reload_needed(url, error));
-						return;
-					}
-					const now = state.now;
-					if (now.kind === 'failed' && now.verdict === verdict)
-						state.go('failed', { url: now.url, attempt: now.attempt });
+					// (only a failed state holds a verdict)
+					else if ((state.now as { verdict?: unknown }).verdict === verdict) wait();
 				});
-				const now = state.now;
-				if (now.kind === 'failed')
-					state.go('failed', { url: now.url, attempt: now.attempt, verdict });
+				wait(verdict);
 				throw error;
 			});
 		} else {
