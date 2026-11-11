@@ -129,7 +129,7 @@ export function take_saved_session(): SavedPart[] | null {
 
 /** A session the parts of earlier pages began goes on here (needs the document's body). */
 export function resume_session(parts: SavedPart[]): boolean {
-	if (active) return false;
+	if (page_recording.active) return false;
 	start_session(parts);
 	return true;
 }
@@ -198,8 +198,11 @@ const run_definition = machine<RunStates>()({
 	steps: { recording: ['saved', 'stopped'], saved: [], stopped: [] }
 });
 
-/** The recording now: the newest started and not yet stopped. */
-let active: Recorder | null = null;
+/** The recording now: the newest started and not yet stopped, one for the page. */
+// @why the dock's Record tab and the injected testing engine are two copies of this module, and each patches the page's console (test: e2e/devtools.spec.ts › #240)
+const page_recording: { active: Recorder | null } = ((
+	globalThis as { [k: symbol]: { active: Recorder | null } }
+)[Symbol.for('ogygia.session.recording')] ??= { active: null });
 
 /** the last finished session (its data + report), for every tab: the Record tab writes it, the
  *  island detail reads its island's part (the report type lives in session-insights.ts) */
@@ -217,12 +220,12 @@ export function last_session_version(): number {
 }
 
 export function recording(): Recorder | null {
-	return active;
+	return page_recording.active;
 }
 
 /** Start recording (or go on with the parts earlier pages saved — `resume_session_if_any`). */
 export function start_session(prior?: SavedPart[]): Recorder {
-	if (active) return active;
+	if (page_recording.active) return page_recording.active;
 	// the run's visit to `recording` owns every watcher below: leaving it (a stop, the page going
 	// away) takes them all off, once
 	const run = run_definition.create();
@@ -560,7 +563,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 	// the module's recording is let go only while it is still this one (a newer one may have started
 	// since)
 	s.defer(() => {
-		if (active === rec) active = null;
+		if (page_recording.active === rec) page_recording.active = null;
 	});
 	const stopping = flights({
 		name: 'session stop',
@@ -593,6 +596,6 @@ export function start_session(prior?: SavedPart[]): Recorder {
 		started: prior?.length ? prior[0].data.from + (prior[0].origin - performance.timeOrigin) : from,
 		stop
 	};
-	active = rec;
+	page_recording.active = rec;
 	return rec;
 }
