@@ -1,11 +1,11 @@
 /**
- * EVERY MESSAGE THE TESTING PACKAGE PRINTS, in one place: its code, its wording, what to do about it
- * (core's `@ogygia/core/internal/messages` says how the system works).
+ * Every message the testing package prints: its code, its wording, and what to do about it
+ * (`@ogygia/core/internal/messages` is the system).
  *
  *   throw new OgygiaError('testing_api_absent');
  *   warn('testing_engine_older', { at, version, expected });
  *
- * The test side runs in Node, never in a page, so the wording always prints, then the code's page.
+ * @packageDocumentation
  */
 import { define_messages, prose, type MessagesOf } from '@ogygia/core/internal/messages';
 
