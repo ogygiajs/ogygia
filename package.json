@@ -32,7 +32,7 @@
 		"format": "oxfmt .",
 		"format:check": "oxfmt --check .",
 		"lint": "oxlint",
-		"lint:test": "node --test internal/lint/*.test.ts"
+		"lint:test": "node --test internal/lint/*.test.ts internal/checks/*.test.ts"
 	},
 	"devDependencies": {
 		"@changesets/changelog-github": "^1.0.1",
