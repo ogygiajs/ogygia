@@ -1,7 +1,7 @@
 // Core answers to two package names: `ogygia` (what apps install, re-exporting core) and `@ogygia/core`
 // (what plugins import). Every "is this ogygia itself" check reads src/own-package.ts.
 import { describe, expect, it } from 'vitest';
-import { OWN_FILE_RE, OWN_PACKAGE_NAMES, is_own_specifier } from '../src/own-package.ts';
+import { OWN_FILE_RE, OWN_PACKAGE_NAMES, is_own_specifier } from '../src/contract/own-package.ts';
 import { source_uses_ogygia_context } from '../src/compiler/link/context-detect.ts';
 import { source_crosses_wire } from '../src/compiler/link/transport.ts';
 import { summarize_chunk_contents } from '../src/compiler/link/island-deps.ts';

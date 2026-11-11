@@ -9,7 +9,8 @@
 		"ogygia/owned-effects": "error",
 		"ogygia/no-silent-failures": "error",
 		"ogygia/stale-whole": "error",
-		"ogygia/wall-clock": "error"
+		"ogygia/wall-clock": "error",
+		"ogygia/compiler-boundary": "error"
 	},
 	"overrides": [
 		{
