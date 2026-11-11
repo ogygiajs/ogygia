@@ -315,17 +315,6 @@ export const ERRORS = {
 			instance. Give each class its own id.
 		`
 	},
-	shared_state_not_plain: {
-		text: (a: { name: string; reason: string }): string => prose`
-			SharedState '${a.name}': values must be plain data (devalue-serializable — JSON, Date, Map,
-			Set, BigInt, RegExp). Functions, class instances, and DOM nodes do not cross build
-			boundaries — share facts, not live objects. (${a.reason})
-		`,
-		details: (): string => prose`
-			Shared state crosses between builds as data, so its values must serialize. Share plain
-			facts; keep live objects (functions, class instances, DOM nodes) on one side.
-		`
-	},
 	og_derived_formula_missing: {
 		text: (): string => prose`
 			cannot resume og_derived: its formula did not cross — mark it with import.meta.og.$ at the

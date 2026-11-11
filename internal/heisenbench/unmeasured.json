@@ -2337,6 +2337,14 @@
 			"reason": "browser only: one URL resolved against a fetched page (reads location.origin), constant work"
 		},
 		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_ERRORS > shared_state_not_plain > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_ERRORS > shared_state_not_plain > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
 			"id": "packages/core/src/server/rules.ts > no_kept_unkeyed_read",
 			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
 		},

@@ -106,10 +106,5 @@ export { hydratedBy } from './hydration-info.ts';
 // touching requestEvent itself.
 export { isOgygiaPage } from './context.ts';
 
-// EXPERIMENTAL — cross-fragment shared state (contract packages import this): `.current` like
-// MediaQuery, reactive via createSubscriber, all builds meet at one Symbol.for page store.
-// Server-seedable via a printed JSON script tag; vanilla door at globalThis.ogygia.shared().
-export { SharedState } from './shared-state.ts';
-
 // Flags / rollouts / experiments live in their OWN package: `import { flag, decide } from
 // '@ogygia/flags'` (adapters: '@ogygia/flags/openfeature'), plus `flags()` in the Vite plugins.
