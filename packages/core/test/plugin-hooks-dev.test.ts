@@ -1,7 +1,7 @@
 /**
  * Plugin hooks in dev (#251): a real Vite dev server loads the app's server hooks the way Kit does
  * (the app's `hooks.server.ts` imports `ogygia/server`, core's handle module, which makes the
- * plugins listed in `virtual:ogygia/server-plugins` live), by both loaders an app's server uses
+ * plugins listed in `ogygia:server/server-plugins` live), by both loaders an app's server uses
  * (Kit 2 through `ssrLoadModule`, Kit 3 through the ssr environment's runner).
  *
  * An edit to a plugin's server half (or anything it imports) runs it again, and with it the handle
@@ -20,7 +20,7 @@ import { ask, notify } from '../src/plugin/hooks.ts';
 import { edit as dev_edit } from './_dev-edit.ts';
 
 const own = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
-const V = 'virtual:ogygia/server-plugins';
+const V = 'ogygia:server/server-plugins';
 
 type Load = (srv: ViteDevServer, url: string) => Promise<Record<string, unknown>>;
 const LOADERS: Array<[string, Load]> = [
@@ -85,7 +85,7 @@ async function start(): Promise<{
 		'src/hooks.server.ts',
 		`import { handle as ogygia } from ${JSON.stringify(own('../src/hooks.ts'))};\nexport const handle = ogygia();\n`
 	);
-	// the plugin list the build makes (`virtual:ogygia/server-plugins`), as the compiler emits it
+	// the plugin list the build makes (`ogygia:server/server-plugins`), as the compiler emits it
 	const plugin_list: Plugin = {
 		name: 'server-plugins',
 		resolveId: (id) => (id === V ? '\0' + V : undefined),
@@ -109,9 +109,10 @@ async function start(): Promise<{
 		resolve: {
 			alias: [
 				{ find: /^\$app\/(.*)$/, replacement: own('./_stubs/app-$1.ts') },
+				{ find: /^ogygia:(server|boot|region|dev)$/, replacement: own('./_stubs/realm-$1.ts') },
 				{
-					find: /^virtual:ogygia\/(?!server-plugins$)(.*)$/,
-					replacement: own('./_stubs/virtual-$1.ts')
+					find: /^ogygia:(server|boot|region|dev)\/(?!server-plugins$)([^/]+)$/,
+					replacement: own('./_stubs/$1.$2.ts')
 				}
 			]
 		},
