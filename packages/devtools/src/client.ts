@@ -25,6 +25,7 @@ import {
 	install_beacon
 } from './profiler/beacon.ts';
 import { standalone_beacon } from './profiler/beacon-standalone.ts';
+import { start_page_beacon } from './page-beacon-start.ts';
 
 const BEACON_KEY = Symbol.for('ogygia.beacon');
 const DOCK = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
@@ -40,10 +41,7 @@ const client: ClientPlugin = defineClient({
 		install_devtools_ui(kitPage ? { csr_true: true } : undefined);
 		// @why a build's dock measures a switched-on browser, and an app without ogygia's handle gets no beacon tag; a lazy chunk, so other builds pay nothing (test: e2e/dock-switch.spec.ts › the page beacon in a build)
 		if (LAZY && devtools_switched_on() && !(globalThis as Record<symbol, unknown>)[BEACON_KEY])
-			import('./profiler/beacon-standalone.ts').then(
-				(m) => m.standalone_beacon(),
-				() => {}
-			); // ok: this page goes unmeasured; the next page load asks again
+			void start_page_beacon(); // ok: it never rejects (a failed download is warned inside)
 		// watched from before the first island wakes (a Kit page has no ogygia islands)
 		if (!kitPage) watch_leftovers();
 	},
