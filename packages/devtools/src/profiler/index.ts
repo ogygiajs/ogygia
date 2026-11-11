@@ -4561,11 +4561,17 @@ class Profiler {
 	// key) BEFORE it answers — a frozen instance never finishes a write after; and stop, on whichever
 	// instance, gathers them. The CPU profile stays the starting instance's: sampling is per process.
 	// (the ids are a capability, ./window-id.ts: a production profiler with no secret has none)
-	#window_ids: Promise<WindowIds | null> | null = null;
-	#ids(): Promise<WindowIds | null> {
-		return (this.#window_ids ??= import('./window-id.ts').then((m) =>
-			m.window_ids(this.secret, this.dev, 'profiler:' + this.base)
-		));
+	readonly #window_ids = flights({
+		name: 'profiler window ids',
+		run: () =>
+			import('./window-id.ts').then((m) =>
+				m.window_ids(this.secret, this.dev, 'profiler:' + this.base)
+			)
+	});
+	async #ids(): Promise<WindowIds | null> {
+		const ids = await this.#window_ids.get();
+		// (never dropped, so never STALE; if it were, no ids: a window id is refused, never trusted)
+		return ids === STALE ? null : ids;
 	}
 
 	/** A window id from a request, when it checks; else null. */
