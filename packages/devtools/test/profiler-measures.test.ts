@@ -73,21 +73,13 @@ describe('profiler: measures', () => {
 		expect(await handle.measures(event('/__ogygia__', 'og_profiler_beacon=1'))).toBe(false);
 	});
 
-	it('a logged-in user is', async () => {
+	it('a flag signed under another secret is not', async () => {
 		dev_switch.dev = false;
+		const { createHmac } = await import('node:crypto');
+		const other = createHmac('sha256', SECRET + '-other')
+			.update('og-profiler-beacon-flag')
+			.digest('hex');
 		const handle = profiler({ secret: SECRET });
-		const login = await handle({
-			event: event('/__profiler/login', null, {
-				method: 'POST',
-				body: JSON.stringify({ key: SECRET, next: '/__profiler' })
-			}),
-			resolve: async () => new Response('app')
-		});
-		const token = COOKIE_PAIR_RE.exec(
-			login.headers.getSetCookie().find((c) => c.startsWith('og_profiler='))!
-		)![1];
-		expect(await handle.measures(event('/', `og_profiler_beacon=1; og_profiler=${token}`))).toBe(
-			true
-		);
+		expect(await handle.measures(event('/', `og_profiler_beacon=${other}`))).toBe(false);
 	});
 });

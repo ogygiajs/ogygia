@@ -113,6 +113,14 @@
 			"reason": "reads the request's cookies and checks the session (a profiler instance and a RequestEvent, not cloneable), constant work per cookie; proven in packages/devtools/test/profiler-measures.test.ts"
 		},
 		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #flag_value",
+			"reason": "one HMAC under the secret (node:crypto, a profiler instance), constant work; proven in packages/devtools/test/profiler-measures.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #flag_ok",
+			"reason": "reads one cookie of a RequestEvent (not cloneable) and compares in constant time, constant work; proven in packages/devtools/test/profiler-measures.test.ts"
+		},
+		{
 			"id": "packages/devtools/src/profiler/index.ts > profiler > assign:0~28ebd3",
 			"reason": "the profiler's handle: forwards to Profiler.handle (a RequestEvent, not cloneable), one call; the work is Profiler.handle's"
 		},
