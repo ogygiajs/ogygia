@@ -171,6 +171,15 @@ describe('one key (what once() was)', () => {
 		expect(() => flights({ run: 'no' as never })).toThrow(/`run` must be a function/);
 	});
 
+	it('a weigh with no max is refused: the default max counts answers, not the weigh’s unit', () => {
+		expect(() => flights({ run: () => 'page', weigh: (h: string) => h.length })).toThrow(
+			/machine_bad_option/
+		);
+		expect(() =>
+			flights({ run: () => 'page', weigh: (h: string) => h.length, max: 5_000_000 })
+		).not.toThrow();
+	});
+
 	it('its own handling of a failure adds no unhandled rejection', async () => {
 		const seen: unknown[] = [];
 		const on_node = (reason: unknown) => seen.push(reason);
