@@ -2531,6 +2531,78 @@
 		{
 			"id": "packages/testing/src/index.ts > engine_script",
 			"reason": "the test process reads the built engine file once (a file on disk, not recorded), then the cached text"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > defineClient:0~213ad9 > boot",
+			"reason": "browser only: installs the beacon once per page (install_beacon), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > on_region_hydrated",
+			"reason": "browser only: hands one hook event (a DOM element: not replayable) to beacon_hydrated, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > on_region_failed",
+			"reason": "browser only: hands one hook event (a DOM element: not replayable) to beacon_failed, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > on_hole_answered",
+			"reason": "browser only: hands one hook event (a DOM element: not replayable) to beacon_hole_answered, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > on_hole_failed",
+			"reason": "browser only: renames one field of a hook event for beacon_hole_failed, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > on_hole_batch_missed",
+			"reason": "browser only: renames one field of a hook event for beacon_hole_batch_missed, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > defineClient:0~c1d48d > hooks > regionWoke",
+			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > defineClient:0~c1d48d > hooks > regionMismatched",
+			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > defineClient:0~c1d48d > hooks > navStarted",
+			"reason": "browser only: one record_hook of a hook event, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > defineClient:0~c1d48d > hooks > loadStarted",
+			"reason": "browser only: one record_hook of a hook event, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/devtools/hook-entries.ts > state",
+			"reason": "the page's one hook record on a globalThis symbol (hidden state), a get-or-create; proven in packages/devtools/test/devtools-hook-record.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/hook-entries.ts > hook_entries",
+			"reason": "reads the global hook record's entries (hidden state), constant work; proven in packages/devtools/test/devtools-hook-record.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/hook-entries.ts > on_hook",
+			"reason": "adds one listener (a function: not cloneable) to the global hook record, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/hook-entries.ts > on_hook > <anonymous>~55fa77",
+			"reason": "removes one listener from a Set (process state: not replayable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/page.ts > last_nav > flatMap:0~408dbd",
+			"reason": "one hook entry to its navStarted start or nothing, inside last_nav's one pass, constant work; proven in packages/devtools/test/devtools-last-nav.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/session.ts > start_session > on_hook:0~0806a1",
+			"reason": "browser only: the session's hook listener, one push and on navStarted one region-name pass, linear in the regions"
+		},
+		{
+			"id": "packages/insights/src/session-insights.ts > analyze_session > flatMap:0~2b7bc1",
+			"reason": "one hook entry to its load wait or nothing, inside analyze_session's pass, constant work"
+		},
+		{
+			"id": "packages/insights/src/session-insights.ts > analyze_session > push:0~e8d6d3 > flatMap:0~0d228a",
+			"reason": "one woke entry to its island fp or nothing, inside analyze_session's pass, constant work"
 		}
 	]
 }
