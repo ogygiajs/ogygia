@@ -15,7 +15,7 @@
 // runtime (which reference `window` and can't load in a Web Worker). See packages/core/src/region-core.ts.
 import { region, isRegion, og_html_region } from 'ogygia/internal/region-core';
 // The compiler appends `import { … } from 'ogygia/internal/register'` to any module with an exported
-// class / createContext / `import.meta.og.$` / `.store` (see compiler/content/transportables.ts +
+// class / createContext / `import.meta.og.$` / `.store` (see compiler/transportables.ts +
 // macros/browser.ts). That seam is Region-free, so it's safe to pull the REAL registration + macro
 // runtime into the worker's SSR eval — user code registers its codec / fn / store exactly as a real
 // build would (`__og_$` returns the live fn, `__og_store` the branded store).
