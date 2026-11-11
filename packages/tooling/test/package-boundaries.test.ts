@@ -59,7 +59,9 @@ const deps_of = (json: Manifest): string[] => [
 	...Object.keys(json.optionalDependencies ?? {})
 ];
 
-const IMPORT_RE = /(?:from\s+|import\s*\(\s*|import\s+)['"]([^'"]+)['"]/g;
+// (a static import or re-export starts its line, so an import written inside a message's text is not one)
+const IMPORT_RE =
+	/^\s*(?:(?:import|export)\b[^;'"]*?from\s+|import\s+)['"]([^'"]+)['"]|\bimport\s*\(\s*['"]([^'"]+)['"]/gm;
 
 function* source_files(dir: string): Generator<string> {
 	if (!fs.existsSync(dir)) return;
@@ -76,7 +78,7 @@ function plugin_imports(dir: string): string[] {
 	for (const file of source_files(path.join(PACKAGES, dir, 'src'))) {
 		const text = fs.readFileSync(file, 'utf8');
 		for (const m of text.matchAll(IMPORT_RE)) {
-			const spec = m[1];
+			const spec = m[1] ?? m[2]!;
 			if (PLUGINS.some((name) => spec === name || spec.startsWith(name + '/')))
 				out.push(`${path.relative(PACKAGES, file)}: ${spec}`);
 		}
