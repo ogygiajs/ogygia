@@ -136,6 +136,32 @@ test('a live island inside a sleeping one keeps its clicks', () => {
 	disarm();
 });
 
+test('a click that reaches an island already live (woken by its pointerdown) acts once, not again on the replay', async () => {
+	document.body.innerHTML = region('fast');
+	const el = document.getElementById('fast')!;
+	const btn = el.querySelector('button')!;
+	let count = 0;
+	let woke!: () => void;
+	const replayed = new Promise<void>((r) => (woke = r));
+	arm_interaction(
+		el,
+		() => {},
+		(r) => {
+			// the module was warm: it is live at once, its handler on the button
+			btn.addEventListener('click', () => count++);
+			el.setAttribute('data-hydrated', '');
+			void Promise.resolve(r).then(() => woke());
+		},
+		page
+	);
+	// one press: its pointerdown wakes the island, and its click lands once the island is live
+	btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+	btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+	await replayed;
+	await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+	expect(count).toBe(1);
+});
+
 test('a click that opens a link elsewhere is never canceled (an untrusted replay could not open it)', () => {
 	document.body.innerHTML = region('links', '<a href="/next">next</a>');
 	const el = document.getElementById('links')!;
