@@ -1,19 +1,22 @@
 /**
  * The islands' component names for the dock and the testing API: a build carries them in
- * `ogygia:boot/devtools-meta`, which the app's realm hands over through the hook record (the
- * testing engine a test injects is not built with the app); the dev server serves them live
+ * `ogygia:boot/devtools-meta`, which the app's realm lends through the hook record with the
+ * runtime's sidecar lookup (the testing engine a test injects is not built with the app); the dev server serves them live
  * (`/__ogygia_devtools_meta`, the registry as it is now). Both land on `window.__ogygia_region_names`,
  * which regions.ts reads. Once per page; best effort (a hash stands in for a name it cannot find). A
  * fetch that failed (the network, not an answer) is not kept: the next ask fetches again.
  */
 import { flights } from '@ogygia/machine';
 import { recorded_realm } from './hook-entries.ts';
+import { use_sidecar_lookup } from './regions.ts';
 
 const loading = flights({
 	name: 'devtools region names',
 	run: async () => {
 		if (typeof window === 'undefined') return;
-		const region_names = await recorded_realm()?.names();
+		const loan = await recorded_realm()?.lend();
+		if (loan) use_sidecar_lookup(loan.props_sidecar_of);
+		const region_names = loan?.region_names;
 		if (region_names && Object.keys(region_names).length) {
 			window.__ogygia_region_names = { ...region_names, ...window.__ogygia_region_names };
 			return;

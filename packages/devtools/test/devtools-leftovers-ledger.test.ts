@@ -26,15 +26,20 @@ describe('a second copy of the readers (the testing engine a test injects)', () 
 		const sidecar = { textContent: '{"a":1}' } as HTMLScriptElement;
 		record_realm({
 			dev: true,
-			names: async () => ({ abc: 'Clock' }),
-			props_sidecar_of: () => sidecar
+			lend: async () => ({ region_names: { abc: 'Clock' }, props_sidecar_of: () => sidecar })
 		});
 		vi.resetModules();
+		vi.stubGlobal('window', {});
 		const entries = await import('../src/devtools/hook-entries.ts');
 		const regions = await import('../src/devtools/regions.ts');
+		const { ensure_region_names } = await import('../src/devtools/names.ts');
 		expect(entries.built_dev()).toBe(true);
-		expect(await entries.recorded_realm()?.names()).toEqual({ abc: 'Clock' });
+		await ensure_region_names();
+		expect((window as { __ogygia_region_names?: unknown }).__ogygia_region_names).toEqual({
+			abc: 'Clock'
+		});
 		expect(regions.region_props_sidecar(region)).toBe('{"a":1}');
+		vi.unstubAllGlobals();
 	});
 
 	it('with no realm on the page, the build is not the dev server’s and nothing is live', async () => {
