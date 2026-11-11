@@ -41,7 +41,8 @@ export function beacon_hook<K extends RuntimeHookName>(name: K, e: Payload<K>): 
 	if (f && first_handling('beacon', e)) f(e);
 }
 
-const client: ClientPlugin = defineClient({
+// (named, so `boot` keeps one id however the rest of this file changes)
+const plugin: ClientPlugin = {
 	boot() {
 		install_beacon(false);
 	},
@@ -56,6 +57,8 @@ const client: ClientPlugin = defineClient({
 		criticalSettled: (e) => beacon_hook('criticalSettled', e),
 		warning: (e) => beacon_hook('warning', e)
 	}
-});
+};
+
+const client: ClientPlugin = defineClient(plugin);
 
 export default client;
