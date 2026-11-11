@@ -198,6 +198,7 @@ import { mark_personal } from './server/personal-response.ts';
 import { OgygiaError, warn } from './messages/server.ts';
 import { ERRORS, WARNINGS } from './messages/core.ts';
 import { define_messages, dev_or_prerender } from './messages/define.ts';
+import { close_safe } from './script.ts';
 
 // A prerender words every message, the link after it (messages/define.ts `dev_or_prerender`).
 (globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.prerendering')] = building;
@@ -735,7 +736,9 @@ function page_ctx_script(bag: RequestBag | undefined): string {
 
 /** The restorer, inline (runtime/restore.ts — self-contained, so its source runs as is): restores the
  *  document now, and stays as `__og_restore` / `__og_restore_adopt` for hole answers and router swaps. */
-const RESTORER_SCRIPT = `<script data-og-restore>(function(){var r=${restore.toString()};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()</script>`;
+/** @internal The restorer, inline: its text closed-safe like every inline code ogygia writes
+ *  (./script.ts `close_safe`; test/restorer-inline-safe.test.ts). */
+export const RESTORER_SCRIPT: string = `<script data-og-restore>${close_safe(`(function(){var r=${restore.toString()};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()`)}</script>`;
 
 /** `inner` with the request's owner around it: made before `inner` runs, ended with its response
  *  (or at once when it throws). */
