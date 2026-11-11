@@ -481,7 +481,7 @@ test('putting attributes back never adds an event handler, a srcdoc or a javascr
 		`<demo-card og-h="k1" og-r='${attr(host_r)}'>` +
 		`<a og-c="k1.0" og-r='${attr(child_r)}'>a</a></demo-card>`;
 	expect(restore(document)).toBe(1);
-	const host = document.querySelector('demo-card')!;
+	const host = document.querySelector<HTMLElement>('demo-card')!;
 	const a = host.querySelector('a')!;
 	expect(host.getAttribute('title')).toBe('kept');
 	expect(a.getAttribute('data-x')).toBe('y');
