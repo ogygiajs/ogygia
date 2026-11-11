@@ -33,3 +33,17 @@ export { CompileCtx, type CompileCtxInit } from './ctx.ts';
 export * from './ids.ts';
 // The flag sites a module reads, and the manifest of them (`ogygia mcp`'s flags tool, from @ogygia/cli).
 export { collect_flag_sites, flags_manifest, FLAGS_SPEC, type FlagSite } from './flags.ts';
+// What an import-rewriting plugin reads modules with (@ogygia/barrels).
+export {
+	ExportIndex,
+	Shapes,
+	type Change,
+	type ExportMap,
+	type Leaf,
+	type Policy
+} from './exports/index.ts';
+export { analyze_imports, type ImportDecl, type ImportSpec } from './exports/parse.ts';
+export { blank_styles } from './blank-styles.ts';
+export { is_script_request } from './script-request.ts';
+// the build's message tables, for the docs' `ogygiajs.dev/e` pages
+export { BUILD_ERRORS, BUILD_WARNINGS } from './messages.ts';

@@ -137,3 +137,16 @@ jobs:
             **/test-results/
             !**/node_modules/**
           retention-days: 7
+
+      # On main: each suite's Playwright JSON (one per engine and shard), for the tests report
+      # (.github/scripts/test-report.ts reads them; .github/workflows/tests-report.yml gathers them).
+      - if: always() && github.event_name != 'pull_request'
+        name: Upload the e2e results
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-results-${{ inputs.id }}-${{ inputs.browser }}
+          path: |
+            **/playwright-results/*.json
+            !**/node_modules/**
+          if-no-files-found: ignore
+          retention-days: 30
