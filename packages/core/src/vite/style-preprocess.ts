@@ -12,6 +12,7 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { warn } from '../compiler/messages.ts';
+import { say } from '@ogygia/machine';
 
 const STYLE_BLOCK_G = /<style\b([^>]*)>([\s\S]*?)<\/style>/gi;
 const SCRIPT_BLOCK_G = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
@@ -26,7 +27,8 @@ type Transform = (
 ) => Promise<{ code: string }>;
 
 let sass: Sass | null | undefined;
-let sass_warned = false;
+/** Said once for the process. */
+const sass_missing = say({ max: 1 });
 let transform: Transform | null | undefined;
 
 function load_sass(root: string): Sass | null {
@@ -76,10 +78,7 @@ export async function preprocess_component_for_css(
 	if (STYLE_LANG_ATTR.test(out)) {
 		const compiler = load_sass(root);
 		if (!compiler) {
-			if (!sass_warned) {
-				sass_warned = true;
-				warn('sass_missing');
-			}
+			sass_missing.once('sass_missing', () => warn('sass_missing'));
 		} else {
 			out = out.replace(STYLE_BLOCK_G, (whole: string, attrs: string, body: string) => {
 				const lang = STYLE_LANG_ATTR.exec(attrs)?.[1]?.toLowerCase();

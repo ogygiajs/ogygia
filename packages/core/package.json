@@ -1,6 +1,6 @@
 {
 	"name": "@ogygia/core",
-	"version": "0.13.0",
+	"version": "0.13.1",
 	"description": "The core of ogygia (SSR islands for SvelteKit): apps install `ogygia`, plugins build on this",
 	"homepage": "https://ogygiajs.dev",
 	"bugs": {
@@ -260,6 +260,7 @@
 	},
 	"devDependencies": {
 		"@ogygia/config": "workspace:*",
+		"@ogygia/tooling": "workspace:*",
 		"@ogygia/tsdown-plugin-svelte": "workspace:*",
 		"@sveltejs/kit": "catalog:",
 		"@sveltejs/vite-plugin-svelte": "catalog:",
