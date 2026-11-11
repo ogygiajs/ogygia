@@ -8,8 +8,15 @@
 		"ogygia/no-promise-cache": "error",
 		"ogygia/owned-effects": "error",
 		"ogygia/no-silent-failures": "error",
-		"ogygia/stale-whole": "error"
+		"ogygia/stale-whole": "error",
+		"ogygia/compiler-boundary": "error"
 	},
+	"overrides": [
+		{
+			"files": ["packages/*/src/**"],
+			"rules": { "no-eval": "error", "no-new-func": "error", "no-implied-eval": "error" }
+		}
+	],
 	"ignorePatterns": [
 		"**/dist/**",
 		"**/build/**",
