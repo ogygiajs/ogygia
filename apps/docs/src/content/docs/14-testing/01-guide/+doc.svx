@@ -49,7 +49,11 @@ test('checkout stays fast', async ({ page, ogygia }) => {
 });
 ```
 
-The server under test needs the [`devtools()` plugin](/docs/devtools/dock#enabling) listed, which means either the dev server or a preview build with devtools on (see [Devtools in a build](/docs/devtools/dock#enabling-in-a-build-a-preview-deploy)). The fixture turns devtools on (with the `og_devtools` cookie) for your `baseURL`, or, if there is no `baseURL`, for the origin of the first page the test opens, so each page is measured from its first load. `profile()` also needs `devtools({ profiler: true })`, and on a build you give it the profiler's key:
+The app under test lists `testing()` from `@ogygia/testing/vite` beside `ogygia()`, on the dev server or a preview build. The fixture injects the testing engine into every page before it loads, and `testing()` hands the runtime's hooks to it. A visitor has no engine, so nothing of it runs for them. `profile()` also needs `devtools({ profiler: true })`, and on a build you give it the profiler's key:
+
+```ts title=vite.config.ts
+plugins: [ogygia(), ...(process.env.E2E ? [testing()] : []), sveltekit()]
+```
 
 ```ts title=playwright.config.ts
 export default defineConfig({
@@ -61,7 +65,7 @@ If the profiler is mounted somewhere other than `/__profiler` (its `path` option
 
 `page()`, `hydration()` and `record()` each wait for the page to settle before they measure: no island hydrating, nothing woken for 300 ms, and the document fully loaded, for at most 10 seconds. When your own steps need the same wait, for example before a screenshot, call `ogygia.settled()`. It takes `{ quiet, timeout }` in ms and resolves to `true` once the page settled, or `false` if the timeout passed first.
 
-A recording can span pages. Actions that cause a full page load (`page.goto`, a form post, a plain link) keep recording on the next page, and the report covers all of them (`session.counts.pages`). If the actions leave for a document that has no testing API (another site, or a page without devtools), the recording is lost, and `record()` says so with your actions' own error as its `cause`.
+A recording can span pages. Actions that cause a full page load (`page.goto`, a form post, a plain link) keep recording on the next page, and the report covers all of them (`session.counts.pages`). If the actions leave for a document that has no testing API (another site, or an app without `testing()`), the recording is lost, and `record()` says so with your actions' own error as its `cause`.
 
 To stay on the page instead, record with `blockNavigation`. Every document load the actions cause (a reload in a handler, a stray link) is answered with `204`, so the browser stays where it is, and each one is listed:
 
@@ -89,9 +93,9 @@ A rule matches the element's tag, the attribute's name and its new value (or its
 
 ### What measuring costs, and lean testing
 
-Measuring has a cost. The devtools check each island's markup as it hydrates, build their report and load the testing engine, none of which a visitor with devtools off pays for. `page().self` tells you what it cost: `script_ms` is the main-thread time spent on ogygia's own measuring so far (broken down by `phases`), and `bytes` is the decoded size of the testing engine's files. Subtract both from any CPU or JS-weight measurement.
+Measuring has a cost. The testing engine checks each island's markup as it hydrates and builds its report, none of which a visitor pays for. `page().self` tells you what it cost: `script_ms` is the main-thread time spent on ogygia's own measuring so far (broken down by `phases`, with `engine` for the injected engine's own start). `bytes` is 0: the engine is injected, so the page downloads none of it. Subtract `script_ms` from any CPU measurement.
 
-Lean testing reduces the cost further. With `ogygiaOptions: { lean: true }` (which sets the `og_testing=lean` cookie next to `og_devtools=on`, or use `?og-testing=lean`), the page runs the testing API and nothing else from the devtools: no launcher, no dock, no watcher of its timers and no event side channel in its HTML. It loads what it would load with devtools off, plus the testing engine when a test first asks for it. Findings that need the server's events are not available in this mode. Every report says which mode ran (`engine.lean`), and an engine older than version 3 ignores the cookie and runs the full devtools.
+Lean testing reduces the cost further. With `ogygiaOptions: { lean: true }` (which sets the `og_testing=lean` cookie next to `og_devtools=on`, or use `?og-testing=lean`), the page runs the testing engine and nothing else from the devtools: no launcher, no dock, no watcher of its timers and no event side channel in its HTML. It loads what it would load with devtools off. Findings that need the server's events are not available in this mode. Every report says which mode ran (`engine.lean`), and an engine older than version 3 ignores the cookie and runs the full devtools.
 
 ### When the site runs an older ogygia
 
