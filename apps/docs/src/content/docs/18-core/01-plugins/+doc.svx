@@ -128,17 +128,17 @@ declare module '@ogygia/core/plugin' {
 
 `app` is the server process as one plugin sees it. `setup` receives it, and every `ctx.app` refers to it.
 
-| Member                                         | What it is                                                                                                  |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `name` · `options`                             | The plugin's name and its options from vite.config.                                                         |
-| `notify` · `ask`                               | Call the shared hooks (above).                                                                              |
-| `facts(request)` · `current()`                 | A request's facts. `current()` finds the request the running code belongs to (a load, a render), or `null`. |
-| `perVisitor(request, reason)`                  | Say the running render read something per visitor. No cache keeps it for another visitor.                   |
-| `observeReads(event)`                          | From now on, a cookie, personal header or `locals` value the render reads counts as a per-visitor read.     |
-| `sign(message)` · `verify(message, signature)` | The app's region key, as HMAC. The key itself is never handed out.                                          |
-| `capability`                                   | `mint` and `open` a signed URL for an endpoint the plugin serves, with the lifetime and renewal of a hole.  |
-| `devtools(event)`                              | Record an event into the current request's devtools stream. A no-op unless devtools is on for that browser. |
-| `warn(message)`                                | Warn once per message, prefixed with the plugin's name.                                                     |
+| Member                                         | What it is                                                                                                                                                                                         |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name` · `options`                             | The plugin's name and its options from vite.config.                                                                                                                                                |
+| `notify` · `ask`                               | Call the shared hooks (above).                                                                                                                                                                     |
+| `facts(request)` · `current()`                 | A request's facts. `current()` finds the request the running code belongs to (a load, a render), or `null`.                                                                                        |
+| `perVisitor(request, reason)`                  | Say the running render read something per visitor. No cache keeps it for another visitor.                                                                                                          |
+| `observeReads(event)`                          | From now on, a cookie, personal header (or the headers whole), `locals` value, client address, per-request `platform` value or credentialed `fetch` the render reads counts as a per-visitor read. |
+| `sign(message)` · `verify(message, signature)` | The app's region key, as HMAC. The key itself is never handed out.                                                                                                                                 |
+| `capability`                                   | `mint` and `open` a signed URL for an endpoint the plugin serves, with the lifetime and renewal of a hole.                                                                                         |
+| `devtools(event)`                              | Record an event into the current request's devtools stream. A no-op unless devtools is on for that browser.                                                                                        |
+| `warn(message)`                                | Warn once per message, prefixed with the plugin's name.                                                                                                                                            |
 
 `ctx` is one request as one plugin sees it. `handle` receives a smaller version with only `event`, `options` and `app`.
 
