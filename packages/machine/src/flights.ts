@@ -71,7 +71,7 @@ interface FlightsCommon<R, V, W> {
 	 *  `max` lets it go. A failure is never kept. */
 	keep?: number | ((answer: Fresh<Awaited<V>>, input: R) => number);
 	/** The most total weight it keeps (a finite number more than 0); past it, the least recently
-	 *  used answers go. Default 1000 (answers, with the default weight). */
+	 *  used answers go. Default 1000 (answers, with the default weight); required with `weigh`. */
 	max?: number;
 	/** An answer's weight against `max` (bytes, say). Default 1: `max` then counts answers. An
 	 *  answer heavier than `max`, or with a weight below 0 or not a number, is not kept. */
@@ -309,6 +309,9 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		const keep = o.keep ?? Infinity;
 		if (typeof keep !== 'function' && !(typeof keep === 'number' && keep >= 0))
 			throw bad_option('keep', keep, 'a time in ms of 0 or more, or a function that makes one');
+		// (the default counts answers: a weigh in another unit, bytes say, would keep nothing past it)
+		if (o.weigh !== undefined && o.max === undefined)
+			throw bad_option('max', 'missing', 'given with weigh, in its unit');
 		const max = o.max ?? DEFAULT_MAX;
 		if (!(typeof max === 'number' && max > 0 && Number.isFinite(max)))
 			throw bad_option('max', max, 'a finite number more than 0');
