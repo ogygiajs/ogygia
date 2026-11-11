@@ -199,6 +199,14 @@ export const KNOWN: ReadonlyArray<{
 		}
 	},
 	{
+		issue: 840,
+		what: "a kept region takes the server placeholder's skip marks",
+		// (a region of the tab carries data-og-skipped, which no fresh load has)
+		applies: (shown) => / data-og-skipped=""/.test(shown),
+		forgive: (s) =>
+			s.replace(/^( *<ogygia-region .*)$/gm, (l) => l.replace(/ data-og-(skipped|opaque)=""/g, ''))
+	},
+	{
 		issue: 807,
 		what: 'a region of the page left stays after a client navigation',
 		// (the tab holds every region the fresh load has, and more; after #804, which sets
