@@ -2639,6 +2639,34 @@
 		{
 			"id": "packages/reshape/src/restore-report.ts > report_restores > __og_restore",
 			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > region_version_invalid > text",
+			"reason": "a message's one-line text: one template string, on the error path only (an app passed a version that is not a time)"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > region_version_invalid > details",
+			"reason": "a message's details: one constant string, on the error path only"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > region_answer_older > text",
+			"reason": "a dev warning's one-line text: one template string, only when an older answer is dropped"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > region_answer_older > details",
+			"reason": "a dev warning's details: one constant string, only when an older answer is dropped"
+		},
+		{
+			"id": "packages/core/src/region.ts > to_version",
+			"reason": "one region's version to milliseconds: a typeof check and at most one Date.parse, once per held region render (not per element), constant work"
+		},
+		{
+			"id": "packages/core/src/transport.ts > dropped_older",
+			"reason": "one Map read and one compare per decoded versioned answer; the warning and devtools event only in dev or with devtools on, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > shown_version",
+			"reason": "one Map read of the shown answer's version at an address, constant work"
 		}
 	]
 }
