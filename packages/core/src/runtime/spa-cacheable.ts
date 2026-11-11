@@ -1,10 +1,11 @@
 /**
- * Whether an SPA navigation's HTML response may warm the page cache. A dependency-free leaf: the
- * lazy navigation chunk (./router-nav.ts) applies it, and `ogygia/app` exports it — island code —
- * so it must not live in the router's boot module (island code never imports a boot module).
+ * Whether an SPA navigation's HTML response may warm the page cache. The navigation chunk
+ * (./router-nav.ts) applies it and `ogygia/app` exports it to island code, which never imports a
+ * boot module (test/runtime-boot-svelte-free.test.ts): so it lives in no router module.
+ *
+ * @packageDocumentation
  */
 
-/** Responses that must never warm the SPA HTML cache (personalized / must revalidate). */
 const CC_UNCACHEABLE = /(?:^|,)\s*(?:private|no-store|no-cache)\b/i;
 
 /**
