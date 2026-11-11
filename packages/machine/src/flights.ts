@@ -143,7 +143,8 @@ export interface GetOptions {
 export interface InFlight {
 	/** The highest priority of the callers that joined it so far. It never goes down. */
 	readonly priority: number;
-	/** `raised` is called with the new priority each time a caller raises it, while it is out. */
+	/** `raised` is called with the new priority each time a caller raises it, while this try is out
+	 *  (under a `retry` policy, the next try starts with no listeners). */
 	onRaise(raised: (priority: number) => void): void;
 }
 
@@ -248,7 +249,15 @@ function attempt<I, V>(
 	retry: Policy | null
 ): V | Promise<Awaited<V> | Stale> {
 	if (retry === null) return run(input, signal, flight);
-	return under_policy(retry, (s) => run(input, s, flight), signal);
+	return under_policy(
+		retry,
+		(s) => {
+			// (a new try: the listeners of the one before were its, and it is over)
+			flight._raised = null;
+			return run(input, s, flight);
+		},
+		signal
+	);
 }
 
 /** Ids for the objects (and symbols) a key holds: a key field compares by identity. Held weakly:
