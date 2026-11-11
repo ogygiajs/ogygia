@@ -21,7 +21,7 @@
  * scans (a tag walk, a rare-needle-first search), the engine's compiled matcher was 2–4× faster on
  * real heads, allocation-free either way. `dedupe_head_links` is hand-written: it won.
  */
-import { is_word } from './html-scan.ts';
+import { is_html_space } from './html-scan.ts';
 
 /** A real `<meta name="ogygia-router" …>` element — a page opting a route out of view transitions. */
 const ROUTER_META_RE = /<meta\b[^>]*\bname=["']ogygia-router["']/i;
@@ -48,22 +48,73 @@ export function page_declares_speculation_rules(html: string): boolean {
 	return SPECULATION_RULES_RE.test(html);
 }
 
-/** The value of the first `\b<attr>=` + quote in `[from, to)`, up to the next quote of either kind
- *  (case-sensitive, as the `rel` / `href` probes always were), or `undefined`. */
-function quoted_attr(s: string, from: number, to: number, attr: string): string | undefined {
-	const n = attr.length;
-	for (let i = s.indexOf(attr, from); i !== -1 && i + n + 2 <= to; i = s.indexOf(attr, i + 1)) {
-		if (is_word(s.charCodeAt(i - 1)) || s.charCodeAt(i + n) !== 61 /* = */) continue;
-		const q = s.charCodeAt(i + n + 1);
-		if (q !== 34 && q !== 39) continue;
-		const start = i + n + 2;
-		let end = start;
-		for (; end < to; end++) {
-			const c = s.charCodeAt(end);
-			if (c === 34 || c === 39) return s.slice(start, end);
-		}
+/** A `<link` that is the tag name `link` (any case), not the start of `<link-x>` or `<linker>`. */
+const LINK_OPEN_G = /<link[\t\n\f\r />]/gi;
+
+/** The `rel` and `href` of the tag `link_tag_end` last read (`undefined`: not on the tag). One
+ *  shared record: the dedupe reads one tag at a time. */
+const LINK = { rel: undefined as string | undefined, href: undefined as string | undefined };
+
+/** Is `s` from `from` the ASCII name `name` (lower case, its length already checked) in any case? */
+function name_is(s: string, from: number, name: string): boolean {
+	for (let k = 0; k < name.length; k++) {
+		if ((s.charCodeAt(from + k) | 32) !== name.charCodeAt(k)) return false;
 	}
-	return undefined;
+	return true;
+}
+
+/**
+ * Read a start tag's attributes from `i` (just past its name) as the HTML tokenizer does, into
+ * `LINK`, and return the index of the `>` that ends the tag (-1: the input ends inside it). Names
+ * fold case; a quoted value ends at the quote that opened it (a `>` inside it is text); an unquoted
+ * one ends at whitespace or `>`; a name with no `=` has the value `""`; of two same-name attributes
+ * the first counts. Values are kept as written: a character reference is not decoded, so two
+ * spellings of one URL both stay (never the other way round). Pinned against the browser's parser
+ * by test/browser/head-links-dedupe-html.test.ts.
+ */
+function link_tag_end(s: string, i: number): number {
+	LINK.rel = LINK.href = undefined;
+	const n = s.length;
+	// (`c <= 32 &&` before each whitespace test: most characters are above it, so most tests end there)
+	for (;;) {
+		let c = s.charCodeAt(i);
+		while (c === 32 || c === 47 /* / */ || (c <= 32 && is_html_space(c))) c = s.charCodeAt(++i);
+		if (i >= n) return -1;
+		if (c === 62 /* > */) return i;
+		// (the first character is the name's even when it is `=`)
+		const ns = i++;
+		for (; i < n; i++) {
+			c = s.charCodeAt(i);
+			if (c > 62) continue;
+			if (c === 61 || c === 62 || c === 47 || (c <= 32 && is_html_space(c))) break;
+		}
+		const ne = i;
+		while (c <= 32 && is_html_space(c)) c = s.charCodeAt(++i);
+		let vs = i;
+		let ve = i;
+		if (c === 61 /* = */) {
+			c = s.charCodeAt(++i);
+			while (c <= 32 && is_html_space(c)) c = s.charCodeAt(++i);
+			if (c === 34 || c === 39) {
+				const close = s.indexOf(c === 34 ? '"' : "'", i + 1);
+				if (close === -1) return -1;
+				vs = i + 1;
+				ve = close;
+				i = close + 1;
+			} else {
+				vs = i;
+				for (; i < n; i++) {
+					c = s.charCodeAt(i);
+					if (c === 62 || (c <= 32 && is_html_space(c))) break;
+				}
+				ve = i;
+			}
+		}
+		const len = ne - ns;
+		if (len === 3 && LINK.rel === undefined && name_is(s, ns, 'rel')) LINK.rel = s.slice(vs, ve);
+		else if (len === 4 && LINK.href === undefined && name_is(s, ns, 'href'))
+			LINK.href = s.slice(vs, ve);
+	}
 }
 
 /**
@@ -83,26 +134,21 @@ function quoted_attr(s: string, from: number, to: number, attr: string): string 
  * so the 2.6 MB body is never scanned for them.
  */
 export function dedupe_head_links(head: string): string {
-	if (!head.includes('<link')) return head;
+	let lt = search_from(LINK_OPEN_G, head, 0);
+	if (lt === -1) return head;
 	const sheets = new Set<string>();
 	const hints = new Set<string>();
 	// (the kept spans are joined once at the end, and only when a duplicate was dropped)
 	let out: string[] | null = null;
 	let kept = 0;
-	// (each tag's scan resumes after its `>`, as the global match did; `<link` exactly — the probe
-	// never folded case)
-	for (let lt = head.indexOf('<link'), gt = 0; lt !== -1; lt = head.indexOf('<link', gt + 1)) {
-		if (is_word(head.charCodeAt(lt + 5))) {
-			gt = lt;
-			continue;
-		}
-		gt = head.indexOf('>', lt);
+	// (each tag's scan resumes after its `>`)
+	for (let gt = 0; lt !== -1; lt = search_from(LINK_OPEN_G, head, gt + 1)) {
+		gt = link_tag_end(head, lt + 5);
 		if (gt === -1) break; // an unclosed `<link` is not a tag (nor is any after it)
-		const from = lt + 5;
-		const rel = quoted_attr(head, from, gt, 'rel');
+		const rel = LINK.rel;
 		const seen = rel === 'stylesheet' ? sheets : rel === 'modulepreload' ? hints : null;
 		if (seen === null) continue;
-		const href = quoted_attr(head, from, gt, 'href');
+		const href = LINK.href;
 		if (href === undefined) continue;
 		if (!seen.has(href)) {
 			seen.add(href);
