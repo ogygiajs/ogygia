@@ -90,13 +90,8 @@ import { B64Url } from './server/payload.ts';
 import { REF_WIRE_KEY, ref_reviver } from './ref.ts';
 import { plugins as plugin_entries } from 'virtual:ogygia/server-plugins';
 import type { RequestContext } from './plugin/index.ts';
-import {
-	current_facts,
-	facts_of,
-	mark_per_visitor,
-	set_current_request,
-	type RequestFacts
-} from './plugin/facts.ts';
+import { current_facts, facts_of, set_current_request, type RequestFacts } from './plugin/facts.ts';
+import { observe_reads } from './plugin/reads.ts';
 import { around, end_request, request_contexts, start_app_plugins } from './plugin/server.ts';
 import { end_request_scope, own_response, request_scope } from './plugin/request-scope.ts';
 // PULL-registration at decode time (idempotent; no import-time side effects).
@@ -1347,7 +1342,7 @@ class OgygiaHandle {
 		// A page with streaming promises is per-request BY INTENT — even on the non-navigate path
 		// where the promises get settled into a complete document (storing that copy would keep one
 		// settle forever while browser loads stream live).
-		if (has_pending) mark_per_visitor(bag!.facts, 'streamed load (promise in page data)');
+		if (has_pending) bag!.facts.reads.visitor('streamed load (promise in page data)');
 		const can_stream = event?.request.headers.get('sec-fetch-mode') === 'navigate';
 		// No reader → no seed → nothing to stage or settle (the postrender verdict above still saw the
 		// promise: that page stays per-request).
@@ -1692,20 +1687,26 @@ class OgygiaHandle {
 		}
 	}
 
-	/** A cached hole's memo key: the call and the visitor's session, and — when its tree reads
-	 *  `page.data` — the page it renders for (one page's facts never answer another page's hole). */
-	#hole_cache_key(
+	/** A hole's render cache: none for a `ttl` of 0 (a dynamic hole). A cached hole's memo key is the
+	 *  call and the visitor's session, and — when its tree reads `page.data` — the page it renders for
+	 *  (one page's facts never answer another page's hole). Its render notes the event's personal
+	 *  reads (a cookie, a header, `locals`): one that read them is not kept for others (#434). */
+	#hole_cache(
 		id: string,
 		payload: string,
 		event: RequestEvent,
+		ttl: number,
 		reads_page_data: boolean
-	): RenderKey {
-		return render_cache_key(
+	): { key: RenderKey; ttl: number } | undefined {
+		if (ttl <= 0) return undefined;
+		const key = render_cache_key(
 			id,
 			payload,
 			this.#region_session(event),
 			reads_page_data ? page_url_of(event).href : null
 		);
+		observe_reads(event, facts_of(event.request).reads);
+		return { key, ttl };
 	}
 
 	/** The session cookie value sealed into a region capability (empty when no `sessionCookie` is
@@ -1846,10 +1847,7 @@ class OgygiaHandle {
 
 		const ttl = Number(cap.ttl) || 0;
 		const reads_page_data = hole_reads_page_data(target);
-		const cache =
-			ttl > 0
-				? { key: this.#hole_cache_key(target, payload, event, reads_page_data), ttl }
-				: undefined;
+		const cache = this.#hole_cache(target, payload, event, ttl, reads_page_data);
 		// (the profiler logs each batched hole as its own hole request — only when one listens)
 		const stats = batch && has_batch_hole_listener();
 		const t0 = stats ? performance.now() : 0;
@@ -1995,10 +1993,7 @@ class OgygiaHandle {
 
 		const ttl = Number(ttl_raw) || 0;
 		const reads_page_data = hole_reads_page_data(target);
-		const cache =
-			ttl > 0
-				? { key: this.#hole_cache_key(target, payload, event, reads_page_data), ttl }
-				: undefined;
+		const cache = this.#hole_cache(target, payload, event, ttl, reads_page_data);
 		const timing: { queue_ms?: number; render_ms?: number } = {};
 		let outcome: 'hit' | 'miss' | 'none' = 'none';
 		const body = await this.#render_component(
