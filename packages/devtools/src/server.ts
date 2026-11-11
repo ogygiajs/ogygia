@@ -93,6 +93,20 @@ const WITH_PAGE_BEACON: ResolveOptions = {
 	}
 };
 
+/** `res`, never kept by a shared cache: in a build, the beacon is in the documents of one browser
+ *  that switched devtools on (a cookie or `?devtools=on`, which no `Vary` can key). */
+function never_stored(res: Response): Response {
+	try {
+		res.headers.set('cache-control', 'private, no-store');
+		return res;
+	} catch {
+		// ok: immutable headers (a fetched response passed through): the same response, new headers
+		const headers = new Headers(res.headers);
+		headers.set('cache-control', 'private, no-store');
+		return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+	}
+}
+
 /** `outer`'s page transform after `inner`'s, the other options merged. */
 function after(inner: ResolveOptions | undefined, outer: ResolveOptions): ResolveOptions {
 	const a = inner?.transformPageChunk;
@@ -111,9 +125,11 @@ const server: ServerPlugin<DevtoolsServerOptions> = defineServer<DevtoolsServerO
 		set_devtools_app(app as ServerApp<unknown>);
 		if (app.options.profiler) install_request_stats();
 	},
-	async handle({ event, options }, next) {
+	async handle({ event, options }, resolve) {
 		const config = options.profiler;
 		const beacon = dock_measures(event) ? WITH_PAGE_BEACON : undefined;
+		const next: typeof resolve =
+			beacon && DOCK_LAZY ? (opts) => resolve(opts).then(never_stored) : resolve;
 		if (!config) return next(beacon);
 		// DEMAND-ONLY: until a request asks for the profiler's path (and only until the first one mounts
 		// it), this app pays exactly what a profiler-less app pays
