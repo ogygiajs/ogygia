@@ -144,10 +144,17 @@ export const KNOWN: ReadonlyArray<{
 	{
 		issue: 799,
 		what: "a left page's region sheet kept for one navigation",
-		// (the tab holds a region sheet the fresh load does not)
+		// (the tab holds a region sheet the fresh load does not, or one more copy of it: the left
+		// page's lifted sheet beside the next page's own, its href written another way; seeds 385,
+		// 415, /server → /nested, gone with #800's fix)
 		applies: (shown, fresh) => {
-			const there = new Set(region_sheets(fresh));
-			return region_sheets(shown).some((s) => !there.has(s));
+			const there = new Map<string, number>();
+			for (const s of region_sheets(fresh)) there.set(s, (there.get(s) ?? 0) + 1);
+			return region_sheets(shown).some((s) => {
+				const n = there.get(s) ?? 0;
+				there.set(s, n - 1);
+				return n <= 0;
+			});
 		},
 		forgive: (s) => {
 			const h = head_blocks(s);

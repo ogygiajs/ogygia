@@ -50,6 +50,24 @@ describe('KNOWN', () => {
 	it('#807 does not apply when the tab lacks a region the fresh load has', () => {
 		expect(left.applies(page('twin', 'twin'), page('b-only'))).toBe(false);
 	});
+
+	const kept = KNOWN.find((k) => k.issue === 799)!;
+	const head = (sheets: number) =>
+		[
+			'<html>',
+			'  <head>',
+			...Array.from({ length: sheets }, () => [
+				'    <style data-ogygia-region-css="/a.css">',
+				'      ".a{}"'
+			]).flat(),
+			'  <body>'
+		].join('\n');
+
+	it('#799 counts copies: a second copy of the same region sheet is the kept one (seeds 385, 415)', () => {
+		expect(kept.applies(head(2), head(1))).toBe(true);
+		expect(kept.applies(head(1), head(1))).toBe(false);
+		expect(kept.applies(head(1), head(2))).toBe(false);
+	});
 });
 
 describe('page errors', () => {
