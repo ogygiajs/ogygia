@@ -17,7 +17,7 @@ import {
 	props_preview
 } from '../src/server/document-tail.ts';
 import { decode_island_graph } from '../src/island-graph.ts';
-import { set_island_deps } from './_stubs/virtual-island-deps.ts';
+import { set_island_deps } from './_stubs/server.region-deps.ts';
 
 const region = Region as unknown as Component<Record<string, unknown>>;
 const kit_pass = KitPagePass as unknown as Component<Record<string, unknown>>;

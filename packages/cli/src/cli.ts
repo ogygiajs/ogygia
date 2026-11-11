@@ -368,7 +368,7 @@ function wireOgygia(pf: Preflight, markdown: boolean, asyncCompiler = false): vo
 		return c.trim() ? c.replace(TRAILING_LFS_RE, '\n\n') + line : line;
 	});
 
-	// 5. Ambient types — one reference line so `svelte-check` / `tsc` resolve the `virtual:ogygia/*`
+	// 5. Ambient types — one reference line so `svelte-check` / `tsc` resolve the `ogygia:*`
 	//    modules the shipped source imports (and content's `import.meta.og.*` macros when markdown is
 	//    on). TS projects only; never clobber an existing file.
 	if (ext === 'ts') {
