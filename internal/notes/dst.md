@@ -57,14 +57,19 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   node left over: a run is one node (`whole_text_runs`, `test/parser.test.ts`).
 - It hands an intercepted answer back as it is: the sim follows a redirect itself, each leg a
   request on the network, and the answer carries its URL (`test/redirect.test.ts`).
+- It ran an inline module script at once and an external one when its file came: a document's
+  module scripts run in its order (`modules_in_order`, `test/modules.test.ts`).
+- Its console's methods read private fields, so a document's own console (which tells one
+  document's words from another's) runs each on the page's console (`test/console.test.ts`).
 
 Differences in the DOM engine cancel out for the MPA-equivalence oracle (both sides run in it);
 the real-browser tier reruns interesting seeds in Chromium, Firefox and WebKit.
 
 ## Known limits
 
-- Server instances share this process's globals: state ogygia pins to `globalThis` is shared
-  between instances of one process.
+- Server instances of one world share this process's globals: state ogygia (or the app) pins to
+  `globalThis` is shared between them. What a world's servers pin there is taken off when the
+  world ends, so the next world in the process starts from nothing.
 - A built app is loaded with Node's own `require` (of ESM), not `import()`, so vitest's module
   runner does not load it a second way (under it, the server's first request never answered).
 - Nothing is garbage collected in a run (`WeakRef` holds, no finalizer runs): collection happens
@@ -88,6 +93,16 @@ task, every action, each tab's URL, DOM fingerprint and what it holds, what brok
 byte for byte: a difference is a nondeterminism leak, fixed before any finding is trusted.
 `SIM_SITES=1` labels each timer with the code that set it, to find one. `SIM_STACKS=1` puts the
 stack of each uncaught error, console warning and console error in what the page said.
+
+## A run
+
+Each seed draws its own world (swarm testing): a subset of the fault classes, and one server or
+two behind the front door (each request to the seed's pick), their clocks up to 5 s apart. The
+visitor's workload (`workload.ts`): click links, go to a path, back, forward, reload, open a tab,
+go offline and back, wait, and press a button in a region (woken or not yet: a press before an
+island's code came is replayed once it wakes). A press makes every tab's document the visitor's
+own state, so the MPA check skips each such document (its next one is clean), and the element
+count leaves it out of the leak check.
 
 ## Running many
 
