@@ -3,8 +3,16 @@
  * runtime are named by their content, so a year-long `immutable` cache is right for them. A host that
  * sends `no-cache`, or a short `max-age`, makes returning visitors download them again.
  */
-import { describe, it, expect } from 'vitest';
-import { cached_long, cache_findings } from '../src/devtools/cache-headers.ts';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+import {
+	cached_long,
+	cache_findings,
+	content_named_files,
+	probe_cache
+} from '../src/devtools/cache-headers.ts';
+import { region_name } from '../src/devtools/regions.ts';
+
+const PROBE = '/src/lib/Probe.svelte';
 
 describe('cached_long: does this cache-control keep the file long enough', () => {
 	it('what SvelteKit sends, and other long policies', () => {
@@ -76,5 +84,99 @@ describe('cache_findings', () => {
 	it('every file cached for good, or none probed: quiet', () => {
 		expect(cache_findings([probe('Probe', 'public,max-age=31536000,immutable')])).toEqual([]);
 		expect(cache_findings([])).toEqual([]);
+	});
+	it('a header many files share is named once', () => {
+		const f = cache_findings([probe('A', 'no-cache'), probe('B', 'no-cache'), probe('C', null)]);
+		expect(f[0].message).toContain('served with `no-cache`, `no cache-control`:');
+	});
+});
+
+/** A stand-in `<ogygia-region>`: what `region_info` reads off it. */
+const region = (attrs: Record<string, string>) =>
+	({
+		getAttribute: (n: string) => attrs[n] ?? null,
+		hasAttribute: (n: string) => n in attrs,
+		parentElement: null
+	}) as unknown as Element;
+
+/** A page whose regions and runtime script are these. */
+function page(regions: Element[], runtime?: string): Document {
+	const doc = {
+		baseURI: 'https://a.test/p',
+		querySelectorAll: (s: string) => (s === 'ogygia-region' ? regions : []),
+		querySelector: (s: string) =>
+			s === 'script[data-ogygia-runtime]' && runtime
+				? { getAttribute: (n: string) => (n === 'src' ? runtime : null) }
+				: null
+	} as unknown as Document;
+	vi.stubGlobal('document', doc);
+	return doc;
+}
+
+describe('content_named_files', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it('a build: each island file and the runtime, once, by name', () => {
+		const doc = page(
+			[
+				region({ entry: '/src/lib/Probe.svelte', src: '/_app/immutable/Probe.Aa11.js' }),
+				region({ entry: '/src/lib/Probe.svelte', src: '/_app/immutable/Probe.Aa11.js' })
+			],
+			'/_app/immutable/runtime.Bb22.js'
+		);
+		expect(content_named_files(doc)).toEqual([
+			{ url: 'https://a.test/_app/immutable/Probe.Aa11.js', name: region_name(PROBE) },
+			{ url: 'https://a.test/_app/immutable/runtime.Bb22.js', name: 'the runtime' }
+		]);
+	});
+
+	it('off a build (no src, or the src is the entry): nothing', () => {
+		const doc = page([
+			region({ entry: '/src/lib/Probe.svelte' }),
+			region({ entry: '/src/lib/Twin.svelte', src: '/src/lib/Twin.svelte' })
+		]);
+		expect(content_named_files(doc)).toEqual([]);
+	});
+});
+
+describe('probe_cache', () => {
+	const url = 'https://a.test/_app/immutable/Probe.Aa11.js';
+	let entries: Partial<PerformanceResourceTiming>[] = [];
+	const asked: RequestInit[] = [];
+	beforeEach(() => {
+		entries = [];
+		asked.length = 0;
+		vi.stubGlobal('location', { href: 'https://a.test/p' });
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (_u: string, init: RequestInit) => {
+				asked.push(init);
+				return new Response(null, { headers: { 'cache-control': 'no-cache' } });
+			})
+		);
+		vi.spyOn(performance, 'getEntriesByType').mockImplementation(
+			() => entries as PerformanceEntryList
+		);
+		page([region({ entry: '/src/lib/Probe.svelte', src: url })]);
+	});
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	it('asks the server with a HEAD past the browser cache, and reads its cache-control', async () => {
+		const [p] = await probe_cache(document);
+		expect(asked).toEqual([{ method: 'HEAD', cache: 'no-store' }]);
+		expect(p).toMatchObject({ url, name: region_name(PROBE), cache_control: 'no-cache' });
+	});
+
+	it("a file's bytes are the page's load of it, not an earlier probe's empty HEAD", async () => {
+		await probe_cache(document);
+		entries = [
+			{ name: url, initiatorType: 'script', decodedBodySize: 5000, startTime: 0 },
+			{ name: url, initiatorType: 'fetch', decodedBodySize: 0, startTime: performance.now() }
+		];
+		const [p] = await probe_cache(document);
+		expect(p.bytes).toBe(5000);
 	});
 });
