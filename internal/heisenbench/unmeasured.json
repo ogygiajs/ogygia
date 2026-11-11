@@ -2723,6 +2723,18 @@
 		{
 			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_capability_not_path > details",
 			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids",
+			"reason": "the profiler's window ids, made once per instance (a profiler instance, not cloneable): one lazy import and one call of window_ids, which packages/devtools/bench/window-id.bench.ts measures; proven in packages/devtools/test/profiler-window-id.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids > then:0~2b15d2",
+			"reason": "hands the loaded module's window_ids the profiler's secret, mode and audience (a module namespace, not cloneable), constant work; window_ids is benched in packages/devtools/bench/window-id.bench.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/window-id.ts > hmac_signer",
+			"reason": "wraps a derived key (a Buffer, not cloneable) in a sign/verify pair, once per profiler; the mint and check it serves are benched in packages/devtools/bench/window-id.bench.ts"
 		}
 	]
 }
