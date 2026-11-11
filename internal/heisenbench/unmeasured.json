@@ -2959,6 +2959,42 @@
 		{
 			"id": "packages/core/src/messages/build.ts > BUILD_ERRORS > macro_outside_app > details",
 			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > note_region_answer",
+			"reason": "dev and e2e builds only: reads a live Response (not cloneable) into module state, constant work; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > note_minted_capability",
+			"reason": "dev and e2e builds only: two prefix tests into module state (hidden state), constant work; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > install_server_rules > add:1~32ab66",
+			"reason": "dev and e2e builds only: the region-answer rule joins its module list (hidden state), linear in the unsafe answers seen; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > install_server_rules > add:1~dd5fc5",
+			"reason": "dev and e2e builds only: the minted-capability rule joins its module list (hidden state), linear in the unsafe mints seen; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > region_answer_unsafe",
+			"reason": "dev and e2e builds only: reads a live Response's headers (not cloneable), constant work; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_region_answer_shared > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_region_answer_shared > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_capability_not_path > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_capability_not_path > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
 		}
 	]
 }

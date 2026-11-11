@@ -274,6 +274,27 @@ export const SERVER_WARNINGS = {
 			its key, was kept anyway, so other visitors get this visitor's answer. An ogygia bug,
 			please report it.
 		`
+	},
+	rule_region_answer_shared: {
+		text: (a: { detail: string }): string =>
+			`rule broken, a region answer left without its privacy headers: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e builds only (a rule ogygia checks on itself). Every answer of the region
+			endpoint carries \`Referrer-Policy: no-referrer\` (its URL is a capability, and must not
+			reach another site in a Referer) and a \`Cache-Control\` that no shared cache keeps
+			(\`no-store\`, or \`private\`). This one did not: something between the endpoint and the
+			response (a plugin, a hook) changed its headers, or ogygia did. Please report it.
+		`
+	},
+	rule_capability_not_path: {
+		text: (a: { detail: string }): string =>
+			`rule broken, a region capability was minted with more than a path: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e builds only (a rule ogygia checks on itself). A region capability URL is
+			always a path on the page's own origin (\`/…\`), so the browser fetches it from the same
+			server that signed it. This one had a scheme or host (often a \`paths.base\` set to a
+			full URL). An ogygia bug, or a configuration ogygia should refuse: please report it.
+		`
 	}
 };
 
