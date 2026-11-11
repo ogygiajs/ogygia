@@ -35,13 +35,13 @@ jobs:
       group: tests-report-${{ inputs.version || github.event.release.tag_name }}
     # SHIP_TOKEN (contents + pull requests) pushes the branch, opens the PR and adds `ship`, so CI and
     # ship.yml run on them (GITHUB_TOKEN's events start no workflow); GITHUB_TOKEN reruns a red run
-    # and opens the issue, which SHIP_TOKEN may not
+    # and opens the issue, which SHIP_TOKEN may not. Each token is given only to the steps that call
+    # gh: the install, build and test steps run the released commit's code and its dependencies.
     permissions:
       contents: read
       actions: write
       issues: write
     env:
-      GH_TOKEN: ${{ secrets.SHIP_TOKEN }}
       REPO: ${{ github.repository }}
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: ${{ vars.TURBO_TEAM }}
@@ -49,10 +49,16 @@ jobs:
       - name: The version and its commit
         id: v
         env:
+          GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
           INPUT: ${{ inputs.version }}
         run: |
           version="${INPUT:-${TAG#ogygia@}}"
+          # (the version reaches shell scripts that hold SHIP_TOKEN: only a semver passes)
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::not a version: $version"
+            exit 1
+          fi
           sha=$(gh api "repos/$REPO/commits/ogygia@$version" --jq .sha)
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
@@ -62,12 +68,13 @@ jobs:
         with:
           ref: ${{ steps.v.outputs.sha }}
           fetch-depth: 0
-          token: ${{ secrets.SHIP_TOKEN }}
+          persist-credentials: false
 
       # that commit's e2e results, from its own runs on main (Chromium in e2e.yml, Firefox and
       # WebKit in engines.yml): waited for, at most two hours, then read as they are
       - name: The released commit's e2e results
         env:
+          GH_TOKEN: ${{ github.token }}
           SHA: ${{ steps.v.outputs.sha }}
         run: |
           mkdir -p .e2e
@@ -97,10 +104,13 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium firefox webkit
 
       - name: Run every package's tests, all engines
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+          SHA: ${{ steps.v.outputs.sha }}
         run: |
-          node .github/scripts/test-report.ts --out "$RUNNER_TEMP/tests/${{ steps.v.outputs.version }}" \
+          node .github/scripts/test-report.ts --out "$RUNNER_TEMP/tests/$VERSION" \
             --raw "$RUNNER_TEMP/raw" --engines chromium,firefox,webkit --e2e .e2e \
-            --version "${{ steps.v.outputs.version }}" --commit "${{ steps.v.outputs.sha }}"
+            --version "$VERSION" --commit "$SHA"
 
       # (the per-file coverage and lcov stay here, never in the repo)
       - uses: actions/upload-artifact@v7
@@ -115,10 +125,13 @@ jobs:
       - name: Open the report PR
         id: pr
         env:
+          GH_TOKEN: ${{ secrets.SHIP_TOKEN }}
           VERSION: ${{ steps.v.outputs.version }}
+          SHA: ${{ steps.v.outputs.sha }}
+          RUN_ID: ${{ github.run_id }}
         run: |
           # (a branch of its own per run: an earlier run's PR is closed, never pushed over)
-          branch="chore/tests-report-$VERSION-${{ github.run_id }}"
+          branch="chore/tests-report-$VERSION-$RUN_ID"
           for old in $(gh pr list --repo "$REPO" --state open --json number,headRefName --jq ".[]|select(.headRefName|startswith(\"chore/tests-report-$VERSION-\"))|.number"); do
             gh pr close "$old" --repo "$REPO" --delete-branch --comment "Replaced by a newer report run." || true # ok: one already closed by hand
           done
@@ -132,10 +145,10 @@ jobs:
           if git diff --cached --quiet; then echo "nothing new for $VERSION"; echo "number=" >> "$GITHUB_OUTPUT"; exit 0; fi
           git -c user.name='ogygia tests report' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
             commit -qm "chore(tests): $VERSION test report"
-          git push origin "$branch"
+          git push "https://x-access-token:$GH_TOKEN@github.com/$REPO.git" "$branch"
           url=$(gh pr create --repo "$REPO" --base main --head "$branch" \
             --title "chore(tests): $VERSION test report" \
-            --body "The tests report for ogygia $VERSION (its unit, browser and e2e results and its coverage) for the docs' tests page, made by the tests-report workflow at the released commit ${{ steps.v.outputs.sha }}. Only \`apps/docs/static/tests/**\`: e2e.yml's plan enforces it. Merges itself once \`ci ok\` passes.")
+            --body "The tests report for ogygia $VERSION (its unit, browser and e2e results and its coverage) for the docs' tests page, made by the tests-report workflow at the released commit $SHA. Only \`apps/docs/static/tests/**\`: e2e.yml's plan enforces it. Merges itself once \`ci ok\` passes.")
           number="${url##*/}"
           gh pr edit "$number" --repo "$REPO" --add-label ship
           echo "number=$number" >> "$GITHUB_OUTPUT"
@@ -144,8 +157,11 @@ jobs:
       - name: See it merge
         if: steps.pr.outputs.number != ''
         env:
+          GH_TOKEN: ${{ github.token }}
           PR: ${{ steps.pr.outputs.number }}
           VERSION: ${{ steps.v.outputs.version }}
+          RERUN_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           for attempt in 1 2; do
             sleep 60
@@ -159,10 +175,10 @@ jobs:
             [ "$attempt" = 2 ] && break
             head=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)
             for id in $(gh run list --repo "$REPO" --commit "$head" --json databaseId,conclusion --jq '.[]|select(.conclusion=="failure")|.databaseId'); do
-              GH_TOKEN="${{ github.token }}" gh run rerun "$id" --repo "$REPO" --failed || true # ok: a run that cannot be rerun leaves the second watch to say so
+              GH_TOKEN="$RERUN_TOKEN" gh run rerun "$id" --repo "$REPO" --failed || true # ok: a run that cannot be rerun leaves the second watch to say so
             done
           done
-          GH_TOKEN="${{ github.token }}" gh issue create --repo "$REPO" \
+          GH_TOKEN="$RERUN_TOKEN" gh issue create --repo "$REPO" \
             --title "tests report $VERSION did not merge" \
-            --body "The tests-report PR #$PR for ogygia $VERSION did not merge: its required checks failed twice (once rerun), or it was not merged within half an hour of passing. The site keeps the previous report until it lands. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            --body "The tests-report PR #$PR for ogygia $VERSION did not merge: its required checks failed twice (once rerun), or it was not merged within half an hour of passing. The site keeps the previous report until it lands. Run: $RUN_URL"
           exit 1

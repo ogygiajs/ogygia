@@ -23,6 +23,8 @@ jobs:
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      # (the caller's event: a pull request reads the cache and never writes it)
+      TURBO_REMOTE_CACHE_READ_ONLY: ${{ github.event_name != 'push' }}
     steps:
       - uses: actions/checkout@v7
         with:

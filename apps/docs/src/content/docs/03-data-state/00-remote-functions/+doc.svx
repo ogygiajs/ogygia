@@ -56,6 +56,8 @@ export const bump = command(async () => (count += 1));
 
 If an island needs a query to update after a mutation, call `.refresh()` on it, or pair `submit().updates(query)` with `requested(query).refreshAll()` on the server. `updates` on its own does not fill the response.
 
+A command can also return a held region, and the region on the page repaints from the command's own response. When two commands can return the same region, give it the data's version (`region(Card, row, { version: row.updatedAt })`) so the newest data stays on screen whichever answer arrives last. See [Held regions](/docs/regions/held-regions#two-commands-one-region-give-it-a-version).
+
 ## Mutation guards
 
 Writing to a captured host variable from an island's markup is a mistake, because the value is a serialized snapshot rather than live state. In dev, ogygia wraps each snapshot in a **deep proxy** that logs a `console.warn` with the prop's path whenever you mutate it. The write still applies, since this is only a warning, but treat it as the signal to move that state into the island.
