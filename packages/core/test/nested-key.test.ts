@@ -6,9 +6,12 @@
  */
 import { expect, it } from 'vitest';
 
+type Nested = typeof import('../src/nested.ts');
+
 it('two copies of nested.ts mark "inside an island" with the same context key', async () => {
-	const a = await import('../src/nested.ts?copy=a');
-	const b = await import('../src/nested.ts?copy=b');
+	// (a query makes Vite load a second instance of the module; the cast is for the type only)
+	const a = (await import('../src/nested.ts?copy=a' as string)) as Nested;
+	const b = (await import('../src/nested.ts?copy=b' as string)) as Nested;
 	expect(a).not.toBe(b);
 	const [key_a] = a.nested_context().keys();
 	const [key_b] = b.nested_context().keys();
