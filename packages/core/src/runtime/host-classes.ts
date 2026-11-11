@@ -1,20 +1,12 @@
 /**
- * A WEB COMPONENT'S OWN CLASS TOKENS SURVIVE HYDRATION. A custom element's `class` has two writers:
- * Svelte (the author's classes) and the component itself, which may put state on its own host (a
- * theme over a dark image, an indicator position). Svelte's hydration writes `class` WHOLE whenever
- * it differs from Svelte's value (svelte `set_class`), so every token the component added before
- * the island woke was dropped — and a component that does not render again never puts it back.
+ * A web component's own class tokens survive hydration. Svelte's hydration writes a custom
+ * element's `class` whole (svelte `set_class`), dropping the tokens the component put on its own
+ * host. For each custom element the restorer reset (./restore.ts records Svelte's class as
+ * `__og_svelte_class`), the tokens that are not Svelte's are noted just before the island's hydrate
+ * and put back after it. Svelte's own tokens are never put back, and an element hydration replaced
+ * is left alone (test/browser/host-classes.test.ts).
  *
- * Ogygia knows which tokens are Svelte's for each custom element the restorer reset
- * (runtime/restore.ts records them as `__og_svelte_class`): everything else on that host is the
- * component's. So around an island's hydrate: before it, note each such host's non-Svelte tokens;
- * after it, put back the ones Svelte's write removed. The tokens are read JUST BEFORE the hydrate,
- * not as served: between restore and hydrate the component's own first render (or a script of its)
- * may have added or dropped one from client state, and that is what it wants now. Either order of
- * that render and the hydrate ends the same. Svelte's own tokens are never touched (a
- * client value that differs from the server's still wins), and an element hydration replaced is
- * skipped. An app without a server transform has no such hosts and pays one property read per
- * custom element in the island.
+ * @packageDocumentation
  */
 
 /** The expando the restorer writes on a custom element it reset: Svelte's class, as Svelte rendered it. */
@@ -40,7 +32,8 @@ export function note_host_classes(region: Element): Array<[Element, string[]]> |
 export function keep_host_classes(noted: Array<[Element, string[]]> | null): void {
 	if (!noted) return;
 	for (const [el, theirs] of noted) {
-		if (!el.isConnected) continue; // (hydration replaced it: a fresh element is the component's to dress)
+		// @why hydration replaced it: the fresh element is the component's to dress (test: test/browser/host-classes.test.ts › an element hydration replaced gets nothing put back: the element left the page)
+		if (!el.isConnected) continue;
 		for (const t of theirs) if (!el.classList.contains(t)) el.classList.add(t);
 	}
 }
