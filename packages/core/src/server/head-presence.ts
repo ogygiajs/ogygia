@@ -1,59 +1,39 @@
-/**
- * Presence checks for the head tags the `handle()` transform injects (the router meta, the runtime
- * bootstrap, the dev-HMR script, MPA speculation rules). Each must detect a REAL element, never the
- * tag's name as TEXT.
- *
- * Why this exists as its own module: a page that DOCUMENTS one of these tags in a code block renders
- * it HTML-escaped — `` `<meta name="ogygia-router" content="plain">` `` becomes
- * `<code>&lt;meta name="ogygia-router" content="plain"></code>`. A substring check like
- * `html.includes('name="ogygia-router"')` false-matches that prose and suppresses the injection; for
- * the router marker that silently drops the whole page to full-page navigation (no marker → the
- * client router hands off to `location.href`, so no SPA and no view transition). The changelog page
- * documents exactly these tags, which is how the bug surfaced.
- *
- * The fix each predicate shares: require a literal `<meta` / `<script` — the escaped copy carries
- * `&lt;`, never a bare `<`, so it can't match. `[^>]*` is bounded to the opening tag, so a `<script>`
- * whose BODY mentions the attribute (inline JS) can't false-match either. Every pattern is a single
- * unnested `[^>]*`, so `.test()` is linear — no backtracking on any input.
- *
- * The patterns are module constants (compiled once), never rebuilt per call: these predicates run on
- * the page HTML during every SSR response transform. They STAY regexes: measured against hand-written
- * scans (a tag walk, a rare-needle-first search), the engine's compiled matcher was 2–4× faster on
- * real heads, allocation-free either way. `dedupe_head_links` is hand-written: it won.
- */
 import { is_word } from './html-scan.ts';
 
-/** A real `<meta name="ogygia-router" …>` element — a page opting a route out of view transitions. */
 const ROUTER_META_RE = /<meta\b[^>]*\bname=["']ogygia-router["']/i;
-/** A real runtime bootstrap `<script … data-ogygia-runtime …>` (Region emits it on island pages). */
 const RUNTIME_SCRIPT_RE = /<script\b[^>]*\bdata-ogygia-runtime\b/i;
-/** A real dev-HMR `<script … data-ogygia-dev-hmr …>`. */
 const DEV_HMR_SCRIPT_RE = /<script\b[^>]*\bdata-ogygia-dev-hmr\b/i;
-/** A real `<script type="speculationrules" …>` (a page authoring its own MPA speculation rules). */
 const SPECULATION_RULES_RE = /<script\b[^>]*\btype=["']speculationrules["']/i;
 
+/** Does the page carry a real `<meta name="ogygia-router" …>` element (any letter case)? An
+ *  HTML-escaped copy in prose (`&lt;meta …`, a page that documents the tag) is not one. */
 export function page_declares_router_meta(html: string): boolean {
 	return ROUTER_META_RE.test(html);
 }
 
+/** Does the page carry a real runtime bootstrap `<script … data-ogygia-runtime …>`? Only the
+ *  opening tag counts: an escaped copy in prose, or an inline script whose body names the
+ *  attribute, is not one. Any letter case. */
 export function page_declares_runtime_script(html: string): boolean {
 	return RUNTIME_SCRIPT_RE.test(html);
 }
 
+/** Does the page carry a real dev-HMR `<script … data-ogygia-dev-hmr …>` (not an escaped copy in
+ *  prose)? Any letter case. */
 export function page_declares_dev_hmr_script(html: string): boolean {
 	return DEV_HMR_SCRIPT_RE.test(html);
 }
 
+/** Does the page author its own `<script type="speculationrules" …>` (not an escaped copy in
+ *  prose)? Any letter case. */
 export function page_declares_speculation_rules(html: string): boolean {
 	return SPECULATION_RULES_RE.test(html);
 }
 
-/** The value of the first `\b<attr>=` + quote in `[from, to)`, up to the next quote of either kind
- *  (case-sensitive, as the `rel` / `href` probes always were), or `undefined`. */
 function quoted_attr(s: string, from: number, to: number, attr: string): string | undefined {
 	const n = attr.length;
 	for (let i = s.indexOf(attr, from); i !== -1 && i + n + 2 <= to; i = s.indexOf(attr, i + 1)) {
-		if (is_word(s.charCodeAt(i - 1)) || s.charCodeAt(i + n) !== 61 /* = */) continue;
+		if (is_word(s.charCodeAt(i - 1)) || s.charCodeAt(i + n) !== 61) continue;
 		const q = s.charCodeAt(i + n + 1);
 		if (q !== 34 && q !== 39) continue;
 		const start = i + n + 2;
@@ -81,23 +61,24 @@ function quoted_attr(s: string, from: number, to: number, attr: string): string 
  * Every other `<link>` passes through byte-identical. The handle calls this on the HEAD SLICE of
  * the document only (everything before `</head>`, tens of KB): the hints and the sheets live there,
  * so the 2.6 MB body is never scanned for them.
+ *
+ * The scan matches the `<link` tag name whole (not `<linkx`). A `<link` with no `>` after it ends
+ * the scan. An attribute is read only as `name=` plus a quote, after a non-word character (#570);
+ * a link with no `href` is left alone.
  */
 export function dedupe_head_links(head: string): string {
 	if (!head.includes('<link')) return head;
 	const sheets = new Set<string>();
 	const hints = new Set<string>();
-	// (the kept spans are joined once at the end, and only when a duplicate was dropped)
 	let out: string[] | null = null;
 	let kept = 0;
-	// (each tag's scan resumes after its `>`, as the global match did; `<link` exactly — the probe
-	// never folded case)
 	for (let lt = head.indexOf('<link'), gt = 0; lt !== -1; lt = head.indexOf('<link', gt + 1)) {
 		if (is_word(head.charCodeAt(lt + 5))) {
 			gt = lt;
 			continue;
 		}
 		gt = head.indexOf('>', lt);
-		if (gt === -1) break; // an unclosed `<link` is not a tag (nor is any after it)
+		if (gt === -1) break;
 		const from = lt + 5;
 		const rel = quoted_attr(head, from, gt, 'rel');
 		const seen = rel === 'stylesheet' ? sheets : rel === 'modulepreload' ? hints : null;
@@ -116,20 +97,12 @@ export function dedupe_head_links(head: string): string {
 	return out.join('');
 }
 
-// The whole runtime bootstrap element (tag + empty body), the `<head …>` open tag, the first piece
-// of JavaScript the head carries (a `<script>`, or a `<link rel="modulepreload">` that fetches one),
-// and the `</head>` close. Same law as the predicates above: a literal `<script` / `<head` / `<link`,
-// one bounded `[^>]*` each, linear. (Kept as regexes, measured: see above.) The last two are global
-// so a search starts at an offset (`lastIndex`) instead of on a sliced copy of the head.
-// …together with the modulepreload hints for its imports that follow it (document-tail.ts
-// `runtime_bootstrap_tags`): they move as one unit.
 const RUNTIME_SCRIPT_ELEMENT_RE =
 	/<script\b[^>]*\bdata-ogygia-runtime\b[^>]*><\/script>(?:<link\b[^>]*\bdata-ogygia-runtime-dep\b[^>]*>)*/i;
 const HEAD_OPEN_RE = /<head\b[^>]*>/i;
 const FIRST_JS_G = /<script\b|<link\b[^>]*\brel=["']?modulepreload\b/gi;
 const HEAD_CLOSE_G = /<\/head\s*>/gi;
 
-/** The first match of a global pattern at or after `from` (its index), or -1. */
 function search_from(re: RegExp, s: string, from: number): number {
 	re.lastIndex = from;
 	const m = re.exec(s);
@@ -141,8 +114,10 @@ function search_from(re: RegExp, s: string, from: number): number {
  * the first `<script>` or `<link rel="modulepreload">` the app's template and the page carry, and
  * no earlier. `runtime` is the tag to place when the head has none yet (`null` = only reorder what
  * is there; the tag an island page emits sits wherever Kit's head slot is, after the app's own
- * scripts in `app.html`). With no JavaScript in the head it goes last in it. Returns `head` itself
- * when there is nothing to move.
+ * scripts in `app.html`). The modulepreload hints that follow the tag (`data-ogygia-runtime-dep`)
+ * move with it, as one unit. The search starts after `<head …>`; a slice with no `<head>` (a
+ * routeless document's inner head) is searched whole. With no JavaScript in the head it goes last
+ * in it, before `</head>`.
  *
  * Why BEFORE THE JS: module and deferred scripts run in document order once parsing ends, and the
  * runtime's custom-element definition is what makes every `<ogygia-region>` connect and keep its
@@ -167,7 +142,6 @@ export function runtime_first(head: string, runtime: string | null): string {
 		? head.slice(0, found.index) + head.slice(found.index + found[0].length)
 		: head;
 	const open = HEAD_OPEN_RE.exec(rest);
-	// no `<head>` in this slice (a routeless document's inner head): search the whole content
 	const from = open ? open.index + open[0].length : 0;
 	let at = search_from(FIRST_JS_G, rest, from);
 	if (at === -1) {
