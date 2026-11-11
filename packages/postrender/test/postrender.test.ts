@@ -128,6 +128,10 @@ store_contract('memory (tier 1)', () => new MemoryStore());
 
 // A faithful little Valkey fake (get/set EX/del/scan MATCH+COUNT with cursor) so the adapter's
 // command usage is exercised on every PR; the REAL server runs the same contract below.
+// (RegExp.escape is not in Node 22, which CI runs)
+const REGEX_SPECIAL_G = /[\\^$.*+?()[\]{}|/-]/g;
+const regex_escape = (s: string): string => s.replace(REGEX_SPECIAL_G, '\\$&');
+
 function fake_valkey(): ValkeyLike & { data: Map<string, string>; expiry: Map<string, number> } {
 	const data = new Map<string, string>();
 	const sets = new Map<string, Set<string>>();
@@ -192,10 +196,10 @@ function fake_valkey(): ValkeyLike & { data: Map<string, string>; expiry: Map<st
 			let source = '';
 			for (let i = 0; i < match.length; i++) {
 				const c = match[i];
-				if (c === '\\') source += RegExp.escape(match[++i]);
+				if (c === '\\') source += regex_escape(match[++i]);
 				else if (c === '*') source += '.*';
 				else if (c === '?') source += '.';
-				else source += RegExp.escape(c);
+				else source += regex_escape(c);
 			}
 			const re = new RegExp(`^${source}$`);
 			return ['0', [...data.keys()].filter((k) => re.test(k))] as unknown;
