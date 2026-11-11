@@ -37,6 +37,7 @@ import { register_store_kind, register_derived_kind } from '../store-transport.t
 import { register_snippet_kind } from '../region-snippet.ts';
 import { register_fn_kind } from '../fn-transport.ts';
 import { OgygiaError } from '../messages/server.ts';
+import { fingerprint_of } from '../runtime/hash.ts';
 import {
 	analyze,
 	json_culprit,
@@ -140,6 +141,19 @@ export interface PropsWire {
  * The wire text is produced once per seed: identical islands share one plan, and a tail rendered
  * twice against the same index (a test, a re-render) plans and serializes once.
  */
+/**
+ * A hole's IDENTITY (`data-og-hole`): the fingerprint of its entry and canonical props. Region
+ * computes it on both legs, so the browser leg finds the facts the server minted for the hole by it
+ * (runtime/hole-facts.ts). `wire`: the props' plan, when the caller has one already.
+ */
+export function hole_identity(
+	entry: string,
+	props: unknown,
+	wire: PropsWire | null = null
+): string {
+	return fingerprint_of(entry, '', (wire ?? plan_props_wire(props || {}, entry)).canonical);
+}
+
 export function plan_props_wire(value: unknown, entry: string): PropsWire {
 	const shape = analyze(value);
 	const refs = { count: 0, keys: [] as string[] };
