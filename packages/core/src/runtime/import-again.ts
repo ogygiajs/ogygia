@@ -19,7 +19,7 @@
  * imports nothing of the boot (only `@ogygia/machine`, which the boot runs on); the boot hands it
  * its message (`on_reload_needed`).
  */
-import { cache, flights, machine, say, scope, STALE, type Scope } from '@ogygia/machine';
+import { cache, flights, machine, registry, say, scope, STALE, type Scope } from '@ogygia/machine';
 
 /** How long a failed import waits for its file's timing entry before it reads as "no response". */
 const ENTRY_WAIT_MS = 1000;
@@ -34,9 +34,10 @@ const ENTRY_WAIT_MS = 1000;
 /** Downloads recorded, at most (the oldest go first): enough for every file a page loads. */
 const RESPONSES_MAX = 2000;
 /** Each download heard: its status (`null`: no response came, a dropped download). */
-const responses = new Map<string, number | null>();
-/** Callers waiting for a download's entry: called with its status when it lands. */
-const landing = new Map<string, Set<(status: number | null) => void>>();
+const responses = cache<string, number | null>({ name: 'heard downloads', max: RESPONSES_MAX });
+/** Callers waiting for a download's entry, each held by its wait's scope: called with its status
+ *  when it lands. */
+const landing = registry<{ url: string; done: (status: number | null) => void }>();
 /** The observer's owner, once it is up (the document's: a file's load outlives any page visit). */
 let timeline: Scope | null = null;
 
@@ -59,14 +60,10 @@ function hear_responses(): void {
 
 function heard(url: string, status: number | null): void {
 	// (a response heard for a URL is kept over a later entry with none)
-	const known = responses.get(url);
-	responses.delete(url);
-	responses.set(url, status ?? known ?? null);
-	if (responses.size > RESPONSES_MAX) responses.delete(responses.keys().next().value!);
-	const waiting = landing.get(url);
-	if (!waiting) return;
-	landing.delete(url);
-	for (const done of waiting) done(responses.get(url)!);
+	const now = status ?? responses.peek(url) ?? null;
+	responses.set(url, now);
+	// (each wait that is done leaves the registry: a walk does not reach one removed)
+	for (const w of landing) if (w.url === url) w.done(now);
 }
 
 /**
@@ -85,13 +82,7 @@ function response_landed(url: string): Promise<number | null> {
 			wait.close();
 			resolve(status);
 		};
-		let set = landing.get(url);
-		if (!set) landing.set(url, (set = new Set()));
-		set.add(done);
-		wait.defer(() => {
-			const waiting = landing.get(url);
-			if (waiting?.delete(done) && waiting.size === 0) landing.delete(url);
-		});
+		landing.add({ url, done }, wait);
 		wait.timeout(() => done(null), ENTRY_WAIT_MS);
 	});
 }
