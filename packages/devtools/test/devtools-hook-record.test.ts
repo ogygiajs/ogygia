@@ -24,6 +24,15 @@ describe('the hook record', () => {
 		expect(typeof e.at).toBe('number');
 	});
 
+	it('holds a region only weakly and keeps no server markup, so a region the page left can go', () => {
+		const el = region({ 'data-og-fp': 'f2' });
+		record_hook('regionHydrated', { el, t0: 1, tLoaded: 2, tDone: 3, ssrHtml: '<p>big</p>' });
+		const [e] = hook_entries();
+		expect(e.el).toBeInstanceOf(WeakRef);
+		expect(e.el?.deref()).toBe(el);
+		expect('ssrHtml' in e).toBe(false);
+	});
+
 	it('the writer and the readers, in any copy, share one record, and a listener hears each call', async () => {
 		const heard: string[] = [];
 		const stop = on_hook((e) => heard.push(e.hook));
@@ -69,5 +78,15 @@ describe('settled', () => {
 			urls: []
 		});
 		expect(await settled(0, 200)).toBe(false);
+	});
+
+	it('a region that woke and is still downloading (no regionMount yet) holds it past the quiet time', async () => {
+		vi.stubGlobal('document', { readyState: 'complete' });
+		const { settled } = await import('../src/devtools/testing-engine.ts');
+		const now = performance.now();
+		vi.spyOn(performance, 'now').mockReturnValueOnce(now - 1000);
+		record_hook('regionWoke', { el: region({ 'data-og-fp': 'downloading' }), when: 'load' });
+		vi.restoreAllMocks();
+		expect(await settled(300, 200)).toBe(false);
 	});
 });
