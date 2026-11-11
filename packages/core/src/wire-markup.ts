@@ -288,61 +288,152 @@ export function unknown_markers(names: Iterable<string>): string[] {
 }
 
 /** One tag `tags()` found: where it starts and ends in the HTML, and its attributes (names in
- *  lower case, a bare attribute's value `''`). */
+ *  lower case, a bare attribute's value `''`). `attr(name)` reads one attribute without building
+ *  `attrs`; `attrs` is read once, on first use. */
 export interface FoundTag {
 	readonly start: number;
 	readonly end: number;
 	readonly attrs: Map<string, string>;
+	/** One attribute's value (`''` when bare; the first one wins), or undefined. `name` in lower case. */
+	attr(name: string): string | undefined;
 }
 
 /** One attribute (or the tag's `>`) at `lastIndex`: `>` | name, then `="…"` | `='…'` | `=bare`.
- *  Sticky, read synchronously inside `read_tag` only (it never yields between a set and a read). */
+ *  Sticky, read synchronously only (nothing yields between a set and a read). */
 const ATTR =
 	/[\t\n\f\r /]*(?:(>)|([^\t\n\f\r />=]*)[\t\n\f\r ]*(?:=[\t\n\f\r ]*(?:"([^"]*)"|'([^']*)'|(?!["'])([^\t\n\f\r >]*)))?)/y;
 
-/** The start tag whose name ends at `after` (its `<` at `lt`): its attributes up to its `>`. Null
- *  when the HTML ends inside it (an unclosed tag or quoted value), as a browser drops it. */
+/** The space (and `/`) before an attribute. */
+const GAP = /[\t\n\f\r /]*/y;
+
+/** `ATTR` cut at attribute starts, without captures: one attribute and the gap after it, from where
+ *  its name starts. It allocates nothing; it moves nowhere only on a `=` whose quote never closes. */
+const STEP =
+	/[^\t\n\f\r />=]*[\t\n\f\r ]*(?:=[\t\n\f\r ]*(?:"[^"]*"|'[^']*'|(?!["'])[^\t\n\f\r >]*))?[\t\n\f\r /]*/y;
+
+/** An attribute's value, from where its name ends (`''` when it has none). */
+const VALUE = /[\t\n\f\r ]*(?:=[\t\n\f\r ]*(?:"([^"]*)"|'([^']*)'|(?!["'])([^\t\n\f\r >]*)))?/y;
+
+/** Whether the character code ends an attribute name: space, `/`, `>`, `=`. */
+const ends_name = (c: number) =>
+	c === 32 || c === 47 || c === 62 || c === 61 || c === 9 || c === 10 || c === 12 || c === 13;
+
+class Tag implements FoundTag {
+	readonly start: number;
+	readonly end: number;
+	readonly #html: string;
+	readonly #after: number;
+	#all: Map<string, string> | null = null;
+	constructor(start: number, end: number, html: string, after: number) {
+		this.start = start;
+		this.end = end;
+		this.#html = html;
+		this.#after = after;
+	}
+
+	get attrs(): Map<string, string> {
+		if (this.#all !== null) return this.#all;
+		const all = new Map<string, string>();
+		const html = this.#html;
+		ATTR.lastIndex = this.#after;
+		// (the tag is known closed: every step reads an attribute until its `>`)
+		for (let m = ATTR.exec(html)!; m[1] === undefined; m = ATTR.exec(html)!) {
+			const attr = m[2].toLowerCase();
+			if (!all.has(attr)) all.set(attr, m[3] ?? m[4] ?? m[5] ?? '');
+		}
+		return (this.#all = all);
+	}
+
+	attr(name: string): string | undefined {
+		if (this.#all !== null) return this.#all.get(name);
+		const html = this.#html;
+		const len = name.length;
+		const first = name.charCodeAt(0);
+		const close = this.end - 1; // (the tag's `>`)
+		GAP.lastIndex = this.#after;
+		GAP.test(html);
+		// (the tag is known closed: every step moves, until its `>`)
+		for (let at = GAP.lastIndex; at < close; at = STEP.lastIndex) {
+			// the first attribute named `name`, in any case (`| 32`: an ASCII letter's lower case)
+			if (
+				(html.charCodeAt(at) | 32) === first &&
+				ends_name(html.charCodeAt(at + len)) &&
+				(html.startsWith(name, at) || html.slice(at, at + len).toLowerCase() === name)
+			) {
+				VALUE.lastIndex = at + len;
+				const m = VALUE.exec(html)!;
+				return m[1] ?? m[2] ?? m[3] ?? '';
+			}
+			STEP.lastIndex = at;
+			STEP.test(html);
+		}
+		return undefined;
+	}
+}
+
+/** The start tag whose name ends at `after` (its `<` at `lt`), up to its `>`. Null when the HTML
+ *  ends inside it (an unclosed tag or quoted value), as a browser drops it. */
 export function read_tag(html: string, lt: number, after: number): FoundTag | null {
-	const attrs = new Map<string, string>(); // (one per tag, not module-level)
-	ATTR.lastIndex = after;
+	GAP.lastIndex = after;
+	GAP.test(html); // (it always matches)
+	let at = GAP.lastIndex;
 	for (;;) {
-		const m = ATTR.exec(html)!; // (every part is optional: it always matches)
-		if (m[1] !== undefined) return { start: lt, end: ATTR.lastIndex, attrs };
-		const value = m[3] ?? m[4] ?? m[5];
-		// no value read and a `=` next: its quote never closes
-		if (value === undefined && html.charCodeAt(ATTR.lastIndex) === 61) return null;
-		// no name and no value: the HTML ended inside the tag
-		if (value === undefined && m[2] === '') return null;
-		const attr = m[2].toLowerCase();
-		if (!attrs.has(attr)) attrs.set(attr, value ?? '');
+		if (html.charCodeAt(at) === 62 /* > */) return new Tag(lt, at + 1, html, after);
+		if (at >= html.length) return null; // the HTML ends inside the tag
+		STEP.lastIndex = at;
+		STEP.test(html);
+		if (STEP.lastIndex === at) return null; // a `=` whose quote never closes
+		at = STEP.lastIndex;
+	}
+}
+
+// The open and close patterns per tag name, made once (the names are code literals: a handful).
+// Shared, so every reader sets `lastIndex` right before its synchronous test.
+const OPEN = new Map<string, RegExp>();
+const CLOSE = new Map<string, RegExp>();
+
+/** A comment, or `<name` ending where a tag name ends. */
+function open_of(name: string): RegExp {
+	let re = OPEN.get(name);
+	if (re === undefined)
+		OPEN.set(name, (re = new RegExp(`<!--|<${name}(?=[\\t\\n\\f\\r />]|$)`, 'gi')));
+	return re;
+}
+
+/** The first `<name …>` start tag in `html` from `from`, read the way a browser reads one, or null
+ *  (none, or the HTML ends inside a comment or the tag). `next_tag(html, name, t.end)` is the one
+ *  after `t`: the loop form of `tags()` for hot paths. */
+export function next_tag(html: string, name: string, from: number): FoundTag | null {
+	const open = open_of(name);
+	let at = from;
+	for (;;) {
+		open.lastIndex = at;
+		if (!open.test(html)) return null;
+		const after = open.lastIndex;
+		// (a tag name holds no `<` or `!`: four characters `<!--` before the match's end are a comment)
+		if (html.startsWith('<!--', after - 4)) {
+			const close = html.indexOf('-->', after);
+			if (close === -1) return null;
+			at = close + 3;
+			continue;
+		}
+		return read_tag(html, after - name.length - 1, after);
 	}
 }
 
 /** Each `<name …>` start tag in `html` from `from`, in order, read the way a browser reads one.
  *  `name` is a tag name (letters, digits, `-`). */
 export function* tags(html: string, name: string, from = 0): Generator<FoundTag> {
-	// a comment, or `<name` ending where a tag name ends (one per scan: no shared lastIndex)
-	const open = new RegExp(`<!--|<${name}(?=[\\t\\n\\f\\r />]|$)`, 'gi');
-	open.lastIndex = from;
-	for (let m = open.exec(html); m !== null; m = open.exec(html)) {
-		if (m[0] === '<!--') {
-			const close = html.indexOf('-->', m.index + 4);
-			if (close === -1) return;
-			open.lastIndex = close + 3;
-			continue;
-		}
-		const tag = read_tag(html, m.index, open.lastIndex);
-		if (tag === null) return;
-		yield tag;
-		open.lastIndex = tag.end;
-	}
+	for (let t = next_tag(html, name, from); t !== null; t = next_tag(html, name, t.end)) yield t;
 }
 
 /** The raw text of the element `tag` opens (a `<script>`, `<style>`, `<template>`): up to its first
  *  `</name`, as a browser ends raw text. Null when it never closes. */
 export function text_of(html: string, tag: FoundTag, name: string): string | null {
-	const close = new RegExp(`</${name}(?=[\\t\\n\\f\\r />]|$)`, 'gi');
+	let close = CLOSE.get(name);
+	if (close === undefined)
+		CLOSE.set(name, (close = new RegExp(`</${name}(?=[\\t\\n\\f\\r />]|$)`, 'gi')));
 	close.lastIndex = tag.end;
-	const m = close.exec(html);
-	return m === null ? null : html.slice(tag.end, m.index);
+	if (!close.test(html)) return null;
+	return html.slice(tag.end, close.lastIndex - name.length - 2);
 }

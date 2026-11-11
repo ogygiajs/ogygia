@@ -15,49 +15,79 @@
  * `&lt;`, never a bare `<`, so it is not a tag; a tag's attributes end at its own `>` (quotes kept),
  * so a `<script>` whose BODY mentions the attribute (inline JS) can't false-match either.
  */
-import { tags, type FoundTag } from '../wire-markup.ts';
+import { next_tag, type FoundTag } from '../wire-markup.ts';
 
-/** Whether some `<name …>` carries `needle` in a way `test` accepts. The needle (a substring every
- *  match spells) is looked for first: a page without it is answered without reading a tag. */
+/** The first `<name …>` from `from` that carries `needle` in a way `test` accepts, or null. The
+ *  needle (what every match spells, in any case: a global, case-blind pattern) is looked for first,
+ *  so a head without it reads no tag, and only a tag whose span holds it has its attributes read. */
+function find_tag(
+	html: string,
+	name: string,
+	needle: RegExp,
+	test: (tag: FoundTag) => boolean,
+	from = 0
+): FoundTag | null {
+	needle.lastIndex = from;
+	let at = needle.exec(html)?.index ?? -1;
+	if (at === -1) return null;
+	for (let t = next_tag(html, name, from); t !== null; t = next_tag(html, name, t.end)) {
+		if (at < t.start) {
+			needle.lastIndex = t.start;
+			at = needle.exec(html)?.index ?? -1;
+			if (at === -1) return null;
+		}
+		if (at < t.end && test(t)) return t;
+	}
+	return null;
+}
+
 function has_tag(
 	html: string,
 	name: string,
-	needle: string,
-	test: (attrs: Map<string, string>) => boolean
+	needle: RegExp,
+	test: (tag: FoundTag) => boolean
 ): boolean {
-	return html.includes(needle) && first_tag(html, name, test) !== null;
-}
-
-/** The first `<name …>` from `from` whose attributes pass `test`, or null. */
-function first_tag(
-	html: string,
-	name: string,
-	test: (attrs: Map<string, string>) => boolean,
-	from = 0
-): FoundTag | null {
-	for (const t of tags(html, name, from)) if (test(t.attrs)) return t;
-	return null;
+	return find_tag(html, name, needle, test) !== null;
 }
 
 /** A real `<meta name="ogygia-router" …>` element — a page opting a route out of view transitions. */
 export function page_declares_router_meta(html: string): boolean {
-	return has_tag(html, 'meta', 'ogygia-router', (a) => a.get('name') === 'ogygia-router');
+	return has_tag(html, 'meta', ROUTER_NEEDLE_G, (t) => t.attr('name') === 'ogygia-router');
 }
 
 /** A real runtime bootstrap `<script … data-ogygia-runtime …>` (Region emits it on island pages). */
 export function page_declares_runtime_script(html: string): boolean {
-	return has_tag(html, 'script', 'data-ogygia-runtime', (a) => a.has('data-ogygia-runtime'));
+	return has_tag(html, 'script', RUNTIME_NEEDLE_G, is_runtime);
 }
+
+const is_runtime = (t: FoundTag) => t.attr('data-ogygia-runtime') !== undefined;
+const is_modulepreload = (t: FoundTag) => t.attr('rel') === 'modulepreload';
 
 /** A real dev-HMR `<script … data-ogygia-dev-hmr …>`. */
 export function page_declares_dev_hmr_script(html: string): boolean {
-	return has_tag(html, 'script', 'data-ogygia-dev-hmr', (a) => a.has('data-ogygia-dev-hmr'));
+	return has_tag(
+		html,
+		'script',
+		DEV_HMR_NEEDLE_G,
+		(t) => t.attr('data-ogygia-dev-hmr') !== undefined
+	);
 }
 
-/** A real `<script type="speculationrules" …>` (a page authoring its own MPA speculation rules). */
+/** A real `<script type="speculationrules" …>` (a page authoring its own MPA speculation rules).
+ *  The type reads as a browser reads it: spaces around it trimmed, in any case. */
 export function page_declares_speculation_rules(html: string): boolean {
-	return has_tag(html, 'script', 'speculationrules', (a) => a.get('type') === 'speculationrules');
+	return has_tag(html, 'script', SPECULATION_NEEDLE_G, (t) =>
+		SPECULATION_TYPE.test(t.attr('type') ?? '')
+	);
 }
+
+// The needles: global so a search starts at a tag (`lastIndex`), case-blind as attribute names are.
+const ROUTER_NEEDLE_G = /ogygia-router/gi;
+const RUNTIME_NEEDLE_G = /data-ogygia-runtime/gi;
+const DEV_HMR_NEEDLE_G = /data-ogygia-dev-hmr/gi;
+const SPECULATION_NEEDLE_G = /speculationrules/gi;
+const MODULEPRELOAD_NEEDLE_G = /modulepreload/gi;
+const SPECULATION_TYPE = /^[\t\n\f\r ]*speculationrules[\t\n\f\r ]*$/i;
 
 /**
  * Drop duplicate `<link>` tags in the HEAD — one pass over the head slice, two families:
@@ -82,11 +112,11 @@ export function dedupe_head_links(head: string): string {
 	// (the kept spans are joined once at the end, and only when a duplicate was dropped)
 	let out: string[] | null = null;
 	let kept = 0;
-	for (const t of tags(head, 'link')) {
-		const rel = t.attrs.get('rel');
+	for (let t = next_tag(head, 'link', 0); t !== null; t = next_tag(head, 'link', t.end)) {
+		const rel = t.attr('rel');
 		const seen = rel === 'stylesheet' ? sheets : rel === 'modulepreload' ? hints : null;
 		if (seen === null) continue;
-		const href = t.attrs.get('href');
+		const href = t.attr('href');
 		if (href === undefined) continue;
 		if (!seen.has(href)) {
 			seen.add(href);
@@ -110,12 +140,13 @@ const HEAD_CLOSE_G = /<\/head\s*>/gi;
  * they move as one unit. `[start, end)` in `head`, or null.
  */
 function runtime_unit(head: string): { start: number; end: number } | null {
-	const script = first_tag(head, 'script', (a) => a.has('data-ogygia-runtime'));
+	const script = find_tag(head, 'script', RUNTIME_NEEDLE_G, is_runtime);
 	if (script === null || !head.startsWith('</script>', script.end)) return null;
 	let end = script.end + '</script>'.length;
 	for (;;) {
-		const dep = first_tag(head, 'link', () => true, end);
-		if (dep === null || dep.start !== end || !dep.attrs.has('data-ogygia-runtime-dep')) break;
+		const dep = next_tag(head, 'link', end);
+		if (dep === null || dep.start !== end || dep.attr('data-ogygia-runtime-dep') === undefined)
+			break;
 		end = dep.end;
 	}
 	return { start: script.start, end };
@@ -150,16 +181,11 @@ export function runtime_first(head: string, runtime: string | null): string {
 	if (tag === null) return head;
 	const rest = found ? head.slice(0, found.start) + head.slice(found.end) : head;
 	// no `<head>` in this slice (a routeless document's inner head): search the whole content
-	const from = first_tag(rest, 'head', () => true)?.end ?? 0;
-	let at = first_tag(rest, 'script', () => true, from)?.start ?? Infinity;
+	const from = next_tag(rest, 'head', 0)?.end ?? 0;
+	let at = next_tag(rest, 'script', from)?.start ?? Infinity;
 	// (a modulepreload hint counts only when it comes before that script)
-	for (const t of tags(rest, 'link', from)) {
-		if (t.start > at) break;
-		if (t.attrs.get('rel') === 'modulepreload') {
-			at = t.start;
-			break;
-		}
-	}
+	const hint = find_tag(rest, 'link', MODULEPRELOAD_NEEDLE_G, is_modulepreload, from);
+	if (hint !== null && hint.start < at) at = hint.start;
 	if (at === Infinity) {
 		HEAD_CLOSE_G.lastIndex = from;
 		at = HEAD_CLOSE_G.exec(rest)?.index ?? rest.length;
