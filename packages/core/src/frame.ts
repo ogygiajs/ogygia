@@ -17,6 +17,12 @@ export type Frame = {
 	 * applied.
 	 */
 	v: number;
+	/**
+	 * Data version, when the server gave one (`region(C, props, { version })`). It orders frames
+	 * first: between two versioned frames the newer data wins, whatever its ticket. Equal versions,
+	 * or a frame without one, fall back to the ticket.
+	 */
+	d?: number;
 	/** The content. HTML in, morph out — no component trees over the wire. */
 	html: string;
 };
