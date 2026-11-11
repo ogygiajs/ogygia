@@ -3231,6 +3231,14 @@
 		{
 			"id": "packages/tooling/src/e2e/packed.ts > use_packed > map:0~59ea86",
 			"reason": "e2e tooling: one override line per released-together package (three), run once per suite by apps/palaestra/e2e/adapters.spec.ts and kit3.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > defineClient:0~80d03d > boot > then:0~6c8c0d",
+			"reason": "browser only, a build's switched-on dock: starts the lazily loaded page beacon once per document, constant work of its own; proven in packages/devtools/e2e/dock-switch.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > defineClient:0~80d03d > boot > then:1~a1b2d0",
+			"reason": "browser only: the page beacon's chunk failed to load, a no-op (the page goes unmeasured), constant work"
 		}
 	]
 }
