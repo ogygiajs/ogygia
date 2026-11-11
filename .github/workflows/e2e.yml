@@ -31,6 +31,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# read-only by default; a job that needs more says so
+permissions:
+  contents: read
+
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -71,6 +75,10 @@ jobs:
 
       - name: Every published package builds on publish
         run: node .github/scripts/publish-builds.ts
+
+      # the workflows' own security lint; a finding is fixed, or ignored inline with its reason
+      - name: Workflow security (zizmor)
+        run: pipx run zizmor==1.32.0 --offline --min-severity low .github/workflows
 
       - name: Plan
         id: plan
@@ -186,7 +194,7 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.e2e_chromium) }}
-    uses: ./.github/workflows/e2e-slice.yml
+    uses: ./.github/workflows/e2e-slice.yml # zizmor: ignore[self-repository]
     with:
       name: ${{ matrix.name }}
       id: ${{ matrix.id }}
@@ -194,7 +202,8 @@ jobs:
       shard: ${{ matrix.shard }}
       adapters: ${{ matrix.adapters }}
       browser: ${{ matrix.browser }}
-    secrets: inherit
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
 
   # The runtime's size against the PR's base branch, both measured here with this PR's tool
   # (apps/palaestra/e2e/bundle-size.ts: per page kind, brotli, as a production browser build ships it).

@@ -26,6 +26,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action != 'labeled' }}
 
+# read-only by default; a job that needs more says so
+permissions:
+  contents: read
+
 jobs:
   # Whether this run is wanted: always off a pull request; on one, when it carries or earns the
   # label (a label event for any other label starts nothing). The version PR runs none.
@@ -105,7 +109,7 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.e2e_engines) }}
-    uses: ./.github/workflows/e2e-slice.yml
+    uses: ./.github/workflows/e2e-slice.yml # zizmor: ignore[self-repository]
     with:
       name: ${{ matrix.name }}
       id: ${{ matrix.id }}
@@ -113,7 +117,8 @@ jobs:
       shard: ${{ matrix.shard }}
       adapters: ${{ matrix.adapters }}
       browser: ${{ matrix.browser }}
-    secrets: inherit
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
 
   # The browser test projects (core, content, machine) in the engines beside Chromium (which e2e.yml's
   # `check` runs): Playwright's Firefox and WebKit, and Firefox as released (WebdriverIO and
@@ -159,7 +164,9 @@ jobs:
       # WebKit needs system libraries the runner image lacks: --with-deps here
       - name: Install Playwright ${{ matrix.browser }}
         if: matrix.browser != 'firefox-stable'
-        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+        env:
+          BROWSER: ${{ matrix.browser }}
+        run: pnpm exec playwright install --with-deps "$BROWSER"
 
       # the released Firefox (the runner's own is replaced by the latest release); geckodriver is
       # fetched by webdriverio when the run starts
