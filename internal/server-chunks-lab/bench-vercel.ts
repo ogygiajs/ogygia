@@ -7,6 +7,7 @@
  *
  *   node bench-vercel.ts 15                         # default, split and bundled
  *   LAB_VARIANTS=split node bench-vercel.ts 15
+ *   LAB_IDLE_MIN=20 node bench-vercel.ts 15         # 3 deployments, a cold sample per 20 min idle
  *
  * ALWAYS the purus-projects scope, previews only (no --prod). Rows go to results-raw-2/vercel.jsonl.
  */
@@ -68,12 +69,23 @@ function timed(
 
 await mkdir(join(ROOT, 'results-raw-2'), { recursive: true });
 const made: [string, string][] = [];
+/** LAB_IDLE_MIN=n: one deployment per variant, and a cold sample every n minutes of idle instead
+ *  of a new deployment per sample (for a team on a deployments-per-day limit). */
+const IDLE_MIN = Number(process.env.LAB_IDLE_MIN ?? 0);
+const deployed = new Map<string, string>();
+const deploy = (v: string, cwd: string): string => {
+	const url = vercel(['deploy', '--prebuilt', '--yes'], cwd).trim().split('\n').pop()!.trim();
+	made.push([url, cwd]);
+	return url;
+};
 try {
 	for (let i = 1; i <= N; i++) {
+		if (IDLE_MIN > 0 && i > 1) await new Promise((r) => setTimeout(r, IDLE_MIN * 60_000));
 		for (const v of VARIANTS) {
 			const cwd = join(ROOT, 'builds', 'vercel-' + v);
-			const url = vercel(['deploy', '--prebuilt', '--yes'], cwd).trim().split('\n').pop()!.trim();
-			made.push([url, cwd]);
+			let url = deployed.get(v);
+			if (url === undefined || IDLE_MIN === 0) url = deploy(v, cwd);
+			if (IDLE_MIN > 0) deployed.set(v, url);
 			const cold = timed(url, '/p/3', cwd);
 			const warm = timed(url, '/p/3', cwd);
 			const row = { round: i, variant: v, url, cold, warm };

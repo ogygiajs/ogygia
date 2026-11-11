@@ -28,6 +28,21 @@ from **1.23 s to 0.23 s** (−81%). Warm requests do not change, and memory goes
 | bundled             | 244   | 1623 ms                   | 1476 ms                     | 2.4 ms   |
 | **split**           | 245   | **1626 ms**               | **811 ms**                  | 2.5 ms   |
 
+Round 2 (section 10), one verdict per question:
+
+- **A real serverless host:** not measured. The team's 100-deployments-per-day limit was already
+  used up. The builds and the script are ready, and a quota-friendly rerun (3 deployments, idle
+  sampling) is planned. No deployment exists.
+- **Lazy per-block loading on top of `split`:** no gain at this fixture's size. 281 ms against
+  `split`'s 242 ms cold, and 1969 against 1724 ms slow. Each later page that needs new blocks pays
+  57 to 85 ms against 29 to 40 ms. It may pay at the real app's 16.5 MB registry. Time that one
+  file first.
+- **The `strictExecutionOrder` hang:** reproduced in a bare SvelteKit 2.70.2 app with that one
+  option on Rolldown 1.2.16. Rolldown makes Kit's server inits async, with no top-level await
+  anywhere, and Kit's `respond` ↔ `fetch` cycle then deadlocks. Not filed.
+- **Bun:** the same build runs as is. Bun's loader is cheap per file (today's build: 265 ms cold
+  against Node's 1331). `split` still cuts the slow-disk cold start from 1818 to 707 ms (−61%).
+
 ## 1. The problem, from a real app
 
 A CMS app (described without names) has a registry file that statically imports about 225 block
@@ -340,7 +355,31 @@ errors. Its `default` and `split` numbers sit within about 10% of round 1's.
 
 ### 10.1 A real serverless host (Vercel, Node functions)
 
-VERCEL
+**Verdict: not measured yet. Blocked by the platform's quota, not by the build.**
+
+- The `purus-projects` team is on a plan with a limit of 100 deployments per day. On
+  2026-11-11 that limit was already used up (`api-deployments-free-per-day`, "try again in 24
+  hours") before this lab's first deployment finished uploading.
+- No deployment of this lab exists. `vercel ls` shows none, so there is nothing to delete. The
+  linked project `ogygia-chunks-lab` is empty and kept for the rerun.
+- What is ready:
+  - **Builds.** `LAB_ADAPTER=vercel` builds the same fixture with `adapter-vercel`
+    (`runtime: 'nodejs22.x'`). Function file counts: `default` 1,704 JS files (11 MB), `split` 494
+    (4.3 MB), `bundled` 492 (4.3 MB). `adapter-vercel` traces files and does not re-bundle, so the
+    chunk shape reaches the function as built.
+  - **Uploading.** It is slow: about 3,000 files for `default`, each upload POST taking about 15 s
+    under the CLI's concurrency. The first upload of `default` alone runs over an hour. After that,
+    deployments reuse the uploaded files.
+  - **`bench-vercel.ts`.** Each cold sample is either a new preview deployment (its first request is
+    a cold start), or, under the quota, one deployment per variant and a sample after each
+    `LAB_IDLE_MIN` minutes of idle. It requests `/p/3` cold, then warm, through `vercel curl` (which
+    bypasses deployment protection), records TTFB and the `x-vercel-id`, and removes every
+    deployment it made.
+- **Plan for the rerun:** `LAB_IDLE_MIN=20 node bench-vercel.ts 15`. That is 3 deployments and
+  about 5 hours, well under the daily limit, run on a day the team's quota is free. Per-deployment
+  sampling (45 deployments) only fits on a plan without the limit. The cold-minus-warm difference
+  per sample is the cold-start cost. The function's own init duration, if the platform reports it,
+  comes from `vercel logs <deployment> --json`.
 
 ### 10.2 Lazy per-block loading, with split
 
