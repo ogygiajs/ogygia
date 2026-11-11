@@ -2431,6 +2431,10 @@
 		{
 			"id": "packages/core/src/server/transport.ts > refuse",
 			"reason": "throws Kit's 400 with a worded message (not replayable), constant work; proven in packages/core/test/remote-arg-plain-data.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/package-files.ts > discover_package_files > inside",
+			"reason": "a closure over the package's real root (not replayable), one prefix compare; proven in packages/core/test/package-files.test.ts"
 		}
 	]
 }
