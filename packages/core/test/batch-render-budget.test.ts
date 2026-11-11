@@ -84,7 +84,10 @@ describe('region endpoint: the render budget', () => {
 
 	it('a forged batch never spends the render budget', async () => {
 		const h = handle();
-		const forged = mint_server_region(ID, { n: 1 }).replace(/sig=[0-9a-f]+/, 'sig=' + '0'.repeat(64));
+		const forged = mint_server_region(ID, { n: 1 }).replace(
+			/sig=[0-9a-f]+/,
+			'sig=' + '0'.repeat(64)
+		);
 		await (await h({ event: batch([forged]), resolve } as never)).text();
 		// the budget (max 2) still admits two renders
 		const cap = mint_server_region(ID, { n: 2 });
