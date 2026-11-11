@@ -126,6 +126,25 @@ describe('a dev change reloads exactly the modules that read it', () => {
 	it('names no module that was never loaded', () => {
 		expect(table().bump('routes')).toEqual([]);
 	});
+
+	it('a module whose server load read a part is named, though its browser load read nothing after', () => {
+		const t = new VirtualTable<App>(
+			[
+				virtual.family<App>({
+					realm: 'server',
+					id: 'route-csr',
+					// (reads the routes on the server leg only, as core's route-csr does)
+					load: (a, l) => `export const r = ${l.ssr ? JSON.stringify(a.routes()) : '[]'};`
+				})
+			],
+			() => '',
+			{},
+			PARTS
+		);
+		t.load(R('route-csr'), app, { ssr: true, universalHooks: null });
+		t.load(R('route-csr'), app, { ssr: false, universalHooks: null });
+		expect(t.bump('routes')).toEqual([R('route-csr')]);
+	});
 });
 
 describe('core’s session parts', () => {
