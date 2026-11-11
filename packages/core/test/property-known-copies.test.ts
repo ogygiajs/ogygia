@@ -52,6 +52,30 @@ it('skips nothing on a request that is not an SPA nav, whatever it names', () =>
 	);
 });
 
+// The browser leaves the header out past 6144 bytes (runtime/router-nav.ts), so an honest one never
+// names more than 361 copies (16-hex fingerprints and their commas). A header over either is no
+// claim from a router: everything renders (#890).
+const BYTES = 6144;
+const COPIES = Math.floor((BYTES + 1) / 17);
+
+it('a header over the byte cap or the copy cap is no claim: nothing is skipped', () => {
+	const fp16 = 'a'.repeat(16);
+	fc.assert(
+		fc.property(fc.integer({ min: 0, max: 800 }), fc.constantFrom(fp16, 'a'), (copies, name) => {
+			const known = request({
+				'x-ogygia-spa': '1',
+				'x-ogygia-known': Array(copies).fill(name).join(',')
+			});
+			let skipped = 0;
+			for (let i = 0; i < copies + 1; i++) if (reuse_known_region(name)) skipped++;
+			const parts = known === '' ? 0 : known.split(',').length;
+			const over = known.length > BYTES || parts > COPIES;
+			expect(skipped).toBe(over ? 0 : parts);
+		}),
+		{ numRuns: 200 }
+	);
+});
+
 it('skips nothing off a request (prerender)', () => {
 	set_request_event_stub(null);
 	for (const f of FPS) expect(reuse_known_region(f)).toBe(false);
