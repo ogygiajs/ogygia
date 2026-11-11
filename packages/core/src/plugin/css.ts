@@ -2,7 +2,7 @@
  * `ogygia/plugin/css` — the CSS of components a programmatic router renders (see the server-router-css
  * notes + compiler/link/router-css.ts). Such a page's component is a VALUE, not a Kit route, so nothing
  * file-derived links its scoped `<style>` / plain `.css` imports. The build registers every component a
- * page module (`b.pageModules()`) can reach in a runtime registry (`virtual:ogygia/router-css`); this
+ * page module (`b.pageModules()`) can reach in a runtime registry (`ogygia:server/router-css`); this
  * turns the components ONE render places into the `<link>` / `<style>` head tags `document()` hoists,
  * deduped against the request's held-region links.
  *
@@ -10,7 +10,7 @@
  * plugin's server realm) — and it is imported on the first call, never at module load.
  */
 import { DEV } from 'esm-env';
-import { flights } from '@ogygia/machine';
+import { flights, say } from '@ogygia/machine';
 import { router_css_active, router_css_of } from '../router-css.ts';
 import { claim_region_css } from '../context.ts';
 import { warn } from '../messages/server.ts';
@@ -26,9 +26,10 @@ const STYLE_CLOSE_G = /<\/style/gi;
 // importer): that run reads the edited registry.
 const registry = flights({
 	name: 'router-css registry',
-	run: () => import('virtual:ogygia/router-css')
+	run: () => import('ogygia:server/router-css')
 });
-let warned_inactive = false;
+/** Said once for the process. */
+const inactive = say({ max: 1 });
 
 /** Head tags for the components ONE render places (a layout chain + its page or error component):
  *  each component's whole-tree CSS, linked once per request. */
@@ -40,10 +41,8 @@ export async function componentCssHead(components: readonly unknown[]): Promise<
 	} catch {
 		read = false;
 	}
-	if (DEV && read && !warned_inactive && components.length && !router_css_active()) {
-		warned_inactive = true;
-		warn('router_css_inactive');
-	}
+	if (DEV && read && components.length && !router_css_active())
+		inactive.once('router_css_inactive', () => warn('router_css_inactive'));
 	const entries = components.flatMap((c) => router_css_of(c));
 	if (!entries.length) return '';
 	const keys = entries.map((e) => e.key);

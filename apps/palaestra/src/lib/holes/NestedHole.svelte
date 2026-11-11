@@ -4,8 +4,8 @@
 	// must resolve against THIS file's directory, never against the snippet entry's virtual id.
 	//
 	// A snippet that holds a wake island portable-izes into its own entry — a slice of this source
-	// re-processed under `virtual:ogygia/island/<iid>.svelte`. That entry has no directory, so a
-	// relative marked import inside it used to resolve to `<root>/virtual:ogygia/NestedInner.svelte`
+	// re-processed under `ogygia:region/entry/<iid>.svelte`. That entry has no directory, so a
+	// relative marked import inside it used to resolve to `<root>/ogygia:region/NestedInner.svelte`
 	// and fail the build as an UNRESOLVED_IMPORT out of a region module. Covered permutations:
 	//   1. direct placement (never broke — the control);
 	//   2. `../` island in a 0-arg snippet at a PLAIN site (the reported shape);

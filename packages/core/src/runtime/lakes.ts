@@ -1,5 +1,5 @@
 import { relocate_trailing_empty_comments } from './lake-anchors.ts';
-import { on_schedule } from '../trigger.ts';
+import { on_schedule } from '../contract/trigger.ts';
 import {
 	FROZEN_SELECTOR,
 	document_is_stored,

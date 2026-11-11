@@ -1,7 +1,7 @@
-// The `when` / `wake` / `prefetch` / `revalidate` vocabulary (src/trigger.ts, #482): one parse into a
-// tagged union, read by the compiler's checks and the runtime's schedules alike.
+// The `when` / `wake` / `prefetch` / `revalidate` vocabulary (src/contract/trigger.ts, #482): one
+// parse into a tagged union, read by the compiler's checks and the runtime's schedules alike.
 import { describe, expect, it, vi } from 'vitest';
-import { on_schedule, parse_trigger, SCHEDULE, WAKE } from '../src/trigger.ts';
+import { on_schedule, parse_trigger, SCHEDULE, WAKE } from '../src/contract/trigger.ts';
 
 describe('parse_trigger', () => {
 	it('reads a keyword its set allows, and a media query, into one shape', () => {

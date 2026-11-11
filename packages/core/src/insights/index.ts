@@ -86,6 +86,13 @@ export {
 	type IslandHazard
 } from './hydration-hazards.ts';
 export { apply_attr_rules, type AttrRule } from './attr-rules.ts';
+export {
+	barrel_left_fix,
+	barrel_left_words,
+	type BarrelLeftReason,
+	type ChunkBarrel,
+	type IslandBarrel
+} from './barrel-left.ts';
 
 export {
 	DEVTOOLS_COOKIE,

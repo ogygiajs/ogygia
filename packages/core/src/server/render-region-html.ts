@@ -10,7 +10,7 @@
  */
 import { render } from 'svelte/server';
 import type { Component } from 'svelte';
-import { islandCss } from 'virtual:ogygia/island-deps';
+import { region_css } from 'ogygia:server';
 import { region_css_tags } from './html-scan.ts';
 import { kit_page_facts_tail, kit_page_ready, kit_render_context } from './kit-context.ts';
 
@@ -30,7 +30,7 @@ export async function render_region_html(
 	context.set(LAKE_SUBTREE_KEY, true);
 	const r = await render(component, { props, context });
 	let own = '';
-	for (const href of islandCss(module_url))
+	for (const href of region_css(module_url))
 		own += '<link rel="stylesheet" href="' + href + '" ' + REGION_CSS_ATTR + '>';
 	return own + region_css_tags(r.head) + r.body + kit_page_facts_tail();
 }
