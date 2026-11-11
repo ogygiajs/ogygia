@@ -805,6 +805,10 @@
 			"reason": "browser only: gives a live link element its media back (two attribute writes), constant work; proven in packages/core/test/browser/nav-sheets-inert.test.ts (#267)"
 		},
 		{
+			"id": "packages/core/src/runtime/router-nav.ts > adopt_title",
+			"reason": "browser only: reads the parsed document's title and writes the live document's (not cloneable), constant work; proven in packages/core/test/browser/nav-no-title.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/router-nav.ts > preload_stylesheets > discard:0~b6b485",
 			"reason": "browser only: takes one live link element out of the head, constant work; proven in packages/core/test/browser/nav-called-off-sheets.test.ts (#267)"
 		},
