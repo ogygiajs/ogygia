@@ -8,15 +8,15 @@ on:
 
 # A STAGED JOB GRAPH: the expensive jobs run only when needed, and only after the cheap ones pass.
 #
-#   plan ─┬─ check ── e2e (Chromium slices) ─┬─ e2e (Firefox and WebKit slices)
-#         │                                   └─ browsers (Firefox, WebKit, released Firefox)
+#   plan ─┬─ check ── e2e (Chromium slices)
 #         └─ size
 #   ci ok: after all of them; THE required check
 #
 # `plan` asks turbo (`--dry=json`, `--affected` on a pull request) which tasks this push leaves to
 # run (.github/scripts/ci-plan.ts): a job, or an e2e slice, with nothing to run is left out, and a
 # push that changes only changesets, Markdown or other workflows runs nothing but `plan` and `ci ok`.
-# A red Chromium run never starts the other engines' runners.
+# Firefox and WebKit are engines.yml's: on main, nightly, and on a PR with `ci:engines` or `ci:full`.
+# They report and are not part of `ci ok` yet (#392).
 
 # turbo's remote cache (Vercel, the purus-projects team): every runner, slice and machine shares one
 # cache. Without the secret (a fork's PR) turbo falls back to the local cache restored in each job.
@@ -181,106 +181,6 @@ jobs:
       browser: ${{ matrix.browser }}
     secrets: inherit
 
-  # The same slices in Firefox and WebKit, once Chromium's passed (or had nothing to run): a red
-  # Chromium never starts these runners. Playwright's WebKit is the engine behind Safari, not Safari.
-  e2e-engines:
-    name: e2e (${{ matrix.name }}, ${{ matrix.browser }})
-    needs: [plan, check, e2e-chromium]
-    if: >-
-      ${{ !cancelled() && needs.plan.outputs.e2e_engines != '[]' && needs.check.result != 'failure' &&
-      needs.e2e-chromium.result != 'failure' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.plan.outputs.e2e_engines) }}
-    uses: ./.github/workflows/e2e-slice.yml
-    with:
-      name: ${{ matrix.name }}
-      id: ${{ matrix.id }}
-      filter: ${{ matrix.filter }}
-      shard: ${{ matrix.shard }}
-      adapters: ${{ matrix.adapters }}
-      browser: ${{ matrix.browser }}
-    secrets: inherit
-
-  # The browser test projects (core, content, machine) in the engines beside Chromium (which `check`
-  # runs): Playwright's Firefox and WebKit, and Firefox as released (WebdriverIO and geckodriver:
-  # Playwright's Firefox build can lag the release, and #382 showed in the release). After Chromium's
-  # e2e passed. They run vitest directly (no turbo task to replay), so they always set up.
-  browsers:
-    name: browsers (${{ matrix.browser }})
-    needs: [plan, check, e2e-chromium]
-    if: >-
-      ${{ !cancelled() && needs.plan.outputs.browsers != '[]' && needs.check.result != 'failure' &&
-      needs.e2e-chromium.result != 'failure' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        browser: ${{ fromJSON(needs.plan.outputs.browsers) }}
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install workspace deps
-        run: pnpm install --frozen-lockfile
-
-      - name: Playwright version
-        if: matrix.browser != 'firefox-stable'
-        id: playwright
-        run: echo "version=$(pnpm exec playwright --version | sed 's/Version //')" >> "$GITHUB_OUTPUT"
-
-      - name: Playwright browser cache
-        if: matrix.browser != 'firefox-stable'
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
-
-      # WebKit needs system libraries the runner image lacks: --with-deps here
-      - name: Install Playwright ${{ matrix.browser }}
-        if: matrix.browser != 'firefox-stable'
-        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
-
-      # the released Firefox (the runner's own is replaced by the latest release); geckodriver is
-      # fetched by webdriverio when the run starts
-      - name: Install Firefox (release)
-        if: matrix.browser == 'firefox-stable'
-        id: firefox
-        uses: browser-actions/setup-firefox@v1
-        with:
-          firefox-version: latest
-
-      - name: Build the libraries
-        run: pnpm run build:lib
-
-      - name: Browser tests (core, content, machine)
-        run: |
-          for pkg in machine content core; do
-            echo "::group::$pkg"
-            (cd packages/$pkg && pnpm exec vitest run --project browser) || failed=1
-            echo "::endgroup::"
-          done
-          exit ${failed:-0}
-        env:
-          OGYGIA_BROWSERS: ${{ matrix.browser }}
-          OGYGIA_FIREFOX: ${{ steps.firefox.outputs.firefox-path }}
-
-      # remembered: the same inputs in this engine passed (the plan leaves the job out next time)
-      - name: Remember the pass
-        run: echo "${{ needs.plan.outputs.browsers_hash }}" > .browsers-pass
-      - uses: actions/cache/save@v6
-        with:
-          path: .browsers-pass
-          key: browsers-pass-${{ matrix.browser }}-${{ needs.plan.outputs.browsers_hash }}
-
   # The runtime's size against the PR's base branch, both measured here with this PR's tool
   # (apps/palaestra/e2e/bundle-size.ts: per page kind, brotli, as a production browser build ships it).
   # Growth past 0.5 % fails, unless the PR body says why on a line of its own: `Size baseline: <why>`.
@@ -346,7 +246,7 @@ jobs:
   # job name can be required: a name the plan leaves out would wait forever.
   ci-ok:
     name: ci ok
-    needs: [plan, check, e2e-chromium, e2e-engines, browsers, size]
+    needs: [plan, check, e2e-chromium, size]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -356,15 +256,11 @@ jobs:
           RESULTS: ${{ toJSON(needs) }}
         run: |
           node -e '
-            // Firefox and WebKit report but do not block yet: their open findings are tracked in
-            // one issue; once fixed, they join the blocking set
-            const reporting = new Set(["e2e-engines", "browsers"]);
             const needs = JSON.parse(process.env.RESULTS);
             let bad = 0;
             for (const [job, { result }] of Object.entries(needs)) {
-              const blocks = !reporting.has(job);
-              console.log(`${job}: ${result}${blocks ? "" : " (reports only)"}`);
-              if (blocks && (result === "failure" || result === "cancelled")) bad++;
+              console.log(`${job}: ${result}`);
+              if (result === "failure" || result === "cancelled") bad++;
             }
             process.exit(bad ? 1 : 0);
           '
