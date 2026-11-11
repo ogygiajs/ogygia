@@ -26,7 +26,7 @@ import {
 } from '../src/compiler/virtual/types.ts';
 import { CORE_VALUE_NAMES } from '../src/compiler/virtual/value-names.ts';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
-import { BUILD_ERRORS } from '../src/messages/build.ts';
+import { BUILD_ERRORS } from '../src/compiler/messages.ts';
 import { specifier, virtual, type Realm } from '../src/compiler/virtual/table.ts';
 
 const ROOT = '/app';

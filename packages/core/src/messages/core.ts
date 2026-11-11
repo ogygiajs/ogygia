@@ -9,8 +9,8 @@
  * chunks take the same two from ./lazy.ts, island-side code (a shim a component imports) from
  * ./island.ts — neither imports this module (see there).
  */
-import { define_messages, type MessagesOf } from './define.ts';
-import { prose } from './prose.ts';
+import { define_messages, type MessagesOf } from '../contract/messages.ts';
+import { prose } from '../contract/prose.ts';
 
 const BUG = 'An ogygia bug: please report it with the page that shows it.';
 

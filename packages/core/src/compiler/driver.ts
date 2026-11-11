@@ -10,7 +10,7 @@
  * recomputes on its own; the linker's `unregister_host` deliberately does NOT clear it.
  */
 import { fs, path, createHash, dir_entries } from './host.ts';
-import { fnv1a32 } from '../runtime/hash.ts';
+import { fnv1a32 } from '../contract/hash.ts';
 // `performance` is a global in both Node (≥16) and the browser — no import, so the driver graph loads
 // in the browser compiler (Observatory REPL) without pulling node:perf_hooks.
 const performance = globalThis.performance;
@@ -82,7 +82,7 @@ import { stamp_opaque } from './ownership-stamps.ts';
 import { strip_bom } from './bom.ts';
 import { RESOLVED, V_RUNTIME_ENTRY, region_family } from './ids.ts';
 import { is_generated_specifier } from './virtual/table.ts';
-import { OgygiaError, warn } from '../messages/build.ts';
+import { OgygiaError, warn } from './messages.ts';
 import type { Program, RegisterResult } from './program.ts';
 import type { CompileCtx } from './ctx.ts';
 
@@ -193,7 +193,7 @@ function extract_module_specs(src: string): string[] {
 	return specs;
 }
 
-// one shared FNV-1a-32 (runtime/hash.ts is the pure, import-anywhere home)
+// one shared FNV-1a-32 (contract/hash.ts is the pure, import-anywhere home)
 const fnv = fnv1a32;
 
 /** Once per module id: a dependency file carries ogygia marks but its package declares no

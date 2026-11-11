@@ -8,8 +8,8 @@
  *
  * The wording always prints, then the code's page `https://ogygiajs.dev/e/<code>?<args>`.
  */
-import { define_messages, type MessagesOf } from './define.ts';
-import { prose } from './prose.ts';
+import { define_messages, type MessagesOf } from '../contract/messages.ts';
+import { prose } from '../contract/prose.ts';
 
 const BUG = 'An ogygia bug: please report it with the file that shows it.';
 

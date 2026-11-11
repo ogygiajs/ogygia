@@ -45,3 +45,5 @@ export {
 export { analyze_imports, type ImportDecl, type ImportSpec } from './exports/parse.ts';
 export { blank_styles } from './blank-styles.ts';
 export { is_script_request } from './script-request.ts';
+// the build's message tables, for the docs' `ogygiajs.dev/e` pages
+export { BUILD_ERRORS, BUILD_WARNINGS } from './messages.ts';

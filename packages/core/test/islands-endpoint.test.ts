@@ -21,7 +21,7 @@ const { configure_islands_endpoint, islands_endpoint, DEFAULT_ISLANDS_ENDPOINT }
 const { mint_server_region, make_region_endpoint } =
 	await import('../src/server/region-endpoint.ts');
 const { renders_for_a_page } = await import('../src/server/render-page.ts');
-const { mpaSpeculationRules } = await import('../src/compiler/link/speculation.ts');
+const { mpaSpeculationRules } = await import('../src/server/speculation.ts');
 
 afterEach(() => configure_islands_endpoint(undefined));
 

@@ -26,8 +26,8 @@ import type MagicString from 'magic-string';
 import type { Plugin as VitePlugin } from 'vite';
 import type { ExportMap, Policy } from '../compiler/exports/index.ts';
 import type { ServerRealm } from '../compiler/link/caps.ts';
-import type { CompileEventInput } from '../events/schema.ts';
-import { OgygiaError } from '../messages/build.ts';
+import type { CompileEventInput } from '../contract/events.ts';
+import { OgygiaError } from '../compiler/messages.ts';
 
 /** Where `definePlugin` puts the definition on the Vite plugin it returns. A registered symbol, so a
  *  second copy of ogygia in one app still recognizes the first's plugins. */

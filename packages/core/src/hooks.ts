@@ -47,7 +47,7 @@ import {
 import { dev_hmr_url } from './dev-hmr-url.ts';
 import { REGION_BRAND } from './region-brand.ts';
 import { signing_key, configure_signing_secret } from './server/signing-key.ts';
-import { mpaSpeculationRules } from './compiler/link/speculation.ts';
+import { mpaSpeculationRules } from './server/speculation.ts';
 import { set_page_route_config } from './plugin/routes.ts';
 import {
 	set_kit_page_reader,
@@ -148,7 +148,7 @@ import {
 import { stringify } from 'devalue';
 import { serialize_provided_context } from './context-bridge.ts';
 import { escape_script_text } from './escape.ts';
-import { hole_copy_key } from './runtime/hash.ts';
+import { hole_copy_key } from './contract/hash.ts';
 import { PAGE_CTX_MARKER, set_ctx_recorder } from './context-registry.ts';
 import {
 	set_ask_scope_opener,
@@ -183,7 +183,7 @@ import {
 	DEVTOOLS_SCHEMA_VERSION,
 	type DevtoolsEvent,
 	type DevtoolsEventInput
-} from './events/schema.ts';
+} from './contract/events.ts';
 import {
 	DEVTOOLS_COOKIE,
 	DEVTOOLS_ON,
@@ -196,9 +196,9 @@ import {
 import { mark_personal } from './server/personal-response.ts';
 import { OgygiaError, warn } from './messages/server.ts';
 import { ERRORS, WARNINGS } from './messages/core.ts';
-import { define_messages, dev_or_prerender } from './messages/define.ts';
+import { define_messages, dev_or_prerender } from './contract/messages.ts';
 
-// A prerender words every message, the link after it (messages/define.ts `dev_or_prerender`).
+// A prerender words every message, the link after it (contract/messages.ts `dev_or_prerender`).
 (globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.prerendering')] = building;
 // The server's render runs the same shared code as the island (a transport, `Region`), which words
 // its messages through the runtime's own (messages/island.ts): published here as the runtime's boot

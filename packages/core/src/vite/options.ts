@@ -4,7 +4,7 @@
  * pure type declarations (the plugin factory in index.ts imports them back).
  */
 import type { ImportKeys } from '../compiler/region/transform.ts';
-import { OgygiaError, RETIRED_OPTIONS } from '../messages/build.ts';
+import { OgygiaError, RETIRED_OPTIONS } from '../compiler/messages.ts';
 
 // ── regexes
 

@@ -4,8 +4,8 @@ import crypto from 'node:crypto';
 import { isMainThread } from 'node:worker_threads';
 import { loadEnv, type Plugin, type Rolldown, type ViteDevServer } from 'vite';
 import type { PreprocessorGroup } from 'svelte/compiler';
-import { configure_build_cache } from '../build-cache.ts';
-import { content_css_key } from '../plugin/utils.ts';
+import { configure_build_cache } from '../compiler/build-cache.ts';
+import { content_css_key } from '../contract/content.ts';
 import { island_sourcemaps_plugin } from './sourcemaps.ts';
 import { server_sourcemaps_plugin } from './server-sourcemaps.ts';
 import { install_dev_client_maps, install_dev_maps, install_dev_page_keys } from './dev-maps.ts';
@@ -81,7 +81,7 @@ import { load_kit_dirs } from './kit-dirs.ts';
 import { write_module_map } from './module-map.ts';
 import { fill_profiler_maps } from './profiler-maps.ts';
 import { DEFAULT_REGION_TTL_SEC } from '../server/endpoint.ts';
-import { RENEW_WINDOW_SEC } from '../server/shared-cache.ts';
+import { RENEW_WINDOW_SEC } from '../contract/capability.ts';
 import { derive_id_salt, secret_has_min_entropy, MIN_SECRET_BYTES } from '../server/hmac.ts';
 import {
 	buildFoucCssModuleSource,
@@ -157,7 +157,7 @@ const KIT_PAGE_THREAD =
 // runs no ogygia runtime, so Kit's entry discloses it too. Where the runtime does boot, it adds the
 // same version (runtime/disclose-version.ts): the Set keeps one.
 const KIT_DISCLOSE_VERSION = `((globalThis.__ogygia ??= {}).v ??= new Set()).add(${JSON.stringify(OGYGIA_VERSION)});\n`;
-import { OWN_PACKAGE_NAMES, is_own_specifier } from '../own-package.ts';
+import { OWN_PACKAGE_NAMES, is_own_specifier } from '../contract/own-package.ts';
 import {
 	PKG_ROOT,
 	PKG_ROOT_ID,
@@ -179,7 +179,7 @@ import {
 } from './paths.ts';
 
 import type { OgygiaOptions } from './options.ts';
-import { OgygiaError, warn, line } from '../messages/build.ts';
+import { OgygiaError, warn, line } from '../compiler/messages.ts';
 
 /** css-ish file the dev bridge manages (mirrors the bridge's glob). */
 const DEV_CSS_FILE_RE = /\.(css|scss|sass|less|styl)$/;

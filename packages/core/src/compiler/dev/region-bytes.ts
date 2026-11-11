@@ -16,7 +16,7 @@
  */
 import { hydration_hazards, type IslandHazard } from '../../insights/hydration-hazards.ts';
 import type { BarrelLeftReason, IslandBarrel } from '../../contract/barrels.ts';
-import { OWN_FILE_RE } from '../../own-package.ts';
+import { OWN_FILE_RE } from '../../contract/own-package.ts';
 import { region_family } from '../ids.ts';
 import { OGYGIA_SCHEME } from '../virtual/table.ts';
 

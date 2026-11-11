@@ -16,10 +16,10 @@
 import { fs, path } from './host.ts';
 import { compile, parse } from 'svelte/compiler';
 import { walk } from 'estree-walker';
-import { unscoped_marker } from '../unscoped-css.ts';
+import { unscoped_marker } from '../contract/unscoped-css.ts';
 import { blank_styles } from './blank-styles.ts';
 import { EVERY_BARREL, ExportIndex, Shapes } from './exports/index.ts';
-import { warn } from '../messages/build.ts';
+import { warn } from './messages.ts';
 import { region_family } from './ids.ts';
 
 export const FOUC_CSS_PREFIX: string = region_family('fouc_css');
