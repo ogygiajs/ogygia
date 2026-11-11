@@ -71,7 +71,8 @@ describe('one address, every channel, simulated', () => {
 				);
 				sim.finally('stop watching', () => (off(), null));
 			},
-			{ runs: 200, horizon: 30_000 }
+			// (four batches that each sit out their 10 s stall are past a shorter horizon)
+			{ runs: 200 }
 		);
 	});
 });
