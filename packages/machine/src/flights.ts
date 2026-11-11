@@ -68,7 +68,7 @@
  * its place) is what aborts the work and turns its answer into STALE. `observe()` hears every
  * flight's moves, under the flights' `name`.
  */
-import { clock } from './clock.ts';
+import { clock } from './ports.ts';
 import { machine, type Machine } from './machine.ts';
 import { machine_error, report_thrown } from './messages.ts';
 import { under_policy, type Policy } from './policy.ts';

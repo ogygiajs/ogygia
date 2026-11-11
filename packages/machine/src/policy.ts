@@ -10,7 +10,7 @@
  * `flights({ retry })` run their tries under one (`under_policy`); work with tries of its own (a
  * machine's `retrying` state) reads its waits from one (`backoffAfter`).
  */
-import { clock } from './clock.ts';
+import { clock, random as randomness, timers } from './ports.ts';
 import { machine_error } from './messages.ts';
 import { MAX_TIMEOUT_MS, scope, type Scope } from './scope.ts';
 import { STALE, type Stale } from './stale.ts';
@@ -79,7 +79,7 @@ export const policy: { (p?: Partial<Policy>): Policy; readonly standard: Policy 
 
 /** The wait before try `n + 1`, once try `n` (1 for the first; 0 counts as 1) failed: a number of
  *  0 to the timer limit, however many tries. `random` is 0 to 1. */
-export function backoffAfter(p: Policy, n: number, random: number = Math.random()): number {
+export function backoffAfter(p: Policy, n: number, random: number = randomness.float()): number {
 	const b = p.backoff;
 	const tries = Math.max(1, n);
 	// (0 doubles to 0 forever: never 0 * 2^n, which is NaN once 2^n is Infinity)
@@ -103,8 +103,8 @@ export function out_of_time(deadline: number, error: unknown): DOMException {
  * process with nothing else to do exits in the wait, and the send is neither done nor given up.
  */
 function alive(tries: Scope, fn: () => void, ms: number): void {
-	const timer = setTimeout(fn, ms);
-	tries.defer(() => clearTimeout(timer));
+	const timer = timers.keep(fn, ms);
+	tries.defer(() => timers.cancel(timer));
 }
 
 /**
