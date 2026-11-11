@@ -525,13 +525,15 @@ const REGION_FRAME_HEADERS = {
 	'Referrer-Policy': 'no-referrer'
 } as const;
 
+/** Every region response, with those headers. It says how it may be cached: `no-store` (a refusal,
+ *  an error, a dynamic hole) unless the caller names the hole's own policy (PRELOAD-CACHE). */
 function region_response(
 	body: BodyInit | null,
 	init: { status: number; headers?: Record<string, string> }
 ) {
 	return new Response(body, {
 		status: init.status,
-		headers: { ...REGION_FRAME_HEADERS, ...init.headers }
+		headers: { ...REGION_FRAME_HEADERS, 'cache-control': 'no-store', ...init.headers }
 	});
 }
 
@@ -2001,9 +2003,10 @@ class OgygiaHandle {
 		}
 		// `keepFallback()`: no content — the runtime keeps the page's fallback and marks the hole done.
 		if (body === KEEP_FALLBACK_HTML)
+			// (its hole's own policy, like its answer would carry: a 204 is cacheable by default)
 			return region_response(null, {
 				status: 204,
-				headers: renewed ? { 'cache-control': 'no-store', ...renew_headers } : undefined
+				headers: { 'cache-control': cache_control, ...renew_headers }
 			});
 
 		if (body.length > MAX_REGION_BODY) return region_denied('oversize');
