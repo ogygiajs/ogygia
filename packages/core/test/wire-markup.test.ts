@@ -4,7 +4,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { is_marker, MARK, tags, unknown_markers } from '../src/wire-markup.ts';
+import { is_marker, MARK, tags, text_of, unknown_markers } from '../src/wire-markup.ts';
 
 const PACKAGES = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -61,9 +61,34 @@ describe('tags', () => {
 		);
 	});
 
+	it('drops a tag the HTML ends inside, and an unclosed quoted value ends the scan', () => {
+		expect([...tags('<a x="1"><a y', 'a')].map((t) => Object.fromEntries(t.attrs))).toEqual([
+			{ x: '1' }
+		]);
+		expect([...tags('<a x="1><a y=2>', 'a')]).toEqual([]);
+		expect([...tags('<a x=\'1"><a y="2">', 'a')]).toEqual([]);
+	});
+
+	it('starts where it is asked to', () => {
+		const html = '<a n="1"><a n="2">';
+		expect([...tags(html, 'a', 1)].map((t) => t.attrs.get('n'))).toEqual(['2']);
+	});
+
 	it('skips comments, and a name that only starts the same', () => {
 		const html = '<!-- <link data-og-fp="x"> --><linker a="1"><LINK B="2">';
 		expect([...tags(html, 'link')].map((t) => Object.fromEntries(t.attrs))).toEqual([{ b: '2' }]);
+	});
+});
+
+describe('text_of', () => {
+	it('reads raw text up to the first closing tag of that name, any case, and null when it never closes', () => {
+		const html = '<script type="application/json">{"a":"<b>"}</SCRIPT ><script>x';
+		const [first, second] = [...tags(html, 'script')];
+		expect(text_of(html, first, 'script')).toBe('{"a":"<b>"}');
+		expect(text_of(html, second, 'script')).toBe(null);
+		expect(
+			text_of('<script>a</scripts></script>', [...tags('<script>', 'script')][0], 'script')
+		).toBe('a</scripts>');
 	});
 });
 

@@ -7,6 +7,7 @@ import { assemble, locate } from '../src/server/document-assembly.ts';
 import { dedupe_head_links, runtime_first } from '../src/server/head-presence.ts';
 import { absolutize_hole_html } from '../src/server/hole-urls.ts';
 import { region_css_tags } from '../src/server/html-scan.ts';
+import { read_tag, tags, text_of } from '../src/wire-markup.ts';
 import { mark, settle } from '../src/server/reversible.ts';
 import { liftRegions, restoreRegions, scanRegions } from '../src/server/split-regions.ts';
 import { fake_scoped } from '../test/fixtures/fake-scoped-render.ts';
@@ -92,3 +93,34 @@ bench(
 bench('region CSS: the tags a held region carries forward', ({ h }) => region_css_tags(h).length, {
 	setup: () => ({ h: head(40) })
 });
+
+bench(
+	'tags: every region open tag of a document, attributes read',
+	({ html }) => {
+		let n = 0;
+		for (const t of tags(html, 'ogygia-region')) n += t.attrs.size;
+		return n;
+	},
+	{
+		setup: () => ({ html: document(100) }),
+		scale: (_ctx, k) => ({ html: document(100 * k) })
+	}
+);
+
+bench('read_tag: one link tag of a head', ({ h, at }) => read_tag(h, at, at + 5)?.attrs.size, {
+	setup: () => {
+		const h = head(40);
+		return { h, at: h.indexOf('<link') };
+	}
+});
+
+bench(
+	'text_of: a script element of a document',
+	({ html, tag }) => text_of(html, tag, 'script')?.length,
+	{
+		setup: () => {
+			const html = document(100);
+			return { html, tag: tags(html, 'script').next().value! };
+		}
+	}
+);
