@@ -1,25 +1,5 @@
-/**
- * say(): EDGE-TRIGGERED REPORTING. A thing worth telling is told when it starts (the edge), not
- * every time it is still true (the level). One reporter answers the three ways a "say it once"
- * guard was written by hand:
- *
- * - once ever: one constant key (`said.once('no-key', …)`);
- * - once per key: the key names what "the same thing" is (`said.once(url, …)`);
- * - once per failing streak: say the failure with `once`, and `ok` the key when it works again, so
- *   the next failure is a new streak and is said again.
- *
- *   const sink = say();
- *   sink.once('exposures', () => warn('flags_exposure_failed', error));   // a failure
- *   sink.ok('exposures');                                                  // it worked again
- *
- * The keys it remembers are bounded (`max`, 1024 by default; the least recently said go first), so a
- * key made from a URL or an id never grows a long-lived server. A key let go for the bound is said
- * again when it comes back. (The bound is a small LRU of its own; it moves onto `cache()` once that
- * lands, #416.)
- */
 import { machine_error } from './messages.ts';
 
-/** How many keys a reporter remembers by default. */
 const DEFAULT_MAX = 1024;
 
 /** An edge-triggered reporter: see {@link say}. */
@@ -39,8 +19,23 @@ export interface SayOptions {
 }
 
 /**
- * An edge-triggered reporter: each key is said once, until it recovers (`ok`), and at most `max`
- * keys are remembered.
+ * An edge-triggered reporter: a thing worth telling is told when it starts (the edge), not every
+ * time it is still true (the level). Each key is said once, until it recovers (`ok`):
+ *
+ * - once ever: one constant key (`sink.once('no-key', …)`);
+ * - once per key: the key names what "the same thing" is (`sink.once(url, …)`);
+ * - once per failing streak: say the failure with `once`, and `ok` the key when it works again, so
+ *   the next failure is a new streak and is said again.
+ *
+ * ```ts
+ * const sink = say();
+ * sink.once('exposures', () => warn('flags_exposure_failed', error)); // a failure
+ * sink.ok('exposures'); // it worked again
+ * ```
+ *
+ * At most `max` keys are remembered (1024 by default), so a key made from a URL or an id never
+ * grows a long-lived server. Past it, the least recently said key is let go, and is said again
+ * when it comes back.
  */
 export function say(options: SayOptions = {}): Say {
 	const max = options.max ?? DEFAULT_MAX;
@@ -50,7 +45,6 @@ export function say(options: SayOptions = {}): Say {
 			value: String(max),
 			rule: 'a whole number of keys, 1 or more'
 		});
-	// (a Map keeps insertion order: the first key is the least recently said)
 	const said = new Map<string, true>();
 	return {
 		once(key, speak) {
