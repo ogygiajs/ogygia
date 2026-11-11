@@ -577,7 +577,7 @@ export const BUILD_ERRORS = {
 		details: (): string => prose`
 			The build reads which runtime hooks a plugin's browser half subscribes to from its
 			file, so a hook nobody uses folds out of the runtime. That needs the default export to
-			be \`defineClient({ … })\` (or a \`const\` holding it), with \`hooks\` an object literal of
+			be \`defineClient({ … })\` (any part of it may sit in a module-level \`const\`), with \`hooks\` an object literal of
 			plain keys: no spread, no computed key.
 		`
 	},
