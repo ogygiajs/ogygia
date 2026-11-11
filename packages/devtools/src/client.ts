@@ -26,7 +26,8 @@ import {
 
 const DOCK = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 
-const client: ClientPlugin = defineClient({
+// (named, so `boot` and each hook keep one id however the rest of this file changes)
+const plugin: ClientPlugin = {
 	boot({ kitPage }) {
 		install_beacon();
 		if (!DOCK) return;
@@ -70,6 +71,8 @@ const client: ClientPlugin = defineClient({
 			beacon_warning(w);
 		}
 	}
-});
+};
+
+const client: ClientPlugin = defineClient(plugin);
 
 export default client;
