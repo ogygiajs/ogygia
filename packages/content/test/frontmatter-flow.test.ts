@@ -23,4 +23,9 @@ describe('flow sequences', () => {
 	it('a value that only starts with a bracketed part (a markdown link) stays text', () => {
 		expect(parse_yaml('title: [docs](/docs)')).toEqual({ title: '[docs](/docs)' });
 	});
+
+	it('several bracket groups in a row (a reference link) stay text, not the first group as a list', () => {
+		expect(parse_yaml('title: [docs][ref]')).toEqual({ title: '[docs][ref]' });
+		expect(parse_yaml('title: [a] [b]')).toEqual({ title: '[a] [b]' });
+	});
 });
