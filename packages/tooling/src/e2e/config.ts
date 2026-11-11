@@ -63,7 +63,19 @@ export function suite(opts: SuiteOptions): PlaywrightTestConfig {
 		retries: 0,
 		timeout: 180_000,
 		expect: { timeout: 10_000 },
-		reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
+		// (in CI, also a JSON report per engine for the tests report: .github/scripts/test-report.ts)
+		reporter: process.env.CI
+			? [
+					['list'],
+					['html', { open: 'never' }],
+					[
+						'json',
+						{
+							outputFile: `playwright-results/${process.env.OGYGIA_BROWSERS || 'chromium'}${process.env.E2E_SHARD ? `-${process.env.E2E_SHARD.replace('/', 'of')}` : ''}.json`
+						}
+					]
+				]
+			: [['list']],
 		use: { baseURL: base, trace: 'retain-on-failure' },
 		...(opts.build ? { globalSetup: BUILD, metadata: { build: opts.build } } : {}),
 		...(opts.serve
