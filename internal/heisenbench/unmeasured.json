@@ -13,23 +13,23 @@
 			"reason": "signs with the process's key and the request's session (hidden state; mintServerIsland before the region rename, unmeasured on that base); the signing it wraps is sign's, benched"
 		},
 		{
-			"id": "packages/core/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:3~e7ea15",
+			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:3~e7ea15",
 			"reason": "the server manifest's dev URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
 		},
 		{
-			"id": "packages/core/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:4~126d93",
+			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:4~126d93",
 			"reason": "the server manifest's public URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
 		},
 		{
-			"id": "packages/core/src/compiler/virtual/core.ts > family:0~359af7 > load > router_css_module:1~4ebdf0 > read_file",
+			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~359af7 > load > router_css_module:1~4ebdf0 > read_file",
 			"reason": "one file read for the server router's CSS, a pass-through to the host fs (the router-css generator's own tests read real routes)"
 		},
 		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > details",
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > text",
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
@@ -53,23 +53,23 @@
 			"reason": "reads the one export of the server build's profiler-maps module, which exists only inside a built app; constant work"
 		},
 		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > virtual_unknown > details",
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_unknown > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > virtual_duplicate > details",
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_duplicate > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/core/src/compiler/virtual/core.ts > map:0~fa4377",
+			"id": "packages/compiler/src/compiler/virtual/core.ts > map:0~fa4377",
 			"reason": "declares the six driver-resolved families once, as core.ts loads; constant, never per build"
 		},
 		{
-			"id": "packages/core/src/compiler/virtual/table.ts > virtual > family",
+			"id": "packages/compiler/src/compiler/virtual/table.ts > virtual > family",
 			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
 		},
 		{
-			"id": "packages/core/src/compiler/virtual/table.ts > virtual > request",
+			"id": "packages/compiler/src/compiler/virtual/table.ts > virtual > request",
 			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
 		},
 		{
@@ -1013,35 +1013,35 @@
 			"reason": "the escape callback of one character (a table lookup, constant work); quote's escapes are proven in packages/barrels/test/rewrite.test.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > details",
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > text",
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > exports > map",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > exports > map",
 			"reason": "a plugin's export index for one environment (a Map get or create over ogygia()'s closure: not replayable); the index's work is benched in packages/core/bench/compiler.bench.ts; proven through barrels() against a real Vite dev server in packages/barrels/test/plugin.test.ts"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > exports > map > ExportIndex:0~b7ee02",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > exports > map > ExportIndex:0~b7ee02",
 			"reason": "the index's resolver: the transformed module's own resolve (a live Vite plugin context, not recorded); proven in packages/barrels/test/plugin.test.ts"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports",
 			"reason": "the app's import keys and asRegion locals over ogygia()'s closure (not replayable); asRegionLocals is benched with the region transform; proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > barrels_left_of",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > barrels_left_of",
 			"reason": "one table per environment and stage in ogygia()'s closure, made once (a map lookup); the table itself is benched in packages/core/bench/compiler.bench.ts"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > barrel_why",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why",
 			"reason": "the client tables' why for one barrel row, over ogygia()'s closure (not replayable), at most two lookups; the join is benched in packages/core/bench/compiler.bench.ts and proven in packages/core/test/barrel-left.test.ts"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > barrel_why > filter:0~cf3029",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why > filter:0~cf3029",
 			"reason": "orders at most nine reasons (constant work); the same filter in the table is benched in packages/core/bench/compiler.bench.ts"
 		},
 		{
@@ -1053,71 +1053,71 @@
 			"reason": "the reasons of at most three listed barrels (constant work); proven in packages/devtools/test/profiler.test.ts"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad",
 			"reason": "one declaration against the pinned keys and locals (constant work over ogygia()'s closure); proven in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~d4dbd6",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~d4dbd6",
 			"reason": "one specifier's local against the asRegion locals (a Set has); proven in packages/barrels/test/as-region.test.ts"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~e91cb2",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~e91cb2",
 			"reason": "one attribute key against the app's import keys (a Set has); proven in packages/barrels/test/plugin.test.ts"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > stage_host",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host",
 			"reason": "builds one Vite plugin object per stage (constant work, over ogygia()'s closure); the stage's transforms are benched in packages/barrels/bench/barrels.bench.ts"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform",
 			"reason": "a live Vite transform hook (its this.resolve and this.addWatchFile are the plugin context, not recorded); a stage's work is the plugins' transforms, benched in packages/barrels/bench/barrels.bench.ts; proven against a real Vite dev server and build in packages/barrels/test/plugin.test.ts"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform > filter:0~18c7ef",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > filter:0~18c7ef",
 			"reason": "each stage transform's own filter on the module id (constant work per plugin); proven in packages/barrels/test/plugin.test.ts"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform > t > resolve",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > t > resolve",
 			"reason": "one specifier through the host's this.resolve (a live Vite plugin context, not recorded); its throw and external cases are proven in packages/barrels/test/plugin.test.ts"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform > t > watch",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > t > watch",
 			"reason": "the host's this.addWatchFile (a live Vite plugin context, not recorded); proven by the barrel-edit case in packages/barrels/test/plugin.test.ts"
 		},
 		{
-			"id": "packages/core/src/vite/plugin-api.ts > NO_SEAMS > exports > map",
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > exports > map",
 			"reason": "a constant rejection for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
 		},
 		{
-			"id": "packages/core/src/vite/plugin-api.ts > NO_SEAMS > pinned_imports",
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > pinned_imports",
 			"reason": "a constant throw for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
 		},
 		{
-			"id": "packages/core/src/vite/plugin-api.ts > resolve_plugins > build:0~4ffc6b > transform",
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~4ffc6b > transform",
 			"reason": "one push of a plugin's stage transform (a function: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/exports/index.ts > EVERY_BARREL > forced",
+			"id": "packages/compiler/src/compiler/exports/index.ts > EVERY_BARREL > forced",
 			"reason": "a constant answer (false) of the allow-everything policy"
 		},
 		{
-			"id": "packages/core/src/compiler/exports/parse.ts > attribute_keys > map:0~781359",
+			"id": "packages/compiler/src/compiler/exports/parse.ts > attribute_keys > map:0~781359",
 			"reason": "one attribute node to its key name (an oxc AST node: not replayable), constant work; the parse is benched in packages/core/bench/compiler.bench.ts"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > Shapes:0~f72d16",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > Shapes:0~f72d16",
 			"reason": "the app's file read for its shared shapes (a BOM-stripped read over the plugin's closure: not replayable); the shapes are benched in packages/core/bench/compiler.bench.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/fouc-css.ts > through_caller",
+			"id": "packages/compiler/src/compiler/fouc-css.ts > through_caller",
 			"reason": "hands one specifier to the walk's resolver (a function argument: not cloneable); proven in packages/core/test/exports-index.test.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/fouc-css.ts > collectFoucCssReachable > Shapes:0~3bebf5",
+			"id": "packages/compiler/src/compiler/fouc-css.ts > collectFoucCssReachable > Shapes:0~3bebf5",
 			"reason": "the walk's own file read for a fresh index's shapes (a pass-through to the caller's reader: not replayable); proven in packages/core/test/exports-index.test.ts"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > css_walk_index",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > css_walk_index",
 			"reason": "the CSS walk's export index for one environment (a Map get or create over the plugin's closure), constant work; the index's work is benched in packages/core/bench/compiler.bench.ts"
 		},
 		{
@@ -2421,19 +2421,19 @@
 			"reason": "reads the size of a module-level set (process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > regions > barrelWhy",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > barrelWhy",
 			"reason": "dev only: the regions seam hands the dock one barrel answer from the build's index, constant work of its own"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > regions > names",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > names",
 			"reason": "dev only: the regions seam lists the build's region entries, linear in the regions"
 		},
 		{
-			"id": "packages/core/src/vite/plugin-api.ts > NO_SEAMS > regions > barrelWhy",
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > barrelWhy",
 			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
 		},
 		{
-			"id": "packages/core/src/vite/plugin-api.ts > NO_SEAMS > regions > names",
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > names",
 			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
 		},
 		{
@@ -2465,7 +2465,7 @@
 			"reason": "dev only: hands the build's regions seam to the dev meta plugin, constant work"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > closeBundle",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > closeBundle",
 			"reason": "build only: Vite's closeBundle hook, once per build leg, constant work of its own"
 		},
 		{
@@ -2487,6 +2487,26 @@
 		{
 			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > server_sourcemaps_plugin:0~8b94d4",
 			"reason": "build only: the hidden-sourcemaps switch, always on in a build with the profiler, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/paths.ts > runtime_content_hash",
+			"reason": "build only: hashes the runtime's files on disk (file reads, not recorded), once per build leg"
+		},
+		{
+			"id": "packages/compiler/src/vite/paths.ts > scan_entry_pattern",
+			"reason": "dev only: one island file to an optimizeDeps pattern (a realpath and one replace), constant work per file"
+		},
+		{
+			"id": "packages/core/src/contract/core-files.ts > built",
+			"reason": "one path.join into core's dist, run as the module loads (never per request or per build)"
+		},
+		{
+			"id": "packages/core/src/contract/core-files.ts > id_dir",
+			"reason": "real_posix and one trailing slash, run as the module loads (CORE_ROOT_ID), constant work"
+		},
+		{
+			"id": "packages/core/src/contract/core-files.ts > real_posix",
+			"reason": "one realpath on the file system (not replayable) and one replace, constant work"
 		}
 	]
 }
