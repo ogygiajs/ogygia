@@ -54,4 +54,5 @@ export {
 	type CapabilityRefusal,
 	type Signer
 } from './capability.ts';
+export { trace, type Trace, type TraceOptions } from './trace.ts';
 export { MachineError, MACHINE_ERRORS, MACHINE_WARNINGS } from './messages.ts';
