@@ -102,6 +102,9 @@ jobs:
       - name: Lint (oxlint)
         run: pnpm run lint
 
+      - name: Lint rules' own tests
+        run: pnpm run lint:test
+
       # What `check` would run, asked of turbo first: when every check task is a cache hit, nothing
       # runs a browser (a replay only prints the stored logs), so the browser's setup is skipped.
       - name: Plan
