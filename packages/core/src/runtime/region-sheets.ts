@@ -73,15 +73,27 @@ export function use_sheets(region: Element, sheets: readonly Element[]): void {
 }
 
 /**
- * After a navigation's swap: of the region sheets the new page's head does not list (`unlisted`),
- * take out each one no region on the page uses any more.
+ * After a navigation's swap: of the region head nodes the new page's head does not list
+ * (`unlisted`: region sheets, and every tag that names an owning region), take out each one no
+ * region on the page uses or owns any more. A tag names its owner (`data-og-owner`, the outermost
+ * island's fingerprint) because the server skips a region the browser already has, and the tags
+ * its inner regions wrote with it (#806).
  */
-export function release_sheets(unlisted: readonly Element[]): void {
+export function release_head_nodes(unlisted: readonly Element[]): void {
 	if (unlisted.length === 0) return;
 	const used = new Set<Element>();
+	const owners = new Set<string>();
 	for (const region of connected_regions) {
+		if (!region.isConnected) continue;
 		const sheets = used_by.get(region);
 		if (sheets !== undefined) for (const s of sheets) used.add(s);
+		const fp = region.getAttribute('data-og-fp');
+		if (fp) owners.add(fp);
 	}
-	for (const s of unlisted) if (!used.has(s)) s.remove();
+	for (const node of unlisted) {
+		if (used.has(node)) continue;
+		const owner = node.getAttribute('data-og-owner');
+		if (owner !== null && owners.has(owner)) continue;
+		node.remove();
+	}
 }

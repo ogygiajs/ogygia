@@ -19,7 +19,8 @@ const REGION_OPEN_RE = /<ogygia-region\b/;
 const REGION_CSS_LINK_TAG_RE = /<link\b[^>]*data-ogygia-region-css[^>]*>/;
 const CSS_HREF_RE = /href="[^"]+\.css"/;
 /** The inlined shape (palaestra threshold): `<style data-ogygia-region-css="….css">`. */
-const REGION_CSS_STYLE_TAG_RE = /<style data-ogygia-region-css="[^"]*">/;
+// (the owner attribute, `data-og-owner`, may follow the identity: #806)
+const REGION_CSS_STYLE_TAG_RE = /<style data-ogygia-region-css="[^"]*"[^>]*>/;
 const CSS_IDENTITY_RE = /data-ogygia-region-css="[^"]+\.css"/;
 
 test.describe('REGRESSION: placed client island ships its own CSS (chunk-split :global)', () => {

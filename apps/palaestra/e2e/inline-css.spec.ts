@@ -12,7 +12,8 @@
 //   pnpm exec playwright test inline-css
 import { test, check, sleep } from '@ogygia/tooling/e2e';
 
-const INLINE_STYLE_G = /<style data-ogygia-region-css="([^"]*)">([^<]*)<\/style>/g;
+// (the owner attribute, `data-og-owner`, may follow the identity: #806)
+const INLINE_STYLE_G = /<style data-ogygia-region-css="([^"]*)"[^>]*>([^<]*)<\/style>/g;
 const REGION_LINK_G = /<link\b[^>]*href="([^"]+)"[^>]*data-ogygia-region-css[^>]*>/g;
 const PROPS = ['letterSpacing', 'borderTopWidth', 'borderTopStyle', 'borderTopColor'] as const;
 
