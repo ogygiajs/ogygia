@@ -1,5 +1,17 @@
 # @ogygia/core
 
+## 0.13.1
+
+### Patch Changes
+
+- [#454](https://github.com/ogygiajs/ogygia/pull/454) [`b954d0a`](https://github.com/ogygiajs/ogygia/commit/b954d0a4f010117b6aadf5d8562f062012845231) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A shared chunk that fails to download on a large page (one whose resource timing buffer is already full) is asked for again once and then said once with `chunk_reload_needed`, instead of being retried on every wake without the message.
+
+- [#455](https://github.com/ogygiajs/ogygia/pull/455) [`00f367d`](https://github.com/ogygiajs/ogygia/commit/00f367d7d2fe14acf3e4eeb112535312850427f9) Thanks [@PuruVJ](https://github.com/PuruVJ)! - An island clicked before it wakes no longer waits for the click-replay code to download: that small chunk is fetched as background work once an island is armed (after the page's critical resources), instead of at the click.
+
+- [#456](https://github.com/ogygiajs/ogygia/pull/456) [`2edf97e`](https://github.com/ogygiajs/ogygia/commit/2edf97e0a62db53cc5dbe644812d70d043efdba8) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Back and Forward land exactly where the page was left when a region above that position gets its height after the page is swapped in: the scroll is held there while the page lays out, until the visitor scrolls or interacts.
+
+- [#453](https://github.com/ogygiajs/ogygia/pull/453) [`16302da`](https://github.com/ogygiajs/ogygia/commit/16302da608d6fa3b0a67fd1062d29bffbc0a82c5) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A router navigation between pages at different URL depths asks for the next page's stylesheets (and every other head URL) at the next page's address, not resolved against the page being left.
+
 ## 0.13.0
 
 ### Minor Changes

@@ -32,13 +32,16 @@
 	// The Observatory: the SAME site top-nav (MarketingHeader) as the homepage, then the full-viewport
 	// REPL fills the rest (the REPL carries its own secondary toolbar).
 	const isObservatory = page.url.pathname.startsWith('/observatory');
+	// The test report: wide tables, so the homepage's full-width frame rather than the docs sidebar.
+	const isTests = /^\/tests(\/|$)/.test(page.url.pathname);
 	// Breadcrumb after the wordmark: `ogygia │ Docs` / `ogygia │ Observatory`; nothing on the homepage.
-	const section = isHome ? null : isObservatory ? 'Observatory' : 'Docs';
+	const section = isHome ? null : isObservatory ? 'Observatory' : isTests ? 'Tests' : 'Docs';
 
 	// The leak-free shell bundle (nav + switcher) — docs pages only. Skipped on the homepage (no
 	// sidebar) and bare canvases, which also saves the nav-tree fetch there. csr=false → every nav is
 	// a fresh SSR pass, so a top-level await is current per page.
-	const fullMeta = bare || isHome || isObservatory ? null : await meta(page.params.slug ?? '');
+	const fullMeta =
+		bare || isHome || isObservatory || isTests ? null : await meta(page.params.slug ?? '');
 	// One section per package: the sidebar (and the mobile sheet) show the current section's part
 	// of the one nav tree; the switcher at the top of the sidebar moves between sections.
 	const docSection = sectionOf(page.params.slug ?? '');
@@ -87,11 +90,11 @@
 		<SiteHeader section="Observatory" />
 		{@render children()}
 	</div>
-{:else if isHome}
-	<!-- Marketing homepage: the shared header (no breadcrumb) + full-width content, no docs sidebar.
-	     The header is FIXED, so the content clears its height. -->
+{:else if isHome || isTests}
+	<!-- Marketing homepage and the test report: the shared header + full-width content, no docs
+	     sidebar. The header is FIXED, so the content clears its height. -->
 	<div class="home-page" data-sveltekit-preload-data="hover">
-		<SiteHeader section={null} />
+		<SiteHeader {section} />
 		{@render children()}
 	</div>
 {:else}

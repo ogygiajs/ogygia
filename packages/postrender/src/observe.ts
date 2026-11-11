@@ -1,123 +1,48 @@
 /**
- * postrender — observed purity. The read path patches the event IN PLACE (identity preserved — Kit
- * and its WeakMap-keyed internals keep working) and records personalization reads during the
- * render. The verdict (see server.ts) then decides: store, or stay per-request.
+ * postrender — observed purity. What the render read that is not the same for every visitor is the
+ * request's read set (`facts.reads`, core's plugin/reads.ts): a flag, a streamed promise, and the
+ * cookie, personal header or `locals` value `app.observeReads` notes once asked. This adds the one
+ * thing a stored page cannot hold besides: a cookie the render (or the app) wrote.
  *
  * The vary-bucket law (the app delta 1): a read that resolved to its DEFAULT value — cookie
  * `undefined`, `locals.user` an empty object — still stores. That IS the canonical render
  * (the cookie-less CDN key, formalized). A NON-default observed value → per-request in v1.
- *
- * Blind spots (documented): reads that happen BEFORE ogygia's handle in the `sequence()` (upstream
- * auth handles priming `locals` — we see the LOCALS read instead, which is why locals are
- * observed too) and `Date.now()`/randomness in loads ("true at render time", the prerender
- * contract).
  */
-import type { RequestEvent } from '@sveltejs/kit';
-
-/** Personalization-bearing request headers: reading one during an eligible render disqualifies
- *  the page. Everything else (host, sec-fetch-*, accept-encoding, …) is delivery plumbing. */
-// static: a fixed list of header names
-const DISQUALIFYING_HEADERS = new Set([
-	'cookie',
-	'authorization',
-	'accept-language',
-	'user-agent',
-	'referer',
-	'x-user',
-	'x-user-id',
-	'x-session',
-	'x-session-id'
-]);
+import type { RequestContext } from '@ogygia/core/plugin';
 
 export interface Observation {
-	/** First personalization read that returned a NON-default value, or null — the verdict input.
-	 *  Named (`cookie:consent`, `header:accept-language`, `locals.user`) for the dev note. It IS the
-	 *  request's `perVisitor` fact: a flag read or a streamed promise lands there too. */
+	/** The first per-visitor read, or null — the verdict input. Named (`cookie:consent`,
+	 *  `header:accept-language`, `locals.user`, `flag:hero`) for the dev note. */
 	readonly disqualified_by: string | null;
 	/** The render (or the app) wrote a cookie — always per-request. */
 	wrote_cookie: boolean;
 }
 
-/** Default-valued reads still store: undefined/null/''/false, empty plain object, empty array. */
-function is_default_value(value: unknown): boolean {
-	if (value === undefined || value === null || value === '' || value === false) return true;
-	if (Array.isArray(value)) return value.length === 0;
-	if (typeof value === 'object') {
-		const proto = Object.getPrototypeOf(value);
-		if (proto === Object.prototype || proto === null) {
-			return Object.keys(value as Record<string, unknown>).length === 0;
-		}
-	}
-	return false;
-}
-
 /**
- * Patch `event.cookies` / `event.locals` / `event.request.headers` in place, recording reads.
- * Returns the live observation the verdict reads after the render. Patching is per-request
- * (the event dies with the request) — nothing to restore.
+ * Note the event's personal reads from now on, and record its cookie writes (patched in place, per
+ * request: the event dies with it). Returns the live observation the verdict reads after the render.
  */
 export function observe_event(
-	event: RequestEvent,
-	facts: { perVisitor: string | null } = { perVisitor: null }
+	ctx: Pick<RequestContext<unknown, unknown>, 'event' | 'facts' | 'app'>
 ): Observation {
+	const { event, facts } = ctx;
+	ctx.app.observeReads(event);
 	const obs: Observation = {
 		get disqualified_by() {
-			return facts.perVisitor;
+			return facts.reads.perVisitor;
 		},
 		wrote_cookie: false
 	};
-	const disqualify = (label: string) => {
-		if (facts.perVisitor === null) facts.perVisitor = label;
-	};
-
-	// cookies — record non-default gets; any write during the render is per-request by definition.
 	const cookies = event.cookies;
-	const orig_get = cookies.get.bind(cookies);
-	const orig_get_all = cookies.getAll.bind(cookies);
-	const orig_set = cookies.set.bind(cookies);
-	const orig_delete = cookies.delete.bind(cookies);
-	cookies.get = ((name: string, opts?: never) => {
-		const value = orig_get(name, opts);
-		if (!is_default_value(value)) disqualify(`cookie:${name}`);
-		return value;
-	}) as typeof cookies.get;
-	cookies.getAll = ((opts?: never) => {
-		const all = orig_get_all(opts);
-		if (all.length > 0) disqualify('cookies.getAll');
-		return all;
-	}) as typeof cookies.getAll;
-	cookies.set = ((...args: Parameters<typeof orig_set>) => {
+	const set = cookies.set.bind(cookies);
+	const drop = cookies.delete.bind(cookies);
+	cookies.set = ((...args: Parameters<typeof set>) => {
 		obs.wrote_cookie = true;
-		return orig_set(...args);
+		return set(...args);
 	}) as typeof cookies.set;
-	cookies.delete = ((...args: Parameters<typeof orig_delete>) => {
+	cookies.delete = ((...args: Parameters<typeof drop>) => {
 		obs.wrote_cookie = true;
-		return orig_delete(...args);
+		return drop(...args);
 	}) as typeof cookies.delete;
-
-	// request headers — patch the bound `get` on THIS Headers instance.
-	const headers = event.request.headers;
-	const orig_header_get = headers.get.bind(headers);
-	headers.get = ((name: string) => {
-		const value = orig_header_get(name);
-		if (value !== null && DISQUALIFYING_HEADERS.has(name.toLowerCase())) {
-			disqualify(`header:${name.toLowerCase()}`);
-		}
-		return value;
-	}) as typeof headers.get;
-
-	// locals — upstream handles personalize BEFORE this handle runs, so the RENDER's read of
-	// what they wrote is the observable moment. Default-shaped values (empty user object) pass.
-	// (SvelteKit 3 types `locals` as readonly; at runtime it is a plain property on both 2 and 3)
-	(event as { locals: App.Locals }).locals = new Proxy(event.locals, {
-		get(target, prop, receiver) {
-			const value = Reflect.get(target, prop, receiver);
-			if (typeof prop === 'string' && !is_default_value(value) && typeof value !== 'function') {
-				disqualify(`locals.${prop}`);
-			}
-			return value;
-		}
-	});
-
 	return obs;
 }
