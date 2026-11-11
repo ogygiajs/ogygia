@@ -74,7 +74,7 @@ const proxy_front: Handle = async ({ event, resolve }) => {
 };
 
 const restore_lab: Handle = process.env.OGYGIA_RESTORE_LAB
-	? reshape.handle({ transform: (html) => scoped_render(html) })
+	? reshape.handle((html) => scoped_render(html))
 	: ({ event, resolve }) => resolve(event);
 
 export const handle = sequence(

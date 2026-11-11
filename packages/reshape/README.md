@@ -25,7 +25,7 @@ import * as ogygia from 'ogygia/server';
 import * as reshape from '@ogygia/reshape';
 
 export const handle = sequence(
-	reshape.handle({ transform: (html, { kind, csr, event }) => render(html) }),
+	reshape.handle((html, { kind, csr, event }) => render(html)),
 	ogygia.handle()
 );
 ```

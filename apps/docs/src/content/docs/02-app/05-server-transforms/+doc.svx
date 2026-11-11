@@ -1,6 +1,6 @@
 ---
 title: Server transforms
-summary: Post-process the HTML ogygia sends, even inside islands. `reshape.handle({ transform })` from `@ogygia/reshape` runs your transform over every document and every hole answer, and before anything hydrates, ogygia puts back whatever the transform moved in Svelte's markup.
+summary: Post-process the HTML ogygia sends, even inside islands. `reshape.handle(transform)` from `@ogygia/reshape` runs your transform over every document and every hole answer, and before anything hydrates, ogygia puts back whatever the transform moved in Svelte's markup.
 related:
   - regions/server-islands
   - regions/lakes
@@ -33,9 +33,9 @@ import * as reshape from '@ogygia/reshape';
 import { renderComponents } from '$lib/server/components';
 
 export const handle = sequence(
-  reshape.handle({
-    transform: async (html, { kind, csr, event }) => renderComponents(html, { fragment: kind === 'region' })
-  }),
+  reshape.handle(async (html, { kind, csr, event }) =>
+    renderComponents(html, { fragment: kind === 'region' })
+  ),
   ogygia.handle()
 );
 ```
