@@ -749,6 +749,9 @@ importers:
 
   examples/mfe/contracts:
     dependencies:
+      '@ogygia/federation':
+        specifier: workspace:*
+        version: link:../../../packages/federation
       '@ogygia/flags':
         specifier: workspace:*
         version: link:../../../packages/flags
