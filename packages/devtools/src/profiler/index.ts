@@ -28,6 +28,7 @@
  */
 
 import type { RequestEvent } from '@sveltejs/kit';
+import { same_key, sha256_hex } from './key-check.ts';
 import type { Handle } from '@ogygia/core/plugin';
 import {
 	analyze,
@@ -1110,8 +1111,6 @@ function serverless_work_budget_ms(): number {
 	if (!Number.isFinite(req)) return Infinity;
 	return Math.max(req - SERVERLESS_RESERVE_MS, Math.floor(req * 0.5));
 }
-
-type HashFn = (algo: string) => { update(s: string): { digest(enc: 'hex'): string } };
 
 /**
  * Page mode renders the SAME page N times, so its outbound calls are the same handful repeated N
@@ -2699,22 +2698,15 @@ class Profiler {
 	async #key_matches(provided: string | null | undefined): Promise<boolean> {
 		if (this.dev) return true;
 		if (!this.secret || !provided) return false;
-		try {
-			const { createHash, timingSafeEqual } = await import('node:crypto');
-			const h = (str: string) => createHash('sha256').update(str).digest();
-			return (
-				timingSafeEqual(h(provided), h(this.secret)) ||
-				timingSafeEqual(h(provided), h(this.#cookie_token(createHash)))
-			);
-		} catch {
-			return provided === this.secret;
-		}
+		const [secret, session] = await Promise.all([
+			same_key(provided, this.secret),
+			this.#cookie_token().then((token) => same_key(provided, token))
+		]);
+		return secret || session;
 	}
 
-	#cookie_token(createHash: HashFn): string {
-		return createHash('sha256')
-			.update('og-profiler:' + this.secret)
-			.digest('hex');
+	#cookie_token(): Promise<string> {
+		return sha256_hex('og-profiler:' + this.secret);
 	}
 
 	/** Cookie header that starts / clears a profiler session (Set-Cookie value). */
@@ -2752,7 +2744,6 @@ class Profiler {
 		const key = String(body?.key ?? '');
 		const next = this.#safe_next(String(body?.next ?? this.base)); // no open redirect
 		if (!(await this.#key_matches(key))) return ctx.json({ ok: false }, { status: 401 });
-		const { createHash } = await import('node:crypto');
 		// `next` carries the after-login marker: if the navigation it drives still arrives without a
 		// session, the guard explains why instead of looping back here (#auth_guard).
 		const res = ctx.json({
@@ -2766,10 +2757,7 @@ class Profiler {
 		// into a plain object) keep only the last of several, and with the beacon flag last, the
 		// session was the one lost ("logged in, but no og_profiler arrived"). The flag follows on the
 		// next response (#flag_cookie).
-		res.headers.append(
-			'set-cookie',
-			this.#session_cookie(this.#cookie_token(createHash), ctx.event!)
-		);
+		res.headers.append('set-cookie', this.#session_cookie(await this.#cookie_token(), ctx.event!));
 		return res;
 	}
 

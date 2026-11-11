@@ -77,7 +77,9 @@ it('with no node:crypto, login seats a session, the session opens the profiler, 
 			token.replace(/.$/, (c) => (c === '0' ? '1' : '0'))
 		)
 	);
-	expect(refused.status, 'a wrong session is sent to login').toBe(302);
+	expect(refused.headers.get('location'), 'a wrong session is sent to login').toContain(
+		'/__profiler/login'
+	);
 	const by_header = await run(event('/__profiler', { headers: { 'x-profiler-key': SECRET } }));
 	expect(by_header.headers.get('location')).toBeNull();
 });
