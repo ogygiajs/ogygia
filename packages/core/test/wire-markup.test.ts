@@ -18,7 +18,8 @@ function spelled(): Map<string, string> {
 			const p = path.join(dir, e);
 			if (e === 'node_modules' || e === 'dist') continue;
 			if (statSync(p).isDirectory()) walk(p);
-			else if (/\.(ts|svelte|js)$/.test(e) && !e.endsWith('.d.ts'))
+			// (.svelte, .css and .html cannot import the constants: they spell markers, held to MARK here)
+			else if (/\.(ts|svelte|js|css|html)$/.test(e) && !e.endsWith('.d.ts'))
 				for (const m of readFileSync(p, 'utf8').matchAll(/data-og(?:ygia)?-[a-z0-9-]*[a-z0-9]/g))
 					if (!out.has(m[0])) out.set(m[0], path.relative(PACKAGES, p));
 		}
