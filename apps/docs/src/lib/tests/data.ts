@@ -119,7 +119,7 @@ export function rows(tests: TestCase[]): Row[] {
 	return [...out.values()];
 }
 
-export const percent = (n: number) => `${Math.round(n * 10) / 10}%`;
+export const percent = (n: number) => `${n.toFixed(1)}%`;
 export const count = (n: number) => n.toLocaleString('en-US');
 
 export function issue_href(issue: number | string): string {
