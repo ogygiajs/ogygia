@@ -466,6 +466,14 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 		);
 }
 
+/** Was the HTML of the document `tab` shows changed or cut on its way? */
+export function document_faulted(world: World, tab: Tab): boolean {
+	const url = tab.page.mainFrame.url.split('#')[0];
+	return world.network.exchanges.some(
+		(e) => e.from === tab.realm && e.method === 'GET' && e.url === url && (e.tampered || e.cut)
+	);
+}
+
 /** What a page may say when the network failed it: ogygia's coded reports, the network's own
  *  failures (a script cut midway fails to parse), and Vite's preload helper on a sheet whose
  *  download failed (seeds 65, 425). An uncaught TypeError is never excused. */
@@ -478,6 +486,10 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 	// (a fault on the shown document stays its fact: a module whose download was cut fails every
 	// later import of it in that document, as the module map keeps the failure)
 	const excused = world !== undefined && (faulted(world, tab) || faulted(world, tab, since));
+	// (a document whose own HTML was changed or cut on the way is not the page the server sent:
+	// what its scripts then do is the network's, a TypeError too. Seed 150: a flipped byte in
+	// `type="application/ogygia-page"` hid the page data, and the island read a missing field)
+	if (world !== undefined && document_faulted(world, tab)) return null;
 	const errors = [...tab.errors, ...tab.console.filter((l) => l.startsWith('error:'))].filter(
 		(l) => !(excused && EXPLAINED.test(l))
 	);
