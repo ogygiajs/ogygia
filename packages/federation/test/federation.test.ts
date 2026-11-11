@@ -258,6 +258,26 @@ describe('Ed25519 signing / verification', () => {
 				'u1'
 			);
 		});
+
+		it('a call is accepted once, whichever of its two signatures arrives first (#822)', () => {
+			const u = new URL('http://cms.test/og/remote/save');
+			const body = new TextEncoder().encode('a=1');
+			const send = (h: Record<string, string>) =>
+				verify_signed_request(at_cms, new Request(u, { method: 'POST', headers: h }), u, body);
+			const stripped = (h: Record<string, string>) => {
+				const copy = { ...h };
+				delete copy['x-og-cap'];
+				return copy;
+			};
+			// the capability first, then the same call with its capability removed
+			const a = sign_headers(priv, 'POST', u, body, { sub: 'u1' });
+			expect(send(a)?.user?.sub).toBe('u1');
+			expect(send(stripped(a))).toBeNull();
+			// the copy without its capability first, then the call as it was sent
+			const b = sign_headers(priv, 'POST', u, body, { sub: 'u1' });
+			expect(send(stripped(b))?.user?.sub).toBe('u1');
+			expect(send(b)).toBeNull();
+		});
 	});
 
 	it('accepts a fresh, correctly-signed request once and returns its claims', () => {
