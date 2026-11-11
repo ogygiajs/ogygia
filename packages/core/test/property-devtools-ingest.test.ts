@@ -16,17 +16,21 @@ beforeEach(() => {
 	configure({ active: true, cap: 4096 });
 });
 
+/** Mostly the right thing, sometimes any JSON scalar in its place. */
+const near = <T>(good: fc.Arbitrary<T>) =>
+	fc.oneof({ arbitrary: good, weight: 8 }, { arbitrary: fc.jsonValue({ maxDepth: 0 }), weight: 1 });
+
 const event_like = fc.record(
 	{
-		v: fc.oneof(fc.constant(1), fc.jsonValue({ maxDepth: 0 })),
-		seq: fc.oneof(fc.nat(), fc.jsonValue({ maxDepth: 0 })),
-		t: fc.oneof(fc.double({ noNaN: true, noDefaultInfinity: true }), fc.jsonValue({ maxDepth: 0 })),
-		realm: fc.oneof(fc.constantFrom('server', 'client'), fc.jsonValue({ maxDepth: 0 })),
-		domain: fc.oneof(fc.constantFrom(...DOMAINS), fc.jsonValue({ maxDepth: 0 })),
-		name: fc.oneof(fc.constantFrom('server.render', 'runtime.boot'), fc.jsonValue({ maxDepth: 0 })),
+		v: near(fc.constant(1)),
+		seq: near(fc.nat()),
+		t: near(fc.double({ noNaN: true, noDefaultInfinity: true })),
+		realm: near(fc.constantFrom('server', 'server', 'client')),
+		domain: near(fc.constantFrom(...DOMAINS)),
+		name: near(fc.constantFrom('server.render', 'runtime.boot')),
 		fp: fc.string({ maxLength: 8 })
 	},
-	{ requiredKeys: [] }
+	{ requiredKeys: ['v', 'seq', 't', 'realm', 'domain', 'name'] }
 );
 
 it('only well-formed server events enter the stream, whatever the side channel holds', () => {
