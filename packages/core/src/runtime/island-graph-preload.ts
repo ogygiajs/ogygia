@@ -20,6 +20,7 @@ import {
 	decode_island_locations
 } from '../island-graph.ts';
 import { note_entry_location } from './entry-locations.ts';
+import { code_url } from './code-origins.ts';
 import { runtime_session } from './session.ts';
 
 const GRAPH_SELECTOR = `script[${ISLAND_GRAPH_ATTR}]`;
@@ -107,6 +108,8 @@ export function preload_island_graph(
 	if (!hrefs || hrefs.length === 0) return;
 	const seen = linked_map();
 	for (const href of hrefs) {
+		// (a chunk on an origin the page loads no code from is never asked for: ./code-origins.ts)
+		if (code_url(href) === null) continue;
 		if (seen.has(href)) {
 			const ours = seen.get(href);
 			if (ours && RANK[priority] < RANK[priority_of(ours)])

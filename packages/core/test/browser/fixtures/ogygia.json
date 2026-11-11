@@ -1,8 +1,8 @@
 {
-	"./ogygia/og-region.000000000aa1.js": "./entry-current.ts",
-	"./ogygia/og-region.000000000aa2.js": "./entry-current.ts",
-	"./ogygia/og-region.000000000aa3.js": "./chunks/GoneToo99.js",
-	"./ogygia/og-region.000000000aa5.js": "./Counter.svelte",
-	"./ogygia/og-region.000000000aa6.js": "./entry-current.ts",
-	"./ogygia/og-region.000000000aa7.js": "./chunks/GoneToo98.js"
+	"./ogygia/og-region.000000000aa1.js": "./immutable/og-region.000000000aa1.Cur.js",
+	"./ogygia/og-region.000000000aa2.js": "./immutable/og-region.000000000aa2.Cur.js",
+	"./ogygia/og-region.000000000aa3.js": "./immutable/og-region.000000000aa3.GoneToo9.js",
+	"./ogygia/og-region.000000000aa5.js": "./immutable/og-region.000000000aa5.Cur.js",
+	"./ogygia/og-region.000000000aa6.js": "./immutable/og-region.000000000aa6.Cur.js",
+	"./ogygia/og-region.000000000aa7.js": "./immutable/og-region.000000000aa7.GoneToo8.js"
 }

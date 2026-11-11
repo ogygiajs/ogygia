@@ -17,7 +17,7 @@ test('the location 404s: the island wakes on the current build’s file', async 
 	document.body.innerHTML = counter_html();
 	const region = document.querySelector('ogygia-region')!;
 	region.setAttribute('entry', IDENTITY);
-	region.setAttribute('src', '/test/browser/fixtures/chunks/Gone1234.js');
+	region.setAttribute('src', '/test/browser/fixtures/immutable/og-region.000000000aa5.Gone1234.js');
 	bootDev();
 	await expect
 		.poll(() => document.querySelector(HYDRATED) !== null, { timeout: 10_000 })
@@ -29,7 +29,7 @@ test('the location 404s: the island wakes on the current build’s file', async 
 	// the 404 is never asked for again under a fresh URL (the server answered for it); Firefox may
 	// fetch it twice when the import starts while its modulepreload is still out (it does not join
 	// the two loads, Chromium and WebKit do)
-	const gone = requested('chunks/Gone1234.js');
+	const gone = requested('og-region.000000000aa5.Gone1234.js');
 	expect(gone.filter((r) => r.name.includes('og-retry'))).toHaveLength(0);
 	expect(gone.length).toBeLessThanOrEqual(server.browser === 'firefox' ? 2 : 1);
 	expect(requested('fixtures/ogygia.json')).toHaveLength(1);

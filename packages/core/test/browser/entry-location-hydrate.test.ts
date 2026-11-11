@@ -6,7 +6,8 @@ import { expect, inject, test } from 'vitest';
 import { page } from 'vitest/browser';
 import { bootDev } from '../../src/runtime/full.ts';
 
-const COUNTER = '/test/browser/fixtures/Counter.svelte';
+// (the Counter as the build's file for its identity: the iid in its name)
+const COUNTER = '/test/browser/fixtures/immutable/og-region.000000000aa5.Cur.js';
 const HYDRATED = 'ogygia-region[data-hydrated]';
 const counter_html = () => decodeURIComponent(escape(atob(inject('counter_ssr_b64'))));
 const requested = (part: string) =>
@@ -23,7 +24,7 @@ function mount(entry: string, src: string | null) {
 }
 
 test('the identity is only a key: a stale stable name that 404s, the island wakes from its location', async () => {
-	mount('/test/browser/fixtures/og-region.deadbeef0001.js', COUNTER);
+	mount('/test/browser/fixtures/ogygia/og-region.000000000aa5.js', COUNTER);
 	bootDev();
 	await expect
 		.poll(() => document.querySelector(HYDRATED) !== null, { timeout: 10_000 })
@@ -33,5 +34,5 @@ test('the identity is only a key: a stale stable name that 404s, the island wake
 	await page.getByRole('button', { name: 'add' }).click();
 	await expect.element(page.getByTestId('count')).toHaveTextContent('4');
 	// the stable name was never asked for
-	expect(requested('og-region.deadbeef0001.js')).toHaveLength(0);
+	expect(requested('og-region.000000000aa5.js')).toHaveLength(0);
 });

@@ -13,6 +13,7 @@
  */
 import { runtime_url, entry_location, region_deps, location_map } from 'ogygia:server';
 import { runtime_bootstrap_tags } from './document-tail.ts';
+import { code_origins } from '../plugin/hooks.ts';
 
 /** The file an entry is loaded from: its content-hashed location, else the identity itself. */
 export function entry_src(identity: string): string {
@@ -30,6 +31,8 @@ export function runtime_bootstrap(resolve: (url: string) => string = (url) => ur
 	return runtime_bootstrap_tags(
 		resolve(entry_src(runtime_url)),
 		region_deps(runtime_url).map(resolve),
-		map ? resolve(map) : null
+		map ? resolve(map) : null,
+		// (the code origins plugins add: a federation shell's peers, runtime/code-origins.ts)
+		code_origins()
 	);
 }

@@ -27,6 +27,11 @@ const server: ServerPlugin = defineServer({
 		if (res) return res;
 	},
 
+	// (a shell's pages host its peers' islands, whose code loads from the peers)
+	codeOrigins() {
+		return current_federation()?.code_origins ?? [];
+	},
+
 	invalidated(tags) {
 		const fed = current_federation();
 		if (!fed) return;

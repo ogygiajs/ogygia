@@ -7,6 +7,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { commands } from 'vitest/browser';
 import { PLAYWRIGHT, it_with_network_routes } from './_browsers.ts';
 import { import_file, response_of } from '../../src/runtime/import-again.ts';
+import { code_url_or_refuse } from '../../src/runtime/code-origins.ts';
 
 declare module 'vitest/browser' {
 	interface BrowserCommands {
@@ -35,7 +36,7 @@ it_with_network_routes('a file the server answered for reads as its status', asy
 });
 
 it('a file whose timing entry lands after its failed import is not asked again (Firefox on a loaded runner)', async () => {
-	const url = new URL('./fixtures/chunks/Late404.js', import.meta.url).href;
+	const url = code_url_or_refuse(new URL('./fixtures/chunks/Late404.js', import.meta.url).href);
 	// the engine's timeline has no entry for it yet when the import rejects, then it does
 	const real = performance.getEntriesByName.bind(performance);
 	let calls = 0;
@@ -56,7 +57,7 @@ it('a file whose timing entry lands after its failed import is not asked again (
 });
 
 it('a file whose timing entry lands well after its failed import is not asked again (more than one task)', async () => {
-	const url = new URL('./fixtures/chunks/Later404.js', import.meta.url).href;
+	const url = code_url_or_refuse(new URL('./fixtures/chunks/Later404.js', import.meta.url).href);
 	// the timeline holds no entry for it for a while after the import rejects (a loaded machine)
 	const real = performance.getEntriesByName.bind(performance);
 	let since = 0;

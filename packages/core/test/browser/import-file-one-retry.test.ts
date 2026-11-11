@@ -10,6 +10,7 @@ import { afterEach, expect } from 'vitest';
 import { commands } from 'vitest/browser';
 import { it_with_network_routes } from './_browsers.ts';
 import { import_file } from '../../src/runtime/import-again.ts';
+import { code_url_or_refuse } from '../../src/runtime/code-origins.ts';
 
 declare module 'vitest/browser' {
 	interface BrowserCommands {
@@ -23,7 +24,7 @@ afterEach(() => commands.keep_downloads('/fixtures/island-file-copy.ts'));
 it_with_network_routes(
 	'two loads of one file that fail together share one retry, and get one copy of the module',
 	async () => {
-		const url = new URL('./fixtures/island-file-copy.ts', import.meta.url).href;
+		const url = code_url_or_refuse(new URL('./fixtures/island-file-copy.ts', import.meta.url).href);
 		await commands.drop_downloads('/fixtures/island-file-copy.ts', 1);
 		const asked: string[] = [];
 		const seen = new PerformanceObserver((list) => {

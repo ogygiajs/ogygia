@@ -11,18 +11,17 @@ afterEach(() => vi.unstubAllGlobals());
 
 test('the map names the failed file and the host does not say it is gone: the failure stands at once', async () => {
 	const identity = '/test/browser/fixtures/ogygia/og-region.000000000aa6.js';
-	note_entry_location(identity, '/test/browser/fixtures/gone-Uu33Vv44.js');
+	const gone = './immutable/og-region.000000000aa6.Uu33Vv44.js';
+	note_entry_location(identity, '/test/browser/fixtures/' + gone.slice(2));
 	const real = fetch;
 	let reads = 0;
 	vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
 		const url = String(input);
 		if (url.endsWith('/ogygia.json')) {
 			reads++;
-			return Promise.resolve(
-				Response.json({ './ogygia/og-region.000000000aa6.js': './gone-Uu33Vv44.js' })
-			);
+			return Promise.resolve(Response.json({ './ogygia/og-region.000000000aa6.js': gone }));
 		}
-		if (url.endsWith('/gone-Uu33Vv44.js')) return Promise.reject(new TypeError('network cut'));
+		if (url.endsWith(gone.slice(1))) return Promise.reject(new TypeError('network cut'));
 		return real(input, init);
 	});
 	const started = performance.now();

@@ -70,7 +70,7 @@ describe('an absolute entry on another origin', () => {
 	});
 
 	test('is not warmed either', async () => {
-		warm_island_module('https://evil.example/_app/ogygia/og-region.222222222222.js');
+		warm_island_module('https://evil.example/src/lib/Island.svelte');
 		await new Promise((r) => setTimeout(r, 50));
 		expect(requested('evil.example')).toHaveLength(0);
 	});
