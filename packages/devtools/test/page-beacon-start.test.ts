@@ -25,6 +25,24 @@ test('a failed beacon chunk download prints its warning once, however often the 
 	expect(lines[0]).toContain(dropped);
 });
 
+test('a beacon that throws as it starts is warned with the same code, and the start never rejects', async () => {
+	const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	const broke = new Error('observer refused');
+	const standalone_beacon = vi.fn(() => {
+		throw broke;
+	});
+	vi.resetModules();
+	const fresh = await import('../src/page-beacon-start.ts');
+	await expect(fresh.start_page_beacon(() => Promise.resolve({ standalone_beacon }))).resolves.toBe(
+		undefined
+	);
+	const lines = warned.mock.calls.filter((c) =>
+		String(c[0]).includes('devtools_page_beacon_load_failed')
+	);
+	expect(lines).toHaveLength(1);
+	expect(lines[0]).toContain(broke);
+});
+
 test('a beacon chunk that loads starts the beacon and says nothing', async () => {
 	const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
 	const standalone_beacon = vi.fn();
