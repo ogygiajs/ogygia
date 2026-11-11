@@ -8,7 +8,8 @@
 // captures each nested island's markup while the fragment is still disconnected (nothing upgrades there),
 // so the repair source is pristine. This pins that capture — the hole itself already does the same.
 import { expect, test } from 'vitest';
-import { region_fragment, pristine_ssr_of } from '../../src/runtime/core.ts';
+import { pristine_ssr_of } from '../../src/runtime/core.ts';
+import { region_fragment } from './_html.ts';
 
 test('a nested self-hydrating island captures its pristine markup (whitespace intact)', () => {
 	const { frag } = region_fragment(

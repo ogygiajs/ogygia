@@ -10,7 +10,7 @@
 //   every defined custom element of the content when the template's document has a window.
 import { afterEach, expect, test, vi } from 'vitest';
 import { transformMarkup } from '../../src/server/reversible.ts';
-import { parse_region_html } from '../../src/runtime/parse-html.ts';
+import { parse_region_html } from './_html.ts';
 import { restore, restore_adopt } from '../../src/runtime/restore.ts';
 import { report_restores } from '../../src/runtime/restore-report.ts';
 import { install_rules, runtime_rules } from '../../src/runtime/rules.ts';
