@@ -40,9 +40,9 @@ function shared(rootMargin: string): Shared {
 			},
 			{ rootMargin }
 		);
-		// (as the raw constructor did where there is none: the caller is told, not left unwoken)
-		if (io === null) throw new TypeError('no IntersectionObserver on this platform');
-		s = { io, callbacks, last };
+		// (only browsers observe: where there is none, the first `observe` throws, as the raw
+		// constructor did, and the caller is told rather than left unwoken)
+		s = { io: io!, callbacks, last };
 		observers.set(rootMargin, s);
 	}
 	return s;
