@@ -4,7 +4,7 @@
  * A router page/layout/error component is a runtime VALUE (`r.page(Home)`), so unlike a Kit route
  * there is no file-derived place to link its stylesheets from — historically its `<style>` never
  * reached the page (see link/router-css.ts for the whole story). The fix is Kit's association done
- * value-wise: the build emits `virtual:ogygia/router-css`, a generated module (never user code) that
+ * value-wise: the build emits `ogygia:server/router-css`, a generated module (never user code) that
  * imports each component the app's router modules can reach and registers it HERE with a thunk
  * yielding its stylesheet entries. `componentCssHead()` (plugin/css.ts) then looks up exactly the
  * components a render places and links them through `document()`'s head.
@@ -49,7 +49,7 @@ export function router_css_active(): boolean {
  *  the lookup matches through Svelte's own dev metadata instead (see `filename_of`). */
 const path_registry = new Map<string, RouterCssEntry[]>();
 
-/** Called by the generated `virtual:ogygia/router-css` — one registration per reachable component. */
+/** Called by the generated `ogygia:server/router-css` — one registration per reachable component. */
 export function register_router_css(component: unknown, entries: () => RouterCssEntry[]): void {
 	any_registered = true;
 	if (

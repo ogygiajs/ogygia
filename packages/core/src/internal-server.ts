@@ -7,7 +7,7 @@
  * @internal
  */
 /** Signer for deferred regions — SSR-only (the client region binding never imports this). */
-export { makeRegionEndpoint } from './server/region-endpoint.ts';
+export { make_region_endpoint } from './server/region-endpoint.ts';
 /** A held region's server render to HTML — the one copy every region binding calls. */
 export { render_region_html } from './server/render-region-html.ts';
 /** What the profiler (`@ogygia/devtools`) reads off a request ogygia served. */
@@ -37,4 +37,3 @@ export {
 	request_scope
 } from './plugin/request-scope.ts';
 export { islands_endpoint } from './server/endpoint.ts';
-export { scanRegions } from './server/split-regions.ts';
