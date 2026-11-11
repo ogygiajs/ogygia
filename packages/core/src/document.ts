@@ -41,7 +41,7 @@ import { escape_text } from './escape.ts';
 import { take_early_holes } from './context.ts';
 import { early_holes_head } from './early-holes-head.ts';
 import { add_early_holes_csp, with_early_holes_meta_csp } from './server/early-holes-csp.ts';
-const TITLE_TAG_RE = /<title[\s>]/i;
+import { next_tag } from './wire-markup.ts';
 import dev_hmr_url from 'virtual:ogygia/dev-hmr-url';
 import {
 	enabled as router_enabled,
@@ -149,7 +149,7 @@ export async function document(
 	head.push(r.head);
 	if (options.head) head.push(options.head);
 	const head_so_far = () => head.join('');
-	if (options.title && !TITLE_TAG_RE.test(head_so_far())) {
+	if (options.title && next_tag(head_so_far(), 'title', 0) === null) {
 		head.push(`<title>${escape_text(options.title)}</title>`);
 	}
 	// The same three injections the handle makes into a Kit page, presence-checked the same way

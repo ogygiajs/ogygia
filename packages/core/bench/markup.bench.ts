@@ -15,7 +15,7 @@ import {
 import { with_early_holes_meta_csp } from '../src/server/early-holes-csp.ts';
 import { absolutize_hole_html } from '../src/server/hole-urls.ts';
 import { region_css_tags } from '../src/server/html-scan.ts';
-import { read_tag, tags, text_of } from '../src/wire-markup.ts';
+import { next_tag, read_tag, tags, text_of } from '../src/wire-markup.ts';
 import { mark, settle } from '../src/server/reversible.ts';
 import { liftRegions, restoreRegions, scanRegions } from '../src/server/split-regions.ts';
 import { fake_scoped } from '../test/fixtures/fake-scoped-render.ts';
@@ -149,6 +149,11 @@ bench(
 		scale: (_ctx, k) => ({ html: document(100 * k) })
 	}
 );
+
+// (document()'s title check: a head with none is read to its end)
+bench('next_tag: a title in a head that has none', ({ h }) => next_tag(h, 'title', 0) === null, {
+	setup: () => ({ h: head(40).replace(/<title>.*?<\/title>/, '') })
+});
 
 bench('read_tag: one link tag of a head', ({ h, at }) => read_tag(h, at, at + 5)?.attrs.size, {
 	setup: () => {
