@@ -32,6 +32,14 @@ function pending_hero(): HTMLImageElement {
 	return img;
 }
 
+/** An island's box below the fold (`style.top = '0px'` brings it on screen). */
+function off_screen_box(): HTMLElement {
+	const el = document.createElement('div');
+	el.style.cssText = `position:absolute;left:0;top:${innerHeight + 500}px;width:10px;height:10px`;
+	document.body.append(el);
+	return el;
+}
+
 /** A shared download queued as a guess (a page prefetch): `join` is a caller joining its flight at
  *  a higher class (a click on the link), which raises it. */
 function queued_guess(label: string): {
@@ -201,15 +209,16 @@ test('a queued download follows the viewport, and a more urgent join of its flig
 	for (let i = 0; i < BACKGROUND_WINDOW; i++)
 		void new LoadSlot({ kind: 'content', cls: 'ahead' }).ready.then((r) => hold.push(r));
 	await tick();
-	let cls: 'ahead' | 'visible' = 'ahead';
+	const island = off_screen_box();
 	let started = false;
-	void new LoadSlot({ kind: 'code', cls: () => cls }).ready.then(() => (started = true));
-	await tick();
-	expect(started).toBe(false); // ahead: the window is full
-	cls = 'visible';
-	dispatchEvent(new Event('scroll'));
+	void new LoadSlot({ kind: 'code', cls: () => viewport_class(island), el: island }).ready.then(
+		() => (started = true)
+	);
 	await tick(40);
-	expect(started).toBe(true); // scrolled into view: visible code is not windowed
+	expect(started).toBe(false); // ahead: the window is full
+	island.style.top = '0px'; // it comes on screen
+	await expect.poll(() => started, { timeout: 1_000 }).toBe(true); // visible code is not windowed
+	island.remove();
 
 	let promoted = false;
 	const queued = queued_guess('q');
@@ -375,27 +384,28 @@ test('a slot asked for while a drain starts others goes in that drain, after the
 	for (const r of releases) r();
 });
 
-test('the scroll watch ends in the frame that starts the last queued slot', async () => {
+test('a queued slot stops watching its element once it starts', async () => {
 	await critical_settled();
 	const hold = await fill_window();
-	let cls: Cls = 'ahead';
+	const island = off_screen_box();
 	let started = false;
-	void new LoadSlot({ kind: 'code', cls: () => cls }).ready.then(() => (started = true));
-	await tick();
-	const removed: string[] = [];
-	const remove = window.removeEventListener;
-	window.removeEventListener = function (this: Window, ...args: Parameters<typeof remove>) {
-		removed.push(String(args[0]));
-		return remove.apply(this, args);
-	} as typeof remove;
+	void new LoadSlot({ kind: 'code', cls: () => viewport_class(island), el: island }).ready.then(
+		() => (started = true)
+	);
+	await tick(40);
+	const unobserved: Element[] = [];
+	const unobserve = IntersectionObserver.prototype.unobserve;
+	IntersectionObserver.prototype.unobserve = function (this: IntersectionObserver, t: Element) {
+		unobserved.push(t);
+		return unobserve.call(this, t);
+	};
 	try {
-		cls = 'visible';
-		dispatchEvent(new Event('scroll'));
-		await tick(40);
+		island.style.top = '0px';
+		await expect.poll(() => started, { timeout: 1_000 }).toBe(true);
 	} finally {
-		window.removeEventListener = remove;
+		IntersectionObserver.prototype.unobserve = unobserve;
 	}
-	expect(started).toBe(true);
-	expect(removed).toContain('scroll');
+	expect(unobserved).toContain(island);
+	island.remove();
 	for (const r of hold) r();
 });

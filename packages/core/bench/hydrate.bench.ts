@@ -47,7 +47,7 @@ import {
 	__heisenbench as interaction_private,
 	install as install_interaction
 } from '../src/runtime/interaction.ts';
-import { once_visible } from '../src/runtime/observe.ts';
+import { once_on_screen } from '../src/runtime/viewport.ts';
 import { flights, scope } from '@ogygia/machine';
 import { LoadSlot, reset_load_scheduler } from '../src/runtime/load-scheduler.ts';
 import { class_at, PRIORITY } from '../src/runtime/load-class.ts';
@@ -318,7 +318,7 @@ function wake_page(regions: PageRegion[]): Promise<number> {
 		register_region(r.el, PAGE);
 		const fire = start(r, i);
 		if (r.wake === 'load') background_start(fire);
-		else if (r.wake === 'visible') once_visible(r.el, '0px', () => background_start(fire));
+		else if (r.wake === 'visible') once_on_screen(r.el, '0px', () => background_start(fire));
 		else if (r.wake === 'idle') setTimeout(fire, 200);
 	});
 	return expected === 0 ? Promise.resolve(0) : all;
