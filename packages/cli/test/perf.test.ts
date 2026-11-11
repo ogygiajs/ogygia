@@ -205,6 +205,59 @@ describe('verdict', () => {
 		expect(DEFAULT_BUDGET.component_pct).toBe(25);
 	});
 
+	it("a page's override beats the top level, and the top level beats the defaults", () => {
+		const base = snap([
+			{ page: '/p', render_p50: 100 },
+			{ page: '/q', render_p50: 100 }
+		]);
+		const cur = snap([
+			{ page: '/p', render_p50: 112 },
+			{ page: '/q', render_p50: 112 }
+		]);
+		const v = verdict(base, cur, { render_pct: 50, pages: { '/q': { render_pct: 10 } } });
+		expect(v.failures).toEqual(['/q: render grew 12 ms (10% allowed)']);
+	});
+
+	it('the comment leads with the outcome, then the table, then three movers with their file, then the findings', () => {
+		const base = snap([
+			{
+				page: '/p',
+				render_p50: 100,
+				components: [{ name: 'Card', self_ms: 10, total_ms: 20 }],
+				functions: [{ name: 'fmt', file: 'f.ts', self_ms: 5 }],
+				paths: [{ owner: 'Card', ms: 12, fns: 2 }]
+			}
+		]);
+		const cur = snap([
+			{
+				page: '/p',
+				render_p50: 130,
+				components: [
+					{ name: 'Card', self_ms: 14, total_ms: 26 },
+					{ name: 'New', self_ms: 3, total_ms: 3 }
+				],
+				functions: [{ name: 'fmt', file: 'f.ts', self_ms: 8 }],
+				paths: [{ owner: 'Card', ms: 20, fns: 3 }],
+				warnings: ['hot-list']
+			}
+		]);
+		const md = markdown(verdict(base, cur));
+		const at = (s: string) => md.indexOf(s);
+		expect(md.split('\n')[0]).toBe('### Performance: ❌ 2 budget failures');
+		expect(at('- ❌ /p: render grew')).toBeLessThan(at('#### ❌ `/p`'));
+		expect(at('#### ❌ `/p`')).toBeLessThan(at('| metric |'));
+		expect(at('| metric |')).toBeLessThan(at('**Biggest movers**'));
+		expect(at('**Biggest movers**')).toBeLessThan(at('**Findings that appeared:**'));
+		const movers = md.split('\n').filter((l) => /^- (❌ )?(component|function|path) /.test(l));
+		expect(movers).toEqual([
+			'- path `Card`: 12.0 → 20.0 ms (+8.0)',
+			'- ❌ component `Card`: 10.0 → 14.0 ms (+4.0)',
+			'- component `New`: 0.0 → 3.0 ms (+3.0)'
+		]);
+		const fn = markdown(verdict(base, snap([{ ...cur.pages[0], components: [], paths: [] }])));
+		expect(fn).toContain('- function `fmt` (f.ts): 5.0 → 8.0 ms (+3.0)');
+	});
+
 	it('the markdown comment and the terminal summary carry the verdict', () => {
 		const base = snap([{ page: '/p', render_p50: 100 }]);
 		const cur = snap([{ page: '/p', render_p50: 130, warnings: ['seed-large', 'hot-list'] }]);
