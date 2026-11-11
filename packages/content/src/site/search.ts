@@ -243,8 +243,9 @@ export function rerank(hits: SearchHit[], query: string): SearchHit[] {
 
 /**
  * The default engine: Orama (an optional peer, loaded on first use) over the section documents,
- * title and heading boosted, then `rerank`ed. Each document goes in under its row, so two that share
- * an id are both indexed.
+ * title and heading boosted, then `rerank`ed. It fetches three times the limit, so `rerank` can lift
+ * a page whose title is the query above a section the engine scored higher. Each document goes in
+ * under its row, so two that share an id are both indexed.
  */
 export function orama_engine(): SearchEngine {
 	let mod: OramaModule | null = null;
