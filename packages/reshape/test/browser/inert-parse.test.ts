@@ -12,7 +12,7 @@ import { afterEach, expect, test, vi } from 'vitest';
 import { transformMarkup } from '../../src/reversible.ts';
 import { parse_region_html } from '../../../core/src/runtime/parse-html.ts';
 import { restore, restore_adopt } from '../../src/restore.ts';
-import { report_restores } from '../../../core/src/runtime/restore-report.ts';
+import { report_restores } from '../../src/restore-report.ts';
 import { install_rules, runtime_rules } from '../../../core/src/runtime/rules.ts';
 import { fake_scoped } from '../fixtures/fake-scoped-render.ts';
 

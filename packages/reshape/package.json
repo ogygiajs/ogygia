@@ -59,6 +59,7 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
+		"@ogygia/machine": "workspace:^",
 		"esm-env": "catalog:"
 	},
 	"devDependencies": {
@@ -68,6 +69,7 @@
 		"@typescript/native": "catalog:tsgo",
 		"@vitest/browser": "catalog:",
 		"@vitest/browser-playwright": "catalog:",
+		"svelte": "catalog:",
 		"tsdown": "catalog:",
 		"typescript": "catalog:",
 		"vitest": "catalog:"

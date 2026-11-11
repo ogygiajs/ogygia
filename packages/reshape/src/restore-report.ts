@@ -4,7 +4,7 @@
  * and the beacon read it too). The boot reports what the document's own run recorded, and wraps
  * `window.__og_restore` so every later run — a hole answer, a router swap — reports its own.
  */
-import { OgygiaError, warn } from '../messages/core.ts';
+import { OgygiaError, warn } from './messages.ts';
 import { say } from '@ogygia/machine';
 
 type RestoreWindow = {

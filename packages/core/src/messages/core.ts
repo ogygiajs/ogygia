@@ -88,14 +88,6 @@ export const ERRORS = {
 			The click that woke it is replayed on that HTML. The error follows the message.
 		`
 	},
-	restore_markup_broken: {
-		text: (a: { diff: string }): string => `the transform broke hydration markup: ${a.diff}`,
-		details: (): string => prose`
-			A transform rewrote a restored region's markup so that its hydration markers no longer
-			match. \`diff\` names the first difference. (The restore runs as a self-contained script,
-			so it prints this code's link itself.)
-		`
-	},
 	client_hooks_init_failed: {
 		text: (): string => 'hooks.client init failed:',
 		details: (): string => "The app's `hooks.client` `init()` threw. The error follows the message."
@@ -861,21 +853,6 @@ export const WARNINGS = {
 			puts the answer in the shape its components expect. An element of an answer was built
 			during the parse anyway: the engine built custom elements in a document that has no
 			registry. ${BUG}
-		`
-	},
-	restore_late: {
-		text: (a: { host: string }): string =>
-			`<${a.host}> was upgraded before the restore reached it; its own root is kept and the server's copy of its render dropped.`,
-		details: (): string => prose`
-			A custom element of a reversible transform (an \`og-h\` host) already had a shadow root when
-			the restore reached it: a component runtime upgraded it first. The restore keeps the root
-			the component made, puts its light DOM back into Svelte's form (its children, its
-			attributes) and drops the server's rendered copy, which would otherwise show a second time
-			through the slot. Until the component renders, that part of the page is empty.
-
-			Load the component runtime after ogygia's restore (the handle inlines it at the end of the
-			body), or let it hydrate a declarative root instead of attaching its own in the
-			constructor. Said once per page and element name.
 		`
 	}
 };
