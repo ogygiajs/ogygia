@@ -47,13 +47,21 @@ export function transport_module(
  * Kit's transport, so it gets an empty map and never bundles a decoder it can't use. `app_crosses_wire`
  * is the compiler's own knowledge (a transportable class / portable snippet → the `wire` mark, plus a
  * remote file or a `region`/content import) — never a scan for `ogygia.transport` in app source.
- * `transport_spec` is the resolvable path to ogygia's own `transport.js` (dist).
+ * `dist_dir` is the resolvable path to ogygia's own dist.
+ *
+ * The REALM picks the transport: the browser's decodes every kind the server sends; the server's
+ * (server/transport.ts) decodes only what a browser sent, a remote function's argument, and refuses
+ * every ogygia kind there.
  */
-export function kit_transport_module(app_crosses_wire: boolean, transport_spec: string): string {
+export function kit_transport_module(
+	app_crosses_wire: boolean,
+	dist_dir: string,
+	ssr: boolean
+): string {
 	if (!app_crosses_wire) return `export const transport = {};`;
-	return dedent`
-		export { ogygiaTransport as transport } from ${JSON.stringify(transport_spec)};
-	`;
+	return ssr
+		? `export { ogygiaServerTransport as transport } from ${JSON.stringify(dist_dir + '/server/transport.js')};`
+		: `export { ogygiaTransport as transport } from ${JSON.stringify(dist_dir + '/transport.js')};`;
 }
 
 // A held region / transportable value can only reach Kit's `transport` hook through a value the app

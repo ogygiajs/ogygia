@@ -19,14 +19,11 @@ const decoders = (t: Record<string, Codec>) =>
 /** A remote argument as a browser would send it: `value`, with `{ wire: [key, payload] }` objects
  *  standing for a value the browser's transport encoded under `key`. */
 function sent(value: unknown): string {
-	return devalue.stringify(value, {
-		Region: (v) =>
-			(v as { wire?: [string, unknown] }).wire?.[0] === 'Region' &&
-			(v as { wire: [string, unknown] }).wire[1],
-		OgygiaRef: (v) =>
-			(v as { wire?: [string, unknown] }).wire?.[0] === 'OgygiaRef' &&
-			(v as { wire: [string, unknown] }).wire[1]
-	});
+	const under = (key: string) => (v: unknown) => {
+		const wire = (v as { wire?: [string, unknown] } | null)?.wire;
+		return wire?.[0] === key && wire[1];
+	};
+	return devalue.stringify(value, { Region: under('Region'), OgygiaRef: under('OgygiaRef') });
 }
 
 /** How the server reads it (Kit's `parse_remote_arg`: devalue with the transport's decoders). */
