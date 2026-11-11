@@ -5,20 +5,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { capability } from '@ogygia/machine';
 
-vi.mock('virtual:ogygia/secret', () => ({
-	buildKey: 'test-secret-0123456789',
-	buildHadSecret: false
+vi.mock('ogygia:server/secret', () => ({
+	build_key: 'test-secret-0123456789',
+	build_had_secret: false
 }));
-vi.mock('virtual:ogygia/session-cookie', () => ({ sessionCookie: null }));
-vi.mock('virtual:ogygia/region-ttl', () => ({ regionTtl: 3600, renewWindow: 691200 }));
-vi.mock('virtual:ogygia/server-manifest', () => ({
-	island_url: {},
-	island_render: { abcdef012345: 'c0ffee0c0ffe' }
+vi.mock('ogygia:server/session-cookie', () => ({ session_cookie: null }));
+vi.mock('ogygia:server/region-ttl', () => ({ region_ttl: 3600, renew_window: 691200 }));
+vi.mock('ogygia:server/server-manifest', () => ({
+	region_url: {},
+	region_render: { abcdef012345: 'c0ffee0c0ffe' }
 }));
-vi.mock('virtual:ogygia/sign', async () => await import('../src/server/hmac.ts'));
+vi.mock('ogygia:server/sign', async () => await import('../src/server/hmac.ts'));
 
 const hmac = await import('../src/server/hmac.ts');
-const { mintServerIsland } = await import('../src/server/region-endpoint.ts');
+const { mint_server_region } = await import('../src/server/region-endpoint.ts');
 const { signing_key } = await import('../src/server/signing-key.ts');
 const { configure_islands_endpoint } = await import('../src/server/endpoint.ts');
 
@@ -45,14 +45,14 @@ const claim_of = (p: URLSearchParams, session = '') => ({
 
 describe('region capability, signed through capability()', () => {
 	it('two renders in one expiry window mint the same URL, marked v3', () => {
-		const a = mintServerIsland('abcdef012345', { n: 1 });
+		const a = mint_server_region('abcdef012345', { n: 1 });
 		vi.advanceTimersByTime(20 * 60_000);
-		expect(mintServerIsland('abcdef012345', { n: 1 })).toBe(a);
+		expect(mint_server_region('abcdef012345', { n: 1 })).toBe(a);
 		expect(a).toMatch(/&exp=\d+&v=3&sig=[0-9a-f]{64}&k=[^&]+$/);
 	});
 
 	it('the endpoint verifies a v3 capability for the endpoint it was minted for, and only there', () => {
-		const p = params(mintServerIsland('abcdef012345', { n: 1 }));
+		const p = params(mint_server_region('abcdef012345', { n: 1 }));
 		const { secret } = signing_key();
 		const sig = p.get('sig')!;
 		expect(hmac.region_verify(secret, '/__ogygia__', '3', p.get('exp')!, claim_of(p), sig)).toBe(
@@ -67,7 +67,7 @@ describe('region capability, signed through capability()', () => {
 	});
 
 	it('a v3 signature never verifies as v1 or v2 (its version marker stripped), nor the other way', () => {
-		const p = params(mintServerIsland('abcdef012345', { n: 1 }));
+		const p = params(mint_server_region('abcdef012345', { n: 1 }));
 		const { secret } = signing_key();
 		const c = claim_of(p);
 		expect(hmac.region_verify(secret, '/__ogygia__', '', p.get('exp')!, c, p.get('sig')!)).toBe(
@@ -117,7 +117,7 @@ describe('region capability, signed through capability()', () => {
 	});
 
 	it('an expired v3 capability verifies only when it may be late (a renewal), within that time', () => {
-		const p = params(mintServerIsland('abcdef012345', { n: 1 }));
+		const p = params(mint_server_region('abcdef012345', { n: 1 }));
 		const { secret } = signing_key();
 		const exp = Number(p.get('exp'));
 		vi.setSystemTime((exp + 3600) * 1000);

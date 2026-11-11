@@ -16,7 +16,7 @@ import { record_server_event } from '../events/server-registry.ts';
 import { warn } from '../messages/server.ts';
 import { say } from '@ogygia/machine';
 
-/** One plugin's server half as the build lists it (`virtual:ogygia/server-plugins`). */
+/** One plugin's server half as the build lists it (`ogygia:server/server-plugins`). */
 export interface ServerPluginEntry {
 	name: string;
 	options: unknown;
