@@ -1,8 +1,7 @@
 <!--
 @component
 The bottom bar: a nav (labelled `label`, "Site" by default) that holds `lead` (a brand) at its start
-and `actions` (buttons such as search, theme, menu) at its end. A container only: what the buttons
-do is up to the shell that composes it.
+and `actions` (buttons such as search, theme, menu) at its end.
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
