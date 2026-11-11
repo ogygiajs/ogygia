@@ -99,12 +99,14 @@ class Tracker {
 		for (const el of touched) this.#settle(el);
 	}
 
-	watch(el: Element, heard: Heard): () => void {
+	watch(el: Element, given: Heard): () => void {
 		let set = this.heard.get(el);
 		if (!set) {
 			this.heard.set(el, (set = new Set()));
 			this.#observe(el, el);
 		}
+		// (each watch its own entry: one function watching twice is two watches, each stopped alone)
+		const heard: Heard = (on) => given(on);
 		set.add(heard);
 		// a later watcher gets the state known (the browser reports a target it watches only on a
 		// change), or the first report with the others
