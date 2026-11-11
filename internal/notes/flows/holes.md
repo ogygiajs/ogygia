@@ -77,27 +77,35 @@ stateDiagram-v2
     [*] --> none
     none --> answered
     none --> kept
+    answered --> answered
     answered --> kept
     kept --> answered
+    kept --> kept
 ```
 
 <!-- /graph -->
 
 - **none**: the fallback.
-- **answered**: an answer is swapped in.
-- **kept**: it answered `keepFallback()`; the fallback stands as its answer.
+- **answered**: an answer is swapped in. Each later answer is a move of its own
+  (`answered → answered`), so `trace()` and devtools see every one.
+- **kept**: it answered `keepFallback()`; the fallback stands as its answer (`kept → kept` when it
+  says so again).
+
+Which answer is newer is the frame store's call, not the hole's: a decoded command answer is ordered
+by its data version first, then by request ticket (`internal/notes/frames.md`).
 
 Where each move is made (`core.ts`):
 
-| Move                                               | Where             | Why                                                                                         |
-| -------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------- |
-| `idle`/`retrying`/`failed → armed`                 | `#hole_armed()`   | a schedule is set (not while a fetch is in flight)                                          |
-| → `fetching`                                       | `#fetch_html()`   | the schedule fired, or a refresh                                                            |
-| `fetching → idle`                                  | `#fetch_html()`   | its answer came back to this visit                                                          |
-| `fetching → retrying` / `idle` / `failed`          | `#fetch_failed()` | a try failed: retry while nothing is on screen; rest if an answer is up; give up when final |
-| `armed`/`retrying`/`failed → idle`                 | `#answered()`     | an answer landed from anywhere                                                              |
-| `none`/`kept → answered`, `none`/`answered → kept` | `#answered()`     | what is on screen changed kind                                                              |
-| any → `idle`                                       | teardown          | the region left the page                                                                    |
+| Move                                      | Where             | Why                                                                                         |
+| ----------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------- |
+| `idle`/`retrying`/`failed → armed`        | `#hole_armed()`   | a schedule is set (not while a fetch is in flight)                                          |
+| → `fetching`                              | `#fetch_html()`   | the schedule fired, or a refresh                                                            |
+| `fetching → idle`                         | `#fetch_html()`   | its answer came back to this visit                                                          |
+| `fetching → idle`                         | `#bind()`         | a refresh re-minted it at a new address: the fetch out at the old one is left               |
+| `fetching → retrying` / `idle` / `failed` | `#fetch_failed()` | a try failed: retry while nothing is on screen; rest if an answer is up; give up when final |
+| `armed`/`retrying`/`failed → idle`        | `#answered()`     | an answer landed from anywhere                                                              |
+| `hole-answer` → `answered` / `kept`       | `#answered()`     | every answer that lands is a move, the same kind again included                             |
+| any → `idle`                              | teardown          | the region left the page                                                                    |
 
 ## 5. Scenarios
 
@@ -163,13 +171,28 @@ leaves the page settles quietly, whatever the timing`.
 1. `fetching`; the region leaves (`→ idle`) as the fetch fails.
 2. The failure finds the visit gone and does nothing: no retry, no message.
 
+### 5.8 A refresh re-mints a hole while its first fetch is out
+
+Test: `packages/core/test/browser/hole-lifecycle.test.ts` › `a refresh that re-mints a hole while its
+first fetch is out shows the new address’s answer, not the old one`.
+
+1. `fetching` at the first address; a live tick re-mints the hole at a new one.
+2. `#bind()` moves to the new address and `fetching → idle`: the old fetch is left, and the hole
+   asks the new address.
+3. The new answer paints. The old one, landing later, is for a call this hole no longer is: it never
+   paints.
+
+### 5.9 A hole answered twice
+
+Test: `packages/core/test/browser/hole-lifecycle.test.ts` › `a hole answered twice moves once per
+answer, and the second answer is the one on screen`.
+
+1. The first answer: `none → answered`.
+2. A refresh answers again: `answered → answered`, and the second answer is the one on screen.
+
 ## 6. Rough edges
 
-Each is a filed issue.
-
-- **A second answer is not a move** (#677). `answered` has no step to itself, so a refresh changes
-  the screen without a move: `trace()` and devtools never see it, and two answers landing out of
-  order leave no record of which one is up.
+None open.
 
 ## 7. Tracing it
 
