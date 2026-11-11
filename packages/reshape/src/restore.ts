@@ -1,5 +1,5 @@
 /**
- * THE RESTORER — the browser half of reversible transforms (server/reversible.ts). An app's server
+ * THE RESTORER — the browser half of reversible transforms (./reversible.ts). An app's server
  * transform rendered each planned custom element (`og-h`) in scoped form: its rendered tree in the
  * host's light DOM, Svelte's children moved into `<slot>` wrappers inside it. This puts it back into
  * the form hydration and the component's runtime both expect:
