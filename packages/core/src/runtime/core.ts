@@ -1799,11 +1799,11 @@ class OgygiaRegion extends HTMLElement {
 		const last = this.#live_last;
 		if (last === null || this.#live.now.kind !== 'idle') return;
 		// (in the connect's turn: the turn is the tick's until it ends)
-		return this.#apply_live(last, turn, true);
+		return this.#apply_live(last, turn);
 	}
 
-	/** One live tick, in its turn. `again`: its last tick, gone on with as it is put back. */
-	async #apply_live(desc: LiveTick, turn: Turn, again = false): Promise<void> {
+	/** One live tick, in its turn (or its last tick, gone on with as it is put back). */
+	async #apply_live(desc: LiveTick, turn: Turn): Promise<void> {
 		// Keep the element self-describing so the fallback fetch path still works if ever needed.
 		this.setAttribute('render', 'defer');
 		this.setAttribute('entry', desc.module || desc.id);
@@ -1823,19 +1823,13 @@ class OgygiaRegion extends HTMLElement {
 		// `static` disposes an island an interactive tick hydrated.
 		if (!interactive) {
 			if (this.#live.now.kind !== 'static') this.#live.go('static');
-			let replayed = false;
+			const frames = slots.frames;
 			if (desc.url && !this.#live_unsub) {
-				// (each later frame a turn of its own. The one the store hands over as it binds is older
-				// than this tick, which paints instead — unless this is its last tick gone on with as it
-				// is put back: then the store's frame is the newest it has)
+				// (each frame a turn of its own, the one the store hands over as it binds too)
 				const box = this.#box;
-				let binding = true;
-				const off = slots.frames?.subscribe(frameAddress(desc.url), (f) => {
-					if (binding && !again) return;
-					replayed ||= binding;
+				const off = frames?.subscribe(frameAddress(desc.url), (f) => {
 					box.post((t) => this.#morph_live(f.html, t));
 				});
-				binding = false;
 				if (off) {
 					this.#live_unsub = off;
 					this.#live.scope.defer(() => {
@@ -1844,7 +1838,11 @@ class OgygiaRegion extends HTMLElement {
 					});
 				}
 			}
-			if (!replayed) await this.#morph_live(desc.html, turn);
+			// (a frame at its address is this tick's, written as it was decoded, or a newer write: the
+			// subscription paints it. Only a tick the store holds nothing for paints its own HTML —
+			// test/browser/region-orderings.test.ts)
+			if (!desc.url || !frames?.peek(frameAddress(desc.url)))
+				await this.#morph_live(desc.html, turn);
 			return;
 		}
 
