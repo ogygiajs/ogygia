@@ -1,16 +1,3 @@
-/**
- * postrender — pages stored at request time. Shared contracts.
- *
- * The store holds THE RENDER: a full response (html + headers) or a permanent redirect,
- * keyed by URL pathname. Two tiny adapter contracts (see internal/notes/freeze.md):
- * every store impl passes ONE shared contract spec; every edge adapter speaks its CDN's
- * real purge API. Fan-out (allSettled across edges) lives in ogygia, never in adapters.
- *
- * Bulk eviction is PREFIX-shaped, not locale-shaped: the key is the URL, so any URL subtree
- * (`/fr/fr/` — a locale; `/docs/` — a section) evicts with one call. Locale was the app
- * motivating case, never the contract.
- */
-
 /** A stored page: a finished page response, or a permanent redirect. */
 export type PostrenderEntry =
 	| {
