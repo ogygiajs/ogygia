@@ -66,6 +66,13 @@ jobs:
       - name: No major changeset below 1.0
         run: node .github/scripts/changeset-no-major.ts
 
+      # a tests-report PR (the release workflow's own) carries the report and nothing else
+      - name: A tests-report PR changes only the tests report
+        if: startsWith(github.head_ref, 'chore/tests-report-')
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node .github/scripts/tests-report-only.ts "$BASE_SHA"
+
       - name: Plan
         id: plan
         run: node .github/scripts/ci-plan.ts
@@ -104,6 +111,9 @@ jobs:
 
       - name: Lint rules' own tests
         run: pnpm run lint:test
+
+      - name: CI scripts' own tests
+        run: pnpm run ci:test
 
       # What `check` would run, asked of turbo first: when every check task is a cache hit, nothing
       # runs a browser (a replay only prints the stored logs), so the browser's setup is skipped.
