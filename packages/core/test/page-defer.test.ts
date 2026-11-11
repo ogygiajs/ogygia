@@ -55,6 +55,19 @@ function fire_resolve(id: number, ok: boolean, value: unknown) {
 	(g[PAGE_DEFER_GLOBAL] as (i: number, o: boolean, e: string) => void)(id, ok, stringify(value));
 }
 
+/** `leaf` under `levels` plain objects: `{ nest: { nest: … leaf } }`. */
+function nest(leaf: unknown, levels: number): unknown {
+	let v = leaf;
+	for (let i = 0; i < levels; i++) v = { nest: v };
+	return v;
+}
+
+/** What sits `levels` deep in a {@link nest} shape. */
+function unnest(v: unknown, levels: number): unknown {
+	for (let i = 0; i < levels; i++) v = (v as { nest: unknown }).nest;
+	return v;
+}
+
 describe('page-defer staging (server)', () => {
 	it('replaces every promise with a DeferRef and collects them (data + form share one id space)', () => {
 		const data = {
@@ -73,14 +86,69 @@ describe('page-defer staging (server)', () => {
 		expect((d.staged as { nested: { flags: unknown } }).nested.flags).toBeInstanceOf(DeferRef);
 	});
 
-	it('a promise nested DEEPER than the plain-walk cap is still found + staged (never abandoned)', () => {
-		// 15 levels of plain nesting, promise at the bottom — must be staged, not left raw (which would
-		// drop the field on serialize AND leak an unhandled rejection).
+	it('a promise nested 66 and 300 levels deep is staged, and the seed serializes (#569)', () => {
+		for (const levels of [66, 300]) {
+			const data = nest(Promise.resolve('DEEP'), levels);
+			expect(analyze(data).thenable).toBe(true);
+			const { staged, deferred } = stage_deferred(data, 0);
+			expect(deferred, `${levels} levels`).toHaveLength(1);
+			expect(() => stringify(staged, page_seed_reducers)).not.toThrow();
+		}
+	});
+
+	it('promises around a deep part are staged once each, in walk order, at every depth near 64', () => {
+		for (const levels of [62, 63, 64, 65, 66]) {
+			const [a, deep, z] = [Promise.resolve('A'), Promise.resolve('DEEP'), Promise.resolve('Z')];
+			const { staged, deferred } = stage_deferred({ a, deep: nest(deep, levels), z }, 0);
+			expect(
+				deferred.map((d) => d.promise),
+				`${levels} levels`
+			).toEqual([a, deep, z]);
+			expect(deferred.map((d) => d.id)).toEqual([0, 1, 2]);
+			const s = staged as { a: DeferRef; deep: unknown; z: DeferRef };
+			expect([s.a.id, (unnest(s.deep, levels) as DeferRef).id, s.z.id]).toEqual([0, 1, 2]);
+			expect(Object.keys(s)).toEqual(['a', 'deep', 'z']);
+		}
+	});
+
+	it('a deep promise inside an array is staged too', () => {
 		let data: unknown = Promise.resolve('DEEP');
-		for (let i = 0; i < 15; i++) data = { nest: data };
-		expect(analyze(data).thenable).toBe(true);
-		const { deferred } = stage_deferred(data, 0);
+		for (let i = 0; i < 100; i++) data = i % 2 ? { nest: data } : [data];
+		expect(stage_deferred(data, 0).deferred).toHaveLength(1);
+	});
+
+	// (one back edge each: with two, the old walk doubled at every level, 2^64 copies)
+	it('a cyclic plain value is staged once and keeps its cycle', () => {
+		const data: Record<string, unknown> = { slow: Promise.resolve('X') };
+		data.self = data;
+		const { staged, deferred } = stage_deferred(data, 0);
 		expect(deferred).toHaveLength(1);
+		const s = staged as Record<string, unknown>;
+		expect(s.self).toBe(s);
+		expect(s).not.toBe(data);
+		const revived = parse(stringify(staged, page_seed_reducers), revivers()) as Record<
+			string,
+			unknown
+		>;
+		expect(revived.self).toBe(revived);
+	});
+
+	it('a cycle through an array is staged once and keeps its cycle', () => {
+		const data: Record<string, unknown> = { slow: Promise.resolve('X'), list: [] };
+		(data.list as unknown[]).push(data);
+		const { staged, deferred } = stage_deferred(data, 0);
+		expect(deferred).toHaveLength(1);
+		const s = staged as { list: unknown[] };
+		expect(s.list[0]).toBe(s);
+	});
+
+	it('a sparse array keeps its holes', () => {
+		// oxlint-disable-next-line no-sparse-arrays -- the hole is the point
+		const { staged } = stage_deferred({ list: [1, , Promise.resolve(3)] }, 0);
+		const list = (staged as { list: unknown[] }).list;
+		expect(list).toHaveLength(3);
+		expect(1 in list).toBe(false);
+		expect(list[2]).toBeInstanceOf(DeferRef);
 	});
 
 	it('the seed walk (`analyze`) is the promise probe; a promise-free tree is false', () => {
@@ -248,6 +316,58 @@ describe('page-defer settle path (non-navigate / SPA fallback)', () => {
 			boom: Promise<unknown>;
 		};
 		await expect(revived.boom).rejects.toThrow('DENIED');
+	});
+
+	it('a promise nested 66 and 300 levels deep is settled, and the seed serializes (#569)', async () => {
+		for (const levels of [66, 300]) {
+			const settled = await settle_deferred(nest(Promise.resolve('DEEP'), levels));
+			const leaf = unnest(settled, levels);
+			expect(leaf, `${levels} levels`).toBeInstanceOf(SettledRef);
+			expect((leaf as SettledRef).value).toBe('DEEP');
+			expect(() => stringify(settled, page_seed_reducers)).not.toThrow();
+		}
+	});
+
+	it('a deep rejected promise is settled as an error, never left unhandled (#569)', async () => {
+		const unhandled: unknown[] = [];
+		const on_unhandled = (reason: unknown) => void unhandled.push(reason);
+		process.on('unhandledRejection', on_unhandled);
+		try {
+			const settled = await settle_deferred(nest(Promise.reject(new Error('DEEP')), 66));
+			const leaf = unnest(settled, 66) as SettledRef;
+			expect(leaf).toBeInstanceOf(SettledRef);
+			expect(leaf.ok).toBe(false);
+			// (node reports an unhandled rejection after the microtasks drain)
+			await new Promise((r) => setTimeout(r, 10));
+			expect(unhandled).toEqual([]);
+		} finally {
+			process.off('unhandledRejection', on_unhandled);
+		}
+	});
+
+	it('a cyclic plain value is settled once and keeps its cycle', async () => {
+		let calls = 0;
+		// oxlint-disable-next-line unicorn/no-thenable -- a thenable (as Kit hands over), counted
+		const slow = { then: (ok: (v: string) => void) => (calls++, ok('X')) };
+		const data: Record<string, unknown> = { slow };
+		data.self = data;
+		const s = (await settle_deferred(data)) as Record<string, unknown>;
+		expect(calls).toBe(1);
+		expect(s.self).toBe(s);
+		expect(s.slow).toBeInstanceOf(SettledRef);
+		expect(() => stringify(s, page_seed_reducers)).not.toThrow();
+	});
+
+	it('settle keeps the key order of the data, whichever promise settles first', async () => {
+		let late!: (v: string) => void;
+		const settled = settle_deferred({
+			a: new Promise<string>((r) => (late = r)),
+			b: Promise.resolve('B'),
+			c: 1
+		});
+		await new Promise((r) => setTimeout(r, 0));
+		late('A');
+		expect(Object.keys((await settled) as object)).toEqual(['a', 'b', 'c']);
 	});
 
 	it('settle_deferred recurses into a resolved value that holds more promises', async () => {

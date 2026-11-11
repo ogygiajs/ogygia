@@ -353,10 +353,6 @@
 			"reason": "notes a page.data read into the running render's read set and returns the data, constant work"
 		},
 		{
-			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~7ebc22 > app > observeReads",
-			"reason": "forwards a RequestEvent (not cloneable) to observe_reads, constant work; packages/core/bench/server.bench.ts runs observe_reads"
-		},
-		{
 			"id": "packages/machine/src/policy.ts > out_of_time",
 			"reason": "builds the TimeoutError tries past their deadline fail with, constant work; proven in packages/machine/test/flights.test.ts and packages/machine/test/outbox.test.ts"
 		},
@@ -2157,10 +2153,6 @@
 			"reason": "awaits the app's flag source (an async call out, not recorded), linear in the registered flags; proven in packages/flags/test/prime-twice.test.ts and packages/flags/test/source-failed.test.ts"
 		},
 		{
-			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~99e237 > app > warn > once:1~c9a4aa",
-			"reason": "prints one warning (console output, not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
 			"id": "packages/flags/src/index.ts > outbox:0~05e47f > giveUp > once:1~de49a5",
 			"reason": "prints one warning (console output, not replayable), constant work"
 		},
@@ -2247,6 +2239,90 @@
 		{
 			"id": "packages/content/src/markdown/frontmatter.ts > reason_of",
 			"reason": "a thrown error to its words (an OgygiaError's class identity does not replay), two string slices, only on a frontmatter error; proven in packages/content/test/frontmatter-errors.test.ts"
+		},
+		{
+			"id": "packages/content/src/vite/index.ts > warn_placement > once:1~daa8fe",
+			"reason": "say(): one dev warning a file says once, constant work"
+		},
+		{
+			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > transform > rewrite_svelte:4~85d86d > once:1~fc2896",
+			"reason": "say(): one build warning a skipped component says once, constant work"
+		},
+		{
+			"id": "packages/core/src/compiler/region/transform.ts > say_unparsed",
+			"reason": "the build warning for a host the parser cannot read, said once per file, constant work"
+		},
+		{
+			"id": "packages/core/src/compiler/region/transform.ts > warn_unparsed > once:1~087a4c",
+			"reason": "say(): one build warning per unparsed file, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/css.ts > componentCssHead > once:1~695de0",
+			"reason": "say(): one dev warning for the process, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/hydrate-core.ts > PropMutationGuard > #warn > once:1~6adcde",
+			"reason": "say(): one dev warning per mutated prop path, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > import_again > <anonymous>~106f1d > catch:0~ce98b7 > once:1~b3964f",
+			"reason": "say(): the page's one reload message, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/restore-report.ts > report > once:1~a177c8",
+			"reason": "say(): one warning per late host, constant work"
+		},
+		{
+			"id": "packages/core/src/store-transport.ts > __og_store > <anonymous>~221e3f > once:1~fd8aa8",
+			"reason": "say(): one warning per unbranded store tag, constant work"
+		},
+		{
+			"id": "packages/core/src/vite/style-preprocess.ts > preprocess_component_for_css > once:1~832199",
+			"reason": "say(): one build warning for the process, constant work"
+		},
+		{
+			"id": "packages/flags/src/index.ts > flag > bucket > once:1~0367ec",
+			"reason": "say(): one setup warning for the process, constant work"
+		},
+		{
+			"id": "packages/flags/src/index.ts > resolved_for > once:1~3c5497",
+			"reason": "say(): one setup warning for the process, constant work"
+		},
+		{
+			"id": "packages/flags/src/source-health.ts > source_failed > once:1~64efac",
+			"reason": "say(): one warning per failing streak, constant work"
+		},
+		{
+			"id": "packages/postrender/src/handle.ts > handle > <anonymous>~327efc > once:1~b7e8fe",
+			"reason": "say(): one setup warning for the process, constant work"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > install > once:1~4af86e",
+			"reason": "say(): one setup warning for the process, constant work"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > swap_tracked",
+			"reason": "the fallback walk for a page value too deep or cyclic for the untracked one, handed a swap function (not cloneable); linear in the value, one Map entry per open object; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > swap_tracked > walk",
+			"reason": "one node of swap_tracked's walk over a closure (its Map and swap: not cloneable), constant work per node; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
+		},
+		{
+			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~7326ff",
+			"reason": "the replacement for the multi-variant id attribute: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
+		},
+		{
+			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~ca1204",
+			"reason": "the replacement for the pre's attributes: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > observeReads",
+			"reason": "forwards a RequestEvent (not cloneable) to observe_reads, constant work; packages/core/bench/server.bench.ts runs observe_reads"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > warn > once:1~c9a4aa",
+			"reason": "prints one warning (console output, not replayable), constant work; proven in packages/core/test/plugins.test.ts"
 		}
 	]
 }
