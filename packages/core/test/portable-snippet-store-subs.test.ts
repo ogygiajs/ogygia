@@ -1,7 +1,7 @@
 // A portable snippet (a `{#snippet}` crossing into a hydrate island) that reads a Svelte STORE
 // via the `$store` auto-subscription sugar. The sugar is host-scoped: re-emitted verbatim it
 // names an out-of-scope `$`-identifier in the runes-mode synth entry and the build dies inside
-// GENERATED code ("`$country` is an illegal variable name" in virtual:ogygia/island/…). The
+// GENERATED code ("`$country` is an illegal variable name" in ogygia:region/entry/…). The
 // transform must instead capture the subscription VALUE at the host (where `$store` is legal),
 // rewrite every body occurrence to the capture's prop name, and WARN that the copy is frozen —
 // the exact failure a consumer hit in CI (commerce-app previewPage page).
@@ -15,14 +15,14 @@ const ctx = {
 	readFile: () => null,
 	pathModule: path,
 	dev: false,
-	virtualPathFor: (_h: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
-	wrapperPathFor: (_h: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
+	virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
+	wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
 	devUrlFor: (p: string) => p,
 	visibleMargin: '200px',
 	presets: {},
 	importKeys: {},
 	idSalt: '',
-	clientBindingStub: 'virtual:ogygia/client-binding-stub',
+	clientBindingStub: 'ogygia:region/client-binding-stub',
 	routeCsr: undefined,
 	linkVirtualIsland: true
 };

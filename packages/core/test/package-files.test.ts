@@ -40,8 +40,6 @@ const base_ctx_init = {
 	router_view_transitions: true,
 	runtime_dir: '/og/dist/runtime',
 	runtime_hash: 'x',
-	hmac_module: '/og/dist/h.js',
-	region_endpoint_module: '/og/dist/r.js',
 	client_binding_stub_file: '/og/dist/c.js',
 	app_shims: {},
 	is_build: true,
