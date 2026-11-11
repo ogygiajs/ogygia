@@ -100,6 +100,25 @@ describe('dispatch — base, slash, miss', () => {
 	});
 });
 
+describe('dispatch — the trailing-slash redirect stays on the site', () => {
+	for (const [slash, path] of [
+		['never', '//other.example/'],
+		['always', '//other.example'],
+		['always', '/\\other.example'],
+		['never', '///other.example/x/']
+	] as const) {
+		it(`slash:${slash} on ${JSON.stringify(path)} redirects to a path on this host`, async () => {
+			const app = routes({ '/': { GET: (c) => c.json({}) } }, { slash });
+			const res = (await app.fetch(new Request(`http://site.test${path}`)))!;
+			expect(res.status).toBe(308);
+			const location = res.headers.get('location')!;
+			expect(location).toMatch(/^\/(?![/\\])/);
+			expect(location).not.toContain('\\');
+			expect(new URL(location, 'http://site.test/').host).toBe('site.test');
+		});
+	}
+});
+
 describe('dispatch — thrown redirect / error', () => {
 	const app = routes(
 		{
