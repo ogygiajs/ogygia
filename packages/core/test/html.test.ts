@@ -114,6 +114,12 @@ describe('html.svelte (text written into Svelte markup, #469)', () => {
 		);
 	});
 
+	it('an Html value between tags keeps its braces: its markup is placed as is', () => {
+		expect(String(html.svelte`<p>${trusted_html('<b>{count}</b>', 'a test')}</p>`)).toBe(
+			'<p><b>{count}</b></p>'
+		);
+	});
+
 	it('no placed value ever holds a brace, and it reads back as itself', () => {
 		fc.assert(
 			fc.property(
