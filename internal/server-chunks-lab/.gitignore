@@ -7,3 +7,7 @@ builds/
 deploy/
 results-raw/
 .svelte-kit/
+# the strict-order repro's outputs (its kit-app links ../../node_modules: ln -s ../../node_modules)
+repro-strict-order/out/
+repro-strict-order/kit-app/node_modules
+repro-strict-order/kit-app/build/
