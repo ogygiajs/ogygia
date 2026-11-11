@@ -1,0 +1,100 @@
+name: dst
+
+# ALWAYS-ON DETERMINISTIC SIMULATION (internal/notes/dst.md): one seed drives a whole app (servers,
+# tabs, network, time), and a failing seed replays exactly. This job runs seeds back to back for
+# almost six hours, then files what is new: an issue (labels `bug`, `dst`) and a `sim/found-<sig>`
+# branch with a seeded test, deduplicated by signature (internal/sim/src/ci.ts).
+#
+# Schedule and manual runs ONLY: never on a pull request or a push, so no fork's code ever runs
+# here, and it tests the repository's own code. A good neighbour on the shared runners: it counts
+# the queued runs every 20 minutes and waits, or stops early, while CI needs them.
+#
+# TEMPORARY: the simulator (internal/sim) and the ports it needs are not on main yet, so the job
+# checks out the DST branch (`ref`, default `dst/3-oracles`). Once they land, the default becomes
+# main and this note goes.
+
+on:
+  schedule:
+    # every 6 hours; with the concurrency group below, runs chain back to back
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'The ref to simulate (temporary default: the DST branch, until it lands on main)'
+        default: dst/3-oracles
+      steps:
+        description: Actions per seed
+        default: '40'
+      queue_limit:
+        description: Queued runs in the repository past which DST yields to CI
+        default: '50'
+
+permissions: {}
+
+# exactly one at a time; a new one waits for the running one, never cancels it
+concurrency:
+  group: dst
+  cancel-in-progress: false
+
+jobs:
+  simulate:
+    if: github.repository == 'ogygiajs/ogygia'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    permissions:
+      # contents: push sim/found-* branches; issues: file and comment on findings; actions: count
+      # the queued runs (the good-neighbour check)
+      contents: write
+      issues: write
+      actions: read
+    steps:
+      # (the deadline counts from here: setup and builds take part of the 350 minutes)
+      - name: Note the start
+        run: echo "DST_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || 'dst/3-oracles' }}
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # the simulator runs TypeScript with plain node and needs `import.meta.main`
+          node-version: 26
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the packages
+        run: pnpm build:lib
+
+      # the simulated app, with ogygia's rules built in (the oracles read them)
+      - name: Build the palaestra (rules on)
+        working-directory: apps/palaestra
+        env:
+          OGYGIA_RULES: '1'
+        run: node node_modules/vite/bin/vite.js build
+
+      # stops starting batches 20 minutes before the job's timeout, then files and summarizes
+      - name: Simulate
+        working-directory: internal/sim
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DST_FILE: '1'
+          DST_STEPS: ${{ inputs.steps || '40' }}
+          DST_QUEUE_LIMIT: ${{ inputs.queue_limit || '50' }}
+          DST_RESULTS: ${{ runner.temp }}/dst-results.json
+        run: |
+          export DST_DEADLINE=$(( (DST_STARTED + (350 - 20) * 60) * 1000 ))
+          node --experimental-vm-modules --no-warnings src/ci.ts
+
+      - name: Upload the results
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: dst-results
+          path: ${{ runner.temp }}/dst-results.json
+          if-no-files-found: ignore
