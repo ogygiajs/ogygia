@@ -1,6 +1,6 @@
 /* Type-level guard for router v2 `$infer` — merged cascade data (Kit's rule), schema-coerced params,
  * typed search, action-return form, and layout keys `App['(name)']`. tsc-only (no runtime). */
-import { routes, page, layout, type StandardSchemaV1 } from '../src/index.ts';
+import { routes, page, layout, fail, type Params, type StandardSchemaV1 } from '../src/index.ts';
 import type { Component } from 'svelte';
 
 const C = (() => {}) as unknown as Component<Record<string, unknown>>;
@@ -216,3 +216,34 @@ const _shell: App['(app)']['data'] = { user: 'x' };
 const _section: App['(docs)']['data'] = { user: 'x', nav: ['a'] };
 
 void [_home, _postParams, _bad, _form, _noForm, _search, _docData, _shell, _section];
+
+// Exact shapes: search is the schema's output; form unwraps fail(status, F) to F, null with no
+// actions; an endpoint that returns a raw Response has an unknown payload.
+expect_type<Equal<App['/search']['search'], { q: string }>>(true);
+const failing = routes({
+	'/f': page(C, {
+		actions: {
+			default: async () =>
+				Math.random() ? fail(400, { why: 'x' as string }) : { ok: true as const }
+		}
+	}),
+	'/none': page(C, {})
+});
+expect_type<Equal<(typeof failing.$infer)['/f']['form'], { why: string } | { ok: true } | null>>(
+	true
+);
+expect_type<Equal<(typeof failing.$infer)['/none']['form'], null>>(true);
+expect_type<Equal<TApp['/raw']['get']['out'], unknown>>(true);
+
+// A load that may answer a Response short-circuits; the component's `data` is the other arm only.
+const shortApp = routes({
+	'/sc': page(C, { load: async () => (Math.random() ? new Response('x') : { a: 'x' as string }) })
+});
+expect_type<Equal<(typeof shortApp.$infer)['/sc']['data'], { a: string }>>(true);
+
+// Route params come from the pattern string, for every segment kind.
+expect_type<Equal<Params<'/docs/[slug]'>, { slug: string }>>(true);
+expect_type<Equal<Params<'/[[lang]]/docs'>, { lang?: string }>>(true);
+expect_type<Equal<Params<'/files/[...rest]'>, { rest: string }>>(true);
+expect_type<Equal<Params<'/report/[id].json'>, { id: string }>>(true);
+expect_type<Equal<Params<'/about'>, {}>>(true);
