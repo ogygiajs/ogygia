@@ -382,14 +382,14 @@ function compile_layout(routeCsr: boolean | undefined) {
 		pathModule: path,
 		dev: false,
 		ssr: true,
-		virtualPathFor: (_h: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
-		wrapperPathFor: (_h: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
+		virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
+		wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
 		devUrlFor: (p: string) => p,
 		visibleMargin: '200px',
 		presets: {},
 		importKeys: {},
 		idSalt: '',
-		clientBindingStub: 'virtual:ogygia/client-binding-stub',
+		clientBindingStub: 'ogygia:region/client-binding-stub',
 		routeCsr
 	} as never) as { islands?: unknown[]; code?: string } | null;
 }
@@ -405,6 +405,6 @@ describe('transform seam — route_csr tri-state on a layout host', () => {
 		const r = compile_layout(true);
 		// stripped output has no island registrations — Kit compiles + hydrates it inline
 		expect(r?.islands?.length ?? 0).toBe(0);
-		expect(r?.code ?? '').not.toContain('virtual:ogygia/wrapper');
+		expect(r?.code ?? '').not.toContain('ogygia:region/wrapper');
 	});
 });

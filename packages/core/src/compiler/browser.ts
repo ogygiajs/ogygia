@@ -30,9 +30,9 @@ export {
 	type JsRegion
 } from './parse/scan.ts';
 export { og_member } from './macros/wire.ts';
-export { BuildCache, configure_build_cache, __set_build_cache_root } from '../build-cache.ts';
+export { BuildCache, configure_build_cache, __set_build_cache_root } from './build-cache.ts';
 // The content-CSS key the markdown preprocessor bakes and the build's CSS emit reads back.
-export { content_css_key } from '../plugin/utils.ts';
+export { content_css_key } from '../contract/content.ts';
 // The same dedent the `import.meta.og.code` macro uses — pure, browser-safe. The Observatory uses it so
 // preset sources can sit naturally-indented in the source file (the common indent is stripped at load).
 export { dedent } from './dedent.ts';

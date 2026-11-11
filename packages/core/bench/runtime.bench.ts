@@ -9,7 +9,7 @@
 // coverage.
 import { el, frag } from '../test/_stubs/dom.ts';
 import { bench } from '@bench/heisenbench/bench';
-import { fingerprint_of, fnv1a, signature_of } from '../src/runtime/hash.ts';
+import { fingerprint_of, fnv1a, signature_of } from '../src/contract/hash.ts';
 import { morph_children } from '../src/runtime/morph.ts';
 import { parse_wire_text } from '../src/runtime/wire-format.ts';
 import {
@@ -362,4 +362,29 @@ bench(
 		return out.filter((html) => html !== STALE).length * 1000 + renewed;
 	},
 	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
+);
+
+bench(
+	'frame store: answers written at each address, newer ones applied, older requests and older data dropped',
+	({ n }) => {
+		frames._reset();
+		let applied = 0;
+		for (let i = 0; i < n; i++) {
+			const a = `w${i % 50}|p`;
+			const t = frames.ticket(a);
+			// a refresh, then the slower answer of the request before it (dropped)
+			if (frames.write({ a, v: t, html: `<p>${i}</p>` })) applied++;
+			if (frames.write({ a, v: t - 1, html: `<p>late ${i}</p>` })) applied++;
+			// two commands' answers with data versions, decoded out of order (the older is dropped)
+			if (i % 4 === 0) {
+				if (frames.write({ a, v: frames.ticket(a), d: i + 2, html: `<p>v${i + 2}</p>` })) applied++;
+				if (frames.write({ a, v: frames.ticket(a), d: i + 1, html: `<p>v${i + 1}</p>` })) applied++;
+			}
+		}
+		let shown = 0;
+		for (let i = 0; i < 50; i++) if (frames.peek(`w${i}|p`) !== null) shown++;
+		frames._reset();
+		return applied * 100 + shown;
+	},
+	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
 );

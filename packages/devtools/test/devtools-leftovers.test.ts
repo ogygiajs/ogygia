@@ -25,8 +25,8 @@ describe('leftovers', () => {
 	});
 
 	const ticker: LeftoverIsland = {
-		entry: '/@id/virtual:ogygia/island/aa.js',
-		urls: ['http://a.test/@id/virtual:ogygia/island/aa.js'],
+		entry: '/@id/ogygia:region/entry/aa.js',
+		urls: ['http://a.test/@id/ogygia:region/entry/aa.js'],
 		live: [],
 		first: 10,
 		gone: 500
