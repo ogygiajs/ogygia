@@ -141,7 +141,7 @@ export class World {
 		// answers with an empty file of the kind asked for; the app is not tested against it
 		const url = new URL(request.url);
 		if (url.origin !== ORIGIN || this.#o.supplied?.includes(url.pathname)) {
-			const type = /\.css$/.test(url.pathname)
+			const type = url.pathname.endsWith('.css')
 				? 'text/css'
 				: /\.m?js$/.test(url.pathname)
 					? 'text/javascript'
