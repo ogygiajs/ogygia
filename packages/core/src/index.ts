@@ -52,7 +52,8 @@ export type {
 	DualRegion,
 	DeferredRegion,
 	RegionOptions,
-	RegionSchedule
+	RegionSchedule,
+	RegionData
 } from './region.ts';
 
 // A deferred / server island renders its own HTML on the server; while it's in flight the call site

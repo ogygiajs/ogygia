@@ -8,7 +8,9 @@
 // What the mechanics buy:
 //   • dedupe   — N regions with the same address share one in-flight fetch (`ensure`).
 //   • staleness — versions are ticketed at REQUEST time; `write` drops v <= applied, so a slow
-//     response that started earlier can never overwrite one that started later.
+//     response that started earlier can never overwrite one that started later. A frame that
+//     carries a data version (`region(C, props, { version })`) is ordered by it first, so an answer
+//     decoded late (no request to ticket it by: a command's) cannot paint older data either.
 //   • safety   — a prefetch warms an address nothing is bound to; it cannot touch the wrong DOM.
 //   • lifecycle — the shared fetch aborts only when the LAST waiter leaves; entries evict on a
 //     TTL after the last subscriber unbinds.
@@ -47,6 +49,8 @@ type FrameAsk = { a: string; work: FrameFetcher | Promise<string> };
 type Entry = {
 	/** Version of the applied content (0 = nothing applied yet). */
 	v: number;
+	/** Data version of the applied content, when it had one (`Frame.d`). */
+	d: number | undefined;
 	html: string | null;
 	/** Monotonic ticket source — every fetch START takes the next ticket. */
 	seq: number;
@@ -112,7 +116,16 @@ const flying = (a: string): boolean => store_host[FLIGHTS_KEY]?.peek({ a }) !== 
 function entry(a: string): Entry {
 	let e = entries.get(a);
 	if (!e) {
-		e = { v: 0, html: null, seq: 0, batch: null, evict: null, renewed: null, refused: null };
+		e = {
+			v: 0,
+			d: undefined,
+			html: null,
+			seq: 0,
+			batch: null,
+			evict: null,
+			renewed: null,
+			refused: null
+		};
 		entries.set(a, e);
 	}
 	return e;
@@ -143,6 +156,11 @@ export function peek(a: string): { v: number; html: string } | null {
 	return e && e.html != null ? { v: e.v, html: e.html } : null;
 }
 
+/** The data version of the content applied at an address, if it had one. */
+export function shown_version(a: string): number | undefined {
+	return entries.get(a)?.d;
+}
+
 /** A renewal at this address answered `fresh`, the capability its elements fetch with from now on. */
 export function renew(a: string, fresh: string): void {
 	entry(a).renewed = fresh;
@@ -165,14 +183,24 @@ export function ticket(a: string): number {
 }
 
 /**
- * Write a frame. Applied only if strictly newer than the current content; stale writes are
+ * Whether a frame is newer than what its address holds: by data version when both carry one and
+ * they differ (the server knows which data is newer, whatever order the answers arrived in), else
+ * by request ticket.
+ */
+function is_newer(f: Frame, e: Entry): boolean {
+	return f.d !== undefined && e.d !== undefined && f.d !== e.d ? f.d > e.d : f.v > e.v;
+}
+
+/**
+ * Write a frame. Applied only if newer than the current content (`is_newer`); older writes are
  * dropped and reported `false`. Subscribers are notified on apply.
  */
 export function write(f: Frame): boolean {
 	const e = entry(f.a);
-	if (f.v <= e.v) return false; // stale — a newer write already landed
+	if (!is_newer(f, e)) return false;
 	if (f.v > e.seq) e.seq = f.v; // foreign ticket (streamed/mutation frame) — keep seq monotonic
-	e.v = f.v;
+	if (f.v > e.v) e.v = f.v; // newer data under an older ticket keeps the ticket order going
+	e.d = f.d;
 	e.html = f.html;
 	e.refused = null;
 	// Fulfil a batch's part, whoever wrote the frame (the batch, or a forced fetch that landed

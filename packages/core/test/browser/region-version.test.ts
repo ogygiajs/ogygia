@@ -1,7 +1,7 @@
 // A region answer carries the data version the app gave it (`region(C, props, { version })`), and
 // the frame store orders answers at one address by that version first, by request ticket second.
 // Two commands return the same region; the browser decodes their responses in either order.
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ogygiaTransport } from '../../src/transport.ts';
 import { frameAddress } from '../../src/frame.ts';
 import * as frames from '../../src/runtime/frame-store.ts';
@@ -37,6 +37,15 @@ describe('two commands answer the same region', () => {
 		decode(answer('<p>A</p>', 1)); // the earlier command's answer lands last
 		expect(frames.peek(ADDRESS)?.html).toBe('<p>B</p>');
 		expect(seen).toEqual(['<p>B</p>']);
+	});
+
+	it('the drop is said in dev, naming its code', () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		decode(answer('<p>B</p>', 2));
+		decode(answer('<p>A</p>', 1));
+		const said = warn.mock.calls.map((c) => String(c[0]));
+		warn.mockRestore();
+		expect(said.some((s) => s.includes('region_answer_older'))).toBe(true);
 	});
 
 	it('a newer version decoded last paints', () => {
