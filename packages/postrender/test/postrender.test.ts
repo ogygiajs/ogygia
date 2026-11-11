@@ -24,6 +24,8 @@ import {
 } from '../src/registry.ts';
 import server from '../src/server.ts';
 import { observe_event } from '../src/observe.ts';
+import { defineServer } from '@ogygia/core/plugin';
+import { startPlugin } from '@ogygia/core/plugin/testing';
 import { find_stitch_holes, stitch_html } from '../src/stitch.ts';
 import type { PostrenderEntry, PostrenderStore, EdgeAdapter } from '../src/types.ts';
 
@@ -543,10 +545,19 @@ function fake_event(init?: {
 	};
 }
 
+const observer = startPlugin(defineServer({}), { name: 'observe-test' });
+/** The observation of `event` (its request's facts made fresh with it). */
+const observe = (event: AnyEvent) =>
+	observe_event({
+		event: event as never,
+		facts: observer.app.facts(event.request),
+		app: observer.app as never
+	});
+
 describe('postrender/observe', () => {
 	it('default-valued reads still store (the canonical render)', () => {
 		const event = fake_event({ locals: { user: {}, flags: [], nothing: null } });
-		const obs = observe_event(event as never);
+		const obs = observe(event);
 		event.cookies.get('consent'); // absent → undefined = default
 		void event.locals.user; // {} = default
 		void event.locals.flags; // [] = default
@@ -556,21 +567,21 @@ describe('postrender/observe', () => {
 
 	it('a NON-default cookie read disqualifies, named', () => {
 		const event = fake_event({ cookies: { session: 'abc' } });
-		const obs = observe_event(event as never);
+		const obs = observe(event);
 		event.cookies.get('session');
 		expect(obs.disqualified_by).toBe('cookie:session');
 	});
 
 	it('a cookie WRITE disqualifies', () => {
 		const event = fake_event();
-		const obs = observe_event(event as never);
+		const obs = observe(event);
 		event.cookies.set('theme', 'dark', { path: '/' });
 		expect(obs.wrote_cookie).toBe(true);
 	});
 
 	it('personalization headers disqualify; delivery plumbing does not', () => {
 		const event = fake_event({ headers: { 'accept-language': 'fr', host: 'x' } });
-		const obs = observe_event(event as never);
+		const obs = observe(event);
 		event.request.headers.get('host');
 		expect(obs.disqualified_by).toBeNull();
 		event.request.headers.get('Accept-Language');
@@ -579,25 +590,24 @@ describe('postrender/observe', () => {
 
 	it('a populated locals read disqualifies, named', () => {
 		const event = fake_event({ locals: { user: { id: 7 } } });
-		const obs = observe_event(event as never);
+		const obs = observe(event);
 		void event.locals.user;
 		expect(obs.disqualified_by).toBe('locals.user');
 	});
 
-	it('the reason lands in the request facts (perVisitor); the first one wins', () => {
-		const facts = { perVisitor: null as string | null };
+	it("the reason lands in the request's read set; the first one wins", () => {
 		const event = fake_event({ cookies: { session: 'abc' }, locals: { user: { id: 7 } } });
-		const obs = observe_event(event as never, facts);
+		const obs = observe(event);
 		event.cookies.get('session');
 		void event.locals.user;
-		expect(facts.perVisitor).toBe('cookie:session');
+		expect(observer.app.facts(event.request).reads.perVisitor).toBe('cookie:session');
 		expect(obs.disqualified_by).toBe('cookie:session');
 	});
 
-	it('a reason already on the facts (a flag read) is what the observation reports', () => {
-		const facts = { perVisitor: 'flag:hero' as string | null };
-		const obs = observe_event(fake_event() as never, facts);
-		expect(obs.disqualified_by).toBe('flag:hero');
+	it('a reason already in the read set (a flag read) is what the observation reports', () => {
+		const event = fake_event();
+		observer.app.perVisitor(event.request, 'flag:hero');
+		expect(observe(event).disqualified_by).toBe('flag:hero');
 	});
 });
 

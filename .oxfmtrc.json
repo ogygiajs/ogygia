@@ -10,6 +10,10 @@
 		{
 			"files": ["**/*.md", "**/*.svx", "**/*.mdx"],
 			"options": { "embeddedLanguageFormatting": "off" }
+		},
+		{
+			"files": ["**/*.ts", "**/*.js"],
+			"options": { "embeddedLanguageFormatting": "off" }
 		}
 	],
 	"ignorePatterns": [
