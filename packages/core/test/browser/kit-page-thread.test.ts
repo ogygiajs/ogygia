@@ -180,6 +180,21 @@ test('a wait for a Kit whose boot import failed ends: it fails with kit_boot_fai
 	}
 });
 
+test('a boot-shaped script naming a file on another origin is never imported: markup is not code (#847 review)', async () => {
+	// A script that came in as markup (a swapped region, a hole) and never ran looks just like Kit's.
+	// Its import names a file on an origin that is neither the page's nor the runtime's.
+	document.body.innerHTML =
+		'<script>__sveltekit_lab = {};\nimport("http://127.0.0.1:1/x.js").then(() => {});</script>';
+	const wait = kit_page_thread();
+	expect(wait, 'Kit has not started → a real wait').not.toBeNull();
+	let failed: unknown = null;
+	void wait!.then(undefined, (e: unknown) => (failed = e));
+	await new Promise((r) => setTimeout(r, 500));
+	expect(failed, 'the file was not imported, so nothing failed').toBeNull();
+	publish_kit_page({ searchBarMarkup: '' });
+	await expect(wait).resolves.toBeUndefined();
+});
+
 test('with the thread already published at wake there is no hold: the island hydrates straight away', async () => {
 	publish_kit_page({ searchBarMarkup: '<i data-testid="search">search</i>' });
 	document.body.innerHTML =

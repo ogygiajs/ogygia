@@ -131,6 +131,10 @@ const KIT_BOOT_IMPORT = /\bimport\(\s*("(?:[^"\\\n]|\\.)*")\s*\)/g;
  */
 function kit_boot_imports(): string[] {
 	if (typeof document === 'undefined') return [];
+	// A script that came in as markup and never ran looks the same, so only the files Kit's own boot
+	// can name: the page's origin (its env) and the runtime's (Kit's assets, its entries). Tested in
+	// test/browser/kit-page-thread.test.ts ("never imported").
+	const origins = new Set([location.origin, new URL(import.meta.url).origin]);
 	const urls = new Set<string>();
 	for (const s of document.querySelectorAll('script:not([src])')) {
 		const type = s.getAttribute('type');
@@ -145,7 +149,8 @@ function kit_boot_imports(): string[] {
 		for (const m of text.matchAll(KIT_BOOT_IMPORT)) {
 			try {
 				const url = new URL(JSON.parse(m[1]) as string, document.baseURI);
-				if (url.protocol === 'http:' || url.protocol === 'https:') urls.add(url.href);
+				if ((url.protocol === 'http:' || url.protocol === 'https:') && origins.has(url.origin))
+					urls.add(url.href);
 			} catch {
 				// ok: not a URL Kit's import could load either; Kit's other files still decide
 			}
