@@ -125,8 +125,7 @@ export function withRemotes<T extends Record<string, unknown> = Record<string, u
 
 				return query.live(async function* () {
 					await c.ready();
-					// (stamp and snapshot in one synchronous step, so the stamp is THIS snapshot's
-					// version: test/live-stamp.test.ts, #191)
+					// @why the stamp and the first list are read in one step (test: test/live-stamp.test.ts › live.list: an edit that lands as the first snapshot is taken still reaches the client)
 					const sent = c.version();
 					yield await project(c.snapshot());
 					for await (const _ of c.watchChanges(sent)) yield await project(c.snapshot());
