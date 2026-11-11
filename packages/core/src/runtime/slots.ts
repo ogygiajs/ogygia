@@ -178,6 +178,8 @@ export type BootLink = {
 	yield_task: typeof import('./schedule.ts').yield_task;
 	/** the router's navigation, timed for the profiler's beacon (a no-op without it) */
 	beacon_nav: typeof import('./beacon.ts').beacon_nav;
+	/** the plugins around Svelte's hydrate over server markup (./client-plugins.ts) */
+	region_hydrate: typeof import('./client-plugins.ts').client_region_hydrate;
 	/** the load scheduler's queue (./load-scheduler.ts), and a load class as a flight priority and
 	 *  as a fetch priority (./load-class.ts) */
 	LoadSlot: typeof import('./load-scheduler.ts').LoadSlot;
