@@ -105,49 +105,74 @@ export class Browsers {
 									: tab !== undefined
 										? `${tab.name}#${tab.documents + 1}`
 										: 'browser';
-							const url = new URL(request.url);
-							const headers = new Headers();
-							request.headers.forEach((v: string, k: string) => headers.set(k, v));
-							const jar = this.#context_of(browser);
-							const cookies = jar.cookieContainer.getCookies(url, false);
-							if (cookies.length > 0)
-								headers.set('cookie', CookieStringUtility.cookiesToString(cookies));
-							// a browser sends its document's origin with every request that is not a GET
-							// or HEAD (happy-dom does not; Kit refuses a remote call without it: 403)
-							if (request.method !== 'GET' && request.method !== 'HEAD' && !headers.has('origin'))
-								headers.set(
-									'origin',
-									new URL((window as unknown as { location: { href: string } }).location.href)
-										.origin
-								);
-							const body =
-								request.method === 'GET' || request.method === 'HEAD'
+							const W = window as unknown as {
+								Response: typeof Response;
+								Headers: typeof Headers;
+								TypeError: typeof TypeError;
+							};
+							let url = new URL(request.url);
+							let method = request.method;
+							let body =
+								method === 'GET' || method === 'HEAD'
 									? undefined
 									: new Uint8Array(await request.arrayBuffer());
-							const sent = new Request(url, { method: request.method, headers, body });
-							let answer: Response;
-							try {
-								answer = await o.network.send(from, sent, (r) => o.route(r, from));
-							} catch (error) {
-								throw new (window as unknown as { TypeError: typeof TypeError }).TypeError(
-									error instanceof Error ? error.message : String(error)
-								);
+							const jar = this.#context_of(browser);
+							// a browser follows a redirect itself (happy-dom hands an intercepted answer back as
+							// it is): each leg is a request on the network, with its cookies, and the answer
+							// carries the URL it came from (a document's address is that URL)
+							for (let hops = 0; ; hops++) {
+								const headers = new Headers();
+								request.headers.forEach((v: string, k: string) => headers.set(k, v));
+								if (body === undefined) headers.delete('content-type');
+								const cookies = jar.cookieContainer.getCookies(url, false);
+								if (cookies.length > 0)
+									headers.set('cookie', CookieStringUtility.cookiesToString(cookies));
+								// a browser sends its document's origin with every request that is not a GET
+								// or HEAD (happy-dom does not; Kit refuses a remote call without it: 403)
+								if (method !== 'GET' && method !== 'HEAD' && !headers.has('origin'))
+									headers.set(
+										'origin',
+										new URL((window as unknown as { location: { href: string } }).location.href)
+											.origin
+									);
+								const sent = new Request(url, { method, headers, body });
+								let answer: Response;
+								try {
+									answer = await o.network.send(from, sent, (r) => o.route(r, from));
+								} catch (error) {
+									throw new W.TypeError(error instanceof Error ? error.message : String(error));
+								}
+								for (const c of answer.headers.getSetCookie()) {
+									const cookie = CookieStringUtility.stringToCookie(url, c);
+									if (cookie) jar.cookieContainer.addCookies([cookie]);
+								}
+								const location = answer.headers.get('location');
+								const redirect = [301, 302, 303, 307, 308].includes(answer.status);
+								if (redirect && location !== null && request.redirect !== 'manual') {
+									void answer.body?.cancel();
+									if (request.redirect === 'error' || hops === 20)
+										throw new W.TypeError('Failed to fetch (redirect)');
+									url = new URL(location, url);
+									// (303, and 301/302 after a POST, go on as a GET without the body)
+									if (answer.status === 303 || (answer.status < 303 && method === 'POST')) {
+										method = method === 'HEAD' ? 'HEAD' : 'GET';
+										body = undefined;
+									}
+									continue;
+								}
+								const out = new W.Headers();
+								answer.headers.forEach((v, k) => {
+									if (k === 'set-cookie') return;
+									out.append(k, v);
+								});
+								const response = new W.Response(answer.body, {
+									status: answer.status,
+									statusText: answer.statusText,
+									headers: out
+								}) as Response & { url: string; redirected: boolean };
+								Object.assign(response, { url: url.href, redirected: hops > 0 });
+								return response as never;
 							}
-							const out = new (window as unknown as { Headers: typeof Headers }).Headers();
-							answer.headers.forEach((v, k) => {
-								if (k === 'set-cookie') return;
-								out.append(k, v);
-							});
-							for (const c of answer.headers.getSetCookie()) {
-								const cookie = CookieStringUtility.stringToCookie(url, c);
-								if (cookie) jar.cookieContainer.addCookies([cookie]);
-							}
-							const W = window as unknown as { Response: typeof Response };
-							return new W.Response(answer.body, {
-								status: answer.status,
-								statusText: answer.statusText,
-								headers: out
-							}) as never;
 						}
 					}
 				},
