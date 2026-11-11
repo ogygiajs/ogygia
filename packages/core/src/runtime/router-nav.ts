@@ -206,7 +206,11 @@ const DOCUMENT_BASE = typeof document === 'undefined' ? '' : document.baseURI;
 function url_of(node: Element, attr: string): string {
 	const value = node.getAttribute(attr);
 	if (!value) return '';
-	const base = DOCUMENT_BASE !== '' && session().page_head.has(node) ? DOCUMENT_BASE : node.baseURI;
+	// (only a node in the live head can be the server's: a fetched page's or a detached one never is)
+	const base =
+		DOCUMENT_BASE !== '' && node.parentNode === document.head && session().page_head.has(node)
+			? DOCUMENT_BASE
+			: node.baseURI;
 	try {
 		return new URL(value, base).href;
 	} catch {
