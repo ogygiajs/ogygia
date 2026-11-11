@@ -5,7 +5,7 @@
 // in an answer's inert fragment (sheets adopted after the insertion), and never into a root a
 // component's constructor made.
 import { afterEach, expect, test, vi } from 'vitest';
-import { check_script, transformMarkup } from '../../src/reversible.ts';
+import { check_script, STAND_IN_TAGS, transformMarkup } from '../../src/reversible.ts';
 import { restore, restore_adopt } from '../../src/restore.ts';
 import { fake_scoped } from '../fixtures/fake-scoped-render.ts';
 import { init_shadow_registries } from '../../../core/src/runtime/parse-html.ts';
@@ -76,6 +76,36 @@ test('a stand-in keeps the parser from splitting the page’s link, and becomes 
 	restore(document);
 	expect(document.querySelector('og-as')).toBeNull();
 	expect(document.querySelector('a[href="/card"] demo-link')).not.toBeNull();
+});
+
+test('a stand-in becomes only a tag the server pass writes as one, without on* attributes', async () => {
+	const w = window as { __og_ran?: number };
+	w.__og_ran = 0;
+	document.body.innerHTML =
+		'<div id="c">' +
+		'<og-as tag="script">window.__og_ran++</og-as>' +
+		'<og-as tag="iframe" src="about:blank"></og-as>' +
+		'<og-as tag="object"></og-as><og-as tag="embed"></og-as><og-as tag="base" href="/x/"></og-as>' +
+		'<og-as tag="meta"></og-as><og-as tag="link"></og-as><og-as tag="style"></og-as>' +
+		'<og-as tag="template"></og-as><og-as tag="svg"></og-as><og-as></og-as>' +
+		'<og-as tag="p" onclick="window.__og_ran++" class="kept">text</og-as>' +
+		'</div>';
+	restore(document);
+	await new Promise((r) => setTimeout(r, 50));
+	const c = document.getElementById('c')!;
+	expect(w.__og_ran).toBe(0);
+	expect([...c.children].map((e) => e.localName)).toEqual([...Array(11).fill('og-as'), 'p']);
+	const p = c.querySelector('p')!;
+	expect(p.getAttribute('class')).toBe('kept');
+	expect(p.hasAttribute('onclick')).toBe(false);
+	expect(p.textContent).toBe('text');
+});
+
+test('the restorer swaps back every tag the server pass may write as a stand-in', () => {
+	const tags = [...STAND_IN_TAGS];
+	document.body.innerHTML = `<div id="c">${tags.map((t) => `<og-as tag="${t}"></og-as>`).join('')}</div>`;
+	restore(document);
+	expect([...document.getElementById('c')!.children].map((e) => e.localName)).toEqual(tags);
 });
 
 test('an answer’s fragment: restored before insertion, its sheets adopted once the host is in the page', async () => {

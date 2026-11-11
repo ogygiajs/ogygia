@@ -420,6 +420,14 @@ type Stack<F extends { name: string } = Frame> = F[] & {
 const TRACKED = new Map(
 	['a', 'nobr', 'button', 'form', 'li', 'dd', 'dt', 'p', 'td', 'th', 'tr'].map((n, i) => [n, i])
 );
+/** Every tag `implied_close` acts on: the only tags settle ever writes as a stand-in, and the only
+ *  ones the restorer swaps one back to (./restore.ts keeps its own copy; a test holds them equal). */
+export const STAND_IN_TAGS: ReadonlySet<string> = new Set([
+	...TRACKED.keys(),
+	...P_CLOSERS,
+	'option',
+	'optgroup'
+]);
 
 function push<F extends { name: string }>(stack: Stack<F>, f: F): void {
 	const slot = TRACKED.get(f.name) ?? -1;
