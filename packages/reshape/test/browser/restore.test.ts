@@ -1,14 +1,14 @@
-// THE RESTORER (runtime/restore.ts), in a real browser: markup a scoped server render reshaped
+// THE RESTORER (src/restore.ts), in a real browser: markup a scoped server render reshaped
 // (test/fixtures/fake-scoped-render.ts) comes back in the form hydration and the component runtime
 // expect — each planned host a shadow root holding its rendered tree, Svelte's children back in its
 // light DOM exactly as Svelte rendered them, the host's attributes back to Svelte's — in the document,
 // in an answer's inert fragment (sheets adopted after the insertion), and never into a root a
 // component's constructor made.
 import { afterEach, expect, test, vi } from 'vitest';
-import { check_script, transformMarkup } from '../../src/server/reversible.ts';
-import { restore, restore_adopt } from '../../src/runtime/restore.ts';
+import { check_script, transformMarkup } from '../../src/reversible.ts';
+import { restore, restore_adopt } from '../../src/restore.ts';
 import { fake_scoped } from '../fixtures/fake-scoped-render.ts';
-import { init_shadow_registries } from '../../src/runtime/parse-html.ts';
+import { init_shadow_registries } from '../../../core/src/runtime/parse-html.ts';
 
 const SHEET = '<template data-og-head="demo-card.shadow">b{color:rgb(255, 0, 0)}</template>';
 const island = (inner: string) =>
