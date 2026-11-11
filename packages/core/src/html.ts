@@ -53,6 +53,7 @@ const TAG = 5;
 type Place = 0 | 1 | 2 | 3 | 4 | 5;
 
 /** Attributes whose value is a URL a browser follows or loads. */
+// static: a fixed list of attribute names
 const URL_ATTRS: ReadonlySet<string> = new Set([
 	'href',
 	'src',
