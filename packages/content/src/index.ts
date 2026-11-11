@@ -1,16 +1,3 @@
-/**
- * RF-native content collections for SvelteKit.
- *
- * Define once with `content({ loader, schema, relations })` — browser-safe, import anywhere. `loader`
- * is a **source** (`{ get, list, ids }`); the built-in formats are source builders that produce one:
- *
- *   import { content, markdown } from '@ogygia/content';
- *   export const docs = content({ loader: markdown(import.meta.glob('./docs/**\/*.svx')), schema });
- *
- * Read paths — `get` / `entry` / `ids` / `entries` + the content graph — live here. To mint the Kit
- * remotes that cross the wire, wrap it with `withRemotes()` from `@ogygia/content/server` in a
- * `.remote.ts`.
- */
 import type { RegionValue } from '@ogygia/core';
 
 /** A heading pulled from the markdown pass (h2–h4). Powers on-page TOCs; rides `markdown` `meta`. */
@@ -81,7 +68,6 @@ export type Entry<Data = Record<string, unknown>, Meta = Record<string, never>> 
 	backlinks: RefEntry[];
 };
 
-/** One Standard Schema validate result. `issues` is `ReadonlyArray` (matches valibot/zod/arktype). */
 type StandardResult =
 	| { value: unknown; issues?: undefined }
 	| { issues: ReadonlyArray<{ readonly message?: string }> };
@@ -94,7 +80,6 @@ export type SchemaLike = {
 	parse?: (value: unknown) => unknown;
 };
 
-// ── the source axis ──
 export { glob, defineSource, toRawSource, mapRaw, enrich } from './source.ts';
 export type {
 	Source,
@@ -109,14 +94,11 @@ export type {
 	SourceChanges
 } from './source.ts';
 
-// ── format source-builders (all live on `@ogygia/content`) ──
 export { markdown, json } from './formats.ts';
 export type { MarkdownMeta } from './formats.ts';
-// `folder()` — the filesystem-convention preset (one glob of `{+doc.svx,+meta.json}` → a full source).
 export { folder } from './folder.ts';
 export type { FolderOptions } from './folder.ts';
 
-// The filename convention it runs on (moved here from ogygia — ordering is generic corpus knowledge).
 export {
 	numbered,
 	dated,
@@ -126,8 +108,6 @@ export {
 	order_of as orderOf
 } from './convention.ts';
 export type { Convention, NumberedOptions, MetaDecoration } from './convention.ts';
-// `blocks()` is the content source; `blocks.resolve(tree, registry)` is the no-collection recipe
-// helper (`type → region`, server-side). Both live on the one `blocks` export.
 export { blocks } from './blocks.ts';
 export type {
 	BlockNode,
@@ -137,20 +117,11 @@ export type {
 	BlockSchedule
 } from './blocks.ts';
 
-// ── the collection ──
 export { content } from './factory.ts';
 export type { ContentHandle, ContentOptions } from './factory.ts';
 
 export { parseSchema } from './schema.ts';
 
-// Remote types live in the server-only `@ogygia/content/server` module; re-export TYPES here
-// (type-only, fully erased — never pulls `$app/server` into a browser graph).
 export type { ContentMode, GetRemote, ListRemote, WithRemotes } from './server.ts';
 
-// The `import.meta.og.*` ambient types (loader.*, wire, …) live in the package-root
-// `ambient.d.ts`, surfaced to apps via the `ogygia/types` reference every scaffold carries — ONE
-// home, always on, no import required. The constructs themselves are rewritten by the vite plugin.
-
-// ── the site layer ── outline → site → shell components. One barrel: data layer + site brains
-// + chrome all surface from `@ogygia/content` (bundlers tree-shake what a given app doesn't touch).
 export * from './site/index.ts';
