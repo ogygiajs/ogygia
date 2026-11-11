@@ -303,20 +303,41 @@ export interface FoundTag {
 const ATTR =
 	/[\t\n\f\r /]*(?:(>)|([^\t\n\f\r />=]*)[\t\n\f\r ]*(?:=[\t\n\f\r ]*(?:"([^"]*)"|'([^']*)'|(?!["'])([^\t\n\f\r >]*)))?)/y;
 
-/** The space (and `/`) before an attribute. */
-const GAP = /[\t\n\f\r /]*/y;
+// `ATTR` cut at attribute starts: one attribute and the gap after it, from where its name starts.
+// Wrapped as `(?=(STEP))\1` it is atomic (a lookahead never backtracks), so a run of them walks a
+// tag's attributes in one pass, linear even when the tag never closes.
+const STEP = String.raw`[^\t\n\f\r />=]*[\t\n\f\r ]*(?:=[\t\n\f\r ]*(?:"[^"]*"|'[^']*'|(?!["'])[^\t\n\f\r >]*))?[\t\n\f\r /]*`;
 
-/** `ATTR` cut at attribute starts, without captures: one attribute and the gap after it, from where
- *  its name starts. It allocates nothing; it moves nowhere only on a `=` whose quote never closes. */
-const STEP =
-	/[^\t\n\f\r />=]*[\t\n\f\r ]*(?:=[\t\n\f\r ]*(?:"[^"]*"|'[^']*'|(?!["'])[^\t\n\f\r >]*))?[\t\n\f\r /]*/y;
+/** From where a tag's name ends: every attribute, then its `>`. No match: the HTML ends inside it
+ *  (an unclosed tag, or a `=` whose quote never closes). One search per tag. */
+const TAG_END = new RegExp(String.raw`[\t\n\f\r /]*(?:(?=(${STEP}))\1)*>`, 'y');
 
-/** An attribute's value, from where its name ends (`''` when it has none). */
-const VALUE = /[\t\n\f\r ]*(?:=[\t\n\f\r ]*(?:"([^"]*)"|'([^']*)'|(?!["'])([^\t\n\f\r >]*)))?/y;
+// One pattern per attribute name asked for (code literals: a handful): from where the tag's name
+// ends, the attributes before the first one named so (any case), then its value; or the tag's `>`.
+const ATTR_NAMED = new Map<string, RegExp>();
 
-/** Whether the character code ends an attribute name: space, `/`, `>`, `=`. */
-const ends_name = (c: number) =>
-	c === 32 || c === 47 || c === 62 || c === 61 || c === 9 || c === 10 || c === 12 || c === 13;
+/** `name` as a pattern in any case, spelled out per letter (`[rR][eE][lL]`): a case-blind flag would
+ *  also make the walk's backreference case-blind, which is far slower. */
+function any_case(name: string): string {
+	const upper = name.toUpperCase();
+	let out = '';
+	for (let i = 0; i < name.length; i++)
+		out += name[i] === upper[i] ? name[i] : `[${name[i]}${upper[i]}]`;
+	return out;
+}
+
+function attr_named(name: string): RegExp {
+	let re = ATTR_NAMED.get(name);
+	if (re === undefined)
+		ATTR_NAMED.set(
+			name,
+			(re = new RegExp(
+				String.raw`[\t\n\f\r /]*(?:(?=(${STEP}))\1)*?(?:>|${any_case(name)}(?=[\t\n\f\r />=])[\t\n\f\r ]*(?:=[\t\n\f\r ]*(?:"([^"]*)"|'([^']*)'|(?!["'])([^\t\n\f\r >]*)))?())`,
+				'y'
+			))
+		);
+	return re;
+}
 
 class Tag implements FoundTag {
 	readonly start: number;
@@ -346,45 +367,19 @@ class Tag implements FoundTag {
 
 	attr(name: string): string | undefined {
 		if (this.#all !== null) return this.#all.get(name);
-		const html = this.#html;
-		const len = name.length;
-		const first = name.charCodeAt(0);
-		const close = this.end - 1; // (the tag's `>`)
-		GAP.lastIndex = this.#after;
-		GAP.test(html);
-		// (the tag is known closed: every step moves, until its `>`)
-		for (let at = GAP.lastIndex; at < close; at = STEP.lastIndex) {
-			// the first attribute named `name`, in any case (`| 32`: an ASCII letter's lower case)
-			if (
-				(html.charCodeAt(at) | 32) === first &&
-				ends_name(html.charCodeAt(at + len)) &&
-				(html.startsWith(name, at) || html.slice(at, at + len).toLowerCase() === name)
-			) {
-				VALUE.lastIndex = at + len;
-				const m = VALUE.exec(html)!;
-				return m[1] ?? m[2] ?? m[3] ?? '';
-			}
-			STEP.lastIndex = at;
-			STEP.test(html);
-		}
-		return undefined;
+		const re = attr_named(name);
+		re.lastIndex = this.#after;
+		// (the tag is known closed: it always matches, at the latest at its `>`)
+		const m = re.exec(this.#html)!;
+		return m[5] === undefined ? undefined : (m[2] ?? m[3] ?? m[4] ?? '');
 	}
 }
 
 /** The start tag whose name ends at `after` (its `<` at `lt`), up to its `>`. Null when the HTML
  *  ends inside it (an unclosed tag or quoted value), as a browser drops it. */
 export function read_tag(html: string, lt: number, after: number): FoundTag | null {
-	GAP.lastIndex = after;
-	GAP.test(html); // (it always matches)
-	let at = GAP.lastIndex;
-	for (;;) {
-		if (html.charCodeAt(at) === 62 /* > */) return new Tag(lt, at + 1, html, after);
-		if (at >= html.length) return null; // the HTML ends inside the tag
-		STEP.lastIndex = at;
-		STEP.test(html);
-		if (STEP.lastIndex === at) return null; // a `=` whose quote never closes
-		at = STEP.lastIndex;
-	}
+	TAG_END.lastIndex = after;
+	return TAG_END.test(html) ? new Tag(lt, TAG_END.lastIndex, html, after) : null;
 }
 
 // The open and close patterns per tag name, made once (the names are code literals: a handful).

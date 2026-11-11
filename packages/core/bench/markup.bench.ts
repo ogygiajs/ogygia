@@ -4,7 +4,14 @@
 // document of a few hundred regions.
 import { bench } from '@bench/heisenbench/bench';
 import { assemble, locate } from '../src/server/document-assembly.ts';
-import { dedupe_head_links, runtime_first } from '../src/server/head-presence.ts';
+import {
+	dedupe_head_links,
+	page_declares_dev_hmr_script,
+	page_declares_router_meta,
+	page_declares_runtime_script,
+	page_declares_speculation_rules,
+	runtime_first
+} from '../src/server/head-presence.ts';
 import { absolutize_hole_html } from '../src/server/hole-urls.ts';
 import { region_css_tags } from '../src/server/html-scan.ts';
 import { read_tag, tags, text_of } from '../src/wire-markup.ts';
@@ -64,6 +71,23 @@ bench(
 	{
 		setup: () => ({ h: head(40) }),
 		scale: (_ctx, k) => ({ h: head(40 * k) })
+	}
+);
+
+bench(
+	'head: the presence checks (router meta, runtime, dev bridge, speculation rules)',
+	({ h }) =>
+		+page_declares_router_meta(h) +
+		+page_declares_runtime_script(h) +
+		+page_declares_dev_hmr_script(h) +
+		+page_declares_speculation_rules(h),
+	{
+		setup: () => ({
+			h: head(40).replace('<title>', '<meta name="ogygia-router" content="vt"><title>')
+		}),
+		scale: (_ctx, k) => ({
+			h: head(40 * k).replace('<title>', '<meta name="ogygia-router" content="vt"><title>')
+		})
 	}
 );
 
