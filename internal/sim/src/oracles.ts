@@ -671,7 +671,13 @@ export function uncaught(world: World): Broken | null {
 /** A shared cache never hands one visitor's personal bytes to another (cdn.ts records each hit
  *  served across cookies; any is a finding until the oracle can compare against the origin). */
 export function no_cross_visitor_cache(world: World): Broken | null {
-	const crossed = world.cdn.crossed.filter((c) => c.made_for !== '' || c.served_to !== '');
+	// (a file whose name carries its content's hash is the same bytes for everyone: seed 8, the
+	// runtime's chunk, made for a visitor with no cookies and served to one with a locale cookie)
+	const crossed = world.cdn.crossed.filter(
+		(c) =>
+			(c.made_for !== '' || c.served_to !== '') &&
+			!new URL(c.url).pathname.startsWith('/_app/immutable/')
+	);
 	return crossed.length === 0
 		? null
 		: {
