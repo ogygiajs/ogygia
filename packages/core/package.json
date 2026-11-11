@@ -266,7 +266,7 @@
 		"access": "public"
 	},
 	"scripts": {
-		"build": "tsdown",
+		"build": "node scripts/virtual-types.ts && tsdown",
 		"test": "vitest run",
 		"test:node": "vitest run --project node",
 		"test:browser": "vitest run --project browser",

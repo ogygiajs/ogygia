@@ -16,8 +16,16 @@ import {
 	core_path,
 	type ConstantInput
 } from '../src/compiler/virtual/core.ts';
-import { CORE_ENTRIES_PATH, constant_types, virtual_types } from '../src/compiler/virtual/types.ts';
+import {
+	CORE_ENTRIES_PATH,
+	constant_types,
+	probe_value_names,
+	value_names_source,
+	virtual_types
+} from '../src/compiler/virtual/types.ts';
+import { CORE_VALUE_NAMES } from '../src/compiler/virtual/value-names.ts';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
+import { BUILD_ERRORS } from '../src/messages/build.ts';
 import { specifier, virtual, type Realm } from '../src/compiler/virtual/table.ts';
 
 const ROOT = '/app';
@@ -173,7 +181,7 @@ bench(
 
 bench('virtual modules: a table built, an undeclared id and a duplicate refused', () => {
 	let refused = 0;
-	const table = new VirtualTable(CORE_VIRTUALS, core_path);
+	const table = new VirtualTable(CORE_VIRTUALS, core_path, CORE_VALUE_NAMES);
 	for (const id of ['ogygia:region/nope/x.js', 'ogygia:server/nope']) {
 		try {
 			table.resolve(id);
@@ -181,13 +189,21 @@ bench('virtual modules: a table built, an undeclared id and a duplicate refused'
 			refused++;
 		}
 	}
-	const a = virtual.value({ realm: 'server', id: 'x', exports: [], from: () => ({}) });
+	const a = virtual.value({ realm: 'server', id: 'x', from: () => ({}) });
 	const b = virtual.constant({ id: '__X__', from: () => true });
 	try {
-		new VirtualTable([a, a, b], core_path);
+		new VirtualTable([a, a, b], core_path, { 'ogygia:server/x': [] });
 	} catch {
 		refused++;
 	}
+	// a value module without generated names, and its message as the docs page words it
+	try {
+		new VirtualTable([a], core_path, {});
+	} catch (e) {
+		refused += String(e).length > 0 ? 1 : 0;
+	}
+	refused += BUILD_ERRORS.virtual_names_stale.details().length;
+	refused += BUILD_ERRORS.virtual_names_stale.text({ id: 'ogygia:server/x' }).length;
 	return refused + (table.claims('ogygia:region/entry/a.js') ? 1 : 0);
 });
 
@@ -221,5 +237,9 @@ bench('virtual constants: the define map of two option sets, and their generated
 	return n + constant_types(core, CORE_ENTRIES_PATH).length;
 });
 
-bench('virtual types: each realm’s .d.ts, generated off the table', () =>
-	Object.values(virtual_types(core, CORE_ENTRIES_PATH)).reduce((n, text) => n + text.length, 0));
+bench('virtual types: the value names probed, and each realm’s .d.ts, generated off the table', () => {
+	const names = probe_value_names(core.CORE_VIRTUALS, core.CORE_PROBE.app, core.CORE_PROBE.leg);
+	let n = value_names_source(names).length;
+	for (const text of Object.values(virtual_types(core, CORE_ENTRIES_PATH, names))) n += text.length;
+	return n;
+});
