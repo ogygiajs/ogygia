@@ -14,7 +14,15 @@
  * two module instances (src beside dist), and both must see the same runtime.
  */
 import type { RequestEvent } from '@sveltejs/kit';
-import { flights, machine, outbox, policy, slot as shared, type Stale } from '@ogygia/machine';
+import {
+	flights,
+	machine,
+	outbox,
+	policy,
+	say,
+	slot as shared,
+	type Stale
+} from '@ogygia/machine';
 import type {
 	PostrenderEntry,
 	PostrenderPutOptions,
@@ -56,7 +64,9 @@ function record(event: DevtoolsEventInput): void {
 	postrender_app()?.devtools(event);
 }
 
-let warned_replica_blindspot = false;
+/** Said once for the process (a test's reset says it again). */
+const replica_blindspot = say({ max: 1 });
+const BLINDSPOT = 'postrender_edges_without_shared_store';
 
 /** `postrender.handle(options)`'s first half: make these settings this server's runtime. */
 export function install(options: PostrenderHandleOptions): Runtime {
@@ -64,10 +74,8 @@ export function install(options: PostrenderHandleOptions): Runtime {
 	// Edges without a SHARED store: each replica keeps its own memory LRU, so an invalidation
 	// evicts THIS instance + purges the CDN, while sibling replicas keep serving their stale
 	// copy to the CDN's refills. Say it once — multi-instance deploys want valkey/upstash/KV.
-	if (edges.length && !options.store && !warned_replica_blindspot) {
-		warned_replica_blindspot = true;
-		warn('postrender_edges_without_shared_store');
-	}
+	if (edges.length && !options.store)
+		replica_blindspot.once(BLINDSPOT, () => warn('postrender_edges_without_shared_store'));
 	const runtime: Runtime = { store: options.store ?? new MemoryStore(), edges };
 	slot.installed = runtime;
 	return runtime;
@@ -98,7 +106,7 @@ export function reset_for_tests(): void {
 	slot.installed = null;
 	slot.handled = new WeakMap();
 	slot.fallback = null;
-	warned_replica_blindspot = false;
+	replica_blindspot.ok(BLINDSPOT);
 	store_health = health_def.create();
 	renders.drop(() => true);
 	writes.clear();

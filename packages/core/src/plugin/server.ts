@@ -7,13 +7,14 @@ import type { RequestEvent } from '@sveltejs/kit';
 import { try_get_request_store } from '@sveltejs/kit/internal/server';
 import type { Handle } from '../kit-handle.ts';
 import type { RequestContext, ResolveOptions, ServerApp, ServerPlugin } from './index.ts';
-import { current_facts, facts_of, mark_per_visitor, type RequestFacts } from './facts.ts';
+import { current_facts, facts_of, note_per_visitor, type RequestFacts } from './facts.ts';
+import { observe_reads } from './reads.ts';
 import { ask, notify, register_hooks } from './hooks.ts';
 import { route_config } from './routes.ts';
 import { plugin_capabilities, type CapabilitySigner } from './capability.ts';
 import { record_server_event } from '../events/server-registry.ts';
 import { warn } from '../messages/server.ts';
-import { slot as shared } from '@ogygia/machine';
+import { say, slot as shared } from '@ogygia/machine';
 
 /** One plugin's server half as the build lists it (`virtual:ogygia/server-plugins`). */
 export interface ServerPluginEntry {
@@ -40,7 +41,8 @@ export function start_plugins(
 ): { plugins: LivePlugin[]; leave: () => void } {
 	const leaves: Array<() => void> = [];
 	const plugins = entries.map(({ name, options, server }) => {
-		const warned = new Set<string>();
+		// (once per message, of the last 1024 said: a message with a URL in it never grows the server)
+		const warned = say();
 		const app: ServerApp<unknown> = {
 			name,
 			options,
@@ -48,15 +50,15 @@ export function start_plugins(
 			ask,
 			facts: facts_of,
 			current: current_facts,
+			perVisitor: note_per_visitor,
+			observeReads: (event) => observe_reads(event, facts_of(event.request).reads),
 			sign: signer.sign,
 			verify: signer.verify,
 			capability: plugin_capabilities(name, signer),
 			devtools: record_server_event,
 			keepAlive: keep_alive,
 			warn(message) {
-				if (warned.has(message)) return;
-				warned.add(message);
-				console.warn(`[${name}] ${message}`);
+				warned.once(message, () => console.warn(`[${name}] ${message}`));
 			}
 		};
 		leaves.push(register_hooks(server));
@@ -215,7 +217,7 @@ export function request_contexts(
 ): RequestContext<unknown, unknown>[] {
 	const route_id = event.route?.id;
 	const route_cfg = (key: string) => route_config(key, route_id, path);
-	const per_visitor = (reason: string) => mark_per_visitor(facts, reason);
+	const per_visitor = (reason: string) => note_per_visitor(event.request, reason);
 	return plugins.map(({ def, app }) => ({
 		event,
 		path,
