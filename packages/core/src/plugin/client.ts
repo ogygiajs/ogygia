@@ -23,6 +23,7 @@ import type { RuntimeHooks } from '../contract/runtime-hooks.ts';
 
 export type {
 	AnswerParsedEvent,
+	AnswerPlacedEvent,
 	CriticalOutcome,
 	CriticalSettledEvent,
 	EntryFallbackEvent,
