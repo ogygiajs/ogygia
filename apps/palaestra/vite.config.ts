@@ -1,12 +1,15 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { ogygia } from 'ogygia/vite';
 import { reshape } from '@ogygia/reshape/vite';
+import { barrels } from '@ogygia/barrels';
 import { defineConfig } from 'vite';
 
 // THE PALAESTRA: core's e2e fixture app (its suite: e2e/, `pnpm turbo run e2e --filter=palaestra`).
-// It lists no plugin on purpose — every plugin's pages live in that plugin's own fixture app
-// (packages/<plugin>/e2e/app), so a plugin change never reruns this suite. One exception, until the
-// restore lab (/restore-lab, e2e/restore.spec.ts) moves to @ogygia/reshape's own app: `reshape()`.
+// It lists no plugin but barrels() on purpose: every other plugin's pages live in that plugin's own
+// fixture app (packages/<plugin>/e2e/app), so a plugin change never reruns this suite. barrels() is
+// the exception because it rewrites the source every core fixture is compiled from.
+// One more, until the restore lab (/restore-lab, e2e/restore.spec.ts) moves to @ogygia/reshape's own app:
+// `reshape()`.
 export default defineConfig({
 	// The e2e suite builds this app (adapter-vercel writes `.vercel/output`, a copy of the server's whole
 	// dependency tree), then starts dev servers in the same folder. Vite's watcher skips only
@@ -22,14 +25,6 @@ export default defineConfig({
 	// ogygia MUST run before sveltekit() (enforce:'pre' also guarantees ordering)
 	plugins: [
 		ogygia({
-			// The debarrel pass, ON for the whole palaestra: every e2e run builds and serves the app the
-			// way a customer with `barrels: true` does. REGRESSION (customer build, 2026-09-15): the pass
-			// rewrote `import { Ticker } from '$lib/barrel'` fed to `asRegion(Ticker)` into a leaf import,
-			// the transform minted a different island id from the one the prescan derived from the raw
-			// file, and the server manifest imported a virtual entry nobody registered ("Rolldown failed
-			// to resolve import virtual:ogygia/island/<id>.js from virtual:ogygia/server-manifest"). The
-			// /as-region and /ts-registry fixtures are that shape; with this on, the build is the test.
-			barrels: true,
 			// Opt IN to server-delta nav (off by default) so e2e/server-delta.ts exercises the protocol:
 			// an SPA nav sends `x-ogygia-known`, the server skips re-rendering the island the client keeps.
 			router: { serverDelta: true },
@@ -48,6 +43,13 @@ export default defineConfig({
 				cachedGreeting: { render: 'deferred', fetch: 'load', maxAge: '1h' }
 			}
 		}),
+		// The barrel rewrite, ON for the whole palaestra: every e2e run builds and serves the app the
+		// way a customer with it does. REGRESSION (customer build, 2026-09-15): the pass rewrote
+		// `import { Ticker } from '$lib/barrel'` fed to `asRegion(Ticker)` into a leaf import, the
+		// transform minted a different island id from the one the prescan derived from the raw file,
+		// and the server manifest imported a virtual entry nobody registered. The /as-region and
+		// /ts-registry fixtures are that shape; with this on, the build is the test.
+		barrels(),
 		reshape(),
 		sveltekit()
 	]
