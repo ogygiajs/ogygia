@@ -1,12 +1,10 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { ogygia } from 'ogygia/vite';
-import { reshape } from '@ogygia/reshape/vite';
 import { defineConfig } from 'vite';
 
 // THE PALAESTRA: core's e2e fixture app (its suite: e2e/, `pnpm turbo run e2e --filter=palaestra`).
-// It lists no plugin on purpose — every plugin's pages live in that plugin's own fixture app
-// (packages/<plugin>/e2e/app), so a plugin change never reruns this suite. One exception, until the
-// restore lab (/restore-lab, e2e/restore.spec.ts) moves to @ogygia/reshape's own app: `reshape()`.
+// It lists NO plugin on purpose — every plugin's pages live in that plugin's own fixture app
+// (packages/<plugin>/e2e/app), so a plugin change never reruns this suite.
 export default defineConfig({
 	// The e2e suite builds this app (adapter-vercel writes `.vercel/output`, a copy of the server's whole
 	// dependency tree), then starts dev servers in the same folder. Vite's watcher skips only
@@ -48,7 +46,6 @@ export default defineConfig({
 				cachedGreeting: { render: 'deferred', fetch: 'load', maxAge: '1h' }
 			}
 		}),
-		reshape(),
 		sveltekit()
 	]
 });

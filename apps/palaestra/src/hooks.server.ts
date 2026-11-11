@@ -1,10 +1,8 @@
 import { sequence } from '@sveltejs/kit/hooks';
 import { redirect, type Handle } from '@sveltejs/kit';
 import { handle as ogygiaHandle, document } from 'ogygia/server';
-import * as reshape from '@ogygia/reshape';
 import { region } from 'ogygia';
 import DocTest from '$lib/doctest/DocTest.svelte';
-import { scoped_render } from '$lib/restorelab/scoped-render';
 
 // A trivial second handle to prove `ogygia.handle()` composes with `sequence()`.
 const passthrough: Handle = async ({ event, resolve }) => resolve(event);
@@ -73,16 +71,10 @@ const proxy_front: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-const restore_lab: Handle = process.env.OGYGIA_RESTORE_LAB
-	? reshape.handle({ transform: (html) => scoped_render(html) })
-	: ({ event, resolve }) => resolve(event);
-
 export const handle = sequence(
 	proxy_front,
 	doc_test,
 	auth_wall,
-	// (the restore lab, e2e/restore.spec.ts: a scoped web-component render as the app's own pass)
-	restore_lab,
 	ogygiaHandle(moved_endpoint ? { endpoint: moved_endpoint } : {}),
 	corrupt_detector_region,
 	passthrough
