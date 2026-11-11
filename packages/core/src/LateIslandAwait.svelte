@@ -2,8 +2,7 @@
 @component
 LateIsland.svelte, for an app that runs Svelte's async mode: the build imports this one in its place
 (vite/late-island.ts). The load is awaited, so the navigation's update batch waits for it and Kit
-keeps the old page until the island's code is in, then swaps the whole new page at once (an island
-nested in it awaits in the same batch). Without async mode this file does not compile, which is why
+keeps the old page until the island's code is in, then swaps the whole new page at once. Without async mode this file does not compile, which is why
 it is never the default. A failed load renders nothing, and says `island_load_failed`.
 -->
 <script>
