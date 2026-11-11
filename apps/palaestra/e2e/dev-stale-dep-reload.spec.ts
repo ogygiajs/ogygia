@@ -11,7 +11,7 @@
 //
 //   pnpm exec playwright test dev-stale-dep-reload
 import { fileURLToPath } from 'node:url';
-import { test, expect, check, sleep, REPO as repo } from '@ogygia/tooling/e2e';
+import { test, expect, check, REPO as repo } from '@ogygia/tooling/e2e';
 import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
 
 const palaestra = fileURLToPath(new URL('..', import.meta.url));
@@ -69,8 +69,9 @@ test.describe('dev: a stale-dep entry-fetch failure recovers the tab', () => {
 
 		await page.goto(`${base}/interaction`, { waitUntil: 'networkidle' });
 		await page.locator('[data-i-btn]').click(); // wakes the interaction island → import fails
-		// watchdog: confirm-fetch + one reload
-		await sleep(4000);
+		// watchdog: confirm-fetch + one reload; the click goes to the new document, once it has loaded
+		await expect.poll(() => documents, { timeout: 15_000 }).toBe(2);
+		await page.waitForLoadState('load');
 		// the reloaded page works: the island wakes and counts a click
 		await page.locator('[data-i-btn]').click();
 		await expect

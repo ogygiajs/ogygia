@@ -37,6 +37,7 @@ import {
 	RegionAnswerRefused
 } from './region-endpoint-url.ts';
 import { fetch_hole } from './hole-fetch.ts';
+import { recover_from_stale_deps } from './stale-deps.ts';
 import {
 	island_entry_of,
 	import_entry,
@@ -298,35 +299,6 @@ const load_island = (entry: string, cls: LoadClass = 'visible') => {
 	// (its location, and the fresh identity if that fails: entry-locations.ts)
 	return import_entry<IslandModule>(entry, island_module_url(entry));
 };
-
-/**
- * DEV watchdog for a stranded tab (dev only; the branch is dead in a production build). Under
- * `csr = false` Kit ships no client bootstrap, so a Vite dep re-optimization — which rotates the
- * optimizer's browserHash — can leave a tab that was loaded under the old hash importing island dep
- * URLs (`svelte.js?v=<old>`) that now 404, and Vite's own full-reload does not always reach a
- * csr=false page. The island entry then throws `Failed to fetch dynamically imported module` on
- * wake, and nothing recovers it.
- *
- * We CONFIRM it is staleness, not a genuinely-missing module: re-fetch the entry URL, and reload
- * only when the server still serves it (200) — a real 404 is a different bug and must stay visible.
- * A timestamp in `sessionStorage` bounds it to one reload per few seconds, so a genuinely broken
- * entry (200 that keeps failing to import) never loops.
- */
-const STALE_DEP_RELOAD_KEY = 'ogygia:dev:dep-reload';
-const STALE_DEP_RELOAD_WINDOW_MS = 6000;
-async function recover_from_stale_deps(entry: string | null): Promise<void> {
-	if (!import.meta.env.DEV || !entry || typeof location === 'undefined') return;
-	try {
-		const last = Number(sessionStorage.getItem(STALE_DEP_RELOAD_KEY) || 0);
-		if (Date.now() - last < STALE_DEP_RELOAD_WINDOW_MS) return; // already reloaded — don't loop
-		const res = await fetch(island_module_url(entry), { cache: 'no-store' });
-		if (!res.ok) return; // a real 404 — leave the error visible, it is not a re-optimize
-		sessionStorage.setItem(STALE_DEP_RELOAD_KEY, String(Date.now()));
-		location.reload();
-	} catch {
-		// ok: dev only: storage or fetch blocked; the error said before this stays, and the dev reloads by hand
-	}
-}
 
 function dom_ready() {
 	if (typeof document === 'undefined' || document.readyState !== 'loading')
@@ -1112,11 +1084,13 @@ class OgygiaRegion extends HTMLElement {
 	 * Bind to the store at `endpoint`'s address: this region applies whatever frame lands there (#apply)
 	 * — from its own fetch, a twin's, a navigation batch stream, or a mutation. subscribe() replays
 	 * current content immediately, so a late-mounting twin catches up free. A re-minted endpoint (new
-	 * props, new page facts) moves the binding to its new address. Returns the address.
+	 * props, new page facts) moves the binding to its new address, and a fetch out at the old one is
+	 * left: its answer is for a call this hole no longer is. Returns the address.
 	 */
 	#bind(endpoint: string): string {
 		const address = frameAddress(endpoint);
 		if (this.#bound() && this.#frame_address === address) return address;
+		if (this.#hole.now.kind === 'fetching') this.#hole.go('idle');
 		// (one binding at a time, for the element's lifetime in the page: its end unbinds)
 		this.#binding?.close();
 		const binding = (this.#binding = this.#life.child());
@@ -1190,7 +1164,7 @@ class OgygiaRegion extends HTMLElement {
 	/** An answer landed: the hole's own fetch has nothing left to wait for — a schedule still armed
 	 *  (a retry's) or a retry it waited for is called off. A fetch in flight runs to its end. */
 	#answered(kind: 'answered' | 'kept'): void {
-		if (this.#answer.now.kind !== kind) this.#answer.go(kind);
+		this.#answer.go(kind);
 		const hole = this.#hole.now.kind;
 		if (hole === 'armed' || hole === 'retrying' || hole === 'failed') this.#hole.go('idle');
 	}
@@ -1374,13 +1348,16 @@ class OgygiaRegion extends HTMLElement {
 	 */
 	async #fetch_html(turn: Turn, revalidate = false): Promise<void> {
 		if (!FRAMES) return;
-		const s = this.#hole.now;
 		// A revalidate re-fetches even after the first answer; a plain fetch is one-shot.
-		if (s.kind === 'fetching' || (!revalidate && this.#answer.now.kind !== 'none')) return;
+		if (!revalidate && this.#answer.now.kind !== 'none') return;
 		const endpoint = this.#endpoint();
 		// Don't start a fetch without an endpoint (would block a later remount retry on the same
 		// element if one were ever scheduled).
 		if (!endpoint) return;
+		// (a fetch out at this address already does this; one out at an older address — a re-minted
+		// hole — is left as it binds the new one, below)
+		if (this.#hole.now.kind === 'fetching' && frameAddress(endpoint) === this.#frame_address)
+			return;
 		// HOLE-TRUST defense-in-depth: mint emits path-only; reject absolute/cross-origin attrs.
 		if (!is_allowed_region_endpoint(endpoint)) {
 			if (import.meta.env.DEV) {
@@ -1394,6 +1371,7 @@ class OgygiaRegion extends HTMLElement {
 		// Bind if we haven't (SWR/lake remount reaches #fetch_html without going through #server);
 		// a re-minted hole (a refreshed region: new props, new page facts) answers at its NEW address.
 		const address = this.#bind(endpoint);
+		const s = this.#hole.now;
 		const attempts = s.kind === 'armed' || s.kind === 'retrying' ? s.attempts : 0;
 		this.#hole.go('fetching', { attempts, revalidate });
 		const mine = this.#hole.now;
@@ -1743,7 +1721,7 @@ class OgygiaRegion extends HTMLElement {
 			if (is_failed_import(err)) {
 				if (import.meta.env.DEV) {
 					console.error(new OgygiaError('island_load_failed_stale_deps', { entry }), err);
-					void recover_from_stale_deps(entry); // ok: dev only, never rejects (its failure leaves the error above)
+					if (entry) void recover_from_stale_deps(island_module_url(entry)); // ok: dev only, never rejects (its failure leaves the error above)
 				} else {
 					console.error(new OgygiaError('island_load_failed', { entry }), err);
 				}
