@@ -5,7 +5,7 @@
 // visitor's wake that failed is told so.
 import { afterEach, beforeEach, expect, inject, test, vi } from 'vitest';
 import { bootDev } from '../../src/runtime/full.ts';
-import { _reset, ticket, write } from '../../src/runtime/frame-store.ts';
+import { _reset, ticket, write } from '../_frames.ts';
 import { frameAddress } from '../../src/frame.ts';
 
 const COUNTER = '/test/browser/fixtures/Counter.svelte';

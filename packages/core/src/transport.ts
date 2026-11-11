@@ -18,6 +18,7 @@
 import { REGION_BRAND } from './region-brand.ts';
 import { frameAddress } from './frame.ts';
 import { ticket, write } from './runtime/frame-store.ts';
+import { vouch_remote_answer } from './runtime/html-sink.ts';
 import {
 	register_kind,
 	mint,
@@ -115,7 +116,7 @@ function decode_region(raw: EncodedRegion) {
 		// it's placed instead.
 		if (raw.x != null && raw.u && typeof document !== 'undefined') {
 			const a = frameAddress(raw.u);
-			write({ a, v: ticket(a), html: raw.x });
+			write({ a, v: ticket(a), html: vouch_remote_answer(raw.x) });
 		}
 		return {
 			[REGION_BRAND]: true,

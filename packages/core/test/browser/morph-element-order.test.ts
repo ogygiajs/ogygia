@@ -7,7 +7,7 @@
 // block comment). The answer's full panel was inserted beside the stale empty one, which painted over
 // it: a blank nav-menu panel for one user group.
 import { afterEach, expect, test } from 'vitest';
-import { parse_region_html } from '../../src/runtime/parse-html.ts';
+import { parse_region_html } from './_html.ts';
 import { morph_children } from '../../src/runtime/morph.ts';
 import { mark_render_made, render_made } from '../../src/runtime/ownership.ts';
 

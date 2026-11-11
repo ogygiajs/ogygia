@@ -17,7 +17,7 @@
 import { afterAll, afterEach, beforeAll, describe, it } from 'vitest';
 import { fc, simulate, type Sim } from '@ogygia/config/sim';
 import { observe } from '@ogygia/machine';
-import { _reset, ticket, write } from '../../src/runtime/frame-store.ts';
+import { _reset, ticket, write } from '../_frames.ts';
 import { frameAddress } from '../../src/frame.ts';
 import { KEEP_FALLBACK_HTML } from '../../src/keep-fallback-marker.ts';
 import {

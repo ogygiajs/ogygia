@@ -320,6 +320,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		const want = check?.[k];
 		if (want === undefined) return;
 		const tpl = doc.createElement('template');
+		// oxlint-disable-next-line ogygia/html-sink -- inlined by `restore.toString()` (no imports): the page's own check record, parsed into an inert template, compared, never inserted
 		tpl.innerHTML = want;
 		const diff = differ(tpl.content, host, `<${host.localName}>`);
 		if (!diff) return;

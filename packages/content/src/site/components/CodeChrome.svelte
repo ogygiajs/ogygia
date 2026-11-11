@@ -44,6 +44,12 @@
 	const LINK =
 		'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
 
+	/** One of the icons above as a button's content. */
+	const set_icon = (el: Element, icon: typeof COPY | typeof CHECK | typeof LINK) => {
+		// oxlint-disable-next-line ogygia/html-sink -- one of this file's constant icons, never input
+		el.innerHTML = icon;
+	};
+
 	/** Attachment: enhance every `<pre>`, then watch the doc body for late-inserted blocks. */
 	function chrome(anchor: HTMLElement) {
 		const root = (anchor.closest('.og-doc') || anchor.parentElement || document.body) as Element;
@@ -134,18 +140,18 @@
 			link.className = 'og-code-link';
 			link.href = `#${id}`;
 			link.setAttribute('aria-label', 'Copy link to this code block');
-			link.innerHTML = LINK;
+			set_icon(link, LINK);
 			// (the buttons are the block's, as long as it is: they stay working when the chrome unmounts
 			// and a block it enhanced stays, so their listeners and their tick's reset are theirs, not
 			// the chrome's)
 			const link_ticked = ticker(
 				() => {
 					link.setAttribute('data-linked', '1');
-					link.innerHTML = CHECK;
+					set_icon(link, CHECK);
 				},
 				() => {
 					link.removeAttribute('data-linked');
-					link.innerHTML = LINK;
+					set_icon(link, LINK);
 				}
 			);
 			// oxlint-disable-next-line ogygia/owned-effects -- on the button it made, which it lives and goes with
@@ -160,15 +166,15 @@
 			btn.type = 'button';
 			btn.className = 'og-copy';
 			btn.setAttribute('aria-label', 'Copy code');
-			btn.innerHTML = COPY;
+			set_icon(btn, COPY);
 			const copy_ticked = ticker(
 				() => {
 					pre.setAttribute('data-copied', '1');
-					btn.innerHTML = CHECK;
+					set_icon(btn, CHECK);
 				},
 				() => {
 					pre.removeAttribute('data-copied');
-					btn.innerHTML = COPY;
+					set_icon(btn, COPY);
 				}
 			);
 			// oxlint-disable-next-line ogygia/owned-effects -- on the button it made, which it lives and goes with
