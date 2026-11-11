@@ -70,13 +70,11 @@ describe('profiler login: the secret', () => {
 		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 		const { login, run } = prod({ secret: 'short-key' });
 		expect((await login('short-key')).headers.getSetCookie()).toEqual([]);
-		expect(
-			(
-				await run(
-					event('/__profiler/status.json', { init: { headers: { 'x-profiler-key': 'short-key' } } })
-				)
-			).status
-		).not.toBe(200);
+		// (the request goes on to the app: the profiler's own page never answers)
+		const status = await run(
+			event('/__profiler/status.json', { init: { headers: { 'x-profiler-key': 'short-key' } } })
+		);
+		expect(await status.text()).not.toContain('"recording"');
 		expect(error.mock.calls.map((c) => String(c[0])).join('\n')).toContain(
 			'devtools_profiler_secret_short'
 		);
