@@ -11,6 +11,7 @@ import {
 	history_by_document,
 	inert_custom_elements,
 	inert_parsed_documents,
+	modules_in_order,
 	whole_text_runs
 } from './happy.ts';
 import { Cdn } from './cdn.ts';
@@ -88,6 +89,7 @@ export class World {
 	/** Makes a world from `o` and starts its servers. */
 	static async make(o: WorldOptions): Promise<World> {
 		use_v8_modules();
+		modules_in_order();
 		inert_parsed_documents();
 		inert_custom_elements();
 		whole_text_runs();
