@@ -130,8 +130,10 @@ export async function streamFrames(
 
 	// slot (sig) → store address, so an arriving parcel routes to the right call. RESERVE each address
 	// up front: a region binder that connects (body swap) before its frame lands joins this batch via
-	// ensure() instead of firing its own fetch — one request for the whole route, no waterfall.
-	const bySig = new Map<string, string>();
+	// ensure() instead of firing its own fetch — one request for the whole route, no waterfall. Each
+	// part takes its ticket NOW, as it is asked for, like any fetch: a refresh asked after the batch
+	// is newer, and the batch's part landing after it is dropped (test/sim/frame-order.test.ts).
+	const bySig = new Map<string, { a: string; v: number }>();
 	// (a measuring browser: slot → endpoint, to name and time each part as it lands)
 	const endpoint_of = DEVTOOLS || BEACON ? new Map<string, string>() : null;
 	const reserved: string[] = [];
@@ -139,7 +141,7 @@ export async function streamFrames(
 		const s = sigOf(e);
 		if (s) {
 			const a = frameAddress(e);
-			bySig.set(s, a);
+			bySig.set(s, { a, v: ticket(a) });
 			endpoint_of?.set(s, e);
 			reserved.push(a);
 			reserve(a);
@@ -212,8 +214,8 @@ export async function streamFrames(
 				consumed = p.end;
 				parcels = true;
 				if (p.slot === STREAM_DONE_SLOT) return; // sentinel — batch complete
-				const a = bySig.get(p.slot);
-				if (a) {
+				const part = bySig.get(p.slot);
+				if (part) {
 					// (timed BEFORE the write: the write applies the part, and the hole reports its answer then)
 					if (BEACON) {
 						const ep = endpoint_of!.get(p.slot)!;
@@ -221,7 +223,7 @@ export async function streamFrames(
 						batched.set(ep, { left, at: performance.now(), size: reserved.length });
 						if (batched.size > 64) batched.delete(batched.keys().next().value!);
 					}
-					write({ a, v: ticket(a), html: p.html });
+					write({ ...part, html: p.html });
 					delivered++;
 					if (DEVTOOLS)
 						dt_emit({

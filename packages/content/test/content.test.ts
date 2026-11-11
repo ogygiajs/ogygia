@@ -52,8 +52,10 @@ draft: true
 		expect(body.trim()).toBe('# Hi');
 	});
 
-	it('rejects broken yaml', () => {
-		expect(() => parseFrontmatter(`---\n: : :\n---\n`)).toThrow(/invalid frontmatter/);
+	it('rejects broken yaml as invalid frontmatter, naming what the parser stopped at', () => {
+		expect(() => parseFrontmatter(`---\n: : :\n---\n`)).toThrow(
+			/invalid frontmatter YAML: empty mapping key/
+		);
 	});
 });
 
