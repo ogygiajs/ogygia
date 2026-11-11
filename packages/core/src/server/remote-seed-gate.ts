@@ -10,13 +10,13 @@
  * page-seed-registry → the request bag): Kit id-hashes, the prefix of a remote's `internals.id`
  * (`${hash}/${name}`). `null` = some region answered fail-open ("may call anything": a promise `of`,
  * an entry the build handoff does not know, dev) → every remote seeds, exactly as before the gate.
- * Pure, so it is unit-tested on its own.
+ * An id without the `${hash}/` prefix is not a Kit remote id this can name, so it is kept too
+ * (fail-open on the unknown: never drop what a reader might need). Pure, so it is unit-tested on
+ * its own.
  */
 export function remote_seed_wanted(remote_id: string, wanted: ReadonlySet<string> | null): boolean {
 	if (wanted === null) return true;
 	const slash = remote_id.indexOf('/');
-	// An id without the `${hash}/` prefix is not a Kit remote id we know how to name — keep it
-	// (fail-open on the unknown, never drop what a reader might need).
 	if (slash === -1) return true;
 	return wanted.has(remote_id.slice(0, slash));
 }
@@ -36,7 +36,8 @@ export type SeedBuckets = Record<'q' | 'p' | 'l' | 'f', Record<string, { v: unkn
  * remotes (not only queries) is the fix for the async-island FOUC: a prerender remote awaited inside
  * an island otherwise re-fetches on hydrate, so the component re-renders and Svelte RE-MOUNTS the
  * subtree — a frame of unstyled DOM. With the seed in `prerender_responses`, the client resolves it
- * synchronously and never re-fetches. Keys use `create_remote_key`, exactly like Kit's client.
+ * synchronously and never re-fetches. Keys use `create_remote_key`, exactly like Kit's client; a
+ * form's output is keyed by its client-side action id directly (Kit parity).
  *
  * Skips, in order: a PRIVATE remote (no id — must never be serialized), a remote NO REGION'S
  * CLIENT CAN CALL (`wanted`, above), an ERRORED or still-PENDING result (the client fetches it
@@ -67,7 +68,6 @@ export async function collect_remote_seed(
 		const bucket = type === 'query_live' ? 'l' : (type[0] as 'q' | 'p' | 'l' | 'f');
 		if (bucket !== 'q' && bucket !== 'p' && bucket !== 'l' && bucket !== 'f') continue;
 		for (const payload in record) {
-			// form outputs are keyed by the client-side action id directly (Kit parity).
 			const remote_key = type === 'form' ? payload : opts.key(internals.id, payload);
 			const promise = opts.memo?.(internals)?.[payload] ?? record[payload]();
 			let resolved = true;
