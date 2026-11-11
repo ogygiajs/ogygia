@@ -60,6 +60,15 @@ export const DEVTOOLS_ERRORS = {
 			server restarts.
 		`
 	},
+	devtools_profiler_upload_too_large: {
+		text: (a: { limit: number }): string =>
+			`that .ogp file unpacks to more than ${Math.round(a.limit / 1_048_576)} MB; it was refused`,
+		details: (): string => prose`
+			An uploaded \`.ogp\` profile is Brotli-compressed, and it unpacked past the profiler's
+			limit, so the profiler stopped unpacking it and refused it. A real profile is far smaller:
+			the file was not made by a profiler, or it was made to fill the server's memory.
+		`
+	},
 	devtools_profiler_get_report_failed: {
 		text: (): string => 'store.getReport failed:',
 		details: (): string => prose`
