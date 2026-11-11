@@ -310,9 +310,16 @@ async function settle_poll(steps: Scope, quiet: number, until: number): Promise<
 		const started = new Set<Element>();
 		let last = 0;
 		for (const e of hook_entries()) {
-			if (!e.el) continue;
-			if (e.hook === 'regionMount') started.add(e.el);
-			else if (e.hook === 'regionHydrated' || e.hook === 'regionFailed') started.delete(e.el);
+			const el = e.el?.deref();
+			if (!el) continue;
+			// @why a woken region may still be downloading its code: in flight from the wake, not the mount (test: devtools-hook-record › still downloading)
+			if (e.hook === 'regionWoke' || e.hook === 'regionMount') started.add(el);
+			else if (
+				e.hook === 'regionHydrated' ||
+				e.hook === 'regionFailed' ||
+				e.hook === 'regionUnmount'
+			)
+				started.delete(el);
 			if (e.hook === 'regionMount' || e.hook === 'regionHydrated' || e.hook === 'regionWoke')
 				last = Math.max(last, e.at);
 		}
