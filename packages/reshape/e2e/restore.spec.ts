@@ -1,40 +1,11 @@
-// REVERSIBLE TRANSFORMS, end to end (reshape.handle(transform), @ogygia/reshape's reversible.ts +
-// restore.ts): the built palaestra, served with OGYGIA_RESTORE_LAB=1, runs a scoped
-// web-component render (apps/palaestra/src/lib/restorelab/scoped-render.ts) over every document and
-// region answer. On /restore-lab the island inside a reshaped host must hydrate without a heal and
+// REVERSIBLE TRANSFORMS, end to end (reshape.handle(transform), src/reversible.ts + src/restore.ts):
+// the restore lab (e2e/app) runs a scoped web-component render
+// (e2e/app/src/lib/restorelab/scoped-render.ts) over every document and region answer. On
+// /restore-lab the island inside a reshaped host must hydrate without a heal and
 // stay interactive, the parser must not split the page's link or <p> around a host's tree, the hole's
 // answer must arrive restored (its island hydrating after), a server-owned host is left for its own
 // runtime, and nothing of ogygia's marking is left in the DOM.
 import { expect, test } from '@playwright/test';
-import { fileURLToPath } from 'node:url';
-import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
-
-const PORT = port(4186);
-const base = `http://127.0.0.1:${PORT}`;
-const palaestra = fileURLToPath(new URL('..', import.meta.url));
-let srv: SpawnedServer | null = null;
-
-test.use({ baseURL: base });
-test.beforeAll(async () => {
-	// (the suite's webServer already built the palaestra: serve that build with the lab's transform)
-	srv = await spawn_server({
-		cmd: process.execPath,
-		args: [
-			'node_modules/vite/bin/vite.js',
-			'preview',
-			'--port',
-			String(PORT),
-			'--strictPort',
-			'--host',
-			'127.0.0.1'
-		],
-		cwd: palaestra,
-		env: { OGYGIA_RESTORE_LAB: '1', ORIGIN: base },
-		url: `${base}/restore-lab`,
-		timeout_ms: 60_000
-	});
-});
-test.afterAll(() => srv?.kill());
 
 test('the island inside a reshaped host hydrates as is, and stays interactive', async ({
 	page
