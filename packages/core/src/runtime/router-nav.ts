@@ -32,7 +32,20 @@ import type { HistoryEntry, HistoryMove, SpaRouter } from './router.ts';
 import { spa_html_cacheable } from './spa-cacheable.ts';
 import { pin_region_urls } from './entry-locations.ts';
 import { emit as dt_emit } from '../events/bus.ts';
-import { tags, text_of } from '../wire-markup.ts';
+import {
+	OG_FP,
+	OG_LATE,
+	OG_LOCATIONS,
+	OG_SLOT,
+	OGYGIA_ANNOUNCER,
+	OGYGIA_DEV_HMR,
+	OGYGIA_GRAPH,
+	OGYGIA_KEEP,
+	OGYGIA_REGION_CSS,
+	OGYGIA_RUNTIME,
+	tags,
+	text_of
+} from '../wire-markup.ts';
 
 // What this lazy chunk uses from the boot and from the router, handed over through the registry — it
 // never imports a boot module (./slots.ts `BootLink`: a module both import is split out of the runtime
@@ -116,8 +129,8 @@ function nav_headers(purpose: NavPurpose = 'nav'): Record<string, string> {
 	if (purpose !== 'nav') headers['x-ogygia-purpose'] = purpose;
 	if (!SERVER_DELTA || typeof document === 'undefined') return headers;
 	const seen = new Set<string>();
-	for (const el of document.querySelectorAll('ogygia-region[data-og-fp][data-hydrated]')) {
-		const fp = el.getAttribute('data-og-fp');
+	for (const el of document.querySelectorAll(`ogygia-region[${OG_FP}][data-hydrated]`)) {
+		const fp = el.getAttribute(OG_FP);
 		if (fp) seen.add(fp);
 	}
 	if (seen.size === 0) return headers;
@@ -208,7 +221,7 @@ export function head_node_key(node: Element): string {
 			if (node.hasAttribute('data-sveltekit')) return 'STYLE:data-sveltekit';
 			// An INLINED region sheet (server/region-css.ts): keyed by the href it stands for, so
 			// the same sheet on the next document is one node, kept, never stacked.
-			const region_css = node.getAttribute('data-ogygia-region-css');
+			const region_css = node.getAttribute(OGYGIA_REGION_CSS);
 			if (region_css) return `STYLE:og-css:${region_css}`;
 			const vite_id = node.getAttribute('data-vite-dev-id');
 			if (vite_id) return `STYLE:vite:${vite_id}`;
@@ -228,7 +241,7 @@ export function keep_head_node_across_spa(node: Element): boolean {
 	if (
 		node.tagName === 'SCRIPT' &&
 		node.getAttribute('type') === 'module' &&
-		(node.hasAttribute('data-ogygia-runtime') || node.hasAttribute('data-ogygia-dev-hmr'))
+		(node.hasAttribute(OGYGIA_RUNTIME) || node.hasAttribute(OGYGIA_DEV_HMR))
 	) {
 		return true;
 	}
@@ -271,9 +284,9 @@ export function install_head_style(
  *  script in the streamed head does this progressively during parse — this is the swap-path
  *  twin. Islands inside the adopted content are custom elements: they connect and wake alone. */
 export function apply_late_templates(root: ParentNode): void {
-	for (const tpl of Array.from(root.querySelectorAll('template[data-og-late]'))) {
-		const id = tpl.getAttribute('data-og-late') ?? '';
-		const slot = document.querySelector(`og-late-slot[data-og-slot="${CSS.escape(id)}"]`);
+	for (const tpl of Array.from(root.querySelectorAll(`template[${OG_LATE}]`))) {
+		const id = tpl.getAttribute(OG_LATE) ?? '';
+		const slot = document.querySelector(`og-late-slot[${OG_SLOT}="${CSS.escape(id)}"]`);
 		if (slot) {
 			const content = (tpl as HTMLTemplateElement).content;
 			for (const sheet of Array.from(content.querySelectorAll('link[rel="stylesheet"], style'))) {
@@ -527,7 +540,7 @@ function warm_modules(href: string, html: string) {
 	// router/visible/interaction warms). The page's island graph first, so each warm below preloads
 	// its island's whole graph with it.
 	for (const t of tags(html, 'script')) {
-		if (t.attrs.get('type') !== 'application/json' || !t.attrs.has('data-ogygia-graph')) continue;
+		if (t.attrs.get('type') !== 'application/json' || !t.attrs.has(OGYGIA_GRAPH)) continue;
 		const json = text_of(html, t, 'script');
 		if (json !== null) register_island_graph(json, new URL(href, location.href).href);
 	}
@@ -564,10 +577,10 @@ function preflight(doc: Document, dest: URL) {
  * page reads the same from any address. Null: the document names no runtime (no island on it).
  */
 function build_of(d: Document): string | null {
-	const s = d.querySelector('script[data-ogygia-runtime]');
+	const s = d.querySelector(`script[${OGYGIA_RUNTIME}]`);
 	if (!s) return null;
 	const file = (v: string | null) => (v ? v.slice(v.lastIndexOf('/') + 1) : '');
-	return file(s.getAttribute('src')) + ' ' + file(s.getAttribute('data-og-locations'));
+	return file(s.getAttribute('src')) + ' ' + file(s.getAttribute(OG_LOCATIONS));
 }
 
 /** A next page's stylesheet, loaded before its commit and styling nothing until then: the link,
@@ -1029,7 +1042,7 @@ function announce(dest: URL) {
 	let el = announcer;
 	if (!el) {
 		el = document.createElement('div');
-		el.setAttribute('data-ogygia-announcer', '');
+		el.setAttribute(OGYGIA_ANNOUNCER, '');
 		el.setAttribute('aria-live', 'assertive');
 		el.setAttribute('aria-atomic', 'true');
 		// Visually hidden but readable by AT (the standard sr-only recipe — NOT display:none).
@@ -1058,7 +1071,7 @@ function reset_focus(hash: string, kept: string | null = null) {
 		active &&
 		active !== document.body &&
 		active.isConnected &&
-		active.closest('[data-ogygia-keep],[data-persist]')
+		active.closest(`[${OGYGIA_KEEP}],[data-persist]`)
 	) {
 		return; // focus is on surviving persistent chrome — don't yank it to the top
 	}
@@ -1107,7 +1120,7 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 	for (const [key, node] of current_nodes) {
 		if (next_keys.has(key)) continue;
 		if (keep_head_node_across_spa(node)) continue;
-		if (node.hasAttribute('data-ogygia-region-css')) unlisted.push(node);
+		if (node.hasAttribute(OGYGIA_REGION_CSS)) unlisted.push(node);
 		else node.remove();
 	}
 	// add / replace nodes (skip dangerous head policy tags)

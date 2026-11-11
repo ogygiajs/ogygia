@@ -37,4 +37,5 @@ export {
 export { islands_endpoint } from './server/endpoint.ts';
 export { scanRegions } from './server/split-regions.ts';
 /** The browser-faithful tag reader, for the HTML passes of the server-side packages. */
-export { Needle, next_tag, read_tag, text_of, value_at, type FoundTag } from './wire-markup.ts';
+// the page markup's vocabulary and its tag reader
+export * from './wire-markup.ts';

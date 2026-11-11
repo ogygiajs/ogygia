@@ -23,6 +23,8 @@
  * client leg renders no sidecar; the runtime remembered the SSR one under the hole's identity and
  * attaches the clone here, off the DOM, so Kit's tree is never edited under it).
  */
+import { OG_FP, OGYGIA_PROPS } from '../wire-markup.ts';
+
 const restored_sidecars = new WeakMap<Element, HTMLScriptElement>();
 
 /** Attach a remembered props sidecar to a region whose DOM carries none (see above). */
@@ -33,7 +35,7 @@ export function restore_props_sidecar(region: Element, sidecar: HTMLScriptElemen
 export function props_sidecar_of(region: Element): HTMLScriptElement | null {
 	const restored = restored_sidecars.get(region);
 	if (restored) return restored;
-	const fp = region.getAttribute('data-og-fp');
+	const fp = region.getAttribute(OG_FP);
 	// The region's own tree: the live document, a foreign (fetched) document, or a shadow root.
 	const root = region.getRootNode() as Document | ShadowRoot | Element;
 	if (fp && 'getElementById' in root) {
@@ -44,8 +46,7 @@ export function props_sidecar_of(region: Element): HTMLScriptElement | null {
 	// carries an id: its fingerprint may repeat elsewhere in the document) or unkeyed.
 	let sib = region.nextElementSibling;
 	while (sib) {
-		if (sib.tagName === 'SCRIPT' && sib.hasAttribute('data-ogygia-props'))
-			return sib as HTMLScriptElement;
+		if (sib.tagName === 'SCRIPT' && sib.hasAttribute(OGYGIA_PROPS)) return sib as HTMLScriptElement;
 		if (sib.tagName === 'LINK') {
 			sib = sib.nextElementSibling;
 			continue;
@@ -56,7 +57,7 @@ export function props_sidecar_of(region: Element): HTMLScriptElement | null {
 	// copy, a fragment from an older build): one attribute query, only on a miss. Same fingerprint,
 	// same props — any match is the right payload.
 	if (fp) {
-		const found = (root as ParentNode).querySelector?.(`script[data-ogygia-props="${fp}"]`);
+		const found = (root as ParentNode).querySelector?.(`script[${OGYGIA_PROPS}="${fp}"]`);
 		if (found) return found as HTMLScriptElement;
 	}
 	return null;

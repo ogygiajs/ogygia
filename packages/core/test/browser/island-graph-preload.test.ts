@@ -3,11 +3,11 @@
 // linked — only for that entry, only when called. End to end (the gate, a real build): e2e/wake-gate.
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import {
-	GRAPH_PRELOAD_ATTR,
 	preload_island_graph,
 	register_island_graph,
 	reset_island_graph
 } from '../../src/runtime/island-graph-preload.ts';
+import { OGYGIA_GRAPH_PRELOAD as GRAPH_PRELOAD_ATTR } from '../../src/wire-markup.ts';
 import { island_graph_script } from '../../src/server/document-tail.ts';
 
 const ours = () =>

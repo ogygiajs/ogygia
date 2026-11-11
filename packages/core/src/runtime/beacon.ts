@@ -25,6 +25,7 @@ import { paint_blocker } from './render-blocking.ts';
 import { critical_outcome, type CriticalOutcome } from './load-scheduler.ts';
 import { devtools_switched_on } from '../insights/switch.ts';
 import { charge, metered } from './own-cost.ts';
+import { OG_FP, OG_HEALED, OG_KEPT, OG_RECOVERED, OGYGIA_RUNTIME } from '../wire-markup.ts';
 
 interface Sample {
 	fp: string;
@@ -139,7 +140,7 @@ interface Vitals {
 let vitals: Vitals | null = null;
 
 // THE VISIT: everything else the browser measured, kept here until the page hides
-const ISLAND_SEL = 'ogygia-region[data-og-fp]';
+const ISLAND_SEL = `ogygia-region[${OG_FP}]`;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 interface VisitIslandRec {
 	fp: string;
@@ -655,7 +656,7 @@ const fp_of = (node: unknown): string | undefined => {
 			: node && (node as Node).nodeType === 3
 				? (node as Node).parentElement
 				: null;
-	return el?.closest?.(ISLAND_SEL)?.getAttribute('data-og-fp') ?? undefined;
+	return el?.closest?.(ISLAND_SEL)?.getAttribute(OG_FP) ?? undefined;
 };
 /** What was clicked, told briefly: `button "Save"`, `a#home`, `input[name=q]`. No selector engine. */
 function describe_target(node: Node | null | undefined): string {
@@ -1405,7 +1406,7 @@ function dom_shape(): DomShape | null {
 		}
 		const islands: { fp: string; nodes: number }[] = [];
 		for (const r of document.querySelectorAll(ISLAND_SEL)) {
-			const fp = r.getAttribute('data-og-fp');
+			const fp = r.getAttribute(OG_FP);
 			if (fp) islands.push({ fp, nodes: r.getElementsByTagName('*').length });
 		}
 		islands.sort((a, b) => b.nodes - a.nodes);
@@ -1631,8 +1632,7 @@ function build_visit_now(): Record<string, unknown> | null {
 			}
 		}
 		const runtime_src =
-			(document.querySelector('script[data-ogygia-runtime]') as HTMLScriptElement | null)?.src ??
-			'';
+			(document.querySelector(`script[${OGYGIA_RUNTIME}]`) as HTMLScriptElement | null)?.src ?? '';
 		const counted = new Set<string>();
 		for (const r of all) {
 			if (
@@ -1852,7 +1852,7 @@ function flush_visit(final: boolean): void {
 	if (final) {
 		// the islands' final markup, for the browser store's third moment
 		for (const s of snapshots) {
-			const el = document.querySelector(`ogygia-region[data-og-fp="${s.fp}"]`);
+			const el = document.querySelector(`ogygia-region[${OG_FP}="${s.fp}"]`);
 			if (el) {
 				// (a windowed snapshot: the same window of the markup without comments or runtime marks)
 				const html =
@@ -2091,7 +2091,7 @@ export function beacon_failed(el: Element, message?: string, since?: number, tur
 	const o = owner();
 	if (o) return o.beacon_failed(el, message, since, turn);
 	if (!collecting()) return;
-	const fp = el.getAttribute('data-og-fp');
+	const fp = el.getAttribute(OG_FP);
 	if (!fp) return;
 	failed_fps.set(fp, (message ?? '').slice(0, 300));
 	// its wake → now: it was loading (and held the turns of islands below the fold) meanwhile
@@ -2148,7 +2148,7 @@ function box_of(el: Element): { top: number; bottom: number; left: number; width
 function note_island_boxes(): void {
 	if (island_boxes || typeof innerHeight === 'undefined') return;
 	island_boxes = new WeakMap();
-	for (const el of document.querySelectorAll('ogygia-region[data-og-fp]:not([data-hydrated])')) {
+	for (const el of document.querySelectorAll(`ogygia-region[${OG_FP}]:not([data-hydrated])`)) {
 		const b = box_of(el);
 		if (b) island_boxes.set(el, { top: b.top + scrollY, height: b.bottom - b.top });
 	}
@@ -2287,9 +2287,9 @@ function visit_regions(): Record<string, unknown>[] {
 	const out: Record<string, unknown>[] = [];
 	try {
 		const sy = typeof scrollY === 'number' ? scrollY : 0;
-		for (const el of document.querySelectorAll('ogygia-region[data-og-fp]')) {
+		for (const el of document.querySelectorAll(`ogygia-region[${OG_FP}]`)) {
 			if (out.length >= 400) break;
-			const fp = el.getAttribute('data-og-fp')!;
+			const fp = el.getAttribute(OG_FP)!;
 			let box = el.getBoundingClientRect();
 			// a display:contents host has no box: its first child with one places it
 			if (!box.height && !box.width)
@@ -2347,9 +2347,9 @@ function start_cpu(): void {
 		let waiting = false;
 		try {
 			for (const el of document.querySelectorAll(
-				'ogygia-region[data-og-fp]:not([data-hydrated]):not([wake]):not([render="defer"]), ogygia-region[data-og-fp][wake="load"]:not([data-hydrated])'
+				`ogygia-region[${OG_FP}]:not([data-hydrated]):not([wake]):not([render="defer"]), ogygia-region[${OG_FP}][wake="load"]:not([data-hydrated])`
 			))
-				if (!failed_fps.has(el.getAttribute('data-og-fp') ?? '')) {
+				if (!failed_fps.has(el.getAttribute(OG_FP) ?? '')) {
 					waiting = true;
 					break;
 				}
@@ -2699,12 +2699,12 @@ function island_record(
 	ssr_html?: string | null,
 	t_turn?: number
 ): void {
-	const fp = el.getAttribute('data-og-fp');
+	const fp = el.getAttribute(OG_FP);
 	if (!fp) return;
-	const recovered = el.hasAttribute('data-og-recovered');
+	const recovered = el.hasAttribute(OG_RECOVERED);
 	// The attribute's VALUE is the named first divergence (hydrate-core's describe_divergence) — the
 	// "why". Carried to the profiler so a recovered island shows the specific cause, not just a count.
-	const reason = (el.getAttribute('data-og-recovered') || '').slice(0, 300) || undefined;
+	const reason = (el.getAttribute(OG_RECOVERED) || '').slice(0, 300) || undefined;
 	// (the queue is what goes to the server: only with the tag — devtools alone reads the visit)
 	const sent = endpoint()
 		? {
@@ -2774,7 +2774,7 @@ function island_record(
 				// (an empty list: the same attributes in another order or quoting)
 				...(attrs ? { attrs } : {}),
 				...(input ? { input } : {}),
-				...(el.hasAttribute('data-og-healed') ? { healed: true } : {}),
+				...(el.hasAttribute(OG_HEALED) ? { healed: true } : {}),
 				...(typeof ssr_html === 'string' ? { ssr_bytes: ssr_html.length } : {}),
 				...(markers ? { markers } : {})
 			}
@@ -2797,7 +2797,7 @@ function island_record(
 const RUNTIME_MARKS = [
 	' data-nested=""',
 	' data-hydrated=""',
-	' data-og-kept=""',
+	` ${OG_KEPT}=""`,
 	' data-revalidated=""'
 ];
 /** `html` without the runtime's own marks (string search, no regex: it runs per changed hydration) */

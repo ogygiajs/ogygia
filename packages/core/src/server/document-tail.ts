@@ -34,7 +34,8 @@
 import type { SeedIndex } from '../seed-refs.ts';
 import { escape_script_text } from '../escape.ts';
 import { HOLES_SCRIPT_TYPE } from '../holes-record.ts';
-import { ISLAND_GRAPH_ATTR, encode_island_graph } from '../island-graph.ts';
+import { encode_island_graph } from '../island-graph.ts';
+import { OGYGIA_GRAPH } from '../wire-markup.ts';
 import { props_sidecar, type WireText } from './props-wire.ts';
 import type { HoleStat, IslandInteractivity, IslandStat } from './request-stats.ts';
 
@@ -132,7 +133,7 @@ export function island_graph_script(
 	if (graph.size === 0 && !locations?.size) return '';
 	return (
 		'<script type="application/json" ' +
-		ISLAND_GRAPH_ATTR +
+		OGYGIA_GRAPH +
 		'>' +
 		escape_script_text(encode_island_graph(graph, locations ?? undefined)) +
 		'</script>'

@@ -15,12 +15,8 @@
  * URLs are made root-absolute (the graph here, the CSS tags by the answer's own absolutizing pass):
  * the answer lands in a page at any depth, and a `./_app/…` resolved there would 404. Tags are read the way a browser reads them (wire-markup.ts).
  */
-import {
-	ISLAND_GRAPH_ATTR,
-	decode_island_graph,
-	decode_island_locations
-} from '../island-graph.ts';
-import { Needle, next_tag, text_of } from '../wire-markup.ts';
+import { decode_island_graph, decode_island_locations } from '../island-graph.ts';
+import { Needle, next_tag, OGYGIA_GRAPH, text_of } from '../wire-markup.ts';
 import { island_graph_script } from './document-tail.ts';
 import { region_css_tags } from './html-scan.ts';
 
@@ -41,7 +37,7 @@ export function hole_head(head: string, base: URL | undefined): string {
 }
 
 // (the attribute's name in any case: where a graph script can be; a script without it is not read)
-const GRAPH_ANY_CASE = new RegExp(ISLAND_GRAPH_ATTR, 'gi');
+const GRAPH_ANY_CASE = new RegExp(OGYGIA_GRAPH, 'gi');
 
 /** One graph script for the answer (or '' when the render's head carries none): every
  *  `script[data-ogygia-graph]`, as the runtime selects them. */
@@ -53,7 +49,7 @@ export function hole_graph_script(head: string, base: URL): string {
 	for (let t = next_tag(head, 'script', 0); t !== null; t = next_tag(head, 'script', t.end)) {
 		const held = mark.holds(t);
 		if (mark.gone) break;
-		if (!held || t.attr(ISLAND_GRAPH_ATTR) === undefined) continue;
+		if (!held || t.attr(OGYGIA_GRAPH) === undefined) continue;
 		const text = text_of(head, t, 'script');
 		if (text === null) break;
 		for (const [entry, hrefs] of decode_island_graph(text)) {

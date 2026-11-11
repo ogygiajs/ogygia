@@ -14,18 +14,13 @@
  * next: nothing to invalidate. A router warm reads the NEXT page's graph out of its fetched HTML
  * (`register_island_graph`) before that page is in the DOM.
  */
-import {
-	ISLAND_GRAPH_ATTR,
-	decode_island_graph,
-	decode_island_locations
-} from '../island-graph.ts';
+import { decode_island_graph, decode_island_locations } from '../island-graph.ts';
+import { OGYGIA_GRAPH, OGYGIA_GRAPH_PRELOAD } from '../wire-markup.ts';
 import { note_entry_location } from './entry-locations.ts';
 import { runtime_session } from './session.ts';
 
-const GRAPH_SELECTOR = `script[${ISLAND_GRAPH_ATTR}]`;
+const GRAPH_SELECTOR = `script[${OGYGIA_GRAPH}]`;
 const MODULEPRELOAD_SELECTOR = 'link[rel="modulepreload"]';
-/** Marks a link this module inserted (tests and devtools tell them from the HTML's own). */
-export const GRAPH_PRELOAD_ATTR = 'data-ogygia-graph-preload';
 
 /** entry URL (absolute) → its chunk URLs (absolute). */
 const graph = new Map<string, string[]>();
@@ -100,7 +95,8 @@ export function preload_island_graph(
 		// the load class's priority (load-scheduler.ts); the island's `import()` reuses this in-flight fetch
 		if (priority !== 'auto') link.setAttribute('fetchpriority', priority);
 		link.href = href;
-		link.setAttribute(GRAPH_PRELOAD_ATTR, '');
+		// (marks a link this module inserted: tests and devtools tell them from the HTML's own)
+		link.setAttribute(OGYGIA_GRAPH_PRELOAD, '');
 		runtime_session.claim_page_head(link); // the page's (session.ts); a navigation may drop it
 		document.head.appendChild(link);
 	}

@@ -22,7 +22,7 @@
 import { observe, STALE } from '@ogygia/machine';
 import { Rules, type BrokenRule } from '../rules.ts';
 import { warn } from '../messages/core.ts';
-import { unknown_markers } from '../wire-markup.ts';
+import { OG_PREFIX, OGYGIA_PREFIX, unknown_markers } from '../wire-markup.ts';
 
 type RuntimeRule =
 	| 'rule_region_mounted_twice'
@@ -77,7 +77,7 @@ function markup_known(): string | null {
 	for (const el of document.querySelectorAll('*')) {
 		const own = el.localName.startsWith('ogygia-');
 		for (const name of el.getAttributeNames())
-			if (name.startsWith('data-ogygia-') || (own && name.startsWith('data-og-'))) names.add(name);
+			if (name.startsWith(OGYGIA_PREFIX) || (own && name.startsWith(OG_PREFIX))) names.add(name);
 	}
 	const unknown = unknown_markers(names);
 	return unknown.length ? `the page carries undeclared markers: ${unknown.join(', ')}` : null;

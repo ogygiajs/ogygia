@@ -4,6 +4,7 @@
  * attacker-controlled URL substrings like `__sveltekit_` (P0).
  */
 import { runtime_session } from './session.ts';
+import { OGYGIA_PAGE, OGYGIA_PROPS, OGYGIA_REMOTE } from '../wire-markup.ts';
 
 const KIT_ASSIGN = /__sveltekit_\w+\s*=/;
 
@@ -16,8 +17,7 @@ export function is_kit_boot_script(
 	text: string
 ): boolean {
 	if (type.startsWith('application/ogygia-')) return false;
-	if (has('data-ogygia-props') || has('data-ogygia-page') || has('data-ogygia-remote'))
-		return false;
+	if (has(OGYGIA_PROPS) || has(OGYGIA_PAGE) || has(OGYGIA_REMOTE)) return false;
 	return KIT_ASSIGN.test(text);
 }
 

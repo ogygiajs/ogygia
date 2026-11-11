@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { inline_markup_names } from '@ogygia/config/tsdown';
 import { svelte } from '@ogygia/tsdown-plugin-svelte';
 import { defineConfig } from 'tsdown';
 
@@ -30,7 +31,7 @@ export default defineConfig({
 	dts: true,
 	clean: true,
 	treeshake: false, // keep every module intact; nothing here is dead code
-	plugins: [svelte({ root: pkg_root })],
+	plugins: [svelte({ root: pkg_root }), inline_markup_names()],
 	deps: {
 		// never inline — peers / deps / consumer-resolved specifiers
 		neverBundle: [

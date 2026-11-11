@@ -17,6 +17,7 @@ import { runtime_session } from './session.ts';
 import { emit as dt_emit } from '../events/bus.ts';
 
 import { beacon_hole_batch_missed } from './beacon.ts';
+import { OG_LEN, OGYGIA_SLOT } from '../wire-markup.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
@@ -38,8 +39,8 @@ export function batch_times(
 }
 
 const STREAM_DONE_SLOT = '__ogygia_done__';
-const OPEN = '<template data-ogygia-slot="';
-const LEN = '" data-og-len="';
+const OPEN = `<template ${OGYGIA_SLOT}="`;
+const LEN = `" ${OG_LEN}="`;
 const CLOSE = '</template>';
 
 type Parcel = { slot: string; html: string; end: number };
