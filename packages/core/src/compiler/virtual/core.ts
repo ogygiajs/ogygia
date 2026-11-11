@@ -13,7 +13,7 @@ import {
 } from '../link/runtime-entry.ts';
 import { island_deps_module } from '../link/island-deps.ts';
 import { router_css_module } from '../link/router-css.ts';
-import { server_plugins_module, route_config_module, sign_client_source } from '../link/caps.ts';
+import { server_plugins_module, route_config_module } from '../link/caps.ts';
 import {
 	transport_module,
 	transportables_server_module,
@@ -32,7 +32,6 @@ import {
 } from '../link/registry-stub.ts';
 import { dev_hmr_client_source } from '../dev/dev-hmr.ts';
 import { PROFILER_MAPS_PLACEHOLDER } from '../ids.ts';
-import { line } from '../../messages/build.ts';
 import type { CompileCtx } from '../ctx.ts';
 import type { Program } from '../program.ts';
 import type {
@@ -243,8 +242,9 @@ export const devtools_meta: Value<{ region_names: Record<string, string> }> = vi
 	}
 });
 
+// region, not boot: the app's codecs, on the server leg too (its render encodes with them)
 export const transport: Family<TransportModule> = virtual.family({
-	realm: 'boot',
+	realm: 'region',
 	id: 'transport',
 	alias: 'virtual:ogygia/transport',
 	exports: { transport: 'transport', encoders: 'encoders', decoders: 'decoders' },
@@ -252,8 +252,9 @@ export const transport: Family<TransportModule> = virtual.family({
 		transport_module(leg.universalHooks, leg.ssr ? null : (leg.kitCodec ?? null))
 });
 
+// region, not boot: eager on the server leg, lazy loaders in the browser
 export const transportables: Family<TransportablesModule> = virtual.family({
-	realm: 'boot',
+	realm: 'region',
 	id: 'transportables',
 	alias: 'virtual:ogygia/transportables',
 	exports: { wire_loaders: 'wire_loaders', wire_all: 'wire_all' },
@@ -322,14 +323,9 @@ export const runtime_url: Value<{ runtime_url: string }> = virtual.value({
 	}
 });
 
-export const dev_hmr_url: Value<{ dev_hmr_url: string }> = virtual.value({
-	realm: 'server',
-	id: 'dev-hmr-url',
-	alias: 'virtual:ogygia/dev-hmr-url',
-	exports: ['dev_hmr_url'],
-	// '' in build/preview; the dev URL during `vite dev`
-	from: ({ ctx }: CoreApp) => ({ dev_hmr_url: ctx.is_dev ? dev_url(key(hmr)) : '' })
-});
+/** The dev HMR bridge's served URL: the dev server's `__OGYGIA_DEV_HMR_URL__` (`''` in a build, so
+ *  the script that loads it folds out of every leg: src/dev-hmr-url.ts). */
+export const DEV_HMR_URL: string = dev_url(key(hmr));
 
 export const devtools_boot_url: Value<{ devtools_boot_url: string }> = virtual.value({
 	realm: 'server',
@@ -405,8 +401,7 @@ export const sign: RequestEntry<CoreApp> = virtual.request({
 	id: 'sign',
 	alias: 'virtual:ogygia/sign',
 	module: { core: 'server/hmac' },
-	exports: { sign: 'sign', verify: 'verify', region_mac_message: 'region_mac_message' },
-	client: () => sign_client_source()
+	exports: { sign: 'sign', verify: 'verify', region_mac_message: 'region_mac_message' }
 });
 
 export const request_event: RequestEntry<CoreApp> = virtual.request({
@@ -414,10 +409,7 @@ export const request_event: RequestEntry<CoreApp> = virtual.request({
 	id: 'request-event',
 	alias: 'virtual:ogygia/request-event',
 	module: { package: '$app/server' },
-	exports: { get_request_event: 'getRequestEvent' },
-	// (the message is written in whole: the stub imports nothing)
-	client: () =>
-		`export function getRequestEvent() { throw new Error(${JSON.stringify(line('request_event_server_only'))}); }`
+	exports: { get_request_event: 'getRequestEvent' }
 });
 
 export const region_endpoint: RequestEntry<CoreApp> = virtual.request({
@@ -433,13 +425,7 @@ export const region_endpoint: RequestEntry<CoreApp> = virtual.request({
 		known_region_fps: 'known_region_fps',
 		region_fingerprint: 'islandFingerprint',
 		hole_css: 'holeCss'
-	},
-	client: () =>
-		`export function makeRegionEndpoint(_entry, _props) { return ''; }\n` +
-		`export function mintServerIsland(_entry, _props, _ttl) { return ''; }\n` +
-		`export function known_region_fps() { return new Set(); }\n` +
-		`export function islandFingerprint(_entry, _canonical) { return ''; }\n` +
-		`export function holeCss(_entry) { return []; }`
+	}
 });
 
 export const kit_wire: Family<KitWireModule> = virtual.family({
@@ -675,7 +661,6 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 	hmr,
 	devtools_boot,
 	runtime_url,
-	dev_hmr_url,
 	devtools_boot_url,
 	region_deps,
 	router_css,

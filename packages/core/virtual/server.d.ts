@@ -4,7 +4,6 @@
 // src/compiler/virtual/types.ts). Do not edit.
 
 declare module 'ogygia:server' {
-export const dev_hmr_url: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').dev_hmr_url>['dev_hmr_url'];
 export const devtools_boot_url: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').devtools_boot_url>['devtools_boot_url'];
 export const stringify_remote_arg: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_wire>['stringify_remote_arg'];
 export const stringify_command_arg: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_wire>['stringify_command_arg'];
@@ -50,12 +49,6 @@ export const region_reads_page_data: import('../dist/compiler/virtual/table.js')
 export const server_plugins: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_plugins>['plugins'];
 export const session_cookie: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').session_cookie>['session_cookie'];
 export { sign, verify, region_mac_message } from '../dist/server/hmac.js';
-}
-declare module 'ogygia:server/dev-hmr-url' {
-export const dev_hmr_url: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').dev_hmr_url>['dev_hmr_url'];
-}
-declare module 'virtual:ogygia/dev-hmr-url' {
-export const dev_hmr_url: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').dev_hmr_url>['dev_hmr_url'];
 }
 declare module 'ogygia:server/devtools-boot-url' {
 export const devtools_boot_url: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').devtools_boot_url>['devtools_boot_url'];

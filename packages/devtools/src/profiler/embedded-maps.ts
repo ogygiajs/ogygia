@@ -18,6 +18,7 @@ let ready: EmbeddedMaps | null = null;
 
 import { PROFILER_MAPS_GZ_PREFIX as GZ_PREFIX } from '@ogygia/core/internal/compiler-ids';
 import { flights, STALE } from '@ogygia/machine';
+import { read_profiler_maps } from '#profiler-maps';
 
 export function load_embedded_maps(): Promise<EmbeddedMaps | null> {
 	// (nothing drops it, so it is never STALE)
@@ -28,10 +29,9 @@ export function load_embedded_maps(): Promise<EmbeddedMaps | null> {
 const loaded = flights({
 	name: 'profiler embedded maps',
 	run: () =>
-		// (its own id, not the realm module: the maps are their own chunk, loaded only here)
-		import('ogygia:server/profiler-maps')
-			.then(async (m) => {
-				let raw: unknown = m.profiler_maps;
+		read_profiler_maps()
+			.then(async (maps) => {
+				let raw: unknown = maps;
 				if (typeof raw === 'string' && raw.startsWith(GZ_PREFIX)) {
 					const zlib = await import('node:zlib');
 					raw = zlib

@@ -240,6 +240,10 @@ export class Compiler implements CoreApp {
 	}
 	/** Every virtual module this session serves (./virtual/table.ts). */
 	readonly #virtuals = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path);
+	/** The modules of one leg's built output that its realms may not hold (./virtual/resolver.ts). */
+	misplaced_modules(module_ids: Iterable<string>, ssr: boolean): [string, string][] {
+		return this.#virtuals.misplaced(module_ids, { ssr, dev: false });
+	}
 	/** A module's named imports of a realm module, per entry (./virtual/resolver.ts). */
 	split_realm_imports(code: string): string | null {
 		return this.#virtuals.split_realm_imports(code);
@@ -1079,8 +1083,9 @@ export class Compiler implements CoreApp {
 		const ctx = this.#ctx!;
 		const { registry, island_graph } = this.program;
 
-		// the declared modules (./virtual/core.ts); an undeclared id in the namespace fails here
-		const declared = this.#virtuals.resolve(source);
+		// the declared modules (./virtual/core.ts); an undeclared id in the namespace fails here, and
+		// so does a module of a realm this leg may not import
+		const declared = this.#virtuals.resolve(source, { ssr, dev: ctx.is_dev });
 		if (declared) return declared;
 		// csr=false client hosts rewrite marked bindings here — not a hydrate entry.
 		if (source === CLIENT_BINDING_STUB) return ctx.client_binding_stub_file;

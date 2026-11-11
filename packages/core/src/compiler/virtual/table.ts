@@ -67,14 +67,13 @@ export type RequestModule = { core: string } | { package: string };
 /** A module's names in its realm module → its own export names. */
 export type RealmExports<K extends string = string> = Readonly<Record<string, K>>;
 
-export interface RequestEntry<A> extends Base {
+// (`_A`: a request reads nothing off the session; the parameter keeps one shape for every kind)
+export interface RequestEntry<_A> extends Base {
 	kind: 'request';
 	realm: 'server';
 	module: RequestModule;
 	/** the functions it re-exports, by their name in the realm module */
 	exports: RealmExports;
-	/** what the browser leg gets until the resolve check keeps server modules off it */
-	client?(app: A): string;
 }
 
 /** A generated-code module. `M` is what it exports (an interface in `contract/`): the generated

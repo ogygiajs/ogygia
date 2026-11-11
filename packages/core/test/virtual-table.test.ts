@@ -40,11 +40,55 @@ describe('the virtual-module table', () => {
 		for (const id of ids) expect(() => table.resolve(id), id).not.toThrow();
 	});
 
+	it('resolves an id it already resolved to itself (a barrel’s import, resolved again in SSR)', () => {
+		// a package file re-exporting from ogygia:server: the bundler resolved its import, then asked
+		// again with the resolved id, and the server bundle kept "\0ogygia:server" as an outside import
+		expect(table.resolve(RESOLVED('ogygia:server'))).toBe(RESOLVED('ogygia:server'));
+		expect(table.resolve(RESOLVED('virtual:ogygia/secret'))).toBe(
+			RESOLVED('virtual:ogygia/secret')
+		);
+		expect(table.resolve(RESOLVED('some-plugin-id'))).toBeUndefined();
+	});
+
+	it('refuses a module of a realm the leg may not import, with virtual_wrong_realm', () => {
+		const browser = { ssr: false, dev: false };
+		const server = { ssr: true, dev: false };
+		expect(() => table.resolve('ogygia:server', browser)).toThrow(/virtual_wrong_realm/);
+		expect(() => table.resolve('virtual:ogygia/secret', browser)).toThrow(/virtual_wrong_realm/);
+		expect(() => table.resolve('ogygia:boot', server)).toThrow(/virtual_wrong_realm/);
+		expect(() => table.resolve('virtual:ogygia/dev-hmr', server)).toThrow(/virtual_wrong_realm/);
+		expect(table.resolve('virtual:ogygia/dev-hmr', { ssr: false, dev: true })).toBeTruthy();
+		expect(table.resolve('ogygia:region', browser)).toBe(RESOLVED('ogygia:region'));
+		expect(table.resolve('ogygia:region', server)).toBe(RESOLVED('ogygia:region'));
+	});
+
+	it('finds a module a leg’s output may not hold, however it got in', () => {
+		const ids = [
+			RESOLVED('virtual:ogygia/secret'),
+			RESOLVED('virtual:ogygia/runtime-flags'),
+			'/a.js'
+		];
+		expect(table.misplaced(ids, { ssr: false, dev: false })).toEqual([
+			[RESOLVED('virtual:ogygia/secret'), 'server']
+		]);
+		expect(table.misplaced(ids, { ssr: true, dev: false })).toEqual([
+			[RESOLVED('virtual:ogygia/runtime-flags'), 'boot']
+		]);
+	});
+
 	it('words the table’s messages, and their pages', () => {
 		for (const code of ['virtual_unknown', 'virtual_duplicate'] as const) {
 			expect(BUILD_ERRORS[code].text({ id: 'ogygia:server/x' })).toContain('ogygia:server/x');
 			expect(BUILD_ERRORS[code].details().length).toBeGreaterThan(40);
 		}
+		expect(
+			BUILD_ERRORS.virtual_wrong_realm.text({
+				id: 'ogygia:server',
+				realm: 'server',
+				leg: 'browser'
+			})
+		).toContain('browser');
+		expect(BUILD_ERRORS.virtual_wrong_realm.details().length).toBeGreaterThan(40);
 	});
 
 	it('fails an undeclared id in the namespace with virtual_unknown', () => {

@@ -612,20 +612,21 @@ export const BUILD_ERRORS = {
 			serve it, check that the plugin is listed beside \`ogygia()\` in vite.config.
 		`
 	},
+	virtual_wrong_realm: {
+		text: (a: { id: string; realm: string; leg: string }): string =>
+			`\`${a.id}\` is a ${a.realm} module, and the ${a.leg} build imported it.`,
+		details: (): string => prose`
+			Each of ogygia's modules runs in one realm: \`ogygia:server\` on the server, \`ogygia:boot\`
+			in the browser's runtime, \`ogygia:region\` in both, \`ogygia:dev\` on the dev server only.
+			A server module in the browser could carry a secret into the page. Read the value on the
+			server and hand the browser what it needs through props or seeds.
+		`
+	},
 	virtual_duplicate: {
 		text: (a: { id: string }): string => `\`${a.id}\` is declared twice.`,
 		details: (): string => prose`
 			Two declarations claim the same virtual module. Each module is declared once, by the part
 			of ogygia (or the plugin) that knows its value. ${BUG}
-		`
-	},
-	request_event_server_only: {
-		text: (): string => 'getRequestEvent is server-only',
-		details: (): string => prose`
-			\`getRequestEvent()\` was called in the browser. There is no request there: a deferred
-			region's HTML is fetched from the server, so read the request in the component that
-			renders on the server, and pass what the browser needs as props. (The build writes this
-			message into the browser's stub, so it prints in the page.)
 		`
 	}
 };

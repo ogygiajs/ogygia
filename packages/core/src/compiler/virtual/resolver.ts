@@ -30,6 +30,30 @@ const key_of = (e: ModuleEntry<unknown>): string => e.alias ?? specifier(e.realm
 const REALM_IMPORT_G =
 	/\b(import|export)\s*\{([^}]*)\}\s*from\s*(['"])ogygia:(server|boot|region|dev)\3;?/g;
 
+/** Where an import is resolved: the build's leg (Vite's environment), and whether it is the dev
+ *  server. */
+export interface Env {
+	ssr: boolean;
+	dev: boolean;
+}
+
+/** The realms each leg may import: the server leg server and region, the browser leg boot and
+ *  region; dev only on the dev server. */
+export function realm_allowed(realm: Realm, env: Env): boolean {
+	if (realm === 'region') return true;
+	if (realm === 'dev') return env.dev;
+	return realm === (env.ssr ? 'server' : 'boot');
+}
+
+function check_realm(id: string, realm: Realm, env: Env): void {
+	if (!realm_allowed(realm, env))
+		throw new OgygiaError('virtual_wrong_realm', {
+			id,
+			realm,
+			leg: env.ssr ? 'server' : 'browser'
+		});
+}
+
 /** Is this specifier in ogygia's virtual namespace (the realm-named one or the legacy one)? */
 export const is_virtual_specifier = (source: string): boolean =>
 	source.startsWith(OGYGIA_SCHEME) || source.startsWith(LEGACY_PREFIX);
@@ -107,15 +131,27 @@ export class VirtualTable<A> {
 	 * resolves itself (an island's entry, a registry stub). An id in the namespace that nothing
 	 * declares fails here with `virtual_unknown`.
 	 */
-	resolve(source: string): string | undefined {
-		if (this.#realm_of(source)) return RESOLVED(source);
+	resolve(source: string, env?: Env): string | undefined {
+		// an id already resolved resolves to itself (the bundler may resolve a barrel's resolved
+		// import again), when it is the table's
+		if (source.startsWith('\0'))
+			return this.#realm_of(source) || this.#by_resolved.has(source) ? source : undefined;
+		const realm = this.#realm_of(source);
+		if (realm) {
+			if (env) check_realm(source, realm, env);
+			return RESOLVED(source);
+		}
 		const single = this.#single.get(source);
 		if (single) {
 			if (single.kind === 'family' && !single.load) return undefined;
+			if (env) check_realm(source, single.realm, env);
 			return RESOLVED(key_of(single));
 		}
 		const family = this.#family_of(source);
-		if (family) return family.load ? RESOLVED(source) : undefined;
+		if (family) {
+			if (env) check_realm(source, family.realm, env);
+			return family.load ? RESOLVED(source) : undefined;
+		}
 		// (a declared id with a query is the bundler's to answer, as it always was)
 		const q = source.indexOf('?');
 		if (is_virtual_specifier(source) && !(q !== -1 && this.claims(source.slice(0, q))))
@@ -150,7 +186,6 @@ export class VirtualTable<A> {
 					.join('\n');
 			}
 			if (e.kind === 'request') {
-				if (!leg.ssr && e.client) return e.client(app);
 				const from = 'core' in e.module ? this.#core_path(app, e.module.core) : e.module.package;
 				const names = [...new Set(Object.values(e.exports))];
 				return `export { ${names.join(', ')} } from ${JSON.stringify(from)};`;
@@ -200,6 +235,28 @@ export class VirtualTable<A> {
 			}
 		);
 		return changed ? out : null;
+	}
+
+	/**
+	 * THE BUNDLE CHECK: every module of one leg's output that is a table module of a realm the leg
+	 * may not hold, as `[id, realm]`. Reads the finished graph, so a module reached through a
+	 * re-export (laundered past the resolve check) is caught too.
+	 */
+	misplaced(module_ids: Iterable<string>, env: Env): [string, Realm][] {
+		const out: [string, Realm][] = [];
+		for (const id of module_ids) {
+			const realm =
+				this.#realm_of(id) ?? this.#by_resolved.get(id)?.realm ?? this.#prefix_realm(id);
+			if (realm && !realm_allowed(realm, env)) out.push([id, realm]);
+		}
+		return out;
+	}
+
+	#prefix_realm(id: string): Realm | undefined {
+		if (!id.startsWith('\0')) return undefined;
+		for (const [prefix, family] of this.#prefixes)
+			if (id.startsWith(prefix, 1)) return family.realm;
+		return undefined;
 	}
 
 	/** Is the module only definitions (a realm module, or an entry it re-exports from)? The bundler

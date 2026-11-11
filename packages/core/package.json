@@ -22,6 +22,12 @@
 	"sideEffects": [
 		"**/*.css"
 	],
+	"imports": {
+		"#region-server": {
+			"browser": "./src/region-server.browser.ts",
+			"default": "./src/region-server.ts"
+		}
+	},
 	"exports": {
 		".": {
 			"svelte": "./src/index.ts",
@@ -136,6 +142,13 @@
 		}
 	},
 	"publishConfig": {
+		"imports": {
+			"#region-server": {
+				"types": "./dist/region-server.d.ts",
+				"browser": "./dist/region-server.browser.js",
+				"default": "./dist/region-server.js"
+			}
+		},
 		"exports": {
 			".": {
 				"types": "./dist/index.d.ts",

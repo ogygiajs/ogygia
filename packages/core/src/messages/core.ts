@@ -18,6 +18,14 @@ const BUG = 'An ogygia bug: please report it with the page that shows it.';
 /** The errors: `throw new OgygiaError(code, args)`, or `console.error(new OgygiaError(…), err)` for a
  *  failure that is caught. */
 export const ERRORS = {
+	request_event_server_only: {
+		text: (): string => 'getRequestEvent is server-only',
+		details: (): string => prose`
+			\`getRequestEvent()\` was called in the browser. There is no request there: a deferred
+			region's HTML is fetched from the server, so read the request in the component that
+			renders on the server, and pass what the browser needs as props.
+		`
+	},
 	goto_not_http: {
 		text: (): string => 'goto() only supports http(s) URLs',
 		details: (): string => prose`

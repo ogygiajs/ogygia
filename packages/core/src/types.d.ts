@@ -30,6 +30,8 @@ declare const __OGYGIA_CLIENT_PLUGINS__: boolean;
 declare const __OGYGIA_KIT_MAJOR__: number | null;
 /** The installed ogygia's version, which the runtime discloses (runtime/disclose-version.ts). */
 declare const __OGYGIA_VERSION__: string;
+/** The dev HMR bridge's served URL on the dev server; '' in a build (src/dev-hmr-url.ts). */
+declare const __OGYGIA_DEV_HMR_URL__: string;
 
 declare module '$app/paths' {
 	export const base: string;
