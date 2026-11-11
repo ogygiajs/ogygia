@@ -60,6 +60,11 @@ function replay_seen(sig: string, expires_at: number, now: number): boolean {
 	return false;
 }
 
+/** Has a call with this nonce been accepted, by its capability or its legacy signature? Records
+ *  it when not: a call signed both ways carries one nonce (`sign_headers`). */
+const nonce_seen = (nonce: string, expires_at: number, now: number): boolean =>
+	nonce !== '' && replay_seen(`n:${nonce}`, expires_at, now);
+
 /** Visitor claims — who is BROWSING (the caller signature says who is CALLING). Bound into the
  *  signed payload: forging claims means forging the Ed25519 signature. They never transit the
  *  browser — the shell attaches them server-side from its own session. */
@@ -117,6 +122,10 @@ function public_key(b64: string) {
 // the receiver's `skewMs` is its whole window (signed within skewMs either way of its own clock),
 // as the legacy headers' was. Proved in test/federation.test.ts › "the call capability".
 const CALL = { name: 'federation.call', version: 1, ttl: { max: 1 } } as const;
+
+/** A token's nonce and expiry (`v<version>.<expiry ms>.<nonce>.<signature>`, @ogygia/machine). */
+const cap_nonce = (token: string): string => token.split('.')[2] ?? '';
+const cap_expiry = (token: string): number => Number(token.split('.')[1]);
 
 /** The mint side, one per private key (as cached as its KeyObject). */
 const minters = new Map<string, Capability>();
@@ -209,14 +218,17 @@ export function sign_headers(
 ): Record<string, string> {
 	const key = private_key(privateKey);
 	const ts = String(Date.now());
-	const nonce = randomBytes(8).toString('hex');
 	const pathq = url.pathname + url.search;
 	const user_b64 = claims ? Buffer.from(JSON.stringify(claims)).toString('base64') : '';
 	const bhash = body_hash(body);
 	const aud = audience ?? url.host;
+	const cap = minter(privateKey).mint(aud, call_fields(method, pathq, bhash, user_b64), 1);
+	// the legacy signature carries the capability's nonce: one call, one identity in the replay
+	// memory, whichever of its signatures a receiver checks (test/federation.test.ts › "#822")
+	const nonce = cap_nonce(cap);
 	const sig = ed_sign(null, sig_payload(ts, method, pathq, bhash, user_b64, aud, nonce), key);
 	return {
-		[CAP_HEADER]: minter(privateKey).mint(aud, call_fields(method, pathq, bhash, user_b64), 1),
+		[CAP_HEADER]: cap,
 		// (the legacy headers, for a peer that does not read the capability yet)
 		[TS_HEADER]: ts,
 		[NONCE_HEADER]: nonce,
@@ -295,7 +307,10 @@ export function verify_signed_request(
 				checked = true;
 				break;
 			}
-		return checked ? claims_of(user_b64) : null;
+		if (!checked) return null;
+		// the same call, already accepted by its legacy signature (#822)
+		if (nonce_seen(cap_nonce(token), cap_expiry(token) + skew, Date.now())) return null;
+		return claims_of(user_b64);
 	}
 	const ts = request.headers.get(TS_HEADER);
 	const sig = request.headers.get(SIG_HEADER);
@@ -314,6 +329,8 @@ export function verify_signed_request(
 				const key = public_key(pk);
 				if (!ed_verify(null, payload, key, sig_buf)) continue;
 				if (replay_seen(sig, ts_n + skew, now)) return null;
+				// the same call, already accepted by its capability (#822)
+				if (nonce_seen(nonce, ts_n + skew, now)) return null;
 				return claims_of(user_b64);
 			} catch {
 				// ok: a malformed key entry verifies nothing; the next is tried, and none verifying refuses the call
