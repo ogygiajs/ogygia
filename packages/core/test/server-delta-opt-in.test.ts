@@ -3,22 +3,8 @@
 // (`x-ogygia-known`) and the server skips their content. Off, the server does not honor the header
 // (anyone can send it). On, a page says it varies by it, so a shared cache never keeps a copy with
 // regions skipped for a visitor who asked for the whole page.
-import { describe, it, expect, afterEach, vi } from 'vitest';
-import { set_request_event_stub } from './_stubs/virtual-request-event.ts';
-
-vi.mock('virtual:ogygia/sign', () => import('../src/server/hmac.ts'));
-vi.mock('virtual:ogygia/rate-limit', () => ({ rateLimit: { max: 60, windowMs: 60_000 } }));
-vi.mock('virtual:ogygia/server-plugins', () => ({ plugins: [] }));
-vi.mock('virtual:ogygia/route-config', () => ({ route_config: {} }));
-vi.mock('virtual:ogygia/devtools-boot-url', () => ({ default: '' }));
-vi.mock('virtual:ogygia/server-manifest', () => ({
-	load_islands: async () => ({ islands: {} }),
-	island_url: {},
-	island_name: {},
-	island_render: {},
-	render_island: {},
-	island_reads_page_data: null
-}));
+import { describe, it, expect, afterEach } from 'vitest';
+import { set_request_event_stub } from './_stubs/server.request-event.ts';
 
 const { known_region_fps } = await import('../src/server/region-endpoint.ts');
 const { handle } = await import('../src/hooks.ts');
