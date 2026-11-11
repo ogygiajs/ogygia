@@ -25,7 +25,7 @@
  * everything else.
  *
  * ```ts
- * import { scanRegions } from 'ogygia/server';
+ * import { scanRegions } from '@ogygia/reshape';
  * const protect = [];
  * for (const r of scanRegions(html)) {
  *   if (r.kind === 'island') protect.push([r.start, r.end]); // its bytes stay verbatim
@@ -44,13 +44,15 @@
  * For the FULL round-trip — lift the regions out, run the foreign renderer over what is left, splice
  * them back — use {@link liftRegions} / {@link restoreRegions} (below). Restore transplants the marks
  * a scoped renderer stamps on the placeholder onto the region, unions `class`, and touches only
- * attributes, never light DOM. All three are also exported, Kit-free, from `ogygia/markup`, for the
+ * attributes, never light DOM. All three are exported, Kit-free, from `@ogygia/reshape`, for the
  * non-SvelteKit half of a monorepo where these SSR passes usually live.
  */
-// (a value re-emitted into a double-quoted attribute exactly as it was: `<` kept)
-import { escape_amp_quot as escape_attr } from '../escape.ts';
-// (the regex `\s` the attribute rules were written in — wider than the tag scan's HTML whitespace)
-import { is_space as is_re_space } from './html-scan.ts';
+import {
+	// (a value re-emitted into a double-quoted attribute exactly as it was: `<` kept)
+	escapeAttr as escape_attr,
+	// (the regex `\s` the attribute rules were written in — wider than the tag scan's HTML whitespace)
+	isSpace as is_re_space
+} from '@ogygia/core/plugin/utils';
 
 export type RegionKind = 'island' | 'lake' | 'hole';
 
