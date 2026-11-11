@@ -3043,6 +3043,66 @@
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_head_adopted > text",
 			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > head_slot",
+			"reason": "browser only: walks a parsed head node's earlier siblings against the live <head> (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
+		},
+		{
+			"id": "packages/core/src/context.ts > head_owner",
+			"reason": "one Svelte getContext read per region in the server render (hidden state: the component context), constant work; proven in apps/palaestra/e2e/head-owner-kept.spec.ts (#806)"
+		},
+		{
+			"id": "packages/core/src/context.ts > set_head_owner",
+			"reason": "one Svelte setContext write per outermost island in the server render (hidden state: the component context), constant work; proven in apps/palaestra/e2e/head-owner-kept.spec.ts (#806)"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > set_ref_names_reader:0~1d7e63",
+			"reason": "the per-request ref names reader the handle installs once at startup: reads the request-local store (hidden state), constant work; proven by packages/core/test/hole-identity-refs.test.ts (#816)"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > kit_boot_failed > text",
+			"reason": "a message's wording (one URL), constant text; said in apps/palaestra/e2e/kit-boot-failed.spec.ts (#820)"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > kit_boot_failed > details",
+			"reason": "a message table entry: wording only (#820)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #live_hydrate > catch:0~66a292",
+			"reason": "browser only, an error path: a live region's Kit wait failed because Kit cannot start (once per page at most), constant work; proven in apps/palaestra/e2e/kit-boot-failed.spec.ts (#820)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > kit_boot_failed",
+			"reason": "an error path's code check (one property read), constant work; proven in apps/palaestra/e2e/kit-boot-failed.spec.ts (#820)"
+		},
+		{
+			"id": "packages/core/src/runtime/hydrate-core.ts > absorb_region_props",
+			"reason": "browser only: a kept region takes the next page's props on a navigation, through its live island and the page's context store (not cloneable), linear in its props; proven in apps/palaestra/e2e (#804)"
+		},
+		{
+			"id": "packages/core/src/runtime/hydrate-core.ts > absorb_region_props > capture_region_ids:1~a50e0d",
+			"reason": "browser only: the context read absorb_region_props wraps to record the ids the region owns (not cloneable), constant work around it (#804)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot_failed",
+			"reason": "an error path, at most once per Kit boot file per page: makes the coded error and says it once (console), constant work; proven in packages/core/test/browser/kit-page-thread.test.ts (#820)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot_failed > once:1~5d742a",
+			"reason": "the console.error said once per file (an error path), constant work (#820)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot_imports",
+			"reason": "browser only: reads the live document's inline scripts once per Kit wait (not on the boot), linear in the inline scripts; proven in packages/core/test/browser/kit-page-thread.test.ts (#820)"
+		},
+		{
+			"id": "packages/core/src/runtime/region-sheets.ts > release_head_nodes",
+			"reason": "browser only: after a navigation's swap, walks the connected regions (a module set of live elements, not cloneable) against the head nodes the next page does not list; linear in both; proven in packages/core/test/browser/head-owner-release.test.ts (#806)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > release_head_nodes",
+			"reason": "browser only: the navigation's call into region-sheets.ts release_head_nodes (the live head, not cloneable), constant work around it (#806)"
 		}
 	]
 }
