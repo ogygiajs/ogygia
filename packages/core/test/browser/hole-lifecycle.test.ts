@@ -4,6 +4,7 @@
 // not mark the next answer a refresh; every schedule a region arms is disarmed when it leaves; and a
 // visitor's wake that failed is told so.
 import { afterEach, beforeEach, expect, inject, test, vi } from 'vitest';
+import { observe } from '@ogygia/machine';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset, ticket, write } from '../../src/runtime/frame-store.ts';
 import { frameAddress } from '../../src/frame.ts';
@@ -117,6 +118,34 @@ test('a refetch that failed does not mark the hole’s first answer a refresh', 
 		false
 	);
 	expect(hole.hasAttribute('data-hydrated'), 'marked answered').toBe(true);
+});
+
+test('a hole answered twice moves once per answer, and the second answer is the one on screen', async () => {
+	const E = ep('life00000006');
+	window.fetch = async () => html('<p data-testid="first">first</p>');
+	const moves: string[] = [];
+	const stop = observe((name, from, to) => {
+		if (name === 'hole-answer' && to) moves.push(`${from.kind} -> ${to.kind}`);
+	});
+	try {
+		const [el] = insert(plain_hole(E));
+		bootDev();
+		await expect
+			.poll(() => el.querySelector('[data-testid="first"]') !== null, { timeout: 5_000 })
+			.toBe(true);
+		// a refresh at its address (a write: a command that returned the region, a revalidate)
+		const a = frameAddress(E);
+		write({ a, v: ticket(a), html: '<p data-testid="second">second</p>' });
+		await expect
+			.poll(() => el.querySelector('[data-testid="second"]') !== null, { timeout: 5_000 })
+			.toBe(true);
+		expect(moves, 'each answer on screen is a move of its own').toEqual([
+			'none -> answered',
+			'answered -> answered'
+		]);
+	} finally {
+		stop();
+	}
 });
 
 test('a hole that arms two media schedules disarms both when it leaves', async () => {
