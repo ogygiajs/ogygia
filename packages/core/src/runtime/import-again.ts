@@ -19,7 +19,7 @@
  * imports nothing of the boot (only `@ogygia/machine`, which the boot runs on); the boot hands it
  * its message (`on_reload_needed`).
  */
-import { flights, machine, scope, STALE, type Scope } from '@ogygia/machine';
+import { flights, machine, say, scope, STALE, type Scope } from '@ogygia/machine';
 
 /** How long a failed import waits for its file's timing entry before it reads as "no response". */
 const ENTRY_WAIT_MS = 1000;
@@ -167,9 +167,9 @@ function status_of(entries: readonly PerformanceEntry[]): number | null {
 
 /** What the page says when a chunk cannot load until it reloads: the boot's message (./core.ts). */
 let say_reload_needed: (url: string, error: unknown) => void = () => {};
-let said = false;
-/** The boot hands over its message for a chunk no retry can load. Said once per page (for the first
- *  such chunk: one reload loads them all). */
+/** Said once per page (for the first such chunk: one reload loads them all). */
+const reload = say({ max: 1 });
+/** The boot hands over its message for a chunk no retry can load. */
 export function on_reload_needed(say: (url: string, error: unknown) => void): void {
 	say_reload_needed = say;
 }
@@ -206,10 +206,7 @@ export function import_again<T>(
 				const status = await response_landed(url);
 				// its own file came, and it still failed: a dependency's failure, which no URL fixes
 				if (status !== null && status < 400 && file.move('failed', 'stuck', { error })) {
-					if (!said) {
-						said = true;
-						say_reload_needed(url, error);
-					}
+					reload.once('reload', () => say_reload_needed(url, error));
 				}
 				throw error;
 			});
