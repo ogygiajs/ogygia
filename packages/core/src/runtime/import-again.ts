@@ -185,7 +185,7 @@ export function import_again<T>(
 		if (s.kind === 'failed') {
 			// (each retry its own URL, counted as it starts: two calls at once ask under two)
 			const attempt = s.attempt + 1;
-			state.go('failed', { url: s.url, attempt, verdict: null });
+			state.go('failed', { url: s.url, attempt });
 			const url = retry_url(s.url, attempt);
 			run = (fresh(url) as Promise<T>).catch((error: unknown) => {
 				// Whether its own file came is read once its timing entry lands (Firefox on a loaded
@@ -199,7 +199,7 @@ export function import_again<T>(
 					}
 					const now = state.now;
 					if (now.kind === 'failed' && now.verdict === verdict)
-						state.go('failed', { url: now.url, attempt: now.attempt, verdict: null });
+						state.go('failed', { url: now.url, attempt: now.attempt });
 				});
 				const now = state.now;
 				if (now.kind === 'failed')
@@ -209,11 +209,7 @@ export function import_again<T>(
 		} else {
 			run = load().catch((error: unknown) => {
 				if (file != null && is_failed_import(error))
-					state.move('fresh', 'failed', {
-						url: new URL(file, base).href,
-						attempt: 0,
-						verdict: null
-					});
+					state.move('fresh', 'failed', { url: new URL(file, base).href, attempt: 0 });
 				throw error;
 			});
 		}
@@ -242,7 +238,7 @@ export function import_again<T>(
  */
 const file_definition = machine<{
 	fresh: {};
-	failed: { url: string; attempt: number; verdict: Promise<void> | null };
+	failed: { url: string; attempt: number; verdict?: Promise<void> };
 	loaded: { run: Promise<unknown> };
 	stuck: { error: unknown };
 }>()({
