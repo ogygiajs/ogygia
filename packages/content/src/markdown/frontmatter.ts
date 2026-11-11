@@ -406,7 +406,8 @@ function is_flow_collection(text: string, open: '{' | '[', sep: ':' | ','): bool
 		if (ch === '{' || ch === '[') depth++;
 		else if (ch === '}' || ch === ']') {
 			depth--;
-			if (depth === 0 && open === '[' && i === text.length - 1) return true;
+			// (the opening `[` must close at the end: `[docs][ref]` stays text)
+			if (depth === 0 && open === '[') return i === text.length - 1;
 		} else if (ch === sep && depth === 1) return true;
 	}
 	return false;
