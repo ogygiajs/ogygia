@@ -1,19 +1,20 @@
 // A build's dock adds the beacon only to the documents of a browser that switched devtools on (a
-// cookie, or `?devtools=on`), so such a document is that browser's own: a shared cache must not keep it.
-import { afterEach, expect, test, vi } from 'vitest';
-import { DEVTOOLS_COOKIE, DEVTOOLS_ON } from '@ogygia/core/insights';
+// cookie, or `?og-devtools=on`), so such a document is that browser's own: a shared cache must not keep it.
+import { afterAll, beforeAll, expect, test, vi } from 'vitest';
+import { DEVTOOLS_COOKIE, DEVTOOLS_ON, DEVTOOLS_PARAM } from '@ogygia/core/insights';
 
-afterEach(() => {
-	vi.unstubAllGlobals();
-	vi.resetModules();
-});
-
-async function lazy_dock_server() {
+// (the dock's build flags are read once, as the module loads: one copy of it, loaded as a build's)
+let server: typeof import('../src/server.ts').default;
+beforeAll(async () => {
 	vi.stubGlobal('__OGYGIA_DEVTOOLS__', true);
 	vi.stubGlobal('__OGYGIA_DEVTOOLS_LAZY__', true);
 	vi.resetModules();
-	return (await import('../src/server.ts')).default;
-}
+	server = (await import('../src/server.ts')).default;
+}, 60_000);
+afterAll(() => {
+	vi.unstubAllGlobals();
+	vi.resetModules();
+});
 
 function document_event(url: string, cookie?: string) {
 	const headers = new Headers({ 'sec-fetch-dest': 'document' });
@@ -25,7 +26,6 @@ function document_event(url: string, cookie?: string) {
 }
 
 async function handle(url: string, cookie?: string): Promise<Response> {
-	const server = await lazy_dock_server();
 	const next = () =>
 		Promise.resolve(
 			new Response('<html><head></head></html>', {
@@ -39,7 +39,7 @@ async function handle(url: string, cookie?: string): Promise<Response> {
 }
 
 test('a document the beacon is added to (devtools switched on in the URL) is private and never stored', async () => {
-	const res = await handle('http://x.test/?devtools=on');
+	const res = await handle(`http://x.test/?${DEVTOOLS_PARAM}=${DEVTOOLS_ON}`);
 	expect(res.headers.get('cache-control')).toBe('private, no-store');
 });
 
