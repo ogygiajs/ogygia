@@ -583,7 +583,12 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
  *  in `/` and a click to /static.) */
 export function document_faulted(world: World, tab: Tab): boolean {
 	const own = world.network.exchanges.find((e) => e.from === tab.realm);
-	return own !== undefined && (own.tampered || own.cut);
+	if (own !== undefined && (own.tampered || own.cut)) return true;
+	// (or the page the router brought in: the last answer for its URL; seed 53, a changed byte in
+	// the /dashboard/orders HTML a client navigation swapped in)
+	const url = tab.page.mainFrame.url.split('#')[0];
+	const brought = world.network.exchanges.findLast((e) => e.from === tab.realm && e.url === url);
+	return brought !== undefined && (brought.tampered || brought.cut);
 }
 
 /** What a page may say when the network failed it: ogygia's coded reports, the network's own
