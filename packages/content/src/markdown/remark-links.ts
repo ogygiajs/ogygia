@@ -1,12 +1,3 @@
-/**
- * Collect every markdown link into `metadata.links` — the raw material for ogygia's link audit.
- * Mirrors {@link remarkHeadings}: the collected array is stashed on `file.data.fm.links`, mdsvex
- * emits it with the module `metadata`, and the `markdown` format lifts it onto the entry's `meta`.
- *
- * Collection is TOTAL (external, internal, anchors, mailto — everything); classification happens at
- * audit time, where the mount base is known. Best-effort by design: markdown `link` nodes only —
- * raw `<a>` HTML and component `href` props are invisible to the mdast pass.
- */
 import type { LinkRef } from '../index.ts';
 
 type MdNode = {
@@ -17,6 +8,12 @@ type MdNode = {
 	position?: { start?: { line?: number } };
 };
 
+/**
+ * Collects every markdown link (external, internal, anchors, mailto) onto `file.data.fm.links`,
+ * which reaches the entry's `meta.links` for the `links()` check. Markdown `link` nodes only: raw
+ * `<a>` html and component `href` props are not seen. A link's `line` counts from after the
+ * frontmatter (mdsvex strips it before remark runs).
+ */
 export function remarkLinks() {
 	return (tree: MdNode, file: { data: Record<string, unknown> }): void => {
 		const links: LinkRef[] = [];
@@ -33,8 +30,6 @@ export function remarkLinks() {
 				links.push({
 					href: node.url,
 					text: text_of(node).trim(),
-					// Approximate: mdsvex parses frontmatter before remark sees the tree, so positions are
-					// relative to the post-frontmatter text. Good enough to anchor an error.
 					...(typeof line === 'number' ? { line } : {})
 				});
 			}
