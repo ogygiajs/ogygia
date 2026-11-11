@@ -244,7 +244,7 @@ describe('Ed25519 signing / verification', () => {
 		const req = signed();
 		const url = new URL(req.url);
 		const sig = req.headers.get('x-og-sig') ?? '';
-		expect(verify_signed_request({ publicKeys: [pub] }, req, url)?.user?.sub).toBe('u1');
+		expect(verify_signed_request(at_cms, req, url)?.user?.sub).toBe('u1');
 		const spellings = [
 			sig.replace(/=+$/, ''),
 			`${sig}!`,
@@ -256,7 +256,7 @@ describe('Ed25519 signing / verification', () => {
 			const again = new Request(req.url, {
 				headers: { ...Object.fromEntries(req.headers), 'x-og-sig': spelling }
 			});
-			expect(verify_signed_request({ publicKeys: [pub] }, again, url)).toBeNull();
+			expect(verify_signed_request(at_cms, again, url)).toBeNull();
 		}
 	});
 
