@@ -753,6 +753,35 @@ describe('priority', () => {
 		expect(seen).toEqual([0, 2]);
 	});
 
+	it('a raise is heard only by the try that is out: a failed try’s listeners are let go', async () => {
+		const heard: string[] = [];
+		let tries = 0;
+		const first = deferred<void>();
+		const second = deferred<string>();
+		const started = deferred<void>();
+		const pages = flights({
+			name: NAME,
+			retry: policy({ attempts: 2, backoff: 0, jitter: 0, deadline: Infinity }),
+			run: async (_href: string, _signal, f) => {
+				const mine = ++tries;
+				f.onRaise((p) => heard.push(`try ${mine}: ${p}`));
+				if (mine === 1) {
+					await first.promise;
+					throw new Error('blip');
+				}
+				started.resolve();
+				return second.promise;
+			}
+		});
+		const out = pages.get('/a', { priority: 0 });
+		first.resolve();
+		await started.promise;
+		void pages.get('/a', { priority: 2 });
+		second.resolve('/a');
+		expect(await out).toBe('/a');
+		expect(heard).toEqual(['try 2: 2']);
+	});
+
 	it('keyed: two inputs of one key are one flight, raised by the later', () => {
 		let flight!: { readonly priority: number };
 		const pages = flights.keyed<{ href: string; purpose: string }>()({
