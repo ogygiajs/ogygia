@@ -14,6 +14,8 @@ import {
 } from '../src/server/head-presence.ts';
 import { with_early_holes_meta_csp } from '../src/server/early-holes-csp.ts';
 import { absolutize_hole_html } from '../src/server/hole-urls.ts';
+import { hole_head } from '../src/server/hole-graph.ts';
+import { island_graph_script } from '../src/server/document-tail.ts';
 import { region_css_tags } from '../src/server/html-scan.ts';
 import { next_tag, read_tag, tags, text_of } from '../src/wire-markup.ts';
 import { mark, settle } from '../src/server/reversible.ts';
@@ -112,6 +114,25 @@ bench(
 			base: new URL('https://example.test/shop/__ogygia__/r?id=abc')
 		}),
 		scale: (ctx, k) => ({ html: hole_answer(60 * k), base: ctx.base })
+	}
+);
+
+// (a hole render's head: its islands' graph script and their region CSS among the page's tags)
+bench(
+	'hole answer: the graph and CSS its head carries',
+	({ h, base }) => hole_head(h, base).length,
+	{
+		setup: () => ({
+			h:
+				head(8) +
+				island_graph_script(
+					new Map([
+						['./_app/immutable/a.js', ['./_app/immutable/c1.js', './_app/immutable/c2.js']]
+					]),
+					new Map([['./_app/immutable/a.js', './_app/immutable/a.123.js']])
+				),
+			base: new URL('https://example.test/shop/__ogygia__/r?id=abc')
+		})
 	}
 );
 

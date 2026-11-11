@@ -47,7 +47,7 @@ const REGION_CSS_ATTR = 'data-ogygia-region-css';
 const REGION_CSS_ANY_CASE = /data-ogygia-region-css/gi;
 
 /** Where the region-CSS name's text next appears from `from`, in any case, or -1. */
-function next_mark(head: string, from: number): number {
+export function next_mark(head: string, from: number): number {
 	REGION_CSS_ANY_CASE.lastIndex = from;
 	return REGION_CSS_ANY_CASE.test(head)
 		? REGION_CSS_ANY_CASE.lastIndex - REGION_CSS_ATTR.length
