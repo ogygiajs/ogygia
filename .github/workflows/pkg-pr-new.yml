@@ -39,6 +39,10 @@ on:
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  # (a pull request reads the cache and never writes it: only main's runs fill it)
+  TURBO_REMOTE_CACHE_READ_ONLY: ${{ github.event_name != 'push' }}
+
+permissions: {}
 
 # A new push to a PR cancels that PR's older runs (branch pushes and manual runs never are)
 concurrency:
@@ -81,12 +85,19 @@ jobs:
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
 
+  # (a fork's PR never publishes a preview: only this repository's branches do)
   publish:
     needs: gate
-    if: needs.gate.outputs.run == 'true'
+    if: >-
+      needs.gate.outputs.run == 'true' && (github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v6
 
