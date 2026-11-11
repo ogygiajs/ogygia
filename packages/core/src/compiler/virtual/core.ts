@@ -428,7 +428,7 @@ export const region_endpoint: RequestEntry<CoreApp> = virtual.request({
 	exports: {
 		make_region_endpoint: 'make_region_endpoint',
 		mint_server_region: 'mint_server_region',
-		known_region_fps: 'known_region_fps',
+		reuse_known_region: 'reuse_known_region',
 		region_fingerprint: 'region_fingerprint',
 		hole_css: 'hole_css'
 	}

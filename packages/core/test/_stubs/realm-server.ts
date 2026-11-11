@@ -29,7 +29,7 @@ export { getRequestEvent as get_request_event } from 'ogygia:server/request-even
 export {
 	make_region_endpoint,
 	mint_server_region,
-	known_region_fps,
+	reuse_known_region,
 	region_fingerprint,
 	hole_css
 } from 'ogygia:server/region-endpoint';

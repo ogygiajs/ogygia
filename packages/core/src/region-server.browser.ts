@@ -21,7 +21,7 @@ export const region_interactivity: typeof Server.region_interactivity = none;
 export const entry_location: typeof Server.entry_location = none;
 export const make_region_endpoint: typeof Server.make_region_endpoint = blank;
 export const mint_server_region: typeof Server.mint_server_region = blank;
-export const known_region_fps: typeof Server.known_region_fps = () => new Set();
+export const reuse_known_region: typeof Server.reuse_known_region = () => false;
 export const region_fingerprint: typeof Server.region_fingerprint = blank;
 export const hole_css: typeof Server.hole_css = empty;
 // (the link alone, as a production message prints: importing the message tables here would add a

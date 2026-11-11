@@ -15,7 +15,7 @@ describe('#region-server in the browser', () => {
 		expect(browser.region_interactivity('a')).toBeNull();
 		expect(browser.entry_location('a')).toBeNull();
 		expect(browser.region_reads_page('a')).toBe(false);
-		expect(browser.known_region_fps().size).toBe(0);
+		expect(browser.reuse_known_region('a')).toBe(false);
 		expect(browser.make_region_endpoint('a')).toBe('');
 		expect(browser.region_fingerprint('a')).toBe('');
 		expect(browser.runtime_bootstrap()).toBe('');
