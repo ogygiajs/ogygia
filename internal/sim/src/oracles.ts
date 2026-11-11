@@ -485,7 +485,16 @@ export class Leaks {
 		if (!url.startsWith('http')) return null;
 		const key = `${tab.realm} ${url.split('#')[0]}`;
 		const list = this.#samples.get(key) ?? [];
-		const now: Record<string, number> = { ...tab.held() };
+		const held = tab.held();
+		// (a module preload stays in the head once added, as Vite's own do: one per chunk the app
+		// has, so bounded by the app, not by the visits; set aside)
+		const preloads = preloads_in_head(tab);
+		const now: Record<string, number> = {
+			...held,
+			head: held.head - preloads,
+			elements: held.elements - preloads,
+			explained: explained_head(tab)
+		};
 		// (one sample per visit, its latest: the visit may still have been settling)
 		if (this.#at.get(tab.name) === key && list.length > 0) list[list.length - 1] = now;
 		else list.push(now);
@@ -494,13 +503,47 @@ export class Leaks {
 		if (list.length < LEAK_VISITS) return null;
 		const run = list.slice(-LEAK_VISITS);
 		// (BOUNDED MEMORY: the head and the element count too; a page visited again is the same page)
+		const grew = (field: string, less = 0) =>
+			run.every(
+				(s, i) =>
+					i === 0 || s[field] - less * s.explained > run[i - 1][field] - less * run[i - 1].explained
+			);
+		let known = false;
 		for (const field of ['listeners', 'intervals', 'observers', 'head', 'elements']) {
-			if (run.every((s, i) => i === 0 || s[field] > run[i - 1][field]))
-				return {
-					oracle: 'leak',
-					detail: `${url}: ${field} grew visit after visit in one document: ${run.map((s) => s[field]).join(' → ')}${field === 'intervals' ? `\nrunning: ${tab.platform?.pending().join(', ')}` : ''}`
-				};
+			if (!grew(field)) continue;
+			// (head nodes a filed bug explains are set aside: if then it does not grow, it is known)
+			if ((field === 'head' || field === 'elements') && !grew(field, 1)) {
+				known = true;
+				continue;
+			}
+			return {
+				oracle: 'leak',
+				detail: `${url}: ${field} grew visit after visit in one document: ${run.map((s) => s[field]).join(' → ')}${field === 'intervals' ? `\nrunning: ${tab.platform?.pending().join(', ')}` : ''}`
+			};
 		}
-		return null;
+		return known
+			? {
+					oracle: 'known',
+					detail: `${url}: #799 (a left page's region sheet kept), #821 (a second runtime script after a navigation to another depth)`
+				}
+			: null;
 	}
+}
+
+/** The module preloads in a tab's head. */
+function preloads_in_head(tab: Tab): number {
+	const head = (tab.page.mainFrame.document as unknown as Document).head;
+	return head ? head.querySelectorAll('link[rel="modulepreload"]').length : 0;
+}
+
+/**
+ * Head nodes a filed bug explains: runtime scripts past the first (#821) and region sheets (#799
+ * keeps a left page's for a navigation; until it is fixed a sheet's coming and going is set aside).
+ */
+function explained_head(tab: Tab): number {
+	const head = (tab.page.mainFrame.document as unknown as Document).head;
+	if (!head) return 0;
+	const runtime = head.querySelectorAll('script[data-ogygia-runtime]').length;
+	const sheets = head.querySelectorAll('[data-ogygia-region-css]').length;
+	return Math.max(0, runtime - 1) + sheets;
 }
