@@ -144,6 +144,32 @@ describe('import_again', () => {
 		expect(asked).toEqual(['https://cdn.shop.test/_app/immutable/chunks/nav.js?og-retry=1']);
 	});
 
+	it('a failed retry fails its caller at once; a call while its verdict is out waits for it, then asks again (#392)', async () => {
+		const file = 'https://shop.test/_app/immutable/chunks/nav.js';
+		const asked: string[] = [];
+		const fresh = vi.fn(async (url: string) => {
+			asked.push(url);
+			if (asked.length === 1)
+				throw new TypeError(`Failed to fetch dynamically imported module: ${url}`);
+			return 'nav';
+		});
+		const load = import_again(() => Promise.reject(SAFARI), fresh, file);
+		await expect(load()).rejects.toBe(SAFARI);
+		// (no timing entry ever lands for the retry, as in WebKit for a dropped download: its verdict
+		// waits out the entry wait)
+		vi.useFakeTimers();
+		try {
+			await expect(load()).rejects.toThrow('og-retry=1');
+			const next = load();
+			expect(asked).toHaveLength(1);
+			await vi.runAllTimersAsync();
+			await expect(next).resolves.toBe('nav');
+		} finally {
+			vi.useRealTimers();
+		}
+		expect(asked).toEqual([`${file}?og-retry=1`, `${file}?og-retry=2`]);
+	});
+
 	it('a known file whose module threw (not a download) is not asked for again (#383)', async () => {
 		vi.stubGlobal('location', new URL('https://shop.test/cart'));
 		const fresh = vi.fn();
