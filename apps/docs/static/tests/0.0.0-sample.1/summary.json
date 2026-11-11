@@ -1,0 +1,31 @@
+{
+	"version": "0.0.0-sample.1",
+	"commit": "85e2ca3d0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+	"date": "2026-11-04T09:12:00Z",
+	"totals": {
+		"tests": 9,
+		"byKind": { "unit": 6, "browser": 2, "e2e": 0, "types": 1, "rules": 0 },
+		"byEngine": {
+			"chromium": { "pass": 2, "fail": 0, "skip": 0 },
+			"firefox": { "pass": 2, "fail": 0, "skip": 0 },
+			"webkit": { "pass": 1, "fail": 1, "skip": 0 }
+		},
+		"regression": 2,
+		"seeded": 1,
+		"benches": 1,
+		"srcLines": 700,
+		"testLines": 1200,
+		"ratio": 1.71,
+		"coverage": { "lines": 97.2, "branches": 93.1, "functions": 100, "statements": 97 }
+	},
+	"packages": {
+		"machine": {
+			"tests": 9,
+			"byKind": { "unit": 6, "browser": 2, "types": 1 },
+			"coverage": { "lines": 97.2, "branches": 93.1, "functions": 100, "statements": 97 },
+			"srcLines": 700,
+			"testLines": 1200,
+			"fail": 1
+		}
+	}
+}

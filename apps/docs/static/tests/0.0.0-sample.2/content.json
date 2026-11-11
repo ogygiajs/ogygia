@@ -1,0 +1,55 @@
+{
+	"tests": [
+		{
+			"file": "test/search-page.test.ts",
+			"name": "is a GET form that sends the term as q",
+			"kind": "unit",
+			"results": { "node": "pass" }
+		},
+		{
+			"file": "test/blog-dates.test.ts",
+			"name": "a blog post's date shows its own day in any server time zone",
+			"kind": "unit",
+			"results": { "node": "pass" },
+			"issue": 655
+		},
+		{
+			"file": "test/browser/sheet.test.ts",
+			"name": "the sheet closes on Escape and gives focus back",
+			"kind": "browser",
+			"results": { "chromium": "pass", "firefox": "pass", "webkit": "pass" }
+		},
+		{
+			"file": "test/browser/search-palette.test.ts",
+			"name": "a quick burst of typing queries once, for the last term",
+			"kind": "browser",
+			"results": { "chromium": "pass", "firefox": "pass", "webkit": "pass" }
+		},
+		{
+			"file": "e2e/search-palette-load.spec.ts",
+			"name": "a second Ctrl+K while loading takes the open back",
+			"kind": "e2e",
+			"results": { "chromium": "pass", "firefox": "pass", "webkit": "pass" },
+			"issue": 279
+		},
+		{
+			"file": "lint/no-island-names.test.ts",
+			"name": "a public export named island is reported",
+			"kind": "rules",
+			"results": { "node": "pass" }
+		},
+		{
+			"file": "lint/no-island-names.test.ts",
+			"name": "an internal island name is allowed",
+			"kind": "rules",
+			"results": { "node": "pass" }
+		}
+	],
+	"coverage": {
+		"files": [
+			{ "path": "src/site/search.ts", "lines": 88.2, "branches": 79.3, "functions": 90 },
+			{ "path": "src/site/site.ts", "lines": 84.9, "branches": 72.4, "functions": 88.9 },
+			{ "path": "src/markdown/frontmatter.ts", "lines": 70.6, "branches": 58.8, "functions": 75 }
+		]
+	}
+}

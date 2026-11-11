@@ -537,6 +537,7 @@
 	{#snippet links()}
 		<a href="https://github.com/ogygiajs/ogygia" target="_blank" rel="noreferrer">GitHub</a>
 		<a href="https://www.npmjs.com/package/ogygia" target="_blank" rel="noreferrer">npm</a>
+		<a href="/tests">Tests</a>
 	{/snippet}
 </SiteFooter>
 
