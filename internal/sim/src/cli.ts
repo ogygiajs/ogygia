@@ -39,6 +39,7 @@ import {
 	Leaks,
 	mpa_equivalent,
 	no_cross_visitor_cache,
+	no_foreign_html,
 	normalize,
 	page_errors,
 	page_rules,
@@ -86,7 +87,7 @@ const PATHS = route_paths(APP);
 /** Paths an app's e2e serves itself (`page.route`), not its build: palaestra's /wake-gate holds a
  *  slow script its spec releases (e2e/wake-gate.spec.ts). */
 const SUPPLIED = ['/wake-gate-slow.js'];
-const FAULTS: FaultClass[] = ['delay', 'reorder', 'drop', 'duplicate', 'cut', 'tamper'];
+const FAULTS: FaultClass[] = ['delay', 'reorder', 'drop', 'duplicate', 'cut', 'tamper', 'redirect'];
 
 /** FNV-1a, hex: a DOM's fingerprint in the trace. */
 function fingerprint(s: string): string {
@@ -156,6 +157,7 @@ export async function run(
 				for (const b of [
 					page_errors(t, world, since),
 					hydrates_as_sent(t, world),
+					no_foreign_html(t),
 					page_rules(t),
 					leaks.check(t)
 				])

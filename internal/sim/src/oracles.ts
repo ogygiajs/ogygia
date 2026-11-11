@@ -3,7 +3,7 @@
  * found broken, or null. Each is precise about what it normalizes away, and why.
  */
 import type { Tab, Visitor } from './browser.ts';
-import type { World } from './world.ts';
+import { FOREIGN_MARK, type World } from './world.ts';
 
 /** What an oracle found broken. */
 export interface Broken {
@@ -549,6 +549,7 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 				mine(e.from) &&
 				(e.cut ||
 					e.tampered ||
+					e.redirected ||
 					e.status === 'dropped' ||
 					e.status === 'offline' ||
 					(typeof e.status === 'number' && e.status >= 500))
@@ -594,6 +595,21 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 	return { oracle: 'page-errors', detail: errors.join('\n') };
 }
 
+/**
+ * NO FOREIGN HTML: a page never paints HTML another origin answered. Region HTML is trusted
+ * because the app's own server made it (INVARIANTS.md HOLE-TRUST); a `redirect` fault sends a
+ * region's request elsewhere, and what comes back is marked. Read from the tab's document.
+ */
+export function no_foreign_html(tab: Tab): Broken | null {
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	const painted = [...doc.querySelectorAll(`[${FOREIGN_MARK}]`)];
+	if (painted.length === 0) return null;
+	return {
+		oracle: 'foreign-html',
+		detail: `${tab.page.mainFrame.url}: ${painted.map((e) => e.outerHTML.slice(0, 200)).join('\n')}`
+	};
+}
+
 /** Svelte's and ogygia's words for a region whose server HTML did not hydrate as it was. */
 const UNHYDRATED = /svelte\.dev\/e\/hydration_mismatch|ogygiajs\.dev\/e\/hydration_discarded/;
 
@@ -613,7 +629,10 @@ export function hydrates_as_sent(tab: Tab, world?: World): Broken | null {
 	if (world !== undefined && document_faulted(world, tab)) return null;
 	const url = tab.page.mainFrame.url;
 	if (UNHYDRATED_BY_DESIGN.some((d) => d.path.test(new URL(url).pathname))) return null;
-	return { oracle: 'ssr-hydrate', detail: `${url}: ${said.map((l) => l.split('\n')[0]).join('\n')}` };
+	return {
+		oracle: 'ssr-hydrate',
+		detail: `${url}: ${said.map((l) => l.split('\n')[0]).join('\n')}`
+	};
 }
 
 /** What a page says because of a filed bug, as KNOWN is for a DOM difference: a seed that says

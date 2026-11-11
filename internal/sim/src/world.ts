@@ -16,12 +16,15 @@ import {
 import { Cdn } from './cdn.ts';
 import { Loop } from './loop.ts';
 import { use_v8_modules } from './modules.ts';
-import { Network, type FaultClass } from './network.ts';
+import { ELSEWHERE, Network, type FaultClass } from './network.ts';
 import { install, platform } from './platform.ts';
 import { rng, type Rng } from './rng.ts';
 import { current_server, start_server, type Build, type ServerInstance } from './server.ts';
 
 export const ORIGIN = 'https://app.test';
+
+/** The attribute on every element of HTML another origin answers (`no_foreign_html` looks for it). */
+export const FOREIGN_MARK = 'data-sim-foreign';
 
 export interface WorldOptions {
 	seed: number;
@@ -33,6 +36,8 @@ export interface WorldOptions {
 	skew?: number;
 	/** The fault classes on for this run. */
 	faults?: ReadonlySet<FaultClass>;
+	/** Each fault's chance when it is on (a test may make one sure). */
+	rates?: Partial<Record<FaultClass, number>>;
 	/** Virtual ms past which nothing runs. */
 	horizon?: number;
 	/** Where builds are copied to (one copy per instance). */
@@ -63,7 +68,12 @@ export class World {
 		this.seed = o.seed;
 		this.rng = rng(o.seed);
 		this.loop = new Loop(this.rng, { horizon: o.horizon });
-		this.network = new Network({ loop: this.loop, rng: this.rng, faults: o.faults ?? new Set() });
+		this.network = new Network({
+			loop: this.loop,
+			rng: this.rng,
+			faults: o.faults ?? new Set(),
+			rates: o.rates
+		});
 		this.cdn = new Cdn(this.loop);
 		this.browsers = new Browsers({
 			loop: this.loop,
@@ -142,6 +152,14 @@ export class World {
 		// another host (a page's third-party script or stylesheet): the rest of the web, which
 		// answers with an empty file of the kind asked for; the app is not tested against it
 		const url = new URL(request.url);
+		// (where a `redirect` fault sends a region's request: HTML marked as foreign, open to any
+		// origin, so only the page's own check stands between it and the screen; `no_foreign_html`)
+		if (url.origin === ELSEWHERE)
+			return Promise.resolve(
+				new Response(`<p ${FOREIGN_MARK}="">painted from ${url.href}</p>`, {
+					headers: { 'content-type': 'text/html', 'access-control-allow-origin': '*' }
+				})
+			);
 		if (url.origin !== ORIGIN || this.#o.supplied?.includes(url.pathname)) {
 			const type = url.pathname.endsWith('.css')
 				? 'text/css'
