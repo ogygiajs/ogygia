@@ -107,7 +107,7 @@ import {
 	type Weight,
 	type AssetRef
 } from '@ogygia/core/insights';
-import { BEACON_STANDALONE_TAG } from './beacon-standalone.ts';
+import { BEACON_STANDALONE_TAG } from './beacon-tag.ts';
 import { is_document_request } from '../document-request.ts';
 import { build_river, load_return_keys, seed_key_bytes, type River } from './river.ts';
 import { SinkBuffer, type SinkRow } from './sink.ts';

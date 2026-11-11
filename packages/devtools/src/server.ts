@@ -14,7 +14,7 @@ import {
 } from '@ogygia/core/plugin';
 import type { RequestEvent } from '@sveltejs/kit';
 import { DEVTOOLS_COOKIE, DEVTOOLS_ON, switch_in_url } from '@ogygia/core/insights';
-import { BEACON_STANDALONE_TAG } from './profiler/beacon-standalone.ts';
+import { BEACON_STANDALONE_TAG } from './profiler/beacon-tag.ts';
 import { is_document_request } from './document-request.ts';
 import { set_devtools_app } from './app.ts';
 import { install_request_stats } from './profiler/request-stats.ts';
