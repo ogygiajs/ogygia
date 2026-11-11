@@ -11,7 +11,14 @@ import {
 	sign as ed_sign,
 	verify as ed_verify
 } from 'node:crypto';
-import { Needle, next_tag, text_of, type FoundTag } from '@ogygia/core/internal/server';
+import {
+	Needle,
+	next_tag,
+	OGYGIA_GRAPH,
+	OGYGIA_RUNTIME,
+	text_of,
+	type FoundTag
+} from '@ogygia/core/internal/server';
 
 // ── paths the handle serves ──────────────────────────────────────────────────────────────────
 /** The exposed route table: `GET|POST|… /og/fragment/page?path=…&search=…`. */
@@ -276,9 +283,8 @@ function pin_asset(value: string, origin: string): string {
 	return new URL(value, origin + '/').href;
 }
 
-const GRAPH_ATTR = 'data-ogygia-graph';
 // (the attribute's name in any case: where a graph script can be; a script without it is not read)
-const GRAPH_ANY_CASE = /data-ogygia-graph/gi;
+const GRAPH_ANY_CASE = new RegExp(OGYGIA_GRAPH, 'gi');
 
 /** An island graph's JSON (core island-graph.ts: `{h, e, s}`), every chunk, entry and location in
  *  it pinned to `origin`: the shell's runtime resolves them against ITS page otherwise, so a remote
@@ -319,7 +325,7 @@ function pin_graphs(html: string, origin: string): string {
 	for (let t = next_tag(html, 'script', 0); t !== null; t = next_tag(html, 'script', t.end)) {
 		const held = mark.holds(t);
 		if (mark.gone) break;
-		if (!held || t.attr(GRAPH_ATTR) === undefined) continue;
+		if (!held || t.attr(OGYGIA_GRAPH) === undefined) continue;
 		const json = text_of(html, t, 'script');
 		if (json === null) break;
 		out += html.slice(pos, t.end) + pin_graph(json, origin);
@@ -383,7 +389,7 @@ export function lift_document(html: string, origin: string): Omit<FragmentDocume
 	const head = (head_tag && text_of(html, head_tag, 'head')) ?? '';
 	let runtime_src: string | undefined;
 	for (let t = next_tag(html, 'script', 0); t !== null; t = next_tag(html, 'script', t.end)) {
-		if (t.attr('data-ogygia-runtime') === undefined) continue;
+		if (t.attr(OGYGIA_RUNTIME) === undefined) continue;
 		runtime_src = t.attr('src') || undefined;
 		if (runtime_src) break;
 	}

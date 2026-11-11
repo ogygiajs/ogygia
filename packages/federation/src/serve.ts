@@ -10,6 +10,7 @@ import { version } from '$app/env';
 import { backoffAfter, flights, machine, policy, type Policy } from '@ogygia/machine';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { ServerApp } from '@ogygia/core/plugin';
+import { OG_MOVED } from '@ogygia/core/internal/server';
 import { current_federation } from './registry.ts';
 import { begin_source_capture, broadcast_thaw, deploy_thaws } from './federate.ts';
 import { set_hole_signer } from './hole.ts';
@@ -336,7 +337,7 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 		const doc = await peer.doc(target, search, claims, traceparent);
 		if (doc.location)
 			return answer(
-				`<p data-og-moved>This section moved. <a href="${doc.location}">Continue</a></p>`
+				`<p ${OG_MOVED}>This section moved. <a href="${doc.location}">Continue</a></p>`
 			);
 		return answer((doc.css?.join('') ?? '') + (doc.head ?? '') + doc.body);
 	} catch {
