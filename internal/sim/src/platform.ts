@@ -13,6 +13,7 @@
  * - `fetch`, `EventSource`, `IntersectionObserver` and storage are given by the world (the network,
  *   the tab's viewport, the tab's origin storage): `install` takes them.
  */
+import { AsyncResource } from 'node:async_hooks';
 import type { Platform } from '@ogygia/machine';
 import type { Loop, Task } from './loop.ts';
 import type { Rng } from './rng.ts';
@@ -88,6 +89,9 @@ export function platform(
 
 	const arm = (label: string, ms: number, fn: () => void, id = ++ids): number => {
 		if (SITES) label += ` @ ${site()}`;
+		// (a host timer runs in the context it was set in, as Node's own do: a server's timer is still
+		// that server's, its clock skew and its own symbols with it)
+		if (options.node) fn = AsyncResource.bind(fn);
 		const task = loop.add(name, label, ms, () => {
 			live.delete(id);
 			fn();

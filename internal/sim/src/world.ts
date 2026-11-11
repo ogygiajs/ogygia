@@ -20,7 +20,13 @@ import { use_v8_modules } from './modules.ts';
 import { ELSEWHERE, Network, type FaultClass } from './network.ts';
 import { install, platform } from './platform.ts';
 import { rng, type Rng } from './rng.ts';
-import { current_server, start_server, type Build, type ServerInstance } from './server.ts';
+import {
+	current_server,
+	own_symbols,
+	start_server,
+	type Build,
+	type ServerInstance
+} from './server.ts';
 
 export const ORIGIN = 'https://app.test';
 
@@ -103,7 +109,12 @@ export class World {
 			skew: () => current_server.getStore()?.skew ?? 0,
 			node: true
 		});
-		const restore = install(globalThis, host);
+		const restore_platform = install(globalThis, host);
+		const restore_symbols = own_symbols();
+		const restore = () => {
+			restore_symbols();
+			restore_platform();
+		};
 		// a server's own `fetch` (Kit reads a prerendered remote answer from its own origin) goes
 		// through the world too, like a tab's: never the real network
 		const real_fetch = globalThis.fetch;

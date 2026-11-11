@@ -362,13 +362,13 @@ function per_render(a: string, b: string): (s: string) => string {
 
 /**
  * A region endpoint's bookkeeping, set aside: its capability's expiry and signature (`exp`, `sig`:
- * the time of the render, in 30-minute steps) and the page-facts part (`pv`, named once the server
- * has seen the hole read `page.data`). The region, its build and its props (`id`, `r`, `props`,
- * `k`) are compared. Seeds 241, 315, 457 (/context, /nested-hole).
+ * the time of the render, in 30-minute steps). The region, its build, its props and the page facts
+ * it renders from (`id`, `r`, `props`, `k`, `pv`) are compared. Seeds 241, 315, 457 (/context,
+ * /nested-hole: a `pv` that came and went was two instances sharing one symbol registry).
  */
 function bookkeeping_out(s: string): string {
 	return s.replace(/ endpoint="([^"]*)"/g, (_, url: string) => {
-		const kept = url.replace(/&(exp|sig)=[^&]*/g, '&$1=<t>').replace(/&pv=[^&]*/g, '');
+		const kept = url.replace(/&(exp|sig)=[^&]*/g, '&$1=<t>');
 		return ` endpoint="${kept}"`;
 	});
 }
