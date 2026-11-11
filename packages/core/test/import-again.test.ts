@@ -122,6 +122,55 @@ describe('import_again', () => {
 		vi.unstubAllGlobals();
 	});
 
+	it('a failure that names another file (Firefox names the dependency that failed) asks for the loader’s own file again, never that one', async () => {
+		vi.stubGlobal('location', new URL('https://shop.test/cart'));
+		const own = 'https://shop.test/_app/immutable/chunks/hydrate-core.js';
+		const dependency = new TypeError(
+			'error loading dynamically imported module: https://shop.test/_app/immutable/chunks/shared.js'
+		);
+		const asked: string[] = [];
+		const fresh = vi.fn(async (url: string) => {
+			asked.push(url);
+			return 'core';
+		});
+		const load = import_again(() => Promise.reject(dependency), fresh, own);
+		await expect(load()).rejects.toBe(dependency);
+		await load();
+		expect(asked).toEqual([own + '?og-retry=1']);
+		vi.unstubAllGlobals();
+	});
+
+	it('a loader that does not know its own file never asks for the file a failure names', async () => {
+		vi.stubGlobal('location', new URL('https://shop.test/cart'));
+		const fresh = vi.fn();
+		const plain = vi
+			.fn<() => Promise<string>>()
+			.mockRejectedValueOnce(CHROMIUM)
+			.mockResolvedValue('core');
+		const load = import_again(plain, fresh);
+		await expect(load()).rejects.toBe(CHROMIUM);
+		await expect(load()).resolves.toBe('core');
+		expect(fresh).not.toHaveBeenCalled();
+		vi.unstubAllGlobals();
+	});
+
+	it('a file named relative to the loader’s module is asked for at that module’s URL', async () => {
+		const asked: string[] = [];
+		const fresh = vi.fn(async (url: string) => {
+			asked.push(url);
+			return 'nav';
+		});
+		const load = import_again(
+			() => Promise.reject(SAFARI),
+			fresh,
+			'./chunks/nav.js',
+			'https://cdn.shop.test/_app/immutable/og-runtime.js'
+		);
+		await expect(load()).rejects.toBe(SAFARI);
+		await expect(load()).resolves.toBe('nav');
+		expect(asked).toEqual(['https://cdn.shop.test/_app/immutable/chunks/nav.js?og-retry=1']);
+	});
+
 	it('a known file whose module threw (not a download) is not asked for again (#383)', async () => {
 		vi.stubGlobal('location', new URL('https://shop.test/cart'));
 		const fresh = vi.fn();
