@@ -25,11 +25,12 @@ import {
 	mkdtempSync,
 	readdirSync,
 	readFileSync,
+	renameSync,
 	rmSync,
 	writeFileSync
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { heisenbench_dir, bench_packages, link_heisenbench, REPO_ROOT } from './heisenbench.ts';
@@ -79,6 +80,21 @@ function source_files(rev: string | null): string[] {
 				!f.endsWith('.d.ts')
 		)
 		.sort();
+}
+
+/** The package source files git sees as renamed from `rev` to the working tree: old path → new. */
+function renames(rev: string): Map<string, string> {
+	const out = execFileSync(
+		'git',
+		['diff', '--name-status', '--find-renames', '--diff-filter=R', rev, '--', 'packages'],
+		{ cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 1 << 28 }
+	);
+	const moved = new Map<string, string>();
+	for (const line of out.split('\n')) {
+		const [status, from, to] = line.split('\t');
+		if (status?.startsWith('R') && from && to) moved.set(from, to);
+	}
+	return moved;
 }
 
 // 1. what the bench files run
@@ -178,8 +194,18 @@ if (values.base) {
 		maxBuffer: 1 << 30
 	});
 	execFileSync('tar', ['-x', '-C', base_root], { input: tar });
+	// A file moved since the base keeps its functions: the base's copy is read at its new path, so a
+	// move is not a crop of new functions (git's own rename detection decides what moved).
+	const moved = renames(values.base);
+	const base_files = files.map((f) => {
+		const to = moved.get(f);
+		if (to === undefined) return f;
+		mkdirSync(dirname(join(base_root, to)), { recursive: true });
+		renameSync(join(base_root, f), join(base_root, to));
+		return to;
+	});
 	const base_list = join(out, 'base-files.txt');
-	writeFileSync(base_list, files.join('\n') + '\n');
+	writeFileSync(base_list, base_files.join('\n') + '\n');
 	const base_inventory = join(out, 'base-inventory.json');
 	heisenbench_cli(['inventory', '--list', base_list, '--root', base_root, '--out', base_inventory]);
 	gate_args.push('--base-inventory', base_inventory);
