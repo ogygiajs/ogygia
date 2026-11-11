@@ -218,7 +218,7 @@ renders.release();
 
 - **A place is handed on, never free in between.** A release starts the next job in the same step, so a job pushed meanwhile queues behind it. A `start` that pushes, cancels or releases is safe inside the drain.
 - **A wait never hangs.** A job still waiting at its deadline is stale and never starts; one whose deadline came is passed over at a release even before the timer runs. The deadlines share one timer, at the earliest one waiting, gone once none waits.
-- **No record per job.** The queue keeps the jobs themselves, in the order pushed. A `start` that throws is reported ([machine_queue_start_failed](https://ogygiajs.dev/e/machine_queue_start_failed)) and the jobs after it still start.
+- **No record per job.** The queue keeps the jobs themselves, in the order pushed. A `start` that throws is reported ([machine_queue_start_failed](https://ogygiajs.dev/e/machine_queue_start_failed)) and the jobs after it still start; a `stale` that throws is reported too ([machine_queue_stale_failed](https://ogygiajs.dev/e/machine_queue_stale_failed)), and the other waiting jobs still go stale.
 
 ## Outbox
 

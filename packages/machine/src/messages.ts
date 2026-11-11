@@ -31,6 +31,7 @@ export type MachineErrors = {
 	machine_mailbox_handler_failed: Entry<Record<string, never>>;
 	machine_flight_raise_failed: Entry<{ name: string }>;
 	machine_queue_start_failed: Entry<{ name: string }>;
+	machine_queue_stale_failed: Entry<{ name: string }>;
 };
 
 /** The errors: thrown in dev (and tests), where a wrong move is a bug to fix now. */
@@ -197,6 +198,16 @@ export const MACHINE_ERRORS: MachineErrors = {
 			'(`reportError`: the console and `window.onerror`), as a task would, and the jobs after it ' +
 			'still start. The job counts as started: release its place when its work is done.\n\n' +
 			'Catch inside `start` to handle it there.'
+	},
+	machine_queue_stale_failed: {
+		text: (a: { name: string }): string =>
+			`queue ${a.name}: a job's \`stale\` threw as the job left the queue.`,
+		details: (): string =>
+			'A `queue()` told a waiting job it was stale (its deadline came, it was cancelled, or the ' +
+			"owner closed) through its `stale` option, and it threw. The job is the one at fault, so the " +
+			"queue goes on: the error goes to the page's error handler (`reportError`: the console and " +
+			'`window.onerror`), and the other waiting jobs still go stale or start, so none waits ' +
+			'forever.\n\nCatch inside `stale` to handle it there.'
 	}
 };
 
