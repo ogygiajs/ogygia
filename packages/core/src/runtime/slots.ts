@@ -113,6 +113,8 @@ export type PageOps = {
  */
 export type FrameOps = {
 	subscribe(a: string, cb: (f: Frame) => void): () => void;
+	/** The frame applied at an address, if any. */
+	peek(a: string): { v: number; html: string } | null;
 	/** `STALE` when its `signal` aborted: only that caller leaves the fetch. */
 	ensure(
 		a: string,
