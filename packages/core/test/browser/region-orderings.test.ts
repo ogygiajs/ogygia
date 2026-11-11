@@ -333,4 +333,40 @@ describe('a static live tick reaches its region after a write at its address', (
 			RUNS
 		);
 	});
+
+	it('a later tick that wrote nothing at its address still paints', async () => {
+		await simulate.check(
+			[],
+			async (sim) => {
+				start(sim);
+				const el = document.createElement('ogygia-region') as LiveRegion;
+				el.setAttribute('live', '');
+				const a = frameAddress(LIVE_URL);
+				sim.finally('it shows the second tick', () =>
+					el.querySelector('[data-n="2"]') !== null ? null : `it shows "${el.innerHTML}"`
+				);
+				const tick = (n: number) => ({
+					id: 'order-live',
+					module: '',
+					props: {},
+					html: `<p data-n="${n}">${n}</p>`,
+					url: LIVE_URL
+				});
+				await sim.play([
+					['it comes onto the page', () => document.body.append(el), 'then'],
+					[
+						'the first tick, written at its address as it is decoded',
+						() => {
+							write({ a, v: ticket(a), html: tick(1).html });
+							return el.applyLive(tick(1));
+						},
+						'then'
+					],
+					// (its HTML never went through the store: the frame there is still the first tick's)
+					['a second tick that wrote nothing', () => el.applyLive(tick(2))]
+				]);
+			},
+			RUNS
+		);
+	});
 });
