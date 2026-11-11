@@ -19,7 +19,7 @@ import { BROWSER, DEV } from 'esm-env';
 export const RESHAPE_ERRORS = {
 	reshape_plugin_missing: {
 		text: (): string => prose`
-			reshape.handle({ transform }) runs, but reshape() is not in vite.config: list it beside
+			reshape.handle(transform) runs, but reshape() is not in vite.config: list it beside
 			ogygia() in \`plugins\`.
 		`,
 		details: (): string => prose`

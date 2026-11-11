@@ -1,6 +1,7 @@
-// REVERSIBLE TRANSFORMS, end to end (reshape.handle({ transform }), src/reversible.ts +
-// src/restore.ts): the restore lab (e2e/app) runs a scoped web-component render
-// (e2e/app/src/lib/restorelab/scoped-render.ts) over every document and region answer. On /restore-lab the island inside a reshaped host must hydrate without a heal and
+// REVERSIBLE TRANSFORMS, end to end (reshape.handle(transform), src/reversible.ts + src/restore.ts):
+// the restore lab (e2e/app) runs a scoped web-component render
+// (e2e/app/src/lib/restorelab/scoped-render.ts) over every document and region answer. On
+// /restore-lab the island inside a reshaped host must hydrate without a heal and
 // stay interactive, the parser must not split the page's link or <p> around a host's tree, the hole's
 // answer must arrive restored (its island hydrating after), a server-owned host is left for its own
 // runtime, and nothing of ogygia's marking is left in the DOM.

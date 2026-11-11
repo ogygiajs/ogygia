@@ -26,22 +26,17 @@ describe('reshape()', () => {
 	});
 });
 
-describe('handle({ transform })', () => {
+describe('handle(transform)', () => {
 	it('refuses every request while reshape() is not in vite.config, naming the fix', () => {
 		slot.live = false;
 		const event = event_of(new Request('http://x/'));
-		expect(() => handle({ transform: (html) => html })({ event, resolve: ok })).toThrow(
-			/reshape_plugin_missing/
-		);
+		expect(() => handle((html) => html)({ event, resolve: ok })).toThrow(/reshape_plugin_missing/);
 	});
 
 	it('gives a pass to the requests it wrapped, and to no other', async () => {
 		startPlugin(server, { name: '@ogygia/reshape' });
 		const wrapped = event_of(new Request('http://x/a'));
-		const res = await handle({ transform: (html) => html.replace('a', 'b') })({
-			event: wrapped,
-			resolve: ok
-		});
+		const res = await handle((html) => html.replace('a', 'b'))({ event: wrapped, resolve: ok });
 		expect(await res.text()).toBe('ok');
 		expect(server.pass!(wrapped)).toBeDefined();
 		expect(server.pass!(event_of(new Request('http://x/a')))).toBeUndefined();
@@ -51,11 +46,9 @@ describe('handle({ transform })', () => {
 		startPlugin(server, { name: '@ogygia/reshape' });
 		const event = event_of(new Request('http://x/'));
 		const seen: string[] = [];
-		await handle({
-			transform: (html, { kind }) => {
-				seen.push(kind);
-				return html;
-			}
+		await handle((html, { kind }) => {
+			seen.push(kind);
+			return html;
 		})({ event, resolve: ok });
 		const pass = server.pass!(event)!;
 		expect(await pass.region('<p>a</p>')).toBe('<p>a</p>');
