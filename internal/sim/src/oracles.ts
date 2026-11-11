@@ -241,6 +241,31 @@ function region_at(lines: string[], at: number): { text: string; end: number } |
 	return { text: lines.slice(at, end).join('\n'), end };
 }
 
+/**
+ * Islands of the test app that keep their own client state across a navigation by design, as a
+ * component Kit keeps across a same-route navigation does: a fresh load starts them over, so what
+ * they show is set aside (their subtree's attributes and text; the element itself stays). Each says
+ * why. A new entry needs the same: state the island owns, not state ogygia should have carried.
+ */
+const OWN_STATE = [
+	// palaestra lib/FilterBar.svelte reads `location` once, at hydration, then only its own clicks
+	// (seed 286: kept across /dashboard/orders?status=… navigations, it shows the first status)
+	'data-filterbar'
+];
+
+/** `s` with each OWN_STATE element's subtree reduced to its opening line. */
+function own_state_out(s: string): string {
+	const lines = s.split('\n');
+	const out: string[] = [];
+	for (let i = 0; i < lines.length; i++) {
+		out.push(lines[i]);
+		const m = /^( *)<\S+/.exec(lines[i]);
+		if (m === null || !OWN_STATE.some((a) => lines[i].includes(` ${a}=`))) continue;
+		while (i + 1 < lines.length && /^ */.exec(lines[i + 1])![0].length > m[1].length) i++;
+	}
+	return out.join('\n');
+}
+
 /** How long the MPA check looks again for text that moves by itself. */
 const LIVE_LOOK_MS = 2_000;
 
@@ -341,8 +366,8 @@ export async function mpa_equivalent(
 		...live_lines(shown, view(tab.page.mainFrame.document as unknown as Document)),
 		...live_lines(loaded, view(fresh.page.mainFrame.document as unknown as Document))
 	]);
-	const again = mask(loaded, live);
-	shown = mask(shown, live);
+	const again = own_state_out(mask(loaded, live));
+	shown = own_state_out(mask(shown, live));
 	const said = [...fresh.errors, ...fresh.console];
 	await world.browsers.close(fresh_visitor, fresh);
 	const diff = first_difference(shown, again);
