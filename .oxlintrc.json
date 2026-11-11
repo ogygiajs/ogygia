@@ -9,6 +9,7 @@
 		"ogygia/owned-effects": "error",
 		"ogygia/no-silent-failures": "error",
 		"ogygia/stale-whole": "error",
+		"ogygia/one-hash": "error",
 		"ogygia/compiler-boundary": "error"
 	},
 	"overrides": [
