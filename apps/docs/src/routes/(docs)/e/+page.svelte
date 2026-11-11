@@ -17,18 +17,18 @@
 		prints only <code>[ogygia]</code> and that link: the wording stays out of your bundle, and the page
 		shows the message as it was printed.
 	</p>
-	<ul>
+	<div class="list">
 		{#each data.messages as m (m.code)}
-			<li>
-				<a href="/e/{m.code}"><code>{m.code}</code></a>
+			<section>
+				<h2 id={m.code}><a href="/e/{m.code}"><code>{m.code}</code></a></h2>
 				<span class="kind {m.kind}">{m.kind}</span>
 				<p>
 					{#each m.summary as run, i (i)}{#if run.code}<code>{run.text}</code
 							>{:else}{run.text}{/if}{/each}
 				</p>
-			</li>
+			</section>
 		{/each}
-	</ul>
+	</div>
 </main>
 
 <style>
@@ -37,13 +37,19 @@
 		padding-bottom: 4rem;
 		max-width: 52rem;
 	}
-	ul {
-		list-style: none;
-		padding: 0;
+	.list {
 		display: grid;
 		gap: 1.25rem;
 	}
-	li p {
+	h2 {
+		display: inline;
+		margin: 0;
+		font-size: 1rem;
+		font-weight: inherit;
+		line-height: inherit;
+		scroll-margin-top: 1.5rem;
+	}
+	section p {
 		margin: 0.25rem 0 0;
 	}
 	.kind {
