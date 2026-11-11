@@ -1,6 +1,8 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { ogygia } from 'ogygia/vite';
 import { devtools } from '@ogygia/devtools/vite';
+import { reshape } from '@ogygia/reshape/vite';
+import { barrels } from '@ogygia/barrels';
 import { defineConfig } from 'vite';
 
 // THE DEVTOOLS LAB: @ogygia/devtools' e2e fixture app. Its pages plant known problems (the dt-* labs,
@@ -19,7 +21,6 @@ export default defineConfig({
 	plugins: [
 		ogygia({
 			// the palaestra's core options, so the lab's copies of its pages render the same way
-			barrels: true,
 			router: { serverDelta: true },
 			visible: { margin: '0px' },
 			presets: {
@@ -28,6 +29,8 @@ export default defineConfig({
 				cachedRecs: { render: 'deferred', maxAge: '5m' }
 			}
 		}),
+		// the restore lab's pass (hooks.server.ts, OGYGIA_RESTORE_LAB=1)
+		reshape(),
 		// devtools: the SSR profiler, always (its UI islands build, its handle mounts it; secret from
 		// OGYGIA_PROFILER_SECRET at runtime; + the background recorders the hell page exercises: a trap
 		// for any request over 400 ms, a 1 s coarse sample every 20 s; serverTiming on in the built
@@ -41,6 +44,8 @@ export default defineConfig({
 				serverTiming: true
 			}
 		}),
+		// as the palaestra lists it
+		barrels(),
 		sveltekit()
 	]
 });

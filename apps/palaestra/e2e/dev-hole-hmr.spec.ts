@@ -3,7 +3,7 @@
 //   pnpm exec playwright test dev-hole-hmr
 //
 // The regression: editing a host dropped its islands' registry rows and invalidated
-// `virtual:ogygia/server-manifest`; Kit re-imported the handle BEFORE the page transform
+// `ogygia:server/server-manifest`; Kit re-imported the handle BEFORE the page transform
 // re-registered them, so the handle held a manifest WITHOUT those ids — and nothing invalidated it
 // again. Every hole on the page answered 403 until the dev server was restarted (the app header
 // lab: all five holes dead after any edit to Header.svelte). The driver now re-invalidates the
@@ -79,7 +79,7 @@ test.describe('dev: hole endpoint survives an HMR edit of its host', () => {
 			'csr=false page carries the dev bridge (@vite/client recovery)',
 			/data-ogygia-dev-hmr/.test(dev_html)
 		);
-		const bridge = await (await fetch(`${base}/@id/virtual:ogygia/dev-hmr`)).text();
+		const bridge = await (await fetch(`${base}/@id/ogygia:dev/hmr`)).text();
 		check(
 			'the dev bridge imports @vite/client',
 			bridge.includes('@vite/client'),
