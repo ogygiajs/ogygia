@@ -2489,7 +2489,7 @@
 			"reason": "build only: the hidden-sourcemaps switch, always on in a build with the profiler, constant work"
 		},
 		{
-			"id": "packages/devtools/src/client-beacon.ts > defineClient:0~213ad9 > boot",
+			"id": "packages/devtools/src/client-beacon.ts > plugin > boot",
 			"reason": "browser only: installs the beacon once per page (install_beacon), constant work of its own"
 		},
 		{
@@ -2513,19 +2513,19 @@
 			"reason": "browser only: renames one field of a hook event for beacon_hole_batch_missed, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~de51c9 > hooks > regionWoke",
+			"id": "packages/devtools/src/client.ts > plugin > hooks > regionWoke",
 			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~de51c9 > hooks > regionMismatched",
+			"id": "packages/devtools/src/client.ts > plugin > hooks > regionMismatched",
 			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~de51c9 > hooks > navStarted",
+			"id": "packages/devtools/src/client.ts > plugin > hooks > navStarted",
 			"reason": "browser only: one record_hook of a hook event, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~de51c9 > hooks > loadStarted",
+			"id": "packages/devtools/src/client.ts > plugin > hooks > loadStarted",
 			"reason": "browser only: one record_hook of a hook event, constant work of its own"
 		},
 		{
