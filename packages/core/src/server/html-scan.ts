@@ -1,15 +1,9 @@
 /**
- * Small hand-written scans shared by the server's per-request HTML work, each kept only where it
- * MEASURED faster (or allocation-lighter) than the regex it replaced — the engine's compiled
- * matcher wins plain presence tests, so those stayed regexes (head-presence.ts).
+ * Small scans shared by the server's per-request HTML work. Tags are read through the browser-faithful
+ * reader (wire-markup.ts `tags()`); the character tests below serve hand-written scans elsewhere.
  */
 import { is_kit_boot_script } from '../runtime/kit-boot.ts';
-import { tags, text_of } from '../wire-markup.ts';
-
-/** `[A-Za-z0-9_]` — the regex `\w` (NaN, past the end, is not). */
-export function is_word(c: number): boolean {
-	return (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || (c >= 48 && c <= 57) || c === 95;
-}
+import { next_tag, tags, text_of } from '../wire-markup.ts';
 
 /** The regex `\s`: ASCII whitespace and the Unicode spaces (NaN, past the end, is not). */
 export function is_space(c: number): boolean {
@@ -50,6 +44,15 @@ export function html_has_kit_bootstrap(html: string, end: number = html.length):
 }
 
 const REGION_CSS_ATTR = 'data-ogygia-region-css';
+const REGION_CSS_ANY_CASE = /data-ogygia-region-css/gi;
+
+/** Where the region-CSS name's text next appears from `from`, in any case, or -1. */
+function next_mark(head: string, from: number): number {
+	REGION_CSS_ANY_CASE.lastIndex = from;
+	return REGION_CSS_ANY_CASE.test(head)
+		? REGION_CSS_ANY_CASE.lastIndex - REGION_CSS_ATTR.length
+		: -1;
+}
 
 /**
  * Every region-CSS tag in `head`, in order, joined: the `<link … data-ogygia-region-css>` form AND the
@@ -58,44 +61,34 @@ const REGION_CSS_ATTR = 'data-ogygia-region-css';
  * from its head: keeping links only silently unstyled every small sheet.
  */
 export function region_css_tags(head: string): string {
+	// (a tag the name's text is not inside cannot carry it: most skip the attribute read)
+	let mark = next_mark(head, 0);
+	if (mark === -1) return '';
 	let out = '';
-	for (
-		let attr = head.indexOf(REGION_CSS_ATTR);
-		attr !== -1;
-		attr = head.indexOf(REGION_CSS_ATTR, attr + 1)
-	) {
-		const open = head.lastIndexOf('<', attr);
-		if (open === -1) continue;
-		if (head.startsWith('<link', open) && !is_word(head.charCodeAt(open + 5))) {
-			const end = head.indexOf('>', attr);
-			if (end === -1) break;
-			out += head.slice(open, end + 1);
-			attr = end;
-		} else if (head.startsWith('<style', open) && !is_word(head.charCodeAt(open + 6))) {
-			const close = head.indexOf('</style>', attr);
-			if (close === -1) break;
-			out += head.slice(open, close + 8);
-			attr = close + 7;
+	let link = next_tag(head, 'link', 0);
+	let style = next_tag(head, 'style', 0);
+	while (link !== null || style !== null) {
+		const tag = link !== null && (style === null || link.start < style.start) ? link : style!;
+		if (mark < tag.start) {
+			mark = next_mark(head, tag.start);
+			if (mark === -1) return out;
 		}
-	}
-	return out;
-}
-
-/** Every `<link …data-ogygia-region-css…>` tag in `head`, in order, joined — what
- *  `head.match(/<link\b[^>]*data-ogygia-region-css[^>]*>/g).join('')` returned. */
-export function region_css_links(head: string): string {
-	let out = '';
-	// (the next attribute occurrence is found once and reused until the walk passes it: linear)
-	let attr = head.indexOf('data-ogygia-region-css');
-	if (attr === -1) return '';
-	for (let at = head.indexOf('<link'); at !== -1; at = head.indexOf('<link', at + 5)) {
-		if (is_word(head.charCodeAt(at + 5))) continue;
-		const end = head.indexOf('>', at);
-		if (end === -1) break;
-		if (attr < at) attr = head.indexOf('data-ogygia-region-css', at);
-		if (attr === -1) break;
-		if (attr < end) out += head.slice(at, end + 1);
-		at = end - 4; // (resume after the tag)
+		if (tag === link) {
+			if (mark < link.end && link.attr(REGION_CSS_ATTR) !== undefined)
+				out += head.slice(link.start, link.end);
+			link = next_tag(head, 'link', link.end);
+			continue;
+		}
+		// a style's text is raw: a `<link>` written inside it is not a tag
+		const text = text_of(head, tag, 'style');
+		if (text === null) break;
+		const gt = head.indexOf('>', tag.end + text.length);
+		if (gt === -1) break;
+		const end = gt + 1;
+		if (mark < tag.end && tag.attr(REGION_CSS_ATTR) !== undefined)
+			out += head.slice(tag.start, end);
+		if (link !== null && link.start < end) link = next_tag(head, 'link', end);
+		style = next_tag(head, 'style', end);
 	}
 	return out;
 }

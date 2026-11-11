@@ -118,6 +118,11 @@ bench('region CSS: the tags a held region carries forward', ({ h }) => region_cs
 	setup: () => ({ h: head(40) })
 });
 
+// (what a held region's own render head holds: its nested regions' sheets, nothing else)
+bench('region CSS: the tags of a region render’s head', ({ h }) => region_css_tags(h).length, {
+	setup: () => ({ h: region_css_tags(head(8)) })
+});
+
 bench(
 	'tags: every region open tag of a document, attributes read',
 	({ html }) => {
