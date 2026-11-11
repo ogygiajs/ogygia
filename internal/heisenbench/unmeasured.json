@@ -2639,6 +2639,14 @@
 		{
 			"id": "packages/reshape/src/restore-report.ts > report_restores > __og_restore",
 			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/core/src/runtime/region-endpoint-url.ts > make_warms > call:0~93991a > run > onRaise:0~1a69dd",
+			"reason": "browser only: a more urgent warm joins one whose import is already on the wire, and its graph links are raised (one preload_island_graph call, measured by its own bench)"
+		},
+		{
+			"id": "packages/core/src/runtime/region-endpoint-url.ts > reset_island_warms > drop:0~8b94d4",
+			"reason": "test seam: the predicate that drops every warm, constant work"
 		}
 	]
 }
