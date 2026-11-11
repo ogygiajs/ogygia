@@ -155,11 +155,10 @@ export async function run(
 			await act(world, v, a, ORIGIN);
 			if (a.kind === 'offline') dirty.add(v.tabs[a.tab % v.tabs.length]?.name ?? '');
 			// (a press changes an island's state: the document shows the visitor's own state from then
-			// on, kept across client navigations, which no fresh load has; its next document is clean)
-			if (a.kind === 'press') {
-				const t = v.tabs[a.tab % v.tabs.length];
-				if (t !== undefined) pressed.set(t.name, t.documents);
-			}
+			// on, kept across client navigations, which no fresh load has; its next document is clean.
+			// And it may change the server's (a cart, a counter a command bumps), which every other
+			// tab's document predates: seed 221, /cart-b in another tab)
+			if (a.kind === 'press') for (const t of v.tabs) pressed.set(t.name, t.documents);
 			for (const t of v.tabs) {
 				const doc = t.page.mainFrame.document as unknown as Document;
 				log.note(`${t.name} ${t.page.mainFrame.url} dom ${fingerprint(normalize(doc))}`);

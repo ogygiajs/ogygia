@@ -352,6 +352,19 @@ function per_render(a: string, b: string): (s: string) => string {
 			.join('\n');
 }
 
+/**
+ * A region endpoint's bookkeeping, set aside: its capability's expiry and signature (`exp`, `sig`:
+ * the time of the render, in 30-minute steps) and the page-facts part (`pv`, named once the server
+ * has seen the hole read `page.data`). The region, its build and its props (`id`, `r`, `props`,
+ * `k`) are compared. Seeds 241, 315, 457 (/context, /nested-hole).
+ */
+function bookkeeping_out(s: string): string {
+	return s.replace(/ endpoint="([^"]*)"/g, (_, url: string) => {
+		const kept = url.replace(/&(exp|sig)=[^&]*/g, '&$1=<t>').replace(/&pv=[^&]*/g, '');
+		return ` endpoint="${kept}"`;
+	});
+}
+
 /** A normalized DOM's kit-island stamps. */
 function kit_stamps(s: string): string {
 	return head_blocks(s)
@@ -440,23 +453,32 @@ export async function mpa_equivalent(
 		...live_lines(shown, view(tab.page.mainFrame.document as unknown as Document)),
 		...live_lines(loaded, view(fresh.tab.page.mainFrame.document as unknown as Document))
 	]);
-	let again = mask(loaded, live);
-	shown = mask(shown, live);
+	let again = bookkeeping_out(mask(loaded, live));
+	shown = bookkeeping_out(mask(shown, live));
 	const said = [...fresh.tab.errors, ...fresh.tab.console];
 	await world.browsers.close(fresh.visitor, fresh.tab);
 	if (first_difference(own_state_out(shown), own_state_out(again)) === '') return null;
 	// (what the server makes anew each render, a stamp, a counter, a fresh id, differs between two
 	// fresh loads as well: it is the render's, not the tab's state. A second fresh load, and what
 	// differs between the two is marked on every side: seeds 107, 188, 268, 280, 326, 340, 477)
-	const second = await fresh_load(world, v, url, 'fresh-2');
-	const render = per_render(
-		loaded,
-		view(second.tab.page.mainFrame.document as unknown as Document)
-	);
-	await world.browsers.close(second.visitor, second.tab);
-	again = own_state_out(render(again));
-	shown = own_state_out(render(shown));
-	const diff = first_difference(shown, again);
+	// (and a third, when two servers each count their own renders: two loads can meet the same
+	// count on two instances, but of three, two come from one instance; seed 221, a cart's stamp)
+	const looks = [loaded];
+	let diff = '';
+	for (const n of [2, 3]) {
+		const more = await fresh_load(world, v, url, `fresh-${n}`);
+		looks.push(view(more.tab.page.mainFrame.document as unknown as Document));
+		await world.browsers.close(more.visitor, more.tab);
+		for (const other of looks.slice(0, -1)) {
+			const render = per_render(other, looks.at(-1)!);
+			again = render(again);
+			shown = render(shown);
+		}
+		diff = first_difference(own_state_out(shown), own_state_out(again));
+		if (diff === '' || world.servers.get(world.live)!.length < 2) break;
+	}
+	again = own_state_out(again);
+	shown = own_state_out(shown);
 	if (diff === '') return null;
 	// a difference a filed bug explains is that bug, counted apart until its fix lands
 	// (in order: each judged on what the ones before it left)
@@ -665,7 +687,12 @@ export function uncaught(world: World): Broken | null {
 	const any_fault = world.browsers.visitors.some((v) => v.tabs.some((t) => faulted(world, t)));
 	const left = world.uncaught.filter((l) => !(any_fault && EXPLAINED.test(l.split('\n')[0])));
 	world.uncaught.length = 0;
-	return left.length === 0 ? null : { oracle: 'uncaught', detail: left.join('\n') };
+	if (left.length === 0) return null;
+	// (a filed bug's words reach the host too: seed 265, #817's from a press)
+	const known = KNOWN_SAID.filter((k) => left.some((l) => k.said.test(l)));
+	if (left.every((l) => known.some((k) => k.said.test(l))))
+		return { oracle: 'known', detail: known.map((k) => `#${k.issue} (${k.what})`).join(', ') };
+	return { oracle: 'uncaught', detail: left.join('\n') };
 }
 
 /** A shared cache never hands one visitor's personal bytes to another (cdn.ts records each hit
