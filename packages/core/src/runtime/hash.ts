@@ -62,6 +62,12 @@ export function fnv1a32(s: string): number {
 	return h >>> 0;
 }
 
+/** IDENTITY (#484): 64 bits, where a collision would serve the wrong thing (a bundle addressed by
+ *  its inputs, a region skipped on a match). The same function as the region fingerprint. */
+export const id64: (s: string) => string = fnv1a;
+/** SPREADING (#484): 32 bits, where a collision only shares a bucket or a short display key. */
+export const bucket32: (s: string) => number = fnv1a32;
+
 /**
  * The stable part of a signed endpoint URL: everything up to the volatile `&exp=…&sig=…` tail.
  * A deferred region's endpoint encodes `?id=…&props=…&exp=…&sig=…`; exp/sig rotate per render, so
