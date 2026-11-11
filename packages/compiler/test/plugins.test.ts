@@ -141,6 +141,15 @@ describe('realms, named by the plugin', () => {
 		expect(() => client_hook_names('p', spread)).toThrow(/plugin_client_hooks_unread|cannot read/);
 		expect(() => client_hook_names('p', unknown)).toThrow(/regionHydratd/);
 	});
+	it('a built client realm (`export { client as default }`, as the bundler writes it) has its hooks read', () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'og-client-hooks-'));
+		const built = path.join(dir, 'client.js');
+		fs.writeFileSync(
+			built,
+			`const client = defineClient({ hooks: { regionHydrated() {}, navigated() {} } });\nexport { client as default };\n`
+		);
+		expect(client_hook_names('p', built)).toEqual(['regionHydrated', 'navigated']);
+	});
 	it('no realm named, none wired: a package export called `./server` means nothing', () => {
 		const out = resolve_plugins([def({ name: '@ogygia/flags' })], APP, true);
 		expect(out.servers).toEqual([]);
