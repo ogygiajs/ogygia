@@ -147,6 +147,60 @@ describe('capability: replay', () => {
 	});
 });
 
+describe('capability: two machines’ clocks', () => {
+	it('with skew, a token lives skew past its expiry and may claim skew past max, no more', () => {
+		let t = 1_000_000;
+		const opts = { name: 'call', version: 1, signer: hmac('k'), now: () => t };
+		const minter = capability({ ...opts, ttl: { max: 1 } });
+		const checker = capability({ ...opts, ttl: { max: 1 }, skew: 120_000 });
+		const token = minter.mint(AUD, ['GET'], 1);
+		// the checker's clock is behind by the skew: still fine; one ms more is a claim past max
+		t -= 120_000;
+		expect(checker.check(token, AUD, ['GET']).ok).toBe(true);
+		t -= 1;
+		expect(checker.check(token, AUD, ['GET'])).toEqual({ ok: false, why: 'lifetime' });
+		// ahead by the skew: still fine; one ms more is expired
+		t = 1_000_000 + 1 + 120_000 - 1;
+		expect(checker.check(token, AUD, ['GET']).ok).toBe(true);
+		t += 1;
+		expect(checker.check(token, AUD, ['GET'])).toEqual({ ok: false, why: 'expired' });
+		// (without skew, a clock one ms behind is a claim past max)
+		t = 1_000_000 - 1;
+		expect(minter.check(token, AUD, ['GET'])).toEqual({ ok: false, why: 'lifetime' });
+	});
+
+	it('a remembered nonce stays until its token could no longer check, skew included', () => {
+		let t = 1_000_000;
+		const cap = capability({
+			name: 'call',
+			version: 1,
+			signer: hmac('k'),
+			ttl: { max: 1_000 },
+			skew: 5_000,
+			replay: { max: 1 },
+			now: () => t
+		});
+		const a = cap.mint(AUD, [], 1_000);
+		expect(cap.check(a, AUD, []).ok).toBe(true);
+		t += 1_000; // past exp, inside the skew: a is still live, so its nonce holds the one place
+		expect(cap.check(cap.mint(AUD, [], 1_000), AUD, [])).toEqual({ ok: false, why: 'full' });
+		expect(cap.check(a, AUD, [])).toEqual({ ok: false, why: 'replayed' });
+		t += 5_000;
+		expect(cap.check(cap.mint(AUD, [], 1_000), AUD, []).ok).toBe(true);
+	});
+});
+
+describe('capability: the keys a check trusts', () => {
+	it('a check may bring its own verify (a list of keys in rotation): it replaces the signer’s', () => {
+		const { cap } = setup({ key: 'old' });
+		const token = cap.mint(AUD, ['x'], 10_000);
+		const keys = [hmac('new'), hmac('old')];
+		const any = (m: string, sig: string) => keys.some((k) => k.verify(m, sig));
+		expect(cap.check(token, AUD, ['x'], any).ok).toBe(true);
+		expect(cap.check(token, AUD, ['x'], hmac('new').verify)).toEqual({ ok: false, why: 'sig' });
+	});
+});
+
 describe('capability: options', () => {
 	it('refuses a missing audience, name, version or bounds with a coded error', () => {
 		const signer = hmac('k');
@@ -165,6 +219,9 @@ describe('capability: options', () => {
 		expect(() =>
 			capability({ name: 'n', version: 1, signer, ttl: { max: 5 }, replay: { max: 0 } })
 		).toThrow(/machine_bad_option/);
+		expect(() => capability({ name: 'n', version: 1, signer, ttl: { max: 5 }, skew: -1 })).toThrow(
+			/machine_bad_option/
+		);
 		const cap = capability({ name: 'n', version: 1, signer, ttl: { max: 5 } });
 		expect(() => cap.mint('', [], 1)).toThrow(/machine_bad_option/);
 		expect(() => cap.check('v1.1.x.y', '', [])).toThrow(/machine_bad_option/);

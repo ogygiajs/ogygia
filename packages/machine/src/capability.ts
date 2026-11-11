@@ -43,6 +43,10 @@ export interface CapabilityOptions {
 	/** One check per nonce, remembering at most `max` live nonces at a time. Off by default: a
 	 *  token that is meant to be presented many times (a cached page's region URL) leaves it off. */
 	replay?: { max: number };
+	/** How far the minter's clock and the checker's may differ, in ms (default 0): a token checks
+	 *  until `skew` past its expiry, and may claim up to `ttl.max + skew` ahead. For a token minted
+	 *  on one machine and checked on another. */
+	skew?: number;
 	/** The clock, in ms (default `Date.now`). */
 	now?: () => number;
 }
@@ -67,8 +71,14 @@ export interface Capability {
 	/** A token for `audience` and `fields`, valid for `ttl` ms (clamped). */
 	mint(audience: string, fields: readonly string[], ttl: number): string;
 	/** Is `token` one this capability minted for `audience` and exactly these `fields`, still live
-	 *  (and, with `replay`, not checked before)? */
-	check(token: string, audience: string, fields: readonly string[]): CapabilityCheck;
+	 *  (and, with `replay`, not checked before)? `verify`, when given, replaces the signer's for this
+	 *  check (the keys this call trusts: several in a rotation, or the caller's own). */
+	check(
+		token: string,
+		audience: string,
+		fields: readonly string[],
+		verify?: Signer['verify']
+	): CapabilityCheck;
 	/** The exact message a token's signature covers (for a signer's own tests and benches). */
 	message(audience: string, exp: number, nonce: string, fields: readonly string[]): string;
 }
@@ -109,6 +119,8 @@ export function capability(options: CapabilityOptions): Capability {
 	const replay_max = options.replay?.max;
 	if (replay_max !== undefined && (!Number.isInteger(replay_max) || replay_max < 1))
 		bad('replay.max', replay_max, 'a whole number of nonces, 1 or more');
+	const skew = options.skew ?? 0;
+	if (!Number.isFinite(skew) || skew < 0) bad('skew', skew, 'a finite number of ms, 0 or more');
 	const now = options.now ?? Date.now;
 	const head = `${lp(name)}|${lp(String(version))}|`;
 	/** nonce → its token's expiry, while it could still be presented */
@@ -143,24 +155,27 @@ export function capability(options: CapabilityOptions): Capability {
 				bad('signer.sign', sig.slice(0, 16), 'a URL-safe signature (hex or base64url)');
 			return `v${version}.${exp}.${n}.${sig}`;
 		},
-		check(token, audience, fields) {
+		check(token, audience, fields, verify) {
 			audience_ok(audience);
 			const m = typeof token === 'string' ? TOKEN_RE.exec(token) : null;
 			if (!m) return { ok: false, why: 'shape' };
 			if (Number(m[1]) !== version) return { ok: false, why: 'version' };
 			const exp = Number(m[2]);
 			const t = clock(`capability "${name}" check`);
-			if (exp <= t) return { ok: false, why: 'expired' };
-			if (exp > t + max) return { ok: false, why: 'lifetime' };
+			// (the last moment it checks: its expiry, plus the clocks' difference)
+			const end = exp + skew;
+			if (end <= t) return { ok: false, why: 'expired' };
+			if (exp > t + max + skew) return { ok: false, why: 'lifetime' };
 			const n = m[3]!;
-			if (!signer.verify(message(audience, exp, n, fields), m[4]!))
+			const msg = message(audience, exp, n, fields);
+			if (!(verify ? verify(msg, m[4]!) : signer.verify(msg, m[4]!)))
 				return { ok: false, why: 'sig' };
 			if (replay_max !== undefined) {
 				if (seen.has(n)) return { ok: false, why: 'replayed' };
 				if (seen.size >= replay_max) for (const [k, e] of seen) if (e <= t) seen.delete(k);
 				// (full of live nonces: forgetting one would let it check twice, so the new one waits)
 				if (seen.size >= replay_max) return { ok: false, why: 'full' };
-				seen.set(n, exp);
+				seen.set(n, end);
 			}
 			return { ok: true, exp, nonce: n };
 		}
