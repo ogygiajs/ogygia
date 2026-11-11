@@ -34,25 +34,23 @@
 		kit_request_event
 	} from './server/kit-context.ts';
 	import { stringify } from 'devalue';
-	import hmrUrl from 'virtual:ogygia/dev-hmr-url';
 	import {
-		islandDeps,
-		islandCss,
-		contentCss,
-		islandReadsPage,
-		islandPageKeys,
-		islandRemotes,
-		islandInteractivity,
-		entryLocation
-	} from 'virtual:ogygia/island-deps';
-	import { runtime_bootstrap } from './server/entry-location.ts';
-	import {
-		makeRegionEndpoint,
-		mintServerIsland,
+		dev_hmr_url as hmrUrl,
+		region_deps as islandDeps,
+		region_css as islandCss,
+		content_css as contentCss,
+		region_reads_page as islandReadsPage,
+		region_page_keys as islandPageKeys,
+		region_remotes as islandRemotes,
+		region_interactivity as islandInteractivity,
+		entry_location as entryLocation,
+		make_region_endpoint as makeRegionEndpoint,
+		mint_server_region as mintServerIsland,
 		known_region_fps,
-		islandFingerprint,
-		holeCss
-	} from 'virtual:ogygia/region-endpoint';
+		region_fingerprint as islandFingerprint,
+		hole_css as holeCss
+	} from 'ogygia:server';
+	import { runtime_bootstrap } from './server/entry-location.ts';
 	import { fingerprint_of, hole_copy_of } from './runtime/hash.ts';
 	// Kit's `asset()`, taking ogygia's base-less `/…` URLs on Kit 2 and Kit 3 alike (kit-paths.ts)
 	import { kit_asset as asset } from './kit-paths.ts';

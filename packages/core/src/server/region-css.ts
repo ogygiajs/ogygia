@@ -9,7 +9,7 @@
  * from a fetched answer into `<head>` and dedupes them against what the page already has by that
  * value, and the router keys a head `<style>` on it across swaps.
  */
-import { islandCssInline } from 'virtual:ogygia/island-deps';
+import { region_css_inline as islandCssInline } from 'ogygia:server';
 import { escape_attr as attr } from '../escape.ts';
 
 /**

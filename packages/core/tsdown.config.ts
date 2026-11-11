@@ -48,6 +48,7 @@ export default defineConfig({
 			// consumer-resolved specifiers
 			/^node:/,
 			/^virtual:/,
+			/^ogygia:/,
 			/^\$app\//,
 			/\.svelte$/, // the 3 wrapper components (shipped as source)
 			'ogygia/runtime',

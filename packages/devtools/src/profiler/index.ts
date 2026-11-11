@@ -241,14 +241,14 @@ import {
 	type BatchHoleStats
 } from '@ogygia/core/internal/server';
 import {
-	chunkBarrels,
-	chunkContents,
-	chunkDuplicates,
-	chunkHeavy,
-	islandHazards,
-	islandPageKeys,
-	islandPageWhy
-} from 'virtual:ogygia/island-deps';
+	chunk_barrels as chunkBarrels,
+	chunk_contents as chunkContents,
+	chunk_duplicates as chunkDuplicates,
+	chunk_heavy as chunkHeavy,
+	region_hazards as islandHazards,
+	region_page_keys as islandPageKeys,
+	region_page_why as islandPageWhy
+} from 'ogygia:server';
 import { set_span_recorder, type SpanAttrs, type SpanRecord, type SpanRecorder } from './span.ts';
 import {
 	flights,

@@ -12,10 +12,14 @@ import { registerHooks } from 'node:module';
 const STUBS = new URL('../../../packages/core/test/_stubs/', import.meta.url);
 const VIRTUAL = 'virtual:ogygia/';
 const APP = '$app/';
+/** a realm module (`ogygia:server`) -> realm-server.ts; an entry by its own id -> its stub */
+const REALM_RE = /^ogygia:(server|boot|region|dev)(?:\/(.+))?$/;
 
 function stub_name(specifier: string): string | null {
 	if (specifier.startsWith(VIRTUAL)) return 'virtual-' + specifier.slice(VIRTUAL.length);
 	if (specifier.startsWith(APP)) return 'app-' + specifier.slice(APP.length);
+	const realm = REALM_RE.exec(specifier);
+	if (realm) return realm[2] ? 'virtual-' + realm[2] : 'realm-' + realm[1];
 	return null;
 }
 

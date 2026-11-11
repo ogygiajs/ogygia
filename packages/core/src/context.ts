@@ -1,11 +1,11 @@
 import { getContext, setContext } from 'svelte';
 import { BROWSER } from 'esm-env';
-import { getRequestEvent } from 'virtual:ogygia/request-event';
 import {
+	get_request_event as getRequestEvent,
 	csr_true_routes,
 	error_csr_true_routes,
 	root_layout_csr_true
-} from 'virtual:ogygia/route-csr';
+} from 'ogygia:server';
 import { kit_hydrates_page } from './runtime/kit-boot.ts';
 
 // The nested-island mark (same `Symbol.for` rule as the keys below) is a leaf: nested.ts says why.

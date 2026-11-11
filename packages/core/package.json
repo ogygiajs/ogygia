@@ -15,7 +15,8 @@
 	"files": [
 		"dist",
 		"README.md",
-		"ambient.d.ts"
+		"ambient.d.ts",
+		"virtual"
 	],
 	"type": "module",
 	"sideEffects": [

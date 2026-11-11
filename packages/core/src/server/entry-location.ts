@@ -11,8 +11,12 @@
  * build (a handoff from before hashing, an island from another app): a region writes no `src`, and the
  * browser finds the current file through the build's location maps (compiler/link/location-map.ts).
  */
-import runtime_url from 'virtual:ogygia/runtime-url';
-import { entryLocation, islandDeps, locationMap } from 'virtual:ogygia/island-deps';
+import {
+	runtime_url,
+	entry_location as entryLocation,
+	region_deps as islandDeps,
+	location_map as locationMap
+} from 'ogygia:server';
 import { runtime_bootstrap_tags } from './document-tail.ts';
 
 /** The file an entry is loaded from: its content-hashed location, else the identity itself. */

@@ -20,7 +20,7 @@
  * module, so this code shipped to every island page for a lookup that always found nothing.
  */
 import { flights } from '@ogygia/machine';
-import { wire_loaders, wire_all } from 'virtual:ogygia/transportables';
+import { wire_loaders, wire_all } from 'ogygia:boot';
 import { import_again } from './import-again.ts';
 import { props_sidecar_of } from './sidecar.ts';
 import { yield_task } from './schedule.ts';

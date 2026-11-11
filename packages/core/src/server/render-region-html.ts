@@ -10,7 +10,7 @@
  */
 import { render } from 'svelte/server';
 import type { Component } from 'svelte';
-import { islandCss } from 'virtual:ogygia/island-deps';
+import { region_css as islandCss } from 'ogygia:server';
 import { region_css_tags } from './html-scan.ts';
 import { kit_page_facts_tail, kit_page_ready, kit_render_context } from './kit-context.ts';
 

@@ -6,7 +6,7 @@
  * injects the decoders. Universal hooks are isomorphic, so this is client-safe. Built once, in the
  * virtual (compiler/link/transport.ts), with every other reader of the app codec.
  */
-import { decoders } from 'virtual:ogygia/transport';
+import { decoders } from 'ogygia:boot';
 
 /** `{ [typeName]: decode }` from the app's `hooks.transport`; empty when the app defines none. */
 export const transport_decoders = decoders as Record<string, (payload: never) => unknown>;

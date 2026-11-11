@@ -3,14 +3,21 @@
  * Used by Region's lake branch for `render: 'live'`. Client build gets a stub that returns ''.
  */
 import { signing_key } from './signing-key.ts';
-import { sessionCookie } from 'virtual:ogygia/session-cookie';
-import { regionTtl, renewWindow } from 'virtual:ogygia/region-ttl';
-import { sign, region_mac_message } from 'virtual:ogygia/sign';
+import {
+	session_cookie as sessionCookie,
+	region_ttl as regionTtl,
+	renew_window as renewWindow,
+	sign,
+	region_mac_message,
+	get_request_event as getRequestEvent,
+	region_url as island_url,
+	region_render as island_render,
+	region_css as islandCss
+} from 'ogygia:server';
 // (`resolve('/__ogygia__')` reads the same on Kit 2, which wants the leading slash, and Kit 3, which
 // takes it as a route ID with no params — the same pathname)
 import { resolve } from '$app/paths';
 import { building } from '$app/env';
-import { getRequestEvent } from 'virtual:ogygia/request-event';
 import { islands_endpoint, MAX_REGION_PROPS_LEN } from './endpoint.ts';
 import { capability_lifetime, type CapabilityLifetime } from './capability-lifetime.ts';
 import { encode_region_props } from './region-props.ts';
@@ -22,8 +29,6 @@ const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS_
 import { B64Url } from './payload.ts';
 import { REF_WIRE_KEY, ref_reducer } from '../ref.ts';
 import { ensure_prop_kinds } from './region-props.ts';
-import { island_url, island_render } from 'virtual:ogygia/server-manifest';
-import { islandCss } from 'virtual:ogygia/island-deps';
 import { OgygiaError, warn } from '../messages/server.ts';
 
 /** A hole's own stylesheet hrefs, by region id — the list its endpoint answer links (hooks.ts

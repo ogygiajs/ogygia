@@ -27,24 +27,27 @@ import type { RequestState } from '@sveltejs/kit/internal/server';
 import * as devalue from 'devalue';
 // (the islands' loaders come through `load_islands()`, a dynamic import — link/server-manifest.ts)
 import {
-	load_islands,
-	island_url,
-	island_name,
-	island_reads_page_data,
-	render_island
-} from 'virtual:ogygia/server-manifest';
-import { islandCss, fnManifest } from 'virtual:ogygia/island-deps';
-import { create_remote_key } from 'virtual:ogygia/kit-wire';
+	load_server_regions as load_islands,
+	region_url as island_url,
+	region_name as island_name,
+	region_reads_page_data as island_reads_page_data,
+	render_region as render_island,
+	region_css as islandCss,
+	fn_manifest as fnManifest,
+	create_remote_key,
+	rate_limit as rate_limit_cfg,
+	session_cookie,
+	router_enabled,
+	view_transitions as router_view_transitions,
+	route_config,
+	runtime_url,
+	dev_hmr_url,
+	devtools_boot_url,
+	server_plugins as plugin_entries
+} from 'ogygia:server';
 import { REGION_BRAND } from './region-brand.ts';
 import { signing_key, configure_signing_secret } from './server/signing-key.ts';
-import { rateLimit as rate_limit_cfg } from 'virtual:ogygia/rate-limit';
-import { sessionCookie as session_cookie } from 'virtual:ogygia/session-cookie';
-import {
-	enabled as router_enabled,
-	viewTransitions as router_view_transitions
-} from 'virtual:ogygia/router-config';
 import { mpaSpeculationRules } from './compiler/link/speculation.ts';
-import { route_config } from 'virtual:ogygia/route-config';
 import { set_page_route_config } from './plugin/routes.ts';
 import {
 	set_kit_page_reader,
@@ -68,11 +71,8 @@ import { absolutize_hole_html } from './server/hole-urls.ts';
 import { KEEP_FALLBACK_HTML, is_keep_fallback } from './keep-fallback.ts';
 import { set_source_recorder } from './source.ts';
 import { building, dev } from '$app/env';
-import runtime_url from 'virtual:ogygia/runtime-url';
-import dev_hmr_url from 'virtual:ogygia/dev-hmr-url';
 // Kit's `asset()`, taking ogygia's base-less `/…` URLs on Kit 2 and Kit 3 alike
 import { kit_asset as asset } from './kit-paths.ts';
-import devtools_boot_url from 'virtual:ogygia/devtools-boot-url';
 import {
 	sign,
 	verify,
@@ -87,7 +87,6 @@ import { render as render_policy } from './policies.ts';
 import { install_server_rules } from './server/rules.ts';
 import { B64Url } from './server/payload.ts';
 import { REF_WIRE_KEY, ref_reviver } from './ref.ts';
-import { plugins as plugin_entries } from 'virtual:ogygia/server-plugins';
 import type { RequestContext } from './plugin/index.ts';
 import { current_facts, facts_of, set_current_request, type RequestFacts } from './plugin/facts.ts';
 import { observe_reads } from './plugin/reads.ts';

@@ -127,14 +127,9 @@ export const STUB_PATHS: string = fileURLToPath(
 export const KIT_REMOTE_CLIENT: RegExp = /(^|\/)client\.js$/;
 export const KIT_REMOTE_STATE: RegExp = /state\.svelte\.js$/;
 
-/** Absolute path to real HMAC (SSR-only via `virtual:ogygia/sign`). */
-export const HMAC_MODULE: string = fileURLToPath(new URL('../server/hmac.js', import.meta.url));
-/** The prebuilt runtime dir the runtime chunk bundles (for `generateRuntimeEntrySource`). */
+/** The prebuilt runtime dir the runtime chunk bundles (for `generateRuntimeEntrySource`); its
+ *  parent is the built package the virtual table's server modules point into. */
 export const RUNTIME_DIR: string = fileURLToPath(new URL('../runtime', import.meta.url));
-/** Absolute path to SSR region-endpoint helper (signed capability URLs). */
-export const REGION_ENDPOINT_MODULE: string = fileURLToPath(
-	new URL('../server/region-endpoint.js', import.meta.url)
-);
 
 // Content-hash the runtime's real inputs (the prebuilt dist files the runtime chunk bundles).
 // Kit builds the SERVER bundle BEFORE the client, so a forward handoff of the client chunk's hash

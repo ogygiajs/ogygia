@@ -1109,6 +1109,10 @@
 			"reason": "test config: picks the browser projects' provider when a vitest config loads (before any test or bench), constant work; every browser job runs it"
 		},
 		{
+			"id": "packages/config/src/vitest.ts > exact",
+			"reason": "test config: one stub alias's pattern when a vitest config loads (before any test or bench), constant work; every node test job runs it"
+		},
+		{
 			"id": "packages/config/src/vitest.ts > browser_runs > map:0~5b89ec",
 			"reason": "test config: one browser instance per engine asked for, constant work"
 		},

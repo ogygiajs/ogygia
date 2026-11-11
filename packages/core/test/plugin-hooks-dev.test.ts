@@ -109,6 +109,7 @@ async function start(): Promise<{
 		resolve: {
 			alias: [
 				{ find: /^\$app\/(.*)$/, replacement: own('./_stubs/app-$1.ts') },
+				{ find: /^ogygia:(server|boot|region|dev)$/, replacement: own('./_stubs/realm-$1.ts') },
 				{
 					find: /^virtual:ogygia\/(?!server-plugins$)(.*)$/,
 					replacement: own('./_stubs/virtual-$1.ts')
