@@ -93,7 +93,7 @@ bench(
 			fill_replay_guard(1000);
 			return {
 				signer: rotation[2].priv,
-				cfg: { publicKeys: rotation.map((k) => k.pub) },
+				cfg: { publicKeys: rotation.map((k) => k.pub), audience: 'shell.example.test' },
 				body: new TextEncoder().encode(JSON.stringify({ q: 'catalog', page: 2 }))
 			};
 		},
