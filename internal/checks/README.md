@@ -9,6 +9,14 @@ lives here. It moved to its own public repository,
 [ogygiajs/bench](https://github.com/ogygiajs/bench), which benchmarks every ogygia pull
 request and every push to `main`.
 
+## Run in CI
+
+`*.test.ts` files here run with `pnpm lint:test`, which CI runs.
+
+| script              | checks                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| `attack-surface.ts` | `internal/notes/ATTACK-SURFACE.md` is the map the code makes now: run it after a change |
+
 ## Answer keys
 
 An answer key plants known problems on a page of the devtools lab (`packages/devtools/e2e/app`)
