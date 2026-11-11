@@ -30,6 +30,13 @@ test('a page that keeps them: an island mounts, leaves the page, and no rule is 
 	expect(rules()).toEqual([]);
 });
 
+test("with rules on, `__ogygia_moves()` gives the page's machine moves, one line each", () => {
+	const moves = (globalThis as { __ogygia_moves?: () => string }).__ogygia_moves;
+	expect(typeof moves).toBe('function');
+	const lines = moves!().split('\n');
+	expect(lines.some((l) => /^wake#\d+ \S+ -> \S+$/.test(l))).toBe(true);
+});
+
 test('one mount per region: a region holding two islands, or keeping one after it left', async () => {
 	const el = document.createElement('ogygia-region');
 	el.setAttribute('entry', 'probe.svelte');

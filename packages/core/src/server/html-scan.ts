@@ -26,6 +26,11 @@ export function is_space(c: number): boolean {
 	);
 }
 
+/** HTML's whitespace inside a tag: tab, LF, FF, CR (the parser reads it as LF) and space. */
+export function is_html_space(c: number): boolean {
+	return c === 32 || c === 9 || c === 10 || c === 12 || c === 13;
+}
+
 const REGION_CSS_ATTR = 'data-ogygia-region-css';
 
 /**
