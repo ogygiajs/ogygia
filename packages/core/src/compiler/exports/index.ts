@@ -9,7 +9,7 @@
  *   one app keeps one, shared by every index (each file is parsed once).
  * - {@link ExportIndex}: one per RESOLVER. It caches each specifier's resolved target (per importer and
  *   specifier) and, per {@link Policy}, each barrel's map. Two resolvers answer the same specifier
- *   differently (the CSS walk's and the debarrel pass's skip different plugins), so they never share
+ *   differently (the CSS walk's and a stage transform's skip different plugins), so they never share
  *   resolutions.
  *
  * CONCURRENCY: a bundler transforms hundreds of importers at once, and most of them ask for the same
@@ -150,7 +150,7 @@ export class ExportIndex<Caller = void> implements Dependent {
 		keep: () => Infinity
 	});
 	/** each policy's walk over this index's shapes and resolutions, memoized per barrel id (a policy
-	 *  is one object per caller kind, made once: fouc-css's, and each debarrel plugin's) */
+	 *  is one object per caller kind, made once: fouc-css's, and each plugin's through `b.exports`) */
 	#walks = new Map<Policy, Walk<Caller>>();
 
 	constructor(resolve: Resolve<Caller>, shapes: Shapes) {

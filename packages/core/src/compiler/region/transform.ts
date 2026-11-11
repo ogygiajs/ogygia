@@ -339,8 +339,8 @@ const AS_REGION_ARG_G = /import\.meta\.og\.asRegion\(\s*([A-Za-z_$][\w$]*)/g;
 /**
  * The local bindings a file hands to `import.meta.og.asRegion(X)`. An island's identity is keyed on
  * the import that binds `X` (`'<specifier>#<export>'`), and the prescan derives it from the raw
- * source on disk — so no pass that runs before the transform may rewrite that import (the debarrel
- * pass leaves declarations binding these names alone, as it does marked imports). A textual scan on
+ * source on disk — so no pass that runs before the transform may rewrite that import
+ * (`b.pinnedImports` names them to the plugins, with the marked imports). A textual scan on
  * purpose: it runs before any parse, on every transformed file.
  */
 export function asRegionLocals(code: string): Set<string> {

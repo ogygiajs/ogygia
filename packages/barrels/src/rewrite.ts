@@ -3,22 +3,21 @@
  * replaced, in place, by one import per leaf — attributes preserved, local names unchanged, type
  * modifiers kept. Names the index cannot place stay on the barrel; a pure barrel whose names all
  * moved loses its import, an impure (forced) one keeps a bare `import 'barrel'` so its own code
- * still runs. Pure over a lookup function and a code string; sourcemap via magic-string.
+ * still runs. Edits land in the stage's MagicString, by offsets into the code it was given.
  */
-import MagicString from 'magic-string';
-import type { ExportMap, Leaf } from '../exports/index.ts';
-import { analyze_imports, type ImportDecl, type ImportSpec } from '../exports/parse.ts';
+import type MagicString from 'magic-string';
+import {
+	analyze_imports,
+	type ExportMap,
+	type ImportDecl,
+	type ImportSpec,
+	type Leaf
+} from '@ogygia/core/internal/compiler';
 
 export interface RewriteMove {
 	barrel: string;
 	names: string[];
 	leaves: string[];
-}
-
-export interface RewriteResult {
-	code: string;
-	map: ReturnType<MagicString['generateMap']>;
-	moves: RewriteMove[];
 }
 
 export interface Lookup {
@@ -156,17 +155,4 @@ export async function rewrite_imports(
 		moves.push({ barrel: map.id, names: moved, leaves: [...new Set(leaves)] });
 	}
 	return moves;
-}
-
-/** Whole-file rewrite for a JS/TS module. */
-export async function rewrite_module(
-	code: string,
-	id: string,
-	lookup: Lookup,
-	policy: RewritePolicy = {}
-): Promise<RewriteResult | null> {
-	const ms = new MagicString(code);
-	const moves = await rewrite_imports(code, id, lookup, ms, 0, policy);
-	if (moves.length === 0) return null;
-	return { code: ms.toString(), map: ms.generateMap({ hires: true }), moves };
 }

@@ -4,7 +4,8 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { fixture, type Fixture } from './_fixture.ts';
-import { rewrite_module } from '../../src/compiler/debarrel/rewrite.ts';
+import MagicString from 'magic-string';
+import { rewrite_imports } from '../src/rewrite.ts';
 
 let f: Fixture;
 afterEach(() => f?.dispose());
@@ -208,10 +209,12 @@ describe('rewrite — output shapes', () => {
 		});
 		const i = f.index();
 		const importer = f.id('src/app.ts');
-		const r = (await rewrite_module(f.read('src/app.ts'), importer, f.lookup(i, importer)))!;
-		expect(r.map.mappings.length).toBeGreaterThan(0);
-		expect(r.code.endsWith('export const tail = a + 1;')).toBe(true);
-		expect(r.moves).toEqual([
+		const code = f.read('src/app.ts');
+		const ms = new MagicString(code);
+		const moves = await rewrite_imports(code, importer, f.lookup(i, importer), ms);
+		expect(ms.generateMap({ hires: true }).mappings.length).toBeGreaterThan(0);
+		expect(ms.toString().endsWith('export const tail = a + 1;')).toBe(true);
+		expect(moves).toEqual([
 			{ barrel: f.id('lib/index.ts'), names: ['a'], leaves: [f.id('lib/a.ts')] }
 		]);
 	});

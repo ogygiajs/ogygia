@@ -4,7 +4,6 @@
  * pure type declarations (the plugin factory in index.ts imports them back).
  */
 import type { ImportKeys } from '../compiler/region/transform.ts';
-import type { DebarrelOptions } from '../compiler/debarrel/options.ts';
 import { OgygiaError, RETIRED_OPTIONS } from '../messages/build.ts';
 
 // ── regexes
@@ -172,20 +171,6 @@ export interface OgygiaOptions {
 	sessionCookie?: false | string;
 
 	/**
-	 * Barrel imports become leaf imports at transform time — `import { Button } from '$lib'` (an
-	 * `index.ts` that re-exports forty files) becomes `import Button from '…/Button.svelte'`, so the
-	 * module graph (dev) and the chunk graph (build) hold only the leaves a file uses.
-	 *
-	 * - `true` — every PURE barrel in the project (outside `node_modules`) is bypassed.
-	 * - `{ packages, force, keep, … }` — opt dependencies in, force impure barrels, keep some.
-	 *
-	 * Independent of islands: an import that carries region marks (`with { wake }` …) is never
-	 * rewritten — a barrel binding is marked through `asRegion` or a mark in the barrel, as before.
-	 * The same plugin is `debarrel()` from `'ogygia/vite'` for any Vite app.
-	 */
-	barrels?: boolean | DebarrelOptions;
-
-	/**
 	 * @internal Recreate this plugin instance inside the standalone client build.
 	 * App authors should not set this.
 	 */
@@ -200,6 +185,8 @@ export function assert_no_legacy_options(options: OgygiaOptions): void {
 			throw new OgygiaError('option_retired', { option: key });
 		}
 	}
+	if ('barrels' in (options as Record<string, unknown>))
+		throw new OgygiaError('barrels_option_removed');
 }
 
 const REGION_PRESET_KEYS = new Set([

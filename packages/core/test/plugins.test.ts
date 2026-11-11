@@ -11,8 +11,10 @@ import {
 	find_plugins,
 	PLUGIN,
 	resolve_plugins,
+	type BuildContext,
 	type PluginDefinition
 } from '../src/vite/plugin-api.ts';
+import { EVERY_BARREL } from '../src/compiler/exports/index.ts';
 import { server_plugins_module, route_config_module } from '../src/compiler/link/caps.ts';
 import { defineServer } from '../src/plugin/index.ts';
 import { facts_of, note_per_visitor } from '../src/plugin/facts.ts';
@@ -135,6 +137,30 @@ describe('realms, named by the plugin', () => {
 		// (one real package, three manifests: only the order of the build hooks is under test)
 		resolve_plugins([p('mid'), p('last', 'post'), p('first', 'pre')], APP, true);
 		expect(seen).toEqual(['first', 'mid', 'last']);
+	});
+	it('`b.transform` collects stage transforms in plugin order; outside ogygia() the seams fail loudly', async () => {
+		const noop = () => {};
+		const seams: { exports?: BuildContext['exports']; pinned?: BuildContext['pinnedImports'] } = {};
+		const out = resolve_plugins(
+			[
+				def({
+					name: '@ogygia/flags',
+					build: (b) => {
+						b.transform({ stage: 'post', transform: noop });
+						b.transform({ stage: 'source', transform: noop });
+						seams.exports = b.exports;
+						seams.pinned = b.pinnedImports;
+					}
+				})
+			],
+			APP,
+			true
+		);
+		expect(out.transforms.map((t) => t.stage)).toEqual(['post', 'source']);
+		await expect(seams.exports!.map('/x.ts', 'x', EVERY_BARREL, {} as never)).rejects.toThrow(
+			/no export index without ogygia\(\)/
+		);
+		expect(() => seams.pinned!('')).toThrow(/no pinned imports without ogygia\(\)/);
 	});
 	it('`b.routeConfig` collects keys, once each; a key that is not an identifier is refused', () => {
 		const out = resolve_plugins(

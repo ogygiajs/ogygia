@@ -1,9 +1,8 @@
 /**
- * The plugin inside a REAL Vite: a production build (the barrel leaves the module graph, the leaves
- * stay) and a dev server (`transformRequest` shows leaf imports; editing a barrel re-transforms the
- * importer through `addWatchFile`), with the Svelte plugin next to it and a fake dependency with an
- * `exports` map opted in through `packages`. Plus the `ogygia({ barrels })` wiring: the pass is
- * first in the array and skips region-marked imports.
+ * The plugin beside `ogygia()` inside a REAL Vite: a production build (the barrel leaves the module
+ * graph, the leaves stay) and a dev server (`transformRequest` shows leaf imports; editing a barrel
+ * re-transforms the importer through its watch list), with the Svelte plugin next to it and a fake
+ * dependency with an `exports` map opted in through `packages`.
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -12,12 +11,15 @@ import {
 	type InlineConfig,
 	type Logger,
 	type Plugin,
+	type PluginOption,
 	type Rollup
 } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { ogygia } from '@ogygia/core/vite';
+import { is_script_request } from '@ogygia/core/internal/compiler';
 import { fixture, type Fixture } from './_fixture.ts';
-import { debarrel } from '../../src/compiler/debarrel/plugin.ts';
-import { ogygia } from '../../src/vite/index.ts';
+import { barrels, type BarrelsOptions } from '../src/index.ts';
+import { format_report } from '../src/report.ts';
 
 let f: Fixture;
 afterEach(() => f?.dispose());
@@ -44,16 +46,17 @@ const app = (): Record<string, string> => ({
 	'node_modules/@scope/ui/index.js': `export { pkgLeaf } from './leaf.js';\nexport { heavy } from './heavy.js';`
 });
 
-const config = (f: Fixture, extra: Parameters<typeof debarrel>[0] = {}) => ({
+const config = (f: Fixture, extra: BarrelsOptions | true = {}, packages = ['@scope/ui']) => ({
 	root: f.root,
 	logLevel: 'silent' as const,
 	configFile: false as const,
 	resolve: { alias: { $lib: f.id('lib') } },
 	optimizeDeps: { noDiscovery: true, include: [] },
 	plugins: [
-		debarrel({ packages: ['@scope/ui'], ...(extra === true ? {} : extra) }),
+		ogygia(),
+		barrels({ packages, ...(extra === true ? {} : extra) }),
 		svelte({ configFile: false, compilerOptions: { css: 'injected' } })
-	]
+	] as PluginOption[]
 });
 
 const module_ids = (out: Rollup.RollupOutput) =>
@@ -69,7 +72,6 @@ const build_ids = async (cfg: InlineConfig) => {
 
 describe('which ids are importers', () => {
 	it('the script only: a style sub-module or a raw/url/worker request is not the component', async () => {
-		const { is_script_request } = await import('../../src/compiler/debarrel/plugin.ts');
 		expect(is_script_request('/x/Foo.svelte')).toBe(true);
 		expect(is_script_request('/x/Foo.svelte?v=123')).toBe(true); // a cache query on the real module
 		expect(is_script_request('/x/Foo.svelte?og-region=1')).toBe(true);
@@ -90,7 +92,7 @@ describe('which ids are importers', () => {
 			'src/App.svelte': `<script lang="ts">\n\timport { Card } from '$lib';\n</script>\n<Card />\n<p class="x">x</p>\n<style>\n\t.x { color: red }\n</style>`
 		});
 		const cfg = config(f);
-		cfg.plugins = [cfg.plugins[0], svelte({ configFile: false, emitCss: true })];
+		cfg.plugins = [cfg.plugins[0], cfg.plugins[1], svelte({ configFile: false, emitCss: true })];
 		const warns: string[] = [];
 		const orig = console.warn;
 		console.warn = (...a: unknown[]) => void warns.push(a.map(String).join(' '));
@@ -132,7 +134,7 @@ describe('vite build', () => {
 	it('without the plugin the barrel and every leaf are in the graph (the baseline the pass beats)', async () => {
 		f = fixture(app());
 		const cfg = config(f);
-		cfg.plugins = cfg.plugins.slice(1);
+		cfg.plugins = [cfg.plugins[0], cfg.plugins[2]];
 		const { ids } = await build_ids(cfg);
 		expect(ids).toContain(f.id('lib/index.ts'));
 		expect(
@@ -152,9 +154,7 @@ describe('vite build', () => {
 
 	it('a package NOT opted in is left alone (dev pre-bundling safety)', async () => {
 		f = fixture(app());
-		const cfg = config(f);
-		cfg.plugins[0] = debarrel(true);
-		const { ids } = await build_ids(cfg);
+		const { ids } = await build_ids(config(f, true, []));
 		expect(ids).not.toContain(f.id('lib/index.ts'));
 		expect(ids).toContain(f.id('node_modules/@scope/ui/index.js'));
 	});
@@ -225,7 +225,7 @@ describe('vite build', () => {
 		const short = lines.find((l) => /^\[ogygia\] barrels: \d/.test(l))!;
 		expect(short).toContain('14 barrels bypassed');
 		expect(short.split('\n').filter((l) => / names  /.test(l))).toHaveLength(8);
-		expect(short).toContain("… and 6 more barrels (`barrels: { report: 'all' }` lists every one)");
+		expect(short).toContain("… and 6 more barrels (`barrels({ report: 'all' })` lists every one)");
 		lines.length = 0;
 		await build_ids({
 			...config(f, { report: 'all' }),
@@ -243,7 +243,7 @@ describe('vite dev', { timeout: 30_000 }, () => {
 		f = fixture(app());
 		const server = await createServer({
 			...config(f),
-			server: { middlewareMode: true, hmr: false }
+			server: { middlewareMode: true, hmr: false, fs: { allow: [f.root] } }
 		});
 		try {
 			const main = (await server.transformRequest('/src/main.ts'))!;
@@ -289,7 +289,7 @@ describe('vite dev', { timeout: 30_000 }, () => {
 			f = fixture(per_environment());
 			const server = await createServer({
 				...config(f),
-				server: { middlewareMode: true, hmr: false }
+				server: { middlewareMode: true, hmr: false, fs: { allow: [f.root] } }
 			});
 			try {
 				const [client, ssr] = await Promise.all([
@@ -312,7 +312,7 @@ describe('vite dev', { timeout: 30_000 }, () => {
 				f = fixture(per_environment());
 				const server = await createServer({
 					...config(f),
-					server: { middlewareMode: true, hmr: false }
+					server: { middlewareMode: true, hmr: false, fs: { allow: [f.root] } }
 				});
 				try {
 					const got: Record<string, string> = {};
@@ -332,7 +332,7 @@ describe('vite dev', { timeout: 30_000 }, () => {
 		f = fixture(app());
 		const server = await createServer({
 			...config(f),
-			server: { middlewareMode: true, hmr: false }
+			server: { middlewareMode: true, hmr: false, fs: { allow: [f.root] } }
 		});
 		try {
 			const before = (await server.transformRequest('/src/main.ts'))!;
@@ -358,45 +358,28 @@ describe('vite dev', { timeout: 30_000 }, () => {
 	});
 });
 
-describe('ogygia({ barrels }) wiring', () => {
-	const names = (plugins: Plugin[]) => plugins.map((p) => p.name);
+describe('beside ogygia()', { timeout: 30_000 }, () => {
+	const source_stage = (cfg: InlineConfig, rel: string) => f.source_stage(cfg, rel);
 
-	it('off by default; `true` or an object puts the debarrel plugin FIRST in the array', () => {
-		expect(names(ogygia({}))).not.toContain('ogygia:debarrel');
-		expect(names(ogygia({ barrels: true }))[0]).toBe('ogygia:debarrel');
-		expect(names(ogygia({ barrels: { keep: ['x'] } }))[0]).toBe('ogygia:debarrel');
-	});
-
-	it("the wired plugin skips imports carrying the app's region-mark keys (custom importKeys too), rewrites the rest", async () => {
+	it("leaves imports carrying the app's region-mark keys (custom importKeys too) as written, rewrites the rest", async () => {
 		f = fixture({
 			'lib/Button.svelte': '<button/>',
 			'lib/util.ts': 'export function util() { return "util-marker"; }',
 			'lib/index.ts': `export { default as Button } from './Button.svelte';\nexport { util } from './util';`,
 			'src/app.ts': `import { Button } from '$lib' with { hydrate: 'visible' };\nimport { util } from '$lib';`
 		});
-		const plugin = ogygia({ barrels: true, importKeys: { wake: 'hydrate' } })[0];
-		const transform = plugin.transform as (
-			this: unknown,
-			code: string,
-			id: string
-		) => Promise<{ code: string } | null>;
-		const ctx = {
-			resolve: async (spec: string, importer: string) => {
-				const id = await f.host().resolve(spec, importer);
-				return id ? { id } : null;
-			},
-			addWatchFile() {},
-			environment: { name: 'client' }
-		};
-		(plugin.configResolved as (c: unknown) => void)({
-			root: f.root,
-			command: 'serve',
-			logger: { info() {} }
-		});
-		const out = await transform.call(ctx, f.read('src/app.ts'), f.id('src/app.ts'));
-		expect(out!.code).toBe(
+		const cfg = config(f, true);
+		cfg.plugins[0] = ogygia({ importKeys: { wake: 'hydrate' } });
+		expect(await source_stage(cfg, 'src/app.ts')).toBe(
 			`import { Button } from '$lib' with { hydrate: 'visible' };\nimport { util } from '${f.id('lib/util.ts')}';`
 		);
+	});
+
+	it('listed without ogygia(), it fails the build saying what to add', async () => {
+		f = fixture(app());
+		const cfg = config(f);
+		cfg.plugins = cfg.plugins.slice(1);
+		await expect(build_ids(cfg)).rejects.toThrow(/`ogygia\(\)` is not/);
 	});
 
 	it('a specifier Vite cannot resolve (it THROWS from `this.resolve`) leaves that import alone and the rest still moves', async () => {
@@ -405,29 +388,17 @@ describe('ogygia({ barrels }) wiring', () => {
 			'lib/index.ts': `export { util } from './util';`,
 			'src/app.ts': `import { Action } from 'svelte/action';\nimport { util } from '$lib';\nimport { deep } from '@vendor/pkg/src/types';`
 		});
-		const plugin = debarrel(true);
-		const transform = plugin.transform as (
-			this: unknown,
-			code: string,
-			id: string
-		) => Promise<{ code: string } | null>;
-		const ctx = {
-			resolve: async (spec: string, importer: string) => {
-				if (!spec.startsWith('$lib') && !spec.startsWith('.'))
+		const cfg = config(f, true);
+		const throws: Plugin = {
+			name: 'throws',
+			enforce: 'pre',
+			resolveId(spec) {
+				if (spec.startsWith('@vendor/') || spec.startsWith('svelte/'))
 					throw new Error(`Errored while resolving "${spec}" in \`this.resolve\`.`);
-				const id = await f.host().resolve(spec, importer);
-				return id ? { id } : null;
-			},
-			addWatchFile() {},
-			environment: { name: 'client' }
+			}
 		};
-		(plugin.configResolved as (c: unknown) => void)({
-			root: f.root,
-			command: 'build',
-			logger: { info() {} }
-		});
-		const out = await transform.call(ctx, f.read('src/app.ts'), f.id('src/app.ts'));
-		expect(out!.code).toBe(
+		cfg.plugins.push(throws);
+		expect(await source_stage(cfg, 'src/app.ts')).toBe(
 			`import { Action } from 'svelte/action';\nimport { util } from '${f.id('lib/util.ts')}';\nimport { deep } from '@vendor/pkg/src/types';`
 		);
 	});
@@ -435,7 +406,6 @@ describe('ogygia({ barrels }) wiring', () => {
 
 describe('the report names the components it had to skip', () => {
 	it('skipped components are counted and listed, with or without rewrites', async () => {
-		const { format_report } = await import('../../src/compiler/debarrel/plugin.ts');
 		const base = {
 			files: 10,
 			importers: 0,

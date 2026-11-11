@@ -30,8 +30,6 @@ export {
 } from '../compiler/region/transform.ts';
 export { rewrite_lake_import_to_placeholder } from '../compiler/region/emit.ts';
 export type { ImportKeys } from '../compiler/region/transform.ts';
-// The debarrel pass as a standalone plugin for any Vite app (inside ogygia it rides `barrels`).
-export { debarrel } from '../compiler/debarrel/plugin.ts';
 // the BUILD side of a plugin (design: internal/notes/packages.md, plugin API v2)
 export { definePlugin } from './plugin-api.ts';
 export type {
@@ -54,7 +52,6 @@ export type {
 	Leaf as ExportLeaf,
 	Policy as ExportPolicy
 } from '../compiler/exports/index.ts';
-export type { DebarrelOptions, Matcher as DebarrelMatcher } from '../compiler/debarrel/options.ts';
 export type { OgygiaPreset, OgygiaRateLimit, OgygiaOptions } from './options.ts';
 import {
 	find_plugins,
@@ -82,7 +79,6 @@ import {
 import { load_kit_dirs } from './kit-dirs.ts';
 import { write_module_map } from './module-map.ts';
 import { fill_profiler_maps } from './profiler-maps.ts';
-import { debarrel } from '../compiler/debarrel/plugin.ts';
 import { DEFAULT_REGION_TTL_SEC } from '../server/endpoint.ts';
 import { RENEW_WINDOW_SEC } from '../server/shared-cache.ts';
 import { derive_id_salt, secret_has_min_entropy, MIN_SECRET_BYTES } from '../server/hmac.ts';
@@ -406,8 +402,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	};
 
 	// The app's module shapes, each parsed once (compiler/exports/): the CSS walk's indexes and the
-	// debarrel pass's read the same ones. An index is per resolver: the CSS walk resolves past this
-	// plugin, debarrel through it, so they share parses, never resolutions.
+	// plugins' (`b.exports`) read the same ones. An index is per resolver: the CSS walk resolves past
+	// this plugin, a stage transform through it, so they share parses, never resolutions.
 	const shapes = new Shapes((abs) => {
 		const code = readFile(abs);
 		return code == null ? null : strip_bom(code);
@@ -547,21 +543,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	};
 
 	return [
-		// `ogygia({ barrels })` — the debarrel pass, FIRST in the array so the region transform below
-		// sees leaf imports. It leaves alone every import that carries an island identity: one with
-		// a region mark (the app's configured attribute keys) and one whose binding feeds
-		// `import.meta.og.asRegion(X)` — the prescan keys that island on the raw import, so the
-		// transform must see the same import. Islands are marked exactly as without it. Off unless
-		// asked for.
-		...(options.barrels
-			? [
-					debarrel(options.barrels, {
-						skip_attribute_keys: Object.values(import_keys),
-						skip_locals: asRegionLocals,
-						shapes
-					})
-				]
-			: []),
 		// the plugins' `source` stage: on the module as written, before the region transform below
 		stage_host('source'),
 		{
