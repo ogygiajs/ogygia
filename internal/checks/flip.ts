@@ -63,7 +63,8 @@ if (!before.ok) {
 }
 let after: { ok: boolean; tail: string };
 try {
-	writeFileSync(file, original.replace(find, replace));
+	// A function replacer: a string one reads `$&` and `$$` as patterns, not text.
+	writeFileSync(file, original.replace(find, () => replace));
 	after = run();
 } finally {
 	restore();
