@@ -111,10 +111,26 @@ export interface CriticalSettledEvent {
 	readonly waitedMs: number;
 }
 
-/** The runtime's moments a plugin's browser half can subscribe to (`defineClient({ hooks })`). */
+/** Svelte is about to hydrate a component over `el`'s server markup. */
+export interface RegionHydrateEvent {
+	readonly el: Element;
+}
+
+/** A region answer (a hole, a lake remount, a router swap) was parsed: `fragment` is inert, and
+ *  nothing has read it yet. */
+export interface AnswerParsedEvent {
+	readonly fragment: DocumentFragment;
+}
+
+/** The runtime's moments a plugin's browser half can subscribe to (`defineClient({ hooks })`). A
+ *  hook is told; only `regionHydrate` answers: the function it returns runs right after the hydrate. */
 export interface RuntimeHooks {
 	regionMount(e: RegionMountEvent): void;
 	regionUnmount(e: RegionUnmountEvent): void;
+	regionHydrate(e: RegionHydrateEvent): (() => void) | void;
+	answerParsed(e: AnswerParsedEvent): void;
+	/** a parsed answer went into the page */
+	answerPlaced(): void;
 	regionHydrated(e: RegionHydratedEvent): void;
 	regionFailed(e: RegionFailedEvent): void;
 	holeAnswered(e: HoleAnsweredEvent): void;
@@ -132,6 +148,9 @@ export type RuntimeHookName = keyof RuntimeHooks;
 export const RUNTIME_HOOK_CONSTANTS: { readonly [K in RuntimeHookName]: string } = {
 	regionMount: '__OGYGIA_HOOK_REGION_MOUNT__',
 	regionUnmount: '__OGYGIA_HOOK_REGION_UNMOUNT__',
+	regionHydrate: '__OGYGIA_HOOK_REGION_HYDRATE__',
+	answerParsed: '__OGYGIA_HOOK_ANSWER_PARSED__',
+	answerPlaced: '__OGYGIA_HOOK_ANSWER_PLACED__',
 	regionHydrated: '__OGYGIA_HOOK_REGION_HYDRATED__',
 	regionFailed: '__OGYGIA_HOOK_REGION_FAILED__',
 	holeAnswered: '__OGYGIA_HOOK_HOLE_ANSWERED__',

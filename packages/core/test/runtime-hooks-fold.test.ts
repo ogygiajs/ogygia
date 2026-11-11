@@ -47,9 +47,11 @@ describe('runtime hooks', () => {
 		const none = await build([]);
 		const all = await build(HOOKS);
 		const hydrated = await build(['regionHydrated']);
+		// (whole names: `regionHydrate` is a prefix of `regionHydrated`)
+		const named = (hook: string) => new RegExp(`\\b${hook}\\b`);
 		for (const hook of HOOKS.filter((h) => h !== 'warning')) {
-			expect(none, hook).not.toContain(hook);
-			expect(all, hook).toContain(hook);
+			expect(none, hook).not.toMatch(named(hook));
+			expect(all, hook).toMatch(named(hook));
 		}
 		for (const fan_out of ['client_hook_failed', '.hooks', 'tLoaded:', 'finalPath:', 'finalUrl:'])
 			expect(none, fan_out).not.toContain(fan_out);
@@ -59,7 +61,7 @@ describe('runtime hooks', () => {
 		expect(hydrated).toContain('regionHydrated');
 		expect(hydrated).toContain('tLoaded:');
 		for (const other of HOOKS.filter((h) => h !== 'regionHydrated' && h !== 'warning'))
-			expect(hydrated, other).not.toContain(other);
+			expect(hydrated, other).not.toMatch(named(other));
 		expect(none.length).toBeLessThan(hydrated.length);
 	}, 60_000);
 });

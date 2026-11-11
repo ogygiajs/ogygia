@@ -7,6 +7,8 @@ declare const __OGYGIA_CONTINUITY_FORMS__: import('../dist/compiler/virtual/tabl
 declare const __OGYGIA_DEV_HMR_URL__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').dev_hmr_url>;
 declare const __OGYGIA_DEVTOOLS__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').devtools_gate>;
 declare const __OGYGIA_DEVTOOLS_LAZY__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').devtools_lazy>;
+declare const __OGYGIA_HOOK_ANSWER_PARSED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_answer_parsed>;
+declare const __OGYGIA_HOOK_ANSWER_PLACED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_answer_placed>;
 declare const __OGYGIA_HOOK_CRITICAL_SETTLED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_critical_settled>;
 declare const __OGYGIA_HOOK_ENTRY_FALLBACK__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_entry_fallback>;
 declare const __OGYGIA_HOOK_HOLE_ANSWERED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_hole_answered>;
@@ -14,6 +16,7 @@ declare const __OGYGIA_HOOK_HOLE_BATCH_MISSED__: import('../dist/compiler/virtua
 declare const __OGYGIA_HOOK_HOLE_FAILED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_hole_failed>;
 declare const __OGYGIA_HOOK_NAVIGATED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_navigated>;
 declare const __OGYGIA_HOOK_REGION_FAILED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_region_failed>;
+declare const __OGYGIA_HOOK_REGION_HYDRATE__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_region_hydrate>;
 declare const __OGYGIA_HOOK_REGION_HYDRATED__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_region_hydrated>;
 declare const __OGYGIA_HOOK_REGION_MOUNT__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_region_mount>;
 declare const __OGYGIA_HOOK_REGION_UNMOUNT__: import('../dist/compiler/virtual/table.js').ConstOf<typeof import('../dist/compiler/virtual/core.js').hook_region_unmount>;

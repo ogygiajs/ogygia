@@ -9,6 +9,8 @@
  *     boot({ kitPage }) { … },                     // once, as the runtime boots (before any region wakes)
  *     hooks: {
  *       regionMount({ el, entry, urls }) { … },    // a region's component started in the browser
+ *       regionHydrate({ el }) { return () => { … } }, // around Svelte's hydrate over server markup
+ *       answerParsed({ fragment }) { … },          // a region answer parsed, before anything reads it
  *       regionHydrated({ el, t0, tDone }) { … }    // …and the rest of RuntimeHooks
  *     }
  *   });
@@ -20,6 +22,7 @@
 import type { RuntimeHooks } from '../contract/runtime-hooks.ts';
 
 export type {
+	AnswerParsedEvent,
 	CriticalOutcome,
 	CriticalSettledEvent,
 	EntryFallbackEvent,
@@ -29,6 +32,7 @@ export type {
 	HoleRefusal,
 	NavigatedEvent,
 	RegionFailedEvent,
+	RegionHydrateEvent,
 	RegionHydratedEvent,
 	RegionMountEvent,
 	RegionUnmountEvent,
