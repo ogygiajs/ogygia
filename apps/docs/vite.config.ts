@@ -1,4 +1,7 @@
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { ogygia } from 'ogygia/vite';
@@ -10,6 +13,7 @@ import wasm from 'vite-plugin-wasm';
 import { observatoryNodeShims } from './observatory-node-shims';
 import { load_ogygia_themes } from './src/lib/code/shiki-themes.ts';
 import { remarkChangelog } from './src/lib/remark-changelog.ts';
+import { release_dates } from './src/lib/releases/dates.ts';
 import {
 	expandApi,
 	expandApiCacheKey,
@@ -52,6 +56,34 @@ const crossOriginIsolation = (): Plugin => {
 		},
 		configurePreviewServer(server) {
 			server.middlewares.use(headers as never);
+		}
+	};
+};
+
+// The Releases pages' dates, once at build into `virtual:release-dates`: when npm published each
+// version (the registry's `time`, fetched once per package and kept in Vite's cache dir, so dev does
+// not fetch again), the release tags' dates when the registry is out of reach (src/lib/releases/dates.ts).
+const releaseDates = (): Plugin => {
+	const ID = 'virtual:release-dates';
+	let cache_dir = '';
+	/** The published packages: each with a changelog, not private. */
+	const published = (): string[] => {
+		const root = fileURLToPath(new URL('../../packages/', import.meta.url));
+		const names: string[] = [];
+		for (const dir of readdirSync(root)) {
+			if (!existsSync(path.join(root, dir, 'CHANGELOG.md'))) continue;
+			const pkg = JSON.parse(readFileSync(path.join(root, dir, 'package.json'), 'utf8'));
+			if (!pkg.private) names.push(pkg.name);
+		}
+		return names;
+	};
+	return {
+		name: 'docs-release-dates',
+		configResolved: (config) => void (cache_dir = config.cacheDir),
+		resolveId: (id) => (id === ID ? '\0' + ID : null),
+		async load(id) {
+			if (id !== '\0' + ID) return null;
+			return `export default ${JSON.stringify(await release_dates(published(), cache_dir))};`;
 		}
 	};
 };
@@ -144,6 +176,7 @@ export default defineConfig(({ command }) => ({
 		// /observatory routes, and the WASM asset loader. Before ogygia() (enforce:'pre' also orders them).
 		observatoryNodeShims(),
 		crossOriginIsolation(),
+		releaseDates(),
 		wasm(),
 		ogygia({
 			visible: { margin: '120px' },
