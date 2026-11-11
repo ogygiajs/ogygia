@@ -11,6 +11,7 @@ import {
 	sign as ed_sign,
 	verify as ed_verify
 } from 'node:crypto';
+import { attr, decodeText, html, type Html } from '@ogygia/core/plugin/utils';
 
 // ── paths the handle serves ──────────────────────────────────────────────────────────────────
 /** The exposed route table: `GET|POST|… /og/fragment/page?path=…&search=…`. */
@@ -211,6 +212,8 @@ export interface FragmentDocument {
 	status: number;
 	/** 3xx target (already in the answering app's OWN base space, e.g. `/cms/posts/1`). */
 	location?: string;
+	/** The page's title, as plain text (its HTML character references decoded): the shell escapes
+	 *  it once where it places it. */
 	title: string;
 	/** `<link rel="stylesheet">` / `<style>` tags, asset hrefs absolute to the answering origin. */
 	css: string[];
@@ -334,6 +337,16 @@ const RUNTIME_SCRIPT_RE = /<script[^>]*data-ogygia-runtime[^>]*src="([^"]+)"/i;
 const META_TAG_RE = /<meta\b[^>]*>|<link\b[^>]*rel="canonical"[^>]*>/gi;
 const SHELL_OWNED_META_RE = /\bcharset\b|http-equiv|name="viewport"/i;
 
+/** The card a fragment answers with when its peer redirected after the status was sent (a hole,
+ *  a streamed mount): a link to the peer's `location`, escaped into its `href` (#439). */
+export function moved_card(
+	marker: 'data-og-moved' | 'data-og-mount-moved',
+	what: 'section' | 'page',
+	location: string
+): Html {
+	return html`<p${attr(marker, true)}>This ${what} moved. <a href="${location}">Continue</a></p>`;
+}
+
 /** Lift a full HTML document into the wire shape (title, css, head channel, body, runtime). */
 export function lift_document(html: string, origin: string): Omit<FragmentDocument, 'status'> {
 	const head = html.match(HEAD_RE)?.[1] ?? '';
@@ -343,7 +356,7 @@ export function lift_document(html: string, origin: string): Omit<FragmentDocume
 		.map((t) => absolutize(t, origin))
 		.join('');
 	return {
-		title: head.match(TITLE_RE)?.[1] ?? '',
+		title: decodeText(head.match(TITLE_RE)?.[1] ?? ''),
 		css: [...(head.match(STYLESHEET_LINK_RE) ?? []), ...(head.match(STYLE_TAG_RE) ?? [])].map((t) =>
 			absolutize(t, origin)
 		),
