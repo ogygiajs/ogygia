@@ -42,6 +42,32 @@ describe('a thaw notice no peer took', () => {
 	});
 });
 
+describe('a peer that never answers a thaw notice', () => {
+	it('is given up on after 5 seconds a try, then tried again', async () => {
+		vi.useFakeTimers();
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		// AbortSignal.timeout runs on a native timer the fake clock does not drive
+		vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
+			const c = new AbortController();
+			setTimeout(() => c.abort(new DOMException('timed out', 'TimeoutError')), ms);
+			return c.signal;
+		});
+		let posts = 0;
+		vi.stubGlobal('fetch', (_u: URL, init: RequestInit) => {
+			posts++;
+			return new Promise((_resolve, reject) => {
+				init.signal!.addEventListener('abort', () => reject(init.signal!.reason));
+			});
+		});
+		federate({ name: 'cms', key, peers: { shell: { origin: 'http://shell.test' } } });
+		void fed_server.invalidated!(['p:/x']);
+		await vi.advanceTimersByTimeAsync(4_900);
+		expect(posts).toBe(1);
+		await vi.advanceTimersByTimeAsync(400);
+		expect(posts).toBe(2);
+	});
+});
+
 describe('a publish on a serverless platform (#286)', () => {
 	it("hands the thaw broadcast to the request's waitUntil, which holds until a peer took it", async () => {
 		let took = false;
