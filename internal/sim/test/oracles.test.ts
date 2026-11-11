@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
-import { mpa_equivalent, normalize, page_errors, page_rules } from '../src/oracles.ts';
+import { KNOWN, mpa_equivalent, normalize, page_errors, page_rules } from '../src/oracles.ts';
 
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
@@ -30,6 +30,25 @@ describe('normalize', () => {
 				'      "hi"'
 			].join('\n')
 		);
+	});
+});
+
+describe('KNOWN', () => {
+	const region = (label: string, at = '    ') =>
+		[`${at}<ogygia-region wake="load">`, `${at}  <div>`, `${at}    "${label}"`].join('\n');
+	const page = (...labels: string[]) =>
+		['<html>', '  <body>', ...labels.map((l) => region(l))].join('\n');
+	const left = KNOWN.find((k) => k.issue === 807)!;
+
+	it('#807 forgives a region the fresh load lacks, and nothing it has', () => {
+		const [shown, fresh] = [page('twin', 'b-only'), page('b-only')];
+		expect(left.applies(shown, fresh)).toBe(true);
+		expect(left.forgive(shown, fresh)).toBe(fresh);
+		expect(left.forgive(fresh, shown)).toBe(fresh);
+	});
+
+	it('#807 does not apply when the tab lacks a region the fresh load has', () => {
+		expect(left.applies(page('twin', 'twin'), page('b-only'))).toBe(false);
 	});
 });
 

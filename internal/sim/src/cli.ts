@@ -166,9 +166,10 @@ export async function run(
 					oracle: 'horizon',
 					detail: `virtual time reached the run's horizon (${world.loop.horizon} ms) at action ${i + 1}`
 				});
-			if (broken.length) break;
+			// (a known one, a filed bug's, does not end the run: what comes after may be new)
+			if (broken.some((b) => b.oracle !== 'known')) break;
 		}
-		if (broken.length === 0 && stop_at === Infinity) {
+		if (broken.every((b) => b.oracle === 'known') && stop_at === Infinity) {
 			for (const t of v.tabs) world.network.offline(t.name, false);
 			await world.quiesce();
 			await at_rest?.(world, v);

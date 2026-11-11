@@ -118,14 +118,15 @@ function head_blocks(s: string): { before: string[]; blocks: string[][]; after: 
 
 /**
  * Differences a filed bug explains: `applies` says the two normalized DOMs show it, `forgive`
- * takes it out of one. A seed whose only difference is known is counted apart, not failed, so a
- * run's failures are new findings. Each entry goes when its fix lands.
+ * takes it out of one (given the other, for a shape that is told by what the other side lacks). A
+ * seed whose only difference is known is counted apart, not failed, so a run's failures are new
+ * findings. Each entry goes when its fix lands.
  */
 export const KNOWN: ReadonlyArray<{
 	issue: number;
 	what: string;
 	applies(shown: string, fresh: string): boolean;
-	forgive(normalized: string): string;
+	forgive(normalized: string, other: string): string;
 }> = [
 	{
 		issue: 786,
@@ -188,8 +189,49 @@ export const KNOWN: ReadonlyArray<{
 			const blocks = h.blocks.filter((b) => !b[0].includes('name="ogygia-kit-island"'));
 			return [...h.before, ...blocks.flat(), ...h.after].join('\n');
 		}
+	},
+	{
+		issue: 807,
+		what: 'a region of the page left stays after a client navigation',
+		// (the tab holds every region the fresh load has, and more; after #804, which sets
+		// fingerprints aside, so regions are compared by what they show)
+		applies: (shown, fresh) => {
+			const [a, b] = [regions(shown), regions(fresh)];
+			return a.length > b.length && b.every((r) => a.includes(r));
+		},
+		forgive: (s, other) => {
+			const keep = new Set(regions(other));
+			const lines = s.split('\n');
+			const out: string[] = [];
+			for (let i = 0; i < lines.length; i++) {
+				const block = region_at(lines, i);
+				if (block === null || keep.has(block.text)) out.push(lines[i]);
+				else i = block.end - 1;
+			}
+			return out.join('\n');
+		}
 	}
 ];
+
+/** A normalized DOM's regions (`<ogygia-region>` subtrees), each as its text. */
+function regions(s: string): string[] {
+	const lines = s.split('\n');
+	const found: string[] = [];
+	for (let i = 0; i < lines.length; i++) {
+		const block = region_at(lines, i);
+		if (block !== null) found.push(block.text);
+	}
+	return found;
+}
+
+/** The region whose opening line is `lines[at]`, with the line after its subtree; null if none. */
+function region_at(lines: string[], at: number): { text: string; end: number } | null {
+	const m = /^( *)<ogygia-region\b/.exec(lines[at]);
+	if (m === null) return null;
+	let end = at + 1;
+	while (end < lines.length && /^ */.exec(lines[end])![0].length > m[1].length) end++;
+	return { text: lines.slice(at, end).join('\n'), end };
+}
 
 /** A normalized DOM's kit-island stamps. */
 function kit_stamps(s: string): string {
@@ -272,7 +314,7 @@ export async function mpa_equivalent(
 	for (const k of KNOWN) {
 		if (!k.applies(a, b)) continue;
 		known.push(k);
-		[a, b] = [k.forgive(a), k.forgive(b)];
+		[a, b] = [k.forgive(a, b), k.forgive(b, a)];
 	}
 	if (known.length > 0 && a === b)
 		return {
@@ -358,8 +400,21 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 	const errors = [...tab.errors, ...tab.console.filter((l) => l.startsWith('error:'))].filter(
 		(l) => !(excused && EXPLAINED.test(l))
 	);
-	return errors.length === 0 ? null : { oracle: 'page-errors', detail: errors.join('\n') };
+	if (errors.length === 0) return null;
+	const known = KNOWN_SAID.filter((k) => errors.some((l) => k.said.test(l)));
+	if (errors.every((l) => known.some((k) => k.said.test(l))))
+		return {
+			oracle: 'known',
+			detail: `${tab.page.mainFrame.url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
+		};
+	return { oracle: 'page-errors', detail: errors.join('\n') };
 }
+
+/** What a page says because of a filed bug, as KNOWN is for a DOM difference: a seed that says
+ *  only these is counted `known`, not failed. Each entry goes when its fix lands. */
+export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegExp }> = [
+	{ issue: 817, what: 'a kept island loses its live query', said: /No cached query found/ }
+];
 
 /**
  * No error escaped every page and server to the host process (beyond a network failure's own
