@@ -29,7 +29,7 @@ const report = {
 		island_rows: [
 			{
 				name: 'SiteHeader',
-				entry: '/@id/virtual:ogygia/island/71c18fcca62d.js',
+				entry: '/@id/ogygia:region/entry/71c18fcca62d.js',
 				fp: '08048d746a335614',
 				wake: 'load',
 				ssr_ms: 4.1,
@@ -40,7 +40,7 @@ const report = {
 			},
 			{
 				name: 'Mark',
-				entry: '/@id/virtual:ogygia/island/24fa20edb0cb.js',
+				entry: '/@id/ogygia:region/entry/24fa20edb0cb.js',
 				fp: '49d3183153fa0510',
 				wake: 'load',
 				ssr_ms: null,
@@ -138,7 +138,7 @@ describe('island_row', () => {
 	it('joins by fingerprint, then by entry', () => {
 		expect(island_row(p, '08048d746a335614', null)?.name).toBe('SiteHeader');
 		// the same island with other props: another fingerprint, same entry chunk
-		expect(island_row(p, 'ffff', './@id/virtual:ogygia/island/71c18fcca62d.js')?.name).toBe(
+		expect(island_row(p, 'ffff', './@id/ogygia:region/entry/71c18fcca62d.js')?.name).toBe(
 			'SiteHeader'
 		);
 		expect(island_row(p, 'ffff', null)).toBeNull();

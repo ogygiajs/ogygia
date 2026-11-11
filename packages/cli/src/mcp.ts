@@ -704,7 +704,7 @@ function render_story(url: string, events: DtEvent[]): string {
 	);
 }
 
-/** What the page's restorer said (an app with `ogygia.handle({ transform })`), or '' when nothing. */
+/** What the page's restorer said (an app with `reshape.handle(transform)`), or '' when nothing. */
 function restore_section(
 	events: { type: string; detail: { host?: string; diff?: string } }[]
 ): string {
@@ -749,7 +749,7 @@ async function tool_debug(args: Attrs): Promise<ToolResult> {
 	}
 	try {
 		const page = await browser.newPage();
-		// the app's server transform (ogygia.handle({ transform })): a host the restore reached too late,
+		// the app's server transform (reshape.handle(transform)): a host the restore reached too late,
 		// or one it could not put back exactly (the dev check) — listened for before the page's own
 		// inline restorer runs
 		await page.addInitScript(() => {
