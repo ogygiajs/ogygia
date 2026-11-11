@@ -118,24 +118,26 @@ function head_blocks(s: string): { before: string[]; blocks: string[][]; after: 
 
 /**
  * Differences a filed bug explains: `applies` says the two normalized DOMs show it, `forgive`
- * takes it out of one. A seed whose only difference is known is counted apart, not failed, so a
- * run's failures are new findings. Each entry goes when its fix lands.
+ * takes it out of one (given the other, for a shape that is told by what the other side lacks). A
+ * seed whose only difference is known is counted apart, not failed, so a run's failures are new
+ * findings. Each entry goes when its fix lands.
  */
 export const KNOWN: ReadonlyArray<{
 	issue: number;
 	what: string;
 	applies(shown: string, fresh: string): boolean;
-	forgive(normalized: string): string;
+	forgive(normalized: string, other: string): string;
 }> = [
 	{
 		issue: 786,
-		what: 'an empty <title> after client navigations',
-		// (an empty one: no text line under it)
-		applies: (shown, fresh) =>
-			/\n {4}<title>(?!\n {6})/.test(shown) !== /\n {4}<title>(?!\n {6})/.test(fresh),
+		what: 'an empty <title> after client navigations, or two titles on a page visited again',
+		// (an empty one: no text line under it; and the empty one a page with a title fills in,
+		// beside its own: seed 443, /soft-race → a page with no title → back)
+		applies: (shown, fresh) => titles(shown).length > titles(fresh).length,
 		forgive: (s) => {
 			const h = head_blocks(s);
-			const blocks = h.blocks.filter((b) => !(b.length === 1 && b[0] === '    <title>'));
+			const first = h.blocks.find((b) => b[0] === '    <title>' && b.length > 1);
+			const blocks = h.blocks.filter((b) => b[0] !== '    <title>' || b === first);
 			return [...h.before, ...blocks.flat(), ...h.after].join('\n');
 		}
 	},
@@ -188,8 +190,56 @@ export const KNOWN: ReadonlyArray<{
 			const blocks = h.blocks.filter((b) => !b[0].includes('name="ogygia-kit-island"'));
 			return [...h.before, ...blocks.flat(), ...h.after].join('\n');
 		}
+	},
+	{
+		issue: 807,
+		what: 'a region of the page left stays after a client navigation',
+		// (the tab holds every region the fresh load has, and more; after #804, which sets
+		// fingerprints aside, so regions are compared by what they show)
+		applies: (shown, fresh) => {
+			const [a, b] = [regions(shown), regions(fresh)];
+			return a.length > b.length && b.every((r) => a.includes(r));
+		},
+		forgive: (s, other) => {
+			const keep = new Set(regions(other));
+			const lines = s.split('\n');
+			const out: string[] = [];
+			for (let i = 0; i < lines.length; i++) {
+				const block = region_at(lines, i);
+				if (block === null || keep.has(block.text)) out.push(lines[i]);
+				else i = block.end - 1;
+			}
+			return out.join('\n');
+		}
 	}
 ];
+
+/** The `<title>` elements in a normalized DOM's head, each whole. */
+function titles(s: string): string[] {
+	return head_blocks(s)
+		.blocks.filter((b) => b[0] === '    <title>')
+		.map((b) => b.join('\n'));
+}
+
+/** A normalized DOM's regions (`<ogygia-region>` subtrees), each as its text. */
+function regions(s: string): string[] {
+	const lines = s.split('\n');
+	const found: string[] = [];
+	for (let i = 0; i < lines.length; i++) {
+		const block = region_at(lines, i);
+		if (block !== null) found.push(block.text);
+	}
+	return found;
+}
+
+/** The region whose opening line is `lines[at]`, with the line after its subtree; null if none. */
+function region_at(lines: string[], at: number): { text: string; end: number } | null {
+	const m = /^( *)<ogygia-region\b/.exec(lines[at]);
+	if (m === null) return null;
+	let end = at + 1;
+	while (end < lines.length && /^ */.exec(lines[end])![0].length > m[1].length) end++;
+	return { text: lines.slice(at, end).join('\n'), end };
+}
 
 /** A normalized DOM's kit-island stamps. */
 function kit_stamps(s: string): string {
@@ -272,7 +322,7 @@ export async function mpa_equivalent(
 	for (const k of KNOWN) {
 		if (!k.applies(a, b)) continue;
 		known.push(k);
-		[a, b] = [k.forgive(a), k.forgive(b)];
+		[a, b] = [k.forgive(a, b), k.forgive(b, a)];
 	}
 	if (known.length > 0 && a === b)
 		return {
@@ -301,12 +351,26 @@ export function stuck(tab: Tab): Broken | null {
 		if (m) last.set(m[1], m[2]);
 	}
 	const held = [...last].filter(([, state]) => state.endsWith('ing'));
-	return held.length === 0
-		? null
-		: {
-				oracle: 'stuck',
-				detail: `${tab.page.mainFrame.url}: at rest, still ${held.map(([id, s]) => `${id} ${s}`).join(', ')}`
-			};
+	if (held.length === 0) return null;
+	const detail = `${tab.page.mainFrame.url}: at rest, still ${held.map(([id, s]) => `${id} ${s}`).join(', ')}`;
+	// #820: on a page Kit hydrates, Kit's client that never came leaves its islands' wakes waiting
+	if (held.every(([id, s]) => id.startsWith('wake#') && s === 'waking') && kit_never_came(tab))
+		return {
+			oracle: 'known',
+			detail: `${detail}: #820 (an island waits for a Kit that never came)`
+		};
+	return { oracle: 'stuck', detail };
+}
+
+/** A page Kit hydrates (its start entry is in the document) whose Kit never published its page. */
+function kit_never_came(tab: Tab): boolean {
+	const w = tab.page.mainFrame.window as unknown as Record<symbol, unknown> & {
+		document: Document;
+	};
+	const kit = [...w.document.querySelectorAll('script, link')].some((e) =>
+		/\/_app\/immutable\/entry\/start\./.test(e.textContent + (e.getAttribute('href') ?? ''))
+	);
+	return kit && w[Symbol.for('ogygia.kit-page')] == null;
 }
 
 /** ogygia's own rules, in the page (`__ogygia_rules()`, built in with OGYGIA_RULES=1). */
@@ -344,10 +408,11 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 		);
 }
 
-/** What a page may say when the network failed it: ogygia's coded reports and the network's own
- *  failures (a script cut midway fails to parse). An uncaught TypeError is never excused. */
+/** What a page may say when the network failed it: ogygia's coded reports, the network's own
+ *  failures (a script cut midway fails to parse), and Vite's preload helper on a sheet whose
+ *  download failed (seeds 65, 425). An uncaught TypeError is never excused. */
 const EXPLAINED =
-	/ogygiajs\.dev\/e\/|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost/;
+	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost/;
 
 /** No uncaught error, unhandled rejection or console error in the page (beyond what a network
  *  fault on this document explains, when `world` is given). */
@@ -358,8 +423,21 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 	const errors = [...tab.errors, ...tab.console.filter((l) => l.startsWith('error:'))].filter(
 		(l) => !(excused && EXPLAINED.test(l))
 	);
-	return errors.length === 0 ? null : { oracle: 'page-errors', detail: errors.join('\n') };
+	if (errors.length === 0) return null;
+	const known = KNOWN_SAID.filter((k) => errors.some((l) => k.said.test(l)));
+	if (errors.every((l) => known.some((k) => k.said.test(l))))
+		return {
+			oracle: 'known',
+			detail: `${tab.page.mainFrame.url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
+		};
+	return { oracle: 'page-errors', detail: errors.join('\n') };
 }
+
+/** What a page says because of a filed bug, as KNOWN is for a DOM difference: a seed that says
+ *  only these is counted `known`, not failed. Each entry goes when its fix lands. */
+export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegExp }> = [
+	{ issue: 817, what: 'a kept island loses its live query', said: /No cached query found/ }
+];
 
 /**
  * No error escaped every page and server to the host process (beyond a network failure's own
@@ -408,7 +486,16 @@ export class Leaks {
 		if (!url.startsWith('http')) return null;
 		const key = `${tab.realm} ${url.split('#')[0]}`;
 		const list = this.#samples.get(key) ?? [];
-		const now: Record<string, number> = { ...tab.held() };
+		const held = tab.held();
+		// (a module preload stays in the head once added, as Vite's own do: one per chunk the app
+		// has, so bounded by the app, not by the visits; set aside)
+		const preloads = preloads_in_head(tab);
+		const now: Record<string, number> = {
+			...held,
+			head: held.head - preloads,
+			elements: held.elements - preloads,
+			explained: explained_head(tab)
+		};
 		// (one sample per visit, its latest: the visit may still have been settling)
 		if (this.#at.get(tab.name) === key && list.length > 0) list[list.length - 1] = now;
 		else list.push(now);
@@ -417,13 +504,47 @@ export class Leaks {
 		if (list.length < LEAK_VISITS) return null;
 		const run = list.slice(-LEAK_VISITS);
 		// (BOUNDED MEMORY: the head and the element count too; a page visited again is the same page)
+		const grew = (field: string, less = 0) =>
+			run.every(
+				(s, i) =>
+					i === 0 || s[field] - less * s.explained > run[i - 1][field] - less * run[i - 1].explained
+			);
+		let known = false;
 		for (const field of ['listeners', 'intervals', 'observers', 'head', 'elements']) {
-			if (run.every((s, i) => i === 0 || s[field] > run[i - 1][field]))
-				return {
-					oracle: 'leak',
-					detail: `${url}: ${field} grew visit after visit in one document: ${run.map((s) => s[field]).join(' → ')}${field === 'intervals' ? `\nrunning: ${tab.platform?.pending().join(', ')}` : ''}`
-				};
+			if (!grew(field)) continue;
+			// (head nodes a filed bug explains are set aside: if then it does not grow, it is known)
+			if ((field === 'head' || field === 'elements') && !grew(field, 1)) {
+				known = true;
+				continue;
+			}
+			return {
+				oracle: 'leak',
+				detail: `${url}: ${field} grew visit after visit in one document: ${run.map((s) => s[field]).join(' → ')}${field === 'intervals' ? `\nrunning: ${tab.platform?.pending().join(', ')}` : ''}`
+			};
 		}
-		return null;
+		return known
+			? {
+					oracle: 'known',
+					detail: `${url}: #799 (a left page's region sheet kept), #821 (a second runtime script after a navigation to another depth)`
+				}
+			: null;
 	}
+}
+
+/** The module preloads in a tab's head. */
+function preloads_in_head(tab: Tab): number {
+	const head = (tab.page.mainFrame.document as unknown as Document).head;
+	return head ? head.querySelectorAll('link[rel="modulepreload"]').length : 0;
+}
+
+/**
+ * Head nodes a filed bug explains: runtime scripts past the first (#821) and region sheets (#799
+ * keeps a left page's for a navigation; until it is fixed a sheet's coming and going is set aside).
+ */
+function explained_head(tab: Tab): number {
+	const head = (tab.page.mainFrame.document as unknown as Document).head;
+	if (!head) return 0;
+	const runtime = head.querySelectorAll('script[data-ogygia-runtime]').length;
+	const sheets = head.querySelectorAll('[data-ogygia-region-css]').length;
+	return Math.max(0, runtime - 1) + sheets;
 }
