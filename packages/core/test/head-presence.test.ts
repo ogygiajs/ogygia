@@ -90,6 +90,23 @@ describe('page_declares_speculation_rules', () => {
 			true
 		);
 	});
+
+	it('reads the type the way a browser does: any case, spaces around it trimmed', () => {
+		expect(page_declares_speculation_rules('<script type=" SpeculationRules ">{}</script>')).toBe(
+			true
+		);
+	});
+});
+
+describe('attribute names in any case', () => {
+	it('finds a marker spelled in upper case, as a browser does', () => {
+		expect(page_declares_runtime_script('<script DATA-OGYGIA-RUNTIME src="/r.js"></script>')).toBe(
+			true
+		);
+		expect(page_declares_dev_hmr_script('<script Data-Ogygia-Dev-Hmr src="/h.js"></script>')).toBe(
+			true
+		);
+	});
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
