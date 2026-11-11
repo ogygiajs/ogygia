@@ -6,7 +6,7 @@ import { stringify } from 'devalue';
 import { encode_island_graph, decode_island_graph } from '../src/island-graph.ts';
 import { SeedIndex, plan_seed_refs, __heisenbench as seed_refs } from '../src/seed-refs.ts';
 import { DocumentTail } from '../src/server/document-tail.ts';
-import { island_fingerprint } from '../src/server/fingerprint.ts';
+import { region_fingerprint } from '../src/server/fingerprint.ts';
 import { PageSeed } from '../src/server/page-seed.ts';
 import { plan_props_wire, __heisenbench as props_wire } from '../src/server/props-wire.ts';
 import { encode_region_props } from '../src/server/region-props.ts';
@@ -132,7 +132,7 @@ bench(
 		islands.push([island_entry(99), header_props]);
 		for (const [entry, props] of islands) {
 			const plan = plan_props_wire(props, entry);
-			const fp = island_fingerprint(entry, plan.canonical);
+			const fp = region_fingerprint(entry, plan.canonical);
 			tail.props(fp, plan);
 			const hrefs = [
 				`/_app/immutable/chunks/svelte.js`,

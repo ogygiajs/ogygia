@@ -19,7 +19,7 @@
 import { og_js_regions, find_og_calls, type JsRegion } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { og_member } from './wire.ts';
-import { OgygiaError } from '../../messages/build.ts';
+import { OgygiaError } from '../messages.ts';
 
 // ── regexes
 const EXPORT_CONST_TAIL_RE = /\bexport\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*$/;
