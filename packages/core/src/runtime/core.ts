@@ -1257,7 +1257,7 @@ class OgygiaRegion extends HTMLElement {
 		}
 		if (morph) morph(this, Array.from(frag.childNodes));
 		else this.replaceChildren(frag);
-		if (HOOK_ANSWER_PLACED) slots.hooks?.answerPlaced?.();
+		if (HOOK_ANSWER_PLACED) slots.hooks?.answerPlaced?.({ el: this });
 		init_shadow_registries(this);
 		absorb_page_facts_now();
 		this.#answered('answered');
@@ -1341,7 +1341,7 @@ class OgygiaRegion extends HTMLElement {
 			for (const el of this.querySelectorAll('ogygia-region'))
 				if (el instanceof OgygiaRegion) el.#box.post((t) => el.#renew(t));
 		}
-		if (HOOK_ANSWER_PLACED) slots.hooks?.answerPlaced?.();
+		if (HOOK_ANSWER_PLACED) slots.hooks?.answerPlaced?.({ el: this });
 		init_shadow_registries(this);
 		absorb_page_facts_now();
 		this.dispatchEvent(new CustomEvent('ogygia:live', { bubbles: true }));
@@ -1887,7 +1887,7 @@ class OgygiaRegion extends HTMLElement {
 		use_sheets(this, sheets);
 		slots.lakes.settle_in(frag);
 		this.replaceChildren(frag);
-		if (HOOK_ANSWER_PLACED) slots.hooks?.answerPlaced?.();
+		if (HOOK_ANSWER_PLACED) slots.hooks?.answerPlaced?.({ el: this });
 		init_shadow_registries(this);
 		await this.#live_hydrate(desc.props, mine, desc.module, turn);
 	}
