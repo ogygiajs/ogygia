@@ -153,7 +153,9 @@ export async function run(
 					`${t.name} holds ${h.listeners} listeners ${h.intervals} intervals ${h.observers} observers`
 				);
 				for (const b of [page_errors(t, world, since), page_rules(t), leaks.check(t)])
-					if (b) broken.push({ ...b, detail: `after ${describe(a)}: ${b.detail}` });
+					// (a known one once: it is told again after every action while the bug stands)
+					if (b && !(b.oracle === 'known' && broken.some((k) => k.detail.endsWith(b.detail))))
+						broken.push({ ...b, detail: `after ${describe(a)}: ${b.detail}` });
 				t.errors.length = 0;
 				t.console.length = 0;
 			}
@@ -166,10 +168,21 @@ export async function run(
 					oracle: 'horizon',
 					detail: `virtual time reached the run's horizon (${world.loop.horizon} ms) at action ${i + 1}`
 				});
-			if (broken.length) break;
+			// (a known one, a filed bug's, does not end the run: what comes after may be new)
+			if (broken.some((b) => b.oracle !== 'known')) break;
 		}
-		if (broken.length === 0 && stop_at === Infinity) {
+		if (broken.every((b) => b.oracle === 'known') && stop_at === Infinity) {
 			for (const t of v.tabs) world.network.offline(t.name, false);
+			await world.quiesce();
+			// (a wait on its way out is not a hang: a backoff of seconds is a page's one-shot timer,
+			// due later than rest's 2 s. Time runs on while one is set, a minute at most, then rest)
+			const until = Math.min(world.loop.now + 60_000, world.loop.horizon);
+			while (
+				world.loop.now < until &&
+				world.loop.next_at <= until &&
+				v.tabs.some((t) => t.platform?.pending().includes('timeout'))
+			)
+				await world.loop.step();
 			await world.quiesce();
 			await at_rest?.(world, v);
 			// AT REST, every tab (a faulted one too: a failure must end a wait as surely as an
