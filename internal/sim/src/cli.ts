@@ -172,6 +172,16 @@ export async function run(
 		if (broken.every((b) => b.oracle === 'known') && stop_at === Infinity) {
 			for (const t of v.tabs) world.network.offline(t.name, false);
 			await world.quiesce();
+			// (a wait on its way out is not a hang: a backoff of seconds is a page's one-shot timer,
+			// due later than rest's 2 s. Time runs on while one is set, a minute at most, then rest)
+			const until = Math.min(world.loop.now + 60_000, world.loop.horizon);
+			while (
+				world.loop.now < until &&
+				world.loop.next_at <= until &&
+				v.tabs.some((t) => t.platform?.pending().includes('timeout'))
+			)
+				await world.loop.step();
+			await world.quiesce();
 			await at_rest?.(world, v);
 			// AT REST, every tab (a faulted one too: a failure must end a wait as surely as an
 			// answer): no machine left mid-work, and ogygia's rules hold
