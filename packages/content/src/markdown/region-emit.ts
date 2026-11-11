@@ -43,16 +43,32 @@ export type RegionEmit = {
 	html: string;
 };
 
+/** A compiled module's module script body (its metadata export) and the template around it. */
+function split_module(code: string): { module_body: string; template: string } {
+	const mod = MODULE_SCRIPT_RE.exec(code);
+	return {
+		module_body: mod ? mod[2]! : '',
+		template: mod ? code.slice(0, mod.index) + code.slice(mod.index + mod[0]!.length) : code
+	};
+}
+
+/** A component tag's opening: `<Foo`, `<Foo.Bar`, `<ui.Button`. */
+const COMPONENT_TAG_RE = /<([A-Z][\w$]*(?:\.[\w$]+)*|[a-z_$][\w$]*(?:\.[\w$]+)+)(?=[\s/>])/;
+
+/** The first component tag in a compiled module's template, outside its fences; null when none. A
+ *  region keeps one as an inert element (a `.md` corpus mentions them); `md()` refuses it. */
+export function component_tag_in(code: string): string | null {
+	const m = COMPONENT_TAG_RE.exec(split_module(code).template.replace(FENCE_EMBED_RE, ' '));
+	return m ? m[1]! : null;
+}
+
 /**
  * Try to re-emit a compiled content module as a serialized region. `code` is the post-mdsvex,
  * post-island-transform module; `module_lines` are the extra module-script exports the caller was
  * going to inject anyway (`__ogygia_source`, …). Returns `null` when the file is dynamic.
  */
 export function try_region_emit(code: string, module_lines: string[]): RegionEmit | null {
-	// Split out the module script (metadata export). Anything before/after it is template.
-	const mod = MODULE_SCRIPT_RE.exec(code);
-	const module_body = mod ? mod[2]! : '';
-	const template = mod ? code.slice(0, mod.index) + code.slice(mod.index + mod[0]!.length) : code;
+	const { module_body, template } = split_module(code);
 
 	// An instance script is genuinely dynamic — the component path's job. (Everything else that
 	// LOOKS svelte-ish in a region-mode `.md` is text; see the skeleton passes below.)
