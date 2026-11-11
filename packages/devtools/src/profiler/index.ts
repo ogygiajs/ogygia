@@ -2693,6 +2693,16 @@ class Profiler {
 	}
 
 	// ---- auth -------------------------------------------------------------
+	/** Is this request's visitor the profiler's logged-in user (its session cookie matches)? The
+	 *  beacon flag alone is a cookie anyone can set; it only spares the check for everyone else. */
+	async measures(event: RequestEvent): Promise<boolean> {
+		if (this.dev) return true;
+		if (event.cookies.get('og_profiler_beacon') !== '1') return false;
+		for (const value of session_cookie_values(event))
+			if (await this.#key_matches(value)) return true;
+		return false;
+	}
+
 	async #key_matches(provided: string | null | undefined): Promise<boolean> {
 		if (this.dev) return true;
 		if (!this.secret || !provided) return false;
@@ -7198,10 +7208,15 @@ class Profiler {
  * See the class doc and README for what it captures. Visit `<path>` (default
  * /__profiler) — in prod, log in (or send the x-profiler-key header).
  */
-export function profiler(options: ProfilerOptions = {}): Handle {
+export function profiler(options: ProfilerOptions = {}): ProfilerHandle {
 	const instance = new Profiler(options);
-	return (args) => instance.handle(args);
+	return Object.assign((args: Parameters<Handle>[0]) => instance.handle(args), {
+		measures: (event: RequestEvent) => instance.measures(event)
+	});
 }
+
+/** The profiler's handle, and the shared `measures` hook's answer (../server.ts). */
+export type ProfilerHandle = Handle & { measures(event: RequestEvent): Promise<boolean> };
 
 // ---------------------------------------------------------------------------
 
