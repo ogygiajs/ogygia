@@ -214,6 +214,45 @@ describe('start', () => {
 	});
 });
 
+describe('stale', () => {
+	it('a stale hook that throws is reported, and the other waiting jobs still go stale and none hangs', async () => {
+		vi.useFakeTimers();
+		const said = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const page = globalThis as { reportError?: (e: unknown) => void };
+		const own = page.reportError;
+		const reported: unknown[] = [];
+		page.reportError = (e) => reported.push(e);
+		try {
+			const log: string[] = [];
+			const q = queue<string>({
+				name: 'stales',
+				max: 1,
+				now: () => Date.now(),
+				start: (job) => void log.push(job),
+				stale: (job) => {
+					if (job === 'bad') throw new Error('boom');
+					log.push(`stale ${job}`);
+				}
+			});
+			q.push('holder');
+			q.push('bad', Date.now() + 50);
+			q.push('good', Date.now() + 50);
+			q.push('later', Date.now() + 100);
+			await vi.advanceTimersByTimeAsync(60);
+			expect(log).toEqual(['holder', 'stale good']);
+			await vi.advanceTimersByTimeAsync(50);
+			expect(log).toEqual(['holder', 'stale good', 'stale later']);
+			expect(q.waiting).toBe(0);
+			expect(String(said.mock.calls[0]?.[0])).toContain('machine_queue_stale_failed');
+			expect(reported).toHaveLength(1);
+		} finally {
+			page.reportError = own;
+			said.mockRestore();
+			vi.useRealTimers();
+		}
+	});
+});
+
 describe('options', () => {
 	it('a bad max is refused with machine_bad_option', () => {
 		const start = () => {};
