@@ -83,10 +83,14 @@ jobs:
       needs.gate.outputs.run == 'true' &&
       !github.event.pull_request.draft &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      !startsWith(github.head_ref, 'changeset-release/')
+      !startsWith(github.head_ref, 'changeset-release/') &&
+      !startsWith(github.head_ref, 'chore/comments-') &&
+      github.head_ref != 'chore/structured-comments' &&
+      !startsWith(github.head_ref, 'research/')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # (comment sweeps and research branches change no measured code: no run in the shared pool)
       - name: Request a Heisenbench run
         env:
           GH_TOKEN: ${{ secrets.BENCH_TOKEN }}
