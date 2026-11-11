@@ -187,6 +187,79 @@ describe('Ed25519 signing / verification', () => {
 	/** cms.test checking the calls it receives */
 	const at_cms = { publicKeys: [pub], audience: 'cms.test' };
 
+	describe('the call capability (x-og-cap)', () => {
+		const LEGACY = ['x-og-ts', 'x-og-n', 'x-og-sig'];
+		/** a call as a peer of this release sends it, with only the capability (legacy headers off) */
+		const cap_only = (
+			o: { method?: string; path?: string; body?: string; claims?: object; audience?: string } = {}
+		) => {
+			const u = new URL(`http://cms.test${o.path ?? '/og/fragment/page?path=/p'}`);
+			const body = o.body == null ? undefined : new TextEncoder().encode(o.body);
+			const h = sign_headers(
+				priv,
+				o.method ?? 'POST',
+				u,
+				body,
+				o.claims ?? { sub: 'u1' },
+				o.audience
+			);
+			for (const k of LEGACY) delete h[k];
+			return { headers: h, url: u, body };
+		};
+		const at = (
+			c: { headers: Record<string, string>; url: URL; body?: Uint8Array },
+			change: { method?: string; path?: string; body?: string } = {}
+		) => {
+			const url = new URL(change.path ?? c.url.pathname + c.url.search, 'http://cms.test');
+			const body = change.body == null ? c.body : new TextEncoder().encode(change.body);
+			const req = new Request(url, { method: change.method ?? 'POST', headers: c.headers });
+			return verify_signed_request(at_cms, req, url, body);
+		};
+
+		it('a signed call carries one token that names it', () => {
+			const { headers } = cap_only();
+			expect(headers['x-og-cap']).toMatch(/^v1\.\d{13}\.[\w-]{22}\.[\w-]{86}$/);
+		});
+
+		it('the token alone checks, once', () => {
+			const c = cap_only({ body: 'a=1' });
+			expect(at(c)?.user?.sub).toBe('u1');
+			expect(at(c)).toBeNull();
+		});
+
+		it('a call with its method, path, body, claims or audience changed is refused', () => {
+			expect(at(cap_only({ body: 'a=1' }), { method: 'PUT' })).toBeNull();
+			expect(at(cap_only(), { path: '/og/fragment/page?path=/q' })).toBeNull();
+			expect(at(cap_only({ body: 'a=1' }), { body: 'a=2' })).toBeNull();
+			const c = cap_only();
+			c.headers['x-og-user'] = Buffer.from(JSON.stringify({ sub: 'admin' })).toString('base64');
+			expect(at(c)).toBeNull();
+			expect(at(cap_only({ audience: 'dash.test' }))).toBeNull();
+		});
+
+		it('a token from another key is refused, and a bad token is not saved by good legacy headers', () => {
+			const { privateKey: other } = generateKeyPairSync('ed25519');
+			const u = new URL('http://cms.test/og/fragment/page?path=/p');
+			const theirs = sign_headers(
+				other.export({ type: 'pkcs8', format: 'der' }).toString('base64'),
+				'GET',
+				u
+			);
+			const mine = sign_headers(priv, 'GET', u);
+			const req = new Request(u, { headers: { ...mine, 'x-og-cap': theirs['x-og-cap']! } });
+			expect(verify_signed_request(at_cms, req, u)).toBeNull();
+		});
+
+		it('a call signed the old way only still checks (peers upgrade one at a time)', () => {
+			const u = new URL('http://cms.test/og/fragment/page?path=/p');
+			const h = sign_headers(priv, 'GET', u, undefined, { sub: 'u1' });
+			delete h['x-og-cap'];
+			expect(verify_signed_request(at_cms, new Request(u, { headers: h }), u)?.user?.sub).toBe(
+				'u1'
+			);
+		});
+	});
+
 	it('accepts a fresh, correctly-signed request once and returns its claims', () => {
 		const req = signed();
 		expect(verify_signed_request(at_cms, req, new URL(req.url))?.user?.sub).toBe('u1');
