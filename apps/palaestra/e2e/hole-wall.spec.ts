@@ -94,7 +94,10 @@ for (const [mode, param, value, deny] of [
 		});
 		const errs: string[] = [];
 		page.on('pageerror', (e) => errs.push(e.message));
-		await page.goto('/hole-wall/', { waitUntil: 'networkidle' });
+		// the hole's answer, not network idle: Chromium never finishes a routed `no-store` response
+		const answered = page.waitForResponse(HOLE_REQUEST_RE);
+		await page.goto('/hole-wall/');
+		await answered;
 		await sleep(2000); // past the runtime's retry delays, had it retried
 		check(
 			`${mode}: exactly ONE hole request (no retry of a refused capability)`,

@@ -270,6 +270,7 @@
 	},
 	"devDependencies": {
 		"@ogygia/config": "workspace:*",
+		"@ogygia/tooling": "workspace:*",
 		"@ogygia/tsdown-plugin-svelte": "workspace:*",
 		"@sveltejs/kit": "catalog:",
 		"@sveltejs/vite-plugin-svelte": "catalog:",

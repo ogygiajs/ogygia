@@ -67,10 +67,11 @@ type AnswerStates = {
 	kept: {};
 };
 
+// (each answer is a visit of its own, a second one too: the trace sees every answer on screen)
 const answer_steps = {
 	none: ['answered', 'kept'],
-	answered: ['kept'],
-	kept: ['answered']
+	answered: ['answered', 'kept'],
+	kept: ['answered', 'kept']
 } as const;
 
 const answer_definition = machine<AnswerStates>()({
