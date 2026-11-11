@@ -224,6 +224,23 @@ export const bump = command(v.string(), async (id) => {
 
 When you call `bump(id)` from an island, the region on the page at that address repaints from the command's response, with no extra GET to the endpoint.
 
+### Two commands, one region: give it a version
+
+Two commands that return the same region can answer in either order. The browser cannot tell which answer has the newer data, so by default the one that arrives last stays on screen, even if it was rendered from older data. Pass the data's version and the browser keeps the newest data instead:
+
+```ts
+export const rename = command(v.object({ id: v.string(), name: v.string() }), async ({ id, name }) => {
+  const row = await db.rename(id, name);
+  return region(Card, row, { version: row.updatedAt });  // a Date, a date string or a number
+});
+```
+
+- An answer with an older version than the one on screen is dropped. In dev, ogygia says so ([`region_answer_older`](/e/region_answer_older)).
+- Equal versions, or an answer without a version, keep the old rule: the one that arrives last stays.
+- An answer without a version replaces a versioned one by that same rule, and then nothing on screen has a version to compare against.
+- The version must only go up when the data changes: a row's update time, or a counter. Anything `Date.parse()` cannot read throws [`region_version_invalid`](/e/region_version_invalid).
+- Only a held region (one the browser keeps at an address) is ordered this way. An inline region has nothing on screen to compare against.
+
 <div class="doc-demo">
   <SingleFlightDemo />
 </div>

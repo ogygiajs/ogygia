@@ -19,14 +19,15 @@ import type { SvelteNode, HostImport, RegionMark } from './ir.ts';
 import type * as NodePath from 'node:path';
 import { blank_styles } from '../blank-styles.ts';
 import { OgygiaError, warn } from '../../messages/build.ts';
-import { cache } from '@ogygia/machine';
+import { say } from '@ogygia/machine';
 
 /** A host the parser still cannot read keeps its region imports as plain imports (no island):
  *  said once per file, never skipped in silence. The Svelte compiler reports the error itself. */
-const warned_unparsed = cache<string, true>({ name: 'warned unparsed hosts', max: 10_000 });
+const unparsed = say();
 function warn_unparsed(id: string, err: unknown): void {
-	if (warned_unparsed.has(id)) return;
-	warned_unparsed.set(id, true);
+	unparsed.once(id, () => say_unparsed(id, err));
+}
+function say_unparsed(id: string, err: unknown): void {
 	const e = err as { code?: string; start?: { line?: number; column?: number }; message?: string };
 	warn('region_host_skipped', {
 		file: id,
@@ -198,11 +199,9 @@ function line_col(src: string, offset: number): string {
 	return `${line}:${offset - last}`;
 }
 /** Once per key for the process — the ssr AND client passes both transform the same host. */
-const store_warned = cache<string, true>({ name: 'warned store captures', max: 10_000 });
-function warn_once(key: string, say: () => void): void {
-	if (store_warned.has(key)) return;
-	store_warned.set(key, true);
-	say();
+const store_warned = say();
+function warn_once(key: string, speak: () => void): void {
+	store_warned.once(key, speak);
 }
 
 // Invariant per-build — hoisted to module scope so they aren't reallocated on every transformHost.

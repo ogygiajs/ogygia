@@ -187,7 +187,7 @@ export function revive_store(payload: StorePayload, remember: boolean): unknown 
  */
 export function __og_store<F extends (...args: never[]) => object>(tag: string, factory: F): F {
 	// once per store, not per call (a hot SSR path would warn on every request); held here, not
-	// in a machine cache: island-side code importing one splits the boot (e2e/lazy-chunks.spec.ts)
+	// in a machine say(): island-side code importing one splits the boot (e2e/lazy-chunks.spec.ts)
 	let warned = false;
 	// decode side: factory(seed), branded so a revived store can cross a FURTHER boundary
 	__register_store_factory(tag, (seed: unknown) =>

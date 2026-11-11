@@ -365,6 +365,24 @@ describe('the outline is stamped with the content it read, never a newer version
 		// read again: the content changed since the entries the outline was woven from
 		expect(await s.outline.addresses()).toEqual(['install', 'usage']);
 	});
+
+	it('the first read of a collection not yet loaded weaves once: its load is not a change', async () => {
+		const page = (id: string, title: string) =>
+			({
+				id,
+				filePath: `content/docs/00-start/0${id.length}-${id}/+doc.svx`,
+				data: { title },
+				meta: { headings: [] }
+			}) as unknown as SourceEntry<Meta>;
+		const { source } = liveSource([page('install', 'Install')]);
+		const docs = content({ schema, loader: source });
+		const reads = vi.spyOn(docs, 'refs');
+		const s = siteRaw({ outline: docs });
+		expect(await s.outline.addresses()).toEqual(['install']);
+		expect(await s.outline.addresses()).toEqual(['install']);
+		expect(await s.outline.addresses()).toEqual(['install']);
+		expect(reads).toHaveBeenCalledTimes(1);
+	});
 });
 
 describe('a live edit that breaks the outline keeps the last good one', () => {

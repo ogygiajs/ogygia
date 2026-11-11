@@ -175,7 +175,8 @@ const module_urls = cache<string, string>({ name: 'island module urls', max: 400
 // feature's pointerenter warm. One URL-level dedupe set replaces three inconsistent schemes
 // (`import()` is idempotent, but re-parsing the specifier on every hover isn't free). A failed
 // warm un-marks the URL so the real wake — or a later warm — retries; warming is never fatal.
-const warmed_modules = cache<string, true>({ name: 'warmed island modules', max: 4000 });
+/** Each warmed module's download slot (a warm with a better class joining it promotes it, #437). */
+const warmed_modules = cache<string, LoadSlot>({ name: 'warmed island modules', max: 4000 });
 
 /** The warmer's key: the resolved module as an absolute URL (a location arrives absolute, an href
  *  off a page root-relative — the same file must be one key). */
@@ -198,12 +199,21 @@ export function warm_island_module(
 	// a build's identity with no known location names no file: the load finds it (import_entry)
 	if (!entry_location(entry, base) && url.includes('/ogygia/og-region.')) return;
 	const key = warm_key(url);
-	if (warmed_modules.has(key)) return;
-	warmed_modules.set(key, true);
+	const joined = warmed_modules.get(key);
+	if (joined) {
+		// the warm already asked for: a hover after a page prefetch lifts the prefetch's download to
+		// the visitor's class (still queued, it starts now; started, its graph links are raised)
+		if (joined.queued) joined.promote(cls);
+		else preload_island_graph(entry, base, fetch_priority_of(cls));
+		return;
+	}
 	// a warm is the load scheduler's to time (load-scheduler.ts): a hover is the visitor's, a page
 	// prefetch's warm is speculative
-	void new LoadSlot({ kind: 'code', cls, label: entry }).ready.then((release) => {
-		preload_island_graph(entry, base, fetch_priority_of(cls)); // the whole graph with the entry
+	const slot = new LoadSlot({ kind: 'code', cls, label: entry });
+	warmed_modules.set(key, slot);
+	void slot.ready.then((release) => {
+		// the whole graph with the entry, at the class it started with (a join may have promoted it)
+		preload_island_graph(entry, base, fetch_priority_of(slot.cls()));
 		// (through the file's loader the island's own load uses: a warm that failed leaves the load a
 		// fresh URL to ask, not the failed one — #261)
 		import_file(url)

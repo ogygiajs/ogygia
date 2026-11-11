@@ -6,6 +6,7 @@
  * alone (the page words it from the link's arguments).
  */
 import { BROWSER, DEV } from 'esm-env';
+import { say, type Say } from './say.ts';
 
 type Entry<A> = { text: (a: A) => string; details: () => string };
 
@@ -29,6 +30,7 @@ export type MachineErrors = {
 	machine_stage_step_failed: Entry<{ name: string }>;
 	machine_mailbox_handler_failed: Entry<Record<string, never>>;
 	machine_evict_failed: Entry<{ name: string; why: string }>;
+	machine_flight_raise_failed: Entry<{ name: string }>;
 };
 
 /** The errors: thrown in dev (and tests), where a wrong move is a bug to fix now. */
@@ -77,7 +79,8 @@ export const MACHINE_ERRORS: MachineErrors = {
 			'An option was given a value it cannot take. `retries` counts tries: a whole number of 0 ' +
 			'or more. A flights `keep` is milliseconds: 0 or more, `Infinity` for until `max` lets it ' +
 			'go. A flights or cache `max` is the most weight it keeps: a finite number more than 0 ' +
-			'(a cache with no bound is refused).'
+			'(a cache with no bound is refused). A `say()` `max` is the most keys it remembers: a ' +
+			'whole number, 1 or more.'
 	},
 	machine_bad_time: {
 		text: (a: { where: string; ms: string }): string =>
@@ -182,6 +185,17 @@ export const MACHINE_ERRORS: MachineErrors = {
 			"A `cache()`'s `onEvict` threw while it heard a value leave. The value had already left: " +
 			'the cache goes on, and the notices after it still run. Its error follows this message. ' +
 			'Catch inside `onEvict` when a cleanup can fail.'
+	},
+	machine_flight_raise_failed: {
+		text: (a: { name: string }): string =>
+			`flights ${a.name}: a run's \`onRaise\` listener threw when a caller raised its flight.`,
+		details: (): string =>
+			"A `flights()` run listened for its flight's priority going up (`flight.onRaise`), and the " +
+			'listener threw when a caller joined at a higher priority. The caller that joined is not ' +
+			"the one at fault, so it is not failed: the error goes to the page's error handler " +
+			"(`reportError`: the console and `window.onerror`), as an event listener's would. The " +
+			'flight is raised all the same, and its other listeners still hear it.\n\n' +
+			'Catch inside the listener to handle it there.'
 	}
 };
 
@@ -240,26 +254,12 @@ export function report_thrown<C extends keyof Errors>(code: C, a: ArgsOf<C>, cau
 	page(cause);
 }
 
-/** The warnings said, so each is said once: up to {@link Said.MAX}, then it starts over (one said
- *  long ago may be said again, never one per move). Not a `cache()`: every other module of the
- *  package imports this one, cache.ts and scope.ts included, so it imports none of them (a cycle
- *  would run a module before its classes). */
-class Said {
-	static readonly MAX = 256;
-	readonly lines = new Set<string>();
-	/** Whether `text` is new (and now said). */
-	first(text: string): boolean {
-		if (this.lines.has(text)) return false;
-		if (this.lines.size >= Said.MAX) this.lines.clear();
-		this.lines.add(text);
-		return true;
-	}
-}
-const warned = new Said();
+/** The warnings said, by their text (bounded: say.ts). Made on the first warning: say.ts imports
+ *  this module. */
+let warned: Say | null = null;
 
-/** Prints `code` once for each distinct set of arguments. */
+/** Prints `code` once for each distinct set of arguments (of the last 1024 said). */
 export function warn_once<C extends keyof Errors>(code: C, a: ArgsOf<C>): void {
 	const text = line(code, a);
-	if (!warned.first(text)) return;
-	console.warn(text);
+	(warned ??= say()).once(text, () => console.warn(text));
 }

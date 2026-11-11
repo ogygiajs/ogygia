@@ -77,7 +77,7 @@ describe('facts a read reports', () => {
 		const hero = flag('plugin-test-hero', { a: 1, b: 1 });
 		const request = new Request('http://x/');
 		const variant = hero({ request, url: new URL('http://x/') });
-		expect(app.facts(request).perVisitor).toBe('flag:plugin-test-hero');
+		expect(app.facts(request).reads.perVisitor).toBe('flag:plugin-test-hero');
 		expect(app.facts(request).assignments).toEqual({ 'plugin-test-hero': variant });
 	});
 });

@@ -57,7 +57,7 @@ export function is_branded_fn(value: unknown): boolean {
 }
 
 type BrandedFn = ((...args: unknown[]) => unknown) & {
-	[FN_BRAND]?: { t: string; d: unknown[]; s?: string };
+	[FN_BRAND]?: { t: string; d: unknown[] };
 };
 
 /**
@@ -75,10 +75,8 @@ export function fn_handle(tag: string, bound: unknown[]): (...args: unknown[]) =
 	if (typeof live !== 'function') {
 		throw new OgygiaError('fn_factory_not_function', { tag });
 	}
-	// The factory is SELF-CONTAINED by construction (og-dollar's capture law), so its source is
-	// shippable: it rides the brand as the registry-miss fallback — a client bundle that never
-	// loaded the fn manifest can still rebuild the function from the payload itself.
-	live[FN_BRAND] = { t: tag, d: bound, s: factory.toString() };
+	// (its tag and captures travel, never its source: whoever decodes it has the build's table)
+	live[FN_BRAND] = { t: tag, d: bound };
 	return live;
 }
 
@@ -91,11 +89,13 @@ export function register_fn_kind(): void {
 			return typeof value === 'function' && (value as BrandedFn)[FN_BRAND] !== undefined;
 		},
 		encode(value) {
-			const brand = (value as BrandedFn)[FN_BRAND] as { t: string; d: unknown[]; s?: string };
-			return { t: brand.t, d: { b: brand.d, ...(brand.s ? { s: brand.s } : {}) } };
+			const brand = (value as BrandedFn)[FN_BRAND] as { t: string; d: unknown[] };
+			return { t: brand.t, d: { b: brand.d } };
 		},
+		// A ref names a factory of the build's own table, never carries one: text on the wire is data,
+		// and is never run (test/fn-wire-source.test.ts). A tag the table lacks is refused.
 		decode(ref: Ref) {
-			const payload = (ref.d ?? {}) as { b?: unknown[]; s?: string };
+			const payload = (ref.d ?? {}) as { b?: unknown[] };
 			let factory = fn_registry().factories.get(ref.t as string);
 			if (factory === undefined) {
 				// The page-inline manifest (PROD, CSP-clean): the handle emitted real function
@@ -107,24 +107,13 @@ export function register_fn_kind(): void {
 					fn_registry().factories.set(ref.t as string, factory);
 				}
 			}
-			if (factory === undefined && typeof payload.s === 'string') {
-				// Registry miss + the payload carries the factory source (self-contained by the
-				// capture law) → rebuild from source. Indirect eval; a strict-CSP app (no
-				// 'unsafe-eval') should ship the fn manifest so this path never runs.
-				// The eval IS the fallback: rebuilding a function whose registry entry is missing,
-				// from the source the payload carries (documented only here, in this comment).
-				// test/fn-transport.test.ts ("registry MISS + source on the wire") covers it.
-				// oxlint-disable-next-line no-eval
-				factory = (0, eval)(`(${payload.s})`) as (...bound: unknown[]) => unknown;
-				fn_registry().factories.set(ref.t as string, factory); // once per tag
-			}
 			if (factory === undefined) {
 				throw new OgygiaError('fn_revive_missing', { tag: String(ref.t) });
 			}
 			const bound = Array.isArray(payload.b) ? payload.b : [];
 			const live = factory(...bound) as BrandedFn;
-			// re-brand (source included): a revived fn can cross a FURTHER boundary
-			live[FN_BRAND] = { t: ref.t as string, d: bound, ...(payload.s ? { s: payload.s } : {}) };
+			// re-brand: a revived fn can cross a FURTHER boundary
+			live[FN_BRAND] = { t: ref.t as string, d: bound };
 			return live;
 		}
 	});
