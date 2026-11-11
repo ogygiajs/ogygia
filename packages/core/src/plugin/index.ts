@@ -27,6 +27,7 @@ import type { DevtoolsEventInput } from '../events/schema.ts';
 // Kit's handle types, the same on SvelteKit 2 and 3 (kit-handle.ts)
 export type { Handle, ResolveOptions } from '../kit-handle.ts';
 export type { RequestFacts } from './facts.ts';
+export type { Reads } from './reads.ts';
 export type { ServerHooks } from './hooks.ts';
 export type { DevtoolsEventInput } from '../events/schema.ts';
 
@@ -44,6 +45,13 @@ export interface ServerApp<Options = undefined> {
 	facts(request: Request): RequestFacts;
 	/** The facts of the request the running code belongs to (a load, a render), or null outside one. */
 	current(): RequestFacts | null;
+	/** A per-visitor read by `request`'s code (a flag decided for its visitor): it lands in the read
+	 *  set of the render running now and in the request's (`facts.reads`), so no cache keeps that
+	 *  render for another visitor. The first reason names it. */
+	perVisitor(request: Request, reason: string): void;
+	/** Note `event`'s personal reads from now on (a cookie, a personal header, a `locals` value that
+	 *  is not its default) the same way. Once per request. */
+	observeReads(event: RequestEvent): void;
 	/** Sign `message` with the app's region key (HMAC): a capability only this app can mint. */
 	sign(message: string): string;
 	/** Check a signature `sign` made (constant-time). */
@@ -57,7 +65,7 @@ export interface ServerApp<Options = undefined> {
 	 *  to the platform's `waitUntil` when there is one. Outside a request, or on a platform without
 	 *  one, it runs on in the process. Never throws. An outbox's `waitUntil`. */
 	keepAlive(work: Promise<unknown>): void;
-	/** Warn once per message, prefixed with the plugin's name. */
+	/** Warn once per message (of the last 1024 said), prefixed with the plugin's name. */
 	warn(message: string): void;
 }
 
