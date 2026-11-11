@@ -208,6 +208,37 @@ describe('Ed25519 signing / verification', () => {
 		expect(verify_signed_request({ publicKeys: [pub] }, replayed, url)).toBeNull();
 	});
 
+	it('without an `audience`, the Host a request names is never its audience', () => {
+		const req = signed('cms.test');
+		// a server that builds its URL from the Host header: the hop arrives as if cms.test were here
+		expect(verify_signed_request({ publicKeys: [pub] }, req, new URL(req.url))).toBeNull();
+	});
+
+	it('without an `audience`, the ORIGIN the app is configured with is its audience', () => {
+		vi.stubEnv('ORIGIN', 'http://cms.test');
+		const req = signed('cms.test');
+		expect(verify_signed_request({ publicKeys: [pub] }, req, new URL(req.url))?.user?.sub).toBe(
+			'u1'
+		);
+		vi.stubEnv('ORIGIN', 'http://dash.test');
+		const other = signed('cms.test');
+		expect(verify_signed_request({ publicKeys: [pub] }, other, new URL(other.url))).toBeNull();
+		vi.unstubAllEnvs();
+	});
+
+	it('federate() warns when peers may call in and the app has no audience to check them against', () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		federate({ name: 'cms', peers: { shell: { origin: 'http://shell.test', key: pub } } });
+		expect(warn.mock.calls.flat().join(' ')).toContain('federation_audience_missing');
+		warn.mockClear();
+		federate({
+			name: 'cms',
+			audience: 'cms.test',
+			peers: { shell: { origin: 'http://shell.test', key: pub } }
+		});
+		expect(warn.mock.calls.flat().join(' ')).not.toContain('federation_audience_missing');
+	});
+
 	it('NaN timestamp does not bypass the freshness gate', () => {
 		const req = signed();
 		const forged = new Request(req.url, {
