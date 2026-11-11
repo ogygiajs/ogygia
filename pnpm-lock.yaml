@@ -1645,6 +1645,9 @@ importers:
 
   packages/reshape:
     dependencies:
+      '@ogygia/machine':
+        specifier: workspace:^
+        version: link:../machine
       esm-env:
         specifier: 'catalog:'
         version: 1.2.2

@@ -20,7 +20,8 @@ describe('reshape()', () => {
 		expect(plugin.name).toBe('@ogygia/reshape');
 		expect((plugin as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.plugin')]).toEqual({
 			name: '@ogygia/reshape',
-			server: new URL('../src/server.ts', import.meta.url).href
+			server: new URL('../src/server.ts', import.meta.url).href,
+			client: new URL('../src/client.ts', import.meta.url).href
 		});
 	});
 });
