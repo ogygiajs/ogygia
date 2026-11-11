@@ -534,6 +534,9 @@ const REASONED =
 const FREE =
 	/^\s*(oxlint-enable|eslint-enable|svelte-ignore|[@#]__PURE__|[@#]__NO_SIDE_EFFECTS__|@vite-ignore|oxfmt-ignore|prettier-ignore|\/ <reference )/;
 const WHY = /^ @why (\S.*?) \(test: (\S+) › (.+)\)$/;
+/** A JSDoc that is only a type (`@type {…}`, `@satisfies {…}`): the checker reads it, as in a
+ *  `.svelte` file's JS script. Its text, `*` gutters dropped, is the tag and its braces alone. */
+const TYPE_ONLY = /^@(type|satisfies)\s*\{[\s\S]*\}$/;
 /** TSDoc's file-level block: it documents the module, so it sits before any code. */
 const PACKAGE_DOC = /(^|\s)@packageDocumentation(\s|$)/;
 
@@ -547,7 +550,8 @@ const MESSAGE_WHY =
 	'A `@why` is one line, `// @why <fact> (test: <file> › <name>)`, directly above the statement it explains, and names a test that exists (the file, from the package or the repository root, holds the name).';
 
 /** The start of every node whose JSDoc feeds an export's hover: exported declarations and the
- *  members of exported classes, types and object constants, and everything in an ambient block. */
+ *  members of exported classes, types and object constants, everything in an ambient block, and a
+ *  component's props type (the type of its `$props()`) with its members. */
 function documentable(program: Node): Set<number> {
 	const starts = new Set<number>();
 	const named = new Set<string>();
@@ -572,6 +576,18 @@ function documentable(program: Node): Set<number> {
 			if (v && typeof v === 'object') walk(v, all);
 		}
 	};
+	for (const s of program.body as Node[])
+		if (s.type === 'VariableDeclaration')
+			for (const d of s.declarations as Node[]) {
+				const init = d.init as Node | null;
+				if (init?.type !== 'CallExpression') continue;
+				if ((init.callee as { name?: string }).name !== '$props') continue;
+				const type = (d.id as { typeAnnotation?: { typeAnnotation?: Node } }).typeAnnotation
+					?.typeAnnotation;
+				if (type?.type === 'TSTypeReference')
+					named.add((type.typeName as { name?: string }).name ?? '');
+				else if (type) walk(type, false);
+			}
 	const declared_name = (d: Node): string | undefined =>
 		(d.id as { name?: string } | undefined)?.name ??
 		((d.declarations as Node[] | undefined)?.[0]?.id as { name?: string } | undefined)?.name;
@@ -640,12 +656,14 @@ function why_test_exists(file: string, test: string, test_name: string): boolean
 
 /**
  * `ogygia/structured-comments` (#512): in `packages/<pkg>/src`, a comment is one of three shapes:
- * JSDoc on an export (or on a member of an exported class, type or object constant, or a
- * `@packageDocumentation` block before any code), a tool
- * directive (`oxlint-disable…` and `@ts-expect-error` with ` -- <reason>`; `svelte-ignore`,
- * `@__PURE__`, `@vite-ignore`, formatter ignores, `/// <reference>` as they are), or a one-line
- * `// @why <fact> (test: <file> › <name>)` directly above its statement, whose test exists.
- * Anything else is a finding. `.d.ts` files are documented like exports and are not read.
+ * JSDoc on an export (or on a member of an exported class, type or object constant, on a
+ * component's props type and its members, or a `@packageDocumentation` block before any code), a
+ * tool directive (`oxlint-disable…` and
+ * `@ts-expect-error` with ` -- <reason>`; `svelte-ignore`, `@__PURE__`, `@vite-ignore`, formatter
+ * ignores, `/// <reference>` as they are; a JSDoc that is only `@type {…}` or `@satisfies {…}`), or
+ * a one-line `// @why <fact> (test: <file> › <name>)` directly above its statement, whose test
+ * exists. A bin's `#!` line is not a comment. Anything else is a finding. `.d.ts` files are
+ * documented like exports and are not read.
  */
 const structured_comments = {
 	meta: {
@@ -669,6 +687,7 @@ const structured_comments = {
 				for (const c of comments) {
 					const node = c as unknown as Node;
 					const value = c.value;
+					if (c.range[0] === 0 && text.startsWith('#!')) continue;
 					if (REASONED.test(value)) {
 						if (!/\s--\s+\S/.test(value)) context.report({ node, message: MESSAGE_REASON });
 						continue;
@@ -676,6 +695,7 @@ const structured_comments = {
 					if (FREE.test(value)) continue;
 					if (c.type === 'Block' && value.startsWith('*')) {
 						if (PACKAGE_DOC.test(value) && text.slice(0, c.range[0]).trim() === '') continue;
+						if (TYPE_ONLY.test(value.replace(/^[^\S\n]*\*/gm, '').trim())) continue;
 						starts ??= documentable(program);
 						const next = text.slice(c.range[1]).search(/\S/);
 						if (next < 0 || !starts.has(c.range[1] + next))

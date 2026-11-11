@@ -28,4 +28,17 @@ describe('flow sequences', () => {
 		expect(parse_yaml('title: [docs][ref]')).toEqual({ title: '[docs][ref]' });
 		expect(parse_yaml('title: [a] [b]')).toEqual({ title: '[a] [b]' });
 	});
+
+	it('a nested list as its own item parses, as YAML reads it', () => {
+		expect(parse_yaml('a: [a, [b, c]]')).toEqual({ a: ['a', ['b', 'c']] });
+		expect(parse_yaml('a: {k: [1, 2]}')).toEqual({ a: { k: [1, 2] } });
+	});
+
+	it('a bracket or brace inside a plain item is the frontmatter error, as YAML rejects it (#620)', () => {
+		expect(() => parse_yaml('title: [see [a, b]]')).toThrow();
+		expect(() => parse_yaml('a: [a {b}]')).toThrow();
+		expect(() => parseFrontmatter('---\ntitle: [see [a, b]]\n---\nbody')).toThrow(
+			/content_frontmatter_invalid/
+		);
+	});
 });
