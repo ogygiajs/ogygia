@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { run_module_macros, type MacroPipelineCtx } from '../src/compiler/macros/pipeline.ts';
 import type { Profiler } from '../src/compiler/driver.ts';
-import { __set_build_cache_root } from '../src/build-cache.ts';
+import { __set_build_cache_root } from '../src/compiler/build-cache.ts';
 
 __set_build_cache_root(fs.mkdtempSync(path.join(os.tmpdir(), 'og-macro-own-cache-')));
 

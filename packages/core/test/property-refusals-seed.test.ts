@@ -8,28 +8,28 @@ import { describe, it, expect, vi } from 'vitest';
 import { parse } from 'devalue';
 import { fc } from '@ogygia/config/sim';
 
-vi.mock('virtual:ogygia/sign', () => import('../src/server/hmac.ts'));
-vi.mock('virtual:ogygia/rate-limit', () => ({ rateLimit: { max: 0, windowMs: 60_000 } }));
-vi.mock('virtual:ogygia/server-plugins', () => ({ plugins: [] }));
-vi.mock('virtual:ogygia/route-config', () => ({ route_config: {} }));
-vi.mock('virtual:ogygia/devtools-boot-url', () => ({ default: '' }));
+vi.mock('ogygia:server/sign', () => import('../src/server/hmac.ts'));
+vi.mock('ogygia:server/rate-limit', () => ({ rate_limit: { max: 0, windowMs: 60_000 } }));
+vi.mock('ogygia:server/server-plugins', () => ({ plugins: [] }));
+vi.mock('ogygia:server/route-config', () => ({ route_config: {} }));
+vi.mock('ogygia:server/devtools-boot-url', () => ({ devtools_boot_url: '' }));
 const ID = 'abcdef012345';
 let renders = 0;
 const Comp = ($$renderer: { push(s: string): void }) => {
 	renders++;
 	$$renderer.push('<p>hole</p>');
 };
-vi.mock('virtual:ogygia/server-manifest', () => ({
-	load_islands: async () => ({ islands: { [ID]: async () => ({ default: Comp }) } }),
-	island_url: { [ID]: '/x.js' },
-	island_name: {},
-	island_render: {},
-	render_island: {},
-	island_reads_page_data: null
+vi.mock('ogygia:server/server-manifest', () => ({
+	load_server_regions: async () => ({ regions: { [ID]: async () => ({ default: Comp }) } }),
+	region_url: { [ID]: '/x.js' },
+	region_name: {},
+	region_render: {},
+	render_region: {},
+	region_reads_page_data: null
 }));
 
 const { handle } = await import('../src/hooks.ts');
-const { mintServerIsland } = await import('../src/server/region-endpoint.ts');
+const { mint_server_region } = await import('../src/server/region-endpoint.ts');
 const { PageSeed } = await import('../src/server/page-seed.ts');
 
 function event(url: string) {
@@ -56,7 +56,7 @@ const ALPHABET = '0123456789abcdefABCDEF-_.~%z';
 describe('properties: refusals', () => {
 	it('any one signed field changed: refused the same way, never rendered, never a 500', async () => {
 		const h = handle();
-		const cap = mintServerIsland(ID, { n: 1, text: 'hello' });
+		const cap = mint_server_region(ID, { n: 1, text: 'hello' });
 		const good = await h({ event: event(cap), resolve } as never);
 		expect(good.status).toBe(200);
 		const refusals = new Set<string>();
