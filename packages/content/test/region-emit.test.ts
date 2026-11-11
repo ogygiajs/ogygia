@@ -46,6 +46,12 @@ describe('try_region_emit', () => {
 		expect(out!.code).toContain(line);
 	});
 
+	it('a fence with backticks, backslashes and `${` lands in the region exactly as highlighted', () => {
+		const html = `<pre class="shiki"><code>const x = \`hi \${name}\`; // a \\ b</code></pre>`;
+		const out = try_region_emit(mod(`<p>x</p>\n${fence_embed(html)}`), []);
+		expect(out!.html).toBe(`<p>x</p>\n${html}`);
+	});
+
 	it('does not confuse digits in prose with fence tokens', () => {
 		const fence = fence_embed('<pre>CODE</pre>');
 		const out = try_region_emit(mod(`<p>step 0 of 1 then 2</p>\n${fence}`), []);
@@ -96,5 +102,14 @@ describe('try_region_emit', () => {
 		expect(out).not.toBeNull();
 		expect(out!.html).toBe('<p>bare</p>');
 		expect(out!.code).toContain('__ogygia_region');
+	});
+
+	it('reads a Svelte 5 `<script module>` as the module script, as it does `context="module"`', () => {
+		const out = try_region_emit(
+			`<script module>\nexport const metadata = {"title":"X"};\n</script>\n<p>hi</p>`,
+			[]
+		);
+		expect(out!.html).toBe('<p>hi</p>');
+		expect(out!.code).toContain('export const metadata = {"title":"X"};');
 	});
 });
