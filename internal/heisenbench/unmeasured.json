@@ -2557,22 +2557,6 @@
 			"reason": "browser only: renames one field of a hook event for beacon_hole_batch_missed, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~c1d48d > hooks > regionWoke",
-			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
-		},
-		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~c1d48d > hooks > regionMismatched",
-			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
-		},
-		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~c1d48d > hooks > navStarted",
-			"reason": "browser only: one record_hook of a hook event, constant work of its own"
-		},
-		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~c1d48d > hooks > loadStarted",
-			"reason": "browser only: one record_hook of a hook event, constant work of its own"
-		},
-		{
 			"id": "packages/devtools/src/devtools/hook-entries.ts > state",
 			"reason": "the page's one hook record on a globalThis symbol (hidden state), a get-or-create; proven in packages/devtools/test/devtools-hook-record.test.ts"
 		},
@@ -3347,6 +3331,22 @@
 		{
 			"id": "packages/devtools/src/client.ts > defineClient:0~80d03d > boot > then:1~a1b2d0",
 			"reason": "browser only: the page beacon's chunk failed to load, a no-op (the page goes unmeasured), constant work"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > defineClient:0~531114 > hooks > regionWoke",
+			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > defineClient:0~531114 > hooks > regionMismatched",
+			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > defineClient:0~531114 > hooks > navStarted",
+			"reason": "browser only: one record_hook of a hook event, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > defineClient:0~531114 > hooks > loadStarted",
+			"reason": "browser only: one record_hook of a hook event, constant work of its own"
 		}
 	]
 }
