@@ -316,10 +316,13 @@ async function settle_poll(steps: Scope, quiet: number, until: number): Promise<
 			if (!el) continue;
 			// @why a woken region may still be downloading its code: in flight from the wake, not the mount (test: devtools-hook-record › still downloading)
 			if (e.hook === 'regionWoke' || e.hook === 'regionMount') started.add(el);
+			// @why a woken hole ends with its answer or its final failure, never with regionHydrated (test: devtools-hook-record › a hole that woke and then failed)
 			else if (
 				e.hook === 'regionHydrated' ||
 				e.hook === 'regionFailed' ||
-				e.hook === 'regionUnmount'
+				e.hook === 'regionUnmount' ||
+				e.hook === 'holeAnswered' ||
+				e.hook === 'holeFailed'
 			)
 				started.delete(el);
 			if (e.hook === 'regionMount' || e.hook === 'regionHydrated' || e.hook === 'regionWoke')
