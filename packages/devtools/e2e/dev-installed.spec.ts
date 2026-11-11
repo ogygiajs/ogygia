@@ -106,6 +106,8 @@ test.describe('dev: an installed (not linked) ogygia runs as one copy in the bro
 		// (core's own dependency, released with it)
 		unpack(path.join(repo, 'packages', 'machine'), path.join(nm, '@ogygia', 'machine'));
 		unpack(path.join(repo, 'packages', 'devtools'), path.join(nm, '@ogygia', 'devtools'));
+		// (devtools' own dependency, released with it)
+		unpack(path.join(repo, 'packages', 'insights'), path.join(nm, '@ogygia', 'insights'));
 		for (const dep of [
 			'svelte',
 			'@sveltejs',
