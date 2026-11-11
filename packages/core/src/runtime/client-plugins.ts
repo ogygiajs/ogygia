@@ -15,6 +15,12 @@ export const HOOK_REGION_MOUNT: boolean =
 	typeof __OGYGIA_HOOK_REGION_MOUNT__ !== 'undefined' ? __OGYGIA_HOOK_REGION_MOUNT__ : true;
 export const HOOK_REGION_UNMOUNT: boolean =
 	typeof __OGYGIA_HOOK_REGION_UNMOUNT__ !== 'undefined' ? __OGYGIA_HOOK_REGION_UNMOUNT__ : true;
+export const HOOK_REGION_HYDRATE: boolean =
+	typeof __OGYGIA_HOOK_REGION_HYDRATE__ !== 'undefined' ? __OGYGIA_HOOK_REGION_HYDRATE__ : true;
+export const HOOK_ANSWER_PARSED: boolean =
+	typeof __OGYGIA_HOOK_ANSWER_PARSED__ !== 'undefined' ? __OGYGIA_HOOK_ANSWER_PARSED__ : true;
+export const HOOK_ANSWER_PLACED: boolean =
+	typeof __OGYGIA_HOOK_ANSWER_PLACED__ !== 'undefined' ? __OGYGIA_HOOK_ANSWER_PLACED__ : true;
 export const HOOK_REGION_HYDRATED: boolean =
 	typeof __OGYGIA_HOOK_REGION_HYDRATED__ !== 'undefined' ? __OGYGIA_HOOK_REGION_HYDRATED__ : true;
 export const HOOK_REGION_FAILED: boolean =
@@ -47,7 +53,8 @@ type Payload<K extends RuntimeHookName> = Parameters<RuntimeHooks[K]>[0];
 /**
  * The hook as the runtime calls it, built once at boot: every subscriber in plugin order, each call
  * wrapped so a throw or a rejected promise is reported once per plugin and stops nothing else.
- * Undefined with no subscriber.
+ * The functions subscribers return (`regionHydrate`'s afters) come back as one, the same way, or
+ * undefined. Undefined with no subscriber.
  */
 function joined<K extends RuntimeHookName>(
 	list: readonly ClientRealm[],
@@ -65,16 +72,28 @@ function joined<K extends RuntimeHookName>(
 		failed.add(plugin);
 		console.error(new OgygiaError('client_hook_failed', { plugin, hook: name }), err);
 	};
+	const call = (plugin: string, run: () => unknown): unknown => {
+		try {
+			const out = run();
+			if (typeof (out as PromiseLike<unknown> | undefined)?.then === 'function')
+				Promise.resolve(out).catch((err: unknown) => report(plugin, err));
+			return out;
+		} catch (err) {
+			report(plugin, err);
+		}
+	};
 	return ((e: Payload<K>) => {
 		if (import.meta.env.DEV) Object.freeze(e);
+		let afters: { plugin: string; f: () => unknown }[] | undefined;
 		for (const { plugin, f } of subscribers) {
-			try {
-				const out = f(e);
-				if (typeof (out as PromiseLike<unknown> | undefined)?.then === 'function')
-					Promise.resolve(out).catch((err: unknown) => report(plugin, err));
-			} catch (err) {
-				report(plugin, err);
-			}
+			const out = call(plugin, () => f(e));
+			if (typeof out === 'function') (afters ??= []).push({ plugin, f: out as () => unknown });
+		}
+		if (afters) {
+			const all = afters;
+			return () => {
+				for (const a of all) call(a.plugin, a.f);
+			};
 		}
 	}) as RuntimeHooks[K];
 }
@@ -85,6 +104,9 @@ export function boot_client_plugins(list: readonly ClientRealm[], kit_page: bool
 	if (
 		HOOK_REGION_MOUNT ||
 		HOOK_REGION_UNMOUNT ||
+		HOOK_REGION_HYDRATE ||
+		HOOK_ANSWER_PARSED ||
+		HOOK_ANSWER_PLACED ||
 		HOOK_REGION_HYDRATED ||
 		HOOK_REGION_FAILED ||
 		HOOK_HOLE_ANSWERED ||
@@ -98,6 +120,9 @@ export function boot_client_plugins(list: readonly ClientRealm[], kit_page: bool
 		const h: Partial<RuntimeHooks> = {};
 		if (HOOK_REGION_MOUNT) h.regionMount = joined(list, 'regionMount');
 		if (HOOK_REGION_UNMOUNT) h.regionUnmount = joined(list, 'regionUnmount');
+		if (HOOK_REGION_HYDRATE) h.regionHydrate = joined(list, 'regionHydrate');
+		if (HOOK_ANSWER_PARSED) h.answerParsed = joined(list, 'answerParsed');
+		if (HOOK_ANSWER_PLACED) h.answerPlaced = joined(list, 'answerPlaced');
 		if (HOOK_REGION_HYDRATED) h.regionHydrated = joined(list, 'regionHydrated');
 		if (HOOK_REGION_FAILED) h.regionFailed = joined(list, 'regionFailed');
 		if (HOOK_HOLE_ANSWERED) h.holeAnswered = joined(list, 'holeAnswered');
@@ -118,6 +143,12 @@ export function client_region_mount(el: Element): void {
 	const entry = el.getAttribute('entry');
 	if (!mount || !entry) return;
 	mount({ el, entry, urls: region_urls(el, entry) });
+}
+
+/** Svelte is about to hydrate over `el`: the subscribers' afters, as one (null when none). The
+ *  hydrate core reaches it through the boot link. */
+export function client_region_hydrate(el: Element): (() => void) | null {
+	return slots.hooks?.regionHydrate?.({ el }) ?? null;
 }
 
 function region_urls(el: Element, entry: string): string[] {

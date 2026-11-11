@@ -672,6 +672,12 @@ const hook_gate = (name: RuntimeHookName): Constant =>
 export const hook_region_mount: Constant = hook_gate('regionMount');
 /** a plugin's browser half subscribes to `regionUnmount` */
 export const hook_region_unmount: Constant = hook_gate('regionUnmount');
+/** a plugin's browser half subscribes to `regionHydrate` (around Svelte's hydrate) */
+export const hook_region_hydrate: Constant = hook_gate('regionHydrate');
+/** a plugin's browser half subscribes to `answerParsed` */
+export const hook_answer_parsed: Constant = hook_gate('answerParsed');
+/** a plugin's browser half subscribes to `answerPlaced` */
+export const hook_answer_placed: Constant = hook_gate('answerPlaced');
 /** a plugin's browser half subscribes to `regionHydrated` */
 export const hook_region_hydrated: Constant = hook_gate('regionHydrated');
 /** a plugin's browser half subscribes to `regionFailed` */
@@ -717,6 +723,9 @@ export const CORE_CONSTANTS: readonly Constant<boolean | number | string | null>
 	client_plugins_gate,
 	hook_region_mount,
 	hook_region_unmount,
+	hook_region_hydrate,
+	hook_answer_parsed,
+	hook_answer_placed,
 	hook_region_hydrated,
 	hook_region_failed,
 	hook_hole_answered,
