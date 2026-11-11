@@ -14,6 +14,8 @@ import {
 	type ServerPluginEntry
 } from '../src/plugin/server.ts';
 import { ask, notify } from '../src/plugin/hooks.ts';
+import { facts_of } from '../src/plugin/facts.ts';
+import { observe_reads, open_reads } from '../src/plugin/reads.ts';
 import type { RequestContext, ServerApp } from '../src/plugin/index.ts';
 
 const tick = () => new Promise<void>((r) => setTimeout(r, 0));
@@ -52,6 +54,45 @@ bench(
 		return renders * 1000 + out.filter((v) => v < 0).length;
 	},
 	{ setup: () => ({ n: 160 }), scale: (_ctx, k) => ({ n: 160 * k }) }
+);
+
+bench(
+	'render cache: anonymous visitors of a hole that reads their cookies, a header, locals and the page each render their own',
+	async ({ n }) => {
+		render_cache_clear();
+		let bytes = 0;
+		for (let i = 0; i < n; i++) {
+			const request = new Request('http://x/_ogygia/region', {
+				headers: { 'accept-language': i % 2 ? 'fr' : 'en' }
+			});
+			const jar: Record<string, string> = i % 4 === 0 ? {} : { vid: `v${i}` };
+			const event = {
+				request,
+				cookies: {
+					get: (name: string) => jar[name],
+					getAll: () => Object.entries(jar).map(([name, value]) => ({ name, value }))
+				},
+				locals: { user: i % 3 ? { id: i } : {} } as Record<string, unknown>
+			};
+			observe_reads(event as never, facts_of(request).reads);
+			const html = await cached_render(
+				() => {
+					const vid = event.cookies.get('vid');
+					event.cookies.getAll();
+					request.headers.get('accept-language');
+					request.headers.get('host');
+					void event.locals.user;
+					open_reads()?.page();
+					return `<p>${vid ?? 'anon'}</p>`;
+				},
+				{ key: render_cache_key('h', 'p', ''), ttl: 60 }
+			);
+			bytes += html?.length ?? 0;
+		}
+		render_cache_clear();
+		return bytes;
+	},
+	{ setup: () => ({ n: 40 }), scale: (_ctx, k) => ({ n: 40 * k }) }
 );
 
 /** Holes rendered through `gate`, each answering after a tick. */
