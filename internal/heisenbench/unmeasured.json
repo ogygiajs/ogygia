@@ -2237,11 +2237,11 @@
 			"reason": "notes a page.data read into the running render's read set and returns the data, constant work"
 		},
 		{
-			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~7ebc22 > app > observeReads",
+			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > observeReads",
 			"reason": "forwards a RequestEvent (not cloneable) to observe_reads, constant work; packages/core/bench/server.bench.ts runs observe_reads"
 		},
 		{
-			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~99e237 > app > warn > once:1~c9a4aa",
+			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > warn > once:1~c9a4aa",
 			"reason": "prints one warning (console output, not replayable), constant work; proven in packages/core/test/plugins.test.ts"
 		},
 		{
