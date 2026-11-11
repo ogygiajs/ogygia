@@ -1,16 +1,3 @@
-/**
- * Client side of streaming `$page.data` promises into islands (see `../page-defer.ts` for the why).
- *
- * The page seed carries a DEFER MARKER (`[id]`) for each pending promise; the reviver turns it into a
- * real pending Promise, so an island's `{#await page.data.x}` renders its pending branch. As each
- * promise settles the server streams `<script>__ogygia_page_resolve(id, ok, encoded)</script>`, which
- * resolves the matching Promise — the `{#await}` flips to its resolved branch, live.
- *
- * Ordering is fully decoupled: an inline bootstrap (first body chunk) defines the resolve global and
- * QUEUES calls until the runtime installs the live parser; the reviver may create a deferred before or
- * after its resolve arrives. One registry per document via a Symbol.for handle (dev evaluates the
- * runtime twice — a module-local map would split; PAGE-STATE-SINGLETON).
- */
 import { boot_link } from './slots.ts';
 import {
 	PAGE_DEFER_KEY,
@@ -27,17 +14,11 @@ type Deferred = {
 	reject: (e: unknown) => void;
 };
 interface Registry {
-	/** Raw resolves the inline bootstrap queued before the runtime installed `live`. */
 	q?: Array<[id: number, ok: boolean, encoded: string]>;
-	/** Live resolver (parses the encoded value); set by {@link install_page_defer}. */
 	live?: (id: number, ok: boolean, encoded: string) => void;
-	/** Pending promises by id, created by the reviver. */
 	deferreds?: Map<number, Deferred>;
-	/** Resolutions that landed before their promise was created. */
 	settled?: Map<number, { ok: boolean; value: unknown }>;
-	/** Full reviver map (defer + settled + app transport decoders) used to parse a streamed resolve. */
 	revivers?: Record<string, (payload: never) => unknown>;
-	/** When each resolve arrived (ms from the navigation), stamped by the inline bootstrap. */
 	t?: Record<number, number>;
 }
 
@@ -54,8 +35,14 @@ function to_error(value: unknown): Error {
 	return new Error(msg);
 }
 
-/** Reviver: a defer marker `[id]` becomes a real Promise, pending until its resolve script lands (or
- *  already-resolved if the resolve raced ahead of the seed). */
+/**
+ * Reviver: a defer marker `[id]` in the page seed becomes a real Promise, so a region's
+ * `{#await page.data.x}` shows its pending branch until the streamed
+ * `<script>__ogygia_page_resolve(id, ok, encoded)</script>` settles it, live. A resolve that raced
+ * ahead of the seed is kept, and the promise comes back already settled; a marker read twice is one
+ * promise. The registry is one per document (a `Symbol.for` key), so two copies of the runtime (dev
+ * evaluates it twice) share it.
+ */
 export function create_deferred(id: number): Promise<unknown> {
 	const r = reg();
 	const deferreds = (r.deferreds ??= new Map());
@@ -92,19 +79,17 @@ function settle(id: number, ok: boolean, value: unknown): void {
 	}
 }
 
-/** Install the live resolver (which parses the encoded value) and drain anything the inline bootstrap
- *  queued before the runtime loaded. `extra_revivers` are the app's transport decoders (custom types in
- *  a streamed value). Idempotent — safe to call on every boot; the first call's revivers win. */
+/** Install the live resolver (which parses the encoded value with the full reviver map, so a value
+ *  holding more defer markers streams on) and drain anything the inline bootstrap queued before the
+ *  runtime loaded. With no inline bootstrap (a seed that came by a router navigation) it defines the
+ *  resolve global itself. `extra_revivers` are the app's transport decoders (custom types in a
+ *  streamed value). Idempotent — safe to call on every boot; the first call's revivers win. */
 export function install_page_defer(
 	extra_revivers?: Record<string, (payload: never) => unknown>
 ): void {
 	const r = reg();
 	if (r.live) return;
-	// A resolved value may carry NESTED defer markers (a promise that resolved to a value holding more
-	// promises — mirrors Kit's recursive deferral) and app-transport custom types, so parse with the
-	// full reviver map.
 	r.revivers = page_defer_revivers(extra_revivers);
-	// (a resolve is always devalue-encoded; the seed that holds its marker already loaded devalue)
 	r.live = (id, ok, encoded) =>
 		boot_link().with_devalue(({ parse }) => {
 			let value: unknown = null;
@@ -118,7 +103,6 @@ export function install_page_defer(
 	const queued = r.q;
 	r.q = [];
 	if (queued) for (const [id, ok, encoded] of queued) r.live(id, ok, encoded);
-	// If the inline bootstrap never ran (e.g. an SPA-navigated seed), define the global directly.
 	const g = globalThis as unknown as Record<string, unknown>;
 	g[PAGE_DEFER_GLOBAL] ??= (id: number, ok: boolean, encoded: string) => r.live!(id, ok, encoded);
 }
