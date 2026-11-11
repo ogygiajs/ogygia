@@ -2281,6 +2281,10 @@
 			"reason": "say(): one build warning for the process, constant work"
 		},
 		{
+			"id": "packages/core/src/vite/package-files.ts > discover_package_files > inside",
+			"reason": "a closure over the package's real root (not replayable), one prefix compare; proven in packages/core/test/package-files.test.ts"
+		},
+		{
 			"id": "packages/flags/src/index.ts > flag > bucket > once:1~0367ec",
 			"reason": "say(): one setup warning for the process, constant work"
 		},
