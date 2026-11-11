@@ -4,7 +4,7 @@
  * virtual module is declared in the table (./virtual/core.ts); test/virtual-table.test.ts proves
  * the table answers each id here.
  */
-import { specifier } from './virtual/table.ts';
+import { specifier } from './virtual/specifier.ts';
 
 /** Generated sticky entry — static-imports only the features selected from build marks. */
 export const V_RUNTIME_ENTRY: string = specifier('boot', 'runtime-entry');

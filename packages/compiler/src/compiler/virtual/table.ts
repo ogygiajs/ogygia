@@ -19,8 +19,9 @@ import { OgygiaError } from '../messages.ts';
 import type { ExportIndex } from '../exports/index.ts';
 import type { WalkResolve } from '../fouc-css.ts';
 
-/** Where a virtual module may run. */
-export type Realm = 'server' | 'boot' | 'region' | 'dev';
+import { OGYGIA_SCHEME, specifier, type Realm } from './specifier.ts';
+
+export { OGYGIA_SCHEME, specifier, type Realm };
 
 /** A part of the session a module's `from`/`load` can read. The table records which parts each
  *  load read (through {@link Parts}); a dev change to a part reloads exactly those modules. */
@@ -28,12 +29,6 @@ export type Part = 'options' | 'regions' | 'routes' | 'plugins' | 'styles';
 
 /** The session's fields → the part each one is (`null`: read freely, never a reason to reload). */
 export type Parts<A> = Readonly<Record<keyof A & string, Part | null>>;
-
-/** The prefix every realm-named specifier starts with. */
-export const OGYGIA_SCHEME = 'ogygia:';
-
-/** A module's specifier: `ogygia:<realm>/<id>`. */
-export const specifier = (realm: Realm, id: string): string => `${OGYGIA_SCHEME}${realm}/${id}`;
 
 /** A generated module's specifier, which names no file: ogygia's (`ogygia:`) or another plugin's
  *  (`virtual:`, the convention). */
