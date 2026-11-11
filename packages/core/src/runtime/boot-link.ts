@@ -22,6 +22,7 @@ import { runtime_session } from './session.ts';
 import { regions_in_shadow } from './connected.ts';
 import { release_sheets } from './region-sheets.ts';
 import { yield_task } from './schedule.ts';
+import { HOOK_REGION_HYDRATE, client_region_hydrate } from './client-plugins.ts';
 import {
 	is_self_owned,
 	record_server_body,
@@ -32,6 +33,8 @@ import {
 import { LoadSlot } from './load-scheduler.ts';
 import { load_devalue, devalue, with_devalue, needs_devalue } from './devalue-lane.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
+
+const no_region_hydrate: typeof client_region_hydrate = () => null;
 
 export function link_boot(): void {
 	slots.boot ??= {
@@ -48,6 +51,7 @@ export function link_boot(): void {
 		regions_in_shadow,
 		release_sheets,
 		yield_task,
+		region_hydrate: HOOK_REGION_HYDRATE ? client_region_hydrate : no_region_hydrate,
 		walk_enters,
 		is_self_owned,
 		record_server_body,
