@@ -6,7 +6,7 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { try_get_request_store } from '@sveltejs/kit/internal/server';
 import type { Handle } from '../kit-handle.ts';
-import type { RequestContext, ResolveOptions, ServerApp, ServerPlugin } from './index.ts';
+import type { HtmlPass, RequestContext, ResolveOptions, ServerApp, ServerPlugin } from './index.ts';
 import { current_facts, facts_of, note_per_visitor, type RequestFacts } from './facts.ts';
 import { observe_reads } from './reads.ts';
 import { ask, notify, register_hooks } from './hooks.ts';
@@ -16,7 +16,7 @@ import { record_server_event } from '../events/server-registry.ts';
 import { warn } from '../messages/server.ts';
 import { say } from '@ogygia/machine';
 
-/** One plugin's server half as the build lists it (`virtual:ogygia/server-plugins`). */
+/** One plugin's server half as the build lists it (`ogygia:server/server-plugins`). */
 export interface ServerPluginEntry {
 	name: string;
 	options: unknown;
@@ -203,6 +203,18 @@ function wait_until_of(platform: unknown): ((work: Promise<unknown>) => void) | 
 		if (typeof host?.waitUntil === 'function') return (work) => host.waitUntil!(work);
 	}
 	return null;
+}
+
+/** The app's own pass over `event`'s HTML: the first plugin's answer, or undefined. */
+export function html_pass(
+	plugins: readonly LivePlugin[],
+	event: RequestEvent
+): HtmlPass | undefined {
+	for (const { def } of plugins) {
+		const pass = def.pass?.(event);
+		if (pass) return pass;
+	}
+	return undefined;
 }
 
 /** The per-plugin contexts of one request. */

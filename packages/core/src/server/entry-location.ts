@@ -5,19 +5,18 @@
  * emitted under `immutable/`, the one a browser loads. A hashed name cannot go stale; the stable name
  * lives outside `immutable/` (compiler/region/transform.ts `STABLE_NAME_DIR`), so a host revalidates
  * it. The server bundle is built before the client bundle, so the location is looked up at render
- * time through the build handoff (`entryLocation`).
+ * time through the build handoff (`entry_location`).
  *
  * In dev the identity is the location (the dev server serves the module at it). No location in a
  * build (a handoff from before hashing, an island from another app): a region writes no `src`, and the
  * browser finds the current file through the build's location maps (compiler/link/location-map.ts).
  */
-import runtime_url from 'virtual:ogygia/runtime-url';
-import { entryLocation, islandDeps, locationMap } from 'virtual:ogygia/island-deps';
+import { runtime_url, entry_location, region_deps, location_map } from 'ogygia:server';
 import { runtime_bootstrap_tags } from './document-tail.ts';
 
 /** The file an entry is loaded from: its content-hashed location, else the identity itself. */
 export function entry_src(identity: string): string {
-	return (identity && entryLocation(identity)) || identity;
+	return (identity && entry_location(identity)) || identity;
 }
 
 /**
@@ -27,10 +26,10 @@ export function entry_src(identity: string): string {
  */
 export function runtime_bootstrap(resolve: (url: string) => string = (url) => url): string {
 	if (!runtime_url) return '';
-	const map = locationMap();
+	const map = location_map();
 	return runtime_bootstrap_tags(
 		resolve(entry_src(runtime_url)),
-		islandDeps(runtime_url).map(resolve),
+		region_deps(runtime_url).map(resolve),
 		map ? resolve(map) : null
 	);
 }

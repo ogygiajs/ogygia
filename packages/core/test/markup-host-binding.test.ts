@@ -60,8 +60,8 @@ function make_compiler(is_build: boolean) {
 
 const resolve = async () => null;
 const host = (rel: string) => path.join(root, 'src/routes', rel);
-const BINDING = 'virtual:ogygia/region/0123456789ab.js';
-const WRAPPER = 'virtual:ogygia/wrapper/0123456789ab.svelte';
+const BINDING = 'ogygia:region/binding/0123456789ab.js';
+const WRAPPER = 'ogygia:region/wrapper/0123456789ab.svelte';
 
 beforeAll(() => {
 	root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-markup-host-'));
