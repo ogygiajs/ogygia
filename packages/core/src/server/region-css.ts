@@ -3,13 +3,13 @@
  * (Region.svelte's island / held dual / content body sheets, the handle's hole-answer sheets).
  *
  * Two shapes, one channel: under Kit's `inlineStyleThreshold` the build kept the asset's text in
- * the island-deps handoff (`islandCssInline`), and the tag is `<style data-ogygia-region-css="href">`
+ * the island-deps handoff (`region_css_inline`), and the tag is `<style data-ogygia-region-css="href">`
  * — no request before first paint; otherwise it is the `<link rel="stylesheet" … data-ogygia-region-css>`
  * it always was. Both carry the resolved href as the channel's identity: the runtime hoists either
  * from a fetched answer into `<head>` and dedupes them against what the page already has by that
  * value, and the router keys a head `<style>` on it across swaps.
  */
-import { islandCssInline } from 'virtual:ogygia/island-deps';
+import { region_css_inline } from 'ogygia:server';
 import { escape_attr as attr } from '../escape.ts';
 
 /**
@@ -17,7 +17,7 @@ import { escape_attr as attr } from '../escape.ts';
  * @param resolved the same href through `asset()` (base / assets applied) — what the tag carries
  */
 export function region_css_tag(href: string, resolved: string): string {
-	const text = islandCssInline(href);
+	const text = region_css_inline(href);
 	if (text !== null) return `<style data-ogygia-region-css="${attr(resolved)}">${text}</style>`;
 	// DEV: the href is the island's module (Vite serves component CSS only inside it; the runtime
 	// imports it for its styles). As a stylesheet link the browser fetched the JS a second time as

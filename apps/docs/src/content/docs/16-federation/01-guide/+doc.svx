@@ -344,7 +344,7 @@ A foreign island's JavaScript is loaded by **a page on another origin**, through
 
 ## What crosses, what doesn't
 
-Fragment props are **plain data**, and snippets and children do not cross the boundary. A wired class that arrives from another _build_ throws loudly instead of half-reviving into a foreign Svelte instance. For state shared between two teams' islands on one page, a small contracts package that exports a `SharedState` works across builds: values cross as devalue snapshots, live references never do, and any server that can print a JSON script tag can seed it.
+Fragment props are **plain data**, and snippets and children do not cross the boundary. A wired class that arrives from another _build_ throws loudly instead of half-reviving into a foreign Svelte instance. For state shared between two teams' islands on one page, a small contracts package that exports a `SharedState` (from `@ogygia/federation/shared`) works across builds: values cross as devalue snapshots, live references never do, and any server that can print a JSON script tag can seed it.
 
 **`page` does not cross either.** On the MFE's server, `$app/state` is the MFE's page. In the browser, though, a mounted island hydrates inside the shell's document, and the same read returns the **shell's** page, with the same URL but the shell's route, params and `page.data`. The MFE's own page seed stops at the fragment boundary. An island that reads `page.data` therefore paints the MFE's value on the server and repaints with the shell's value after hydration. In dev, ogygia warns once per island, naming the entry and the MFE origin. Pass the value as a prop instead, or read it with a remote function.
 

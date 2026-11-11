@@ -13,7 +13,7 @@ const value_of = (code: string): unknown => new Function(`return ${code};`)();
 function compiler_with(holes: Record<string, string>, reads: Record<string, Set<string> | 'all'>) {
 	const program = new Program({ forms: true, router: true });
 	for (const [iid, component] of Object.entries(holes)) {
-		const vp = `\0virtual:ogygia/island/${iid}`;
+		const vp = `\0ogygia:region/entry/${iid}`;
 		program.by_id.set(iid, vp);
 		program.registry.set(vp, { server: true, componentPath: component } as never);
 	}

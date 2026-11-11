@@ -1055,7 +1055,7 @@ export class SourceMapResolver {
 		for (let k = 1; k <= 3; k++) {
 			const m = this.resolve(url, line + k, 0);
 			if (!m) continue;
-			return m.source.includes('virtual:') ? undefined : m;
+			return m.source.includes('virtual:') || m.source.includes('ogygia:') ? undefined : m;
 		}
 		return undefined;
 	}

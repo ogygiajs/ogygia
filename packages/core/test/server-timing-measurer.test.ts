@@ -4,24 +4,21 @@
 // is not that.
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
-vi.mock('virtual:ogygia/sign', () => import('../src/server/hmac.ts'));
-vi.mock('virtual:ogygia/rate-limit', () => ({ rateLimit: { max: 60, windowMs: 60_000 } }));
-vi.mock('virtual:ogygia/server-plugins', () => ({ plugins: [] }));
-vi.mock('virtual:ogygia/route-config', () => ({ route_config: {} }));
-vi.mock('virtual:ogygia/devtools-boot-url', () => ({ default: '' }));
+vi.mock('ogygia:server/sign', () => import('../src/server/hmac.ts'));
+vi.mock('ogygia:server/rate-limit', () => ({ rate_limit: { max: 60, windowMs: 60_000 } }));
 const ID = 'abcdef012345';
 const Comp = ($$renderer: { push(s: string): void }) => $$renderer.push('<p>hole</p>');
-vi.mock('virtual:ogygia/server-manifest', () => ({
-	load_islands: async () => ({ islands: { [ID]: async () => ({ default: Comp }) } }),
-	island_url: { [ID]: '/x.js' },
-	island_name: {},
-	island_render: {},
-	render_island: {},
-	island_reads_page_data: null
+vi.mock('ogygia:server/server-manifest', () => ({
+	load_server_regions: async () => ({ regions: { [ID]: async () => ({ default: Comp }) } }),
+	region_url: { [ID]: '/x.js' },
+	region_name: {},
+	region_render: {},
+	render_region: {},
+	region_reads_page_data: null
 }));
 
 const { handle } = await import('../src/hooks.ts');
-const { mintServerIsland } = await import('../src/server/region-endpoint.ts');
+const { mint_server_region } = await import('../src/server/region-endpoint.ts');
 const { register_hooks } = await import('../src/plugin/hooks.ts');
 
 function event(url: string, cookies: Record<string, string> = {}) {
@@ -48,7 +45,7 @@ describe('server-timing on a region answer', () => {
 
 	it('a visitor cannot ask for it by setting a cookie itself', async () => {
 		const res = await handle()({
-			event: event(mintServerIsland(ID, {}), { og_profiler_beacon: '1' }),
+			event: event(mint_server_region(ID, {}), { og_profiler_beacon: '1' }),
 			resolve
 		} as never);
 		expect(res.status).toBe(200);
@@ -59,7 +56,7 @@ describe('server-timing on a region answer', () => {
 		const leave = register_hooks({ measures: () => true });
 		try {
 			const res = await handle()({
-				event: event(mintServerIsland(ID, { n: 2 })),
+				event: event(mint_server_region(ID, { n: 2 })),
 				resolve
 			} as never);
 			expect(res.headers.get('server-timing')).toContain('og-render');
