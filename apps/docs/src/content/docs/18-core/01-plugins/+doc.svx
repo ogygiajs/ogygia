@@ -186,19 +186,23 @@ export default defineClient({
 
 `hooks` subscribes to the runtime's moments. Each takes one event object:
 
-| Hook              | When it runs                                                                                                                      |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `regionMount`     | A region's component started in the browser. `entry` is its component's stable module URL, `urls` the files it runs from.         |
-| `regionUnmount`   | A region's component left the page.                                                                                               |
-| `regionHydrated`  | A region hydrated: `t0` its wake, `tLoaded` its modules in hand, `tTurn` its turn, `tDone` hydrated, `ssrHtml` the server markup. |
-| `regionFailed`    | A region failed to hydrate, with the error's `message`.                                                                           |
-| `holeAnswered`    | A hole's first answer replaced its fallback.                                                                                      |
-| `holeFailed`      | A hole's answer never came, and no retry follows.                                                                                 |
-| `holeBatchMissed` | A batch request carried fewer holes than it was sent for.                                                                         |
-| `entryFallback`   | A region's file was gone, and its fresh identity loaded instead.                                                                  |
-| `navigated`       | An in-app navigation finished, with its timings.                                                                                  |
-| `criticalSettled` | The wait for the page's critical resources ended: how, how many it waited on, and for how long.                                   |
-| `warning`         | Dev only: a Svelte hydration warning.                                                                                             |
+| Hook               | When it runs                                                                                                                      |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `regionMount`      | A region's component started in the browser. `entry` is its component's stable module URL, `urls` the files it runs from.         |
+| `regionUnmount`    | A region's component left the page.                                                                                               |
+| `regionHydrated`   | A region hydrated: `t0` its wake, `tLoaded` its modules in hand, `tTurn` its turn, `tDone` hydrated, `ssrHtml` the server markup. |
+| `regionFailed`     | A region failed to hydrate, with the error's `message`.                                                                           |
+| `regionWoke`       | A region's schedule fired (`when`): it starts to wake, or a hole starts to fetch.                                                 |
+| `regionMismatched` | A region's markup changed between the server and its hydration: `kind` is `recovered`, `healed` or `conflict`, with a `reason`.   |
+| `holeAnswered`     | A hole's first answer replaced its fallback.                                                                                      |
+| `holeFailed`       | A hole's answer never came, and no retry follows.                                                                                 |
+| `holeBatchMissed`  | A batch request carried fewer holes than it was sent for.                                                                         |
+| `entryFallback`    | A region's file was gone, and its fresh identity loaded instead.                                                                  |
+| `navStarted`       | An in-app navigation started, before its page is fetched.                                                                         |
+| `navigated`        | An in-app navigation finished, with its timings and whether the regions were `reconciled` in place.                               |
+| `criticalSettled`  | The wait for the page's critical resources ended: how, how many it waited on, and for how long.                                   |
+| `loadStarted`      | A download ogygia started on its own left the load scheduler's queue: its `class`, `kind`, and `waitedMs`.                        |
+| `warning`          | Dev only: a Svelte hydration warning.                                                                                             |
 
 The rules every hook follows:
 

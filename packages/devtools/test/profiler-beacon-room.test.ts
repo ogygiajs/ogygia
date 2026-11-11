@@ -56,7 +56,8 @@ test('the page in view gets room; the first page keeps all of its own', async ()
 		t: 100,
 		fetched: 110,
 		styled: 120,
-		swapped: 130
+		swapped: 130,
+		reconciled: true
 	});
 	for (let i = 0; i < 390; i++) b.beacon_hydrated(island(`busy${i}`), 200, 201, 202);
 	// full (400): the next page's island still lands, in place of the oldest later one
