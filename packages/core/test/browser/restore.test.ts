@@ -78,6 +78,29 @@ test('a stand-in keeps the parser from splitting the page’s link, and becomes 
 	expect(document.querySelector('a[href="/card"] demo-link')).not.toBeNull();
 });
 
+test('a stand-in becomes only a tag the server pass writes as one, without on* attributes', async () => {
+	const w = window as { __og_ran?: number };
+	w.__og_ran = 0;
+	document.body.innerHTML =
+		'<div id="c">' +
+		'<og-as tag="script">window.__og_ran++</og-as>' +
+		'<og-as tag="iframe" src="about:blank"></og-as>' +
+		'<og-as tag="object"></og-as><og-as tag="embed"></og-as><og-as tag="base" href="/x/"></og-as>' +
+		'<og-as tag="meta"></og-as><og-as tag="link"></og-as><og-as tag="style"></og-as>' +
+		'<og-as tag="template"></og-as><og-as tag="svg"></og-as><og-as></og-as>' +
+		'<og-as tag="p" onclick="window.__og_ran++" class="kept">text</og-as>' +
+		'</div>';
+	restore(document);
+	await new Promise((r) => setTimeout(r, 50));
+	const c = document.getElementById('c')!;
+	expect(w.__og_ran).toBe(0);
+	expect([...c.children].map((e) => e.localName)).toEqual([...Array(11).fill('og-as'), 'p']);
+	const p = c.querySelector('p')!;
+	expect(p.getAttribute('class')).toBe('kept');
+	expect(p.hasAttribute('onclick')).toBe(false);
+	expect(p.textContent).toBe('text');
+});
+
 test('an answer’s fragment: restored before insertion, its sheets adopted once the host is in the page', async () => {
 	const s = await transformMarkup(
 		'<demo-card class="x"> hi </demo-card>',
