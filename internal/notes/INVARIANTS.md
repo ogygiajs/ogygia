@@ -65,7 +65,7 @@ Security and performance audits should read this before changing trust boundarie
 
 ## PROBE-THEN-RENDER — rate limit ordering
 
-**What:** Pre-HMAC probe limiter → verify MAC → render limiter → render (with process concurrency gate).
+**What:** Pre-HMAC probe limiter → verify MAC → render limiter → render (with process concurrency gate). The order is a machine (`packages/core/src/server/region-request.ts`: received → prechecked → probed → verified → charged → rendering → sent, or refused) that a GET, a renewal and each hole of a batch walk, so rendering or charging the render budget before verify is an illegal move (`packages/core/test/region-request-order.test.ts`).
 
 **Why:** Forged floods must not burn render CPU or reveal id existence (uniform 403).
 
