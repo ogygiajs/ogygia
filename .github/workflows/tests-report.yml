@@ -99,13 +99,16 @@ jobs:
       - name: Run every package's tests, all engines
         run: |
           node .github/scripts/test-report.ts --out "$RUNNER_TEMP/tests/${{ steps.v.outputs.version }}" \
-            --engines chromium,firefox,webkit --e2e .e2e \
+            --raw "$RUNNER_TEMP/raw" --engines chromium,firefox,webkit --e2e .e2e \
             --version "${{ steps.v.outputs.version }}" --commit "${{ steps.v.outputs.sha }}"
 
+      # (the per-file coverage and lcov stay here, never in the repo)
       - uses: actions/upload-artifact@v7
         with:
           name: tests-report-${{ steps.v.outputs.version }}
-          path: ${{ runner.temp }}/tests/
+          path: |
+            ${{ runner.temp }}/tests/
+            ${{ runner.temp }}/raw/
           retention-days: 90
 
       # main's tree, with the report added: the report's files and the index, nothing else
