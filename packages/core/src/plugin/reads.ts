@@ -76,6 +76,7 @@ export function note_visitor_read(request_reads: Reads, input: string): void {
 
 /** Personal request headers: reading one is a per-visitor read. Everything else (host,
  *  sec-fetch-*, accept-encoding, …) is delivery plumbing. */
+// static: a fixed list of header names
 const PERSONAL_HEADERS: ReadonlySet<string> = new Set([
 	'cookie',
 	'authorization',
