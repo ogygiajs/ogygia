@@ -471,15 +471,24 @@ type AnyEvent = {
 	};
 	locals: Record<string, unknown>;
 	request: Request;
+	url: URL;
+	fetch: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+	getClientAddress: () => string;
+	platform: Record<string, unknown>;
 };
 
 function fake_event(init?: {
 	cookies?: Record<string, string>;
 	locals?: Record<string, unknown>;
 	headers?: Record<string, string>;
+	platform?: Record<string, unknown>;
 }): AnyEvent {
 	const jar = new Map(Object.entries(init?.cookies ?? {}));
 	return {
+		url: new URL('http://x/'),
+		fetch: async () => new Response('{}'),
+		getClientAddress: () => '203.0.113.7',
+		platform: init?.platform ?? {},
 		cookies: {
 			get: (n: string) => jar.get(n),
 			getAll: () => [...jar].map(([name, value]) => ({ name, value })),
@@ -548,6 +557,90 @@ describe('postrender/observe', () => {
 		void event.locals.user;
 		expect(observer.app.facts(event.request).reads.perVisitor).toBe('cookie:session');
 		expect(obs.disqualified_by).toBe('cookie:session');
+	});
+
+	describe('every way a render reaches the visitor is a per-visitor read', () => {
+		const personal = {
+			cookie: 'session=alice',
+			authorization: 'Bearer alice',
+			'x-forwarded-for': '203.0.113.7'
+		};
+		const cases: [string, Parameters<typeof fake_event>[0], (e: AnyEvent) => unknown][] = [
+			[
+				'a function-valued locals entry (a session getter)',
+				{ locals: { auth: async () => ({ user: 'alice' }) } },
+				(e) => (e.locals.auth as () => Promise<unknown>)()
+			],
+			['`in` on locals', { locals: { user: { id: 7 } } }, (e) => 'user' in e.locals],
+			['the keys of locals', { locals: { user: { id: 7 } } }, (e) => Object.keys(e.locals)],
+			[
+				'a copy of the request headers',
+				{ headers: personal },
+				(e) => new Request('http://api.example/me', { headers: e.request.headers })
+			],
+			[
+				'the request headers as entries',
+				{ headers: personal },
+				(e) => Object.fromEntries(e.request.headers)
+			],
+			[
+				'a clone of the request',
+				{ headers: personal },
+				(e) => e.request.clone().headers.get('cookie')
+			],
+			[
+				'`has` on a personal header',
+				{ headers: personal },
+				(e) => e.request.headers.has('authorization')
+			],
+			[
+				'the client address header',
+				{ headers: personal },
+				(e) => e.request.headers.get('x-forwarded-for')
+			],
+			[
+				'the forwarded host',
+				{ headers: { 'x-forwarded-host': 'other.example' } },
+				(e) => e.request.headers.get('x-forwarded-host')
+			],
+			[
+				'a geo header',
+				{ headers: { 'x-geo-country': 'DE' } },
+				(e) => e.request.headers.get('x-geo-country')
+			],
+			['the client address', {}, (e) => e.getClientAddress()],
+			[
+				'per-request platform data',
+				{ platform: { geo: { country: 'DE' } } },
+				(e) => (e.platform.geo as { country: string }).country
+			],
+			[
+				'a fetch to its own origin that carries the visitor’s cookies',
+				{ headers: personal },
+				(e) => e.fetch('/api/me')
+			]
+		];
+		for (const [name, init, read] of cases)
+			it(name, async () => {
+				const event = fake_event(init);
+				const obs = observe(event);
+				await read(event);
+				expect(obs.disqualified_by).not.toBeNull();
+			});
+
+		it('reads that are the same for every visitor still store', async () => {
+			const event = fake_event({
+				headers: { host: 'x', accept: 'text/html' },
+				platform: { env: { API: 'k' }, context: { waitUntil: () => {} } }
+			});
+			const obs = observe(event);
+			Object.fromEntries(event.request.headers);
+			void (event.platform.env as { API: string }).API;
+			void (event.platform.context as { waitUntil: unknown }).waitUntil;
+			await event.fetch('/api/public');
+			await event.fetch('http://other.example/feed');
+			expect(obs.disqualified_by).toBeNull();
+		});
 	});
 
 	it('a reason already in the read set (a flag read) is what the observation reports', () => {
