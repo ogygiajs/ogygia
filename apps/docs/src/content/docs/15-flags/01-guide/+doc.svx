@@ -110,7 +110,7 @@ export const app = routes(table, {
 });
 ```
 
-That becomes [`c.visitor`](/docs/router/guide) everywhere. Flags stick to `c.visitor.sub`, and the same identity is what [mounts sign onward](/docs/federation/guide) to other teams. Outside the router, or for anonymous traffic, the fallback is an `og-vid` cookie, and after that the visitor is anonymous. **Anonymous visitors always see the control**, so a split never changes for a visitor you can't recognize. Without the router, you provide the identity yourself, as described in [Plain SvelteKit](#plain-sveltekit).
+That becomes [`c.visitor`](/docs/router/guide) everywhere. Flags stick to `c.visitor.sub`, or to `c.visitor.vid` for a logged-out visitor, and the same identity is what [mounts sign onward](/docs/federation/guide) to other teams. Outside the router, or for anonymous traffic, the fallback is an `og-vid` cookie (read as `{ vid, anonymous: true }`), and after that the visitor is anonymous. **Anonymous visitors always see the control**, so a split never changes for a visitor you can't recognize. Without the router, you provide the identity yourself, as described in [Plain SvelteKit](#plain-sveltekit).
 
 For sticky rollouts on **logged-out traffic**, create the cookie:
 
@@ -178,7 +178,7 @@ const visitorCookie: Handle = ({ event, resolve }) => {
 export const handle = sequence(visitorCookie, ogygia.handle());
 ```
 
-Exposure events take their `sub` from `c.visitor`, so with the cookie alone the decision is sticky but the events arrive without a `sub`. Pass a `visitor` as well if your analytics needs one.
+Exposure events take their `sub` from `c.visitor`, so with the cookie alone, or with `anonymousVisitor()`, the decision is sticky but the events arrive without a `sub`. Pass a signed-in `visitor` as well if your analytics needs one.
 
 ## Vendor values: `.value()`
 
@@ -239,7 +239,7 @@ decide({ source: async (queries, c) => {
 
 ## Sources reference
 
-A source is set once with `decide({ source })` and runs once per request, at the start, before the page or hole renders. Its context has `request`, `url` and `cookies`, plus a `visitor` found the way a flag read finds one when no router identity is there: the signed claims from an upstream shell, else the `og-vid` cookie as `{ sub, anonymous: true }`, else none. So the default `context` of `openfeature()` and `ofrep()` sends the vendor a `targetingKey`, and per-visitor targeting works as soon as visitors carry the cookie.
+A source is set once with `decide({ source })` and runs once per request, at the start, before the page or hole renders. Its context has `request`, `url` and `cookies`, plus a `visitor` found the way a flag read finds one when no router identity is there: the signed claims from an upstream shell, else the `og-vid` cookie as `{ vid, anonymous: true }`, else none. So the default `context` of `openfeature()` and `ofrep()` sends the vendor a `targetingKey`, and per-visitor targeting works as soon as visitors carry the cookie.
 
 The source runs before the router or your load, so it never sees an identity they resolve later, such as a signed-in user from the router's `visitor` resolver or a `visitor` you pass on a flag's context. When the vendor should target signed-in users, pass your own `context` and read the session from the request.
 
@@ -253,10 +253,10 @@ import { openfeature } from '@ogygia/flags/openfeature';
 
 decide({
   source: openfeature(OpenFeature.getClient(), {
-    // the default sends c.visitor, with sub as targetingKey; this adds a country on top
+    // the default sends c.visitor, with sub (or vid) as targetingKey; this adds a country on top
     context: (c) => ({
       ...c.visitor,
-      targetingKey: c.visitor?.sub,
+      targetingKey: c.visitor?.sub ?? c.visitor?.vid,
       country: c.request.headers.get('x-country'),
     }),
     values: true,
@@ -264,10 +264,10 @@ decide({
 });
 ```
 
-| Option    | Default                                          | What it does                                                                                                                      |
-| --------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `context` | `c.visitor`'s keys, with `sub` as `targetingKey` | Builds the evaluation context from the request. The default sends the visitor the source sees; pass your own to add more.         |
-| `values`  | `false`                                          | Also asks for each flag's object value (`getObjectValue`) and passes it to `.value(c)`. Without it, vendor payloads never arrive. |
+| Option    | Default                                                       | What it does                                                                                                                      |
+| --------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `context` | `c.visitor`'s keys, with `sub` (else `vid`) as `targetingKey` | Builds the evaluation context from the request. The default sends the visitor the source sees; pass your own to add more.         |
+| `values`  | `false`                                                       | Also asks for each flag's object value (`getObjectValue`) and passes it to `.value(c)`. Without it, vendor payloads never arrive. |
 
 Each request evaluates every registered flag in parallel. A boolean flag asks `getBooleanValue(name, false)`, so a flag the vendor doesn't know stays off, and a variant flag asks `getStringValue(name, control)`, whose answer is the variant name. `values: true` adds one more call per flag. A flag whose evaluation throws falls back to its native rule. There is no timeout.
 
@@ -287,13 +287,13 @@ decide({
 });
 ```
 
-| Option    | Default                                          | What it does                                                                                    |
-| --------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| `url`     | required                                         | The service's base URL.                                                                         |
-| `headers` | none                                             | Headers sent with every evaluation, such as an auth token or a tenant.                          |
-| `context` | `c.visitor`'s keys, with `sub` as `targetingKey` | Builds the evaluation context. The default sends the source's visitor, as with `openfeature()`. |
-| `fetch`   | the global `fetch`                               | The fetch to use.                                                                               |
-| `timeout` | `800`                                            | Milliseconds before the evaluation is aborted.                                                  |
+| Option    | Default                                                       | What it does                                                                                    |
+| --------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `url`     | required                                                      | The service's base URL.                                                                         |
+| `headers` | none                                                          | Headers sent with every evaluation, such as an auth token or a tenant.                          |
+| `context` | `c.visitor`'s keys, with `sub` (else `vid`) as `targetingKey` | Builds the evaluation context. The default sends the source's visitor, as with `openfeature()`. |
+| `fetch`   | the global `fetch`                                            | The fetch to use.                                                                               |
+| `timeout` | `800`                                                         | Milliseconds before the evaluation is aborted.                                                  |
 
 A non-2xx answer, a network error or the timeout leaves every flag on its native rule. Flags the service answers with an `errorCode`, flags you did not declare and variants you did not declare are skipped. A boolean flag takes the answer's `variant`, or `on`/`off` from a boolean `value`. A value that is not a boolean becomes the flag's `.value(c)` payload.
 

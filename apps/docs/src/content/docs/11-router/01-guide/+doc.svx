@@ -304,7 +304,7 @@ routes(table, {
 });
 ```
 
-For logged-out traffic, `anonymousVisitor()` is a ready-made resolver. On a visitor's first request it sets a random id in a first-party, HTTP-only cookie, and from then on it returns `{ sub: id, anonymous: true }`, so a percentage rollout holds for visitors who never sign in. It takes `cookie`, the cookie's name (default `og-vid`, the cookie [experiments](/docs/flags/guide) fall back to), and `days`, its lifetime (default 365):
+For logged-out traffic, `anonymousVisitor()` is a ready-made resolver. On a visitor's first request it sets a random id in a first-party, HTTP-only cookie, and from then on it returns `{ vid: id, anonymous: true }`, so a percentage rollout holds for visitors who never sign in. The id is `vid`, never `sub`: `sub` is a signed-in user's id, and the cookie is whatever the browser sends. It takes `cookie`, the cookie's name (default `og-vid`, the cookie [experiments](/docs/flags/guide) fall back to), and `days`, its lifetime (default 365):
 
 ```ts
 import { anonymousVisitor } from '@ogygia/router';
