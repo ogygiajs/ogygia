@@ -1,0 +1,27 @@
+{
+	"name": "ogygia-server-chunks-lab",
+	"private": true,
+	"description": "Research lab for internal/notes/design/server-chunks.md: does a SvelteKit + ogygia server build with far fewer chunk files start faster on a slow serverless box? Not a package; nothing here ships.",
+	"type": "module",
+	"scripts": {
+		"generate": "node generate.ts",
+		"build": "vite build",
+		"bench": "node bench.ts"
+	},
+	"dependencies": {
+		"@floating-ui/dom": "1.8.0",
+		"date-fns": "4.1.0",
+		"marked": "15.0.12",
+		"ogygia": "workspace:*",
+		"zod": "3.25.76"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-node": "catalog:",
+		"@sveltejs/kit": "catalog:",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"@types/node": "catalog:",
+		"svelte": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:"
+	}
+}
