@@ -3325,14 +3325,6 @@
 			"reason": "browser only: the injected engine's DOMContentLoaded listener, once per document, constant work of its own; proven by packages/testing/e2e/ogygia-testing.spec.ts"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~80d03d > boot > then:0~6c8c0d",
-			"reason": "browser only, a build's switched-on dock: starts the lazily loaded page beacon once per document, constant work of its own; proven in packages/devtools/e2e/dock-switch.spec.ts"
-		},
-		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~80d03d > boot > then:1~a1b2d0",
-			"reason": "browser only: the page beacon's chunk failed to load, a no-op (the page goes unmeasured), constant work"
-		},
-		{
 			"id": "packages/devtools/src/client.ts > defineClient:0~531114 > hooks > regionWoke",
 			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
 		},
@@ -3363,6 +3355,30 @@
 		{
 			"id": "packages/testing/src/index.ts > withOgygia > extend:0~40fb42 > ogygia > Ogygia:0~36a362 > addInitScript",
 			"reason": "keeps the driver's injection to await before the test's first load (a live Page: not recorded), once per test; proven by packages/testing/e2e/ogygia-testing.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_WARNINGS > devtools_page_beacon_load_failed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_WARNINGS > devtools_page_beacon_load_failed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/devtools/src/page-beacon-start.ts > start_page_beacon",
+			"reason": "browser only, a build's switched-on dock: loads and starts the page beacon once per document (its loader, a function: not cloneable); proven in packages/devtools/e2e/dock-switch.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/page-beacon-start.ts > start_page_beacon > load",
+			"reason": "browser only: the default loader, one dynamic import of the beacon's chunk, once per document"
+		},
+		{
+			"id": "packages/devtools/src/page-beacon-start.ts > start_page_beacon > then:0~6c8c0d",
+			"reason": "browser only: starts the loaded beacon (a module: not cloneable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/page-beacon-start.ts > start_page_beacon > then:1~491fd5",
+			"reason": "browser only: a failed chunk download, said once per page (a module flag), constant work"
 		}
 	]
 }
