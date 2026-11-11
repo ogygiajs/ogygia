@@ -42,7 +42,7 @@ export { keepFallback } from './keep-fallback.ts';
 export { preference } from './preference.ts';
 export type { Preference, PreferenceSpec } from './preference.ts';
 
-// Builder.io-style pages: the blessed path is the `blocks()` content source (see `ogygia/content`).
+// Pages a CMS sends as a tree of blocks: the blessed path is the `blocks()` content source (see `ogygia/content`).
 // For a tree in hand without a collection, `blocks.resolve(tree, registry)` turns it into region nodes
 // you render with a small recomposer — a recipe, not a shipped component.
 export type {

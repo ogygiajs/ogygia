@@ -254,9 +254,9 @@ export const ERRORS = {
 	},
 	fn_revive_missing: {
 		text: (a: { tag: string }): string => prose`
-			cannot revive fn "${a.tag}": its factory is not loaded on this side and the payload carries
-			no source. The island must import the generated module as a VALUE so \`__register_fn\`
-			runs in its bundle (or the fn manifest must be in the runtime).
+			cannot revive fn "${a.tag}": its factory is not in this side's build. A function travels
+			as its tag only, never its source, so the island must import the generated module as a
+			VALUE so \`__register_fn\` runs in its bundle (or the fn manifest must be in the runtime).
 		`,
 		details: (): string => prose`
 			An island received a function it cannot rebuild: the module that registers its factory is
