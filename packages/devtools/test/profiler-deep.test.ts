@@ -4,7 +4,7 @@
  * the DOM diff and shift boxes, and the sink's rows and aggregations.
  */
 import { describe, expect, it } from 'vitest';
-import { byte_strip, arrival_ms } from '../src/profiler/byte-strip.ts';
+import { byte_strip, arrival_ms, page_seed } from '../src/profiler/byte-strip.ts';
 import { parse_visit, one_clock, merge_visits } from '../src/profiler/visit.ts';
 import { build_river, load_return_keys, seed_key_bytes } from '../src/profiler/river.ts';
 import { html_diff, tokenize_html, shift_boxes } from '../src/profiler/dom-diff.ts';
@@ -115,6 +115,17 @@ describe('byte strip', () => {
 			{ kind: 'css-link', label: 'b.css', start: 188, end: 235 }
 		]);
 		expect(s.unsized_images).toEqual(['/real.png']);
+	});
+
+	it('reads the page seed’s text the way the byte strip finds the seed script', () => {
+		expect(page_seed(doc)).toBe('{"data":{"a":1}}');
+		expect(
+			page_seed(
+				'<!-- <script type="application/ogygia-page">{"gone":1}</script> -->' +
+					"<script data-note='a>b' TYPE='application/ogygia-page'>{\"data\":{}}</script>"
+			)
+		).toBe('{"data":{}}');
+		expect(page_seed('<p>no seed</p>')).toBeNull();
 	});
 
 	it('a document without ogygia at all, or a broken one, still strips', () => {
