@@ -175,6 +175,8 @@ export type BootLink = {
 	/** the region sheets a navigation's head merge left, taken out but for those a region uses */
 	release_sheets: typeof import('./region-sheets.ts').release_sheets;
 	yield_task: typeof import('./schedule.ts').yield_task;
+	/** the `regionHydrate` subscribers around Svelte's hydrate over server markup (./client-plugins.ts) */
+	region_hydrate: typeof import('./client-plugins.ts').client_region_hydrate;
 	/** the load scheduler's queue (./load-scheduler.ts) */
 	LoadSlot: typeof import('./load-scheduler.ts').LoadSlot;
 	/** DOM ownership (./ownership.ts): which children Svelte's walk enters, and self-owned elements */
