@@ -26,6 +26,7 @@ import { keep_host_classes, note_host_classes } from './host-classes.ts';
 import { install_hydrate_features } from 'ogygia:boot';
 import { emit as dt_emit } from '../events/bus.ts';
 import { warn } from '../messages/lazy.ts';
+import { say } from '@ogygia/machine';
 
 // The page's seeds, through their features' slots (`page`, `remote-seeds`: hydrate phase, installed
 // below). Exported for core: an answer's page facts join the page store at once once islands are
@@ -502,13 +503,12 @@ export function read_region_props(region: Element, foreign = false): Record<stri
  * bug: the snapshot updates nothing, the reference leaks into page.data.
  */
 class PropMutationGuard {
-	#warned = new Set<string>();
+	readonly #warned = say();
 
 	#warn(entry: string, prop_path: string) {
-		const key = entry + '' + prop_path;
-		if (this.#warned.has(key)) return;
-		this.#warned.add(key);
-		warn('prop_mutation', { prop: prop_path, entry });
+		this.#warned.once(entry + '' + prop_path, () =>
+			warn('prop_mutation', { prop: prop_path, entry })
+		);
 	}
 
 	#guard_map(map: Map<unknown, unknown>, entry: string, prop_path: string) {
