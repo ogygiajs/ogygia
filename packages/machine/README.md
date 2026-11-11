@@ -344,3 +344,17 @@ warnings.ok('sink'); // …it works again: the next failure is said again
 ## Watching
 
 `observe((name, from, to, machine) => …)` hears every move of every machine, flights included (`to` is `null` when one stops). Devtools and tests use it. It costs one check per move while nothing listens.
+
+`trace()` is `observe()` written down: every move as one short line, for a test to print when it fails.
+
+```ts
+const moves = trace(); // { max: 500, only: (name) => … } to change what it keeps
+// …
+moves.text();
+// hole#1 idle -> fetching
+// visit#3 loading -> answered
+// visit#3 answered -> stopped
+moves.stop(); // or `using moves = trace()`
+```
+
+Each machine is numbered per name in the order it first moves, so two visits in one log stay apart. It keeps the last `max` lines and says how many it let go.
