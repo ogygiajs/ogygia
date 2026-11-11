@@ -13,6 +13,8 @@ import { env } from '$env/dynamic/private';
 federate({
 	name: 'dash',
 	key: env.DASH_SIGNING_KEY,
+	// the host peers sign their calls to dash for (a call made for another app is refused)
+	audience: new URL(env.DASH_ORIGIN ?? 'http://localhost:5191').host,
 	peers: {
 		shell: { origin: env.SHELL_ORIGIN ?? 'http://localhost:5190', key: env.SHELL_PUBLIC_KEY },
 		cms: { origin: env.CMS_ORIGIN ?? 'http://localhost:5192', key: env.CMS_PUBLIC_KEY }
