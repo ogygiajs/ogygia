@@ -41,7 +41,7 @@
  * Universal module (no Node imports): the index + reducer run on the server, the resolver on the
  * client, and the unit tests exercise both ends against a real devalue round trip.
  */
-import { fnv1a } from './runtime/hash.ts';
+import { fnv1a } from './contract/hash.ts';
 import type { SeedPath } from './seed-ref-reviver.ts';
 
 // The client half (tag + reviver) is a leaf of its own: seed-ref-reviver.ts says why.

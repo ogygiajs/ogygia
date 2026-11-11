@@ -32,6 +32,10 @@
 			"types": "./dist/vite.d.ts",
 			"default": "./src/vite.ts"
 		},
+		"./shared": {
+			"types": "./dist/shared-state.d.ts",
+			"default": "./src/shared-state.ts"
+		},
 		"./internal/messages": {
 			"types": "./dist/messages.d.ts",
 			"default": "./src/messages.ts"
@@ -46,6 +50,10 @@
 			"./vite": {
 				"types": "./dist/vite.d.ts",
 				"default": "./dist/vite.js"
+			},
+			"./shared": {
+				"types": "./dist/shared-state.d.ts",
+				"default": "./dist/shared-state.js"
 			},
 			"./internal/messages": {
 				"types": "./dist/messages.d.ts",
@@ -62,7 +70,8 @@
 		"e2e": "playwright test"
 	},
 	"dependencies": {
-		"@ogygia/machine": "workspace:^"
+		"@ogygia/machine": "workspace:^",
+		"devalue": "catalog:"
 	},
 	"devDependencies": {
 		"@ogygia/config": "workspace:*",
@@ -75,6 +84,7 @@
 		"@sveltejs/kit": "catalog:",
 		"@types/node": "catalog:",
 		"@typescript/native": "catalog:tsgo",
+		"svelte": "catalog:",
 		"tsdown": "catalog:",
 		"typescript": "catalog:",
 		"vite": "catalog:",
@@ -83,6 +93,7 @@
 	"peerDependencies": {
 		"@ogygia/core": "workspace:^",
 		"@ogygia/router": "workspace:^",
+		"svelte": "catalog:peers",
 		"vite": "catalog:peers"
 	}
 }
