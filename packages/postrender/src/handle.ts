@@ -18,8 +18,10 @@ import type { PostrenderHandleOptions } from './types.ts';
 import { install, mark_handled } from './registry.ts';
 import { postrender_app } from './app.ts';
 import { warn } from './messages.ts';
+import { say } from '@ogygia/machine';
 
-let warned_unlisted = false;
+/** Said once for the process. */
+const unlisted = say({ max: 1 });
 
 export function handle(options: PostrenderHandleOptions = {}): Handle {
 	const runtime = install(options);
@@ -27,10 +29,8 @@ export function handle(options: PostrenderHandleOptions = {}): Handle {
 		mark_handled(event, runtime);
 		// The plugin's server half starts when ogygia's hooks module loads, before any request: none
 		// by now means vite.config never listed `postrender()`, and nothing would ever be stored.
-		if (!postrender_app() && !warned_unlisted) {
-			warned_unlisted = true;
-			warn('postrender_handle_unlisted');
-		}
+		if (!postrender_app())
+			unlisted.once('postrender_handle_unlisted', () => warn('postrender_handle_unlisted'));
 		return resolve(event);
 	};
 }
