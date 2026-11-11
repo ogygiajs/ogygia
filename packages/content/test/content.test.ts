@@ -52,8 +52,8 @@ draft: true
 		expect(body.trim()).toBe('# Hi');
 	});
 
-	it('rejects broken yaml', () => {
-		expect(() => parseFrontmatter(`---\n: : :\n---\n`)).toThrow(/invalid frontmatter/);
+	it('rejects broken yaml with the parser’s own coded error', () => {
+		expect(() => parseFrontmatter(`---\n: : :\n---\n`)).toThrow(/empty mapping key/);
 	});
 });
 
