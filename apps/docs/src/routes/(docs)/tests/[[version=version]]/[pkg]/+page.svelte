@@ -1,6 +1,7 @@
 <script lang="ts">
 	import PageHead from '$lib/PageHead.svelte';
 	import VersionPicker from '$lib/tests/VersionPicker.svelte';
+	import RatioNote from '$lib/tests/RatioNote.svelte';
 	import TestFilter from '$lib/tests/TestFilter.svelte' with { wake: 'load' };
 	import {
 		ENGINES,
@@ -66,8 +67,7 @@
 			<span class="what"
 				>lines of test for each line of source ({count(p.testLines)} to {count(p.srcLines)})</span
 			>
-			{#if data.ratioDefinition}<span class="how-counted">Counted as {data.ratioDefinition}.</span
-				>{/if}
+			<RatioNote definition={data.ratioDefinition} />
 		</div>
 		<div class="stat">
 			<span class="n">{p.coverage.lines.toFixed(1)}%</span>

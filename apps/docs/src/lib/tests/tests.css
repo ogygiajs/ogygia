@@ -84,6 +84,13 @@
 	color: var(--text-dim);
 	line-height: 1.45;
 }
+.tests .stat details.how-counted summary {
+	cursor: pointer;
+	width: fit-content;
+}
+.tests .stat details.how-counted[open] summary {
+	margin-bottom: 0.25rem;
+}
 .tests .stats {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
