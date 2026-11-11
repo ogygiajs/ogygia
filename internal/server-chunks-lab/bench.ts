@@ -22,7 +22,9 @@ const ROOT = new URL('.', import.meta.url).pathname;
 const VARIANTS = (
 	process.env.LAB_VARIANTS ?? 'default,registry,vendor,grouped,single,bundled,split'
 ).split(',');
-const MODES = ['cms', 'light', 'registry'] as const;
+const MODES = (process.env.LAB_MODES ?? 'cms,light,registry').split(',');
+/** Where raw runs go (round 2 used results-raw-2 so round 1's rows stay as they were). */
+const RAW = process.env.LAB_RAW ?? 'results-raw';
 const DISKS: Record<string, string[]> = {
 	cold: [],
 	// a slow volume: few reads per second and little bandwidth on the container's disk
@@ -123,7 +125,7 @@ if (stage === 'image') {
 
 if (stage === 'run') {
 	const rounds = Number(process.argv[3] ?? 10);
-	await mkdir(join(ROOT, 'results-raw'), { recursive: true });
+	await mkdir(join(ROOT, RAW), { recursive: true });
 	for (let round = 1; round <= rounds; round++) {
 		for (const disk of Object.keys(DISKS)) {
 			for (const v of VARIANTS) {
@@ -152,12 +154,65 @@ if (stage === 'run') {
 						line = JSON.stringify({ mode, error: String(e).slice(0, 300) });
 					}
 					const row = { round, disk, variant: v, ...JSON.parse(line) };
-					await appendFile(join(ROOT, 'results-raw', disk + '.jsonl'), JSON.stringify(row) + '\n');
+					await appendFile(join(ROOT, RAW, disk + '.jsonl'), JSON.stringify(row) + '\n');
 					console.log(JSON.stringify(row));
 				}
 			}
 		}
 	}
+}
+
+if (stage === 'bun') {
+	// the same deploy trees (made by `image`) under Bun instead of Node: one image each, then
+	// rounds of cold runs like `run` (modes cms and light), rows tagged runtime: 'bun'
+	const rounds = Number(process.argv[3] ?? 10);
+	for (const v of VARIANTS) {
+		const tree = join(ROOT, 'deploy', v);
+		await cp(join(ROOT, 'probe.ts'), join(tree, 'probe.ts'));
+		await writeFile(
+			join(tree, 'Dockerfile.bun'),
+			'FROM oven/bun:1.3.14\nCOPY . /app\nWORKDIR /app\n'
+		);
+		sh('docker', [
+			'build',
+			'-q',
+			'-f',
+			join(tree, 'Dockerfile.bun'),
+			'-t',
+			'ogygia-chunks-lab-bun:' + v,
+			tree
+		]);
+	}
+	await mkdir(join(ROOT, RAW), { recursive: true });
+	for (let round = 1; round <= rounds; round++)
+		for (const disk of Object.keys(DISKS))
+			for (const v of VARIANTS)
+				for (const mode of ['cms', 'light']) {
+					const script =
+						'sync; echo 3 > /proc/sys/vm/drop_caches; bun -e 0; bun probe.ts /app ' + mode;
+					let line: string;
+					try {
+						line = sh('docker', [
+							'run',
+							'--rm',
+							'--privileged',
+							...BOX,
+							...DISKS[disk]!,
+							'ogygia-chunks-lab-bun:' + v,
+							'sh',
+							'-c',
+							script
+						])
+							.trim()
+							.split('\n')
+							.pop()!;
+					} catch (e) {
+						line = JSON.stringify({ mode, error: String(e).slice(0, 300) });
+					}
+					const row = { round, disk, runtime: 'bun', variant: v, ...JSON.parse(line) };
+					await appendFile(join(ROOT, RAW, 'bun-' + disk + '.jsonl'), JSON.stringify(row) + '\n');
+					console.log(JSON.stringify(row));
+				}
 }
 
 if (stage === 'count') {
@@ -181,7 +236,7 @@ if (stage === 'report') {
 	type Row = Record<string, number | string> & { disk: string; variant: string; mode: string };
 	const rows: Row[] = [];
 	for (const disk of Object.keys(DISKS)) {
-		const text = await readFile(join(ROOT, 'results-raw', disk + '.jsonl'), 'utf8').catch(() => '');
+		const text = await readFile(join(ROOT, RAW, disk + '.jsonl'), 'utf8').catch(() => '');
 		for (const l of text.split('\n')) if (l) rows.push(JSON.parse(l) as Row);
 	}
 	const med = (xs: number[]): number => {
@@ -225,16 +280,31 @@ if (stage === 'report') {
 				rss_ready: med(pick(disk, v, 'cms', 'rss_ready_mb')),
 				rss_first: med(pick(disk, v, 'cms', 'rss_first_mb')),
 				rss_warm: med(pick(disk, v, 'cms', 'rss_warm_mb')),
-				errors: rows.filter((r) => r.disk === disk && r.variant === v && r.error).length
+				errors: rows.filter((r) => r.disk === disk && r.variant === v && r.error).length,
+				lazy_ready_first: med(pick(disk, v, 'lazy', 'first_done_ms')),
+				lazy_first: med(pick(disk, v, 'lazy', 'first_ms')),
+				lazy_next: med(pick(disk, v, 'lazy', 'next_pages_ms')),
+				lazy_next_new_blocks: med(pick(disk, v, 'lazy', 'next_pages_new_blocks')),
+				lazy_warm_p50: med(pick(disk, v, 'lazy', 'warm_p50_ms')),
+				lazy_warm_p95: med(pick(disk, v, 'lazy', 'warm_p95_ms')),
+				lazy_rss_first: med(pick(disk, v, 'lazy', 'rss_first_mb')),
+				lazy_rss_warm: med(pick(disk, v, 'lazy', 'rss_warm_mb'))
 			};
 			summary.push(s);
 			console.log(
-				`| ${v} | ${s.n} | ${s.registry} (p90 ${s.registry_p90}) | ${s.ready} | ${s.first} (p90 ${s.first_p90}) | ${s.ready_first} | ${s.light} | ${s.warm_p50} / ${s.warm_p95} | ${s.rss_ready} / ${s.rss_first} / ${s.rss_warm} | ${s.errors} |`
+				`| ${v} | ${s.n} | ${s.registry} (p90 ${s.registry_p90}) | ${s.ready} | ${s.first} (p90 ${s.first_p90}) | ${s.ready_first} | ${s.light} (${s.light_ready_first}) | ${s.warm_p50} / ${s.warm_p95} | ${s.rss_ready} / ${s.rss_first} / ${s.rss_warm} | ${s.errors} |`
 			);
+			if (MODES.includes('lazy'))
+				console.log(
+					`|   lazy route | | | | ${s.lazy_first} | ${s.lazy_ready_first} | next pages ${s.lazy_next} (${s.lazy_next_new_blocks} new blocks over 3) | ${s.lazy_warm_p50} / ${s.lazy_warm_p95} | - / ${s.lazy_rss_first} / ${s.lazy_rss_warm} | |`
+				);
 		}
 	}
 	await writeFile(
-		join(ROOT, 'results.json'),
+		join(
+			ROOT,
+			RAW === 'results-raw' ? 'results.json' : RAW.replace('results-raw', 'results') + '.json'
+		),
 		JSON.stringify(
 			{ date: new Date().toISOString(), box: BOX, disks: DISKS, summary },
 			null,

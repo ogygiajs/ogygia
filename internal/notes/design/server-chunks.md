@@ -315,3 +315,117 @@ LAB_VARIANTS=default,bundled node bench.ts run 3   # a subset
 
 Needs Docker with cgroup v2 (`--device-read-iops` on `/dev/vdb`, the Docker Desktop VM's data
 disk; another host may name its disk differently: `lsblk` in a container shows it).
+
+Round 2 (section 10):
+
+```bash
+LAB_VARIANTS=default,split,split-lazy node bench.ts build
+LAB_VARIANTS=default,split,split-lazy node bench.ts image
+LAB_VARIANTS=default,split,split-lazy LAB_MODES=cms,light,lazy LAB_RAW=results-raw-2 node bench.ts run 10
+LAB_VARIANTS=default,split,split-lazy LAB_MODES=cms,light,lazy LAB_RAW=results-raw-2 node bench.ts report
+LAB_VARIANTS=default,split LAB_RAW=results-raw-2 node bench.ts bun 10      # the same trees under Bun
+node repro-strict-order/repro.ts                                             # the small cases
+cd repro-strict-order/kit-app && ln -s ../../node_modules node_modules && npx vite build   # hangs
+# Vercel (scope purus-projects, previews only):
+for v in default split bundled; do LAB_ADAPTER=vercel LAB_CHUNKS=$v npx vite build && mkdir -p builds/vercel-$v/.vercel && cp -R .vercel/output builds/vercel-$v/.vercel/; done
+(cd builds/vercel-default && vercel link --yes --scope purus-projects --project ogygia-chunks-lab)   # then copy .vercel/project.json to the other two
+node bench-vercel.ts 15
+```
+
+## 10. Round 2
+
+The owner asked for four more answers. Rows are in `results-raw-2/` (gitignored). The round-2 Node
+matrix was one session: `default`, `split` and `split-lazy`, 10 rounds, both disks, 180 runs, 0
+errors. Its `default` and `split` numbers sit within about 10% of round 1's.
+
+### 10.1 A real serverless host (Vercel, Node functions)
+
+VERCEL
+
+### 10.2 Lazy per-block loading, with split
+
+**Verdict: no. At this fixture's size, lazy blocks are slower than `split`. They may win only when
+the registry graph is much bigger. Measure that on the real app before building it.**
+
+How it was built, with no compiler change:
+
+- Each block gets a one-line module, `gen/reg/Bxxx.ts`, holding its marked import
+  (`import B from '../blocks/Bxxx.svelte' with { wake: 'visible' }`).
+- A lazy registry maps names to `() => import('./gen/reg/Bxxx.ts')`.
+- `/lazy/[n]` imports only its page's blocks, in a universal `load`. That runs on the server only
+  on a `csr = false` page, so it may return components.
+- Its HTML is byte-identical to `/p/[n]`.
+- Variant `split-lazy` keeps `split`'s framework chunk and drops the registry group, so each block
+  stays its own small chunk graph. Under `split`, the same lazy route loads the whole registry chunk
+  on first use.
+
+| ms (median of 10)                                                                | default, eager | default, lazy | split, eager | split, lazy route | split-lazy, lazy route |
+| -------------------------------------------------------------------------------- | -------------- | ------------- | ------------ | ----------------- | ---------------------- |
+| cold disk: ready + first CMS request                                             | 1331           | 1100          | **242**      | **237**           | 281                    |
+| slow disk: ready + first CMS request                                             | 3377           | 2860          | **1724**     | 1769              | 1969                   |
+| first request of a page needing new blocks, cold / slow (3 pages, 21 new blocks) | n/a            | 88 / 95       | n/a          | 29 / 40           | 57 / 85                |
+| light page, ready + first, cold / slow                                           | 184 / 849      | same          | 156 / 828    | same              | 184 / 830              |
+| warm p50 / p95, cold disk                                                        | 2.5 / 51       | 2.6 / 48      | 2.5 / 50     | 2.5 / 47          | 2.6 / 47               |
+| RSS after first / warm MB                                                        | 135 / 156      | 125 / 166     | 111 / 143    | 112 / 151         | 113 / 160              |
+
+- Lazy loading helps today's chunking a little (−17% cold, −15% slow). Five to nine blocks is
+  still hundreds of files.
+- On top of `split` it costs more than it saves. One 0.65 MB registry file is cheaper to load
+  than 5 to 9 blocks' worth of small files. Every later page that needs a block not loaded yet
+  pays again: 57 to 85 ms against 29 to 40 ms when the whole registry is already in.
+- **Limit of this answer.** The fixture's registry graph is 0.65 MB. The real app's is 16.5 MB, 25
+  times bigger. Parse and evaluation grow with bytes, so at that size one registry file may cost
+  hundreds of ms where 5 to 9 blocks cost far less. The next step is to time the real app's
+  registry chunk as one file. If it costs more than about 300 ms cold, the middle shape is worth
+  measuring: lazy per block, with each block's own graph merged into one chunk per block.
+
+### 10.3 The `strictExecutionOrder` hang
+
+**Verdict: Rolldown 1.2.16 (Vite 8.3.5) with `output.strictExecutionOrder: true` deadlocks on
+import of SvelteKit 2.70.2's server output. It needs no ogygia, no code-splitting group and no
+top-level await. Not filed upstream (the owner decides).**
+
+- **Smallest repro found:** a bare SvelteKit app with one page and `adapter-node`, plus that one
+  option on the SSR environment (`repro-strict-order/kit-app/`). `vite build` stops at 0% CPU in
+  Kit's post-build analysis, which imports the server output. Bisected with env switches: the
+  option alone hangs; the code-splitting group alone, or neither, builds fine.
+- **The mechanism** (`repro-strict-order/pending-inits.ts`, which patches Rolldown's `__esmMin`
+  helper to list init wrappers that never settle):
+  - Rolldown emits 16 **async** init wrappers for Kit's server runtime, although no module in the
+    source or the output has a top-level `await`.
+  - The deepest one is `kit/src/runtime/server/utils.js`, whose body awaits nothing.
+  - Kit's server has an import cycle: `respond.js` → `page/index.js` → `load_data.js` →
+    `fetch.js` → `respond.js`.
+  - With async wrappers, `init_fetch` awaits `init_respond`'s promise while `init_respond` is
+    still awaiting its way down to `init_fetch`. Neither settles, and `server/index.js` (the
+    `Server` class) awaits `init_respond` forever. The three pending inits are exactly these.
+- **What it is not:** a 4-module cycle with a top-level await, or with a dynamic import into the
+  cycle, runs fine with the same options (`repro-strict-order/repro.ts`). So what makes Rolldown
+  mark Kit's modules async is something specific to Kit's graph. It is not narrowed further.
+- **Side finding:** with a single code-splitting group (no strict order), importing entry A also
+  runs entry B's module body. The repro's `other ran` line shows it. Merging groups runs other
+  entries' top-level code. That is harmless for a server, but it is one more reason not to merge
+  everything.
+
+### 10.4 Another runtime: Bun (for the planned Bun-on-k8s setup)
+
+The same `adapter-node` trees, run under Bun 1.3.14 (`oven/bun`) in the same containers: 0.7 CPU,
+page cache dropped, the same two disks. 10 rounds, 80 runs, 0 errors.
+
+| ms (median of 10)                    | Node default   | Node split     | Bun default    | Bun split       |
+| ------------------------------------ | -------------- | -------------- | -------------- | --------------- |
+| cold disk: ready + first CMS request | 1331           | 242            | 265            | **190**         |
+| slow disk: ready + first CMS request | 3377           | 1724           | 1818           | **707**         |
+| cold disk: light page, ready + first | 184            | 156            | 96             | 104             |
+| slow disk: light page, ready + first | 849            | 828            | 623            | 624             |
+| warm p50 / p95                       | 2.5 / 51       | 2.5 / 50       | 2.1 / 44       | 2.2 / 45        |
+| RSS ready / after first / warm MB    | 93 / 135 / 156 | 98 / 111 / 143 | 85 / 141 / 243 | 105 / 147 / 227 |
+
+- **Bun's loader is cheap per file.** Today's 978-file graph costs Bun 265 ms cold, where Node
+  takes 1331. That is Node's per-file ESM loader cost from the real app's profile, gone.
+- **`split` still helps on Bun when reads are slow:** 1818 → 707 ms (−61%). On a fast disk the gain
+  is small (265 → 190 ms).
+- **What changes:** nothing in the build. The `adapter-node` output runs on Bun as is. Warm memory
+  is higher on Bun (227 to 243 MB against 143 to 156 MB).
+- For a long-lived Bun server on k8s, cold start matters once per pod. There `split` is worth
+  having for slow volumes, and does not matter on a fast local disk.

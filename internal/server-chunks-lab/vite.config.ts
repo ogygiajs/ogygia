@@ -77,6 +77,13 @@ function server_output(variant: string): { output: Output; config?: EnvironmentO
 				},
 				config: { resolve: { noExternal: true } }
 			};
+		case 'split-lazy':
+			// split's framework chunk, and NO registry group: each block stays its own chunk graph,
+			// which the lazy registry (/lazy/[n]) imports only when a page renders that block
+			return {
+				output: { codeSplitting: { groups: [{ name: 'server', test: FRAMEWORK, priority: 2 }] } },
+				config: { resolve: { noExternal: true } }
+			};
 		default:
 			throw new Error('LAB_CHUNKS: no variant named ' + variant);
 	}
