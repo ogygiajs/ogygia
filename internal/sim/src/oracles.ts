@@ -241,6 +241,54 @@ function region_at(lines: string[], at: number): { text: string; end: number } |
 	return { text: lines.slice(at, end).join('\n'), end };
 }
 
+/**
+ * Islands of the test app that keep their own client state across a navigation by design, as a
+ * component Kit keeps across a same-route navigation does: a fresh load starts them over, so what
+ * they show is set aside (their subtree's attributes and text; the element itself stays). Each says
+ * why. A new entry needs the same: state the island owns, not state ogygia should have carried.
+ */
+const OWN_STATE = [
+	// palaestra lib/FilterBar.svelte reads `location` once, at hydration, then only its own clicks
+	// (seed 286: kept across /dashboard/orders?status=… navigations, it shows the first status)
+	'data-filterbar'
+];
+
+/** `s` with each OWN_STATE element's subtree reduced to its opening line. */
+function own_state_out(s: string): string {
+	const lines = s.split('\n');
+	const out: string[] = [];
+	for (let i = 0; i < lines.length; i++) {
+		out.push(lines[i]);
+		const m = /^( *)<\S+/.exec(lines[i]);
+		if (m === null || !OWN_STATE.some((a) => lines[i].includes(` ${a}=`))) continue;
+		while (i + 1 < lines.length && /^ */.exec(lines[i + 1])![0].length > m[1].length) i++;
+	}
+	return out.join('\n');
+}
+
+/** How long the MPA check looks again for text that moves by itself. */
+const LIVE_LOOK_MS = 2_000;
+
+/** The text lines of a normalized DOM that changed between two looks at the same page (none when
+ *  its shape changed: then nothing is masked, and the difference stands). */
+function live_lines(before: string, after: string): number[] {
+	const [a, b] = [before.split('\n'), after.split('\n')];
+	if (a.length !== b.length) return [];
+	const out: number[] = [];
+	for (let i = 0; i < a.length; i++)
+		if (a[i] !== b[i] && /^ *"/.test(a[i]) && /^ *"/.test(b[i])) out.push(i);
+	return out;
+}
+
+/** `s` with its text lines at `lines` replaced by a mark (indent kept). */
+function mask(s: string, lines: ReadonlySet<number>): string {
+	if (lines.size === 0) return s;
+	return s
+		.split('\n')
+		.map((l, i) => (lines.has(i) && /^ *"/.test(l) ? `${/^ */.exec(l)![0]}"<live>"` : l))
+		.join('\n');
+}
+
 /** A normalized DOM's kit-island stamps. */
 function kit_stamps(s: string): string {
 	return head_blocks(s)
@@ -292,7 +340,7 @@ export async function mpa_equivalent(
 ): Promise<Broken | null> {
 	const url = tab.page.mainFrame.url;
 	if (!url.startsWith('http')) return null;
-	const shown = view(tab.page.mainFrame.document as unknown as Document);
+	let shown = view(tab.page.mainFrame.document as unknown as Document);
 	const fresh_visitor = world.visitor(`${v.name}-fresh`);
 	const jar = (b: Visitor) =>
 		(
@@ -309,7 +357,17 @@ export async function mpa_equivalent(
 	world.network.calm(fresh.name);
 	const path = new URL(url);
 	await world.go(fresh, 'goto', path.pathname + path.search + path.hash);
-	const again = view(fresh.page.mainFrame.document as unknown as Document);
+	const loaded = view(fresh.page.mainFrame.document as unknown as Document);
+	// (a text that changes on its own at rest is time, not state: a ticking clock in an island the
+	// navigation kept has run longer than the fresh load's. Each side is looked at once more a
+	// moment later, and a text line that moved by itself is masked on both: seed 289)
+	await world.loop.run(LIVE_LOOK_MS);
+	const live = new Set([
+		...live_lines(shown, view(tab.page.mainFrame.document as unknown as Document)),
+		...live_lines(loaded, view(fresh.page.mainFrame.document as unknown as Document))
+	]);
+	const again = own_state_out(mask(loaded, live));
+	shown = own_state_out(mask(shown, live));
 	const said = [...fresh.errors, ...fresh.console];
 	await world.browsers.close(fresh_visitor, fresh);
 	const diff = first_difference(shown, again);
