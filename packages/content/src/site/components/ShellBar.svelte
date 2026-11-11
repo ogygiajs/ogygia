@@ -1,14 +1,12 @@
+<!--
+@component
+The docs shell's mobile chrome, one island (the sheet's open state cannot bind across islands, and
+the nav arrives as data). A bottom bar with search, theme and menu over one sheet with two views:
+search opens the search view, menu the nav view (the contents tree and the footer actions).
+Switching while open keeps the sheet open: the views crossfade and the height glides between them,
+both skipped under reduced motion.
+-->
 <script lang="ts">
-	/**
-	 * Shell's mobile chrome — ONE island (open state can't bind across island boundaries, and
-	 * `site.nav()` can't run client-side, so the nav arrives as serialized data). A bottom bar with
-	 * search / theme / menu over ONE sheet with two dedicated VIEWS: the search button opens it on
-	 * the SEARCH view (just the inline brick — full focus, nothing else competing), the menu button
-	 * on the NAV view (segmented Contents ↔ On-this-page + the footer actions). Switching while open
-	 * does NOT close/reopen: the views CROSSFADE and the sheet's height glides between them (both
-	 * skipped under prefers-reduced-motion). Headings are read from the rendered page's DOM (the
-	 * shell has no access to the current doc's `meta.headings`, but the DOM does).
-	 */
 	import { onDestroy, tick } from 'svelte';
 	import { scope, type Scope } from '@ogygia/machine';
 	import { fade } from 'svelte/transition';
@@ -42,21 +40,19 @@
 	let open = $state(false);
 	let view = $state<'nav' | 'search'>('nav');
 	let swap_el = $state<HTMLElement | undefined>();
-	/** The bar's own work in the page (a view switch's frames and glide): let go when it unmounts. */
+	// @why a view switch's frames and glide belong to the bar: they end when it unmounts (test: test/browser/shell-bar.test.ts › lets go of a switch in flight when it unmounts)
 	const owner = scope();
 	onDestroy(() => owner.close());
-	/** The view switch gliding now, if one is. */
 	let glide: Scope | null = null;
 
 	const reduced = () =>
 		typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-	/** Switch views without a height JUMP: pin the swap wrapper at its current height, let the new
-	 *  view render, then glide to the new height and release back to auto. Crossfade is the `{#key}`
-	 *  fade pair below; both collapse to an instant swap under prefers-reduced-motion. */
+	// @why pin the old height, render the new view, glide to its height, then back to auto: no jump (test: test/browser/shell-bar.test.ts › holds the height through a glide, then lets go when it ends)
 	async function set_view(v: 'nav' | 'search') {
 		if (view === v) return;
 		const el = swap_el;
+		// @why reduced motion: an instant swap (test: test/browser/shell-bar.test.ts › swaps at once under reduced motion: no height is pinned)
 		if (!open || !el || reduced()) {
 			view = v;
 			return;
@@ -66,19 +62,15 @@
 		await tick();
 		const target = el.lastElementChild as HTMLElement | null;
 		const h1 = target?.offsetHeight ?? h0;
-		// one glide at a time: a new switch ends the last one's, and so does the unmount
 		glide?.close();
 		const g = (glide = owner.child());
 		el.style.height = `${h0}px`;
-		// (however the glide ends: back to auto)
 		g.defer(() => (el.style.height = ''));
-		// Two frames: the first commits the pinned height, the second starts the glide.
 		g.timeout(
 			() =>
 				g.timeout(() => {
 					el.style.height = `${h1}px`;
-					// the glide the new height started, if one did: none when the heights match or the
-					// skin has no height transition, and then there is nothing to wait for
+					// @why no glide when the heights match or the skin has no height transition: nothing will end it (test: test/browser/shell-bar.test.ts › lets go of the pinned height when no glide runs)
 					const glided = el
 						.getAnimations?.()
 						.find(
