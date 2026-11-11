@@ -61,8 +61,6 @@ function repl_ctx(macros: ReplMacros): CompileCtx {
 		router_view_transitions: true,
 		runtime_dir: '/node_modules/ogygia/dist/runtime',
 		runtime_hash: 'repl',
-		hmac_module: 'ogygia/internal/server',
-		region_endpoint_module: 'ogygia/internal/server',
 		client_binding_stub_file: '/node_modules/ogygia/dist/runtime/client-binding-stub.js',
 		app_shims: {},
 		is_build: false,
@@ -81,7 +79,7 @@ function base_name(p: string | null | undefined): string {
 }
 
 /** Read the REAL generated manifest modules off an SSR-leg Compiler — the exact source `emit()` produces
- *  for each `virtual:ogygia/*` manifest, the same modules a real build ships. Each `emit` is wrapped so a
+ *  for each `ogygia:*` manifest, the same modules a real build ships. Each `emit` is wrapped so a
  *  node-only branch (should any remain) degrades to an empty string instead of failing the whole analyze. */
 function extract_manifests(compiler: Compiler): DriverManifests {
 	const c = compiler as unknown as { emit: (id: string, o: unknown) => string | null };
@@ -193,7 +191,7 @@ export interface DriverRegion {
 	lakes: string[];
 	/** The scheduling kind the linker recorded. */
 	kind: 'hydrate' | 'defer' | 'lake' | null;
-	/** The generated virtual module path (`virtual:ogygia/island|region/<id>.js`). */
+	/** The generated virtual module path (`ogygia:region/entry|binding/<id>.js`). */
 	vpath: string;
 	/** The generated SSR + client leg sources (the "generated modules" panel). */
 	ssrSource?: string;
@@ -207,15 +205,15 @@ export interface DriverRegion {
 /** The REAL generated manifest modules — the exact source a build emits for each. Empty string when a
  *  manifest is a no-op (no transportables, no fn refs, …). */
 export interface DriverManifests {
-	/** `virtual:ogygia/transportables` — eager `__register_transportable(tag, Cls)` calls per class. */
+	/** `ogygia:region/transportables` — eager `__register_transportable(tag, Cls)` calls per class. */
 	transportables: string;
-	/** `virtual:ogygia/transport` — the devalue transport codec map (+ app `transport` hooks). */
+	/** `ogygia:region/transport` — the devalue transport codec map (+ app `transport` hooks). */
 	transport: string;
-	/** `virtual:ogygia/fn-manifest` — the `import.meta.og.$` factory registrations (pre-hydration). */
+	/** `ogygia:boot/fn-manifest` — the `import.meta.og.$` factory registrations (pre-hydration). */
 	fnManifest: string;
-	/** `virtual:ogygia/server-manifest` — region id → kind/endpoint, populated in dev + build. */
+	/** `ogygia:server/server-manifest` — region id → kind/endpoint, populated in dev + build. */
 	serverManifest: string;
-	/** `virtual:ogygia/runtime-entry` — the feature-selected runtime entry the app's islands boot from. */
+	/** `ogygia:boot/runtime-entry` — the feature-selected runtime entry the app's islands boot from. */
 	runtimeEntry: string;
 }
 
@@ -244,7 +242,7 @@ export interface DriverCodecs {
 }
 
 export interface DriverResult {
-	/** The transformed host — the SSR leg (islands wrapped, `virtual:ogygia/region/*`). */
+	/** The transformed host — the SSR leg (islands wrapped, `ogygia:region/binding/*`). */
 	ssr: string | null;
 	/** The transformed host — the CLIENT leg (ssr=false: `$app/*`→shim, stubs not wrappers). */
 	client: string | null;

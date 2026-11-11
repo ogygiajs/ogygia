@@ -22,6 +22,7 @@ import type { RequestEvent } from '@sveltejs/kit';
 import * as devalue from 'devalue';
 import { flights, type Scope } from '@ogygia/machine';
 import { request_local } from '../plugin/request-scope.ts';
+import { open_reads } from '../plugin/reads.ts';
 import { islands_endpoint } from './endpoint.ts';
 import type { KitPage } from './kit-context.ts';
 import type { PageSnapshot } from '../page-seed-registry.ts';
@@ -29,7 +30,7 @@ import { look_up_page, type PageFacts } from './page-facts.ts';
 import { merge_seed_ask, shape_page_data, type SeedAsk, type SeedKeys } from './seed-shape.ts';
 import { PAGE_FACTS_SCRIPT_TYPE } from '../page-facts-script.ts';
 import { line } from '../messages/server.ts';
-import { bucket32 } from '../runtime/hash.ts';
+import { bucket32 } from '../contract/hash.ts';
 
 type Transport = Record<
 	string,
@@ -136,12 +137,17 @@ export function render_page(
 	if (event && renders_for_a_page(event)) {
 		// FOR A PAGE: the Referer's page — its looked-up facts, else its url alone
 		const facts = facts_of(event.request);
+		const data = facts && warn ? watched_data(facts, warn) : (facts?.data ?? {});
 		return {
 			url: facts?.url ?? page_url_of(event),
 			params: facts?.params ?? {},
 			route: facts?.route ?? { id: null },
 			status: 200,
-			data: facts && warn ? watched_data(facts, warn) : (facts?.data ?? {}),
+			// (one page's data: a read of it is in the render's read set, plugin/reads.ts)
+			get data() {
+				if (facts) open_reads()?.page();
+				return data;
+			},
 			form: null,
 			error: null,
 			state: {}
