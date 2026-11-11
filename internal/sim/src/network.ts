@@ -98,7 +98,8 @@ export class Network {
 			return;
 		}
 		this.#offline.add(realm);
-		for (const [ex, fail] of [...this.#on_wire])
+		// (a Map deletes as it is walked: an entry gone is not visited)
+		for (const [ex, fail] of this.#on_wire)
 			if (ex.from === realm || ex.from.split('#')[0] === realm) {
 				this.#on_wire.delete(ex);
 				fail('offline');
