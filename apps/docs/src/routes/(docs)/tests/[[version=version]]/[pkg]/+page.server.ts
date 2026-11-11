@@ -36,6 +36,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		name,
 		slug: params.pkg,
 		pkg: s.packages[name],
-		rows: rows(report.tests)
+		ratioDefinition: s.totals.ratioDefinition,
+		rows: rows(report)
 	};
 };

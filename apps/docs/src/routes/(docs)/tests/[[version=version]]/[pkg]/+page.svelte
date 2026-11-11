@@ -66,6 +66,8 @@
 			<span class="what"
 				>lines of test for each line of source ({count(p.testLines)} to {count(p.srcLines)})</span
 			>
+			{#if data.ratioDefinition}<span class="how-counted">Counted as {data.ratioDefinition}.</span
+				>{/if}
 		</div>
 		<div class="stat">
 			<span class="n">{p.coverage.lines.toFixed(1)}%</span>
@@ -91,6 +93,11 @@
 		<li>
 			<span class="n">{percent(p.coverage.functions)}</span><span class="what">Functions</span>
 		</li>
+		{#if p.coverage.statements !== undefined}
+			<li>
+				<span class="n">{percent(p.coverage.statements)}</span><span class="what">Statements</span>
+			</li>
+		{/if}
 	</ul>
 
 	{#if failures.length}

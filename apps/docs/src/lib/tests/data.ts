@@ -35,21 +35,31 @@ export type Summary = {
 		srcLines: number;
 		testLines: number;
 		ratio: number;
+		/** What `ratio` counts, in the report's words. */
+		ratioDefinition?: string;
 		coverage: Coverage & { statements: number };
 	};
 	packages: Record<string, PackageSummary>;
 };
 
-export type TestCase = {
-	file: string;
-	name: string;
-	kind: Kind;
-	results: Partial<Record<Engine, Result>>;
-	issue?: number | string;
-};
+/**
+ * One test run: `[file index, name, kind, results, issue?]`. `results` has one letter per
+ * `where` entry: `p` pass, `f` fail, `s` skip, `-` not run there.
+ */
+export type TestEntry = [
+	file: number,
+	name: string,
+	kind: Kind,
+	results: string,
+	issue?: number | string
+];
 
 export type PackageReport = {
-	tests: TestCase[];
+	format: 1;
+	where: Engine[];
+	files: string[];
+	tests: TestEntry[];
+	coverage: Coverage;
 };
 
 export const KINDS: { id: Kind; label: string }[] = [
@@ -85,6 +95,8 @@ export const slug_of = (name: string) => name.replace(/^@ogygia\//, '');
 /** The report file for a package: `@ogygia/core` is `ogygia-core.json`. */
 export const file_of = (name: string) => `${name.replace(/^@/, '').replace('/', '-')}.json`;
 
+const RESULT: Record<string, Result | undefined> = { p: 'pass', f: 'fail', s: 'skip' };
+
 /**
  * One row per test: a test that runs in Node and in the browsers is one entry per run in the
  * report, and one row here with a result in each engine.
@@ -97,24 +109,25 @@ export type Row = {
 	issue?: number | string;
 };
 
-export function rows(tests: TestCase[]): Row[] {
+export function rows(report: PackageReport): Row[] {
+	if (report.format !== 1) throw new Error(`Unknown test report format: ${report.format}`);
 	const out = new Map<string, Row>();
-	for (const t of tests) {
-		const key = `${t.file}\0${t.name}`;
+	for (const [file_index, name, kind, letters, issue] of report.tests) {
+		const file = report.files[file_index];
+		const results: Row['results'] = {};
+		for (const [i, where] of report.where.entries()) {
+			const r = RESULT[letters[i]];
+			if (r) results[where] = r;
+		}
+		const key = `${file}\0${name}`;
 		const row = out.get(key);
 		if (!row) {
-			out.set(key, {
-				file: t.file,
-				name: t.name,
-				kinds: [t.kind],
-				results: { ...t.results },
-				issue: t.issue
-			});
+			out.set(key, { file, name, kinds: [kind], results, issue });
 			continue;
 		}
-		if (!row.kinds.includes(t.kind)) row.kinds.push(t.kind);
-		Object.assign(row.results, t.results);
-		row.issue ??= t.issue;
+		if (!row.kinds.includes(kind)) row.kinds.push(kind);
+		Object.assign(row.results, results);
+		row.issue ??= issue;
 	}
 	return [...out.values()];
 }
