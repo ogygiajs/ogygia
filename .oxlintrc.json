@@ -28,7 +28,8 @@
 				"packages/tsdown-plugin-svelte/src/**",
 				"packages/*/src/vite/**",
 				"packages/*/src/compiler/**",
-				"packages/devtools/src/**"
+				"packages/devtools/src/**",
+				"packages/core/src/runtime/beacon.ts"
 			],
 			"rules": { "ogygia/ports": "off" }
 		}
