@@ -1112,11 +1112,13 @@ class OgygiaRegion extends HTMLElement {
 	 * Bind to the store at `endpoint`'s address: this region applies whatever frame lands there (#apply)
 	 * — from its own fetch, a twin's, a navigation batch stream, or a mutation. subscribe() replays
 	 * current content immediately, so a late-mounting twin catches up free. A re-minted endpoint (new
-	 * props, new page facts) moves the binding to its new address. Returns the address.
+	 * props, new page facts) moves the binding to its new address, and a fetch out at the old one is
+	 * left: its answer is for a call this hole no longer is. Returns the address.
 	 */
 	#bind(endpoint: string): string {
 		const address = frameAddress(endpoint);
 		if (this.#bound() && this.#frame_address === address) return address;
+		if (this.#hole.now.kind === 'fetching') this.#hole.go('idle');
 		// (one binding at a time, for the element's lifetime in the page: its end unbinds)
 		this.#binding?.close();
 		const binding = (this.#binding = this.#life.child());
@@ -1374,13 +1376,16 @@ class OgygiaRegion extends HTMLElement {
 	 */
 	async #fetch_html(turn: Turn, revalidate = false): Promise<void> {
 		if (!FRAMES) return;
-		const s = this.#hole.now;
 		// A revalidate re-fetches even after the first answer; a plain fetch is one-shot.
-		if (s.kind === 'fetching' || (!revalidate && this.#answer.now.kind !== 'none')) return;
+		if (!revalidate && this.#answer.now.kind !== 'none') return;
 		const endpoint = this.#endpoint();
 		// Don't start a fetch without an endpoint (would block a later remount retry on the same
 		// element if one were ever scheduled).
 		if (!endpoint) return;
+		// (a fetch out at this address already does this; one out at an older address — a re-minted
+		// hole — is left as it binds the new one, below)
+		if (this.#hole.now.kind === 'fetching' && frameAddress(endpoint) === this.#frame_address)
+			return;
 		// HOLE-TRUST defense-in-depth: mint emits path-only; reject absolute/cross-origin attrs.
 		if (!is_allowed_region_endpoint(endpoint)) {
 			if (import.meta.env.DEV) {
@@ -1394,6 +1399,7 @@ class OgygiaRegion extends HTMLElement {
 		// Bind if we haven't (SWR/lake remount reaches #fetch_html without going through #server);
 		// a re-minted hole (a refreshed region: new props, new page facts) answers at its NEW address.
 		const address = this.#bind(endpoint);
+		const s = this.#hole.now;
 		const attempts = s.kind === 'armed' || s.kind === 'retrying' ? s.attempts : 0;
 		this.#hole.go('fetching', { attempts, revalidate });
 		const mine = this.#hole.now;
