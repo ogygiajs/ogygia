@@ -30,8 +30,8 @@ function makeCtx(overrides: Partial<HostCtx> = {}): HostCtx {
 		readFile: () => null,
 		pathModule: path,
 		dev: false,
-		virtualPathFor: (_hostId: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
-		wrapperPathFor: (_hostId: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
+		virtualPathFor: (_hostId: string, iid: string) => `ogygia:region/entry/${iid}.js`,
+		wrapperPathFor: (_hostId: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
 		devUrlFor: (p: string) => '/@id/' + p,
 		visibleMargin: '0px',
 		presets: {},
@@ -69,11 +69,11 @@ describe('transformHost — held region in .svelte (region: raw)', () => {
 		expect(isl.kind).toBe('hydrate');
 		expect(isl.held).toBe(true);
 		expect(isl.bindingPath).toBe(regionBindingVirtualId(iid));
-		expect(String(isl.bindingSsrSource)).toContain('makeRegionEndpoint');
+		expect(String(isl.bindingSsrSource)).toContain('make_region_endpoint');
 		// region:'raw' bakes NO schedule — the descriptor carries a chunk but no __hydrate.
 		expect(String(isl.bindingSsrSource)).not.toContain('__hydrate');
 		expect(String(isl.bindingSsrSource)).not.toContain('__module: ""');
-		expect(String(isl.bindingClientSource)).not.toContain('makeRegionEndpoint');
+		expect(String(isl.bindingClientSource)).not.toContain('make_region_endpoint');
 		// host import now points at the leg-split binding module, attribute stripped
 		expect(r!.code).toContain(`import Card from "${regionBindingVirtualId(iid)}"`);
 		expect(r!.code).not.toContain('with {');
@@ -189,7 +189,7 @@ export const f = region(C, {});`;
 			// HOLDABLE: region() still reads the baked schedule + component + signer off the binding.
 			expect(String(isl.bindingSsrSource)).toContain(`__hydrate: ${JSON.stringify(hydrate)}`);
 			expect(String(isl.bindingSsrSource)).toContain('__component');
-			expect(String(isl.bindingSsrSource)).toContain('makeRegionEndpoint');
+			expect(String(isl.bindingSsrSource)).toContain('make_region_endpoint');
 			// Distinct schedules mint distinct ids; a `wake:` id differs from a raw descriptor.
 			expect(isl.id).toBe(heldId('src/lib/C.svelte', hydrate));
 			expect(isl.id).not.toBe(heldId('src/lib/C.svelte'));
@@ -233,7 +233,7 @@ export const page = D;`;
 		expect(String(isl.wrapperSource)).toContain('OgygiaRegion__Wrapper __mode="server"');
 		expect(String(isl.wrapperSource)).toContain('ogygiaFallback');
 		// placed as `<D/>` the wrapper must emit the hole — so the import points at the wrapper, not a binding
-		expect(r!.code).toContain('virtual:ogygia/wrapper/');
+		expect(r!.code).toContain('ogygia:region/wrapper/');
 	});
 
 	test('render: deferred takes `fetch` as its timing (+ margin on visible)', () => {
