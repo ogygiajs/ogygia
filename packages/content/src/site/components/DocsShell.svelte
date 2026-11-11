@@ -1,35 +1,35 @@
+<!--
+@component
+The docs shell: a composition of the site's public bricks. Desktop: a top header (brand, links,
+search, theme) over a left sidebar and the content (`Doc` brings its own on-this-page rail). Mobile:
+a bottom bar and a slide-up sheet, one island (`ShellBar`).
+
+Every region is a snippet prop. Absent, the built-in renders; a snippet renders instead; passed
+nullish (`header={null}`, or a value that came out `undefined`), the region is gone. The regions
+nest: replace the whole `header`, or keep it and replace its `brand`, `nav` or `tools`.
+
+Styling is opt-in: the shell ships structure and `.og-*` classes, and imports no CSS. For the stock
+look, import the two stylesheets once (in the root layout); for your own, style the classes.
+
+```svelte
+<script>
+	import '@ogygia/content/theme.css';
+	import '@ogygia/content/shell.css';
+</script>
+
+<DocsShell {site}>{@render children()}</DocsShell>
+```
+-->
 <script lang="ts">
-	/**
-	 * DocsShell — the batteries-included DOCS shell: the VitePress FORM of the site layer. Not a new skin (theme.css owns the
-	 * design language); an opinionated COMPOSITION of the same public bricks. Desktop: top header
-	 * (brand, links, search, theme) + left sidebar + content (Doc brings its own on-this-page rail).
-	 * Mobile: a bottom bar + slide-up sheet (bottom-first by default), all in one island (`ShellBar`).
-	 *
-	 * Styling is OPT-IN — DocsShell ships STRUCTURE + `.og-*` hooks and imports NO CSS. Want the stock
-	 * look? Import the two stylesheets once (e.g. in your root layout); want your own? Don't, and style
-	 * the `.og-*` classes yourself. You only pay for the CSS you ask for.
-	 *   import '@ogygia/content/theme.css';    // the design language (tokens + element styles)
-	 *   import '@ogygia/content/shell.css';  // this shell's layout (header + sidebar + content grid)
-	 *   <DocsShell {site}>{@render children()}</DocsShell>
-	 */
 	import { page } from '$app/state';
 	import { script } from '@ogygia/core';
 	import { set_shell_context } from '../context.ts';
 	import { mountBase, type Site, type SiteMeta } from '../site.ts';
-	// KEPT island: the live sidebar (DOM + mounted app) rides the body-swap across nav instead of
-	// re-rendering, so its active-marker element persists and can GLIDE to the new row. `nav`/`base` are
-	// plain serializable data, so they cross the island boundary cleanly.
+	// @why kept, the sidebar is one element across navigations, so its active chip glides (test: apps/docs/e2e/sidebar-keep.spec.ts › the sidebar is the same element after a navigation to another section, with the new tree)
 	import Sidebar from './Sidebar.svelte' with { wake: 'load', keep: 'og-sidebar' };
-	// The desktop header is SSR-only on csr=false — these must be islands to come alive. Switcher is a
-	// Bits UI DropdownMenu (needs JS); it re-hydrates per nav so the picker stays live after a body-swap.
 	import Switcher from './Switcher.svelte' with { wake: 'load' };
-	// Search's ⌘K palette hydrates when idle.
 	import Search from './Search.svelte' with { wake: 'idle' };
-	// Island so the theme click re-wires after every SPA nav (a one-shot script would go stale).
 	import ThemeToggle from './ThemeToggle.svelte' with { wake: 'load' };
-	// TODO(keep): persisting this across nav (`keep: 'og-shell-bar'`) fixes the benign
-	// `hydration_html_changed` warning, but its relocation currently throws a HierarchyRequestError on
-	// hydrate — the Sheet backdrop + portable `actions` snippet aren't keep-safe yet. Left re-hydrating.
 	import ShellBar from './ShellBar.svelte' with { wake: 'load' };
 	import type { NavTree } from '../types.ts';
 	import type { Snippet } from 'svelte';
@@ -52,12 +52,6 @@
 		/** Where the brand/logo links. Defaults to `base` (the docs root); set `home="/"` for a site
 		 *  with a separate marketing home. */
 		home?: string;
-		/** ONE pattern, all the way down: every region the Shell renders is a conditional snippet prop —
-		 *  pick and choose the Shell's features. Absent → the built-in renders. A snippet → yours
-		 *  renders instead. Passed NULLISH (`header={null}`, or a computed value that came out
-		 *  undefined) → the region is GONE. The regions nest — replace the whole `header`, or keep it
-		 *  and replace just its `brand`, `nav`, or `tools` — and each default bottoms out at
-		 *  composable public bricks. */
 		/** The skip-to-content link (first tab stop). Default: "Skip to content" → `#og-main`. */
 		skip?: Snippet | null;
 		/** The whole top header. Nullish → NO header, and the Shell shifts to the panel-chrome form:
@@ -91,11 +85,8 @@
 	// svelte-ignore state_referenced_locally
 	const { site, meta, title = 'Docs', links = [], base, home, side, actions, children } = props;
 
-	/** Three-state region resolution: the prop ABSENT → `undefined` (built-in renders); the prop
-	 *  passed but NULLISH → `null` (region gone — `header={null}` and a computed `undefined` both
-	 *  count, so callers never need a sentinel dance); a snippet → itself. Presence is detected with
-	 *  `in`, which is what lets passed-nullish differ from absent. */
 	function slot<K extends keyof ShellProps>(key: K): NonNullable<ShellProps[K]> | null | undefined {
+		// @why a region passed as undefined is gone, like null; only an absent one renders the built-in (test: test/docs-shell.test.ts › drops the header when the prop is passed as undefined, as it does for null)
 		if (!(key in props)) return undefined;
 		return (props[key] ?? null) as NonNullable<ShellProps[K]> | null;
 	}
@@ -109,18 +100,13 @@
 
 	// svelte-ignore state_referenced_locally
 	const the_base = base ?? mountBase(page.url, page.params.slug ?? '');
-	// Where the brand links (defaults to the docs root); `home="/"` points it at a marketing home.
 	const the_home = home ?? the_base;
 	// svelte-ignore state_referenced_locally
 	set_shell_context({ site, base: the_base, components: site?.components, title });
 
 	// svelte-ignore state_referenced_locally
 	const current_slug = page.params.slug ?? '';
-	// One nav computation shared by the desktop sidebar and the mobile island (as data). Use the
-	// pre-computed `meta` bundle when given (leak-free); else compute from the live `site`.
-	// On a `dimensions()` site the slug selects the coordinate's tree; ignored on a plain site.
 	const tree: NavTree = meta ? meta.nav : await site!.nav({ base: the_base, slug: current_slug });
-	// The version/locale switcher (plain data → native links; `null` on a non-dimensioned site).
 	const switcher = meta
 		? meta.switcher
 		: site
@@ -134,7 +120,7 @@
 			var t = localStorage.getItem(k);
 			if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
 		} catch (e) {
-			/* private */
+			// ok: no storage (a private window); the page keeps its default theme
 		}
 	}, 'og-theme')}
 </svelte:head>
