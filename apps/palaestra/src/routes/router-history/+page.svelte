@@ -11,3 +11,4 @@
 <h1 data-history-a>Router history A</h1>
 <p><a href="/router-history/b" data-to-b>to B</a></p>
 <p><a href="/router-history/fragments" data-to-fragments>to the fragments page</a></p>
+<p><a href="/router-history/late" data-to-late>to the page with a late-sized top</a></p>
