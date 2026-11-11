@@ -68,6 +68,7 @@
 		"@typescript/native": "catalog:tsgo",
 		"@vitest/browser": "catalog:",
 		"@vitest/browser-playwright": "catalog:",
+		"svelte": "catalog:",
 		"tsdown": "catalog:",
 		"typescript": "catalog:",
 		"vitest": "catalog:"
