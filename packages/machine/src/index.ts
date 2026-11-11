@@ -26,7 +26,8 @@ export {
 	type KeyedFlights,
 	type KeyedFlightsOptions,
 	type GetArgs,
-	type GetOptions
+	type GetOptions,
+	type InFlight
 } from './flights.ts';
 export {
 	scope,

@@ -550,7 +550,8 @@ const MESSAGE_WHY =
 	'A `@why` is one line, `// @why <fact> (test: <file> › <name>)`, directly above the statement it explains, and names a test that exists (the file, from the package or the repository root, holds the name).';
 
 /** The start of every node whose JSDoc feeds an export's hover: exported declarations and the
- *  members of exported classes, types and object constants, and everything in an ambient block. */
+ *  members of exported classes, types and object constants, everything in an ambient block, and a
+ *  component's props type (the type of its `$props()`) with its members. */
 function documentable(program: Node): Set<number> {
 	const starts = new Set<number>();
 	const named = new Set<string>();
@@ -575,6 +576,18 @@ function documentable(program: Node): Set<number> {
 			if (v && typeof v === 'object') walk(v, all);
 		}
 	};
+	for (const s of program.body as Node[])
+		if (s.type === 'VariableDeclaration')
+			for (const d of s.declarations as Node[]) {
+				const init = d.init as Node | null;
+				if (init?.type !== 'CallExpression') continue;
+				if ((init.callee as { name?: string }).name !== '$props') continue;
+				const type = (d.id as { typeAnnotation?: { typeAnnotation?: Node } }).typeAnnotation
+					?.typeAnnotation;
+				if (type?.type === 'TSTypeReference')
+					named.add((type.typeName as { name?: string }).name ?? '');
+				else if (type) walk(type, false);
+			}
 	const declared_name = (d: Node): string | undefined =>
 		(d.id as { name?: string } | undefined)?.name ??
 		((d.declarations as Node[] | undefined)?.[0]?.id as { name?: string } | undefined)?.name;
@@ -643,8 +656,9 @@ function why_test_exists(file: string, test: string, test_name: string): boolean
 
 /**
  * `ogygia/structured-comments` (#512): in `packages/<pkg>/src`, a comment is one of three shapes:
- * JSDoc on an export (or on a member of an exported class, type or object constant, or a
- * `@packageDocumentation` block before any code), a tool directive (`oxlint-disable…` and
+ * JSDoc on an export (or on a member of an exported class, type or object constant, on a
+ * component's props type and its members, or a `@packageDocumentation` block before any code), a
+ * tool directive (`oxlint-disable…` and
  * `@ts-expect-error` with ` -- <reason>`; `svelte-ignore`, `@__PURE__`, `@vite-ignore`, formatter
  * ignores, `/// <reference>` as they are; a JSDoc that is only `@type {…}` or `@satisfies {…}`), or
  * a one-line `// @why <fact> (test: <file> › <name>)` directly above its statement, whose test
