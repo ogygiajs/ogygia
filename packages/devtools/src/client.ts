@@ -10,6 +10,7 @@ import { install_devtools_ui } from './devtools/ui.ts';
 import { install_beacon } from './profiler/beacon.ts';
 import { standalone_beacon } from './profiler/beacon-standalone.ts';
 import { realm_boot, realm_hook } from './realm.ts';
+import { start_page_beacon } from './page-beacon-start.ts';
 
 const BEACON_KEY = Symbol.for('ogygia.beacon');
 const LAZY = typeof __OGYGIA_DEVTOOLS_LAZY__ !== 'undefined' ? __OGYGIA_DEVTOOLS_LAZY__ : false;
@@ -27,14 +28,10 @@ const client: ClientPlugin = defineClient({
 		});
 		// @why a build's dock measures a switched-on browser, and an app without ogygia's handle gets no beacon tag; a lazy chunk, so other builds pay nothing (test: e2e/dock-switch.spec.ts › the page beacon in a build)
 		if (LAZY && devtools_switched_on() && !(globalThis as Record<symbol, unknown>)[BEACON_KEY])
-			import('./profiler/beacon-standalone.ts').then(
-				(m) => {
-					m.standalone_beacon();
-					// (the regions' half joins the beacon now that there is one)
-					install_beacon(true);
-				},
-				() => {}
-			); // ok: this page goes unmeasured; the next page load asks again
+			void start_page_beacon().then((started) => {
+				// (the regions' half joins the beacon now that there is one)
+				if (started) install_beacon(true);
+			}); // ok: it never rejects (a failed download is warned inside)
 	},
 	hooks: {
 		regionMount: (e) => realm_hook('regionMount', e),
