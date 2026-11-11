@@ -212,6 +212,9 @@ catalogs:
     '@vitest/browser-webdriverio':
       specifier: 4.1.12
       version: 4.1.12
+    '@vitest/coverage-v8':
+      specifier: 4.1.12
+      version: 4.1.12
     axe-core:
       specifier: ^4.13.0
       version: 4.13.0
@@ -338,6 +341,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.2
+      '@vitest/coverage-v8':
+        specifier: 'catalog:'
+        version: 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
       axe-core:
         specifier: 'catalog:'
         version: 4.13.0
@@ -478,6 +484,9 @@ importers:
       '@fontsource-variable/jetbrains-mono':
         specifier: ^5.3.0
         version: 5.3.0
+      '@ogygia/barrels':
+        specifier: workspace:*
+        version: link:../../packages/barrels
       '@ogygia/cli':
         specifier: workspace:*
         version: link:../../packages/cli
@@ -502,6 +511,9 @@ importers:
       '@ogygia/postrender':
         specifier: workspace:*
         version: link:../../packages/postrender
+      '@ogygia/reshape':
+        specifier: workspace:*
+        version: link:../../packages/reshape
       '@ogygia/router':
         specifier: workspace:*
         version: link:../../packages/router
@@ -568,6 +580,9 @@ importers:
 
   apps/palaestra:
     dependencies:
+      '@ogygia/barrels':
+        specifier: workspace:*
+        version: link:../../packages/barrels
       '@rolldown/browser':
         specifier: 'catalog:'
         version: 1.2.2
@@ -753,7 +768,7 @@ importers:
         version: 12.0.0(@types/node@26.1.2)(rollup@4.62.4)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
   examples/mfe/cms:
     dependencies:
@@ -794,6 +809,9 @@ importers:
 
   examples/mfe/contracts:
     dependencies:
+      '@ogygia/federation':
+        specifier: workspace:*
+        version: link:../../../packages/federation
       '@ogygia/flags':
         specifier: workspace:*
         version: link:../../../packages/flags
@@ -951,6 +969,43 @@ importers:
 
   internal/repro-subpkg: {}
 
+  packages/barrels:
+    dependencies:
+      '@ogygia/machine':
+        specifier: workspace:^
+        version: link:../machine
+      magic-string:
+        specifier: 'catalog:'
+        version: 1.4.5
+    devDependencies:
+      '@ogygia/config':
+        specifier: workspace:*
+        version: link:../config
+      '@ogygia/core':
+        specifier: workspace:*
+        version: link:../core
+      '@sveltejs/vite-plugin-svelte':
+        specifier: 'catalog:'
+        version: 7.2.0(svelte@5.56.8)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
+      svelte:
+        specifier: 'catalog:'
+        version: 5.56.8
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+
   packages/cli:
     dependencies:
       '@ogygia/machine':
@@ -989,7 +1044,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
   packages/config:
     dependencies:
@@ -1029,7 +1084,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
   packages/content:
     dependencies:
@@ -1102,7 +1157,7 @@ importers:
         version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
   packages/content/e2e/app:
     dependencies:
@@ -1159,6 +1214,9 @@ importers:
       '@ogygia/config':
         specifier: workspace:*
         version: link:../config
+      '@ogygia/tooling':
+        specifier: workspace:*
+        version: link:../tooling
       '@ogygia/tsdown-plugin-svelte':
         specifier: workspace:*
         version: link:../tsdown-plugin-svelte
@@ -1209,7 +1267,7 @@ importers:
         version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
   packages/devtools:
     dependencies:
@@ -1219,6 +1277,9 @@ importers:
       '@ogygia/machine':
         specifier: workspace:^
         version: link:../machine
+      '@ogygia/reshape':
+        specifier: workspace:^
+        version: link:../reshape
       '@ogygia/router':
         specifier: workspace:^
         version: link:../router
@@ -1270,7 +1331,7 @@ importers:
         version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
   packages/devtools/e2e/app:
     dependencies:
@@ -1292,9 +1353,15 @@ importers:
       '@ionic/core':
         specifier: ^9.0.4
         version: 9.0.4
+      '@ogygia/barrels':
+        specifier: workspace:*
+        version: link:../../../barrels
       '@ogygia/devtools':
         specifier: workspace:*
         version: link:../..
+      '@ogygia/reshape':
+        specifier: workspace:*
+        version: link:../../../reshape
       '@ogygia/router':
         specifier: workspace:*
         version: link:../../../router
@@ -1338,6 +1405,9 @@ importers:
       '@ogygia/machine':
         specifier: workspace:^
         version: link:../machine
+      devalue:
+        specifier: 'catalog:'
+        version: 5.9.4
     devDependencies:
       '@ogygia/config':
         specifier: workspace:*
@@ -1362,13 +1432,16 @@ importers:
         version: 1.62.1
       '@sveltejs/kit':
         specifier: 'catalog:'
-        version: 2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.57.2)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.57.2)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.56.8)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.56.8)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.2
       '@typescript/native':
         specifier: catalog:tsgo
         version: typescript@7.0.2
+      svelte:
+        specifier: 'catalog:'
+        version: 5.56.8
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
@@ -1380,7 +1453,7 @@ importers:
         version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
   packages/flags:
     dependencies:
@@ -1408,7 +1481,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
   packages/machine:
     dependencies:
@@ -1442,7 +1515,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
   packages/ogygia:
     dependencies:
@@ -1519,7 +1592,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
   packages/postrender/e2e/app:
     dependencies:
@@ -1566,6 +1639,83 @@ importers:
       ogygia:
         specifier: workspace:*
         version: link:../../../ogygia
+
+  packages/reshape:
+    dependencies:
+      '@ogygia/machine':
+        specifier: workspace:^
+        version: link:../machine
+      esm-env:
+        specifier: 'catalog:'
+        version: 1.2.2
+    devDependencies:
+      '@ogygia/config':
+        specifier: workspace:*
+        version: link:../config
+      '@ogygia/core':
+        specifier: workspace:*
+        version: link:../core
+      '@ogygia/tooling':
+        specifier: workspace:*
+        version: link:../tooling
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.62.1
+      '@sveltejs/kit':
+        specifier: 'catalog:'
+        version: 2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.56.8)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.56.8)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
+      '@vitest/browser':
+        specifier: 'catalog:'
+        version: 4.1.12(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
+      '@vitest/browser-playwright':
+        specifier: 'catalog:'
+        version: 4.1.12(playwright@1.62.1)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
+      svelte:
+        specifier: 'catalog:'
+        version: 5.56.8
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+
+  packages/reshape/e2e/app:
+    dependencies:
+      '@ogygia/reshape':
+        specifier: workspace:*
+        version: link:../..
+      ogygia:
+        specifier: workspace:*
+        version: link:../../../ogygia
+    devDependencies:
+      '@sveltejs/adapter-node':
+        specifier: 'catalog:'
+        version: 5.5.7(@sveltejs/kit@2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.56.8)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.56.8)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))
+      '@sveltejs/kit':
+        specifier: 'catalog:'
+        version: 2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.56.8)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.56.8)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      '@sveltejs/vite-plugin-svelte':
+        specifier: 'catalog:'
+        version: 7.2.0(svelte@5.56.8)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      svelte:
+        specifier: 'catalog:'
+        version: 5.56.8
+      svelte-check:
+        specifier: 'catalog:'
+        version: 4.7.4(picomatch@4.0.7)(svelte@5.56.8)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
 
   packages/router:
     dependencies:
@@ -1614,7 +1764,7 @@ importers:
         version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
   packages/router/e2e/app:
     dependencies:
@@ -1694,7 +1844,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
   packages/tooling:
     dependencies:
@@ -1716,13 +1866,13 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
   packages/tsdown-plugin-svelte:
     dependencies:
       magic-string:
         specifier: ^1.1.0
-        version: 1.1.0
+        version: 1.4.5
     devDependencies:
       '@sveltejs/vite-plugin-svelte':
         specifier: 'catalog:'
@@ -1747,7 +1897,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
 packages:
 
@@ -1767,6 +1917,10 @@ packages:
   '@babel/types@7.29.11':
     resolution: {integrity: sha512-WCsemW40Cpc6gouC1SrY6PBaZ+oLRlEVY9XBvZBI7il/HyUrb2nJ505wE1MHEFyDZNnrWDEuy4jL50WVHfTTSQ==}
     engines: {node: '>=6.9.0'}
+
+  '@bcoe/v8-coverage@1.0.2':
+    resolution: {integrity: sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==}
+    engines: {node: '>=18'}
 
   '@blazediff/core@1.9.1':
     resolution: {integrity: sha512-ehg3jIkYKulZh+8om/O25vkvSsXXwC+skXmyA87FFx6A/45eqOkZsBltMw/TVteb0mloiGT8oGRTcjRAz66zaA==}
@@ -2424,9 +2578,6 @@ packages:
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
     engines: {node: '>=6.0.0'}
-
-  '@jridgewell/sourcemap-codec@1.5.5':
-    resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
   '@jridgewell/sourcemap-codec@1.6.0':
     resolution: {integrity: sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw==}
@@ -3358,11 +3509,6 @@ packages:
     engines: {node: '>=16.0.0', npm: '>=7.10.0'}
     hasBin: true
 
-  '@sveltejs/acorn-typescript@1.0.11':
-    resolution: {integrity: sha512-LFuZUkjJ9iF7JZye/aG5XM0SFcQ5VyL0oVX4WJ9dc0Va3R3s0OauX1BESVCb+YN/ol8TAfqGDDAQsTG627Y5kw==}
-    peerDependencies:
-      acorn: ^8.9.0
-
   '@sveltejs/acorn-typescript@1.0.13':
     resolution: {integrity: sha512-wgKggnhZVL9Bfx1OaKKTrYY9BFRk6C8UAkQNUcIv1+llzYrIqy+RZm5HPKzn0NpEBvTVhTqB4kQyllZywsRBRQ==}
     peerDependencies:
@@ -3780,6 +3926,15 @@ packages:
     peerDependencies:
       vitest: 4.1.12
 
+  '@vitest/coverage-v8@4.1.12':
+    resolution: {integrity: sha512-6S7/iVknKglLAxMFxQGNppBI0iqJS2NgM6FBxavitj7KaDq/vywOWGf6dGu7F2L1Qy0G6S3uTp7aGshHrzK8JA==}
+    peerDependencies:
+      '@vitest/browser': 4.1.12
+      vitest: 4.1.12
+    peerDependenciesMeta:
+      '@vitest/browser':
+        optional: true
+
   '@vitest/expect@4.1.12':
     resolution: {integrity: sha512-vFlTt+YEu9WBpNjdGayNmlMVzrWPi1+sv853/7t2FU7hpO5gAFBKHzQmkCq5Xjpr+evegF2994LQT3hF3mRlqQ==}
 
@@ -3990,6 +4145,9 @@ packages:
     resolution: {integrity: sha512-x1FCFnFifvYDDzTaLII71vG5uvDwgtmDTEVWAxrgeiR8VjMONcCXJx7E+USjDtHlwFmt9MysbqgF9b9Vjr6w+w==}
     engines: {node: '>=4'}
 
+  ast-v8-to-istanbul@1.0.8:
+    resolution: {integrity: sha512-lPdpagk13ANXV+HClJEpCZM7kUsl5XcvgqKzZhaj6Ve1ZFICcY2sGhAN1n1vT0tML6EclT7bfVgTxqL57Gkpow==}
+
   async-sema@3.1.1:
     resolution: {integrity: sha512-tLRNUXati5MFePdAk8dw7Qt7DpxPB60ofAgn8WRhW6a2rcimZnYBP9oxHiv0OHy+Wz7kPMG+t4LGdt31+4EmGg==}
 
@@ -4133,10 +4291,6 @@ packages:
 
   buffer@6.0.3:
     resolution: {integrity: sha512-FTiCpNxtwiZZHEZbcbTIcZjERVICn9yq/pDFkTl95/AxzD1naBctN7YO68riM/gLSDY7sdrMby8hofADYuuqOA==}
-
-  cac@7.0.0:
-    resolution: {integrity: sha512-tixWYgm5ZoOD+3g6UTea91eow5z6AAHaho3g0V9CNSNb45gM8SmflpAc+GRd1InC4AqN/07Unrgp56Y94N9hJQ==}
-    engines: {node: '>=20.19.0'}
 
   cac@7.1.0:
     resolution: {integrity: sha512-LMDU/U2yA4IPIY8KT0NsNPWEYZvAMkbgyspxJ6btJaYV+WMDOHAZCmB0lsTObiHaRS1V/ztKAl7+TSkTqXyeoA==}
@@ -4496,14 +4650,6 @@ packages:
     engines: {node: '>=4'}
     hasBin: true
 
-  esrap@2.3.0:
-    resolution: {integrity: sha512-GQ/7RN8uOtEfNpzZzBMTzW9JBcX42oaSVtPzdF+6cEL8pqIL094iUpr9jzYGn4O4P/1S60dJ6izyT8F4LYARng==}
-    peerDependencies:
-      '@typescript-eslint/types': ^8.2.0
-    peerDependenciesMeta:
-      '@typescript-eslint/types':
-        optional: true
-
   esrap@2.4.0:
     resolution: {integrity: sha512-CQPcneEHw/czj32uwQC52nYnax8H4SXt25FCM+LIwGZ49cMIxpOj3bP8wmzcI+Z0HIy5KkClaPhRLfCySzwHPA==}
     peerDependencies:
@@ -4722,6 +4868,9 @@ packages:
   hookable@6.1.2:
     resolution: {integrity: sha512-+abwxtiEA52GCVIsQqut3S/uKTbUwYIp4Pe/vv+6py5XiXBCqMZHg6pA6Y5qhgLSEys0/cYuPbO0z1QFj5ZCmg==}
 
+  html-escaper@2.0.2:
+    resolution: {integrity: sha512-H2iMtd0I4Mt5eYiapRdIDjp+XzelXQ0tFE4JS7YFwFevXXMmOp9myNrUvCg0D6ws8iqkRPBfKHgbwig1SmlLfg==}
+
   html-void-elements@3.0.0:
     resolution: {integrity: sha512-bEqo66MRXsUGxWHV5IP0PUiAWwoEjba4VCzg0LjFJBpchPaTfyfCKTG6bc5F8ucKec3q5y6qOdGyYTSBEvhCrg==}
 
@@ -4834,6 +4983,18 @@ packages:
     resolution: {integrity: sha512-FFUtZMpoZ8RqHS3XeXEmHWLA4thH+ZxCv2lOiPIn1Xc7CxrqhWzNSDzD+/chS/zbYezmiwWLdQC09JdQKmthOw==}
     engines: {node: '>=20'}
 
+  istanbul-lib-coverage@3.2.2:
+    resolution: {integrity: sha512-O8dpsF+r0WV/8MNRKfnmrtCWhuKjxrq2w+jpzBL5UZKTi2LeVWnWOmWRxFlesJONmc+wLAGvKQZEOanko0LFTg==}
+    engines: {node: '>=8'}
+
+  istanbul-lib-report@3.0.1:
+    resolution: {integrity: sha512-GCfE1mtsHGOELCU8e/Z7YWzpmybrx/+dSTfLrvY8qRmaY6zXTKWn6WQIjaAFw069icm6GVMNkgu0NzI4iPZUNw==}
+    engines: {node: '>=10'}
+
+  istanbul-reports@3.2.0:
+    resolution: {integrity: sha512-HGYWWS/ehqTV3xN10i23tkPkpH46MLCIMFNCaaKNavAXTF1RkqxawEPtnjnGZ6XKSInBKkiOA5BKS+aZiY3AvA==}
+    engines: {node: '>=8'}
+
   jackspeak@3.4.3:
     resolution: {integrity: sha512-OGlZQpz2yfahA/Rd1Y8Cd9SIEsqvXkLVoSw/cgwhnhFMDbsQFeZYoJJ7bIZBS9BcamUW96asq/npPWugM+RQBw==}
 
@@ -4843,6 +5004,9 @@ packages:
 
   jju@1.4.0:
     resolution: {integrity: sha512-8wb9Yw966OSxApiCt0K3yNJL8pnNeIv+OEq2YMidz4FKP6nonSRoOXc80iXY4JaN2FC11B9qsNmDsm+ZOfMROA==}
+
+  js-tokens@10.0.0:
+    resolution: {integrity: sha512-lM/UBzQmfJRo9ABXbPWemivdCW8V2G8FHaHdypQaIy523snUjog0W71ayWXTjiR+ixeMyVHN2XcpnTd/liPg/Q==}
 
   jsonc-parser@3.3.1:
     resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
@@ -4978,11 +5142,15 @@ packages:
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
-  magic-string@1.1.0:
-    resolution: {integrity: sha512-kS3VHe0nEPST2saQV4Rbkchcd3UBRkVTQHo1D3h/ZTwFDhai/mfKkmtPAtD129EOI7K3HlHIsFOt0WrI2/oU9g==}
-
   magic-string@1.4.5:
     resolution: {integrity: sha512-oLLC2+YvQUfAa+vxoufE/yc1icb87M9iXIRqAoR/2EhE/8cb3SF/+Gi0c2By1B+5Vz2e2vQtUvHiu1+63Znh+w==}
+
+  magicast@0.5.5:
+    resolution: {integrity: sha512-UicdXN8zQ3JHlxVq+28afMXPr1z7WNY6+7EJnzTdQWkTAlMLF5fNCCKxJHBQwGaNGR11581EiQmQzx73+MvszA==}
+
+  make-dir@4.0.0:
+    resolution: {integrity: sha512-hXdUTZYIVOt1Ex//jAQi+wTZZpUpwBj/0QsOzqegb3rGMMeJiSEu5xLHnYfBrRV4RH2+OCSOO95Is/7x1WJ4bw==}
+    engines: {node: '>=10'}
 
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
@@ -6316,22 +6484,20 @@ packages:
 
 snapshots:
 
-  '@babel/helper-string-parser@7.29.11':
-    optional: true
+  '@babel/helper-string-parser@7.29.11': {}
 
-  '@babel/helper-validator-identifier@7.29.7':
-    optional: true
+  '@babel/helper-validator-identifier@7.29.7': {}
 
   '@babel/parser@7.29.12':
     dependencies:
       '@babel/types': 7.29.11
-    optional: true
 
   '@babel/types@7.29.11':
     dependencies:
       '@babel/helper-string-parser': 7.29.11
       '@babel/helper-validator-identifier': 7.29.7
-    optional: true
+
+  '@bcoe/v8-coverage@1.0.2': {}
 
   '@blazediff/core@1.9.1': {}
 
@@ -6382,7 +6548,7 @@ snapshots:
       '@clack/prompts': 1.8.1
       '@manypkg/get-packages': 3.1.0
       '@pnpm/deps.graph-sequencer': 1100.0.1
-      cac: 7.0.0
+      cac: 7.1.0
       import-meta-resolve: 4.2.0
       launch-editor: 2.14.2
       package-manager-detector: 1.8.0
@@ -6883,8 +7049,6 @@ snapshots:
       '@jridgewell/trace-mapping': 0.3.31
 
   '@jridgewell/resolve-uri@3.1.2': {}
-
-  '@jridgewell/sourcemap-codec@1.5.5': {}
 
   '@jridgewell/sourcemap-codec@1.6.0': {}
 
@@ -7534,10 +7698,6 @@ snapshots:
       '@rollup/rollup-win32-arm64-msvc': 4.44.0
       '@rollup/rollup-win32-x64-msvc': 4.44.0
 
-  '@sveltejs/acorn-typescript@1.0.11(acorn@8.18.0)':
-    dependencies:
-      acorn: 8.18.0
-
   '@sveltejs/acorn-typescript@1.0.13(acorn@8.18.0)':
     dependencies:
       acorn: 8.18.0
@@ -7776,7 +7936,7 @@ snapshots:
 
   '@types/mdast@4.0.4':
     dependencies:
-      '@types/unist': 3.0.3
+      '@types/unist': 2.0.11
 
   '@types/ms@2.1.0': {}
 
@@ -7903,7 +8063,7 @@ snapshots:
       '@vitest/mocker': 4.1.12(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
       playwright: 1.62.1
       tinyrainbow: 3.1.1
-      vitest: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      vitest: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
     transitivePeerDependencies:
       - bufferutil
       - msw
@@ -7913,7 +8073,7 @@ snapshots:
   '@vitest/browser-webdriverio@4.1.12(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)(webdriverio@9.32.0(bare-buffer@3.7.1)(supports-color@8.1.1))':
     dependencies:
       '@vitest/browser': 4.1.12(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
-      vitest: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      vitest: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
       webdriverio: 9.32.0(bare-buffer@3.7.1)(supports-color@8.1.1)
     transitivePeerDependencies:
       - bufferutil
@@ -7930,13 +8090,29 @@ snapshots:
       pngjs: 7.0.0
       sirv: 3.0.2
       tinyrainbow: 3.1.1
-      vitest: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      vitest: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
       ws: 8.21.3
     transitivePeerDependencies:
       - bufferutil
       - msw
       - utf-8-validate
       - vite
+
+  '@vitest/coverage-v8@4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)':
+    dependencies:
+      '@bcoe/v8-coverage': 1.0.2
+      '@vitest/utils': 4.1.12
+      ast-v8-to-istanbul: 1.0.8
+      istanbul-lib-coverage: 3.2.2
+      istanbul-lib-report: 3.0.1
+      istanbul-reports: 3.2.0
+      magicast: 0.5.5
+      obug: 2.1.4
+      std-env: 4.2.0
+      tinyrainbow: 3.1.1
+      vitest: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+    optionalDependencies:
+      '@vitest/browser': 4.1.12(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
 
   '@vitest/expect@4.1.12':
     dependencies:
@@ -8170,6 +8346,12 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
+  ast-v8-to-istanbul@1.0.8:
+    dependencies:
+      '@jridgewell/trace-mapping': 0.3.31
+      estree-walker: 3.0.3
+      js-tokens: 10.0.0
+
   async-sema@3.1.1: {}
 
   async@3.2.6: {}
@@ -8269,7 +8451,7 @@ snapshots:
       create-hash: 1.2.0
       evp_bytestokey: 1.0.3
       inherits: 2.0.4
-      safe-buffer: 5.1.2
+      safe-buffer: 5.2.1
 
   browserify-cipher@1.0.1:
     dependencies:
@@ -8282,7 +8464,7 @@ snapshots:
       cipher-base: 1.0.7
       des.js: 1.1.0
       inherits: 2.0.4
-      safe-buffer: 5.1.2
+      safe-buffer: 5.2.1
 
   browserify-rsa@4.1.1:
     dependencies:
@@ -8312,8 +8494,6 @@ snapshots:
     dependencies:
       base64-js: 1.5.1
       ieee754: 1.2.1
-
-  cac@7.0.0: {}
 
   cac@7.1.0: {}
 
@@ -8459,7 +8639,7 @@ snapshots:
       create-hash: 1.2.0
       inherits: 2.0.4
       ripemd160: 2.0.3
-      safe-buffer: 5.1.2
+      safe-buffer: 5.2.1
       sha.js: 2.4.12
 
   crelt@1.0.7: {}
@@ -8732,10 +8912,6 @@ snapshots:
 
   esprima@4.0.1: {}
 
-  esrap@2.3.0:
-    dependencies:
-      '@jridgewell/sourcemap-codec': 1.6.0
-
   esrap@2.4.0:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
@@ -8763,7 +8939,7 @@ snapshots:
   evp_bytestokey@1.0.3:
     dependencies:
       md5.js: 1.3.5
-      safe-buffer: 5.1.2
+      safe-buffer: 5.2.1
 
   expect-type@1.4.0: {}
 
@@ -8966,6 +9142,8 @@ snapshots:
 
   hookable@6.1.2: {}
 
+  html-escaper@2.0.2: {}
+
   html-void-elements@3.0.0: {}
 
   htmlfy@0.8.1: {}
@@ -9061,6 +9239,19 @@ snapshots:
 
   isexe@4.0.0: {}
 
+  istanbul-lib-coverage@3.2.2: {}
+
+  istanbul-lib-report@3.0.1:
+    dependencies:
+      istanbul-lib-coverage: 3.2.2
+      make-dir: 4.0.0
+      supports-color: 7.2.0
+
+  istanbul-reports@3.2.0:
+    dependencies:
+      html-escaper: 2.0.2
+      istanbul-lib-report: 3.0.1
+
   jackspeak@3.4.3:
     dependencies:
       '@isaacs/cliui': 8.0.2
@@ -9070,6 +9261,8 @@ snapshots:
   jiti@2.7.0: {}
 
   jju@1.4.0: {}
+
+  js-tokens@10.0.0: {}
 
   jsonc-parser@3.3.1: {}
 
@@ -9177,13 +9370,19 @@ snapshots:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  magic-string@1.1.0:
-    dependencies:
-      '@jridgewell/sourcemap-codec': 1.5.5
-
   magic-string@1.4.5:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  magicast@0.5.5:
+    dependencies:
+      '@babel/parser': 7.29.12
+      '@babel/types': 7.29.11
+      source-map-js: 1.2.2
+
+  make-dir@4.0.0:
+    dependencies:
+      semver: 7.8.5
 
   math-intrinsics@1.1.0: {}
 
@@ -9191,7 +9390,7 @@ snapshots:
     dependencies:
       hash-base: 3.0.5
       inherits: 2.0.4
-      safe-buffer: 5.1.2
+      safe-buffer: 5.2.1
 
   mdast-util-from-markdown@2.0.3(supports-color@8.1.1):
     dependencies:
@@ -9641,7 +9840,7 @@ snapshots:
       create-hash: 1.2.0
       parse-asn1: 5.1.9
       randombytes: 2.1.0
-      safe-buffer: 5.1.2
+      safe-buffer: 5.2.1
 
   pump@3.0.4:
     dependencies:
@@ -9656,12 +9855,12 @@ snapshots:
 
   randombytes@2.1.0:
     dependencies:
-      safe-buffer: 5.1.2
+      safe-buffer: 5.2.1
 
   randomfill@1.0.4:
     dependencies:
       randombytes: 2.1.0
-      safe-buffer: 5.1.2
+      safe-buffer: 5.2.1
 
   readable-stream@2.3.8:
     dependencies:
@@ -10159,7 +10358,7 @@ snapshots:
     dependencies:
       '@jridgewell/remapping': 2.3.5
       '@jridgewell/sourcemap-codec': 1.6.0
-      '@sveltejs/acorn-typescript': 1.0.11(acorn@8.18.0)
+      '@sveltejs/acorn-typescript': 1.0.13(acorn@8.18.0)
       '@types/estree': 1.0.9
       '@types/trusted-types': 2.0.7
       acorn: 8.18.0
@@ -10168,7 +10367,7 @@ snapshots:
       clsx: 2.1.1
       devalue: 5.9.4
       esm-env: 1.2.2
-      esrap: 2.3.0
+      esrap: 2.4.0
       is-reference: 3.0.3
       locate-character: 3.0.0
       magic-string: 0.30.21
@@ -10317,7 +10516,7 @@ snapshots:
 
   twoslash-svelte@0.3.9(supports-color@8.1.1)(svelte@5.56.8)(typescript@6.0.3):
     dependencies:
-      '@jridgewell/sourcemap-codec': 1.5.5
+      '@jridgewell/sourcemap-codec': 1.6.0
       '@volar/language-core': 2.4.28
       estree-walker: 3.0.3
       svelte: 5.56.8
@@ -10528,7 +10727,7 @@ snapshots:
     optionalDependencies:
       vite: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
 
-  vitest@4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)):
+  vitest@4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)):
     dependencies:
       '@vitest/expect': 4.1.12
       '@vitest/mocker': 4.1.12(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
@@ -10555,6 +10754,7 @@ snapshots:
       '@types/node': 26.1.2
       '@vitest/browser-playwright': 4.1.12(playwright@1.62.1)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
       '@vitest/browser-webdriverio': 4.1.12(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)(webdriverio@9.32.0(bare-buffer@3.7.1)(supports-color@8.1.1))
+      '@vitest/coverage-v8': 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
     transitivePeerDependencies:
       - msw
 

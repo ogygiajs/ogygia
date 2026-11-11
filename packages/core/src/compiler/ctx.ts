@@ -57,13 +57,13 @@ export interface CompileCtxInit {
 	 *  per-island detail. */
 	measure: boolean;
 	/** The server halves of the app's plugins (module path + options), in app order — baked into
-	 *  `virtual:ogygia/server-plugins`. Optional (default none). */
+	 *  `ogygia:server/server-plugins`. Optional (default none). */
 	server_plugins?: readonly ServerRealm[];
 	/** The browser halves of the app's plugins (absolute module paths), in app order —
 	 *  imported by the runtime's boot. Optional (default none). */
 	client_plugins?: readonly string[];
 	/** The keys the plugins claim inside Kit's `config` page option (`b.routeConfig`) — read from the
-	 *  route files and baked into `virtual:ogygia/route-config`. Optional (default none). */
+	 *  route files and baked into `ogygia:server/route-config`. Optional (default none). */
 	route_config?: readonly string[];
 	/** A plugin asked island entries to keep their foreign-hydrate exports (`b.foreignHydrate()`:
 	 *  another app's runtime wakes this app's islands). Optional (default off). */
@@ -91,7 +91,7 @@ export interface CompileCtxInit {
 	pkg_root: string;
 
 	// ── virtual-module emit config (read by `Compiler.emit`) ───────────────────────────────────────
-	/** Per-build HMAC material baked into the SSR-only `virtual:ogygia/secret`. */
+	/** Per-build HMAC material baked into the SSR-only `ogygia:server/secret`. */
 	build_secret: string;
 	/** Region-endpoint rate limit (SSR-only), `{ max: 0 }` when disabled. */
 	rate_limit: { max: number; windowMs: number };
@@ -111,15 +111,15 @@ export interface CompileCtxInit {
 	/** Package-internal absolute paths the emit inlines into generated virtual sources. */
 	runtime_dir: string;
 	runtime_hash: string;
-	hmac_module: string;
-	region_endpoint_module: string;
+	/** Kit's internal wire-protocol module (deep-imported by absolute path), or null: none found. */
+	kit_wire_path?: string | null;
 	client_binding_stub_file: string;
 	/** `$app/*` → on-disk client-shim path map (island modules under csr=false). */
 	app_shims: Record<string, string>;
 	/** `command === 'build'` — gates the transform-time deterministic island-chunk emit. */
 	is_build: boolean;
 	/** Core's event emits compiled in (a plugin's `b.events()`: devtools). Bakes the standalone dock
-	 *  boot for csr=true pages into `virtual:ogygia/devtools-boot-url`. */
+	 *  boot for csr=true pages into `ogygia:server/devtools-boot-url`. */
 	devtools: boolean;
 }
 
@@ -154,8 +154,7 @@ export class CompileCtx {
 	readonly client_hooks: string | null;
 	readonly runtime_dir: string;
 	readonly runtime_hash: string;
-	readonly hmac_module: string;
-	readonly region_endpoint_module: string;
+	readonly kit_wire_path: string | null;
 	readonly client_binding_stub_file: string;
 	readonly app_shims: Record<string, string>;
 	readonly is_build: boolean;
@@ -202,8 +201,7 @@ export class CompileCtx {
 		this.client_hooks = init.client_hooks ?? null;
 		this.runtime_dir = init.runtime_dir;
 		this.runtime_hash = init.runtime_hash;
-		this.hmac_module = init.hmac_module;
-		this.region_endpoint_module = init.region_endpoint_module;
+		this.kit_wire_path = init.kit_wire_path ?? null;
 		this.client_binding_stub_file = init.client_binding_stub_file;
 		this.app_shims = init.app_shims;
 		this.is_build = init.is_build;

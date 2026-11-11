@@ -1,6 +1,7 @@
 import { sequence } from '@sveltejs/kit/hooks';
 import type { Handle } from '@sveltejs/kit';
 import { handle as ogygiaHandle } from 'ogygia/server';
+import * as reshape from '@ogygia/reshape';
 import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
 import { SqliteStore } from '@ogygia/devtools/profiler/storage/sqlite';
 import { ds_ssr } from '$lib/hell/ds-ssr';
@@ -74,6 +75,10 @@ const stamp_cookie: Handle = async ({ event, resolve }) => {
 
 // The SSR profiler is NOT wired here — `devtools({ profiler })` in vite.config.ts mounts it inside
 // ogygia.handle(). UI at /__profiler (dev = open; prod needs ?key=<OGYGIA_PROFILER_SECRET>).
+const restore_lab: Handle = process.env.OGYGIA_RESTORE_LAB
+	? reshape.handle((html) => scoped_render(html))
+	: ({ event, resolve }) => resolve(event);
+
 export const handle = sequence(
 	stamp_cookie,
 	// the hell page's design-system SSR pass (a Stencil renderer over the finished document): first
@@ -81,10 +86,9 @@ export const handle = sequence(
 	ds_ssr,
 	auth_wall,
 	gap_front,
-	// (the restore lab: a scoped web-component render as the app's transform, OGYGIA_RESTORE_LAB=1)
-	ogygiaHandle(
-		process.env.OGYGIA_RESTORE_LAB ? { transform: (html: string) => scoped_render(html) } : {}
-	),
+	// (the restore lab: a scoped web-component render as the app's own pass, OGYGIA_RESTORE_LAB=1)
+	restore_lab,
+	ogygiaHandle(),
 	gap_inside,
 	corrupt_detector_region
 );
