@@ -10,24 +10,24 @@ export const stringify_command_arg: import('../dist/compiler/virtual/table.js').
 export const create_remote_key: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_wire>['create_remote_key'];
 export const profiler_maps: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').profiler_maps>['profiler_maps'];
 export const rate_limit: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').rate_limit>['rate_limit'];
-export const region_deps: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['islandDeps'];
-export const region_interactivity: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['islandInteractivity'];
-export const chunk_contents: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['chunkContents'];
-export const chunk_heavy: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['chunkHeavy'];
-export const chunk_duplicates: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['chunkDuplicates'];
-export const chunk_barrels: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['chunkBarrels'];
-export const region_hazards: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['islandHazards'];
-export const region_css: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['islandCss'];
-export const content_css: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['contentCss'];
-export const region_css_inline: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['islandCssInline'];
-export const region_reads_page: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['islandReadsPage'];
-export const region_page_keys: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['islandPageKeys'];
-export const region_page_why: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['islandPageWhy'];
-export const region_remotes: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['islandRemotes'];
-export const fn_manifest: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['fnManifest'];
-export const entry_location: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['entryLocation'];
-export const location_map: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['locationMap'];
-export { makeRegionEndpoint as make_region_endpoint, mintServerIsland as mint_server_region, known_region_fps, islandFingerprint as region_fingerprint, holeCss as hole_css } from '../dist/server/region-endpoint.js';
+export const region_deps: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['region_deps'];
+export const region_interactivity: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['region_interactivity'];
+export const chunk_contents: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['chunk_contents'];
+export const chunk_heavy: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['chunk_heavy'];
+export const chunk_duplicates: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['chunk_duplicates'];
+export const chunk_barrels: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['chunk_barrels'];
+export const region_hazards: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['region_hazards'];
+export const region_css: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['region_css'];
+export const content_css: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['content_css'];
+export const region_css_inline: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['region_css_inline'];
+export const region_reads_page: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['region_reads_page'];
+export const region_page_keys: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['region_page_keys'];
+export const region_page_why: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['region_page_why'];
+export const region_remotes: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['region_remotes'];
+export const fn_manifest: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['fn_manifest'];
+export const entry_location: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['entry_location'];
+export const location_map: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['location_map'];
+export { make_region_endpoint, mint_server_region, known_region_fps, region_fingerprint, hole_css } from '../dist/server/region-endpoint.js';
 export const region_ttl: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').region_ttl>['region_ttl'];
 export const renew_window: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').region_ttl>['renew_window'];
 export { getRequestEvent as get_request_event } from '$app/server';
@@ -40,12 +40,12 @@ export const view_transitions: import('../dist/compiler/virtual/table.js').Value
 export const runtime_url: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').runtime_url>['runtime_url'];
 export const build_key: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').secret>['build_key'];
 export const build_had_secret: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').secret>['build_had_secret'];
-export const load_server_regions: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_manifest>['load_islands'];
-export const region_url: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_manifest>['island_url'];
-export const region_name: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_manifest>['island_name'];
-export const region_render: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_manifest>['island_render'];
-export const render_region: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_manifest>['render_island'];
-export const region_reads_page_data: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_manifest>['island_reads_page_data'];
+export const load_server_regions: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_manifest>['load_server_regions'];
+export const region_url: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_manifest>['region_url'];
+export const region_name: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_manifest>['region_name'];
+export const region_render: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_manifest>['region_render'];
+export const render_region: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_manifest>['render_region'];
+export const region_reads_page_data: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_manifest>['region_reads_page_data'];
 export const server_plugins: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_plugins>['plugins'];
 export const session_cookie: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').session_cookie>['session_cookie'];
 export { sign, verify, region_mac_message } from '../dist/server/hmac.js';
@@ -68,7 +68,7 @@ const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import
 export = module;
 }
 declare module 'ogygia:server/region-endpoint' {
-export { makeRegionEndpoint, mintServerIsland, known_region_fps, islandFingerprint, holeCss } from '../dist/server/region-endpoint.js';
+export { make_region_endpoint, mint_server_region, known_region_fps, region_fingerprint, hole_css } from '../dist/server/region-endpoint.js';
 }
 declare module 'ogygia:server/region-ttl' {
 export const region_ttl: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').region_ttl>['region_ttl'];
