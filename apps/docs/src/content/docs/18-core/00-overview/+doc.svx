@@ -66,7 +66,7 @@ A server half can be run in a unit test without a server, through `startPlugin` 
 
 ## With ogygia's regions
 
-A plugin can mint regions on the server. `region`, `htmlRegion` and `deferredRegion` from `@ogygia/core/plugin` are the same values an app renders with `<Region>`, which is how [federation](/docs/federation/overview) turns another app's page into a region on yours. Shared hooks (`app.notify.invalidate(tags)`) and request facts (`perVisitor`, `storable`) are how packages cooperate: a flag read sets `perVisitor`, and [postrender](/docs/postrender/overview) reads it before it stores a page.
+A plugin can mint regions on the server. `region`, `htmlRegion` and `deferredRegion` from `@ogygia/core/plugin` are the same values an app renders with `<Region>`, which is how [federation](/docs/federation/overview) turns another app's page into a region on yours. Shared hooks (`app.notify.invalidate(tags)`) and request facts (`reads`, `storable`) are how packages cooperate: a flag read lands in `reads`, and [postrender](/docs/postrender/overview) and the hole render cache read it before they keep a render.
 
 ## Where to go next
 
