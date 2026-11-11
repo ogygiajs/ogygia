@@ -52,7 +52,6 @@ export function range_hot(index: StackIndex, t0: number, t1: number, limit = 30)
 	const total = new Map<number, number>();
 	let cpu = 0;
 	let idle = 0;
-	const seen: number[] = [];
 	for (let i = first_at(index, t0); i < index.t.length; i++) {
 		const s = index.t[i];
 		if (s > t1) break;
@@ -66,13 +65,7 @@ export function range_hot(index: StackIndex, t0: number, t1: number, limit = 30)
 		}
 		cpu += ms;
 		self.set(leaf, (self.get(leaf) ?? 0) + ms);
-		// each frame on the stack once (a recursive frame appears once per depth; count it once)
-		seen.length = 0;
-		for (let f = leaf; f >= 0; f = index.frames[f].p) {
-			if (seen.includes(f)) continue;
-			seen.push(f);
-			total.set(f, (total.get(f) ?? 0) + ms);
-		}
+		for (let f = leaf; f >= 0; f = index.frames[f].p) total.set(f, (total.get(f) ?? 0) + ms);
 	}
 	const row = (f: number): RangeRow => {
 		const fr = index.frames[f];
