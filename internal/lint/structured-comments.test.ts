@@ -203,6 +203,21 @@ test('a @packageDocumentation block passes at the top of a file; anywhere else i
 	});
 });
 
+test('an `// ok: <reason>` note passes, as the no-silent-failures rules ask for it; a bare `ok:` is reported', () => {
+	const src = [
+		'export async function f(p: Promise<void>) {', // 1
+		'\tp.catch(() => {}); // ok: the caller reports it', // 2
+		'\ttry {', // 3
+		'\t\tawait p;', // 4
+		'\t} catch {', // 5
+		'\t\t// ok: a second read is fine', // 6
+		'\t}', // 7
+		'\tp.catch(() => {}); // ok:', // 8
+		'}' // 9
+	].join('\n');
+	assert.deepEqual(findings({ [A]: src }), { [A]: [8] });
+});
+
 test('.d.ts files and files outside a package src are not read', () => {
 	assert.deepEqual(
 		findings({
