@@ -2,7 +2,7 @@ import type { ContentEntry, ContentHandle, Entry } from '../index.ts';
 import type { Crumb, NavItem, NavLeaf, NavRef, NavTree, Resolved } from './types.ts';
 import { title_case } from '../convention.ts';
 import type { GroupMeta } from '../index.ts';
-import { catalog_fresh, catalog_version } from '../collection-base.ts';
+import { catalog_fresh, catalog_loaded, catalog_version } from '../collection-base.ts';
 import { OgygiaError } from '../messages/runtime.ts';
 import { flights, STALE } from '@ogygia/machine';
 
@@ -390,7 +390,7 @@ async function materialize(
 		let e = entries_cache.get(c);
 		if (!e) {
 			// @why stamped before the read, an edit landing during it is newer, so the next read weaves again (test: test/lifecycle.test.ts › a change that lands while its entries are graphed: the next read weaves again)
-			const at = catalog_version(c);
+			const at = await catalog_loaded(c);
 			e = await c.refs(ctx);
 			read.set(c, at);
 			entries_cache.set(c, e);
