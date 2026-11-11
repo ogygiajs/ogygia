@@ -3275,6 +3275,14 @@
 		{
 			"id": "packages/devtools/src/server.ts > after > transformPageChunk",
 			"reason": "SvelteKit's page transform (an async hook: not recorded): runs the inner then the outer transform, constant work of its own"
+		},
+		{
+			"id": "packages/tooling/src/e2e/packed.ts > pack_ogygia > map:0~dfb3e5",
+			"reason": "e2e tooling: one `pnpm pack` per released-together package (a child process), run once per suite by apps/palaestra/e2e/adapters.spec.ts and kit3.spec.ts"
+		},
+		{
+			"id": "packages/tooling/src/e2e/packed.ts > use_packed > map:0~59ea86",
+			"reason": "e2e tooling: one override line per released-together package (three), run once per suite by apps/palaestra/e2e/adapters.spec.ts and kit3.spec.ts"
 		}
 	]
 }
