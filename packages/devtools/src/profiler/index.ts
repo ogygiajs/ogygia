@@ -1115,6 +1115,8 @@ const SESSION_MS = 12 * 60 * 60 * 1000;
 const MAX_REVOKED = 4096;
 /** A session id: `s1.<random id>.<expiry, ms>.<HMAC of the three>`. */
 const SESSION_RE = /^s1\.([A-Za-z0-9_-]{24})\.(\d{13})\.([0-9a-f]{64})$/;
+/** The beacon flag: `f1.<its session's id>.<that session's expiry>.<HMAC of the three>`. */
+const FLAG_RE = /^f1\.([A-Za-z0-9_-]{24})\.(\d{13})\.([0-9a-f]{64})$/;
 
 /**
  * Page mode renders the SAME page N times, so its outbound calls are the same handful repeated N
@@ -1169,6 +1171,7 @@ class Profiler {
 	 *  {@link MAX_REVOKED}; each is dropped once it would have expired anyway. */
 	readonly #revoked = new Map<string, number>();
 	#session_key: Buffer | null = null;
+	#flag_key: Buffer | null = null;
 
 	// ---- state ------------------------------------------------------------
 	readonly #ring: RequestEntry[] = [];
@@ -2714,8 +2717,8 @@ class Profiler {
 
 	// ---- auth -------------------------------------------------------------
 	/** Is this request's visitor the profiler's logged-in user? Its session cookie stays on the
-	 *  profiler's path, so a region request carries only the site-wide beacon flag: the flag's value
-	 *  is signed (`#flag_value`), and a bare `1` anyone can set is not it. */
+	 *  profiler's path, so a region request carries only the site-wide beacon flag: signed for that
+	 *  one session (`#flag_value`), it ends with it. */
 	async measures(event: RequestEvent): Promise<boolean> {
 		if (this.dev) return true;
 		return this.#flag_ok(event);
@@ -2729,21 +2732,53 @@ class Profiler {
 		return false;
 	}
 
-	/** The beacon flag's value for a logged-in browser: an HMAC under the secret (none without one). */
-	async #flag_value(): Promise<string | null> {
-		if (!this.secret || !this.#secret_ok) return null;
-		const { createHmac } = await import('node:crypto');
-		return createHmac('sha256', this.secret).update('og-profiler-beacon-flag').digest('hex');
+	/** The live session the request carries (its id and expiry), or null. Dev: none needed. */
+	async #live_session(event: RequestEvent): Promise<{ nonce: string; exp: string } | null> {
+		for (const value of session_cookie_values(event)) {
+			if (!(await this.#session_ok(value))) continue;
+			const [, nonce, exp] = SESSION_RE.exec(value!)!;
+			return { nonce: nonce!, exp: exp! };
+		}
+		return null;
 	}
 
-	/** Does the request carry the signed beacon flag? */
+	/** The beacon flag for one session: `f1.<session id>.<its expiry>.<MAC>`, under a key derived
+	 *  for flags alone, so it ends when the session does (expiry, logout, a changed secret). */
+	async #flag_value(nonce: string, exp: string): Promise<string> {
+		return `f1.${nonce}.${exp}.${(await this.#flag_mac(nonce, exp)).toString('hex')}`;
+	}
+
+	async #flag_mac(nonce: string, exp: string): Promise<Buffer> {
+		const { createHmac, hkdfSync } = await import('node:crypto');
+		this.#flag_key ??= Buffer.from(
+			hkdfSync('sha256', this.secret, '', 'ogygia-profiler-flag-v1', 32)
+		);
+		return createHmac('sha256', this.#flag_key).update(`f1|${nonce}|${exp}`).digest();
+	}
+
+	/** The session id of the live beacon flag the request carries, or null: signed by this
+	 *  profiler, not expired, its session not logged out. */
+	async #flag_session(event: RequestEvent): Promise<string | null> {
+		if (!this.secret || !this.#secret_ok) return null;
+		const m = FLAG_RE.exec(event.cookies.get('og_profiler_beacon') ?? '');
+		if (!m) return null;
+		const [, nonce, exp, mac] = m as unknown as [string, string, string, string];
+		const now = Date.now();
+		const at = Number(exp);
+		if (!(at > now && at <= now + SESSION_MS) || this.#revoked.has(nonce)) return null;
+		try {
+			const { timingSafeEqual } = await import('node:crypto');
+			return timingSafeEqual(await this.#flag_mac(nonce, exp), Buffer.from(mac, 'hex'))
+				? nonce
+				: null;
+		} catch {
+			return null; // ok: no node:crypto, no sessions, so no flag either
+		}
+	}
+
+	/** Does the request carry a live beacon flag? */
 	async #flag_ok(event: RequestEvent): Promise<boolean> {
-		const sent = event.cookies.get('og_profiler_beacon');
-		if (!sent || sent.length !== 64) return false;
-		const want = await this.#flag_value();
-		if (want === null) return false;
-		const { timingSafeEqual } = await import('node:crypto');
-		return timingSafeEqual(Buffer.from(sent), Buffer.from(want));
+		return (await this.#flag_session(event)) !== null;
 	}
 
 	/** The address a key attempt is charged to (one shared budget where the platform has none). */
@@ -2841,10 +2876,15 @@ class Profiler {
 	 *  "this browser is the profiler's user, put the beacon tag in its documents". The session
 	 *  cookie stays scoped to the profiler's own path (the `/beacon` POST is under it, so the
 	 *  runtime's post still carries the real session). Set with the session, cleared with it. */
-	async #beacon_cookie(on: boolean, event: RequestEvent): Promise<string> {
+	async #beacon_cookie(
+		session: { nonce: string; exp: string } | null,
+		event: RequestEvent
+	): Promise<string> {
 		const secure = event.url.protocol === 'https:' ? '; Secure' : '';
-		const value = on ? ((await this.#flag_value()) ?? '') : '';
-		return `og_profiler_beacon=${value}; Path=/; HttpOnly; SameSite=Lax${secure}${on ? '' : '; Max-Age=0'}`;
+		if (!session) return `og_profiler_beacon=; Path=/; HttpOnly; SameSite=Lax${secure}; Max-Age=0`;
+		const value = await this.#flag_value(session.nonce, session.exp);
+		const age = Math.max(0, Math.floor((Number(session.exp) - Date.now()) / 1000));
+		return `og_profiler_beacon=${value}; Path=/; HttpOnly; SameSite=Lax${secure}; Max-Age=${age}`;
 	}
 
 	/**
@@ -2930,10 +2970,10 @@ class Profiler {
 	 *  that keeps one per response must not lose the session for it. */
 	async #flag_cookie(event: RequestEvent, res: Response): Promise<Response> {
 		if (this.dev || !this.secret || res.headers.has('set-cookie')) return res;
-		// (a flag from before it was signed, `1`, is not the flag: replaced on the next response)
-		const flag = await this.#flag_ok(event);
-		const session = await this.#has_session(event);
-		if (session === flag) return res;
+		// (a flag for another session, an ended one, or an older form is replaced on the next response)
+		const session = await this.#live_session(event);
+		const flag = await this.#flag_session(event);
+		if (session ? flag === session.nonce : !event.cookies.get('og_profiler_beacon')) return res;
 		const out = new Response(res.body, res);
 		out.headers.append('set-cookie', await this.#beacon_cookie(session, event));
 		return out;

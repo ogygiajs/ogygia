@@ -3231,10 +3231,13 @@ describe('the ogygia / svelte / kit round: islands, seed, holes, lanes, markup v
 	it('production: the beacon tag needs the signed flag cookie the login sets (site-wide), or the key header', async () => {
 		dev_switch.dev = false;
 		try {
-			const { createHmac } = await import('node:crypto');
-			const FLAG = createHmac('sha256', 'prof-key-of-16-bytes-or-more')
-				.update('og-profiler-beacon-flag')
-				.digest('hex');
+			// a flag for one session, as the login's next response sets it (f1.<id>.<expiry>.<MAC>)
+			const { createHmac, hkdfSync } = await import('node:crypto');
+			const key = Buffer.from(
+				hkdfSync('sha256', 'prof-key-of-16-bytes-or-more', '', 'ogygia-profiler-flag-v1', 32)
+			);
+			const [id, exp] = ['a'.repeat(24), String(Date.now() + 60_000)];
+			const FLAG = `f1.${id}.${exp}.${createHmac('sha256', key).update(`f1|${id}|${exp}`).digest('hex')}`;
 			const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 			const doc = async (cookies: Record<string, string>, headers: Record<string, string> = {}) =>
 				(
@@ -3279,11 +3282,12 @@ describe('the ogygia / svelte / kit round: islands, seed, holes, lanes, markup v
 						resolve: async () => new Response('no')
 					})
 				).headers.getSetCookie();
-			expect(await next(`og_profiler=${token}`)).toEqual([
-				expect.stringMatching(new RegExp(`^og_profiler_beacon=${FLAG}; Path=/;`))
-			]);
-			// flag and session both there: nothing to set
-			expect(await next(`og_profiler=${token}; og_profiler_beacon=${FLAG}`)).toEqual([]);
+			const flag_on = await next(`og_profiler=${token}`);
+			expect(flag_on).toEqual([expect.stringMatching(/^og_profiler_beacon=f1\.[^;]+; Path=\/;/)]);
+			const mine = flag_on[0].slice('og_profiler_beacon='.length, flag_on[0].indexOf(';'));
+			// flag and session both there: nothing to set; a flag for another session is replaced
+			expect(await next(`og_profiler=${token}; og_profiler_beacon=${mine}`)).toEqual([]);
+			expect(await next(`og_profiler=${token}; og_profiler_beacon=${FLAG}`)).toHaveLength(1);
 			const logout = await handle({
 				event: make_event('/__profiler/logout', {
 					'x-profiler-key': 'prof-key-of-16-bytes-or-more'
