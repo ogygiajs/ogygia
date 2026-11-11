@@ -35,3 +35,4 @@ export const error_csr_true_routes: typeof Server.error_csr_true_routes = new Se
 export const root_layout_csr_true: typeof Server.root_layout_csr_true = true;
 export const runtime_bootstrap: typeof Server.runtime_bootstrap = blank;
 export const region_css_tag: typeof Server.region_css_tag = blank;
+export const head_owner_attr: typeof Server.head_owner_attr = blank;
