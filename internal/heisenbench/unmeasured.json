@@ -3007,6 +3007,30 @@
 		{
 			"id": "packages/devtools/src/profiler/window-id.ts > hmac_signer",
 			"reason": "wraps a derived key (a Buffer, not cloneable) in a sign/verify pair, once per profiler; the mint and check it serves are benched in packages/devtools/bench/window-id.bench.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > text",
+			"reason": "a warning's wording, constant text; said in packages/federation/test/federation.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > sign",
+			"reason": "the check side's signer stub: it never signs (every check brings its own keys), no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > verify",
+			"reason": "the check side's signer stub: every check brings its own keys, so this always refuses, no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > minter > capability:0~81c9d6 > signer > verify",
+			"reason": "the mint side's verify stub: a minter checks nothing (the receiver brings its keys), no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > configured_audience",
+			"reason": "reads the process's ORIGIN once per federate() (hidden state: the environment), one URL parse, constant work; proven in packages/federation/test/federation.test.ts"
 		}
 	]
 }
