@@ -20,7 +20,7 @@ import { record_server_event } from '../events/server-registry.ts';
 // DEVTOOLS gate — server realm; off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 import { B64Url } from './payload.ts';
-import { REF_WIRE_KEY, ref_reducer } from '../ref.ts';
+import { REF_WIRE_KEY, placed, ref_reducer } from '../ref.ts';
 import { ensure_prop_kinds } from './region-props.ts';
 import { island_url, island_render } from 'virtual:ogygia/server-manifest';
 import { islandCss } from 'virtual:ogygia/island-deps';
@@ -137,7 +137,10 @@ export function mint_region_capability(entry: string, payload: string, ttl = 0):
  */
 export function mintServerIsland(entry: string, props: Record<string, unknown>, ttl = 0): string {
 	ensure_prop_kinds();
-	const payload = B64Url.encode(stringify(props, { [REF_WIRE_KEY]: ref_reducer(PROP_FAMILIES) }));
+	// (decoded fresh at the endpoint, never by id: place form keeps the address the same per render)
+	const payload = B64Url.encode(
+		placed(stringify(props, { [REF_WIRE_KEY]: ref_reducer(PROP_FAMILIES) }))
+	);
 	if (payload.length > MAX_REGION_PROPS_LEN) {
 		throw new OgygiaError('hole_props_too_large', {
 			entry,

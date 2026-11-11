@@ -37,6 +37,20 @@ describe('fp drift', () => {
 		).toEqual({ path: 'n', was: '1', now: '2' });
 	});
 
+	it('a server render’s ids: the fence is left out, a moved place is named', () => {
+		const a = '{"n":1,"i":"0123456789abcdef~0"}';
+		const b = '{"n":1,"i":"fedcba9876543210~0"}';
+		expect(props_diff(a, b)).toBeNull();
+		expect(props_diff(a, '{"n":1,"i":"fedcba9876543210~1"}')).toEqual({
+			path: 'i',
+			was: '"0123456789abcdef~0"',
+			now: '"fedcba9876543210~1"'
+		});
+		// in a text that parses as neither lane, the same way
+		expect(props_diff('x("0123456789abcdef~0")', 'x("fedcba9876543210~0")')).toBeNull();
+		expect(props_diff('x("0123456789abcdef~0")', 'x("fedcba9876543210~2")')).not.toBeNull();
+	});
+
 	it('the devalue lane: the prop is named by its path in the props, never a slot of the flat table', () => {
 		const a = stringify({
 			cart: { count: 3, at: new Date(0) },

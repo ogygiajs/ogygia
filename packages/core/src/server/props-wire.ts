@@ -31,7 +31,7 @@
  */
 import { stringify } from 'devalue';
 import { escape_script_text } from '../escape.ts';
-import { REF_WIRE_KEY, ref_reducer } from '../ref.ts';
+import { REF_WIRE_KEY, placed, ref_reducer } from '../ref.ts';
 import { register_wire_kind } from '../live-transport.ts';
 import { register_store_kind, register_derived_kind } from '../store-transport.ts';
 import { register_snippet_kind } from '../region-snippet.ts';
@@ -113,7 +113,8 @@ export interface WireText {
 }
 
 export interface PropsWire {
-	/** The canonical, seed-independent text — what the fingerprint hashes. */
+	/** The canonical, seed-independent text — what the fingerprint hashes. Its refs are in place
+	 *  form (ref.ts `placed`), so the same props give the same text on every render. */
 	readonly canonical: string;
 	/** Whether the canonical text is plain JSON (the lane the props qualify for). */
 	readonly json: boolean;
@@ -174,8 +175,10 @@ export function plan_props_wire(value: unknown, entry: string): PropsWire {
 		};
 	}
 	const wire_modules = new Set<string>();
-	const canonical = stringify_props(value, entry, null, wire_modules);
-	const plain: WireText = { text: canonical, json: false };
+	const text = stringify_props(value, entry, null, wire_modules);
+	// (a ref's id is fence + place; only the place is the same on the next render: ref.ts RefNames)
+	const canonical = placed(text);
+	const plain: WireText = { text, json: false };
 	let culprit: string | null | undefined;
 	return {
 		canonical,

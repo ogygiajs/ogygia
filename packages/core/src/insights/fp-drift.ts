@@ -54,8 +54,8 @@ export function compare(was: Kept[], now: Kept[]): FpDrift[] {
 		if (!a || a.fp === b.fp) continue;
 		if (a.props !== undefined && b.props !== undefined) {
 			const d = props_diff(a.props, b.props);
-			// (only ogygia's own ids differ: a store or a class instance, made per render on purpose —
-			// a reused id could revive the wrong page's instance after a navigation. Not the app's to fix.)
+			// (only the random part of ogygia's own ids differs: fenced per render on purpose, so two
+			// answers in one tab never share one. Not the app's to fix.)
 			if (!d) continue;
 			out.push({ entry: b.entry, fp_was: a.fp, fp_now: b.fp, ...d });
 		} else out.push({ entry: b.entry, fp_was: a.fp, fp_now: b.fp });
@@ -64,8 +64,8 @@ export function compare(was: Kept[], now: Kept[]): FpDrift[] {
 }
 
 /** Where two props texts differ: the first differing path when both parse as JSON, else the text
- *  around the first differing character — ogygia's own ids (a store's, a class instance's: random
- *  per render by design) left out. `null` when those ids are all that differs. */
+ *  around the first differing character — what is random in ogygia's own ids (a store's, a class
+ *  instance's: the render's fence, by design) left out. `null` when that is all that differs. */
 export function props_diff(
 	a: string,
 	b: string
@@ -118,15 +118,40 @@ function is_mint_id(v: unknown): boolean {
 	return true;
 }
 
-/** The text with every UUID replaced by a fixed one (for the non-JSON compare). */
+/** A server render's ref id (ref.ts RefNames): its fence (16 hex, random per render), `~`, its
+ *  place. Only the place says anything about the props. */
+function fence_end(v: string, at: number): number {
+	if (v.charCodeAt(at + 16) !== 126) return -1;
+	for (let i = at; i < at + 16; i++) {
+		const c = v.charCodeAt(i);
+		if (!((c >= 48 && c <= 57) || (c >= 97 && c <= 102))) return -1;
+	}
+	return at + 16;
+}
+const is_named_id = (v: unknown): v is string =>
+	typeof v === 'string' && v.length > 17 && fence_end(v, 0) === 16;
+
+/** Two ids that name the same thing to the fingerprint: both random, or the same place. */
+function same_ref(a: unknown, b: unknown): boolean {
+	if (is_mint_id(a) && is_mint_id(b)) return true;
+	return is_named_id(a) && is_named_id(b) && a.slice(16) === b.slice(16);
+}
+
+/** The text with every UUID replaced by a fixed one, and every render's fence dropped (for the
+ *  non-JSON compare). */
 function mask_ids(s: string): string {
 	let out = '';
 	let last = 0;
-	for (let i = 0; i + 36 <= s.length; i++) {
-		if (s.charCodeAt(i + 8) !== 45 || !is_mint_id(s.slice(i, i + 36))) continue;
-		out += s.slice(last, i) + '<id>';
-		last = i + 36;
-		i += 35;
+	for (let i = 0; i + 17 <= s.length; i++) {
+		if (i + 36 <= s.length && s.charCodeAt(i + 8) === 45 && is_mint_id(s.slice(i, i + 36))) {
+			out += s.slice(last, i) + '<id>';
+			last = i + 36;
+			i += 35;
+		} else if (s.charCodeAt(i + 16) === 126 && fence_end(s, i) !== -1) {
+			out += s.slice(last, i);
+			last = i + 16;
+			i += 15;
+		}
 	}
 	return last === 0 ? s : out + s.slice(last);
 }
@@ -137,7 +162,7 @@ function first_path(
 	path: string
 ): { path: string; was: string; now: string } | null {
 	if (a === b) return null;
-	if (is_mint_id(a) && is_mint_id(b)) return null;
+	if (same_ref(a, b)) return null;
 	const clip = (v: unknown) => {
 		const s = JSON.stringify(v) ?? String(v);
 		return s.length > 60 ? s.slice(0, 60) + '…' : s;
