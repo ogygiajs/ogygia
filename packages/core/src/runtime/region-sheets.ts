@@ -74,12 +74,15 @@ export function use_sheets(region: Element, sheets: readonly Element[]): void {
 
 /**
  * After a navigation's swap: of the region sheets the new page's head does not list (`unlisted`),
- * take out each one no region on the page uses any more.
+ * take out each one no region on the page uses any more. "On the page" is read from the document:
+ * a region the swap took out leaves `connected_regions` only at its teardown, a microtask later,
+ * and uses no sheet from the moment it left (#799, test/browser/nav-region-sheet-left.test.ts).
  */
 export function release_sheets(unlisted: readonly Element[]): void {
 	if (unlisted.length === 0) return;
 	const used = new Set<Element>();
 	for (const region of connected_regions) {
+		if (!region.isConnected) continue;
 		const sheets = used_by.get(region);
 		if (sheets !== undefined) for (const s of sheets) used.add(s);
 	}
