@@ -1,0 +1,424 @@
+{
+	"tests": [
+		{
+			"file": "packages/flags/test/exposure-queue.test.ts",
+			"name": "the exposure queue > a batch the sink failed is tried again before the batch read after it",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/exposure-queue.test.ts",
+			"name": "the exposure queue > a sink that rejects is contained: no unhandled rejection, and a warning with its code",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/exposure-queue.test.ts",
+			"name": "the exposure queue > an exposure read while a send is in flight goes in the next send, and that end waits for it",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/exposure-queue.test.ts",
+			"name": "the exposure queue > nothing buffered: the end has nothing to wait for",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/exposure-queue.test.ts",
+			"name": "the exposure queue > the age cap sends a buffered batch on its own",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/exposure-queue.test.ts",
+			"name": "the exposure queue > the request's end resolves after the sink's send",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "decide — exposure batching > fires once per (request, flag); flushes at max, at the timer, and at flush_exposures()",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "decide + source — the OpenFeature seam (any resolver) > a source variant NOT in the declared set is ignored (falls through to native)",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "decide + source — the OpenFeature seam (any resolver) > a throwing source degrades every flag to native, never the request",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "decide + source — the OpenFeature seam (any resolver) > bare boolean/string source values are sugar for { variant }",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "decide + source — the OpenFeature seam (any resolver) > override still beats the source",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "decide + source — the OpenFeature seam (any resolver) > source decides a variant; validated against declared variants; primes once per request",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "decide + source — the source sees the visitor a read hashes on > anonymous → no visitor",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "decide + source — the source sees the visitor a read hashes on > carried claims win over the cookie; a router visitor wins over both",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "decide + source — the source sees the visitor a read hashes on > openfeature()'s default context gets the visitor as its targetingKey",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "decide + source — the source sees the visitor a read hashes on > the og-vid cookie (no router identity above the router) → `{ sub, anonymous }`",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "federation — decided flags auto-carry > a flag never read this request does NOT carry",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "federation — decided flags auto-carry > every flag decided this request self-registers its bucket for signed claims",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "flag — decision precedence > ?og-exp override beats everything (unknown variants ignored)",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "flag — decision precedence > carried claims (upstream shell) beat the native rule",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "flag — decision precedence > the override GATE: closed → ?og-exp is inert (prod default); reopened → honored",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "flag — layers (mutual exclusion, a string group) > a visitor lands in at most ONE member",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "flag — the four declaration shapes, read by calling > bare = a kill switch, off for everyone",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "flag — the four declaration shapes, read by calling > function = targeting; true → on, false → definitively off, undefined → fall through",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "flag — the four declaration shapes, read by calling > number = sticky rollout percent, ~accurate over a population",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "flag — the four declaration shapes, read by calling > record = weighted variants; anonymous → control (first key)",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "flag — the four declaration shapes, read by calling > weights are RATIOS, not percentages (3:1 ≈ 75/25)",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "flag.pick — one verb, two forms > boolean flag pick maps off/on",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "flag.pick — one verb, two forms > one-arg form = a page slot (ComponentPick), resolved per request, control fallback",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "flag.pick — one verb, two forms > stamp names the world for analytics",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "flag.pick — one verb, two forms > two-arg form = pick this visitor a value (numbers, strings, config)",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "flag.value — vendor payloads, schema-validated > an invalid vendor payload is rejected → fallback (trust boundary)",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "flag.value — vendor payloads, schema-validated > no source → fallback, never undefined",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/flags.test.ts",
+			"name": "flag.value — vendor payloads, schema-validated > returns the validated payload, else the fallback",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/hole-cache.test.ts",
+			"name": "a cached hole that reads a flag > answers a visitor who joins another bucket render in flight with their own variant",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/hole-cache.test.ts",
+			"name": "a cached hole that reads a flag > answers two visitors in two buckets with their own variants",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/plugin.test.ts",
+			"name": "facts a read reports > a read is a per-visitor read (a stored page never keeps one variant) and an assignment",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/plugin.test.ts",
+			"name": "flags() > is named by its package and names its server realm, the module beside it",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/plugin.test.ts",
+			"name": "the server realm > primes the source in `request` and drains exposures in `done`",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/plugin.test.ts",
+			"name": "the server realm primes the source with the visitor > the event's og-vid cookie reaches the source as `c.visitor`",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/prime-twice.test.ts",
+			"name": "a second prime of a request while the first waits > returns once the source answered, and reads get its answer",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/prime-twice.test.ts",
+			"name": "a source that throws before it awaits anything > leaves the request resolved (empty), never priming for good",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/source-failed.test.ts",
+			"name": "a failing flag source is said > a source that throws: said once for its failing streak, with the error, again after a request worked",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/source-failed.test.ts",
+			"name": "a failing flag source is said > an OFREP endpoint that answers 500",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/source-failed.test.ts",
+			"name": "a failing flag source is said > an OFREP endpoint that cannot be reached",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		},
+		{
+			"file": "packages/flags/test/source-failed.test.ts",
+			"name": "a failing flag source is said > an OpenFeature flag whose evaluation throws: said, and the other flags keep the source's answer",
+			"kind": "unit",
+			"results": {
+				"node": "pass"
+			}
+		}
+	],
+	"coverage": {
+		"files": [
+			{
+				"path": "packages/flags/src/app.ts",
+				"lines": 100,
+				"branches": 100,
+				"functions": 100
+			},
+			{
+				"path": "packages/flags/src/index.ts",
+				"lines": 94.64,
+				"branches": 88.48,
+				"functions": 91.66
+			},
+			{
+				"path": "packages/flags/src/messages.ts",
+				"lines": 57.14,
+				"branches": 50,
+				"functions": 25
+			},
+			{
+				"path": "packages/flags/src/ofrep.ts",
+				"lines": 62.5,
+				"branches": 25,
+				"functions": 75
+			},
+			{
+				"path": "packages/flags/src/openfeature.ts",
+				"lines": 80,
+				"branches": 52.94,
+				"functions": 100
+			},
+			{
+				"path": "packages/flags/src/server.ts",
+				"lines": 100,
+				"branches": 100,
+				"functions": 100
+			},
+			{
+				"path": "packages/flags/src/source-health.ts",
+				"lines": 100,
+				"branches": 100,
+				"functions": 100
+			},
+			{
+				"path": "packages/flags/src/vite.ts",
+				"lines": 100,
+				"branches": 100,
+				"functions": 100
+			}
+		]
+	}
+}
