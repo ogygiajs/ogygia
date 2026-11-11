@@ -2487,6 +2487,50 @@
 		{
 			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > server_sourcemaps_plugin:0~8b94d4",
 			"reason": "build only: the hidden-sourcemaps switch, always on in a build with the profiler, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/hook-entries.ts > built_dev",
+			"reason": "reads one field of the page's hook record (a global: hidden state), constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/hook-record.ts > record",
+			"reason": "the page's hook record from its global, made once (hidden state), constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > get live",
+			"reason": "the injected engine only (a page in a test): one field read of the hook record, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > page",
+			"reason": "the injected engine only (a page in a test): hands the call to page_json, whose work it is"
+		},
+		{
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > hydration",
+			"reason": "the injected engine only (a page in a test): hands the call to hydration_json, whose work it is"
+		},
+		{
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > record_start",
+			"reason": "the injected engine only (a page in a test): hands the call to record_start, whose work it is"
+		},
+		{
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > record_stop",
+			"reason": "the injected engine only (a page in a test): hands the call to record_stop, whose work it is"
+		},
+		{
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > settled",
+			"reason": "the injected engine only (a page in a test): hands the call to settled, whose work it is"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > defineClient:0~75552b > boot > record_realm:0~ef831d > lend",
+			"reason": "a dynamic import of the realm's loan chunk, asked once per page by a reader not built with the app; the import is the bundler's"
+		},
+		{
+			"id": "packages/devtools/src/devtools/regions.ts > use_sidecar_lookup",
+			"reason": "keeps the realm's lookup (a function: not cloneable), once per page, constant work"
+		},
+		{
+			"id": "packages/testing/src/index.ts > engine_script",
+			"reason": "the test process reads the built engine file once (a file on disk, not recorded), then the cached text"
 		}
 	]
 }
