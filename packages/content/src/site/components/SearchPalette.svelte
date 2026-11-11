@@ -1,11 +1,12 @@
+<!--
+@component
+The heavy half of search: the Bits UI dialog and command list, and the worker client that loads the
+index. `Search` loads it on a visitor's first intent. Mounting it starts the worker client; a custom `query` backend starts none. Typing queries once per
+pause; a failure is shown only for the term still in the field, with no results under it. The list
+stays mounted, so the field's `aria-controls` always points at it, and is never empty: with nothing
+to list it holds one disabled option (the hint, no results, or the error).
+-->
 <script lang="ts">
-	/**
-	 * The HEAVY half of search — Bits UI Dialog+Command, the Orama worker, and the index fetch. Loaded
-	 * by `Search.svelte` via dynamic import on FIRST INTENT (trigger click, ⌘K, `/`), so none of it
-	 * rides the initial page: the palette is interaction-priced, exactly like the islands doctrine
-	 * says chrome should be. Mounting this component IS the intent signal — the worker spins up and
-	 * the prerendered index fetches from here, not at page hydrate.
-	 */
 	import { onMount } from 'svelte';
 	import { scope, STALE } from '@ogygia/machine';
 	import { Command, Dialog } from 'bits-ui';
@@ -35,9 +36,6 @@
 
 	let q = $state('');
 	let results = $state<SearchHit[]>([]);
-	/** The palette's one state: its index loading, ready to answer, or failed (the index did not
-	 *  load, or the last query failed: its message is shown and no results are). A query that works
-	 *  again makes it ready. */
 	type Status = { kind: 'loading' } | { kind: 'ready' } | { kind: 'failed'; message: string };
 	// svelte-ignore state_referenced_locally
 	let status = $state<Status>(query ? { kind: 'ready' } : { kind: 'loading' });
@@ -47,7 +45,7 @@
 	const message_of = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 	onMount(() => {
-		if (query) return; // custom backend — no worker
+		if (query) return;
 		client = new SearchClient({ base, ...(endpoint ? { endpoint } : {}), limit });
 		client.ready.then(
 			() => {
@@ -62,7 +60,6 @@
 		return () => client?.destroy();
 	});
 
-	/** A query of `term` failed: shown, with no results under it. */
 	function query_failed(error: unknown): void {
 		status = { kind: 'failed', message: message_of(error) };
 		results = [];
@@ -74,11 +71,9 @@
 		return client?.query(term) ?? Promise.resolve([]);
 	}
 
-	// Attachment on the field wrapper: find the (Bits UI) input and debounce-query on each keystroke.
 	function searchField(node: HTMLElement) {
 		const input = node.querySelector('input');
 		if (!input) return;
-		// the field's listener, its debounce and its query in flight: let go when the field goes
 		const s = scope();
 		let cancel: (() => void) | null = null;
 		const run = () => {
@@ -93,7 +88,6 @@
 				try {
 					hits = await s.task(() => run_query(term));
 				} catch (error) {
-					// (a failure of a term the visitor already typed past is not the screen's)
 					if (input.value.trim() === term) query_failed(error);
 					return;
 				}
@@ -130,9 +124,6 @@
 {/snippet}
 
 {#snippet resultsBody()}
-	<!-- `Command.List` (role=listbox) stays mounted so the input's `aria-controls`/combobox wiring is
-	     always valid. It must never be an EMPTY listbox, so every non-result state renders as a single
-	     DISABLED option (aria-disabled, skipped by keyboard nav) — a valid required child. -->
 	<Command.List class="og-search-scene-body">
 		<Command.Viewport>
 			{#if status.kind === 'failed'}
