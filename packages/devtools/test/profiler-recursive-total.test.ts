@@ -136,7 +136,8 @@ describe('a recursive function in one 10 ms sample', () => {
 		expect(tree.total_ms).toBe(10);
 		expect((tree.markup_ms ?? 0) + (tree.logic_ms ?? 0)).toBeLessThanOrEqual(10);
 		for (const ms of tree.runs_ms ?? []) expect(ms).toBeLessThanOrEqual(10);
-		for (const ms of Object.values(a.owner_runs_ms ?? {}).flat()) expect(ms).toBeLessThanOrEqual(10);
+		for (const ms of Object.values(a.owner_runs_ms ?? {}).flat())
+			expect(ms).toBeLessThanOrEqual(10);
 		const r = range_hot(a.stacks!, 0, 10);
 		for (const row of r.components) expect(row.total_ms).toBeLessThanOrEqual(r.cpu_ms);
 	});
