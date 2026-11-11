@@ -126,26 +126,48 @@ export function region_props_fp(el: Element): string {
 
 const RECONCILE_KEY = 'data-key';
 
+/** The regions whose `data-key` is ours (stamped here), not the page's. */
+const stamped = new WeakSet<Element>();
+
+/** What a region is, for its reconcile key (one region of it; twins share it). */
+function region_identity(el: Element): string {
+	// A KEPT region (keep:'name' / data-persist) keys by its STABLE identity so a props change
+	// (e.g. a `track` prop following the route) KEEPS the live island and prop-pushes the new
+	// props into it — NOT re-mounts it (which resets state, breaking the persist contract). Only
+	// a NON-kept region keys by props-fingerprint (patch when its inputs change).
+	const keep = el.getAttribute('data-ogygia-keep');
+	if (keep !== null) return 'k\0' + keep;
+	if (el.hasAttribute('data-persist')) return 'p\0' + region_signature(el);
+	// One identity: the 64-bit fingerprint alone. It already hashes entry + endpoint + props,
+	// so the old signature+fp encoded entry twice — the fp is the whole key now, and 64 bits
+	// makes a cross-slot collision a non-risk.
+	return 'r\0' + region_props_fp(el);
+}
+
 /** Stamp reconcile keys onto a root's regions + keep-chrome, without clobbering an authored key/id.
  *  A region's key is signature+fingerprint (patch on either change); keep-chrome keys by keep name. */
 export function stamp_region_keys(root: ParentNode): void {
+	// A KEY NAMES ONE REGION (#840). Two regions with the same identity (twin islands, same props)
+	// are told apart by their order among the root's regions of that identity: the n-th takes
+	// `<identity> <n>`. One key for both made the morph pair them as one: navigating away left one
+	// twin on the next page, and the delta answer's second placeholder landed with no live twin.
+	// Re-stamped on every call (a region's place among its twins moves when one before it leaves);
+	// a key the page wrote itself stays.
+	const regions: Element[] = [];
+	const taken = new Set<string>();
 	for (const el of root.querySelectorAll('ogygia-region')) {
-		if (el.getAttribute(RECONCILE_KEY) !== null || el.id !== '') continue;
-		// A KEPT region (keep:'name' / data-persist) keys by its STABLE identity so a props change
-		// (e.g. a `track` prop following the route) KEEPS the live island and prop-pushes the new
-		// props into it — NOT re-mounts it (which resets state, breaking the persist contract). Only
-		// a NON-kept region keys by props-fingerprint (patch when its inputs change).
-		const keep = el.getAttribute('data-ogygia-keep');
-		if (keep !== null) {
-			el.setAttribute(RECONCILE_KEY, 'k ' + keep);
-		} else if (el.hasAttribute('data-persist')) {
-			el.setAttribute(RECONCILE_KEY, 'p ' + region_signature(el));
-		} else {
-			// One identity: the 64-bit fingerprint alone. It already hashes entry + endpoint + props,
-			// so the old signature+fp encoded entry twice — the fp is the whole key now, and 64 bits
-			// makes a cross-slot collision a non-risk.
-			el.setAttribute(RECONCILE_KEY, 'r ' + region_props_fp(el));
-		}
+		if (el.id !== '') continue;
+		const key = el.getAttribute(RECONCILE_KEY);
+		if (key === null || stamped.has(el)) regions.push(el);
+		else taken.add(key);
+	}
+	for (const el of regions) {
+		const identity = region_identity(el);
+		let key = identity;
+		for (let n = 2; taken.has(key); n++) key = identity + '\0' + n;
+		taken.add(key);
+		stamped.add(el);
+		if (el.getAttribute(RECONCILE_KEY) !== key) el.setAttribute(RECONCILE_KEY, key);
 	}
 	for (const el of root.querySelectorAll('[data-ogygia-keep]')) {
 		if (el.getAttribute(RECONCILE_KEY) !== null || el.id !== '') continue;
