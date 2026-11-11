@@ -3297,47 +3297,47 @@
 			"reason": "browser only: one hook call to the beacon, once per page (first_handling), a switch on the hook name (a DOM element in the event: not cloneable)"
 		},
 		{
-			"id": "packages/devtools/src/client-beacon.ts > defineClient:0~02ad62 > hooks > criticalSettled",
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > criticalSettled",
 			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client-beacon.ts > defineClient:0~02ad62 > hooks > entryFallback",
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > entryFallback",
 			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client-beacon.ts > defineClient:0~02ad62 > hooks > holeAnswered",
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > holeAnswered",
 			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client-beacon.ts > defineClient:0~02ad62 > hooks > holeBatchMissed",
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > holeBatchMissed",
 			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client-beacon.ts > defineClient:0~02ad62 > hooks > holeFailed",
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > holeFailed",
 			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client-beacon.ts > defineClient:0~02ad62 > hooks > navigated",
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > navigated",
 			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client-beacon.ts > defineClient:0~02ad62 > hooks > regionFailed",
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > regionFailed",
 			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client-beacon.ts > defineClient:0~02ad62 > hooks > regionHydrated",
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > regionHydrated",
 			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client-beacon.ts > defineClient:0~02ad62 > hooks > warning",
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > warning",
 			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~f74c4f > boot > realm_boot:1~ef831d > lend",
+			"id": "packages/devtools/src/client.ts > plugin > boot > realm_boot:1~ef831d > lend",
 			"reason": "browser only: lends the app's own chunk of names to the realm, one dynamic import, once per page"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~f74c4f > boot > then:0~26dd7e",
+			"id": "packages/devtools/src/client.ts > plugin > boot > then:0~26dd7e",
 			"reason": "browser only, a build's switched-on dock: joins the regions' half to the page beacon once it started, once per document, constant work of its own"
 		},
 		{
