@@ -1,5 +1,5 @@
 // PAGE-CSR, the DEV leg: toggling a `csr` export must refresh the SERVER's csr_true_routes —
-// `virtual:ogygia/route-csr` lives in the dev SSR module graph, and before the fix it was baked
+// `ogygia:server/route-csr` lives in the dev SSR module graph, and before the fix it was baked
 // once and NEVER invalidated: Kit flipped immediately while ogygia's server leg kept deciding
 // island-vs-inline from the stale set → `<ogygia-region>` shells on a Kit-booted page with the
 // runtime withheld = dead chrome (the consumer-reported desync the docstring says can't happen).
@@ -44,7 +44,7 @@ async function wait_html(pred: (html: string) => boolean, ms = 15_000): Promise<
 let srv: SpawnedServer | undefined;
 let orig: string | undefined;
 
-test.describe('PAGE-CSR dev leg: a csr-export toggle refreshes virtual:ogygia/route-csr (stale set = island shells + Kit boot + no runtime = dead chrome)', () => {
+test.describe('PAGE-CSR dev leg: a csr-export toggle refreshes ogygia:server/route-csr (stale set = island shells + Kit boot + no runtime = dead chrome)', () => {
 	// ── boot the dev server ─────────────────────────────────────────────────────────────────────
 	// spawn_server = its own process GROUP, so teardown kills the real vite child too — killing just
 	// the pnpm wrapper orphans vite, which then squats the port for every later run.
