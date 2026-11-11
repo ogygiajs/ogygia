@@ -81,7 +81,11 @@ test('a host’s attribute reset (`og-r`) never sets an on* handler or a javascr
 			formaction: 'JaVaScRiPt:window.__og_ran++',
 			srcdoc: '<script>window.__og_ran++</script>',
 			title: 'kept',
-			src: '/ok.png'
+			src: '/ok.png',
+			// (names that only begin with "on" are no handlers: a component's own attributes)
+			online: '',
+			once: 'true',
+			onfoo: 'x'
 		})
 	);
 	restore(document);
@@ -92,6 +96,9 @@ test('a host’s attribute reset (`og-r`) never sets an on* handler or a javascr
 	expect(host.hasAttribute('srcdoc')).toBe(false);
 	expect(host.getAttribute('title')).toBe('kept');
 	expect(host.getAttribute('src')).toBe('/ok.png');
+	expect(host.getAttribute('online')).toBe('');
+	expect(host.getAttribute('once')).toBe('true');
+	expect(host.getAttribute('onfoo')).toBe('x');
 });
 
 test('a stand-in keeps the parser from splitting the page’s link, and becomes a real <a> in the tree', async () => {

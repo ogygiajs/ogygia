@@ -158,9 +158,11 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		'data',
 		'poster'
 	]);
-	const unsafe_attr = (name: string, value: string): boolean => {
+	const unsafe_attr = (el: Element, name: string, value: string): boolean => {
 		const n = name.toLowerCase();
-		if (n.startsWith('on') || n === 'srcdoc') return true;
+		// (a handler is an `on…` name the element has an event-handler property for: `onclick`, not a
+		// component's own `online` or `once`)
+		if ((n.startsWith('on') && n in el) || n === 'srcdoc') return true;
 		if (!URL_ATTRS.has(n)) return false;
 		// (the scheme as a browser reads it: leading spaces and controls, and tabs or newlines inside)
 		// oxlint-disable-next-line no-control-regex -- the controls a URL parser strips are the point
@@ -187,7 +189,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 						if (merged) el.setAttribute('class', merged);
 						else el.removeAttribute('class');
 					} else if (v === null) el.removeAttribute(name);
-					else if (!unsafe_attr(name, v)) el.setAttribute(name, v);
+					else if (!unsafe_attr(el, name, v)) el.setAttribute(name, v);
 				}
 			} catch {
 				// ok: a mangled diff: the attributes are left as served
