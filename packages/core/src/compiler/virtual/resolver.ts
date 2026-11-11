@@ -68,8 +68,9 @@ export class VirtualTable<A> {
 	readonly #parts: Parts<A>;
 	/** one stamp per part, moved by a dev change to it */
 	readonly #stamps: World<Part> = world.keyed<Part>();
-	/** resolved id → what its last load read, and when (bounded by the modules the table serves) */
-	readonly #reads = new Map<string, { stamp: number; reads: ReadonlySet<Part> }>();
+	/** resolved id and leg → what that leg's last load read, and when: one id is loaded on both legs
+	 *  and can read different parts on each (bounded by the modules the table serves, twice) */
+	readonly #reads = new Map<string, { id: string; stamp: number; reads: ReadonlySet<Part> }>();
 
 	constructor(
 		entries: readonly Entry<A>[],
@@ -183,10 +184,11 @@ export class VirtualTable<A> {
 	 *  parts the load read, for {@link bump}. */
 	load(id: string, app: A, leg: Leg): string | Promise<string> | null {
 		const reads = new Set<Part>();
+		const key = `${leg.ssr ? 'ssr' : 'client'} ${id}`;
 		// (recorded before it runs: a bump while an async load is in flight names it too)
-		this.#reads.set(id, { stamp: this.#stamps.stamp(), reads });
+		this.#reads.set(key, { id, stamp: this.#stamps.stamp(), reads });
 		const out = this.#load(id, tracked(app, this.#parts, reads), leg);
-		if (out === null) this.#reads.delete(id);
+		if (out === null) this.#reads.delete(key);
 		return out;
 	}
 
@@ -196,13 +198,13 @@ export class VirtualTable<A> {
 	 */
 	bump(part: Part): string[] {
 		this.#stamps.bump([part]);
-		const out: string[] = [];
-		for (const [id, { stamp, reads }] of this.#reads) {
+		const out = new Set<string>();
+		for (const [key, { id, stamp, reads }] of this.#reads) {
 			if (this.#stamps.fresh(stamp, reads)) continue;
-			out.push(id);
-			this.#reads.delete(id);
+			out.add(id);
+			this.#reads.delete(key);
 		}
-		return out;
+		return [...out];
 	}
 
 	#load(id: string, app: A, leg: Leg): string | Promise<string> | null {
