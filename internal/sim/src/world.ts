@@ -121,11 +121,17 @@ export class World {
 		};
 		process.on('unhandledRejection', uncaught);
 		process.on('uncaughtException', uncaught);
+		// a world's servers start from nothing: what they pin on `globalThis` (an app's in-memory
+		// store, a counter a command bumps) is taken off when the world ends, so the next world in
+		// this process does not start with it (a seed's replay runs after other seeds)
+		const globals = new Set(Reflect.ownKeys(globalThis));
 		w.#restore = () => {
 			process.off('unhandledRejection', uncaught);
 			process.off('uncaughtException', uncaught);
 			globalThis.fetch = real_fetch;
 			restore();
+			for (const key of Reflect.ownKeys(globalThis))
+				if (!globals.has(key)) delete (globalThis as Record<PropertyKey, unknown>)[key];
 		};
 		await w.deploy(o.builds[0]);
 		return w;
