@@ -37,6 +37,7 @@ const DOCUMENTED_PACKAGES = [
 	'@ogygia/federation',
 	'@ogygia/postrender',
 	'@ogygia/devtools',
+	'@ogygia/insights',
 	'@ogygia/testing',
 	'@ogygia/tsdown-plugin-svelte'
 ];
