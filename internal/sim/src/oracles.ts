@@ -351,12 +351,26 @@ export function stuck(tab: Tab): Broken | null {
 		if (m) last.set(m[1], m[2]);
 	}
 	const held = [...last].filter(([, state]) => state.endsWith('ing'));
-	return held.length === 0
-		? null
-		: {
-				oracle: 'stuck',
-				detail: `${tab.page.mainFrame.url}: at rest, still ${held.map(([id, s]) => `${id} ${s}`).join(', ')}`
-			};
+	if (held.length === 0) return null;
+	const detail = `${tab.page.mainFrame.url}: at rest, still ${held.map(([id, s]) => `${id} ${s}`).join(', ')}`;
+	// #820: on a page Kit hydrates, Kit's client that never came leaves its islands' wakes waiting
+	if (held.every(([id, s]) => id.startsWith('wake#') && s === 'waking') && kit_never_came(tab))
+		return {
+			oracle: 'known',
+			detail: `${detail}: #820 (an island waits for a Kit that never came)`
+		};
+	return { oracle: 'stuck', detail };
+}
+
+/** A page Kit hydrates (its start entry is in the document) whose Kit never published its page. */
+function kit_never_came(tab: Tab): boolean {
+	const w = tab.page.mainFrame.window as unknown as Record<symbol, unknown> & {
+		document: Document;
+	};
+	const kit = [...w.document.querySelectorAll('script, link')].some((e) =>
+		/\/_app\/immutable\/entry\/start\./.test(e.textContent + (e.getAttribute('href') ?? ''))
+	);
+	return kit && w[Symbol.for('ogygia.kit-page')] == null;
 }
 
 /** ogygia's own rules, in the page (`__ogygia_rules()`, built in with OGYGIA_RULES=1). */
