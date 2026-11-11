@@ -81,10 +81,14 @@ export const handle = sequence(
 	ds_ssr,
 	auth_wall,
 	gap_front,
-	// (the restore lab: a scoped web-component render as the app's transform, OGYGIA_RESTORE_LAB=1)
-	ogygiaHandle(
-		process.env.OGYGIA_RESTORE_LAB ? { transform: (html: string) => scoped_render(html) } : {}
-	),
+	// (LAB_NO_HANDLE=1 at runtime: an app that never added ogygia's handle, so nothing of the
+	// devtools' server half runs: dock-switch.spec.ts)
+	process.env.LAB_NO_HANDLE
+		? ({ event, resolve }) => resolve(event)
+		: // (the restore lab: a scoped web-component render as the app's transform, OGYGIA_RESTORE_LAB=1)
+			ogygiaHandle(
+				process.env.OGYGIA_RESTORE_LAB ? { transform: (html: string) => scoped_render(html) } : {}
+			),
 	gap_inside,
 	corrupt_detector_region
 );
