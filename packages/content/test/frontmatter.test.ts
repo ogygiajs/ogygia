@@ -315,3 +315,20 @@ describe('parse_yaml — adversarial mixes', () => {
 		expect(() => parse_yaml('a:\n\tb: 1')).toThrow();
 	});
 });
+
+describe('parse_yaml — a `__proto__` key is a plain key', () => {
+	for (const [form, source] of [
+		['block map', '__proto__:\n  polluted: true'],
+		['flow map', 'x: { __proto__: { polluted: true } }'],
+		['quoted key', '"__proto__":\n  polluted: true']
+	] as const) {
+		it(`${form}: it is the object's own key, never its prototype`, () => {
+			const out = parse_yaml(source) as Record<string, unknown>;
+			const obj = (form === 'flow map' ? out.x : out) as Record<string, unknown>;
+			expect(Object.getPrototypeOf(obj)).toBe(Object.prototype);
+			expect(obj.polluted).toBeUndefined();
+			expect(Object.hasOwn(obj, '__proto__')).toBe(true);
+			expect(Object.getOwnPropertyDescriptor(obj, '__proto__')?.value).toEqual({ polluted: true });
+		});
+	}
+});
