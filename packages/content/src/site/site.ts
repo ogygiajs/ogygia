@@ -235,8 +235,9 @@ class OgygiaSite implements Site {
 		if (!this.#context) return {};
 		try {
 			return this.#context(event as { url: URL; request?: Request; cookies?: unknown }) ?? {};
-		} catch {
-			return {}; // ok: a context that throws reads the public projection, never more
+		} catch (e) {
+			console.error(new OgygiaError('content_site_context_failed'), e);
+			return {};
 		}
 	}
 
