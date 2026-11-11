@@ -48,6 +48,8 @@ export type LoadKind = 'code' | 'content';
 export const CRITICAL_CAP_MS = 2500;
 /** Background (`ahead` + `speculative`) downloads in flight at once. */
 export const BACKGROUND_WINDOW = 3;
+/** Hole answers in flight at once, whatever their class: what one page asks of the origin. */
+export const HOLE_WINDOW = 3;
 
 /**
  * `visible` when `el` is on screen now, else `ahead`: the one viewport tracker's answer
@@ -212,6 +214,7 @@ function until_critical(): Promise<void> {
 const queue: LoadSlot[] = [];
 let waiting = 0;
 let in_flight_background = 0;
+let in_flight_holes = 0;
 
 /**
  * A queued download: asking for one queues it. `ready` resolves with a `release` to call when the
@@ -224,6 +227,8 @@ let in_flight_background = 0;
 export class LoadSlot {
 	readonly kind: LoadKind;
 	readonly label: string | undefined;
+	/** `holes`: a hole's answer, one of {@link HOLE_WINDOW} in flight. */
+	readonly window: 'holes' | undefined;
 	readonly queued_at: number = now();
 	readonly ready: Promise<() => void>;
 	/** Still in the queue: a drain takes it out when it starts. */
@@ -240,9 +245,11 @@ export class LoadSlot {
 		label?: string;
 		el?: Element;
 		flight?: InFlight;
+		window?: 'holes';
 	}) {
 		this.kind = o.kind;
 		this.label = o.label;
+		this.window = o.window;
 		this.#read = typeof o.cls === 'function' ? o.cls : () => o.cls as LoadClass;
 		this.#flight = o.flight ?? null;
 		this.ready = new Promise<() => void>((r) => (this.#resolve = r));
@@ -270,6 +277,8 @@ export class LoadSlot {
 	start(cls: LoadClass, background: boolean): void {
 		this.unwatch();
 		if (background) in_flight_background++;
+		const hole = this.window === 'holes';
+		if (hole) in_flight_holes++;
 		let released = false;
 		if (DEVTOOLS)
 			dt_emit({
@@ -284,6 +293,7 @@ export class LoadSlot {
 			if (released) return;
 			released = true;
 			if (background) in_flight_background--;
+			if (hole) in_flight_holes--;
 			drain();
 		});
 	}
@@ -360,6 +370,7 @@ async function drain_queue(): Promise<void> {
 				if (!critical_done() && waits_for_critical(e.kind, cls)) continue;
 				const background = cls === 'ahead' || cls === 'speculative';
 				if (background && in_flight_background >= BACKGROUND_WINDOW) continue;
+				if (e.window === 'holes' && in_flight_holes >= HOLE_WINDOW) continue;
 				e.queued = false;
 				waiting--;
 				started = true;
@@ -405,6 +416,7 @@ export function reset_load_scheduler(): void {
 	queue.length = 0;
 	waiting = 0;
 	in_flight_background = 0;
+	in_flight_holes = 0;
 	drainer.stop();
 	drainer = drain_definition.create();
 	critical.drop(() => true);

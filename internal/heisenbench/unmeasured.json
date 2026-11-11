@@ -573,10 +573,6 @@
 			"reason": "browser only: the hole's fetch as a task of its `fetching` visit, constant work besides the fetch; proven in packages/core/test/browser/hole-twins.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fetch_region > run:0 > fetch_hole:1 > renewed",
-			"reason": "browser only: a renewal's fresh capability handed to the frame store, constant work; proven in packages/core/test/browser/hole-renewal.test.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #apply > after_html_swap:2",
 			"reason": "browser only: a settled lake wakes the regions that waited on it (one DOM walk); proven in packages/core/test/browser/lake-swr-remount.test.ts"
 		},
@@ -2707,6 +2703,10 @@
 		{
 			"id": "packages/machine/src/queue.ts > clock",
 			"reason": "the default clock (performance.now), one read; every test and bench passes its own"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fetch_region > fetch_hole:1~0557ca > renewed",
+			"reason": "browser only: a renewal's fresh capability handed to the frame store, constant work; proven in packages/core/test/browser/hole-renewal.test.ts"
 		}
 	]
 }
