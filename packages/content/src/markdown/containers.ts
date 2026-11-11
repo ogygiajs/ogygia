@@ -13,6 +13,8 @@
  * around the inner content so Markdown still renders inside. Fenced code is skipped, so a literal
  * `:::` inside a code block is untouched.
  */
+// (the title is written into the .svx source: Svelte markup, braces escaped too: #469)
+import { html } from '@ogygia/core/plugin/utils';
 
 const LABELS: Record<string, string> = {
 	tip: 'TIP',
@@ -35,18 +37,6 @@ const KIND: Record<string, string> = {
 	danger: 'danger',
 	details: 'details'
 };
-
-const AMP_G = /&/g;
-const LT_G = /</g;
-const GT_G = />/g;
-const DOUBLE_QUOTE_G = /"/g;
-
-const esc = (s: string) =>
-	s
-		.replace(AMP_G, '&amp;')
-		.replace(LT_G, '&lt;')
-		.replace(GT_G, '&gt;')
-		.replace(DOUBLE_QUOTE_G, '&quot;');
 
 const OPEN = /^:::\s*([A-Za-z][\w-]*)\s*(.*)$/;
 const CLOSE = /^:::\s*$/;
@@ -91,20 +81,20 @@ export function transform_containers(src: string): string {
 			const name = om[1].toLowerCase();
 			const kind = KIND[name];
 			if (kind) {
-				const title = esc(om[2].trim() || LABELS[name] || name.toUpperCase());
+				const title = om[2].trim() || LABELS[name] || name.toUpperCase();
 				open_kinds.push(kind);
 				if (kind === 'details') {
 					out.push(
 						'',
 						`<details class="og-admonition og-admonition-details">`,
-						`<summary class="og-admonition-title">${title}</summary>`,
+						String(html.svelte`<summary class="og-admonition-title">${title}</summary>`),
 						''
 					);
 				} else {
 					out.push(
 						'',
 						`<div class="og-admonition og-admonition-${kind}" role="note">`,
-						`<p class="og-admonition-title">${title}</p>`,
+						String(html.svelte`<p class="og-admonition-title">${title}</p>`),
 						''
 					);
 				}

@@ -8,9 +8,12 @@
 // What the mechanics buy:
 //   • dedupe   — N regions with the same address share one in-flight fetch (`ensure`).
 //   • staleness — every frame carries a stamp of the store's one world, taken when its request
-//     started (a fetch) or when it was written (a batch's part, a streamed or mutation frame);
+//     started (a fetch, a batch's part) or when it was written (a streamed or mutation frame);
 //     `write` drops one not newer than what is applied, so a slow response that started earlier can
-//     never overwrite one that started, or landed, later.
+//     never overwrite one that started, or landed, later. A frame that carries a data version
+//     (`region(C, props, { version })`) is ordered by it first, so an answer decoded late (no
+//     request to stamp it by: a command's) cannot paint older data either. Each write, applied or
+//     dropped, is a move of the address's stored answer (a machine).
 //   • safety   — a prefetch warms an address nothing is bound to; it cannot touch the wrong DOM.
 //   • lifecycle — the shared fetch aborts only when the LAST waiter leaves; an entry nothing binds or
 //     fetches lingers EVICT_TTL, then goes (the store's cache, its age).
@@ -24,6 +27,7 @@
 import {
 	cache,
 	flights,
+	machine,
 	scope,
 	STALE,
 	world,
@@ -58,10 +62,36 @@ export function hold_refusal(a: string, err: unknown): void {
  *  batch's end). The input of the call that started the flight is the one that runs. */
 type FrameAsk = { a: string; work: FrameFetcher | Promise<string> };
 
+/** An applied answer: its stamp `v`, its data version `d` (`Frame.d`, when it had one), and its
+ *  HTML. */
+type Shown = { v: number; d: number | undefined; html: string };
+
+/** Why a written answer was dropped: an older request's (by stamp), or older data (by version). */
+type DropWhy = 'older request' | 'older data';
+
+type AnswerStates = {
+	/** Nothing applied at the address yet. */
+	empty: {};
+	/** An answer is applied. Each newer one is a step of its own. */
+	shown: Shown;
+	/** The answer written last was dropped (`dropped`, and why): the applied one stays. */
+	kept: Shown & { dropped: { v: number; d: number | undefined; why: DropWhy } };
+};
+
+/** The address's stored answer: every write is a move, applied (`shown`) or dropped (`kept`), so
+ *  `observe()` (devtools, a test's trace) hears each decision. */
+const answer_definition = () =>
+	machine<AnswerStates>()({
+		name: 'stored-answer',
+		initial: 'empty',
+		steps: { empty: ['shown'], shown: ['shown', 'kept'], kept: ['shown', 'kept'] }
+	});
+
+type StoredAnswer = ReturnType<ReturnType<typeof answer_definition>['create']>;
+
 type Entry = {
-	/** The stamp of the applied content (0 = nothing applied yet). */
-	v: number;
-	html: string | null;
+	/** What is applied at the address, as a machine. */
+	answer: StoredAnswer;
 	/** A batch's part promised here: ANY frame written at the address (the batch's part, or a forced
 	 *  fetch that landed first) settles it, and `release()` fails it when the batch ends with no
 	 *  frame there. */
@@ -98,11 +128,15 @@ type Store = {
 // in the separately-loaded ogygia RUNTIME chunk — two module instances. A single-flight mutation
 // writes in the transport copy and must notify a subscriber registered in the runtime copy, so the
 // store (its entries, its fetches in flight, its world: STALE is one symbol across copies) is pinned
-// to a global. Falls back to a plain value off-DOM (SSR / unit tests).
+// to a global. Falls back to a plain value off-DOM (SSR / unit tests). The stored answers' definition
+// is the document's too, so every entry's moves reach the same copy's observers.
 const STORE_KEY = '__ogygia_frame_store__';
+const ANSWER_KEY = '__ogygia_frame_answer__';
 const store_host = (typeof globalThis !== 'undefined' ? globalThis : {}) as {
 	[STORE_KEY]?: Store;
+	[ANSWER_KEY]?: ReturnType<typeof answer_definition>;
 };
+const answers = (store_host[ANSWER_KEY] ??= answer_definition());
 
 function store(): Store {
 	return (store_host[STORE_KEY] ??= make_store());
@@ -119,10 +153,13 @@ function make_store(): Store {
 		pinned: (_e, a) => live(a),
 		owner: life,
 		onEvict: (a, e, why) => {
+			// its linger ran out while something bound it again or fetches it: it stays
+			if (why === 'age' && live(a) && entries.set(a, e)) return;
+			// (set again, its linger starting over: the same entry, still held)
+			if (entries.peek(a) === e) return;
 			// the store ends: a binder joined to a reservation must not hang
 			if (why === 'end') e.batch?.fail(new Error('reset'));
-			// its linger ran out while something bound it again or fetches it: it stays
-			else if (why === 'age' && live(a)) entries.set(a, e);
+			e.answer.stop();
 		}
 	});
 	const s: Store = {
@@ -143,9 +180,15 @@ function make_store(): Store {
 	return s;
 }
 
-/** A new stamp of the store's world, newer than every one before it: a fetch takes one when it
- *  starts, and a channel that writes from elsewhere (a batch's part, a streamed or mutation frame)
- *  when it writes. */
+/** The answer applied at an entry, if any. */
+function shown_of(e: Entry): Shown | null {
+	const now = e.answer.now;
+	return now.kind === 'empty' ? null : now;
+}
+
+/** A new stamp of the store's world, newer than every one before it: a fetch or a batch's part
+ *  takes one when it is asked for, and a channel that writes from elsewhere (a streamed or mutation
+ *  frame) when it writes. */
 export function stamp(): number {
 	const w = store().world;
 	w.bump();
@@ -158,7 +201,8 @@ async function fetch_frame(a: string, fetcher: FrameFetcher, signal: AbortSignal
 	const t = stamp();
 	const html = await fetcher(signal);
 	if (!signal.aborted) write({ a, v: t, html });
-	return store().entries.peek(a)?.html ?? html;
+	const e = store().entries.peek(a);
+	return (e && shown_of(e)?.html) ?? html;
 }
 
 /** A fetch or a batch's part is out at this address. */
@@ -171,7 +215,7 @@ function entry(a: string): Entry {
 	const entries = store().entries;
 	let e = entries.peek(a);
 	if (!e) {
-		e = { v: 0, html: null, batch: null, renewed: null, refused: null };
+		e = { answer: answers.create(), batch: null, renewed: null, refused: null };
 		entries.set(a, e);
 	}
 	return e;
@@ -193,7 +237,14 @@ function schedule_evict(a: string, e: Entry): void {
 /** Applied content for an address, if any. */
 export function peek(a: string): { v: number; html: string } | null {
 	const e = store().entries.peek(a);
-	return e && e.html != null ? { v: e.v, html: e.html } : null;
+	const s = e && shown_of(e);
+	return s ? { v: s.v, html: s.html } : null;
+}
+
+/** The data version of the content applied at an address, if it had one. */
+export function shown_version(a: string): number | undefined {
+	const e = store().entries.peek(a);
+	return e && shown_of(e)?.d;
 }
 
 /** A renewal at this address answered `fresh`, the capability its elements fetch with from now on. */
@@ -209,18 +260,40 @@ export function renewal(a: string): string | null {
 /** Nothing applied and nothing in flight at this address (a batch may take it on). */
 export function is_idle(a: string): boolean {
 	const e = store().entries.peek(a);
-	return !e || (e.html == null && !flying(a));
+	return !e || (shown_of(e) === null && !flying(a));
 }
 
 /**
- * Write a frame. Applied only if its stamp is newer than the applied content's; an older or equal
- * one is dropped and reported `false`. Subscribers are notified on apply.
+ * Why a frame is not newer than the answer its address shows, or `null` when it is: by data version
+ * when both carry one and they differ (the server knows which data is newer, whatever order the
+ * answers arrived in), else by stamp. Anything is newer than nothing.
+ */
+function older_by(f: Frame, s: Shown | null): DropWhy | null {
+	if (s === null) return null;
+	if (f.d !== undefined && s.d !== undefined && f.d !== s.d) return f.d > s.d ? null : 'older data';
+	return f.v > s.v ? null : 'older request';
+}
+
+/**
+ * Write a frame. Applied only if newer than the current content (`older_by`); older writes are
+ * dropped (a `kept` move) and reported `false`. Subscribers are notified on apply.
  */
 export function write(f: Frame): boolean {
 	const e = entry(f.a);
-	if (f.v <= e.v) return false; // stale — a newer write already landed
-	e.v = f.v;
-	e.html = f.html;
+	const s = shown_of(e);
+	const why = older_by(f, s);
+	if (why !== null) {
+		const shown = s as Shown;
+		e.answer.go('kept', {
+			v: shown.v,
+			d: shown.d,
+			html: shown.html,
+			dropped: { v: f.v, d: f.d, why }
+		});
+		return false;
+	}
+	// (newer data under an older stamp keeps the stamp order going)
+	e.answer.go('shown', { v: s !== null && s.v > f.v ? s.v : f.v, d: f.d, html: f.html });
 	e.refused = null;
 	// Fulfil a batch's part, whoever wrote the frame (the batch, or a forced fetch that landed
 	// first): a binder that joined via ensure() unblocks, and no per-region fetch ever starts. The
@@ -245,7 +318,7 @@ export function write(f: Frame): boolean {
  */
 export function reserve(a: string): void {
 	const e = entry(a);
-	if (e.html != null || flying(a)) return;
+	if (shown_of(e) !== null || flying(a)) return;
 	const batch = new Promise<string>((settle, fail) => {
 		e.batch = { settle, fail };
 	});
@@ -285,7 +358,8 @@ export function subscribe(a: string, cb: (f: Frame) => void): () => void {
 	// content stays here (a late binder catching a frame that landed before it mounted).
 	const off = watch(frame_id(a), cb as (v: unknown) => void);
 	store().entries.set(a, e); // (bound now: it stays while bound)
-	if (e.html != null) cb({ a, v: e.v, html: e.html });
+	const s = shown_of(e);
+	if (s !== null) cb({ a, v: s.v, html: s.html });
 	return () => {
 		off();
 		schedule_evict(a, e);
@@ -314,19 +388,20 @@ export async function ensure(
 	opts: { force?: boolean; signal?: AbortSignal } = {}
 ): Promise<string | Stale> {
 	const { signal } = opts;
-	const s = store();
+	const st = store();
 	const e = entry(a);
 	let fresh = opts.force === true;
 	try {
 		for (;;) {
-			if (!fresh && e.html != null) return e.html;
+			const s = fresh ? null : shown_of(e);
+			if (s !== null) return s.html;
 			const refused = e.refused;
 			e.refused = null;
 			if (!fresh && refused !== null) throw refused;
-			const html = await s.flights.get({ a, work: fetcher }, { signal, fresh });
+			const html = await st.flights.get({ a, work: fetcher }, { signal, fresh });
 			// STALE: this caller left, the store ended, or a forced fetch took the place of the one it
 			// waited on: then it asks again (and joins that one)
-			if (html !== STALE || signal?.aborted || s.life.closed) return html;
+			if (html !== STALE || signal?.aborted || st.life.closed) return html;
 			fresh = false;
 		}
 	} finally {
@@ -334,8 +409,8 @@ export async function ensure(
 	}
 }
 
-/** Test/HMR hook — end the store (every reservation fails, every caller of a fetch gets STALE); the
- *  next use makes a new one. */
+/** Test/HMR hook — end the store (every reservation fails, every caller of a fetch gets STALE, every
+ *  stored answer stops); the next use makes a new one. */
 export function _reset(): void {
 	const old = store_host[STORE_KEY];
 	store_host[STORE_KEY] = undefined;

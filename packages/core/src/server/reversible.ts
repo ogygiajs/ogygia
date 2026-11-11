@@ -319,8 +319,6 @@ export function decode(s: string): string {
 	}
 }
 
-// (a clean value — nearly all — is two native searches and no copy; measured against split/join)
-const esc_attr = escape_amp_quot;
 /** JSON safe inside an HTML comment: no `--`, no `>`. */
 function comment_json(v: unknown): string {
 	return replace_all(replace_all(JSON.stringify(v), '-', '\\u002d'), '>', '\\u003e');
@@ -1067,7 +1065,7 @@ export function settle(html: string, record: MarkRecord, opts: { dev?: boolean }
 					reset = attr_diff(attrs, was, new Set());
 				}
 			}
-			if (reset) add += ` og-r="${esc_attr(JSON.stringify(reset))}"`;
+			if (reset) add += ` og-r="${escape_amp_quot(JSON.stringify(reset))}"`;
 			if (stand_in) {
 				add += ` tag="${name}"`;
 				stand_ins++;

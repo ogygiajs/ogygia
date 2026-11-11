@@ -5,6 +5,8 @@
  * - `rule_request_scope_open`: a request's scope (its timers, streams, fetches) is closed once its
  *   response has ended.
  * - `rule_flight_kept_failure`: no flight keeps a failure: an answer kept is never an error.
+ * - `rule_kept_unkeyed_read`: a kept render read nothing its key does not cover (a per-visitor read
+ *   in an anonymous render, #434).
  *
  * Each area tells this module what it holds (`note_response_end`) only when rules are on: every call
  * site folds out of a build without them.
@@ -17,7 +19,7 @@ import { warn } from '../messages/server.ts';
  *  process's requests in flight. One past it is not checked, never held. */
 const RULE_ROWS_MAX = 10_000;
 
-type ServerRule = 'rule_request_scope_open' | 'rule_flight_kept_failure';
+type ServerRule = 'rule_request_scope_open' | 'rule_flight_kept_failure' | 'rule_kept_unkeyed_read';
 
 /** The server's rules. */
 export const server_rules: Rules<ServerRule> = /* @__PURE__ */ new Rules<ServerRule>();
@@ -59,6 +61,29 @@ function no_kept_failure(): string | null {
 		.join('; ');
 }
 
+/** Kept answers that read what their key does not cover (server/render-cache.ts `unkeyed_read`),
+ *  each with that read, while they stay kept. */
+const kept_unkeyed = cache<AnyMachine, string>({
+	name: 'kept unkeyed reads',
+	max: RULE_ROWS_MAX
+});
+
+function no_kept_unkeyed_read(): string | null {
+	if (kept_unkeyed.size === 0) return null;
+	return kept_unkeyed
+		.entries()
+		.slice(0, 10)
+		.map(([, said]) => said)
+		.join('; ');
+}
+
+/** The read a kept answer made that its key does not cover, or null. */
+function unkeyed_read_of(answer: unknown): string | null {
+	if (typeof answer !== 'object' || answer === null || !('unkeyed_read' in answer)) return null;
+	const read = (answer as { unkeyed_read: unknown }).unkeyed_read;
+	return typeof read === 'string' ? read : null;
+}
+
 let installed = false;
 let pending = false;
 
@@ -79,12 +104,16 @@ export function install_server_rules(): void {
 	installed = true;
 	server_rules.add('rule_request_scope_open', request_scopes_closed);
 	server_rules.add('rule_flight_kept_failure', no_kept_failure);
-	// a flight's entry moving to `kept` with an error for its answer (flights' machine, @ogygia/machine),
-	// and out of it again
+	server_rules.add('rule_kept_unkeyed_read', no_kept_unkeyed_read);
+	// a flight's entry moving to `kept` with an error, or a render that read what its key does not
+	// cover, for its answer (flights' machine, @ogygia/machine), and out of it again
 	observe((name, _from, to, machine) => {
 		const answer = to?.kind === 'kept' ? (to as { answer?: unknown }).answer : undefined;
 		if (answer instanceof Error)
 			kept_failures.set(machine, `"${name}" kept ${answer.name}: ${answer.message.slice(0, 120)}`);
 		else if (kept_failures.size !== 0) kept_failures.delete(machine);
+		const unkeyed = unkeyed_read_of(answer);
+		if (unkeyed !== null) kept_unkeyed.set(machine, `"${name}" kept a render that read ${unkeyed}`);
+		else if (kept_unkeyed.size !== 0) kept_unkeyed.delete(machine);
 	});
 }
