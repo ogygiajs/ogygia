@@ -101,6 +101,22 @@ describe('byte strip', () => {
 		expect(byte_strip('<img width="1" height="1" src="x.png">').unsized_images).toBeUndefined();
 	});
 
+	it('reads the tags as a browser does: a quoted `>`, a comment, a value naming a marker, a data-src', () => {
+		const doc3 =
+			'<html><head><!-- <link rel="stylesheet" href="/gone.css"> -->' +
+			'<script data-note="a>b" type="application/ogygia-page">{}</script>' +
+			'<script type="module" src="/data-ogygia-runtime.js"></script>' +
+			'<LINK REL="preload stylesheet" HREF="/a/b.css"></head>' +
+			'<body><img data-src="/lazy.png" src="/real.png"></body></html>';
+		const s = byte_strip(doc3);
+		expect(s.segments.filter((x) => x.kind !== 'head' && x.kind !== 'markup')).toEqual([
+			{ kind: 'seed', start: 61, end: 127 },
+			{ kind: 'script', label: 'src data-ogygia-runtime.js', start: 127, end: 188 },
+			{ kind: 'css-link', label: 'b.css', start: 188, end: 235 }
+		]);
+		expect(s.unsized_images).toEqual(['/real.png']);
+	});
+
 	it('a document without ogygia at all, or a broken one, still strips', () => {
 		const s = byte_strip('<html><body><p>plain</p></body></html>');
 		expect(s.segments.map((x) => x.kind)).toEqual(['markup']);
