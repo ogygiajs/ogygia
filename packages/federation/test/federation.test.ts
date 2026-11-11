@@ -313,8 +313,16 @@ describe('Ed25519 signing / verification', () => {
 		expect(warn.mock.calls.flat().join(' ')).not.toContain('federation_audience_missing');
 	});
 
-	it('a signature counts once however its base64 is spelled', () => {
+	/** a call from a peer that signs only the legacy headers (x-og-ts, x-og-n, x-og-sig) */
+	const legacy = () => {
 		const req = signed();
+		const h = Object.fromEntries(req.headers);
+		delete h['x-og-cap'];
+		return new Request(req.url, { headers: h });
+	};
+
+	it('a signature counts once however its base64 is spelled', () => {
+		const req = legacy();
 		const url = new URL(req.url);
 		const sig = req.headers.get('x-og-sig') ?? '';
 		expect(verify_signed_request(at_cms, req, url)?.user?.sub).toBe('u1');
@@ -334,20 +342,20 @@ describe('Ed25519 signing / verification', () => {
 	});
 
 	it('a signature that is not canonical base64 is refused, even the first time', () => {
-		const req = signed();
+		const req = legacy();
 		const sig = req.headers.get('x-og-sig') ?? '';
 		const loose = new Request(req.url, {
 			headers: { ...Object.fromEntries(req.headers), 'x-og-sig': sig.replace(/=+$/, '') }
 		});
-		expect(verify_signed_request({ publicKeys: [pub] }, loose, new URL(loose.url))).toBeNull();
+		expect(verify_signed_request(at_cms, loose, new URL(loose.url))).toBeNull();
 	});
 
 	it('NaN timestamp does not bypass the freshness gate', () => {
-		const req = signed();
+		const req = legacy();
 		const forged = new Request(req.url, {
 			headers: { ...Object.fromEntries(req.headers), 'x-og-ts': 'not-a-number' }
 		});
-		expect(verify_signed_request({ publicKeys: [pub] }, forged, new URL(forged.url))).toBeNull();
+		expect(verify_signed_request(at_cms, forged, new URL(forged.url))).toBeNull();
 	});
 
 	it('a second authorized key still verifies (rotation / multi-caller)', () => {

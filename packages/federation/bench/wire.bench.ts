@@ -104,3 +104,26 @@ bench(
 		teardown: () => wire.seen_sigs.clear()
 	}
 );
+
+bench(
+	'signed hop from a peer on the legacy headers only: verify against three keys in rotation',
+	({ cfg, body, headers, url }) =>
+		verify_signed_request(cfg, new Request(url, { method: 'POST', headers }), url, body),
+	{
+		setup: () => {
+			const rotation = [keys(), keys(), keys()];
+			fill_replay_guard(1000);
+			const url = new URL('https://shell.example.test/og/fragment/page?path=%2Fcatalog');
+			const body = new TextEncoder().encode(JSON.stringify({ q: 'catalog', page: 2 }));
+			const headers = sign_headers(rotation[2].priv, 'POST', url, body, { sub: 'visitor-1' });
+			delete headers['x-og-cap'];
+			return {
+				cfg: { publicKeys: rotation.map((k) => k.pub), audience: 'shell.example.test' },
+				body,
+				headers,
+				url
+			};
+		},
+		teardown: () => wire.seen_sigs.clear()
+	}
+);
