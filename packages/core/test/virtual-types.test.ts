@@ -32,10 +32,10 @@ describe('the virtual modules’ declarations', () => {
 
 	it('refuse a value module whose names were not generated, or whose live names moved', () => {
 		const e = virtual.value({ realm: 'server', id: 'v', from: () => ({ a: 1, b: 2 }) });
-		const stale = new VirtualTable<null>([e], () => '', { 'ogygia:server/v': ['a'] });
+		const stale = new VirtualTable<null>([e], () => '', { 'ogygia:server/v': ['a'] }, {});
 		const leg = { ssr: true, universalHooks: null };
 		expect(() => stale.load('\0ogygia:server/v', null, leg)).toThrow(/virtual_names_stale/);
-		expect(() => new VirtualTable<null>([e], () => '', {})).toThrow(/virtual_names_stale/);
+		expect(() => new VirtualTable<null>([e], () => '', {}, {})).toThrow(/virtual_names_stale/);
 	});
 
 	it('are the ones the table generates (run scripts/virtual-types.ts after changing an entry)', () => {
