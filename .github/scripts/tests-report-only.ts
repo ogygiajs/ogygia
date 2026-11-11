@@ -12,7 +12,10 @@ if (!base) {
 	console.error('tests-report-only: the base sha is required');
 	process.exit(1);
 }
-const changed = execFileSync('git', ['diff', '--name-only', `${base}...HEAD`], { encoding: 'utf8' })
+// --no-renames: a rename lists both paths, so moving code into the report folder still fails
+const changed = execFileSync('git', ['diff', '--name-only', '--no-renames', `${base}...HEAD`], {
+	encoding: 'utf8'
+})
 	.split('\n')
 	.filter(Boolean);
 const outside = changed.filter((f) => !f.startsWith('apps/docs/static/tests/'));
