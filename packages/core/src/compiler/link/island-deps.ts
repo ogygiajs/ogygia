@@ -9,6 +9,7 @@ import { dedent } from '../dedent.ts';
 import { merge_page_keys, type PageKeys } from './page-keys.ts';
 import { hydration_hazards, type IslandHazard } from '../../insights/hydration-hazards.ts';
 import { OWN_FILE_RE, OWN_PACKAGE_NAMES } from '../../own-package.ts';
+import { is_generated_specifier } from '../virtual/table.ts';
 
 /** Deterministic island facade filename (content-hashed Vite deps are separate). */
 const ISLAND_FACADE_RE = /(?:^|\/)og-region\.[0-9a-f]+\.js$/;
@@ -451,7 +452,7 @@ export function module_origin(id: string): string | undefined {
 /** A module id as the file of its package, the build-or-source folder and the extension left out:
  *  two ids with one key are one module twice. Null for ids that are no file (virtual, `\0`). */
 export function module_key(id: string): string | null {
-	if (!id || id.startsWith('\0') || id.startsWith('virtual:')) return null;
+	if (!id || id.startsWith('\0') || is_generated_specifier(id)) return null;
 	let p = id.split('\\').join('/');
 	const q = p.indexOf('?');
 	if (q !== -1) p = p.slice(0, q);
@@ -526,7 +527,7 @@ export function chunk_module_bytes(
 	const by = new Map<string, number>();
 	let total = 0;
 	for (const raw of module_ids) {
-		if (!raw || raw.startsWith('\0') || raw.startsWith('virtual:')) continue;
+		if (!raw || raw.startsWith('\0') || is_generated_specifier(raw)) continue;
 		const name = summarize_chunk_contents([raw], 1, 1)[0];
 		if (!name) continue;
 		const bytes = size_of(raw) || 0;
@@ -568,7 +569,7 @@ export function summarize_chunk_contents(
 	const ordered = (list: string[]) =>
 		size_of ? [...list].sort((a, b) => (bytes.get(b) ?? 0) - (bytes.get(a) ?? 0)) : list;
 	for (const raw of module_ids) {
-		if (!raw || raw.startsWith('\0') || raw.startsWith('virtual:')) continue;
+		if (!raw || raw.startsWith('\0') || is_generated_specifier(raw)) continue;
 		const id = raw.split('\\').join('/').split('?')[0];
 		// the package is named by the LAST node_modules segment (pnpm nests: .pnpm/x@1/node_modules/x)
 		const nm = id.lastIndexOf('/node_modules/');
@@ -663,7 +664,7 @@ export function islandDepsHandoffPath(out_dir: string): string {
 }
 
 /**
- * `virtual:ogygia/island-deps` emitter — the SSR-render-time reader of the deps handoff.
+ * `ogygia:server/region-deps` emitter — the SSR-render-time reader of the deps handoff.
  * Client: unused (modulepreload is SSR HTML). SSR: read the handoff JSON at *render* time — Kit
  * builds the server bundle before the client, so baking at `load()` would always be empty;
  * prerender/live SSR run after client generateBundle. Resolve via import.meta.url walk (not absolute

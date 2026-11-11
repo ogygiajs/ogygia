@@ -259,7 +259,7 @@ export function resolve_options(
 	defaultRegionTtl: number,
 	defaultRenewWindow: number = 8 * 24 * 3600
 ): ResolvedOgygiaConfig {
-	// Region-endpoint rate limit (baked into SSR only via virtual:ogygia/rate-limit).
+	// Region-endpoint rate limit (baked into SSR only via ogygia:server/rate-limit).
 	const rate_limit =
 		options.rateLimit === false
 			? { max: 0, windowMs: 60_000 }
@@ -289,7 +289,7 @@ export function resolve_options(
 	const renew_window = Math.min(10 * 365 * 24 * 3600, Math.floor(renew_raw ?? defaultRenewWindow));
 
 	// ROUTER config (app-wide, one place). On by default; View Transitions on unless disabled. `false`
-	// tree-shakes the whole feature out. Baked into `virtual:ogygia/router-config` for the handle.
+	// tree-shakes the whole feature out. Baked into `ogygia:server/router-config` for the handle.
 	const router_enabled = options.router !== false;
 	const router_view_transitions =
 		options.router === false

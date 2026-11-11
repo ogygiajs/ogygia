@@ -1,4 +1,4 @@
-// Test stub for `virtual:ogygia/server-manifest` (the plugin's server-island table): no server islands.
+// Test stub for `ogygia:server/server-manifest` (the plugin's server-island table): no server islands.
 export const load_islands = async (): Promise<{
 	islands: Record<string, () => Promise<{ default: unknown }>>;
 }> => ({ islands: {} });

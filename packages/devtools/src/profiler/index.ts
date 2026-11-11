@@ -4,8 +4,8 @@
  *
  *     ogygia({ profiler: true })          // or { profiler: { secret, path, … } }
  *
- * `ogygia.handle()` reads that config (through the `virtual:ogygia/profiler-config`
- * module) and dynamically imports + mounts this internally, so hooks.server.ts stays
+ * `ogygia.handle()` reads that config (through the plugins' server halves,
+ * `ogygia:server/server-plugins`) and dynamically imports + mounts this internally, so hooks.server.ts stays
  * a plain `sequence(...)`. This module is NOT a public entry point — it is reached
  * only through the handle's lazy import.
  *
@@ -74,6 +74,8 @@ import {
 
 /** Set on the login page's URL when a login just succeeded and the session still did not arrive. */
 const LOGIN_FAILED_PARAM = 'session';
+/** A region entry's id prefix on the dev server (core's ids.ts `islandVirtualId`). */
+const REGION_ENTRY_ID = 'ogygia:region/entry/';
 import {
 	derive_findings,
 	island_rows_of,
@@ -2178,7 +2180,8 @@ class Profiler {
 				// markup is not its source text: the chunk line stays), not generated code
 				(chunk, line) => {
 					const id = this.#module_find(chunk, line);
-					if (!id || id.startsWith('\0') || id.startsWith('virtual:')) return undefined;
+					if (!id || id.startsWith('\0') || id.startsWith('virtual:') || id.startsWith('ogygia:'))
+						return undefined;
 					if (id.startsWith('src/')) {
 						if (!SCRIPT_MODULE_EXTS.some((e) => id.endsWith(e))) return undefined;
 						return { source: path.resolve(process.cwd(), id), text: true };
@@ -3924,16 +3927,16 @@ class Profiler {
 	/** A reader of app sources at report time (a file relative to `src/` or the cwd, or absolute);
 	 *  undefined where there is no file system, or when the file is not on this machine. */
 	/** THE DEV SERVER: which page.data keys an island's code reads, from the plugin's run of the build's
-	 *  analysis (vite/dev-maps.ts), by the island id in its entry (`…/virtual:ogygia/island/<id>.js`).
+	 *  analysis (vite/dev-maps.ts), by the region id in its entry (`…/ogygia:region/entry/<id>.js`).
 	 *  Undefined off the dev server or when the plugin cannot say */
 	async #dev_island_keys(entry: string): Promise<DevIslandKeys | undefined> {
 		if (!this.dev) return undefined;
 		const ask = (globalThis as Record<symbol, unknown>)[
 			Symbol.for('ogygia.profiler.dev-page-keys')
 		] as ((iid: string) => Promise<DevIslandKeys | undefined>) | undefined;
-		const at = entry.indexOf('virtual:ogygia/island/');
+		const at = entry.indexOf(REGION_ENTRY_ID);
 		if (!ask || at === -1) return undefined;
-		const rest = entry.slice(at + 'virtual:ogygia/island/'.length);
+		const rest = entry.slice(at + REGION_ENTRY_ID.length);
 		const dot = rest.indexOf('.');
 		try {
 			return await ask(dot === -1 ? rest : rest.slice(0, dot));

@@ -1,6 +1,6 @@
 /**
  * The plugin API v2 (internal/notes/packages.md): config-time checks, realms named by the plugin, the
- * generated `virtual:ogygia/server-plugins`, shared hooks, facts, route config, and the test starter.
+ * generated `ogygia:server/server-plugins`, shared hooks, facts, route config, and the test starter.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import path from 'node:path';
@@ -185,7 +185,7 @@ describe('realms, named by the plugin', () => {
 	});
 });
 
-describe('virtual:ogygia/server-plugins', () => {
+describe('ogygia:server/server-plugins', () => {
 	it('imports each server realm statically, with its name and options (server only)', () => {
 		const code = server_plugins_module(true, [
 			{ name: '@ogygia/flags', module: '@ogygia/flags/server', options: { a: 1 } }

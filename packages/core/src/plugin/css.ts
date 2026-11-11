@@ -2,7 +2,7 @@
  * `ogygia/plugin/css` — the CSS of components a programmatic router renders (see the server-router-css
  * notes + compiler/link/router-css.ts). Such a page's component is a VALUE, not a Kit route, so nothing
  * file-derived links its scoped `<style>` / plain `.css` imports. The build registers every component a
- * page module (`b.pageModules()`) can reach in a runtime registry (`virtual:ogygia/router-css`); this
+ * page module (`b.pageModules()`) can reach in a runtime registry (`ogygia:server/router-css`); this
  * turns the components ONE render places into the `<link>` / `<style>` head tags `document()` hoists,
  * deduped against the request's held-region links.
  *

@@ -23,11 +23,17 @@ export type Watch = 'options' | 'regions' | 'routes' | 'plugins' | 'styles';
 
 /** The prefix every realm-named specifier starts with. */
 export const OGYGIA_SCHEME = 'ogygia:';
-/** The prefix of the specifiers before realms were in the name (kept as aliases while code moves). */
-export const LEGACY_PREFIX = 'virtual:ogygia/';
 
 /** A module's specifier: `ogygia:<realm>/<id>`. */
 export const specifier = (realm: Realm, id: string): string => `${OGYGIA_SCHEME}${realm}/${id}`;
+
+/** A generated module's specifier, which names no file: ogygia's (`ogygia:`) or another plugin's
+ *  (`virtual:`, the convention). */
+export const is_generated_specifier = (s: string): boolean =>
+	s.startsWith(OGYGIA_SCHEME) || s.startsWith('virtual:');
+
+/** An entry's specifier, which is also the id the bundler keys its module by. */
+export const specifier_of = (e: { realm: Realm; id: string }): string => specifier(e.realm, e.id);
 
 /** The build's leg a module is loaded for, and the bundler values the driver cannot see. */
 export interface Leg {
@@ -46,8 +52,6 @@ interface Base {
 	realm: Realm;
 	/** the name under the realm: `secret` is `ogygia:server/secret` */
 	id: string;
-	/** the specifier it had before realms were in the name (resolves the same; step 5 drops them) */
-	alias?: string;
 	watch?: readonly Watch[];
 }
 

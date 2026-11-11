@@ -63,10 +63,9 @@ describe('the virtual modules’ declarations', () => {
 		);
 	});
 
-	it('declare an alias from its entry, the same way as its realm name', () => {
-		const server = want.server;
-		const realm = server.split(`declare module 'ogygia:server/secret' {`)[1].split('}')[0];
-		const alias = server.split(`declare module 'virtual:ogygia/secret' {`)[1].split('}')[0];
-		expect(alias).toBe(realm);
+	it('declare each entry by its realm-named id only', () => {
+		const all = Object.values(want).join('\n');
+		expect(all).toContain(`declare module 'ogygia:server/secret' {`);
+		expect(all).not.toContain('virtual:ogygia');
 	});
 });

@@ -990,7 +990,7 @@
 		},
 		{
 			"id": "packages/core/src/plugin/css.ts > flights:0 > run",
-			"reason": "the dynamic import of the generated virtual:ogygia/router-css, which resolves only under the app's Vite pipeline; its failed read and the read after it are proven against a real Vite dev server in packages/core/test/router-css-dev.test.ts"
+			"reason": "the dynamic import of the generated ogygia:server/router-css, which resolves only under the app's Vite pipeline; its failed read and the read after it are proven against a real Vite dev server in packages/core/test/router-css-dev.test.ts"
 		},
 		{
 			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > index_of",
@@ -1354,7 +1354,7 @@
 		},
 		{
 			"id": "packages/devtools/src/profiler/embedded-maps.ts > flights:0",
-			"reason": "the dynamic import of virtual:ogygia/profiler-maps (and its gunzip), module IO once per process; run by the profiler tests"
+			"reason": "the dynamic import of ogygia:server/profiler-maps (and its gunzip), module IO once per process; run by the profiler tests"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > flights:0",

@@ -14,21 +14,18 @@ const table = new VirtualTable<null>(
 		virtual.value({
 			realm: 'boot',
 			id: 'a',
-			alias: 'virtual:test/a',
 			exports: ['alpha'],
 			from: () => ({ alpha: 1 })
 		}),
 		virtual.value({
 			realm: 'boot',
 			id: 'b',
-			alias: 'virtual:test/b',
 			exports: ['beta'],
 			from: () => ({ beta: 2 })
 		}),
 		virtual.family<null, { gamma(): number }>({
 			realm: 'boot',
 			id: 'c',
-			alias: 'virtual:test/c',
 			exports: { gamma: 'gamma' },
 			load: () => 'export function gamma() { return 3; }'
 		})
@@ -43,7 +40,7 @@ function app(realm_imports: boolean): Record<string, string> {
 	const from = (names: string[]) =>
 		realm_imports
 			? `import { ${names.join(', ')} } from 'ogygia:boot';`
-			: names.map((n) => `import { ${n} } from 'virtual:test/${MODULE_OF[n]}';`).join(' ');
+			: names.map((n) => `import { ${n} } from 'ogygia:boot/${MODULE_OF[n]}';`).join(' ');
 	return {
 		'/e1.js': `${from(['alpha', 'gamma'])}\nconsole.log(alpha, gamma());\nimport('/lazy.js');`,
 		'/e2.js': `${from(['beta', 'gamma'])}\nconsole.log(beta, gamma());`,
@@ -77,12 +74,12 @@ async function chunks(files: Record<string, string>): Promise<string[]> {
 describe('a realm module’s names, imported per entry', () => {
 	it('give the bundle the same chunks as direct imports of the entry modules', async () => {
 		expect(table.split_realm_imports(app(true)['/e1.js'])).toBe(
-			`import { alpha } from 'virtual:test/a'; import { gamma } from 'virtual:test/c';\nconsole.log(alpha, gamma());\nimport('/lazy.js');`
+			`import { alpha } from 'ogygia:boot/a'; import { gamma } from 'ogygia:boot/c';\nconsole.log(alpha, gamma());\nimport('/lazy.js');`
 		);
 		const direct = await chunks(app(false));
 		const through_realm = await chunks(app(true));
 		expect(through_realm).toEqual(direct);
 		// the realm module is never a node of the graph
-		expect(through_realm.join('\n')).not.toContain('ogygia:boot');
+		expect(through_realm.join('\n')).not.toMatch(/ogygia:boot\b(?!\/)/);
 	});
 });

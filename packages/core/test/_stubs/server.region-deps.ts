@@ -1,4 +1,4 @@
-// Test stub for `virtual:ogygia/island-deps` (real one is minted by the Vite plugin): the three
+// Test stub for `ogygia:server/region-deps` (real one is minted by the Vite plugin): the three
 // per-entry lookups Region.svelte reads while it emits its island graph and CSS — empty in unit tests.
 // `islandDeps(entry)` — the build's per-entry chunk closure. A test sets it with `set_island_deps(...)`.
 let island_deps: Record<string, string[]> = {};

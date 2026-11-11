@@ -65,7 +65,7 @@ export type {
 // source (it does not run preprocessors for its type pass), so the fallback slot must be declared
 // here, on the component, and cannot be injected by tooling.
 export type Fallback<P = unknown> = P & { ogygiaFallback?: import('svelte').Snippet };
-// `transport` is GENERATED per-app (virtual:ogygia/kit-transport): the codec cluster when the app
+// `transport` is GENERATED per-app (ogygia:region/kit-transport): the codec cluster when the app
 // crosses a region/wired value over Kit's wire, an empty map for a pure-island app — so a plain-props
 // app never bundles the ~9 kB of decoders it can't use. The virtual re-exports the real `ogygiaTransport`
 // from './transport.ts' by absolute path; the barrel deliberately does NOT re-export it directly (that

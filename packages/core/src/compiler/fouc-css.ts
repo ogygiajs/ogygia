@@ -5,9 +5,9 @@
  * for that purpose (0.4.1) puts the same default-export module in the page graph and the
  * `emitFile` island entry → Rolldown thin-facades `og-region.*`.
  *
- * Hosts instead import `virtual:ogygia/fouc-css/<encoded>.js` which side-effect-imports:
+ * Hosts instead import `ogygia:region/fouc-css/<encoded>.js` which side-effect-imports:
  *   - plain `.css` files reachable from the entry
- *   - `virtual:ogygia/fouc-scoped/<encoded>.css` for each `.svelte` with a `<style>` block
+ *   - `ogygia:region/fouc-scoped/<encoded>.css` for each `.svelte` with a `<style>` block
  * Aggregator ids end in `.js` and scoped ids in `.css` so vite-plugin-svelte / Vite classify
  * them correctly (never as `.svelte` components). Scoped CSS is compiled with the real
  * filename so hashes match SSR.
@@ -21,9 +21,10 @@ import { blank_styles } from './blank-styles.ts';
 import { BarrelIndex } from './debarrel/barrel.ts';
 import { analyze_exports, analyze_imports } from './debarrel/parse.ts';
 import { warn } from '../messages/build.ts';
+import { region_family } from './ids.ts';
 
-export const FOUC_CSS_PREFIX = 'virtual:ogygia/fouc-css/';
-export const FOUC_SCOPED_PREFIX = 'virtual:ogygia/fouc-scoped/';
+export const FOUC_CSS_PREFIX: string = region_family('fouc_css');
+export const FOUC_SCOPED_PREFIX: string = region_family('fouc_scoped');
 
 const PATH_SEP = /[/\\]/;
 const SCRIPT_TAG = /<script\b[^>]*>[\s\S]*?<\/script>/gi;

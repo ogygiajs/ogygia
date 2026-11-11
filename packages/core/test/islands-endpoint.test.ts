@@ -4,14 +4,14 @@
 // proxy forwarding only the app's own prefixes, and without one).
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
-vi.mock('virtual:ogygia/secret', () => ({ build_key: 'test-secret', build_had_secret: false }));
-vi.mock('virtual:ogygia/session-cookie', () => ({ session_cookie: null }));
-vi.mock('virtual:ogygia/region-ttl', () => ({ region_ttl: 3600, renew_window: 691200 }));
-vi.mock('virtual:ogygia/server-manifest', () => ({
+vi.mock('ogygia:server/secret', () => ({ build_key: 'test-secret', build_had_secret: false }));
+vi.mock('ogygia:server/session-cookie', () => ({ session_cookie: null }));
+vi.mock('ogygia:server/region-ttl', () => ({ region_ttl: 3600, renew_window: 691200 }));
+vi.mock('ogygia:server/server-manifest', () => ({
 	island_url: {},
 	island_render: { rnd123: 'c0ffee0c0ffe' }
 }));
-vi.mock('virtual:ogygia/sign', () => ({
+vi.mock('ogygia:server/sign', () => ({
 	sign: (_k: string, m: string) => 'sig' + m.length,
 	region_mac_message: (...parts: unknown[]) => parts.join('|')
 }));

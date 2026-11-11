@@ -14,7 +14,7 @@
 	 *   ticket), or live (ticket already carries HTML — swap then morph). An interactive **dual** held
 	 *   value routes into the island branch, so held + placed interactivity share one code path.
 	 *
-	 * Server-island minting is routed through the `virtual:ogygia/region-endpoint` virtual (client-
+	 * Server-island minting is routed through the `ogygia:server/region-endpoint` virtual (client-
 	 * stubbed to `''`), so this component lives in the main `ogygia` graph without pulling `$app/server`
 	 * into the browser. The runtime custom element (`core.ts`) is unchanged; only the `.svelte` wrappers
 	 * collapsed into this file.

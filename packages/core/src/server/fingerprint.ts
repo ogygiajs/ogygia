@@ -15,7 +15,7 @@
  * that one, so it stays on the universal `fingerprint_of` (runtime/hash.ts) on both legs.
  *
  * Server-only (`node:crypto`), reached from Region.svelte through the client-stubbed
- * `virtual:ogygia/region-endpoint` — Region computes a fingerprint only on the server.
+ * `ogygia:server/region-endpoint` — Region computes a fingerprint only on the server.
  */
 import { createHash } from 'node:crypto';
 

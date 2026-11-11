@@ -106,7 +106,7 @@ export const APP_SHIMS: { '$app/state': string; '$app/stores': string; '$app/nav
 // module we swap every lake import for a render-nothing stub (the runtime lifts/restores the lake's
 // SSR DOM around hydration). SSR keeps the real component. Same empty `ClientBindingStub` used for
 // portable bindings — a lake placeholder and a binding stub are both "render nothing on the client".
-/** On-disk stub for `virtual:ogygia/client-binding-stub` (csr=false client hosts). */
+/** On-disk stub for `ogygia:region/client-binding-stub` (csr=false client hosts). */
 export const CLIENT_BINDING_STUB_FILE: string = fileURLToPath(
 	new URL('../ClientBindingStub.svelte', import.meta.url)
 );

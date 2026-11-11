@@ -53,62 +53,31 @@ export { sign, verify, region_mac_message } from '../dist/server/hmac.js';
 declare module 'ogygia:server/devtools-boot-url' {
 export const devtools_boot_url: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').devtools_boot_url>['devtools_boot_url'];
 }
-declare module 'virtual:ogygia/devtools-boot-url' {
-export const devtools_boot_url: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').devtools_boot_url>['devtools_boot_url'];
-}
 declare module 'ogygia:server/kit-wire' {
-const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_wire>;
-export = module;
-}
-declare module 'virtual:ogygia/kit-wire' {
 const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').kit_wire>;
 export = module;
 }
 declare module 'ogygia:server/profiler-maps' {
 export const profiler_maps: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').profiler_maps>['profiler_maps'];
 }
-declare module 'virtual:ogygia/profiler-maps' {
-export const profiler_maps: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').profiler_maps>['profiler_maps'];
-}
 declare module 'ogygia:server/rate-limit' {
-export const rate_limit: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').rate_limit>['rate_limit'];
-}
-declare module 'virtual:ogygia/rate-limit' {
 export const rate_limit: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').rate_limit>['rate_limit'];
 }
 declare module 'ogygia:server/region-deps' {
 const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>;
 export = module;
 }
-declare module 'virtual:ogygia/island-deps' {
-const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>;
-export = module;
-}
 declare module 'ogygia:server/region-endpoint' {
-export { makeRegionEndpoint, mintServerIsland, known_region_fps, islandFingerprint, holeCss } from '../dist/server/region-endpoint.js';
-}
-declare module 'virtual:ogygia/region-endpoint' {
 export { makeRegionEndpoint, mintServerIsland, known_region_fps, islandFingerprint, holeCss } from '../dist/server/region-endpoint.js';
 }
 declare module 'ogygia:server/region-ttl' {
 export const region_ttl: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').region_ttl>['region_ttl'];
 export const renew_window: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').region_ttl>['renew_window'];
 }
-declare module 'virtual:ogygia/region-ttl' {
-export const region_ttl: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').region_ttl>['region_ttl'];
-export const renew_window: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').region_ttl>['renew_window'];
-}
 declare module 'ogygia:server/request-event' {
 export { getRequestEvent } from '$app/server';
 }
-declare module 'virtual:ogygia/request-event' {
-export { getRequestEvent } from '$app/server';
-}
 declare module 'ogygia:server/route-config' {
-const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').route_config>;
-export = module;
-}
-declare module 'virtual:ogygia/route-config' {
 const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').route_config>;
 export = module;
 }
@@ -117,16 +86,7 @@ export const csr_true_routes: import('../dist/compiler/virtual/table.js').ValueO
 export const error_csr_true_routes: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').route_csr>['error_csr_true_routes'];
 export const root_layout_csr_true: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').route_csr>['root_layout_csr_true'];
 }
-declare module 'virtual:ogygia/route-csr' {
-export const csr_true_routes: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').route_csr>['csr_true_routes'];
-export const error_csr_true_routes: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').route_csr>['error_csr_true_routes'];
-export const root_layout_csr_true: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').route_csr>['root_layout_csr_true'];
-}
 declare module 'ogygia:server/router-config' {
-export const router_enabled: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').router_config>['router_enabled'];
-export const view_transitions: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').router_config>['view_transitions'];
-}
-declare module 'virtual:ogygia/router-config' {
 export const router_enabled: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').router_config>['router_enabled'];
 export const view_transitions: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').router_config>['view_transitions'];
 }
@@ -134,21 +94,10 @@ declare module 'ogygia:server/router-css' {
 const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').router_css>;
 export = module;
 }
-declare module 'virtual:ogygia/router-css' {
-const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').router_css>;
-export = module;
-}
 declare module 'ogygia:server/runtime-url' {
 export const runtime_url: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').runtime_url>['runtime_url'];
 }
-declare module 'virtual:ogygia/runtime-url' {
-export const runtime_url: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').runtime_url>['runtime_url'];
-}
 declare module 'ogygia:server/secret' {
-export const build_key: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').secret>['build_key'];
-export const build_had_secret: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').secret>['build_had_secret'];
-}
-declare module 'virtual:ogygia/secret' {
 export const build_key: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').secret>['build_key'];
 export const build_had_secret: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').secret>['build_had_secret'];
 }
@@ -156,15 +105,7 @@ declare module 'ogygia:server/server-manifest' {
 const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_manifest>;
 export = module;
 }
-declare module 'virtual:ogygia/server-manifest' {
-const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_manifest>;
-export = module;
-}
 declare module 'ogygia:server/server-plugins' {
-const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_plugins>;
-export = module;
-}
-declare module 'virtual:ogygia/server-plugins' {
 const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_plugins>;
 export = module;
 }
@@ -172,19 +113,9 @@ declare module 'ogygia:server/server-regions' {
 const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_regions>;
 export = module;
 }
-declare module 'virtual:ogygia/server-islands' {
-const module: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_regions>;
-export = module;
-}
 declare module 'ogygia:server/session-cookie' {
 export const session_cookie: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').session_cookie>['session_cookie'];
 }
-declare module 'virtual:ogygia/session-cookie' {
-export const session_cookie: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').session_cookie>['session_cookie'];
-}
 declare module 'ogygia:server/sign' {
-export { sign, verify, region_mac_message } from '../dist/server/hmac.js';
-}
-declare module 'virtual:ogygia/sign' {
 export { sign, verify, region_mac_message } from '../dist/server/hmac.js';
 }

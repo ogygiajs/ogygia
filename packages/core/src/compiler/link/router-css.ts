@@ -1,5 +1,5 @@
 /**
- * `virtual:ogygia/router-css` — how a SERVER-ROUTER page's `<style>` reaches the document.
+ * `ogygia:server/router-css` — how a SERVER-ROUTER page's `<style>` reaches the document.
  *
  * THE GAP: Kit links a route's stylesheets from its file-derived route manifest. `@ogygia/router`
  * routes are VALUES (`r.page(Home)`) rendered through `document()` — no route, so nothing ever
@@ -96,7 +96,7 @@ export function router_css_roots(
 }
 
 /**
- * Emit the `virtual:ogygia/router-css` source. Empty (`export {}`) when the app has no router
+ * Emit the `ogygia:server/router-css` source. Empty (`export {}`) when the app has no router
  * modules — the router's dynamic import of this virtual then registers nothing, zero cost.
  */
 export async function router_css_module(
@@ -169,7 +169,7 @@ export async function router_css_module(
 	// `base` was page-relative during SSR on Kit 2: a router navigation carries these links into a
 	// page at another depth). The raw handoff href is the claim key, so a held region linking the
 	// same sheet dedupes against us.
-	lines.push(`import { islandCss } from 'virtual:ogygia/island-deps';`);
+	lines.push(`import { islandCss } from 'ogygia:server/region-deps';`);
 	lines.push(
 		`const base = typeof __SVELTEKIT_PATHS_BASE__ !== 'undefined' ? __SVELTEKIT_PATHS_BASE__ : '';`
 	);

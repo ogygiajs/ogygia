@@ -1,7 +1,7 @@
 /**
  * The virtual-module table (src/compiler/virtual/): every module ogygia serves is declared once, an
- * undeclared id in the namespace fails with a code, a realm-named specifier and its legacy alias
- * are one module, and a dev change invalidates exactly the entries that watch it.
+ * undeclared id in the namespace fails with a code, every module answers to its realm-named
+ * specifier only, and a dev change invalidates exactly the entries that watch it.
  */
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
@@ -10,7 +10,20 @@ import { fileURLToPath } from 'node:url';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
 import { CORE_VIRTUALS, core_path, type CoreApp } from '../src/compiler/virtual/core.ts';
 import { virtual, write_value, type Leg } from '../src/compiler/virtual/table.ts';
-import { RESOLVED } from '../src/compiler/ids.ts';
+import {
+	RESOLVED,
+	V_FN_MANIFEST,
+	V_RUNTIME_ENTRY,
+	V_SERVER_MANIFEST,
+	V_SERVER_REGIONS,
+	V_TRANSPORT,
+	V_TRANSPORTABLES,
+	islandVirtualId,
+	lazyEntryVirtualId,
+	regionBindingVirtualId,
+	region_family,
+	wrapperVirtualId
+} from '../src/compiler/ids.ts';
 import { BUILD_ERRORS } from '../src/messages/build.ts';
 
 const table = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path);
@@ -18,9 +31,26 @@ const app = (ctx: Partial<CoreApp['ctx']>): CoreApp => ({ ctx }) as unknown as C
 const leg = (ssr: boolean): Leg => ({ ssr, universalHooks: null });
 
 describe('the virtual-module table', () => {
-	it('resolves a realm-named specifier and its legacy alias to the same module', () => {
-		expect(table.resolve('ogygia:server/secret')).toBe(RESOLVED('virtual:ogygia/secret'));
-		expect(table.resolve('virtual:ogygia/secret')).toBe(RESOLVED('virtual:ogygia/secret'));
+	it('resolves a realm-named specifier, and leaves the old virtual:ogygia/* ids to the bundler', () => {
+		expect(table.resolve('ogygia:server/secret')).toBe(RESOLVED('ogygia:server/secret'));
+		expect(table.resolve('virtual:ogygia/secret')).toBeUndefined();
+	});
+
+	it('answers every id the code outside the table names (ids.ts)', () => {
+		for (const id of [
+			V_RUNTIME_ENTRY,
+			V_FN_MANIFEST,
+			V_SERVER_MANIFEST,
+			V_SERVER_REGIONS,
+			V_TRANSPORT,
+			V_TRANSPORTABLES,
+			islandVirtualId('abc'),
+			regionBindingVirtualId('abc'),
+			lazyEntryVirtualId('abc'),
+			wrapperVirtualId('abc'),
+			region_family('client_binding_stub')
+		])
+			expect(table.claims(id), id).toBe(true);
 	});
 
 	it('declares every virtual module the packages’ source imports', () => {
@@ -31,9 +61,7 @@ describe('the virtual-module table', () => {
 		const ids = new Set<string>();
 		for (const f of files) {
 			const src = fs.readFileSync(path.join(root, f), 'latin1');
-			for (const m of src.matchAll(
-				/(?:from|import)\s*\(?\s*['"]((?:virtual:ogygia|ogygia:)[^'"]+)['"]/g
-			))
+			for (const m of src.matchAll(/(?:from|import)\s*\(?\s*['"](ogygia:[^'"]+)['"]/g))
 				ids.add(m[1]);
 		}
 		expect(ids.has('ogygia:server') && ids.has('ogygia:boot')).toBe(true);
@@ -44,9 +72,7 @@ describe('the virtual-module table', () => {
 		// a package file re-exporting from ogygia:server: the bundler resolved its import, then asked
 		// again with the resolved id, and the server bundle kept "\0ogygia:server" as an outside import
 		expect(table.resolve(RESOLVED('ogygia:server'))).toBe(RESOLVED('ogygia:server'));
-		expect(table.resolve(RESOLVED('virtual:ogygia/secret'))).toBe(
-			RESOLVED('virtual:ogygia/secret')
-		);
+		expect(table.resolve(RESOLVED('ogygia:server/secret'))).toBe(RESOLVED('ogygia:server/secret'));
 		expect(table.resolve(RESOLVED('some-plugin-id'))).toBeUndefined();
 	});
 
@@ -54,25 +80,21 @@ describe('the virtual-module table', () => {
 		const browser = { ssr: false, dev: false };
 		const server = { ssr: true, dev: false };
 		expect(() => table.resolve('ogygia:server', browser)).toThrow(/virtual_wrong_realm/);
-		expect(() => table.resolve('virtual:ogygia/secret', browser)).toThrow(/virtual_wrong_realm/);
+		expect(() => table.resolve('ogygia:server/secret', browser)).toThrow(/virtual_wrong_realm/);
 		expect(() => table.resolve('ogygia:boot', server)).toThrow(/virtual_wrong_realm/);
-		expect(() => table.resolve('virtual:ogygia/dev-hmr', server)).toThrow(/virtual_wrong_realm/);
-		expect(table.resolve('virtual:ogygia/dev-hmr', { ssr: false, dev: true })).toBeTruthy();
+		expect(() => table.resolve('ogygia:dev/hmr', server)).toThrow(/virtual_wrong_realm/);
+		expect(table.resolve('ogygia:dev/hmr', { ssr: false, dev: true })).toBeTruthy();
 		expect(table.resolve('ogygia:region', browser)).toBe(RESOLVED('ogygia:region'));
 		expect(table.resolve('ogygia:region', server)).toBe(RESOLVED('ogygia:region'));
 	});
 
 	it('finds a module a leg’s output may not hold, however it got in', () => {
-		const ids = [
-			RESOLVED('virtual:ogygia/secret'),
-			RESOLVED('virtual:ogygia/runtime-flags'),
-			'/a.js'
-		];
+		const ids = [RESOLVED('ogygia:server/secret'), RESOLVED('ogygia:boot/runtime-flags'), '/a.js'];
 		expect(table.misplaced(ids, { ssr: false, dev: false })).toEqual([
-			[RESOLVED('virtual:ogygia/secret'), 'server']
+			[RESOLVED('ogygia:server/secret'), 'server']
 		]);
 		expect(table.misplaced(ids, { ssr: true, dev: false })).toEqual([
-			[RESOLVED('virtual:ogygia/runtime-flags'), 'boot']
+			[RESOLVED('ogygia:boot/runtime-flags'), 'boot']
 		]);
 	});
 
@@ -92,8 +114,8 @@ describe('the virtual-module table', () => {
 	});
 
 	it('fails an undeclared id in the namespace with virtual_unknown', () => {
-		expect(() => table.resolve('virtual:ogygia/no-such-module')).toThrow(/virtual_unknown/);
 		expect(() => table.resolve('ogygia:server/no-such-module')).toThrow(/virtual_unknown/);
+		expect(() => table.resolve('ogygia:region/no-such-family/x.js')).toThrow(/virtual_unknown/);
 	});
 
 	it('leaves ids outside the namespace to the bundler', () => {
@@ -102,14 +124,14 @@ describe('the virtual-module table', () => {
 	});
 
 	it('leaves the families the driver resolves to the driver, without calling them unknown', () => {
-		expect(table.resolve('virtual:ogygia/island/abc.js')).toBeUndefined();
-		expect(table.resolve('virtual:ogygia/fouc-css/x.js')).toBeUndefined();
-		expect(table.resolve('virtual:ogygia/client-binding-stub')).toBeUndefined();
+		expect(table.resolve(islandVirtualId('abc'))).toBeUndefined();
+		expect(table.resolve('ogygia:region/fouc-css/x.js')).toBeUndefined();
+		expect(table.resolve('ogygia:region/client-binding-stub')).toBeUndefined();
 	});
 
 	it('loads a family member by its prefix', () => {
-		const id = table.resolve('virtual:ogygia/registry-stub/a.js?names=default,b')!;
-		expect(id).toBe(RESOLVED('virtual:ogygia/registry-stub/a.js?names=default,b'));
+		const id = table.resolve('ogygia:region/registry-stub/a.js?names=default,b')!;
+		expect(id).toBe(RESOLVED('ogygia:region/registry-stub/a.js?names=default,b'));
 		expect(table.load(id, app({}), leg(false))).toBe(
 			'export default undefined;\nexport const b = undefined;\n'
 		);
@@ -127,7 +149,7 @@ describe('the virtual-module table', () => {
 	});
 
 	it('reaches the server (and never the browser) with the region ttl', () => {
-		const id = table.resolve('virtual:ogygia/region-ttl')!;
+		const id = table.resolve('ogygia:server/region-ttl')!;
 		const ctx = { region_ttl: 3600, renew_window: 2592000 };
 		expect(table.load(id, app(ctx), leg(true))).toBe(
 			'export const region_ttl = 3600;\nexport const renew_window = 2592000;'
@@ -138,7 +160,7 @@ describe('the virtual-module table', () => {
 	});
 
 	it('writes a request module as a re-export of the built core module', () => {
-		const id = table.resolve('virtual:ogygia/sign')!;
+		const id = table.resolve('ogygia:server/sign')!;
 		const ctx = { runtime_dir: '/pkg/dist/runtime' };
 		expect(table.load(id, app(ctx), leg(true))).toBe(
 			'export { sign, verify, region_mac_message } from "/pkg/dist/server/hmac.js";'
@@ -149,13 +171,13 @@ describe('the virtual-module table', () => {
 		const id = table.resolve('ogygia:server')!;
 		expect(id).toBe(RESOLVED('ogygia:server'));
 		const src = table.load(id, app({}), leg(true)) as string;
-		expect(src).toContain('export { region_ttl, renew_window } from "virtual:ogygia/region-ttl";');
+		expect(src).toContain('export { region_ttl, renew_window } from "ogygia:server/region-ttl";');
 		expect(src).toContain('islandCss as region_css');
 		expect(src).not.toContain('export default');
 		// a request's real module may import the realm module back: every value is evaluated first
 		const lines = src.split('\n');
 		const last_value = lines.findLastIndex((l) => l.includes('region-ttl'));
-		expect(lines.findIndex((l) => l.includes('virtual:ogygia/sign'))).toBeGreaterThan(last_value);
+		expect(lines.findIndex((l) => l.includes('ogygia:server/sign'))).toBeGreaterThan(last_value);
 		expect(table.side_effect_free(id)).toBe(true);
 		// a module that only runs is never in its realm module
 		expect(table.load(table.resolve('ogygia:boot')!, app({}), leg(false))).not.toContain(
@@ -172,8 +194,8 @@ describe('the virtual-module table', () => {
 		].join('\n');
 		expect(table.split_realm_imports(code)).toBe(
 			[
-				`import { region_ttl } from 'virtual:ogygia/region-ttl'; import { islandCss as css } from 'virtual:ogygia/island-deps'; import { sign } from 'virtual:ogygia/sign';`,
-				`export { transport } from "virtual:ogygia/kit-transport";`,
+				`import { region_ttl } from 'ogygia:server/region-ttl'; import { islandCss as css } from 'ogygia:server/region-deps'; import { sign } from 'ogygia:server/sign';`,
+				`export { transport } from "ogygia:region/kit-transport";`,
 				`import type { X } from 'ogygia:server';`,
 				`import * as all from 'ogygia:boot';`
 			].join('\n')
@@ -201,13 +223,13 @@ describe('the virtual-module table', () => {
 
 	it('invalidates exactly the modules that watch a change', () => {
 		expect(table.watching('regions').sort()).toEqual([
-			RESOLVED('virtual:ogygia/server-islands'),
-			RESOLVED('virtual:ogygia/server-manifest')
+			RESOLVED('ogygia:server/server-manifest'),
+			RESOLVED('ogygia:server/server-regions')
 		]);
 		expect(table.watching('routes').sort()).toEqual([
-			RESOLVED('virtual:ogygia/route-config'),
-			RESOLVED('virtual:ogygia/route-csr')
+			RESOLVED('ogygia:server/route-config'),
+			RESOLVED('ogygia:server/route-csr')
 		]);
-		expect(table.watching('styles')).toEqual([RESOLVED('virtual:ogygia/router-css')]);
+		expect(table.watching('styles')).toEqual([RESOLVED('ogygia:server/router-css')]);
 	});
 });

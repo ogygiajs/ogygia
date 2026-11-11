@@ -19,8 +19,8 @@ const ctx = (root: string): Parameters<typeof transformTsRegions>[2] => ({
 	libDir: root + '/lib',
 	pathModule: path,
 	dev: false,
-	virtualPathFor: (_host: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
-	wrapperPathFor: (_host: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
+	virtualPathFor: (_host: string, iid: string) => `ogygia:region/entry/${iid}.js`,
+	wrapperPathFor: (_host: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
 	devUrlFor: (p: string) => '/@id/' + p,
 	visibleMargin: '0px',
 	importKeys: undefined,
@@ -70,7 +70,7 @@ describe('debarrel + import.meta.og.asRegion', () => {
 		// REGRESSION (customer build, 2026-09-15): with `barrels: true` the transform saw
 		// `import A from '…/A.svelte'` where the prescan (raw source) saw `import { A } from '$lib'` —
 		// two island ids, and the server manifest imported a virtual entry nobody registered:
-		// "Rolldown failed to resolve import virtual:ogygia/island/<id>.js from virtual:ogygia/server-manifest".
+		// "Rolldown failed to resolve import ogygia:region/entry/<id>.js from ogygia:server/server-manifest".
 		f = fixture({
 			'lib/A.svelte': '<h1>A</h1>',
 			'lib/B.svelte': '<p>B</p>',

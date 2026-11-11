@@ -25,13 +25,9 @@ import {
 	server_islands_module,
 	server_island_ids
 } from '../link/server-manifest.ts';
-import {
-	REGISTRY_STUB_PREFIX,
-	registry_stub_names,
-	registry_stub_source
-} from '../link/registry-stub.ts';
+import { registry_stub_names, registry_stub_source } from '../link/registry-stub.ts';
 import { dev_hmr_client_source } from '../dev/dev-hmr.ts';
-import { PROFILER_MAPS_PLACEHOLDER } from '../ids.ts';
+import { PROFILER_MAPS_PLACEHOLDER, REGION_FAMILY } from '../ids.ts';
 import type { CompileCtx } from '../ctx.ts';
 import type { Program } from '../program.ts';
 import type {
@@ -50,6 +46,7 @@ import type {
 import {
 	virtual,
 	defines,
+	specifier_of,
 	type ConstantEntry,
 	type Entry,
 	type FamilyEntry,
@@ -79,8 +76,7 @@ const posix = (p: string): string => p.replace(BACKSLASH_G, '/');
 /** A served dev URL for a virtual module (Vite's `/@id/` form of its resolved id). */
 const dev_url = (id: string): string => '/@id/__x00__' + id;
 /** The id the bundler keys an entry's module by. */
-const key = (e: { alias?: string; realm: string; id: string }): string =>
-	e.alias ?? `ogygia:${e.realm}/${e.id}`;
+const key = specifier_of;
 
 /** A core module (its path under `src/`, no extension) → the built file next to the runtime. */
 export const core_path = (app: CoreApp, module: string): string =>
@@ -140,7 +136,6 @@ function client_hooks_boot(ctx: CompileCtx): { imports: string; call: string } {
 export const runtime: Family = virtual.family({
 	realm: 'boot',
 	id: 'runtime',
-	alias: 'virtual:ogygia-runtime',
 	// Dev sticky: kitchen-sink package entry. Build uses the hashed emitFile chunk. An EXPLICIT
 	// `bootDev()` call (not a bare side-effect import) so Vite's dep prebundler can't tree-shake the
 	// boot away — the bug that left `sideEffects:false` apps with a runtime that never woke.
@@ -154,7 +149,6 @@ export const runtime: Family = virtual.family({
 export const fn_manifest: Family = virtual.family({
 	realm: 'boot',
 	id: 'fn-manifest',
-	alias: 'virtual:ogygia/fn-manifest',
 	// og.$ factories, registered pre-hydration. Self-contained by the capture law, so emitting source
 	// is a pure text move. DEV: the hoists are complete by the time the browser requests this (SSR
 	// transformed the hosts first). BUILD: this module loads BEFORE all client transforms ran, so it
@@ -175,7 +169,6 @@ export const fn_manifest: Family = virtual.family({
 export const runtime_entry: Family = virtual.family({
 	realm: 'boot',
 	id: 'runtime-entry',
-	alias: 'virtual:ogygia/runtime-entry',
 	load(app: CoreApp) {
 		// every host walked (marks complete) before features are selected
 		app.prescan();
@@ -193,7 +186,6 @@ export const runtime_entry: Family = virtual.family({
 export const runtime_flags: Family<RuntimeFlagsModule> = virtual.family({
 	realm: 'boot',
 	id: 'runtime-flags',
-	alias: 'virtual:ogygia/runtime-flags',
 	exports: { FRAMES: 'FRAMES' },
 	load(app: CoreApp) {
 		// Dev runs the kitchen-sink boot: every flag on, like every feature.
@@ -206,7 +198,6 @@ export const runtime_flags: Family<RuntimeFlagsModule> = virtual.family({
 export const hydrate_features: Family<HydrateFeaturesModule> = virtual.family({
 	realm: 'boot',
 	id: 'hydrate-features',
-	alias: 'virtual:ogygia/hydrate-features',
 	exports: { install_hydrate_features: 'install' },
 	load(app: CoreApp) {
 		const { ctx, program } = app;
@@ -234,7 +225,6 @@ export const hydrate_features: Family<HydrateFeaturesModule> = virtual.family({
 export const devtools_meta: Value<{ region_names: Record<string, string> }> = virtual.value({
 	realm: 'boot',
 	id: 'devtools-meta',
-	alias: 'virtual:ogygia/devtools-meta',
 	exports: ['region_names'],
 	// a build: every region's component name, from the prescan (the dev server serves them live)
 	from(app: CoreApp) {
@@ -248,7 +238,6 @@ export const devtools_meta: Value<{ region_names: Record<string, string> }> = vi
 export const transport: Family<TransportModule> = virtual.family({
 	realm: 'region',
 	id: 'transport',
-	alias: 'virtual:ogygia/transport',
 	exports: { transport: 'transport', encoders: 'encoders', decoders: 'decoders' },
 	load: (_app: CoreApp, leg) =>
 		transport_module(leg.universalHooks, leg.ssr ? null : (leg.kitCodec ?? null))
@@ -258,7 +247,6 @@ export const transport: Family<TransportModule> = virtual.family({
 export const transportables: Family<TransportablesModule> = virtual.family({
 	realm: 'region',
 	id: 'transportables',
-	alias: 'virtual:ogygia/transportables',
 	exports: { wire_loaders: 'wire_loaders', wire_all: 'wire_all' },
 	// transportable-class modules: eager on the server, lazy loaders on the client (tag paths are
 	// root-relative, as the registration writes them)
@@ -279,7 +267,6 @@ export const transportables: Family<TransportablesModule> = virtual.family({
 export const hmr: Family = virtual.family({
 	realm: 'dev',
 	id: 'hmr',
-	alias: 'virtual:ogygia/dev-hmr',
 	// Dev-only soft HMR bridge under csr=false (no Kit client entry): join /src/**/*.css into the
 	// browser graph + strip Kit's FOUC bag. Failures fall through to a full document reload.
 	load: ({ ctx }: CoreApp) => (ctx.is_dev ? dev_hmr_client_source() : `export {}`)
@@ -288,7 +275,6 @@ export const hmr: Family = virtual.family({
 export const devtools_boot: Family = virtual.family({
 	realm: 'dev',
 	id: 'devtools-boot',
-	alias: 'virtual:ogygia/devtools-boot',
 	// The plugins' browser halves on a csr=true (Kit-owned) page: the ogygia runtime never boots
 	// there, so ONLY they boot, told it is a Kit page. Empty with no client realm (never injected).
 	load({ ctx }: CoreApp) {
@@ -313,7 +299,6 @@ export const devtools_boot: Family = virtual.family({
 export const runtime_url: Value<{ runtime_url: string }> = virtual.value({
 	realm: 'server',
 	id: 'runtime-url',
-	alias: 'virtual:ogygia/runtime-url',
 	exports: ['runtime_url'],
 	// The runtime's IDENTITY — dev: its dev URL; build: its stable URL (the hashed file is looked up
 	// at render time through the build handoff). Prescan first, so the feature hash matches the
@@ -332,7 +317,6 @@ export const DEV_HMR_URL: string = dev_url(key(hmr));
 export const devtools_boot_url: Value<{ devtools_boot_url: string }> = virtual.value({
 	realm: 'server',
 	id: 'devtools-boot-url',
-	alias: 'virtual:ogygia/devtools-boot-url',
 	exports: ['devtools_boot_url'],
 	// the dev URL the handle injects on csr=true pages; '' in build/preview and with no client realm
 	from: ({ ctx }: CoreApp) => ({
@@ -343,7 +327,6 @@ export const devtools_boot_url: Value<{ devtools_boot_url: string }> = virtual.v
 export const region_deps: Family<RegionDepsModule> = virtual.family({
 	realm: 'server',
 	id: 'region-deps',
-	alias: 'virtual:ogygia/island-deps',
 	// (the generated module's own names still say island; the realm module names them region)
 	exports: {
 		region_deps: 'islandDeps',
@@ -371,7 +354,6 @@ export const region_deps: Family<RegionDepsModule> = virtual.family({
 export const router_css: Family = virtual.family({
 	realm: 'server',
 	id: 'router-css',
-	alias: 'virtual:ogygia/router-css',
 	// dev inlines the compiled css, so any style-bearing source change re-emits it
 	watch: ['styles'],
 	// the server router's component→CSS registrations; `export {}` without a server router
@@ -388,7 +370,6 @@ export const router_css: Family = virtual.family({
 export const secret: Value<{ build_key: string; build_had_secret: boolean }> = virtual.value({
 	realm: 'server',
 	id: 'secret',
-	alias: 'virtual:ogygia/secret',
 	exports: ['build_key', 'build_had_secret'],
 	watch: ['options'],
 	// the build's key material, and whether the build had an `OGYGIA_SECRET` (its ids are salted)
@@ -401,7 +382,6 @@ export const secret: Value<{ build_key: string; build_had_secret: boolean }> = v
 export const sign: RequestEntry<CoreApp> = virtual.request({
 	realm: 'server',
 	id: 'sign',
-	alias: 'virtual:ogygia/sign',
 	module: { core: 'server/hmac' },
 	exports: { sign: 'sign', verify: 'verify', region_mac_message: 'region_mac_message' }
 });
@@ -409,7 +389,6 @@ export const sign: RequestEntry<CoreApp> = virtual.request({
 export const request_event: RequestEntry<CoreApp> = virtual.request({
 	realm: 'server',
 	id: 'request-event',
-	alias: 'virtual:ogygia/request-event',
 	module: { package: '$app/server' },
 	exports: { get_request_event: 'getRequestEvent' }
 });
@@ -417,7 +396,6 @@ export const request_event: RequestEntry<CoreApp> = virtual.request({
 export const region_endpoint: RequestEntry<CoreApp> = virtual.request({
 	realm: 'server',
 	id: 'region-endpoint',
-	alias: 'virtual:ogygia/region-endpoint',
 	// Region's minting (lake endpoints, server regions, fingerprints, a hole's CSS). The browser leg
 	// mints nothing: lakes reuse the endpoint the SSR restore cached, and the runtime fetches holes.
 	module: { core: 'server/region-endpoint' },
@@ -433,7 +411,6 @@ export const region_endpoint: RequestEntry<CoreApp> = virtual.request({
 export const kit_wire: Family<KitWireModule> = virtual.family({
 	realm: 'server',
 	id: 'kit-wire',
-	alias: 'virtual:ogygia/kit-wire',
 	// Kit's OWN wire protocol (its transport-aware devalue codec), deep-imported by absolute path
 	exports: {
 		stringify_remote_arg: 'stringify_remote_arg',
@@ -449,7 +426,6 @@ export const kit_wire: Family<KitWireModule> = virtual.family({
 export const rate_limit: Value<{ rate_limit: { max: number; windowMs: number } }> = virtual.value({
 	realm: 'server',
 	id: 'rate-limit',
-	alias: 'virtual:ogygia/rate-limit',
 	exports: ['rate_limit'],
 	watch: ['options'],
 	// `max: 0` disables (`ogygia({ rateLimit })`)
@@ -461,7 +437,6 @@ export const rate_limit: Value<{ rate_limit: { max: number; windowMs: number } }
 export const server_plugins: Family<ServerPluginsModule> = virtual.family({
 	realm: 'server',
 	id: 'server-plugins',
-	alias: 'virtual:ogygia/server-plugins',
 	exports: { server_plugins: 'plugins' },
 	watch: ['plugins'],
 	load: ({ ctx }: CoreApp, { ssr }) => server_plugins_module(ssr, ctx.server_plugins)
@@ -470,7 +445,6 @@ export const server_plugins: Family<ServerPluginsModule> = virtual.family({
 export const profiler_maps: Value<{ profiler_maps: string | null }> = virtual.value({
 	realm: 'server',
 	id: 'profiler-maps',
-	alias: 'virtual:ogygia/profiler-maps',
 	exports: ['profiler_maps'],
 	// a placeholder the build fills with the maps (vite/profiler-maps.ts); anything else: none
 	from: ({ ctx }: CoreApp, { ssr }) => ({
@@ -482,7 +456,6 @@ export const router_config: Value<{ router_enabled: boolean; view_transitions: b
 	virtual.value({
 		realm: 'server',
 		id: 'router-config',
-		alias: 'virtual:ogygia/router-config',
 		exports: ['router_enabled', 'view_transitions'],
 		watch: ['options'],
 		from: ({ ctx }: CoreApp) => ({
@@ -494,7 +467,6 @@ export const router_config: Value<{ router_enabled: boolean; view_transitions: b
 export const session_cookie: Value<{ session_cookie: string }> = virtual.value({
 	realm: 'server',
 	id: 'session-cookie',
-	alias: 'virtual:ogygia/session-cookie',
 	exports: ['session_cookie'],
 	watch: ['options'],
 	// the cookie name sealed into the region MAC, or '' (`ogygia({ sessionCookie })`)
@@ -504,7 +476,6 @@ export const session_cookie: Value<{ session_cookie: string }> = virtual.value({
 export const region_ttl: Value<{ region_ttl: number; renew_window: number }> = virtual.value({
 	realm: 'server',
 	id: 'region-ttl',
-	alias: 'virtual:ogygia/region-ttl',
 	exports: ['region_ttl', 'renew_window'],
 	watch: ['options'],
 	from: ({ ctx }: CoreApp, { ssr }) =>
@@ -526,7 +497,6 @@ export interface RouteCsr {
 export const route_csr: Value<RouteCsr> = virtual.value<CoreApp, RouteCsr>({
 	realm: 'server',
 	id: 'route-csr',
-	alias: 'virtual:ogygia/route-csr',
 	exports: ['csr_true_routes', 'error_csr_true_routes', 'root_layout_csr_true'],
 	watch: ['routes'],
 	// the client reads the same signal from `kit_hydrates_page()`
@@ -550,7 +520,6 @@ export const route_csr: Value<RouteCsr> = virtual.value<CoreApp, RouteCsr>({
 export const route_config: Family<RouteConfigModule> = virtual.family({
 	realm: 'server',
 	id: 'route-config',
-	alias: 'virtual:ogygia/route-config',
 	exports: { route_config: 'route_config' },
 	watch: ['routes', 'plugins'],
 	load: ({ ctx }: CoreApp, { ssr }) =>
@@ -560,7 +529,6 @@ export const route_config: Family<RouteConfigModule> = virtual.family({
 export const server_manifest: Family<ServerManifestModule> = virtual.family({
 	realm: 'server',
 	id: 'server-manifest',
-	alias: 'virtual:ogygia/server-manifest',
 	exports: {
 		load_server_regions: 'load_islands',
 		region_url: 'island_url',
@@ -588,7 +556,6 @@ export const server_manifest: Family<ServerManifestModule> = virtual.family({
 export const server_regions: Family<ServerRegionsModule> = virtual.family({
 	realm: 'server',
 	id: 'server-regions',
-	alias: 'virtual:ogygia/server-islands',
 	watch: ['regions'],
 	load(app: CoreApp, { ssr }) {
 		if (ssr) app.prescan();
@@ -601,7 +568,6 @@ export const server_regions: Family<ServerRegionsModule> = virtual.family({
 export const kit_transport: Family<KitTransportModule> = virtual.family({
 	realm: 'region',
 	id: 'kit-transport',
-	alias: 'virtual:ogygia/kit-transport',
 	exports: { kit_transport: 'transport' },
 	// `ogygia.transport`: the codec cluster only when the app crosses a region or wired value over
 	// Kit's wire; an empty map for an app of plain regions (transport.js sits one level above runtime/)
@@ -614,7 +580,6 @@ export const kit_transport: Family<KitTransportModule> = virtual.family({
 export const transportables_eager: Family = virtual.family({
 	realm: 'region',
 	id: 'transportables-eager',
-	alias: 'virtual:ogygia/transportables-eager',
 	// a region entry's codecs: eager on the server, nothing in the browser
 	load(app: CoreApp, { ssr }) {
 		if (!ssr) return 'export {};\n';
@@ -626,8 +591,7 @@ export const transportables_eager: Family = virtual.family({
 /** a csr=false route host's registry import on the client leg: its names as `undefined` */
 export const registry_stub: Family = virtual.family({
 	realm: 'region',
-	id: 'registry-stub/',
-	alias: REGISTRY_STUB_PREFIX,
+	id: REGION_FAMILY.registry_stub,
 	parse: (rest) => rest,
 	load: (_app: CoreApp, _leg, rest) => registry_stub_source(registry_stub_names(rest))
 });
@@ -635,18 +599,17 @@ export const registry_stub: Family = virtual.family({
 /** The per-region families the driver resolves and loads itself, off its registry (declared here
  *  so the namespace is complete): a region's entry, its binding, its lazy client leg, its wrapper,
  *  and its CSS-only FOUC graph. */
-const driver_family = (id: string, alias: string): Family =>
-	virtual.family({ realm: 'region', id, alias, parse: (rest) => rest });
-export const region_entry: Family = driver_family('region-entry/', 'virtual:ogygia/island/');
-export const region_binding: Family = driver_family('region/', 'virtual:ogygia/region/');
-export const region_lazy: Family = driver_family('region-lazy/', 'virtual:ogygia/lazy/');
-export const region_wrapper: Family = driver_family('region-wrapper/', 'virtual:ogygia/wrapper/');
-export const fouc_css: Family = driver_family('fouc-css/', 'virtual:ogygia/fouc-css/');
-export const fouc_scoped: Family = driver_family('fouc-scoped/', 'virtual:ogygia/fouc-scoped/');
+const driver_family = (id: string): Family =>
+	virtual.family({ realm: 'region', id, parse: (rest) => rest });
+export const region_entry: Family = driver_family(REGION_FAMILY.entry);
+export const region_binding: Family = driver_family(REGION_FAMILY.binding);
+export const region_lazy: Family = driver_family(REGION_FAMILY.lazy);
+export const region_wrapper: Family = driver_family(REGION_FAMILY.wrapper);
+export const fouc_css: Family = driver_family(REGION_FAMILY.fouc_css);
+export const fouc_scoped: Family = driver_family(REGION_FAMILY.fouc_scoped);
 export const client_binding_stub: Family = virtual.family({
 	realm: 'region',
-	id: 'client-binding-stub',
-	alias: 'virtual:ogygia/client-binding-stub'
+	id: REGION_FAMILY.client_binding_stub
 });
 
 // ── constants: the switches, as `define`s (read at config time, from the resolved options) ──

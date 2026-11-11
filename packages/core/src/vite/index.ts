@@ -592,7 +592,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// ONE OGYGIA IN THE DEV BROWSER: ogygia itself is never pre-bundled. An installed
 					// ogygia (not a workspace link) would be: the boot's `ogygia/runtime` went into
 					// `.vite/deps` while everything the compiler writes — the island modules and their
-					// `ogygia/internal`, `virtual:ogygia/hydrate-features` — imports ogygia's files by
+					// `ogygia/internal`, `ogygia:boot/hydrate-features` — imports ogygia's files by
 					// path, so the page ran two copies of its stateful modules (slots, the devtools bus,
 					// the island graph). The wire installed into one `slots` and the hydrate core read the
 					// other: every island with a snippet prop failed ("wired prop but no wire feature").
@@ -881,7 +881,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					compiled_css.clear();
 					const tree_css = tree_css_walk(this);
 					// Router pages: resolved to a handoff `rcss:<rel>` href in writeBundle, linked at SSR by
-					// `virtual:ogygia/router-css` (link/router-css.ts).
+					// `ogygia:server/router-css` (link/router-css.ts).
 					router_css_refs.clear();
 					for (const abs of compiler.router_css_roots()) {
 						const source = await tree_css(abs);
@@ -971,7 +971,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			watchChange(id, change) {
 				// A route add/remove/rename or a `csr` export flip changes the csr topology → drop the
-				// memoized answers AND re-run the baked `virtual:ogygia/route-csr` module. The second
+				// memoized answers AND re-run the baked `ogygia:server/route-csr` module. The second
 				// half is load-bearing: context.ts imports `csr_true_routes` through the SSR module
 				// graph, so without invalidation the SERVER leg keeps deciding island-vs-inline from a
 				// STALE set while Kit flips immediately — `<ogygia-region>` shells on a Kit-booted page
@@ -1024,7 +1024,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				if (!is_dev) return;
 				vite_server = server;
 
-				// Server-router CSS: the dev `virtual:ogygia/router-css` INLINES compiled css at emit
+				// Server-router CSS: the dev `ogygia:server/router-css` INLINES compiled css at emit
 				// time, so any style-bearing source change must invalidate it — the next SSR re-emits
 				// with fresh css. Cheap (module-graph lookup), so no root-membership check.
 				if (STYLE_BEARING_FILE_RE.test(file))
@@ -1078,7 +1078,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					invalidate_islands_for_file(file, { deleted, server });
 				}
 
-				// Soft CSS HMR via virtual:ogygia/dev-hmr. Route shells + island host rewrites +
+				// Soft CSS HMR via ogygia:dev/hmr. Route shells + island host rewrites +
 				// island entry component edits + deleted entry components need a document reload.
 				if (!needs_csr_false_full_reload(file) && !deleted && !host_changed && !entry_changed) {
 					return;
@@ -1456,7 +1456,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				);
 				// SERVER-ROUTER CSS handoff: each root's whole component-tree CSS was compiled + emitted as
 				// ONE dedicated asset in buildStart (router_css_refs). Resolve each referenceId to its
-				// hashed URL under `rcss:<rel>`, the key `virtual:ogygia/router-css` reads via `islandCss()`
+				// hashed URL under `rcss:<rel>`, the key `ogygia:server/router-css` reads via `islandCss()`
 				// at SSR. A dedicated asset (not a chunk's importedCss) is immune to rolldown's shared-chunk
 				// CSS hoisting — every profiler page shares Shell, which otherwise scatters onto whichever
 				// chunk rolldown parks it on (an island's, off the router's static graph entirely).

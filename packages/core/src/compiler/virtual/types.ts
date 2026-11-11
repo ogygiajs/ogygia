@@ -7,7 +7,7 @@
  *   family   `ModuleOf<typeof entry>['name']`: the `contract/` interface the entry is typed with
  *
  * Each file declares its realm module (`ogygia:server`: every entry's names), and each entry's own
- * id (its realm-named one and its alias, by the module's own names) for the code that imports a
+ * id (by the module's own names) for the code that imports a
  * module by id: a module that only runs, a lazy one. The files sit at `packages/core/virtual/`,
  * beside `dist/`, and point into the built package (the same place in the workspace and in the
  * published one). `scripts/virtual-types.ts` writes them; a test fails while they are stale.
@@ -110,9 +110,7 @@ export function virtual_types<A>(
 			const entry = `typeof import('${entries_path}').${name}`;
 			const m = e as ModuleEntry<unknown>;
 			realm_module.push(...realm_lines(m, entry));
-			const b = own_body(m, entry);
-			own += declare(specifier(realm, m.id), b);
-			if (m.alias) own += declare(m.alias, b);
+			own += declare(specifier(realm, m.id), own_body(m, entry));
 		}
 		out[realm] =
 			dedent`

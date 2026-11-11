@@ -57,7 +57,7 @@ export function island_entry_source(
 	exportName?: string
 ): string {
 	return (
-		`import 'virtual:ogygia/transportables-eager';\n` +
+		`import 'ogygia:region/transportables-eager';\n` +
 		component_import_line(`__OgygiaComp_${iid}`, componentPath, exportName) +
 		'\n' +
 		`export default __OgygiaComp_${iid};\n` +

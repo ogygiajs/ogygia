@@ -1,13 +1,11 @@
 /**
- * THE ONE RESOLVER over the virtual-module table (./table.ts): a specifier (or its legacy alias) →
- * the resolved id, a resolved id → its source, and a dev change → the modules it invalidates.
+ * THE ONE RESOLVER over the virtual-module table (./table.ts): a specifier → the resolved id, a resolved id → its source, and a dev change → the modules it invalidates.
  */
 import { OgygiaError } from '../../messages/build.ts';
 import { RESOLVED } from '../ids.ts';
 import {
-	LEGACY_PREFIX,
 	OGYGIA_SCHEME,
-	specifier,
+	specifier_of,
 	write_value,
 	realm_exports,
 	type Realm,
@@ -17,13 +15,6 @@ import {
 	type ModuleEntry,
 	type Watch
 } from './table.ts';
-
-/** The specifiers an entry answers to: its realm-named one, and its alias. */
-const names_of = (e: ModuleEntry<unknown>): string[] =>
-	e.alias ? [specifier(e.realm, e.id), e.alias] : [specifier(e.realm, e.id)];
-
-/** The id the bundler keys an entry's module by (the alias while one exists: the output does not move). */
-const key_of = (e: ModuleEntry<unknown>): string => e.alias ?? specifier(e.realm, e.id);
 
 /** A static named import of a realm module (`import { a, b as c } from 'ogygia:server'`). */
 const REALM_IMPORT_G =
@@ -53,9 +44,9 @@ function check_realm(id: string, realm: Realm, env: Env): void {
 		});
 }
 
-/** Is this specifier in ogygia's virtual namespace (the realm-named one or the legacy one)? */
+/** Is this specifier (or resolved id) in ogygia's virtual namespace? */
 export const is_virtual_specifier = (source: string): boolean =>
-	source.startsWith(OGYGIA_SCHEME) || source.startsWith(LEGACY_PREFIX);
+	source.startsWith(OGYGIA_SCHEME) || source.startsWith('\0' + OGYGIA_SCHEME);
 
 export class VirtualTable<A> {
 	/** specifier or alias → its one-module entry */
@@ -72,19 +63,20 @@ export class VirtualTable<A> {
 		for (const e of entries) {
 			// (a constant is a define, not a module: not the table's to resolve)
 			if (e.kind === 'constant') continue;
-			for (const name of names_of(e)) {
-				const taken = this.#single.has(name) || this.#prefixes.some(([p]) => p === name);
-				if (taken) throw new OgygiaError('virtual_duplicate', { id: name });
-				if (e.kind === 'family' && e.parse) this.#prefixes.push([name, e]);
-				else this.#single.set(name, e);
+			const spec = specifier_of(e);
+			const taken = this.#single.has(spec) || this.#prefixes.some(([p]) => p === spec);
+			if (taken) throw new OgygiaError('virtual_duplicate', { id: spec });
+			if (e.kind === 'family' && e.parse) this.#prefixes.push([spec, e]);
+			else {
+				this.#single.set(spec, e);
+				this.#by_resolved.set(RESOLVED(spec), e);
 			}
-			if (!(e.kind === 'family' && e.parse)) this.#by_resolved.set(RESOLVED(key_of(e)), e);
 			// the realm module: every entry's names, each once in its realm
 			const names = (this.#realms[e.realm] ??= new Map());
 			for (const [name, own] of realm_exports(e)) {
 				if (names.has(name))
 					throw new OgygiaError('virtual_duplicate', { id: `${e.realm}:${name}` });
-				names.set(name, [own, key_of(e)]);
+				names.set(name, [own, specifier_of(e)]);
 			}
 		}
 	}
@@ -139,7 +131,7 @@ export class VirtualTable<A> {
 		if (single) {
 			if (single.kind === 'family' && !single.load) return undefined;
 			if (env) check_realm(source, single.realm, env);
-			return RESOLVED(key_of(single));
+			return RESOLVED(source);
 		}
 		const family = this.#family_of(source);
 		if (family) {

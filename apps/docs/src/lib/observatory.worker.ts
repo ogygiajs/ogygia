@@ -325,7 +325,7 @@ function analyze_marks(source: string): {
 		edits.push({
 			start: node.start as number,
 			end: node.end as number,
-			text: `import ${local} from 'virtual:ogygia/wrapper/${id}'; // ${strategy.kind}`
+			text: `import ${local} from 'ogygia:region/wrapper/${id}'; // ${strategy.kind}`
 		});
 	}
 	let output = source;
@@ -1352,7 +1352,7 @@ async function driver_render(
 				mintServerIsland: () => '',
 				known_region_fps: () => new Set()
 			};
-		if (spec === 'virtual:ogygia/island-deps')
+		if (spec === 'ogygia:server/region-deps')
 			return { islandCss: () => '', islandDeps: () => [], contentCss: () => '' };
 		// A driver-generated region/wrapper/island virtual module → eval its real generated source.
 		const reg = regionByVpath.get(spec);
@@ -1370,11 +1370,7 @@ async function driver_render(
 			});
 		}
 		// Any other ogygia virtual (transportables/fn-manifest/…) → side-effect no-op in the preview.
-		if (
-			spec.startsWith('virtual:ogygia/') ||
-			spec.startsWith('ogygia/') ||
-			spec.startsWith('@ogygia/')
-		)
+		if (spec.startsWith('ogygia:') || spec.startsWith('ogygia/') || spec.startsWith('@ogygia/'))
 			return {};
 		// A workspace component (the region binding + wrapper import it by its `/repl/…` absolute path).
 		const key = spec.replace(/^\/repl\//, '').replace(/^\/+/, '');

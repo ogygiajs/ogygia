@@ -57,13 +57,13 @@ export interface CompileCtxInit {
 	 *  per-island detail. */
 	measure: boolean;
 	/** The server halves of the app's plugins (module path + options), in app order — baked into
-	 *  `virtual:ogygia/server-plugins`. Optional (default none). */
+	 *  `ogygia:server/server-plugins`. Optional (default none). */
 	server_plugins?: readonly ServerRealm[];
 	/** The browser halves of the app's plugins (absolute module paths), in app order —
 	 *  imported by the runtime's boot. Optional (default none). */
 	client_plugins?: readonly string[];
 	/** The keys the plugins claim inside Kit's `config` page option (`b.routeConfig`) — read from the
-	 *  route files and baked into `virtual:ogygia/route-config`. Optional (default none). */
+	 *  route files and baked into `ogygia:server/route-config`. Optional (default none). */
 	route_config?: readonly string[];
 	/** A plugin asked island entries to keep their foreign-hydrate exports (`b.foreignHydrate()`:
 	 *  another app's runtime wakes this app's islands). Optional (default off). */
@@ -91,7 +91,7 @@ export interface CompileCtxInit {
 	pkg_root: string;
 
 	// ── virtual-module emit config (read by `Compiler.emit`) ───────────────────────────────────────
-	/** Per-build HMAC material baked into the SSR-only `virtual:ogygia/secret`. */
+	/** Per-build HMAC material baked into the SSR-only `ogygia:server/secret`. */
 	build_secret: string;
 	/** Region-endpoint rate limit (SSR-only), `{ max: 0 }` when disabled. */
 	rate_limit: { max: number; windowMs: number };
@@ -119,7 +119,7 @@ export interface CompileCtxInit {
 	/** `command === 'build'` — gates the transform-time deterministic island-chunk emit. */
 	is_build: boolean;
 	/** Core's event emits compiled in (a plugin's `b.events()`: devtools). Bakes the standalone dock
-	 *  boot for csr=true pages into `virtual:ogygia/devtools-boot-url`. */
+	 *  boot for csr=true pages into `ogygia:server/devtools-boot-url`. */
 	devtools: boolean;
 }
 

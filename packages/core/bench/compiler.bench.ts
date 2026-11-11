@@ -29,8 +29,8 @@ function host_ctx(ssr: boolean): HostCtx {
 		readFile: () => null,
 		pathModule: path,
 		dev: false,
-		virtualPathFor: (_host: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
-		wrapperPathFor: (_host: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
+		virtualPathFor: (_host: string, iid: string) => `ogygia:region/entry/${iid}.js`,
+		wrapperPathFor: (_host: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
 		devUrlFor: (p: string) => '/@id/' + p,
 		visibleMargin: '0px',
 		presets: {}
