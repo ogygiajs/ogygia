@@ -36,6 +36,10 @@ What this buys, mechanically rather than by good intentions:
 - A preload/prefetch can never clobber the wrong DOM (different address, nothing bound to it).
 - N instances of the same call share ONE fetch (`ensure()` dedupes on the inflight entry).
 - A stale response can never overwrite a newer one (data version, then ticket, in `write()`).
+- Every write is a move of the address's `stored-answer` machine (`empty → shown`, `shown → shown`
+  when a newer one applies, `→ kept` with what was dropped and why when an older one is dropped), so
+  `observe()` and a test's trace see each decision. Tests: `test/frame-store.test.ts` › every answer
+  at an address is a move.
 - Every future channel (OOO stream tail, mutation response, SSE someday) is just another writer.
   Transport is a setting, not architecture.
 
