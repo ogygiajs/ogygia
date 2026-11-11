@@ -2,7 +2,7 @@ import { fs, path, dir_entries } from './host.ts';
 import { createRequire } from 'node:module';
 import { ISLAND_DIR } from './region/transform.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
-import { OgygiaError } from '../messages/build.ts';
+import { OgygiaError } from './messages.ts';
 
 /** The Kit-internal + app paths ogygia deep-imports (resolved off the APP root, not this package). */
 export interface KitPaths {
