@@ -296,6 +296,9 @@ export interface FoundTag {
 	readonly attrs: Map<string, string>;
 	/** One attribute's value (`''` when bare; the first one wins), or undefined. `name` in lower case. */
 	attr(name: string): string | undefined;
+	/** Where that attribute's value starts in the HTML (inside its quotes), or -1 when the attribute
+	 *  is absent or has no value: where a rewrite of the value splices. */
+	value_at(name: string): number;
 }
 
 /** One attribute (or the tag's `>`) at `lastIndex`: `>` | name, then `="…"` | `='…'` | `=bare`.
@@ -372,6 +375,17 @@ class Tag implements FoundTag {
 		// (the tag is known closed: it always matches, at the latest at its `>`)
 		const m = re.exec(this.#html)!;
 		return m[5] === undefined ? undefined : (m[2] ?? m[3] ?? m[4] ?? '');
+	}
+
+	value_at(name: string): number {
+		const re = attr_named(name);
+		re.lastIndex = this.#after;
+		const m = re.exec(this.#html)!;
+		if (m[5] === undefined) return -1;
+		// (the match ends past the value, and past its closing quote when quoted)
+		if (m[4] !== undefined) return re.lastIndex - m[4].length;
+		const quoted = m[2] ?? m[3];
+		return quoted === undefined ? -1 : re.lastIndex - quoted.length - 1;
 	}
 }
 

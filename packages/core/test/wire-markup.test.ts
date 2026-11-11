@@ -78,6 +78,16 @@ describe('tags', () => {
 		const html = '<!-- <link data-og-fp="x"> --><linker a="1"><LINK B="2">';
 		expect([...tags(html, 'link')].map((t) => Object.fromEntries(t.attrs))).toEqual([{ b: '2' }]);
 	});
+
+	it('value_at: where a value starts, quoted or not; -1 when absent or bare', () => {
+		const html = `<meta A="x>1" b = 'two' c=three d>`;
+		const t = [...tags(html, 'meta')][0];
+		for (const n of ['a', 'b', 'c'])
+			expect(html.slice(t.value_at(n), t.value_at(n) + t.attr(n)!.length)).toBe(t.attr(n));
+		expect(html[t.value_at('b') - 1]).toBe("'");
+		expect(t.value_at('d')).toBe(-1);
+		expect(t.value_at('e')).toBe(-1);
+	});
 });
 
 describe('text_of', () => {

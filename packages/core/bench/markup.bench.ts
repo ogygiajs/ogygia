@@ -12,6 +12,7 @@ import {
 	page_declares_speculation_rules,
 	runtime_first
 } from '../src/server/head-presence.ts';
+import { with_early_holes_meta_csp } from '../src/server/early-holes-csp.ts';
 import { absolutize_hole_html } from '../src/server/hole-urls.ts';
 import { region_css_tags } from '../src/server/html-scan.ts';
 import { read_tag, tags, text_of } from '../src/wire-markup.ts';
@@ -122,6 +123,19 @@ bench('region CSS: the tags a held region carries forward', ({ h }) => region_cs
 bench('region CSS: the tags of a region render’s head', ({ h }) => region_css_tags(h).length, {
 	setup: () => ({ h: region_css_tags(head(8)) })
 });
+
+bench(
+	'head: the early start’s hash into a policy meta',
+	({ h }) => with_early_holes_meta_csp(h).length,
+	{
+		setup: () => ({
+			h: head(40).replace(
+				'<title>',
+				`<meta http-equiv="content-security-policy" content="script-src 'self' 'nonce-abc'"><title>`
+			)
+		})
+	}
+);
 
 bench(
 	'tags: every region open tag of a document, attributes read',
