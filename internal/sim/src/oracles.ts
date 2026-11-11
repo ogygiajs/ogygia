@@ -564,10 +564,12 @@ export function document_faulted(world: World, tab: Tab): boolean {
 }
 
 /** What a page may say when the network failed it: ogygia's coded reports, the network's own
- *  failures (a script cut midway fails to parse), and Vite's preload helper on a sheet whose
- *  download failed (seeds 65, 425). An uncaught TypeError is never excused. */
+ *  failures (a script cut midway fails to parse), Vite's preload helper on a sheet whose
+ *  download failed (seeds 65, 425), and Kit's remote functions on an answer they cannot read
+ *  ("Invalid query.live response": seed 193, a changed byte in a live query's stream). An uncaught
+ *  TypeError is never excused. */
 const EXPLAINED =
-	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost/;
+	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response/;
 
 /** No uncaught error, unhandled rejection or console error in the page (beyond what a network
  *  fault on this document explains, when `world` is given). */
