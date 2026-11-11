@@ -1051,6 +1051,8 @@ const ANSWER_RENDERS = 3;
 // same on Amplify (isolated workers) and on a single long-lived server.
 /** an inspector-unavailable recording error (edge runtimes) vs a real profiling failure */
 const INSPECTOR_ERR = /inspector/;
+/** The beacon flag's shape: an HMAC-SHA256 as lowercase hex. */
+const HEX_64_RE = /^[0-9a-f]{64}$/;
 const WIN_DRIVE_RE = /^[A-Za-z]:[\\/]/;
 const QUERY_SUFFIX_RE = /\?.*$/;
 /** the seed script in a rendered document (report time, one document: not a hot path) */
@@ -2711,11 +2713,13 @@ class Profiler {
 	/** Does the request carry the signed beacon flag? */
 	async #flag_ok(event: RequestEvent): Promise<boolean> {
 		const sent = event.cookies.get('og_profiler_beacon');
-		if (!sent || sent.length !== 64) return false;
+		// (64 lowercase hex characters: 32 bytes, as the flag is; anything else, including characters
+		// that decode to more bytes, is refused before the compare, which needs equal lengths)
+		if (!sent || !HEX_64_RE.test(sent)) return false;
 		const want = await this.#flag_value();
 		if (want === null) return false;
 		const { timingSafeEqual } = await import('node:crypto');
-		return timingSafeEqual(Buffer.from(sent), Buffer.from(want));
+		return timingSafeEqual(Buffer.from(sent, 'hex'), Buffer.from(want, 'hex'));
 	}
 
 	async #key_matches(provided: string | null | undefined): Promise<boolean> {
