@@ -226,11 +226,7 @@
 	// accent box, so at a glance you see what's ogygia vs plain Svelte/JS.
 	// `[^{}]` matches a dial's contents (multi-line after Format included) but NO nested braces — so an
 	// UNCLOSED `with {` stops at the next brace (e.g. markup `start={`) instead of running away.
-	const OG_PATTERNS = [
-		/\bwith\s*\{[^{}]*\}/g,
-		/\bimport\.meta\.og\.\w+/g,
-		/virtual:ogygia\/[\w/.-]+/g
-	];
+	const OG_PATTERNS = [/\bwith\s*\{[^{}]*\}/g, /\bimport\.meta\.og\.\w+/g, /ogygia:[\w/.-]+/g];
 	const og_mark = Decoration.mark({ class: 'cm-og-syntax' });
 	const ogHighlighter = ViewPlugin.fromClass(
 		class {

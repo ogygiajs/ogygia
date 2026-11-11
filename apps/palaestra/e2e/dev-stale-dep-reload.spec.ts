@@ -63,7 +63,7 @@ test.describe('dev: a stale-dep entry-fetch failure recovers the tab', () => {
 		page.on('request', (req) => {
 			if (req.resourceType() === 'document' && req.frame() === page.mainFrame()) documents++;
 		});
-		await page.route(/virtual:ogygia\/island\//, (r) =>
+		await page.route(/ogygia:region\/entry\//, (r) =>
 			r.request().resourceType() !== 'fetch' && documents < 2 ? r.abort() : r.continue()
 		);
 
