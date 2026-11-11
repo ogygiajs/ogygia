@@ -1,64 +1,3 @@
-/**
- * # DOM morphing — reconcile a live element toward a freshly rendered region IN PLACE
- *
- * Live/held regions (`<ogygia-region live>`, `query.live` ticks, single-flight mutations) push new
- * server-rendered HTML every frame. Instead of tearing the old subtree down and rebuilding it, this
- * walks the OLD DOM and the NEW nodes together in a single pass and mutates the old tree the minimum
- * amount to reach the new shape. Nodes that can be reused keep their identity, so the browser keeps
- * focus, text selection, scroll position, typed-in form state, and running CSS transitions — the
- * LiveView "the page breathes" property.
- *
- * Inspired by natemoo-re/micromorph and idiomorph, trimmed to what ogygia needs and hardened with
- * real **keyed** matching (micromorph is index-aligned for body children).
- *
- * ## Algorithm (one pass, minimal allocations)
- * `morph_children(parent, new_nodes)` reconciles `parent`'s existing children toward `new_nodes`:
- *  1. Index the old children that carry a **key** (`data-key`, else `id`) into a map.
- *  2. Walk `new_nodes` left-to-right against a cursor over the old children:
- *     - **Keyed hit** — a new node's key matches an old node anywhere: move that old node into
- *       position and morph it. Reorders / inserts / removals morph in place instead of cascading
- *       replacements down the list.
- *     - **Id-set hit** — a key-less new element wants keys that a key-less old sibling holds (see
- *       "Wrapper matching" below): move that old sibling into position and morph it.
- *     - **Positional hit** — cursor node is compatible (same node kind + tag, both key-less): morph
- *       it and advance. Old keyed nodes reserved for a later key are skipped, never consumed here.
- *     - **Miss** — insert a fresh copy of the new node before the cursor.
- *  3. Remove every old node left unclaimed (trailing key-less nodes + unmatched keyed nodes).
- *
- * `morph_node(from, to)` reconciles one node against one node:
- *  - Text / comment: copy `nodeValue` in place.
- *  - Element, different tag or namespace: **replace** (`from` cannot become `to`).
- *  - Element, same tag: sync attributes, sync form DOM properties, recurse into children.
- *
- * ## State-preservation guarantees
- *  - **Identity** — a node that can be morphed is never replaced, so focus / selection / scroll /
- *    transitions on it and its subtree survive.
- *  - **Form state follows the server only when the server changed its mind** — the `value` /
- *    `checked` / `selected` PROPERTIES move only when the matching ATTRIBUTE differs between the
- *    previous render and the incoming one. A tick that re-sends the same default leaves what the
- *    user typed or toggled alone, focused or not (the browser's own dirty-value rule; htmx 4's morph
- *    rule). The control that currently holds focus is never touched at all, so mid-edit text and its
- *    selection survive even a changed default.
- *  - **Preserved subtrees** — an element marked `data-persist`, or a hydrated island root
- *    (`data-hydrated`), is kept exactly as-is: matched by key/position but never re-synced or
- *    recursed into. Islands own their DOM through Svelte reactivity (props push), not morphing, so
- *    this stops a live tick from re-creating a hydrated island root (the "hero bounce" reflow).
- *
- * ## Wrapper matching (id sets)
- * A key-less wrapper is matched by the keys INSIDE it (idiomorph's "id sets"). Before a pass, every
- * keyed descendant registers its key on each ancestor up to the morph root, on both trees. Two
- * key-less same-tag siblings then stay in lockstep only when their sets agree: both empty, or they
- * share a key (the same wrapper, re-rendered). Otherwise the remainder goes to the keyed phase, which
- * MOVES the old sibling holding the wanted keys into place — a banner appearing above an island's
- * wrapper no longer re-mounts the island — and refuses to consume an old wrapper a LATER new sibling
- * wants. When nothing better exists the match is positional, exactly as before; a tree with no keys
- * at all skips the whole mechanism.
- *
- * ## Namespaces
- * Clones are made with `importNode`, which carries the source namespace, so SVG / `foreignObject`
- * subtrees are created with the correct namespace. The morph-vs-replace test compares `namespaceURI`
- * as well as `tagName`, so an HTML `<a>` is never morphed into an SVG `<a>`.
- */
 import { slots } from './slots.ts';
 import {
 	attributes_writer,
@@ -73,38 +12,51 @@ import {
 	slots_light_dom
 } from './ownership.ts';
 
-// DOM spec constants by VALUE (they are frozen: 1/3/8 forever) — referencing the `Node` global
-// at module scope made every importer of this file require a DOM at IMPORT time, which broke
-// `ogygia/internal/reconcile` under plain node (found by verify:package, present since the
-// module's birth). The functions still need a real DOM to DO anything; loading them doesn't.
-const ELEMENT = 1; // Node.ELEMENT_NODE
-const TEXT = 3; // Node.TEXT_NODE
-const COMMENT = 8; // Node.COMMENT_NODE
-const FOLLOWING = 4; // Node.DOCUMENT_POSITION_FOLLOWING
+// @why the DOM's node constants by value, not `Node.*`: no DOM at import (test: test/morph-no-dom.test.ts › the morph loads under plain node with no DOM)
+const ELEMENT = 1;
+const TEXT = 3;
+const COMMENT = 8;
+const FOLLOWING = 4;
 
-/** Feature entry: fill the `morph` slot (live static-region ticks morph in place). */
+/** Feature entry: fill the `morph` slot (live static-region ticks morph in place), and the
+ *  `sync_attributes` slot the navigation's body reconcile syncs attributes with. */
 export function install(): void {
 	slots.morph = morph_children;
-	// The navigation's body reconcile (./reconcile.ts) syncs attributes the same way, via the registry.
 	slots.sync_attributes = sync_attributes;
 }
 
 /**
- * Reconcile `parent`'s children toward `new_nodes` (a freshly parsed, detached region). Public slot
- * shape: `(parent: Element, nodes: Node[]) => void` — a drop-in for the previous implementation.
+ * Reconcile `parent`'s children toward `new_nodes` (a freshly parsed, detached region) IN PLACE:
+ * a node that can be reused keeps its identity, so focus, selection, scroll, typed form state and
+ * running transitions survive (ideas from micromorph and idiomorph, with real keyed matching).
+ * `new_nodes` is read, never changed: an array or a live `NodeList` fits.
  *
- * `new_nodes` is read but never mutated, so the recursion passes the incoming element's live
- * `childNodes` straight through (see {@link morph_node}) — no per-level array snapshot. Accessed by
- * index, so both a real `Array` (the top-level region) and a live `NodeList` (recursion) fit.
- *
- * Two phases:
- *  1. **Lockstep** — walk old and new in parallel while their keys agree (both `null` and compatible,
- *     or the same non-null key), morphing in place. This is the dominant tick (same structure, values
- *     changed) and it allocates NOTHING — no key map, no cursor bookkeeping. Reorders/inserts/removals
- *     break the lockstep at the first divergence and hand the REMAINDER to phase 2.
- *  2. **Keyed reconcile** — the general move/insert/remove algorithm, run only on the still-unmatched
- *     tail. The key map indexes just the remaining old children, so a change late in a long list still
- *     skips indexing the aligned prefix.
+ * - **Lockstep** first: old and new children walk together while they agree (the same key; or both
+ *   key-less, the same tag, and holding the same keys inside). The rest goes to the keyed pass.
+ * - **Keyed hit**: a new node's key (`data-key`, else `id`) finds the old node wherever it sits; it
+ *   moves into place and morphs.
+ * - **Id-set hit** (wrapper matching): a key-less wrapper is matched by the keys inside it. The old
+ *   sibling of the same tag holding them moves into place, so a banner added or removed above an
+ *   island's wrapper does not re-mount the island; an old wrapper a later new sibling wants is not
+ *   taken by an earlier one.
+ * - **Positional hit**: a key-less node of the same kind and tag morphs in place. **Miss**: a fresh
+ *   copy goes in. What no new node claimed is removed.
+ * - One node: text and comments take the new value; another tag is replaced; the same tag syncs its
+ *   form properties, then its attributes ({@link sync_attributes}), then its children.
+ * - **Form state follows the server only when the server changed its mind**: `value` moves only when
+ *   the new node carries a `value` attribute that differs from the previous render's; `checked` and
+ *   `selected` only when the attribute's presence flipped. The focused control is never touched.
+ * - **Not entered**: a declared-foreign element (`data-ogygia-keep`, `data-persist`) and a hydrated
+ *   or kept region are matched and kept as they are. An upgraded custom element's host attributes
+ *   are its runtime's. Its children match by identity, not position: what it made itself stays, a render node the answer no longer has goes, and under one that slots its
+ *   light DOM the render's nodes end in the answer's order and the render's leftover block markers go.
+ * - The root is vetted like any descendant: a declared-foreign root is left alone, and toward
+ *   Svelte's walk (`target: 'walk'`) only a root the walk reads, or a region root (the island being
+ *   repaired), is entered.
+ * - After the morph, `aria-hidden="true"` is taken off the focused element's ancestors up to the
+ *   root, never above it: the browser blocks an aria-hidden ancestor of focus.
+ * - A copy of a host restored with its open shadow root keeps it: its children, its adopted sheets,
+ *   and the sheets still waiting for the restorer.
  */
 export function morph_children(
 	parent: Element,
@@ -112,19 +64,11 @@ export function morph_children(
 	options?: MorphOptions
 ): void {
 	const walk = options?.target === 'walk';
-	// The ROOT is vetted like every descendant (runtime/ownership.ts): a caller handing the morph a
-	// subtree it may not enter — a declared-foreign element, or (toward Svelte's walk) one the walk never
-	// reads — gets a no-op, whatever path it came by. (Before this, every ownership check ran on
-	// descendants only, so a repair that recursed down to a kept widget and morphed IT stripped the
-	// widget's own nodes.)
 	if (is_declared_foreign(parent)) return;
 	if (walk) {
-		// (a region root is the island being repaired itself — a kept island is still Svelte's to walk)
 		const owner = owner_of(parent);
 		if (owner !== 'walk' && owner !== 'region') return;
 	}
-	// (the root is ordered like any element: a region's children in the answer's order, a baked live
-	// region's by identity — Svelte's anchors sit among them)
 	reconcile(parent, new_nodes, build_id_sets(parent, new_nodes), walk, options?.stays);
 	clear_aria_hidden_over_focus(parent);
 }
@@ -155,16 +99,6 @@ export interface MorphOptions {
 	stays?: (node: Node) => boolean;
 }
 
-/**
- * WAI-ARIA safety net, run once after a morph settles: `aria-hidden="true"` must never sit on an
- * ancestor of the focused element — the browser blocks it and the interaction dies (an on-demand
- * dropdown, focused by the waking click, never opens because the morph stamped the region's fetched
- * closed state onto its container). aria-hidden reaches the focused subtree two ways: an in-place
- * attribute sync (guarded in {@link sync_attributes}) OR a freshly cloned/inserted subtree — importNode
- * copies attributes wholesale, with no guard, which is the path a REPLACED container takes. So the guard
- * alone was not enough. This sweep strips `aria-hidden="true"` from the focused element's ancestor chain
- * up to (and including) the morph root, covering both paths. A no-op unless focus lives inside `parent`.
- */
 function clear_aria_hidden_over_focus(parent: Element): void {
 	const doc = owner_document(parent);
 	const active = doc.activeElement;
@@ -177,18 +111,12 @@ function clear_aria_hidden_over_focus(parent: Element): void {
 	}
 }
 
-/**
- * Element → the keys found among its DESCENDANTS (never its own key — that goes through the keyed
- * path). `null` when neither tree holds a key, so a key-less tick pays two scans and nothing else.
- * Built once per top-level morph and shared down the recursion. See "Wrapper matching" above.
- */
 type IdSets = WeakMap<Element, Set<string>> | null;
 
 const KEYED_SELECTOR = '[data-key],[id]';
 
 function build_id_sets(parent: Element, new_nodes: ArrayLike<Node>): IdSets {
 	let sets: IdSets = null;
-	// Register `key` on every element from `start` up to (excluding) `stop`.
 	const register = (key: string, start: Node | null, stop: Node | null): void => {
 		for (let a = start; a !== null && a !== stop && a.nodeType === ELEMENT; a = a.parentNode) {
 			let set = (sets ??= new WeakMap()).get(a as Element);
@@ -204,8 +132,7 @@ function build_id_sets(parent: Element, new_nodes: ArrayLike<Node>): IdSets {
 	for (let i = 0; i < count; i++) {
 		const root = new_nodes[i];
 		if (root.nodeType !== ELEMENT) continue;
-		// A root is itself a sibling candidate, so its set carries its descendants' keys; whatever
-		// sits above it (a parsed document, a fragment) is not part of this reconcile.
+		// @why a new root is a sibling candidate: its own set holds its descendants' keys (test: test/morph.test.ts › a banner inserted above a key-less wrapper keeps the keyed node inside it)
 		for (const el of (root as Element).querySelectorAll(KEYED_SELECTOR)) {
 			const k = key_of(el);
 			if (k !== null) register(k, el.parentNode, root.parentNode);
@@ -214,8 +141,6 @@ function build_id_sets(parent: Element, new_nodes: ArrayLike<Node>): IdSets {
 	return sets;
 }
 
-/** Lockstep test for two key-less siblings: neither holds a key (nothing to protect), or they share
- *  one (the same wrapper, re-rendered). Anything else breaks lockstep so phase 2 can look around. */
 function id_sets_agree(sets: NonNullable<IdSets>, a: Node, b: Node): boolean {
 	if (a.nodeType !== ELEMENT) return true;
 	const sa = sets.get(a as Element);
@@ -231,7 +156,6 @@ function intersects(a: Set<string>, b: Set<string>): boolean {
 	return false;
 }
 
-/** The first remaining key-less old sibling that holds one of `wanted` and can become `next`. */
 function find_holder(
 	old_inner: Map<string, Element>,
 	wanted: Set<string>,
@@ -244,7 +168,6 @@ function find_holder(
 	return null;
 }
 
-/** `el` is consumed: it no longer holds anything for a later new sibling. */
 function release_holder(
 	old_inner: Map<string, Element>,
 	sets: NonNullable<IdSets>,
@@ -255,7 +178,6 @@ function release_holder(
 	for (const key of held) if (old_inner.get(key) === el) old_inner.delete(key);
 }
 
-/** Does a new sibling AFTER `idx` want a key that `cursor` holds? Then `cursor` is spoken for. */
 function reserved_for_later(
 	sets: NonNullable<IdSets>,
 	new_inner: Map<string, number> | null,
@@ -272,13 +194,6 @@ function reserved_for_later(
 	return false;
 }
 
-/**
- * Reconcile `parent`'s children toward `new_nodes`, by whoever ORDERS them (ownership.ts
- * `order_owner`): the render's sequence by position ({@link reconcile_children}), or — under a
- * self-owned element whose own runtime arranges its light DOM — by identity
- * ({@link reconcile_by_identity}). Toward Svelte's walk, positions are always the render's (the walk
- * binds by position).
- */
 function reconcile(
 	parent: Element,
 	new_nodes: ArrayLike<Node>,
@@ -286,18 +201,10 @@ function reconcile(
 	walk: boolean,
 	stays?: (node: Node) => boolean
 ): void {
-	// (by identity, a child the render did not make is already never matched nor removed)
 	if (!walk && order_owner(parent) === 'element') reconcile_by_identity(parent, new_nodes, sets);
 	else reconcile_children(parent, new_nodes, sets, walk, stays);
 }
 
-/**
- * The render's sequence, by position.
- * @param walk the {@link MorphOptions.target} is Svelte's walk (the repair), threaded unchanged down
- * the recursion — a subtree the walk never enters is skipped.
- * @param stays the root's children that are not the render's ({@link MorphOptions.stays}): the
- * cursor steps over them, so they are never matched, moved or removed. Not threaded down.
- */
 function reconcile_children(
 	parent: Element,
 	new_nodes: ArrayLike<Node>,
@@ -306,7 +213,6 @@ function reconcile_children(
 	stays?: (node: Node) => boolean
 ): void {
 	const count = new_nodes.length;
-	// The cursor only ever rests on a child the morph may touch: `stays` children are stepped over.
 	const step = (n: ChildNode | null): ChildNode | null => {
 		if (stays) while (n && stays(n)) n = n.nextSibling;
 		return n;
@@ -314,26 +220,18 @@ function reconcile_children(
 	let cursor: ChildNode | null = step(parent.firstChild);
 	let idx = 0;
 
-	// ── Phase 1: optimistic lockstep ────────────────────────────────────────────
 	while (idx < count && cursor) {
 		const next = new_nodes[idx];
 		const ck = key_of(cursor);
 		const nk = key_of(next);
-		// Keys must agree to stay in lockstep.
 		if (ck !== nk) break;
 		if (nk === null) {
-			// Both key-less: the tags must match too. `same_node` having passed means morph_same can
-			// skip re-deciding morph-vs-replace (that check would only re-confirm the same verdict).
 			if (!same_node(cursor, next)) break;
-			// Wrapper matching: two key-less wrappers stay in lockstep only while their id sets agree.
-			// A disagreement (one holds keys the other doesn't) hands the remainder to phase 2, which
-			// builds the sibling indexes needed to tell whether something better exists.
 			if (sets !== null && !id_sets_agree(sets, cursor, next)) break;
 			const here = cursor;
 			cursor = step(cursor.nextSibling);
 			morph_same(here, next, sets, walk);
 		} else {
-			// Same non-null key: morph regardless of tag (morph_node replaces on a tag mismatch).
 			const here = cursor;
 			cursor = step(cursor.nextSibling);
 			morph_node(here, next, sets, walk);
@@ -341,7 +239,6 @@ function reconcile_children(
 		idx++;
 	}
 
-	// Aligned all the way: drop any old tail the new shape dropped, and we're done — no map built.
 	if (idx >= count) {
 		while (cursor) {
 			const gone = cursor;
@@ -350,15 +247,11 @@ function reconcile_children(
 		}
 		return;
 	}
-	// Old ran out first: everything left is a pure append.
 	if (cursor === null) {
 		for (; idx < count; idx++) parent.insertBefore(clone(new_nodes[idx]), null);
 		return;
 	}
 
-	// ── Phase 2: keyed reconcile of the remainder [cursor.. ] vs new_nodes[idx.. ] ──
-	// Index the still-unmatched old children: keyed ones by key, and (wrapper matching) key-less
-	// ones by the keys they hold — first holder wins, like the DOM's own `getElementById`.
 	let old_keys: Map<string, ChildNode> | null = null;
 	let old_inner: Map<string, Element> | null = null;
 	for (let n: ChildNode | null = cursor; n; n = step(n.nextSibling)) {
@@ -373,8 +266,6 @@ function reconcile_children(
 			}
 		}
 	}
-	// Which remaining NEW sibling first wants each key — only needed to tell whether an old wrapper
-	// is reserved for a later new sibling, so only built when an old wrapper holds keys at all.
 	let new_inner: Map<string, number> | null = null;
 	if (old_inner !== null) {
 		for (let i = idx; i < count; i++) {
@@ -388,8 +279,6 @@ function reconcile_children(
 	}
 
 	if (old_keys === null && old_inner === null) {
-		// No keyed old children left and no wrapper holds a key: purely positional (the cursor's
-		// key is never in play).
 		for (; idx < count; idx++) {
 			const next = new_nodes[idx];
 			if (cursor && key_of(next) === null && same_node(cursor, next)) {
@@ -406,21 +295,18 @@ function reconcile_children(
 			const next_key = key_of(next);
 
 			if (next_key !== null) {
-				// Keyed hit: reuse the old node with this key wherever it currently sits (one map probe).
 				const matched = old_keys?.get(next_key);
 				if (matched !== undefined) {
 					old_keys!.delete(next_key);
 					if (matched === cursor) {
 						cursor = step(cursor.nextSibling);
 					} else {
-						parent.insertBefore(matched, cursor); // moves `matched` (already lives in `parent`)
+						parent.insertBefore(matched, cursor);
 					}
 					morph_node(matched, next, sets, walk);
 					continue;
 				}
 			} else if (old_inner !== null && next.nodeType === ELEMENT) {
-				// Id-set hit: a key-less wrapper wanting keys a key-less old sibling holds — reuse that
-				// sibling wherever it sits, so the keyed subtree inside it (an island) keeps its identity.
 				const wanted = sets!.get(next as Element);
 				const holder = wanted === undefined ? null : find_holder(old_inner, wanted, next);
 				if (holder !== null) {
@@ -435,17 +321,13 @@ function reconcile_children(
 				}
 			}
 
-			// Walk the cursor to the next slot, skipping old keyed nodes reserved for a later key —
-			// computing each candidate's key exactly once (reused by the positional test below).
 			let cur_key: string | null = null;
 			while (cursor) {
 				cur_key = key_of(cursor);
-				if (cur_key === null || old_keys === null || !old_keys.has(cur_key)) break; // not reserved
+				if (cur_key === null || old_keys === null || !old_keys.has(cur_key)) break;
 				cursor = step(cursor.nextSibling);
 			}
 
-			// Positional hit: a key-less, compatible node in this slot morphs in place — unless a LATER
-			// new sibling wants keys this old wrapper holds (then it waits there for that sibling).
 			if (
 				cursor &&
 				next_key === null &&
@@ -460,13 +342,10 @@ function reconcile_children(
 				continue;
 			}
 
-			// Miss: nothing here can become `next` — insert a fresh copy before the cursor.
 			parent.insertBefore(clone(next), cursor);
 		}
 	}
 
-	// Remove everything the new shape did not claim: the trailing nodes from the cursor onward, and
-	// keyed nodes whose key vanished but that sit BEFORE the cursor (positionally skipped).
 	while (cursor) {
 		const gone = cursor;
 		cursor = step(cursor.nextSibling);
@@ -479,25 +358,10 @@ function reconcile_children(
 	}
 }
 
-/**
- * THE ELEMENT ORDERS ITS CHILDREN (ownership.ts §11): a self-owned element's runtime relocates and
- * wraps its light DOM, so positions are not the render's and never decide a match. Each new node
- * finds its old counterpart by identity — key, then the id-set holder, then the next render-made
- * sibling of the same tag — and is morphed IN PLACE (the element's arrangement stands; nothing
- * re-upgrades: a byte-identical answer moves no node). A new node with no counterpart goes in after the
- * last placed render node. Then EXISTENCE decides the leftovers: one the render made and no longer
- * produces is removed (a stale fallback panel beside the answer's, painting over it); one the element
- * made is never matched and never removed.
- * An element that SLOTS its light DOM (ownership.ts `slots_light_dom`) arranges nothing: the render's
- * nodes then end in the answer's order — the fewest moves, its own nodes untouched — and the render's
- * leftover block markers go (a tab the CMS moved kept its old place; one the answer added landed
- * among the wrong siblings).
- */
 function reconcile_by_identity(parent: Element, new_nodes: ArrayLike<Node>, sets: IdSets): void {
 	const count = new_nodes.length;
 	const slotted = slots_light_dom(parent);
 	const placed_in_order: ChildNode[] = [];
-	// the tags the render produces here: an unmarked old element of one of them is the render's too
 	const render_tags = new Set<string>();
 	for (let i = 0; i < count; i++)
 		if (new_nodes[i].nodeType === ELEMENT) render_tags.add((new_nodes[i] as Element).localName);
@@ -511,7 +375,7 @@ function reconcile_by_identity(parent: Element, new_nodes: ArrayLike<Node>, sets
 		if (k !== null) {
 			(by_key ??= new Map()).set(k, n);
 		} else if (n.nodeType === ELEMENT) {
-			if (!render_made(n, render_tags)) continue; // the element's own: never a counterpart
+			if (!render_made(n, render_tags)) continue;
 			const el = n as Element;
 			let list = by_tag.get(el.localName);
 			if (!list) by_tag.set(el.localName, (list = []));
@@ -551,10 +415,6 @@ function reconcile_by_identity(parent: Element, new_nodes: ArrayLike<Node>, sets
 					release_holder(old_inner, sets!, match as Element);
 			}
 		} else if (next.nodeType === COMMENT) {
-			// a comment is a MARKER: only the same marker is its counterpart (another owner's anchor —
-			// Svelte's `{@html}` bounds — is never rewritten into the render's). Under a slotting element
-			// the nearest one after the last placed node first: Svelte's markers repeat, and the far one
-			// would cost a move.
 			let first: ChildNode | null = null;
 			for (let j = 0; j < others.length; j++) {
 				const o = others[j];
@@ -572,7 +432,6 @@ function reconcile_by_identity(parent: Element, new_nodes: ArrayLike<Node>, sets
 			}
 			match ??= first;
 		} else {
-			// text: the next unclaimed text, in the element's order
 			while (
 				other_at < others.length &&
 				(others[other_at].nodeType !== next.nodeType || claimed.has(others[other_at]))
@@ -584,7 +443,6 @@ function reconcile_by_identity(parent: Element, new_nodes: ArrayLike<Node>, sets
 			claimed.add(match);
 			const before = match.previousSibling;
 			morph_node(match, next, sets, false);
-			// (a keyed tag change replaced it: the replacement stands where it was)
 			const placed =
 				match.parentNode === parent ? match : before ? before.nextSibling : parent.firstChild;
 			if (placed) {
@@ -601,40 +459,30 @@ function reconcile_by_identity(parent: Element, new_nodes: ArrayLike<Node>, sets
 		placed_in_order.push(copy as ChildNode);
 	}
 
-	// EXISTENCE: a render-made leftover goes; the element's own stay (text and comments included)
 	for (const list of by_tag.values())
 		for (const el of list) if (!claimed.has(el) && el.parentNode === parent) parent.removeChild(el);
 	if (by_key)
 		for (const n of by_key.values())
 			if (n.parentNode === parent && render_made(n, render_tags)) parent.removeChild(n);
 	if (slotted) {
-		// (a block marker is the render's by construction — `<!--[-->`, `<!--[!-->`, `<!--]-->`, `<!---->`)
 		for (const o of others)
 			if (!claimed.has(o) && o.parentNode === parent && is_block_marker(o)) parent.removeChild(o);
 		order_render_nodes(parent, placed_in_order);
 	}
 }
 
-/** Svelte's block markers: `''`, or `[`-opened (`[`, `[!`, `[0`, `[-1`, …), or `]`. */
 function is_block_marker(n: Node): boolean {
 	if (n.nodeType !== COMMENT) return false;
 	const d = (n as Comment).data;
-	return d === '' || d === ']' || d.charCodeAt(0) === 91; // '['
+	return d === '' || d === ']' || d.charCodeAt(0) === 91;
 }
 
-/**
- * Put the render's placed nodes (`nodes`, in the answer's order) in that order among `parent`'s
- * children, moving the fewest: the longest run already in order (longest increasing subsequence of
- * their positions) stays, every other node goes right after its predecessor in the answer. Nodes not
- * in the list — the element's own — are never moved. An answer already in order moves nothing.
- */
 function order_render_nodes(parent: Element, nodes: ChildNode[]): void {
 	const count = nodes.length;
 	if (count < 2) return;
 	const at = new Map<Node, number>();
 	let index = 0;
 	for (let n = parent.firstChild; n; n = n.nextSibling) at.set(n, index++);
-	// patience LIS over the positions: tails[l] = index into `nodes` ending a run of length l+1
 	const tails: number[] = [];
 	const prev = new Int32Array(count).fill(-1);
 	for (let k = 0; k < count; k++) {
@@ -665,9 +513,6 @@ function order_render_nodes(parent: Element, nodes: ChildNode[]): void {
 	}
 }
 
-/** A kept region root's ADDRESS is the render's that minted it ({@link REGION_RENDER_ATTRS}); the rest
- *  of its attributes and all its content are the runtime's / its answer's. A re-minted hole gets its
- *  new `endpoint` and fetches there (core.ts `#renew`), its current answer on screen until then. */
 function sync_render_attributes(from: Element, to: Element, walk: boolean): void {
 	if (walk || from.localName !== to.localName) return;
 	for (const name of REGION_RENDER_ATTRS) {
@@ -676,19 +521,12 @@ function sync_render_attributes(from: Element, to: Element, walk: boolean): void
 	}
 }
 
-/** The attributes of `from` toward `to`, by who writes them (ownership.ts `attributes_writer`). */
 function sync_by_writer(from: Element, to: Element, walk: boolean): void {
 	const writer = attributes_writer(from);
 	if (writer === 'render') sync_attributes(from, to, is_self_owned(from));
 	else if (writer === 'region') sync_render_attributes(from, to, walk);
-	// 'element': an upgraded custom element's host attributes are its runtime's
 }
 
-/**
- * The morph key of a node: `data-key` (explicit), else `id`, else `null` (unkeyed → positional).
- * Uses the reflected `.id` property (a direct field read) instead of `getAttribute('id')`, and only
- * probes `data-key` — so the overwhelmingly common key-less element costs one attribute lookup.
- */
 function key_of(node: Node): string | null {
 	if (node.nodeType !== ELEMENT) return null;
 	const el = node as Element;
@@ -698,7 +536,6 @@ function key_of(node: Node): string | null {
 	return id !== '' ? id : null;
 }
 
-/** Same slot for positional reuse: same node kind, and (for elements) same tag + namespace. */
 function same_node(a: Node, b: Node): boolean {
 	if (a.nodeType !== b.nodeType) return false;
 	if (a.nodeType === ELEMENT) {
@@ -707,36 +544,16 @@ function same_node(a: Node, b: Node): boolean {
 			(a as Element).namespaceURI === (b as Element).namespaceURI
 		);
 	}
-	return true; // text / comment reconcile positionally
+	return true;
 }
 
-/**
- * May the morph ENTER `el`? (runtime/ownership.ts.) Never a declared-foreign subtree (the app's
- * `data-ogygia-keep` / `data-persist`) nor a hydrated / kept region (Svelte's reactivity owns it); and
- * toward Svelte's walk, never a subtree the walk does not read (`data-og-opaque`, a slot). Such an
- * element is matched — kept in place, identity intact — but neither synced nor recursed into.
- *
- * Upgraded custom elements (ownership.ts `is_upgraded_ce`) are entered, but their host ATTRIBUTES are
- * their runtime's (`attributes_writer`): re-asserting a fresh render's stale markers (a per-render id,
- * a scope class) over a live host made it lose its hydrated shadow and duplicate its content. Their
- * children are reconciled by identity (`order_owner`, {@link reconcile_by_identity}): the children the
- * element made are kept toward a live answer, removed toward Svelte's walk where the walk reads that
- * position.
- */
 function off_limits(el: Element, walk: boolean): boolean {
 	if (is_declared_foreign(el) || is_region_owned(el)) return true;
 	return walk && owner_of(el) !== 'walk';
 }
 
-/**
- * Reconcile a single old node toward a single new node, replacing only when it cannot be morphed.
- * Used by keyed matches, where `from` and `to` may be different tags (the reason the tag/namespace
- * replace check lives here). Positional/lockstep callers have already proven compatibility via
- * {@link same_node} and go through {@link morph_same}, skipping that recheck.
- */
 function morph_node(from: Node, to: Node, sets: IdSets, walk: boolean): void {
 	const kind = from.nodeType;
-	// Text / comment: cheapest possible update.
 	if (kind === TEXT || kind === COMMENT) {
 		if (from.nodeValue !== to.nodeValue) from.nodeValue = to.nodeValue;
 		return;
@@ -746,32 +563,20 @@ function morph_node(from: Node, to: Node, sets: IdSets, walk: boolean): void {
 	const ef = from as Element;
 	const et = to as Element;
 
-	// Not ours to touch (ownership.ts): matched by its key, kept as it is — but for a region root's
-	// address, which is the render's. Checked BEFORE the replace below, or a keyed match whose tag
-	// changed would hand a kept widget / a hydrated island over to a fresh copy anyway.
+	// @why kept before the tag check: a keyed match whose tag changed never replaces a kept element (test: test/browser/dom-ownership.test.ts › morph: a keyed match whose tag changed never replaces a kept element)
 	if (off_limits(ef, walk)) {
 		if (attributes_writer(ef) === 'region') sync_render_attributes(ef, et, walk);
 		return;
 	}
-	// Can't turn one element into a different element — hand the whole node over.
 	if (ef.tagName !== et.tagName || ef.namespaceURI !== et.namespaceURI) {
 		ef.parentNode?.replaceChild(clone(to), ef);
 		return;
 	}
-	// Form props BEFORE attributes: the rule compares the previous render's attribute to the incoming
-	// one, so it must read `ef`'s attributes while they are still the previous render's.
 	sync_form_props(ef, et);
 	sync_by_writer(ef, et, walk);
-	// `et` is never mutated by the recursion (misses clone, keyed moves come from the OLD tree), so
-	// its live `childNodes` is handed straight down — no per-level snapshot array.
 	reconcile(ef, et.childNodes, sets, walk);
 }
 
-/**
- * Reconcile two nodes already known to be the same kind + (for elements) same tag + namespace — the
- * positional/lockstep path. Skips the morph-vs-replace decision {@link morph_node} makes; the element
- * body is inlined (not shared via a helper) to keep this leaf call one frame deep on the hot path.
- */
 function morph_same(from: Node, to: Node, sets: IdSets, walk: boolean): void {
 	const kind = from.nodeType;
 	if (kind === TEXT || kind === COMMENT) {
@@ -785,7 +590,8 @@ function morph_same(from: Node, to: Node, sets: IdSets, walk: boolean): void {
 		if (attributes_writer(ef) === 'region') sync_render_attributes(ef, et, walk);
 		return;
 	}
-	sync_form_props(ef, et); // before attributes — see morph_node
+	// @why form properties before attributes: the rule reads the previous render's attribute (test: test/morph.test.ts › a changed default DOES move an unfocused dirty value (server changed its mind))
+	sync_form_props(ef, et);
 	sync_by_writer(ef, et, walk);
 	reconcile(ef, et.childNodes, sets, walk);
 }
@@ -796,27 +602,16 @@ function morph_same(from: Node, to: Node, sets: IdSets, walk: boolean): void {
 export function sync_attributes(from: Element, to: Element, keep_extra = false): void {
 	const to_attrs = to.attributes;
 	const to_len = to_attrs.length;
-	// Add / update everything `to` wants. After this, `from`'s attribute names are a superset of
-	// `to`'s (every `to` name is now present on `from`).
 	for (let i = 0; i < to_len; i++) {
 		const attr = to_attrs[i];
 		if (from.getAttribute(attr.name) === attr.value) continue;
-		// WAI-ARIA: `aria-hidden="true"` must not sit on an ancestor of the focused element — the
-		// browser blocks it and the interaction dies. The morph fetched this region's closed/default
-		// state (an on-demand dropdown's SSR render), so stamping its aria-hidden over a subtree the
-		// user just focused open would hide the panel they're opening. Skip it; the live, focused branch
-		// stays authoritative (like the focused form control does in sync_form_props) until it blurs
-		// and a later tick re-applies. Cheap: the focus probe runs only for this one attribute.
 		if (attr.name === 'aria-hidden' && attr.value === 'true' && subtree_has_focus(from)) continue;
 		from.setAttribute(attr.name, attr.value);
 	}
-	// `from` can only carry a stale attribute if it has MORE attributes than `to` — otherwise the
-	// superset above is an exact match and the whole removal scan (+ its hasAttribute probes) is
-	// skipped, which is the common "same attribute set, values churn" tick.
 	if (keep_extra) return;
 	const from_attrs = from.attributes;
 	if (from_attrs.length > to_len) {
-		// Iterate backwards — removal shifts the live list.
+		// @why backwards: a removal shifts the live attribute list (test: test/browser/morph-claims.test.ts › removes every attribute the new render dropped, side by side ones too)
 		for (let i = from_attrs.length - 1; i >= 0; i--) {
 			const name = from_attrs[i].name;
 			if (!to.hasAttribute(name)) from.removeAttribute(name);
@@ -824,33 +619,16 @@ export function sync_attributes(from: Element, to: Element, keep_extra = false):
 	}
 }
 
-/**
- * Sync live form DOM *properties* (`value` / `checked` / `selected`) — attributes alone don't move
- * these once a control is dirty. Runs BEFORE {@link sync_attributes}, because the rule is "follow
- * the server only when the server changed its default": a property moves only when its attribute
- * differs between the PREVIOUS render (still on `from`) and the incoming one (on `to`). A tick that
- * re-sends the same default never clobbers what the user typed or toggled in a field they have since
- * left — the browser's own dirty-value rule, and htmx 4's morph rule. The focused control is skipped
- * outright so a live tick never touches what the user is typing (its selection is left alone too).
- */
 function sync_form_props(from: Element, to: Element): void {
 	const tag = from.tagName;
 	if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT' && tag !== 'OPTION') return;
-
-	// The control the user is actively editing stays authoritative over its own value/checked.
 	if (owner_document(from)?.activeElement === from) return;
 
 	const ff = from as HTMLInputElement;
-
-	// `value`: only an incoming node that *explicitly* carries a value attribute, and one that differs
-	// from the previous render's, moves the property. Re-rendering WITHOUT a value attribute, or with
-	// the same one, leaves text a user typed (or any programmatic value) alone.
 	if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
 		const next = to.getAttribute('value');
 		if (next !== null && next !== from.getAttribute('value') && ff.value !== next) ff.value = next;
 	}
-	// `checked` / `selected`: attribute presence is the server's default; the property follows it
-	// only when that presence flipped between renders.
 	if (tag === 'INPUT') {
 		const next = to.hasAttribute('checked');
 		if (next !== from.hasAttribute('checked') && ff.checked !== next) ff.checked = next;
@@ -862,32 +640,20 @@ function sync_form_props(from: Element, to: Element): void {
 	}
 }
 
-/** `importNode(node, true)` — a deep copy owned by this document, carrying the source namespace. */
 function clone(node: Node): Node {
 	const copy = owner_document(node).importNode(node, true);
-	// (a page whose app has a server transform: answers arrive restored, their hosts' shadow roots
-	// attached before insertion — the copy must keep them)
 	if (node.nodeType === ELEMENT && (globalThis as { __og_restore?: unknown }).__og_restore)
 		carry_shadows(node as Element, copy as Element);
 	return copy;
 }
 
-/**
- * `importNode` never copies a shadow root (unless it was made clonable), so a host restored in an
- * answer's fragment would arrive with its rendered tree gone. Walk the source and the copy in lockstep
- * (a deep copy has the same elements in the same order) and carry each open root across: its children
- * copied the same way, its adopted sheets, and sheets still waiting for the host to be in the page
- * (the restorer adopts those right after the insertion).
- */
 function carry_shadows(src: Element, dst: Element): void {
-	const a = owner_document(src).createTreeWalker(src, 1 /* SHOW_ELEMENT */);
+	const a = owner_document(src).createTreeWalker(src, 1);
 	const b = owner_document(dst).createTreeWalker(dst, 1);
 	for (let s: Node | null = src, d: Node | null = dst; s && d; s = a.nextNode(), d = b.nextNode()) {
 		const root = (s as Element).shadowRoot;
 		if (!root || root.mode !== 'open' || (d as Element).shadowRoot) continue;
 		const copy = (d as Element).attachShadow({ mode: 'open', delegatesFocus: root.delegatesFocus });
-		// (attached in the answer's inert document: no custom element registry until the restorer
-		// initializes it after the insertion — else nothing inside it upgrades)
 		if ((copy as ShadowRoot & { customElementRegistry?: unknown }).customElementRegistry === null) {
 			const w = globalThis as { __og_init?: ShadowRoot[] };
 			(w.__og_init ??= []).push(copy);
@@ -907,14 +673,10 @@ function carry_shadows(src: Element, dst: Element): void {
 	}
 }
 
-/** The owning document, falling back to the ambient `document` for detached nodes. */
 function owner_document(node: Node): Document {
 	return node.ownerDocument ?? document;
 }
 
-/** True when the currently focused element lives inside `el` — so putting `aria-hidden="true"` on `el`
- *  would hide the focused subtree (a WAI-ARIA violation the browser blocks). `activeElement` is `<body>`
- *  when nothing has focus, which no morphed subtree contains, so that reads as false. */
 function subtree_has_focus(el: Element): boolean {
 	const doc = owner_document(el);
 	const active = doc.activeElement;
