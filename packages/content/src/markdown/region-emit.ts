@@ -16,6 +16,23 @@ export type RegionEmit = {
 	html: string;
 };
 
+function split_module(code: string): { module_body: string; template: string } {
+	const mod = MODULE_SCRIPT_RE.exec(code);
+	return {
+		module_body: mod ? mod[2]! : '',
+		template: mod ? code.slice(0, mod.index) + code.slice(mod.index + mod[0]!.length) : code
+	};
+}
+
+const COMPONENT_TAG_RE = /<([A-Z][\w$]*(?:\.[\w$]+)*|[a-z_$][\w$]*(?:\.[\w$]+)+)(?=[\s/>])/;
+
+/** The first component tag (`<Foo`, `<Foo.Bar`, `<ui.Button`) in a compiled module; null when
+ *  none. A region keeps one as an inert element (a `.md` corpus mentions them); `md()` refuses it. */
+export function component_tag_in(code: string): string | null {
+	const m = COMPONENT_TAG_RE.exec(split_module(code).template.replace(FENCE_EMBED_RE, ' '));
+	return m ? m[1]! : null;
+}
+
 /**
  * Re-emit a compiled content module as a serialized region: content crosses into Svelte as data,
  * never as template source. `code` is the post-mdsvex, post-island-transform module; `module_lines`
@@ -35,9 +52,7 @@ export type RegionEmit = {
  * Svelte. Only an instance `<script>` keeps the component path: then it returns `null`.
  */
 export function try_region_emit(code: string, module_lines: string[]): RegionEmit | null {
-	const mod = MODULE_SCRIPT_RE.exec(code);
-	const module_body = mod ? mod[2]! : '';
-	const template = mod ? code.slice(0, mod.index) + code.slice(mod.index + mod[0]!.length) : code;
+	const { module_body, template } = split_module(code);
 
 	if (/<script\b/.test(template)) return null;
 
