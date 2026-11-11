@@ -2243,6 +2243,10 @@
 		{
 			"id": "packages/core/src/runtime/import-again.ts > response_landed > Promise:0~7305f1 > timeout:0~317c93",
 			"reason": "the wait runs out (a dropped download in WebKit): resolves null, constant work"
+		},
+		{
+			"id": "packages/content/src/markdown/frontmatter.ts > reason_of",
+			"reason": "a thrown error to its words (an OgygiaError's class identity does not replay), two string slices, only on a frontmatter error; proven in packages/content/test/frontmatter-errors.test.ts"
 		}
 	]
 }
