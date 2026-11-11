@@ -204,7 +204,7 @@ export const MACHINE_ERRORS: MachineErrors = {
 			`queue ${a.name}: a job's \`stale\` threw as the job left the queue.`,
 		details: (): string =>
 			'A `queue()` told a waiting job it was stale (its deadline came, it was cancelled, or the ' +
-			"owner closed) through its `stale` option, and it threw. The job is the one at fault, so the " +
+			'owner closed) through its `stale` option, and it threw. The job is the one at fault, so the ' +
 			"queue goes on: the error goes to the page's error handler (`reportError`: the console and " +
 			'`window.onerror`), and the other waiting jobs still go stale or start, so none waits ' +
 			'forever.\n\nCatch inside `stale` to handle it there.'
