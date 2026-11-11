@@ -211,6 +211,26 @@ describe('capability: deterministic tokens', () => {
 		expect(cap.mint(AUD, ['id', 'props'], 10_000)).not.toBe(a);
 	});
 
+	it('mintUntil names the expiry itself, so two mints at different moments of one window match', () => {
+		let t = 1_000_000;
+		const cap = capability({
+			name: 'region',
+			version: 3,
+			signer: hmac('k'),
+			ttl: { max: 60_000 },
+			nonce: false,
+			now: () => t
+		});
+		const a = cap.mintUntil(AUD, ['id', 'props'], 1_030_000);
+		t += 12_345;
+		expect(cap.mintUntil(AUD, ['id', 'props'], 1_030_000)).toBe(a);
+		expect(a.startsWith('v3.1030000..')).toBe(true);
+		expect(cap.check(a, AUD, ['id', 'props'])).toEqual({ ok: true, exp: 1_030_000, nonce: '' });
+		// held to the same bounds as a lifetime: never past ttl.max from now
+		expect(cap.mintUntil(AUD, ['id'], t + 10 * 60_000).startsWith(`v3.${t + 60_000}.`)).toBe(true);
+		expect(() => cap.mintUntil(AUD, ['id'], Number.NaN)).toThrow(/machine_bad_option/);
+	});
+
 	it('a nonce-less token never checks where nonces are on, nor the other way', () => {
 		const opts = { name: 'region', version: 3, signer: hmac('k'), ttl: { max: 60_000 } };
 		const fixed = capability({ ...opts, nonce: false });
