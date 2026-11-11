@@ -7,8 +7,8 @@
  *   throw new OgygiaError('handle_secret_too_short', { min });
  *   warn('endpoint_bad_signature', { id });
  */
-import { define_messages, dev_or_prerender, type MessagesOf } from './define.ts';
-import { prose } from './prose.ts';
+import { define_messages, dev_or_prerender, type MessagesOf } from '../contract/messages.ts';
+import { prose } from '../contract/prose.ts';
 
 const SECRET_FIX =
 	'Set a stable `OGYGIA_SECRET` in the server environment, or pass one to `handle({ secret })`.';

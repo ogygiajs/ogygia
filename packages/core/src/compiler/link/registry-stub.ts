@@ -1,5 +1,5 @@
 /**
- * `virtual:ogygia/registry-stub/…` — keep a REGION REGISTRY out of a csr=false page's client graph.
+ * `ogygia:region/registry-stub/…` — keep a REGION REGISTRY out of a csr=false page's client graph.
  *
  * THE LEAK: a `.ts` registry (`import Card from './Card.svelte' with { wake: 'visible' }` × N, the
  * Builder / CMS block-factory shape) is a plain module to Kit. A csr=false route host that imports
@@ -29,8 +29,9 @@
  */
 import { walk } from 'estree-walker';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
+import { region_family } from '../ids.ts';
 
-export const REGISTRY_STUB_PREFIX = 'virtual:ogygia/registry-stub/';
+export const REGISTRY_STUB_PREFIX: string = region_family('registry_stub');
 
 /** The query that names a registry's client-leg variant (its marks blanked, everything else kept). */
 export const REGISTRY_CLIENT_QUERY = '?og-registry-client';
