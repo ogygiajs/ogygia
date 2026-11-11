@@ -77,7 +77,9 @@ export function use_sheets(region: Element, sheets: readonly Element[]): void {
  * (`unlisted`: region sheets, and every tag that names an owning region), take out each one no
  * region on the page uses or owns any more. A tag names its owner (`data-og-owner`, the outermost
  * island's fingerprint) because the server skips a region the browser already has, and the tags
- * its inner regions wrote with it (#806).
+ * its inner regions wrote with it (#806). "On the page" is read from the document: a region the
+ * swap took out leaves `connected_regions` only at its teardown, a microtask later, and uses no
+ * sheet from the moment it left (#799, test/browser/nav-region-sheet-left.test.ts).
  */
 export function release_head_nodes(unlisted: readonly Element[]): void {
 	if (unlisted.length === 0) return;
