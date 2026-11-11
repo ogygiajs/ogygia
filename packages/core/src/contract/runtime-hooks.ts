@@ -122,15 +122,20 @@ export interface AnswerParsedEvent {
 	readonly fragment: DocumentFragment;
 }
 
-/** The runtime's moments a plugin's browser half can subscribe to (`defineClient({ hooks })`). A
+/** A parsed answer went into the page: `el` is the region it went into. */
+export interface AnswerPlacedEvent {
+	readonly el: Element;
+}
+
+/** The runtime's moments a plugin's browser half can subscribe to (`defineClient({ hooks })`).
+ *  Every hook is told with an event object of its own (a recorder dedupes by it). A
  *  hook is told; only `regionHydrate` answers: the function it returns runs right after the hydrate. */
 export interface RuntimeHooks {
 	regionMount(e: RegionMountEvent): void;
 	regionUnmount(e: RegionUnmountEvent): void;
 	regionHydrate(e: RegionHydrateEvent): (() => void) | void;
 	answerParsed(e: AnswerParsedEvent): void;
-	/** a parsed answer went into the page */
-	answerPlaced(): void;
+	answerPlaced(e: AnswerPlacedEvent): void;
 	regionHydrated(e: RegionHydratedEvent): void;
 	regionFailed(e: RegionFailedEvent): void;
 	holeAnswered(e: HoleAnsweredEvent): void;
