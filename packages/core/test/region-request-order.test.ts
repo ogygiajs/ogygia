@@ -5,24 +5,21 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { trace } from '@ogygia/machine';
 
-vi.mock('virtual:ogygia/sign', () => import('../src/server/hmac.ts'));
-vi.mock('virtual:ogygia/rate-limit', () => ({ rateLimit: { max: 100, windowMs: 60_000 } }));
-vi.mock('virtual:ogygia/server-plugins', () => ({ plugins: [] }));
-vi.mock('virtual:ogygia/route-config', () => ({ route_config: {} }));
-vi.mock('virtual:ogygia/devtools-boot-url', () => ({ default: '' }));
+vi.mock('ogygia:server/sign', () => import('../src/server/hmac.ts'));
+vi.mock('ogygia:server/rate-limit', () => ({ rate_limit: { max: 100, windowMs: 60_000 } }));
 const ID = 'abcdef012345';
 const Comp = ($$renderer: { push(s: string): void }) => $$renderer.push('<p>hole</p>');
-vi.mock('virtual:ogygia/server-manifest', () => ({
-	load_islands: async () => ({ islands: { [ID]: async () => ({ default: Comp }) } }),
-	island_url: { [ID]: '/x.js' },
-	island_name: {},
-	island_render: {},
-	render_island: {},
-	island_reads_page_data: null
+vi.mock('ogygia:server/server-manifest', () => ({
+	load_server_regions: async () => ({ regions: { [ID]: async () => ({ default: Comp }) } }),
+	region_url: { [ID]: '/x.js' },
+	region_name: {},
+	region_render: {},
+	render_region: {},
+	region_reads_page_data: null
 }));
 
 const { handle } = await import('../src/hooks.ts');
-const { mintServerIsland } = await import('../src/server/region-endpoint.ts');
+const { mint_server_region } = await import('../src/server/region-endpoint.ts');
 const { region_request } = await import('../src/server/region-request.ts');
 
 function event(url: string, init?: RequestInit) {
@@ -81,7 +78,7 @@ describe('a region request, as a machine', () => {
 	it('a GET walks every step in order', async () => {
 		const h = handle();
 		moves = trace();
-		const res = await h({ event: event(mintServerIsland(ID, { n: 1 })), resolve } as never);
+		const res = await h({ event: event(mint_server_region(ID, { n: 1 })), resolve } as never);
 		expect(res.status).toBe(200);
 		expect(lines()).toEqual([
 			'received -> prechecked',
@@ -96,7 +93,10 @@ describe('a region request, as a machine', () => {
 	it('a forged GET is refused after its probe, before any render charge', async () => {
 		const h = handle();
 		moves = trace();
-		const res = await h({ event: event(forge(mintServerIsland(ID, { n: 1 }))), resolve } as never);
+		const res = await h({
+			event: event(forge(mint_server_region(ID, { n: 1 }))),
+			resolve
+		} as never);
 		expect(res.status).toBe(403);
 		expect(lines()).toEqual([
 			'received -> prechecked',
@@ -108,7 +108,7 @@ describe('a region request, as a machine', () => {
 	it('each hole of a batch walks the same steps; a forged one stops at verify', async () => {
 		const h = handle();
 		moves = trace();
-		const calls = [mintServerIsland(ID, { n: 1 }), forge(mintServerIsland(ID, { n: 2 }))];
+		const calls = [mint_server_region(ID, { n: 1 }), forge(mint_server_region(ID, { n: 2 }))];
 		const res = await h({
 			event: event('/__ogygia__', {
 				method: 'POST',
