@@ -2323,6 +2323,14 @@
 		{
 			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > warn > once:1~c9a4aa",
 			"reason": "prints one warning (console output, not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > details",
+			"reason": "a message table entry: wording only"
 		}
 	]
 }

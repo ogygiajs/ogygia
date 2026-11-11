@@ -282,6 +282,11 @@ function read_flow_plain(p: Cursor, is_key: boolean): string {
 		const c = p.s[p.i];
 		if (c === ',' || c === ']' || c === '}') break;
 		if (is_key && c === ':') break;
+		// @why YAML has no `[` or `{` inside a plain flow item (`[see [a, b]]` is an error there, not a list) (test: frontmatter-flow › a bracket or brace inside a plain item)
+		if (c === '[' || c === '{')
+			throw new OgygiaError('content_frontmatter_invalid', {
+				reason: `a \`${c}\` inside a list or map item (\`${p.s.trim()}\`): quote the item, or the whole value`
+			});
 		p.i++;
 	}
 	return p.s.slice(start, p.i).trim();
@@ -664,6 +669,8 @@ export function parseFrontmatter(source: string): FrontmatterResult {
 			data = parsed as Record<string, unknown>;
 		}
 	} catch (e) {
+		// (the parser's own invalid-frontmatter error is already the answer: wrapped, it would say so twice)
+		if (e instanceof OgygiaError && e.code === 'content_frontmatter_invalid') throw e;
 		throw new OgygiaError('content_frontmatter_invalid', { reason: reason_of(e) });
 	}
 	return { data, body: after };
