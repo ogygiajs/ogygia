@@ -320,13 +320,13 @@ describe('a static live tick reaches its region after a write at its address', (
 					// (the app's transport decodes the tick: its HTML is written at its address)
 					['a static tick is decoded', () => void write({ a, v: ticket(a), html }), 'then'],
 					[
-						'a write at its address',
-						() => void write({ a, v: ticket(a), html: '<p data-n="2">two</p>' }),
-						'then'
-					],
-					[
-						'the tick reaches its region',
-						() => el.applyLive({ id: 'order-live', module: '', props: {}, html, url: LIVE_URL })
+						// (in one step: the store lets an address nobody is bound to go after a minute, and
+						// a tick reaches its region well before that)
+						'a write at its address, then the tick reaches its region',
+						() => {
+							write({ a, v: ticket(a), html: '<p data-n="2">two</p>' });
+							return el.applyLive({ id: 'order-live', module: '', props: {}, html, url: LIVE_URL });
+						}
 					]
 				]);
 			},
