@@ -130,13 +130,14 @@ export const KNOWN: ReadonlyArray<{
 }> = [
 	{
 		issue: 786,
-		what: 'an empty <title> after client navigations',
-		// (an empty one: no text line under it)
-		applies: (shown, fresh) =>
-			/\n {4}<title>(?!\n {6})/.test(shown) !== /\n {4}<title>(?!\n {6})/.test(fresh),
+		what: 'an empty <title> after client navigations, or two titles on a page visited again',
+		// (an empty one: no text line under it; and the empty one a page with a title fills in,
+		// beside its own: seed 443, /soft-race → a page with no title → back)
+		applies: (shown, fresh) => titles(shown).length > titles(fresh).length,
 		forgive: (s) => {
 			const h = head_blocks(s);
-			const blocks = h.blocks.filter((b) => !(b.length === 1 && b[0] === '    <title>'));
+			const first = h.blocks.find((b) => b[0] === '    <title>' && b.length > 1);
+			const blocks = h.blocks.filter((b) => b[0] !== '    <title>' || b === first);
 			return [...h.before, ...blocks.flat(), ...h.after].join('\n');
 		}
 	},
@@ -212,6 +213,13 @@ export const KNOWN: ReadonlyArray<{
 		}
 	}
 ];
+
+/** The `<title>` elements in a normalized DOM's head, each whole. */
+function titles(s: string): string[] {
+	return head_blocks(s)
+		.blocks.filter((b) => b[0] === '    <title>')
+		.map((b) => b.join('\n'));
+}
 
 /** A normalized DOM's regions (`<ogygia-region>` subtrees), each as its text. */
 function regions(s: string): string[] {
