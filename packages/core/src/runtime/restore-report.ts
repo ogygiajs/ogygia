@@ -5,7 +5,7 @@
  * `window.__og_restore` so every later run — a hole answer, a router swap — reports its own.
  */
 import { OgygiaError, warn } from '../messages/core.ts';
-import { cache } from '@ogygia/machine';
+import { say } from '@ogygia/machine';
 
 type RestoreWindow = {
 	__og_restore?: (root: ParentNode) => number;
@@ -13,8 +13,8 @@ type RestoreWindow = {
 };
 
 let reported = 0;
-/** The element names a late restore was said for on this page (once each). */
-const late_said = cache<string, true>({ name: 'late restores said', max: 512 });
+/** The element names a late restore was said for on this page (once each, the latest 1024). */
+const late_said = say();
 
 function report(): void {
 	const log = (window as RestoreWindow).__og_restore_log;
@@ -26,9 +26,9 @@ function report(): void {
 		if (entry.kind === 'mismatch' && entry.diff)
 			console.error(new OgygiaError('restore_markup_broken', { diff: entry.diff }));
 		// in every build: a late host loses nothing now, but it shows a part of the page late (#382)
-		else if (entry.kind === 'late' && entry.host && !late_said.has(entry.host)) {
-			late_said.set(entry.host, true);
-			warn('restore_late', { host: entry.host });
+		else if (entry.kind === 'late' && entry.host) {
+			const host = entry.host;
+			late_said.once(host, () => warn('restore_late', { host }));
 		}
 	}
 }
