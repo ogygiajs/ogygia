@@ -7,7 +7,8 @@ import type { RequestEvent } from '@sveltejs/kit';
 import { try_get_request_store } from '@sveltejs/kit/internal/server';
 import type { Handle } from '../kit-handle.ts';
 import type { RequestContext, ResolveOptions, ServerApp, ServerPlugin } from './index.ts';
-import { current_facts, facts_of, mark_per_visitor, type RequestFacts } from './facts.ts';
+import { current_facts, facts_of, note_per_visitor, type RequestFacts } from './facts.ts';
+import { observe_reads } from './reads.ts';
 import { ask, notify, register_hooks } from './hooks.ts';
 import { route_config } from './routes.ts';
 import { plugin_capabilities, type CapabilitySigner } from './capability.ts';
@@ -47,6 +48,8 @@ export function start_plugins(
 			ask,
 			facts: facts_of,
 			current: current_facts,
+			perVisitor: note_per_visitor,
+			observeReads: (event) => observe_reads(event, facts_of(event.request).reads),
 			sign: signer.sign,
 			verify: signer.verify,
 			capability: plugin_capabilities(name, signer),
@@ -212,7 +215,7 @@ export function request_contexts(
 ): RequestContext<unknown, unknown>[] {
 	const route_id = event.route?.id;
 	const route_cfg = (key: string) => route_config(key, route_id, path);
-	const per_visitor = (reason: string) => mark_per_visitor(facts, reason);
+	const per_visitor = (reason: string) => note_per_visitor(event.request, reason);
 	return plugins.map(({ def, app }) => ({
 		event,
 		path,

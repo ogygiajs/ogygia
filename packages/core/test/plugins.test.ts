@@ -15,7 +15,7 @@ import {
 } from '../src/vite/plugin-api.ts';
 import { server_plugins_module, route_config_module } from '../src/compiler/link/caps.ts';
 import { defineServer } from '../src/plugin/index.ts';
-import { facts_of, mark_per_visitor } from '../src/plugin/facts.ts';
+import { facts_of, note_per_visitor } from '../src/plugin/facts.ts';
 import { ask, notify, register_hooks } from '../src/plugin/hooks.ts';
 import {
 	clear_route_config,
@@ -254,9 +254,9 @@ describe('facts', () => {
 		const facts = facts_of(a);
 		expect(facts).toBe(facts_of(a));
 		expect(facts_of(new Request('http://x/b'))).not.toBe(facts);
-		mark_per_visitor(facts, 'flag:hero');
-		mark_per_visitor(facts, 'cookie:x');
-		expect(facts.perVisitor).toBe('flag:hero');
+		note_per_visitor(a, 'flag:hero');
+		note_per_visitor(a, 'cookie:x');
+		expect(facts.reads.perVisitor).toBe('flag:hero');
 	});
 });
 
@@ -301,7 +301,7 @@ describe('startPlugin — a server realm without a server', () => {
 		const request = new Request('http://x/page');
 		await server.request?.(ctx(request));
 		expect(calls).toEqual(['setup:test:hi', 'request:/page:1']);
-		expect(app.facts(request).perVisitor).toBe('test');
+		expect(app.facts(request).reads.perVisitor).toBe('test');
 		expect(await ask.lastBuild('v')).toBe('from-test');
 	});
 });
