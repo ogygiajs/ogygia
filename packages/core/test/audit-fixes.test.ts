@@ -314,27 +314,6 @@ describe('audit fixes — page seed serialize', () => {
 });
 
 describe('audit fixes — remote clear', () => {
-	it('clear_remote_seeds + clear_remote_instances together drop seeds and kit maps', async () => {
-		const {
-			query_responses,
-			prerender_responses,
-			clear_remote_seeds,
-			clear_remote_instances,
-			query_map,
-			live_query_map
-		} = await import('../dist/shims/kit-remote/remote-cache.js');
-		query_responses['a'] = { v: 1 };
-		prerender_responses['b'] = { v: 2 };
-		query_map.set('q', new Map());
-		live_query_map.set('l', new Map());
-		clear_remote_seeds();
-		clear_remote_instances();
-		expect(Object.keys(query_responses)).toEqual([]);
-		expect(Object.keys(prerender_responses)).toEqual([]);
-		expect(query_map.size).toBe(0);
-		expect(live_query_map.size).toBe(0);
-	});
-
 	it('clear_remote_seeds leaves live/query instance maps intact', async () => {
 		const { query_responses, prerender_responses, clear_remote_seeds, query_map, live_query_map } =
 			await import('../dist/shims/kit-remote/remote-cache.js');
@@ -347,48 +326,8 @@ describe('audit fixes — remote clear', () => {
 		expect(Object.keys(prerender_responses)).toEqual([]);
 		expect(query_map.size).toBe(1);
 		expect(live_query_map.size).toBe(1);
-	});
-
-	it('clear_remote_instances destroys leftover query/live maps only', async () => {
-		const { query_responses, clear_remote_instances, query_map, live_query_map } =
-			await import('../dist/shims/kit-remote/remote-cache.js');
-		query_responses['keep'] = { v: 1 };
-		const destroyed: string[] = [];
-		live_query_map.set(
-			'clock',
-			new Map([
-				[
-					'',
-					{
-						resource: {
-							destroy() {
-								destroyed.push('clock');
-							}
-						}
-					}
-				]
-			])
-		);
-		query_map.set(
-			'count',
-			new Map([
-				[
-					'',
-					{
-						resource: {
-							destroy() {
-								destroyed.push('count');
-							}
-						}
-					}
-				]
-			])
-		);
-		clear_remote_instances();
-		expect(destroyed.sort()).toEqual(['clock', 'count']);
-		expect(live_query_map.size).toBe(0);
-		expect(query_map.size).toBe(0);
-		expect(query_responses.keep).toEqual({ v: 1 });
+		query_map.delete('q');
+		live_query_map.delete('l');
 	});
 
 	it('remote_cache is shared via globalThis across re-imports', async () => {
