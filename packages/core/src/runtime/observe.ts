@@ -12,6 +12,8 @@
  * where a visible island was and held every one of them for its whole 48 ms snapshot wait (200
  * islands scrolled into view: each woke 62–84 ms late, with nothing ahead of it).
  */
+import { seen, tasks } from '@ogygia/machine';
+
 type Callback = (intersecting: boolean) => void;
 type Shared = {
 	io: IntersectionObserver;
@@ -27,7 +29,7 @@ function shared(rootMargin: string): Shared {
 		const callbacks = new WeakMap<Element, Set<Callback>>();
 		const last = new WeakMap<Element, boolean>();
 		// oxlint-disable-next-line ogygia/owned-effects -- one observer per margin for the document, shared by every element: each element's watch is its owner's (the unobserve it hands back)
-		const io = new IntersectionObserver(
+		const io = seen.observer(
 			(entries) => {
 				for (const e of entries) {
 					last.set(e.target, e.isIntersecting);
@@ -38,6 +40,8 @@ function shared(rootMargin: string): Shared {
 			},
 			{ rootMargin }
 		);
+		// (as the raw constructor did where there is none: the caller is told, not left unwoken)
+		if (io === null) throw new TypeError('no IntersectionObserver on this platform');
 		s = { io, callbacks, last };
 		observers.set(rootMargin, s);
 	}
@@ -59,7 +63,7 @@ export function observe(el: Element, rootMargin: string, cb: Callback): () => vo
 	if (first) s.io.observe(el);
 	else if (s.last.has(el)) {
 		const state = s.last.get(el)!;
-		queueMicrotask(() => {
+		tasks.micro(() => {
 			if (s.callbacks.get(el)?.has(cb)) cb(state);
 		});
 	}

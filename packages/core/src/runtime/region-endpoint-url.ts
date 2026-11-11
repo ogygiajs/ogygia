@@ -1,3 +1,4 @@
+import { clock } from '@ogygia/machine';
 import { preload_island_graph } from './island-graph-preload.ts';
 import { fetch_priority_of, LoadSlot, type LoadClass } from './load-scheduler.ts';
 import { entry_location } from './entry-locations.ts';
@@ -42,7 +43,7 @@ const CLOCK_SKEW_SEC = 300;
  */
 export function capability_expired(
 	endpoint: string,
-	now_ms: number = Date.now(), // wall: against the server's signed epoch `exp`
+	now_ms: number = clock.wall(), // wall: against the server's signed epoch `exp`
 	page_origin: string = location.origin
 ): boolean {
 	try {

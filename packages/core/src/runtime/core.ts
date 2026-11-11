@@ -3,8 +3,11 @@ import {
 	clock,
 	flights,
 	mailbox,
+	net,
 	scope,
 	STALE,
+	storage,
+	tasks,
 	type Mailbox,
 	type Scope,
 	type Stale,
@@ -316,12 +319,15 @@ const STALE_DEP_RELOAD_WINDOW_MS = 6000;
 async function recover_from_stale_deps(entry: string | null): Promise<void> {
 	if (!import.meta.env.DEV || !entry || typeof location === 'undefined') return;
 	try {
-		const last = Number(sessionStorage.getItem(STALE_DEP_RELOAD_KEY) || 0);
+		// (no storage: no reload, since nothing would stop the next page reloading again)
+		const session = storage.session();
+		if (session === null) return;
+		const last = Number(session.getItem(STALE_DEP_RELOAD_KEY) || 0);
 		// wall: the last reload's time lives in sessionStorage, across page loads
-		if (Date.now() - last < STALE_DEP_RELOAD_WINDOW_MS) return; // already reloaded — don't loop
-		const res = await fetch(island_module_url(entry), { cache: 'no-store' });
+		if (clock.wall() - last < STALE_DEP_RELOAD_WINDOW_MS) return; // already reloaded — don't loop
+		const res = await net.fetch(island_module_url(entry), { cache: 'no-store' });
 		if (!res.ok) return; // a real 404 — leave the error visible, it is not a re-optimize
-		sessionStorage.setItem(STALE_DEP_RELOAD_KEY, String(Date.now())); // wall: read by the next page load
+		session.setItem(STALE_DEP_RELOAD_KEY, String(clock.wall())); // wall: read by the next page load
 		location.reload();
 	} catch {
 		// ok: dev only: storage or fetch blocked; the error said before this stays, and the dev reloads by hand
@@ -1293,7 +1299,7 @@ class OgygiaRegion extends HTMLElement {
 				revalidate,
 				// the first answer: how long the fallback showed, from the fetch's start (retries included)
 				...(!revalidate && this.#fetch_started
-					? { wait_ms: Math.round(performance.now() - this.#fetch_started) }
+					? { wait_ms: Math.round(clock.mono() - this.#fetch_started) }
 					: {})
 			});
 		// (whichever copy's fetch renewed the capability: this one moves onto it too)
@@ -1395,7 +1401,7 @@ class OgygiaRegion extends HTMLElement {
 		}
 		const frames = slots.frames;
 		if (!frames) return;
-		if (!this.#fetch_started) this.#fetch_started = performance.now();
+		if (!this.#fetch_started) this.#fetch_started = clock.mono();
 		// Bind if we haven't (SWR/lake remount reaches #fetch_html without going through #server);
 		// a re-minted hole (a refreshed region: new props, new page facts) answers at its NEW address.
 		const address = this.#bind(endpoint);
@@ -1510,7 +1516,7 @@ class OgygiaRegion extends HTMLElement {
 							}),
 					...(deny !== undefined ? { message: deny.slice(0, 200) } : {}),
 					attempts,
-					t: Math.round(performance.now())
+					t: Math.round(clock.mono())
 				});
 		}
 		if (DEVTOOLS)
@@ -1969,7 +1975,7 @@ class OgygiaRegion extends HTMLElement {
 	disconnectedCallback() {
 		if (this.#leaving) return;
 		this.#leaving = true;
-		queueMicrotask(() => {
+		tasks.micro(() => {
 			this.#leaving = false;
 			if (!this.isConnected) this.#teardown();
 		});

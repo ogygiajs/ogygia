@@ -4,6 +4,8 @@
  * visit, the testing API's reports. A visitor with devtools off pays none of it, so a test subtracts it
  * (`page().ogygia`) and a CPU comparison across ogygia versions stays about the page.
  */
+import { clock } from '@ogygia/machine';
+
 // (one ledger for the page: the runtime and the devtools chunks can each carry a copy of this module)
 const spent: Record<string, number> = ((globalThis as Record<symbol, Record<string, number>>)[
 	Symbol.for('ogygia.own-cost')
@@ -11,12 +13,12 @@ const spent: Record<string, number> = ((globalThis as Record<symbol, Record<stri
 
 /** Add the time since `t0` to `phase`. */
 export function charge(phase: string, t0: number): void {
-	spent[phase] = (spent[phase] ?? 0) + (performance.now() - t0);
+	spent[phase] = (spent[phase] ?? 0) + (clock.mono() - t0);
 }
 
 /** Run `fn`, charging its time to `phase`. */
 export function metered<T>(phase: string, fn: () => T): T {
-	const t0 = performance.now();
+	const t0 = clock.mono();
 	try {
 		return fn();
 	} finally {

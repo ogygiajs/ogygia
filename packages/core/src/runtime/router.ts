@@ -11,7 +11,7 @@
  * merge, body reconcile, seeds, a11y) is ./router-nav.ts, loaded on the first prefetch or
  * intercepted click. A visitor who never leaves the page never downloads it.
  */
-import { flights, STALE, type Scope, type Stale } from '@ogygia/machine';
+import { flights, random, seen, STALE, type Scope, type Stale } from '@ogygia/machine';
 import { import_again } from './import-again.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
 import { create_navigation, type Navigation } from './navigation.ts';
@@ -250,7 +250,7 @@ function named(id: string): Record<string, unknown> {
 
 export class RouterHistory {
 	/** Names this document's entries apart from another document's (a reload's, say). */
-	readonly #doc = Math.random().toString(36).slice(2, 10);
+	readonly #doc = random.float().toString(36).slice(2, 10);
 	#n = 0;
 	readonly #entries = new Map<string, HistoryEntry>();
 	#current: HistoryEntry | null = null;
@@ -804,23 +804,23 @@ export class SpaRouter {
 	scan_preload_links(): void {
 		const page = runtime_session.visit.scope;
 		on_idle(page, () => {
-			const io = page.watch(
-				new IntersectionObserver(
-					(entries) => {
-						for (const e of entries) {
-							if (e.isIntersecting) {
-								io.unobserve(e.target);
-								this.#warm_anchor(e.target);
-							}
+			const observer = seen.observer(
+				(entries, self) => {
+					for (const e of entries) {
+						if (e.isIntersecting) {
+							self.unobserve(e.target);
+							this.#warm_anchor(e.target);
 						}
-					},
-					{ rootMargin: '0px' }
-				)
+					}
+				},
+				{ rootMargin: '0px' }
 			);
+			// (no observer on this platform: viewport links are not warmed, eager ones still are)
+			const io = observer === null ? null : page.watch(observer);
 			for (const anchor of Array.from(document.querySelectorAll(PRELOAD_MARKED_ANCHORS))) {
 				const rank = this.#preload_rank(anchor);
 				if (rank === PRELOAD_RANK.eager) this.#warm_anchor(anchor);
-				else if (rank === PRELOAD_RANK.viewport) io.observe(anchor);
+				else if (rank === PRELOAD_RANK.viewport) io?.observe(anchor);
 			}
 		});
 	}

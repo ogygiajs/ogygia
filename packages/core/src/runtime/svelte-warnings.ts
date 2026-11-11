@@ -6,7 +6,7 @@
  * and the profiler's browser half. Dev only (production Svelte has no such warnings); the console line
  * itself goes out unchanged. No regex: warnings are rare, read by string search.
  */
-import type { Scope } from '@ogygia/machine';
+import { clock, type Scope } from '@ogygia/machine';
 
 export interface SvelteWarning {
 	code: string;
@@ -86,7 +86,7 @@ export function tap_svelte_warnings(): void {
 					const w: SvelteWarning = {
 						...p,
 						...(fp ? { fp } : {}),
-						t: Math.round(performance.now() * 10) / 10
+						t: Math.round(clock.mono() * 10) / 10
 					};
 					kept.push(w);
 					for (const cb of listeners) cb(w);

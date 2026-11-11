@@ -11,6 +11,7 @@ import {
 	sign as ed_sign,
 	verify as ed_verify
 } from 'node:crypto';
+import { clock } from '@ogygia/machine';
 import { attr, decodeText, html, type Html } from '@ogygia/core/plugin/utils';
 
 // ── paths the handle serves ──────────────────────────────────────────────────────────────────
@@ -133,7 +134,7 @@ export function sign_headers(
 	audience?: string
 ): Record<string, string> {
 	const key = private_key(privateKey);
-	const ts = String(Date.now()); // wall: signed, and checked by the peer's clock
+	const ts = String(clock.wall()); // wall: signed, and checked by the peer's clock
 	const nonce = randomBytes(8).toString('hex');
 	const pathq = url.pathname + url.search;
 	const user_b64 = claims ? Buffer.from(JSON.stringify(claims)).toString('base64') : '';
@@ -172,7 +173,7 @@ export function verify_signed_request(
 	if (!ts || !sig) return null;
 	const ts_n = Number(ts);
 	const skew = cfg.skewMs ?? DEFAULT_SKEW_MS;
-	const now = Date.now(); // wall: against the sender's signed timestamp
+	const now = clock.wall(); // wall: against the sender's signed timestamp
 	// a non-numeric ts → NaN; guard it, else `NaN > window` is false and the freshness gate opens
 	if (!Number.isFinite(ts_n) || Math.abs(now - ts_n) > skew) return null;
 	const user_b64 = request.headers.get(USER_HEADER) ?? '';

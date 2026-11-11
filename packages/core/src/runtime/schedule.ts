@@ -23,7 +23,7 @@
  * first one.
  */
 import { observe } from './observe.ts';
-import { clock, flights, machine, type Scope, type Stale } from '@ogygia/machine';
+import { clock, flights, machine, tasks, timers, type Scope, type Stale } from '@ogygia/machine';
 
 type Turn = {
 	el: Element;
@@ -223,7 +223,7 @@ function post_background(fn: () => void): void {
 		}
 	}
 	// oxlint-disable-next-line ogygia/owned-effects -- the process's one background drain (`background_armed`), one task: it ends itself, and a start queued in it belongs to whoever queued it
-	setTimeout(fn, 0);
+	timers.after(fn, 0);
 }
 
 /** The gate below, once for the document (a test's reset drops it). */
@@ -253,9 +253,9 @@ function until_painted(): Promise<void> {
 		const painted = () => {
 			if (document.visibilityState === 'hidden' || typeof requestAnimationFrame !== 'function')
 				// oxlint-disable-next-line ogygia/owned-effects -- the document's paint gate, one task, once per document
-				setTimeout(resolve, 0);
+				timers.after(resolve, 0);
 			// oxlint-disable-next-line ogygia/owned-effects -- the document's paint gate, one frame and one task, once per document
-			else requestAnimationFrame(() => setTimeout(resolve, 0)); // the task after the frame
+			else tasks.frame(() => timers.after(resolve, 0)); // the task after the frame
 		};
 		if (dom_content_loaded()) return painted();
 		let done = false;

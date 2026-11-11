@@ -4,7 +4,7 @@
  * `widget()`. The peer is request-agnostic: per-request facts (claims, traceparent) are call
  * arguments, so one instance is shared across requests.
  */
-import { flights, STALE, world, type Flights } from '@ogygia/machine';
+import { clock, flights, net, STALE, world, type Flights } from '@ogygia/machine';
 import { error, isHttpError as is_http_error } from '@ogygia/router';
 import type { RegionValue } from '@ogygia/core';
 import { htmlRegion as og_html_region } from '@ogygia/core/plugin';
@@ -113,7 +113,7 @@ export class PeerHandle implements Peer {
 		for (;;) {
 			const seen = docs.peek(key);
 			// wall: a flights entry's `at` is a wall timestamp
-			if (seen?.kind === 'kept' && Date.now() - seen.at >= this.#ttl) {
+			if (seen?.kind === 'kept' && clock.wall() - seen.at >= this.#ttl) {
 				// stale: served as it is while one fresh flight refreshes it (an error answer, or a
 				// failure, leaves the good copy kept, and the next stale read tries again)
 				if (!seen.flying) docs.get(read, { fresh: true }).then(undefined, noop); // ok: the good copy stays served and the next stale read tries again; a read with no copy throws the failure
@@ -251,7 +251,7 @@ export class PeerHandle implements Peer {
 				)
 			: {};
 		const timeout = AbortSignal.timeout(this.#timeout);
-		return fetch(u, {
+		return net.fetch(u, {
 			signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
 			...init,
 			headers: {

@@ -24,7 +24,7 @@ import {
 	type RequestContext,
 	type ServerPlugin
 } from '@ogygia/core/plugin';
-import { STALE } from '@ogygia/machine';
+import { clock, STALE } from '@ogygia/machine';
 import {
 	current_runtime,
 	enter_flight,
@@ -85,7 +85,7 @@ const BUILD_MARKER_TTL_SEC = 10 * 365 * 24 * 3600;
  *  expiry has dropped it already; one without (a custom store) still lets its pages expire. An
  *  entry with no usable creation time cannot be aged, and is a miss too. */
 // wall: an entry's `created` is stored, and read by every instance sharing the store
-function within_ttl(entry: PostrenderEntry, ttl: number, now: number = Date.now()): boolean {
+function within_ttl(entry: PostrenderEntry, ttl: number, now: number = clock.wall()): boolean {
 	return Number.isFinite(entry.created) && now - entry.created < ttl * 1000;
 }
 
@@ -274,7 +274,7 @@ async function capture(
 			kind: 'redirect',
 			status: response.status,
 			location,
-			created: Date.now() // wall: stored, read by every instance
+			created: clock.wall() // wall: stored, read by every instance
 		};
 		if (!(await put(entry))) return REFUSED;
 		return { stored: true, entry, response };
@@ -298,7 +298,7 @@ async function capture(
 	// only declares its deferred-map when the page carries pending promises — buffering such a
 	// response bakes ONE settle's inline resolve scripts into the copy. Never store it.
 	if (KIT_DEFERRED_BOOT_RE.test(html)) return { stored: false, response: answered() };
-	const created = Date.now(); // wall: stored, read by every instance
+	const created = clock.wall(); // wall: stored, read by every instance
 	// STITCH holes, two modes (stitch.ts):
 	//  - `stitch="serve"` flips the entry's nature: the SHELL stores (renders once), but every
 	//    serve is per-visitor (holes re-render + splice at ORIGIN). So: no shared-cache headers, no
@@ -517,7 +517,7 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 		await store.put(
 			BUILD_MARKER_KEY,
 			// wall: stored, read by every instance
-			{ kind: 'page', html: version, headers: {}, created: Date.now() },
+			{ kind: 'page', html: version, headers: {}, created: clock.wall() },
 			{ ttl: BUILD_MARKER_TTL_SEC, tags: [] }
 		);
 		return seen;

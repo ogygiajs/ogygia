@@ -9,7 +9,7 @@
 // This is Ryan's test made concrete: request new server-component data on navigation, flush part of
 // the response, let the rest come in as the server's async settles.
 // ─────────────────────────────────────────────────────────────────────────────
-import { machine, STALE, type Scope } from '@ogygia/machine';
+import { clock, machine, net, STALE, tasks, type Scope } from '@ogygia/machine';
 import { frameAddress } from '../frame.ts';
 import { stream } from '../policies.ts';
 import { is_idle, reserve, release, ticket, write } from './frame-store.ts';
@@ -156,7 +156,7 @@ export async function streamFrames(
 			kind,
 			endpoints: endpoints.slice()
 		});
-	const left = BEACON ? performance.now() : 0;
+	const left = BEACON ? clock.mono() : 0;
 	let delivered = 0;
 	let status = 0;
 	let refused: 'redirected' | 'document' | undefined;
@@ -171,7 +171,7 @@ export async function streamFrames(
 		let res: Response | typeof STALE;
 		try {
 			res = await stream.scope.task(() =>
-				fetch(path, {
+				net.fetch(path, {
 					method: 'POST',
 					credentials: 'same-origin',
 					headers: { 'content-type': 'application/json' },
@@ -220,7 +220,7 @@ export async function streamFrames(
 					if (BEACON) {
 						const ep = endpoint_of!.get(p.slot)!;
 						batched.delete(ep);
-						batched.set(ep, { left, at: performance.now(), size: reserved.length });
+						batched.set(ep, { left, at: clock.mono(), size: reserved.length });
 						if (batched.size > 64) batched.delete(batched.keys().next().value!);
 					}
 					write({ ...part, html: p.html });
@@ -291,7 +291,7 @@ export function join_batch(endpoint: string): Promise<void> {
 	if (!queued) {
 		queued = [];
 		flushed = new Promise<void>((resolve) =>
-			queueMicrotask(() => {
+			tasks.micro(() => {
 				const list = queued!;
 				queued = null;
 				// (every hole that joined waits on this: it resolves however the gathering goes, and a
