@@ -5,6 +5,7 @@
  * interface): the generated per-realm `.d.ts` reads the types off these exports.
  */
 import { fs, path } from '../host.ts';
+import { cache } from '@ogygia/machine';
 import { kit_dirs, csrTrueRouteIds, errorCsrTrueRouteIds, rootLayoutCsrTrue } from '../kit.ts';
 import {
 	generateHydrateFeaturesSource,
@@ -118,7 +119,10 @@ export const core_path = (app: CoreApp, module: string): string =>
  * prebuilt `runtime_dir`); this repo's workspace points it at `src/runtime` (`.ts` files). Null
  * when it cannot be read (then `runtime_dir` stands). Once per runtime dir.
  */
-const dev_runtimes = new Map<string, { dir: string; ts: boolean } | null>();
+const dev_runtimes = cache<string, { dir: string; ts: boolean } | null>({
+	name: 'dev runtimes',
+	max: 64
+});
 function dev_runtime_of(runtime_dir: string): { dir: string; ts: boolean } | null {
 	if (dev_runtimes.has(runtime_dir)) return dev_runtimes.get(runtime_dir)!;
 	let out: { dir: string; ts: boolean } | null = null;
