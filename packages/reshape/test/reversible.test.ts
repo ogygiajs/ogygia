@@ -1,10 +1,10 @@
 /**
- * REVERSIBLE TRANSFORMS, the server half (server/reversible.ts): ogygia marks the markup before an
+ * REVERSIBLE TRANSFORMS, the server half (src/reversible.ts): ogygia marks the markup before an
  * app's transform, the transform renders its plan on the hosts ogygia will restore, and settle keeps
  * exactly what the browser's restorer needs — or strips everything, for a host without a plan.
  */
 import { describe, expect, it } from 'vitest';
-import { localizeMarks, mark, settle, transformMarkup } from '../src/server/reversible.ts';
+import { localizeMarks, mark, settle, transformMarkup } from '../src/reversible.ts';
 import { fake_scoped } from './fixtures/fake-scoped-render.ts';
 
 const island = (inner: string) =>

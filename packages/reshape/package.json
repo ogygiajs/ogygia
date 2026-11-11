@@ -1,0 +1,84 @@
+{
+	"name": "@ogygia/reshape",
+	"version": "0.13.0",
+	"description": "An app's own pass over the HTML ogygia sends (a web-component server render): ogygia puts back what it moved before anything hydrates",
+	"keywords": [
+		"ogygia",
+		"ssr",
+		"sveltekit",
+		"web-components"
+	],
+	"homepage": "https://ogygiajs.dev",
+	"license": "MIT",
+	"author": "Puru Vijayvargia <devpuruvj@gmail.com>",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ogygiajs/ogygia.git",
+		"directory": "packages/reshape"
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./src/index.ts"
+		},
+		"./vite": {
+			"types": "./dist/vite.d.ts",
+			"default": "./src/vite.ts"
+		},
+		"./internal/messages": {
+			"types": "./dist/messages.d.ts",
+			"default": "./src/messages.ts"
+		}
+	},
+	"publishConfig": {
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"./vite": {
+				"types": "./dist/vite.d.ts",
+				"default": "./dist/vite.js"
+			},
+			"./internal/messages": {
+				"types": "./dist/messages.d.ts",
+				"default": "./dist/messages.js"
+			}
+		},
+		"access": "public"
+	},
+	"scripts": {
+		"build": "tsdown",
+		"prepublishOnly": "pnpm run build",
+		"check": "tsc -p . && tsc -p test && tsc -p e2e && vitest run",
+		"test": "vitest run",
+		"e2e": "playwright test"
+	},
+	"dependencies": {
+		"@ogygia/machine": "workspace:^",
+		"esm-env": "catalog:"
+	},
+	"devDependencies": {
+		"@ogygia/config": "workspace:*",
+		"@ogygia/core": "workspace:*",
+		"@ogygia/tooling": "workspace:*",
+		"@playwright/test": "catalog:",
+		"@sveltejs/kit": "catalog:",
+		"@typescript/native": "catalog:tsgo",
+		"@vitest/browser": "catalog:",
+		"@vitest/browser-playwright": "catalog:",
+		"svelte": "catalog:",
+		"tsdown": "catalog:",
+		"typescript": "catalog:",
+		"vitest": "catalog:"
+	},
+	"peerDependencies": {
+		"@ogygia/core": "workspace:^"
+	}
+}
