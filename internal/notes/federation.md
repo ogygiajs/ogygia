@@ -48,7 +48,9 @@ export const { shell } = federate({
 - **The peers map is symmetric and bidirectional.** Every app lists every app it talks to, in
   either direction. `peers.X.key` (public, list = rotation overlap) verifies inbound calls FROM X;
   `key` (private) signs outbound calls TO anyone. That is the whole trust config. Audience defaults
-  to the peer's origin host (`audience` override per peer for Host-rewriting proxies).
+  to the peer's origin host (`audience` override per peer for Host-rewriting proxies). The
+  receiver's own audience is its `audience`, else the host of `ORIGIN`, never the request's Host;
+  with neither, signed calls are refused and `federate()` warns `federation_audience_missing`.
 - **`federate()` returns the peers, typed by their names.** `cms`, `dash` are `Peer` handles.
   Nothing else is exported; there is no separate `client()`.
 - **No route files.** `federate()` registers with the handle (a `globalThis[Symbol.for(...)]`

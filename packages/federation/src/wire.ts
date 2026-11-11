@@ -155,8 +155,22 @@ export interface VerifyConfig {
 	publicKeys: readonly string[];
 	/** Max clock skew / replay window in ms (default 120s). */
 	skewMs?: number;
-	/** The audience(s) THIS app answers to. Defaults to the request URL's host. */
+	/** The audience(s) THIS app answers to. Defaults to the host of the app's `ORIGIN`; with
+	 *  neither, every signed call is refused (the request's own Host is never trusted for it). */
 	audience?: string | string[];
+}
+
+/** The host of the `ORIGIN` the app is configured with (the variable SvelteKit's Node adapter
+ *  reads), or `undefined`: the audience an app answers to when it sets none. */
+export function configured_audience(): string | undefined {
+	const origin = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+		?.env?.ORIGIN;
+	if (!origin) return undefined;
+	try {
+		return new URL(origin).host;
+	} catch {
+		return undefined; // ok: an ORIGIN that is not a URL configures nothing; federate() warns
+	}
 }
 
 /** Receiver side: fresh, valid, non-replayed signature from an authorized caller, bound to THIS
@@ -179,7 +193,9 @@ export function verify_signed_request(
 	const nonce = request.headers.get(NONCE_HEADER) ?? '';
 	const bhash = body_hash(body);
 	const pathq = url.pathname + url.search;
-	const audiences = cfg.audience == null ? [url.host] : ([] as string[]).concat(cfg.audience);
+	const own = cfg.audience ?? configured_audience();
+	if (own == null) return null;
+	const audiences = ([] as string[]).concat(own);
 	const sig_buf = Buffer.from(sig, 'base64');
 	for (const aud of audiences) {
 		const payload = sig_payload(ts, request.method, pathq, bhash, user_b64, aud, nonce);

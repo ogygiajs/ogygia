@@ -184,12 +184,12 @@ describe('Ed25519 signing / verification', () => {
 		const h = sign_headers(priv, 'GET', u, undefined, { sub: 'u1' }, audience);
 		return new Request(u, { headers: h });
 	};
+	/** cms.test checking the calls it receives */
+	const at_cms = { publicKeys: [pub], audience: 'cms.test' };
 
 	it('accepts a fresh, correctly-signed request once and returns its claims', () => {
 		const req = signed();
-		expect(verify_signed_request({ publicKeys: [pub] }, req, new URL(req.url))?.user?.sub).toBe(
-			'u1'
-		);
+		expect(verify_signed_request(at_cms, req, new URL(req.url))?.user?.sub).toBe('u1');
 	});
 
 	it('AUDIENCE BINDING: a hop signed for cms.test is rejected at dash.test (same key)', () => {
@@ -197,15 +197,16 @@ describe('Ed25519 signing / verification', () => {
 		const at_dash = new Request('http://dash.test/og/fragment/page?path=/p', {
 			headers: Object.fromEntries(req.headers)
 		});
-		expect(verify_signed_request({ publicKeys: [pub] }, at_dash, new URL(at_dash.url))).toBeNull();
+		const dash = { publicKeys: [pub], audience: 'dash.test' };
+		expect(verify_signed_request(dash, at_dash, new URL(at_dash.url))).toBeNull();
 	});
 
 	it('REPLAY: a byte-identical second delivery is rejected', () => {
 		const req = signed();
 		const url = new URL(req.url);
-		expect(verify_signed_request({ publicKeys: [pub] }, req, url)?.user?.sub).toBe('u1');
+		expect(verify_signed_request(at_cms, req, url)?.user?.sub).toBe('u1');
 		const replayed = new Request(req.url, { headers: Object.fromEntries(req.headers) });
-		expect(verify_signed_request({ publicKeys: [pub] }, replayed, url)).toBeNull();
+		expect(verify_signed_request(at_cms, replayed, url)).toBeNull();
 	});
 
 	it('without an `audience`, the Host a request names is never its audience', () => {
@@ -250,7 +251,11 @@ describe('Ed25519 signing / verification', () => {
 	it('a second authorized key still verifies (rotation / multi-caller)', () => {
 		const req = signed();
 		expect(
-			verify_signed_request({ publicKeys: [pub2, pub] }, req, new URL(req.url))?.user?.sub
+			verify_signed_request(
+				{ publicKeys: [pub2, pub], audience: 'cms.test' },
+				req,
+				new URL(req.url)
+			)?.user?.sub
 		).toBe('u1');
 	});
 
