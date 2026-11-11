@@ -35,7 +35,7 @@ import { transport_decoders } from './app-transport.ts';
 import { kit_page_thread } from './kit-page-thread.svelte.ts';
 import { boot_link, slots } from './slots.ts';
 import { warn } from '../messages/lazy.ts';
-import { PAGE_SEED_SELECTOR } from '../page-facts-script.ts';
+import { PAGE_SEED_SELECTOR } from '../page-seed-selector.ts';
 
 // The boot's session and hint-set reset, handed over through the registry — this lazy module (the
 // hydrate core's and the navigation's) never imports a boot module (./slots.ts `BootLink`).
