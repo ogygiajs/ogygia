@@ -15,7 +15,14 @@
  * `&lt;`, never a bare `<`, so it is not a tag; a tag's attributes end at its own `>` (quotes kept),
  * so a `<script>` whose BODY mentions the attribute (inline JS) can't false-match either.
  */
-import { Needle, next_tag, type FoundTag } from '../wire-markup.ts';
+import {
+	Needle,
+	next_tag,
+	OGYGIA_DEV_HMR,
+	OGYGIA_RUNTIME,
+	OGYGIA_RUNTIME_DEP,
+	type FoundTag
+} from '../wire-markup.ts';
 
 /** The first `<name …>` from `from` that carries `needle` (wire-markup.ts `Needle`) in a way `test`
  *  accepts, or null. A head without the needle reads no tag. */
@@ -54,18 +61,13 @@ export function page_declares_runtime_script(html: string): boolean {
 	return has_tag(html, 'script', RUNTIME_NEEDLE_G, is_runtime);
 }
 
-const is_runtime = (t: FoundTag) => t.attr('data-ogygia-runtime') !== undefined;
+const is_runtime = (t: FoundTag) => t.attr(OGYGIA_RUNTIME) !== undefined;
 /** A `rel` holding the `modulepreload` token, in any case, as a browser reads it. */
 const is_modulepreload = (t: FoundTag) => MODULEPRELOAD_TOKEN.test(t.attr('rel') ?? '');
 
 /** A real dev-HMR `<script … data-ogygia-dev-hmr …>`. */
 export function page_declares_dev_hmr_script(html: string): boolean {
-	return has_tag(
-		html,
-		'script',
-		DEV_HMR_NEEDLE_G,
-		(t) => t.attr('data-ogygia-dev-hmr') !== undefined
-	);
+	return has_tag(html, 'script', DEV_HMR_NEEDLE_G, (t) => t.attr(OGYGIA_DEV_HMR) !== undefined);
 }
 
 /** A real `<script type="speculationrules" …>` (a page authoring its own MPA speculation rules).
@@ -77,8 +79,8 @@ export function page_declares_speculation_rules(html: string): boolean {
 }
 
 // The name needles: global so a search starts at a tag (`lastIndex`), case-blind as names are.
-const RUNTIME_NEEDLE_G = /data-ogygia-runtime/gi;
-const DEV_HMR_NEEDLE_G = /data-ogygia-dev-hmr/gi;
+const RUNTIME_NEEDLE_G = new RegExp(OGYGIA_RUNTIME, 'gi');
+const DEV_HMR_NEEDLE_G = new RegExp(OGYGIA_DEV_HMR, 'gi');
 const SPECULATION_NEEDLE_G = /speculationrules/gi;
 const MODULEPRELOAD_NEEDLE_G = /modulepreload/gi;
 const MODULEPRELOAD_TOKEN = /(?:^|[\t\n\f\r ])modulepreload(?:[\t\n\f\r ]|$)/i;
@@ -140,8 +142,7 @@ function runtime_unit(head: string): { start: number; end: number } | null {
 	let end = script.end + '</script>'.length;
 	for (;;) {
 		const dep = next_tag(head, 'link', end);
-		if (dep === null || dep.start !== end || dep.attr('data-ogygia-runtime-dep') === undefined)
-			break;
+		if (dep === null || dep.start !== end || dep.attr(OGYGIA_RUNTIME_DEP) === undefined) break;
 		end = dep.end;
 	}
 	return { start: script.start, end };

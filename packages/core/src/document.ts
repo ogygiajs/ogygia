@@ -28,7 +28,8 @@ import Region from './Region.svelte';
 import { PageSeed } from './server/page-seed.ts';
 import { page_seed_reducers } from './server/page-stream.ts';
 import { analyze } from './seed-refs.ts';
-import { WIRE_FORMAT_ATTR, WIRE_FORMAT_JSON } from './server/props-wire.ts';
+import { WIRE_FORMAT_JSON } from './server/props-wire.ts';
+import { OG_FORMAT, OGYGIA_DEV_HMR, OGYGIA_PAGE } from './wire-markup.ts';
 import runtime_url from 'virtual:ogygia/runtime-url';
 import { runtime_bootstrap } from './server/entry-location.ts';
 import { current_facts } from './plugin/facts.ts';
@@ -163,7 +164,7 @@ export async function document(
 		head.push(runtime_bootstrap());
 	}
 	if (dev_hmr_url && !page_declares_dev_hmr_script(head_so_far())) {
-		head.push(`<script type="module" data-ogygia-dev-hmr src="${dev_hmr_url}"></script>`);
+		head.push(`<script type="module" ${OGYGIA_DEV_HMR} src="${dev_hmr_url}"></script>`);
 	}
 	// THE EARLY START (early-holes.ts): this document's `load` holes asked for during the parse
 	const early = take_early_holes();
@@ -194,9 +195,9 @@ export async function document(
 			analyze(data).json && analyze(s.form ?? null).json && analyze(s.error ?? null).json
 		);
 		if (payload) {
-			const format = payload.json ? ` ${WIRE_FORMAT_ATTR}="${WIRE_FORMAT_JSON}"` : '';
+			const format = payload.json ? ` ${OG_FORMAT}="${WIRE_FORMAT_JSON}"` : '';
 			head.push(
-				`<script type="application/ogygia-page" data-ogygia-page${format}>${payload.text}</script>`
+				`<script type="application/ogygia-page" ${OGYGIA_PAGE}${format}>${payload.text}</script>`
 			);
 		}
 	}

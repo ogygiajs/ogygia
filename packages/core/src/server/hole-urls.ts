@@ -12,7 +12,7 @@
  * Absolute (`/…`) and scheme'd (foreign federation entries) values are left alone.
  */
 import { escape_amp } from '../escape.ts';
-import { Needle, next_tag, value_at, type FoundTag } from '../wire-markup.ts';
+import { Needle, next_tag, OGYGIA_REGION_CSS, value_at, type FoundTag } from '../wire-markup.ts';
 import { REGION_CSS_ANY_CASE } from './html-scan.ts';
 
 // The attribute sites ogygia writes URLs into hole HTML: an `<ogygia-region>`'s `entry` / `src` /
@@ -20,7 +20,6 @@ import { REGION_CSS_ANY_CASE } from './html-scan.ts';
 // identity. Values are attribute-escaped (`&` → `&amp;`), so the resolver un-escapes, resolves, and
 // re-escapes. Tags are read through the browser-faithful reader (wire-markup.ts), each value
 // rewritten only when it is relative.
-const REGION_CSS_ATTR = 'data-ogygia-region-css';
 // (`src` too: an island's location, written beside its identity since locations — left relative,
 // an island inside a hole imported `/<page>/_app/…` and woke on a redirect to an HTML page)
 const REGION_URL_ATTRS = ['entry', 'src', 'endpoint'] as const;
@@ -89,8 +88,8 @@ export function absolutize_hole_html(html: string, base: URL): string {
 		for (let t = next_tag(html, name, 0); t !== null; t = next_tag(html, name, t.end)) {
 			const held = mark.holds(t);
 			if (mark.gone) break;
-			if (!held || t.attr(REGION_CSS_ATTR) === undefined) continue;
-			splice_value(html, t, name, name === 'link' ? 'href' : REGION_CSS_ATTR, base, splices);
+			if (!held || t.attr(OGYGIA_REGION_CSS) === undefined) continue;
+			splice_value(html, t, name, name === 'link' ? 'href' : OGYGIA_REGION_CSS, base, splices);
 		}
 	}
 	if (splices.length === 0) return html;

@@ -26,6 +26,7 @@
  * response of an app that configures a transform.
  */
 import { escape_amp_quot } from '../escape.ts';
+import { OG_BAKED, OG_HEAD } from '../wire-markup.ts';
 
 // ─── tokenizer ─────────────────────────────────────────────────────────────────────────────────────
 
@@ -518,7 +519,7 @@ function is_custom(name: string, foreign: boolean): boolean {
  *  dropdown lost `hidden` and pushed the page down until its own runtime set it again). */
 function region_kind(attrs: Attr[]): 'island' | 'lake' | 'hole' {
 	if (attrs.some((a) => a.name === 'endpoint')) return 'hole';
-	if (attrs.some((a) => (a.name === 'wake' && a.value === 'none') || a.name === 'data-og-baked'))
+	if (attrs.some((a) => (a.name === 'wake' && a.value === 'none') || a.name === OG_BAKED))
 		return 'lake';
 	return 'island';
 }
@@ -879,7 +880,7 @@ export function settle(html: string, record: MarkRecord, opts: { dev?: boolean }
 		};
 	};
 	const og_in = within(' og-');
-	const head_in = within('data-og-head');
+	const head_in = within(OG_HEAD);
 	const out: string[] = [];
 	let pos = 0;
 	const stack: Stack = [];
@@ -987,7 +988,7 @@ export function settle(html: string, record: MarkRecord, opts: { dev?: boolean }
 					: (NO_ATTRS as Attr[]);
 			// a head asset in a document's body: lifted into the head (deduped by key)
 			if (doc && head_attr && !has_og) {
-				const key = attrs.find((a) => a.name === 'data-og-head')?.value;
+				const key = attrs.find((a) => a.name === OG_HEAD)?.value;
 				if (key !== undefined && (name === 'style' || name === 'link' || name === 'template')) {
 					out.push(html.slice(pos, tok.start));
 					pos = tok.start;

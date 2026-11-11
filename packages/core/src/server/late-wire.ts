@@ -9,16 +9,17 @@
  * A renderer that delivers late chunks (the server router's streamed document) speaks this format; core
  * owns it because core's components emit the slots and core's runtime consumes the chunks.
  */
+import { OG_LATE, OG_LATE_BOOT, OG_SLOT } from '../wire-markup.ts';
 
 /** Wrap html as the swappable slot `id` (display:contents — layout-invisible). */
 export function late_slot(id: string, html: string): string {
-	return `<og-late-slot data-og-slot="${id}" style="display:contents">${html}</og-late-slot>`;
+	return `<og-late-slot ${OG_SLOT}="${id}" style="display:contents">${html}</og-late-slot>`;
 }
 
 /** A late chunk: inert template + nothing else — the boot script (or the runtime, post-SPA-swap)
  *  performs the swap. Multiple chunks for one slot apply in order (progressive states). */
 export function late_chunk(id: string, html: string): string {
-	return `<template data-og-late="${id}">${html}</template>`;
+	return `<template ${OG_LATE}="${id}">${html}</template>`;
 }
 
 /**
@@ -27,9 +28,9 @@ export function late_chunk(id: string, html: string): string {
  * paints unstyled). Kept dependency-free and tiny — it must run before any module script can.
  */
 export const LATE_BOOT_SCRIPT: string =
-	'<script data-og-late-boot>(function(){' +
-	'function ap(t){var id=t.getAttribute("data-og-late");var s=document.querySelector(' +
-	"'og-late-slot[data-og-slot=\"'+id+'\"]');if(!s){t.remove();return}" +
+	`<script ${OG_LATE_BOOT}>(function(){` +
+	`function ap(t){var id=t.getAttribute("${OG_LATE}");var s=document.querySelector(` +
+	`'og-late-slot[${OG_SLOT}="'+id+'"]');if(!s){t.remove();return}` +
 	'var c=t.content;var ls=c.querySelectorAll(\'link[rel="stylesheet"],style\');' +
 	'for(var i=0;i<ls.length;i++){var l=ls[i];var h=l.getAttribute&&l.getAttribute("href");' +
 	"if(h&&document.head.querySelector('link[href=\"'+h+'\"]'))l.remove();" +
@@ -37,9 +38,9 @@ export const LATE_BOOT_SCRIPT: string =
 	'while(s.firstChild)s.removeChild(s.firstChild);s.appendChild(c);t.remove()}' +
 	'var mo=new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){var ad=ms[i].addedNodes;' +
 	'for(var j=0;j<ad.length;j++){var n=ad[j];if(n.nodeType===1&&n.tagName==="TEMPLATE"&&' +
-	'n.hasAttribute("data-og-late"))ap(n)}}});' +
+	`n.hasAttribute("${OG_LATE}"))ap(n)}}});` +
 	'mo.observe(document.documentElement,{childList:true,subtree:true});' +
 	'addEventListener("DOMContentLoaded",function(){' +
-	'var ts=document.querySelectorAll("template[data-og-late]");' +
+	`var ts=document.querySelectorAll("template[${OG_LATE}]");` +
 	'for(var i=0;i<ts.length;i++)ap(ts[i]);mo.disconnect()},{once:true});' +
 	'})()</script>';

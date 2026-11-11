@@ -13,7 +13,7 @@
 
 import { scope } from '@ogygia/machine';
 import { find_unscoped, type UnscopedStyles } from '../unscoped-css.ts';
-import { read_tag, text_of, type FoundTag } from '../wire-markup.ts';
+import { OGYGIA_RUNTIME, read_tag, text_of, type FoundTag } from '../wire-markup.ts';
 
 export type AssetKind = 'script' | 'style' | 'font' | 'image' | 'other';
 
@@ -287,7 +287,7 @@ export function scan_assets(html: string): {
 						'script',
 						type !== 'module' && !a.has('async') && !a.has('defer') && in_head
 					);
-					if (refs.length > n && a.has('data-ogygia-runtime')) refs[n].runtime = true;
+					if (refs.length > n && a.has(OGYGIA_RUNTIME)) refs[n].runtime = true;
 				}
 			} else if (is_js) {
 				inline.script += body.length;

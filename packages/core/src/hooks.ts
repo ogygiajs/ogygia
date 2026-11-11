@@ -137,7 +137,18 @@ import { restore, restore_adopt } from './runtime/restore.ts';
 import { RateLimiter } from './server/rate-limit.ts';
 import { PageSeed } from './server/page-seed.ts';
 import { analyze, SeedIndex, set_measure_memo_reader, type MeasureMemo } from './seed-refs.ts';
-import { WIRE_FORMAT_ATTR, WIRE_FORMAT_JSON } from './server/props-wire.ts';
+import { WIRE_FORMAT_JSON } from './server/props-wire.ts';
+import {
+	OG_FORMAT,
+	OG_RESTORE,
+	OG_STAND_INS,
+	OGYGIA_DEV_HMR,
+	OGYGIA_DEVTOOLS_BOOT,
+	OGYGIA_FNM,
+	OGYGIA_PAGE,
+	OGYGIA_PROVIDE_PAGE,
+	OGYGIA_SPECULATE
+} from './wire-markup.ts';
 import {
 	stage_deferred,
 	settle_deferred,
@@ -155,7 +166,7 @@ import { stringify } from 'devalue';
 import { serialize_provided_context } from './context-bridge.ts';
 import { escape_script_text } from './escape.ts';
 import { hole_copy_key } from './runtime/hash.ts';
-import { PAGE_CTX_MARKER, set_ctx_recorder } from './context-registry.ts';
+import { set_ctx_recorder } from './context-registry.ts';
 import {
 	set_ask_scope_opener,
 	set_page_recorder,
@@ -735,12 +746,12 @@ function csr_page_of(
 function page_ctx_script(bag: RequestBag | undefined): string {
 	if (!bag?.ctx?.size) return '';
 	const payload = serialize_provided_context(bag.ctx);
-	return payload ? emit_ogygia_script('ctx', payload, PAGE_CTX_MARKER) : '';
+	return payload ? emit_ogygia_script('ctx', payload, OGYGIA_PROVIDE_PAGE) : '';
 }
 
 /** The restorer, inline (runtime/restore.ts — self-contained, so its source runs as is): restores the
  *  document now, and stays as `__og_restore` / `__og_restore_adopt` for hole answers and router swaps. */
-const RESTORER_SCRIPT = `<script data-og-restore>(function(){var r=${restore.toString()};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()</script>`;
+const RESTORER_SCRIPT = `<script ${OG_RESTORE}>(function(){var r=${restore.toString()};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()</script>`;
 
 /** `inner` with the request's owner around it: made before `inner` runs, ended with its response
  *  (or at once when it throws). */
@@ -1109,7 +1120,7 @@ class OgygiaHandle {
 		// no splice here, which was another full copy the assembly then re-located)
 		bag.transform_head =
 			(s?.head.join('') ?? '') +
-			(s?.stand_ins ? `<style data-og-stand-ins>${STAND_IN_CSS}</style>` : '') +
+			(s?.stand_ins ? `<style ${OG_STAND_INS}>${STAND_IN_CSS}</style>` : '') +
 			(first_load ? '<meta name="ogygia-first-load">' : '');
 		bag.transform_body = (s?.check ? check_script(s.check) : '') + RESTORER_SCRIPT;
 		return s ? s.html : out;
@@ -1174,8 +1185,8 @@ class OgygiaHandle {
 				// devtools is compiled in (`devtools_boot_url` is non-empty only then, dev-only), inject a
 				// standalone dock boot so the launcher is on EVERY dev page — on this csr=true page it
 				// renders a "csr=true — open a csr=false page" notice, since there are no islands here.
-				if (devtools_boot_url && !head.includes('data-ogygia-devtools-boot')) {
-					head_inject += `<script type="module" data-ogygia-devtools-boot src="${devtools_boot_url}"></script>`;
+				if (devtools_boot_url && !head.includes(OGYGIA_DEVTOOLS_BOOT)) {
+					head_inject += `<script type="module" ${OGYGIA_DEVTOOLS_BOOT} src="${devtools_boot_url}"></script>`;
 				}
 				if (bag) bag.kit_with_runtime = page_declares_runtime_script(head);
 			}
@@ -1239,7 +1250,7 @@ class OgygiaHandle {
 			// Firefox prefetches them, everything else ignores the JSON. Presence-checked so a page
 			// authoring its own rules wins; per-link opt-out via `data-ogygia-speculate="off"`.
 			if (!router_enabled && !page_declares_speculation_rules(probe)) {
-				head_inject += `<script type="speculationrules" data-ogygia-speculate>${this.#speculation_rules}</script>`;
+				head_inject += `<script type="speculationrules" ${OGYGIA_SPECULATE}>${this.#speculation_rules}</script>`;
 			}
 			if (router_enabled && !page_declares_router_meta(probe)) {
 				head_inject += `<meta name="ogygia-router" content="${router_view_transitions ? 'vt' : 'plain'}">`;
@@ -1264,7 +1275,7 @@ class OgygiaHandle {
 			// skips) kept a poisoned tab after a re-optimize until a manual reload, reporting only
 			// "hydration failed". `dev_hmr_url` is empty outside `vite serve`, so this stays dev-only.
 			if (dev_hmr_url && !page_declares_dev_hmr_script(probe)) {
-				head_inject += `<script type="module" data-ogygia-dev-hmr src="${asset(dev_hmr_url)}"></script>`;
+				head_inject += `<script type="module" ${OGYGIA_DEV_HMR} src="${asset(dev_hmr_url)}"></script>`;
 				// The page's sub-app scope (its route id's first segment) for the dev CSS bridge:
 				// a changed stylesheet joins this page only when the plugin derives the same scope
 				// among its owners — two route-group sub-apps never paint each other in dev.
@@ -1403,8 +1414,7 @@ class OgygiaHandle {
 				emit_ogygia_script(
 					'page',
 					page_payload.text,
-					'data-ogygia-page' +
-						(page_payload.json ? ` ${WIRE_FORMAT_ATTR}="${WIRE_FORMAT_JSON}"` : '')
+					OGYGIA_PAGE + (page_payload.json ? ` ${OG_FORMAT}="${WIRE_FORMAT_JSON}"` : '')
 				)
 			);
 			if (DEVTOOLS)
@@ -1443,7 +1453,7 @@ class OgygiaHandle {
 				const entries = Object.entries(fnm)
 					.map(([tag, src]) => `${JSON.stringify(tag)}:(${src})`)
 					.join(',');
-				fnm_script = `<script data-ogygia-fnm>globalThis.__OG_FNM=Object.assign(globalThis.__OG_FNM||{},{${entries}});</script>`;
+				fnm_script = `<script ${OGYGIA_FNM}>globalThis.__OG_FNM=Object.assign(globalThis.__OG_FNM||{},{${entries}});</script>`;
 				fnm_script_cache.set(fnm, fnm_script);
 			}
 			scripts.push(fnm_script);

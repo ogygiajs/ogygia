@@ -13,8 +13,8 @@ import type { Component } from 'svelte';
 import { islandCss } from 'virtual:ogygia/island-deps';
 import { region_css_tags } from './html-scan.ts';
 import { kit_page_facts_tail, kit_page_ready, kit_render_context } from './kit-context.ts';
+import { OGYGIA_REGION_CSS } from '../wire-markup.ts';
 
-const REGION_CSS_ATTR = 'data-ogygia-region-css';
 /** context.ts's LAKE key (`isInLake`), by its global name — context.ts reaches virtual modules. */
 const LAKE_SUBTREE_KEY = Symbol.for('ogygia.lake-subtree');
 
@@ -31,6 +31,6 @@ export async function render_region_html(
 	const r = await render(component, { props, context });
 	let own = '';
 	for (const href of islandCss(module_url))
-		own += '<link rel="stylesheet" href="' + href + '" ' + REGION_CSS_ATTR + '>';
+		own += '<link rel="stylesheet" href="' + href + '" ' + OGYGIA_REGION_CSS + '>';
 	return own + region_css_tags(r.head) + r.body + kit_page_facts_tail();
 }

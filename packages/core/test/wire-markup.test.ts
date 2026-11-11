@@ -5,8 +5,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { is_marker, MARK, tags, text_of, unknown_markers, value_at } from '../src/wire-markup.ts';
+import * as vocabulary from '../src/wire-markup.ts';
 
 const PACKAGES = fileURLToPath(new URL('../../', import.meta.url));
+const DIST = fileURLToPath(new URL('../dist/', import.meta.url));
 
 /** Every `data-og*` name spelled in a package's source. */
 function spelled(): Map<string, string> {
@@ -43,6 +45,33 @@ describe('MARK', () => {
 	it('spells each marker once', () => {
 		const attrs = Object.values(MARK).map((m) => m.attr);
 		expect(new Set(attrs).size).toBe(attrs.length);
+	});
+
+	// A constant shared across chunks is not inlined by the app's bundler: an import of one from a
+	// boot module pulled the whole tag reader into the boot (@ogygia/config/tsdown inline_markup_names).
+	it('ships no marker constant as an import: the built files carry the literals', () => {
+		const constants = new Set(
+			Object.entries(vocabulary)
+				.filter(([, v]) => typeof v === 'string' && v.startsWith('data-og'))
+				.map(([k]) => k)
+		);
+		const imported: string[] = [];
+		const walk = (dir: string): void => {
+			for (const e of readdirSync(dir)) {
+				const p = path.join(dir, e);
+				if (statSync(p).isDirectory()) walk(p);
+				else if (e.endsWith('.js'))
+					for (const m of readFileSync(p, 'utf8').matchAll(
+						/import\s*\{([^}]*)\}\s*from\s*"([^"]+)"/g
+					))
+						for (const s of m[1].split(','))
+							if (constants.has(s.trim().split(/\s+as\s+/)[0]))
+								imported.push(`${s.trim()} (${path.relative(DIST, p)})`);
+			}
+		};
+		walk(DIST);
+		expect(constants.size).toBeGreaterThan(100);
+		expect(imported).toEqual([]);
 	});
 });
 

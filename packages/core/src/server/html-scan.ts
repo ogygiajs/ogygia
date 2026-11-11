@@ -3,7 +3,7 @@
  * reader (wire-markup.ts `tags()`); the character tests below serve hand-written scans elsewhere.
  */
 import { is_kit_boot_script } from '../runtime/kit-boot.ts';
-import { Needle, next_tag, tags, text_of } from '../wire-markup.ts';
+import { Needle, next_tag, OGYGIA_REGION_CSS, tags, text_of } from '../wire-markup.ts';
 
 /** The regex `\s`: ASCII whitespace and the Unicode spaces (NaN, past the end, is not). */
 export function is_space(c: number): boolean {
@@ -43,9 +43,8 @@ export function html_has_kit_bootstrap(html: string, end: number = html.length):
 	return false;
 }
 
-const REGION_CSS_ATTR = 'data-ogygia-region-css';
 /** The region-CSS name's text in any case: the needle a tag's span must hold (wire-markup.ts `Needle`). */
-export const REGION_CSS_ANY_CASE: RegExp = /data-ogygia-region-css/gi;
+export const REGION_CSS_ANY_CASE: RegExp = new RegExp(OGYGIA_REGION_CSS, 'gi');
 
 /**
  * Every region-CSS tag in `head`, in order, joined: the `<link … data-ogygia-region-css>` form AND the
@@ -65,7 +64,8 @@ export function region_css_tags(head: string): string {
 		const held = mark.holds(tag);
 		if (mark.gone) return out;
 		if (tag === link) {
-			if (held && link.attr(REGION_CSS_ATTR) !== undefined) out += head.slice(link.start, link.end);
+			if (held && link.attr(OGYGIA_REGION_CSS) !== undefined)
+				out += head.slice(link.start, link.end);
 			link = next_tag(head, 'link', link.end);
 			continue;
 		}
@@ -75,7 +75,7 @@ export function region_css_tags(head: string): string {
 		const gt = head.indexOf('>', tag.end + text.length);
 		if (gt === -1) break;
 		const end = gt + 1;
-		if (held && tag.attr(REGION_CSS_ATTR) !== undefined) out += head.slice(tag.start, end);
+		if (held && tag.attr(OGYGIA_REGION_CSS) !== undefined) out += head.slice(tag.start, end);
 		if (link !== null && link.start < end) link = next_tag(head, 'link', end);
 		style = next_tag(head, 'style', end);
 	}
