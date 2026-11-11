@@ -40,7 +40,7 @@ function makeCtx(overrides: Partial<HostCtx> = {}): HostCtx {
 		readFile: () => null,
 		pathModule: path,
 		dev: false,
-		virtualPathFor: (_hostId: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
+		virtualPathFor: (_hostId: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 		wrapperPathFor: (_hostId: string, iid: string) => wrapperVirtualId(iid),
 		devUrlFor: (p: string) => '/@id/' + p,
 		visibleMargin: '0px',
@@ -126,10 +126,10 @@ describe('strategyKey / regionIdentity dedupe', () => {
 describe('foucCssVirtualId', () => {
 	test('builds .js virtual FOUC CSS ids (encoded path)', () => {
 		expect(foucCssVirtualId('src/lib/SideNav.svelte')).toBe(
-			'virtual:ogygia/fouc-css/' + encodeURIComponent('src/lib/SideNav.svelte') + '.js'
+			'ogygia:region/fouc-css/' + encodeURIComponent('src/lib/SideNav.svelte') + '.js'
 		);
 		expect(foucCssVirtualId('src\\routes\\A.svelte')).toBe(
-			'virtual:ogygia/fouc-css/' + encodeURIComponent('src/routes/A.svelte') + '.js'
+			'ogygia:region/fouc-css/' + encodeURIComponent('src/routes/A.svelte') + '.js'
 		);
 		expect(foucCssVirtualId('src/lib/SideNav.svelte').endsWith('.js')).toBe(true);
 	});
@@ -148,7 +148,7 @@ describe('portable binding rewrite', () => {
 		expect(r.code).not.toMatch(/with \{ hydrate/);
 		expect(r.islands).toHaveLength(1);
 		expect(r.islands[0].id).toBe(iid);
-		expect(r.islands[0].virtualPath).toBe(`virtual:ogygia/island/${iid}.js`);
+		expect(r.islands[0].virtualPath).toBe(`ogygia:region/entry/${iid}.js`);
 		expect(r.islands[0].wrapperPath).toBe(wrapperVirtualId(iid));
 		expect(r.islands[0].bindingPath).toBe(regionBindingVirtualId(iid));
 		// SSR leg attaches the descriptor onto the wrapper; client leg is metadata-only.
@@ -253,8 +253,8 @@ describe('portable binding rewrite', () => {
 		// DEV leg: the fouc-css link is the only way component CSS reaches a csr=false page there.
 		const r = run(wrap(imports, markup), makeCtx({ linkVirtualIsland: false, dev: true }))!;
 		expect(r.islands).toHaveLength(1);
-		expect(r.code).not.toMatch(/virtual:ogygia\/wrapper\//);
-		expect(r.code).not.toMatch(/virtual:ogygia\/island\//);
+		expect(r.code).not.toMatch(/ogygia:region\/wrapper\//);
+		expect(r.code).not.toMatch(/ogygia:region\/entry\//);
 		expect(r.code.match(new RegExp(CLIENT_BINDING_STUB.replace(/\./g, '\\.'), 'g'))?.length).toBe(
 			20
 		);
@@ -262,7 +262,7 @@ describe('portable binding rewrite', () => {
 		expect(
 			r.code.match(
 				new RegExp(
-					`import ["']virtual:ogygia/fouc-css/${encodeURIComponent('src/routes/A.svelte')}\\.js["'];`,
+					`import ["']ogygia:region/fouc-css/${encodeURIComponent('src/routes/A.svelte')}\\.js["'];`,
 					'g'
 				)
 			)?.length
@@ -270,7 +270,7 @@ describe('portable binding rewrite', () => {
 		expect(r.code).not.toMatch(/import __OgygiaFouc_/);
 		expect(r.code).not.toMatch(/from ["']\.\/A\.svelte["']/);
 		expect(r.islands[0].wrapperPath).toBe(wrapperVirtualId(idFor('src/routes/A.svelte', loadMark)));
-		expect(r.islands[0].virtualPath).toMatch(/^virtual:ogygia\/island\//);
+		expect(r.islands[0].virtualPath).toMatch(/^ogygia:region\/entry\//);
 	});
 
 	test('csr=false client omit (DEV): CSS-only fouc-css virtual for FOUC (not component JS)', () => {
@@ -280,10 +280,10 @@ describe('portable binding rewrite', () => {
 		)!;
 		expect(r.code).toContain(CLIENT_BINDING_STUB);
 		expect(r.code).toContain(
-			`import "virtual:ogygia/fouc-css/${encodeURIComponent('src/lib/SideNav.svelte')}.js";`
+			`import "ogygia:region/fouc-css/${encodeURIComponent('src/lib/SideNav.svelte')}.js";`
 		);
 		expect(r.code).not.toMatch(/from ["']\$lib\/SideNav\.svelte["']/);
-		expect(r.code).not.toMatch(/virtual:ogygia\/wrapper\//);
+		expect(r.code).not.toMatch(/ogygia:region\/wrapper\//);
 	});
 
 	// BUILD leg: no fouc-css link for an island. Kit would link the CSS of EVERY marked import the
@@ -295,9 +295,9 @@ describe('portable binding rewrite', () => {
 			makeCtx({ linkVirtualIsland: false, dev: false })
 		)!;
 		expect(r.code).toContain(CLIENT_BINDING_STUB);
-		expect(r.code).not.toContain('virtual:ogygia/fouc-css/');
+		expect(r.code).not.toContain('ogygia:region/fouc-css/');
 		expect(r.code).not.toMatch(/from ["']\$lib\/SideNav\.svelte["']/);
-		expect(r.code).not.toMatch(/virtual:ogygia\/wrapper\//);
+		expect(r.code).not.toMatch(/ogygia:region\/wrapper\//);
 	});
 
 	test('linkVirtualIsland true (default) rewrites to the attach binding (not the stub)', () => {
@@ -614,7 +614,7 @@ describe('lakes', () => {
 		expect(r.islands[0].wrapperSource).toMatch(/OgygiaRegion__Wrapper __mode="lake"/);
 		expect(r.islands[0].wrapperSource).toMatch(/OgygiaLakeInner/);
 		expect(r.islands[0].lakes).toEqual(['OgygiaLakeInner']);
-		expect(r.code).toMatch(/virtual:ogygia\/wrapper\//);
+		expect(r.code).toMatch(/ogygia:region\/wrapper\//);
 	});
 
 	// Regression: a lake's inner is client-stubbed to render-nothing on EVERY client leg, so its
@@ -628,7 +628,7 @@ describe('lakes', () => {
 			makeCtx({ linkVirtualIsland: true, ssr: false })
 		)!;
 		// real wrapper (this leg can hydrate under a csr=true child) AND the CSS link.
-		expect(r.code).toMatch(/virtual:ogygia\/wrapper\//);
+		expect(r.code).toMatch(/ogygia:region\/wrapper\//);
 		expect(r.code).toContain(L_FOUC);
 	});
 
@@ -645,7 +645,7 @@ describe('lakes', () => {
 			wrap(`import L from './L.svelte' with { wake: 'none' };`, '<L />'),
 			makeCtx({ linkVirtualIsland: true, ssr: true })
 		)!;
-		expect(r.code).not.toContain('virtual:ogygia/fouc-css/');
+		expect(r.code).not.toContain('ogygia:region/fouc-css/');
 	});
 
 	test('render: live gets a server entry module (baked + revalidate)', () => {
@@ -656,7 +656,7 @@ describe('lakes', () => {
 			})
 		)!;
 		expect(r.islands[0].server).toBe(true);
-		expect(r.islands[0].virtualPath).toMatch(/virtual:ogygia\/island\//);
+		expect(r.islands[0].virtualPath).toMatch(/ogygia:region\/entry\//);
 		expect(r.islands[0].source).toMatch(/export default __OgygiaComp_/);
 	});
 
@@ -1100,7 +1100,7 @@ describe('package-specifier island marks', () => {
 			makeCtx({ linkVirtualIsland: false, dev: true })
 		)!;
 		expect(r.code).toContain(CLIENT_BINDING_STUB);
-		expect(r.code).not.toContain('virtual:ogygia/fouc-css');
+		expect(r.code).not.toContain('ogygia:region/fouc-css');
 		// a relative island on the same host still gets its fouc-css import (dev leg)
 		const rel = run(wrap(LOAD, '<C />'), makeCtx({ linkVirtualIsland: false, dev: true }))!;
 		expect(rel.code).toContain(foucCssVirtualId(C_REL));

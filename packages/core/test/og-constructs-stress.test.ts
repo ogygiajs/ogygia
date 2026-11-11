@@ -11,7 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { rewrite_bake } from '../src/compiler/macros/bake.ts';
 import { rewrite_wire } from '../src/compiler/macros/wire.ts';
-import { __set_build_cache_root } from '../src/build-cache.ts';
+import { __set_build_cache_root } from '../src/compiler/build-cache.ts';
 
 const MARKUP = ['.svelte'] as const;
 
