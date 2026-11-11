@@ -115,7 +115,7 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 ## SPA-HEAD — merge allowlist / deny dangerous tags
 
-**What:** SPA head merge skips `<base>` and dangerous `meta[http-equiv]` (refresh / CSP). Only `script[type=module][data-ogygia-runtime]` is retained across navigations. The router starts only when `meta[name=ogygia-router]` is present **and** the document is not Kit-booted (`csr=true`). Navigating toward a Kit-bootstrap HTML response does a full load.
+**What:** SPA head merge skips `<base>` and dangerous `meta[http-equiv]` (refresh / CSP / set-cookie; `packages/core/src/runtime/head-deny.ts`), and the head never gains one after the first document (the rule `rule_head_adopted`, in dev and at the end of every e2e test). Only `script[type=module][data-ogygia-runtime]` is retained across navigations. The router starts only when `meta[name=ogygia-router]` is present **and** the document is not Kit-booted (`csr=true`). Navigating toward a Kit-bootstrap HTML response does a full load.
 
 **Why:** Adopting `<base>` rewrites relative capability fetches. Keeping every module script forever leaks memory across SPA pages. Dual routers on a Kit page would fight click interception — gradual migration needs root `<OgygiaRouter/>` to be a no-op on `csr=true` routes.
 
@@ -123,7 +123,7 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 **Do not:** Re-enable “keep all module scripts” without a runtime marker. Prefer HTTP CSP headers over CSP meta (meta is mergeable).
 
-**Enforced by:** `packages/core/test/browser/spa-head-deny.test.ts > a fetched page’s <base> and refresh / CSP metas are never adopted, in any case`
+**Enforced by:** `rule_head_adopted`, `packages/core/test/browser/spa-head-deny.test.ts > a fetched page’s <base> and refresh / CSP / cookie metas are never adopted, in any case`
 
 ---
 
