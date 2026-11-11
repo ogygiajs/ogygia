@@ -7,8 +7,8 @@
  *   throw new OgygiaError('handle_secret_too_short', { min });
  *   warn('endpoint_bad_signature', { id });
  */
-import { define_messages, dev_or_prerender, type MessagesOf } from './define.ts';
-import { prose } from './prose.ts';
+import { define_messages, dev_or_prerender, type MessagesOf } from '../contract/messages.ts';
+import { prose } from '../contract/prose.ts';
 
 const SECRET_FIX =
 	'Set a stable `OGYGIA_SECRET` in the server environment, or pass one to `handle({ secret })`.';
@@ -22,6 +22,22 @@ export const SERVER_ERRORS = {
 			A production build signs region capabilities with the secret passed to
 			\`handle({ secret })\`, and a short one can be guessed. Use a random secret at least as long
 			as the message says, from the server's environment.
+		`
+	},
+	handle_transform_moved: {
+		text: (): string => prose`
+			handle({ transform }) moved to @ogygia/reshape: list reshape() beside ogygia() in
+			vite.config, and pass the transform to reshape.handle(transform), before ogygia.handle()
+			in sequence().
+		`,
+		details: (): string => prose`
+			An app's own pass over the HTML ogygia sends (a web-component server render, say) is the
+			\`@ogygia/reshape\` package now, so apps without one ship none of its support.
+
+			In vite.config, list \`reshape()\` (from \`@ogygia/reshape/vite\`) beside \`ogygia()\`. In
+			hooks.server.ts, \`import * as reshape from '@ogygia/reshape'\` and export
+			\`sequence(reshape.handle(transform), ogygia.handle())\`. The transform itself is
+			unchanged: \`(html, { kind, csr, event })\` in, HTML out.
 		`
 	},
 	secret_conflict: {

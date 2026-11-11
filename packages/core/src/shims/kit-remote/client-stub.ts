@@ -1,7 +1,7 @@
 // Plan A stub for Kit's client `client.js`, scoped to Kit's remote-functions importers only.
 // Provides exactly what those modules read — WITHOUT pulling Kit's router graph.
 import { parse } from 'devalue';
-import { transport, encoders, decoders } from 'virtual:ogygia/transport';
+import { transport, encoders, decoders } from 'ogygia:region';
 import { query_responses, prerender_responses, query_map, live_query_map } from './remote-cache.ts';
 
 export { query_responses, prerender_responses, query_map, live_query_map };
