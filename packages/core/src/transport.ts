@@ -16,7 +16,7 @@
  * ```
  */
 import { REGION_BRAND } from './region-brand.ts';
-import { frameAddress } from './frame.ts';
+import { frameAddress, mark_written, type FrameOrder } from './frame.ts';
 import { shown_version, ticket, write } from './runtime/frame-store.ts';
 import { emit as dt_emit } from './events/bus.ts';
 import {
@@ -128,13 +128,16 @@ function decode_region(raw: EncodedRegion) {
 		// browser); on the server the store is inert. An HTML-ONLY ticket (awaited inline region —
 		// no capability url) has no frame address, so there is nothing to write; it renders where
 		// it's placed instead.
+		let order: FrameOrder | undefined;
 		if (raw.x != null && raw.u && typeof document !== 'undefined') {
 			const a = frameAddress(raw.u);
+			const v = ticket(a);
 			const d = raw.d;
-			if (d == null) write({ a, v: ticket(a), html: raw.x });
-			else if (!write({ a, v: ticket(a), d, html: raw.x })) dropped_older(a, d);
+			if (d == null) write({ a, v, html: raw.x });
+			else if (!write({ a, v, d, html: raw.x })) dropped_older(a, d);
+			order = d == null ? { v } : { v, d };
 		}
-		return {
+		const value = {
 			[REGION_BRAND]: true,
 			kind: 'deferred' as const,
 			id: raw.i,
@@ -146,6 +149,8 @@ function decode_region(raw: EncodedRegion) {
 			...(raw.x != null ? { html: raw.x } : {}),
 			...(raw.d != null ? { version: raw.d } : {})
 		};
+		if (order !== undefined) mark_written(value, order);
+		return value;
 	}
 }
 
