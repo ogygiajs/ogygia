@@ -429,3 +429,52 @@ describe('a static live tick reaches its region after a write at its address', (
 		);
 	});
 });
+
+describe('a static live region put back after the store let its address go (#774)', () => {
+	it('shows what it showed when it left, not its last tick', async () => {
+		await simulate.check(
+			[],
+			async (sim) => {
+				start(sim);
+				const el = document.createElement('ogygia-region') as LiveRegion;
+				el.setAttribute('live', '');
+				const a = frameAddress(LIVE_URL);
+				sim.finally('it shows the newer answer', () =>
+					el.querySelector('[data-n="2"]') !== null ? null : `it shows "${el.innerHTML}"`
+				);
+				await sim.play([
+					['it comes onto the page', () => document.body.append(el), 'then'],
+					[
+						'a tick, written at its address as it is decoded',
+						() => {
+							const html = '<p data-n="1">one</p>';
+							const v = ticket(a);
+							write({ a, v, html });
+							return el.applyLive({
+								id: 'order-live',
+								module: '',
+								props: {},
+								html,
+								url: LIVE_URL,
+								written: { v }
+							});
+						},
+						'then'
+					],
+					// (a command's answer for the same region: newer, and painted by the subscription)
+					[
+						'a newer answer at its address',
+						() => void write({ a, v: ticket(a), html: '<p data-n="2">two</p>' }),
+						'then'
+					],
+					['a moment passes', passes(100), 'then'],
+					['it leaves', () => el.remove(), 'then'],
+					// (nothing bound there: the store lets the address go)
+					['a minute passes', passes(61_000), 'then'],
+					['it is put back', () => document.body.append(el)]
+				]);
+			},
+			RUNS
+		);
+	});
+});
