@@ -8,8 +8,7 @@
 		"ogygia/no-promise-cache": "error",
 		"ogygia/owned-effects": "error",
 		"ogygia/no-silent-failures": "error",
-		"ogygia/stale-whole": "error",
-		"ogygia/structured-comments": "warn"
+		"ogygia/stale-whole": "error"
 	},
 	"ignorePatterns": [
 		"**/dist/**",
