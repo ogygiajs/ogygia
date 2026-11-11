@@ -18,6 +18,7 @@
 		"@codemirror/view": "catalog:",
 		"@ionic/core": "^9.0.4",
 		"@ogygia/devtools": "workspace:*",
+		"@ogygia/reshape": "workspace:*",
 		"@ogygia/router": "workspace:*",
 		"devalue": "catalog:",
 		"ogygia": "workspace:*",
