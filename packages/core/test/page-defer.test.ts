@@ -96,6 +96,21 @@ describe('page-defer staging (server)', () => {
 		}
 	});
 
+	it('promises around a deep part are staged once each, in walk order, at every depth near 64', () => {
+		for (const levels of [62, 63, 64, 65, 66]) {
+			const [a, deep, z] = [Promise.resolve('A'), Promise.resolve('DEEP'), Promise.resolve('Z')];
+			const { staged, deferred } = stage_deferred({ a, deep: nest(deep, levels), z }, 0);
+			expect(
+				deferred.map((d) => d.promise),
+				`${levels} levels`
+			).toEqual([a, deep, z]);
+			expect(deferred.map((d) => d.id)).toEqual([0, 1, 2]);
+			const s = staged as { a: DeferRef; deep: unknown; z: DeferRef };
+			expect([s.a.id, (unnest(s.deep, levels) as DeferRef).id, s.z.id]).toEqual([0, 1, 2]);
+			expect(Object.keys(s)).toEqual(['a', 'deep', 'z']);
+		}
+	});
+
 	it('a deep promise inside an array is staged too', () => {
 		let data: unknown = Promise.resolve('DEEP');
 		for (let i = 0; i < 100; i++) data = i % 2 ? { nest: data } : [data];

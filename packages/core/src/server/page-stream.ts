@@ -60,11 +60,70 @@ export type Deferred = { id: number; promise: PromiseLike<unknown> };
  * swapped once; an object reached by two separate paths is cloned twice. A promise left in place would
  * go unserialized and unhandled, so there is no depth cap: the seed's `analyze` walk, which decided
  * there is a promise to find, has none either.
+ *
+ * Most data is shallow and has no cycle, so the first walk tracks nothing and stops at
+ * {@link UNTRACKED_DEPTH}; only then is the value walked again with every open object tracked. The
+ * first walk swaps nothing until it is done, so a value walked twice swaps each thenable once.
  */
 function swap_thenables(
 	value: unknown,
 	swap: (thenable: PromiseLike<unknown>) => unknown
 ): unknown {
+	if (is_thenable(value)) return swap(value);
+	// (flat triples: a clone, a key in it, the thenable that key holds until it is swapped)
+	const found: unknown[] = [];
+	let clone: unknown;
+	try {
+		clone = clone_untracked(value, 0, found);
+	} catch (err) {
+		if (err !== TOO_DEEP) throw err;
+		return swap_tracked(value, swap);
+	}
+	for (let i = 0; i < found.length; i += 3)
+		(found[i] as Record<PropertyKey, unknown>)[found[i + 1] as PropertyKey] = swap(
+			found[i + 2] as PromiseLike<unknown>
+		);
+	return clone;
+}
+
+/** Depth at which the untracked walk gives up: the value is deep, or it holds a cycle. */
+const UNTRACKED_DEPTH = 64;
+const TOO_DEEP = Symbol('too deep');
+
+/** `swap_thenables`' first walk: clones `v` (never a thenable) and records each thenable's slot in
+ *  `found`, in walk order. Throws {@link TOO_DEEP} at {@link UNTRACKED_DEPTH}. */
+function clone_untracked(v: unknown, depth: number, found: unknown[]): unknown {
+	if (Array.isArray(v)) {
+		if (depth === UNTRACKED_DEPTH) throw TOO_DEEP;
+		const out: unknown[] = [];
+		out.length = v.length;
+		for (let i = 0; i < v.length; i++) {
+			if (!(i in v)) continue;
+			const x: unknown = v[i];
+			if (is_thenable(x)) {
+				out[i] = x;
+				found.push(out, i, x);
+			} else out[i] = clone_untracked(x, depth + 1, found);
+		}
+		return out;
+	}
+	if (v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype) {
+		if (depth === UNTRACKED_DEPTH) throw TOO_DEEP;
+		const out: Record<string, unknown> = {};
+		for (const k in v as Record<string, unknown>) {
+			const x = (v as Record<string, unknown>)[k];
+			if (is_thenable(x)) {
+				out[k] = x;
+				found.push(out, k, x);
+			} else out[k] = clone_untracked(x, depth + 1, found);
+		}
+		return out;
+	}
+	return v;
+}
+
+/** `swap_thenables` for a deep or cyclic value: every object whose walk is open is tracked. */
+function swap_tracked(value: unknown, swap: (thenable: PromiseLike<unknown>) => unknown): unknown {
 	// (each object whose walk is open, to its clone)
 	const open = new Map<object, unknown>();
 	const walk = (v: unknown): unknown => {
