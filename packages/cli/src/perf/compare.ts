@@ -1,9 +1,3 @@
-/**
- * COMPARE — a snapshot against a baseline under a budget, into a verdict a CI step can fail on.
- * Pure. The budget is relative (a page may grow 8 %) with an absolute floor (a 1 ms page cannot
- * fail on 1 ms of noise) and absolute caps where a number has a hard meaning (the seed must stay
- * under N KB). A page that is new (no baseline) is measured against the caps only.
- */
 import type { PageSnapshot, PerfSnapshot } from './measure.ts';
 
 export interface Budget {
@@ -92,7 +86,6 @@ export interface Verdict {
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
-/** The budget for one page: defaults, the top level, then the page's overrides. */
 function budget_for(
 	page: string,
 	budget: Budget
@@ -116,6 +109,13 @@ function budget_for(
 const strip = <T extends object>(o: T): Partial<T> =>
 	Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
 
+/**
+ * A snapshot against a baseline under a budget, into a verdict a CI step can fail on. The budget is
+ * relative (a page may grow 8 %) with an absolute floor (a 1 ms page cannot fail on 1 ms of noise)
+ * and absolute caps where a number has a hard meaning (the seed must stay under N KB). A page's
+ * overrides beat the top level, which beats the defaults. A new page (no baseline) is judged by the
+ * caps only.
+ */
 export function verdict(
 	baseline: PerfSnapshot | null,
 	current: PerfSnapshot,
@@ -205,7 +205,6 @@ function judge(
 		limit: 'informational'
 	}));
 
-	// movers: components (by self), functions, paths — against the baseline's rows by name
 	const movers: Mover[] = [];
 	if (base) {
 		const bc = new Map(base.components.map((c) => [c.name, c.self_ms]));
