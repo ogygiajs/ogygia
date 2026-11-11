@@ -2903,6 +2903,10 @@
 		{
 			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > warn:1~cd9197 > map:0~a95637",
 			"reason": "build only: relative paths of at most five leaked modules, inside the warning"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > adopt_title",
+			"reason": "browser only: reads the parsed document's title and writes the live document's (not cloneable), constant work; proven in packages/core/test/browser/nav-no-title.test.ts"
 		}
 	]
 }
