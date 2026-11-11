@@ -1,11 +1,3 @@
-/**
- * Router v2 value layer — the pieces you compose a table from. Every Kit routing concept is a VALUE
- * here, never a file convention: `load()` (a per-request-memoized data function), `page()` (a
- * component + its `+page.server.ts`-shaped `{ load, actions }`), `layout()` (a named table→table
- * wrapper — the component's `{ data, children }` + its own load + error boundary), and `get()`/verb
- * endpoints. `routes()` (router.ts) assembles them; `$infer` (infer.ts) types them. The design and
- * the Kit dictionary live in internal/notes/router-v2.md.
- */
 import type { Component } from 'svelte';
 import { flights, STALE, type Flights } from '@ogygia/machine';
 import type { RouteConfig } from '@ogygia/core/plugin';
@@ -64,9 +56,6 @@ export interface LoadDef<
 	readonly run: (c: Ctx) => Data | Promise<Data>;
 }
 
-/** Per-request loads, hidden on ctx: one flight per LoadDef, kept for the request once it lands; a
- *  failed one is not kept, so a later `await other_load(c)` in the same request runs it again. The
- *  request owns them: once it ends, they are let go, and a load asked for then is refused. */
 type LoadIn = { def: LoadDef; c: Ctx };
 type LoadMemo = Flights<LoadIn, unknown, Pick<LoadIn, 'def'>>;
 function memo_of(c: Ctx): LoadMemo {
@@ -84,6 +73,8 @@ function memo_of(c: Ctx): LoadMemo {
 
 /** `load(fn)` / `load(pattern, fn)`. The returned function memoizes on `c` (run once per request);
  *  the dispatcher's concurrent branch-load pass and any `await other_load(c)` share the same promise.
+ *  A failed run is not kept: the next call in the same request runs it again. A call made after
+ *  the request ended rejects with the reason it ended.
  *  In a page's `load` slot, `load(fn)` takes the page's params through its contextual return type
  *  (like a verb wrapper); anywhere else they are loose. */
 export function load<Data, Prm = LooseParams, Srch = Record<string, string>>(
@@ -100,7 +91,6 @@ export function load(
 	const pattern = typeof a === 'string' ? a : undefined;
 	const run = (typeof a === 'string' ? b! : a) as (c: Ctx) => unknown;
 	const fn = ((c: Ctx) =>
-		// (STALE only once the request has ended: nobody waits on the load any more)
 		memo_of(c)
 			.get({ def: fn as LoadDef, c })
 			.then((v) =>
@@ -151,14 +141,9 @@ export function action(
 /** Either load form `page()` / `layout()` accept: the `load()` value wrapper OR a bare typed fn. */
 export type LoadInput = LoadDef | ((c: Ctx) => unknown);
 export type ActionInput = ActionDef | ((c: Ctx) => unknown);
-/** A page's `load` slot, given the params and search its `c` reads: a `load()` wrapper (which takes
- *  `P` from this) or a bare fn. */
 type PageLoad<P, S> = LoadDef<unknown, string, P, S> | ((c: Ctx<P, S>) => unknown);
-/** One of a page's `actions` (mirrors {@link PageLoad}). */
 type PageAction<P, S> = ActionDef<unknown, string, P, S> | ((c: Ctx<P, S>) => unknown);
-/** A page's `c.params`: its `params` schema's output, else the key's (`P`). */
 type PageParams<P, PS> = [PS] extends [StandardSchemaV1] ? InferOutput<PS> : P;
-/** A page's `c.search`: its `search` schema's output, else the raw query. */
 type PageSearch<SS> = [SS] extends [StandardSchemaV1] ? InferOutput<SS> : Record<string, string>;
 
 /** The `+page.server.ts`-shaped second argument to `page()`. Always an object (ruled). Route input is
@@ -235,8 +220,6 @@ export function to_load(input: PageLoad<never, never> | undefined): LoadDef | un
 	if ((input as LoadDef).__ogload) return input as LoadDef;
 	return load(input as (c: Ctx) => unknown);
 }
-/** Normalize a bare function to an ActionDef; an `action()` wrapper passes through. Both take the
- *  widest input (`never` params/search: a load typed for any page fits). */
 function to_action(input: PageAction<never, never>): ActionDef {
 	if ((input as ActionDef).__ogaction) return input as ActionDef;
 	return action(input as (c: Ctx) => unknown);
@@ -311,8 +294,6 @@ export function page<
 	} as never;
 }
 
-// ── layouts ───────────────────────────────────────────────────────────────────────────────────────
-
 /** A table of route defs — the value `routes()` and `layout(name, C)(...)` both take. A page is a
  *  `page(...)` value; an endpoint is a plain `{ GET, POST, … }` object (the `+server.ts` shape). */
 export type RouteDef = AnyPageDef | Endpoint;
@@ -340,7 +321,6 @@ export interface LayoutDef<Name extends string = string, Load = unknown> {
 	readonly __loadType?: Load;
 }
 
-/** Prepend a layout to one entry's chain, preserving all generics (endpoints pass through). */
 type WithLayout<D, Def extends LayoutDef> =
 	D extends PageDef<infer L, infer Load, infer A, infer PS, infer SS, infer KP>
 		? PageDef<readonly [Def, ...L], Load, A, PS, SS, KP>
@@ -348,9 +328,6 @@ type WithLayout<D, Def extends LayoutDef> =
 
 export interface LayoutFn<Def extends LayoutDef> {
 	readonly __oglayout: Def;
-	// `NoInfer`: spread into an outer table, this call's contextual type is that table's, still being
-	// inferred — letting it feed `T` hands the inner handlers a half-inferred `c`. `T` comes from the
-	// argument alone, where each key types its own entries.
 	<const T extends KeyedTable<T>>(table: T): NoInfer<{ [K in keyof T]: WithLayout<T[K], Def> }>;
 }
 
@@ -375,15 +352,13 @@ export function layout<
 		const out = {} as Record<string, RouteDef>;
 		for (const key in table) {
 			const entry = table[key];
-			out[key] = is_page(entry) ? { ...entry, layouts: [def, ...entry.layouts] } : entry; // endpoints have no chrome — never wrapped
+			out[key] = is_page(entry) ? { ...entry, layouts: [def, ...entry.layouts] } : entry;
 		}
 		return out;
 	}) as LayoutFn<LayoutDef<Name, S['load']>>;
 	(fn as { __oglayout: LayoutDef }).__oglayout = def;
 	return fn;
 }
-
-// ── endpoints ─────────────────────────────────────────────────────────────────────────────────────
 
 /** A verb entry produced by the `GET`/`POST`/… value wrappers — a handler plus (for body verbs) a
  *  body schema (`POST(schema, fn)`). Symmetric with `load()`/`action()`. `Out`/`In`/`P` are PHANTOM
@@ -398,7 +373,6 @@ export interface VerbEntry<Out = unknown, In = undefined, P = unknown> {
 	readonly __types?: { out: Out; in: In; params: P };
 }
 
-/** Params a handler sees with no table key to type them (a wrapper outside a table): indexable. */
 type LooseParams = Record<string, string | undefined>;
 
 /** One verb slot of an endpoint object, as `RouteTable` accepts it: any handler, or a verb wrapper.
@@ -449,7 +423,6 @@ export type KeyedTable<T> = {
 
 const VERBS = ['GET', 'DELETE', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH'] as const;
 
-// ── verb value wrappers (exported; used INSIDE the endpoint object) ────────────────────────────────
 const verb_entry = (handler: (c: Ctx) => unknown, bodySchema?: StandardSchemaV1): VerbEntry => ({
 	__ogverb: true,
 	handler,
