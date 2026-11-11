@@ -559,7 +559,8 @@ const PORT_READS: Record<string, string> = {
 };
 /** The objects a platform global is read through (`window.setTimeout`, `globalThis.fetch`). */
 const REALMS = new Set(['window', 'globalThis', 'self']);
-const PORTS_FILE = /(^|\/)packages\/machine\/src\/ports\.ts$/;
+/** The ports themselves: ports.ts and its modules under ports/. */
+const PORTS_FILE = /(^|\/)packages\/machine\/src\/ports(\.ts$|\/)/;
 const IN_PACKAGE_SOURCE = /(^|\/)packages\/[^/]+\/src\//;
 
 const port_message = (raw: string, port: string): string =>
