@@ -801,6 +801,14 @@
 			"reason": "browser only: the navigation's commit, the head merge and body reconcile on the live document (not cloneable), linear in the page; proven in every palaestra navigation e2e and packages/core/test/browser/nav-swap-fails.test.ts (#276)"
 		},
 		{
+			"id": "packages/core/src/runtime/router-nav.ts > live_page_head",
+			"reason": "browser only: reads the live <head>'s page-owned nodes (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > head_slot",
+			"reason": "browser only: walks a parsed head node's earlier siblings against the live <head> (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
+		},
+		{
 			"id": "packages/core/src/runtime/router-nav.ts > apply_sheet",
 			"reason": "browser only: gives a live link element its media back (two attribute writes), constant work; proven in packages/core/test/browser/nav-sheets-inert.test.ts (#267)"
 		},
