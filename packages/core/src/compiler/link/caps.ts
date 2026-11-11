@@ -39,8 +39,7 @@ export function secret_module(
 
 /**
  * `virtual:ogygia/sign` — same split as secret: SSR mints with node:crypto (re-exports the real
- * HMAC module); client never mints (secret is ''), but still needs `region_mac_message` for the
- * length-prefixed canonical form the runtime compares against.
+ * HMAC module); the client never mints (its secret is '').
  */
 export function sign_module(ssr: boolean, hmac_module: string): string {
 	if (!ssr) {
@@ -49,20 +48,13 @@ export function sign_module(ssr: boolean, hmac_module: string): string {
 				return '';
 			}
 
-			export function verify(_secret, _message, _sig) {
-				return false;
-			}
-
-			export function region_mac_message(id, exp, props, session = '', ttl = '', render = '') {
-				const enc = new TextEncoder();
-				const lp = (s) => enc.encode(String(s)).byteLength + ':' + String(s);
-				const v1 = lp(id) + '|' + lp(exp) + '|' + lp(props) + '|' + lp(session) + '|' + lp(ttl);
-				return render === '' ? 'v1|' + v1 : 'v2|' + v1 + '|' + lp(render);
+			export function region_sign(_secret, _audience, _exp, _claim) {
+				return '';
 			}
 		`;
 	}
 	return dedent`
-		export { sign, verify, region_mac_message } from ${JSON.stringify(hmac_module)};
+		export { sign, region_sign } from ${JSON.stringify(hmac_module)};
 	`;
 }
 

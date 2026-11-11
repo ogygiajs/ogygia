@@ -11,8 +11,8 @@
  *   `ttl.max` is refused at check (its expiry is signed, so only a forger could claim it);
  * - it carries a random nonce, and with `replay` each nonce checks once (remembered until it would
  *   have expired, at most `replay.max` at a time: past that, new tokens are refused, never an old
- *   one forgotten); with `nonce: false` it carries none, so the same inputs mint the same token
- *   (links that stay identical between renders), and such a token is never single-use;
+ *   one forgotten); with `nonce: false` it carries none, so the same inputs and expiry (`mintUntil`)
+ *   mint the same token (links that stay identical between renders), never single-use;
  * - a clock that reads NaN mints nothing and checks nothing.
  *
  * The cryptography is the caller's `signer` (an HMAC, an Ed25519 key pair): this module never
@@ -75,6 +75,10 @@ export type CapabilityCheck =
 export interface Capability {
 	/** A token for `audience` and `fields`, valid for `ttl` ms (clamped). */
 	mint(audience: string, fields: readonly string[], ttl: number): string;
+	/** A token that expires at `exp` (ms since the epoch), held to the same bounds (`ttl.min` to
+	 *  `ttl.max` from now). With `nonce: false`, the expiry is then the caller's (a window the
+	 *  caller aligns), so mints at any moment of that window give the same token. */
+	mintUntil(audience: string, fields: readonly string[], exp: number): string;
 	/** Is `token` one this capability minted for `audience` and exactly these `fields`, still live
 	 *  (and, with `replay`, not checked before)? `verify`, when given, replaces the signer's for this
 	 *  check (the keys this call trusts: several in a rotation, or the caller's own). */
@@ -132,7 +136,9 @@ export function capability(options: CapabilityOptions): Capability {
 	const token_re = random ? TOKEN_RE : FIXED_RE;
 	const skew = options.skew ?? 0;
 	if (!Number.isFinite(skew) || skew < 0) bad('skew', skew, 'a finite number of ms, 0 or more');
-	const now = options.now ?? Date.now;
+	// (the global clock read at each call, as everywhere else in the package: a test's fake clock
+	// installed after this capability was made still counts)
+	const now = options.now ?? (() => Date.now());
 	const head = `${lp(name)}|${lp(String(version))}|`;
 	/** nonce → its token's expiry, while it could still be presented */
 	const seen = new Map<string, number>();
@@ -152,19 +158,27 @@ export function capability(options: CapabilityOptions): Capability {
 			bad('audience', audience, 'a non-empty string: who may present the token');
 	};
 
+	/** The token for `audience` and `fields` that expires at `exp` (already clamped). */
+	const seal = (audience: string, fields: readonly string[], exp: number) => {
+		audience_ok(audience);
+		const n = random ? nonce() : '';
+		const sig = signer.sign(message(audience, exp, n, fields));
+		if (!SIG_RE.test(sig))
+			bad('signer.sign', sig.slice(0, 16), 'a URL-safe signature (hex or base64url)');
+		return `v${version}.${exp}.${n}.${sig}`;
+	};
+
 	return {
 		message,
 		mint(audience, fields, ttl) {
-			audience_ok(audience);
 			if (!Number.isFinite(ttl)) bad('ttl', ttl, 'a finite number of ms');
-			const exp = Math.floor(
-				clock(`capability "${name}" mint`) + Math.min(max, Math.max(min, ttl))
-			);
-			const n = random ? nonce() : '';
-			const sig = signer.sign(message(audience, exp, n, fields));
-			if (!SIG_RE.test(sig))
-				bad('signer.sign', sig.slice(0, 16), 'a URL-safe signature (hex or base64url)');
-			return `v${version}.${exp}.${n}.${sig}`;
+			const t = clock(`capability "${name}" mint`);
+			return seal(audience, fields, Math.floor(t + Math.min(max, Math.max(min, ttl))));
+		},
+		mintUntil(audience, fields, exp) {
+			if (!Number.isFinite(exp)) bad('exp', exp, 'a finite time in ms');
+			const t = clock(`capability "${name}" mint`);
+			return seal(audience, fields, Math.floor(Math.min(t + max, Math.max(t + min, exp))));
 		},
 		check(token, audience, fields, verify) {
 			audience_ok(audience);

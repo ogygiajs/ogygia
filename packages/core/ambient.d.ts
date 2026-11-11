@@ -62,14 +62,11 @@ declare module 'virtual:ogygia/secret' {
 }
 declare module 'virtual:ogygia/sign' {
 	export function sign(secret: string, message: string): string;
-	export function verify(secret: string, message: string, sig: string): boolean;
-	export function region_mac_message(
-		id: string,
-		exp: number | string,
-		props: string,
-		session?: string,
-		ttl?: number | string,
-		render?: string
+	export function region_sign(
+		secret: string,
+		audience: string,
+		exp: number,
+		claim: { id: string; payload: string; session: string; ttl: string; render: string }
 	): string;
 }
 declare module 'virtual:ogygia/request-event' {

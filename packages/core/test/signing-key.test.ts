@@ -8,7 +8,7 @@ const build = vi.hoisted(() => ({ buildKey: 'build-random-key', buildHadSecret: 
 vi.mock('virtual:ogygia/secret', () => build);
 vi.mock('virtual:ogygia/sign', () => ({
 	sign: (k: string, m: string) => Buffer.from(`${k}:${m}`).toString('base64url'),
-	region_mac_message: (...parts: unknown[]) => parts.join('|')
+	region_sign: (k: string) => k
 }));
 
 const { signing_key, key_fingerprint, reset_signing_key, configure_signing_secret } =

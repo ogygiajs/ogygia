@@ -5,13 +5,13 @@
 import { signing_key } from './signing-key.ts';
 import { sessionCookie } from 'virtual:ogygia/session-cookie';
 import { regionTtl, renewWindow } from 'virtual:ogygia/region-ttl';
-import { sign, region_mac_message } from 'virtual:ogygia/sign';
+import { region_sign } from 'virtual:ogygia/sign';
 // (`resolve('/__ogygia__')` reads the same on Kit 2, which wants the leading slash, and Kit 3, which
 // takes it as a route ID with no params — the same pathname)
 import { resolve } from '$app/paths';
 import { building } from '$app/env';
 import { getRequestEvent } from 'virtual:ogygia/request-event';
-import { islands_endpoint, MAX_REGION_PROPS_LEN } from './endpoint.ts';
+import { capability_query, islands_endpoint, MAX_REGION_PROPS_LEN } from './endpoint.ts';
 import { capability_lifetime, type CapabilityLifetime } from './capability-lifetime.ts';
 import { encode_region_props } from './region-props.ts';
 import { stringify } from 'devalue';
@@ -120,12 +120,12 @@ export function mint_region_capability(entry: string, payload: string, ttl = 0):
 	// `r`: what the endpoint renders (the component), signed — a build that no longer has this `id`
 	// (another schedule, preset or salt) still answers it (compiler/region/identity.ts `renderId`)
 	const render = island_render[entry] ?? '';
-	const sig = sign(key.secret, region_mac_message(entry, exp, payload, session, ttl_field, render));
-	const ttl_param = ttl_field ? `&ttl=${ttl_field}` : '';
+	// for the app's islands endpoint (its audience), without the base: the handle matches by suffix
+	const claim = { id: entry, payload, session, ttl: ttl_field, render };
+	const sig = region_sign(key.secret, islands_endpoint(), exp, claim);
 	if (DEVTOOLS)
 		record_server_event({ domain: 'server', name: 'server.capability.minted', id: entry, ttl });
-	// `k`: the minter's key fingerprint, outside the MAC (server/signing-key.ts)
-	return `${resolve(islands_endpoint())}?id=${encodeURIComponent(entry)}${render ? `&r=${render}` : ''}&props=${payload}&exp=${exp}${ttl_param}&sig=${sig}&k=${key.fp}`;
+	return resolve(islands_endpoint()) + capability_query(claim, String(exp), sig, key.fp);
 }
 
 /**
