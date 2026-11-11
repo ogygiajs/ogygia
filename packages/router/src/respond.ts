@@ -1,9 +1,3 @@
-/**
- * Router v2 control-flow values: the throwable `redirect()` / `error()` (Kit's exact idiom — thrown
- * from loads, actions, and handlers) and the returnable `fail()` (Kit's action-validation shape),
- * plus the small Response helpers the dispatcher shares. See internal/notes/router-v2.md.
- */
-
 const REDIRECT: unique symbol = Symbol.for('ogygia.router.redirect');
 const HTTP_ERROR: unique symbol = Symbol.for('ogygia.router.error');
 const ACTION_FAILURE: unique symbol = Symbol.for('ogygia.router.fail');
@@ -47,8 +41,6 @@ export const is_http_error = (x: unknown): x is HttpError =>
 	typeof x === 'object' && x !== null && HTTP_ERROR in x;
 export const is_action_failure = (x: unknown): x is ActionFailure =>
 	typeof x === 'object' && x !== null && ACTION_FAILURE in x;
-
-// ── shared Response helpers ──────────────────────────────────────────────────────────────────────
 
 export function json_response(data: unknown, init?: ResponseInit): Response {
 	return new Response(JSON.stringify(data), {

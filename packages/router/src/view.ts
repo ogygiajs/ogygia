@@ -1,17 +1,8 @@
-/**
- * Shared type helpers for `@ogygia/router`: route-pattern params (derived from the pattern string) and
- * the Standard Schema interface used to gate endpoints (core's: `ogygia/plugin/utils`). The value layer
- * lives in define.ts; this module is types only.
- */
 import type { StandardSchemaV1 } from '@ogygia/core/plugin/utils';
 
-// An endpoint's `GET(schema, handler)` validates against the Standard Schema interface (the `~standard`
-// spec Zod / Valibot / ArkType all implement — the very thing Kit's remote functions consume).
 export type { StandardSchemaV1, StandardResult, StandardIssue } from '@ogygia/core/plugin/utils';
 export type InferOutput<S> = S extends StandardSchemaV1<infer O> ? O : never;
 
-/** Route params derived from the pattern string via template literals — `/docs/[slug]` → { slug: string },
- *  `/[[lang]]` → { lang?: string }, `/[...rest]` → { rest: string }, `/[id].json` → { id: string }. No codegen. */
 export type Simplify<T> = { [K in keyof T]: T[K] } & {};
 type SegParam<S extends string> = S extends `[[${infer O}]]`
 	? { [K in O]?: string }
@@ -23,6 +14,8 @@ type SegParam<S extends string> = S extends `[[${infer O}]]`
 type ParamsAcc<P extends string> = P extends `${infer A}/${infer B}`
 	? SegParam<A> & ParamsAcc<B>
 	: SegParam<P>;
+/** A route's params, read from its pattern: `/docs/[slug]` → `{ slug: string }`, `/[[lang]]` →
+ *  `{ lang?: string }`, `/[...rest]` → `{ rest: string }`, `/[id].json` → `{ id: string }`. */
 export type Params<P extends string> = Simplify<ParamsAcc<P>>;
 
 /** The params object `href` accepts for a pattern — every param, as a string or number. */

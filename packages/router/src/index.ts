@@ -58,8 +58,5 @@ export type {
 export { compile, match_path, type CompiledPattern } from './match.ts';
 export { anonymousVisitor, type AnonymousVisitorOptions } from './visitor.ts';
 export { api, ApiError, type ApiClient, type ApiClientOptions } from './client-api.ts';
-
-// (fragment federation — `federate()`, `mount()`, `user` — is its own plugin: `@ogygia/federation`)
-// For plugins that build on the router:
 export { is_http_error as isHttpError, is_redirect as isRedirect } from './respond.ts';
 export type { ComponentPick, AnyComponent } from './define.ts';

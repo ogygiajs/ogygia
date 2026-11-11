@@ -1,23 +1,3 @@
-/**
- * The typed API client — `$infer` for ENDPOINTS, consumed. The table already knows every
- * endpoint's path grammar, body schema, and (for PLAIN returns, which `finalize()` serializes
- * to JSON) its payload type; `api<App>()` hands all of that to the caller as a fetch client:
- *
- *     export type App = typeof app.$infer;               // the one map the app already exports
- *     const cms = api<App>('https://cms.internal');
- *     const post = await cms.get('/posts/[id]', { params: { id: '1' } });  // out: typed
- *     await cms.post('/api/[id]', { params: { id }, body });               // body: schema-typed
- *
- * Paths are constrained to keys that HAVE the verb (page paths never carry one, so they are
- * excluded for free); `params` is required exactly when the pattern has any; a handler that
- * returned a raw `Response` types as `unknown` (its payload is inside the Response — write
- * plain returns for typed endpoints). Non-2xx answers throw {@link ApiError} carrying the
- * status and the parsed error body.
- *
- * BROWSER-SAFE by construction: this module imports only the light path grammar (match.ts) —
- * no svelte, no node builtins — so islands can import `@ogygia/router/api` directly. (Not
- * `/client`: that subpath is a plugin's browser realm, booted on every page.)
- */
 import { fill } from './match.ts';
 import type { HrefParams, Params } from './view.ts';
 
@@ -32,7 +12,6 @@ export class ApiError extends Error {
 	}
 }
 
-/** keys of `App` that carry verb `M` — endpoint entries only (pages have no verb slots). */
 type KeysWith<App, M extends string> = {
 	[K in keyof App & string]: App[K] extends Record<M, { out: unknown }> ? K : never;
 }[keyof App & string];
@@ -41,7 +20,6 @@ type OutOf<App, K extends keyof App, M extends string> =
 type InOf<App, K extends keyof App, M extends string> =
 	App[K] extends Record<M, { in: infer I }> ? I : undefined;
 
-/** `params` is REQUIRED exactly when the pattern has any (same rule as `href`). */
 type ParamsOpt<K extends string> =
 	{} extends Params<K> ? { params?: HrefParams<K> } : { params: HrefParams<K> };
 type BodyOpt<In> = undefined extends In ? { body?: In } : { body: In };
@@ -50,7 +28,6 @@ type CallOpts<K extends string, In = undefined> = ParamsOpt<K> &
 		search?: Record<string, string | number>;
 		headers?: Record<string, string>;
 	};
-/** args tuple: the options object itself is omittable when nothing in it is required. */
 type CallArgs<K extends string, In = undefined> = {} extends Params<K> &
 	(undefined extends In ? {} : { body: In })
 	? [opts?: CallOpts<K, In>]
@@ -83,6 +60,15 @@ export interface ApiClient<App> {
 	): Promise<OutOf<App, K, 'patch'>>;
 }
 
+/**
+ * A typed fetch client for a router's endpoints, from the app's `$infer` map. Paths are the keys
+ * that have the verb; `params` is required when the pattern has any; the body is the schema's
+ * input; the result is the handler's plain return (a raw `Response` return types as `unknown`).
+ * A non-2xx answer throws {@link ApiError}. It loads only the path grammar, so islands can use it.
+ *
+ *     const cms = api<App>('https://cms.example.com');
+ *     const post = await cms.get('/posts/[id]', { params: { id: '1' } });
+ */
 export function api<App>(base: string, opts: ApiClientOptions = {}): ApiClient<App> {
 	const f = opts.fetch ?? fetch;
 	const root = base.replace(TRAILING_SLASH_RE, '');
@@ -108,11 +94,9 @@ export function api<App>(base: string, opts: ApiClientOptions = {}): ApiClient<A
 		if (res.status === 204) return undefined;
 		const is_json = (res.headers.get('content-type') ?? '').includes('json');
 		if (!res.ok) {
-			// (a failed answer's body only words the ApiError: one that does not parse is left out)
 			const body = is_json ? await res.json().catch(() => undefined) : await res.text(); // ok: the ApiError still carries the status
 			throw new ApiError(res.status, body);
 		}
-		// a success's payload is the caller's typed result: one that does not parse rejects
 		return is_json ? await res.json() : await res.text();
 	};
 	return {
