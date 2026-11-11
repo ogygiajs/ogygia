@@ -571,6 +571,35 @@ export function page_rules(tab: Tab): Broken | null {
  * offline, or a server error)? Such a page may report it, and may differ from a fresh load until
  * it loads again: the oracles excuse what the fault explains, and nothing else.
  */
+/**
+ * Was the document `tab` shows touched only by an outage (its tab offline for a while: requests
+ * that failed to fetch, bodies that broke off), and nothing else the network does? Such a page is
+ * back on the network now, and owes what a fresh load shows once it is at rest: an answer it gave
+ * up on during the outage is asked for again. Not a page a script or stylesheet of which failed
+ * (a browser never loads one again), nor one whose own load failed (the browser's error page).
+ */
+export function outage_only(world: World, tab: Tab): boolean {
+	if (world.browsers.lacks_a_file(tab.realm)) return false;
+	let outage = false;
+	let first = true;
+	for (const e of world.network.exchanges) {
+		if (e.from !== tab.realm) continue;
+		// (its own load failed: what it shows is the browser's error page, not the app's)
+		if (first && (e.status === 'offline' || e.lost)) return false;
+		first = false;
+		if (
+			e.cut ||
+			e.tampered ||
+			e.redirected ||
+			e.status === 'dropped' ||
+			(typeof e.status === 'number' && e.status >= 500)
+		)
+			return false;
+		if (e.status === 'offline' || e.lost) outage = true;
+	}
+	return outage;
+}
+
 export function faulted(world: World, tab: Tab, since?: number): boolean {
 	// (the document it shows, and the one it is loading, whose request may be what failed; or,
 	// `since` an exchange, any document of the tab: what it said since then may be an earlier one's)
@@ -587,6 +616,7 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 					e.redirected ||
 					e.status === 'dropped' ||
 					e.status === 'offline' ||
+					e.lost === true ||
 					(typeof e.status === 'number' && e.status >= 500))
 		);
 }

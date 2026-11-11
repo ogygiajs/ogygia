@@ -189,6 +189,14 @@ export class Browsers {
 	readonly #windows = new WeakMap<object, Tab>();
 	/** The last error happy-dom wrote to a tab's page console (why an element's load failed). */
 	readonly #said = new WeakMap<Tab, string>();
+	/** Documents (realms) a script or stylesheet of which failed to load: a browser never loads
+	 *  it again, so the page stays without it whatever the network does next. */
+	readonly #unloaded = new Set<string>();
+
+	/** Whether a script or stylesheet of document `realm` failed to load. */
+	lacks_a_file(realm: string): boolean {
+		return this.#unloaded.has(realm);
+	}
 
 	#context_of(browser: Browser) {
 		return browser.defaultContext as unknown as {
@@ -260,6 +268,7 @@ export class Browsers {
 					return;
 				const why = this.#said.get(tab) ?? '';
 				this.#said.delete(tab);
+				if (shown()) this.#unloaded.add(tab.realm);
 				if (shown())
 					tab.errors.push(
 						`error: <${el.localName}> ${el.getAttribute('src') ?? el.getAttribute('href') ?? ''} failed${why ? `: ${why}` : ''}`

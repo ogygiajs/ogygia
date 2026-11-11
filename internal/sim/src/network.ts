@@ -44,12 +44,14 @@ export interface Exchange {
 	readonly from: string;
 	readonly method: string;
 	readonly url: string;
-	status: number | 'dropped' | 'offline' | 'pending';
+	status: number | 'dropped' | 'offline' | 'aborted' | 'pending';
 	cut: boolean;
 	tampered: boolean;
 	duplicated: boolean;
 	/** Answered with a redirect to another origin (`ELSEWHERE`). */
 	redirected: boolean;
+	/** Its body broke off as its tab went offline (`status` stays the answer's). */
+	lost?: boolean;
 }
 
 const RATES: Record<FaultClass, number> = {
@@ -81,11 +83,37 @@ export class Network {
 
 	readonly #redirectable: (url: URL) => boolean;
 
-	/** Takes `realm` off the network (or puts it back). */
+	/** Each exchange still on the wire (its request out, or its body still coming): how it fails
+	 *  when its tab loses the network. */
+	readonly #on_wire = new Map<Exchange, (why: string) => void>();
+
+	/**
+	 * Takes `realm` off the network (or puts it back). What it has on the wire fails too, as when a
+	 * device loses its connection: a request not yet answered fails to fetch, a body still coming
+	 * (a page, a live stream) breaks off. (They used to go on arriving while the tab was offline.)
+	 */
 	offline(realm: string, off: boolean): void {
-		if (off) this.#offline.add(realm);
-		else this.#offline.delete(realm);
+		if (!off) {
+			this.#offline.delete(realm);
+			return;
+		}
+		this.#offline.add(realm);
+		for (const [ex, fail] of [...this.#on_wire])
+			if (ex.from === realm || ex.from.split('#')[0] === realm) {
+				this.#on_wire.delete(ex);
+				fail('offline');
+			}
 	}
+
+	/** Requests a server is still working on (sent, no answer yet): work in flight, however long it
+	 *  takes (a hole that renders in 3 s). */
+	unanswered(): number {
+		for (const e of this.#open) if (e.status !== 'pending') this.#open.delete(e);
+		return this.#open.size;
+	}
+
+	/** Exchanges that were pending when last looked at (`unanswered` prunes it). */
+	readonly #open = new Set<Exchange>();
 
 	isOffline(realm: string): boolean {
 		return this.#offline.has(realm);
@@ -123,6 +151,7 @@ export class Network {
 			redirected: false
 		};
 		this.exchanges.push(ex);
+		this.#open.add(ex);
 		const loop = this.#loop;
 		return new Promise<Response>((resolve, reject) => {
 			const fail = (why: string) => reject(new TypeError(`Failed to fetch (${why})`));
@@ -133,7 +162,11 @@ export class Network {
 				return;
 			}
 			const signal = request.signal;
-			const aborted = () => reject(signal.reason ?? new DOMException('aborted', 'AbortError'));
+			const aborted = () => {
+				// (its page called it off before an answer came: nothing is on its way for it now)
+				if (ex.status === 'pending') ex.status = 'aborted';
+				reject(signal.reason ?? new DOMException('aborted', 'AbortError'));
+			};
 			if (signal?.aborted) return aborted();
 			signal?.addEventListener('abort', aborted, { once: true });
 			const calm = this.#calm.has(realm.split('#')[0]);
@@ -158,6 +191,14 @@ export class Network {
 			ex.duplicated = dup;
 			const cut = !calm && this.#on('cut');
 			const tamper = !calm && this.#on('tamper');
+			// (until its answer comes, its tab going offline fails it: `offline`)
+			let lost = false;
+			this.#on_wire.set(ex, (why) => {
+				lost = true;
+				ex.status = 'offline';
+				loop.add('net', `offline ${ex.id}`, 0, () => fail(why));
+			});
+			signal?.addEventListener('abort', () => this.#on_wire.delete(ex), { once: true });
 			loop.add(
 				'net',
 				`request ${ex.id} ${request.method} ${new URL(request.url).pathname}`,
@@ -172,16 +213,19 @@ export class Network {
 									(r) => r.body?.cancel(),
 									() => {}
 								);
-							ex.status = response.status;
+							if (!lost) ex.status = response.status;
 							loop.add('net', `response ${ex.id} ${response.status}`, this.#latency(), () => {
-								if (signal?.aborted) {
+								if (signal?.aborted || lost) {
 									void response.body?.cancel();
 									return;
 								}
+								this.#on_wire.delete(ex);
 								resolve(this.#deliver(ex, response, cut, tamper, signal));
 							});
 						})
 						.catch((error: unknown) => {
+							if (lost) return;
+							this.#on_wire.delete(ex);
 							ex.status = 500;
 							loop.add('net', `error ${ex.id}`, this.#latency(), () =>
 								fail(error instanceof Error ? error.message : String(error))
@@ -231,8 +275,9 @@ export class Network {
 				}
 			});
 		};
-		const stop = (why: string): void => {
-			ex.cut = true;
+		const stop = (why: string, offline = false): void => {
+			if (offline) ex.lost = true;
+			else ex.cut = true;
 			send('cut', () => {
 				to.error(new TypeError(`network error: ${why}`));
 				ended = true;
@@ -296,6 +341,10 @@ export class Network {
 			},
 			{ once: true }
 		);
+		// (a body still coming breaks off when its tab goes offline)
+		this.#on_wire.set(ex, (why) => {
+			if (!ended) stop(why, true);
+		});
 		void pump();
 		return new Response(stream, init);
 	}

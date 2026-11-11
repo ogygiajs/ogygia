@@ -35,6 +35,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, act, next_action, type Action } from './workload.ts';
 import {
 	faulted,
+	outage_only,
 	hydrates_as_sent,
 	Leaks,
 	mpa_equivalent,
@@ -153,7 +154,6 @@ export async function run(
 	);
 	const actions: Action[] = [];
 	const broken: Broken[] = [];
-	const dirty = new Set<string>();
 	/** The document each tab had when it was last pressed in (by tab name). */
 	const pressed = new Map<string, number>();
 	const leaks = new Leaks();
@@ -170,12 +170,12 @@ export async function run(
 			actions.push(a);
 			log.note(`action ${i + 1}: ${describe(a)}`);
 			await act(world, v, a, ORIGIN);
-			if (a.kind === 'offline') dirty.add(v.tabs[a.tab % v.tabs.length]?.name ?? '');
 			// (a press changes an island's state: the document shows the visitor's own state from then
 			// on, kept across client navigations, which no fresh load has; its next document is clean.
 			// And it may change the server's (a cart, a counter a command bumps), which every other
 			// tab's document predates: seed 221, /cart-b in another tab)
-			if (a.kind === 'press') for (const t of v.tabs) pressed.set(t.name, t.documents);
+			if (a.kind === 'press' || (a.kind === 'outage' && a.during === 'press'))
+				for (const t of v.tabs) pressed.set(t.name, t.documents);
 			for (const t of v.tabs) {
 				const doc = t.page.mainFrame.document as unknown as Document;
 				log.note(`${t.name} ${t.page.mainFrame.url} dom ${fingerprint(normalize(doc))}`);
@@ -230,16 +230,19 @@ export async function run(
 				for (const b of [stuck(t), page_rules(t)])
 					if (b) broken.push({ ...b, detail: `at rest: ${b.detail}` });
 			for (const t of v.tabs) {
-				// (a document a deploy failed a download of is degraded as a faulted one is: by the host)
+				// (a document a deploy failed a download of is degraded as a faulted one is: by the host.
+				// One only an outage touched is back on the network, and owes what a fresh load shows:
+				// THE OUTAGE OVER, the page recovers)
+				const outage = outage_only(world, t);
 				if (
-					dirty.has(t.name) ||
 					pressed.get(t.name) === t.documents ||
-					faulted(world, t) ||
+					(faulted(world, t) && !outage) ||
 					world.skewed_for(t.realm)
 				)
 					continue;
 				const b = await mpa_equivalent(world, v, t);
-				if (b) broken.push(b);
+				if (b)
+					broken.push(outage && b.oracle !== 'known' ? { ...b, oracle: 'outage-recovery' } : b);
 			}
 			const c = no_cross_visitor_cache(world);
 			if (c) broken.push(c);
