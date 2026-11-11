@@ -5,7 +5,7 @@
 // in an answer's inert fragment (sheets adopted after the insertion), and never into a root a
 // component's constructor made.
 import { afterEach, expect, test, vi } from 'vitest';
-import { check_script, transformMarkup } from '../../src/server/reversible.ts';
+import { check_script, STAND_IN_TAGS, transformMarkup } from '../../src/server/reversible.ts';
 import { restore, restore_adopt } from '../../src/runtime/restore.ts';
 import { fake_scoped } from '../fixtures/fake-scoped-render.ts';
 import { init_shadow_registries } from '../../src/runtime/parse-html.ts';
@@ -99,6 +99,13 @@ test('a stand-in becomes only a tag the server pass writes as one, without on* a
 	expect(p.getAttribute('class')).toBe('kept');
 	expect(p.hasAttribute('onclick')).toBe(false);
 	expect(p.textContent).toBe('text');
+});
+
+test('the restorer swaps back every tag the server pass may write as a stand-in', () => {
+	const tags = [...STAND_IN_TAGS];
+	document.body.innerHTML = `<div id="c">${tags.map((t) => `<og-as tag="${t}"></og-as>`).join('')}</div>`;
+	restore(document);
+	expect([...document.getElementById('c')!.children].map((e) => e.localName)).toEqual(tags);
 });
 
 test('an answer’s fragment: restored before insertion, its sheets adopted once the host is in the page', async () => {
