@@ -55,24 +55,24 @@ describe('same_module_path', () => {
 describe('island_vpaths_affected_by_file', () => {
 	const entries: [string, { hostPath?: string; componentPath?: string | null }][] = [
 		[
-			'virtual:ogygia/island/aaa.svelte',
+			'ogygia:region/entry/aaa.svelte',
 			{ hostPath: '/app/src/routes/+layout.svelte', componentPath: '/app/src/lib/SiteNav.svelte' }
 		],
 		[
-			'virtual:ogygia/island/bbb.svelte',
+			'ogygia:region/entry/bbb.svelte',
 			{ hostPath: '/app/src/routes/+page.svelte', componentPath: '/app/src/lib/Counter.svelte' }
 		]
 	];
 
 	it('matches host renames that keep the same island id slot', () => {
 		expect(island_vpaths_affected_by_file('/app/src/routes/+layout.svelte', entries)).toEqual([
-			'virtual:ogygia/island/aaa.svelte'
+			'ogygia:region/entry/aaa.svelte'
 		]);
 	});
 
 	it('matches deleted / renamed entry components (SiteNav → SideNav stale graph)', () => {
 		expect(island_vpaths_affected_by_file('/app/src/lib/SiteNav.svelte', entries)).toEqual([
-			'virtual:ogygia/island/aaa.svelte'
+			'ogygia:region/entry/aaa.svelte'
 		]);
 	});
 
@@ -163,7 +163,7 @@ describe('derive_css_scope_owners', () => {
 
 describe('rewrite_island_sourcemap_sources', () => {
 	it('rewrites basename-only svelte sources to the virtual module id', () => {
-		const id = 'virtual:ogygia/island/abc123.svelte';
+		const id = 'ogygia:region/entry/abc123.svelte';
 		expect(rewrite_island_sourcemap_sources(id, ['abc123.svelte'])).toEqual([id]);
 		expect(rewrite_island_sourcemap_sources(id, [id])).toBeNull();
 		expect(rewrite_island_sourcemap_sources(id, ['/abs/real.svelte'])).toBeNull();

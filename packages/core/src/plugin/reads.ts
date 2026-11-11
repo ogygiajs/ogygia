@@ -13,38 +13,40 @@
  */
 import type { RequestEvent } from '@sveltejs/kit';
 
-/** One render's read set (and, through `parent`, the sets around it). */
-export class Reads {
-	#per_visitor: string | null = null;
-	#page_data = false;
-	readonly #parent: Reads | null;
-
-	constructor(parent: Reads | null = null) {
-		this.#parent = parent;
-	}
-
+/** One render's read set (and, through its parent, the sets around it). A plain shape, not a class:
+ *  core's own types and its built types (and a plugin's copy of this module) must agree on it. */
+export interface Reads {
 	/** The first per-visitor input read (`flag:<name>`, `cookie:<name>`, `header:<name>`,
 	 *  `locals.<key>`, a plugin's reason), or null. */
-	get perVisitor(): string | null {
-		return this.#per_visitor;
-	}
-
+	readonly perVisitor: string | null;
 	/** The render read `page.data`: its output is one page's. */
-	get pageData(): boolean {
-		return this.#page_data;
-	}
-
+	readonly pageData: boolean;
 	/** A per-visitor input was read (the first one names the set). */
-	visitor(input: string): void {
-		if (this.#per_visitor === null) this.#per_visitor = input;
-		this.#parent?.visitor(input);
-	}
-
+	visitor(input: string): void;
 	/** `page.data` was read. */
-	page(): void {
-		this.#page_data = true;
-		this.#parent?.page();
-	}
+	page(): void;
+}
+
+/** A new read set inside `parent` (its reads pass up to it). */
+export function read_set(parent: Reads | null = null): Reads {
+	let per_visitor: string | null = null;
+	let page_data = false;
+	return {
+		get perVisitor() {
+			return per_visitor;
+		},
+		get pageData() {
+			return page_data;
+		},
+		visitor(input) {
+			if (per_visitor === null) per_visitor = input;
+			parent?.visitor(input);
+		},
+		page() {
+			page_data = true;
+			parent?.page();
+		}
+	};
 }
 
 interface ReadsSlot {

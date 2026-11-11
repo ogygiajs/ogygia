@@ -2,7 +2,7 @@
  * Router page CSS in dev (#249): a real Vite dev server renders a router page's head through
  * `componentCssHead()` (plugin/css.ts), loaded the two ways an app's server loads it (Kit 2 through
  * `ssrLoadModule`, Kit 3 through the ssr environment's runner). The page's component is a real
- * dev-compiled Svelte component; `virtual:ogygia/router-css` is the real dev registry
+ * dev-compiled Svelte component; `ogygia:server/router-css` is the real dev registry
  * (`router_css_module`), served and invalidated on style edits the way the ogygia plugin does it.
  *
  * One failed read of the registry (a load that throws once: the tree walk's resolver failing while
@@ -20,7 +20,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { router_css_module } from '../src/compiler/link/router-css.ts';
 
 const own = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
-const V = 'virtual:ogygia/router-css';
+const V = 'ogygia:server/router-css';
 
 type Load = (srv: ViteDevServer, url: string) => Promise<Record<string, unknown>>;
 const LOADERS: Array<[string, Load]> = [
@@ -93,9 +93,10 @@ async function start(
 			alias: [
 				{ find: /^ogygia\/internal\/register$/, replacement: own('../src/internal-register.ts') },
 				{ find: /^\$app\/(.*)$/, replacement: own('./_stubs/app-$1.ts') },
+				{ find: /^ogygia:(server|boot|region|dev)$/, replacement: own('./_stubs/realm-$1.ts') },
 				{
-					find: /^virtual:ogygia\/(?!router-css$)(.*)$/,
-					replacement: own('./_stubs/virtual-$1.ts')
+					find: /^ogygia:(server|boot|region|dev)\/(?!router-css$)([^/]+)$/,
+					replacement: own('./_stubs/$1.$2.ts')
 				}
 			]
 		},

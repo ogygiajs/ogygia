@@ -25,6 +25,7 @@ import { rewrite_loaders } from '../macros/loaders.ts';
 import { rewrite_regions } from '../macros/regions.ts';
 import { materialize } from '../macros/git.ts';
 import { content_hmr, type ContentHmrOptions } from './hmr.ts';
+import { content_leaks } from './leaks.ts';
 import { OgygiaError, warn } from '../messages/build.ts';
 import { say, type Say } from '@ogygia/machine';
 
@@ -106,7 +107,7 @@ export function content(options: ContentOptions = {}): [OgygiaPlugin, ...VitePlu
 			}
 		}
 	});
-	return [plugin, content_hmr(hmr), content_checks(() => root, exts)];
+	return [plugin, content_hmr(hmr), content_checks(() => root, exts), content_leaks()];
 }
 
 type ContentBridgePresets = NonNullable<typeof bridge.contentPresets>;
