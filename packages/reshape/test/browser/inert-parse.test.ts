@@ -1,5 +1,5 @@
 // A PARSED ANSWER IS INERT IN EVERY ENGINE (#382). Region and hole answers become DOM in one place
-// (runtime/parse-html.ts) and are restored before they go in (runtime/restore.ts). Nothing in them
+// (core's runtime/parse-html.ts) and are restored before they go in (src/restore.ts). Nothing in them
 // may be built by a component's constructor before that: a host upgraded first already has the root
 // its constructor made, and the restore came too late.
 //
@@ -9,11 +9,11 @@
 // - the Firefox 159 model, in every engine: `setHTMLUnsafe` patched, in this test only, to build
 //   every defined custom element of the content when the template's document has a window.
 import { afterEach, expect, test, vi } from 'vitest';
-import { transformMarkup } from '../../src/server/reversible.ts';
-import { parse_region_html } from '../../src/runtime/parse-html.ts';
-import { restore, restore_adopt } from '../../src/runtime/restore.ts';
-import { report_restores } from '../../src/runtime/restore-report.ts';
-import { install_rules, runtime_rules } from '../../src/runtime/rules.ts';
+import { transformMarkup } from '../../src/reversible.ts';
+import { parse_region_html } from '../../../core/src/runtime/parse-html.ts';
+import { restore, restore_adopt } from '../../src/restore.ts';
+import { report_restores } from '../../../core/src/runtime/restore-report.ts';
+import { install_rules, runtime_rules } from '../../../core/src/runtime/rules.ts';
 import { fake_scoped } from '../fixtures/fake-scoped-render.ts';
 
 const SHEET = '<template data-og-head="demo-card.shadow">b{color:rgb(255, 0, 0)}</template>';
