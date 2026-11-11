@@ -40,6 +40,23 @@
  *   until it lands.
  * - `fresh` starts a new flight even when an answer is kept; the kept one stays (and `peek` shows
  *   it) until the new one lands, and stays when the new one fails or is not kept.
+ * - A caller may bring a `priority` (a number, higher is sooner; default 0). A flight is at the
+ *   highest priority of the callers that joined it: a `get` with a higher one raises it, a lower
+ *   one never lowers it, and a caller that leaves does not take its raise back. `run` gets the
+ *   flight as its third argument, to read `priority` and hear each raise (`onRaise`), so it can
+ *   lift its own work where the platform lets it (a queued download, a fetch priority not sent
+ *   yet). A kept answer is given as it is: nothing runs, so nothing is raised.
+ *
+ *     const chunks = flights({
+ *       run: (url: string, signal, flight) => {
+ *         const link = preload(url, flight.priority);
+ *         flight.onRaise((p) => (link.fetchPriority = p > 1 ? 'high' : 'auto'));
+ *         return loaded(link, signal);
+ *       }
+ *     });
+ *     void chunks.get(url, { priority: 0 }); // a guess
+ *     await chunks.get(url, { priority: 2 }); // the visitor needs it: the guess is raised
+ *
  * - A `world` (`world()`) is what its answers are made in. A move of it is a `drop` of what the
  *   move touches; and an answer whose world moved while it was out is `STALE` for every caller that
  *   joined it, and never kept. With a keyed world, `touches` says which keys an answer was made
@@ -52,7 +69,7 @@
  * flight's moves, under the flights' `name`.
  */
 import { machine, type Machine } from './machine.ts';
-import { machine_error } from './messages.ts';
+import { machine_error, report_thrown } from './messages.ts';
 import { under_policy, type Policy } from './policy.ts';
 import { DISPOSE } from './scope.ts';
 import { STALE, type Fresh, type Stale } from './stale.ts';
@@ -62,8 +79,9 @@ import { watch_world, type World } from './world.ts';
 interface FlightsCommon<R, V, W> {
 	/** Names its flights in messages and to observers. Default `flights`. */
 	name?: string;
-	/** The work for an input: started by the `get` that finds no flight and no kept answer. */
-	run: (input: R, signal: AbortSignal) => V;
+	/** The work for an input: started by the `get` that finds no flight and no kept answer. `flight`
+	 *  is its priority, raised by the callers that join it. */
+	run: (input: R, signal: AbortSignal, flight: InFlight) => V;
 	/** How long an answer stays, in ms: a number, or made from the answer and its input. 0 keeps
 	 *  nothing (callers share the flight while it is out); the default, `Infinity`, keeps it for as
 	 *  long as the flights lives. A failure is never kept. */
@@ -116,6 +134,18 @@ export interface GetOptions {
 	/** Start a new flight even when an answer is kept (a revalidation): the kept answer stays until
 	 *  the new one lands. A flight already out for the key is ended (its callers get `STALE`). */
 	fresh?: boolean;
+	/** How soon this caller needs it: higher is sooner. Default 0. A flight out at a lower one is
+	 *  raised to it (its run hears it); one at a higher one stays as it is. */
+	priority?: number;
+}
+
+/** The flight a run serves: how soon its callers need it. */
+export interface InFlight {
+	/** The highest priority of the callers that joined it so far. It never goes down. */
+	readonly priority: number;
+	/** `raised` is called with the new priority each time a caller raises it, while this try is out
+	 *  (under a `retry` policy, the next try starts with no listeners). */
+	onRaise(raised: (priority: number) => void): void;
 }
 
 /** What a key holds now: a flight with nothing kept yet, or a kept answer (`flying`: a fresh flight
@@ -150,16 +180,50 @@ type Kept = {
 	/** The settled promise every later `get` of it is handed (so `get() === get()`). */
 	promise: Promise<unknown>;
 };
-/** One flight: its shared answer, and who still waits on it. */
-type Flight = {
+/** One flight: its shared answer, who still waits on it, and how soon they need it (it is the
+ *  `InFlight` its run is handed). */
+class Flight implements InFlight {
 	shared: Promise<unknown>;
 	/** Callers with a signal still waiting. */
-	holders: number;
+	holders = 0;
 	/** A caller with no signal joined: it holds the flight until it lands. */
-	pinned: boolean;
+	pinned = false;
 	/** The world when it started (`world.stamp()`): its answer is judged against it. */
 	stamp: number;
-};
+	priority: number;
+	/** What the run hears a raise with (`null`: nothing yet, the common case). */
+	_raised: ((priority: number) => void)[] | null = null;
+	/** The flights' name, for a listener's failure. */
+	_name: string;
+
+	constructor(shared: Promise<unknown>, stamp: number, priority: number, name: string) {
+		this.shared = shared;
+		this.stamp = stamp;
+		this.priority = priority;
+		this._name = name;
+	}
+
+	onRaise(raised: (priority: number) => void): void {
+		if (typeof raised !== 'function') throw bad_option('onRaise', typeof raised, 'a function');
+		(this._raised ??= []).push(raised);
+	}
+
+	/** A caller at `priority` joined: a higher one raises it, and every listener hears it. */
+	_raise(priority: number): void {
+		if (priority <= this.priority) return;
+		this.priority = priority;
+		const heard = this._raised;
+		if (heard === null) return;
+		for (const raised of heard) {
+			try {
+				raised(priority);
+			} catch (error) {
+				// (the joining caller is not the one to fail: the listener is the run's)
+				report_thrown('machine_flight_raise_failed', { name: this._name }, error);
+			}
+		}
+	}
+}
 type EntryStates = {
 	flying: { flight: Flight; prior: Kept | null };
 	kept: Kept;
@@ -178,13 +242,22 @@ const FLYING: FlightEntry<never> = Object.freeze({ kind: 'flying' });
 
 /** One flight's work: one run, or the runs its policy gives (`STALE` once the flight is left). */
 function attempt<I, V>(
-	run: (input: I, signal: AbortSignal) => V,
+	run: (input: I, signal: AbortSignal, flight: InFlight) => V,
 	input: I,
 	signal: AbortSignal,
+	flight: Flight,
 	retry: Policy | null
 ): V | Promise<Awaited<V> | Stale> {
-	if (retry === null) return run(input, signal);
-	return under_policy(retry, (s) => run(input, s), signal);
+	if (retry === null) return run(input, signal, flight);
+	return under_policy(
+		retry,
+		(s) => {
+			// (a new try: the listeners of the one before were its, and it is over)
+			flight._raised = null;
+			return run(input, s, flight);
+		},
+		signal
+	);
 }
 
 /** Ids for the objects (and symbols) a key holds: a key field compares by identity. Held weakly:
@@ -251,7 +324,8 @@ const expired = (k: Readonly<Kept>, now: number): boolean => k.until !== Infinit
 
 class Flown<I, V, K> implements Flights<I, V, K> {
 	_def: { create(data: EntryStates['flying']): Entry };
-	_run: (input: I, signal: AbortSignal) => unknown;
+	_run: (input: I, signal: AbortSignal, flight: InFlight) => unknown;
+	_name: string;
 	/** A keyed flights' key fields (`null`: the input itself is the key). */
 	_fields: readonly PropertyKey[] | null;
 	/** A keyed flights' keys as callers name them (its key fields), by the spelled key. */
@@ -307,6 +381,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 			steps: entry_steps
 		});
 		this._run = o.run;
+		this._name = o.name ?? 'flights';
 		this._keep = keep as number | ((answer: V, input: I) => number);
 		this._max = max;
 		this._weigh = o.weigh as ((answer: V, input: I) => number) | undefined;
@@ -355,6 +430,10 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		if (this._disposed) return STALE_NOW;
 		const signal = options?.signal;
 		if (signal?.aborted) return STALE_NOW;
+		let priority = options?.priority;
+		if (priority === undefined) priority = 0;
+		else if (typeof priority !== 'number' || priority !== priority)
+			throw bad_option('priority', priority, 'a number (higher is sooner)');
 		const fields = this._fields;
 		const key = fields === null ? input : key_of(fields, input);
 		let m = this._entries.get(key);
@@ -373,11 +452,14 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 					return s.promise as Promise<V>;
 				} else prior = kept_of(s);
 			} else if (s.kind === 'flying') {
-				if (options?.fresh !== true) return this._join(key, m, s.flight, signal);
+				if (options?.fresh !== true) {
+					s.flight._raise(priority);
+					return this._join(key, m, s.flight, signal);
+				}
 				prior = s.prior;
 			}
 		}
-		return this._join(key, ...this._fly(key, m, input as I, prior), signal);
+		return this._join(key, ...this._fly(key, m, input as I, prior, priority), signal);
 	}
 
 	/** The entry key of a key as callers name it (keyed: its fields, spelled). */
@@ -430,8 +512,14 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		return undefined;
 	}
 
-	/** Starts a flight for `key` (the entry's `flying` visit), keeping `prior` beside it. */
-	_fly(key: unknown, m: Entry | undefined, input: I, prior: Kept | null): [Entry, Flight] {
+	/** Starts a flight for `key` (the entry's `flying` visit) at `priority`, keeping `prior` beside it. */
+	_fly(
+		key: unknown,
+		m: Entry | undefined,
+		input: I,
+		prior: Kept | null,
+		priority: number
+	): [Entry, Flight] {
 		if (this._expires) this._sweep(Date.now());
 		const stamp = this._world === undefined ? 0 : this._world.stamp();
 		// the shared answer is there before the run starts: a run that gets its own key (before it
@@ -442,7 +530,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 			resolve = res;
 			reject = rej;
 		});
-		const flight: Flight = { shared, holders: 0, pinned: false, stamp };
+		const flight = new Flight(shared, stamp, priority, this._name);
 		let entry: Entry;
 		if (m !== undefined && this._entries.get(key) === m) {
 			entry = m;
@@ -493,7 +581,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		// (the callers handle its failure; this one is the flights' own, so it is never unhandled)
 		shared.then(undefined, noop);
 		entry.scope
-			.task((signal) => attempt(run, input, signal, retry))
+			.task((signal) => attempt(run, input, signal, flight, retry))
 			.then(
 				(answer) => {
 					try {
