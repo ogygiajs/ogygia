@@ -64,3 +64,30 @@ describe('router pattern matching', () => {
 		expect(() => compile('/a/[...rest]/b')).toThrow(/must be last/);
 	});
 });
+
+describe('router pattern matching takes time in line with the path', () => {
+	it('a segment with several params answers a long path that almost matches at once', () => {
+		const c = [compile('/[a]-[b]-[c]')];
+		const near_miss = '/' + '-'.repeat(2000) + '/x';
+		const t = performance.now();
+		expect(match_path(c, near_miss)).toBeNull();
+		expect(performance.now() - t).toBeLessThan(100);
+	});
+
+	it('several params in a segment split at the first separator, the last param takes the rest', () => {
+		expect(match_one(compile('/[a]-[b]-[c]'), '/x-y-z')!.params).toEqual({
+			a: 'x',
+			b: 'y',
+			c: 'z'
+		});
+		expect(match_one(compile('/[a]-[b]'), '/x-y-z')!.params).toEqual({ a: 'x', b: 'y-z' });
+		// one param before its suffix keeps every character it had
+		expect(match_one(compile('/[id].json'), '/a.b.json')!.params).toEqual({ id: 'a.b' });
+	});
+
+	it('a path longer than any route can mean matches nothing', () => {
+		const c = compile_all(['/[...rest]']);
+		expect(match_path(c, '/' + 'a'.repeat(20_000))).toBeNull();
+		expect(match_path(c, '/' + 'a'.repeat(2000))).not.toBeNull();
+	});
+});
