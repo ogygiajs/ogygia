@@ -9,9 +9,25 @@ import { Program } from '../src/compiler/program.ts';
 import { CompileCtx, type CompileCtxInit } from '../src/compiler/ctx.ts';
 import { set_host, type HostFs } from '../src/compiler/host.ts';
 import { normalize_import_keys } from '../src/compiler/region/transform.ts';
-import { CORE_VIRTUALS } from '../src/compiler/virtual/core.ts';
+import * as core from '../src/compiler/virtual/core.ts';
+import {
+	CORE_PARTS,
+	CORE_VIRTUALS,
+	core_defines,
+	core_path,
+	type ConstantInput
+} from '../src/compiler/virtual/core.ts';
+import {
+	CORE_ENTRIES_PATH,
+	constant_types,
+	probe_value_names,
+	value_names_source,
+	virtual_types
+} from '../src/compiler/virtual/types.ts';
+import { CORE_VALUE_NAMES } from '../src/compiler/virtual/value-names.ts';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
-import { specifier, virtual } from '../src/compiler/virtual/table.ts';
+import { BUILD_ERRORS } from '../src/compiler/messages.ts';
+import { specifier, virtual, type Realm } from '../src/compiler/virtual/table.ts';
 
 const ROOT = '/app';
 
@@ -84,8 +100,6 @@ function compiler(root: string, is_dev: boolean): Compiler {
 		router_view_transitions: false,
 		runtime_dir: '/nowhere/ogygia/dist/runtime',
 		runtime_hash: 'h',
-		hmac_module: '/nowhere/ogygia/dist/server/hmac.js',
-		region_endpoint_module: '/nowhere/ogygia/dist/server/region-endpoint.js',
 		kit_wire_path: '/nowhere/kit/shared.js',
 		client_binding_stub_file: '/nowhere/stub.js',
 		app_shims: {},
@@ -101,12 +115,23 @@ function compiler(root: string, is_dev: boolean): Compiler {
 	return c;
 }
 
-/** Every module id the table answers, by its realm-named specifier and its alias. */
-const SPECIFIERS = CORE_VIRTUALS.flatMap((e) =>
-	e.kind === 'constant' || (e.kind === 'family' && e.parse)
-		? []
-		: [specifier(e.realm, e.id), ...(e.alias ? [e.alias] : [])]
-);
+/** Every module id the table answers, by its realm-named specifier, with its realm. */
+const SPECIFIERS: [string, Realm][] = [
+	['ogygia:server', 'server'],
+	['ogygia:boot', 'boot'],
+	['ogygia:region', 'region'],
+	...CORE_VIRTUALS.flatMap((e): [string, Realm][] =>
+		e.kind === 'constant' || (e.kind === 'family' && e.parse)
+			? []
+			: [[specifier(e.realm, e.id), e.realm]]
+	)
+];
+/** A module's realm imports, as an app's code writes them. */
+const IMPORTS = `import { region_ttl, renew_window, sign, region_css as css } from 'ogygia:server';
+import { FRAMES, transport } from 'ogygia:boot';
+export { kit_transport as transport } from 'ogygia:region';`;
+const size = (out: string | { code: string } | null): number =>
+	out === null ? 0 : typeof out === 'string' ? out.length : out.code.length;
 
 bench(
 	'virtual modules: every id resolved and loaded, both legs, a build and the dev server',
@@ -114,29 +139,36 @@ bench(
 		let bytes = 0;
 		for (const is_dev of [false, true]) {
 			const c = compiler(root, is_dev);
-			for (const source of SPECIFIERS) {
+			const ids: string[] = [];
+			for (const [source, realm] of SPECIFIERS) {
+				// resolved on a leg its realm may be imported from (the realm check refuses the others)
+				if (realm === 'dev' && !is_dev) continue;
 				const id = await c.resolve_id(source, undefined, {
-					ssr: true,
+					ssr: realm === 'server' || realm === 'region',
 					resolve: async () => null
 				});
 				if (typeof id !== 'string' || !id.startsWith('\0')) continue;
+				ids.push(id);
 				for (const ssr of [true, false]) {
-					const out = await c.emit(id, { ssr, universalHooks: null, resolve: async () => null });
-					bytes += out?.length ?? 0;
+					bytes += size(await c.emit(id, { ssr, universalHooks: null, resolve: async () => null }));
 				}
 			}
 			// a family member by its prefix
 			const stub = await c.resolve_id(
-				'virtual:ogygia/registry-stub/a.js?names=default,b',
+				'ogygia:region/registry-stub/a.js?names=default,b',
 				undefined,
 				{
 					ssr: false,
 					resolve: async () => null
 				}
 			);
-			bytes += ((await c.emit(stub as string, { ssr: false, universalHooks: null })) ?? '').length;
-			for (const w of ['regions', 'routes', 'styles', 'options', 'plugins'] as const)
-				bytes += c.watching(w).length;
+			bytes += size(await c.emit(stub as string, { ssr: false, universalHooks: null }));
+			// the bundle check over each leg's output: table modules, a family member, an app file
+			ids.push(stub as string, `${root}/src/routes/+page.svelte`);
+			if (!is_dev) for (const ssr of [true, false]) bytes += c.misplaced_modules(ids, ssr).length;
+			bytes += c.split_realm_imports(IMPORTS)?.length ?? 0;
+			for (const part of ['regions', 'routes', 'styles', 'options', 'plugins'] as const)
+				bytes += c.changed(part).length;
 		}
 		return bytes;
 	},
@@ -150,8 +182,8 @@ bench(
 
 bench('virtual modules: a table built, an undeclared id and a duplicate refused', () => {
 	let refused = 0;
-	const table = new VirtualTable(CORE_VIRTUALS);
-	for (const id of ['virtual:ogygia/nope', 'ogygia:server/nope']) {
+	const table = new VirtualTable(CORE_VIRTUALS, core_path, CORE_VALUE_NAMES, CORE_PARTS);
+	for (const id of ['ogygia:region/nope/x.js', 'ogygia:server/nope']) {
 		try {
 			table.resolve(id);
 		} catch {
@@ -161,9 +193,54 @@ bench('virtual modules: a table built, an undeclared id and a duplicate refused'
 	const a = virtual.value({ realm: 'server', id: 'x', from: () => ({}) });
 	const b = virtual.constant({ id: '__X__', from: () => true });
 	try {
-		new VirtualTable([a, a, b]);
+		new VirtualTable([a, a, b], core_path, { 'ogygia:server/x': [] }, CORE_PARTS);
 	} catch {
 		refused++;
 	}
-	return refused + (table.claims('virtual:ogygia/island/a.js') ? 1 : 0);
+	// a value module without generated names, and its message as the docs page words it
+	try {
+		new VirtualTable([a], core_path, {}, CORE_PARTS);
+	} catch (e) {
+		refused += String(e).length > 0 ? 1 : 0;
+	}
+	refused += BUILD_ERRORS.virtual_names_stale.details().length;
+	refused += BUILD_ERRORS.virtual_names_stale.text({ id: 'ogygia:server/x' }).length;
+	return refused + (table.claims('ogygia:region/entry/a.js') ? 1 : 0);
+});
+
+bench('virtual constants: the define map of two option sets, and their generated globals', () => {
+	const base: ConstantInput = {
+		continuity_forms: false,
+		server_delta: false,
+		devtools: false,
+		devtools_lazy: false,
+		rules: false,
+		beacon: false,
+		client_plugins: false,
+		kit_major: null,
+		version: '0.0.0',
+		dev_server: false
+	};
+	const on: ConstantInput = {
+		continuity_forms: true,
+		server_delta: true,
+		devtools: true,
+		devtools_lazy: true,
+		rules: true,
+		beacon: true,
+		client_plugins: true,
+		kit_major: 3,
+		version: '1.2.3',
+		dev_server: true
+	};
+	let n = 0;
+	for (const input of [base, on]) n += Object.keys(core_defines(input)).length;
+	return n + constant_types(core, CORE_ENTRIES_PATH).length;
+});
+
+bench('virtual types: the value names probed, and each realm’s .d.ts, generated off the table', () => {
+	const names = probe_value_names(core.CORE_VIRTUALS, core.CORE_PROBE.app, core.CORE_PROBE.leg);
+	let n = value_names_source(names).length;
+	for (const text of Object.values(virtual_types(core, CORE_ENTRIES_PATH, names))) n += text.length;
+	return n;
 });

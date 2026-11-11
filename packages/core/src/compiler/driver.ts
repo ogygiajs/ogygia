@@ -10,7 +10,7 @@
  * recomputes on its own; the linker's `unregister_host` deliberately does NOT clear it.
  */
 import { fs, path, createHash, dir_entries } from './host.ts';
-import { fnv1a32 } from '../runtime/hash.ts';
+import { fnv1a32 } from '../contract/hash.ts';
 // `performance` is a global in both Node (≥16) and the browser — no import, so the driver graph loads
 // in the browser compiler (Observatory REPL) without pulling node:perf_hooks.
 const performance = globalThis.performance;
@@ -44,7 +44,7 @@ import {
 	svelteModuleHasTransportable,
 	appendSvelteModuleRegistrations,
 	appendTransportRegistrations
-} from './content/transportables.ts';
+} from './transportables.ts';
 import {
 	rewrite_lake_import_to_placeholder,
 	APP_SHIM_IMPORT,
@@ -58,8 +58,15 @@ import { source_crosses_wire } from './link/transport.ts';
 import { server_island_ids, PAGE_DATA_READS_TOKEN } from './link/server-manifest.ts';
 import { same_module_path, island_vpaths_affected_by_file } from './dev/hmr.ts';
 import { VirtualTable } from './virtual/resolver.ts';
-import { CORE_VIRTUALS, type CoreApp } from './virtual/core.ts';
-import type { Leg, Watch } from './virtual/table.ts';
+import { CORE_VALUE_NAMES } from './virtual/value-names.ts';
+import {
+	CORE_PARTS,
+	CORE_VIRTUALS,
+	core_path,
+	type CoreApp,
+	type CorePlugins
+} from './virtual/core.ts';
+import type { Leg, Part } from './virtual/table.ts';
 import { strip_id, host_key } from './program.ts';
 import { mentions_page_store, page_data_keys_answer } from './link/page-keys.ts';
 import {
@@ -73,8 +80,9 @@ import {
 import { island_host_loaded } from './link/emit-gate.ts';
 import { stamp_opaque } from './ownership-stamps.ts';
 import { strip_bom } from './bom.ts';
-import { RESOLVED, V_RUNTIME_ENTRY } from './ids.ts';
-import { OgygiaError, warn } from '../messages/build.ts';
+import { RESOLVED, V_RUNTIME_ENTRY, region_family } from './ids.ts';
+import { is_generated_specifier } from './virtual/table.ts';
+import { OgygiaError, warn } from './messages.ts';
 import type { Program, RegisterResult } from './program.ts';
 import type { CompileCtx } from './ctx.ts';
 
@@ -111,9 +119,9 @@ const COMPONENT_EXT_RE = /\.(svelte|js|ts)$/;
  *  beside its component (kit.ts `is_route_component`). */
 const ROUTE_HOST_FILE_RE = /^\+(page|layout)\.(ts|js|mjs)$/;
 /** The real binding modules a host imports for a marked region (ids.ts `regionBindingVirtualId`,
- *  transform.ts `wrapperVirtualId`). */
-const REGION_BINDING_PREFIX = 'virtual:ogygia/region/';
-const WRAPPER_PREFIX = 'virtual:ogygia/wrapper/';
+ *  `wrapperVirtualId`). */
+const REGION_BINDING_PREFIX = region_family('binding');
+const WRAPPER_PREFIX = region_family('wrapper');
 /** A `.ts`/`.js` module that can be a region registry (a minted `.ts` region host). */
 const TS_REGISTRY_EXT_RE = /\.(ts|js|mjs)$/;
 /** A Svelte rune module (`.svelte.ts` / `.svelte.js`). */
@@ -185,7 +193,7 @@ function extract_module_specs(src: string): string[] {
 	return specs;
 }
 
-// one shared FNV-1a-32 (runtime/hash.ts is the pure, import-anywhere home)
+// one shared FNV-1a-32 (contract/hash.ts is the pure, import-anywhere home)
 const fnv = fnv1a32;
 
 /** Once per module id: a dependency file carries ogygia marks but its package declares no
@@ -209,7 +217,7 @@ export class Compiler implements CoreApp {
 	#scanned = false;
 
 	/**
-	 * DEV: the server-island ids the last emitted `virtual:ogygia/server-manifest` carried. A HOST edit
+	 * DEV: the server-island ids the last emitted `ogygia:server/server-manifest` carried. A HOST edit
 	 * drops its islands' rows (`invalidate_for_file`) and invalidates the manifest; Kit re-imports the
 	 * handle BEFORE the page transform re-registers them, so that manifest is emitted WITHOUT the ids —
 	 * and nothing re-invalidated it afterwards: every hole answered 403 until a restart. The adapter
@@ -239,10 +247,37 @@ export class Compiler implements CoreApp {
 		return this.#ctx!;
 	}
 	/** Every virtual module this session serves (./virtual/table.ts). */
-	readonly #virtuals = new VirtualTable<CoreApp>(CORE_VIRTUALS);
-	/** The resolved ids of the virtual modules a dev change to `what` invalidates. */
-	watching(what: Watch): string[] {
-		return this.#virtuals.watching(what);
+	readonly #virtuals = new VirtualTable<CoreApp>(
+		CORE_VIRTUALS,
+		core_path,
+		CORE_VALUE_NAMES,
+		CORE_PARTS
+	);
+	/** The app's Kit routes directory (a virtual module that reads it reloads on a route change). */
+	routes_dir(): string {
+		return kit_dirs(this.#ctx!.root).routes_dir;
+	}
+	/** The plugins listed beside `ogygia()`. */
+	plugins(): CorePlugins {
+		const ctx = this.#ctx!;
+		return {
+			server: ctx.server_plugins,
+			client: ctx.client_plugins,
+			route_config: ctx.route_config
+		};
+	}
+	/** The modules of one leg's built output that its realms may not hold (./virtual/resolver.ts). */
+	misplaced_modules(module_ids: Iterable<string>, ssr: boolean): [string, string][] {
+		return this.#virtuals.misplaced(module_ids, { ssr, dev: false });
+	}
+	/** A module's named imports of a realm module, per entry (./virtual/resolver.ts). */
+	split_realm_imports(code: string): string | null {
+		return this.#virtuals.split_realm_imports(code);
+	}
+	/** A dev change to a part of the session: the resolved ids of the virtual modules whose last load
+	 *  read it, for the caller to invalidate. */
+	changed(part: Part): string[] {
+		return this.#virtuals.bump(part);
 	}
 
 	constructor(program: Program, profiler: Profiler) {
@@ -258,7 +293,7 @@ export class Compiler implements CoreApp {
 	/**
 	 * Devtools: the `island id → component name` map, read at call time off the live registry (so a
 	 * dev-server middleware serves a COMPLETE, current map — no stale virtual-module snapshot). Keys
-	 * are the island id (`<hash>` in `virtual:ogygia/island/<hash>.js`); values the component's
+	 * are the island id (`<hash>` in `ogygia:region/entry/<hash>.js`); values the component's
 	 * basename. A held/generated island with no source file is skipped (the tab keeps its short hash).
 	 */
 	region_names(): Record<string, string> {
@@ -321,7 +356,7 @@ export class Compiler implements CoreApp {
 	 */
 	/**
 	 * The REAL source file a module derives from. A real file is its own origin. A generated entry
-	 * (a portable-snippet synth, re-processed under its `virtual:ogygia/island/<iid>.svelte` id)
+	 * (a portable-snippet synth, re-processed under its `ogygia:region/entry/<iid>.svelte` id)
 	 * resolves through the registry's `hostPath` — transitively, so an entry minted while re-processing
 	 * another entry still lands on the file the outermost slice was cut from. This is the ONE rule
 	 * `resolve_id` already applies to an entry's plain imports; threading it into the transform keeps
@@ -735,7 +770,7 @@ export class Compiler implements CoreApp {
 					if (!PAGE_FREE_APP_MODULES.has(spec)) this.program.island_reads_page = true;
 					continue;
 				}
-				if (spec.startsWith('$env/') || spec.startsWith('virtual:')) continue;
+				if (spec.startsWith('$env/') || is_generated_specifier(spec)) continue;
 				const dep = resolve_dep(spec, norm);
 				if (dep) walk(dep);
 				// A package or an import this walk cannot resolve may read the page; Svelte and assets cannot.
@@ -995,7 +1030,10 @@ export class Compiler implements CoreApp {
 	 * the adapter owns only the FOUC-css virtuals (they carry a Vite `moduleType`) and the Vite build
 	 * value threaded in here (the `universalHooks` path).
 	 */
-	emit(id: string, leg: Leg): string | Promise<string> | null {
+	emit(
+		id: string,
+		leg: Leg
+	): string | { code: string; moduleSideEffects: false } | Promise<string> | null {
 		const ctx = this.#ctx!;
 		const program = this.program;
 		const { ssr } = leg;
@@ -1004,7 +1042,12 @@ export class Compiler implements CoreApp {
 		if (registry_client) return this.#registry_client_emit(registry_client);
 
 		const declared = this.#virtuals.load(id, this, leg);
-		if (declared !== null) return declared;
+		if (declared !== null) {
+			// (a module of definitions only: unused, the bundler drops it and what it imports)
+			if (typeof declared === 'string' && this.#virtuals.side_effect_free(id))
+				return { code: declared, moduleSideEffects: false };
+			return declared;
+		}
 
 		const srcEntry = program.registry.get(id);
 		if (srcEntry && srcEntry.role === 'region') {
@@ -1067,8 +1110,9 @@ export class Compiler implements CoreApp {
 		const ctx = this.#ctx!;
 		const { registry, island_graph } = this.program;
 
-		// the declared modules (./virtual/core.ts); an undeclared id in the namespace fails here
-		const declared = this.#virtuals.resolve(source);
+		// the declared modules (./virtual/core.ts); an undeclared id in the namespace fails here, and
+		// so does a module of a realm this leg may not import
+		const declared = this.#virtuals.resolve(source, { ssr, dev: ctx.is_dev });
 		if (declared) return declared;
 		// csr=false client hosts rewrite marked bindings here — not a hydrate entry.
 		if (source === CLIENT_BINDING_STUB) return ctx.client_binding_stub_file;
@@ -1112,7 +1156,7 @@ export class Compiler implements CoreApp {
 			if (shim) return shim;
 		}
 
-		// Portable wrappers import `virtual:ogygia/island/<id>` (and hosts import wrappers).
+		// Portable wrappers import `ogygia:region/entry/<id>` (and hosts import wrappers).
 		// Resolve those BEFORE the "relative to hostPath" branch — that branch uses skipSelf
 		// and would bypass this handler, failing to resolve virtual entry ids.
 		if (is_island_path(source)) {
@@ -1148,7 +1192,7 @@ export class Compiler implements CoreApp {
 				!resolved &&
 				!source.startsWith('.') &&
 				!source.startsWith('\0') &&
-				!source.startsWith('virtual:') &&
+				!is_generated_specifier(source) &&
 				!path.isAbsolute(source)
 			) {
 				throw new OgygiaError('island_import_unresolved', {
@@ -1193,7 +1237,7 @@ export class Compiler implements CoreApp {
 	): Promise<string | null> {
 		const ctx = this.#ctx!;
 		if (ssr || ctx.is_dev || !ctx.is_build || !importer) return null;
-		if (source.startsWith('\0') || source.startsWith('virtual:') || source.startsWith('$app/'))
+		if (source.startsWith('\0') || is_generated_specifier(source) || source.startsWith('$app/'))
 			return null;
 		if (registry_client_path(importer) == null && !this.#is_csr_false_route_host(importer))
 			return null;
@@ -1742,7 +1786,7 @@ export class Compiler implements CoreApp {
 		if (affected.size === 0) return false;
 
 		for (const vpath of affected) invalidate(vpath);
-		for (const id of this.#virtuals.watching('regions')) invalidate(id);
+		for (const id of this.#virtuals.bump('regions')) invalidate(id);
 		return true;
 	}
 }

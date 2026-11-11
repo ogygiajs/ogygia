@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 const { DEVTOOLS, emit, snapshot, clear, add_sink, configure } =
 	await import('../src/events/bus.ts');
 const { install_console_sink, to_trace } = await import('../src/events/sinks.ts');
-const { DEVTOOLS_SCHEMA_VERSION } = await import('../src/events/schema.ts');
+const { DEVTOOLS_SCHEMA_VERSION } = await import('../src/contract/events.ts');
 
 beforeEach(() => {
 	clear();

@@ -2,6 +2,8 @@
 // network with, on a long page of images below the first screen.
 import { bench } from '@bench/heisenbench/bench';
 import { lcp_rivals, type PageInput } from '../src/insights/page-insights.ts';
+import { barrel_left_fix, barrel_left_words } from '../src/insights/barrel-left.ts';
+import { BARREL_LEFT_REASONS } from '../src/contract/barrels.ts';
 
 /** A visit whose hero image downloads beside `images` eager images far below the first screen
  *  (every third one a copy of another under a new query), among twice as many other files. */
@@ -36,5 +38,21 @@ bench(
 	{
 		setup: () => ({ visit: long_page(30) }),
 		scale: (_ctx, k) => ({ visit: long_page(30 * k) })
+	}
+);
+
+// The words for why a barrel stayed: every reason alone, then all of them at once, as the finding
+// and its fix put them.
+bench(
+	'barrel_left_words and barrel_left_fix: each reason, then every reason together',
+	({ sets }) => {
+		let n = 0;
+		for (const why of sets) n += barrel_left_words(why).length + barrel_left_fix(why).length;
+		return n;
+	},
+	{
+		setup: () => ({
+			sets: [undefined, ...BARREL_LEFT_REASONS.map((r) => [r]), [...BARREL_LEFT_REASONS]]
+		})
 	}
 );
