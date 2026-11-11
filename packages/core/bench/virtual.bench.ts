@@ -18,6 +18,7 @@ import {
 	type ConstantInput
 } from '../src/compiler/virtual/core.ts';
 import {
+	CORE_ENTRIES_PATH,
 	constant_types,
 	probe_value_names,
 	value_names_source,
@@ -214,12 +215,12 @@ bench('virtual constants: the define map of two option sets, and their generated
 	};
 	let n = 0;
 	for (const input of [base, on]) n += Object.keys(core_defines(input)).length;
-	return n + constant_types(core).length;
+	return n + constant_types(core, CORE_ENTRIES_PATH).length;
 });
 
 bench('virtual types: the value names probed, and each realm’s .d.ts, generated off the table', () => {
 	const names = probe_value_names(core.CORE_VIRTUALS, core.CORE_PROBE.app, core.CORE_PROBE.leg);
 	let n = value_names_source(names).length;
-	for (const text of Object.values(virtual_types(core, names))) n += text.length;
+	for (const text of Object.values(virtual_types(core, CORE_ENTRIES_PATH, names))) n += text.length;
 	return n;
 });
