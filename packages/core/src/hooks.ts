@@ -28,24 +28,27 @@ import type { RequestState } from '@sveltejs/kit/internal/server';
 import * as devalue from 'devalue';
 // (the islands' loaders come through `load_islands()`, a dynamic import — link/server-manifest.ts)
 import {
-	load_islands,
-	island_url,
-	island_name,
-	island_reads_page_data,
-	render_island
-} from 'virtual:ogygia/server-manifest';
-import { islandCss, fnManifest } from 'virtual:ogygia/island-deps';
-import { create_remote_key } from 'virtual:ogygia/kit-wire';
+	load_server_regions,
+	region_url,
+	region_name,
+	region_reads_page_data,
+	render_region,
+	region_css,
+	fn_manifest,
+	create_remote_key,
+	rate_limit,
+	session_cookie,
+	router_enabled,
+	view_transitions,
+	route_config,
+	runtime_url,
+	devtools_boot_url,
+	server_plugins
+} from 'ogygia:server';
+import { dev_hmr_url } from './dev-hmr-url.ts';
 import { REGION_BRAND } from './region-brand.ts';
 import { signing_key, configure_signing_secret } from './server/signing-key.ts';
-import { rateLimit as rate_limit_cfg } from 'virtual:ogygia/rate-limit';
-import { sessionCookie as session_cookie } from 'virtual:ogygia/session-cookie';
-import {
-	enabled as router_enabled,
-	viewTransitions as router_view_transitions
-} from 'virtual:ogygia/router-config';
-import { mpaSpeculationRules } from './compiler/link/speculation.ts';
-import { route_config } from 'virtual:ogygia/route-config';
+import { mpaSpeculationRules } from './server/speculation.ts';
 import { set_page_route_config } from './plugin/routes.ts';
 import {
 	set_kit_page_reader,
@@ -69,11 +72,8 @@ import { absolutize_hole_html } from './server/hole-urls.ts';
 import { KEEP_FALLBACK_HTML, is_keep_fallback } from './keep-fallback.ts';
 import { set_source_recorder } from './source.ts';
 import { building, dev } from '$app/env';
-import runtime_url from 'virtual:ogygia/runtime-url';
-import dev_hmr_url from 'virtual:ogygia/dev-hmr-url';
 // Kit's `asset()`, taking ogygia's base-less `/…` URLs on Kit 2 and Kit 3 alike
-import { kit_asset as asset } from './kit-paths.ts';
-import devtools_boot_url from 'virtual:ogygia/devtools-boot-url';
+import { kit_asset } from './kit-paths.ts';
 import {
 	sign,
 	verify,
@@ -88,7 +88,6 @@ import { render as render_policy } from './policies.ts';
 import { install_server_rules } from './server/rules.ts';
 import { B64Url } from './server/payload.ts';
 import { REF_WIRE_KEY, ref_reviver } from './ref.ts';
-import { plugins as plugin_entries } from 'virtual:ogygia/server-plugins';
 import type { RequestContext } from './plugin/index.ts';
 import { current_facts, facts_of, set_current_request, type RequestFacts } from './plugin/facts.ts';
 import { observe_reads } from './plugin/reads.ts';
@@ -150,7 +149,7 @@ import {
 import { stringify } from 'devalue';
 import { serialize_provided_context } from './context-bridge.ts';
 import { escape_script_text } from './escape.ts';
-import { hole_copy_key } from './runtime/hash.ts';
+import { hole_copy_key } from './contract/hash.ts';
 import { PAGE_CTX_MARKER, set_ctx_recorder } from './context-registry.ts';
 import {
 	set_ask_scope_opener,
@@ -185,7 +184,7 @@ import {
 	DEVTOOLS_SCHEMA_VERSION,
 	type DevtoolsEvent,
 	type DevtoolsEventInput
-} from './events/schema.ts';
+} from './contract/events.ts';
 import {
 	DEVTOOLS_COOKIE,
 	DEVTOOLS_ON,
@@ -198,9 +197,9 @@ import {
 import { mark_personal } from './server/personal-response.ts';
 import { OgygiaError, warn } from './messages/server.ts';
 import { ERRORS, WARNINGS } from './messages/core.ts';
-import { define_messages, dev_or_prerender } from './messages/define.ts';
+import { define_messages, dev_or_prerender } from './contract/messages.ts';
 
-// A prerender words every message, the link after it (messages/define.ts `dev_or_prerender`).
+// A prerender words every message, the link after it (contract/messages.ts `dev_or_prerender`).
 (globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.prerendering')] = building;
 // The server's render runs the same shared code as the island (a transport, `Region`), which words
 // its messages through the runtime's own (messages/island.ts): published here as the runtime's boot
@@ -399,7 +398,7 @@ set_kit_event_reader(
 );
 /** Does this hole's server tree read `page.data` (the build's answer; unknown in dev → yes). */
 const hole_reads_page_data = (id: string): boolean =>
-	island_reads_page_data === null || island_reads_page_data[id] !== false;
+	region_reads_page_data === null || region_reads_page_data[id] !== false;
 type TransportStore = {
 	event?: RequestEvent;
 	state?: {
@@ -474,7 +473,7 @@ set_page_route_config(route_config);
 // Their `app.sign` / `app.verify` use the region key, read at first use (an env the host fills after
 // module eval still counts). Their `app.capability` lives and renews by the app's own hole lifetime,
 // and a refused one is answered like a refused region request.
-const plugins = start_app_plugins(plugin_entries, {
+const plugins = start_app_plugins(server_plugins, {
 	sign: (message) => sign(signing_key().secret, message),
 	verify: (message, signature) => verify(signing_key().secret, message, signature),
 	lifetime: app_lifetime,
@@ -603,9 +602,9 @@ function capability_of(params: URLSearchParams): Capability {
  * Null when this build renders neither: the component is gone, moved or renamed.
  */
 function capability_target(cap: Capability): string | null {
-	if (Object.hasOwn(island_url, cap.id)) return cap.id;
-	if (cap.render !== '' && Object.hasOwn(render_island, cap.render))
-		return render_island[cap.render];
+	if (Object.hasOwn(region_url, cap.id)) return cap.id;
+	if (cap.render !== '' && Object.hasOwn(render_region, cap.render))
+		return render_region[cap.render];
 	return null;
 }
 
@@ -637,16 +636,16 @@ function client_ip(event: RequestEvent): string | null {
  * component the server will choose). Tagged `data-ogygia-region-css` so the client runtime HOISTS
  * them into `<head>`: a body `<link>` wouldn't load inside a `<template>` batch parcel, and a head
  * link loads once and is deduped across regions. Empty for a plain island (its CSS is already in the
- * page's own stylesheet) or before a build (`islandCss` reads the build-time handoff).
+ * page's own stylesheet) or before a build (`region_css` reads the build-time handoff).
  */
 function region_css_links(id: string): string {
-	const url = island_url[id];
+	const url = region_url[id];
 	if (!url) return '';
 	let out = '';
-	for (const href of islandCss(url)) {
-		// `asset()` supplies base/assets — islandCss hrefs are baked base-less (see Region.svelte).
+	for (const href of region_css(url)) {
+		// `asset()` supplies base/assets — region_css hrefs are baked base-less (see Region.svelte).
 		// Inline under Kit's `inlineStyleThreshold`, a link otherwise (server/region-css.ts).
-		out += region_css_tag(href, asset(href));
+		out += region_css_tag(href, kit_asset(href));
 	}
 	return out;
 }
@@ -782,13 +781,13 @@ class OgygiaHandle {
 		// MPA mode's Speculation Rules leave this endpoint out (one string, built once)
 		this.#speculation_rules = router_enabled ? '' : mpaSpeculationRules(this.#endpoint);
 		this.render_rate = new RateLimiter({
-			max: rate_limit_cfg.max,
-			windowMs: rate_limit_cfg.windowMs
+			max: rate_limit.max,
+			windowMs: rate_limit.windowMs
 		});
 		/** Cheap pre-HMAC probe budget — forged traffic pays this, not full render quota (HMAC-CPU-DOS). */
 		this.probe_rate = new RateLimiter({
-			max: rate_limit_cfg.max <= 0 ? 0 : Math.max(rate_limit_cfg.max * 5, 120),
-			windowMs: rate_limit_cfg.windowMs
+			max: rate_limit.max <= 0 ? 0 : Math.max(rate_limit.max * 5, 120),
+			windowMs: rate_limit.windowMs
 		});
 	}
 
@@ -1237,7 +1236,7 @@ class OgygiaHandle {
 				head_inject += `<script type="speculationrules" data-ogygia-speculate>${this.#speculation_rules}</script>`;
 			}
 			if (router_enabled && !page_declares_router_meta(probe)) {
-				head_inject += `<meta name="ogygia-router" content="${router_view_transitions ? 'vt' : 'plain'}">`;
+				head_inject += `<meta name="ogygia-router" content="${view_transitions ? 'vt' : 'plain'}">`;
 			}
 			// The runtime bootstrap goes FIRST in `<head>` (head-presence.ts `runtime_first`): the one
 			// an island page emitted moves up from Kit's head slot, and an island-less page gets it
@@ -1246,7 +1245,7 @@ class OgygiaHandle {
 			// baked base-LESS — so an island-LESS page under a non-root `base` loads the runtime too.
 			const runtime_tag =
 				router_enabled && runtime_url && !page_declares_runtime_script(probe)
-					? runtime_bootstrap(asset)
+					? runtime_bootstrap(kit_asset)
 					: null;
 			const ordered = with_early_csp(runtime_first(probe, runtime_tag));
 			if (ordered !== probe) head_out = ordered;
@@ -1259,7 +1258,7 @@ class OgygiaHandle {
 			// skips) kept a poisoned tab after a re-optimize until a manual reload, reporting only
 			// "hydration failed". `dev_hmr_url` is empty outside `vite serve`, so this stays dev-only.
 			if (dev_hmr_url && !page_declares_dev_hmr_script(probe)) {
-				head_inject += `<script type="module" data-ogygia-dev-hmr src="${asset(dev_hmr_url)}"></script>`;
+				head_inject += `<script type="module" data-ogygia-dev-hmr src="${kit_asset(dev_hmr_url)}"></script>`;
 				// The page's sub-app scope (its route id's first segment) for the dev CSS bridge:
 				// a changed stylesheet joins this page only when the plugin derives the same scope
 				// among its owners — two route-group sub-apps never paint each other in dev.
@@ -1430,7 +1429,7 @@ class OgygiaHandle {
 		// map before any island hydrates — the fn kind resolves against it with no eval. Emitted
 		// only when the client build's handoff carries hoists (dev: the fn-manifest virtual is
 		// complete; null here). Executing-inline is the same CSP class as the defer bootstrap.
-		const fnm = fnManifest();
+		const fnm = fn_manifest();
 		if (fnm) {
 			// (the manifest is the build's: its script is written once, not per request)
 			let fnm_script = fnm_script_cache.get(fnm);
@@ -1839,7 +1838,7 @@ class OgygiaHandle {
 
 		const target = capability_target(cap);
 		if (target === null) return null;
-		const load = (await load_islands()).islands[target];
+		const load = (await load_server_regions()).regions[target];
 		if (typeof load !== 'function') return null;
 
 		const props = await this.#decode_region_props(payload, load);
@@ -1872,7 +1871,7 @@ class OgygiaHandle {
 				...(timing.queue_ms !== undefined
 					? { queue_ms: Math.round(timing.queue_ms * 10) / 10 }
 					: {}),
-				...(island_name?.[target] ? { name: island_name[target] } : {}),
+				...(region_name?.[target] ? { name: region_name[target] } : {}),
 				p: hole_copy_key(payload),
 				ms: performance.now() - t0,
 				status: body === null ? 500 : 200
@@ -1979,11 +1978,11 @@ class OgygiaHandle {
 				warn('endpoint_unknown_id', {
 					id,
 					component: cap.render || undefined,
-					known: Object.keys(island_url).length
+					known: Object.keys(region_url).length
 				});
 			return region_denied('unknown-id');
 		}
-		const load = (await load_islands()).islands[target];
+		const load = (await load_server_regions()).regions[target];
 		if (typeof load !== 'function') return region_denied('unknown-id');
 
 		// Same status as bad MAC on any decode failure (STATUS-ORACLE); the reason is only ever
@@ -2014,7 +2013,7 @@ class OgygiaHandle {
 			ttl,
 			...(timing.queue_ms !== undefined ? { queue_ms: Math.round(timing.queue_ms * 10) / 10 } : {}),
 			// (a manifest from an older build has no names: the stub's `undefined`)
-			...(island_name?.[target] ? { name: island_name[target] } : {}),
+			...(region_name?.[target] ? { name: region_name[target] } : {}),
 			p: hole_copy_key(payload)
 		});
 		// the same split for the browser (devtools, the profiler's beacon), as Server-Timing. Only for

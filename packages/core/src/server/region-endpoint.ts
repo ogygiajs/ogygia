@@ -3,14 +3,21 @@
  * Used by Region's lake branch for `render: 'live'`. Client build gets a stub that returns ''.
  */
 import { signing_key } from './signing-key.ts';
-import { sessionCookie } from 'virtual:ogygia/session-cookie';
-import { regionTtl, renewWindow } from 'virtual:ogygia/region-ttl';
-import { sign, region_mac_message } from 'virtual:ogygia/sign';
+import {
+	session_cookie,
+	region_ttl,
+	renew_window,
+	sign,
+	region_mac_message,
+	get_request_event,
+	region_url,
+	region_render,
+	region_css
+} from 'ogygia:server';
 // (`resolve('/__ogygia__')` reads the same on Kit 2, which wants the leading slash, and Kit 3, which
 // takes it as a route ID with no params — the same pathname)
 import { resolve } from '$app/paths';
 import { building } from '$app/env';
-import { getRequestEvent } from 'virtual:ogygia/request-event';
 import { islands_endpoint, MAX_REGION_PROPS_LEN } from './endpoint.ts';
 import { capability_lifetime, type CapabilityLifetime } from './capability-lifetime.ts';
 import { encode_region_props } from './region-props.ts';
@@ -22,15 +29,13 @@ const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS_
 import { B64Url } from './payload.ts';
 import { REF_WIRE_KEY, ref_reducer } from '../ref.ts';
 import { ensure_prop_kinds } from './region-props.ts';
-import { island_url, island_render } from 'virtual:ogygia/server-manifest';
-import { islandCss } from 'virtual:ogygia/island-deps';
 import { OgygiaError, warn } from '../messages/server.ts';
 
 /** A hole's own stylesheet hrefs, by region id — the list its endpoint answer links (hooks.ts
  *  `region_css_links`), for a render that inlines the hole in the page instead (Region.svelte). */
-export function holeCss(entry: string): string[] {
-	const url = island_url[entry];
-	return url ? islandCss(url) : [];
+export function hole_css(entry: string): string[] {
+	const url = region_url[entry];
+	return url ? region_css(url) : [];
 }
 
 /** Same families as encode_region_props — one seam law for island props. */
@@ -39,7 +44,7 @@ const PROP_FAMILIES = new Set(['wire', 'store', 'snippet', 'fn', 'derived']);
 /** The request being rendered (null off-request: prerender, a test). */
 function current_request(): Request | null {
 	try {
-		return getRequestEvent().request;
+		return get_request_event().request;
 	} catch {
 		return null;
 	}
@@ -49,16 +54,16 @@ function current_request(): Request | null {
  *  plugins' `app.capability`, which the handle hands it) expires and renews by this one rule. */
 export const app_lifetime: CapabilityLifetime = capability_lifetime({
 	building,
-	region_ttl: regionTtl,
-	renew_window: renewWindow,
+	region_ttl,
+	renew_window,
 	request: current_request
 });
 
 /** Session sealed into the MAC when `ogygia({ sessionCookie })` is set; empty at prerender. */
 function region_session(): string {
-	if (!sessionCookie) return '';
+	if (!session_cookie) return '';
 	try {
-		return getRequestEvent().cookies.get(sessionCookie) ?? '';
+		return get_request_event().cookies.get(session_cookie) ?? '';
 	} catch {
 		return '';
 	}
@@ -76,7 +81,7 @@ const EMPTY_FPS: ReadonlySet<string> = new Set();
 export function known_region_fps(): ReadonlySet<string> {
 	let event;
 	try {
-		event = getRequestEvent();
+		event = get_request_event();
 	} catch {
 		return EMPTY_FPS; // no request scope (prerender / off-request) → render all
 	}
@@ -97,7 +102,7 @@ export function known_region_fps(): ReadonlySet<string> {
 /**
  * Shared minting core for signed region capabilities — the ONE source of truth for the
  * `/__ogygia__?id&props&exp&sig` URL, its MAC message, TTL policy, and session sealing. Both held regions
- * (via {@link makeRegionEndpoint}) and server islands (Region.svelte's server branch) sign through this,
+ * (via {@link make_region_endpoint}) and server islands (Region.svelte's server branch) sign through this,
  * each deriving/validating its own `payload` first (held regions degrade to `''` on failure, server
  * islands throw). Given a valid encoded `payload`, the emitted URL/MAC/exp is identical to both.
  *
@@ -119,7 +124,7 @@ export function mint_region_capability(entry: string, payload: string, ttl = 0):
 	const ttl_field = ttl > 0 ? String(Math.floor(ttl)) : '';
 	// `r`: what the endpoint renders (the component), signed — a build that no longer has this `id`
 	// (another schedule, preset or salt) still answers it (compiler/region/identity.ts `renderId`)
-	const render = island_render[entry] ?? '';
+	const render = region_render[entry] ?? '';
 	const sig = sign(key.secret, region_mac_message(entry, exp, payload, session, ttl_field, render));
 	const ttl_param = ttl_field ? `&ttl=${ttl_field}` : '';
 	if (DEVTOOLS)
@@ -132,10 +137,10 @@ export function mint_region_capability(entry: string, payload: string, ttl = 0):
  * Server-island mint: encode `props` (devalue + wire codec), enforce the size cap (THROW — a server
  * island with oversized/non-serializable props is an author bug the handle would reject anyway), and
  * sign. The one place `Region.svelte`'s `__mode: 'server'` branch signs its hole; routed through the
- * `virtual:ogygia/region-endpoint` virtual so the client build stubs it to `''` (server islands never
+ * `ogygia:server/region-endpoint` virtual so the client build stubs it to `''` (server islands never
  * mint on the client — the runtime fetches the endpoint). Mirrors the old `ServerIsland.svelte`.
  */
-export function mintServerIsland(entry: string, props: Record<string, unknown>, ttl = 0): string {
+export function mint_server_region(entry: string, props: Record<string, unknown>, ttl = 0): string {
 	ensure_prop_kinds();
 	const payload = B64Url.encode(stringify(props, { [REF_WIRE_KEY]: ref_reducer(PROP_FAMILIES) }));
 	if (payload.length > MAX_REGION_PROPS_LEN) {
@@ -149,7 +154,7 @@ export function mintServerIsland(entry: string, props: Record<string, unknown>, 
 }
 
 /** HMAC-signed `<endpoint>?id&props&exp&sig` (`handle({ endpoint })`, default `/__ogygia__`) for re-rendering `entry` with `props`. */
-export function makeRegionEndpoint(entry: string, props: Record<string, unknown> = {}): string {
+export function make_region_endpoint(entry: string, props: Record<string, unknown> = {}): string {
 	const payload = encode_region_props(props);
 	if (payload == null) {
 		// Non-serializable or oversized props. Degrading to "no endpoint" makes the region behave
@@ -163,4 +168,4 @@ export function makeRegionEndpoint(entry: string, props: Record<string, unknown>
 export { encode_region_props } from './region-props.ts';
 /** The island `data-og-fp` (server/fingerprint.ts) — Region.svelte reaches it through this
  *  client-stubbed virtual, so the native digest never enters the client graph. */
-export { island_fingerprint as islandFingerprint } from './fingerprint.ts';
+export { region_fingerprint } from './fingerprint.ts';

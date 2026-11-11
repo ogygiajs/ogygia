@@ -1,6 +1,6 @@
 /**
  * The postrender plugin's server half (imported by the build through
- * `virtual:ogygia/server-plugins`, with the `postrender({ ttl, default })` options).
+ * `ogygia:server/server-plugins`, with the `postrender({ ttl, default })` options).
  *
  * `page`: the read path. A GET, no query string, not prerendering, on a route that opts in: a stored
  * copy answers — Kit, loads and Svelte never run. A concurrent cold miss JOINS the in-flight render

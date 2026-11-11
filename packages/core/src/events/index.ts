@@ -40,4 +40,4 @@ export {
 	type RuntimeEventInput,
 	type HubEventInput,
 	type NavEventInput
-} from './schema.ts';
+} from '../contract/events.ts';
