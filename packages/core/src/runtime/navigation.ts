@@ -23,7 +23,7 @@
  * imported `@ogygia/machine` itself would share it with the boot, and the bundler would split it
  * into a boot file of its own (./slots.ts `BootLink`).
  */
-import { machine, type Machine } from '@ogygia/machine';
+import { machine, type Machine, type MachineGraph } from '@ogygia/machine';
 
 type States = {
 	idle: {};
@@ -43,6 +43,11 @@ const definition = machine<States>()({ name: 'navigation', initial: 'idle', step
 
 /** The navigation machine the router holds. */
 export type Navigation = Machine<States, typeof steps>;
+
+/** The navigation machine's states and steps, as data (internal/notes/flows/navigation.md draws it). */
+export function navigation_graph(): MachineGraph {
+	return definition.graph();
+}
 
 /** A navigation machine, idle. */
 export function create_navigation(): Navigation {
