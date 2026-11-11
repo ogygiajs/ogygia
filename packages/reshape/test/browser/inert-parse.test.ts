@@ -157,7 +157,7 @@ test('every parse is checked: an answer with a built custom element breaks rule_
 	expect(runtime_rules.broken().map((r) => r.code)).toContain('rule_parse_upgraded');
 });
 
-test('production: a late restore is said once per page and host tag, with its code', () => {
+test('production: a late restore is said once per page and host tag, with its code', async () => {
 	const said = vi.spyOn(console, 'warn').mockImplementation(() => {});
 	const w = window as { __og_restore_log?: { kind: string; host: string }[] };
 	w.__og_restore_log = [
@@ -166,6 +166,8 @@ test('production: a late restore is said once per page and host tag, with its co
 		{ kind: 'late', host: 'demo-link' }
 	];
 	report_restores();
+	// (the wording loads when there is something to say, off the boot)
+	await vi.waitFor(() => expect(said).toHaveBeenCalled());
 	const lines = said.mock.calls.map((c) => String(c[0]));
 	expect(lines.filter((l) => l.includes('restore_late'))).toHaveLength(2);
 	expect(lines.some((l) => l.includes('demo-card'))).toBe(true);

@@ -4,7 +4,6 @@
  * and the beacon read it too). The boot reports what the document's own run recorded, and wraps
  * `window.__og_restore` so every later run — a hole answer, a router swap — reports its own.
  */
-import { OgygiaError, warn } from './messages.ts';
 import { say } from '@ogygia/machine';
 
 type RestoreWindow = {
@@ -21,16 +20,23 @@ function report(): void {
 	if (!log) return;
 	// (a log made anew, a test's: start from its top)
 	if (reported > log.length) reported = 0;
-	for (; reported < log.length; reported++) {
-		const entry = log[reported];
-		if (entry.kind === 'mismatch' && entry.diff)
-			console.error(new OgygiaError('restore_markup_broken', { diff: entry.diff }));
-		// in every build: a late host loses nothing now, but it shows a part of the page late (#382)
-		else if (entry.kind === 'late' && entry.host) {
-			const host = entry.host;
-			late_said.once(host, () => warn('restore_late', { host }));
+	const fresh = log.slice(reported);
+	reported = log.length;
+	if (!fresh.some((e) => (e.kind === 'mismatch' && e.diff) || (e.kind === 'late' && e.host)))
+		return;
+	const say_them = ({ OgygiaError, warn }: typeof import('./messages.ts')) => {
+		for (const entry of fresh) {
+			if (entry.kind === 'mismatch' && entry.diff)
+				console.error(new OgygiaError('restore_markup_broken', { diff: entry.diff }));
+			// in every build: a late host loses nothing now, but it shows a part of the page late (#382)
+			else if (entry.kind === 'late' && entry.host) {
+				const host = entry.host;
+				late_said.once(host, () => warn('restore_late', { host }));
+			}
 		}
-	}
+	};
+	// (the wording loads only when there is something to say: the boot carries none of it)
+	import('./messages.ts').then(say_them, () => {}); // ok: its chunk did not load; the log stays on window.__og_restore_log for the devtools and the beacon
 }
 
 export function report_restores(): void {
