@@ -1,17 +1,3 @@
-/**
- * `fields` — the blessed frontmatter schema family. `fields.page` validates EXACTLY what the ogygia
- * brains read off a doc (title, summary, draft, badge, redirect_from, related) and nothing more. A
- * GENRE is a pre-layered stack over `content()`'s schema-array feature — no new machinery:
- *
- * ```ts
- * content({ loader, schema: fields.page })                       // docs
- * content({ loader, schema: [fields.page, v.object({ author: v.string() })] })   // + your extras
- * content({ loader, schema: fields.post })                       // the blog genre stack
- * ```
- *
- * Hand-written Standard Schema (the `string_arg` precedent in `server.ts`) so ogygia pulls no
- * valibot/zod dependency. Each returns `{ value }` or `{ issues }`.
- */
 import type { SchemaLike } from '../index.ts';
 
 /** What every ogygia surface reads off a page. `title` is required; the rest carry blessed defaults. */
@@ -29,7 +15,6 @@ const str_array = (v: unknown): string[] => (Array.isArray(v) ? v.filter(is_str)
 
 type FieldSchema<Out> = SchemaLike & { readonly ['~standard']: { types?: { output: Out } } };
 
-/** A tiny Standard Schema from a pure `(data) => value | throw`. Keeps the family dependency-free. */
 function schema<Out>(
 	vendor: string,
 	run: (data: Record<string, unknown>) => Out
@@ -97,8 +82,16 @@ const change_only: FieldSchema<ChangeFields> = schema<ChangeFields>(
 );
 
 /**
- * The blessed schema family. `page` is the universal base; `post` / `change` are pre-layered genre
- * stacks (base + genre extras) consumed by `content({ schema })`, which merges array layers left→right.
+ * The site's frontmatter schemas, as Standard Schemas with no validation library behind them.
+ * `page` keeps exactly what the site reads off a page (title, summary, draft, badge, redirect_from,
+ * related) and drops the rest; a page without a title is an issue. `post` and `change` are stacks
+ * (page + genre extras) for `content({ schema })`, which merges array layers left to right:
+ *
+ * ```ts
+ * content({ loader, schema: fields.page });
+ * content({ loader, schema: [fields.page, v.object({ author: v.string() })] });
+ * content({ loader, schema: fields.post });
+ * ```
  */
 export const fields: {
 	page: typeof page;
