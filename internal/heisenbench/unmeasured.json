@@ -3155,6 +3155,54 @@
 		{
 			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > watch_frame_gaps > tick > room:2~3a8aa2",
 			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/document-request.ts > is_document_request",
+			"reason": "two header reads of a Request (not cloneable), constant work, once per request"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > page",
+			"reason": "browser only: the page beacon on a globalThis key (hidden state), one property read"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > beacon_warning > room:2~73a327",
+			"reason": "browser only: one warning's time for the page beacon's room check, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > island_record > room:2~e000b1",
+			"reason": "browser only: one island's start time for the page beacon's room check, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > describe_region",
+			"reason": "browser only: a DOM element to a short label (not replayable), at most a 30-character slice"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > part > visit",
+			"reason": "browser only: copies the regions' visit lists for the page beacon (module state: not replayable), linear in the kept entries; proven in packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > part > snapshots",
+			"reason": "browser only: the hydrated snapshots, re-read from the DOM on the final send (not replayable), linear in the kept snapshots"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > part > waking",
+			"reason": "browser only: whether a region is still waking (a DOM query: not replayable), one querySelectorAll"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > dock_measures",
+			"reason": "a RequestEvent (not cloneable) to whether the dock measures it: a header read and a cookie read, once per request"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > WITH_PAGE_BEACON > transformPageChunk",
+			"reason": "SvelteKit's page transform (an async hook: not recorded): two indexOf calls and one join over the head, once per document"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > after",
+			"reason": "joins two resolve options into one, once per request, constant work"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > after > transformPageChunk",
+			"reason": "SvelteKit's page transform (an async hook: not recorded): runs the inner then the outer transform, constant work of its own"
 		}
 	]
 }
