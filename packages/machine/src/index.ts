@@ -45,4 +45,5 @@ export { outbox, type Outbox, type OutboxOptions } from './outbox.ts';
 export { policy, backoffAfter, type Policy } from './policy.ts';
 export { stage, type Stage, type StageOptions, type Staging } from './stage.ts';
 export { world, type World } from './world.ts';
+export { say, type Say, type SayOptions } from './say.ts';
 export { MachineError, MACHINE_ERRORS, MACHINE_WARNINGS } from './messages.ts';

@@ -6,6 +6,7 @@
  * alone (the page words it from the link's arguments).
  */
 import { BROWSER, DEV } from 'esm-env';
+import { say, type Say } from './say.ts';
 
 type Entry<A> = { text: (a: A) => string; details: () => string };
 
@@ -76,7 +77,8 @@ export const MACHINE_ERRORS: MachineErrors = {
 		details: (): string =>
 			'An option was given a value it cannot take. `retries` counts tries: a whole number of 0 ' +
 			'or more. A flights `keep` is milliseconds: 0 or more, `Infinity` for as long as the ' +
-			'flights lives. A flights `max` is the most weight it keeps: more than 0.'
+			'flights lives. A flights `max` is the most weight it keeps: more than 0. A `say()` `max` ' +
+			'is the most keys it remembers: a whole number, 1 or more.'
 	},
 	machine_bad_time: {
 		text: (a: { where: string; ms: string }): string =>
@@ -242,12 +244,12 @@ export function report_thrown<C extends keyof Errors>(code: C, a: ArgsOf<C>, cau
 	page(cause);
 }
 
-const warned = new Set<string>();
+/** The warnings said, by their text (bounded: say.ts). Made on the first warning: say.ts imports
+ *  this module. */
+let warned: Say | null = null;
 
-/** Prints `code` once for each distinct set of arguments. */
+/** Prints `code` once for each distinct set of arguments (of the last 1024 said). */
 export function warn_once<C extends keyof Errors>(code: C, a: ArgsOf<C>): void {
 	const text = line(code, a);
-	if (warned.has(text)) return;
-	warned.add(text);
-	console.warn(text);
+	(warned ??= say()).once(text, () => console.warn(text));
 }
