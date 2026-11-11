@@ -120,6 +120,47 @@ test('a refetch that failed does not mark the hole’s first answer a refresh', 
 	expect(hole.hasAttribute('data-hydrated'), 'marked answered').toBe(true);
 });
 
+test('a refresh that re-mints a hole while its first fetch is out shows the new address’s answer, not the old one', async () => {
+	// The live region's first render mints the hole at E1; its fetch is out when the next render
+	// re-mints it at E2 (new props). The old answer lands last: the hole must end on E2's answer.
+	const E1 = ep('life00000005', 'cHJvcHMx');
+	const E2 = ep('life00000005', 'cHJvcHMy');
+	const answers = new Map<string, (r: Response) => void>();
+	window.fetch = (input) =>
+		new Promise<Response>((resolve) =>
+			answers.set(String(input).includes('cHJvcHMy') ? 'E2' : 'E1', resolve)
+		);
+	const live = document.createElement('ogygia-region');
+	live.setAttribute('live', '');
+	document.body.append(live);
+	bootDev();
+	type Live = { applyLive(desc: Record<string, unknown>): Promise<void> };
+	const tick_with = (endpoint: string) =>
+		(live as unknown as Live).applyLive({
+			id: 'life-live',
+			module: '',
+			props: {},
+			html: plain_hole(endpoint),
+			url: ep('life0001live')
+		});
+	await tick_with(E1);
+	await expect.poll(() => answers.has('E1'), { timeout: 5_000 }).toBe(true);
+	await tick_with(E2);
+	const hole = live.querySelector('ogygia-region')!;
+	expect(hole.getAttribute('endpoint'), 'the refresh re-minted it').toBe(E2);
+	await expect
+		.poll(() => answers.has('E2'), { timeout: 5_000, message: 'the new address is asked for' })
+		.toBe(true);
+	answers.get('E2')!(html('<p data-testid="new">new props</p>'));
+	await expect
+		.poll(() => hole.querySelector('[data-testid="new"]') !== null, { timeout: 5_000 })
+		.toBe(true);
+	answers.get('E1')!(html('<p data-testid="old">old props</p>'));
+	await tick(100);
+	expect(hole.querySelector('[data-testid="old"]'), 'the old answer never paints').toBeNull();
+	expect(hole.querySelector('[data-testid="new"]')).not.toBeNull();
+});
+
 test('a hole answered twice moves once per answer, and the second answer is the one on screen', async () => {
 	const E = ep('life00000006');
 	window.fetch = async () => html('<p data-testid="first">first</p>');

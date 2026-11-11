@@ -15,9 +15,11 @@ on:
   schedule:
     - cron: '30 21 * * *'
 
+# (a pull request reads the cache and never writes it: only main's runs fill it)
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  TURBO_REMOTE_CACHE_READ_ONLY: ${{ github.event_name != 'push' }}
 
 # (a push cancels the PR's older run; adding another label does not)
 concurrency:
