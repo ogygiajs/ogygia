@@ -7,6 +7,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { flights, scope } from '@ogygia/machine';
 import { install_server_rules, note_response_end, server_rules } from '../src/server/rules.ts';
 import { own_response } from '../src/plugin/request-scope.ts';
+import { note_per_visitor } from '../src/plugin/facts.ts';
+import { inRequest } from '../src/plugin/testing.ts';
+import { cached_render, render_cache_get, render_cache_key } from '../src/server/render-cache.ts';
 
 install_server_rules();
 const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
@@ -58,6 +61,36 @@ describe('server rules', () => {
 		// once that answer is no longer kept, nothing keeps a failure: the rule holds again, so the
 		// next check (the next response, a simulated run) sees only its own breaks
 		keeps.drop(undefined);
+		expect(server_rules.broken()).toEqual([]);
+	});
+
+	it('a kept render that read what its key leaves out breaks the rule; the render cache keeps none', async () => {
+		const keeps = flights({
+			name: 'probe keeps a read',
+			run: async () => ({ html: '<p>b</p>', unkeyed_read: 'flag:hero' })
+		});
+		await keeps.get();
+		expect(server_rules.broken()).toEqual([
+			{
+				code: 'rule_kept_unkeyed_read',
+				detail: '"probe keeps a read" kept a render that read flag:hero'
+			}
+		]);
+		keeps.drop(undefined);
+		expect(server_rules.broken()).toEqual([]);
+		// the render cache itself: a render that reads per visitor, anonymous, is not kept
+		const request = new Request('https://app.test/_ogygia/region');
+		const html = await inRequest({ request }, () =>
+			cached_render(
+				() => {
+					note_per_visitor(request, 'flag:hero');
+					return '<p>b</p>';
+				},
+				{ key: render_cache_key('rule', '{}', ''), ttl: 60 }
+			)
+		);
+		expect(html).toBe('<p>b</p>');
+		expect(render_cache_get(render_cache_key('rule', '{}', ''))).toBe(null);
 		expect(server_rules.broken()).toEqual([]);
 	});
 });
