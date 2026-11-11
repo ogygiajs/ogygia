@@ -14,7 +14,7 @@
  * (critically) survives partial/invalid syntax mid-edit in dev. The git loader proved it; this is
  * that scanner, generalized so all constructs share one code path.
  */
-import { OgygiaError } from '../../messages/build.ts';
+import { OgygiaError } from '../messages.ts';
 
 // ── regexes
 const REGEX_FLAG_RE = /[a-z]/i;
