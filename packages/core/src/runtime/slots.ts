@@ -91,7 +91,8 @@ export type RemoteSeedOps = {
 	seed_once(): void;
 	seed_query_responses(text: string): void;
 	clear_remote_seeds(): void;
-	clear_remote_instances(): void;
+	/** destroy the query instances only departed islands held (shims/kit-remote/remote-cache.ts) */
+	release_remote_instances(): void;
 };
 
 /** The page as island code sees it, filled by the `page` feature (./seeds.ts). Null when no island

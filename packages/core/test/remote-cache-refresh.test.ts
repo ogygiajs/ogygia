@@ -46,6 +46,7 @@ describe('remote_cache.refresh_instances', () => {
 		expect(refreshed).toBe(1);
 		expect(reconnected).toBe(1);
 
-		remote_cache.clear_instances();
+		remote_cache.query_map.delete(query_key);
+		remote_cache.live_query_map.delete(live_key);
 	});
 });
