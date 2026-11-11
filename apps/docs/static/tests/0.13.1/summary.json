@@ -1,0 +1,262 @@
+{
+	"version": "0.13.1",
+	"commit": "4b18f46534e0e6bc99d14827c2bf5913dfc11476",
+	"date": "2026-11-11T14:03:11.460Z",
+	"engines": [
+		"chromium",
+		"firefox",
+		"webkit"
+	],
+	"e2e": false,
+	"totals": {
+		"tests": 4418,
+		"byKind": {
+			"unit": 3773,
+			"browser": 638,
+			"e2e": 0,
+			"types": 0,
+			"rules": 7
+		},
+		"byEngine": {
+			"chromium": {
+				"pass": 643,
+				"fail": 0,
+				"skip": 0
+			},
+			"firefox": {
+				"pass": 640,
+				"fail": 0,
+				"skip": 3
+			},
+			"webkit": {
+				"pass": 639,
+				"fail": 0,
+				"skip": 4
+			}
+		},
+		"regression": 167,
+		"seeded": 23,
+		"benches": 165,
+		"srcLines": 151281,
+		"testLines": 96705,
+		"ratio": 0.64,
+		"ratioDefinition": "non-blank lines of test code across the repo (*.test.ts, *.test-d.ts, *.spec.ts, and the .ts helpers in test/ and e2e/ folders; no fixtures, fixture apps, stubs or benches), over non-blank lines of packages/*/src (no .d.ts or generated files)",
+		"coverage": {
+			"lines": 65.89,
+			"branches": 56.76,
+			"functions": 59.48,
+			"statements": 63.01
+		}
+	},
+	"packages": {
+		"@ogygia/cli": {
+			"tests": 43,
+			"byKind": {
+				"unit": 43,
+				"browser": 0,
+				"e2e": 0,
+				"types": 0,
+				"rules": 0
+			},
+			"coverage": {
+				"lines": 39.78,
+				"branches": 40.06,
+				"functions": 45.73,
+				"statements": 40.4
+			},
+			"srcLines": 3980,
+			"testLines": 1290,
+			"fail": 0
+		},
+		"@ogygia/content": {
+			"tests": 466,
+			"byKind": {
+				"unit": 459,
+				"browser": 7,
+				"e2e": 0,
+				"types": 0,
+				"rules": 0
+			},
+			"coverage": {
+				"lines": 77.02,
+				"branches": 62.73,
+				"functions": 71.42,
+				"statements": 73.12
+			},
+			"srcLines": 12267,
+			"testLines": 5769,
+			"fail": 0
+		},
+		"@ogygia/core": {
+			"tests": 2264,
+			"byKind": {
+				"unit": 1938,
+				"browser": 319,
+				"e2e": 0,
+				"types": 0,
+				"rules": 7
+			},
+			"coverage": {
+				"lines": 73.33,
+				"branches": 60.76,
+				"functions": 73.31,
+				"statements": 70.61
+			},
+			"srcLines": 62348,
+			"testLines": 38593,
+			"fail": 0
+		},
+		"@ogygia/devtools": {
+			"tests": 749,
+			"byKind": {
+				"unit": 749,
+				"browser": 0,
+				"e2e": 0,
+				"types": 0,
+				"rules": 0
+			},
+			"coverage": {
+				"lines": 54.89,
+				"branches": 50.08,
+				"functions": 40.07,
+				"statements": 51.58
+			},
+			"srcLines": 59497,
+			"testLines": 20884,
+			"fail": 0
+		},
+		"@ogygia/federation": {
+			"tests": 65,
+			"byKind": {
+				"unit": 65,
+				"browser": 0,
+				"e2e": 0,
+				"types": 0,
+				"rules": 0
+			},
+			"coverage": {
+				"lines": 75.76,
+				"branches": 62.55,
+				"functions": 78.57,
+				"statements": 71.8
+			},
+			"srcLines": 1855,
+			"testLines": 2121,
+			"fail": 0
+		},
+		"@ogygia/flags": {
+			"tests": 44,
+			"byKind": {
+				"unit": 44,
+				"browser": 0,
+				"e2e": 0,
+				"types": 0,
+				"rules": 0
+			},
+			"coverage": {
+				"lines": 88,
+				"branches": 74.67,
+				"functions": 86.44,
+				"statements": 87.37
+			},
+			"srcLines": 825,
+			"testLines": 655,
+			"fail": 0
+		},
+		"@ogygia/machine": {
+			"tests": 627,
+			"byKind": {
+				"unit": 315,
+				"browser": 312,
+				"e2e": 0,
+				"types": 0,
+				"rules": 0
+			},
+			"coverage": {
+				"lines": 96.78,
+				"branches": 95.91,
+				"functions": 91.37,
+				"statements": 96.33
+			},
+			"srcLines": 2832,
+			"testLines": 4504,
+			"fail": 0
+		},
+		"@ogygia/postrender": {
+			"tests": 80,
+			"byKind": {
+				"unit": 80,
+				"browser": 0,
+				"e2e": 0,
+				"types": 0,
+				"rules": 0
+			},
+			"coverage": {
+				"lines": 89.4,
+				"branches": 72.93,
+				"functions": 83.68,
+				"statements": 87.45
+			},
+			"srcLines": 2259,
+			"testLines": 2791,
+			"fail": 0
+		},
+		"@ogygia/router": {
+			"tests": 50,
+			"byKind": {
+				"unit": 50,
+				"browser": 0,
+				"e2e": 0,
+				"types": 0,
+				"rules": 0
+			},
+			"coverage": {
+				"lines": 70.42,
+				"branches": 52.45,
+				"functions": 69.35,
+				"statements": 67.71
+			},
+			"srcLines": 2160,
+			"testLines": 1110,
+			"fail": 0
+		},
+		"@ogygia/testing": {
+			"tests": 27,
+			"byKind": {
+				"unit": 27,
+				"browser": 0,
+				"e2e": 0,
+				"types": 0,
+				"rules": 0
+			},
+			"coverage": {
+				"lines": 79.76,
+				"branches": 70.66,
+				"functions": 71.52,
+				"statements": 78.64
+			},
+			"srcLines": 1311,
+			"testLines": 1066,
+			"fail": 0
+		},
+		"@ogygia/tooling": {
+			"tests": 3,
+			"byKind": {
+				"unit": 3,
+				"browser": 0,
+				"e2e": 0,
+				"types": 0,
+				"rules": 0
+			},
+			"coverage": {
+				"lines": 16.2,
+				"branches": 13.36,
+				"functions": 18.08,
+				"statements": 16.47
+			},
+			"srcLines": 946,
+			"testLines": 81,
+			"fail": 0
+		}
+	}
+}
