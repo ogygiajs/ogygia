@@ -261,8 +261,12 @@ declare module 'virtual:ogygia/runtime-flags' {
 	export const FRAMES: boolean;
 }
 declare module 'virtual:ogygia/transportables' {
-	/** client: a transportable class module's tag path → its lazy import (server: empty, eager) */
-	export const wire_loaders: Record<string, () => Promise<unknown>>;
+	/** client: a transportable class module's tag path → its lazy import, the file it imports (`null`
+	 *  when it has none of its own) and the URL that file is relative to (server: empty, eager) */
+	export const wire_loaders: Record<
+		string,
+		readonly [load: () => Promise<unknown>, file: string | null, base: string]
+	>;
 	/** client: the app sends wired values through Kit's transport — every class loads with every island */
 	export const wire_all: boolean;
 }
