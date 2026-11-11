@@ -42,7 +42,7 @@ test.describe('a retried import', () => {
 		check(
 			'the Outer island is still the Outer island',
 			(await outer_btn.count()) === 1 &&
-				/^outer A/.test(((await outer_btn.textContent()) ?? '').trim()),
+				((await outer_btn.textContent()) ?? '').trim().startsWith('outer A'),
 			(await page.locator('ogygia-region').first().innerHTML()).slice(0, 200)
 		);
 		check(
