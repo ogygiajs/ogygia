@@ -484,6 +484,9 @@ importers:
       '@fontsource-variable/jetbrains-mono':
         specifier: ^5.3.0
         version: 5.3.0
+      '@ogygia/barrels':
+        specifier: workspace:*
+        version: link:../../packages/barrels
       '@ogygia/cli':
         specifier: workspace:*
         version: link:../../packages/cli
@@ -508,6 +511,9 @@ importers:
       '@ogygia/postrender':
         specifier: workspace:*
         version: link:../../packages/postrender
+      '@ogygia/reshape':
+        specifier: workspace:*
+        version: link:../../packages/reshape
       '@ogygia/router':
         specifier: workspace:*
         version: link:../../packages/router
@@ -574,6 +580,9 @@ importers:
 
   apps/palaestra:
     dependencies:
+      '@ogygia/barrels':
+        specifier: workspace:*
+        version: link:../../packages/barrels
       '@rolldown/browser':
         specifier: 'catalog:'
         version: 1.2.2
@@ -800,6 +809,9 @@ importers:
 
   examples/mfe/contracts:
     dependencies:
+      '@ogygia/federation':
+        specifier: workspace:*
+        version: link:../../../packages/federation
       '@ogygia/flags':
         specifier: workspace:*
         version: link:../../../packages/flags
@@ -956,6 +968,43 @@ importers:
   internal/repro-hole-css-kit: {}
 
   internal/repro-subpkg: {}
+
+  packages/barrels:
+    dependencies:
+      '@ogygia/machine':
+        specifier: workspace:^
+        version: link:../machine
+      magic-string:
+        specifier: 'catalog:'
+        version: 1.4.5
+    devDependencies:
+      '@ogygia/config':
+        specifier: workspace:*
+        version: link:../config
+      '@ogygia/core':
+        specifier: workspace:*
+        version: link:../core
+      '@sveltejs/vite-plugin-svelte':
+        specifier: 'catalog:'
+        version: 7.2.0(svelte@5.56.8)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
+      svelte:
+        specifier: 'catalog:'
+        version: 5.56.8
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
   packages/cli:
     dependencies:
@@ -1228,6 +1277,9 @@ importers:
       '@ogygia/machine':
         specifier: workspace:^
         version: link:../machine
+      '@ogygia/reshape':
+        specifier: workspace:^
+        version: link:../reshape
       '@ogygia/router':
         specifier: workspace:^
         version: link:../router
@@ -1301,9 +1353,15 @@ importers:
       '@ionic/core':
         specifier: ^9.0.4
         version: 9.0.4
+      '@ogygia/barrels':
+        specifier: workspace:*
+        version: link:../../../barrels
       '@ogygia/devtools':
         specifier: workspace:*
         version: link:../..
+      '@ogygia/reshape':
+        specifier: workspace:*
+        version: link:../../../reshape
       '@ogygia/router':
         specifier: workspace:*
         version: link:../../../router
@@ -1347,6 +1405,9 @@ importers:
       '@ogygia/machine':
         specifier: workspace:^
         version: link:../machine
+      devalue:
+        specifier: 'catalog:'
+        version: 5.9.4
     devDependencies:
       '@ogygia/config':
         specifier: workspace:*
@@ -1371,13 +1432,16 @@ importers:
         version: 1.62.1
       '@sveltejs/kit':
         specifier: 'catalog:'
-        version: 2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.57.2)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.57.2)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+        version: 2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.56.8)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.56.8)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.2
       '@typescript/native':
         specifier: catalog:tsgo
         version: typescript@7.0.2
+      svelte:
+        specifier: 'catalog:'
+        version: 5.56.8
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
@@ -1576,6 +1640,83 @@ importers:
         specifier: workspace:*
         version: link:../../../ogygia
 
+  packages/reshape:
+    dependencies:
+      '@ogygia/machine':
+        specifier: workspace:^
+        version: link:../machine
+      esm-env:
+        specifier: 'catalog:'
+        version: 1.2.2
+    devDependencies:
+      '@ogygia/config':
+        specifier: workspace:*
+        version: link:../config
+      '@ogygia/core':
+        specifier: workspace:*
+        version: link:../core
+      '@ogygia/tooling':
+        specifier: workspace:*
+        version: link:../tooling
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.62.1
+      '@sveltejs/kit':
+        specifier: 'catalog:'
+        version: 2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.56.8)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.56.8)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
+      '@vitest/browser':
+        specifier: 'catalog:'
+        version: 4.1.12(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
+      '@vitest/browser-playwright':
+        specifier: 'catalog:'
+        version: 4.1.12(playwright@1.62.1)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
+      svelte:
+        specifier: 'catalog:'
+        version: 5.56.8
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+
+  packages/reshape/e2e/app:
+    dependencies:
+      '@ogygia/reshape':
+        specifier: workspace:*
+        version: link:../..
+      ogygia:
+        specifier: workspace:*
+        version: link:../../../ogygia
+    devDependencies:
+      '@sveltejs/adapter-node':
+        specifier: 'catalog:'
+        version: 5.5.7(@sveltejs/kit@2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.56.8)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.56.8)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))
+      '@sveltejs/kit':
+        specifier: 'catalog:'
+        version: 2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.56.8)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.56.8)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      '@sveltejs/vite-plugin-svelte':
+        specifier: 'catalog:'
+        version: 7.2.0(svelte@5.56.8)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      svelte:
+        specifier: 'catalog:'
+        version: 5.56.8
+      svelte-check:
+        specifier: 'catalog:'
+        version: 4.7.4(picomatch@4.0.7)(svelte@5.56.8)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
+
   packages/router:
     dependencies:
       '@ogygia/machine':
@@ -1731,7 +1872,7 @@ importers:
     dependencies:
       magic-string:
         specifier: ^1.1.0
-        version: 1.1.0
+        version: 1.4.5
     devDependencies:
       '@sveltejs/vite-plugin-svelte':
         specifier: 'catalog:'
@@ -2437,9 +2578,6 @@ packages:
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
     engines: {node: '>=6.0.0'}
-
-  '@jridgewell/sourcemap-codec@1.5.5':
-    resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
   '@jridgewell/sourcemap-codec@1.6.0':
     resolution: {integrity: sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw==}
@@ -3371,11 +3509,6 @@ packages:
     engines: {node: '>=16.0.0', npm: '>=7.10.0'}
     hasBin: true
 
-  '@sveltejs/acorn-typescript@1.0.11':
-    resolution: {integrity: sha512-LFuZUkjJ9iF7JZye/aG5XM0SFcQ5VyL0oVX4WJ9dc0Va3R3s0OauX1BESVCb+YN/ol8TAfqGDDAQsTG627Y5kw==}
-    peerDependencies:
-      acorn: ^8.9.0
-
   '@sveltejs/acorn-typescript@1.0.13':
     resolution: {integrity: sha512-wgKggnhZVL9Bfx1OaKKTrYY9BFRk6C8UAkQNUcIv1+llzYrIqy+RZm5HPKzn0NpEBvTVhTqB4kQyllZywsRBRQ==}
     peerDependencies:
@@ -4159,10 +4292,6 @@ packages:
   buffer@6.0.3:
     resolution: {integrity: sha512-FTiCpNxtwiZZHEZbcbTIcZjERVICn9yq/pDFkTl95/AxzD1naBctN7YO68riM/gLSDY7sdrMby8hofADYuuqOA==}
 
-  cac@7.0.0:
-    resolution: {integrity: sha512-tixWYgm5ZoOD+3g6UTea91eow5z6AAHaho3g0V9CNSNb45gM8SmflpAc+GRd1InC4AqN/07Unrgp56Y94N9hJQ==}
-    engines: {node: '>=20.19.0'}
-
   cac@7.1.0:
     resolution: {integrity: sha512-LMDU/U2yA4IPIY8KT0NsNPWEYZvAMkbgyspxJ6btJaYV+WMDOHAZCmB0lsTObiHaRS1V/ztKAl7+TSkTqXyeoA==}
     engines: {node: '>=20.19.0'}
@@ -4520,14 +4649,6 @@ packages:
     resolution: {integrity: sha512-eGuFFw7Upda+g4p+QHvnW0RyTX/SVeJBDM/gCtMARO0cLuT2HcEKnTPvhjV6aGeqrCB/sbNop0Kszm0jsaWU4A==}
     engines: {node: '>=4'}
     hasBin: true
-
-  esrap@2.3.0:
-    resolution: {integrity: sha512-GQ/7RN8uOtEfNpzZzBMTzW9JBcX42oaSVtPzdF+6cEL8pqIL094iUpr9jzYGn4O4P/1S60dJ6izyT8F4LYARng==}
-    peerDependencies:
-      '@typescript-eslint/types': ^8.2.0
-    peerDependenciesMeta:
-      '@typescript-eslint/types':
-        optional: true
 
   esrap@2.4.0:
     resolution: {integrity: sha512-CQPcneEHw/czj32uwQC52nYnax8H4SXt25FCM+LIwGZ49cMIxpOj3bP8wmzcI+Z0HIy5KkClaPhRLfCySzwHPA==}
@@ -5020,9 +5141,6 @@ packages:
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
-
-  magic-string@1.1.0:
-    resolution: {integrity: sha512-kS3VHe0nEPST2saQV4Rbkchcd3UBRkVTQHo1D3h/ZTwFDhai/mfKkmtPAtD129EOI7K3HlHIsFOt0WrI2/oU9g==}
 
   magic-string@1.4.5:
     resolution: {integrity: sha512-oLLC2+YvQUfAa+vxoufE/yc1icb87M9iXIRqAoR/2EhE/8cb3SF/+Gi0c2By1B+5Vz2e2vQtUvHiu1+63Znh+w==}
@@ -6430,7 +6548,7 @@ snapshots:
       '@clack/prompts': 1.8.1
       '@manypkg/get-packages': 3.1.0
       '@pnpm/deps.graph-sequencer': 1100.0.1
-      cac: 7.0.0
+      cac: 7.1.0
       import-meta-resolve: 4.2.0
       launch-editor: 2.14.2
       package-manager-detector: 1.8.0
@@ -6931,8 +7049,6 @@ snapshots:
       '@jridgewell/trace-mapping': 0.3.31
 
   '@jridgewell/resolve-uri@3.1.2': {}
-
-  '@jridgewell/sourcemap-codec@1.5.5': {}
 
   '@jridgewell/sourcemap-codec@1.6.0': {}
 
@@ -7582,10 +7698,6 @@ snapshots:
       '@rollup/rollup-win32-arm64-msvc': 4.44.0
       '@rollup/rollup-win32-x64-msvc': 4.44.0
 
-  '@sveltejs/acorn-typescript@1.0.11(acorn@8.18.0)':
-    dependencies:
-      acorn: 8.18.0
-
   '@sveltejs/acorn-typescript@1.0.13(acorn@8.18.0)':
     dependencies:
       acorn: 8.18.0
@@ -7824,7 +7936,7 @@ snapshots:
 
   '@types/mdast@4.0.4':
     dependencies:
-      '@types/unist': 3.0.3
+      '@types/unist': 2.0.11
 
   '@types/ms@2.1.0': {}
 
@@ -8339,7 +8451,7 @@ snapshots:
       create-hash: 1.2.0
       evp_bytestokey: 1.0.3
       inherits: 2.0.4
-      safe-buffer: 5.1.2
+      safe-buffer: 5.2.1
 
   browserify-cipher@1.0.1:
     dependencies:
@@ -8352,7 +8464,7 @@ snapshots:
       cipher-base: 1.0.7
       des.js: 1.1.0
       inherits: 2.0.4
-      safe-buffer: 5.1.2
+      safe-buffer: 5.2.1
 
   browserify-rsa@4.1.1:
     dependencies:
@@ -8382,8 +8494,6 @@ snapshots:
     dependencies:
       base64-js: 1.5.1
       ieee754: 1.2.1
-
-  cac@7.0.0: {}
 
   cac@7.1.0: {}
 
@@ -8529,7 +8639,7 @@ snapshots:
       create-hash: 1.2.0
       inherits: 2.0.4
       ripemd160: 2.0.3
-      safe-buffer: 5.1.2
+      safe-buffer: 5.2.1
       sha.js: 2.4.12
 
   crelt@1.0.7: {}
@@ -8802,10 +8912,6 @@ snapshots:
 
   esprima@4.0.1: {}
 
-  esrap@2.3.0:
-    dependencies:
-      '@jridgewell/sourcemap-codec': 1.6.0
-
   esrap@2.4.0:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
@@ -8833,7 +8939,7 @@ snapshots:
   evp_bytestokey@1.0.3:
     dependencies:
       md5.js: 1.3.5
-      safe-buffer: 5.1.2
+      safe-buffer: 5.2.1
 
   expect-type@1.4.0: {}
 
@@ -9264,10 +9370,6 @@ snapshots:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  magic-string@1.1.0:
-    dependencies:
-      '@jridgewell/sourcemap-codec': 1.5.5
-
   magic-string@1.4.5:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
@@ -9288,7 +9390,7 @@ snapshots:
     dependencies:
       hash-base: 3.0.5
       inherits: 2.0.4
-      safe-buffer: 5.1.2
+      safe-buffer: 5.2.1
 
   mdast-util-from-markdown@2.0.3(supports-color@8.1.1):
     dependencies:
@@ -9738,7 +9840,7 @@ snapshots:
       create-hash: 1.2.0
       parse-asn1: 5.1.9
       randombytes: 2.1.0
-      safe-buffer: 5.1.2
+      safe-buffer: 5.2.1
 
   pump@3.0.4:
     dependencies:
@@ -9753,12 +9855,12 @@ snapshots:
 
   randombytes@2.1.0:
     dependencies:
-      safe-buffer: 5.1.2
+      safe-buffer: 5.2.1
 
   randomfill@1.0.4:
     dependencies:
       randombytes: 2.1.0
-      safe-buffer: 5.1.2
+      safe-buffer: 5.2.1
 
   readable-stream@2.3.8:
     dependencies:
@@ -10256,7 +10358,7 @@ snapshots:
     dependencies:
       '@jridgewell/remapping': 2.3.5
       '@jridgewell/sourcemap-codec': 1.6.0
-      '@sveltejs/acorn-typescript': 1.0.11(acorn@8.18.0)
+      '@sveltejs/acorn-typescript': 1.0.13(acorn@8.18.0)
       '@types/estree': 1.0.9
       '@types/trusted-types': 2.0.7
       acorn: 8.18.0
@@ -10265,7 +10367,7 @@ snapshots:
       clsx: 2.1.1
       devalue: 5.9.4
       esm-env: 1.2.2
-      esrap: 2.3.0
+      esrap: 2.4.0
       is-reference: 3.0.3
       locate-character: 3.0.0
       magic-string: 0.30.21
@@ -10414,7 +10516,7 @@ snapshots:
 
   twoslash-svelte@0.3.9(supports-color@8.1.1)(svelte@5.56.8)(typescript@6.0.3):
     dependencies:
-      '@jridgewell/sourcemap-codec': 1.5.5
+      '@jridgewell/sourcemap-codec': 1.6.0
       '@volar/language-core': 2.4.28
       estree-walker: 3.0.3
       svelte: 5.56.8

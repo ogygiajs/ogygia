@@ -5,9 +5,9 @@
  * for that purpose (0.4.1) puts the same default-export module in the page graph and the
  * `emitFile` island entry → Rolldown thin-facades `og-region.*`.
  *
- * Hosts instead import `virtual:ogygia/fouc-css/<encoded>.js` which side-effect-imports:
+ * Hosts instead import `ogygia:region/fouc-css/<encoded>.js` which side-effect-imports:
  *   - plain `.css` files reachable from the entry
- *   - `virtual:ogygia/fouc-scoped/<encoded>.css` for each `.svelte` with a `<style>` block
+ *   - `ogygia:region/fouc-scoped/<encoded>.css` for each `.svelte` with a `<style>` block
  * Aggregator ids end in `.js` and scoped ids in `.css` so vite-plugin-svelte / Vite classify
  * them correctly (never as `.svelte` components). Scoped CSS is compiled with the real
  * filename so hashes match SSR.
@@ -16,14 +16,14 @@
 import { fs, path } from './host.ts';
 import { compile, parse } from 'svelte/compiler';
 import { walk } from 'estree-walker';
-import { unscoped_marker } from '../unscoped-css.ts';
+import { unscoped_marker } from '../contract/unscoped-css.ts';
 import { blank_styles } from './blank-styles.ts';
-import { BarrelIndex } from './debarrel/barrel.ts';
-import { analyze_exports, analyze_imports } from './debarrel/parse.ts';
-import { warn } from '../messages/build.ts';
+import { EVERY_BARREL, ExportIndex, Shapes } from './exports/index.ts';
+import { warn } from './messages.ts';
+import { region_family } from './ids.ts';
 
-export const FOUC_CSS_PREFIX = 'virtual:ogygia/fouc-css/';
-export const FOUC_SCOPED_PREFIX = 'virtual:ogygia/fouc-scoped/';
+export const FOUC_CSS_PREFIX: string = region_family('fouc_css');
+export const FOUC_SCOPED_PREFIX: string = region_family('fouc_scoped');
 
 const PATH_SEP = /[/\\]/;
 const SCRIPT_TAG = /<script\b[^>]*>[\s\S]*?<\/script>/gi;
@@ -172,15 +172,28 @@ export interface CssReachOptions {
 	 * it (a unit test, a host with no bundler) `$lib`, relative paths and `alias` only.
 	 */
 	resolve?: (spec: string, importer: string) => Promise<string | null>;
+	/**
+	 * The export index of `resolve` (one per bundler resolver, for the app's life), so every walk of a
+	 * build goes through one parse and one resolution of each barrel. Without it, a fresh one.
+	 */
+	exports?: ExportIndex<WalkResolve>;
 }
+
+/** The CSS walk's resolver: the caller its export index resolves with. */
+export type WalkResolve = (spec: string, importer: string) => Promise<string | null>;
+
+/** An export index's resolve for the CSS walk: the walk hands its resolver in as the caller. */
+export const through_caller = (
+	spec: string,
+	importer: string,
+	walk_resolve: WalkResolve
+): Promise<string | null> => walk_resolve(spec, importer);
 
 const SCRIPT_MODULE_EXT = /\.(?:[cm]?[jt]sx?|svelte\.[jt]s)$/;
 const RESOLVE_SUFFIXES = ['', '.ts', '.js', '/index.ts', '/index.js'];
 const NODE_MODULES_RE = /[\\/]node_modules[\\/]/;
 /** every name a module exports — a namespace import, or a module reached for its own code */
 const ALL = '*';
-/** the barrel index of each bundler resolver (one per build's legs: see `collectFoucCssReachable`) */
-const barrel_indexes = new WeakMap<object, BarrelIndex>();
 
 /**
  * THE CSS A COMPONENT TREE REACHES — every `.svelte` with a `<style>` block (`kind: 'scoped'`) and
@@ -193,7 +206,7 @@ const barrel_indexes = new WeakMap<object, BarrelIndex>();
  * was a dead end. So:
  * - specifiers resolve through the bundler's resolver (`opts.resolve`) when the build has one;
  * - a `.svelte` file is a component: all of it renders, so every import of it is followed;
- * - a script module is followed by the NAMES taken from it: through a barrel (the debarrel index —
+ * - a script module is followed by the NAMES taken from it: through a barrel (the export index:
  *   nested barrels, `export *`), each name to its leaf, so a barrel of twenty components brings the
  *   CSS of the two imported; a module with code of its own, every import it makes (its code may
  *   render them). A dependency's own JavaScript (`node_modules`, not a barrel) is not walked: a
@@ -227,20 +240,8 @@ export async function collectFoucCssReachable(
 		}
 		return null;
 	};
-	// ONE barrel index per resolver: a build's walks (every hole, every router root) share its parsed
-	// barrels instead of each re-reading them
-	let barrels = opts.resolve ? barrel_indexes.get(opts.resolve) : undefined;
-	if (!barrels) {
-		barrels = new BarrelIndex({
-			read: (id) => read(id),
-			resolve: (spec, importer) => resolve(spec, importer),
-			candidate: () => true,
-			forced: () => false,
-			kept: () => false,
-			follow_packages: true
-		});
-		if (opts.resolve) barrel_indexes.set(opts.resolve, barrels);
-	}
+	const barrels =
+		opts.exports ?? new ExportIndex<WalkResolve>(through_caller, new Shapes((id) => read(id)));
 
 	const entries: Array<{ kind: 'scoped' | 'css'; abs: string }> = [];
 	const seen_css = new Set<string>();
@@ -288,8 +289,8 @@ export async function collectFoucCssReachable(
 		if (!wanted.length) return;
 		for (const n of wanted) done.add(n);
 		// a barrel: each name to its leaf (only the names taken)
-		const map = await barrels.map(abs, spec);
-		if (map && !wanted.includes(ALL)) {
+		const map = await barrels.map(abs, spec, EVERY_BARREL, resolve);
+		if (map && map.left === null && !wanted.includes(ALL)) {
 			const own: string[] = [];
 			for (const n of wanted) {
 				const entry = map.entries.get(n);
@@ -301,12 +302,11 @@ export async function collectFoucCssReachable(
 		}
 		// a module with code of its own (or every name of a barrel): every import it makes
 		if (NODE_MODULES_RE.test(abs)) return;
-		const code = read(abs);
-		if (code == null) return;
-		const decls = analyze_imports(code, abs);
-		if (!decls) return;
+		// (the shape the index parsed: one parse per module, its imports and exports both)
+		const shape = barrels.shapes.get(abs);
+		if (!shape) return;
 		await follow(
-			decls
+			shape.imports
 				.filter((d) => !d.type_only)
 				.map((d) => ({
 					source: d.source,
@@ -321,20 +321,18 @@ export async function collectFoucCssReachable(
 			abs
 		);
 		// (`export … from` in a module with code of its own: what it re-exports may be what renders)
-		const shape = analyze_exports(code, abs);
-		if (shape)
-			await follow(
-				shape.exports.flatMap((e) =>
-					e.kind === 'reexport' && !e.type_only
-						? [{ source: e.source, names: new Set([e.imported]) }]
-						: e.kind === 'star' && !e.type_only
+		await follow(
+			shape.exports.flatMap((e) =>
+				e.kind === 'reexport' && !e.type_only
+					? [{ source: e.source, names: new Set([e.imported]) }]
+					: e.kind === 'star' && !e.type_only
+						? [{ source: e.source, names: new Set([ALL]) }]
+						: e.kind === 'star_ns'
 							? [{ source: e.source, names: new Set([ALL]) }]
-							: e.kind === 'star_ns'
-								? [{ source: e.source, names: new Set([ALL]) }]
-								: []
-				),
-				abs
-			);
+							: []
+			),
+			abs
+		);
 	};
 
 	await visit_svelte(path.normalize(entryAbs));

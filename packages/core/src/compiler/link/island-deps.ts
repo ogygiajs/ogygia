@@ -8,7 +8,8 @@ import { path } from '../host.ts';
 import { dedent } from '../dedent.ts';
 import { merge_page_keys, type PageKeys } from './page-keys.ts';
 import { hydration_hazards, type IslandHazard } from '../../insights/hydration-hazards.ts';
-import { OWN_FILE_RE, OWN_PACKAGE_NAMES } from '../../own-package.ts';
+import { OWN_FILE_RE, OWN_PACKAGE_NAMES } from '../../contract/own-package.ts';
+import { is_generated_specifier } from '../virtual/table.ts';
 
 /** Deterministic island facade filename (content-hashed Vite deps are separate). */
 const ISLAND_FACADE_RE = /(?:^|\/)og-region\.[0-9a-f]+\.js$/;
@@ -451,7 +452,7 @@ export function module_origin(id: string): string | undefined {
 /** A module id as the file of its package, the build-or-source folder and the extension left out:
  *  two ids with one key are one module twice. Null for ids that are no file (virtual, `\0`). */
 export function module_key(id: string): string | null {
-	if (!id || id.startsWith('\0') || id.startsWith('virtual:')) return null;
+	if (!id || id.startsWith('\0') || is_generated_specifier(id)) return null;
 	let p = id.split('\\').join('/');
 	const q = p.indexOf('?');
 	if (q !== -1) p = p.slice(0, q);
@@ -526,7 +527,7 @@ export function chunk_module_bytes(
 	const by = new Map<string, number>();
 	let total = 0;
 	for (const raw of module_ids) {
-		if (!raw || raw.startsWith('\0') || raw.startsWith('virtual:')) continue;
+		if (!raw || raw.startsWith('\0') || is_generated_specifier(raw)) continue;
 		const name = summarize_chunk_contents([raw], 1, 1)[0];
 		if (!name) continue;
 		const bytes = size_of(raw) || 0;
@@ -568,7 +569,7 @@ export function summarize_chunk_contents(
 	const ordered = (list: string[]) =>
 		size_of ? [...list].sort((a, b) => (bytes.get(b) ?? 0) - (bytes.get(a) ?? 0)) : list;
 	for (const raw of module_ids) {
-		if (!raw || raw.startsWith('\0') || raw.startsWith('virtual:')) continue;
+		if (!raw || raw.startsWith('\0') || is_generated_specifier(raw)) continue;
 		const id = raw.split('\\').join('/').split('?')[0];
 		// the package is named by the LAST node_modules segment (pnpm nests: .pnpm/x@1/node_modules/x)
 		const nm = id.lastIndexOf('/node_modules/');
@@ -663,7 +664,7 @@ export function islandDepsHandoffPath(out_dir: string): string {
 }
 
 /**
- * `virtual:ogygia/island-deps` emitter — the SSR-render-time reader of the deps handoff.
+ * `ogygia:server/region-deps` emitter — the SSR-render-time reader of the deps handoff.
  * Client: unused (modulepreload is SSR HTML). SSR: read the handoff JSON at *render* time — Kit
  * builds the server bundle before the client, so baking at `load()` would always be empty;
  * prerender/live SSR run after client generateBundle. Resolve via import.meta.url walk (not absolute
@@ -721,23 +722,23 @@ export function island_deps_module(
 	// CLIENT: nothing to read (the SSR HTML carries every hint): each reader answers "none".
 	if (!ssr)
 		return dedent`
-			export function islandDeps(_entry) { return []; }
-			export function islandCss(_entry) { return []; }
-			export function islandCssInline(_href) { return null; }
-			export function contentCss(_id) { return []; }
-			export function islandReadsPage(_entry) { return false; }
-			export function islandPageKeys(_entry) { return null; }
-			export function islandPageWhy(_entry) { return null; }
-			export function islandRemotes(_entry) { return null; }
-			export function islandInteractivity(_entry) { return null; }
-			export function islandHazards(_entry) { return null; }
-			export function chunkContents(_href) { return null; }
-			export function chunkHeavy(_href) { return null; }
-			export function chunkBarrels(_href) { return null; }
-			export function chunkDuplicates() { return null; }
-			export function fnManifest() { return null; }
-			export function entryLocation(_identity) { return null; }
-			export function locationMap() { return null; }
+			export function region_deps(_entry) { return []; }
+			export function region_css(_entry) { return []; }
+			export function region_css_inline(_href) { return null; }
+			export function content_css(_id) { return []; }
+			export function region_reads_page(_entry) { return false; }
+			export function region_page_keys(_entry) { return null; }
+			export function region_page_why(_entry) { return null; }
+			export function region_remotes(_entry) { return null; }
+			export function region_interactivity(_entry) { return null; }
+			export function region_hazards(_entry) { return null; }
+			export function chunk_contents(_href) { return null; }
+			export function chunk_heavy(_href) { return null; }
+			export function chunk_barrels(_href) { return null; }
+			export function chunk_duplicates() { return null; }
+			export function fn_manifest() { return null; }
+			export function entry_location(_identity) { return null; }
+			export function location_map() { return null; }
 		`;
 	// DEV: there is no built CSS asset to link (Vite serves component CSS only as importable
 	// modules). The `entry` a region carries IS its dev module URL (moduleUrl / dev island_url),
@@ -750,23 +751,23 @@ export function island_deps_module(
 	// server serves the module at the URL the region names.
 	if (is_dev)
 		return dedent`
-			export function islandDeps(_entry) { return []; }
-			export function islandCss(entry) { return entry ? [entry] : []; }
-			export function islandCssInline(_href) { return null; }
-			export function contentCss(_id) { return []; }
-			export function islandReadsPage(_entry) { return true; }
-			export function islandPageKeys(_entry) { return null; }
-			export function islandPageWhy(_entry) { return null; }
-			export function islandRemotes(_entry) { return null; }
-			export function islandInteractivity(_entry) { return null; }
-			export function islandHazards(_entry) { return null; }
-			export function chunkContents(_href) { return null; }
-			export function chunkHeavy(_href) { return null; }
-			export function chunkBarrels(_href) { return null; }
-			export function chunkDuplicates() { return null; }
-			export function fnManifest() { return null; }
-			export function entryLocation(identity) { return identity || null; }
-			export function locationMap() { return null; }
+			export function region_deps(_entry) { return []; }
+			export function region_css(entry) { return entry ? [entry] : []; }
+			export function region_css_inline(_href) { return null; }
+			export function content_css(_id) { return []; }
+			export function region_reads_page(_entry) { return true; }
+			export function region_page_keys(_entry) { return null; }
+			export function region_page_why(_entry) { return null; }
+			export function region_remotes(_entry) { return null; }
+			export function region_interactivity(_entry) { return null; }
+			export function region_hazards(_entry) { return null; }
+			export function chunk_contents(_href) { return null; }
+			export function chunk_heavy(_href) { return null; }
+			export function chunk_barrels(_href) { return null; }
+			export function chunk_duplicates() { return null; }
+			export function fn_manifest() { return null; }
+			export function entry_location(identity) { return identity || null; }
+			export function location_map() { return null; }
 		`;
 	// SERVER: read the handoff at render time (the comments below ride along into the module).
 	const out_dir = JSON.stringify(out_dir_rel);
@@ -836,29 +837,29 @@ export function island_deps_module(
 			return href.startsWith('/') ? href : '/' + href.replace(/^\\.\\//, '');
 		}
 
-		export function islandDeps(entry) {
+		export function region_deps(entry) {
 			return entry ? pick('js', entry) : [];
 		}
 
-		export function islandCss(entry) {
+		export function region_css(entry) {
 			return entry ? pick('css', entry) : [];
 		}
 
 		// INLINE REGION CSS: the text of a region CSS asset the build kept under Kit's
 		// inlineStyleThreshold (collect_inline_css), keyed by the same public href islandCss hands
 		// out. null = link it (over the threshold, no threshold, or a pre-inline handoff).
-		export function islandCssInline(href) {
+		export function region_css_inline(href) {
 			return lookup('css_inline', href, (v) => typeof v === 'string');
 		}
 
-		export function contentCss(id) {
+		export function content_css(id) {
 			return id ? pick('content_css', id) : [];
 		}
 
 		// Does this island's client closure read $page? FAIL-OPEN: no map (a pre-page handoff), or an
 		// entry the build never saw (a foreign fragment's island mounted from another app) → true, so
 		// the seed ships and nothing that might read it finds it missing.
-		export function islandReadsPage(entry) {
+		export function region_reads_page(entry) {
 			const all = load();
 			const map = all && typeof all.page === 'object' && all.page ? all.page : null;
 			if (!map || !entry) return true;
@@ -869,36 +870,36 @@ export function island_deps_module(
 		// SEED SHAPING: which top-level page.data keys this island's closure reads. FAIL-OPEN as null
 		// ("ship all"): no map (a pre-shaping handoff), an entry the build never saw, or a closure
 		// whose reads could not be pinned to literal keys.
-		export function islandPageKeys(entry) {
+		export function region_page_keys(entry) {
 			return lookup('page_keys', entry, Array.isArray);
 		}
 
 		// Why this island ships all of page.data: the modules in its closure whose reads the build
 		// could not pin (file, line, why). Profiler builds only; null = none recorded.
-		export function islandPageWhy(entry) {
+		export function region_page_why(entry) {
 			return lookup('page_why', entry, Array.isArray);
 		}
 
 		// Which remotes (Kit id-hashes) this island's client closure can call: REMOTE SEED ONLY WHEN
 		// REACHABLE. FAIL-OPEN as null ("may call anything"): no map (a pre-remotes handoff), or an
 		// entry the build never saw (a foreign fragment's island) → every SSR-resolved remote seeds.
-		export function islandRemotes(entry) {
+		export function region_remotes(entry) {
 			return lookup('remotes', entry, Array.isArray);
 		}
 
 		// WAKE ADVISOR facts per entry (handlers / $state / bind: counts over the island's own
 		// components), for the profiler's Islands table. null = the handoff has none.
-		export function islandInteractivity(entry) {
+		export function region_interactivity(entry) {
 			return lookup('interactivity', entry, (v) => !!v && typeof v === 'object');
 		}
 
 		// each island's lines that draw differently in the browser (the profiler's mismatch findings)
-		export function islandHazards(entry) {
+		export function region_hazards(entry) {
 			return lookup('hazards', entry, Array.isArray);
 		}
 
 		// WHAT IS INSIDE a chunk (readable source list): the profiler names hashed chunks with it
-		export function chunkContents(href) {
+		export function chunk_contents(href) {
 			const all = load();
 			const map = all && typeof all.contents === 'object' && all.contents ? all.contents : null;
 			if (!map || !href) return null;
@@ -907,7 +908,7 @@ export function island_deps_module(
 		}
 
 		// …and its heaviest modules with their rendered bytes (the report's heavy-module finding)
-		export function chunkHeavy(href) {
+		export function chunk_heavy(href) {
 			const all = load();
 			const map = all && typeof all.heavy === 'object' && all.heavy ? all.heavy : null;
 			if (!map || !href) return null;
@@ -916,7 +917,7 @@ export function island_deps_module(
 		}
 
 		// …and the re-export barrels it still holds (the report's island-barrel note)
-		export function chunkBarrels(href) {
+		export function chunk_barrels(href) {
 			const all = load();
 			const map = all && typeof all.barrels === 'object' && all.barrels ? all.barrels : null;
 			if (!map || !href) return null;
@@ -925,7 +926,7 @@ export function island_deps_module(
 		}
 
 		// the modules the build shipped twice, each copy's chunk (the report's duplicate-module finding)
-		export function chunkDuplicates() {
+		export function chunk_duplicates() {
 			const all = load();
 			const v = all && Array.isArray(all.dupes) ? all.dupes : null;
 			return v && v.length ? v : null;
@@ -934,7 +935,7 @@ export function island_deps_module(
 		// og.$ factories for the page-inline registration script (CSP-clean prod path): written by
 		// the CLIENT build's writeBundle, read here at SSR render time, the same ordering-safe channel
 		// islandCss uses.
-		export function fnManifest() {
+		export function fn_manifest() {
 			const m = load().fn_manifest;
 			return m && typeof m === 'object' && Object.keys(m).length ? m : null;
 		}
@@ -942,7 +943,7 @@ export function island_deps_module(
 		// IDENTITY → LOCATION: the content-hashed file an entry (an island's stable URL, the runtime's)
 		// is served from. null = no location known (a handoff from before hashing, a foreign island):
 		// the identity itself is written, and the browser finds it in the build's location maps.
-		export function entryLocation(identity) {
+		export function entry_location(identity) {
 			const m = load().entries;
 			const v = m && typeof m === 'object' && identity ? m[identity] : null;
 			return typeof v === 'string' ? v : null;
@@ -950,7 +951,7 @@ export function island_deps_module(
 
 		// The build's content-hashed location map (link/location-map.ts), the file the browser reads:
 		// its served path, base-less (asset() adds it), or null (no island, a handoff from before it).
-		export function locationMap() {
+		export function location_map() {
 			const v = load().locations;
 			return typeof v === 'string' ? v : null;
 		}
