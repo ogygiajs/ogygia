@@ -20,7 +20,7 @@ import {
 import { EVERY_BARREL } from '../src/compiler/exports/index.ts';
 import { server_plugins_module, route_config_module } from '../src/compiler/link/caps.ts';
 import { defineServer } from '../src/plugin/index.ts';
-import { facts_of, mark_per_visitor } from '../src/plugin/facts.ts';
+import { facts_of, note_per_visitor } from '../src/plugin/facts.ts';
 import { ask, notify, register_hooks } from '../src/plugin/hooks.ts';
 import {
 	clear_route_config,
@@ -345,9 +345,9 @@ describe('facts', () => {
 		const facts = facts_of(a);
 		expect(facts).toBe(facts_of(a));
 		expect(facts_of(new Request('http://x/b'))).not.toBe(facts);
-		mark_per_visitor(facts, 'flag:hero');
-		mark_per_visitor(facts, 'cookie:x');
-		expect(facts.perVisitor).toBe('flag:hero');
+		note_per_visitor(a, 'flag:hero');
+		note_per_visitor(a, 'cookie:x');
+		expect(facts.reads.perVisitor).toBe('flag:hero');
 	});
 });
 
@@ -374,6 +374,25 @@ describe('route config', () => {
 	});
 });
 
+describe("a plugin's warnings", () => {
+	it('are said once each, and 10,000 distinct ones keep at most 1024 (#438)', () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			const { app } = startPlugin(defineServer({}), { name: 'warns' });
+			app.warn('the store is down');
+			app.warn('the store is down');
+			expect(warn).toHaveBeenCalledTimes(1);
+			for (let i = 0; i < 10_000; i++) app.warn(`no page at /p/${i}`);
+			expect(warn).toHaveBeenCalledTimes(10_001);
+			// the oldest was let go: said again
+			app.warn('no page at /p/0');
+			expect(warn).toHaveBeenCalledTimes(10_002);
+		} finally {
+			warn.mockRestore();
+		}
+	});
+});
+
 describe('startPlugin — a server realm without a server', () => {
 	it('runs setup, registers shared hooks, and hands out request contexts', async () => {
 		const calls: string[] = [];
@@ -392,7 +411,7 @@ describe('startPlugin — a server realm without a server', () => {
 		const request = new Request('http://x/page');
 		await server.request?.(ctx(request));
 		expect(calls).toEqual(['setup:test:hi', 'request:/page:1']);
-		expect(app.facts(request).perVisitor).toBe('test');
+		expect(app.facts(request).reads.perVisitor).toBe('test');
 		expect(await ask.lastBuild('v')).toBe('from-test');
 	});
 });

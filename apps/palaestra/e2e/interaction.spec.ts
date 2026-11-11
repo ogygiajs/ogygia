@@ -3,7 +3,7 @@
 // typing before hydration survives (value restored, bind synced); hover warms the chunk without
 // hydrating; hydratedBy() reports 'interaction'.
 // Usage: pnpm exec playwright test interaction
-import { test, check } from '@ogygia/tooling/e2e';
+import { test, check, expect } from '@ogygia/tooling/e2e';
 import { console_text } from '@ogygia/tooling/e2e/browsers.ts';
 
 const WAKE_INTERACTION_RE = /ogygia-region[^>]*wake="interaction"/;
@@ -210,19 +210,22 @@ test.describe("wake:'interaction' — cold until used, click replay, typing surv
 		);
 		// The chunk was aborted, so this is an ENTRY-FETCH failure, not a hydrate throw — the runtime
 		// distinguishes them (dev names the Vite re-optimize cause; here it's a real abort). #hydrate
-		// catches it, logs, and the wake path disarms on the fulfilled branch.
-		await Promise.all(reads);
-		check(
-			'failure: error logged, region left static',
+		// catches it, logs, and the wake path disarms on the fulfilled branch. The report comes after
+		// the retries give up, and WebKit's come later than a fixed pause (a dropped download gets no
+		// timing entry there, so each one waits out its entry: runtime/import-again.ts).
+		const reported = () =>
 			// (a production build: the message is its code's link — messages/core.ts)
 			consoleErrs.some(
 				(t) =>
 					t.includes('e/island_load_failed') ||
 					t.includes('e/island_hydrate_failed') ||
 					t.includes('e/interaction_hydrate_failed')
-			),
-			consoleErrs.slice(0, 3).join(' | ')
-		);
+			);
+		await expect
+			.poll(async () => (await Promise.all(reads), reported()), {
+				message: 'failure: error logged, region left static'
+			})
+			.toBe(true);
 		// The page survives — the eager island is still live.
 		await page.locator('[data-counter] button').click();
 		check(

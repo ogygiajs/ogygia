@@ -1039,14 +1039,7 @@ export async function navigate(
 	if (replace) {
 		// same-URL replace navigate — keep current scroll
 	} else if (scroll) {
-		const html_el = document.documentElement;
-		const prev = html_el.style.scrollBehavior;
-		html_el.style.scrollBehavior = 'auto';
-		try {
-			window.scrollTo(scroll.x, scroll.y);
-		} finally {
-			html_el.style.scrollBehavior = prev;
-		}
+		hold_scroll(scroll, next.scope);
 	} else {
 		jump_to_hash(dest.hash);
 	}
@@ -1068,6 +1061,94 @@ export async function navigate(
 	if (r.nav.now === settled) r.nav.go('idle');
 	// new <body> -> re-evaluate eager/viewport preload links on the freshly-swapped page
 	r.scan_preload_links();
+}
+
+/** The most a Back or Forward holds its page for a region above that never settles (one whose code
+ *  failed to load): a hold ends when the regions above have settled, not on a timer. */
+export const SCROLL_HOLD_MS = 10_000;
+
+/**
+ * A Back or Forward puts its page where the visitor left it (#270), and KEEPS it there while the
+ * page lays out (#452). The scroll goes back right after the swap, before every region has its
+ * height: a header that sizes once it wakes grew above the saved position afterwards, and the page
+ * landed off by that height (the browser's scroll anchoring moved it with the growth, a frame after
+ * any put-back could see it). So the position is held, with the browser's anchoring off: each time
+ * the page's size changes it is put back, until the islands above the saved position that wake on
+ * their own have woken and laid out, the visitor scrolls, clicks or types themselves, the page's
+ * visit ends (`visit`: a newer navigation takes over), or a scroll that is not a layout change (the
+ * app's own `scrollTo`) moves it elsewhere ({@link SCROLL_HOLD_MS} at most, for one that never
+ * wakes). Instant, never smooth: CSS `scroll-behavior: smooth` must not animate a programmatic
+ * restore.
+ */
+export function hold_scroll(to: { x: number; y: number }, visit: Scope): void {
+	/** Where the last put-back left the page: the saved position, or, on a page still too short to
+	 *  reach it, the bottom the browser clamped it to. */
+	let at = { x: scrollX, y: scrollY };
+	const put = () => {
+		if (scrollX === to.x && scrollY === to.y) return;
+		const html_el = document.documentElement;
+		const prev = html_el.style.scrollBehavior;
+		html_el.style.scrollBehavior = 'auto';
+		try {
+			window.scrollTo(to.x, to.y);
+		} finally {
+			html_el.style.scrollBehavior = prev;
+		}
+		at = { x: scrollX, y: scrollY };
+	};
+	put();
+	if (visit.closed) return;
+	const hold = visit.child();
+	// while held, where the page sits is the hold's: the browser's anchoring is off, and back as it was
+	const html = document.documentElement;
+	const anchoring = html.style.overflowAnchor;
+	html.style.overflowAnchor = 'none';
+	hold.defer(() => (html.style.overflowAnchor = anchoring));
+	hold.timeout(() => hold.close(), SCROLL_HOLD_MS);
+	// the islands above that wake on their own: once each has, one frame lays it out, and it ends
+	const above = new Set(islands_above(to.y));
+	const settled = () => {
+		if (above.size === 0) hold.timeout(() => hold.timeout(() => hold.close(), 0), 'frame');
+	};
+	hold.on(document, 'ogygia:hydrated', (event: Event) => {
+		if (above.delete(event.target as Element)) settled();
+	});
+	settled();
+	// the visitor moves the page: from then on where it sits is theirs
+	for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const)
+		hold.on(window, type, () => hold.close(), { capture: true, passive: true, once: true });
+	// a scroll that left it elsewhere (the app's own `scrollTo`): its scroll is not held back. One the
+	// browser made with a layout change (scroll anchoring) is put back by the observer below in that
+	// frame, before its scroll event is heard
+	hold.on(
+		window,
+		'scroll',
+		() => {
+			// (where a put-back left it, clamped or not, is the hold's own scroll)
+			const ours = (scrollX === to.x && scrollY === to.y) || (scrollX === at.x && scrollY === at.y);
+			if (!ours) hold.close();
+		},
+		{ passive: true }
+	);
+	if (typeof ResizeObserver !== 'undefined')
+		hold.watch(new ResizeObserver(put)).observe(document.documentElement);
+}
+
+/** The islands not live yet that start above `y` (in the page) and wake on their own: `load` and
+ *  `idle`, and a `visible` one reaching down past `y` (on screen there). One inside another island
+ *  wakes with it; one that waits for the visitor (`interaction`) is theirs. */
+function islands_above(y: number): Element[] {
+	const out: Element[] = [];
+	for (const r of document.querySelectorAll('ogygia-region[entry]:not([data-hydrated])')) {
+		if (r.parentElement?.closest('ogygia-region[entry]')) continue;
+		const wake = r.getAttribute('wake') || 'load';
+		if (wake !== 'load' && wake !== 'idle' && wake !== 'visible') continue;
+		const box = r.getBoundingClientRect();
+		if (box.top + scrollY >= y) continue;
+		if (wake === 'visible' && box.bottom + scrollY <= y) continue;
+		out.push(r);
+	}
+	return out;
 }
 
 /**

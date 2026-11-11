@@ -247,6 +247,17 @@ export const SERVER_WARNINGS = {
 			that callers join) keeps its answer for the next caller, but never a failure: the next
 			caller tries again. One kept an error as its answer, so every later caller gets it.
 		`
+	},
+	rule_kept_unkeyed_read: {
+		text: (a: { detail: string }): string =>
+			`rule broken, a kept render reads nothing its key leaves out: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e builds only (a rule ogygia checks on itself). A cached hole's render is kept
+			for every later caller with the same key. One that read something per visitor (a flag,
+			a cookie, a header, \`locals\`) for an anonymous visitor, or \`page.data\` with no page in
+			its key, was kept anyway, so other visitors get this visitor's answer. An ogygia bug,
+			please report it.
+		`
 	}
 };
 
