@@ -124,7 +124,7 @@ import { error_route_is_csr_true, route_is_csr_true, take_early_holes } from './
 import { early_holes_head } from './early-holes-head.ts';
 import { add_early_holes_csp, with_early_holes_meta_csp } from './server/early-holes-csp.ts';
 import { merge_seed_ask, shape_page_data, type SeedKeys } from './server/seed-shape.ts';
-import { html_has_kit_bootstrap } from './runtime/kit-boot.ts';
+import { html_has_kit_bootstrap } from './server/html-scan.ts';
 import {
 	check_script,
 	mark,

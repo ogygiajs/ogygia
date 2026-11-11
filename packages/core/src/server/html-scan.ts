@@ -3,6 +3,8 @@
  * MEASURED faster (or allocation-lighter) than the regex it replaced — the engine's compiled
  * matcher wins plain presence tests, so those stayed regexes (head-presence.ts).
  */
+import { is_kit_boot_script } from '../runtime/kit-boot.ts';
+import { tags, text_of } from '../wire-markup.ts';
 
 /** `[A-Za-z0-9_]` — the regex `\w` (NaN, past the end, is not). */
 export function is_word(c: number): boolean {
@@ -24,6 +26,27 @@ export function is_space(c: number): boolean {
 		c === 0x3000 ||
 		c === 0xfeff
 	);
+}
+
+/** How far before `end` the Kit-boot check looks. Kit appends its boot script at the END of the
+ *  body (render.js), right before `</body>`, so this window holds it whenever it exists. */
+const KIT_BOOT_WINDOW = 65_536;
+
+/**
+ * Whether a page's HTML carries Kit's boot (a csr=true page): the DOM probe's question
+ * (runtime/kit-boot.ts `is_kit_boot_script`) over a string, bounded to the last 64 KB before `end`
+ * (pass the index of `</body>`). A 2.6 MB document is never scanned whole: Kit's boot sits at the end
+ * of the body, so the window is exact, not a heuristic.
+ */
+export function html_has_kit_bootstrap(html: string, end: number = html.length): boolean {
+	const window = html.slice(Math.max(0, end - KIT_BOOT_WINDOW), end);
+	for (const t of tags(window, 'script')) {
+		if (t.attrs.has('src')) continue;
+		const text = text_of(window, t, 'script');
+		if (text !== null && is_kit_boot_script(t.attrs.get('type') ?? '', (a) => t.attrs.has(a), text))
+			return true;
+	}
+	return false;
 }
 
 const REGION_CSS_ATTR = 'data-ogygia-region-css';
