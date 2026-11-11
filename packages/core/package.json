@@ -97,10 +97,6 @@
 			"types": "./dist/hooks.d.ts",
 			"default": "./src/hooks.ts"
 		},
-		"./markup": {
-			"types": "./dist/markup.d.ts",
-			"default": "./src/markup.ts"
-		},
 		"./plugin": {
 			"types": "./dist/plugin/index.d.ts",
 			"default": "./src/plugin/index.ts"
@@ -214,10 +210,6 @@
 			"./server": {
 				"types": "./dist/hooks.d.ts",
 				"default": "./dist/hooks.js"
-			},
-			"./markup": {
-				"types": "./dist/markup.d.ts",
-				"default": "./dist/markup.js"
 			},
 			"./plugin": {
 				"types": "./dist/plugin/index.d.ts",

@@ -33,6 +33,30 @@ export function client_region_unmount(el: Element, entry: string): void {
 	for (const p of plugins) p.regionUnmount?.(el, { entry });
 }
 
+/** Svelte is about to hydrate over `el`: the plugins' afters, as one (null when none). */
+export function client_region_hydrate(el: Element): (() => void) | null {
+	let after: Array<() => void> | null = null;
+	for (const p of plugins) {
+		const then = p.regionHydrate?.(el);
+		if (then) (after ??= []).push(then);
+	}
+	if (after === null) return null;
+	const all = after;
+	return () => {
+		for (const then of all) then();
+	};
+}
+
+/** A region answer was parsed, inert. */
+export function client_answer_parsed(fragment: DocumentFragment): void {
+	for (const p of plugins) p.answerParsed?.(fragment);
+}
+
+/** A parsed answer went into the page. */
+export function client_answer_placed(): void {
+	for (const p of plugins) p.answerPlaced?.();
+}
+
 function region_urls(el: Element, entry: string): string[] {
 	const urls: string[] = [];
 	for (const u of [entry, el.getAttribute('src')]) {
