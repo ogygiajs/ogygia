@@ -62,34 +62,37 @@ export function discover_package_files(app_root: string): PackageScan[] {
 		}
 		const dirs: string[] = [];
 		const files = new Set<string>();
+		// INSIDE the package, by the path a file really has (a symlink in the package leading out of
+		// it is outside): an escape would widen the compile surface to unrelated code
+		const inside = (real: string) => real === root || real.startsWith(root + path.sep);
 		for (const entry of declared) {
 			if (GLOB_MAGIC_RE.test(entry)) {
 				for (const m of globSync(entry, { cwd: root, absolute: true, dot: false })) {
-					// same escape rule as bare paths — `../…/**` must not widen the surface
-					if (!posix(m).startsWith(posix(root) + '/')) continue;
+					let real: string;
 					try {
-						files.add(posix(fs.realpathSync(m)));
+						real = fs.realpathSync(m);
 					} catch {
-						// ok: a dangling symlink is no file to list
+						continue; // ok: a dangling symlink is no file to list
 					}
+					// same escape rule as bare paths — `../…/**` must not widen the surface
+					if (inside(real)) files.add(posix(real));
 				}
 				continue;
 			}
 			const abs = path.resolve(root, entry);
-			// the declaration must stay INSIDE the package — a path escaping it would silently
-			// widen the compile surface to unrelated code
-			if (abs !== root && !abs.startsWith(root + path.sep)) {
-				throw new OgygiaError('package_files_escapes', { package: name, entry });
-			}
+			if (!inside(abs)) throw new OgygiaError('package_files_escapes', { package: name, entry });
+			let real: string;
 			let stat;
 			try {
-				stat = fs.statSync(abs);
+				real = fs.realpathSync(abs);
+				stat = fs.statSync(real);
 			} catch {
 				warn('package_files_missing', { package: name, entry });
 				continue;
 			}
-			if (stat.isDirectory()) dirs.push(posix(fs.realpathSync(abs)));
-			else files.add(posix(fs.realpathSync(abs)));
+			if (!inside(real)) throw new OgygiaError('package_files_escapes', { package: name, entry });
+			if (stat.isDirectory()) dirs.push(posix(real));
+			else files.add(posix(real));
 		}
 		if (dirs.length || files.size) {
 			found.push({ name, root: posix(root), dirs, files: [...files] });
