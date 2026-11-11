@@ -215,14 +215,6 @@ describe('parse_yaml — flow collections', () => {
 		expect(parse_yaml('a: {}')).toEqual({ a: {} });
 	});
 
-	it('a single bracketed phrase (no top-level comma) is a STRING, not a 1-element array', () => {
-		// svelte CLI docs title a page `[create your own]` — a literal, not `['create your own']`.
-		expect(parse_yaml('title: [create your own]')).toEqual({ title: '[create your own]' });
-		// a real multi-element array still parses
-		expect(parse_yaml('tags: [a, b]')).toEqual({ tags: ['a', 'b'] });
-		expect(parse_yaml('a: []')).toEqual({ a: [] });
-	});
-
 	it('top-level flow', () => {
 		expect(parse_yaml('[1, 2, 3]')).toEqual([1, 2, 3]);
 	});
@@ -390,11 +382,10 @@ describe('parse_yaml — the rest of the supported subset', () => {
 		expect(parse_yaml('\uFEFF- a\n- b')).toEqual(['a', 'b']);
 	});
 
-	it('only a top-level : or , makes a flow collection (a nested one stays text)', () => {
+	it('only a top-level : makes a flow mapping (a nested one stays text)', () => {
 		expect(parse_yaml('title: {#each items as { id: x }}')).toEqual({
 			title: '{#each items as { id: x }}'
 		});
-		expect(parse_yaml('title: [see [a, b]]')).toEqual({ title: '[see [a, b]]' });
 	});
 });
 

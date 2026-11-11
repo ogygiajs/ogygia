@@ -335,8 +335,10 @@ function is_flow_collection(text: string, open: '{' | '[', sep: ':' | ','): bool
 			continue;
 		}
 		if (ch === '{' || ch === '[') depth++;
-		else if (ch === '}' || ch === ']') depth--;
-		else if (ch === sep && depth === 1) return true;
+		else if (ch === '}' || ch === ']') {
+			depth--;
+			if (depth === 0 && open === '[') return i === text.length - 1;
+		} else if (ch === sep && depth === 1) return true;
 	}
 	return false;
 }
@@ -532,13 +534,15 @@ function parse_block(ctx: Ctx, indent: number): unknown {
  *   \f \uXXXX`), as values and as keys;
  * - typed plain scalars: integers, floats (sign, exponent, `.5`, `.inf`, `.nan`), hex `0x`, octal
  *   `0o`, `true`/`false` and `null`/`~` (lower, Title or UPPER case);
- * - one-line flow collections (`[a, b]`, `{ a: 1 }`, nested);
+ * - one-line flow collections (`[a, b]`, `{ a: 1 }`, nested); a whole `[…]` value is a list, one
+ *   item or many (`tags: [svelte]`);
  * - `#` comments after whitespace, outside quotes and flow collections (`a#b` stays text);
  * - block scalars `|` and `>`, with chomping and indent indicators (`|-`, `|+`, `>2`).
  *
  * Where it differs from the `yaml` package, on purpose:
- * - a `{…}` with no top-level `:`, or a `[…]` with no top-level `,`, is the string it looks like
- *   (`title: {@const}`, `title: [create your own]`, as the Svelte docs title pages);
+ * - a `{…}` with no top-level `:` is the string it looks like (`title: {@const}`, as the Svelte
+ *   docs title pages), and so is a value whose opening `[` closes before its end (`[docs](/docs)`,
+ *   `[docs][ref]`);
  * - only `true`/`false` are booleans (`country: no` stays `'no'`);
  * - dates stay strings (a schema coerces them);
  * - anchors, aliases, tags and merge keys stay text, and nothing after an inner `---` is read.
