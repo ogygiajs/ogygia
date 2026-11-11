@@ -9,7 +9,7 @@ import {
 import {
 	moduleHasTransportable,
 	appendTransportRegistrations
-} from '../src/compiler/content/transportables.ts';
+} from '../src/compiler/transportables.ts';
 
 const MARKUP = ['.svelte'] as const;
 const CODEC = `{ encode: (c) => c.v, decode: (v) => new C(v) }`;

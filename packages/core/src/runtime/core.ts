@@ -15,7 +15,7 @@ import { import_again, is_failed_import, on_reload_needed } from './import-again
 // off in a build where no region streams HTML, and the bundler drops the element's fetch / apply /
 // morph / renew path with it — that path works on the element's own state, so it cannot be a
 // feature module of its own, and without the frame store it has nowhere to land anyway.
-import { FRAMES } from 'virtual:ogygia/runtime-flags';
+import { FRAMES } from 'ogygia:boot';
 import { kit_hydrates_page } from './kit-boot.ts';
 import {
 	init_shadow_registries,

@@ -1,0 +1,73 @@
+{
+	"name": "@ogygia/barrels",
+	"version": "0.13.0",
+	"description": "Barrel imports become leaf imports at transform time, for ogygia apps",
+	"keywords": [
+		"barrels",
+		"ogygia",
+		"sveltekit",
+		"vite"
+	],
+	"homepage": "https://ogygiajs.dev",
+	"license": "MIT",
+	"author": "Puru Vijayvargia <devpuruvj@gmail.com>",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ogygiajs/ogygia.git",
+		"directory": "packages/barrels"
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./src/index.ts"
+		},
+		"./internal/messages": {
+			"types": "./dist/messages.d.ts",
+			"default": "./src/messages.ts"
+		}
+	},
+	"publishConfig": {
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"./internal/messages": {
+				"types": "./dist/messages.d.ts",
+				"default": "./dist/messages.js"
+			}
+		}
+	},
+	"scripts": {
+		"build": "tsdown",
+		"prepublishOnly": "pnpm run build",
+		"check": "tsc -p . && tsc -p test && vitest run",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@ogygia/machine": "workspace:^",
+		"magic-string": "catalog:"
+	},
+	"devDependencies": {
+		"@ogygia/config": "workspace:*",
+		"@ogygia/core": "workspace:*",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"@typescript/native": "catalog:tsgo",
+		"svelte": "catalog:",
+		"tsdown": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:",
+		"vitest": "catalog:"
+	},
+	"peerDependencies": {
+		"@ogygia/core": "workspace:^",
+		"svelte": "catalog:peers",
+		"vite": "catalog:peers"
+	}
+}
