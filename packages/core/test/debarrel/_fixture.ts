@@ -17,7 +17,13 @@ import {
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { BarrelIndex, type Host } from '../../src/compiler/debarrel/barrel.ts';
+import {
+	ExportIndex,
+	Shapes,
+	type Change,
+	type ExportMap,
+	type Policy
+} from '../../src/compiler/exports/index.ts';
 import {
 	rewrite_module,
 	type Lookup,
@@ -25,7 +31,21 @@ import {
 } from '../../src/compiler/debarrel/rewrite.ts';
 import { rewrite_svelte } from '../../src/compiler/debarrel/svelte.ts';
 
+/** A test's host: the reads, the resolver, and the barrel policy. */
+export interface Host extends Policy {
+	read(id: string): string | null;
+	resolve(spec: string, importer: string): Promise<string | null>;
+}
+
 export type HostOverrides = Partial<Host> & { packages?: string[] };
+
+/** One index over a host, its policy bound (as the plugin binds its own). */
+export interface TestIndex {
+	map(id: string, spec: string): Promise<ExportMap | null>;
+	/** the file changed: what the dev server's watcher tells the shapes */
+	invalidate(id: string, change?: Change): void;
+	host: Host;
+}
 
 export interface Fixture {
 	root: string;
@@ -34,10 +54,10 @@ export interface Fixture {
 	write(rel: string, content: string): string;
 	read(rel: string): string;
 	host(overrides?: HostOverrides): Host;
-	index(overrides?: HostOverrides): BarrelIndex;
+	index(overrides?: HostOverrides): TestIndex;
 	/** rewrite a fixture file (JS/TS/Svelte) through a fresh index; returns the code or null */
 	rewrite(rel: string, overrides?: HostOverrides, policy?: RewritePolicy): Promise<string | null>;
-	lookup(index: BarrelIndex, importer: string): Lookup;
+	lookup(index: TestIndex, importer: string): Lookup;
 	dispose(): void;
 }
 
@@ -144,17 +164,20 @@ export function fixture(files: Record<string, string>): Fixture {
 		};
 	};
 
-	const hosts = new WeakMap<BarrelIndex, Host>();
-	const make_index = (overrides?: HostOverrides) => {
-		const h = make_host(overrides);
-		const i = new BarrelIndex(h);
-		hosts.set(i, h);
-		return i;
+	const make_index = (overrides?: HostOverrides): TestIndex => {
+		const host = make_host(overrides);
+		const shapes = new Shapes((p) => host.read(p));
+		const index = new ExportIndex<void>((spec, importer) => host.resolve(spec, importer), shapes);
+		return {
+			map: (id, spec) => index.map(id, spec, host),
+			invalidate: (id, change) => shapes.invalidate(id, change),
+			host
+		};
 	};
 	const lookup =
-		(index: BarrelIndex, importer: string): Lookup =>
+		(index: TestIndex, importer: string): Lookup =>
 		async (spec) => {
-			const resolved = await hosts.get(index)!.resolve(spec, importer);
+			const resolved = await index.host.resolve(spec, importer);
 			if (!resolved) return null;
 			return index.map(resolved, spec);
 		};

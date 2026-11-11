@@ -5,8 +5,8 @@
 import path from 'node:path';
 import { parse } from 'svelte/compiler';
 import { bench } from '@bench/heisenbench/bench';
-import { BarrelIndex, type Host } from '../src/compiler/debarrel/barrel.ts';
-import { analyze_exports, analyze_imports } from '../src/compiler/debarrel/parse.ts';
+import { EVERY_BARREL, ExportIndex, Shapes, type Policy } from '../src/compiler/exports/index.ts';
+import { analyze_exports, analyze_imports } from '../src/compiler/exports/parse.ts';
 import { collect_flag_sites } from '../src/compiler/flags.ts';
 import { collectFreeIdentifiers } from '../src/compiler/free-vars.ts';
 import { page_data_keys_answer } from '../src/compiler/link/page-keys.ts';
@@ -195,42 +195,71 @@ function barrel_tree(barrels: number) {
 	);
 	// a barrel whose re-export cannot resolve at all (the host throws): its build fails
 	files.set('/app/lib/broken.ts', `export { x } from './throws';`);
-	const host: Host = {
-		read: (id) => files.get(id) ?? null,
-		resolve: async (spec, importer) => {
-			if (spec === './throws') throw new Error('the resolver failed');
-			const base = path.posix.join(path.posix.dirname(importer), spec);
-			return files.has(`${base}.ts`)
-				? `${base}.ts`
-				: files.has(`${base}/index.ts`)
-					? `${base}/index.ts`
-					: null;
-		},
+	const read = (id: string): string | null => files.get(id) ?? null;
+	const resolve = async (spec: string, importer: string): Promise<string | null> => {
+		if (spec === './throws') throw new Error('the resolver failed');
+		const base = path.posix.join(path.posix.dirname(importer), spec);
+		return files.has(`${base}.ts`)
+			? `${base}.ts`
+			: files.has(`${base}/index.ts`)
+				? `${base}/index.ts`
+				: null;
+	};
+	const policy: Policy = {
 		candidate: () => true,
 		forced: () => false,
 		kept: () => false,
 		follow_packages: false
 	};
-	return { files, host };
+	return { files, read, resolve, policy };
 }
 
 // One build per barrel however many ask; an edit to a barrel while its map is being built drops that
 // build (its callers build again), and an edit to a leaf after drops the kept maps that walked it.
 bench(
 	'the barrel index: every barrel asked at once, built once; an edit during and after the builds',
-	async ({ barrels, host }) => {
-		const index = new BarrelIndex(host);
+	async ({ barrels, read, resolve, policy }) => {
+		const shapes = new Shapes(read);
+		const index = new ExportIndex<void>(resolve, shapes);
 		const asks: Promise<unknown>[] = [];
 		for (let k = 0; k < barrels * 3; k++)
 			asks.push(
-				index.map(k % 3 === 0 ? '/app/lib/index.ts' : `/app/lib/b${k % barrels}/index.ts`, 'x')
+				index.map(
+					k % 3 === 0 ? '/app/lib/index.ts' : `/app/lib/b${k % barrels}/index.ts`,
+					'x',
+					policy
+				)
 			);
-		index.invalidate('/app/lib/b0/index.ts');
+		shapes.invalidate('/app/lib/b0/index.ts');
 		await Promise.all(asks);
-		index.invalidate('/app/lib/b1/l1.ts');
-		const top = await index.map('/app/lib/index.ts', 'x');
-		const broken = await index.map('/app/lib/broken.ts', 'x').catch(() => null);
+		shapes.invalidate('/app/lib/b1/l1.ts');
+		const top = await index.map('/app/lib/index.ts', 'x', policy);
+		const broken = await index.map('/app/lib/broken.ts', 'x', policy).catch(() => null);
 		return (top?.entries.size ?? 0) + (broken === null ? 0 : 1);
+	},
+	{
+		setup: () => ({ barrels: 10, ...barrel_tree(10) }),
+		scale: (_ctx, k) => ({ barrels: 10 * k, ...barrel_tree(10 * k) })
+	}
+);
+
+// Two callers of one resolver (the CSS walk's policy and a pass's own) walk the same parsed and
+// resolved graph: each barrel is parsed and resolved once, and mapped once per policy. A file added
+// re-resolves; an edit re-walks only the maps that read it.
+bench(
+	'the export index: two policies over one graph, a file added and one edited',
+	async ({ barrels, read, resolve, policy }) => {
+		const shapes = new Shapes(read);
+		const index = new ExportIndex<void>(resolve, shapes);
+		let names = 0;
+		for (const p of [policy, EVERY_BARREL])
+			for (let b = 0; b < barrels; b++)
+				names += (await index.map(`/app/lib/b${b}/index.ts`, 'x', p))?.entries.size ?? 0;
+		shapes.invalidate('/app/lib/b2/l3.ts', 'create');
+		shapes.invalidate('/app/lib/b1/l1.ts', 'update');
+		for (const p of [policy, EVERY_BARREL])
+			names += (await index.map('/app/lib/index.ts', 'x', p))?.entries.size ?? 0;
+		return names;
 	},
 	{
 		setup: () => ({ barrels: 10, ...barrel_tree(10) }),
