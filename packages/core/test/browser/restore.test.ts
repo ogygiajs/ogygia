@@ -494,6 +494,38 @@ test('a declarative shadow root parsed in an inert fragment gets the page’s re
 	expect(constructed).toBe(1);
 });
 
+test('putting attributes back never adds an event handler, a srcdoc or a javascript: URL', () => {
+	const w = window as { __og_ran?: number };
+	w.__og_ran = 0;
+	// (a host and a child of Svelte's, each with an attribute map; a URL parser drops the tab)
+	const host_r = JSON.stringify({ onclick: 'window.__og_ran++', title: 'kept' });
+	const child_r = JSON.stringify({
+		href: ' java\tscript:window.__og_ran++',
+		ONmouseover: 'window.__og_ran++',
+		srcdoc: '<script>window.__og_ran++</script>',
+		formaction: 'JavaScript:window.__og_ran++',
+		'data-x': 'y'
+	});
+	const attr = (s: string) => s.replace(/&/g, '&amp;').replace(/'/g, '&#39;');
+	document.body.innerHTML =
+		`<demo-card og-h="k1" og-r='${attr(host_r)}'>` +
+		`<a og-c="k1.0" og-r='${attr(child_r)}'>a</a></demo-card>`;
+	expect(restore(document)).toBe(1);
+	const host = document.querySelector<HTMLElement>('demo-card')!;
+	const a = host.querySelector('a')!;
+	expect(host.getAttribute('title')).toBe('kept');
+	expect(a.getAttribute('data-x')).toBe('y');
+	for (const el of [host, a])
+		expect(
+			[...el.attributes]
+				.map((x) => x.name)
+				.filter((n) => !n.startsWith('data-') && n !== 'title' && n !== 'class')
+		).toEqual([]);
+	host.click();
+	a.dispatchEvent(new MouseEvent('mouseover'));
+	expect(w.__og_ran).toBe(0);
+});
+
 test('self-contained: the function source runs on its own (the handle inlines it)', async () => {
 	await served('<demo-card class="own"> inline </demo-card>');
 	const standalone = new Function(`return (${restore.toString()})`)() as typeof restore;
