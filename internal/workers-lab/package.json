@@ -1,0 +1,22 @@
+{
+	"name": "ogygia-workers-lab",
+	"private": true,
+	"description": "Research lab for internal/notes/design/workers.md: heavy region renders on one thread vs a worker_threads pool, under load. Not a package; nothing here ships.",
+	"type": "module",
+	"scripts": {
+		"build": "node build.ts",
+		"serve": "node dist/server.js",
+		"bench": "node bench.ts",
+		"probe:browser": "node browser-probe.ts",
+		"check:threads": "node build.ts && LAB_THREADS=2 LAB_DEADLINE_MS=1000 node dist/check.js"
+	},
+	"devDependencies": {
+		"@ogygia/machine": "workspace:*",
+		"@types/node": "catalog:",
+		"autocannon": "8.0.0",
+		"playwright": "catalog:",
+		"rolldown": "catalog:",
+		"shiki": "catalog:",
+		"svelte": "catalog:"
+	}
+}
