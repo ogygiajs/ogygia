@@ -252,7 +252,7 @@ export class Browsers {
 			own[level] = (...args: unknown[]) => {
 				if (!shown()) return;
 				tab.console.push(
-					`${level}: ${args.map((a) => (a instanceof Error || (a as { stack?: string })?.stack ? `${String(a)}\n${(a as Error).stack}` : String(a))).join(' ')}`
+					`${level}: ${args.map((a) => (a instanceof Error || (a as { stack?: string })?.stack ? `${String(a)}\n${(a as Error).stack}` : String(a))).join(' ')}${STACKS ? `\n${new Error('said at').stack}` : ''}`
 				);
 				page_console[level]?.call(page_console, ...args);
 			};
