@@ -1190,7 +1190,7 @@ class OgygiaRegion extends HTMLElement {
 	/** An answer landed: the hole's own fetch has nothing left to wait for — a schedule still armed
 	 *  (a retry's) or a retry it waited for is called off. A fetch in flight runs to its end. */
 	#answered(kind: 'answered' | 'kept'): void {
-		if (this.#answer.now.kind !== kind) this.#answer.go(kind);
+		this.#answer.go(kind);
 		const hole = this.#hole.now.kind;
 		if (hole === 'armed' || hole === 'retrying' || hole === 'failed') this.#hole.go('idle');
 	}
