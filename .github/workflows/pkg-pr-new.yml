@@ -20,6 +20,7 @@ on:
       - 'packages/ogygia/**'
       - 'packages/core/**'
       - 'packages/flags/**'
+      - 'packages/barrels/**'
       - 'packages/postrender/**'
       - 'packages/federation/**'
       - 'packages/content/**'
@@ -39,6 +40,10 @@ on:
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  # (a pull request reads the cache and never writes it: only main's runs fill it)
+  TURBO_REMOTE_CACHE_READ_ONLY: ${{ github.event_name != 'push' }}
+
+permissions: {}
 
 # A new push to a PR cancels that PR's older runs (branch pushes and manual runs never are)
 concurrency:
@@ -81,12 +86,19 @@ jobs:
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
 
+  # (a fork's PR never publishes a preview: only this repository's branches do)
   publish:
     needs: gate
-    if: needs.gate.outputs.run == 'true'
+    if: >-
+      needs.gate.outputs.run == 'true' && (github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v6
 
@@ -123,7 +135,7 @@ jobs:
           npx --yes pkg-pr-new publish --pnpm --packageManager=pnpm
           './packages/ogygia' './packages/core' './packages/flags' './packages/postrender'
           './packages/federation' './packages/content' './packages/devtools' './packages/router'
-          './packages/testing' './packages/cli' './packages/machine'
+          './packages/testing' './packages/cli' './packages/machine' './packages/barrels'
 
       # Ask ogygiajs/bench to measure what was just published (it installs this commit's build
       # from pkg.pr.new). A PR commit is requested by the pull_request run only (the push run of the
