@@ -41,16 +41,31 @@ export type {
 	MacroHandler,
 	MacroContext,
 	MarkupSource,
-	MarkupRegions
+	MarkupRegions,
+	TransformStage,
+	TransformContext,
+	StageTransform,
+	ExportsSeam,
+	PinnedDecl
 } from './plugin-api.ts';
+export type {
+	ExportMap,
+	Entry as ExportEntry,
+	Leaf as ExportLeaf,
+	Policy as ExportPolicy
+} from '../compiler/exports/index.ts';
 export type { DebarrelOptions, Matcher as DebarrelMatcher } from '../compiler/debarrel/options.ts';
 export type { OgygiaPreset, OgygiaRateLimit, OgygiaOptions } from './options.ts';
 import {
 	find_plugins,
 	resolve_plugins,
+	type BuildSeams,
 	type PluginDefinition,
-	type ResolvedPlugins
+	type ResolvedPlugins,
+	type TransformContext,
+	type TransformStage
 } from './plugin-api.ts';
+import MagicString from 'magic-string';
 import type { ServerRealm } from '../compiler/link/caps.ts';
 import { assert_no_legacy_options, validate_region_presets, resolve_options } from './options.ts';
 import {
@@ -168,6 +183,7 @@ import { OgygiaError, warn, line } from '../messages/build.ts';
 
 /** css-ish file the dev bridge manages (mirrors the bridge's glob). */
 const DEV_CSS_FILE_RE = /\.(css|scss|sass|less|styl)$/;
+const BACKSLASH_G = /\\/g;
 
 const CSS_EXT_RE = /\.css$/;
 const STYLE_BEARING_FILE_RE = /\.(svelte|css|scss|sass|less|styl)$/;
@@ -215,6 +231,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let route_config: string[] = [];
 	let foreign_hydrate = false;
 	let macros: ResolvedPlugins['macros'] = [];
+	let stage_transforms: ResolvedPlugins['transforms'] = [];
 	let markup: ResolvedPlugins['markup'] = [];
 	const import_keys = normalize_import_keys(options.importKeys);
 	// What the plugins asked of the build (their `build` hooks, run in `config` below): the build's
@@ -395,6 +412,65 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		const code = readFile(abs);
 		return code == null ? null : strip_bom(code);
 	});
+	// The plugins' seams (vite/plugin-api.ts): one export index per environment, resolved as the
+	// transformed module resolves (through every plugin's resolveId, this one's included)
+	const transform_indexes = new Map<string, ExportIndex<TransformContext>>();
+	const seams: BuildSeams = {
+		exports: {
+			map(file, spec, policy, t) {
+				let index = transform_indexes.get(t.environment);
+				if (index === undefined)
+					transform_indexes.set(
+						t.environment,
+						(index = new ExportIndex<TransformContext>(
+							(s, importer, caller) => caller.resolve(s, importer),
+							shapes
+						))
+					);
+				return index.map(file, spec, policy, t);
+			}
+		},
+		pinned_imports(code) {
+			const keys = new Set(Object.values(import_keys));
+			const locals = asRegionLocals(code);
+			return (decl) =>
+				decl.attribute_keys.some((k) => keys.has(k)) ||
+				(locals.size > 0 && decl.specs.some((s) => locals.has(s.local)));
+		}
+	};
+	// A stage's host: runs the plugins' transforms of `stage` over one MagicString of the module, so
+	// the stage is one result and one map wherever the app lists the plugins
+	const stage_host = (stage: TransformStage): Plugin => ({
+		name: `ogygia:${stage}`,
+		enforce: 'pre',
+		async transform(raw, id) {
+			const mine = stage_transforms.filter((s) => s.stage === stage && (s.filter?.(id) ?? true));
+			if (mine.length === 0) return null;
+			// edits land by parser offsets: no byte-order mark in front of them (compiler/bom.ts)
+			const code = strip_bom(raw);
+			const edit = new MagicString(code);
+			const t: TransformContext = {
+				id,
+				code,
+				edit,
+				environment: this.environment.name,
+				resolve: async (spec, importer) => {
+					let r: Awaited<ReturnType<typeof this.resolve>>;
+					try {
+						r = await this.resolve(spec, importer, { skipSelf: true });
+					} catch {
+						return null; // ok: Vite throws for a specifier this importer cannot resolve
+					}
+					return r && !r.external ? r.id.replace(BACKSLASH_G, '/') : null;
+				},
+				watch: (file) => this.addWatchFile(file)
+			};
+			for (const s of mine) await s.transform(t);
+			return edit.hasChanged()
+				? { code: edit.toString(), map: edit.generateMap({ hires: true }) }
+				: null;
+		}
+	});
 	const css_walk_indexes = new Map<string, ExportIndex<WalkResolve>>();
 	const css_walk_index = (environment: string): ExportIndex<WalkResolve> => {
 		let index = css_walk_indexes.get(environment);
@@ -486,6 +562,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					})
 				]
 			: []),
+		// the plugins' `source` stage: on the module as written, before the region transform below
+		stage_host('source'),
 		{
 			name: 'ogygia',
 			enforce: 'pre',
@@ -510,8 +588,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						app_plugins,
 						path.resolve(userConfig.root ?? '.'),
 						env.command === 'serve',
-						(source, filename) => compiler.transform_content_island(source, filename)
+						(source, filename) => compiler.transform_content_island(source, filename),
+						seams
 					);
+					stage_transforms = resolved.transforms;
 					({
 						servers: server_plugins,
 						clients: client_plugins,
@@ -1590,6 +1670,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				emit_island_deps_handoff(root, json, kit_dirs(root).out_dir);
 			}
 		},
+		// the plugins' `post` stage: on what the region transform made of the module
+		stage_host('post'),
 		island_sourcemaps_plugin({ program, is_island_path }),
 		server_sourcemaps_plugin(() => measure)
 	];
