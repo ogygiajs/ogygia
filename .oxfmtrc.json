@@ -29,6 +29,7 @@
 		"**/CHANGELOG.md",
 		"internal/checks/results/**",
 		"apps/docs/src/lib/bench/results.json",
-		"apps/palaestra/e2e/bundle-size.snapshot.json"
+		"apps/palaestra/e2e/bundle-size.snapshot.json",
+		"apps/docs/static/tests/**"
 	]
 }

@@ -3,15 +3,21 @@
  * Chromium run), the e2e results read from Playwright's JSON files, and the lot written as the data
  * the docs' tests page reads:
  *
- *   <out>/summary.json        the version's totals and each package's
- *   <out>/<package>.json      each test (its kind, its result per engine, an issue it cites) and
- *                             each source file's coverage
+ *   <out>/summary.json        the version's totals and each package's (coverage as four numbers)
+ *   <out>/<package>.json      each test (its kind, its result per engine, an issue it cites), and
+ *                             the package's coverage as four numbers; compact JSON
  *   <out>/../index.json       the versions there are, newest first (with --index)
- *   <out>/coverage/<package>/ Vitest's coverage-summary.json and lcov.info, as they came
- *   <out>/coverage-summary.json  package → lines / branches / functions / statements %
+ *
+ * and, outside the report (CI keeps them as artifacts; never committed):
+ *
+ *   <raw>/coverage/<package>/ Vitest's coverage-summary.json (per file) and lcov.info, as they came
+ *   <raw>/coverage-summary.json  package → lines / branches / functions / statements %
  *
  *   node .github/scripts/test-report.ts --out apps/docs/static/tests/0.13.1 --index \
- *     [--engines chromium,firefox,webkit] [--e2e <dir of Playwright JSON>] [--version x] [--commit sha]
+ *     [--raw <dir>] [--engines chromium,firefox,webkit] [--e2e <dir of Playwright JSON>] \
+ *     [--version x] [--commit sha]
+ *
+ * `--raw` defaults to a fresh directory under the system's temp dir, never the repo.
  *
  * Run from the repo root, after `pnpm run build:lib`. A failing test is a result, not an error:
  * the script exits 0 once the files are written, and 1 only when a run could not be read at all.
@@ -43,6 +49,7 @@ const { values } = parseArgs({
 		commit: { type: 'string' },
 		index: { type: 'boolean', default: false },
 		'index-only': { type: 'boolean', default: false },
+		raw: { type: 'string' },
 		packages: { type: 'string' }
 	}
 });
@@ -51,6 +58,7 @@ if (!values.out) {
 	process.exit(1);
 }
 const OUT = resolve(values.out);
+const RAW = resolve(values.raw ?? join(tmpdir(), `og-test-report-raw-${process.pid}`));
 const ENGINES = values.engines!.split(',').filter(Boolean);
 const VERSION =
 	values.version ??
@@ -83,6 +91,7 @@ if (values['index-only']) {
 
 type Kind = 'unit' | 'browser' | 'e2e' | 'types' | 'rules';
 type Where = 'node' | 'chromium' | 'firefox' | 'webkit';
+const WHERE: readonly Where[] = ['node', 'chromium', 'firefox', 'webkit'];
 type Result = 'pass' | 'fail' | 'skip';
 interface Test {
 	file: string;
@@ -90,12 +99,6 @@ interface Test {
 	kind: Kind;
 	results: Partial<Record<Where, Result>>;
 	issue?: number;
-}
-interface FileCoverage {
-	path: string;
-	lines: number;
-	branches: number;
-	functions: number;
 }
 interface Pct {
 	lines: number;
@@ -190,6 +193,20 @@ function lines_in(dir: string, test: (f: string) => boolean): number {
 	return n;
 }
 const SOURCE_RE = /\.(ts|js|svelte|mjs)$/;
+/** A test file: Vitest's `*.test.ts` (and `*.test-d.ts`), Playwright's `*.spec.ts`. */
+const TEST_FILE_RE = /\.(test|test-d|spec)\.ts$/;
+/** Fixture code, which tests use but are not: a fixture app or a fixtures folder. */
+const FIXTURE_RE = /\/(fixtures?|app|_stubs)\//;
+/** Test code: the test files, and the helpers beside them in a test or e2e folder (no fixtures,
+ *  fixture apps or stubs, no benches). */
+const test_file = (f: string) =>
+	(TEST_FILE_RE.test(f) ||
+		(/\/(test|e2e)\//.test(f) && f.endsWith('.ts') && !f.endsWith('.d.ts'))) &&
+	!FIXTURE_RE.test(f) &&
+	!/\/bench\//.test(f);
+/** What `ratio` divides, said on the page. */
+const RATIO_DEFINITION =
+	'non-blank lines of test code across the repo (*.test.ts, *.test-d.ts, *.spec.ts, and the .ts helpers in test/ and e2e/ folders; no fixtures, fixture apps, stubs or benches), over non-blank lines of packages/*/src (no .d.ts or generated files)';
 const is_source = (f: string) => SOURCE_RE.test(f) && !f.endsWith('.d.ts');
 
 /** The files that use fast-check (seeded property and simulation tests). */
@@ -247,7 +264,7 @@ const tmp = join(tmpdir(), `og-test-report-${process.pid}`);
 mkdirSync(tmp, { recursive: true });
 mkdirSync(OUT, { recursive: true });
 const by_package = new Map<string, Map<string, Test>>();
-const coverage = new Map<string, { total: Pct; files: FileCoverage[] }>();
+const coverage = new Map<string, Pct>();
 const lines = new Map<
 	string,
 	{ src: number; test: number; seeded_files: Set<string>; benches: number }
@@ -259,7 +276,7 @@ for (const p of packages) {
 	const name = npm_name(dir);
 	const cases = join(tmp, `${p}.ndjson`);
 	rmSync(cases, { force: true });
-	const cov_dir = join(OUT, 'coverage', p);
+	const cov_dir = join(RAW, 'coverage', p);
 	console.log(`${name}: node + chromium (coverage)`);
 	vitest(dir, cases, { OGYGIA_BROWSERS: 'chromium' }, [
 		'--coverage.enabled',
@@ -293,32 +310,19 @@ for (const p of packages) {
 	by_package.set(name, tests);
 	const summary = join(cov_dir, 'coverage-summary.json');
 	if (existsSync(summary)) {
-		const s = JSON.parse(readFileSync(summary, 'utf8')) as Record<
-			string,
-			Record<'lines' | 'branches' | 'functions' | 'statements', { pct: number }>
-		>;
-		const files: FileCoverage[] = [];
-		for (const [path, f] of Object.entries(s)) {
-			if (path === 'total') continue;
-			files.push({
-				path: relative(ROOT, path),
-				lines: f.lines.pct,
-				branches: f.branches.pct,
-				functions: f.functions.pct
-			});
-		}
-		const t = s.total;
+		// (the per-file numbers stay in the raw summary: the report keeps the package's four)
+		const t = (
+			JSON.parse(readFileSync(summary, 'utf8')) as {
+				total: Record<'lines' | 'branches' | 'functions' | 'statements', { pct: number }>;
+			}
+		).total;
 		coverage.set(name, {
-			total: {
-				lines: t.lines.pct,
-				branches: t.branches.pct,
-				functions: t.functions.pct,
-				statements: t.statements.pct
-			},
-			files: files.sort((a, b) => a.path.localeCompare(b.path))
+			lines: t.lines.pct,
+			branches: t.branches.pct,
+			functions: t.functions.pct,
+			statements: t.statements.pct
 		});
 	}
-	const test_file = (f: string) => is_source(f);
 	const seeded_files = new Set<string>();
 	for (const t of tests.values())
 		if (!seeded_files.has(t.file) && SEEDED_RE.test(readFileSync(join(ROOT, t.file), 'utf8')))
@@ -375,14 +379,15 @@ const totals = {
 	srcLines: 0,
 	testLines: 0,
 	ratio: 0,
+	ratioDefinition: RATIO_DEFINITION,
 	coverage: { lines: 0, branches: 0, functions: 0, statements: 0 } as Pct
 };
 const summary_packages: Record<string, unknown> = {};
 const coverage_summary: Record<string, Pct> = {};
 let cov_weight = 0;
 
-for (const [name, tests] of [...by_package].sort(([a], [b]) => a.localeCompare(b))) {
-	const list = [...tests.values()].sort(
+for (const [name, found] of [...by_package].sort(([a], [b]) => a.localeCompare(b))) {
+	const list = [...found.values()].sort(
 		(a, b) => a.file.localeCompare(b.file) || a.name.localeCompare(b.name)
 	);
 	const by_kind = zero_kinds();
@@ -401,32 +406,47 @@ for (const [name, tests] of [...by_package].sort(([a], [b]) => a.localeCompare(b
 	totals.tests += list.length;
 	for (const k of KINDS) totals.byKind[k] += by_kind[k];
 	totals.benches += l.benches;
-	totals.srcLines += l.src;
-	totals.testLines += l.test;
 	if (cov) {
-		coverage_summary[name] = cov.total;
+		coverage_summary[name] = cov;
 		// (the version's coverage: each package's, weighed by its source lines)
 		for (const k of ['lines', 'branches', 'functions', 'statements'] as const)
-			totals.coverage[k] += cov.total[k] * l.src;
+			totals.coverage[k] += cov[k] * l.src;
 		cov_weight += l.src;
 	}
 	fails.set(name, fail);
 	summary_packages[name] = {
 		tests: list.length,
 		byKind: by_kind,
-		coverage: cov?.total ?? null,
+		coverage: cov ?? null,
 		srcLines: l.src,
 		testLines: l.test,
 		fail
 	};
-	const file = name.replace(/^@/, '').replaceAll('/', '-');
+	// compact: each file named once; a test is [file index, name, kind, results, issue?], its
+	// results one letter per place in `where` (p pass, f fail, s skip, - not run there)
+	const files = [...new Set(list.map((t) => t.file))];
+	const index = new Map(files.map((f, i) => [f, i]));
+	const tests = list.map((t) => {
+		const results = WHERE.map((w) => (t.results[w] ? t.results[w][0] : '-')).join('');
+		const row: (string | number)[] = [index.get(t.file)!, t.name, t.kind, results];
+		if (t.issue !== undefined) row.push(t.issue);
+		return row;
+	});
 	writeFileSync(
-		join(OUT, `${file}.json`),
-		JSON.stringify({ tests: list, coverage: { files: cov?.files ?? [] } }, null, '\t') + '\n'
+		join(OUT, `${name.replace(/^@/, '').replaceAll('/', '-')}.json`),
+		JSON.stringify({ format: 1, where: WHERE, files, tests, coverage: cov ?? null }) + '\n'
 	);
 }
 for (const k of ['lines', 'branches', 'functions', 'statements'] as const)
 	totals.coverage[k] = cov_weight ? Math.round((totals.coverage[k] / cov_weight) * 100) / 100 : 0;
+// (the version's test lines are the whole repo's: an app's e2e suite tests the packages too)
+totals.testLines =
+	lines_in(join(ROOT, 'packages'), test_file) + lines_in(join(ROOT, 'apps'), test_file);
+// (and its source lines every package's, tested by Vitest here or not)
+totals.srcLines = readdirSync(join(ROOT, 'packages')).reduce(
+	(n, p) => n + lines_in(join(ROOT, 'packages', p, 'src'), is_source),
+	0
+);
 totals.ratio = totals.srcLines ? Math.round((totals.testLines / totals.srcLines) * 100) / 100 : 0;
 
 writeFileSync(
@@ -445,8 +465,9 @@ writeFileSync(
 		'\t'
 	) + '\n'
 );
+mkdirSync(RAW, { recursive: true });
 writeFileSync(
-	join(OUT, 'coverage-summary.json'),
+	join(RAW, 'coverage-summary.json'),
 	JSON.stringify(coverage_summary, null, '\t') + '\n'
 );
 

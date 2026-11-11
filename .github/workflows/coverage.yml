@@ -73,7 +73,7 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
       - name: Run every package's tests with coverage
-        run: node .github/scripts/test-report.ts --out .tests-report/run --engines chromium
+        run: node .github/scripts/test-report.ts --out "$RUNNER_TEMP/report" --raw "$RUNNER_TEMP/raw" --engines chromium
       - name: Summary
         if: always()
         run: |
@@ -82,12 +82,14 @@ jobs:
             echo
             echo '| package | lines | branches | functions | statements |'
             echo '| --- | ---: | ---: | ---: | ---: |'
-            node -e 'const s=require("./.tests-report/run/coverage-summary.json");for(const [p,c] of Object.entries(s))console.log(`| ${p} | ${c.lines} | ${c.branches} | ${c.functions} | ${c.statements} |`)'
+            node -e 'const s=require(process.env.RUNNER_TEMP+"/raw/coverage-summary.json");for(const [p,c] of Object.entries(s))console.log(`| ${p} | ${c.lines} | ${c.branches} | ${c.functions} | ${c.statements} |`)'
           } >> "$GITHUB_STEP_SUMMARY" || true # ok: no report, nothing to summarise (the run step's own output says why)
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-${{ github.sha }}
-          path: .tests-report/run/
+          path: |
+            ${{ runner.temp }}/report/
+            ${{ runner.temp }}/raw/
           if-no-files-found: ignore
           retention-days: 30
