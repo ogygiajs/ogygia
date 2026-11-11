@@ -65,7 +65,7 @@ export const config = { postrender: true };
 export const config = { postrender: false };
 ```
 
-`config` works in `+page.ts`, `+page.server.ts`, `+layout.ts` and `+layout.server.ts`, the same files Kit reads it from, and other keys in the object (an adapter's `runtime`, for example) still belong to Kit. The value is read at build time, so write `true` or `false` directly, because a computed value is a build error. Opting a route in only makes it **eligible**, and the purity check below still refuses an impure render.
+`config` works in `+page.ts`, `+page.server.ts`, `+layout.ts` and `+layout.server.ts`, the same files Kit reads it from, and other keys in the object (an adapter's `runtime`, for example) still belong to Kit. The value is read at build time, so write `true`, `false` or `'with-credentials'` (below) directly, because a computed value is a build error. Opting a route in only makes it **eligible**, and the purity check below still refuses an impure render.
 
 ### Programmatic routes
 
@@ -94,10 +94,14 @@ The router answers inside ogygia's handle, so a stored page is served before the
 
 Postrender watches each eligible render, and a page **stays per-request** when its render:
 
-- reads a cookie, a personal header or a `locals` value that returned a **non-default** value,
+- reads a cookie, a personal header or a `locals` value that returned a **non-default** value (a function in `locals`, such as a session getter, counts as a value; so do `in` and listing its keys),
+- reads the request's headers whole while one of them is personal (copying them into a new `Request` or `Headers`, `Object.fromEntries`, a loop, a `clone()` of the request), or asks `has()` for a personal one. Personal headers are the cookie, authorization, language, user agent and referer, and the ones a host or proxy adds per visitor: the client's address (`x-forwarded-for`, `forwarded`, `x-real-ip`), the forwarded host, and location or session headers,
+- calls `getClientAddress()`, reads per-request `platform` data (anything but `platform.env`, `platform.caches` and the `waitUntil` hand-off), or calls `fetch` on its own origin (or a subdomain) while the request carries a cookie or `authorization`, since Kit sends them along,
 - reads a [feature flag](/docs/flags/guide), because a page under an A/B test must never store one variant,
 - writes a cookie, sets `set-cookie`, answers with a status other than 200, or streams load promises,
 - or was requested with a query string.
+
+A request that carries a cookie or an `authorization` header is also never **stored**, even when its render read nothing personal: it still gets a stored copy when there is one, but its own render is not kept and is stamped `private, no-store`. A route whose pages are the same with and without them (a site that sets an analytics cookie on everyone, say) opts in with `config = { postrender: 'with-credentials' }`. The purity check above still applies to those renders.
 
 Each refusal is **named in a dev note** (`cookie:session`, `locals.user`, `flag:hero`), so an almost-pure page tells you exactly which read keeps it per-request. Reads that return the default value still allow storing. The render an anonymous visitor gets (where `cookies.get('consent')` returns `undefined` and `locals.user` is empty) **is** the canonical copy, which formalizes the familiar cookie-less CDN cache key. Once it is stored, every visitor receives the canonical copy. Content that really has to differ per visitor belongs in a `render: 'deferred'` hole: the shell is stored, and the hole fetches fresh for each visitor. The hole's signed URL is minted with the long lifetime used for prerendering, so a warm stored page never carries expired holes (set a stable `OGYGIA_SECRET`). Deferred regions from another team's app get the same lifetime; see [Fragment federation](/docs/federation/guide#a-remote-fragment-is-a-region-deferred-remote-regions-on-stored-pages).
 
