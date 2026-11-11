@@ -20,6 +20,7 @@ import {
 	attach_claims,
 	absolutize,
 	lift_document,
+	moved_card,
 	json_response,
 	json_error,
 	read_capped_body,
@@ -334,10 +335,7 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 			return answer(wdoc.html);
 		}
 		const doc = await peer.doc(target, search, claims, traceparent);
-		if (doc.location)
-			return answer(
-				`<p data-og-moved>This section moved. <a href="${doc.location}">Continue</a></p>`
-			);
+		if (doc.location) return answer(String(moved_card('data-og-moved', 'section', doc.location)));
 		return answer((doc.css?.join('') ?? '') + (doc.head ?? '') + doc.body);
 	} catch {
 		return answer('');
