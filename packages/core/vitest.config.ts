@@ -47,9 +47,7 @@ const drop_downloads: BrowserCommand<[path: string, times: number]> = async (ctx
 const hold_downloads: BrowserCommand<[path: string]> = async (ctx, path) => {
 	const [r, frame] = await route_of(ctx, path);
 	await ctx.page.route(r.matches, (route) =>
-		route.request().frame() !== frame
-			? route.fallback()
-			: void r.held.push(() => route.continue())
+		route.request().frame() !== frame ? route.fallback() : void r.held.push(() => route.continue())
 	);
 };
 const keep_downloads: BrowserCommand<[path: string]> = async (ctx, path) => {
