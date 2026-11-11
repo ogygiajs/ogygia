@@ -3385,8 +3385,12 @@
 			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~0a919c > boot > realm_boot:1~ef831d > lend",
+			"id": "packages/devtools/src/client.ts > defineClient:0~f74c4f > boot > realm_boot:1~ef831d > lend",
 			"reason": "browser only: lends the app's own chunk of names to the realm, one dynamic import, once per page"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > defineClient:0~f74c4f > boot > then:0~26dd7e",
+			"reason": "browser only, a build's switched-on dock: joins the regions' half to the page beacon once it started, once per document, constant work of its own"
 		},
 		{
 			"id": "packages/devtools/src/devtools/hook-once.ts > first_handling",
