@@ -34,7 +34,7 @@ export function og_entry_hydrate(
 	return hydrate(component, {
 		target,
 		props,
-		context: nested_context(),
+		context: nested_context(null, target),
 		...recovery
 	});
 }
