@@ -278,8 +278,10 @@ export class LoadSlot {
 		return forced !== null && RANK[forced] < RANK[c] ? forced : c;
 	}
 
-	/** Lift it (a prefetch the visitor then navigates to). */
+	/** Lift it to `c` (a prefetch the visitor then navigates to, a warm a hover joins); a class that
+	 *  ranks lower than one it was lifted to already changes nothing. */
 	promote(c: LoadClass): void {
+		if (this.#forced !== null && RANK[this.#forced] <= RANK[c]) return;
 		this.#forced = c;
 		drain();
 	}
