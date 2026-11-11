@@ -14,7 +14,7 @@
  */
 import { createHash } from 'node:crypto';
 import { EARLY_HOLES_TAG } from '../early-holes-head.ts';
-import { next_tag } from '../wire-markup.ts';
+import { next_tag, value_at } from '../wire-markup.ts';
 
 /** The text between a tag's `<script…>` and `</script>`: what a CSP hash covers. */
 export function script_text(tag: string): string {
@@ -69,7 +69,7 @@ export function with_early_holes_meta_csp(head: string): string {
 	let kept = 0;
 	for (let t = next_tag(head, 'meta', 0); t !== null; t = next_tag(head, 'meta', t.end)) {
 		if (t.attr('http-equiv')?.toLowerCase() !== 'content-security-policy') continue;
-		const at = t.value_at('content');
+		const at = value_at(head, t, 'meta', 'content');
 		if (at === -1) continue;
 		const policy = t.attr('content')!;
 		const next = with_early_holes_csp(policy);

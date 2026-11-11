@@ -4,7 +4,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { is_marker, MARK, tags, text_of, unknown_markers } from '../src/wire-markup.ts';
+import { is_marker, MARK, tags, text_of, unknown_markers, value_at } from '../src/wire-markup.ts';
 
 const PACKAGES = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -82,11 +82,12 @@ describe('tags', () => {
 	it('value_at: where a value starts, quoted or not; -1 when absent or bare', () => {
 		const html = `<meta A="x>1" b = 'two' c=three d>`;
 		const t = [...tags(html, 'meta')][0];
+		const at = (n: string) => value_at(html, t, 'meta', n);
 		for (const n of ['a', 'b', 'c'])
-			expect(html.slice(t.value_at(n), t.value_at(n) + t.attr(n)!.length)).toBe(t.attr(n));
-		expect(html[t.value_at('b') - 1]).toBe("'");
-		expect(t.value_at('d')).toBe(-1);
-		expect(t.value_at('e')).toBe(-1);
+			expect(html.slice(at(n), at(n) + t.attr(n)!.length)).toBe(t.attr(n));
+		expect(html[at('b') - 1]).toBe("'");
+		expect(at('d')).toBe(-1);
+		expect(at('e')).toBe(-1);
 	});
 });
 

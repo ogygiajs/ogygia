@@ -48,7 +48,7 @@
  * non-SvelteKit half of a monorepo where these SSR passes usually live.
  */
 import { escape_amp_quot } from '../escape.ts';
-import { next_tag, read_tag } from '../wire-markup.ts';
+import { next_tag, read_tag, value_at } from '../wire-markup.ts';
 // (the regex `\s` the attribute rules were written in — wider than the tag scan's HTML whitespace)
 import { is_space as is_re_space } from './html-scan.ts';
 
@@ -454,8 +454,9 @@ function merge_class(head: string, existing: string | undefined, added: string):
 
 	const merged = `"${escape_attr([...have].join(' '))}"`;
 	// (the head is the region's opening tag without its `>`: read back as a tag to find `class`)
-	const tag = read_tag(head + '>', 0, 1 + REGION_TAG.length);
-	const at = tag === null ? -1 : tag.value_at('class');
+	const open = head + '>';
+	const tag = read_tag(open, 0, 1 + REGION_TAG.length);
+	const at = tag === null ? -1 : value_at(open, tag, REGION_TAG, 'class');
 	if (at === -1) return [head, false];
 	const quoted = head[at - 1] === '"' || head[at - 1] === "'";
 	const from = quoted ? at - 1 : at;
