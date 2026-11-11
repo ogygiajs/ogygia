@@ -80,7 +80,7 @@
 		{/each}
 	{:else}
 		<ul class="og-blog-list">
-			{#each sorted as p (p.href)}<li>{@render card(p)}</li>{/each}
+			{#each posts as p (p.href)}<li>{@render card(p)}</li>{/each}
 		</ul>
 	{/if}
 </section>
