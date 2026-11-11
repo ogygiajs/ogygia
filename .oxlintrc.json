@@ -10,6 +10,12 @@
 		"ogygia/no-silent-failures": "error",
 		"ogygia/stale-whole": "error"
 	},
+	"overrides": [
+		{
+			"files": ["packages/*/src/**"],
+			"rules": { "no-eval": "error", "no-new-func": "error", "no-implied-eval": "error" }
+		}
+	],
 	"ignorePatterns": [
 		"**/dist/**",
 		"**/build/**",
