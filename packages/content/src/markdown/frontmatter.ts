@@ -655,6 +655,8 @@ export function parseFrontmatter(source: string): FrontmatterResult {
 			data = parsed as Record<string, unknown>;
 		}
 	} catch (e) {
+		// (a coded parser error is already the answer: test/frontmatter-errors.test.ts)
+		if (e instanceof OgygiaError) throw e;
 		const msg = e instanceof Error ? e.message : String(e);
 		throw new OgygiaError('content_frontmatter_invalid', { reason: msg });
 	}
