@@ -158,6 +158,28 @@ test('DEV: a wait that runs long warns once (diagnosable), still resolves the mo
 	}
 });
 
+test('a wait for a Kit whose boot import failed ends: it fails with kit_boot_failed, said once (#820)', async () => {
+	const errors: string[] = [];
+	const real_error = console.error;
+	console.error = (...args: unknown[]) => errors.push(args.map(String).join(' '));
+	try {
+		// Kit's boot script, as Kit writes it (here only as text: it is not run), importing a file
+		// that cannot load.
+		document.body.innerHTML =
+			'<script>__sveltekit_lab = {};\nimport("/__og_missing__/entry/start.js").then(() => {});</script>';
+		const first = kit_page_thread();
+		const second = kit_page_thread();
+		expect(first, 'Kit has not started → a real wait').not.toBeNull();
+		await expect(first).rejects.toMatchObject({ code: 'kit_boot_failed' });
+		await expect(second).rejects.toMatchObject({ code: 'kit_boot_failed' });
+		// a wait that starts after it failed fails too: the browser keeps the file failed
+		await expect(kit_page_thread()).rejects.toMatchObject({ code: 'kit_boot_failed' });
+		expect(errors.filter((e) => e.includes('kit_boot_failed'))).toHaveLength(1);
+	} finally {
+		console.error = real_error;
+	}
+});
+
 test('with the thread already published at wake there is no hold: the island hydrates straight away', async () => {
 	publish_kit_page({ searchBarMarkup: '<i data-testid="search">search</i>' });
 	document.body.innerHTML =
