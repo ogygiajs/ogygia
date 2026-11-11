@@ -11,17 +11,19 @@ import { runtime_session } from '../../src/runtime/session.ts';
 
 const real_fetch = window.fetch;
 const home = location.href;
-const FILE = '/_app/immutable/og-key-depth.js';
+// (under a base path, so the file differs from what the same text names against any other page)
+const FILE = '/shop/_app/immutable/og-key-depth.js';
+const ASSET = '_app/immutable/og-key-depth.js';
 const added: Element[] = [];
 
 beforeEach(() => {
 	link_boot();
 	install_morph();
-	history.replaceState(history.state, '', '/nested');
+	history.replaceState(history.state, '', '/shop/nested');
 	// the server's head of `/nested`: its asset written relative to it
 	const script = document.createElement('script');
 	script.type = 'text/x-og-key-depth'; // (a type the browser does not run or fetch)
-	script.setAttribute('src', `.${FILE}`);
+	script.setAttribute('src', `./${ASSET}`);
 	document.head.append(script);
 	added.push(script);
 	runtime_session.adopt_document_head(); // (the boot's: what the server sent is the page's)
@@ -30,7 +32,7 @@ beforeEach(() => {
 	window.fetch = async () =>
 		new Response(
 			'<!doctype html><html><head><meta name="ogygia-router" content="plain">' +
-				`<script type="text/x-og-key-depth" src="..${FILE}"></script>` +
+				`<script type="text/x-og-key-depth" src="../${ASSET}"></script>` +
 				'</head><body><p data-page="orders">orders</p></body></html>',
 			{ status: 200, headers: { 'content-type': 'text/html' } }
 		);
@@ -47,13 +49,13 @@ test('a navigation to a page at another depth keeps one head node for the same f
 	vi.spyOn(r, 'hand_off').mockImplementation(() => {
 		if (r.nav.now.kind !== 'idle') r.nav.go('idle');
 	});
-	await r.navigate(new URL('/dashboard/orders', location.href));
+	await r.navigate(new URL('/shop/dashboard/orders', location.href));
 	await expect
 		.poll(() => document.querySelector('[data-page="orders"]'), { timeout: 2_000 })
 		.not.toBeNull();
 	await expect.poll(() => r.nav.now.kind, { timeout: 2_000 }).toBe('idle');
 	const files = [...document.head.querySelectorAll('script[type="text/x-og-key-depth"]')].map(
-		(s) => new URL(s.getAttribute('src')!, location.origin + '/nested').pathname
+		(s) => new URL(s.getAttribute('src')!, location.origin + '/shop/nested').pathname
 	);
 	expect(files).toEqual([FILE]);
 	// the node from the first page stayed: kept, not taken out and put back
