@@ -17,23 +17,29 @@
  */
 import { next_tag, type FoundTag } from '../wire-markup.ts';
 
+/** Where `needle` is next from `from`, or -1: a string as spelled, a (global) pattern in any case. */
+function needle_at(html: string, needle: string | RegExp, from: number): number {
+	if (typeof needle === 'string') return html.indexOf(needle, from);
+	needle.lastIndex = from;
+	return needle.exec(html)?.index ?? -1;
+}
+
 /** The first `<name …>` from `from` that carries `needle` in a way `test` accepts, or null. The
- *  needle (what every match spells, in any case: a global, case-blind pattern) is looked for first,
- *  so a head without it reads no tag, and only a tag whose span holds it has its attributes read. */
+ *  needle is what every match spells: a string when `test` compares a value exactly, a global,
+ *  case-blind pattern when it reads a name (names are in any case). It is looked for first, so a
+ *  head without it reads no tag, and only a tag whose span holds it has its attributes read. */
 function find_tag(
 	html: string,
 	name: string,
-	needle: RegExp,
+	needle: string | RegExp,
 	test: (tag: FoundTag) => boolean,
 	from = 0
 ): FoundTag | null {
-	needle.lastIndex = from;
-	let at = needle.exec(html)?.index ?? -1;
+	let at = needle_at(html, needle, from);
 	if (at === -1) return null;
 	for (let t = next_tag(html, name, from); t !== null; t = next_tag(html, name, t.end)) {
 		if (at < t.start) {
-			needle.lastIndex = t.start;
-			at = needle.exec(html)?.index ?? -1;
+			at = needle_at(html, needle, t.start);
 			if (at === -1) return null;
 		}
 		if (at < t.end && test(t)) return t;
@@ -44,7 +50,7 @@ function find_tag(
 function has_tag(
 	html: string,
 	name: string,
-	needle: RegExp,
+	needle: string | RegExp,
 	test: (tag: FoundTag) => boolean
 ): boolean {
 	return find_tag(html, name, needle, test) !== null;
@@ -52,7 +58,7 @@ function has_tag(
 
 /** A real `<meta name="ogygia-router" …>` element — a page opting a route out of view transitions. */
 export function page_declares_router_meta(html: string): boolean {
-	return has_tag(html, 'meta', ROUTER_NEEDLE_G, (t) => t.attr('name') === 'ogygia-router');
+	return has_tag(html, 'meta', 'ogygia-router', (t) => t.attr('name') === 'ogygia-router');
 }
 
 /** A real runtime bootstrap `<script … data-ogygia-runtime …>` (Region emits it on island pages). */
@@ -61,7 +67,8 @@ export function page_declares_runtime_script(html: string): boolean {
 }
 
 const is_runtime = (t: FoundTag) => t.attr('data-ogygia-runtime') !== undefined;
-const is_modulepreload = (t: FoundTag) => t.attr('rel') === 'modulepreload';
+/** A `rel` holding the `modulepreload` token, in any case, as a browser reads it. */
+const is_modulepreload = (t: FoundTag) => MODULEPRELOAD_TOKEN.test(t.attr('rel') ?? '');
 
 /** A real dev-HMR `<script … data-ogygia-dev-hmr …>`. */
 export function page_declares_dev_hmr_script(html: string): boolean {
@@ -81,12 +88,12 @@ export function page_declares_speculation_rules(html: string): boolean {
 	);
 }
 
-// The needles: global so a search starts at a tag (`lastIndex`), case-blind as attribute names are.
-const ROUTER_NEEDLE_G = /ogygia-router/gi;
+// The name needles: global so a search starts at a tag (`lastIndex`), case-blind as names are.
 const RUNTIME_NEEDLE_G = /data-ogygia-runtime/gi;
 const DEV_HMR_NEEDLE_G = /data-ogygia-dev-hmr/gi;
 const SPECULATION_NEEDLE_G = /speculationrules/gi;
 const MODULEPRELOAD_NEEDLE_G = /modulepreload/gi;
+const MODULEPRELOAD_TOKEN = /(?:^|[\t\n\f\r ])modulepreload(?:[\t\n\f\r ]|$)/i;
 const SPECULATION_TYPE = /^[\t\n\f\r ]*speculationrules[\t\n\f\r ]*$/i;
 
 /**
