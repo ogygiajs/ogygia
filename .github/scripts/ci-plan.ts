@@ -56,6 +56,13 @@ const BROWSER_JOBS = ['firefox', 'webkit', 'firefox-stable'] as const;
 
 const env = process.env;
 const pull_request = env.EVENT === 'pull_request';
+// A STACKED PR (its base is another PR's branch) runs format, lint, check and size only: its e2e and
+// browser jobs run once, on the stack's integration PR or its top PR into main (or with `ci:full`).
+const stacked =
+	pull_request &&
+	!!env.PR_BASE &&
+	env.PR_BASE !== 'main' &&
+	!(JSON.parse(env.LABELS || '[]') as string[]).includes('ci:full');
 // (the base commit itself: a stacked PR's `base_ref` was seen to read `main` on CI, its base sha
 // was right)
 const base = env.BASE_SHA || (env.BASE_REF ? `origin/${env.BASE_REF}` : 'origin/main');
@@ -209,7 +216,7 @@ const browsers =
 	browser_tasks.length === 0
 		? []
 		: BROWSER_JOBS.filter((b) => !passed(`browsers-pass-${b}-${browsers_hash}`));
-output('browsers', browsers);
+output('browsers', stacked ? [] : browsers);
 output('browsers_hash', browsers_hash);
 summary.push(`browsers: ${browsers.join(', ') || 'none'} (inputs ${browsers_hash}).`);
 
@@ -227,8 +234,12 @@ for (const browser of ENGINES)
 			`e2e ${slice.name}, ${browser}: ${e2e.length} task(s), ${left.length} to run${left.length ? ` (${left.map((t) => t.taskId).join(', ')})` : ''}.`
 		);
 	}
-output('e2e_chromium', chromium);
-output('e2e_engines', engines);
+output('e2e_chromium', stacked ? [] : chromium);
+output('e2e_engines', stacked ? [] : engines);
+if (stacked)
+	summary.push(
+		`Stacked on \`${env.PR_BASE}\`: no e2e or browser jobs here (they run on the integration PR or the stack's PR into main; \`ci:full\` runs them).`
+	);
 
 // (the size tool itself changing counts too: it measures both sides). Remembered like the browser
 // jobs: the same core build against the same base passed before, so it is left out.

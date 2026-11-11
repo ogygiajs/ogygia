@@ -7,7 +7,8 @@
 //   ci:full     all three
 //
 // A PR into main gets `ci:bench` and `ci:preview`. A change to the runtime, the router, the morph,
-// hydration or restore gets `ci:engines`; a change to a bench or a hot path gets `ci:bench`. The labels
+// hydration or restore gets `ci:engines`; a change to a bench or a hot path gets `ci:bench`. A stacked
+// PR (base not main) earns none and runs them only with `ci:full`: its stack's PR into main runs them. The labels
 // a PR carries are its own to add or remove as well; this only adds.
 //
 //   node .github/scripts/ci-labels.ts           print the labels this PR earns
@@ -31,10 +32,10 @@ const BENCH_PATHS = [
 /** The labels a PR into `base` that changes `files` earns. */
 export function labels_for(base: string, files: readonly string[]): string[] {
 	const out = new Set<string>();
-	if (base === 'main') {
-		out.add('ci:bench');
-		out.add('ci:preview');
-	}
+	// a stacked PR earns nothing: its stack's PR into main (or integration PR) runs the opt-in sets
+	if (base !== 'main') return [];
+	out.add('ci:bench');
+	out.add('ci:preview');
 	if (files.some((f) => ENGINES_PATHS.some((re) => re.test(f)))) out.add('ci:engines');
 	if (files.some((f) => BENCH_PATHS.some((re) => re.test(f)))) out.add('ci:bench');
 	return [...out].sort();
@@ -59,6 +60,8 @@ const args = process.argv.slice(2);
 
 if (args[0] === '--has') {
 	const want = args[1] ?? '';
+	// (a stacked PR runs the opt-in sets only with `ci:full`: they run once on its stack's PR into main)
+	if (base !== 'main') process.exit(carried.includes('ci:full') ? 0 : 1);
 	const all = new Set([...carried, ...earned]);
 	process.exit(all.has(want) || all.has('ci:full') ? 0 : 1);
 }
