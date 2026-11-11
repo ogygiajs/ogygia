@@ -28,9 +28,6 @@ export interface CompiledPattern {
 
 const REGEX_SPECIAL_G = /[.*+?^${}()|[\]\\]/g;
 const escape_re = (s: string) => s.replace(REGEX_SPECIAL_G, '\\$&');
-/** One character, safe inside a `[...]` class. */
-const escape_class = (c: string) => (/[\\\]^-]/.test(c) ? '\\' + c : c);
-
 const REST = /^\[\.\.\.([a-zA-Z_$][\w$]*)\]$/;
 const OPTIONAL = /^\[\[([a-zA-Z_$][\w$]*)\]\]$/;
 /** strips valid `[param]` groups so any leftover bracket flags a malformed segment */
@@ -96,13 +93,18 @@ export function compile(pattern: string): CompiledPattern {
 					return;
 				}
 				params_left--;
-				// a param with another after it stops at the next literal's first character, so the
-				// match is linear (test: router-match.test.ts › takes time in line with the path)
+				// A param with another after it takes the shortest run its literal follows, as an
+				// atomic group (`(?=(…))\N`: never backtracked into), so the match is linear. The
+				// shortest run is also Kit's lazy split: a later one never lets more of the segment
+				// match. (tests: router-match.test.ts › takes time in line with the path, #833)
 				const next = pieces[j + 1];
+				const group = params.length + 1;
 				inner +=
-					params_left > 0 && next && 'text' in next
-						? `([^/${escape_class(next.text[0])}]+)`
-						: '([^/]+)';
+					params_left === 0
+						? '([^/]+)'
+						: next && 'text' in next
+							? `(?=([^/]+?)${escape_re(next.text)})\\${group}`
+							: '([^/])';
 				params.push({ name: p.name });
 				has_param = true;
 			});
