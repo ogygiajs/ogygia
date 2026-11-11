@@ -641,6 +641,16 @@ export type FrontmatterResult = {
  * Minimal `---` YAML frontmatter split. Body is unused for glob catalogs
  * (Content comes from the Vite module); data is schema-validated.
  */
+/** What the parser stopped at, as words: a coded parser error without its own `[ogygia] ` prefix
+ *  and link line, so the outer error prints them once. */
+function reason_of(e: unknown): string {
+	const message = e instanceof Error ? e.message : String(e);
+	if (!(e instanceof OgygiaError)) return message;
+	const link = message.lastIndexOf('\nhttps://ogygiajs.dev/e/');
+	const words = link === -1 ? message : message.slice(0, link);
+	return words.startsWith('[ogygia] ') ? words.slice('[ogygia] '.length) : words;
+}
+
 export function parseFrontmatter(source: string): FrontmatterResult {
 	const text = source.replace(BOM, '');
 	if (!text.startsWith('---')) {
@@ -659,9 +669,9 @@ export function parseFrontmatter(source: string): FrontmatterResult {
 			data = parsed as Record<string, unknown>;
 		}
 	} catch (e) {
+		// (the parser's own invalid-frontmatter error is already the answer: wrapped, it would say so twice)
 		if (e instanceof OgygiaError && e.code === 'content_frontmatter_invalid') throw e;
-		const msg = e instanceof Error ? e.message : String(e);
-		throw new OgygiaError('content_frontmatter_invalid', { reason: msg });
+		throw new OgygiaError('content_frontmatter_invalid', { reason: reason_of(e) });
 	}
 	return { data, body: after };
 }

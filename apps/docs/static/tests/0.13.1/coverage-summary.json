@@ -1,0 +1,68 @@
+{
+	"@ogygia/cli": {
+		"lines": 39.78,
+		"branches": 40.06,
+		"functions": 45.73,
+		"statements": 40.4
+	},
+	"@ogygia/content": {
+		"lines": 78.02,
+		"branches": 63.98,
+		"functions": 71.95,
+		"statements": 74
+	},
+	"@ogygia/core": {
+		"lines": 73.48,
+		"branches": 60.97,
+		"functions": 73.32,
+		"statements": 70.79
+	},
+	"@ogygia/devtools": {
+		"lines": 54.88,
+		"branches": 49.92,
+		"functions": 39.78,
+		"statements": 51.56
+	},
+	"@ogygia/federation": {
+		"lines": 75.94,
+		"branches": 62.76,
+		"functions": 78.76,
+		"statements": 72
+	},
+	"@ogygia/flags": {
+		"lines": 88.42,
+		"branches": 75.44,
+		"functions": 84.12,
+		"statements": 87.45
+	},
+	"@ogygia/machine": {
+		"lines": 96.72,
+		"branches": 95.9,
+		"functions": 90.9,
+		"statements": 96.21
+	},
+	"@ogygia/postrender": {
+		"lines": 89.35,
+		"branches": 71.58,
+		"functions": 83.87,
+		"statements": 87.41
+	},
+	"@ogygia/router": {
+		"lines": 70.42,
+		"branches": 52.45,
+		"functions": 69.35,
+		"statements": 67.71
+	},
+	"@ogygia/testing": {
+		"lines": 79.76,
+		"branches": 70.66,
+		"functions": 71.52,
+		"statements": 78.64
+	},
+	"@ogygia/tooling": {
+		"lines": 16.07,
+		"branches": 13,
+		"functions": 17.7,
+		"statements": 16.31
+	}
+}

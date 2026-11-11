@@ -33,14 +33,6 @@
 			"reason": "names an unnamed theme object for Shiki: a spread of a theme object, constant work; proven in packages/content/test/shiki-highlighters.test.ts"
 		},
 		{
-			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~7326ff",
-			"reason": "the replacement for the multi-variant id attribute: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
-		},
-		{
-			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~ca1204",
-			"reason": "the replacement for the pre's attributes: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
-		},
-		{
 			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > cancel",
 			"reason": "the stream's cancel closes its owner: constant work"
 		},
@@ -335,6 +327,30 @@
 		{
 			"id": "packages/core/src/server/rules.ts > request_scopes_closed",
 			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > no_kept_unkeyed_read",
+			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #hole_cache",
+			"reason": "a hole's cache key and the start of its read observation (a RequestEvent, not cloneable), constant work; run by packages/flags/test/hole-cache.test.ts through cached_render and the e2e hole suites"
+		},
+		{
+			"id": "packages/core/src/plugin/reads.ts > set_open_reads",
+			"reason": "installs the read-set reader once, at module load, constant work"
+		},
+		{
+			"id": "packages/core/src/server/render-page.ts > render_page > get data",
+			"reason": "notes a page.data read into the running render's read set and returns the data, constant work"
 		},
 		{
 			"id": "packages/machine/src/policy.ts > out_of_time",
@@ -2137,6 +2153,14 @@
 			"reason": "awaits the app's flag source (an async call out, not recorded), linear in the registered flags; proven in packages/flags/test/prime-twice.test.ts and packages/flags/test/source-failed.test.ts"
 		},
 		{
+			"id": "packages/flags/src/index.ts > outbox:0~05e47f > giveUp > once:1~de49a5",
+			"reason": "prints one warning (console output, not replayable), constant work"
+		},
+		{
+			"id": "packages/machine/src/say.ts > say > get size",
+			"reason": "reads a Map's size, constant work; proven in packages/machine/test/say.test.ts"
+		},
+		{
 			"id": "packages/flags/src/index.ts > set_prime",
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
 		},
@@ -2213,44 +2237,8 @@
 			"reason": "the wait runs out (a dropped download in WebKit): resolves null, constant work"
 		},
 		{
-			"id": "packages/core/src/server/rules.ts > no_kept_unkeyed_read",
-			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > details",
-			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > text",
-			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/hooks.ts > OgygiaHandle > #hole_cache",
-			"reason": "a hole's cache key and the start of its read observation (a RequestEvent, not cloneable), constant work; run by packages/flags/test/hole-cache.test.ts through cached_render and the e2e hole suites"
-		},
-		{
-			"id": "packages/core/src/plugin/reads.ts > set_open_reads",
-			"reason": "installs the read-set reader once, at module load, constant work"
-		},
-		{
-			"id": "packages/core/src/server/render-page.ts > render_page > get data",
-			"reason": "notes a page.data read into the running render's read set and returns the data, constant work"
-		},
-		{
-			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > observeReads",
-			"reason": "forwards a RequestEvent (not cloneable) to observe_reads, constant work; packages/core/bench/server.bench.ts runs observe_reads"
-		},
-		{
-			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > warn > once:1~c9a4aa",
-			"reason": "prints one warning (console output, not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/flags/src/index.ts > outbox:0~05e47f > giveUp > once:1~de49a5",
-			"reason": "prints one warning (console output, not replayable), constant work"
-		},
-		{
-			"id": "packages/machine/src/say.ts > say > get size",
-			"reason": "reads a Map's size, constant work; proven in packages/machine/test/say.test.ts"
+			"id": "packages/content/src/markdown/frontmatter.ts > reason_of",
+			"reason": "a thrown error to its words (an OgygiaError's class identity does not replay), two string slices, only on a frontmatter error; proven in packages/content/test/frontmatter-errors.test.ts"
 		},
 		{
 			"id": "packages/content/src/vite/index.ts > warn_placement > once:1~daa8fe",
@@ -2313,20 +2301,36 @@
 			"reason": "say(): one setup warning for the process, constant work"
 		},
 		{
-			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
 			"id": "packages/core/src/server/page-stream.ts > swap_tracked",
 			"reason": "the fallback walk for a page value too deep or cyclic for the untracked one, handed a swap function (not cloneable); linear in the value, one Map entry per open object; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
 		},
 		{
 			"id": "packages/core/src/server/page-stream.ts > swap_tracked > walk",
 			"reason": "one node of swap_tracked's walk over a closure (its Map and swap: not cloneable), constant work per node; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
+		},
+		{
+			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~7326ff",
+			"reason": "the replacement for the multi-variant id attribute: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
+		},
+		{
+			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~ca1204",
+			"reason": "the replacement for the pre's attributes: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > observeReads",
+			"reason": "forwards a RequestEvent (not cloneable) to observe_reads, constant work; packages/core/bench/server.bench.ts runs observe_reads"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > warn > once:1~c9a4aa",
+			"reason": "prints one warning (console output, not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > details",
+			"reason": "a message table entry: wording only"
 		}
 	]
 }
