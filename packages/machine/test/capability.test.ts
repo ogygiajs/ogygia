@@ -190,6 +190,49 @@ describe('capability: two machines’ clocks', () => {
 	});
 });
 
+describe('capability: deterministic tokens', () => {
+	it('with nonce off, the same audience, fields and expiry mint the same token, which checks as often as presented', () => {
+		let t = 1_000_000;
+		const cap = capability({
+			name: 'region',
+			version: 3,
+			signer: hmac('k'),
+			ttl: { max: 60_000 },
+			nonce: false,
+			now: () => t
+		});
+		const a = cap.mint(AUD, ['id', 'props'], 10_000);
+		expect(cap.mint(AUD, ['id', 'props'], 10_000)).toBe(a);
+		expect(a).toMatch(/^v3\.\d+\.\.[\w-]+$/);
+		expect(cap.check(a, AUD, ['id', 'props'])).toEqual({ ok: true, exp: t + 10_000, nonce: '' });
+		expect(cap.check(a, AUD, ['id', 'props']).ok).toBe(true);
+		expect(cap.check(a, AUD, ['id', 'other'])).toEqual({ ok: false, why: 'sig' });
+		t += 1;
+		expect(cap.mint(AUD, ['id', 'props'], 10_000)).not.toBe(a);
+	});
+
+	it('a nonce-less token never checks where nonces are on, nor the other way', () => {
+		const opts = { name: 'region', version: 3, signer: hmac('k'), ttl: { max: 60_000 } };
+		const fixed = capability({ ...opts, nonce: false });
+		const random = capability(opts);
+		expect(random.check(fixed.mint(AUD, [], 1_000), AUD, [])).toEqual({ ok: false, why: 'shape' });
+		expect(fixed.check(random.mint(AUD, [], 1_000), AUD, [])).toEqual({ ok: false, why: 'shape' });
+	});
+
+	it('nonce off with replay on is refused: such tokens are not single-use', () => {
+		expect(() =>
+			capability({
+				name: 'n',
+				version: 1,
+				signer: hmac('k'),
+				ttl: { max: 5 },
+				nonce: false,
+				replay: { max: 10 }
+			})
+		).toThrow(/machine_bad_option/);
+	});
+});
+
 describe('capability: the keys a check trusts', () => {
 	it('a check may bring its own verify (a list of keys in rotation): it replaces the signer’s', () => {
 		const { cap } = setup({ key: 'old' });

@@ -11,7 +11,8 @@
  *   `ttl.max` is refused at check (its expiry is signed, so only a forger could claim it);
  * - it carries a random nonce, and with `replay` each nonce checks once (remembered until it would
  *   have expired, at most `replay.max` at a time: past that, new tokens are refused, never an old
- *   one forgotten);
+ *   one forgotten); with `nonce: false` it carries none, so the same inputs mint the same token
+ *   (links that stay identical between renders), and such a token is never single-use;
  * - a clock that reads NaN mints nothing and checks nothing.
  *
  * The cryptography is the caller's `signer` (an HMAC, an Ed25519 key pair): this module never
@@ -43,6 +44,10 @@ export interface CapabilityOptions {
 	/** One check per nonce, remembering at most `max` live nonces at a time. Off by default: a
 	 *  token that is meant to be presented many times (a cached page's region URL) leaves it off. */
 	replay?: { max: number };
+	/** `false`: no random nonce, so the same audience, fields and expiry always mint the same token
+	 *  (a page's links stay byte-identical between renders). Such tokens are NOT single-use: they
+	 *  check as often as presented, and `replay` is refused with them. Default `true`. */
+	nonce?: boolean;
 	/** How far the minter's clock and the checker's may differ, in ms (default 0): a token checks
 	 *  until `skew` past its expiry, and may claim up to `ttl.max + skew` ahead. For a token minted
 	 *  on one machine and checked on another. */
@@ -83,8 +88,10 @@ export interface Capability {
 	message(audience: string, exp: number, nonce: string, fields: readonly string[]): string;
 }
 
-/** `v<version>.<expiry ms>.<nonce>.<signature>`: every part URL-safe, none holds a `.`. */
+/** `v<version>.<expiry ms>.<nonce>.<signature>`: every part URL-safe, none holds a `.`. With
+ *  nonce off, the nonce part is empty (`v3.<exp>..<sig>`), so the two kinds never pass for each other. */
 const TOKEN_RE = /^v(\d{1,6})\.(\d{1,16})\.([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{16,512})$/;
+const FIXED_RE = /^v(\d{1,6})\.(\d{1,16})\.()\.([A-Za-z0-9_-]{16,512})$/;
 const SIG_RE = /^[A-Za-z0-9_-]{16,512}$/;
 
 /** A field, length-prefixed (its length in UTF-16 units, the same on both sides of a check). */
@@ -119,6 +126,10 @@ export function capability(options: CapabilityOptions): Capability {
 	const replay_max = options.replay?.max;
 	if (replay_max !== undefined && (!Number.isInteger(replay_max) || replay_max < 1))
 		bad('replay.max', replay_max, 'a whole number of nonces, 1 or more');
+	const random = options.nonce ?? true;
+	if (!random && replay_max !== undefined)
+		bad('replay', 'on', 'off when nonce is false: a nonce-less token is not single-use');
+	const token_re = random ? TOKEN_RE : FIXED_RE;
 	const skew = options.skew ?? 0;
 	if (!Number.isFinite(skew) || skew < 0) bad('skew', skew, 'a finite number of ms, 0 or more');
 	const now = options.now ?? Date.now;
@@ -149,7 +160,7 @@ export function capability(options: CapabilityOptions): Capability {
 			const exp = Math.floor(
 				clock(`capability "${name}" mint`) + Math.min(max, Math.max(min, ttl))
 			);
-			const n = nonce();
+			const n = random ? nonce() : '';
 			const sig = signer.sign(message(audience, exp, n, fields));
 			if (!SIG_RE.test(sig))
 				bad('signer.sign', sig.slice(0, 16), 'a URL-safe signature (hex or base64url)');
@@ -157,7 +168,7 @@ export function capability(options: CapabilityOptions): Capability {
 		},
 		check(token, audience, fields, verify) {
 			audience_ok(audience);
-			const m = typeof token === 'string' ? TOKEN_RE.exec(token) : null;
+			const m = typeof token === 'string' ? token_re.exec(token) : null;
 			if (!m) return { ok: false, why: 'shape' };
 			if (Number(m[1]) !== version) return { ok: false, why: 'version' };
 			const exp = Number(m[2]);
