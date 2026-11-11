@@ -77,7 +77,9 @@ describe('shipped .svelte is consumer-compilable (no TS in template markup)', ()
 		it(`${f} has no <style> literal inside a <script> block`, () => {
 			const scripts = readFileSync(abs, 'utf8').match(/<script\b[^>]*>[\s\S]*?<\/script>/g) ?? [];
 			for (const block of scripts) {
-				expect(block, `${f} script block contains a literal <style> tag`).not.toMatch(/<\/?style\b/);
+				expect(block, `${f} script block contains a literal <style> tag`).not.toMatch(
+					/<\/?style\b/
+				);
 			}
 		});
 	}
