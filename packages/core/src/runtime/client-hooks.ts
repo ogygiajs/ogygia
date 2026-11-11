@@ -1,26 +1,17 @@
-/**
- * Run the app's `hooks.client.ts` `init()` on a csr=false page.
- *
- * SvelteKit runs `hooks.client.ts` (its top-level code and the `init` hook) only when its own client
- * app boots. A `csr = false` page never boots that app — ogygia hydrates islands directly — so
- * anything that file starts (a monitoring/RUM agent, a third-party component bootstrap) would silently
- * never load, and the page behaves differently with ogygia than without. ogygia IS the client
- * bootstrap on those pages, so it runs the hook itself, giving `hooks.client.ts` the same effect it has
- * on a csr=true page.
- *
- * On a Kit (csr=true) document Kit already ran the file — this SKIPS, so `init` never double-fires.
- * Fire-and-forget and after paint: a failing `init` warns but never blocks island hydration, and the
- * dynamic import means the file (and its deps) load only where Kit didn't — never on a csr=true page.
- */
 import { kit_hydrates_page } from './kit-boot.ts';
 import { OgygiaError } from '../messages/core.ts';
 
 type ClientHooksModule = { init?: (input?: unknown) => unknown };
 
+/**
+ * Run the app's `hooks.client.ts` `init()` on a csr=false page. Kit runs that file only when its
+ * own client app boots, which a csr=false page never does: ogygia is the client bootstrap there,
+ * so it runs the hook itself. On a csr=true document Kit already did, so it is not run again. A failing `init` is reported (`client_hooks_init_failed`) and never thrown.
+ */
 export function run_app_client_hooks(loader: () => Promise<ClientHooksModule>): void {
 	if (typeof document === 'undefined') return;
-	// csr=true document → Kit boots and runs hooks.client itself; do not run it again.
-	if (kit_hydrates_page()) return; // (the session's one cached answer — never a second probe)
+	// @why Kit boots on a csr=true document and runs hooks.client itself (test: test/browser/client-hooks.test.ts › csr=true document: skipped — Kit runs hooks.client itself, so it must not double-fire)
+	if (kit_hydrates_page()) return;
 	Promise.resolve()
 		.then(loader)
 		.then((m) => m.init?.())
