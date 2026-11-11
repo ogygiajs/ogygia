@@ -30,6 +30,28 @@ describe('region_css_tags', () => {
 		);
 	});
 
+	it('reads tags as a browser does: a quoted `>`, any case, comments, the marker as a value', () => {
+		expect(
+			region_css_tags(
+				'<link title="a>b" href="/a.css" data-ogygia-region-css>' +
+					'<LINK HREF="/b.css" DATA-OGYGIA-REGION-CSS>' +
+					'<!-- <link href="/c.css" data-ogygia-region-css> -->' +
+					'<link rel="stylesheet" href="/d.css?data-ogygia-region-css">' +
+					'<style data-ogygia-region-css="/e.css">.e{}</STYLE>'
+			)
+		).toBe(
+			'<link title="a>b" href="/a.css" data-ogygia-region-css>' +
+				'<LINK HREF="/b.css" DATA-OGYGIA-REGION-CSS>' +
+				'<style data-ogygia-region-css="/e.css">.e{}</STYLE>'
+		);
+	});
+
+	it('a link written inside a style is the sheet’s text, not a tag', () => {
+		expect(
+			region_css_tags('<style>/* <link href="/a.css" data-ogygia-region-css> */</style>')
+		).toBe('');
+	});
+
 	it('an unterminated inline sheet stops the scan instead of swallowing the rest', () => {
 		expect(
 			region_css_tags(
