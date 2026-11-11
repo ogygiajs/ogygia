@@ -402,9 +402,8 @@ export function client_hook_names(plugin: string, file: string): RuntimeHookName
 		.flatMap((s) => s.specifiers as AstNode[])
 		.find((sp) => (sp.exported?.name ?? sp.exported?.value) === 'default')?.local;
 	let value = unwrap(
-		(body.find((s) => s.type === 'ExportDefaultDeclaration')?.declaration as
-			| AstNode
-			| undefined) ?? default_local
+		(body.find((s) => s.type === 'ExportDefaultDeclaration')?.declaration as AstNode | undefined) ??
+			default_local
 	);
 	if (value?.type === 'Identifier') {
 		const name = value.name as string;
