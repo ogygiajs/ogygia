@@ -23,7 +23,7 @@
  */
 import { lateChunk as late_chunk, LATE_BOOT_SCRIPT } from '@ogygia/core/plugin';
 import { escapeText as escape_text } from '@ogygia/core/plugin/utils';
-import { cleanup_failed, next_tag, text_of } from '@ogygia/core/internal/server';
+import { cleanup_failed, next_tag, OG_LATE_ERROR, text_of } from '@ogygia/core/internal/server';
 import { scope, STALE, type Scope } from '@ogygia/machine';
 
 /** The slot id for the page position (one streamed slot per page in v1). */
@@ -158,7 +158,7 @@ export function stream_document(
 export function error_card_html(e: unknown): string {
 	const msg = e instanceof Error ? e.message : String(e);
 	return (
-		`<div data-og-late-error style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">` +
+		`<div ${OG_LATE_ERROR} style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">` +
 		`This section failed to load. ${escape_text(msg)}</div>`
 	);
 }
