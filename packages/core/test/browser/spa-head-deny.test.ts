@@ -44,9 +44,14 @@ const add = (html: string) => {
 const head_rule = () => runtime_rules.broken().filter((b) => b.code === 'rule_head_adopted');
 
 test('rule_head_adopted: the head gains no <base> or refresh / CSP / cookie meta after the first document', () => {
-	// the first document's own are its server's: kept, never counted
-	add('<meta http-equiv="content-security-policy" content="default-src \'self\'">');
+	// the first document's own are its server's: kept, never counted (metas a browser ignores when
+	// added later, so the test page itself is left alone: a report-only policy, a cookie)
+	add('<meta http-equiv="content-security-policy-report-only" content="default-src \'self\'">');
 	watch_head();
+	// (the router's chunk hands in its deny as it loads)
+	(globalThis as { __og_head_deny?: (d: typeof is_dangerous_head_node) => void }).__og_head_deny!(
+		is_dangerous_head_node
+	);
 	expect(head_rule()).toEqual([]);
 	add('<meta name="description" content="a page">');
 	expect(head_rule()).toEqual([]);
@@ -54,6 +59,6 @@ test('rule_head_adopted: the head gains no <base> or refresh / CSP / cookie meta
 	expect(head_rule()).toHaveLength(1);
 	expect(head_rule()[0]!.detail).toMatch(/<base href="https:\/\/example\.com\/">/);
 	added.pop()!.remove();
-	add('<meta http-equiv="refresh" content="0">');
+	add('<meta http-equiv="set-cookie" content="a=b">');
 	expect(head_rule()).toHaveLength(1);
 });

@@ -890,6 +890,18 @@ export const WARNINGS = {
 			registry. ${BUG}
 		`
 	},
+	rule_head_adopted: {
+		text: (a: { detail: string }): string =>
+			`rule broken, the head gains no <base> or refresh, CSP or cookie meta: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). A \`<base>\` re-points every relative
+			fetch on the page, and a \`meta[http-equiv]\` that refreshes, sets a content security policy
+			or sets a cookie acts the moment it lands, so a navigation never adopts one from a fetched
+			page: only the first document's own count. One came into the head later. If the app adds it
+			itself, set it in the first document's head or as an HTTP header (a CSP header cannot be
+			loosened by a meta); else ${BUG}
+		`
+	},
 	restore_late: {
 		text: (a: { host: string }): string =>
 			`<${a.host}> was upgraded before the restore reached it; its own root is kept and the server's copy of its render dropped.`,
