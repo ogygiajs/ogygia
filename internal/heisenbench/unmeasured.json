@@ -2311,6 +2311,14 @@
 		{
 			"id": "packages/postrender/src/registry.ts > install > once:1~4af86e",
 			"reason": "say(): one setup warning for the process, constant work"
+		},
+		{
+			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > details",
+			"reason": "a message table entry: wording only"
 		}
 	]
 }
