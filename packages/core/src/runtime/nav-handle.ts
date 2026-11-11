@@ -35,15 +35,14 @@ export const NAV_HANDLE_KEY: unique symbol = Symbol.for('ogygia.nav');
  * THE SOFT REFRESH (./router-nav.ts `invalidate_all`), loaded once, on the first refresh. A
  * download that fails is tried again at once, and a failure is never kept: the next refresh loads
  * it afresh, under a fresh URL (./import-again.ts: the browser keeps the failed one). It once
- * imported the same URL again, which fails at once for the life of the page. (Only the refresh is
- * read from the module, so the bundler leaves the rest of the navigation out of this chunk; the
- * router's own load, ./router.ts, reads all of it.)
+ * imported the same URL again, which fails at once for the life of the page. The loader imports the
+ * module whole: a retry asks for its file, so the file must be the one the bundler loads, not a
+ * slice of it (a re-export module would make it a static dependency, which no retry reaches).
  */
+const import_nav = import_again(() => import('./router-nav.ts'));
 const load_refresh = flights({
 	name: 'soft refresh',
-	run: import_again(() =>
-		import('./router-nav.ts').then(({ invalidate_all }) => ({ invalidate_all }))
-	),
+	run: () => import_nav().then(({ invalidate_all }) => ({ invalidate_all })),
 	retry: download
 });
 /** The refresh, once its module is in (never STALE: nothing drops it). */

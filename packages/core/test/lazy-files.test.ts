@@ -54,9 +54,9 @@ describe('lazy_files', () => {
 			const { own } = await built(minify);
 			expect(typeof own.base).toBe('string');
 			const file = new URL(own.file as string, own.base as string);
-			const source = fs.readFileSync(file, 'utf8');
-			expect(source).toContain('own = 1');
-			expect(await own.load()).toBe(await import(file.href));
+			const ns = await import(file.href);
+			expect(ns.own).toBe(1);
+			expect(await own.load()).toBe(ns);
 		});
 
 	it('hands a module that shares a chunk with others no file (its chunk is not its own)', async () => {
