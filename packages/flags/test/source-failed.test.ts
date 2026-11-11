@@ -102,4 +102,22 @@ describe('a failing flag source is said', () => {
 		expect(fine(c)).toBe(false); // the source's answer
 		expect(said()).toHaveLength(1);
 	});
+
+	it('a request where one flag still fails does not end the streak, though the source answered the rest', async () => {
+		decide({
+			source: openfeature({
+				async getBooleanValue(key: string) {
+					if (key === 'sf-broken-2') throw new Error('provider not ready');
+					return false;
+				},
+				getStringValue: async (_k: string, d: string) => d
+			})
+		});
+		flag('sf-broken-2', 100);
+		flag('sf-fine-2', 100);
+		await prime_flags(ctx());
+		await prime_flags(ctx());
+		await prime_flags(ctx());
+		expect(said()).toHaveLength(1);
+	});
 });
