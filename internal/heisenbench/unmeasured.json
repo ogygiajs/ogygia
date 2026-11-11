@@ -3231,6 +3231,14 @@
 		{
 			"id": "packages/devtools/src/client.ts > plugin > boot",
 			"reason": "browser only: the dock's boot, once per page: installs the beacon and, with the dock on, the dock UI and the leftovers watch"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > never_stored",
+			"reason": "sets one header on a Response (not cloneable), or copies its headers once when they are immutable; once per document that carries the beacon in a build; proven in packages/devtools/test/devtools-cache-headers.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > defineServer:0~6ae004 > handle > next",
+			"reason": "SvelteKit's resolve for a beacon page in a build (a RequestEvent's resolve: not cloneable), then never_stored, constant work of its own"
 		}
 	]
 }
