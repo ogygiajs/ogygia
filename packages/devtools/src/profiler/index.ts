@@ -4559,7 +4559,9 @@ class Profiler {
 	// every instance writes such a request to the shared store (its visit rows, under the window's own
 	// key) BEFORE it answers — a frozen instance never finishes a write after; and stop, on whichever
 	// instance, gathers them. The CPU profile stays the starting instance's: sampling is per process.
-	async #window_sign(nonce: string): Promise<string> {
+	async #window_sign(nonce: string): Promise<string | null> {
+		// (a production profiler with no secret has no key: it signs, and so takes, no window id)
+		if (!this.secret && !this.dev) return null;
 		const { createHmac } = await import('node:crypto');
 		return createHmac('sha256', this.secret || 'ogygia-dev-window')
 			.update('window:' + nonce)
@@ -4643,7 +4645,10 @@ class Profiler {
 		// for it (as a page profile does); another page profile is the real conflict
 		await this.#wait_for_background();
 		const nonce = Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
-		const id = `${nonce}.${await this.#window_sign(nonce)}`;
+		const sig = await this.#window_sign(nonce);
+		if (sig === null)
+			return busy('A window needs the profiler’s secret: set OGYGIA_PROFILER_SECRET.');
+		const id = `${nonce}.${sig}`;
 		// (a window started meanwhile holds the recorder: this take fails)
 		const token = this.#take('background');
 		if (token === null) return busy('Another recording holds the recorder. Try again in a moment.');
