@@ -256,7 +256,7 @@ describe('a live region put back goes on in its last tick’s mode (#337)', () =
 								props: {},
 								html,
 								url: LIVE_URL,
-								written
+								written: { v: written }
 							});
 						},
 						'then'
@@ -344,7 +344,7 @@ describe('a static live tick reaches its region after a write at its address', (
 								props: {},
 								html,
 								url: LIVE_URL,
-								written
+								written: { v: written }
 							});
 						}
 					]
@@ -387,6 +387,42 @@ describe('a static live tick reaches its region after a write at its address', (
 					// (bound again, the store hands over the first tick's frame: older than what is shown)
 					['it leaves', () => el.remove(), 'then'],
 					['it is put back', () => document.body.append(el)]
+				]);
+			},
+			RUNS
+		);
+	});
+
+	it('a later tick with older data than the answer at its address leaves the newer data on screen', async () => {
+		await simulate.check(
+			[],
+			async (sim) => {
+				start(sim);
+				const el = document.createElement('ogygia-region') as LiveRegion;
+				el.setAttribute('live', '');
+				const a = frameAddress(LIVE_URL);
+				sim.finally('it shows the newer data', () =>
+					el.querySelector('[data-n="3"]') !== null ? null : `it shows "${el.innerHTML}"`
+				);
+				const tick = (n: number) => ({
+					id: 'order-live',
+					module: '',
+					props: {},
+					html: `<p data-n="${n}">${n}</p>`,
+					url: LIVE_URL
+				});
+				// (as the app's transport decodes each: written at its address with its data version,
+				// and an answer with older data than the one there is dropped)
+				const decode = (n: number, d: number) => {
+					const t = tick(n);
+					const v = ticket(a);
+					write({ a, v, d, html: t.html });
+					return el.applyLive({ ...t, written: { v, d } });
+				};
+				await sim.play([
+					['it comes onto the page', () => document.body.append(el), 'then'],
+					['a tick at data version 3', () => decode(3, 3), 'then'],
+					['a later tick at data version 2', () => decode(2, 2)]
 				]);
 			},
 			RUNS

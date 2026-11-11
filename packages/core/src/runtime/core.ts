@@ -9,7 +9,7 @@ import {
 	type Stale,
 	type Turn
 } from '@ogygia/machine';
-import { frameAddress } from '../frame.ts';
+import { frameAddress, older_by, type FrameOrder } from '../frame.ts';
 import { import_again, is_failed_import, on_reload_needed } from './import-again.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
 // off in a build where no region streams HTML, and the bundler drops the element's fetch / apply /
@@ -356,9 +356,9 @@ type LiveTick = {
 	url?: string;
 	hydrate?: string;
 	hydrateMargin?: string;
-	/** The ticket its HTML was written at its address with as it was decoded; absent when it never
+	/** The order its HTML was written at its address with as it was decoded; absent when it never
 	 *  went through the frame store. */
-	written?: number;
+	written?: FrameOrder | undefined;
 };
 
 /** A download slot (load-scheduler.ts) asked for by a step whose element then left: its turn still
@@ -650,9 +650,9 @@ class OgygiaRegion extends HTMLElement {
 	#live_props: Record<string, unknown> | null = null;
 	/** A static live region's subscription to its address, while it is static. */
 	#live_unsub: (() => void) | null = null;
-	/** The store ticket a static tick that painted its own HTML stands at: frames at or before it are
-	 *  older than what is on screen. */
-	#live_painted = 0;
+	/** Where the HTML a static tick painted itself stands in its address's order (`older_by`): a frame
+	 *  not newer than it is older than what is on screen. */
+	#live_painted: FrameOrder | null = null;
 	// The two wake targets, bound once per element (not per connect): `#arm` hands them to a
 	// schedule, and `load` calls them straight — no closure built on the connect path. Each returns
 	// its promise: the interaction feature awaits it to know when the island is live (replay).
@@ -1118,11 +1118,13 @@ class OgygiaRegion extends HTMLElement {
 	 * Bind to the store at `endpoint`'s address: this region applies whatever frame lands there (#apply)
 	 * — from its own fetch, a twin's, a navigation batch stream, or a mutation. subscribe() replays
 	 * current content immediately, so a late-mounting twin catches up free. A re-minted endpoint (new
-	 * props, new page facts) moves the binding to its new address. Returns the address.
+	 * props, new page facts) moves the binding to its new address, and a fetch out at the old one is
+	 * left: its answer is for a call this hole no longer is. Returns the address.
 	 */
 	#bind(endpoint: string): string {
 		const address = frameAddress(endpoint);
 		if (this.#bound() && this.#frame_address === address) return address;
+		if (this.#hole.now.kind === 'fetching') this.#hole.go('idle');
 		// (one binding at a time, for the element's lifetime in the page: its end unbinds)
 		this.#binding?.close();
 		const binding = (this.#binding = this.#life.child());
@@ -1196,7 +1198,7 @@ class OgygiaRegion extends HTMLElement {
 	/** An answer landed: the hole's own fetch has nothing left to wait for — a schedule still armed
 	 *  (a retry's) or a retry it waited for is called off. A fetch in flight runs to its end. */
 	#answered(kind: 'answered' | 'kept'): void {
-		if (this.#answer.now.kind !== kind) this.#answer.go(kind);
+		this.#answer.go(kind);
 		const hole = this.#hole.now.kind;
 		if (hole === 'armed' || hole === 'retrying' || hole === 'failed') this.#hole.go('idle');
 	}
@@ -1380,13 +1382,16 @@ class OgygiaRegion extends HTMLElement {
 	 */
 	async #fetch_html(turn: Turn, revalidate = false): Promise<void> {
 		if (!FRAMES) return;
-		const s = this.#hole.now;
 		// A revalidate re-fetches even after the first answer; a plain fetch is one-shot.
-		if (s.kind === 'fetching' || (!revalidate && this.#answer.now.kind !== 'none')) return;
+		if (!revalidate && this.#answer.now.kind !== 'none') return;
 		const endpoint = this.#endpoint();
 		// Don't start a fetch without an endpoint (would block a later remount retry on the same
 		// element if one were ever scheduled).
 		if (!endpoint) return;
+		// (a fetch out at this address already does this; one out at an older address — a re-minted
+		// hole — is left as it binds the new one, below)
+		if (this.#hole.now.kind === 'fetching' && frameAddress(endpoint) === this.#frame_address)
+			return;
 		// HOLE-TRUST defense-in-depth: mint emits path-only; reject absolute/cross-origin attrs.
 		if (!is_allowed_region_endpoint(endpoint)) {
 			if (import.meta.env.DEV) {
@@ -1400,6 +1405,7 @@ class OgygiaRegion extends HTMLElement {
 		// Bind if we haven't (SWR/lake remount reaches #fetch_html without going through #server);
 		// a re-minted hole (a refreshed region: new props, new page facts) answers at its NEW address.
 		const address = this.#bind(endpoint);
+		const s = this.#hole.now;
 		const attempts = s.kind === 'armed' || s.kind === 'retrying' ? s.attempts : 0;
 		this.#hole.go('fetching', { attempts, revalidate });
 		const mine = this.#hole.now;
@@ -1828,7 +1834,9 @@ class OgygiaRegion extends HTMLElement {
 				// (each frame a turn of its own, the one the store hands over as it binds too)
 				const box = this.#box;
 				const off = frames?.subscribe(frameAddress(desc.url), (f) => {
-					box.post((t) => (f.v > this.#live_painted ? this.#morph_live(f.html, t) : undefined));
+					box.post((t) =>
+						older_by(f, this.#live_painted) === null ? this.#morph_live(f.html, t) : undefined
+					);
 				});
 				if (off) {
 					this.#live_unsub = off;
@@ -1838,15 +1846,19 @@ class OgygiaRegion extends HTMLElement {
 					});
 				}
 			}
-			// The store's ticket order decides: a frame at its address at this tick's own ticket or
-			// later is this tick's write or a newer one, and the subscription paints it. A tick the
-			// store holds no such frame for (its HTML never went through the store, or the frame there
-			// is an earlier tick's) paints its own — test/browser/region-orderings.test.ts
-			// Painted, it stands after every frame the store held then: a frame the subscription hands
-			// over later (as it binds again, put back) paints only if newer than that.
+			// The store's one ordering (`older_by`) decides: when the answer it holds is this tick's
+			// write or newer, the subscription paints it. A tick the store holds no such answer for (its
+			// HTML never went through the store, or the answer there is older) paints its own —
+			// test/browser/region-orderings.test.ts. Painted, it stands where the store would have put
+			// it: a frame the subscription hands over later (as it binds again, put back) paints only
+			// if newer than that.
 			const held = desc.url ? frames?.peek(frameAddress(desc.url)) : null;
-			if (!held || desc.written === undefined || held.v < desc.written) {
-				this.#live_painted = Math.max(held?.v ?? 0, desc.written ?? 0);
+			const mine = desc.written;
+			if (!held || mine === undefined || older_by(mine, held) === null) {
+				this.#live_painted =
+					mine === undefined
+						? (held ?? null)
+						: { v: held && held.v > mine.v ? held.v : mine.v, d: mine.d };
 				await this.#morph_live(desc.html, turn);
 			}
 			return;

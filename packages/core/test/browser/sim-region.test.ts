@@ -336,7 +336,7 @@ describe('one region element, simulated', () => {
 										props: {},
 										html,
 										url: LIVE_URL,
-										written
+										written: { v: written }
 									});
 								});
 							}

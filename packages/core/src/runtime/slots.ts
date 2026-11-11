@@ -10,7 +10,7 @@
  * This is the single wiring mechanism — there is no service locator and no per-feature setter.
  */
 import type { Scope, Stale } from '@ogygia/machine';
-import type { Frame } from '../frame.ts';
+import type { Frame, FrameOrder } from '../frame.ts';
 import { is_frozen } from './region-attrs.ts';
 
 // ── lakes ────────────────────────────────────────────────────────────────
@@ -114,7 +114,7 @@ export type PageOps = {
 export type FrameOps = {
 	subscribe(a: string, cb: (f: Frame) => void): () => void;
 	/** The frame applied at an address, if any. */
-	peek(a: string): { v: number; html: string } | null;
+	peek(a: string): (FrameOrder & { html: string }) | null;
 	/** `STALE` when its `signal` aborted: only that caller leaves the fetch. */
 	ensure(
 		a: string,

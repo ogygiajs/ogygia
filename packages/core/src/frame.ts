@@ -15,22 +15,48 @@ export type Frame = {
 	 * that started earlier can never overwrite one that started later. `write()` drops `v <=` applied.
 	 */
 	v: number;
+	/**
+	 * Data version, when the server gave one (`region(C, props, { version })`). It orders frames
+	 * first: between two versioned frames the newer data wins, whatever its ticket. Equal versions,
+	 * or a frame without one, fall back to the ticket.
+	 */
+	d?: number;
 	/** The content. HTML in, morph out — no component trees over the wire. */
 	html: string;
 };
 
-/** The ticket a decoded region value's HTML was written at its address with (transport.ts), kept
- *  beside the value: a live tick paints its own HTML unless the store holds this write or a newer
- *  one (runtime/core.ts `#apply_live`). */
-const written = new WeakMap<object, number>();
+/** Where a frame stands in its address's order: its request ticket, and its data version if any. */
+export type FrameOrder = { v: number; d?: number | undefined };
 
-/** Transport: `value`'s HTML was written to the frame store under ticket `v`. */
-export function mark_written(value: object, v: number): void {
-	written.set(value, v);
+/** Why an answer is not newer than another: an older request's (by ticket), or older data (by version). */
+export type DropWhy = 'older request' | 'older data';
+
+/**
+ * Why `f` is not newer than `than`, or `null` when it is: by data version when both carry one and
+ * they differ (the server knows which data is newer, whatever order the answers arrived in), else by
+ * request ticket. Anything is newer than nothing. The one ordering of answers at an address: the
+ * frame store's `write` asks it, and so does a static live region of the answer it painted itself
+ * (runtime/core.ts `#apply_live`).
+ */
+export function older_by(f: FrameOrder, than: FrameOrder | null): DropWhy | null {
+	if (than === null) return null;
+	if (f.d !== undefined && than.d !== undefined && f.d !== than.d)
+		return f.d > than.d ? null : 'older data';
+	return f.v > than.v ? null : 'older request';
 }
 
-/** The ticket `value`'s HTML was written under, or undefined when it never went through the store. */
-export function written_ticket(value: object): number | undefined {
+/** The order a decoded region value's HTML was written at its address with (transport.ts), kept
+ *  beside the value: a live tick paints its own HTML unless the store holds this write or a newer
+ *  one, by the store's one ordering (runtime/core.ts `#apply_live`). */
+const written = new WeakMap<object, FrameOrder>();
+
+/** Transport: `value`'s HTML was written to the frame store at `order`. */
+export function mark_written(value: object, order: FrameOrder): void {
+	written.set(value, order);
+}
+
+/** The order `value`'s HTML was written at, or undefined when it never went through the store. */
+export function written_order(value: object): FrameOrder | undefined {
 	return written.get(value);
 }
 

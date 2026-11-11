@@ -85,7 +85,7 @@
 		next_slot_id
 	} from './region-snippet.ts';
 	import { isRegion } from './region.ts';
-	import { written_ticket } from './frame.ts';
+	import { written_order } from './frame.ts';
 	// (LateIslandAwait.svelte in its place where the app runs Svelte's async mode: vite/late-island.ts)
 	import LateIsland from './LateIsland.svelte';
 	// (PromiseRegionAwait.svelte in its place where the app runs Svelte's async mode: vite/late-island.ts)
@@ -1017,7 +1017,7 @@
 			url: f.url,
 			hydrate: f.hydrate,
 			hydrateMargin: f.hydrateMargin,
-			written: written_ticket(f)
+			written: written_order(f)
 		});
 	}
 	/** @param {import('./region.ts').DeferredRegion} f */
