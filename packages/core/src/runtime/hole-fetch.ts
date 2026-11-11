@@ -7,7 +7,7 @@
  * the caller decides when it may go out.
  */
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
-import { warn } from '../messages/island.ts';
+import { warn } from '../messages/lazy.ts';
 import {
 	capability_expired,
 	deny_of,
