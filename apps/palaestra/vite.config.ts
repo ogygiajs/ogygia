@@ -1,6 +1,5 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { ogygia } from 'ogygia/vite';
-import { reshape } from '@ogygia/reshape/vite';
 import { barrels } from '@ogygia/barrels';
 import { defineConfig } from 'vite';
 
@@ -8,8 +7,6 @@ import { defineConfig } from 'vite';
 // It lists no plugin but barrels() on purpose: every other plugin's pages live in that plugin's own
 // fixture app (packages/<plugin>/e2e/app), so a plugin change never reruns this suite. barrels() is
 // the exception because it rewrites the source every core fixture is compiled from.
-// One more, until the restore lab (/restore-lab, e2e/restore.spec.ts) moves to @ogygia/reshape's own app:
-// `reshape()`.
 export default defineConfig({
 	// The e2e suite builds this app (adapter-vercel writes `.vercel/output`, a copy of the server's whole
 	// dependency tree), then starts dev servers in the same folder. Vite's watcher skips only
@@ -50,7 +47,6 @@ export default defineConfig({
 		// and the server manifest imported a virtual entry nobody registered. The /as-region and
 		// /ts-registry fixtures are that shape; with this on, the build is the test.
 		barrels(),
-		reshape(),
 		sveltekit()
 	]
 });
