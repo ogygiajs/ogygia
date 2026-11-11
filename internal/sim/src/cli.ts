@@ -35,6 +35,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, act, next_action, type Action } from './workload.ts';
 import {
 	faulted,
+	hydrates_as_sent,
 	Leaks,
 	mpa_equivalent,
 	no_cross_visitor_cache,
@@ -152,7 +153,12 @@ export async function run(
 				log.note(
 					`${t.name} holds ${h.listeners} listeners ${h.intervals} intervals ${h.observers} observers`
 				);
-				for (const b of [page_errors(t, world, since), page_rules(t), leaks.check(t)])
+				for (const b of [
+					page_errors(t, world, since),
+					hydrates_as_sent(t, world),
+					page_rules(t),
+					leaks.check(t)
+				])
 					// (a known one once: it is told again after every action while the bug stands)
 					if (b && !(b.oracle === 'known' && broken.some((k) => k.detail.endsWith(b.detail))))
 						broken.push({ ...b, detail: `after ${describe(a)}: ${b.detail}` });

@@ -594,6 +594,28 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 	return { oracle: 'page-errors', detail: errors.join('\n') };
 }
 
+/** Svelte's and ogygia's words for a region whose server HTML did not hydrate as it was. */
+const UNHYDRATED = /svelte\.dev\/e\/hydration_mismatch|ogygiajs\.dev\/e\/hydration_discarded/;
+
+/** Pages of the test app that serve HTML their islands do not hydrate as it is, on purpose, each
+ *  with its reason. Never add one for HTML ogygia itself got wrong. */
+const UNHYDRATED_BY_DESIGN: ReadonlyArray<{ path: RegExp; why: string }> = [];
+
+/**
+ * THE SERVER'S HTML IS THE LIVE PAGE: a region hydrates the HTML the server sent as it is. Svelte
+ * says `hydration_mismatch` when the DOM is not what its code expects, and ogygia then discards
+ * the server's HTML and renders anew (`hydration_discarded`): what the visitor saw first was not
+ * what the page is. Excused when the document's own HTML was changed or cut on the way.
+ */
+export function hydrates_as_sent(tab: Tab, world?: World): Broken | null {
+	const said = tab.console.filter((l) => UNHYDRATED.test(l));
+	if (said.length === 0) return null;
+	if (world !== undefined && document_faulted(world, tab)) return null;
+	const url = tab.page.mainFrame.url;
+	if (UNHYDRATED_BY_DESIGN.some((d) => d.path.test(new URL(url).pathname))) return null;
+	return { oracle: 'ssr-hydrate', detail: `${url}: ${said.map((l) => l.split('\n')[0]).join('\n')}` };
+}
+
 /** What a page says because of a filed bug, as KNOWN is for a DOM difference: a seed that says
  *  only these is counted `known`, not failed. Each entry goes when its fix lands. */
 export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegExp }> = [
