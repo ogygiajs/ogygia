@@ -1909,10 +1909,6 @@
 			"reason": "browser only: the visit's re-send firing 1.5 s after a late change (one flush_visit), constant work of its own"
 		},
 		{
-			"id": "packages/core/src/runtime/load-scheduler.ts > watch_scroll > on_scroll > timeout:0~791980",
-			"reason": "browser only: a scroll's frame runs one drain of the queue and closes the watch once it is empty; constant work of its own"
-		},
-		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #pause",
 			"reason": "a background window's wait (over the profiler instance: not cloneable), one child scope and one timer, constant work; run by the profiler's trap and sample tests"
 		},
@@ -2647,6 +2643,38 @@
 		{
 			"id": "packages/core/src/runtime/region-endpoint-url.ts > reset_island_warms > drop:0~8b94d4",
 			"reason": "test seam: the predicate that drops every warm, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > scan_preload_links > on_idle:1~4ff29d > once_on_screen:2~719a25",
+			"reason": "browser only: a viewport-preload link came on screen, one warm of its page (fetch_page, measured by the router benches)"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #follow > MutationObserver:0~c14ef5",
+			"reason": "browser only: a box-less region's content was swapped; it hands the records to #swapped, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #swapped",
+			"reason": "browser only: a box-less region's content swap, linear in its records (a handful per swap); viewport-shared.test.ts runs it in three engines"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > watch > queueMicrotask:0~813366",
+			"reason": "browser only: a late watcher of an element observed for another gets its decision in a microtask, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > stand_ins",
+			"reason": "browser only: the children of a box-less region, at most 16 (WIDTH); viewport-shared.test.ts runs it in three engines"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > measure",
+			"reason": "browser only: one getBoundingClientRect read against the viewport, constant work (node has no layout)"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > reset_viewport",
+			"reason": "test seam: closes the tracker's scope, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > tracker_count",
+			"reason": "test seam: the number of observers, constant work"
 		}
 	]
 }
