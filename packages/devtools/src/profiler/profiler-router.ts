@@ -1,5 +1,4 @@
 import { routes, page, error, type Ctx, type PageDef, type Router } from '@ogygia/router';
-import type { AnyComponent } from '@ogygia/router';
 import type { Analysis } from './analyze.ts';
 import type { ReportExtras, ReportMeta, RequestEntry, RouteAgg } from './report.ts';
 import type { StoredReport, SampledSummary, TrapStatus } from './index.ts';
@@ -13,11 +12,6 @@ import Compare from './ui/Compare.svelte';
 import Site from './ui/Site.svelte';
 import type { Comparison } from './compare.ts';
 import type { SinkRow } from './sink.ts';
-
-const V = { Dashboard, Report, Run, Login, Upload, Message, Compare, Site } as unknown as Record<
-	string,
-	AnyComponent
->;
 
 /** One page's profile history: every page-mode report of it, oldest first, by median run. */
 export interface PageHistory {
@@ -216,25 +210,25 @@ export function build_profiler_router(d: ProfilerDeps): Router<{
 }> {
 	return routes(
 		{
-			'/': page(V.Dashboard, { load: (c) => d.dashboard(c) }),
-			'/run': page(V.Run, { load: (c) => d.run_page(c) }),
+			'/': page(Dashboard, { load: (c) => d.dashboard(c) }),
+			'/run': page(Run, { load: (c) => d.run_page(c) }),
 			'/page': { GET: (c) => d.record_page(c) },
 			'/reset': { GET: (c) => d.reset(c) },
 			'/status.json': { GET: (c) => c.json(d.status(c)) },
 			'/beacon': { POST: (c) => d.beacon(c) },
 			'/window/start': { POST: (c) => d.window_start(c) },
 			'/window/stop': { POST: (c) => d.window_stop(c) },
-			'/login': page(V.Login, {
+			'/login': page(Login, {
 				load: (c) => d.login_props(c),
 				actions: { default: (c) => d.login(c) }
 			}),
 			'/logout': { GET: (c) => d.logout(c) },
-			'/view': page(V.Upload, {
+			'/view': page(Upload, {
 				load: () => ({ base: d.base }),
 				actions: { default: (c) => d.upload(c) }
 			}),
 			'/reports.json': { GET: async (c) => c.json(await d.list_stored()) },
-			'/report/[id]': page(V.Report, {
+			'/report/[id]': page(Report, {
 				load: async (c) => {
 					const stored = (await d.authed(c))
 						? await d.report_load(c.params.id)
@@ -262,14 +256,14 @@ export function build_profiler_router(d: ProfilerDeps): Router<{
 			'/report/[id]/raw': {
 				GET: (c) => report_or_404(d, c.params.id, d.report_raw)
 			},
-			'/compare/[a]/[b]': page(V.Compare, { load: (c) => d.compare(c.params.a, c.params.b) }),
+			'/compare/[a]/[b]': page(Compare, { load: (c) => d.compare(c.params.a, c.params.b) }),
 			'/replay/[id]': { GET: (c) => d.replay(c.params.id, c) },
-			'/site': page(V.Site, { load: (c) => d.site(c) }),
+			'/site': page(Site, { load: (c) => d.site(c) }),
 			'/source': { GET: (c) => d.source(c) }
 		},
 		{
 			base: d.base,
-			error: V.Message,
+			error: Message,
 			load: async (c) => (await d.auth_guard(c)) ?? { base: d.base },
 			miss: () => error(404, 'Unknown profiler page.')
 		}
