@@ -1054,9 +1054,10 @@ class OgygiaHandle {
 			return region_response('Bad Request', { status: 400 });
 		}
 		// (one call asked twice is one render: its one parcel answers both)
-		const calls = [
-			...new Set(parsed.filter((e): e is string => typeof e === 'string'))
-		].slice(0, MAX_BATCH);
+		const calls = [...new Set(parsed.filter((e): e is string => typeof e === 'string'))].slice(
+			0,
+			MAX_BATCH
+		);
 		// (the stream's signal aborts when the visitor leaves: the holes not rendered yet never are)
 		const stream = batch_stream(
 			calls,
