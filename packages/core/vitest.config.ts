@@ -4,6 +4,7 @@ import { browser_runs, playwright_run } from '@ogygia/config/vitest';
 import { fileURLToPath } from 'node:url';
 import { heisenbench_record } from '../../internal/heisenbench/src/record.ts';
 import type { BrowserCommand } from 'vitest/node';
+import { lazy_files } from './src/vite/lazy-files.ts';
 
 /**
  * The network, for the browser tests (`commands` from `vitest/browser`), by the path each names:
@@ -156,6 +157,9 @@ export default defineConfig({
 			},
 			{
 				extends: true,
+				// each lazy loader's own file, as an app's build hands it over (the ogygia plugin
+				// always carries it): a dropped download is asked for again there
+				plugins: [lazy_files()],
 				test: {
 					name: 'browser',
 					include: ['test/browser/**/*.test.ts'],
