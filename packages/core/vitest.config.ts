@@ -175,6 +175,8 @@ export default defineConfig({
 					name: 'browser',
 					include: ['test/browser/**/*.test.ts'],
 					globalSetup: ['./test/browser/setup.ts'],
+					// a failing test prints its machine moves
+					setupFiles: ['@ogygia/tooling/vitest/trace-setup'],
 					browser: {
 						enabled: true,
 						headless: true,
