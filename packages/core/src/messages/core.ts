@@ -201,6 +201,18 @@ export const ERRORS = {
 			\`with { region: 'raw' }\` or with a \`wake\` mark.
 		`
 	},
+	region_version_invalid: {
+		text: (a: { version: string }): string =>
+			`region() was given a version that is not a number, a Date or a date string: ${a.version}`,
+		details: (): string => prose`
+			\`region(C, props, { version })\` takes how new the data behind the region is, so the
+			browser can keep the newest answer when two arrive for the same region. The version must
+			be a number, a \`Date\`, or a string \`Date.parse()\` reads (an ISO date). This one is none of
+			those, or is \`NaN\`.
+
+			Pass the row's update time (\`row.updatedAt\`) or a counter that only goes up.
+		`
+	},
 	region_kind_mismatch: {
 		text: (): string => 'region kind claimed a non-region value',
 		details: (): string => BUG
@@ -250,9 +262,9 @@ export const ERRORS = {
 	},
 	fn_revive_missing: {
 		text: (a: { tag: string }): string => prose`
-			cannot revive fn "${a.tag}": its factory is not loaded on this side and the payload carries
-			no source. The island must import the generated module as a VALUE so \`__register_fn\`
-			runs in its bundle (or the fn manifest must be in the runtime).
+			cannot revive fn "${a.tag}": its factory is not in this side's build. A function travels
+			as its tag only, never its source, so the island must import the generated module as a
+			VALUE so \`__register_fn\` runs in its bundle (or the fn manifest must be in the runtime).
 		`,
 		details: (): string => prose`
 			An island received a function it cannot rebuild: the module that registers its factory is
@@ -386,6 +398,21 @@ export const WARNINGS = {
 		details: (): string => prose`
 			The ogygia router restores and resets scroll itself on every navigation;
 			\`disableScrollHandling()\` does nothing there.
+		`
+	},
+	region_answer_older: {
+		text: (a: { address: string; version: number; shown: number }): string => prose`
+			an answer for region ${a.address} arrived with data version ${a.version}, older than the
+			${a.shown} on screen: it was dropped, and the newer answer stays.
+		`,
+		details: (): string => prose`
+			Two answers for the same region reached the browser (two commands that both return it,
+			say), and the older one arrived last. Each carries the version its server gave it with
+			\`region(C, props, { version })\`, so the browser kept the one with the newer data. Nothing
+			to fix: this is what the version is for. It shows in dev so a version that does not move
+			when the data does is easy to spot.
+
+			Equal versions, and answers without a version, keep the one that arrived last.
 		`
 	},
 	hole_without_address: {

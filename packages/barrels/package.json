@@ -46,10 +46,12 @@
 	},
 	"scripts": {
 		"build": "tsdown",
+		"prepublishOnly": "pnpm run build",
 		"check": "tsc -p . && tsc -p test && vitest run",
 		"test": "vitest run"
 	},
 	"dependencies": {
+		"@ogygia/machine": "workspace:^",
 		"magic-string": "catalog:"
 	},
 	"devDependencies": {

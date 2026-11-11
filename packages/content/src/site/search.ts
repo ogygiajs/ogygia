@@ -18,6 +18,7 @@ import { href_of, OUTLINE_TOKEN, type Collection, type Outline } from './outline
 import { is_dimensioned } from './dimensions.ts';
 import { OgygiaError } from '../messages/runtime.ts';
 import { flights, STALE } from '@ogygia/machine';
+import { escapeText as esc_html } from '@ogygia/core/plugin/utils';
 
 // ── regexes
 const FRONTMATTER_BLOCK_RE = /^﻿?---\r?\n[\s\S]*?\r?\n---\r?\n?/;
@@ -33,9 +34,6 @@ const MD_MARKS_G = /[*_~>]/g;
 const WS_G = /\s+/g;
 const WS_RE = /\s+/;
 const SECTION_HEADING_RE = /^#{2,4}\s+(.+?)\s*(\{#[^}]+\})?\s*$/;
-const AMP_G = /&/g;
-const LT_G = /</g;
-const GT_G = />/g;
 
 /** One searchable document — a page SECTION (split by heading), or the page lead. Mount-independent:
  *  stores `slug` + `anchor`, so href is computed per query with the caller's `base`. */
@@ -224,8 +222,6 @@ async function load_orama(): Promise<OramaModule> {
 }
 
 const ESC_RX = /[.*+?^${}()|[\]\\]/g;
-const esc_html = (s: string) =>
-	s.replace(AMP_G, '&amp;').replace(LT_G, '&lt;').replace(GT_G, '&gt;');
 
 /**
  * A match-centered excerpt with the query terms wrapped in `<mark>` — the window starts just before

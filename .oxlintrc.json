@@ -11,6 +11,12 @@
 		"ogygia/stale-whole": "error",
 		"ogygia/compiler-boundary": "error"
 	},
+	"overrides": [
+		{
+			"files": ["packages/*/src/**"],
+			"rules": { "no-eval": "error", "no-new-func": "error", "no-implied-eval": "error" }
+		}
+	],
 	"ignorePatterns": [
 		"**/dist/**",
 		"**/build/**",
