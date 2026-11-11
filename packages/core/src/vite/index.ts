@@ -8,6 +8,7 @@ import { configure_build_cache } from '../compiler/build-cache.ts';
 import { content_css_key } from '../contract/content.ts';
 import { island_sourcemaps_plugin } from './sourcemaps.ts';
 import { server_sourcemaps_plugin } from './server-sourcemaps.ts';
+import { lazy_files } from './lazy-files.ts';
 import { install_dev_client_maps, install_dev_maps, install_dev_page_keys } from './dev-maps.ts';
 import {
 	is_island_path,
@@ -1682,7 +1683,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		// the plugins' `post` stage: on what the region transform made of the module
 		stage_host('post'),
 		island_sourcemaps_plugin({ program, is_island_path }),
-		server_sourcemaps_plugin(() => measure)
+		server_sourcemaps_plugin(() => measure),
+		lazy_files()
 	];
 }
 

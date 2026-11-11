@@ -79,7 +79,9 @@ async function drop(page: Page, chunk: Chunk | { file: string }, times: number) 
 				}
 				seen.served++;
 			}
-			return route.fulfill({ response, body });
+			// (served by the network, not fulfilled: WebKit gives a fulfilled response a timing entry
+			// with no response start, which the runtime reads as "no response came")
+			return route.continue();
 		}
 	);
 	return seen;
@@ -177,9 +179,14 @@ test.describe('lazy chunks that fail once are loaded again (#201)', () => {
 		page
 	}) => {
 		const thrown = errors(page);
+		const logged: string[] = [];
+		page.on('console', (m) => log_error(m, logged));
 		const seen = await drop(page, 'hydrate core', 2);
 		await page.goto('/lazy-retry');
 		await expect.poll(() => seen.dropped).toBe(2);
+		// (the wake fails once its retry is known to have got no response: in WebKit, which gives a
+		// dropped download no timing entry, only after the runtime's wait for one runs out)
+		await expect.poll(() => logged.some((t) => t.includes('island_load_failed'))).toBe(true);
 		await page.locator('[data-i-btn]').click();
 		check('the click replayed once the island woke', await replayed_once(page));
 		check(

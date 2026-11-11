@@ -3,17 +3,21 @@
  * failed in its module map for the life of the page: a second `import()` of the same URL fails at
  * once, without a request (Chromium and Firefox both do; the e2e lazy-chunk-retry spec proves it).
  * Retrying the same `import()` therefore does nothing. What works is the same file under a new URL:
- * the failed import's error names the URL, so the next attempt imports it with an `og-retry` query
- * (a static server ignores it; a module never evaluated, so no second copy of its state exists).
+ * the next attempt imports the loader's own file with an `og-retry` query (a static server ignores
+ * it; a module never evaluated, so no second copy of its state exists).
  *
- * Safari's error names no URL: there the retry is the plain import again (it fails the same way),
- * so a dropped chunk stays dropped until the page reloads, as before.
+ * The loader knows its own file: the build hands each one it (vite/lazy-files.ts), and an island's
+ * caller knows its file. Never the URL a failure names: WebKit's error names none (#385), and
+ * Firefox's names the file that failed, which can be a dependency of the one imported: asked for as
+ * if it were the loader's own, it ran a second copy of a shared module and stood in for the chunk
+ * (#392). A loader that knows no file (a module that shares its chunk with others) tries the plain
+ * import again, which fails the same way: a dropped chunk stays dropped until the page reloads.
  *
- * One failure no URL fixes: a static dependency of the chunk that failed. The error names the chunk
- * all the same, and the chunk under a fresh URL imports the dependency's own URL, which the browser
- * keeps failed: every retry fails the same way (#262). Told apart by the retry itself — it failed,
- * yet its own file came (the browser's resource timing holds its response): asking again cannot
- * help, so the loader stops asking, and the page says once that it needs a reload.
+ * One failure no URL fixes: a static dependency of the chunk that failed. The chunk under a fresh
+ * URL imports the dependency's own URL, which the browser keeps failed: every retry fails the same
+ * way (#262). Told apart by the retry itself — it failed, yet its own file came (the browser's
+ * resource timing holds its response): asking again cannot help, so the loader stops asking, and
+ * the page says once that it needs a reload.
  *
  * A leaf: the boot and island-side code (devalue's lane, the entry locations) import it, so it
  * imports nothing of the boot (only `@ogygia/machine`, which the boot runs on); the boot hands it
@@ -96,9 +100,9 @@ function response_landed(url: string): Promise<number | null> {
 	});
 }
 
-/** The URL in a failed dynamic import's message: Chromium "Failed to fetch dynamically imported
- *  module: <url>", Firefox "error loading dynamically imported module: <url>". */
-const FAILED_IMPORT_RE = /dynamically imported module:?\s+(\S+)/i;
+/** A failed dynamic import's message: Chromium "Failed to fetch dynamically imported module: <url>",
+ *  Firefox "error loading dynamically imported module: <url>". */
+const FAILED_IMPORT_RE = /dynamically imported module:?\s+\S/i;
 /** WebKit's (Safari's) failed import, which names no URL: "Importing a module script failed." */
 const WEBKIT_IMPORT_FAILED_RE = /^importing a module script failed\.?$/i;
 
@@ -109,26 +113,15 @@ export function is_failed_import(error: unknown): boolean {
 	return FAILED_IMPORT_RE.test(message) || WEBKIT_IMPORT_FAILED_RE.test(message);
 }
 
-/**
- * The URL a failed dynamic import names, if it names one we can load again (http(s), this origin).
- * WebKit names none: there `known`, the file the caller imported, is it (#383).
- */
-export function failed_import_url(error: unknown, known?: string): string | null {
-	const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
-	const match = FAILED_IMPORT_RE.exec(message);
-	const named = match
-		? match[1]
-		: known !== undefined && WEBKIT_IMPORT_FAILED_RE.test(message)
-			? known
-			: null;
-	if (named === null) return null;
+/** A loader's file as a URL: against `base` (the loader's module), else the page (an island's entry
+ *  is named as the page names it, root-relative); null when it names no URL. Never throws: it runs
+ *  inside a failed import's handler, whose own error is what the caller hears. */
+function file_url(file: string, base: string | undefined): string | null {
 	try {
-		const url = new URL(named, typeof location !== 'undefined' ? location.href : undefined);
-		if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
-		if (typeof location !== 'undefined' && url.origin !== location.origin) return null;
-		return url.href;
+		return new URL(file, base ?? (typeof location !== 'undefined' ? location.href : undefined))
+			.href;
 	} catch {
-		return null;
+		return null; // ok: no URL to ask again under; the loader loads the plain way next time
 	}
 }
 
@@ -175,52 +168,54 @@ export function on_reload_needed(say: (url: string, error: unknown) => void): vo
 }
 
 /**
- * `load` (a bundler-resolved `() => import('./x.ts')`), and after it fails to download, the same
- * file under a fresh URL on each later call; once it has loaded, every later call is that load (a
- * fresh URL after a success would be a second copy of the module). A retry whose own file came and
- * still failed is a dependency's failure, which no URL fixes: from then on every call fails at once
- * with its error, asking nothing. Pair it with `flights()` from `@ogygia/machine`, which calls it
- * again on a failure and never keeps one.
+ * `load` (a bundler-resolved `() => import('./x.ts')`), and after it fails to download, its `file`
+ * under a fresh URL on each later call; once it has loaded, every later call is that load (a fresh
+ * URL after a success would be a second copy of the module). A retry whose own file came and still
+ * failed is a dependency's failure, which no URL fixes: from then on every call fails at once with
+ * its error, asking nothing. Pair it with `flights()` from `@ogygia/machine`, which calls it again
+ * on a failure and never keeps one.
  */
 export function import_again<T>(
 	load: () => Promise<T>,
 	fresh: (url: string) => Promise<unknown> = (url) => import(/* @vite-ignore */ url),
-	/** The file `load` imports, when the caller knows it: what a failure that names no URL (WebKit)
-	 *  failed to load. */
-	known?: string
+	/** The file `load` imports, resolved against `base`: the build hands each lazy loader its own
+	 *  (vite/lazy-files.ts), and an island's caller knows its file. `null` or left out: not known
+	 *  (a module that shares its chunk with others), and a failure is loaded the same way again. */
+	file?: string | null,
+	/** The URL of the module that holds the loader (its `import.meta.url`). */
+	base?: string
 ): () => Promise<T> {
 	hear_responses();
-	const file = file_definition.create();
+	const state = file_definition.create();
 	return () => {
-		const s = file.now;
+		const s = state.now;
 		if (s.kind === 'loaded') return s.run as Promise<T>;
 		if (s.kind === 'stuck') return Promise.reject(s.error);
 		let run: Promise<T>;
 		if (s.kind === 'failed') {
 			// (each retry its own URL, counted as it starts: two calls at once ask under two)
 			const attempt = s.attempt + 1;
-			file.go('failed', { url: s.url, attempt });
+			state.go('failed', { url: s.url, attempt });
 			const url = retry_url(s.url, attempt);
 			run = (fresh(url) as Promise<T>).catch(async (error: unknown) => {
 				// (its entry may land after the import rejects: Firefox on a loaded machine)
 				const status = await response_landed(url);
 				// its own file came, and it still failed: a dependency's failure, which no URL fixes
-				if (status !== null && status < 400 && file.move('failed', 'stuck', { error })) {
+				if (status !== null && status < 400 && state.move('failed', 'stuck', { error })) {
 					reload.once('reload', () => say_reload_needed(url, error));
 				}
 				throw error;
 			});
 		} else {
 			run = load().catch((error: unknown) => {
-				const url = failed_import_url(error, known);
-				// (a failure that names no URL: the next call loads the same way again)
-				if (url !== null) file.move('fresh', 'failed', { url, attempt: 0 });
+				const url = file != null && is_failed_import(error) ? file_url(file, base) : null;
+				if (url !== null) state.move('fresh', 'failed', { url, attempt: 0 });
 				throw error;
 			});
 		}
 		run.then(
 			() => {
-				if (file.now.kind !== 'loaded') file.go('loaded', { run });
+				if (state.now.kind !== 'loaded') state.go('loaded', { run });
 			},
 			() => {}
 		); // ok: the failure is the caller's: `run` itself is returned and rejects to it
@@ -234,7 +229,7 @@ export function import_again<T>(
  *   fresh ─ failed{url, attempt} ⟲ ─ loaded{run}
  *     ╲──────────────────────────╱ ╲ stuck{error}
  *
- * `fresh`: nothing failed yet (or a failure named no URL): a call loads the bundler's way. `failed`:
+ * `fresh`: nothing failed yet (or the loader knows no file): a call loads the bundler's way. `failed`:
  * a download failed; each call asks under a fresh URL. `loaded`: a load landed, and every later call
  * is that load (a fresh URL after a success would be a second copy of the module). `stuck`: a retry's
  * own file came and it still failed, a dependency's failure: every later call fails at once with it.
@@ -273,11 +268,10 @@ const file_loads = flights({
 			);
 		const load = again;
 		return load().catch(async (error: unknown) => {
-			const failed = failed_import_url(error, url);
-			if (failed === null) throw error;
+			if (!is_failed_import(error)) throw error;
 			// (an engine can reject the import before the response's timing entry is in the timeline:
 			// Firefox on a loaded machine, by more than one task)
-			const status = await response_landed(failed);
+			const status = await response_landed(url);
 			if (status === null) return load();
 			throw error;
 		});
