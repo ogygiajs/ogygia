@@ -235,4 +235,27 @@ test.describe('PROPS TAIL: island props ride at the end of the body, keyed by fi
 		);
 		check('no page errors across the round trip', errors.length === 0, errors.join(' | '));
 	});
+
+	test('leaving a page with two identical regions removes both of them (#807)', async ({
+		page
+	}) => {
+		await page.goto('/props-tail');
+		const twins = page.locator('[data-tally="twin"]');
+		check('A has the two twins', (await twins.count()) === 2, String(await twins.count()));
+		await page.locator('[data-to-b]').click();
+		await page.waitForFunction(() => location.pathname.endsWith('/props-tail/b'), null, {
+			timeout: 8000
+		});
+		await page.waitForSelector('[data-tally="b-only"]', { timeout: 8000 });
+		await page.waitForTimeout(300);
+		check('B has no twin left from A', (await twins.count()) === 0, String(await twins.count()));
+		// and back: both come again, each its own island
+		await page.locator('[data-to-a]').click();
+		await page.waitForFunction(() => /\/props-tail\/?$/.test(location.pathname), null, {
+			timeout: 8000
+		});
+		await page.waitForSelector('[data-tally="solo"]', { timeout: 8000 });
+		await page.waitForTimeout(300);
+		check('back on A: two twins again', (await twins.count()) === 2, String(await twins.count()));
+	});
 });
