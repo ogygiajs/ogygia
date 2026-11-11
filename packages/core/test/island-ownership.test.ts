@@ -7,7 +7,7 @@
  * the bridge there transformed the plugin's OUTPUT: a server island read as a plain component, its
  * `{#snippet}` children were branded as phantom portable snippets, and registering that phantom
  * WIPED the host's real wrapper registration — the cold build then failed to resolve
- * `virtual:ogygia/wrapper/<hash>.svelte` (client) or leaked it raw into the server bundle
+ * `ogygia:region/wrapper/<hash>.svelte` (client) or leaked it raw into the server bundle
  * (`ERR_UNSUPPORTED_ESM_URL_SCHEME: virtual:` at prerender).
  *
  * This file holds the compiler half (the server-island host legs). The markup-preprocessor half
@@ -32,7 +32,7 @@ const ROUTE_HOST = `<script lang="ts">
 // This is the shape the markup hook actually receives for a `.svelte` — the phantom's trigger.
 const PLUGIN_OUTPUT = ROUTE_HOST.replace(
 	`import DeferredHole from './DeferredHole.svelte' with { render: 'deferred' };`,
-	`import DeferredHole from 'virtual:ogygia/client-binding-stub';`
+	`import DeferredHole from 'ogygia:region/client-binding-stub';`
 );
 
 describe('server-island host legs (the compiler contract the registry depends on)', () => {
@@ -42,21 +42,21 @@ describe('server-island host legs (the compiler contract the registry depends on
 		readFile: () => null,
 		pathModule: path,
 		dev: false,
-		virtualPathFor: (_h: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
-		wrapperPathFor: (_h: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
+		virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
+		wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
 		devUrlFor: (p: string) => p,
 		visibleMargin: '200px',
 		presets: {},
 		importKeys: {},
 		idSalt: '',
-		clientBindingStub: 'virtual:ogygia/client-binding-stub',
+		clientBindingStub: 'ogygia:region/client-binding-stub',
 		routeCsr: undefined
 	};
 	const id = '/app/src/routes/demo/deferred/+page.svelte';
 
 	it('SSR leg: wrapper import + island registered WITH wrapper source', () => {
 		const r = transformHost(ROUTE_HOST, id, { ...ctx, ssr: true, linkVirtualIsland: true });
-		expect(r!.code).toContain('virtual:ogygia/wrapper/');
+		expect(r!.code).toContain('ogygia:region/wrapper/');
 		const isl = r!.islands![0]!;
 		expect(isl.server).toBe(true);
 		expect((isl.wrapperSource ?? '').length).toBeGreaterThan(0);
@@ -64,8 +64,8 @@ describe('server-island host legs (the compiler contract the registry depends on
 
 	it('csr=false CLIENT leg: stub import (never the wrapper), island still carries wrapper source', () => {
 		const r = transformHost(ROUTE_HOST, id, { ...ctx, ssr: false, linkVirtualIsland: false });
-		expect(r!.code).not.toContain('virtual:ogygia/wrapper/');
-		expect(r!.code).toContain('virtual:ogygia/client-binding-stub');
+		expect(r!.code).not.toContain('ogygia:region/wrapper/');
+		expect(r!.code).toContain('ogygia:region/client-binding-stub');
 		const isl = r!.islands![0]!;
 		expect(isl.server).toBe(true);
 		// the registration payload must never be a downgrade — the registry gate needs the source
