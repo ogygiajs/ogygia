@@ -16,7 +16,7 @@
  */
 
 import { escapeAttr as escape_amp_quot } from '@ogygia/core/plugin/utils';
-import { read_tag, type FoundTag } from '@ogygia/core/internal/server';
+import { OG_STITCHED, read_tag, type FoundTag } from '@ogygia/core/internal/server';
 
 /** Cheap presence probe: a page without the attribute's name, in any case, has no stitch hole. */
 const STITCH_ANY_CASE = /stitch/i;
@@ -149,7 +149,7 @@ export async function stitch_html(
 		const fill = rendered[i];
 		if (fill === null) continue; // fail-open: leave the block untouched
 		out += html.slice(last, holes[i].start);
-		out += `<div style="display:contents" data-og-stitched="">${fill}</div>`;
+		out += `<div style="display:contents" ${OG_STITCHED}="">${fill}</div>`;
 		last = holes[i].end;
 	}
 	out += html.slice(last);
