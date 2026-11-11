@@ -1,23 +1,22 @@
+<!--
+@component
+Search with no JavaScript: a GET form that sends the term as `q` (to the current URL unless given
+an `action`), and the hits rendered on the server, counted, or a plain "no results" line. Nothing
+is listed before a term. Mount it at `/search`, with the hits from `site.search(q)`:
+
+```ts
+// routes/search/+page.server.ts
+export const prerender = false;
+export const load = async ({ url }) => {
+	const q = (url.searchParams.get('q') ?? '').trim();
+	return { q, hits: q ? await site.search(q) : [] };
+};
+```
+```svelte
+<SearchPage q={data.q} hits={data.hits} />
+```
+-->
 <script lang="ts">
-	/**
-	 * `SearchPage` — the no-JS search fallback UI, an ogygia primitive. A plain GET form + a server-
-	 * rendered results list; zero client JS required. Mount it at `/search`:
-	 *
-	 * ```ts
-	 * // routes/search/+page.server.ts
-	 * export const prerender = false;
-	 * export const load = async ({ url }) => {
-	 *   const q = (url.searchParams.get('q') ?? '').trim();
-	 *   return { q, hits: q ? await site.search(q) : [] };
-	 * };
-	 * ```
-	 * ```svelte
-	 * <!-- routes/search/+page.svelte -->
-	 * <SearchPage q={data.q} hits={data.hits} />
-	 * ```
-	 *
-	 * The `<Search>` trigger links here, so the ⌘K palette is a pure enhancement over this page.
-	 */
 	import type { SearchHit } from '../search.ts';
 
 	let {
