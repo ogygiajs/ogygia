@@ -2581,47 +2581,47 @@
 			"reason": "one property of the realm's object against the key hooks (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~04efa3 > hooks > regionMount",
+			"id": "packages/devtools/src/client.ts > plugin > hooks > regionMount",
 			"reason": "browser only: hands one hook event (a DOM element: not replayable) to the leftovers watch, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~04efa3 > hooks > regionUnmount",
+			"id": "packages/devtools/src/client.ts > plugin > hooks > regionUnmount",
 			"reason": "browser only: hands one hook event (a DOM element: not replayable) to the leftovers watch, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~04efa3 > hooks > regionHydrated",
+			"id": "packages/devtools/src/client.ts > plugin > hooks > regionHydrated",
 			"reason": "browser only: hands one hook event (a DOM element: not replayable) to beacon_hydrated, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~04efa3 > hooks > regionFailed",
+			"id": "packages/devtools/src/client.ts > plugin > hooks > regionFailed",
 			"reason": "browser only: hands one hook event (a DOM element: not replayable) to beacon_failed, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~04efa3 > hooks > holeAnswered",
+			"id": "packages/devtools/src/client.ts > plugin > hooks > holeAnswered",
 			"reason": "browser only: hands one hook event (a DOM element: not replayable) to beacon_hole_answered, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~04efa3 > hooks > holeFailed",
+			"id": "packages/devtools/src/client.ts > plugin > hooks > holeFailed",
 			"reason": "browser only: renames one field of a hook event for beacon_hole_failed, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~04efa3 > hooks > holeBatchMissed",
+			"id": "packages/devtools/src/client.ts > plugin > hooks > holeBatchMissed",
 			"reason": "browser only: renames one field of a hook event for beacon_hole_batch_missed, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~04efa3 > hooks > entryFallback",
+			"id": "packages/devtools/src/client.ts > plugin > hooks > entryFallback",
 			"reason": "browser only: hands one hook event to beacon_entry_fallback, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~04efa3 > hooks > navigated",
+			"id": "packages/devtools/src/client.ts > plugin > hooks > navigated",
 			"reason": "browser only: hands one hook event to beacon_nav, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~04efa3 > hooks > criticalSettled",
+			"id": "packages/devtools/src/client.ts > plugin > hooks > criticalSettled",
 			"reason": "browser only: hands one hook event to beacon_critical, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~04efa3 > hooks > warning",
+			"id": "packages/devtools/src/client.ts > plugin > hooks > warning",
 			"reason": "browser only: hands one hook event to beacon_warning, constant work of its own"
 		},
 		{
