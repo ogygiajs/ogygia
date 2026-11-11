@@ -45,13 +45,14 @@ if (!table) {
 		console.log(`${String(n).padStart(5)}  ${file}`);
 	console.log(`${String(found.length).padStart(5)}  total`);
 } else {
-	const texts = new Map<string, string>();
+	const texts = new Map<string, Buffer>();
 	console.log('| where | comment | rung | proof |');
 	console.log('| --- | --- | --- | --- |');
 	for (const f of found) {
-		if (!texts.has(f.file)) texts.set(f.file, readFileSync(join(root, f.file), 'utf8'));
-		const text = (texts.get(f.file) ?? '')
-			.slice(f.span.offset, f.span.offset + f.span.length)
+		if (!texts.has(f.file)) texts.set(f.file, readFileSync(join(root, f.file)));
+		const text = (texts.get(f.file) ?? Buffer.alloc(0))
+			.subarray(f.span.offset, f.span.offset + f.span.length)
+			.toString('utf8')
 			.replace(/^\/[/*]+|\*\/$/g, '')
 			.replace(/\s*\n\s*\*?\s*/g, ' ')
 			.trim();
