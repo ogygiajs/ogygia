@@ -222,7 +222,8 @@ export class Browsers {
 		w.addEventListener('error', (e) => {
 			// (SIM_STACKS=1 says where it was thrown, to triage a seed; off, the trace is unchanged)
 			const stack = STACKS ? `\n${String((e.error as Error | undefined)?.stack)}` : '';
-			if (shown()) tab.errors.push(`error: ${e.message ?? String(e.error)}${stack}`);
+			// (a thrown value with no `message`, as Kit's HttpError, gives an empty one: say the value)
+			if (shown()) tab.errors.push(`error: ${e.message || String(e.error)}${stack}`);
 		});
 		// a script or stylesheet of this document that failed: happy-dom writes why to the page's
 		// console and fires `error` on the element (which does not bubble: heard while capturing)
