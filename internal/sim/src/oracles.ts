@@ -207,6 +207,39 @@ export const KNOWN: ReadonlyArray<{
 			s.replace(/^( *<ogygia-region .*)$/gm, (l) => l.replace(/ data-og-(skipped|opaque)=""/g, ''))
 	},
 	{
+		issue: 891,
+		what: 'a hole that failed while offline never loads once the network is back',
+		// (a hole of the tab still shows its fallback, unanswered, where the fresh load's same hole
+		// answered: the tab's block is taken as the fresh one's)
+		applies: (shown, fresh) => given_up(shown, fresh).size > 0,
+		forgive: (s, other) => {
+			const gone = given_up(s, other);
+			if (gone.size === 0) return s;
+			// (and the answer's region sheets, which never came either: the other side's head, with
+			// what this side has beside it kept)
+			const mine = head_blocks(s);
+			const theirs = head_blocks(other).blocks.map((b) => b.join('\n'));
+			const have = new Set(mine.blocks.map((b) => b.join('\n')));
+			const head = [
+				...theirs.filter((b) => have.has(b) || b.includes('data-ogygia-region-css=')),
+				...[...have].filter((b) => !theirs.includes(b))
+			];
+			s = [...mine.before, ...head, ...mine.after].join('\n');
+			const lines = s.split('\n');
+			const out: string[] = [];
+			for (let i = 0; i < lines.length; i++) {
+				const block = region_at(lines, i);
+				const answer = block === null ? undefined : gone.get(lines[i]);
+				if (block === null || answer === undefined) out.push(lines[i]);
+				else {
+					out.push(answer);
+					i = block.end - 1;
+				}
+			}
+			return out.join('\n');
+		}
+	},
+	{
 		issue: 807,
 		what: 'a region of the page left stays after a client navigation',
 		// (the tab holds every region the fresh load has, and more; after #804, which sets
@@ -254,6 +287,30 @@ function region_at(lines: string[], at: number): { text: string; end: number } |
 	let end = at + 1;
 	while (end < lines.length && /^ */.exec(lines[end])![0].length > m[1].length) end++;
 	return { text: lines.slice(at, end).join('\n'), end };
+}
+
+/**
+ * Holes of `s` still unanswered (a deferred region's opening line without `data-hydrated`) whose
+ * same hole in `other` answered: each opening line, with the answered block that stands for it.
+ */
+function given_up(s: string, other: string): Map<string, string> {
+	// (by the hole's id: an answer writes its endpoint back resolved, the server's relative one
+	// reads another way before it)
+	const opener = (l: string) => / data-og-hole="([^"]+)"/.exec(l)?.[1] ?? l;
+	const answered = new Map<string, string>();
+	const lines = other.split('\n');
+	for (let i = 0; i < lines.length; i++) {
+		const block = region_at(lines, i);
+		if (block === null || !/ render="defer"/.test(lines[i])) continue;
+		if (lines[i].includes(' data-hydrated=""')) answered.set(opener(lines[i]), block.text);
+	}
+	const out = new Map<string, string>();
+	for (const line of s.split('\n')) {
+		if (line.includes(' data-hydrated=""') || !/ render="defer"/.test(line)) continue;
+		const answer = answered.get(opener(line));
+		if (answer !== undefined) out.set(line, answer);
+	}
+	return out;
 }
 
 /**
