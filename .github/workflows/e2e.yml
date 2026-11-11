@@ -20,9 +20,11 @@ on:
 
 # turbo's remote cache (Vercel, the purus-projects team): every runner, slice and machine shares one
 # cache. Without the secret (a fork's PR) turbo falls back to the local cache restored in each job.
+# A pull request reads the cache and never writes it: only main's runs fill it.
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  TURBO_REMOTE_CACHE_READ_ONLY: ${{ github.event_name != 'push' }}
 
 # A new push to a PR cancels that PR's older runs (main, schedules and manual runs never are)
 concurrency:
@@ -72,6 +74,9 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: node .github/scripts/tests-report-only.ts "$BASE_SHA"
+
+      - name: Every published package builds on publish
+        run: node .github/scripts/publish-builds.ts
 
       - name: Plan
         id: plan

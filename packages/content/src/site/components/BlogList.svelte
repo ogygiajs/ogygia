@@ -40,7 +40,9 @@
 		return groups;
 	});
 	const pretty = (iso: string) =>
-		iso ? new Date(iso).toLocaleDateString('en', { month: 'short', day: 'numeric' }) : '';
+		iso
+			? new Date(iso).toLocaleDateString('en', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+			: '';
 </script>
 
 {#snippet card(p: BlogPostRef)}
@@ -80,7 +82,7 @@
 		{/each}
 	{:else}
 		<ul class="og-blog-list">
-			{#each sorted as p (p.href)}<li>{@render card(p)}</li>{/each}
+			{#each posts as p (p.href)}<li>{@render card(p)}</li>{/each}
 		</ul>
 	{/if}
 </section>
