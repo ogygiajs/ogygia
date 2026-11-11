@@ -1,12 +1,15 @@
 <!-- (its CSS injected into the dock's shadow root: see Devtools.svelte) -->
 <svelte:options css="injected" />
 
+<!--
+@component
+The Bytes tab: the JavaScript each island costs this page. With the page's island graph (a build),
+the exact ledger `page_ledger` makes, and the modules this page's last profile loaded twice. Without
+one, a row per island entry chunk with how many regions use it, its own chunk's size over the wire
+(`cold` until it loads) and its whole subgraph (+deps), dearest first, then the runtime chunk and the
+page total.
+-->
 <script>
-	/**
-	 * The Bytes tab (byte ledger): real over-the-wire JS per island entry chunk + the shared runtime
-	 * chunk, from PerformanceResourceTiming. Cold islands show `cold` and fill in live as the panel
-	 * ticks. Measures each island's OWN chunk (not transitive deps); dev sizes are flagged.
-	 */
 	import {
 		all_regions,
 		chunk_bytes,
@@ -22,13 +25,10 @@
 	let { tick = 0 } = $props();
 	const IS_DEV = !!(import.meta.env && import.meta.env.DEV);
 
-	// THE EXACT LEDGER (a build): the page's island graph names every file each island needs, the
-	// browser says what each file weighed — each file counted once, and per island what only it needs
 	const exact = $derived.by(() => {
 		void tick;
 		return page_ledger();
 	});
-	// the modules the build shipped twice that this page loads both copies of (the last profile's)
 	const twice = $derived.by(() => {
 		void tick;
 		profiles_version();
@@ -36,9 +36,8 @@
 	});
 
 	const model = $derived.by(() => {
-		void tick; // refresh with the panel tick
+		void tick;
 
-		// Group regions by entry chunk (dedupe: same component + strategy = ONE chunk, N instances).
 		const groups = new Map();
 		for (const r of all_regions()) {
 			if (!r.entry) continue;
@@ -59,15 +58,12 @@
 					modules: t ? t.modules : 0
 				};
 			})
-			// Sort by the real (transitive) cost when we have it, else by the entry-chunk wire size.
 			.sort((a, b) => b.transitive - a.transitive || b.wire - a.wire);
 
 		const runtimeSrc =
 			document.querySelector('script[data-ogygia-runtime]')?.getAttribute('src') || '';
 		const runtime = runtimeSrc ? { src: runtimeSrc, ...chunk_bytes(runtimeSrc) } : null;
 
-		// Page total over UNIQUE chunks (rows are already one-per-island). `wire` = wrapper chunks;
-		// `transitive` = each island's whole subgraph (the real-cost column).
 		const counted = new Set();
 		let wire = 0;
 		let transitive = 0;
