@@ -29,6 +29,12 @@ function relative_specifier(from_file: string, to_file: string): string {
 	return rel.startsWith('.') ? rel : './' + rel;
 }
 
+/** Orders `[key, value]` pairs by key: what the build writes from the bundler's entries, which it
+ *  emits in no stable order, is written in one order every build (#490). */
+export function by_key(a: readonly [string, unknown], b: readonly [string, unknown]): number {
+	return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0;
+}
+
 function map_source(file: string, pairs: readonly (readonly [string, string])[]): string {
 	const map: Record<string, string> = {};
 	for (const [identity, location] of pairs)
@@ -45,7 +51,8 @@ export function location_map_files(
 	pairs: Iterable<readonly [string, string]>,
 	hash: (source: string) => string
 ): { fileName: string; source: string }[] {
-	const list = [...pairs];
+	// by identity: the bundler emits entries in no stable order, and the hash names the file (#490)
+	const list = [...pairs].sort(by_key);
 	if (!list.length) return [];
 	const hashed_dir = `${app_dir}/immutable`;
 	const hashed_source = map_source(hashed_dir + '/og-locations.json', list);
