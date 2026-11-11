@@ -5,6 +5,7 @@
  */
 import { props_sidecar_of } from '@ogygia/core/internal/instruments';
 import { tool_made } from '@ogygia/core/internal/instruments';
+import { recorded_realm } from './hook-entries.ts';
 import type { IslandBarrel, IslandHazard } from '@ogygia/insights';
 
 // ── regexes
@@ -64,7 +65,7 @@ export function all_regions(): RegionInfo[] {
  */
 export function region_props_sidecar(el: Element): string | null {
 	// Keyed at the end of the body (by `data-og-fp`) or adjacent — the runtime's own lookup.
-	return props_sidecar_of(el)?.textContent ?? null;
+	return (recorded_realm()?.props_sidecar_of ?? props_sidecar_of)(el)?.textContent ?? null;
 }
 
 /** basename of a URL/path (drops query + directory). */

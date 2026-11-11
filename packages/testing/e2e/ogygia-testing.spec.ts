@@ -46,6 +46,12 @@ test('page() and hydration(): the planted problems, as a test sees them', async 
 	test.setTimeout(90_000);
 	await page.goto('/dt-lab');
 	const load = await ogygia.page();
+	// the engine withOgygia injected answered (the dock's own has no `live`), fed by the app's realm
+	expect(
+		await page.evaluate(
+			() => (window as { __ogygia_testing?: { live?: boolean } }).__ogygia_testing?.live
+		)
+	).toBe(true);
 	const codes = load.findings.map((f) => f.code);
 	expect(codes).toEqual(
 		expect.arrayContaining(['hydrate-failed', 'markup-changed', 'long-hydrate'])
@@ -69,7 +75,9 @@ test('page() and hydration(): the planted problems, as a test sees them', async 
 	// what measuring cost the page, for a test to subtract
 	expect(load.self!.script_ms).toBeGreaterThan(0);
 	expect(load.self!.phases.islands).toBeGreaterThan(0);
-	expect(load.self!.bytes).toBeGreaterThan(0);
+	// (withOgygia injected the engine: the page downloaded none of it, and its start is measuring's own)
+	expect(load.self!.bytes).toBe(0);
+	expect(load.self!.phases.engine).toBeGreaterThan(0);
 	expect(load.engine).toMatchObject({ version: 3, lean: false });
 	expect(new Set(hyd.islands.map((i) => i.key)).size).toBe(hyd.islands.length);
 

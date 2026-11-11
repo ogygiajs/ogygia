@@ -221,6 +221,9 @@ function after_load_idle(s: Scope, fn: () => void): void {
 export interface OgygiaTestingApi {
 	/** the report shape (testing-version.ts) */
 	version: number;
+	/** an engine a test injected: whether the app's realm has booted and feeds it (absent: the dock's
+	 *  own engine, which is the realm's) */
+	readonly live?: boolean;
 	/** `cpu_fns`: how many of the page load's hottest functions (default 15) */
 	page(cpu_fns?: number): Promise<unknown>;
 	/** `key_attr`: the attribute that names an island instance; `ignore`: attribute changes to leave out

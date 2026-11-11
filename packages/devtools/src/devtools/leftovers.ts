@@ -57,12 +57,26 @@ export interface Leftover {
 	last_ago?: number;
 }
 
-const intervals = new Map<unknown, LeftoverReg>();
-const listeners = new Map<unknown, (LeftoverReg & { on: EventTarget })[]>();
-const islands = new Map<
-	string,
-	{ urls: string[]; first: number; gone?: number; els: Map<Element, number> }
->();
+interface Ledger {
+	readonly intervals: Map<unknown, LeftoverReg>;
+	readonly listeners: Map<unknown, (LeftoverReg & { on: EventTarget })[]>;
+	readonly islands: Map<
+		string,
+		{ urls: string[]; first: number; gone?: number; els: Map<Element, number> }
+	>;
+	readonly scroll_regs: (ScrollReg & { target: EventTarget; fn: unknown })[];
+	readonly unload_regs: { fn: unknown; frames: string[] }[];
+}
+// @why the realm's copy watches and the testing engine a test injects is another copy that reads: one ledger for the page (test: devtools-leftovers-ledger)
+const ledger: Ledger = ((globalThis as { [k: symbol]: Ledger })[Symbol.for('ogygia.leftovers')] ??=
+	{
+		intervals: new Map(),
+		listeners: new Map(),
+		islands: new Map(),
+		scroll_regs: [],
+		unload_regs: []
+	});
+const { intervals, listeners, islands, scroll_regs, unload_regs } = ledger;
 let own_file = '';
 let installed = false;
 
@@ -218,8 +232,6 @@ export interface ScrollReg {
 	forced: boolean;
 	frames: string[];
 }
-const scroll_regs: (ScrollReg & { target: EventTarget; fn: unknown })[] = [];
-
 function note_scroll_listener(
 	on: EventTarget,
 	type: string,
@@ -263,8 +275,6 @@ function forget_scroll_listener(on: EventTarget, type: string, fn: unknown) {
 // ── AN `unload` LISTENER ON THE WINDOW: the browser keeps no page with one in its back/forward
 // cache, so Back reloads it from the server instead of showing it at once (`pagehide` does the
 // same job and keeps the cache) ──
-
-const unload_regs: { fn: unknown; frames: string[] }[] = [];
 
 function note_unload_listener(fn: unknown) {
 	if (unload_regs.length >= 20 || unload_regs.some((r) => r.fn === fn)) return;

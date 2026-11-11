@@ -12,7 +12,8 @@ import {
 	leftover_island_seen,
 	leftover_island_gone
 } from './devtools/leftovers.ts';
-import { record_hook } from './devtools/hook-record.ts';
+import { record_realm, record_hook } from './devtools/hook-record.ts';
+import { props_sidecar_of } from '@ogygia/core/internal/instruments';
 import {
 	beacon_critical,
 	beacon_entry_fallback,
@@ -30,6 +31,11 @@ import {
 
 const client: ClientPlugin = defineClient({
 	boot({ kitPage }) {
+		record_realm({
+			dev: import.meta.env.DEV,
+			names: () => import('./devtools/build-names.ts').then((m) => m.region_names),
+			props_sidecar_of
+		});
 		install_beacon(true);
 		// one mounted Svelte app (launcher + tabbed window), starting hidden (Alt+O); a pure bus/DOM consumer
 		install_devtools_ui(kitPage ? { csr_true: true } : undefined);
