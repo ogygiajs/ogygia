@@ -208,6 +208,35 @@ describe('Ed25519 signing / verification', () => {
 		expect(verify_signed_request({ publicKeys: [pub] }, replayed, url)).toBeNull();
 	});
 
+	it('a signature counts once however its base64 is spelled', () => {
+		const req = signed();
+		const url = new URL(req.url);
+		const sig = req.headers.get('x-og-sig') ?? '';
+		expect(verify_signed_request({ publicKeys: [pub] }, req, url)?.user?.sub).toBe('u1');
+		const spellings = [
+			sig.replace(/=+$/, ''),
+			`${sig}!`,
+			`${sig.slice(0, 40)}.${sig.slice(40)}`,
+			`${sig.replace(/=+$/, '')}===`,
+			` ${sig}`
+		];
+		for (const spelling of spellings) {
+			const again = new Request(req.url, {
+				headers: { ...Object.fromEntries(req.headers), 'x-og-sig': spelling }
+			});
+			expect(verify_signed_request({ publicKeys: [pub] }, again, url)).toBeNull();
+		}
+	});
+
+	it('a signature that is not canonical base64 is refused, even the first time', () => {
+		const req = signed();
+		const sig = req.headers.get('x-og-sig') ?? '';
+		const loose = new Request(req.url, {
+			headers: { ...Object.fromEntries(req.headers), 'x-og-sig': sig.replace(/=+$/, '') }
+		});
+		expect(verify_signed_request({ publicKeys: [pub] }, loose, new URL(loose.url))).toBeNull();
+	});
+
 	it('NaN timestamp does not bypass the freshness gate', () => {
 		const req = signed();
 		const forged = new Request(req.url, {

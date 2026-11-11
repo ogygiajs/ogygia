@@ -150,6 +150,17 @@ export function sign_headers(
 	};
 }
 
+// One spelling per signature, so the replay guard (keyed on the header text) sees every copy:
+// test/federation.test.ts › "a signature counts once however its base64 is spelled".
+const ED25519_SIG_B64 = /^[A-Za-z0-9+/]{86}==$/;
+
+/** The 64 signature bytes, or `null` when `sig` is not their canonical base64. */
+function signature_bytes(sig: string): Buffer | null {
+	if (!ED25519_SIG_B64.test(sig)) return null;
+	const bytes = Buffer.from(sig, 'base64');
+	return bytes.toString('base64') === sig ? bytes : null;
+}
+
 export interface VerifyConfig {
 	/** base64 SPKI DER Ed25519 public keys of AUTHORIZED callers (a list = rotation overlap). */
 	publicKeys: readonly string[];
@@ -180,7 +191,8 @@ export function verify_signed_request(
 	const bhash = body_hash(body);
 	const pathq = url.pathname + url.search;
 	const audiences = cfg.audience == null ? [url.host] : ([] as string[]).concat(cfg.audience);
-	const sig_buf = Buffer.from(sig, 'base64');
+	const sig_buf = signature_bytes(sig);
+	if (!sig_buf) return null;
 	for (const aud of audiences) {
 		const payload = sig_payload(ts, request.method, pathq, bhash, user_b64, aud, nonce);
 		for (const pk of cfg.publicKeys) {
