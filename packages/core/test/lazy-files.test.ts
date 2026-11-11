@@ -19,7 +19,12 @@ function write(files: Record<string, string>): void {
 }
 
 /** What an `import_again` call was given (the stub below hands it back). */
-type Given = { load: () => Promise<unknown>; file: unknown; base: unknown };
+type Given = {
+	load: () => Promise<unknown>;
+	fresh: (url: string) => Promise<unknown>;
+	file: unknown;
+	base: unknown;
+};
 
 /** Builds `main.js` and runs its output: each export is what its `import_again` call was given. */
 async function built(minify: boolean): Promise<Record<string, Given>> {
@@ -36,16 +41,20 @@ async function built(minify: boolean): Promise<Record<string, Given>> {
 
 describe('lazy_files', () => {
 	write({
-		'import-again.js': `export const import_again = (load, fresh, file, base) => ({ load, file, base });\n`,
+		'import-again.js': `export const import_again = (load, fresh, file, base) => ({ load, fresh, file, base });\n`,
 		'main.js': [
 			`import { import_again } from './import-again.js';`,
 			`import { shared } from './shared.js';`,
 			`console.log(shared);`,
 			`export const own = import_again(() => import('./lazy/own.js'));`,
 			`export const merged = import_again(() => import('./shared.js'));`,
+			// (a loader that reads part of its module, so the bundler leaves the rest out, with the same
+			// part read from a retry)
+			`export const part = import_again(() => import('./lazy/part.js').then(({ a }) => ({ a })), (url) => import(/* @vite-ignore */ url).then(({ a }) => ({ a })));`,
 			``
 		].join('\n'),
 		'lazy/own.js': `export const own = 1;\n`,
+		'lazy/part.js': `export const a = 'kept';\nexport const b = 'left out';\n`,
 		'shared.js': `export const shared = 2;\n`
 	});
 
@@ -57,6 +66,15 @@ describe('lazy_files', () => {
 			const ns = await import(file.href);
 			expect(ns.own).toBe(1);
 			expect(await own.load()).toBe(ns);
+		});
+
+	for (const minify of [false, true])
+		it(`hands a loader that reads part of its module its own chunk, and leaves the rest out${minify ? ' (minified)' : ''}`, async () => {
+			const { part } = await built(minify);
+			const file = new URL(part.file as string, part.base as string);
+			expect(fs.readFileSync(file, 'utf8')).not.toContain('left out');
+			expect(await part.load()).toEqual({ a: 'kept' });
+			expect(await part.fresh(file.href)).toEqual({ a: 'kept' });
 		});
 
 	it('hands a module that shares a chunk with others no file (its chunk is not its own)', async () => {
