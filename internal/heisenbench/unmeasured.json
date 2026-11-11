@@ -3341,7 +3341,7 @@
 			"reason": "browser only: one record_hook of a hook event, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~c275e3 > boot > record_realm:0~ef831d > lend",
+			"id": "packages/devtools/src/client.ts > defineClient:0~eeefb3 > boot > record_realm:0~ef831d > lend",
 			"reason": "browser only: lends the app's own chunk of names to the realm, one dynamic import, once per page"
 		},
 		{
