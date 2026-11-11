@@ -116,7 +116,7 @@ export class PeerHandle implements Peer {
 				// stale: served as it is while one fresh flight refreshes it (an error answer, or a
 				// failure, leaves the good copy kept, and the next stale read tries again)
 				if (!seen.flying) docs.get(read, { fresh: true }).then(undefined, noop); // ok: the good copy stays served and the next stale read tries again; a read with no copy throws the failure
-				return seen.answer.doc;
+				return this.#used(seen.answer.doc);
 			}
 			let answer: Fetched | typeof STALE;
 			try {
@@ -125,7 +125,7 @@ export class PeerHandle implements Peer {
 				if (is_http_error(e)) throw e;
 				error(504, 'This section is temporarily unavailable.');
 			}
-			if (answer !== STALE) return answer.doc;
+			if (answer !== STALE) return this.#used(answer.doc);
 			if (signal?.aborted) throw signal.reason;
 			// a mutation or a thaw dropped the flight this read joined: what it fetched may be the
 			// page from before, so read again
@@ -146,12 +146,14 @@ export class PeerHandle implements Peer {
 	): Promise<FragmentDocument> {
 		this.#sources.bump();
 		try {
-			return await this.#raw_doc(
-				path,
-				search,
-				{ method: 'POST', headers: { 'content-type': content_type, origin: this.origin }, body },
-				claims,
-				traceparent
+			return this.#used(
+				await this.#raw_doc(
+					path,
+					search,
+					{ method: 'POST', headers: { 'content-type': content_type, origin: this.origin }, body },
+					claims,
+					traceparent
+				)
 			);
 		} finally {
 			this.#sources.bump();
@@ -288,7 +290,35 @@ export class PeerHandle implements Peer {
 		}
 		if (!res) throw last_err;
 		if (!res.ok && res.status !== 404) error(502, `fragment app answered ${res.status}`);
-		return (await res.json()) as FragmentDocument;
+		const doc = (await res.json()) as FragmentDocument;
+		// its runtime's origin becomes a code origin of the page that uses it (#856): only from an
+		// answer of this peer's own origins (a redirect elsewhere is not the peer), only http(s)
+		const runtime = doc.runtime === undefined ? null : this.#own_url(doc.runtime, res.url);
+		if (runtime === null) delete doc.runtime;
+		return doc;
+	}
+
+	/** `url` when the answer came from one of this peer's origins and it is an http(s) URL, else
+	 *  null. `answered`: the answer's final URL (after any redirect). */
+	#own_url(url: string, answered: string): string | null {
+		try {
+			if (!this.#origins.some((o) => new URL(o).origin === new URL(answered).origin)) return null;
+			const u = new URL(url);
+			return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+		} catch {
+			return null; // ok: not a URL: no origin to allow
+		}
+	}
+
+	/** A document this request uses: its runtime's origin joins the request's code origins, so the
+	 *  page's runtime loads the peer's islands from where the peer serves them (core
+	 *  runtime/code-origins.ts). */
+	#used(doc: FragmentDocument): FragmentDocument {
+		if (doc.runtime) {
+			const facts = fed_app()?.current();
+			if (facts) (facts.codeOrigins ??= []).push(new URL(doc.runtime).origin);
+		}
+		return doc;
 	}
 
 	/** Prefix a remote fragment's own receipt tags with THIS peer's name, so the consuming page's

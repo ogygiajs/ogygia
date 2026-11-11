@@ -15,6 +15,7 @@
  * One global slot: every module instance dispatches over the same implementations.
  */
 import { warn } from '../messages/server.ts';
+import { current_facts } from './facts.ts';
 
 /** The shared hooks. Each is optional on a plugin; the signature is the contract. */
 export interface ServerHooks {
@@ -48,7 +49,8 @@ export function register_hooks(impl: object): () => void {
 	};
 }
 
-/** Every implementation's `codeOrigins`, in plugin order (a failing one is logged and adds none). */
+/** Every implementation's `codeOrigins`, in plugin order (a failing one is logged and adds none),
+ *  then the running request's own (`facts.codeOrigins`). */
 export function code_origins(): string[] {
 	const out: string[] = [];
 	for (const impl of implementations) {
@@ -60,6 +62,8 @@ export function code_origins(): string[] {
 			warn('plugin_hook_failed', { name: 'codeOrigins' }, e);
 		}
 	}
+	const learned = current_facts()?.codeOrigins;
+	if (learned) out.push(...learned);
 	return out;
 }
 
