@@ -57,7 +57,7 @@ export function island_entry_source(
 	exportName?: string
 ): string {
 	return (
-		`import 'virtual:ogygia/transportables-eager';\n` +
+		`import 'ogygia:region/transportables-eager';\n` +
 		component_import_line(`__OgygiaComp_${iid}`, componentPath, exportName) +
 		'\n' +
 		`export default __OgygiaComp_${iid};\n` +
@@ -236,7 +236,7 @@ export function make_region_binding(opts: {
 			// The page never imported this server-picked component, so its scoped CSS is on no page
 			// stylesheet: the render is prefixed with the island's `<link>`s (the client hoists them to
 			// <head>). SSR leg only — the client binding stays metadata-only.
-			`import { makeRegionEndpoint as __ogRegionSign, render_region_html as __ogRegionHtml } from 'ogygia/internal/server';\n` +
+			`import { make_region_endpoint as __ogRegionSign, render_region_html as __ogRegionHtml } from 'ogygia/internal/server';\n` +
 			`export default { ${meta}, __component: __ogRegionComp, __sign: __ogRegionSign, ` +
 			`__renderHtml: ${render_html_source(opts.moduleUrl)} };\n`,
 		bindingClientSource: `export default { ${meta} };\n`,
@@ -278,7 +278,7 @@ function wrapper_attach_binding(opts: {
 			`import __OgygiaWrap from ${JSON.stringify(opts.wrapperPath)};\n` +
 			component_import_line('__ogRegionComp', opts.componentPath, opts.exportName) +
 			'\n' +
-			`import { makeRegionEndpoint as __ogRegionSign, render_region_html as __ogRegionHtml } from 'ogygia/internal/server';\n` +
+			`import { make_region_endpoint as __ogRegionSign, render_region_html as __ogRegionHtml } from 'ogygia/internal/server';\n` +
 			`Object.assign(__OgygiaWrap, { ${meta}, __component: __ogRegionComp, __sign: __ogRegionSign, ` +
 			`__renderHtml: ${render_html_source(opts.moduleUrl)} });\n` +
 			`export default __OgygiaWrap;\n`,
