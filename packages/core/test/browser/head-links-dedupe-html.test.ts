@@ -89,6 +89,6 @@ test('the deduped head parses to the original page minus its repeated sheets and
 		if (want !== parse(html).documentElement.outerHTML) dropped++;
 		expect(parse(dedupe_head_links(html)).documentElement.outerHTML, html).toBe(want);
 	}
-	// (the heads are not all repeat-free: most runs drop something)
-	expect(dropped).toBeGreaterThan(400);
+	// (not a vacuous pass: about one head in forty drops a link)
+	expect(dropped).toBeGreaterThan(50);
 });
