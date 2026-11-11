@@ -301,3 +301,36 @@ describe('a live region put back goes on in its last tick’s mode (#337)', () =
 		);
 	});
 });
+
+describe('a static live tick reaches its region after a write at its address', () => {
+	it('the newer write stays on screen, not the tick decoded before it', async () => {
+		await simulate.check(
+			[],
+			async (sim) => {
+				start(sim);
+				const el = document.createElement('ogygia-region') as LiveRegion;
+				el.setAttribute('live', '');
+				const a = frameAddress(LIVE_URL);
+				sim.finally('it shows the write', () =>
+					el.querySelector('[data-n="2"]') !== null ? null : `it shows "${el.innerHTML}"`
+				);
+				const html = '<p data-n="1">one</p>';
+				await sim.play([
+					['it comes onto the page', () => document.body.append(el), 'then'],
+					// (the app's transport decodes the tick: its HTML is written at its address)
+					['a static tick is decoded', () => void write({ a, v: ticket(a), html }), 'then'],
+					[
+						'a write at its address',
+						() => void write({ a, v: ticket(a), html: '<p data-n="2">two</p>' }),
+						'then'
+					],
+					[
+						'the tick reaches its region',
+						() => el.applyLive({ id: 'order-live', module: '', props: {}, html, url: LIVE_URL })
+					]
+				]);
+			},
+			RUNS
+		);
+	});
+});
