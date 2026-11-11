@@ -2,4 +2,4 @@
 '@ogygia/machine': patch
 ---
 
-A machine's once-per-warning memory is bounded (the latest 256 warnings) instead of growing for the life of the process.
+`observe()` keeps its watchers in a registry: each leaves with its stop, and the rest hear moves in the order they started watching.
