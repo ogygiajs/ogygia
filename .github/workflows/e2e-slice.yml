@@ -23,6 +23,8 @@ jobs:
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      # (the caller's event: a pull request reads the cache and never writes it)
+      TURBO_REMOTE_CACHE_READ_ONLY: ${{ github.event_name != 'push' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -121,3 +123,16 @@ jobs:
             **/test-results/
             !**/node_modules/**
           retention-days: 7
+
+      # On main: each suite's Playwright JSON (one per engine and shard), for the tests report
+      # (.github/scripts/test-report.ts reads them; .github/workflows/tests-report.yml gathers them).
+      - if: always() && github.event_name != 'pull_request'
+        name: Upload the e2e results
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-results-${{ inputs.id }}-${{ inputs.browser }}
+          path: |
+            **/playwright-results/*.json
+            !**/node_modules/**
+          if-no-files-found: ignore
+          retention-days: 30

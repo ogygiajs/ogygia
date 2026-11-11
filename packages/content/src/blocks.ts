@@ -1,5 +1,5 @@
 /**
- * `blocks()` — a source builder for Builder.io-style pages: a JSON tree of block nodes rendered
+ * `blocks()` — a source builder for pages a CMS sends as blocks: a JSON tree of block nodes rendered
  * through a registry. Each entry's `body` is the rendered tree, so you render it with
  * `<Region of={entry.body} />`, exactly like a markdown body.
  *
