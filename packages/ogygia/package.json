@@ -88,10 +88,6 @@
 			"types": "./dist/server.d.ts",
 			"default": "./src/server.ts"
 		},
-		"./markup": {
-			"types": "./dist/markup.d.ts",
-			"default": "./src/markup.ts"
-		},
 		"./plugin": {
 			"types": "./dist/plugin.d.ts",
 			"default": "./src/plugin.ts"
@@ -196,10 +192,6 @@
 			"./server": {
 				"types": "./dist/server.d.ts",
 				"default": "./dist/server.js"
-			},
-			"./markup": {
-				"types": "./dist/markup.d.ts",
-				"default": "./dist/markup.js"
 			},
 			"./plugin": {
 				"types": "./dist/plugin.d.ts",

@@ -11,6 +11,7 @@
 		"e2e": "playwright test"
 	},
 	"dependencies": {
+		"@ogygia/reshape": "workspace:*",
 		"@rolldown/browser": "catalog:",
 		"devalue": "catalog:",
 		"ogygia": "workspace:*",
