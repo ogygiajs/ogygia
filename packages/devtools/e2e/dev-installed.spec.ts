@@ -5,7 +5,7 @@
 //
 // The regression (field report, 2026-09-29): Vite pre-bundled the installed package's
 // `ogygia/runtime` (the dev boot) into `.vite/deps`, while everything the compiler writes — the
-// island modules and their `ogygia/internal`, `virtual:ogygia/hydrate-features` — imports ogygia's
+// island modules and their `ogygia/internal`, `ogygia:boot/hydrate-features` — imports ogygia's
 // files by path. The page ran two copies of ogygia's stateful modules: the wire feature installed
 // into one `slots`, the hydrate core read the other, and every island with a snippet prop failed
 // ("wired prop but no wire feature in this build"). A workspace-linked ogygia is never pre-bundled,
