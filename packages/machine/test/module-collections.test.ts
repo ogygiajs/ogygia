@@ -13,11 +13,12 @@ it('the once-per-warning memory is bounded: past its size, the oldest warning ca
 	say(0);
 	say(0);
 	expect(warn).toHaveBeenCalledTimes(1);
-	for (let i = 1; i <= 1000; i++) say(i);
+	// (say() remembers the latest 1024: these push the first one out)
+	for (let i = 1; i <= 1024; i++) say(i);
 	warn.mockClear();
 	say(0); // long ago: no longer remembered
 	expect(warn).toHaveBeenCalledTimes(1);
-	say(1000); // just said: still remembered
+	say(1024); // just said: still remembered
 	expect(warn).toHaveBeenCalledTimes(1);
 });
 
