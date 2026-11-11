@@ -2935,6 +2935,10 @@
 		{
 			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > warn:1~cd9197 > map:0~a95637",
 			"reason": "build only: relative paths of at most five leaked modules, inside the warning"
+		},
+		{
+			"id": "packages/core/src/vite/package-files.ts > discover_package_files > inside",
+			"reason": "a closure over the package's real root (not replayable), one prefix compare; proven in packages/core/test/package-files.test.ts"
 		}
 	]
 }
