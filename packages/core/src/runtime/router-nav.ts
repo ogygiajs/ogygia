@@ -32,6 +32,7 @@ import type { HistoryEntry, HistoryMove, SpaRouter } from './router.ts';
 import { spa_html_cacheable } from './spa-cacheable.ts';
 import { pin_region_urls } from './entry-locations.ts';
 import { emit as dt_emit } from '../events/bus.ts';
+import { KNOWN_HEADER_CAP } from '../contract/known-copies.ts';
 
 // What this lazy chunk uses from the boot and from the router, handed over through the registry — it
 // never imports a boot module (./slots.ts `BootLink`: a module both import is split out of the runtime
@@ -70,10 +71,6 @@ const dt_now = () =>
  *  keep their live islands, changed regions re-mount, the shell morphs — instead of a full-body
  *  replaceWith. Flip to `false` to fall back to the legacy full-swap path (the e2e safety net). */
 const RECONCILE_NAV = true;
-
-/** Max bytes for the `x-ogygia-known` header — past this we OMIT it, so the server renders every
- *  region (the safe full-render fallback). Keeps request headers well under proxy/server limits. */
-const KNOWN_HEADER_CAP = 6144;
 
 /** SERVER-DELTA NAV is OPT-IN for the first release (a new client↔server protocol). Off → the client
  *  never sends `x-ogygia-known`, so `reuse_known_region()` never skips server-side and every region
