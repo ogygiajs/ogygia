@@ -1,10 +1,10 @@
 /**
  * Kitchen-sink browser runtime — every BOOT-phase feature installed. The dev / no-marks entry: the
- * ogygia compiler injects `bootDev()` (see the plugin's `virtual:ogygia-runtime`); a per-app production
+ * ogygia compiler injects `bootDev()` (see the plugin's `ogygia:boot/runtime`); a per-app production
  * build instead emits a generated entry (see `vite/runtime-entry.ts`) that boots only the features it
  * uses. Both boot through {@link ./core.js core} in the same {@link ../vite/runtime-entry.js FEATURE_ORDER}.
  * HYDRATE-phase features (context, live, wire, remote-seeds, page) are never in the boot, dev included: the
- * hydrate core installs them from `virtual:ogygia/hydrate-features` (every one, in dev).
+ * hydrate core installs them from `ogygia:boot/hydrate-features` (every one, in dev).
  *
  * Exposed as an explicit FUNCTION, not a top-level side effect: the compiler always calls it, so the
  * boot never depends on a bundler honouring `sideEffects` to survive tree-shaking / dep-prebundling.

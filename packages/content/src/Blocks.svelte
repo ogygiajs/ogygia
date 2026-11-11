@@ -1,6 +1,6 @@
 <script lang="ts">
 	/**
-	 * Render a Builder.io-style page tree — the one block renderer, public and internal both.
+	 * Render a page tree of blocks, as a CMS sends it — the one block renderer, public and internal both.
 	 *
 	 * Two ways in, same output:
 	 * - `<Blocks {tree} {registry} />` — you have a tree in hand (a prop, a literal, a one-off API
