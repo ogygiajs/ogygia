@@ -96,7 +96,7 @@ class QueueImpl<J> implements Queue<J> {
 	}
 
 	push(job: J, deadline = Infinity): void {
-		if (this.#owner?.closed) return void this.#stale?.(job);
+		if (this.#owner?.closed) return this.#stale_job(job);
 		this.#jobs.push(job);
 		this.#deadlines.push(deadline);
 		this.#waiting++;
@@ -129,7 +129,7 @@ class QueueImpl<J> implements Queue<J> {
 			if (deadline !== Infinity) {
 				this.#untime();
 				if (deadline <= this.#now()) {
-					this.#stale?.(job);
+					this.#stale_job(job);
 					continue;
 				}
 			}
@@ -149,7 +149,16 @@ class QueueImpl<J> implements Queue<J> {
 		this.#jobs[at] = GONE;
 		this.#waiting--;
 		if (this.#deadlines[at] !== Infinity) this.#untime();
-		this.#stale?.(job);
+		this.#stale_job(job);
+	}
+
+	/** A job is stale: its hook hears it. One that throws is reported, and the others still go on. */
+	#stale_job(job: J): void {
+		try {
+			this.#stale?.(job);
+		} catch (error) {
+			report_thrown('machine_queue_stale_failed', { name: this.#name }, error);
+		}
 	}
 
 	/** A waiting job with a deadline left: the last one takes the timer with it. */

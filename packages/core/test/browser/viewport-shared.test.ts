@@ -34,6 +34,22 @@ test('two watchers of one element at one margin both hear it; one stopping leave
 	el.remove();
 });
 
+test('one function watching one element twice is two watches: stopping one leaves the other', async () => {
+	const el = box();
+	const heard: boolean[] = [];
+	const same = (v: boolean) => heard.push(v);
+	const stop_first = watch_viewport(el, '0px', same);
+	const stop_second = watch_viewport(el, '0px', same);
+	await settle();
+	heard.length = 0;
+	stop_first();
+	el.style.marginTop = '5000px'; // off screen
+	await settle();
+	expect(heard).toEqual([false]);
+	stop_second();
+	el.remove();
+});
+
 test('a watcher that joins late gets the last known state (the browser will not report it again)', async () => {
 	const el = box();
 	const first: boolean[] = [];
