@@ -2211,6 +2211,46 @@
 		{
 			"id": "packages/core/src/runtime/import-again.ts > response_landed > Promise:0~7305f1 > timeout:0~317c93",
 			"reason": "the wait runs out (a dropped download in WebKit): resolves null, constant work"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > no_kept_unkeyed_read",
+			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #hole_cache",
+			"reason": "a hole's cache key and the start of its read observation (a RequestEvent, not cloneable), constant work; run by packages/flags/test/hole-cache.test.ts through cached_render and the e2e hole suites"
+		},
+		{
+			"id": "packages/core/src/plugin/reads.ts > set_open_reads",
+			"reason": "installs the read-set reader once, at module load, constant work"
+		},
+		{
+			"id": "packages/core/src/server/render-page.ts > render_page > get data",
+			"reason": "notes a page.data read into the running render's read set and returns the data, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~7ebc22 > app > observeReads",
+			"reason": "forwards a RequestEvent (not cloneable) to observe_reads, constant work; packages/core/bench/server.bench.ts runs observe_reads"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~99e237 > app > warn > once:1~c9a4aa",
+			"reason": "prints one warning (console output, not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/flags/src/index.ts > outbox:0~05e47f > giveUp > once:1~de49a5",
+			"reason": "prints one warning (console output, not replayable), constant work"
+		},
+		{
+			"id": "packages/machine/src/say.ts > say > get size",
+			"reason": "reads a Map's size, constant work; proven in packages/machine/test/say.test.ts"
 		}
 	]
 }

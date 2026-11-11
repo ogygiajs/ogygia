@@ -31,7 +31,8 @@
 		"ci:release": "changeset publish",
 		"format": "oxfmt .",
 		"format:check": "oxfmt --check .",
-		"lint": "oxlint"
+		"lint": "oxlint",
+		"lint:test": "node --test internal/lint/*.test.ts"
 	},
 	"devDependencies": {
 		"@changesets/changelog-github": "^1.0.1",
