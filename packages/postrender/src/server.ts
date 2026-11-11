@@ -381,7 +381,7 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 		state.eligible = true;
 		if (dev) {
 			// observe only: the verdict teaches in `response`, nothing stores
-			state.obs = observe_event(event, facts);
+			state.obs = observe_event(ctx);
 			return;
 		}
 		const hit = await store_get(runtime, path);
@@ -410,7 +410,7 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 		}
 		// First cold request: open the flight + observe the render for the verdict.
 		state.flight = flight.opened;
-		state.obs = observe_event(event, facts);
+		state.obs = observe_event(ctx);
 		facts.storable = true;
 		facts.sources ??= []; // keep the render's data-source receipts: the page's reverse index
 	},
