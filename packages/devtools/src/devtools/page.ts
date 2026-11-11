@@ -5,7 +5,7 @@
  * read the same report the tab shows without opening the panel.
  */
 import { beacon_page, hole_request_times, is_headless } from '@ogygia/core/internal/instruments';
-import { tool_fetch } from '@ogygia/core/internal/instruments';
+import { OG_FP, tool_fetch } from '@ogygia/core/internal/instruments';
 import { snapshot } from '@ogygia/core/events';
 import { flights, type Flights } from '@ogygia/machine';
 import { page_ledger } from './ledger-dom.ts';
@@ -316,7 +316,7 @@ export function failures(since: number = last_nav()?.t ?? -Infinity): Failure[] 
 				!(
 					e.fp &&
 					document.querySelector(
-						`ogygia-region[data-og-fp="${CSS.escape(e.fp)}"]:not([data-hydrated])`
+						`ogygia-region[${OG_FP}="${CSS.escape(e.fp)}"]:not([data-hydrated])`
 					)
 				)
 			)
@@ -509,7 +509,7 @@ export function hole_failures(since: number = last_nav()?.t ?? -Infinity): HoleF
 				id = '';
 			}
 			out.push({
-				fp: el?.getAttribute('data-og-fp') ?? undefined,
+				fp: el?.getAttribute(OG_FP) ?? undefined,
 				name: (id && region_names()[id]) || (e.entry ? region_name(e.entry) : 'a hole'),
 				endpoint: e.endpoint,
 				reason: e.reason,
@@ -703,7 +703,7 @@ function empty_slots(): string[] {
 			}
 		if (content) continue;
 		const region = slot.closest('ogygia-region[data-hydrated]');
-		const fp = region?.getAttribute('data-og-fp');
+		const fp = region?.getAttribute(OG_FP);
 		if (fp) out.push(fp);
 	}
 	return out;

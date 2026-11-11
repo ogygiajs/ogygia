@@ -15,6 +15,7 @@
  * hide-time message is the one most often lost.
  */
 import { script } from '@ogygia/core';
+import { OGYGIA_BEACON } from '@ogygia/core/internal/server';
 
 /** The beacon itself. Runs in the browser, as an inline classic script. */
 export function standalone_beacon(): void {
@@ -40,6 +41,7 @@ export function standalone_beacon(): void {
 		?.getAttribute('content');
 	if (!url || typeof PerformanceObserver === 'undefined') return;
 	// the runtime is on the page: its beacon reports, this one never starts
+	// oxlint-disable-next-line ogygia/markup-from-vocabulary -- inlined through toString(): it names nothing outside itself
 	if (document.querySelector('script[data-ogygia-runtime]')) return;
 
 	const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -499,6 +501,7 @@ export function standalone_beacon(): void {
 	// oxlint-disable-next-line ogygia/owned-effects -- the document's, installed once
 	document.addEventListener('DOMContentLoaded', () => {
 		// the runtime's script came after this one: it reports
+		// oxlint-disable-next-line ogygia/markup-from-vocabulary -- inlined through toString(): it names nothing outside itself
 		if (document.querySelector('script[data-ogygia-runtime]')) return stand_down();
 		// oxlint-disable-next-line ogygia/owned-effects -- the document's, installed once
 		document.addEventListener('visibilitychange', () => {
@@ -519,5 +522,5 @@ export function standalone_beacon(): void {
 /** The inline tag the profiler puts in its own user's document, beside the beacon meta tag. */
 export const BEACON_STANDALONE_TAG: string = script({
 	run: standalone_beacon,
-	'data-ogygia-beacon': true
+	[OGYGIA_BEACON]: true
 });

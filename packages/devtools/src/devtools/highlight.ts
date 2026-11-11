@@ -5,6 +5,7 @@
  * huge match stays cheap. No Svelte: plain DOM, one layer, replaced on each call.
  */
 import { scope, type Scope } from '@ogygia/machine';
+import { OG_HIGHLIGHT } from '@ogygia/core/internal/instruments';
 
 let root: ShadowRoot | null = null;
 let layer: HTMLDivElement | null = null;
@@ -59,7 +60,7 @@ export function highlight(els: Element[], caption = '', scroll = false): void {
 	label = caption;
 	if (!layer) {
 		layer = document.createElement('div');
-		layer.setAttribute('data-og-highlight', '');
+		layer.setAttribute(OG_HIGHLIGHT, '');
 		layer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483600';
 		root.prepend(layer);
 		shown = scope();

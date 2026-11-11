@@ -8,6 +8,10 @@
  */
 import {
 	next_tag,
+	OG_FP,
+	OGYGIA_HOLES,
+	OGYGIA_PROPS,
+	OGYGIA_RUNTIME,
 	read_tag,
 	scanRegions,
 	text_of,
@@ -65,12 +69,11 @@ export function left_at(offset: number, chunks: { end: number; t: number }[]): n
 
 // (a `rel` holds a token as a browser reads it: split on spaces, in any case)
 const REL_STYLESHEET = /(?:^|[\t\n\f\r ])stylesheet(?:[\t\n\f\r ]|$)/i;
-const FP_ATTR = 'data-og-fp';
 
 function script_kind(t: FoundTag): { kind: StripKind; label?: string } {
-	if (t.attr('data-ogygia-runtime') !== undefined) return { kind: 'runtime' };
-	if (t.attr('data-ogygia-props') !== undefined) return { kind: 'props' };
-	if (t.attr('data-ogygia-holes') !== undefined) return { kind: 'holes' };
+	if (t.attr(OGYGIA_RUNTIME) !== undefined) return { kind: 'runtime' };
+	if (t.attr(OGYGIA_PROPS) !== undefined) return { kind: 'props' };
+	if (t.attr(OGYGIA_HOLES) !== undefined) return { kind: 'holes' };
 	const type = t.attr('type');
 	const mime = type?.toLowerCase();
 	if (mime === 'application/ogygia-page') return { kind: 'seed' };
@@ -155,7 +158,7 @@ export function byte_strip(html: string): ByteStrip {
 				kind,
 				start: r.start,
 				end: r.end,
-				label: r.attrs[FP_ATTR] ?? r.attrs.entry ?? r.attrs.name
+				label: r.attrs[OG_FP] ?? r.attrs.entry ?? r.attrs.name
 			});
 		}
 	} catch {

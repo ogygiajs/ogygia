@@ -4,7 +4,12 @@
  * — handed to the pure `byte_ledger` (bytes.ts). Null off a build (the dev server writes no graph).
  * Shared by the Bytes tab and an island's detail card.
  */
-import { OGYGIA_GRAPH, decode_island_graph } from '@ogygia/core/internal/instruments';
+import {
+	OGYGIA_GRAPH,
+	OGYGIA_RUNTIME,
+	OGYGIA_RUNTIME_DEP,
+	decode_island_graph
+} from '@ogygia/core/internal/instruments';
 import { byte_ledger, type Ledger } from './bytes.ts';
 import { dynamic_imports, static_imports } from '@ogygia/core/insights';
 import { all_regions, region_name } from './regions.ts';
@@ -147,12 +152,10 @@ export function page_ledger(): Ledger | null {
 				count: 1
 			});
 	}
-	const runtime_src = abs(
-		document.querySelector('script[data-ogygia-runtime]')?.getAttribute('src')
-	);
+	const runtime_src = abs(document.querySelector(`script[${OGYGIA_RUNTIME}]`)?.getAttribute('src'));
 	const runtime = [
 		runtime_src,
-		...[...document.querySelectorAll('link[data-ogygia-runtime-dep]')].map((l) =>
+		...[...document.querySelectorAll(`link[${OGYGIA_RUNTIME_DEP}]`)].map((l) =>
 			abs(l.getAttribute('href'))
 		)
 	].filter((x): x is string => !!x);
