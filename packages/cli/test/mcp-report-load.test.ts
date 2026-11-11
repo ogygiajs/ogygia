@@ -43,6 +43,8 @@ it('a failed load of the report reading is tried again once the plugin is instal
 	`;
 	const out = execFileSync(process.execPath, ['--input-type=module', '-e', script], {
 		cwd: app,
+		// (pnpm's bin shim puts the workspace's hoisted .pnpm/node_modules on NODE_PATH)
+		env: { ...process.env, NODE_PATH: '' },
 		encoding: 'utf8'
 	});
 	expect(JSON.parse(out.trim().split('\n').pop()!)).toEqual({
