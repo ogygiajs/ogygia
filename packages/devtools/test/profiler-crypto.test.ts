@@ -29,6 +29,16 @@ describe('.ogp codec (Brotli + AES-GCM)', () => {
 		await expect(ogp_decode(bytes, 'wrong')).rejects.toThrow();
 	});
 
+	it('a file that unpacks past the limit is refused while it unpacks, with devtools_profiler_upload_too_large', async () => {
+		// a few KB on the wire, far more unpacked: what a decompression bomb looks like, small
+		const bytes = await ogp_encode({ ...sample, pad: 'x'.repeat(200_000) }, 'k');
+		expect(bytes.length).toBeLessThan(10_000);
+		await expect(ogp_decode(bytes, 'k', 100_000)).rejects.toMatchObject({
+			code: 'devtools_profiler_upload_too_large'
+		});
+		expect(await ogp_decode(bytes, 'k', 1_000_000)).toMatchObject({ kind: sample.kind });
+	});
+
 	it('each export has its own salt + iv (ciphertext differs for the same input)', async () => {
 		const a = await ogp_encode(sample, 'k');
 		const b = await ogp_encode(sample, 'k');
