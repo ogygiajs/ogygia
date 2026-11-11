@@ -17,6 +17,7 @@
  * The Svelte parser reads `.svelte` script blocks.
  */
 import { searchForWorkspaceRoot, type Plugin } from 'vite';
+import { say } from '@ogygia/machine';
 import {
 	definePlugin,
 	type BuildContext,
@@ -45,7 +46,7 @@ export function barrels(options: BarrelsOptions | true = {}): [OgygiaPlugin, Plu
 	let log: (msg: string) => void = (msg) => console.log(msg);
 	let command: 'build' | 'serve' = 'serve';
 	let report = fresh_report();
-	const warned = new Set<string>();
+	const warned = say();
 
 	const policy: Policy = {
 		candidate(id, spec) {
@@ -75,13 +76,13 @@ export function barrels(options: BarrelsOptions | true = {}): [OgygiaPlugin, Plu
 		// never in silence: a skipped component keeps every barrel it imports. Once per file (a dev
 		// server re-transforms on every edit).
 		report.skipped.add(importer);
-		if (warned.has(importer)) return;
-		warned.add(importer);
-		warn('barrels_component_skipped', {
-			file: short(importer, root),
-			reason: why.code,
-			at: why.line ? `${why.line}:${why.column ?? 1}` : ''
-		});
+		warned.once(importer, () =>
+			warn('barrels_component_skipped', {
+				file: short(importer, root),
+				reason: why.code,
+				at: why.line ? `${why.line}:${why.column ?? 1}` : ''
+			})
+		);
 	};
 
 	const record = (importer: string, moves: RewriteMove[]) => {

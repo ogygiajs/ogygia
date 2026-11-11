@@ -161,6 +161,18 @@ export type WireEventInput =
 	  }
 	| {
 			domain: 'wire';
+			/** An answer reached a region's address with older data than the one on screen
+			 *  (`region(C, props, { version })`), and was dropped. */
+			name: 'wire.frame.dropped';
+			/** The region's frame address. */
+			address: string;
+			/** The dropped answer's data version. */
+			version: number;
+			/** The data version on screen, which stays. */
+			shown: number;
+	  }
+	| {
+			domain: 'wire';
 			name: 'wire.known.sent';
 			/** Fingerprints the client claimed via `x-ogygia-known`. */
 			count: number;

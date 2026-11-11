@@ -169,4 +169,35 @@ describe('mount({ stream: true }) — the sugar', () => {
 		expect(html).toContain('data-og-mount-moved');
 		expect(html).toContain('href="/cms/posts/1"');
 	});
+
+	it("a late redirect's target is escaped into the card's href (#439)", async () => {
+		vi.stubGlobal(
+			'fetch',
+			async () =>
+				new Response(
+					JSON.stringify({
+						status: 303,
+						location: '/cms/x?a=1&b="y"><img src=x>',
+						title: '',
+						css: [],
+						body: ''
+					})
+				)
+		);
+		const app = routes({ '/cms/[...rest]': mount(peer(), { stream: true }) });
+		const html = await (await app.fetch(new Request('http://shell/cms/old')))!.text();
+		expect(html).toContain('href="/cms/x?a=1&amp;b=&quot;y&quot;>&lt;img src=x>"');
+		expect(html).not.toContain('<img');
+	});
+
+	it("a mounted page's title is escaped once (#436)", async () => {
+		const page_html =
+			'<html><head><title>Tom &amp; Jerry</title></head><body><p>hi</p></body></html>';
+		const { lift_document } = await import('../src/wire.ts');
+		const doc = { status: 200, ...lift_document(page_html, 'http://mfe.test') };
+		vi.stubGlobal('fetch', async () => new Response(JSON.stringify(doc)));
+		const app = routes({ '/cms/[...rest]': mount(peer()) });
+		const html = await (await app.fetch(new Request('http://shell/cms/p')))!.text();
+		expect(html).toContain('<title>Tom &amp; Jerry</title>');
+	});
 });
