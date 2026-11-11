@@ -8,13 +8,13 @@ import type { HtmlPass } from '@ogygia/core/plugin';
 import { DEV as dev } from 'esm-env';
 import { check_script, mark, settle, STAND_IN_CSS } from './reversible.ts';
 import { restore, restore_adopt } from './restore.ts';
-import type { Transform } from './requests.ts';
+import type { ReshapeTransform } from './requests.ts';
 
 /** The restorer, inline (./restore.ts — self-contained, so its source runs as is): restores the
  *  document now, and stays as `__og_restore` / `__og_restore_adopt` for hole answers and router swaps. */
 const RESTORER_SCRIPT = `<script data-og-restore>(function(){var r=${restore.toString()};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()</script>`;
 
-export function reshape_pass(transform: Transform, event: RequestEvent): HtmlPass {
+export function reshape_pass(transform: ReshapeTransform, event: RequestEvent): HtmlPass {
 	return {
 		/**
 		 * A DOCUMENT: marked, handed to the transform, settled. The head gets the transform's

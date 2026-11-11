@@ -10,8 +10,23 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import type { TransformKind } from './reversible.ts';
 
-/** The app's own pass over the HTML ogygia sends. See `ReshapeHandleOptions`. */
-export type Transform = (
+/**
+ * The app's own pass over the HTML ogygia sends: the function `handle()` takes. Post-processes every
+ * document (the chunk carrying `</head>`; a streamed tail passes untouched) and every region answer
+ * (a hole, a lake remount), e.g. a web-component server render. `html` in, `html` out, may be async;
+ * it is on the response path, so keep it fast.
+ *
+ * - `kind`: `'document'` or `'region'`.
+ * - `csr`: whether Kit hydrates the whole page (always `false` for a region answer).
+ * - `event`: the request being answered.
+ *
+ * ```ts
+ * import type { ReshapeTransform } from '@ogygia/reshape';
+ * export const render: ReshapeTransform = (html, { kind }) =>
+ * 	renderComponents(html, { fragment: kind === 'region' });
+ * ```
+ */
+export type ReshapeTransform = (
 	html: string,
 	ctx: { kind: TransformKind; csr: boolean; event: RequestEvent }
 ) => string | Promise<string>;
@@ -19,7 +34,7 @@ export type Transform = (
 interface Slot {
 	/** the server realm started (`reshape()` is in vite.config) */
 	live: boolean;
-	by_request: WeakMap<Request, Transform>;
+	by_request: WeakMap<Request, ReshapeTransform>;
 }
 
 export const slot: Slot = ((globalThis as Record<symbol, Slot | undefined>)[
