@@ -1,15 +1,11 @@
+<!--
+@component
+The bottom sheet: a Bits UI `Dialog` labelled `label` ("Menu" by default) that holds `children`
+and, below them, an optional `footer`. `open` is bindable. A press outside closes it, except on a
+`data-ph-sheet-toggle` element: that button toggles `open` itself, and closing first would make its
+click open the sheet again. Interactive, so import it as an island (`with { wake: 'load' }`).
+-->
 <script lang="ts">
-	/**
-	 * A slide-up bottom sheet — the mobile nav/search surface. Built on Bits UI `Dialog`, so the hard
-	 * accessibility is handled: focus trap, focus return, `Escape`, outside-pointer close, body
-	 * scroll-lock, `aria-modal`, and `inert`-ing the background all come for free. We own only the
-	 * bottom-sheet look (CSS) and the drag handle. `open` is bindable; content is yours via `children`;
-	 * an optional pinned `footer` snippet stays at the bottom (e.g. a GitHub link).
-	 *
-	 * Interactive → use as an ISLAND (a shell marks it `with { wake: 'load' }`). On SSR it renders
-	 * nothing (Bits mounts the sheet only when open), so csr=false pages degrade to no sheet rather
-	 * than a broken one.
-	 */
 	import { Dialog } from 'bits-ui';
 	import type { Snippet } from 'svelte';
 
@@ -33,9 +29,6 @@
 			class="og-sheet"
 			aria-label={label}
 			onInteractOutside={(e) => {
-				// The bottom-bar menu button toggles `open` itself. Let its pointer-down through — otherwise
-				// Bits closes on outside-interact, then the button's click sees `open=false` and REOPENS
-				// (the sheet flickers shut then back open). The button carries `data-ph-sheet-toggle`.
 				const t = e.target;
 				if (t instanceof Element && t.closest('[data-ph-sheet-toggle]')) e.preventDefault();
 			}}
