@@ -28,7 +28,8 @@ export const on_hole_failed: RuntimeHooks['holeFailed'] = ({ el: _el, finalPath,
 export const on_hole_batch_missed: RuntimeHooks['holeBatchMissed'] = ({ finalUrl, ...m }) =>
 	beacon_hole_batch_missed({ ...m, ...(finalUrl ? { final_url: finalUrl } : {}) });
 
-const client: ClientPlugin = defineClient({
+// (named, so `boot` keeps one id however the rest of this file changes)
+const plugin: ClientPlugin = {
 	boot() {
 		install_beacon(false);
 	},
@@ -43,6 +44,8 @@ const client: ClientPlugin = defineClient({
 		criticalSettled: beacon_critical,
 		warning: beacon_warning
 	}
-});
+};
+
+const client: ClientPlugin = defineClient(plugin);
 
 export default client;
