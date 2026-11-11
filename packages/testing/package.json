@@ -29,6 +29,10 @@
 			"types": "./dist/index.d.ts",
 			"default": "./src/index.ts"
 		},
+		"./vite": {
+			"types": "./dist/vite.d.ts",
+			"default": "./src/vite.ts"
+		},
 		"./internal/messages": {
 			"types": "./dist/messages.d.ts",
 			"default": "./src/messages.ts"
@@ -39,6 +43,10 @@
 			".": {
 				"types": "./dist/index.d.ts",
 				"default": "./dist/index.js"
+			},
+			"./vite": {
+				"types": "./dist/vite.d.ts",
+				"default": "./dist/vite.js"
 			},
 			"./internal/messages": {
 				"types": "./dist/messages.d.ts",
@@ -68,14 +76,19 @@
 		"rolldown": "catalog:",
 		"tsdown": "catalog:",
 		"typescript": "catalog:",
+		"vite": "catalog:",
 		"vitest": "catalog:"
 	},
 	"peerDependencies": {
 		"@ogygia/core": "workspace:^",
-		"@playwright/test": "catalog:peers"
+		"@playwright/test": "catalog:peers",
+		"vite": "catalog:peers"
 	},
 	"peerDependenciesMeta": {
 		"@playwright/test": {
+			"optional": true
+		},
+		"vite": {
 			"optional": true
 		}
 	}

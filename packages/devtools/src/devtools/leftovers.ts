@@ -66,6 +66,8 @@ interface Ledger {
 	>;
 	readonly scroll_regs: (ScrollReg & { target: EventTarget; fn: unknown })[];
 	readonly unload_regs: { fn: unknown; frames: string[] }[];
+	/** the page's timers and listeners are watched (by whichever copy started first) */
+	watching?: true;
 }
 // @why the realm's copy watches and the testing engine a test injects is another copy that reads: one ledger for the page (test: devtools-leftovers-ledger)
 const ledger: Ledger = ((globalThis as { [k: symbol]: Ledger })[Symbol.for('ogygia.leftovers')] ??=
@@ -78,7 +80,6 @@ const ledger: Ledger = ((globalThis as { [k: symbol]: Ledger })[Symbol.for('ogyg
 	});
 const { intervals, listeners, islands, scroll_regs, unload_regs } = ledger;
 let own_file = '';
-let installed = false;
 
 /** The file URL of each stack line (Chrome `at f (url:1:2)` / `at url:1:2`, Firefox and Safari
  *  `f@url:1:2`), without its position or query. No regex: this runs on every watched registration. */
@@ -133,11 +134,13 @@ const DEVTOOLS_LAZY =
 
 /** Watch intervals and the global listeners. Once per page; a no-op off the browser. */
 export function watch_leftovers(): void {
-	if (installed || typeof window === 'undefined' || typeof EventTarget === 'undefined') return;
+	// @why the dock's realm and the testing engine's are two copies of this module: the page is watched once (test: devtools-realm)
+	if (ledger.watching || typeof window === 'undefined' || typeof EventTarget === 'undefined')
+		return;
 	if (DEVTOOLS_LAZY && !devtools_switched_on()) return;
 	// (lean testing: the page as it runs without devtools — its timers are its own)
 	if (testing_lean()) return;
-	installed = true;
+	ledger.watching = true;
 	own_file = stack_files(new Error().stack ?? '')[0] ?? '';
 	// (typed as the browser has them: the Node timer types merge into `window`'s)
 	const set_interval = window.setInterval as unknown as (

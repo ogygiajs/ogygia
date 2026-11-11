@@ -20,6 +20,7 @@
 		"@ogygia/barrels": "workspace:*",
 		"@ogygia/devtools": "workspace:*",
 		"@ogygia/router": "workspace:*",
+		"@ogygia/testing": "workspace:*",
 		"devalue": "catalog:",
 		"ogygia": "workspace:*",
 		"valibot": "catalog:"

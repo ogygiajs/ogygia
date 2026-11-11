@@ -185,7 +185,9 @@ export async function hydration_json(
 	};
 }
 
-export function record_start(): boolean {
+export async function record_start(): Promise<boolean> {
+	// @why the session names the islands on its page as it starts, and with no dock nothing asked for the names before (test: ogygia-testing e2e › record() across a full page load)
+	await ensure_region_names();
 	if (recording()) return false;
 	start_session();
 	return true;
