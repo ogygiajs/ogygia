@@ -1,19 +1,18 @@
+import type { RequestEvent } from '@sveltejs/kit';
+
 /**
- * READS: what a render read that is not the same for every visitor, or for every page (its read set).
- * A cache keeps a render only for the callers it is the same for (server/render-cache.ts, a plugin's
- * page store). Every way ogygia learns of such a read notes it here, and nowhere else:
+ * One render's read set: what it read that is not the same for every visitor, or for every page. A
+ * cache keeps a render only for the callers it is the same for (server/render-cache.ts, a plugin's
+ * page store). Every way ogygia learns of such a read notes it in one:
  *
  * - a flag decided for the visitor (`@ogygia/flags`), a streamed load, a plugin's `ctx.perVisitor`;
  * - a cookie, personal header or `locals` value the render saw ({@link observe_reads});
  * - the `page.data` a hole's tree read (server/render-page.ts).
  *
  * A request's facts hold its read set (`facts.reads`). Work that may be kept (a cached hole render)
- * runs in its own set under it (server/read-trace.ts): a read lands in the innermost set and in every
- * set around it, so a hole rendered into a page makes that page per-visitor too.
+ * runs in its own set under it, its `parent` (server/read-trace.ts): a read lands in the innermost
+ * set and in every set around it, so a hole rendered into a page makes that page per-visitor too.
  */
-import type { RequestEvent } from '@sveltejs/kit';
-
-/** One render's read set (and, through `parent`, the sets around it). */
 export class Reads {
 	#per_visitor: string | null = null;
 	#page_data = false;
@@ -48,15 +47,14 @@ export class Reads {
 }
 
 interface ReadsSlot {
-	/** server/read-trace.ts: the read set of the work running now, or undefined outside one */
 	open: (() => Reads | undefined) | null;
 }
-// (one global slot: a plugin package and core can be two module instances of this file)
 const slot: ReadsSlot = ((globalThis as Record<symbol, ReadsSlot | undefined>)[
 	Symbol.for('ogygia.reads.v1')
 ] ??= { open: null });
 
-/** Core only (server/read-trace.ts): how the read set of the running work is found. */
+/** Core only (server/read-trace.ts): how the read set of the running work is found. One slot for
+ *  the process, so a plugin package and core that load two copies of this module share it. */
 export function set_open_reads(fn: (() => Reads | undefined) | null): void {
 	slot.open = fn;
 }
@@ -70,12 +68,9 @@ export function open_reads(): Reads | undefined {
 export function note_visitor_read(request_reads: Reads, input: string): void {
 	const open = open_reads();
 	open?.visitor(input);
-	// (the running work's set already passes it up to the request's when it is under it)
 	request_reads.visitor(input);
 }
 
-/** Personal request headers: reading one is a per-visitor read. Everything else (host,
- *  sec-fetch-*, accept-encoding, …) is delivery plumbing. */
 const PERSONAL_HEADERS: ReadonlySet<string> = new Set([
 	'cookie',
 	'authorization',
@@ -88,8 +83,6 @@ const PERSONAL_HEADERS: ReadonlySet<string> = new Set([
 	'x-session-id'
 ]);
 
-/** Default-valued reads are the same for everyone: undefined/null/''/false, an empty plain object,
- *  an empty array. (The cookie-less render: what a visitor without the cookie or user sees.) */
 function is_default_value(value: unknown): boolean {
 	if (value === undefined || value === null || value === '' || value === false) return true;
 	if (Array.isArray(value)) return value.length === 0;
@@ -106,7 +99,10 @@ const observed = new WeakSet<Request>();
 
 /**
  * Note the event's personal reads from now on: a cookie, a personal header or a `locals` value that
- * is not its default. Patches `event.cookies.get`/`getAll`, the request's `headers.get` and
+ * is not its default. A default (`undefined`, `null`, `''`, `false`, an empty plain object or array)
+ * is the same for everyone: what a visitor without the cookie or user sees. A personal header is
+ * `cookie`, `authorization`, `accept-language`, `user-agent`, `referer` or an `x-user` / `x-session`
+ * one; the rest (`host`, `sec-fetch-*`, `accept-encoding`, …) is delivery plumbing. Patches `event.cookies.get`/`getAll`, the request's `headers.get` and
  * `event.locals` in place (Kit and its WeakMap-keyed internals keep the same objects), once per
  * request. A read lands in the read set of the work running then, and in the request's.
  *
@@ -141,7 +137,6 @@ export function observe_reads(event: RequestEvent, request_reads: Reads): void {
 		return value;
 	}) as typeof headers.get;
 
-	// (SvelteKit 3 types `locals` as readonly; at runtime it is a plain property on both 2 and 3)
 	(event as { locals: App.Locals }).locals = new Proxy(event.locals, {
 		get(target, prop, receiver) {
 			const value = Reflect.get(target, prop, receiver);
