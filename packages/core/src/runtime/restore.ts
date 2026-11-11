@@ -165,7 +165,9 @@ export function restore(root: Document | DocumentFragment | Element): number {
 						if (merged) el.setAttribute('class', merged);
 						else el.removeAttribute('class');
 					} else if (v === null) el.removeAttribute(name);
-					else el.setAttribute(name, v);
+					// (never script: no handler, no srcdoc, no javascript: URL; test/browser/restore.test.ts)
+					else if (!/^on|^srcdoc$/i.test(name) && !/^javascript:/i.test(v.replace(/[\0- ]/g, '')))
+						el.setAttribute(name, v);
 				}
 			} catch {
 				// ok: a mangled diff: the attributes are left as served
