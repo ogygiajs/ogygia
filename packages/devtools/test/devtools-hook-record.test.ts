@@ -80,6 +80,20 @@ describe('settled', () => {
 		expect(await settled(0, 200)).toBe(false);
 	});
 
+	it('a hole that woke and then failed for good, or was answered, is not in flight', async () => {
+		vi.stubGlobal('document', { readyState: 'complete' });
+		const { settled } = await import('../src/devtools/testing-engine.ts');
+		const failed = region({ 'data-og-hole': 'f' });
+		const answered = region({ 'data-og-hole': 'a' });
+		record_hook('regionWoke', { el: failed, when: 'load' });
+		record_hook('regionWoke', { el: answered, when: 'load' });
+		record_hook('holeFailed', { el: failed, id: 'f', reason: 'error', attempts: 3, t: 1 });
+		record_hook('holeAnswered', { el: answered, start: 1 });
+		const t0 = performance.now();
+		expect(await settled(0, 2000)).toBe(true);
+		expect(performance.now() - t0).toBeLessThan(1000);
+	});
+
 	it('a region that woke and is still downloading (no regionMount yet) holds it past the quiet time', async () => {
 		vi.stubGlobal('document', { readyState: 'complete' });
 		const { settled } = await import('../src/devtools/testing-engine.ts');
