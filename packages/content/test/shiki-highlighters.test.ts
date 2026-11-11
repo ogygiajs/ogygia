@@ -10,6 +10,10 @@ import { highlight, normalize_shiki, fence_config_key } from '../src/markdown/sh
 import { render_snippet } from '../src/markdown/snippet.ts';
 import { default_pipeline } from '../src/markdown/code-render.ts';
 import { __set_fence_cache_dir } from '../src/markdown/fence-cache.ts';
+import { warm_shiki } from './_shiki-warm.ts';
+
+// (the engine and grammars, warmed: each test times only the highlighters it makes)
+warm_shiki();
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'og-shiki-'));
 beforeAll(() => __set_fence_cache_dir(tmp));
