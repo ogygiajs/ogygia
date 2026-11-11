@@ -107,7 +107,7 @@ describe('batch stream parcels', () => {
 /** Values an island's props can hold, in both lanes. */
 const leaf = fc.oneof(
 	fc.string(),
-	fc.constantFrom('</script>', '<!--', '<script>', ' ', '</SCRIPT '),
+	fc.constantFrom('</script>', '<!--', '<script>', '\u2028', '</SCRIPT '),
 	fc.integer(),
 	fc.double(),
 	fc.boolean(),
