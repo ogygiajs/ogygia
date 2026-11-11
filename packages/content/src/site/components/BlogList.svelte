@@ -1,10 +1,10 @@
+<!--
+@component
+The blog index: the posts, newest first (equal dates in the order given), under a heading per year
+unless `group={false}`. Each post is a card (date, title, summary, author, tags) unless the `item`
+snippet draws it.
+-->
 <script lang="ts">
-	/**
-	 * The blog INDEX — the dated post list, newest first, optionally grouped by year (svelte.dev's
-	 * shape). Pure data in: an array of post refs (`{ href, title, date, summary?, author?, tags? }`),
-	 * typically `blog.list({ map })` over the wire so the corpus stays server-side. Renders each as a
-	 * card. No brains here; the ordering is done for you but you can pre-sort and pass `group={false}`.
-	 */
 	import type { Snippet } from 'svelte';
 	import type { BlogPostRef } from '../fields.ts';
 
@@ -25,7 +25,6 @@
 		item?: Snippet<[BlogPostRef]>;
 	} = $props();
 
-	// Newest first; stable for equal dates.
 	const sorted = $derived(
 		[...posts].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
 	);
