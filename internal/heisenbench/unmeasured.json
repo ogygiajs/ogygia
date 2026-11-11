@@ -2359,6 +2359,10 @@
 		{
 			"id": "packages/core/src/runtime/frame-store.ts > shown_version",
 			"reason": "one Map read of the shown answer's version at an address, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > answer_definition",
+			"reason": "builds the stored-answer machine definition (plain data: three states, their steps), once per address entry; its moves are measured by the frame-store bench, the definition itself is not cloneable"
 		}
 	]
 }
