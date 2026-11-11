@@ -1,13 +1,13 @@
-// URL-safe base64 for the (devalue-stringified) server-island props payload. Server-only: minted per
-// hole per page, decoded per hole request. Node's native base64url when there is a `Buffer` (one
-// call, no per-character string building); the portable TextEncoder + btoa path otherwise (an edge
-// runtime without it). Both give the same unpadded output.
-
 type BufferLike = {
 	from(input: string, encoding?: string): { toString(encoding?: string): string };
 };
 const NodeBuffer = (globalThis as { Buffer?: BufferLike }).Buffer;
 
+/**
+ * URL-safe base64 for the (devalue-stringified) hole props payload. Node's native base64url when
+ * there is a `Buffer` (one call, no per-character string building); the portable `TextEncoder` +
+ * `btoa` path otherwise (an edge runtime without it). Both give the same unpadded output.
+ */
 export class B64Url {
 	/** @param str utf-8 string */
 	static encode(str: string): string {
