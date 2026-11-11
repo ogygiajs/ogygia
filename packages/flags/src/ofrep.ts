@@ -19,8 +19,8 @@ export interface OfrepOptions {
 	url: string;
 	/** Static headers (auth token, tenant) sent with every evaluation. */
 	headers?: Record<string, string>;
-	/** Build the OFREP evaluation context from the request (default: visitor `sub` →
-	 *  `targetingKey` plus every own key of `c.visitor`). */
+	/** Build the OFREP evaluation context from the request (default: visitor `sub`, else
+	 *  an anonymous visitor's `vid` → `targetingKey`, plus every own key of `c.visitor`). */
 	context?: (c: CtxLike) => Record<string, unknown>;
 	/** Per-request fetch (default global). */
 	fetch?: typeof fetch;
@@ -37,8 +37,8 @@ interface OfrepFlag {
 }
 
 function default_context(c: CtxLike): Record<string, unknown> {
-	const sub = c.visitor?.sub;
-	return { ...c.visitor, ...(sub ? { targetingKey: sub } : {}) };
+	const key = c.visitor?.sub || c.visitor?.vid;
+	return { ...c.visitor, ...(key ? { targetingKey: key } : {}) };
 }
 
 export function ofrep(opts: OfrepOptions): FlagSource {

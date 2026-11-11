@@ -39,8 +39,8 @@ export interface EvaluationContextLike {
 }
 
 export interface OpenFeatureOptions {
-	/** Build the OpenFeature evaluation context from the request (default: visitor `sub` →
-	 *  `targetingKey`, plus every own key of `c.visitor`). */
+	/** Build the OpenFeature evaluation context from the request (default: visitor `sub`, else
+	 *  an anonymous visitor's `vid` → `targetingKey`, plus every own key of `c.visitor`). */
 	context?: (c: CtxLike) => EvaluationContextLike;
 	/** Also pull each flag's object value as the `.value(c)` payload (one extra eval per flag).
 	 *  Off by default — most flags are variant-only. */
@@ -48,8 +48,8 @@ export interface OpenFeatureOptions {
 }
 
 function default_context(c: CtxLike): EvaluationContextLike {
-	const sub = c.visitor?.sub;
-	return { ...c.visitor, ...(sub ? { targetingKey: sub } : {}) };
+	const key = c.visitor?.sub || c.visitor?.vid;
+	return { ...c.visitor, ...(key ? { targetingKey: key } : {}) };
 }
 
 export function openfeature(

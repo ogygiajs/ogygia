@@ -27,7 +27,7 @@ export type CtxLike = {
 	cookies?: { get(name: string): string | undefined };
 	/** The router's ONE identity (`routes(table, { visitor })`) — read first when present. Open
 	 *  shape (matches the router's `Visitor`): a targeting fn reads app claims off it. */
-	visitor?: (Record<string, unknown> & { sub?: string }) | undefined;
+	visitor?: (Record<string, unknown> & { sub?: string; vid?: string }) | undefined;
 };
 
 /** Written by an upstream shell's identity hop (the fragment feature); absent = the tier is skipped. */
@@ -56,20 +56,24 @@ const pct = (s: string) => fnv1a32(s) % 10000;
 
 type Visitor = NonNullable<CtxLike['visitor']>;
 
+/** A signed-in visitor's `sub`, else a logged-out one's `vid`. */
+const id_of = (v: Visitor | undefined) => v?.sub || v?.vid;
+
 /** Who is this? The router identity (folds in carried claims) when present; raw claims / the
- *  `og-vid` cookie (the router's `anonymousVisitor()` shape) otherwise; undefined = anonymous.
- *  The ONE rule: a flag read hashes on its `sub`, and the source is primed with it as `c.visitor`. */
+ *  `og-vid` cookie (the router's `anonymousVisitor()` shape, `{ vid, anonymous }`) otherwise;
+ *  undefined = nobody. The ONE rule: a flag read hashes on its id (`sub`, else `vid`), and the
+ *  source is primed with it as `c.visitor`. */
 function visitor_of(c: CtxLike): Visitor | undefined {
-	if (c.visitor?.sub) return c.visitor;
+	if (id_of(c.visitor)) return c.visitor;
 	const claims = (c.request as unknown as Record<symbol, Visitor | undefined>)[CLAIMS];
-	if (claims?.sub) return claims;
+	if (id_of(claims)) return claims;
 	const vid = c.cookies?.get('og-vid');
-	return vid ? { sub: vid, anonymous: true } : c.visitor;
+	return vid ? { vid, anonymous: true } : c.visitor;
 }
 
-/** The sticky hash key. Anonymous → '' (weights degrade to the first variant there). */
+/** The sticky hash key. Nobody → '' (weights degrade to the first variant there). */
 function visitor_id(c: CtxLike): string {
-	return visitor_of(c)?.sub ?? '';
+	return id_of(visitor_of(c)) ?? '';
 }
 
 function carried(c: CtxLike, name: string): string | undefined {
