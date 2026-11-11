@@ -302,6 +302,15 @@ describe('lift_document — an app’s full HTML → the wire shape', () => {
 		expect(d.body).toContain('{"h":["http://cms.test/_app/immutable/chunks/S.js"]}');
 	});
 
+	it('carries a head meta whole when its quoted content holds a `>`', () => {
+		const meta = '<meta name="description" content="render with &lt;Region>, then mount">';
+		const d = lift_document(
+			`<html><head>${meta}<title>x</title></head><body></body></html>`,
+			'http://cms.test'
+		);
+		expect(d.head).toBe(meta);
+	});
+
 	// peer HTML is untrusted: a graph body that is not a graph object passes through, never throws
 	it('a graph that is not an object passes through as it came', () => {
 		for (const text of ['null', '7', '"x"', '[1]', '{bad'])
