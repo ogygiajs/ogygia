@@ -3325,22 +3325,6 @@
 			"reason": "browser only: the injected engine's DOMContentLoaded listener, once per document, constant work of its own; proven by packages/testing/e2e/ogygia-testing.spec.ts"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~531114 > hooks > regionWoke",
-			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
-		},
-		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~531114 > hooks > regionMismatched",
-			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
-		},
-		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~531114 > hooks > navStarted",
-			"reason": "browser only: one record_hook of a hook event, constant work of its own"
-		},
-		{
-			"id": "packages/devtools/src/client.ts > defineClient:0~531114 > hooks > loadStarted",
-			"reason": "browser only: one record_hook of a hook event, constant work of its own"
-		},
-		{
 			"id": "packages/testing/src/index.ts > Ogygia > constructor > catch:0~a1b2d0",
 			"reason": "a no-op for an injection that failed (its error is the first call's, which awaits it), constant work"
 		},
@@ -3379,6 +3363,22 @@
 		{
 			"id": "packages/devtools/src/client.ts > defineClient:0~eeefb3 > boot > record_realm:0~ef831d > lend",
 			"reason": "browser only: lends the app's own chunk of names to the realm, one dynamic import, once per page"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > defineClient:0~de51c9 > hooks > regionWoke",
+			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > defineClient:0~de51c9 > hooks > regionMismatched",
+			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > defineClient:0~de51c9 > hooks > navStarted",
+			"reason": "browser only: one record_hook of a hook event, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > defineClient:0~de51c9 > hooks > loadStarted",
+			"reason": "browser only: one record_hook of a hook event, constant work of its own"
 		}
 	]
 }
