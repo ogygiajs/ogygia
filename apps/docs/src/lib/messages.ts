@@ -8,10 +8,10 @@ import {
 	WARNINGS,
 	SERVER_ERRORS,
 	SERVER_WARNINGS,
-	BUILD_ERRORS,
-	BUILD_WARNINGS,
 	type MessageEntry
 } from '@ogygia/core/internal/messages';
+import { BUILD_ERRORS, BUILD_WARNINGS } from '@ogygia/core/internal/compiler';
+import * as barrels from '@ogygia/barrels/internal/messages';
 import * as content from '@ogygia/content/internal/messages';
 import * as devtools from '@ogygia/devtools/internal/messages';
 import * as federation from '@ogygia/federation/internal/messages';
@@ -35,6 +35,8 @@ const TABLES: Array<[Kind, Table]> = [
 	['error', BUILD_ERRORS],
 	['warning', BUILD_WARNINGS],
 	// the first-party plugins', each its package's own
+	['error', barrels.BARRELS_ERRORS],
+	['warning', barrels.BARRELS_WARNINGS],
 	['error', content.CONTENT_BUILD_ERRORS],
 	['warning', content.CONTENT_BUILD_WARNINGS],
 	['error', content.CONTENT_ERRORS],

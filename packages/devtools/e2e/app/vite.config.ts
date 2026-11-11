@@ -2,6 +2,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { ogygia } from 'ogygia/vite';
 import { devtools } from '@ogygia/devtools/vite';
 import { reshape } from '@ogygia/reshape/vite';
+import { barrels } from '@ogygia/barrels';
 import { defineConfig } from 'vite';
 
 // THE DEVTOOLS LAB: @ogygia/devtools' e2e fixture app. Its pages plant known problems (the dt-* labs,
@@ -20,7 +21,6 @@ export default defineConfig({
 	plugins: [
 		ogygia({
 			// the palaestra's core options, so the lab's copies of its pages render the same way
-			barrels: true,
 			router: { serverDelta: true },
 			visible: { margin: '0px' },
 			presets: {
@@ -44,6 +44,8 @@ export default defineConfig({
 				serverTiming: true
 			}
 		}),
+		// as the palaestra lists it
+		barrels(),
 		sveltekit()
 	]
 });
