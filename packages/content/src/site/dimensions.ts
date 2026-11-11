@@ -1,23 +1,3 @@
-/**
- * `dimensions()` — the i18n / versioning primitive, kept true to the doctrine: a dimension is an
- * AXIS (version, locale), content is the MATRIX of coordinates, and the outline is woven PER
- * coordinate. `class Dimensions` wraps N outlines into ONE `Outline` the same `site()` consumes —
- * the coordinate is parsed off the FRONT of the slug (no route changes; the default coordinate is bare).
- *
- * Design decisions (see internal/notes/ogygia.md), learned from Starlight / Fumadocs / Docusaurus:
- *  - FALLBACK is render-at-every-URL, not 404. An untranslated page serves the default coordinate's
- *    content at the localized URL with a `fallback` flag — which kills the dead-language-switcher
- *    failure class every other framework fights (the switcher can always link the same slug).
- *  - The default value of an axis is BARE in the URL; non-defaults get a leading segment, in axis
- *    declaration order (`/v1/fr/x`, `/fr/x`, `/v1/x`, `/x`).
- *  - Coordinate is threaded as DATA (slug → coordinate), never module-global — SSR-safe by
- *    construction (no AsyncLocalStorage needed; the brains already pass everything by argument).
- *  - `entries()` bakes the UNION across the matrix, so a page that exists only in one coordinate
- *    still prerenders — the "exists only in French" hole Docusaurus has.
- *
- * Versions are just collections: hand `resolve` whichever collection sources a coordinate. ogygia does
- * not copy trees or read git — sourcing a version is the app's concern.
- */
 import {
 	outline,
 	href_of,
@@ -31,7 +11,6 @@ import type { NavRef, NavTree } from './types.ts';
 import { OgygiaError } from '../messages/runtime.ts';
 import { flights, STALE } from '@ogygia/machine';
 
-// ── regexes
 const EDGE_SLASHES_G = /^\/+|\/+$/g;
 const TRAILING_SLASHES_RE = /\/+$/;
 
@@ -87,9 +66,7 @@ export interface Dimensioned extends Outline {
 
 const title = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const clean = (s: string) => s.replace(EDGE_SLASHES_G, '');
-/** Join slug-ish parts into a BARE slug (no leading slash — `href_of` adds the base). */
 const join = (...parts: string[]) => parts.map(clean).filter(Boolean).join('/');
-/** Append a coordinate prefix to a mount base, PRESERVING the base's leading slash. */
 const base_join = (base: string, prefix: string) =>
 	prefix ? `${base.replace(TRAILING_SLASHES_RE, '')}/${prefix}` : base;
 
@@ -99,10 +76,6 @@ class Dimensions implements Dimensioned {
 
 	readonly #spec: DimensionsSpec;
 	readonly #names: string[];
-	/** One memoized Outline per distinct coordinate — woven on first touch. */
-	// A failure is never kept: the coordinate's next page builds its outline again (one source blip
-	// once broke every page of a language until a restart, #192). A resolve that throws at once fails
-	// like one that rejects.
 	readonly #cache = flights.keyed<{ key: string; full: Coordinate }>()({
 		name: 'content dimension outline',
 		key: ['key'],
@@ -132,7 +105,6 @@ class Dimensions implements Dimensioned {
 		return this.#spec.axes[name].default ?? this.#spec.axes[name].values[0];
 	}
 
-	/** Encode a coordinate to its URL prefix — non-default values in axis order, defaults omitted. */
 	#encode(coord: Coordinate) {
 		return this.#names
 			.map((n) => coord[n] ?? this.#def(n))
@@ -140,8 +112,6 @@ class Dimensions implements Dimensioned {
 			.join('/');
 	}
 
-	/** Peel the coordinate prefix off the front of a slug. Greedy, in axis order: a leading segment
-	 *  that is a non-default value of the next axis is consumed; otherwise that axis stays default. */
 	#peel(slug: string): { coord: Coordinate; rest: string } {
 		const parts = clean(slug).split('/').filter(Boolean);
 		const coord: Coordinate = {};
@@ -165,11 +135,9 @@ class Dimensions implements Dimensioned {
 		const full: Coordinate = {};
 		for (const n of this.#names) full[n] = coord[n] ?? this.#def(n);
 		const built = await this.#cache.get({ key: this.#key(full), full });
-		// (nothing drops a coordinate's outline, so it is never STALE; were it, it is built again)
 		return built === STALE ? this.#outline_for(coord) : built;
 	}
 
-	/** The coordinate with every fallback-enabled axis reset to its default (the fallback source). */
 	#fallback_coord(coord: Coordinate): Coordinate | null {
 		let changed = false;
 		const fb: Coordinate = {};
@@ -183,8 +151,6 @@ class Dimensions implements Dimensioned {
 		return changed ? fb : null;
 	}
 
-	/** Resolve `rest` in `coord`, then (if enabled) in the fallback coordinate. Returns the hit plus
-	 *  which coordinate actually served it (for the fallback flag). `ctx` threads to each coordinate's outline. */
 	async #resolve_in(coord: Coordinate, rest: string, ctx: ReadContext = {}) {
 		const own = await (await this.#outline_for(coord)).resolve(rest, ctx);
 		if (own) return { hit: own, served: coord };
@@ -196,7 +162,6 @@ class Dimensions implements Dimensioned {
 		return null;
 	}
 
-	/** Bare addresses reachable at a coordinate = its own pages ∪ (fallback source's pages). */
 	async #reachable(coord: Coordinate, ctx: ReadContext = {}): Promise<string[]> {
 		const own = await (await this.#outline_for(coord)).addresses(ctx);
 		const fb = this.#fallback_coord(coord);
@@ -205,7 +170,6 @@ class Dimensions implements Dimensioned {
 		return [...new Set([...own, ...alt])];
 	}
 
-	/** The full matrix (cartesian product of axis values). */
 	#matrix(): Coordinate[] {
 		let acc: Coordinate[] = [{}];
 		for (const n of this.#names) {
@@ -228,7 +192,7 @@ class Dimensions implements Dimensioned {
 		return (await this.#outline_for(def_coord)).addresses(ctx);
 	}
 
-	/** The default coordinate's materialization (what search indexes): see outline.ts OUTLINE_TOKEN. */
+	// @why search indexes the default coordinate, and follows its weave (test: test/lifecycle.test.ts › a dimensioned site: a page the default coordinate's live source adds is found by the next search)
 	async [OUTLINE_TOKEN](ctx: ReadContext = {}): Promise<unknown> {
 		const def_coord: Coordinate = {};
 		for (const n of this.#names) def_coord[n] = this.#def(n);
@@ -258,9 +222,7 @@ class Dimensions implements Dimensioned {
 			for (const value of this.#spec.axes[n].values) {
 				const target: Coordinate = { ...coord, [n]: value };
 				const r = await this.#resolve_in(target, rest, ctx);
-				// Where this value takes you: the same page under the new coordinate. If it neither
-				// exists nor falls back there, link to that coordinate's HOME (first reachable page) —
-				// never the bare coordinate root, which isn't a page and 404s the prerender crawler.
+				// @why the bare coordinate root is not a page, and 404s the prerender crawler (test: test/dimensions.test.ts › a value where the page is missing points at that coordinate's home page, flagged missing)
 				const bare = r ? rest : ((await this.#reachable(target, ctx))[0] ?? '');
 				options.push({
 					value,
@@ -288,8 +250,6 @@ class Dimensions implements Dimensioned {
 		const { coord, rest } = this.#peel(slug);
 		const r = await this.#resolve_in(coord, rest, ctx);
 		if (!r) return null;
-		// Re-prefix the record's slug to the FULL address (coordinate of the URL, not of the served
-		// content) so hrefs and neighbor lookups round-trip through this wrapper.
 		const full = this.#prefix_slug(coord, r.hit.record.slug);
 		return { collection: r.hit.collection, record: { ...r.hit.record, slug: full } };
 	}
@@ -322,9 +282,6 @@ class Dimensions implements Dimensioned {
 		entryId: string,
 		ctx: ReadContext = {}
 	) {
-		// Graph relations resolve within the entry's own coordinate; we don't know it here, so try
-		// each coordinate's outline and prefix the first hit. Bare slug returned unprefixed is fine
-		// for same-coordinate relations (the common case).
 		for (const coord of this.#matrix()) {
 			const inner = await this.#outline_for(coord);
 			const bare = await inner.slug_for(collection, entryId, ctx);
@@ -351,7 +308,25 @@ class Dimensions implements Dimensioned {
 	}
 }
 
-/** Mint a dimensioned outline — the i18n/versioning wrapper `site()` consumes like any outline. */
+/**
+ * Mint a dimensioned outline: the i18n / versioning wrapper `site()` consumes like any outline. A
+ * dimension is an AXIS (version, locale), content is the MATRIX of coordinates, and an outline is
+ * woven PER coordinate, on first touch. The coordinate is parsed off the FRONT of the slug, so no
+ * route changes:
+ *
+ *  - The default value of an axis is BARE in the URL; non-defaults get a leading segment, in axis
+ *    declaration order (`/v1/fr/x`, `/fr/x`, `/v1/x`, `/x`). A default value written in the URL is
+ *    not a coordinate.
+ *  - FALLBACK renders at every URL, never 404s: on an axis with `fallback`, a missing page serves
+ *    the default value's content at the URL asked for, with a `fallback` flag. The switcher links
+ *    the same page in each value, or that value's first page when it has neither.
+ *  - `addresses()` is the UNION across the matrix, so a page that exists in one coordinate only
+ *    still prerenders.
+ *  - A `resolve` that throws or rejects is not kept: the coordinate's next page tries again.
+ *
+ * Versions are just collections: hand `resolve` whichever collection sources a coordinate. ogygia
+ * does not copy trees or read git; sourcing a version is the app's concern.
+ */
 export function dimensions(spec: DimensionsSpec): Dimensioned {
 	return new Dimensions(spec);
 }
