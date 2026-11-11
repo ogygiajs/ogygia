@@ -1,4 +1,6 @@
 import { flights, STALE } from '@ogygia/machine';
+import type { Reads } from '../plugin/reads.ts';
+import { trace_reads } from './read-trace.ts';
 
 const MAX_BYTES = 64 * 1024 * 1024;
 const MAX_ENTRIES = 500;
@@ -13,6 +15,19 @@ type Ask = RenderKey & {
 	ttl: number;
 };
 
+/** A render, and the first thing it read that its key does not cover (null: it is the same render
+ *  for every call of its key). */
+export type TracedRender = { html: string | null; unkeyed_read: string | null };
+
+/** What `reads` holds that `key` does not cover: a per-visitor read in an anonymous render (a session
+ *  in the key names the visitor, so the render is that visitor's alone), or `page.data` in a render
+ *  keyed without its page. */
+export function unkeyed_read(reads: Reads, key: RenderKey): string | null {
+	if (reads.perVisitor !== null && key.session === '') return reads.perVisitor;
+	if (reads.pageData && key.page === null) return 'page.data';
+	return null;
+}
+
 const renders = flights.keyed<Ask>()({
 	name: 'render cache',
 	key: ['id', 'payload', 'session', 'page'],
@@ -20,10 +35,16 @@ const renders = flights.keyed<Ask>()({
 		render_body: 'the render of the key: the same region, props, visitor and page',
 		ttl: 'how long the HTML stays, not what is rendered'
 	},
-	run: async (ask, signal): Promise<string | null> => ask.render_body(signal),
-	keep: (html, ask) => (html === null ? 0 : ask.ttl * 1000),
+	run: async (ask, signal): Promise<TracedRender> => {
+		const { reads, value } = trace_reads(() => ask.render_body(signal));
+		const html = await value;
+		return { html, unkeyed_read: unkeyed_read(reads, ask) };
+	},
+	// (a null render, a failure folded to null, is shared while it flies and never kept; nor is one
+	// that read what its key does not cover: rule_kept_unkeyed_read)
+	keep: (r, ask) => (r.html === null || r.unkeyed_read !== null ? 0 : ask.ttl * 1000),
 	max: MAX_BYTES,
-	weigh: (html) => Math.max(html?.length ?? 0, ENTRY_SHARE)
+	weigh: (r) => Math.max(r.html?.length ?? 0, ENTRY_SHARE)
 });
 
 /** Cache key for a region render — id + props payload + session seal (+ the page, for a tree that
@@ -43,7 +64,7 @@ export function render_cache_key(
 /** Test/ops hook: the HTML kept for `key` now, or null. */
 export function render_cache_get(key: RenderKey): string | null {
 	const seen = renders.peek(key);
-	return seen?.kind === 'kept' ? seen.answer : null;
+	return seen?.kind === 'kept' ? seen.answer.html : null;
 }
 
 /** Test/ops hook: drop everything, the flights in progress too (what they render is not kept, and
@@ -87,19 +108,35 @@ export async function cached_render(
 		report?.('none');
 		return body;
 	}
-	const ask: Ask = { ...cache.key, render_body, ttl: cache.ttl };
+	// (the flight runs the render of the call that opened it: this one, when its own render ran)
+	let mine = false;
+	const ask: Ask = {
+		...cache.key,
+		render_body: (render_signal) => {
+			mine = true;
+			return render_body(render_signal);
+		},
+		ttl: cache.ttl
+	};
 	for (;;) {
-		const opens = renders.peek(cache.key) === undefined;
-		let html: string | null | typeof STALE;
+		mine = false;
+		let r: TracedRender | typeof STALE;
 		try {
-			html = await renders.get(ask, { signal });
+			r = await renders.get(ask, { signal });
 		} catch (error) {
 			report?.('none');
 			throw error;
 		}
-		if (html !== STALE) {
-			report?.(html === null ? 'none' : opens ? 'miss' : 'hit');
-			return html;
+		if (r !== STALE) {
+			// Another visitor's render (it read what the key does not cover, a flag say): this call
+			// renders its own, kept by nobody
+			if (r.unkeyed_read !== null && !mine) {
+				const body = await render_body(signal);
+				report?.('none');
+				return body;
+			}
+			report?.(r.html === null || r.unkeyed_read !== null ? 'none' : mine ? 'miss' : 'hit');
+			return r.html;
 		}
 		if (signal?.aborted) throw signal.reason;
 	}
