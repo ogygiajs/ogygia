@@ -26,7 +26,7 @@
  * response of an app that configures a transform.
  */
 import { escapeAttr as escape_amp_quot } from '@ogygia/core/plugin/utils';
-import { OG_BAKED, OG_HEAD } from '@ogygia/core/internal/server';
+import { OG_BAKED, OG_HEAD } from '@ogygia/core/internal/markup';
 
 // ─── tokenizer ─────────────────────────────────────────────────────────────────────────────────────
 

@@ -15,8 +15,7 @@
 import { createSubscriber } from 'svelte/reactivity';
 import { parse, stringify } from 'devalue';
 import { OgygiaError } from './messages.ts';
-// (a browser module: the vocabulary from the browser realm's internal entry)
-import { OG_SHARED } from '@ogygia/core/internal/instruments';
+import { OG_SHARED } from '@ogygia/core/internal/markup';
 
 interface Entry {
 	value: unknown;
