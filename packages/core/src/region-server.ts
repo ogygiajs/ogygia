@@ -16,7 +16,7 @@ export {
 	entry_location,
 	make_region_endpoint,
 	mint_server_region,
-	known_region_fps,
+	reuse_known_region,
 	region_fingerprint,
 	hole_css,
 	get_request_event,
