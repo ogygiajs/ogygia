@@ -20,13 +20,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import MagicString from 'magic-string';
 import { createServer, type InlineConfig, type Plugin } from 'vite';
-import {
-	ExportIndex,
-	Shapes,
-	type Change,
-	type ExportMap,
-	type Policy
-} from '@ogygia/core/internal/compiler';
+import { ExportIndex, Shapes, type Change, type ExportMap, type Policy } from '@ogygia/compiler';
 import { rewrite_imports, type Lookup, type RewritePolicy } from '../src/rewrite.ts';
 import { rewrite_svelte } from '../src/svelte.ts';
 

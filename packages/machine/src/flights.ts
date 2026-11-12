@@ -68,6 +68,7 @@
  * its place) is what aborts the work and turns its answer into STALE. `observe()` hears every
  * flight's moves, under the flights' `name`.
  */
+import { clock } from './clock.ts';
 import { machine, type Machine } from './machine.ts';
 import { machine_error, report_thrown } from './messages.ts';
 import { under_policy, type Policy } from './policy.ts';
@@ -149,7 +150,7 @@ export interface InFlight {
 }
 
 /** What a key holds now: a flight with nothing kept yet, or a kept answer (`flying`: a fresh flight
- *  for it is out). `at` is when the answer landed (`Date.now()`). */
+ *  for it is out). `at` is when the answer landed, on the wall clock (`clock.wall()`). */
 export type FlightEntry<V> =
 	| { readonly kind: 'flying' }
 	| { readonly kind: 'kept'; readonly answer: V; readonly at: number; readonly flying: boolean };
@@ -174,7 +175,9 @@ export interface Flights<I, V, K = I> {
 
 type Kept = {
 	answer: unknown;
+	/** When it landed, on the wall clock (a timestamp a caller may show or compare outside). */
 	at: number;
+	/** When it expires, on the monotonic clock (`clock.mono()`): a wall step never moves it. */
 	until: number;
 	weight: number;
 	/** The settled promise every later `get` of it is handed (so `get() === get()`). */
@@ -441,7 +444,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		if (m !== undefined) {
 			const s = m.now;
 			if (s.kind === 'kept') {
-				if (expired(s, s.until === Infinity ? 0 : Date.now())) {
+				if (expired(s, s.until === Infinity ? 0 : clock.mono())) {
 					this._remove(key, m);
 					m = undefined;
 				} else if (options?.fresh !== true) {
@@ -469,7 +472,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 
 	peek(key: K): FlightEntry<V> | undefined {
 		const m = this._entries.get(this._entry_key(key));
-		return m === undefined ? undefined : this._view(m, Date.now());
+		return m === undefined ? undefined : this._view(m, clock.mono());
 	}
 
 	drop(which: K | ((key: K, entry: FlightEntry<V>) => boolean)): void {
@@ -481,7 +484,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		}
 		const test = which as (key: K, entry: FlightEntry<V>) => boolean;
 		const keys = this._keys;
-		const now = Date.now();
+		const now = clock.mono();
 		// (a Map lets an entry be deleted while it is walked)
 		for (const [key, m] of this._entries) {
 			const view = this._view(m, now);
@@ -520,7 +523,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		prior: Kept | null,
 		priority: number
 	): [Entry, Flight] {
-		if (this._expires) this._sweep(Date.now());
+		if (this._expires) this._sweep(clock.mono());
 		const stamp = this._world === undefined ? 0 : this._world.stamp();
 		// the shared answer is there before the run starts: a run that gets its own key (before it
 		// returns) joins this flight (#354)
@@ -621,9 +624,10 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		}
 		// (a weight below 0, or not a number, would lower the total and let `max` cap nothing)
 		if (!(ms > 0) || !(weight >= 0 && weight <= this._max)) return this._back(key, m, prior);
-		const at = Date.now();
+		const at = clock.wall();
 		this._weight += weight - (prior?.weight ?? 0);
-		m.go('kept', { answer, at, until: ms === Infinity ? Infinity : at + ms, weight, promise });
+		const until = ms === Infinity ? Infinity : clock.mono() + ms; // (a duration: the monotonic clock)
+		m.go('kept', { answer, at, until, weight, promise });
 		if (this._max !== Infinity) {
 			// the newest use last: the least recently used are first in line to go
 			this._entries.delete(key);
@@ -695,7 +699,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 	_evict(): void {
 		if (this._weight <= this._max) return;
 		// the expired go first: no caller gets them any more, so no live answer goes for them
-		if (this._expires) this._sweep(Date.now());
+		if (this._expires) this._sweep(clock.mono());
 		for (const [key, m] of this._entries) {
 			if (this._weight <= this._max) return;
 			if (m.now.kind === 'kept') this._remove(key, m);
