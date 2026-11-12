@@ -9,7 +9,7 @@ import { scope } from '@ogygia/machine';
 import Devtools from './Devtools.svelte';
 import { install_page_hook } from './page.ts';
 import { set_highlight_root } from './highlight.ts';
-import { names as built_names } from 'virtual:ogygia/devtools-meta';
+import { region_names } from 'ogygia:boot';
 
 /** Mounts the dock into `root`. Returns its teardown: the app (its Alt+O listener and timers with
  *  it) unmounted and its observers off. */
@@ -20,8 +20,8 @@ export function mount_app(
 	install_page_hook();
 	set_highlight_root(root);
 	// a build knows its islands' component names (the dev server serves them live instead)
-	if (built_names && Object.keys(built_names).length && typeof window !== 'undefined')
-		window.__ogygia_region_names = { ...built_names, ...window.__ogygia_region_names };
+	if (region_names && Object.keys(region_names).length && typeof window !== 'undefined')
+		window.__ogygia_region_names = { ...region_names, ...window.__ogygia_region_names };
 	// `csr_true` = the standalone boot on a Kit-hydrated (csr=true) page, where the ogygia runtime
 	// (and its event bus) never ran — the dock renders a notice instead of empty instruments.
 	// `hide` (a build): turns devtools off in this browser — the launcher's, handed in so the dock's
