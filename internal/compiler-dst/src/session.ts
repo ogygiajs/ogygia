@@ -102,7 +102,13 @@ export function snapshot(s: Session): unknown {
 				registry: sorted_obj(s.program.registry),
 				island_graph: [...s.program.island_graph].sort(),
 				region_kinds: sorted_obj(s.program.region_kinds),
-				runtime_marks: s.program.runtime_marks,
+				// (the marks' lists are sets: features read them with includes/some, link/runtime-entry.ts)
+				runtime_marks: Object.fromEntries(
+					Object.entries(s.program.runtime_marks).map(([k, v]) => [
+						k,
+						Array.isArray(v) ? [...v].sort() : v
+					])
+				),
 				transportable: [...s.program.transportable_modules].sort(),
 				routes: {
 					csr_true: csrTrueRouteIds(r, ROUTES).sort(),

@@ -501,6 +501,21 @@ server's clock). A difference every browser shows alike is the simulator's (`sim
 first list); one only some show is `engines` (an engine's way, or timing). dst.yml's `differ` job
 runs 12 seeds a day (a new range each day) in all three and puts the report in its summary.
 
+## The compiler
+
+`internal/compiler-dst` simulates the compiler, not the browser. An app is drawn by fast-check
+(`src/app.ts`: a route tree, each node's csr in its universal or server option file, library
+components importing each other, wake marks) and held in memory: the compiler reads it through its
+file seam (`CompileCtx.fs`, `memory_fs`). `src/session.ts` compiles it with no Vite (prescan, then
+every module for both legs) and `snapshot()` is everything it decided: registry, island closure,
+region kinds, runtime marks, route worlds, each transform's output.
+
+Oracles: two cold compiles agree; directory listing order and transform order change nothing
+(`src/order.ts`). `DST_RUNS=3000 pnpm test` for a long search. Each finding becomes an issue and a
+failing test in the compiler (the first: #1358). Next, from the compiler study (section G.4): dev
+equals cold (random edit sequences, then a fresh compile of the final files), Kit 2 vs Kit 3 vs
+watch topologies, metamorphic edits (renames, comments, an unused import).
+
 ## Findings
 
 A real bug gets a GitHub issue (labels `bug`, `dst`) and a failing test on its own branch

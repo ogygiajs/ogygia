@@ -9,6 +9,8 @@ import { modules, session, snapshot, transform, type Leg } from '../src/session.
 import { permute, rng, shuffled } from '../src/order.ts';
 
 const LEGS: readonly Leg[] = ['ssr', 'client'];
+/** CI's count, or `DST_RUNS` for a long local search. */
+const RUNS = (ci: number) => Number(process.env.DST_RUNS) || ci;
 
 /** A cold compile: prescan, then every module for both legs, in `order`. */
 function cold(files: Record<string, string>, order_seed: number | null): unknown {
@@ -29,7 +31,7 @@ describe('the compiler is deterministic', () => {
 				const files = app_files(shape);
 				expect(cold(files, null)).toEqual(cold(files, null));
 			}),
-			{ numRuns: 60 }
+			{ numRuns: RUNS(60) }
 		);
 	});
 
@@ -39,7 +41,7 @@ describe('the compiler is deterministic', () => {
 				const files = app_files(shape);
 				expect(cold(files, seed)).toEqual(cold(files, null));
 			}),
-			{ numRuns: 100 }
+			{ numRuns: RUNS(100) }
 		);
 	});
 });

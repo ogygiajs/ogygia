@@ -106,7 +106,7 @@ function markup(uses: readonly Use[]): string {
 }
 
 function svelte(script: string, body: string): string {
-	return script ? `<script>\n${script}\n</script>\n${body}\n` : `${body}\n`;
+	return [...(script ? ['<script>', script, '</script>'] : []), body, ''].join('\n');
 }
 
 function option_file(dir: string, kind: 'page' | 'layout', csr: Csr): [string, string] | null {
@@ -145,5 +145,8 @@ export function app_files(shape: AppShape): Record<string, string> {
 		])
 			if (o) files[o[0]] = o[1];
 	}
+	// a Kit app has a routes directory (with none, Kit's route walk and ours both throw)
+	if (!Object.keys(files).some((f) => f.startsWith(`${ROUTES}/`)))
+		files[`${ROUTES}/+page.svelte`] = '<h1>page</h1>\n';
 	return files;
 }
