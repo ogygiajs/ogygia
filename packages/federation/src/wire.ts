@@ -18,9 +18,9 @@ import {
 	OG_MOVED,
 	OGYGIA_GRAPH,
 	OGYGIA_RUNTIME,
+	tag_name,
 	text_of,
 	read_capped,
-	value_at,
 	type FoundTag
 } from '@ogygia/core/internal/server';
 import { cache } from '@ogygia/machine';
@@ -117,7 +117,11 @@ const public_keys = cache<string, ReturnType<typeof createPublicKey>>({
 function private_key(b64: string) {
 	let k = private_keys.get(b64);
 	if (!k) {
-		k = createPrivateKey({ key: Buffer.from(b64, 'base64'), format: 'der', type: 'pkcs8' });
+		k = createPrivateKey({
+			key: Buffer.from(b64, 'base64'),
+			format: 'der',
+			type: 'pkcs8'
+		});
 		private_keys.set(b64, k);
 	}
 	return k;
@@ -125,7 +129,11 @@ function private_key(b64: string) {
 function public_key(b64: string) {
 	let k = public_keys.get(b64);
 	if (!k) {
-		k = createPublicKey({ key: Buffer.from(b64, 'base64'), format: 'der', type: 'spki' });
+		k = createPublicKey({
+			key: Buffer.from(b64, 'base64'),
+			format: 'der',
+			type: 'spki'
+		});
 		public_keys.set(b64, k);
 	}
 	return k;
@@ -143,7 +151,10 @@ const cap_nonce = (token: string): string => token.split('.')[2] ?? '';
 const cap_expiry = (token: string): number => Number(token.split('.')[1]);
 
 /** The mint side, one per private key (as cached as its KeyObject). */
-const minters = cache<string, Capability>({ name: 'federation minters', max: MAX_CACHED_KEYS });
+const minters = cache<string, Capability>({
+	name: 'federation minters',
+	max: MAX_CACHED_KEYS
+});
 function minter(b64: string): Capability {
 	let cap = minters.get(b64);
 	if (!cap) {
@@ -163,7 +174,10 @@ function minter(b64: string): Capability {
 /** The check side, one per window (its replay memory is the process's, whatever keys a check
  *  trusts): each token checks once, and a memory full of live ones refuses new calls rather than
  *  forget one. */
-const checkers = cache<number, Capability>({ name: 'federation checkers', max: 8 });
+const checkers = cache<number, Capability>({
+	name: 'federation checkers',
+	max: 8
+});
 function checker(skew: number): Capability {
 	let cap = checkers.get(skew);
 	if (!cap) {
@@ -288,7 +302,9 @@ export function configured_audience(): string | undefined {
 function claims_of(user_b64: string): { user?: Claims } | null {
 	if (!user_b64) return {};
 	try {
-		return { user: JSON.parse(Buffer.from(user_b64, 'base64').toString()) as Claims };
+		return {
+			user: JSON.parse(Buffer.from(user_b64, 'base64').toString()) as Claims
+		};
 	} catch {
 		return null; // signed but unparseable claims = reject
 	}
@@ -418,10 +434,7 @@ export function child_traceparent(incoming?: string | null): {
 
 // ── asset absolutizing ───────────────────────────────────────────────────────────────────────
 const ABSOLUTE_RE = /^[a-z][a-z0-9+.-]*:|^\/\//i;
-/** An attribute that holds an asset ref (its name in lower case): `entry`, `endpoint`, `href`,
- *  `src`, or a name ending in one after a non-word character (`data-src`, `xlink:href`). */
-const ASSET_ATTR_NAME = /(?:^|[^a-z0-9_])(?:entry|endpoint|href|src)$/;
-// (those names in any case: where an asset ref can be; a tag without one is not read)
+// (the asset attributes' names in any case (`asset_suffix`) in any case: where an asset ref can be; a tag without one is not read)
 const ASSET_ATTR_ANY_CASE = /entry|endpoint|href|src/gi;
 const ASSET_PATH_RE = /(?:^|\/)(_app|og)\//;
 const ASSET_EXT_RE = /\.(js|css|woff2?)(\?|$)/;
@@ -472,57 +485,115 @@ function pin_endpoint(value: string, origin: string): string {
 	return ABSOLUTE_RE.test(value) ? value : new URL(value, `${origin}/`).href;
 }
 
-/** `html` with the JSON of every `script[data-ogygia-graph]` (as the runtime selects them) pinned. */
-function pin_graphs(html: string, origin: string): string {
-	const mark = new Needle(html, GRAPH_ANY_CASE);
-	if (mark.gone) return html;
-	let out = '';
-	let pos = 0;
-	for (let t = next_tag(html, 'script', 0); t !== null; t = next_tag(html, 'script', t.next)) {
-		const held = mark.holds(t);
-		if (mark.gone) break;
-		if (!held || t.attr(OGYGIA_GRAPH) === undefined) continue;
-		const json = text_of(html, t, 'script');
-		if (json === null) break;
-		out += html.slice(pos, t.end) + pin_graph(json, origin);
-		pos = t.end + json.length;
+/** Where the asset name (`entry`, `endpoint`, `href`, `src`, in any ASCII case) that ends
+ *  `html[ns, ne)`, an attribute's name as written, starts, or -1. An attribute holds an asset ref
+ *  when its name is one, or ends in one after a character no word holds (`data-src`,
+ *  `xlink:href`). */
+function asset_suffix(html: string, ns: number, ne: number): number {
+	// (told apart by their last letter: most names are out there)
+	switch (html.charCodeAt(ne - 1) | 32) {
+		case 99 /* c */:
+			return ends_with(html, ns, ne, 'src') ? ne - 3 : -1;
+		case 102 /* f */:
+			return ends_with(html, ns, ne, 'href') ? ne - 4 : -1;
+		case 121 /* y */:
+			return ends_with(html, ns, ne, 'entry') ? ne - 5 : -1;
+		case 116 /* t */:
+			return ends_with(html, ns, ne, 'endpoint') ? ne - 8 : -1;
+		default:
+			return -1;
 	}
-	return pos === 0 ? html : out + html.slice(pos);
 }
 
-/** `html` with the asset refs in the attribute values of its real tags pinned (as the browser
- *  reads the tags: text that looks like one, in a comment, a code sample or script text, is the
- *  page's text, #974). */
-function pin_attrs(html: string, origin: string): string {
-	const mark = new Needle(html, ASSET_ATTR_ANY_CASE);
-	if (mark.gone) return html;
-	let out = '';
-	let pos = 0;
-	for (let t = next_any_tag(html, 0); t !== null; t = next_any_tag(html, t.tag.next)) {
-		const held = mark.holds(t.tag);
-		if (mark.gone) break;
-		if (!held) continue;
-		// (in source order: a tag's attributes are read first to last)
-		for (const [name, value] of t.tag.attrs) {
-			if (value === '' || !ASSET_ATTR_NAME.test(name)) continue;
-			const pinned = name.endsWith('endpoint')
-				? pin_endpoint(value, origin)
-				: pin_asset(value, origin);
-			if (pinned === value) continue;
-			const at = value_at(html, t.tag, t.name, name);
-			if (at === -1) continue;
-			out += html.slice(pos, at) + pinned;
-			pos = at + value.length;
-		}
+/** Are `html[a, a_end)` and `html[b, b_end)` one name as the browser keeps it (ASCII letters in any
+ *  case, the rest as written)? */
+function same_name(html: string, a: number, a_end: number, b: number, b_end: number): boolean {
+	if (a_end - a !== b_end - b) return false;
+	for (; a < a_end; a++, b++) {
+		let x = html.charCodeAt(a);
+		let y = html.charCodeAt(b);
+		if (x >= 65 && x <= 90) x += 32;
+		if (y >= 65 && y <= 90) y += 32;
+		if (x !== y) return false;
 	}
-	return pos === 0 ? html : out + html.slice(pos);
+	return true;
+}
+
+/** Does `html[ns, ne)` end with the lower-case ASCII `suffix`, in any ASCII case? */
+function ends_with(html: string, ns: number, ne: number, suffix: string): boolean {
+	const len = suffix.length;
+	if (ne - ns < len) return false;
+	for (let k = 0, at = ne - len; k < len; k++, at++) {
+		let c = html.charCodeAt(at);
+		if (c >= 65 && c <= 90) c += 32;
+		if (c !== suffix.charCodeAt(k)) return false;
+	}
+	return true;
 }
 
 /** Pin ASSET refs (island entries, stylesheets, chunks, the island graph) and region ENDPOINTS to
  *  `origin`; app-local LINKS stay path-relative — the consuming shell owns the address space they
- *  resolve in. */
+ *  resolve in.
+ *
+ *  One walk over the real tags (as the browser reads them: text that looks like one, in a comment,
+ *  a code sample or script text, is the page's text, #974): the asset refs in their attribute
+ *  values, and the JSON of every `script[data-ogygia-graph]` (as the runtime selects them). */
 export function absolutize(html: string, origin: string): string {
-	return pin_graphs(pin_attrs(html, origin), origin);
+	const graphs = new Needle(html, GRAPH_ANY_CASE);
+	if (graphs.gone && new Needle(html, ASSET_ATTR_ANY_CASE).gone) return html;
+	let out = '';
+	let pos = 0;
+	/** the asset names this tag has had, as spans (a repeat is not the attribute: the first is) */
+	const seen: number[] = [];
+	const pin_value = (ns: number, ne: number, vs: number, ve: number): void => {
+		const suffix = asset_suffix(html, ns, ne);
+		if (suffix === -1) return;
+		// (the asset name is the whole name, or follows a character no word holds: `data-src`; one
+		// past ASCII is none, as the browser keeps it as written, #1115)
+		if (suffix > ns) {
+			let c = html.charCodeAt(suffix - 1);
+			if (c >= 65 && c <= 90) c += 32;
+			if ((c >= 97 && c <= 122) || (c >= 48 && c <= 57) || c === 95) return;
+		}
+		for (let k = 0; k < seen.length; k += 2)
+			if (same_name(html, seen[k], seen[k + 1], ns, ne)) return;
+		seen.push(ns, ne);
+		if (vs === ve) return;
+		const value = html.slice(vs, ve);
+		const pinned = ne - suffix === 8 ? pin_endpoint(value, origin) : pin_asset(value, origin);
+		if (pinned === value) return;
+		out += html.slice(pos, vs) + pinned;
+		pos = ve;
+	};
+	let graphs_done = graphs.gone;
+	for (let i = 0; ;) {
+		// (each tag's attributes are pinned as the walk reads them, first to last; a tag the input
+		// ends inside is no tag, and its pins are dropped)
+		const out_before = out;
+		const pos_before = pos;
+		seen.length = 0;
+		const t = next_any_tag(html, i, pin_value);
+		if (t === null) {
+			out = out_before;
+			pos = pos_before;
+			break;
+		}
+		i = t.next;
+		if (graphs_done) continue;
+		const in_graphs = graphs.holds(t);
+		if (graphs.gone) graphs_done = true;
+		if (!in_graphs || tag_name(html, t) !== 'script' || t.attr(OGYGIA_GRAPH) === undefined)
+			continue;
+		const json = text_of(html, t, 'script');
+		// (a graph whose script never closes ends the graph reads, as it ends the runtime's)
+		if (json === null) {
+			graphs_done = true;
+			continue;
+		}
+		out += html.slice(pos, t.end) + pin_graph(json, origin);
+		pos = t.end + json.length;
+	}
+	return pos === 0 ? html : out + html.slice(pos);
 }
 
 // ── document lifting (an app's full HTML → the wire document) ────────────────────────────────
