@@ -2659,6 +2659,398 @@
 		{
 			"id": "packages/core/src/runtime/frame-store.ts > answer_definition",
 			"reason": "builds the stored-answer machine definition (plain data: three states, their steps), once per address entry; its moves are measured by the frame-store bench, the definition itself is not cloneable"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > text",
+			"reason": "a warning's wording, constant text; said in packages/federation/test/federation.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > sign",
+			"reason": "the check side's signer stub: it never signs (every check brings its own keys), no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > verify",
+			"reason": "the check side's signer stub: every check brings its own keys, so this always refuses, no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > minter > capability:0~81c9d6 > signer > verify",
+			"reason": "the mint side's verify stub: a minter checks nothing (the receiver brings its keys), no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > configured_audience",
+			"reason": "reads the process's ORIGIN once per federate() (hidden state: the environment), one URL parse, constant work; proven in packages/federation/test/federation.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids",
+			"reason": "the profiler's window ids, made once per instance (a profiler instance, not cloneable): one lazy import and one call of window_ids, which packages/devtools/bench/window-id.bench.ts measures; proven in packages/devtools/test/profiler-window-id.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids > then:0~2b15d2",
+			"reason": "hands the loaded module's window_ids the profiler's secret, mode and audience (a module namespace, not cloneable), constant work; window_ids is benched in packages/devtools/bench/window-id.bench.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/window-id.ts > hmac_signer",
+			"reason": "wraps a derived key (a Buffer, not cloneable) in a sign/verify pair, once per profiler; the mint and check it serves are benched in packages/devtools/bench/window-id.bench.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/macros/pipeline.ts > run_module_macros > refuse",
+			"reason": "throws the coded build error (not replayable), constant work; proven in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/driver.ts > Compiler > macros > run_module_macros:2~cee8e9 > ownSource",
+			"reason": "forwards to CompileCtx.is_own_source, one call; proven in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/ctx.ts > CompileCtx > is_own_source",
+			"reason": "one substring test and the declared-package lookup (a CompileCtx, hidden state), constant work per declared root"
+		},
+		{
+			"id": "packages/core/src/messages/build.ts > BUILD_ERRORS > macro_outside_app > text",
+			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/build.ts > BUILD_ERRORS > macro_outside_app > details",
+			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #pass_document",
+			"reason": "runs the plugins' document passes over one rendered page (the request's handle state: not recorded), once per document, linear in the passes"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > handle_transform_moved > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > handle_transform_moved > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/reshape/src/index.ts > handle",
+			"reason": "builds one SvelteKit handle (closure state: not cloneable), once per app; its pass is benched in packages/reshape/bench/markup.bench.ts"
+		},
+		{
+			"id": "packages/reshape/src/index.ts > handle > <anonymous>~eafc25",
+			"reason": "the handle per request (a RequestEvent and resolve: not recorded): hands the document to the pass, constant work of its own; the pass is benched in packages/reshape/bench/markup.bench.ts"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > reshape_plugin_missing > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > reshape_plugin_missing > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/reshape/src/pass.ts > reshape_pass > region",
+			"reason": "one region's pass inside reshape_pass (its closure over the document: not recorded), benched with the document pass in packages/reshape/bench/markup.bench.ts"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > comments",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > describe",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > differ",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > esc",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > fix_text",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > log",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > map:0~54a21c",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > norm",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > norm > map:0~543c6f",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > original",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > reset",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > sheet_for",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > sort:0~178687",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > swap_stand_ins",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > verify",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > watch",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > watch > MutationObserver:0~19a5fb",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): not recorded here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > within",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore_adopt",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore_adopt > waiting",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore_adopt > where",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > check_script",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > localizeMarks",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not cloneable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > localizeMarks > back",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > localizeMarks > back > remap:1~78687b",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > localizeMarks > map:0~5a97cd",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not recorded here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > localizeMarks > remap:1~c2f583",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > map:0~1d7705",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > mark > some:0~5343d7",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > remap",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not cloneable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > script_json",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > settle > find:0~12a6e6",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > transformMarkup",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not recorded here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/server.ts > defineServer:0~5ced6a > pass",
+			"reason": "the plugin's document pass (the page's context: not cloneable), hands it to reshape_pass, constant work of its own; benched in packages/reshape/bench/markup.bench.ts"
+		},
+		{
+			"id": "packages/reshape/src/server.ts > defineServer:0~5ced6a > setup",
+			"reason": "the plugin's server setup, once per app (the ServerApp: not cloneable), constant work"
+		},
+		{
+			"id": "packages/reshape/src/split-regions.ts > make_region > withInner",
+			"reason": "moved from packages/core/src/server/split-regions.ts with reshape (#607): not cloneable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/split-regions.ts > merge_class > replace:1~7fb3fd",
+			"reason": "moved from packages/core/src/server/split-regions.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/vite.ts > reshape",
+			"reason": "the plugin factory: one definePlugin, once per config"
+		},
+		{
+			"id": "packages/core/src/runtime/client-plugins.ts > client_answer_parsed",
+			"reason": "browser only: hands a parsed region answer (a DocumentFragment: not replayable) to the client plugins that hook it, linear in them"
+		},
+		{
+			"id": "packages/core/src/runtime/client-plugins.ts > client_answer_placed",
+			"reason": "browser only: tells the client plugins that hook it a region answer was placed, linear in them"
+		},
+		{
+			"id": "packages/core/src/runtime/client-plugins.ts > client_region_hydrate",
+			"reason": "browser only: asks the client plugins that hook a region's hydrate (a DOM element: not replayable), linear in them (a handful), once per hydrate; nothing at all without one"
+		},
+		{
+			"id": "packages/core/src/runtime/client-plugins.ts > client_region_hydrate > <anonymous>~761ca0",
+			"reason": "browser only: runs each plugin's after-hydrate callback, linear in them (a handful)"
+		},
+		{
+			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > answerParsed",
+			"reason": "browser only: runs the page's inline restorer over one parsed answer (a DocumentFragment: not replayable)"
+		},
+		{
+			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > answerPlaced",
+			"reason": "browser only: one call of the page's inline adopt, constant work of its own"
+		},
+		{
+			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > boot",
+			"reason": "browser only: reshape's boot, once per page: wraps the inline restorer to report what it recorded"
+		},
+		{
+			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > regionHydrate",
+			"reason": "browser only: notes a region host's own class tokens before Svelte's hydrate (a DOM element: not replayable), once per hydrate; proven in packages/reshape/test/browser/host-classes.test.ts"
+		},
+		{
+			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > regionHydrate > <anonymous>~0199e1",
+			"reason": "browser only: puts the noted class tokens back after hydrate (DOM state: not replayable); proven in packages/reshape/test/browser/host-classes.test.ts"
+		},
+		{
+			"id": "packages/reshape/src/host-classes.ts > keep_host_classes",
+			"reason": "moved from packages/core/src/runtime/host-classes.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/host-classes.ts > note_host_classes",
+			"reason": "moved from packages/core/src/runtime/host-classes.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > restore_markup_broken > details",
+			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > restore_markup_broken > text",
+			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_late > details",
+			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_late > text",
+			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
+		},
+		{
+			"id": "packages/reshape/src/restore-report.ts > report",
+			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore-report.ts > report > once:1~a177c8",
+			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore-report.ts > report_restores",
+			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore-report.ts > report_restores > __og_restore",
+			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/core/src/vite/package-files.ts > discover_package_files > inside",
+			"reason": "a closure over the package's real root (not replayable), one prefix compare; proven in packages/core/test/package-files.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > note_region_answer",
+			"reason": "dev and e2e builds only: reads a live Response (not cloneable) into module state, constant work; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > note_minted_capability",
+			"reason": "dev and e2e builds only: two prefix tests into module state (hidden state), constant work; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > install_server_rules > add:1~32ab66",
+			"reason": "dev and e2e builds only: the region-answer rule joins its module list (hidden state), linear in the unsafe answers seen; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > install_server_rules > add:1~dd5fc5",
+			"reason": "dev and e2e builds only: the minted-capability rule joins its module list (hidden state), linear in the unsafe mints seen; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > region_answer_unsafe",
+			"reason": "dev and e2e builds only: reads a live Response's headers (not cloneable), constant work; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_region_answer_shared > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_region_answer_shared > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_capability_not_path > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_capability_not_path > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > head_candidates",
+			"reason": "browser only, dev and e2e builds: one query of the live head (DOM nodes, not cloneable), linear in its base and http-equiv nodes; proven in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > head_not_adopted",
+			"reason": "browser only, dev and e2e builds: the rule's answer over the live head (DOM nodes, not cloneable), linear in its base and http-equiv nodes; proven in packages/core/test/browser/spa-head-deny.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > watch_head",
+			"reason": "browser only, dev and e2e builds: takes the first document's head once (DOM nodes, not cloneable) and installs the rule; proven in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > watch_head > map:0~7d8330",
+			"reason": "browser only, dev and e2e builds: one head node's outerHTML (a DOM node, not cloneable), constant work; proven in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > watch_head > __og_head_deny",
+			"reason": "browser only, dev and e2e builds: the router's lazy chunk hands its deny in (one assignment), constant work; proven in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/head-deny.ts > is_dangerous_head_node",
+			"reason": "browser only: a tag name and one attribute of a head node (a DOM element, not cloneable), constant work; proven in packages/core/test/browser/spa-head-deny.test.ts in three engines"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_head_adopted > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_head_adopted > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/spa-head-deny.test.ts"
 		}
 	]
 }
