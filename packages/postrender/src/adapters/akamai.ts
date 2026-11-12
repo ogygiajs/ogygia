@@ -1,4 +1,5 @@
-import { createHmac, createHash, randomUUID } from 'node:crypto';
+import { createHmac, createHash } from 'node:crypto';
+import { clock, net, random } from '@ogygia/machine';
 import type { PostrenderMeta, EdgeAdapter } from '../types.ts';
 import { prefix_tags, normalize_prefix } from '../key.ts';
 import { OgygiaError } from '../messages.ts';
@@ -22,7 +23,7 @@ export interface AkamaiConfig {
 }
 
 function edgegrid_timestamp(): string {
-	const d = new Date();
+	const d = new Date(clock.wall());
 	const pad = (n: number) => String(n).padStart(2, '0');
 	return (
 		`${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}` +
@@ -78,7 +79,7 @@ export class AkamaiEdge implements EdgeAdapter {
 		const config = this.#config;
 		const payload = JSON.stringify(body);
 		const timestamp = edgegrid_timestamp();
-		const nonce = randomUUID();
+		const nonce = random.uuid();
 		const auth_prefix =
 			`EG1-HMAC-SHA256 client_token=${config.clientToken};` +
 			`access_token=${config.accessToken};timestamp=${timestamp};nonce=${nonce};`;
@@ -95,7 +96,7 @@ export class AkamaiEdge implements EdgeAdapter {
 		].join('\t');
 		const signing_key = b64_hmac(config.clientSecret, timestamp);
 		const signature = b64_hmac(signing_key, data_to_sign);
-		const res = await fetch(url, {
+		const res = await net.fetch(url, {
 			method: 'POST',
 			headers: {
 				'content-type': 'application/json',

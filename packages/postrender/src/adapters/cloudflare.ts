@@ -1,3 +1,4 @@
+import { net } from '@ogygia/machine';
 import type { PostrenderMeta, EdgeAdapter } from '../types.ts';
 import { prefix_tags, normalize_prefix } from '../key.ts';
 import { OgygiaError } from '../messages.ts';
@@ -59,7 +60,7 @@ export class CloudflareEdge implements EdgeAdapter {
 
 	async #purge(body: Record<string, unknown>): Promise<void> {
 		const config = this.#config;
-		const res = await fetch(`${this.#api_base}/client/v4/zones/${config.zoneId}/purge_cache`, {
+		const res = await net.fetch(`${this.#api_base}/client/v4/zones/${config.zoneId}/purge_cache`, {
 			method: 'POST',
 			headers: {
 				authorization: `Bearer ${config.apiToken}`,

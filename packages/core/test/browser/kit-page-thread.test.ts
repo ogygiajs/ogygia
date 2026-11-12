@@ -158,6 +158,43 @@ test('DEV: a wait that runs long warns once (diagnosable), still resolves the mo
 	}
 });
 
+test('a wait for a Kit whose boot import failed ends: it fails with kit_boot_failed, said once (#820)', async () => {
+	const errors: string[] = [];
+	const real_error = console.error;
+	console.error = (...args: unknown[]) => errors.push(args.map(String).join(' '));
+	try {
+		// Kit's boot script, as Kit writes it (here only as text: it is not run), importing a file
+		// that cannot load.
+		document.body.innerHTML =
+			'<script>__sveltekit_lab = {};\nimport("/__og_missing__/entry/start.js").then(() => {});</script>';
+		const first = kit_page_thread();
+		const second = kit_page_thread();
+		expect(first, 'Kit has not started → a real wait').not.toBeNull();
+		await expect(first).rejects.toMatchObject({ code: 'kit_boot_failed' });
+		await expect(second).rejects.toMatchObject({ code: 'kit_boot_failed' });
+		// a wait that starts after it failed fails too: the browser keeps the file failed
+		await expect(kit_page_thread()).rejects.toMatchObject({ code: 'kit_boot_failed' });
+		expect(errors.filter((e) => e.includes('kit_boot_failed'))).toHaveLength(1);
+	} finally {
+		console.error = real_error;
+	}
+});
+
+test('a boot-shaped script naming a file on another origin is never imported: markup is not code (#847 review)', async () => {
+	// A script that came in as markup (a swapped region, a hole) and never ran looks just like Kit's.
+	// Its import names a file on an origin that is neither the page's nor the runtime's.
+	document.body.innerHTML =
+		'<script>__sveltekit_lab = {};\nimport("http://127.0.0.1:1/x.js").then(() => {});</script>';
+	const wait = kit_page_thread();
+	expect(wait, 'Kit has not started → a real wait').not.toBeNull();
+	let failed: unknown = null;
+	void wait!.then(undefined, (e: unknown) => (failed = e));
+	await new Promise((r) => setTimeout(r, 500));
+	expect(failed, 'the file was not imported, so nothing failed').toBeNull();
+	publish_kit_page({ searchBarMarkup: '' });
+	await expect(wait).resolves.toBeUndefined();
+});
+
 test('with the thread already published at wake there is no hold: the island hydrates straight away', async () => {
 	publish_kit_page({ searchBarMarkup: '<i data-testid="search">search</i>' });
 	document.body.innerHTML =

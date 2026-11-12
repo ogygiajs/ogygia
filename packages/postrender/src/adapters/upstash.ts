@@ -1,3 +1,4 @@
+import { net } from '@ogygia/machine';
 import type { PostrenderEntry, PostrenderPutOptions, PostrenderStore } from '../types.ts';
 import { normalize_prefix, subtree_prefix } from '../key.ts';
 import { OgygiaError } from '../messages.ts';
@@ -91,7 +92,7 @@ export class UpstashStore implements PostrenderStore {
 
 	/** One command, Upstash REST shape: POST the command as a JSON array → `{ result }`. */
 	async #command<T>(parts: (string | number)[]): Promise<T> {
-		const res = await fetch(this.#base, {
+		const res = await net.fetch(this.#base, {
 			method: 'POST',
 			headers: {
 				authorization: `Bearer ${this.#token}`,

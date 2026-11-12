@@ -11,6 +11,9 @@ export type PostrenderEntry =
 			headers: Record<string, string>;
 			/** Epoch ms at store time — the read side's TTL backstop (a page older than the TTL is a miss). */
 			created: number;
+			/** The build that stored it (Kit's `version.name`): it is served to that build only, and is
+			 *  a miss for any other (absent: stored before builds were recorded, a miss too). */
+			build?: string;
 			/** The shell contains serve-time STITCH holes: every serve re-renders them with the
 			 *  visitor's request and splices — per-visitor responses, `private, no-store`, no
 			 *  validators. See postrender/stitch.ts. */
@@ -21,6 +24,8 @@ export type PostrenderEntry =
 			status: 301 | 308;
 			location: string;
 			created: number;
+			/** The build that stored it: as a page's. */
+			build?: string;
 	  };
 
 /** Options `put` receives beyond the entry. */

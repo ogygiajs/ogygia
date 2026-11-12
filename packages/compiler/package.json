@@ -1,0 +1,101 @@
+{
+	"name": "@ogygia/compiler",
+	"version": "0.13.0",
+	"description": "The compiler of ogygia (SSR islands for SvelteKit): the region transform, the build's link step and the Vite plugin",
+	"keywords": [
+		"compiler",
+		"ogygia",
+		"sveltekit",
+		"vite-plugin"
+	],
+	"homepage": "https://ogygiajs.dev",
+	"bugs": {
+		"url": "https://github.com/ogygiajs/ogygia/issues"
+	},
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ogygiajs/ogygia.git",
+		"directory": "packages/compiler"
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"exports": {
+		".": {
+			"types": "./dist/compiler/index.d.ts",
+			"default": "./dist/compiler/index.js"
+		},
+		"./vite": {
+			"types": "./dist/vite/index.d.ts",
+			"default": "./dist/vite/index.js"
+		},
+		"./ids": {
+			"svelte": "./src/compiler/ids.ts",
+			"types": "./dist/compiler/ids.d.ts",
+			"default": "./src/compiler/ids.ts"
+		}
+	},
+	"publishConfig": {
+		"exports": {
+			".": {
+				"types": "./dist/compiler/index.d.ts",
+				"default": "./dist/compiler/index.js"
+			},
+			"./vite": {
+				"types": "./dist/vite/index.d.ts",
+				"default": "./dist/vite/index.js"
+			},
+			"./ids": {
+				"types": "./dist/compiler/ids.d.ts",
+				"svelte": "./dist/compiler/ids.js",
+				"default": "./dist/compiler/ids.js"
+			}
+		},
+		"access": "public"
+	},
+	"scripts": {
+		"build": "node scripts/virtual-types.ts && tsdown",
+		"test": "vitest run",
+		"check": "tsc --noEmit && tsc -p test && vitest run",
+		"prepublishOnly": "pnpm run build && pnpm run verify:package",
+		"verify:package": "node ../core/scripts/verify-package.ts ."
+	},
+	"dependencies": {
+		"@ogygia/machine": "workspace:^",
+		"devalue": "catalog:",
+		"estree-walker": "^3.0.3",
+		"magic-string": "catalog:",
+		"tinyglobby": "^0.2.17"
+	},
+	"devDependencies": {
+		"@ogygia/config": "workspace:*",
+		"@ogygia/core": "workspace:*",
+		"@sveltejs/kit": "catalog:",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"@types/node": "catalog:",
+		"@typescript/native": "catalog:tsgo",
+		"rolldown": "catalog:",
+		"sass-embedded": "^1.104.1",
+		"svelte": "catalog:",
+		"tsdown": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:",
+		"vitest": "catalog:"
+	},
+	"peerDependencies": {
+		"@ogygia/core": "workspace:^",
+		"@sveltejs/kit": "catalog:peers",
+		"rolldown": "catalog:peers",
+		"svelte": "catalog:peers",
+		"vite": "catalog:peers"
+	},
+	"peerDependenciesMeta": {
+		"rolldown": {
+			"optional": true
+		}
+	}
+}

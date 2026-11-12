@@ -1,4 +1,4 @@
-import { definePlugin, type OgygiaPlugin } from '@ogygia/core/vite';
+import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
 import type { PostrenderServerOptions } from './server.ts';
 
 export interface PostrenderOptions {
