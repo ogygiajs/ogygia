@@ -190,6 +190,37 @@ export interface RunResult {
 	readonly buggified: string[];
 	/** The machine steps the run's pages took and the buggify points it was asked about. */
 	readonly coverage: RunCoverage;
+	/** What the network did to the tabs' own requests to the app: the real-browser tier does it
+	 *  again (apps/palaestra/e2e/sim-replay.spec.ts). */
+	readonly wire: readonly WireFault[];
+}
+
+/** A request of tab `tab` (0 is the first) the network dropped or cut: the `nth` (from 0) of the
+ *  tab's requests for `method path` (path and query). */
+export interface WireFault {
+	readonly tab: number;
+	readonly method: string;
+	readonly path: string;
+	readonly nth: number;
+	readonly kind: 'drop' | 'cut';
+}
+
+/** The run's {@link WireFault}s, from its exchanges in the order they were asked. */
+function wire_faults(world: World): WireFault[] {
+	const counts = new Map<string, number>();
+	const out: WireFault[] = [];
+	for (const e of world.network.exchanges) {
+		const tab = /^tab-(\d+)#/.exec(e.from);
+		const u = new URL(e.url);
+		if (tab === null || u.origin !== ORIGIN) continue;
+		const at = { tab: Number(tab[1]) - 1, method: e.method, path: u.pathname + u.search };
+		const key = `${at.tab} ${at.method} ${at.path}`;
+		const nth = counts.get(key) ?? 0;
+		counts.set(key, nth + 1);
+		const kind = e.status === 'dropped' ? 'drop' : e.cut ? 'cut' : null;
+		if (kind !== null) out.push({ ...at, nth, kind });
+	}
+	return out;
 }
 
 /**
@@ -415,7 +446,8 @@ export async function run(
 			ms: 0,
 			log: world.loop.log,
 			buggified,
-			coverage: { steps: steps_taken, points: Object.fromEntries(world.buggified) }
+			coverage: { steps: steps_taken, points: Object.fromEntries(world.buggified) },
+			wire: wire_faults(world)
 		};
 	} finally {
 		await world.end();
@@ -475,6 +507,16 @@ async function timed(
 const GUIDED = Number(arg('--guided') ?? 0);
 /** Where a search writes each failing run's plan (`--plan` replays it). */
 const PLANS = join(import.meta.dirname, '..', 'plans');
+
+/** A plan file (`--plan`, `--shrink`, and the real-browser tier's `SIM_PLANS`): the run's seed,
+ *  workload and app, what the network did to its requests, and what it found. */
+function plan_json(seed: number, plan: Plan, res: RunResult): string {
+	const found = res.broken.map((b) => `[${b.oracle}] ${b.detail.split('\n')[0]}`);
+	return (
+		JSON.stringify({ seed, steps: plan.actions.length, plan, app: APP, wire: res.wire, found }) +
+		'\n'
+	);
+}
 
 /** A run the search keeps: it reached something no run before it had. */
 interface Kept {
@@ -554,7 +596,7 @@ async function guided(): Promise<void> {
 		if (bad.length === 0) return;
 		failed++;
 		const file = join(PLANS, `${c.label.replace(/[^\w]+/g, '-').replace(/-$/, '')}.json`);
-		writeFileSync(file, JSON.stringify({ seed: c.seed, steps: res.actions.length, plan }) + '\n');
+		writeFileSync(file, plan_json(c.seed, plan, res));
 		for (const b of bad) console.log(`  [${b.oracle}] ${b.detail.split('\n').join('\n    ')}`);
 		// (its plan alone gives the same run: what `--plan` replays)
 		const again = await pool.run(c.seed, res.actions.length, Infinity, worker, plan);
@@ -675,7 +717,7 @@ async function shrink(file: string): Promise<void> {
 	const min: Plan = { actions: items, mix: plan.mix };
 	mkdirSync(PLANS, { recursive: true });
 	const plan_file = join(PLANS, `${name}.min.json`);
-	writeFileSync(plan_file, JSON.stringify({ seed, steps: items.length, plan: min }) + '\n');
+	writeFileSync(plan_file, plan_json(seed, min, a.result));
 	const gen_plan = join(APP, 'src', 'lib', 'gen', 'plan.json');
 	const gen = existsSync(gen_plan)
 		? (JSON.parse(readFileSync(gen_plan, 'utf8')) as { seed: number }).seed
@@ -922,7 +964,8 @@ class Pool {
 				ms: 0,
 				log: [`${oracle}: ${why.split('\n')[0]}`],
 				buggified: [],
-				coverage: { steps: {}, points: {} }
+				coverage: { steps: {}, points: {} },
+				wire: []
 			}
 		});
 		const done = (message: { result?: RunResult; error?: string; hung?: string }) => {
