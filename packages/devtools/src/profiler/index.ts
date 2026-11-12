@@ -147,7 +147,12 @@ import {
 import { module_imports, route_imports } from './route-imports.ts';
 import { app_relative } from './app-path.ts';
 import { fnv1a32 } from '@ogygia/core/plugin/utils';
-import { mark_personal, MIN_SECRET_BYTES, RateLimiter } from '@ogygia/core/internal/server';
+import {
+	mark_personal,
+	MIN_SECRET_BYTES,
+	RateLimiter,
+	read_capped
+} from '@ogygia/core/internal/server';
 import { attr_sites, doc_diff } from './doc-diff.ts';
 import { almost_same_document_pattern } from './patterns.ts';
 import { hydration_hazards } from '@ogygia/insights';
@@ -561,6 +566,10 @@ const MAX_BEACON_SAMPLES = 64;
 const MAX_BEACON_BODY = 64 * 1024;
 const MAX_BEACON_CPU_BODY = 6 * 1024 * 1024;
 const MAX_BEACON_VISIT_BODY = 512 * 1024;
+/** a login form: a key and a `next` path (test/profiler-body-cap.test.ts, #1150) */
+const MAX_LOGIN_BODY = 16 * 1024;
+/** an uploaded .ogp or a posted report, packed (a real one is a few MB) */
+const MAX_POSTED_REPORT = 32 * 1_048_576;
 /** the allocation sampler's interval while attributing GC: coarse on purpose (64 KB, against the
  *  16 KB the allocators table used) — the attribution needs shares, not every object, and every
  *  sample is a record V8 keeps until the read */
@@ -2886,7 +2895,14 @@ class Profiler {
 	 * is never spent on profiler auth (it stays free, and there's a real Logout).
 	 */
 	async #login(ctx: RouteCtx): Promise<Response> {
-		const sent: unknown = await ctx.request.json().catch(() => null); // ok: a body that is not JSON is a failed unlock, answered below
+		const raw = await read_capped(ctx.request, MAX_LOGIN_BODY);
+		if (raw === null) return ctx.json({ ok: false }, { status: 413 });
+		let sent: unknown = null;
+		try {
+			sent = JSON.parse(new TextDecoder().decode(raw));
+		} catch {
+			// ok: a body that is not JSON is a failed unlock, answered below
+		}
 		const body = sent as {
 			key?: unknown;
 			next?: unknown;
@@ -3224,7 +3240,8 @@ class Profiler {
 		// never raw JSON, which is several MB and over a host's request-body cap
 		let dump: unknown;
 		try {
-			const raw = new Uint8Array(await ctx.request.arrayBuffer());
+			const raw = await read_capped(ctx.request, MAX_POSTED_REPORT);
+			if (raw === null) return new Response('That report is too large.', { status: 413 });
 			if ((ctx.request.headers.get('content-type') ?? '').startsWith('application/octet-stream')) {
 				const bytes = recover_ogp_bytes(raw);
 				if (!is_ogp(bytes))
@@ -5780,7 +5797,15 @@ class Profiler {
 		try {
 			// Tolerate a `.ogp` mangled by a text-y transfer between machines (a prepended BOM, or the whole
 			// file base64-encoded) — recover the raw bytes before checking the magic.
-			const bytes = recover_ogp_bytes(new Uint8Array(await ctx.request.arrayBuffer()));
+			const raw = await read_capped(ctx.request, MAX_POSTED_REPORT);
+			if (raw === null)
+				return ctx.json(
+					{
+						error: `That file is over ${MAX_POSTED_REPORT / 1_048_576} MB, past any real profile.`
+					},
+					{ status: 413 }
+				);
+			const bytes = recover_ogp_bytes(raw);
 			if (!is_ogp(bytes)) {
 				return ctx.json(
 					{
@@ -6659,7 +6684,10 @@ class Profiler {
 	async #beacon(ctx: RouteCtx): Promise<Response> {
 		let body: unknown;
 		try {
-			const text = await ctx.request.text();
+			// (read no further than the largest kind; each kind's own cap is checked below)
+			const raw = await read_capped(ctx.request, MAX_BEACON_CPU_BODY);
+			if (raw === null) return new Response(null, { status: 413 });
+			const text = new TextDecoder().decode(raw);
 			// a CPU trace is the one big body (samples + stacks); a visit is a few hundred resources;
 			// everything else stays small
 			if (
