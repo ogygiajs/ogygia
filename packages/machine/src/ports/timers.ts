@@ -16,6 +16,20 @@ export const keep = (fn: () => void, ms = 0): TimerHandle =>
 /** A repeating timer that does not keep a Node process alive. */
 export const every = (fn: () => void, ms: number): TimerHandle => unref(realm.setInterval(fn, ms));
 
+/**
+ * `AbortSignal.timeout(ms)` on this realm's timers: a signal that aborts with a `TimeoutError`
+ * after `ms`, or as soon as `also` aborts (`AbortSignal.any`). Its timer does not keep a Node
+ * process alive, as the platform's own does not.
+ */
+export const timeout = (ms: number, also?: AbortSignal): AbortSignal => {
+	const out = new AbortController();
+	after(
+		() => out.abort(new DOMException('The operation was aborted due to timeout', 'TimeoutError')),
+		ms
+	);
+	return also === undefined ? out.signal : AbortSignal.any([also, out.signal]);
+};
+
 /** Ends a timer from `after`, `keep` or `every`. */
 export const cancel = (handle: TimerHandle | undefined): void => {
 	// (one handle space for both, in every platform ogygia runs on)
