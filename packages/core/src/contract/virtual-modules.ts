@@ -113,8 +113,12 @@ export interface RuntimeFlagsModule {
 }
 
 export interface TransportablesModule {
-	/** client: a transportable class module's tag path → its lazy import (server: empty, eager) */
-	wire_loaders: Record<string, () => Promise<unknown>>;
+	/** client: a transportable class module's tag path → its lazy import, the file it imports (`null`
+	 *  when it has none of its own) and the URL that file is relative to (server: empty, eager) */
+	wire_loaders: Record<
+		string,
+		readonly [load: () => Promise<unknown>, file: string | null, base: string]
+	>;
 	/** client: the app sends wired values through Kit's transport: every class loads with every island */
 	wire_all: boolean;
 }
@@ -254,6 +258,10 @@ export interface VirtualConstants {
 	__OGYGIA_HOOK_REGION_HYDRATE__: boolean;
 	__OGYGIA_HOOK_ANSWER_PARSED__: boolean;
 	__OGYGIA_HOOK_ANSWER_PLACED__: boolean;
+	__OGYGIA_HOOK_REGION_WOKE__: boolean;
+	__OGYGIA_HOOK_REGION_MISMATCHED__: boolean;
+	__OGYGIA_HOOK_NAV_STARTED__: boolean;
+	__OGYGIA_HOOK_LOAD_STARTED__: boolean;
 	__OGYGIA_KIT_MAJOR__: number | null;
 	__OGYGIA_VERSION__: string;
 	__OGYGIA_DEV_HMR_URL__: string;
