@@ -2805,35 +2805,35 @@
 			"reason": "browser only, an error path: says one coded console error for an island that could not start (an Error, not cloneable), constant work; proven in packages/core/test/browser/live-region-failed-file.test.ts (#942)"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > virtual_wrong_realm > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > virtual_wrong_realm > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_unknown > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > virtual_unknown > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_duplicate > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > virtual_duplicate > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/virtual/table.ts > virtual > family",
+			"id": "packages/compiler/src/virtual/table.ts > virtual > family",
 			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
 		},
 		{
-			"id": "packages/compiler/src/compiler/virtual/table.ts > virtual > request",
+			"id": "packages/compiler/src/virtual/table.ts > virtual > request",
 			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > barrels_option_removed > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > barrels_option_removed > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
@@ -2901,11 +2901,11 @@
 			"reason": "a constant throw for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/exports/index.ts > EVERY_BARREL > forced",
+			"id": "packages/compiler/src/exports/index.ts > EVERY_BARREL > forced",
 			"reason": "a constant answer (false) of the allow-everything policy"
 		},
 		{
-			"id": "packages/compiler/src/compiler/exports/parse.ts > attribute_keys > map:0~781359",
+			"id": "packages/compiler/src/exports/parse.ts > attribute_keys > map:0~781359",
 			"reason": "one attribute node to its key name (an oxc AST node: not replayable), constant work; the parse is benched in packages/core/bench/compiler.bench.ts"
 		},
 		{
@@ -2913,11 +2913,11 @@
 			"reason": "the app's file read for its shared shapes (a BOM-stripped read over the plugin's closure: not replayable); the shapes are benched in packages/core/bench/compiler.bench.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/fouc-css.ts > through_caller",
+			"id": "packages/compiler/src/fouc-css.ts > through_caller",
 			"reason": "hands one specifier to the walk's resolver (a function argument: not cloneable); proven in packages/core/test/exports-index.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/fouc-css.ts > collectFoucCssReachable > Shapes:0~3bebf5",
+			"id": "packages/compiler/src/fouc-css.ts > collectFoucCssReachable > Shapes:0~3bebf5",
 			"reason": "the walk's own file read for a fresh index's shapes (a pass-through to the caller's reader: not replayable); proven in packages/core/test/exports-index.test.ts"
 		},
 		{
@@ -2973,19 +2973,19 @@
 			"reason": "one realpath on the file system (not replayable) and one replace, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
@@ -2997,7 +2997,7 @@
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/virtual/core.ts > hook_gate",
+			"id": "packages/compiler/src/virtual/core.ts > hook_gate",
 			"reason": "declares one hook constant (its from is a lambda: not cloneable), once per hook as core.ts loads; constant, never per build"
 		},
 		{
@@ -4333,11 +4333,11 @@
 			"reason": "browser only, an error path: reads one header of a live Response (not cloneable) and parses it, constant work; proven in packages/core/test/browser/hole-rate-limited.test.ts (#959)"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/transform.ts > say_unparsed",
+			"id": "packages/compiler/src/region/transform.ts > say_unparsed",
 			"reason": "the build warning for a host the parser cannot read, said once per file, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/transform.ts > warn_unparsed > once:1~087a4c",
+			"id": "packages/compiler/src/region/transform.ts > warn_unparsed > once:1~087a4c",
 			"reason": "say(): one build warning per unparsed file, constant work"
 		},
 		{
@@ -4345,15 +4345,15 @@
 			"reason": "say(): one build warning for the process, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > refuse",
+			"id": "packages/compiler/src/macros/pipeline.ts > run_module_macros > refuse",
 			"reason": "throws the coded build error (not replayable), constant work; proven in packages/core/test/macros-own-source.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > macros > run_module_macros:2~cee8e9 > ownSource",
+			"id": "packages/compiler/src/driver.ts > Compiler > macros > run_module_macros:2~cee8e9 > ownSource",
 			"reason": "forwards to CompileCtx.is_own_source, one call; proven in packages/core/test/macros-own-source.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/ctx.ts > CompileCtx > is_own_source",
+			"id": "packages/compiler/src/ctx.ts > CompileCtx > is_own_source",
 			"reason": "one substring test and the declared-package lookup (a CompileCtx, hidden state), constant work per declared root"
 		},
 		{
@@ -4417,11 +4417,11 @@
 			"reason": "browser only: the navigation's call into region-sheets.ts release_head_nodes (the live head, not cloneable), constant work around it (#806)"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > macro_outside_app > text",
 			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > macro_outside_app > details",
 			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
 		},
 		{
@@ -4545,23 +4545,23 @@
 			"reason": "checks each session cookie of a RequestEvent (not cloneable), one HMAC per cookie; proven in packages/devtools/test/profiler.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/build-output.ts > refuse_client_secrets > filter:0~63949f",
+			"id": "packages/compiler/src/link/build-output.ts > refuse_client_secrets > filter:0~63949f",
 			"reason": "an inline length test over the build's secrets (closure, not replayable), constant work; proven in packages/compiler/test/client-secret-check.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/build-output.ts > refuse_client_secrets > some:0~386dc6",
+			"id": "packages/compiler/src/link/build-output.ts > refuse_client_secrets > some:0~386dc6",
 			"reason": "an inline includes() per secret over one chunk (closure, not replayable), linear in the chunk; proven in packages/compiler/test/client-secret-check.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/build-output.ts > refuse_client_secrets > find:0~8cd7fa",
+			"id": "packages/compiler/src/link/build-output.ts > refuse_client_secrets > find:0~8cd7fa",
 			"reason": "an inline regex test per module id (closure, not replayable), constant work; proven in packages/compiler/test/client-secret-check.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > secret_in_client_chunk > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > secret_in_client_chunk > text",
 			"reason": "a message's wording, constant text; said in packages/compiler/test/client-secret-check.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > secret_in_client_chunk > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > secret_in_client_chunk > details",
 			"reason": "a message's wording, constant text; said in packages/compiler/test/client-secret-check.test.ts"
 		},
 		{

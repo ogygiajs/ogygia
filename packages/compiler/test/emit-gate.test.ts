@@ -4,8 +4,8 @@ import {
 	island_host_loaded,
 	parse_ssr_hosts,
 	ssr_hosts_handoff_path
-} from '../src/compiler/link/emit-gate.ts';
-import { host_key } from '../src/compiler/program.ts';
+} from '../src/link/emit-gate.ts';
+import { host_key } from '../src/program.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The client-leg island emit gate. The prescan registers every marked import under src/ (both legs,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blank_styles } from '../src/compiler/blank-styles.ts';
+import { blank_styles } from '../src/blank-styles.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
 
 describe('blank_styles', () => {

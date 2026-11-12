@@ -21,8 +21,8 @@ import {
 	hasAnyCsrTrueRoute,
 	read_csr,
 	clear_route_csr_cache
-} from '../src/compiler/kit.ts';
-import { transformHost } from '../src/compiler/region/transform.ts';
+} from '../src/kit.ts';
+import { transformHost } from '../src/region/transform.ts';
 import { dedent } from '@ogygia/core/contract';
 
 /** Write a route tree: { 'content/[...slug]/+page.ts': 'export const csr = false;' }. */

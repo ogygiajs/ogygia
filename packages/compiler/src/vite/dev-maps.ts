@@ -8,11 +8,7 @@
  */
 import fs from 'node:fs';
 import type { ViteDevServer } from 'vite';
-import {
-	page_data_keys_answer,
-	summarize_export,
-	type PageKeys
-} from '../compiler/link/page-keys.ts';
+import { page_data_keys_answer, summarize_export, type PageKeys } from '../link/page-keys.ts';
 
 export const DEV_MAPS: unique symbol = Symbol.for('ogygia.profiler.dev-maps');
 export const DEV_PAGE_KEYS: unique symbol = Symbol.for('ogygia.profiler.dev-page-keys');

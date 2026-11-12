@@ -6,8 +6,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { rolldown, type Plugin } from 'rolldown';
-import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
-import { virtual } from '../src/compiler/virtual/table.ts';
+import { VirtualTable } from '../src/virtual/resolver.ts';
+import { virtual } from '../src/virtual/table.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
 
 const table = new VirtualTable<null>(

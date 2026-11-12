@@ -11,7 +11,7 @@
 // It only ever bit relative specifiers: `$lib/…` and package specifiers are host-independent, which
 // is why every earlier snippet fixture (all `$lib`) sailed through.
 import { describe, it, expect } from 'vitest';
-import { transformHost } from '../src/compiler/region/transform.ts';
+import { transformHost } from '../src/region/transform.ts';
 
 // ── regexes
 /** Any `<something>/ogygia:region/<Name>.svelte` — the phantom path the bug used to bake. */

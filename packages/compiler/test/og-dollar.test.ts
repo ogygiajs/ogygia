@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
-import { rewrite_dollar } from '../src/compiler/macros/dollar.ts';
+import { rewrite_dollar } from '../src/macros/dollar.ts';
 import { __register_fn, fn_handle } from '../../core/src/fn-transport.ts';
 
 const SVELTE = ['.svelte'];

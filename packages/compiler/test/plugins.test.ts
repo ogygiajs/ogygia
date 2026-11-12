@@ -17,8 +17,8 @@ import {
 	type BuildContext,
 	type PluginDefinition
 } from '../src/vite/plugin-api.ts';
-import { EVERY_BARREL } from '../src/compiler/exports/index.ts';
-import { server_plugins_module, route_config_module } from '../src/compiler/link/caps.ts';
+import { EVERY_BARREL } from '../src/exports/index.ts';
+import { server_plugins_module, route_config_module } from '../src/link/caps.ts';
 import { defineServer } from '../../core/src/plugin/index.ts';
 import { facts_of, note_per_visitor } from '../../core/src/plugin/facts.ts';
 import { ask, notify, register_hooks } from '../../core/src/plugin/hooks.ts';

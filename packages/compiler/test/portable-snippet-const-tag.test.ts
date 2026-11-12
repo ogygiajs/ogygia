@@ -7,7 +7,7 @@
 // its snippet around it in the synth, rendered once; a body without one is written as before.
 import { describe, it, expect } from 'vitest';
 import { compile } from 'svelte/compiler';
-import { transformHost } from '../src/compiler/region/transform.ts';
+import { transformHost } from '../src/region/transform.ts';
 
 const ctx = {
 	root: '/app',

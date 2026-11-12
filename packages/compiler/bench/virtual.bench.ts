@@ -1,32 +1,32 @@
-// The virtual-module table (src/compiler/virtual/): every id an app's build asks for resolved and
+// The virtual-module table (src/virtual/): every id an app's build asks for resolved and
 // loaded on both legs, in a build and on the dev server, the way the Vite plugin drives it; and
 // the dev invalidations a change sets off.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { bench } from '@bench/heisenbench/bench';
-import { Compiler } from '../src/compiler/driver.ts';
-import { Program } from '../src/compiler/program.ts';
-import { CompileCtx, type CompileCtxInit } from '../src/compiler/ctx.ts';
-import { normalize_import_keys } from '../src/compiler/region/transform.ts';
-import * as core from '../src/compiler/virtual/core.ts';
+import { Compiler } from '../src/driver.ts';
+import { Program } from '../src/program.ts';
+import { CompileCtx, type CompileCtxInit } from '../src/ctx.ts';
+import { normalize_import_keys } from '../src/region/transform.ts';
+import * as core from '../src/virtual/core.ts';
 import {
 	CORE_PARTS,
 	CORE_VIRTUALS,
 	core_defines,
 	core_path,
 	type ConstantInput
-} from '../src/compiler/virtual/core.ts';
+} from '../src/virtual/core.ts';
 import {
 	constant_types,
 	probe_value_names,
 	value_names_source,
 	virtual_types
-} from '../src/compiler/virtual/types.ts';
-import { CORE_VALUE_NAMES } from '../src/compiler/virtual/value-names.ts';
-import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
-import { BUILD_ERRORS } from '../src/compiler/messages.ts';
-import { specifier, virtual, type Realm } from '../src/compiler/virtual/table.ts';
+} from '../src/virtual/types.ts';
+import { CORE_VALUE_NAMES } from '../src/virtual/value-names.ts';
+import { VirtualTable } from '../src/virtual/resolver.ts';
+import { BUILD_ERRORS } from '../src/messages.ts';
+import { specifier, virtual, type Realm } from '../src/virtual/table.ts';
 
 /** A small app on disk: one csr=false page, one csr=true page, the layout between. */
 const FILES: Record<string, string> = {

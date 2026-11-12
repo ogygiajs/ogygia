@@ -6,11 +6,8 @@ import { describe, test, expect, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
-import {
-	generateRuntimeFlagsSource,
-	resolveFeatures
-} from '../dist/compiler/link/runtime-entry.js';
+import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/index.js';
+import { generateRuntimeFlagsSource, resolveFeatures } from '../dist/link/runtime-entry.js';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 

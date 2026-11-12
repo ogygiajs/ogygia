@@ -33,7 +33,7 @@ export const KIT_REMOTE_STATE: RegExp = /state\.svelte\.js$/;
 // chunk hash; this is its fallback + the Kit-driven answer.)
 function runtime_content_hash(): string {
 	const inputs = [
-		fileURLToPath(new URL('../compiler/link/runtime-entry.js', import.meta.url)),
+		fileURLToPath(new URL('../link/runtime-entry.js', import.meta.url)),
 		...RUNTIME_INPUTS
 	];
 	// Every runtime module (core + feature impls + slots) — any change must bust the sticky filename.

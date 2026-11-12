@@ -3,7 +3,7 @@
 // client chunk or asset that holds a signing secret, or a chunk that holds a signing module, fails
 // the build with `secret_in_client_chunk`.
 import { describe, expect, it } from 'vitest';
-import { refuse_client_secrets } from '../src/compiler/link/build-output.ts';
+import { refuse_client_secrets } from '../src/link/build-output.ts';
 
 const SECRET = 'a-long-random-signing-secret-0123456789';
 const chunk = (code: string, moduleIds: string[] = ['/app/src/lib/x.ts']) => ({

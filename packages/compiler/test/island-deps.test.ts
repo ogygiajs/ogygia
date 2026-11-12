@@ -12,7 +12,7 @@ import {
 	module_key,
 	module_origin,
 	duplicate_modules
-} from '../dist/compiler/link/island-deps.js';
+} from '../dist/link/island-deps.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

@@ -17,12 +17,7 @@
  */
 import MagicString from 'magic-string';
 import type { Plugin } from 'vite';
-import {
-	FILE_TOKEN_MARK,
-	FILE_TOKEN_RE,
-	file_token,
-	file_token_id
-} from '../compiler/link/file-token.ts';
+import { FILE_TOKEN_MARK, FILE_TOKEN_RE, file_token, file_token_id } from '../link/file-token.ts';
 
 /** A loader: an arrow that imports one string (and may read part of it, `.then(…)`), as the start
  *  of its `import_again(` call. */

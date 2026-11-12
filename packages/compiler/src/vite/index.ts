@@ -5,7 +5,7 @@ import { dedent } from '@ogygia/core/contract';
 import { isMainThread } from 'node:worker_threads';
 import { loadEnv, type Plugin, type Rolldown, type ViteDevServer } from 'vite';
 import type { PreprocessorGroup } from 'svelte/compiler';
-import { configure_build_cache } from '../compiler/build-cache.ts';
+import { configure_build_cache } from '../build-cache.ts';
 import {
 	content_css_key,
 	DEFAULT_REGION_TTL_SEC,
@@ -36,11 +36,7 @@ import {
 import { island_sourcemaps_plugin } from './sourcemaps.ts';
 import { lazy_files } from './lazy-files.ts';
 import { install_dev_client_maps, install_dev_maps, install_dev_page_keys } from './dev-maps.ts';
-import {
-	is_island_path,
-	normalize_import_keys,
-	asRegionLocals
-} from '../compiler/region/transform.ts';
+import { is_island_path, normalize_import_keys, asRegionLocals } from '../region/transform.ts';
 
 export {
 	normalize_import_keys,
@@ -54,9 +50,9 @@ export {
 	regionId,
 	regionIdentity,
 	strategyKey
-} from '../compiler/region/transform.ts';
-export { rewrite_lake_import_to_placeholder } from '../compiler/region/emit.ts';
-export type { ImportKeys } from '../compiler/region/transform.ts';
+} from '../region/transform.ts';
+export { rewrite_lake_import_to_placeholder } from '../region/emit.ts';
+export type { ImportKeys } from '../region/transform.ts';
 // the BUILD side of a plugin (design: internal/notes/packages.md, plugin API v2)
 export { definePlugin } from './plugin-api.ts';
 export type {
@@ -80,7 +76,7 @@ export type {
 	Entry as ExportEntry,
 	Leaf as ExportLeaf,
 	Policy as ExportPolicy
-} from '../compiler/exports/index.ts';
+} from '../exports/index.ts';
 export type { OgygiaPreset, OgygiaRateLimit, OgygiaOptions } from './options.ts';
 import {
 	find_plugins,
@@ -93,7 +89,7 @@ import {
 } from './plugin-api.ts';
 import MagicString from 'magic-string';
 import { definers_plugin } from './definers.ts';
-import type { ClientRealmFile, ServerRealm } from '../compiler/link/caps.ts';
+import type { ClientRealmFile, ServerRealm } from '../link/caps.ts';
 import { assert_no_legacy_options, validate_region_presets, resolve_options } from './options.ts';
 import {
 	clientBuildWillSkip,
@@ -105,7 +101,7 @@ import {
 	kit_major,
 	kit_dirs,
 	kit_inline_style_threshold
-} from '../compiler/kit.ts';
+} from '../kit.ts';
 import { load_kit_dirs } from './kit-dirs.ts';
 import {
 	buildFoucCssModuleSource,
@@ -117,35 +113,32 @@ import {
 	svelteHasStyle,
 	through_caller,
 	type WalkResolve
-} from '../compiler/fouc-css.ts';
-import { ExportIndex, Shapes } from '../compiler/exports/index.ts';
-import { barrel_left_table, type BarrelLeftTable } from '../compiler/exports/left.ts';
-import { strip_bom } from '../compiler/bom.ts';
+} from '../fouc-css.ts';
+import { ExportIndex, Shapes } from '../exports/index.ts';
+import { barrel_left_table, type BarrelLeftTable } from '../exports/left.ts';
+import { strip_bom } from '../bom.ts';
 
 import { preprocess_component_for_css } from './style-preprocess.ts';
-import {
-	needs_csr_false_full_reload,
-	needs_island_entry_full_reload
-} from '../compiler/dev/hmr.ts';
-import { derive_css_scope_owners, type DevGraphModule } from '../compiler/dev/css-scope.ts';
+import { needs_csr_false_full_reload, needs_island_entry_full_reload } from '../dev/hmr.ts';
+import { derive_css_scope_owners, type DevGraphModule } from '../dev/css-scope.ts';
 import {
 	collectIslandDepModulepreloads,
 	collect_inline_css,
 	remote_hash_of,
 	summarize_chunk_contents
-} from '../compiler/link/island-deps.ts';
-import { report_seed_shaping } from '../compiler/link/build-output.ts';
-import { follow_pending_page_calls } from '../compiler/link/page-keys.ts';
-import { emit_island_deps_handoff, refuse_client_secrets } from '../compiler/link/build-output.ts';
-import { ssr_hosts_handoff_path, parse_ssr_hosts } from '../compiler/link/emit-gate.ts';
-import { router_css_key } from '../compiler/link/router-css.ts';
-import { Program, strip_id } from '../compiler/program.ts';
-import { Compiler } from '../compiler/driver.ts';
-import { core_defines } from '../compiler/virtual/core.ts';
-import { CompileCtx, type PackageScan } from '../compiler/ctx.ts';
+} from '../link/island-deps.ts';
+import { report_seed_shaping } from '../link/build-output.ts';
+import { follow_pending_page_calls } from '../link/page-keys.ts';
+import { emit_island_deps_handoff, refuse_client_secrets } from '../link/build-output.ts';
+import { ssr_hosts_handoff_path, parse_ssr_hosts } from '../link/emit-gate.ts';
+import { router_css_key } from '../link/router-css.ts';
+import { Program, strip_id } from '../program.ts';
+import { Compiler } from '../driver.ts';
+import { core_defines } from '../virtual/core.ts';
+import { CompileCtx, type PackageScan } from '../ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
-import { flags_manifest } from '../compiler/flags.ts';
+import { flags_manifest } from '../flags.ts';
 
 // Kit's generated CLIENT app entry — Kit 2 dev serves `generated/client/app.js` and the build inputs
 // `generated/client-optimized/app.js`; Kit 3 nests both under `generated/dev/` and `generated/build/`
@@ -181,7 +174,7 @@ const KIT_DISCLOSE_VERSION = `((globalThis.__ogygia ??= {}).v ??= new Set()).add
 import { scan_entry_pattern, KIT_REMOTE_CLIENT, KIT_REMOTE_STATE, RUNTIME_HASH } from './paths.ts';
 
 import type { OgygiaOptions } from './options.ts';
-import { OgygiaError, warn, line } from '../compiler/messages.ts';
+import { OgygiaError, warn, line } from '../messages.ts';
 
 /** css-ish file the dev bridge manages (mirrors the bridge's glob). */
 const DEV_CSS_FILE_RE = /\.(css|scss|sass|less|styl)$/;

@@ -3,8 +3,8 @@
  * `defaults + its own presets`. Split out of the adapter so the plugin file stays lean; these are
  * pure type declarations (the plugin factory in index.ts imports them back).
  */
-import type { ImportKeys } from '../compiler/region/transform.ts';
-import { OgygiaError, RETIRED_OPTIONS } from '../compiler/messages.ts';
+import type { ImportKeys } from '../region/transform.ts';
+import { OgygiaError, RETIRED_OPTIONS } from '../messages.ts';
 
 // ── regexes
 

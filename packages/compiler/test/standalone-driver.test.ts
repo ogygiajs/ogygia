@@ -2,10 +2,10 @@
 // carve-out (see compiler/index.ts): `Compiler` + `Program` + `CompileCtx` are a bundler-agnostic
 // compile session. A REPL / non-Vite host is just a second adapter — build a ctx, configure the
 // compiler, feed it source, read back `{ code, islands }`. Here we drive it directly, importing only
-// from the public `ogygia/internal/compiler` entry (../dist/compiler/index.js), never `ogygia/vite`.
+// from the public `ogygia/internal/compiler` entry (../dist/index.js), never `ogygia/vite`.
 
 import { describe, test, expect } from 'vitest';
-import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
+import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/index.js';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 

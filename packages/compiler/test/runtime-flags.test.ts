@@ -7,7 +7,7 @@ import {
 	generateRuntimeFlagsSource,
 	resolveFeatures,
 	type RuntimeMarks
-} from '../src/compiler/link/runtime-entry.ts';
+} from '../src/link/runtime-entry.ts';
 
 const flag = (marks: RuntimeMarks, all = false) =>
 	/FRAMES = (true|false)/.exec(generateRuntimeFlagsSource(marks, all))![1] === 'true';

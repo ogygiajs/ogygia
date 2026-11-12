@@ -10,9 +10,9 @@ import { dedent } from '@ogygia/core/contract';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { rewrite_bake } from '../src/compiler/macros/bake.ts';
-import { rewrite_wire } from '../src/compiler/macros/wire.ts';
-import { __set_build_cache_root } from '../src/compiler/build-cache.ts';
+import { rewrite_bake } from '../src/macros/bake.ts';
+import { rewrite_wire } from '../src/macros/wire.ts';
+import { __set_build_cache_root } from '../src/build-cache.ts';
 
 const MARKUP = ['.svelte'] as const;
 

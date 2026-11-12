@@ -31,9 +31,9 @@ import {
 	transformTsRegions,
 	normalize_import_keys,
 	wrapperVirtualId
-} from '../src/compiler/region/transform.ts';
-import { Program } from '../src/compiler/program.ts';
-import { resolveFeatures } from '../src/compiler/link/runtime-entry.ts';
+} from '../src/region/transform.ts';
+import { Program } from '../src/program.ts';
+import { resolveFeatures } from '../src/link/runtime-entry.ts';
 import { dedent } from '@ogygia/core/contract';
 
 const ctx = {

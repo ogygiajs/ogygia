@@ -14,7 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compileFoucScopedCss } from '../src/compiler/fouc-css.ts';
+import { compileFoucScopedCss } from '../src/fouc-css.ts';
 import { preprocess_component_for_css } from '../src/vite/style-preprocess.ts';
 import { dedent } from '@ogygia/core/contract';
 

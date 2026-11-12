@@ -2,7 +2,7 @@
 // wrapper (fingerprint, id stamp, receipt tag). What a plugin does with the receipts (postrender's
 // reverse index) is tested in that plugin.
 import { describe, it, expect, afterEach } from 'vitest';
-import { rewrite_source } from '../src/compiler/macros/source.ts';
+import { rewrite_source } from '../src/macros/source.ts';
 import {
 	__og_source,
 	fingerprint_args,

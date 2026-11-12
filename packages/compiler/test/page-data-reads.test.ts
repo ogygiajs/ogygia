@@ -2,7 +2,7 @@
 // server/render-page.ts): the server manifest's placeholder is patched, once the graph is complete,
 // with each server island's answer over its component's static AND dynamic imports.
 import { describe, test, expect } from 'vitest';
-import { Compiler, Program } from '../dist/compiler/index.js';
+import { Compiler, Program } from '../dist/index.js';
 
 // the manifest's placeholder as the server manifest emits it (a string literal no bundler folds)
 const PLACEHOLDER =

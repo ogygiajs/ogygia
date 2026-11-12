@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
-import { analyze_exports, analyze_imports } from '../src/compiler/exports/parse.ts';
+import { analyze_exports, analyze_imports } from '../src/exports/parse.ts';
 
 const TS = '/app/x.ts';
 const JS = '/app/x.js';

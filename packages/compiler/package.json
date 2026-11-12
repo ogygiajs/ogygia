@@ -26,33 +26,33 @@
 	"sideEffects": false,
 	"exports": {
 		".": {
-			"types": "./dist/compiler/index.d.ts",
-			"default": "./dist/compiler/index.js"
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
 		},
 		"./vite": {
 			"types": "./dist/vite/index.d.ts",
 			"default": "./dist/vite/index.js"
 		},
 		"./ids": {
-			"svelte": "./src/compiler/ids.ts",
-			"types": "./dist/compiler/ids.d.ts",
-			"default": "./src/compiler/ids.ts"
+			"svelte": "./src/ids.ts",
+			"types": "./dist/ids.d.ts",
+			"default": "./src/ids.ts"
 		}
 	},
 	"publishConfig": {
 		"exports": {
 			".": {
-				"types": "./dist/compiler/index.d.ts",
-				"default": "./dist/compiler/index.js"
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
 			},
 			"./vite": {
 				"types": "./dist/vite/index.d.ts",
 				"default": "./dist/vite/index.js"
 			},
 			"./ids": {
-				"types": "./dist/compiler/ids.d.ts",
-				"svelte": "./dist/compiler/ids.js",
-				"default": "./dist/compiler/ids.js"
+				"types": "./dist/ids.d.ts",
+				"svelte": "./dist/ids.js",
+				"default": "./dist/ids.js"
 			}
 		},
 		"access": "public"

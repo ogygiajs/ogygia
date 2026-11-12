@@ -4,9 +4,9 @@ import {
 	needs_island_entry_full_reload,
 	same_module_path,
 	island_vpaths_affected_by_file
-} from '../dist/compiler/dev/hmr.js';
-import { dev_hmr_client_source } from '../dist/compiler/dev/dev-hmr.js';
-import { derive_css_scope_owners } from '../dist/compiler/dev/css-scope.js';
+} from '../dist/dev/hmr.js';
+import { dev_hmr_client_source } from '../dist/dev/dev-hmr.js';
+import { derive_css_scope_owners } from '../dist/dev/css-scope.js';
 import { rewrite_island_sourcemap_sources } from '../dist/vite/sourcemaps.js';
 
 describe('needs_csr_false_full_reload', () => {

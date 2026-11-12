@@ -10,8 +10,8 @@ import {
 	set_kit_inline_style_threshold,
 	keep_client_dir,
 	KEEP_CLIENT_DIR
-} from '../src/compiler/kit.ts';
-import { islandDepsHandoffPath, island_deps_module } from '../src/compiler/link/island-deps.ts';
+} from '../src/kit.ts';
+import { islandDepsHandoffPath, island_deps_module } from '../src/link/island-deps.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ogygia must follow the app's `kit.files.routes` and `kit.outDir`, not assume `src/routes` and

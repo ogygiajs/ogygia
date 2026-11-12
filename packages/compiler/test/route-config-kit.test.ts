@@ -3,11 +3,7 @@ import { dedent } from '@ogygia/core/contract';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-	read_route_config,
-	page_route_config,
-	clear_route_csr_cache
-} from '../src/compiler/kit.ts';
+import { read_route_config, page_route_config, clear_route_csr_cache } from '../src/kit.ts';
 import {
 	route_config,
 	set_page_route_config,

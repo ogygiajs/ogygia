@@ -9,7 +9,7 @@
  */
 import MagicString from 'magic-string';
 import type { Plugin } from 'vite';
-import { parse_module } from '../compiler/parse/oxc.ts';
+import { parse_module } from '../parse/oxc.ts';
 
 /** A plugin's definers: the module they are imported from, and their exported names. */
 export type Definers = { module: string; names: readonly string[] };

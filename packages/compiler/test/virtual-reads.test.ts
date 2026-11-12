@@ -4,9 +4,9 @@
  * carries a stamp, and a bump of one part names the modules that read it, and no other.
  */
 import { describe, expect, it } from 'vitest';
-import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
-import { virtual, type Part } from '../src/compiler/virtual/table.ts';
-import { CORE_PARTS, type CoreApp } from '../src/compiler/virtual/core.ts';
+import { VirtualTable } from '../src/virtual/resolver.ts';
+import { virtual, type Part } from '../src/virtual/table.ts';
+import { CORE_PARTS, type CoreApp } from '../src/virtual/core.ts';
 
 /** A session with one field per part, and one that is no part (read freely, never tracked). */
 interface App {
