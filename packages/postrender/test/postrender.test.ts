@@ -675,6 +675,18 @@ describe('postrender/stitch', () => {
 		expect(find_stitch_holes(hole('/e', 'fb', false))).toHaveLength(0);
 	});
 
+	it('reads region tags as a browser does: a quoted `>`, any case, single quotes, not in a comment, not a value', () => {
+		const html =
+			'<!-- <ogygia-region stitch="edge" endpoint="/gone"></ogygia-region> -->' +
+			'<ogygia-region class="stitch" endpoint="/no">fb</ogygia-region>' +
+			"<ogygia-region data-note=\"a>b\" STITCH='edge' ENDPOINT='/e?a=1&amp;b=2'>fb</ogygia-region>";
+		const holes = find_stitch_holes(html);
+		expect(holes.map((h) => [h.endpoint, h.mode])).toEqual([['/e?a=1&b=2', 'edge']]);
+		expect(html.slice(holes[0].start, holes[0].end)).toBe(
+			"<ogygia-region data-note=\"a>b\" STITCH='edge' ENDPOINT='/e?a=1&amp;b=2'>fb</ogygia-region>"
+		);
+	});
+
 	it('splices renders in place; nested islands land under a neutral display:contents div', async () => {
 		const html = `<a>${hole('/e1?x=1', 'fb1')}</a><b>${hole('/e2?x=2', 'fb2')}</b>`;
 		const out = await stitch_html(html, async (e) => `<h1>fresh:${e}</h1>`);
