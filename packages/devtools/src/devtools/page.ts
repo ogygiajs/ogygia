@@ -7,7 +7,7 @@
 import { beacon_page, hole_request_times, is_headless } from '../profiler/beacon.ts';
 import { tool_fetch } from '@ogygia/core/internal/instruments';
 import { built_dev, hook_entries } from './hook-entries.ts';
-import { flights, type Flights } from '@ogygia/machine';
+import { cache, flights, type Flights } from '@ogygia/machine';
 import { page_ledger } from './ledger-dom.ts';
 import {
 	all_regions,
@@ -169,8 +169,12 @@ export function region_facts(): RegionFact[] {
 	return out;
 }
 
+// static: the two wakes that run without a visitor
 const EAGER_WAKES = new Set(['load', 'idle']);
-const media_seen = new Map<string, string | null>();
+/** Each hidden eager island's screen sizes, read once while the page's sheets stay the same (by
+ *  fingerprint and sheet count): the regions the dock has looked at, the least recently read first
+ *  to go. */
+const media_seen = cache<string, string | null>({ name: 'devtools media seen', max: 512 });
 
 function has_child_box(el: Element): boolean {
 	for (const c of el.children) {
@@ -554,25 +558,28 @@ export function last_nav(): { to: string; t: number } | null {
 	const starts = ev.flatMap((e) =>
 		e.hook === 'navStarted' ? [{ t: e.at, path: path(e.to) }] : []
 	);
-	const moved = url_moves
+	const moved = url_moves_seen()
 		.filter((m) => !starts.some((s) => s.t <= m.t && s.path === path(m.to)))
 		.at(-1);
 	if (moved && (!own || moved.t > own.t)) return moved;
 	return own;
 }
 
-/** each change of the page's path, as the dock saw it (history.pushState, a back or forward) */
-const url_moves: { to: string; t: number }[] = [];
-let watching_url = false;
+/** The document's URL watch, made once: each change of the page's path as the dock saw it
+ *  (history.pushState, a back or forward), the newest {@link URL_MOVES_MAX}. */
+let url_watch: { moves: { to: string; t: number }[] } | null = null;
+const URL_MOVES_MAX = 20;
+/** The moves seen so far (none before the watch is up). */
+const url_moves_seen = (): readonly { to: string; t: number }[] => url_watch?.moves ?? [];
 function watch_url(): void {
-	if (watching_url || typeof history === 'undefined') return;
-	watching_url = true;
+	if (url_watch || typeof history === 'undefined') return;
+	const watch = (url_watch = { moves: [] as { to: string; t: number }[] });
 	let path = location.pathname;
 	const seen = () => {
 		if (location.pathname === path) return;
 		path = location.pathname;
-		url_moves.push({ to: location.pathname + location.search, t: performance.now() });
-		if (url_moves.length > 20) url_moves.shift();
+		watch.moves.push({ to: location.pathname + location.search, t: performance.now() });
+		if (watch.moves.length > URL_MOVES_MAX) watch.moves.shift();
 	};
 	const push = history.pushState;
 	history.pushState = function (this: History, ...args: Parameters<History['pushState']>) {
