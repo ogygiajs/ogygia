@@ -54,6 +54,7 @@ export {
 	type TimelineLane
 } from './session-insights.ts';
 export type {
+	HookEntry,
 	SessionData,
 	SessionClick,
 	SessionFrame,

@@ -9,10 +9,10 @@
 // This is Ryan's test made concrete: request new server-component data on navigation, flush part of
 // the response, let the rest come in as the server's async settles.
 // ─────────────────────────────────────────────────────────────────────────────
-import { machine, STALE, type Scope } from '@ogygia/machine';
+import { cache, machine, STALE, type Scope } from '@ogygia/machine';
 import { frameAddress } from '../frame.ts';
 import { stream } from '../policies.ts';
-import { is_idle, reserve, release, ticket, write } from './frame-store.ts';
+import { is_idle, reserve, release, stamp, write } from './frame-store.ts';
 import { runtime_session } from './session.ts';
 import { emit as dt_emit } from '../events/bus.ts';
 import { slots } from './slots.ts';
@@ -31,7 +31,10 @@ let batch_seq = 0;
 /** A batched hole's timing, for the hole's own report of its answer (beacon `holes_answered`): the
  *  batch left at `left`, this hole's part landed at `at` (page time), `size` holes rode it. Bounded:
  *  the newest 64 endpoints (the measuring browser only). */
-const batched = new Map<string, { left: number; at: number; size: number }>();
+const batched = cache<string, { left: number; at: number; size: number }>({
+	name: 'batched hole timings',
+	max: 64
+});
 
 /** How the batch that carried `endpoint` timed it, or undefined (it rode no batch). */
 export function batch_times(
@@ -134,7 +137,7 @@ export async function streamFrames(
 	// slot (sig) → store address, so an arriving parcel routes to the right call. RESERVE each address
 	// up front: a region binder that connects (body swap) before its frame lands joins this batch via
 	// ensure() instead of firing its own fetch — one request for the whole route, no waterfall. Each
-	// part takes its ticket NOW, as it is asked for, like any fetch: a refresh asked after the batch
+	// part takes its stamp NOW, as it is asked for, like any fetch: a refresh asked after the batch
 	// is newer, and the batch's part landing after it is dropped (test/sim/frame-order.test.ts).
 	const bySig = new Map<string, { a: string; v: number }>();
 	// (a measuring browser: slot → endpoint, to name and time each part as it lands)
@@ -144,7 +147,7 @@ export async function streamFrames(
 		const s = sigOf(e);
 		if (s) {
 			const a = frameAddress(e);
-			bySig.set(s, { a, v: ticket(a) });
+			bySig.set(s, { a, v: stamp() });
 			endpoint_of?.set(s, e);
 			reserved.push(a);
 			reserve(a);
@@ -222,9 +225,7 @@ export async function streamFrames(
 					// (timed BEFORE the write: the write applies the part, and the hole reports its answer then)
 					if (HOOK_HOLE_ANSWERED) {
 						const ep = endpoint_of!.get(p.slot)!;
-						batched.delete(ep);
 						batched.set(ep, { left, at: performance.now(), size: reserved.length });
-						if (batched.size > 64) batched.delete(batched.keys().next().value!);
 					}
 					write({ ...part, html: p.html });
 					delivered++;
@@ -311,20 +312,31 @@ export function join_batch(endpoint: string): Promise<void> {
 	return flushed;
 }
 
-/** The holes that joined in one task: the ones a batch can carry go out in batches of MAX_BATCH. */
+/** A region call of an islands endpoint (`?id=…`, `&id=…`): what a batch POST to its path answers. */
+const REGION_CALL_RE = /[?&]id=/;
+
+/** The holes that joined in one task: the ones a batch can carry go out in batches of MAX_BATCH,
+ *  one endpoint path per batch (it is POSTed there). A hole that is no region call (a plugin's
+ *  endpoint) goes on its own: test/browser/hole-batch.test.ts (#917). */
 function gather(list: string[]): void {
-	const fresh: string[] = [];
+	const by_path = new Map<string, string[]>();
 	const seen = new Set<string>();
 	// (a hole whose request the page's head started is in flight at its address, so not idle:
 	// ./early-holes.ts)
 	for (const e of list) {
+		if (!REGION_CALL_RE.test(e)) continue;
 		const a = frameAddress(e);
 		if (seen.has(a) || !is_idle(a)) continue;
 		seen.add(a);
-		fresh.push(e);
+		const q = e.indexOf('?');
+		const path = e.slice(0, q);
+		const fresh = by_path.get(path);
+		if (fresh) fresh.push(e);
+		else by_path.set(path, [e]);
 	}
 	// (reserve happens synchronously inside streamFrames, before this resolves)
-	if (fresh.length >= 2)
-		for (let i = 0; i < fresh.length; i += MAX_BATCH)
-			void streamFrames(fresh.slice(i, i + MAX_BATCH), 'page'); // ok: a batch says its own failure, and its holes fall back to their own fetch
+	for (const fresh of by_path.values())
+		if (fresh.length >= 2)
+			for (let i = 0; i < fresh.length; i += MAX_BATCH)
+				void streamFrames(fresh.slice(i, i + MAX_BATCH), 'page'); // ok: a batch says its own failure, and its holes fall back to their own fetch
 }
