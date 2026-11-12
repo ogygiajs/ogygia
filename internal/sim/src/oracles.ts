@@ -158,14 +158,6 @@ export const KNOWN: ReadonlyArray<{
 				.split('\n')
 				.map((l) => (KEPT_REGION.test(l) ? l.replace(/ data-og-fp="[^"]*"/, '') : l))
 				.join('\n')
-	},
-	{
-		issue: 1071,
-		what: 'a kept head link with a relative URL names another file after a client navigation',
-		// (a link whose file resolves under the page's own path, `/lab/_app/…`, where the other side
-		// names `/_app/…`: palaestra /lab/a -> /lab/deep/x)
-		applies: (shown, fresh) => DEEP_ASSET.test(shown) && !DEEP_ASSET.test(fresh),
-		forgive: (s) => s.replace(DEEP_ASSET_ALL, ' href="/_app/')
 	}
 ];
 
@@ -179,10 +171,6 @@ function kept_fps(s: string): string[] {
 		.filter((l) => KEPT_REGION.test(l))
 		.map((l) => / data-og-fp="([^"]*)"/.exec(l)?.[1] ?? '');
 }
-
-/** A head link to a build's file under a page's own path (`href="/lab/_app/…"`). */
-const DEEP_ASSET = /^ *<link\b[^>]* href="\/(?:[^"/]+\/)+_app\//m;
-const DEEP_ASSET_ALL = / href="\/(?:[^"/]+\/)+_app\//g;
 
 /** The lines (by number) of region sheet links right inside a baked held region. */
 function baked_sheet_lines(s: string): number[] {
