@@ -236,13 +236,22 @@ export function excerpt_of(text: string, terms: string[], span = 150): string {
 		if (i > -1 && (at === -1 || i < at)) at = i;
 	}
 	const start = at <= 40 ? 0 : at - 40;
-	let out = esc_html(text.slice(start, start + span));
-	for (const t of [...terms].sort((a, b) => b.length - a.length)) {
-		out = out.replace(
-			new RegExp(`(${esc_html(t).replace(ESC_RX, '\\$&')})`, 'gi'),
-			'<mark>$1</mark>'
-		);
-	}
+	const window = text.slice(start, start + span);
+	// One pass over the raw text (longest term first), escaping each piece as it is written: a term
+	// never matches inside a mark or an entity. test/property-search-excerpt.test.ts.
+	const any = terms
+		.filter(Boolean)
+		.sort((a, b) => b.length - a.length)
+		.map((t) => t.replace(ESC_RX, '\\$&'))
+		.join('|');
+	let out = '';
+	let from = 0;
+	if (any)
+		for (const m of window.matchAll(new RegExp(any, 'gi'))) {
+			out += esc_html(window.slice(from, m.index)) + `<mark>${esc_html(m[0])}</mark>`;
+			from = m.index + m[0].length;
+		}
+	out += esc_html(window.slice(from));
 	return (start > 0 ? '…' : '') + out + (start + span < text.length ? '…' : '');
 }
 
