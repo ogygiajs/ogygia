@@ -10,7 +10,7 @@
  * This is the single wiring mechanism — there is no service locator and no per-feature setter.
  */
 import type { Scope, Stale } from '@ogygia/machine';
-import type { Frame } from '../frame.ts';
+import type { Frame, FrameOrder } from '../frame.ts';
 import { is_frozen } from './region-attrs.ts';
 
 // ── lakes ────────────────────────────────────────────────────────────────
@@ -91,7 +91,8 @@ export type RemoteSeedOps = {
 	seed_once(): void;
 	seed_query_responses(text: string): void;
 	clear_remote_seeds(): void;
-	clear_remote_instances(): void;
+	/** destroy the query instances only departed islands held (shims/kit-remote/remote-cache.ts) */
+	release_remote_instances(): void;
 };
 
 /** The page as island code sees it, filled by the `page` feature (./seeds.ts). Null when no island
@@ -113,11 +114,16 @@ export type PageOps = {
  */
 export type FrameOps = {
 	subscribe(a: string, cb: (f: Frame) => void): () => void;
-	/** `STALE` when its `signal` aborted: only that caller leaves the fetch. */
+	/** The frame applied at an address, if any. */
+	peek(a: string): (FrameOrder & { html: string }) | null;
+	/** The next request ticket: where an answer arriving now stands at the address. */
+	ticket(a: string): number;
+	/** `STALE` when its `signal` aborted: only that caller leaves the fetch. A join at a higher
+	 *  `priority` (a load class's, ./load-class.ts) raises the fetch it joins. */
 	ensure(
 		a: string,
-		fetcher: (signal: AbortSignal) => Promise<string>,
-		opts?: { force?: boolean; signal?: AbortSignal }
+		fetcher: import('./frame-store.ts').FrameFetcher,
+		opts?: { force?: boolean; signal?: AbortSignal; priority?: number }
 	): Promise<string | Stale>;
 	/** A renewal answered a fresh capability for this address; and the one it answered, if any. */
 	renew(a: string, fresh: string): void;
@@ -172,15 +178,17 @@ export type BootLink = {
 	parse_region_html: typeof import('./parse-html.ts').parse_region_html;
 	runtime_session: typeof import('./session.ts').runtime_session;
 	regions_in_shadow: typeof import('./connected.ts').regions_in_shadow;
-	/** the region sheets a navigation's head merge left, taken out but for those a region uses */
-	release_sheets: typeof import('./region-sheets.ts').release_sheets;
+	/** the region head nodes a navigation's head merge left, taken out but for those a region on
+	 *  the page uses or owns */
+	release_head_nodes: typeof import('./region-sheets.ts').release_head_nodes;
 	yield_task: typeof import('./schedule.ts').yield_task;
-	/** the router's navigation, timed for the profiler's beacon (a no-op without it) */
-	beacon_nav: typeof import('./beacon.ts').beacon_nav;
-	/** the plugins around Svelte's hydrate over server markup (./client-plugins.ts) */
+	/** the `regionHydrate` subscribers around Svelte's hydrate over server markup (./client-plugins.ts) */
 	region_hydrate: typeof import('./client-plugins.ts').client_region_hydrate;
-	/** the load scheduler's queue (./load-scheduler.ts) */
+	/** the load scheduler's queue (./load-scheduler.ts), and a load class as a flight priority and
+	 *  as a fetch priority (./load-class.ts) */
 	LoadSlot: typeof import('./load-scheduler.ts').LoadSlot;
+	PRIORITY: typeof import('./load-class.ts').PRIORITY;
+	fetch_priority_of: typeof import('./load-class.ts').fetch_priority_of;
 	/** DOM ownership (./ownership.ts): which children Svelte's walk enters, and self-owned elements */
 	walk_enters: typeof import('./ownership.ts').walk_enters;
 	is_self_owned: typeof import('./ownership.ts').is_self_owned;
@@ -200,6 +208,8 @@ export type BootLink = {
 	STALE: typeof import('@ogygia/machine').STALE;
 	/** keyed shared async work (`@ogygia/machine`): the router's page fetches */
 	flights: typeof import('@ogygia/machine').flights;
+	/** a bounded, owned store (`@ogygia/machine`): the router's per-address memos */
+	cache: typeof import('@ogygia/machine').cache;
 	/** a change built off to the side and switched in at once (`@ogygia/machine`): the router's
 	 *  swap and the soft refresh */
 	stage: typeof import('@ogygia/machine').stage;
@@ -246,6 +256,9 @@ export type Slots = {
 	interaction_link: InteractionLink | null;
 	/** Morph's attribute sync, for the navigation's body reconcile. */
 	sync_attributes: typeof import('./morph.ts').sync_attributes | null;
+	/** The runtime hooks the plugins' browser halves subscribe to, set at boot only when one does
+	 *  (./client-plugins.ts). */
+	hooks?: Partial<import('../contract/runtime-hooks.ts').RuntimeHooks>;
 };
 
 /** The live registry. A feature's `install()` assigns its slot; core/router read them. */

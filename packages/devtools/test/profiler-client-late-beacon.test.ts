@@ -1,8 +1,8 @@
 /**
- * `mark` hands its marks to the page's beacon, which the runtime puts on the page as it loads. A
+ * `mark` hands its marks to the page's beacon, which devtools' client boot puts on the page. A
  * mark made before the beacon is there waits for it, however late it comes (a slow runtime chunk on
  * a slow phone): it is never dropped after a few seconds. The page here is a stand-in document with
- * the profiler's beacon tag; the beacon is the runtime's own, loaded 11 s after the mark.
+ * the profiler's beacon tag; the beacon boots 11 s after the mark.
  */
 import { afterAll, expect, it, vi } from 'vitest';
 
@@ -29,7 +29,10 @@ it('a mark made 11 s before the beacon loads reaches it', async () => {
 	const { mark } = await import('../src/profiler/client.ts');
 	mark.start('early.boot').end();
 	await new Promise((r) => setTimeout(r, 11_000));
-	const { beacon_page } = await import('@ogygia/core/internal/instruments');
+	const { _restart_page_beacon } = await import('../src/profiler/beacon-standalone.ts');
+	const { beacon_page, install_beacon } = await import('../src/profiler/beacon.ts');
+	_restart_page_beacon();
+	install_beacon(false);
 	const page = beacon_page();
 	expect(page?.marks.map((m) => m.name)).toContain('early.boot');
 }, 20_000);
