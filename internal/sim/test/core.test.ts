@@ -189,6 +189,50 @@ describe('the network', () => {
 		expect(net.exchanges.every((e) => e.stalled === true)).toBe(true);
 	});
 
+	it('a document the tab has left hears nothing more: no answer, head or body, and nothing in flight (gen 192, seed 11)', async () => {
+		// (a browser calls off a document's fetches as it unloads it: a left document's stalled chunk
+		// landed 31 s later, its code ran over a closed window, and its rejection read as the run's)
+		const loop = new Loop(rng(6));
+		const net = new Network({ loop, rng: rng(6), faults: new Set(['stall']), rates: { stall: 1 } });
+		const body = () =>
+			new ReadableStream<Uint8Array>({
+				start(c) {
+					c.enqueue(new TextEncoder().encode('a'));
+					c.enqueue(new TextEncoder().encode('b'));
+					c.close();
+				}
+			});
+		const heard: string[] = [];
+		for (let i = 0; i < 12; i++)
+			void net
+				.send('tab-1#1', new Request(`https://app.test/r/${i}`), async () => new Response(body()))
+				.then(
+					async (r) => {
+						heard.push(`head ${i}`);
+						await r.text().then(
+							() => heard.push(`body ${i}`),
+							() => heard.push(`body failed ${i}`)
+						);
+					},
+					() => heard.push(`failed ${i}`)
+				);
+		// (the next document's request goes on as before)
+		const next = net
+			.send('tab-1#2', new Request('https://app.test/next'), async () => new Response(body()))
+			.then((r) => r.text());
+		await loop.run(5_000);
+		const heads = heard.length;
+		net.leave('tab-1#1');
+		await loop.run();
+		expect(await next).toBe('ab');
+		// (some heads came on time, before it was left: their bodies were held midway, and never come)
+		expect(heard).toHaveLength(heads);
+		expect(heard.every((h) => h.startsWith('head '))).toBe(true);
+		expect(net.unanswered()).toBe(0);
+		const left = net.exchanges.filter((e) => e.from === 'tab-1#1');
+		expect(left.filter((e) => e.status === 'aborted').length).toBe(12 - heads);
+	});
+
 	it("a calm tab's request comes from a client address of its own (gen 78, seed 78013)", async () => {
 		// (the reference load met the rate limit the run's own hole retries had used up, got 429
 		// for its holes and showed their fallbacks)
