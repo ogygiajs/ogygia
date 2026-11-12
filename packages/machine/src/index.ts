@@ -46,4 +46,5 @@ export { policy, backoffAfter, type Policy } from './policy.ts';
 export { stage, type Stage, type StageOptions, type Staging } from './stage.ts';
 export { world, type World } from './world.ts';
 export { say, type Say, type SayOptions } from './say.ts';
+export { trace, type Trace, type TraceOptions } from './trace.ts';
 export { MachineError, MACHINE_ERRORS, MACHINE_WARNINGS } from './messages.ts';

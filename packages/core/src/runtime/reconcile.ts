@@ -29,7 +29,7 @@ const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS_
 // The pure fingerprint core lives in its own dep-free module so the SERVER (Region.svelte) can
 // import it and compute IDENTICAL fingerprints (server-delta nav parity). Re-exported for existing
 // importers of these from reconcile.ts.
-import { fnv1a, endpoint_key, signature_of, fingerprint_of } from './hash.ts';
+import { fnv1a, endpoint_key, signature_of, fingerprint_of } from '../contract/hash.ts';
 export { fnv1a, endpoint_key, signature_of, fingerprint_of };
 
 // Boot helpers (the sidecar lookup) and morph's attribute sync, handed over through the registry —

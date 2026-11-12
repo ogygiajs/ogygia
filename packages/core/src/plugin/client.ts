@@ -8,7 +8,10 @@
  *   export default defineClient({
  *     boot({ kitPage }) { … },                  // once, as the runtime boots (before any region wakes)
  *     regionMount(el, { entry, urls }) { … },  // a region's component started in the browser
- *     regionUnmount(el, { entry }) { … }       // …and left the page
+ *     regionUnmount(el, { entry }) { … },      // …and left the page
+ *     regionHydrate(el) { return () => { … } }, // around Svelte's hydrate over server markup
+ *     answerParsed(fragment) { … },            // a region answer parsed, before anything reads it
+ *     answerPlaced() { … }                     // …and in the page
  *   });
  *
  * With no plugin's client realm in the build, core's calls into these fold away entirely.
@@ -35,6 +38,14 @@ export interface ClientPlugin {
 	regionMount?(el: Element, region: ClientRegion & { readonly urls: readonly string[] }): void;
 	/** A region's component left the page. */
 	regionUnmount?(el: Element, region: ClientRegion): void;
+	/** Svelte is about to hydrate a component over `el`'s server markup. The function returned runs
+	 *  right after the hydrate. */
+	regionHydrate?(el: Element): (() => void) | void;
+	/** A region answer (a hole, a lake remount, a router swap) was parsed: `fragment` is inert, and
+	 *  nothing has read it yet. */
+	answerParsed?(fragment: DocumentFragment): void;
+	/** A parsed answer went into the page. */
+	answerPlaced?(): void;
 }
 
 /** Typed identity: a plugin's browser half. */

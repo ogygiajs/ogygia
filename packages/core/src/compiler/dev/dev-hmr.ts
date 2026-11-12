@@ -1,10 +1,10 @@
 /**
- * Client bridge source for `virtual:ogygia/dev-hmr` (vite serve only). Pure codegen: it returns the
+ * Client bridge source for `ogygia:dev/hmr` (vite serve only). Pure codegen: it returns the
  * JS text the adapter serves for the dev soft-CSS-HMR bridge. No build state.
  */
 
 /**
- * Client bridge source for `virtual:ogygia/dev-hmr` (vite serve only): a LAZY map of app CSS under
+ * Client bridge source for `ogygia:dev/hmr` (vite serve only): a LAZY map of app CSS under
  * `/src`, joined per-file when the plugin broadcasts a scoped `ogygia:css` event — plus full-reload
  * on `vite:error`.
  *

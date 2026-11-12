@@ -24,12 +24,17 @@ on:
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
   TURBO_REMOTE_CACHE_READ_ONLY: ${{ github.event_name != 'push' }}
 
 # A new push to a PR cancels that PR's older runs (main, schedules and manual runs never are)
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# read-only by default; a job that needs more says so
+permissions:
+  contents: read
 
 jobs:
   plan:
@@ -49,14 +54,15 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           # `--affected` and the path check diff against the base branch: they need the history
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: pnpm
@@ -68,8 +74,19 @@ jobs:
       - name: No major changeset below 1.0
         run: node .github/scripts/changeset-no-major.ts
 
+      # a tests-report PR (the release workflow's own) carries the report and nothing else
+      - name: A tests-report PR changes only the tests report
+        if: startsWith(github.head_ref, 'chore/tests-report-')
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node .github/scripts/tests-report-only.ts "$BASE_SHA"
+
       - name: Every published package builds on publish
         run: node .github/scripts/publish-builds.ts
+
+      # the workflows' own security lint; a finding is fixed, or ignored inline with its reason
+      - name: Workflow security (zizmor)
+        run: pipx run zizmor==1.32.0 --offline --min-severity low .github/workflows
 
       - name: Plan
         id: plan
@@ -78,6 +95,8 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
           HEAD_REF: ${{ github.head_ref }}
           GH_TOKEN: ${{ github.token }}
 
@@ -87,11 +106,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # Node 22: adapter-vercel rejects unpinned bleeding-edge Node; 22 is a supported runtime.
           node-version: 22
@@ -109,6 +130,9 @@ jobs:
 
       - name: Lint rules' own tests
         run: pnpm run lint:test
+
+      - name: CI scripts' own tests
+        run: pnpm run ci:test
 
       # What `check` would run, asked of turbo first: when every check task is a cache hit, nothing
       # runs a browser (a replay only prints the stored logs), so the browser's setup is skipped.
@@ -138,7 +162,7 @@ jobs:
 
       - name: Playwright browser cache
         if: steps.plan.outputs.skip != 'true'
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
@@ -167,7 +191,7 @@ jobs:
       # remembered: these inputs passed format, lint and every check (the plan leaves the job out next time)
       - name: Remember the pass
         run: echo "${{ needs.plan.outputs.check_hash }}" > .check-pass
-      - uses: actions/cache/save@v6
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .check-pass
           key: check-pass-${{ needs.plan.outputs.check_hash }}
@@ -183,7 +207,7 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.e2e_chromium) }}
-    uses: ./.github/workflows/e2e-slice.yml
+    uses: ./.github/workflows/e2e-slice.yml # zizmor: ignore[self-repository]
     with:
       name: ${{ matrix.name }}
       id: ${{ matrix.id }}
@@ -191,7 +215,9 @@ jobs:
       shard: ${{ matrix.shard }}
       adapters: ${{ matrix.adapters }}
       browser: ${{ matrix.browser }}
-    secrets: inherit
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
   # The runtime's size against the PR's base branch, both measured here with this PR's tool
   # (apps/palaestra/e2e/bundle-size.ts: per page kind, brotli, as a production browser build ships it).
@@ -203,17 +229,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Check out the base branch beside it
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           ref: ${{ github.event.pull_request.base.sha }}
           path: .size-base
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: pnpm
@@ -247,7 +276,7 @@ jobs:
       # remembered: this core build against this base passed (the plan leaves the job out next time)
       - name: Remember the pass
         run: echo "${{ needs.plan.outputs.size_hash }}" > .size-pass
-      - uses: actions/cache/save@v6
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .size-pass
           key: size-pass-${{ needs.plan.outputs.size_hash }}

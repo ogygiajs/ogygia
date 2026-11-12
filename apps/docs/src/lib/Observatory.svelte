@@ -15,7 +15,7 @@
 	import { format_console_args } from './repl/console-format';
 	import { encode_hash, decode_hash } from './repl/hash';
 	import ReplPassthrough from './repl/ReplPassthrough.svelte';
-	// REAL ogygia runtime pieces (NOT stubs): the docs build resolves ogygia's `virtual:ogygia/*` modules,
+	// REAL ogygia runtime pieces (NOT stubs): the docs build resolves ogygia's `ogygia:*` modules,
 	// so — like svelte — we hand the sandboxed eval the host's own linked ogygia. `og_html_region` +
 	// `Region` make the `import.meta.og.code`/`.md` macros render for real. Unknown ogygia named imports
 	// (content wrappers) still fall back to the passthrough.

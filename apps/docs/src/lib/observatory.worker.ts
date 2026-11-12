@@ -325,7 +325,7 @@ function analyze_marks(source: string): {
 		edits.push({
 			start: node.start as number,
 			end: node.end as number,
-			text: `import ${local} from 'virtual:ogygia/wrapper/${id}'; // ${strategy.kind}`
+			text: `import ${local} from 'ogygia:region/wrapper/${id}'; // ${strategy.kind}`
 		});
 	}
 	let output = source;
@@ -347,7 +347,7 @@ function eval_module(
 ): Record<string, unknown> {
 	// A named-import list → a valid destructuring list: `a, b as c` → `a, b: c` (ES `import {b as c}`
 	// aliases to `b`, but object destructuring renames with `:`). The driver's generated modules use
-	// renamed imports (`import { makeRegionEndpoint as __ogRegionSign }`).
+	// renamed imports (`import { make_region_endpoint as __ogRegionSign }`).
 	const names = (list: string) =>
 		list
 			.split(',')
@@ -1348,12 +1348,12 @@ async function driver_render(
 		// The region signer / server-island minter — inert in the preview (no signed endpoints).
 		if (spec === 'ogygia/internal/server')
 			return {
-				makeRegionEndpoint: () => '',
-				mintServerIsland: () => '',
+				make_region_endpoint: () => '',
+				mint_server_region: () => '',
 				known_region_fps: () => new Set()
 			};
-		if (spec === 'virtual:ogygia/island-deps')
-			return { islandCss: () => '', islandDeps: () => [], contentCss: () => '' };
+		if (spec === 'ogygia:server/region-deps')
+			return { region_css: () => '', region_deps: () => [], content_css: () => '' };
 		// A driver-generated region/wrapper/island virtual module → eval its real generated source.
 		const reg = regionByVpath.get(spec);
 		if (reg) {
@@ -1370,11 +1370,7 @@ async function driver_render(
 			});
 		}
 		// Any other ogygia virtual (transportables/fn-manifest/…) → side-effect no-op in the preview.
-		if (
-			spec.startsWith('virtual:ogygia/') ||
-			spec.startsWith('ogygia/') ||
-			spec.startsWith('@ogygia/')
-		)
+		if (spec.startsWith('ogygia:') || spec.startsWith('ogygia/') || spec.startsWith('@ogygia/'))
 			return {};
 		// A workspace component (the region binding + wrapper import it by its `/repl/…` absolute path).
 		const key = spec.replace(/^\/repl\//, '').replace(/^\/+/, '');

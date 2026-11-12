@@ -12,7 +12,8 @@
 import { without_comments as strip_comments, without_runtime_marks } from '../runtime/beacon.ts';
 import type { RegionRefusal } from '../runtime/region-endpoint-url.ts';
 import { hazard_fix, hazard_words, type IslandHazard } from './hydration-hazards.ts';
-import { OWN_PACKAGE_NAMES } from '../own-package.ts';
+import { barrel_left_fix, barrel_left_words, type IslandBarrel } from './barrel-left.ts';
+import { OWN_PACKAGE_NAMES } from '../contract/own-package.ts';
 
 /** markup as a visitor's eyes compare it: no comments (Svelte's re-anchored block markers), no
  *  marks the runtime itself set on the regions inside */
@@ -396,7 +397,7 @@ export interface IslandCode {
 	/** its heaviest modules */
 	top: { file: string; bytes: number }[];
 	/** re-export barrels still imported whole, with the app modules each drags in */
-	barrels: { file: string; fanout: number }[];
+	barrels: IslandBarrel[];
 	/** its components' lines that draw differently in the browser (the dev server read their sources) */
 	hazards?: IslandHazard[];
 }
@@ -1928,14 +1929,16 @@ export function analyze_page(
 	const kb = (n: number) => `${Math.round(n / 1024)} KB`;
 	for (const c of page.island_code ?? []) {
 		const b = c.barrels[0];
-		if (b)
+		if (b) {
+			const why = barrel_left_words(b.why);
 			findings.push({
 				code: 'island-barrel',
 				severity: 'warn',
-				message: `${c.name} still imports a barrel whole: ${b.file}, and the ${b.fanout} modules behind it ride into the island${c.barrels.length > 1 ? ` (and ${c.barrels.length - 1} more barrel${c.barrels.length > 2 ? 's' : ''})` : ''}. A Svelte component is never side-effect free to the bundler, so what the island does not use still ships.`,
-				fix: `Import what the island uses from its own file, or turn on ogygia({ barrels }). If it is on, the build log names why this one was left ("barrels: skipped …").`,
+				message: `${c.name} still imports a barrel whole: ${b.file}, and the ${b.fanout} modules behind it ride into the island${c.barrels.length > 1 ? ` (and ${c.barrels.length - 1} more barrel${c.barrels.length > 2 ? 's' : ''})` : ''}. A Svelte component is never side-effect free to the bundler, so what the island does not use still ships.${why ? ` ${why}.` : ''}`,
+				fix: barrel_left_fix(b.why),
 				fps: c.fp ? [c.fp] : []
 			});
+		}
 		const big = c.top[0];
 		if (big && c.bytes >= 30 * 1024 && big.bytes >= c.bytes * 0.4 && c.top.length > 1)
 			findings.push({
