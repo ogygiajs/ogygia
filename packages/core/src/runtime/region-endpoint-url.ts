@@ -6,6 +6,7 @@ import { class_at, fetch_priority_of, PRIORITY, type LoadClass } from './load-cl
 import { flights, STALE, type Flights } from '@ogygia/machine';
 import { entry_location } from './entry-locations.ts';
 import { import_file } from './import-again.ts';
+import { cache } from '@ogygia/machine';
 
 /** Hoisted (hot paths — connectedCallback/hydrate run per region); shared with core's
  *  foreign-origin checks. */
@@ -165,12 +166,12 @@ export function island_module_url(entry: string, base?: string): string {
 	if (hit !== undefined) return hit;
 	const resolved = new URL(entry, b);
 	const out = resolved.pathname + resolved.search + resolved.hash;
-	if (module_urls.size > 4000) module_urls.clear();
 	module_urls.set(key, out);
 	return out;
 }
-/** A relative entry resolved against its document, by base + entry (asked on every wake and warm). */
-const module_urls = new Map<string, string>();
+/** A relative entry resolved against its document, by base + entry (asked on every wake and warm;
+ *  the least recently asked go first). */
+const module_urls = cache<string, string>({ name: 'island module urls', max: 4000 });
 
 // ── the ONE island-module warmer ─────────────────────────────────────────────
 // Every "get this island's JS into the module cache before it's needed" call site funnels here:
