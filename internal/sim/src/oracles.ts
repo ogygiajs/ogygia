@@ -890,15 +890,16 @@ export function hydrates_as_sent(tab: Tab, world?: World): Broken | null {
 	if (said.length === 0) return null;
 	if (world !== undefined && document_faulted(world, tab)) return null;
 	// (nor when a changed or cut byte reached what a region renders from: a remote function's
-	// answer or a hole's, its props then not what the server rendered; generated app 8, seed 61, a
-	// changed byte in a live query's tick)
+	// answer or a hole's, a peer's deferred widget's too, its props then not what the server
+	// rendered; generated app 8, seed 61, a changed byte in a live query's tick; gen 87, seed 34,
+	// in a widget's `/og/frag`)
 	if (
 		world !== undefined &&
 		world.network.exchanges.some(
 			(e) =>
 				e.from === tab.realm &&
 				(e.tampered || e.cut) &&
-				/^\/(_app\/remote\/|__ogygia__)/.test(new URL(e.url).pathname)
+				/^\/(_app\/remote\/|__ogygia__|og\/frag)/.test(new URL(e.url).pathname)
 		)
 	)
 		return null;
