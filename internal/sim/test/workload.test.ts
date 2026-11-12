@@ -71,6 +71,21 @@ describe('the workload', () => {
 		);
 	});
 
+	it('presses the same button again 0 to 300 ms later (two refreshes, two commands at once)', () => {
+		const r = rng(19);
+		const twice: Action[] = [];
+		for (let i = 0; i < 3000; i++) {
+			const a = next_action(r, 1, ['/', '/a']);
+			if (a.kind === 'twice') twice.push(a);
+		}
+		expect(twice.length).toBeGreaterThan(0);
+		for (const a of twice) if (a.kind === 'twice') expect(a.after).toBeLessThanOrEqual(300);
+		expect(ACTION_KINDS).toContain('twice');
+		expect(say({ kind: 'twice', tab: 0, nth: 2, after: 20 })).toBe(
+			'tab 0: press button #2, then again 20 ms later'
+		);
+	});
+
 	it("a visitor's click is a pointer's: down, up, then the click, as a browser sends them", () => {
 		const window = new Window();
 		const button = window.document.createElement('button');
