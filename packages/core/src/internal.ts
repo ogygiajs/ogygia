@@ -5,7 +5,7 @@
  * `with { wake | render | preset }` and the public exports from `ogygia`.
  *
  * One `Region` renders every placement (island / server / lake) and every held value. Server-island
- * minting is routed through the client-stubbed `virtual:ogygia/region-endpoint` virtual, so `Region`
+ * minting is routed through the client-stubbed `ogygia:server/region-endpoint` virtual, so `Region`
  * lives in the main graph without leaking `$app/server`.
  *
  * @packageDocumentation

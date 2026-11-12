@@ -26,7 +26,7 @@ import MagicString from 'magic-string';
 import { blank_styles } from './blank-styles.ts';
 import { strip_bom } from './bom.ts';
 // the runtime's reader and this writer share the constants
-import { HTML_PARENT_ATTR, OPAQUE_ATTR } from '../runtime/ownership.ts';
+import { HTML_PARENT_ATTR, OPAQUE_ATTR } from '../contract/ownership.ts';
 import type { AstNode } from './parse/oxc.ts';
 
 /** A cheap presence test before parsing: one of the three shapes could be in this file. */
