@@ -530,7 +530,9 @@ export class SpaRouter {
 		return n.navigate(this, url, from, opts, mine);
 	}
 
-	goto(
+	/** A URL it refuses (not http, another origin without `external`, unparsable) rejects the
+	 *  promise, as Kit's goto does: async, so nothing throws out of the call. */
+	async goto(
 		url: string | URL,
 		opts: { replaceState?: boolean; external?: boolean } = {}
 	): Promise<void> {
@@ -541,7 +543,7 @@ export class SpaRouter {
 		if (target.origin !== location.origin) {
 			if (opts.external) {
 				location.assign(target.href);
-				return Promise.resolve();
+				return;
 			}
 			throw new OgygiaError('goto_cross_origin');
 		}
