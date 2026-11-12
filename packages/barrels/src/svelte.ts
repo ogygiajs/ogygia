@@ -7,7 +7,7 @@
  */
 import type MagicString from 'magic-string';
 import { parse } from 'svelte/compiler';
-import { blank_styles } from '@ogygia/core/internal/compiler';
+import { blank_styles } from '@ogygia/compiler';
 import { rewrite_imports, type Lookup, type RewriteMove, type RewritePolicy } from './rewrite.ts';
 
 type SvelteAst = ReturnType<typeof parse>;

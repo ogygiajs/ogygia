@@ -22,7 +22,7 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 **Client check:** `is_allowed_region_endpoint` + final `response.url` origin. Abort in-flight fetches on disconnect.
 
-**Enforced by:** `packages/core/test/audit-fixes.test.ts > allows same-origin relative and absolute; rejects cross-origin`
+**Enforced by:** `packages/compiler/test/audit-fixes.test.ts > allows same-origin relative and absolute; rejects cross-origin`
 
 ---
 
@@ -45,7 +45,7 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 - Put secrets in defer props and expect the URL to hide them — use Referrer-Policy (`no-referrer` on region responses) and keep secrets out of captured props.
 - Move props into `localStorage` “for confidentiality” — XSS then reads all of them.
 
-**Enforced by:** `packages/core/test/region-mac.test.ts > rejects expiry or props tampering`, `packages/core/test/capability-expiry.test.ts > is always valid for more than ttl/2 and at most ttl`
+**Enforced by:** `packages/compiler/test/region-mac.test.ts > rejects expiry or props tampering`, `packages/core/test/capability-expiry.test.ts > is always valid for more than ttl/2 and at most ttl`
 
 ---
 
@@ -59,7 +59,7 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 **Do not:** Strip `data` by default without an opt-in API for islands that read `page.data` (would break real apps).
 
-**Enforced by:** `packages/core/test/audit-fixes.test.ts > escapes lt and falls back when data is non-serializable`, `packages/core/test/document-seed.test.ts`
+**Enforced by:** `packages/compiler/test/audit-fixes.test.ts > escapes lt and falls back when data is non-serializable`, `packages/core/test/document-seed.test.ts`
 
 ---
 
@@ -69,11 +69,11 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 **Why:** Browsers must never mint capabilities. Multi-instance deploys without a shared env need the baked fallback so all replicas agree. Domain-separated keys + length-prefixed fields close classic MAC footguns without requiring the env var on every local demo.
 
-A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a signing secret, or a chunk holds a module that signs. Messages are `v2|` (the render id signed too) for every current mint; `v1|` is still verified so pages cached before an upgrade keep their holes.
+A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a signing secret, or a chunk holds a module that signs. Messages are `v2|` (the render id signed too) for every current mint of a hole that does not wake, and `v3|` (the "wakes" mark `w=1` signed too, so the endpoint renders the answer inside an island, as its hydrate does) for one that does; `v1|` is still verified so pages cached before an upgrade keep their holes.
 
 **Do not:** Embed the real secret in a client chunk. Fail production builds only when you are ready to require env everywhere (local demos still need the fallback). Change the MAC version string without a deliberate invalidate of in-flight capability URLs.
 
-**Enforced by:** `packages/core/test/region-mac.test.ts > length-prefixes so embedded nulls cannot shift field boundaries`, `packages/core/test/signing-key.test.ts > falls back to the build key without a runtime OGYGIA_SECRET`
+**Enforced by:** `packages/compiler/test/region-mac.test.ts > length-prefixes so embedded nulls cannot shift field boundaries`, `packages/core/test/signing-key.test.ts > falls back to the build key without a runtime OGYGIA_SECRET`
 
 ---
 
@@ -85,7 +85,7 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 **Do not:** Charge the render budget before verify. Charge a batch once for all its holes. Trust `X-Forwarded-For` when `getClientAddress()` fails — fail closed (429).
 
-**Enforced by:** `apps/palaestra/e2e/region-rate.spec.ts > a forged flood is all 403, never 429, and a valid request still serves after it`, `packages/core/test/audit-fixes.test.ts > documents render-rate contract: junk must not call render limited()`
+**Enforced by:** `apps/palaestra/e2e/region-rate.spec.ts > a forged flood is all 403, never 429, and a valid request still serves after it`, `packages/compiler/test/audit-fixes.test.ts > documents render-rate contract: junk must not call render limited()`
 
 ---
 
@@ -123,6 +123,8 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 **Do not:** Re-enable “keep all module scripts” without a runtime marker. Prefer HTTP CSP headers over CSP meta (meta is mergeable).
 
+**Owned head tags:** a head tag a region writes (its region sheets, the `ogygia-kit-island` stamp) names its owner, `data-og-owner` = the outermost island’s fingerprint. The server skips a region the browser already has (`x-ogygia-known`) and every tag its inner regions write with it, so the merge keeps an unlisted owned tag while a region with that fingerprint stays (`release_head_nodes`, #806, `e2e/head-owner-kept.spec.ts`).
+
 **Enforced by:** `rule_head_adopted`, `packages/core/test/browser/spa-head-deny.test.ts > a fetched page’s <base> and refresh / CSP / cookie metas are never adopted, in any case`
 
 ---
@@ -135,7 +137,7 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 **Do not:** Remove shims to “fix” shared-module confusion — that pulls the Kit router into island chunks. Isolate with `?ogygia-island` only as a careful follow-up.
 
-**Enforced by:** `packages/core/test/island-closure-alias.test.ts > the marked script helper leaves the client transform importing the SHIM`, `packages/core/test/kit-shim-surface.test.ts`
+**Enforced by:** `packages/compiler/test/island-closure-alias.test.ts > the marked script helper leaves the client transform importing the SHIM`, `packages/core/test/kit-shim-surface.test.ts`
 
 ---
 
@@ -147,7 +149,7 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 **Do not:** Import lakes through dynamic components that add comment envelopes the restore path cannot round-trip (LAKE-ENVELOPE).
 
-**Enforced by:** `packages/core/test/audit-fixes.test.ts > rewrites default lake imports`, `apps/palaestra/e2e/lakes.spec.ts > /lakes: frozen region, island-in-lake, inert lake button, remount cache + swr`
+**Enforced by:** `packages/compiler/test/audit-fixes.test.ts > rewrites default lake imports`, `apps/palaestra/e2e/lakes.spec.ts > /lakes: frozen region, island-in-lake, inert lake button, remount cache + swr`
 
 ---
 
@@ -188,8 +190,10 @@ only sends keys + skips invalidate — without `requested`, the POST has no `q` 
 ## QUERY-LIVE — Kit owns SSE
 
 **What:** `query.live` is Kit’s remote SSE. Ogygia reuses Kit’s client remote primitives. On SPA
-body swap: clear SSR seeds _before_ `replaceWith` (old islands still mounted); clear
-`query_map` / `live_query_map` _after_ (old disconnected, new hydrates still awaiting).
+body swap: clear SSR seeds _before_ `replaceWith` (old islands still mounted); _after_ it (old
+disconnected, kept ones still in the page, new hydrates still awaiting), release the
+`query_map` / `live_query_map` entries whose holders all left. A holder is a region whose island
+looked the entry up or made it while it hydrated; an entry no island held is Kit’s to keep.
 The remote cache singleton lives on `globalThis` so Vite duplicate-module loads still share maps.
 
 **Why:** Abort on `request.signal` is Kit’s job. Infinite `while (true)` generators are normal;
@@ -199,9 +203,11 @@ never opens SSE again (stuck on pending / “connecting…”). Clearing too ear
 the runtime chunk and island graph resolve the shim to different module ids.
 
 **Do not:** Treat public demo `query.live` as an ogygia ServerIsland vulnerability. Do not clear
-instance maps in `prepare_spa_document` (pre-swap).
+instance maps in `prepare_spa_document` (pre-swap). Do not clear them whole after the swap either:
+a kept island’s live query then freezes and its next read throws (#817,
+`e2e/live-query-kept.spec.ts`, `test/remote-cache-holders.test.ts`).
 
-**Enforced by:** `packages/core/test/audit-fixes.test.ts > clear_remote_seeds leaves live/query instance maps intact`, `packages/core/test/audit-fixes.test.ts > remote_cache is shared via globalThis across re-imports`
+**Enforced by:** `packages/compiler/test/audit-fixes.test.ts > clear_remote_seeds leaves live/query instance maps intact`, `packages/compiler/test/audit-fixes.test.ts > remote_cache is shared via globalThis across re-imports`
 
 ---
 
@@ -221,7 +227,19 @@ instance maps in `prepare_spa_document` (pre-swap).
 - Strip a layout when ANY page below it is csr=false.
 - Skip `clear_route_csr_cache()` on dev route-topology changes — the watcher covers `+page/+layout(.server).(svelte|js|ts)`.
 
-**Enforced by:** `packages/core/test/route-csr.test.ts` (declaration forms × chain shapes × layout folds × cache, plus the transform strip/keep seam), `apps/palaestra/e2e/deep-csr.spec.ts` (real build of internal/repro-deep-csr, browser truth in both worlds).
+**Enforced by:** `packages/compiler/test/route-csr.test.ts` (declaration forms × chain shapes × layout folds × cache, plus the transform strip/keep seam), `apps/palaestra/e2e/deep-csr.spec.ts` (real build of internal/repro-deep-csr, browser truth in both worlds).
+
+---
+
+## CONTEXT-CURSOR — one slot for the region being hydrated
+
+**What:** The region the runtime is hydrating (the anchor a cross-island `context.get()` walks up from) and the foreign island it is delegating to another build (`set_foreign_hydrate`) each live on one `globalThis` slot under a `Symbol.for` key (`packages/core/src/current-region.ts`). The runtime writes them; the context feature and the `$app/*` shims read them.
+
+**Why:** The context feature is bundled apart from the runtime, and a federated island's build is another bundle again: each has its own copy of the module. A module-level variable would be one slot per copy, so the reader would see `null` while the runtime is hydrating, and a nested `get()` would find no context.
+
+**Do not:** Keep the cursor in a module variable or behind an import the other bundle does not share. Move it into a module with heavy imports (it lives alone so the boot stays small).
+
+**Enforced by:** `packages/core/test/current-region-slot.test.ts > two copies of the module share the region being hydrated, and the foreign island`
 
 ---
 

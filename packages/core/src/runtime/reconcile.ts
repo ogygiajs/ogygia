@@ -21,7 +21,7 @@
 
 import { dispose_ids } from '../ref.ts';
 import { boot_link, morph_sync_attributes, slots } from './slots.ts';
-import { region_owned_ids } from './region-ids.ts';
+import { ids_released } from './region-ids.ts';
 import { emit as dt_emit } from '../events/bus.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
@@ -127,9 +127,30 @@ export function region_props_fp(el: Element): string {
 const RECONCILE_KEY = 'data-key';
 
 /** Stamp reconcile keys onto a root's regions + keep-chrome, without clobbering an authored key/id.
- *  A region's key is signature+fingerprint (patch on either change); keep-chrome keys by keep name. */
+ *  A region's key is its identity (fingerprint, or signature for a persisted one) plus which copy of
+ *  it it is; keep-chrome keys by keep name. */
 export function stamp_region_keys(root: ParentNode): void {
-	for (const el of root.querySelectorAll('ogygia-region')) {
+	const regions = root.querySelectorAll('ogygia-region');
+	// A key names ONE region: identical regions (same component, same props) share a fingerprint, and
+	// a shared key let the morph match both to one node, so a page left with two of them kept one
+	// (#807). The first copy keeps the bare identity, a later copy adds its place among the copies in
+	// document order, the same on the live page and the incoming one. Keys already stamped (a region
+	// kept from an earlier navigation) are taken first, so a new copy never repeats one.
+	const taken = new Set<string>();
+	for (const el of regions) {
+		const k = el.getAttribute(RECONCILE_KEY);
+		if (k !== null) taken.add(k);
+	}
+	const copies = new Map<string, number>();
+	const stamp = (el: Element, identity: string): void => {
+		let n = copies.get(identity) ?? 0;
+		let key = n === 0 ? identity : identity + ' ' + n;
+		while (taken.has(key)) key = identity + ' ' + ++n;
+		copies.set(identity, n + 1);
+		taken.add(key);
+		el.setAttribute(RECONCILE_KEY, key);
+	};
+	for (const el of regions) {
 		if (el.getAttribute(RECONCILE_KEY) !== null || el.id !== '') continue;
 		// A KEPT region (keep:'name' / data-persist) keys by its STABLE identity so a props change
 		// (e.g. a `track` prop following the route) KEEPS the live island and prop-pushes the new
@@ -139,12 +160,12 @@ export function stamp_region_keys(root: ParentNode): void {
 		if (keep !== null) {
 			el.setAttribute(RECONCILE_KEY, 'k ' + keep);
 		} else if (el.hasAttribute('data-persist')) {
-			el.setAttribute(RECONCILE_KEY, 'p ' + region_signature(el));
+			stamp(el, 'p ' + region_signature(el));
 		} else {
 			// One identity: the 64-bit fingerprint alone. It already hashes entry + endpoint + props,
 			// so the old signature+fp encoded entry twice — the fp is the whole key now, and 64 bits
 			// makes a cross-slot collision a non-risk.
-			el.setAttribute(RECONCILE_KEY, 'r ' + region_props_fp(el));
+			stamp(el, 'r ' + region_props_fp(el));
 		}
 	}
 	for (const el of root.querySelectorAll('[data-ogygia-keep]')) {
@@ -239,19 +260,18 @@ export function reconcile_body(
 	sync_body_attributes(live, next);
 	if (DEVTOOLS) dt_emit_reconcile(live, next);
 	// R3 SELECTIVE DISPOSE: a reconcile keeps matched islands, so it can't blanket-dispose the page
-	// scope. Collect the ids owned by REMOVED regions (live keys absent from next — a patched region
-	// counts here too, its fp-key changed) so we can tear down exactly those after the morph.
+	// scope. Collect the REMOVED regions (live keys absent from next — a patched region counts here
+	// too, its fp-key changed) so we can tear down what only they owned after the morph.
 	const next_keys = new Set<string>();
 	for (const el of next.querySelectorAll('ogygia-region')) {
 		const k = el.getAttribute('data-key');
 		if (k !== null) next_keys.add(k);
 	}
-	const removed_ids: string[] = [];
+	const departed: Element[] = [];
 	for (const el of live.querySelectorAll('ogygia-region')) {
 		const k = el.getAttribute('data-key');
 		if (k !== null && next_keys.has(k)) continue; // kept/matched — its ids survive
-		const set = region_owned_ids(el);
-		if (set !== undefined) for (const id of set) removed_ids.push(id);
+		departed.push(el);
 	}
 	// PROP-PUSH for KEPT regions (the persist contract): a kept region's live island stays mounted,
 	// so morph never delivers the new page's props to it. Before morph discards the incoming nodes,
@@ -264,7 +284,9 @@ export function reconcile_body(
 	renew_server_body(live, next, own);
 	// REMOVED regions are gone from the DOM now — tear down their page-scoped hub instances
 	// (session-aliased continuity instances are skipped inside dispose_ids).
-	if (removed_ids.length > 0) dispose_ids(removed_ids);
+	// An id a kept region also owns (one object shared by two regions) stays with it (#815).
+	const released = ids_released(departed, live);
+	if (released.length > 0) dispose_ids(released);
 }
 
 /**
