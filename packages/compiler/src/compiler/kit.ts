@@ -299,8 +299,18 @@ function read_route_config_uncached(
 const CONFIG_FILES_PAGE = ['+page.server.js', '+page.server.ts', '+page.js', '+page.ts'];
 const CONFIG_FILES_LAYOUT = ['+layout.server.js', '+layout.server.ts', '+layout.js', '+layout.ts'];
 
-const OPTION_FILES_PAGE = ['+page.js', '+page.ts', '+page.server.js', '+page.server.ts'];
-const OPTION_FILES_LAYOUT = ['+layout.js', '+layout.ts', '+layout.server.js', '+layout.server.ts'];
+const PAGE_UNIVERSAL = ['+page.js', '+page.ts'];
+const PAGE_SERVER = ['+page.server.js', '+page.server.ts'];
+const LAYOUT_UNIVERSAL = ['+layout.js', '+layout.ts'];
+const LAYOUT_SERVER = ['+layout.server.js', '+layout.server.ts'];
+
+/** A route node's own `csr`, as Kit reads it: the universal module's, else the server module's. */
+function own_csr(dir: string, universal: string[], server: string[]) {
+	let csr; // undefined = not set on this node
+	for (const f of server) csr = read_csr(path.join(dir, f)) ?? csr;
+	for (const f of universal) csr = read_csr(path.join(dir, f)) ?? csr;
+	return csr;
+}
 
 const SCRIPT_FILE_RE = /\.[cm]?[jt]s$/;
 
@@ -330,18 +340,9 @@ function own_chain_csr_false(hostFile: string, routesDir: string, layouts_only =
 		cur = path.join(cur, p);
 		chain.push(cur);
 	}
-	for (const d of chain) {
-		for (const f of OPTION_FILES_LAYOUT) {
-			const v = read_csr(path.join(d, f));
-			if (v !== undefined) csr = v;
-		}
-	}
-	if (!layouts_only && is_route_component(path.basename(hostFile), 'page')) {
-		for (const f of OPTION_FILES_PAGE) {
-			const v = read_csr(path.join(dir, f));
-			if (v !== undefined) csr = v;
-		}
-	}
+	for (const d of chain) csr = own_csr(d, LAYOUT_UNIVERSAL, LAYOUT_SERVER) ?? csr;
+	if (!layouts_only && is_route_component(path.basename(hostFile), 'page'))
+		csr = own_csr(dir, PAGE_UNIVERSAL, PAGE_SERVER) ?? csr;
 	return csr === false;
 }
 
@@ -627,25 +628,6 @@ export function clear_route_csr_cache(): void {
 // invisible to the skip detection itself — otherwise its own csr=true node would mask whether the
 // USER's real routes are all csr=false.
 export const KEEP_CLIENT_DIR = '.ogygia-keep-client';
-
-const PAGE_UNIVERSAL = ['+page.js', '+page.ts'];
-const PAGE_SERVER = ['+page.server.js', '+page.server.ts'];
-const LAYOUT_UNIVERSAL = ['+layout.js', '+layout.ts'];
-const LAYOUT_SERVER = ['+layout.server.js', '+layout.server.ts'];
-
-/** A node's OWN csr (server module then universal wins), independent of the layout chain. */
-function own_csr(dir: string, universal: string[], server: string[]) {
-	let csr; // undefined = not set on this node
-	for (const f of server) {
-		const v = read_csr(path.join(dir, f));
-		if (v !== undefined) csr = v;
-	}
-	for (const f of universal) {
-		const v = read_csr(path.join(dir, f));
-		if (v !== undefined) csr = v;
-	}
-	return csr;
-}
 
 /**
  * Collects every route node's EFFECTIVE csr the way Kit does — a node exists per `+page` and per
