@@ -250,6 +250,13 @@ export class CompileCtx {
 		return false;
 	}
 
+	/** True for the app's own source (anything not installed: the app, its workspace packages,
+	 *  virtual modules) and for a dependency's declared `ogygia.files`. */
+	is_own_source(id: string): boolean {
+		const p = id.split(BACKSLASH_SEP).join('/');
+		return !p.includes('/node_modules/') || this.in_declared_pkg(p);
+	}
+
 	/** Install-independent region identity for a file under a declared package: `<name>/<rel>`.
 	 *  Store paths carry version + peer-resolution hashes (`node_modules/.pnpm/pkg@1.2.3(...)`),
 	 *  so a root-relative identity would change per install/machine and prod HTML would stop

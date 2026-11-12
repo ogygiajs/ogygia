@@ -30,6 +30,7 @@ import {
 } from './seeds.ts';
 import type { HistoryEntry, HistoryMove, SpaRouter } from './router.ts';
 import { spa_html_cacheable } from './spa-cacheable.ts';
+import { is_dangerous_head_node } from './head-deny.ts';
 import { pin_region_urls } from './entry-locations.ts';
 import { emit as dt_emit } from '../events/bus.ts';
 
@@ -37,6 +38,11 @@ import { emit as dt_emit } from '../events/bus.ts';
 // never imports a boot module (./slots.ts `BootLink`: a module both import is split out of the runtime
 // chunk). The router's helpers exist only with the router feature; the MPA `invalidateAll` path (no
 // router) touches none of them.
+// (rules on: `rule_head_adopted` checks the head with this chunk's own deny, ./rules.ts)
+(globalThis as { __og_head_deny?: (deny: typeof is_dangerous_head_node) => void }).__og_head_deny?.(
+	is_dangerous_head_node
+);
+
 const KitBoot = { document_has: (doc: ParentNode) => boot_link().KitBoot.document_has(doc) };
 const regions_in_shadow = () => boot_link().regions_in_shadow();
 const release_sheets = (unlisted: readonly Element[]) => boot_link().release_sheets(unlisted);
@@ -429,23 +435,6 @@ function focus_reset(el: HTMLElement) {
 
 /** The elements whose `tabindex` a navigation's focus lent until they blur, with their own value. */
 const lent = new WeakMap<HTMLElement, string | null>();
-
-/** Head nodes that must never be adopted from SPA HTML (rewrite relative fetches / CSP). */
-function is_dangerous_head_node(node: Element): boolean {
-	const tag = node.tagName;
-	if (tag === 'BASE') return true;
-	if (tag === 'META') {
-		const http_equiv = (node.getAttribute('http-equiv') || '').toLowerCase();
-		if (
-			http_equiv === 'refresh' ||
-			http_equiv === 'content-security-policy' ||
-			http_equiv === 'content-security-policy-report-only'
-		) {
-			return true;
-		}
-	}
-	return false;
-}
 
 // ── navigation state (one per document lifetime, module-level: this chunk loads once) ──────────
 /** A page as a fetch got it: its HTML and the address it belongs to (where the fetch landed, after

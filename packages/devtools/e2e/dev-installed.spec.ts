@@ -30,6 +30,7 @@ let srv: SpawnedServer | null = null;
 function real(name: string): string {
 	for (const dir of [
 		path.join(core, 'node_modules'),
+		path.join(repo, 'packages', 'compiler', 'node_modules'),
 		path.join(repo, 'packages', 'devtools', 'node_modules'),
 		path.join(repo, 'packages', 'devtools', 'e2e', 'app', 'node_modules'),
 		path.join(repo, 'node_modules')
@@ -103,6 +104,8 @@ test.describe('dev: an installed (not linked) ogygia runs as one copy in the bro
 		};
 		unpack(pkg, path.join(nm, 'ogygia'));
 		unpack(core, path.join(nm, '@ogygia', 'core'));
+		// (ogygia's other half: the compiler and its build-time dependencies)
+		unpack(path.join(repo, 'packages', 'compiler'), path.join(nm, '@ogygia', 'compiler'));
 		// (core's own dependency, released with it)
 		unpack(path.join(repo, 'packages', 'machine'), path.join(nm, '@ogygia', 'machine'));
 		unpack(path.join(repo, 'packages', 'devtools'), path.join(nm, '@ogygia', 'devtools'));

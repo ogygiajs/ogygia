@@ -325,6 +325,17 @@ export type BakeOptions = {
 	root: string;
 };
 
+/** Does `src` hold a real `import.meta.og.bake(…)` call (not a marker in a string or comment)?
+ *  Reads only: nothing is bundled or run. A malformed call counts as a call. */
+export function has_bake_call(src: string, id: string, markupExts: readonly string[]): boolean {
+	if (!src.includes(MARKER)) return false;
+	try {
+		return (scan(src, id, markupExts)?.calls.length ?? 0) > 0;
+	} catch {
+		return true; // ok: scan throws only on a bake call of the wrong shape: still a call
+	}
+}
+
 /**
  * Rewrite every `import.meta.og.bake(fn)` in `src` to its inlined, devalue-serialized result. ASYNC
  * (bundles + executes). Returns the input unchanged (same reference) when there is nothing to do.
