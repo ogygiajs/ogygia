@@ -123,8 +123,11 @@ describe('normalize', () => {
 });
 
 describe('known', () => {
-	it("#993's hole without its page's data, on either side (gen 175, seed 175003)", () => {
-		const k = KNOWN.find((x) => x.issue === 993)!;
+	// (each entry goes when its fix lands: a regression of a fixed bug fails a run again)
+	const excused = (shown: string, fresh: string) =>
+		KNOWN.filter((k) => k.applies(shown, fresh)).map((k) => k.issue);
+
+	it("a hole without its page's data is a finding again: #993 and #995 are fixed (gen 175, seed 175003)", () => {
 		const page = (who: string[]) =>
 			[
 				'title: ',
@@ -136,11 +139,21 @@ describe('known', () => {
 				'      <span>',
 				'        "n19"'
 			].join('\n');
-		const shown = page([]);
-		const fresh = page(['"p2 data"']);
-		expect(k.applies(shown, fresh)).toBe(true);
-		expect(k.applies(fresh, fresh)).toBe(false);
-		expect(k.forgive(shown, fresh)).toBe(k.forgive(fresh, shown));
+		expect(excused(page([]), page(['"p2 data"']))).toEqual([]);
+	});
+
+	it("a peer widget missing from the tab is a finding again: #937 is fixed (gen 157)", () => {
+		const page = (widget: string[]) =>
+			['title: ', '<html>', '  <body>', ...widget.map((l) => `    ${l}`)].join('\n');
+		const widget = ['<section data-gen="widget">', '  "w1"'];
+		expect(excused(page([]), page(widget))).toEqual([]);
+	});
+
+	it("a peer's stylesheet left in the head is a finding again: #966 is fixed (gen 158)", () => {
+		const page = (sheet: string[]) =>
+			['title: ', '<html>', '  <head>', ...sheet.map((l) => `    ${l}`), '  <body>'].join('\n');
+		const sheet = '<link crossorigin="" href="https://peer.test/a.css" rel="stylesheet">';
+		expect(excused(page([sheet]), page([]))).toEqual([]);
 	});
 
 	it("#1039's sheet link inside a held region, on one side (gen 194, seed 72)", () => {
@@ -166,18 +179,6 @@ describe('known', () => {
 		expect(k.forgive(shown, fresh)).toBe(fresh);
 	});
 
-	it("#995's is seen in a document that sent a hole batch (gen 190, seed 190007)", () => {
-		const k = KNOWN.find((x) => x.issue === 995)!;
-		const world = (method: string) =>
-			({
-				network: {
-					exchanges: [{ from: 'tab-1#1', method, url: 'https://app.test/__ogygia__' }]
-				}
-			}) as unknown as World;
-		const tab = { realm: 'tab-1#1' } as unknown as Parameters<NonNullable<typeof k.seen>>[1];
-		expect(k.seen!(world('POST'), tab)).toBe(true);
-		expect(k.seen!(world('GET'), tab)).toBe(false);
-	});
 });
 
 describe('every region shows something', () => {
@@ -203,6 +204,30 @@ describe('every region shows something', () => {
 		expect(found?.oracle).toBe('empty-region');
 		expect(found?.detail).toContain('entry="e2"');
 		expect(found?.detail).not.toContain('entry="e1"');
+	});
+
+	it('finds an empty peer region, answered or refused by another deployment: #937 and #1007 are fixed (gen 195, seed 31)', async () => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/p0' });
+		w.document.write(
+			'<html><body><ogygia-region render="defer" endpoint="/og/frag?slot=1" data-hydrated=""></ogygia-region><ogygia-region render="defer" endpoint="/og/frag?slot=2"></ogygia-region></body></html>'
+		);
+		const tab = {
+			realm: 'tab-1#1',
+			name: 'tab-1',
+			documents: 1,
+			page: { mainFrame: { url: 'https://app.test/p0', document: w.document } }
+		} as unknown as Parameters<typeof regions_show>[0];
+		const world = {
+			fired_in: new Map(),
+			network: { exchanges: [] },
+			skewed_for: () => false,
+			frag_refused: new Set(['tab-1#1'])
+		} as unknown as Parameters<typeof regions_show>[1];
+		const found = regions_show(tab, world);
+		expect(found?.oracle).toBe('empty-region');
+		expect(found?.detail).toContain('data-hydrated=""');
+		expect(found?.detail.split('\n')).toHaveLength(2);
 	});
 });
 
