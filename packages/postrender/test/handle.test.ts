@@ -21,6 +21,7 @@ import type { PostrenderEntry, PostrenderStore } from '../src/types.ts';
 const env = vi.hoisted(() => ({ dev: false }));
 vi.mock('$app/env', () => ({
 	building: false,
+	version: 'test',
 	get dev() {
 		return env.dev;
 	}
