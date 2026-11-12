@@ -72,6 +72,24 @@
 		"to": ""
 	},
 	{
+		"id": "idle-fallback-never-fires",
+		"file": "packages/core/src/runtime/core.ts",
+		"line": 1669,
+		"code": "s.timeout(() => fire(), 200);",
+		"operator": "statement",
+		"from": "s.timeout(() => fire(), 200);",
+		"to": ""
+	},
+	{
+		"id": "hidden-document-waits-for-a-frame",
+		"file": "packages/core/src/runtime/schedule.ts",
+		"line": 286,
+		"code": "if (document.visibilityState === 'hidden' || typeof requestAnimationFrame !== 'function')",
+		"operator": "logical",
+		"from": "||",
+		"to": "&&"
+	},
+	{
 		"id": "head-page-copy-kept",
 		"file": "packages/core/src/runtime/hydrate-core.ts",
 		"line": 741,

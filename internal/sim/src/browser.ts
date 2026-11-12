@@ -51,6 +51,9 @@ export interface Tab {
 	/** Behind another of its visitor's tabs (`Browsers.focus`): its document's `visibilityState` is
 	 *  `hidden`, and its animation frames wait until it is shown, as a browser's do. */
 	hidden: boolean;
+	/** The realms of its documents that were ever shown (a document loaded behind and never looked
+	 *  at is not among them). */
+	readonly seen: Set<string>;
 	/** What the shown document holds now (the leak oracle's sample). */
 	held(): Held;
 	/** The listeners it holds, each as `window|document <type> <its code's hash>` (with
@@ -325,6 +328,7 @@ export class Browsers {
 		};
 		const p = platform(options);
 		install(window, p);
+		if (!tab.hidden) tab.seen.add(tab.realm);
 		// (a tab behind another says so, as a browser's does: `Browsers.focus`)
 		for (const [key, value] of [
 			['visibilityState', () => (tab.hidden ? 'hidden' : 'visible')],
@@ -651,7 +655,10 @@ export class Browsers {
 			const doc = t.page.mainFrame.document as unknown as Document;
 			const view = doc.defaultView as (Window & typeof globalThis) | null;
 			if (view) doc.dispatchEvent(new view.Event('visibilitychange'));
-			if (!hidden) t.platform?.shown();
+			if (!hidden) {
+				t.seen.add(t.realm);
+				t.platform?.shown();
+			}
 		}
 		return was_hidden;
 	}
@@ -671,6 +678,7 @@ export class Browsers {
 			console: [],
 			platform: null,
 			hidden: false,
+			seen: new Set(),
 			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 }),
 			listening: () => [],
 			watching: () => [],

@@ -361,7 +361,12 @@ export async function run(
 					no_foreign_html(t),
 					page_rules(t, world),
 					leaks.check(t, pressed.get(t.name) === t.documents),
-					live_events(t, world)
+					live_events(t, world),
+					// (a document loaded behind another tab and never looked at is at rest once the world
+					// is: its islands wake all the same, with no frame to wait for. One that was shown may
+					// have asked for a frame just before it went behind, which waits until it is shown
+					// again, as a browser's does; gen 262, seed 11)
+					t.hidden && !t.seen.has(t.realm) ? islands_wake(t, world) : null
 				])
 					// (a known one once: it is told again after every action while the bug stands)
 					if (b && !(b.oracle === 'known' && broken.some((k) => k.detail.endsWith(b.detail))))
@@ -450,8 +455,9 @@ export async function run(
 					// (and no hole that wakes on its own still shows its fallback, pressed or not: a press
 					// changes what a region shows, never whether a hole is owed its answer)
 					fallback_stands(t, world),
-					// (and no island that wakes on its own still sleeps: its twin for islands)
-					islands_wake(t, world),
+					// (and no island that wakes on its own still sleeps: its twin for islands. Not in a
+					// document behind another that was shown before: a frame it asked for then waits)
+					t.hidden && t.seen.has(t.realm) ? null : islands_wake(t, world),
 					// (and every live region was heard announcing the tick it shows, pressed or not: a press
 					// changes a button's own count, which the oracle leaves out, never a tick)
 					live_events(t, world),
