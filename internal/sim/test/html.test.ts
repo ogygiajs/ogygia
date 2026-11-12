@@ -49,7 +49,7 @@ describe('html sent', () => {
 		]);
 	});
 
-	it("sets aside a page whose server's hop for it the network tampered with or cut (gen 178)", async () => {
+	it("sets aside a page whose server's hop for it the network tampered with (gen 178)", async () => {
 		// (a mounted peer page passes on the peer's bytes: a changed byte on the hop is no bad HTML)
 		const hop = (fault: 'tampered' | 'cut' | null) => ({
 			id: 2,
@@ -77,7 +77,8 @@ describe('html sent', () => {
 				network: { exchanges: [hop(fault)] }
 			}) as unknown as World;
 		expect(await html_sent(world('tampered'))).toBe(null);
-		expect(await html_sent(world('cut'))).toBe(null);
+		// (a cut hop is a failure the app must answer well: still judged)
+		expect((await html_sent(world('cut')))?.oracle).toBe('html-sent');
 		expect((await html_sent(world(null)))?.oracle).toBe('html-sent');
 	});
 
