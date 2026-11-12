@@ -81,12 +81,18 @@ import {
 	MIN_SECRET_BYTES
 } from './server/hmac.ts';
 import { expiry_refusal, note_cache_control } from './server/shared-cache.ts';
-import { app_lifetime } from './server/region-endpoint.ts';
+import { app_lifetime, server_delta_on } from './server/region-endpoint.ts';
 import { render_cache_key, cached_render, type RenderKey } from './server/render-cache.ts';
 import { render as render_policy } from './policies.ts';
-import { install_server_rules } from './server/rules.ts';
+import { install_server_rules, note_region_answer } from './server/rules.ts';
 import { B64Url } from './server/payload.ts';
-import { REF_WIRE_KEY, ref_reviver } from './ref.ts';
+import {
+	REF_WIRE_KEY,
+	ref_names,
+	ref_reviver,
+	set_ref_names_reader,
+	type RefNames
+} from './ref.ts';
 import type { RequestContext } from './plugin/index.ts';
 import { current_facts, facts_of, set_current_request, type RequestFacts } from './plugin/facts.ts';
 import { observe_reads } from './plugin/reads.ts';
@@ -331,6 +337,16 @@ set_ctx_recorder((key, value) => {
 const doc_asks = new WeakMap<Request, { wanted: boolean; keys: SeedKeys | null }>();
 const request_of = () =>
 	(try_get_request_store() as { event?: RequestEvent } | undefined)?.event?.request;
+// THE NAMES OF A RENDER (ref.ts RefNames): every ref one request mints is named by it, off the same
+// `Request` — any request, page or hole or remote call, so two answers in one tab never share an id.
+const ref_names_of = new WeakMap<Request, RefNames>();
+set_ref_names_reader(() => {
+	const request = request_of();
+	if (!request) return null;
+	let names = ref_names_of.get(request);
+	if (names === undefined) ref_names_of.set(request, (names = ref_names()));
+	return names;
+});
 set_ask_scope_opener(() => {
 	const request = request_of();
 	if (request && !bags.has(request) && !doc_asks.has(request))
@@ -525,13 +541,15 @@ const REGION_FRAME_HEADERS = {
 	'Referrer-Policy': 'no-referrer'
 } as const;
 
+/** Every region response, with those headers. It says how it may be cached: `no-store` (a refusal,
+ *  an error, a dynamic hole) unless the caller names the hole's own policy (PRELOAD-CACHE). */
 function region_response(
 	body: BodyInit | null,
 	init: { status: number; headers?: Record<string, string> }
 ) {
 	return new Response(body, {
 		status: init.status,
-		headers: { ...REGION_FRAME_HEADERS, ...init.headers }
+		headers: { ...REGION_FRAME_HEADERS, 'cache-control': 'no-store', ...init.headers }
 	});
 }
 
@@ -948,9 +966,12 @@ class OgygiaHandle {
 				}
 			// with the app's own pass a router-fetched page is rendered as an answer (`#pass_document`):
 			// a shared cache must keep the two forms apart
-			if (pass && (response.headers.get('content-type') ?? '').includes('text/html'))
+			// and with server-delta navigation, a router-fetched page skips the regions it names
+			// (`x-ogygia-known`): never the copy a visitor who asked for the whole page gets
+			const delta = server_delta_on();
+			if ((pass || delta) && (response.headers.get('content-type') ?? '').includes('text/html'))
 				try {
-					response.headers.append('vary', 'x-ogygia-spa');
+					response.headers.append('vary', delta ? 'x-ogygia-spa, x-ogygia-known' : 'x-ogygia-spa');
 				} catch {
 					// ok: immutable headers; the app's platform's headers win
 				}
@@ -1010,8 +1031,12 @@ class OgygiaHandle {
 		}
 		// POST to the endpoint = a BATCH frame stream (client-side navigation, single-flight): render a set
 		// of signed region calls and flush each as an out-of-order frame in one response.
-		if (event.request.method.toUpperCase() === 'POST') return this.render_batch(event);
-		return this.render_region(event);
+		const answer =
+			event.request.method.toUpperCase() === 'POST'
+				? await this.render_batch(event)
+				: await this.render_region(event);
+		if (RULES) note_region_answer(event.url.pathname, answer);
+		return answer;
 	}
 
 	/**
@@ -1027,9 +1052,8 @@ class OgygiaHandle {
 			return region_denied('cross-site');
 		const ip = client_ip(event);
 		if (!ip) return region_response('Too Many Requests', { status: 429 });
-		if (this.probe_rate.limited(ip) || this.render_rate.limited(ip)) {
-			return region_response('Too Many Requests', { status: 429 });
-		}
+		// (each hole is charged as its own GET would be, in #render_capability: one budget unit, one
+		// render, whichever door it comes in by)
 		// A batch is at most MAX_BATCH signed endpoints (~8.5kB each), so a well-formed body is a few
 		// hundred kB. `request.json()` buffers the WHOLE body before we can slice to 32 — reject an
 		// oversized body up front (O(1) header check) so a single padded POST can't force a large
@@ -1048,11 +1072,15 @@ class OgygiaHandle {
 		if (!Array.isArray(parsed) || parsed.length === 0) {
 			return region_response('Bad Request', { status: 400 });
 		}
-		const calls = parsed.filter((e): e is string => typeof e === 'string').slice(0, MAX_BATCH);
+		// (one call asked twice is one render: its one parcel answers both)
+		const calls = [...new Set(parsed.filter((e): e is string => typeof e === 'string'))].slice(
+			0,
+			MAX_BATCH
+		);
 		// (the stream's signal aborts when the visitor leaves: the holes not rendered yet never are)
 		const stream = batch_stream(
 			calls,
-			(endpoint, signal) => this.#render_capability(endpoint, event, true, signal),
+			(endpoint, signal) => this.#render_capability(endpoint, event, true, signal, ip),
 			request_scope(event.request)
 		);
 
@@ -1792,7 +1820,10 @@ class OgygiaHandle {
 		 *  and stays as it was. */
 		batch = false,
 		/** the batch's: aborts when its visitor left (nothing more is verified, loaded or rendered) */
-		signal?: AbortSignal
+		signal?: AbortSignal,
+		/** the visitor a batch charges, per hole, as its GET would (PROBE-THEN-RENDER): a probe before
+		 *  the MAC, a render after it. Over budget: no parcel, and the hole fetches on its own. */
+		ip?: string
 	): Promise<{ slot: string; html: string } | null> {
 		const q = endpoint.indexOf('?');
 		if (q === -1 || signal?.aborted) return null;
@@ -1800,7 +1831,9 @@ class OgygiaHandle {
 		const { id, payload, sig } = cap;
 
 		if (this.#capability_precheck(cap)) return null;
+		if (ip !== undefined && this.probe_rate.limited(ip)) return null;
 		if (!this.#verify_region_mac(cap, event)) return null;
+		if (ip !== undefined && this.render_rate.limited(ip)) return null;
 
 		const target = capability_target(cap);
 		if (target === null) return null;
@@ -2001,9 +2034,10 @@ class OgygiaHandle {
 		}
 		// `keepFallback()`: no content — the runtime keeps the page's fallback and marks the hole done.
 		if (body === KEEP_FALLBACK_HTML)
+			// (its hole's own policy, like its answer would carry: a 204 is cacheable by default)
 			return region_response(null, {
 				status: 204,
-				headers: renewed ? { 'cache-control': 'no-store', ...renew_headers } : undefined
+				headers: { 'cache-control': cache_control, ...renew_headers }
 			});
 
 		if (body.length > MAX_REGION_BODY) return region_denied('oversize');
