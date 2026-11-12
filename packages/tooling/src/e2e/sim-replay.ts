@@ -24,6 +24,7 @@ type Action =
 	| { kind: 'wait'; ms: number }
 	| { kind: 'deploy' }
 	| { kind: 'away'; tab: number; nth: number; ms: number }
+	| { kind: 'hurry'; tab: number; nth: number; then: number; after: number }
 	| {
 			kind: 'outage';
 			tab: number;
@@ -396,6 +397,11 @@ async function play(
 				if (!(await nth_of(tab, LINKS, a.nth))) break;
 				await pass(context, a.ms);
 				await navigated(tab.goBack());
+				break;
+			case 'hurry':
+				if (!(await nth_of(tab, LINKS, a.nth))) break;
+				await pass(context, a.after);
+				await nth_of(tab, LINKS, a.then);
 				break;
 			case 'outage':
 				if (a.during !== 'wait') await nth_of(tab, a.during === 'click' ? LINKS : BUTTONS, a.nth);
