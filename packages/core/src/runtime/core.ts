@@ -624,8 +624,6 @@ class OgygiaRegion extends HTMLElement {
 	/** The answer it painted last: what a hole put back on the page shows again when the frame store
 	 *  let it go meanwhile (#336). */
 	#shown: VerifiedHtml | null = null;
-	/** Frames its binding was handed (a binding that replays one counts it at once). */
-	#frames_in = 0;
 	/** A live region's last tick: what it goes on with when it is put back on the page (#337). */
 	#live_last: LiveTick | null = null;
 	/** While it sleeps with a copy: held in drift-watch.ts's sleeping islands, until it wakes (or
@@ -914,10 +912,9 @@ class OgygiaRegion extends HTMLElement {
 	#put_back(): void {
 		const endpoint = this.#endpoint();
 		if (!endpoint || this.#bound()) return;
-		const handed = this.#frames_in;
-		this.#bind(endpoint);
+		const replayed = this.#bind(endpoint);
 		const shown = this.#shown;
-		if (this.#frames_in === handed && shown !== null && this.#answer.now.kind === 'answered')
+		if (!replayed && shown !== null && this.#answer.now.kind === 'answered')
 			this.#box.post((turn) => this.#apply(shown, turn));
 	}
 
@@ -1178,11 +1175,12 @@ class OgygiaRegion extends HTMLElement {
 	 * — from its own fetch, a twin's, a navigation batch stream, or a mutation. subscribe() replays
 	 * current content immediately, so a late-mounting twin catches up free. A re-minted endpoint (new
 	 * props, new page facts) moves the binding to its new address, and a fetch out at the old one is
-	 * left: its answer is for a call this hole no longer is. Returns the address.
+	 * left: its answer is for a call this hole no longer is. Returns whether the store handed it a
+	 * frame as it bound (already bound there: it hands nothing).
 	 */
-	#bind(endpoint: string): string {
+	#bind(endpoint: string): boolean {
 		const address = frameAddress(endpoint);
-		if (this.#bound() && this.#frame_address === address) return address;
+		if (this.#bound() && this.#frame_address === address) return false;
 		if (this.#hole.now.kind === 'fetching') this.#hole.go('idle');
 		// (one binding at a time, for the element's lifetime in the page: its end unbinds)
 		this.#binding?.close();
@@ -1194,8 +1192,10 @@ class OgygiaRegion extends HTMLElement {
 		});
 		// (each frame a turn of its own: one the store hands over while this turn binds lands after it)
 		const box = this.#box;
+		// (subscribe hands the frame the store holds before it returns: a frame in by then is that one)
+		let replayed = false;
 		const off = slots.frames?.subscribe(address, (f) => {
-			this.#frames_in++;
+			replayed = true;
 			if (RULES) note_handed(this, address, f.v, () => this.#paint.now.kind === 'painting');
 			box.post((turn) => {
 				if (RULES) note_turn(this);
@@ -1203,7 +1203,7 @@ class OgygiaRegion extends HTMLElement {
 			});
 		});
 		if (off) binding.defer(off);
-		return address;
+		return replayed;
 	}
 
 	/** Bound to a frame-store address now. */
@@ -1230,10 +1230,9 @@ class OgygiaRegion extends HTMLElement {
 		// (no region streams HTML in this build: no hole to fetch — runtime-flags `FRAMES`)
 		if (!FRAMES) return;
 		const endpoint = this.#endpoint();
-		const handed = this.#frames_in;
-		if (endpoint) this.#bind(endpoint);
 		// (the store had its frame: its turn is next, and it is the answer — nothing to fetch)
-		const run = this.#frames_in === handed ? this.#fetch_html(turn) : undefined;
+		const replayed = endpoint ? this.#bind(endpoint) : false;
+		const run = replayed ? undefined : this.#fetch_html(turn);
 		// (nothing to fetch — it has its answer, or no endpoint: its schedule is spent all the same)
 		if (this.#hole.now.kind === 'armed') this.#hole.go('idle');
 		return run;
@@ -1482,7 +1481,8 @@ class OgygiaRegion extends HTMLElement {
 		if (!this.#fetch_started) this.#fetch_started = clock.mono();
 		// Bind if we haven't (SWR/lake remount reaches #fetch_html without going through #server);
 		// a re-minted hole (a refreshed region: new props, new page facts) answers at its NEW address.
-		const address = this.#bind(endpoint);
+		this.#bind(endpoint);
+		const address = frameAddress(endpoint);
 		const s = this.#hole.now;
 		const attempts = s.kind === 'armed' || s.kind === 'retrying' ? s.attempts : 0;
 		this.#hole.go('fetching', { attempts, revalidate });
