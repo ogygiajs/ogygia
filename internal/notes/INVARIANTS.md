@@ -87,8 +87,6 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 **Enforced by:** `apps/palaestra/e2e/region-rate.spec.ts > a forged flood is all 403, never 429, and a valid request still serves after it`, `packages/core/test/audit-fixes.test.ts > documents render-rate contract: junk must not call render limited()`
 
-**Enforced by:** `apps/palaestra/e2e/region-rate.spec.ts > a forged flood is all 403, never 429, and a valid request still serves after it`, `packages/core/test/audit-fixes.test.ts > documents render-rate contract: junk must not call render limited()`
-
 ---
 
 ## RENDER-TIMEOUT — race without true cancel
@@ -113,13 +111,11 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 **Enforced by:** `apps/palaestra/e2e/server-islands.spec.ts > the opt-in cache path (maxAge: '1h' preset) carries a signed ttl + private max-age`
 
-**Enforced by:** `apps/palaestra/e2e/server-islands.spec.ts > the opt-in cache path (maxAge: '1h' preset) carries a signed ttl + private max-age`
-
 ---
 
 ## SPA-HEAD — merge allowlist / deny dangerous tags
 
-**What:** SPA head merge skips `<base>` and dangerous `meta[http-equiv]` (refresh / CSP). Only `script[type=module][data-ogygia-runtime]` is retained across navigations. The router starts only when `meta[name=ogygia-router]` is present **and** the document is not Kit-booted (`csr=true`). Navigating toward a Kit-bootstrap HTML response does a full load.
+**What:** SPA head merge skips `<base>` and dangerous `meta[http-equiv]` (refresh / CSP / set-cookie; `packages/core/src/runtime/head-deny.ts`), and the head never gains one after the first document (the rule `rule_head_adopted`, in dev and at the end of every e2e test). Only `script[type=module][data-ogygia-runtime]` is retained across navigations. The router starts only when `meta[name=ogygia-router]` is present **and** the document is not Kit-booted (`csr=true`). Navigating toward a Kit-bootstrap HTML response does a full load.
 
 **Why:** Adopting `<base>` rewrites relative capability fetches. Keeping every module script forever leaks memory across SPA pages. Dual routers on a Kit page would fight click interception — gradual migration needs root `<OgygiaRouter/>` to be a no-op on `csr=true` routes.
 
@@ -127,7 +123,9 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 **Do not:** Re-enable “keep all module scripts” without a runtime marker. Prefer HTTP CSP headers over CSP meta (meta is mergeable).
 
-**Enforced by:** `packages/core/test/browser/spa-head-deny.test.ts > a fetched page’s <base> and refresh / CSP metas are never adopted, in any case`
+**Owned head tags:** a head tag a region writes (its region sheets, the `ogygia-kit-island` stamp) names its owner, `data-og-owner` = the outermost island’s fingerprint. The server skips a region the browser already has (`x-ogygia-known`) and every tag its inner regions write with it, so the merge keeps an unlisted owned tag while a region with that fingerprint stays (`release_head_nodes`, #806, `e2e/head-owner-kept.spec.ts`).
+
+**Enforced by:** `rule_head_adopted`, `packages/core/test/browser/spa-head-deny.test.ts > a fetched page’s <base> and refresh / CSP / cookie metas are never adopted, in any case`
 
 ---
 
@@ -192,8 +190,10 @@ only sends keys + skips invalidate — without `requested`, the POST has no `q` 
 ## QUERY-LIVE — Kit owns SSE
 
 **What:** `query.live` is Kit’s remote SSE. Ogygia reuses Kit’s client remote primitives. On SPA
-body swap: clear SSR seeds _before_ `replaceWith` (old islands still mounted); clear
-`query_map` / `live_query_map` _after_ (old disconnected, new hydrates still awaiting).
+body swap: clear SSR seeds _before_ `replaceWith` (old islands still mounted); _after_ it (old
+disconnected, kept ones still in the page, new hydrates still awaiting), release the
+`query_map` / `live_query_map` entries whose holders all left. A holder is a region whose island
+looked the entry up or made it while it hydrated; an entry no island held is Kit’s to keep.
 The remote cache singleton lives on `globalThis` so Vite duplicate-module loads still share maps.
 
 **Why:** Abort on `request.signal` is Kit’s job. Infinite `while (true)` generators are normal;
@@ -203,7 +203,9 @@ never opens SSE again (stuck on pending / “connecting…”). Clearing too ear
 the runtime chunk and island graph resolve the shim to different module ids.
 
 **Do not:** Treat public demo `query.live` as an ogygia ServerIsland vulnerability. Do not clear
-instance maps in `prepare_spa_document` (pre-swap).
+instance maps in `prepare_spa_document` (pre-swap). Do not clear them whole after the swap either:
+a kept island’s live query then freezes and its next read throws (#817,
+`e2e/live-query-kept.spec.ts`, `test/remote-cache-holders.test.ts`).
 
 **Enforced by:** `packages/core/test/audit-fixes.test.ts > clear_remote_seeds leaves live/query instance maps intact`, `packages/core/test/audit-fixes.test.ts > remote_cache is shared via globalThis across re-imports`
 
