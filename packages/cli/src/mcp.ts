@@ -1977,8 +1977,30 @@ async function tool_fragment(args: Attrs): Promise<ToolResult> {
 	);
 }
 
+/** A JSON value's type, in a tool schema's words. */
+const json_type = (v: unknown): string =>
+	Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v;
+
+/** The tool's error for the first argument that is not what its schema declares; null when all are.
+ *  Checked once here, so a tool reads a declared string as a string (test/property-mcp-tools.test.ts). */
+function wrong_args(name: string, args: unknown): ToolResult | null {
+	if (json_type(args) !== 'object')
+		return fail(`\`arguments\` must be an object, not ${json_type(args)}.`);
+	const props = TOOLS.find((t) => t.name === name)?.inputSchema.properties as
+		| Record<string, { type: string }>
+		| undefined;
+	for (const [k, p] of Object.entries(props ?? {})) {
+		const v = (args as Attrs)[k];
+		if (v != null && json_type(v) !== p.type)
+			return fail(`\`${k}\` must be a ${p.type}, not ${json_type(v)}.`);
+	}
+	return null;
+}
+
 /** Run one tool, as the server does for a `tools/call`. @internal Exported for tests. */
 export async function dispatch_tool(name: string, args: Attrs): Promise<ToolResult> {
+	const wrong = wrong_args(name, args);
+	if (wrong) return wrong;
 	switch (name) {
 		case 'ogygia_compile':
 			return tool_compile(args);
@@ -2022,7 +2044,13 @@ function log(...parts: unknown[]): void {
 }
 
 function handle(msg: Rpc): void {
-	const { id, method, params } = msg;
+	const { id, params } = msg;
+	const method = typeof msg.method === 'string' ? msg.method : undefined;
+	if (method === undefined) {
+		if (id != null)
+			send({ jsonrpc: '2.0', id, error: { code: -32600, message: 'Invalid Request: no method' } });
+		return;
+	}
 	if (method === 'initialize') {
 		send({
 			jsonrpc: '2.0',
@@ -2040,7 +2068,7 @@ function handle(msg: Rpc): void {
 		return;
 	}
 	if (method === 'tools/call') {
-		const name = String(params?.name ?? '');
+		const name = typeof params?.name === 'string' ? params.name : '';
 		const args = (params?.arguments as Attrs) ?? {};
 		dispatch_tool(name, args)
 			.then((result) => send({ jsonrpc: '2.0', id, result }))
@@ -2057,8 +2085,9 @@ function handle(msg: Rpc): void {
 		send({ jsonrpc: '2.0', id, result: {} });
 		return;
 	}
-	// Notifications (no id) — nothing to answer.
-	if (method?.startsWith('notifications/') || id == null) return;
+	// Notifications (no id): nothing to answer. A message with an id is a request, whatever its
+	// method says.
+	if (id == null) return;
 	send({ jsonrpc: '2.0', id, error: { code: -32601, message: `Method not found: ${method}` } });
 }
 
@@ -2078,10 +2107,23 @@ export async function runMcp(): Promise<void> {
 			log('dropped non-JSON line');
 			continue;
 		}
+		// (not one message: nothing to answer, and no id to answer it with)
+		if (!msg || typeof msg !== 'object' || Array.isArray(msg)) {
+			log('dropped a line that is not one JSON-RPC message');
+			continue;
+		}
 		try {
 			handle(msg);
 		} catch (e) {
-			log('handler threw:', e instanceof Error ? e.message : String(e));
+			// every request is answered once: a client waits for its id (test/mcp-every-request.test.ts)
+			const message = e instanceof Error ? e.message : String(e);
+			log('handler threw:', message);
+			if (msg.id != null)
+				send({
+					jsonrpc: '2.0',
+					id: msg.id,
+					error: { code: -32603, message: `Internal error: ${message}` }
+				});
 		}
 	}
 }
