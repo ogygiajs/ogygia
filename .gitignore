@@ -6,6 +6,7 @@ node_modules/
 .pnpm-store/
 .turbo/
 .svelte-kit/
+.svelte-dts/
 /apps/palaestra/build/
 /apps/docs/build/
 dist/
@@ -47,6 +48,9 @@ dist/
 test-results/
 .vitest-attachments/
 playwright-report/
+playwright-results/
+# Vitest coverage (.github/scripts/test-report.ts writes the tests report's own copy)
+coverage/
 **/__screenshots__/
 # one-off screenshots taken while checking the devtools / profiler UI
 /anchors.png
@@ -80,3 +84,7 @@ internal/repro-ogygia-footer/
 /.heisenbench/
 /packages/*/bench/__heisenbench.d.ts
 /heisenbench-report.json
+# The simulator's run summaries (internal/sim: `pnpm sim` and the scheduled run write them)
+/internal/sim/results.json
+/internal/sim/dst-results.json
+/internal/sim/plans/

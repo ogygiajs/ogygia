@@ -42,7 +42,7 @@ export { keepFallback } from './keep-fallback.ts';
 export { preference } from './preference.ts';
 export type { Preference, PreferenceSpec } from './preference.ts';
 
-// Builder.io-style pages: the blessed path is the `blocks()` content source (see `ogygia/content`).
+// Pages a CMS sends as a tree of blocks: the blessed path is the `blocks()` content source (see `ogygia/content`).
 // For a tree in hand without a collection, `blocks.resolve(tree, registry)` turns it into region nodes
 // you render with a small recomposer — a recipe, not a shipped component.
 export type {
@@ -52,7 +52,8 @@ export type {
 	DualRegion,
 	DeferredRegion,
 	RegionOptions,
-	RegionSchedule
+	RegionSchedule,
+	RegionData
 } from './region.ts';
 
 // A deferred / server island renders its own HTML on the server; while it's in flight the call site
@@ -64,12 +65,12 @@ export type {
 // source (it does not run preprocessors for its type pass), so the fallback slot must be declared
 // here, on the component, and cannot be injected by tooling.
 export type Fallback<P = unknown> = P & { ogygiaFallback?: import('svelte').Snippet };
-// `transport` is GENERATED per-app (virtual:ogygia/kit-transport): the codec cluster when the app
+// `transport` is GENERATED per-app (ogygia:region/kit-transport): the codec cluster when the app
 // crosses a region/wired value over Kit's wire, an empty map for a pure-island app — so a plain-props
 // app never bundles the ~9 kB of decoders it can't use. The virtual re-exports the real `ogygiaTransport`
 // from './transport.ts' by absolute path; the barrel deliberately does NOT re-export it directly (that
 // would be a second, ungated path to the codec cluster for `import * as ogygia`).
-export { transport } from 'virtual:ogygia/kit-transport';
+export { kit_transport as transport } from 'ogygia:region';
 
 // Transportable state — a class crosses island boundaries as a prop by declaring
 // `static wire = import.meta.og.wire({ encode, decode })`. Same instance across islands stays one
@@ -104,11 +105,6 @@ export { hydratedBy } from './hydration-info.ts';
 // server and client, so shared code (a store, a helper) can branch on which world it runs in without
 // touching requestEvent itself.
 export { isOgygiaPage } from './context.ts';
-
-// EXPERIMENTAL — cross-fragment shared state (contract packages import this): `.current` like
-// MediaQuery, reactive via createSubscriber, all builds meet at one Symbol.for page store.
-// Server-seedable via a printed JSON script tag; vanilla door at globalThis.ogygia.shared().
-export { SharedState } from './shared-state.ts';
 
 // Flags / rollouts / experiments live in their OWN package: `import { flag, decide } from
 // '@ogygia/flags'` (adapters: '@ogygia/flags/openfeature'), plus `flags()` in the Vite plugins.

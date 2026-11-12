@@ -42,7 +42,8 @@ const WORK_COPY_SKIP_RE = /node_modules|\.svelte-kit|(^|\/)build($|\/)|\.work/;
 const SSR_TITLE_RE = /data-title/;
 // The runtime script the HTML loads: its LOCATION, the content-hashed file the bundler named (under
 // `immutable/` every file is named by its content).
-const RUNTIME_SCRIPT_RE = /<script type="module" data-ogygia-runtime[^>]*? src="([^"]+)"/;
+// (the response's mark leads the tag's attributes: RESPONSE-MARK)
+const RUNTIME_SCRIPT_RE = /<script[^>]*? data-ogygia-runtime[^>]*? src="([^"]+)"/;
 const RUNTIME_LOCATION_RE = /\/_app\/immutable\/og-runtime(-[^/.]+)?\.[\w-]{8}\.js$/;
 const RUNTIME_CHUNK_RE = /^og-runtime(-[^/.]+)?\.[\w-]{8}\.js$/;
 const HYDRATION_ERR_RE = /hydrat/i;
@@ -320,9 +321,19 @@ async function drive(page: Page, base: string, errors: string[]) {
 	const before = (await counter.textContent())?.trim();
 	check('island SSR text', before === 'count 10', JSON.stringify(before));
 
+	// (a `wake: 'load'` island is live only once its code is in, after the load event on a slow
+	// runner: a click before that is not replayed, so wait for its region to be hydrated)
+	await page
+		.locator('ogygia-region[data-hydrated]', { has: counter })
+		.first()
+		.waitFor({ timeout: 15000 });
 	await counter.click();
 	await counter.click();
-	const after = (await counter.textContent())?.trim();
+	let after: string | undefined;
+	await expect
+		.poll(async () => (after = (await counter.textContent())?.trim()), { timeout: 5000 })
+		.toBe('count 12')
+		.catch(() => {}); // ok: the check below names what it read
 	check(
 		'island hydrated & interactive (click increments)',
 		after === 'count 12',
