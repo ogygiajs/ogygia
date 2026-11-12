@@ -3,6 +3,7 @@ import {
 	clock,
 	flights,
 	mailbox,
+	registry,
 	scope,
 	STALE,
 	type Mailbox,
@@ -269,9 +270,11 @@ const NO_REPLAY: Promise<unknown> = Promise.resolve();
 /**
  * ON-DEMAND holes, delegated: ONE set of capture listeners on the document for every armed hole
  * (five listeners per hole used to be five hundred on a page of nav-menus). Intent lands anywhere
- * inside a hole; the nearest ARMED hole above the target fires once and is forgotten.
+ * inside a hole; the nearest ARMED hole above the target fires once and is forgotten. Each armed
+ * hole is held by its arming (the `armed` state of its fetch): it leaves when that ends, or at its
+ * fire.
  */
-const on_demand_armed = new Map<Element, () => void>();
+const on_demand_armed = registry.keyed<Element, () => void>();
 let on_demand_installed = false;
 function on_demand_event(e: Event): void {
 	if (on_demand_armed.size === 0) return;
@@ -280,12 +283,18 @@ function on_demand_event(e: Event): void {
 		region = region.parentElement?.closest(ON_DEMAND_SELECTOR) ?? null;
 	}
 	if (!region) return;
-	const fire = on_demand_armed.get(region)!;
-	on_demand_armed.delete(region);
-	fire();
+	on_demand_armed.get(region)!();
 }
-function arm_on_demand(region: Element, fire: () => void): void {
-	on_demand_armed.set(region, fire);
+function arm_on_demand(region: Element, fire: () => void, owner: Scope): void {
+	// (it fires once: its entry goes first)
+	const forget = on_demand_armed.set(
+		region,
+		() => {
+			forget();
+			fire();
+		},
+		owner
+	);
 	if (on_demand_installed) return;
 	on_demand_installed = true;
 	for (const type of ON_DEMAND_EVENTS)
@@ -586,6 +595,8 @@ class OgygiaRegion extends HTMLElement {
 	 * teardown: anything given to it then is let go at once.
 	 */
 	#life: Scope = NOT_CONNECTED;
+	/** Its entry in the connected regions (connected.ts) for this lifetime: its removal. */
+	#counted: (() => void) | null = null;
 	/**
 	 * ITS EVENTS, ONE AT A TIME (@ogygia/machine's `mailbox()`, #322): a connect, a schedule firing, a
 	 * frame landing, a live tick, its fetch's end and its retry, its wake's steps — each a turn, in the
@@ -705,7 +716,9 @@ class OgygiaRegion extends HTMLElement {
 			this.#life = scope();
 			this.#box = mailbox(this.#life);
 		}
-		connected_regions.add(this); // the navigation's shadow-root check counts these (connected.ts)
+		// the navigation's shadow-root check counts these (connected.ts): once per lifetime, held by it
+		if (!this.#counted && !this.#life.closed)
+			this.#counted = connected_regions.add(this, this.#life);
 		devalue_lane_stale(); // (its sidecar may have come in with it)
 		// its relative URLs, against the address it entered at — they are read again after any
 		// navigation, when `location` is another page (entry-locations.ts)
@@ -1043,11 +1056,14 @@ class OgygiaRegion extends HTMLElement {
 			// the island's wake, whatever the hole's own `when` was — #338)
 			if (owner === this.#hole) {
 				// a visitor's gesture: this region's downloads are the `user` class from here on
-				arm_on_demand(this, () => {
-					this.#visitor = NO_REPLAY; // (a hole's answer: nothing of the visitor's to replay)
-					return fire();
-				});
-				owner.scope.defer(() => on_demand_armed.delete(this));
+				arm_on_demand(
+					this,
+					() => {
+						this.#visitor = NO_REPLAY; // (a hole's answer: nothing of the visitor's to replay)
+						return fire();
+					},
+					owner.scope
+				);
 			} else this.#on_interaction(fire);
 		} else this.#on_media(when, start, owner); // a media query string
 	}
@@ -2082,7 +2098,8 @@ class OgygiaRegion extends HTMLElement {
 	}
 
 	#teardown() {
-		connected_regions.delete(this);
+		this.#counted?.();
+		this.#counted = null;
 		unregister_region(this);
 		// out of the document nothing watches it: a copy it keeps is compared if it wakes again (its
 		// sleep ends with its lifetime, below)
