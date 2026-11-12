@@ -291,7 +291,8 @@ export function install_layout(window: object, loop: Loop, realm: string): void 
 			if (w.closed) return;
 			const at = dirty ? boxes(w.document) : null;
 			dirty = false;
-			for (const o of [...observers]) o.look(at);
+			// (a copy: a callback may stop an observer)
+			for (const o of Array.from(observers)) o.look(at);
 		});
 	};
 	// (the document changed: what is on screen may have; the host's own ear, not the page's)

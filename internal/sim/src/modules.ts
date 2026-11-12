@@ -129,9 +129,9 @@ function make_loader(window: Window): Loader {
 		}
 		let m = modules.get(url);
 		if (m === undefined) {
-			m = (
-				code !== undefined ? Promise.resolve(code) : (downloading(url) ?? fetch_code(url))
-			).then((c) => make(url, c));
+			m = (code !== undefined ? Promise.resolve(code) : (downloading(url) ?? fetch_code(url))).then(
+				(c) => make(url, c)
+			);
 			// (a module that fails to load or parse fails its importers, who report it as a page
 			// does; the cached promise itself is not an unhandled rejection of the host)
 			m.catch(() => {});
