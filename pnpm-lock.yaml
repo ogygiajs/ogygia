@@ -1039,6 +1039,9 @@ importers:
 
   packages/bake:
     dependencies:
+      '@ogygia/machine':
+        specifier: workspace:^
+        version: link:../machine
       devalue:
         specifier: 'catalog:'
         version: 5.9.4

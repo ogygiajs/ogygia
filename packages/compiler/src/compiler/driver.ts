@@ -315,7 +315,11 @@ export class Compiler implements CoreApp {
 	 * ts-region minting sees it. `source` is the CURRENT text (a plugin's pre-transform may already have
 	 * edited it). Returns `{ code, touched }`; the caller nulls its own sourcemap when `touched`.
 	 */
-	macros(source: string, id: string): Promise<{ code: string; touched: boolean }> {
+	macros(
+		source: string,
+		id: string,
+		watch?: (file: string) => void
+	): Promise<{ code: string; touched: boolean }> {
 		const ctx = this.#ctx!;
 		return run_module_macros(
 			source,
@@ -326,7 +330,8 @@ export class Compiler implements CoreApp {
 				pkgRoot: ctx.pkg_root,
 				dollarHoists: this.dollar_hoists,
 				macros: ctx.macros,
-				ownSource: (file) => ctx.is_own_source(file)
+				ownSource: (file) => ctx.is_own_source(file),
+				watch
 			},
 			this.profiler
 		);
@@ -1426,10 +1431,13 @@ export class Compiler implements CoreApp {
 		id: string,
 		{
 			ssr,
-			emitFile
+			emitFile,
+			watch
 		}: {
 			ssr: boolean;
 			emitFile: EmitChunk;
+			/** The bundler's watch for this module: a macro names the files it read. */
+			watch?: (file: string) => void;
 		}
 	): Promise<{ code: string; map: unknown } | null> {
 		const ctx = this.#ctx!;
@@ -1492,7 +1500,7 @@ export class Compiler implements CoreApp {
 		// hoisted fn is a ref, a baked call is plain data, and an inlined snippet flows through as a
 		// region. Each pass is a no-op unless its exact marker is present. Fills `dollar_hoists` +
 		// records plugin macro timing.
-		const macroed = await this.macros(out, id_n);
+		const macroed = await this.macros(out, id_n, watch);
 		if (macroed.touched) {
 			out = macroed.code;
 			map = null; // any macro rewrite invalidates a prior sourcemap
