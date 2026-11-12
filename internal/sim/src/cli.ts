@@ -796,7 +796,8 @@ const KNOWN_TOO = process.argv.includes('--known');
  * Shrinks a failing run to the fewest actions that fail the same way (src/shrink.ts), replays the
  * shrunk run twice (its traces must be equal), prints its actions, its finding and its trace's
  * tail, and writes its plan (`plans/<name>.min.json`, for `--plan`) and its regression test
- * (`test/found/<name>.test.ts`, which fails while the bug stands).
+ * (`.scratch/found/<name>.test.ts`, which fails while the bug stands; filed, it moves to test/found
+ * on a sim/found-* branch).
  */
 async function shrink(file: string): Promise<void> {
 	const given = JSON.parse(readFileSync(file, 'utf8')) as {
@@ -859,7 +860,9 @@ async function shrink(file: string): Promise<void> {
 	const plan_file = join(PLANS, `${name}.min.json`);
 	writeFileSync(plan_file, plan_json(seed, min, a.result));
 	const gen = GEN?.seed ?? null;
-	const test_file = join(import.meta.dirname, '..', 'test', 'found', `${name}.test.ts`);
+	// (in the gitignored scratch: test/found holds only tests put there on purpose, on a sim/found-*
+	// branch, src/ci.ts)
+	const test_file = join(import.meta.dirname, '..', '.scratch', 'found', `${name}.test.ts`);
 	mkdirSync(join(test_file, '..'), { recursive: true });
 	if (!existsSync(test_file))
 		writeFileSync(
