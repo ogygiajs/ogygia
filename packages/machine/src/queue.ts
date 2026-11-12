@@ -23,8 +23,8 @@
  * The queue keeps the jobs themselves, in the order pushed: no record per job. A start that pushes,
  * cancels or releases runs inside the drain safely: each start takes its job off the front first.
  */
-import { clock } from './clock.ts';
 import { machine_error, report_thrown } from './messages.ts';
+import { clock } from './ports.ts';
 import { MAX_TIMEOUT_MS, scope, type Scope } from './scope.ts';
 
 export interface QueueOptions<J> {
