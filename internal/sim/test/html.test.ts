@@ -2,7 +2,8 @@
 // says, before a parser repairs it) and bad HTML a document holds at rest (a DOM code built), lets
 // good HTML pass, and leaves what the app wrote badly on purpose (`data-gen-messy`) to the app.
 import { describe, expect, it } from 'vitest';
-import { content_model, from_dom, lint_html, source_tree } from '../src/html.ts';
+import { content_model, from_dom, html_sent, lint_html, source_tree } from '../src/html.ts';
+import type { World } from '../src/world.ts';
 
 const page = (body: string, head = '<title>t</title>') =>
 	`<!doctype html><html><head>${head}</head><body>${body}</body></html>`;
@@ -46,6 +47,38 @@ describe('html sent', () => {
 			['<div> inside <p>', true],
 			['<div> inside <p>', false]
 		]);
+	});
+
+	it("sets aside a page whose server's hop for it the network tampered with or cut (gen 178)", async () => {
+		// (a mounted peer page passes on the peer's bytes: a changed byte on the hop is no bad HTML)
+		const hop = (fault: 'tampered' | 'cut' | null) => ({
+			id: 2,
+			from: 'server-0',
+			for: 'tab-1#1',
+			method: 'GET',
+			url: 'https://peer.test/peer/q0',
+			at: 0,
+			status: 200,
+			cut: fault === 'cut',
+			tampered: fault === 'tampered',
+			duplicated: false,
+			redirected: false
+		});
+		const world = (fault: 'tampered' | 'cut' | null) =>
+			({
+				html: [
+					{
+						from: 'tab-1#1',
+						url: 'https://app.test/peer/q0',
+						whole: true,
+						html: Promise.resolve(page('<ma6n data-gen="peer-page">x</main>'))
+					}
+				],
+				network: { exchanges: [hop(fault)] }
+			}) as unknown as World;
+		expect(await html_sent(world('tampered'))).toBe(null);
+		expect(await html_sent(world('cut'))).toBe(null);
+		expect((await html_sent(world(null)))?.oracle).toBe('html-sent');
 	});
 
 	it('reads attribute text with quotes, `>` and unicode in it', () => {
