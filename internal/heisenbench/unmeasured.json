@@ -4791,6 +4791,14 @@
 		{
 			"id": "packages/core/src/hooks.ts > OgygiaHandle > #region_answer > render_component:3~077289",
 			"reason": "the hole's render call handed to the component render (Svelte's server render, not replayable); run by the e2e hole suites"
+		},
+		{
+			"id": "packages/core/src/plugin/capability.ts > plugin_signer > sign",
+			"reason": "prefixes the plugin's domain and hands the message to the app's signer (a closure over the app key, not replayable), constant work over the HMAC; proven in packages/core/test/plugin-signing.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/capability.ts > plugin_signer > verify",
+			"reason": "prefixes the plugin's domain and hands the check to the app's signer (a closure over the app key, not replayable), constant work over the HMAC; proven in packages/core/test/plugin-signing.test.ts"
 		}
 	]
 }
