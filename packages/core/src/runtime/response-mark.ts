@@ -7,6 +7,7 @@
  */
 import { RESPONSE_MARK } from '../contract/response-mark.ts';
 import { OGYGIA_RUNTIME } from '../wire-markup.ts';
+import { CODE_ORIGINS_ATTR, forget_code_origins } from './code-origins.ts';
 
 /** `doc`'s mark: its head's first runtime script's. */
 const mark_of = (doc: Document) =>
@@ -25,15 +26,24 @@ export function server_channel(doc: Document, selector: string): Element | null 
 	return server_channels(doc, selector)[0] ?? null;
 }
 
+/** What the server writes on the head runtime script for its response: the mark, and the extra
+ *  origins island code may load from (./code-origins.ts). */
+const RESPONSE_FACTS = [RESPONSE_MARK, CODE_ORIGINS_ATTR] as const;
+
 /**
  * A navigation keeps the live head's runtime script (router-nav.ts `keep_head_node_across_spa`), so
- * the live document takes on the next document's mark here: its body, and the channels in it, are the
- * next response's from now on.
+ * the live document takes on the next response's facts here, from the next document's first head
+ * runtime script as a first load reads them: its mark (its body, and the channels in it, are the next
+ * response's from now on) and its code origins (#1045), which the next ask reads again.
  */
-export function adopt_mark(next: Document): void {
+export function adopt_response(next: Document): void {
 	const live = document.head?.querySelector(`script[${OGYGIA_RUNTIME}]`);
-	const mark = mark_of(next);
 	if (!live) return;
-	if (mark) live.setAttribute(RESPONSE_MARK, mark);
-	else live.removeAttribute(RESPONSE_MARK);
+	const from = next.head?.querySelector(`script[${OGYGIA_RUNTIME}]`);
+	for (const attr of RESPONSE_FACTS) {
+		const value = from?.getAttribute(attr);
+		if (value) live.setAttribute(attr, value);
+		else live.removeAttribute(attr);
+	}
+	forget_code_origins();
 }

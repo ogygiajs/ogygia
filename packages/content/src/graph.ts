@@ -5,7 +5,7 @@
  * In dev, a collection leaves it when the run of the module that built it ends (collection-base.ts,
  * through core's definer marking).
  */
-import { registry, type Registry } from '@ogygia/machine';
+import { registry, slot, type Registry } from '@ogygia/machine';
 import type { Collection } from './collection-base.ts';
 
 export type ContentGraph = {
@@ -14,6 +14,9 @@ export type ContentGraph = {
 	all: Registry<Collection<Record<string, unknown>>>;
 };
 
-export const GRAPH: ContentGraph = ((globalThis as Record<symbol, unknown>)[
-	Symbol.for('ogygia.content.graph')
-] ??= { all: registry() }) as ContentGraph;
+// (version 2: `all` is a registry; version 1 held a Set and the module runs)
+export const GRAPH: ContentGraph = slot<ContentGraph>({
+	name: 'ogygia.content.graph',
+	version: 2,
+	make: () => ({ all: registry() })
+});
