@@ -381,29 +381,31 @@ const LIVE_LOOK_MS = 4_000;
 /** An element line's tag, or null for a text line. */
 const tag_of = (line: string): string | null => /^ *<([^\s>]+)/.exec(line)?.[1] ?? null;
 
-/** The lines of a normalized DOM that changed between two looks at the same page: a text, or an
- *  element's attributes (a live region's tick carries its props in its endpoint). None when its
- *  shape changed: then nothing is masked, and the difference stands. */
-function live_lines(before: string, after: string): number[] {
+/** The lines of a normalized DOM that changed between two looks at the same page, as they read
+ *  before and after: a text, or an element's attributes (a live region's tick carries its props in
+ *  its endpoint). By content, not place: a place in one side is another line in the other (seed
+ *  26). None when its shape changed: then nothing is masked, and the difference stands. */
+function live_lines(before: string, after: string): string[] {
 	const [a, b] = [before.split('\n'), after.split('\n')];
 	if (a.length !== b.length) return [];
-	const out: number[] = [];
+	const out: string[] = [];
 	for (let i = 0; i < a.length; i++) {
 		if (a[i] === b[i]) continue;
 		const [x, y] = [tag_of(a[i]), tag_of(b[i])];
 		if ((x === null && /^ *"/.test(a[i]) && /^ *"/.test(b[i])) || (x !== null && x === y))
-			out.push(i);
+			out.push(a[i], b[i]);
 	}
 	return out;
 }
 
-/** `s` with its lines at `lines` replaced by a mark (indent kept; an element keeps its tag). */
-function mask(s: string, lines: ReadonlySet<number>): string {
+/** `s` with each line that reads as one of `lines` replaced by a mark (indent kept; an element
+ *  keeps its tag). */
+function mask(s: string, lines: ReadonlySet<string>): string {
 	if (lines.size === 0) return s;
 	return s
 		.split('\n')
-		.map((l, i) => {
-			if (!lines.has(i)) return l;
+		.map((l) => {
+			if (!lines.has(l)) return l;
 			const indent = /^ */.exec(l)![0];
 			if (/^ *"/.test(l)) return `${indent}"<live>"`;
 			const tag = tag_of(l);
