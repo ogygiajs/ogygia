@@ -808,6 +808,25 @@ export function* tags(html: string, name: string, from = 0): Generator<FoundTag>
 	for (let t = next_tag(html, name, from); t !== null; t = next_tag(html, name, t.next)) yield t;
 }
 
+/** The first start tag of any name in `html` from `from` (as `next_tag` reads one), with its name in
+ *  lower case, or null: for a rewrite that reads every tag (federation's asset pinning). */
+export function next_any_tag(
+	html: string,
+	from: number
+): { readonly name: string; readonly tag: FoundTag } | null {
+	let i = from;
+	while (step(html, i)) {
+		if (TOKEN.kind === 2) {
+			i = TOKEN.end;
+			continue;
+		}
+		const name = html.slice(TOKEN.ns, TOKEN.ne).toLowerCase();
+		const tag = read_tag(html, TOKEN.lt, TOKEN.ne);
+		return tag === null ? null : { name, tag };
+	}
+	return null;
+}
+
 /** Where a marker's text sits in `html`, read forward with the tags of one walk: a tag whose span
  *  does not hold it cannot carry the marker, so `holds()` lets a scan read attributes only where it
  *  can be. The needle is what every match spells: a string when the caller compares a value exactly,
