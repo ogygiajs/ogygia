@@ -1,0 +1,53 @@
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import {
+	all_steps,
+	Coverage,
+	new_moves,
+	step_key,
+	step_of_move,
+	universe
+} from '../src/coverage.ts';
+
+const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
+
+describe('coverage', () => {
+	it('reads every machine the packages define, a flights by its own name', () => {
+		const u = universe(ROOT);
+		expect(u.get('hole')?.pkg).toBe('core');
+		expect(u.get('import-again')?.steps.fresh).toEqual(['failed', 'loaded']);
+		// (a flights' entries: flying, kept, gone, under the flights' name)
+		expect(u.get('island file')?.steps.flying).toEqual(['flying', 'kept', 'gone']);
+		expect(all_steps(u).has(step_key('import-again', 'failed', 'stuck'))).toBe(true);
+	});
+
+	it('a move line is a step, and a stop is none', () => {
+		expect(step_of_move('island file#3 flying -> kept')).toBe('island file: flying -> kept');
+		expect(step_of_move('hole#1 idle -> stopped')).toBeNull();
+	});
+
+	it('reads only the moves a log added since the last read, past the lines it let go', () => {
+		expect(new_moves('a#1 x -> y\na#1 y -> z', 0)).toEqual({
+			lines: ['a#1 x -> y', 'a#1 y -> z'],
+			total: 2
+		});
+		expect(new_moves('a#1 x -> y\na#1 y -> z', 1).lines).toEqual(['a#1 y -> z']);
+		// (the log kept its last 2 of 5: 3 were read, so its last 2 are new)
+		expect(new_moves('(3 earlier moves let go)\na#1 x -> y\na#1 y -> z', 3)).toEqual({
+			lines: ['a#1 x -> y', 'a#1 y -> z'],
+			total: 5
+		});
+		expect(new_moves('', 4)).toEqual({ lines: [], total: 0 });
+	});
+
+	it('counts a step or a fired point new only the first time', () => {
+		const c = new Coverage();
+		expect(
+			c.add({ steps: { 'a: x -> y': 2 }, points: { p: { on: true, asked: 3, fired: 0 } } })
+		).toEqual(['a: x -> y']);
+		expect(
+			c.add({ steps: { 'a: x -> y': 1 }, points: { p: { on: true, asked: 1, fired: 1 } } })
+		).toEqual(['buggify p']);
+		expect(c.steps.get('a: x -> y')).toBe(3);
+	});
+});

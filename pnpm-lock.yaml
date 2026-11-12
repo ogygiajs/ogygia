@@ -1053,6 +1053,9 @@ importers:
       fast-check:
         specifier: 'catalog:'
         version: 4.10.2
+      rolldown:
+        specifier: 'catalog:'
+        version: 1.2.16
       typescript:
         specifier: catalog:tsgo
         version: 7.0.2
