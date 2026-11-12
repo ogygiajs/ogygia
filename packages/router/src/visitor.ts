@@ -12,7 +12,7 @@
  * The id is random (not a fingerprint), first-party, and carries nothing — rotate it by
  * clearing the cookie. GDPR-wise it is a functional identifier; consult your own counsel.
  */
-import { randomUUID } from 'node:crypto';
+import { random } from '@ogygia/machine';
 import type { Ctx, Visitor } from './ctx.ts';
 
 export interface AnonymousVisitorOptions {
@@ -30,7 +30,7 @@ export function anonymousVisitor(
 	return (c) => {
 		const existing = c.cookies?.get(name);
 		if (existing) return { vid: existing, anonymous: true };
-		const id = randomUUID();
+		const id = random.uuid();
 		// mounted in Kit → its cookie jar (adds the header AND makes the value readable this
 		// request); standalone → a set-cookie on the router-built response via setHeaders
 		if (c.cookies?.set) {
