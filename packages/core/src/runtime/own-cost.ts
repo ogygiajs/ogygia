@@ -4,6 +4,7 @@
  *
  * @packageDocumentation
  */
+import { clock } from '@ogygia/machine';
 
 // @why the runtime and devtools chunks each carry a copy (test: test/own-cost.test.ts › two copies of the module (the runtime and the devtools chunks) keep one ledger)
 const spent: Record<string, number> = ((globalThis as Record<symbol, Record<string, number>>)[
@@ -12,12 +13,12 @@ const spent: Record<string, number> = ((globalThis as Record<symbol, Record<stri
 
 /** Add the time since `t0` to `phase`. */
 export function charge(phase: string, t0: number): void {
-	spent[phase] = (spent[phase] ?? 0) + (performance.now() - t0);
+	spent[phase] = (spent[phase] ?? 0) + (clock.mono() - t0);
 }
 
 /** Run `fn`, charging its time to `phase`. */
 export function metered<T>(phase: string, fn: () => T): T {
-	const t0 = performance.now();
+	const t0 = clock.mono();
 	try {
 		return fn();
 	} finally {
