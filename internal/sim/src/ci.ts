@@ -403,7 +403,37 @@ function file_one(open: Open[]): (sig: string, list: Finding[]) => Filed {
 	};
 }
 
+/** The two quality numbers: the machine steps the ledger accounts for (this run's sweep), and the
+ *  latest finished mutation run's kill rate, its date and how far through its list it got. */
+export function quality_line(
+	sweep: { accounted: number; total: number } | null,
+	mutation: { killed: number; judged: number; total: number; rate: number; at: string } | null
+): string {
+	const steps =
+		sweep === null
+			? 'no sweep this run'
+			: `${sweep.accounted}/${sweep.total} (${Math.round((sweep.accounted / sweep.total) * 1000) / 10}%)`;
+	const kill =
+		mutation === null
+			? 'no finished run yet'
+			: `${mutation.rate}% (${mutation.killed}/${mutation.judged} judged of ${mutation.total}, ${mutation.at.slice(0, 10)})`;
+	return `steps accounted: ${steps}; mutation kill rate: ${kill}`;
+}
+
+/** A JSON file's value, or null when it is not there or not JSON (its last line, for a .jsonl). */
+function read_json<T>(file: string | undefined): T | null {
+	if (file === undefined || !existsSync(file)) return null;
+	try {
+		const lines = readFileSync(file, 'utf8').trim().split('\n');
+		return JSON.parse(file.endsWith('.jsonl') ? lines[lines.length - 1] : lines.join('\n')) as T;
+	} catch {
+		return null; // ok: a broken file reads as none, and the line says so
+	}
+}
+
 async function main(): Promise<void> {
+	const quality = quality_line(read_json(env.DST_SWEEP), read_json(env.DST_MUTATION));
+	log(quality);
 	const started = Date.now();
 	let from = Number(env.DST_FROM ?? (Number(env.GITHUB_RUN_ID ?? 0) % 1_000_000) * 1000 + 1);
 	let seeds = 0;
@@ -433,7 +463,7 @@ async function main(): Promise<void> {
 		rate = b.steps_per_second;
 		all.push(...b.findings);
 		unreached.push(b.unreached_recovery);
-		log(`${seeds} seeds, ${all.length} findings`);
+		log(`${seeds} seeds, ${all.length} findings; ${quality}`);
 	}
 	const groups = new Map<string, Finding[]>();
 	for (const f of all) {
@@ -451,6 +481,7 @@ async function main(): Promise<void> {
 		steps_per_second: rate,
 		stopped_early,
 		failed,
+		quality,
 		// (the recovery steps no batch reached: each wants a point, a fault or an app shape)
 		coverage: { unreached_recovery: unreached_in_every(unreached) },
 		findings: [...groups].map(([sig, list]) => ({
@@ -470,6 +501,8 @@ async function main(): Promise<void> {
 				'## Deterministic simulation',
 				'',
 				`${seeds} seeds × ${STEPS} actions in ${results.minutes} min (${rate} loop steps/s)${stopped_early ? ', stopped early to leave the runners to CI' : ''}.`,
+				'',
+				`${quality.charAt(0).toUpperCase()}${quality.slice(1)}.`,
 				'',
 				failed ? `**A batch failed** (${failed}): the run stopped there.\n` : '',
 				results.findings.length === 0
