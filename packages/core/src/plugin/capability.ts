@@ -7,6 +7,7 @@
  * ({@link plugin_signer}), so a capability never crosses plugins and never passes for a region
  * MAC. Used by plugin/server.ts only.
  */
+import { clock } from '@ogygia/machine';
 import type { CapabilityOpened, PluginCapabilities } from './index.ts';
 import { expiry_refusal } from '../server/shared-cache.ts';
 import type { CapabilityLifetime } from '../server/capability-lifetime.ts';
@@ -58,7 +59,7 @@ export function plugin_capabilities(signer: CapabilitySigner): PluginCapabilitie
 			const params = url.searchParams;
 			const exp = params.get('exp') ?? '';
 			const renewal = params.get('renew') === '1';
-			const now = Math.floor(Date.now() / 1000); // wall: against the capability's signed epoch expiry
+			const now = Math.floor(clock.wall() / 1000); // wall: against the capability's signed epoch expiry
 			const refused = expiry_refusal(exp, now, renewal, lifetime.renew_window);
 			if (refused) return { ok: false, response: signer.deny(refused) };
 			// (one minted before capabilities named their key carries none: left to the MAC)
