@@ -536,8 +536,10 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 				'</script>',
 				'',
 				`<nav>${nav}</nav>`,
-				`<h1>peer ${p.path}</h1>`,
-				...p.roots.map((n) => usage(n, '')),
+				`<main data-gen="peer-page">`,
+				`\t<h1>peer ${p.path}</h1>`,
+				...p.roots.map((n) => usage(n, '\t')),
+				'</main>',
 				''
 			].join('\n')
 		);

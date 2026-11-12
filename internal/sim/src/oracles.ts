@@ -677,28 +677,51 @@ export function regions_show(tab: Tab, world: World): Broken | null {
 			)
 	);
 	if (empty.length === 0) return null;
-	// #901: a server island inside a woken held region is adopted as an empty lake
-	const held = (r: Element) =>
-		r.getAttribute('wake') === 'none' &&
-		r.parentElement?.closest('ogygia-region[live="true"][render="defer"]') != null;
 	const open = (r: Element) =>
 		`<${r.localName}${[...r.attributes]
 			.filter((a) => a.name !== 'endpoint')
 			.map((a) => ` ${a.name}="${a.value}"`)
 			.join('')}>`;
-	if (empty.every(held))
+	const known = KNOWN_EMPTY.filter((k) => empty.some(k.is));
+	const left = empty.filter((r) => !KNOWN_EMPTY.some((k) => k.is(r)));
+	if (left.length === 0)
 		return {
 			oracle: 'known',
-			detail: `${url}: #901 (a server island inside a woken held region never shows)`
+			detail: `${url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
 		};
-	return {
-		oracle: 'empty-region',
-		detail: `${url}: ${empty
-			.filter((r) => !held(r))
-			.map(open)
-			.join('\n')}`
-	};
+	return { oracle: 'empty-region', detail: `${url}: ${left.map(open).join('\n')}` };
 }
+
+/** An empty region a filed bug explains, by its shape (as KNOWN is for an MPA difference). */
+const KNOWN_EMPTY: ReadonlyArray<{ issue: number; what: string; is: (r: Element) => boolean }> = [
+	{
+		issue: 901,
+		what: 'a server island inside a woken held region never shows',
+		// (adopted as an empty lake)
+		is: (r) =>
+			r.getAttribute('wake') === 'none' &&
+			r.parentElement?.closest('ogygia-region[live="true"][render="defer"]') != null
+	},
+	{
+		issue: 909,
+		what: "a peer's deferred widget never loads in an app with no deferred region",
+		// (its hole, armed and never fetched: the runtime has no frame store)
+		is: (r) =>
+			r.getAttribute('render') === 'defer' &&
+			!r.hasAttribute('data-hydrated') &&
+			(r.getAttribute('endpoint') ?? '').startsWith('/og/frag?')
+	},
+	{
+		issue: 910,
+		what: "a server island inside a peer's widget never shows",
+		// (its hole asks the app's endpoint, which refuses it: the generated peer's widget root,
+		// `<section data-gen="widget">`, or a mounted page of it, `<main data-gen="peer-page">`)
+		is: (r) =>
+			r.getAttribute('render') === 'defer' &&
+			r.closest('[data-gen="widget"], [data-gen="peer-page"]') != null &&
+			(r.getAttribute('endpoint') ?? '').startsWith('/__ogygia__?')
+	}
+];
 
 /**
  * EVERY WAIT SETTLES: once the world is at rest (nothing on the wire, nothing due within 2 s), no
