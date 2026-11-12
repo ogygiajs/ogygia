@@ -72,7 +72,7 @@
 import { cache, type Cache, type EvictWhy } from './cache.ts';
 import { clock } from './ports.ts';
 import { machine, type Machine } from './machine.ts';
-import { machine_error, report_thrown } from './messages.ts';
+import { bad_option, report_thrown } from './messages.ts';
 import { under_policy, type Policy } from './policy.ts';
 import { DISPOSE } from './scope.ts';
 import { STALE, type Fresh, type Stale } from './stale.ts';
@@ -317,10 +317,6 @@ export function key_of(fields: readonly PropertyKey[], input: unknown): string {
 	let key = '';
 	for (const f of fields) key += key_part(of[f]);
 	return key;
-}
-
-function bad_option(option: string, value: unknown, rule: string): Error {
-	return machine_error('machine_bad_option', { option, value: String(value), rule });
 }
 
 function kept_of(s: Readonly<Kept>): Kept {
