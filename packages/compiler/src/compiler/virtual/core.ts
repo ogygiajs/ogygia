@@ -29,7 +29,6 @@ import {
 import { registry_stub_names, registry_stub_source } from '../link/registry-stub.ts';
 import { dev_hmr_client_source } from '../dev/dev-hmr.ts';
 import { PROFILER_MAPS_PLACEHOLDER, REGION_FAMILY } from '../ids.ts';
-import { RUNTIME_HOOK_CONSTANTS, type RuntimeHookName } from '../../contract/runtime-hooks.ts';
 import type { CompileCtx } from '../ctx.ts';
 import type { ClientRealmFile, ServerRealm } from '../link/caps.ts';
 import type { Program } from '../program.ts';
