@@ -16,6 +16,7 @@ on:
       browser: { type: string, required: true }
     secrets:
       TURBO_TOKEN: { required: false }
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: { required: false }
 
 jobs:
   run:
@@ -25,6 +26,7 @@ jobs:
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
       # (the caller's event: a pull request reads the cache and never writes it)
       TURBO_REMOTE_CACHE_READ_ONLY: ${{ github.event_name != 'push' }}
     steps:

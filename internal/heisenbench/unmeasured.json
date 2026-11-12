@@ -2257,6 +2257,26 @@
 			"reason": "the build warning for a host the parser cannot read, said once per file, constant work"
 		},
 		{
+			"id": "packages/core/src/compiler/macros/pipeline.ts > run_module_macros > refuse",
+			"reason": "throws the coded build error (not replayable), constant work; proven in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/driver.ts > Compiler > macros > run_module_macros:2~cee8e9 > ownSource",
+			"reason": "forwards to CompileCtx.is_own_source, one call; proven in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/ctx.ts > CompileCtx > is_own_source",
+			"reason": "one substring test and the declared-package lookup (a CompileCtx, hidden state), constant work per declared root"
+		},
+		{
+			"id": "packages/core/src/messages/build.ts > BUILD_ERRORS > macro_outside_app > text",
+			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/build.ts > BUILD_ERRORS > macro_outside_app > details",
+			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
+		},
+		{
 			"id": "packages/core/src/compiler/region/transform.ts > warn_unparsed > once:1~087a4c",
 			"reason": "say(): one build warning per unparsed file, constant work"
 		},
@@ -2903,6 +2923,78 @@
 		{
 			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > warn:1~cd9197 > map:0~a95637",
 			"reason": "build only: relative paths of at most five leaked modules, inside the warning"
+		},
+		{
+			"id": "packages/core/src/vite/package-files.ts > discover_package_files > inside",
+			"reason": "a closure over the package's real root (not replayable), one prefix compare; proven in packages/core/test/package-files.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > note_region_answer",
+			"reason": "dev and e2e builds only: reads a live Response (not cloneable) into module state, constant work; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > note_minted_capability",
+			"reason": "dev and e2e builds only: two prefix tests into module state (hidden state), constant work; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > install_server_rules > add:1~32ab66",
+			"reason": "dev and e2e builds only: the region-answer rule joins its module list (hidden state), linear in the unsafe answers seen; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > install_server_rules > add:1~dd5fc5",
+			"reason": "dev and e2e builds only: the minted-capability rule joins its module list (hidden state), linear in the unsafe mints seen; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > region_answer_unsafe",
+			"reason": "dev and e2e builds only: reads a live Response's headers (not cloneable), constant work; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_region_answer_shared > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_region_answer_shared > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_capability_not_path > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_capability_not_path > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > head_candidates",
+			"reason": "browser only, dev and e2e builds: one query of the live head (DOM nodes, not cloneable), linear in its base and http-equiv nodes; proven in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > head_not_adopted",
+			"reason": "browser only, dev and e2e builds: the rule's answer over the live head (DOM nodes, not cloneable), linear in its base and http-equiv nodes; proven in packages/core/test/browser/spa-head-deny.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > watch_head",
+			"reason": "browser only, dev and e2e builds: takes the first document's head once (DOM nodes, not cloneable) and installs the rule; proven in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > watch_head > map:0~7d8330",
+			"reason": "browser only, dev and e2e builds: one head node's outerHTML (a DOM node, not cloneable), constant work; proven in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > watch_head > __og_head_deny",
+			"reason": "browser only, dev and e2e builds: the router's lazy chunk hands its deny in (one assignment), constant work; proven in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/head-deny.ts > is_dangerous_head_node",
+			"reason": "browser only: a tag name and one attribute of a head node (a DOM element, not cloneable), constant work; proven in packages/core/test/browser/spa-head-deny.test.ts in three engines"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_head_adopted > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_head_adopted > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/spa-head-deny.test.ts"
 		}
 	]
 }
