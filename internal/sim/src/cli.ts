@@ -26,7 +26,7 @@
  * no finding from that seed is trusted until it is fixed.
  */
 import { fork, type ChildProcess } from 'node:child_process';
-import { existsSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 // (the host's real timers: a run replaces the global ones with its simulated ones)
 import { clearTimeout as clearRealTimeout, setTimeout as real_timeout } from 'node:timers';
@@ -55,6 +55,7 @@ import type { Visitor } from './browser.ts';
 import { ORIGIN, World, type Rollover, type WorldOptions } from './world.ts';
 import { builds_of } from './builds.ts';
 import { key_pair } from './keys.ts';
+import { MOUNT, type GenPeer } from './gen.ts';
 import type { Build } from './server.ts';
 
 const arg = (flag: string): string | undefined => {
@@ -78,7 +79,14 @@ const BUILDS: readonly Build[] =
  * and `ORIGIN`; the keys drawn from the seed (`keys.ts`).
  */
 const NAME = arg('--name') ?? 'app';
-const PEERS = (arg('--peers') ?? '')
+/** A generated app's plan (`src/lib/gen/plan.json`): a seed that drew a peer names it there, so its
+ *  runs need no flags (`<app>-peer`, its pages mounted under `MOUNT`). */
+const GEN_PEER = ((): GenPeer | null => {
+	const at = join(APP, 'src', 'lib', 'gen', 'plan.json');
+	if (!existsSync(at)) return null;
+	return (JSON.parse(readFileSync(at, 'utf8')) as { peer?: GenPeer | null }).peer ?? null;
+})();
+const PEERS = (arg('--peers') ?? (GEN_PEER ? `peer=${APP}-peer` : ''))
 	.split(',')
 	.filter(Boolean)
 	.map((p) => {
@@ -138,7 +146,8 @@ function route_paths(app: string): string[] {
  *  router's, a mounted peer's pages, which no route file names). */
 const PATHS = [
 	...route_paths(APP),
-	...(arg('--paths') ?? '').split(',').filter((p) => p.startsWith('/'))
+	...(arg('--paths') ?? '').split(',').filter((p) => p.startsWith('/')),
+	...(GEN_PEER?.pages ?? []).map((p) => MOUNT + p.path)
 ];
 /** Paths an app's e2e serves itself (`page.route`), not its build: palaestra's /wake-gate holds a
  *  slow script its spec releases (e2e/wake-gate.spec.ts). */
