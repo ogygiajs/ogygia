@@ -27,18 +27,23 @@ describe.skipIf(!built)("a page's fetch it calls off", () => {
 			await world.rest();
 			const window = tab.page.mainFrame.window as unknown as Window & typeof globalThis;
 			const called_off = new window.AbortController();
-			const heard = window.fetch('/?called-off', { signal: called_off.signal }).then(
-				(r) => `answered ${r.status}`,
-				(e: Error) => e.name
-			);
-			// (its answer is held 10 to 40 s on the way: the page calls it off while it waits)
+			const heard = window
+				.fetch('/?called-off', { signal: called_off.signal })
+				.then((r) => r.text())
+				.then(
+					() => 'answered',
+					(e: Error) => e.name
+				);
+			// (its answer is held 10 to 40 s on the way, its head or its body: the page calls it off
+			// while it waits)
 			await world.loop.run(1_000);
+			const ex = world.network.exchanges.find((e) => e.url.endsWith('/?called-off'));
+			expect(ex).toBeDefined();
 			called_off.abort();
 			await world.loop.run(60_000);
 			expect(await heard).toBe('AbortError');
-			const ex = world.network.exchanges.find((e) => e.url.endsWith('/?called-off'));
-			expect(ex?.status).toBe('aborted');
 			expect(world.network.unanswered()).toBe(0);
+			expect(world.network.busy()).toBe(false);
 		} finally {
 			await world.end();
 		}
