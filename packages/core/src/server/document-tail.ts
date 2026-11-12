@@ -334,10 +334,7 @@ export class DocumentTail {
 		if (this.#sheet_owners.size) {
 			const record: Record<string, string[]> = {};
 			for (const [identity, owners] of this.#sheet_owners) record[identity] = [...owners];
-			out +=
-				`<script type="application/json" ${HEAD_OWNERS_ATTR}>` +
-				escape_script_text(JSON.stringify(record)) +
-				'</script>';
+			out = `${out}<script type="application/json" ${HEAD_OWNERS_ATTR}>${escape_script_text(JSON.stringify(record))}\x3C/script>`;
 		}
 		return out;
 	}

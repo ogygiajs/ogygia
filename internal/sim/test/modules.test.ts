@@ -72,9 +72,7 @@ describe('modules of a simulated tab', () => {
 	// foreign tool edited the islands before the runtime kept their server markup
 	it("the document's module scripts run in its order, an inline one after a slower one above it", async () => {
 		modules_in_order();
-		const page =
-			'<script type="module" src="/first.js"></script>' +
-			"<script type=\"module\">(globalThis.order ??= []).push('inline'); document.body.textContent = globalThis.order.join(' ');</script>";
+		const page = `<script type="module" src="/first.js">\x3C/script><script type="module">(globalThis.order ??= []).push('inline'); document.body.textContent = globalThis.order.join(' ');\x3C/script>`;
 		expect(await run(true, page)).toBe('first inline');
 	});
 });

@@ -10,7 +10,7 @@ import { no_foreign_html } from '../src/oracles.ts';
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
 );
-const built = existsSync(OUTPUT + '/server/index.js');
+const built = existsSync(`${OUTPUT}/server/index.js`);
 
 describe.skipIf(!built)('foreign HTML', () => {
 	it('a deferred region whose request is sent elsewhere paints nothing from there', async () => {

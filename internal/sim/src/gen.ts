@@ -379,10 +379,16 @@ function name(n: GenNode): string {
 /** Where `n` is used: its tag, with a fallback for a hole that has one. */
 function usage(n: GenNode, indent: string): string {
 	if (n.empty)
-		return `${indent}<div data-gen-empty>\n${usage({ ...n, empty: false }, `${indent}\t`)}\n${indent}</div>`;
+		return [
+			`${indent}<div data-gen-empty>`,
+			usage({ ...n, empty: false }, `${indent}\t`),
+			`${indent}</div>`
+		].join('\n');
 	if (n.kind === 'hole' && n.fallback)
 		// (a fallback the hole keeps on purpose says so: the fallback oracle leaves it standing)
-		return `${indent}<N${n.id} label="n${n.id}">\n${indent}\t{#snippet ogygiaFallback()}<p data-gen-fallback${n.keep ? ' data-gen-kept' : ''}>loading n${n.id}…</p>{/snippet}\n${indent}</N${n.id}>`;
+		return `${indent}<N${n.id} label="n${n.id}">
+${indent}\t{#snippet ogygiaFallback()}<p data-gen-fallback${n.keep ? ' data-gen-kept' : ''}>loading n${n.id}…</p>{/snippet}
+${indent}</N${n.id}>`;
 	if (n.kind === 'held' || n.kind === 'live') return `${indent}<${name(n)} />`;
 	// (a fixed instant: what devalue carries, the same in every render)
 	const since = n.dated ? ` since={new Date(${n.id * 86_400_000})}` : '';
@@ -431,7 +437,7 @@ function remote(n: GenNode, page: string): string {
 			`\treturn await region(N${n.id}, { label: label() });`,
 			`});`
 		);
-	return lines.join('\n') + '\n';
+	return `${lines.join('\n')}\n`;
 }
 
 /** A held or live region's host. */
@@ -482,13 +488,11 @@ const ODD_TEXT = `say "hi" & 'bye' <b>not bold</b> a > b &amp; é ü 中文 😀
 /** The component file of `n`. */
 function component(n: GenNode): string {
 	if (n.empty)
-		return [
-			'<script lang="ts">',
-			"\timport type { Snippet } from 'svelte';",
-			"\tlet { label = '' }: { label?: string; ogygiaFallback?: Snippet } = $props();",
-			'</script>',
-			''
-		].join('\n');
+		return `<script lang="ts">
+\timport type { Snippet } from 'svelte';
+\tlet { label = '' }: { label?: string; ogygiaFallback?: Snippet } = $props();
+\x3C/script>
+`;
 	const interactive =
 		n.kind === 'island' ||
 		((n.kind === 'hole' || n.kind === 'held' || n.kind === 'live') && n.wake !== undefined);
@@ -555,49 +559,47 @@ export const MOUNT = '/peer';
  *  one. */
 function slot_usage(s: GenSlot): string {
 	return s.placeholder
-		? `<div data-gen="slot">\n\t<Region of={data.r${s.id}}>\n\t\t{#snippet placeholder()}<p data-gen-placeholder>waiting for r${s.id}…</p>{/snippet}\n\t</Region>\n</div>`
+		? `<div data-gen="slot">
+\t<Region of={data.r${s.id}}>
+\t\t{#snippet placeholder()}<p data-gen-placeholder>waiting for r${s.id}…</p>{/snippet}
+\t</Region>
+</div>`
 		: `<div data-gen="slot"><Region of={data.r${s.id}} /></div>`;
 }
 
 /** The app's federation (`src/lib/gen/federation.server.ts`): one identity, the peer it calls. */
 function app_federation(peer: GenPeer): string {
 	const cache = peer.ttl > 0 ? `, cache: { ttl: ${peer.ttl} }` : '';
-	return [
-		`import { federate } from '@ogygia/federation';`,
-		`import { env } from '$env/dynamic/private';`,
-		'',
-		`// (the simulator gives each app its keys and every app's origin: internal/sim/src/cli.ts)`,
-		`export const { peer } = federate({`,
-		`\tname: 'app',`,
-		`\tkey: env.APP_SIGNING_KEY,`,
-		`\tvisitor: () => ({ sub: 'visitor' }),`,
-		`\tpeers: { peer: { origin: env.PEER_ORIGIN ?? 'https://peer.test', key: env.PEER_PUBLIC_KEY${cache} } }`,
-		`});`,
-		''
-	].join('\n');
+	return `import { federate } from '@ogygia/federation';
+import { env } from '$env/dynamic/private';
+
+// (the simulator gives each app its keys and every app's origin: internal/sim/src/cli.ts)
+export const { peer } = federate({
+\tname: 'app',
+\tkey: env.APP_SIGNING_KEY,
+\tvisitor: () => ({ sub: 'visitor' }),
+\tpeers: { peer: { origin: env.PEER_ORIGIN ?? 'https://peer.test', key: env.PEER_PUBLIC_KEY${cache} } }
+});
+`;
 }
 
 /** The app's server hook beside ogygia's (`src/lib/gen/mount.server.ts`): the peer's pages
  *  mounted under `/peer` by a server router, or nothing. */
 function app_mount(peer: GenPeer | null): string {
 	if (peer?.mount !== 'router')
-		return [
-			`import type { Handle } from '@sveltejs/kit';`,
-			'',
-			`export const handle: Handle = ({ event, resolve }) => resolve(event);`,
-			''
-		].join('\n');
-	return [
-		`import type { Handle } from '@sveltejs/kit';`,
-		`import { routes } from '@ogygia/router';`,
-		`import { mount } from '@ogygia/federation';`,
-		`import { peer } from './federation.server.ts';`,
-		'',
-		`const mounted = routes({ '${MOUNT}/[...rest]': mount(peer) }, { base: '', visitor: () => ({ sub: 'visitor' }) });`,
-		'',
-		`export const handle: Handle = ({ event, resolve }) => mounted.handle({ event, resolve });`,
-		''
-	].join('\n');
+		return `import type { Handle } from '@sveltejs/kit';
+
+export const handle: Handle = ({ event, resolve }) => resolve(event);
+`;
+	return `import type { Handle } from '@sveltejs/kit';
+import { routes } from '@ogygia/router';
+import { mount } from '@ogygia/federation';
+import { peer } from './federation.server.ts';
+
+const mounted = routes({ '${MOUNT}/[...rest]': mount(peer) }, { base: '', visitor: () => ({ sub: 'visitor' }) });
+
+export const handle: Handle = ({ event, resolve }) => mounted.handle({ event, resolve });
+`;
 }
 
 /** Writes the region components of `roots`, shown on `page`, into `lib`. */
@@ -633,12 +635,20 @@ export function write(
 		.join(' ');
 	writeFileSync(
 		join(routes, '+layout.svelte'),
-		`<script lang="ts">\n\tlet { children } = $props();\n</script>\n\n<nav>${nav}</nav>\n{@render children()}\n`
+		`<script lang="ts">
+\tlet { children } = $props();
+\x3C/script>
+
+<nav>${nav}</nav>
+{@render children()}
+`
 	);
 	// (the app's pages are server HTML with islands: no Kit client on them)
 	writeFileSync(
 		join(routes, '+layout.ts'),
-		'export const csr = false;\nexport const prerender = false;\n'
+		`export const csr = false;
+export const prerender = false;
+`
 	);
 	writeFileSync(join(routes, '+page.svelte'), `<h1>generated app, seed ${seed}</h1>\n`);
 	writeFileSync(join(lib, 'mount.server.ts'), app_mount(peer));
@@ -649,31 +659,27 @@ export function write(
 			mkdirSync(dir, { recursive: true });
 			writeFileSync(
 				join(dir, '+page.server.ts'),
-				[
-					`import { mount } from '@ogygia/federation';`,
-					`import { peer } from '$lib/gen/federation.server';`,
-					'',
-					`const m = mount.kit(peer, { user: () => ({ sub: 'visitor' }) });`,
-					`export const load = m.load;`,
-					`export const actions = m.actions;`,
-					''
-				].join('\n')
+				`import { mount } from '@ogygia/federation';
+import { peer } from '$lib/gen/federation.server';
+
+const m = mount.kit(peer, { user: () => ({ sub: 'visitor' }) });
+export const load = m.load;
+export const actions = m.actions;
+`
 			);
 			writeFileSync(
 				join(dir, '+page.svelte'),
-				[
-					'<script lang="ts">',
-					'\tlet { data } = $props();',
-					'</script>',
-					'',
-					'<svelte:head>',
-					'\t{#if data.doc.title}<title>{data.doc.title}</title>{/if}',
-					"\t{@html data.doc.css.join('') + (data.doc.head ?? '')}",
-					'</svelte:head>',
-					'',
-					'{@html data.doc.body}',
-					''
-				].join('\n')
+				`<script lang="ts">
+\tlet { data } = $props();
+\x3C/script>
+
+<svelte:head>
+\t{#if data.doc.title}<title>{data.doc.title}</title>{/if}
+\t{@html data.doc.css.join('') + (data.doc.head ?? '')}
+</svelte:head>
+
+{@html data.doc.body}
+`
 			);
 		}
 	}
@@ -721,7 +727,7 @@ export function write(
 		);
 		components(lib, page.roots, page.path);
 	}
-	writeFileSync(join(lib, 'plan.json'), JSON.stringify({ seed, pages, peer }, null, '\t') + '\n');
+	writeFileSync(join(lib, 'plan.json'), `${JSON.stringify({ seed, pages, peer }, null, '\t')}\n`);
 }
 
 /** Writes `peer` into the peer app `dir` (apps/sim-gen-peer): its widgets and pages, the router
@@ -817,7 +823,7 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 			''
 		].join('\n')
 	);
-	writeFileSync(join(lib, 'plan.json'), JSON.stringify({ seed, peer }, null, '\t') + '\n');
+	writeFileSync(join(lib, 'plan.json'), `${JSON.stringify({ seed, peer }, null, '\t')}\n`);
 }
 
 function main(): void {

@@ -105,12 +105,12 @@ const SERVER_POINTS = [
 	'federation.doc-stale',
 	'postrender.store-down'
 ];
-const SERVER_POINTS_ENTRY =
-	SERVER_ENTRY +
-	// (by path: a bare name does not resolve from the entry's temporary folder)
-	`export { outbox } from ${JSON.stringify(SRC + '../../machine/src/outbox.ts')};\n` +
-	`export { PeerHandle } from ${JSON.stringify(SRC + '../../federation/src/peer.ts')};\n` +
-	`export { store_get } from ${JSON.stringify(SRC + '../../postrender/src/registry.ts')};\n`;
+// (by path: a bare name does not resolve from the entry's temporary folder)
+const SERVER_POINTS_ENTRY = `${SERVER_ENTRY}${dedent`
+	export { outbox } from ${JSON.stringify(`${SRC}../../machine/src/outbox.ts`)};
+	export { PeerHandle } from ${JSON.stringify(`${SRC}../../federation/src/peer.ts`)};
+	export { store_get } from ${JSON.stringify(`${SRC}../../postrender/src/registry.ts`)};
+`}\n`;
 
 describe('buggify points never ship in a production build', () => {
 	it('the runtime boot: none of them off, every one on', async () => {

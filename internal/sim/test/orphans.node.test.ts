@@ -11,7 +11,7 @@ import { waste } from '../src/waste.ts';
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
 );
-const built = existsSync(OUTPUT + '/server/index.js');
+const built = existsSync(`${OUTPUT}/server/index.js`);
 
 describe.skipIf(!built)('an orphaned observer', () => {
 	it('is named once every element it watches has left the document', async () => {

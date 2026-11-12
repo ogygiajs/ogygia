@@ -225,10 +225,10 @@ function main(): void {
 	// (no mutant starts once the budget is spent: the daily job's is about an hour)
 	const deadline = Date.now() + Number(arg('--budget-min') ?? Infinity) * 60_000;
 	const box = resolve(arg('--sandbox') ?? join(tmpdir(), 'ogygia-mutants'));
-	if (box === REPO || box.startsWith(REPO + '/'))
+	if (box === REPO || box.startsWith(`${REPO}/`))
 		throw new Error('the sandbox must be outside the repo');
-	const out = resolve(arg('--out') ?? join(box + '-results.jsonl'));
-	const log = resolve(box + '.log');
+	const out = resolve(arg('--out') ?? join(`${box}-results.jsonl`));
+	const log = resolve(`${box}.log`);
 	writeFileSync(log, '');
 	// (a copy-on-write clone of the tree as it is: built packages and installed modules included)
 	rmSync(box, { recursive: true, force: true });
@@ -243,7 +243,7 @@ function main(): void {
 		if (!build_app(box, t, log)) throw new Error(`${t.name}: the baseline build failed (${log})`);
 		for (const [k, v] of run_seeds(box, t, seeds, jobs, log)) base.set(k, v);
 		console.log(
-			`baseline ${t.name}: ${[...base].filter(([k, v]) => k.startsWith(t.name + ':') && v.length).length} seeds with findings`
+			`baseline ${t.name}: ${[...base].filter(([k, v]) => k.startsWith(`${t.name}:`) && v.length).length} seeds with findings`
 		);
 	}
 
@@ -259,7 +259,7 @@ function main(): void {
 		try {
 			text = apply_mutant(readFileSync(original, 'utf8'), m);
 		} catch (error) {
-			appendFileSync(out, JSON.stringify({ mutant: m, skipped: String(error) }) + '\n');
+			appendFileSync(out, `${JSON.stringify({ mutant: m, skipped: String(error) })}\n`);
 			console.log(`skip ${name(m)}: ${String(error)}`);
 			continue;
 		}
@@ -277,7 +277,7 @@ function main(): void {
 				}
 				for (const [k, s] of run_seeds(box, t, seeds, jobs, log)) now.set(k, s);
 				// (judged on the targets run so far: a kill needs no more)
-				const so_far = new Map([...base].filter(([k]) => now.has(k) || k.startsWith(t.name + ':')));
+				const so_far = new Map([...base].filter(([k]) => now.has(k) || k.startsWith(`${t.name}:`)));
 				v = verdict(so_far, now);
 				if (v.killed) break;
 			}
@@ -285,7 +285,7 @@ function main(): void {
 		judged.push(v);
 		appendFileSync(
 			out,
-			JSON.stringify({ mutant: m, killed: v.killed, by: v.by.slice(0, 10) }) + '\n'
+			`${JSON.stringify({ mutant: m, killed: v.killed, by: v.by.slice(0, 10) })}\n`
 		);
 		console.log(
 			`${v.killed ? 'KILLED  ' : 'SURVIVED'} ${name(m)}${v.killed ? `: ${v.by[0]}` : ''}`
@@ -298,7 +298,7 @@ function main(): void {
 	console.log(
 		`\n${t.killed}/${t.judged} killed (${t.rate}%), ${t.judged} of ${t.total} mutants judged`
 	);
-	appendFileSync(out, JSON.stringify(t) + '\n');
+	appendFileSync(out, `${JSON.stringify(t)}\n`);
 }
 
 if (process.argv[1] === import.meta.filename) main();

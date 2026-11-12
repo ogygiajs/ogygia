@@ -151,7 +151,7 @@ export function held_twice(doc: Document): string[] {
 		for (const [i, k] of keys.entries()) {
 			if (k === null || k === '') continue;
 			const at = `${scope?.[i] ?? 0} ${k}`;
-			if (seen.has(at)) out.add(`${what} ${k.length > 80 ? k.slice(0, 80) + '…' : k}`);
+			if (seen.has(at)) out.add(`${what} ${k.length > 80 ? `${k.slice(0, 80)}…` : k}`);
 			seen.add(at);
 		}
 		return [...out];
