@@ -550,7 +550,7 @@ export function flag(
  *  module never throws there — exposure timestamps are 0 in that case (and in dev). */
 function now(): number {
 	try {
-		return Date.now();
+		return Date.now(); // wall: an exposure's timestamp, sent to the analytics sink
 	} catch {
 		return 0;
 	}

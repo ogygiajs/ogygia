@@ -1,14 +1,5 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import {
-	clock,
-	flights,
-	MachineError,
-	observe,
-	policy,
-	scope,
-	STALE,
-	type Policy
-} from '../src/index.ts';
+import { flights, MachineError, observe, policy, scope, STALE, type Policy } from '../src/index.ts';
 import { macrotask } from './_tick.ts';
 import { DISPOSE } from './_dispose.ts';
 
@@ -566,7 +557,8 @@ describe('keep, max and weigh', () => {
 
 	it('a refresh that lands past its prior’s age, into a full cache no sweep has reached yet, is kept', async () => {
 		let now = 1_000_000;
-		const spy = vi.spyOn(clock, 'mono').mockImplementation(() => now);
+		// (the clock port reads the platform's `performance` at each call)
+		const spy = vi.spyOn(performance, 'now').mockImplementation(() => now);
 		const d = deferred<string>();
 		let round = 0;
 		const pages = flights({
