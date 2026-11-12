@@ -155,6 +155,12 @@ const kit_manifest = await import(
 	).href
 ).catch(() => null);
 
+// Kit's run-time merge of the page options and `config` of a page's nodes
+const kit_page_nodes = await import(
+	/* @vite-ignore */ new URL('../utils/page_nodes.js', import.meta.resolve('@sveltejs/kit')).href
+).catch(() => null);
+const POSTRENDER_RE = /config = \{ postrender: (true|false) \}/;
+
 type KitNode = {
 	component?: string;
 	universal?: string;
@@ -195,6 +201,7 @@ const is_group = (d: string) => d.endsWith(')');
 /** The segments a reset written in `dir` may name: its own and its ancestors', the root's ''. */
 const reset_targets = (d: string) => ['', ...(d ? d.split('/') : [])];
 const option = fc.constantFrom(undefined, ON, OFF);
+const config_option = fc.constantFrom(undefined, undefined, true, false);
 const component = (kind: 'page' | 'layout', d: string) =>
 	fc.oneof(
 		{ weight: 3, arbitrary: fc.constant(undefined) },
@@ -212,6 +219,11 @@ const level = (d: string) =>
 		page_server: is_group(d) ? fc.constant(undefined) : option,
 		layout_universal: option,
 		layout_server: option,
+		// a claimed `config` key per module: postrender's
+		page_universal_config: is_group(d) ? fc.constant(undefined) : config_option,
+		page_server_config: is_group(d) ? fc.constant(undefined) : config_option,
+		layout_universal_config: config_option,
+		layout_server_config: config_option,
 		error: fc.boolean()
 	});
 const levels_arb = fc.tuple(...DIRS.map(level));
@@ -222,12 +234,17 @@ function files_of(levels: Level[]): Record<string, string> {
 	levels.forEach((l, i) => {
 		const d = DIRS[i];
 		const at = (name: string) => (d ? `${d}/${name}` : name);
+		const module = (name: string, csr: string | undefined, postrender: boolean | undefined) => {
+			const config =
+				postrender === undefined ? '' : `export const config = { postrender: ${postrender} };\n`;
+			if (csr || config) files[at(name)] = (csr ?? '') + config;
+		};
 		if (l.page) files[at(l.page)] = '<h1>p</h1>';
 		if (l.layout) files[at(l.layout)] = '<slot />';
-		if (l.page_universal) files[at('+page.ts')] = l.page_universal;
-		if (l.page_server) files[at('+page.server.ts')] = l.page_server;
-		if (l.layout_universal) files[at('+layout.ts')] = l.layout_universal;
-		if (l.layout_server) files[at('+layout.server.ts')] = l.layout_server;
+		module('+page.ts', l.page_universal, l.page_universal_config);
+		module('+page.server.ts', l.page_server, l.page_server_config);
+		module('+layout.ts', l.layout_universal, l.layout_universal_config);
+		module('+layout.server.ts', l.layout_server, l.layout_server_config);
 		if (l.error) files[at('+error.svelte')] = '<h1>e</h1>';
 	});
 	return files;
@@ -250,6 +267,8 @@ describe.skipIf(!kit_manifest)('the route tree against Kit’s, over generated r
 					if (!/missing segment|conflict with each other/.test(String(e))) throw e;
 					return;
 				}
+				// Kit's static reader gives up on a module whose `config` is an object: no answer to compare
+				if (kit.nodes.some((n) => n.page_options === null)) return;
 				compared++;
 				const root = path.dirname(path.dirname(routes));
 				const csr_of = (options: KitNode['page_options']) => options?.csr;
@@ -287,4 +306,50 @@ describe.skipIf(!kit_manifest)('the route tree against Kit’s, over generated r
 			}
 		);
 	});
+
+	it.skipIf(!kit_page_nodes)(
+		'every page’s merged route config agrees with Kit’s get_config',
+		() => {
+			fc.assert(
+				fc.property(levels_arb, (levels) => {
+					const files = files_of(levels);
+					fc.pre(Object.keys(files).length > 0);
+					const routes = tree(files);
+					let kit: ReturnType<typeof kit_tree>;
+					try {
+						kit = kit_tree(routes);
+					} catch (e) {
+						if (!/missing segment|conflict with each other/.test(String(e))) throw e;
+						return;
+					}
+					compared++;
+					const routes_rel = path.relative(path.dirname(path.dirname(routes)), routes);
+					// the module's value at run time, as Kit loads it: its `config` export
+					const loaded = (file: string | undefined) => {
+						if (!file) return undefined;
+						const m = POSTRENDER_RE.exec(files[path.relative(routes_rel, file)] ?? '');
+						return { config: m ? { postrender: m[1] === 'true' } : undefined };
+					};
+					const ours = page_route_config(routes, ['postrender']);
+					for (const route of kit.routes) {
+						if (!route.page || !route.leaf) continue;
+						const nodes = [
+							...route.page.layouts.map((i) => (i === undefined ? undefined : kit.nodes[i])),
+							route.leaf
+						].map((n) => n && { universal: loaded(n.universal), server: loaded(n.server) });
+						const want = new kit_page_nodes!.PageNodes(nodes).get_config() ?? {};
+						const id = `/${route.id
+							.split('/')
+							.filter((s) => s && !s.startsWith('('))
+							.join('/')}`;
+						expect(ours[id], `${id}\n${JSON.stringify(files)}`).toEqual(want);
+					}
+				}),
+				{
+					seed: Number(process.env.OGYGIA_FUZZ_SEED ?? 2),
+					numRuns: Number(process.env.OGYGIA_FUZZ_RUNS ?? 200)
+				}
+			);
+		}
+	);
 });
