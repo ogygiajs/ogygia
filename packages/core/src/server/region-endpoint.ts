@@ -28,7 +28,7 @@ const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS_
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 import { B64Url } from './payload.ts';
-import { REF_WIRE_KEY, ref_reducer } from '../ref.ts';
+import { REF_WIRE_KEY, placed, ref_reducer } from '../ref.ts';
 import { ensure_prop_kinds } from './region-props.ts';
 import { OgygiaError, warn } from '../messages/server.ts';
 import { note_minted_capability } from './rules.ts';
@@ -156,7 +156,10 @@ export function mint_region_capability(entry: string, payload: string, ttl = 0):
  */
 export function mint_server_region(entry: string, props: Record<string, unknown>, ttl = 0): string {
 	ensure_prop_kinds();
-	const payload = B64Url.encode(stringify(props, { [REF_WIRE_KEY]: ref_reducer(PROP_FAMILIES) }));
+	// (decoded fresh at the endpoint, never by id: place form keeps the address the same per render)
+	const payload = B64Url.encode(
+		placed(stringify(props, { [REF_WIRE_KEY]: ref_reducer(PROP_FAMILIES) }))
+	);
 	if (payload.length > MAX_REGION_PROPS_LEN) {
 		throw new OgygiaError('hole_props_too_large', {
 			entry,
