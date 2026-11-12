@@ -7,7 +7,7 @@ import { fill_profiler_maps } from '../src/build/profiler-maps.ts';
 import {
 	PROFILER_MAPS_PLACEHOLDER,
 	PROFILER_MAPS_GZ_PREFIX as GZ_PREFIX
-} from '@ogygia/core/internal/compiler-ids';
+} from '@ogygia/compiler/ids';
 import {
 	embedded_files,
 	embedded_key,
