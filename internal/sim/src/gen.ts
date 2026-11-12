@@ -48,6 +48,9 @@ export interface GenNode {
 	readonly placeholder?: boolean;
 	/** A live region's ticks, this many ms apart. */
 	readonly every?: number;
+	/** A live region whose ticks cycle through three regions: its own, another interactive module
+	 *  (`A<id>`) and a static one (`S<id>`): its island is swapped, hydrated anew or dropped. */
+	readonly switches?: boolean;
 	/** An island whose markup the next release changes (an element only build v2 renders), as a
 	 *  release changes a component: what hydrates one build's HTML with the other's code meets. */
 	readonly changes?: boolean;
@@ -241,6 +244,7 @@ export function plan(seed: number): GenPage[] {
 	};
 	// (and whether a page opens with a hero image, from its own)
 	const hr = rng(seed).fork('gen hero');
+	const switching = switcher(seed);
 	const node = trees(r, held);
 	const pages = r.between(3, 6);
 	return Array.from({ length: pages }, (_, i) => ({
@@ -253,7 +257,21 @@ export function plan(seed: number): GenPage[] {
 		.map((page) => (d.chance(0.4) ? { ...page, data: true, roots: page.roots.map(reading) } : page))
 		.map((page) => ({ ...page, roots: page.roots.map(messy) }))
 		.map((page) => ({ ...page, roots: page.roots.map(empty) }))
-		.map((page) => (hr.chance(0.4) ? { ...page, hero: true } : page));
+		.map((page) => (hr.chance(0.4) ? { ...page, hero: true } : page))
+		.map((page) => ({ ...page, roots: page.roots.map(switching) }));
+}
+
+/** Some live regions switch (their own stream, `gen live switch`): drawn per live region in tree
+ *  order, so every other draw stays where it was. */
+function switcher(seed: number): (n: GenNode) => GenNode {
+	const sw = rng(seed).fork('gen live switch');
+	const walk = (n: GenNode): GenNode => {
+		const children = n.children.map(walk);
+		return n.kind === 'live' && sw.chance(0.5)
+			? { ...n, children, switches: true }
+			: { ...n, children };
+	};
+	return walk;
 }
 
 /** The hero image the app serves (`/hero.png`): a 1x1 PNG, loaded over the simulated network. */
@@ -443,13 +461,21 @@ function remote(n: GenNode, page: string): string {
 		`import { region } from 'ogygia';`,
 		...(n.publish ? [`import { postrender } from '@ogygia/postrender';`] : []),
 		`import N${n.id} from './N${n.id}.svelte' with ${mark};`,
+		...(n.switches
+			? [
+					`import A${n.id} from './A${n.id}.svelte' with { wake: 'load' };`,
+					`import S${n.id} from './S${n.id}.svelte' with { region: 'raw' };`
+				]
+			: []),
 		''
 	];
+	// (a switching one cycles: its own region, another interactive module, a static one)
+	const shown = n.switches ? `[N${n.id}, A${n.id}, S${n.id}][n % 3]` : `N${n.id}`;
 	if (n.kind === 'live')
 		lines.push(
 			`export const live${n.id} = query.live(async function* () {`,
 			`\tfor (let n = 0; ; n++) {`,
-			`\t\tyield await region(N${n.id}, { label: \`n${n.id} tick \${n}\` });`,
+			`\t\tyield await region(${shown}, { label: \`n${n.id} tick \${n}\` });`,
 			`\t\tawait new Promise((r) => setTimeout(r, ${n.every}));`,
 			`\t}`,
 			`});`
@@ -591,6 +617,24 @@ function component(n: GenNode): string {
 	return lines.join('\n');
 }
 
+/** A switching live region's other regions: another interactive module (a button), or a static one. */
+function switched(n: GenNode, interactive: boolean): string {
+	return [
+		'<script lang="ts">',
+		"\tlet { label = '' }: { label?: string } = $props();",
+		...(interactive ? ['\tlet count = $state(0);'] : []),
+		'</script>',
+		'',
+		`<div data-gen="${interactive ? 'live-other' : 'live-static'}" data-build={import.meta.env.VITE_SIM_BUILD}>`,
+		'\t<span>{label}</span>',
+		...(interactive
+			? ['\t<button onclick={() => (count += 1)}>{label} other pressed {count}</button>']
+			: []),
+		'</div>',
+		''
+	].join('\n');
+}
+
 /** Where a federated app mounts its peer's pages. */
 export const MOUNT = '/peer';
 
@@ -650,6 +694,10 @@ function components(lib: string, roots: readonly GenNode[], page: string): void 
 		if (n.kind === 'held' || n.kind === 'live') {
 			writeFileSync(join(lib, `H${n.id}.svelte`), host(n));
 			writeFileSync(join(lib, `h${n.id}.remote.ts`), remote(n, page));
+		}
+		if (n.switches) {
+			writeFileSync(join(lib, `A${n.id}.svelte`), switched(n, true));
+			writeFileSync(join(lib, `S${n.id}.svelte`), switched(n, false));
 		}
 		n.children.forEach(walk);
 	};
