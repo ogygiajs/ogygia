@@ -17,8 +17,20 @@ describe('coverage', () => {
 		expect(u.get('hole')?.pkg).toBe('core');
 		expect(u.get('import-again')?.steps.fresh).toEqual(['failed', 'loaded']);
 		// (a flights' entries: flying, kept, gone, under the flights' name)
-		expect(u.get('island file')?.steps.flying).toEqual(['flying', 'kept', 'gone']);
+		expect(u.get('island file')?.steps.flying).toEqual(['kept', 'gone']);
 		expect(all_steps(u).has(step_key('import-again', 'failed', 'stuck'))).toBe(true);
+	});
+
+	it("gives a flights only the entry steps its options and its file's calls can take", () => {
+		const u = universe(ROOT);
+		// (no caller asks it `fresh`: a flight is never replaced, a kept answer never run again)
+		expect(u.get('island file')?.steps).toEqual({
+			flying: ['kept', 'gone'],
+			kept: ['gone'],
+			gone: []
+		});
+		// (`keep: 0`: nothing is kept; its file asks `fresh`: a flight replaced by a forced one)
+		expect(u.get('frames')?.steps).toEqual({ flying: ['flying', 'gone'], kept: [], gone: [] });
 	});
 
 	it('a move line is a step, and a stop is none', () => {
