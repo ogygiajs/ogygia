@@ -198,6 +198,7 @@ export class Browsers {
 								Response: typeof Response;
 								Headers: typeof Headers;
 								TypeError: typeof TypeError;
+								DOMException: typeof DOMException;
 							};
 							let url = new URL(request.url);
 							let method = request.method;
@@ -215,6 +216,18 @@ export class Browsers {
 								if (timed)
 									record_download(timed, o.timeline ?? 'status', request.url, status, started);
 							};
+							// the page's signal, on the wire: a fetch the page calls off is called off there, as
+							// a browser's is (happy-dom's signal never reached the network: a hole its region let
+							// go downloaded its answer anyway; test/page-abort.node.test.ts)
+							const page_signal = request.signal ?? null;
+							const line = new AbortController();
+							// (the page's realm's AbortError, which a body read passes on as it is)
+							const call_off = () => {
+								o.loop.note(`${from} calls off ${url.pathname}${url.search.slice(0, 24)}`);
+								line.abort(new W.DOMException('The operation was aborted.', 'AbortError'));
+							};
+							if (page_signal?.aborted) call_off();
+							else page_signal?.addEventListener('abort', call_off, { once: true });
 							// a browser follows a redirect itself (happy-dom hands an intercepted answer back as
 							// it is): each leg is a request on the network, with its cookies, and the answer
 							// carries the URL it came from (a document's address is that URL)
@@ -239,7 +252,7 @@ export class Browsers {
 										new URL((window as unknown as { location: { href: string } }).location.href)
 											.origin
 									);
-								const sent = new Request(url, { method, headers, body });
+								const sent = new Request(url, { method, headers, body, signal: line.signal });
 								// (the entry lands once the last leg's body has come, or broke off: a
 								// redirect's leg is no download of its own)
 								let last = false;
@@ -253,6 +266,8 @@ export class Browsers {
 									answer = await o.network.send(from, sent, (r) => o.route(r, from), ended);
 								} catch (error) {
 									timing(null);
+									if (line.signal.aborted)
+										throw new W.DOMException('The operation was aborted.', 'AbortError');
 									throw new W.TypeError(error instanceof Error ? error.message : String(error));
 								}
 								for (const c of answer.headers.getSetCookie()) {
