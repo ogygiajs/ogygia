@@ -454,6 +454,52 @@ describe('the random app', () => {
 		}
 	});
 
+	it("draws islands a third party's script changes while they sleep, from their own stream: one that wakes on its own, in the page's own HTML", () => {
+		const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
+		const touched: GenNode[] = [];
+		const under = (ns: readonly GenNode[], page: boolean): void => {
+			for (const n of ns) {
+				if (n.thirdParty) {
+					touched.push(n);
+					// (in the page's own HTML: an answer's or a lake's script is another story)
+					expect(page).toBe(true);
+				}
+				under(n.children, page && (n.kind === 'island' || n.kind === 'plain'));
+			}
+		};
+		for (const s of seeds) for (const p of plan(s)) under(p.roots, true);
+		expect(touched.length).toBeGreaterThan(0);
+		for (const n of touched) {
+			expect(n.kind).toBe('island');
+			// (woken by rest: one still asleep after a router visit, whose script is inert, would differ)
+			expect(['load', 'idle']).toContain(n.wake);
+			expect(n.empty).toBeFalsy();
+		}
+		const seed = seeds.find((s) => all(plan(s).flatMap((p) => p.roots)).some((n) => n.thirdParty))!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			write(app, plan(seed), seed);
+			const lib = join(app, 'src', 'lib', 'gen');
+			const files = [
+				...readdirSync(lib)
+					.filter((f) => f.endsWith('.svelte'))
+					.map((f) => readFileSync(join(lib, f), 'utf8')),
+				...readdirSync(join(app, 'src', 'routes'), { recursive: true })
+					.filter((f) => String(f).endsWith('+page.svelte'))
+					.map((f) => readFileSync(join(app, 'src', 'routes', String(f)), 'utf8'))
+			];
+			for (const n of all(plan(seed).flatMap((p) => p.roots)).filter((n) => n.thirdParty)) {
+				// (right after the island, a script that edits it once the document is parsed)
+				const after = new RegExp(
+					`<N${n.id} [^\\n]*/>\\n\\s*\\{@html '<scr' \\+ 'ipt>[^\\n]*DOMContentLoaded`
+				);
+				expect(files.some((f) => after.test(f))).toBe(true);
+			}
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
 	it('draws empty regions, from their own stream: leaves that render nothing, each used inside a marked element', () => {
 		const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
 		const nodes = seeds.flatMap((s) => all(plan(s).flatMap((p) => p.roots)));
