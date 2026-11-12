@@ -12,10 +12,15 @@ import { page_state } from '../../src/shims/page-store.svelte.ts';
 const real_fetch = window.fetch;
 const home = location.href;
 
+// (the seed bears the response mark its head's runtime stand-in bears, as the handle writes them:
+// a seed without it is not the server's once side channels are marked, test/browser/side-channel-seeds.test.ts)
+const MARK = ' data-og-mark="50f7f0e15ea50f7f0e15ea"';
+
 const page = (who: string) =>
 	'<!doctype html><html><head><meta name="ogygia-router" content="plain">' +
-	`<meta name="soft-page" content="${who}"><title>page ${who}</title></head>` +
-	`<body><p>${who}</p><script type="application/ogygia-page" data-og-format="json">` +
+	`<meta name="soft-page" content="${who}"><title>page ${who}</title>` +
+	`<script type="application/x-runtime-stand-in" data-ogygia-runtime${MARK}></script></head>` +
+	`<body><p>${who}</p><script type="application/ogygia-page" data-og-format="json"${MARK}>` +
 	JSON.stringify({ url: home, data: { who } }) +
 	'</script></body></html>';
 
@@ -46,6 +51,8 @@ beforeEach(async () => {
 afterEach(() => {
 	window.fetch = real_fetch;
 	history.replaceState(null, '', home);
+	// (a fetched page's head brought its runtime stand-in)
+	for (const el of document.head.querySelectorAll('script[data-ogygia-runtime]')) el.remove();
 });
 
 test('invalidateAll whose fetch landed on another origin merges nothing of that page', async () => {
