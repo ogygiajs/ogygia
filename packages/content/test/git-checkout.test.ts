@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { materialize, parse_git_spec, git_glob_pattern } from '../src/macros/git.ts';
-import { __set_build_cache_root } from '@ogygia/core/internal/compiler';
+import { __set_build_cache_root } from '@ogygia/compiler';
 
 const git = (args: string[], cwd: string) =>
 	execFileSync('git', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] })

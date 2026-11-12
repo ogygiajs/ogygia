@@ -10,9 +10,9 @@
  * the (verbatim, forwarded) folder-options object — which may hold regex literals. Node-only.
  */
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { BuildCache, configure_build_cache } from '@ogygia/core/internal/compiler';
+import { BuildCache, configure_build_cache } from '@ogygia/compiler';
 import { OgygiaError } from '../messages/build.ts';
 
 // git's own corners of the shared build cache: resolved shas (kv) + the checkout trees (a dir).
@@ -86,14 +86,8 @@ export function write_sha(slug: string, sha: string): void {
 
 // ── materialization (git ops) ──
 
-// `execFileSync` is loaded lazily (the `.git()` loader is Node-only) so this module LOADS in a browser
-// build — a static `import … from 'node:child_process'` would be a link error against the browser shim.
-// In a browser realm the require is inert and `git()` is never reached (no git loaders in the REPL).
-let _exec: typeof import('node:child_process').execFileSync | undefined;
 const git = (args: string[], cwd?: string) => {
-	const exec = (_exec ??= createRequire(import.meta.url)('node:child_process')
-		.execFileSync as typeof import('node:child_process').execFileSync);
-	return exec('git', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
+	return execFileSync('git', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
 		.toString()
 		.trim();
 };
