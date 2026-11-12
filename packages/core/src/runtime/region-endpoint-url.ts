@@ -2,6 +2,7 @@ import { preload_island_graph } from './island-graph-preload.ts';
 import { fetch_priority_of, LoadSlot, type LoadClass } from './load-scheduler.ts';
 import { entry_location } from './entry-locations.ts';
 import { import_file } from './import-again.ts';
+import { code_url } from './code-origins.ts';
 
 /** Hoisted (hot paths — connectedCallback/hydrate run per region); shared with core's
  *  foreign-origin checks. */
@@ -163,6 +164,9 @@ export function warm_island_module(
 	if (!url) return;
 	// a build's identity with no known location names no file: the load finds it (import_entry)
 	if (!entry_location(entry, base) && url.includes('/ogygia/og-region.')) return;
+	// (code on an origin the page loads none from is not warmed: its load says why, ./code-origins.ts)
+	const code = code_url(url);
+	if (code === null) return;
 	const key = warm_key(url);
 	const joined = warmed_modules.get(key);
 	if (joined) {
@@ -181,7 +185,7 @@ export function warm_island_module(
 		preload_island_graph(entry, base, fetch_priority_of(slot.cls()));
 		// (through the file's loader the island's own load uses: a warm that failed leaves the load a
 		// fresh URL to ask, not the failed one — #261)
-		import_file(url)
+		import_file(code)
 			.catch(() => {
 				warmed_modules.delete(key);
 			})

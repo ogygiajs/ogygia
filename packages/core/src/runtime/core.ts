@@ -44,6 +44,7 @@ import {
 	pin_build_map,
 	pin_region_urls
 } from './entry-locations.ts';
+import { code_origins, code_url } from './code-origins.ts';
 import { load_devalue, needs_devalue } from './devalue-lane.ts';
 import {
 	is_awake,
@@ -320,7 +321,10 @@ async function recover_from_stale_deps(entry: string | null): Promise<void> {
 	try {
 		const last = Number(sessionStorage.getItem(STALE_DEP_RELOAD_KEY) || 0);
 		if (Date.now() - last < STALE_DEP_RELOAD_WINDOW_MS) return; // already reloaded — don't loop
-		const res = await fetch(island_module_url(entry), { cache: 'no-store' });
+		// (code the page refused to load is not asked for here either: ./code-origins.ts)
+		const url = code_url(island_module_url(entry));
+		if (url === null) return;
+		const res = await fetch(url, { cache: 'no-store' });
 		if (!res.ok) return; // a real 404 — leave the error visible, it is not a re-optimize
 		sessionStorage.setItem(STALE_DEP_RELOAD_KEY, String(Date.now()));
 		location.reload();
@@ -2081,6 +2085,8 @@ export function boot(
 	for (const install of installers) install();
 	// The build's location map, pinned to this page's address before any navigation moves it
 	pin_build_map();
+	// The origins island code may load from, read while the head is still the server's alone
+	code_origins();
 	// An island whose file was gone (this page outlived its build) woke on the current build's file:
 	// the devtools timeline and the beacon hear it (entry-locations.ts imports neither)
 	on_entry_fallback((report) => {
