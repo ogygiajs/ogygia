@@ -286,7 +286,23 @@ export function peer_plan(seed: number, pages: readonly GenPage[]): GenPeer | nu
 			[2000, 1],
 			[30_000, 1]
 		]);
-	return { mount, widgets, pages: own, slots, ttl };
+	// (and the peer's region stylesheets, which its server router links for a page it renders, and
+	// its pages' loads, each from its own stream)
+	const ps = rng(seed).fork('gen peer style');
+	const styled = (n: GenNode): GenNode => {
+		const children = n.children.map(styled);
+		return ps.chance(0.25) ? { ...n, children, style: true } : { ...n, children };
+	};
+	const pd = rng(seed).fork('gen peer data');
+	return {
+		mount,
+		widgets: widgets.map((w) => ({ ...w, children: w.children.map(styled) })),
+		pages: own
+			.map((p) => ({ ...p, roots: p.roots.map(styled) }))
+			.map((p) => (pd.chance(0.5) ? { ...p, data: true } : p)),
+		slots,
+		ttl
+	};
 }
 
 /** How a parent imports `n`: its import attributes. */
@@ -677,11 +693,13 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 			[
 				'<script lang="ts">',
 				...p.roots.map((n) => `\timport ${name(n)} from './${name(n)}.svelte'${attributes(n)};`),
+				...(p.data ? ['\tlet { data }: { data: { who: string } } = $props();'] : []),
 				'</script>',
 				'',
 				`<nav>${nav}</nav>`,
 				`<main data-gen="peer-page">`,
 				`\t<h1>peer ${p.path}</h1>`,
+				...(p.data ? ['\t<p data-gen-page>{data.who}</p>'] : []),
 				...p.roots.map((n) => usage(n, '\t')),
 				'</main>',
 				''
@@ -697,7 +715,11 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 			'',
 			`export const router = routes(`,
 			`\t{`,
-			...peer.pages.map((p, i) => `\t\t'${p.path}': page(Q${i}),`),
+			...peer.pages.map((p, i) =>
+				p.data
+					? `\t\t'${p.path}': page(Q${i}, { load: () => ({ who: '${p.path.slice(1)} data' }) }),`
+					: `\t\t'${p.path}': page(Q${i}),`
+			),
 			`\t},`,
 			`\t{ base: '${MOUNT}' }`,
 			`);`,

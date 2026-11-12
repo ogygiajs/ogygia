@@ -241,4 +241,30 @@ describe('the random app', () => {
 			rmSync(app, { recursive: true, force: true });
 		}
 	});
+
+	it("draws the peer's region stylesheets and its pages' loads", () => {
+		const seed = Array.from({ length: 40 }, (_, i) => i + 1).find((s) => {
+			const q = peer_plan(s, plan(s));
+			return q !== null && q.pages.some((p) => p.data) && q.pages.some((p) => !p.data);
+		})!;
+		const peer = peer_plan(seed, plan(seed))!;
+		const nodes = all([
+			...peer.widgets.flatMap((w) => w.children),
+			...peer.pages.flatMap((p) => p.roots)
+		]);
+		expect(nodes.some((n) => n.style)).toBe(true);
+		const root = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			write_peer(join(root, 'peer'), peer, seed);
+			const lib = (f: string) => readFileSync(join(root, 'peer', 'src', 'lib', 'gen', f), 'utf8');
+			for (const n of nodes)
+				expect(lib(`N${n.id}.svelte`).includes('<style>')).toBe(n.style === true);
+			for (const [i, p] of peer.pages.entries()) {
+				expect(lib('router.ts').includes(`page(Q${i}, { load:`)).toBe(p.data === true);
+				expect(lib(`Q${i}.svelte`).includes('{data.who}')).toBe(p.data === true);
+			}
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
 });
