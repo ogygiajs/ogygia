@@ -1,11 +1,12 @@
 import { sveltekit } from '@sveltejs/kit/vite';
-import { ogygia } from 'ogygia/vite';
+import { definePlugin, ogygia } from 'ogygia/vite';
 import { federation } from '@ogygia/federation/vite';
 import { router } from '@ogygia/router/vite';
 import { flags } from '@ogygia/flags/vite';
 import { postrender } from '@ogygia/postrender/vite';
 import { defineConfig } from 'vite';
 import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 // THE SIMULATOR'S GENERATED APP (internal/sim/src/gen.ts writes its pages and regions from a seed).
 // The router is on (unless the seed drew it off), so a link followed is a client navigation, as in
@@ -31,6 +32,11 @@ const plan: { router?: boolean } = existsSync('src/lib/gen/plan.json')
 export default defineConfig({
 	plugins: [
 		ogygia({ router: plan.router !== false, presets }),
+		// (the simulator's ear: a repair's ownership conflict said on the console, src/sim-client.ts)
+		definePlugin({
+			name: 'sim-gen',
+			client: fileURLToPath(new URL('./src/sim-client.ts', import.meta.url))
+		}),
 		federation(),
 		router(),
 		// (a seed's flag: its reads reported, its exposures flushed at each request's end)
