@@ -293,7 +293,7 @@ const DATA_KINDS = [
  *    (the same text in a string, a template or a regex, `u` flag included).
  * (`a <!--b` as an expression — `a < !(--b)` — would no longer parse. Nobody writes it.)
  */
-function close_safe(code: string): string {
+export function close_safe(code: string): string {
 	let out = '';
 	let last = 0;
 	for (let i = code.indexOf('<'); i !== -1; i = code.indexOf('<', i + 1)) {
