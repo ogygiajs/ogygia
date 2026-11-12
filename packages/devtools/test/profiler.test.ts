@@ -4303,7 +4303,7 @@ describe('the accuracy round: hot lines, server-timing, call paths, cold start, 
 			const url = res.headers.get('x-profile-report')!;
 			const json = await (
 				await handle({
-					event: make_event(url + '.json', { 'x-profiler-key': 'prof-key-of-16-bytes-or-more' }),
+					event: make_event(`${url}.json`, { 'x-profiler-key': 'prof-key-of-16-bytes-or-more' }),
 					resolve: async () => new Response('no')
 				})
 			).json();
@@ -6463,11 +6463,7 @@ describe('the deep pictures on the host: visits, keep, the byte strip, nested tr
 
 	it('/page?format=keep answers the dump for the browser to keep, with the byte strip of the rendered document', async () => {
 		const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
-		const doc =
-			'<!doctype html><html><head><title>d</title><style>.x{}</style></head><body><p>hi</p>' +
-			'<ogygia-region data-og-fp="0000aaaa1111bbbb" entry="/_app/x.js"><b>i</b></ogygia-region>' +
-			'<script type="application/ogygia-page">{"data":{"products":[1,2,3],"flags":{"a":true}}}</script>' +
-			'<script type="application/ogygia-props" data-ogygia-props>[]</script></body></html>';
+		const doc = `<!doctype html><html><head><title>d</title><style>.x{}</style></head><body><p>hi</p><ogygia-region data-og-fp="0000aaaa1111bbbb" entry="/_app/x.js"><b>i</b></ogygia-region><script type="application/ogygia-page">{"data":{"products":[1,2,3],"flags":{"a":true}}}\x3C/script><script type="application/ogygia-props" data-ogygia-props>[]\x3C/script></body></html>`;
 		// the page profile renders through event.fetch (Kit's internal render), not resolve
 		const ev = make_event('/__profiler/page?p=/deep&runs=2&cold=0&format=keep');
 		(ev as { fetch: unknown }).fetch = async () =>

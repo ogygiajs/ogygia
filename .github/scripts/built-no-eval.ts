@@ -121,8 +121,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
 	}
 	if (found.length) {
 		console.error(
-			`Built code turns a string into code (a 'strict-dynamic' page would run it):\n` +
-				found.map((s) => `  ${s.file}:${s.line}  ${s.what}`).join('\n')
+			[
+				`Built code turns a string into code (a 'strict-dynamic' page would run it):`,
+				...found.map((s) => `  ${s.file}:${s.line}  ${s.what}`)
+			].join('\n')
 		);
 		process.exit(1);
 	}

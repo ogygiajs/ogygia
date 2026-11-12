@@ -12,7 +12,7 @@ afterEach(() => vi.unstubAllGlobals());
 test('the map names the failed file and the host does not say it is gone: the failure stands at once', async () => {
 	const identity = '/test/browser/fixtures/ogygia/og-region.000000000aa6.js';
 	const gone = './immutable/og-region.000000000aa6.Uu33Vv44.js';
-	note_entry_location(identity, '/test/browser/fixtures/' + gone.slice(2));
+	note_entry_location(identity, `/test/browser/fixtures/${gone.slice(2)}`);
 	const real = fetch;
 	let reads = 0;
 	vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {

@@ -30,11 +30,7 @@ function html_response(html: string): Response {
 
 /** The document tail as the handle emits it: after Kit's root, `<` escaped inside the JSON. */
 function holes_record(record: Record<string, { endpoint: string; sidecar: string }>): string {
-	return (
-		`<script type="application/ogygia-holes" data-ogygia-holes${TEST_MARK_ATTR}>` +
-		JSON.stringify(record).replaceAll('<', '\\u003C') +
-		'</script>'
-	);
+	return `<script type="application/ogygia-holes" data-ogygia-holes${TEST_MARK_ATTR}>${JSON.stringify(record).replaceAll('<', '\\u003C')}\x3C/script>`;
 }
 
 test('a hole rendered again with no address gets its endpoint (and sidecar) back from the document record, and fetches', async () => {

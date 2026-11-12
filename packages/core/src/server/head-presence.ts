@@ -187,7 +187,7 @@ export function runtime_first(
 	const placed = with_code_origins(was, code_origins);
 	// RESPONSE-MARK: the response's mark leads the tag's attributes (a repeated attribute keeps its
 	// first value, so a mark the markup put on the tag loses)
-	const tag = mark ? '<script ' + RESPONSE_MARK + '="' + mark + '"' + placed.slice(7) : placed;
+	const tag = mark ? `<script ${RESPONSE_MARK}="${mark}"${placed.slice(7)}` : placed;
 	const rest = found ? head.slice(0, found.start) + head.slice(found.end) : head;
 	// no `<head>` in this slice (a routeless document's inner head): search the whole content
 	const from = next_tag(rest, 'head', 0)?.end ?? 0;
@@ -227,6 +227,6 @@ function with_code_origins(tag: string, urls: readonly string[]): string {
 	if (!origins.size) return bare;
 	return bare.replace(
 		RUNTIME_MARK_RE,
-		(mark) => mark + ` ${OG_ORIGINS}="` + [...origins].join(' ') + '"'
+		(mark) => `${mark} ${OG_ORIGINS}="${[...origins].join(' ')}"`
 	);
 }

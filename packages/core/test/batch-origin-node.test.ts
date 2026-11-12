@@ -23,10 +23,8 @@ describe('single-flight batch: the endpoint origin', () => {
 				return new Response('', { status: 500 });
 			})
 		);
-		const legit = '/__ogygia__?id=abcdef012345&props=W3t9XQ&exp=9999999999&sig=' + 'a'.repeat(64);
-		const foreign =
-			'https://evil.example/collect?id=abcdef012345&props=W3t9XQ&exp=9999999999&sig=' +
-			'b'.repeat(64);
+		const legit = `/__ogygia__?id=abcdef012345&props=W3t9XQ&exp=9999999999&sig=${'a'.repeat(64)}`;
+		const foreign = `https://evil.example/collect?id=abcdef012345&props=W3t9XQ&exp=9999999999&sig=${'b'.repeat(64)}`;
 		const visit = scope();
 		await streamFrames([foreign, legit], 'nav', visit);
 		visit.close();
@@ -50,8 +48,8 @@ describe('single-flight batch: the endpoint origin', () => {
 		);
 		const { subscribe } = await import('../src/runtime/frame-store.ts');
 		const { frameAddress } = await import('../src/frame.ts');
-		const a = '/__ogygia__?id=0123456789ab&props=W3t9XQ&exp=9999999999&sig=' + sig;
-		const b = '/__ogygia__?id=ba9876543210&props=W3t9XQ&exp=9999999999&sig=' + 'd'.repeat(64);
+		const a = `/__ogygia__?id=0123456789ab&props=W3t9XQ&exp=9999999999&sig=${sig}`;
+		const b = `/__ogygia__?id=ba9876543210&props=W3t9XQ&exp=9999999999&sig=${'d'.repeat(64)}`;
 		const landed: string[] = [];
 		const off = subscribe(frameAddress(a), (f) => landed.push(f.html));
 		const visit = scope();

@@ -468,7 +468,7 @@ function pin_graph(json: string, origin: string): string {
 /** A region's `endpoint`, pinned to `origin` whatever its path: it is always the answering app's own
  *  (a server island's hole, a lake's), never a link the consumer resolves in its address space. */
 function pin_endpoint(value: string, origin: string): string {
-	return ABSOLUTE_RE.test(value) ? value : new URL(value, origin + '/').href;
+	return ABSOLUTE_RE.test(value) ? value : new URL(value, `${origin}/`).href;
 }
 
 /** `html` with the JSON of every `script[data-ogygia-graph]` (as the runtime selects them) pinned. */

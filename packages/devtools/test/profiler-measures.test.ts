@@ -12,7 +12,7 @@ const SECRET = 'prof-key-long-enough';
 const COOKIE_PAIR_RE = /^og_profiler=([^;]*)/;
 
 function event(path: string, cookie: string | null, init: RequestInit = {}): RequestEvent {
-	const url = new URL('http://localhost' + path);
+	const url = new URL(`http://localhost${path}`);
 	const headers = new Headers(init.headers);
 	if (cookie != null) headers.set('cookie', cookie);
 	const jar = Object.fromEntries(
@@ -150,7 +150,7 @@ describe('profiler: measures', () => {
 	it('a flag signed under another secret is not', async () => {
 		dev_switch.dev = false;
 		const { createHmac } = await import('node:crypto');
-		const other = createHmac('sha256', SECRET + '-other')
+		const other = createHmac('sha256', `${SECRET}-other`)
 			.update('og-profiler-beacon-flag')
 			.digest('hex');
 		const handle = profiler({ secret: SECRET });

@@ -82,12 +82,7 @@ describe('modules of a simulated tab', () => {
 	// waited for `load`)
 	it('the document is loading while parsed, then fires DOMContentLoaded once its modules ran, then load', async () => {
 		modules_in_order();
-		const page =
-			'<script>globalThis.order = [document.readyState];' +
-			"document.addEventListener('DOMContentLoaded', () => order.push('dcl ' + document.readyState));" +
-			"addEventListener('load', () => { order.push('load ' + document.readyState); document.body.textContent = order.join(' '); });" +
-			'</script>' +
-			'<script type="module" src="/state.js"></script>';
+		const page = `<script>globalThis.order = [document.readyState];document.addEventListener('DOMContentLoaded', () => order.push('dcl ' + document.readyState));addEventListener('load', () => { order.push('load ' + document.readyState); document.body.textContent = order.join(' '); });\x3C/script><script type="module" src="/state.js">\x3C/script>`;
 		expect(await run(true, page)).toBe('loading module interactive dcl interactive load complete');
 	});
 

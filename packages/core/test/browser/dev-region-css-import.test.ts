@@ -17,7 +17,7 @@ const MARKER_MODULE = '/test/browser/fixtures/dev-css-marker.ts';
 // cache hit re-runs no side effect). Each test that must observe "imported or not" mints its own
 // fresh module; the `tag` query makes the url unique. (On the page's own origin: the rescue imports
 // nothing else, runtime/code-origins.ts.)
-const marker_module = (tag: string) => MARKER_MODULE + '?m=' + tag;
+const marker_module = (tag: string) => `${MARKER_MODULE}?m=${tag}`;
 
 const MODULE = '/test/browser/fixtures/dev-css-probe.ts';
 
@@ -149,7 +149,7 @@ test('DEV: a region-css link off the page’s code origins is not imported at bo
 	document.head.querySelectorAll('link[data-ogygia-region-css]').forEach((n) => n.remove());
 	document.documentElement.removeAttribute('data-og-dev-css-marker');
 	css_link(off_origin_module('data-og-off-origin-boot'));
-	css_link(MARKER_MODULE + '?m=after-off-origin'); // the page's own: it runs, so the rescue ran
+	css_link(`${MARKER_MODULE}?m=after-off-origin`); // the page's own: it runs, so the rescue ran
 
 	bootDev();
 

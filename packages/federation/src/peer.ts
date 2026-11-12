@@ -437,7 +437,7 @@ export class PeerHandle implements Peer {
 	 *  else null. */
 	#own_target(url: string): string | null {
 		try {
-			const u = new URL(url, this.origin + '/');
+			const u = new URL(url, `${this.origin}/`);
 			if (!this.#origins.some((o) => new URL(o).origin === u.origin)) return null;
 			return u.pathname + u.search;
 		} catch {

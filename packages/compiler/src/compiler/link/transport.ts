@@ -61,8 +61,8 @@ export function kit_transport_module(
 ): string {
 	if (!app_crosses_wire) return `export const transport = {};`;
 	return ssr
-		? `export { ogygiaServerTransport as transport } from ${JSON.stringify(dist_dir + '/server/transport.js')};`
-		: `export { ogygiaTransport as transport } from ${JSON.stringify(dist_dir + '/transport.js')};`;
+		? `export { ogygiaServerTransport as transport } from ${JSON.stringify(`${dist_dir}/server/transport.js`)};`
+		: `export { ogygiaTransport as transport } from ${JSON.stringify(`${dist_dir}/transport.js`)};`;
 }
 
 // A held region / transportable value can only reach Kit's `transport` hook through a value the app

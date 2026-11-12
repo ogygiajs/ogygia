@@ -331,12 +331,7 @@ export class DocumentTail {
 		if (this.#holes.size) {
 			const record: Record<string, HoleRecord> = {};
 			for (const [identity, facts] of this.#holes) record[identity] = facts;
-			out +=
-				HOLES_SCRIPT_OPEN +
-				mark +
-				'>' +
-				escape_script_text(JSON.stringify(record)) +
-				HOLES_SCRIPT_CLOSE;
+			out = `${out}${HOLES_SCRIPT_OPEN}${mark}>${escape_script_text(JSON.stringify(record))}${HOLES_SCRIPT_CLOSE}`;
 		}
 		if (this.#sheet_owners.size) {
 			const record: Record<string, string[]> = {};

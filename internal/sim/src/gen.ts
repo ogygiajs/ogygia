@@ -330,17 +330,15 @@ function flagging(seed: number): (page: GenPage) => GenPage {
  *  what came in 500 ms. Empty when no page reads it. */
 function app_flags(pages: readonly GenPage[]): string {
 	if (!pages.some((p) => p.flagged)) return 'export {};\n';
-	return [
-		`import { decide, flag } from '@ogygia/flags';`,
-		'',
-		`export const gate = flag('gen-gate');`,
-		'',
-		`// (the sink: what an analytics pipeline would take; counted so a run can see it was reached)`,
-		`const seen = globalThis as unknown as { __sim_gen_exposures?: number };`,
-		`const take = (n: number) => (seen.__sim_gen_exposures = (seen.__sim_gen_exposures ?? 0) + n);`,
-		`decide({ exposure: (events) => void take(events.length), batch: { max: 3, ms: 500 } });`,
-		''
-	].join('\n');
+	return `import { decide, flag } from '@ogygia/flags';
+
+export const gate = flag('gen-gate');
+
+// (the sink: what an analytics pipeline would take; counted so a run can see it was reached)
+const seen = globalThis as unknown as { __sim_gen_exposures?: number };
+const take = (n: number) => (seen.__sim_gen_exposures = (seen.__sim_gen_exposures ?? 0) + n);
+decide({ exposure: (events) => void take(events.length), batch: { max: 3, ms: 500 } });
+`;
 }
 
 /** Some live regions switch (their own stream, `gen live switch`): drawn per live region in tree
@@ -357,19 +355,17 @@ function switcher(seed: number): (n: GenNode) => GenNode {
 }
 
 /** The hero image the app serves (`/hero.png`): a 1x1 PNG, loaded over the simulated network. */
-const HERO_ROUTE = [
-	`// (a page's hero: its critical resource, loaded over the simulated network)`,
-	`const PNG = Uint8Array.from(`,
-	`\tatob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='),`,
-	`\t(c) => c.charCodeAt(0)`,
-	`);`,
-	'',
-	`export const GET = () =>`,
-	`\tnew Response(PNG, {`,
-	`\t\theaders: { 'content-type': 'image/png', 'cache-control': 'public, max-age=31536000, immutable' }`,
-	`\t});`,
-	''
-].join('\n');
+const HERO_ROUTE = `// (a page's hero: its critical resource, loaded over the simulated network)
+const PNG = Uint8Array.from(
+\tatob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='),
+\t(c) => c.charCodeAt(0)
+);
+
+export const GET = () =>
+\tnew Response(PNG, {
+\t\theaders: { 'content-type': 'image/png', 'cache-control': 'public, max-age=31536000, immutable' }
+\t});
+`;
 
 /** Whether a seed's app runs the router (stream `gen router`): most do; one without it navigates
  *  page to page, and its `invalidateAll()` is the document's own soft refresh (loaded on first use). */

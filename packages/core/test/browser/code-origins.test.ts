@@ -43,14 +43,14 @@ beforeAll(() => {
 describe('which origins island code loads from', () => {
 	test('the page’s own, and a peer the server named on the runtime’s script', () => {
 		expect(code_url('/x/og-region.aaaaaaaaaaaa.js')).toBe('/x/og-region.aaaaaaaaaaaa.js');
-		expect(code_url(PEER + '/_app/immutable/og-region.aaaaaaaaaaaa.Ab12Cd34.js')).not.toBeNull();
+		expect(code_url(`${PEER}/_app/immutable/og-region.aaaaaaaaaaaa.Ab12Cd34.js`)).not.toBeNull();
 	});
 
 	test('any other origin is refused', () => {
 		expect(code_url('https://evil.example/x.js')).toBeNull();
 		expect(code_url('//evil.example/x.js')).toBeNull();
 		expect(code_url('data:text/javascript,1')).toBeNull();
-		expect(code_url('blob:' + location.origin + '/0000')).toBeNull();
+		expect(code_url(`blob:${location.origin}/0000`)).toBeNull();
 	});
 
 	test('a runtime script added later does not widen the list', () => {
@@ -107,10 +107,10 @@ describe('an element’s `src`', () => {
 	});
 
 	test('a peer’s island keeps its own file on the peer', () => {
-		const identity = PEER + '/_app/ogygia/og-region.555555555555.js';
-		note_entry_location(identity, PEER + '/_app/immutable/og-region.555555555555.Zz9_-0Aa.js');
+		const identity = `${PEER}/_app/ogygia/og-region.555555555555.js`;
+		note_entry_location(identity, `${PEER}/_app/immutable/og-region.555555555555.Zz9_-0Aa.js`);
 		expect(entry_location(identity)).toBe(
-			PEER + '/_app/immutable/og-region.555555555555.Zz9_-0Aa.js'
+			`${PEER}/_app/immutable/og-region.555555555555.Zz9_-0Aa.js`
 		);
 	});
 });
@@ -126,7 +126,7 @@ describe('an island’s preload links', () => {
 						[
 							'https://evil.example/_app/immutable/chunks/Ev1l.js',
 							'/p/_app/immutable/chunks/Own1.js',
-							PEER + '/_app/immutable/chunks/Peer1.js'
+							`${PEER}/_app/immutable/chunks/Peer1.js`
 						]
 					]
 				])
@@ -138,7 +138,7 @@ describe('an island’s preload links', () => {
 		);
 		expect(hrefs).toEqual([
 			new URL('/p/_app/immutable/chunks/Own1.js', location.href).href,
-			PEER + '/_app/immutable/chunks/Peer1.js'
+			`${PEER}/_app/immutable/chunks/Peer1.js`
 		]);
 	});
 });

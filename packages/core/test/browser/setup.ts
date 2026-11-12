@@ -102,13 +102,7 @@ function island_seed_ref(
 /** A whole navigable document (for `DOMParser` on the test side): a seed-ref island whose seed
  *  carries `counter.start = start`, under its own fingerprint — page A and page B of a nav. */
 function seed_nav_document(body: string, start: number, fp: string) {
-	return (
-		`<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>page ${start}</title>` +
-		`<script type="application/x-runtime-stand-in" data-ogygia-runtime${TEST_MARK_ATTR}></script></head><body>` +
-		`<h1 data-page-title>page ${start}</h1>` +
-		island_seed_ref(COUNTER, body, { counter: { start } }, ['counter'], fp) +
-		`</body></html>`
-	);
+	return `<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>page ${start}</title><script type="application/x-runtime-stand-in" data-ogygia-runtime${TEST_MARK_ATTR}>\x3C/script></head><body><h1 data-page-title>page ${start}</h1>${island_seed_ref(COUNTER, body, { counter: { start } }, ['counter'], fp)}</body></html>`;
 }
 
 declare module 'vitest' {

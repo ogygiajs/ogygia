@@ -10,7 +10,7 @@ import { World } from '../src/world.ts';
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
 );
-const built = existsSync(OUTPUT + '/server/index.js');
+const built = existsSync(`${OUTPUT}/server/index.js`);
 
 describe.skipIf(!built)('a document the tab has left', () => {
 	it('never hears the answer to a request it made, and holds nothing in flight', async () => {

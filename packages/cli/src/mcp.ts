@@ -1525,7 +1525,7 @@ function sends_to_login(res: Response, base: string): boolean {
 	if (res.status < 300 || res.status >= 400) return false;
 	const to = res.headers.get('location');
 	if (!to) return false;
-	return new URL(to, base).pathname === new URL(base + '/login').pathname;
+	return new URL(to, base).pathname === new URL(`${base}/login`).pathname;
 }
 
 /** Who holds the profiler's recorder, as its 409 says (devtools profiler `#busy`). */

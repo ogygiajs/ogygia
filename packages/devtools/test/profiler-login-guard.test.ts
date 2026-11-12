@@ -15,7 +15,7 @@ function event(
 	path: string,
 	o: { cookie?: string; ip?: string; init?: RequestInit } = {}
 ): RequestEvent {
-	const url = new URL('http://localhost' + path);
+	const url = new URL(`http://localhost${path}`);
 	const headers = new Headers(o.init?.headers);
 	if (o.cookie) headers.set('cookie', o.cookie);
 	const jar = Object.fromEntries(
@@ -84,7 +84,7 @@ describe('profiler login: the secret', () => {
 describe('profiler login: wrong keys per address', () => {
 	it('after ten wrong keys an address is refused, even with the right key; another address is not', async () => {
 		const { login } = prod();
-		for (let i = 0; i < 10; i++) expect((await login('wrong-' + i)).status).toBe(401);
+		for (let i = 0; i < 10; i++) expect((await login(`wrong-${i}`)).status).toBe(401);
 		const refused = await login(SECRET);
 		expect(refused.status).toBe(429);
 		expect(refused.headers.getSetCookie()).toEqual([]);
@@ -100,7 +100,7 @@ describe('profiler login: wrong keys per address', () => {
 		const { run, login } = prod();
 		for (let i = 0; i < 10; i++)
 			await run(
-				event('/__profiler/status.json', { init: { headers: { 'x-profiler-key': 'nope' + i } } })
+				event('/__profiler/status.json', { init: { headers: { 'x-profiler-key': `nope${i}` } } })
 			);
 		expect((await login(SECRET)).status).toBe(429);
 	});
@@ -113,9 +113,7 @@ describe('profiler login: the session', () => {
 		const b = token_of(await login(SECRET));
 		expect(a).not.toBe(b);
 		const { createHash } = await import('node:crypto');
-		const old = createHash('sha256')
-			.update('og-profiler:' + SECRET)
-			.digest('hex');
+		const old = createHash('sha256').update(`og-profiler:${SECRET}`).digest('hex');
 		expect(a).not.toContain(old);
 		expect((await page(old)).headers.get('location')).toMatch(/\/login/);
 		expect((await page(a)).status).toBe(200);
@@ -158,7 +156,7 @@ describe('profiler login: the session', () => {
 	it('a session signed under another secret is refused', async () => {
 		const a = prod();
 		const token = a.token_of(await a.login(SECRET));
-		const b = prod({ secret: SECRET + '-rotated' });
+		const b = prod({ secret: `${SECRET}-rotated` });
 		expect((await b.page(token)).headers.get('location')).toMatch(/\/login/);
 	});
 });

@@ -246,8 +246,7 @@ describe('runtime_first — the response’s mark on the tag it places (RESPONSE
 	it('writes the mark and the code origins on the same tag, the mark first', () => {
 		const out = runtime_first(head_start + runtime, null, ['https://peer.example/x.js'], 'm1');
 		expect(out).toBe(
-			head_start +
-				'<script data-og-mark="m1" type="module" data-ogygia-runtime data-og-origins="https://peer.example" src="/_app/og-runtime.js"></script>'
+			`${head_start}<script data-og-mark="m1" type="module" data-ogygia-runtime data-og-origins="https://peer.example" src="/_app/og-runtime.js">\x3C/script>`
 		);
 	});
 

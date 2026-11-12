@@ -23,10 +23,8 @@ beforeEach(() => {
 	prepare_spa_document();
 	window.fetch = async () =>
 		new Response(
-			'<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>next</title>' +
-				`<script type="application/x-runtime-stand-in" data-ogygia-runtime${TEST_MARK_ATTR}></script>` +
-				`</head><body><p>next</p><script type="application/ogygia-page" data-og-format="json"${TEST_MARK_ATTR}>` +
-				JSON.stringify({
+			`<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>next</title><script type="application/x-runtime-stand-in" data-ogygia-runtime${TEST_MARK_ATTR}>\x3C/script></head><body><p>next</p><script type="application/ogygia-page" data-og-format="json"${TEST_MARK_ATTR}>${JSON.stringify(
+				{
 					url: new URL('/page-facts-next', location.href).href,
 					data: { who: 'next' }
 				}

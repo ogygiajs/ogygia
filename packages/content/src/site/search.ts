@@ -248,7 +248,7 @@ export function excerpt_of(text: string, terms: string[], span = 150): string {
 	let from = 0;
 	if (any)
 		for (const m of window.matchAll(new RegExp(any, 'gi'))) {
-			out += esc_html(window.slice(from, m.index)) + `<mark>${esc_html(m[0])}</mark>`;
+			out = `${out}${esc_html(window.slice(from, m.index))}<mark>${esc_html(m[0])}</mark>`;
 			from = m.index + m[0].length;
 		}
 	out += esc_html(window.slice(from));

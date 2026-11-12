@@ -17,12 +17,7 @@ const home = location.href;
 const MARK = ' data-og-mark="50f7f0e15ea50f7f0e15ea"';
 
 const page = (who: string) =>
-	'<!doctype html><html><head><meta name="ogygia-router" content="plain">' +
-	`<meta name="soft-page" content="${who}"><title>page ${who}</title>` +
-	`<script type="application/x-runtime-stand-in" data-ogygia-runtime${MARK}></script></head>` +
-	`<body><p>${who}</p><script type="application/ogygia-page" data-og-format="json"${MARK}>` +
-	JSON.stringify({ url: home, data: { who } }) +
-	'</script></body></html>';
+	`<!doctype html><html><head><meta name="ogygia-router" content="plain"><meta name="soft-page" content="${who}"><title>page ${who}</title><script type="application/x-runtime-stand-in" data-ogygia-runtime${MARK}>\x3C/script></head><body><p>${who}</p><script type="application/ogygia-page" data-og-format="json"${MARK}>${JSON.stringify({ url: home, data: { who } })}\x3C/script></body></html>`;
 
 /** An answer the browser got by following a redirect to `url`. */
 function landed(html: string, url: string): Response {
