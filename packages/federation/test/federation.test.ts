@@ -150,7 +150,7 @@ describe('peer transport — one per remote app', () => {
 	it('widgetDoc throws a plain Error; doc() throws http errors; a network failure is a 504', async () => {
 		vi.stubGlobal('fetch', async () => new Response('nope', { status: 500 }));
 		const dash = new PeerHandle('dash', { origin: 'http://dash.test' }, 'shell');
-		await expect(dash.widgetDoc('kpis')).rejects.toThrow("fragment 'kpis' answered 500");
+		await expect(dash.widgetDoc('kpis')).rejects.toThrow('fragment app answered a 500');
 		await expect(dash.doc('/p', '')).rejects.toMatchObject({ status: 502 });
 		vi.stubGlobal('fetch', async () => {
 			throw new TypeError('fetch failed');

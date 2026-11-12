@@ -19,7 +19,7 @@ import { fnv1a32, type StandardSchemaV1 } from '@ogygia/core/plugin/utils';
 import { flags_app } from './app.ts';
 import { warn } from './messages.ts';
 import { source_answered, source_failed, source_mark, source_reset } from './source-health.ts';
-import { machine, outbox, policy, say } from '@ogygia/machine';
+import { defining, machine, outbox, policy, registry, say, scope } from '@ogygia/machine';
 
 export type CtxLike = {
 	request: Request;
@@ -245,7 +245,16 @@ export function flush_exposures(): Promise<void> | undefined {
 /** Every constructed flag self-registers here — the complete name list a source is asked for, and
  *  the set federation auto-carries. Import your flags (route modules do this at startup; on plain
  *  Kit, `import './flags'` in hooks.server.ts to prime the source from the first request). */
-const _registry = new Map<string, FlagQuery>();
+const _registry = registry.keyed<string, Definition>();
+
+/** A flag as defined: what a source is asked about, and the layer it is a member of. */
+type Definition = { query: FlagQuery; layer: string | undefined };
+
+/** Who owns a definition made outside a marked call (a build, or a test calling flag() itself):
+ *  this module's run, as long as `_registry` beside it (a reload of this module makes both anew).
+ *  In dev, core marks each flag() call with the run of the module making it (`b.definers()`), and
+ *  that run owns it instead (`defining()`). */
+const DEFINED_HERE = scope();
 
 /**
  * Resolve the source ONCE per request over every registered flag, caching decisions on the
@@ -278,9 +287,10 @@ async function ask_source(c: CtxLike, source: NonNullable<typeof _source>): Prom
 	try {
 		// the source sees the identity a read hashes on: it primes above the router, where no
 		// `c.visitor` exists yet, so a vendor's per-user targeting would otherwise have no key
-		const out = await source([..._registry.values()], { ...c, visitor: visitor_of(c) });
+		const queries = [..._registry.values()].map((d) => d.query);
+		const out = await source(queries, { ...c, visitor: visitor_of(c) });
 		const map: Record<string, Decision> = {};
-		for (const q of _registry.values()) {
+		for (const q of queries) {
 			const raw = out?.[q.name];
 			if (raw === undefined) continue;
 			const norm =
@@ -331,10 +341,11 @@ function override(c: CtxLike, name: string): string | undefined {
 
 // ── layers: mutual exclusion (a `layer: 'name'` string option) ───────────────────────────────
 
-const _layers = new Map<string, string[]>();
+// (a layer's members are the flags defined now with that layer: the registry is the one table)
 function layer_member_for(group: string, v: string): string | undefined {
-	const members = _layers.get(group);
-	if (!members || members.length === 0) return undefined;
+	const members: string[] = [];
+	for (const d of _registry.values()) if (d.layer === group) members.push(d.query.name);
+	if (members.length === 0) return undefined;
 	// Index into a SORTED view: registration order is module-import order, which can differ
 	// between two server builds/replicas — lane assignment must depend only on (group, names,
 	// visitor), never on which chunk loaded first.
@@ -431,16 +442,14 @@ export function flag(
 	const target =
 		typeof shape === 'function' ? (shape as (c: CtxLike) => boolean | undefined) : null;
 
-	_registry.set(name, {
+	_registry.set(
 		name,
-		variants,
-		kind: is_record ? 'variant' : 'boolean'
-	});
-	if (opts.layer) {
-		const members = _layers.get(opts.layer) ?? [];
-		if (!members.includes(name)) members.push(name);
-		_layers.set(opts.layer, members);
-	}
+		{
+			query: { name, variants, kind: is_record ? 'variant' : 'boolean' },
+			layer: opts.layer || undefined
+		},
+		defining() ?? DEFINED_HERE
+	);
 
 	const memo = new WeakMap<Request, string>();
 
