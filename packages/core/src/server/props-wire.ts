@@ -51,6 +51,7 @@ import { OG_FORMAT, OG_WIRE, OGYGIA_PROPS } from '../wire-markup.ts';
 export const WIRE_FORMAT_JSON = 'json';
 
 /** Island props cross classes, stores, snippets, og.$ fns and resumable deriveds. */
+// static: the prop families that cross the wire
 const PROP_FAMILIES = new Set(['wire', 'store', 'snippet', 'fn', 'derived']);
 
 // PULL-registration (idempotent in the hub registry; no import-time side effects) — done once per

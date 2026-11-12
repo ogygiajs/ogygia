@@ -10,12 +10,15 @@ import {
 	type OgygiaRequestStats,
 	type RequestStatsSink
 } from '@ogygia/core/internal/server';
+import { registry, scope, type Scope } from '@ogygia/machine';
 
 const stats = new WeakMap<Request, OgygiaRequestStats>();
 const hole_stats = new WeakMap<Request, HoleRequestStats>();
 let batch_listener: ((request: Request, s: BatchHoleStats) => void) | null = null;
-/** Who asked for detail, each until its own release. */
-const detail_holds = new Set<object>();
+/** Who asked for detail, each until its own release (or its owner's end: by default the process's,
+ *  for a caller that lets go itself). */
+const detail_holds = registry<object>();
+const process_holds = scope();
 
 /** The sink core's handle writes into. */
 export const request_stats_store: RequestStatsSink = {
@@ -55,12 +58,8 @@ export function set_batch_hole_listener(
  * The profiler asks for detail for a recording; with nobody asking, the handle records totals only.
  * Held, not a switch: two profilers can record at once (the dev server re-runs the app's hooks on an
  * edit while the old profiler's timers still record), so detail stays on while any hold stands, and
- * each release lets go of its own hold only, once.
+ * each release lets go of its own hold only, once (a second call does nothing).
  */
-export function hold_request_stats_detail(): () => void {
-	const hold = {};
-	detail_holds.add(hold);
-	return () => {
-		detail_holds.delete(hold);
-	};
+export function hold_request_stats_detail(owner: Scope = process_holds): () => void {
+	return detail_holds.add({}, owner);
 }

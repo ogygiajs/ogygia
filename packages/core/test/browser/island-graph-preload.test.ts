@@ -49,6 +49,21 @@ test('a shared chunk is linked once; a second island adds only its own', () => {
 	expect(ours()).toEqual(['/g/svelte.js', '/g/a-dep.js', '/g/b-dep.js']);
 });
 
+test('a chunk another loader linked after the first preload is not linked again (#984)', () => {
+	preload_island_graph('/g/a.js');
+	// (Vite's preload helper links a chunk of a dynamic import() later on)
+	const link = document.createElement('link');
+	link.rel = 'modulepreload';
+	link.href = '/g/b-dep.js';
+	link.setAttribute('data-test-hint', '');
+	document.head.append(link);
+	preload_island_graph('/g/b.js');
+	const all = [...document.head.querySelectorAll('link[rel="modulepreload"]')].map(
+		(l) => new URL((l as HTMLLinkElement).href).pathname
+	);
+	expect(all.filter((p) => p === '/g/b-dep.js')).toHaveLength(1);
+});
+
 test('a chunk the HTML already preloads is not linked again', () => {
 	const link = document.createElement('link');
 	link.rel = 'modulepreload';
