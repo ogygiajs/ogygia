@@ -1,7 +1,7 @@
 // Edges of the region transform the mutation pass found unpinned: which ids are ogygia's own glue,
 // the `.ts` asRegion option reader (configured names and their defaults), and what a
 // `render: 'live'` region may carry (only what the revalidate endpoint can serialize).
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
 import { dedent } from '@ogygia/core/contract';
 import {
@@ -150,5 +150,96 @@ describe("render: 'live' carries only what the revalidate endpoint can serialize
 		['<L {@attach rest.a} />', /cannot use `AttachTag`/]
 	])('%s is refused', (tag, re) => {
 		expect(place(tag)).toMatch(re);
+	});
+
+	it.each([
+		[`{ render: 'live', revalidate: 'visible' }`, 'lake:swr:when:visible:margin:50px'],
+		[
+			`{ render: 'live', revalidate: 'visible', margin: '9px' }`,
+			'lake:swr:when:visible:margin:9px'
+		],
+		[`{ render: 'live', revalidate: 'idle', margin: '9px' }`, 'lake:swr:when:idle']
+	])('a live preset %s revalidating on visible takes a margin: %s', (preset, want) => {
+		const src = dedent`
+			<script>
+			import L from './L.svelte' with { preset: 'p' };
+			</script>
+			<L />
+		`;
+		const c = {
+			...ctx(),
+			visibleMargin: '50px',
+			presets: { p: new Function(`return ${preset}`)() }
+		} as Ctx;
+		const out = transformHost(src, '/app/src/routes/+page.svelte', c)!;
+		expect(String(out.islands[0].identity).split('\u0000')[1]).toBe(want);
+	});
+});
+
+describe('inline stitch on a hole', () => {
+	it.each([
+		['serve', 'defer:load:stitch:serve'],
+		['edge', 'defer:load:stitch:edge']
+	])("stitch: '%s' → %s", (mode, want) => {
+		const src = dedent`
+			<script>
+			import D from './D.svelte' with { render: 'deferred', stitch: '${mode}' };
+			</script>
+			<D />
+		`;
+		const out = transformHost(src, '/app/src/routes/+page.svelte', ctx())!;
+		expect(String(out.islands[0].identity).split('\u0000')[1]).toBe(want);
+	});
+});
+
+describe('a portable snippet that captures a host store', () => {
+	const compile = (decl: string, use: string) => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			const src = dedent`
+				<script>
+				import Widget from './Widget.svelte' with { wake: 'load' };
+				import { writable, derived } from 'svelte/store';
+				${decl}
+				</script>
+
+				<Widget>
+					{#snippet children()}
+						${use}
+					{/snippet}
+				</Widget>
+			`;
+			transformHost(src, `/app/src/routes/s${Math.random()}/+page.svelte`, {
+				...ctx(),
+				ssr: true
+			} as Ctx);
+			return warn.mock.calls.flat().join('\n');
+		} finally {
+			warn.mockRestore();
+		}
+	};
+
+	it.each([
+		['const s = writable(0);', '<b>{s}</b>'],
+		['const s = derived(other, (x) => x);', '<b>{s}</b>'],
+		['const s = make();', '<b>{s}{$s}</b>']
+	])('`%s` used as %s warns that the object cannot cross', (decl, use) => {
+		expect(compile(decl, use)).toMatch(/captures the store\s+`s` as an OBJECT/);
+	});
+
+	it.each([
+		['const s = make();', '<b>{s}</b>'],
+		['let s = $state(0);', '<b>{s}</b>'],
+		['const slots = {}; const all = $$slots;', '<b>{slots.a}</b>'],
+		['const [s] = [writable(0)];', '<b>{s}</b>']
+	])('`%s` used as %s does not', (decl, use) => {
+		expect(compile(decl, use)).not.toMatch(/as an OBJECT/);
+	});
+
+	it('the frozen-snapshot warning points at the line and column of each $store read', () => {
+		const said = compile('const s = writable(0);', '<b>{$s}</b>');
+		expect(said).toMatch(/FROZEN/);
+		// line 9 is `\t\t<b>{$s}</b>`: the read starts at column 7
+		expect(said).toMatch(/\+page\.svelte:9:7\b/);
 	});
 });
