@@ -10,6 +10,8 @@ import { _reset } from '../../src/runtime/frame-store.ts';
 
 /** A module the dev server does not have: every import of it fails. */
 const MISSING = '/test/browser/fixtures/NoSuchIsland.svelte';
+/** A module the dev server has. */
+const LABEL = '/test/browser/fixtures/Label.svelte';
 const label_html = () => decodeURIComponent(escape(atob(inject('label_render_b64'))));
 
 type LiveRegion = HTMLElement & {
@@ -67,4 +69,41 @@ test('a live region whose island file cannot load settles: no start per tick, no
 	expect(said.filter((s) => s.includes('island_load_failed')).length, 'said once, coded').toBe(1);
 	// the latest tick's server HTML shows
 	await expect.poll(() => live.querySelector('[data-testid="label"]')?.textContent).toBe('tick 3');
+});
+
+test('after its island file could not load, a tick of another module starts afresh and goes live', async () => {
+	const live = document.createElement('ogygia-region') as LiveRegion;
+	live.setAttribute('live', '');
+	document.body.append(live);
+	bootDev();
+
+	const steps: string[] = [];
+	const off = observe((name, from, to) => {
+		if (name === 'live-region') steps.push(`${from?.kind} -> ${to?.kind}`);
+	});
+	const real_error = console.error;
+	console.error = () => {};
+	try {
+		await live.applyLive({
+			id: 'live-switch',
+			module: MISSING,
+			props: { text: 'missing' },
+			html: label_html().replace('one', 'missing'),
+			hydrate: 'load'
+		});
+		await expect.poll(() => steps.at(-1)).toBe('hydrating -> failed');
+		await live.applyLive({
+			id: 'live-switch',
+			module: LABEL,
+			props: { text: 'found' },
+			html: label_html().replace('one', 'found'),
+			hydrate: 'load'
+		});
+		await expect.poll(() => steps.at(-1)).toBe('hydrating -> live');
+	} finally {
+		console.error = real_error;
+		off();
+	}
+	expect(steps).toContain('failed -> hydrating');
+	expect(live.querySelector('[data-testid="label"]')?.textContent).toBe('found');
 });
