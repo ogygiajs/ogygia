@@ -51,7 +51,11 @@ describe('a thaw notice whose evict fails (#287)', () => {
 			forwarded.push(String(u));
 			return new Response('{}');
 		});
-		federate({ name: 'shell', peers: { cms: { origin: 'http://cms.test', key: cms_pub } } });
+		federate({
+			name: 'shell',
+			audience: 'shell.test',
+			peers: { cms: { origin: 'http://cms.test', key: cms_pub } }
+		});
 
 		// the store's side of the hook: down for the first notice, up for the retry
 		const applied: string[][] = [];
@@ -97,6 +101,7 @@ describe('two copies of a notice at once (the sender tried again while the first
 		});
 		federate({
 			name: 'shell',
+			audience: 'shell.test',
 			peers: {
 				cms: { origin: 'http://cms.test', key: cms_pub },
 				site: { origin: 'http://site.test' }
