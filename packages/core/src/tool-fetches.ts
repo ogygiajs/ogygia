@@ -10,8 +10,9 @@
  * the tools caused. The notes live on a global: the runtime's beacon and the devtools are separate
  * bundles, and a page can carry two copies of either.
  *
- * Universal leaf: no imports.
+ * Universal leaf: no imports but the ports.
  */
+import { clock, net } from '@ogygia/machine';
 
 const KEY = Symbol.for('ogygia.tool-fetches');
 
@@ -28,12 +29,12 @@ export function tool_fetch(url: string, init?: RequestInit): Promise<Response> {
 		href = new URL(url, location.href).href;
 		const all = ((globalThis as { [KEY]?: Notes })[KEY] ??= new Map());
 		const at = all.get(href);
-		if (at) at.push(performance.now());
-		else all.set(href, [performance.now()]);
+		if (at) at.push(clock.mono());
+		else all.set(href, [clock.mono()]);
 	} catch {
 		// ok: no location (not a browser): nothing to list it in
 	}
-	return fetch(href, init);
+	return net.fetch(href, init);
 }
 
 /** Whether this Resource Timing entry is one of the tools' own requests (a `fetch` of a noted
