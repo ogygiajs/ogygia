@@ -50,6 +50,14 @@ const { chromium } = createRequire(path.join(repo, 'package.json'))('playwright'
 const PORT = 4197;
 const PROFILER_KEY = 'cache-check-profiler';
 const BASE = `http://127.0.0.1:${PORT}`;
+
+/** The profiler's own browser, logged in as a person would: the login seats a session cookie, and
+ *  the next answer adds the beacon flag signed for that session (#760: neither is the raw key). */
+async function profiler_login(ctx) {
+	const res = await ctx.request.post(`${BASE}/__profiler/login`, { data: { key: PROFILER_KEY } });
+	if (!res.ok()) throw new Error(`profiler login failed: ${res.status()}`);
+	await ctx.request.get(`${BASE}/__profiler`);
+}
 // (inside the app: a built server resolves its dependencies through the app's node_modules)
 const tmp = path.join(app, '.cache-check');
 fs.rmSync(tmp, { recursive: true, force: true });
@@ -556,10 +564,7 @@ try {
 			});
 			// the profiler's own browser, logged in: the server adds its beacon to the page, and takes
 			// the beacon's posts (the session; the flag follows it)
-			await ctx.addCookies([
-				{ name: 'og_profiler', value: PROFILER_KEY, url: BASE },
-				{ name: 'og_profiler_beacon', value: '1', url: BASE }
-			]);
+			await profiler_login(ctx);
 			const p = await ctx.newPage();
 			const statuses = [];
 			p.on('response', (r) => r.url().includes('/_app/immutable/') && statuses.push(r.status()));
@@ -668,10 +673,7 @@ try {
 		const ctx = await chromium.launchPersistentContext(path.join(tmp, 'profile-inp'), {
 			viewport: { width: 1280, height: 900 }
 		});
-		await ctx.addCookies([
-			{ name: 'og_profiler', value: PROFILER_KEY, url: BASE },
-			{ name: 'og_profiler_beacon', value: '1', url: BASE }
-		]);
+		await profiler_login(ctx);
 		const rec = await fetch(`${BASE}/__profiler/page?p=/dt-inp&runs=1&format=json`, {
 			headers: { 'x-profiler-key': PROFILER_KEY }
 		})
