@@ -11,111 +11,81 @@
  * client router hands off to `location.href`, so no SPA and no view transition). The changelog page
  * documents exactly these tags, which is how the bug surfaced.
  *
- * The fix each predicate shares: require a literal `<meta` / `<script` — the escaped copy carries
- * `&lt;`, never a bare `<`, so it can't match. `[^>]*` is bounded to the opening tag, so a `<script>`
- * whose BODY mentions the attribute (inline JS) can't false-match either. Every pattern is a single
- * unnested `[^>]*`, so `.test()` is linear — no backtracking on any input.
- *
- * The patterns are module constants (compiled once), never rebuilt per call: these predicates run on
- * the page HTML during every SSR response transform. They STAY regexes: measured against hand-written
- * scans (a tag walk, a rare-needle-first search), the engine's compiled matcher was 2–4× faster on
- * real heads, allocation-free either way. `dedupe_head_links` is hand-written: it won.
+ * Every check reads real start tags through `tags()` (../wire-markup.ts): the escaped copy carries
+ * `&lt;`, never a bare `<`, so it is not a tag; a tag's attributes end at its own `>` (quotes kept),
+ * so a `<script>` whose BODY mentions the attribute (inline JS) can't false-match either.
  */
-import { is_html_space } from './html-scan.ts';
+import {
+	Needle,
+	next_tag,
+	OG_ORIGINS,
+	OGYGIA_DEV_HMR,
+	OGYGIA_RUNTIME,
+	OGYGIA_RUNTIME_DEP,
+	type FoundTag
+} from '../wire-markup.ts';
+
+/** The first `<name …>` from `from` that carries `needle` (wire-markup.ts `Needle`) in a way `test`
+ *  accepts, or null. A head without the needle reads no tag. */
+function find_tag(
+	html: string,
+	name: string,
+	needle: string | RegExp,
+	test: (tag: FoundTag) => boolean,
+	from = 0
+): FoundTag | null {
+	const held = new Needle(html, needle, from);
+	if (held.gone) return null;
+	for (let t = next_tag(html, name, from); t !== null; t = next_tag(html, name, t.next)) {
+		if (held.holds(t) && test(t)) return t;
+		if (held.gone) return null;
+	}
+	return null;
+}
+
+function has_tag(
+	html: string,
+	name: string,
+	needle: string | RegExp,
+	test: (tag: FoundTag) => boolean
+): boolean {
+	return find_tag(html, name, needle, test) !== null;
+}
 
 /** A real `<meta name="ogygia-router" …>` element — a page opting a route out of view transitions. */
-const ROUTER_META_RE = /<meta\b[^>]*\bname=["']ogygia-router["']/i;
-/** A real runtime bootstrap `<script … data-ogygia-runtime …>` (Region emits it on island pages). */
-const RUNTIME_SCRIPT_RE = /<script\b[^>]*\bdata-ogygia-runtime\b/i;
-/** A real dev-HMR `<script … data-ogygia-dev-hmr …>`. */
-const DEV_HMR_SCRIPT_RE = /<script\b[^>]*\bdata-ogygia-dev-hmr\b/i;
-/** A real `<script type="speculationrules" …>` (a page authoring its own MPA speculation rules). */
-const SPECULATION_RULES_RE = /<script\b[^>]*\btype=["']speculationrules["']/i;
-
 export function page_declares_router_meta(html: string): boolean {
-	return ROUTER_META_RE.test(html);
+	return has_tag(html, 'meta', 'ogygia-router', (t) => t.attr('name') === 'ogygia-router');
 }
 
+/** A real runtime bootstrap `<script … data-ogygia-runtime …>` (Region emits it on island pages). */
 export function page_declares_runtime_script(html: string): boolean {
-	return RUNTIME_SCRIPT_RE.test(html);
+	return has_tag(html, 'script', RUNTIME_NEEDLE_G, is_runtime);
 }
 
+const is_runtime = (t: FoundTag) => t.attr(OGYGIA_RUNTIME) !== undefined;
+/** A `rel` holding the `modulepreload` token, in any case, as a browser reads it. */
+const is_modulepreload = (t: FoundTag) => MODULEPRELOAD_TOKEN.test(t.attr('rel') ?? '');
+
+/** A real dev-HMR `<script … data-ogygia-dev-hmr …>`. */
 export function page_declares_dev_hmr_script(html: string): boolean {
-	return DEV_HMR_SCRIPT_RE.test(html);
+	return has_tag(html, 'script', DEV_HMR_NEEDLE_G, (t) => t.attr(OGYGIA_DEV_HMR) !== undefined);
 }
 
+/** A real `<script type="speculationrules" …>` (a page authoring its own MPA speculation rules).
+ *  The type reads as a browser reads it: spaces around it trimmed, in any case. */
 export function page_declares_speculation_rules(html: string): boolean {
-	return SPECULATION_RULES_RE.test(html);
+	return has_tag(html, 'script', SPECULATION_NEEDLE_G, (t) =>
+		SPECULATION_TYPE.test(t.attr('type') ?? '')
+	);
 }
 
-/** A `<link` that is the tag name `link` (any case), not the start of `<link-x>` or `<linker>`. */
-const LINK_OPEN_G = /<link[\t\n\f\r />]/gi;
-
-/** The `rel` and `href` of the tag `link_tag_end` last read (`undefined`: not on the tag). One
- *  shared record: the dedupe reads one tag at a time. */
-const LINK = { rel: undefined as string | undefined, href: undefined as string | undefined };
-
-/** Is `s` from `from` the ASCII name `name` (lower case, its length already checked) in any case? */
-function name_is(s: string, from: number, name: string): boolean {
-	for (let k = 0; k < name.length; k++) {
-		if ((s.charCodeAt(from + k) | 32) !== name.charCodeAt(k)) return false;
-	}
-	return true;
-}
-
-/**
- * Read a start tag's attributes from `i` (just past its name) as the HTML tokenizer does, into
- * `LINK`, and return the index of the `>` that ends the tag (-1: the input ends inside it). Names
- * fold case; a quoted value ends at the quote that opened it (a `>` inside it is text); an unquoted
- * one ends at whitespace or `>`; a name with no `=` has the value `""`; of two same-name attributes
- * the first counts. Values are kept as written: a character reference is not decoded, so two
- * spellings of one URL both stay (never the other way round). Pinned against the browser's parser
- * by test/browser/head-links-dedupe-html.test.ts.
- */
-function link_tag_end(s: string, i: number): number {
-	LINK.rel = LINK.href = undefined;
-	const n = s.length;
-	// (`c <= 32 &&` before each whitespace test: most characters are above it, so most tests end there)
-	for (;;) {
-		let c = s.charCodeAt(i);
-		while (c === 32 || c === 47 /* / */ || (c <= 32 && is_html_space(c))) c = s.charCodeAt(++i);
-		if (i >= n) return -1;
-		if (c === 62 /* > */) return i;
-		// (the first character is the name's even when it is `=`)
-		const ns = i++;
-		for (; i < n; i++) {
-			c = s.charCodeAt(i);
-			if (c > 62) continue;
-			if (c === 61 || c === 62 || c === 47 || (c <= 32 && is_html_space(c))) break;
-		}
-		const ne = i;
-		while (c <= 32 && is_html_space(c)) c = s.charCodeAt(++i);
-		let vs = i;
-		let ve = i;
-		if (c === 61 /* = */) {
-			c = s.charCodeAt(++i);
-			while (c <= 32 && is_html_space(c)) c = s.charCodeAt(++i);
-			if (c === 34 || c === 39) {
-				const close = s.indexOf(c === 34 ? '"' : "'", i + 1);
-				if (close === -1) return -1;
-				vs = i + 1;
-				ve = close;
-				i = close + 1;
-			} else {
-				vs = i;
-				for (; i < n; i++) {
-					c = s.charCodeAt(i);
-					if (c === 62 || (c <= 32 && is_html_space(c))) break;
-				}
-				ve = i;
-			}
-		}
-		const len = ne - ns;
-		if (len === 3 && LINK.rel === undefined && name_is(s, ns, 'rel')) LINK.rel = s.slice(vs, ve);
-		else if (len === 4 && LINK.href === undefined && name_is(s, ns, 'href'))
-			LINK.href = s.slice(vs, ve);
-	}
-}
+// The name needles: global so a search starts at a tag (`lastIndex`), case-blind as names are.
+const RUNTIME_NEEDLE_G = new RegExp(OGYGIA_RUNTIME, 'gi');
+const DEV_HMR_NEEDLE_G = new RegExp(OGYGIA_DEV_HMR, 'gi');
+const SPECULATION_NEEDLE_G = /speculationrules/gi;
+const MODULEPRELOAD_NEEDLE_G = /modulepreload/gi;
+const MODULEPRELOAD_TOKEN = /(?:^|[\t\n\f\r ])modulepreload(?:[\t\n\f\r ]|$)/i;
+const SPECULATION_TYPE = /^[\t\n\f\r ]*speculationrules[\t\n\f\r ]*$/i;
 
 /**
  * Drop duplicate `<link>` tags in the HEAD — one pass over the head slice, two families:
@@ -134,52 +104,50 @@ function link_tag_end(s: string, i: number): number {
  * so the 2.6 MB body is never scanned for them.
  */
 export function dedupe_head_links(head: string): string {
-	let lt = search_from(LINK_OPEN_G, head, 0);
-	if (lt === -1) return head;
+	let t = next_tag(head, 'link', 0);
+	if (t === null) return head;
 	const sheets = new Set<string>();
 	const hints = new Set<string>();
 	// (the kept spans are joined once at the end, and only when a duplicate was dropped)
 	let out: string[] | null = null;
 	let kept = 0;
-	// (each tag's scan resumes after its `>`)
-	for (let gt = 0; lt !== -1; lt = search_from(LINK_OPEN_G, head, gt + 1)) {
-		gt = link_tag_end(head, lt + 5);
-		if (gt === -1) break; // an unclosed `<link` is not a tag (nor is any after it)
-		const rel = LINK.rel;
+	for (; t !== null; t = next_tag(head, 'link', t.next)) {
+		const rel = t.attr('rel');
 		const seen = rel === 'stylesheet' ? sheets : rel === 'modulepreload' ? hints : null;
 		if (seen === null) continue;
-		const href = LINK.href;
+		const href = t.attr('href');
 		if (href === undefined) continue;
 		if (!seen.has(href)) {
 			seen.add(href);
 			continue;
 		}
-		(out ??= []).push(head.slice(kept, lt));
-		kept = gt + 1;
+		(out ??= []).push(head.slice(kept, t.start));
+		kept = t.end;
 	}
 	if (out === null) return head;
 	out.push(head.slice(kept));
 	return out.join('');
 }
 
-// The whole runtime bootstrap element (tag + empty body), the `<head …>` open tag, the first piece
-// of JavaScript the head carries (a `<script>`, or a `<link rel="modulepreload">` that fetches one),
-// and the `</head>` close. Same law as the predicates above: a literal `<script` / `<head` / `<link`,
-// one bounded `[^>]*` each, linear. (Kept as regexes, measured: see above.) The last two are global
-// so a search starts at an offset (`lastIndex`) instead of on a sliced copy of the head.
-// …together with the modulepreload hints for its imports that follow it (document-tail.ts
-// `runtime_bootstrap_tags`): they move as one unit.
-const RUNTIME_SCRIPT_ELEMENT_RE =
-	/<script\b[^>]*\bdata-ogygia-runtime\b[^>]*><\/script>(?:<link\b[^>]*\bdata-ogygia-runtime-dep\b[^>]*>)*/i;
-const HEAD_OPEN_RE = /<head\b[^>]*>/i;
-const FIRST_JS_G = /<script\b|<link\b[^>]*\brel=["']?modulepreload\b/gi;
+// The `</head>` close: an end tag (tags() reads start tags). Global, so a search starts at an offset
+// (`lastIndex`) instead of on a sliced copy of the head.
 const HEAD_CLOSE_G = /<\/head\s*>/gi;
 
-/** The first match of a global pattern at or after `from` (its index), or -1. */
-function search_from(re: RegExp, s: string, from: number): number {
-	re.lastIndex = from;
-	const m = re.exec(s);
-	return m ? m.index : -1;
+/**
+ * The whole runtime bootstrap element (its `<script … data-ogygia-runtime></script>`) together with
+ * the modulepreload hints for its imports that follow it (document-tail.ts `runtime_bootstrap_tags`):
+ * they move as one unit. `[start, end)` in `head`, or null.
+ */
+function runtime_unit(head: string): { start: number; end: number } | null {
+	const script = find_tag(head, 'script', RUNTIME_NEEDLE_G, is_runtime);
+	if (script === null || !head.startsWith('</script>', script.end)) return null;
+	let end = script.end + '</script>'.length;
+	for (;;) {
+		const dep = next_tag(head, 'link', end);
+		if (dep === null || dep.start !== end || dep.attr(OGYGIA_RUNTIME_DEP) === undefined) break;
+		end = dep.end;
+	}
+	return { start: script.start, end };
 }
 
 /**
@@ -210,28 +178,28 @@ export function runtime_first(
 	runtime: string | null,
 	code_origins: readonly string[] = []
 ): string {
-	const found = RUNTIME_SCRIPT_ELEMENT_RE.exec(head);
-	const was = found ? found[0] : runtime;
+	const found = runtime_unit(head);
+	const was = found ? head.slice(found.start, found.end) : runtime;
 	if (was === null) return head;
 	const tag = with_code_origins(was, code_origins);
-	const rest = found
-		? head.slice(0, found.index) + head.slice(found.index + found[0].length)
-		: head;
-	const open = HEAD_OPEN_RE.exec(rest);
+	const rest = found ? head.slice(0, found.start) + head.slice(found.end) : head;
 	// no `<head>` in this slice (a routeless document's inner head): search the whole content
-	const from = open ? open.index + open[0].length : 0;
-	let at = search_from(FIRST_JS_G, rest, from);
-	if (at === -1) {
-		const close = search_from(HEAD_CLOSE_G, rest, from);
-		at = close === -1 ? rest.length : close;
+	const from = next_tag(rest, 'head', 0)?.end ?? 0;
+	let at = next_tag(rest, 'script', from)?.start ?? Infinity;
+	// (a modulepreload hint counts only when it comes before that script)
+	const hint = find_tag(rest, 'link', MODULEPRELOAD_NEEDLE_G, is_modulepreload, from);
+	if (hint !== null && hint.start < at) at = hint.start;
+	if (at === Infinity) {
+		HEAD_CLOSE_G.lastIndex = from;
+		at = HEAD_CLOSE_G.exec(rest)?.index ?? rest.length;
 	}
-	if (found && found.index === at && tag === was) return head;
+	if (found && found.start === at && tag === was) return head;
 	return rest.slice(0, at) + tag + rest.slice(at);
 }
 
 /** The runtime script's own code-origins attribute (runtime/code-origins.ts reads it). */
-const CODE_ORIGINS_ATTR_RE = /\sdata-og-origins="[^"]*"/i;
-const RUNTIME_MARK_RE = /\bdata-ogygia-runtime\b/i;
+const CODE_ORIGINS_ATTR_RE = new RegExp(`\\s${OG_ORIGINS}="[^"]*"`, 'i');
+const RUNTIME_MARK_RE = new RegExp(`\\b${OGYGIA_RUNTIME}\\b`, 'i');
 
 /**
  * THE ONE WRITE of the origins island code may load from besides the page's own and the runtime's
@@ -253,6 +221,6 @@ function with_code_origins(tag: string, urls: readonly string[]): string {
 	if (!origins.size) return bare;
 	return bare.replace(
 		RUNTIME_MARK_RE,
-		(mark) => mark + ' data-og-origins="' + [...origins].join(' ') + '"'
+		(mark) => mark + ` ${OG_ORIGINS}="` + [...origins].join(' ') + '"'
 	);
 }

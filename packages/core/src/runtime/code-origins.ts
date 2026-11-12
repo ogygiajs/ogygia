@@ -16,9 +16,10 @@
  */
 // (the boot's own table: this module is boot code, test/runtime-boot-svelte-free.test.ts)
 import { OgygiaError } from '../messages/core.ts';
+import { OG_ORIGINS, OGYGIA_RUNTIME } from '../wire-markup.ts';
 
 /** The runtime script's attribute naming the extra origins (space-separated). */
-export const CODE_ORIGINS_ATTR = 'data-og-origins';
+export const CODE_ORIGINS_ATTR: typeof OG_ORIGINS = OG_ORIGINS;
 
 declare const CODE_URL: unique symbol;
 /** A URL on an allowed code origin: only {@link code_url} makes one. */
@@ -44,7 +45,7 @@ export function code_origins(): ReadonlySet<string> {
 	const script =
 		typeof document === 'undefined'
 			? null
-			: document.head?.querySelector(`script[data-ogygia-runtime][${CODE_ORIGINS_ATTR}]`);
+			: document.head?.querySelector(`script[${OGYGIA_RUNTIME}][${CODE_ORIGINS_ATTR}]`);
 	for (const named of (script?.getAttribute(CODE_ORIGINS_ATTR) ?? '').split(' ')) {
 		const origin = named && origin_of(named);
 		if (origin && origin === named) set.add(origin);
