@@ -145,6 +145,8 @@ export class World {
 	/** Each buggify point asked in this run: whether the swarm turned it on, and how often it fired
 	 *  (the coverage a search steers by). */
 	readonly buggified = new Map<string, { on: boolean; asked: number; fired: number }>();
+	/** The buggify points that fired in each realm (a document's, a server's). */
+	readonly fired_in = new Map<string, Set<string>>();
 	/** The build new requests go to (a deploy moves it). */
 	live: string;
 	readonly #o: WorldOptions;
@@ -198,6 +200,7 @@ export class World {
 		if (r === undefined) this.#buggify_rng.set(key, (r = this.rng.fork(`buggify ${key}`)));
 		if (!r.chance(o.fires)) return false;
 		seen.fired++;
+		this.fired_in.set(realm, (this.fired_in.get(realm) ?? new Set<string>()).add(point));
 		this.loop.note(`buggify ${realm} ${point}`);
 		return true;
 	}

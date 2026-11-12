@@ -588,6 +588,15 @@ export function error_page(tab: Tab): boolean {
 	);
 }
 
+/** The buggify points that lose an answer on the way, as a dropped request does. */
+const LOSSY_POINTS = ['hole.fetch-lost'];
+
+/** Did buggify lose an answer of `realm`'s on the way? */
+function lost_answers(world: World, realm: string): boolean {
+	const fired = world.fired_in.get(realm);
+	return fired !== undefined && LOSSY_POINTS.some((p) => fired.has(p));
+}
+
 /**
  * Was the document `tab` shows touched only by an outage (its tab offline for a while: requests
  * that failed to fetch, bodies that broke off), and nothing else the network does? Such a page is
@@ -596,7 +605,8 @@ export function error_page(tab: Tab): boolean {
  * (a browser never loads one again), nor one whose own load failed (the browser's error page).
  */
 export function outage_only(world: World, tab: Tab): boolean {
-	if (world.browsers.lacks_a_file(tab.realm) || error_page(tab)) return false;
+	if (world.browsers.lacks_a_file(tab.realm) || error_page(tab) || lost_answers(world, tab.realm))
+		return false;
 	let outage = false;
 	let first = true;
 	for (const e of world.network.exchanges) {
@@ -628,6 +638,10 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 	const next = `${tab.name}#${tab.documents + 1}`;
 	const mine = (from: string): boolean =>
 		since === undefined ? from === tab.realm || from === next : from.startsWith(`${tab.name}#`);
+	// (an answer buggify lost on the way is a dropped request's: the hole may give up, as it would;
+	// palaestra seed 85, test/lost-answers.node.test.ts)
+	if ([...world.fired_in.keys()].some((realm) => mine(realm) && lost_answers(world, realm)))
+		return true;
 	return world.network.exchanges.slice(since ?? 0).some(
 		(e) =>
 			(mine(e.from) &&
