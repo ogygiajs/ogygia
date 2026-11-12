@@ -35,6 +35,7 @@ import {
 	RegionAnswerRefused
 } from './region-endpoint-url.ts';
 import { fetch_hole } from './hole-fetch.ts';
+import { recover_from_stale_deps } from './stale-deps.ts';
 import {
 	island_entry_of,
 	import_entry,
@@ -114,6 +115,7 @@ import {
 	HOOK_REGION_HYDRATED,
 	HOOK_REGION_MOUNT,
 	HOOK_REGION_UNMOUNT,
+	HOOK_REGION_WOKE,
 	HOOK_WARNING,
 	boot_client_plugins,
 	client_region_mount
@@ -309,36 +311,6 @@ const load_island = (entry: string, cls: LoadClass = 'visible') => {
 	return import_entry<IslandModule>(entry, island_module_url(entry));
 };
 
-/**
- * DEV watchdog for a stranded tab (dev only; the branch is dead in a production build). Under
- * `csr = false` Kit ships no client bootstrap, so a Vite dep re-optimization — which rotates the
- * optimizer's browserHash — can leave a tab that was loaded under the old hash importing island dep
- * URLs (`svelte.js?v=<old>`) that now 404, and Vite's own full-reload does not always reach a
- * csr=false page. The island entry then throws `Failed to fetch dynamically imported module` on
- * wake, and nothing recovers it.
- *
- * We CONFIRM it is staleness, not a genuinely-missing module: re-fetch the entry URL, and reload
- * only when the server still serves it (200) — a real 404 is a different bug and must stay visible.
- * A timestamp in `sessionStorage` bounds it to one reload per few seconds, so a genuinely broken
- * entry (200 that keeps failing to import) never loops.
- */
-const STALE_DEP_RELOAD_KEY = 'ogygia:dev:dep-reload';
-const STALE_DEP_RELOAD_WINDOW_MS = 6000;
-async function recover_from_stale_deps(entry: string | null): Promise<void> {
-	if (!import.meta.env.DEV || !entry || typeof location === 'undefined') return;
-	try {
-		const last = Number(sessionStorage.getItem(STALE_DEP_RELOAD_KEY) || 0);
-		// wall: the last reload's time lives in sessionStorage, across page loads
-		if (Date.now() - last < STALE_DEP_RELOAD_WINDOW_MS) return; // already reloaded — don't loop
-		const res = await fetch(island_module_url(entry), { cache: 'no-store' });
-		if (!res.ok) return; // a real 404 — leave the error visible, it is not a re-optimize
-		sessionStorage.setItem(STALE_DEP_RELOAD_KEY, String(Date.now())); // wall: read by the next page load
-		location.reload();
-	} catch {
-		// ok: dev only: storage or fetch blocked; the error said before this stays, and the dev reloads by hand
-	}
-}
-
 function dom_ready() {
 	if (typeof document === 'undefined' || document.readyState !== 'loading')
 		return Promise.resolve();
@@ -392,7 +364,7 @@ function say_island_failed(entry: string | null, err: unknown): void {
 	} else if (is_failed_import(err)) {
 		if (import.meta.env.DEV) {
 			console.error(new OgygiaError('island_load_failed_stale_deps', { entry }), err);
-			void recover_from_stale_deps(entry); // ok: dev only, never rejects (its failure leaves the error above)
+			if (entry) void recover_from_stale_deps(island_module_url(entry)); // ok: dev only, never rejects (its failure leaves the error above)
 		} else {
 			console.error(new OgygiaError('island_load_failed', { entry }), err);
 		}
@@ -1050,12 +1022,13 @@ class OgygiaRegion extends HTMLElement {
 		// capture wakes it at once (a gesture: the `user` class) and replays the click when it is live.
 		// `interaction` is the island with no other trigger.
 		if (fire === this.#fire_hydrate && when !== 'interaction') this.#catch_early_input(fire);
-		if (DEVTOOLS) {
+		if (DEVTOOLS || (HOOK_REGION_WOKE && slots.hooks?.regionWoke)) {
 			// Wrap so the schedule FIRING is observable (interaction/visible/idle "when did it actually
 			// wake, and why" is the story a timeline instrument tells). Off → `fire` is used directly.
 			const raw = fire;
 			fire = () => {
-				dt_emit({ domain: 'runtime', name: 'wake.fired', ...dt_ids(this), when });
+				if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'wake.fired', ...dt_ids(this), when });
+				if (HOOK_REGION_WOKE) slots.hooks?.regionWoke?.({ el: this, when });
 				return raw();
 			};
 		}
@@ -1584,6 +1557,7 @@ class OgygiaRegion extends HTMLElement {
 			}
 			if (id)
 				slots.hooks.holeFailed?.({
+					el: this,
 					id,
 					reason: refused ? err.reason : 'error',
 					...(final_path ? { finalPath: final_path } : {}),
