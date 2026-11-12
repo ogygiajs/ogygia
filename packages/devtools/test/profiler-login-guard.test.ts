@@ -162,3 +162,19 @@ describe('profiler login: the session', () => {
 		expect((await b.page(token)).headers.get('location')).toMatch(/\/login/);
 	});
 });
+
+// After the login the browser goes to `next` with a GET. A state change is a POST only (#1168), so
+// an expired session's POST is sent back to the dashboard, never to a GET of its own route (a 405).
+describe('profiler login: where it goes after', () => {
+	it('a POST without a session goes to the login with the dashboard as next, a GET keeps its page', async () => {
+		const { run } = prod();
+		for (const path of ['/__profiler/reset', '/__profiler/replay/r1', '/__profiler/page?p=/x']) {
+			const res = await run(event(path, { init: { method: 'POST' } }));
+			expect(res.headers.get('location'), path).toBe('/__profiler/login?next=%2F__profiler');
+		}
+		const page = await run(event('/__profiler/run?p=/x&runs=1'));
+		expect(page.headers.get('location')).toBe(
+			`/__profiler/login?next=${encodeURIComponent('/__profiler/run?p=/x&runs=1')}`
+		);
+	});
+});
