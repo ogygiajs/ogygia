@@ -7,6 +7,8 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { observe } from '@ogygia/machine';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset } from '../../src/runtime/frame-store.ts';
+import { frameAddress } from '../../src/frame.ts';
+import { stamp, write } from '../_frames.ts';
 
 const ep = (id: string) => `/__ogygia__?id=${id}&props=W3t9XQ&exp=9999999999&sig=stub`;
 const hole = (endpoint: string) =>
@@ -98,6 +100,62 @@ test('an island whose code failed to download while offline wakes again once the
 		// online, the file still cannot load: now that is a failure
 		await expect.poll(() => moves.includes('waking -> failed'), { timeout: 5_000 }).toBe(true);
 		expect(el.textContent).toContain('server markup');
+	} finally {
+		stop();
+	}
+});
+
+test('an island waiting for the network that leaves the page goes back to sleep, and the network coming back wakes nothing', async () => {
+	const moves: string[] = [];
+	const stop = observe((name, from, to) => {
+		if (name === 'wake' && to) moves.push(`${from.kind} -> ${to.kind}`);
+	});
+	try {
+		online = false;
+		const el = insert(
+			'<ogygia-region wake="load" entry="/__og_missing__/gone.js"><p>server markup</p></ogygia-region>'
+		);
+		bootDev();
+		await expect.poll(() => moves.includes('waking -> offline'), { timeout: 5_000 }).toBe(true);
+		el.remove();
+		await expect.poll(() => moves.at(-1), { timeout: 5_000 }).toBe('offline -> cold');
+		const heard = moves.length;
+		online = true;
+		window.dispatchEvent(new Event('online'));
+		await new Promise((r) => setTimeout(r, 300));
+		expect(moves.length, 'its listener left with it').toBe(heard);
+	} finally {
+		stop();
+	}
+});
+
+test('a hole waiting for the network takes an answer that came another way, and asks nothing once back online', async () => {
+	let calls = 0;
+	window.fetch = async () => {
+		calls++;
+		throw new TypeError('Failed to fetch');
+	};
+	const moves: string[] = [];
+	const stop = observe((name, from, to) => {
+		if (name === 'hole' && to) moves.push(`${from.kind} -> ${to.kind}`);
+	});
+	try {
+		online = false;
+		const E = ep('offline0003');
+		const el = insert(hole(E));
+		bootDev();
+		await expect.poll(() => moves.includes('fetching -> offline'), { timeout: 5_000 }).toBe(true);
+		// (a write at its address: a command that returned the region, a navigation's batch)
+		write({ a: frameAddress(E), v: stamp(), html: '<p data-answer>another way</p>' });
+		await expect
+			.poll(() => el.querySelector('[data-answer]') !== null, { timeout: 5_000 })
+			.toBe(true);
+		expect(moves.at(-1)).toBe('offline -> idle');
+		const asked = calls;
+		online = true;
+		window.dispatchEvent(new Event('online'));
+		await new Promise((r) => setTimeout(r, 300));
+		expect(calls, 'its answer is in: nothing to ask').toBe(asked);
 	} finally {
 		stop();
 	}

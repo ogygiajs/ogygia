@@ -13,6 +13,7 @@
 	},
 	"dependencies": {
 		"@ogygia/machine": "workspace:^",
+		"@ogygia/tooling": "workspace:*",
 		"happy-dom": "catalog:sim"
 	},
 	"devDependencies": {
