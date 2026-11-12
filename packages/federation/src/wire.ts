@@ -7,12 +7,11 @@ import {
 	createPrivateKey,
 	createPublicKey,
 	createHash,
-	randomBytes,
 	sign as ed_sign,
 	verify as ed_verify
 } from 'node:crypto';
 import { attr, decodeText, html, type Html } from '@ogygia/core/plugin/utils';
-import { capability, clock, type Capability } from '@ogygia/machine';
+import { capability, clock, random, type Capability } from '@ogygia/machine';
 
 // ── paths the handle serves ──────────────────────────────────────────────────────────────────
 /** The exposed route table: `GET|POST|… /og/fragment/page?path=…&search=…`. */
@@ -389,7 +388,7 @@ export interface WidgetDocument {
 
 // ── W3C trace context ────────────────────────────────────────────────────────────────────────
 const TRACEPARENT_RE = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/;
-const hex = (n: number) => randomBytes(n).toString('hex');
+const hex = (n: number) => Buffer.from(random.bytes(n)).toString('hex');
 
 /** Continue the caller's trace (same trace-id, fresh span) or mint one. */
 export function child_traceparent(incoming?: string | null): {
