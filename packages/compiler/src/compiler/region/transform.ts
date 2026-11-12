@@ -1520,10 +1520,7 @@ class FileCompilation {
 		const import_keys = this.#import_keys;
 		const has_island_hint = import_keys_hint(import_keys).test(source);
 
-		// A csr=true route host: Kit hydrates it, so strip its OWN island directives to plain
-		// components (Kit renders them inline). No context marker — every island reads the
-		// per-document documentIsCsrTrue() directly (Region.svelte is_csr). Held/deferred/live/lake
-		// regions are server-driven UI, orthogonal to a page's csr, and are deliberately NOT degraded.
+		// @why Kit hydrates a csr=true route host, so every region it declares is the plain component (test: test/csr-true-degrade.test.ts › a csr=true route host degrades every region to the plain component)
 		if (ctx.routeCsr === true) {
 			return {
 				done:
