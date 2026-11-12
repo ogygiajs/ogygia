@@ -130,13 +130,17 @@ type LiveStates = {
 	hydrating: { module: string };
 	/** Its island is live: a tick of the same module pushes props. Leaving disposes it. */
 	live: { module: string; app: IslandHandle };
+	/** Its island's file could not load (said once, coded): a tick of the same module shows its HTML
+	 *  and loads nothing; another module, or a static tick, starts afresh (#942). */
+	failed: { module: string; error: unknown };
 };
 
 const live_steps = {
 	idle: ['static', 'hydrating'],
 	static: ['idle', 'hydrating'],
-	hydrating: ['idle', 'static', 'hydrating', 'live'],
-	live: ['idle', 'static', 'hydrating']
+	hydrating: ['idle', 'static', 'hydrating', 'live', 'failed'],
+	live: ['idle', 'static', 'hydrating'],
+	failed: ['idle', 'static', 'hydrating']
 } as const;
 
 const live_definition = machine<LiveStates>()({
