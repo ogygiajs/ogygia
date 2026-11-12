@@ -30,6 +30,6 @@ export function refresh_target(body: string, origin: string): string | null {
 		if (url.origin !== new URL(origin).origin) return null;
 		return url.pathname + url.search;
 	} catch {
-		return null;
+		return null; // ok: not a URL: treated like another origin's, not followed
 	}
 }
