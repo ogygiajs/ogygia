@@ -39,7 +39,6 @@
 		"batch stream: streaming -> cancelled",
 		"batch stream: streaming -> ended",
 		"batch-stream: reading -> reading",
-		"batch-stream: reading -> stalled",
 		"batch-stream: sending -> reading",
 		"build location map: flying -> gone",
 		"build location map: flying -> kept",
@@ -361,6 +360,12 @@
 			"reason": "a batch POST whose answer never starts for the stall deadline: one network stall aimed at one request, which the sweep's runs met by luck only, and lost when timings moved",
 			"test": "packages/core/test/browser/frame-stream-stall.test.ts",
 			"name": "an answer that never starts: the stream is given up while sending, and its holes are let go"
+		},
+		{
+			"step": "batch-stream: reading -> stalled",
+			"reason": "a batch answer that goes quiet after its first part for the stall deadline: a midway network stall aimed at one batch POST, which one palaestra seed in 300 met by luck, and none of 800 more once the load timings moved",
+			"test": "packages/core/test/browser/frame-stream-stall.test.ts",
+			"name": "sends one frame and stalls: the hole it carried has it, the others fail and fetch on their own"
 		},
 		{
 			"step": "live-region: failed -> hydrating",
