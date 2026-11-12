@@ -13,7 +13,7 @@ import {
 } from '@ogygia/machine';
 import { frameAddress, older_by, stands_at, type FrameOrder } from '../frame.ts';
 import { OG_BAKED, OG_FP, OG_HOLE, OG_KEPT, OG_STATIC, OGYGIA_REGION_CSS } from '../wire-markup.ts';
-import { import_again, is_failed_import, on_reload_needed } from './import-again.ts';
+import { import_again, is_failed_import, on_file_load, on_reload_needed } from './import-again.ts';
 import { browser_offline, no_response } from './network.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
 // off in a build where no region streams HTML, and the bundler drops the element's fetch / apply /
@@ -91,7 +91,13 @@ import {
 	yield_task
 } from './schedule.ts';
 import { once_on_screen } from './viewport.ts';
-import { sheet_of, use_sheets, type RegionSheet } from './region-sheets.ts';
+import {
+	note_code_sheets,
+	sheet_of,
+	use_code_sheets,
+	use_sheets,
+	type RegionSheet
+} from './region-sheets.ts';
 import { preload_island_graph } from './island-graph-preload.ts';
 import { fetch_priority_of, LoadSlot, viewport_class, type LoadClass } from './load-scheduler.ts';
 import { PRIORITY } from './load-class.ts';
@@ -1748,6 +1754,7 @@ class OgygiaRegion extends HTMLElement {
 			}
 			t_loaded = now_ms();
 			if (gone()) return;
+			use_code_sheets(this, mod);
 			// An island of OURS on a Kit-hydrated document reads Kit's page through the bridge Kit's
 			// client entry publishes; it must not hydrate before Kit applied it (kit-page-thread.svelte.ts).
 			if (gone(await turn.wait(this.#kit_page_ready(core, visit)))) return;
@@ -2049,6 +2056,7 @@ class OgygiaRegion extends HTMLElement {
 				release();
 			}
 			if (!ours()) return;
+			use_code_sheets(this, mod);
 			// (Kit cannot start: the region keeps its swapped HTML, and the wait said why)
 			const kit = await turn.wait(this.#kit_page_ready(core, this.#live.scope)).catch((err) => {
 				if (kit_boot_failed(err)) return STALE;
@@ -2217,6 +2225,8 @@ export function boot(
 	on_reload_needed((url, error) =>
 		console.error(new OgygiaError('chunk_reload_needed', { url }), error)
 	);
+	// The stylesheets an island file's load puts in the head are region sheets (#966)
+	on_file_load(note_code_sheets);
 
 	if (import.meta.env.DEV) apply_dev_head_region_css();
 
