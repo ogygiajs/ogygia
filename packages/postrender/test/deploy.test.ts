@@ -38,6 +38,8 @@ function boot(version: string, store: MemoryStore) {
 	/** A visitor's GET of `path`: the stored copy's HTML, or null when the page renders (and is then
 	 *  stored with `rendered`). */
 	return async (path: string, rendered = `<p>${version}</p>`): Promise<string | null> => {
+		// (this process runs its own build, whichever booted last)
+		env.version = version;
 		const c = ctx(new Request('http://x.test' + path), { cookies: jar as never });
 		mark_handled(c.event, runtime);
 		try {
@@ -95,5 +97,40 @@ describe('a deploy is a write for the app’s own stored pages', () => {
 		const v2 = boot('v2', store);
 		expect(await v2('/a/')).toBeNull();
 		expect(await ask.lastBuild('v2')).toBe('v1');
+	});
+});
+
+// The build label is the truth: an entry is served only to the build that stored it. The boot's drop
+// is early cleanup (it also purges the edges); the read is what a rolling deploy cannot get past.
+describe('a stored page is served only to the build that stored it', () => {
+	it('an old instance still running stores a page after the new build’s check: the new build does not serve it', async () => {
+		const store = new MemoryStore();
+		const v1 = boot('v1', store);
+		expect(await v1('/x/')).toBeNull(); // v1's boot check ran
+		const v2 = boot('v2', store);
+		expect(await v2('/x/')).toBeNull(); // v2's boot check ran: the marker is v2
+
+		// the old instance, still serving during the rollout, stores /a/
+		expect(await v1('/a/')).toBeNull();
+		expect(await v1('/a/')).toContain('<p>v1</p>'); // its own build's page: it is served to v1
+		expect(await v2('/a/')).toBeNull(); // never to v2: it renders
+		expect(await v2('/a/')).toContain('<p>v2</p>');
+	});
+
+	it('a page stored before builds were recorded is not served', async () => {
+		const store = new MemoryStore();
+		const v2 = boot('v2', store);
+		expect(await v2('/x/')).toBeNull(); // the marker is v2
+		await store.put(
+			'/legacy/',
+			{
+				kind: 'page',
+				html: '<html><head></head><body><p>legacy</p></body></html>',
+				headers: { 'content-type': 'text/html' },
+				created: Date.now() // wall: a stored entry's creation time is wall time
+			},
+			{ ttl: 60, tags: [] }
+		);
+		expect(await v2('/legacy/')).toBeNull();
 	});
 });

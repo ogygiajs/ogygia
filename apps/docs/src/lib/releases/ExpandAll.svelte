@@ -28,4 +28,8 @@
 		gap: 0.5rem;
 		margin-left: auto;
 	}
+	/* (an author `display` beats the browser's own `[hidden]` rule: without JavaScript, stay hidden) */
+	.expand[hidden] {
+		display: none;
+	}
 </style>

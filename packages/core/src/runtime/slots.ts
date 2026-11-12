@@ -134,8 +134,14 @@ export type FrameOps = {
 	 * — hence no `frames` feature — never bundles the frame store. The router optional-chains this: no
 	 * frames feature ⇒ no `render="defer"` holes to batch ⇒ the call never fires anyway. `visit`: the
 	 * scope of the page the holes are for (./session.ts `PageVisit`); the batch stops when it ends.
+	 * Grouped as the page's first holes are (frame-nav.ts `send_batches`, #987), and naming `page`,
+	 * the page they are for, as their referrer (#995).
 	 */
-	stream(endpoints: string[], visit: import('@ogygia/machine').Scope): Promise<void>;
+	stream(
+		endpoints: string[],
+		visit: import('@ogygia/machine').Scope,
+		page: string
+	): Promise<unknown>;
 	/** Holes that start fetching in the same task go out as one batch (frame-nav.ts `join_batch`);
 	 *  await it, then `ensure` joins the batch's reservation. */
 	join?(endpoint: string): Promise<void>;

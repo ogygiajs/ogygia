@@ -65,6 +65,50 @@ describe('tags', () => {
 		const html = '<!-- <link data-og-fp="x"> --><linker a="1"><LINK B="2">';
 		expect([...tags(html, 'link')].map((t) => Object.fromEntries(t.attrs))).toEqual([{ b: '2' }]);
 	});
+
+	const names = (html: string, name: string) =>
+		[...tags(html, name)].map((t) => html.slice(t.start, t.end));
+
+	it('finds no tag in the text of a script, style, textarea, title or other raw-text element', () => {
+		for (const raw of ['script', 'style', 'textarea', 'title', 'xmp', 'noscript', 'iframe']) {
+			const html = `<${raw.toUpperCase()} a="1"><meta name="in"></${raw}x></${raw} ><meta name="out">`;
+			expect(names(html, 'meta'), raw).toEqual(['<meta name="out">']);
+		}
+		expect(names('<script>"<meta>"</script>', 'script')).toEqual(['<script>']);
+	});
+
+	it('finds no tag in a bogus comment, a processing instruction or CDATA', () => {
+		expect(names('<?x <meta name="in">?><meta name="out">', 'meta')).toEqual(['<meta name="out">']);
+		expect(names('<!x <meta name="in">--><meta name="out">', 'meta')).toEqual([
+			'<meta name="out">'
+		]);
+		expect(names('<![CDATA[<meta name="in">]]><meta name="out">', 'meta')).toEqual([
+			'<meta name="out">'
+		]);
+		expect(names('</ <meta name="in">><meta name="out">', 'meta')).toEqual(['<meta name="out">']);
+	});
+
+	it('ends a comment where the browser does: <!-->, <!---> and --!> end it', () => {
+		expect(names('<!--><meta name="a"><!---><meta name="b">', 'meta')).toEqual([
+			'<meta name="a">',
+			'<meta name="b">'
+		]);
+		expect(names('<!-- x --!><meta name="c">', 'meta')).toEqual(['<meta name="c">']);
+	});
+
+	it('reads a script’s escaped text as the browser does: <!-- <script> runs past one </script>', () => {
+		expect(names('<script><!--<script></script><meta a></script><meta b>', 'meta')).toEqual([
+			'<meta b>'
+		]);
+		expect(names('<script><!--<script>--><meta a></script><meta b>', 'meta')).toEqual(['<meta b>']);
+		expect(names('<script><!--></script><meta b>', 'meta')).toEqual(['<meta b>']);
+	});
+
+	it('finds no tag inside a quoted attribute value of an end tag', () => {
+		expect(names('</div title="<meta name=in>"><meta name="out">', 'meta')).toEqual([
+			'<meta name="out">'
+		]);
+	});
 });
 
 describe('unknown_markers', () => {
