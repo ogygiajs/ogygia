@@ -683,7 +683,7 @@ class OgygiaRegion extends HTMLElement {
 	#hydrate_run: { visit: unknown; run: Promise<void> } | null = null;
 	#fire_hydrate = (): Promise<void> => {
 		const held = this.#hydrate_run;
-		// (`waking` is always the held run's: a wake starts only from cold or armed, through here)
+		// (`waking` is always the held run's: a wake starts only from armed, through here)
 		if (held && (held.visit === this.#wake.now || this.#wake.now.kind === 'waking'))
 			return held.run;
 		const run = this.#box.ask((turn) => this.#hydrate(turn)).then(nothing);
@@ -1432,8 +1432,8 @@ class OgygiaRegion extends HTMLElement {
 	 * when the region leaves the page (it leaves the shared fetch). A failure leaves the
 	 * answer as it was, so a reconnect, a remount or the retry can try again — a transient network
 	 * error never kills the hole for good.
-	 * A deferred hole reuses the browser's `<link rel="preload">` response; an swr REVALIDATE must
-	 * not (the endpoint answers `cache-control: private, max-age=30`, and stale is the whole point).
+	 * A `load` hole takes over the request the head started (HOLE-CACHE); an swr REVALIDATE must not
+	 * reuse an answer (a hole that opts in is `private, max-age=<ttl>`, and stale is the whole point).
 	 */
 	async #fetch_html(turn: Turn, revalidate = false): Promise<void> {
 		if (!FRAMES) return;
@@ -1693,6 +1693,8 @@ class OgygiaRegion extends HTMLElement {
 	 */
 	async #hydrate(turn: Turn) {
 		const from = this.#wake.now.kind;
+		// (a wake already under way, or over: nothing to do. `cold` is let through so the machine
+		// refuses it out loud: every fire runs in `armed`, test/machine-steps.test.ts)
 		if (this.#app || (from !== 'cold' && from !== 'armed')) return;
 		// (leaving `armed` drops the schedule's listeners: it fired, or a visitor came first)
 		this.#wake.go('waking');
