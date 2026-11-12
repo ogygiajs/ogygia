@@ -128,8 +128,8 @@ export function error_route_is_csr_true(id: string | null | undefined): boolean 
 /** Per-request: only one `data-ogygia-runtime` script should be emitted (the first island). */
 const runtime_claimed = new WeakMap<object, true>();
 
-/** Per-request: stylesheet hrefs already linked for held regions rendered in this SSR pass. */
-const region_css_claimed = new WeakMap<object, Set<string>>();
+/** Per-request: stylesheet hrefs already linked in this SSR pass, each with the owner its tag names. */
+const region_css_claimed = new WeakMap<object, Map<string, string>>();
 
 /** Context key: the fingerprint of the outermost island a region renders inside (server only). */
 const HEAD_OWNER = Symbol.for('ogygia.head-owner');
@@ -175,19 +175,35 @@ export function claim_kit_island(entry: string): boolean {
  * route's STATIC import graph — it never reads the rendered page). The region wrapper links it from
  * the render pass instead, via `<svelte:head>`; claiming here dedupes so five `Feature` blocks on a
  * page link their shared sheet once. Client / no-request → [] (SSR already linked them).
+ *
+ * `owner` is the head-tag owner of the claiming region (`head_owner`). A sheet already linked under
+ * another owner is handed to `shared`: its tag names only the first, so the claimer is listed as
+ * one more owner elsewhere (the document tail, #854).
  */
-export function claim_region_css(hrefs: string[]): string[] {
+export function claim_region_css(
+	hrefs: string[],
+	owner = '',
+	shared?: (href: string) => void
+): string[] {
 	if (!hrefs.length) return [];
+	let seen: Map<string, string> | undefined;
 	try {
 		const event = get_request_event() as object;
-		let seen = region_css_claimed.get(event);
-		if (!seen) region_css_claimed.set(event, (seen = new Set()));
-		const fresh = hrefs.filter((h) => !seen.has(h));
-		for (const h of fresh) seen.add(h);
-		return fresh;
+		seen = region_css_claimed.get(event);
+		if (!seen) region_css_claimed.set(event, (seen = new Map()));
 	} catch {
+		// ok: no request (the client, or off-request): SSR already linked them
 		return [];
 	}
+	const fresh: string[] = [];
+	for (const h of hrefs) {
+		const first = seen.get(h);
+		if (first === undefined) {
+			seen.set(h, owner);
+			fresh.push(h);
+		} else if (owner !== '' && owner !== first) shared?.(h);
+	}
+	return fresh;
 }
 
 /**
