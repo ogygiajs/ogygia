@@ -2119,7 +2119,13 @@ function log(...parts: unknown[]): void {
 }
 
 function handle(msg: Rpc): void {
-	const { id, method, params } = msg;
+	const { id, params } = msg;
+	const method = typeof msg.method === 'string' ? msg.method : undefined;
+	if (method === undefined) {
+		if (id != null)
+			send({ jsonrpc: '2.0', id, error: { code: -32600, message: 'Invalid Request: no method' } });
+		return;
+	}
 	if (method === 'initialize') {
 		send({
 			jsonrpc: '2.0',
@@ -2137,7 +2143,7 @@ function handle(msg: Rpc): void {
 		return;
 	}
 	if (method === 'tools/call') {
-		const name = String(params?.name ?? '');
+		const name = typeof params?.name === 'string' ? params.name : '';
 		const args = (params?.arguments as Attrs) ?? {};
 		dispatch_tool(name, args)
 			.then((result) => send({ jsonrpc: '2.0', id, result }))
@@ -2154,8 +2160,9 @@ function handle(msg: Rpc): void {
 		send({ jsonrpc: '2.0', id, result: {} });
 		return;
 	}
-	// Notifications (no id) — nothing to answer.
-	if (method?.startsWith('notifications/') || id == null) return;
+	// Notifications (no id): nothing to answer. A message with an id is a request, whatever its
+	// method says.
+	if (id == null) return;
 	send({ jsonrpc: '2.0', id, error: { code: -32601, message: `Method not found: ${method}` } });
 }
 
@@ -2175,10 +2182,23 @@ export async function runMcp(): Promise<void> {
 			log('dropped non-JSON line');
 			continue;
 		}
+		// (not one message: nothing to answer, and no id to answer it with)
+		if (!msg || typeof msg !== 'object' || Array.isArray(msg)) {
+			log('dropped a line that is not one JSON-RPC message');
+			continue;
+		}
 		try {
 			handle(msg);
 		} catch (e) {
-			log('handler threw:', e instanceof Error ? e.message : String(e));
+			// every request is answered once: a client waits for its id (test/mcp-every-request.test.ts)
+			const message = e instanceof Error ? e.message : String(e);
+			log('handler threw:', message);
+			if (msg.id != null)
+				send({
+					jsonrpc: '2.0',
+					id: msg.id,
+					error: { code: -32603, message: `Internal error: ${message}` }
+				});
 		}
 	}
 }
