@@ -4,6 +4,8 @@ import { browser_runs, playwright_run, stub_aliases } from '@ogygia/config/vites
 import { heisenbench_record } from '../../internal/heisenbench/src/record.ts';
 import type { BrowserCommand, BrowserCommandContext } from 'vitest/node';
 import type {} from '@vitest/browser-playwright';
+// (the compiler's build plugin, from its source, as core's tests read devtools' own)
+import { lazy_files } from '../compiler/src/vite/lazy-files.ts';
 
 type Frame = Awaited<ReturnType<BrowserCommandContext['frame']>>;
 
@@ -99,6 +101,9 @@ export default defineConfig({
 			},
 			{
 				extends: true,
+				// each lazy loader's own file, as an app's build hands it over (the ogygia plugin
+				// always carries it): a dropped download is asked for again there
+				plugins: [lazy_files()],
 				// as an app with a plugin's browser half builds: the runtime boots the plugins a test hands it
 				define: { __OGYGIA_CLIENT_PLUGINS__: 'true' },
 				test: {
