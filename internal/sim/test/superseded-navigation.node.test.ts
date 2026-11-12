@@ -41,4 +41,44 @@ describe.skipIf(!built)('a navigation the tab started again elsewhere', () => {
 			}
 		}
 	}, 300_000);
+
+	// The page's own navigation (the router handing a click to the browser: `location.assign`) is
+	// called off the same way, and it never was an entry: back goes back from the page on screen.
+	// happy-dom kept its entry and let its stalled body land on the back's document, under its URL
+	// (palaestra seed 20958: `rule_address_bar_drift`, the bar on /forms, the router on /server).
+	it('the page started: back goes back from the page on screen, and the called-off page never lands', async () => {
+		for (let seed = 1; seed <= 30; seed++) {
+			const world = await World.make({
+				seed,
+				builds: [{ id: 'v1', output: OUTPUT }],
+				faults: new Set(['stall']),
+				rates: { stall: 0.5 }
+			});
+			try {
+				const v = world.visitor('v');
+				const tab = world.tab(v);
+				await world.go(tab, 'goto', '/plain', 120_000);
+				await world.go(tab, 'goto', '/forms', 120_000);
+				const shown = tab.documents;
+				const window = (): Window => tab.page.mainFrame.window as unknown as Window;
+				window().location.assign('/remote-seed-gate/prerender');
+				await world.loop.run(1_000);
+				// (its document came within the second: an entry now, and back goes back to /forms)
+				const came = tab.documents > shown;
+				await world.go(tab, 'back', '/', 120_000);
+				await world.loop.run(60_000);
+				await world.quiesce();
+				const path = came ? '/forms' : '/plain';
+				expect(window().location.pathname, `seed ${seed}`).toBe(path);
+				const fresh = world.tab(world.visitor('fresh'));
+				await world.go(fresh, 'goto', path, 120_000);
+				const h1 = (t: typeof tab) =>
+					(t.page.mainFrame.document as unknown as Document).querySelector('h1')?.textContent;
+				expect(h1(tab), `seed ${seed}`).toBe(h1(fresh));
+				expect([...tab.errors], `seed ${seed}`).toEqual([]);
+			} finally {
+				await world.end();
+			}
+		}
+	}, 600_000);
 });

@@ -5,6 +5,7 @@
  *
  * - `inert_parsed_documents`: a parsed document loads nothing.
  * - `completion_on_the_loop`: a document's `load` event and `readyState` come on virtual time.
+ * - `navigation_starts`: the simulator hears each navigation of a page start, whoever started it.
  */
 import { HTMLLinkElement, HTMLScriptElement } from 'happy-dom';
 import ECMAScriptModule from 'happy-dom/lib/module/ECMAScriptModule.js';
@@ -20,6 +21,8 @@ import ParentNodeUtility from 'happy-dom/lib/nodes/parent-node/ParentNodeUtility
 import * as PropertySymbol from 'happy-dom/lib/PropertySymbol.js';
 import XMLEncodeUtility from 'happy-dom/lib/utilities/XMLEncodeUtility.js';
 import WindowBrowserContext from 'happy-dom/lib/window/WindowBrowserContext.js';
+import HappyEventTarget from 'happy-dom/lib/event/EventTarget.js';
+import EventPhaseEnum from 'happy-dom/lib/event/EventPhaseEnum.js';
 import type { Loop, Task } from './loop.ts';
 
 /**
@@ -445,6 +448,82 @@ export function history_by_document(): void {
 	};
 }
 
+/** A frame's history as it stood: its entries, the one it was on, and each entry's document. */
+export interface SavedHistory {
+	readonly items: readonly HistoryItem[];
+	readonly current: HistoryItem;
+	readonly docs: readonly (number | undefined)[];
+}
+
+/** Saves `frame`'s history (`history_by_document`'s documents too). */
+export function save_history(frame: object): SavedHistory {
+	const history = (frame as Frame)[PropertySymbol.history] as {
+		items: HistoryItem[];
+		currentItem: HistoryItem;
+	};
+	return {
+		items: [...history.items],
+		current: history.currentItem,
+		docs: history.items.map((item) => item[DOC])
+	};
+}
+
+/** Puts `frame`'s history back as `saved` holds it. */
+export function restore_history(frame: object, saved: SavedHistory): void {
+	const history = (frame as Frame)[PropertySymbol.history] as {
+		items: HistoryItem[];
+		currentItem: HistoryItem;
+	};
+	history.items.splice(0, history.items.length, ...saved.items);
+	history.currentItem = saved.current;
+	saved.items.forEach((item, i) => (item[DOC] = saved.docs[i]));
+}
+
+/** What a page's main frame does as one of its navigations starts (`go`: the navigation). */
+type Starts = (frame: object, go: () => Promise<unknown>) => Promise<unknown>;
+const STARTS = new WeakMap<object, Starts>();
+
+/** `page`'s main frame's navigations start through `starts` (`navigation_starts`). */
+export function on_navigation_start(page: object, starts: Starts): void {
+	STARTS.set(page, starts);
+}
+
+/**
+ * Every hard navigation of a page starts in happy-dom's navigator, whoever asked (the visitor, the
+ * page's `location`, a form's submit, `history.back()`): each start of a main frame's goes through
+ * the hook its page set (`on_navigation_start`), before anything of it is done (a traversal's step
+ * through the entries too, `history_by_document`'s: install this after it). Idempotent.
+ */
+export function navigation_starts(): void {
+	const nav = BrowserFrameNavigator as unknown as Record<string, unknown> & { __starts?: boolean };
+	if (nav.__starts) return;
+	nav.__starts = true;
+	// (inside a start: back calls `navigate` for its document, and the outer one is the start)
+	let starting = 0;
+	for (const step of [
+		'navigate',
+		'navigateBack',
+		'navigateForward',
+		'navigateSteps',
+		'reload'
+	] as const) {
+		const real = nav[step] as (this: unknown, o: { frame: Frame }) => Promise<unknown>;
+		nav[step] = function (this: unknown, o: { frame: Frame }) {
+			const page = (o.frame as unknown as { page: { mainFrame: unknown } }).page;
+			const starts = starting === 0 && page.mainFrame === o.frame ? STARTS.get(page) : undefined;
+			const go = () => {
+				starting++;
+				try {
+					return real.call(this, o);
+				} finally {
+					starting--;
+				}
+			};
+			return starts ? starts(o.frame, go) : go();
+		};
+	}
+}
+
 let driving: Loop | null = null;
 
 interface Manager {
@@ -492,6 +571,50 @@ export function scripts_start_once(): void {
 			started.add(copy);
 		}
 		return copy;
+	};
+}
+
+/**
+ * A document's `load` reaches its window's capturing listeners too, and `pageshow` follows it, as
+ * in a browser (the target of both the document, the HTML spec's legacy override). happy-dom calls
+ * only the window's bubbling `load` listeners and never fires `pageshow` (found by the
+ * differential). Idempotent. test/modules.test.ts.
+ */
+export function window_load_events(): void {
+	// (EventTarget's: a window binds EventTarget's methods to itself after BrowserWindow's)
+	const proto = HappyEventTarget.prototype as unknown as Record<string, unknown>;
+	if (proto.__load) return;
+	proto.__load = true;
+	type Ev = Event & Record<symbol, unknown>;
+	const real = proto.dispatchEvent as (this: unknown, e: Event) => boolean;
+	/** `event` to `window`'s listeners, capturing then not, as the document's: no path, no bubble. */
+	const at_window = (window: { document: unknown }, event: Ev): boolean => {
+		event[PropertySymbol.target] = window.document;
+		event[PropertySymbol.currentTarget] = window;
+		event[PropertySymbol.eventPhase] = EventPhaseEnum.capturing;
+		real.call(window, event);
+		event[PropertySymbol.eventPhase] = EventPhaseEnum.atTarget;
+		return real.call(window, event);
+	};
+	proto.dispatchEvent = function (this: { document: unknown; Event: typeof Event }, e: Event) {
+		const event = e as Ev;
+		// (happy-dom's own `load`: its target set to the document before it is dispatched)
+		if (
+			event.type !== 'load' ||
+			this.document === undefined ||
+			event[PropertySymbol.target] !== this.document ||
+			event[PropertySymbol.dispatching] === true
+		)
+			return real.call(this, e);
+		const kept = at_window(this, event);
+		const show = new this.Event('pageshow') as Ev;
+		Object.defineProperty(show, 'persisted', { value: false });
+		show[PropertySymbol.dispatching] = true;
+		at_window(this, show);
+		show[PropertySymbol.dispatching] = false;
+		show[PropertySymbol.eventPhase] = EventPhaseEnum.none;
+		show[PropertySymbol.currentTarget] = null;
+		return kept;
 	};
 }
 

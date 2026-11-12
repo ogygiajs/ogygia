@@ -137,29 +137,6 @@ export const KNOWN: ReadonlyArray<{
 	seen?(world: World, tab: Tab): boolean;
 }> = [
 	{
-		issue: 1039,
-		what: "a held region's stylesheet stays inside the next page's held region after a navigation",
-		// (a region sheet link right inside a baked held region, on one side only: gen 194, seed 72;
-		// each such link set aside)
-		applies: (shown, fresh) => baked_sheets(shown).join('\n') !== baked_sheets(fresh).join('\n'),
-		forgive: (s) => {
-			const out = s.split('\n');
-			for (const i of baked_sheet_lines(s).reverse()) out.splice(i, 1);
-			return out.join('\n');
-		}
-	},
-	{
-		issue: 1067,
-		what: "a kept island keeps the last page's data-og-fp after a client navigation",
-		// (a kept region's opening line, its fingerprint set aside: palaestra /props-tail, /formkeep)
-		applies: (shown, fresh) => kept_fps(shown).join('\n') !== kept_fps(fresh).join('\n'),
-		forgive: (s) =>
-			s
-				.split('\n')
-				.map((l) => (KEPT_REGION.test(l) ? l.replace(/ data-og-fp="[^"]*"/, '') : l))
-				.join('\n')
-	},
-	{
 		issue: 1071,
 		what: 'a kept head link with a relative URL names another file after a client navigation',
 		// (a link whose file resolves under the page's own path, `/lab/_app/…`, where the other side
@@ -169,40 +146,9 @@ export const KNOWN: ReadonlyArray<{
 	}
 ];
 
-/** The opening line of a region the router keeps across navigations (`keep`). */
-const KEPT_REGION = /^ *<ogygia-region [^>]*data-ogygia-keep=/;
-
-/** Each kept region's `data-og-fp`. */
-function kept_fps(s: string): string[] {
-	return s
-		.split('\n')
-		.filter((l) => KEPT_REGION.test(l))
-		.map((l) => / data-og-fp="([^"]*)"/.exec(l)?.[1] ?? '');
-}
-
 /** A head link to a build's file under a page's own path (`href="/lab/_app/…"`). */
 const DEEP_ASSET = /^ *<link\b[^>]* href="\/(?:[^"/]+\/)+_app\//m;
 const DEEP_ASSET_ALL = / href="\/(?:[^"/]+\/)+_app\//g;
-
-/** The lines (by number) of region sheet links right inside a baked held region. */
-function baked_sheet_lines(s: string): number[] {
-	const lines = s.split('\n');
-	const out: number[] = [];
-	for (let i = 1; i < lines.length; i++) {
-		if (!/^ *<link [^>]*data-ogygia-region-css/.test(lines[i])) continue;
-		const indent = /^ */.exec(lines[i])![0].length;
-		let p = i - 1;
-		while (p >= 0 && /^ */.exec(lines[p])![0].length >= indent) p--;
-		if (p >= 0 && /^ *<ogygia-region [^>]*data-og-baked/.test(lines[p])) out.push(i);
-	}
-	return out;
-}
-
-/** The region sheet links right inside a baked held region, each with its region's line. */
-function baked_sheets(s: string): string[] {
-	const lines = s.split('\n');
-	return baked_sheet_lines(s).map((i) => lines[i].trim());
-}
 
 /**
  * Islands of the test app that keep their own client state across a navigation by design, as a
@@ -1005,8 +951,8 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 		}
 	);
 	if (errors.length === 0) return null;
-	const known = KNOWN_SAID.filter((k) => errors.some((l) => k.said.test(l)));
-	if (errors.every((l) => known.some((k) => k.said.test(l))))
+	const { left, known } = known_said(errors);
+	if (left.length === 0)
 		return {
 			oracle: 'known',
 			detail: `${tab.page.mainFrame.url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
@@ -1080,12 +1026,22 @@ export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegE
 		said: /^unhandled: \{"message":"Bad Request"\}$/
 	},
 	{
-		issue: 1050,
-		what: 'a hole nested in an island is imported as a module after a client navigation',
-		// (the hole's id as a module URL: `/<12 hex>?og-retry=1`; palaestra /prefetch -> /nested)
-		said: /chunk_reload_needed\?url=https%3A%2F%2F[^%]+%2F[0-9a-f]{12}(%3F|$)/
+		issue: 1079,
+		what: "Svelte's async mode reads a remote query's derived after its effect ended",
+		// (a plain Kit app warns it too; the stale read it warns of gave palaestra's PendingGreeting
+		// `undefined`, seeds 20257 and a plain Kit app's 124)
+		said: /svelte\.dev\/e\/derived_inert|^unhandled: TypeError: Cannot read properties of undefined \(reading 'greeting'\)/
 	}
 ];
+
+/** `lines` less what a filed bug explains (`KNOWN_SAID`), and which bugs did. */
+export function known_said(lines: readonly string[]): {
+	left: string[];
+	known: { issue: number; what: string }[];
+} {
+	const known = KNOWN_SAID.filter((k) => lines.some((l) => k.said.test(l)));
+	return { left: lines.filter((l) => !known.some((k) => k.said.test(l))), known };
+}
 
 /**
  * No error escaped every page and server to the host process (beyond a network failure's own
@@ -1098,8 +1054,8 @@ export function uncaught(world: World): Broken | null {
 	world.uncaught.length = 0;
 	if (left.length === 0) return null;
 	// (a filed bug's words reach the host too: seed 265, #817's from a press)
-	const known = KNOWN_SAID.filter((k) => left.some((l) => k.said.test(l)));
-	if (left.every((l) => known.some((k) => k.said.test(l))))
+	const { left: unknown, known } = known_said(left);
+	if (unknown.length === 0)
 		return { oracle: 'known', detail: known.map((k) => `#${k.issue} (${k.what})`).join(', ') };
 	return { oracle: 'uncaught', detail: left.join('\n') };
 }
