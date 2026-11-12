@@ -2,8 +2,9 @@
 // one left off. The panel is the skin's (an ancestor, outside the component): when the sidebar goes,
 // its saver must go with it, or the panel keeps writing positions for a sidebar that is gone (and a
 // sidebar mounted again into the same panel adds a second saver).
-import { flushSync, mount, unmount } from 'svelte';
+import { createRawSnippet, flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it } from 'vitest';
+import { page } from '$app/state';
 import Sidebar from '../../src/site/components/Sidebar.svelte';
 import type { NavTree } from '../../src/site/types.ts';
 
@@ -46,6 +47,91 @@ async function mount_sidebar(target: HTMLElement): Promise<ReturnType<typeof mou
 afterEach(() => {
 	sessionStorage.removeItem(KEY);
 	document.body.replaceChildren();
+	page.url = new URL('http://localhost/');
+});
+
+describe('the sidebar draws the nav tree', () => {
+	const tree: NavTree = [
+		{
+			kind: 'group',
+			label: 'Guide',
+			items: [{ kind: 'leaf', slug: 'g/intro', href: '/d/g/intro', title: 'Intro' }]
+		},
+		{ kind: 'link', label: 'Source', href: 'https://example.com/x.y' },
+		{ kind: 'leaf', slug: 'faq', href: '/d/faq', title: 'FAQ' }
+	];
+
+	/** Mounts the sidebar with `props` and waits until it has drawn its tree. */
+	async function drawn(props: Record<string, unknown>) {
+		const target = document.createElement('div');
+		document.body.append(target);
+		const app = mount(Sidebar, { target, props: { nav: tree, base: '/d', ...props } });
+		flushSync();
+		for (let i = 0; i < 10 && !target.querySelector('nav li'); i++) await frame();
+		return { target, app };
+	}
+
+	it('nests a group, links a leaf, and passes a plain link through', async () => {
+		const { target, app } = await drawn({});
+		expect(target.querySelector('.og-nav-group .og-nav-label')?.textContent).toBe('Guide');
+		expect(
+			target.querySelector('.og-nav-group .og-nav-list a.og-nav-link')?.getAttribute('href')
+		).toBe('/d/g/intro');
+		expect(target.querySelector('a.og-nav-external')?.getAttribute('href')).toBe(
+			'https://example.com/x.y'
+		);
+		void unmount(app);
+	});
+
+	it('draws each leaf with the item snippet when one is given', async () => {
+		const item = createRawSnippet((leaf: () => { title: string }) => ({
+			render: () => `<b data-own>${leaf().title}</b>`
+		}));
+		const { target, app } = await drawn({ item });
+		expect([...target.querySelectorAll('[data-own]')].map((b) => b.textContent)).toEqual([
+			'Intro',
+			'FAQ'
+		]);
+		expect(target.querySelectorAll('a.og-nav-link:not(.og-nav-external)')).toHaveLength(0);
+		void unmount(app);
+	});
+
+	it('gives every row its own view-transition name, a valid identifier', async () => {
+		const { target, app } = await drawn({});
+		const names = [...target.querySelectorAll<HTMLElement>('[style*="view-transition-name"]')].map(
+			(el) => el.style.viewTransitionName
+		);
+		expect(names).toHaveLength(4);
+		expect(new Set(names).size).toBe(4);
+		for (const n of names) expect(n).toMatch(/^[a-zA-Z_-][a-zA-Z0-9_-]*$/);
+		void unmount(app);
+	});
+});
+
+describe('the sidebar shows the active row', () => {
+	it('centers the active row in the panel when it starts out of view', async () => {
+		page.url = new URL(`http://localhost${BASE}/page-40`);
+		const el = panel();
+		const app = await mount_sidebar(el);
+		const row = el.querySelector('[aria-current="page"]')!.getBoundingClientRect();
+		const box = el.getBoundingClientRect();
+		expect(el.scrollTop).toBeGreaterThan(0);
+		expect(row.top).toBeGreaterThanOrEqual(box.top);
+		expect(row.bottom).toBeLessThanOrEqual(box.bottom);
+		await unmount(app);
+	});
+
+	it('moves only the panel, never the page', async () => {
+		page.url = new URL(`http://localhost${BASE}/page-40`);
+		const spacer = document.createElement('div');
+		spacer.style.height = '3000px';
+		document.body.append(spacer);
+		const el = panel();
+		const app = await mount_sidebar(el);
+		expect(el.scrollTop).toBeGreaterThan(0);
+		expect(window.scrollY).toBe(0);
+		await unmount(app);
+	});
 });
 
 describe('the sidebar keeps its scroll position', () => {
