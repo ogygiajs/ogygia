@@ -85,7 +85,7 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 **Why:** Browsers must never mint capabilities. Multi-instance deploys without a shared env need the baked fallback so all replicas agree. Domain-separated keys + length-prefixed fields close classic MAC footguns without requiring the env var on every local demo.
 
-A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a signing secret, or a chunk holds a module that signs. Messages are `v2|` (the render id signed too) for every current mint; `v1|` is still verified so pages cached before an upgrade keep their holes.
+A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a signing secret, or a chunk holds a module that signs. Messages are `v2|` (the render id signed too) for every current mint of a hole that does not wake, and `v3|` (the "wakes" mark `w=1` signed too, so the endpoint renders the answer inside an island, as its hydrate does) for one that does; `v1|` is still verified so pages cached before an upgrade keep their holes.
 
 **Do not:** Embed the real secret in a client chunk. Fail production builds only when you are ready to require env everywhere (local demos still need the fallback). Change the MAC version string without a deliberate invalidate of in-flight capability URLs.
 
@@ -259,6 +259,18 @@ a kept island’s live query then freezes and its next read throws (#817,
 - Put the mark after the tag's other attributes: a repeated attribute keeps its first value, so leading it beats a mark the markup wrote on the tag.
 
 **Enforced by:** `packages/core/test/browser/devtools-feed-own-render.test.ts` (client), `packages/core/test/head-presence.test.ts` (the mark on every placement).
+
+---
+
+## CONTEXT-CURSOR — one slot for the region being hydrated
+
+**What:** The region the runtime is hydrating (the anchor a cross-island `context.get()` walks up from) and the foreign island it is delegating to another build (`set_foreign_hydrate`) each live on one `globalThis` slot under a `Symbol.for` key (`packages/core/src/current-region.ts`). The runtime writes them; the context feature and the `$app/*` shims read them.
+
+**Why:** The context feature is bundled apart from the runtime, and a federated island's build is another bundle again: each has its own copy of the module. A module-level variable would be one slot per copy, so the reader would see `null` while the runtime is hydrating, and a nested `get()` would find no context.
+
+**Do not:** Keep the cursor in a module variable or behind an import the other bundle does not share. Move it into a module with heavy imports (it lives alone so the boot stays small).
+
+**Enforced by:** `packages/core/test/current-region-slot.test.ts > two copies of the module share the region being hydrated, and the foreign island`
 
 ---
 

@@ -6,7 +6,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Request inputs: headers, query, cookies and bodies read from a request
 
-126 entries.
+128 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -37,6 +37,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/runtime/region-endpoint-url.ts` | `deny_of` | `headers.get('x-ogygia-deny')` | 1 |
 | `packages/core/src/runtime/region-endpoint-url.ts` | `deny_of` | `headers.get('x-ogygia-key')` | 1 |
 | `packages/core/src/runtime/region-endpoint-url.ts` | `deny_of` | `searchParams('k')` | 1 |
+| `packages/core/src/runtime/region-endpoint-url.ts` | `retry_after_ms` | `headers.get('retry-after')` | 1 |
 | `packages/core/src/runtime/router-nav.ts` | `(module)` | `headers.get('cache-control')` | 1 |
 | `packages/core/src/runtime/router-nav.ts` | `(module)` | `headers.get('content-disposition')` | 1 |
 | `packages/core/src/runtime/router-nav.ts` | `(module)` | `headers.get('content-type')` | 1 |
@@ -107,6 +108,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/federation/src/mount.ts` | `mount_action` | `headers.get('content-type')` | 1 |
 | `packages/federation/src/mount.ts` | `mount_action` | `headers.get('traceparent')` | 1 |
 | `packages/federation/src/mount.ts` | `mount_action` | `request.arrayBuffer()` | 1 |
+| `packages/federation/src/peer.ts` | `#own_target` | `headers.get('x-ogygia-deny')` | 1 |
 | `packages/federation/src/serve.ts` | `serve_expose` | `headers.get('location')` | 1 |
 | `packages/federation/src/serve.ts` | `serve_expose` | `headers.get('traceparent')` | 1 |
 | `packages/federation/src/serve.ts` | `serve_expose` | `searchParams('path')` | 1 |
@@ -270,7 +272,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Secrets and keys: environment secrets, MACs, key derivation, signatures
 
-24 entries.
+25 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -278,6 +280,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/cli/src/perf/cli.ts` | `runBisect` | `env OGYGIA_PROFILER_SECRET` | 1 |
 | `packages/cli/src/perf/cli.ts` | `runPerf` | `env OGYGIA_PROFILER_SECRET` | 1 |
 | `packages/compiler/src/vite/index.ts` | `ogygia` | `env OGYGIA_SECRET` | 4 |
+| `packages/core/src/plugin/testing.ts` | `TEST_KEY_FP` | `createHmac` | 1 |
 | `packages/core/src/plugin/testing.ts` | `TEST_SIGNER` | `createHmac` | 1 |
 | `packages/core/src/plugin/testing.ts` | `verify` | `createHmac` | 1 |
 | `packages/core/src/plugin/testing.ts` | `verify` | `timingSafeEqual` | 1 |

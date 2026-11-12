@@ -76,12 +76,13 @@ function encode_region(value: unknown): false | EncodedRegion {
 		// Dual region — sign now (this IS the moment of crossing) and drop the component. If it
 		// was awaited, `html` is present and rides along so the client swaps with no fetch.
 		if (f.kind === 'dual') {
-			const sign = f.sign as (id: string, props: Record<string, unknown>) => string;
+			const sign = f.sign as (id: string, props: Record<string, unknown>, wakes: boolean) => string;
 			const props = (f.props ?? {}) as Record<string, unknown>;
 			return pack(
 				f.id as string,
 				props,
-				sign(f.id as string, props),
+				// (a region that wakes: its answer renders as its hydrate does, #906)
+				sign(f.id as string, props, !!f.hydrate),
 				f.module as string,
 				f.hydrate as string,
 				f.hydrateMargin as string,

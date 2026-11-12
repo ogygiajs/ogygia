@@ -7,8 +7,8 @@
  * real secret.
  *
  * Every capability is minted as v3: capability() from @ogygia/machine (its message names the
- * capability, its version and its audience, field by field length-prefixed). The `v1|`/`v2|` MACs
- * are still verified for URLs minted before it. Signing keys are HKDF-derived (`ogygia-mac-v1`)
+ * capability, its version and its audience, field by field length-prefixed). The `v1|`/`v2|`/`v3|`
+ * MACs are still verified for URLs minted before it. Signing keys are HKDF-derived (`ogygia-mac-v1`)
  * from the raw secret so the id-salt domain stays separate.
  */
 import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto';
@@ -77,7 +77,7 @@ export class Hmac {
 
 	/**
 	 * MAC message for a signed region capability. Every field is length-prefixed (`<utf8 bytes>:<value>`),
-	 * so a field's content can never forge a `|` boundary. Two versions:
+	 * so a field's content can never forge a `|` boundary. Three versions:
 	 *
 	 * - `v1|id|exp|props|session|ttl` — the capability names only its region `id` (the wrapper that
 	 *   minted it: component ⊕ page-side schedule ⊕ the build's salt). Only a build that has that
@@ -87,11 +87,16 @@ export class Hmac {
 	 *   URL's `r`: the component the endpoint renders, compiler/region/identity.ts `renderId`). Signing
 	 *   it lets a build that no longer has `id` (another schedule, preset or salt) answer the
 	 *   capability with its own entry for that component, and only for that component. Minted until
-	 *   v3 ({@link region_sign}); still verified.
+	 *   the capability() mint ({@link region_sign}); still verified.
+	 * - `v3|id|exp|props|session|ttl|render|wakes` — the same six, plus "wakes" (the URL's `w=1`): the
+	 *   hole's component hydrates over its answer, so the endpoint renders it inside an island, as
+	 *   the hydrate does (#906). Minted for a hole that wakes until the capability() mint; still
+	 *   verified. (Not the capability() mint's version: that one names itself in the URL's `v`.)
 	 *
-	 * The version follows from the URL: a capability with `r` is checked as `v2`, one without as `v1`.
-	 * A `v2` MAC never verifies as `v1` (the prefix and the field count differ), so stripping `r` or
-	 * swapping it for another component breaks the signature. Empty `session`/`ttl` are still fields
+	 * The version follows from the URL: a capability with `w` is checked as `v3`, else one with `r`
+	 * as `v2`, one without either as `v1`. No version's MAC verifies as another's (the prefix and the
+	 * field count differ), so stripping `r` or `w`, adding `w`, or swapping `r` for another component
+	 * breaks the signature. Empty `session`/`ttl` are still fields
 	 * (prerender / unbound / no-store) — never optional concat. `ttl` is the response cache max-age in
 	 * seconds (`''` = no-store); signing it keeps a harvested URL from being re-pointed at a longer
 	 * browser cache.
@@ -102,9 +107,11 @@ export class Hmac {
 		props: string,
 		session = '',
 		ttl: number | string = '',
-		render = ''
+		render = '',
+		wakes = ''
 	): string {
 		const v1 = `${lp(String(id))}|${lp(String(exp))}|${lp(String(props))}|${lp(String(session))}|${lp(String(ttl))}`;
+		if (wakes !== '') return `v3|${v1}|${lp(String(render))}|${lp(String(wakes))}`;
 		return render === '' ? `v1|${v1}` : `v2|${v1}|${lp(String(render))}`;
 	}
 }
@@ -113,14 +120,16 @@ export const sign: typeof Hmac.sign = Hmac.sign.bind(Hmac);
 export const verify: typeof Hmac.verify = Hmac.verify.bind(Hmac);
 export const region_mac_message: typeof Hmac.region_message = Hmac.region_message.bind(Hmac);
 
-/** What a region capability signs beside its expiry (the URL's `id`, `props`, `ttl`, `r`, and the
- *  session cookie it is sealed to; `''` where it has none). */
+/** What a region capability signs beside its expiry (the URL's `id`, `props`, `ttl`, `r`, `w`, and
+ *  the session cookie it is sealed to; `''` where it has none). */
 export interface RegionClaim {
 	id: string;
 	payload: string;
 	session: string;
 	ttl: string;
 	render: string;
+	/** `'1'`: the hole's component hydrates over the answer (#906); `''` when it does not */
+	wakes: string;
 }
 
 // A capability per secret and lateness (a renewal checks an expired one): both process constants.
@@ -154,7 +163,7 @@ function region_capability(secret: string, late_sec: number): Capability {
 	return cap;
 }
 
-const claim_fields = (c: RegionClaim) => [c.id, c.payload, c.session, c.ttl, c.render];
+const claim_fields = (c: RegionClaim) => [c.id, c.payload, c.session, c.ttl, c.render, c.wakes];
 
 /** Two lowercase-hex strings of one length, compared in constant time. */
 function hex_equal(a: string, b: string): boolean {
@@ -191,7 +200,15 @@ export function region_verify(
 	if (version === '')
 		return verify(
 			secret,
-			region_mac_message(claim.id, exp, claim.payload, claim.session, claim.ttl, claim.render),
+			region_mac_message(
+				claim.id,
+				exp,
+				claim.payload,
+				claim.session,
+				claim.ttl,
+				claim.render,
+				claim.wakes
+			),
 			sig
 		);
 	const at = Number(exp);

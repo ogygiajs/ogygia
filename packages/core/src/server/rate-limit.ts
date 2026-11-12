@@ -75,6 +75,13 @@ export class RateLimiter {
 		return b !== undefined && clock.mono() - b.t < this.#windowMs && b.n >= this.#max;
 	}
 
+	/** Whole seconds until `ip`'s window resets (at least 1), for a 429's `Retry-After` (#959). */
+	retry_after_s(ip: string): number {
+		const b = this.#buckets.get(ip);
+		const left = b ? this.#windowMs - (clock.mono() - b.t) : 0;
+		return Math.max(1, Math.ceil(left / 1000));
+	}
+
 	get size(): number {
 		return this.#buckets.size;
 	}
