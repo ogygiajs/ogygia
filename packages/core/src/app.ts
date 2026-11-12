@@ -8,10 +8,6 @@
  *
  * @packageDocumentation
  */
-// One body with the `$app/navigation` shim: the ogygia router on a document ogygia owns, Kit's real
-// navigation on a Kit-booted document (shims/app-navigation.ts).
-// Island-side: nothing here imports a runtime module — the navigation calls reach the running
-// runtime through its navigation handle (runtime/nav-handle.ts), via the shim.
 export {
 	goto,
 	invalidate,
