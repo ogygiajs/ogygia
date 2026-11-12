@@ -11,7 +11,7 @@
  * merge, body reconcile, seeds, a11y) is ./router-nav.ts, loaded on the first prefetch or
  * intercepted click. A visitor who never leaves the page never downloads it.
  */
-import { flights, STALE, type Scope, type Stale } from '@ogygia/machine';
+import { flights, random, STALE, type Scope, type Stale } from '@ogygia/machine';
 import { import_again } from './import-again.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
 import { create_navigation, type Navigation } from './navigation.ts';
@@ -251,7 +251,7 @@ function named(id: string): Record<string, unknown> {
 
 export class RouterHistory {
 	/** Names this document's entries apart from another document's (a reload's, say). */
-	readonly #doc = Math.random().toString(36).slice(2, 10);
+	readonly #doc = random.float().toString(36).slice(2, 10);
 	#n = 0;
 	readonly #entries = new Map<string, HistoryEntry>();
 	#current: HistoryEntry | null = null;

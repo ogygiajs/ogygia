@@ -198,6 +198,7 @@ export function observe_reads(event: RequestEvent, request_reads: Reads): void {
 		(event as { fetch: typeof fetch }).fetch = ((input, init) => {
 			// Kit's fetch sends the visitor's cookies to its own origin and its subdomains
 			if (credentialed && carries_cookies(event.url, input)) note('fetch:credentials');
+			// port-ok: Kit's own event.fetch, wrapped (the platform's goes through the network port)
 			return fetch(input, init);
 		}) as typeof fetch;
 
