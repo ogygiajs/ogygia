@@ -155,6 +155,24 @@ never loads one again; ogygia says `runtime_load_failed`), and one ogygia says n
 Rest waits for requests a server is still working on (a hole that renders in 3 s): its answer is
 not a loop task until it comes.
 
+## Federation
+
+A world may hold peer apps (`WorldOptions.peers`), each at its own origin with one build and one
+server instance, behind no CDN. The app's servers reach a peer over the simulated network (a
+signed hop is an exchange from `server-0` like any other, so faults hit it too), and a tab loads a
+peer's islands from the peer's origin, its content-hashed files answering any origin
+(`access-control-allow-origin: *`, as a peer's CDN does). Each build carries its own environment
+(`Build.env`, Kit's `$env/dynamic/private`): every app gets its own `<NAME>_SIGNING_KEY`, every
+app's `<NAME>_PUBLIC_KEY` and `<NAME>_ORIGIN`, and `ORIGIN`, the keys drawn from the seed
+(`keys.ts`: Ed25519 signs deterministically, so a run's signatures replay).
+
+    pnpm sim --app ../../examples/mfe/shell --name shell \
+      --peers cms=../../examples/mfe/cms,dash=../../examples/mfe/dash \
+      --paths /cms,/cms/lab,/cms/posts/1,/cms/posts/2
+
+`--paths` adds pages no route file names (a mounted peer's). Build the three first
+(`pnpm turbo run build --filter=mfe-shell... --filter=mfe-cms... --filter=mfe-dash...`).
+
 ## The random app
 
 `apps/sim-gen` is an app nobody wrote by hand: `pnpm sim:gen --seed N` (`src/gen.ts`) writes its
