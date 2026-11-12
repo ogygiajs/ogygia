@@ -4,6 +4,61 @@
 import { flushSync, mount, unmount } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';
 import LateIsland from '../../src/LateIsland.svelte';
+import Tiny from '../_fixtures/Tiny.svelte';
+import AsyncNavHost from '../_fixtures/AsyncNavHost.svelte';
+
+describe('a late island whose code loads', () => {
+	it('shows an empty place first, then the island when its code lands', async () => {
+		let land!: (c: typeof Tiny) => void;
+		const target = document.createElement('div');
+		document.body.append(target);
+		const app = mount(LateIsland, {
+			target,
+			props: { load: () => new Promise<typeof Tiny>((r) => (land = r)), props: {} }
+		});
+		flushSync();
+		try {
+			expect(target.innerHTML.replace(/<!---->/g, '')).toBe('');
+			land(Tiny);
+			await new Promise((r) => setTimeout(r, 20));
+			flushSync();
+			expect(target.querySelector('[data-tiny]')?.textContent).toBe('tiny');
+		} finally {
+			await unmount(app);
+			target.remove();
+		}
+	});
+});
+
+describe('a late island in async mode (LateIslandAwait)', () => {
+	it('keeps the old page until the island’s code is in, then swaps the whole new page at once', async () => {
+		let land!: (c: typeof Tiny) => void;
+		const target = document.createElement('div');
+		document.body.append(target);
+		const app = mount(AsyncNavHost, {
+			target,
+			props: { load: () => new Promise<typeof Tiny>((r) => (land = r)) }
+		});
+		flushSync();
+		try {
+			expect(target.querySelector('[data-old]')).not.toBeNull();
+			app.go();
+			await new Promise((r) => setTimeout(r, 20));
+			flushSync();
+			expect(target.querySelector('[data-old]')).not.toBeNull();
+			expect(target.querySelector('[data-new]')).toBeNull();
+			land(Tiny);
+			await new Promise((r) => setTimeout(r, 20));
+			flushSync();
+			expect(target.querySelector('[data-old]')).toBeNull();
+			expect(target.querySelector('[data-new]')).not.toBeNull();
+			expect(target.querySelector('[data-tiny]')?.textContent).toBe('tiny');
+		} finally {
+			await unmount(app);
+			target.remove();
+		}
+	});
+});
 
 describe('a late island whose code fails to load', () => {
 	it('renders nothing, and says island_load_failed with the error', async () => {

@@ -1,22 +1,3 @@
-/**
- * The content **source** — the single axis `content({ loader })` accepts. A source yields two shapes:
- *  - `refs(query?)` — the corpus as METADATA. A ref is identity + data (+ optional derived meta,
- *    sibling order, file path). NEVER a body, never source text — refs are wire-safe data, always.
- *  - `get(id)` — ONE full entry: a ref plus the two heavy faces (`body`, lazy `source`). The only
- *    read that pays to materialize a renderable.
- *
- * That split is the contract's spine: nav/outline/search-display/graph all consume refs; a page body is
- * fetched exactly once, by `get`, on the read that renders it. A filesystem glob makes both cheap; a
- * CMS maps `refs` to its shallow index endpoint and `get` to its document endpoint.
- *
- * Two more optional facets carry structure a backend knows and the outline can't derive:
- *  - `order` (per ref) — sibling order as data (folder() fills it from `NN-`; a CMS from a position field).
- *  - `groups()` — directory/section decoration as a map (folder() from `+meta.json`; a CMS from folders).
- *
- * `init()` (optional, async) runs once before the first read — source builders dynamic-import their
- * heavy machinery there so the module graph stays light and every builder is importable from
- * `@ogygia/content`.
- */
 import type { RegionValue } from '@ogygia/core';
 import { OgygiaError } from './messages/runtime.ts';
 
@@ -65,7 +46,18 @@ export type SourceEntry<Meta = Record<string, never>> = SourceRef<Meta> & {
  */
 export type SourceChanges = AsyncIterable<string[] | unknown>;
 
-/** The source contract — the only thing `content({ loader })` accepts. */
+/**
+ * The source contract: the only thing `content({ loader })` accepts. It reads in two shapes:
+ * - `refs(query?)`: the corpus as metadata (id, data, and optional meta, order and file path).
+ *   Never a body or source text, so refs are always safe to send over the wire;
+ * - `get(id)`: one full entry, a ref plus the heavy faces (`body`, a lazy `source`).
+ *
+ * The nav, outline, search and graph read refs; a page body is read once, by `get`, for the page that
+ * renders it. A CMS maps `refs` to its index endpoint and `get` to its document endpoint. The
+ * optional `order` (per ref) and `groups()` carry structure the backend knows (`folder()` fills them
+ * from `NN-` and `+meta.json`). The optional `init()` runs once before the first read, so a builder
+ * can load heavy code there.
+ */
 export type Source<Meta = Record<string, never>> = {
 	/** Run once before the first read. Dynamic-import heavy deps here. */
 	init?: () => Promise<void>;
@@ -103,14 +95,8 @@ export type GlobMap = Record<string, unknown | (() => Promise<unknown>)>;
 const BACKSLASH = /\\/g;
 const filePathOf = (key: string) => key.replace(BACKSLASH, '/').split('?')[0];
 
-/** Strip ONE trailing extension, whatever it is — no hardcoded format list. */
 const stripExt = (p: string) => p.replace(/\.[^./\\]+$/, '');
 
-/**
- * Default id for a glob: drop the directory prefix shared by all keys, then the file extension.
- * `../content/docs/00-start/install.svx` (in a set rooted at `.../docs/`) → `00-start/install`.
- * Override entirely with `glob(map, { id })` when you want different ids (e.g. strip `NN-` prefixes).
- */
 function defaultGlobIds(keys: string[]): Map<string, string> {
 	const norm = keys.map((k) => k.replace(BACKSLASH, '/').split('?')[0]);
 	let prefix = norm[0] ? norm[0].slice(0, norm[0].lastIndexOf('/') + 1) : '';
@@ -126,7 +112,6 @@ function defaultGlobIds(keys: string[]): Map<string, string> {
 	return out;
 }
 
-/** True for a value that already implements the raw-source contract (refs/get functions). */
 function isRawSource<V>(v: unknown): v is RawSource<V> {
 	return (
 		!!v &&
@@ -136,8 +121,9 @@ function isRawSource<V>(v: unknown): v is RawSource<V> {
 }
 
 /**
- * Wrap an `import.meta.glob(...)` map as a raw source: ids are the (prefix-stripped, extension-less)
- * keys, `get(id)` loads ONE module, `refs()` loads all. Lazy globs load a module only when read — so
+ * Wrap an `import.meta.glob(...)` map as a raw source: an id is its key without the directory prefix
+ * all keys share and without one extension (`v1.2.svx` → `v1.2`; `{ id }` picks your own). `get(id)`
+ * loads ONE module, `refs()` loads all. Lazy globs load a module only when read — so
  * `get(id)` on a big local collection touches one file, not the whole set.
  */
 export function glob<V = unknown>(
@@ -180,8 +166,6 @@ export function defineSource<V, Meta = Record<string, never>>(
 	format: Format<V, Meta>,
 	extra?: { init?: () => Promise<void>; groups?: () => Promise<Map<string, GroupMeta>> }
 ): Source<Meta> {
-	// A ref drops body/source: we still run the format for `data`/`meta`, but the two heavy faces
-	// never leave this function on the refs path.
 	const ref = async (r: RawRecord<V>): Promise<SourceRef<Meta>> => {
 		const parts = await format(r.value, r.id);
 		return {
@@ -274,6 +258,3 @@ export function enrich<Meta, Extra extends Record<string, unknown>>(
 		}
 	} as Source<Meta & Extra>;
 }
-
-// NB: no `fromArray` / in-memory-array source is shipped — write a `{ refs, get }` object directly
-// (or use `defineSource`) for fixtures or already-fetched records.
