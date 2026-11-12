@@ -302,7 +302,8 @@ const MESSAGE_SILENT =
  * not a body), `.catch(() => {})` (or `=> undefined`, `=> null`, `noop`), and a bare `void <call>()`,
  * whose rejection goes unhandled unless the callee catches it (`void p.catch(report)` is handled).
  * A site that is truly fine carries `// ok: <reason>` on its first or last line (for a catch, also
- * inside its body).
+ * inside its body; for a `void` call, also alone on the line above). A `void` call is one through
+ * an optional chain or a cast too (`void s?.send?.()`); an awaited one (`void (await p())`) is not.
  */
 const no_silent_failures = {
 	meta: {
@@ -314,6 +315,7 @@ const no_silent_failures = {
 	create(context: Context) {
 		if (!in_source(context)) return {};
 		let ok: Set<number> | null = null;
+		let noted: ((node: Node) => boolean) | null = null;
 		const marked = (node: Node): boolean => {
 			const n = node as Located;
 			ok ??= ok_lines(context);
@@ -342,9 +344,21 @@ const no_silent_failures = {
 			},
 			UnaryExpression(node: Node) {
 				if (node.operator !== 'void') return;
-				const arg = node.argument as Node;
+				// (an optional call `s?.send?.()` and a cast `(p() as T)` are calls too; an awaited one,
+				// `void (await p())`, is handled by its await)
+				let arg = node.argument as Node | undefined;
+				while (
+					arg?.type === 'ParenthesizedExpression' ||
+					arg?.type === 'TSAsExpression' ||
+					arg?.type === 'TSNonNullExpression' ||
+					arg?.type === 'ChainExpression'
+				)
+					arg = arg.expression as Node;
 				// (`void p.catch(() => {})` is the `.catch` site's, said once there)
-				if (arg.type === 'CallExpression' && !handled(arg) && !swallowing_chain(arg)) refuse(node);
+				if (arg?.type !== 'CallExpression' || handled(arg) || swallowing_chain(arg)) return;
+				// (a note on the call's own line, or alone on the line above: reason-notes.test.ts)
+				noted ??= reason_notes(context, OK_NOTE);
+				if (!noted(node) && !marked(node)) context.report({ node, message: MESSAGE_SILENT });
 			}
 		};
 	}

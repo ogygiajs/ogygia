@@ -76,6 +76,7 @@ void p();
 // ok: a note alone on its line names the line below
 void p();
 void p().catch((e: unknown) => console.error(e));
+export const awaited = async () => void (await p());
 `;
 
 test('ogygia/no-silent-failures: every void call needs an ok note, an optional call and a cast too', () => {
