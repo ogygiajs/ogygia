@@ -63,6 +63,17 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   node left over: a run is one node (`whole_text_runs`, `test/parser.test.ts`).
 - It hands an intercepted answer back as it is: the sim follows a redirect itself, each leg a
   request on the network, and the answer carries its URL (`test/redirect.test.ts`).
+- Its module map and the V8 loader's were two: an import asked the network for a module a
+  `modulepreload` was still downloading (the runtime's script comes before its preloads, so every
+  runtime chunk was asked twice). An import waits for happy-dom's download and takes its source
+  (`downloading` in `src/modules.ts`, `test/modules.test.ts`; found by the differential).
+- It lays nothing out, and its IntersectionObserver is a stub that never reports: no
+  `wake: 'visible'` island ever woke by being seen, and the hydration drain waited for a viewport
+  snapshot on every turn. A document has a layout (`src/layout.ts`: block flow on the player's
+  1280x720 viewport, read off happy-dom's computed styles: display, margins, borders, padding,
+  height; text 8 px a character, 20 px a line) and an IntersectionObserver that reports from it at
+  a frame, a task of its realm (`test/layout.test.ts`; found by the differential). The home page's
+  regions land within 70 px of Chromium's. Never scrolled yet.
 - It ran an inline module script at once and an external one when its file came: a document's
   module scripts run in its order (`modules_in_order`, `test/modules.test.ts`).
 - It read `interactive` from the start, never fired DOMContentLoaded, and fired `load` before a
@@ -81,6 +92,9 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   back from the page on screen (the router handed a click to the browser, the visitor went back,
   and the stalled page landed on the back's document: palaestra seed 20958,
   `rule_address_bar_drift`).
+- It called only a window's bubbling `load` listeners (one that captures never heard it) and never
+  fired `pageshow`: both reach the window, capturing then not, the document their target
+  (`window_load_events`, `test/modules.test.ts`; found by the differential).
 - It ran a copy of any script: a copy carries "already started" (a script that connected, or one a
   parser marked unexecutable), so the router's head merge ran the next page's early hole start
   again (`scripts_start_once`, `test/scripts.test.ts`; gen 191).

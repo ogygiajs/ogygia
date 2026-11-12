@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import { fc, simulate } from '@ogygia/config/sim';
 import { scope, STALE, world, type Scope } from '@ogygia/machine';
-import { server_rules_hold } from './_server.ts';
+import { PRIMITIVE_RUNS, server_rules_hold } from './_server.ts';
 
 type Op =
 	| { kind: 'child'; of: number }
@@ -183,7 +183,7 @@ describe('scopes, simulated', () => {
 					})
 				);
 			},
-			{ runs: 1000, horizon: 2000 }
+			{ runs: PRIMITIVE_RUNS, horizon: 2000 }
 		);
 	});
 });

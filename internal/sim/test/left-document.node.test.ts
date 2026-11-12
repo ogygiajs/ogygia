@@ -37,7 +37,10 @@ describe.skipIf(!built)('a document the tab has left', () => {
 					() => heard.push('answered'),
 					() => heard.push('failed')
 				);
-			await world.go(tab, 'goto', '/');
+			// (back to the tab's first entry, `about:blank`: no request, so the document is left at
+			// once, before any stalled answer can come; a page of the app's own came after the answer
+			// once the seed's draws moved, and the old page rightly heard it)
+			await world.go(tab, 'back');
 			expect(tab.documents).toBe(2);
 			// (its answer was still on the way when the tab left it)
 			expect(world.network.exchanges.find((e) => e.url.endsWith('/?slow'))?.status).toBe('aborted');
@@ -73,7 +76,7 @@ describe.skipIf(!built)('a document the tab has left', () => {
 				doc.body.append(s);
 			}
 			await world.loop.run(50);
-			await world.go(tab, 'goto', '/about');
+			await world.go(tab, 'back');
 			expect(tab.documents).toBe(2);
 			// (both downloads were still on the way when the tab left)
 			expect(
