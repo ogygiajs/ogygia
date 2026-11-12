@@ -48,6 +48,48 @@ describe('transport — HTML-baked inline tickets', () => {
 	});
 });
 
+describe('region(C, props, { version }) — the data version rides the wire (#682)', () => {
+	/** A held region's server binding, as the compiler emits it. */
+	const binding = () => ({
+		__ogRegion: 'card',
+		__module: '',
+		__component: () => {},
+		__sign: (id: string) => `/__ogygia__?id=${id}&props=e30&sig=x`,
+		__renderHtml: () => '<p>card</p>'
+	});
+	const wire = async (version: unknown) => {
+		const { region } = await import('../src/region.ts');
+		const r = await region(binding() as never, {} as never, { version } as never);
+		return encode(r) as Record<string, unknown>;
+	};
+
+	it('a number crosses as itself', async () => {
+		expect((await wire(7)).d).toBe(7);
+	});
+
+	it('a Date and an ISO string cross as the same number', async () => {
+		const at = '2026-11-11T10:00:00.000Z';
+		expect((await wire(new Date(at))).d).toBe(Date.parse(at));
+		expect((await wire(at)).d).toBe(Date.parse(at));
+	});
+
+	it('no version, no field', async () => {
+		const { region } = await import('../src/region.ts');
+		const r = await region(binding() as never, {} as never);
+		expect(encode(r)).not.toHaveProperty('d');
+	});
+
+	it('a version that is not a number, a Date or a date string throws, naming the code', async () => {
+		await expect(wire('soon')).rejects.toThrow(/region_version_invalid/);
+		await expect(wire(Number.NaN)).rejects.toThrow(/region_version_invalid/);
+	});
+
+	it('a decoded region crosses again with its version', () => {
+		const back = decode({ i: 'card', p: {}, u: '/__ogygia__?id=card', m: '', x: '<p/>', d: 4 });
+		expect((encode(back) as Record<string, unknown>).d).toBe(4);
+	});
+});
+
 describe('region() inline awaitability', () => {
 	it('region(C, props) is thenable, and `then` is non-enumerable (devalue/spread never see it)', async () => {
 		const { region } = await import('../src/region.ts');
