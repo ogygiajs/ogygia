@@ -1,8 +1,9 @@
+<!--
+@component
+The previous and next links of a `PageView`'s trail, in a nav that is left out when there are
+neither. With only a next link, an empty first cell keeps it in the second place.
+-->
 <script lang="ts">
-	/**
-	 * Sequential previous/next — a pure function of a `PageView`'s trail (outline reading order).
-	 * A lone next stays right; `.og-pager` hooks for CSS.
-	 */
 	import type { PageView } from '../types.ts';
 
 	let {
