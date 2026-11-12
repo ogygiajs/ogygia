@@ -628,6 +628,9 @@ importers:
       '@ogygia/federation':
         specifier: workspace:*
         version: link:../../packages/federation
+      '@ogygia/postrender':
+        specifier: workspace:*
+        version: link:../../packages/postrender
       '@ogygia/router':
         specifier: workspace:*
         version: link:../../packages/router
@@ -1003,6 +1006,9 @@ importers:
       fast-check:
         specifier: 'catalog:'
         version: 4.10.2
+      rolldown:
+        specifier: 'catalog:'
+        version: 1.2.16
       typescript:
         specifier: catalog:tsgo
         version: 7.0.2

@@ -61,6 +61,12 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   module scripts run in its order (`modules_in_order`, `test/modules.test.ts`).
 - Its console's methods read private fields, so a document's own console (which tells one
   document's words from another's) runs each on the page's console (`test/console.test.ts`).
+- It records no resource timing (its `PerformanceObserver` is the host's, which hears none of a
+  page's downloads), so ogygia's import-again never learned whether a failed chunk's own file came.
+  Each document gets its own timeline and observer (`src/timeline.ts`), fed by its downloads on
+  the simulated network, read the seed's engine's way (`timeline engine`): `status` (Chromium,
+  Firefox: every download an entry with its `responseStatus`, a dropped one 0) or `start` (WebKit:
+  no status, no entry for a dropped download). Observer callbacks are tasks of the document.
 
 Differences in the DOM engine cancel out for the MPA-equivalence oracle (both sides run in it);
 the real-browser tier reruns interesting seeds in Chromium, Firefox and WebKit.
@@ -204,6 +210,20 @@ answers with the region, single flight). Some are live: a `query.live` yields th
 each tick (every 0.7 s or 3 s), in an island host. Held and live regions draw from a stream of
 their own (`gen held`), so a seed's tree is what it was before they existed.
 
+Some commands publish (`gen publish`): the command also calls `postrender.invalidate(<its page>)`.
+The app lists `postrender({ default: false })` (opt-in: no page is stored unless it says so) and
+`postrender.handle({ store })` with one `MemoryStore` for every instance and build of a run, as a
+shared cache is. In a federated app the invalidation is announced to the peer: a thaw notice
+through federation's outbox, which the peer applies and passes back on (hop + 1). The same store
+makes a deploy's first federation request send the deploy thaw. And some seeds keep the peer's
+page documents (`gen peer cache`: `cache: { ttl }` of 300 ms, 2 s or 30 s), served stale while one
+fetch refreshes them.
+
+A build's boot runtime comes from `packages/core/dist/runtime` (the prebuilt runtime a published
+package ships), not from `src`: after a change to core's runtime, `pnpm build:lib` before
+`pnpm sim:builds`, or the app boots the old one (its import-again had no buggify point, while the
+chunks Vite built from `src` did).
+
 ## Running many
 
 `pnpm sim --runs 200 [--from 41] [--steps 30] [--jobs N]`: seeds run in a pool of worker
@@ -212,6 +232,29 @@ processes (default: cores - 1; a worker is replaced after 25 runs). A run that h
 wire, the trace's tail, each tab's machine moves), and its worker is replaced; a worker that dies
 is a `crash` finding. Virtual time is bounded by the run's horizon ((actions + 2) minutes);
 reaching it is reported `horizon`. The summary goes to `internal/sim/results.json`.
+
+## Buggify
+
+A rare branch the code can take on purpose in a simulated run: `buggify.fires(point)` from
+`@ogygia/machine`, behind the file's own RULES constant, so a production build folds it out
+(`packages/core/test/rules-stripped.node.test.ts`). Only a simulated platform answers it. Each run
+turns each point on or off (30%, its own stream `buggify swarm <point>`), and an on point fires at
+20% of its asks, from the realm's own stream. A firing is in the trace. `--no-buggify` turns them
+all off. Points: `flights.not-kept` (an answer not kept), `outbox.reply-lost` (the receiver applied
+a send and its reply was lost: sent again), `import-again.entry-missed` (a download's timing entry
+never comes, as WebKit gives a dropped one none), `federation.doc-stale` (a peer document's ttl just
+ran out).
+
+## Coverage
+
+What runs reached, for a search to steer by (`src/coverage.ts`). The targets are every step of
+every machine the packages define (`paths()` is one path per step), read from their source:
+`machine()({ name, initial, steps })` with a literal name, and each `flights({ name })` with
+flights' entry steps. A run's steps come from each document's moves (`__ogygia_moves()`, read after
+every action: the log keeps only its last lines). Each run also reports each buggify point: asked,
+on, fired. The summary prints one line, and `results.json` holds per machine what was reached and
+what is still missing, the machines no run touched, and steps a run took that no definition names.
+Browser realms only: a server's machines are bundled into its build, out of the simulator's hearing.
 
 ## Findings
 

@@ -16,6 +16,7 @@ import type { Loop } from './loop.ts';
 import type { Network } from './network.ts';
 import { install, message_channel, platform, site, SITES, type RealmOptions } from './platform.ts';
 import { hash, type Rng } from './rng.ts';
+import { install_timeline, record_download, type Engine } from './timeline.ts';
 
 /** `SIM_STACKS=1`: a page's uncaught error carries its stack (to triage a seed). */
 const STACKS = process.env.SIM_STACKS === '1';
@@ -73,6 +74,8 @@ export interface BrowsersOptions {
 	origin: string;
 	/** The world's buggify swarm, for each tab's platform. */
 	buggify?: (realm: string, point: string) => boolean;
+	/** How each document's resource timing reads (./timeline.ts). Default `status`. */
+	timeline?: Engine;
 }
 
 export class Browsers {
@@ -124,6 +127,15 @@ export class Browsers {
 									? undefined
 									: new Uint8Array(await request.arrayBuffer());
 							const jar = this.#context_of(browser);
+							// (a shown document's download is in its resource timing, with what it got)
+							const timed = known !== undefined ? window : null;
+							const started = timed
+								? (window as unknown as { performance: { now(): number } }).performance.now()
+								: 0;
+							const timing = (status: number | null) => {
+								if (timed)
+									record_download(timed, o.timeline ?? 'status', request.url, status, started);
+							};
 							// a browser follows a redirect itself (happy-dom hands an intercepted answer back as
 							// it is): each leg is a request on the network, with its cookies, and the answer
 							// carries the URL it came from (a document's address is that URL)
@@ -147,6 +159,7 @@ export class Browsers {
 								try {
 									answer = await o.network.send(from, sent, (r) => o.route(r, from));
 								} catch (error) {
+									timing(null);
 									throw new W.TypeError(error instanceof Error ? error.message : String(error));
 								}
 								for (const c of answer.headers.getSetCookie()) {
@@ -157,8 +170,10 @@ export class Browsers {
 								const redirect = [301, 302, 303, 307, 308].includes(answer.status);
 								if (redirect && location !== null && request.redirect !== 'manual') {
 									void answer.body?.cancel();
-									if (request.redirect === 'error' || hops === 20)
+									if (request.redirect === 'error' || hops === 20) {
+										timing(null);
 										throw new W.TypeError('Failed to fetch (redirect)');
+									}
 									url = new URL(location, url);
 									// (303, and 301/302 after a POST, go on as a GET without the body)
 									if (answer.status === 303 || (answer.status < 303 && method === 'POST')) {
@@ -178,6 +193,7 @@ export class Browsers {
 									headers: out
 								}) as Response & { url: string; redirected: boolean };
 								Object.assign(response, { url: url.href, redirected: hops > 0 });
+								timing(answer.status);
 								return response as never;
 							}
 						}
@@ -252,6 +268,7 @@ export class Browsers {
 				configurable: true
 			});
 		}
+		install_timeline(window);
 		tab.platform = p;
 		this.#windows.set(window, tab);
 		this.#count_held(window, tab);

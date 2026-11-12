@@ -9,6 +9,7 @@
 	},
 	"dependencies": {
 		"@ogygia/federation": "workspace:*",
+		"@ogygia/postrender": "workspace:*",
 		"@ogygia/router": "workspace:*",
 		"ogygia": "workspace:*"
 	},

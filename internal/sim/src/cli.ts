@@ -58,6 +58,7 @@ import { builds_of } from './builds.ts';
 import { key_pair } from './keys.ts';
 import { MOUNT, type GenPeer } from './gen.ts';
 import type { Build } from './server.ts';
+import { Coverage, new_moves, step_of_move, universe, type RunCoverage } from './coverage.ts';
 
 const arg = (flag: string): string | undefined => {
 	const at = process.argv.indexOf(flag);
@@ -175,6 +176,8 @@ export interface RunResult {
 	readonly log: string[];
 	/** The buggify points that fired, `point×times`. */
 	readonly buggified: string[];
+	/** The machine steps the run's pages took and the buggify points it was asked about. */
+	readonly coverage: RunCoverage;
 }
 
 /** One seeded run. */
@@ -226,12 +229,32 @@ export async function run(
 	const pressed = new Map<string, number>();
 	const leaks = new Leaks();
 	const log = world.loop;
+	/** Machine steps the pages took, with how often. */
+	const steps_taken: Record<string, number> = {};
 	try {
 		const v = world.visitor('visitor');
 		// (the network's exchanges since the last check: a fault among them explains what was said)
 		let since = 0;
+		/** Each document's machine moves read so far (by realm): its log keeps only its last lines,
+		 *  so it is read after every action. */
+		const moves_read = new Map<string, number>();
+		const hear_moves = (): void => {
+			for (const t of v.tabs) {
+				const w = t.page.mainFrame.window as unknown as { __ogygia_moves?: () => string };
+				const { lines, total } = new_moves(
+					w.__ogygia_moves?.() ?? '',
+					moves_read.get(t.realm) ?? 0
+				);
+				moves_read.set(t.realm, total);
+				for (const line of lines) {
+					const s = step_of_move(line);
+					if (s !== null) steps_taken[s] = (steps_taken[s] ?? 0) + 1;
+				}
+			}
+		};
 		/** Each tab looked at, after `what`: its DOM and what it holds in the trace, and the oracles. */
 		const look = (what: string): void => {
+			hear_moves();
 			for (const t of v.tabs) {
 				const doc = t.page.mainFrame.document as unknown as Document;
 				log.note(`${t.name} ${t.page.mainFrame.url} dom ${fingerprint(normalize(doc))}`);
@@ -301,6 +324,7 @@ export async function run(
 			)
 				await world.loop.step();
 			await world.quiesce();
+			hear_moves();
 			await at_rest?.(world, v);
 			// AT REST, every tab (a faulted one too: a failure must end a wait as surely as an
 			// answer): no machine left mid-work, and ogygia's rules hold
@@ -343,7 +367,8 @@ export async function run(
 			steps: world.loop.ran,
 			ms: 0,
 			log: world.loop.log,
-			buggified
+			buggified,
+			coverage: { steps: steps_taken, points: Object.fromEntries(world.buggified) }
 		};
 	} finally {
 		await world.end();
@@ -362,6 +387,29 @@ export function trace_difference(a: readonly string[], b: readonly string[]): st
 		'  ---',
 		...b.slice(from, i + 2).map((l, k) => `${from + k === i ? '+' : ' '} ${l}`)
 	].join('\n');
+}
+
+/** The repository root (the machines' source, for coverage's targets). */
+const ROOT = resolve(import.meta.dirname, '..', '..', '..');
+
+/** What runs reached, against every machine step of the packages: a line to print, and the numbers
+ *  for results.json (each machine a run touched, with the steps it still misses). */
+function coverage_summary(covered: Coverage) {
+	const r = covered.report(universe(ROOT));
+	const points = [...covered.points].map(([point, c]) => ({ point, ...c }));
+	const fired = points.filter((p) => p.fired > 0).length;
+	return {
+		line: `coverage: ${r.reached}/${r.total} machine steps (${Math.round((r.reached / r.total) * 100)}%), ${r.machines_touched}/${r.per_machine.length} machines touched; buggify: ${fired}/${points.length} points fired (${points.map((p) => `${p.point} ${p.fired}/${p.asked}`).join(', ') || 'none asked'})`,
+		reached: r.reached,
+		total: r.total,
+		machines_touched: r.machines_touched,
+		machines: r.per_machine
+			.filter((m) => m.reached > 0)
+			.map((m) => ({ name: m.name, reached: m.reached, total: m.total, missing: m.missing })),
+		untouched: r.per_machine.filter((m) => m.reached === 0).map((m) => `${m.pkg}/${m.name}`),
+		unknown: r.unknown,
+		points
+	};
 }
 
 /** A run, timed in real ms. */
@@ -425,6 +473,9 @@ async function main(): Promise<void> {
 		}
 	}
 	pool.end();
+	const covered = new Coverage();
+	for (const r of results.filter((_, i) => !REPLAY || i % 2 === 0)) covered.add(r.coverage);
+	const coverage = coverage_summary(covered);
 	const steps = results.reduce((n, r) => n + r.steps, 0);
 	const actions = results.reduce((n, r) => n + r.actions.length, 0);
 	const elapsed = wall() - started;
@@ -441,6 +492,7 @@ async function main(): Promise<void> {
 		/** Loop steps per real second, over the whole pool (the replay runs included). */
 		steps_per_second: Math.round((steps / elapsed) * 1000),
 		actions_per_second: Math.round((actions / elapsed) * 10000) / 10,
+		coverage,
 		seeds_failed: results
 			.filter((r, i) => r.broken.length && (!REPLAY || i % 2 === 0))
 			.map((r) => ({ seed: r.seed, oracles: r.broken.map((b) => b.oracle) })),
@@ -469,6 +521,7 @@ async function main(): Promise<void> {
 	console.log(
 		`\n${RUNS} seeds, ${failed} failed, ${known} known, ${leaks.length} replay leaks, ${JOBS} jobs, ${summary.seconds} s, ${summary.steps_per_second} loop steps/s, ${summary.actions_per_second} actions/s`
 	);
+	console.log(coverage.line);
 	// (not `process.exit`: it cuts a long trace short on a pipe)
 	process.exitCode = failed || leaks.length ? 1 : 0;
 }
@@ -569,7 +622,8 @@ class Pool {
 				steps: 0,
 				ms: 0,
 				log: [`${oracle}: ${why.split('\n')[0]}`],
-				buggified: []
+				buggified: [],
+				coverage: { steps: {}, points: {} }
 			}
 		});
 		const done = (message: { result?: RunResult; error?: string; hung?: string }) => {
