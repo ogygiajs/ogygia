@@ -71,6 +71,10 @@ describe('fill, read back through the URL parser', () => {
 		for (const v of ['.', '..'])
 			for (const p of ['/users/[id]/delete', '/posts/[id]', '/f/[...rest]', '/[[lang]]/docs'])
 				expect(() => fill(p, { id: v, rest: v, lang: v })).toThrow(/dot segment/);
+		// a segment made of several tokens, or a token and a literal dot, is a dot segment too
+		expect(() => fill('/x/[a].[b]', { b: '.' })).toThrow(/dot segment/);
+		expect(() => fill('/x/[a][b]', { a: '.', b: '.' })).toThrow(/dot segment/);
+		expect(() => fill('/x/[id].', { id: '' })).toThrow(/dot segment/);
 		// a dot inside a segment is kept: the URL parser drops only a whole `.` or `..` segment
 		expect(fill('/d/[id].json', { id: '.' })).toBe('/d/..json');
 		expect(fill('/posts/[id]', { id: '...' })).toBe('/posts/...');
