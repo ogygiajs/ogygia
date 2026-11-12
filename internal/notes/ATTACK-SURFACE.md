@@ -6,7 +6,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Request inputs: headers, query, cookies and bodies read from a request
 
-124 entries.
+127 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -52,6 +52,8 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/server/region-endpoint.ts` | `known_region_fps` | `headers.get('x-ogygia-spa')` | 1 |
 | `packages/core/src/server/region-endpoint.ts` | `region_session` | `cookies.get(session_cookie)` | 1 |
 | `packages/core/src/server/render-page.ts` | `page_url_of` | `headers.get('referer')` | 1 |
+| `packages/core/src/server/rules.ts` | `region_answer_unsafe` | `headers.get('cache-control')` | 1 |
+| `packages/core/src/server/rules.ts` | `region_answer_unsafe` | `headers.get('referrer-policy')` | 1 |
 | `packages/devtools/src/devtools/cache-headers.ts` | `probe_cache` | `headers.get('cache-control')` | 1 |
 | `packages/devtools/src/devtools/page.ts` | `hole_batches` | `searchParams('id')` | 1 |
 | `packages/devtools/src/devtools/page.ts` | `hole_failures` | `searchParams('id')` | 1 |
@@ -116,6 +118,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/federation/src/serve.ts` | `serve_hole` | `headers.get('traceparent')` | 1 |
 | `packages/federation/src/serve.ts` | `serve_widget` | `headers.get('traceparent')` | 1 |
 | `packages/federation/src/wire.ts` | `(module)` | `headers.get('content-length')` | 1 |
+| `packages/federation/src/wire.ts` | `(module)` | `headers.get(CAP_HEADER)` | 1 |
 | `packages/federation/src/wire.ts` | `(module)` | `headers.get(NONCE_HEADER)` | 1 |
 | `packages/federation/src/wire.ts` | `(module)` | `headers.get(SIG_HEADER)` | 1 |
 | `packages/federation/src/wire.ts` | `(module)` | `headers.get(TS_HEADER)` | 1 |
@@ -137,7 +140,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Decoders: text turned into values (JSON, devalue, base64, URI escapes)
 
-92 entries.
+94 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -217,11 +220,13 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/devtools/src/profiler/ui/row-anchor.svelte.ts` | `(module)` | `decodeURIComponent` | 1 |
 | `packages/federation/src/serve.ts` | `serve_thaw` | `JSON.parse` | 1 |
 | `packages/federation/src/shared-state.ts` | `read_seed` | `JSON.parse` | 1 |
-| `packages/federation/src/wire.ts` | `(module)` | `Buffer.from base64` | 2 |
-| `packages/federation/src/wire.ts` | `(module)` | `JSON.parse` | 1 |
+| `packages/federation/src/wire.ts` | `any_key` | `Buffer.from base64url` | 1 |
+| `packages/federation/src/wire.ts` | `claims_of` | `Buffer.from base64` | 1 |
+| `packages/federation/src/wire.ts` | `claims_of` | `JSON.parse` | 1 |
 | `packages/federation/src/wire.ts` | `pin_graph` | `JSON.parse` | 1 |
 | `packages/federation/src/wire.ts` | `private_key` | `Buffer.from base64` | 1 |
 | `packages/federation/src/wire.ts` | `public_key` | `Buffer.from base64` | 1 |
+| `packages/federation/src/wire.ts` | `signature_bytes` | `Buffer.from base64` | 1 |
 | `packages/postrender/src/adapters/cloudflare-kv.ts` | `get` | `JSON.parse` | 1 |
 | `packages/postrender/src/adapters/upstash.ts` | `get` | `JSON.parse` | 1 |
 | `packages/postrender/src/adapters/valkey.ts` | `get` | `JSON.parse` | 1 |
@@ -264,7 +269,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Secrets and keys: environment secrets, MACs, key derivation, signatures
 
-19 entries.
+21 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -280,8 +285,10 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/server/hmac.ts` | `verify` | `timingSafeEqual` | 1 |
 | `packages/core/src/vite/index.ts` | `ogygia` | `env OGYGIA_SECRET` | 3 |
 | `packages/devtools/src/profiler/index.ts` | `#key_matches` | `timingSafeEqual` | 2 |
-| `packages/devtools/src/profiler/index.ts` | `#window_sign` | `createHmac` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `constructor` | `env OGYGIA_PROFILER_SECRET` | 1 |
+| `packages/devtools/src/profiler/window-id.ts` | `hmac_signer` | `createHmac` | 1 |
+| `packages/devtools/src/profiler/window-id.ts` | `hmac_signer` | `timingSafeEqual` | 1 |
+| `packages/devtools/src/profiler/window-id.ts` | `window_ids` | `hkdfSync` | 1 |
 | `packages/federation/src/wire.ts` | `private_key` | `createPrivateKey` | 1 |
 | `packages/federation/src/wire.ts` | `public_key` | `createPublicKey` | 1 |
 | `packages/postrender/src/adapters/akamai.ts` | `(module)` | `createHmac` | 1 |
