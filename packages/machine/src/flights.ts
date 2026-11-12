@@ -73,6 +73,7 @@ import { cache, type Cache, type EvictWhy } from './cache.ts';
 import { buggify, clock } from './ports.ts';
 import { machine, type Machine } from './machine.ts';
 import { bad_option, report_thrown } from './messages.ts';
+import { noop } from './noop.ts';
 import { under_policy, type Policy } from './policy.ts';
 import { DISPOSE } from './scope.ts';
 import { STALE, type Fresh, type Stale } from './stale.ts';
@@ -248,7 +249,6 @@ type Entry = Machine<EntryStates, typeof entry_steps>;
 const STALE_NOW: Promise<Stale> = Promise.resolve(STALE);
 /** The most total weight a flights keeps when its options do not say (1000 answers). */
 const DEFAULT_MAX = 1000;
-const noop = (): void => {};
 const FLYING: FlightEntry<never> = Object.freeze({ kind: 'flying' });
 
 /** One flight's work: one run, or the runs its policy gives (`STALE` once the flight is left). */

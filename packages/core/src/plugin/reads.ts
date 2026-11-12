@@ -1,4 +1,5 @@
 import type { RequestEvent } from '@sveltejs/kit';
+import { slot as shared } from '@ogygia/machine';
 
 /**
  * One render's read set: what it read that is not the same for every visitor, or for every page. A
@@ -55,9 +56,7 @@ export function read_set(parent: Reads | null = null): Reads {
 interface ReadsSlot {
 	open: (() => Reads | undefined) | null;
 }
-const slot: ReadsSlot = ((globalThis as Record<symbol, ReadsSlot | undefined>)[
-	Symbol.for('ogygia.reads.v1')
-] ??= { open: null });
+const slot = shared<ReadsSlot>({ name: 'ogygia.reads', version: 1, make: () => ({ open: null }) });
 
 /** Core only (server/read-trace.ts): how the read set of the running work is found. One slot for
  *  the process, so a plugin package and core that load two copies of this module share it. */
