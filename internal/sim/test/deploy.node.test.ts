@@ -80,7 +80,7 @@ describe.skipIf(builds.length === 0)('a deploy that drops old files', () => {
 	// (gen 88, seed 88020: in a rolling deploy's window a new page's hole and its island file came
 	// from the old build; the fresh load, past the window, asked the new build for that file, got a
 	// 404, and ogygia rightly ran the new build's island in its place)
-	it('a load pinned to the tab\'s answers gets a file from the build that gave it to the tab', async () => {
+	it("a load pinned to the tab's answers gets a file from the build that gave it to the tab", async () => {
 		const world = await World.make({
 			seed: 1,
 			builds,

@@ -36,8 +36,8 @@ describe.skipIf(!ready)('a stored page', () => {
 			await world.go(after, 'goto', '/p0');
 			await world.quiesce();
 			const doc = after.page.mainFrame.document as unknown as Document;
-			const files = [...doc.querySelectorAll('ogygia-region[src]')].map(
-				(el) => el.getAttribute('src')!
+			const files = [...doc.querySelectorAll('ogygia-region[src]')].map((el) =>
+				el.getAttribute('src')!
 			);
 			expect(files.length).toBeGreaterThan(0);
 			const build = world.build_of(after.realm);
