@@ -43,7 +43,8 @@ import {
 	route_config,
 	runtime_url,
 	devtools_boot_url,
-	server_plugins
+	server_plugins,
+	handoff_problem
 } from 'ogygia:server';
 import { dev_hmr_url } from './dev-hmr-url.ts';
 import { REGION_BRAND } from './region-brand.ts';
@@ -828,6 +829,26 @@ class OgygiaHandle {
 	readonly probe_rate: RateLimiter;
 	/** a render budget spent by a proxy's address, said once (#894) */
 	readonly #shared_address = say({ max: 1 });
+	/** The client build's handoff problem, said once while it lasts (production: dev reads none). */
+	readonly #handoff_said = say({ max: 2 });
+
+	#check_handoff(): void {
+		const p = handoff_problem();
+		if (!p) {
+			this.#handoff_said.ok('missing');
+			this.#handoff_said.ok('unreadable');
+			return;
+		}
+		this.#handoff_said.once(p.kind, () =>
+			console.error(
+				new OgygiaError('island_deps_handoff_missing', {
+					kind: p.kind,
+					tried: p.tried.join(', '),
+					error: p.error ?? ''
+				})
+			)
+		);
+	}
 
 	constructor(options: OgygiaHandleOptions = {}) {
 		// (the app's own pass is @ogygia/reshape's now; a JS caller still passing it is told where)
@@ -888,6 +909,7 @@ class OgygiaHandle {
 		// the region endpoint (deferred/live holes, the per-visitor leg of a cached page) all see what
 		// it set up (flags prime their source here). Its `done` stage runs at the request's end, always
 		// (flags drain exposures: the serverless-safe tail). No plugins: straight through, no wrapper.
+		if (!import.meta.env.DEV) this.#check_handoff();
 		const facts = facts_of(event.request);
 		if (plugins.length === 0) return this.#route(event, resolve, path, NO_CTXS, facts);
 		const ctxs = request_contexts(plugins, event, path, facts, (endpoint) =>
