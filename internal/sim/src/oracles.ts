@@ -548,7 +548,7 @@ export async function mpa_equivalent(
 	// old page is the old release's, whole)
 	const build = world.build_of(tab.realm);
 	const fresh_load = (w: World, visitor: Visitor, at: string, name: string) =>
-		w.as_of(build, () => load_fresh(w, visitor, at, name));
+		w.as_of(build, () => load_fresh(w, visitor, at, name), world.answers_of(tab.realm));
 	const fresh = await fresh_load(world, v, url, 'fresh');
 	const loaded = view(fresh.tab.page.mainFrame.document as unknown as Document);
 	// (a text that changes on its own at rest is time, not state: a ticking clock in an island the
