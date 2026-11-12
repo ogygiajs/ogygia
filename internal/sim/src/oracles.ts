@@ -261,6 +261,9 @@ export function live_regions_out(s: string, which: ReadonlySet<number>): string 
 	for (let i = regions.length - 1; i >= 0; i--) {
 		if (!which.has(i)) continue;
 		const { from, to } = regions[i];
+		// (one inside another set aside goes with it: spliced first, it would have shortened the
+		// lines the outer one's end counts, which then took lines after it; gen 235, seed 15)
+		if (regions.some((r, j) => j < i && which.has(j) && r.from < from && from < r.to)) continue;
 		lines.splice(from, to - from, `${/^ */.exec(lines[from])![0]}<ogygia-region <live>>`);
 	}
 	return lines.join('\n');
