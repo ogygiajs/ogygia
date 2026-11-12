@@ -53,6 +53,8 @@ afterEach(async () => {
 	history.replaceState(null, '', home);
 	// (a fetched page's head brought its runtime stand-in)
 	for (const el of document.head.querySelectorAll('script[data-ogygia-runtime]')) el.remove();
+	// (and page B's sheet: the next test's navigation loads it again)
+	for (const el of document.head.querySelectorAll(`link[href="${HELD}"]`)) el.remove();
 	await commands.keep_downloads(HELD);
 });
 
@@ -83,5 +85,26 @@ it_with_network_routes(
 		await went;
 		expect(document.title).toBe('page B');
 		expect((page_state.data as { who?: string }).who).toBe('b');
+	}
+);
+
+it_with_network_routes(
+	"invalidateAll while a navigation waits leaves the next page's loading sheet in place (#1124)",
+	async () => {
+		await commands.hold_downloads(HELD);
+		const r = new SpaRouter();
+		r.start();
+		const went = r.navigate(new URL(NEXT, home));
+		const held = () => document.head.querySelectorAll(`link[href="${HELD}"]`);
+		await expect.poll(() => held().length, { timeout: 2_000 }).toBe(1);
+		const loading = held()[0];
+		await r.invalidateAll();
+		// (the soft refresh merged page A's head: the sheet is the navigation's, not A's)
+		expect([...held()]).toEqual([loading]);
+		await commands.keep_downloads(HELD);
+		await went;
+		// the sheet the navigation waited for is the one that styles page B: no second copy
+		expect([...held()]).toEqual([loading]);
+		expect(loading.getAttribute('media')).toBeNull();
 	}
 );
