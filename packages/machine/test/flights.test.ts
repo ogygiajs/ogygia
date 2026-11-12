@@ -1,5 +1,14 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { flights, MachineError, observe, policy, scope, STALE, type Policy } from '../src/index.ts';
+import {
+	clock,
+	flights,
+	MachineError,
+	observe,
+	policy,
+	scope,
+	STALE,
+	type Policy
+} from '../src/index.ts';
 import { macrotask } from './_tick.ts';
 import { DISPOSE } from './_dispose.ts';
 
@@ -557,7 +566,7 @@ describe('keep, max and weigh', () => {
 
 	it('a refresh that lands past its prior’s age, into a full cache no sweep has reached yet, is kept', async () => {
 		let now = 1_000_000;
-		vi.spyOn(Date, 'now').mockImplementation(() => now);
+		const spy = vi.spyOn(clock, 'mono').mockImplementation(() => now);
 		const d = deferred<string>();
 		let round = 0;
 		const pages = flights({
@@ -575,6 +584,7 @@ describe('keep, max and weigh', () => {
 		expect(await refresh).toBe('/a new');
 		expect(pages.peek('/a')).toMatchObject({ kind: 'kept', answer: '/a new', flying: false });
 		expect((pages as unknown as { _weight: number })._weight).toBe('/a new'.length);
+		spy.mockRestore();
 	});
 
 	it('a keep or weigh that throws fails the flight and keeps nothing', async () => {
