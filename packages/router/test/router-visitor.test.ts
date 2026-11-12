@@ -21,24 +21,24 @@ describe('anonymousVisitor()', () => {
 		const first = visitor(c)!;
 		expect(first.anonymous).toBe(true);
 		expect(sets).toEqual([
-			['og-vid', first.sub, { path: '/', maxAge: 365 * 86_400, httpOnly: true, sameSite: 'lax' }]
+			['og-vid', first.vid, { path: '/', maxAge: 365 * 86_400, httpOnly: true, sameSite: 'lax' }]
 		]);
-		expect(visitor(c)!.sub).toBe(first.sub);
+		expect(visitor(c)!.vid).toBe(first.vid);
 		expect(sets.length).toBe(1);
 	});
 
 	it('with no cookie jar to write, sets the cookie on the response headers', () => {
 		const headers: Record<string, string>[] = [];
 		const c = as_ctx({ setHeaders: (h: Record<string, string>) => headers.push(h) });
-		const { sub } = anonymousVisitor({ cookie: 'vid', days: 2 })(c)!;
+		const { vid } = anonymousVisitor({ cookie: 'vid', days: 2 })(c)!;
 		expect(headers).toEqual([
-			{ 'set-cookie': `vid=${sub}; Path=/; Max-Age=172800; HttpOnly; SameSite=Lax` }
+			{ 'set-cookie': `vid=${vid}; Path=/; Max-Age=172800; HttpOnly; SameSite=Lax` }
 		]);
 	});
 
 	it('mints a different random id for each new visitor', () => {
 		const visitor = anonymousVisitor();
-		const ids = new Set(Array.from({ length: 20 }, () => visitor(as_ctx({}))!.sub));
+		const ids = new Set(Array.from({ length: 20 }, () => visitor(as_ctx({}))!.vid));
 		expect(ids.size).toBe(20);
 	});
 });
