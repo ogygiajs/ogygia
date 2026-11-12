@@ -11,11 +11,6 @@ import type { Scope } from '@ogygia/machine';
 import { PAGE_DEFER_GLOBAL, PAGE_DEFER_KEY, PAGE_SETTLED_KEY } from '../page-defer.ts';
 import { escape_script_text } from '../escape.ts';
 
-// Bounds runaway recursion on a pathological/cyclic PLAIN structure only — promises are handled
-// before this cap applies (see the walkers), so a deeply-nested load promise is never abandoned.
-// Generous enough that realistic load data is always fully walked.
-const MAX_DEPTH = 64;
-
 /** A THENABLE, not just a native Promise — Kit wraps streamed load promises, so `instanceof Promise`
  *  would miss them. Anything with a callable `.then` we can await. */
 export const is_thenable = (v: unknown): v is PromiseLike<unknown> =>
@@ -33,10 +28,11 @@ export class DeferRef {
 }
 
 /** Serializable stand-in for an already-settled promise leaf (non-navigate path). Encodes to
- *  `[ok, value]`; the client revives it as a resolved/rejected Promise. */
+ *  `[ok, value]`; the client revives it as a resolved/rejected Promise. `settle_deferred` places it
+ *  during its walk and fills it when the promise settles. */
 export class SettledRef {
-	readonly ok: boolean;
-	readonly value: unknown;
+	ok: boolean;
+	value: unknown;
 
 	constructor(ok: boolean, value: unknown) {
 		this.ok = ok;
@@ -58,10 +54,109 @@ export const page_seed_reducers: Record<string, (v: unknown) => unknown> = {
 export type Deferred = { id: number; promise: PromiseLike<unknown> };
 
 /**
+ * Clone the plain part of `value` (plain objects and arrays, holes kept), putting `swap(thenable)` in
+ * place of every thenable at any depth. Class instances and primitives pass through. An object met
+ * again inside its own walk (a cycle) is its clone, so the clone keeps the cycle and every promise is
+ * swapped once; an object reached by two separate paths is cloned twice. A promise left in place would
+ * go unserialized and unhandled, so there is no depth cap: the seed's `analyze` walk, which decided
+ * there is a promise to find, has none either.
+ *
+ * Most data is shallow and has no cycle, so the first walk tracks nothing and stops at
+ * {@link UNTRACKED_DEPTH}; only then is the value walked again with every open object tracked. The
+ * first walk swaps nothing until it is done, so a value walked twice swaps each thenable once.
+ */
+function swap_thenables(
+	value: unknown,
+	swap: (thenable: PromiseLike<unknown>) => unknown
+): unknown {
+	if (is_thenable(value)) return swap(value);
+	// (flat triples: a clone, a key in it, the thenable that key holds until it is swapped)
+	const found: unknown[] = [];
+	let clone: unknown;
+	try {
+		clone = clone_untracked(value, 0, found);
+	} catch (err) {
+		if (err !== TOO_DEEP) throw err;
+		return swap_tracked(value, swap);
+	}
+	for (let i = 0; i < found.length; i += 3)
+		(found[i] as Record<PropertyKey, unknown>)[found[i + 1] as PropertyKey] = swap(
+			found[i + 2] as PromiseLike<unknown>
+		);
+	return clone;
+}
+
+/** Depth at which the untracked walk gives up: the value is deep, or it holds a cycle. */
+const UNTRACKED_DEPTH = 64;
+const TOO_DEEP = Symbol('too deep');
+
+/** `swap_thenables`' first walk: clones `v` (never a thenable) and records each thenable's slot in
+ *  `found`, in walk order. Throws {@link TOO_DEEP} at {@link UNTRACKED_DEPTH}. */
+function clone_untracked(v: unknown, depth: number, found: unknown[]): unknown {
+	if (Array.isArray(v)) {
+		if (depth === UNTRACKED_DEPTH) throw TOO_DEEP;
+		const out: unknown[] = [];
+		out.length = v.length;
+		for (let i = 0; i < v.length; i++) {
+			if (!(i in v)) continue;
+			const x: unknown = v[i];
+			if (is_thenable(x)) {
+				out[i] = x;
+				found.push(out, i, x);
+			} else out[i] = clone_untracked(x, depth + 1, found);
+		}
+		return out;
+	}
+	if (v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype) {
+		if (depth === UNTRACKED_DEPTH) throw TOO_DEEP;
+		const out: Record<string, unknown> = {};
+		for (const k in v as Record<string, unknown>) {
+			const x = (v as Record<string, unknown>)[k];
+			if (is_thenable(x)) {
+				out[k] = x;
+				found.push(out, k, x);
+			} else out[k] = clone_untracked(x, depth + 1, found);
+		}
+		return out;
+	}
+	return v;
+}
+
+/** `swap_thenables` for a deep or cyclic value: every object whose walk is open is tracked. */
+function swap_tracked(value: unknown, swap: (thenable: PromiseLike<unknown>) => unknown): unknown {
+	// (each object whose walk is open, to its clone)
+	const open = new Map<object, unknown>();
+	const walk = (v: unknown): unknown => {
+		if (is_thenable(v)) return swap(v);
+		if (Array.isArray(v)) {
+			const seen = open.get(v);
+			if (seen !== undefined) return seen;
+			const out: unknown[] = [];
+			out.length = v.length;
+			open.set(v, out);
+			for (let i = 0; i < v.length; i++) if (i in v) out[i] = walk(v[i]);
+			open.delete(v);
+			return out;
+		}
+		if (v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype) {
+			const seen = open.get(v);
+			if (seen !== undefined) return seen;
+			const out: Record<string, unknown> = {};
+			open.set(v, out);
+			for (const k in v as Record<string, unknown>)
+				out[k] = walk((v as Record<string, unknown>)[k]);
+			open.delete(v);
+			return out;
+		}
+		return v;
+	};
+	return walk(value);
+}
+
+/**
  * Replace every promise in `value` with a {@link DeferRef}, returning the promise-free clone plus the
- * deferred promises (id + promise to await). Plain objects/arrays are cloned; class instances and
- * primitives pass through untouched. Ids continue from `start_id` so `data` and `form` share one id
- * space across the whole seed. Bounded depth guards a pathological structure.
+ * deferred promises (id + promise to await), in walk order. Ids continue from `start_id` so `data` and
+ * `form` share one id space across the whole seed.
  */
 export function stage_deferred(
 	value: unknown,
@@ -69,25 +164,12 @@ export function stage_deferred(
 ): { staged: unknown; deferred: Deferred[]; next_id: number } {
 	const deferred: Deferred[] = [];
 	let id = start_id;
-	const walk = (v: unknown, depth: number): unknown => {
-		// Promises handled BEFORE the depth cap — never abandon a thenable (an abandoned one would go
-		// unserialized AND unhandled → dropped field + unhandled server rejection on reject).
-		if (is_thenable(v)) {
-			const ref = new DeferRef(id++);
-			deferred.push({ id: ref.id, promise: v });
-			return ref;
-		}
-		if (depth > MAX_DEPTH) return v;
-		if (Array.isArray(v)) return v.map((x) => walk(x, depth + 1));
-		if (v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype) {
-			const out: Record<string, unknown> = {};
-			for (const k in v as Record<string, unknown>)
-				out[k] = walk((v as Record<string, unknown>)[k], depth + 1);
-			return out;
-		}
-		return v;
-	};
-	return { staged: walk(value, 0), deferred, next_id: id };
+	const staged = swap_thenables(value, (promise) => {
+		const ref = new DeferRef(id++);
+		deferred.push({ id: ref.id, promise });
+		return ref;
+	});
+	return { staged, deferred, next_id: id };
 }
 
 /**
@@ -95,31 +177,27 @@ export function stage_deferred(
  * promise position in a {@link SettledRef} (resolved OR rejected — a rejection is caught, never
  * thrown, so the render can't crash). Nested promises inside a resolved value are settled too. The
  * client revives each SettledRef as a resolved/rejected Promise, so `page.data.x` stays a Promise on
- * this path exactly as on the streaming path, and `{#await …:catch}` works.
+ * this path exactly as on the streaming path, and `{#await …:catch}` works. The clone is built in one
+ * walk before anything settles, so its keys keep the data's order.
  */
-export async function settle_deferred(value: unknown, depth = 0): Promise<unknown> {
-	// Promises handled BEFORE the depth cap — always await a thenable (abandoning it would drop the
-	// field AND leak an unhandled rejection on reject).
-	if (is_thenable(value)) {
-		try {
-			const resolved = await value;
-			return new SettledRef(true, await settle_deferred(resolved, depth + 1));
-		} catch (err) {
-			return new SettledRef(false, normalize_error(err));
-		}
+export async function settle_deferred(value: unknown): Promise<unknown> {
+	const settling: Array<Promise<void>> = [];
+	const settled = swap_thenables(value, (promise) => {
+		const ref = new SettledRef(true, undefined);
+		settling.push(settle_into(ref, promise));
+		return ref;
+	});
+	await Promise.all(settling);
+	return settled;
+}
+
+async function settle_into(ref: SettledRef, promise: PromiseLike<unknown>): Promise<void> {
+	try {
+		ref.value = await settle_deferred(await promise);
+	} catch (err) {
+		ref.ok = false;
+		ref.value = normalize_error(err);
 	}
-	if (depth > MAX_DEPTH) return value;
-	if (Array.isArray(value)) return Promise.all(value.map((x) => settle_deferred(x, depth + 1)));
-	if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
-		const out: Record<string, unknown> = {};
-		await Promise.all(
-			Object.keys(value).map(async (k) => {
-				out[k] = await settle_deferred((value as Record<string, unknown>)[k], depth + 1);
-			})
-		);
-		return out;
-	}
-	return value;
 }
 
 /**

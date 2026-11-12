@@ -2,6 +2,7 @@ import type { Scope } from '@ogygia/machine';
 import type { FieldSnapshot, QueuedClick } from './interaction.ts';
 import { interaction_link } from './slots.ts';
 import { emit as dt_emit } from '../events/bus.ts';
+import { OG_FP } from '../wire-markup.ts';
 
 const resolve_address = (region: Element, addr: number[]) =>
 	interaction_link().resolve_address(region, addr);
@@ -87,7 +88,7 @@ export function after_wake(
 			domain: 'runtime',
 			name: 'interaction.replay',
 			entry: region.getAttribute('entry') || undefined,
-			fp: region.getAttribute('data-og-fp') || undefined,
+			fp: region.getAttribute(OG_FP) || undefined,
 			clicks: replayed,
 			fields: fields.length
 		});
