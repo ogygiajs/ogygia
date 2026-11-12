@@ -1,0 +1,19 @@
+{
+	"name": "ogygia-internal-compiler-dst",
+	"private": true,
+	"description": "Deterministic simulation of the compiler: generated apps held in memory, compiled cold and in random orders, judged by oracles (internal/notes/dst.md). Private tooling, never published.",
+	"type": "module",
+	"scripts": {
+		"check": "tsc -p . && vitest run",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@ogygia/compiler": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"fast-check": "catalog:",
+		"typescript": "catalog:tsgo",
+		"vitest": "catalog:"
+	}
+}
