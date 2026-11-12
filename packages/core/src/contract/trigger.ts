@@ -20,10 +20,30 @@ export const SCHEDULE: readonly TriggerKeyword[] = ['load', 'idle', 'visible'];
 /** A wake's (and a hole's swap's) keywords: a schedule's, and `interaction`. */
 export const WAKE: readonly TriggerKeyword[] = ['load', 'idle', 'visible', 'interaction'];
 
-/** True if `value` looks like a CSS media query (a `(` with a `)` after it). */
+/** What may stand outside a media query's conditions: its words, commas and spaces. */
+const MEDIA_WORDS_RE = /^(?:[\s,]|\b(?:and|or|not|only|all|screen|print)\b)*$/i;
+/** A name character: one directly before a top-level `(` makes it a call, not a condition. */
+const NAME_CHAR_RE = /[\w-]/;
+
+/** True if `value` is a CSS media query: balanced parenthesized conditions joined by media words
+ *  (`screen and (min-width: 600px)`), never a call like `visible(200px)` (test/trigger.test.ts). */
 export function is_media_query(value: string): boolean {
-	const open = value.indexOf('(');
-	return open !== -1 && value.indexOf(')', open) !== -1;
+	let depth = 0;
+	let conditions = 0;
+	let outside = '';
+	for (let i = 0; i < value.length; i++) {
+		const c = value[i]!;
+		if (c === '(') {
+			if (depth === 0) {
+				if (i > 0 && NAME_CHAR_RE.test(value[i - 1]!)) return false;
+				conditions++;
+			}
+			depth++;
+		} else if (c === ')') {
+			if (--depth < 0) return false;
+		} else if (depth === 0) outside += c;
+	}
+	return depth === 0 && conditions > 0 && MEDIA_WORDS_RE.test(outside);
 }
 
 /** `value` as a trigger, when it is a keyword `allow` holds or a media query; else `null`. */
