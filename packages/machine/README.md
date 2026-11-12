@@ -327,6 +327,10 @@ if (token !== null) try { /* … */ } finally { recorder.free(token); }
 await recorder.acquire(signal); // waits its turn
 ```
 
+## Clocks
+
+`clock.mono()` is milliseconds on the monotonic clock, for every duration inside one process: a TTL, a deadline, a budget. A wall-clock step (an NTP correction, a VM resume) never moves it. `clock.wall()` is `Date.now()`, for a timestamp that leaves the process. A `flights` keep and a `policy` deadline are measured on `mono`; a kept answer's `at` is a wall timestamp.
+
 ## Saying it once
 
 ```ts
