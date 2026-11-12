@@ -9,8 +9,8 @@
  * - **Buggify points.** Each rare branch a run was asked about, whether the swarm turned it on, and
  *   how often it fired (`World.buggified`).
  *
- * The browser realms only: a server's machines are bundled into its build, where the simulator does
- * not hear them.
+ * Every realm: each document's moves, and each server instance's (core's server rules keep them
+ * under `Symbol.for('ogygia.server.moves')`, in the instance's own registry).
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';

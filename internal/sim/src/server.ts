@@ -143,6 +143,9 @@ export interface ServerInstance {
 	serves(path: string): boolean;
 	/** Removes its copy of the build (its modules stay loaded in this process). */
 	stop(): void;
+	/** Its machine moves so far, one line each (core's server rules keep its last lines), or '' in a
+	 *  build without rules. */
+	moves(): string;
 }
 
 /**
@@ -237,7 +240,13 @@ export async function start_server(
 				)
 			),
 		serves: (path) => files.client.has(path),
-		stop: () => rmSync(dir, { recursive: true, force: true })
+		stop: () => rmSync(dir, { recursive: true, force: true }),
+		moves: () => {
+			const read = (globalThis as Record<symbol, unknown>)[
+				Symbol.for(`${tag}\u0000ogygia.server.moves`)
+			];
+			return typeof read === 'function' ? String(read()) : '';
+		}
 	};
 	return instance;
 }

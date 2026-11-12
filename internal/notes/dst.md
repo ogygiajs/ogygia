@@ -254,7 +254,16 @@ flights' entry steps. A run's steps come from each document's moves (`__ogygia_m
 every action: the log keeps only its last lines). Each run also reports each buggify point: asked,
 on, fired. The summary prints one line, and `results.json` holds per machine what was reached and
 what is still missing, the machines no run touched, and steps a run took that no definition names.
-Browser realms only: a server's machines are bundled into its build, out of the simulator's hearing.
+A server's moves too: in a rules build core's server rules keep its last 5000 under
+`Symbol.for('ogygia.server.moves')`, which the simulator reads from each instance's own registry.
+
+`--guided N` searches by coverage: a run that reaches a step or fires a point no run before it had
+is kept (its seed and its actions); most next runs mutate a kept one (its first actions up to a
+random cut, then a new tail from a stream of its own, half the time under a new mix of action kinds:
+a swarm over what the visitor does), the rest are fresh seeds. A run's workload can be spelled out
+(`Plan`: actions, then a tail stream, a mix); a failure's plan goes to `internal/sim/plans/` and
+`pnpm sim --plan <file>` replays it (the search checks that it gives the same trace). The search's
+own choices hang on which run ends first, so it does not replay as a whole; each run in it does.
 
 ## Findings
 

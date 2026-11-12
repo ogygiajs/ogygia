@@ -265,13 +265,18 @@ export async function run(
 		 *  so it is read after every action. */
 		const moves_read = new Map<string, number>();
 		const hear_moves = (): void => {
-			for (const t of v.tabs) {
-				const w = t.page.mainFrame.window as unknown as { __ogygia_moves?: () => string };
-				const { lines, total } = new_moves(
-					w.__ogygia_moves?.() ?? '',
-					moves_read.get(t.realm) ?? 0
-				);
-				moves_read.set(t.realm, total);
+			const logs: Array<[string, string]> = v.tabs.map((t) => [
+				t.realm,
+				(
+					t.page.mainFrame.window as unknown as { __ogygia_moves?: () => string }
+				).__ogygia_moves?.() ?? ''
+			]);
+			// (and each server's, the app's and its peers')
+			for (const s of [...[...world.servers.values()].flat(), ...world.peers.values()])
+				logs.push([`server ${s.build.id} ${s.name}`, s.moves()]);
+			for (const [realm, text] of logs) {
+				const { lines, total } = new_moves(text, moves_read.get(realm) ?? 0);
+				moves_read.set(realm, total);
 				for (const line of lines) {
 					const s = step_of_move(line);
 					if (s !== null) steps_taken[s] = (steps_taken[s] ?? 0) + 1;
