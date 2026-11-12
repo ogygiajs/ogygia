@@ -12,7 +12,6 @@
  * intercepted click. A visitor who never leaves the page never downloads it.
  */
 import { flights, random, STALE, type Scope, type Stale } from '@ogygia/machine';
-import { fragment_is_top, fragment_target } from './fragment.ts';
 import { import_again } from './import-again.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
 import { create_navigation, type Navigation } from './navigation.ts';
@@ -129,7 +128,20 @@ const PRELOAD_MARKED_ANCHORS = `[data-sveltekit-preload-data] a[href], [data-sve
  *  which the browser handles. A fragment that matches nothing is an app-managed one (a table row
  *  keyed by the hash): the browser would scroll to the top for it, so the router takes it over. */
 function hash_target_exists(hash: string): boolean {
-	return fragment_is_top(hash) || !!fragment_target(hash);
+	if (!hash || hash === '#') return true;
+	const raw = hash.slice(1);
+	let dec = raw;
+	try {
+		dec = decodeURIComponent(raw);
+	} catch {
+		// ok: not percent-encoded: the raw hash is the id
+	}
+	if (raw === 'top' || dec === 'top') return true;
+	return !!(
+		document.getElementById(dec) ||
+		document.getElementById(raw) ||
+		document.getElementsByName(dec).length
+	);
 }
 
 /** Same document = pathname + search. Hash is not part of document identity. */
@@ -180,10 +192,18 @@ export function jump_to_hash(hash: string): void {
 	const prev = html_el.style.scrollBehavior;
 	html_el.style.scrollBehavior = 'auto';
 	try {
-		const el = fragment_target(hash);
-		if (el) {
-			el.scrollIntoView();
-			return;
+		if (hash) {
+			let id: string;
+			try {
+				id = decodeURIComponent(hash.startsWith('#') ? hash.slice(1) : hash);
+			} catch {
+				id = hash.startsWith('#') ? hash.slice(1) : hash;
+			}
+			const el = document.getElementById(id);
+			if (el) {
+				el.scrollIntoView();
+				return;
+			}
 		}
 		window.scrollTo(0, 0);
 	} finally {

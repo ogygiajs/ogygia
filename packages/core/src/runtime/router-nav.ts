@@ -15,7 +15,6 @@
  * way.
  */
 import { boot_link, router_link, slots } from './slots.ts';
-import { fragment_target } from './fragment.ts';
 import { clock, net } from '@ogygia/machine';
 import { dispose_scope } from '../ref.ts';
 import {
@@ -444,7 +443,7 @@ export function apply_late_templates(root: ParentNode): void {
  * (#278). The loan is the element's, not the page's: an element kept across a navigation (inside a
  * kept island) still gives its `tabindex` back when focus leaves it on the next page.
  */
-function focus_reset(el: HTMLElement | SVGElement) {
+function focus_reset(el: HTMLElement) {
 	const is_body = el === document.body || el === document.documentElement;
 	if (lent.has(el)) {
 		el.focus({ preventScroll: true }); // (still focusable: its loan waits for the blur)
@@ -468,7 +467,7 @@ function focus_reset(el: HTMLElement | SVGElement) {
 }
 
 /** The elements whose `tabindex` a navigation's focus lent until they blur, with their own value. */
-const lent = new WeakMap<HTMLElement | SVGElement, string | null>();
+const lent = new WeakMap<HTMLElement, string | null>();
 
 // ── navigation state (one per document lifetime, module-level: this chunk loads once) ──────────
 /** A page as a fetch got it: its HTML and the address it belongs to (where the fetch landed, after
@@ -1296,8 +1295,11 @@ function reset_focus(hash: string, kept: string | null = null) {
 	// back or forward to a page whose entry kept the element that had focus when it was left
 	const was = kept ? document.getElementById(kept) : null;
 	if (was) return focus_reset(was);
-	const target = fragment_target(hash);
-	if (target instanceof HTMLElement || target instanceof SVGElement) return focus_reset(target);
+	if (hash) {
+		const id = decodeURIComponent(hash.slice(1));
+		const target = id ? document.getElementById(id) : null;
+		if (target) return focus_reset(target);
+	}
 	const autofocus = document.querySelector<HTMLElement>('[autofocus]');
 	if (autofocus) {
 		autofocus.focus();
