@@ -78,6 +78,7 @@ const { version } = require('../package.json') as { version: string };
 
 const PROTOCOL_VERSION = '2024-11-05';
 const SERVER_NAME = 'ogygia';
+// static: the import-attribute keys that mark a region, a fixed list
 const MARK_KEYS = new Set(['wake', 'fetch', 'render', 'region', 'keep', 'preset', 'margin']);
 
 type Attrs = Record<string, unknown>;
@@ -1660,6 +1661,7 @@ async function tool_profile_open(args: Attrs): Promise<ToolResult> {
 
 // ── ogygia_scan — walk a real project, map every island + lint the whole codebase ──────────────────
 
+// static: the folders a project scan never walks into, a fixed list
 const SKIP_DIRS = new Set([
 	'node_modules',
 	'.svelte-kit',
