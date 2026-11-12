@@ -286,24 +286,11 @@ export class LoadSlot {
 		drain();
 	}
 
-	/** Its class now: the getter's, or its flight's (or the one it was lifted to) when that is more
-	 *  urgent. */
+	/** Its class now: the getter's, or its flight's when that is more urgent. */
 	cls(): LoadClass {
 		const c = this.#read();
 		const flight = this.#flight;
-		const p = Math.max(flight === null ? -1 : flight.priority, this.#lifted);
-		return p > PRIORITY[c] ? class_at(p) : c;
-	}
-
-	/** The priority `promote` lifted it to (-1: none). */
-	#lifted = -1;
-
-	/** Lift it to `c` by hand (the router's prefetch, which is not on a flight's priority yet); a
-	 *  class below one it was lifted to changes nothing. */
-	promote(c: LoadClass): void {
-		if (PRIORITY[c] <= this.#lifted) return;
-		this.#lifted = PRIORITY[c];
-		drain();
+		return flight !== null && flight.priority > PRIORITY[c] ? class_at(flight.priority) : c;
 	}
 
 	/** Out of the queue: the holder's `ready` resolves, counted in the background window when it
