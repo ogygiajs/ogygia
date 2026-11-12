@@ -14,6 +14,7 @@ import {
 	type Timeline,
 	type TimelineInput
 } from './timeline.ts';
+import { cache } from '@ogygia/machine';
 import { handle_parts } from './source-scan.ts';
 import { another_routes_file } from './route-files.ts';
 import { app_relative } from './app-path.ts';
@@ -28,8 +29,10 @@ export interface CallFrame {
 
 /** script id → its url, learned from every CPU profile: V8's heap sampler leaves `url` empty for a
  *  script made from a string (the dev server's modules: `new AsyncFunction(code)` with a
- *  `//# sourceURL`), where the CPU profiler names it. Ids hold for the life of the process */
-const script_urls = new Map<string, string>();
+ *  `//# sourceURL`), where the CPU profiler names it. Ids hold for the life of the process; a dev
+ *  server's reloads make new scripts, so the least recently used go past the bound (such a frame
+ *  keeps its empty url) */
+const script_urls = cache<string, string>({ name: 'profiler script urls', max: 50_000 });
 
 export function learn_script_urls(
 	profile: { nodes?: readonly ProfileNode[] } | null | undefined
@@ -442,6 +445,7 @@ const OGYGIA_OWN_RE = /\/(?:ogygia|@ogygia\/core|packages\/core)\/(?:src|dist)\/
  *  `.svelte` from a dependency is compiled by the consumer), so in a production profile they sit
  *  at a chunk URL with the component's name and no `.svelte` path to vouch for them — and every
  *  island page renders `Region` once per island, so it would top the Components table. */
+// static: a fixed list of component names
 const OGYGIA_WRAPPERS = new Set([
 	'Region',
 	'SlotBoundary',
@@ -463,6 +467,7 @@ export function strip_bundler_suffix(name: string): string {
 }
 
 /** SvelteKit endpoint/handler exports — capitalized, but not components. */
+// static: a fixed list of function names
 const handler_names = new Set([
 	'GET',
 	'POST',
@@ -1055,7 +1060,7 @@ export class SourceMapResolver {
 		for (let k = 1; k <= 3; k++) {
 			const m = this.resolve(url, line + k, 0);
 			if (!m) continue;
-			return m.source.includes('virtual:') ? undefined : m;
+			return m.source.includes('virtual:') || m.source.includes('ogygia:') ? undefined : m;
 		}
 		return undefined;
 	}
