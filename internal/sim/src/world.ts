@@ -366,7 +366,10 @@ export class World {
 			await this.loop.settle();
 			const next = this.loop.next_at;
 			// (something on the wire is work in flight, however slow the leg: never rest)
-			const quiet = this.loop.next_of('net') === Infinity;
+			// (nor is a request a server is still working on: its answer is not a task until it
+			// comes, and the server's own timer may be due past the gap, a hole that renders in 3 s;
+			// seed 46, /ooo)
+			const quiet = this.loop.next_of('net') === Infinity && this.network.unanswered() === 0;
 			if (next > end || (quiet && next > this.loop.now + gap) || next > this.loop.horizon) return;
 			await this.loop.step();
 		}

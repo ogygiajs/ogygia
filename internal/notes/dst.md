@@ -130,6 +130,23 @@ faulted one. Every other page is compared with a fresh load from the build that 
 A page's unhandled rejection reaches its own window (`unhandledrejection`), as in a browser; it
 went to the host process, where nothing told it from the simulator's own.
 
+## Outages
+
+The `outage` action is a whole flow: the visitor follows a link, presses a button, or does
+nothing (a stream or a hole's fetch already on its way); some ms in (0 to 500) the connection
+drops, for 1 s to 2 min, then comes back. Going offline fails what the tab has on the wire, as a
+lost connection does: a request not yet answered fails to fetch, a body still coming (a page, a
+live stream) breaks off (`Exchange.lost`).
+
+THE OUTAGE OVER, THE PAGE RECOVERS: a document only an outage touched (no other fault) is
+MPA-checked at rest like any other (`outage-recovery`): an answer it gave up on while offline is
+owed once the network is back (#891). Set aside: a document whose own load failed (the browser's
+error page, an empty document), and one a script or stylesheet of which failed to load (a browser
+never loads one again; ogygia says `runtime_load_failed`).
+
+Rest waits for requests a server is still working on (a hole that renders in 3 s): its answer is
+not a loop task until it comes.
+
 ## Running many
 
 `pnpm sim --runs 200 [--from 41] [--steps 30] [--jobs N]`: seeds run in a pool of worker

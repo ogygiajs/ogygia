@@ -16,7 +16,18 @@ export type Action =
 	| { kind: 'open'; path: string }
 	| { kind: 'offline' | 'online'; tab: number }
 	| { kind: 'wait'; ms: number }
-	| { kind: 'deploy' };
+	| { kind: 'deploy' }
+	| {
+			kind: 'outage';
+			tab: number;
+			/** What the visitor does as it starts: follow a link, press a button, or nothing (a live
+			 *  stream or a hole's fetch already on its way). */
+			during: 'click' | 'press' | 'wait';
+			nth: number;
+			/** ms after that before the connection drops, and how long it stays down. */
+			after: number;
+			lasts: number;
+	  };
 
 export function describe(a: Action): string {
 	switch (a.kind) {
@@ -32,6 +43,8 @@ export function describe(a: Action): string {
 			return `wait ${a.ms} ms`;
 		case 'deploy':
 			return 'deploy the next build';
+		case 'outage':
+			return `tab ${a.tab}: ${a.during === 'wait' ? 'an outage' : `${a.during} #${a.nth}, then an outage`} ${a.after} ms in, for ${a.lasts} ms`;
 		default:
 			return `tab ${a.tab}: ${a.kind}`;
 	}
@@ -81,8 +94,45 @@ export function next_action(
 		[{ kind: 'online', tab }, 1],
 		[{ kind: 'wait', ms: rng.pick([16, 100, 1000, 5000]) }, 2],
 		// (weight 0 when there is nothing to deploy: the draw is then the same as without it)
-		[{ kind: 'deploy' }, deploys ? 0.6 : 0]
+		[{ kind: 'deploy' }, deploys ? 0.6 : 0],
+		// the connection dropping for a while, as on a train: mid-navigation, mid-press, mid-stream
+		[
+			{
+				kind: 'outage',
+				tab,
+				during: rng.pick(['click', 'press', 'wait'] as const),
+				nth: rng.int(1000),
+				after: rng.pick([0, 5, 20, 100, 500]),
+				lasts: rng.pick([1000, 5000, 30_000, 120_000])
+			},
+			1
+		]
 	]);
+}
+
+/** Clicks link `nth` (of the tab's links, wrapping); false when it has none. */
+function click(world: World, tab: Tab, nth: number, origin: string): boolean {
+	const found = links(tab, origin);
+	if (found.length === 0) return false;
+	const link = found[nth % found.length];
+	// (the trace names the link, so a shrunk repro can click it by its address)
+	world.loop.note(`${tab.name} clicks ${link.getAttribute('href')}`);
+	link.click();
+	return true;
+}
+
+/** Presses button `nth` in the tab's regions (wrapping); false when it has none. */
+function press(world: World, tab: Tab, nth: number): boolean {
+	const found = buttons(tab);
+	if (found.length === 0) return false;
+	const button = found[nth % found.length];
+	const region = button.closest('ogygia-region');
+	// (the trace names the button by its region and text, so a shrunk repro can find it)
+	world.loop.note(
+		`${tab.name} presses "${(button.textContent ?? '').trim().slice(0, 40)}" in ${region?.getAttribute('entry') ?? '?'}`
+	);
+	button.click();
+	return true;
 }
 
 /** Does `a` in `world`, as `visitor`; runs the world to rest after it. */
@@ -94,28 +144,22 @@ export async function act(
 ): Promise<void> {
 	const tab = 'tab' in a ? visitor.tabs[a.tab % Math.max(1, visitor.tabs.length)] : undefined;
 	switch (a.kind) {
-		case 'click': {
-			if (tab === undefined) return;
-			const found = links(tab, origin);
-			if (found.length === 0) return;
-			const link = found[a.nth % found.length];
-			// (the trace names the link, so a shrunk repro can click it by its address)
-			world.loop.note(`${tab.name} clicks ${link.getAttribute('href')}`);
-			link.click();
-			await world.quiesce();
+		case 'click':
+			if (tab !== undefined && click(world, tab, a.nth, origin)) await world.quiesce();
 			return;
-		}
-		case 'press': {
+		case 'press':
+			if (tab !== undefined && press(world, tab, a.nth)) await world.quiesce();
+			return;
+		case 'outage': {
 			if (tab === undefined) return;
-			const found = buttons(tab);
-			if (found.length === 0) return;
-			const button = found[a.nth % found.length];
-			const region = button.closest('ogygia-region');
-			// (the trace names the button by its region and text, so a shrunk repro can find it)
-			world.loop.note(
-				`${tab.name} presses "${(button.textContent ?? '').trim().slice(0, 40)}" in ${region?.getAttribute('entry') ?? '?'}`
-			);
-			button.click();
+			if (a.during === 'click') click(world, tab, a.nth, origin);
+			else if (a.during === 'press') press(world, tab, a.nth);
+			await world.loop.run(a.after);
+			world.loop.note(`${tab.name} goes offline`);
+			world.network.offline(tab.name, true);
+			await world.loop.run(a.lasts);
+			world.loop.note(`${tab.name} is back online`);
+			world.network.offline(tab.name, false);
 			await world.quiesce();
 			return;
 		}
