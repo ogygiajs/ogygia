@@ -2465,12 +2465,16 @@
 			"reason": "one substring test and the declared-package lookup (a CompileCtx, hidden state), constant work per declared root"
 		},
 		{
-			"id": "packages/core/src/messages/build.ts > BUILD_ERRORS > macro_outside_app > text",
+			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > text",
 			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
 		},
 		{
-			"id": "packages/core/src/messages/build.ts > BUILD_ERRORS > macro_outside_app > details",
+			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > details",
 			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > credentialed",
+			"reason": "two header lookups on the request (a Request, not cloneable), once per request, constant work; proven in packages/postrender/test/plugin.test.ts"
 		},
 		{
 			"id": "packages/core/src/hooks.ts > OgygiaHandle > #pass_document",
