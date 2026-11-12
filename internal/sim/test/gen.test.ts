@@ -90,6 +90,29 @@ describe('the random app', () => {
 		}
 	});
 
+	it("some islands' markup changes in the next release, and nothing else's", () => {
+		const nodes = Array.from({ length: 30 }, (_, i) => plan(i + 1)).flatMap((pages) =>
+			all(pages.flatMap((p) => p.roots))
+		);
+		const changing = nodes.filter((n) => n.changes);
+		expect(changing.length).toBeGreaterThan(0);
+		for (const n of changing) expect(n.kind).toBe('island');
+		const seed = Array.from({ length: 30 }, (_, i) => i + 1).find((s) =>
+			all(plan(s).flatMap((p) => p.roots)).some((n) => n.changes)
+		)!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			const pages = plan(seed);
+			write(app, pages, seed);
+			for (const n of all(pages.flatMap((p) => p.roots))) {
+				const src = readFileSync(join(app, 'src', 'lib', 'gen', `N${n.id}.svelte`), 'utf8');
+				expect(src.includes("VITE_SIM_BUILD === 'v2'")).toBe(n.changes === true);
+			}
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
 	it('draws held and live regions, never in place of a hole', () => {
 		const seeds = Array.from({ length: 30 }, (_, i) => i + 1);
 		const nodes = seeds.flatMap((s) => all(plan(s).flatMap((p) => p.roots)));

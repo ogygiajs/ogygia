@@ -48,6 +48,9 @@ export interface GenNode {
 	readonly placeholder?: boolean;
 	/** A live region's ticks, this many ms apart. */
 	readonly every?: number;
+	/** An island whose markup the next release changes (an element only build v2 renders), as a
+	 *  release changes a component: what hydrates one build's HTML with the other's code meets. */
+	readonly changes?: boolean;
 	readonly children: readonly GenNode[];
 }
 
@@ -133,12 +136,22 @@ export function plan(seed: number): GenPage[] {
 		n.kind === 'hole' && n.fallback && k.chance(0.4) ? { ...n, keep: true } : n;
 	// (and whether a page is stored, from its own)
 	const s = rng(seed).fork('gen postrender');
+	// (and whether an island's markup changes in the next release, from its own)
+	const c = rng(seed).fork('gen release');
+	const release = (n: GenNode): GenNode => {
+		const children = n.children.map(release);
+		return n.kind === 'island' && c.chance(0.3)
+			? { ...n, children, changes: true }
+			: { ...n, children };
+	};
 	const node = trees(r, held);
 	const pages = r.between(3, 6);
 	return Array.from({ length: pages }, (_, i) => ({
 		path: `/p${i}`,
 		roots: Array.from({ length: r.between(1, 4) }, () => node(0)).map(keep)
-	})).map((page) => (s.chance(0.3) ? { ...page, postrender: true } : page));
+	}))
+		.map((page) => (s.chance(0.3) ? { ...page, postrender: true } : page))
+		.map((page) => ({ ...page, roots: page.roots.map(release) }));
 }
 
 /** A widget the peer app serves (`federate({ widgets })`): a root holding a region tree. */
@@ -367,6 +380,9 @@ function component(n: GenNode): string {
 		'</script>',
 		'',
 		`<div data-gen="${n.kind}" data-build={import.meta.env.VITE_SIM_BUILD}>`,
+		...(n.changes
+			? ["\t{#if import.meta.env.VITE_SIM_BUILD === 'v2'}<em data-gen-new>new in v2</em>{/if}"]
+			: []),
 		'\t<span>{label}</span>',
 		...(interactive
 			? ['\t<button onclick={() => (count += 1)}>{label} pressed {count}</button>']
