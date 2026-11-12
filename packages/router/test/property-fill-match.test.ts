@@ -89,6 +89,12 @@ describe('fill, read back through the URL parser', () => {
 		// a rest value keeps its `/`, so a dot piece of it is a dot segment
 		expect(() => fill('/f/[...rest]', { rest: 'a/../b' })).toThrow(/dot segment/);
 		expect(fill('/f/[...rest]', { rest: 'a/.b/c' })).toBe('/f/a/.b/c');
+		// …and an empty piece is an empty segment: refused, so a value never builds `//host`
+		// (a URL of another origin) or a path that routes elsewhere
+		expect(() => fill('/[...p]', { p: '/evil.example.com' })).toThrow(/empty segment/);
+		expect(() => fill('/f/[...rest]', { rest: 'a//b' })).toThrow(/empty segment/);
+		expect(() => fill('/f/[...rest]', { rest: 'a/' })).toThrow(/empty segment/);
+		expect(fill('/[...p]', { p: '' })).toBe('/');
 		// a dot inside a segment is kept: the URL parser drops only a whole `.` or `..` segment
 		expect(fill('/d/[id].json', { id: '.' })).toBe('/d/..json');
 		expect(fill('/posts/[id]', { id: '...' })).toBe('/posts/...');
