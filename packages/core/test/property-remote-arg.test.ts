@@ -84,10 +84,17 @@ const under = (key: string) => (v: unknown) => {
 
 /** Send `value` as a browser would and decode it as the server does: plain data, or a refusal. */
 function decode(value: unknown): 'plain' | 'refused' {
-	const json = devalue.stringify(value, {
-		Region: under('Region'),
-		OgygiaRef: under('OgygiaRef')
-	});
+	let json: string;
+	try {
+		json = devalue.stringify(value, {
+			Region: under('Region'),
+			OgygiaRef: under('OgygiaRef')
+		});
+	} catch (e) {
+		// (devalue sends no `__proto__` key, so a browser's call never carries one: not an argument)
+		if (e instanceof devalue.DevalueError && e.message.includes('__proto__')) fc.pre(false);
+		throw e;
+	}
 	let out: unknown;
 	try {
 		out = devalue.parse(json, decoders);
