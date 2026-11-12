@@ -22,6 +22,7 @@ import { install, platform } from './platform.ts';
 import { rng, type Rng } from './rng.ts';
 import {
 	current_server,
+	own_env,
 	own_symbols,
 	start_server,
 	type Build,
@@ -156,7 +157,9 @@ export class World {
 		});
 		const restore_platform = install(globalThis, host);
 		const restore_symbols = own_symbols();
+		const restore_env = own_env();
 		const restore = () => {
+			restore_env();
 			restore_symbols();
 			restore_platform();
 		};
@@ -209,7 +212,12 @@ export class World {
 			const scratch = o.scratch ?? join(peer.build.output, '..', 'sim');
 			w.peers.set(
 				peer.origin,
-				await start_server(`peer-${new URL(peer.origin).hostname}`, peer.build, scratch)
+				await start_server(
+					`peer-${new URL(peer.origin).hostname}`,
+					peer.build,
+					peer.origin,
+					scratch
+				)
 			);
 		}
 		return w;
@@ -328,7 +336,7 @@ export class World {
 			const list: ServerInstance[] = [];
 			for (let i = 0; i < (this.#o.instances ?? 1); i++) {
 				const skew = this.#o.skew ? r.between(-this.#o.skew, this.#o.skew) : 0;
-				list.push(await start_server(`server-${i}`, build, scratch, skew));
+				list.push(await start_server(`server-${i}`, build, ORIGIN, scratch, skew));
 			}
 			this.servers.set(build.id, list);
 		}
