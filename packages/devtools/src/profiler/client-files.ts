@@ -1,11 +1,3 @@
-/**
- * Where the BROWSER's scripts live on disk: a browser CPU trace names its frames by URL
- * (`https://site/_app/immutable/chunks/X.js`), and the source maps for those chunks sit next to
- * the built client files, not on the server's chunk paths. These helpers find the client output
- * dir and turn an app asset URL into the local file, so the same resolver that names server
- * frames names browser frames too. Pure; the host supplies `exists`.
- */
-
 /** Kit's client output dirs to try, most likely first: the adapter's layout (`build/index.js` →
  *  `build/client`), Kit's own output during `vite preview`, and the two under the cwd. */
 export function client_dir_candidates(
@@ -27,18 +19,20 @@ export function client_dir_candidates(
 }
 
 /** The path of an app asset inside the client dir (`/base/_app/immutable/chunks/X.js` →
- *  `_app/immutable/chunks/X.js`), or undefined when the URL is not one of the app's own. */
+ *  `_app/immutable/chunks/X.js`), or undefined when the URL is not one of the app's own, or would
+ *  walk out of the client dir (a `..` or empty segment). */
 export function app_asset_rel(pathname: string): string | undefined {
 	const i = pathname.indexOf('/_app/');
 	if (i === -1) return undefined;
 	const rel = pathname.slice(i + 1);
-	// never let a crafted resource name walk out of the client dir
 	if (rel.split('/').some((s) => s === '..' || s === '')) return undefined;
 	return rel;
 }
 
 /** A finder from URL to local file: same-origin app assets only, the first client dir that has
- *  the file wins, cached per URL. `origin` is the page's origin (the beacon's request origin). */
+ *  the file wins, cached per URL. `origin` is the page's origin (the beacon's request origin). A
+ *  browser CPU trace names its frames by URL, and their source maps sit beside the built client
+ *  files, so this lets the resolver that names server frames name browser frames too. */
 export function client_file_finder(
 	origin: string | undefined,
 	dirs: readonly string[],

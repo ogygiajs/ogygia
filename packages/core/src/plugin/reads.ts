@@ -1,7 +1,10 @@
+import type { RequestEvent } from '@sveltejs/kit';
+import { slot as shared } from '@ogygia/machine';
+
 /**
- * READS: what a render read that is not the same for every visitor, or for every page (its read set).
- * A cache keeps a render only for the callers it is the same for (server/render-cache.ts, a plugin's
- * page store). Every way ogygia learns of such a read notes it here, and nowhere else:
+ * One render's read set: what it read that is not the same for every visitor, or for every page. A
+ * cache keeps a render only for the callers it is the same for (server/render-cache.ts, a plugin's
+ * page store). Every way ogygia learns of such a read notes it in one:
  *
  * - a flag decided for the visitor (`@ogygia/flags`), a streamed load, a plugin's `ctx.perVisitor`;
  * - a cookie, personal header, `locals` value, client address, platform value or credentialed
@@ -10,14 +13,11 @@
  *   render's identity, not the visitor's: ogygia's own look-up of it is no read at all.
  *
  * A request's facts hold its read set (`facts.reads`). Work that may be kept (a cached hole render)
- * runs in its own set under it (server/read-trace.ts): a read lands in the innermost set and in every
- * set around it, so a hole rendered into a page makes that page per-visitor too.
+ * runs in its own set under it, its `parent` (server/read-trace.ts): a read lands in the innermost
+ * set and in every set around it, so a hole rendered into a page makes that page per-visitor too.
+ * A plain shape, not a class: core's own types and its built types (and a plugin's copy of this
+ * module) must agree on it.
  */
-import type { RequestEvent } from '@sveltejs/kit';
-import { slot as shared } from '@ogygia/machine';
-
-/** One render's read set (and, through its parent, the sets around it). A plain shape, not a class:
- *  core's own types and its built types (and a plugin's copy of this module) must agree on it. */
 export interface Reads {
 	/** The first per-visitor input read (`flag:<name>`, `cookie:<name>`, `header:<name>`,
 	 *  `locals.<key>`, a plugin's reason), or null. */
@@ -54,13 +54,12 @@ export function read_set(parent: Reads | null = null): Reads {
 }
 
 interface ReadsSlot {
-	/** server/read-trace.ts: the read set of the work running now, or undefined outside one */
 	open: (() => Reads | undefined) | null;
 }
-// (one global slot: a plugin package and core can be two module instances of this file)
 const slot = shared<ReadsSlot>({ name: 'ogygia.reads', version: 1, make: () => ({ open: null }) });
 
-/** Core only (server/read-trace.ts): how the read set of the running work is found. */
+/** Core only (server/read-trace.ts): how the read set of the running work is found. One slot for
+ *  the process, so a plugin package and core that load two copies of this module share it. */
 export function set_open_reads(fn: (() => Reads | undefined) | null): void {
 	slot.open = fn;
 }
@@ -74,12 +73,9 @@ export function open_reads(): Reads | undefined {
 export function note_visitor_read(request_reads: Reads, input: string): void {
 	const open = open_reads();
 	open?.visitor(input);
-	// (the running work's set already passes it up to the request's when it is under it)
 	request_reads.visitor(input);
 }
 
-/** Personal request headers: reading one is a per-visitor read. Everything else (host,
- *  sec-fetch-*, accept-encoding, …) is delivery plumbing. */
 // static: a fixed list of header names
 const PERSONAL_HEADERS: ReadonlySet<string> = new Set([
 	'cookie',
@@ -99,7 +95,6 @@ const PERSONAL_HEADERS: ReadonlySet<string> = new Set([
 	'x-session',
 	'x-session-id'
 ]);
-/** Headers a host or proxy adds per visitor by name: the client's address, where it is, who it is. */
 const PERSONAL_HEADER_RE =
 	/client-ip|connecting-ip|(?:^|-)ip(?:-|$)|country|city|geo|latitude|longitude|postal|timezone|session|auth|token|user-id/;
 
@@ -108,8 +103,6 @@ function is_personal_header(name: string): boolean {
 	return PERSONAL_HEADERS.has(n) || PERSONAL_HEADER_RE.test(n);
 }
 
-/** Members of `platform` that are the same for every request: the app's bindings, and the
- *  platform's hand-off for work past the response. Everything else there is per request. */
 // static: the platform members every request shares
 const SHARED_PLATFORM: ReadonlySet<string> = new Set(['env', 'caches']);
 // static: the platform context members every request shares
@@ -118,8 +111,6 @@ const SHARED_PLATFORM_CONTEXT: ReadonlySet<string> = new Set([
 	'passThroughOnException'
 ]);
 
-/** Default-valued reads are the same for everyone: undefined/null/''/false, an empty plain object,
- *  an empty array. (The cookie-less render: what a visitor without the cookie or user sees.) */
 function is_default_value(value: unknown): boolean {
 	if (value === undefined || value === null || value === '' || value === false) return true;
 	if (Array.isArray(value)) return value.length === 0;
@@ -138,7 +129,14 @@ const observed = new WeakSet<Request>();
  * Note the event's personal reads from now on: a cookie, a personal header (by name, by `has`, or
  * the headers read whole while one is there, a clone's too), a `locals` value that is not its
  * default (a function there included), the client address, per-request `platform` data, and a
- * `fetch` Kit sends the visitor's credentials with. Patches `event.cookies.get`/`getAll`, the
+ * `fetch` Kit sends the visitor's credentials with. A default (`undefined`, `null`, `''`, `false`,
+ * an empty plain object or array) is the same for everyone: what a visitor without the cookie or
+ * user sees. A personal header is one of a fixed list (`cookie`, `authorization`,
+ * `accept-language`, `user-agent`, `referer`, the forwarding and `x-user` / `x-session` ones) or one a
+ * host or proxy adds per visitor (the client's address, where it is, who it is); the rest (`host`,
+ * `sec-fetch-*`, `accept-encoding`, …) is delivery plumbing. Of `platform`, only the app's bindings
+ * (`env`, `caches`) and the hand-off for work past the response are the same for every request.
+ * Patches `event.cookies.get`/`getAll`, the
  * request's headers and `clone`, and `event.locals`/`fetch`/`getClientAddress`/`platform` in place
  * (Kit and its WeakMap-keyed internals keep the same objects), once per request. A read lands in the
  * read set of the work running then, and in the request's. Every kind is a case in
@@ -168,7 +166,6 @@ export function observe_reads(event: RequestEvent, request_reads: Reads): void {
 
 	watch_request(event.request, note);
 
-	// (SvelteKit 3 types `locals` as readonly; at runtime it is a plain property on both 2 and 3)
 	(event as { locals: App.Locals }).locals = new Proxy(event.locals, {
 		get(target, prop, receiver) {
 			const value = Reflect.get(target, prop, receiver);
