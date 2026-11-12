@@ -554,6 +554,15 @@ function region_response(
 	});
 }
 
+/** A visitor over a budget: the 429 says when its window resets, so a hole asks again after it
+ *  instead of spending its tries inside the window (#959, test/browser/hole-rate-limited.test.ts). */
+function over_budget(limiter: RateLimiter, ip: string): Response {
+	return region_response('Too Many Requests', {
+		status: 429,
+		headers: { 'retry-after': String(limiter.retry_after_s(ip)) }
+	});
+}
+
 /** Why a region request was refused. `foreign-key`: the capability names another signing key than
  *  this deployment's — the page and its islands endpoint came from different deployments. */
 type RegionDeny =
@@ -1940,9 +1949,7 @@ class OgygiaHandle {
 		}
 
 		// Pre-HMAC probe — forged floods hit this, not render() (HMAC-CPU-DOS).
-		if (this.probe_rate.limited(ip)) {
-			return region_response('Too Many Requests', { status: 429 });
-		}
+		if (this.probe_rate.limited(ip)) return over_budget(this.probe_rate, ip);
 
 		if (renewal) {
 			const fresh = this.#renew_capability(cap, event);
@@ -1968,9 +1975,7 @@ class OgygiaHandle {
 		const renew_headers: Record<string, string> = renewed ? { 'x-ogygia-capability': renewed } : {};
 
 		// Valid capability — now charge the per-IP render budget.
-		if (this.render_rate.limited(ip)) {
-			return region_response('Too Many Requests', { status: 429 });
-		}
+		if (this.render_rate.limited(ip)) return over_budget(this.render_rate, ip);
 
 		// Its own id, or (minted by another build) an entry of this build rendering its component.
 		const target = capability_target(cap);
