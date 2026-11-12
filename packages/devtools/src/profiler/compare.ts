@@ -777,6 +777,7 @@ export interface PathDelta {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 /** finding codes about the recording's conditions, not the page's code (compare leaves them out) */
+// static: a fixed list of finding codes
 const RUN_STATE_CODES = new Set([
 	'cold-start',
 	'cold-instance',

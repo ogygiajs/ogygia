@@ -3,7 +3,14 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { load_kit_dirs } from '../src/vite/kit-dirs.ts';
-import { kit_dirs, set_kit_dirs, keep_client_dir, KEEP_CLIENT_DIR } from '../src/compiler/kit.ts';
+import {
+	kit_dirs,
+	set_kit_dirs,
+	kit_inline_style_threshold,
+	set_kit_inline_style_threshold,
+	keep_client_dir,
+	KEEP_CLIENT_DIR
+} from '../src/compiler/kit.ts';
 import { islandDepsHandoffPath, island_deps_module } from '../src/compiler/link/island-deps.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -99,6 +106,19 @@ describe('kit.files.routes / kit.outDir', () => {
 		});
 		set_kit_dirs(root, { routes_dir: join(root, 'r'), out_dir: join(root, 'o') });
 		expect(kit_dirs(root).routes_dir).toBe(join(root, 'r'));
+	});
+
+	it('a root keeps what was set however many other roots one process configures (it cannot be read again here)', () => {
+		const first = '/apps/first';
+		set_kit_dirs(first, { routes_dir: '/apps/first/r', out_dir: '/apps/first/o' });
+		set_kit_inline_style_threshold(first, 4096);
+		for (let i = 0; i < 200; i++) {
+			const root = `/apps/other-${i}`;
+			set_kit_dirs(root, { routes_dir: `${root}/r`, out_dir: `${root}/o` });
+			set_kit_inline_style_threshold(root, 0);
+		}
+		expect(kit_dirs(first).routes_dir).toBe('/apps/first/r');
+		expect(kit_inline_style_threshold(first)).toBe(4096);
 	});
 
 	it('the SSR deps reader falls back to the configured outDir under cwd, not `.svelte-kit`', () => {

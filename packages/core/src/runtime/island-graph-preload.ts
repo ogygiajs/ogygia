@@ -21,6 +21,7 @@ import {
 } from '../island-graph.ts';
 import { note_entry_location } from './entry-locations.ts';
 import { code_url } from './code-origins.ts';
+import { cache } from '@ogygia/machine';
 import { runtime_session } from './session.ts';
 
 const GRAPH_SELECTOR = `script[${ISLAND_GRAPH_ATTR}]`;
@@ -29,7 +30,7 @@ const MODULEPRELOAD_SELECTOR = 'link[rel="modulepreload"]';
 export const GRAPH_PRELOAD_ATTR = 'data-ogygia-graph-preload';
 
 /** entry URL (absolute) → its chunk URLs (absolute). */
-const graph = new Map<string, string[]>();
+const graph = cache<string, string[]>({ name: 'island graph', max: 5000 });
 let read_scripts = new WeakSet<Element>();
 
 type Priority = 'high' | 'auto' | 'low';
@@ -110,8 +111,8 @@ export function preload_island_graph(
 	for (const href of hrefs) {
 		// (a chunk on an origin the page loads no code from is never asked for: ./code-origins.ts)
 		if (code_url(href) === null) continue;
-		if (seen.has(href)) {
-			const ours = seen.get(href);
+		const ours = seen.get(href);
+		if (ours !== undefined) {
 			if (ours && RANK[priority] < RANK[priority_of(ours)])
 				ours.setAttribute('fetchpriority', priority);
 			continue;
