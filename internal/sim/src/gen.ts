@@ -99,6 +99,13 @@ export interface GenNode {
 	 *  element whose children are partly its own, which a repair that lined up names no conflict for
 	 *  (the gen app's client says any conflict named on the console: apps/sim-gen/src/sim-client.ts). */
 	readonly thirdParty?: 'prepend' | 'retag' | 'text';
+	/** An island with a `<svelte:head>` of its own (stream `gen head`): a `<meta>` in an `{#if}` and a
+	 *  `<style>`, rendered into the document's head, whose page copy the island's live copy retires
+	 *  once it wakes (one copy: the waste check sees a `<style>` held twice). `drift`: a third party's
+	 *  script puts an element of its own at the start of that head block once the document is parsed,
+	 *  where Svelte's head hydration would walk into it (the runtime takes every island's head off
+	 *  that walk first). Only one that wakes on its own, in the page's own HTML. */
+	readonly head?: 'own' | 'drift';
 	readonly children: readonly GenNode[];
 }
 
@@ -306,8 +313,36 @@ export function plan(seed: number): GenPage[] {
 		.map((page) => (hr.chance(0.4) ? { ...page, hero: true } : page))
 		.map((page) => ({ ...page, roots: page.roots.map(switching) }))
 		.map(flagging(seed))
-		.map(third_party(seed));
+		.map(third_party(seed))
+		.map(heads(seed));
 }
+
+/** Some islands have a `<svelte:head>` of their own (their own stream, `gen head`), and a third
+ *  party edits some of those head blocks: an island that wakes on its own, in the page's own HTML. */
+function heads(seed: number): (page: GenPage) => GenPage {
+	const h = rng(seed).fork('gen head');
+	const walk = (n: GenNode, page: boolean): GenNode => {
+		const children = n.children.map((c) =>
+			walk(c, page && (n.kind === 'island' || n.kind === 'plain'))
+		);
+		const can = page && n.kind === 'island' && (n.wake === 'load' || n.wake === 'idle') && !n.empty;
+		if (can && h.chance(0.3)) return { ...n, children, head: h.chance(0.5) ? 'drift' : 'own' };
+		return { ...n, children };
+	};
+	return (page) => ({ ...page, roots: page.roots.map((n) => walk(n, true)) });
+}
+
+/** The third party's script after an island whose head block it edits (`head: 'drift'`): once the
+ *  document is parsed, an element of its own right after the block's open marker (the comment before
+ *  the island's `<style>` that is no block anchor). */
+const head_drift_script = (id: number): string =>
+	`{@html '<scr' + 'ipt>${[
+		'document.addEventListener("DOMContentLoaded",function(){',
+		`var n=document.head.querySelector("style[data-gen-head=n${id}]");`,
+		'while(n&&(n=n.previousSibling))if(n.nodeType===8&&n.data&&n.data[0]!=="["&&n.data!=="]")break;',
+		'if(n){var m=document.createElement("meta");m.setAttribute("data-gen-third-party","");n.after(m);}',
+		'})'
+	].join('')}</scr' + 'ipt>'}`;
 
 /** Some islands a third party's script changes while they sleep (their own stream, `gen third
  *  party`): an island that wakes on its own, in the page's own HTML (under islands and plain markup
@@ -572,7 +607,8 @@ ${indent}</N${n.id}>`;
 	const since = n.dated ? ` since={new Date(${n.id * 86_400_000})}` : '';
 	const blob = n.big ? ` blob={'x'.repeat(100_000)}` : '';
 	const third = n.thirdParty ? `\n${indent}${THIRD_PARTY[n.thirdParty]}` : '';
-	return `${indent}<N${n.id} label="n${n.id}"${since}${blob} />${third}`;
+	const drift = n.head === 'drift' ? `\n${indent}${head_drift_script(n.id)}` : '';
+	return `${indent}<N${n.id} label="n${n.id}"${since}${blob} />${third}${drift}`;
 }
 
 /** A held or live region's remote module: the query that returns it (and the command that changes
@@ -705,6 +741,15 @@ function component(n: GenNode): string {
 				: []),
 		'</script>',
 		'',
+		...(n.head
+			? [
+					'<svelte:head>',
+					`\t{#if label}<meta name="gen-head-n${n.id}" content={label} />{/if}`,
+					`\t<style data-gen-head="n${n.id}">.h${n.id} { color: inherit; }</style>`,
+					'</svelte:head>',
+					''
+				]
+			: []),
 		`<div data-gen="${n.kind}"${n.style ? ` class="g${n.id}"` : ''} data-build={import.meta.env.VITE_SIM_BUILD}>`,
 		...(n.changes
 			? ["\t{#if import.meta.env.VITE_SIM_BUILD === 'v2'}<em data-gen-new>new in v2</em>{/if}"]

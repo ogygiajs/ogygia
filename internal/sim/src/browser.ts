@@ -59,6 +59,12 @@ export interface Tab {
 	readonly said_by: Map<string, string>;
 	/** The document's simulated platform (its outstanding timers, for the leak oracle). */
 	platform: ReturnType<typeof platform> | null;
+	/** Behind another of its visitor's tabs (`Browsers.focus`): its document's `visibilityState` is
+	 *  `hidden`, and its animation frames wait until it is shown, as a browser's do. */
+	hidden: boolean;
+	/** The realms of its documents that were ever shown (a document loaded behind and never looked
+	 *  at is not among them). */
+	readonly seen: Set<string>;
 	/** What the shown document holds now (the leak oracle's sample). */
 	held(): Held;
 	/** The listeners it holds, each as `window|document <type> <its code's hash>` (with
@@ -140,6 +146,9 @@ export interface BrowsersOptions {
 	buggify?: (realm: string, point: string) => boolean;
 	/** How each document's resource timing reads (./timeline.ts). Default `status`. */
 	timeline?: Engine;
+	/** Whether the engine has `requestIdleCallback` (Safari ships none: code that waits for an idle
+	 *  moment takes its own fallback there). Default true. */
+	idle?: boolean;
 }
 
 export class Browsers {
@@ -342,7 +351,8 @@ export class Browsers {
 			loop: this.#o.loop,
 			rng: this.#o.rng,
 			buggify: this.#o.buggify,
-			born: started.at
+			born: started.at,
+			hidden: () => tab.hidden
 		};
 		const p = platform(options);
 		// (the document's own performance, its clock the realm's; before `install`, which sets the
@@ -357,6 +367,19 @@ export class Browsers {
 		stamp(window, 'responseStart');
 		stamp(window, 'responseEnd');
 		install(window, p);
+		if (!tab.hidden) tab.seen.add(tab.realm);
+		// (a tab behind another says so, as a browser's does: `Browsers.focus`)
+		for (const [key, value] of [
+			['visibilityState', () => (tab.hidden ? 'hidden' : 'visible')],
+			['hidden', () => tab.hidden]
+		] as const)
+			Object.defineProperty(window.document, key, { get: value, configurable: true });
+		// (an engine with no idle callbacks: Safari)
+		if (this.#o.idle === false) {
+			const w = window as unknown as Record<string, unknown>;
+			delete w.requestIdleCallback;
+			delete w.cancelIdleCallback;
+		}
 		if ((window as unknown as { MessageChannel?: unknown }).MessageChannel === undefined)
 			Object.defineProperty(window, 'MessageChannel', {
 				value: message_channel(this.#o.loop, tab.realm),
@@ -663,6 +686,29 @@ export class Browsers {
 	}
 
 	/** Opens a tab for `v` (blank until it goes somewhere). */
+	/**
+	 * The visitor looks at `tab`: it is shown, and each other tab of theirs goes behind it (one window,
+	 * tabs in a row). A tab whose visibility changed hears `visibilitychange`; one shown again gets the
+	 * animation frames it asked for while hidden. Whether `tab` was hidden.
+	 */
+	focus(v: Visitor, tab: Tab): boolean {
+		const was_hidden = tab.hidden;
+		for (const t of v.tabs) {
+			const hidden = t !== tab;
+			if (t.hidden === hidden) continue;
+			t.hidden = hidden;
+			this.#o.loop.note(`${t.name} ${hidden ? 'hidden' : 'shown'}`);
+			const doc = t.page.mainFrame.document as unknown as Document;
+			const view = doc.defaultView as (Window & typeof globalThis) | null;
+			if (view) doc.dispatchEvent(new view.Event('visibilitychange'));
+			if (!hidden) {
+				t.seen.add(t.realm);
+				t.platform?.shown();
+			}
+		}
+		return was_hidden;
+	}
+
 	open(v: Visitor): Tab {
 		const name = `tab-${++this.#tabs}`;
 		const page = v.browser.newPage();
@@ -678,6 +724,8 @@ export class Browsers {
 			errors: [],
 			console: [],
 			platform: null,
+			hidden: false,
+			seen: new Set(),
 			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 }),
 			listening: () => [],
 			watching: () => [],
