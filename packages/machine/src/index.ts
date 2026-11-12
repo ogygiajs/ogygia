@@ -43,6 +43,7 @@ export { registry, type KeyedRegistry, type Registry } from './registry.ts';
 export { defineRun, defining } from './define.ts';
 export { lock, type Lock, type LockToken } from './lock.ts';
 export {
+	buggify,
 	clock,
 	net,
 	random,

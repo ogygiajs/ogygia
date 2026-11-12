@@ -42,7 +42,8 @@ const WORK_COPY_SKIP_RE = /node_modules|\.svelte-kit|(^|\/)build($|\/)|\.work/;
 const SSR_TITLE_RE = /data-title/;
 // The runtime script the HTML loads: its LOCATION, the content-hashed file the bundler named (under
 // `immutable/` every file is named by its content).
-const RUNTIME_SCRIPT_RE = /<script type="module" data-ogygia-runtime[^>]*? src="([^"]+)"/;
+// (the response's mark leads the tag's attributes: RESPONSE-MARK)
+const RUNTIME_SCRIPT_RE = /<script[^>]*? data-ogygia-runtime[^>]*? src="([^"]+)"/;
 const RUNTIME_LOCATION_RE = /\/_app\/immutable\/og-runtime(-[^/.]+)?\.[\w-]{8}\.js$/;
 const RUNTIME_CHUNK_RE = /^og-runtime(-[^/.]+)?\.[\w-]{8}\.js$/;
 const HYDRATION_ERR_RE = /hydrat/i;

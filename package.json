@@ -36,6 +36,7 @@
 		"lint:test": "node --test internal/lint/*.test.ts internal/checks/*.test.ts",
 		"sim": "pnpm --filter ogygia-internal-sim sim",
 		"sim:long": "pnpm --filter ogygia-internal-sim sim:long",
+		"sim:builds": "pnpm --filter ogygia-internal-sim sim:builds",
 		"ci:test": "node --test .github/scripts/*.test.ts"
 	},
 	"devDependencies": {
