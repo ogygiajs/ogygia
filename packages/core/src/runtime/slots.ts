@@ -114,11 +114,12 @@ export type PageOps = {
  */
 export type FrameOps = {
 	subscribe(a: string, cb: (f: Frame) => void): () => void;
-	/** `STALE` when its `signal` aborted: only that caller leaves the fetch. */
+	/** `STALE` when its `signal` aborted: only that caller leaves the fetch. A join at a higher
+	 *  `priority` (a load class's, ./load-class.ts) raises the fetch it joins. */
 	ensure(
 		a: string,
-		fetcher: (signal: AbortSignal) => Promise<string>,
-		opts?: { force?: boolean; signal?: AbortSignal }
+		fetcher: import('./frame-store.ts').FrameFetcher,
+		opts?: { force?: boolean; signal?: AbortSignal; priority?: number }
 	): Promise<string | Stale>;
 	/** A renewal answered a fresh capability for this address; and the one it answered, if any. */
 	renew(a: string, fresh: string): void;
@@ -179,8 +180,11 @@ export type BootLink = {
 	yield_task: typeof import('./schedule.ts').yield_task;
 	/** the `regionHydrate` subscribers around Svelte's hydrate over server markup (./client-plugins.ts) */
 	region_hydrate: typeof import('./client-plugins.ts').client_region_hydrate;
-	/** the load scheduler's queue (./load-scheduler.ts) */
+	/** the load scheduler's queue (./load-scheduler.ts), and a load class as a flight priority and
+	 *  as a fetch priority (./load-class.ts) */
 	LoadSlot: typeof import('./load-scheduler.ts').LoadSlot;
+	PRIORITY: typeof import('./load-class.ts').PRIORITY;
+	fetch_priority_of: typeof import('./load-class.ts').fetch_priority_of;
 	/** DOM ownership (./ownership.ts): which children Svelte's walk enters, and self-owned elements */
 	walk_enters: typeof import('./ownership.ts').walk_enters;
 	is_self_owned: typeof import('./ownership.ts').is_self_owned;
