@@ -98,6 +98,9 @@ export interface RequestContext<Options = undefined, State = undefined> {
 	readonly event: RequestEvent;
 	/** The decoded pathname. */
 	readonly path: string;
+	/** This request renders on behalf of a page it is not (a remote function call, the islands
+	 *  endpoint): its URL may be that page's, but it is not a request for the page. */
+	readonly forPage: boolean;
 	/** This plugin's per-request state, from its `state()`. */
 	readonly state: State;
 	readonly options: Options;
