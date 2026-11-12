@@ -15,7 +15,7 @@ import zlib from 'node:zlib';
 import {
 	PROFILER_MAPS_PLACEHOLDER,
 	PROFILER_MAPS_GZ_PREFIX as GZ_PREFIX
-} from '@ogygia/core/internal/compiler-ids';
+} from '@ogygia/compiler/ids';
 import { build_module_map } from './module-map.ts';
 import { client_maps_stash } from './server-sourcemaps.ts';
 
