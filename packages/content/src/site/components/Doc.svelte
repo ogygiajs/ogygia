@@ -100,11 +100,11 @@
 
 		{#if footer}<div class="og-doc-footer">{@render footer()}</div>{/if}
 
-		{#if suggested && view.trail.suggested.length}
+		{#if suggested && reading.length}
 			<nav class="og-suggested" aria-label="Keep reading">
 				<p class="og-suggested-label">Keep reading</p>
 				<ul class="og-suggested-list">
-					{#each view.trail.suggested as r (r.slug)}
+					{#each reading as r (r.slug)}
 						<li>
 							<a class="og-suggested-card" href={r.href}>
 								<span class="og-suggested-title">{r.title}</span>

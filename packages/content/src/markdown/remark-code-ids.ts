@@ -19,6 +19,7 @@
  * **before** mdsvex's own `highlight_blocks` (which is appended after all remark plugins), so the id
  * is on `code.meta` by the time the highlighter sees the node.
  */
+import { fnv1a32 } from '@ogygia/core/plugin/utils';
 
 // ── regexes
 const WS_G = /\s+/g;
@@ -36,14 +37,10 @@ type MdNode = {
  *  fence info flag; the highlighter strips it before doing anything else with meta. */
 export const CODE_ID_META = 'ogygia-code-id';
 
-/** FNV-1a → base36. Tiny, stable, no crypto — collisions are disambiguated by the caller anyway. */
+/** FNV-1a → base36 (core's `fnv1a32`). Tiny, stable, no crypto — collisions are disambiguated by the
+ *  caller anyway. */
 export function hash_code(text: string): string {
-	let h = 2166136261;
-	for (let i = 0; i < text.length; i++) {
-		h ^= text.charCodeAt(i);
-		h = Math.imul(h, 16777619);
-	}
-	return (h >>> 0).toString(36);
+	return fnv1a32(text).toString(36);
 }
 
 export function remarkCodeIds() {
