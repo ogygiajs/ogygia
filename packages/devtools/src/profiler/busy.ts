@@ -16,10 +16,13 @@ const PROFILER_BUSY: Policy = policy({
 	deadline: 120_000
 });
 
-/** The wait before the next ask, after a 409: its `Retry-After` (seconds), else the policy's. */
-function busy_wait(res: Response): number {
+/** The wait before the next ask, after a 409: its `Retry-After` (seconds), else the policy's; never
+ *  past what is left of the deadline (`left` ms), so no header asks for a wait no timer takes
+ *  (test/devtools-profile-busy.test.ts). */
+function busy_wait(res: Response, left: number): number {
 	const after = Number(res.headers.get('retry-after')) * 1000;
-	return Number.isFinite(after) && after > 0 ? after : (PROFILER_BUSY.backoff as number);
+	const wait = Number.isFinite(after) && after > 0 ? after : (PROFILER_BUSY.backoff as number);
+	return Math.max(0, Math.min(wait, left));
 }
 
 /** What a caller shows while it waits: each ask as it starts, each wait for a busy worker (with
@@ -48,7 +51,7 @@ export async function fetch_when_free(
 		const waited = clock.mono() - started;
 		if (n >= PROFILER_BUSY.attempts || waited > PROFILER_BUSY.deadline) return res;
 		busy?.(waited);
-		const wait = busy_wait(res);
+		const wait = busy_wait(res, PROFILER_BUSY.deadline - waited);
 		void res.body?.cancel().catch(() => {}); // ok: only the status and the header are read
 		const slept = await owner.task(() => new Promise<void>((r) => owner.timeout(r, wait)));
 		if (slept === STALE) return STALE;

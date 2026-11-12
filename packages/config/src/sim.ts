@@ -155,11 +155,21 @@ const encoder = new TextEncoder();
 const noop = (): void => {};
 
 const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env;
+/** A whole number from the environment (a seed, a run count), or undefined when unset. Anything
+ *  else throws: a typo must not run with `NaN` as its seed (core's test/property-seeded.test.ts). */
 const env_number = (name: string): number | undefined => {
 	const v = env?.[name];
-	return v === undefined || v === '' ? undefined : Number(v);
+	if (v === undefined || v === '') return undefined;
+	const n = Number(v);
+	if (!Number.isSafeInteger(n))
+		throw new Error(`${name} must be a whole number, not ${JSON.stringify(v)}`);
+	return n;
 };
 const only = env?.OGYGIA_SIM_ONLY || undefined;
+
+// Every property a test runs through this `fc` is seeded (314 unless `OGYGIA_FUZZ_SEED` says), so
+// CI tries the same inputs every time; a test's own `seed` wins (core's test/property-seeded.test.ts).
+fc.configureGlobal({ ...fc.readConfigureGlobal(), seed: env_number('OGYGIA_FUZZ_SEED') ?? 314 });
 
 class Run implements Sim {
 	readonly s: fc.Scheduler;
