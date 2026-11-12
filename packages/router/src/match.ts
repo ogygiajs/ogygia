@@ -148,15 +148,35 @@ export function match_one(c: CompiledPattern, pathname: string): PathMatch | nul
 	return { pattern: c.pattern, params };
 }
 
-const fill_token = /\[(\.\.\.)?\[?([a-zA-Z_$][\w$]*)\]?\]/g;
+const fill_token = /(\/?)\[(\.\.\.)?(\[)?([a-zA-Z_$][\w$]*)\]?\]/g;
 
-/** Fills a pattern's `[param]`, `[[optional]]` and `[...rest]` tokens from `params`, URL-encoded;
- *  a missing one becomes empty. */
+/** Fills a pattern's `[param]`, `[[optional]]` and `[...rest]` tokens from `params`, URL-encoded
+ *  as Kit's `resolve()` writes them: a rest value keeps its `/` (each segment encoded), and an
+ *  empty optional or rest param that is a whole segment drops that segment. A missing `[param]`
+ *  becomes empty. */
 export function fill(pattern: string, params: Record<string, string | number>): string {
-	return pattern.replace(fill_token, (_m, _rest, name: string) => {
-		const val = params[name];
-		return val == null ? '' : encodeURIComponent(String(val));
-	});
+	const out = pattern.replace(
+		fill_token,
+		(
+			m,
+			slash: string,
+			rest: string | undefined,
+			optional: string | undefined,
+			name: string,
+			at: number
+		) => {
+			const val = params[name] == null ? '' : String(params[name]);
+			if (val === '' && (rest || optional)) {
+				const end = at + m.length;
+				if (slash && (end === pattern.length || pattern[end] === '/')) return '';
+			}
+			return (
+				slash + (rest ? val.split('/').map(encodeURIComponent).join('/') : encodeURIComponent(val))
+			);
+		}
+	);
+	// (a pattern that was only dropped segments is the root)
+	return out === '' && pattern !== '' ? '/' : out;
 }
 
 const MAX_PATH = 8192;
