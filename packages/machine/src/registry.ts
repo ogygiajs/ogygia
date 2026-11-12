@@ -22,12 +22,17 @@ export interface Registry<T> {
 	readonly size: number;
 	/** The entries, in add order. */
 	[Symbol.iterator](): Iterator<T>;
+	/** The entries now, in add order, as one array kept until the next add or removal: a walk of
+	 *  it is not cut short by a removal during the walk, and a walk with nothing changed since the
+	 *  last copies nothing. Read it, never write it. */
+	snapshot(): readonly T[];
 }
 
 // (closures, not classes: their state is locals the minifier shortens)
 function make_registry<T>(): Registry<T> {
 	/** By each add's own scope (one per add: the same value added twice is two entries). */
 	const entries = new Map<Scope, T>();
+	let list: readonly T[] | null = null;
 	return {
 		get size(): number {
 			return entries.size;
@@ -36,11 +41,18 @@ function make_registry<T>(): Registry<T> {
 			if (owner.closed) return () => {};
 			const life = owner.child();
 			entries.set(life, entry);
-			life.defer(() => entries.delete(life));
+			list = null;
+			life.defer(() => {
+				entries.delete(life);
+				list = null;
+			});
 			return () => life.close();
 		},
 		[Symbol.iterator](): Iterator<T> {
 			return entries.values();
+		},
+		snapshot(): readonly T[] {
+			return (list ??= [...entries.values()]);
 		}
 	};
 }
@@ -65,36 +77,41 @@ export interface KeyedRegistry<K, V> {
 }
 
 function make_keyed<K, V>(): KeyedRegistry<K, V> {
-	const map = new Map<K, { value: V; life: Scope }>();
+	// (the values in a map of their own: entries() and values() are its own iterators, no copy)
+	const values = new Map<K, V>();
+	const lives = new Map<K, Scope>();
 	return {
 		get size(): number {
-			return map.size;
+			return values.size;
 		},
 		set(key: K, value: V, owner: Scope): () => void {
 			if (owner.closed) return () => {};
-			const old = map.get(key);
-			map.delete(key);
-			old?.life.close();
+			const old = lives.get(key);
+			values.delete(key);
+			lives.delete(key);
+			old?.close();
 			const life = owner.child();
-			const held = { value, life };
-			map.set(key, held);
+			values.set(key, value);
+			lives.set(key, life);
 			// (only its own: a later set under the key holds another)
 			life.defer(() => {
-				if (map.get(key) === held) map.delete(key);
+				if (lives.get(key) !== life) return;
+				values.delete(key);
+				lives.delete(key);
 			});
 			return () => life.close();
 		},
 		get(key: K): V | undefined {
-			return map.get(key)?.value;
+			return values.get(key);
 		},
 		has(key: K): boolean {
-			return map.has(key);
+			return values.has(key);
 		},
-		*entries(): IterableIterator<[K, V]> {
-			for (const [key, held] of map) yield [key, held.value];
+		entries(): IterableIterator<[K, V]> {
+			return values.entries();
 		},
-		*values(): IterableIterator<V> {
-			for (const held of map.values()) yield held.value;
+		values(): IterableIterator<V> {
+			return values.values();
 		}
 	};
 }

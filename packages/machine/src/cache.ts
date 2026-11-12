@@ -92,6 +92,9 @@ export interface Cache<K, V> {
 
 type Held<V> = { value: V; weight: number; until: number; stamp: number };
 
+/** No key (a key may be any value, `undefined` too). */
+const NO_KEY = {};
+
 /** The least time between two sweeps of the ages, in ms. */
 const SWEEP_MS = 1000;
 
@@ -120,6 +123,10 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 	const world = o.world as World<unknown> | undefined;
 	/** Least recently used first. */
 	const held = new Map<K, Held<V>>();
+	/** The key set or used last, and what it holds: `held`'s last, so its use moves nothing and
+	 *  needs no lookup. Every way a value leaves `held` forgets it (`NO_KEY`). */
+	let newest: unknown = NO_KEY;
+	let newest_h: Held<V> | undefined;
 	let weight_now = 0;
 	/** The age timer's stop, and when it fires (`Infinity`: none set). */
 	let stop_timer: () => void = () => {};
@@ -136,6 +143,7 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 		for (const [key, h] of held) {
 			if (h.until > now || (except !== undefined && key === except)) continue;
 			held.delete(key);
+			if (key === newest) newest = NO_KEY;
 			weight_now -= h.weight;
 			due.push([key, h.value, 'age']);
 		}
@@ -144,8 +152,7 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 	/** Room for `weight` in place of what `key` holds: past max, the expired go first, then the
 	 *  least recently used that are not pinned. When those cannot make the room, none goes for
 	 *  size and the answer is `false`. */
-	const room_for = (now: number, key: K, weight: number): boolean => {
-		const h0 = held.get(key);
+	const room_for = (now: number, key: K, weight: number, h0: Held<V> | undefined): boolean => {
 		const room = max - weight + (h0 === undefined ? 0 : h0.weight);
 		let over = weight_now - room;
 		if (over <= 0) return true;
@@ -164,6 +171,7 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 		for (const k of go) {
 			const h = held.get(k)!;
 			held.delete(k);
+			if (k === newest) newest = NO_KEY;
 			weight_now -= h.weight;
 			due.push([k, h.value, 'size']);
 		}
@@ -199,6 +207,7 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 	const let_all_go = (why: EvictWhy): void => {
 		for (const [key, h] of held) due.push([key, h.value, why]);
 		held.clear();
+		newest = NO_KEY;
 		weight_now = 0;
 		stop_timer();
 		timer_at = Infinity;
@@ -215,11 +224,11 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 		telling = true;
 		try {
 			for (let i = 0; i < due.length; i++) {
-				const [key, value, why] = due[i]!;
+				const d = due[i]!;
 				try {
-					on_evict(key, value, why);
+					on_evict(d[0], d[1], d[2]);
 				} catch (error) {
-					report('machine_evict_failed', { name, why }, error);
+					report('machine_evict_failed', { name, why: d[2] }, error);
 				}
 			}
 		} finally {
@@ -239,7 +248,8 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 			return weight_now;
 		},
 		get(key: K): V | undefined {
-			const h = held.get(key);
+			const is_newest = key === newest;
+			const h = is_newest ? newest_h : held.get(key);
 			if (h === undefined) return undefined;
 			// (one past its age goes, noticed 'age')
 			if (!(h.until > clock.mono())) {
@@ -247,8 +257,12 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 				tell();
 				return undefined;
 			}
-			held.delete(key);
-			held.set(key, h);
+			if (!is_newest) {
+				held.delete(key);
+				held.set(key, h);
+				newest = key;
+				newest_h = h;
+			}
 			return h.value;
 		},
 		peek(key: K): V | undefined {
@@ -273,18 +287,21 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 			const ms = typeof keep === 'function' ? keep(value, key) : keep;
 			const weight = weigh === undefined ? 1 : weigh(value, key);
 			if (!(ms > 0) || !(weight >= 0 && weight <= max)) return false;
-			if (!room_for(now, key, weight)) {
+			if (!room_for(now, key, weight, old)) {
 				tell();
 				return false;
 			}
 			if (old !== undefined) {
-				held.delete(key);
+				// (room_for never lets `key` go: the newest is still last, and a set in place keeps it so)
+				if (key !== newest) held.delete(key);
 				weight_now -= old.weight;
 				// (a replace, whatever the old value's age: the key goes on holding a value)
 				due.push([key, old.value, 'delete']);
 			}
 			const until = ms === Infinity ? Infinity : now + ms;
-			held.set(key, { value, weight, until, stamp });
+			newest_h = { value, weight, until, stamp };
+			held.set(key, newest_h);
+			newest = key;
 			weight_now += weight;
 			// (the new value due before the timer: the timer moves to it, no walk of the others)
 			const at = Math.max(until, swept_at + SWEEP_MS);
@@ -296,6 +313,7 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 			const h = held.get(key);
 			if (h === undefined) return false;
 			held.delete(key);
+			if (key === newest) newest = NO_KEY;
 			weight_now -= h.weight;
 			due.push([key, h.value, 'delete']);
 			tell();
