@@ -125,6 +125,11 @@ describe('the workload', () => {
 		);
 		expect(pick(buttons, 1, undefined).name).toBe('button Cart "remove"');
 		expect(pick(buttons, 0, 'button Cart "remove"').el.textContent).toBe('remove');
+		// (a region's entry by its file, without the build's hash: the next build names it the same)
+		const hashed = page(
+			'<ogygia-region entry="/_app/ogygia/og-region.0f905d6bd24b.js"><button>go</button></ogygia-region>'
+		);
+		expect(pick(hashed, 0, undefined).name).toBe('button og-region "go"');
 		// (what it named is gone: its draw picks, and the pick says it missed)
 		const gone = pick(first, 0, 'link /gone');
 		expect(gone.missed).toBe(true);
