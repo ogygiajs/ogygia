@@ -61,12 +61,16 @@ export function register_island_graph(text: string, base: string = location.href
 	}
 }
 
-function read_document_graphs(): void {
+/** Reads the graph scripts not read yet: whether there was one. */
+function read_document_graphs(): boolean {
+	let read = false;
 	for (const s of document.querySelectorAll(GRAPH_SELECTOR)) {
 		if (read_scripts.has(s)) continue;
 		read_scripts.add(s);
 		register_island_graph(s.textContent ?? '');
+		read = true;
 	}
+	return read;
 }
 
 /** Chunk URLs (absolute) linked in the document now: ours with our link, or a modulepreload someone
@@ -99,8 +103,8 @@ export function preload_island_graph(
 	if (typeof document === 'undefined') return;
 	const key = absolute(entry, base);
 	if (!key) return;
-	if (!graph.has(key)) read_document_graphs();
-	const hrefs = graph.get(key);
+	let hrefs = graph.get(key);
+	if (hrefs === undefined && read_document_graphs()) hrefs = graph.get(key);
 	if (!hrefs || hrefs.length === 0) return;
 	const seen = linked_now();
 	for (const href of hrefs) {
