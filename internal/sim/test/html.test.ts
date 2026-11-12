@@ -82,6 +82,39 @@ describe('html sent', () => {
 		expect((await html_sent(world(null)))?.oracle).toBe('html-sent');
 	});
 
+	it("sets aside another document's answer of a peer page the app kept from a tampered hop (gen 195, seed 25)", async () => {
+		// (the app keeps a peer's page documents, `cache: { ttl }`: a later request of the same page
+		// is answered from the changed copy, with no hop of its own)
+		const world = {
+			html: [
+				{
+					from: 'tab-1#6',
+					url: 'https://app.test/peer/q0',
+					whole: true,
+					html: Promise.resolve(page('<ma6n data-gen="peer-page">x</main>'))
+				}
+			],
+			network: {
+				exchanges: [
+					{
+						id: 2,
+						from: 'server-1',
+						for: 'tab-1#5',
+						method: 'GET',
+						url: 'https://peer.test/og/fragment/page?path=%2Fq0',
+						at: 0,
+						status: 200,
+						cut: false,
+						tampered: true,
+						duplicated: false,
+						redirected: false
+					}
+				]
+			}
+		} as unknown as World;
+		expect(await html_sent(world)).toBe(null);
+	});
+
 	it('reads attribute text with quotes, `>` and unicode in it', () => {
 		const tree = source_tree('<div title="a > b" data-x=\'"q"\' data-u="é😀"><p>ok</p></div>');
 		expect(tree.unbalanced).toEqual([]);
