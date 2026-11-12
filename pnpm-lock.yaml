@@ -844,6 +844,25 @@ importers:
 
   internal/heisenbench: {}
 
+  internal/html-fuzz:
+    dependencies:
+      fast-check:
+        specifier: 'catalog:'
+        version: 4.10.2
+      parse5:
+        specifier: 'catalog:'
+        version: 8.0.1
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.2
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
   internal/kit-sources:
     devDependencies:
       '@sveltejs/kit3':
@@ -1074,9 +1093,9 @@ importers:
       fast-check:
         specifier: 'catalog:'
         version: 4.10.2
-      parse5:
-        specifier: 'catalog:'
-        version: 8.0.1
+      ogygia-internal-html-fuzz:
+        specifier: workspace:*
+        version: link:../../internal/html-fuzz
       svelte:
         specifier: 'catalog:'
         version: 5.56.8
