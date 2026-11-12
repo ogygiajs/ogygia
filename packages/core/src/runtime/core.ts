@@ -14,7 +14,8 @@ import {
 	type Turn
 } from '@ogygia/machine';
 import { frameAddress, older_by, stands_at, type FrameOrder } from '../frame.ts';
-import { import_again, is_failed_import, on_reload_needed } from './import-again.ts';
+import { OG_BAKED, OG_FP, OG_HOLE, OG_KEPT, OG_STATIC, OGYGIA_REGION_CSS } from '../wire-markup.ts';
+import { import_again, is_failed_import, on_file_load, on_reload_needed } from './import-again.ts';
 import { browser_offline, no_response } from './network.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
 // off in a build where no region streams HTML, and the bundler drops the element's fetch / apply /
@@ -34,6 +35,7 @@ import {
 	capability_expired,
 	is_allowed_region_endpoint,
 	island_module_url,
+	RegionAnswerLater,
 	RegionAnswerRefused
 } from './region-endpoint-url.ts';
 import { fetch_hole } from './hole-fetch.ts';
@@ -69,7 +71,7 @@ import {
 	type Wake
 } from './region-machines.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
-import { download, region_fetch } from '../policies.ts';
+import { download, region_fetch, region_rate_limited } from '../policies.ts';
 import {
 	install_rules,
 	note_handed,
@@ -91,7 +93,13 @@ import {
 	yield_task
 } from './schedule.ts';
 import { once_on_screen } from './viewport.ts';
-import { sheet_of, use_sheets, type RegionSheet } from './region-sheets.ts';
+import {
+	note_code_sheets,
+	sheet_of,
+	use_code_sheets,
+	use_sheets,
+	type RegionSheet
+} from './region-sheets.ts';
 import { preload_island_graph } from './island-graph-preload.ts';
 import { fetch_priority_of, LoadSlot, viewport_class, type LoadClass } from './load-scheduler.ts';
 import { PRIORITY } from './load-class.ts';
@@ -173,7 +181,7 @@ function fragment_markup(frag: DocumentFragment): string | null {
  *  already in hand. Only ever called from behind an `if (DEVTOOLS)` guard, so it costs nothing off. */
 function dt_ids(el: Element): { entry?: string; fp?: string } {
 	const entry = el.getAttribute('entry') || undefined;
-	const fp = el.getAttribute('data-og-fp') || undefined;
+	const fp = el.getAttribute(OG_FP) || undefined;
 	return { entry, fp };
 }
 
@@ -433,7 +441,7 @@ export function region_fragment(html: string): {
 		facts.remove();
 		queued.push(facts.textContent ?? '');
 	}
-	const links = frag.querySelectorAll('link[data-ogygia-region-css]');
+	const links = frag.querySelectorAll(`link[${OGYGIA_REGION_CSS}]`);
 	const pending: Array<Promise<void>> = [];
 	const sheets: Element[] = [];
 	if (links.length && import.meta.env.DEV) {
@@ -488,7 +496,7 @@ export function region_fragment(html: string): {
 			const clone = document.createElement('link');
 			clone.rel = 'stylesheet';
 			clone.href = href;
-			clone.setAttribute('data-ogygia-region-css', '');
+			clone.setAttribute(OGYGIA_REGION_CSS, '');
 			pending.push(until_settled(sheet_of(clone)));
 			existing.set(href, clone);
 			sheets.push(clone);
@@ -500,18 +508,17 @@ export function region_fragment(html: string): {
 	// ships `<style data-ogygia-region-css="href">` instead of a link): hoist it into <head> the same
 	// way, once per identity — the href it stands for — against the sheets the page already has in
 	// either shape. Nothing to await: the text is right here.
-	const styles = frag.querySelectorAll('style[data-ogygia-region-css]');
+	const styles = frag.querySelectorAll(`style[${OGYGIA_REGION_CSS}]`);
 	if (styles.length) {
 		const present = new Map<string, Element>();
 		for (const n of document.head.querySelectorAll(
-			'[data-ogygia-region-css], link[rel="stylesheet"]'
+			`[${OGYGIA_REGION_CSS}], link[rel="stylesheet"]`
 		)) {
-			const id =
-				n.tagName === 'STYLE' ? n.getAttribute('data-ogygia-region-css') : n.getAttribute('href');
+			const id = n.tagName === 'STYLE' ? n.getAttribute(OGYGIA_REGION_CSS) : n.getAttribute('href');
 			if (id) present.set(id, n);
 		}
 		for (const style of styles) {
-			const id = style.getAttribute('data-ogygia-region-css') || '';
+			const id = style.getAttribute(OGYGIA_REGION_CSS) || '';
 			style.remove();
 			if (!id) continue;
 			const found = present.get(id);
@@ -522,7 +529,7 @@ export function region_fragment(html: string): {
 			const el = document.createElement('style');
 			present.set(id, el);
 			sheets.push(el);
-			el.setAttribute('data-ogygia-region-css', id);
+			el.setAttribute(OGYGIA_REGION_CSS, id);
 			el.textContent = style.textContent || '';
 			// At the TOP of <head>, like the router's SPA sheets (router-nav.ts): an island's
 			// `<svelte:head>` hydration reclaims a trailing head-node range, and a sheet appended at
@@ -678,7 +685,7 @@ class OgygiaRegion extends HTMLElement {
 	#hydrate_run: { visit: unknown; run: Promise<void> } | null = null;
 	#fire_hydrate = (): Promise<void> => {
 		const held = this.#hydrate_run;
-		// (`waking` is always the held run's: a wake starts only from cold or armed, through here)
+		// (`waking` is always the held run's: a wake starts only from armed, through here)
 		if (held && (held.visit === this.#wake.now || this.#wake.now.kind === 'waking'))
 			return held.run;
 		const run = this.#box.ask((turn) => this.#hydrate(turn)).then(nothing);
@@ -747,7 +754,7 @@ class OgygiaRegion extends HTMLElement {
 				// handle recorded its facts in the document tail, outside Kit's root (hole-facts.ts):
 				// hand them back by identity, and the hole fetches exactly as the SSR element would
 				// have. A site header's account holes went dark this way on a customer's client-on page.
-				const identity = this.getAttribute('data-og-hole');
+				const identity = this.getAttribute(OG_HOLE);
 				const facts = identity ? hole_facts_of(this.ownerDocument, identity) : null;
 				if (facts) {
 					this.setAttribute('endpoint', facts.endpoint);
@@ -773,8 +780,7 @@ class OgygiaRegion extends HTMLElement {
 		// will wake them.
 		const boundary = this.parentElement && this.parentElement.closest('ogygia-region');
 		const slot =
-			this.parentElement &&
-			this.parentElement.closest('ogygia-slot,ogygia-snippet[data-og-static]');
+			this.parentElement && this.parentElement.closest(`ogygia-slot,ogygia-snippet[${OG_STATIC}]`);
 		const in_adopted_slot = !!(boundary && slot && boundary.contains(slot));
 		// Third exception (fragment federation): a FOREIGN-ORIGIN entry — a stitched fragment's
 		// island, possibly swapped in post-hoc by a client-stitch hole — is by construction NOT
@@ -1282,7 +1288,7 @@ class OgygiaRegion extends HTMLElement {
 			use_sheets(this, []); // (the fallback's sheets are the page's)
 			this.#answered('kept');
 			if (!is_awake(this)) this.setAttribute('data-hydrated', '');
-			this.setAttribute('data-og-kept', '');
+			this.setAttribute(OG_KEPT, '');
 			this.#adopt_renewed();
 			this.dispatchEvent(new CustomEvent('ogygia:server', { bubbles: true }));
 			return;
@@ -1324,7 +1330,7 @@ class OgygiaRegion extends HTMLElement {
 		absorb_page_facts_now();
 		this.#answered('answered');
 		// (a real answer after a kept fallback: the fallback is not what stands any more)
-		this.removeAttribute('data-og-kept');
+		this.removeAttribute(OG_KEPT);
 		if (revalidate) this.setAttribute('data-revalidated', '');
 		else if (!is_awake(this)) this.setAttribute('data-hydrated', '');
 		// (a lake this settled wakes the regions inside that waited on it: morphed in place, nothing
@@ -1371,7 +1377,7 @@ class OgygiaRegion extends HTMLElement {
 		// BAKED (Region.svelte, PromiseRegionAwait): the first HTML is already here — the page was
 		// served with it and hydrated against it. Nothing to paint; later ticks morph as usual (by
 		// identity: Svelte's `{@html}` anchors stay among the children — ownership.ts `order_owner`).
-		if (!this.#live_ready && this.hasAttribute('data-og-baked')) {
+		if (!this.#live_ready && this.hasAttribute(OG_BAKED)) {
 			this.#live_ready = true;
 			this.setAttribute('data-hydrated', '');
 			this.dispatchEvent(new CustomEvent('ogygia:live', { bubbles: true }));
@@ -1427,8 +1433,8 @@ class OgygiaRegion extends HTMLElement {
 	 * when the region leaves the page (it leaves the shared fetch). A failure leaves the
 	 * answer as it was, so a reconnect, a remount or the retry can try again — a transient network
 	 * error never kills the hole for good.
-	 * A deferred hole reuses the browser's `<link rel="preload">` response; an swr REVALIDATE must
-	 * not (the endpoint answers `cache-control: private, max-age=30`, and stale is the whole point).
+	 * A `load` hole takes over the request the head started (HOLE-CACHE); an swr REVALIDATE must not
+	 * reuse an answer (a hole that opts in is `private, max-age=<ttl>`, and stale is the whole point).
 	 */
 	async #fetch_html(turn: Turn, revalidate = false): Promise<void> {
 		if (!FRAMES) return;
@@ -1619,7 +1625,12 @@ class OgygiaRegion extends HTMLElement {
 			}
 			this.#hole.go('retrying', { attempts, revalidate });
 			const retrying = this.#hole.scope;
-			const wait = backoffAfter(region_fetch, attempts);
+			// a 429 says when the endpoint's window is over: the next try waits it out (#959)
+			const later = err instanceof RegionAnswerLater ? err.wait_ms : null;
+			const wait =
+				later === null
+					? backoffAfter(region_fetch, attempts)
+					: Math.min(later, backoffAfter(region_rate_limited, attempts));
 			const waited = await turn.wait(
 				retrying.task(() => new Promise<void>((resolve) => retrying.timeout(resolve, wait)))
 			);
@@ -1686,6 +1697,8 @@ class OgygiaRegion extends HTMLElement {
 	 */
 	async #hydrate(turn: Turn) {
 		const from = this.#wake.now.kind;
+		// (a wake already under way, or over: nothing to do. `cold` is let through so the machine
+		// refuses it out loud: every fire runs in `armed`, test/machine-steps.test.ts)
 		if (this.#app || (from !== 'cold' && from !== 'armed')) return;
 		// (leaving `armed` drops the schedule's listeners: it fired, or a visitor came first)
 		this.#wake.go('waking');
@@ -1748,6 +1761,7 @@ class OgygiaRegion extends HTMLElement {
 			}
 			t_loaded = now_ms();
 			if (gone()) return;
+			use_code_sheets(this, mod);
 			// An island of OURS on a Kit-hydrated document reads Kit's page through the bridge Kit's
 			// client entry publishes; it must not hydrate before Kit applied it (kit-page-thread.svelte.ts).
 			if (gone(await turn.wait(this.#kit_page_ready(core, visit)))) return;
@@ -2049,6 +2063,7 @@ class OgygiaRegion extends HTMLElement {
 				release();
 			}
 			if (!ours()) return;
+			use_code_sheets(this, mod);
 			// (Kit cannot start: the region keeps its swapped HTML, and the wait said why)
 			const kit = await turn.wait(this.#kit_page_ready(core, this.#live.scope)).catch((err) => {
 				if (kit_boot_failed(err)) return STALE;
@@ -2165,7 +2180,7 @@ function apply_dev_head_region_css(): void {
 		// `optimizeDeps.entries`, so importing every island here discovers nothing and re-optimizes
 		// nothing. Importing early is also what `warm_island_module` already does on hover/prefetch.)
 		const seen = new Set<string>();
-		for (const link of document.querySelectorAll('link[data-ogygia-region-css]')) {
+		for (const link of document.querySelectorAll(`link[${OGYGIA_REGION_CSS}]`)) {
 			const href = link.getAttribute('href');
 			// A real `.css` asset is a valid stylesheet — leave it. Only a dev MODULE url (`islandCss`'s
 			// dev href) masquerading as a sheet loads empty and needs importing instead.
@@ -2217,6 +2232,8 @@ export function boot(
 	on_reload_needed((url, error) =>
 		console.error(new OgygiaError('chunk_reload_needed', { url }), error)
 	);
+	// The stylesheets an island file's load puts in the head are region sheets (#966)
+	on_file_load(note_code_sheets);
 
 	if (import.meta.env.DEV) apply_dev_head_region_css();
 

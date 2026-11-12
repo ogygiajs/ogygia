@@ -16,8 +16,9 @@
  *
  * Every port is a thin forward: no state, no allocation beyond the platform's own. Each is a
  * module of functions re-exported as a namespace (`timers.after`), so a bundle keeps only the
- * functions it calls.
+ * functions it calls. The clock is the one object: two functions, which a test may spy on.
  */
+import * as clock_port from './ports/clock.ts';
 
 /** The platform a port reads (a browser window, a Node process, or a simulated tab or server). */
 export interface Platform {
@@ -53,7 +54,12 @@ export type TimerHandle = { readonly [TIMER]: true };
 
 /** The two clocks (#472): `mono()` for a duration inside one process (it never steps), `wall()`
  *  for a timestamp that leaves the process or is compared with one from outside. */
-export * as clock from './ports/clock.ts';
+// (an object, not a module namespace: a test steps `clock.mono` with a spy, which a browser's ESM
+// namespace refuses; test/clock.test.ts in three engines)
+export const clock: { readonly mono: () => number; readonly wall: () => number } = {
+	mono: clock_port.mono,
+	wall: clock_port.wall
+};
 /** Timers: `after` (one-shot), `keep` (one that keeps a Node process alive), `every`, `cancel`,
  *  `timeout` (an abort signal on them). */
 export * as timers from './ports/timers.ts';
