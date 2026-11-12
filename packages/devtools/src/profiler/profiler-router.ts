@@ -7,19 +7,10 @@
  * v2 idioms on show: a flat table (the whole sitemap in one glance), the auth GUARD as the table-wide
  * `load` (no chrome component — the profiler pages render their own Shell), a root `error` boundary,
  * bare `{ GET }` endpoint objects, and thrown `error()` for the expired-report 404s.
- *
- * The one unavoidable ceremony is `V` below: each UI component types its props by indexing
- * `ProfilerRoutes` (`ProfilerRoutes['/']`), so referencing a component VALUE here — while `$infer`
- * (hence `ProfilerRoutes`) is still being computed — makes svelte2tsx resolve that component's own
- * props mid-computation and report `$$ComponentProps circularly references itself` (props then fall
- * back to `any`, silently). Erasing the refs to a bare `Component` record breaks the self-reference;
- * `$infer` still comes from the LOADS, which keep their real return types. This is the same reason Kit
- * generates `./$types` in a component-free module — a programmatic router has no codegen to hide it.
  */
 // This module is a PAGE MODULE (devtools' `b.pageModules({ files })`): its page components are
 // router-css roots, so their scoped styles link when the profiler renders them.
 import { routes, page, error, type Ctx, type PageDef, type Router } from '@ogygia/router';
-import type { AnyComponent } from '@ogygia/router';
 import type { Analysis } from './analyze.ts';
 import type { ReportExtras, ReportMeta, RequestEntry, RouteAgg } from './report.ts';
 // Type-only (erased) — index.ts value-imports THIS module, so a value import back would cycle.
@@ -34,13 +25,6 @@ import Compare from './ui/Compare.svelte';
 import Site from './ui/Site.svelte';
 import type { Comparison } from './compare.ts';
 import type { SinkRow } from './sink.ts';
-
-/** Prop-erased component refs — see the file header. Referenced as `V.Dashboard` in the table so
- *  `$infer` never resolves a component's own (self-referential) props. Real types survive on `data`. */
-const V = { Dashboard, Report, Run, Login, Upload, Message, Compare, Site } as unknown as Record<
-	string,
-	AnyComponent
->;
 
 /** One page's profile history: every page-mode report of it, oldest first, by median run. */
 export interface PageHistory {
@@ -126,7 +110,7 @@ export interface ProfilerDeps {
 	/** `session_problem`: why a login that just succeeded still has no session (null otherwise). */
 	login_props(c: Ctx): { base: string; next: string; session_problem: string | null };
 	login(c: Ctx): Promise<Response>;
-	logout(c: Ctx): Response;
+	logout(c: Ctx): Promise<Response>;
 	upload(c: Ctx): Promise<Response>;
 	report_stored(id: string | undefined): StoredReport | undefined;
 	/** Like `report_stored`, but falls through to the configured storage backend (SQLite/Redis/
@@ -198,7 +182,7 @@ export function build_profiler_router(d: ProfilerDeps): Router<{
 		(c: Ctx) => ReturnType<ProfilerDeps['login_props']>,
 		{ default: CtxFn<Promise<Response>> }
 	>;
-	readonly '/logout': { readonly GET: CtxFn<Response> };
+	readonly '/logout': { readonly GET: CtxFn<Promise<Response>> };
 	readonly '/view': ProfilerPage<() => { base: string }, { default: CtxFn<Promise<Response>> }>;
 	readonly '/reports.json': { readonly GET: CtxFn<Promise<Response>> };
 	readonly '/report/[id]': ProfilerPage<
@@ -233,8 +217,8 @@ export function build_profiler_router(d: ProfilerDeps): Router<{
 }> {
 	return routes(
 		{
-			'/': page(V.Dashboard, { load: (c) => d.dashboard(c) }),
-			'/run': page(V.Run, { load: (c) => d.run_page(c) }),
+			'/': page(Dashboard, { load: (c) => d.dashboard(c) }),
+			'/run': page(Run, { load: (c) => d.run_page(c) }),
 			'/page': { GET: (c) => d.record_page(c) },
 			'/reset': { GET: (c) => d.reset(c) },
 			'/status.json': { GET: (c) => c.json(d.status(c)) },
@@ -243,19 +227,19 @@ export function build_profiler_router(d: ProfilerDeps): Router<{
 			// a window you start and stop around what a test does (@ogygia/testing, the Record tab)
 			'/window/start': { POST: (c) => d.window_start(c) },
 			'/window/stop': { POST: (c) => d.window_stop(c) },
-			'/login': page(V.Login, {
+			'/login': page(Login, {
 				load: (c) => d.login_props(c),
 				actions: { default: (c) => d.login(c) }
 			}),
 			'/logout': { GET: (c) => d.logout(c) },
-			'/view': page(V.Upload, {
+			'/view': page(Upload, {
 				load: () => ({ base: d.base }),
 				actions: { default: (c) => d.upload(c) }
 			}),
 			// The bare report page renders from EITHER the server report (logged in only — else an unauth
 			// visitor could read reports by guessing the id) OR a share-link `#fragment` (client-side).
 			'/reports.json': { GET: async (c) => c.json(await d.list_stored()) },
-			'/report/[id]': page(V.Report, {
+			'/report/[id]': page(Report, {
 				load: async (c) => {
 					const stored = (await d.authed(c))
 						? await d.report_load(c.params.id)
@@ -292,17 +276,17 @@ export function build_profiler_router(d: ProfilerDeps): Router<{
 				GET: (c) => report_or_404(d, c.params.id, d.report_raw)
 			},
 			// Before/after: two stored reports, deltas signed so a regression reads positive.
-			'/compare/[a]/[b]': page(V.Compare, { load: (c) => d.compare(c.params.a, c.params.b) }),
+			'/compare/[a]/[b]': page(Compare, { load: (c) => d.compare(c.params.a, c.params.b) }),
 			// profile a caught request again, in full page mode, with the inputs it was caught with
 			'/replay/[id]': { GET: (c) => d.replay(c.params.id, c) },
 			// the whole site: the request cloud and the layer cake, from this instance or a sink
-			'/site': page(V.Site, { load: (c) => d.site(c) }),
+			'/site': page(Site, { load: (c) => d.site(c) }),
 			// The source peek behind an expanded row (dev only; 404 elsewhere).
 			'/source': { GET: (c) => d.source(c) }
 		},
 		{
 			base: d.base,
-			error: V.Message,
+			error: Message,
 			load: async (c) => (await d.auth_guard(c)) ?? { base: d.base },
 			miss: () => error(404, 'Unknown profiler page.')
 		}

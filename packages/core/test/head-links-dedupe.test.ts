@@ -107,10 +107,72 @@ describe('dedupe_head_links · stylesheet', () => {
 	});
 });
 
+describe('dedupe_head_links · reads each attribute as HTML does', () => {
+	it('keeps a second sheet whose href has an apostrophe (a value ends at its own quote)', () => {
+		const html = `<head><link rel="stylesheet" href="/a'1.css"><link rel="stylesheet" href="/a'2.css"></head>`;
+		expect(dedupe_head_links(html)).toBe(html);
+	});
+
+	it('keeps a second hint whose single-quoted href has a double quote', () => {
+		const html = `<head><link rel='modulepreload' href='/a"1.js'><link rel='modulepreload' href='/a"2.js'></head>`;
+		expect(dedupe_head_links(html)).toBe(html);
+	});
+
+	it('still drops a true duplicate whose href has an apostrophe', () => {
+		const one = `<link rel="stylesheet" href="/a'1.css">`;
+		expect(dedupe_head_links(`<head>${one}${one}</head>`)).toBe(`<head>${one}</head>`);
+	});
+
+	it('does not read data-rel as rel: two data-rel links are not stylesheet links', () => {
+		const one = `<link data-rel="stylesheet" href="/a.css">`;
+		const html = `<head>${one}${one}</head>`;
+		expect(dedupe_head_links(html)).toBe(html);
+	});
+
+	it('reads the real rel after a data-rel, so a true duplicate sheet is dropped', () => {
+		const one = `<link data-rel="x" rel="stylesheet" href="/a.css">`;
+		expect(dedupe_head_links(`<head>${one}${one}</head>`)).toBe(`<head>${one}</head>`);
+	});
+
+	it('does not read data-href as href', () => {
+		const html = `<head><link rel="stylesheet" data-href="/x" href="/a.css"><link rel="stylesheet" data-href="/x" href="/b.css"></head>`;
+		expect(dedupe_head_links(html)).toBe(html);
+	});
+
+	it('reads unquoted values and upper-case attribute names', () => {
+		const html = `<head><link rel=stylesheet href=/a.css><LINK REL="stylesheet" HREF="/a.css" x><link Rel=stylesheet Href=/a.css></head>`;
+		expect(dedupe_head_links(html)).toBe(`<head><link rel=stylesheet href=/a.css></head>`);
+	});
+
+	it('a > inside a quoted value does not end the tag', () => {
+		const one = `<link rel="stylesheet" href="/a>b.css">`;
+		expect(dedupe_head_links(`<head>${one}${one}</head>`)).toBe(`<head>${one}</head>`);
+	});
+
+	it('the first of two same-name attributes is the one that counts', () => {
+		const html = `<head><link rel="stylesheet" href="/a.css" href="/b.css"><link rel="stylesheet" href="/b.css"></head>`;
+		expect(dedupe_head_links(html)).toBe(html);
+	});
+
+	it('a <link-x> custom element is not a link', () => {
+		const one = `<link-x rel="stylesheet" href="/a.css"></link-x>`;
+		const html = `<head>${one}${one}</head>`;
+		expect(dedupe_head_links(html)).toBe(html);
+	});
+});
+
 describe('dedupe_head_links · one pass', () => {
 	it('is the same string object on a head with no <link> at all (cheap probe)', () => {
 		const html = `<head><title>x</title><meta charset="utf-8"></head>`;
 		expect(dedupe_head_links(html)).toBe(html);
+	});
+
+	it('reads each link as a browser does: a quoted > stays in its value, a comment is not a link', () => {
+		const odd = '<link rel="stylesheet" data-note="a>b" href=\'/a.css\'>';
+		const html = `<head>${kit('/a.css')}<!-- ${kit('/c.css')} -->${odd}${kit('/c.css')}</head>`;
+		expect(dedupe_head_links(html)).toBe(
+			`<head>${kit('/a.css')}<!-- ${kit('/c.css')} -->${kit('/c.css')}</head>`
+		);
 	});
 
 	it('handles both families in one document in one call', () => {

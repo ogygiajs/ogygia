@@ -16,7 +16,7 @@
  * (its event delegation on `document`, set while a component's module evaluates) sit deeper in the
  * stack, and are Svelte's to keep.
  */
-import { devtools_switched_on, testing_lean } from '@ogygia/core/insights';
+import { devtools_switched_on, testing_lean } from '@ogygia/core/internal/instruments';
 
 export interface LeftoverReg {
 	kind: 'interval' | 'listener';
@@ -57,14 +57,26 @@ export interface Leftover {
 	last_ago?: number;
 }
 
-const intervals = new Map<unknown, LeftoverReg>();
-const listeners = new Map<unknown, (LeftoverReg & { on: EventTarget })[]>();
-const islands = new Map<
-	string,
-	{ urls: string[]; first: number; gone?: number; els: Map<Element, number> }
->();
+/** What the page is watched for, kept for the page's life: the live registrations it mirrors (each
+ *  leaves as the page takes it back), the islands seen, and the scroll-holding and `unload`
+ *  listeners (each list capped). */
+class Ledger {
+	readonly intervals = new Map<unknown, LeftoverReg>();
+	readonly listeners = new Map<unknown, (LeftoverReg & { on: EventTarget })[]>();
+	readonly islands = new Map<
+		string,
+		{ urls: string[]; first: number; gone?: number; els: Map<Element, number> }
+	>();
+	readonly scroll_regs: (ScrollReg & { target: EventTarget; fn: unknown })[] = [];
+	readonly unload_regs: { fn: unknown; frames: string[] }[] = [];
+	/** the page's timers and listeners are watched (by whichever copy started first) */
+	watching?: true;
+}
+// @why the realm's copy watches and the testing engine a test injects is another copy that reads: one ledger for the page (test: devtools-leftovers-ledger)
+const ledger: Ledger = ((globalThis as { [k: symbol]: Ledger })[Symbol.for('ogygia.leftovers')] ??=
+	new Ledger());
+const { intervals, listeners, islands, scroll_regs, unload_regs } = ledger;
 let own_file = '';
-let installed = false;
 
 /** The file URL of each stack line (Chrome `at f (url:1:2)` / `at url:1:2`, Firefox and Safari
  *  `f@url:1:2`), without its position or query. No regex: this runs on every watched registration. */
@@ -119,11 +131,13 @@ const DEVTOOLS_LAZY =
 
 /** Watch intervals and the global listeners. Once per page; a no-op off the browser. */
 export function watch_leftovers(): void {
-	if (installed || typeof window === 'undefined' || typeof EventTarget === 'undefined') return;
+	// @why the dock's realm and the testing engine's are two copies of this module: the page is watched once (test: devtools-realm)
+	if (ledger.watching || typeof window === 'undefined' || typeof EventTarget === 'undefined')
+		return;
 	if (DEVTOOLS_LAZY && !devtools_switched_on()) return;
 	// (lean testing: the page as it runs without devtools — its timers are its own)
 	if (testing_lean()) return;
-	installed = true;
+	ledger.watching = true;
 	own_file = stack_files(new Error().stack ?? '')[0] ?? '';
 	// (typed as the browser has them: the Node timer types merge into `window`'s)
 	const set_interval = window.setInterval as unknown as (
@@ -203,6 +217,7 @@ export function watch_leftovers(): void {
 // `<body>` the browser treats them as passive unless `passive: false` is asked for; anywhere else
 // they block unless `passive: true` is ──
 
+// static: a fixed list of event types
 const SCROLL_TYPES: ReadonlySet<string> = new Set([
 	'wheel',
 	'mousewheel',
@@ -218,8 +233,6 @@ export interface ScrollReg {
 	forced: boolean;
 	frames: string[];
 }
-const scroll_regs: (ScrollReg & { target: EventTarget; fn: unknown })[] = [];
-
 function note_scroll_listener(
 	on: EventTarget,
 	type: string,
@@ -263,8 +276,6 @@ function forget_scroll_listener(on: EventTarget, type: string, fn: unknown) {
 // ── AN `unload` LISTENER ON THE WINDOW: the browser keeps no page with one in its back/forward
 // cache, so Back reloads it from the server instead of showing it at once (`pagehide` does the
 // same job and keeps the cache) ──
-
-const unload_regs: { fn: unknown; frames: string[] }[] = [];
 
 function note_unload_listener(fn: unknown) {
 	if (unload_regs.length >= 20 || unload_regs.some((r) => r.fn === fn)) return;
