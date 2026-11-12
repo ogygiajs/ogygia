@@ -5,7 +5,8 @@
  * - no answer asked for twice: the same request (method, path and query, less a hole's expiry and
  *   signature) answered 200 twice in one document, but a content-hashed file (a browser's module
  *   map and cache keep it; the simulator has neither, so it may fetch one again) and a page (a
- *   navigation back asks again by design);
+ *   navigation back asks again by design), and a remote query counted per router visit (a back is
+ *   a new visit: a held region mounts and asks again, as its page is asked again);
  * - no POST the app refused (4xx): a batch to a path that answers none (#987);
  * - nothing alive after its owner: an observer still observing once every element it watches has
  *   left the document (`tab.orphans()`; test/orphans.node.test.ts);
@@ -20,8 +21,11 @@ import type { Tab } from './browser.ts';
 import type { Broken } from './oracles.ts';
 import { answer_key, is_page_path, type World } from './world.ts';
 
-/** The requests a document had answered twice, by key (see the top). */
-export function asked_twice(world: World, realm: string): string[] {
+/** The requests a document had answered twice, by key (see the top). `swaps`: when the router
+ *  swapped the document's page (`og:before-swap`, virtual ms): a remote query (`/_app/remote/`) is
+ *  counted per visit, since a visit's regions mount and ask anew, a back's too, as a page is asked
+ *  again (gen 187, seed 187004). */
+export function asked_twice(world: World, realm: string, swaps: readonly number[] = []): string[] {
 	const count = new Map<string, number>();
 	for (const e of world.network.exchanges) {
 		if (e.from !== realm || e.method !== 'GET' || e.status !== 200) continue;
@@ -29,10 +33,13 @@ export function asked_twice(world: World, realm: string): string[] {
 		const url = new URL(e.url);
 		const path = decodeURIComponent(url.pathname);
 		if (path.startsWith('/_app/immutable/') || is_page_path(path)) continue;
-		const key = answer_key(url);
+		const visit = path.startsWith('/_app/remote/') ? swaps.filter((t) => t <= e.at).length : 0;
+		const key = `${visit} ${answer_key(url)}`;
 		count.set(key, (count.get(key) ?? 0) + 1);
 	}
-	return [...count].filter(([, n]) => n > 1).map(([k, n]) => `${k} ×${n}`);
+	return [...count]
+		.filter(([, n]) => n > 1)
+		.map(([k, n]) => `${k.slice(k.indexOf(' ') + 1)} ×${n}`);
 }
 
 /** The POSTs of a document the app refused (4xx): a batch or a call a correct page never sends. A
@@ -151,7 +158,7 @@ export function waste(world: World, tab: Tab): Broken | null {
 	const held = known_waste(doc, held_twice(doc));
 	const asked = known_waste(doc, refused(world, tab.realm));
 	const found = [
-		...asked_twice(world, tab.realm).map((k) => `asked twice: ${k}`),
+		...asked_twice(world, tab.realm, tab.swaps).map((k) => `asked twice: ${k}`),
 		...asked.left.map((k) => `refused: ${k}`),
 		...held.left.map((k) => `held twice: ${k}`),
 		...tab.orphans().map((o) => `alive after its owner: ${o}`),

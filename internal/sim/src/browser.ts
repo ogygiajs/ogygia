@@ -47,6 +47,9 @@ export interface Tab {
 	/** Observers still observing whose every watched element has left the document (their owner
 	 *  ended and nothing disconnected them), each as `<Name> watching <the first one's tag>`. */
 	orphans(): string[];
+	/** When the router swapped the shown document's page (`og:before-swap`, virtual ms): where one
+	 *  visit of the document ends and the next begins. */
+	swaps: number[];
 }
 
 /** What a document holds that outlives a page visit if nobody lets it go. */
@@ -299,6 +302,11 @@ export class Browsers {
 		});
 		tab.platform = p;
 		this.#windows.set(window, tab);
+		// (heard before the listener count starts: the simulator's own ear, not the page's; on the
+		// window while capturing, as writing the document's content drops the document's listeners)
+		const swaps: number[] = (tab.swaps = []);
+		const loop = this.#o.loop;
+		window.addEventListener('og:before-swap', () => swaps.push(loop.now), { capture: true });
 		this.#count_held(window, tab);
 		const w = window as unknown as {
 			addEventListener(
@@ -545,6 +553,7 @@ export class Browsers {
 			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 }),
 			listening: () => [],
 			orphans: () => [],
+			swaps: [],
 			said_by: new Map()
 		};
 		// (each line said is the document's that said it: one action can show several documents,

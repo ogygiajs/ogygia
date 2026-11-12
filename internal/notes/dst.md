@@ -399,7 +399,8 @@ props, throwing holes, bad `{@html}` in lakes) and is the app's.
 
 `src/waste.ts` (`waste`): at rest, in a document no fault, deploy or press touched, no answer asked
 for twice (content-hashed files and pages left out: a browser's module map keeps a file, and the
-simulator has no HTTP cache), no POST the app refused (a batch to a path that answers none, #987),
+simulator has no HTTP cache; a remote query is counted per router visit, `og:before-swap` to the
+next: a back is a new visit, and its held region asks again as its page does, gen 187), no POST the app refused (a batch to a path that answers none, #987),
 nothing held twice (a stylesheet, a style, a module preload, a page seed, an island's props within
 one answer: a region fetched apart carries its own, gen 173) and no warning said. `KNOWN_WASTE` there
 is KNOWN's twin. Long tasks and layout shift need a layout engine: the real-browser tier measures
