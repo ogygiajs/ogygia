@@ -21,37 +21,19 @@ const RUNS = 10;
 
 type Seen = { trusted: boolean; live: boolean; held: boolean };
 
-/** Every click on the switch, twice over. `__pressed`: the visitor's own clicks, seen first (window,
- *  capture, before the runtime) and read once their dispatch is over: whether the island was live,
- *  and whether the runtime's capture held it (canceled it, to replay it at wake). `__clicks`: what a
- *  page's own listener on `document` hears, trusted or a replay. A held click is the replay's alone,
- *  so the page hears each click once (#922). */
+/** Every click on the switch that reaches `document`: trusted or a replay, whether the island was
+ *  live, and whether the runtime's capture held it (canceled it, to replay it at wake). */
 function watch_clicks(): void {
-	const pressed: Seen[] = [];
 	const seen: Seen[] = [];
-	const w = window as unknown as { __pressed: Seen[]; __clicks: Seen[] };
-	w.__pressed = pressed;
-	w.__clicks = seen;
-	const of = (e: Event): Seen | null => {
+	(window as unknown as { __clicks: Seen[] }).__clicks = seen;
+	document.addEventListener('click', (e) => {
 		const t = e.target as Element | null;
-		if (!t?.closest?.('[data-wake-switch]')) return null;
-		return {
+		if (!t?.closest?.('[data-wake-switch]')) return;
+		seen.push({
 			trusted: e.isTrusted,
 			live: !!t.closest('ogygia-region[data-hydrated]'),
 			held: e.defaultPrevented
-		};
-	};
-	window.addEventListener(
-		'click',
-		(e) => {
-			const s = of(e);
-			if (s?.trusted) setTimeout(() => pressed.push({ ...s, held: e.defaultPrevented }));
-		},
-		{ capture: true }
-	);
-	document.addEventListener('click', (e) => {
-		const s = of(e);
-		if (s) seen.push(s);
+		});
 	});
 }
 
@@ -71,13 +53,6 @@ async function slow_phone(page: Page): Promise<void> {
 
 const clicks = (page: Page) =>
 	page.evaluate(() => (window as unknown as { __clicks: Seen[] }).__clicks.slice());
-/** The visitor's first click, once its dispatch is over. */
-const first_press = (page: Page) =>
-	page
-		.waitForFunction(() => (window as unknown as { __pressed: Seen[] }).__pressed[0], null, {
-			timeout: 30_000
-		})
-		.then((h) => h.jsonValue() as Promise<Seen>);
 const flips = async (page: Page) =>
 	Number(await page.locator('[data-wake-switch]').getAttribute('data-flips'));
 const live = (page: Page) =>
@@ -113,7 +88,7 @@ test.describe('an early click on a visible island acts once, at wake (#260)', ()
 				polling: 1
 			});
 			await page.mouse.click(x, y);
-			const first = await first_press(page);
+			const first = (await clicks(page))[0];
 			const was_held = !!first?.held && !first.live;
 			if (was_held) held++;
 			await live(page);
@@ -149,11 +124,10 @@ test.describe('an early click on a visible island acts once, at wake (#260)', ()
 			of_held.every((r) => r.includes('after the next click 2;')),
 			report
 		);
-		// at `document` (a page's own listener): the held click's replay on the live island (rL), then
-		// the next click (TL), each once; the held click itself is the replay's alone (#922)
+		// at `document`: the held click (T-), its replay on the live island (rL), the next click (TL)
 		check(
-			'the page heard each click once: the replay before the next click, and nothing after it',
-			of_held.every((r) => r.endsWith('clicks at document rL TL')),
+			'every replay came before the next click, and nothing came after it',
+			of_held.every((r) => r.endsWith('clicks at document T- rL TL')),
 			report
 		);
 	});

@@ -1,7 +1,7 @@
 <script lang="ts">
-	// The ONE site header — full-width, on the homepage, the Observatory, and the docs alike. Composed
+	// The ONE site header — full-width, on the homepage and the docs alike. Composed
 	// from the content-kit's own bricks (Search + ThemeToggle), so docs and marketing share one bar.
-	// Logo hard-left, then a breadcrumb (`ogygia │ Docs` / `ogygia │ Observatory`; just `ogygia` on
+	// Logo hard-left, then a breadcrumb (`ogygia │ Docs`; just `ogygia` on
 	// home); actions hard-right. On docs it's passed to DocsShell as the `header` snippet (with
 	// `tools={null}`), so the sidebar carries only the nav.
 	import Logo from '$lib/Logo.svelte';
@@ -29,7 +29,6 @@
 			<div class="site-search"><SearchBox base="/docs" placeholder="Search docs" /></div>
 			<nav class="site-links" aria-label="Primary">
 				<a href="/docs/start/install">Docs</a>
-				<a href="/observatory">Observatory</a>
 				<a href="/releases">Releases</a>
 				<a href="/playground/getting-started/installation">Playground</a>
 			</nav>

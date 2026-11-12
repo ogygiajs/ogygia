@@ -13,8 +13,8 @@ import { fingerprint_of, fnv1a, signature_of } from '../src/contract/hash.ts';
 import { morph_children } from '../src/runtime/morph.ts';
 import { parse_wire_text } from '../src/runtime/wire-format.ts';
 import {
+	failed_import_url,
 	import_again,
-	is_failed_import,
 	on_reload_needed,
 	retry_url
 } from '../src/runtime/import-again.ts';
@@ -81,8 +81,7 @@ bench(
 			// each chunk's first download fails as Chromium reports it; the retry gets a fresh URL
 			const load = import_again(
 				() => Promise.reject(new TypeError(`Failed to fetch dynamically imported module: ${url}`)),
-				async (fresh) => fresh,
-				url
+				async (fresh) => fresh
 			);
 			try {
 				await load();
@@ -91,8 +90,8 @@ bench(
 			}
 			const fresh = (await load()) as string;
 			if (fresh === retry_url(url, 1)) loaded++;
-			// a message that names no URL (Safari) is read as a failed download too
-			if (is_failed_import(new TypeError('Importing a module script failed.'))) loaded++;
+			// a message that names no URL (Safari) or another origin is not retried under a new one
+			if (failed_import_url(new TypeError('Importing a module script failed.')) === null) loaded++;
 		}
 		return loaded;
 	},

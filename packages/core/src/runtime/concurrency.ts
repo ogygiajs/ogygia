@@ -17,7 +17,7 @@
  * Each call owns its timers and its listener on `signal` (a scope): they are let go the moment the
  * call settles, whichever way.
  */
-import { queue, scope, type Queue, type Scope } from '@ogygia/machine';
+import { clock, queue, scope, type Queue, type Scope } from '@ogygia/machine';
 
 export interface GateOptions {
 	/** The call answers within this long: the wait for a slot and the run together. */
@@ -48,14 +48,14 @@ export class ConcurrencyGate {
 			max: this.#limit,
 			start: (w) => w.enter(),
 			stale: (w) => w.gone(),
-			now: Date.now
+			now: clock.mono
 		});
 	}
 
 	async run<T>(fn: () => Promise<T>, options: GateOptions = {}): Promise<T> {
 		const { deadline_ms, signal } = options;
 		if (signal?.aborted) throw signal.reason;
-		const deadline = deadline_ms === undefined ? Infinity : Date.now() + deadline_ms;
+		const deadline = deadline_ms === undefined ? Infinity : clock.mono() + deadline_ms;
 		const call = scope();
 		try {
 			await this.#enter(deadline, signal, call);
@@ -82,7 +82,7 @@ export class ConcurrencyGate {
 			};
 			body.then(end, end);
 			if (deadline === Infinity) return await body;
-			return await within(call, body, deadline - Date.now(), () => {
+			return await within(call, body, deadline - clock.mono(), () => {
 				if (!holds) return;
 				holds = false;
 				this.#abandoned++;

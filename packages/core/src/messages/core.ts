@@ -49,6 +49,17 @@ export const ERRORS = {
 			deploy, ogygia retries the current build's file first.
 		`
 	},
+	client_hook_failed: {
+		text: (a: { plugin: string; hook: string }): string =>
+			`plugin \`${a.plugin}\`: its \`${a.hook}\` hook threw (or its promise rejected); the page and the other plugins carry on`,
+		details: (): string => prose`
+			A plugin's browser half subscribes to a runtime hook, and its function failed. The runtime
+			calls every subscriber of a hook in plugin order and wraps each call, so one plugin's
+			failure never stops another's hook or the page. Said once per plugin and hook; the error
+			follows the message. In dev the hook's payload is frozen: a hook that writes to it fails
+			here too.
+		`
+	},
 	kit_boot_failed: {
 		text: (a: { url: string }): string => prose`
 			SvelteKit's client code failed to load (${a.url}), so Kit cannot start on this page. The
@@ -893,6 +904,16 @@ export const WARNINGS = {
 			ogygia's own markers are read: any \`data-ogygia-*\`, and \`data-og-*\` on an \`ogygia-*\`
 			element. An app's own \`data-og-*\` elsewhere is left alone.
 			${BUG}
+		`
+	},
+	rule_region_answer_behind: {
+		text: (a: { detail: string }): string =>
+			`rule broken, a region shows the answer its address holds: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). Every answer for a deferred region lands in
+			one store, by the region's address, and the store keeps the newest (by when it was asked
+			for). Each region bound to that address paints what the store holds. One region was left
+			on an older answer, or never got the newest. ${BUG}
 		`
 	},
 	rule_parse_upgraded: {
