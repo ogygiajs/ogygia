@@ -23,6 +23,7 @@ export function ensure_prop_kinds(): void {
 }
 
 /** Island props carry classes, stores, snippets, og.$ fns and resumable deriveds. */
+// static: the prop families that cross the wire
 const PROP_FAMILIES = new Set(['wire', 'store', 'snippet', 'fn', 'derived']);
 
 /**

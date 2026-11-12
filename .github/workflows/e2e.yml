@@ -188,6 +188,12 @@ jobs:
       - name: Type-check the bench files
         run: pnpm run check:bench
 
+      # every module-level Map / Set / growing array in packages/*/src is a cache(), owned by a
+      # scope, or a marked fixed table (internal/checks/module-maps.ts, #414): its own tests, then the
+      # scan (report mode until #413 sorts every one; then it fails)
+      - name: Module-level maps and sets
+        run: pnpm run check:maps
+
       # remembered: these inputs passed format, lint and every check (the plan leaves the job out next time)
       - name: Remember the pass
         run: echo "${{ needs.plan.outputs.check_hash }}" > .check-pass
