@@ -12,6 +12,7 @@
  * `<script type="application/json" data-og-shared="<name>">{…}</script>`, and any vanilla JS on
  * the page can join via `globalThis.ogygia.shared(name)` → { get, set, subscribe }.
  */
+import { tasks } from '@ogygia/machine';
 import { createSubscriber } from 'svelte/reactivity';
 import { parse, stringify } from 'devalue';
 import { OgygiaError } from './messages.ts';
@@ -111,7 +112,7 @@ export class SharedState<T extends object> {
 		// mutations arrive in bursts (push = index set + length set) — one notification per microtask
 		if (this.#publish_queued) return;
 		this.#publish_queued = true;
-		queueMicrotask(() => {
+		tasks.micro(() => {
 			this.#publish_queued = false;
 			const store = page_store();
 			const entry = store.map.get(this.#name)!;

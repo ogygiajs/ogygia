@@ -15,6 +15,7 @@
  * // CSS: :root[data-pref-code-language="js"] [data-variant="ts"] { display: none }
  * ```
  */
+import { storage } from '@ogygia/machine';
 import { script } from './script.ts';
 import { OgygiaError } from './messages/island.ts';
 
@@ -63,6 +64,7 @@ function preference_switch(): string {
 			var val = btn.getAttribute('data-pref-set');
 			if (!name || !val) return;
 			try {
+				// port-ok: inline head script (no imports)
 				localStorage.setItem('og-pref-' + name, val);
 			} catch {
 				// ok: private mode; the attribute still updates for this session
@@ -95,6 +97,7 @@ function preference_impl(spec: PreferenceSpec): Preference {
 			return script(
 				(n: string, vs: string[], d: string) => {
 					try {
+						// port-ok: inline head script (no imports)
 						var v = localStorage.getItem('og-pref-' + n);
 						if (!v || vs.indexOf(v) < 0) v = d;
 						document.documentElement.setAttribute('data-pref-' + n, v);
@@ -111,7 +114,7 @@ function preference_impl(spec: PreferenceSpec): Preference {
 			if (typeof document === 'undefined') return;
 			const v = values.includes(value) ? value : def;
 			try {
-				localStorage.setItem(KEY(name), v);
+				storage.local()?.setItem(KEY(name), v);
 			} catch {
 				// ok: private mode; the attribute still updates for this session
 			}
