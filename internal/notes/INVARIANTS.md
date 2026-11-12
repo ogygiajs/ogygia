@@ -26,6 +26,22 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 ---
 
+## CODE-ORIGINS — island code loads from the app's own origins only
+
+**What:** The runtime imports island code only from the page's origin, its own (Kit's `paths.assets`), and the origins the server writes on the runtime's script (`data-og-origins`: plugins add theirs through the `codeOrigins` shared hook, federation its peers'). It reads them once, from the head, at boot. Anything else is refused (`island_code_refused`). A region's `src` is kept as its identity's location only when it is the same island's built file (`og-region.<iid>.<hash>.js`) on the identity's origin. The restorer never sets an `on*`, `srcdoc` or script-URL attribute from `og-r`.
+
+**Why:** `entry`, `src` and `og-r` are markup. Markup that cannot run script by itself (a rich-text field, a sanitizer that keeps custom elements and unknown attributes) must not become script through ogygia, and under `'strict-dynamic'` the runtime's `import()` is trusted, so a CSP would not stop it. One injected `src` must not re-point the code of every region with that identity.
+
+**Do not:**
+
+- Call `import_file` with anything but a `CodeUrl` (only `runtime/code-origins.ts` makes one; the type stops the rest).
+- Re-read `data-og-origins` after boot, or from a script outside the head (a later one would widen the list).
+- Accept a location that is not the same island's file, even on the page's own origin (an uploaded `.js` is on it too).
+
+**Enforced by:** `packages/core/test/browser/code-origins.test.ts`, `packages/core/test/code-origins.test.ts`, `packages/federation/test/code-origins.test.ts`, `packages/reshape/test/browser/restore.test.ts` (the og-r case)
+
+---
+
 ## CAPABILITY-URL — bearer token in the query string
 
 **What:** `?id=&props=&exp=&sig=` is a time-limited bearer capability. MAC integrity ≠ confidentiality.
