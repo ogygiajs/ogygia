@@ -27,6 +27,7 @@ type Action =
 	| { kind: 'hurry'; tab: number; nth: number; next: number; after: number }
 	| { kind: 'hover'; tab: number; nth: number }
 	| { kind: 'eager'; tab: number; path: string; nth: number; after: number }
+	| { kind: 'twice'; tab: number; nth: number; after: number }
 	| {
 			kind: 'outage';
 			tab: number;
@@ -433,6 +434,11 @@ async function play(
 				// (the document is in, still loading: the press comes before its first paint, or during
 				// the wait for its critical resources)
 				await navigated(tab.goto(a.path, { waitUntil: 'commit' }));
+				await pass(context, a.after);
+				await nth_of(tab, BUTTONS, a.nth);
+				break;
+			case 'twice':
+				if (!(await nth_of(tab, BUTTONS, a.nth))) break;
 				await pass(context, a.after);
 				await nth_of(tab, BUTTONS, a.nth);
 				break;

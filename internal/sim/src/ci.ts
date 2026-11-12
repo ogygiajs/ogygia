@@ -94,6 +94,9 @@ export function signature(f: Pick<Finding, 'oracle' | 'detail'>): string {
 		.split('\n')
 		.slice(0, f.oracle === 'mpa-equivalence' ? 1 : 2)
 		.join(' ')
+		// (a stack frame's place, `(file:line:column)`: a rebuilt app moves every file and position,
+		// and the frame's function says where it was; test/ci.test.ts)
+		.replace(/\s*\(?\S+:\d+:\d+\)?/g, '')
 		.replace(/https:\/\/app\.test/g, '')
 		.replace(/\?.*$/, '')
 		.replace(/[0-9a-f]{8,}|\d+/g, '#')

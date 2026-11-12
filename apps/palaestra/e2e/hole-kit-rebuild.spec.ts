@@ -16,7 +16,7 @@ const HOLE_TAG_G = /<ogygia-region[^>]*render="defer"[^>]*>/g;
 const HOLE_WITH_ADDRESS_RE = /endpoint="[^"]+"[^>]*data-og-hole="[0-9a-f]{16}"/;
 const HOLE_IDENTITY_G = /data-og-hole="([0-9a-f]{16})"/g;
 const HOLES_RECORD_RE =
-	/<script type="application\/ogygia-holes" data-ogygia-holes>(\{[\s\S]*?\})<\/script>/;
+	/<script type="application\/ogygia-holes" data-ogygia-holes[^>]*>(\{[\s\S]*?\})<\/script>/;
 const FAILED_TO_HYDRATE_RE = /Failed to hydrate/;
 
 test.describe('deferred holes on a csr=true page Kit rebuilds in the browser', () => {

@@ -67,6 +67,14 @@ export class RateLimiter {
 		return false;
 	}
 
+	/** @returns true if this IP has spent its budget for the window, charging nothing (a budget
+	 *  spent only on failures checks first, and charges with {@link limited} when one happens). */
+	over(ip: string): boolean {
+		if (this.#max <= 0) return false;
+		const b = this.#buckets.get(ip);
+		return b !== undefined && clock.mono() - b.t < this.#windowMs && b.n >= this.#max;
+	}
+
 	/** Whole seconds until `ip`'s window resets (at least 1), for a 429's `Retry-After` (#959). */
 	retry_after_s(ip: string): number {
 		const b = this.#buckets.get(ip);
@@ -82,4 +90,19 @@ export class RateLimiter {
 		this.#buckets.clear();
 		this.#since_prune = 0;
 	}
+}
+
+/** IPv4 ranges no visitor on the internet has: private, loopback, link-local, shared (100.64/10). */
+const SHARED_V4 =
+	/^(?:10|127)\.|^169\.254\.|^192\.168\.|^172\.(?:1[6-9]|2\d|3[01])\.|^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+/** IPv6: loopback, unique local (fc00::/7), link-local (fe80::/10). */
+const SHARED_V6 = /^(?:::1$|f[cd][0-9a-f]{0,2}:|fe[89ab][0-9a-f]?:)/i;
+
+/**
+ * Whether `ip` is an address no visitor on the internet has (an IPv4-mapped IPv6 one too). A client
+ * address like that is a proxy's or a load balancer's: every visitor behind it shares its rate-limit
+ * budget (#894, test/rate-limit-shared-address.test.ts).
+ */
+export function is_shared_address(ip: string): boolean {
+	return SHARED_V4.test(ip.replace(/^::ffff:/i, '')) || SHARED_V6.test(ip);
 }

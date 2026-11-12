@@ -6,35 +6,15 @@ import { class_at, fetch_priority_of, PRIORITY, type LoadClass } from './load-cl
 import { flights, STALE, type Flights } from '@ogygia/machine';
 import { entry_location } from './entry-locations.ts';
 import { import_file } from './import-again.ts';
+import { code_url, type CodeUrl } from './code-origins.ts';
 import { cache } from '@ogygia/machine';
 
 /** Hoisted (hot paths — connectedCallback/hydrate run per region); shared with core's
  *  foreign-origin checks. */
 export const ABSOLUTE_URL_SCHEME: RegExp = /^[a-z][a-z0-9+.-]*:/i;
 
-/**
- * Defense-in-depth: only fetch region HTML from same-origin capability URLs.
- * Mint always emits a path-only URL (`resolve(DEFAULT_ISLANDS_ENDPOINT)?…`). Absolute /
- * protocol-relative endpoints would require prior HTML injection — still reject them so the
- * runtime is not an XSS amplifier. See INVARIANTS.md · HOLE-TRUST.
- */
-
-/** True when `endpoint` resolves to same-origin http(s). */
-export function is_allowed_region_endpoint(
-	endpoint: string,
-	page_origin: string = location.origin
-): boolean {
-	if (typeof endpoint !== 'string' || endpoint.length === 0) return false;
-	try {
-		const url = new URL(endpoint, page_origin);
-		if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
-		if (url.origin !== page_origin) return false;
-		// Reject if the final response could redirect cross-origin — checked by caller via res.url.
-		return true;
-	} catch {
-		return false;
-	}
-}
+// (the same-origin checks are the HTML sink's gate: ./html-sink.ts)
+export { is_allowed_region_endpoint, is_same_origin_response } from './html-sink.ts';
 
 /** How far this browser's clock may run behind the server's and still see an expiry. */
 const CLOCK_SKEW_SEC = 300;
@@ -155,19 +135,6 @@ export function deny_of(res: Response, endpoint: string): string {
 	return `foreign-key: signed by ${minted || '?'}, answered by ${res.headers.get('x-ogygia-key') ?? '?'}`;
 }
 
-/** After fetch: reject opaque redirects that left the page origin. */
-export function is_same_origin_response(
-	res: Response,
-	page_origin: string = location.origin
-): boolean {
-	if (!res.url) return true; // older environments — rely on request URL check
-	try {
-		return new URL(res.url).origin === page_origin;
-	} catch {
-		return false;
-	}
-}
-
 /**
  * Normalize a hydrate `entry` for `import()`.
  *
@@ -202,7 +169,7 @@ const module_urls = cache<string, string>({ name: 'island module urls', max: 400
 // (`import()` is idempotent, but re-parsing the specifier on every hover isn't free). A failed
 // warm is not kept, so the real wake — or a later warm — retries; warming is never fatal.
 /** A warm's ask: the module's key, and the file it names as the caller that started it spelled it. */
-type Warm = { key: string; entry: string; base: string | undefined; url: string };
+type Warm = { key: string; entry: string; base: string | undefined; url: CodeUrl };
 /** One warm per module, kept once it landed: a warm with a more urgent class joining one raises it
  *  (#437: still queued, it starts now at that class; started, its graph links are raised). Made at
  *  the first warm: a module that only checks an endpoint makes none. */
@@ -268,7 +235,10 @@ export function warm_island_module(
 	if (!url) return;
 	// a build's identity with no known location names no file: the load finds it (import_entry)
 	if (!entry_location(entry, base) && url.includes('/ogygia/og-region.')) return;
-	void warms().get({ key: warm_key(url), entry, base, url }, { priority: PRIORITY[cls] }); // ok: a warm that failed answers STALE, never rejects: nothing to hear
+	// (code on an origin the page loads none from is not warmed: its load says why, ./code-origins.ts)
+	const code = code_url(url);
+	if (code === null) return;
+	void warms().get({ key: warm_key(url), entry, base, url: code }, { priority: PRIORITY[cls] }); // ok: a warm that failed answers STALE, never rejects: nothing to hear
 }
 
 /** Has this island module already been warmed (or imported through the warmer)? `entry` resolves

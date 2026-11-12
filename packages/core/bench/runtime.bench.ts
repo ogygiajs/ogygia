@@ -31,6 +31,7 @@ import {
 	create_wake
 } from '../src/runtime/region-machines.ts';
 import * as frames from '../src/runtime/frame-store.ts';
+import { vouch_page_html as html } from '../src/runtime/html-sink.ts';
 import { mailbox, scope, STALE } from '@ogygia/machine';
 import type { IslandHandle } from '../src/runtime/hydrate-core.ts';
 import { block, header } from './fixtures.ts';
@@ -327,7 +328,7 @@ bench(
 		const settled: Promise<string | typeof STALE>[] = [];
 		for (let i = 0; i < n; i++) {
 			const a = `h${i}|p`;
-			const fetcher = () => Promise.resolve(`<p>${i}</p>`);
+			const fetcher = () => Promise.resolve(html(`<p>${i}</p>`));
 			if (i % 4 === 0) {
 				// a batch reserved it: both copies join; one leaves; the batch delivers
 				frames.reserve(a);
@@ -335,7 +336,7 @@ bench(
 				const leaving = frames.ensure(a, fetcher, { signal: leave.signal });
 				const twin = frames.ensure(a, fetcher);
 				leave.abort();
-				frames.write({ a, v: frames.stamp(), html: `<p>batch ${i}</p>` });
+				frames.write({ a, v: frames.stamp(), html: html(`<p>batch ${i}</p>`) });
 				settled.push(leaving, twin);
 				continue;
 			}
@@ -377,12 +378,14 @@ bench(
 			const a = `w${i % 50}|p`;
 			const t = frames.stamp();
 			// a refresh, then the slower answer of the request before it (dropped)
-			if (frames.write({ a, v: t, html: `<p>${i}</p>` })) applied++;
-			if (frames.write({ a, v: t - 1, html: `<p>late ${i}</p>` })) applied++;
+			if (frames.write({ a, v: t, html: html(`<p>${i}</p>`) })) applied++;
+			if (frames.write({ a, v: t - 1, html: html(`<p>late ${i}</p>`) })) applied++;
 			// two commands' answers with data versions, decoded out of order (the older is dropped)
 			if (i % 4 === 0) {
-				if (frames.write({ a, v: frames.stamp(), d: i + 2, html: `<p>v${i + 2}</p>` })) applied++;
-				if (frames.write({ a, v: frames.stamp(), d: i + 1, html: `<p>v${i + 1}</p>` })) applied++;
+				if (frames.write({ a, v: frames.stamp(), d: i + 2, html: html(`<p>v${i + 2}</p>`) }))
+					applied++;
+				if (frames.write({ a, v: frames.stamp(), d: i + 1, html: html(`<p>v${i + 1}</p>`) }))
+					applied++;
 			}
 		}
 		let shown = 0;

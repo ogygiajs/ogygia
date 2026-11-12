@@ -2,7 +2,7 @@
 // `join_batch`); a lone hole does not (one whose request the page's head started: early-holes.test.ts).
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { join_batch } from '../../src/runtime/frame-nav.ts';
-import { _reset, ensure, peek } from '../../src/runtime/frame-store.ts';
+import { _reset, ensure, peek } from '../_frames.ts';
 import { frameAddress } from '../../src/frame.ts';
 import { build_parcel, done_parcel } from '../../src/server/stream-regions.ts';
 import { install as install_frames } from '../../src/runtime/frames.ts';

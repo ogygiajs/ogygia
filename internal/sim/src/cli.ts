@@ -49,7 +49,9 @@ import {
 	page_rules,
 	regions_show,
 	fallback_stands,
+	live_events,
 	server_rules,
+	styled_regions,
 	stuck,
 	uncaught,
 	type Broken
@@ -185,6 +187,11 @@ const SUPPLIED = ['/wake-gate-slow.js'];
 const FAULTS: FaultClass[] = ['delay', 'reorder', 'drop', 'duplicate', 'cut', 'tamper', 'redirect'];
 
 /** FNV-1a, hex: a DOM's fingerprint in the trace. */
+/** The visitor presses a button in it (once or twice, or as an outage starts). */
+function presses(a: Action): boolean {
+	return a.kind === 'press' || a.kind === 'twice' || (a.kind === 'outage' && a.during === 'press');
+}
+
 function fingerprint(s: string): string {
 	let h = 0x811c9dc5;
 	for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
@@ -267,6 +274,8 @@ export async function run(
 	const r = rng(seed).fork('swarm');
 	// swarm testing: each run turns on its own subset of fault classes
 	const faults = FAULTS.filter(() => r.chance(0.4));
+	// (stalls on a stream of their own: the swarm's other draws stay as they were)
+	if (rng(seed).fork('swarm stall').chance(0.3)) faults.push('stall');
 	// and its own servers: sometimes two instances behind the front door (each request to the
 	// seed's pick), their clocks up to 5 s apart
 	const instances = r.chance(0.3) ? 2 : 1;
@@ -349,8 +358,9 @@ export async function run(
 					page_errors(t, world, since),
 					hydrates_as_sent(t, world),
 					no_foreign_html(t),
-					page_rules(t),
-					leaks.check(t, pressed.get(t.name) === t.documents)
+					page_rules(t, world),
+					leaks.check(t, pressed.get(t.name) === t.documents),
+					live_events(t, world)
 				])
 					// (a known one once: it is told again after every action while the bug stands)
 					if (b && !(b.oracle === 'known' && broken.some((k) => k.detail.endsWith(b.detail))))
@@ -387,11 +397,7 @@ export async function run(
 			actions.push(a);
 			log.note(`action ${i + 1}: ${describe(a)}`);
 			// (what a press or a deploy does is on purpose: each document's asks are judged up to it)
-			if (
-				a.kind === 'press' ||
-				a.kind === 'deploy' ||
-				(a.kind === 'outage' && a.during === 'press')
-			)
+			if (presses(a) || a.kind === 'deploy')
 				for (const t of v.tabs)
 					if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
 			// (an eager press comes once the next document is in: the marks are that document's)
@@ -405,8 +411,7 @@ export async function run(
 			// on, kept across client navigations, which no fresh load has; its next document is clean.
 			// And it may change the server's (a cart, a counter a command bumps), which every other
 			// tab's document predates: seed 221, /cart-b in another tab)
-			if (a.kind === 'press' || (a.kind === 'outage' && a.during === 'press'))
-				for (const t of v.tabs) pressed.set(t.name, t.documents);
+			if (presses(a)) for (const t of v.tabs) pressed.set(t.name, t.documents);
 			look(describe(a));
 			// (past its horizon the world stops: nothing after it would be a finding about the app)
 			if (world.loop.now >= world.loop.horizon)
@@ -417,9 +422,10 @@ export async function run(
 			// (a known one, a filed bug's, does not end the run: what comes after may be new)
 			if (broken.some((b) => b.oracle !== 'known')) break;
 		}
-		if (broken.every((b) => b.oracle === 'known') && stop_at === Infinity) {
+		// (a `--step` past the last action prints the trace through rest)
+		if (broken.every((b) => b.oracle === 'known') && stop_at > total) {
 			for (const t of v.tabs) world.network.offline(t.name, false);
-			await world.quiesce();
+			await world.rest();
 			// (a wait on its way out is not a hang: a backoff of seconds is a page's one-shot timer,
 			// due later than rest's 2 s. Time runs on while one is set, a minute at most, then rest)
 			const until = Math.min(world.loop.now + 60_000, world.loop.horizon);
@@ -429,7 +435,7 @@ export async function run(
 				v.tabs.some((t) => t.platform?.pending().includes('timeout'))
 			)
 				await world.loop.step();
-			await world.quiesce();
+			await world.rest();
 			hear_moves();
 			await at_rest?.(world, v);
 			// AT REST, every tab (a faulted one too: a failure must end a wait as surely as an
@@ -437,12 +443,18 @@ export async function run(
 			for (const t of v.tabs)
 				for (const b of [
 					stuck(t),
-					page_rules(t),
+					page_rules(t, world),
 					// (and every region shows something, unless a press made the page the visitor's own)
 					pressed.get(t.name) === t.documents ? null : regions_show(t, world),
 					// (and no hole that wakes on its own still shows its fallback, pressed or not: a press
 					// changes what a region shows, never whether a hole is owed its answer)
-					fallback_stands(t, world)
+					fallback_stands(t, world),
+					// (and every live region was heard announcing the tick it shows, pressed or not: a press
+					// changes a button's own count, which the oracle leaves out, never a tick)
+					live_events(t, world),
+					// (and every region on screen keeps its styles, pressed or not: a soft refresh is a
+					// press, and it must not take a sheet out from under a region it keeps)
+					styled_regions(t, world)
 				])
 					if (b) broken.push({ ...b, detail: `at rest: ${b.detail}` });
 			for (const t of v.tabs) {

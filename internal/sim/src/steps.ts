@@ -28,6 +28,18 @@ export interface Sweep {
 	readonly gens: readonly number[];
 	readonly runs: number;
 	readonly steps: number;
+	/** Saved runs the sweep replays, each the same run every time: a step only a lucky seed
+	 *  reached is reached by its plan, which names it. */
+	readonly plans?: readonly SweepPlan[];
+}
+
+export interface SweepPlan {
+	/** The app it runs on: the palaestra, or a generated app by its seed. */
+	readonly app: 'palaestra' | number;
+	/** The plan (`{ seed, steps, plan }`, as `--plan` reads it), from the repo root. */
+	readonly plan: string;
+	/** The steps it must reach. */
+	readonly reaches: readonly string[];
 }
 
 export interface Covered {
@@ -71,7 +83,12 @@ export interface Accounting {
 export function account(
 	all: ReadonlySet<string>,
 	ledger: Ledger,
-	o: { read: (path: string) => string | null; sweep?: ReadonlySet<string> }
+	o: {
+		read: (path: string) => string | null;
+		sweep?: ReadonlySet<string>;
+		/** What each of the sweep's plans reached, by its file. */
+		plans?: ReadonlyMap<string, ReadonlySet<string>>;
+	}
 ): Accounting {
 	const failures: string[] = [];
 	const buckets = new Map<string, string[]>();
@@ -94,6 +111,17 @@ export function account(
 			!text.includes(`\`${c.name}\``)
 		)
 			failures.push(`${c.step}: ${c.test} has no test '${c.name}'`);
+	}
+	const reached = new Set(ledger.reached);
+	for (const p of ledger.sweep.plans ?? []) {
+		if (o.read(p.plan) === null) failures.push(`its plan is not there: ${p.plan}`);
+		for (const s of p.reaches)
+			if (!reached.has(s))
+				failures.push(`${p.plan} reaches ${s}, which is not in the reached bucket`);
+		const got = o.plans?.get(p.plan);
+		if (got !== undefined)
+			for (const s of p.reaches)
+				if (!got.has(s)) failures.push(`its plan no longer reaches it: ${s} (${p.plan})`);
 	}
 	const newly_reached: string[] = [];
 	let accounted: number;

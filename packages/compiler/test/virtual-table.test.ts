@@ -177,7 +177,7 @@ describe('the virtual-module table', () => {
 		const id = table.resolve('ogygia:server/sign')!;
 		const ctx = { runtime_dir: '/pkg/dist/runtime' };
 		expect(table.load(id, app(ctx), leg(true))).toBe(
-			'export { sign, verify, region_mac_message } from "/pkg/dist/server/hmac.js";'
+			'export { sign, region_sign } from "/pkg/dist/server/hmac.js";'
 		);
 	});
 

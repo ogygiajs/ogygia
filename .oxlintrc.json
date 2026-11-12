@@ -11,6 +11,7 @@
 		"ogygia/stale-whole": "error",
 		"ogygia/no-string-concat": "error",
 		"ogygia/prefer-dedent": "error",
+		"ogygia/html-sink": "error",
 		"ogygia/one-hash": "error",
 		"ogygia/compiler-boundary": "error",
 		"ogygia/ports": "error"

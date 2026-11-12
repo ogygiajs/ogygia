@@ -1,7 +1,9 @@
 /**
  * THE STANDARD SWEEP: the runs that decide the steps ledger's `reached` bucket (src/steps.ts). Its
  * targets are the ledger's `sweep`: the palaestra, then each generated app (written from its seed,
- * its peer built when it draws one, both builds made), each run for its seeds from 1. Each target's
+ * its peer built when it draws one, both builds made), each run for its seeds from 1, and the
+ * ledger's saved plans, each replayed on its app (a step only a lucky seed reached, made the same
+ * run every time; it fails when its plan no longer reaches what it names). Each target's
  * results.json is kept, and every step is then accounted for against what they reached together.
  *
  *   node --experimental-vm-modules src/sweep.ts [--out <dir>] [--jobs 4] [--write]
@@ -54,10 +56,33 @@ function main(): void {
 	};
 	const files: string[] = [];
 	const failed: string[] = [];
+	// (each saved plan of the app just built, replayed: the same run every time)
+	const by_plan = new Map<string, Set<string>>();
+	const replay = (app: string, of: 'palaestra' | number): void => {
+		for (const p of (sw.plans ?? []).filter((x) => x.app === of)) {
+			const results = join(SIM, 'results.json');
+			sh(
+				SIM,
+				`nice -n 10 node --experimental-vm-modules --no-warnings src/cli.ts --app ${app} --plan '${join(ROOT, p.plan)}' --no-replay`,
+				log
+			);
+			if (!existsSync(results)) {
+				failed.push(`${p.plan}: no results`);
+				continue;
+			}
+			const kept = join(out, `results-${p.plan.replace(/\W+/g, '-')}.json`);
+			copyFileSync(results, kept);
+			files.push(kept);
+			by_plan.set(p.plan, new Set(reached_in(kept)));
+		}
+	};
 	const pal = run('../../apps/palaestra', sw.palaestra.runs, sw.palaestra.steps, 'palaestra');
 	if (pal === null) failed.push('palaestra: no results');
 	else files.push(pal);
-	for (const g of sw.gens) {
+	replay('../../apps/palaestra', 'palaestra');
+	// (an app a plan runs on is built though no seeds run on it)
+	const planned = (sw.plans ?? []).flatMap((p) => (p.app === 'palaestra' ? [] : [p.app]));
+	for (const g of new Set([...sw.gens, ...planned])) {
 		if (!sh(SIM, `node --no-warnings src/gen.ts --seed ${g}`, log)) {
 			failed.push(`gen ${g}: not written`);
 			continue;
@@ -74,16 +99,20 @@ function main(): void {
 			failed.push(`gen ${g}: did not build`);
 			continue;
 		}
-		const r = run('../../apps/sim-gen', sw.runs, sw.steps, `gen${g}`);
-		if (r === null) failed.push(`gen ${g}: no results`);
-		else files.push(r);
-		console.log(`gen ${g}: ${r === null ? 'no results' : 'done'}`);
+		if (sw.gens.includes(g)) {
+			const r = run('../../apps/sim-gen', sw.runs, sw.steps, `gen${g}`);
+			if (r === null) failed.push(`gen ${g}: no results`);
+			else files.push(r);
+			console.log(`gen ${g}: ${r === null ? 'no results' : 'done'}`);
+		}
+		replay('../../apps/sim-gen', g);
 	}
 	const reached = new Set(files.flatMap(reached_in));
 	const all = all_steps(universe(ROOT));
 	const a = account(all, ledger, {
 		read: (p) => (existsSync(join(ROOT, p)) ? readFileSync(join(ROOT, p), 'utf8') : null),
-		sweep: reached
+		sweep: reached,
+		plans: by_plan
 	});
 	if (process.argv.includes('--write')) {
 		const r = [...all].filter((s) => reached.has(s)).sort();

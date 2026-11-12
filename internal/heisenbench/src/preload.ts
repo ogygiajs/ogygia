@@ -4,12 +4,16 @@
  * serve (`ogygia:*`, `$app/*`) resolve to the unit-test stubs in packages/core/test/_stubs,
  * the same ones packages/core/vitest.config.ts aliases: `$app/env` -> app-env.ts,
  * `ogygia:server/sign` -> server.sign.ts. And the hydrate core's `svelte` resolves to a stand-in
- * for Svelte's client `hydrate` (svelte-hydrate.ts, below).
+ * for Svelte's client `hydrate` (svelte-hydrate.ts, below). And a bench page's island files, which a
+ * browser fetches from the page's origin (runtime/code-origins.ts refuses any other), are the
+ * stand-in island module, one instance per file: `<ISLAND_FILES><name>` -> island-module.ts?entry=<name>.
  */
 import { existsSync } from 'node:fs';
 import { registerHooks } from 'node:module';
 
 const STUBS = new URL('../../../packages/core/test/_stubs/', import.meta.url);
+/** Where the bench page's island files are (packages/core/bench/hydration-page.ts `island_file`). */
+const ISLAND_FILES = 'https://shop.example.test/_app/ogygia/';
 const APP = '$app/';
 /** a realm module (`ogygia:server`) -> realm-server.ts; an entry by its own id -> <realm>.<id>.ts */
 const REALM_RE = /^ogygia:(server|boot|region|dev)(?:\/(.+))?$/;
@@ -37,6 +41,11 @@ registerHooks({
 	resolve(specifier, context, next) {
 		if (specifier === 'svelte' && hydrate_core_import(context))
 			return { url: new URL('svelte-hydrate.ts', STUBS).href, shortCircuit: true };
+		if (specifier.startsWith(ISLAND_FILES)) {
+			const file = new URL('island-module.ts', STUBS);
+			file.searchParams.set('entry', specifier.slice(ISLAND_FILES.length));
+			return { url: file.href, shortCircuit: true };
+		}
 		const name = stub_name(specifier);
 		if (name === null) return next(specifier, context);
 		const file = new URL(`${name}.ts`, STUBS);

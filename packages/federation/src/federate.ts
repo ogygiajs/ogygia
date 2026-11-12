@@ -63,7 +63,7 @@ export function federate<P extends Record<string, PeerConfig>>(
 		warn('federation_audience_missing', { name: config.name });
 	}
 
-	const peers = new Map<string, Peer & { keys: readonly string[] }>();
+	const peers = new Map<string, PeerHandle & { keys: readonly string[] }>();
 	const out = {} as { [K in keyof P]: Peer };
 	for (const [peer_name, peer_cfg] of Object.entries(config.peers ?? {}) as [
 		keyof P & string,
@@ -85,6 +85,10 @@ export function federate<P extends Record<string, PeerConfig>>(
 		name: config.name,
 		key: config.key,
 		peers,
+		// (a peer's handle above already parsed each one)
+		code_origins: Object.values(config.peers ?? {})
+			.flatMap((p) => p.origin)
+			.map((o) => new URL(o).origin),
 		visitor: config.visitor,
 		expose: config.expose,
 		base: config.base ?? '',

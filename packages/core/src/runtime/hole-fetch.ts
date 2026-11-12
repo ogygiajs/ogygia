@@ -21,6 +21,7 @@ import {
 	renewal_url,
 	retry_after_ms
 } from './region-endpoint-url.ts';
+import { vouch_region_answer, type VerifiedHtml } from './html-sink.ts';
 
 export type HoleFetch = {
 	/** Past the browser cache: the endpoint may answer `private, max-age`, and stale is the whole
@@ -33,7 +34,7 @@ export type HoleFetch = {
 };
 
 /** A hole's fetch: its request started ({@link start_hole}), its answer read ({@link read_hole}). */
-export async function fetch_hole(endpoint: string, opts: HoleFetch = {}): Promise<string> {
+export async function fetch_hole(endpoint: string, opts: HoleFetch = {}): Promise<VerifiedHtml> {
 	// (HOLE-TRUST: nothing goes out to another origin, whoever asks: the element, its warm, preload())
 	if (!is_allowed_region_endpoint(endpoint)) {
 		if (import.meta.env.DEV) warn('region_endpoint_foreign', { endpoint });
@@ -62,7 +63,7 @@ export async function read_hole(
 	endpoint: string,
 	response: Promise<Response>,
 	opts: Pick<HoleFetch, 'signal' | 'renewed'> = {}
-): Promise<string> {
+): Promise<VerifiedHtml> {
 	let res = await response;
 	// An EXPIRED capability (its document outlived it in a cache): renew once. The handle re-signs an
 	// anonymous hole it minted itself and answers with the hole AND the fresh capability.
@@ -86,8 +87,11 @@ export async function read_hole(
 	if (res.status === 429) throw new RegionAnswerLater(retry_after_ms(res), res.url || endpoint);
 	if (!res.ok) throw new Error(`status ${res.status}`);
 	// 204: the hole said keepFallback() — the page's fallback stands, nothing to swap.
-	if (res.status === 204) return KEEP_FALLBACK_HTML;
-	const text = await res.text();
-	if (is_document_answer(text)) throw new RegionAnswerRefused('document', res.url);
-	return text;
+	const text = res.status === 204 ? KEEP_FALLBACK_HTML : await res.text();
+	if (res.status !== 204 && is_document_answer(text))
+		throw new RegionAnswerRefused('document', res.url);
+	// (the sink's gate: a same-origin endpoint whose answer stayed same-origin, ./html-sink.ts)
+	const html = vouch_region_answer(endpoint, res, text);
+	if (html === null) throw new Error('foreign region endpoint');
+	return html;
 }

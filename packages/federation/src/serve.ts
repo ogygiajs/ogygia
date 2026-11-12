@@ -37,6 +37,7 @@ import {
 	USER_HEADER_NAME,
 	FRAGMENT_ROUTES_PATH,
 	FRAGMENT_BASE,
+	OFF_SITE_PATH_RE,
 	THAW_PATH,
 	type Claims,
 	type VerifyConfig
@@ -200,15 +201,13 @@ export async function serve_federation(event: RequestEvent): Promise<Response | 
 	return null;
 }
 
-const OFF_SITE_PATH = /^(?:[/\\]{2}|\\)/;
-
 /**
  * The URL an exposed table is asked at: always on the app's own origin. Path and search are set
  * apart, so neither can re-home it; a path that would (`//host`, `/\host`) is refused (null).
  * Test: serve-expose.test.ts.
  */
 function expose_target(origin: string, base: string, path: string, search: string): URL | null {
-	if (OFF_SITE_PATH.test(path)) return null;
+	if (OFF_SITE_PATH_RE.test(path)) return null;
 	const target = new URL(origin);
 	target.pathname = base + (path.startsWith('/') ? path : `/${path}`);
 	target.search = search;
@@ -343,6 +342,17 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 	if (!opened.ok) return opened.response;
 	const peer = fed.peers.get(peer_name);
 	if (!peer) return new Response('unknown peer', { status: 404 });
+	const traceparent = child_traceparent(event.request.headers.get('traceparent')).traceparent;
+	// one of the peer's own region endpoints, its fragment carried: no hop, no claims (the peer
+	// signed what it renders into its own capability). Not the region's answer: a 502, the
+	// fallback stands and the runtime says so.
+	if (kind === 'endpoint') {
+		const got = await peer.endpoint(target, traceparent);
+		if (got === null) return new Response('bad gateway', { status: 502, headers: NO_STORE });
+		if (got.status === 204)
+			return new Response(null, { status: 204, headers: { ...NO_STORE, ...opened.headers } });
+		return hole_html(got.html, opened.headers);
+	}
 
 	// claims are derived HERE, server-side, from the shell's own session — never from the browser
 	const claims = fed.visitor?.({
@@ -351,7 +361,6 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 		cookies: event.cookies,
 		locals: event.locals
 	});
-	const traceparent = child_traceparent(event.request.headers.get('traceparent')).traceparent;
 	// (a renewal's answer carries the fresh capability, which the runtime adopts for later fetches)
 	const answer = (html: string, status = 200) => hole_html(html, opened.headers, status);
 	try {
@@ -377,13 +386,12 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 function hole_html(html: string, headers: Record<string, string>, status = 200): Response {
 	return new Response(html, {
 		status,
-		headers: {
-			'content-type': 'text/html; charset=utf-8',
-			'cache-control': 'no-store',
-			...headers
-		}
+		headers: { 'content-type': 'text/html; charset=utf-8', ...NO_STORE, ...headers }
 	});
 }
+
+/** A hole's answer is per visitor and per capability: never kept by a cache. */
+const NO_STORE = { 'cache-control': 'no-store' };
 
 // ── thaw: /og/thaw (a peer's publish/deploy notice) ──────────────────────────────────────────
 const NOTICE_TTL_MS = 10 * 60_000;

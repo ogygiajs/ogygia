@@ -11,7 +11,8 @@ import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/serv
 
 const PORT = port(3104);
 const ORIGIN = `http://localhost:${PORT}`;
-const KEY = 'e2e-beacon';
+// (16 bytes or more: a production profiler refuses a shorter secret, #760)
+const KEY = 'e2e-beacon-profiler-key';
 // (the devtools lab, built by this suite's globalSetup)
 const app = fileURLToPath(new URL('./app', import.meta.url));
 const dir = mkdtempSync(join(tmpdir(), 'og-beacon-'));

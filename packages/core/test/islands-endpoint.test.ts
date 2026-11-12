@@ -12,8 +12,14 @@ vi.mock('ogygia:server/server-manifest', () => ({
 	region_render: { rnd123: 'c0ffee0c0ffe' }
 }));
 vi.mock('ogygia:server/sign', () => ({
-	sign: (_k: string, m: string) => `sig${m.length}`,
-	region_mac_message: (...parts: unknown[]) => parts.join('|')
+	sign: (_k: string, m: string) => 'sig' + m.length,
+	region_sign: (
+		_k: string,
+		audience: string,
+		exp: number,
+		c: { id: string; payload: string; session: string; ttl: string; render: string; wakes: string }
+	) =>
+		'sig' + [audience, c.id, exp, c.payload, c.session, c.ttl, c.render, c.wakes].join('|').length
 }));
 
 const { configure_islands_endpoint, islands_endpoint, DEFAULT_ISLANDS_ENDPOINT } =
@@ -58,6 +64,7 @@ describe('the islands endpoint', () => {
 		expect(sig).toBe(
 			`sig${
 				[
+					'/__ogygia__',
 					'rnd123',
 					new URL(url, 'http://x').searchParams.get('exp'),
 					'W3t9XQ',

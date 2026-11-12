@@ -4,7 +4,7 @@
 // at most one island, and each mode lets go of the other's machinery when it takes over.
 import { afterEach, expect, inject, test } from 'vitest';
 import { bootDev } from '../../src/runtime/full.ts';
-import { _reset, stamp, write } from '../../src/runtime/frame-store.ts';
+import { _reset, stamp, write } from '../_frames.ts';
 import { frameAddress } from '../../src/frame.ts';
 
 const LABEL = '/test/browser/fixtures/Label.svelte';

@@ -3250,10 +3250,17 @@ describe('the ogygia / svelte / kit round: islands, seed, holes, lanes, markup v
 		);
 	});
 
-	it('production: the beacon tag needs the flag cookie the login sets (site-wide, no secret), or the key header', async () => {
+	it('production: the beacon tag needs the signed flag cookie the login sets (site-wide), or the key header', async () => {
 		dev_switch.dev = false;
 		try {
-			const handle = profiler({ secret: 'prof-key' });
+			// a flag for one session, as the login's next response sets it (f1.<id>.<expiry>.<MAC>)
+			const { createHmac, hkdfSync } = await import('node:crypto');
+			const key = Buffer.from(
+				hkdfSync('sha256', 'prof-key-of-16-bytes-or-more', '', 'ogygia-profiler-flag-v1', 32)
+			);
+			const [id, exp] = ['a'.repeat(24), String(Date.now() + 60_000)];
+			const FLAG = `f1.${id}.${exp}.${createHmac('sha256', key).update(`f1|${id}|${exp}`).digest('hex')}`;
+			const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 			const doc = async (cookies: Record<string, string>, headers: Record<string, string> = {}) =>
 				(
 					await handle({
@@ -3265,8 +3272,9 @@ describe('the ogygia / svelte / kit round: islands, seed, holes, lanes, markup v
 					})
 				).text();
 			expect(await doc({})).toBe('false');
-			expect(await doc({ og_profiler_beacon: '1' })).toBe('true');
-			expect(await doc({}, { 'x-profiler-key': 'prof-key' })).toBe('true');
+			expect(await doc({ og_profiler_beacon: '1' })).toBe('false');
+			expect(await doc({ og_profiler_beacon: FLAG })).toBe('true');
+			expect(await doc({}, { 'x-profiler-key': 'prof-key-of-16-bytes-or-more' })).toBe('true');
 			expect(await doc({}, { 'x-profiler-key': 'wrong' })).toBe('false');
 			// login sets both cookies; logout clears both
 			const login = await handle({
@@ -3274,7 +3282,7 @@ describe('the ogygia / svelte / kit round: islands, seed, holes, lanes, markup v
 					...make_event('/__profiler/login'),
 					request: new Request('http://localhost/__profiler/login', {
 						method: 'POST',
-						body: JSON.stringify({ key: 'prof-key' })
+						body: JSON.stringify({ key: 'prof-key-of-16-bytes-or-more' })
 					})
 				} as RequestEvent,
 				resolve: async () => new Response('no')
@@ -3296,19 +3304,22 @@ describe('the ogygia / svelte / kit round: islands, seed, holes, lanes, markup v
 						resolve: async () => new Response('no')
 					})
 				).headers.getSetCookie();
-			expect(await next(`og_profiler=${token}`)).toEqual([
-				expect.stringMatching(/^og_profiler_beacon=1; Path=\/;/)
-			]);
-			// flag and session both there: nothing to set
-			expect(await next(`og_profiler=${token}; og_profiler_beacon=1`)).toEqual([]);
+			const flag_on = await next(`og_profiler=${token}`);
+			expect(flag_on).toEqual([expect.stringMatching(/^og_profiler_beacon=f1\.[^;]+; Path=\/;/)]);
+			const mine = flag_on[0].slice('og_profiler_beacon='.length, flag_on[0].indexOf(';'));
+			// flag and session both there: nothing to set; a flag for another session is replaced
+			expect(await next(`og_profiler=${token}; og_profiler_beacon=${mine}`)).toEqual([]);
+			expect(await next(`og_profiler=${token}; og_profiler_beacon=${FLAG}`)).toHaveLength(1);
 			const logout = await handle({
-				event: make_event('/__profiler/logout', { 'x-profiler-key': 'prof-key' }),
+				event: make_event('/__profiler/logout', {
+					'x-profiler-key': 'prof-key-of-16-bytes-or-more'
+				}),
 				resolve: async () => new Response('no')
 			});
 			const cleared = logout.headers.getSetCookie();
 			expect(cleared).toHaveLength(1);
 			expect(cleared[0].startsWith('og_profiler=;') && cleared[0].includes('Max-Age=0')).toBe(true);
-			const flag_off = await next('og_profiler_beacon=1', '/__profiler/login');
+			const flag_off = await next(`og_profiler_beacon=${FLAG}`, '/__profiler/login');
 			expect(flag_off).toHaveLength(1);
 			expect(
 				flag_off[0].startsWith('og_profiler_beacon=;') && flag_off[0].includes('Max-Age=0')
@@ -4184,7 +4195,7 @@ describe('the accuracy round: hot lines, server-timing, call paths, cold start, 
 	});
 
 	it('beacon: a vitals-only post lands per page; the report joins them; junk is bounded', async () => {
-		const handle = profiler({ secret: 'prof-key' });
+		const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 		const post = (body: string) =>
 			handle({
 				event: {
@@ -4226,7 +4237,7 @@ describe('the accuracy round: hot lines, server-timing, call paths, cold start, 
 	});
 
 	it('beacon marks: per page, per name, joined to the report as "marked in the browser"', async () => {
-		const handle = profiler({ secret: 'prof-key' });
+		const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 		const post = (body: string) =>
 			handle({
 				event: {
@@ -4276,9 +4287,9 @@ describe('the accuracy round: hot lines, server-timing, call paths, cold start, 
 	it('spans nest outside a request context too: a handle in front of the profiled request keeps parent links', async () => {
 		dev_switch.dev = false; // production: no per-request context unless recording — the spans below run outside any
 		try {
-			const handle = profiler({ secret: 'prof-key' });
+			const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 			const res = await handle({
-				event: make_event('/prod/page', { 'x-profile': 'prof-key' }),
+				event: make_event('/prod/page', { 'x-profile': 'prof-key-of-16-bytes-or-more' }),
 				resolve: async () => {
 					// spans opened from a plain promise, no request store around them
 					await new Promise<void>((r) => setImmediate(r));
@@ -4292,7 +4303,7 @@ describe('the accuracy round: hot lines, server-timing, call paths, cold start, 
 			const url = res.headers.get('x-profile-report')!;
 			const json = await (
 				await handle({
-					event: make_event(`${url}.json`, { 'x-profiler-key': 'prof-key' }),
+					event: make_event(url + '.json', { 'x-profiler-key': 'prof-key-of-16-bytes-or-more' }),
 					resolve: async () => new Response('no')
 				})
 			).json();
@@ -4309,7 +4320,7 @@ describe('the accuracy round: hot lines, server-timing, call paths, cold start, 
 
 	it('the trap: a coarse background window keeps only a request over the threshold', async () => {
 		const handle = profiler({
-			secret: 'prof-key',
+			secret: 'prof-key-of-16-bytes-or-more',
 			trap: { over: 30, window: 300, interval: 10, keep: 1 }
 		});
 		// the first request arms the trap (its first window opens ~1 s later)
@@ -4339,7 +4350,7 @@ describe('the accuracy round: hot lines, server-timing, call paths, cold start, 
 
 	it('the always-on sampler folds short windows into a hot-functions table on the dashboard', async () => {
 		const handle = profiler({
-			secret: 'prof-key',
+			secret: 'prof-key-of-16-bytes-or-more',
 			sample: { every: 1, window: 150, interval: 10 }
 		});
 		await handle({ event: make_event('/arm'), resolve: async () => new Response('ok') });
@@ -4368,9 +4379,12 @@ describe('the accuracy round: hot lines, server-timing, call paths, cold start, 
 	it('a newer profiler in the process takes over: the older one’s sampler stands down', async () => {
 		// the dev server re-runs the app's hooks on an edit and builds a new profiler; the old one's
 		// timers must not go on recording beside it
-		const old = profiler({ secret: 'prof-key', sample: { every: 1, window: 100, interval: 10 } });
+		const old = profiler({
+			secret: 'prof-key-of-16-bytes-or-more',
+			sample: { every: 1, window: 100, interval: 10 }
+		});
 		await old({ event: make_event('/arm'), resolve: async () => new Response('ok') });
-		profiler({ secret: 'prof-key' }); // the newer one (no sampler of its own)
+		profiler({ secret: 'prof-key-of-16-bytes-or-more' }); // the newer one (no sampler of its own)
 		await new Promise((r) => setTimeout(r, 2600)); // past two of the old one's cycles
 		const dash = await (
 			await old({ event: make_event('/__profiler'), resolve: async () => new Response('no') })
@@ -5120,7 +5134,7 @@ describe('the browser CPU profile and the request replay', () => {
 	});
 
 	it('beacon: a script from another host, or a chunk with no app file in it, is a dependency whatever its names', async () => {
-		const handle = profiler({ secret: 'prof-key' });
+		const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 		// the build knows the runtime chunk holds only packages (svelte's runtime + clsx)
 		set_chunk_contents({ '/_app/immutable/chunks/rt.js': ['svelte runtime', 'clsx'] });
 		const cdn = {
@@ -5173,7 +5187,7 @@ describe('the browser CPU profile and the request replay', () => {
 	});
 
 	it('beacon: a cpu trace lands per page and the report shows it as browser components', async () => {
-		const handle = profiler({ secret: 'prof-key' });
+		const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 		const post = (body: string) =>
 			handle({
 				event: {
@@ -5212,12 +5226,12 @@ describe('the browser CPU profile and the request replay', () => {
 
 	it('replay: a header-profiled request is rendered again in page mode with its query and kept headers', async () => {
 		const handle = profiler({
-			secret: 'prof-key',
+			secret: 'prof-key-of-16-bytes-or-more',
 			trap: { over: 100_000, replay: ['x-tenant', 'accept-language'] }
 		});
 		const profiled = await handle({
 			event: make_event('/prod/page?x=1', {
-				'x-profile': 'prof-key',
+				'x-profile': 'prof-key-of-16-bytes-or-more',
 				'x-tenant': 'acme',
 				'accept-language': 'fr',
 				cookie: 'secret=1'
@@ -6037,8 +6051,8 @@ function make_event(path: string, headers: Record<string, string> = {}): Request
 describe('a report carried with the request (serverless: another instance answers)', () => {
 	it('a fresh instance answers .json / .dump / .ogp from a gzipped kept copy, and opens its own .ogp', async () => {
 		const { gzipSync } = await import('node:zlib');
-		const key = { 'x-profiler-key': 'prof-key' };
-		const made = profiler({ secret: 'prof-key' });
+		const key = { 'x-profiler-key': 'prof-key-of-16-bytes-or-more' };
+		const made = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 		const rec = await made({
 			event: make_event('/__profiler/page?p=/p&runs=1&cold=0', key),
 			resolve: async () => new Response('<html></html>')
@@ -6051,7 +6065,7 @@ describe('a report carried with the request (serverless: another instance answer
 			})
 		).json();
 		// another instance: it never saw the report
-		const other = profiler({ secret: 'prof-key' });
+		const other = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 		const ask = (ext: string, body: BodyInit, headers: Record<string, string>) =>
 			other({
 				event: {
@@ -6155,7 +6169,7 @@ describe('profiler handle', () => {
 		globalThis.fetch = (async () =>
 			new Response('data', { headers: { 'content-length': '4' } })) as typeof fetch;
 		try {
-			const handle = profiler({ secret: 'prof-key', serverTiming: true });
+			const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more', serverTiming: true });
 			const idle = await handle({
 				event: make_event('/prod/page'),
 				resolve: async () => {
@@ -6168,7 +6182,7 @@ describe('profiler handle', () => {
 			expect(idle_timing).not.toContain('net;'); // the fetch was NOT attributed: no ALS ran
 
 			const profiled = await handle({
-				event: make_event('/prod/page', { 'x-profile': 'prof-key' }),
+				event: make_event('/prod/page', { 'x-profile': 'prof-key-of-16-bytes-or-more' }),
 				resolve: async () => {
 					await fetch('https://api.example.com/data');
 					return new Response('page');
@@ -6187,7 +6201,7 @@ describe('profiler handle', () => {
 	it('beacon: the tag rides an authed document, /beacon is bounded, the report joins by fingerprint', async () => {
 		const { request_stats_store } = await import('../src/profiler/request-stats.ts');
 		const record_request_stats = request_stats_store.page;
-		const handle = profiler({ secret: 'prof-key' });
+		const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 		// a document request gets the tag at the end of <head>; a fetch (no document dest) does not
 		// (dev: the tag needs no flag cookie; production reads `og_profiler_beacon`, set at login)
 		const doc = await handle({
@@ -6216,7 +6230,7 @@ describe('profiler handle', () => {
 		// a header-profiled request records island rows (what ogygia's handle does while detail is on)
 		const fp = 'abcdefabcdefabcd';
 		const profiled = await handle({
-			event: make_event('/prod/page', { 'x-profile': 'prof-key' }),
+			event: make_event('/prod/page', { 'x-profile': 'prof-key-of-16-bytes-or-more' }),
 			resolve: async (e) => {
 				record_request_stats(e.request, {
 					transform_ms: 1,
@@ -6303,12 +6317,12 @@ describe('profiler handle', () => {
 	it('serializes recordings: a second profile while one is running renders un-profiled', async () => {
 		dev_switch.dev = false;
 		try {
-			const handle = profiler({ secret: 'prof-key' });
+			const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 			// A holds the recorder slot until we release it (its render parks on the gate).
 			let release_a: () => void = () => {};
 			const a_gate = new Promise<void>((r) => (release_a = r));
 			const a = handle({
-				event: make_event('/prod/a', { 'x-profile': 'prof-key' }),
+				event: make_event('/prod/a', { 'x-profile': 'prof-key-of-16-bytes-or-more' }),
 				resolve: async () => {
 					await a_gate;
 					return new Response('a');
@@ -6317,7 +6331,7 @@ describe('profiler handle', () => {
 			// give A time to take the slot and enter the capture window before B arrives
 			await new Promise((r) => setTimeout(r, 50));
 			const b = await handle({
-				event: make_event('/prod/b', { 'x-profile': 'prof-key' }),
+				event: make_event('/prod/b', { 'x-profile': 'prof-key-of-16-bytes-or-more' }),
 				resolve: async () => new Response('b')
 			});
 			// the process-wide inspector is busy with A, so B is served un-profiled (no report header)
@@ -6395,7 +6409,7 @@ describe('the deep pictures on the host: visits, keep, the byte strip, nested tr
 		});
 
 	it('beacon: a visit lands per page, bounded, and the report JSON carries its picture', async () => {
-		const handle = profiler({ secret: 'prof-key' });
+		const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 		expect((await post(handle, visit_body())).status).toBe(204);
 		expect((await post(handle, JSON.stringify({ page: '/deep', visit: { nav: {} } }))).status).toBe(
 			400
@@ -6448,8 +6462,12 @@ describe('the deep pictures on the host: visits, keep, the byte strip, nested tr
 	});
 
 	it('/page?format=keep answers the dump for the browser to keep, with the byte strip of the rendered document', async () => {
-		const handle = profiler({ secret: 'prof-key' });
-		const doc = `<!doctype html><html><head><title>d</title><style>.x{}</style></head><body><p>hi</p><ogygia-region data-og-fp="0000aaaa1111bbbb" entry="/_app/x.js"><b>i</b></ogygia-region><script type="application/ogygia-page">{"data":{"products":[1,2,3],"flags":{"a":true}}}\x3C/script><script type="application/ogygia-props" data-ogygia-props>[]\x3C/script></body></html>`;
+		const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
+		const doc =
+			'<!doctype html><html><head><title>d</title><style>.x{}</style></head><body><p>hi</p>' +
+			'<ogygia-region data-og-fp="0000aaaa1111bbbb" entry="/_app/x.js"><b>i</b></ogygia-region>' +
+			'<script type="application/ogygia-page">{"data":{"products":[1,2,3],"flags":{"a":true}}}</script>' +
+			'<script type="application/ogygia-props" data-ogygia-props>[]</script></body></html>';
 		// the page profile renders through event.fetch (Kit's internal render), not resolve
 		const ev = make_event('/__profiler/page?p=/deep&runs=2&cold=0&format=keep');
 		(ev as { fetch: unknown }).fetch = async () =>
@@ -6495,7 +6513,7 @@ describe('the deep pictures on the host: visits, keep, the byte strip, nested tr
 	});
 
 	it('nested traces: a request that asks gets our picture in a header; our outbound calls ask while recording', async () => {
-		const handle = profiler({ secret: 'prof-key' });
+		const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 		const res = await handle({
 			event: make_event('/api/thing', { 'x-og-trace': '1' }),
 			resolve: async () => new Response('ok')
@@ -6559,7 +6577,7 @@ describe('the deep pictures on the host: visits, keep, the byte strip, nested tr
 		}) as typeof fetch;
 		try {
 			const handle = profiler({
-				secret: 'prof-key',
+				secret: 'prof-key-of-16-bytes-or-more',
 				sink: { url: 'http://sink.test/rows', key: 'sk', every: 1000 }
 			});
 			await handle({ event: make_event('/a'), resolve: async () => new Response('ok') });
@@ -6582,7 +6600,7 @@ describe('the deep pictures on the host: visits, keep, the byte strip, nested tr
 			expect(again).toEqual(expect.arrayContaining(['/a', '/b']));
 			// the site page draws this instance's rows and reports the sink's state
 			const site = await handle({
-				event: make_event('/__profiler/site', { 'x-profiler-key': 'prof-key' }),
+				event: make_event('/__profiler/site', { 'x-profiler-key': 'prof-key-of-16-bytes-or-more' }),
 				resolve: async () => new Response('no')
 			});
 			expect(site.status).toBe(200);
@@ -6686,9 +6704,11 @@ describe('the deep pictures on the host: visits, keep, the byte strip, nested tr
 	}, 20_000);
 
 	it('compare with a report this server no longer holds renders the browser-store fallback, not a 404', async () => {
-		const handle = profiler({ secret: 'prof-key' });
+		const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 		const res = await handle({
-			event: make_event('/__profiler/compare/gone1/gone2', { 'x-profiler-key': 'prof-key' }),
+			event: make_event('/__profiler/compare/gone1/gone2', {
+				'x-profiler-key': 'prof-key-of-16-bytes-or-more'
+			}),
 			resolve: async () => new Response('no')
 		});
 		expect(res.status).toBe(200);
@@ -6698,7 +6718,7 @@ describe('the deep pictures on the host: visits, keep, the byte strip, nested tr
 
 describe('a visit posted in halves', () => {
 	it('the runtime half (islands) and the mark half (marks) of one visit fold into one picture', async () => {
-		const handle = profiler({ secret: 'prof-key' });
+		const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 		const post = (body: unknown) =>
 			handle({
 				event: {
@@ -6770,7 +6790,7 @@ describe('a visit posted in halves', () => {
 
 describe('who caused the GC, on the host', () => {
 	it('a render that churns memory gets its pauses attributed to the allocating function', async () => {
-		const handle = profiler({ secret: 'prof-key' });
+		const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 		// 60 MB of short-lived garbage per render, from a named function the sampler can see
 		function make_garbage(): number {
 			let n = 0;
@@ -6856,7 +6876,7 @@ describe('the profiler’s own cost is taken out', () => {
 		expect(a.idle_ms).toBe(10);
 	});
 	it('a page report carries the overhead it took out, and the runs as the app would have paid them', async () => {
-		const handle = profiler({ secret: 'prof-key' });
+		const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 		const ev = make_event('/__profiler/page?p=/o&runs=2&cold=0');
 		(ev as { fetch: unknown }).fetch = async () => {
 			const junk = Array.from({ length: 200_000 }, (_, i) => ({ i }));
@@ -6996,7 +7016,7 @@ describe('compare: the garbage makers diff', () => {
 
 describe('more from the same snapshot, on the host', () => {
 	it('a page profile counts the promises per render and measures what a render leaves behind', async () => {
-		const handle = profiler({ secret: 'prof-key' });
+		const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 		const kept: unknown[] = []; // a module-level "cache" that keeps part of every render
 		const ev = make_event('/__profiler/page?p=/keep&runs=2&cold=0');
 		(ev as { fetch: unknown }).fetch = async () => {
