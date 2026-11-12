@@ -91,6 +91,9 @@ export interface Build {
 	readonly id: string;
 	/** The app's `.svelte-kit/output`. */
 	readonly output: string;
+	/** Its server's environment beside the host's (`$env/dynamic/private`): a federated app's keys
+	 *  and its peers' origins. */
+	readonly env?: Readonly<Record<string, string>>;
 }
 
 export interface ServerInstance {
@@ -150,7 +153,7 @@ export async function start_server(
 			manifest: unknown;
 		};
 		const kit = new Server(manifest);
-		await kit.init({ env: { ...process.env } as Record<string, string> });
+		await kit.init({ env: { ...process.env, ...build.env } as Record<string, string> });
 		return kit;
 	});
 	const instance: ServerInstance = {
