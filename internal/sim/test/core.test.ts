@@ -121,6 +121,21 @@ describe('the network', () => {
 		expect(at).toBeLessThanOrEqual(4 * 120);
 	});
 
+	it("a server's hop names the document whose request it was answering", async () => {
+		const loop = new Loop(rng(1));
+		const net = new Network({ loop, rng: rng(1), faults: new Set() });
+		const peer = async () => new Response('peer');
+		void net.send('tab-1#2', new Request('https://app.test/p'), async () => {
+			const hop = await net.send('server-0', new Request('https://peer.test/f'), peer);
+			return new Response(await hop.text());
+		});
+		await loop.run();
+		expect(net.exchanges.map((e) => [e.from, e.for])).toEqual([
+			['tab-1#2', undefined],
+			['server-0', 'tab-1#2']
+		]);
+	});
+
 	it('offline fails at once', async () => {
 		const loop = new Loop(rng(1));
 		const net = new Network({ loop, rng: rng(1), faults: new Set() });

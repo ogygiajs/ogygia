@@ -43,6 +43,8 @@ export type Handler = (request: Request) => Promise<Response>;
 export interface Exchange {
 	readonly id: number;
 	readonly from: string;
+	/** A server's hop: the document whose request the server was answering when it made it. */
+	readonly for?: string;
 	readonly method: string;
 	readonly url: string;
 	status: number | 'dropped' | 'offline' | 'aborted' | 'pending';
@@ -61,8 +63,8 @@ export interface Exchange {
  *  it too). Read off the answer the client gets, not a duplicate's thrown away (seed 53). */
 export const ANSWERED_BY = 'x-sim-build';
 
-/** The tab a server is answering, through all its async work: its own hops are on that tab's
- *  behalf (a calm tab's reference load is calm all the way to a peer). */
+/** The document a server is answering, through all its async work: its own hops are on that
+ *  document's behalf (a calm tab's reference load is calm all the way to a peer). */
 const asked_by = new AsyncLocalStorage<string>();
 
 const RATES: Record<FaultClass, number> = {
@@ -156,12 +158,14 @@ export class Network {
 
 	/** Sends `request` from `realm` to `handler`; the answer comes when the loop says. */
 	send(realm: string, request: Request, handler: Handler): Promise<Response> {
-		// (the tab this request is for: its own, or, for a server's hop, the tab whose request the
-		// server was answering)
-		const behalf = asked_by.getStore() ?? realm.split('#')[0];
+		// (the document this request is for: its own, or, for a server's hop, the document whose
+		// request the server was answering)
+		const asked = asked_by.getStore();
+		const behalf = asked ?? realm;
 		const ex: Exchange = {
 			id: ++this.#ids,
 			from: realm,
+			...(asked !== undefined && { for: asked }),
 			method: request.method,
 			url: request.url,
 			status: 'pending',
@@ -191,7 +195,7 @@ export class Network {
 			signal?.addEventListener('abort', aborted, { once: true });
 			// (a server's hop made while answering a calm tab is calm too: the reference load's peer
 			// hop was dropped, and its page was the peer's 500; gen 12, seed 60)
-			const calm = this.#calm.has(realm.split('#')[0]) || this.#calm.has(behalf);
+			const calm = this.#calm.has(realm.split('#')[0]) || this.#calm.has(behalf.split('#')[0]);
 			if (!calm && this.#on('drop')) {
 				ex.status = 'dropped';
 				loop.add('net', `drop ${ex.id}`, this.#latency(), () => fail('connection lost'));

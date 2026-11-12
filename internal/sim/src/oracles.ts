@@ -717,19 +717,20 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 	const next = `${tab.name}#${tab.documents + 1}`;
 	const mine = (from: string): boolean =>
 		since === undefined ? from === tab.realm || from === next : from.startsWith(`${tab.name}#`);
-	return world.network.exchanges
-		.slice(since ?? 0)
-		.some(
-			(e) =>
-				mine(e.from) &&
+	return world.network.exchanges.slice(since ?? 0).some(
+		(e) =>
+			(mine(e.from) &&
 				(e.cut ||
 					e.tampered ||
 					e.redirected ||
 					e.status === 'dropped' ||
 					e.status === 'offline' ||
 					e.lost === true ||
-					(typeof e.status === 'number' && e.status >= 500))
-		);
+					(typeof e.status === 'number' && e.status >= 500))) ||
+			// (a server's hop for it changed on the way: what the page was made from. A cut one is
+			// a failure the app must answer well, #937)
+			(e.for !== undefined && mine(e.for) && e.tampered)
+	);
 }
 
 /** Was the HTML of the document `tab` shows changed or cut on its way? (Its own load is the first
@@ -746,6 +747,10 @@ export function document_faulted(world: World, tab: Tab): boolean {
 	const here = new URL(tab.page.mainFrame.url).pathname;
 	return world.network.exchanges.some((e) => {
 		if (!(e.tampered || e.cut)) return false;
+		// (or what a server fetched to make this document's answers: a changed byte in a peer's page
+		// is in the page, as one in the page's own HTML would be; gen 32, seed 32008, `pe�r-page` in
+		// a mounted peer page)
+		if (e.for === tab.realm && e.tampered) return true;
 		const path = new URL(e.url).pathname;
 		if (e.from === tab.realm) return !path.startsWith('/_app/') && !path.startsWith('/__ogygia__');
 		return e.from.startsWith(`${tab.name}#`) && path === here;

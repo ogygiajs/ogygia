@@ -67,6 +67,33 @@ describe('page errors', () => {
 	it('a changed chunk does not excuse a TypeError', () => {
 		expect(page_errors(tab(said), world('https://app.test/_app/x.js'))?.oracle).toBe('page-errors');
 	});
+
+	// (a server's hop for the document: a peer's page it was made from; gen 32, seed 32008)
+	const hop = (change: 'tampered' | 'cut') =>
+		({
+			network: {
+				exchanges: [
+					{ id: 1, from: 'tab-1#6', url: 'https://app.test/peer/q0', status: 200 },
+					{
+						id: 2,
+						from: 'server-0',
+						for: 'tab-1#6',
+						url: 'https://peer.test/og/fragment/page',
+						status: 200,
+						cut: change === 'cut',
+						tampered: change === 'tampered'
+					}
+				].map((e) => ({ method: 'GET', cut: false, tampered: false, ...e }))
+			}
+		}) as unknown as Parameters<typeof page_errors>[1];
+
+	it("a changed byte in a peer's page the server fetched for the document is the document's", () => {
+		expect(page_errors(tab(said), hop('tampered'))).toBeNull();
+	});
+
+	it('a cut hop is a failure the app answers, and excuses nothing', () => {
+		expect(page_errors(tab(said), hop('cut'))?.oracle).toBe('page-errors');
+	});
 });
 
 describe('leaks', () => {
