@@ -40,6 +40,38 @@ describe('coverage', () => {
 		expect(new_moves('', 4)).toEqual({ lines: [], total: 0 });
 	});
 
+	it('lists the recovery steps no run reached: a retry, an offline wait, a failure, a give-up, a keep that ran out', () => {
+		const c = new Coverage();
+		c.add({ steps: { 'hole: fetching -> retrying': 1, 'hole: idle -> armed': 1 }, points: {} });
+		const machines = new Map([
+			[
+				'hole',
+				{
+					name: 'hole',
+					pkg: 'core',
+					steps: {
+						idle: ['armed'],
+						fetching: ['retrying', 'offline', 'idle'],
+						retrying: ['fetching'],
+						offline: ['armed'],
+						failed: ['armed']
+					}
+				}
+			],
+			[
+				'island file',
+				{ name: 'island file', pkg: 'core', steps: { kept: ['gone'], flying: ['kept'] } }
+			]
+		]) as unknown as Parameters<Coverage['report']>[0];
+		expect(c.unreached_recovery(machines)).toEqual([
+			'hole: failed -> armed',
+			'hole: fetching -> offline',
+			'hole: offline -> armed',
+			'hole: retrying -> fetching',
+			'island file: kept -> gone'
+		]);
+	});
+
 	it('counts a step or a fired point new only the first time', () => {
 		const c = new Coverage();
 		expect(
