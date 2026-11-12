@@ -22,12 +22,15 @@ afterEach(() => {
 });
 
 /** A deferred widget's hole, minted the way a render does (the handle's signer installed). */
-async function widget_hole(): Promise<URL> {
+async function widget_hole(kind: 'widget' | 'page' = 'widget'): Promise<URL> {
 	install_federation(fed_app()!);
 	const request = new Request('http://shell/x');
 	set_current_request(() => request);
 	const { dash } = federate({ name: 'shell', peers: { dash: { origin: 'http://dash.test' } } });
-	const hole = await dash.widget('kpis', { org: 'acme' }, { render: 'deferred' });
+	const hole =
+		kind === 'widget'
+			? await dash.widget('kpis', { org: 'acme' }, { render: 'deferred' })
+			: await dash.page('/p', { render: 'deferred' });
 	set_current_request(null);
 	return new URL((hole as { url: string }).url, 'http://shell');
 }
@@ -66,4 +69,24 @@ describe("a deferred widget's hole when the peer fails", () => {
 			const res = (await ask(await widget_hole()))!;
 			expect(res.status).toBeGreaterThanOrEqual(500);
 		});
+});
+
+// The status says which failure it was, as a page read says it (#931): a peer busy or down passes
+// its 503 or 504 on, an answer that can't be used is a 502, and no answer at all is a 504. A page
+// hole answers the same as a widget hole. Nothing is cached: the runtime asks again.
+describe("a deferred region's hole: the status names the failure", () => {
+	const statuses: Array<[string, () => Promise<Response>, number]> = [
+		['a body cut midway', failures[0][1], 502],
+		['a 503', failures[1][1], 503],
+		['no answer at all', failures[2][1], 504],
+		['a 500', async () => new Response('boom', { status: 500 }), 502]
+	];
+	for (const kind of ['widget', 'page'] as const)
+		for (const [what, peer, status] of statuses)
+			it(`a ${kind} hole after ${what}: a ${status}, never stored`, async () => {
+				vi.stubGlobal('fetch', peer);
+				const res = (await ask(await widget_hole(kind)))!;
+				expect(res.status).toBe(status);
+				expect(res.headers.get('cache-control')).toBe('no-store');
+			});
 });
