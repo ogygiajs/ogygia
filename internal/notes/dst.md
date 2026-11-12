@@ -103,12 +103,17 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
 - Its `document.getElementsByTagNameNS` read the document's owner document (it has none) and
   threw: the search from a document reads the document as its own owner
   (`documents_by_namespace`, `test/document.test.ts`).
-- It records no resource timing (its `PerformanceObserver` is the host's, which hears none of a
-  page's downloads), so ogygia's import-again never learned whether a failed chunk's own file came.
-  Each document gets its own timeline and observer (`src/timeline.ts`), fed by its downloads on
-  the simulated network, read the seed's engine's way (`timeline engine`): `status` (Chromium,
-  Firefox: every download an entry with its `responseStatus`, a dropped one 0) or `start` (WebKit:
-  no status, no entry for a dropped download). Observer callbacks are tasks of the document.
+- It hands every window Node's one `performance` (so every tab read the newest document's clock,
+  and the host's entries), records no resource timing and has no navigation entry, and its
+  `PerformanceObserver` is the host's. So ogygia's import-again never learned whether a failed
+  chunk's own file came, its critical wait never read a preload's arrival, and its paint gate
+  never read when DOMContentLoaded ended. Each document gets its own `performance` and observer
+  (`src/timeline.ts`, `test/performance.test.ts`): its clock from its navigation's start, a
+  navigation entry stamped as its parse and events run, user timing, and a resource entry per
+  download once its body came, read the seed's engine's way (`timeline engine`): `status`
+  (Chromium, Firefox: every download an entry with its `responseStatus`, a dropped one 0) or
+  `start` (WebKit: no status, no entry for a dropped download). Observer callbacks are tasks of
+  the document.
 - It loads no image by default: every image read `complete` at once, and the critical wait (an
   incomplete `img[fetchpriority=high]`) was never seen. Images load over the simulated network
   (`enableImageFileLoading`, `test/images.test.ts`); the waste oracle leaves them out, as the
