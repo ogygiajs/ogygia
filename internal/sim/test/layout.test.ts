@@ -84,4 +84,25 @@ describe('a simulated document has a layout, and its IntersectionObserver report
 		expect(box('c')).toMatchObject({ w: 0, h: 0 });
 		expect(box('d')?.h).toBeGreaterThan(0);
 	});
+
+	it('a frame with no observer left keeps the layout it made: the next observer reads it, not an older one', async () => {
+		// (the frame cleared `dirty` and only an observer's look stored its boxes: a later observer
+		// read the layout from before the change; review of #1140)
+		const { loop, w, IO, io, $ } = page(
+			'<p id="top">top</p><div id="tall" style="height: 2000px"></div><p id="below">below</p>'
+		);
+		io.observe($('top'));
+		await loop.run(100);
+		// the change asks for a frame; the last observer goes before it comes
+		w.document.getElementById('tall')!.remove();
+		await loop.settle();
+		io.disconnect();
+		await loop.run(100);
+		const later: string[] = [];
+		new IO((entries) => {
+			for (const e of entries) later.push(`${e.target.id} ${e.isIntersecting}`);
+		}).observe($('below'));
+		await loop.run(100);
+		expect(later).toEqual(['below true']);
+	});
 });
