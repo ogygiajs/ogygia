@@ -35,7 +35,10 @@ works, what is built, and how to add to it.
      `Server.respond`. Each instance loads its own copy of the output (its own module graph), placed
      beside the app's output so it resolves the app's dependencies.
    - `browser.ts`: happy-dom browsers, one per visitor (own cookies), with tabs, back, forward,
-     reload. Each document is its own realm (`tab-2#3`), so its timers die with it.
+     reload. Each document is its own realm (`tab-2#3`), so its timers die with it, and a
+     document the tab has left hears nothing more from the network (`Network.leave`: a browser
+     calls off its fetches as it unloads it; a left document's stalled chunk once ran over its
+     closed window, gen 192, seed 11).
    - `world.ts`: ties it together. `World.make({ seed, builds })`, `world.go(tab, 'goto', '/')`.
 
 ## Why happy-dom
@@ -482,7 +485,8 @@ sets that document's answers aside (gen 178). An answer buggify lost on the way
 to CI while more than 50 runs are queued. Findings are grouped by signature (`signature()`: the
 oracle and what it is about, run-specific numbers and hashes out). An open `dst` issue that names
 the signature (`dst-signature: <sig>`, in its body or a comment) gets a count comment at most once
-a day; a new one gets an issue and a `sim/found-<sig>` branch with a seeded test. The results file
+a day (a stack frame's file and position are left out of a signature: a rebuilt app, a mutant's,
+moves them all); a new one gets an issue and a `sim/found-<sig>` branch with a seeded test. The results file
 (`dst-results.json`, an artifact) holds seeds run, rate and findings, for the tests page.
 
 ## Status
