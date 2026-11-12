@@ -45,6 +45,7 @@ export { lock, type Lock, type LockToken } from './lock.ts';
 export { noop } from './noop.ts';
 export { slot, type SlotOptions } from './slot.ts';
 export {
+	buggify,
 	clock,
 	net,
 	random,

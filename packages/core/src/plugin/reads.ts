@@ -6,7 +6,8 @@
  * - a flag decided for the visitor (`@ogygia/flags`), a streamed load, a plugin's `ctx.perVisitor`;
  * - a cookie, personal header, `locals` value, client address, platform value or credentialed
  *   `fetch` the render saw ({@link observe_reads});
- * - the `page.data` a hole's tree read (server/render-page.ts).
+ * - the `page.data` or `page.url` a hole's tree read (server/render-page.ts). The page is the
+ *   render's identity, not the visitor's: ogygia's own look-up of it is no read at all.
  *
  * A request's facts hold its read set (`facts.reads`). Work that may be kept (a cached hole render)
  * runs in its own set under it (server/read-trace.ts): a read lands in the innermost set and in every
@@ -21,11 +22,12 @@ export interface Reads {
 	/** The first per-visitor input read (`flag:<name>`, `cookie:<name>`, `header:<name>`,
 	 *  `locals.<key>`, a plugin's reason), or null. */
 	readonly perVisitor: string | null;
-	/** The render read `page.data`: its output is one page's. */
+	/** The render read its page (`page.data`, or the url of the page it renders for): its output
+	 *  is one page's. */
 	readonly pageData: boolean;
 	/** A per-visitor input was read (the first one names the set). */
 	visitor(input: string): void;
-	/** `page.data` was read. */
+	/** The render's page was read. */
 	page(): void;
 }
 

@@ -15,6 +15,7 @@
  */
 import type { RequestEvent } from '@sveltejs/kit';
 import {
+	buggify,
 	flights,
 	machine,
 	outbox,
@@ -39,6 +40,11 @@ import type { DevtoolsEventInput } from '@ogygia/core/plugin';
 import { sourceTag } from '@ogygia/core/plugin/utils';
 import { postrender_app } from './app.ts';
 import { OgygiaError, warn } from './messages.ts';
+
+declare const __OGYGIA_RULES__: boolean | undefined;
+/** Dev and rules builds (a buggify point); folded out of any other. */
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 /** One server's live settings: what its `postrender.handle({ store, edge })` was given. */
 export interface Runtime {
@@ -199,6 +205,9 @@ function store_answered(mark: Health): void {
 export async function store_call<T>(op: string, key: string, work: () => Promise<T>): Promise<T> {
 	const mark = store_health.now;
 	try {
+		// (buggify: the store is down for this call, a shared store's blip: the page renders fresh
+		// and is not kept, and the streak is said once)
+		if (RULES && buggify.fires('postrender.store-down')) throw new Error('store down (buggify)');
 		const out = await work();
 		store_answered(mark);
 		return out;
