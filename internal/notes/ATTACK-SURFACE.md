@@ -6,13 +6,15 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Request inputs: headers, query, cookies and bodies read from a request
 
-126 entries.
+127 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
 | `packages/cli/src/cli.ts` | `site_init` | `searchParams('q')` | 1 |
 | `packages/cli/src/mcp.ts` | `sends_to_login` | `headers.get('location')` | 1 |
 | `packages/cli/src/mcp.ts` | `tool_profile` | `headers.get('content-type')` | 1 |
+| `packages/core/src/contract/switch.ts` | `switch_in_url` | `searchParams(DEVTOOLS_PARAM)` | 1 |
+| `packages/core/src/contract/switch.ts` | `testing_lean` | `searchParams(TESTING_PARAM)` | 1 |
 | `packages/core/src/hooks.ts` | `#region_answer` | `cookies.get(DEVTOOLS_COOKIE)` | 1 |
 | `packages/core/src/hooks.ts` | `#region_answer` | `headers.get('sec-fetch-site')` | 1 |
 | `packages/core/src/hooks.ts` | `#region_answer` | `searchParams('renew')` | 1 |
@@ -26,16 +28,9 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/hooks.ts` | `render_batch` | `headers.get('sec-fetch-site')` | 1 |
 | `packages/core/src/hooks.ts` | `render_batch` | `request.json()` | 1 |
 | `packages/core/src/hooks.ts` | `router_fetched` | `headers.get('x-ogygia-spa')` | 1 |
-| `packages/core/src/insights/page-assets.ts` | `weigh_one` | `headers.get('content-encoding')` | 1 |
-| `packages/core/src/insights/page-assets.ts` | `weigh_one` | `headers.get('content-length')` | 1 |
-| `packages/core/src/insights/page-assets.ts` | `weigh_one` | `headers.get('vary')` | 1 |
-| `packages/core/src/insights/switch.ts` | `switch_in_url` | `searchParams(DEVTOOLS_PARAM)` | 1 |
-| `packages/core/src/insights/switch.ts` | `testing_lean` | `searchParams(TESTING_PARAM)` | 1 |
 | `packages/core/src/plugin/request-scope.ts` | `body_unread` | `headers.get('etag')` | 1 |
 | `packages/core/src/plugin/request-scope.ts` | `body_unread` | `headers.get('if-none-match')` | 1 |
 | `packages/core/src/region-snippet.ts` | `next_slot_id` | `searchParams('id')` | 1 |
-| `packages/core/src/runtime/beacon.ts` | `(module)` | `searchParams('id')` | 2 |
-| `packages/core/src/runtime/beacon.ts` | `build_visit_now` | `searchParams('id')` | 1 |
 | `packages/core/src/runtime/core.ts` | `#fetch_html` | `searchParams('id')` | 1 |
 | `packages/core/src/runtime/hole-fetch.ts` | `(module)` | `headers.get('x-ogygia-capability')` | 1 |
 | `packages/core/src/runtime/region-endpoint-url.ts` | `(module)` | `searchParams('exp')` | 1 |
@@ -58,6 +53,10 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/devtools/src/devtools/page.ts` | `hole_failures` | `searchParams('id')` | 1 |
 | `packages/devtools/src/devtools/page.ts` | `hole_waits` | `searchParams('id')` | 1 |
 | `packages/devtools/src/devtools/page.ts` | `varies` | `headers.get('vary')` | 1 |
+| `packages/devtools/src/document-request.ts` | `is_document_request` | `headers.get('accept')` | 1 |
+| `packages/devtools/src/document-request.ts` | `is_document_request` | `headers.get('sec-fetch-dest')` | 1 |
+| `packages/devtools/src/profiler/beacon-standalone.ts` | `build_visit_now` | `searchParams('id')` | 1 |
+| `packages/devtools/src/profiler/beacon.ts` | `(module)` | `searchParams('id')` | 2 |
 | `packages/devtools/src/profiler/busy.ts` | `busy_wait` | `headers.get('retry-after')` | 1 |
 | `packages/devtools/src/profiler/compress.ts` | `gzip_large` | `headers.get('accept-encoding')` | 1 |
 | `packages/devtools/src/profiler/compress.ts` | `gzip_large` | `headers.get('content-length')` | 1 |
@@ -68,8 +67,6 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/devtools/src/profiler/index.ts` | `#auth_guard` | `searchParams(AFTER_LOGIN_PARAM)` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#authed` | `headers.get('x-profiler-key')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#beacon` | `request.text()` | 1 |
-| `packages/devtools/src/profiler/index.ts` | `#beacon_tag` | `headers.get('accept')` | 1 |
-| `packages/devtools/src/profiler/index.ts` | `#beacon_tag` | `headers.get('sec-fetch-dest')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#beacon_tag` | `headers.get('x-og-profiler-internal')` | 2 |
 | `packages/devtools/src/profiler/index.ts` | `#beacon_tag` | `headers.get('x-profile')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#beacon_tag` | `headers.get('x-profiler-key')` | 1 |
@@ -104,6 +101,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/devtools/src/profiler/net.ts` | `wrap_fetch` | `headers.get(TRACE_HEADER)` | 1 |
 | `packages/devtools/src/profiler/session-cookie.ts` | `session_cookie_values` | `cookies.get(SESSION_COOKIE)` | 1 |
 | `packages/devtools/src/profiler/session-cookie.ts` | `session_cookie_values` | `headers.get('cookie')` | 1 |
+| `packages/devtools/src/server.ts` | `dock_measures` | `cookies.get(DEVTOOLS_COOKIE)` | 1 |
 | `packages/federation/src/mount.ts` | `(module)` | `headers.get('content-type')` | 1 |
 | `packages/federation/src/mount.ts` | `(module)` | `headers.get('traceparent')` | 4 |
 | `packages/federation/src/mount.ts` | `(module)` | `request.arrayBuffer()` | 1 |
@@ -124,6 +122,9 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/federation/src/wire.ts` | `(module)` | `headers.get(USER_HEADER)` | 1 |
 | `packages/federation/src/wire.ts` | `(module)` | `request.arrayBuffer()` | 1 |
 | `packages/flags/src/index.ts` | `override` | `searchParams('og-exp')` | 1 |
+| `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-encoding')` | 1 |
+| `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-length')` | 1 |
+| `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('vary')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('cache-control')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('content-type')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('if-modified-since')` | 1 |
@@ -148,20 +149,19 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/cli/src/mcp.ts` | `runMcp` | `JSON.parse` | 1 |
 | `packages/cli/src/mcp.ts` | `tool_flags` | `JSON.parse` | 1 |
 | `packages/cli/src/perf/cli.ts` | `read_json` | `JSON.parse` | 1 |
-| `packages/core/src/compiler/build-cache.ts` | `get` | `JSON.parse` | 1 |
-| `packages/core/src/compiler/fouc-css.ts` | `foucRelFromId` | `decodeURIComponent` | 1 |
-| `packages/core/src/compiler/kit.ts` | `kit_major` | `JSON.parse` | 1 |
-| `packages/core/src/compiler/link/emit-gate.ts` | `parse_ssr_hosts` | `JSON.parse` | 1 |
-| `packages/core/src/compiler/link/island-deps.ts` | `HANDLER_RE` | `JSON.parse` | 2 |
-| `packages/core/src/compiler/link/server-manifest.ts` | `PAGE_DATA_READS_PLACEHOLDER` | `JSON.parse` | 2 |
-| `packages/core/src/compiler/virtual/core.ts` | `dev_runtime_of` | `JSON.parse` | 1 |
+| `packages/compiler/src/compiler/build-cache.ts` | `get` | `JSON.parse` | 1 |
+| `packages/compiler/src/compiler/fouc-css.ts` | `foucRelFromId` | `decodeURIComponent` | 1 |
+| `packages/compiler/src/compiler/kit.ts` | `kit_major` | `JSON.parse` | 1 |
+| `packages/compiler/src/compiler/link/emit-gate.ts` | `parse_ssr_hosts` | `JSON.parse` | 1 |
+| `packages/compiler/src/compiler/link/island-deps.ts` | `HANDLER_RE` | `JSON.parse` | 2 |
+| `packages/compiler/src/compiler/link/server-manifest.ts` | `PAGE_DATA_READS_PLACEHOLDER` | `JSON.parse` | 2 |
+| `packages/compiler/src/compiler/virtual/core.ts` | `dev_runtime_of` | `JSON.parse` | 1 |
+| `packages/compiler/src/vite/index.ts` | `ogygia` | `JSON.parse` | 1 |
+| `packages/compiler/src/vite/package-files.ts` | `read_manifest` | `JSON.parse` | 1 |
+| `packages/core/src/contract/core-files.ts` | `(module)` | `JSON.parse` | 1 |
 | `packages/core/src/early-holes.ts` | `start_early_holes` | `JSON.parse` | 1 |
 | `packages/core/src/events/sinks.ts` | `ingest_server_events` | `JSON.parse` | 1 |
 | `packages/core/src/hooks.ts` | `decode_pathname` | `decodeURIComponent` | 1 |
-| `packages/core/src/insights/fp-drift.ts` | `(module)` | `JSON.parse` | 2 |
-| `packages/core/src/insights/fp-drift.ts` | `revive` | `devalue unflatten` | 1 |
-| `packages/core/src/insights/page-insights.ts` | `defer_keys` | `JSON.parse` | 1 |
-| `packages/core/src/insights/page-insights.ts` | `encoding_only` | `decodeURIComponent` | 2 |
 | `packages/core/src/island-graph.ts` | `decode_island_graph` | `JSON.parse` | 1 |
 | `packages/core/src/island-graph.ts` | `decode_island_locations` | `JSON.parse` | 1 |
 | `packages/core/src/runtime/hole-facts.ts` | `parse_record` | `JSON.parse` | 1 |
@@ -176,9 +176,6 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/server/page-facts.ts` | `(module)` | `devalue unflatten` | 1 |
 | `packages/core/src/server/page-facts.ts` | `(module)` | `JSON.parse` | 3 |
 | `packages/core/src/server/payload.ts` | `decode` | `atob` | 1 |
-| `packages/core/src/vite/index.ts` | `ogygia` | `JSON.parse` | 1 |
-| `packages/core/src/vite/package-files.ts` | `read_manifest` | `JSON.parse` | 1 |
-| `packages/core/src/vite/paths.ts` | `(module)` | `JSON.parse` | 1 |
 | `packages/devtools/src/build/profiler-maps.ts` | `maps_app_code` | `JSON.parse` | 1 |
 | `packages/devtools/src/build/profiler-maps.ts` | `slim_map` | `JSON.parse` | 1 |
 | `packages/devtools/src/devtools/Devtools.svelte` | `load_layout` | `JSON.parse` | 1 |
@@ -227,6 +224,10 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/federation/src/wire.ts` | `private_key` | `Buffer.from base64` | 1 |
 | `packages/federation/src/wire.ts` | `public_key` | `Buffer.from base64` | 1 |
 | `packages/federation/src/wire.ts` | `signature_bytes` | `Buffer.from base64` | 1 |
+| `packages/insights/src/fp-drift.ts` | `(module)` | `JSON.parse` | 2 |
+| `packages/insights/src/fp-drift.ts` | `revive` | `devalue unflatten` | 1 |
+| `packages/insights/src/page-insights.ts` | `defer_keys` | `JSON.parse` | 1 |
+| `packages/insights/src/page-insights.ts` | `encoding_only` | `decodeURIComponent` | 2 |
 | `packages/postrender/src/adapters/cloudflare-kv.ts` | `get` | `JSON.parse` | 1 |
 | `packages/postrender/src/adapters/upstash.ts` | `get` | `JSON.parse` | 1 |
 | `packages/postrender/src/adapters/valkey.ts` | `get` | `JSON.parse` | 1 |
@@ -245,6 +246,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 | file | in | what | n |
 | --- | --- | --- | --- |
+| `packages/compiler/src/compiler/ownership-stamps.ts` | `(module)` | `{@html}` | 1 |
 | `packages/content/src/markdown/region-emit.ts` | `FENCE_EMBED_RE` | `{@html}` | 1 |
 | `packages/content/src/markdown/region-emit.ts` | `try_region_emit` | `{@html}` | 1 |
 | `packages/content/src/markdown/shiki.ts` | `escape_svelte` | `{@html}` | 1 |
@@ -253,8 +255,6 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/content/src/site/components/DocsShell.svelte` | `(module)` | `{@html}` | 1 |
 | `packages/content/src/site/components/SearchPage.svelte` | `(module)` | `{@html}` | 1 |
 | `packages/content/src/site/components/SearchPalette.svelte` | `(module)` | `{@html}` | 1 |
-| `packages/core/src/compiler/ownership-stamps.ts` | `(module)` | `{@html}` | 1 |
-| `packages/core/src/insights/session-insights.ts` | `(module)` | `{@html}` | 1 |
 | `packages/core/src/messages/core.ts` | `WARNINGS` | `{@html}` | 2 |
 | `packages/core/src/Provide.svelte` | `(module)` | `{@html}` | 1 |
 | `packages/core/src/RawHtml.svelte` | `(module)` | `{@html}` | 1 |
@@ -263,6 +263,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/runtime/html-sink.ts` | `parse_region_html` | `innerHTML =` | 1 |
 | `packages/core/src/runtime/html-sink.ts` | `set_inner_html` | `innerHTML =` | 1 |
 | `packages/devtools/src/profiler/ui/ReportBody.svelte` | `(module)` | `{@html}` | 1 |
+| `packages/insights/src/session-insights.ts` | `(module)` | `{@html}` | 1 |
 | `packages/reshape/src/restore.ts` | `restore` | `innerHTML =` | 1 |
 | `packages/router/src/RawHtml.svelte` | `(module)` | `{@html}` | 1 |
 
@@ -275,6 +276,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/cli/src/cli.ts` | `keys_mint` | `generateKeyPairSync` | 1 |
 | `packages/cli/src/perf/cli.ts` | `runBisect` | `env OGYGIA_PROFILER_SECRET` | 1 |
 | `packages/cli/src/perf/cli.ts` | `runPerf` | `env OGYGIA_PROFILER_SECRET` | 1 |
+| `packages/compiler/src/vite/index.ts` | `ogygia` | `env OGYGIA_SECRET` | 4 |
 | `packages/core/src/plugin/testing.ts` | `TEST_SIGNER` | `createHmac` | 1 |
 | `packages/core/src/plugin/testing.ts` | `verify` | `createHmac` | 1 |
 | `packages/core/src/plugin/testing.ts` | `verify` | `timingSafeEqual` | 1 |
@@ -283,7 +285,6 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/server/hmac.ts` | `hex_equal` | `timingSafeEqual` | 1 |
 | `packages/core/src/server/hmac.ts` | `sha256` | `createHmac` | 1 |
 | `packages/core/src/server/hmac.ts` | `verify` | `timingSafeEqual` | 1 |
-| `packages/core/src/vite/index.ts` | `ogygia` | `env OGYGIA_SECRET` | 4 |
 | `packages/devtools/src/profiler/index.ts` | `constructor` | `env OGYGIA_PROFILER_SECRET` | 1 |
 | `packages/devtools/src/profiler/key-check.ts` | `mac_hex` | `subtle.sign` | 1 |
 | `packages/devtools/src/profiler/key-check.ts` | `mac_key` | `subtle.deriveKey` | 1 |
