@@ -2037,6 +2037,10 @@
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
 		},
 		{
+			"id": "packages/core/src/markup-walk.ts > tags",
+			"reason": "a generator (not recorded): one pattern jump per tag, the tag itself read by read_tag (benched in packages/core/bench/markup.bench.ts, a scan of a whole document too); proven in packages/core/test/wire-markup.test.ts"
+		},
+		{
 			"id": "packages/core/src/boundary.ts > BoundarySettings > configure",
 			"reason": "once per configure: refills the allow and deny sets, linear in the names the app configured"
 		},
