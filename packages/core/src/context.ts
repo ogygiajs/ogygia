@@ -1,11 +1,11 @@
 import { getContext, setContext } from 'svelte';
 import { BROWSER } from 'esm-env';
-import { getRequestEvent } from 'virtual:ogygia/request-event';
 import {
+	get_request_event,
 	csr_true_routes,
 	error_csr_true_routes,
 	root_layout_csr_true
-} from 'virtual:ogygia/route-csr';
+} from '#region-server';
 import { kit_hydrates_page } from './runtime/kit-boot.ts';
 
 // The nested-island mark (same `Symbol.for` rule as the keys below) is a leaf: nested.ts says why.
@@ -87,7 +87,7 @@ function normalize_route_id(id: string): string {
 export function documentIsCsrTrue(error_render = false): boolean {
 	if (BROWSER) return kit_hydrates_page();
 	try {
-		const event = getRequestEvent() as { route?: { id?: string | null } };
+		const event = get_request_event() as { route?: { id?: string | null } };
 		// An ERROR render (a 404 / 500 page) is Kit's layout-branch decision, not the page's: the
 		// caller (Region) passes what it reads off Kit's page state, and the handle passes the
 		// response status — the same map answers both.
@@ -128,8 +128,22 @@ export function error_route_is_csr_true(id: string | null | undefined): boolean 
 /** Per-request: only one `data-ogygia-runtime` script should be emitted (the first island). */
 const runtime_claimed = new WeakMap<object, true>();
 
-/** Per-request: stylesheet hrefs already linked for held regions rendered in this SSR pass. */
-const region_css_claimed = new WeakMap<object, Set<string>>();
+/** Per-request: stylesheet hrefs already linked in this SSR pass, each with the owner its tag names. */
+const region_css_claimed = new WeakMap<object, Map<string, string>>();
+
+/** Context key: the fingerprint of the outermost island a region renders inside (server only). */
+const HEAD_OWNER = Symbol.for('ogygia.head-owner');
+
+/** The fingerprint the head tags of the region rendering now belong to: the outermost island
+ *  around it, '' outside any (server/region-css.ts `head_owner_attr`). Call during setup. */
+export function head_owner(): string {
+	return (getContext(HEAD_OWNER) as string | undefined) ?? '';
+}
+
+/** An outermost island names itself the owner of every head tag rendered inside it. */
+export function set_head_owner(fp: string): void {
+	setContext(HEAD_OWNER, fp);
+}
 
 /** Per-request: island entries already stamped `<meta name="ogygia-kit-island">` in this pass. */
 const kit_island_claimed = new WeakMap<object, Set<string>>();
@@ -144,7 +158,7 @@ const kit_island_claimed = new WeakMap<object, Set<string>>();
 export function claim_kit_island(entry: string): boolean {
 	if (!entry) return false;
 	try {
-		const event = getRequestEvent() as object;
+		const event = get_request_event() as object;
 		let seen = kit_island_claimed.get(event);
 		if (!seen) kit_island_claimed.set(event, (seen = new Set()));
 		if (seen.has(entry)) return false;
@@ -161,19 +175,35 @@ export function claim_kit_island(entry: string): boolean {
  * route's STATIC import graph — it never reads the rendered page). The region wrapper links it from
  * the render pass instead, via `<svelte:head>`; claiming here dedupes so five `Feature` blocks on a
  * page link their shared sheet once. Client / no-request → [] (SSR already linked them).
+ *
+ * `owner` is the head-tag owner of the claiming region (`head_owner`). A sheet already linked under
+ * another owner is handed to `shared`: its tag names only the first, so the claimer is listed as
+ * one more owner elsewhere (the document tail, #854).
  */
-export function claim_region_css(hrefs: string[]): string[] {
+export function claim_region_css(
+	hrefs: string[],
+	owner = '',
+	shared?: (href: string) => void
+): string[] {
 	if (!hrefs.length) return [];
+	let seen: Map<string, string> | undefined;
 	try {
-		const event = getRequestEvent() as object;
-		let seen = region_css_claimed.get(event);
-		if (!seen) region_css_claimed.set(event, (seen = new Set()));
-		const fresh = hrefs.filter((h) => !seen.has(h));
-		for (const h of fresh) seen.add(h);
-		return fresh;
+		const event = get_request_event() as object;
+		seen = region_css_claimed.get(event);
+		if (!seen) region_css_claimed.set(event, (seen = new Map()));
 	} catch {
+		// ok: no request (the client, or off-request): SSR already linked them
 		return [];
 	}
+	const fresh: string[] = [];
+	for (const h of hrefs) {
+		const first = seen.get(h);
+		if (first === undefined) {
+			seen.set(h, owner);
+			fresh.push(h);
+		} else if (owner !== '' && owner !== first) shared?.(h);
+	}
+	return fresh;
 }
 
 /**
@@ -184,7 +214,7 @@ export function claim_region_css(hrefs: string[]): string[] {
  */
 export function claimRuntimeEmit(): boolean {
 	try {
-		const event = getRequestEvent() as object;
+		const event = get_request_event() as object;
 		if (runtime_claimed.has(event)) return false;
 		runtime_claimed.set(event, true);
 		return true;
@@ -204,7 +234,7 @@ const early_holes = new WeakMap<Request, Set<string>>();
  */
 export function note_early_hole(endpoint: string): void {
 	try {
-		const { request } = getRequestEvent() as { request: Request };
+		const { request } = get_request_event() as { request: Request };
 		let seen = early_holes.get(request);
 		if (!seen) early_holes.set(request, (seen = new Set()));
 		seen.add(endpoint);
@@ -218,7 +248,7 @@ export function note_early_hole(endpoint: string): void {
 export function take_early_holes(request?: Request): string[] {
 	if (!request)
 		try {
-			request = (getRequestEvent() as { request: Request }).request;
+			request = (get_request_event() as { request: Request }).request;
 		} catch {
 			return []; // ok: no request, so no hole of it was noted
 		}

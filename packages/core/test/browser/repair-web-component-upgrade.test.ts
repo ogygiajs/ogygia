@@ -6,7 +6,7 @@
 // — that is exactly what Svelte's walk needs — or the island discards.
 import { expect, test, afterEach } from 'vitest';
 import { repair_if_drifted, sequence_differs } from '../../src/runtime/hydrate-core.ts';
-import { parse_region_html } from '../../src/runtime/parse-html.ts';
+import { parse_region_html } from './_html.ts';
 import { install as install_morph } from '../../src/runtime/morph.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 
