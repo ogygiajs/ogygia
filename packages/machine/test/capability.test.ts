@@ -270,6 +270,19 @@ describe('capability: options', () => {
 		expect(() => cap.check('v1.1.x.y', '', [])).toThrow(/machine_bad_option/);
 	});
 
+	it('takes the highest version and a ttl.min equal to ttl.max; refuses a NaN ttl.min', () => {
+		const signer = hmac('k');
+		expect(() =>
+			capability({ name: 'n', version: 999_999, signer, ttl: { max: 5, min: 5 } })
+		).not.toThrow();
+		expect(() => capability({ name: 'n', version: 1_000_000, signer, ttl: { max: 5 } })).toThrow(
+			/machine_bad_option/
+		);
+		expect(() =>
+			capability({ name: 'n', version: 1, signer, ttl: { max: 5, min: Number.NaN } })
+		).toThrow(/ttl\.min/);
+	});
+
 	it('refuses a signer whose signature is not URL-safe', () => {
 		const cap = capability({
 			name: 'n',
