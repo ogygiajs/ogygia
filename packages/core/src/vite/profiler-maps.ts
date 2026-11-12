@@ -1,6 +1,6 @@
 /**
  * THE PROFILER'S MAPS, WRITTEN INTO THE CODE: after the server build has written its chunks (and
- * their hidden `.map` files), the module that `virtual:ogygia/profiler-maps` became gets one JSON
+ * their hidden `.map` files), the module that `ogygia:server/profiler-maps` became gets one JSON
  * string in place of its placeholder: the module map (which source module sits at which lines of each
  * chunk) and every chunk's sourcemap, by chunk file.
  *

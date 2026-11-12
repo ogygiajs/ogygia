@@ -9,8 +9,8 @@
  * chunks take the same two from ./lazy.ts, island-side code (a shim a component imports) from
  * ./island.ts — neither imports this module (see there).
  */
-import { define_messages, type MessagesOf } from './define.ts';
-import { prose } from './prose.ts';
+import { define_messages, type MessagesOf } from '../contract/messages.ts';
+import { prose } from '../contract/prose.ts';
 
 const BUG = 'An ogygia bug: please report it with the page that shows it.';
 
@@ -18,6 +18,14 @@ const BUG = 'An ogygia bug: please report it with the page that shows it.';
 /** The errors: `throw new OgygiaError(code, args)`, or `console.error(new OgygiaError(…), err)` for a
  *  failure that is caught. */
 export const ERRORS = {
+	request_event_server_only: {
+		text: (): string => 'getRequestEvent is server-only',
+		details: (): string => prose`
+			\`getRequestEvent()\` was called in the browser. There is no request there: a deferred
+			region's HTML is fetched from the server, so read the request in the component that
+			renders on the server, and pass what the browser needs as props.
+		`
+	},
 	goto_not_http: {
 		text: (): string => 'goto() only supports http(s) URLs',
 		details: (): string => prose`
@@ -86,14 +94,6 @@ export const ERRORS = {
 		details: (): string => prose`
 			An island waking on interaction threw while it hydrated, so it stays as its server HTML.
 			The click that woke it is replayed on that HTML. The error follows the message.
-		`
-	},
-	restore_markup_broken: {
-		text: (a: { diff: string }): string => `the transform broke hydration markup: ${a.diff}`,
-		details: (): string => prose`
-			A transform rewrote a restored region's markup so that its hydration markers no longer
-			match. \`diff\` names the first difference. (The restore runs as a self-contained script,
-			so it prints this code's link itself.)
 		`
 	},
 	client_hooks_init_failed: {
@@ -305,17 +305,6 @@ export const ERRORS = {
 		details: (): string => prose`
 			Two different wired classes claim the same continuity id, so they would share one kept
 			instance. Give each class its own id.
-		`
-	},
-	shared_state_not_plain: {
-		text: (a: { name: string; reason: string }): string => prose`
-			SharedState '${a.name}': values must be plain data (devalue-serializable — JSON, Date, Map,
-			Set, BigInt, RegExp). Functions, class instances, and DOM nodes do not cross build
-			boundaries — share facts, not live objects. (${a.reason})
-		`,
-		details: (): string => prose`
-			Shared state crosses between builds as data, so its values must serialize. Share plain
-			facts; keep live objects (functions, class instances, DOM nodes) on one side.
 		`
 	},
 	og_derived_formula_missing: {
@@ -890,19 +879,16 @@ export const WARNINGS = {
 			registry. ${BUG}
 		`
 	},
-	restore_late: {
-		text: (a: { host: string }): string =>
-			`<${a.host}> was upgraded before the restore reached it; its own root is kept and the server's copy of its render dropped.`,
+	rule_head_adopted: {
+		text: (a: { detail: string }): string =>
+			`rule broken, the head gains no <base> or refresh, CSP or cookie meta: ${a.detail}`,
 		details: (): string => prose`
-			A custom element of a reversible transform (an \`og-h\` host) already had a shadow root when
-			the restore reached it: a component runtime upgraded it first. The restore keeps the root
-			the component made, puts its light DOM back into Svelte's form (its children, its
-			attributes) and drops the server's rendered copy, which would otherwise show a second time
-			through the slot. Until the component renders, that part of the page is empty.
-
-			Load the component runtime after ogygia's restore (the handle inlines it at the end of the
-			body), or let it hydrate a declarative root instead of attaching its own in the
-			constructor. Said once per page and element name.
+			Dev and e2e only (a rule ogygia checks on itself). A \`<base>\` re-points every relative
+			fetch on the page, and a \`meta[http-equiv]\` that refreshes, sets a content security policy
+			or sets a cookie acts the moment it lands, so a navigation never adopts one from a fetched
+			page: only the first document's own count. One came into the head later. If the app adds it
+			itself, set it in the first document's head or as an HTTP header (a CSP header cannot be
+			loosened by a meta); else ${BUG}
 		`
 	}
 };
