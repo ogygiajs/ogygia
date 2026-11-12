@@ -22,10 +22,11 @@ import {
 	cms_page,
 	edit_while_asleep,
 	grid_page,
-	ISLAND_SRCS,
+	ISLAND_ENTRIES,
 	in_view,
 	page_head,
 	server_copy,
+	src_of,
 	strip_whitespace,
 	type PageRegion
 } from './hydration-page.ts';
@@ -35,7 +36,7 @@ import { RuntimeSession } from '../src/runtime/session.ts';
 import island_module from '../test/_stubs/island-module.ts';
 import { link_boot } from '../src/runtime/boot-link.ts';
 import { __heisenbench as core_private, boot } from '../src/runtime/core.ts';
-import { import_entry } from '../src/runtime/entry-locations.ts';
+import { import_entry, note_entry_location } from '../src/runtime/entry-locations.ts';
 import {
 	__heisenbench as hydrate_core,
 	hydrate_island,
@@ -47,8 +48,15 @@ import {
 	__heisenbench as interaction_private,
 	install as install_interaction
 } from '../src/runtime/interaction.ts';
-import { once_visible } from '../src/runtime/observe.ts';
-import { scope } from '@ogygia/machine';
+import { once_on_screen } from '../src/runtime/viewport.ts';
+import { flights, scope } from '@ogygia/machine';
+import { LoadSlot, reset_load_scheduler } from '../src/runtime/load-scheduler.ts';
+import { class_at, PRIORITY } from '../src/runtime/load-class.ts';
+import {
+	is_warmed_module,
+	reset_island_warms,
+	warm_island_module
+} from '../src/runtime/region-endpoint-url.ts';
 import {
 	background_start,
 	hydrate_settled,
@@ -106,12 +114,14 @@ function page_of(blocks: number): Booted {
  * The page, and the lazy chunks a wake imports loaded ahead of the window: the hydrate core, the
  * interaction replay, and every island module the page names. Node resolves an `import()`
  * with a filesystem call Heisenbench does not allow inside the window; in a browser each is a
- * fetch, not ogygia's work.
+ * fetch, not ogygia's work. Each island's location is noted first, as its element's connect notes
+ * it: an identity with no known location would ask the network for the build's map.
  */
 async function booted_page(blocks: number): Promise<Booted> {
 	await core_private.hydrate_core.get();
 	await interaction_private.replay();
-	await Promise.all(ISLAND_SRCS.map((src) => import_entry(src, src)));
+	for (const entry of ISLAND_ENTRIES) note_entry_location(entry, src_of(entry));
+	await Promise.all(ISLAND_ENTRIES.map((entry) => import_entry(entry)));
 	return page_of(blocks);
 }
 
@@ -311,7 +321,7 @@ function wake_page(regions: PageRegion[]): Promise<number> {
 		register_region(r.el, PAGE);
 		const fire = start(r, i);
 		if (r.wake === 'load') background_start(fire);
-		else if (r.wake === 'visible') once_visible(r.el, '0px', () => background_start(fire));
+		else if (r.wake === 'visible') once_on_screen(r.el, '0px', () => background_start(fire));
 		else if (r.wake === 'idle') setTimeout(fire, 200);
 	});
 	return expected === 0 ? Promise.resolve(0) : all;
@@ -345,6 +355,77 @@ bench(
 	'background drain: 250 wake starts queued in one task',
 	({ regions }) => drain_starts(regions),
 	{ setup: () => ({ regions: cms_page(250) }) }
+);
+
+/**
+ * Shared downloads raised by their joins (load-scheduler.ts `LoadSlot` on a flight): a page prefetch
+ * warms `n` downloads as guesses, queued behind the background window; a visitor then needs every
+ * third one (it joins as `user`) and every third is scrolled into view (`visible`). A raised slot
+ * drains at its new class. Ends when every download had its turn.
+ */
+function raised_downloads(n: number): Promise<number> {
+	const downloads = flights({
+		name: 'downloads',
+		keep: 0,
+		run: async (i: number, _signal, flight) => {
+			const slot = new LoadSlot({
+				kind: 'content',
+				cls: class_at(flight.priority),
+				label: 'd' + i,
+				flight
+			});
+			const release = await slot.ready;
+			await Promise.resolve();
+			release();
+			return slot.cls();
+		}
+	});
+	const out: Promise<unknown>[] = [];
+	for (let i = 0; i < n; i++) out.push(downloads.get(i, { priority: PRIORITY.speculative }));
+	for (let i = 0; i < n; i += 3) out.push(downloads.get(i, { priority: PRIORITY.user }));
+	for (let i = 1; i < n; i += 3) out.push(downloads.get(i, { priority: PRIORITY.visible }));
+	return Promise.all(out).then((all) => all.length);
+}
+
+bench(
+	'load scheduler: guesses raised by the visitor joins, as the page grows',
+	({ n }) => raised_downloads(n),
+	{
+		setup: () => {
+			reset_load_scheduler();
+			return { n: 30 };
+		},
+		scale: (_ctx, k) => {
+			reset_load_scheduler();
+			return { n: 30 * k };
+		}
+	}
+);
+
+/**
+ * The module warmer (region-endpoint-url.ts, one warm per module on the flights' priority): a page
+ * prefetch warms every island of the next page as a guess, and the visitor then reaches for every
+ * fourth one (a `user` warm joins and raises it). The modules are loaded ahead of the window, as the
+ * booted page's are. Ends when the warms had their turns.
+ */
+async function warm_page(srcs: string[]): Promise<number> {
+	reset_island_warms();
+	reset_load_scheduler();
+	for (const src of srcs) warm_island_module(src);
+	for (let i = 0; i < srcs.length; i += 4) warm_island_module(srcs[i], undefined, 'user');
+	await new Promise((r) => setTimeout(r, 10_000));
+	return srcs.filter((src) => is_warmed_module(src)).length;
+}
+
+bench(
+	'island warm: a prefetch warms a page of islands, the visitor reaches for some',
+	() => warm_page(ISLAND_ENTRIES),
+	{
+		setup: () => {
+			for (const entry of ISLAND_ENTRIES) note_entry_location(entry, src_of(entry));
+			return Promise.all(ISLAND_ENTRIES.map((entry) => import_entry(entry))).then(() => ({}));
+		}
+	}
 );
 
 bench('background drain: wake starts as the page grows', ({ regions }) => drain_starts(regions), {

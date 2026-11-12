@@ -19,7 +19,6 @@
 		region_name,
 		region_transitive,
 		chunk_bytes,
-		latest_event,
 		region_props_sidecar
 	} from './regions.ts';
 	import { snapshot } from '@ogygia/core/events';
@@ -94,7 +93,7 @@
 		const chunk = info.entry ? chunk_bytes(info.entry) : null;
 		const ev = snapshot();
 		const rendered = info.fp
-			? latest_event((e) => e.name === 'server.region.rendered' && e.fp === info.fp)
+			? (ev.findLast((e) => e.name === 'server.region.rendered' && e.fp === info.fp) ?? null)
 			: null;
 		const marks = [];
 		for (const ph of PHASES) {
