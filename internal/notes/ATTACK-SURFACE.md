@@ -6,26 +6,25 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Request inputs: headers, query, cookies and bodies read from a request
 
-127 entries.
+126 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
 | `packages/cli/src/cli.ts` | `site_init` | `searchParams('q')` | 1 |
+| `packages/cli/src/mcp.ts` | `sends_to_login` | `headers.get('location')` | 1 |
 | `packages/cli/src/mcp.ts` | `tool_profile` | `headers.get('content-type')` | 1 |
+| `packages/core/src/hooks.ts` | `#region_answer` | `cookies.get(DEVTOOLS_COOKIE)` | 1 |
+| `packages/core/src/hooks.ts` | `#region_answer` | `headers.get('sec-fetch-site')` | 1 |
+| `packages/core/src/hooks.ts` | `#region_answer` | `searchParams('renew')` | 1 |
 | `packages/core/src/hooks.ts` | `#region_session` | `cookies.get(session_cookie)` | 1 |
 | `packages/core/src/hooks.ts` | `#render_hole` | `cookies.get(TESTING_COOKIE)` | 1 |
 | `packages/core/src/hooks.ts` | `#render_hole` | `headers.get('content-type')` | 3 |
 | `packages/core/src/hooks.ts` | `#render_hole` | `searchParams(TESTING_PARAM)` | 1 |
-| `packages/core/src/hooks.ts` | `#verify_region_mac` | `cookies.get(session_cookie)` | 1 |
 | `packages/core/src/hooks.ts` | `devtools_switch` | `cookies.get(DEVTOOLS_COOKIE)` | 1 |
 | `packages/core/src/hooks.ts` | `render_batch` | `headers.get('content-length')` | 1 |
 | `packages/core/src/hooks.ts` | `render_batch` | `headers.get('sec-fetch-mode')` | 1 |
 | `packages/core/src/hooks.ts` | `render_batch` | `headers.get('sec-fetch-site')` | 1 |
 | `packages/core/src/hooks.ts` | `render_batch` | `request.json()` | 1 |
-| `packages/core/src/hooks.ts` | `render_region` | `cookies.get('og_profiler_beacon')` | 1 |
-| `packages/core/src/hooks.ts` | `render_region` | `cookies.get(DEVTOOLS_COOKIE)` | 1 |
-| `packages/core/src/hooks.ts` | `render_region` | `headers.get('sec-fetch-site')` | 1 |
-| `packages/core/src/hooks.ts` | `render_region` | `searchParams('renew')` | 1 |
 | `packages/core/src/hooks.ts` | `router_fetched` | `headers.get('x-ogygia-spa')` | 1 |
 | `packages/core/src/insights/page-assets.ts` | `weigh_one` | `headers.get('content-encoding')` | 1 |
 | `packages/core/src/insights/page-assets.ts` | `weigh_one` | `headers.get('content-length')` | 1 |
@@ -69,7 +68,6 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/devtools/src/profiler/index.ts` | `#auth_guard` | `searchParams(AFTER_LOGIN_PARAM)` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#authed` | `headers.get('x-profiler-key')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#beacon` | `request.text()` | 1 |
-| `packages/devtools/src/profiler/index.ts` | `#beacon_tag` | `cookies.get('og_profiler_beacon')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#beacon_tag` | `headers.get('accept')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#beacon_tag` | `headers.get('sec-fetch-dest')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#beacon_tag` | `headers.get('x-og-profiler-internal')` | 2 |
@@ -81,6 +79,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/devtools/src/profiler/index.ts` | `#cookie_diagnosis` | `cookies.get(SESSION_COOKIE)` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#cookie_diagnosis` | `headers.get('cookie')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#flag_cookie` | `cookies.get('og_profiler_beacon')` | 1 |
+| `packages/devtools/src/profiler/index.ts` | `#flag_session` | `cookies.get('og_profiler_beacon')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#login` | `request.json()` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#report_posted` | `headers.get('content-type')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#report_posted` | `headers.get('x-og-encoding')` | 1 |
@@ -194,7 +193,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/devtools/src/devtools/ui.ts` | `was_open` | `JSON.parse` | 1 |
 | `packages/devtools/src/profiler/analyze.ts` | `clean_url` | `decodeURIComponent` | 1 |
 | `packages/devtools/src/profiler/analyze.ts` | `text_nearby` | `JSON.parse` | 1 |
-| `packages/devtools/src/profiler/crypto.ts` | `ogp_decode` | `JSON.parse` | 1 |
+| `packages/devtools/src/profiler/crypto.ts` | `(module)` | `JSON.parse` | 1 |
 | `packages/devtools/src/profiler/crypto.ts` | `recover_ogp_bytes` | `Buffer.from base64` | 1 |
 | `packages/devtools/src/profiler/embedded-maps.ts` | `loaded` | `JSON.parse` | 1 |
 | `packages/devtools/src/profiler/embedded-maps.ts` | `source_index` | `JSON.parse` | 1 |
@@ -241,7 +240,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## HTML sinks: markup written into a page as markup
 
-21 entries.
+20 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -249,7 +248,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/content/src/markdown/region-emit.ts` | `try_region_emit` | `{@html}` | 1 |
 | `packages/content/src/markdown/shiki.ts` | `escape_svelte` | `{@html}` | 1 |
 | `packages/content/src/site/components/BlogShell.svelte` | `(module)` | `{@html}` | 1 |
-| `packages/content/src/site/components/CodeChrome.svelte` | `enhance` | `innerHTML =` | 6 |
+| `packages/content/src/site/components/CodeChrome.svelte` | `set_icon` | `innerHTML =` | 1 |
 | `packages/content/src/site/components/DocsShell.svelte` | `(module)` | `{@html}` | 1 |
 | `packages/content/src/site/components/SearchPage.svelte` | `(module)` | `{@html}` | 1 |
 | `packages/content/src/site/components/SearchPalette.svelte` | `(module)` | `{@html}` | 1 |
@@ -259,17 +258,16 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/Provide.svelte` | `(module)` | `{@html}` | 1 |
 | `packages/core/src/RawHtml.svelte` | `(module)` | `{@html}` | 1 |
 | `packages/core/src/Region.svelte` | `(module)` | `{@html}` | 7 |
-| `packages/core/src/runtime/hydrate-core.ts` | `align_to` | `innerHTML =` | 1 |
-| `packages/core/src/runtime/parse-html.ts` | `parse_region_html` | `innerHTML =` | 1 |
-| `packages/core/src/runtime/router-nav.ts` | `(module)` | `DOMParser` | 1 |
-| `packages/core/src/runtime/router-nav.ts` | `invalidate_all` | `DOMParser` | 1 |
+| `packages/core/src/runtime/html-sink.ts` | `parse_page_document` | `DOMParser` | 1 |
+| `packages/core/src/runtime/html-sink.ts` | `parse_region_html` | `innerHTML =` | 1 |
+| `packages/core/src/runtime/html-sink.ts` | `set_inner_html` | `innerHTML =` | 1 |
 | `packages/devtools/src/profiler/ui/ReportBody.svelte` | `(module)` | `{@html}` | 1 |
 | `packages/reshape/src/restore.ts` | `restore` | `innerHTML =` | 1 |
 | `packages/router/src/RawHtml.svelte` | `(module)` | `{@html}` | 1 |
 
 ## Secrets and keys: environment secrets, MACs, key derivation, signatures
 
-21 entries.
+24 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -281,11 +279,14 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/plugin/testing.ts` | `verify` | `timingSafeEqual` | 1 |
 | `packages/core/src/server/hmac.ts` | `derive_id_salt` | `hkdfSync` | 1 |
 | `packages/core/src/server/hmac.ts` | `derive_mac_key` | `hkdfSync` | 1 |
+| `packages/core/src/server/hmac.ts` | `hex_equal` | `timingSafeEqual` | 1 |
 | `packages/core/src/server/hmac.ts` | `sha256` | `createHmac` | 1 |
 | `packages/core/src/server/hmac.ts` | `verify` | `timingSafeEqual` | 1 |
-| `packages/core/src/vite/index.ts` | `ogygia` | `env OGYGIA_SECRET` | 3 |
-| `packages/devtools/src/profiler/index.ts` | `#key_matches` | `timingSafeEqual` | 2 |
+| `packages/core/src/vite/index.ts` | `ogygia` | `env OGYGIA_SECRET` | 4 |
 | `packages/devtools/src/profiler/index.ts` | `constructor` | `env OGYGIA_PROFILER_SECRET` | 1 |
+| `packages/devtools/src/profiler/key-check.ts` | `mac_hex` | `subtle.sign` | 1 |
+| `packages/devtools/src/profiler/key-check.ts` | `mac_key` | `subtle.deriveKey` | 1 |
+| `packages/devtools/src/profiler/key-check.ts` | `mac_key` | `subtle.importKey` | 1 |
 | `packages/devtools/src/profiler/window-id.ts` | `hmac_signer` | `createHmac` | 1 |
 | `packages/devtools/src/profiler/window-id.ts` | `hmac_signer` | `timingSafeEqual` | 1 |
 | `packages/devtools/src/profiler/window-id.ts` | `window_ids` | `hkdfSync` | 1 |
