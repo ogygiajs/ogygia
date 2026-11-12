@@ -118,7 +118,7 @@
 		// unmounted (mid-run or in the queue): its request, its queue's waits and its bar's timers go
 		return () => {
 			owner.close();
-			p[Symbol.dispose]();
+			p.close();
 		};
 	});
 </script>
