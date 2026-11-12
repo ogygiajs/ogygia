@@ -20,7 +20,7 @@ type MockRenderer = {
 };
 
 it('DEV: a live region snippet’s portable form threads its entry region-css link into <head>', () => {
-	const url = '/@id/virtual:ogygia/island/deadbeefcafe.svelte';
+	const url = '/@id/ogygia:region/entry/deadbeefcafe.svelte';
 	const branded = og_portable(native, Entry, {}, url) as unknown as Record<string, unknown>;
 	const snippet = branded[PORTABLE_FORM] as (r: MockRenderer) => void;
 
