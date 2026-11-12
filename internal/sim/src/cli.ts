@@ -419,9 +419,10 @@ export async function run(
 			// (a known one, a filed bug's, does not end the run: what comes after may be new)
 			if (broken.some((b) => b.oracle !== 'known')) break;
 		}
-		if (broken.every((b) => b.oracle === 'known') && stop_at === Infinity) {
+		// (a `--step` past the last action prints the trace through rest)
+		if (broken.every((b) => b.oracle === 'known') && stop_at > total) {
 			for (const t of v.tabs) world.network.offline(t.name, false);
-			await world.quiesce();
+			await world.rest();
 			// (a wait on its way out is not a hang: a backoff of seconds is a page's one-shot timer,
 			// due later than rest's 2 s. Time runs on while one is set, a minute at most, then rest)
 			const until = Math.min(world.loop.now + 60_000, world.loop.horizon);
@@ -431,7 +432,7 @@ export async function run(
 				v.tabs.some((t) => t.platform?.pending().includes('timeout'))
 			)
 				await world.loop.step();
-			await world.quiesce();
+			await world.rest();
 			hear_moves();
 			await at_rest?.(world, v);
 			// AT REST, every tab (a faulted one too: a failure must end a wait as surely as an
