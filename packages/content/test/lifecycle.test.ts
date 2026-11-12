@@ -312,6 +312,21 @@ describe('site search follows the content (#193)', () => {
 		expect(hits.length).toBeGreaterThan(0);
 	});
 
+	it("a dimensioned site: a page the default coordinate's live source adds is found by the next search", async () => {
+		const { source, push } = liveSource([doc('install', 'Install', 'Run the installer.')]);
+		const en = content({ schema, loader: source });
+		const fr = content({ schema, loader: liveSource([]).source });
+		const d = dimensions({
+			axes: { locale: { values: ['en', 'fr'], default: 'en', fallback: true } },
+			resolve: ({ locale }) => (locale === 'en' ? en : fr)
+		});
+		const s = siteRaw({ outline: d });
+		expect(await s.search('quantum')).toEqual([]);
+		push(doc('quantum', 'Quantum', 'Quantum islands are new.'));
+		await settle();
+		expect((await s.search('quantum')).length).toBeGreaterThan(0);
+	});
+
 	it('a failed first build is not kept: the next search builds again', async () => {
 		const { source, ctl } = liveSource([doc('install', 'Install', 'Run the installer.')]);
 		const s = siteRaw({ outline: content({ schema, loader: source }) });
