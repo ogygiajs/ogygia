@@ -20,7 +20,7 @@
  * its message (`on_reload_needed`).
  */
 import { flights, machine, say, scope, STALE, type Scope } from '@ogygia/machine';
-import type { CodeUrl } from './code-origins.ts';
+import { code_url_or_refuse, import_code, type CodeUrl } from './code-origins.ts';
 
 /** How long a failed import waits for its file's timing entry before it reads as "no response". */
 const ENTRY_WAIT_MS = 1000;
@@ -185,7 +185,9 @@ export function on_reload_needed(say: (url: string, error: unknown) => void): vo
  */
 export function import_again<T>(
 	load: () => Promise<T>,
-	fresh: (url: string) => Promise<unknown> = (url) => import(/* @vite-ignore */ url),
+	// (a retry asks under a fresh URL: only one on the page's code origins, ./code-origins.ts)
+	fresh: (url: string) => Promise<unknown> = (url) =>
+		Promise.resolve().then(() => import_code(code_url_or_refuse(url))),
 	/** The file `load` imports, when the caller knows it: what a failure that names no URL (WebKit)
 	 *  failed to load. */
 	known?: string
@@ -270,7 +272,8 @@ const file_loads = flights({
 		if (!again)
 			file_loaders.set(
 				url,
-				(again = import_again(() => import(/* @vite-ignore */ url), undefined, url))
+				// (the key is `import_file`'s CodeUrl: flights keys are plain strings)
+				(again = import_again(() => import_code(url as CodeUrl), undefined, url))
 			);
 		const load = again;
 		return load().catch(async (error: unknown) => {

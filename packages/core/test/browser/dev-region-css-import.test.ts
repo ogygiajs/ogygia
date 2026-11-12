@@ -15,19 +15,11 @@ const MARKER_MODULE = '/test/browser/fixtures/dev-css-marker.ts';
 
 // An ES module evaluates ONCE per url, so a shared marker module cannot prove a SECOND import ran (a
 // cache hit re-runs no side effect). Each test that must observe "imported or not" mints its own
-// fresh module; the `tag` comment makes the url unique.
-const marker_module = (tag: string) =>
-	'data:text/javascript,' +
-	encodeURIComponent(
-		`/* ${tag} */ document.documentElement.setAttribute('data-og-dev-css-marker', '1');`
-	);
+// fresh module; the `tag` query makes the url unique. (On the page's own origin: the rescue imports
+// nothing else, runtime/code-origins.ts.)
+const marker_module = (tag: string) => MARKER_MODULE + '?m=' + tag;
 
-const MODULE =
-	'data:text/javascript,' +
-	encodeURIComponent(
-		"const s=document.createElement('style');s.setAttribute('data-og-dev-probe','');" +
-			"s.textContent='.og-dev-probe{color:rgb(0, 128, 0)}';document.head.appendChild(s);"
-	);
+const MODULE = '/test/browser/fixtures/dev-css-probe.ts';
 
 function css_link(href: string): void {
 	const l = document.createElement('link');
