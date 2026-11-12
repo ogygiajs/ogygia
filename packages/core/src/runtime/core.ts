@@ -29,12 +29,7 @@ import {
 	vouch_remote_answer,
 	type VerifiedHtml
 } from './html-sink.ts';
-import {
-	mark_region_changed,
-	region_changed,
-	unwatch_region,
-	watch_region
-} from './drift-watch.ts';
+import { mark_region_changed, region_changed, watch_region } from './drift-watch.ts';
 import { runtime_session } from './session.ts';
 import {
 	capability_expired,
@@ -629,7 +624,7 @@ class OgygiaRegion extends HTMLElement {
 	#frames_in = 0;
 	/** A live region's last tick: what it goes on with when it is put back on the page (#337). */
 	#live_last: LiveTick | null = null;
-	/** While it sleeps with a copy: counted in drift-watch.ts's sleeping islands, until it wakes (or
+	/** While it sleeps with a copy: held in drift-watch.ts's sleeping islands, until it wakes (or
 	 *  leaves the page). */
 	#asleep: Scope | null = null;
 	get #watching(): boolean {
@@ -637,9 +632,7 @@ class OgygiaRegion extends HTMLElement {
 	}
 	#watch(): void {
 		if (this.#watching) return;
-		this.#asleep = this.#life.child();
-		watch_region();
-		this.#asleep.defer(unwatch_region);
+		watch_region((this.#asleep = this.#life.child()));
 	}
 	#unwatch(): void {
 		this.#asleep?.close();
