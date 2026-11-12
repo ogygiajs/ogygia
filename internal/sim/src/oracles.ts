@@ -388,12 +388,13 @@ export function first_difference(a: string, b: string, context = 3): string {
 }
 
 /** A hard load of `url` in a new browser with `v`'s cookies, on a network that does not fail it
- *  (a fault there is no finding about the tab), at rest. */
+ *  (a fault there is no finding about the tab), at rest, each leg `pace` ms slower. */
 async function load_fresh(
 	world: World,
 	v: Visitor,
 	url: string,
-	name: string
+	name: string,
+	pace = 0
 ): Promise<{ visitor: Visitor; tab: Tab }> {
 	const visitor = world.visitor(`${v.name}-${name}`);
 	const jar = (b: Visitor) =>
@@ -407,7 +408,7 @@ async function load_fresh(
 		).cookieContainer;
 	jar(visitor).addCookies(jar(v).getCookies(null, true));
 	const tab = world.tab(visitor);
-	world.network.calm(tab.name);
+	world.network.calm(tab.name, pace);
 	const path = new URL(url);
 	await world.go(tab, 'goto', path.pathname + path.search + path.hash);
 	return { visitor, tab };
@@ -431,8 +432,8 @@ export async function mpa_equivalent(
 	// (a page a build a deploy replaced answered is compared with a fresh load from that build: an
 	// old page is the old release's, whole)
 	const build = world.build_of(tab.realm);
-	const fresh_load = (w: World, visitor: Visitor, at: string, name: string) =>
-		w.as_of(build, () => load_fresh(w, visitor, at, name), world.answers_of(tab.realm));
+	const fresh_load = (w: World, visitor: Visitor, at: string, name: string, pace = 0) =>
+		w.as_of(build, () => load_fresh(w, visitor, at, name, pace), world.answers_of(tab.realm));
 	const fresh = await fresh_load(world, v, url, 'fresh');
 	// (no reference: the build the page is of could not give it again, its stored copies dropped and
 	// a newer build's handed out instead, gen 131, seed 131003)
@@ -466,10 +467,12 @@ export async function mpa_equivalent(
 	// differs between the two is marked on every side: seeds 107, 188, 268, 280, 326, 340, 477)
 	// (and a third, when two servers each count their own renders: two loads can meet the same
 	// count on two instances, but of three, two come from one instance; seed 221, a cart's stamp)
+	// (each at its own speed: with no delay fault two loads take the same time to the ms, and a
+	// stamp of the render's moment agreed on both; palaestra seed 20004, /delta/b)
 	const looks = [loaded];
 	let diff = '';
 	for (const n of [2, 3]) {
-		const more = await fresh_load(world, v, url, `fresh-${n}`);
+		const more = await fresh_load(world, v, url, `fresh-${n}`, (n - 1) * 7);
 		looks.push(whole(view(more.tab.page.mainFrame.document as unknown as Document)));
 		await world.browsers.close(more.visitor, more.tab);
 		for (const other of looks.slice(0, -1)) {
