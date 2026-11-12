@@ -127,7 +127,7 @@ const cap_nonce = (token: string): string => token.split('.')[2] ?? '';
 const cap_expiry = (token: string): number => Number(token.split('.')[1]);
 
 /** The mint side, one per private key (as cached as its KeyObject). */
-const minters = new Map<string, Capability>();
+const minters = cache<string, Capability>({ name: 'federation minters', max: MAX_CACHED_KEYS });
 function minter(b64: string): Capability {
 	let cap = minters.get(b64);
 	if (!cap) {
@@ -139,7 +139,6 @@ function minter(b64: string): Capability {
 				verify: () => false // (a minter checks nothing: the receiver brings its keys)
 			}
 		});
-		if (minters.size >= MAX_CACHED_KEYS) minters.clear();
 		minters.set(b64, cap);
 	}
 	return cap;
@@ -148,7 +147,7 @@ function minter(b64: string): Capability {
 /** The check side, one per window (its replay memory is the process's, whatever keys a check
  *  trusts): each token checks once, and a memory full of live ones refuses new calls rather than
  *  forget one. */
-const checkers = new Map<number, Capability>();
+const checkers = cache<number, Capability>({ name: 'federation checkers', max: 8 });
 function checker(skew: number): Capability {
 	let cap = checkers.get(skew);
 	if (!cap) {
@@ -158,7 +157,6 @@ function checker(skew: number): Capability {
 			replay: { max: MAX_SEEN_SIGS },
 			signer: { sign: () => '', verify: () => false } // (every check brings its keys)
 		});
-		if (checkers.size >= 8) checkers.clear();
 		checkers.set(skew, cap);
 	}
 	return cap;
