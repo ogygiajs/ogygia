@@ -14,7 +14,7 @@
  * Each area tells this module what it holds (`note_response_end`) only when rules are on: every call
  * site folds out of a build without them.
  */
-import { cache, observe, type AnyMachine, type Scope } from '@ogygia/machine';
+import { cache, observe, timers, type AnyMachine, type Scope } from '@ogygia/machine';
 import { Rules } from '../rules.ts';
 import { warn } from '../messages/server.ts';
 
@@ -147,7 +147,7 @@ function check_soon(): void {
 	if (pending) return;
 	pending = true;
 	// oxlint-disable-next-line ogygia/owned-effects -- the server's rule check, a task after the responses that asked for it: it ends itself, and the rules outlive every request
-	setTimeout(() => {
+	timers.keep(() => {
 		pending = false;
 		server_rules.say((code, detail) => warn(code, { detail }));
 	}, 0);
