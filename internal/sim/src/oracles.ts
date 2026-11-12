@@ -571,6 +571,30 @@ export function regions_show(tab: Tab, world: World): Broken | null {
 	return { oracle: 'empty-region', detail: `${url}: ${left.map(open).join('\n')}` };
 }
 
+/**
+ * A HOLE'S FALLBACK DOES NOT STAND: at rest, no deferred region that wakes on its own (`load`,
+ * `idle`) still shows the generated app's fallback (`data-gen-fallback`) in a document no fault or
+ * deploy touched: its answer was owed. The MPA check cannot see it (the fresh load runs the same code
+ * and stands there too: a mutant whose holes never fetched survived it). Set aside: a fallback the
+ * app keeps on purpose (`keepFallback()`, marked `data-gen-kept`), and holes that wait for the
+ * visitor or the screen.
+ */
+export function fallback_stands(tab: Tab, world: World): Broken | null {
+	const url = tab.page.mainFrame.url;
+	if (!url.startsWith('http') || faulted(world, tab) || world.skewed_for(tab.realm)) return null;
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	const standing = [...doc.querySelectorAll('ogygia-region[render="defer"]')].filter((r) => {
+		if (!/^(load|idle|)$/.test(r.getAttribute('when') ?? '')) return false;
+		const fallback = r.querySelector(':scope > [data-gen-fallback]');
+		return fallback !== null && !fallback.hasAttribute('data-gen-kept');
+	});
+	if (standing.length === 0) return null;
+	return {
+		oracle: 'fallback-stands',
+		detail: `${url}: ${standing.map((r) => r.querySelector('[data-gen-fallback]')!.textContent).join(', ')}`
+	};
+}
+
 /** An empty region a filed bug explains, by its shape and what its document was answered (as
  *  KNOWN is for an MPA difference). */
 const KNOWN_EMPTY: ReadonlyArray<{

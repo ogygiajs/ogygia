@@ -48,6 +48,7 @@ import {
 	page_errors,
 	page_rules,
 	regions_show,
+	fallback_stands,
 	server_rules,
 	stuck,
 	uncaught,
@@ -417,7 +418,9 @@ export async function run(
 					stuck(t),
 					page_rules(t),
 					// (and every region shows something, unless a press made the page the visitor's own)
-					pressed.get(t.name) === t.documents ? null : regions_show(t, world)
+					pressed.get(t.name) === t.documents ? null : regions_show(t, world),
+					// (and no hole that wakes on its own still shows its fallback)
+					pressed.get(t.name) === t.documents ? null : fallback_stands(t, world)
 				])
 					if (b) broken.push({ ...b, detail: `at rest: ${b.detail}` });
 			for (const t of v.tabs) {

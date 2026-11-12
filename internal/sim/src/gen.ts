@@ -381,7 +381,8 @@ function usage(n: GenNode, indent: string): string {
 	if (n.empty)
 		return `${indent}<div data-gen-empty>\n${usage({ ...n, empty: false }, `${indent}\t`)}\n${indent}</div>`;
 	if (n.kind === 'hole' && n.fallback)
-		return `${indent}<N${n.id} label="n${n.id}">\n${indent}\t{#snippet ogygiaFallback()}<p data-gen-fallback>loading n${n.id}…</p>{/snippet}\n${indent}</N${n.id}>`;
+		// (a fallback the hole keeps on purpose says so: the fallback oracle leaves it standing)
+		return `${indent}<N${n.id} label="n${n.id}">\n${indent}\t{#snippet ogygiaFallback()}<p data-gen-fallback${n.keep ? ' data-gen-kept' : ''}>loading n${n.id}…</p>{/snippet}\n${indent}</N${n.id}>`;
 	if (n.kind === 'held' || n.kind === 'live') return `${indent}<${name(n)} />`;
 	// (a fixed instant: what devalue carries, the same in every render)
 	const since = n.dated ? ` since={new Date(${n.id * 86_400_000})}` : '';
