@@ -1,7 +1,7 @@
 // The always-on runner (src/ci.ts): a batch that did not run is never counted, a found branch never
 // needs a forced push, and no error it reports carries the token.
 import { describe, expect, it } from 'vitest';
-import { batch_result, free_branch, redact, unreached_in_every } from '../src/ci.ts';
+import { batch_result, free_branch, quality_line, redact, unreached_in_every } from '../src/ci.ts';
 
 const OUT = JSON.stringify({ findings: [], steps_per_second: 10, replay_leaks: [] });
 
@@ -56,5 +56,21 @@ describe('recovery steps no batch reached', () => {
 			])
 		).toEqual(['hole: retrying -> fetching']);
 		expect(unreached_in_every([])).toEqual([]);
+	});
+});
+
+describe('the quality line', () => {
+	it('says the steps accounted for and the latest mutation run, with its date and how far it got', () => {
+		expect(
+			quality_line(
+				{ accounted: 220, total: 228 },
+				{ killed: 3, judged: 4, total: 10, rate: 75, at: '2026-11-12T03:50:00.000Z' }
+			)
+		).toBe(
+			'steps accounted: 220/228 (96.5%); mutation kill rate: 75% (3/4 judged of 10, 2026-11-12)'
+		);
+		expect(quality_line(null, null)).toBe(
+			'steps accounted: no sweep this run; mutation kill rate: no finished run yet'
+		);
 	});
 });
