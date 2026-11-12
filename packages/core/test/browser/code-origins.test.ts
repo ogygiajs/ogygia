@@ -15,12 +15,9 @@ import {
 } from '../../src/runtime/entry-locations.ts';
 import { warm_island_module } from '../../src/runtime/region-endpoint-url.ts';
 import { code_url } from '../../src/runtime/code-origins.ts';
-import {
-	GRAPH_PRELOAD_ATTR,
-	preload_island_graph,
-	register_island_graph
-} from '../../src/runtime/island-graph-preload.ts';
+import { preload_island_graph, register_island_graph } from '../../src/runtime/island-graph-preload.ts';
 import { encode_island_graph } from '../../src/island-graph.ts';
+import { OGYGIA_GRAPH_PRELOAD } from '../../src/wire-markup.ts';
 
 const PEER = 'https://peer.example';
 const requested = (part: string) =>
@@ -133,7 +130,7 @@ describe('an island’s preload links', () => {
 			)
 		);
 		preload_island_graph(entry);
-		const hrefs = [...document.head.querySelectorAll(`link[${GRAPH_PRELOAD_ATTR}]`)].map(
+		const hrefs = [...document.head.querySelectorAll(`link[${OGYGIA_GRAPH_PRELOAD}]`)].map(
 			(l) => (l as HTMLLinkElement).href
 		);
 		expect(hrefs).toEqual([
