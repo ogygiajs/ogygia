@@ -6,7 +6,17 @@
 import { afterEach, expect, inject, test, vi } from 'vitest';
 import { STALE } from '@ogygia/machine';
 import { bootDev } from '../../src/runtime/full.ts';
-import { note_mount, note_unmount, watch_router } from '../../src/runtime/rules.ts';
+import {
+	note_handed,
+	note_mount,
+	note_shown,
+	note_turn,
+	note_unbound,
+	note_unmount,
+	watch_frames,
+	watch_router
+} from '../../src/runtime/rules.ts';
+import { _reset, peek, ticket, write } from '../../src/runtime/frame-store.ts';
 import { runtime_session } from '../../src/runtime/session.ts';
 
 type Broken = Array<{ code: string; detail: string }>;
@@ -30,6 +40,13 @@ test('a page that keeps them: an island mounts, leaves the page, and no rule is 
 	expect(rules()).toEqual([]);
 });
 
+test("with rules on, `__ogygia_moves()` gives the page's machine moves, one line each", () => {
+	const moves = (globalThis as { __ogygia_moves?: () => string }).__ogygia_moves;
+	expect(typeof moves).toBe('function');
+	const lines = moves!().split('\n');
+	expect(lines.some((l) => /^wake#\d+ \S+ -> \S+$/.test(l))).toBe(true);
+});
+
 test('one mount per region: a region holding two islands, or keeping one after it left', async () => {
 	const el = document.createElement('ogygia-region');
 	el.setAttribute('entry', 'probe.svelte');
@@ -50,6 +67,55 @@ test('one mount per region: a region holding two islands, or keeping one after i
 	]);
 	note_unmount(el);
 	expect(rules()).toEqual([]);
+});
+
+test("a region shows its address's answer: handed the newest, and painted it once no paint is out", () => {
+	const behind = () => rules().filter((b) => b.code === 'rule_region_answer_behind');
+	watch_frames(peek);
+	const el = document.createElement('ogygia-region');
+	el.setAttribute('entry', 'hole.svelte');
+	document.body.append(el);
+	let painting = false;
+	const a = 'probe-hole|';
+	// handed answer 1, its turn came, painted
+	expect(write({ a, v: ticket(a), html: '<p>1</p>' })).toBe(true);
+	note_handed(el, a, 1, () => painting);
+	note_turn(el);
+	note_shown(el, 1);
+	expect(behind()).toEqual([]);
+	// the store took answer 2, and the region never heard of it
+	expect(write({ a, v: ticket(a), html: '<p>2</p>' })).toBe(true);
+	expect(behind()).toEqual([
+		{
+			code: 'rule_region_answer_behind',
+			detail: 'hole.svelte was last handed answer #1, its address holds #2'
+		}
+	]);
+	// handed it: waiting for its turn, then painting, is no finding
+	note_handed(el, a, 2, () => painting);
+	expect(behind()).toEqual([]);
+	note_turn(el);
+	painting = true;
+	expect(behind()).toEqual([]);
+	// its paint ended without painting it
+	painting = false;
+	expect(behind()).toEqual([
+		{
+			code: 'rule_region_answer_behind',
+			detail: 'hole.svelte shows answer #1, its address holds #2'
+		}
+	]);
+	note_shown(el, 2);
+	expect(behind()).toEqual([]);
+	// off the page, or unbound: not its to show
+	note_handed(el, a, 1, () => false);
+	el.remove();
+	expect(behind()).toEqual([]);
+	document.body.append(el);
+	note_unbound(el);
+	expect(behind()).toEqual([]);
+	el.remove();
+	_reset();
 });
 
 test('nothing of an old page open: a visit before the one on screen still open', () => {
@@ -86,6 +152,26 @@ test('the address bar and the history model: checked once no navigation is out',
 	expect(rules()[0]?.detail).toBe('the address bar is on entry doc.2, the history model on doc.1');
 	history.replaceState(null, ''); // an entry the router has not met: not its yet
 	expect(rules()).toEqual([]);
+});
+
+test('every marker declared: the app’s own data-og-* attributes are the app’s, ogygia’s misspelled ones are broken', () => {
+	const markup = () => rules().filter((b) => b.code === 'rule_markup_known');
+	// an app's Open Graph tooling, on its own elements and on a web component ogygia restored
+	document.body.innerHTML =
+		'<div data-og-image="/a.png" data-og-title="A"></div>' +
+		'<x-widget data-og-title="B" data-og-kept=""></x-widget>';
+	expect(markup()).toEqual([]);
+	// ogygia's own namespace, or a marker on ogygia's own element, misspelled
+	document.body.innerHTML =
+		'<script data-ogygia-runtim></script><ogygia-region entry="a" data-og-hydratd></ogygia-region>';
+	expect(markup()).toEqual([
+		{
+			code: 'rule_markup_known',
+			detail: 'the page carries undeclared markers: data-ogygia-runtim, data-og-hydratd'
+		}
+	]);
+	document.body.innerHTML = '';
+	expect(markup()).toEqual([]);
 });
 
 test('no failure without a code: a STALE rejection, an ogygia error with no code page', async () => {

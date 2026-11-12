@@ -14,19 +14,20 @@ import {
 	type SessionReport,
 	type TimelineItem,
 	type TimelineLane
-} from '@ogygia/core/insights';
+} from '@ogygia/insights';
 import { region_name_by_fp } from './regions.ts';
-import { snapshot } from '@ogygia/core/events';
+import { hook_entries } from './hook-entries.ts';
 import { scope, type Scope } from '@ogygia/machine';
 import { ensure_region_names } from './names.ts';
-import { TESTING_ENGINE_VERSION } from '@ogygia/core/insights';
+import { TESTING_ENGINE_VERSION } from '@ogygia/insights';
 import { nearest_attr } from '@ogygia/core/internal/instruments';
 import { charge, own_cost } from '@ogygia/core/internal/instruments';
-import { apply_attr_rules, type AttrRule } from '@ogygia/core/insights';
-import { testing_lean } from '@ogygia/core/insights';
-import type { PageFinding, PageReport } from '@ogygia/core/insights';
-import type { CpuSummary } from '@ogygia/core/insights';
-import type { BeaconPage, AttrChange } from '@ogygia/core/internal/instruments';
+import { apply_attr_rules, type AttrRule } from '@ogygia/insights';
+import { testing_lean } from '@ogygia/insights';
+import type { PageFinding, PageReport } from '@ogygia/insights';
+import type { CpuSummary } from '@ogygia/insights';
+import type { AttrChange } from '@ogygia/core/internal/instruments';
+import type { BeaconPage } from '../profiler/beacon.ts';
 
 type EngineStamp = { version: number; lean: boolean };
 type HydrationIsland = ReturnType<typeof hydration_report>['islands'][number];
@@ -34,24 +35,13 @@ type HydrationIsland = ReturnType<typeof hydration_report>['islands'][number];
 /** Which engine answered, and whether in lean testing (switch.ts): on every report. */
 const engine = () => ({ version: TESTING_ENGINE_VERSION, lean: testing_lean() });
 
-/** The decoded size of the engine's own files: what the page fetched while its import ran (ui.ts). */
-let engine_bytes = 0;
-export function note_engine_files(from: number, to: number): void {
-	for (const r of performance.getEntriesByType('resource') as PerformanceResourceTiming[])
-		if (
-			r.startTime >= from &&
-			r.startTime <= to &&
-			(r.initiatorType === 'script' || r.initiatorType === 'link' || r.initiatorType === 'other')
-		)
-			engine_bytes += r.decodedBodySize || 0;
-}
-
 /** What ogygia's measuring cost this page, for a test to subtract: the main-thread time of its own work
  *  (checking islands as they hydrate, building the visit, the testing reports — runtime/own-cost.ts)
- *  and the decoded bytes of the testing engine's files. No visitor with devtools off pays either. */
+ *  and the bytes of the testing engine's files: none, a test injects it. No visitor with devtools off
+ *  pays either. */
 function self_cost(): { script_ms: number; bytes: number; phases: Record<string, number> } {
 	const c = own_cost();
-	return { script_ms: c.ms, bytes: engine_bytes, phases: c.phases };
+	return { script_ms: c.ms, bytes: 0, phases: c.phases };
 }
 
 export async function page_json(cpu_fns = 15): Promise<{
@@ -184,7 +174,9 @@ export async function hydration_json(
 	};
 }
 
-export function record_start(): boolean {
+export async function record_start(): Promise<boolean> {
+	// @why the session names the islands on its page as it starts, and with no dock nothing asked for the names before (test: ogygia-testing e2e › record() across a full page load)
+	await ensure_region_names();
 	if (recording()) return false;
 	start_session();
 	return true;
@@ -306,21 +298,28 @@ export async function settled(quiet = 300, timeout = 10_000): Promise<boolean> {
 
 async function settle_poll(steps: Scope, quiet: number, until: number): Promise<boolean> {
 	for (;;) {
-		const ev = snapshot();
-		const started = new Set<string>();
+		const started = new Set<Element>();
 		let last = 0;
-		for (const e of ev) {
-			if (e.realm !== 'client') continue;
-			if (e.name === 'region.hydrate.start' && e.fp) started.add(e.fp);
-			if ((e.name === 'region.hydrate.done' || e.name === 'region.hydrate.failed') && e.fp)
-				started.delete(e.fp);
-			if (
-				e.name === 'region.hydrate.start' ||
-				e.name === 'region.hydrate.done' ||
-				e.name === 'wake.fired'
+		for (const e of hook_entries()) {
+			const el = e.el?.deref();
+			if (!el) continue;
+			// @why a woken region may still be downloading its code: in flight from the wake, not the mount (test: devtools-hook-record › still downloading)
+			if (e.hook === 'regionWoke' || e.hook === 'regionMount') started.add(el);
+			// @why a woken hole ends with its answer or its final failure, never with regionHydrated (test: devtools-hook-record › a hole that woke and then failed)
+			else if (
+				e.hook === 'regionHydrated' ||
+				e.hook === 'regionFailed' ||
+				e.hook === 'regionUnmount' ||
+				e.hook === 'holeAnswered' ||
+				e.hook === 'holeFailed'
 			)
-				last = Math.max(last, e.t);
+				started.delete(el);
+			if (e.hook === 'regionMount' || e.hook === 'regionHydrated' || e.hook === 'regionWoke')
+				last = Math.max(last, e.at);
 		}
+		// @why a live region mounts with no regionHydrated after it, and one that left mid-wake never hydrates (test: devtools-hook-record)
+		for (const el of started)
+			if (el.hasAttribute('data-hydrated') || !el.isConnected) started.delete(el);
 		if (!started.size && performance.now() - last >= quiet && document.readyState === 'complete')
 			return true;
 		if (performance.now() > until) return false;

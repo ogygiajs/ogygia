@@ -6,59 +6,111 @@ name: Changesets
 # whenever main has nothing waiting to release: right after a publish, and after any merge that
 # leaves no pending changeset (a docs or site change goes live by itself; while a package change
 # waits for its release, so does the site, so it never documents what npm does not have).
+#
+# Three jobs, each with only what it needs:
+#   version  opens or updates the version PR (SHIP_TOKEN on that one step); no npm identity.
+#   publish  when nothing is pending: builds every package from source (no remote cache: what npm
+#            gets is built here, never replayed) and publishes. The only job with `id-token: write`
+#            (npm's trusted publishing).
+#   latest   moves the latest branch to main with its deploy key.
 on:
   push:
     branches:
       - main
 
-# turbo's remote cache (see e2e.yml): build:lib replays what CI already built for this commit
-env:
-  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+permissions: {}
+
+# one release at a time: a second push waits instead of publishing beside the first
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   version:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write
       pull-requests: write
-      id-token: write
+    outputs:
+      pending: ${{ steps.changesets.outputs.hasChangesets }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # all history, so changesets can link each changelog entry to its commit and PR
           fetch-depth: 0
-          # SHIP_TOKEN (a fine-grained token, not GITHUB_TOKEN): the version PR it opens and pushes
-          # then runs CI like any PR, so the `ship` label can merge it
-          token: ${{ secrets.SHIP_TOKEN || github.token }}
-      - uses: actions/setup-node@v7
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
-      - uses: pnpm/action-setup@v6
-        with:
-          run_install: true
-      - run: pnpm run build:lib
-      - name: Create Release Pull Request or Publish to npm
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - run: pnpm install --frozen-lockfile
+      # SHIP_TOKEN (a fine-grained token, not GITHUB_TOKEN): the version PR it opens and pushes
+      # then runs CI like any PR, so the `ship` label can merge it. No publish script here.
+      - name: Create or update the version PR
         id: changesets
-        uses: changesets/action@v2
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
           version-script: pnpm ci:version
-          publish-script: pnpm ci:release
           commit-message: 'chore: update versions (${{ github.ref_name }})'
           pr-title: 'chore: update versions (${{ github.ref_name }})'
-          create-github-releases: true
           # the action refuses a GITHUB_TOKEN env that differs from this input
           github-token: ${{ secrets.SHIP_TOKEN || github.token }}
-      # main matches npm: just published, or no changeset is pending. A fast-forward only: latest
-      # is only ever set from main, so a refused push means someone moved it by hand.
-      # Pushed over SSH with the LATEST_DEPLOY_KEY deploy key: the "latest: only the release workflow"
-      # ruleset lets deploy keys update latest and nobody else, admins included. (GitHub accepts no
-      # GitHub Actions bypass on a repository ruleset, and a token push is a person or the bot.)
-      # GitHub's published ed25519 host key is pinned, so the push trusts nothing it is handed.
+
+  publish:
+    needs: version
+    if: needs.version.outputs.pending == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      # the tags and GitHub releases of what it publishes
+      contents: write
+      # npm's trusted publishing (provenance)
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - run: pnpm install --frozen-lockfile
+      # built here from source: no TURBO_TOKEN in this job, and --force skips the local cache too
+      - run: pnpm exec turbo run build --filter=./packages/* --force
+      - name: Publish to npm
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          publish: pnpm ci:release
+          create-github-releases: true
+          # SHIP_TOKEN: a release it creates starts the tests-report workflow (GITHUB_TOKEN's do not)
+          github-token: ${{ secrets.SHIP_TOKEN || github.token }}
+
+  # main matches npm: just published, or no changeset is pending. A fast-forward only: latest is
+  # only ever set from main, so a refused push means someone moved it by hand.
+  # Pushed over SSH with the LATEST_DEPLOY_KEY deploy key: the "latest: only the release workflow"
+  # ruleset lets deploy keys update latest and nobody else, admins included. (GitHub accepts no
+  # GitHub Actions bypass on a repository ruleset, and a token push is a person or the bot.)
+  # GitHub's published ed25519 host key is pinned, so the push trusts nothing it is handed.
+  latest:
+    needs: [version, publish]
+    if: >-
+      !cancelled() && needs.version.result == 'success' && needs.version.outputs.pending == 'false' &&
+      needs.publish.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Move the latest branch to main
-        if: steps.changesets.outputs.published == 'true' || steps.changesets.outputs.has-changesets == 'false'
         env:
           LATEST_DEPLOY_KEY: ${{ secrets.LATEST_DEPLOY_KEY }}
+          REPO: ${{ github.repository }}
         run: |
           dir="$(mktemp -d)"
           trap 'rm -rf "$dir"' EXIT
@@ -66,4 +118,4 @@ jobs:
           chmod 600 "$dir/key"
           echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' > "$dir/known_hosts"
           GIT_SSH_COMMAND="ssh -i $dir/key -o IdentitiesOnly=yes -o UserKnownHostsFile=$dir/known_hosts -o StrictHostKeyChecking=yes" \
-            git push "git@github.com:${{ github.repository }}.git" HEAD:refs/heads/latest
+            git push "git@github.com:$REPO.git" HEAD:refs/heads/latest
