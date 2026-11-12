@@ -15,8 +15,10 @@ import {
 	is_document_answer,
 	is_redirected_answer,
 	is_same_origin_response,
+	RegionAnswerLater,
 	RegionAnswerRefused,
-	renewal_url
+	renewal_url,
+	retry_after_ms
 } from './region-endpoint-url.ts';
 
 export type HoleFetch = {
@@ -79,6 +81,8 @@ export async function read_hole(
 	// A refused capability is deterministic (its key, its MAC, its id): no retry would differ.
 	if (res.status === 403)
 		throw new RegionAnswerRefused('forbidden', res.url || endpoint, deny_of(res, endpoint));
+	// the visitor's budget is spent: ask again when it says, not inside its window (#959)
+	if (res.status === 429) throw new RegionAnswerLater(retry_after_ms(res), res.url || endpoint);
 	if (!res.ok) throw new Error('status ' + res.status);
 	// 204: the hole said keepFallback() — the page's fallback stands, nothing to swap.
 	if (res.status === 204) return KEEP_FALLBACK_HTML;
