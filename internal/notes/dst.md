@@ -333,7 +333,10 @@ browser cannot; a named real test does, and the check finds that test in its fil
 takes it; an issue asks for its removal). A step in no bucket fails. `node src/steps.ts` is the static
 check (the PR check job, once the ledger is complete); `node src/sweep.ts` runs the standard sweep (the
 ledger's `sweep`: palaestra and generated apps' seeds) and fails when a `reached` step was not reached,
-a `dead` one was, or a step is in no bucket; `--write` sets `reached` to what it reached. dst.yml runs
+a `dead` one was, or a step is in no bucket; `--write` sets `reached` to what it reached. A step only a
+lucky seed reaches is not covered: the sweep's `plans` (saved runs in `internal/sim/sweep-plans/`, each
+on its app, the same run every time) name the steps each must reach, and the sweep fails when one no
+longer does. dst.yml runs
 the sweep before its seeds and fails the job after them when it failed.
 
 MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts` over
