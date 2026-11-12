@@ -11,8 +11,10 @@ export type Frame = {
 	/** Address — the serialized call that produced this content. */
 	a: string;
 	/**
-	 * Version ticket. Assigned at REQUEST time (not arrival time) by the store, so a slow response
-	 * that started earlier can never overwrite one that started later. `write()` drops `v <=` applied.
+	 * A stamp of the store's one world (runtime/frame-store.ts `stamp()`): a fetch's is taken when
+	 * its request starts, a write from elsewhere takes one when it writes, so a slow response that
+	 * started earlier can never overwrite one that started, or landed, later. `write()` drops `v <=`
+	 * applied.
 	 */
 	v: number;
 	/**
