@@ -1,5 +1,5 @@
 /**
- * THE MAPS THE BUILD WROTE INTO THE CODE (vite/profiler-maps.ts), read back: the module map and
+ * THE MAPS THE BUILD WROTE INTO THE CODE (build/profiler-maps.ts), read back: the module map and
  * every server chunk's sourcemap, by chunk file relative to the server output. Loaded once, on the
  * first resolve, from `ogygia:server/profiler-maps` — a dynamic import, so it ships with whatever
  * the adapter ships and costs a request nothing. Null outside a profiler-on server build.
@@ -16,7 +16,7 @@ export interface EmbeddedMaps {
 
 let ready: EmbeddedMaps | null = null;
 
-import { PROFILER_MAPS_GZ_PREFIX as GZ_PREFIX } from '@ogygia/core/internal/compiler-ids';
+import { PROFILER_MAPS_GZ_PREFIX as GZ_PREFIX } from '@ogygia/compiler/ids';
 import { flights, STALE } from '@ogygia/machine';
 import { read_profiler_maps } from '#profiler-maps';
 

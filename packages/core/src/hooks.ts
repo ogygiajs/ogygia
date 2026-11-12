@@ -19,6 +19,7 @@
  * @packageDocumentation
  */
 import { render } from 'svelte/server';
+import { clock } from '@ogygia/machine';
 import type { Component } from 'svelte';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { Handle } from './kit-handle.ts';
@@ -86,7 +87,13 @@ import { render_cache_key, cached_render, type RenderKey } from './server/render
 import { render as render_policy } from './policies.ts';
 import { install_server_rules, note_region_answer } from './server/rules.ts';
 import { B64Url } from './server/payload.ts';
-import { REF_WIRE_KEY, ref_reviver } from './ref.ts';
+import {
+	REF_WIRE_KEY,
+	ref_names,
+	ref_reviver,
+	set_ref_names_reader,
+	type RefNames
+} from './ref.ts';
 import type { RequestContext } from './plugin/index.ts';
 import { current_facts, facts_of, set_current_request, type RequestFacts } from './plugin/facts.ts';
 import { observe_reads } from './plugin/reads.ts';
@@ -191,7 +198,7 @@ import {
 	TESTING_LEAN,
 	TESTING_PARAM,
 	switch_in_url
-} from './insights/switch.ts';
+} from './contract/switch.ts';
 import { mark_personal } from './server/personal-response.ts';
 import { OgygiaError, warn } from './messages/server.ts';
 import { ERRORS, WARNINGS } from './messages/core.ts';
@@ -210,7 +217,7 @@ import { define_messages, dev_or_prerender } from './contract/messages.ts';
 	);
 
 /** Is devtools on for this request's browser (a devtools BUILD): the URL's `?og-devtools=on|off`
- *  wins and is written to the response's cookie, else the cookie (insights/switch.ts). */
+ *  wins and is written to the response's cookie, else the cookie (contract/switch.ts). */
 function devtools_switch(event: RequestEvent): boolean {
 	// (a prerendered page has no visitor, and a prerender may not read the query: off, and the browser
 	// applies the param itself — devtools/ui.ts)
@@ -235,9 +242,8 @@ const DEVTOOLS_LAZY =
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 if (RULES) install_server_rules();
-/** High-res clock for server-realm devtools timestamps. */
-const dt_now = () =>
-	typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+/** The monotonic clock, for server-realm devtools timestamps. */
+const dt_now = clock.mono;
 
 // Drop-in `setContext` bridge. A layout that imports `setContext` from `ogygia` records each string
 // key into this per-request bag during SSR; `inject_client_seeds` reads it back and emits ONE
@@ -331,6 +337,16 @@ set_ctx_recorder((key, value) => {
 const doc_asks = new WeakMap<Request, { wanted: boolean; keys: SeedKeys | null }>();
 const request_of = () =>
 	(try_get_request_store() as { event?: RequestEvent } | undefined)?.event?.request;
+// THE NAMES OF A RENDER (ref.ts RefNames): every ref one request mints is named by it, off the same
+// `Request` — any request, page or hole or remote call, so two answers in one tab never share an id.
+const ref_names_of = new WeakMap<Request, RefNames>();
+set_ref_names_reader(() => {
+	const request = request_of();
+	if (!request) return null;
+	let names = ref_names_of.get(request);
+	if (names === undefined) ref_names_of.set(request, (names = ref_names()));
+	return names;
+});
 set_ask_scope_opener(() => {
 	const request = request_of();
 	if (request && !bags.has(request) && !doc_asks.has(request))
@@ -856,7 +872,7 @@ class OgygiaHandle {
 				}
 				return res;
 			}
-			// DEVTOOLS for this browser (a BUILD: only one that turned it on — insights/switch.ts). Its
+			// DEVTOOLS for this browser (a BUILD: only one that turned it on — contract/switch.ts). Its
 			// page carries its own events, so it is never stored and never shared-cached.
 			const devtools_on = DEVTOOLS && (!DEVTOOLS_LAZY || devtools_switch(event));
 			// (a prerender has no visitor, and may not read the query)
@@ -897,10 +913,10 @@ class OgygiaHandle {
 			};
 			// DEVTOOLS: attach a request-scoped event buffer via a side WeakMap (keeps RequestBag — and
 			// its cost — untouched when devtools is off; the map + this line DCE out then).
-			// (a BUILD with devtools on: only for a browser that turned devtools on — insights/switch.ts —
+			// (a BUILD with devtools on: only for a browser that turned devtools on — contract/switch.ts —
 			// so no other visitor's page carries the side-channel. `?og-devtools=on|off` flips it on this
 			// very response, so the page that turned it on is measured from its start)
-			// (LEAN TESTING — insights/switch.ts — keeps the HTML what a visitor gets: no event side-channel)
+			// (LEAN TESTING — contract/switch.ts — keeps the HTML what a visitor gets: no event side-channel)
 			const lean =
 				devtools_on &&
 				!building &&
@@ -1716,7 +1732,7 @@ class OgygiaHandle {
 			return 'shape';
 		const expiry = expiry_refusal(
 			cap.exp,
-			Math.floor(Date.now() / 1000),
+			Math.floor(Date.now() / 1000), // wall: against the capability's signed epoch expiry
 			renewal,
 			app_lifetime.renew_window
 		);

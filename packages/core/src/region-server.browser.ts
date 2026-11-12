@@ -21,7 +21,7 @@ export const region_interactivity: typeof Server.region_interactivity = none;
 export const entry_location: typeof Server.entry_location = none;
 export const make_region_endpoint: typeof Server.make_region_endpoint = blank;
 export const mint_server_region: typeof Server.mint_server_region = blank;
-export const known_region_fps: typeof Server.known_region_fps = () => new Set();
+export const reuse_known_region: typeof Server.reuse_known_region = () => false;
 export const region_fingerprint: typeof Server.region_fingerprint = blank;
 export const hole_css: typeof Server.hole_css = empty;
 // (the link alone, as a production message prints: importing the message tables here would add a
@@ -35,3 +35,4 @@ export const error_csr_true_routes: typeof Server.error_csr_true_routes = new Se
 export const root_layout_csr_true: typeof Server.root_layout_csr_true = true;
 export const runtime_bootstrap: typeof Server.runtime_bootstrap = blank;
 export const region_css_tag: typeof Server.region_css_tag = blank;
+export const head_owner_attr: typeof Server.head_owner_attr = blank;
