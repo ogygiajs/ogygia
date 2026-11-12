@@ -56,31 +56,36 @@ type Parcel = { slot: string; html: string; end: number };
  * answer carrying one of its own); a length-framed one is exactly `data-og-len` characters.
  */
 export function read_parcel(buf: string, from: number): Parcel | null {
-	const open = buf.indexOf(OPEN, from);
-	if (open === -1) return null;
-	const slot_at = open + OPEN.length;
-	const quote = buf.indexOf('"', slot_at);
-	if (quote === -1) return null;
-	const slot = buf.slice(slot_at, quote);
-	if (buf.startsWith('">', quote)) {
-		const close = buf.indexOf(CLOSE, quote + 2);
-		if (close === -1) return null;
-		return { slot, html: buf.slice(quote + 2, close), end: close + CLOSE.length };
-	}
-	if (!buf.startsWith(LEN, quote)) {
+	// (a loop, not a call per opening skipped: any number of them reads in constant stack, #835)
+	for (;;) {
+		const open = buf.indexOf(OPEN, from);
+		if (open === -1) return null;
+		const slot_at = open + OPEN.length;
+		const quote = buf.indexOf('"', slot_at);
+		if (quote === -1) return null;
+		const slot = buf.slice(slot_at, quote);
+		if (buf.startsWith('">', quote)) {
+			const close = buf.indexOf(CLOSE, quote + 2);
+			if (close === -1) return null;
+			return { slot, html: buf.slice(quote + 2, close), end: close + CLOSE.length };
+		}
 		// (not a shape the server writes: skip past this opening, or wait for the rest of it)
-		return buf.length - quote < LEN.length ? null : read_parcel(buf, slot_at);
+		from = slot_at;
+		if (!buf.startsWith(LEN, quote)) {
+			if (buf.length - quote < LEN.length) return null;
+			continue;
+		}
+		let i = quote + LEN.length;
+		let len = 0;
+		for (let c = buf.charCodeAt(i); c >= 48 && c <= 57; c = buf.charCodeAt(++i))
+			len = len * 10 + (c - 48);
+		if (i + 2 > buf.length) return null;
+		if (!buf.startsWith('">', i)) continue;
+		const start = i + 2;
+		const end = start + len + CLOSE.length;
+		if (end > buf.length) return null;
+		return { slot, html: buf.slice(start, start + len), end };
 	}
-	let i = quote + LEN.length;
-	let len = 0;
-	for (let c = buf.charCodeAt(i); c >= 48 && c <= 57; c = buf.charCodeAt(++i))
-		len = len * 10 + (c - 48);
-	if (i + 2 > buf.length) return null;
-	if (!buf.startsWith('">', i)) return read_parcel(buf, slot_at);
-	const start = i + 2;
-	const end = start + len + CLOSE.length;
-	if (end > buf.length) return null;
-	return { slot, html: buf.slice(start, start + len), end };
 }
 
 /** A batch stream quiet this long is given up, and the holes still waiting on it fetch on their own:
