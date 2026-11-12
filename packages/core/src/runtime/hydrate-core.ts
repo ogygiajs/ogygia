@@ -54,6 +54,10 @@ const is_self_owned = (el: Element) => boot_link().is_self_owned(el);
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
+const HOOK_REGION_MISMATCHED =
+	typeof __OGYGIA_HOOK_REGION_MISMATCHED__ !== 'undefined'
+		? __OGYGIA_HOOK_REGION_MISMATCHED__
+		: true;
 
 /** The morph target for hydration repair: the server sequence Svelte's walk binds — see `repair_markup`. */
 const REPAIR_MORPH = { target: 'walk' } as const;
@@ -363,7 +367,10 @@ export function repair_if_drifted(
 	if (!sequence_differs(region, want)) return { repaired: false, reason: null, conflict: null };
 	// Name the drift BEFORE repairing (repair rewrites the live sequence). The string is read only by
 	// the DEV console + devtools, so a prod-without-devtools build skips building it (the walk DCEs).
-	const reason = import.meta.env.DEV || DEVTOOLS ? describe_divergence(region, want) : null;
+	const reason =
+		import.meta.env.DEV || DEVTOOLS || (HOOK_REGION_MISMATCHED && slots.hooks?.regionMismatched)
+			? describe_divergence(region, want)
+			: null;
 	conflict = null;
 	repair_markup(region, want);
 	const met = conflict;
@@ -834,6 +841,12 @@ export function hydrate_island(
 					fp: region.getAttribute(OG_FP) || undefined,
 					reason: drift.reason || undefined
 				});
+			if (HOOK_REGION_MISMATCHED)
+				slots.hooks?.regionMismatched?.({
+					el: region,
+					kind: 'healed',
+					...(drift.reason ? { reason: drift.reason } : {})
+				});
 			if (import.meta.env.DEV) warn('island_healed', { entry, drift: drift.reason });
 		}
 		if (drift.conflict) {
@@ -847,6 +860,8 @@ export function hydrate_island(
 					fp: region.getAttribute(OG_FP) || undefined,
 					reason: drift.conflict
 				});
+			if (HOOK_REGION_MISMATCHED)
+				slots.hooks?.regionMismatched?.({ el: region, kind: 'conflict', reason: drift.conflict });
 			if (import.meta.env.DEV) warn('ownership_conflict', { element: drift.conflict }, entry);
 		}
 
@@ -882,6 +897,12 @@ export function hydrate_island(
 					entry,
 					fp: region.getAttribute(OG_FP) || undefined,
 					reason: drift.reason || undefined
+				});
+			if (HOOK_REGION_MISMATCHED)
+				slots.hooks?.regionMismatched?.({
+					el: region,
+					kind: 'recovered',
+					...(drift.reason ? { reason: drift.reason } : {})
 				});
 			warn('hydration_discarded', {
 				entry,
