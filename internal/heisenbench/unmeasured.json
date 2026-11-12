@@ -529,6 +529,14 @@
 			"reason": "the request's end: settles its open flight, constant work (needs the real plugin loop); proven in packages/postrender/e2e/postrender.spec.ts S20"
 		},
 		{
+			"id": "packages/postrender/src/server.ts > defineServer:0~48ac6f > page > then:1~a1b2d0",
+			"reason": "a failed deploy check let go (the store said its failure, the next request checks again): nothing"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > servable",
+			"reason": "a stored entry's build label against the build's own `$app/env` version and the wall clock (hidden state), two comparisons; run by packages/postrender/test/deploy.test.ts and handle.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #answered",
 			"reason": "browser only: the custom element's answer landing (two machine moves), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
 		},
