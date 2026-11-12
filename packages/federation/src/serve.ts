@@ -18,6 +18,7 @@ import {
 } from '@ogygia/machine';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { ServerApp } from '@ogygia/core/plugin';
+import { OG_MOVED } from '@ogygia/core/internal/server';
 import { current_federation } from './registry.ts';
 import { begin_source_capture, broadcast_thaw, deploy_thaws } from './federate.ts';
 import { set_hole_signer } from './hole.ts';
@@ -361,7 +362,7 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 			return answer(wdoc.html);
 		}
 		const doc = await peer.doc(target, search, claims, traceparent);
-		if (doc.location) return answer(String(moved_card('data-og-moved', 'section', doc.location)));
+		if (doc.location) return answer(String(moved_card(OG_MOVED, 'section', doc.location)));
 		return answer((doc.css?.join('') ?? '') + (doc.head ?? '') + doc.body);
 	} catch (e) {
 		// a failed hop is an error status, never an empty success: the region keeps its fallback and

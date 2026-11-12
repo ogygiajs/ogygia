@@ -3,10 +3,10 @@
 // reach for it), the load it joins is raised to their priority, never left at the guess's.
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import {
-	GRAPH_PRELOAD_ATTR,
 	preload_island_graph,
 	reset_island_graph
 } from '../../src/runtime/island-graph-preload.ts';
+import { OGYGIA_GRAPH_PRELOAD as GRAPH_PRELOAD_ATTR } from '../../src/wire-markup.ts';
 import { warm_island_module } from '../../src/runtime/region-endpoint-url.ts';
 import {
 	BACKGROUND_WINDOW,
