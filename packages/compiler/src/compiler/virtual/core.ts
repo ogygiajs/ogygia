@@ -413,7 +413,7 @@ export const sign: RequestEntry<CoreApp> = virtual.request({
 	realm: 'server',
 	id: 'sign',
 	module: { core: 'server/hmac' },
-	exports: { sign: 'sign', verify: 'verify', region_mac_message: 'region_mac_message' }
+	exports: { sign: 'sign', region_sign: 'region_sign' }
 });
 
 export const request_event: RequestEntry<CoreApp> = virtual.request({
@@ -574,10 +574,11 @@ export const kit_transport: Family<KitTransportModule> = virtual.family({
 	id: 'kit-transport',
 	exports: { kit_transport: 'transport' },
 	// `ogygia.transport`: the codec cluster only when the app crosses a region or wired value over
-	// Kit's wire; an empty map for an app of plain regions (transport.js sits one level above runtime/)
-	load({ ctx, program }: CoreApp) {
+	// Kit's wire; an empty map for an app of plain regions. The dist dir sits one level above
+	// runtime/; the realm picks the transport.
+	load({ ctx, program }: CoreApp, { ssr }) {
 		const crosses = program.runtime_marks.wire === true || program.crosses_wire;
-		return kit_transport_module(crosses, posix(`${ctx.runtime_dir}/../transport.js`));
+		return kit_transport_module(crosses, posix(`${ctx.runtime_dir}/..`), ssr);
 	}
 });
 
