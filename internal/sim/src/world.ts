@@ -336,6 +336,11 @@ export class World {
 	 *  asked (a realm: a tab's document, `tab-1#2`). */
 	readonly skewed = new Map<string, Set<string>>();
 
+	/** The realms whose peer region address (`/og/frag`) a server refused as `sig` while the app
+	 *  has no secret: another build's key, which a plugin capability cannot name (#1007; goes with
+	 *  its fix, when the refusal says `foreign-key` and `skewed` holds it). */
+	readonly frag_refused = new Set<string>();
+
 	/** The build every request goes to while it is set (`as_of`). */
 	#pinned: string | null = null;
 
@@ -539,6 +544,12 @@ export class World {
 				// when the app has no stable secret, as ogygia's `secret_missing` says)
 				if (answer.headers.get('x-ogygia-deny') === 'foreign-key' && this.#o.secret === undefined)
 					this.skewed.set(from, (this.skewed.get(from) ?? new Set<string>()).add(url.pathname));
+				if (
+					answer.headers.get('x-ogygia-deny') === 'sig' &&
+					this.#o.secret === undefined &&
+					url.pathname === '/og/frag'
+				)
+					this.frag_refused.add(from);
 				// (which build answered rides with the answer, so a cached copy says it too; a page store's
 				// copy is the build's that rendered it: test/stored-build.node.test.ts)
 				const rendered = this.#rendered_by(answer, build);

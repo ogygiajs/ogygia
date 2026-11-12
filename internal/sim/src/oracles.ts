@@ -558,8 +558,9 @@ export function regions_show(tab: Tab, world: World): Broken | null {
 			.filter((a) => a.name !== 'endpoint')
 			.map((a) => ` ${a.name}="${a.value}"`)
 			.join('')}>`;
-	const known = KNOWN_EMPTY.filter((k) => empty.some(k.is));
-	const left = empty.filter((r) => !KNOWN_EMPTY.some((k) => k.is(r)));
+	const is = (k: (typeof KNOWN_EMPTY)[number], r: Element) => k.is(r, world, tab.realm);
+	const known = KNOWN_EMPTY.filter((k) => empty.some((r) => is(k, r)));
+	const left = empty.filter((r) => !KNOWN_EMPTY.some((k) => is(k, r)));
 	if (left.length === 0)
 		return {
 			oracle: 'known',
@@ -568,8 +569,24 @@ export function regions_show(tab: Tab, world: World): Broken | null {
 	return { oracle: 'empty-region', detail: `${url}: ${left.map(open).join('\n')}` };
 }
 
-/** An empty region a filed bug explains, by its shape (as KNOWN is for an MPA difference). */
-const KNOWN_EMPTY: ReadonlyArray<{ issue: number; what: string; is: (r: Element) => boolean }> = [
+/** An empty region a filed bug explains, by its shape and what its document was answered (as
+ *  KNOWN is for an MPA difference). */
+const KNOWN_EMPTY: ReadonlyArray<{
+	issue: number;
+	what: string;
+	is: (r: Element, world: World, realm: string) => boolean;
+}> = [
+	{
+		issue: 1007,
+		what: 'a peer region another deployment refused reads as a bad signature, not its key',
+		// (a rolling deploy with no secret: its `/og/frag` refused `sig`, so the deploy's skew is
+		// not seen; gen 195, seed 31)
+		is: (r, world, realm) =>
+			r.getAttribute('render') === 'defer' &&
+			!r.hasAttribute('data-hydrated') &&
+			(r.getAttribute('endpoint') ?? '').startsWith('/og/frag?') &&
+			world.frag_refused.has(realm)
+	},
 	{
 		issue: 937,
 		what: 'a deferred peer region whose peer failed is answered as an empty success',
