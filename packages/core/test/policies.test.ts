@@ -33,6 +33,11 @@ describe('named policies keep the old numbers', () => {
 		expect(waits(policies.region_fetch, 1)).toEqual([500 * 1, 500 * 2]);
 	});
 
+	it("a rate-limited hole: region_fetch's tries, each wait at most a minute (#959)", () => {
+		expect(policies.region_rate_limited.attempts).toBe(policies.region_fetch.attempts);
+		expect(waits(policies.region_rate_limited, 1)).toEqual([60_000, 60_000]);
+	});
+
 	it('render and stream: one try, 10 s (RENDER_TIMEOUT_MS, STALL_MS)', () => {
 		for (const p of [policies.render, policies.stream]) {
 			expect(p.attempts).toBe(1);
