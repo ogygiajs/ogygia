@@ -32,6 +32,7 @@ import {
 import type { HistoryEntry, HistoryMove, SpaRouter } from './router.ts';
 import { spa_html_cacheable } from './spa-cacheable.ts';
 import { is_dangerous_head_node } from './head-deny.ts';
+import { add_head_owners, adopt_owner_record, head_owners } from '../head-owners.ts';
 import { pin_region_urls } from './entry-locations.ts';
 import { emit as dt_emit } from '../events/bus.ts';
 import { KNOWN_HEADER_CAP } from '../contract/known-copies.ts';
@@ -1308,6 +1309,8 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 	// for the next page's copy either (the island may be torn down in the reconcile that follows —
 	// the copy the page needs goes in, and the one-copy rule retires it again if the island stays).
 	// Nodes that are not ours at all (a third-party inject) stay, as under Kit's own router.
+	// (the owners the page being left listed for its shared sheets: its tail is still in the body)
+	adopt_owner_record(document, current);
 	const current_nodes = live_page_head();
 	const next_keys = new Set<string>();
 	for (const node of Array.from(new_head.children)) {
@@ -1337,7 +1340,11 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 			live.set(key, install_head_style(node, current, head_slot(node, live)));
 			continue;
 		}
-		if (existing) continue;
+		if (existing) {
+			// the node it has stays, owned also by the islands the next page's copy names (#854)
+			if (node.hasAttribute('data-og-owner')) add_head_owners(existing, head_owners(node));
+			continue;
+		}
 		const at = head_slot(node, live);
 		if (node.tagName === 'STYLE') {
 			live.set(key, install_head_style(node, current, at));

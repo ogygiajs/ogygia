@@ -29,7 +29,9 @@ const region_spec = fc.record({
 	uses: fc.array(fc.nat({ max: 7 }), { maxLength: 3 })
 });
 const node_spec = fc.record({
-	owner: fc.option(fc.constantFrom(...FPS, '', 'unknown', ' f1'), { nil: null }),
+	owner: fc.option(fc.constantFrom(...FPS, '', 'unknown', ' f1', 'unknown f2', 'f1 f3'), {
+		nil: null
+	}),
 	unlisted: fc.boolean()
 });
 
@@ -66,7 +68,9 @@ it('a head node the next page does not list stays exactly while a region on the 
 				release_head_nodes(nodes.filter((_, i) => specs[i]!.unlisted));
 				nodes.forEach((n, i) => {
 					const s = specs[i]!;
-					const kept = !s.unlisted || live.has(n) || (s.owner !== null && owners.has(s.owner));
+					// (`data-og-owner` is a space-separated list of owners, #854)
+					const named = (s.owner ?? '').split(' ').filter(Boolean);
+					const kept = !s.unlisted || live.has(n) || named.some((o) => owners.has(o));
 					expect(n.isConnected, `node ${i}`).toBe(kept);
 				});
 			}

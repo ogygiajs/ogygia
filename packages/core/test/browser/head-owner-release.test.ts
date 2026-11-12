@@ -49,6 +49,19 @@ describe('release_head_nodes', () => {
 		expect(meta.isConnected).toBe(false);
 	});
 
+	it('a tag several islands own stays while any is on the page; its list keeps those on it (#854)', () => {
+		region('fp-b');
+		const meta = stamp('fp-a fp-b fp-c');
+		release_head_nodes([meta]);
+		expect(meta.isConnected).toBe(true);
+		expect(meta.getAttribute('data-og-owner')).toBe('fp-b');
+		// (listed by the next page and owned by none on it: its first owner stays named)
+		const listed = stamp('fp-x fp-y');
+		release_head_nodes([]);
+		expect(listed.isConnected).toBe(true);
+		expect(listed.getAttribute('data-og-owner')).toBe('fp-x');
+	});
+
 	it('takes out an unlisted tag that names no owner', () => {
 		region('fp-kept');
 		const meta = stamp(null);

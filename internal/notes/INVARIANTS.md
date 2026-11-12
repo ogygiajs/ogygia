@@ -123,7 +123,7 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 **Do not:** Re-enable “keep all module scripts” without a runtime marker. Prefer HTTP CSP headers over CSP meta (meta is mergeable).
 
-**Owned head tags:** a head tag a region writes (its region sheets, the `ogygia-kit-island` stamp) names its owner, `data-og-owner` = the outermost island’s fingerprint. The server skips a region the browser already has (`x-ogygia-known`) and every tag its inner regions write with it, so the merge keeps an unlisted owned tag while a region with that fingerprint stays (`release_head_nodes`, #806, `e2e/head-owner-kept.spec.ts`).
+**Owned head tags:** a head tag a region writes (its region sheets, the `ogygia-kit-island` stamp) names its owner, `data-og-owner` = the outermost island’s fingerprint. The server skips a region the browser already has (`x-ogygia-known`) and every tag its inner regions write with it, so the merge keeps an unlisted owned tag while a region with that fingerprint stays (`release_head_nodes`, #806, `e2e/head-owner-kept.spec.ts`). The attribute is a space-separated list: a sheet several outer islands share is written once, naming the first, and the page's tail lists the rest (`<script type="application/json" data-og-owners>`, sheet identity → fingerprints); the router adds those, and the owners a later page's copy names, to the tag, and keeps it while any is on the page (#854, `test/browser/shared-sheet-owners.test.ts`).
 
 **Enforced by:** `rule_head_adopted`, `packages/core/test/browser/spa-head-deny.test.ts > a fetched page’s <base> and refresh / CSP / cookie metas are never adopted, in any case`
 
