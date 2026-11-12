@@ -12,6 +12,7 @@
  * entry (200 that keeps failing to import) never loops.
  */
 import { clock, flights, net, storage } from '@ogygia/machine';
+import { code_url } from './code-origins.ts';
 
 const STALE_DEP_RELOAD_KEY = 'ogygia:dev:dep-reload';
 const STALE_DEP_RELOAD_WINDOW_MS = 6000;
@@ -42,7 +43,10 @@ export async function recover_from_stale_deps(
 	reload: () => void = () => location.reload()
 ): Promise<void> {
 	if (!import.meta.env.DEV || typeof location === 'undefined') return;
-	await (watch ??= make_watch()).get({ url, reload });
+	// (code the page refused to load is not asked for here either: ./code-origins.ts)
+	const code = code_url(url);
+	if (code === null) return;
+	await (watch ??= make_watch()).get({ url: code, reload });
 }
 
 async function confirm_and_reload(url: string, reload: () => void): Promise<void> {

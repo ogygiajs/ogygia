@@ -64,7 +64,13 @@ const KitBoot = { document_has: (doc: ParentNode) => boot_link().KitBoot.documen
 const regions_in_shadow = () => boot_link().regions_in_shadow();
 const release_head_nodes = (unlisted: readonly Element[]) =>
 	boot_link().release_head_nodes(unlisted);
+const head_owners = (node: Element) => boot_link().head_owners(node);
+const add_head_owners = (node: Element, more: Iterable<string>) =>
+	boot_link().add_head_owners(node, more);
+const adopt_owner_record = (doc: ParentNode, head: ParentNode) =>
+	boot_link().adopt_owner_record(doc, head);
 const session = () => boot_link().runtime_session;
+const adopt_mark = (next: Document) => boot_link().adopt_mark(next);
 type Scope = import('@ogygia/machine').Scope;
 type Stale = import('@ogygia/machine').Stale;
 type Staging = import('@ogygia/machine').Staging;
@@ -830,7 +836,10 @@ export async function navigate(
 		if (dest.origin !== location.origin) return null;
 
 		// ── TASK ONE: parse + facts + preflight — no live DOM change ──
-		const doc = new DOMParser().parseFromString(html, 'text/html');
+		// (the sink's gate, ./html-sink.ts: the page landed on this origin)
+		const own = boot_link().vouch_page_answer(dest, html);
+		if (own === null) return null;
+		const doc = boot_link().parse_page_document(own);
 		// (its head's URLs are its address's, not the page on screen's: #449)
 		resolve_head_urls(doc.head, dest);
 
@@ -1208,9 +1217,13 @@ export async function invalidate_all(on_screen?: URL | null): Promise<void> {
 		build: async ({ signal }) => {
 			const fetched = await fetch_page(url.href, signal);
 			if (fetched === null || signal.aborted) return null;
-			const doc = new DOMParser().parseFromString(fetched.html, 'text/html');
+			// (the sink's gate, ./html-sink.ts: only a page that landed on this origin is merged)
+			const landed = new URL(fetched.url, url);
+			const own = boot_link().vouch_page_answer(landed, fetched.html);
+			if (own === null) return null;
+			const doc = boot_link().parse_page_document(own);
 			// (its head's URLs are its address's: #449)
-			resolve_head_urls(doc.head, new URL(fetched.url, url));
+			resolve_head_urls(doc.head, landed);
 			if (KitBoot.document_has(doc) || !doc.querySelector('meta[name="ogygia-router"]'))
 				return null;
 			await devalue_for(doc);
@@ -1317,6 +1330,8 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 	// for the next page's copy either (the island may be torn down in the reconcile that follows —
 	// the copy the page needs goes in, and the one-copy rule retires it again if the island stays).
 	// Nodes that are not ours at all (a third-party inject) stay, as under Kit's own router.
+	// (the owners the page being left listed for its shared sheets: its tail is still in the body)
+	adopt_owner_record(document, current);
 	const current_nodes = live_page_head();
 	const next_keys = new Set<string>();
 	for (const node of Array.from(new_head.children)) {
@@ -1345,7 +1360,11 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 			live.set(key, install_head_style(node, current, head_slot(node, live)));
 			continue;
 		}
-		if (existing) continue;
+		if (existing) {
+			// the node it has stays, owned also by the islands the next page's copy names (#854)
+			if (node.hasAttribute(OG_OWNER)) add_head_owners(existing, head_owners(node));
+			continue;
+		}
 		const at = head_slot(node, live);
 		if (node.tagName === 'STYLE') {
 			live.set(key, install_head_style(node, current, at));
@@ -1355,6 +1374,8 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 			live.set(key, copy);
 		}
 	}
+	// (the kept runtime script takes the next response's mark: RESPONSE-MARK)
+	adopt_mark(new_head.ownerDocument);
 	return unlisted;
 }
 
