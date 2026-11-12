@@ -61,8 +61,16 @@ import type {
 	PlaywrightWorkerArgs,
 	PlaywrightWorkerOptions
 } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { scope, type Scope } from '@ogygia/machine';
 import { OgygiaError, warn } from './messages.ts';
+
+let engine_source: string | undefined;
+/** The testing engine as one script (scripts/engine-script.ts builds it beside this file's build). */
+function engine_script(): string {
+	// @why src/ and dist/ sit side by side, so one URL finds the built script from either (test: ogygia-testing e2e)
+	return (engine_source ??= readFileSync(new URL('../dist/engine.js', import.meta.url), 'utf8'));
+}
 
 // ── the reports (plain JSON, as the page hands them over) ──
 
@@ -70,8 +78,9 @@ export interface OgygiaPageReport {
 	kind: 'page';
 	engine: OgygiaEngine;
 	/** what MEASURING cost this page, which no visitor with devtools off pays — subtract it: `script_ms`,
-	 *  the main-thread time of ogygia's own measuring so far (by `phases`); `bytes`, the decoded size of
-	 *  the testing engine's files. Engine 3 */
+	 *  the main-thread time of ogygia's own measuring so far (by `phases`, `engine` the injected
+	 *  engine's own start); `bytes`, the decoded size of the testing engine's files the page downloaded
+	 *  (0 when `withOgygia` injected it: the page fetched none). Engine 3 */
 	self?: { script_ms: number; bytes: number; phases: Record<string, number> };
 	url: string;
 	/** the SvelteKit route id the server rendered (`/[lang]/about-us`), from a build with devtools on;
@@ -529,10 +538,11 @@ export class Ogygia {
 	async #call<T>(name: string, ...args: unknown[]): Promise<T> {
 		const until = Date.now() + (this.#options.timeout ?? 15_000);
 		while (
-			!(await this.#in_page(
-				() => !!(window as { __ogygia_testing?: unknown }).__ogygia_testing,
-				null
-			))
+			!(await this.#in_page(() => {
+				// (an engine a test injected is there on every page: it answers once the app's realm feeds it)
+				const t = (window as { __ogygia_testing?: { live?: boolean } }).__ogygia_testing;
+				return !!t && t.live !== false;
+			}, null))
 		) {
 			if (Date.now() > until) throw new OgygiaError('testing_api_absent');
 			await this.#wait(100);
@@ -731,6 +741,7 @@ export function withOgygia<
 		ogygiaOptions: [{}, { option: true }],
 		ogygia: async ({ page, baseURL, ogygiaOptions }, use, testInfo) => {
 			await turnOnDevtools(page, baseURL, { lean: ogygiaOptions.lean });
+			await page.addInitScript({ content: engine_script() });
 			const o = new Ogygia(playwrightDriver(page, { baseURL }), ogygiaOptions);
 			await use(o);
 			if (ogygiaOptions.attach !== false && o.reports.length)

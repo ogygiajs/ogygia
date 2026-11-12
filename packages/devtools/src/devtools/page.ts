@@ -6,7 +6,7 @@
  */
 import { beacon_page, hole_request_times, is_headless } from '../profiler/beacon.ts';
 import { tool_fetch } from '@ogygia/core/internal/instruments';
-import { hook_entries } from './hook-entries.ts';
+import { built_dev, hook_entries } from './hook-entries.ts';
 import { flights, type Flights } from '@ogygia/machine';
 import { page_ledger } from './ledger-dom.ts';
 import {
@@ -257,7 +257,7 @@ const prebundled = flights({
 	}
 });
 export function prebundled_packages(script_urls: readonly string[]): string[] | null {
-	if (!import.meta.env.DEV) return null;
+	if (!built_dev()) return null;
 	const one = script_urls.find((u) => u.includes('/node_modules/.vite/deps/'));
 	if (!one) return null;
 	return asked(prebundled, one.slice(0, one.indexOf('/node_modules/.vite/deps/') + 25));
@@ -976,7 +976,7 @@ export function read_page(): PageView | null {
 		...(icpu ? { interaction_cpu: icpu } : {}),
 		server_profiles,
 		...(server_profile ? { server_profile } : {}),
-		...(import.meta.env.DEV ? { dev: true } : {}),
+		...(built_dev() ? { dev: true } : {}),
 		...(typeof navigator !== 'undefined' && browser_of(navigator.userAgent)
 			? { browser: browser_of(navigator.userAgent)! }
 			: {}),
@@ -986,7 +986,7 @@ export function read_page(): PageView | null {
 			return typeof at === 'number' && !last_nav() ? { dock_open_at: at } : {};
 		})(),
 		...(() => {
-			const pre = import.meta.env.DEV
+			const pre = built_dev()
 				? prebundled_packages(
 						(with_visit.visit?.resources ?? []).filter((r) => r.type === 'script').map((r) => r.url)
 					)
@@ -1132,7 +1132,7 @@ function snapshot_of(v: PageView): LoadSnapshot {
 			const compile_ms = Math.round(
 				dev_compile_ms(
 					{
-						dev: import.meta.env.DEV ? true : undefined,
+						dev: built_dev() ? true : undefined,
 						visit: v.page.visit as PageInput['visit']
 					},
 					r

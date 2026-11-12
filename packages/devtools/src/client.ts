@@ -13,7 +13,7 @@ import {
 	leftover_island_seen,
 	leftover_island_gone
 } from './devtools/leftovers.ts';
-import { record_hook } from './devtools/hook-record.ts';
+import { record_realm, record_hook } from './devtools/hook-record.ts';
 import {
 	beacon_critical,
 	beacon_entry_fallback,
@@ -37,6 +37,10 @@ const LAZY = typeof __OGYGIA_DEVTOOLS_LAZY__ !== 'undefined' ? __OGYGIA_DEVTOOLS
 // (named, so `boot` and each hook keep one id however the rest of this file changes)
 const plugin: ClientPlugin = {
 	boot({ kitPage }) {
+		record_realm({
+			dev: import.meta.env.DEV,
+			lend: () => import('./devtools/realm-loan.ts')
+		});
 		// @why the dev dock measures every document, and an app without ogygia's handle gets no beacon tag from the server (test: e2e/dev-installed.spec.ts › two copies)
 		if (!LAZY) standalone_beacon();
 		install_beacon(true);
