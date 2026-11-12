@@ -79,13 +79,13 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 ## PROBE-THEN-RENDER — rate limit ordering
 
-**What:** Pre-HMAC probe limiter → verify MAC → render limiter → render (with process concurrency gate). The same order holds for each hole of a batch POST: every hole is probed, verified and charged on its own, and one call asked twice in a batch renders once.
+**What:** Pre-HMAC probe limiter → verify MAC → render limiter → render (with process concurrency gate). The order is a machine (`packages/core/src/server/region-request.ts`: received → prechecked → probed → verified → charged → rendering → sent, or refused) that a GET, a renewal and each hole of a batch walk, so rendering or charging the render budget before verify is an illegal move. Each hole of a batch POST is probed, verified and charged on its own, and one call asked twice in a batch renders once.
 
 **Why:** Forged floods must not burn render CPU or reveal id existence (uniform 403). A batch must not buy more renders than the same holes asked one by one.
 
 **Do not:** Charge the render budget before verify. Charge a batch once for all its holes. Trust `X-Forwarded-For` when `getClientAddress()` fails — fail closed (429).
 
-**Enforced by:** `apps/palaestra/e2e/region-rate.spec.ts > a forged flood is all 403, never 429, and a valid request still serves after it`, `packages/compiler/test/audit-fixes.test.ts > documents render-rate contract: junk must not call render limited()`
+**Enforced by:** `apps/palaestra/e2e/region-rate.spec.ts > a forged flood is all 403, never 429, and a valid request still serves after it`, `packages/compiler/test/audit-fixes.test.ts > documents render-rate contract: junk must not call render limited()`, `packages/core/test/region-request-order.test.ts`
 
 ---
 
