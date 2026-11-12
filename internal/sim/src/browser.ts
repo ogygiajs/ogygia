@@ -9,6 +9,7 @@
  * Each document is its own realm in the loop (`tab-2#3`: tab 2's third document), so a document's
  * timers die with it when the tab navigates away, as in a browser.
  */
+import { ear } from '@ogygia/tooling/e2e/sim-observe.ts';
 import { Browser, type BrowserPage, type BrowserWindow } from 'happy-dom';
 import CookieStringUtility from 'happy-dom/lib/cookie/urilities/CookieStringUtility.js';
 import * as PropertySymbol from 'happy-dom/lib/PropertySymbol.js';
@@ -19,6 +20,7 @@ import type { Network } from './network.ts';
 import { install, message_channel, platform, site, SITES, type RealmOptions } from './platform.ts';
 import { hash, type Rng } from './rng.ts';
 import { install_timeline, record_download, type Engine } from './timeline.ts';
+import { install_layout, VIEWPORT } from './layout.ts';
 
 /** `SIM_STACKS=1`: a page's uncaught error carries its stack (to triage a seed). */
 const STACKS = process.env.SIM_STACKS === '1';
@@ -70,6 +72,9 @@ export interface Tab {
 	/** What each region of the shown document announced (`ogygia:hydrated`, `ogygia:live`), as a
 	 *  listener of the app's on the document hears it: bubbling, never capturing. */
 	heard: Map<Element, Heard[]>;
+	/** What the tab's documents heard of their lifecycle and ogygia's events, in order (the
+	 *  differential's `ear`, @ogygia/tooling/e2e/sim-observe.ts): read and emptied by a look. */
+	readonly lifecycle: string[];
 }
 
 /** A region event a document's listener heard, and what the region showed once it was sent. */
@@ -162,6 +167,8 @@ export class Browsers {
 				enableCSSFileLoading: true,
 				// (and images: one not yet come is not `complete`, which the critical wait reads)
 				enableImageFileLoading: true,
+				// (the real-browser player's, which the layout reads too: a media query, innerWidth)
+				viewport: { width: VIEWPORT.w, height: VIEWPORT.h, devicePixelRatio: 1 },
 				navigator: {
 					userAgent: 'Mozilla/5.0 (ogygia-sim) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
 				},
@@ -340,6 +347,8 @@ export class Browsers {
 			});
 		}
 		install_timeline(window);
+		// (a layout, and the IntersectionObserver that reads it: happy-dom's never reports)
+		install_layout(window, this.#o.loop, tab.realm);
 		// (the tab's network, as a browser's `navigator.onLine` reads its own: test/online.node.test.ts)
 		const network = this.#o.network;
 		Object.defineProperty(window.navigator, 'onLine', {
@@ -378,6 +387,12 @@ export class Browsers {
 		};
 		window.addEventListener('ogygia:hydrated', hear as never);
 		window.addEventListener('ogygia:live', hear as never);
+		// (the differential's ear, as the real-browser player's init script: test/differ.test.ts)
+		Object.defineProperty(window, '__sim_heard', {
+			value: (line: string) => tab.lifecycle.push(line),
+			configurable: true
+		});
+		ear(window);
 		this.#count_held(window, tab);
 		const w = window as unknown as {
 			addEventListener(
@@ -638,6 +653,7 @@ export class Browsers {
 			swaps: [],
 			swaps_by: new Map(),
 			heard: new Map(),
+			lifecycle: [],
 			moves_by: new Map(),
 			said_by: new Map()
 		};
