@@ -15,8 +15,8 @@
  * re-export barrel, so tree-shaking keeps island component code out of a tagged `.svelte.ts`
  * state chunk.
  *
- * Constraint: a top-level `export class X` (declaration or `export { X }`). Default exports
- * and class expressions have no stable name to tag by.
+ * Found: a top-level `export class X` (declaration or `export { X }`), and a default export of a
+ * named class (`export default class X`, `export default X`), tagged `#default`.
  */
 import path from 'node:path';
 import { parse_module } from './parse/oxc.ts';
@@ -51,35 +51,45 @@ function parse_body(code: string, id_n: string): AstNode[] | null {
 	}
 }
 
-/** Collect names of top-level exported classes that carry a wire codec (and only those). */
-function exportedWireClassNames(code: string, id_n: string): string[] {
+/** An exported wire class: the name its tag carries, and the local binding the registration passes. */
+type WireExport = { tag: string; local: string };
+
+/** Collect the top-level exported classes that carry a wire codec (and only those). */
+function exportedWireClasses(code: string, id_n: string): WireExport[] {
 	const body = parse_body(code, id_n);
-	return body ? exportedWireClassNamesFromBody(body) : [];
+	return body ? exportedWireClassesFromBody(body) : [];
 }
 
-function exportedWireClassNamesFromBody(body: AstNode[]): string[] {
+function exportedWireClassesFromBody(body: AstNode[]): WireExport[] {
 	const classNodes = new Map<string, AstNode>(); // every top-level class declaration, by name
-	const exported = new Set<string>(); // subset that is exported
+	const exported = new Map<string, string>(); // tag name → local name, for the exported ones
 	for (const node of body) {
 		if (node.type === 'ClassDeclaration' && node.id) {
 			classNodes.set(node.id.name, node);
 		} else if (node.type === 'ExportNamedDeclaration') {
 			if (node.declaration?.type === 'ClassDeclaration' && node.declaration.id?.name) {
 				classNodes.set(node.declaration.id.name, node.declaration as AstNode);
-				exported.add(node.declaration.id.name);
+				exported.set(node.declaration.id.name, node.declaration.id.name);
 			}
 			// `export { Foo, Bar as Baz }` — the LOCAL name must be a class (resolved after the loop).
 			if (!node.source) {
 				for (const spec of node.specifiers ?? []) {
-					if (spec.local?.type === 'Identifier') exported.add(spec.local.name);
+					if (spec.local?.type === 'Identifier') exported.set(spec.local.name, spec.local.name);
 				}
 			}
+		} else if (node.type === 'ExportDefaultDeclaration') {
+			// `export default class Cart {}` / `export default Cart`: tagged by the export name `default`
+			const decl = node.declaration as AstNode | null | undefined;
+			if (decl?.type === 'ClassDeclaration' && decl.id?.name) {
+				classNodes.set(decl.id.name, decl);
+				exported.set('default', decl.id.name);
+			} else if (decl?.type === 'Identifier' && decl.name) exported.set('default', decl.name);
 		}
 	}
 	// Only classes that actually carry a wire codec — a plain exported class is not transportable.
-	return [...exported].filter((name) => {
-		const cls = classNodes.get(name);
-		return !!cls && classHasWireMember(cls);
+	return [...exported].flatMap(([tag, local]) => {
+		const cls = classNodes.get(local);
+		return cls && classHasWireMember(cls) ? [{ tag, local }] : [];
 	});
 }
 
@@ -146,6 +156,7 @@ function isWireMacroCall(value: unknown): boolean {
 
 interface AstNode {
 	type: string;
+	name?: string;
 	id?: { name: string } | null;
 	declaration?: VarDecl | AstNode | null;
 	source?: unknown;
@@ -226,7 +237,7 @@ export function moduleHasTransportable(code: string, id_n: string): boolean {
 	for (const node of body) {
 		if (node.type === 'ClassDeclaration' && isTransportableClass(node)) return true;
 		if (
-			node.type === 'ExportNamedDeclaration' &&
+			(node.type === 'ExportNamedDeclaration' || node.type === 'ExportDefaultDeclaration') &&
 			node.declaration?.type === 'ClassDeclaration' &&
 			isTransportableClass(node.declaration as AstNode)
 		) {
@@ -256,7 +267,7 @@ export function appendTransportRegistrations(
 	// parse twice).
 	const body = parse_body(code, id_n);
 	if (!body) return null;
-	const classes = maybeClass ? exportedWireClassNamesFromBody(body) : [];
+	const classes = maybeClass ? exportedWireClassesFromBody(body) : [];
 	const contexts = maybeCtx ? contextExportNamesFromBody(body) : [];
 	if (classes.length === 0 && contexts.length === 0) return null;
 
@@ -264,7 +275,7 @@ export function appendTransportRegistrations(
 	return `${code + registrationBlock(rel, classes, contexts)}\n`;
 }
 
-function registrationBlock(rel: string, classes: string[], contexts: string[]): string {
+function registrationBlock(rel: string, classes: WireExport[], contexts: string[]): string {
 	const imports: string[] = [];
 	if (classes.length) imports.push('__register_transportable as __OGT');
 	if (contexts.length) imports.push('__tag_context as __OGC');
@@ -277,7 +288,8 @@ function registrationBlock(rel: string, classes: string[], contexts: string[]): 
 		// no-window realm (dev SSR) would crash at module-eval. See internal-register.ts.
 		`import { ${imports.join(', ')} } from 'ogygia/internal/register';`
 	];
-	for (const name of classes) lines.push(`__OGT(${JSON.stringify(`${rel}#${name}`)}, ${name});`);
+	for (const { tag, local } of classes)
+		lines.push(`__OGT(${JSON.stringify(`${rel}#${tag}`)}, ${local});`);
 	for (const name of contexts) lines.push(`__OGC(${JSON.stringify(`${rel}#${name}`)}, ${name});`);
 	return lines.join('\n');
 }
@@ -321,7 +333,7 @@ export function appendSvelteModuleRegistrations(
 	if (code.includes(GENERATED_MARK) || !CLASS_KW.test(code)) return null;
 	const mod = moduleScriptOf(code);
 	if (!mod) return null;
-	const exported = exportedWireClassNames(mod.body, id_n.replace(SVELTE_EXT, '.svelte.ts'));
+	const exported = exportedWireClasses(mod.body, id_n.replace(SVELTE_EXT, '.svelte.ts'));
 	if (exported.length === 0) return null;
 	const rel = path.relative(root, id_n).split('\\').join('/');
 	const block = `\n${registrationBlock(rel, exported, [])}\n`;
