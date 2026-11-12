@@ -107,6 +107,9 @@ export function page_data_keys_answer(
 	try {
 		for (const root of roots) scan.collect_bindings(root);
 		if (!scan.refs.size) return { keys: null, reason: null, pending: [] };
+		// an alias in one root may come from an alias in another: grow over all until none grows
+		let grew = true;
+		while (grew) grew = roots.map((root) => scan.grow(root)).some(Boolean);
 		for (const root of roots) scan.walk(root, null, null);
 		return { keys: scan.keys, reason: null, pending: scan.pending };
 	} catch (e) {
@@ -143,6 +146,7 @@ export function summarize_export(
 	let named_follow: string | null = null; // an exact re-export of `name` — wins over every `export *`
 	const stars: string[] = [];
 	let imported = name;
+	let fn_name: string | null = null; // the local binding `fn` was found under
 	const local_fns = new Map<string, Node>();
 	const imports = new Map<string, { specifier: string; imported: string }>();
 	for (const root of roots) {
@@ -173,15 +177,20 @@ export function summarize_export(
 				if (node.source) {
 					named_follow = String(node.source.value);
 					imported = local;
-				} else if (local_fns.has(local)) fn = local_fns.get(local)!;
-				else if (imports.has(local)) {
+				} else if (local_fns.has(local)) {
+					fn = local_fns.get(local)!;
+					fn_name = local;
+				} else if (imports.has(local)) {
 					named_follow = imports.get(local)!.specifier;
 					imported = imports.get(local)!.imported;
 				}
 			}
 			const d = node.declaration;
 			if (!d) return;
-			if (d.type === 'FunctionDeclaration' && d.id?.name === name) fn = d;
+			if (d.type === 'FunctionDeclaration' && d.id?.name === name) {
+				fn = d;
+				fn_name = name;
+			}
 			if (d.type === 'VariableDeclaration') {
 				for (const v of d.declarations ?? []) {
 					if (
@@ -189,12 +198,19 @@ export function summarize_export(
 						v.id.name === name &&
 						v.init &&
 						(v.init.type === 'ArrowFunctionExpression' || v.init.type === 'FunctionExpression')
-					)
+					) {
 						fn = v.init;
+						fn_name = name;
+					}
 				}
 			}
 		});
-		if (fn) break;
+		if (fn) {
+			// the export's binding assigned anew may run another body: not followed
+			const rebound = fn_name;
+			if (rebound !== null && roots.some((r) => assigned_names(r).has(rebound))) return 'all';
+			break;
+		}
 	}
 	if (!fn) {
 		if (named_follow) return { follow: [named_follow], imported };
@@ -205,6 +221,9 @@ export function summarize_export(
 	const scan = new Scan(code);
 	try {
 		scan.seed_param(param.name, fn as Node);
+		// the same alias pass the module's own analysis runs, then the defaults and the body
+		scan.grow(fn as Node);
+		scan.walk((fn as Node).params, fn, 'params');
 		scan.walk((fn as Node).body, fn, 'body');
 		if (scan.pending.length) return 'all'; // depth one: the helper handing the page on is not followed
 		return scan.keys;
@@ -308,6 +327,10 @@ class Scan {
 	readonly #imports = new Map<string, { specifier: string; imported: string }>();
 	/** Module-level function declarations by name (`function f(p) {}` / `const f = (p) => …`). */
 	readonly #local_fns = new Map<string, Node>();
+	/** Functions whose parameter is the page (a followed helper): `arguments` in one reaches it too. */
+	readonly #followed = new Set<Node>();
+	/** Names some assignment rebinds, in any root seen so far. */
+	readonly #assigned = new Set<string>();
 
 	private readonly code: string;
 
@@ -321,6 +344,7 @@ class Scan {
 		// the scope of a parameter is the function itself: register under the function node
 		const scopes = this.#scopes.get(name)!;
 		scopes.add(fn);
+		this.#followed.add(fn);
 	}
 
 	#add_ref(name: string, at: Node | null): boolean {
@@ -331,6 +355,13 @@ class Scan {
 		scopes.add(scope);
 		this.refs.add(name);
 		return true;
+	}
+
+	/** Is `node` inside a function whose parameter is the page? */
+	#in_followed(node: Node): boolean {
+		for (let n: Node | null = node; n; n = n.__parent as Node | null)
+			if (this.#followed.has(n)) return true;
+		return false;
 	}
 
 	/** Is `name`, used at `use`, one of the page's names in scope there? */
@@ -375,7 +406,16 @@ class Scan {
 					this.#add_ref(s.local.name, null);
 			}
 		});
-		if (!this.refs.size) return;
+		// a function binding assigned anew may run another body than the one declared: never followed
+		// (accumulated over every root: the template may assign a function the script declares)
+		for (const name of assigned_names(root)) this.#assigned.add(name);
+		for (const name of this.#assigned) this.#local_fns.delete(name);
+	}
+
+	/** Pass 1b: aliases of the page grown to a fixed point (an alias of an alias), through `root`.
+	 *  True when a name was added. */
+	grow(root: Node): boolean {
+		let any = false;
 		let grew = true;
 		while (grew) {
 			grew = false;
@@ -405,6 +445,7 @@ class Scan {
 							if (p?.type === 'Identifier') {
 								if (this.#add_ref(p.name, fn.body ?? fn)) grew = true;
 								this.#scopes.get(p.name)!.add(fn);
+								this.#followed.add(fn);
 							}
 						});
 					}
@@ -450,7 +491,9 @@ class Scan {
 					}
 				}
 			});
+			if (grew) any = true;
 		}
+		return any;
 	}
 
 	/** Is this expression the page value itself? `page`, `$page`, `get(page)`. */
@@ -474,6 +517,9 @@ class Scan {
 			for (const child of node) this.walk(child, parent, key);
 			return;
 		}
+		// `arguments` in a function handed the page reaches it without naming the parameter
+		if (node.type === 'Identifier' && node.name === 'arguments' && this.#in_followed(node))
+			throw new All('a function handed the page reads `arguments`', node.start ?? null);
 		if (
 			typeof node.type === 'string' &&
 			this.is_page_value(node) &&
@@ -777,6 +823,38 @@ function is_declaration(node: Node, parent: Node | null, key: string | null): bo
 		return true;
 	if (parent.type === 'LabeledStatement' && key === 'label') return true;
 	return false;
+}
+
+/** Every name an assignment or update rebinds anywhere under `root` (`f = …`, `({ f } = …)`,
+ *  `[f] = …`, `f++`, `f ||= …`). */
+function assigned_names(root: Node): Set<string> {
+	const names = new Set<string>();
+	const target = (t: Node | null | undefined): void => {
+		if (!t) return;
+		if (t.type === 'Identifier') names.add(t.name);
+		else if (t.type === 'ObjectPattern')
+			for (const p of t.properties ?? []) target(p.type === 'RestElement' ? p.argument : p.value);
+		else if (t.type === 'ArrayPattern') for (const e of t.elements ?? []) target(e);
+		else if (t.type === 'RestElement') target(t.argument);
+		else if (t.type === 'AssignmentPattern') target(t.left);
+		else if (WRAPPERS.has(t.type)) target(t.expression);
+	};
+	const rec = (node: Node): void => {
+		if (!node || typeof node !== 'object') return;
+		if (Array.isArray(node)) {
+			for (const child of node) rec(child);
+			return;
+		}
+		if (node.type === 'AssignmentExpression') target(node.left);
+		else if (node.type === 'UpdateExpression') target(node.argument);
+		for (const k of Object.keys(node)) {
+			if (SKIP_KEYS.has(k)) continue;
+			const v = node[k];
+			if (v && typeof v === 'object') rec(v);
+		}
+	};
+	rec(root);
+	return names;
 }
 
 /** Generic pre-order visit; annotates each node with its parent and the key it hangs from, which
