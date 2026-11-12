@@ -16,8 +16,10 @@
  * ```
  */
 import { REGION_BRAND } from './region-brand.ts';
-import { frameAddress } from './frame.ts';
-import { ticket, write } from './runtime/frame-store.ts';
+import { frameAddress, mark_written, type FrameOrder } from './frame.ts';
+import { shown_version, ticket, write } from './runtime/frame-store.ts';
+import { vouch_remote_answer } from './runtime/html-sink.ts';
+import { emit as dt_emit } from './events/bus.ts';
 import {
 	register_kind,
 	mint,
@@ -31,7 +33,9 @@ import { register_wire_kind } from './live-transport.ts';
 import { register_store_kind, register_derived_kind } from './store-transport.ts';
 import { register_snippet_kind } from './region-snippet.ts';
 import { register_fn_kind } from './fn-transport.ts';
-import { OgygiaError } from './messages/island.ts';
+import { OgygiaError, warn } from './messages/island.ts';
+
+const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 
 type EncodedRegion = {
 	i: string; // id
@@ -41,6 +45,7 @@ type EncodedRegion = {
 	h?: string; // hydrate schedule
 	g?: string; // hydrate margin
 	x?: string; // server-rendered HTML baked into the ticket (awaited region) — swap, no fetch
+	d?: number; // data version (`region(C, props, { version })`): orders answers at one address
 	/** HUB IDENTITY — minted per live region instance (one id however many payloads carry it).
 	 *  The browser memoizes decode by it, so every consumer of one region value shares one
 	 *  descriptor, and the future reconciler diffs by it. Absent on legacy payloads. */
@@ -64,22 +69,25 @@ function encode_region(value: unknown): false | EncodedRegion {
 				f.module as string,
 				f.hydrate as string,
 				f.hydrateMargin as string,
-				f.html as string
+				f.html as string,
+				f.version as number | undefined
 			);
 		}
 		// Dual region — sign now (this IS the moment of crossing) and drop the component. If it
 		// was awaited, `html` is present and rides along so the client swaps with no fetch.
 		if (f.kind === 'dual') {
-			const sign = f.sign as (id: string, props: Record<string, unknown>) => string;
+			const sign = f.sign as (id: string, props: Record<string, unknown>, wakes: boolean) => string;
 			const props = (f.props ?? {}) as Record<string, unknown>;
 			return pack(
 				f.id as string,
 				props,
-				sign(f.id as string, props),
+				// (a region that wakes: its answer renders as its hydrate does, #906)
+				sign(f.id as string, props, !!f.hydrate),
 				f.module as string,
 				f.hydrate as string,
 				f.hydrateMargin as string,
-				f.html as string
+				f.html as string,
+				f.version as number | undefined
 			);
 		}
 		// Inline region that was AWAITED — its SSR HTML is baked, so it crosses as an HTML-only
@@ -102,6 +110,15 @@ function encode_region(value: unknown): false | EncodedRegion {
 	}
 }
 
+/** A versioned answer the store dropped for older data than the one shown: said in dev and to
+ *  devtools (a decoded answer is the only frame that carries a version). */
+function dropped_older(a: string, version: number): void {
+	const shown = shown_version(a);
+	if (shown === undefined || version >= shown) return;
+	if (import.meta.env?.DEV) warn('region_answer_older', { address: a, version, shown });
+	if (DEVTOOLS) dt_emit({ domain: 'wire', name: 'wire.frame.dropped', address: a, version, shown });
+}
+
 /** The region DECODE law (single-flight frame write for baked HTML + deferred rebuild),
  *  byte-for-byte the pre-hub behavior. */
 function decode_region(raw: EncodedRegion) {
@@ -113,11 +130,17 @@ function decode_region(raw: EncodedRegion) {
 		// browser); on the server the store is inert. An HTML-ONLY ticket (awaited inline region —
 		// no capability url) has no frame address, so there is nothing to write; it renders where
 		// it's placed instead.
+		let order: FrameOrder | undefined;
 		if (raw.x != null && raw.u && typeof document !== 'undefined') {
 			const a = frameAddress(raw.u);
-			write({ a, v: ticket(a), html: raw.x });
+			const v = ticket(a);
+			const d = raw.d;
+			const html = vouch_remote_answer(raw.x);
+			if (d == null) write({ a, v, html });
+			else if (!write({ a, v, d, html })) dropped_older(a, d);
+			order = d == null ? { v } : { v, d };
 		}
-		return {
+		const value = {
 			[REGION_BRAND]: true,
 			kind: 'deferred' as const,
 			id: raw.i,
@@ -126,8 +149,11 @@ function decode_region(raw: EncodedRegion) {
 			module: raw.m,
 			...(raw.h ? { hydrate: raw.h } : {}),
 			...(raw.g ? { hydrateMargin: raw.g } : {}),
-			...(raw.x != null ? { html: raw.x } : {})
+			...(raw.x != null ? { html: raw.x } : {}),
+			...(raw.d != null ? { version: raw.d } : {})
 		};
+		if (order !== undefined) mark_written(value, order);
+		return value;
 	}
 }
 
@@ -168,11 +194,13 @@ export function register_region_kind(): void {
 	});
 }
 
+// static: one family
 const REGION_ONLY = new Set(['region']);
 
 /** Every hub family the ONE `OgygiaRef` transport entry carries (hub v2 phase Y — symmetry).
  *  Region stays in the list for decode-completeness, but the `Region` entry below is first in
  *  object order so regions still ENCODE through it (legacy `EncodedRegion` wire shape kept). */
+// static: every family
 const ALL_FAMILIES = new Set(['wire', 'store', 'snippet', 'fn', 'derived', 'region']);
 
 // Kit calls the transport's `encode` for EVERY value it serializes (each node of a 700 KB load
@@ -199,10 +227,10 @@ function ensure_all_kinds(): (value: unknown) => Ref | undefined {
  * underneath (hub v2 phase Y): `Region` preserves the legacy region wire shape/tag for
  * compatibility; `OgygiaRef` carries EVERY OTHER hub kind through the same `ref_reducer` /
  * `ref_reviver` the island seams use — so a universal `load` can put a store, wire class, fn or
- * resumable derived in `page.data`, and a remote function can take/return one, all by identity.
- * Kit routes remote args + load data through this same `transport`, so the symmetry is total.
- * Decode is REQUEST-scoped on the server (no `document`) — client-sent identity never memoizes
- * across requests — and PAGE-scoped in the browser (reunification).
+ * resumable derived in `page.data`, and a remote function can return one, all by identity. This is
+ * the BROWSER realm's transport: decode is PAGE-scoped (reunification). The server realm's
+ * (./server/transport.ts) encodes the same way and refuses every kind at decode, as the server
+ * decodes only what a browser sent (a remote function's argument), which is plain data.
  */
 export const ogygiaTransport: {
 	Region: {
@@ -261,11 +289,13 @@ function pack(
 	module: string,
 	hydrate?: string,
 	hydrateMargin?: string,
-	html?: string
+	html?: string,
+	version?: number
 ): EncodedRegion {
 	const out: EncodedRegion = { i: id, p: props, u: url, m: module };
 	if (hydrate) out.h = hydrate;
 	if (hydrateMargin) out.g = hydrateMargin;
 	if (html != null) out.x = html;
+	if (version != null) out.d = version;
 	return out;
 }

@@ -25,13 +25,14 @@ export default defineConfig({
 `ogygia.handle()` mounts it for you, so `src/hooks.server.ts` stays a plain
 `sequence(...)`. Pass options instead of `true` to tune it —
 `ogygia({ profiler: { secret, path, sampleInterval } })`. In production, set a
-secret so the UI is reachable:
+secret of at least 16 bytes so the UI is reachable:
 
 ```bash
-OGYGIA_PROFILER_SECRET=some-long-random-string
+OGYGIA_PROFILER_SECRET=$(openssl rand -hex 32)
 ```
 
-Then open **`/__profiler`** (add `?key=<secret>` in production).
+Then open **`/__profiler`** (in production, log in with the secret: a signed
+session that lasts 12 hours).
 
 ## Three ways to record
 
