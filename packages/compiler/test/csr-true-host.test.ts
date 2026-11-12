@@ -186,7 +186,11 @@ describe('csr=true host: property over import blocks', () => {
 					)
 				);
 				expect(() => parse(out!.code, { modern: true })).not.toThrow();
-			})
+			}),
+			{
+				seed: Number(process.env.OGYGIA_FUZZ_SEED ?? 314),
+				numRuns: Number(process.env.OGYGIA_FUZZ_RUNS ?? 100)
+			}
 		);
 	});
 });
