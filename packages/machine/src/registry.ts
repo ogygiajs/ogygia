@@ -13,6 +13,7 @@
  *   behind in the owner.
  * - Iteration is in add order, and an entry removed while it is walked is not walked after.
  */
+import { noop } from './noop.ts';
 import type { Scope } from './scope.ts';
 
 export interface Registry<T> {
@@ -38,7 +39,7 @@ function make_registry<T>(): Registry<T> {
 			return entries.size;
 		},
 		add(entry: T, owner: Scope): () => void {
-			if (owner.closed) return () => {};
+			if (owner.closed) return noop;
 			const life = owner.child();
 			entries.set(life, entry);
 			list = null;
@@ -85,7 +86,7 @@ function make_keyed<K, V>(): KeyedRegistry<K, V> {
 			return values.size;
 		},
 		set(key: K, value: V, owner: Scope): () => void {
-			if (owner.closed) return () => {};
+			if (owner.closed) return noop;
 			const old = lives.get(key);
 			// (the values' order is the order last set; the lives' order is nobody's)
 			values.delete(key);
