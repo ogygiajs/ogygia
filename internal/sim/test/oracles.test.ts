@@ -87,6 +87,19 @@ describe('known', () => {
 		expect(k.applies(fresh, fresh)).toBe(false);
 		expect(k.forgive(shown, fresh)).toBe(k.forgive(fresh, shown));
 	});
+
+	it("#995's is seen in a document that sent a hole batch (gen 190, seed 190007)", () => {
+		const k = KNOWN.find((x) => x.issue === 995)!;
+		const world = (method: string) =>
+			({
+				network: {
+					exchanges: [{ from: 'tab-1#1', method, url: 'https://app.test/__ogygia__' }]
+				}
+			}) as unknown as World;
+		const tab = { realm: 'tab-1#1' } as unknown as Parameters<NonNullable<typeof k.seen>>[1];
+		expect(k.seen!(world('POST'), tab)).toBe(true);
+		expect(k.seen!(world('GET'), tab)).toBe(false);
+	});
 });
 
 describe('hydrates as sent', () => {

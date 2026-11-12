@@ -159,19 +159,20 @@ export const KNOWN: ReadonlyArray<{
 		// (the generated `<i data-gen-page>` shows its page's data on one side only, buggify's
 		// flights.not-kept fired: gen 175, seed 175003; each such element's text set aside)
 		applies: (shown, fresh) => page_data_text(shown) !== page_data_text(fresh),
-		forgive: (s) => {
-			const out: string[] = [];
-			let inside: string | null = null;
-			for (const line of s.split('\n')) {
-				const indent = /^ */.exec(line)![0];
-				if (inside !== null && indent.length > inside.length) continue;
-				inside = null;
-				out.push(line);
-				if (line.trim().startsWith('<i data-gen-page=')) inside = indent;
-			}
-			return out.join('\n');
-		},
+		forgive: (s) => without_page_data(s),
 		seen: (world) => (world.buggified.get('flights.not-kept')?.fired ?? 0) > 0
+	},
+	{
+		issue: 995,
+		what: "a router navigation's hole batch is sent with the old page as Referer",
+		// (the same shape as #993, in a document that sent a batch of holes: gen 190, seed 190007)
+		applies: (shown, fresh) => page_data_text(shown) !== page_data_text(fresh),
+		forgive: (s) => without_page_data(s),
+		seen: (world, tab) =>
+			world.network.exchanges.some(
+				(e) =>
+					e.from === tab.realm && e.method === 'POST' && new URL(e.url).pathname === '/__ogygia__'
+			)
 	},
 	{
 		issue: 966,
@@ -353,6 +354,20 @@ function peer_hop_failed(e: World['network']['exchanges'][number]): boolean {
 			e.tampered ||
 			(typeof e.status === 'number' ? e.status >= 500 : e.status !== 'pending'))
 	);
+}
+
+/** A normalized DOM less what each generated `<i data-gen-page>` says (#993, #995). */
+function without_page_data(s: string): string {
+	const out: string[] = [];
+	let inside: string | null = null;
+	for (const line of s.split('\n')) {
+		const indent = /^ */.exec(line)![0];
+		if (inside !== null && indent.length > inside.length) continue;
+		inside = null;
+		out.push(line);
+		if (line.trim().startsWith('<i data-gen-page=')) inside = indent;
+	}
+	return out.join('\n');
 }
 
 /** What each generated `<i data-gen-page>` in a normalized DOM says (#993). */
