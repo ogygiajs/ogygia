@@ -6,7 +6,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Request inputs: headers, query, cookies and bodies read from a request
 
-128 entries.
+127 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -46,7 +46,6 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/server/region-endpoint.ts` | `region_session` | `cookies.get(session_cookie)` | 1 |
 | `packages/core/src/server/region-endpoint.ts` | `reuse_known_region` | `headers.get('x-ogygia-known')` | 1 |
 | `packages/core/src/server/region-endpoint.ts` | `reuse_known_region` | `headers.get('x-ogygia-spa')` | 1 |
-| `packages/core/src/server/render-page.ts` | `page_url_of` | `headers.get('referer')` | 1 |
 | `packages/core/src/server/rules.ts` | `region_answer_unsafe` | `headers.get('cache-control')` | 1 |
 | `packages/core/src/server/rules.ts` | `region_answer_unsafe` | `headers.get('referrer-policy')` | 1 |
 | `packages/devtools/src/devtools/cache-headers.ts` | `probe_cache` | `headers.get('cache-control')` | 1 |
@@ -141,7 +140,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Decoders: text turned into values (JSON, devalue, base64, URI escapes)
 
-97 entries.
+100 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -162,6 +161,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/contract/core-files.ts` | `(module)` | `JSON.parse` | 1 |
 | `packages/core/src/early-holes.ts` | `start_early_holes` | `JSON.parse` | 1 |
 | `packages/core/src/events/sinks.ts` | `ingest_server_events` | `JSON.parse` | 1 |
+| `packages/core/src/head-owners.ts` | `adopt_owner_record` | `JSON.parse` | 1 |
 | `packages/core/src/hooks.ts` | `decode_pathname` | `decodeURIComponent` | 1 |
 | `packages/core/src/island-graph.ts` | `decode_island_graph` | `JSON.parse` | 1 |
 | `packages/core/src/island-graph.ts` | `decode_island_locations` | `JSON.parse` | 1 |
@@ -242,6 +242,8 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/tooling/src/e2e/run.ts` | `read_report` | `JSON.parse` | 1 |
 | `packages/tooling/src/e2e/run.ts` | `read_timings` | `JSON.parse` | 1 |
 | `packages/tooling/src/e2e/server-log.ts` | `said_rules` | `decodeURIComponent` | 1 |
+| `packages/tooling/src/e2e/sim-replay.ts` | `generated` | `JSON.parse` | 1 |
+| `packages/tooling/src/e2e/sim-replay.ts` | `plans` | `JSON.parse` | 1 |
 
 ## HTML sinks: markup written into a page as markup
 

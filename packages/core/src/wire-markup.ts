@@ -74,6 +74,7 @@ export type MarkKey =
 	| 'overlay'
 	| 'overlayToggle'
 	| 'owner'
+	| 'owners'
 	| 'pageBrowserLimits'
 	| 'pageFindings'
 	| 'pageHoles'
@@ -204,6 +205,7 @@ export const OG_ORIGINS = 'data-og-origins';
 export const OG_OVERLAY = 'data-og-overlay';
 export const OG_OVERLAY_TOGGLE = 'data-og-overlay-toggle';
 export const OG_OWNER = 'data-og-owner';
+export const OG_OWNERS = 'data-og-owners';
 export const OG_PAGE_BROWSER_LIMITS = 'data-og-page-browser-limits';
 export const OG_PAGE_FINDINGS = 'data-og-page-findings';
 export const OG_PAGE_HOLES = 'data-og-page-holes';
@@ -330,6 +332,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	overlay: { attr: OG_OVERLAY, by: 'devtools' },
 	overlayToggle: { attr: OG_OVERLAY_TOGGLE, by: 'devtools' },
 	owner: { attr: OG_OWNER, by: 'page' },
+	owners: { attr: OG_OWNERS, by: 'page' },
 	pageBrowserLimits: { attr: OG_PAGE_BROWSER_LIMITS, by: 'devtools' },
 	pageFindings: { attr: OG_PAGE_FINDINGS, by: 'devtools' },
 	pageHoles: { attr: OG_PAGE_HOLES, by: 'devtools' },

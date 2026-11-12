@@ -1,0 +1,23 @@
+{
+	"name": "sim-gen-peer",
+	"version": "0.0.1",
+	"private": true,
+	"description": "The simulator's generated peer app: widgets and pages another team serves to apps/sim-gen over fragment federation, written from a seed by internal/sim/src/gen.ts. Private tooling.",
+	"type": "module",
+	"scripts": {
+		"build": "vite build"
+	},
+	"dependencies": {
+		"@ogygia/federation": "workspace:*",
+		"@ogygia/router": "workspace:*",
+		"ogygia": "workspace:*"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-node": "catalog:",
+		"@sveltejs/kit": "catalog:",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"svelte": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:"
+	}
+}
