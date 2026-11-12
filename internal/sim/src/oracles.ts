@@ -132,6 +132,8 @@ export const KNOWN: ReadonlyArray<{
 	what: string;
 	applies(shown: string, fresh: string): boolean;
 	forgive(normalized: string, other: string): string;
+	/** The bug's mark on the document itself, when the DOM alone does not show it. */
+	seen?(world: World, tab: Tab): boolean;
 }> = [
 	{
 		issue: 786,
@@ -245,6 +247,28 @@ export const KNOWN: ReadonlyArray<{
 		}
 	},
 	{
+		issue: 831,
+		what: 'a retried import hands back the file its error named',
+		// (the document asked for a region file again, `og-retry`, and a region woken from a file
+		// shows other markup: the nested region's component in the outer one's place, with no
+		// hydration mismatch when the two are alike; generated app 3, seed 48, #899)
+		seen: (world, tab) => retried_a_region(world, tab),
+		applies: (shown, fresh) => regions(shown).join('\n') !== regions(fresh).join('\n'),
+		forgive: (s) => {
+			const lines = s.split('\n');
+			const out: string[] = [];
+			for (let i = 0; i < lines.length; i++) {
+				const block = region_at(lines, i);
+				if (block === null || !/ src="/.test(lines[i])) out.push(lines[i]);
+				else {
+					out.push(lines[i].replace(' data-hydrated=""', ''));
+					i = block.end - 1;
+				}
+			}
+			return out.join('\n');
+		}
+	},
+	{
 		issue: 807,
 		what: 'a region of the page left stays after a client navigation',
 		// (the tab holds every region the fresh load has, and more; after #804, which sets
@@ -266,6 +290,13 @@ export const KNOWN: ReadonlyArray<{
 		}
 	}
 ];
+
+/** Whether `tab`'s document asked for a region file again under `og-retry` (#831's mark). */
+function retried_a_region(world: World, tab: Tab): boolean {
+	return world.network.exchanges.some(
+		(e) => e.from === tab.realm && /\/og-region\.[^/?]+\?og-retry=/.test(e.url)
+	);
+}
 
 /** The `<title>` elements in a normalized DOM's head, each whole. */
 function titles(s: string): string[] {
@@ -561,7 +592,7 @@ export async function mpa_equivalent(
 	let a = shown;
 	let b = again;
 	for (const k of KNOWN) {
-		if (!k.applies(a, b)) continue;
+		if ((k.seen && !k.seen(world, tab)) || !k.applies(a, b)) continue;
 		known.push(k);
 		[a, b] = [k.forgive(a, b), k.forgive(b, a)];
 	}
@@ -825,12 +856,7 @@ export function hydrates_as_sent(tab: Tab, world?: World): Broken | null {
 	const detail = `${url}: ${said.map((l) => l.split('\n')[0]).join('\n')}`;
 	// #831: a region module asked for again (`og-retry`) after a nested island's download failed
 	// stands in for the outer region's module, which then hydrates the wrong component
-	const retried =
-		world !== undefined &&
-		world.network.exchanges.some(
-			(e) => e.from === tab.realm && /\/og-region\.[^/?]+\?og-retry=/.test(e.url)
-		);
-	if (retried)
+	if (world !== undefined && retried_a_region(world, tab))
 		return {
 			oracle: 'known',
 			detail: `${detail}: #831 (a retried import hands back the file its error named)`

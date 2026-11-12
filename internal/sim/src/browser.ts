@@ -192,8 +192,9 @@ export class Browsers {
 	readonly #windows = new WeakMap<object, Tab>();
 	/** The last error happy-dom wrote to a tab's page console (why an element's load failed). */
 	readonly #said = new WeakMap<Tab, string>();
-	/** Documents (realms) a script or stylesheet of which failed to load: a browser never loads
-	 *  it again, so the page stays without it whatever the network does next. */
+	/** Documents (realms) a script or stylesheet of which failed to load, or a module ogygia says
+	 *  needs a reload (`chunk_reload_needed`): a browser never loads it again, so the page stays
+	 *  without it whatever the network does next. */
 	readonly #unloaded = new Set<string>();
 
 	/** Whether a script or stylesheet of document `realm` failed to load. */
@@ -302,9 +303,11 @@ export class Browsers {
 		for (const level of ['error', 'warn'] as const) {
 			own[level] = (...args: unknown[]) => {
 				if (!shown()) return;
-				tab.console.push(
-					`${level}: ${args.map((a) => (a instanceof Error || (a as { stack?: string })?.stack ? `${String(a)}\n${(a as Error).stack}` : String(a))).join(' ')}${STACKS ? `\n${new Error('said at').stack}` : ''}`
-				);
+				const line = `${level}: ${args.map((a) => (a instanceof Error || (a as { stack?: string })?.stack ? `${String(a)}\n${(a as Error).stack}` : String(a))).join(' ')}`;
+				// (ogygia's own word that a chunk's dependency failed: the browser keeps it failed, and
+				// no retry loads it until the page reloads, as a script that failed to load: #262)
+				if (line.includes('/e/chunk_reload_needed')) this.#unloaded.add(tab.realm);
+				tab.console.push(`${line}${STACKS ? `\n${new Error('said at').stack}` : ''}`);
 				page_console[level]?.call(page_console, ...args);
 			};
 		}
