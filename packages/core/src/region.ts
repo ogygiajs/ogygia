@@ -25,6 +25,28 @@ export type RegionOptions = { wake?: string; margin?: string };
  */
 export type RegionSchedule<P = Record<string, unknown>> = (data: P) => RegionOptions;
 
+/**
+ * The `region()` data argument: `region(Card, props, { version: row.updatedAt })`. `version` is how
+ * new the data behind this answer is: a number, a `Date`, or a date string. When two answers for the
+ * same region reach the browser (two commands that both return it), the one with the newer version
+ * stays on screen, whichever arrived last. Equal versions, or an answer without one, fall back to
+ * arrival order. Only a held region has an address in the browser to order, so an inline region's
+ * version has nothing to compare against.
+ */
+export type RegionData = { version?: number | Date | string };
+
+function to_version(version: number | Date | string): number {
+	const n =
+		typeof version === 'number'
+			? version
+			: version instanceof Date
+				? version.getTime()
+				: Date.parse(version);
+	if (!Number.isFinite(n))
+		throw new OgygiaError('region_version_invalid', { version: String(version) });
+	return n;
+}
+
 type AnyComponent = Component<Record<string, unknown>>;
 
 /** A plain component. Renders in the current server pass; **awaiting** it bakes its SSR HTML so it
@@ -55,16 +77,23 @@ export type DualRegion = {
 	readonly module: string;
 	readonly hydrate?: string;
 	readonly hydrateMargin?: string;
-	/** Server signer, invoked by the transport at serialization. Never crosses the wire. */
-	readonly sign: (id: string, props: Record<string, unknown>) => string;
+	/** Server signer, invoked by the transport at serialization. Never crosses the wire. `wakes`:
+	 *  the component hydrates over the answer, so the endpoint renders it in its hydrate's context. */
+	readonly sign: (id: string, props: Record<string, unknown>, wakes?: boolean) => string;
 	/**
 	 * Server-only renderer, invoked when the region is **awaited** (see {@link region}). Renders
 	 * the component to HTML on the server so the ticket can travel with its markup — no client fetch.
-	 * Provided by the SSR region-binding leg; never crosses the wire.
+	 * Provided by the SSR region-binding leg; never crosses the wire. `wakes`: the component hydrates
+	 * over the HTML, so it renders in its hydrate's context.
 	 */
-	readonly renderHtml?: (props: Record<string, unknown>) => string | Promise<string>;
+	readonly renderHtml?: (
+		props: Record<string, unknown>,
+		wakes?: boolean
+	) => string | Promise<string>;
 	/** Server-rendered HTML, present once the region has been awaited. Rides the wire in the ticket. */
 	readonly html?: string;
+	/** The data version `region()` was given ({@link RegionData}), as a number. */
+	readonly version?: number;
 };
 
 /** A held region that arrived over the wire: a signed capability, no component. */
@@ -87,6 +116,8 @@ export type DeferredRegion = {
 	 * runtime fetches the signed `url` as usual.
 	 */
 	readonly html?: string;
+	/** The data version its server gave it ({@link RegionData}), as a number. */
+	readonly version?: number;
 };
 
 export type RegionValue = InlineRegion | DualRegion | DeferredRegion;
@@ -113,8 +144,8 @@ type RegionBinding = {
 	__hydrate?: string;
 	__hydrateMargin?: string;
 	__component?: Component<Record<string, unknown>>;
-	__sign?: (entry: string, props: Record<string, unknown>) => string;
-	__renderHtml?: (props: Record<string, unknown>) => string | Promise<string>;
+	__sign?: (entry: string, props: Record<string, unknown>, wakes?: boolean) => string;
+	__renderHtml?: (props: Record<string, unknown>, wakes?: boolean) => string | Promise<string>;
 };
 
 function isBinding(value: unknown): value is RegionBinding {
@@ -128,11 +159,13 @@ function isBinding(value: unknown): value is RegionBinding {
 function make_region<P extends Record<string, unknown>>(
 	component: Component<P>,
 	props: P,
-	opts?: RegionSchedule<P>,
+	opts?: RegionSchedule<P> | RegionData,
 	content_id?: string
 ): AwaitableRegion {
 	const p = (props ?? {}) as Record<string, unknown>;
-	const o = opts ? opts(props) : undefined;
+	const o = typeof opts === 'function' ? opts(props) : undefined;
+	const version =
+		typeof opts === 'object' && opts?.version != null ? to_version(opts.version) : undefined;
 	if (isBinding(component)) {
 		if (!component.__component || !component.__sign) {
 			if (typeof component === 'function') {
@@ -159,7 +192,8 @@ function make_region<P extends Record<string, unknown>>(
 			...(hydrate ? { hydrate } : {}),
 			...(hydrateMargin ? { hydrateMargin } : {}),
 			sign: component.__sign,
-			...(component.__renderHtml ? { renderHtml: component.__renderHtml } : {})
+			...(component.__renderHtml ? { renderHtml: component.__renderHtml } : {}),
+			...(version === undefined ? {} : { version })
 		};
 		return make_awaitable(dual);
 	}
@@ -231,7 +265,7 @@ function make_awaitable(dual: DualRegion): AwaitableRegion {
 				// `<link>`s — the page never imported this server-picked component, so its CSS is on no
 				// page stylesheet; the client hoists those links to <head>.
 				const html = dual.renderHtml
-					? await dual.renderHtml(with_portable_forms(dual.props))
+					? await dual.renderHtml(with_portable_forms(dual.props), !!dual.hydrate)
 					: undefined;
 				return { ...dual, ...(html != null ? { html } : {}) };
 			};

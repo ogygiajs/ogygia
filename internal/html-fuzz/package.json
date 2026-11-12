@@ -1,0 +1,21 @@
+{
+	"name": "ogygia-internal-html-fuzz",
+	"private": true,
+	"description": "Test support for the differential HTML tests: generated pages and parse5's reading of them. Reached through @ogygia/config/html-fuzz. Outside packages/, so the measurement-source gate does not count it as package source.",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"check": "tsc -p ."
+	},
+	"dependencies": {
+		"fast-check": "catalog:",
+		"parse5": "catalog:"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"@typescript/native": "catalog:tsgo",
+		"typescript": "catalog:"
+	}
+}

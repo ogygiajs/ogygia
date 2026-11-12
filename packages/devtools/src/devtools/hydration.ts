@@ -1,15 +1,16 @@
 /**
- * Every island's hydration status, from the bus (failed / recovered / healed), the beacon's
+ * Every island's hydration status, from the runtime hooks (failed / recovered / healed), the beacon's
  * before-and-after markup (changed), the element (`data-og-recovered`, `data-hydrated`). Shared by
  * the Hydration tab and the testing API (`window.__ogygia_testing.hydration()`).
  */
-import { snapshot } from '@ogygia/core/events';
-import { beacon_page, type AttrChange } from '@ogygia/core/internal/instruments';
+import { hook_entries } from './hook-entries.ts';
+import { OG_RECOVERED, type AttrChange } from '@ogygia/core/internal/instruments';
+import { beacon_page } from '../profiler/beacon.ts';
 import { all_regions, region_name } from './regions.ts';
-import { html_diff, type HtmlDiff } from '@ogygia/core/insights';
-import type { HydrationStatus } from '@ogygia/core/insights';
+import { html_diff, type HtmlDiff } from '@ogygia/insights';
+import type { HydrationStatus } from '@ogygia/insights';
 
-export type { HydrationStatus } from '@ogygia/core/insights';
+export type { HydrationStatus } from '@ogygia/insights';
 export const STATUS_RANK: Record<HydrationStatus, number> = {
 	failed: 0,
 	recovered: 1,
@@ -33,15 +34,15 @@ export interface IslandHydration {
 
 export function hydration_rows(): { rows: IslandHydration[]; measured: boolean } {
 	const why = new Map<string, { status: HydrationStatus; reason: string }>();
-	for (const e of snapshot()) {
-		if (e.name === 'region.hydrate.failed') {
+	for (const e of hook_entries()) {
+		if (e.hook === 'regionFailed') {
 			if (e.fp) why.set(e.fp, { status: 'failed', reason: e.message.split('\n')[0] });
-		} else if (e.name === 'region.hydrate.recovered') {
+		} else if (e.hook === 'regionMismatched' && e.kind === 'recovered') {
 			if (e.fp) why.set(e.fp, { status: 'recovered', reason: e.reason ?? '' });
-		} else if (e.name === 'region.hydrate.healed') {
+		} else if (e.hook === 'regionMismatched' && e.kind === 'healed') {
 			if (e.fp && why.get(e.fp)?.status !== 'recovered')
 				why.set(e.fp, { status: 'healed', reason: e.reason ?? '' });
-		} else if (e.name === 'region.hydrate.done') {
+		} else if (e.hook === 'regionHydrated') {
 			if (e.fp && why.get(e.fp)?.status === 'failed') why.delete(e.fp);
 		}
 	}
@@ -52,7 +53,7 @@ export function hydration_rows(): { rows: IslandHydration[]; measured: boolean }
 	for (const r of all_regions()) {
 		if (r.kind !== 'island' || !r.fp) continue;
 		const w = why.get(r.fp);
-		const attr = r.el.getAttribute('data-og-recovered');
+		const attr = r.el.getAttribute(OG_RECOVERED);
 		const status: HydrationStatus =
 			w?.status ??
 			(attr !== null
