@@ -893,6 +893,19 @@ export const WARNINGS = {
 			either: ${BUG}
 		`
 	},
+	rule_markup_known: {
+		text: (a: { detail: string }): string =>
+			`rule broken, every page marker is declared: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). The page markup ogygia writes and reads
+			back (its \`data-og-*\` and \`data-ogygia-*\` attributes) is declared in one table, so a writer
+			and a reader never meet through a name only one of them spells. The page carries a marker
+			the table does not declare: a renamed or misspelled one, or a new one not added to it. Only
+			ogygia's own markers are read: any \`data-ogygia-*\`, and \`data-og-*\` on an \`ogygia-*\`
+			element. An app's own \`data-og-*\` elsewhere is left alone.
+			${BUG}
+		`
+	},
 	rule_region_answer_behind: {
 		text: (a: { detail: string }): string =>
 			`rule broken, a region shows the answer its address holds: ${a.detail}`,
