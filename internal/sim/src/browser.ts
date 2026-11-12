@@ -296,7 +296,7 @@ export class Browsers {
 		const tab = this.#find(window);
 		// (a frame inside the page is not the tab's document)
 		if (tab === undefined || (tab.page.mainFrame.window as unknown) !== window) return;
-		this.#o.loop.drop(tab.realm);
+		this.#leave(tab);
 		tab.documents++;
 		tab.realm = `${tab.name}#${tab.documents}`;
 		const options: RealmOptions = {
@@ -672,9 +672,16 @@ export class Browsers {
 		);
 	}
 
-	/** Closes `tab`: its document's tasks go with it. */
-	async close(v: Visitor, tab: Tab): Promise<void> {
+	/** The tab leaves the document it shows (it moves on, or closes): a browser unloads it, so its
+	 *  tasks go with it and nothing on the network reaches it any more. */
+	#leave(tab: Tab): void {
 		this.#o.loop.drop(tab.realm);
+		this.#o.network.leave(tab.realm);
+	}
+
+	/** Closes `tab`: its document goes with it. */
+	async close(v: Visitor, tab: Tab): Promise<void> {
+		this.#leave(tab);
 		v.tabs.splice(v.tabs.indexOf(tab), 1);
 		// (a page closes once its documents finish, which happy-dom judges on the loop: run it)
 		let closed = false;

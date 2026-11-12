@@ -134,9 +134,26 @@ export class Network {
 
 	readonly #redirectable: (url: URL) => boolean;
 
-	/** Each exchange still on the wire (its request out, or its body still coming): how it fails
-	 *  when its tab loses the network. */
-	readonly #on_wire = new Map<Exchange, (why: string) => void>();
+	/** Each exchange still on the wire (its request out, or its body still coming): how it ends
+	 *  when its tab loses the network (`offline`), or its document is left (`left`). */
+	readonly #on_wire = new Map<Exchange, (why: 'offline' | 'left') => void>();
+
+	/** Documents their tab has left: nothing reaches them any more. */
+	readonly #left = new Set<string>();
+
+	/**
+	 * Document `realm` is left (its tab moved on, or closed): a browser calls off its fetches as it
+	 * unloads it, and its code never runs again, so what it has on the wire never reaches it, and
+	 * nothing it sent is in flight any more (test/core.test.ts; gen 192, seed 11).
+	 */
+	leave(realm: string): void {
+		this.#left.add(realm);
+		for (const [ex, end] of this.#on_wire)
+			if (ex.from === realm) {
+				this.#on_wire.delete(ex);
+				end('left');
+			}
+	}
 
 	/**
 	 * Takes `realm` off the network (or puts it back). What it has on the wire fails too, as when a
@@ -230,7 +247,11 @@ export class Network {
 		this.exchanges.push(ex);
 		this.#open.add(ex);
 		const loop = this.#loop;
-		return new Promise<Response>((resolve, reject) => {
+		return new Promise<Response>((answered, failed) => {
+			// (a document left hears nothing: a drop, a redirect or an error due after it never lands)
+			const heard = () => !this.#left.has(realm);
+			const resolve = (r: Response) => heard() && answered(r);
+			const reject = (e: unknown) => heard() && failed(e);
 			const fail = (why: string) => reject(new TypeError(`Failed to fetch (${why})`));
 			// (offline is the tab's, whichever document it shows: `tab-2#3` is tab-2's)
 			if (this.#offline.has(realm) || this.#offline.has(realm.split('#')[0])) {
@@ -279,6 +300,10 @@ export class Network {
 			let lost = false;
 			this.#on_wire.set(ex, (why) => {
 				lost = true;
+				if (why === 'left') {
+					ex.status = 'aborted';
+					return;
+				}
 				ex.status = 'offline';
 				loop.add('net', `offline ${ex.id}`, 0, () => fail(why));
 			});
@@ -435,9 +460,13 @@ export class Network {
 			},
 			{ once: true }
 		);
-		// (a body still coming breaks off when its tab goes offline)
+		// (a body still coming breaks off when its tab goes offline; its document left, the rest
+		// never comes)
 		this.#on_wire.set(ex, (why) => {
-			if (!ended) stop(why, true);
+			if (ended) return;
+			if (why === 'offline') return stop(why, true);
+			ended = true;
+			void source.cancel().catch(() => {});
 		});
 		void pump();
 		return new Response(stream, init);
