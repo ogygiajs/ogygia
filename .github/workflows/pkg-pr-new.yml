@@ -29,6 +29,7 @@ on:
       - 'packages/testing/**'
       - 'packages/cli/**'
       - 'packages/machine/**'
+      - 'packages/insights/**'
       - 'packages/config/**'
       - 'packages/tsdown-plugin-svelte/**'
       - 'pnpm-lock.yaml'
@@ -40,6 +41,7 @@ on:
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
   # (a pull request reads the cache and never writes it: only main's runs fill it)
   TURBO_REMOTE_CACHE_READ_ONLY: ${{ github.event_name != 'push' }}
 
@@ -121,7 +123,7 @@ jobs:
       - env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          for dir in ogygia core flags postrender federation content devtools router testing cli machine; do
+          for dir in ogygia core flags postrender federation content devtools router testing cli machine insights; do
             (cd packages/$dir && node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));const [a,b,c]=p.version.split('-')[0].split('.').map(Number);p.version=a+'.'+b+'.'+(c+1)+'-next.'+process.env.HEAD_SHA.slice(0,7);fs.writeFileSync('package.json',JSON.stringify(p,null,'\t')+'\n');console.log(p.name+' '+p.version)")
           done
 
@@ -137,11 +139,14 @@ jobs:
           './packages/ogygia' './packages/core' './packages/flags' './packages/postrender'
           './packages/federation' './packages/content' './packages/devtools' './packages/router'
           './packages/testing' './packages/cli' './packages/machine' './packages/barrels'
+          './packages/insights'
 
       # Ask ogygiajs/bench to measure what was just published (it installs this commit's build
       # from pkg.pr.new). A PR commit is requested by the pull_request run only (the push run of the
       # same commit stays quiet, so nothing runs twice), and a push to main becomes the new baseline
       # (`ogygia-main` runs the app benchmark and Heisenbench; a PR's Heisenbench run is asked for by heisenbench.yml).
+      # A PR asks only when it CARRIES `ci:bench` or `ci:full` (added by hand; earned labels do not count),
+      # since ogygiajs/bench shares the org's runner pool.
       # Forks, drafts, comment sweeps and research/* are skipped, version PRs never get here (the job's `if`). This never fails
       # the job: without BENCH_TOKEN it skips with a notice, and a refused request only warns.
       - name: Request a benchmark run
@@ -150,7 +155,9 @@ jobs:
           github.event.pull_request.head.repo.full_name == github.repository &&
           !startsWith(github.head_ref, 'chore/comments-') &&
           github.head_ref != 'chore/structured-comments' &&
-          !startsWith(github.head_ref, 'research/')) ||
+          !startsWith(github.head_ref, 'research/') &&
+          (contains(github.event.pull_request.labels.*.name, 'ci:bench') ||
+          contains(github.event.pull_request.labels.*.name, 'ci:full'))) ||
           (github.event_name == 'push' && github.ref == 'refs/heads/main')
         env:
           GH_TOKEN: ${{ secrets.BENCH_TOKEN }}

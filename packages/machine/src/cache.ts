@@ -31,6 +31,7 @@
  *   replaces it.
  */
 import { DEV } from 'esm-env';
+import { clock } from './clock.ts';
 import { bad_option, machine_error, report } from './messages.ts';
 import { DISPOSE, MAX_TIMEOUT_MS, scope, type Scope } from './scope.ts';
 import type { World } from './world.ts';
@@ -177,7 +178,7 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 		stop_timer = life.timeout(
 			() => {
 				timer_at = Infinity;
-				const fired = Date.now();
+				const fired = clock.mono();
 				swept_at = fired;
 				sweep(fired);
 				// the one age timer, for the value due first
@@ -241,8 +242,8 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 			const h = held.get(key);
 			if (h === undefined) return undefined;
 			// (one past its age goes, noticed 'age')
-			if (!(h.until > Date.now())) {
-				sweep(Date.now());
+			if (!(h.until > clock.mono())) {
+				sweep(clock.mono());
 				tell();
 				return undefined;
 			}
@@ -252,11 +253,11 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 		},
 		peek(key: K): V | undefined {
 			const h = held.get(key);
-			return h === undefined || h.until <= Date.now() ? undefined : h.value;
+			return h === undefined || h.until <= clock.mono() ? undefined : h.value;
 		},
 		has(key: K): boolean {
 			const h = held.get(key);
-			return h !== undefined && h.until > Date.now();
+			return h !== undefined && h.until > clock.mono();
 		},
 		set(key: K, value: V, options?: SetOptions): boolean {
 			if (life.closed) return false;
@@ -266,7 +267,7 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 					throw bad_option('stamp', options.stamp, 'given only to a cache made with a world');
 				stamp = options.stamp;
 			} else if (world !== undefined) stamp = world.stamp();
-			const now = Date.now();
+			const now = clock.mono();
 			const old = held.get(key);
 			if (old !== undefined && old.until > now && old.stamp > stamp) return false;
 			const ms = typeof keep === 'function' ? keep(value, key) : keep;
@@ -304,7 +305,7 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 			let_all_go('delete');
 		},
 		entries(): Array<[K, V]> {
-			const now = Date.now();
+			const now = clock.mono();
 			const out: Array<[K, V]> = [];
 			for (const [key, h] of held) if (h.until > now) out.push([key, h.value]);
 			return out;

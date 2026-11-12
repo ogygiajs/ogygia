@@ -6,7 +6,17 @@
 import { afterEach, expect, inject, test, vi } from 'vitest';
 import { STALE } from '@ogygia/machine';
 import { bootDev } from '../../src/runtime/full.ts';
-import { note_mount, note_unmount, watch_router } from '../../src/runtime/rules.ts';
+import {
+	note_handed,
+	note_mount,
+	note_shown,
+	note_turn,
+	note_unbound,
+	note_unmount,
+	watch_frames,
+	watch_router
+} from '../../src/runtime/rules.ts';
+import { _reset, peek, stamp, write } from '../../src/runtime/frame-store.ts';
 import { runtime_session } from '../../src/runtime/session.ts';
 
 type Broken = Array<{ code: string; detail: string }>;
@@ -57,6 +67,57 @@ test('one mount per region: a region holding two islands, or keeping one after i
 	]);
 	note_unmount(el);
 	expect(rules()).toEqual([]);
+});
+
+test("a region shows its address's answer: handed the newest, and painted it once no paint is out", () => {
+	const behind = () => rules().filter((b) => b.code === 'rule_region_answer_behind');
+	watch_frames(peek);
+	const el = document.createElement('ogygia-region');
+	el.setAttribute('entry', 'hole.svelte');
+	document.body.append(el);
+	let painting = false;
+	const a = 'probe-hole|';
+	// handed answer 1, its turn came, painted
+	const v1 = stamp();
+	expect(write({ a, v: v1, html: '<p>1</p>' })).toBe(true);
+	note_handed(el, a, v1, () => painting);
+	note_turn(el);
+	note_shown(el, v1);
+	expect(behind()).toEqual([]);
+	// the store took answer 2, and the region never heard of it
+	const v2 = stamp();
+	expect(write({ a, v: v2, html: '<p>2</p>' })).toBe(true);
+	expect(behind()).toEqual([
+		{
+			code: 'rule_region_answer_behind',
+			detail: `hole.svelte was last handed answer #${v1}, its address holds #${v2}`
+		}
+	]);
+	// handed it: waiting for its turn, then painting, is no finding
+	note_handed(el, a, v2, () => painting);
+	expect(behind()).toEqual([]);
+	note_turn(el);
+	painting = true;
+	expect(behind()).toEqual([]);
+	// its paint ended without painting it
+	painting = false;
+	expect(behind()).toEqual([
+		{
+			code: 'rule_region_answer_behind',
+			detail: `hole.svelte shows answer #${v1}, its address holds #${v2}`
+		}
+	]);
+	note_shown(el, v2);
+	expect(behind()).toEqual([]);
+	// off the page, or unbound: not its to show
+	note_handed(el, a, v1, () => false);
+	el.remove();
+	expect(behind()).toEqual([]);
+	document.body.append(el);
+	note_unbound(el);
+	expect(behind()).toEqual([]);
+	el.remove();
+	_reset();
 });
 
 test('nothing of an old page open: a visit before the one on screen still open', () => {

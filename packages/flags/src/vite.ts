@@ -3,7 +3,7 @@
  * per-request source priming and exposure flushing (its server realm); `flag()` itself works without
  * it (native, sticky decisions), but a `decide({ source, exposure })` needs it.
  */
-import { definePlugin, type OgygiaPlugin } from '@ogygia/core/vite';
+import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
 
 export function flags(): OgygiaPlugin {
 	return definePlugin({
