@@ -93,7 +93,7 @@ bench('match_path: a request against 300 routes', ({ table }) => match_path(tabl
   `bench/__heisenbench.d.ts`.
 - Inputs are built in `setup`, sized like a real page or app, and deterministic (no reading files
   that change for other reasons, like docs content).
-- Code outside Vite works: `virtual:ogygia/*` and `$app/*` resolve to `packages/core/test/_stubs`
+- Code outside Vite works: `ogygia:*` and `$app/*` resolve to `packages/core/test/_stubs`
   (internal/heisenbench/src/preload.ts). Browser-only code waits for Heisenbench's browser coverage.
 - `pnpm check:bench` writes the types and type-checks every bench directory against the built
   libraries, like the tests (run `pnpm build:lib` first; CI runs it after `pnpm check`). It fetches

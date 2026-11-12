@@ -33,7 +33,12 @@ post. Writes the title (with the site's), summary, author and date into the head
 	const iso = $derived(data.date ?? '');
 	const pretty = $derived(
 		iso
-			? new Date(iso).toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric' })
+			? new Date(iso).toLocaleDateString('en', {
+					year: 'numeric',
+					month: 'long',
+					day: 'numeric',
+					timeZone: 'UTC'
+				})
 			: ''
 	);
 	const prev = $derived(view.trail.prev);
