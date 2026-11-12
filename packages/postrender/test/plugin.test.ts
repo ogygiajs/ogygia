@@ -51,7 +51,8 @@ describe('postrender() — the vite value', () => {
 			pageModules: () => {},
 			transform: () => {},
 			exports: { map: () => Promise.resolve(null) },
-			pinnedImports: () => () => false
+			pinnedImports: () => () => false,
+			regions: { names: () => ({}), barrelWhy: () => [] }
 		});
 		expect(keys).toEqual(['postrender']);
 	});

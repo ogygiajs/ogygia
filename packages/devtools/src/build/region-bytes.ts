@@ -14,11 +14,14 @@
  * component was never loaded) has no subgraph in the graph yet — it simply doesn't appear here until
  * it wakes. Pure over the nodes it's handed; reads, never mutates.
  */
-import { hydration_hazards, type IslandHazard } from '../../insights/hydration-hazards.ts';
-import type { BarrelLeftReason, IslandBarrel } from '../../contract/barrels.ts';
-import { OWN_FILE_RE } from '../../contract/own-package.ts';
-import { region_family } from '../ids.ts';
-import { OGYGIA_SCHEME } from '../virtual/table.ts';
+import {
+	hydration_hazards,
+	type BarrelLeftReason,
+	type IslandBarrel,
+	type IslandHazard
+} from '@ogygia/core/insights';
+import { region_family } from '@ogygia/core/internal/compiler-ids';
+import { OGYGIA_SCHEME, OWN_FILE_RE } from '@ogygia/core/internal/compiler';
 
 /** Structural shape of a Vite dev module-graph node (the fields the byte walk reads). */
 export type ByteGraphModule = {
