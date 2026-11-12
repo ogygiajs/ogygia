@@ -57,6 +57,9 @@ export function normalize(root: {
 	title: string;
 	baseURI?: string;
 }): string {
+	// (read once: happy-dom's `baseURI` looks for a `<base>` through the whole document, and a miss
+	// grows every element's cache list; per attribute it ran palaestra seed 216 out of memory)
+	const base = root.baseURI ?? 'https://app.test/';
 	const walk = (node: Node, depth: number, out: string[]): void => {
 		if (node.nodeType === 8) return;
 		if (node.nodeType === 3) {
@@ -87,7 +90,6 @@ export function normalize(root: {
 					)
 			)
 			.map((a) => {
-				const base = root.baseURI ?? 'https://app.test/';
 				// (one no URL can be made of, a tampered byte in its host, stays as it is: gen 45, seed 32)
 				const address =
 					((tag === 'link' && a.name === 'href') || /^\.\.?\//.test(a.value)) &&
