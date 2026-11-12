@@ -283,7 +283,8 @@ export class Browsers {
 			true
 		);
 		w.addEventListener('unhandledrejection', (e) => {
-			if (shown()) tab.errors.push(`unhandled: ${String(e.reason)}`);
+			const stack = STACKS ? `\n${String((e.reason as Error | undefined)?.stack)}` : '';
+			if (shown()) tab.errors.push(`unhandled: ${String(e.reason)}${stack}`);
 		});
 		// (happy-dom gives every document of a page the page's one console: each gets its own here,
 		// so what a left document's code still says is told apart from the shown one's)

@@ -8,6 +8,8 @@
 		"build": "vite build"
 	},
 	"dependencies": {
+		"@ogygia/federation": "workspace:*",
+		"@ogygia/router": "workspace:*",
 		"ogygia": "workspace:*"
 	},
 	"devDependencies": {

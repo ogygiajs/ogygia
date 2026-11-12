@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { plan, write, type GenNode } from '../src/gen.ts';
+import { peer_plan, plan, write, write_peer, type GenNode } from '../src/gen.ts';
 
 const all = (ns: readonly GenNode[]): GenNode[] => ns.flatMap((n) => [n, ...all(n.children)]);
 
@@ -59,6 +59,57 @@ describe('the random app', () => {
 		expect(kinds).toContain('held');
 		expect(kinds).toContain('live');
 		expect(nodes.filter((n) => n.kind === 'hole').length).toBeGreaterThan(0);
+	});
+
+	it('draws a peer for some seeds, from its own stream: the app it serves is the same', () => {
+		const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
+		const peers = seeds.map((s) => peer_plan(s, plan(s)));
+		expect(peers.filter(Boolean).length).toBeGreaterThan(0);
+		expect(peers.filter((p) => p === null).length).toBeGreaterThan(0);
+		const s = seeds[peers.findIndex(Boolean)];
+		expect(peer_plan(s, plan(s))).toEqual(peer_plan(s, plan(s)));
+		// (the peer's regions are numbered apart from the app's)
+		const peer = peer_plan(s, plan(s))!;
+		const ids = all([
+			...peer.widgets.flatMap((w) => w.children),
+			...peer.pages.flatMap((p) => p.roots)
+		]);
+		expect(ids.every((n) => n.id >= 1000)).toBe(true);
+	});
+
+	it("writes a peer's widgets, pages and federation, and the app's slots and mount", () => {
+		const root = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		const app = join(root, 'app');
+		try {
+			const seed = Array.from({ length: 20 }, (_, i) => i + 1).find(
+				(s) => (peer_plan(s, plan(s))?.slots.length ?? 0) > 0
+			)!;
+			const pages = plan(seed);
+			const peer = peer_plan(seed, pages)!;
+			write(app, pages, seed, peer);
+			write_peer(`${app}-peer`, peer, seed);
+			const lib = (dir: string, f: string) =>
+				readFileSync(join(dir, 'src', 'lib', 'gen', f), 'utf8');
+			const fed = lib(`${app}-peer`, 'federation.server.ts');
+			for (const w of peer.widgets)
+				expect(fed).toContain(
+					`import W${w.name} from './W${w.name}.svelte' with { region: 'raw' }`
+				);
+			expect(fed).toContain('expose: router');
+			for (const p of peer.pages) expect(lib(`${app}-peer`, 'router.ts')).toContain(`'${p.path}'`);
+			const slot = peer.slots[0];
+			const load = readFileSync(
+				join(app, 'src', 'routes', slot.page.slice(1), '+page.server.ts'),
+				'utf8'
+			);
+			expect(load).toContain(`peer.widget('${slot.widget}'`);
+			expect(load).toContain(`render: '${slot.render}'`);
+			expect(lib(app, 'mount.server.ts')).toContain(
+				peer.mount === 'router' ? 'mount(peer)' : 'resolve(event)'
+			);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
 	});
 
 	it('writes held and live regions with a remote module and a host', () => {

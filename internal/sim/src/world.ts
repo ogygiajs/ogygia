@@ -111,6 +111,9 @@ export class World {
 	readonly peers = new Map<string, ServerInstance>();
 	/** Errors no page or server caught, as the host process heard them. */
 	readonly uncaught: string[] = [];
+	/** The server rules a server said broken (`<instance> <code> <detail>`): ogygia's server rules
+	 *  (core server/rules.ts) are said, not thrown, so the host's console is where they surface. */
+	readonly server_rules: string[] = [];
 	/** The build new requests go to (a deploy moves it). */
 	live: string;
 	readonly #o: WorldOptions;
@@ -189,6 +192,23 @@ export class World {
 		};
 		process.on('unhandledRejection', uncaught);
 		process.on('uncaughtException', uncaught);
+		// (a page's console is its window's own: the host's is the servers')
+		const host_console = { warn: console.warn, error: console.error };
+		const hear = (to: 'warn' | 'error') =>
+			function (this: Console, ...args: unknown[]): void {
+				const line = args.map(String).join(' ');
+				const rule = /ogygiajs\.dev\/e\/(rule_[a-z_]+)(?:\?detail=(\S*))?/.exec(line);
+				const server = current_server.getStore();
+				if (rule !== null && server !== undefined) {
+					// (a query's encoding: `+` is a space)
+					const detail =
+						rule[2] === undefined ? '' : decodeURIComponent(rule[2].replaceAll('+', ' '));
+					w.server_rules.push(`${server.name} ${rule[1]} ${detail}`.trim());
+				}
+				host_console[to].apply(this, args);
+			};
+		console.warn = hear('warn');
+		console.error = hear('error');
 		// a world's servers start from nothing: what they pin on `globalThis` (an app's in-memory
 		// store, a counter a command bumps) is taken off when the world ends, so the next world in
 		// this process does not start with it (a seed's replay runs after other seeds)
@@ -202,6 +222,8 @@ export class World {
 			else process.env.OGYGIA_SECRET = host_secret;
 			process.off('unhandledRejection', uncaught);
 			process.off('uncaughtException', uncaught);
+			console.warn = host_console.warn;
+			console.error = host_console.error;
 			globalThis.fetch = real_fetch;
 			restore();
 			for (const key of Reflect.ownKeys(globalThis))

@@ -136,6 +136,25 @@ export const KNOWN: ReadonlyArray<{
 	seen?(world: World, tab: Tab): boolean;
 }> = [
 	{
+		issue: 914,
+		what: 'every deferred peer widget shares one answer',
+		// (the generated peer's widgets say whose they are, `w<k> for r<slot>`: another slot's
+		// widget in one; each widget's subtree set aside)
+		applies: (shown, fresh) => widget_labels(shown) !== widget_labels(fresh),
+		forgive: (s) => {
+			const out: string[] = [];
+			let inside: string | null = null;
+			for (const line of s.split('\n')) {
+				const indent = /^ */.exec(line)![0];
+				if (inside !== null && indent.length > inside.length) continue;
+				inside = null;
+				out.push(line);
+				if (line.trim().startsWith('<section data-gen="widget"')) inside = indent;
+			}
+			return out.join('\n');
+		}
+	},
+	{
 		issue: 786,
 		what: 'an empty <title> after client navigations, or two titles on a page visited again',
 		// (an empty one: no text line under it; and the empty one a page with a title fills in,
@@ -509,6 +528,11 @@ function kit_stamps(s: string): string {
 		.join('\n');
 }
 
+/** A normalized DOM's generated peer widgets, by what each says it is (`w<k> for r<slot>`). */
+function widget_labels(s: string): string {
+	return [...s.matchAll(/"(w\d+ for r\d+)"/g)].map((m) => m[1]).join(',');
+}
+
 /** A normalized DOM's region fingerprints, in order. */
 function fingerprints(s: string): string {
 	return [...s.matchAll(/ data-og-fp="([0-9a-f]+)"/g)].map((m) => m[1]).join(',');
@@ -677,28 +701,51 @@ export function regions_show(tab: Tab, world: World): Broken | null {
 			)
 	);
 	if (empty.length === 0) return null;
-	// #901: a server island inside a woken held region is adopted as an empty lake
-	const held = (r: Element) =>
-		r.getAttribute('wake') === 'none' &&
-		r.parentElement?.closest('ogygia-region[live="true"][render="defer"]') != null;
 	const open = (r: Element) =>
 		`<${r.localName}${[...r.attributes]
 			.filter((a) => a.name !== 'endpoint')
 			.map((a) => ` ${a.name}="${a.value}"`)
 			.join('')}>`;
-	if (empty.every(held))
+	const known = KNOWN_EMPTY.filter((k) => empty.some(k.is));
+	const left = empty.filter((r) => !KNOWN_EMPTY.some((k) => k.is(r)));
+	if (left.length === 0)
 		return {
 			oracle: 'known',
-			detail: `${url}: #901 (a server island inside a woken held region never shows)`
+			detail: `${url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
 		};
-	return {
-		oracle: 'empty-region',
-		detail: `${url}: ${empty
-			.filter((r) => !held(r))
-			.map(open)
-			.join('\n')}`
-	};
+	return { oracle: 'empty-region', detail: `${url}: ${left.map(open).join('\n')}` };
 }
+
+/** An empty region a filed bug explains, by its shape (as KNOWN is for an MPA difference). */
+const KNOWN_EMPTY: ReadonlyArray<{ issue: number; what: string; is: (r: Element) => boolean }> = [
+	{
+		issue: 901,
+		what: 'a server island inside a woken held region never shows',
+		// (adopted as an empty lake)
+		is: (r) =>
+			r.getAttribute('wake') === 'none' &&
+			r.parentElement?.closest('ogygia-region[live="true"][render="defer"]') != null
+	},
+	{
+		issue: 909,
+		what: "a peer's deferred widget never loads in an app with no deferred region",
+		// (its hole, armed and never fetched: the runtime has no frame store)
+		is: (r) =>
+			r.getAttribute('render') === 'defer' &&
+			!r.hasAttribute('data-hydrated') &&
+			(r.getAttribute('endpoint') ?? '').startsWith('/og/frag?')
+	},
+	{
+		issue: 910,
+		what: "a server island inside a peer's widget never shows",
+		// (its hole asks the app's endpoint, which refuses it: the generated peer's widget root,
+		// `<section data-gen="widget">`, or a mounted page of it, `<main data-gen="peer-page">`)
+		is: (r) =>
+			r.getAttribute('render') === 'defer' &&
+			r.closest('[data-gen="widget"], [data-gen="peer-page"]') != null &&
+			(r.getAttribute('endpoint') ?? '').startsWith('/__ogygia__?')
+	}
+];
 
 /**
  * EVERY WAIT SETTLES: once the world is at rest (nothing on the wire, nothing due within 2 s), no
@@ -951,6 +998,19 @@ export function hydrates_as_sent(tab: Tab, world?: World): Broken | null {
 	const said = tab.console.filter((l) => UNHYDRATED.test(l));
 	if (said.length === 0) return null;
 	if (world !== undefined && document_faulted(world, tab)) return null;
+	// (nor when a changed or cut byte reached what a region renders from: a remote function's
+	// answer or a hole's, its props then not what the server rendered; generated app 8, seed 61, a
+	// changed byte in a live query's tick)
+	if (
+		world !== undefined &&
+		world.network.exchanges.some(
+			(e) =>
+				e.from === tab.realm &&
+				(e.tampered || e.cut) &&
+				/^\/(_app\/remote\/|__ogygia__)/.test(new URL(e.url).pathname)
+		)
+	)
+		return null;
 	const url = tab.page.mainFrame.url;
 	if (UNHYDRATED_BY_DESIGN.some((d) => d.path.test(new URL(url).pathname))) return null;
 	const detail = `${url}: ${said.map((l) => l.split('\n')[0]).join('\n')}`;
@@ -967,7 +1027,12 @@ export function hydrates_as_sent(tab: Tab, world?: World): Broken | null {
 /** What a page says because of a filed bug, as KNOWN is for a DOM difference: a seed that says
  *  only these is counted `known`, not failed. Each entry goes when its fix lands. */
 export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegExp }> = [
-	{ issue: 817, what: 'a kept island loses its live query', said: /No cached query found/ }
+	{ issue: 817, what: 'a kept island loses its live query', said: /No cached query found/ },
+	{
+		issue: 915,
+		what: "Svelte 5.56.8's error walk meets a destroyed boundary",
+		said: /^unhandled: TypeError: Cannot read properties of null \(reading 'error'\)/
+	}
 ];
 
 /**
@@ -985,6 +1050,28 @@ export function uncaught(world: World): Broken | null {
 	if (left.every((l) => known.some((k) => k.said.test(l))))
 		return { oracle: 'known', detail: known.map((k) => `#${k.issue} (${k.what})`).join(', ') };
 	return { oracle: 'uncaught', detail: left.join('\n') };
+}
+
+/** A server rule a filed bug breaks, as KNOWN_SAID is for what a page says. */
+const KNOWN_SERVER_RULES: ReadonlyArray<{ issue: number; what: string; said: RegExp }> = [
+	{
+		issue: 925,
+		what: "a capability minted relative to the page, under Kit's default paths.relative",
+		said: /^\S+ rule_capability_not_path ((\.\.?\/)+__ogygia__(; |$))+$/
+	}
+];
+
+/** No server said one of ogygia's server rules broken (core server/rules.ts: a scope left open, a
+ *  kept failure, a region answer a shared cache may keep, a capability minted as more than a path).
+ *  Reading it takes what it read. */
+export function server_rules(world: World): Broken | null {
+	const said = [...new Set(world.server_rules)];
+	world.server_rules.length = 0;
+	if (said.length === 0) return null;
+	const known = KNOWN_SERVER_RULES.filter((k) => said.some((l) => k.said.test(l)));
+	if (said.every((l) => known.some((k) => k.said.test(l))))
+		return { oracle: 'known', detail: known.map((k) => `#${k.issue} (${k.what})`).join(', ') };
+	return { oracle: 'server-rules', detail: said.join('\n') };
 }
 
 /** A shared cache never hands one visitor's personal bytes to another (cdn.ts records each hit
