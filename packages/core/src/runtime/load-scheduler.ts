@@ -23,8 +23,8 @@
  * nothing to guess) — or the visitor's first click / key (the browser stops measuring LCP there), or
  * a cap. Visible CONTENT (a hole's HTML on screen) does not wait: it IS what the visitor sees.
  *
- * A queued download's class is re-read when the queue drains, so an island scrolling into view moves
- * from `ahead` to `visible`. A shared download (a `flights()` flight: a page prefetch, a hole's warm,
+ * A queued download's class is re-read when the queue drains, and its element moving on screen
+ * drains it, so an island scrolling into view moves from `ahead` to `visible`. A shared download (a `flights()` flight: a page prefetch, a hole's warm,
  * a module warm) queues with its flight, and a caller that joins it at a higher class raises the
  * flight (load-class.ts): the queued slot then drains at that class (a click on a link whose prefetch
  * still waits). On a Kit-hydrated document Kit's own start sets the pace, so nothing waits on the
@@ -32,17 +32,10 @@
  */
 import { after_document_painted, yield_task } from './schedule.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
-import {
-	clock,
-	flights,
-	machine,
-	scope,
-	type InFlight,
-	type Scope,
-	type Stale
-} from '@ogygia/machine';
+import { clock, flights, machine, type InFlight, type Stale } from '@ogygia/machine';
 import { emit as dt_emit } from '../events/bus.ts';
 import { class_at, CLASSES, PRIORITY, type LoadClass } from './load-class.ts';
+import { on_screen, watch_viewport } from './viewport.ts';
 import type { CriticalOutcome } from '../contract/runtime-hooks.ts';
 import { slots } from './slots.ts';
 
@@ -62,27 +55,12 @@ export const CRITICAL_CAP_MS = 2500;
 export const BACKGROUND_WINDOW = 3;
 
 /**
- * `visible` when `el` — or, for a region with no area of its own, what it renders — intersects the
- * viewport now, else `ahead`. A region whose content is out of flow (a `position: fixed` button) or
- * that is `display: contents` has no area, and where such a box sits says nothing (`display:
- * contents` reports 0,0), so its descendants' boxes decide first (bounded: the first few levels).
+ * `visible` when `el` is on screen now, else `ahead`: the one viewport tracker's answer
+ * (./viewport.ts), so a download's class agrees with the region's `visible` wake and its hydrate
+ * turn. A region with no box of its own is decided by what it renders.
  */
 export function viewport_class(el: Element): 'visible' | 'ahead' {
-	if (typeof innerHeight === 'undefined' || !el.isConnected) return 'ahead';
-	return on_screen(el, 3) ? 'visible' : 'ahead';
-}
-
-function on_screen(el: Element, depth: number): boolean {
-	const r = el.getBoundingClientRect();
-	const crosses = r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
-	if (r.width > 0 && r.height > 0) return crosses;
-	if (depth > 0) {
-		let seen = 0;
-		for (let c = el.firstElementChild; c && seen < 16; c = c.nextElementSibling, seen++)
-			if (on_screen(c, depth - 1)) return true;
-	}
-	// nothing it renders is on screen: a line of its own still counts (an empty hole at the fold)
-	return crosses && (r.width > 0 || r.height > 0);
+	return on_screen(el) ? 'visible' : 'ahead';
 }
 
 // ── the critical-resources gate ─────────────────────────────────────────────────────────────────
@@ -243,15 +221,14 @@ function until_critical(): Promise<void> {
 const queue: LoadSlot[] = [];
 let waiting = 0;
 let in_flight_background = 0;
-/** The scroll watch while a queued download waits (its listener and its frame): closed once the
- *  queue is empty. */
-let scroll_watch: Scope | null = null;
 
 /**
  * A queued download: asking for one queues it. `ready` resolves with a `release` to call when the
  * download is done (settled, success or not). `cls` may be a getter, re-read whenever the queue
- * drains (viewport changes). A slot that serves a shared download is given its `flight`: it is at
- * least at the class of the flight's priority, and a raise of the flight drains it at the new class.
+ * drains; when it follows an element's place on screen, `el` names it: while the slot is queued the
+ * element is watched (./viewport.ts, the one tracker), and its moving on or off screen drains the
+ * queue. A slot that serves a shared download is given its `flight`: it is at least at the class of
+ * the flight's priority, and a raise of the flight drains it at the new class.
  */
 export class LoadSlot {
 	readonly kind: LoadKind;
@@ -263,11 +240,14 @@ export class LoadSlot {
 	#read: () => LoadClass;
 	#flight: InFlight | null;
 	#resolve!: (release: () => void) => void;
+	/** Stops watching its element (on start, or a test's reset). */
+	unwatch: () => void = noop;
 
 	constructor(o: {
 		kind: LoadKind;
 		cls: LoadClass | (() => LoadClass);
 		label?: string;
+		el?: Element;
 		flight?: InFlight;
 	}) {
 		this.kind = o.kind;
@@ -277,7 +257,8 @@ export class LoadSlot {
 		this.ready = new Promise<() => void>((r) => (this.#resolve = r));
 		queue.push(this);
 		waiting++;
-		if (typeof o.cls === 'function') watch_scroll();
+		// its element moved on or off screen: its class may have moved with it
+		if (o.el) this.unwatch = watch_viewport(o.el, '0px', drain);
 		// a caller joined the flight at a higher class: still queued, it drains at that class now
 		this.#flight?.onRaise(() => {
 			if (this.queued) drain();
@@ -296,6 +277,7 @@ export class LoadSlot {
 	/** Out of the queue: the holder's `ready` resolves, counted in the background window when it
 	 *  is one of the guesses. */
 	start(cls: LoadClass, background: boolean): void {
+		this.unwatch();
 		if (background) in_flight_background++;
 		let released = false;
 		if (DEVTOOLS)
@@ -417,31 +399,16 @@ function leave_queue(): void {
 	queue.length = w;
 }
 
-/** While a queued download's class can change with the viewport, re-drain on scroll (one frame). */
-function watch_scroll(): void {
-	if (scroll_watch || typeof window === 'undefined') return;
-	const watch = (scroll_watch = scope());
-	let framed = false;
-	const on_scroll = () => {
-		if (framed) return;
-		framed = true;
-		watch.timeout(() => {
-			framed = false;
-			drain();
-			if (!waiting) {
-				watch.close();
-				scroll_watch = null;
-			}
-		}, 'frame');
-	};
-	watch.on(window, 'scroll', on_scroll, { capture: true, passive: true });
-}
+function noop(): void {}
 
 const now = clock.mono;
 
 /** Test seam: a fresh document. */
 export function reset_load_scheduler(): void {
-	for (const s of queue) s.queued = false;
+	for (const s of queue) {
+		s.queued = false;
+		s.unwatch();
+	}
 	queue.length = 0;
 	waiting = 0;
 	in_flight_background = 0;

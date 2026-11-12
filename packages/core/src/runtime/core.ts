@@ -86,7 +86,7 @@ import {
 	unregister_region,
 	yield_task
 } from './schedule.ts';
-import { once_visible } from './observe.ts';
+import { once_on_screen } from './viewport.ts';
 import { sheet_of, use_sheets, type RegionSheet } from './region-sheets.ts';
 import { preload_island_graph } from './island-graph-preload.ts';
 import { fetch_priority_of, LoadSlot, viewport_class, type LoadClass } from './load-scheduler.ts';
@@ -958,7 +958,9 @@ class OgygiaRegion extends HTMLElement {
 			// is background work (load-scheduler.ts). Every caller of the address shares this fetch, so
 			// it goes at the most urgent one's class (its flight's). The server gate still caps what one
 			// page asks of the origin at once.
-			const slot = new LoadSlot({ kind: 'content', cls, label: endpoint, flight });
+			// (a class that follows this hole's place on screen is re-read as it moves)
+			const el = typeof cls === 'function' ? this : undefined;
+			const slot = new LoadSlot({ kind: 'content', cls, label: endpoint, el, flight });
 			const release = await slot.ready;
 			try {
 				return await this.#fetch_region(
@@ -1653,10 +1655,11 @@ class OgygiaRegion extends HTMLElement {
 		const off_cap = s.timeout(first, 2000);
 	}
 
-	/** `visible`: the shared observer for this margin (observe.ts) — fires once, on first entry. */
+	/** `visible`: the one viewport tracker for this margin (viewport.ts) — fires once, the first time
+	 *  the region (or, with no box of its own, what it renders) is on screen. */
 	#on_visible(fire: () => unknown, root_margin: string | undefined, owner: Leaves) {
 		const rootMargin = root_margin || this.getAttribute('margin') || '0px';
-		owner.scope.defer(once_visible(this, rootMargin, () => void fire())); // ok: a wake; its hydrate says its own failure
+		owner.scope.defer(once_on_screen(this, rootMargin, () => void fire())); // ok: a wake; its hydrate says its own failure
 	}
 
 	#on_media(q: string, fire: () => unknown, owner: Leaves) {
@@ -1711,7 +1714,7 @@ class OgygiaRegion extends HTMLElement {
 			// Its downloads wait for their slot (load-scheduler.ts): a gesture's never wait; otherwise
 			// the class follows the viewport, re-read while queued (an island scrolled into view moves up).
 			const cls = () => (this.#visitor ? 'user' : viewport_class(this));
-			const slot = new LoadSlot({ kind: 'code', cls, label: entry });
+			const slot = new LoadSlot({ kind: 'code', cls, label: entry, el: this });
 			const release = await turn.wait(slot.ready);
 			// (gone while it queued: the slot, when it comes, goes straight back)
 			if (release === STALE) return void slot.ready.then(hand_back); // ok: a slot's turn never fails
@@ -2008,7 +2011,7 @@ class OgygiaRegion extends HTMLElement {
 			const entry = island_entry_of(this);
 			if (!entry) return;
 			const cls = () => viewport_class(this);
-			const slot = new LoadSlot({ kind: 'code', cls, label: entry });
+			const slot = new LoadSlot({ kind: 'code', cls, label: entry, el: this });
 			const release = await turn.wait(slot.ready);
 			// (gone while it queued: the slot, when it comes, goes straight back)
 			if (release === STALE) return void slot.ready.then(hand_back); // ok: a slot's turn never fails
