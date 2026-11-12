@@ -44,6 +44,19 @@ describe('say()', () => {
 		expect(again).toBe(false);
 	});
 
+	it('a key that comes again is kept over one said once long ago, when the bound lets one go', () => {
+		const warnings = say({ max: 2 });
+		const said: string[] = [];
+		const tell = (key: string) => warnings.once(key, () => said.push(key));
+		tell('a');
+		tell('b');
+		tell('a'); // still true: not said, but now the most recent
+		tell('c'); // past the bound: `b` goes, not `a`
+		tell('a');
+		tell('b');
+		expect(said).toEqual(['a', 'b', 'c', 'b']);
+	});
+
 	it('remembers 1024 keys by default', () => {
 		const warnings = say();
 		for (let i = 0; i < 10_000; i++) warnings.once(`k${i}`, () => {});

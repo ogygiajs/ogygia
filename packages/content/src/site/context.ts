@@ -1,9 +1,3 @@
-/**
- * Shell context — how bricks inside `<Shell>` find the site without prop threading. `<Shell {site}>`
- * sets it once; a brick reads it, unless given explicit props (standalone use outside the shell).
- * Deliberately tiny: the context carries only `{ site, base }` — bricks derive everything else from
- * the site's plain-data views.
- */
 import type { Component } from 'svelte';
 import { getContext, setContext } from 'svelte';
 import type { Site } from './site.ts';
@@ -27,6 +21,8 @@ export function set_shell_context(ctx: ShellContext): void {
 	setContext(KEY, ctx);
 }
 
+/** The shell's context, for a brick inside `<Shell>`: the site without passing it down as props.
+ *  The shell sets it once; a brick given explicit props (used outside a shell) needs none. */
 export function get_shell_context(): ShellContext | undefined {
 	return getContext<ShellContext | undefined>(KEY);
 }
