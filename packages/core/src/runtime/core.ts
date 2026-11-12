@@ -834,7 +834,11 @@ class OgygiaRegion extends HTMLElement {
 		}
 		// while it sleeps with a copy, a touch marks it for the comparison at its wake (drift-watch.ts)
 		if (this.#ssr_html !== null) this.#watch();
-		if (slots.lakes.wait_for_boundary(this, boundary)) return;
+		// A region whose markup is the lake's waits for the lake to settle (its host island's hydrate
+		// lifts and restores it). A deferred one's HTML is remote, never the lake's, so it keeps its own
+		// schedule, as under the nested rule above: a host woken by a press may never wake
+		// (e2e/hole-in-lake.spec.ts, #948)
+		if (!deferred && slots.lakes.wait_for_boundary(this, boundary)) return;
 		this.#scheduled = true;
 		// A hole that had its answer, put back on the page: its schedule is spent (#336)
 		if (deferred && this.#answer.now.kind !== 'none') {
