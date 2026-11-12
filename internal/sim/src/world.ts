@@ -498,15 +498,33 @@ export class World {
 			// when the app has no stable secret, as ogygia's `secret_missing` says)
 			if (answer.headers.get('x-ogygia-deny') === 'foreign-key' && this.#o.secret === undefined)
 				this.skewed.set(from, (this.skewed.get(from) ?? new Set<string>()).add(url.pathname));
-			// (which build answered rides with the answer, so a cached copy says it too)
+			// (which build answered rides with the answer, so a cached copy says it too; a page store's
+			// copy is the build's that rendered it: test/stored-build.node.test.ts)
+			const rendered = this.#rendered_by(answer, build);
+			if (this.#pinned === null && is_page_path(decodeURIComponent(url.pathname)))
+				this.#page_build.set(from, rendered);
 			const headers = new Headers(answer.headers);
-			headers.set(ANSWERED_BY, build);
+			headers.set(ANSWERED_BY, rendered);
 			return new Response(answer.body, {
 				status: answer.status,
 				statusText: answer.statusText,
 				headers
 			});
 		});
+	}
+
+	/** The build each page store's copy is of, by its etag (the render's identity). */
+	readonly #stored_by = new Map<string, string>();
+
+	/** The build whose render `answer` is: `build`, the server's, unless postrender served a copy it
+	 *  kept (`x-ogygia-postrender: hit` or `join`), which is the build's whose render it stored
+	 *  (`stored`). After a deploy the store may still hold the old release's page (#947). */
+	#rendered_by(answer: Response, build: string): string {
+		const via = answer.headers.get('x-ogygia-postrender');
+		const etag = answer.headers.get('etag');
+		if (via === null || etag === null) return build;
+		if (via === 'stored') this.#stored_by.set(etag, build);
+		return this.#stored_by.get(etag) ?? build;
 	}
 
 	visitor(name: string): Visitor {
