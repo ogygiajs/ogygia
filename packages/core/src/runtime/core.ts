@@ -1,5 +1,6 @@
 import {
 	backoffAfter,
+	buggify,
 	clock,
 	flights,
 	mailbox,
@@ -1468,6 +1469,9 @@ class OgygiaRegion extends HTMLElement {
 		const mine = this.#hole.now;
 		let html: string | typeof STALE;
 		try {
+			// (buggify: the answer is lost on the way, as a dropped request's: the fetch fails, and
+			// the hole tries again or gives up as it would)
+			if (RULES && buggify.fires('hole.fetch-lost')) throw new TypeError('Failed to fetch');
 			// (the network is no turn of the element's: the frames that come meanwhile land as it waits)
 			html = await turn.wait(
 				this.#hole.scope.task((signal) =>
