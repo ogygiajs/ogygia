@@ -5,7 +5,7 @@
 // their reservations fail, and each hole fetches on its own.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { streamFrames } from '../../src/runtime/frame-nav.ts';
-import { _reset, ensure } from '../../src/runtime/frame-store.ts';
+import { _reset, ensure } from '../_frames.ts';
 import { frameAddress } from '../../src/frame.ts';
 import { build_parcel } from '../../src/server/stream-regions.ts';
 

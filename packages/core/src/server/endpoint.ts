@@ -81,6 +81,28 @@ export function capability_expiry(now_sec: number, ttl_sec: number): number {
 	return (Math.floor(now_sec / half) + 2) * half;
 }
 
+/**
+ * A signed region capability's query (`?id&r&props&exp&v&ttl&w&sig&k`), the one spelling for a
+ * mint and a renewal. Everything from `&exp=` on is the volatile tail (runtime/hash.ts cuts there);
+ * `v` is the signature's version (server/hmac.ts `region_verify`); `w=1`, signed, says the hole's
+ * component hydrates over the answer (#906); `k`, the minter's key fingerprint, is outside the
+ * signature (server/signing-key.ts).
+ */
+export function capability_query(
+	c: { id: string; render: string; payload: string; ttl: string; wakes: string },
+	exp: string,
+	sig: string,
+	k: string
+): string {
+	const r = c.render ? `&r=${c.render}` : '';
+	const ttl = c.ttl ? `&ttl=${c.ttl}` : '';
+	const w = c.wakes ? `&w=${c.wakes}` : '';
+	return `?id=${encodeURIComponent(c.id)}${r}&props=${c.payload}&exp=${exp}&v=${REGION_CAPABILITY_VERSION}${ttl}${w}&sig=${sig}&k=${k}`;
+}
+
+/** The version every region capability is minted as (its URL's `v`; `''` = minted before v3). */
+export const REGION_CAPABILITY_VERSION = '3';
+
 /** Region ids are always 12 lowercase hex chars from the transform. */
 export const REGION_ID_RE: RegExp = /^[0-9a-f]{12}$/;
 
