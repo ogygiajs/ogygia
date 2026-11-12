@@ -30,10 +30,10 @@
  * Vitest / Jest. Every report is plain JSON: keep them (the Playwright fixture attaches them to each
  * test as `ogygia.json`) and `compare` / `toMarkdown` two runs in a CI script.
  *
- * Needs a server with the devtools plugin (`plugins: [ogygia(), devtools(), sveltekit()]`: the dev server, or a preview build: measuring
- * starts for a browser that turned devtools on — the `og_devtools=on` cookie, which `withOgygia` sets
- * for `baseURL`, or without one for the origin of the first page the test opens).
- * `profile()` needs the devtools plugin's profiler, `devtools({ profiler })` (and its key on a build).
+ * Needs `testing()` in the app (`plugins: [ogygia(), testing(), sveltekit()]`, from
+ * `@ogygia/testing/vite`): it hands the runtime's hooks to the engine the test injects, on the dev
+ * server or a preview build. `profile()` needs the devtools plugin's profiler,
+ * `devtools({ profiler })` (and its key on a build).
  */
 import type {
 	PageFinding,
@@ -61,8 +61,16 @@ import type {
 	PlaywrightWorkerArgs,
 	PlaywrightWorkerOptions
 } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { clock, scope, type Scope } from '@ogygia/machine';
 import { OgygiaError, warn } from './messages.ts';
+
+let engine_source: string | undefined;
+/** The testing engine as one script (scripts/engine-script.ts builds it beside this file's build). */
+function engine_script(): string {
+	// @why src/ and dist/ sit side by side, so one URL finds the built script from either (test: ogygia-testing e2e)
+	return (engine_source ??= readFileSync(new URL('../dist/engine.js', import.meta.url), 'utf8'));
+}
 
 // ── the reports (plain JSON, as the page hands them over) ──
 
@@ -70,8 +78,9 @@ export interface OgygiaPageReport {
 	kind: 'page';
 	engine: OgygiaEngine;
 	/** what MEASURING cost this page, which no visitor with devtools off pays — subtract it: `script_ms`,
-	 *  the main-thread time of ogygia's own measuring so far (by `phases`); `bytes`, the decoded size of
-	 *  the testing engine's files. Engine 3 */
+	 *  the main-thread time of ogygia's own measuring so far (by `phases`, `engine` the injected
+	 *  engine's own start); `bytes`, the decoded size of the testing engine's files the page downloaded
+	 *  (0 when `withOgygia` injected it: the page fetched none). Engine 3 */
 	self?: { script_ms: number; bytes: number; phases: Record<string, number> };
 	url: string;
 	/** the SvelteKit route id the server rendered (`/[lang]/about-us`), from a build with devtools on;
@@ -226,6 +235,10 @@ export interface OgygiaDriver {
 	 *  out, and a method, so its parameters compare both ways), so `page.evaluate` of any driver fits
 	 *  without a cast */
 	evaluate(fn: (arg: unknown) => unknown, arg?: unknown): Promise<unknown>;
+	/** run `source` in every page before the page's own scripts (Playwright's `addInitScript`,
+	 *  Puppeteer's `evaluateOnNewDocument`): ogygia hands it the testing engine once, as the `Ogygia`
+	 *  is made, so make it before the first page load. Without it, the page must load the engine itself */
+	addInitScript?(source: string): Promise<unknown>;
 	/** GET a URL relative to the app (for `profile()`); default: `fetch` inside the page */
 	get?(url: string, headers: Record<string, string>): Promise<{ status: number; body: string }>;
 	/** POST to a URL relative to the app (the server window of `record(…, { server: true })`);
@@ -282,10 +295,16 @@ export class Ogygia {
 	#options: OgygiaOptions;
 	// the page's engine version, from the last call (an older site's engine answers less)
 	#engine: OgygiaEngine = { version: TESTING_ENGINE_VERSION };
+	// the engine handed to the driver's init scripts as the Ogygia is made, before a page loads
+	#injected: Promise<unknown>;
 
 	constructor(driver: OgygiaDriver, options: OgygiaOptions = {}) {
 		this.#driver = driver;
 		this.#options = options;
+		this.#injected = driver.addInitScript
+			? driver.addInitScript(engine_script())
+			: Promise.resolve();
+		this.#injected.catch(() => {}); // ok: its failure is the first call's error (#call awaits it)
 	}
 
 	async page(): Promise<OgygiaPageReport> {
@@ -527,12 +546,14 @@ export class Ogygia {
 	}
 
 	async #call<T>(name: string, ...args: unknown[]): Promise<T> {
+		await this.#injected;
 		const until = clock.mono() + (this.#options.timeout ?? 15_000);
 		while (
-			!(await this.#in_page(
-				() => !!(window as { __ogygia_testing?: unknown }).__ogygia_testing,
-				null
-			))
+			!(await this.#in_page(() => {
+				// (an engine a test injected is there on every page: it answers once the app's realm feeds it)
+				const t = (window as { __ogygia_testing?: { live?: boolean } }).__ogygia_testing;
+				return !!t && t.live !== false;
+			}, null))
 		) {
 			if (clock.mono() > until) throw new OgygiaError('testing_api_absent');
 			await this.#wait(100);
@@ -619,6 +640,7 @@ export function playwrightDriver(
 ): OgygiaDriver {
 	return {
 		evaluate: (fn, arg) => page.evaluate(fn, arg),
+		addInitScript: (content) => page.addInitScript({ content }),
 		wait: (ms) => page.waitForTimeout(ms),
 		async blockNavigation() {
 			const held: HeldNavigation[] = [];
@@ -732,7 +754,14 @@ export function withOgygia<
 		ogygiaOptions: [{}, { option: true }],
 		ogygia: async ({ page, baseURL, ogygiaOptions }, use, testInfo) => {
 			await turnOnDevtools(page, baseURL, { lean: ogygiaOptions.lean });
-			const o = new Ogygia(playwrightDriver(page, { baseURL }), ogygiaOptions);
+			const driver = playwrightDriver(page, { baseURL });
+			// (the engine goes in before the test's first load: awaited here, so no goto can pass it)
+			let injecting: Promise<unknown> = Promise.resolve();
+			const o = new Ogygia(
+				{ ...driver, addInitScript: (s) => (injecting = driver.addInitScript!(s)) },
+				ogygiaOptions
+			);
+			await injecting;
 			await use(o);
 			if (ogygiaOptions.attach !== false && o.reports.length)
 				await testInfo.attach('ogygia.json', {
