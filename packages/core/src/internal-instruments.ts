@@ -51,7 +51,9 @@ export { nearest_attr } from './runtime/nearest-attr.ts';
 export { REGION_RENDER_CONCURRENCY } from './runtime/concurrency.ts';
 export { tool_fetch, tool_made } from './tool-fetches.ts';
 export { PAGE_DEFER_KEY, PAGE_DEFER_GLOBAL, PAGE_DEFER_REGISTRY_KEY } from './page-defer.ts';
-export { ISLAND_GRAPH_ATTR, decode_island_graph } from './island-graph.ts';
+export { decode_island_graph } from './island-graph.ts';
+// the page markup's vocabulary (a shipped module's use of a marker constant becomes its literal)
+export * from './wire-markup.ts';
 export {
 	find_unscoped,
 	unscoped_finding,
