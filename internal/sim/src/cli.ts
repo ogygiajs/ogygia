@@ -49,6 +49,7 @@ import {
 	page_rules,
 	regions_show,
 	fallback_stands,
+	islands_wake,
 	live_events,
 	server_rules,
 	styled_regions,
@@ -449,6 +450,8 @@ export async function run(
 					// (and no hole that wakes on its own still shows its fallback, pressed or not: a press
 					// changes what a region shows, never whether a hole is owed its answer)
 					fallback_stands(t, world),
+					// (and no island that wakes on its own still sleeps: its twin for islands)
+					islands_wake(t, world),
 					// (and every live region was heard announcing the tick it shows, pressed or not: a press
 					// changes a button's own count, which the oracle leaves out, never a tick)
 					live_events(t, world),

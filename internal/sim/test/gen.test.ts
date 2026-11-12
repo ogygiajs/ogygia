@@ -570,6 +570,42 @@ describe('the random app', () => {
 		}
 	});
 
+	// (head mutants: the head markers left in place, or the page's head copy never retired, need an
+	// island with a <svelte:head> of its own, and a third party in its head block)
+	it('draws islands with a <svelte:head> of their own, from their own stream, and a third party in some of those head blocks', () => {
+		const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
+		const heads = seeds.flatMap((s) => all(plan(s).flatMap((p) => p.roots)).filter((n) => n.head));
+		expect(new Set(heads.map((n) => n.head))).toEqual(new Set(['own', 'drift']));
+		for (const n of heads) {
+			expect(n.kind).toBe('island');
+			expect(['load', 'idle']).toContain(n.wake);
+		}
+		const seed = seeds.find((s) =>
+			all(plan(s).flatMap((p) => p.roots)).some((n) => n.head === 'drift')
+		)!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			write(app, plan(seed), seed);
+			const pages = readdirSync(join(app, 'src', 'routes'), { recursive: true })
+				.filter((f) => String(f).endsWith('.svelte'))
+				.map((f) => readFileSync(join(app, 'src', 'routes', String(f)), 'utf8'))
+				.concat(
+					readdirSync(join(app, 'src', 'lib', 'gen'))
+						.filter((f) => f.endsWith('.svelte'))
+						.map((f) => readFileSync(join(app, 'src', 'lib', 'gen', f), 'utf8'))
+				);
+			for (const n of all(plan(seed).flatMap((p) => p.roots)).filter((n) => n.head)) {
+				const own = readFileSync(join(app, 'src', 'lib', 'gen', `N${n.id}.svelte`), 'utf8');
+				expect(own).toContain('<svelte:head>');
+				expect(own).toContain(`<style data-gen-head="n${n.id}">`);
+				const drift = pages.some((f) => f.includes(`style[data-gen-head=n${n.id}]`));
+				expect(drift).toBe(n.head === 'drift');
+			}
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
 	it('draws empty regions, from their own stream: leaves that render nothing, each used inside a marked element', () => {
 		const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
 		const nodes = seeds.flatMap((s) => all(plan(s).flatMap((p) => p.roots)));

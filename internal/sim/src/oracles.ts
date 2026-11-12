@@ -166,8 +166,33 @@ export const KNOWN: ReadonlyArray<{
 		// names `/_app/…`: palaestra /lab/a -> /lab/deep/x)
 		applies: (shown, fresh) => DEEP_ASSET.test(shown) && !DEEP_ASSET.test(fresh),
 		forgive: (s) => s.replace(DEEP_ASSET_ALL, ' href="/_app/')
+	},
+	{
+		issue: 1107,
+		what: "islands' <svelte:head> styles stand in <head> in the order the islands woke",
+		// (the same island head styles on both sides, in another order: gen 262, seed 25; each set
+		// aside, with its text line)
+		applies: (shown, fresh) => {
+			const a = island_head_styles(shown);
+			const b = island_head_styles(fresh);
+			return a.join() !== b.join() && [...a].sort().join() === [...b].sort().join();
+		},
+		forgive: (s) => {
+			const out = s.split('\n');
+			for (let i = out.length - 1; i >= 0; i--)
+				if (ISLAND_HEAD_STYLE.test(out[i])) out.splice(i, 2);
+			return out.join('\n');
+		}
 	}
 ];
+
+/** A generated island's own `<svelte:head>` style, as a normalized line (src/gen.ts `head`). */
+const ISLAND_HEAD_STYLE = /^ *<style data-gen-head="(n\d+)">$/;
+
+/** The island head styles a normalized DOM holds, in its order. */
+function island_head_styles(s: string): string[] {
+	return s.split('\n').flatMap((l) => ISLAND_HEAD_STYLE.exec(l)?.[1] ?? []);
+}
 
 /** The opening line of a region the router keeps across navigations (`keep`). */
 const KEPT_REGION = /^ *<ogygia-region [^>]*data-ogygia-keep=/;
@@ -639,6 +664,69 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 	return {
 		oracle: 'fallback-stands',
 		detail: `${url}: ${left.map((r) => r.querySelector('[data-gen-fallback]')!.textContent).join(', ')}`
+	};
+}
+
+/**
+ * AN ISLAND THAT WAKES ON ITS OWN IS AWAKE: at rest, no island region (it names its `entry`) whose
+ * `wake` is `load` or `idle` is still asleep (no `data-hydrated`): its wake was owed. Its twin for
+ * holes is {@link fallback_stands}; the MPA check cannot see it (the fresh load runs the same code
+ * and sleeps there too). Set aside: a document a fault touched (its code may have failed to
+ * download) unless only an outage did (the network came back, and it wakes again), and one a
+ * deploy failed a download of.
+ */
+export function islands_wake(tab: Tab, world: World): Broken | null {
+	const url = tab.page.mainFrame.url;
+	if (!url.startsWith('http') || world.skewed_for(tab.realm)) return null;
+	if (faulted(world, tab) && !outage_only(world, tab)) return null;
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	// (an island inside one still waiting for the visitor or the screen waits with it, and one in a
+	// lake waits for the island around the lake, which a held region's baked markup never is: gen
+	// 262, an island in a lake in a page-hosted held region, e2e/hole-in-lake.spec.ts)
+	const waits = (r: Element): boolean => {
+		let in_lake = false;
+		for (
+			let a = r.parentElement?.closest('ogygia-region');
+			a;
+			a = a.parentElement?.closest('ogygia-region')
+		) {
+			if (a.hasAttribute('data-hydrated')) {
+				in_lake = false;
+				continue;
+			}
+			const wake = a.getAttribute('wake');
+			if (wake === 'none') in_lake = true;
+			else if (wake !== null && !/^(load|idle)$/.test(wake)) return true;
+		}
+		return in_lake;
+	};
+	const asleep = [...doc.querySelectorAll('ogygia-region[entry]')].filter(
+		(r) =>
+			/^(load|idle)$/.test(r.getAttribute('wake') ?? '') &&
+			!r.hasAttribute('data-hydrated') &&
+			!waits(r)
+	);
+	if (asleep.length === 0) return null;
+	const open = (r: Element) =>
+		`<${r.localName}${[...r.attributes]
+			.filter((a) => a.name !== 'endpoint' && a.name !== 'data-ogygia-props')
+			.map((a) => ` ${a.name}="${a.value}"`)
+			.join('')}>`;
+	// (each with the regions around it, innermost first, and what it shows)
+	const around = (r: Element): string => {
+		const out: string[] = [];
+		for (
+			let a = r.parentElement?.closest('ogygia-region');
+			a;
+			a = a.parentElement?.closest('ogygia-region')
+		)
+			out.push(open(a));
+		return out.length ? `\n  in ${out.join('\n  in ')}` : '';
+	};
+	const shows = (r: Element) => ` showing "${(r.textContent ?? '').trim().slice(0, 60)}"`;
+	return {
+		oracle: 'islands-wake',
+		detail: `${url}: ${asleep.map((r) => `${open(r)}${shows(r)}${around(r)}`).join('\n')}`
 	};
 }
 
