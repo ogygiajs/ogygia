@@ -9,7 +9,7 @@
 // This is Ryan's test made concrete: request new server-component data on navigation, flush part of
 // the response, let the rest come in as the server's async settles.
 // ─────────────────────────────────────────────────────────────────────────────
-import { cache, machine, STALE, type Scope } from '@ogygia/machine';
+import { cache, machine, STALE, type MachineGraph, type Scope } from '@ogygia/machine';
 import { frameAddress } from '../frame.ts';
 import { stream } from '../policies.ts';
 import { is_idle, reserve, release, stamp, write } from './frame-store.ts';
@@ -90,24 +90,29 @@ const STALL_MS = stream.deadline;
 
 /**
  * A BATCH STREAM'S LIFE, one machine: `sending` (the POST, until its answer starts), `reading` (each
- * read that brings bytes is a new visit, so the quiet time starts again), `ended`. Quiet for
- * STALL_MS in either, it steps to `stalled` on its own: the request is aborted and every reservation
- * it did not fill is released, as at any other end.
+ * read that brings bytes is a new visit, so the quiet time starts again). Its end, however it ends,
+ * is the machine's `stop()`. Quiet for STALL_MS in either, it steps to `stalled` on its own: the
+ * request is aborted and every reservation it did not fill is released, as at any other end.
  */
-const batch_stream = machine<{ sending: {}; reading: {}; stalled: {}; ended: {} }>()({
+const batch_stream = machine<{ sending: {}; reading: {}; stalled: {} }>()({
 	name: 'batch-stream',
 	initial: 'sending',
 	steps: {
-		sending: ['reading', 'stalled', 'ended'],
-		reading: ['reading', 'stalled', 'ended'],
-		stalled: [],
-		ended: []
+		sending: ['reading', 'stalled'],
+		reading: ['reading', 'stalled'],
+		stalled: []
 	},
 	after: {
 		sending: { ms: STALL_MS, to: 'stalled' },
 		reading: { ms: STALL_MS, to: 'stalled' }
 	}
 });
+
+/** The batch stream's machine as data (test/machine-steps.test.ts holds each step to where it is
+ *  taken). */
+export function batch_stream_graph(): MachineGraph {
+	return batch_stream.graph();
+}
 
 function sigOf(endpoint: string): string | null {
 	const q = endpoint.indexOf('?');
