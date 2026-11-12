@@ -1089,6 +1089,16 @@ const UNHYDRATED_BY_DESIGN: ReadonlyArray<{ path: RegExp; why: string }> = [
 	}
 ];
 
+/** Whether `line`, said by the page at `url`, is a region not hydrating as sent on a page that
+ *  serves such HTML on purpose (`UNHYDRATED_BY_DESIGN`). */
+export function unhydrated_by_design(url: string, line: string): boolean {
+	return (
+		UNHYDRATED.test(line) &&
+		URL.canParse(url) &&
+		UNHYDRATED_BY_DESIGN.some((d) => d.path.test(new URL(url).pathname))
+	);
+}
+
 /**
  * THE SERVER'S HTML IS THE LIVE PAGE: a region hydrates the HTML the server sent as it is. Svelte
  * says `hydration_mismatch` when the DOM is not what its code expects, and ogygia then discards

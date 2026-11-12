@@ -21,7 +21,7 @@
  * them (`@ogygia/tooling/e2e/sim-replay.ts`).
  */
 import type { Tab } from './browser.ts';
-import { known_said, type Broken } from './oracles.ts';
+import { known_said, unhydrated_by_design, type Broken } from './oracles.ts';
 import { answer_key, is_page_path, type World } from './world.ts';
 
 /** An image's path: the document's image cache keeps one it loaded. */
@@ -244,10 +244,15 @@ export function known_waste(doc: Document, held: string[]): { left: string[]; kn
 	return { left, known: [...known] };
 }
 
-/** The warnings the document itself said. */
+/** The warnings the document itself said (less a hydration mismatch its page makes on purpose,
+ *  which `hydrates_as_sent` sets aside too: palaestra seed 92, /detector). */
 export function warned(tab: Tab): string[] {
+	const url = tab.page?.mainFrame.url ?? '';
 	return tab.console.filter(
-		(l) => l.startsWith('warn:') && (tab.said_by.get(l) ?? tab.realm) === tab.realm
+		(l) =>
+			l.startsWith('warn:') &&
+			(tab.said_by.get(l) ?? tab.realm) === tab.realm &&
+			!unhydrated_by_design(url, l)
 	);
 }
 
