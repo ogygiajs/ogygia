@@ -21,7 +21,7 @@ function splitmix32(a: number): () => number {
 }
 
 /** FNV-1a of a name, for a fork's seed. */
-function hash(s: string): number {
+export function hash(s: string): number {
 	let h = 0x811c9dc5;
 	for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
 	return h >>> 0;
