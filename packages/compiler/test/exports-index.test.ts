@@ -189,6 +189,17 @@ describe('the export index: one graph, a policy per caller', () => {
 		expect(after.entries.get('m')).toEqual({ id: '/app/lib/more.ts', name: 'm' });
 	});
 
+	it('a ring of impure modules that star-export each other ends, with every name', async () => {
+		const g = graph({
+			'/app/lib/index.ts': `export * from './a';`,
+			'/app/lib/a.ts': `console.log('a'); export const x = 1; export * from './b';`,
+			'/app/lib/b.ts': `console.log('b'); export const y = 1; export * from './a';`
+		});
+		const map = (await g.index.map('/app/lib/index.ts', '$lib', EVERY_BARREL))!;
+		expect(map.entries.get('x')).toEqual({ id: '/app/lib/a.ts', name: 'x' });
+		expect(map.entries.get('y')).toEqual({ id: '/app/lib/b.ts', name: 'y' });
+	}, 2000);
+
 	it('a file deleted in dev leaves no barrel pointing at it', async () => {
 		const g = graph({
 			'/app/lib/index.ts': `export * from './mid';`,
