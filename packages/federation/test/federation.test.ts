@@ -640,8 +640,8 @@ describe('deferred remote holes — the lifetime and renewal of a local hole', (
 		expect(plain).toBeLessThanOrEqual(now_sec() + 3600); // the app's `ttl` (an hour by default)
 		const stored = Number((await mint(true)).searchParams.get('exp'));
 		expect(stored).toBeGreaterThan(now_sec() + 365 * 24 * 3600); // what a local hole gets
-		// the url keeps exp + sig as its tail, which a region's identity cuts off
-		expect([...(await mint()).searchParams.keys()].slice(-2)).toEqual(['exp', 'sig']);
+		// the url keeps exp + sig + k as its tail, which a region's identity cuts off
+		expect([...(await mint()).searchParams.keys()].slice(-3)).toEqual(['exp', 'sig', 'k']);
 	});
 
 	it('answers a live hole with the fragment', async () => {
