@@ -132,17 +132,45 @@ export function emit(input: DevtoolsEventInput): void {
 	}
 }
 
+const DOMAINS: ReadonlySet<unknown> = new Set([
+	'compile',
+	'server',
+	'wire',
+	'runtime',
+	'hub',
+	'nav'
+]);
+const finite = (n: unknown): boolean => typeof n === 'number' && Number.isFinite(n);
+
+/** `e` is a server-realm event with the envelope the bus stamps (v, seq, t), a domain and a name. */
+function is_server_event(e: unknown): e is DevtoolsEvent {
+	if (e === null || typeof e !== 'object' || Array.isArray(e)) return false;
+	const o = e as Record<string, unknown>;
+	return (
+		o.realm === 'server' &&
+		DOMAINS.has(o.domain) &&
+		typeof o.name === 'string' &&
+		finite(o.v) &&
+		finite(o.seq) &&
+		finite(o.t)
+	);
+}
+
 /**
  * Push ALREADY-STAMPED events into the buffer + sinks WITHOUT re-stamping — the ingest path for the
  * server realm's events, which arrive from the `application/ogygia-devtools` side-channel carrying
  * their own envelope (v / seq / t / realm:'server'). This is what unifies the server render stream
  * and the client wake stream into ONE `window.__ogygia_devtools` timeline, correlated by fingerprint.
  */
-export function ingest(events: DevtoolsEvent[]): void {
-	if (!DEVTOOLS) return;
+export function ingest(events: readonly unknown[]): number {
+	if (!DEVTOOLS) return 0;
 	const b = bus();
-	if (!b.active) return;
+	if (!b.active) return 0;
+	let kept = 0;
 	for (const event of events) {
+		// (the page's JSON: only a server event as the bus stamps one, test/property-devtools-ingest.test.ts)
+		if (!is_server_event(event)) continue;
+		kept++;
 		b.ring[b.write] = event;
 		b.write = (b.write + 1) % b.cap;
 		if (b.count < b.cap) b.count++;
@@ -157,6 +185,7 @@ export function ingest(events: DevtoolsEvent[]): void {
 			}
 		}
 	}
+	return kept;
 }
 
 /** Buffered events in emission order (oldest → newest). Copies out — safe to hold/serialize. */

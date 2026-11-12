@@ -114,11 +114,8 @@ export function ingest_server_events(): number {
 		const text = el.textContent;
 		if (!text) continue;
 		try {
-			const events = JSON.parse(text) as DevtoolsEvent[];
-			if (Array.isArray(events) && events.length) {
-				ingest(events);
-				total += events.length;
-			}
+			const events: unknown = JSON.parse(text);
+			if (Array.isArray(events)) total += ingest(events);
 		} catch {
 			// ok: a malformed devtools side-channel never breaks boot; its events are left out
 		}
