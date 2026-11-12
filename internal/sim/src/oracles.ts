@@ -173,6 +173,19 @@ export const KNOWN: ReadonlyArray<{
 		}
 	},
 	{
+		issue: 966,
+		what: "a mounted peer page's stylesheet stays in the head after a router navigation away",
+		// (a peer's sheet, `crossorigin`, in the tab's head and not in the fresh load's: gen 158)
+		applies: (shown, fresh) => stale_peer_sheets(shown, fresh).length > 0,
+		forgive: (s, other) => {
+			const stale = new Set(stale_peer_sheets(s, other));
+			return s
+				.split('\n')
+				.filter((l) => !stale.has(l))
+				.join('\n');
+		}
+	},
+	{
 		issue: 954,
 		what: "a remote call from a stored page is answered with the stored page's HTML",
 		// (a held or live region's query failed on one side only: the generated host's error line;
@@ -366,6 +379,14 @@ function peer_hop_failed(e: World['network']['exchanges'][number]): boolean {
 /** A normalized DOM's generated peer widgets, by what each says it is (`w<k> for r<slot>`). */
 function widget_labels(s: string): string {
 	return [...s.matchAll(/"(w\d+ for r\d+)"/g)].map((m) => m[1]).join(',');
+}
+
+/** The peer stylesheets (`crossorigin`) in `s`'s head that `other`'s lacks (#966). */
+function stale_peer_sheets(s: string, other: string): string[] {
+	const theirs = new Set(other.split('\n'));
+	return s
+		.split('\n')
+		.filter((l) => /^ {4}<link crossorigin="".* rel="stylesheet">$/.test(l) && !theirs.has(l));
 }
 
 /** A normalized head line of a region sheet an answer lifted. */
