@@ -136,6 +136,26 @@ describe('the network', () => {
 		expect(at).toBeLessThanOrEqual(4 * 120);
 	});
 
+	it('a stalled answer comes 10 to 40 s late, and the exchange says it stalled; a calm one never', async () => {
+		// (a batch's stream gives up after 10 s with no answer, `batch-stream` -> stalled; legs top
+		// out at 3 s, so no run saw it)
+		const loop = new Loop(rng(4));
+		const net = new Network({ loop, rng: rng(4), faults: new Set(['stall']), rates: { stall: 1 } });
+		net.calm('tab-9');
+		const at: Record<string, number> = {};
+		for (const tab of ['tab-1', 'tab-9'])
+			void net
+				.send(`${tab}#1`, new Request('https://app.test/'), async () => new Response('x'))
+				.then((r) => r.text())
+				.then(() => (at[tab] = loop.now));
+		await loop.run();
+		expect(at['tab-1']).toBeGreaterThanOrEqual(10_000);
+		expect(at['tab-1']).toBeLessThanOrEqual(40_010);
+		expect(at['tab-9']).toBeLessThan(100);
+		const by = Object.fromEntries(net.exchanges.map((e) => [e.from, e.stalled === true]));
+		expect(by).toEqual({ 'tab-1#1': true, 'tab-9#1': false });
+	});
+
 	it("a calm tab's request comes from a client address of its own (gen 78, seed 78013)", async () => {
 		// (the reference load met the rate limit the run's own hole retries had used up, got 429
 		// for its holes and showed their fallbacks)
