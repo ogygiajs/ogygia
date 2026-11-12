@@ -458,7 +458,7 @@ await recorder.acquire(signal); // waits its turn
 const facts = slot({ name: 'ogygia.facts', version: 2, make: () => ({ by_request: new WeakMap() }) });
 ```
 
-The value lives at `globalThis[Symbol.for(name)]`. A name starts with `ogygia.` and carries no version: `version` is the value's shape, raised when the shape changes. A copy that asks for another version of a held name is refused in dev ([machine_slot_version](https://ogygiajs.dev/e/machine_slot_version)); in production it keeps a private value, said once.
+The value lives at `globalThis[Symbol.for(name)]`. A name starts with `ogygia.` and carries no version: `version` is the value's shape, raised when the shape changes. A copy that asks for another version of a held name is refused in dev ([machine_slot_version](https://ogygiajs.dev/e/machine_slot_version)); in production it keeps a private value for its version (made once, shared by every copy at that version), said once.
 
 ## Clocks
 
