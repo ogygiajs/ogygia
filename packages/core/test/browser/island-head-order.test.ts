@@ -10,7 +10,10 @@ import type { Component } from 'svelte';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { boot_link } from '../../src/runtime/slots.ts';
 import { load_devalue } from '../../src/runtime/devalue-lane.ts';
-import { hydrate_island } from '../../src/runtime/hydrate-core.ts';
+import {
+	hydrate_island,
+	neutralize_head_hydration_markers
+} from '../../src/runtime/hydrate-core.ts';
 import { RuntimeSession } from '../../src/runtime/session.ts';
 import HeadStyle from './fixtures/HeadStyle.svelte';
 
@@ -41,6 +44,36 @@ test("islands' head tags keep the server order when the islands wake in the othe
 	const after = document.head.querySelector('meta[name="after"]')!;
 	for (const s of document.head.querySelectorAll('meta[name="head-style"]'))
 		expect(s.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+test("a style written over several lines in an island's head is one copy once the island wakes (#1122)", () => {
+	document.head.innerHTML = `<meta charset="utf-8"><title>page</title>${decode('head_style_head_b64')}<meta name="after" content="x">`;
+	// (the first hydrate in this file already ran it, once per document; this head is a fresh page's)
+	neutralize_head_hydration_markers();
+	boot_link().runtime_session.adopt_document_head();
+	document.body.innerHTML = decode('head_style_body_b64');
+	const styles = () =>
+		[...document.head.querySelectorAll('style[data-head-style]')].map((s) =>
+			s.getAttribute('data-head-style')
+		);
+	expect(styles(), 'as served').toEqual(['a', 'b']);
+	const [a, b] = document.querySelectorAll<HTMLElement>('ogygia-region');
+	expect(hydrate_island(b, '/head-style', as_module(HeadStyle), null, false)).not.toBeNull();
+	expect(hydrate_island(a, '/head-style', as_module(HeadStyle), null, false)).not.toBeNull();
+	expect(styles(), 'once both woke: one copy each, in the server order').toEqual(['a', 'b']);
+	const after = document.head.querySelector('meta[name="after"]')!;
+	for (const s of document.head.querySelectorAll('style[data-head-style]'))
+		expect(s.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+test("a page style that differs from an island's only in its text is the page's, and stays", () => {
+	const s = new RuntimeSession();
+	document.head.innerHTML = '<style>a { color: red; }</style><meta name="after">';
+	s.adopt_document_head();
+	const page = document.head.querySelector('style')!;
+	step_adds(s, '<style>a { color: blue; }</style>');
+	expect(page.isConnected).toBe(true);
+	expect(document.head.querySelectorAll('style')).toHaveLength(2);
 });
 
 /** What a step adds to the head: `html`'s elements and a text anchor after them, as Svelte's
