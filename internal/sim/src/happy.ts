@@ -423,6 +423,8 @@ interface Manager {
  * back). The other methods clear the timer with the real `clearTimeout`, which ignores this handle,
  * so a task that is no longer the manager's current one does nothing.
  */
+export function scripts_start_once(): void {}
+
 export function completion_on_the_loop(loop: Loop | null): void {
 	driving = loop;
 	const proto = AsyncTaskManager.prototype as unknown as Record<string, unknown>;
