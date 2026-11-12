@@ -14,12 +14,16 @@ declare const __OGYGIA_HOOK_ENTRY_FALLBACK__: import('../dist/contract/virtual-m
 declare const __OGYGIA_HOOK_HOLE_ANSWERED__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_HOLE_ANSWERED__'];
 declare const __OGYGIA_HOOK_HOLE_BATCH_MISSED__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_HOLE_BATCH_MISSED__'];
 declare const __OGYGIA_HOOK_HOLE_FAILED__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_HOLE_FAILED__'];
+declare const __OGYGIA_HOOK_LOAD_STARTED__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_LOAD_STARTED__'];
+declare const __OGYGIA_HOOK_NAV_STARTED__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_NAV_STARTED__'];
 declare const __OGYGIA_HOOK_NAVIGATED__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_NAVIGATED__'];
 declare const __OGYGIA_HOOK_REGION_FAILED__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_REGION_FAILED__'];
 declare const __OGYGIA_HOOK_REGION_HYDRATE__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_REGION_HYDRATE__'];
 declare const __OGYGIA_HOOK_REGION_HYDRATED__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_REGION_HYDRATED__'];
+declare const __OGYGIA_HOOK_REGION_MISMATCHED__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_REGION_MISMATCHED__'];
 declare const __OGYGIA_HOOK_REGION_MOUNT__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_REGION_MOUNT__'];
 declare const __OGYGIA_HOOK_REGION_UNMOUNT__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_REGION_UNMOUNT__'];
+declare const __OGYGIA_HOOK_REGION_WOKE__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_REGION_WOKE__'];
 declare const __OGYGIA_HOOK_WARNING__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_WARNING__'];
 declare const __OGYGIA_KIT_MAJOR__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_KIT_MAJOR__'];
 declare const __OGYGIA_RULES__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_RULES__'];

@@ -1078,7 +1078,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				}
 				if (__P) {
 					const keys = [...__outHash.keys()].sort();
-					let d = 0x811c9dc5;
+					let d = 0x811c9dc5; // hash: folds numbers (each file's hash), not a string
 					for (const k of keys) {
 						d ^= __outHash.get(k)!;
 						d = Math.imul(d, 0x01000193) >>> 0;
