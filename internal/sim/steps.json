@@ -1,23 +1,29 @@
 {
 	"sweep": {
 		"palaestra": {
-			"runs": 100,
+			"runs": 300,
 			"steps": 30
 		},
-		"gens": [191, 192, 193, 194, 195],
-		"runs": 40,
+		"gens": [191, 192, 193, 194, 195, 196, 227],
+		"runs": 100,
 		"steps": 30
 	},
 	"reached": [
 		"batch stream: streaming -> cancelled",
 		"batch stream: streaming -> ended",
 		"batch-stream: reading -> reading",
+		"batch-stream: reading -> stalled",
 		"batch-stream: sending -> reading",
+		"batch-stream: sending -> stalled",
 		"build location map: flying -> gone",
 		"build location map: flying -> kept",
 		"critical resources: flying -> gone",
 		"critical resources: flying -> kept",
 		"critical-gate: fresh -> settled",
+		"critical-gate: fresh -> touched",
+		"critical-gate: fresh -> waiting",
+		"critical-gate: touched -> settled",
+		"critical-gate: waiting -> settled",
 		"current build map: flying -> gone",
 		"current build map: flying -> kept",
 		"current build map: kept -> gone",
@@ -32,9 +38,14 @@
 		"federation peer documents: flying -> kept",
 		"federation peer documents: kept -> flying",
 		"federation peer documents: kept -> gone",
+		"federation thaws applied: flying -> gone",
+		"federation thaws applied: flying -> kept",
+		"flags exposures: buffering -> idle",
+		"flags exposures: idle -> buffering",
+		"form-restore: idle -> open",
+		"form-restore: open -> idle",
 		"frames: flying -> gone",
 		"hole-answer: answered -> answered",
-		"hole-answer: kept -> kept",
 		"hole-answer: none -> answered",
 		"hole-answer: none -> kept",
 		"hole: armed -> fetching",
@@ -46,6 +57,7 @@
 		"hole: fetching -> offline",
 		"hole: fetching -> retrying",
 		"hole: idle -> armed",
+		"hole: idle -> fetching",
 		"hole: offline -> armed",
 		"hole: retrying -> armed",
 		"hole: retrying -> idle",
@@ -70,13 +82,20 @@
 		"island warm: flying -> gone",
 		"island warm: flying -> kept",
 		"kit page thread: flying -> gone",
+		"live-region: failed -> hydrating",
 		"live-region: failed -> idle",
+		"live-region: failed -> static",
 		"live-region: hydrating -> failed",
+		"live-region: hydrating -> hydrating",
 		"live-region: hydrating -> idle",
 		"live-region: hydrating -> live",
+		"live-region: hydrating -> static",
 		"live-region: idle -> hydrating",
 		"live-region: idle -> static",
+		"live-region: live -> hydrating",
 		"live-region: live -> idle",
+		"live-region: live -> static",
+		"live-region: static -> hydrating",
 		"live-region: static -> idle",
 		"load-drain: again -> draining",
 		"load-drain: again -> idle",
@@ -118,6 +137,7 @@
 		"router-css registry: kept -> gone",
 		"soft refresh: idle -> refreshing",
 		"soft refresh: refreshing -> idle",
+		"soft refresh: refreshing -> refreshing",
 		"stage: building -> built",
 		"stage: building -> discarded",
 		"stage: built -> committing",
@@ -136,7 +156,8 @@
 		"wake: waking -> failed",
 		"wake: waking -> offline",
 		"wire class: flying -> gone",
-		"wire class: flying -> kept"
+		"wire class: flying -> kept",
+		"wire class: kept -> gone"
 	],
 	"covered": [
 		{
@@ -152,43 +173,17 @@
 			"name": "a parsed document: resolves after the next painted frame, not before it"
 		},
 		{
+			"step": "stage: committing -> discarded",
+			"reason": "a commit that throws: every commit in the packages is the app's own DOM work, which no simulated fault makes throw; only a bug in it would",
+			"test": "packages/machine/test/stage.test.ts",
+			"name": "a commit that throws puts back what it changed, gives back the build, and throws"
+		},
+		{
 			"step": "stale-dep reload: flying -> gone",
 			"reason": "the dev server's stranded-tab watch: import.meta.env.DEV only, and the simulator runs built apps",
 			"test": "packages/core/test/browser/stale-deps.test.ts",
 			"name": "two islands that fail to import together reload the tab once"
-		},
-		{
-			"step": "stage: committing -> discarded",
-			"reason": "a commit throws only when the runtime's own swap does (a region's element callbacks report their errors, they do not throw into it): no app or fault the simulator plays makes it",
-			"test": "packages/machine/test/stage.test.ts",
-			"name": "a commit that throws puts back what it changed, gives back the build, and throws"
 		}
 	],
-	"dead": [
-		{
-			"step": "batch-stream: sending -> ended",
-			"issue": 1023,
-			"why": "the stream moves only to reading (and stalled by its deadline); its end is stop(), not a step"
-		},
-		{
-			"step": "batch-stream: reading -> ended",
-			"issue": 1023,
-			"why": "the stream moves only to reading (and stalled by its deadline); its end is stop(), not a step"
-		},
-		{
-			"step": "hole: retrying -> failed",
-			"issue": 1019,
-			"why": "the only go('failed') is in #fetch_failed, entered only from fetching"
-		},
-		{
-			"step": "hydrate-drain: waiting -> waiting",
-			"issue": 1023,
-			"why": "drain_after() is called only from drain(), which first moves the drainer to idle"
-		},
-		{
-			"step": "wake: cold -> waking",
-			"issue": 1023,
-			"why": "every fire site runs in armed; after waking -> cold nothing fires without re-arming (unsure)"
-		}
-	]
+	"dead": []
 }

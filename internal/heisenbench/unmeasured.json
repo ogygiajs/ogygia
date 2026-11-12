@@ -4707,6 +4707,26 @@
 		{
 			"id": "packages/core/src/runtime/region-sheets.ts > release_head_nodes > filter:0~db55d7",
 			"reason": "browser only: one owner looked up in the page's owner set, constant work; proven in packages/core/test/browser/head-owner-release.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > remote_arg_not_data > text",
+			"reason": "a message's wording, constant text; said in packages/core/test/remote-arg-plain-data.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > remote_arg_not_data > details",
+			"reason": "a message's wording, constant text; said in packages/core/test/remote-arg-plain-data.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/transport.ts > ogygiaServerTransport > Region > decode",
+			"reason": "refuses with a thrown 400 (Kit's error(), not replayable), constant work; proven in packages/core/test/remote-arg-plain-data.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/transport.ts > ogygiaServerTransport > [computed] > decode",
+			"reason": "refuses with a thrown 400 (Kit's error(), not replayable), one Set lookup; proven in packages/core/test/remote-arg-plain-data.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/transport.ts > refuse",
+			"reason": "throws Kit's 400 with a worded message (not replayable), constant work; proven in packages/core/test/remote-arg-plain-data.test.ts"
 		}
 	]
 }
