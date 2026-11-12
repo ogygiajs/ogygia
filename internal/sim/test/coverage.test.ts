@@ -33,6 +33,17 @@ describe('coverage', () => {
 		expect(u.get('frames')?.steps).toEqual({ flying: ['flying', 'gone'], kept: [], gone: [] });
 	});
 
+	it('a fresh ask made only when a peek shows no flight out never replaces a flight', () => {
+		const u = universe(ROOT);
+		// (peer.ts refreshes a stale document with `fresh` under `!seen.flying`: a kept answer runs
+		// again, a flight out is joined)
+		expect(u.get('federation peer documents')?.steps).toEqual({
+			flying: ['kept', 'gone'],
+			kept: ['flying', 'gone'],
+			gone: []
+		});
+	});
+
 	it('a move line is a step, and a stop is none', () => {
 		expect(step_of_move('island file#3 flying -> kept')).toBe('island file: flying -> kept');
 		expect(step_of_move('hole#1 idle -> stopped')).toBeNull();
