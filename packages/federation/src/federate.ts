@@ -13,6 +13,7 @@ import { warn } from './messages.ts';
 import { PeerHandle } from './peer.ts';
 import { set_federation, current_federation } from './registry.ts';
 import {
+	configured_audience,
 	sign_headers,
 	THAW_PATH,
 	type Claims,
@@ -55,6 +56,11 @@ export function federate<P extends Record<string, PeerConfig>>(
 	const has_inbound = Object.values(config.peers ?? {}).some((p) => p.key);
 	if ((config.expose || config.widgets) && !has_inbound && !config.open) {
 		warn('federation_open_without_keys');
+	}
+	// FAIL-CLOSED: peers may call in, but there is no audience to check their hops against, so
+	// every signed call is refused (wire.ts `verify_signed_request`)
+	if (has_inbound && config.audience == null && configured_audience() == null) {
+		warn('federation_audience_missing', { name: config.name });
 	}
 
 	const peers = new Map<string, PeerHandle & { keys: readonly string[] }>();

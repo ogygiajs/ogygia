@@ -73,8 +73,9 @@ export interface FederateConfig<P extends Record<string, PeerConfig> = Record<st
 	base?: string;
 	/** Named widget catalog served at `/og/fragment/<name>`; `__catalog` = the unsigned manifest. */
 	widgets?: Record<string, WidgetDef>;
-	/** The audience(s) THIS app verifies inbound calls against. Defaults to the request host;
-	 *  set when a reverse proxy rewrites Host between the hops. */
+	/** The audience(s) THIS app verifies inbound calls against: the host peers sign their calls to
+	 *  it for. Defaults to the host of the `ORIGIN` environment variable; with neither, every signed
+	 *  call is refused (`federation_audience_missing`). Never taken from the request. */
 	audience?: string | string[];
 	/** Clock skew / replay window for inbound signatures (ms, default 120 000). */
 	skewMs?: number;
