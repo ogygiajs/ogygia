@@ -325,7 +325,16 @@ aborts, a cut resets the connection, as the simulator's cut fails the body's rea
 context's (every tab's, where the simulator's is one tab's). At rest (nothing on the wire, 20 s real
 at most, then 5 s of the clock): no page error and no coded error on a tab the network did not
 fail, no machine left in a state of work under way, and ogygia's rules (the `page` fixture). What the
-simulator found is attached. Not played: deploys. The palaestra's 9 kept plans of a 60-run search
+simulator found is attached. Not played: deploys.
+
+In Chromium the player also measures (`perf_watch`, an init script in every document): each layout
+shift no input caused (none within 500 ms of an action) that came within 100 ms of a region's content
+changing after the page was parsed, and each script a `long-animation-frame` entry names that ran
+over 50 ms. A document whose region-caused shifts add up to 0.1, and a long task in ogygia's code (its
+runtime file, or a file that holds its coded messages), fail the run; the rest is attached. Times are
+a `new PerformanceMark()`'s: the fake clock moves `performance.now` and an event's `timeStamp`, not
+the entries'. A timer's callback runs inside the clock's own `runFor`, so a long timer task is not
+seen (its entry point is Playwright's); a fetch's answer, an event and a module's evaluation are. The palaestra's 9 kept plans of a 60-run search
 pass in Chromium.
 
 ## Findings
@@ -390,9 +399,16 @@ props, throwing holes, bad `{@html}` in lakes) and is the app's.
 
 `src/waste.ts` (`waste`): at rest, in a document no fault, deploy or press touched, no answer asked
 for twice (content-hashed files and pages left out: a browser's module map keeps a file, and the
-simulator has no HTTP cache), nothing held twice (a stylesheet, a style, island props, a page seed, a
-module preload) and no warning said. Long tasks and layout shift need a layout engine: they belong
-to the real-browser tier (a PerformanceObserver in Chromium during plan replay; not built yet).
+simulator has no HTTP cache), no POST the app refused (a batch to a path that answers none, #987),
+nothing held twice (a stylesheet, a style, a module preload, a page seed, an island's props within
+one answer: a region fetched apart carries its own, gen 173) and no warning said. `KNOWN_WASTE` there
+is KNOWN's twin. Long tasks and layout shift need a layout engine: the real-browser tier measures
+them (below).
+
+A server's hop the network tampered with puts bytes no server wrote into the page it made: html-sent
+sets that document's answers aside (gen 178). An answer buggify lost on the way
+(`hole.fetch-lost`) faults its document as a dropped request does (`World.fired_in`; palaestra seed
+85: a hole gave up after three lost answers, as it should).
 
 ## Always on
 
