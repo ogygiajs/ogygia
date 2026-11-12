@@ -54,7 +54,8 @@ export interface ServerApp<Options = undefined> {
 	 *  `locals` value that is not its default, the client address, per-request `platform` data, a
 	 *  `fetch` that carries the visitor's cookies) the same way. Once per request. */
 	observeReads(event: RequestEvent): void;
-	/** Sign `message` with the app's region key (HMAC): a capability only this app can mint. */
+	/** Sign `message` with the app's region key (HMAC) in this plugin's own domain: a capability only
+	 *  this app can mint, which never checks for another plugin or as a region capability. */
 	sign(message: string): string;
 	/** Check a signature `sign` made (constant-time). */
 	verify(message: string, signature: string): boolean;
