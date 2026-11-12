@@ -528,7 +528,7 @@ const stale_whole = {
 const MARKER_TEXT = /data-og(?:ygia)?-/;
 const VOCABULARY = /(^|\/)packages\/core\/src\/wire-markup\.ts$/;
 const MESSAGE_MARKER =
-	'A `data-og-*` / `data-ogygia-*` marker is spelled once, in packages/core/src/wire-markup.ts: import its constant (core: ../wire-markup.ts; other packages: @ogygia/core/internal/markup, or the internal entry of their realm).';
+	'A `data-og-*` / `data-ogygia-*` marker is spelled once, in packages/core/src/wire-markup.ts: import its constant (core: ../wire-markup.ts; other packages: @ogygia/core/internal/server on the server, @ogygia/core/internal/instruments in the browser).';
 
 const markup_from_vocabulary = {
 	meta: {

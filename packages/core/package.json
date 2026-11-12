@@ -65,10 +65,6 @@
 			"types": "./dist/internal-instruments.d.ts",
 			"default": "./src/internal-instruments.ts"
 		},
-		"./internal/markup": {
-			"types": "./dist/wire-markup.d.ts",
-			"default": "./src/wire-markup.ts"
-		},
 		"./internal/messages": {
 			"svelte": "./src/messages/index.ts",
 			"types": "./dist/messages/index.d.ts",
@@ -185,10 +181,6 @@
 				"types": "./dist/internal-instruments.d.ts",
 				"svelte": "./dist/internal-instruments.js",
 				"default": "./dist/internal-instruments.js"
-			},
-			"./internal/markup": {
-				"types": "./dist/wire-markup.d.ts",
-				"default": "./dist/wire-markup.js"
 			},
 			"./internal/messages": {
 				"types": "./dist/messages/index.d.ts",

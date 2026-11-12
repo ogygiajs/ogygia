@@ -15,7 +15,7 @@
 import { createSubscriber } from 'svelte/reactivity';
 import { parse, stringify } from 'devalue';
 import { OgygiaError } from './messages.ts';
-import { OG_SHARED } from '@ogygia/core/internal/markup';
+import { OG_SHARED } from '@ogygia/core/internal/instruments';
 
 interface Entry {
 	value: unknown;

@@ -6,7 +6,7 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import type { HtmlPass } from '@ogygia/core/plugin';
 import { DEV as dev } from 'esm-env';
-import { OG_RESTORE, OG_STAND_INS } from '@ogygia/core/internal/markup';
+import { OG_RESTORE, OG_STAND_INS } from '@ogygia/core/internal/server';
 import { check_script, mark, settle, STAND_IN_CSS } from './reversible.ts';
 import { restore, restore_adopt } from './restore.ts';
 import type { ReshapeTransform } from './requests.ts';

@@ -47,7 +47,7 @@
  * attributes, never light DOM. All three are exported, Kit-free, from `@ogygia/reshape`, for the
  * non-SvelteKit half of a monorepo where these SSR passes usually live.
  */
-import { next_tag, read_tag, value_at } from '@ogygia/core/internal/markup';
+import { next_tag, read_tag, value_at } from '@ogygia/core/internal/server';
 import {
 	// (a value re-emitted into a double-quoted attribute exactly as it was: `<` kept)
 	escapeAttr as escape_attr,

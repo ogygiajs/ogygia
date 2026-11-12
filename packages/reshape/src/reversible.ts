@@ -26,7 +26,9 @@
  * response of an app that configures a transform.
  */
 import { escapeAttr as escape_amp_quot } from '@ogygia/core/plugin/utils';
-import { OG_BAKED, OG_HEAD } from '@ogygia/core/internal/markup';
+// (both realms load this module, the browser in tests: the browser realm's entry, which the build
+// writes out as the two literals)
+import { OG_BAKED, OG_HEAD } from '@ogygia/core/internal/instruments';
 
 // ─── tokenizer ─────────────────────────────────────────────────────────────────────────────────────
 
