@@ -77,7 +77,9 @@ import { kit_asset } from './kit-paths.ts';
 import {
 	sign,
 	verify,
-	region_mac_message,
+	region_sign,
+	region_verify,
+	type RegionClaim,
 	secret_has_min_entropy,
 	MIN_SECRET_BYTES
 } from './server/hmac.ts';
@@ -112,9 +114,11 @@ import { register_store_kind, register_derived_kind } from './store-transport.ts
 import { register_snippet_kind } from './region-snippet.ts';
 import { register_fn_kind } from './fn-transport.ts';
 import {
+	capability_query,
 	configure_islands_endpoint,
 	islands_endpoint,
 	MAX_REGION_PROPS_LEN,
+	REGION_CAPABILITY_VERSION,
 	is_region_id,
 	is_region_ttl
 } from './server/endpoint.ts';
@@ -612,10 +616,17 @@ interface Capability {
 	render: string;
 	payload: string;
 	exp: string;
+	/** the signature's version (`v`): '' when minted before v3 (its `v1|`/`v2|` MAC) */
+	v: string;
 	ttl: string;
 	sig: string;
 	/** the minter's key fingerprint; null when minted before capabilities named their key */
 	k: string | null;
+}
+
+/** What a capability signs beside its expiry, with the session it must be sealed to. */
+function claim_of(cap: Capability, session: string): RegionClaim {
+	return { id: cap.id, payload: cap.payload, session, ttl: cap.ttl, render: cap.render };
 }
 
 function capability_of(params: URLSearchParams): Capability {
@@ -624,6 +635,7 @@ function capability_of(params: URLSearchParams): Capability {
 		render: params.get('r') ?? '',
 		payload: params.get('props') ?? '',
 		exp: params.get('exp') ?? '',
+		v: params.get('v') ?? '',
 		ttl: params.get('ttl') ?? '',
 		sig: params.get('sig') ?? '',
 		k: params.get('k')
@@ -1750,7 +1762,8 @@ class OgygiaHandle {
 			!is_region_id(cap.id) ||
 			(cap.render !== '' && !is_region_id(cap.render)) ||
 			cap.payload.length > MAX_REGION_PROPS_LEN ||
-			!is_region_ttl(cap.ttl)
+			!is_region_ttl(cap.ttl) ||
+			(cap.v !== '' && cap.v !== REGION_CAPABILITY_VERSION)
 		)
 			return 'shape';
 		const expiry = expiry_refusal(
@@ -1774,33 +1787,27 @@ class OgygiaHandle {
 	 */
 	#renew_capability(cap: Capability, event: RequestEvent): Capability | null {
 		if (this.#region_session(event) !== '') return null;
-		const { secret } = signing_key();
-		if (
-			!verify(
-				secret,
-				region_mac_message(cap.id, cap.exp, cap.payload, '', cap.ttl, cap.render),
-				cap.sig
-			)
-		)
+		const key = signing_key();
+		const claim = claim_of(cap, '');
+		const late = app_lifetime.renew_window;
+		if (!region_verify(key.secret, islands_endpoint(), cap.v, cap.exp, claim, cap.sig, late))
 			return null;
-		const exp = String(app_lifetime.renewed_expiry());
+		// (re-signed as the current version, whichever it was minted as)
+		const exp = app_lifetime.renewed_expiry();
 		return {
 			...cap,
-			exp,
-			sig: sign(secret, region_mac_message(cap.id, exp, cap.payload, '', cap.ttl, cap.render)),
-			k: signing_key().fp
+			exp: String(exp),
+			v: REGION_CAPABILITY_VERSION,
+			sig: region_sign(key.secret, islands_endpoint(), exp, claim),
+			k: key.fp
 		};
 	}
 
-	/** THE auth check: session-bound region MAC verify (its render identity inside, when it has one). */
+	/** THE auth check: the region capability's signature, for this endpoint, sealed to the session
+	 *  cookie (if any), with its render identity inside when it has one (server/hmac.ts). */
 	#verify_region_mac(cap: Capability, event: RequestEvent): boolean {
-		// The capability seals the session cookie (if any) into the signed message.
-		const session = session_cookie ? (event.cookies.get(session_cookie) ?? '') : '';
-		return verify(
-			signing_key().secret,
-			region_mac_message(cap.id, cap.exp, cap.payload, session, cap.ttl, cap.render),
-			cap.sig
-		);
+		const claim = claim_of(cap, this.#region_session(event));
+		return region_verify(signing_key().secret, islands_endpoint(), cap.v, cap.exp, claim, cap.sig);
 	}
 
 	/** Eval the island module (registers transportable codecs the reviver needs on a cold-start defer),
@@ -1971,7 +1978,7 @@ class OgygiaHandle {
 			if (!fresh)
 				return region_denied(this.#region_session(event) !== '' ? 'renew-session' : 'sig');
 			cap = fresh;
-			renewed = `${url.pathname}?id=${encodeURIComponent(id)}${cap.render ? `&r=${cap.render}` : ''}&props=${payload}&exp=${cap.exp}${ttl_raw ? `&ttl=${ttl_raw}` : ''}&sig=${cap.sig}&k=${cap.k}`;
+			renewed = url.pathname + capability_query(cap, cap.exp, cap.sig, cap.k ?? '');
 		} else {
 			// Verify (session-bound) before consulting the manifest — bad MAC never distinguishes
 			// unknown vs known id.
