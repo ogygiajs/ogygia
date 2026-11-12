@@ -2326,23 +2326,23 @@
 		},
 		{
 			"id": "packages/core/src/compiler/link/build-output.ts > refuse_client_secrets > filter:0~63949f",
-			"reason": "an inline length test over the build's secrets (closure, not replayable), constant work; proven in packages/core/test/client-secret-check.test.ts"
+			"reason": "an inline length test over the build's secrets (closure, not replayable), constant work; proven in packages/compiler/test/client-secret-check.test.ts"
 		},
 		{
 			"id": "packages/core/src/compiler/link/build-output.ts > refuse_client_secrets > some:0~8c295b",
-			"reason": "an inline includes() per secret over one chunk (closure, not replayable), linear in the chunk; proven in packages/core/test/client-secret-check.test.ts"
+			"reason": "an inline includes() per secret over one chunk (closure, not replayable), linear in the chunk; proven in packages/compiler/test/client-secret-check.test.ts"
 		},
 		{
 			"id": "packages/core/src/compiler/link/build-output.ts > refuse_client_secrets > find:0~8cd7fa",
-			"reason": "an inline regex test per module id (closure, not replayable), constant work; proven in packages/core/test/client-secret-check.test.ts"
+			"reason": "an inline regex test per module id (closure, not replayable), constant work; proven in packages/compiler/test/client-secret-check.test.ts"
 		},
 		{
 			"id": "packages/core/src/messages/build.ts > BUILD_ERRORS > secret_in_client_chunk > text",
-			"reason": "a message's wording, constant text; said in packages/core/test/client-secret-check.test.ts"
+			"reason": "a message's wording, constant text; said in packages/compiler/test/client-secret-check.test.ts"
 		},
 		{
 			"id": "packages/core/src/messages/build.ts > BUILD_ERRORS > secret_in_client_chunk > details",
-			"reason": "a message's wording, constant text; said in packages/core/test/client-secret-check.test.ts"
+			"reason": "a message's wording, constant text; said in packages/compiler/test/client-secret-check.test.ts"
 		},
 		{
 			"id": "packages/core/src/compiler/region/transform.ts > warn_unparsed > once:1~087a4c",
