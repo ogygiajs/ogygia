@@ -13,17 +13,24 @@
  * dynamic import from every page, and a Kit-hydrated page linked them all. Behind `load_islands()`
  * they are two away, whatever the chunking (rolldown 1.2.16 regrouped it and exposed exactly this).
  */
-import type { Program } from '../program.ts';
+import type { Program, RegistryEntry } from '../program.ts';
 import { V_SERVER_REGIONS } from '../ids.ts';
 import { dedent } from '@ogygia/core/contract';
 
+/** The SERVER regions (deferred / server-picked), sorted by id: the manifest is a function of the
+ *  set, never of the order hosts registered in (test/server-manifest-order.test.ts). */
+function server_regions(program: Program): Array<[string, string, RegistryEntry]> {
+	const out: Array<[string, string, RegistryEntry]> = [];
+	for (const [iid, virtualPath] of program.by_id) {
+		const reg = program.registry.get(virtualPath);
+		if (reg?.server) out.push([iid, virtualPath, reg]);
+	}
+	return out.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
 /** The SERVER-island ids the manifest carries right now (deferred / server-picked regions). */
 export function server_island_ids(program: Program): string[] {
-	const ids: string[] = [];
-	for (const [iid, virtualPath] of program.by_id) {
-		if (program.registry.get(virtualPath)?.server) ids.push(iid);
-	}
-	return ids;
+	return server_regions(program).map(([iid]) => iid);
 }
 
 export function server_manifest_module(
@@ -48,9 +55,7 @@ export function server_manifest_module(
 	const renders: string[] = [];
 	/** render id → the server entry that renders it (the smallest id: one answer per build) */
 	const by_render = new Map<string, string>();
-	for (const [iid, virtualPath] of program.by_id) {
-		const reg = program.registry.get(virtualPath);
-		if (!reg?.server) continue;
+	for (const [iid, virtualPath, reg] of server_regions(program)) {
 		// id → its render identity, signed into every capability minted for it; render identity → an
 		// entry rendering it, for a capability minted by another build (compiler/region/identity.ts)
 		if (reg.renderId) {
@@ -104,9 +109,8 @@ export function server_manifest_module(
 export function server_regions_module(ssr: boolean, program: Program): string {
 	const entries: string[] = [];
 	if (ssr)
-		for (const [iid, virtualPath] of program.by_id)
-			if (program.registry.get(virtualPath)?.server)
-				entries.push(`${JSON.stringify(iid)}: () => import(${JSON.stringify(virtualPath)})`);
+		for (const [iid, virtualPath] of server_regions(program))
+			entries.push(`${JSON.stringify(iid)}: () => import(${JSON.stringify(virtualPath)})`);
 	return dedent`
 		export const regions = {
 			${entries.join(',\n\t')}
