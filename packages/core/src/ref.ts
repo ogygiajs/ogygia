@@ -462,8 +462,7 @@ export function resolve_batch(refs: readonly Ref[], scope: boolean | Scope): unk
 	return batch(() => refs.map((r) => resolve(r, scope)));
 }
 
-/** Devalue custom-type name for hub refs on the wire (the ONE key every seam will converge on). */
-export const REF_WIRE_KEY = 'OgygiaRef';
+export { REF_WIRE_KEY } from './ref-key.ts';
 
 /** Devalue reducer for a seam. `only` deliberately restricts which families may cross there. */
 export function ref_reducer(only?: ReadonlySet<string>): (value: unknown) => Ref | undefined {

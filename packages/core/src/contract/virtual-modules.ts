@@ -110,6 +110,8 @@ export interface HydrateFeaturesModule {
 export interface RuntimeFlagsModule {
 	/** the `frames` feature is in the build: some region streams HTML */
 	FRAMES: boolean;
+	/** the `wire` feature is in the build up front; without it a wake loads the codec on use */
+	WIRE: boolean;
 }
 
 export interface TransportablesModule {

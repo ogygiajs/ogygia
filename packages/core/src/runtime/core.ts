@@ -21,8 +21,10 @@ import { browser_offline, no_response } from './network.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
 // off in a build where no region streams HTML, and the bundler drops the element's fetch / apply /
 // morph / renew path with it — that path works on the element's own state, so it cannot be a
-// feature module of its own, and without the frame store it has nowhere to land anyway.
-import { FRAMES } from 'ogygia:boot';
+// feature module of its own, and without the frame store it has nowhere to land anyway. `WIRE` is on
+// where the wire codec is in the build up front; elsewhere a wake loads it on use (./wire-on-use.ts).
+import { FRAMES, WIRE } from 'ogygia:boot';
+import { wire_for_wake } from './wire-on-use.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
 import {
 	init_shadow_registries,
@@ -1772,6 +1774,7 @@ class OgygiaRegion extends HTMLElement {
 						load_island(entry, cls()),
 						hydrate_core.get(),
 						slots.wire_classes?.(this),
+						WIRE ? undefined : wire_for_wake(this),
 						devalue_for_wake()
 					])
 				);

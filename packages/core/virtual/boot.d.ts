@@ -7,6 +7,7 @@ declare module 'ogygia:boot' {
 export const region_names: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:boot/devtools-meta']['region_names'];
 export const install_hydrate_features: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:boot/hydrate-features']['install'];
 export const FRAMES: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:boot/runtime-flags']['FRAMES'];
+export const WIRE: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:boot/runtime-flags']['WIRE'];
 }
 declare module 'ogygia:boot/devtools-meta' {
 export const region_names: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:boot/devtools-meta']['region_names'];
