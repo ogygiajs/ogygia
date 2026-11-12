@@ -267,7 +267,10 @@ export async function act(
 	a: Action,
 	origin: string,
 	/** Called just before an `eager` press, in the document it presses in. */
-	pressing: () => void = () => {}
+	pressing: () => void = () => {},
+	/** Called when the visitor's pointer woke a region that waits for their interaction: what the
+	 *  tab's document shows from then on is the visitor's doing, as a press's is. */
+	own: (tab: Tab) => void = () => {}
 ): Promise<void> {
 	const tab = 'tab' in a ? visitor.tabs[a.tab % Math.max(1, visitor.tabs.length)] : undefined;
 	switch (a.kind) {
@@ -305,6 +308,16 @@ export async function act(
 			world.loop.note(
 				`${tab.name} points at ${target.getAttribute('href') ?? target.getAttribute('entry') ?? target.tagName}`
 			);
+			// (a region that waits for the visitor, or one inside it: the pointer is its interaction)
+			for (
+				let r = target.closest('ogygia-region');
+				r;
+				r = r.parentElement?.closest('ogygia-region') ?? null
+			)
+				if ((r.getAttribute('when') ?? r.getAttribute('wake')) === 'interaction') {
+					own(tab);
+					break;
+				}
 			const view = tab.page.mainFrame.window as unknown as Window & typeof globalThis;
 			for (const type of ['pointerover', 'mouseover'])
 				target.dispatchEvent(

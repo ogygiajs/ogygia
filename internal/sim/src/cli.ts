@@ -435,12 +435,24 @@ export async function run(
 				for (const t of v.tabs)
 					if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
 			// (an eager press comes once the next document is in: the marks are that document's)
-			await act(world, v, a, ORIGIN, () => {
-				for (const t of v.tabs) {
+			await act(
+				world,
+				v,
+				a,
+				ORIGIN,
+				() => {
+					for (const t of v.tabs) {
+						if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
+						pressed.set(t.name, t.documents);
+					}
+				},
+				// (the pointer woke a region waiting for the visitor: that document is theirs, as a
+				// press's is; gen 56, seed 74, test/hover-own.node.test.ts)
+				(t) => {
 					if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
 					pressed.set(t.name, t.documents);
 				}
-			});
+			);
 			// (a press changes an island's state: the document shows the visitor's own state from then
 			// on, kept across client navigations, which no fresh load has; its next document is clean.
 			// And it may change the server's (a cart, a counter a command bumps), which every other
