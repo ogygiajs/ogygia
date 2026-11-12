@@ -76,7 +76,7 @@ function linked_now(): Map<string, HTMLLinkElement | null> {
 	const linked = new Map<string, HTMLLinkElement | null>();
 	for (const l of document.querySelectorAll<HTMLLinkElement>(MODULEPRELOAD_SELECTOR)) {
 		const url = absolute(l.getAttribute('href') ?? '', location.href);
-		if (url && !linked.get(url)) linked.set(url, l.hasAttribute(GRAPH_PRELOAD_ATTR) ? l : null);
+		if (url && !linked.get(url)) linked.set(url, l.hasAttribute(OGYGIA_GRAPH_PRELOAD) ? l : null);
 	}
 	return linked;
 }

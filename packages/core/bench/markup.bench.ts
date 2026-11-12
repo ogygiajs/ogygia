@@ -20,7 +20,6 @@ import { region_css_tags } from '../src/server/html-scan.ts';
 import { next_tag, read_tag, tags, text_of } from '../src/wire-markup.ts';
 import { document, head, hole_answer } from './fixtures.ts';
 import { attr, decode_text, html, trusted_html } from '../src/html.ts';
-import { tags } from '../src/wire-markup.ts';
 
 bench(
 	'head: dedupe repeated hints and sheets, then put the runtime first',
