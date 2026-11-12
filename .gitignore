@@ -84,3 +84,6 @@ internal/repro-ogygia-footer/
 /.heisenbench/
 /packages/*/bench/__heisenbench.d.ts
 /heisenbench-report.json
+# The simulator's run summaries (internal/sim: `pnpm sim` and the scheduled run write them)
+/internal/sim/results.json
+/internal/sim/dst-results.json
