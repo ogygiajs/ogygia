@@ -532,7 +532,7 @@
 	/**
 	 * This region's sheets as head tags: each one this request has not linked yet, named for its
 	 * owner. A sheet another outer island linked first gets this owner listed in the tail (#854,
-	 * test/shared-sheet-owners.test.ts). Server-only: `claim_region_css` is [] on the client.
+	 * test/shared-sheet-owners.test.ts). Server-only: `claim_region_css` is null on the client (no tags).
 	 * @param {string[]} hrefs
 	 */
 	const sheet_tags = (hrefs) => {
@@ -540,7 +540,7 @@
 			? (/** @type {string} */ href) => tail.sheet_owner(kit_asset(href), tag_owner)
 			: undefined;
 		let html = '';
-		for (const href of claim_region_css(hrefs, tag_owner, shared))
+		for (const href of claim_region_css(hrefs, tag_owner, shared) ?? [])
 			html += region_css_tag(href, kit_asset(href), tag_owner);
 		return html;
 	};
@@ -898,7 +898,7 @@
 	// Kit links CSS from the route's STATIC import graph, never from what actually rendered. This
 	// render pass knows, so link it here: real `<link>`s into <head> via svelte:head, claimed
 	// per-request so a page rendering five of the same block links its sheet once. Server-only —
-	// `claim_region_css` returns [] on the client (SSR already emitted them).
+	// `claim_region_css` returns null on the client: no tags (SSR already emitted them).
 	const region_css_html = $derived.by(() => {
 		if (!resolved || resolved.kind !== 'dual' || !resolved.module) return '';
 		return sheet_tags(region_css(resolved.module));
